@@ -64,12 +64,12 @@ import {
   UuidContext,
   handleCopyToClipboard,
   getSupportExportKind,
-  SettingContext,
   RedisTableType,
   SomeTempStore,
   NewWindowTableParameter,
   TableType,
   shrinkAble,
+  MaxTreeContext,
 } from "./helper";
 import { ExceedMaxTreeItem, MenuRefresh, ModalHeader } from "./CommonComp";
 import { TableStructure } from "./TableStructure";
@@ -86,7 +86,7 @@ function TablesTree(props: { typ: TableType }) {
   const [loading, setLoading] = useState(false);
   const [exceed, setExceed] = useState(0);
   const matchPattern = useContext(MatchPatternContext);
-  const setting = useContext(SettingContext);
+  const maxsize = useContext(MaxTreeContext);
   useEffect(() => {
     setExceed(tables.filter(e => matchPattern(e.name)).length);
   }, [tables, matchPattern]);
@@ -144,7 +144,7 @@ function TablesTree(props: { typ: TableType }) {
       {tables
         .filter(e => matchPattern(e.name))
         .map((e, index) => {
-          if (index >= setting.appearance.maxTreeSize) {
+          if (index >= maxsize) {
             return;
           }
           const id = `${uuid}-table-${index}`;
@@ -159,7 +159,7 @@ function TablesTree(props: { typ: TableType }) {
             />
           );
         })}
-      <ExceedMaxTreeItem exceed={exceed} maxTreeSize={setting.appearance.maxTreeSize} />
+      <ExceedMaxTreeItem exceed={exceed} maxTreeSize={maxsize} />
     </TreeItem>
   );
 }

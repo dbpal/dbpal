@@ -32,8 +32,8 @@ import {
   DataSourceKind,
   generateRandomString,
   MatchPatternContext,
+  MaxTreeContext,
   secondConfirm,
-  SettingContext,
   TabsSetContext,
   UuidContext,
 } from "./helper";
@@ -46,8 +46,7 @@ function SequenceTree() {
   const { kind } = useContext(ConnTypeContext);
   const [seq, setSeq] = useState<types.SequenceDetail[]>([]);
   const { showNotification } = useContext(NotificationContext);
-  const setting = useContext(SettingContext);
-
+  const maxsize = useContext(MaxTreeContext);
   const reload = useCallback(() => {
     listSequence(uuid)
       .then(ts => {
@@ -92,7 +91,7 @@ function SequenceTree() {
       {seq
         .filter(e => matchPattern(e.name))
         .map((seq, index) => {
-          if (index >= setting.appearance.maxTreeSize) {
+          if (index >= maxsize) {
             return;
           }
           const id = `${uuid}-sequence-${index}`;
@@ -125,7 +124,7 @@ function SequenceTree() {
             />
           );
         })}
-      <ExceedMaxTreeItem exceed={exceed} maxTreeSize={setting.appearance.maxTreeSize} />
+      <ExceedMaxTreeItem exceed={exceed} maxTreeSize={maxsize} />
     </TreeItem>
   );
 }

@@ -632,7 +632,6 @@ class UserSettingAppearance {
   lightBgColor: string = "";
   darkBgColor: string = "";
   datagridRowHeightFactor = 2.5;
-  maxTreeSize: number = 150;
   intputVariant: string = "standard";
   static key = "dbpal-appearance-setting";
   save() {
@@ -1029,6 +1028,7 @@ enum ViewKind {
 }
 
 const registeredThemes = [];
+
 async function setUpEditorThemes() {
   try {
     const themes = await invoke<object>("monaco_editor_themes");
@@ -1161,6 +1161,8 @@ function newEmptyResp(): MuiDataGridData {
   };
 }
 
+const MaxTreeContext = createContext<number>(120);
+
 export {
   TabsSetContext,
   ConnTypeContext,
@@ -1240,6 +1242,7 @@ export {
   resizeHandlerSize,
   prettyMs,
   newEmptyResp,
+  MaxTreeContext,
 };
 
 type SetStatusFn = (s: string) => void;

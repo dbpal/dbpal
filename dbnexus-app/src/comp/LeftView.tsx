@@ -55,6 +55,7 @@ import {
   getSupportExportKind,
   handleCopyToClipboard,
   MatchPatternContext,
+  MaxTreeContext,
   NewWindowTableParameter,
   secondConfirm,
   SettingContext,
@@ -81,7 +82,7 @@ function ViewsTree(props: { viewKind: ViewKind }) {
   const [views, setViews] = useState<types.ListTable[]>([]);
   const { showNotification } = useContext(NotificationContext);
   const [loading, setLoading] = useState(false);
-  const setting = useContext(SettingContext);
+  const maxsize = useContext(MaxTreeContext);
 
   const [exceed, setExceed] = useState(0);
   const matchPattern = useContext(MatchPatternContext);
@@ -142,7 +143,7 @@ function ViewsTree(props: { viewKind: ViewKind }) {
       {views
         .filter(e => matchPattern(e.name))
         .map((e, index) => {
-          if (index >= setting.appearance.maxTreeSize) {
+          if (index >= maxsize) {
             return;
           }
           return (
@@ -155,7 +156,7 @@ function ViewsTree(props: { viewKind: ViewKind }) {
             />
           );
         })}
-      <ExceedMaxTreeItem exceed={exceed} maxTreeSize={setting.appearance.maxTreeSize} />
+      <ExceedMaxTreeItem exceed={exceed} maxTreeSize={maxsize} />
     </TreeItem>
   );
 }

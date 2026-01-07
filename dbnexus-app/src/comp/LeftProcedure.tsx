@@ -17,8 +17,8 @@ import {
   DataSourceKind,
   generateRandomString,
   MatchPatternContext,
+  MaxTreeContext,
   secondConfirm,
-  SettingContext,
   TabsSetContext,
   UuidContext,
 } from "./helper";
@@ -29,7 +29,7 @@ function ProceduresTree() {
   const { kind } = useContext(ConnTypeContext);
   const [ps, setPos] = useState<types.NamedStaff[]>([]);
   const { showNotification } = useContext(NotificationContext);
-  const setting = useContext(SettingContext);
+  const maxsize = useContext(MaxTreeContext);
   const reload = useCallback(() => {
     listProcedure(uuid)
       .then(ts => {
@@ -76,7 +76,7 @@ function ProceduresTree() {
       {ps
         .filter(e => matchPattern(e.name))
         .map((p, index) => {
-          if (index >= setting.appearance.maxTreeSize) {
+          if (index >= maxsize) {
             return;
           }
           const id = `${uuid}-procedure-${index}`;
@@ -109,7 +109,7 @@ function ProceduresTree() {
             />
           );
         })}
-      <ExceedMaxTreeItem maxTreeSize={setting.appearance.maxTreeSize} exceed={exceed} />
+      <ExceedMaxTreeItem maxTreeSize={maxsize} exceed={exceed} />
     </TreeItem>
   );
 }

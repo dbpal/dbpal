@@ -34,33 +34,8 @@ if (import.meta.env.DEV) {
   });
 }
 
-function levelStr2Num(level: string): number {
-  let level_num = null;
-  switch (level) {
-    case "none":
-      break;
-    case "error":
-      level_num = 1;
-      break;
-    case "warn":
-      level_num = 2;
-      break;
-    case "info":
-      level_num = 3;
-      break;
-    case "debug":
-      level_num = 4;
-      break;
-    case "trace":
-      level_num = 5;
-      break;
-  }
-
-  return level_num;
-}
-
 function setLogLevel(level: string) {
-  invoke("set_log_level", { level: levelStr2Num(level) });
+  invoke("set_log_level", { level: level });
 }
 
 ReactDOM.createRoot(document.getElementById("root") as HTMLElement).render(<App />);

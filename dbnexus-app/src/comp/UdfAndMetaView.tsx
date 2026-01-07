@@ -48,7 +48,7 @@ function DefAndMetasView(props: {
   return (
     <PanelGroup style={{ height: "100%" }} direction="vertical" autoSaveId="udf-view">
       <Panel>
-        <Stack>
+        <Stack direction="row">
           {showReload && (
             <Button
               loading={loading}

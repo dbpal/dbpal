@@ -16,8 +16,8 @@ import {
   DataSourceKind,
   generateRandomString,
   MatchPatternContext,
+  MaxTreeContext,
   secondConfirm,
-  SettingContext,
   TabsSetContext,
   UuidContext,
 } from "./helper";
@@ -28,7 +28,7 @@ function TypesTree() {
   const { kind } = useContext(ConnTypeContext);
   const [types, setTypes] = useState<types.CreatedTypeDef[]>([]);
   const { showNotification } = useContext(NotificationContext);
-  const setting = useContext(SettingContext);
+  const maxsize = useContext(MaxTreeContext);
 
   const reload = useCallback(() => {
     listCreatedTypes(uuid)
@@ -75,7 +75,7 @@ function TypesTree() {
       {types
         .filter(typ => matchPattern(typ.name))
         .map((typ, index) => {
-          if (index >= setting.appearance.maxTreeSize) {
+          if (index >= maxsize) {
             return;
           }
           const id = `${uuid}-type-${index}`;
@@ -108,7 +108,7 @@ function TypesTree() {
             />
           );
         })}
-      <ExceedMaxTreeItem exceed={exceed} maxTreeSize={setting.appearance.maxTreeSize} />
+      <ExceedMaxTreeItem exceed={exceed} maxTreeSize={maxsize} />
     </TreeItem>
   );
 }

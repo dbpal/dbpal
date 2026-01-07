@@ -21,6 +21,7 @@ use dbnexus_db::redis_lang_server::REDIS_COMMANDS_MD_FILES;
 use dbnexus_db::sqlite::SqliteDB;
 use dbnexus_db::sub::SubDB;
 use std::collections::{HashMap, HashSet};
+use std::str::FromStr;
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::{Arc, LazyLock, Mutex};
 use std::time::Duration;
@@ -46,17 +47,12 @@ pub fn log_level_loc() -> &'static Mutex<Option<log::Level>> {
 }
 
 #[tauri::command]
-pub fn set_log_level(level: Option<u32>) {
-    let level = match level {
-        Some(level) => match level {
-            1 => Some(log::Level::Error),
-            2 => Some(log::Level::Warn),
-            3 => Some(log::Level::Info),
-            4 => Some(log::Level::Debug),
-            5 => Some(log::Level::Trace),
-            _ => None,
-        },
-        None => None,
+pub fn set_log_level(level: String) {
+    let level = match level.as_str() {
+        "none" => None,
+        _ => log::Level::from_str(&level)
+            .map_err(|e| println!("frontend give wrong,{}", e))
+            .ok(),
     };
     *log_level_loc().lock().expect("lock failed") = level;
 }

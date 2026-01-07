@@ -25,8 +25,8 @@ import {
   DataSourceKind,
   generateRandomString,
   MatchPatternContext,
+  MaxTreeContext,
   secondConfirm,
-  SettingContext,
   TabsSetContext,
   UuidContext,
 } from "./helper";
@@ -43,7 +43,7 @@ function UdfsTree() {
   const { showNotification } = useContext(NotificationContext);
   const [exceed, setExceed] = useState(0);
   const matchPattern = useContext(MatchPatternContext);
-  const setting = useContext(SettingContext);
+  const maxsize = useContext(MaxTreeContext);
   useEffect(() => {
     setExceed(udfs.filter(e => matchPattern(e.name)).length);
   }, [udfs, matchPattern]);
@@ -87,7 +87,7 @@ function UdfsTree() {
       {udfs
         .filter(e => matchPattern(e.name))
         .map((udf, index) => {
-          if (index >= setting.appearance.maxTreeSize) {
+          if (index >= maxsize) {
             return;
           }
           const id = `${uuid}-udf-${index}`;
@@ -119,7 +119,7 @@ function UdfsTree() {
             />
           );
         })}
-      <ExceedMaxTreeItem exceed={exceed} maxTreeSize={setting.appearance.maxTreeSize} />
+      <ExceedMaxTreeItem exceed={exceed} maxTreeSize={maxsize} />
     </TreeItem>
   );
 }
@@ -315,7 +315,7 @@ function CassandraAggregatesTree() {
   const { uuid } = useContext(UuidContext);
   const [aggs, setAggs] = useState<types.NamedStaff[]>([]);
   const { showNotification } = useContext(NotificationContext);
-  const setting = useContext(SettingContext);
+  const maxsize = useContext(MaxTreeContext);
   const reload = useCallback(() => {
     listCassandraAgg(uuid)
       .then(ts => {
@@ -359,7 +359,7 @@ function CassandraAggregatesTree() {
       {aggs
         .filter(e => matchPattern(e.name))
         .map((agg, index) => {
-          if (index >= setting.appearance.maxTreeSize) {
+          if (index >= maxsize) {
             return;
           }
           const id = `${uuid}-agg-${index}`;
@@ -394,7 +394,7 @@ function CassandraAggregatesTree() {
             />
           );
         })}
-      <ExceedMaxTreeItem exceed={exceed} maxTreeSize={setting.appearance.maxTreeSize} />
+      <ExceedMaxTreeItem exceed={exceed} maxTreeSize={maxsize} />
     </TreeItem>
   );
 }

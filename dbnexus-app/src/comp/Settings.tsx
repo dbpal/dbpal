@@ -82,7 +82,6 @@ function AppearanceSetting() {
   const [datagridRowHeightFactor, setDatagridRowHeightFactor] = useState(
     setting.datagridRowHeightFactor + "",
   );
-  const [maxTreeSize, setMaxTreeSize] = useState(setting.maxTreeSize + "");
   const [intputVariant, setInputVariant] = useState(setting.intputVariant);
   const [zoom, setZoom] = useState(1);
   useEffect(() => {
@@ -139,7 +138,6 @@ function AppearanceSetting() {
         darkBgColor: isDarkTheme() ? bgColor : setting.darkBgColor,
         lightBgColor: !isDarkTheme() ? bgColor : setting.lightBgColor,
         datagridRowHeightFactor: parseFloat(datagridRowHeightFactor),
-        maxTreeSize: parseInt(maxTreeSize),
         intputVariant,
       } as UserSettingAppearance;
       Object.setPrototypeOf(x, UserSettingAppearance.prototype);
@@ -280,17 +278,6 @@ function AppearanceSetting() {
           }}
         />
         {bgColorErr && <Typography color="error"> {bgColorErr} </Typography>}
-      </Stack>
-      <Stack direction="row" sx={{ alignItems: "center" }}>
-        <Typography width={headerSize}>max tree size </Typography>
-        <TextField
-          value={maxTreeSize}
-          onChange={e => {
-            setMaxTreeSize(e.target.value);
-          }}
-          label="max tree item size"
-          error={isNaN(parseInt(maxTreeSize))}
-        />
       </Stack>
 
       <Stack direction="row" sx={{ alignItems: "center" }}>

@@ -400,7 +400,9 @@ fn main() {
                     .maximized(true)
                     .build()
                     {
-                        Ok(_) => {}
+                        Ok(x) => {
+                            x.open_devtools();
+                        }
                         Err(err) => println!("create view failed,err:{}", err),
                     }
                 }
