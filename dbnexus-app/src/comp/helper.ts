@@ -25,6 +25,7 @@ const pageSizeOptions = [10, 20, 50, 100];
 const appStore = new LazyStore("store.json");
 import prettyMilliseconds from "pretty-ms";
 
+console.log("helper loading...");
 function prettyMs(x: number) {
   return prettyMilliseconds(x);
 }
@@ -1312,3 +1313,5 @@ async function webviewWIndowInit() {
   }
 }
 webviewWIndowInit();
+
+console.log("helper finishsh loading...");

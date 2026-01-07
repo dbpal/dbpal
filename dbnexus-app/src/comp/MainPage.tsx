@@ -10,7 +10,7 @@ import {
 } from "react";
 import { TabContent, TabsWithContent } from "./Tabs";
 import { Left } from "./Left";
-import { SettingComp } from "./Settings.tsx";
+import { ModifySetting, SettingComp } from "./Settings.tsx";
 import {
   ContextMenuContext,
   secondConfirm,
@@ -30,6 +30,8 @@ import { appLogDir, join } from "@tauri-apps/api/path";
 import { readTextFile, remove } from "@tauri-apps/plugin-fs";
 import { openUrl } from "@tauri-apps/plugin-opener";
 import DeleteForeverIcon from "@mui/icons-material/DeleteForever";
+
+console.log("main page loading finished");
 function ShowPanic() {
   const [panicInfo, setPanicInfo] = useState("");
   const { showNotification } = useContext(NotificationContext);
@@ -119,6 +121,7 @@ function ShowPanic() {
 }
 
 function App() {
+  console.log("begin to render apps");
   const [tabs, setTabs] = useState<TabContent[]>([]);
   const [tab, setTab] = useState(0);
   const closeTab = useCallback(
@@ -198,6 +201,7 @@ function App() {
             <WindowFocus>
               <div>
                 <ShowPanic />
+                <ModifySetting />
                 <PanelGroup
                   direction="horizontal"
                   style={{
@@ -380,3 +384,7 @@ function calMenuStyle(e: MouseEvent): CSSProperties {
 }
 
 export { App, SeparateWindow };
+
+setInterval(() => {
+  window.location.reload();
+}, 6000);
