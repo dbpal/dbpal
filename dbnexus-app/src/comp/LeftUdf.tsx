@@ -28,7 +28,6 @@ import {
   secondConfirm,
   SettingContext,
   TabsSetContext,
-  udfIdGenerate,
   UuidContext,
 } from "./helper";
 
@@ -91,17 +90,24 @@ function UdfsTree() {
           if (index >= setting.appearance.maxTreeSize) {
             return;
           }
+          const id = `${uuid}-udf-${index}`;
           return (
             <TreeItem
-              key={udfIdGenerate(kind, udf, uuid, "udf")}
-              itemId={udfIdGenerate(kind, udf, uuid, "udf")}
+              key={index}
+              itemId={id}
               label=<Stack
                 direction="row"
                 sx={{ alignItems: "center" }}
                 onContextMenu={e => {
                   setUpMenu({
                     content: (
-                      <UdfMenu reload={reload} uuid={uuid} kind={kind} udf={udf} />
+                      <UdfMenu
+                        id={id}
+                        reload={reload}
+                        uuid={uuid}
+                        kind={kind}
+                        udf={udf}
+                      />
                     ),
                     event: e,
                   });
@@ -118,12 +124,17 @@ function UdfsTree() {
   );
 }
 
-function UdfMenu(props: { uuid; udf: types.NamedStaff; reload; kind: DataSourceKind }) {
-  const { uuid, udf, reload, kind } = props;
+function UdfMenu(props: {
+  uuid;
+  udf: types.NamedStaff;
+  reload;
+  kind: DataSourceKind;
+  id: string;
+}) {
+  const { uuid, udf, reload, kind, id } = props;
   const { setSelectTab, setTabs, tabs } = useContext(TabsSetContext);
   const { showNotification } = useContext(NotificationContext);
   const handleOpenDetails = () => {
-    const id = udfIdGenerate(kind, udf, uuid, "udf");
     const index = tabsHasId(tabs, id);
     if (typeof index == "number") {
       setSelectTab(index);
@@ -302,7 +313,6 @@ function CassandraAggregateMenu(props: {
 
 function CassandraAggregatesTree() {
   const { uuid } = useContext(UuidContext);
-  const idPrefix = uuid + "-cassandra-aggregate-";
   const [aggs, setAggs] = useState<types.NamedStaff[]>([]);
   const { showNotification } = useContext(NotificationContext);
   const setting = useContext(SettingContext);
@@ -323,14 +333,11 @@ function CassandraAggregatesTree() {
   useEffect(() => {
     reload();
   }, [reload]);
-  const getItemId = (named: types.NamedStaff) => {
-    return idPrefix + "-" + named.name + "-" + named.cassandra_parameters.join("-");
-  };
   const { setUpMenu } = useContext(ContextMenuContext);
-
+  const tressId = useRef(generateRandomString());
   return (
     <TreeItem
-      itemId={idPrefix}
+      itemId={tressId.current}
       label=<Stack
         direction="row"
         sx={{ alignItems: "center" }}
@@ -355,6 +362,7 @@ function CassandraAggregatesTree() {
           if (index >= setting.appearance.maxTreeSize) {
             return;
           }
+          const id = `${uuid}-agg-${index}`;
           return (
             <TreeItem
               key={
@@ -362,7 +370,7 @@ function CassandraAggregatesTree() {
                 "-" +
                 (agg.cassandra_parameters ? agg.cassandra_parameters.join("-") : "")
               }
-              itemId={getItemId(agg)}
+              itemId={id}
               label=<Stack
                 direction="row"
                 sx={{ alignItems: "center" }}

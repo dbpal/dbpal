@@ -147,12 +147,15 @@ function TablesTree(props: { typ: TableType }) {
           if (index >= setting.appearance.maxTreeSize) {
             return;
           }
+          const id = `${uuid}-table-${index}`;
+
           return (
             <TableTree
               key={e.name}
               size={e.size}
               reloadTables={handleReload}
               table={e.name}
+              id={id}
             />
           );
         })}
@@ -161,15 +164,20 @@ function TablesTree(props: { typ: TableType }) {
   );
 }
 
-function TableTree(props: { table: string; reloadTables; size: number | null }) {
-  const { table, reloadTables, size } = props;
+function TableTree(props: {
+  table: string;
+  reloadTables;
+  size: number | null;
+  id: string;
+}) {
+  const { table, reloadTables, size, id } = props;
   const { uuid } = useContext(UuidContext);
   const { kind } = useContext(ConnTypeContext);
   const { setUpMenu } = useContext(ContextMenuContext);
 
   return (
     <TreeItem
-      itemId={uuid + "-table-" + table}
+      itemId={id}
       label={
         <Stack
           direction="row"

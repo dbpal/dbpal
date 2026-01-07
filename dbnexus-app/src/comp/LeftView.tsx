@@ -4,6 +4,7 @@ import {
   useContext,
   useEffect,
   useMemo,
+  useRef,
   useState,
 } from "react";
 import {
@@ -105,15 +106,7 @@ function ViewsTree(props: { viewKind: ViewKind }) {
   }, [handleReload]);
 
   const { setUpMenu } = useContext(ContextMenuContext);
-  let itemId;
-  switch (viewKind) {
-    case ViewKind.View:
-      itemId = uuid + "-views";
-      break;
-    case ViewKind.MaterializedView:
-      itemId = uuid + "-materialized-views";
-      break;
-  }
+
   let name;
   const icon = getIcon(viewKind);
   switch (viewKind) {
@@ -124,10 +117,10 @@ function ViewsTree(props: { viewKind: ViewKind }) {
       name = "materialized views";
       break;
   }
-
+  const tressId = useRef(generateRandomString());
   return (
     <TreeItem
-      itemId={itemId}
+      itemId={tressId.current}
       label=<Stack
         direction="row"
         onContextMenu={e => {

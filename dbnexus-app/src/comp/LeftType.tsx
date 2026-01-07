@@ -45,9 +45,6 @@ function TypesTree() {
     setExceed(types.filter(e => matchPattern(e.name)).length);
   }, [types, matchPattern]);
 
-  const getItemId = (x: types.CreatedTypeDef) => {
-    return `${uuid}-type-${x.name}`;
-  };
   const { setUpMenu } = useContext(ContextMenuContext);
   useEffect(() => {
     reload();
@@ -81,10 +78,11 @@ function TypesTree() {
           if (index >= setting.appearance.maxTreeSize) {
             return;
           }
+          const id = `${uuid}-type-${index}`;
           return (
             <TreeItem
               key={typ.name}
-              itemId={getItemId(typ)}
+              itemId={id}
               style={{ alignItems: "center" }}
               label=<Stack
                 direction="row"
@@ -96,6 +94,7 @@ function TypesTree() {
                         uuid={uuid}
                         kind={kind}
                         createdType={typ}
+                        id={id}
                       />
                     ),
                     event: e,
@@ -119,12 +118,12 @@ function TypeMenu(props: {
   createdType: types.CreatedTypeDef;
   reload;
   kind: DataSourceKind;
+  id: string;
 }) {
-  const { uuid, createdType, reload, kind } = props;
+  const { uuid, createdType, reload, kind, id } = props;
   const { setSelectTab, setTabs, tabs } = useContext(TabsSetContext);
   const { showNotification } = useContext(NotificationContext);
   const handleOpenDetails = () => {
-    const id = uuid + "-" + "-type-" + createdType.name;
     const index = tabsHasId(tabs, id);
     if (typeof index == "number") {
       setSelectTab(index);

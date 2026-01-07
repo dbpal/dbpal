@@ -777,25 +777,6 @@ function postgresLike(x: DataSourceKind) {
       return false;
   }
 }
-const udfIdGenerate = (
-  kind: DataSourceKind,
-  named: types.NamedStaff,
-  uuid: string,
-  typ: string,
-) => {
-  const idPrefix = `${uuid} + ${typ} + ${named.name}-`;
-  switch (kind) {
-    case DataSourceKind.Postgres:
-    case DataSourceKind.Cockroach:
-      return (
-        idPrefix + "-" + named.name + "-" + (named.parameters ? named.parameters : "")
-      );
-    case DataSourceKind.Cassandra:
-      return idPrefix + "-" + named.name + "-" + named.cassandra_parameters.join("-");
-    default:
-      return idPrefix + "-" + named.name;
-  }
-};
 
 function getEditorText(editor: editor.IStandaloneCodeEditor, showNotification) {
   const range = editor.getSelection();
@@ -1215,7 +1196,6 @@ export {
   WindowFocusContext,
   editorSetPositionAndReveal,
   postgresLike,
-  udfIdGenerate,
   getEditorText,
   executeSqlWithoutConn,
   QueryLogHandler,

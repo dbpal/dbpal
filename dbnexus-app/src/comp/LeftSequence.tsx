@@ -44,7 +44,6 @@ import { GrSteps } from "react-icons/gr";
 function SequenceTree() {
   const { uuid } = useContext(UuidContext);
   const { kind } = useContext(ConnTypeContext);
-  const idPrefix = uuid + "-sequence-";
   const [seq, setSeq] = useState<types.SequenceDetail[]>([]);
   const { showNotification } = useContext(NotificationContext);
   const setting = useContext(SettingContext);
@@ -64,13 +63,6 @@ function SequenceTree() {
   useEffect(() => {
     setExceed(seq.filter(e => matchPattern(e.name)).length);
   }, [seq, matchPattern]);
-  const getItemId = (x: types.SequenceDetail) => {
-    switch (kind) {
-      default:
-        return idPrefix + "-" + x.name;
-    }
-  };
-
   const { setUpMenu } = useContext(ContextMenuContext);
   useEffect(() => {
     reload();
@@ -103,17 +95,24 @@ function SequenceTree() {
           if (index >= setting.appearance.maxTreeSize) {
             return;
           }
+          const id = `${uuid}-sequence-${index}`;
           return (
             <TreeItem
               key={seq.name}
-              itemId={getItemId(seq)}
+              itemId={id}
               style={{ alignItems: "center" }}
               label=<Stack
                 direction="row"
                 onContextMenu={e => {
                   setUpMenu({
                     content: (
-                      <SequenceMenu reload={reload} uuid={uuid} kind={kind} seq={seq} />
+                      <SequenceMenu
+                        reload={reload}
+                        uuid={uuid}
+                        kind={kind}
+                        seq={seq}
+                        id={id}
+                      />
                     ),
                     event: e,
                   });
@@ -150,8 +149,9 @@ function SequenceMenu(props: {
   seq: types.SequenceDetail;
   reload;
   kind: DataSourceKind;
+  id: string;
 }) {
-  const { uuid, seq, reload, kind } = props;
+  const { uuid, seq, reload, kind, id } = props;
   const { setSelectTab, setTabs, tabs } = useContext(TabsSetContext);
   const { showNotification } = useContext(NotificationContext);
   const [showDrop, setShowDrop] = useState(false);
@@ -159,7 +159,6 @@ function SequenceMenu(props: {
   const supportCascade = [DataSourceKind.Postgres].includes(kind);
 
   const handleOpenDetails = () => {
-    const id = uuid + "-" + "-sequence-" + seq.name;
     const index = tabsHasId(tabs, id);
     if (typeof index == "number") {
       setSelectTab(index);

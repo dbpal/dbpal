@@ -20,7 +20,6 @@ import {
   secondConfirm,
   SettingContext,
   TabsSetContext,
-  udfIdGenerate,
   UuidContext,
 } from "./helper";
 import { ExceedMaxTreeItem, MenuRefresh, UdfNameAndParameters } from "./CommonComp";
@@ -47,9 +46,6 @@ function ProceduresTree() {
     setExceed(ps.filter(e => matchPattern(e.name)).length);
   }, [ps, matchPattern]);
 
-  const getItemId = (x: types.NamedStaff) => {
-    return udfIdGenerate(kind, x, uuid, "procedure");
-  };
   const { setUpMenu } = useContext(ContextMenuContext);
   useEffect(() => {
     reload();
@@ -83,10 +79,11 @@ function ProceduresTree() {
           if (index >= setting.appearance.maxTreeSize) {
             return;
           }
+          const id = `${uuid}-procedure-${index}`;
           return (
             <TreeItem
               key={p.name + "-" + p.parameters}
-              itemId={getItemId(p)}
+              itemId={id}
               style={{ alignItems: "center" }}
               label=<Stack
                 direction="row"
@@ -98,6 +95,7 @@ function ProceduresTree() {
                         uuid={uuid}
                         kind={kind}
                         procedure={p}
+                        id={id}
                       />
                     ),
                     event: e,
@@ -121,14 +119,13 @@ function ProcedureMenu(props: {
   procedure: types.NamedStaff;
   reload: () => void;
   kind: DataSourceKind;
+  id: string;
 }) {
-  const { uuid, procedure, reload, kind } = props;
+  const { uuid, procedure, reload, kind, id } = props;
   const { setSelectTab, setTabs, tabs } = useContext(TabsSetContext);
-
   const { showNotification } = useContext(NotificationContext);
 
   const handleOpenDetails = () => {
-    const id = uuid + "-" + "-procedure-" + procedure;
     const index = tabsHasId(tabs, id);
     if (typeof index == "number") {
       setSelectTab(index);

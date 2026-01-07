@@ -2762,7 +2762,6 @@ pub async fn list_procedure(
         .await
         .map_err(ErrorFrontend::from)?;
     let sx = schema.list_procedure().await.map_err(ErrorFrontend::from)?;
-    check_named_staff_unique(&sx[..])?;
     Ok(sx)
 }
 
@@ -2804,11 +2803,8 @@ pub async fn list_udf(
         .get_schema(name.as_str())
         .await
         .map_err(ErrorFrontend::from)?;
-    let sx = schema.list_udf().await.map_err(ErrorFrontend::from)?;
-    // TODO why cockroach database  build in udf  `pg_get_function_arguments` return
-    // null
-    check_named_staff_unique(&sx[..])?;
-    Ok(sx)
+    let ret = schema.list_udf().await.map_err(ErrorFrontend::from)?;
+    Ok(ret)
 }
 
 #[tauri::command]
@@ -2819,8 +2815,8 @@ pub async fn list_sequence(
         .get_schema(name.as_str())
         .await
         .map_err(ErrorFrontend::from)?;
-    let sx = schema.list_sequence().await.map_err(ErrorFrontend::from)?;
-    Ok(sx)
+    let ret = schema.list_sequence().await.map_err(ErrorFrontend::from)?;
+    Ok(ret)
 }
 
 #[tauri::command]
@@ -2851,50 +2847,6 @@ pub async fn rename_sequence(
         .await
         .map_err(ErrorFrontend::from)?;
 
-    Ok(())
-}
-
-fn check_named_staff_unique(named: &[NamedStaff]) -> Result<(), ErrorFrontend> {
-    #[derive(Clone, Hash, PartialEq, Eq)]
-    struct Key<'a> {
-        name: &'a String,
-        parameters: &'a Option<String>,
-        cassandra_parameters: &'a Option<Vec<String>>,
-    }
-
-    impl<'a> std::fmt::Debug for Key<'a> {
-        fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-            write!(f, "{}", self.name)?;
-            if let Some(x) = self.parameters {
-                write!(f, "({})", x)?;
-            }
-            if let Some(x) = self.cassandra_parameters {
-                write!(f, "({:?})", x)?;
-            }
-            Ok(())
-        }
-    }
-
-    impl<'a> From<&'a NamedStaff> for Key<'a> {
-        fn from(value: &'a NamedStaff) -> Self {
-            Key {
-                name: &value.name,
-                parameters: &value.parameters,
-                cassandra_parameters: &value.cassandra_parameters,
-            }
-        }
-    }
-    let mut set = HashSet::new();
-    for n in named.iter() {
-        let k = Key::from(n);
-        if set.contains(&k) {
-            return Err(ErrorFrontend::from(format!(
-                "fn named '{:?}' duplicated this will make fontend not working",
-                k
-            )));
-        }
-        set.insert(k);
-    }
     Ok(())
 }
 

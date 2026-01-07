@@ -44,9 +44,6 @@ function EventsTree() {
     setExceed(evens.filter(e => matchPattern(e.name)).length);
   }, [evens, matchPattern]);
 
-  const getItemId = (x: types.SqlEvent) => {
-    return `${uuid}-event-${x.name}`;
-  };
   const { setUpMenu } = useContext(ContextMenuContext);
 
   useEffect(() => {
@@ -81,10 +78,12 @@ function EventsTree() {
           if (index >= setting.appearance.maxTreeSize) {
             return;
           }
+
+          const id = `${uuid}-event-${index}`;
           return (
             <TreeItem
               key={event.name}
-              itemId={getItemId(event)}
+              itemId={id}
               style={{ alignItems: "center" }}
               label=<Stack
                 direction="row"
@@ -96,6 +95,7 @@ function EventsTree() {
                         uuid={uuid}
                         kind={kind}
                         event={event}
+                        id={id}
                       />
                     ),
                     event: e,
@@ -119,12 +119,12 @@ function EventMenu(props: {
   event: types.SqlEvent;
   reload;
   kind: DataSourceKind;
+  id: string;
 }) {
-  const { uuid, event, reload, kind } = props;
+  const { uuid, event, reload, kind, id } = props;
   const { setSelectTab, setTabs, tabs } = useContext(TabsSetContext);
   const { showNotification } = useContext(NotificationContext);
   const handleOpenDetails = () => {
-    const id = uuid + "-" + "-event-" + event.name;
     const index = tabsHasId(tabs, id);
     if (typeof index == "number") {
       setSelectTab(index);
