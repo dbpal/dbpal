@@ -39,14 +39,13 @@ function setLogLevel(level: string) {
 }
 
 ReactDOM.createRoot(document.getElementById("root") as HTMLElement).render(<App />);
+appStore.onKeyChange<string>(LoggerLevel.key, level => {
+  setLogLevel(level);
+});
 
-// appStore.onKeyChange<string>(LoggerLevel.key, level => {
-//   setLogLevel(level);
-// });
-
-// appStore.get<string>(LoggerLevel.key).then(level => {
-//   setLogLevel(level);
-// });
+appStore.get<string>(LoggerLevel.key).then(level => {
+  setLogLevel(level);
+});
 
 // if (import.meta.env.DEV) {
 //   setTimeout(() => {
