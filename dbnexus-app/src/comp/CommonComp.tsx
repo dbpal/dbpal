@@ -149,21 +149,6 @@ function MenuNewQuery({ handleNew }) {
   );
 }
 
-function MenuNewQueryWindow({ handleNew }) {
-  return (
-    <MenuItem
-      onClick={() => {
-        handleNew();
-      }}
-    >
-      <ListItemIcon>
-        <AddIcon />
-      </ListItemIcon>
-      <ListItemText>New Query(new window) </ListItemText>
-    </MenuItem>
-  );
-}
-
 function MenuCreateDatabase({ handleCreate }) {
   return (
     <MenuItem
@@ -1056,7 +1041,6 @@ export {
   SelectColumns,
   OpenFileWithDefaultApp,
   MenuExportMarkDownTable,
-  MenuNewQueryWindow,
   ResizeParentHeight,
   TimeDuration,
 };

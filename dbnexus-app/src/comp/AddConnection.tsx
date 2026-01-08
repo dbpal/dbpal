@@ -743,7 +743,6 @@ const AddConnectionContext = createContext<{
   readOnly: boolean;
   connTimeOut: number | null;
   connectionNameDom: RefObject<HTMLInputElement>;
-  handleClose: () => void;
 }>(null);
 
 // global var make it simple the pass the parameter
@@ -1142,11 +1141,8 @@ function SqlServer(props: { config? }) {
   );
 }
 
-function AddConnection(props: {
-  handleClose: () => void;
-  config?: types.DBConnectionConfig;
-}) {
-  const { handleClose, config } = props;
+function AddConnection(props: { config?: types.DBConnectionConfig }) {
+  const { config } = props;
   const [connectionType, setConnectionType] = useState(config?.conn_type || "mysql");
   const [connectionName, setConnectionName] = useState(config?.name);
   const [connTimeout, setConnTimeout] = useState<string>(
@@ -1254,7 +1250,6 @@ function AddConnection(props: {
         value={{
           connectionName,
           connectionNameDom,
-          handleClose,
           readOnly: !!readOnly,
           connTimeOut: connTimeout ? parseInt(connTimeout) : null,
         }}

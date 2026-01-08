@@ -10,7 +10,7 @@ import {
 } from "react";
 import { TabContent, TabsWithContent } from "./Tabs";
 import { Left } from "./Left";
-import { ModifySetting, SettingComp } from "./Settings.tsx";
+import { SettingComp } from "./Settings.tsx";
 import {
   ContextMenuContext,
   secondConfirm,
@@ -31,7 +31,6 @@ import { readTextFile, remove } from "@tauri-apps/plugin-fs";
 import { openUrl } from "@tauri-apps/plugin-opener";
 import DeleteForeverIcon from "@mui/icons-material/DeleteForever";
 
-console.log("main page loading finished");
 function ShowPanic() {
   const [panicInfo, setPanicInfo] = useState("");
   const { showNotification } = useContext(NotificationContext);
@@ -121,7 +120,6 @@ function ShowPanic() {
 }
 
 function App() {
-  console.log("begin to render apps");
   const [tabs, setTabs] = useState<TabContent[]>([]);
   const [tab, setTab] = useState(0);
   const closeTab = useCallback(
@@ -174,7 +172,6 @@ function App() {
     },
     [tabs.length, tab, closeTab],
   );
-
   // shortcut
   useEffect(() => {
     document.addEventListener("keydown", shortCuts);
@@ -182,17 +179,14 @@ function App() {
       document.removeEventListener("keydown", shortCuts);
     };
   }, [shortCuts]);
-
   useEffect(() => {
     if (tab > 0 && tab >= tabs.length) {
       setTab(e => e - 1);
     }
   }, [tabs, tab]);
-
   const changeTab = useCallback(index => {
     setTab(index as number);
   }, []);
-  console.log("11111");
   return (
     <SettingComp>
       <TabsSetContext.Provider value={{ setTabs, tabs, setSelectTab: setTab }}>
@@ -201,7 +195,6 @@ function App() {
             <WindowFocus>
               <div>
                 <ShowPanic />
-                <ModifySetting />
                 <PanelGroup
                   direction="horizontal"
                   style={{
@@ -345,7 +338,6 @@ function SeparateWindow(props: { children }) {
             }}
           >
             <div style={{ position: "relative", height: "100%", width: "100%" }}>
-              {" "}
               {children}
             </div>
           </div>
@@ -384,7 +376,3 @@ function calMenuStyle(e: MouseEvent): CSSProperties {
 }
 
 export { App, SeparateWindow };
-
-setInterval(() => {
-  window.location.reload();
-}, 6000);

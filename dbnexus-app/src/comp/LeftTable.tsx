@@ -65,15 +65,12 @@ import {
   handleCopyToClipboard,
   getSupportExportKind,
   RedisTableType,
-  SomeTempStore,
-  NewWindowTableParameter,
   TableType,
   shrinkAble,
   MaxTreeContext,
 } from "./helper";
 import { ExceedMaxTreeItem, MenuRefresh, ModalHeader } from "./CommonComp";
 import { TableStructure } from "./TableStructure";
-import { WebviewWindow } from "@tauri-apps/api/webviewWindow";
 import { cancelTask, listTable, makeTableInsertFn, showTableColumn } from "./handlers";
 import { filesize } from "filesize";
 import { CancelButton, StackRowCenter } from "./CommonComp2";
@@ -147,7 +144,7 @@ function TablesTree(props: { typ: TableType }) {
           if (index >= maxsize) {
             return;
           }
-          const id = `${uuid}-table-${index}`;
+          const id = `${uuid}-table-${typ}-${index}`;
 
           return (
             <TableTree
@@ -430,29 +427,6 @@ function TableMenu(props: {
       });
   };
 
-  const handleviewDataNewWindow = () => {
-    SomeTempStore.set({
-      uuid,
-      table,
-      kind,
-      redisTableType: redisTableType,
-      isTable: true,
-    } as NewWindowTableParameter);
-    const webview = new WebviewWindow(generateRandomString(), {
-      title: table,
-      url: "table_view.html",
-      width: 800,
-      height: 600,
-      maximized: true,
-    });
-    webview.once("tauri://created", () =>
-      console.info("create table view successfully"),
-    );
-    webview.once("tauri://error", e => {
-      showNotification("error", "create webview failed", e.event.toString());
-    });
-  };
-
   const handleViewData = () => {
     const id = uuid + "-table-" + generateRandomString(10);
     const tableList: ReactNode = makeViewTable(uuid, table, kind, redisTableType);
@@ -529,17 +503,6 @@ function TableMenu(props: {
             <ListIcon />
           </ListItemIcon>
           <ListItemText> View Data</ListItemText>
-        </MenuItem>
-
-        <MenuItem
-          onClick={() => {
-            handleviewDataNewWindow();
-          }}
-        >
-          <ListItemIcon>
-            <ListIcon />
-          </ListItemIcon>
-          <ListItemText> View Data(new window)</ListItemText>
         </MenuItem>
 
         {redisTableType != RedisTableType.String && (

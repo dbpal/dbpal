@@ -16,6 +16,7 @@ import InfoIcon from "@mui/icons-material/Info";
 import CloseIcon from "@mui/icons-material/Close";
 import SaveIcon from "@mui/icons-material/Save";
 import { FaBookmark } from "react-icons/fa";
+import { IoMdInformationCircleOutline } from "react-icons/io";
 import CancelIcon from "@mui/icons-material/Cancel";
 import {
   Autocomplete,
@@ -53,8 +54,9 @@ import {
   secondConfirm,
   SetStatusFn,
   SettingContext,
-  SomeTempStore,
   TabActiveContext,
+  TabContent,
+  TabsSetContext,
 } from "./helper";
 import { Editor } from "@monaco-editor/react";
 import { editor, Position } from "monaco-editor";
@@ -72,7 +74,6 @@ import types from "./ApiStruct";
 import { MetaValueView, ModalHeader, SelectPageSize } from "./CommonComp";
 import { readFile, writeTextFile } from "@tauri-apps/plugin-fs";
 import { save, open, DialogFilter, message } from "@tauri-apps/plugin-dialog";
-import { WebviewWindow } from "@tauri-apps/api/webviewWindow";
 import ReactMarkdown from "react-markdown";
 import { oneDark, oneLight } from "react-syntax-highlighter/dist/esm/styles/prism";
 import { styled } from "@mui/material/styles";
@@ -389,32 +390,22 @@ function EditorBar(props: { left?: any; pos: Position }) {
   );
 }
 
-const infoWindows = new Map<string, WebviewWindow>();
-
 function MenuConnectionInfo({ uuid }) {
-  const { showNotification } = useContext(NotificationContext);
+  const { setTabs, setSelectTab } = useContext(TabsSetContext);
   const handleInfo = async () => {
-    const old = infoWindows.get(uuid);
-    if (old) {
-      old.setFocus();
-      return;
-    }
-    SomeTempStore.set(uuid);
-    const webview = new WebviewWindow(generateRandomString(), {
-      title: `some infomation about '${uuid}'`,
-      url: "info.html",
-      width: 800,
-      height: 600,
-    });
-    webview.once("tauri://created", () =>
-      console.info("create info view successfully"),
-    );
-    webview.once("tauri://error", e => {
-      showNotification("error", "create webview failed", e.event.toString());
-    });
-    infoWindows.set(uuid, webview);
-    webview.onCloseRequested(() => {
-      infoWindows.delete(uuid);
+    setTabs(e => {
+      setTimeout(() => {
+        setSelectTab(e.length + 1);
+      }, 100);
+      return [
+        ...e,
+        new TabContent(
+          generateRandomString(),
+          uuid,
+          <ConnConfigInfo uuid={uuid} />,
+          <IoMdInformationCircleOutline />,
+        ),
+      ];
     });
   };
   return (

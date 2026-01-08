@@ -56,10 +56,8 @@ import {
   handleCopyToClipboard,
   MatchPatternContext,
   MaxTreeContext,
-  NewWindowTableParameter,
   secondConfirm,
   SettingContext,
-  SomeTempStore,
   TabsSetContext,
   UuidContext,
   ViewKind,
@@ -73,7 +71,6 @@ import {
   GridSlotsComponentsProps,
 } from "@mui/x-data-grid";
 import { AppDataGridPagination, SimpleFlexEditor } from "./CommonComp2";
-import { WebviewWindow } from "@tauri-apps/api/webviewWindow";
 import { createViewSql, listView, showViewColumns } from "./handlers";
 import { filesize } from "filesize";
 function ViewsTree(props: { viewKind: ViewKind }) {
@@ -414,7 +411,7 @@ function ViewTree(props: { view: string; reload; viewKind: ViewKind; size?: numb
 
   return (
     <TreeItem
-      itemId={uuid + "-view-" + view}
+      itemId={uuid + "-view-" + viewKind + "-" + view}
       label={
         <Stack
           direction="row"
@@ -530,27 +527,6 @@ function ViewMenu(props: {
     });
   };
 
-  const handleviewDataNewWindow = () => {
-    SomeTempStore.set({
-      uuid,
-      table: view,
-      kind,
-    } as NewWindowTableParameter);
-    const webview = new WebviewWindow(generateRandomString(), {
-      title: view,
-      url: "table_view.html",
-      maximized: true,
-      width: 800,
-      height: 600,
-    });
-    webview.once("tauri://created", () =>
-      console.info("create table view successfully"),
-    );
-    webview.once("tauri://error", e => {
-      showNotification("error", "create webview failed", e.payload.toString());
-    });
-  };
-
   const handleStructure = () => {
     const id = uuid + "-view-" + view + "-structure";
     const index = tabsHasId(tabs, id);
@@ -584,16 +560,6 @@ function ViewMenu(props: {
           </ListItemIcon>
           <ListItemText> View Data</ListItemText>
           <Typography variant="body2" sx={{ color: "text.secondary" }} />
-        </MenuItem>
-        <MenuItem
-          onClick={() => {
-            handleviewDataNewWindow();
-          }}
-        >
-          <ListItemIcon>
-            <ListIcon />
-          </ListItemIcon>
-          <ListItemText> View Data(new window)</ListItemText>
         </MenuItem>
 
         <MenuItem onClick={handleStructure}>

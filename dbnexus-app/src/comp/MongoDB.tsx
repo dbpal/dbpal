@@ -5,7 +5,6 @@ import {
   ButtonGroup,
   Chip,
   Divider,
-  IconButton,
   ListItemIcon,
   ListItemText,
   MenuItem,
@@ -439,25 +438,23 @@ function MongoValueEditor(props: {
     <Stack flex={1}>
       {!viewmoDelSet && (
         <Stack direction="row">
-          <ButtonGroup sx={{ gap: 0.5 }}>
-            <IconButton
+          <ButtonGroup>
+            <Button
               disabled={viewModel == MongoDataViewModel.Object}
               onClick={() => {
                 setViewModel(MongoDataViewModel.Object);
               }}
-              edge="start"
             >
-              <DataObjectIcon style={{ fontSize: "1.7rem" }} />
-            </IconButton>
-            <IconButton
+              <DataObjectIcon />
+            </Button>
+            <Button
               onClick={() => {
                 setViewModel(MongoDataViewModel.Json);
               }}
               disabled={viewModel == MongoDataViewModel.Json}
-              edge="start"
             >
-              <TbJson style={{ fontSize: "2.2rem" }} />
-            </IconButton>
+              json
+            </Button>
           </ButtonGroup>
         </Stack>
       )}
@@ -590,34 +587,31 @@ function MongoTableToolBar(props: {
       {extra}
 
       <StackRowCenter>
-        <ButtonGroup sx={{ gap: 0.5 }}>
-          <IconButton
+        <ButtonGroup>
+          <Button
             disabled={viewModel == MongoDataViewModel.Object}
             onClick={() => {
               handleViewModel(MongoDataViewModel.Object);
             }}
-            edge="start"
           >
-            <DataObjectIcon style={{ fontSize: "1.7rem" }} />
-          </IconButton>
-          <IconButton
+            <DataObjectIcon />
+          </Button>
+          <Button
             onClick={() => {
               handleViewModel(MongoDataViewModel.List);
             }}
             disabled={viewModel == MongoDataViewModel.List}
-            edge="start"
           >
-            <ListIcon style={{ fontSize: "2rem" }} />
-          </IconButton>
-          <IconButton
+            <ListIcon />
+          </Button>
+          <Button
             onClick={() => {
               handleViewModel(MongoDataViewModel.Json);
             }}
             disabled={viewModel == MongoDataViewModel.Json}
-            edge="start"
           >
-            <TbJson style={{ fontSize: "2.2rem" }} />
-          </IconButton>
+            json
+          </Button>
         </ButtonGroup>
       </StackRowCenter>
 

@@ -8,7 +8,7 @@ import {
   ReactNode,
 } from "react";
 import { ask, message } from "@tauri-apps/plugin-dialog";
-import { LazyStore } from "@tauri-apps/plugin-store";
+import { Store } from "@tauri-apps/plugin-store";
 import { writeText } from "@tauri-apps/plugin-clipboard-manager";
 import { invoke } from "@tauri-apps/api/core";
 import { BSON } from "bson";
@@ -22,15 +22,27 @@ import { PassWordManager } from "./Common";
 import { ChatOpenAI } from "@langchain/openai";
 import { fetch as tauriFetch } from "@tauri-apps/plugin-http";
 const pageSizeOptions = [10, 20, 50, 100];
-const appStore = new LazyStore("store.json");
+const appStore = await Store.load("store.json");
 import prettyMilliseconds from "pretty-ms";
 
-console.log("helper loading...");
 function prettyMs(x: number) {
   return prettyMilliseconds(x);
 }
 
-const appDatabase = await Database.load("sqlite:dbpal.sqlite.db");
+let appDatabase: Database = null;
+Database.load("sqlite:dbpal.sqlite.db").then(d => {
+  appDatabase = d;
+  appDatabase.select("select * from column_width").then(xs => {
+    (xs as { name: string; width: number }[]).forEach(e => {
+      ColumnWidth.instance.width[e.name] = e.width;
+    });
+  });
+});
+
+async function closeResource() {
+  // await appDatabase.close();
+  await appStore.close();
+}
 
 function rustResultOk(x: any): boolean {
   if (x instanceof Array) {
@@ -509,14 +521,6 @@ class ColumnWidth {
   static instance = new ColumnWidth();
 }
 
-{
-  appDatabase.select("select * from column_width").then(xs => {
-    (xs as { name: string; width: number }[]).forEach(e => {
-      ColumnWidth.instance.width[e.name] = e.width;
-    });
-  });
-}
-
 const TabActiveContext = createContext(true);
 const handleCopyToClipboard = (text, showNotification?, okCallBack?) => {
   writeText(text)
@@ -762,10 +766,11 @@ class LoggerLevel {
   }
 }
 {
-  const level = await appStore.get<string>(LoggerLevel.key);
-  if (level) {
-    LoggerLevel.level = level;
-  }
+  appStore.get<string>(LoggerLevel.key).then(level => {
+    if (level) {
+      LoggerLevel.level = level;
+    }
+  });
 }
 
 function postgresLike(x: DataSourceKind) {
@@ -971,48 +976,12 @@ class KeyPressed {
   }
 }
 
-// some temp place for store some data
-// normally the store the data can be consume soon
-// use to pass the parameter as some sql etc....
-// used to pass data the new create webview
-
-class SomeTempStore {
-  static id = "temp-store-kfsdfwerwerqqq";
-  static set(data: any) {
-    if (data) {
-      localStorage.setItem(SomeTempStore.id, JSON.stringify(data));
-    } else {
-      localStorage.removeItem(SomeTempStore.id);
-    }
-  }
-  static get<T>(): T {
-    try {
-      const x = localStorage.getItem(SomeTempStore.id);
-      if (x) {
-        // localStorage.removeItem(SomeTempStore.id);
-        return JSON.parse(x) as T;
-      }
-    } catch (e) {
-      console.error("get config failed", e);
-    }
-    return null;
-  }
-}
-
 function isMacOs() {
   return platform() == "macos";
 }
 
 function isWindows() {
   return platform() == "windows";
-}
-
-interface NewWindowTableParameter {
-  uuid: string;
-  table: string;
-  kind: DataSourceKind;
-  redisTableType: RedisTableType;
-  isTable?: boolean;
 }
 
 const dataGridStyle = {
@@ -1048,7 +1017,7 @@ async function setUpEditorThemes() {
   }
 }
 
-await setUpEditorThemes();
+setUpEditorThemes();
 function getLanguageFromDataSourceKind(kind: DataSourceKind): string {
   switch (kind) {
     case DataSourceKind.Redis:
@@ -1064,8 +1033,8 @@ const settingChangeEvent = "setting-change";
 const dataGridheaderFontSize = "0.8rem";
 
 enum TableType {
-  Normal,
-  MongoTimeSerial,
+  Normal = "normal",
+  MongoTimeSerial = "time-serial",
 }
 
 const shrinkAble = {
@@ -1083,7 +1052,6 @@ class LLMConfig {
   topP: number = 0;
   aiTextTemplates: any = {};
   createChatAPI() {
-    console.log("createChatAPI", this);
     const llm = new ChatOpenAI({
       apiKey: this.apiKey,
       temperature: this.temperature,
@@ -1216,7 +1184,6 @@ export {
   extractFieldAndIDFromMouseEvent,
   editorPositionToEnd,
   KeyPressed,
-  SomeTempStore,
   dataGridStyle,
   isMacOs,
   LoggerLevel,
@@ -1244,14 +1211,15 @@ export {
   prettyMs,
   newEmptyResp,
   MaxTreeContext,
+  closeResource,
 };
 
 type SetStatusFn = (s: string) => void;
 
-export type { ErrAndLoc, NewWindowTableParameter, QueryRespData, SetStatusFn };
+export type { ErrAndLoc, QueryRespData, SetStatusFn };
 
 async function webviewWIndowInit() {
-  const currentWebview = await WebviewWindow.getCurrent();
+  const currentWebview = WebviewWindow.getCurrent();
   appStore.get<number>("zoom").then(async zoom => {
     if (zoom) {
       try {
@@ -1313,5 +1281,3 @@ async function webviewWIndowInit() {
   }
 }
 webviewWIndowInit();
-
-console.log("helper finishsh loading...");

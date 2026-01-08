@@ -21,11 +21,6 @@ export default defineConfig(async ({ command }) => {
       rollupOptions: {
         input: {
           main: resolve(__dirname, "index.html"),
-          query: resolve(__dirname, "query.html"),
-          table_view: resolve(__dirname, "table_view.html"),
-          setting: resolve(__dirname, "setting.html"),
-          add_connection: resolve(__dirname, "add_connection.html"),
-          info: resolve(__dirname, "info.html"),
         },
         output: {
           manualChunks: id => {

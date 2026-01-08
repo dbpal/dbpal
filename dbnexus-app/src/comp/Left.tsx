@@ -18,6 +18,7 @@ import {
   Typography,
   useTheme,
 } from "@mui/material";
+import { IoMdSettings } from "react-icons/io";
 import ClearIcon from "@mui/icons-material/Clear";
 import { IoIosCreate } from "react-icons/io";
 import {
@@ -41,6 +42,7 @@ import {
   ConnectionHandler,
   connectionChangeEvent,
   PassWordManager,
+  tabsHasId,
 } from "./Common";
 import { LuDatabase } from "react-icons/lu";
 import { FaDatabase } from "react-icons/fa";
@@ -73,7 +75,6 @@ import {
   SaveMatchPattern,
   secondConfirm,
   SettingContext,
-  SomeTempStore,
   TableType,
   TabsSetContext,
   UuidContext,
@@ -91,7 +92,6 @@ import {
   MenuCreateSchema,
   MenuDeleteConfig,
   MenuNewQuery,
-  MenuNewQueryWindow,
   MenuOpenConn,
   MenuRefresh,
   ModalHeader,
@@ -122,13 +122,15 @@ import {
   StackRowCenter,
 } from "./CommonComp2.tsx";
 import { EventsTree } from "./LeftEvent.tsx";
-import { WebviewWindow } from "@tauri-apps/api/webviewWindow";
 import { AllKindChat } from "./Chat.tsx";
 import { editor } from "monaco-editor";
 import { listSchema } from "./handlers.ts";
 import { CreateTable } from "./CreateTable.tsx";
+import { AddConnection } from "./AddConnection.tsx";
+import { ModifySetting } from "./Settings.tsx";
 
-const addConnectionID = generateRandomString();
+const settingId = generateRandomString();
+
 function LeftTop(props: { matchPattern: string[]; setMatchPattern }) {
   const { matchPattern, setMatchPattern } = props;
   const [matchPatterInput, setMatchPatternInput] = useState("");
@@ -136,34 +138,29 @@ function LeftTop(props: { matchPattern: string[]; setMatchPattern }) {
   const [showCopyConn, setShowCopyConn] = useState(false);
   const { showNotification } = useContext(NotificationContext);
   const [show, setShow] = useState(SaveLeftTopShow.instance.get());
-
+  const { setTabs, setSelectTab, tabs } = useContext(TabsSetContext);
   useEffect(() => {
     SaveLeftTopShow.instance.save(show);
   }, [show]);
 
   const showAddConnection = useCallback(
     async (conn?: types.DBConnectionConfig) => {
-      const id = addConnectionID + "-" + (conn ? conn.name : "");
-      const webview = await WebviewWindow.getByLabel(id);
-      if (webview) {
-        await webview.setFocus();
-      } else {
-        SomeTempStore.set(conn);
-        const webview = new WebviewWindow(id, {
-          title: conn ? `copy connection of '${conn.name}'` : "add connection",
-          url: "add_connection.html",
-          width: 800,
-          height: 600,
-        });
-        webview.once("tauri://created", () =>
-          console.info("create add connection view successfully"),
-        );
-        webview.once("tauri://error", e => {
-          showNotification("error", "create webview failed", e.event.toString());
-        });
-      }
+      setTabs(e => {
+        setTimeout(() => {
+          setSelectTab(e.length + 1);
+        }, 100);
+        return [
+          ...e,
+          new TabContent(
+            generateRandomString(),
+            "add connection",
+            <AddConnection config={conn} />,
+            <GrConnect />,
+          ),
+        ];
+      });
     },
-    [showNotification],
+    [setSelectTab, setTabs],
   );
 
   useEffect(() => {
@@ -176,6 +173,31 @@ function LeftTop(props: { matchPattern: string[]; setMatchPattern }) {
       });
     };
   }, [showAddConnection]);
+
+  useEffect(() => {
+    const unlisten = listen("show_setting", () => {
+      const index = tabsHasId(tabs, settingId);
+      console.log("!!!!!!!!!!!!!!!", index);
+      if (typeof index == "number") {
+        setSelectTab(index);
+      } else {
+        setTabs(e => {
+          setTimeout(() => {
+            setSelectTab(e.length + 1);
+          }, 100);
+          return [
+            ...e,
+            new TabContent(settingId, "setting", <ModifySetting />, <IoMdSettings />),
+          ];
+        });
+      }
+    });
+    return () => {
+      unlisten.then(callback => {
+        callback();
+      });
+    };
+  }, [setSelectTab, setTabs, tabs]);
 
   const toggleShow = () => {
     setShow(e => !e);
@@ -621,13 +643,8 @@ function Left() {
   );
 }
 
-function FavoriteSqlMenu(props: {
-  content: string;
-  id: number;
-  handleReload;
-  openInNewWindow: () => void;
-}) {
-  const { content, id, handleReload, openInNewWindow } = props;
+function FavoriteSqlMenu(props: { content: string; id: number; handleReload }) {
+  const { content, id, handleReload } = props;
   const { showNotification } = useContext(NotificationContext);
   return (
     <MenuList>
@@ -643,13 +660,6 @@ function FavoriteSqlMenu(props: {
           <ListItemText> Copy </ListItemText>
         </MenuItem>
       )}
-
-      <MenuItem onClick={openInNewWindow}>
-        <ListItemIcon>
-          <DeleteForeverIcon />
-        </ListItemIcon>
-        <ListItemText> open query in new window </ListItemText>
-      </MenuItem>
 
       <MenuItem
         onClick={async () => {
@@ -757,29 +767,6 @@ function FavoriteSqlList(props: { handleClose }) {
   }, [handleReload, uuidFilter]);
 
   const { setUpMenu } = useContext(ContextMenuContext);
-  const openInNewWindow = useCallback(
-    async (row: FavoriteSql) => {
-      if (!(await checkConnOpened(row.uuid))) {
-        return;
-      }
-      SomeTempStore.set(row);
-      const webview = new WebviewWindow(generateRandomString(), {
-        title: `query window of '${row.uuid}'`,
-        url: "query.html",
-        width: 800,
-        height: 600,
-        maximized: true,
-      });
-      webview.once("tauri://created", () =>
-        console.info("create query view successfully"),
-      );
-      webview.once("tauri://error", e => {
-        showNotification("error", "create webview failed", e.event.toString());
-      });
-    },
-    [checkConnOpened, showNotification],
-  );
-
   const slotProps = useMemo(() => {
     return {
       row: {
@@ -790,16 +777,12 @@ function FavoriteSqlList(props: { handleClose }) {
           if (!field) {
             return;
           }
-          const row = fs.find(e => e.id === parseInt(id));
           setUpMenu({
             content: (
               <FavoriteSqlMenu
                 content={content}
                 id={parseInt(id)}
                 handleReload={handleReload}
-                openInNewWindow={() => {
-                  openInNewWindow(row);
-                }}
               />
             ),
             event: e,
@@ -814,7 +797,7 @@ function FavoriteSqlList(props: { handleClose }) {
         },
       },
     } as GridSlotsComponentsProps;
-  }, [fs, handleReload, openInNewWindow, setUpMenu, setting]);
+  }, [handleReload, setUpMenu, setting]);
 
   const columns = useMemo(() => {
     const cols = [
@@ -903,18 +886,6 @@ function FavoriteSqlList(props: { handleClose }) {
           <>
             <Tooltip title="double click a row to use sql in new tab.">
               <Typography color="info">use</Typography>
-            </Tooltip>
-            <Tooltip title="right click a row to query in new window.">
-              <Typography
-                color="info"
-                style={{
-                  border: "1px solid",
-                  borderRadius: "5px",
-                  padding: "2px",
-                }}
-              >
-                query new window
-              </Typography>
             </Tooltip>
           </>
         )}
@@ -1423,22 +1394,6 @@ function AllKindQuery(props: {
   return <div style={{ height: "100%" }}> {content}</div>;
 }
 
-function openNewQueryWindow(uuid, kind: DataSourceKind, showNotification) {
-  SomeTempStore.set({ uuid, kind } as FavoriteSql);
-  const webview = new WebviewWindow(generateRandomString(), {
-    title: `query window of '${uuid}'`,
-    url: "query.html",
-    width: 800,
-    height: 600,
-    maximized: true,
-  });
-  webview.once("tauri://created", () => console.info("create query view successfully"));
-  webview.once("tauri://error", e => {
-    showNotification("error", "create webview failed", e.event.toString());
-  });
-  return;
-}
-
 function openNewQuery(setSelectTab, setTabs, uuid: string, kind: DataSourceKind) {
   console.log("open new query uuid:", uuid);
   const id = uuid + "-query-" + generateRandomString();
@@ -1500,14 +1455,6 @@ function SchemaMenu(props: {
         <MenuNewQuery
           handleNew={() => {
             openNewQuery(setSelectTab, setTabs, uuid, kind);
-          }}
-        />
-      )}
-
-      {opened && (
-        <MenuNewQueryWindow
-          handleNew={() => {
-            openNewQueryWindow(uuid, kind, showNotification);
           }}
         />
       )}

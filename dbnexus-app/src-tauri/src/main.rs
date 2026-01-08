@@ -4,7 +4,6 @@
 
 mod app;
 mod handlers;
-use crate::app::generate_random_string;
 use crate::handlers::{TaskManager, log_level_loc};
 use app::DBPal;
 use handlers::{
@@ -49,7 +48,7 @@ use std::io::Write;
 use std::panic;
 use std::path::PathBuf;
 use tauri::menu::{AboutMetadata, Menu, MenuItem, PredefinedMenuItem, Submenu};
-use tauri::{Emitter, Manager, WebviewUrl, WebviewWindowBuilder};
+use tauri::{Emitter, Manager};
 #[allow(unused_imports)]
 use tauri_plugin_log::{Target, TargetKind};
 mod migration;
@@ -63,6 +62,7 @@ static GLOBAL: MiMalloc = MiMalloc;
 
 static HOOK_SET: Once = Once::new();
 
+#[allow(unused)]
 fn setup_panic_hook(dir: PathBuf) {
     HOOK_SET.call_once(|| {
         panic::set_hook(Box::new(move |panic_info| {
@@ -215,7 +215,6 @@ fn main() {
         }
         Ok(())
     };
-    let setting_window_id = generate_random_string(10);
     let about_meta = AboutMetadata {
         website: Some("https://dbpal.site".to_string()),
         name: Some("dbpal".to_string()),
@@ -384,27 +383,8 @@ fn main() {
                 }
             }
             if event.id.0 == "show_setting" {
-                if let Some(window) = handle.get_webview_window(&setting_window_id) {
-                    if let Err(err) = window.set_focus() {
-                        log::error!("set focus failed:{}", err);
-                    }
-                } else {
-                    match WebviewWindowBuilder::new(
-                        handle,
-                        setting_window_id.clone(),
-                        WebviewUrl::App("setting.html".to_string().into()),
-                    )
-                    .title("setting")
-                    .inner_size(900f64, 700f64)
-                    .devtools(true)
-                    .maximized(true)
-                    .build()
-                    {
-                        Ok(x) => {
-                            x.open_devtools();
-                        }
-                        Err(err) => println!("create view failed,err:{}", err),
-                    }
+                if let Err(err) = handle.emit("show_setting", "") {
+                    println!("emit show_setting failed:{}", err)
                 }
             }
             if event.id.0 == "relauch" {
