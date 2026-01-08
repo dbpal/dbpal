@@ -71,6 +71,7 @@ import {
   generateRandomString,
   handleCopyToClipboard,
   MatchPatternContext,
+  MaxTreeContext,
   SaveLeftTopShow,
   SaveMatchPattern,
   secondConfirm,
@@ -118,7 +119,9 @@ import {
   AppDataGridPagination,
   CreateDatabase,
   CreateSchema,
+  getSliderSizeStoreValue,
   MenuConnectionInfo,
+  SliderSize,
   StackRowCenter,
 } from "./CommonComp2.tsx";
 import { EventsTree } from "./LeftEvent.tsx";
@@ -131,8 +134,8 @@ import { ModifySetting } from "./Settings.tsx";
 
 const settingId = generateRandomString();
 
-function LeftTop(props: { matchPattern: string[]; setMatchPattern }) {
-  const { matchPattern, setMatchPattern } = props;
+function LeftTop(props: { matchPattern: string[]; setMatchPattern; extra: ReactNode }) {
+  const { matchPattern, setMatchPattern, extra } = props;
   const [matchPatterInput, setMatchPatternInput] = useState("");
   const [showFavoriteSql, setShowFavoriteSql] = useState(false);
   const [showCopyConn, setShowCopyConn] = useState(false);
@@ -343,6 +346,7 @@ function LeftTop(props: { matchPattern: string[]; setMatchPattern }) {
         </Stack>
       </Stack>
 
+      {extra}
       {showFavoriteSql && (
         <Modal
           open={showFavoriteSql}
@@ -564,7 +568,10 @@ function Left() {
   const [matchPattern, setMatchPattern] = useState<string[]>(
     SaveMatchPattern.instance.get(),
   );
-
+  const maxTreeSizeKey = "max-tree-item-size";
+  const [maxTreeSize, setMaxTreeSize] = useState(
+    getSliderSizeStoreValue(maxTreeSizeKey, 100),
+  );
   useEffect(() => {
     SaveMatchPattern.instance.save(matchPattern);
   }, [matchPattern]);
@@ -619,7 +626,28 @@ function Left() {
         opacity: windowFocus ? 1 : "0.6",
       }}
     >
-      <LeftTop matchPattern={matchPattern} setMatchPattern={setMatchPattern} />
+      <LeftTop
+        matchPattern={matchPattern}
+        setMatchPattern={setMatchPattern}
+        extra=<>
+          <SliderSize
+            storeKey={maxTreeSizeKey}
+            min={(function () {
+              if (import.meta.env.DEV) {
+                return 1;
+              } else {
+                return 100;
+              }
+            })()}
+            max={1000}
+            step={10}
+            handleValue={v => {
+              setMaxTreeSize(v);
+            }}
+            notice="max tree size"
+          />
+        </>
+      />
       <Stack spacing={0.3}>
         {configs.map(e => {
           return (
@@ -632,7 +660,9 @@ function Left() {
                     uuid: e.name,
                   }}
                 >
-                  <OneConfig key={e.name} config={e} />
+                  <MaxTreeContext value={maxTreeSize}>
+                    <OneConfig key={e.name} config={e} />
+                  </MaxTreeContext>
                 </UuidContext.Provider>
               </ConnTypeContext.Provider>
             </MatchPatternContext.Provider>
