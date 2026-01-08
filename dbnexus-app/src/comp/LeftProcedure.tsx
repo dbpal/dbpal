@@ -142,7 +142,6 @@ function ProcedureMenu(props: {
             procedure.name,
             (
               <DefAndMetasView
-                showReload
                 reloadOP={async () => {
                   return showProcedure(uuid, procedure, kind);
                 }}

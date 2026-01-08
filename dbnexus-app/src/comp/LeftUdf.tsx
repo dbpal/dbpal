@@ -151,7 +151,6 @@ function UdfMenu(props: {
             udf.name,
             (
               <DefAndMetasView
-                showReload
                 reloadOP={async () => {
                   return showUdf(uuid, udf, kind);
                 }}
@@ -241,7 +240,6 @@ function CassandraAggregateMenu(props: {
             agg,
             (
               <DefAndMetasView
-                showReload
                 reloadOP={async () => {
                   return showCassandraAgg(uuid, agg, parameters);
                 }}

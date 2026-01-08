@@ -1,21 +1,20 @@
 import { useCallback, useContext, useEffect, useState } from "react";
 
 import { NotificationContext } from "./Notification";
-import { Button, Stack } from "@mui/material";
 import { DefAndMetas } from "./Common";
 import { DataSourceKind, resizeHandlerSize } from "./helper";
 import types from "./ApiStruct";
 import { AllKindChat } from "./Chat";
 import { MetaValueView } from "./CommonComp";
 import { Panel, PanelGroup, PanelResizeHandle } from "react-resizable-panels";
+import { CircularProgress } from "@mui/material";
 
 function DefAndMetasView(props: {
   reloadOP: () => Promise<DefAndMetas>;
   uuid: string;
   kind: DataSourceKind;
-  showReload?: boolean;
 }) {
-  const { reloadOP, kind, showReload, uuid } = props;
+  const { reloadOP, kind, uuid } = props;
   const [loading, setLoading] = useState(false);
   const [detail, setDetail] = useState<DefAndMetas>({
     def: "",
@@ -48,19 +47,7 @@ function DefAndMetasView(props: {
   return (
     <PanelGroup style={{ height: "100%" }} direction="vertical" autoSaveId="udf-view">
       <Panel>
-        <Stack direction="row">
-          {showReload && (
-            <Button
-              loading={loading}
-              color="primary"
-              onClick={() => {
-                handleReload(true);
-              }}
-            >
-              reload
-            </Button>
-          )}
-        </Stack>
+        {loading && <CircularProgress />}
         <AllKindChat uuid={uuid} kind={kind} value={detail.def} />
       </Panel>
       {detail.metas.length > 0 && (
