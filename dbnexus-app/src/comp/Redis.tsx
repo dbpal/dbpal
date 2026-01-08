@@ -80,6 +80,7 @@ import {
   LastFetchTime,
   QueryStatus,
   StackRowCenter,
+  getSliderSizeStoreValue,
 } from "./CommonComp2.tsx";
 import { invoke } from "@tauri-apps/api/core";
 import { showTable } from "./handlers.ts";
@@ -800,7 +801,6 @@ const keyMatcherHelpText = "key matcher string,could be *key,key*,*key*";
 
 function RedisSetTable(props: { setKey: string; uuid: string }) {
   const { setKey, uuid } = props;
-
   const modifyOP = async (old, newValue) => {
     return await invoke("redis_set_replace", {
       name: uuid,
@@ -829,7 +829,7 @@ function RedisSetTable(props: { setKey: string; uuid: string }) {
   const { showNotification } = useContext(NotificationContext);
   const [selectRow, setSelectRow] = useState<{ id; value }>(null);
   const [loading, setLoading] = useState(false);
-  const maxRowRef = useRef<number>(2000);
+  const maxRowRef = useRef(getSliderSizeStoreValue(redisMaxRowKey, redisMinRow));
   const queryStatus = useRef<SetStatusFn>(null);
   const handleReload = useCallback(
     showOK => {
@@ -838,7 +838,7 @@ function RedisSetTable(props: { setKey: string; uuid: string }) {
         uuid,
         name: setKey,
         setLoading,
-        para: { limit: maxRowRef.current },
+        para: { limit: maxRowRef.current, where_str: keyMatch ? keyMatch : null },
         handleExecuteTime: t => {
           setFetchDur(t);
         },
@@ -859,7 +859,7 @@ function RedisSetTable(props: { setKey: string; uuid: string }) {
         },
       });
     },
-    [setKey, showNotification, uuid],
+    [keyMatch, setKey, showNotification, uuid],
   );
 
   useEffect(() => {
@@ -932,53 +932,9 @@ function RedisSetTable(props: { setKey: string; uuid: string }) {
   const slots = useMemo(() => {
     return {
       columnMenu: AppColumnMenu,
-
       toolbar: () => {
-        return (
-          <AppDataGridToolBar
-            left=<>
-              <Button
-                color="primary"
-                onClick={() => {
-                  handleReload(true);
-                }}
-                loading={loading}
-              >
-                reload
-              </Button>
-              <Tooltip title={keyMatcherHelpText}>
-                <TextField
-                  label="key matcher"
-                  value={keyMatch}
-                  onChange={event => {
-                    setKeyMatch(event.target.value);
-                  }}
-                  style={{ flex: 1 }}
-                  slotProps={{
-                    input: {
-                      endAdornment: keyMatch && (
-                        <InputAdornment position="end">
-                          <IconButton
-                            onClick={() => {
-                              setKeyMatch("");
-                            }}
-                            edge="end"
-                          >
-                            <ClearIcon fontSize="small" />
-                          </IconButton>
-                        </InputAdornment>
-                      ),
-                    },
-                  }}
-                />
-              </Tooltip>
-              <AddTable uuid={uuid} redisKey={setKey} redisType={RedisTableType.Set} />
-            </>
-            title={setKey}
-          />
-        );
+        return <AppDataGridToolBar left=<></> title={setKey} />;
       },
-
       pagination: () => {
         return (
           <Stack
@@ -993,8 +949,8 @@ function RedisSetTable(props: { setKey: string; uuid: string }) {
               <LastFetchTime date={lastFetchTime} />
               <TimeDuration dur={fetchDur} />
               <SliderSize
-                storeKey="redis-set-table"
-                min={1000}
+                storeKey={redisMaxRowKey}
+                min={redisMinRow}
                 max={50000}
                 step={1000}
                 handleValue={v => {
@@ -1009,9 +965,47 @@ function RedisSetTable(props: { setKey: string; uuid: string }) {
         );
       },
     } as Partial<GridSlotsComponent>;
-  }, [fetchDur, handleReload, keyMatch, lastFetchTime, loading, setKey, uuid]);
+  }, [fetchDur, lastFetchTime, setKey]);
   return (
     <Stack style={{ height: "100%" }}>
+      <StackRowCenter>
+        <Button
+          color="primary"
+          onClick={() => {
+            handleReload(true);
+          }}
+          loading={loading}
+        >
+          reload
+        </Button>
+        <Tooltip title={keyMatcherHelpText}>
+          <TextField
+            label="key matcher"
+            value={keyMatch}
+            onChange={event => {
+              setKeyMatch(event.target.value);
+            }}
+            style={{ maxWidth: "15rem", flex: 1 }}
+            slotProps={{
+              input: {
+                endAdornment: keyMatch && (
+                  <InputAdornment position="end">
+                    <IconButton
+                      onClick={() => {
+                        setKeyMatch("");
+                      }}
+                      edge="end"
+                    >
+                      <ClearIcon fontSize="small" />
+                    </IconButton>
+                  </InputAdornment>
+                ),
+              },
+            }}
+          />
+        </Tooltip>
+        <AddTable uuid={uuid} redisKey={setKey} redisType={RedisTableType.Set} />{" "}
+      </StackRowCenter>
       <QueryStatus setRef={queryStatus} />
       {resp && (
         <DataGrid
@@ -1547,6 +1541,9 @@ function RedisZSetTableContextMenu(props: { delOP: () => void; content }) {
   );
 }
 
+const redisMaxRowKey = "redis-value";
+const redisMinRow = 1000;
+
 function RedisZsetTable(props: { uuid: string; zsetKey: string }) {
   const { uuid, zsetKey } = props;
   const modifyOP = async (oldMember: string, newKey: string, newValue: number) => {
@@ -1585,7 +1582,7 @@ function RedisZsetTable(props: { uuid: string; zsetKey: string }) {
   const [loading, setLoading] = useState(false);
   const { showNotification } = useContext(NotificationContext);
   const setting = useContext(SettingContext);
-  const maxRowRef = useRef(2000);
+  const maxRowRef = useRef(getSliderSizeStoreValue(redisMaxRowKey, redisMinRow));
   const queryStatus = useRef<SetStatusFn>(null);
   const handleReload = useCallback(
     (showOK: boolean) => {
@@ -1711,123 +1708,7 @@ function RedisZsetTable(props: { uuid: string; zsetKey: string }) {
     return {
       columnMenu: AppColumnMenu,
       toolbar: () => {
-        return (
-          <AppDataGridToolBar
-            noWrapLeft
-            left=<Stack
-              direction="row"
-              style={{
-                alignItems: "center",
-                width: "55%",
-              }}
-            >
-              <Button
-                color="primary"
-                onClick={() => {
-                  handleReload(true);
-                }}
-                loading={loading}
-              >
-                reload
-              </Button>
-
-              <Tooltip title={keyMatcherHelpText}>
-                <TextField
-                  label="key matcher"
-                  value={keyMatch}
-                  onChange={event => {
-                    setKeyMatch(event.target.value);
-                  }}
-                  slotProps={{
-                    input: {
-                      endAdornment: keyMatch && (
-                        <InputAdornment position="end">
-                          <IconButton
-                            onClick={() => {
-                              setKeyMatch("");
-                            }}
-                            edge="end"
-                          >
-                            <ClearIcon fontSize="small" />
-                          </IconButton>
-                        </InputAdornment>
-                      ),
-                    },
-                  }}
-                  style={{ flex: 1 }}
-                />
-              </Tooltip>
-
-              <TextField
-                label="minimum value"
-                value={min}
-                error={minErr}
-                onChange={event => {
-                  if (event.target.value) {
-                    setMinErr(isNaN(parseFloat(event.target.value)));
-                  } else {
-                    setMinErr(false);
-                  }
-                  setMin(event.target.value);
-                }}
-                slotProps={{
-                  input: {
-                    endAdornment: min && (
-                      <InputAdornment position="end">
-                        <IconButton
-                          onClick={() => {
-                            setMin("");
-                          }}
-                          edge="end"
-                        >
-                          <ClearIcon fontSize="small" />
-                        </IconButton>
-                      </InputAdornment>
-                    ),
-                  },
-                }}
-                style={{ flex: 0.5 }}
-              />
-              <TextField
-                label="maximum value"
-                value={max}
-                error={maxErr}
-                onChange={event => {
-                  if (event.target.value) {
-                    setMaxErr(isNaN(parseFloat(event.target.value)));
-                  } else {
-                    setMaxErr(false);
-                  }
-                  setMax(event.target.value);
-                }}
-                slotProps={{
-                  input: {
-                    endAdornment: max && (
-                      <InputAdornment position="end">
-                        <IconButton
-                          onClick={() => {
-                            setMax("");
-                          }}
-                          edge="end"
-                        >
-                          <ClearIcon fontSize="small" />
-                        </IconButton>
-                      </InputAdornment>
-                    ),
-                  },
-                }}
-                style={{ flex: 0.5 }}
-              />
-
-              <AddTable
-                uuid={uuid}
-                redisKey={zsetKey}
-                redisType={RedisTableType.Zset}
-              />
-            </Stack>
-            title={zsetKey}
-          />
-        );
+        return <AppDataGridToolBar title={zsetKey} />;
       },
       pagination: () => {
         return (
@@ -1843,10 +1724,10 @@ function RedisZsetTable(props: { uuid: string; zsetKey: string }) {
               <LastFetchTime date={lastFetchTime} />
               <TimeDuration dur={fetchDur} />
               <SliderSize
-                min={1000}
                 max={50000}
                 step={1000}
-                storeKey="redis-zset-table"
+                storeKey={redisMaxRowKey}
+                min={redisMinRow}
                 notice=<LimitMaxRowNotice />
                 handleValue={v => {
                   maxRowRef.current = v;
@@ -1861,21 +1742,109 @@ function RedisZsetTable(props: { uuid: string; zsetKey: string }) {
         );
       },
     } as Partial<GridSlotsComponent>;
-  }, [
-    fetchDur,
-    handleReload,
-    keyMatch,
-    lastFetchTime,
-    loading,
-    max,
-    maxErr,
-    min,
-    minErr,
-    uuid,
-    zsetKey,
-  ]);
+  }, [fetchDur, lastFetchTime, zsetKey]);
   return (
     <Stack style={{ height: "100%" }}>
+      <StackRowCenter>
+        <Button
+          color="primary"
+          onClick={() => {
+            handleReload(true);
+          }}
+          loading={loading}
+        >
+          reload
+        </Button>
+
+        <Tooltip title={keyMatcherHelpText}>
+          <TextField
+            label="key matcher"
+            value={keyMatch}
+            onChange={event => {
+              setKeyMatch(event.target.value);
+            }}
+            slotProps={{
+              input: {
+                endAdornment: keyMatch && (
+                  <InputAdornment position="end">
+                    <IconButton
+                      onClick={() => {
+                        setKeyMatch("");
+                      }}
+                      edge="end"
+                    >
+                      <ClearIcon fontSize="small" />
+                    </IconButton>
+                  </InputAdornment>
+                ),
+              },
+            }}
+            style={{ width: "25%" }}
+          />
+        </Tooltip>
+
+        <TextField
+          label="minimum value"
+          value={min}
+          error={minErr}
+          onChange={event => {
+            if (event.target.value) {
+              setMinErr(isNaN(parseFloat(event.target.value)));
+            } else {
+              setMinErr(false);
+            }
+            setMin(event.target.value);
+          }}
+          slotProps={{
+            input: {
+              endAdornment: min && (
+                <InputAdornment position="end">
+                  <IconButton
+                    onClick={() => {
+                      setMin("");
+                    }}
+                    edge="end"
+                  >
+                    <ClearIcon fontSize="small" />
+                  </IconButton>
+                </InputAdornment>
+              ),
+            },
+          }}
+          style={{ width: "15%" }}
+        />
+        <TextField
+          label="maximum value"
+          value={max}
+          error={maxErr}
+          onChange={event => {
+            if (event.target.value) {
+              setMaxErr(isNaN(parseFloat(event.target.value)));
+            } else {
+              setMaxErr(false);
+            }
+            setMax(event.target.value);
+          }}
+          slotProps={{
+            input: {
+              endAdornment: max && (
+                <InputAdornment position="end">
+                  <IconButton
+                    onClick={() => {
+                      setMax("");
+                    }}
+                    edge="end"
+                  >
+                    <ClearIcon fontSize="small" />
+                  </IconButton>
+                </InputAdornment>
+              ),
+            },
+          }}
+          style={{ width: "15%" }}
+        />
+        <AddTable uuid={uuid} redisKey={zsetKey} redisType={RedisTableType.Zset} />
+      </StackRowCenter>
       <QueryStatus setRef={queryStatus} />
       {resp && (
         <DataGrid
@@ -1998,7 +1967,6 @@ function RedisHashTable(props: { hashKey: string; uuid: string }) {
     [hashKey, uuid],
   );
 
-  const maxRowRef = useRef<number>(2000);
   const modifyOP = async (oldMember, newMember, newValue) => {
     return await invoke("redis_hash_replace", {
       name: uuid,
@@ -2014,6 +1982,7 @@ function RedisHashTable(props: { hashKey: string; uuid: string }) {
   const [selectRow, setSelectRow] = useState<any>(null);
   const [loading, setLoading] = useState(false);
   const setting = useContext(SettingContext);
+  const maxRowRef = useRef(getSliderSizeStoreValue(redisMaxRowKey, redisMinRow));
   const [lastFetchTime, setLastFetchTime] = useState(new Date());
   useEffect(() => {
     setLastFetchTime(new Date());
@@ -2035,7 +2004,7 @@ function RedisHashTable(props: { hashKey: string; uuid: string }) {
           setFetchDur(t);
         },
         setStatus: queryStatus,
-        para: { limit: maxRowRef.current },
+        para: { limit: maxRowRef.current, where_str: keyMatch ? keyMatch : null },
         setLoading,
         showNotification,
         handleResult: resp => {
@@ -2051,7 +2020,7 @@ function RedisHashTable(props: { hashKey: string; uuid: string }) {
         },
       });
     },
-    [hashKey, showNotification, uuid],
+    [hashKey, keyMatch, showNotification, uuid],
   );
   useEffect(() => {
     handleReload(false);
@@ -2129,55 +2098,7 @@ function RedisHashTable(props: { hashKey: string; uuid: string }) {
     return {
       columnMenu: AppColumnMenu,
       toolbar: () => {
-        return (
-          <AppDataGridToolBar
-            left=<>
-              <Button
-                color="primary"
-                onClick={() => {
-                  handleReload(true);
-                }} // 点击事件处理
-                loading={loading}
-              >
-                reload
-              </Button>
-
-              <Tooltip title={keyMatcherHelpText}>
-                <TextField
-                  label="key matcher"
-                  variant="outlined"
-                  value={keyMatch}
-                  onChange={event => {
-                    setKeyMatch(event.target.value);
-                  }}
-                  slotProps={{
-                    input: {
-                      endAdornment: keyMatch && (
-                        <InputAdornment position="end">
-                          <IconButton
-                            onClick={() => {
-                              setKeyMatch("");
-                            }}
-                            edge="end"
-                          >
-                            <ClearIcon fontSize="small" />
-                          </IconButton>
-                        </InputAdornment>
-                      ),
-                    },
-                  }}
-                  style={{ flex: 1 }}
-                />
-              </Tooltip>
-              <AddTable
-                uuid={uuid}
-                redisKey={hashKey}
-                redisType={RedisTableType.Hash}
-              />
-            </>
-            title={hashKey}
-          />
-        );
+        return <AppDataGridToolBar left=<></> title={hashKey} />;
       },
       pagination: () => {
         return (
@@ -2193,8 +2114,8 @@ function RedisHashTable(props: { hashKey: string; uuid: string }) {
               <LastFetchTime date={lastFetchTime} />
               <TimeDuration dur={fetchDur} />
               <SliderSize
-                storeKey="redis-hash-table"
-                min={1000}
+                storeKey={redisMaxRowKey}
+                min={redisMinRow}
                 max={50000}
                 step={1000}
                 handleValue={v => {
@@ -2214,9 +2135,49 @@ function RedisHashTable(props: { hashKey: string; uuid: string }) {
         );
       },
     } as Partial<GridSlotsComponent>;
-  }, [fetchDur, handleReload, hashKey, keyMatch, lastFetchTime, loading, uuid]);
+  }, [fetchDur, hashKey, lastFetchTime]);
   return (
     <Stack style={{ height: "100%" }}>
+      <StackRowCenter>
+        <Button
+          color="primary"
+          onClick={() => {
+            handleReload(true);
+          }} // 点击事件处理
+          loading={loading}
+        >
+          reload
+        </Button>
+
+        <Tooltip title={keyMatcherHelpText}>
+          <TextField
+            label="key matcher"
+            variant="outlined"
+            value={keyMatch}
+            onChange={event => {
+              setKeyMatch(event.target.value);
+            }}
+            slotProps={{
+              input: {
+                endAdornment: keyMatch && (
+                  <InputAdornment position="end">
+                    <IconButton
+                      onClick={() => {
+                        setKeyMatch("");
+                      }}
+                      edge="end"
+                    >
+                      <ClearIcon fontSize="small" />
+                    </IconButton>
+                  </InputAdornment>
+                ),
+              },
+            }}
+            style={{ maxWidth: "15rem", flex: 1 }}
+          />
+        </Tooltip>
+        <AddTable uuid={uuid} redisKey={hashKey} redisType={RedisTableType.Hash} />
+      </StackRowCenter>
       <QueryStatus setRef={queryStatus} />
       {resp && (
         <DataGrid

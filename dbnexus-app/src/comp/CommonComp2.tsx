@@ -858,6 +858,11 @@ function CancelButton({ handleCancel }) {
   );
 }
 
+function getSliderSizeStoreValue(storeKey: string, defaultValue: number) {
+  const keyXxx = "dbpal-max-row-" + storeKey;
+  return parseInt(localStorage.getItem(keyXxx)) || defaultValue;
+}
+
 function SliderSize(props: {
   storeKey: string;
   notice: ReactNode;
@@ -869,12 +874,12 @@ function SliderSize(props: {
 }) {
   const { storeKey, handleValue, notice, min, max, step, name } = props;
   const width = "450px";
-  const storekey = "dbpal-max-row-" + storeKey;
-  const [maxRow, setMaxRow] = useState(parseInt(localStorage.getItem(storekey)) || min);
+  const keyXxx = "dbpal-max-row-" + storeKey;
+  const [maxRow, setMaxRow] = useState(getSliderSizeStoreValue(storeKey, min));
   useEffect(() => {
-    localStorage.setItem(storekey, maxRow + "");
+    localStorage.setItem(keyXxx, maxRow + "");
     handleValue(maxRow);
-  }, [maxRow, storekey, handleValue]);
+  }, [maxRow, keyXxx, handleValue]);
   return (
     <Tooltip
       slotProps={{
@@ -1285,4 +1290,5 @@ export {
   LastFetchTime,
   QueryStatus,
   StackRowCenter,
+  getSliderSizeStoreValue,
 };

@@ -453,7 +453,7 @@ function MongoValueEditor(props: {
               }}
               disabled={viewModel == MongoDataViewModel.Json}
             >
-              json
+              ejson
             </Button>
           </ButtonGroup>
         </Stack>
@@ -598,19 +598,19 @@ function MongoTableToolBar(props: {
           </Button>
           <Button
             onClick={() => {
+              handleViewModel(MongoDataViewModel.Json);
+            }}
+            disabled={viewModel == MongoDataViewModel.Json}
+          >
+            ejson
+          </Button>
+          <Button
+            onClick={() => {
               handleViewModel(MongoDataViewModel.List);
             }}
             disabled={viewModel == MongoDataViewModel.List}
           >
             <ListIcon />
-          </Button>
-          <Button
-            onClick={() => {
-              handleViewModel(MongoDataViewModel.Json);
-            }}
-            disabled={viewModel == MongoDataViewModel.Json}
-          >
-            json
           </Button>
         </ButtonGroup>
       </StackRowCenter>
