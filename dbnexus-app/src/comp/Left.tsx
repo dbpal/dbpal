@@ -631,7 +631,7 @@ function Left() {
         setMatchPattern={setMatchPattern}
         extra=<>
           <StackRowCenter>
-            <span color="info">max tree size:</span>
+            <span color="info">max tree size({maxTreeSize}):</span>
             <Slider
               min={(function () {
                 if (import.meta.env.DEV) {

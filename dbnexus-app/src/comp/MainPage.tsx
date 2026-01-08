@@ -324,29 +324,6 @@ function Menu(props: { children: ReactNode }) {
   );
 }
 
-function SeparateWindow(props: { children }) {
-  const { children } = props;
-  return (
-    <SettingComp>
-      <NotificationProvider>
-        <Menu>
-          <div
-            style={{
-              padding: "0.5rem 1rem",
-              width: "100vw",
-              height: "100vh",
-            }}
-          >
-            <div style={{ position: "relative", height: "100%", width: "100%" }}>
-              {children}
-            </div>
-          </div>
-        </Menu>
-      </NotificationProvider>
-    </SettingComp>
-  );
-}
-
 function calMenuStyle(e: MouseEvent): CSSProperties {
   const x = e.clientX;
   const y = e.clientY;
@@ -375,4 +352,4 @@ function calMenuStyle(e: MouseEvent): CSSProperties {
   return ret;
 }
 
-export { App, SeparateWindow };
+export { App };
