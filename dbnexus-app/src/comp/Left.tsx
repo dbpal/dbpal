@@ -12,6 +12,7 @@ import {
   MenuItem,
   MenuList,
   Modal,
+  Slider,
   Stack,
   TextField,
   Tooltip,
@@ -119,9 +120,7 @@ import {
   AppDataGridPagination,
   CreateDatabase,
   CreateSchema,
-  getSliderSizeStoreValue,
   MenuConnectionInfo,
-  SliderSize,
   StackRowCenter,
 } from "./CommonComp2.tsx";
 import { EventsTree } from "./LeftEvent.tsx";
@@ -345,8 +344,7 @@ function LeftTop(props: { matchPattern: string[]; setMatchPattern; extra: ReactN
           </Button>
         </Stack>
       </Stack>
-
-      {extra}
+      {show && extra}
       {showFavoriteSql && (
         <Modal
           open={showFavoriteSql}
@@ -570,12 +568,14 @@ function Left() {
   );
   const maxTreeSizeKey = "max-tree-item-size";
   const [maxTreeSize, setMaxTreeSize] = useState(
-    getSliderSizeStoreValue(maxTreeSizeKey, 100),
+    parseInt(localStorage.getItem(maxTreeSizeKey)) || 100,
   );
   useEffect(() => {
     SaveMatchPattern.instance.save(matchPattern);
   }, [matchPattern]);
-
+  useEffect(() => {
+    localStorage.setItem(maxTreeSizeKey, maxTreeSize + "");
+  }, [maxTreeSize]);
   const handleReload = useCallback(async () => {
     ConnectionHandler.getAll()
       .then(e => {
@@ -630,22 +630,26 @@ function Left() {
         matchPattern={matchPattern}
         setMatchPattern={setMatchPattern}
         extra=<>
-          <SliderSize
-            storeKey={maxTreeSizeKey}
-            min={(function () {
-              if (import.meta.env.DEV) {
-                return 1;
-              } else {
-                return 100;
-              }
-            })()}
-            max={1000}
-            step={10}
-            handleValue={v => {
-              setMaxTreeSize(v);
-            }}
-            notice="max tree size"
-          />
+          <StackRowCenter>
+            <span color="info">max tree size:</span>
+            <Slider
+              min={(function () {
+                if (import.meta.env.DEV) {
+                  return 1;
+                } else {
+                  return 100;
+                }
+              })()}
+              max={1000}
+              onChange={(_, value) => {
+                setMaxTreeSize(value);
+              }}
+              style={{
+                flex: 1,
+                width: "40%",
+              }}
+            />
+          </StackRowCenter>
         </>
       />
       <Stack spacing={0.3}>

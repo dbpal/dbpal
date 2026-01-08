@@ -1111,7 +1111,7 @@ enum MongoLanguage {
   js = "javascript",
   ts = "typescript",
 }
-const resizeHandlerSize = 3;
+const resizeHandlerSize = 4;
 
 // this must be the same as the rust Result
 interface QueryRespData {
