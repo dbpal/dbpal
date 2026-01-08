@@ -1,5 +1,5 @@
 import { CSSProperties, ReactNode, useContext, useEffect, useState } from "react";
-
+import { FaFolderOpen } from "react-icons/fa";
 import {
   Autocomplete,
   Box,
@@ -812,13 +812,13 @@ function MiscSetting() {
         />
         {loglevel !== "none" && (
           <Tooltip title="open log directory">
-            <Button
+            <IconButton
               onClick={async () => {
                 openPath(await appLogDir());
               }}
             >
-              open
-            </Button>
+              <FaFolderOpen fontSize="1.5rem" />
+            </IconButton>
           </Tooltip>
         )}
       </Stack>
