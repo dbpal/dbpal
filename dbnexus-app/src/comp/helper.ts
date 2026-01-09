@@ -37,11 +37,6 @@ appDatabase.select("select * from column_width").then(xs => {
   });
 });
 
-async function closeResource() {
-  // await appDatabase.close();
-  await appStore.close();
-}
-
 function rustResultOk(x: any): boolean {
   if (x instanceof Array) {
     for (const e of x) {
@@ -1209,7 +1204,6 @@ export {
   prettyMs,
   newEmptyResp,
   MaxTreeContext,
-  closeResource,
 };
 
 type SetStatusFn = (s: string) => void;

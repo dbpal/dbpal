@@ -38,7 +38,9 @@ if (import.meta.env.DEV) {
 }
 
 function setLogLevel(level: string) {
-  invoke("set_log_level", { level: level });
+  if (level) {
+    invoke("set_log_level", { level });
+  }
 }
 
 ReactDOM.createRoot(document.getElementById("root") as HTMLElement).render(<App />);
