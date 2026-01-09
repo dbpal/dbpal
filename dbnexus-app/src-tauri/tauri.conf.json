@@ -16,7 +16,7 @@
     ],
     "security": {
       "csp": null,
-      "capabilities": ["main-capability"]
+      "capabilities": ["main-capability", "desktop-capability"]
     }
   },
   "bundle": {

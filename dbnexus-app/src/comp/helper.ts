@@ -29,13 +29,11 @@ function prettyMs(x: number) {
   return prettyMilliseconds(x);
 }
 
-let appDatabase: Database = null;
-Database.load("sqlite:dbpal.sqlite.db").then(d => {
-  appDatabase = d;
-  appDatabase.select("select * from column_width").then(xs => {
-    (xs as { name: string; width: number }[]).forEach(e => {
-      ColumnWidth.instance.width[e.name] = e.width;
-    });
+let appDatabase: Database = await Database.load("sqlite:dbpal.sqlite.db");
+
+appDatabase.select("select * from column_width").then(xs => {
+  (xs as { name: string; width: number }[]).forEach(e => {
+    ColumnWidth.instance.width[e.name] = e.width;
   });
 });
 
