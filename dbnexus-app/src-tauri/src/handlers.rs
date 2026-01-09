@@ -104,13 +104,13 @@ pub async fn cancel_task(
 }
 
 #[tauri::command]
-pub fn get_locale() -> Result<String, ErrorFrontend> {
+pub async fn get_locale() -> Result<String, ErrorFrontend> {
     let r = sys_locale::get_locale().unwrap_or_else(|| String::from("en-US"));
     Ok(r)
 }
 
 #[tauri::command]
-pub fn monaco_editor_themes() -> Result<HashMap<&'static str, &'static str>, ErrorFrontend> {
+pub async fn monaco_editor_themes() -> Result<HashMap<&'static str, &'static str>, ErrorFrontend> {
     let mut ret = HashMap::new();
     static FILES: Dir = include_dir!("$CARGO_MANIFEST_DIR/../monaco-themes/themes");
     for en in FILES.entries() {
@@ -134,7 +134,7 @@ pub fn monaco_editor_themes() -> Result<HashMap<&'static str, &'static str>, Err
 }
 
 #[tauri::command]
-pub fn get_redis_doc(line: &str) -> Result<String, ErrorFrontend> {
+pub async fn get_redis_doc(line: &str) -> Result<String, ErrorFrontend> {
     let tokens = RedisToken::tokenize(line, 1).map_err(ErrorFrontend::from)?;
     if tokens.is_empty() {
         return Err(ErrorFrontend::from("no tokens found,empty line??"));

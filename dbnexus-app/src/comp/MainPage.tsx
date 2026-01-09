@@ -38,20 +38,18 @@ function ShowPanic() {
   const theme = useTheme();
 
   const getPanicFilePath = async () => {
-    return await join(await appLogDir(), "dbpal.panic");
+    return appLogDir().then(e => {
+      return join(e, "dbpal.panic");
+    });
   };
 
   useEffect(() => {
     setTimeout(() => {
-      (async () => {
-        try {
-          const filepath = await getPanicFilePath();
-          const x = await readTextFile(filepath);
-          setPanicInfo(x);
-        } catch (e) {
-          console.error("trying to get panic info failed", e);
-        }
-      })();
+      getPanicFilePath().then(path =>
+        readTextFile(path).then(content => {
+          setPanicInfo(content);
+        }),
+      );
     }, 1000);
   }, []);
   return (

@@ -130,7 +130,8 @@ fn is_macos() -> bool {
 
 #[allow(dead_code)]
 fn get_logger_level() -> Option<log::Level> {
-    log_level_loc().read().expect("lock failed").clone()
+    //   log_level_loc().read().expect("lock failed").clone() ;
+    Some(log::Level::Trace)
 }
 
 #[allow(unused)]

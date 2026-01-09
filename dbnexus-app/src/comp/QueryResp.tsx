@@ -223,15 +223,16 @@ function QueryResp(props: { data: MuiDataGridData }) {
               flex: 1,
             }}
           >
-            <Stack style={{ flex: 1 }} direction="row">
+            <Stack style={{ flex: 1, alignItems: "center" }} direction="row">
               <ResetColumnWidth />
+              <Typography color="info">total: {data.data.length} </Typography>
             </Stack>
             <AppDataGridPagination showPageSelect />
           </Stack>
         );
       },
     } as Partial<GridSlotsComponent>;
-  }, []);
+  }, [data.data.length]);
   return (
     <div
       style={{

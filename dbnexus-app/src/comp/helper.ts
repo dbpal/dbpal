@@ -17,12 +17,13 @@ import { WebviewWindow } from "@tauri-apps/api/webviewWindow";
 import { platform } from "@tauri-apps/plugin-os";
 import themelist from "../../monaco-themes/themes/themelist.json";
 import { loader } from "@monaco-editor/react";
-import { emit } from "@tauri-apps/api/event";
+// import { emit } from "@tauri-apps/api/event";
 import { PassWordManager } from "./Common";
 import { ChatOpenAI } from "@langchain/openai";
 import { fetch as tauriFetch } from "@tauri-apps/plugin-http";
 import * as monaco from "monaco-editor";
 import prettyMilliseconds from "pretty-ms";
+import { emitTo } from "@tauri-apps/api/event";
 
 loader.config({ monaco });
 
@@ -623,7 +624,11 @@ class DocsAndCount {
 }
 
 function notifySettingChange() {
-  emit(settingChangeEvent, "");
+  emitTo(
+    { label: WebviewWindow.getCurrent().label, kind: "WebviewWindow" },
+    settingChangeEvent,
+    "",
+  );
 }
 
 class UserSettingAppearance {
