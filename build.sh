@@ -1,2 +1,2 @@
 cd dbnexus-app/
-pnpm tauri build --features duckdb,devtools
+pnpm tauri build --features duckdb
