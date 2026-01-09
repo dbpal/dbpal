@@ -21,10 +21,13 @@ import { emit } from "@tauri-apps/api/event";
 import { PassWordManager } from "./Common";
 import { ChatOpenAI } from "@langchain/openai";
 import { fetch as tauriFetch } from "@tauri-apps/plugin-http";
-const pageSizeOptions = [10, 20, 50, 100];
-const appStore = await Store.load("store.json");
+import * as monaco from "monaco-editor";
 import prettyMilliseconds from "pretty-ms";
 
+loader.config({ monaco });
+
+const pageSizeOptions = [10, 20, 50, 100];
+const appStore = await Store.load("store.json");
 function prettyMs(x: number) {
   return prettyMilliseconds(x);
 }

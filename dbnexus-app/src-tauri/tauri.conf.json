@@ -30,9 +30,5 @@
       "icons/icon.ico"
     ]
   },
-  "plugins": {
-    "sql": {
-      "preload": ["sqlite:dbpal.sqlite.db"]
-    }
-  }
+  "plugins": {}
 }

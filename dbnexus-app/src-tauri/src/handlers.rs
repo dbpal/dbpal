@@ -23,7 +23,7 @@ use dbnexus_db::sub::SubDB;
 use std::collections::{HashMap, HashSet};
 use std::str::FromStr;
 use std::sync::atomic::{AtomicUsize, Ordering};
-use std::sync::{Arc, LazyLock, Mutex};
+use std::sync::{Arc, LazyLock, Mutex, RwLock};
 use std::time::Duration;
 
 use crate::app::{self, DBConnectionConfig, DBPal, DatabaseBackend, name_to_parts};
@@ -41,8 +41,8 @@ pub struct TaskManager {
     tokens: Arc<std::sync::Mutex<HashMap<String, CancellationToken>>>,
 }
 
-pub fn log_level_loc() -> &'static Mutex<Option<log::Level>> {
-    static LOG_LEVEL_LOC: Mutex<Option<log::Level>> = Mutex::new(None);
+pub fn log_level_loc() -> &'static RwLock<Option<log::Level>> {
+    static LOG_LEVEL_LOC: RwLock<Option<log::Level>> = RwLock::new(None);
     &LOG_LEVEL_LOC
 }
 
@@ -54,7 +54,7 @@ pub fn set_log_level(level: String) {
             .map_err(|e| println!("frontend give wrong,{}", e))
             .ok(),
     };
-    *log_level_loc().lock().expect("lock failed") = level;
+    *log_level_loc().write().expect("lock failed") = level;
 }
 
 impl TaskManager {

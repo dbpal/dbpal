@@ -130,7 +130,7 @@ fn is_macos() -> bool {
 
 #[allow(dead_code)]
 fn get_logger_level() -> Option<log::Level> {
-    log_level_loc().lock().expect("lock failed").clone()
+    log_level_loc().read().expect("lock failed").clone()
 }
 
 #[allow(unused)]
@@ -229,7 +229,7 @@ fn main() {
     let mut builder =
         tauri::Builder::default().plugin(tauri_plugin_window_state::Builder::new().build());
 
-    #[cfg(all(debug_assertions, feature = "devtools"))]
+    #[cfg(all(feature = "devtools"))]
     {
         let _devtools = tauri_plugin_devtools::init();
         builder = builder.plugin(_devtools);

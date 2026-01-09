@@ -31,28 +31,31 @@ import { readTextFile, remove } from "@tauri-apps/plugin-fs";
 import { openUrl } from "@tauri-apps/plugin-opener";
 import DeleteForeverIcon from "@mui/icons-material/DeleteForever";
 
+//@ts-ignore
 function ShowPanic() {
   const [panicInfo, setPanicInfo] = useState("");
   const { showNotification } = useContext(NotificationContext);
   const theme = useTheme();
-  const getFilePath = async () => {
+
+  const getPanicFilePath = async () => {
     return await join(await appLogDir(), "dbpal.panic");
   };
+
   useEffect(() => {
-    (async () => {
-      try {
-        const filepath = await getFilePath();
-        const x = await readTextFile(filepath);
-        setPanicInfo(x);
-      } catch (e) {
-        if (import.meta.env.DEV) {
+    setTimeout(() => {
+      (async () => {
+        try {
+          const filepath = await getPanicFilePath();
+          const x = await readTextFile(filepath);
+          setPanicInfo(x);
+        } catch (e) {
           console.error("trying to get panic info failed", e);
         }
-      }
-    })();
+      })();
+    }, 1000);
   }, []);
   return (
-    <>
+    <div>
       {panicInfo && (
         <Modal
           open={!!panicInfo}
@@ -101,7 +104,7 @@ function ShowPanic() {
                 color="warning"
                 onClick={async () => {
                   try {
-                    await remove(await getFilePath());
+                    await remove(await getPanicFilePath());
                     setPanicInfo("");
                     showNotification("success", "remove panic file success.");
                   } catch (e) {
@@ -115,7 +118,7 @@ function ShowPanic() {
           </Box>
         </Modal>
       )}
-    </>
+    </div>
   );
 }
 
@@ -187,6 +190,7 @@ function App() {
   const changeTab = useCallback(index => {
     setTab(index as number);
   }, []);
+
   return (
     <SettingComp>
       <TabsSetContext.Provider value={{ setTabs, tabs, setSelectTab: setTab }}>
