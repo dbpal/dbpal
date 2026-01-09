@@ -33,6 +33,7 @@
     "@tauri-apps/plugin-shell": "^2.3.3",
     "@tauri-apps/plugin-sql": "^2.3.1",
     "@tauri-apps/plugin-store": "^2.4.1",
+    "@tauri-apps/plugin-window-state": "~2.4.1",
     "@types/esprima": "^4.0.6",
     "bson": "^7.0.0",
     "esprima": "^4.0.1",

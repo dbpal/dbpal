@@ -226,7 +226,8 @@ fn main() {
         ..AboutMetadata::default()
     };
     #[allow(unused_mut)]
-    let mut builder = tauri::Builder::default();
+    let mut builder =
+        tauri::Builder::default().plugin(tauri_plugin_window_state::Builder::new().build());
 
     #[cfg(all(debug_assertions, feature = "devtools"))]
     {

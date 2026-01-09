@@ -11,10 +11,7 @@
   "app": {
     "windows": [
       {
-        "title": "dbpal",
-        "width": 800,
-        "height": 600,
-        "maximized": true
+        "title": "dbpal"
       }
     ],
     "security": {

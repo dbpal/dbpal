@@ -4,6 +4,9 @@ import { WebviewWindow } from "@tauri-apps/api/webviewWindow";
 import { App } from "./comp/MainPage";
 import { invoke } from "@tauri-apps/api/core";
 import { appStore, LoggerLevel, secondConfirm } from "./comp/helper.ts";
+import { saveWindowState, StateFlags } from "@tauri-apps/plugin-window-state";
+
+saveWindowState(StateFlags.ALL);
 
 const currentWebview = WebviewWindow.getCurrent();
 
