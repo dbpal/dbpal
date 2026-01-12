@@ -79,7 +79,12 @@ import {
 
 import { TbDatabasePlus } from "react-icons/tb";
 import LinkIcon from "@mui/icons-material/Link";
-import { ConnectionHandler, connectionChangeEvent, PassWordManager } from "./Common";
+import {
+  ConnectionHandler,
+  connectionChangeEvent,
+  PassWordManager,
+  TableFilterHandler,
+} from "./Common";
 import { TreeItem } from "@mui/x-tree-view/TreeItem";
 import { editor, Position } from "monaco-editor";
 import { openPath } from "@tauri-apps/plugin-opener";
@@ -119,7 +124,7 @@ function SelectAlign(props: { align: "left" | "right" | "center"; handleChange }
 }
 
 function LogLevelSelection({ handleChange, level }) {
-  const levels = ["none", "trace", "debug", "info", "warn", "error"];
+  const levels = ["off", "trace", "debug", "info", "warn", "error"];
   return (
     <Autocomplete
       options={levels}
@@ -364,6 +369,7 @@ function MenuDeleteConfig({ name }) {
       await QueryLogHandler.deleteByConnectionName(name);
       await ConnectionHandler.deleteConn(name);
       await PassWordManager.deletePassword(name);
+      await TableFilterHandler.deleteByConnectionName(name);
       emit(connectionChangeEvent, "");
     } catch (e) {
       showNotification("error", "drop connection failed", e);
@@ -537,6 +543,8 @@ function ModalHeader(props: {
         alignItems: "center",
         borderBottom: "3px solid " + theme.palette.success.main,
         marginBottom: "0.4rem",
+        position: "sticky",
+        top: 0,
       }}
     >
       <StackRowCenter>

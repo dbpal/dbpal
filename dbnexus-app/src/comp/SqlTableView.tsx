@@ -1583,8 +1583,7 @@ function Menu(props: {
             <ListItemText> Quick Filter </ListItemText>
           </MenuItem>
         )}
-        <Divider />
-
+        {isTable && <Divider />}
         {isTable && (
           <MenuItem
             onClick={() => {

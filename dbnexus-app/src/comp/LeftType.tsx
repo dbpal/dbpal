@@ -3,7 +3,7 @@ import { TreeItem } from "@mui/x-tree-view/TreeItem";
 import { useCallback, useContext, useEffect, useRef, useState } from "react";
 import DeleteForeverIcon from "@mui/icons-material/DeleteForever";
 import InfoIcon from "@mui/icons-material/Info";
-import { DefAndMetas, tabsHasId } from "./Common";
+import { tabsHasId } from "./Common";
 import types from "./ApiStruct";
 import { invoke } from "@tauri-apps/api/core";
 import { NotificationContext } from "./Notification";
@@ -132,7 +132,6 @@ function TypeMenu(props: {
         setTimeout(() => {
           setSelectTab(tabs.length);
         }, 100);
-
         return [
           ...e,
           new TabContent(
@@ -143,13 +142,14 @@ function TypeMenu(props: {
                 reloadOP={async () => {
                   return Promise.resolve({
                     def: createdType.sql,
-                  } as DefAndMetas);
+                    metas: [],
+                  });
                 }}
                 kind={kind}
                 uuid={uuid}
               />
             ),
-            <PiTreeStructureFill />,
+            <PiTreeStructureFill className="tab-icon-size" />,
           ),
         ];
       });

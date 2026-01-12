@@ -181,7 +181,7 @@ function SequenceMenu(props: {
                 uuid={uuid}
               />
             ),
-            <GrSteps />,
+            <GrSteps className="tab-icon-size" />,
           ),
         ];
       });

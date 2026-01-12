@@ -151,7 +151,7 @@ function EventMenu(props: {
                 uuid={uuid}
               />
             ),
-            <MdOutlineEventRepeat />,
+            <MdOutlineEventRepeat className="tab-icon-size" />,
           ),
         ];
       });

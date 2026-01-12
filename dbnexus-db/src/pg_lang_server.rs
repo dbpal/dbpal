@@ -628,15 +628,7 @@ impl LanguageServer for PostGresDB {
     }
 
     async fn check_sql(&self, sql: &str) -> anyhow::Result<Option<ErrAndLoc>> {
-        let mut conn = self.get_conn().await?;
-        let r = sqlx::query("SELECT pg_parse_query($1)")
-            .bind(sql)
-            .execute(conn.deref_mut())
-            .await;
-        anyhow::Ok(match r {
-            Ok(_) => None,
-            Err(err) => Some(ErrAndLoc::from(err.to_string())),
-        })
+        LangServerCommon::parse_err(self, sql)
     }
 
     fn is_dangerous_sql(&self, sql: &str) -> anyhow::Result<bool> {

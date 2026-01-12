@@ -3,12 +3,13 @@ import {
   Stack,
   MenuItem,
   MenuList,
-  Chip,
   Tabs,
   Tab,
   Tooltip,
   Typography,
+  IconButton,
 } from "@mui/material";
+import CancelIcon from "@mui/icons-material/Cancel";
 
 import {
   ContextMenuContext,
@@ -18,6 +19,7 @@ import {
   TabActiveContext,
   WindowFocusContext,
 } from "./helper";
+import { CancelButton } from "./CommonComp2";
 
 function TabsMenu(props: {
   index;
@@ -160,23 +162,9 @@ function TabsWithContent_(props: {
               style={{ maxWidth: max + "px" }}
               key={tab.id}
               label=<Tooltip title={tab.header}>
-                <Chip
-                  label=<Typography
-                    style={{
-                      textOverflow: "clip",
-                      overflow: "hidden",
-                      whiteSpace: "nowrap",
-                    }}
-                  >
-                    {tab.header}
-                  </Typography>
-                  onDelete={() => {
-                    handleClose(index);
-                  }}
-                  style={{ textTransform: "none" }}
-                  icon={tabs.length <= 8 ? tab.icon : undefined}
-                  variant={index == selectIndex ? "filled" : "outlined"}
-                  color={index == selectIndex ? "success" : "default"}
+                <Stack
+                  direction="row"
+                  style={{ textTransform: "none", alignItems: "center" }}
                   onContextMenu={e => {
                     setUpMenu({
                       content: (
@@ -192,7 +180,28 @@ function TabsWithContent_(props: {
                       event: e,
                     });
                   }}
-                />
+                >
+                  {tabs.length <= 8 ? tab.icon : undefined}
+                  <Typography
+                    style={{
+                      textOverflow: "clip",
+                      overflow: "hidden",
+                      whiteSpace: "nowrap",
+                      display: "inline-block",
+                      fontWeight: index == selectIndex ? "bolder" : undefined,
+                    }}
+                    color={index == selectIndex ? "primary" : undefined}
+                  >
+                    {tab.header}
+                  </Typography>
+                  <IconButton
+                    onClick={() => {
+                      handleClose(index);
+                    }}
+                  >
+                    <CancelIcon />
+                  </IconButton>
+                </Stack>
               </Tooltip>
             />
           );

@@ -41,7 +41,7 @@ pub struct TaskManager {
     tokens: Arc<std::sync::Mutex<HashMap<String, CancellationToken>>>,
 }
 
-pub fn log_level_loc() -> &'static RwLock<Option<log::Level>> {
+pub fn log_level_ref() -> &'static RwLock<Option<log::Level>> {
     static LOG_LEVEL_LOC: RwLock<Option<log::Level>> = RwLock::new(None);
     &LOG_LEVEL_LOC
 }
@@ -49,12 +49,12 @@ pub fn log_level_loc() -> &'static RwLock<Option<log::Level>> {
 #[tauri::command]
 pub fn set_log_level(level: String) {
     let level = match level.as_str() {
-        "none" => None,
+        "off" => None,
         _ => log::Level::from_str(&level)
-            .map_err(|e| println!("frontend give wrong,{}", e))
+            .map_err(|e| println!("frontend give wrong kind of log level,{} {}", e, level))
             .ok(),
     };
-    *log_level_loc().write().expect("lock failed") = level;
+    *log_level_ref().write().expect("lock failed") = level;
 }
 
 impl TaskManager {

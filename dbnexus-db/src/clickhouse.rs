@@ -1377,7 +1377,7 @@ from test
         let mut stream = db.query_row("show TABLES from default").await.unwrap();
         while let Some(row) = stream.next().await {
             let row = row.unwrap();
-            println!("!!!!!!!!!!!!:{:?}", row);
+            println!(":{:?}", row);
         }
     }
 
@@ -1617,7 +1617,7 @@ from test
                 .await
                 .unwrap();
             let v: serde_json::Value = serde_json::from_str(&json).unwrap();
-            println!("!!!!!!!!!!!!:{:?}", v);
+            println!("json:{:?}", v);
         }
     }
 

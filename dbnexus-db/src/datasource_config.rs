@@ -455,11 +455,10 @@ impl From<MySqlSslMode> for sqlx::mysql::MySqlSslMode {
 
 #[derive(Debug, Clone, serde::Deserialize, serde::Serialize, TypeDef)]
 pub struct BigQueryDbConfig {
-    pub project_id: String,
-    pub dataset_id: String,
+    pub dataset_id: Option<String>,
     pub credentials_file: String,
     pub read_only: bool,
-    pub base_url: String,
+    pub conn_timeout: Option<ConnTimeOut>,
 }
 
 #[derive(Debug, Clone, serde::Deserialize, serde::Serialize, TypeDef)]

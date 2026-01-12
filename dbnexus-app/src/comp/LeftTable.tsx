@@ -437,7 +437,12 @@ function TableMenu(props: {
 
       return [
         ...e,
-        new TabContent(id, table, tableList, <TableViewIcon> </TableViewIcon>),
+        new TabContent(
+          id,
+          table,
+          tableList,
+          <TableViewIcon className="tab-icon-size" />,
+        ),
       ];
     });
   };
@@ -461,7 +466,7 @@ function TableMenu(props: {
               redisTableType={redisTableType}
             />
           ),
-          <TableViewIcon> </TableViewIcon>,
+          <TableViewIcon className="tab-icon-size"></TableViewIcon>,
         ),
       ];
     });
@@ -484,7 +489,7 @@ function TableMenu(props: {
             id,
             `${table}`,
             <TableStructure kind={kind} table={table} uuid={uuid} />,
-            <IoConstructOutline> </IoConstructOutline>,
+            <IoConstructOutline className="tab-icon-size" />,
           ),
         ];
       });

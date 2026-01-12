@@ -523,7 +523,10 @@ function ViewMenu(props: {
         setSelectTab(tabs.length);
       }, 100);
 
-      return [...e, new TabContent(id, view, list, <VisibilityIcon> </VisibilityIcon>)];
+      return [
+        ...e,
+        new TabContent(id, view, list, <VisibilityIcon className="tab-icon-size" />),
+      ];
     });
   };
 
@@ -544,7 +547,7 @@ function ViewMenu(props: {
             id,
             `${view}`,
             <ViewStructure view={view} uuid={uuid} kind={kind} viewKind={viewKind} />,
-            <IoConstructOutline> </IoConstructOutline>,
+            <IoConstructOutline className="tab-icon-size" />,
           ),
         ];
       });

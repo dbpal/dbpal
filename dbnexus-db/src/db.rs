@@ -2171,6 +2171,14 @@ impl From<Vec<Vec<Option<String>>>> for QueryEvent {
     }
 }
 
+pub(crate) fn need_paid() -> anyhow::Result<()> {
+    if cfg!(feature = "paid") {
+        anyhow::Ok(())
+    } else {
+        anyhow::bail!("thi feature is paid")
+    }
+}
+
 pub(crate) const POOL_MAX_CONNECTIONS: u32 = 200;
 
 #[cfg(test)]

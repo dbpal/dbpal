@@ -434,9 +434,9 @@ impl SchemaTrait for SubDB {
         self.as_schema().show_create_table_sql(_table_name).await
     }
 
-    async fn show_view_sql(&self, _view_name: &str, _materialized: bool) -> anyhow::Result<String> {
+    async fn show_view_sql(&self, _view_name: &str, materialized: bool) -> anyhow::Result<String> {
         self.as_schema()
-            .show_view_sql(_view_name, _materialized)
+            .show_view_sql(_view_name, materialized)
             .await
     }
 

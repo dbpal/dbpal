@@ -133,11 +133,7 @@ mod tests {
         .unwrap();
         let ts = db.list_execute(None).await.unwrap();
 
-        assert!(
-            ts.iter().any(|x| x.name.eq("stmtxxx")),
-            "!!!!!!!!!!!{:?}",
-            ts
-        );
+        assert!(ts.iter().any(|x| x.name.eq("stmtxxx")), "stmtxxx{:?}", ts);
     }
 
     #[tokio::test]

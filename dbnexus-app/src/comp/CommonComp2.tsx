@@ -403,7 +403,7 @@ function MenuConnectionInfo({ uuid }) {
           generateRandomString(),
           uuid,
           <ConnConfigInfo uuid={uuid} />,
-          <IoMdInformationCircleOutline />,
+          <IoMdInformationCircleOutline className="tab-icon-size" />,
         ),
       ];
     });

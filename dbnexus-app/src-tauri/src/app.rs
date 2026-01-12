@@ -140,39 +140,45 @@ impl DBConnectionConfig {
         match self {
             DBConnectionConfig::Sqlite { conn, .. } => {
                 let db: Arc<dyn SchemaTrait> =
-                    Arc::new(dbnexus_db::sqlite::SqliteDB::new(conn.clone()).await?);
+                    Arc::new(dbnexus_db::sqlite::SqliteDB::new(conn.clone()).await?)
+                        as Arc<dyn SchemaTrait>;
                 anyhow::Ok(DatabaseBackend::Schema(db))
             }
             DBConnectionConfig::Mysql { conn, .. } => match &conn.db {
                 Some(_) => {
                     let db: Arc<dyn SchemaTrait> =
-                        Arc::new(dbnexus_db::mysql::MysqlDB::new(conn.clone()).await?);
+                        Arc::new(dbnexus_db::mysql::MysqlDB::new(conn.clone()).await?)
+                            as Arc<dyn SchemaTrait>;
                     anyhow::Ok(DatabaseBackend::Schema(db))
                 }
                 None => {
                     let db: Arc<dyn DBTrait> =
-                        Arc::new(dbnexus_db::mysql::MysqlDB::new(conn.clone()).await?);
+                        Arc::new(dbnexus_db::mysql::MysqlDB::new(conn.clone()).await?)
+                            as Arc<dyn DBTrait>;
                     anyhow::Ok(DatabaseBackend::DataBase(db))
                 }
             },
             DBConnectionConfig::MariaDB { conn, .. } => match &conn.db {
                 Some(_) => {
                     let db: Arc<dyn SchemaTrait> =
-                        Arc::new(SubDB::new_mariadb(conn.clone()).await?);
+                        Arc::new(SubDB::new_mariadb(conn.clone()).await?) as Arc<dyn SchemaTrait>;
                     anyhow::Ok(DatabaseBackend::Schema(db))
                 }
                 None => {
-                    let db: Arc<dyn DBTrait> = Arc::new(SubDB::new_mariadb(conn.clone()).await?);
+                    let db: Arc<dyn DBTrait> =
+                        Arc::new(SubDB::new_mariadb(conn.clone()).await?) as Arc<dyn DBTrait>;
                     anyhow::Ok(DatabaseBackend::DataBase(db))
                 }
             },
             DBConnectionConfig::Tidb { conn, .. } => match &conn.db {
                 Some(_) => {
-                    let db: Arc<dyn SchemaTrait> = Arc::new(SubDB::new_tidb(conn.clone()).await?);
+                    let db: Arc<dyn SchemaTrait> =
+                        Arc::new(SubDB::new_tidb(conn.clone()).await?) as Arc<dyn SchemaTrait>;
                     anyhow::Ok(DatabaseBackend::Schema(db))
                 }
                 None => {
-                    let db: Arc<dyn DBTrait> = Arc::new(SubDB::new_tidb(conn.clone()).await?);
+                    let db: Arc<dyn DBTrait> =
+                        Arc::new(SubDB::new_tidb(conn.clone()).await?) as Arc<dyn DBTrait>;
                     anyhow::Ok(DatabaseBackend::DataBase(db))
                 }
             },
@@ -210,8 +216,8 @@ impl DBConnectionConfig {
             DBConnectionConfig::Mongo { conn, .. } => {
                 let db: Arc<MongoDB> = Arc::new(dbnexus_db::mongo::MongoDB::new(conn.clone())?);
                 match conn.db {
-                    Some(_) => anyhow::Ok(DatabaseBackend::Schema(db)),
-                    None => anyhow::Ok(DatabaseBackend::DataBase(db)),
+                    Some(_) => anyhow::Ok(DatabaseBackend::Schema(db as Arc<dyn SchemaTrait>)),
+                    None => anyhow::Ok(DatabaseBackend::DataBase(db as Arc<dyn DBTrait>)),
                 }
             }
             DBConnectionConfig::Redis { conn, .. } => {
@@ -227,12 +233,14 @@ impl DBConnectionConfig {
             DBConnectionConfig::Oracle { conn, .. } => match conn.schema.as_ref() {
                 Some(_) => {
                     let db: Arc<dyn SchemaTrait> =
-                        Arc::new(dbnexus_db::oracle::OracleDB::new(conn.clone(), None)?);
+                        Arc::new(dbnexus_db::oracle::OracleDB::new(conn.clone(), None)?)
+                            as Arc<dyn SchemaTrait>;
                     anyhow::Ok(DatabaseBackend::Schema(db))
                 }
                 None => {
                     let db: Arc<dyn DBTrait> =
-                        Arc::new(dbnexus_db::oracle::OracleDB::new(conn.clone(), None)?);
+                        Arc::new(dbnexus_db::oracle::OracleDB::new(conn.clone(), None)?)
+                            as Arc<dyn DBTrait>;
                     anyhow::Ok(DatabaseBackend::DataBase(db))
                 }
             },

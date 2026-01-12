@@ -42,3 +42,8 @@
   font-style: italic;
   text-decoration: underline;
 }
+
+.tab-icon-size {
+  width: 1.3rem;
+  height: 1.3rem;
+}

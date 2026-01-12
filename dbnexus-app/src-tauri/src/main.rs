@@ -4,7 +4,7 @@
 
 mod app;
 mod handlers;
-use crate::handlers::{TaskManager, log_level_loc};
+use crate::handlers::TaskManager;
 use app::DBPal;
 use handlers::{
     add_table_column, ai_get_search_path, ai_text_completion, all_font_family, auto_completion,
@@ -130,8 +130,10 @@ fn is_macos() -> bool {
 
 #[allow(dead_code)]
 fn get_logger_level() -> Option<log::Level> {
-    //   log_level_loc().read().expect("lock failed").clone() ;
-    Some(log::Level::Trace)
+    handlers::log_level_ref()
+        .read()
+        .expect("lock failed")
+        .clone()
 }
 
 #[allow(unused)]
@@ -230,7 +232,7 @@ fn main() {
     let mut builder =
         tauri::Builder::default().plugin(tauri_plugin_window_state::Builder::new().build());
 
-    #[cfg(all(feature = "devtools"))]
+    #[cfg(feature = "devtools")]
     {
         let _devtools = tauri_plugin_devtools::init();
         builder = builder.plugin(_devtools);

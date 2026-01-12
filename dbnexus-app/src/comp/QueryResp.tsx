@@ -225,7 +225,7 @@ function QueryResp(props: { data: MuiDataGridData }) {
           >
             <Stack style={{ flex: 1, alignItems: "center" }} direction="row">
               <ResetColumnWidth />
-              <Typography color="info">total: {data.data.length} </Typography>
+              <Typography color="info">rows: {data.data.length} </Typography>
             </Stack>
             <AppDataGridPagination showPageSelect />
           </Stack>
@@ -336,7 +336,6 @@ function MultiQueryResp(props: { data: QueryRespData[] }) {
   const handleChange = (_event: React.SyntheticEvent, newValue: number) => {
     setValue(newValue);
   };
-
   return (
     <div
       style={{

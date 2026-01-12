@@ -157,7 +157,7 @@ function LeftTop(props: { matchPattern: string[]; setMatchPattern; extra: ReactN
             generateRandomString(),
             "add connection",
             <AddConnection config={conn} />,
-            <GrConnect />,
+            <GrConnect className="tab-icon-size" />,
           ),
         ];
       });
@@ -179,7 +179,6 @@ function LeftTop(props: { matchPattern: string[]; setMatchPattern; extra: ReactN
   useEffect(() => {
     const unlisten = listen("show_setting", () => {
       const index = tabsHasId(tabs, settingId);
-      console.log("!!!!!!!!!!!!!!!", index);
       if (typeof index == "number") {
         setSelectTab(index);
       } else {
@@ -189,7 +188,12 @@ function LeftTop(props: { matchPattern: string[]; setMatchPattern; extra: ReactN
           }, 100);
           return [
             ...e,
-            new TabContent(settingId, "setting", <ModifySetting />, <IoMdSettings />),
+            new TabContent(
+              settingId,
+              "setting",
+              <ModifySetting />,
+              <IoMdSettings className="tab-icon-size" />,
+            ),
           ];
         });
       }
@@ -782,7 +786,7 @@ function FavoriteSqlList(props: { handleClose }) {
               generateRandomString(10),
               `${row.uuid}`,
               content,
-              <TbDatabaseSearch> </TbDatabaseSearch>,
+              <TbDatabaseSearch className="tab-icon-size" />,
             ),
           ];
         });
@@ -1438,7 +1442,12 @@ function openNewQuery(setSelectTab, setTabs, uuid: string, kind: DataSourceKind)
     }, 100);
     return [
       ...e,
-      new TabContent(id, `${uuid}`, content, <TbDatabaseSearch> </TbDatabaseSearch>),
+      new TabContent(
+        id,
+        `${uuid}`,
+        content,
+        <TbDatabaseSearch className="tab-icon-size" />,
+      ),
     ];
   });
 }

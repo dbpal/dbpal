@@ -17,9 +17,9 @@ use crate::{
 impl SubDB {
     fn as_lang_server(&self) -> &dyn LanguageServer {
         match self {
-            SubDB::TiDB(x) => x.as_ref(),
-            SubDB::MariaDb(db) => db.as_ref(),
-            SubDB::CocoRoach(db) => db.as_ref(),
+            SubDB::TiDB(x) => x.as_ref() as &dyn LanguageServer,
+            SubDB::MariaDb(db) => db.as_ref() as &dyn LanguageServer,
+            SubDB::CocoRoach(db) => db.as_ref() as &dyn LanguageServer,
         }
     }
 }
@@ -224,54 +224,52 @@ impl SubDB {
 #[async_trait::async_trait]
 
 impl AstCompletionHelper for SubDB {
-    async fn get_query_columns(&self, _sql: &str) -> anyhow::Result<Vec<TempTableColumn>> {
-        self.as_ast_completion_helper()
-            .get_query_columns(_sql)
-            .await
+    async fn get_query_columns(&self, sql: &str) -> anyhow::Result<Vec<TempTableColumn>> {
+        self.as_ast_completion_helper().get_query_columns(sql).await
     }
 
     async fn mysql_show_create_trigger(
-        &self, _schema: Option<&str>,
+        &self, schema: Option<&str>,
     ) -> anyhow::Result<Vec<CompletionItem>> {
         self.as_ast_completion_helper()
-            .mysql_show_create_trigger(_schema)
+            .mysql_show_create_trigger(schema)
             .await
     }
 
     async fn list_partition(
-        &self, _schema: Option<&str>, _table: &str,
+        &self, schema: Option<&str>, table: &str,
     ) -> anyhow::Result<Vec<String>> {
         self.as_ast_completion_helper()
-            .list_partition(_schema, _table)
+            .list_partition(schema, table)
             .await
     }
     async fn table_policy(
-        &self, _schema: Option<&str>, _table: &str,
+        &self, _schema: Option<&str>, table: &str,
     ) -> anyhow::Result<Vec<String>> {
         self.as_ast_completion_helper()
-            .table_policy(_schema, _table)
+            .table_policy(_schema, table)
             .await
     }
 
     async fn list_postgres_rule(
-        &self, _schema: Option<&str>, _table: &str,
+        &self, _schema: Option<&str>, table: &str,
     ) -> anyhow::Result<Vec<String>> {
         self.as_ast_completion_helper()
-            .list_postgres_rule(_schema, _table)
+            .list_postgres_rule(_schema, table)
             .await
     }
     async fn list_constraint(
-        &self, _schema: Option<&str>, _table_name: &str,
+        &self, _schema: Option<&str>, table_name: &str,
     ) -> anyhow::Result<Vec<String>> {
         self.as_ast_completion_helper()
-            .list_constraint(_schema, _table_name)
+            .list_constraint(_schema, table_name)
             .await
     }
     async fn list_table_trigger(
-        &self, _schema: Option<&str>, _table: &str,
+        &self, _schema: Option<&str>, table: &str,
     ) -> anyhow::Result<Vec<String>> {
         self.as_ast_completion_helper()
-            .list_table_trigger(_schema, _table)
+            .list_table_trigger(_schema, table)
             .await
     }
 }

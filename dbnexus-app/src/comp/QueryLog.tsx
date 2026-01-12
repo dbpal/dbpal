@@ -186,7 +186,11 @@ function QueryLog(props: {
   const slots = useMemo(() => {
     return {
       pagination: () => {
-        return <AppDataGridPagination showPageSelect />;
+        return (
+          <Stack direction="row" style={{ flex: 1, justifyContent: "flex-end" }}>
+            <AppDataGridPagination showPageSelect />
+          </Stack>
+        );
       },
     } as Partial<GridSlotsComponent>;
   }, []);

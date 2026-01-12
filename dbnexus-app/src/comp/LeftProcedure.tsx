@@ -149,7 +149,7 @@ function ProcedureMenu(props: {
                 uuid={uuid}
               />
             ),
-            <SiProcessingfoundation />,
+            <SiProcessingfoundation className="tab-icon-size" />,
           ),
         ];
       });
