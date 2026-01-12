@@ -8,7 +8,7 @@ import {
   Tooltip,
   Typography,
 } from "@mui/material";
-import CancelIcon from "@mui/icons-material/Cancel";
+import CloseIcon from "@mui/icons-material/Close";
 
 import {
   ContextMenuContext,
@@ -192,10 +192,11 @@ function TabsWithContent_(props: {
                   >
                     {tab.header}
                   </Typography>
-                  <CancelIcon
+                  <CloseIcon
                     onClick={() => {
                       handleClose(index);
                     }}
+                    color="warning"
                   />
                 </Stack>
               </Tooltip>

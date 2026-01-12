@@ -90,7 +90,6 @@ function AppearanceSetting() {
 
   useEffect(() => {
     UserSettingAppearance.get().then(setting => {
-      console.log("!!!!!!!!!!!!", setting);
       setFontWeight(setting.fontWeight);
       setFontSize(setting.fontSize);
       setBgColor(isDarkTheme() ? setting.darkBgColor : setting.lightBgColor);
