@@ -640,18 +640,20 @@ class UserSettingAppearance {
   datagridRowHeightFactor = 2.5;
   intputVariant: string = "standard";
   static key = "dbpal-appearance-setting";
-  save() {
-    localStorage.setItem(UserSettingAppearance.key, JSON.stringify({ ...this }));
+  async save() {
+    await appStore.set(UserSettingAppearance.key, this);
     notifySettingChange();
   }
   // 可能和以前的设置冲突
   datagridRowHeight() {
     return Math.ceil(this.fontSize * this.datagridRowHeightFactor);
   }
-  static get(): UserSettingAppearance {
+  static async get(): Promise<UserSettingAppearance> {
     try {
-      let setting = JSON.parse(localStorage.getItem(UserSettingAppearance.key));
-      setting = { ...new UserSettingAppearance(), ...setting };
+      let setting = await appStore.get<UserSettingAppearance>(
+        UserSettingAppearance.key,
+      );
+      setting = { ...new UserSettingAppearance(), ...setting } as UserSettingAppearance;
       Object.setPrototypeOf(setting, UserSettingAppearance.prototype);
       return setting;
     } catch (e) {
@@ -665,14 +667,14 @@ class UserSettingExport {
   csvDelimiter: string = ",";
   includeHeader: boolean = true;
   static key = "dbpal-export-setting";
-  save() {
-    localStorage.setItem(UserSettingExport.key, JSON.stringify({ ...this }));
+  async save() {
+    await appStore.set(UserSettingExport.key, this);
     notifySettingChange();
   }
-  static get(): UserSettingExport {
+  static async get(): Promise<UserSettingExport> {
     try {
-      let setting = JSON.parse(localStorage.getItem(UserSettingExport.key));
-      setting = { ...new UserSettingExport(), ...setting };
+      let setting = await appStore.get<UserSettingExport>(UserSettingExport.key);
+      setting = { ...new UserSettingExport(), ...setting } as UserSettingExport;
       Object.setPrototypeOf(setting, UserSettingExport.prototype);
       return setting;
     } catch (e) {
@@ -687,15 +689,15 @@ class UserSettingEditor {
   theme: string = "";
   editorOption: any = null;
   static key = "dbpal-editor-setting";
-  save() {
-    localStorage.setItem(UserSettingEditor.key, JSON.stringify({ ...this }));
+  async save() {
+    await appStore.set(UserSettingEditor.key, this);
     notifySettingChange();
   }
 
-  static get() {
+  static async get(): Promise<UserSettingEditor> {
     try {
-      const x = JSON.parse(localStorage.getItem(UserSettingEditor.key));
-      return { ...new UserSettingEditor(), ...x };
+      const x = await appStore.get<UserSettingEditor>(UserSettingEditor.key);
+      return { ...new UserSettingEditor(), ...x } as UserSettingEditor;
     } catch (e) {
       console.log("get user setting failed, use default", e);
       return new UserSettingEditor();
@@ -704,16 +706,31 @@ class UserSettingEditor {
 }
 
 class UserSetting {
-  editor: UserSettingEditor = UserSettingEditor.get();
-  appearance: UserSettingAppearance = UserSettingAppearance.get();
-  export: UserSettingExport = UserSettingExport.get();
-  misc: UserSettingMisc = UserSettingMisc.get();
+  editor: UserSettingEditor;
+  appearance: UserSettingAppearance;
+  export: UserSettingExport;
+  misc: UserSettingMisc;
   editorTheme(): string {
     if (this.editor.theme) {
       return this.editor.theme;
     }
     return isDarkTheme() ? "vs-dark" : "light";
   }
+
+  static async load() {
+    try {
+      const ret = new UserSetting();
+      ret.editor = await UserSettingEditor.get();
+      ret.appearance = await UserSettingAppearance.get();
+      ret.misc = await UserSettingMisc.get();
+      ret.export = await UserSettingExport.get();
+      return ret;
+    } catch (e) {
+      console.error("load config failed,err:", e);
+      message("could load config" + String(e), { kind: "error" });
+    }
+  }
+
   datagridRowHeightXXX() {
     return this.appearance.datagridRowHeight();
   }
@@ -728,15 +745,15 @@ function isDarkTheme() {
 class UserSettingMisc {
   static key = "dbpal-misc-setting";
   autoStart: boolean = false;
-  save() {
-    localStorage.setItem(UserSettingMisc.key, JSON.stringify({ ...this }));
+  async save() {
+    await appStore.set(UserSettingMisc.key, this);
     notifySettingChange();
   }
 
-  static get() {
+  static async get(): Promise<UserSettingMisc> {
     try {
-      const x = JSON.parse(localStorage.getItem(UserSettingMisc.key));
-      return { ...new UserSettingMisc(), ...x };
+      const x = await appStore.get<UserSettingMisc>(UserSettingMisc.key);
+      return { ...new UserSettingMisc(), ...x } as UserSettingMisc;
     } catch (e) {
       console.log("get user setting failed, use default", e);
       return new UserSettingMisc();

@@ -1,4 +1,11 @@
-import { CSSProperties, ReactNode, useContext, useEffect, useState } from "react";
+import {
+  CSSProperties,
+  ReactNode,
+  useContext,
+  useEffect,
+  useRef,
+  useState,
+} from "react";
 import { FaFolderOpen } from "react-icons/fa";
 import {
   Autocomplete,
@@ -68,21 +75,32 @@ import { LogLevelSelection, ModalHeader } from "./CommonComp";
 import { appLogDir } from "@tauri-apps/api/path";
 
 function AppearanceSetting() {
-  const setting = UserSettingAppearance.get();
   const { showNotification } = useContext(NotificationContext);
   const [allFonts, setAllFonts] = useState<string[]>([]);
   const [showEditBgColor, setShowEditBgColor] = useState(false);
-  const [fontWeight, setFontWeight] = useState(setting.fontWeight);
-  const [fontSize, setFontSize] = useState(setting.fontSize);
-  const [bgColor, setBgColor] = useState(
-    isDarkTheme() ? setting.darkBgColor : setting.lightBgColor,
-  );
+  const [fontWeight, setFontWeight] = useState("");
+  const [fontSize, setFontSize] = useState(15);
+  const [bgColor, setBgColor] = useState("");
   const [bgColorErr, setBgColorErr] = useState("");
-  const [fontFamily, setFontFamily] = useState(setting.fontFamily);
-  const [datagridRowHeightFactor, setDatagridRowHeightFactor] = useState(
-    setting.datagridRowHeightFactor + "",
-  );
-  const [intputVariant, setInputVariant] = useState(setting.intputVariant);
+  const [fontFamily, setFontFamily] = useState("");
+  const [datagridRowHeightFactor, setDatagridRowHeightFactor] = useState("");
+  const [intputVariant, setInputVariant] = useState("");
+
+  const oldSetting = useRef<UserSettingAppearance>(null);
+
+  useEffect(() => {
+    UserSettingAppearance.get().then(setting => {
+      console.log("!!!!!!!!!!!!", setting);
+      setFontWeight(setting.fontWeight);
+      setFontSize(setting.fontSize);
+      setBgColor(isDarkTheme() ? setting.darkBgColor : setting.lightBgColor);
+      setFontFamily(setting.fontFamily);
+      setDatagridRowHeightFactor(setting.datagridRowHeightFactor + "");
+      setInputVariant(setting.intputVariant);
+      oldSetting.current = setting;
+    });
+  }, []);
+
   const [zoom, setZoom] = useState(1);
   useEffect(() => {
     if (!bgColor) {
@@ -135,11 +153,11 @@ function AppearanceSetting() {
         fontFamily,
         fontSize,
         fontWeight,
-        darkBgColor: isDarkTheme() ? bgColor : setting.darkBgColor,
-        lightBgColor: !isDarkTheme() ? bgColor : setting.lightBgColor,
+        darkBgColor: isDarkTheme() ? bgColor : oldSetting.current.darkBgColor,
+        lightBgColor: !isDarkTheme() ? bgColor : oldSetting.current.lightBgColor,
         datagridRowHeightFactor: parseFloat(datagridRowHeightFactor),
         intputVariant,
-      } as UserSettingAppearance;
+      } as unknown as UserSettingAppearance;
       Object.setPrototypeOf(x, UserSettingAppearance.prototype);
       x.save();
     } catch (e) {
@@ -313,16 +331,23 @@ function AppearanceSetting() {
 }
 
 function EditorSetting() {
-  const setting = UserSettingEditor.get();
-  const [editorOptions, setEditorOptions] = useState(
-    setting.editorOption ? JSON.stringify(setting.editorOption) : "{}",
-  );
+  const [editorOptions, setEditorOptions] = useState("");
   const [showEditOption, setShowEditOption] = useState(false);
-  const [tabSize, setTabSize] = useState(setting.tabSize);
-  const [customEditorTheme, setCustomEditorTheme] = useState(setting.theme);
+  const [tabSize, setTabSize] = useState(4);
+  const [customEditorTheme, setCustomEditorTheme] = useState("");
   const [highLightTheme, setHighlightTheme] = useState("");
   const muiTheme = useTheme();
   const { showNotification } = useContext(NotificationContext);
+
+  useEffect(() => {
+    UserSettingEditor.get().then(setting => {
+      setEditorOptions(
+        setting.editorOption ? JSON.stringify(setting.editorOption) : "{}",
+      );
+      setTabSize(setting.tabSize);
+      setCustomEditorTheme(setting.theme);
+    });
+  }, []);
   const handleSave = () => {
     try {
       const obj = {
@@ -431,10 +456,16 @@ function EditorSetting() {
 const headerSize = "16rem";
 
 function ExportSetting() {
-  const setting = UserSettingExport.get();
-  const [csvDelimiter, setCsvDelimiter] = useState(setting.csvDelimiter);
-  const [includeHeader, setIncludeHeader] = useState(setting.includeHeader);
+  const [csvDelimiter, setCsvDelimiter] = useState(",");
+  const [includeHeader, setIncludeHeader] = useState(true);
   const { showNotification } = useContext(NotificationContext);
+  useEffect(() => {
+    UserSettingExport.get().then(setting => {
+      setCsvDelimiter(setting.csvDelimiter);
+      setIncludeHeader(setting.includeHeader);
+    });
+  }, []);
+
   const handleSave = () => {
     try {
       const x = { csvDelimiter, includeHeader } as UserSettingExport;
@@ -777,6 +808,12 @@ function LLMSetting(props: { handleClose?: () => void }) {
 function MiscSetting() {
   const [autoStart, setAutoStart] = useState(false);
   const { showNotification } = useContext(NotificationContext);
+
+  useEffect(() => {
+    UserSettingMisc.get().then(setting => {
+      setAutoStart(setting.autoStart);
+    });
+  }, []);
   const handleSave = () => {
     try {
       const x = { autoStart } as UserSettingMisc;
@@ -1171,7 +1208,7 @@ function SettingComp(props: { children: ReactNode }) {
   const { children } = props;
   const [setting, setSetting] = useState<UserSetting>(null);
   const reload = async () => {
-    const setting = new UserSetting();
+    const setting = await UserSetting.load();
     setSetting(setting);
     document.documentElement.style.fontSize = setting.appearance.fontSize + "px";
     document.documentElement.style.fontFamily = setting.appearance.fontFamily;

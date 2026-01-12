@@ -7,7 +7,6 @@ import {
   Tab,
   Tooltip,
   Typography,
-  IconButton,
 } from "@mui/material";
 import CancelIcon from "@mui/icons-material/Cancel";
 
@@ -19,7 +18,6 @@ import {
   TabActiveContext,
   WindowFocusContext,
 } from "./helper";
-import { CancelButton } from "./CommonComp2";
 
 function TabsMenu(props: {
   index;
@@ -194,13 +192,11 @@ function TabsWithContent_(props: {
                   >
                     {tab.header}
                   </Typography>
-                  <IconButton
+                  <CancelIcon
                     onClick={() => {
                       handleClose(index);
                     }}
-                  >
-                    <CancelIcon />
-                  </IconButton>
+                  />
                 </Stack>
               </Tooltip>
             />

@@ -2175,7 +2175,7 @@ pub(crate) fn need_paid() -> anyhow::Result<()> {
     if cfg!(feature = "paid") {
         anyhow::Ok(())
     } else {
-        anyhow::bail!("thi feature is paid")
+        anyhow::bail!("this feature is paid")
     }
 }
 
