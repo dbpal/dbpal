@@ -651,6 +651,11 @@ function SqlTableView(props: {
 
   const handleProcessRowUpdate = useCallback(
     async (newRow: object, oldRow: object) => {
+      for (const key in newRow) {
+        if (!newRow[key]) {
+          newRow[key] = null;
+        }
+      }
       const findDiff = (): Map<string, string | null> => {
         const m = new Map();
         for (const key in newRow) {
