@@ -179,14 +179,15 @@ function TabsWithContent_(props: {
                     });
                   }}
                 >
-                  {tabs.length <= 8 ? tab.icon : undefined}
+                  {tabs.length <= 8 && max > 100 ? tab.icon : undefined}
                   <Typography
                     style={{
-                      textOverflow: "clip",
-                      overflow: "hidden",
+                      fontWeight: index == selectIndex ? "bolder" : "normal",
+                      minWidth: "2rem",
                       whiteSpace: "nowrap",
-                      display: "inline-block",
-                      fontWeight: index == selectIndex ? "bolder" : undefined,
+                      overflow: "hidden",
+                      textOverflow: "clip",
+                      flex: 1,
                     }}
                     color={index == selectIndex ? "primary" : undefined}
                   >
