@@ -84,7 +84,7 @@ function AppearanceSetting() {
   const [bgColorErr, setBgColorErr] = useState("");
   const [fontFamily, setFontFamily] = useState("");
   const [datagridRowHeightFactor, setDatagridRowHeightFactor] = useState("");
-  const [intputVariant, setInputVariant] = useState("");
+  const [intputVariant, setInputVariant] = useState("standard");
 
   const oldSetting = useRef<UserSettingAppearance>(null);
 
