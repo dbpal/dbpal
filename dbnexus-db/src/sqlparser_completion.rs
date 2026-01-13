@@ -901,10 +901,10 @@ impl<'a> CompletionStatement<'a> {
                 self.c_on_expr(database_file_name).await;
             }
             Statement::AttachDuckDBDatabase { .. } => {
-                // no support on this
+                // fallback to lexer
             }
             Statement::DetachDuckDBDatabase { .. } => {
-                // no support on this
+                // fallback to lexer
             }
             Statement::Drop {
                 object_type,
@@ -1359,8 +1359,25 @@ impl<'a> CompletionStatement<'a> {
                 }
                 self.c_on_conditional_statements(body).await;
             }
-            Statement::CreateMacro { .. } => {
-                // DuckDB not support.
+            Statement::CreateMacro { name, args, .. } => {
+                if self.in_pos(&name.span()) {
+                    self.set_on_def();
+                    return;
+                }
+                if let Some(args) = args {
+                    for arg in args.iter() {
+                        if self.in_pos(&arg.name.span) {
+                            self.set_on_def();
+                            return;
+                        }
+                        if let Some(expr) = arg.default_expr.as_ref() {
+                            self.c_on_expr(expr).await;
+                            if self.finished() {
+                                return;
+                            }
+                        }
+                    }
+                }
             }
             Statement::CreateStage { .. } => {
                 // snowflake not support

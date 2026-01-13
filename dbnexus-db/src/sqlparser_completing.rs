@@ -382,8 +382,35 @@ impl<'a> CompletionStatement<'a> {
         )
     }
 
-    pub(crate) async fn c_on_trigger_exec_body(&mut self, _body: &TriggerExecBody) {
-        // TODO sqlparser don't support parse trigger body??
+    pub(crate) async fn c_on_operate_function_arg(&mut self, arg: &OperateFunctionArg) {
+        let OperateFunctionArg {
+            mode: _,
+            name,
+            data_type,
+            default_expr,
+        } = arg;
+        if let Some(name) = name {
+            if self.in_pos(&name.span) {
+                self.set_on_def();
+                return;
+            }
+        }
+        self.c_on_data_type(data_type).await;
+        if let Some(d) = default_expr {
+            self.c_on_expr(d).await;
+        }
+    }
+    pub(crate) async fn c_on_trigger_exec_body(&mut self, body: &TriggerExecBody) {
+        let FunctionDesc { name: _, args } = &body.func_desc;
+
+        if let Some(args) = args {
+            for arg in args.iter() {
+                self.c_on_operate_function_arg(arg).await;
+                if self.finished() {
+                    return;
+                }
+            }
+        }
     }
 
     pub(crate) async fn c_on_role_objectname(&mut self, name: &ObjectName) {
@@ -1719,8 +1746,8 @@ impl<'a> CompletionStatement<'a> {
             Expr::CompoundIdentifier(vec) => {
                 self.c_on_expr_compound_identifier(vec).await;
             }
-            Expr::JsonAccess { .. } => {
-                // snowflake databricks not support
+            Expr::JsonAccess { value, .. } => {
+                Box::pin(self.c_on_expr(value.as_ref())).await;
             }
             Expr::IsFalse(expr) => {
                 Box::pin(self.c_on_expr(expr)).await;
@@ -2070,11 +2097,16 @@ impl<'a> CompletionStatement<'a> {
                     }
                 }
             }
-            Expr::Struct { .. } => {
-                // bigquery not support
+            Expr::Struct { values, .. } => {
+                for v in values.iter() {
+                    Box::pin(self.c_on_expr(v)).await;
+                    if self.finished() {
+                        return;
+                    }
+                }
             }
-            Expr::Named { .. } => {
-                // bigquery not support
+            Expr::Named { expr, .. } => {
+                Box::pin(self.c_on_expr(expr.as_ref())).await;
             }
             Expr::Dictionary(_) => {
                 // literal value

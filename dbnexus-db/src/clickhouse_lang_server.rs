@@ -18,7 +18,6 @@ impl GetKeyWords for ClickHouseDB {
             return anyhow::Ok(lock.clone());
         }
         let sql = "select * from system.keywords";
-
         let ret: Vec<String> = self.client.query(sql).fetch_all().await?;
         *lock = ret;
         return anyhow::Ok(lock.clone());

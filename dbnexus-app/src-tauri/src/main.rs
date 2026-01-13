@@ -253,6 +253,7 @@ fn main() {
                     Target::new(TargetKind::LogDir { file_name: None }),
                     Target::new(TargetKind::Stdout),
                 ])
+                .max_file_size(10 * 1024 * 1024)
                 .build(),
         );
     }

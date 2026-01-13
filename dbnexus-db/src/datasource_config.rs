@@ -489,3 +489,13 @@ pub struct OdbcCommon {
     pub max_str_len: usize,
     pub max_bin_len: usize,
 }
+
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize, TypeDef)]
+pub struct CouchBaseDBConfig {
+    pub conn_str: String,
+    pub username: String,
+    pub password: String,
+    pub read_only: bool,
+    pub bucket: Option<String>,
+    pub scope: Option<String>,
+}

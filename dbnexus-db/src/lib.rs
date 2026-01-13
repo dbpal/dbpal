@@ -15,6 +15,10 @@ pub mod clickhouse;
 pub mod clickhouse_lang_server;
 pub mod cockroach;
 pub mod cockroach_lang_server;
+#[cfg(feature = "couchbase")]
+pub mod couchbase;
+#[cfg(feature = "couchbase")]
+pub mod couchbase_lang_server;
 #[cfg(feature = "duckdb")]
 pub mod duckdb;
 #[cfg(feature = "duckdb")]
@@ -41,6 +45,9 @@ pub mod pg_format;
 pub mod pg_lang_server;
 pub mod redis;
 pub mod redis_lang_server;
+#[cfg(feature = "snowflake")]
+pub mod snowflake;
+pub mod snowflake_lang_server;
 pub mod sqlite;
 pub mod sqlite_lang_server;
 pub mod sqlparser_completing;

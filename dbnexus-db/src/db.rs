@@ -28,6 +28,7 @@ pub enum BackendKind {
     DuckDB,
     BigQuery,
     Db2,
+    CouchBase,
 }
 
 impl BackendKind {

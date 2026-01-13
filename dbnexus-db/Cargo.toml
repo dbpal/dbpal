@@ -8,6 +8,8 @@ license.workspace = true
 
 
 [dependencies]
+couchbase = { version = "1.0.0-beta.1", optional = true, features = [] }
+snowflake-connector-rs = { version = "0.7.3", optional = true }
 gcp-bigquery-client = { version = "0.27.0" }
 sqlx = { version = "0.9.0-alpha.1", features = [
     "runtime-tokio",
@@ -104,3 +106,5 @@ opener = "*"
 duckdb = ["dep:duckdb"]
 paid = []
 odbc = ["dep:odbc-api"]
+snowflake = ["dep:snowflake-connector-rs"]
+couchbase = ["dep:couchbase"]
