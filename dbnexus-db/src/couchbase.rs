@@ -1,5 +1,3 @@
-#![allow(unused)]
-
 // couchbase only allow use query on schema so we can get scope.
 // docker run -d --name some-couchbase -p 8091-8094:8091-8094 -p 11210:11210 couchbase
 use std::{collections::HashMap, str::FromStr, sync::Arc, time::Duration};
@@ -10,7 +8,6 @@ use couchbase::{
     cluster::Cluster,
     management::buckets::bucket_settings::BucketSettings,
     options::cluster_options::ClusterOptions,
-    results::collections_mgmt_results::ScopeSpec,
     scope::Scope,
 };
 use futures_util::StreamExt;
@@ -110,12 +107,12 @@ impl QuerySql for CouchBaseDB {
     }
 
     async fn execute_sql(
-        &self, query_id: &str, sql: &str,
+        &self, _query_id: &str, _sql: &str,
     ) -> anyhow::Result<Result<crate::db::QueryResp, String>> {
         self.backend_name().not_support_feature()
     }
 
-    async fn execute_sql_no_open_conn(&self, sql: &str) -> anyhow::Result<Option<usize>> {
+    async fn execute_sql_no_open_conn(&self, _sql: &str) -> anyhow::Result<Option<usize>> {
         self.backend_name().not_support_feature()
     }
 
@@ -123,7 +120,7 @@ impl QuerySql for CouchBaseDB {
         self.backend_name().not_support_feature()
     }
 
-    async fn close_connection(&self, id: &str) -> anyhow::Result<()> {
+    async fn close_connection(&self, _id: &str) -> anyhow::Result<()> {
         self.backend_name().not_support_feature()
     }
 }
@@ -221,7 +218,7 @@ impl SchemaTrait for CouchBaseDB {
 
     async fn table_update(
         &self, table_name: &str, values: HashMap<String, Option<String>>,
-        wheres: HashMap<String, Option<String>>,
+        _wheres: HashMap<String, Option<String>>,
     ) -> anyhow::Result<Option<usize>> {
         let (id, value) = extract_id_and_value(&values)?;
         let scope = self.get_scope()?;
@@ -283,7 +280,7 @@ impl SchemaTrait for CouchBaseDB {
         ))
     }
 
-    async fn show_table_columns(&self, table_name: &str) -> anyhow::Result<Vec<Field>> {
+    async fn show_table_columns(&self, _table_name: &str) -> anyhow::Result<Vec<Field>> {
         anyhow::Ok(vec![])
     }
 
@@ -431,7 +428,7 @@ impl DBTrait for CouchBaseDB {
     }
 
     async fn create_schema(
-        &self, name: &str, extra: Option<crate::db::CreateSchemaExtra>,
+        &self, name: &str, _extra: Option<crate::db::CreateSchemaExtra>,
     ) -> anyhow::Result<()> {
         self.get_bucket()?
             .collections()
@@ -521,10 +518,8 @@ async fn make_test_object() -> CouchBaseDB {
 #[cfg(test)]
 
 mod tests {
-    use crate::enable_test_log;
-
     use super::*;
-    use clickhouse::insert;
+    use crate::enable_test_log;
     use couchbase::{
         authenticator::{Authenticator, PasswordAuthenticator},
         cluster::Cluster,
