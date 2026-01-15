@@ -24,7 +24,7 @@ use crate::db::{
     POOL_MAX_CONNECTIONS, QueryEvent, QueryEventEmitter, QueryResp, QuerySql, ReadOnlyTrait,
     SchemaTrait, ServerMetas, ShowTableParameter, SqlBuilder, XlsxEdit, create_html_table_data,
     create_html_table_header, create_markdown_data, create_markdown_header, escape_sql_str,
-    export_query_as_xlsx_send_blocking_data, not_support_feature,
+    export_query_as_xlsx_send_blocking_data,
 };
 
 use crate::helper::create_csv;
@@ -611,7 +611,7 @@ impl SchemaTrait for FireBirdDB {
     }
 
     async fn duplicate_table(&self, _table: &str, _dup: &str) -> anyhow::Result<()> {
-        not_support_feature(self.backend_name())
+        self.backend_name().not_support_feature()
     }
     async fn list_table(&self) -> anyhow::Result<Vec<ListTable>> {
         let this = Clone::clone(self);

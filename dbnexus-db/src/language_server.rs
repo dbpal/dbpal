@@ -7,9 +7,7 @@ use sqlparser::keywords::Keyword;
 use sqlparser::tokenizer::{Location, Token, TokenWithSpan};
 use typescript_type_def::TypeDef;
 
-use crate::db::{
-    CreatedTypeDef, Field, GetBackendKind, SequenceDetail, SqlEvent, not_support_feature,
-};
+use crate::db::{CreatedTypeDef, Field, GetBackendKind, SequenceDetail, SqlEvent};
 use crate::helper::try_remove_one_at;
 use crate::sqlparser_completion::{CompletionStatement, Scopes, TempTableColumn};
 
@@ -24,7 +22,7 @@ pub trait LanguageServer: GetBackendKind + Send + Sync + 'static {
     ) -> anyhow::Result<CompletionList>;
 
     async fn try_get_max_id(&self, _name: &str) -> anyhow::Result<String> {
-        not_support_feature(self.backend_name())
+        self.backend_name().not_support_feature()
     }
 
     async fn get_search_path(&self, _query_id: &str) -> anyhow::Result<HashSet<String>> {
@@ -429,7 +427,7 @@ impl From<SqlEvent> for CompletionItem {
 #[async_trait::async_trait]
 pub trait GetKeyWords: GetBackendKind {
     async fn key_words(&self) -> anyhow::Result<Vec<String>> {
-        not_support_feature(self.backend_name())
+        self.backend_name().not_support_feature()
     }
 }
 
@@ -472,13 +470,13 @@ pub trait LangServerCommon: GetBackendKind + GetKeyWords + Send + Sync {
     // mysql use `show variables`
     // to query all variables
     async fn list_variable(&self) -> anyhow::Result<Vec<String>> {
-        not_support_feature(self.backend_name())
+        self.backend_name().not_support_feature()
     }
     async fn list_event(&self, _schema: Option<&str>) -> anyhow::Result<Vec<SqlEvent>> {
         anyhow::Ok(vec![])
     }
     async fn sqlite_module_name(&self) -> anyhow::Result<Vec<String>> {
-        not_support_feature(self.backend_name())
+        self.backend_name().not_support_feature()
     }
     async fn sqlite_pragma(&self) -> anyhow::Result<Vec<CompletionItem>> {
         anyhow::Ok(vec![])
@@ -513,10 +511,10 @@ pub trait LangServerCommon: GetBackendKind + GetKeyWords + Send + Sync {
         remove_duplicate(ret)
     }
     async fn list_role(&self) -> anyhow::Result<Vec<String>> {
-        not_support_feature(self.backend_name())
+        self.backend_name().not_support_feature()
     }
     async fn list_user(&self) -> anyhow::Result<Vec<String>> {
-        not_support_feature(self.backend_name())
+        self.backend_name().not_support_feature()
     }
     // -- 标准 SQL（PostgreSQL、Oracle、DB2 支持；MySQL 没有）
     // CREATE DOMAIN us_postal_code AS CHAR(5)
@@ -629,7 +627,7 @@ pub trait LangServerCommon: GetBackendKind + GetKeyWords + Send + Sync {
         &self, schema: Option<&str>, include_build_in: bool,
     ) -> anyhow::Result<Vec<CompletionItem>>;
     async fn list_procedure(&self, _schema: Option<&str>) -> anyhow::Result<Vec<String>> {
-        not_support_feature(self.backend_name())
+        self.backend_name().not_support_feature()
     }
     async fn list_procedure_completion(&self, schema: Option<&str>) -> Vec<CompletionItem> {
         self.list_procedure(schema)
@@ -1064,7 +1062,7 @@ pub trait AstCompletionHelper: Send + Sync + 'static + GetBackendKind + LangServ
     async fn list_clickhouse_table_projects(
         &self, _schema: Option<&str>, _table: &str,
     ) -> anyhow::Result<Vec<String>> {
-        not_support_feature(self.backend_name())
+        self.backend_name().not_support_feature()
     }
 
     async fn mysql_show_create_trigger(
@@ -1076,12 +1074,12 @@ pub trait AstCompletionHelper: Send + Sync + 'static + GetBackendKind + LangServ
     async fn list_partition(
         &self, _schema: Option<&str>, _table: &str,
     ) -> anyhow::Result<Vec<String>> {
-        not_support_feature(self.backend_name())
+        self.backend_name().not_support_feature()
     }
     async fn table_policy(
         &self, _schema: Option<&str>, _table: &str,
     ) -> anyhow::Result<Vec<String>> {
-        not_support_feature(self.backend_name())
+        self.backend_name().not_support_feature()
     }
     async fn table_policy_completion(
         &self, schema: Option<&str>, table: &str,
@@ -1102,17 +1100,17 @@ pub trait AstCompletionHelper: Send + Sync + 'static + GetBackendKind + LangServ
     async fn list_postgres_rule(
         &self, _schema: Option<&str>, _table: &str,
     ) -> anyhow::Result<Vec<String>> {
-        not_support_feature(self.backend_name())
+        self.backend_name().not_support_feature()
     }
     async fn list_constraint(
         &self, _schema: Option<&str>, _table_name: &str,
     ) -> anyhow::Result<Vec<String>> {
-        not_support_feature(self.backend_name())
+        self.backend_name().not_support_feature()
     }
     async fn list_table_trigger(
         &self, _schema: Option<&str>, _table: &str,
     ) -> anyhow::Result<Vec<String>> {
-        not_support_feature(self.backend_name())
+        self.backend_name().not_support_feature()
     }
 }
 

@@ -289,10 +289,10 @@ pub trait SchemaTrait:
     }
 
     async fn list_view(&self) -> anyhow::Result<Vec<ListTable>> {
-        not_support_feature(self.backend_name())
+        self.backend_name().not_support_feature()
     }
     async fn drop_view(&self, _view_name: &str) -> anyhow::Result<()> {
-        not_support_feature(self.backend_name())
+        self.backend_name().not_support_feature()
     }
     async fn drop_table(&self, table: &str, cascade: bool) -> anyhow::Result<()>;
 
@@ -301,56 +301,56 @@ pub trait SchemaTrait:
     async fn list_data_types(&self) -> anyhow::Result<Vec<String>>;
 
     async fn drop_table_column(&self, _table: &str, _col: &str) -> anyhow::Result<()> {
-        not_support_feature(self.backend_name())
+        self.backend_name().not_support_feature()
     }
     async fn modify_table_column(
         &self, _table: &str, _old_name: &str, _new_name: &str, _typ: Option<ColumnType>,
     ) -> anyhow::Result<()> {
-        not_support_feature(self.backend_name())
+        self.backend_name().not_support_feature()
     }
     async fn add_table_column(
         &self, _table: &str, _name: &str, _col: ColumnType,
     ) -> anyhow::Result<()> {
-        not_support_feature(self.backend_name())
+        self.backend_name().not_support_feature()
     }
 
     async fn rename_index(
         &self, _table_name: &str, _oldname: &str, _newname: &str,
     ) -> anyhow::Result<()> {
-        not_support_feature(self.backend_name())
+        self.backend_name().not_support_feature()
     }
 
     async fn show_indexes(&self, _table_name: &str) -> anyhow::Result<Vec<Index>> {
-        not_support_feature(self.backend_name())
+        self.backend_name().not_support_feature()
     }
 
     async fn create_index(&self, _table: &str, _: &CreateIndexReq) -> anyhow::Result<()> {
-        not_support_feature(self.backend_name())
+        self.backend_name().not_support_feature()
     }
 
     async fn drop_index(&self, _table_name: &str, _index: &str) -> anyhow::Result<()> {
-        not_support_feature(self.backend_name())
+        self.backend_name().not_support_feature()
     }
 
     async fn list_materialized_view(&self) -> anyhow::Result<Vec<ListTable>> {
-        not_support_feature(self.backend_name())
+        self.backend_name().not_support_feature()
     }
 
     async fn drop_materialized_view(&self, _name: &str) -> anyhow::Result<()> {
-        not_support_feature(self.backend_name())
+        self.backend_name().not_support_feature()
     }
 
     async fn export_table_or_view(
         &self, _name: &str, _: Option<ShowTableParameter>, _kind: ExportKind,
         _sender: tokio::sync::mpsc::Sender<ExportFrame>,
     ) -> anyhow::Result<()> {
-        not_support_feature(self.backend_name())
+        self.backend_name().not_support_feature()
     }
 
     async fn show_view(
         &self, _view_name: &str, _para: ShowTableParameter, _: QueryEventEmitter,
     ) -> anyhow::Result<()> {
-        not_support_feature(self.backend_name())
+        self.backend_name().not_support_feature()
     }
 
     async fn show_view_columns(&self, view_name: &str) -> anyhow::Result<Vec<Field>> {
@@ -406,58 +406,58 @@ pub trait SchemaTrait:
     async fn show_create_table_sql(
         &self, _table_name: &str,
     ) -> anyhow::Result<CreateTableAndIndexSql> {
-        not_support_feature(self.backend_name())
+        self.backend_name().not_support_feature()
     }
 
     async fn show_view_sql(&self, _view_name: &str, _materialized: bool) -> anyhow::Result<String> {
-        not_support_feature(self.backend_name())
+        self.backend_name().not_support_feature()
     }
 
     async fn list_trigger(&self, _table_name: &str) -> anyhow::Result<Vec<NamedStaff>> {
-        not_support_feature(self.backend_name())
+        self.backend_name().not_support_feature()
     }
     async fn show_trigger(&self, _table: &str, _name: &str) -> anyhow::Result<TriggerDetail> {
-        not_support_feature(self.backend_name())
+        self.backend_name().not_support_feature()
     }
     async fn drop_trigger(&self, _table: &str, _name: &str) -> anyhow::Result<()> {
-        not_support_feature(self.backend_name())
+        self.backend_name().not_support_feature()
     }
 
     async fn disable_trigger(&self, _table: &str, _name: &str) -> anyhow::Result<()> {
-        not_support_feature(self.backend_name())
+        self.backend_name().not_support_feature()
     }
     async fn enable_trigger(&self, _table: &str, _name: &str) -> anyhow::Result<()> {
-        not_support_feature(self.backend_name())
+        self.backend_name().not_support_feature()
     }
 
     async fn list_udf(&self) -> anyhow::Result<Vec<NamedStaff>> {
-        not_support_feature(self.backend_name())
+        self.backend_name().not_support_feature()
     }
 
     async fn show_udf(
         &self, _name: &str, _arg: Option<UdfOrProcedureExtraParameter>,
     ) -> anyhow::Result<DefAndMetas> {
-        not_support_feature(self.backend_name())
+        self.backend_name().not_support_feature()
     }
 
     async fn drop_udf(
         &self, _name: &str, _extra: Option<UdfOrProcedureExtraParameter>,
     ) -> anyhow::Result<()> {
-        not_support_feature(self.backend_name())
+        self.backend_name().not_support_feature()
     }
 
     async fn list_procedure(&self) -> anyhow::Result<Vec<NamedStaff>> {
-        not_support_feature(self.backend_name())
+        self.backend_name().not_support_feature()
     }
     async fn show_procedure(
         &self, _name: &str, _arg: Option<UdfOrProcedureExtraParameter>,
     ) -> anyhow::Result<ProcedureDetail> {
-        not_support_feature(self.backend_name())
+        self.backend_name().not_support_feature()
     }
     async fn drop_procedure(
         &self, _name: &str, _arg: Option<UdfOrProcedureExtraParameter>,
     ) -> anyhow::Result<()> {
-        not_support_feature(self.backend_name())
+        self.backend_name().not_support_feature()
     }
 
     async fn table_exists(&self, table: &str) -> anyhow::Result<bool> {
@@ -469,11 +469,11 @@ pub trait SchemaTrait:
         anyhow::Ok(e)
     }
     async fn list_created_types(&self) -> anyhow::Result<Vec<CreatedTypeDef>> {
-        not_support_feature(self.backend_name())
+        self.backend_name().not_support_feature()
     }
 
     async fn drop_created_type(&self, _name: &str) -> anyhow::Result<()> {
-        not_support_feature(self.backend_name())
+        self.backend_name().not_support_feature()
     }
 
     #[cfg(test)]
@@ -496,14 +496,14 @@ pub trait SchemaTrait:
     }
 
     async fn list_sequence(&self) -> anyhow::Result<Vec<SequenceDetail>> {
-        not_support_feature(self.backend_name())
+        self.backend_name().not_support_feature()
     }
     async fn rename_sequence(&self, _old: &str, _new: &str) -> anyhow::Result<()> {
-        not_support_feature(self.backend_name())
+        self.backend_name().not_support_feature()
     }
 
     async fn drop_sequence(&self, _name: &str, _cascade: bool) -> anyhow::Result<()> {
-        not_support_feature(self.backend_name())
+        self.backend_name().not_support_feature()
     }
     fn list_sql_current_values(&self) -> &'static [&'static str] {
         &[]
@@ -512,7 +512,7 @@ pub trait SchemaTrait:
         anyhow::Ok(vec![])
     }
     async fn drop_event(&self, _name: &str) -> anyhow::Result<()> {
-        not_support_feature(self.backend_name())
+        self.backend_name().not_support_feature()
     }
 }
 
@@ -855,8 +855,10 @@ impl UdfOrProcedureExtraParameter {
     }
 }
 
-pub fn not_support_feature<T>(name: BackendKind) -> anyhow::Result<T> {
-    anyhow::bail!(format!("'{}' don't support this feature", name))
+impl BackendKind {
+    pub fn not_support_feature<T>(&self) -> anyhow::Result<T> {
+        anyhow::bail!(format!("'{}' don't support this feature", self))
+    }
 }
 
 #[derive(Debug, serde::Serialize, TypeDef)]
@@ -907,7 +909,18 @@ pub trait CatalogTrait:
 
 #[derive(Debug, serde::Serialize, serde::Deserialize, Clone, TypeDef)]
 #[serde(tag = "extra", rename_all = "lowercase")]
-pub enum CreateDatabaseExtra {}
+pub enum CreateDatabaseExtra {
+    Couchbase {
+        // 在 Couchbase 中，ram_quota_mb 是一个重要的配置参数，用于指定一个桶（bucket）分配的内存大小。这个参数的单位是兆字节（MB），它决定了该桶可以使用的内存量。
+        ram_quota_mb: u64,
+        // 是否启用 flush 操作。启用 flush 操作可以清空桶中的所有数据。
+        flush_enabled: bool,
+        // 副本数量，即每个文档的副本数。副本数量必须小于或等于集群中的节点数。
+        num_replicas: u32,
+        // in seconds
+        max_expiry: Option<u64>,
+    },
+}
 
 /// named staff maybe used for view udf etc...
 #[derive(Debug, serde::Serialize, TypeDef)]
@@ -1502,17 +1515,17 @@ async fn write_export_file(
 #[async_trait::async_trait]
 pub trait QuerySql: GetBackendKind + Send + Sync + 'static + LanguageServer {
     async fn get_auto_commit(&self, _query_id: &str) -> anyhow::Result<bool> {
-        not_support_feature(self.backend_name())
+        self.backend_name().not_support_feature()
     }
 
     async fn set_auto_commit(&self, _query_id: &str, _commit: bool) -> anyhow::Result<()> {
-        not_support_feature(self.backend_name())
+        self.backend_name().not_support_feature()
     }
     async fn commit(&self, _query_id: &str) -> anyhow::Result<()> {
-        not_support_feature(self.backend_name())
+        self.backend_name().not_support_feature()
     }
     async fn rollback(&self, _query_id: &str) -> anyhow::Result<()> {
-        not_support_feature(self.backend_name())
+        self.backend_name().not_support_feature()
     }
 
     async fn query_sql(

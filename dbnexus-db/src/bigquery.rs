@@ -13,7 +13,6 @@ use crate::{
         BackendKind, CheckConn, ExportFrame, ExportKind, ExportQueryResult, Field, GetBackendKind,
         ListTable, MetaValue, POOL_MAX_CONNECTIONS, QueryEventEmitter, QueryResp, QuerySql,
         ReadOnlyTrait, SchemaTrait, ServerMetas, ShowTableParameter, SqlBuilder,
-        not_support_feature,
     },
     language_server::GetKeyWords,
 };
@@ -70,7 +69,7 @@ impl BigQueryDb {
 
 impl GetKeyWords for BigQueryDb {
     async fn key_words(&self) -> anyhow::Result<Vec<String>> {
-        not_support_feature(self.backend_name())
+        self.backend_name().not_support_feature()
     }
 }
 

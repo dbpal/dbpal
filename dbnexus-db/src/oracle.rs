@@ -18,7 +18,7 @@ use crate::db::{
     SchemaTrait, ServerMetas, ShowTableParameter, SqlBuilder, TriggerDetail, TriggerEnable,
     TriggerEvent, TriggerTiming, UdfOrProcedureExtraParameter, XlsxEdit, create_html_table_data,
     create_html_table_header, create_markdown_data, create_markdown_header, escape_sql_str,
-    export_query_as_xlsx_send_blocking_data, not_support_feature,
+    export_query_as_xlsx_send_blocking_data,
 };
 
 use crate::helper::{create_csv, run_with_timeout};
@@ -1665,11 +1665,11 @@ impl DBTrait for OracleDB {
     async fn create_schema(
         &self, _name: &str, _extra: Option<CreateSchemaExtra>,
     ) -> anyhow::Result<()> {
-        not_support_feature(self.backend_name())
+        self.backend_name().not_support_feature()
     }
 
     async fn drop_schema(&self, _name: &str) -> anyhow::Result<()> {
-        not_support_feature(self.backend_name())
+        self.backend_name().not_support_feature()
     }
 }
 

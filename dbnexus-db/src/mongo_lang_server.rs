@@ -6,7 +6,7 @@ use mongodb::results::{
 };
 use mongodb::{IndexModel, SearchIndexModel};
 
-use crate::db::{GetBackendKind, SchemaTrait, SqlBuilder, not_support_feature};
+use crate::db::{GetBackendKind, SchemaTrait, SqlBuilder};
 use crate::language_server::{CompletionItem, CompletionKind, CompletionList, LanguageServer};
 use crate::mongo::MongoDB;
 impl SqlBuilder for MongoDB {
@@ -15,7 +15,7 @@ impl SqlBuilder for MongoDB {
     }
 
     fn put_value_in_sql(&self, _typ: &str, _value: Option<&str>) -> anyhow::Result<String> {
-        not_support_feature(self.backend_name())
+        self.backend_name().not_support_feature()
     }
 }
 #[async_trait::async_trait]
@@ -44,21 +44,21 @@ impl LanguageServer for MongoDB {
     }
 
     fn extract_table_select_selection(&self, _sql: &str) -> anyhow::Result<Option<String>> {
-        not_support_feature(self.backend_name())
+        self.backend_name().not_support_feature()
     }
 
     fn extract_table_select_sort(&self, _sql: &str) -> anyhow::Result<Option<String>> {
-        not_support_feature(self.backend_name())
+        self.backend_name().not_support_feature()
     }
 
     async fn auto_completion(
         &self, _query_id: Option<String>, _sql: &str, _line: u32, _col: u32, _use_lexer: bool,
     ) -> anyhow::Result<crate::language_server::CompletionList> {
-        not_support_feature(self.backend_name())
+        self.backend_name().not_support_feature()
     }
 
     fn is_dangerous_sql(&self, _sql: &str) -> anyhow::Result<bool> {
-        not_support_feature(self.backend_name())
+        self.backend_name().not_support_feature()
     }
 }
 

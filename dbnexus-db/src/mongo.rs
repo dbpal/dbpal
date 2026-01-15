@@ -18,7 +18,7 @@ use crate::db::{
     BackendKind, CheckConn, CreateSchemaExtra, DBTrait, ExportFrame, ExportKind, ExportQueryResult,
     Field, GetBackendKind, Index, IndexKind, ListTable, MetaValue, OptionMustBeSomeErr,
     QueryEventEmitter, QueryResp, QuerySql, ReadOnlyTrait, SchemaTrait, ServerMetas,
-    ShowTableParameter, not_support_feature,
+    ShowTableParameter,
 };
 
 #[derive(Clone)]
@@ -91,7 +91,7 @@ impl ExportQueryResult for MongoDB {
         &self, _query_id: Option<&str>, _sql: &str, _kind: ExportKind,
         _sender: tokio::sync::mpsc::Sender<ExportFrame>,
     ) -> anyhow::Result<()> {
-        not_support_feature(self.backend_name())
+        self.backend_name().not_support_feature()
     }
 
     fn clone(&self) -> Box<dyn ExportQueryResult> {
@@ -713,24 +713,24 @@ impl QuerySql for MongoDB {
     async fn query_sql(
         &self, _id: &str, _sql: &str, _emit: QueryEventEmitter,
     ) -> anyhow::Result<()> {
-        not_support_feature(self.backend_name())
+        self.backend_name().not_support_feature()
     }
 
     async fn execute_sql(
         &self, _query_id: &str, _sql: &str,
     ) -> anyhow::Result<Result<QueryResp, String>> {
-        not_support_feature(self.backend_name())
+        self.backend_name().not_support_feature()
     }
 
     async fn execute_sql_no_open_conn(&self, _sql: &str) -> anyhow::Result<Option<usize>> {
-        not_support_feature(self.backend_name())
+        self.backend_name().not_support_feature()
     }
 
     async fn open_connection(&self, _id: &str) -> anyhow::Result<()> {
-        not_support_feature(self.backend_name())
+        self.backend_name().not_support_feature()
     }
     async fn close_connection(&self, _id: &str) -> anyhow::Result<()> {
-        not_support_feature(self.backend_name())
+        self.backend_name().not_support_feature()
     }
 }
 

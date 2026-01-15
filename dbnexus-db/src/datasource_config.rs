@@ -499,3 +499,12 @@ pub struct CouchBaseDBConfig {
     pub bucket: Option<String>,
     pub scope: Option<String>,
 }
+
+impl CouchBaseDBConfig {
+    pub(crate) fn scope_str(&self) -> &str {
+        self.scope.as_deref().expect("must be some")
+    }
+    pub(crate) fn bucket_str(&self) -> &str {
+        self.bucket.as_deref().expect("must be some")
+    }
+}

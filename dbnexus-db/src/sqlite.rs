@@ -20,7 +20,7 @@ use crate::db::{
     QueryEvent, QueryEventEmitter, QueryResp, QuerySql, ReadOnlyTrait, SchemaTrait, ServerMetas,
     ShowTableParameter, SqlBuilder, TriggerDetail, TriggerEvent, TriggerTiming, XlsxEdit,
     create_html_table_data, create_html_table_header, create_markdown_data, create_markdown_header,
-    escape_sql_str, export_query_as_xlsx_send_data, not_support_feature,
+    escape_sql_str, export_query_as_xlsx_send_data,
 };
 use crate::helper::create_csv;
 use crate::language_server::{CompletionItem, LexerCompletionTrait};
@@ -327,7 +327,7 @@ impl SchemaTrait for SqliteDB {
     async fn modify_table_column(
         &self, _table: &str, _old_name: &str, _new_name: &str, _typ: Option<ColumnType>,
     ) -> anyhow::Result<()> {
-        not_support_feature(self.backend_name())
+        self.backend_name().not_support_feature()
     }
 
     async fn add_table_column(

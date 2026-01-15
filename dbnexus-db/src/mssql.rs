@@ -9,7 +9,7 @@ use crate::db::{
     ShowTableParameter, SqlBuilder, TriggerDetail, TriggerEnable, TriggerEvent, TriggerTiming,
     UdfOrProcedureExtraParameter, XlsxEdit, create_html_table_data, create_html_table_header,
     create_markdown_data, create_markdown_header, escape_sql_str, export_query_as_xlsx_send_data,
-    format_data_time_fix_offset, not_support_feature,
+    format_data_time_fix_offset,
 };
 use crate::db::{OptionMustBeSomeErr, QueryEventEmitter};
 use crate::helper::create_csv;
@@ -1786,11 +1786,11 @@ impl crate::db::DBTrait for SqlServerDB {
     }
 
     async fn create_schema(&self, _name: &str, _: Option<CreateSchemaExtra>) -> anyhow::Result<()> {
-        not_support_feature(self.backend_name())
+        self.backend_name().not_support_feature()
     }
 
     async fn drop_schema(&self, _name: &str) -> anyhow::Result<()> {
-        not_support_feature(self.backend_name())
+        self.backend_name().not_support_feature()
     }
 }
 
