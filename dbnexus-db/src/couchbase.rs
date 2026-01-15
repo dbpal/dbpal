@@ -177,12 +177,9 @@ impl CouchBaseDB {
         }
         let s = self.get_scope()?;
         let mut resp = s.query(sql, None).await?;
-
         let mut rows = resp.rows::<'_, Value>();
-
         while let Some(x) = rows.next().await {
             let x = x?;
-
             match x {
                 Value::Object(x) => match x.get("count") {
                     Some(Value::Number(x)) => {
@@ -251,16 +248,10 @@ impl SchemaTrait for CouchBaseDB {
             .query(format!("select META().id,* from `{table}`"), None)
             .await
             .unwrap();
-        let mut rows = resp.rows::<'_, serde_json::Value>();
+        let mut rows = resp.rows::<'_, serde_json::Map<String, Value>>();
 
         while let Some(value) = rows.next().await {
             let value = value?;
-            let value = match value {
-                Value::Object(x) => x,
-                _ => {
-                    anyhow::bail!("value should be object")
-                }
-            };
             let id = match value.get("id") {
                 Some(Value::String(x)) => x,
                 _ => {
