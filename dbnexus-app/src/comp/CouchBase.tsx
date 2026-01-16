@@ -11,7 +11,10 @@ import {
   Tooltip,
   Typography,
 } from "@mui/material";
+import ArrowCircleDownRoundedIcon from "@mui/icons-material/ArrowCircleDownRounded";
+import EventNoteIcon from "@mui/icons-material/EventNote";
 import {
+  LoadStoreFile,
   QueryStatus,
   SetFilterSort,
   SimpleFlexEditor,
@@ -26,6 +29,7 @@ import {
   generateRandomString,
   getEditorText,
   handleCopyToClipboard,
+  QueryLogHandler,
   resizeHandlerSize,
   saveAndSetSize,
   SavePageSize,
@@ -50,10 +54,12 @@ import {
   SetAutoCompletionName,
 } from "./Common";
 import { NotificationContext } from "./Notification";
-import { Position } from "monaco-editor";
+import { editor, Position } from "monaco-editor";
 import ClearIcon from "@mui/icons-material/Clear";
 import { Panel, PanelGroup, PanelResizeHandle } from "react-resizable-panels";
 import { Prism as SyntaxHighlighter } from "react-syntax-highlighter";
+import { QueryLog } from "./QueryLog";
+import { ExportView } from "./Export";
 type Data = {
   data: { data: string; id: string }[];
   count: number;
@@ -543,10 +549,14 @@ function CouchBaseQuery(props: { uuid: string; value?: string }) {
   const [loading, setLoading] = useState(false);
   const [gridColCount, setGridColCount] = useState(3);
   const [dataDivHeight, setDataDivHeight] = useState(200);
-  const [editor, setEditor] = useState(null);
+  const [editor, setEditor] = useState<editor.IStandaloneCodeEditor>(null);
   const maxRow = useRef(2000);
   const queryStatus = useRef<SetStatusFn>(null);
   const { showNotification } = useContext(NotificationContext);
+  const [showQueryLog, setShowQueryLog] = useState(false);
+  const kind = DataSourceKind.CouchBase;
+  const [executeTimes, setExecuteTimes] = useState(0);
+  const [showExport, setShowExport] = useState(false);
   const handleQuery = () => {
     let text = getEditorText(editor, showNotification);
     if (!text) {
@@ -578,9 +588,14 @@ function CouchBaseQuery(props: { uuid: string; value?: string }) {
     })
       .catch(e => {
         showNotification("error", "query failed", e);
+        new QueryLogHandler(uuid).save(text, false);
+      })
+      .then(() => {
+        new QueryLogHandler(uuid).save(text, true);
       })
       .finally(() => {
         setLoading(false);
+        setExecuteTimes(e => e + 1);
       });
   };
 
@@ -597,6 +612,13 @@ function CouchBaseQuery(props: { uuid: string; value?: string }) {
         defaultSize={35}
         style={{ display: "flex", flexDirection: "column" }}
       >
+        <QueryLog
+          showQueryLog={showQueryLog}
+          setShowQueryLog={setShowQueryLog}
+          uuid={uuid}
+          executeTimes={executeTimes}
+          kind={kind}
+        />
         <QueryStatus setRef={queryStatus} />
         <Stack
           direction="row"
@@ -606,18 +628,55 @@ function CouchBaseQuery(props: { uuid: string; value?: string }) {
             paddingBottom: "0.5rem",
           }}
         >
-          <Tooltip title="query">
-            <IconButton
-              loading={loading}
-              onClick={() => {
-                handleQuery();
+          <Stack direction="row" style={{ alignItems: "center" }}>
+            <Tooltip title="query">
+              <IconButton
+                loading={loading}
+                onClick={() => {
+                  handleQuery();
+                }}
+                color="primary"
+              >
+                <PlayArrowIcon />
+              </IconButton>
+            </Tooltip>
+            <LoadStoreFile
+              getQuery={() => {
+                return editor.getValue();
               }}
-              color="primary"
-            >
-              <PlayArrowIcon />
-            </IconButton>
-          </Tooltip>
+              handleLoadFile={(_, c) => {
+                editor.setValue(c);
+              }}
+              kind={DataSourceKind.CouchBase}
+            />
+          </Stack>
+
           <Stack direction="row">
+            <Tooltip title="export query result to a file">
+              <IconButton
+                loading={loading}
+                onClick={() => {
+                  const value = getEditorText(editor, showNotification);
+                  if (!value) {
+                    return;
+                  }
+                  setShowExport(true);
+                }}
+                color="primary"
+              >
+                <ArrowCircleDownRoundedIcon />
+              </IconButton>
+            </Tooltip>
+            <Tooltip title="query log">
+              <IconButton
+                onClick={() => {
+                  setShowQueryLog(prev => !prev);
+                }}
+                color="primary"
+              >
+                <EventNoteIcon />
+              </IconButton>
+            </Tooltip>
             <SliderSize
               min={1}
               max={5}
@@ -713,6 +772,38 @@ function CouchBaseQuery(props: { uuid: string; value?: string }) {
             })}
           </div>
         </Panel>
+      )}
+
+      {showExport && (
+        <Modal
+          open={showExport}
+          onClose={modalHandleClose((e: EscDownEvent) => {
+            e.preventDefault();
+            setShowExport(false);
+          })}
+        >
+          <Box sx={modalStyle} width="45%">
+            <ExportView
+              supportKind={["json", "jsonline"]}
+              exportOP={async (kind, file, taskId, sizeEmitter) => {
+                const sql = getEditorText(editor, showNotification);
+                return invoke<void>("export_query_result_to_file", {
+                  name: uuid,
+                  taskId,
+                  file,
+                  kind,
+                  sizeEmitter,
+                  sql,
+                  queryId: "",
+                });
+              }}
+              handleClose={() => {
+                setShowExport(false);
+              }}
+              name="export_query_result"
+            />
+          </Box>
+        </Modal>
       )}
     </PanelGroup>
   );
