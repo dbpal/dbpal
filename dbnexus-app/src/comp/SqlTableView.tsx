@@ -2,7 +2,6 @@ import { useCallback, useContext, useEffect, useMemo, useRef, useState } from "r
 import CancelIcon from "@mui/icons-material/Cancel";
 import types from "./ApiStruct";
 import {
-  Autocomplete,
   Box,
   Button,
   Checkbox,
@@ -28,7 +27,6 @@ import CheckIcon from "@mui/icons-material/Check";
 import VisibilityIcon from "@mui/icons-material/Visibility";
 import EditIcon from "@mui/icons-material/Edit";
 import { NotificationContext } from "./Notification";
-import SaveIcon from "@mui/icons-material/Save";
 import ArrowCircleDownIcon from "@mui/icons-material/ArrowCircleDown";
 import {
   DataGrid,
@@ -44,14 +42,9 @@ import {
   EscDownEvent,
   FieldAndGridField,
   keyNotInTable,
-  makeFormatFn,
   modalHandleClose,
   modalStyle,
-  NameAndQueryId,
   reloadOK,
-  SetAutoCompletionName,
-  TableFilter,
-  TableFilterHandler,
 } from "./Common";
 import DeleteForeverIcon from "@mui/icons-material/DeleteForever";
 import KeyIcon from "@mui/icons-material/Key";
@@ -75,10 +68,8 @@ import {
   quoteDatabaseIdentifier,
   MuiDataGridData,
   extractFieldAndIDFromMouseEvent,
-  editorPositionToEnd,
   dataGridStyle,
   pageSizeOptions,
-  getLanguageFromDataSourceKind,
   dataGridheaderFontSize,
   shrinkAble,
   SetStatusFn,
@@ -95,7 +86,7 @@ import {
   TimeDuration,
   ViewRowInModal,
 } from "./CommonComp";
-import { editor, Position } from "monaco-editor";
+import { Position } from "monaco-editor";
 import wcmatch from "wildcard-match";
 import { MdEditNote } from "react-icons/md";
 import {
@@ -103,6 +94,7 @@ import {
   AppDataGridToolBar,
   LastFetchTime,
   QueryStatus,
+  SetFilterSort,
   SimpleFlexEditor,
   SliderSize,
   StackRowCenter,
@@ -115,7 +107,6 @@ import {
   makeTableUpdate,
   showTable,
 } from "./handlers";
-import { invoke } from "@tauri-apps/api/core";
 import { AddTableView } from "./LeftTable";
 import { ExportTableOrView } from "./Export";
 
@@ -138,155 +129,6 @@ const confirmAboutPrimary = async (
 };
 
 const getRowId = e => e[keyNotInTable];
-
-function SetFilterSort(props: {
-  open: boolean;
-  handleClose: () => void;
-  value: string;
-  setValue;
-  label: "filter" | "sort";
-  tableName: string;
-  kind: DataSourceKind;
-  uuid: string;
-}) {
-  let { open, handleClose, value, setValue, label, tableName, kind, uuid } = props;
-  const isFilter = label == "filter";
-  const extractFn = isFilter
-    ? makeExtractTableSelectWhere(uuid)
-    : makeExtractTableSelectSort(uuid);
-  tableName = quoteDatabaseIdentifier(kind)(tableName);
-  const [editor, setEditor] = useState<editor.IStandaloneCodeEditor>(null);
-  const [modalBox, setModalBox] = useState(null);
-  const { showNotification } = useContext(NotificationContext);
-  const setting = useContext(SettingContext);
-  useEffect(() => {
-    if (modalBox) {
-      const clean = saveAndSetSize(modalBox, "where-sort");
-      return clean;
-    }
-  }, [modalBox]);
-
-  const [selectFilter, setSelectFilter] = useState("");
-  const [filters, setFileters] = useState<TableFilter[]>([]);
-  const loadFilter = useCallback(async () => {
-    const x = await TableFilterHandler.get(uuid, tableName);
-    if (x) {
-      setFileters(x);
-    }
-  }, [tableName, uuid]);
-  useEffect(() => {
-    if (!isFilter) {
-      return;
-    }
-    loadFilter();
-  }, [isFilter, loadFilter]);
-
-  const formatarg = {
-    tabSize: setting.editor.tabSize,
-    insertSpaces: true,
-  };
-
-  const handleSet = async () => {
-    try {
-      let value = await extractFn(editor.getValue());
-      if (value == null) {
-        value = "";
-      }
-      setValue(value);
-      handleClose();
-    } catch (e) {
-      showNotification("error", "extract sql error.", e);
-      return;
-    }
-  };
-  return (
-    <Modal
-      open={open}
-      onClose={modalHandleClose((e: EscDownEvent) => {
-        e.preventDefault();
-        handleClose();
-      })}
-    >
-      <Box
-        sx={{ resize: "both", ...modalStyle }}
-        width="75%"
-        height="30vh"
-        ref={setModalBox}
-      >
-        <ModalHeader title={`set ${label}`} handleClose={handleClose} />
-        <SimpleFlexEditor
-          value={
-            makeFormatFn(kind)(
-              isFilter
-                ? `SELECT * FROM ${tableName} WHERE ${value}`
-                : `SELECT * FROM ${tableName} ORDER BY ${value}`,
-              formatarg,
-            ) + " "
-          }
-          handleEditor={e => {
-            setEditor(e);
-            e.focus();
-            editorPositionToEnd(e);
-            SetAutoCompletionName.set(e.getModel().id, new NameAndQueryId(uuid, kind));
-          }}
-          language={getLanguageFromDataSourceKind(kind)}
-        />
-
-        <StackRowCenter>
-          <Button onClick={handleSet}>set {label}</Button>
-          <Button
-            onClick={() => {
-              editor.setValue(`select * from ${tableName}`);
-            }}
-            variant="outlined"
-          >
-            clear
-          </Button>
-          {isFilter && (
-            <Tooltip title="save current value to filter bookmark">
-              <IconButton
-                onClick={async () => {
-                  const value = editor.getValue();
-                  if (!value) {
-                    showNotification("warning", "this editor is empty");
-                    return;
-                  }
-                  try {
-                    const filter = await extractFn(value);
-                    await TableFilterHandler.add(uuid, tableName, filter);
-                    loadFilter();
-                  } catch (e) {
-                    showNotification("error", "save filter failed", e);
-                  }
-                }}
-              >
-                <SaveIcon />
-              </IconButton>
-            </Tooltip>
-          )}
-          {isFilter && (
-            <Autocomplete
-              value={selectFilter}
-              style={{ flex: 1 }}
-              options={filters.map(e => e.filter)}
-              freeSolo={false}
-              onChange={async (_, value) => {
-                editor.setValue(
-                  makeFormatFn(kind)(
-                    `SELECT * FROM ${tableName} WHERE ${value}`,
-                    formatarg,
-                  ),
-                );
-                setSelectFilter(value);
-              }}
-              renderInput={params => <TextField {...params} label="filters" />}
-            />
-          )}
-        </StackRowCenter>
-      </Box>
-    </Modal>
-  );
-}
 
 let EditInModalLanguage = "text";
 const editInModalLanguages = [
@@ -375,24 +217,6 @@ class EditInModalCellData {
     public content: string,
     public rowId: number,
   ) {}
-}
-
-function makeExtractTableSelectWhere(uuid: string) {
-  return (sql: string) => {
-    return invoke<string | null>("extract_table_select_selection", {
-      name: uuid,
-      sql,
-    });
-  };
-}
-
-function makeExtractTableSelectSort(uuid: string) {
-  return (sql: string) => {
-    return invoke<string | null>("extract_table_select_sort", {
-      name: uuid,
-      sql,
-    });
-  };
 }
 
 enum DatabaseOpKind {
@@ -491,8 +315,8 @@ function SqlTableView(props: {
   const [showSetWhere, setShowSetWhere] = useState(false);
   const [sort, setSort] = useState("");
   const [showSetSort, setShowSetSort] = useState(false);
-  const [page, setPage] = useState(0);
   const setting = useContext(SettingContext);
+  const [page, setPage] = useState(0);
   const [pageSize, setPageSize] = useState(SavePageSize.instance.get());
   const [resp, setResp] = useState<MuiDataGridData>({
     sql: "",

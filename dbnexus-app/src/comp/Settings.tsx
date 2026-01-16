@@ -1107,7 +1107,11 @@ function makeComponents(
       defaultProps: { spacing: 0.5 },
     },
     MuiPagination: {
-      defaultProps: { size: "small" },
+      defaultProps: {
+        size: "small",
+        showFirstButton: true,
+        showLastButton: true,
+      },
     },
     MuiMenuList: {
       styleOverrides: {

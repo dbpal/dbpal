@@ -74,6 +74,7 @@ import { TableStructure } from "./TableStructure";
 import { cancelTask, listTable, makeTableInsertFn, showTableColumn } from "./handlers";
 import { filesize } from "filesize";
 import { CancelButton, StackRowCenter } from "./CommonComp2";
+import { CouchBaseTable } from "./CouchBase";
 
 function TablesTree(props: { typ: TableType }) {
   const { typ } = props;
@@ -328,6 +329,8 @@ function makeViewTable(
     case DataSourceKind.Mongo:
       tableList = <MongoTable uuid={uuid} table={table} isTable />;
       break;
+    case DataSourceKind.CouchBase:
+      tableList = <CouchBaseTable uuid={uuid} table={table} />;
   }
   return tableList;
 }
@@ -466,7 +469,7 @@ function TableMenu(props: {
               redisTableType={redisTableType}
             />
           ),
-          <TableViewIcon className="tab-icon-size"></TableViewIcon>,
+          <TableViewIcon className="tab-icon-size" />,
         ),
       ];
     });

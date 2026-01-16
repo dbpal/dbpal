@@ -1,7 +1,7 @@
 use dbnexus_db::datasource_config::{
-    CassandraDBConfig, ClickHouseConfig, Db2Config, DuckDBConfig, FireBirdConfig, LibSqlDBConfig,
-    MongoDBConfig, MysqlDBConfig, OracleDBConfig, PGDBConfig, RedisDBConfig, SqlServerDBConfig,
-    SqliteDBConfig,
+    CassandraDBConfig, ClickHouseConfig, CouchBaseDBConfig, Db2Config, DuckDBConfig,
+    FireBirdConfig, LibSqlDBConfig, MongoDBConfig, MysqlDBConfig, OracleDBConfig, PGDBConfig,
+    RedisDBConfig, SqlServerDBConfig, SqliteDBConfig,
 };
 use dbnexus_db::db::{
     CatalogTrait, CheckConn, DBTrait, ExportQueryResult, QuerySql, SchemaTrait, ServerMetas,
@@ -31,8 +31,9 @@ impl DBConnectionConfig {
             | DBConnectionConfig::LibSql { name, .. }
             | DBConnectionConfig::FireBird { name, .. }
             | DBConnectionConfig::DuckDB { name, .. }
-            | DBConnectionConfig::CockRoach { name, .. } => name.as_str(),
-            DBConnectionConfig::Db2 { name, .. } => name.as_str(),
+            | DBConnectionConfig::CockRoach { name, .. }
+            | DBConnectionConfig::Db2 { name, .. }
+            | DBConnectionConfig::CouchBase { name, .. } => name.as_str(),
         }
     }
 }
@@ -130,6 +131,13 @@ pub enum DBConnectionConfig {
     Db2 {
         #[serde(flatten)]
         conn: Db2Config,
+        name: String,
+        save_password: bool,
+    },
+
+    CouchBase {
+        #[serde(flatten)]
+        conn: CouchBaseDBConfig,
         name: String,
         save_password: bool,
     },
@@ -298,6 +306,18 @@ impl DBConnectionConfig {
                 // };
                 // anyhow::Ok(r)
                 anyhow::bail!("db2 not supported")
+            }
+
+            DBConnectionConfig::CouchBase { conn, .. } => {
+                let db = dbnexus_db::couchbase::CouchBaseDB::new(conn.clone()).await?;
+                let db = match conn.bucket {
+                    Some(..) => match conn.scope {
+                        Some(_) => DatabaseBackend::from(Arc::new(db) as Arc<dyn SchemaTrait>),
+                        None => DatabaseBackend::from(Arc::new(db) as Arc<dyn DBTrait>),
+                    },
+                    None => DatabaseBackend::from(Arc::new(db) as Arc<dyn CatalogTrait>),
+                };
+                anyhow::Ok(db)
             }
         }
     }

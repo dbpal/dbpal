@@ -288,6 +288,15 @@ pub trait SchemaTrait:
         SqlBuilder::delete_sql(self, table_name, &fs, &wheres)
     }
 
+    async fn table_delete(
+        &self, table_name: &str, wheres: HashMap<String, Option<String>>,
+    ) -> anyhow::Result<Option<usize>> {
+        let fs = self.show_table_columns(table_name).await?;
+        let sql = SqlBuilder::delete_sql(self, table_name, &fs, &wheres)?;
+        let ret = self.execute_sql_no_open_conn(&sql).await?;
+        anyhow::Ok(ret)
+    }
+
     async fn list_view(&self) -> anyhow::Result<Vec<ListTable>> {
         self.backend_name().not_support_feature()
     }

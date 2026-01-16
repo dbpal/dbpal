@@ -557,6 +557,19 @@ pub async fn table_insert(
 }
 
 #[tauri::command]
+pub async fn table_update(
+    name: String, table_name: String, values: HashMap<String, Option<String>>,
+    wheres: HashMap<String, Option<String>>, app: tauri::State<'_, DBPal>,
+) -> Result<Option<usize>, ErrorFrontend> {
+    random_sleep().await;
+    random_error()?;
+    let db = app.get_schema(&name).await?;
+    db.table_update(&table_name, values, wheres)
+        .await
+        .map_err(ErrorFrontend::from)
+}
+
+#[tauri::command]
 pub async fn table_update_sql(
     name: String, table_name: String, values: HashMap<String, Option<String>>,
     wheres: HashMap<String, Option<String>>, app: tauri::State<'_, DBPal>,
@@ -674,6 +687,19 @@ pub async fn table_delete_sql(
     random_error()?;
     let db = app.get_schema(&name).await?;
     db.table_delete_sql(&table_name, wheres)
+        .await
+        .map_err(ErrorFrontend::from)
+}
+
+#[tauri::command]
+pub async fn table_delete(
+    name: String, table_name: String, wheres: HashMap<String, Option<String>>,
+    app: tauri::State<'_, DBPal>,
+) -> Result<Option<usize>, ErrorFrontend> {
+    random_sleep().await;
+    random_error()?;
+    let db = app.get_schema(&name).await?;
+    db.table_delete(&table_name, wheres)
         .await
         .map_err(ErrorFrontend::from)
 }

@@ -8,7 +8,6 @@ pub struct MongoDBConfig {
     pub port: u16,
     pub username: Option<String>,
     pub password: Option<String>,
-
     pub conn_timeout: Option<ConnTimeOut>,
     pub db: Option<String>,
     pub read_only: bool,
@@ -498,13 +497,11 @@ pub struct CouchBaseDBConfig {
     pub read_only: bool,
     pub bucket: Option<String>,
     pub scope: Option<String>,
+    pub conn_timeout: Option<ConnTimeOut>,
 }
 
 impl CouchBaseDBConfig {
     pub(crate) fn scope_str(&self) -> &str {
         self.scope.as_deref().expect("must be some")
-    }
-    pub(crate) fn bucket_str(&self) -> &str {
-        self.bucket.as_deref().expect("must be some")
     }
 }

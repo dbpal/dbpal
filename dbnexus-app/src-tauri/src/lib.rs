@@ -4,8 +4,8 @@ pub mod handlers;
 #[cfg(test)]
 mod tests {
     use dbnexus_db::datasource_config::{
-        CassandraDBConfig, Db2Config, LibSqlDBConfigSource, MySqlSslMode, MysqlSsl, OdbcCommon,
-        PgSsl, PgSslMode, SSLFiles,
+        CassandraDBConfig, CouchBaseDBConfig, Db2Config, LibSqlDBConfigSource, MySqlSslMode,
+        MysqlSsl, OdbcCommon, PgSsl, PgSslMode, SSLFiles,
     };
     use dbnexus_db::db::{
         ColumnType, CreateIndexColumn, CreateIndexReq, CreateTableAndIndexSql, CreateTableReq,
@@ -86,6 +86,7 @@ mod tests {
             &CreateIndexReq::INFO,
             &IndexKind::INFO,
             &SqlNullAble::INFO,
+            &CouchBaseDBConfig::INFO,
         ];
 
         let options: DefinitionFileOptions = DefinitionFileOptions::default();

@@ -212,6 +212,15 @@ export namespace types {
         "conn_timeout": (types.ConnTimeOut | null);
         "schema": (string | null);
     });
+    export type CouchBaseDBConfig = {
+        "conn_str": string;
+        "username": string;
+        "password": string;
+        "read_only": boolean;
+        "bucket": (string | null);
+        "scope": (string | null);
+        "conn_timeout": (types.ConnTimeOut | null);
+    };
     export type DBConnectionConfig = (({
         "conn_type": "sqlite";
     } & (types.SqliteDBConfig & {
@@ -287,6 +296,11 @@ export namespace types {
     })) | ({
         "conn_type": "db2";
     } & (types.Db2Config & {
+        "name": string;
+        "save_password": boolean;
+    })) | ({
+        "conn_type": "couchbase";
+    } & (types.CouchBaseDBConfig & {
         "name": string;
         "save_password": boolean;
     })));

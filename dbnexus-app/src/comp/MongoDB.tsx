@@ -1089,8 +1089,6 @@ function BsonJsonPagination({
       <Pagination
         page={page}
         defaultPage={1}
-        showFirstButton
-        showLastButton
         count={Math.ceil(total / pageSize)}
         onChange={(_e, page) => {
           setPage(page);

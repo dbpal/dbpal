@@ -452,7 +452,8 @@ type MakeConfig = () => types.DBConnectionConfig;
 
 function Mysql(props: { config; kind: DataSourceKind }) {
   const { config, kind } = props;
-  const { connectionName, connTimeOut, readOnly } = useContext(AddConnectionContext);
+  const { connectionName, connTimeOut, readOnly, makeConfigRef } =
+    useContext(AddConnectionContext);
   let defaultPort = 3306;
   if (kind == DataSourceKind.TiDB) {
     defaultPort = 4000;
@@ -497,7 +498,7 @@ function Mysql(props: { config; kind: DataSourceKind }) {
         });
     }
   }
-  globalMakeConfig = makeConfig;
+  makeConfigRef.current = makeConfig;
 
   return (
     <Stack>
@@ -530,7 +531,8 @@ function Oracle(props: { config? }) {
   const [database, setDatabase] = useState(config?.db);
   const [savePassword, setSavePassword] = useState(getSavePassword(config));
   const [schema, setSchema] = useState(getSchema(config));
-  const { connTimeOut, connectionName, readOnly } = useContext(AddConnectionContext);
+  const { connTimeOut, connectionName, readOnly, makeConfigRef } =
+    useContext(AddConnectionContext);
 
   function makeConfig(): types.DBConnectionConfig {
     return {
@@ -547,7 +549,8 @@ function Oracle(props: { config? }) {
       read_only: readOnly,
     };
   }
-  globalMakeConfig = makeConfig;
+  makeConfigRef.current = makeConfig;
+
   return (
     <Stack>
       <Typography
@@ -598,7 +601,8 @@ function ClickHouse(props: { config? }) {
   const [database, setDatabase] = useState(getDB(config));
   const [savePassword, setSavePassword] = useState(getSavePassword(config));
   const [https, setHttps] = useState(config?.https);
-  const { connTimeOut, connectionName, readOnly } = useContext(AddConnectionContext);
+  const { connTimeOut, connectionName, readOnly, makeConfigRef } =
+    useContext(AddConnectionContext);
   function makeConfig(): types.DBConnectionConfig {
     return {
       conn_type: "clickhouse",
@@ -614,7 +618,7 @@ function ClickHouse(props: { config? }) {
       conn_timeout: connTimeOut,
     };
   }
-  globalMakeConfig = makeConfig;
+  makeConfigRef.current = makeConfig;
 
   return (
     <Stack>
@@ -653,7 +657,8 @@ function PostGres(props: { config; kind: DataSourceKind }) {
     ssl_key: config?.ssl_key,
   });
   const [schema, setSchema] = useState(getSchema(config));
-  const { connTimeOut, connectionName, readOnly } = useContext(AddConnectionContext);
+  const { connTimeOut, connectionName, readOnly, makeConfigRef } =
+    useContext(AddConnectionContext);
   const [savePassword, setSavePassword] = useState(getSavePassword(config));
 
   function makeConfig(): types.DBConnectionConfig {
@@ -683,8 +688,8 @@ function PostGres(props: { config; kind: DataSourceKind }) {
         });
     }
   }
-  globalMakeConfig = makeConfig;
 
+  makeConfigRef.current = makeConfig;
   return (
     <Stack>
       <HostAndPort host={host} port={port} setHost={setHost} setPort={setPort} />
@@ -718,7 +723,8 @@ function PostGres(props: { config; kind: DataSourceKind }) {
 function Sqlite(props: { config? }) {
   const { config } = props;
   const [path, setPath] = useState(config?.path);
-  const { connTimeOut, connectionName, readOnly } = useContext(AddConnectionContext);
+  const { connTimeOut, connectionName, readOnly, makeConfigRef } =
+    useContext(AddConnectionContext);
 
   function makeConfig(): types.DBConnectionConfig {
     return {
@@ -729,7 +735,7 @@ function Sqlite(props: { config? }) {
       read_only: readOnly,
     };
   }
-  globalMakeConfig = makeConfig;
+  makeConfigRef.current = makeConfig;
 
   return (
     <Stack>
@@ -743,18 +749,22 @@ const AddConnectionContext = createContext<{
   readOnly: boolean;
   connTimeOut: number | null;
   connectionNameDom: RefObject<HTMLInputElement>;
+  makeConfigRef: RefObject<() => types.DBConnectionConfig>;
 }>(null);
 
 // global var make it simple the pass the parameter
 // add connection run in separete window
-let globalMakeConfig: MakeConfig = null;
+// let globalMakeConfig: MakeConfig = null;
 
-function TestConnAndSave(props: { connectionNameDom }) {
-  const { connectionNameDom } = props;
+function TestConnAndSave(props: {
+  connectionNameDom;
+  makeConfig: () => types.DBConnectionConfig;
+}) {
+  const { connectionNameDom, makeConfig } = props;
   const [testLoading, setTestLoading] = useState(false);
   const { showNotification } = useContext(NotificationContext);
   const handleTestConnection = async () => {
-    const config = globalMakeConfig();
+    const config = makeConfig();
     if (!config.name) {
       config.name = "test_connection";
     }
@@ -775,7 +785,7 @@ function TestConnAndSave(props: { connectionNameDom }) {
   };
 
   const handleSaveConnection = async () => {
-    const config = globalMakeConfig();
+    const config = makeConfig();
     if (!config) {
       return;
     }
@@ -865,7 +875,8 @@ function FireBird(props: { config? }) {
   const [user, setUser] = useState(getUser(config));
   const [password, setPassword] = useState(getPassword(config));
   const [savePassword, setSavePassword] = useState(getSavePassword(config));
-  const { connTimeOut, connectionName, readOnly } = useContext(AddConnectionContext);
+  const { connTimeOut, connectionName, readOnly, makeConfigRef } =
+    useContext(AddConnectionContext);
   const [database, setDatabase] = useState(getDB(config));
   function makeConfig(): types.DBConnectionConfig {
     return {
@@ -881,7 +892,7 @@ function FireBird(props: { config? }) {
       read_only: readOnly,
     };
   }
-  globalMakeConfig = makeConfig;
+  makeConfigRef.current = makeConfig;
 
   return (
     <Stack>
@@ -913,7 +924,8 @@ function Redis(props: { config? }) {
   const [password, setPassword] = useState(getPassword(config) + "");
   const [savePassword, setSavePassword] = useState(getSavePassword(config));
   const [database, setDatabase] = useState(getDB(config));
-  const { connectionName, connTimeOut, readOnly } = useContext(AddConnectionContext);
+  const { connectionName, connTimeOut, readOnly, makeConfigRef } =
+    useContext(AddConnectionContext);
   const [enableSSL, setEnableSSL] = useState(!!config?.enable_ssl);
   function makeConfig(): types.DBConnectionConfig {
     return {
@@ -931,7 +943,7 @@ function Redis(props: { config? }) {
     };
   }
 
-  globalMakeConfig = makeConfig;
+  makeConfigRef.current = makeConfig;
 
   return (
     <Stack>
@@ -972,7 +984,8 @@ function MongoDb(props: { config? }) {
   const [savePassword, setSavePassword] = useState(getSavePassword(config));
   const [database, setDatabase] = useState(getDB(config));
   const [enableSSL, setEnableSSL] = useState(false);
-  const { connTimeOut, connectionName, readOnly } = useContext(AddConnectionContext);
+  const { connTimeOut, connectionName, readOnly, makeConfigRef } =
+    useContext(AddConnectionContext);
 
   const [sslFiles, setSslFile] = useState<types.SSLFiles>({
     ssl_ca: null,
@@ -995,7 +1008,7 @@ function MongoDb(props: { config? }) {
       ...sslFiles,
     };
   }
-  globalMakeConfig = makeConfig;
+  makeConfigRef.current = makeConfig;
   return (
     <Stack>
       <HostAndPort host={host} port={port} setHost={setHost} setPort={setPort} />
@@ -1038,7 +1051,8 @@ function Cassandra(props: { config? }) {
   const [password, setPassword] = useState(getPassword(config));
   const [savePassword, setSavePassword] = useState(getSavePassword(config));
   const [database, setDatabase] = useState("");
-  const { connTimeOut, connectionName, readOnly } = useContext(AddConnectionContext);
+  const { connTimeOut, connectionName, readOnly, makeConfigRef } =
+    useContext(AddConnectionContext);
   function makeConfig(): types.DBConnectionConfig {
     return {
       conn_type: "cassandra",
@@ -1054,7 +1068,7 @@ function Cassandra(props: { config? }) {
       ssl: { ssl_ca: null, ssl_cert: null, ssl_key: null },
     };
   }
-  globalMakeConfig = makeConfig;
+  makeConfigRef.current = makeConfig;
   return (
     <Stack>
       <HostAndPort host={host} port={port} setHost={setHost} setPort={setPort} />
@@ -1090,7 +1104,8 @@ function SqlServer(props: { config? }) {
     cert_ca: config ? config.cert_ca : "",
   });
   const [schema, setSchema] = useState(getSchema(config));
-  const { connTimeOut, connectionName, readOnly } = useContext(AddConnectionContext);
+  const { connTimeOut, connectionName, readOnly, makeConfigRef } =
+    useContext(AddConnectionContext);
 
   function makeConfig(): types.DBConnectionConfig {
     return {
@@ -1109,7 +1124,7 @@ function SqlServer(props: { config? }) {
       schema: schema ? schema : null,
     };
   }
-  globalMakeConfig = makeConfig;
+  makeConfigRef.current = makeConfig;
 
   return (
     <Stack>
@@ -1155,6 +1170,8 @@ function AddConnection(props: { config?: types.DBConnectionConfig }) {
     ConnectionHandler.nameDuplicated(connectionName).then(setCnameDuplicated);
   }, [connectionName]);
 
+  const makeConfigRef = useRef(null);
+
   return (
     <Stack>
       <FormControl fullWidth>
@@ -1180,6 +1197,8 @@ function AddConnection(props: { config?: types.DBConnectionConfig }) {
           <MenuItem value={DataSourceKind.FireBird}> FireBird </MenuItem>
           <MenuItem value={DataSourceKind.DuckDB}> Duckdb </MenuItem>
           <MenuItem value={DataSourceKind.Cockroach}> Cockroach </MenuItem>
+
+          <MenuItem value={DataSourceKind.CouchBase}> CouchBase </MenuItem>
           {/* <MenuItem value={DataSourceKind.Db2}> Db2(luw) </MenuItem> */}
         </Select>
       </FormControl>
@@ -1252,6 +1271,7 @@ function AddConnection(props: { config?: types.DBConnectionConfig }) {
           connectionNameDom,
           readOnly: !!readOnly,
           connTimeOut: connTimeout ? parseInt(connTimeout) : null,
+          makeConfigRef: makeConfigRef,
         }}
       >
         <Stack>
@@ -1285,10 +1305,17 @@ function AddConnection(props: { config?: types.DBConnectionConfig }) {
           {connectionType === DataSourceKind.DuckDB && <DuckDB config={config} />}
 
           {connectionType === DataSourceKind.Db2 && <Db2 config={config} />}
+
+          {connectionType === DataSourceKind.CouchBase && <CouchBase config={config} />}
         </Stack>
       </AddConnectionContext>
 
-      <TestConnAndSave connectionNameDom={connectionNameDom} />
+      <TestConnAndSave
+        connectionNameDom={connectionNameDom}
+        makeConfig={() => {
+          return makeConfigRef.current();
+        }}
+      />
     </Stack>
   );
 }
@@ -1306,7 +1333,8 @@ function DuckDB(props: { config? }) {
   const [path, setPath] = useState(getConfigStr("path"));
   const [db, setDb] = useState(getConfigStr("db"));
   const [schema, setSchema] = useState(getConfigStr("schema"));
-  const { connTimeOut, connectionName, readOnly } = useContext(AddConnectionContext);
+  const { connTimeOut, connectionName, readOnly, makeConfigRef } =
+    useContext(AddConnectionContext);
   function makeConfig(): types.DBConnectionConfig {
     const x: types.DBConnectionConfig = {
       conn_type: "duckdb",
@@ -1320,7 +1348,7 @@ function DuckDB(props: { config? }) {
     console.info("makeConfig", x);
     return x;
   }
-  globalMakeConfig = makeConfig;
+  makeConfigRef.current = makeConfig;
   return (
     <Stack>
       <SelectPath path={path} setPath={setPath} label="database file path" required />
@@ -1353,7 +1381,8 @@ function LibSql(props: { config }) {
   const [authToken, setAuthToken] = useState(oldAuth ? oldAuth : "");
   const [libSqlModel] = useState<"remote">(config?.source || "remote");
   const [path] = useState(config?.path);
-  const { connTimeOut, connectionName, readOnly } = useContext(AddConnectionContext);
+  const { connTimeOut, connectionName, readOnly, makeConfigRef } =
+    useContext(AddConnectionContext);
 
   function makeConfig(): types.DBConnectionConfig {
     const x: types.DBConnectionConfig = {
@@ -1371,7 +1400,7 @@ function LibSql(props: { config }) {
     return x;
   }
 
-  globalMakeConfig = makeConfig;
+  makeConfigRef.current = makeConfig;
 
   // const models = ['remote', 'local'];
   return (
@@ -1579,7 +1608,8 @@ function Db2(props: { config?: any }) {
   const [password, setPassword] = useState(getPassword(config));
   const [database, setDatabase] = useState(getDB(config));
   const [schema, setSchema] = useState(getSchema(config));
-  const { connTimeOut, connectionName, readOnly } = useContext(AddConnectionContext);
+  const { connTimeOut, connectionName, readOnly, makeConfigRef } =
+    useContext(AddConnectionContext);
   const [savePassword, setSavePassword] = useState(getSavePassword(config));
   const odbccommon = useRef<types.OdbcCommon>({
     driver_name: "Driver_IBM_DB2",
@@ -1603,7 +1633,7 @@ function Db2(props: { config?: any }) {
       ...odbccommon.current,
     };
   }
-  globalMakeConfig = makeConfig;
+  makeConfigRef.current = makeConfig;
   return (
     <Stack>
       <HostAndPort host={host} port={port} setHost={setHost} setPort={setPort} />
@@ -1647,6 +1677,88 @@ function Db2(props: { config?: any }) {
         />
       )}
       <OdbcDriverCommon config={odbccommon} />
+    </Stack>
+  );
+}
+
+function CouchBase(props: { config?: any }) {
+  const { config } = props;
+  const [connStr, setConnStr] = useState(
+    (config && config["conn_str"]) || "couchbase://127.0.0.1",
+  );
+  const [user, setUser] = useState(getUser(config) || "Administrator");
+  const [password, setPassword] = useState(getPassword(config));
+  const [bucket, setBucket] = useState(getDB(config));
+  const [scope, setScope] = useState(getSchema(config));
+  const { connTimeOut, connectionName, readOnly, makeConfigRef } =
+    useContext(AddConnectionContext);
+  const [savePassword, setSavePassword] = useState(getSavePassword(config));
+
+  function makeConfig(): types.DBConnectionConfig {
+    return {
+      conn_type: "couchbase",
+      conn_str: connStr,
+      username: user,
+      password: password,
+      save_password: savePassword,
+      bucket: bucket ? bucket : null,
+      scope: scope ? scope : null,
+      conn_timeout: connTimeOut,
+      read_only: readOnly,
+      name: connectionName,
+    };
+  }
+
+  makeConfigRef.current = makeConfig;
+  return (
+    <Stack>
+      <TextField
+        fullWidth
+        label="connection string"
+        value={connStr}
+        sx={{ mr: 1 }}
+        onChange={e => setConnStr(e.target.value)}
+        slotProps={{
+          input: {
+            endAdornment: connStr && (
+              <InputAdornment position="end">
+                <IconButton
+                  onClick={() => {
+                    setConnStr("");
+                  }}
+                  edge="end"
+                >
+                  <ClearIcon fontSize="small" />
+                </IconButton>
+              </InputAdornment>
+            ),
+          },
+        }}
+        required
+      />
+
+      <UserAndPassword
+        user={user}
+        password={password}
+        setUser={setUser}
+        setPassword={setPassword}
+        savePassword={savePassword}
+        setSavePassword={setSavePassword}
+      />
+      <DbSchemaCadidates
+        name={bucket}
+        setName={setBucket}
+        label="bucket"
+        makeConfig={makeConfig}
+      />
+      {bucket && (
+        <DbSchemaCadidates
+          name={scope}
+          setName={setScope}
+          label="scope"
+          makeConfig={makeConfig}
+        />
+      )}
     </Stack>
   );
 }

@@ -130,6 +130,7 @@ import { listSchema } from "./handlers.ts";
 import { CreateTable } from "./CreateTable.tsx";
 import { AddConnection } from "./AddConnection.tsx";
 import { ModifySetting } from "./Settings.tsx";
+import { CouchBaseQuery } from "./CouchBase.tsx";
 
 const settingId = generateRandomString();
 
@@ -986,6 +987,12 @@ function OneConfig(props: { config: types.DBConnectionConfig }) {
         return config.schema ? <SchemaTree /> : <DatabaseTree />;
       case DataSourceKind.Db2:
         return config.schema ? <SchemaTree /> : <DatabaseTree />;
+      case DataSourceKind.CouchBase:
+        if (!config.bucket) {
+          return <CatalogTree />;
+        }
+        return config.scope ? <SchemaTree /> : <DatabaseTree />;
+
       default:
         console.error("impl database kind:", config);
     }
@@ -1080,6 +1087,11 @@ function SchemaTree(props: { schema?: string; reloadSchemas? }) {
         <>
           <TablesTree typ={TableType.Normal} />
           <ViewsTree viewKind={ViewKind.View} />
+        </>
+      )}
+      {opened && kind == DataSourceKind.CouchBase && (
+        <>
+          <TablesTree typ={TableType.Normal} />
         </>
       )}
 
@@ -1426,6 +1438,9 @@ function AllKindQuery(props: {
         />
       );
       break;
+
+    case DataSourceKind.CouchBase:
+      return <CouchBaseQuery uuid={uuid} />;
     default:
       console.error(`impl this ${kind}`);
   }

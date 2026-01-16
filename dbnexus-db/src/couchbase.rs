@@ -26,7 +26,7 @@ use crate::{
 #[derive(Clone)]
 pub struct CouchBaseDB {
     cluster: Arc<Cluster>,
-    config: CouchBaseDBConfig,
+    pub(crate) config: CouchBaseDBConfig,
 }
 
 impl GetBackendKind for CouchBaseDB {
@@ -47,16 +47,25 @@ impl CheckConn for CouchBaseDB {
 
 impl CouchBaseDB {
     pub async fn new(config: CouchBaseDBConfig) -> anyhow::Result<Self> {
-        let cluster = Cluster::connect(
-            &config.conn_str,
-            ClusterOptions::new(Authenticator::PasswordAuthenticator(
-                PasswordAuthenticator {
-                    username: config.username.clone(),
-                    password: config.password.clone(),
-                },
-            )),
+        let cluster = tokio::time::timeout(
+            config
+                .conn_timeout
+                .map(Duration::from)
+                .unwrap_or(Duration::from_secs(60)),
+            async {
+                Cluster::connect(
+                    &config.conn_str,
+                    ClusterOptions::new(Authenticator::PasswordAuthenticator(
+                        PasswordAuthenticator {
+                            username: config.username.clone(),
+                            password: config.password.clone(),
+                        },
+                    )),
+                )
+                .await
+            },
         )
-        .await?;
+        .await??;
         anyhow::Ok(Self {
             cluster: Arc::new(cluster),
             config,
@@ -196,6 +205,26 @@ impl CouchBaseDB {
     }
 }
 
+impl CouchBaseDB {
+    pub(crate) async fn list_table_impl(&self, scope: &str) -> anyhow::Result<Vec<String>> {
+        let b = self.get_bucket()?;
+        for s in b.collections().get_all_scopes(None).await? {
+            if s.name() == scope {
+                return anyhow::Ok(
+                    s.collections()
+                        .iter()
+                        .map(|x| x.name().to_owned())
+                        .collect(),
+                );
+            }
+        }
+        anyhow::bail!(format!(
+            "scope specs for '{:?}' not found",
+            self.config.scope
+        ))
+    }
+}
+
 #[async_trait::async_trait]
 
 impl SchemaTrait for CouchBaseDB {
@@ -261,26 +290,29 @@ impl SchemaTrait for CouchBaseDB {
     }
 
     async fn list_table(&self) -> anyhow::Result<Vec<ListTable>> {
-        let b = self.get_bucket()?;
-
-        for s in b.collections().get_all_scopes(None).await? {
-            if s.name() == self.config.scope_str() {
-                return anyhow::Ok(
-                    s.collections()
-                        .iter()
-                        .map(|x| ListTable::from(x.name()))
-                        .collect(),
-                );
-            }
-        }
-
-        anyhow::bail!(format!(
-            "scope specs for '{:?}' not found",
-            self.config.scope
-        ))
+        self.list_table_impl(self.config.scope_str())
+            .await
+            .map(|x| x.into_iter().map(ListTable::from).collect())
     }
 
-    async fn show_table_columns(&self, _table_name: &str) -> anyhow::Result<Vec<Field>> {
+    async fn table_delete(
+        &self, table_name: &str, mut wheres: HashMap<String, Option<String>>,
+    ) -> anyhow::Result<Option<usize>> {
+        let id = wheres.remove("id").unwrap_or_default().unwrap_or_default();
+        let scope = self.get_scope()?;
+        scope.collection(table_name).remove(id, None).await?;
+        anyhow::Ok(None)
+    }
+
+    async fn show_table_columns(&self, table_name: &str) -> anyhow::Result<Vec<Field>> {
+        let sql = format!("select * from `{table_name}`");
+        let s = self.get_scope()?;
+        let mut resp = s.query(sql, None).await?;
+        let mut rows = resp.rows::<'_, serde_json::Map<String, Value>>();
+        while let Some(row) = rows.next().await {
+            let row = row?;
+            return anyhow::Ok(row.keys().map(|x| Field::from_name_type(x, "")).collect());
+        }
         anyhow::Ok(vec![])
     }
 
@@ -313,11 +345,18 @@ impl SchemaTrait for CouchBaseDB {
             .into(),
         )?;
         let mut resp = self.get_scope()?.query(sql, None).await?;
-        let mut rows = resp.rows::<'_, Value>();
+        let mut rows = resp.rows::<'_, serde_json::Map<String, Value>>();
         while let Some(row) = rows.next().await {
             let row = row?;
-            let data = serde_json::to_string(&row)?;
-            emit.send(vec![Some(data)].into())?;
+            let id = match row.get("id") {
+                Some(serde_json::Value::String(x)) => x.clone(),
+                _ => anyhow::bail!(format!(
+                    "should be able to find a id as string but:{:?}",
+                    row
+                )),
+            };
+            let data = serde_json::to_string_pretty(row.get(table_name).unwrap_or(&Value::Null))?;
+            emit.send(vec![Some(id), Some(data)].into())?;
         }
         anyhow::Ok(())
     }
@@ -355,7 +394,7 @@ impl CouchBaseDB {
 
 impl SqlBuilder for CouchBaseDB {
     fn get_schema(&self) -> Option<&str> {
-        None
+        self.config.scope.as_deref()
     }
 
     fn put_value_in_sql(&self, _typ: &str, _value: Option<&str>) -> anyhow::Result<String> {
@@ -459,9 +498,8 @@ impl CatalogTrait for CouchBaseDB {
     }
 
     async fn open_db(&self, name: &str) -> anyhow::Result<Arc<dyn DBTrait>> {
-        let mut config = self.config.clone();
-        config.bucket = Some(name.to_string());
-        let ret = CouchBaseDB::new(config).await?;
+        let mut ret = Clone::clone(self);
+        ret.config.bucket = Some(name.to_owned());
         anyhow::Ok(Arc::new(ret))
     }
 
@@ -510,6 +548,7 @@ async fn make_test_object() -> CouchBaseDB {
         read_only: false,
         bucket: Some("test".to_string()),
         scope: Some("xxx".to_string()),
+        conn_timeout: Some(4000.into()),
     })
     .await
     .unwrap()
