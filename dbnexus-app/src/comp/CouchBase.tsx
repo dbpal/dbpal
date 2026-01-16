@@ -38,7 +38,7 @@ import PlayArrowIcon from "@mui/icons-material/PlayArrow";
 import ContentCopyIcon from "@mui/icons-material/ContentCopy";
 import FilterAltIcon from "@mui/icons-material/FilterAlt";
 import { FaArrowsAltV } from "react-icons/fa";
-import { ModalHeader, SelectPageSize } from "./CommonComp";
+import { ExecutingTime, ModalHeader, SelectPageSize } from "./CommonComp";
 import { Channel, invoke } from "@tauri-apps/api/core";
 import types from "./ApiStruct";
 import {
@@ -192,7 +192,7 @@ function CouchBaseTable(props: { uuid: string; table: string }) {
             handleValue={v => {
               setGridColCount(v);
             }}
-            storeKey="couchase-table-view-column-count"
+            storeKey="couchbase-table-view-column-count"
             name="column"
           />
           <SliderSize
@@ -210,10 +210,11 @@ function CouchBaseTable(props: { uuid: string; table: string }) {
       </Stack>
       <div
         style={{
-          flex: 1,
+          flexGrow: 1,
+          flexShrink: 1,
+          flexBasis: "0",
           height: "100px",
-          overflowY: "auto",
-          overflowX: "scroll",
+          overflow: "auto",
           display: "grid",
           gridTemplateColumns: `repeat(${gridColCount}, 1fr)`,
           paddingRight: "1.2rem",
@@ -625,20 +626,22 @@ function CouchBaseQuery(props: { uuid: string; value?: string }) {
               handleValue={v => {
                 setGridColCount(v);
               }}
-              storeKey="couchbase-json-column-size"
+              storeKey="couchbase-query-column-size"
               name="column"
             />
-            <SliderSize
-              name="height"
-              min={50}
-              max={1000}
-              notice="data div heigth"
-              step={10}
-              handleValue={v => {
-                setDataDivHeight(v);
-              }}
-              storeKey="couchbase-table-editor-height"
-            />
+            {gridColCount != 1 && (
+              <SliderSize
+                name="height"
+                min={50}
+                max={1000}
+                notice="data div height"
+                step={10}
+                handleValue={v => {
+                  setDataDivHeight(v);
+                }}
+                storeKey="couchbase-query-div-height"
+              />
+            )}
             <SliderSize
               storeKey="couchbase-sql-query"
               min={1000}
@@ -653,6 +656,7 @@ function CouchBaseQuery(props: { uuid: string; value?: string }) {
                 dbpal use Stream technology to query data,so we can query large data
               </Typography>
             />
+            <ExecutingTime loading={loading} />
           </Stack>
         </Stack>
         <SimpleFlexEditor
@@ -678,7 +682,7 @@ function CouchBaseQuery(props: { uuid: string; value?: string }) {
       )}
 
       {resp.length > 0 && (
-        <Panel collapsible collapsedSize={0} minSize={10}>
+        <Panel collapsible collapsedSize={0} minSize={10} style={{ overflow: "auto" }}>
           <div
             style={{
               overflow: "auto",
@@ -691,9 +695,8 @@ function CouchBaseQuery(props: { uuid: string; value?: string }) {
               return (
                 <div
                   style={{
-                    height: dataDivHeight + "px",
+                    height: gridColCount == 1 ? "fit-content" : dataDivHeight + "px",
                     overflow: "auto",
-                    // border: "2px solid",
                   }}
                   key={index}
                 >
@@ -701,7 +704,7 @@ function CouchBaseQuery(props: { uuid: string; value?: string }) {
                     style={syntaxHightLightTheme()} // Apply the chosen theme
                     language={"json"}
                     PreTag="div"
-                    // style={{ height: "100%" }}
+                    customStyle={{ margin: 1 }}
                   >
                     {jsonStr}
                   </SyntaxHighlighter>

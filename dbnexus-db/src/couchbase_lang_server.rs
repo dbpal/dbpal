@@ -3,6 +3,7 @@ use serde_json::Value;
 
 use crate::{
     couchbase::CouchBaseDB,
+    db::{CatalogTrait, DBTrait},
     language_server::{
         CompletionItem, CompletionKind, GetKeyWords, LangServerCommon, LanguageServer,
         LexerCompletionTrait,
@@ -118,6 +119,12 @@ impl LangServerCommon for CouchBaseDB {
             );
         }
         anyhow::Ok(vec![])
+    }
+    async fn list_schema(&self) -> anyhow::Result<Vec<String>> {
+        DBTrait::list_schema(self).await
+    }
+    async fn list_database(&self) -> anyhow::Result<Vec<String>> {
+        CatalogTrait::list_database(self).await
     }
 }
 

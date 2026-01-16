@@ -729,6 +729,7 @@ function AppMarkDown(props: {
             const match = /language-(\w+)/.exec(className || "");
             return match ? (
               <SyntaxHighlighter
+                //@ts-ignore
                 style={syntaxHightLightTheme()} // Apply the chosen theme
                 language={match[1]}
                 PreTag="div"

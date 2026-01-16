@@ -1215,13 +1215,16 @@ function DatabaseMenu(props: {
   return (
     <div>
       <MenuList>
-        {opened && kind != DataSourceKind.Mongo && kind != DataSourceKind.Redis && (
-          <MenuNewQuery
-            handleNew={() => {
-              openNewQuery(setSelectTab, setTabs, uuid, kind);
-            }}
-          />
-        )}
+        {opened &&
+          kind != DataSourceKind.Mongo &&
+          kind != DataSourceKind.Redis &&
+          kind != DataSourceKind.CouchBase && (
+            <MenuNewQuery
+              handleNew={() => {
+                openNewQuery(setSelectTab, setTabs, uuid, kind);
+              }}
+            />
+          )}
 
         {opened && kind != DataSourceKind.Oracle && (
           <MenuCreateSchema
