@@ -1345,6 +1345,7 @@ function CatalogMenu(props: {
             handleCreate={() => {
               setShowCreateDB(true);
             }}
+            kind={kind}
           />
         )}
 
@@ -1443,7 +1444,7 @@ function AllKindQuery(props: {
       break;
 
     case DataSourceKind.CouchBase:
-      return <CouchBaseQuery uuid={uuid} />;
+      return <CouchBaseQuery uuid={uuid} value={value} handleEditor={handleEditor} />;
     default:
       console.error(`impl this ${kind}`);
   }

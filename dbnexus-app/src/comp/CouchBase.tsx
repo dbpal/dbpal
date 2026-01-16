@@ -543,8 +543,12 @@ function CouchBaseInsert({ uuid, table }) {
   );
 }
 
-function CouchBaseQuery(props: { uuid: string; value?: string }) {
-  const { uuid, value } = props;
+function CouchBaseQuery(props: {
+  uuid: string;
+  value?: string;
+  handleEditor: (ed: editor.IStandaloneCodeEditor) => void;
+}) {
+  const { uuid, value, handleEditor } = props;
   const [resp, setResp] = useState<string[]>([]);
   const [loading, setLoading] = useState(false);
   const [gridColCount, setGridColCount] = useState(3);
@@ -650,8 +654,8 @@ function CouchBaseQuery(props: { uuid: string; value?: string }) {
               kind={DataSourceKind.CouchBase}
             />
           </Stack>
-
-          <Stack direction="row">
+          <Stack direction="row" style={{ alignItems: "center" }}>
+            <Typography color="info"> rows:{resp.length} </Typography>
             <Tooltip title="export query result to a file">
               <IconButton
                 loading={loading}
@@ -723,6 +727,7 @@ function CouchBaseQuery(props: { uuid: string; value?: string }) {
           language="sql"
           handleEditor={e => {
             setEditor(e);
+            handleEditor(e);
             SetAutoCompletionName.set(
               e.getModel().id,
               new NameAndQueryId(uuid, DataSourceKind.CouchBase),

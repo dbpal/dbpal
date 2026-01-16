@@ -108,3 +108,6 @@ find . -path ./target -prune -o -name '*.rs' -exec wc -l {} +
 
 some-couchbase password
 test1234
+
+
+couchbase create bucket

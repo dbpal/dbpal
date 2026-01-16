@@ -154,7 +154,7 @@ function MenuNewQuery({ handleNew }) {
   );
 }
 
-function MenuCreateDatabase({ handleCreate }) {
+function MenuCreateDatabase({ handleCreate, kind }) {
   return (
     <MenuItem
       onClick={() => {
@@ -164,7 +164,17 @@ function MenuCreateDatabase({ handleCreate }) {
       <ListItemIcon>
         <BsDatabaseAdd />
       </ListItemIcon>
-      <ListItemText> Create Database </ListItemText>
+      <ListItemText>
+        Create&nbsp;
+        {(function () {
+          switch (kind) {
+            case DataSourceKind.CouchBase:
+              return "Bucket";
+            default:
+              return "Database";
+          }
+        })()}
+      </ListItemText>
     </MenuItem>
   );
 }
@@ -256,8 +266,11 @@ function MenuCreateSchema(props: { handleCreate; kind: DataSourceKind }) {
     case DataSourceKind.Cassandra:
       name = "Key Space";
       break;
+    case DataSourceKind.CouchBase:
+      name = "Scope";
+      break;
     default:
-      name = "database";
+      name = "Database";
       break;
   }
   return (

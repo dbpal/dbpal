@@ -1,6 +1,7 @@
 use dashmap::DashMap;
 use dbnexus_db::cassandra::CassandraDB;
 use dbnexus_db::clickhouse::ClickHouseDB;
+use dbnexus_db::couchbase::CouchBaseDB;
 use dbnexus_db::db::{
     ColumnType, CreateDatabaseExtra, CreateIndexReq, CreateSchemaExtra, CreateTableAndIndexSql,
     CreateTableReq, CreatedTypeDef, DBTrait, DefAndMetas, ExportKind, Field, Index, ListTable,
@@ -763,6 +764,8 @@ impl DatabaseBackend {
                 } else if let Some(x) = a.downcast_ref::<CassandraDB>() {
                     Some(x as &dyn DBTrait)
                 } else if let Some(x) = a.downcast_ref::<ClickHouseDB>() {
+                    Some(x as &dyn DBTrait)
+                } else if let Some(x) = a.downcast_ref::<CouchBaseDB>() {
                     Some(x as &dyn DBTrait)
                 } else {
                     None
