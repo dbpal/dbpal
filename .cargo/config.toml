@@ -7,10 +7,14 @@ rustflags = ["-C", "link-arg=-fuse-ld=mold"]
 
 [profile.release]
 opt-level = "z"
-# Generates minimal debug info for backtraces with function names, filename, and line numbers
-debug = "line-tables-only"
-# Ensure symbols and debuginfo are not removed after linking
-strip = false
+debug = 0
+
+[profile.release.package.dbpal]
+debug = 2
+
+
+[profile.release.package.dbnexus_db]
+debug = 2
 
 
 [target.x86_64-pc-windows-msvc]
