@@ -941,46 +941,42 @@ function CouchBaseQuery(props: {
           }}
         />
       </Panel>
-      {resp.length > 0 && (
-        <PanelResizeHandle
-          style={{
-            height: resizeHandlerSize,
-          }}
-          id="chat-resize-bar"
-          className="resize-handle"
-        />
-      )}
 
-      {resp.length > 0 && (
-        <Panel collapsible collapsedSize={0} minSize={10} style={{ overflow: "auto" }}>
-          {viewMode == QueryViewMode.Json && (
-            <div
-              style={{
-                overflow: "auto",
-                display: "grid",
-                gridTemplateColumns: `repeat(${gridColCount}, 1fr)`,
-                paddingRight: "1.2rem",
-              }}
-            >
-              {resp.map((jsonStr, index) => {
-                return (
-                  <div key={index}>
-                    <ReactJsonView
-                      src={JSON.parse(jsonStr)}
-                      key={index}
-                      theme={jsonEditorTheme as any}
-                    />
-                    <Divider />
-                  </div>
-                );
-              })}
-            </div>
-          )}
-          {viewMode == QueryViewMode.Table && tableResp && (
-            <QueryResp data={tableResp} />
-          )}
-        </Panel>
-      )}
+      <PanelResizeHandle
+        style={{
+          height: resizeHandlerSize,
+        }}
+        id="chat-resize-bar"
+        className="resize-handle"
+      />
+
+      <Panel collapsible collapsedSize={0} minSize={10} style={{ overflow: "auto" }}>
+        {viewMode == QueryViewMode.Json && (
+          <div
+            style={{
+              overflow: "auto",
+              display: "grid",
+              gridTemplateColumns: `repeat(${gridColCount}, 1fr)`,
+              paddingRight: "1.2rem",
+            }}
+          >
+            {resp.map((jsonStr, index) => {
+              return (
+                <div key={index}>
+                  <ReactJsonView
+                    src={JSON.parse(jsonStr)}
+                    key={index}
+                    theme={jsonEditorTheme as any}
+                  />
+                  <Divider />
+                </div>
+              );
+            })}
+          </div>
+        )}
+        {viewMode == QueryViewMode.Table && tableResp && <QueryResp data={tableResp} />}
+      </Panel>
+
       {showExport && (
         <Modal
           open={showExport}
