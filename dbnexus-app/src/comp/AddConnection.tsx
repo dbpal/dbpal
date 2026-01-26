@@ -1598,7 +1598,6 @@ function OdbcDriverCommon(props: { config: RefObject<types.OdbcCommon> }) {
 }
 
 //@ts-ignore
-// eslint-disable-next-line @typescript-eslint/no-unused-vars
 function Db2(props: { config?: any }) {
   const { config } = props;
   const [host, setHost] = useState(getHost(config));

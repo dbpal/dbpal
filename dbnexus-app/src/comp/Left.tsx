@@ -1369,7 +1369,14 @@ function CatalogMenu(props: {
               handleClose={() => {
                 setShowCreateDB(false);
               }}
-              title="Create Database"
+              title={(function () {
+                switch (kind) {
+                  case DataSourceKind.CouchBase:
+                    return "create bucket";
+                  default:
+                    return "create database";
+                }
+              })()}
             />
             <CreateDatabase
               uuid={uuid}
@@ -1377,6 +1384,7 @@ function CatalogMenu(props: {
                 reload();
                 setShowCreateDB(false);
               }}
+              kind={kind}
             />
           </Box>
         </Modal>
@@ -1521,18 +1529,21 @@ function SchemaMenu(props: {
         />
       )}
 
-      {opened && kind != DataSourceKind.Redis && kind != DataSourceKind.Mongo && (
-        <MenuItem
-          onClick={() => {
-            openNewCreateTable(setSelectTab, setTabs, uuid, kind);
-          }}
-        >
-          <ListItemIcon>
-            <IoIosCreate />
-          </ListItemIcon>
-          <ListItemText>create table </ListItemText>
-        </MenuItem>
-      )}
+      {opened &&
+        kind != DataSourceKind.Redis &&
+        kind != DataSourceKind.Mongo &&
+        kind != DataSourceKind.CouchBase && (
+          <MenuItem
+            onClick={() => {
+              openNewCreateTable(setSelectTab, setTabs, uuid, kind);
+            }}
+          >
+            <ListItemIcon>
+              <IoIosCreate />
+            </ListItemIcon>
+            <ListItemText>create table </ListItemText>
+          </MenuItem>
+        )}
 
       {opened && !schema && <MenuConnectionInfo uuid={uuid} />}
 

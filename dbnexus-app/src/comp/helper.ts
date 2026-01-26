@@ -621,7 +621,10 @@ function saveAndSetSize(
 }
 
 class DocsAndCount {
-  constructor(public docs: BSON.Document[], public count: number) {}
+  constructor(
+    public docs: BSON.Document[],
+    public count: number,
+  ) {}
 }
 
 function notifySettingChange() {
@@ -939,8 +942,6 @@ export type MuiDataGridData = {
   data: any[];
   sql: string | null;
   total: number | null;
-  cache_time: types.U64 | null;
-  has_more: boolean;
 };
 
 enum RedisTableType {
@@ -1144,8 +1145,6 @@ function newEmptyResp(): MuiDataGridData {
     data: [],
     sql: "",
     total: 0,
-    cache_time: 0,
-    has_more: false,
   };
 }
 

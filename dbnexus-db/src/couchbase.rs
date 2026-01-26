@@ -6,7 +6,7 @@ use couchbase::{
     authenticator::{Authenticator, PasswordAuthenticator},
     bucket::Bucket,
     cluster::Cluster,
-    management::buckets::bucket_settings::BucketSettings,
+    management::buckets::bucket_settings::{BucketSettings, BucketType},
     options::cluster_options::ClusterOptions,
     scope::Scope,
 };
@@ -16,10 +16,10 @@ use serde_json::Value;
 use crate::{
     datasource_config::CouchBaseDBConfig,
     db::{
-        BackendKind, CatalogTrait, CheckConn, CreateDatabaseExtra, DBTrait, ExportKind,
-        ExportQueryResult, Field, GetBackendKind, ListTable, MetaValue, QueryEventEmitter,
-        QueryResp, QuerySql, ReadOnlyTrait, SchemaTrait, ServerMetas, ShowTableParameter,
-        SqlBuilder,
+        BackendKind, CatalogTrait, CheckConn, CouchBaseBucketType, CreateDatabaseExtra, DBTrait,
+        ExportKind, ExportQueryResult, Field, GetBackendKind, ListTable, MetaValue,
+        QueryEventEmitter, QueryResp, QuerySql, ReadOnlyTrait, SchemaTrait, ServerMetas,
+        ShowTableParameter, SqlBuilder,
     },
 };
 
@@ -512,6 +512,7 @@ impl CatalogTrait for CouchBaseDB {
                 flush_enabled,
                 num_replicas,
                 max_expiry,
+                bucket_type,
             }) => {
                 let mut setting = BucketSettings::new(name);
                 setting = setting.ram_quota_mb(ram_quota_mb);
@@ -520,6 +521,11 @@ impl CatalogTrait for CouchBaseDB {
                 if let Some(max_expiry) = max_expiry {
                     setting = setting.max_expiry(Duration::from_secs(max_expiry));
                 }
+                let ty = match bucket_type {
+                    CouchBaseBucketType::Couchbase => BucketType::COUCHBASE,
+                    CouchBaseBucketType::EPHEMERAL => BucketType::EPHEMERAL,
+                };
+                setting = setting.bucket_type(ty);
                 setting
             }
             _ => {
@@ -586,6 +592,7 @@ mod tests {
                     flush_enabled: true,
                     num_replicas: 1,
                     max_expiry: None,
+                    bucket_type: CouchBaseBucketType::Couchbase,
                 }),
             )
             .await;
@@ -671,10 +678,48 @@ mod tests {
         )
         .await
         .unwrap();
-        let mut resp = c.query("select 1 ", None).await.unwrap();
+        // 不能执行多条语句呢
+        let mut resp = c.query("select 1", None).await.unwrap();
         let mut stream = resp.rows::<'_, serde_json::Value>();
         while let Some(row) = stream.next().await {
             println!("!!:{:?}", row);
+        }
+    }
+
+    #[tokio::test]
+
+    async fn test_large_table() {
+        let table_name = "test_large_table";
+        let db = make_test_object().await;
+        if db.table_exists(table_name).await.unwrap() {
+            db.truncate_table(table_name).await.unwrap();
+        } else {
+            db.get_bucket()
+                .unwrap()
+                .collections()
+                .create_collection(db.config.scope_str(), table_name, None, None)
+                .await
+                .unwrap();
+        }
+
+        for i in 0..1550 {
+            db.table_insert(table_name, {
+                let mut values = HashMap::new();
+                values.insert("id".to_string(), Some(format!("id_{}", i)));
+
+                values.insert("value".to_owned(), {
+                    let mut m = serde_json::Map::new();
+                    m.insert(
+                        "data".to_string(),
+                        serde_json::Value::from(format!("hello world.{}", i)),
+                    );
+                    Some(serde_json::to_string(&m).unwrap())
+                });
+
+                values
+            })
+            .await
+            .unwrap();
         }
     }
 

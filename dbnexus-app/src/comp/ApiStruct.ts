@@ -506,4 +506,14 @@ export namespace types {
         "columns": (types.CreateTableReqColumn)[];
         "indexes": (types.CreateIndexReq)[];
     };
+    export type CouchBaseBucketType = ("couchbase" | "ephemeral");
+    export type CreateDatabaseExtra = ({
+        "extra": "couchbase";
+    } & {
+        "ram_quota_mb": types.U64;
+        "flush_enabled": boolean;
+        "num_replicas": types.U32;
+        "max_expiry": (types.U64 | null);
+        "bucket_type": types.CouchBaseBucketType;
+    });
 }

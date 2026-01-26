@@ -928,7 +928,15 @@ pub enum CreateDatabaseExtra {
         num_replicas: u32,
         // in seconds
         max_expiry: Option<u64>,
+        bucket_type: CouchBaseBucketType,
     },
+}
+
+#[derive(Debug, serde::Serialize, serde::Deserialize, Clone, TypeDef)]
+#[serde(rename_all = "lowercase")]
+pub enum CouchBaseBucketType {
+    Couchbase,
+    EPHEMERAL,
 }
 
 /// named staff maybe used for view udf etc...
@@ -991,12 +999,12 @@ pub trait DBTrait:
 #[derive(Clone, Debug, serde::Serialize, serde::Deserialize)]
 #[serde(tag = "extra", rename_all = "lowercase")]
 pub enum CreateSchemaExtra {
-    // CREATE KEYSPACE my_keyspace
-    // WITH REPLICATION = {
-    //     'class': 'SimpleStrategy',
-    //     'replication_factor': 3
-    // };
     Cassandra {
+        // CREATE KEYSPACE my_keyspace
+        // WITH REPLICATION = {
+        //     'class': 'SimpleStrategy',
+        //     'replication_factor': 3
+        // };
         // class is the keyword for frontend
         replication_strategy: String,
         replication_factor: u32,

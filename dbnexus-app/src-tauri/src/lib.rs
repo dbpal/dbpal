@@ -8,9 +8,9 @@ mod tests {
         MysqlSsl, OdbcCommon, PgSsl, PgSslMode, SSLFiles,
     };
     use dbnexus_db::db::{
-        ColumnType, CreateIndexColumn, CreateIndexReq, CreateTableAndIndexSql, CreateTableReq,
-        CreateTableReqColumn, CreatedTypeDef, IndexKind, SequenceDetail, ShowTableParameter,
-        SqlEvent, SqlNullAble, UdfOrProcedureExtraParameter,
+        ColumnType, CouchBaseBucketType, CreateDatabaseExtra, CreateIndexColumn, CreateIndexReq,
+        CreateTableAndIndexSql, CreateTableReq, CreateTableReqColumn, CreatedTypeDef, IndexKind,
+        SequenceDetail, ShowTableParameter, SqlEvent, SqlNullAble, UdfOrProcedureExtraParameter,
     };
     use dbnexus_db::language_server::CompletionList;
     #[test]
@@ -87,6 +87,8 @@ mod tests {
             &IndexKind::INFO,
             &SqlNullAble::INFO,
             &CouchBaseDBConfig::INFO,
+            &CreateDatabaseExtra::INFO,
+            &CouchBaseBucketType::INFO,
         ];
 
         let options: DefinitionFileOptions = DefinitionFileOptions::default();

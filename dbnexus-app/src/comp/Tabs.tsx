@@ -9,7 +9,6 @@ import {
   Typography,
 } from "@mui/material";
 import CloseIcon from "@mui/icons-material/Close";
-
 import {
   ContextMenuContext,
   secondConfirm,
@@ -134,7 +133,6 @@ function TabsWithContent_(props: {
       e.disconnect();
     };
   }, [tabs]);
-
   return (
     <Stack style={{ width: "100%", height: "100%" }} ref={rootStack}>
       <Tabs
@@ -162,7 +160,10 @@ function TabsWithContent_(props: {
               label=<Tooltip title={tab.header}>
                 <Stack
                   direction="row"
-                  style={{ textTransform: "none", alignItems: "center" }}
+                  style={{
+                    textTransform: "none",
+                    alignItems: "center",
+                  }}
                   onContextMenu={e => {
                     setUpMenu({
                       content: (
@@ -188,8 +189,8 @@ function TabsWithContent_(props: {
                       overflow: "hidden",
                       textOverflow: "clip",
                       flex: 1,
+                      // fontSize: index == selectIndex ? "1.1rem" : "1rem",
                     }}
-                    color={index == selectIndex ? "primary" : undefined}
                   >
                     {tab.header}
                   </Typography>
@@ -197,6 +198,7 @@ function TabsWithContent_(props: {
                     onClick={() => {
                       handleClose(index);
                     }}
+                    style={{ fontSize: "0.9rem" }}
                     color="warning"
                   />
                 </Stack>

@@ -1,7 +1,10 @@
 import {
+  Autocomplete,
   Box,
   Button,
+  ButtonGroup,
   Chip,
+  Divider,
   IconButton,
   InputAdornment,
   Modal,
@@ -19,7 +22,6 @@ import {
   SetFilterSort,
   SimpleFlexEditor,
   SliderSize,
-  syntaxHightLightTheme,
   TableAddButton,
 } from "./CommonComp2";
 import { ReactNode, useCallback, useContext, useEffect, useRef, useState } from "react";
@@ -29,6 +31,7 @@ import {
   generateRandomString,
   getEditorText,
   handleCopyToClipboard,
+  MuiDataGridData,
   QueryLogHandler,
   resizeHandlerSize,
   saveAndSetSize,
@@ -38,8 +41,9 @@ import {
   shrinkAble,
   validJson,
 } from "./helper";
+import ReactJsonView, { ThemeKeys } from "@microlink/react-json-view";
+import DeleteForeverIcon from "@mui/icons-material/DeleteForever";
 import PlayArrowIcon from "@mui/icons-material/PlayArrow";
-import ContentCopyIcon from "@mui/icons-material/ContentCopy";
 import FilterAltIcon from "@mui/icons-material/FilterAlt";
 import { FaArrowsAltV } from "react-icons/fa";
 import { ExecutingTime, ModalHeader, SelectPageSize } from "./CommonComp";
@@ -57,9 +61,9 @@ import { NotificationContext } from "./Notification";
 import { editor, Position } from "monaco-editor";
 import ClearIcon from "@mui/icons-material/Clear";
 import { Panel, PanelGroup, PanelResizeHandle } from "react-resizable-panels";
-import { Prism as SyntaxHighlighter } from "react-syntax-highlighter";
 import { QueryLog } from "./QueryLog";
 import { ExportView } from "./Export";
+import { QueryResp } from "./QueryResp";
 type Data = {
   data: { data: string; id: string }[];
   count: number;
@@ -67,6 +71,54 @@ type Data = {
 
 function newDataDefault(): Data {
   return { count: 0, data: [] };
+}
+
+enum TableViewMode {
+  Editor = "editor",
+  Json = "json",
+}
+
+class TableViewModeSaver {
+  static key = "couchbase-table-view-mode";
+  static load(): TableViewMode {
+    return (
+      (localStorage.getItem(TableViewModeSaver.key) as TableViewMode) ||
+      TableViewMode.Editor
+    );
+  }
+
+  static save(x: TableViewMode) {
+    localStorage.setItem(TableViewModeSaver.key, x);
+  }
+}
+
+class JsonEditorThemeSaver {
+  static key = "couchbase-json-editor-theme";
+  static load(): string {
+    return localStorage.getItem(JsonEditorThemeSaver.key);
+  }
+
+  static save(x: string) {
+    localStorage.setItem(JsonEditorThemeSaver.key, x);
+  }
+}
+
+function ViewModeSwitcher({ setViewMode, viewMode }) {
+  return (
+    <ButtonGroup>
+      {[TableViewMode.Editor, TableViewMode.Json].map(m => (
+        <Button
+          onClick={() => {
+            setViewMode(m);
+          }}
+          key={m}
+          disabled={viewMode == m}
+        >
+          {m}
+        </Button>
+      ))}
+    </ButtonGroup>
+  );
 }
 
 function CouchBaseTable(props: { uuid: string; table: string }) {
@@ -86,6 +138,15 @@ function CouchBaseTable(props: { uuid: string; table: string }) {
   const { showNotification } = useContext(NotificationContext);
   const [showAdd, setShowAdd] = useState(false);
   const [addModalBox, setAddModalBox] = useState(null);
+  const [viewMode, setViewMode] = useState(TableViewModeSaver.load());
+  useEffect(() => {
+    TableViewModeSaver.save(viewMode);
+  }, [viewMode]);
+  const [jsonEditorTheme, setJsonEditorTheme] = useState(JsonEditorThemeSaver.load());
+  useEffect(() => {
+    JsonEditorThemeSaver.save(jsonEditorTheme);
+  }, [jsonEditorTheme]);
+
   useEffect(() => {
     if (addModalBox) {
       const clean = saveAndSetSize(addModalBox, "couchbase-table-insert");
@@ -137,7 +198,6 @@ function CouchBaseTable(props: { uuid: string; table: string }) {
   useEffect(() => {
     handleReload();
   }, [handleReload]);
-
   return (
     <Stack style={{ height: "100%" }}>
       <QueryStatus setRef={queryStatus} />
@@ -154,6 +214,7 @@ function CouchBaseTable(props: { uuid: string; table: string }) {
           >
             reload
           </Button>
+          <ViewModeSwitcher viewMode={viewMode} setViewMode={setViewMode} />
           <Tooltip title="filter something like 'age=18'">
             <Chip
               label={where}
@@ -166,7 +227,6 @@ function CouchBaseTable(props: { uuid: string; table: string }) {
               icon={<FilterAltIcon />}
             />
           </Tooltip>
-          {/* <Typography color="info"> order by </Typography> */}
           <Tooltip title="sort something like 'age asc'">
             <Chip
               label={sort}
@@ -186,9 +246,7 @@ function CouchBaseTable(props: { uuid: string; table: string }) {
             }}
           />
         </Stack>
-
         <Typography variant="h5"> {table} </Typography>
-
         <Stack direction="row">
           <SliderSize
             min={1}
@@ -201,17 +259,19 @@ function CouchBaseTable(props: { uuid: string; table: string }) {
             storeKey="couchbase-table-view-column-count"
             name="column"
           />
-          <SliderSize
-            name="height"
-            min={300}
-            max={1000}
-            notice="mongodb editor height"
-            step={10}
-            handleValue={v => {
-              setEditorHeight(v);
-            }}
-            storeKey="couchbase-table-editor-height"
-          />
+          {viewMode == TableViewMode.Editor && (
+            <SliderSize
+              name="height"
+              min={100}
+              max={1000}
+              notice="mongodb editor height"
+              step={10}
+              handleValue={v => {
+                setEditorHeight(v);
+              }}
+              storeKey="couchbase-table-editor-height"
+            />
+          )}
         </Stack>
       </Stack>
       <div
@@ -227,31 +287,32 @@ function CouchBaseTable(props: { uuid: string; table: string }) {
         }}
       >
         {resp.data.map(item => (
-          <div
-            style={{ height: editorHeight + "px", position: "relative" }}
+          <Stack
+            style={{
+              height: viewMode == TableViewMode.Editor && editorHeight + "px",
+              position: "relative",
+              alignItems: "flex-start",
+            }}
+            direction="row"
             key={item.id}
           >
-            <Stack
-              style={{
-                position: "absolute",
-                zIndex: 14,
-                left: 0,
-                top: 0,
-                opacity: 0.6,
-              }}
-            >
-              <Tooltip title="copy id">
-                <IconButton
-                  onClick={() => {
-                    handleCopyToClipboard(item.id, showNotification);
-                  }}
-                >
-                  <ContentCopyIcon />
-                </IconButton>
-              </Tooltip>
-              <Typography style={{ writingMode: "vertical-rl" }}>{item.id} </Typography>
-            </Stack>
+            <Tooltip title="copy id">
+              <Typography
+                style={{
+                  writingMode: "vertical-rl",
+                  cursor: "pointer",
+                  display: "inline-block",
+                }}
+                onClick={() => {
+                  handleCopyToClipboard(item.id, showNotification);
+                }}
+              >
+                {item.id}
+              </Typography>
+            </Tooltip>
             <CouchBaseEditor
+              jsonTheme={jsonEditorTheme ? jsonEditorTheme : ""}
+              viewMode={viewMode}
               handleValueButton="modify"
               value={item.data}
               handleDelete={async () => {
@@ -280,15 +341,18 @@ function CouchBaseTable(props: { uuid: string; table: string }) {
                 });
               }}
             />
-          </div>
+          </Stack>
         ))}
       </div>
-
       <Stack
         direction="row"
         style={{ alignItems: "center", justifyContent: "space-between" }}
       >
-        <Stack direction="row">
+        <Stack direction="row" style={{ alignItems: "center" }}>
+          {viewMode == TableViewMode.Json && (
+            <SetTheme theme={jsonEditorTheme} setTheme={setJsonEditorTheme} />
+          )}
+
           <Typography color="info">
             result {resp.data.length} of {resp.count}
           </Typography>
@@ -300,7 +364,9 @@ function CouchBaseTable(props: { uuid: string; table: string }) {
             handleChange={s => {
               setPageSize(s);
             }}
+            options={[2, 3, 10].map(x => x * gridColCount)}
           />
+
           <Pagination
             page={page}
             onChange={(_, p) => {
@@ -379,13 +445,25 @@ function CouchBaseEditor(props: {
   handleValueButton: string;
   barExtra?: ReactNode;
   warnModify: boolean;
+  viewMode: TableViewMode;
+  jsonTheme: string;
 }) {
-  const { value, handleValue, handleDelete, handleValueButton, barExtra, warnModify } =
-    props;
+  const {
+    value,
+    handleValue,
+    handleDelete,
+    handleValueButton,
+    barExtra,
+    warnModify,
+    viewMode,
+    jsonTheme,
+  } = props;
+
   const [newValue, setNewValue] = useState(value);
   const [jsonErr, setJsonErr] = useState<ErrAndLoc | null>(null);
   const { showNotification } = useContext(NotificationContext);
   const [jsonErrPos, setJsonErrPos] = useState<Position>(null);
+  const [jsonDoc, setJsonDoc] = useState(JSON.parse(value));
   useEffect(() => {
     (async () => {
       try {
@@ -406,7 +484,7 @@ function CouchBaseEditor(props: {
       }
     }
     setLoading(true);
-    handleValue(newValue)
+    handleValue(viewMode == TableViewMode.Json ? JSON.stringify(jsonDoc) : newValue)
       .then(() => {
         showNotification("success", `${handleValueButton} OK`);
       })
@@ -437,15 +515,63 @@ function CouchBaseEditor(props: {
       }
     : undefined;
   return (
-    <Stack style={{ height: "100%" }}>
-      <SimpleFlexEditor
-        value={newValue}
-        handleValue={v => {
-          setNewValue(v);
-        }}
-        language="json"
-        errPos={jsonErrPos}
-        barLeft=<Stack direction="row">
+    <Stack style={{ height: "100%", flex: 1 }}>
+      {viewMode == TableViewMode.Editor && (
+        <SimpleFlexEditor
+          value={newValue}
+          handleValue={v => {
+            setNewValue(v);
+          }}
+          language="json"
+          errPos={jsonErrPos}
+          barLeft=<Stack direction="row">
+            {jsonErr && (
+              <Typography
+                color="error"
+                style={{ cursor: "pointer" }}
+                onClick={() => {
+                  if (!jsonErr) {
+                    return;
+                  }
+                  setJsonErrPos(new Position(jsonErr.line, jsonErr.column));
+                }}
+              >
+                {jsonErr.msg}
+              </Typography>
+            )}
+          </Stack>
+        />
+      )}
+      {viewMode == TableViewMode.Json && (
+        <ReactJsonView
+          onEdit={
+            doModify
+              ? ({ updated_src }) => {
+                  setJsonDoc(updated_src);
+                }
+              : undefined
+          }
+          onAdd={
+            doModify
+              ? ({ updated_src }) => {
+                  setJsonDoc(updated_src);
+                }
+              : undefined
+          }
+          onDelete={
+            doModify
+              ? ({ updated_src }) => {
+                  setJsonDoc(updated_src);
+                }
+              : undefined
+          }
+          theme={jsonTheme as ThemeKeys}
+          src={jsonDoc}
+          style={{ minHeight: "11rem" }}
+        />
+      )}
+      <Stack direction="row">
+        {doModify && (
           <Button
             onClick={() => {
               doModify();
@@ -454,41 +580,30 @@ function CouchBaseEditor(props: {
           >
             {handleValueButton}
           </Button>
-          {doDelete && (
-            <Button
-              onClick={() => {
-                doDelete();
-              }}
-              color="warning"
-            >
-              delete
-            </Button>
-          )}
-          {barExtra}
-          {jsonErr && (
-            <Typography
-              color="error"
-              style={{ cursor: "pointer" }}
-              onClick={() => {
-                if (!jsonErr) {
-                  return;
-                }
-                setJsonErrPos(new Position(jsonErr.line, jsonErr.column));
-              }}
-            >
-              {jsonErr.msg}
-            </Typography>
-          )}
-        </Stack>
-      />
+        )}
+        {doDelete && (
+          <Button
+            onClick={() => {
+              doDelete();
+            }}
+            color="warning"
+          >
+            <DeleteForeverIcon />
+          </Button>
+        )}
+        {barExtra}
+      </Stack>
     </Stack>
   );
 }
 
 function CouchBaseInsert({ uuid, table }) {
   const [id, setId] = useState("");
+  const [viewMode, setViewMode] = useState(TableViewModeSaver.load());
   return (
     <CouchBaseEditor
+      jsonTheme={JsonEditorThemeSaver.load()}
+      viewMode={viewMode}
       warnModify={false}
       value={"{\n}"}
       barExtra=<>
@@ -524,6 +639,7 @@ function CouchBaseInsert({ uuid, table }) {
           }}
           required
         />
+        <ViewModeSwitcher viewMode={viewMode} setViewMode={setViewMode} />
       </>
       handleValueButton={"insert"}
       handleValue={async value => {
@@ -543,6 +659,25 @@ function CouchBaseInsert({ uuid, table }) {
   );
 }
 
+enum QueryViewMode {
+  Table = "table",
+  Json = "json",
+}
+
+class QueryViewModeSaver {
+  static key = "couchbase-query-view-mode";
+  static load(): QueryViewMode {
+    return (
+      (localStorage.getItem(QueryViewModeSaver.key) as QueryViewMode) ||
+      QueryViewMode.Json
+    );
+  }
+
+  static save(x: QueryViewMode) {
+    localStorage.setItem(QueryViewModeSaver.key, x);
+  }
+}
+
 function CouchBaseQuery(props: {
   uuid: string;
   value?: string;
@@ -552,7 +687,6 @@ function CouchBaseQuery(props: {
   const [resp, setResp] = useState<string[]>([]);
   const [loading, setLoading] = useState(false);
   const [gridColCount, setGridColCount] = useState(3);
-  const [dataDivHeight, setDataDivHeight] = useState(200);
   const [editor, setEditor] = useState<editor.IStandaloneCodeEditor>(null);
   const maxRow = useRef(2000);
   const queryStatus = useRef<SetStatusFn>(null);
@@ -561,6 +695,61 @@ function CouchBaseQuery(props: {
   const kind = DataSourceKind.CouchBase;
   const [executeTimes, setExecuteTimes] = useState(0);
   const [showExport, setShowExport] = useState(false);
+  const [viewMode, setViewMode] = useState(QueryViewModeSaver.load());
+  const [tableResp, setTableResp] = useState<MuiDataGridData>(null);
+
+  useEffect(() => {
+    QueryViewModeSaver.save(viewMode);
+  }, [viewMode]);
+
+  useEffect(() => {
+    if (viewMode != QueryViewMode.Table) {
+      return;
+    }
+    if (resp.length == 0) {
+      return;
+    }
+    let fields: types.Field[] = [];
+    let data: object[] = [];
+    for (const row of resp) {
+      let obj = JSON.parse(row);
+      {
+        const keys = Object.keys(obj);
+        if (keys.length == 1 && typeof obj[keys[0]] == "object") {
+          obj = obj[Object.keys(obj)[0]];
+        }
+      }
+      let d = {};
+      for (const key in obj) {
+        if (typeof obj[key] == "object" && !Array.isArray(obj[key])) {
+          for (const k in obj[key]) {
+            const fKey = `${key}.${k}`;
+
+            if (-1 == fields.findIndex(x => x.field == fKey)) {
+              fields.push({
+                field: fKey,
+              } as types.Field);
+            }
+            d[fKey] = String(obj[key][k]);
+          }
+        } else {
+          d[key] = String(obj[key]);
+          if (-1 == fields.findIndex(x => x.field == key)) {
+            fields.push({
+              field: key,
+            } as types.Field);
+          }
+        }
+      }
+      data.push(d);
+    }
+    setTableResp({ fields, data, sql: "", total: null });
+  }, [resp, uuid, viewMode]);
+
+  const [jsonEditorTheme, setJsonEditorTheme] = useState(JsonEditorThemeSaver.load());
+  useEffect(() => {
+    JsonEditorThemeSaver.save(jsonEditorTheme);
+  }, [jsonEditorTheme]);
   const handleQuery = () => {
     let text = getEditorText(editor, showNotification);
     if (!text) {
@@ -653,6 +842,20 @@ function CouchBaseQuery(props: {
               }}
               kind={DataSourceKind.CouchBase}
             />
+
+            <ButtonGroup>
+              {[QueryViewMode.Json, QueryViewMode.Table].map(e => (
+                <Button
+                  key={e}
+                  disabled={e == viewMode}
+                  onClick={() => {
+                    setViewMode(e);
+                  }}
+                >
+                  {e}
+                </Button>
+              ))}
+            </ButtonGroup>
           </Stack>
           <Stack direction="row" style={{ alignItems: "center" }}>
             <Typography color="info"> rows:{resp.length} </Typography>
@@ -681,29 +884,22 @@ function CouchBaseQuery(props: {
                 <EventNoteIcon />
               </IconButton>
             </Tooltip>
-            <SliderSize
-              min={1}
-              max={5}
-              notice="column count"
-              step={1}
-              handleValue={v => {
-                setGridColCount(v);
-              }}
-              storeKey="couchbase-query-column-size"
-              name="column"
-            />
-            {gridColCount != 1 && (
+
+            {viewMode == QueryViewMode.Json && (
               <SliderSize
-                name="height"
-                min={50}
-                max={1000}
-                notice="data div height"
-                step={10}
+                min={1}
+                max={5}
+                notice="column count"
+                step={1}
                 handleValue={v => {
-                  setDataDivHeight(v);
+                  setGridColCount(v);
                 }}
-                storeKey="couchbase-query-div-height"
+                storeKey="couchbase-query-column-size"
+                name="column"
               />
+            )}
+            {viewMode == QueryViewMode.Json && (
+              <SetTheme theme={jsonEditorTheme} setTheme={setJsonEditorTheme} />
             )}
             <SliderSize
               storeKey="couchbase-sql-query"
@@ -747,38 +943,34 @@ function CouchBaseQuery(props: {
 
       {resp.length > 0 && (
         <Panel collapsible collapsedSize={0} minSize={10} style={{ overflow: "auto" }}>
-          <div
-            style={{
-              overflow: "auto",
-              display: "grid",
-              gridTemplateColumns: `repeat(${gridColCount}, 1fr)`,
-              paddingRight: "1.2rem",
-            }}
-          >
-            {resp.map((jsonStr, index) => {
-              return (
-                <div
-                  style={{
-                    height: gridColCount == 1 ? "fit-content" : dataDivHeight + "px",
-                    overflow: "auto",
-                  }}
-                  key={index}
-                >
-                  <SyntaxHighlighter
-                    style={syntaxHightLightTheme()} // Apply the chosen theme
-                    language={"json"}
-                    PreTag="div"
-                    customStyle={{ margin: 1 }}
-                  >
-                    {jsonStr}
-                  </SyntaxHighlighter>
-                </div>
-              );
-            })}
-          </div>
+          {viewMode == QueryViewMode.Json && (
+            <div
+              style={{
+                overflow: "auto",
+                display: "grid",
+                gridTemplateColumns: `repeat(${gridColCount}, 1fr)`,
+                paddingRight: "1.2rem",
+              }}
+            >
+              {resp.map((jsonStr, index) => {
+                return (
+                  <div key={index}>
+                    <ReactJsonView
+                      src={JSON.parse(jsonStr)}
+                      key={index}
+                      theme={jsonEditorTheme as any}
+                    />
+                    <Divider />
+                  </div>
+                );
+              })}
+            </div>
+          )}
+          {viewMode == QueryViewMode.Table && tableResp && (
+            <QueryResp data={tableResp} />
+          )}
         </Panel>
       )}
-
       {showExport && (
         <Modal
           open={showExport}
@@ -813,5 +1005,64 @@ function CouchBaseQuery(props: {
     </PanelGroup>
   );
 }
+
+// 帮我 https://github.com/microlinkhq/react-json-view 内置主题整理成js数组
+
+function SetTheme({ theme, setTheme }) {
+  return (
+    <Autocomplete
+      options={themes}
+      style={{ width: "16rem" }}
+      value={theme}
+      renderInput={params => <TextField {...params} label={`json editor theme`} />}
+      freeSolo={false}
+      onChange={(_, v) => {
+        if (v) {
+          setTheme(v);
+        }
+      }}
+    />
+  );
+}
+
+const themes = [
+  "rjv-default",
+  "apathy",
+  "ashes",
+  "atelierDune",
+  "atelierForest",
+  "atelierHeath",
+  "atelierLakeside",
+  "atelierSeaside",
+  "bespin",
+  "brewer",
+  "bright",
+  "chalk",
+  "codeschool",
+  "colors",
+  "eighties",
+  "embers",
+  "flat",
+  "google",
+  "grayscale",
+  "greenscreen",
+  "harmonic",
+  "hopscotch",
+  "isotope",
+  "marrakesh",
+  "mocha",
+  "monokai",
+  "ocean",
+  "paraiso",
+  "pop",
+  "railscasts",
+  "shapeshifter",
+  "solarized",
+  "summerfruit",
+  "threezerotwofour",
+  "tomorrow",
+  "tube",
+  "twilight",
+];
 
 export { CouchBaseTable, CouchBaseQuery };

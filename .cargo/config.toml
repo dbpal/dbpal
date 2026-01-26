@@ -5,16 +5,21 @@
 linker = "clang"
 rustflags = ["-C", "link-arg=-fuse-ld=mold"]
 
+
+[target.arm64-apple-darwin]
+linker = "clang"
+rustflags = ["-C", "link-arg=-fuse-ld=mold"]
+
+
 [profile.release]
 opt-level = "z"
 debug = 0
 
 [profile.release.package.dbpal]
-debug = 2
-
+debug = 1
 
 [profile.release.package.dbnexus_db]
-debug = 2
+debug = 1
 
 
 [target.x86_64-pc-windows-msvc]

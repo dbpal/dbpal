@@ -323,8 +323,6 @@ function SqlTableView(props: {
     fields: [],
     data: [],
     total: 0,
-    cache_time: null,
-    has_more: false,
   });
   const apiRef = useGridApiRef();
   const [lastFetchTime, setLastFetchTime] = useState(new Date());

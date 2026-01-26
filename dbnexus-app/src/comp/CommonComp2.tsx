@@ -95,18 +95,49 @@ import {
   useGridSelector,
 } from "@mui/x-data-grid";
 import { CustomToolbar } from "./CustomToolBar";
-function CreateDatabase({ uuid, handleClose }) {
+function CreateDatabase(props: {
+  uuid: string;
+  handleClose: () => void;
+  kind: DataSourceKind;
+}) {
+  const { uuid, handleClose, kind } = props;
   const { showNotification } = useContext(NotificationContext);
   const [database, setDatabase] = useState("");
   const databaseDom = useRef(null);
+
+  const [couchbasExtra, setCouchbaseExtra] = useState<{
+    ram_quota_mb: string;
+    flush_enabled: boolean;
+    num_replicas: string;
+    max_expiry: string;
+    bucket_type: types.CouchBaseBucketType;
+  }>({
+    ram_quota_mb: "1024",
+    flush_enabled: true,
+    num_replicas: "2",
+    max_expiry: null,
+    bucket_type: "couchbase",
+  });
   const handleCreate = () => {
     if (!database) {
       databaseDom.current.focus();
       showNotification("warning", "database name is empty");
       return;
     }
-
-    const extra = null;
+    let extra: types.CreateDatabaseExtra = null;
+    switch (kind) {
+      case DataSourceKind.CouchBase:
+        extra = {
+          extra: "couchbase",
+          max_expiry: couchbasExtra.max_expiry
+            ? parseInt(couchbasExtra.max_expiry)
+            : null,
+          ram_quota_mb: parseInt(couchbasExtra.ram_quota_mb),
+          flush_enabled: couchbasExtra.flush_enabled,
+          num_replicas: parseInt(couchbasExtra.num_replicas),
+          bucket_type: couchbasExtra.bucket_type,
+        };
+    }
     invoke("create_database", { name: uuid, database, extra })
       .then(() => {
         showNotification("success", "Create OK");
@@ -119,6 +150,118 @@ function CreateDatabase({ uuid, handleClose }) {
 
   return (
     <Stack>
+      {kind == DataSourceKind.CouchBase && (
+        <>
+          <Autocomplete
+            options={["couchbase", "ephemeral"] as types.CouchBaseBucketType[]}
+            style={{ flex: 1 }}
+            value={couchbasExtra.bucket_type}
+            renderInput={params => <TextField {...params} label={`bucket type`} />}
+            freeSolo={false}
+            onChange={(_, value) => {
+              setCouchbaseExtra({ ...couchbasExtra, bucket_type: value });
+            }}
+          />
+          <StackRowCenter>
+            <TextField
+              label="ram quota mb"
+              value={couchbasExtra.ram_quota_mb}
+              onChange={e =>
+                setCouchbaseExtra({ ...couchbasExtra, ram_quota_mb: e.target.value })
+              }
+              style={{ flex: 1 }}
+              error={isNaN(parseInt(couchbasExtra.ram_quota_mb))}
+              slotProps={{
+                input: {
+                  endAdornment: couchbasExtra.ram_quota_mb && (
+                    <InputAdornment position="end">
+                      <IconButton
+                        onClick={() => {
+                          setCouchbaseExtra({ ...couchbasExtra, ram_quota_mb: "" });
+                        }}
+                        edge="end"
+                      >
+                        <ClearIcon fontSize="small" />
+                      </IconButton>
+                    </InputAdornment>
+                  ),
+                },
+              }}
+            />
+            <TextField
+              label="max expiry(in seconds)"
+              value={couchbasExtra.max_expiry}
+              onChange={e =>
+                setCouchbaseExtra({ ...couchbasExtra, max_expiry: e.target.value })
+              }
+              style={{ flex: 1 }}
+              error={
+                couchbasExtra.max_expiry
+                  ? isNaN(parseInt(couchbasExtra.max_expiry))
+                  : false
+              }
+              slotProps={{
+                input: {
+                  endAdornment: couchbasExtra.max_expiry && (
+                    <InputAdornment position="end">
+                      <IconButton
+                        onClick={() => {
+                          setCouchbaseExtra({ ...couchbasExtra, max_expiry: "" });
+                        }}
+                        edge="end"
+                      >
+                        <ClearIcon fontSize="small" />
+                      </IconButton>
+                    </InputAdornment>
+                  ),
+                },
+              }}
+            />
+          </StackRowCenter>
+
+          <Stack direction="row" style={{ alignItems: "center" }}>
+            <TextField
+              label="number of replicas"
+              value={couchbasExtra.num_replicas}
+              onChange={e =>
+                setCouchbaseExtra({ ...couchbasExtra, num_replicas: e.target.value })
+              }
+              error={isNaN(parseInt(couchbasExtra.num_replicas))}
+              slotProps={{
+                input: {
+                  endAdornment: couchbasExtra.num_replicas && (
+                    <InputAdornment position="end">
+                      <IconButton
+                        onClick={() => {
+                          setCouchbaseExtra({ ...couchbasExtra, num_replicas: "" });
+                        }}
+                        edge="end"
+                      >
+                        <ClearIcon fontSize="small" />
+                      </IconButton>
+                    </InputAdornment>
+                  ),
+                },
+              }}
+            />
+            <FormControlLabel
+              control={
+                <Checkbox
+                  checked={couchbasExtra.flush_enabled}
+                  onChange={e =>
+                    setCouchbaseExtra({
+                      ...couchbasExtra,
+                      flush_enabled: e.target.checked,
+                    })
+                  }
+                />
+              }
+              label="flush enabled"
+            />
+          </Stack>
+        </>
+      )}
+
       <Stack>
         <TextField
           inputRef={databaseDom}
@@ -1138,7 +1281,7 @@ function ColumnNullness(props: {
     <Autocomplete
       value={nullable}
       options={opts}
-      style={{ width: "17rem" }}
+      style={{ width: "7rem" }}
       renderInput={params => <TextField {...params} label="specify null" />}
       onChange={(_, value) => {
         handleNullness(value);
