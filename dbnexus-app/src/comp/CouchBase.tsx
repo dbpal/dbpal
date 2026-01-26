@@ -711,6 +711,15 @@ function CouchBaseQuery(props: {
     }
     let fields: types.Field[] = [];
     let data: object[] = [];
+
+    function encodeValue(x) {
+      switch (typeof x) {
+        case "object":
+          return JSON.stringify(x);
+        default:
+          return String(x);
+      }
+    }
     for (const row of resp) {
       let obj = JSON.parse(row);
       {
@@ -730,10 +739,10 @@ function CouchBaseQuery(props: {
                 field: fKey,
               } as types.Field);
             }
-            d[fKey] = String(obj[key][k]);
+            d[fKey] = encodeValue(obj[key][k]);
           }
         } else {
-          d[key] = String(obj[key]);
+          d[key] = encodeValue(obj[key]);
           if (-1 == fields.findIndex(x => x.field == key)) {
             fields.push({
               field: key,
@@ -819,6 +828,7 @@ function CouchBaseQuery(props: {
             alignItems: "center",
             justifyContent: "space-between",
             paddingBottom: "0.5rem",
+            overflow: "auto",
           }}
         >
           <Stack direction="row" style={{ alignItems: "center" }}>
