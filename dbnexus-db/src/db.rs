@@ -9,7 +9,7 @@ use tokio::io::AsyncWriteExt;
 use tokio::task::spawn_blocking;
 use typescript_type_def::TypeDef;
 
-#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+#[derive(Clone, Copy, PartialEq, Eq, Debug, TypeDef)]
 pub enum BackendKind {
     Mysql,
     Tidb,

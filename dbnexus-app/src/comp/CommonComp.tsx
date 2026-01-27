@@ -753,8 +753,7 @@ function ExecutingTime(props: {
   const timeExecute = () => {
     const now = new Date();
     const setUp = () => {
-      //@ts-ignore
-      const ms = new Date() - now;
+      const ms = new Date().getTime() - now.getTime();
       (executeTimeRef.current as HTMLDivElement).innerHTML = prettyMs(ms);
     };
     const int = setInterval(() => {

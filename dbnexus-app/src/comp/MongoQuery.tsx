@@ -156,8 +156,7 @@ class TSCompiler {
       cwd: rootPath,
     });
     const out = await cmd.execute();
-    //@ts-ignore
-    const compileTime = new Date() - start;
+    const compileTime = new Date().getTime() - start.getTime();
     if (out.code !== 0) {
       return new CompilerOutput(out, compileTime);
     }

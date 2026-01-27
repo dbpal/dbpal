@@ -516,4 +516,5 @@ export namespace types {
         "max_expiry": (types.U64 | null);
         "bucket_type": types.CouchBaseBucketType;
     });
+    export type BackendKind = ("Mysql" | "Tidb" | "Mariadb" | "LibSql" | "PostGres" | "CockRoach" | "SqlServer" | "Mongo" | "Redis" | "Sqlite" | "Cassandra" | "ClickHouse" | "Firebird" | "Oracle" | "DuckDB" | "BigQuery" | "Db2" | "CouchBase");
 }

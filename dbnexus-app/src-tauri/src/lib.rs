@@ -8,9 +8,10 @@ mod tests {
         MysqlSsl, OdbcCommon, PgSsl, PgSslMode, SSLFiles,
     };
     use dbnexus_db::db::{
-        ColumnType, CouchBaseBucketType, CreateDatabaseExtra, CreateIndexColumn, CreateIndexReq,
-        CreateTableAndIndexSql, CreateTableReq, CreateTableReqColumn, CreatedTypeDef, IndexKind,
-        SequenceDetail, ShowTableParameter, SqlEvent, SqlNullAble, UdfOrProcedureExtraParameter,
+        BackendKind, ColumnType, CouchBaseBucketType, CreateDatabaseExtra, CreateIndexColumn,
+        CreateIndexReq, CreateTableAndIndexSql, CreateTableReq, CreateTableReqColumn,
+        CreatedTypeDef, IndexKind, SequenceDetail, ShowTableParameter, SqlEvent, SqlNullAble,
+        UdfOrProcedureExtraParameter,
     };
     use dbnexus_db::language_server::CompletionList;
     #[test]
@@ -89,10 +90,29 @@ mod tests {
             &CouchBaseDBConfig::INFO,
             &CreateDatabaseExtra::INFO,
             &CouchBaseBucketType::INFO,
+            &BackendKind::INFO,
         ];
-
         let options: DefinitionFileOptions = DefinitionFileOptions::default();
         write_definition_file_from_type_infos(&mut file, options, &api).unwrap();
+
+        // copy to deno backend
+
+        {
+            let filepath = Path::new(&dir)
+                .to_path_buf()
+                .join("../../dbnexus-db/deno/src/api.ts");
+
+            println!("!!!!!!!!!!!!!!{:?}", filepath);
+
+            let mut ops = std::fs::OpenOptions::new();
+            ops.write(true);
+            ops.truncate(true);
+            ops.create(true);
+
+            let mut file = ops.open(filepath.as_path()).unwrap();
+            write_definition_file_from_type_infos(&mut file, options, &api).unwrap();
+        }
+
         println!("generate OK.")
     }
 }

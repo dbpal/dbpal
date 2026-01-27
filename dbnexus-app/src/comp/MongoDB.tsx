@@ -1197,8 +1197,7 @@ function MongoTableList(props: {
           showNotification("error", "fetch data failed", e);
         })
         .finally(() => {
-          //@ts-ignore
-          setFetchDur(new Date() - now);
+          setFetchDur(new Date().getTime() - now.getTime());
           setLoading(false);
         });
     },

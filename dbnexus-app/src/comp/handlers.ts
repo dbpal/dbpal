@@ -37,7 +37,7 @@ function makeTableUpdate(uuid: string, table: string) {
 }
 
 function makeTableDelete(uuid: string, table: string) {
-  return async wheres => {
+  return async (wheres) => {
     return await invoke<string>("table_delete_sql", {
       name: uuid,
       tableName: table,
@@ -120,7 +120,7 @@ function showTableColumn(uuid: string, table: string) {
 }
 
 function makeTableInsertFn(uuid: string, table: string) {
-  return async values => {
+  return async (values) => {
     return invoke<void>("table_insert", {
       name: uuid,
       tableName: table,
@@ -169,13 +169,20 @@ function listMaterializedView(uuid: string) {
   return invoke<types.ListTable[]>("list_materialized_view", { name: uuid });
 }
 
-function makeShowProcedureExtraArg(udf: types.NamedStaff, kind: DataSourceKind) {
+function makeShowProcedureExtraArg(
+  udf: types.NamedStaff,
+  kind: DataSourceKind,
+) {
   return kind == DataSourceKind.Cockroach || kind == DataSourceKind.Postgres
     ? { extra: "postgres", parameters: udf.parameters }
     : null;
 }
 
-function showProcedure(uuid: string, udf: types.NamedStaff, kind: DataSourceKind) {
+function showProcedure(
+  uuid: string,
+  udf: types.NamedStaff,
+  kind: DataSourceKind,
+) {
   const arg = makeShowProcedureExtraArg(udf, kind);
   return invoke<types.ProcedureDetail>("show_procedure", {
     name: uuid,
@@ -224,7 +231,7 @@ function formatCreateTableAndIndexSql(sql: types.CreateTableAndIndexSql) {
   }
 
   let ret = newLine(sql.create_table);
-  const indexes = sql.indexes.map(x => newLine(x));
+  const indexes = sql.indexes.map((x) => newLine(x));
   ret += indexes.join("");
   return ret;
 }
@@ -319,7 +326,7 @@ async function showTable(
     if (!para.order_by) {
       para.order_by = null;
     }
-    const emit = new Channel<QueryEvent>(event => {
+    const emit = new Channel<QueryEvent>((event) => {
       if (import.meta.env.DEV) {
         console.log("show table event:", event);
       }
@@ -338,7 +345,7 @@ async function showTable(
           let cop = { ...resp };
           cop.data = [
             ...cop.data,
-            ...event.data.map(d => {
+            ...event.data.map((d) => {
               let obj = {};
               d.forEach((e, index) => {
                 obj[cop.fields[index].field] = e;
@@ -360,7 +367,13 @@ async function showTable(
           console.error("server send wrong kind of data:", event);
       }
     });
-    await invoke("show_table", { name: uuid, tableName: name, para, isView, emit });
+    await invoke("show_table", {
+      name: uuid,
+      tableName: name,
+      para,
+      isView,
+      emit,
+    });
     if (okCallBack) {
       okCallBack();
     }
@@ -368,8 +381,7 @@ async function showTable(
     showNotification("error", "fetch data failed", e);
   } finally {
     if (handleExecuteTime) {
-      //@ts-ignore
-      handleExecuteTime(new Date() - now);
+      handleExecuteTime(new Date().getTime() - now.getTime());
     }
     setLoading(false);
     setStatus.current("");
@@ -377,38 +389,38 @@ async function showTable(
 }
 
 export {
-  makeTableUpdate,
-  makeTableDelete,
-  makePutValueInSql,
-  showTableColumn,
-  makeTableInsertFn,
-  showViewColumns,
-  listSchema,
-  getLocale,
-  listUdf,
-  showUdf,
-  listCassandraAgg,
-  showCassandraAgg,
-  listCreatedTypes,
-  listProcedure,
-  listEvent,
-  listSequence,
   callErrorable,
-  listMaterializedView,
-  makeUdfExtraArg,
-  makeShowProcedureExtraArg,
-  showProcedure,
-  showIndexes,
-  showTrigger,
+  cancelTask,
+  checkSql,
   createTableAndIndexSql,
   createViewSql,
   formatCreateTableAndIndexSql,
+  getLocale,
+  listCassandraAgg,
+  listCreatedTypes,
+  listEvent,
+  listMaterializedView,
+  listProcedure,
+  listSchema,
+  listSequence,
   listTable,
+  listUdf,
   listView,
-  tryGetMaxID,
-  cancelTask,
-  checkSql,
+  makePutValueInSql,
+  makeShowProcedureExtraArg,
+  makeTableDelete,
+  makeTableInsertFn,
+  makeTableUpdate,
+  makeUdfExtraArg,
+  showCassandraAgg,
+  showIndexes,
+  showProcedure,
   showTable,
+  showTableColumn,
+  showTrigger,
+  showUdf,
+  showViewColumns,
+  tryGetMaxID,
 };
 
 export type { ShowTableCallBack };

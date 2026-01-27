@@ -537,5 +537,6 @@
     "Zset",
     "ZUNIONSTORE"
   ],
-  "cSpell.allowCompoundWords": true
+  "cSpell.allowCompoundWords": true,
+  "deno.enable": true
 }
