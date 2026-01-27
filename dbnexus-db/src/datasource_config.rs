@@ -173,7 +173,10 @@ impl RedisDBConfig {
     // I used this in test and why??
     #[cfg(test)]
     fn new(
-        host: String, port: Option<u16>, username: Option<String>, password: Option<String>,
+        host: String,
+        port: Option<u16>,
+        username: Option<String>,
+        password: Option<String>,
         db: Option<String>,
     ) -> Self {
         Self {

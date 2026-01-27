@@ -5,8 +5,8 @@ use futures_util::StreamExt;
 use crate::clickhouse::{ClickHouseDB, FieldsOrData};
 use crate::db::DBTrait;
 use crate::language_server::{
-    AstCompletionHelper, CompletionItem, CompletionKind, CompletionList, ErrAndLoc, GetKeyWords,
-    LangServerCommon, LanguageServer, LexerCompletionTrait, try_parser_dot_lexer,
+    try_parser_dot_lexer, AstCompletionHelper, CompletionItem, CompletionKind, CompletionList,
+    ErrAndLoc, GetKeyWords, LangServerCommon, LanguageServer, LexerCompletionTrait,
 };
 use crate::sqlparser_completion::TempTableColumn;
 
@@ -35,7 +35,10 @@ impl LanguageServer for ClickHouseDB {
     }
 
     async fn ai_text_completion(
-        &self, text: &str, line: u32, col: u32,
+        &self,
+        text: &str,
+        line: u32,
+        col: u32,
     ) -> anyhow::Result<CompletionList> {
         LexerCompletionTrait::ai_text_completion(self, text, line, col).await
     }
@@ -47,7 +50,12 @@ impl LanguageServer for ClickHouseDB {
     }
 
     async fn auto_completion(
-        &self, _query_id: Option<String>, sql: &str, line: u32, col: u32, use_lexer: bool,
+        &self,
+        _query_id: Option<String>,
+        sql: &str,
+        line: u32,
+        col: u32,
+        use_lexer: bool,
     ) -> anyhow::Result<CompletionList> {
         // self.completion_id.set_optional(query_id);
         try_parser_dot_lexer(self, sql, line, col, use_lexer).await
@@ -99,7 +107,10 @@ impl LangServerCommon for ClickHouseDB {
         anyhow::Ok(vec![])
     }
     async fn list_column(
-        &self, schema: Option<&str>, name: &str, is_call: Option<Vec<String>>,
+        &self,
+        schema: Option<&str>,
+        name: &str,
+        is_call: Option<Vec<String>>,
     ) -> anyhow::Result<Vec<TempTableColumn>> {
         let sql = if let Some(is_call) = is_call {
             format!(
@@ -129,7 +140,9 @@ impl LangServerCommon for ClickHouseDB {
     }
 
     async fn list_function(
-        &self, _schema: Option<&str>, _include_build_in: bool,
+        &self,
+        _schema: Option<&str>,
+        _include_build_in: bool,
     ) -> anyhow::Result<Vec<CompletionItem>> {
         // 在 ClickHouse 中，使用以下查询可以查看所有函数，包括表函数（table functions）：
         // 看起来clickhouse 都有全局的作用域
@@ -175,7 +188,9 @@ impl LangServerCommon for ClickHouseDB {
 #[async_trait::async_trait]
 impl AstCompletionHelper for ClickHouseDB {
     async fn list_clickhouse_table_projects(
-        &self, schema: Option<&str>, table: &str,
+        &self,
+        schema: Option<&str>,
+        table: &str,
     ) -> anyhow::Result<Vec<String>> {
         let db = self.not_allow_none_schema(schema)?;
         let sql = format!(

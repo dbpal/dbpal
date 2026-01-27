@@ -3,11 +3,11 @@ use dbnexus_db::cassandra::CassandraDB;
 use dbnexus_db::clickhouse::ClickHouseDB;
 use dbnexus_db::couchbase::CouchBaseDB;
 use dbnexus_db::db::{
-    ColumnType, CreateDatabaseExtra, CreateIndexReq, CreateSchemaExtra, CreateTableAndIndexSql,
-    CreateTableReq, CreatedTypeDef, DBTrait, DefAndMetas, ExportKind, Field, Index, ListTable,
-    MetaValue, NamedStaff, OptionMustBeSomeErr, ProcedureDetail, QueryEventEmit, QueryResp,
-    SequenceDetail, ShowTableParameter, SqlEvent, TimeElapsed, TriggerDetail,
-    UdfOrProcedureExtraParameter, escape_sql_str,
+    escape_sql_str, ColumnType, CreateDatabaseExtra, CreateIndexReq, CreateSchemaExtra,
+    CreateTableAndIndexSql, CreateTableReq, CreatedTypeDef, DBTrait, DefAndMetas, ExportKind,
+    Field, Index, ListTable, MetaValue, NamedStaff, OptionMustBeSomeErr, ProcedureDetail,
+    QueryEventEmit, QueryResp, SequenceDetail, ShowTableParameter, SqlEvent, TimeElapsed,
+    TriggerDetail, UdfOrProcedureExtraParameter,
 };
 use dbnexus_db::firebird::FireBirdDB;
 use dbnexus_db::language_server::{CompletionList, ErrAndLoc};
@@ -27,12 +27,12 @@ use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::{Arc, LazyLock, Mutex, RwLock};
 use std::time::Duration;
 
-use crate::app::{self, DBConnectionConfig, DBPal, DatabaseBackend, name_to_parts};
+use crate::app::{self, name_to_parts, DBConnectionConfig, DBPal, DatabaseBackend};
 use font_kit::error::SelectionError;
-use include_dir::{Dir, include_dir};
-use mongodb::bson::{self, Document, doc};
-use tauri::State;
+use include_dir::{include_dir, Dir};
+use mongodb::bson::{self, doc, Document};
 use tauri::ipc::Channel;
+use tauri::State;
 use tokio_util::sync::CancellationToken;
 
 // 管理所有任务的取消令牌
@@ -90,7 +90,8 @@ impl TaskManager {
 
 #[tauri::command]
 pub async fn cancel_task(
-    task_id: String, state: State<'_, TaskManager>,
+    task_id: String,
+    state: State<'_, TaskManager>,
 ) -> Result<(), ErrorFrontend> {
     // 通知取消
     if let Some(token) = state.tokens.lock().expect("should lock ok").get(&task_id) {
@@ -221,7 +222,9 @@ pub async fn page_init_callback(app: tauri::State<'_, DBPal>) -> Result<(), ()> 
 
 #[tauri::command]
 pub async fn drop_database(
-    name: String, database: String, app: tauri::State<'_, DBPal>,
+    name: String,
+    database: String,
+    app: tauri::State<'_, DBPal>,
 ) -> Result<(), ErrorFrontend> {
     random_sleep().await;
     random_error()?;
@@ -256,7 +259,9 @@ pub async fn drop_database(
 
 #[tauri::command]
 pub async fn drop_schema(
-    name: String, schema: String, app: tauri::State<'_, DBPal>,
+    name: String,
+    schema: String,
+    app: tauri::State<'_, DBPal>,
 ) -> Result<(), ErrorFrontend> {
     random_sleep().await;
     random_error()?;
@@ -284,7 +289,9 @@ pub async fn drop_schema(
 
 #[tauri::command]
 pub async fn create_database(
-    name: String, database: String, extra: Option<CreateDatabaseExtra>,
+    name: String,
+    database: String,
+    extra: Option<CreateDatabaseExtra>,
     app: tauri::State<'_, DBPal>,
 ) -> Result<(), ErrorFrontend> {
     random_sleep().await;
@@ -311,7 +318,10 @@ pub async fn create_database(
 
 #[tauri::command]
 pub async fn create_schema(
-    name: String, schema: String, extra: Option<CreateSchemaExtra>, app: tauri::State<'_, DBPal>,
+    name: String,
+    schema: String,
+    extra: Option<CreateSchemaExtra>,
+    app: tauri::State<'_, DBPal>,
 ) -> Result<(), ErrorFrontend> {
     random_sleep().await;
     random_error()?;
@@ -336,7 +346,8 @@ pub async fn create_schema(
 
 #[tauri::command]
 pub async fn establish_conn(
-    config: DBConnectionConfig, app: tauri::State<'_, DBPal>,
+    config: DBConnectionConfig,
+    app: tauri::State<'_, DBPal>,
 ) -> Result<(), ErrorFrontend> {
     random_sleep().await;
     random_error()?;
@@ -368,7 +379,8 @@ pub async fn close_conn(name: String, app: tauri::State<'_, DBPal>) -> Result<()
 
 #[tauri::command]
 pub async fn list_table(
-    name: String, app: tauri::State<'_, DBPal>,
+    name: String,
+    app: tauri::State<'_, DBPal>,
 ) -> Result<Vec<ListTable>, ErrorFrontend> {
     random_sleep().await;
     random_error()?;
@@ -377,7 +389,8 @@ pub async fn list_table(
 }
 #[tauri::command]
 pub async fn mongo_list_time_serial_collection(
-    name: String, app: tauri::State<'_, DBPal>,
+    name: String,
+    app: tauri::State<'_, DBPal>,
 ) -> Result<Vec<ListTable>, ErrorFrontend> {
     random_sleep().await;
     random_error()?;
@@ -398,7 +411,10 @@ pub async fn mongo_list_time_serial_collection(
 
 #[tauri::command]
 pub async fn redis_list_table(
-    name: String, filter: Option<String>, max: usize, app: tauri::State<'_, DBPal>,
+    name: String,
+    filter: Option<String>,
+    max: usize,
+    app: tauri::State<'_, DBPal>,
 ) -> Result<RedisListTable, ErrorFrontend> {
     random_sleep().await;
     random_error()?;
@@ -412,7 +428,9 @@ pub async fn redis_list_table(
 
 #[tauri::command]
 pub async fn show_table_columns(
-    name: String, table_name: String, app: tauri::State<'_, DBPal>,
+    name: String,
+    table_name: String,
+    app: tauri::State<'_, DBPal>,
 ) -> Result<Vec<Field>, ErrorFrontend> {
     random_sleep().await;
     random_error()?;
@@ -424,8 +442,12 @@ pub async fn show_table_columns(
 
 #[tauri::command]
 pub async fn show_table(
-    name: String, is_view: bool, table_name: String, para: ShowTableParameter,
-    emit: Channel<QueryEvent>, app: tauri::State<'_, DBPal>,
+    name: String,
+    is_view: bool,
+    table_name: String,
+    para: ShowTableParameter,
+    emit: Channel<QueryEvent>,
+    app: tauri::State<'_, DBPal>,
 ) -> Result<(), ErrorFrontend> {
     random_sleep().await;
     random_error()?;
@@ -460,7 +482,9 @@ pub async fn show_table(
 
 #[tauri::command]
 pub async fn show_indexes(
-    name: String, table_name: String, app: tauri::State<'_, DBPal>,
+    name: String,
+    table_name: String,
+    app: tauri::State<'_, DBPal>,
 ) -> Result<Vec<Index>, ErrorFrontend> {
     random_sleep().await;
     random_error()?;
@@ -472,7 +496,10 @@ pub async fn show_indexes(
 
 #[tauri::command]
 pub async fn create_index(
-    name: String, table_name: String, req: CreateIndexReq, app: tauri::State<'_, DBPal>,
+    name: String,
+    table_name: String,
+    req: CreateIndexReq,
+    app: tauri::State<'_, DBPal>,
 ) -> Result<(), ErrorFrontend> {
     random_sleep().await;
     random_error()?;
@@ -489,7 +516,11 @@ pub async fn create_index(
 
 #[tauri::command]
 pub async fn mongo_create_index(
-    name: String, table_name: String, index_name: Option<String>, keys: Vec<u8>, unique: bool,
+    name: String,
+    table_name: String,
+    index_name: Option<String>,
+    keys: Vec<u8>,
+    unique: bool,
     app: tauri::State<'_, DBPal>,
 ) -> Result<(), ErrorFrontend> {
     random_sleep().await;
@@ -512,7 +543,10 @@ pub async fn mongo_create_index(
 }
 #[tauri::command]
 pub async fn rename_index(
-    name: String, table_name: String, old_name: String, new_name: String,
+    name: String,
+    table_name: String,
+    old_name: String,
+    new_name: String,
     app: tauri::State<'_, DBPal>,
 ) -> Result<(), ErrorFrontend> {
     random_sleep().await;
@@ -529,7 +563,10 @@ pub async fn rename_index(
 
 #[tauri::command]
 pub async fn drop_index(
-    name: String, table_name: String, index: String, app: tauri::State<'_, DBPal>,
+    name: String,
+    table_name: String,
+    index: String,
+    app: tauri::State<'_, DBPal>,
 ) -> Result<(), ErrorFrontend> {
     random_sleep().await;
     random_error()?;
@@ -546,7 +583,9 @@ pub async fn drop_index(
 
 #[tauri::command]
 pub async fn table_insert(
-    name: String, table_name: String, values: HashMap<String, Option<String>>,
+    name: String,
+    table_name: String,
+    values: HashMap<String, Option<String>>,
     app: tauri::State<'_, DBPal>,
 ) -> Result<Option<usize>, ErrorFrontend> {
     random_sleep().await;
@@ -559,8 +598,11 @@ pub async fn table_insert(
 
 #[tauri::command]
 pub async fn table_update(
-    name: String, table_name: String, values: HashMap<String, Option<String>>,
-    wheres: HashMap<String, Option<String>>, app: tauri::State<'_, DBPal>,
+    name: String,
+    table_name: String,
+    values: HashMap<String, Option<String>>,
+    wheres: HashMap<String, Option<String>>,
+    app: tauri::State<'_, DBPal>,
 ) -> Result<Option<usize>, ErrorFrontend> {
     random_sleep().await;
     random_error()?;
@@ -572,8 +614,11 @@ pub async fn table_update(
 
 #[tauri::command]
 pub async fn table_update_sql(
-    name: String, table_name: String, values: HashMap<String, Option<String>>,
-    wheres: HashMap<String, Option<String>>, app: tauri::State<'_, DBPal>,
+    name: String,
+    table_name: String,
+    values: HashMap<String, Option<String>>,
+    wheres: HashMap<String, Option<String>>,
+    app: tauri::State<'_, DBPal>,
 ) -> Result<String, ErrorFrontend> {
     random_sleep().await;
     random_error()?;
@@ -584,7 +629,9 @@ pub async fn table_update_sql(
 }
 #[tauri::command]
 pub async fn truncate_table(
-    name: String, table_name: String, app: tauri::State<'_, DBPal>,
+    name: String,
+    table_name: String,
+    app: tauri::State<'_, DBPal>,
 ) -> Result<(), ErrorFrontend> {
     random_sleep().await;
     random_error()?;
@@ -596,7 +643,10 @@ pub async fn truncate_table(
 
 #[tauri::command]
 pub async fn drop_table_column(
-    name: String, table_name: String, column_name: String, app: tauri::State<'_, DBPal>,
+    name: String,
+    table_name: String,
+    column_name: String,
+    app: tauri::State<'_, DBPal>,
 ) -> Result<(), ErrorFrontend> {
     random_sleep().await;
     random_error()?;
@@ -613,7 +663,11 @@ pub async fn drop_table_column(
 
 #[tauri::command]
 pub async fn modify_table_column(
-    name: String, table_name: String, old_name: String, new_name: String, typ: Option<ColumnType>,
+    name: String,
+    table_name: String,
+    old_name: String,
+    new_name: String,
+    typ: Option<ColumnType>,
     app: tauri::State<'_, DBPal>,
 ) -> Result<(), ErrorFrontend> {
     random_sleep().await;
@@ -631,7 +685,10 @@ pub async fn modify_table_column(
 
 #[tauri::command]
 pub async fn add_table_column(
-    name: String, table_name: String, col_name: String, typ: ColumnType,
+    name: String,
+    table_name: String,
+    col_name: String,
+    typ: ColumnType,
     app: tauri::State<'_, DBPal>,
 ) -> Result<(), ErrorFrontend> {
     random_sleep().await;
@@ -649,7 +706,8 @@ pub async fn add_table_column(
 
 #[tauri::command]
 pub async fn list_data_types(
-    name: String, app: tauri::State<'_, DBPal>,
+    name: String,
+    app: tauri::State<'_, DBPal>,
 ) -> Result<Vec<String>, ErrorFrontend> {
     random_sleep().await;
     random_error()?;
@@ -666,7 +724,8 @@ pub async fn list_data_types(
 
 #[tauri::command]
 pub async fn list_sql_current_values(
-    name: String, app: tauri::State<'_, DBPal>,
+    name: String,
+    app: tauri::State<'_, DBPal>,
 ) -> Result<&'static [&'static str], ErrorFrontend> {
     random_sleep().await;
     random_error()?;
@@ -681,7 +740,9 @@ pub async fn list_sql_current_values(
 
 #[tauri::command]
 pub async fn table_delete_sql(
-    name: String, table_name: String, wheres: HashMap<String, Option<String>>,
+    name: String,
+    table_name: String,
+    wheres: HashMap<String, Option<String>>,
     app: tauri::State<'_, DBPal>,
 ) -> Result<String, ErrorFrontend> {
     random_sleep().await;
@@ -694,7 +755,9 @@ pub async fn table_delete_sql(
 
 #[tauri::command]
 pub async fn table_delete(
-    name: String, table_name: String, wheres: HashMap<String, Option<String>>,
+    name: String,
+    table_name: String,
+    wheres: HashMap<String, Option<String>>,
     app: tauri::State<'_, DBPal>,
 ) -> Result<Option<usize>, ErrorFrontend> {
     random_sleep().await;
@@ -707,7 +770,8 @@ pub async fn table_delete(
 
 #[tauri::command]
 pub async fn list_view(
-    name: String, app: tauri::State<'_, DBPal>,
+    name: String,
+    app: tauri::State<'_, DBPal>,
 ) -> Result<Vec<ListTable>, ErrorFrontend> {
     random_sleep().await;
     random_error()?;
@@ -716,7 +780,8 @@ pub async fn list_view(
 }
 #[tauri::command]
 pub async fn server_metas(
-    name: String, app: tauri::State<'_, DBPal>,
+    name: String,
+    app: tauri::State<'_, DBPal>,
 ) -> Result<Vec<MetaValue>, ErrorFrontend> {
     random_sleep().await;
     random_error()?;
@@ -729,7 +794,10 @@ pub async fn server_metas(
 
 #[tauri::command]
 pub async fn get_redis_type_hint(
-    name: String, text: String, query_id: &str, app: tauri::State<'_, DBPal>,
+    name: String,
+    text: String,
+    query_id: &str,
+    app: tauri::State<'_, DBPal>,
 ) -> Result<HashMap<String, String>, ErrorFrontend> {
     random_sleep().await;
     random_error()?;
@@ -776,7 +844,11 @@ impl DatabaseBackend {
 }
 impl DBPal {
     async fn ai_get_search_path(
-        &self, backend: DatabaseBackend, name: &str, query_id: &str, text: &str,
+        &self,
+        backend: DatabaseBackend,
+        name: &str,
+        query_id: &str,
+        text: &str,
     ) -> anyhow::Result<Vec<String>> {
         match &backend {
             DatabaseBackend::Catalog(..) => {
@@ -822,7 +894,10 @@ impl DBPal {
 
 #[tauri::command]
 pub async fn ai_get_search_path(
-    name: String, query_id: &str, text: String, app: tauri::State<'_, DBPal>,
+    name: String,
+    query_id: &str,
+    text: String,
+    app: tauri::State<'_, DBPal>,
 ) -> Result<Vec<String>, ErrorFrontend> {
     let backend = app.get_backend(&name).await.map_err(ErrorFrontend::from)?;
     app.ai_get_search_path(backend, &name, query_id, &text)
@@ -832,7 +907,8 @@ pub async fn ai_get_search_path(
 
 #[tauri::command]
 pub async fn list_materialized_view(
-    name: String, app: tauri::State<'_, DBPal>,
+    name: String,
+    app: tauri::State<'_, DBPal>,
 ) -> Result<Vec<ListTable>, ErrorFrontend> {
     random_sleep().await;
     random_error()?;
@@ -846,7 +922,9 @@ pub async fn list_materialized_view(
 }
 #[tauri::command]
 pub async fn drop_view(
-    name: String, view_name: String, app: tauri::State<'_, DBPal>,
+    name: String,
+    view_name: String,
+    app: tauri::State<'_, DBPal>,
 ) -> Result<(), ErrorFrontend> {
     random_sleep().await;
     random_error()?;
@@ -856,7 +934,9 @@ pub async fn drop_view(
 
 #[tauri::command]
 pub async fn drop_materialized_view(
-    name: String, view_name: String, app: tauri::State<'_, DBPal>,
+    name: String,
+    view_name: String,
+    app: tauri::State<'_, DBPal>,
 ) -> Result<(), ErrorFrontend> {
     random_sleep().await;
     random_error()?;
@@ -870,7 +950,10 @@ pub async fn drop_materialized_view(
 
 #[tauri::command]
 pub async fn drop_table(
-    name: String, table_name: String, cascade: bool, app: tauri::State<'_, DBPal>,
+    name: String,
+    table_name: String,
+    cascade: bool,
+    app: tauri::State<'_, DBPal>,
 ) -> Result<(), ErrorFrontend> {
     random_sleep().await;
     random_error()?;
@@ -882,7 +965,9 @@ pub async fn drop_table(
 
 #[tauri::command]
 pub async fn show_view_columns(
-    name: String, view_name: String, app: tauri::State<'_, DBPal>,
+    name: String,
+    view_name: String,
+    app: tauri::State<'_, DBPal>,
 ) -> Result<Vec<Field>, ErrorFrontend> {
     random_sleep().await;
     random_error()?;
@@ -896,7 +981,8 @@ pub async fn show_view_columns(
 
 #[tauri::command]
 pub async fn list_created_types(
-    name: String, app: tauri::State<'_, DBPal>,
+    name: String,
+    app: tauri::State<'_, DBPal>,
 ) -> Result<Vec<CreatedTypeDef>, ErrorFrontend> {
     random_sleep().await;
     random_error()?;
@@ -910,7 +996,8 @@ pub async fn list_created_types(
 
 #[tauri::command]
 pub async fn list_event(
-    name: String, app: tauri::State<'_, DBPal>,
+    name: String,
+    app: tauri::State<'_, DBPal>,
 ) -> Result<Vec<SqlEvent>, ErrorFrontend> {
     random_sleep().await;
     random_error()?;
@@ -921,7 +1008,9 @@ pub async fn list_event(
 
 #[tauri::command]
 pub async fn drop_event(
-    name: String, event_name: String, app: tauri::State<'_, DBPal>,
+    name: String,
+    event_name: String,
+    app: tauri::State<'_, DBPal>,
 ) -> Result<(), ErrorFrontend> {
     random_sleep().await;
     random_error()?;
@@ -934,8 +1023,14 @@ pub async fn drop_event(
 
 #[tauri::command]
 pub async fn export_query_result_to_file(
-    name: String, task_id: String, sql: String, query_id: String, kind: ExportKind, file: String,
-    size_emitter: Channel<usize>, task_manager: tauri::State<'_, TaskManager>,
+    name: String,
+    task_id: String,
+    sql: String,
+    query_id: String,
+    kind: ExportKind,
+    file: String,
+    size_emitter: Channel<usize>,
+    task_manager: tauri::State<'_, TaskManager>,
     app: tauri::State<'_, DBPal>,
 ) -> Result<(), ErrorFrontend> {
     random_sleep().await;
@@ -981,7 +1076,9 @@ pub async fn export_query_result_to_file(
 
 #[tauri::command]
 pub async fn is_dangerous_sql(
-    name: String, sql: String, app: tauri::State<'_, DBPal>,
+    name: String,
+    sql: String,
+    app: tauri::State<'_, DBPal>,
 ) -> Result<bool, ErrorFrontend> {
     random_sleep().await;
     random_error()?;
@@ -1130,8 +1227,13 @@ impl QueryEventEmit for QueryEventChannelEmit {
 
 #[tauri::command]
 pub async fn query_sql(
-    name: String, query_id: &str, max_row: usize, sql: String, app: tauri::State<'_, DBPal>,
-    emit: Channel<QueryEvent>, task_manager: tauri::State<'_, TaskManager>,
+    name: String,
+    query_id: &str,
+    max_row: usize,
+    sql: String,
+    app: tauri::State<'_, DBPal>,
+    emit: Channel<QueryEvent>,
+    task_manager: tauri::State<'_, TaskManager>,
 ) -> Result<(), ErrorFrontend> {
     random_sleep().await;
     random_error()?;
@@ -1172,7 +1274,9 @@ pub enum QueryEvent {
 
 #[tauri::command]
 pub async fn execute_sql_no_open_conn(
-    name: String, sql: String, app: tauri::State<'_, DBPal>,
+    name: String,
+    sql: String,
+    app: tauri::State<'_, DBPal>,
 ) -> Result<Option<usize>, ErrorFrontend> {
     random_sleep().await;
     random_error()?;
@@ -1192,7 +1296,10 @@ pub async fn execute_sql_no_open_conn(
 
 #[tauri::command]
 pub async fn execute_sql(
-    name: String, query_id: &str, sql: String, app: tauri::State<'_, DBPal>,
+    name: String,
+    query_id: &str,
+    sql: String,
+    app: tauri::State<'_, DBPal>,
     task_manager: tauri::State<'_, TaskManager>,
 ) -> Result<Result<MuiDataGridData, String>, ErrorFrontend> {
     random_sleep().await;
@@ -1221,7 +1328,9 @@ pub async fn execute_sql(
 
 #[tauri::command]
 pub async fn query_sql_open_connection(
-    name: String, id: String, app: tauri::State<'_, DBPal>,
+    name: String,
+    id: String,
+    app: tauri::State<'_, DBPal>,
 ) -> Result<(), ErrorFrontend> {
     random_sleep().await;
     random_error()?;
@@ -1239,7 +1348,9 @@ pub async fn query_sql_open_connection(
 
 #[tauri::command]
 pub async fn query_sql_close_connection(
-    name: String, query_id: &str, app: tauri::State<'_, DBPal>,
+    name: String,
+    query_id: &str,
+    app: tauri::State<'_, DBPal>,
 ) -> Result<(), ErrorFrontend> {
     random_sleep().await;
     random_error()?;
@@ -1254,9 +1365,15 @@ pub async fn query_sql_close_connection(
 
 #[tauri::command]
 pub async fn export_table_or_view(
-    name: String, task_id: String, task_manager: tauri::State<'_, TaskManager>,
-    size_emitter: Channel<usize>, table_or_view: String, para: Option<ShowTableParameter>,
-    filepath: String, kind: ExportKind, app: tauri::State<'_, DBPal>,
+    name: String,
+    task_id: String,
+    task_manager: tauri::State<'_, TaskManager>,
+    size_emitter: Channel<usize>,
+    table_or_view: String,
+    para: Option<ShowTableParameter>,
+    filepath: String,
+    kind: ExportKind,
+    app: tauri::State<'_, DBPal>,
 ) -> Result<(), ErrorFrontend> {
     random_sleep().await;
     random_error()?;
@@ -1302,7 +1419,8 @@ pub async fn export_table_or_view(
 
 #[tauri::command]
 pub async fn check_conn(
-    name: String, app: tauri::State<'_, DBPal>,
+    name: String,
+    app: tauri::State<'_, DBPal>,
 ) -> Result<
     String, // human readable time
     ErrorFrontend,
@@ -1368,7 +1486,8 @@ pub async fn try_list_database_schema_candidates(
 
 #[tauri::command]
 pub async fn conn_opened(
-    name: String, app: tauri::State<'_, DBPal>,
+    name: String,
+    app: tauri::State<'_, DBPal>,
 ) -> Result<bool, ErrorFrontend> {
     random_sleep().await;
     random_error()?;
@@ -1378,7 +1497,8 @@ pub async fn conn_opened(
 
 #[tauri::command]
 pub async fn list_database(
-    name: String, app: tauri::State<'_, DBPal>,
+    name: String,
+    app: tauri::State<'_, DBPal>,
 ) -> Result<
     Vec<String>, // milliseconds
     ErrorFrontend,
@@ -1401,7 +1521,8 @@ pub async fn list_database(
 
 #[tauri::command]
 pub async fn list_schema(
-    name: String, app: tauri::State<'_, DBPal>,
+    name: String,
+    app: tauri::State<'_, DBPal>,
 ) -> Result<Vec<String>, ErrorFrontend> {
     random_sleep().await;
     random_error()?;
@@ -1426,7 +1547,9 @@ pub async fn list_schema(
 
 #[tauri::command]
 pub async fn extract_table_select_selection(
-    name: String, sql: String, app: tauri::State<'_, DBPal>,
+    name: String,
+    sql: String,
+    app: tauri::State<'_, DBPal>,
 ) -> Result<Option<String>, ErrorFrontend> {
     random_sleep().await;
     random_error()?;
@@ -1440,7 +1563,9 @@ pub async fn extract_table_select_selection(
 
 #[tauri::command]
 pub async fn extract_table_select_sort(
-    name: String, sql: String, app: tauri::State<'_, DBPal>,
+    name: String,
+    sql: String,
+    app: tauri::State<'_, DBPal>,
 ) -> Result<Option<String>, ErrorFrontend> {
     random_sleep().await;
     random_error()?;
@@ -1468,7 +1593,11 @@ fn auto_completion_mutex(name: &str) -> Arc<tokio::sync::Mutex<()>> {
 
 #[tauri::command]
 pub async fn auto_completion(
-    name: String, query_id: Option<String>, sql: String, line: u32, col: u32,
+    name: String,
+    query_id: Option<String>,
+    sql: String,
+    line: u32,
+    col: u32,
     app: tauri::State<'_, DBPal>,
 ) -> Result<CompletionList, ErrorFrontend> {
     random_sleep().await;
@@ -1493,7 +1622,12 @@ pub async fn auto_completion(
 
 #[tauri::command]
 pub async fn ai_text_completion(
-    name: String, text: String, query_id: &str, line: u32, col: u32, app: tauri::State<'_, DBPal>,
+    name: String,
+    text: String,
+    query_id: &str,
+    line: u32,
+    col: u32,
+    app: tauri::State<'_, DBPal>,
 ) -> Result<CompletionList, ErrorFrontend> {
     random_sleep().await;
     random_error()?;
@@ -1521,7 +1655,9 @@ pub async fn ai_text_completion(
 
 #[tauri::command]
 pub async fn check_sql(
-    name: String, sql: String, app: tauri::State<'_, DBPal>,
+    name: String,
+    sql: String,
+    app: tauri::State<'_, DBPal>,
 ) -> Result<Option<ErrAndLoc>, ErrorFrontend> {
     random_sleep().await;
     random_error()?;
@@ -1536,7 +1672,9 @@ pub async fn check_sql(
 
 #[tauri::command]
 pub async fn try_get_max_id(
-    name: String, table: String, app: tauri::State<'_, DBPal>,
+    name: String,
+    table: String,
+    app: tauri::State<'_, DBPal>,
 ) -> Result<String, ErrorFrontend> {
     random_sleep().await;
     random_error()?;
@@ -1551,7 +1689,10 @@ pub async fn try_get_max_id(
 
 #[tauri::command]
 pub async fn query_set_autocommit(
-    name: String, query_id: &str, commit: bool, app: tauri::State<'_, DBPal>,
+    name: String,
+    query_id: &str,
+    commit: bool,
+    app: tauri::State<'_, DBPal>,
 ) -> Result<(), ErrorFrontend> {
     random_sleep().await;
     random_error()?;
@@ -1569,7 +1710,9 @@ pub async fn query_set_autocommit(
 
 #[tauri::command]
 pub async fn query_get_commit(
-    name: String, query_id: &str, app: tauri::State<'_, DBPal>,
+    name: String,
+    query_id: &str,
+    app: tauri::State<'_, DBPal>,
 ) -> Result<bool, ErrorFrontend> {
     random_sleep().await;
     random_error()?;
@@ -1586,7 +1729,9 @@ pub async fn query_get_commit(
 
 #[tauri::command]
 pub async fn query_commit(
-    name: String, query_id: &str, app: tauri::State<'_, DBPal>,
+    name: String,
+    query_id: &str,
+    app: tauri::State<'_, DBPal>,
 ) -> Result<(), ErrorFrontend> {
     random_sleep().await;
     random_error()?;
@@ -1603,7 +1748,9 @@ pub async fn query_commit(
 
 #[tauri::command]
 pub async fn query_rollback(
-    name: String, query_id: &str, app: tauri::State<'_, DBPal>,
+    name: String,
+    query_id: &str,
+    app: tauri::State<'_, DBPal>,
 ) -> Result<(), ErrorFrontend> {
     random_sleep().await;
     random_error()?;
@@ -1619,7 +1766,10 @@ pub async fn query_rollback(
 
 #[tauri::command]
 pub async fn drop_trigger(
-    name: String, table_name: String, trigger: String, app: tauri::State<'_, DBPal>,
+    name: String,
+    table_name: String,
+    trigger: String,
+    app: tauri::State<'_, DBPal>,
 ) -> Result<(), ErrorFrontend> {
     random_sleep().await;
     random_error()?;
@@ -1635,7 +1785,10 @@ pub async fn drop_trigger(
 
 #[tauri::command]
 pub async fn enable_trigger(
-    name: String, table_name: String, trigger: String, app: tauri::State<'_, DBPal>,
+    name: String,
+    table_name: String,
+    trigger: String,
+    app: tauri::State<'_, DBPal>,
 ) -> Result<(), ErrorFrontend> {
     random_sleep().await;
     random_error()?;
@@ -1650,7 +1803,10 @@ pub async fn enable_trigger(
 }
 #[tauri::command]
 pub async fn disable_trigger(
-    name: String, table_name: String, trigger: String, app: tauri::State<'_, DBPal>,
+    name: String,
+    table_name: String,
+    trigger: String,
+    app: tauri::State<'_, DBPal>,
 ) -> Result<(), ErrorFrontend> {
     random_sleep().await;
     random_error()?;
@@ -1666,7 +1822,9 @@ pub async fn disable_trigger(
 
 #[tauri::command]
 pub async fn show_trigger(
-    name: String, table_name: String, app: tauri::State<'_, DBPal>,
+    name: String,
+    table_name: String,
+    app: tauri::State<'_, DBPal>,
 ) -> Result<Vec<TriggerDetail>, ErrorFrontend> {
     random_sleep().await;
     random_error()?;
@@ -1694,7 +1852,10 @@ pub async fn show_trigger(
 
 #[tauri::command]
 pub async fn rename_table(
-    name: String, old: String, new: String, app: tauri::State<'_, DBPal>,
+    name: String,
+    old: String,
+    new: String,
+    app: tauri::State<'_, DBPal>,
 ) -> Result<(), ErrorFrontend> {
     random_sleep().await;
     random_error()?;
@@ -1709,7 +1870,9 @@ pub async fn rename_table(
 }
 #[tauri::command]
 pub async fn create_table_req_sql(
-    name: String, req: CreateTableReq, app: tauri::State<'_, DBPal>,
+    name: String,
+    req: CreateTableReq,
+    app: tauri::State<'_, DBPal>,
 ) -> Result<String, ErrorFrontend> {
     random_sleep().await;
     random_error()?;
@@ -1727,7 +1890,9 @@ pub async fn create_table_req_sql(
 #[tauri::command]
 
 pub async fn create_table(
-    name: String, req: CreateTableReq, app: tauri::State<'_, DBPal>,
+    name: String,
+    req: CreateTableReq,
+    app: tauri::State<'_, DBPal>,
 ) -> Result<(), ErrorFrontend> {
     random_sleep().await;
     random_error()?;
@@ -1741,7 +1906,9 @@ pub async fn create_table(
 
 #[tauri::command]
 pub async fn show_create_table_sql(
-    name: String, table_name: String, app: tauri::State<'_, DBPal>,
+    name: String,
+    table_name: String,
+    app: tauri::State<'_, DBPal>,
 ) -> Result<CreateTableAndIndexSql, ErrorFrontend> {
     random_sleep().await;
     random_error()?;
@@ -1759,7 +1926,10 @@ pub async fn show_create_table_sql(
 
 #[tauri::command]
 pub async fn create_view_sql(
-    name: String, view_name: String, materialized: bool, app: tauri::State<'_, DBPal>,
+    name: String,
+    view_name: String,
+    materialized: bool,
+    app: tauri::State<'_, DBPal>,
 ) -> Result<String, ErrorFrontend> {
     random_sleep().await;
     random_error()?;
@@ -1777,8 +1947,12 @@ pub async fn create_view_sql(
 
 #[tauri::command]
 pub async fn duplicate_table(
-    name: String, from: String, task_id: String, task_manager: tauri::State<'_, TaskManager>,
-    to: String, app: tauri::State<'_, DBPal>,
+    name: String,
+    from: String,
+    task_id: String,
+    task_manager: tauri::State<'_, TaskManager>,
+    to: String,
+    app: tauri::State<'_, DBPal>,
 ) -> Result<(), ErrorFrontend> {
     random_sleep().await;
     random_error()?;
@@ -1807,7 +1981,10 @@ pub async fn duplicate_table(
 
 #[tauri::command]
 pub async fn mongo_insert(
-    name: String, table_name: String, doc: Vec<u8>, app: tauri::State<'_, DBPal>,
+    name: String,
+    table_name: String,
+    doc: Vec<u8>,
+    app: tauri::State<'_, DBPal>,
 ) -> Result<mongodb::results::InsertOneResult, ErrorFrontend> {
     random_sleep().await;
     random_error()?;
@@ -1826,7 +2003,10 @@ pub async fn mongo_insert(
 
 #[tauri::command]
 pub async fn mongo_update_one(
-    name: String, table_name: String, doc: Vec<u8>, app: tauri::State<'_, DBPal>,
+    name: String,
+    table_name: String,
+    doc: Vec<u8>,
+    app: tauri::State<'_, DBPal>,
 ) -> Result<(), ErrorFrontend> {
     random_sleep().await;
     random_error()?;
@@ -1848,7 +2028,10 @@ pub async fn mongo_update_one(
 
 #[tauri::command]
 pub async fn mongo_delete_ids(
-    name: String, table_name: String, ids: String, app: tauri::State<'_, DBPal>,
+    name: String,
+    table_name: String,
+    ids: String,
+    app: tauri::State<'_, DBPal>,
 ) -> Result<mongodb::results::DeleteResult, ErrorFrontend> {
     random_sleep().await;
     random_error()?;
@@ -1866,7 +2049,12 @@ pub async fn mongo_delete_ids(
 
 #[tauri::command]
 pub async fn mongo_show_collection_table_list(
-    name: String, table_name: String, filter: Vec<u8>, page: u64, page_size: u64, sort: Vec<u8>,
+    name: String,
+    table_name: String,
+    filter: Vec<u8>,
+    page: u64,
+    page_size: u64,
+    sort: Vec<u8>,
     app: tauri::State<'_, DBPal>,
 ) -> Result<MuiDataGridData, ErrorFrontend> {
     random_sleep().await;
@@ -1890,8 +2078,13 @@ pub async fn mongo_show_collection_table_list(
 
 #[tauri::command]
 pub async fn mongo_show_collection_docs(
-    name: String, table_name: String, filter: Vec<u8>, sort: Vec<u8>, app: tauri::State<'_, DBPal>,
-    page: u64, page_size: u64,
+    name: String,
+    table_name: String,
+    filter: Vec<u8>,
+    sort: Vec<u8>,
+    app: tauri::State<'_, DBPal>,
+    page: u64,
+    page_size: u64,
 ) -> Result<DocsAndCount, ErrorFrontend> {
     random_sleep().await;
     random_error()?;
@@ -1913,7 +2106,10 @@ pub async fn mongo_show_collection_docs(
 }
 #[tauri::command]
 pub async fn mongo_get_one_document_by_id(
-    name: String, table_name: String, id: String, app: tauri::State<'_, DBPal>,
+    name: String,
+    table_name: String,
+    id: String,
+    app: tauri::State<'_, DBPal>,
 ) -> Result<Vec<u8>, ErrorFrontend> {
     random_sleep().await;
     random_error()?;
@@ -1932,7 +2128,8 @@ pub async fn mongo_get_one_document_by_id(
 
 #[tauri::command]
 pub async fn mongo_query_db_drop(
-    name: String, app: tauri::State<'_, DBPal>,
+    name: String,
+    app: tauri::State<'_, DBPal>,
 ) -> Result<(), ErrorFrontend> {
     random_sleep().await;
     random_error()?;
@@ -1949,7 +2146,8 @@ pub async fn mongo_query_db_drop(
 }
 #[tauri::command]
 pub async fn mongo_query_db_list_collection_names(
-    name: String, app: tauri::State<'_, DBPal>,
+    name: String,
+    app: tauri::State<'_, DBPal>,
 ) -> Result<Vec<String>, ErrorFrontend> {
     random_sleep().await;
     random_error()?;
@@ -1966,7 +2164,9 @@ pub async fn mongo_query_db_list_collection_names(
 }
 #[tauri::command]
 pub async fn mongo_query_db_run_command(
-    name: String, command: Vec<u8>, app: tauri::State<'_, DBPal>,
+    name: String,
+    command: Vec<u8>,
+    app: tauri::State<'_, DBPal>,
 ) -> Result<Vec<u8>, ErrorFrontend> {
     random_sleep().await;
     random_error()?;
@@ -1985,7 +2185,9 @@ pub async fn mongo_query_db_run_command(
 
 #[tauri::command]
 pub async fn mongo_query_collection_count_docs(
-    name: String, col: String, app: tauri::State<'_, DBPal>,
+    name: String,
+    col: String,
+    app: tauri::State<'_, DBPal>,
 ) -> Result<u64, ErrorFrontend> {
     random_sleep().await;
     random_error()?;
@@ -2003,7 +2205,10 @@ pub async fn mongo_query_collection_count_docs(
 
 #[tauri::command]
 pub async fn mongo_query_collection_create_index(
-    name: String, col: String, index: Vec<u8>, app: tauri::State<'_, DBPal>,
+    name: String,
+    col: String,
+    index: Vec<u8>,
+    app: tauri::State<'_, DBPal>,
 ) -> Result<String, ErrorFrontend> {
     random_sleep().await;
     random_error()?;
@@ -2021,7 +2226,10 @@ pub async fn mongo_query_collection_create_index(
 }
 #[tauri::command]
 pub async fn mongo_query_collection_create_search_index(
-    name: String, col: String, index: Vec<u8>, index_name: Option<String>,
+    name: String,
+    col: String,
+    index: Vec<u8>,
+    index_name: Option<String>,
     app: tauri::State<'_, DBPal>,
 ) -> Result<String, ErrorFrontend> {
     random_sleep().await;
@@ -2043,7 +2251,10 @@ pub async fn mongo_query_collection_create_search_index(
 }
 #[tauri::command]
 pub async fn mongo_query_collection_delete_many(
-    name: String, col: String, query: Vec<u8>, app: tauri::State<'_, DBPal>,
+    name: String,
+    col: String,
+    query: Vec<u8>,
+    app: tauri::State<'_, DBPal>,
 ) -> Result<String, ErrorFrontend> {
     random_sleep().await;
     random_error()?;
@@ -2061,7 +2272,10 @@ pub async fn mongo_query_collection_delete_many(
 }
 #[tauri::command]
 pub async fn mongo_query_collection_delete_one(
-    name: String, col: String, query: Vec<u8>, app: tauri::State<'_, DBPal>,
+    name: String,
+    col: String,
+    query: Vec<u8>,
+    app: tauri::State<'_, DBPal>,
 ) -> Result<String, ErrorFrontend> {
     random_sleep().await;
     random_error()?;
@@ -2080,7 +2294,11 @@ pub async fn mongo_query_collection_delete_one(
 
 #[tauri::command]
 pub async fn mongo_query_collection_distinct(
-    name: String, col: String, query: Vec<u8>, field: String, app: tauri::State<'_, DBPal>,
+    name: String,
+    col: String,
+    query: Vec<u8>,
+    field: String,
+    app: tauri::State<'_, DBPal>,
 ) -> Result<String, ErrorFrontend> {
     random_sleep().await;
     random_error()?;
@@ -2099,7 +2317,9 @@ pub async fn mongo_query_collection_distinct(
 
 #[tauri::command]
 pub async fn mongo_query_collection_drop(
-    name: String, col: String, app: tauri::State<'_, DBPal>,
+    name: String,
+    col: String,
+    app: tauri::State<'_, DBPal>,
 ) -> Result<(), ErrorFrontend> {
     random_sleep().await;
     random_error()?;
@@ -2118,7 +2338,10 @@ pub async fn mongo_query_collection_drop(
 
 #[tauri::command]
 pub async fn mongo_query_collection_drop_index(
-    name: String, col: String, index: String, app: tauri::State<'_, DBPal>,
+    name: String,
+    col: String,
+    index: String,
+    app: tauri::State<'_, DBPal>,
 ) -> Result<(), ErrorFrontend> {
     random_sleep().await;
     random_error()?;
@@ -2137,7 +2360,9 @@ pub async fn mongo_query_collection_drop_index(
 
 #[tauri::command]
 pub async fn mongo_query_collection_drop_indexes(
-    name: String, col: String, app: tauri::State<'_, DBPal>,
+    name: String,
+    col: String,
+    app: tauri::State<'_, DBPal>,
 ) -> Result<(), ErrorFrontend> {
     random_sleep().await;
     random_error()?;
@@ -2154,7 +2379,10 @@ pub async fn mongo_query_collection_drop_indexes(
 }
 #[tauri::command]
 pub async fn mongo_query_collection_drop_search_index(
-    name: String, col: String, index: String, app: tauri::State<'_, DBPal>,
+    name: String,
+    col: String,
+    index: String,
+    app: tauri::State<'_, DBPal>,
 ) -> Result<(), ErrorFrontend> {
     random_sleep().await;
     random_error()?;
@@ -2172,9 +2400,17 @@ pub async fn mongo_query_collection_drop_search_index(
 
 #[tauri::command]
 pub async fn mongo_query_collection_find(
-    name: String, col: String, query: Vec<u8>, hint: Option<Vec<u8>>, projection: Option<Vec<u8>>,
-    sort: Option<Vec<u8>>, min: Option<Vec<u8>>, max: Option<Vec<u8>>, limit: Option<i64>,
-    skip: Option<u64>, app: tauri::State<'_, DBPal>,
+    name: String,
+    col: String,
+    query: Vec<u8>,
+    hint: Option<Vec<u8>>,
+    projection: Option<Vec<u8>>,
+    sort: Option<Vec<u8>>,
+    min: Option<Vec<u8>>,
+    max: Option<Vec<u8>>,
+    limit: Option<i64>,
+    skip: Option<u64>,
+    app: tauri::State<'_, DBPal>,
 ) -> Result<Vec<Vec<u8>>, ErrorFrontend> {
     random_sleep().await;
     random_error()?;
@@ -2227,8 +2463,15 @@ pub async fn mongo_query_collection_find(
 
 #[tauri::command]
 pub async fn mongo_query_collection_find_one(
-    name: String, col: String, query: Vec<u8>, hint: Option<Vec<u8>>, projection: Option<Vec<u8>>,
-    sort: Option<Vec<u8>>, min: Option<Vec<u8>>, max: Option<Vec<u8>>, skip: Option<u64>,
+    name: String,
+    col: String,
+    query: Vec<u8>,
+    hint: Option<Vec<u8>>,
+    projection: Option<Vec<u8>>,
+    sort: Option<Vec<u8>>,
+    min: Option<Vec<u8>>,
+    max: Option<Vec<u8>>,
+    skip: Option<u64>,
     app: tauri::State<'_, DBPal>,
 ) -> Result<Option<Vec<u8>>, ErrorFrontend> {
     random_sleep().await;
@@ -2282,7 +2525,10 @@ pub async fn mongo_query_collection_find_one(
 
 #[tauri::command]
 pub async fn mongo_query_collection_find_one_and_delete(
-    name: String, col: String, query: Vec<u8>, app: tauri::State<'_, DBPal>,
+    name: String,
+    col: String,
+    query: Vec<u8>,
+    app: tauri::State<'_, DBPal>,
 ) -> Result<Option<Vec<u8>>, ErrorFrontend> {
     random_sleep().await;
     random_error()?;
@@ -2304,7 +2550,11 @@ pub async fn mongo_query_collection_find_one_and_delete(
 }
 #[tauri::command]
 pub async fn mongo_query_collection_find_one_and_replace(
-    name: String, col: String, query: Vec<u8>, replacement: Vec<u8>, app: tauri::State<'_, DBPal>,
+    name: String,
+    col: String,
+    query: Vec<u8>,
+    replacement: Vec<u8>,
+    app: tauri::State<'_, DBPal>,
 ) -> Result<Option<Vec<u8>>, ErrorFrontend> {
     random_sleep().await;
     random_error()?;
@@ -2331,7 +2581,10 @@ pub async fn mongo_query_collection_find_one_and_replace(
 
 #[tauri::command]
 pub async fn mongo_query_collection_insert_many(
-    name: String, col: String, data: Vec<Vec<u8>>, app: tauri::State<'_, DBPal>,
+    name: String,
+    col: String,
+    data: Vec<Vec<u8>>,
+    app: tauri::State<'_, DBPal>,
 ) -> Result<String, ErrorFrontend> {
     random_sleep().await;
     random_error()?;
@@ -2354,7 +2607,10 @@ pub async fn mongo_query_collection_insert_many(
 
 #[tauri::command]
 pub async fn mongo_query_collection_insert_one(
-    name: String, col: String, doc: Vec<u8>, app: tauri::State<'_, DBPal>,
+    name: String,
+    col: String,
+    doc: Vec<u8>,
+    app: tauri::State<'_, DBPal>,
 ) -> Result<String, ErrorFrontend> {
     random_sleep().await;
     random_error()?;
@@ -2373,7 +2629,9 @@ pub async fn mongo_query_collection_insert_one(
 
 #[tauri::command]
 pub async fn mongo_query_collection_list_index_names(
-    name: String, col: String, app: tauri::State<'_, DBPal>,
+    name: String,
+    col: String,
+    app: tauri::State<'_, DBPal>,
 ) -> Result<Vec<String>, ErrorFrontend> {
     random_sleep().await;
     random_error()?;
@@ -2390,7 +2648,9 @@ pub async fn mongo_query_collection_list_index_names(
 }
 #[tauri::command]
 pub async fn mongo_query_collection_list_indexes(
-    name: String, col: String, app: tauri::State<'_, DBPal>,
+    name: String,
+    col: String,
+    app: tauri::State<'_, DBPal>,
 ) -> Result<String, ErrorFrontend> {
     random_sleep().await;
     random_error()?;
@@ -2408,7 +2668,9 @@ pub async fn mongo_query_collection_list_indexes(
 
 #[tauri::command]
 pub async fn mongo_query_collection_list_search_indexes(
-    name: String, col: String, app: tauri::State<'_, DBPal>,
+    name: String,
+    col: String,
+    app: tauri::State<'_, DBPal>,
 ) -> Result<Vec<Vec<u8>>, ErrorFrontend> {
     random_sleep().await;
     random_error()?;
@@ -2430,7 +2692,11 @@ pub async fn mongo_query_collection_list_search_indexes(
 
 #[tauri::command]
 pub async fn mongo_query_collection_replace_one(
-    name: String, col: String, query: Vec<u8>, replacement: Vec<u8>, app: tauri::State<'_, DBPal>,
+    name: String,
+    col: String,
+    query: Vec<u8>,
+    replacement: Vec<u8>,
+    app: tauri::State<'_, DBPal>,
 ) -> Result<String, ErrorFrontend> {
     random_sleep().await;
     random_error()?;
@@ -2454,7 +2720,11 @@ pub async fn mongo_query_collection_replace_one(
 }
 #[tauri::command]
 pub async fn mongo_query_collection_update_many(
-    name: String, col: String, query: Vec<u8>, replacement: Vec<u8>, app: tauri::State<'_, DBPal>,
+    name: String,
+    col: String,
+    query: Vec<u8>,
+    replacement: Vec<u8>,
+    app: tauri::State<'_, DBPal>,
 ) -> Result<String, ErrorFrontend> {
     random_sleep().await;
     random_error()?;
@@ -2478,7 +2748,11 @@ pub async fn mongo_query_collection_update_many(
 
 #[tauri::command]
 pub async fn mongo_query_collection_update_one(
-    name: String, col: String, query: Vec<u8>, replacement: Vec<u8>, app: tauri::State<'_, DBPal>,
+    name: String,
+    col: String,
+    query: Vec<u8>,
+    replacement: Vec<u8>,
+    app: tauri::State<'_, DBPal>,
 ) -> Result<String, ErrorFrontend> {
     random_sleep().await;
     random_error()?;
@@ -2502,7 +2776,10 @@ pub async fn mongo_query_collection_update_one(
 
 #[tauri::command]
 pub async fn redis_list_lpush(
-    name: String, key: String, value: String, app: tauri::State<'_, DBPal>,
+    name: String,
+    key: String,
+    value: String,
+    app: tauri::State<'_, DBPal>,
 ) -> Result<(), ErrorFrontend> {
     let value = hex::decode(value.as_bytes()).map_err(ErrorFrontend::from)?;
 
@@ -2523,7 +2800,10 @@ pub async fn redis_list_lpush(
 
 #[tauri::command]
 pub async fn redis_list_rpush(
-    name: String, key: String, value: String, app: tauri::State<'_, DBPal>,
+    name: String,
+    key: String,
+    value: String,
+    app: tauri::State<'_, DBPal>,
 ) -> Result<(), ErrorFrontend> {
     let value = hex::decode(value.as_bytes()).map_err(ErrorFrontend::from)?;
 
@@ -2544,7 +2824,11 @@ pub async fn redis_list_rpush(
 
 #[tauri::command]
 pub async fn redis_list_remove(
-    name: String, key: String, value: String, count: isize, app: tauri::State<'_, DBPal>,
+    name: String,
+    key: String,
+    value: String,
+    count: isize,
+    app: tauri::State<'_, DBPal>,
 ) -> Result<(), ErrorFrontend> {
     let value = hex::decode(value.as_bytes()).map_err(ErrorFrontend::from)?;
 
@@ -2565,7 +2849,11 @@ pub async fn redis_list_remove(
 
 #[tauri::command]
 pub async fn redis_list_set(
-    name: String, key: String, value: String, index: isize, app: tauri::State<'_, DBPal>,
+    name: String,
+    key: String,
+    value: String,
+    index: isize,
+    app: tauri::State<'_, DBPal>,
 ) -> Result<(), ErrorFrontend> {
     let value = hex::decode(value.as_bytes()).map_err(ErrorFrontend::from)?;
 
@@ -2586,7 +2874,11 @@ pub async fn redis_list_set(
 
 #[tauri::command]
 pub async fn redis_set_replace(
-    name: String, key: String, old: String, new: String, app: tauri::State<'_, DBPal>,
+    name: String,
+    key: String,
+    old: String,
+    new: String,
+    app: tauri::State<'_, DBPal>,
 ) -> Result<(), ErrorFrontend> {
     let old = hex::decode(old.as_bytes()).map_err(ErrorFrontend::from)?;
     let new = hex::decode(new.as_bytes()).map_err(ErrorFrontend::from)?;
@@ -2608,7 +2900,10 @@ pub async fn redis_set_replace(
 
 #[tauri::command]
 pub async fn redis_set_del(
-    name: String, key: String, member: String, app: tauri::State<'_, DBPal>,
+    name: String,
+    key: String,
+    member: String,
+    app: tauri::State<'_, DBPal>,
 ) -> Result<(), ErrorFrontend> {
     let member = hex::decode(member.as_bytes()).map_err(ErrorFrontend::from)?;
     let schema = app
@@ -2628,7 +2923,10 @@ pub async fn redis_set_del(
 
 #[tauri::command]
 pub async fn redis_set_add(
-    name: String, key: String, member: String, app: tauri::State<'_, DBPal>,
+    name: String,
+    key: String,
+    member: String,
+    app: tauri::State<'_, DBPal>,
 ) -> Result<(), ErrorFrontend> {
     let member = hex::decode(member.as_bytes()).map_err(ErrorFrontend::from)?;
     let schema = app
@@ -2648,7 +2946,11 @@ pub async fn redis_set_add(
 
 #[tauri::command]
 pub async fn redis_hash_replace(
-    name: String, key: String, old_member: String, new_member: String, new_value: String,
+    name: String,
+    key: String,
+    old_member: String,
+    new_member: String,
+    new_value: String,
     app: tauri::State<'_, DBPal>,
 ) -> Result<(), ErrorFrontend> {
     let old_member = hex::decode(old_member.as_bytes()).map_err(ErrorFrontend::from)?;
@@ -2673,7 +2975,10 @@ pub async fn redis_hash_replace(
 
 #[tauri::command]
 pub async fn redis_hash_del(
-    name: String, key: String, member: String, app: tauri::State<'_, DBPal>,
+    name: String,
+    key: String,
+    member: String,
+    app: tauri::State<'_, DBPal>,
 ) -> Result<(), ErrorFrontend> {
     let member = hex::decode(member.as_bytes()).map_err(ErrorFrontend::from)?;
 
@@ -2694,7 +2999,11 @@ pub async fn redis_hash_del(
 
 #[tauri::command]
 pub async fn redis_hash_add(
-    name: String, key: String, member: String, value: String, app: tauri::State<'_, DBPal>,
+    name: String,
+    key: String,
+    member: String,
+    value: String,
+    app: tauri::State<'_, DBPal>,
 ) -> Result<(), ErrorFrontend> {
     let member = hex::decode(member.as_bytes()).map_err(ErrorFrontend::from)?;
     let value = hex::decode(value.as_bytes()).map_err(ErrorFrontend::from)?;
@@ -2716,7 +3025,11 @@ pub async fn redis_hash_add(
 
 #[tauri::command]
 pub async fn redis_zset_replace(
-    name: String, key: String, old_member: String, new_member: String, new_value: f64,
+    name: String,
+    key: String,
+    old_member: String,
+    new_member: String,
+    new_value: f64,
     app: tauri::State<'_, DBPal>,
 ) -> Result<(), ErrorFrontend> {
     let old_member = hex::decode(old_member.as_bytes()).map_err(ErrorFrontend::from)?;
@@ -2739,7 +3052,10 @@ pub async fn redis_zset_replace(
 
 #[tauri::command]
 pub async fn redis_zset_del(
-    name: String, key: String, member: String, app: tauri::State<'_, DBPal>,
+    name: String,
+    key: String,
+    member: String,
+    app: tauri::State<'_, DBPal>,
 ) -> Result<(), ErrorFrontend> {
     let member = hex::decode(member.as_bytes()).map_err(ErrorFrontend::from)?;
 
@@ -2759,7 +3075,11 @@ pub async fn redis_zset_del(
 }
 #[tauri::command]
 pub async fn redis_zset_add(
-    name: String, key: String, member: String, value: f64, app: tauri::State<'_, DBPal>,
+    name: String,
+    key: String,
+    member: String,
+    value: f64,
+    app: tauri::State<'_, DBPal>,
 ) -> Result<(), ErrorFrontend> {
     let member = hex::decode(member.as_bytes()).map_err(ErrorFrontend::from)?;
 
@@ -2780,7 +3100,8 @@ pub async fn redis_zset_add(
 
 #[tauri::command]
 pub async fn list_procedure(
-    name: String, app: tauri::State<'_, DBPal>,
+    name: String,
+    app: tauri::State<'_, DBPal>,
 ) -> Result<Vec<NamedStaff>, ErrorFrontend> {
     let schema = app
         .get_schema(name.as_str())
@@ -2792,7 +3113,9 @@ pub async fn list_procedure(
 
 #[tauri::command]
 pub async fn show_procedure(
-    name: String, procedure: String, arg: Option<UdfOrProcedureExtraParameter>,
+    name: String,
+    procedure: String,
+    arg: Option<UdfOrProcedureExtraParameter>,
     app: tauri::State<'_, DBPal>,
 ) -> Result<ProcedureDetail, ErrorFrontend> {
     let schema = app
@@ -2807,7 +3130,9 @@ pub async fn show_procedure(
 
 #[tauri::command]
 pub async fn drop_procedure(
-    name: String, procedure: String, arg: Option<UdfOrProcedureExtraParameter>,
+    name: String,
+    procedure: String,
+    arg: Option<UdfOrProcedureExtraParameter>,
     app: tauri::State<'_, DBPal>,
 ) -> Result<(), ErrorFrontend> {
     let schema = app
@@ -2822,7 +3147,8 @@ pub async fn drop_procedure(
 
 #[tauri::command]
 pub async fn list_udf(
-    name: String, app: tauri::State<'_, DBPal>,
+    name: String,
+    app: tauri::State<'_, DBPal>,
 ) -> Result<Vec<NamedStaff>, ErrorFrontend> {
     let schema = app
         .get_schema(name.as_str())
@@ -2834,7 +3160,8 @@ pub async fn list_udf(
 
 #[tauri::command]
 pub async fn list_sequence(
-    name: String, app: tauri::State<'_, DBPal>,
+    name: String,
+    app: tauri::State<'_, DBPal>,
 ) -> Result<Vec<SequenceDetail>, ErrorFrontend> {
     let schema = app
         .get_schema(name.as_str())
@@ -2846,7 +3173,10 @@ pub async fn list_sequence(
 
 #[tauri::command]
 pub async fn drop_sequence(
-    name: String, app: tauri::State<'_, DBPal>, seq: String, cascade: bool,
+    name: String,
+    app: tauri::State<'_, DBPal>,
+    seq: String,
+    cascade: bool,
 ) -> Result<(), ErrorFrontend> {
     let schema = app
         .get_schema(name.as_str())
@@ -2861,7 +3191,10 @@ pub async fn drop_sequence(
 
 #[tauri::command]
 pub async fn rename_sequence(
-    name: String, app: tauri::State<'_, DBPal>, old: String, new: String,
+    name: String,
+    app: tauri::State<'_, DBPal>,
+    old: String,
+    new: String,
 ) -> Result<(), ErrorFrontend> {
     let schema = app
         .get_schema(name.as_str())
@@ -2877,7 +3210,9 @@ pub async fn rename_sequence(
 
 #[tauri::command]
 pub async fn show_udf(
-    name: String, udf: String, arg: Option<UdfOrProcedureExtraParameter>,
+    name: String,
+    udf: String,
+    arg: Option<UdfOrProcedureExtraParameter>,
     app: tauri::State<'_, DBPal>,
 ) -> Result<DefAndMetas, ErrorFrontend> {
     let schema = app
@@ -2892,7 +3227,9 @@ pub async fn show_udf(
 
 #[tauri::command]
 pub async fn drop_udf(
-    name: String, udf: String, arg: Option<UdfOrProcedureExtraParameter>,
+    name: String,
+    udf: String,
+    arg: Option<UdfOrProcedureExtraParameter>,
     app: tauri::State<'_, DBPal>,
 ) -> Result<(), ErrorFrontend> {
     let schema = app
@@ -2907,7 +3244,10 @@ pub async fn drop_udf(
 
 #[tauri::command]
 pub async fn redis_string_set(
-    name: String, key: String, value: String, app: tauri::State<'_, DBPal>,
+    name: String,
+    key: String,
+    value: String,
+    app: tauri::State<'_, DBPal>,
 ) -> Result<(), ErrorFrontend> {
     let value = hex::decode(value.as_bytes()).map_err(ErrorFrontend::from)?;
 
@@ -2928,7 +3268,10 @@ pub async fn redis_string_set(
 
 #[tauri::command]
 pub async fn put_value_in_sql(
-    name: String, typ: String, value: Option<String>, app: tauri::State<'_, DBPal>,
+    name: String,
+    typ: String,
+    value: Option<String>,
+    app: tauri::State<'_, DBPal>,
 ) -> Result<String, ErrorFrontend> {
     use dbnexus_db::db::SqlBuilder;
 
@@ -2939,7 +3282,9 @@ pub async fn put_value_in_sql(
     let a = schema.as_any();
     #[inline]
     fn xxx<T: SqlBuilder + 'static>(
-        a: &dyn std::any::Any, typ: &str, value: Option<&str>,
+        a: &dyn std::any::Any,
+        typ: &str,
+        value: Option<&str>,
     ) -> Result<String, ErrorFrontend> {
         if let Some(x) = a.downcast_ref::<T>() {
             return x.put_value_in_sql(typ, value).map_err(ErrorFrontend::from);
@@ -3005,7 +3350,8 @@ pub async fn put_value_in_sql(
 
 #[tauri::command]
 pub async fn cassandra_list_aggregate(
-    name: String, app: tauri::State<'_, DBPal>,
+    name: String,
+    app: tauri::State<'_, DBPal>,
 ) -> Result<Vec<NamedStaff>, ErrorFrontend> {
     let schema = app
         .get_schema(name.as_str())
@@ -3026,7 +3372,10 @@ pub async fn cassandra_list_aggregate(
 
 #[tauri::command]
 pub async fn cassandra_show_aggregate(
-    name: String, agg_name: String, parameters: Vec<String>, app: tauri::State<'_, DBPal>,
+    name: String,
+    agg_name: String,
+    parameters: Vec<String>,
+    app: tauri::State<'_, DBPal>,
 ) -> Result<DefAndMetas, ErrorFrontend> {
     let schema = app
         .get_schema(name.as_str())
@@ -3050,7 +3399,10 @@ pub async fn cassandra_show_aggregate(
 
 #[tauri::command]
 pub async fn cassandra_drop_aggregate(
-    name: String, agg_name: String, parameters: Vec<String>, app: tauri::State<'_, DBPal>,
+    name: String,
+    agg_name: String,
+    parameters: Vec<String>,
+    app: tauri::State<'_, DBPal>,
 ) -> Result<(), ErrorFrontend> {
     let schema = app
         .get_schema(name.as_str())
@@ -3074,7 +3426,9 @@ pub async fn cassandra_drop_aggregate(
 
 #[tauri::command]
 pub async fn drop_created_type(
-    name: String, type_name: String, app: tauri::State<'_, DBPal>,
+    name: String,
+    type_name: String,
+    app: tauri::State<'_, DBPal>,
 ) -> Result<(), ErrorFrontend> {
     let schema = app
         .get_schema(name.as_str())

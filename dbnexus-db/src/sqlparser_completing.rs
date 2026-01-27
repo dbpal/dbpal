@@ -1,4 +1,4 @@
-use crate::language_server::{CompletionItem, CompletionKind, remove_duplicate};
+use crate::language_server::{remove_duplicate, CompletionItem, CompletionKind};
 use crate::sqlparser_completion::{
     CompletionStatement, Scope, TableEntered, TempTable, TempTableColumn, Var,
 };
@@ -487,7 +487,9 @@ impl<'a> CompletionStatement<'a> {
     }
 
     pub(crate) async fn c_on_mysql_show_create(
-        &mut self, show_create: ShowCreateObject, name: &ObjectName,
+        &mut self,
+        show_create: ShowCreateObject,
+        name: &ObjectName,
     ) {
         match show_create {
             ShowCreateObject::Event => {
@@ -549,7 +551,9 @@ impl<'a> CompletionStatement<'a> {
     }
     #[allow(dead_code)]
     pub(crate) async fn c_on_table_policy_object(
-        &mut self, table_name: &ObjectName, name: &ObjectName,
+        &mut self,
+        table_name: &ObjectName,
+        name: &ObjectName,
     ) {
         match name.0.len() {
             1 => match name.0.last().expect("we have checked above") {
@@ -683,7 +687,9 @@ impl<'a> CompletionStatement<'a> {
     }
 
     pub(crate) async fn c_on_postgres_comment_object(
-        &mut self, object_type: CommentObject, name: &ObjectName,
+        &mut self,
+        object_type: CommentObject,
+        name: &ObjectName,
     ) {
         if !self.in_pos(&name.span()) {
             return;
@@ -740,7 +746,9 @@ impl<'a> CompletionStatement<'a> {
         }
     }
     pub(crate) async fn c_on_column_mysql_position(
-        &mut self, table_name: &ObjectName, column_position: Option<&MySQLColumnPosition>,
+        &mut self,
+        table_name: &ObjectName,
+        column_position: Option<&MySQLColumnPosition>,
     ) {
         if let Some(column_position) = column_position {
             match column_position {
@@ -842,7 +850,9 @@ impl<'a> CompletionStatement<'a> {
     }
 
     pub(crate) async fn c_on_clickhouse_partition(
-        &mut self, table_name: &ObjectName, p: &Partition,
+        &mut self,
+        table_name: &ObjectName,
+        p: &Partition,
     ) {
         match p {
             Partition::Identifier(ident) => self.c_on_column(table_name, ident, false).await,
@@ -864,7 +874,9 @@ impl<'a> CompletionStatement<'a> {
     }
 
     pub(crate) async fn c_on_clickhouse_table_projection(
-        &mut self, table_name: &ObjectName, name: &Ident,
+        &mut self,
+        table_name: &ObjectName,
+        name: &Ident,
     ) {
         if !self.in_pos(&name.span) {
             return;
@@ -888,7 +900,9 @@ impl<'a> CompletionStatement<'a> {
     }
 
     pub(crate) async fn c_on_table_constraint(
-        &mut self, constraint: &TableConstraint, table_name: Option<&ObjectName>,
+        &mut self,
+        constraint: &TableConstraint,
+        table_name: Option<&ObjectName>,
     ) {
         match constraint {
             TableConstraint::Unique(UniqueConstraint {
@@ -998,7 +1012,9 @@ impl<'a> CompletionStatement<'a> {
     }
 
     pub(crate) async fn c_on_alert_table_operation(
-        &mut self, table_name: &ObjectName, ast: &AlterTableOperation,
+        &mut self,
+        table_name: &ObjectName,
+        ast: &AlterTableOperation,
     ) {
         self.scopes
             .current_scope(|s| s.enter_table(None, table_name.clone()));
@@ -2248,7 +2264,10 @@ impl<'a> CompletionStatement<'a> {
     }
 
     pub(crate) async fn c_on_column(
-        &mut self, table_name: &ObjectName, col: &Ident, suggest_table: bool,
+        &mut self,
+        table_name: &ObjectName,
+        col: &Ident,
+        suggest_table: bool,
     ) {
         if !self.in_pos(&col.span) {
             return;
@@ -2271,7 +2290,9 @@ impl<'a> CompletionStatement<'a> {
     }
 
     pub(crate) async fn c_on_table_trigger(
-        &mut self, table_name: &ObjectName, trigger_name: &Ident,
+        &mut self,
+        table_name: &ObjectName,
+        trigger_name: &Ident,
     ) {
         if !self.in_pos(&trigger_name.span) {
             return;
@@ -2562,7 +2583,8 @@ impl<'a> CompletionStatement<'a> {
         }
     }
     pub(crate) async fn c_on_select(
-        &mut self, select: &Select,
+        &mut self,
+        select: &Select,
     ) -> anyhow::Result<Vec<TempTableColumn>> {
         // we enter those table in outer scope so outer can have tables definitions
         self.c_on_table_with_joins(&select.from).await;
@@ -2812,7 +2834,8 @@ impl<'a> CompletionStatement<'a> {
     }
 
     pub(crate) async fn c_on_select_item_qualified_wildcard_kind(
-        &mut self, ast: &SelectItemQualifiedWildcardKind,
+        &mut self,
+        ast: &SelectItemQualifiedWildcardKind,
     ) {
         match ast {
             SelectItemQualifiedWildcardKind::ObjectName(object_name) => {
@@ -2824,7 +2847,8 @@ impl<'a> CompletionStatement<'a> {
         }
     }
     pub(crate) async fn c_on_wildcard_additional_options(
-        &mut self, ast: &WildcardAdditionalOptions,
+        &mut self,
+        ast: &WildcardAdditionalOptions,
     ) {
         if let Some(ex) = ast.opt_except.as_ref() {
             for col in ex
@@ -2908,7 +2932,8 @@ impl<'a> CompletionStatement<'a> {
         })
     }
     pub(crate) async fn c_on_query(
-        &mut self, query: &Query,
+        &mut self,
+        query: &Query,
     ) -> anyhow::Result<Vec<TempTableColumn>> {
         let _guard = self.scopes.enter(Scope::default());
         if let Some(with) = query.with.as_ref() {
@@ -2996,7 +3021,8 @@ impl<'a> CompletionStatement<'a> {
     }
 
     pub(crate) async fn c_on_expr_with_alias_and_order_by(
-        &mut self, ast: &ExprWithAliasAndOrderBy,
+        &mut self,
+        ast: &ExprWithAliasAndOrderBy,
     ) {
         if let Some(alias) = ast.expr.alias.as_ref() {
             if self.in_pos(&alias.span) {
@@ -3132,7 +3158,8 @@ impl<'a> CompletionStatement<'a> {
     }
 
     pub(crate) async fn c_on_set_expr(
-        &mut self, set: &SetExpr,
+        &mut self,
+        set: &SetExpr,
     ) -> anyhow::Result<Vec<TempTableColumn>> {
         match set {
             SetExpr::Select(select) => self.c_on_select(select).await,
@@ -3140,7 +3167,11 @@ impl<'a> CompletionStatement<'a> {
             SetExpr::SetOperation { left, right, .. } => {
                 let l = Box::pin(self.c_on_set_expr(left)).await;
                 let r = Box::pin(self.c_on_set_expr(right)).await;
-                if l.is_ok() { l } else { r }
+                if l.is_ok() {
+                    l
+                } else {
+                    r
+                }
             }
             SetExpr::Values(values) => {
                 for v in values.rows.iter() {
@@ -3223,7 +3254,8 @@ impl<'a> CompletionStatement<'a> {
     }
 
     pub(crate) fn get_table_alias_columns(
-        &self, t: &Option<TableAlias>,
+        &self,
+        t: &Option<TableAlias>,
     ) -> Option<Vec<TempTableColumn>> {
         match t {
             // function_call [WITH ORDINALITY] [[AS] table_alias [(column_alias [, ... ])]]
@@ -4004,7 +4036,8 @@ impl<'a> CompletionStatement<'a> {
         }
     }
     pub(crate) fn extract_schema_and_item(
-        &self, item_name: &ObjectName,
+        &self,
+        item_name: &ObjectName,
     ) -> (Option<String>, String) {
         let mut schema = None;
         let mut item = "".to_string();

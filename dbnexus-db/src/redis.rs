@@ -14,13 +14,12 @@ use typescript_type_def::TypeDef;
 
 use crate::datasource_config::RedisDBConfig;
 use crate::db::{
-    AutoCompletionQueryId, BackendKind, CheckConn, CreateSchemaExtra, DBTrait, ExportFrame,
-    ExportKind, ExportQueryResult, Field, GetBackendKind, ListTable, MetaValue, QueryEvent,
-    QueryEventEmitter, QueryResp, QuerySql, ReadOnlyTrait, SchemaTrait, ServerMetas,
-    ShowTableParameter, SqlBuilder, XlsxEdit, create_html_table_data, create_markdown_data,
-    create_markdown_header,
+    create_html_table_data, create_markdown_data, create_markdown_header, AutoCompletionQueryId,
+    BackendKind, CheckConn, CreateSchemaExtra, DBTrait, ExportFrame, ExportKind, ExportQueryResult,
+    Field, GetBackendKind, ListTable, MetaValue, QueryEvent, QueryEventEmitter, QueryResp,
+    QuerySql, ReadOnlyTrait, SchemaTrait, ServerMetas, ShowTableParameter, SqlBuilder, XlsxEdit,
 };
-use crate::helper::{OffsetLimitIter, create_csv};
+use crate::helper::{create_csv, OffsetLimitIter};
 
 #[derive(Clone)]
 pub struct RedisDB {
@@ -33,7 +32,9 @@ pub struct RedisDB {
 
 impl RedisDB {
     pub async fn get_redis_type_hint(
-        &self, text: &str, query_id: &str,
+        &self,
+        text: &str,
+        query_id: &str,
     ) -> anyhow::Result<HashMap<String, String>> {
         let conn = match self.query_connection.get(&query_id.to_string()) {
             Some(x) => x.clone(),
@@ -122,7 +123,10 @@ impl RedisDB {
     }
 
     pub async fn set_replace(
-        &self, key: &str, old_member: &[u8], new_member: &[u8],
+        &self,
+        key: &str,
+        old_member: &[u8],
+        new_member: &[u8],
     ) -> anyhow::Result<()> {
         let mut conn = self.get_conn().await?;
         let _: () = conn.srem(key, old_member).await?;
@@ -143,7 +147,11 @@ impl RedisDB {
     }
 
     pub async fn hash_replace(
-        &self, key: &str, old_member: &[u8], new_member: &[u8], new_value: &[u8],
+        &self,
+        key: &str,
+        old_member: &[u8],
+        new_member: &[u8],
+        new_value: &[u8],
     ) -> anyhow::Result<()> {
         let mut conn = self.get_conn().await?;
         let _: () = conn.hdel(key, old_member).await?;
@@ -164,7 +172,11 @@ impl RedisDB {
     }
 
     pub async fn zset_replace(
-        &self, key: &str, old_member: &[u8], new_member: &[u8], new_value: f64,
+        &self,
+        key: &str,
+        old_member: &[u8],
+        new_member: &[u8],
+        new_value: f64,
     ) -> anyhow::Result<()> {
         let mut conn = self.get_conn().await?;
         let _: () = conn.zrem(key, old_member).await?;
@@ -253,7 +265,10 @@ fn check_resp(
 // export impl
 impl RedisDB {
     async fn export_table_as_csv(
-        &self, key: &str, delimiter: char, sender: tokio::sync::mpsc::Sender<ExportFrame>,
+        &self,
+        key: &str,
+        delimiter: char,
+        sender: tokio::sync::mpsc::Sender<ExportFrame>,
     ) -> anyhow::Result<()> {
         let mut conn = self.get_conn().await?;
         let ty = Self::get_key_type(&mut conn, key).await?;
@@ -335,7 +350,9 @@ impl RedisDB {
     }
 
     async fn export_table_as_html(
-        &self, key: &str, sender: tokio::sync::mpsc::Sender<ExportFrame>,
+        &self,
+        key: &str,
+        sender: tokio::sync::mpsc::Sender<ExportFrame>,
     ) -> anyhow::Result<()> {
         let mut conn = self.get_conn().await?;
         let ty = Self::get_key_type(&mut conn, key).await?;
@@ -408,7 +425,9 @@ impl RedisDB {
     }
 
     async fn export_table_as_md(
-        &self, key: &str, sender: tokio::sync::mpsc::Sender<ExportFrame>,
+        &self,
+        key: &str,
+        sender: tokio::sync::mpsc::Sender<ExportFrame>,
     ) -> anyhow::Result<()> {
         let mut conn = self.get_conn().await?;
         let ty = Self::get_key_type(&mut conn, key).await?;
@@ -496,7 +515,9 @@ impl RedisDB {
     }
 
     async fn export_table_as_json(
-        &self, key: &str, sender: tokio::sync::mpsc::Sender<ExportFrame>,
+        &self,
+        key: &str,
+        sender: tokio::sync::mpsc::Sender<ExportFrame>,
     ) -> anyhow::Result<()> {
         let mut conn = self.get_conn().await?;
         let ty = Self::get_key_type(&mut conn, key).await?;
@@ -554,7 +575,9 @@ impl RedisDB {
     }
 
     async fn export_table_as_json_line(
-        &self, key: &str, sender: tokio::sync::mpsc::Sender<ExportFrame>,
+        &self,
+        key: &str,
+        sender: tokio::sync::mpsc::Sender<ExportFrame>,
     ) -> anyhow::Result<()> {
         let mut conn = self.get_conn().await?;
         let ty = Self::get_key_type(&mut conn, key).await?;
@@ -612,7 +635,9 @@ impl RedisDB {
     }
 
     async fn export_table_to_command(
-        &self, key: &str, sender: tokio::sync::mpsc::Sender<ExportFrame>,
+        &self,
+        key: &str,
+        sender: tokio::sync::mpsc::Sender<ExportFrame>,
     ) -> anyhow::Result<()> {
         let mut conn = self.get_conn().await?;
         let ty = Self::get_key_type(&mut conn, key).await?;
@@ -731,7 +756,12 @@ impl GetBackendKind for RedisDB {
 
 impl RedisDB {
     pub async fn zset_range_by_score(
-        &self, key: &str, min: Option<f64>, max: Option<f64>, page: isize, page_count: isize,
+        &self,
+        key: &str,
+        min: Option<f64>,
+        max: Option<f64>,
+        page: isize,
+        page_count: isize,
     ) -> anyhow::Result<QueryResp> {
         let mut conn = self.get_conn().await?;
         let offset = (page - 1) * page_count;
@@ -758,7 +788,8 @@ impl RedisDB {
 
 impl RedisDB {
     async fn get_conn_by_query_id(
-        &self, query_id: Option<&str>,
+        &self,
+        query_id: Option<&str>,
     ) -> anyhow::Result<Arc<Mutex<MultiplexedConnection>>> {
         match query_id {
             Some(x) => match self.query_connection.get(&x.to_string()) {
@@ -780,7 +811,10 @@ impl RedisDB {
 #[async_trait::async_trait]
 impl ExportQueryResult for RedisDB {
     async fn export_query_result(
-        &self, query_id: Option<&str>, sql: &str, kind: ExportKind,
+        &self,
+        query_id: Option<&str>,
+        sql: &str,
+        kind: ExportKind,
         sender: tokio::sync::mpsc::Sender<ExportFrame>,
     ) -> anyhow::Result<()> {
         let commands = get_command_from_sql(sql)?;
@@ -846,7 +880,10 @@ impl ExportQueryResult for RedisDB {
 
 impl RedisDB {
     async fn export_table_as_xlsx(
-        &self, key: &str, include_header: bool, sender: tokio::sync::mpsc::Sender<ExportFrame>,
+        &self,
+        key: &str,
+        include_header: bool,
+        sender: tokio::sync::mpsc::Sender<ExportFrame>,
     ) -> anyhow::Result<()> {
         if include_header {
             anyhow::bail!("redis have no header")
@@ -1039,7 +1076,10 @@ impl SchemaTrait for RedisDB {
     }
 
     async fn export_table_or_view(
-        &self, key: &str, _para: Option<ShowTableParameter>, kind: ExportKind,
+        &self,
+        key: &str,
+        _para: Option<ShowTableParameter>,
+        kind: ExportKind,
         sender: tokio::sync::mpsc::Sender<ExportFrame>,
     ) -> anyhow::Result<()> {
         match kind {
@@ -1094,7 +1134,10 @@ impl SchemaTrait for RedisDB {
     }
 
     async fn show_table(
-        &self, key: &str, para: ShowTableParameter, emit: QueryEventEmitter,
+        &self,
+        key: &str,
+        para: ShowTableParameter,
+        emit: QueryEventEmitter,
     ) -> anyhow::Result<()> {
         emit.send("trying to get connetion.".into())?;
         let mut conn = self.get_conn().await?;
@@ -1251,7 +1294,9 @@ impl SchemaTrait for RedisDB {
 
 impl RedisDB {
     pub async fn redis_list_table(
-        &self, filter: Option<&str>, max: usize,
+        &self,
+        filter: Option<&str>,
+        max: usize,
     ) -> anyhow::Result<RedisListTable> {
         let mut conn = self.get_conn().await?;
         let mut stream: AsyncIter<'_, String> = conn.scan_match(filter.unwrap_or("*")).await?;
@@ -1334,7 +1379,9 @@ impl DBTrait for RedisDB {
     }
 
     async fn create_schema(
-        &self, name: &str, _extra: Option<CreateSchemaExtra>,
+        &self,
+        name: &str,
+        _extra: Option<CreateSchemaExtra>,
     ) -> anyhow::Result<()> {
         // In Redis, the concept of a "database" is somewhat different from traditional
         // relational databases. Redis uses a single instance with multiple logical
@@ -1390,7 +1437,9 @@ impl QuerySql for RedisDB {
         anyhow::bail!("the frontend will not use the api for now.")
     }
     async fn execute_sql(
-        &self, query_id: &str, sql: &str,
+        &self,
+        query_id: &str,
+        sql: &str,
     ) -> anyhow::Result<Result<QueryResp, String>> {
         let conn = match self.query_connection.get(&query_id.to_string()) {
             Some(x) => x.clone(),
@@ -1416,7 +1465,10 @@ impl QuerySql for RedisDB {
     }
 
     async fn query_sql(
-        &self, query_id: &str, sql: &str, emit: QueryEventEmitter,
+        &self,
+        query_id: &str,
+        sql: &str,
+        emit: QueryEventEmitter,
     ) -> anyhow::Result<()> {
         let conn = match self.query_connection.get(&query_id.to_string()) {
             Some(x) => x.clone(),
@@ -1563,7 +1615,8 @@ const REDIS_MULTI_VAL_CMDS: &[&str] = &[
 
 impl RedisDB {
     pub(crate) async fn get_key_type(
-        conn: &mut ConnectionManager, key: &str,
+        conn: &mut ConnectionManager,
+        key: &str,
     ) -> anyhow::Result<RedisType> {
         let ty: String = conn.key_type(key).await?;
         log::trace!("key:{} type:{}", key, ty);
@@ -1954,7 +2007,7 @@ pub(crate) async fn make_test_object() -> RedisDB {
 mod tests {
     use super::make_test_object;
     use super::*;
-    use super::{RedisDB, extract_db_from_info_key_space, split_info_colon};
+    use super::{extract_db_from_info_key_space, split_info_colon, RedisDB};
     use crate::db::{
         DBTrait, ExportKind, ExportQueryResult, GetBackendKind, QuerySql, SchemaTrait, ServerMetas,
         ShowTableParameter,

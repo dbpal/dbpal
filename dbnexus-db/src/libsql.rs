@@ -1,6 +1,6 @@
 use bb8::ManageConnection;
 use dashmap::DashMap;
-use libsql::{Connection, Row, ValueType, params};
+use libsql::{params, Connection, Row, ValueType};
 use std::collections::HashMap;
 use std::ops::{Deref, DerefMut};
 use std::sync::Arc;
@@ -9,20 +9,19 @@ use tokio::sync::Mutex;
 
 use crate::datasource_config::{LibSqlDBConfig, LibSqlDBConfigSource};
 use crate::db::{
-    AutoCompletionQueryId, BackendKind, CheckConn, ColumnType, CreateIndexReq,
-    CreateTableAndIndexSql, ExportFrame, ExportKind, ExportQueryResult, Field, GetBackendKind,
-    Index, IndexKind, ListTable, MetaValue, NamedStaff, OptionMustBeSomeErr, POOL_MAX_CONNECTIONS,
+    create_html_table_data, create_html_table_header, create_markdown_data, create_markdown_header,
+    escape_sql_str, export_query_as_xlsx_send_data, AutoCompletionQueryId, BackendKind, CheckConn,
+    ColumnType, CreateIndexReq, CreateTableAndIndexSql, ExportFrame, ExportKind, ExportQueryResult,
+    Field, GetBackendKind, Index, IndexKind, ListTable, MetaValue, NamedStaff, OptionMustBeSomeErr,
     QueryEvent, QueryEventEmitter, QueryResp, QuerySql, ReadOnlyTrait, SchemaTrait, ServerMetas,
-    ShowTableParameter, SqlBuilder, TriggerDetail, XlsxEdit, create_html_table_data,
-    create_html_table_header, create_markdown_data, create_markdown_header, escape_sql_str,
-    export_query_as_xlsx_send_data,
+    ShowTableParameter, SqlBuilder, TriggerDetail, XlsxEdit, POOL_MAX_CONNECTIONS,
 };
 use crate::helper::create_csv;
 use crate::language_server::{CompletionItem, LexerCompletionTrait};
 
 use crate::sqlite::{
-    SqliteDB, encode_bytes, extract_auto_increment_key, extract_trigger_detail_from_sql,
-    gen_show_sql, integer_like, numeric_like, real_like, text_like,
+    encode_bytes, extract_auto_increment_key, extract_trigger_detail_from_sql, gen_show_sql,
+    integer_like, numeric_like, real_like, text_like, SqliteDB,
 };
 
 #[derive(Clone)]
@@ -61,7 +60,10 @@ impl ExportQueryResult for LibSqlDB {
     }
 
     async fn export_query_result(
-        &self, query_id: Option<&str>, sql: &str, kind: ExportKind,
+        &self,
+        query_id: Option<&str>,
+        sql: &str,
+        kind: ExportKind,
         sender: tokio::sync::mpsc::Sender<ExportFrame>,
     ) -> anyhow::Result<()> {
         let conn = self.get_conn_by_query_id(query_id).await?;
@@ -204,7 +206,9 @@ impl QuerySql for LibSqlDB {
         anyhow::Ok(None)
     }
     async fn execute_sql(
-        &self, query_id: &str, sql: &str,
+        &self,
+        query_id: &str,
+        sql: &str,
     ) -> anyhow::Result<Result<QueryResp, String>> {
         let tr = self.query_connection_transaction.get(&query_id.to_owned());
         let conn = self.query_connection.get(&query_id.to_string());
@@ -224,7 +228,10 @@ impl QuerySql for LibSqlDB {
     }
 
     async fn query_sql(
-        &self, query_id: &str, sql: &str, emit: QueryEventEmitter,
+        &self,
+        query_id: &str,
+        sql: &str,
+        emit: QueryEventEmitter,
     ) -> anyhow::Result<()> {
         let tr = self.query_connection_transaction.get(&query_id.to_owned());
         let conn = self.query_connection.get(&query_id.to_string());
@@ -524,7 +531,10 @@ impl SchemaTrait for LibSqlDB {
     }
 
     async fn add_table_column(
-        &self, table: &str, name: &str, col: ColumnType,
+        &self,
+        table: &str,
+        name: &str,
+        col: ColumnType,
     ) -> anyhow::Result<()> {
         let sql = format!(
             r#"ALTER TABLE "{table}" ADD COLUMN "{name}" {} {} {}"#,
@@ -614,7 +624,8 @@ impl SchemaTrait for LibSqlDB {
     }
 
     async fn show_create_table_sql(
-        &self, table_name: &str,
+        &self,
+        table_name: &str,
     ) -> anyhow::Result<CreateTableAndIndexSql> {
         let table = self.create_table_or_view_sql(table_name, "table").await?;
         let indexes = self.get_table_indexes_sql(table_name).await?;
@@ -626,7 +637,10 @@ impl SchemaTrait for LibSqlDB {
     }
 
     async fn export_table_or_view(
-        &self, name: &str, para: Option<ShowTableParameter>, kind: ExportKind,
+        &self,
+        name: &str,
+        para: Option<ShowTableParameter>,
+        kind: ExportKind,
         sender: tokio::sync::mpsc::Sender<ExportFrame>,
     ) -> anyhow::Result<()> {
         match kind {
@@ -746,7 +760,10 @@ impl SchemaTrait for LibSqlDB {
     }
 
     async fn show_table(
-        &self, table_name: &str, para: ShowTableParameter, emit: QueryEventEmitter,
+        &self,
+        table_name: &str,
+        para: ShowTableParameter,
+        emit: QueryEventEmitter,
     ) -> anyhow::Result<()> {
         let ShowTableParameter {
             where_str,
@@ -790,7 +807,10 @@ impl SchemaTrait for LibSqlDB {
     }
 
     async fn show_view(
-        &self, view_name: &str, para: ShowTableParameter, emit: QueryEventEmitter,
+        &self,
+        view_name: &str,
+        para: ShowTableParameter,
+        emit: QueryEventEmitter,
     ) -> anyhow::Result<()> {
         let ShowTableParameter {
             where_str,
@@ -913,7 +933,9 @@ impl SqlBuilder for LibSqlDB {
 }
 impl LibSqlDB {
     async fn create_table_or_view_sql(
-        &self, table_name: &str, kind: &str,
+        &self,
+        table_name: &str,
+        kind: &str,
     ) -> anyhow::Result<String> {
         let conn = self.get_conn().await?;
         let sql = format!(
@@ -942,7 +964,10 @@ impl LibSqlDB {
     }
 
     async fn export_table_as_sql(
-        &self, table_name: &str, para: Option<ShowTableParameter>, include_table_schema: bool,
+        &self,
+        table_name: &str,
+        para: Option<ShowTableParameter>,
+        include_table_schema: bool,
         sender: tokio::sync::mpsc::Sender<ExportFrame>,
     ) -> anyhow::Result<()> {
         if include_table_schema {

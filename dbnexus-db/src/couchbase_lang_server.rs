@@ -15,7 +15,12 @@ use crate::{
 
 impl LanguageServer for CouchBaseDB {
     async fn auto_completion(
-        &self, _query_id: Option<String>, sql: &str, line: u32, col: u32, _use_lexer: bool,
+        &self,
+        _query_id: Option<String>,
+        sql: &str,
+        line: u32,
+        col: u32,
+        _use_lexer: bool,
     ) -> anyhow::Result<crate::language_server::CompletionList> {
         let dot = LangServerCommon::try_completion_dot(self, sql, line, col).await;
         match dot {
@@ -26,7 +31,10 @@ impl LanguageServer for CouchBaseDB {
     }
 
     async fn ai_text_completion(
-        &self, sql: &str, line: u32, col: u32,
+        &self,
+        sql: &str,
+        line: u32,
+        col: u32,
     ) -> anyhow::Result<crate::language_server::CompletionList> {
         LexerCompletionTrait::ai_text_completion(self, sql, line, col).await
     }
@@ -80,7 +88,9 @@ impl LangServerCommon for CouchBaseDB {
     }
 
     async fn list_function(
-        &self, _schema: Option<&str>, include_build_in: bool,
+        &self,
+        _schema: Option<&str>,
+        include_build_in: bool,
     ) -> anyhow::Result<Vec<CompletionItem>> {
         let mut ret = vec![];
         // TODO user define function.
@@ -99,7 +109,10 @@ impl LangServerCommon for CouchBaseDB {
     }
 
     async fn list_column(
-        &self, schema: Option<&str>, name: &str, _is_call: Option<Vec<String>>,
+        &self,
+        schema: Option<&str>,
+        name: &str,
+        _is_call: Option<Vec<String>>,
     ) -> anyhow::Result<Vec<TempTableColumn>> {
         let schema = self.get_schema(schema);
         let bucket = self.get_bucket()?;

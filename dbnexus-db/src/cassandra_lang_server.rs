@@ -20,7 +20,10 @@ impl GetKeyWords for CassandraDB {
 #[async_trait::async_trait]
 impl LanguageServer for CassandraDB {
     async fn ai_text_completion(
-        &self, sql: &str, line: u32, col: u32,
+        &self,
+        sql: &str,
+        line: u32,
+        col: u32,
     ) -> anyhow::Result<CompletionList> {
         LexerCompletionTrait::ai_text_completion(self, sql, line, col).await
     }
@@ -33,7 +36,12 @@ impl LanguageServer for CassandraDB {
     }
 
     async fn auto_completion(
-        &self, query_id: Option<String>, sql: &str, line: u32, col: u32, _use_lexer: bool,
+        &self,
+        query_id: Option<String>,
+        sql: &str,
+        line: u32,
+        col: u32,
+        _use_lexer: bool,
     ) -> anyhow::Result<CompletionList> {
         self.completion_id.set_optional(query_id);
         let dot = self.try_completion_dot(sql, line, col).await;
@@ -126,7 +134,8 @@ impl LangServerCommon for CassandraDB {
     }
 
     async fn list_created_type(
-        &self, key_space: Option<&str>,
+        &self,
+        key_space: Option<&str>,
     ) -> anyhow::Result<Vec<CreatedTypeDef>> {
         let key_space = self.need_key_space(key_space).await?;
         self.list_created_types_impl(&key_space).await
@@ -138,7 +147,10 @@ impl LangServerCommon for CassandraDB {
         in sqlparser completion helper
     */
     async fn list_column(
-        &self, key_space: Option<&str>, table_name: &str, _is_call: Option<Vec<String>>,
+        &self,
+        key_space: Option<&str>,
+        table_name: &str,
+        _is_call: Option<Vec<String>>,
     ) -> anyhow::Result<Vec<TempTableColumn>> {
         let key_space = self.need_key_space(key_space).await?;
         // this sql can query view columns too.
@@ -165,7 +177,9 @@ impl LangServerCommon for CassandraDB {
         anyhow::Ok(result)
     }
     async fn list_function(
-        &self, key_space: Option<&str>, include_build_in: bool,
+        &self,
+        key_space: Option<&str>,
+        include_build_in: bool,
     ) -> anyhow::Result<Vec<CompletionItem>> {
         let mut ret = Vec::new();
         let key_space = self.need_key_space(key_space).await?;

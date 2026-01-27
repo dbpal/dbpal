@@ -28,13 +28,13 @@
 
 use crate::datasource_config::CassandraDBConfig;
 use crate::db::{
-    AutoCompletionQueryId, BackendKind, CheckConn, ColumnType, CreateIndexReq, CreateSchemaExtra,
-    CreateTableAndIndexSql, CreatedTypeDef, DBTrait, DefAndMetas, ExportFrame, ExportKind,
-    ExportQueryResult, Field, GetBackendKind, Index, IndexKind, ListTable, MetaValue, NamedStaff,
-    OptionMustBeSomeErr, QueryEventEmitter, QueryResp, QuerySql, ReadOnlyTrait, SchemaTrait,
-    ServerMetas, ShowTableParameter, SqlBuilder, UdfOrProcedureExtraParameter, XlsxEdit,
     create_html_table_data, create_html_table_header, create_markdown_data, create_markdown_header,
-    escape_sql_str, export_query_as_xlsx_send_data,
+    escape_sql_str, export_query_as_xlsx_send_data, AutoCompletionQueryId, BackendKind, CheckConn,
+    ColumnType, CreateIndexReq, CreateSchemaExtra, CreateTableAndIndexSql, CreatedTypeDef, DBTrait,
+    DefAndMetas, ExportFrame, ExportKind, ExportQueryResult, Field, GetBackendKind, Index,
+    IndexKind, ListTable, MetaValue, NamedStaff, OptionMustBeSomeErr, QueryEventEmitter, QueryResp,
+    QuerySql, ReadOnlyTrait, SchemaTrait, ServerMetas, ShowTableParameter, SqlBuilder,
+    UdfOrProcedureExtraParameter, XlsxEdit,
 };
 
 use crate::firebird::gen_show_sql;
@@ -414,7 +414,10 @@ impl ExportQueryResult for CassandraDB {
     }
 
     async fn export_query_result(
-        &self, query_id: Option<&str>, sql: &str, kind: ExportKind,
+        &self,
+        query_id: Option<&str>,
+        sql: &str,
+        kind: ExportKind,
         sender: tokio::sync::mpsc::Sender<ExportFrame>,
     ) -> anyhow::Result<()> {
         let session = self.get_session_by_query_id(query_id)?;
@@ -516,7 +519,9 @@ impl QuerySql for CassandraDB {
     }
 
     async fn execute_sql(
-        &self, query_id: &str, sql: &str,
+        &self,
+        query_id: &str,
+        sql: &str,
     ) -> anyhow::Result<Result<QueryResp, String>> {
         let conn = match self.query_connection.get(&query_id.to_string()) {
             Some(x) => x.clone(),
@@ -538,7 +543,10 @@ impl QuerySql for CassandraDB {
     }
 
     async fn query_sql(
-        &self, query_id: &str, sql: &str, emit: QueryEventEmitter,
+        &self,
+        query_id: &str,
+        sql: &str,
+        emit: QueryEventEmitter,
     ) -> anyhow::Result<()> {
         let conn = match self.query_connection.get(&query_id.to_string()) {
             Some(x) => x.clone(),
@@ -600,7 +608,10 @@ impl CassandraDB {
 }
 
 fn get_select_sql(
-    name: &str, cols: String, where_str: Option<&str>, order_by: Option<&str>,
+    name: &str,
+    cols: String,
+    where_str: Option<&str>,
+    order_by: Option<&str>,
     allow_filtering: bool,
 ) -> String {
     format!(
@@ -630,7 +641,10 @@ impl ReadOnlyTrait for CassandraDB {
 }
 impl CassandraDB {
     async fn export_table_as_sql(
-        &self, table_name: &str, para: Option<ShowTableParameter>, include_table_schema: bool,
+        &self,
+        table_name: &str,
+        para: Option<ShowTableParameter>,
+        include_table_schema: bool,
         sender: tokio::sync::mpsc::Sender<ExportFrame>,
     ) -> anyhow::Result<()> {
         if include_table_schema {
@@ -687,7 +701,8 @@ impl CassandraDB {
 
 impl CassandraDB {
     pub(crate) async fn list_materialized_view_impl(
-        &self, key_space: &str,
+        &self,
+        key_space: &str,
     ) -> anyhow::Result<Vec<ListTable>> {
         let sql =
             format!("select view_name from system_schema.views where keyspace_name='{key_space}'");
@@ -730,7 +745,8 @@ impl SqlBuilder for CassandraDB {
 
 impl CassandraDB {
     pub(crate) async fn list_created_types_impl(
-        &self, schema: &str,
+        &self,
+        schema: &str,
     ) -> anyhow::Result<Vec<CreatedTypeDef>> {
         let sql = format!(
             "SELECT type_name FROM system_schema.types where  keyspace_name = '{}'",
@@ -808,7 +824,10 @@ impl SchemaTrait for CassandraDB {
     }
 
     async fn export_table_or_view(
-        &self, name: &str, para: Option<ShowTableParameter>, kind: ExportKind,
+        &self,
+        name: &str,
+        para: Option<ShowTableParameter>,
+        kind: ExportKind,
         sender: tokio::sync::mpsc::Sender<ExportFrame>,
     ) -> anyhow::Result<()> {
         match kind {
@@ -863,7 +882,8 @@ impl SchemaTrait for CassandraDB {
     }
 
     async fn show_create_table_sql(
-        &self, table_name: &str,
+        &self,
+        table_name: &str,
     ) -> anyhow::Result<CreateTableAndIndexSql> {
         let sql = format!(r#"DESCRIBE TABLE "{table_name}""#);
         log::info!("sql:{}", sql);
@@ -963,7 +983,10 @@ impl SchemaTrait for CassandraDB {
     }
 
     async fn show_table(
-        &self, table_name: &str, para: ShowTableParameter, emit: QueryEventEmitter,
+        &self,
+        table_name: &str,
+        para: ShowTableParameter,
+        emit: QueryEventEmitter,
     ) -> anyhow::Result<()> {
         let ShowTableParameter {
             where_str,
@@ -1036,7 +1059,10 @@ impl SchemaTrait for CassandraDB {
     }
 
     async fn add_table_column(
-        &self, table: &str, name: &str, col: ColumnType,
+        &self,
+        table: &str,
+        name: &str,
+        col: ColumnType,
     ) -> anyhow::Result<()> {
         let sql = format!("ALTER TABLE {table} ADD {name} {}", col.typ);
         log::info!("sql:{}", sql);
@@ -1045,7 +1071,11 @@ impl SchemaTrait for CassandraDB {
     }
 
     async fn modify_table_column(
-        &self, table: &str, old_name: &str, new_name: &str, _typ: Option<ColumnType>,
+        &self,
+        table: &str,
+        old_name: &str,
+        new_name: &str,
+        _typ: Option<ColumnType>,
     ) -> anyhow::Result<()> {
         let sql = format!("ALTER TABLE {table} RENAME {old_name} TO {new_name}");
         log::info!("sql:{}", sql);
@@ -1061,7 +1091,10 @@ impl SchemaTrait for CassandraDB {
     }
 
     async fn show_view(
-        &self, view_name: &str, para: ShowTableParameter, status_emit: QueryEventEmitter,
+        &self,
+        view_name: &str,
+        para: ShowTableParameter,
+        status_emit: QueryEventEmitter,
     ) -> anyhow::Result<()> {
         self.show_table(view_name, para, status_emit).await
     }
@@ -1075,7 +1108,9 @@ impl SchemaTrait for CassandraDB {
     }
 
     async fn show_udf(
-        &self, name: &str, extra: Option<UdfOrProcedureExtraParameter>,
+        &self,
+        name: &str,
+        extra: Option<UdfOrProcedureExtraParameter>,
     ) -> anyhow::Result<DefAndMetas> {
         // add parameter to udf have this error
         // cassandra@cqlsh:test> DESCRIBE FUNCTION  test.test_udf(int);
@@ -1123,7 +1158,9 @@ impl SchemaTrait for CassandraDB {
     }
 
     async fn drop_udf(
-        &self, name: &str, extra: Option<UdfOrProcedureExtraParameter>,
+        &self,
+        name: &str,
+        extra: Option<UdfOrProcedureExtraParameter>,
     ) -> anyhow::Result<()> {
         let parameters = match &extra {
             Some(extra) => match &extra {
@@ -1225,7 +1262,9 @@ impl DBTrait for CassandraDB {
     }
 
     async fn create_schema(
-        &self, name: &str, extra: Option<CreateSchemaExtra>,
+        &self,
+        name: &str,
+        extra: Option<CreateSchemaExtra>,
     ) -> anyhow::Result<()> {
         self.can_write()?;
 
@@ -1295,8 +1334,8 @@ impl CassandraDB {
 #[cfg(test)]
 pub(crate) async fn make_test_object(db: Option<String>) -> CassandraDB {
     use crate::{
-        TEST_HOST,
         datasource_config::{CassandraSsl, SSLFiles},
+        TEST_HOST,
     };
     let ss = CassandraDB::new(CassandraDBConfig {
         host: TEST_HOST.to_string(),
@@ -1370,7 +1409,9 @@ impl CassandraDB {
     }
 
     pub async fn show_aggregate(
-        &self, name: &str, parameters: Vec<String>,
+        &self,
+        name: &str,
+        parameters: Vec<String>,
     ) -> anyhow::Result<DefAndMetas> {
         let sql = format!("DESCRIBE AGGREGATE  {name}");
         log::info!("sql:{}", sql);

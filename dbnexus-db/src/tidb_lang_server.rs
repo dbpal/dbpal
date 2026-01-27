@@ -31,7 +31,9 @@ impl TiDB {
     }
 
     pub(crate) async fn list_function(
-        &self, _schema: Option<&str>, include_build_in: bool,
+        &self,
+        _schema: Option<&str>,
+        include_build_in: bool,
     ) -> anyhow::Result<Vec<CompletionItem>> {
         if !include_build_in {
             return anyhow::Ok(vec![]);
@@ -804,12 +806,11 @@ mod tests {
         .await
         .unwrap()
         .unwrap();
-        assert!(
-            db.list_execute(None)
-                .await
-                .unwrap()
-                .iter()
-                .any(|x| x.name.eq("stmtxxx"))
-        );
+        assert!(db
+            .list_execute(None)
+            .await
+            .unwrap()
+            .iter()
+            .any(|x| x.name.eq("stmtxxx")));
     }
 }

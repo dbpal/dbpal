@@ -5,13 +5,21 @@ use crate::{bigquery::BigQueryDb, language_server::LanguageServer};
 
 impl LanguageServer for BigQueryDb {
     async fn auto_completion(
-        &self, query_id: Option<String>, sql: &str, line: u32, col: u32, use_lexer: bool,
+        &self,
+        query_id: Option<String>,
+        sql: &str,
+        line: u32,
+        col: u32,
+        use_lexer: bool,
     ) -> anyhow::Result<crate::language_server::CompletionList> {
         todo!()
     }
 
     async fn ai_text_completion(
-        &self, sql: &str, line: u32, col: u32,
+        &self,
+        sql: &str,
+        line: u32,
+        col: u32,
     ) -> anyhow::Result<crate::language_server::CompletionList> {
         todo!()
     }

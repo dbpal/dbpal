@@ -38,6 +38,7 @@ import {
   SavePageSize,
   secondConfirm,
   SetStatusFn,
+  SettingContext,
   shrinkAble,
   validJson,
 } from "./helper";
@@ -64,6 +65,7 @@ import { Panel, PanelGroup, PanelResizeHandle } from "react-resizable-panels";
 import { QueryLog } from "./QueryLog";
 import { ExportView } from "./Export";
 import { QueryResp } from "./QueryResp";
+
 type Data = {
   data: { data: string; id: string }[];
   count: number;
@@ -155,6 +157,7 @@ function CouchBaseTable(props: { uuid: string; table: string }) {
       };
     }
   }, [addModalBox]);
+
   const handleReload = useCallback(async () => {
     const c = new Channel<QueryEvent>(event => {
       switch (event.kind) {
@@ -171,6 +174,20 @@ function CouchBaseTable(props: { uuid: string; table: string }) {
           setResp(resp => {
             return { ...resp, data: [...resp.data, ...news] };
           });
+          queryStatus.current(`received ${news.length} rows`);
+          break;
+        }
+        case "status": {
+          queryStatus.current(event.status);
+          break;
+        }
+        case "err": {
+          showNotification("error", "load data failed", event.err);
+          break;
+        }
+        case "end": {
+          queryStatus.current("");
+          break;
         }
       }
     });
@@ -330,7 +347,7 @@ function CouchBaseTable(props: { uuid: string; table: string }) {
               }}
               warnModify
               handleValue={async newV => {
-                return invoke("table_update", {
+                await invoke("table_update", {
                   name: uuid,
                   tableName: table,
                   values: {
@@ -338,6 +355,14 @@ function CouchBaseTable(props: { uuid: string; table: string }) {
                     value: newV,
                   },
                   wheres: {},
+                });
+                setResp(resp => {
+                  return {
+                    count: resp.count,
+                    data: resp.data.map(e =>
+                      e.id == item.id ? { ...e, data: newV } : e,
+                    ),
+                  } as Data;
                 });
               }}
             />
@@ -458,24 +483,13 @@ function CouchBaseEditor(props: {
     viewMode,
     jsonTheme,
   } = props;
-
-  const [newValue, setNewValue] = useState(value);
+  const setting = useContext(SettingContext);
   const [jsonErr, setJsonErr] = useState<ErrAndLoc | null>(null);
   const { showNotification } = useContext(NotificationContext);
   const [jsonErrPos, setJsonErrPos] = useState<Position>(null);
-  const [jsonDoc, setJsonDoc] = useState(JSON.parse(value));
-  useEffect(() => {
-    (async () => {
-      try {
-        const x = await validJson(newValue);
-        setJsonErr(x);
-      } catch (e) {
-        showNotification("error", "call valid json failed", e);
-        return;
-      }
-    })();
-  }, [newValue, showNotification]);
+  const [newValue, setNewValue] = useState(value);
   const [loading, setLoading] = useState(false);
+
   const doModify = async () => {
     if (warnModify) {
       const confirm = await secondConfirm({ title: "sure to modify?" });
@@ -484,7 +498,7 @@ function CouchBaseEditor(props: {
       }
     }
     setLoading(true);
-    handleValue(viewMode == TableViewMode.Json ? JSON.stringify(jsonDoc) : newValue)
+    handleValue(newValue)
       .then(() => {
         showNotification("success", `${handleValueButton} OK`);
       })
@@ -514,13 +528,24 @@ function CouchBaseEditor(props: {
           });
       }
     : undefined;
+
+  const stringify = v => {
+    return JSON.stringify(v, null, setting.editor.tabSize);
+  };
   return (
     <Stack style={{ height: "100%", flex: 1 }}>
       {viewMode == TableViewMode.Editor && (
         <SimpleFlexEditor
           value={newValue}
-          handleValue={v => {
-            setNewValue(v);
+          handleValue={async newValue => {
+            try {
+              const x = await validJson(newValue);
+              setJsonErr(x);
+            } catch (e) {
+              showNotification("error", "call valid json failed", e);
+              return;
+            }
+            setNewValue(newValue);
           }}
           language="json"
           errPos={jsonErrPos}
@@ -547,31 +572,31 @@ function CouchBaseEditor(props: {
           onEdit={
             doModify
               ? ({ updated_src }) => {
-                  setJsonDoc(updated_src);
+                  setNewValue(stringify(updated_src));
                 }
               : undefined
           }
           onAdd={
             doModify
               ? ({ updated_src }) => {
-                  setJsonDoc(updated_src);
+                  setNewValue(stringify(updated_src));
                 }
               : undefined
           }
           onDelete={
             doModify
               ? ({ updated_src }) => {
-                  setJsonDoc(updated_src);
+                  setNewValue(stringify(updated_src));
                 }
               : undefined
           }
           theme={jsonTheme as ThemeKeys}
-          src={jsonDoc}
+          src={JSON.parse(newValue)}
           style={{ minHeight: "11rem" }}
         />
       )}
       <Stack direction="row">
-        {doModify && (
+        {doModify && !jsonErr && (
           <Button
             onClick={() => {
               doModify();
@@ -684,7 +709,7 @@ function CouchBaseQuery(props: {
   handleEditor: (ed: editor.IStandaloneCodeEditor) => void;
 }) {
   const { uuid, value, handleEditor } = props;
-  const [resp, setResp] = useState<string[]>([]);
+  const [resp, setResp] = useState<object[]>([]);
   const [loading, setLoading] = useState(false);
   const [gridColCount, setGridColCount] = useState(3);
   const [editor, setEditor] = useState<editor.IStandaloneCodeEditor>(null);
@@ -721,7 +746,7 @@ function CouchBaseQuery(props: {
       }
     }
     for (const row of resp) {
-      let obj = JSON.parse(row);
+      let obj = row;
       {
         const keys = Object.keys(obj);
         if (keys.length == 1 && typeof obj[keys[0]] == "object") {
@@ -766,19 +791,29 @@ function CouchBaseQuery(props: {
     }
     setLoading(true);
     setResp([]);
-    let c = new Channel<QueryEvent>(e => {
-      switch (e.kind) {
+    let c = new Channel<QueryEvent>(event => {
+      switch (event.kind) {
         case "structure": {
-          console.error("server should not emit this.", e);
+          console.error("server should not emit this.", event);
           break;
         }
         case "data": {
-          const xs = e.data.map(x => x[0]);
+          const xs = event.data.map(x => JSON.parse(x[0]));
           setResp(resp => {
             return [...resp, ...xs];
           });
+          queryStatus.current?.(`receive ${xs.length} rows`);
           break;
         }
+        case "err":
+          showNotification("error", "query failed", event.err);
+          break;
+        case "end":
+          queryStatus.current?.("");
+          break;
+        case "status":
+          queryStatus.current?.(event.status);
+          break;
       }
     });
     invoke("query_sql", {
@@ -800,7 +835,6 @@ function CouchBaseQuery(props: {
         setExecuteTimes(e => e + 1);
       });
   };
-
   return (
     <PanelGroup
       style={{ height: "100%" }}
@@ -941,7 +975,6 @@ function CouchBaseQuery(props: {
           }}
         />
       </Panel>
-
       <PanelResizeHandle
         style={{
           height: resizeHandlerSize,
@@ -960,14 +993,10 @@ function CouchBaseQuery(props: {
               paddingRight: "1.2rem",
             }}
           >
-            {resp.map((jsonStr, index) => {
+            {resp.map((obj, index) => {
               return (
                 <div key={index}>
-                  <ReactJsonView
-                    src={JSON.parse(jsonStr)}
-                    key={index}
-                    theme={jsonEditorTheme as any}
-                  />
+                  <ReactJsonView src={obj} key={index} theme={jsonEditorTheme as any} />
                   <Divider />
                 </div>
               );
@@ -976,7 +1005,6 @@ function CouchBaseQuery(props: {
         )}
         {viewMode == QueryViewMode.Table && tableResp && <QueryResp data={tableResp} />}
       </Panel>
-
       {showExport && (
         <Modal
           open={showExport}

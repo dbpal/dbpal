@@ -26,7 +26,7 @@ mod tests {
         use dbnexus_db::redis::RedisListTable;
         use std::path::Path;
         use typescript_type_def::{
-            DefinitionFileOptions, TypeDef, write_definition_file_from_type_infos,
+            write_definition_file_from_type_infos, DefinitionFileOptions, TypeDef,
         };
 
         use crate::app::{self};

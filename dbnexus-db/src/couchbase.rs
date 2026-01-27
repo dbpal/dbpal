@@ -102,7 +102,10 @@ impl ServerMetas for CouchBaseDB {
 
 impl QuerySql for CouchBaseDB {
     async fn query_sql(
-        &self, _query_id: &str, sql: &str, emit: QueryEventEmitter,
+        &self,
+        _query_id: &str,
+        sql: &str,
+        emit: QueryEventEmitter,
     ) -> anyhow::Result<()> {
         let scope = self.get_scope()?;
         let mut query_result = scope.query(sql, None).await?;
@@ -116,7 +119,9 @@ impl QuerySql for CouchBaseDB {
     }
 
     async fn execute_sql(
-        &self, _query_id: &str, _sql: &str,
+        &self,
+        _query_id: &str,
+        _sql: &str,
     ) -> anyhow::Result<Result<crate::db::QueryResp, String>> {
         self.backend_name().not_support_feature()
     }
@@ -160,7 +165,11 @@ fn extract_id_and_value(
 }
 
 fn gen_show_sql(
-    table: &str, where_str: Option<&str>, order_by: Option<&str>, page: usize, page_size: usize,
+    table: &str,
+    where_str: Option<&str>,
+    order_by: Option<&str>,
+    page: usize,
+    page_size: usize,
 ) -> String {
     let mut sql = format!("SELECT META().id, * FROM `{table}`");
     if let Some(w) = where_str {
@@ -175,7 +184,9 @@ fn gen_show_sql(
 
 impl CouchBaseDB {
     pub(crate) async fn query_count(
-        &self, table: &str, where_str: Option<&str>,
+        &self,
+        table: &str,
+        where_str: Option<&str>,
     ) -> anyhow::Result<usize> {
         let mut sql = format!("SELECT COUNT(*) as count FROM `{}`", table);
         if let Some(x) = where_str {
@@ -200,8 +211,7 @@ impl CouchBaseDB {
                 }
             };
         }
-
-        unimplemented!()
+        anyhow::Ok(0)
     }
 }
 
@@ -233,20 +243,20 @@ impl SchemaTrait for CouchBaseDB {
     }
 
     async fn table_insert(
-        &self, table_name: &str, values: HashMap<String, Option<String>>,
+        &self,
+        table_name: &str,
+        values: HashMap<String, Option<String>>,
     ) -> anyhow::Result<Option<usize>> {
         let scope = self.get_scope()?;
         let (id, value) = extract_id_and_value(&values)?;
-        scope
-            .collection(table_name)
-            .insert(id, value, None)
-            .await
-            .unwrap();
+        scope.collection(table_name).insert(id, value, None).await?;
         anyhow::Ok(None)
     }
 
     async fn table_update(
-        &self, table_name: &str, values: HashMap<String, Option<String>>,
+        &self,
+        table_name: &str,
+        values: HashMap<String, Option<String>>,
         _wheres: HashMap<String, Option<String>>,
     ) -> anyhow::Result<Option<usize>> {
         let (id, value) = extract_id_and_value(&values)?;
@@ -272,8 +282,7 @@ impl SchemaTrait for CouchBaseDB {
         let s = self.get_scope()?;
         let mut resp = s
             .query(format!("select META().id,* from `{table}`"), None)
-            .await
-            .unwrap();
+            .await?;
         let mut rows = resp.rows::<'_, serde_json::Map<String, Value>>();
 
         while let Some(value) = rows.next().await {
@@ -296,7 +305,9 @@ impl SchemaTrait for CouchBaseDB {
     }
 
     async fn table_delete(
-        &self, table_name: &str, mut wheres: HashMap<String, Option<String>>,
+        &self,
+        table_name: &str,
+        mut wheres: HashMap<String, Option<String>>,
     ) -> anyhow::Result<Option<usize>> {
         let id = wheres.remove("id").unwrap_or_default().unwrap_or_default();
         let scope = self.get_scope()?;
@@ -317,7 +328,10 @@ impl SchemaTrait for CouchBaseDB {
     }
 
     async fn show_table(
-        &self, table_name: &str, para: ShowTableParameter, emit: QueryEventEmitter,
+        &self,
+        table_name: &str,
+        para: ShowTableParameter,
+        emit: QueryEventEmitter,
     ) -> anyhow::Result<()> {
         let ShowTableParameter {
             where_str,
@@ -409,7 +423,10 @@ impl ExportQueryResult for CouchBaseDB {
     }
 
     async fn export_query_result(
-        &self, _query_id: Option<&str>, sql: &str, kind: ExportKind,
+        &self,
+        _query_id: Option<&str>,
+        sql: &str,
+        kind: ExportKind,
         sender: tokio::sync::mpsc::Sender<crate::db::ExportFrame>,
     ) -> anyhow::Result<()> {
         let s = self.get_scope()?;
@@ -467,7 +484,9 @@ impl DBTrait for CouchBaseDB {
     }
 
     async fn create_schema(
-        &self, name: &str, _extra: Option<crate::db::CreateSchemaExtra>,
+        &self,
+        name: &str,
+        _extra: Option<crate::db::CreateSchemaExtra>,
     ) -> anyhow::Result<()> {
         self.get_bucket()?
             .collections()
@@ -504,7 +523,9 @@ impl CatalogTrait for CouchBaseDB {
     }
 
     async fn create_database(
-        &self, name: &str, extra: Option<CreateDatabaseExtra>,
+        &self,
+        name: &str,
+        extra: Option<CreateDatabaseExtra>,
     ) -> anyhow::Result<()> {
         let setting = match extra {
             Some(CreateDatabaseExtra::Couchbase {
@@ -523,7 +544,7 @@ impl CatalogTrait for CouchBaseDB {
                 }
                 let ty = match bucket_type {
                     CouchBaseBucketType::Couchbase => BucketType::COUCHBASE,
-                    CouchBaseBucketType::EPHEMERAL => BucketType::EPHEMERAL,
+                    CouchBaseBucketType::Ephemeral => BucketType::EPHEMERAL,
                 };
                 setting = setting.bucket_type(ty);
                 setting

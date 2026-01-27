@@ -79,6 +79,7 @@ import { CouchBaseTable } from "./CouchBase";
 function TablesTree(props: { typ: TableType }) {
   const { typ } = props;
   const { uuid } = useContext(UuidContext);
+  const { kind } = useContext(ConnTypeContext);
   const [tables, setTables] = useState<types.ListTable[]>([]);
   const { showNotification } = useContext(NotificationContext);
   const [loading, setLoading] = useState(false);
@@ -108,14 +109,23 @@ function TablesTree(props: { typ: TableType }) {
   const { setUpMenu } = useContext(ContextMenuContext);
 
   let tablesText;
-  switch (typ) {
-    case TableType.Normal:
-      tablesText = "tables";
+
+  switch (kind) {
+    case DataSourceKind.CouchBase:
+      tablesText = "collections";
       break;
-    case TableType.MongoTimeSerial:
-      tablesText = "time serial";
-      break;
+    default: {
+      switch (typ) {
+        case TableType.Normal:
+          tablesText = "tables";
+          break;
+        case TableType.MongoTimeSerial:
+          tablesText = "time serial";
+          break;
+      }
+    }
   }
+
   const tablesId = useRef(generateRandomString());
   return (
     <TreeItem
@@ -461,14 +471,12 @@ function TableMenu(props: {
         new TabContent(
           id,
           `${table}*`,
-          (
-            <AddTableView
-              uuid={uuid}
-              kind={kind}
-              table={table}
-              redisTableType={redisTableType}
-            />
-          ),
+          <AddTableView
+            uuid={uuid}
+            kind={kind}
+            table={table}
+            redisTableType={redisTableType}
+          />,
           <TableViewIcon className="tab-icon-size" />,
         ),
       ];

@@ -1,11 +1,11 @@
 use crate::datasource_config::ClickHouseConfig;
 use crate::db::{
-    BackendKind, CheckConn, ColumnType, CreateSchemaExtra, CreateTableAndIndexSql, DBTrait,
-    DefAndMetas, ExportFrame, ExportKind, ExportQueryResult, Field, GetBackendKind, ListTable,
-    MetaValue, NamedStaff, OptionMustBeSomeErr, QueryEvent, QueryEventEmitter, QueryResp, QuerySql,
-    ReadOnlyTrait, SchemaTrait, ServerMetas, ShowTableParameter, SqlBuilder,
-    UdfOrProcedureExtraParameter, XlsxEdit, create_html_table_data, create_html_table_header,
-    create_markdown_data, create_markdown_header, escape_sql_str, ty_is_float, ty_is_int,
+    create_html_table_data, create_html_table_header, create_markdown_data, create_markdown_header,
+    escape_sql_str, ty_is_float, ty_is_int, BackendKind, CheckConn, ColumnType, CreateSchemaExtra,
+    CreateTableAndIndexSql, DBTrait, DefAndMetas, ExportFrame, ExportKind, ExportQueryResult,
+    Field, GetBackendKind, ListTable, MetaValue, NamedStaff, OptionMustBeSomeErr, QueryEvent,
+    QueryEventEmitter, QueryResp, QuerySql, ReadOnlyTrait, SchemaTrait, ServerMetas,
+    ShowTableParameter, SqlBuilder, UdfOrProcedureExtraParameter, XlsxEdit,
 };
 
 use crate::helper::separate_sql_by_sqlparser_tokenizer;
@@ -29,7 +29,10 @@ impl GetBackendKind for ClickHouseDB {
 
 impl ClickHouseDB {
     async fn export_table_as_sql(
-        &self, table_name: &str, para: Option<ShowTableParameter>, include_table_schema: bool,
+        &self,
+        table_name: &str,
+        para: Option<ShowTableParameter>,
+        include_table_schema: bool,
         sender: tokio::sync::mpsc::Sender<ExportFrame>,
     ) -> anyhow::Result<()> {
         if include_table_schema {
@@ -89,8 +92,13 @@ impl ClickHouseDB {
 }
 
 fn gen_show_sql(
-    schema: &str, table_name: &str, fields: Option<String>, where_str: Option<&str>,
-    order_by: Option<&str>, page: usize, page_size: usize,
+    schema: &str,
+    table_name: &str,
+    fields: Option<String>,
+    where_str: Option<&str>,
+    order_by: Option<&str>,
+    page: usize,
+    page_size: usize,
 ) -> String {
     let mut sql = format!(
         "SELECT {} from `{schema}`.`{table_name}`",
@@ -129,7 +137,8 @@ impl ClickHouseDB {
     }
 
     pub(crate) async fn list_materialized_view_impl(
-        &self, db: &str,
+        &self,
+        db: &str,
     ) -> anyhow::Result<Vec<ListTable>> {
         let sql = format!(
             r#"
@@ -195,7 +204,8 @@ impl SchemaTrait for ClickHouseDB {
     }
 
     async fn show_create_table_sql(
-        &self, table_name: &str,
+        &self,
+        table_name: &str,
     ) -> anyhow::Result<CreateTableAndIndexSql> {
         let sql = format!(r#"SHOW CREATE TABLE `{table_name}`"#);
         log::info!("sql:{}", sql);
@@ -208,7 +218,10 @@ impl SchemaTrait for ClickHouseDB {
     }
 
     async fn export_table_or_view(
-        &self, name: &str, para: Option<ShowTableParameter>, kind: ExportKind,
+        &self,
+        name: &str,
+        para: Option<ShowTableParameter>,
+        kind: ExportKind,
         sender: tokio::sync::mpsc::Sender<ExportFrame>,
     ) -> anyhow::Result<()> {
         match kind {
@@ -392,7 +405,10 @@ impl SchemaTrait for ClickHouseDB {
     }
 
     async fn show_table(
-        &self, table_name: &str, para: ShowTableParameter, emit: QueryEventEmitter,
+        &self,
+        table_name: &str,
+        para: ShowTableParameter,
+        emit: QueryEventEmitter,
     ) -> anyhow::Result<()> {
         let ShowTableParameter {
             where_str,
@@ -442,7 +458,10 @@ impl SchemaTrait for ClickHouseDB {
     }
 
     async fn show_view(
-        &self, view_name: &str, para: ShowTableParameter, emit: QueryEventEmitter,
+        &self,
+        view_name: &str,
+        para: ShowTableParameter,
+        emit: QueryEventEmitter,
     ) -> anyhow::Result<()> {
         let ShowTableParameter {
             where_str,
@@ -512,7 +531,11 @@ impl SchemaTrait for ClickHouseDB {
     }
 
     async fn modify_table_column(
-        &self, table: &str, old_name: &str, new_name: &str, typ: Option<ColumnType>,
+        &self,
+        table: &str,
+        old_name: &str,
+        new_name: &str,
+        typ: Option<ColumnType>,
     ) -> anyhow::Result<()> {
         if old_name != new_name {
             let sql = format!(
@@ -551,7 +574,10 @@ impl SchemaTrait for ClickHouseDB {
     }
 
     async fn add_table_column(
-        &self, table: &str, name: &str, col: ColumnType,
+        &self,
+        table: &str,
+        name: &str,
+        col: ColumnType,
     ) -> anyhow::Result<()> {
         let mut sql = format!(
             r#"ALTER TABLE `{table}`
@@ -580,7 +606,9 @@ impl SchemaTrait for ClickHouseDB {
     }
 
     async fn show_udf(
-        &self, name: &str, _arg: Option<UdfOrProcedureExtraParameter>,
+        &self,
+        name: &str,
+        _arg: Option<UdfOrProcedureExtraParameter>,
     ) -> anyhow::Result<DefAndMetas> {
         let sql = format!(
             r#"SELECT create_query from system.functions where origin = 'SQLUserDefined' and  name='{name}'"#
@@ -594,7 +622,9 @@ impl SchemaTrait for ClickHouseDB {
     }
 
     async fn drop_udf(
-        &self, name: &str, _extra: Option<UdfOrProcedureExtraParameter>,
+        &self,
+        name: &str,
+        _extra: Option<UdfOrProcedureExtraParameter>,
     ) -> anyhow::Result<()> {
         let sql = format!("DROP FUNCTION `{name}`",);
 
@@ -605,7 +635,10 @@ impl SchemaTrait for ClickHouseDB {
 
 impl ClickHouseDB {
     async fn query_count(
-        &self, db: &str, name: &str, where_str: Option<&str>,
+        &self,
+        db: &str,
+        name: &str,
+        where_str: Option<&str>,
     ) -> anyhow::Result<usize> {
         let mut sql = format!(r#"SELECT count(1) FROM `{db}`.`{name}` "#);
         if let Some(where_str) = where_str {
@@ -665,7 +698,10 @@ impl ServerMetas for ClickHouseDB {
 
 impl ClickHouseDB {
     async fn export_query_result_as_csv(
-        &self, sql: &str, include_header: bool, delimiter: char,
+        &self,
+        sql: &str,
+        include_header: bool,
+        delimiter: char,
         sender: tokio::sync::mpsc::Sender<ExportFrame>,
     ) -> anyhow::Result<()> {
         let resp = self
@@ -689,7 +725,10 @@ impl ClickHouseDB {
     }
 
     async fn export_query_result_as_html(
-        &self, sql: &str, include_header: bool, sender: tokio::sync::mpsc::Sender<ExportFrame>,
+        &self,
+        sql: &str,
+        include_header: bool,
+        sender: tokio::sync::mpsc::Sender<ExportFrame>,
     ) -> anyhow::Result<()> {
         let mut stream = self.query_row(sql).await?;
         while let Some(row) = stream.next().await {
@@ -715,7 +754,9 @@ impl ClickHouseDB {
     }
 
     async fn export_query_result_as_md(
-        &self, sql: &str, sender: tokio::sync::mpsc::Sender<ExportFrame>,
+        &self,
+        sql: &str,
+        sender: tokio::sync::mpsc::Sender<ExportFrame>,
     ) -> anyhow::Result<()> {
         let mut stream = self.query_row(sql).await?;
         while let Some(row) = stream.next().await {
@@ -738,7 +779,9 @@ impl ClickHouseDB {
     }
 
     async fn export_query_result_as_json(
-        &self, sql: &str, sender: tokio::sync::mpsc::Sender<ExportFrame>,
+        &self,
+        sql: &str,
+        sender: tokio::sync::mpsc::Sender<ExportFrame>,
     ) -> anyhow::Result<()> {
         let mut stream = self.query_as_text_line(sql, "JSONEachRow", None).await?;
         while let Some(data) = stream.next().await {
@@ -750,7 +793,9 @@ impl ClickHouseDB {
     }
 
     async fn export_query_result_as_json_line(
-        &self, sql: &str, sender: tokio::sync::mpsc::Sender<ExportFrame>,
+        &self,
+        sql: &str,
+        sender: tokio::sync::mpsc::Sender<ExportFrame>,
     ) -> anyhow::Result<()> {
         let mut stream = self
             .query_as_response(sql, "JSONEachRow", None)
@@ -766,7 +811,10 @@ impl ClickHouseDB {
 
 impl ClickHouseDB {
     async fn export_query_result_as_xlsx(
-        &self, sql: &str, include_header: bool, sender: tokio::sync::mpsc::Sender<ExportFrame>,
+        &self,
+        sql: &str,
+        include_header: bool,
+        sender: tokio::sync::mpsc::Sender<ExportFrame>,
     ) -> anyhow::Result<()> {
         let mut stream = self.query_row(sql).await?;
         let mut row_number = 0;
@@ -821,7 +869,10 @@ impl ExportQueryResult for ClickHouseDB {
     }
 
     async fn export_query_result(
-        &self, _query_id: Option<&str>, sql: &str, kind: ExportKind,
+        &self,
+        _query_id: Option<&str>,
+        sql: &str,
+        kind: ExportKind,
         sender: tokio::sync::mpsc::Sender<ExportFrame>,
     ) -> anyhow::Result<()> {
         match kind {
@@ -872,7 +923,9 @@ impl QuerySql for ClickHouseDB {
         anyhow::Ok(None)
     }
     async fn execute_sql(
-        &self, _query_id: &str, sql: &str,
+        &self,
+        _query_id: &str,
+        sql: &str,
     ) -> anyhow::Result<Result<QueryResp, String>> {
         self.not_allow_switch_db(sql)?;
 
@@ -884,7 +937,10 @@ impl QuerySql for ClickHouseDB {
     }
 
     async fn query_sql(
-        &self, _query_id: &str, sql: &str, emit: QueryEventEmitter,
+        &self,
+        _query_id: &str,
+        sql: &str,
+        emit: QueryEventEmitter,
     ) -> anyhow::Result<()> {
         self.not_allow_switch_db(sql)?;
         let dialect = sqlparser::dialect::ClickHouseDialect {};
@@ -1008,7 +1064,9 @@ impl DBTrait for ClickHouseDB {
     }
 
     async fn create_schema(
-        &self, name: &str, _extra: Option<CreateSchemaExtra>,
+        &self,
+        name: &str,
+        _extra: Option<CreateSchemaExtra>,
     ) -> anyhow::Result<()> {
         self.can_write()?;
         let sql = format!("CREATE DATABASE IF NOT EXISTS {name};");
@@ -1123,7 +1181,8 @@ pub enum FieldsOrData {
 
 impl ClickHouseDB {
     pub(crate) async fn query_row(
-        &'_ self, query: &str,
+        &'_ self,
+        query: &str,
     ) -> anyhow::Result<BoxStream<'_, anyhow::Result<FieldsOrData>>> {
         let stream = self
             .query_as_text_line(query, "JSONCompactEachRowWithNamesAndTypes", None)
@@ -1163,7 +1222,10 @@ impl ClickHouseDB {
     }
 
     pub(crate) async fn query_as_text_line(
-        &'_ self, query: &str, format: &str, http_extra: Option<String>,
+        &'_ self,
+        query: &str,
+        format: &str,
+        http_extra: Option<String>,
     ) -> anyhow::Result<BoxStream<'_, Result<String, std::io::Error>>> {
         use tokio_stream::wrappers::LinesStream;
         let res = self.query_as_response(query, format, http_extra).await?;
@@ -1175,7 +1237,10 @@ impl ClickHouseDB {
     }
 
     pub(crate) async fn query_as_response(
-        &self, query: &str, format: &str, http_extra: Option<String>,
+        &self,
+        query: &str,
+        format: &str,
+        http_extra: Option<String>,
     ) -> anyhow::Result<Response> {
         let host = format!(
             "http{}://{}:{}",
@@ -1229,7 +1294,10 @@ impl SqlBuilder for ClickHouseDB {
         CH_CURRENT_LITERALS
     }
     fn update_sql(
-        &self, table_name: &str, fs: &[Field], values: &HashMap<String, Option<String>>,
+        &self,
+        table_name: &str,
+        fs: &[Field],
+        values: &HashMap<String, Option<String>>,
         wheres: &HashMap<String, Option<String>>,
     ) -> anyhow::Result<String> {
         //

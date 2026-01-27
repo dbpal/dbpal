@@ -98,7 +98,9 @@ impl DBTrait for SubDB {
     }
 
     async fn create_schema(
-        &self, name: &str, extra: Option<CreateSchemaExtra>,
+        &self,
+        name: &str,
+        extra: Option<CreateSchemaExtra>,
     ) -> anyhow::Result<()> {
         self.as_db_trait().create_schema(name, extra).await
     }
@@ -134,7 +136,9 @@ impl CatalogTrait for SubDB {
     }
 
     async fn create_database(
-        &self, name: &str, extra: Option<CreateDatabaseExtra>,
+        &self,
+        name: &str,
+        extra: Option<CreateDatabaseExtra>,
     ) -> anyhow::Result<()> {
         match self {
             SubDB::CocoRoach(db) => db.create_database(name, extra).await,
@@ -191,7 +195,10 @@ impl ExportQueryResult for SubDB {
     }
 
     async fn export_query_result(
-        &self, query_id: Option<&str>, _sql: &str, _kind: ExportKind,
+        &self,
+        query_id: Option<&str>,
+        _sql: &str,
+        _kind: ExportKind,
         _sender: tokio::sync::mpsc::Sender<ExportFrame>,
     ) -> anyhow::Result<()> {
         self.as_export_query_result()
@@ -226,13 +233,18 @@ impl QuerySql for SubDB {
     }
 
     async fn query_sql(
-        &self, query_id: &str, sql: &str, emit: QueryEventEmitter,
+        &self,
+        query_id: &str,
+        sql: &str,
+        emit: QueryEventEmitter,
     ) -> anyhow::Result<()> {
         self.as_query_sql().query_sql(query_id, sql, emit).await
     }
 
     async fn execute_sql(
-        &self, query_id: &str, sql: &str,
+        &self,
+        query_id: &str,
+        sql: &str,
     ) -> anyhow::Result<Result<QueryResp, String>> {
         self.as_query_sql().execute_sql(query_id, sql).await
     }
@@ -299,7 +311,10 @@ impl SchemaTrait for SubDB {
         self.as_schema().show_table_columns(table_name).await
     }
     async fn show_table(
-        &self, table_name: &str, para: ShowTableParameter, status_emit: QueryEventEmitter,
+        &self,
+        table_name: &str,
+        para: ShowTableParameter,
+        status_emit: QueryEventEmitter,
     ) -> anyhow::Result<()> {
         self.as_schema()
             .show_table(table_name, para, status_emit)
@@ -307,12 +322,16 @@ impl SchemaTrait for SubDB {
     }
 
     async fn table_insert_sql(
-        &self, table_name: &str, values: HashMap<String, Option<String>>,
+        &self,
+        table_name: &str,
+        values: HashMap<String, Option<String>>,
     ) -> anyhow::Result<String> {
         self.as_schema().table_insert_sql(table_name, values).await
     }
     async fn table_update_sql(
-        &self, table_name: &str, values: HashMap<String, Option<String>>,
+        &self,
+        table_name: &str,
+        values: HashMap<String, Option<String>>,
         wheres: HashMap<String, Option<String>>,
     ) -> anyhow::Result<String> {
         self.as_schema()
@@ -321,7 +340,9 @@ impl SchemaTrait for SubDB {
     }
 
     async fn table_update(
-        &self, table_name: &str, values: HashMap<String, Option<String>>,
+        &self,
+        table_name: &str,
+        values: HashMap<String, Option<String>>,
         wheres: HashMap<String, Option<String>>,
     ) -> anyhow::Result<Option<usize>> {
         self.as_schema()
@@ -358,20 +379,30 @@ impl SchemaTrait for SubDB {
         self.as_schema().drop_table_column(_table, col).await
     }
     async fn modify_table_column(
-        &self, table: &str, old_name: &str, new_name: &str, typ: Option<ColumnType>,
+        &self,
+        table: &str,
+        old_name: &str,
+        new_name: &str,
+        typ: Option<ColumnType>,
     ) -> anyhow::Result<()> {
         self.as_schema()
             .modify_table_column(table, old_name, new_name, typ)
             .await
     }
     async fn add_table_column(
-        &self, table: &str, name: &str, col: ColumnType,
+        &self,
+        table: &str,
+        name: &str,
+        col: ColumnType,
     ) -> anyhow::Result<()> {
         self.as_schema().add_table_column(table, name, col).await
     }
 
     async fn rename_index(
-        &self, table_name: &str, _oldname: &str, newname: &str,
+        &self,
+        table_name: &str,
+        _oldname: &str,
+        newname: &str,
     ) -> anyhow::Result<()> {
         self.as_schema()
             .rename_index(table_name, _oldname, newname)
@@ -399,7 +430,10 @@ impl SchemaTrait for SubDB {
     }
 
     async fn export_table_or_view(
-        &self, name: &str, para: Option<ShowTableParameter>, kind: ExportKind,
+        &self,
+        name: &str,
+        para: Option<ShowTableParameter>,
+        kind: ExportKind,
         sender: tokio::sync::mpsc::Sender<ExportFrame>,
     ) -> anyhow::Result<()> {
         self.as_schema()
@@ -408,7 +442,10 @@ impl SchemaTrait for SubDB {
     }
 
     async fn show_view(
-        &self, _view_name: &str, para: ShowTableParameter, status_emit: QueryEventEmitter,
+        &self,
+        _view_name: &str,
+        para: ShowTableParameter,
+        status_emit: QueryEventEmitter,
     ) -> anyhow::Result<()> {
         self.as_schema()
             .show_view(_view_name, para, status_emit)
@@ -420,8 +457,12 @@ impl SchemaTrait for SubDB {
     }
 
     async fn export_table_or_view_to_file(
-        &self, table_name: &str, para: Option<ShowTableParameter>, filepath: &str,
-        kind: ExportKind, emit: ExportedSizeEmitter,
+        &self,
+        table_name: &str,
+        para: Option<ShowTableParameter>,
+        filepath: &str,
+        kind: ExportKind,
+        emit: ExportedSizeEmitter,
     ) -> anyhow::Result<()> {
         self.as_schema()
             .export_table_or_view_to_file(table_name, para, filepath, kind, emit)
@@ -429,7 +470,8 @@ impl SchemaTrait for SubDB {
     }
 
     async fn show_create_table_sql(
-        &self, _table_name: &str,
+        &self,
+        _table_name: &str,
     ) -> anyhow::Result<CreateTableAndIndexSql> {
         self.as_schema().show_create_table_sql(_table_name).await
     }
@@ -462,13 +504,17 @@ impl SchemaTrait for SubDB {
     }
 
     async fn show_udf(
-        &self, name: &str, arg: Option<UdfOrProcedureExtraParameter>,
+        &self,
+        name: &str,
+        arg: Option<UdfOrProcedureExtraParameter>,
     ) -> anyhow::Result<DefAndMetas> {
         self.as_schema().show_udf(name, arg).await
     }
 
     async fn drop_udf(
-        &self, name: &str, extra: Option<UdfOrProcedureExtraParameter>,
+        &self,
+        name: &str,
+        extra: Option<UdfOrProcedureExtraParameter>,
     ) -> anyhow::Result<()> {
         self.as_schema().drop_udf(name, extra).await
     }
@@ -477,12 +523,16 @@ impl SchemaTrait for SubDB {
         self.as_schema().list_procedure().await
     }
     async fn show_procedure(
-        &self, name: &str, arg: Option<UdfOrProcedureExtraParameter>,
+        &self,
+        name: &str,
+        arg: Option<UdfOrProcedureExtraParameter>,
     ) -> anyhow::Result<ProcedureDetail> {
         self.as_schema().show_procedure(name, arg).await
     }
     async fn drop_procedure(
-        &self, name: &str, arg: Option<UdfOrProcedureExtraParameter>,
+        &self,
+        name: &str,
+        arg: Option<UdfOrProcedureExtraParameter>,
     ) -> anyhow::Result<()> {
         self.as_schema().drop_procedure(name, arg).await
     }
@@ -500,7 +550,9 @@ impl SchemaTrait for SubDB {
 
     #[cfg(test)]
     async fn export_table_to_string(
-        &self, table_name: &str, kind: ExportKind,
+        &self,
+        table_name: &str,
+        kind: ExportKind,
     ) -> anyhow::Result<String> {
         self.as_schema()
             .export_table_to_string(table_name, kind)

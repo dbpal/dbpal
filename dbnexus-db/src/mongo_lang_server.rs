@@ -1,5 +1,5 @@
 use futures_util::StreamExt;
-use mongodb::bson::{Bson, Document, doc};
+use mongodb::bson::{doc, Bson, Document};
 use mongodb::options::Hint;
 use mongodb::results::{
     CreateIndexResult, DeleteResult, InsertManyResult, InsertOneResult, UpdateResult,
@@ -21,7 +21,10 @@ impl SqlBuilder for MongoDB {
 #[async_trait::async_trait]
 impl LanguageServer for MongoDB {
     async fn ai_text_completion(
-        &self, text: &str, _line: u32, _col: u32,
+        &self,
+        text: &str,
+        _line: u32,
+        _col: u32,
     ) -> anyhow::Result<CompletionList> {
         let db = self.get_db().await?;
         let tables = db.list_collection_names().await?;
@@ -52,7 +55,12 @@ impl LanguageServer for MongoDB {
     }
 
     async fn auto_completion(
-        &self, _query_id: Option<String>, _sql: &str, _line: u32, _col: u32, _use_lexer: bool,
+        &self,
+        _query_id: Option<String>,
+        _sql: &str,
+        _line: u32,
+        _col: u32,
+        _use_lexer: bool,
     ) -> anyhow::Result<crate::language_server::CompletionList> {
         self.backend_name().not_support_feature()
     }
@@ -93,7 +101,9 @@ impl MongoDB {
     }
 
     pub async fn query_collection_create_index(
-        &self, col: &str, keys: Document,
+        &self,
+        col: &str,
+        keys: Document,
     ) -> anyhow::Result<CreateIndexResult> {
         let mut index_model = IndexModel::default();
         index_model.keys = keys;
@@ -107,7 +117,10 @@ impl MongoDB {
     }
 
     pub async fn query_collection_create_search_index(
-        &self, col: &str, keys: Document, name: Option<String>,
+        &self,
+        col: &str,
+        keys: Document,
+        name: Option<String>,
     ) -> anyhow::Result<String> {
         let mut index_model = SearchIndexModel::default();
         index_model.definition = keys;
@@ -121,7 +134,9 @@ impl MongoDB {
     }
 
     pub async fn query_collection_delete_many(
-        &self, col: &str, query: Document,
+        &self,
+        col: &str,
+        query: Document,
     ) -> anyhow::Result<DeleteResult> {
         let db = self.get_db().await?;
         let c = db.collection::<Document>(col).delete_many(query).await?;
@@ -129,7 +144,9 @@ impl MongoDB {
     }
 
     pub async fn query_collection_delete_one(
-        &self, col: &str, query: Document,
+        &self,
+        col: &str,
+        query: Document,
     ) -> anyhow::Result<DeleteResult> {
         let db = self.get_db().await?;
         let c = db.collection::<Document>(col).delete_one(query).await?;
@@ -137,7 +154,10 @@ impl MongoDB {
     }
 
     pub async fn query_collection_distinct(
-        &self, col: &str, query: Document, field: &str,
+        &self,
+        col: &str,
+        query: Document,
+        field: &str,
     ) -> anyhow::Result<Vec<Bson>> {
         let db = self.get_db().await?;
         let c = db
@@ -166,7 +186,9 @@ impl MongoDB {
     }
 
     pub async fn query_collection_drop_search_index(
-        &self, col: &str, index: &str,
+        &self,
+        col: &str,
+        index: &str,
     ) -> anyhow::Result<()> {
         let db = self.get_db().await?;
         db.collection::<Document>(col)
@@ -176,8 +198,15 @@ impl MongoDB {
     }
 
     pub async fn query_collection_find(
-        &self, col: &str, projection: Option<Document>, filter: Document, sort: Option<Document>,
-        max: Option<Document>, min: Option<Document>, hint: Option<Document>, limit: Option<i64>,
+        &self,
+        col: &str,
+        projection: Option<Document>,
+        filter: Document,
+        sort: Option<Document>,
+        max: Option<Document>,
+        min: Option<Document>,
+        hint: Option<Document>,
+        limit: Option<i64>,
         skip: Option<u64>,
     ) -> anyhow::Result<Vec<Document>> {
         log::info!(
@@ -224,8 +253,15 @@ impl MongoDB {
     }
 
     pub async fn query_collection_find_one(
-        &self, col: &str, projection: Option<Document>, filter: Document, sort: Option<Document>,
-        max: Option<Document>, min: Option<Document>, hint: Option<Document>, skip: Option<u64>,
+        &self,
+        col: &str,
+        projection: Option<Document>,
+        filter: Document,
+        sort: Option<Document>,
+        max: Option<Document>,
+        min: Option<Document>,
+        hint: Option<Document>,
+        skip: Option<u64>,
     ) -> anyhow::Result<Option<Document>> {
         log::info!(
             "find parameter project:{:?} filter:{:?} sort:{:?} max:{:?} min:{:?} skip:{:?}",
@@ -263,7 +299,9 @@ impl MongoDB {
     }
 
     pub async fn query_collection_find_one_and_delete(
-        &self, col: &str, filter: Document,
+        &self,
+        col: &str,
+        filter: Document,
     ) -> anyhow::Result<Option<Document>> {
         let db = self.get_db().await?;
         let col = db.collection::<Document>(col);
@@ -273,7 +311,10 @@ impl MongoDB {
     }
 
     pub async fn query_collection_find_one_and_replace(
-        &self, col: &str, filter: Document, replacement: Document,
+        &self,
+        col: &str,
+        filter: Document,
+        replacement: Document,
     ) -> anyhow::Result<Option<Document>> {
         let db = self.get_db().await?;
         let col = db.collection::<Document>(col);
@@ -283,7 +324,9 @@ impl MongoDB {
     }
 
     pub async fn query_collection_insert_many(
-        &self, col: &str, docs: Vec<Document>,
+        &self,
+        col: &str,
+        docs: Vec<Document>,
     ) -> anyhow::Result<InsertManyResult> {
         let db = self.get_db().await?;
         let col = db.collection::<Document>(col);
@@ -293,7 +336,9 @@ impl MongoDB {
     }
 
     pub async fn query_collection_insert_one(
-        &self, col: &str, doc: Document,
+        &self,
+        col: &str,
+        doc: Document,
     ) -> anyhow::Result<InsertOneResult> {
         let db = self.get_db().await?;
         let col = db.collection::<Document>(col);
@@ -303,7 +348,8 @@ impl MongoDB {
     }
 
     pub async fn query_collection_list_index_names(
-        &self, col: &str,
+        &self,
+        col: &str,
     ) -> anyhow::Result<Vec<String>> {
         let db = self.get_db().await?;
         let col = db.collection::<Document>(col);
@@ -313,7 +359,8 @@ impl MongoDB {
     }
 
     pub async fn query_collection_list_indexes(
-        &self, col: &str,
+        &self,
+        col: &str,
     ) -> anyhow::Result<Vec<IndexModel>> {
         let db = self.get_db().await?;
         let col = db.collection::<Document>(col);
@@ -328,7 +375,8 @@ impl MongoDB {
     }
 
     pub async fn query_collection_list_search_indexes(
-        &self, col: &str,
+        &self,
+        col: &str,
     ) -> anyhow::Result<Vec<Document>> {
         let db = self.get_db().await?;
         let col = db.collection::<Document>(col);
@@ -343,7 +391,10 @@ impl MongoDB {
     }
 
     pub async fn query_collection_replace_one(
-        &self, col: &str, query: Document, replacement: Document,
+        &self,
+        col: &str,
+        query: Document,
+        replacement: Document,
     ) -> anyhow::Result<UpdateResult> {
         let db = self.get_db().await?;
         let col = db.collection::<Document>(col);
@@ -353,7 +404,10 @@ impl MongoDB {
     }
 
     pub async fn query_collection_update_many(
-        &self, col: &str, query: Document, replacement: Document,
+        &self,
+        col: &str,
+        query: Document,
+        replacement: Document,
     ) -> anyhow::Result<UpdateResult> {
         let db = self.get_db().await?;
         let col = db.collection::<Document>(col);
@@ -363,7 +417,10 @@ impl MongoDB {
     }
 
     pub async fn query_collection_update_one(
-        &self, col: &str, query: Document, replacement: Document,
+        &self,
+        col: &str,
+        query: Document,
+        replacement: Document,
     ) -> anyhow::Result<UpdateResult> {
         let db = self.get_db().await?;
         let col = db.collection::<Document>(col);

@@ -7,8 +7,8 @@ use std::sync::{Arc, Mutex, OnceLock};
 use std::{ffi::CString, sync::atomic::AtomicBool};
 
 use crate::db::{
-    ExportFrame, ExportKind, Field, QueryEventEmitter, QueryResp, XlsxEdit, create_html_table_data,
-    create_html_table_header, create_markdown_data, create_markdown_header,
+    create_html_table_data, create_html_table_header, create_markdown_data, create_markdown_header,
+    ExportFrame, ExportKind, Field, QueryEventEmitter, QueryResp, XlsxEdit,
 };
 use crate::db::{QuerySql, TimeElapsed};
 use crate::helper::create_csv;
@@ -18,13 +18,13 @@ use mongodb::bson::de;
 use odbc_api::buffers::{AnyBuffer, TextRowSet};
 use odbc_api::handles::{Statement, StatementImpl};
 use odbc_api::sys::{Date, Numeric, Time, Timestamp};
-use odbc_api::{Bit, CursorImpl};
 use odbc_api::{
-    Connection, ConnectionOptions, Cursor, DataType, Environment, Nullability, Nullable,
-    ResultSetMetadata,
     buffers::{AnySlice, BufferDesc, ColumnarAnyBuffer},
     sys::AttrConnectionPooling,
+    Connection, ConnectionOptions, Cursor, DataType, Environment, Nullability, Nullable,
+    ResultSetMetadata,
 };
+use odbc_api::{Bit, CursorImpl};
 use redis::FromRedisValue;
 use sqlx_core::bytes::buf;
 /// Maximum number of rows fetched with one row set. Fetching batches of rows is usually much
@@ -114,7 +114,9 @@ pub trait OdbcHelper: Sync + Send + 'static {
 
 impl dyn OdbcHelper {
     fn encode_batch_as_json(
-        &self, batch: &ColumnarAnyBuffer, col_names: &[String],
+        &self,
+        batch: &ColumnarAnyBuffer,
+        col_names: &[String],
     ) -> anyhow::Result<Vec<serde_json::Value>> {
         let mut ret = vec![];
         for row_index in 0..batch.num_rows() {
@@ -554,7 +556,8 @@ pub struct OdbcColumnMeta {
 
 impl dyn OdbcHelper {
     fn collect_meta(
-        &self, cursor: &mut CursorImpl<StatementImpl<'_>>,
+        &self,
+        cursor: &mut CursorImpl<StatementImpl<'_>>,
     ) -> anyhow::Result<OdbcColumnMeta> {
         let mut name = vec![];
         let mut ty = vec![];
@@ -593,7 +596,10 @@ impl dyn OdbcHelper {
 
 impl OdbcDbQuery {
     async fn export_query_result(
-        &self, sql: &str, kind: ExportKind, sender: tokio::sync::mpsc::Sender<ExportFrame>,
+        &self,
+        sql: &str,
+        kind: ExportKind,
+        sender: tokio::sync::mpsc::Sender<ExportFrame>,
     ) -> anyhow::Result<()> {
         let this = Clone::clone(self);
         let sql = sql.to_string();
@@ -696,7 +702,9 @@ impl OdbcDbQuery {
 }
 
 pub fn odbc_query<T: FromSql>(
-    conn: &Connection<'static>, sql: &str, helper: Arc<dyn OdbcHelper>,
+    conn: &Connection<'static>,
+    sql: &str,
+    helper: Arc<dyn OdbcHelper>,
 ) -> anyhow::Result<Vec<T>> {
     let cursor = conn.execute(sql, (), None)?;
     let mut cursor = match cursor {
@@ -721,13 +729,19 @@ pub fn odbc_query<T: FromSql>(
 
 pub trait FromSql: Default {
     fn use_sql(
-        &mut self, buffer: &ColumnarAnyBuffer, row_index: usize, helper: Arc<dyn OdbcHelper>,
+        &mut self,
+        buffer: &ColumnarAnyBuffer,
+        row_index: usize,
+        helper: Arc<dyn OdbcHelper>,
     ) -> anyhow::Result<()>;
 }
 
 impl<T: FromSqlElement> FromSql for (T) {
     fn use_sql(
-        &mut self, buffer: &ColumnarAnyBuffer, row_index: usize, helper: Arc<dyn OdbcHelper>,
+        &mut self,
+        buffer: &ColumnarAnyBuffer,
+        row_index: usize,
+        helper: Arc<dyn OdbcHelper>,
     ) -> anyhow::Result<()> {
         self.use_sql_col(buffer.column(0), row_index, helper)?;
         anyhow::Ok(())
@@ -736,7 +750,10 @@ impl<T: FromSqlElement> FromSql for (T) {
 
 impl<T1: FromSqlElement, T2: FromSqlElement> FromSql for (T1, T2) {
     fn use_sql(
-        &mut self, buffer: &ColumnarAnyBuffer, row_index: usize, helper: Arc<dyn OdbcHelper>,
+        &mut self,
+        buffer: &ColumnarAnyBuffer,
+        row_index: usize,
+        helper: Arc<dyn OdbcHelper>,
     ) -> anyhow::Result<()> {
         self.0
             .use_sql_col(buffer.column(0), row_index, helper.clone())?;
@@ -748,13 +765,19 @@ impl<T1: FromSqlElement, T2: FromSqlElement> FromSql for (T1, T2) {
 
 pub trait FromSqlElement: Default {
     fn use_sql_col(
-        &mut self, buffer: AnySlice<'_>, row_index: usize, helper: Arc<dyn OdbcHelper>,
+        &mut self,
+        buffer: AnySlice<'_>,
+        row_index: usize,
+        helper: Arc<dyn OdbcHelper>,
     ) -> anyhow::Result<()>;
 }
 
 impl FromSqlElement for String {
     fn use_sql_col(
-        &mut self, buffer: AnySlice<'_>, row_index: usize, helper: Arc<dyn OdbcHelper>,
+        &mut self,
+        buffer: AnySlice<'_>,
+        row_index: usize,
+        helper: Arc<dyn OdbcHelper>,
     ) -> anyhow::Result<()> {
         match buffer {
             AnySlice::Text(text_column_view) => {
@@ -773,7 +796,10 @@ impl FromSqlElement for String {
 
 impl FromSqlElement for Option<String> {
     fn use_sql_col(
-        &mut self, buffer: AnySlice<'_>, row_index: usize, helper: Arc<dyn OdbcHelper>,
+        &mut self,
+        buffer: AnySlice<'_>,
+        row_index: usize,
+        helper: Arc<dyn OdbcHelper>,
     ) -> anyhow::Result<()> {
         match buffer {
             AnySlice::Text(text_column_view) => {

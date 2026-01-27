@@ -53,7 +53,7 @@ use tauri::{Emitter, Manager};
 use tauri_plugin_log::{Target, TargetKind};
 mod migration;
 use mimalloc::MiMalloc;
-use rustls::crypto::{CryptoProvider, aws_lc_rs};
+use rustls::crypto::{aws_lc_rs, CryptoProvider};
 use std::fs::OpenOptions;
 use std::sync::Once;
 
@@ -139,16 +139,14 @@ fn get_logger_level() -> Option<log::Level> {
 #[allow(unused)]
 fn logger_test() {
     #[cfg(debug_assertions)]
-    std::thread::spawn(|| {
-        loop {
-            use std::time::Duration;
-            log::trace!("this is trace log");
-            log::debug!("this is debug log");
-            log::info!("this is info log");
-            log::warn!("this is warn log");
-            log::error!("this is error log");
-            std::thread::sleep(std::time::Duration::from_secs(1));
-        }
+    std::thread::spawn(|| loop {
+        use std::time::Duration;
+        log::trace!("this is trace log");
+        log::debug!("this is debug log");
+        log::info!("this is info log");
+        log::warn!("this is warn log");
+        log::error!("this is error log");
+        std::thread::sleep(std::time::Duration::from_secs(1));
     });
 }
 

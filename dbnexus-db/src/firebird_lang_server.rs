@@ -1,8 +1,8 @@
 use crate::db::SchemaTrait;
 use crate::firebird::FireBirdDB;
 use crate::language_server::{
-    AstCompletionHelper, CompletionItem, CompletionKind, CompletionList, GetKeyWords,
-    LangServerCommon, LanguageServer, LexerCompletionTrait, try_parser_dot_lexer,
+    try_parser_dot_lexer, AstCompletionHelper, CompletionItem, CompletionKind, CompletionList,
+    GetKeyWords, LangServerCommon, LanguageServer, LexerCompletionTrait,
 };
 use crate::sqlparser_completion::TempTableColumn;
 use rsfbclient::{Queryable, Row};
@@ -39,7 +39,10 @@ impl LanguageServer for FireBirdDB {
     }
 
     async fn ai_text_completion(
-        &self, text: &str, line: u32, col: u32,
+        &self,
+        text: &str,
+        line: u32,
+        col: u32,
     ) -> anyhow::Result<CompletionList> {
         LexerCompletionTrait::ai_text_completion(self, text, line, col).await
     }
@@ -51,7 +54,12 @@ impl LanguageServer for FireBirdDB {
     }
 
     async fn auto_completion(
-        &self, _query_id: Option<String>, sql: &str, line: u32, col: u32, use_lexer: bool,
+        &self,
+        _query_id: Option<String>,
+        sql: &str,
+        line: u32,
+        col: u32,
+        use_lexer: bool,
     ) -> anyhow::Result<CompletionList> {
         try_parser_dot_lexer(self, sql, line, col, use_lexer).await
     }
@@ -132,7 +140,10 @@ impl LangServerCommon for FireBirdDB {
         .await?
     }
     async fn list_column(
-        &self, _schema: Option<&str>, name: &str, is_call: Option<Vec<String>>,
+        &self,
+        _schema: Option<&str>,
+        name: &str,
+        is_call: Option<Vec<String>>,
     ) -> anyhow::Result<Vec<TempTableColumn>> {
         /*
                     -- 直接写
@@ -155,7 +166,9 @@ impl LangServerCommon for FireBirdDB {
     }
 
     async fn list_function(
-        &self, _schema: Option<&str>, _include_build_in: bool,
+        &self,
+        _schema: Option<&str>,
+        _include_build_in: bool,
     ) -> anyhow::Result<Vec<CompletionItem>> {
         let this = Clone::clone(self);
         spawn_blocking(move || {
@@ -589,8 +602,8 @@ mod tests {
     use crate::db::{QuerySql, SchemaTrait};
     use crate::enable_test_log;
     use crate::firebird::make_test_object;
-    use crate::language_server::LanguageServer;
     use crate::language_server::completion_test::test_file_auto_completion;
+    use crate::language_server::LanguageServer;
 
     // partition test failed , sqlparser can't parse a valid partition statement.
     #[tokio::test]

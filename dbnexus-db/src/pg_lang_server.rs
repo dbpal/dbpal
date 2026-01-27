@@ -1,8 +1,8 @@
 use crate::db::{CatalogTrait, CreatedTypeDef, OptionMustBeSomeErr, SequenceDetail};
 use crate::language_server::{
-    AstCompletionHelper, CompletionItem, CompletionKind, CompletionList, DBExecutable, ErrAndLoc,
-    GetKeyWords, LangServerCommon, LanguageServer, LexerCompletionTrait, PostGresExtension,
-    try_parser_dot_lexer,
+    try_parser_dot_lexer, AstCompletionHelper, CompletionItem, CompletionKind, CompletionList,
+    DBExecutable, ErrAndLoc, GetKeyWords, LangServerCommon, LanguageServer, LexerCompletionTrait,
+    PostGresExtension,
 };
 use crate::pg::PostGresDB;
 use crate::sqlparser_completion::TempTableColumn;
@@ -43,7 +43,8 @@ impl GetKeyWords for PostGresDB {
 
 impl PostGresDB {
     pub(crate) async fn query_search_path(
-        &self, conn: &mut sqlx::pool::PoolConnection<sqlx::Postgres>,
+        &self,
+        conn: &mut sqlx::pool::PoolConnection<sqlx::Postgres>,
     ) -> anyhow::Result<Option<HashSet<String>>> {
         let row = sqlx::raw_sql("SHOW search_path;")
             .fetch_one(conn.deref_mut())
@@ -67,7 +68,9 @@ impl PostGresDB {
     }
 
     pub(crate) async fn get_search_path(
-        &self, schema: Option<&str>, include_catalog: bool,
+        &self,
+        schema: Option<&str>,
+        include_catalog: bool,
     ) -> HashSet<String> {
         if let Some(schema) = schema {
             let mut m = HashSet::new();
@@ -151,7 +154,9 @@ impl AstCompletionHelper for PostGresDB {
     }
 
     async fn list_postgres_rule(
-        &self, schema: Option<&str>, table: &str,
+        &self,
+        schema: Option<&str>,
+        table: &str,
     ) -> anyhow::Result<Vec<String>> {
         let schemas = self.get_search_path(schema, false).await;
         let ret = vec![];
@@ -174,7 +179,9 @@ impl AstCompletionHelper for PostGresDB {
     }
 
     async fn list_constraint(
-        &self, schema: Option<&str>, table_name: &str,
+        &self,
+        schema: Option<&str>,
+        table_name: &str,
     ) -> anyhow::Result<Vec<String>> {
         let schemas = self.get_search_path(schema, false).await;
         let mut conn = self.get_conn().await?;
@@ -200,7 +207,9 @@ impl AstCompletionHelper for PostGresDB {
         anyhow::Ok(ret)
     }
     async fn list_table_trigger(
-        &self, schema: Option<&str>, table: &str,
+        &self,
+        schema: Option<&str>,
+        table: &str,
     ) -> anyhow::Result<Vec<String>> {
         let mut conn = self.get_conn().await?;
         let schemas = self.get_search_path(schema, false).await;
@@ -234,7 +243,8 @@ impl AstCompletionHelper for PostGresDB {
 
 impl LangServerCommon for PostGresDB {
     async fn postgres_list_extension(
-        &self, installed: bool,
+        &self,
+        installed: bool,
     ) -> anyhow::Result<Vec<PostGresExtension>> {
         let mut conn = self.get_conn().await?;
         if !installed {
@@ -391,7 +401,10 @@ impl LangServerCommon for PostGresDB {
     }
 
     async fn list_column(
-        &self, schema: Option<&str>, name: &str, is_call: Option<Vec<String>>,
+        &self,
+        schema: Option<&str>,
+        name: &str,
+        is_call: Option<Vec<String>>,
     ) -> anyhow::Result<Vec<TempTableColumn>> {
         let sql = format!(
             r#"select * from {}"{}"{}"#,
@@ -445,7 +458,9 @@ impl LangServerCommon for PostGresDB {
     }
 
     async fn list_function(
-        &self, schema: Option<&str>, include_build_in: bool,
+        &self,
+        schema: Option<&str>,
+        include_build_in: bool,
     ) -> anyhow::Result<Vec<CompletionItem>> {
         let schemas = self.get_search_path(schema, include_build_in).await;
         let mut ret = Vec::new();
@@ -609,7 +624,10 @@ impl LanguageServer for PostGresDB {
     }
 
     async fn ai_text_completion(
-        &self, text: &str, line: u32, col: u32,
+        &self,
+        text: &str,
+        line: u32,
+        col: u32,
     ) -> anyhow::Result<CompletionList> {
         LexerCompletionTrait::ai_text_completion(self, text, line, col).await
     }
@@ -621,7 +639,12 @@ impl LanguageServer for PostGresDB {
     }
 
     async fn auto_completion(
-        &self, query_id: Option<String>, sql: &str, line: u32, col: u32, use_lexer: bool,
+        &self,
+        query_id: Option<String>,
+        sql: &str,
+        line: u32,
+        col: u32,
+        use_lexer: bool,
     ) -> anyhow::Result<CompletionList> {
         self.completion_id.set_optional(query_id);
         try_parser_dot_lexer(self, sql, line, col, use_lexer).await
@@ -858,13 +881,12 @@ mod tests {
         .await
         .unwrap()
         .unwrap();
-        assert!(
-            db.list_execute(None)
-                .await
-                .unwrap()
-                .iter()
-                .any(|x| x.name.eq("select_one"))
-        );
+        assert!(db
+            .list_execute(None)
+            .await
+            .unwrap()
+            .iter()
+            .any(|x| x.name.eq("select_one")));
     }
 
     #[tokio::test]

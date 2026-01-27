@@ -1,7 +1,7 @@
-use crate::db::{DBTrait, name_start_ascii_alphabetic};
+use crate::db::{name_start_ascii_alphabetic, DBTrait};
 use crate::language_server::{
-    AstCompletionHelper, CompletionItem, CompletionKind, CompletionList, GetKeyWords,
-    LangServerCommon, LanguageServer, LexerCompletionTrait, try_parser_dot_lexer,
+    try_parser_dot_lexer, AstCompletionHelper, CompletionItem, CompletionKind, CompletionList,
+    GetKeyWords, LangServerCommon, LanguageServer, LexerCompletionTrait,
 };
 use crate::oracle::OracleDB;
 use crate::sqlparser_completion::TempTableColumn;
@@ -115,7 +115,10 @@ impl LangServerCommon for OracleDB {
     调用函数的例子和调用一个表一样 所以is_call不需要单独处理
     */
     async fn list_column(
-        &self, schema: Option<&str>, name: &str, _is_call: Option<Vec<String>>,
+        &self,
+        schema: Option<&str>,
+        name: &str,
+        _is_call: Option<Vec<String>>,
     ) -> anyhow::Result<Vec<TempTableColumn>> {
         let sql = format!(
             r#"select * from {}"{}""#,
@@ -130,7 +133,9 @@ impl LangServerCommon for OracleDB {
     }
 
     async fn list_function(
-        &self, schema: Option<&str>, include_build_in: bool,
+        &self,
+        schema: Option<&str>,
+        include_build_in: bool,
     ) -> anyhow::Result<Vec<CompletionItem>> {
         let ret = self
             .extact_names(
@@ -223,7 +228,10 @@ impl LanguageServer for OracleDB {
     }
 
     async fn ai_text_completion(
-        &self, text: &str, line: u32, col: u32,
+        &self,
+        text: &str,
+        line: u32,
+        col: u32,
     ) -> anyhow::Result<CompletionList> {
         LexerCompletionTrait::ai_text_completion(self, text, line, col).await
     }
@@ -235,7 +243,12 @@ impl LanguageServer for OracleDB {
     }
 
     async fn auto_completion(
-        &self, _query_id: Option<String>, sql: &str, line: u32, col: u32, use_lexer: bool,
+        &self,
+        _query_id: Option<String>,
+        sql: &str,
+        line: u32,
+        col: u32,
+        use_lexer: bool,
     ) -> anyhow::Result<CompletionList> {
         try_parser_dot_lexer(self, sql, line, col, use_lexer).await
     }

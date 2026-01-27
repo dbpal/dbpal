@@ -4,15 +4,15 @@ use std::future::Future;
 
 use bb8::PooledConnection;
 use gcp_bigquery_client::{
-    Client, client_builder::ClientBuilder, error::BQError, model::query_request::QueryRequest,
+    client_builder::ClientBuilder, error::BQError, model::query_request::QueryRequest, Client,
 };
 
 use crate::{
     datasource_config::BigQueryDbConfig,
     db::{
         BackendKind, CheckConn, ExportFrame, ExportKind, ExportQueryResult, Field, GetBackendKind,
-        ListTable, MetaValue, POOL_MAX_CONNECTIONS, QueryEventEmitter, QueryResp, QuerySql,
-        ReadOnlyTrait, SchemaTrait, ServerMetas, ShowTableParameter, SqlBuilder,
+        ListTable, MetaValue, QueryEventEmitter, QueryResp, QuerySql, ReadOnlyTrait, SchemaTrait,
+        ServerMetas, ShowTableParameter, SqlBuilder, POOL_MAX_CONNECTIONS,
     },
     language_server::GetKeyWords,
 };
@@ -89,13 +89,18 @@ impl ReadOnlyTrait for BigQueryDb {
 
 impl QuerySql for BigQueryDb {
     async fn query_sql(
-        &self, query_id: &str, _sql: &str, emit: QueryEventEmitter,
+        &self,
+        query_id: &str,
+        _sql: &str,
+        emit: QueryEventEmitter,
     ) -> anyhow::Result<()> {
         todo!()
     }
 
     async fn execute_sql(
-        &self, query_id: &str, _sql: &str,
+        &self,
+        query_id: &str,
+        _sql: &str,
     ) -> anyhow::Result<Result<QueryResp, String>> {
         todo!()
     }
@@ -175,7 +180,10 @@ impl SchemaTrait for BigQueryDb {
     }
 
     async fn show_table(
-        &self, table_name: &str, _: ShowTableParameter, _: QueryEventEmitter,
+        &self,
+        table_name: &str,
+        _: ShowTableParameter,
+        _: QueryEventEmitter,
     ) -> anyhow::Result<()> {
         todo!()
     }
@@ -205,7 +213,10 @@ impl ExportQueryResult for BigQueryDb {
     }
 
     async fn export_query_result(
-        &self, query_id: Option<&str>, _sql: &str, _kind: ExportKind,
+        &self,
+        query_id: Option<&str>,
+        _sql: &str,
+        _kind: ExportKind,
         _sender: tokio::sync::mpsc::Sender<ExportFrame>,
     ) -> anyhow::Result<()> {
         todo!()
@@ -244,7 +255,8 @@ impl bb8::ManageConnection for ConnManager {
     }
 
     fn is_valid(
-        &self, conn: &mut Self::Connection,
+        &self,
+        conn: &mut Self::Connection,
     ) -> impl Future<Output = Result<(), Self::Error>> + Send {
         async {
             // TOOD maybe more check???

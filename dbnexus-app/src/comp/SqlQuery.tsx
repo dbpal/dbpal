@@ -645,26 +645,21 @@ function SqlQuery(props: {
             pos={pos}
           />
         </Panel>
-        {resp.length > 0 && (
-          <PanelResizeHandle
-            style={{ height: resizeHandlerSize }}
-            className="resize-handle"
-          />
-        )}
-
-        {resp.length > 0 && (
-          <Panel
-            style={{ overflow: "auto" }}
-            collapsible
-            collapsedSize={0}
-            maxSize={100}
-            minSize={10}
-          >
-            <div style={{ height: "100%" }}>
-              <MultiQueryResp data={resp} />
-            </div>
-          </Panel>
-        )}
+        <PanelResizeHandle
+          style={{ height: resizeHandlerSize }}
+          className="resize-handle"
+        />
+        <Panel
+          style={{ overflow: "auto" }}
+          collapsible
+          collapsedSize={0}
+          maxSize={100}
+          minSize={10}
+        >
+          <div style={{ height: "100%" }}>
+            <MultiQueryResp data={resp} />
+          </div>
+        </Panel>
       </PanelGroup>
 
       {showExport && (

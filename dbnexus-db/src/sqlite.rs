@@ -4,8 +4,8 @@ use std::sync::Arc;
 use std::time::Duration;
 
 use dashmap::DashMap;
-use futures_util::StreamExt;
 use futures_util::lock::Mutex;
+use futures_util::StreamExt;
 use sqlparser::ast::{ColumnOption, Statement};
 use sqlparser::tokenizer::Token;
 use sqlx::pool::{PoolConnection, PoolOptions};
@@ -14,13 +14,13 @@ use sqlx::{AssertSqlSafe, Column, Executor, Row, SqlSafeStr, SqliteConnection, T
 
 use crate::datasource_config::SqliteDBConfig;
 use crate::db::{
-    AutoCompletionQueryId, BackendKind, CheckConn, ColumnType, CreateIndexReq,
-    CreateTableAndIndexSql, ExportFrame, ExportKind, ExportQueryResult, Field, GetBackendKind,
-    Index, IndexKind, ListTable, MetaValue, NamedStaff, OptionMustBeSomeErr, POOL_MAX_CONNECTIONS,
+    create_html_table_data, create_html_table_header, create_markdown_data, create_markdown_header,
+    escape_sql_str, export_query_as_xlsx_send_data, AutoCompletionQueryId, BackendKind, CheckConn,
+    ColumnType, CreateIndexReq, CreateTableAndIndexSql, ExportFrame, ExportKind, ExportQueryResult,
+    Field, GetBackendKind, Index, IndexKind, ListTable, MetaValue, NamedStaff, OptionMustBeSomeErr,
     QueryEvent, QueryEventEmitter, QueryResp, QuerySql, ReadOnlyTrait, SchemaTrait, ServerMetas,
     ShowTableParameter, SqlBuilder, TriggerDetail, TriggerEvent, TriggerTiming, XlsxEdit,
-    create_html_table_data, create_html_table_header, create_markdown_data, create_markdown_header,
-    escape_sql_str, export_query_as_xlsx_send_data,
+    POOL_MAX_CONNECTIONS,
 };
 use crate::helper::create_csv;
 use crate::language_server::{CompletionItem, LexerCompletionTrait};
@@ -38,7 +38,9 @@ pub struct SqliteDB {
 
 impl SqliteDB {
     async fn create_table_or_view_sql(
-        &self, table_name: &str, kind: &str,
+        &self,
+        table_name: &str,
+        kind: &str,
     ) -> anyhow::Result<String> {
         let mut conn = self.get_conn().await?;
         let sql = format!(
@@ -71,7 +73,10 @@ impl SqliteDB {
     }
 
     async fn export_table_as_sql(
-        &self, table_name: &str, para: Option<ShowTableParameter>, include_table_schema: bool,
+        &self,
+        table_name: &str,
+        para: Option<ShowTableParameter>,
+        include_table_schema: bool,
         sender: tokio::sync::mpsc::Sender<ExportFrame>,
     ) -> anyhow::Result<()> {
         if include_table_schema {
@@ -160,13 +165,15 @@ fn extract_trigger_detail_on_lexer(name: &str, sql: String) -> anyhow::Result<Tr
 }
 
 pub(crate) fn extract_trigger_detail_from_sql(
-    name: &str, sql: String,
+    name: &str,
+    sql: String,
 ) -> anyhow::Result<TriggerDetail> {
     extract_trigger_detail_on_lexer(name, sql)
 }
 
 async fn query_trigger_detail(
-    conn: &mut SqliteConnection, name: &str,
+    conn: &mut SqliteConnection,
+    name: &str,
 ) -> anyhow::Result<TriggerDetail> {
     let s = format!("SELECT sql from sqlite_master WHERE type = 'trigger' and name='{name}'");
     let row = sqlx::raw_sql(AssertSqlSafe(s.as_str()))
@@ -325,13 +332,20 @@ impl SchemaTrait for SqliteDB {
         在 SQLite 中，直接修改列类型（ALTER COLUMN TYPE）是不支持的。SQLite 的 ALTER TABLE 语句功能有限，它只允许：
     */
     async fn modify_table_column(
-        &self, _table: &str, _old_name: &str, _new_name: &str, _typ: Option<ColumnType>,
+        &self,
+        _table: &str,
+        _old_name: &str,
+        _new_name: &str,
+        _typ: Option<ColumnType>,
     ) -> anyhow::Result<()> {
         self.backend_name().not_support_feature()
     }
 
     async fn add_table_column(
-        &self, table: &str, name: &str, col: ColumnType,
+        &self,
+        table: &str,
+        name: &str,
+        col: ColumnType,
     ) -> anyhow::Result<()> {
         let sql = format!(
             r#"ALTER TABLE "{table}" ADD COLUMN "{name}" {} {} {}"#,
@@ -463,7 +477,8 @@ impl SchemaTrait for SqliteDB {
     }
 
     async fn show_create_table_sql(
-        &self, table_name: &str,
+        &self,
+        table_name: &str,
     ) -> anyhow::Result<CreateTableAndIndexSql> {
         let table = self.create_table_or_view_sql(table_name, "table").await?;
         let indexes = self.get_table_indexes_sql(table_name).await?;
@@ -475,7 +490,10 @@ impl SchemaTrait for SqliteDB {
     }
 
     async fn export_table_or_view(
-        &self, name: &str, para: Option<ShowTableParameter>, kind: ExportKind,
+        &self,
+        name: &str,
+        para: Option<ShowTableParameter>,
+        kind: ExportKind,
         sender: tokio::sync::mpsc::Sender<ExportFrame>,
     ) -> anyhow::Result<()> {
         match kind {
@@ -599,7 +617,10 @@ impl SchemaTrait for SqliteDB {
     }
 
     async fn show_table(
-        &self, table_name: &str, para: ShowTableParameter, emit: QueryEventEmitter,
+        &self,
+        table_name: &str,
+        para: ShowTableParameter,
+        emit: QueryEventEmitter,
     ) -> anyhow::Result<()> {
         let ShowTableParameter {
             where_str,
@@ -643,7 +664,10 @@ impl SchemaTrait for SqliteDB {
     }
 
     async fn show_view(
-        &self, view_name: &str, para: ShowTableParameter, emit: QueryEventEmitter,
+        &self,
+        view_name: &str,
+        para: ShowTableParameter,
+        emit: QueryEventEmitter,
     ) -> anyhow::Result<()> {
         let ShowTableParameter {
             where_str,
@@ -1096,7 +1120,8 @@ pub(crate) fn extract_auto_increment_key(sql: &str) -> anyhow::Result<Option<Str
 
 impl SqliteDB {
     async fn get_conn_by_query_id(
-        &self, query_id: Option<&str>,
+        &self,
+        query_id: Option<&str>,
     ) -> anyhow::Result<Arc<Mutex<PoolConnection<sqlx::Sqlite>>>> {
         match query_id {
             Some(id) => match self.query_connection.get(&id.to_string()) {
@@ -1117,7 +1142,10 @@ impl ExportQueryResult for SqliteDB {
     }
 
     async fn export_query_result(
-        &self, query_id: Option<&str>, sql: &str, kind: ExportKind,
+        &self,
+        query_id: Option<&str>,
+        sql: &str,
+        kind: ExportKind,
         sender: tokio::sync::mpsc::Sender<ExportFrame>,
     ) -> anyhow::Result<()> {
         let conn = self.get_conn_by_query_id(query_id).await?;
@@ -1292,7 +1320,9 @@ impl QuerySql for SqliteDB {
     }
 
     async fn execute_sql(
-        &self, query_id: &str, sql: &str,
+        &self,
+        query_id: &str,
+        sql: &str,
     ) -> anyhow::Result<Result<QueryResp, String>> {
         crate::language_server::LangServerCommon::contains_tx_operation_error(self, sql)?;
         let conn = self.query_connection.get(&query_id.to_string());
@@ -1313,7 +1343,10 @@ impl QuerySql for SqliteDB {
     }
 
     async fn query_sql(
-        &self, query_id: &str, sql: &str, emit: QueryEventEmitter,
+        &self,
+        query_id: &str,
+        sql: &str,
+        emit: QueryEventEmitter,
     ) -> anyhow::Result<()> {
         crate::language_server::LangServerCommon::contains_tx_operation_error(self, sql)?;
         emit.send(QueryEvent::Status("trying to get connection".into()))?;
@@ -1386,8 +1419,12 @@ impl QuerySql for SqliteDB {
 }
 
 pub(crate) fn gen_show_sql(
-    table_name: &str, fields: Option<String>, where_str: Option<&str>, order_by: Option<&str>,
-    page: usize, page_size: usize,
+    table_name: &str,
+    fields: Option<String>,
+    where_str: Option<&str>,
+    order_by: Option<&str>,
+    page: usize,
+    page_size: usize,
 ) -> String {
     let mut sql = format!(
         r#"SELECT {} FROM "{table_name}""#,

@@ -12,15 +12,14 @@ use tokio::sync::Mutex;
 
 use crate::datasource_config::PGDBConfig;
 use crate::db::{
-    AutoCompletionQueryId, BackendKind, CatalogTrait, CheckConn, ColumnType, CreateDatabaseExtra,
-    CreateIndexReq, CreateSchemaExtra, CreateTableAndIndexSql, CreatedTypeDef, DBTrait,
-    DefAndMetas, ExportFrame, ExportKind, ExportQueryResult, Field, GetBackendKind, Index,
-    IndexKind, ListTable, MetaValue, NamedStaff, OptionMustBeSomeErr, POOL_MAX_CONNECTIONS,
+    create_html_table_data, create_html_table_header, create_markdown_data, create_markdown_header,
+    export_query_as_xlsx_send_data, AutoCompletionQueryId, BackendKind, CatalogTrait, CheckConn,
+    ColumnType, CreateDatabaseExtra, CreateIndexReq, CreateSchemaExtra, CreateTableAndIndexSql,
+    CreatedTypeDef, DBTrait, DefAndMetas, ExportFrame, ExportKind, ExportQueryResult, Field,
+    GetBackendKind, Index, IndexKind, ListTable, MetaValue, NamedStaff, OptionMustBeSomeErr,
     ProcedureDetail, QueryEvent, QueryEventEmitter, QueryResp, QuerySql, ReadOnlyTrait,
     SchemaTrait, SequenceDetail, ServerMetas, ShowTableParameter, SqlBuilder, TriggerDetail,
-    TriggerEvent, TriggerTiming, UdfOrProcedureExtraParameter, XlsxEdit, create_html_table_data,
-    create_html_table_header, create_markdown_data, create_markdown_header,
-    export_query_as_xlsx_send_data,
+    TriggerEvent, TriggerTiming, UdfOrProcedureExtraParameter, XlsxEdit, POOL_MAX_CONNECTIONS,
 };
 
 use crate::helper::create_csv;
@@ -119,7 +118,9 @@ impl DBTrait for PostGresDB {
     }
 
     async fn create_schema(
-        &self, name: &str, _extra: Option<CreateSchemaExtra>,
+        &self,
+        name: &str,
+        _extra: Option<CreateSchemaExtra>,
     ) -> anyhow::Result<()> {
         self.can_write()?;
         let sql = format!(r#"CREATE SCHEMA "{name}";"#);
@@ -145,7 +146,10 @@ impl DBTrait for PostGresDB {
 
 impl PostGresDB {
     async fn export_table_as_sql(
-        &self, table_name: &str, para: Option<ShowTableParameter>, include_table_schema: bool,
+        &self,
+        table_name: &str,
+        para: Option<ShowTableParameter>,
+        include_table_schema: bool,
         sender: tokio::sync::mpsc::Sender<ExportFrame>,
     ) -> anyhow::Result<()> {
         if include_table_schema {
@@ -206,7 +210,8 @@ impl PostGresDB {
     }
 
     async fn get_conn_by_query_id(
-        &self, query_id: Option<&str>,
+        &self,
+        query_id: Option<&str>,
     ) -> anyhow::Result<Arc<Mutex<PoolConnection<sqlx::Postgres>>>> {
         match query_id {
             Some(id) => match self.query_connection.get(&id.to_string()) {
@@ -222,8 +227,13 @@ impl PostGresDB {
 }
 
 pub(crate) fn gen_show_sql(
-    schema: &str, table_name: &str, fields: Option<String>, where_str: Option<&str>,
-    order_by: Option<&str>, page: usize, page_size: usize,
+    schema: &str,
+    table_name: &str,
+    fields: Option<String>,
+    where_str: Option<&str>,
+    order_by: Option<&str>,
+    page: usize,
+    page_size: usize,
 ) -> String {
     #[allow(clippy::format_in_format_args)]
     let mut sql = format!(
@@ -366,7 +376,8 @@ impl ServerMetas for PostGresDB {
 
 impl PostGresDB {
     pub(crate) async fn list_sequences_impl(
-        &self, schema: &str,
+        &self,
+        schema: &str,
     ) -> anyhow::Result<Vec<SequenceDetail>> {
         let sql = format!(
             r#"
@@ -519,7 +530,10 @@ impl SchemaTrait for PostGresDB {
     }
 
     async fn rename_index(
-        &self, _table: &str, old_name: &str, new_name: &str,
+        &self,
+        _table: &str,
+        old_name: &str,
+        new_name: &str,
     ) -> anyhow::Result<()> {
         let sql = format!("ALTER INDEX \"{old_name}\" RENAME TO \"{new_name}\";");
         log::info!("sql:{}", sql);
@@ -531,7 +545,10 @@ impl SchemaTrait for PostGresDB {
     }
 
     async fn add_table_column(
-        &self, table: &str, name: &str, col: ColumnType,
+        &self,
+        table: &str,
+        name: &str,
+        col: ColumnType,
     ) -> anyhow::Result<()> {
         let sql = format!(
             "ALTER TABLE {table} ADD COLUMN \"{name}\" {} {} {}",
@@ -560,7 +577,11 @@ impl SchemaTrait for PostGresDB {
     }
 
     async fn modify_table_column(
-        &self, table: &str, old_name: &str, new_name: &str, typ: Option<ColumnType>,
+        &self,
+        table: &str,
+        old_name: &str,
+        new_name: &str,
+        typ: Option<ColumnType>,
     ) -> anyhow::Result<()> {
         let mut conn = self.get_conn().await?;
         if old_name != new_name {
@@ -689,7 +710,9 @@ impl SchemaTrait for PostGresDB {
     }
 
     async fn show_procedure(
-        &self, name: &str, arg: Option<UdfOrProcedureExtraParameter>,
+        &self,
+        name: &str,
+        arg: Option<UdfOrProcedureExtraParameter>,
     ) -> anyhow::Result<ProcedureDetail> {
         let arg: &UdfOrProcedureExtraParameter = match arg.as_ref() {
             Some(arg) => arg,
@@ -734,7 +757,9 @@ impl SchemaTrait for PostGresDB {
     }
 
     async fn drop_procedure(
-        &self, name: &str, arg: Option<UdfOrProcedureExtraParameter>,
+        &self,
+        name: &str,
+        arg: Option<UdfOrProcedureExtraParameter>,
     ) -> anyhow::Result<()> {
         let arg: &UdfOrProcedureExtraParameter = match arg.as_ref() {
             Some(arg) => arg,
@@ -790,7 +815,9 @@ impl SchemaTrait for PostGresDB {
     }
 
     async fn show_udf(
-        &self, name: &str, arg: Option<UdfOrProcedureExtraParameter>,
+        &self,
+        name: &str,
+        arg: Option<UdfOrProcedureExtraParameter>,
     ) -> anyhow::Result<DefAndMetas> {
         let arg = match &arg {
             Some(arg) => match arg {
@@ -832,7 +859,9 @@ impl SchemaTrait for PostGresDB {
     }
 
     async fn drop_udf(
-        &self, name: &str, extra: Option<UdfOrProcedureExtraParameter>,
+        &self,
+        name: &str,
+        extra: Option<UdfOrProcedureExtraParameter>,
     ) -> anyhow::Result<()> {
         let parameters = match &extra {
             Some(x) => match x {
@@ -977,7 +1006,10 @@ impl SchemaTrait for PostGresDB {
     }
 
     async fn export_table_or_view(
-        &self, name: &str, para: Option<ShowTableParameter>, kind: ExportKind,
+        &self,
+        name: &str,
+        para: Option<ShowTableParameter>,
+        kind: ExportKind,
         sender: tokio::sync::mpsc::Sender<ExportFrame>,
     ) -> anyhow::Result<()> {
         match kind {
@@ -1019,7 +1051,8 @@ impl SchemaTrait for PostGresDB {
 
     /// FIXME 如果一个主键是自增的只能得到类型
     async fn show_create_table_sql(
-        &self, table_name: &str,
+        &self,
+        table_name: &str,
     ) -> anyhow::Result<CreateTableAndIndexSql> {
         // https://stackoverflow.com/questions/2593803/how-to-generate-the-create-table-sql-statement-for-an-existing-table-in-postgr
         // sql coped from
@@ -1089,7 +1122,10 @@ impl SchemaTrait for PostGresDB {
     }
 
     async fn show_view(
-        &self, view_name: &str, para: ShowTableParameter, emit: QueryEventEmitter,
+        &self,
+        view_name: &str,
+        para: ShowTableParameter,
+        emit: QueryEventEmitter,
     ) -> anyhow::Result<()> {
         let ShowTableParameter {
             where_str,
@@ -1351,7 +1387,10 @@ impl SchemaTrait for PostGresDB {
     }
 
     async fn show_table(
-        &self, table_name: &str, para: ShowTableParameter, emit: QueryEventEmitter,
+        &self,
+        table_name: &str,
+        para: ShowTableParameter,
+        emit: QueryEventEmitter,
     ) -> anyhow::Result<()> {
         let ShowTableParameter {
             where_str,
@@ -1460,7 +1499,9 @@ impl SchemaTrait for PostGresDB {
 
 impl PostGresDB {
     pub(crate) async fn list_created_types_impl(
-        &self, schema: &str, skip_null_create_sql: bool,
+        &self,
+        schema: &str,
+        skip_null_create_sql: bool,
     ) -> anyhow::Result<Vec<CreatedTypeDef>> {
         /*在
         pg_type.typtype  里：
@@ -1557,7 +1598,9 @@ impl PostGresDB {
 }
 impl PostGresDB {
     pub(crate) async fn query_count(
-        &self, name: &str, where_str: Option<&str>,
+        &self,
+        name: &str,
+        where_str: Option<&str>,
     ) -> anyhow::Result<usize> {
         let mut conn = self.get_conn().await?;
         let schema = self.config.schema_str()?;
@@ -1650,7 +1693,8 @@ fn test_output_bytes() {
 }
 
 fn get_pg_type_base_on_data_type_and_udtname(
-    data_type: &str, udt_name: &str,
+    data_type: &str,
+    udt_name: &str,
 ) -> anyhow::Result<String> {
     if data_type.to_uppercase() == "ARRAY" {
         let x = match udt_name {
@@ -1716,7 +1760,10 @@ impl ExportQueryResult for PostGresDB {
     }
 
     async fn export_query_result(
-        &self, query_id: Option<&str>, sql: &str, kind: ExportKind,
+        &self,
+        query_id: Option<&str>,
+        sql: &str,
+        kind: ExportKind,
         sender: tokio::sync::mpsc::Sender<ExportFrame>,
     ) -> anyhow::Result<()> {
         let conn = self.get_conn_by_query_id(query_id).await?;
@@ -1888,7 +1935,9 @@ impl QuerySql for PostGresDB {
     }
 
     async fn execute_sql(
-        &self, query_id: &str, sql: &str,
+        &self,
+        query_id: &str,
+        sql: &str,
     ) -> anyhow::Result<Result<QueryResp, String>> {
         crate::language_server::LangServerCommon::contains_tx_operation_error(self, sql)?;
         let conn = self.query_connection.get(&query_id.to_string());
@@ -1907,7 +1956,10 @@ impl QuerySql for PostGresDB {
     }
 
     async fn query_sql(
-        &self, query_id: &str, sql: &str, emit: QueryEventEmitter,
+        &self,
+        query_id: &str,
+        sql: &str,
+        emit: QueryEventEmitter,
     ) -> anyhow::Result<()> {
         crate::language_server::LangServerCommon::contains_tx_operation_error(self, sql)?;
         emit.send(QueryEvent::new_status("trying to lock connection."))?;
@@ -1964,7 +2016,9 @@ impl QuerySql for PostGresDB {
 }
 
 async fn get_index_def(
-    conn: &mut PoolConnection<Postgres>, table_name: &str, index_name: &str,
+    conn: &mut PoolConnection<Postgres>,
+    table_name: &str,
+    index_name: &str,
 ) -> anyhow::Result<String> {
     let sql = format!(
         "SELECT indexdef from pg_indexes where tablename='{table_name}' and indexname='{index_name}'"
@@ -1980,7 +2034,9 @@ async fn get_index_def(
 }
 
 async fn get_index_kind(
-    conn: &mut PoolConnection<Postgres>, table_name: &str, index_name: &str,
+    conn: &mut PoolConnection<Postgres>,
+    table_name: &str,
+    index_name: &str,
 ) -> anyhow::Result<IndexKind> {
     let sql: String = get_index_def(conn, table_name, index_name).await?;
     let statements = sqlparser::parser::Parser::parse_sql(
@@ -2041,7 +2097,9 @@ impl CatalogTrait for PostGresDB {
     }
 
     async fn create_database(
-        &self, name: &str, _extra: Option<CreateDatabaseExtra>,
+        &self,
+        name: &str,
+        _extra: Option<CreateDatabaseExtra>,
     ) -> anyhow::Result<()> {
         self.can_write()?;
         let sql = format!(r#"CREATE DATABASE "{name}""#);

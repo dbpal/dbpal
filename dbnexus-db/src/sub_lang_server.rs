@@ -4,9 +4,9 @@ use crate::{
     cockroach::COCKROACH_TYPES,
     db::{CreatedTypeDef, SequenceDetail, SqlEvent},
     language_server::{
-        AstCompletionHelper, CompletionItem, CompletionList, DBExecutable, ErrAndLoc, GetKeyWords,
-        LangServerCommon, LanguageServer, LexerCompletionTrait, PostGresExtension,
-        try_parser_dot_lexer,
+        try_parser_dot_lexer, AstCompletionHelper, CompletionItem, CompletionList, DBExecutable,
+        ErrAndLoc, GetKeyWords, LangServerCommon, LanguageServer, LexerCompletionTrait,
+        PostGresExtension,
     },
     mariadb::MariaDB,
     sqlparser_completion::TempTableColumn,
@@ -27,7 +27,12 @@ impl SubDB {
 #[async_trait::async_trait]
 impl LanguageServer for SubDB {
     async fn auto_completion(
-        &self, query_id: Option<String>, sql: &str, line: u32, col: u32, use_lexer: bool,
+        &self,
+        query_id: Option<String>,
+        sql: &str,
+        line: u32,
+        col: u32,
+        use_lexer: bool,
     ) -> anyhow::Result<CompletionList> {
         if let Some(query_id) = query_id {
             match self {
@@ -46,7 +51,10 @@ impl LanguageServer for SubDB {
     }
 
     async fn ai_text_completion(
-        &self, sql: &str, line: u32, col: u32,
+        &self,
+        sql: &str,
+        line: u32,
+        col: u32,
     ) -> anyhow::Result<CompletionList> {
         LexerCompletionTrait::ai_text_completion(self, sql, line, col).await
     }
@@ -118,7 +126,8 @@ impl SubDB {
 
 impl LangServerCommon for SubDB {
     async fn postgres_list_extension(
-        &self, _installed: bool,
+        &self,
+        _installed: bool,
     ) -> anyhow::Result<Vec<PostGresExtension>> {
         self.as_ast_completion_helper()
             .postgres_list_extension(_installed)
@@ -180,7 +189,9 @@ impl LangServerCommon for SubDB {
     }
 
     async fn list_function(
-        &self, schema: Option<&str>, include_build_in: bool,
+        &self,
+        schema: Option<&str>,
+        include_build_in: bool,
     ) -> anyhow::Result<Vec<CompletionItem>> {
         match self {
             SubDB::TiDB(x) => {
@@ -203,7 +214,10 @@ impl LangServerCommon for SubDB {
         self.as_lang_server_common().list_procedure(schema).await
     }
     async fn list_column(
-        &self, schema: Option<&str>, name: &str, is_call: Option<Vec<String>>,
+        &self,
+        schema: Option<&str>,
+        name: &str,
+        is_call: Option<Vec<String>>,
     ) -> anyhow::Result<Vec<TempTableColumn>> {
         self.as_lang_server_common()
             .list_column(schema, name, is_call)
@@ -229,7 +243,8 @@ impl AstCompletionHelper for SubDB {
     }
 
     async fn mysql_show_create_trigger(
-        &self, schema: Option<&str>,
+        &self,
+        schema: Option<&str>,
     ) -> anyhow::Result<Vec<CompletionItem>> {
         self.as_ast_completion_helper()
             .mysql_show_create_trigger(schema)
@@ -237,14 +252,18 @@ impl AstCompletionHelper for SubDB {
     }
 
     async fn list_partition(
-        &self, schema: Option<&str>, table: &str,
+        &self,
+        schema: Option<&str>,
+        table: &str,
     ) -> anyhow::Result<Vec<String>> {
         self.as_ast_completion_helper()
             .list_partition(schema, table)
             .await
     }
     async fn table_policy(
-        &self, _schema: Option<&str>, table: &str,
+        &self,
+        _schema: Option<&str>,
+        table: &str,
     ) -> anyhow::Result<Vec<String>> {
         self.as_ast_completion_helper()
             .table_policy(_schema, table)
@@ -252,21 +271,27 @@ impl AstCompletionHelper for SubDB {
     }
 
     async fn list_postgres_rule(
-        &self, _schema: Option<&str>, table: &str,
+        &self,
+        _schema: Option<&str>,
+        table: &str,
     ) -> anyhow::Result<Vec<String>> {
         self.as_ast_completion_helper()
             .list_postgres_rule(_schema, table)
             .await
     }
     async fn list_constraint(
-        &self, _schema: Option<&str>, table_name: &str,
+        &self,
+        _schema: Option<&str>,
+        table_name: &str,
     ) -> anyhow::Result<Vec<String>> {
         self.as_ast_completion_helper()
             .list_constraint(_schema, table_name)
             .await
     }
     async fn list_table_trigger(
-        &self, _schema: Option<&str>, table: &str,
+        &self,
+        _schema: Option<&str>,
+        table: &str,
     ) -> anyhow::Result<Vec<String>> {
         self.as_ast_completion_helper()
             .list_table_trigger(_schema, table)

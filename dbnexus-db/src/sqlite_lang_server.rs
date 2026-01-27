@@ -3,8 +3,8 @@ use std::ops::DerefMut;
 
 use crate::db::name_start_ascii_alphabetic;
 use crate::language_server::{
-    AstCompletionHelper, CompletionItem, CompletionKind, CompletionList, ErrAndLoc, GetKeyWords,
-    LangServerCommon, LanguageServer, LexerCompletionTrait, try_parser_dot_lexer,
+    try_parser_dot_lexer, AstCompletionHelper, CompletionItem, CompletionKind, CompletionList,
+    ErrAndLoc, GetKeyWords, LangServerCommon, LanguageServer, LexerCompletionTrait,
 };
 use crate::sqlite::SqliteDB;
 use crate::sqlparser_completion::TempTableColumn;
@@ -65,7 +65,10 @@ impl LangServerCommon for SqliteDB {
     }
 
     async fn list_column(
-        &self, schema: Option<&str>, name: &str, is_call: Option<Vec<String>>,
+        &self,
+        schema: Option<&str>,
+        name: &str,
+        is_call: Option<Vec<String>>,
     ) -> anyhow::Result<Vec<TempTableColumn>> {
         let schema = Self::merge_schema(schema);
         let sql = format!(
@@ -81,7 +84,9 @@ impl LangServerCommon for SqliteDB {
     }
 
     async fn list_function(
-        &self, _schema: Option<&str>, include_build_in: bool,
+        &self,
+        _schema: Option<&str>,
+        include_build_in: bool,
     ) -> anyhow::Result<Vec<CompletionItem>> {
         // sqlite function are all build in functions
         if !include_build_in {
@@ -188,7 +193,10 @@ impl LanguageServer for SqliteDB {
         anyhow::Ok(id.to_string())
     }
     async fn ai_text_completion(
-        &self, text: &str, line: u32, col: u32,
+        &self,
+        text: &str,
+        line: u32,
+        col: u32,
     ) -> anyhow::Result<CompletionList> {
         LexerCompletionTrait::ai_text_completion(self, text, line, col).await
     }
@@ -201,7 +209,12 @@ impl LanguageServer for SqliteDB {
     }
 
     async fn auto_completion(
-        &self, query_id: Option<String>, sql: &str, line: u32, col: u32, use_lexer: bool,
+        &self,
+        query_id: Option<String>,
+        sql: &str,
+        line: u32,
+        col: u32,
+        use_lexer: bool,
     ) -> anyhow::Result<CompletionList> {
         self.completion_id.set_optional(query_id);
         try_parser_dot_lexer(self, sql, line, col, use_lexer).await
@@ -472,8 +485,8 @@ pub(crate) const SQLITE_KEY_WORDS: &[&str] = &[
 mod tests {
     use crate::db::{QuerySql, SchemaTrait};
     use crate::enable_test_log;
-    use crate::language_server::LanguageServer;
     use crate::language_server::completion_test::test_file_auto_completion;
+    use crate::language_server::LanguageServer;
     use crate::sqlite::make_test_object;
     use std::path::Path;
 

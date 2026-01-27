@@ -14,11 +14,19 @@ use crate::sqlparser_completion::{CompletionStatement, Scopes, TempTableColumn};
 #[async_trait::async_trait]
 pub trait LanguageServer: GetBackendKind + Send + Sync + 'static {
     async fn auto_completion(
-        &self, query_id: Option<String>, sql: &str, line: u32, col: u32, use_lexer: bool,
+        &self,
+        query_id: Option<String>,
+        sql: &str,
+        line: u32,
+        col: u32,
+        use_lexer: bool,
     ) -> anyhow::Result<CompletionList>;
 
     async fn ai_text_completion(
-        &self, sql: &str, line: u32, col: u32,
+        &self,
+        sql: &str,
+        line: u32,
+        col: u32,
     ) -> anyhow::Result<CompletionList>;
 
     async fn try_get_max_id(&self, _name: &str) -> anyhow::Result<String> {
@@ -125,7 +133,9 @@ impl std::fmt::Display for CompletionKind {
 }
 
 pub fn in_pos(
-    pos: sqlparser::tokenizer::Location, t: sqlparser::tokenizer::Location, len: impl Into<u64>,
+    pos: sqlparser::tokenizer::Location,
+    t: sqlparser::tokenizer::Location,
+    len: impl Into<u64>,
 ) -> bool {
     pos.line == t.line && (pos.column >= t.column && pos.column <= (t.column + len.into()))
 }
@@ -147,7 +157,10 @@ pub trait LexerCompletionTrait: LangServerCommon {
     }
 
     async fn ai_text_completion(
-        &self, sql: &str, line: u32, col: u32,
+        &self,
+        sql: &str,
+        line: u32,
+        col: u32,
     ) -> anyhow::Result<CompletionList> {
         match self.try_completion_dot(sql, line, col).await {
             Ok(ret) => return anyhow::Ok(ret),
@@ -159,7 +172,10 @@ pub trait LexerCompletionTrait: LangServerCommon {
     }
 
     async fn do_auto_completion(
-        &self, sql: &str, line: u32, col: u32,
+        &self,
+        sql: &str,
+        line: u32,
+        col: u32,
     ) -> anyhow::Result<CompletionList> {
         let pos = sqlparser::tokenizer::Location {
             line: line as u64,
@@ -434,13 +450,15 @@ pub trait GetKeyWords: GetBackendKind {
 #[async_trait::async_trait]
 pub trait LangServerCommon: GetBackendKind + GetKeyWords + Send + Sync {
     async fn postgres_list_extension(
-        &self, _installed: bool,
+        &self,
+        _installed: bool,
     ) -> anyhow::Result<Vec<PostGresExtension>> {
         anyhow::Ok(vec![])
     }
 
     async fn postgres_list_extension_completion(
-        &self, _installed: bool,
+        &self,
+        _installed: bool,
     ) -> anyhow::Result<Vec<CompletionItem>> {
         let r = self.postgres_list_extension(_installed).await?;
         let r: Vec<_> = r.into_iter().map(CompletionItem::from).collect();
@@ -565,7 +583,8 @@ pub trait LangServerCommon: GetBackendKind + GetKeyWords + Send + Sync {
 
     // list user created types.
     async fn list_created_type(
-        &self, _schema: Option<&str>,
+        &self,
+        _schema: Option<&str>,
     ) -> anyhow::Result<Vec<CreatedTypeDef>> {
         anyhow::Ok(vec![])
     }
@@ -624,7 +643,9 @@ pub trait LangServerCommon: GetBackendKind + GetKeyWords + Send + Sync {
     async fn list_view(&self, schema: Option<&str>) -> anyhow::Result<Vec<String>>;
 
     async fn list_function(
-        &self, schema: Option<&str>, include_build_in: bool,
+        &self,
+        schema: Option<&str>,
+        include_build_in: bool,
     ) -> anyhow::Result<Vec<CompletionItem>>;
     async fn list_procedure(&self, _schema: Option<&str>) -> anyhow::Result<Vec<String>> {
         self.backend_name().not_support_feature()
@@ -647,10 +668,16 @@ pub trait LangServerCommon: GetBackendKind + GetKeyWords + Send + Sync {
     }
 
     async fn list_column(
-        &self, schema: Option<&str>, name: &str, is_call: Option<Vec<String>>,
+        &self,
+        schema: Option<&str>,
+        name: &str,
+        is_call: Option<Vec<String>>,
     ) -> anyhow::Result<Vec<TempTableColumn>>;
     async fn list_column_oked(
-        &self, schema: Option<&str>, name: &str, is_call: Option<Vec<String>>,
+        &self,
+        schema: Option<&str>,
+        name: &str,
+        is_call: Option<Vec<String>>,
     ) -> Vec<TempTableColumn> {
         self.list_column(schema, name, is_call)
             .await
@@ -659,7 +686,10 @@ pub trait LangServerCommon: GetBackendKind + GetKeyWords + Send + Sync {
     }
     // completion on ast struct like `SCHEMA.XXXX`  , 'TABLE.XXXX'
     async fn try_completion_dot(
-        &self, sql: &str, line: u32, col: u32,
+        &self,
+        sql: &str,
+        line: u32,
+        col: u32,
     ) -> anyhow::Result<CompletionList> {
         let loc = sqlparser::tokenizer::Location {
             line: line as u64,
@@ -1060,29 +1090,38 @@ pub trait AstCompletionHelper: Send + Sync + 'static + GetBackendKind + LangServ
     async fn get_query_columns(&self, _sql: &str) -> anyhow::Result<Vec<TempTableColumn>>;
 
     async fn list_clickhouse_table_projects(
-        &self, _schema: Option<&str>, _table: &str,
+        &self,
+        _schema: Option<&str>,
+        _table: &str,
     ) -> anyhow::Result<Vec<String>> {
         self.backend_name().not_support_feature()
     }
 
     async fn mysql_show_create_trigger(
-        &self, _schema: Option<&str>,
+        &self,
+        _schema: Option<&str>,
     ) -> anyhow::Result<Vec<CompletionItem>> {
         anyhow::Ok(vec![])
     }
 
     async fn list_partition(
-        &self, _schema: Option<&str>, _table: &str,
+        &self,
+        _schema: Option<&str>,
+        _table: &str,
     ) -> anyhow::Result<Vec<String>> {
         self.backend_name().not_support_feature()
     }
     async fn table_policy(
-        &self, _schema: Option<&str>, _table: &str,
+        &self,
+        _schema: Option<&str>,
+        _table: &str,
     ) -> anyhow::Result<Vec<String>> {
         self.backend_name().not_support_feature()
     }
     async fn table_policy_completion(
-        &self, schema: Option<&str>, table: &str,
+        &self,
+        schema: Option<&str>,
+        table: &str,
     ) -> Vec<CompletionItem> {
         self.table_policy(schema, table)
             .await
@@ -1098,17 +1137,23 @@ pub trait AstCompletionHelper: Send + Sync + 'static + GetBackendKind + LangServ
     }
 
     async fn list_postgres_rule(
-        &self, _schema: Option<&str>, _table: &str,
+        &self,
+        _schema: Option<&str>,
+        _table: &str,
     ) -> anyhow::Result<Vec<String>> {
         self.backend_name().not_support_feature()
     }
     async fn list_constraint(
-        &self, _schema: Option<&str>, _table_name: &str,
+        &self,
+        _schema: Option<&str>,
+        _table_name: &str,
     ) -> anyhow::Result<Vec<String>> {
         self.backend_name().not_support_feature()
     }
     async fn list_table_trigger(
-        &self, _schema: Option<&str>, _table: &str,
+        &self,
+        _schema: Option<&str>,
+        _table: &str,
     ) -> anyhow::Result<Vec<String>> {
         self.backend_name().not_support_feature()
     }
@@ -1118,7 +1163,11 @@ pub trait AstCompletionHelper: Send + Sync + 'static + GetBackendKind + LangServ
 /// then a syntax like schema... table...
 /// then lexer   
 pub(crate) async fn try_parser_dot_lexer<T: LexerCompletionTrait + AstCompletionHelper>(
-    backend: &T, sql: &str, line: u32, col: u32, use_lexer: bool,
+    backend: &T,
+    sql: &str,
+    line: u32,
+    col: u32,
+    use_lexer: bool,
 ) -> anyhow::Result<CompletionList> {
     let dot = backend.try_completion_dot(sql, line, col).await;
     let r = tokio::time::timeout(Duration::from_secs(4), async move {
@@ -1153,7 +1202,10 @@ pub(crate) async fn try_parser_dot_lexer<T: LexerCompletionTrait + AstCompletion
 }
 
 pub(crate) async fn try_parser_completion(
-    sql: &str, line: u32, col: u32, helper: &dyn AstCompletionHelper,
+    sql: &str,
+    line: u32,
+    col: u32,
+    helper: &dyn AstCompletionHelper,
 ) -> anyhow::Result<Vec<CompletionItem>> {
     let loc = Location {
         line: line as u64,
@@ -1215,7 +1267,10 @@ pub(crate) mod completion_test {
     /// use in test to see if completion is ok.
     /// this fn not returns just panic if not contains.
     pub fn test_completion_items_contains(
-        items: &[CompletionItem], line: usize, col: u64, name: &str,
+        items: &[CompletionItem],
+        line: usize,
+        col: u64,
+        name: &str,
     ) {
         assert!(
             items.iter().any(|x| x.item.eq_ignore_ascii_case(name)),
@@ -1314,7 +1369,10 @@ select xxxx
     }
 
     pub(crate) async fn test_file_auto_completion(
-        content: &str, db: &dyn LanguageServer, query_id: Option<&str>, use_lexer: bool,
+        content: &str,
+        db: &dyn LanguageServer,
+        query_id: Option<&str>,
+        use_lexer: bool,
     ) {
         let items = parse_auto_completion_test_file(content);
         for item in items.iter() {

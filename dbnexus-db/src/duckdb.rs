@@ -1,12 +1,12 @@
 use crate::datasource_config::DuckDBConfig;
 use crate::db::{
-    AutoCompletionQueryId, BackendKind, CatalogTrait, CheckConn, ColumnType, CreateDatabaseExtra,
-    CreateIndexReq, CreateSchemaExtra, CreateTableAndIndexSql, DBTrait, ExportFrame, ExportKind,
-    ExportQueryResult, Field, GetBackendKind, Index, IndexKind, ListTable, MetaValue,
-    POOL_MAX_CONNECTIONS, QueryEventEmitter, QueryResp, QuerySql, ReadOnlyTrait, SchemaTrait,
-    SequenceDetail, ServerMetas, ShowTableParameter, SqlBuilder, create_html_table_data,
-    create_html_table_header, create_markdown_data, create_markdown_header, escape_sql_str,
-    export_query_as_xlsx_send_blocking_data,
+    create_html_table_data, create_html_table_header, create_markdown_data, create_markdown_header,
+    escape_sql_str, export_query_as_xlsx_send_blocking_data, AutoCompletionQueryId, BackendKind,
+    CatalogTrait, CheckConn, ColumnType, CreateDatabaseExtra, CreateIndexReq, CreateSchemaExtra,
+    CreateTableAndIndexSql, DBTrait, ExportFrame, ExportKind, ExportQueryResult, Field,
+    GetBackendKind, Index, IndexKind, ListTable, MetaValue, QueryEventEmitter, QueryResp, QuerySql,
+    ReadOnlyTrait, SchemaTrait, SequenceDetail, ServerMetas, ShowTableParameter, SqlBuilder,
+    POOL_MAX_CONNECTIONS,
 };
 use crate::helper::{create_csv, separate_sql_by_sqlparser_tokenizer};
 use chrono::NaiveDate;
@@ -21,8 +21,13 @@ use std::time::Duration;
 use tokio::task::spawn_blocking;
 
 fn gen_show_sql(
-    schema: &str, table_name: &str, fields: &str, where_str: Option<&str>, order_by: Option<&str>,
-    page: usize, page_size: usize,
+    schema: &str,
+    table_name: &str,
+    fields: &str,
+    where_str: Option<&str>,
+    order_by: Option<&str>,
+    page: usize,
+    page_size: usize,
 ) -> String {
     let mut sql = format!("SELECT {fields} from \"{schema}\".\"{table_name}\"");
     if let Some(where_str) = where_str {
@@ -259,7 +264,10 @@ impl ExportQueryResult for DuckDB {
     }
 
     async fn export_query_result(
-        &self, query_id: Option<&str>, sql: &str, kind: ExportKind,
+        &self,
+        query_id: Option<&str>,
+        sql: &str,
+        kind: ExportKind,
         sender: tokio::sync::mpsc::Sender<ExportFrame>,
     ) -> anyhow::Result<()> {
         let this = Clone::clone(self);
@@ -352,7 +360,10 @@ impl QuerySql for DuckDB {
     }
 
     async fn query_sql(
-        &self, query_id: &str, sql: &str, emit: QueryEventEmitter,
+        &self,
+        query_id: &str,
+        sql: &str,
+        emit: QueryEventEmitter,
     ) -> anyhow::Result<()> {
         let sql = separate_sql_by_sqlparser_tokenizer(
             sql,
@@ -402,7 +413,9 @@ impl QuerySql for DuckDB {
     }
 
     async fn execute_sql(
-        &self, query_id: &str, sql: &str,
+        &self,
+        query_id: &str,
+        sql: &str,
     ) -> anyhow::Result<Result<QueryResp, String>> {
         let this = Clone::clone(self);
         let query_id = query_id.to_string();
@@ -635,7 +648,10 @@ fn encode_row<'stmt>(row: &duckdb::Row<'stmt>) -> anyhow::Result<Vec<Option<Stri
 
 impl DuckDB {
     async fn export_table_as_sql(
-        &self, table_name: &str, para: Option<ShowTableParameter>, include_table_schema: bool,
+        &self,
+        table_name: &str,
+        para: Option<ShowTableParameter>,
+        include_table_schema: bool,
         sender: tokio::sync::mpsc::Sender<ExportFrame>,
     ) -> anyhow::Result<()> {
         if include_table_schema {
@@ -698,7 +714,9 @@ impl DuckDB {
 
 impl DuckDB {
     pub(crate) async fn list_table_impl(
-        &self, db: &str, schema: &str,
+        &self,
+        db: &str,
+        schema: &str,
     ) -> anyhow::Result<Vec<ListTable>> {
         let this = Clone::clone(self);
         let sql = format!(
@@ -721,7 +739,9 @@ impl DuckDB {
     }
 
     pub(crate) async fn list_view_impl(
-        &self, db: &str, schema: &str,
+        &self,
+        db: &str,
+        schema: &str,
     ) -> anyhow::Result<Vec<ListTable>> {
         let this = Clone::clone(self);
         let sql = format!(
@@ -760,7 +780,10 @@ impl DuckDB {
 #[async_trait::async_trait]
 impl SchemaTrait for DuckDB {
     async fn rename_index(
-        &self, _table: &str, _old_name: &str, _new_name: &str,
+        &self,
+        _table: &str,
+        _old_name: &str,
+        _new_name: &str,
     ) -> anyhow::Result<()> {
         self.backend_name().not_support_feature()
     }
@@ -825,7 +848,11 @@ impl SchemaTrait for DuckDB {
     }
 
     async fn modify_table_column(
-        &self, table: &str, old_name: &str, new_name: &str, typ: Option<ColumnType>,
+        &self,
+        table: &str,
+        old_name: &str,
+        new_name: &str,
+        typ: Option<ColumnType>,
     ) -> anyhow::Result<()> {
         if old_name != new_name {
             let sql = format!(
@@ -889,7 +916,10 @@ impl SchemaTrait for DuckDB {
     }
 
     async fn add_table_column(
-        &self, table: &str, name: &str, col: ColumnType,
+        &self,
+        table: &str,
+        name: &str,
+        col: ColumnType,
     ) -> anyhow::Result<()> {
         let sql = format!(
             r#"ALTER TABLE "{table}" ADD COLUMN "{name}" {} {} {}"#,
@@ -910,7 +940,10 @@ impl SchemaTrait for DuckDB {
     }
 
     async fn export_table_or_view(
-        &self, name: &str, para: Option<ShowTableParameter>, kind: ExportKind,
+        &self,
+        name: &str,
+        para: Option<ShowTableParameter>,
+        kind: ExportKind,
         sender: tokio::sync::mpsc::Sender<ExportFrame>,
     ) -> anyhow::Result<()> {
         match kind {
@@ -947,7 +980,8 @@ impl SchemaTrait for DuckDB {
     }
 
     async fn show_create_table_sql(
-        &self, table_name: &str,
+        &self,
+        table_name: &str,
     ) -> anyhow::Result<CreateTableAndIndexSql> {
         let sql = format!(
             r#"
@@ -1002,7 +1036,10 @@ impl SchemaTrait for DuckDB {
     }
 
     async fn show_view(
-        &self, view_name: &str, para: ShowTableParameter, emit: QueryEventEmitter,
+        &self,
+        view_name: &str,
+        para: ShowTableParameter,
+        emit: QueryEventEmitter,
     ) -> anyhow::Result<()> {
         let this = Clone::clone(self);
         let cols = self.show_view_columns(view_name).await?;
@@ -1184,7 +1221,10 @@ impl SchemaTrait for DuckDB {
     }
 
     async fn show_table(
-        &self, table_name: &str, para: ShowTableParameter, emit: QueryEventEmitter,
+        &self,
+        table_name: &str,
+        para: ShowTableParameter,
+        emit: QueryEventEmitter,
     ) -> anyhow::Result<()> {
         let cols = self.show_table_columns(table_name).await?;
         let this = Clone::clone(self);
@@ -1335,7 +1375,9 @@ impl DBTrait for DuckDB {
     }
 
     async fn create_schema(
-        &self, name: &str, _extra: Option<CreateSchemaExtra>,
+        &self,
+        name: &str,
+        _extra: Option<CreateSchemaExtra>,
     ) -> anyhow::Result<()> {
         self.can_write()?;
         let sql = format!("CREATE SCHEMA {};", name);
@@ -1383,7 +1425,9 @@ impl CatalogTrait for DuckDB {
     }
 
     async fn create_database(
-        &self, _name: &str, _extra: Option<CreateDatabaseExtra>,
+        &self,
+        _name: &str,
+        _extra: Option<CreateDatabaseExtra>,
     ) -> anyhow::Result<()> {
         anyhow::bail!("duckdb can't create database")
     }
@@ -1395,7 +1439,9 @@ impl CatalogTrait for DuckDB {
 
 impl DuckDB {
     pub(crate) async fn list_sequence_impl(
-        &self, db: &str, schema: &str,
+        &self,
+        db: &str,
+        schema: &str,
     ) -> anyhow::Result<Vec<SequenceDetail>> {
         let this = Clone::clone(self);
         let db = db.to_owned();

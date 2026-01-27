@@ -9,10 +9,10 @@ MySQL 只允许省略 sys. 前缀直接调用“函数”，对“存储过程�
 过程（procedure）、表（table）、视图（view）：一律没有特权，想跨库访问就老老实实加前缀或切换默认库。
 */
 
-use crate::db::{SqlEvent, name_start_ascii_alphabetic};
+use crate::db::{name_start_ascii_alphabetic, SqlEvent};
 use crate::language_server::{
-    AstCompletionHelper, CompletionItem, CompletionKind, CompletionList, DBExecutable, ErrAndLoc,
-    GetKeyWords, LangServerCommon, LanguageServer, LexerCompletionTrait, try_parser_dot_lexer,
+    try_parser_dot_lexer, AstCompletionHelper, CompletionItem, CompletionKind, CompletionList,
+    DBExecutable, ErrAndLoc, GetKeyWords, LangServerCommon, LanguageServer, LexerCompletionTrait,
 };
 use crate::mysql::MysqlDB;
 use crate::sqlparser_completion::TempTableColumn;
@@ -80,7 +80,10 @@ impl LanguageServer for MysqlDB {
         anyhow::Ok(id.unwrap_or_default().to_string())
     }
     async fn ai_text_completion(
-        &self, text: &str, line: u32, col: u32,
+        &self,
+        text: &str,
+        line: u32,
+        col: u32,
     ) -> anyhow::Result<CompletionList> {
         LexerCompletionTrait::ai_text_completion(self, text, line, col).await
     }
@@ -92,7 +95,12 @@ impl LanguageServer for MysqlDB {
     }
 
     async fn auto_completion(
-        &self, query_id: Option<String>, sql: &str, line: u32, col: u32, use_lexer: bool,
+        &self,
+        query_id: Option<String>,
+        sql: &str,
+        line: u32,
+        col: u32,
+        use_lexer: bool,
     ) -> anyhow::Result<CompletionList> {
         self.completion_id.set_optional(query_id);
         try_parser_dot_lexer(self, sql, line, col, use_lexer).await
@@ -112,7 +120,8 @@ impl MysqlDB {
 
 impl MysqlDB {
     pub(crate) async fn query_select_database(
-        &self, mut conn: &mut sqlx::MySqlConnection,
+        &self,
+        mut conn: &mut sqlx::MySqlConnection,
     ) -> anyhow::Result<Option<String>> {
         let sql = Self::SELECT_DB_SQL;
         let row = sqlx::raw_sql(sql).fetch_one(conn.deref_mut()).await.ok();
@@ -153,7 +162,8 @@ impl MysqlDB {
     }
 
     pub(crate) async fn not_allow_empty_schema(
-        &self, schema: Option<&str>,
+        &self,
+        schema: Option<&str>,
     ) -> anyhow::Result<String> {
         match self.merge_schema(schema).await {
             Some(x) => anyhow::Ok(x),
@@ -241,7 +251,10 @@ impl LangServerCommon for MysqlDB {
     }
 
     async fn list_column(
-        &self, schema: Option<&str>, name: &str, is_call: Option<Vec<String>>,
+        &self,
+        schema: Option<&str>,
+        name: &str,
+        is_call: Option<Vec<String>>,
     ) -> anyhow::Result<Vec<TempTableColumn>> {
         let sql = if let Some(args) = is_call {
             format!(
@@ -268,7 +281,9 @@ impl LangServerCommon for MysqlDB {
     }
 
     async fn list_function(
-        &self, schema: Option<&str>, include_build_in: bool,
+        &self,
+        schema: Option<&str>,
+        include_build_in: bool,
     ) -> anyhow::Result<Vec<CompletionItem>> {
         let schema = self.merge_schema(schema).await;
         let mut conn = self.get_conn().await?;
@@ -378,7 +393,8 @@ impl LangServerCommon for MysqlDB {
 #[async_trait::async_trait]
 impl AstCompletionHelper for MysqlDB {
     async fn mysql_show_create_trigger(
-        &self, schema: Option<&str>,
+        &self,
+        schema: Option<&str>,
     ) -> anyhow::Result<Vec<CompletionItem>> {
         let schema = self.not_allow_empty_schema(schema).await?;
         let sql = format!(
@@ -425,7 +441,9 @@ impl AstCompletionHelper for MysqlDB {
     }
 
     async fn list_partition(
-        &self, schema: Option<&str>, table: &str,
+        &self,
+        schema: Option<&str>,
+        table: &str,
     ) -> anyhow::Result<Vec<String>> {
         let schema = self.not_allow_empty_schema(schema).await?;
         let sql = format!(
@@ -449,7 +467,9 @@ impl AstCompletionHelper for MysqlDB {
     }
 
     async fn list_constraint(
-        &self, schema: Option<&str>, table_name: &str,
+        &self,
+        schema: Option<&str>,
+        table_name: &str,
     ) -> anyhow::Result<Vec<String>> {
         let schema = self.not_allow_empty_schema(schema).await?;
         let sql = format!(
@@ -473,7 +493,9 @@ impl AstCompletionHelper for MysqlDB {
     }
 
     async fn list_table_trigger(
-        &self, schema: Option<&str>, table: &str,
+        &self,
+        schema: Option<&str>,
+        table: &str,
     ) -> anyhow::Result<Vec<String>> {
         let schema = self.not_allow_empty_schema(schema).await?;
         let sql = format!(
@@ -855,7 +877,7 @@ mod tests {
     use crate::language_server::completion_test::test_file_auto_completion;
     use crate::language_server::{LangServerCommon, LanguageServer};
     use crate::mysql::MysqlDB;
-    use crate::{TEST_HOST, enable_test_log};
+    use crate::{enable_test_log, TEST_HOST};
 
     async fn make_test_object(config: MysqlDBConfig) -> MysqlDB {
         let db = MysqlDB::new(config).await.unwrap();
@@ -983,13 +1005,12 @@ mod tests {
         .await
         .unwrap()
         .unwrap();
-        assert!(
-            db.list_execute(None)
-                .await
-                .unwrap()
-                .iter()
-                .any(|x| x.name.eq("stmtxxx"))
-        );
+        assert!(db
+            .list_execute(None)
+            .await
+            .unwrap()
+            .iter()
+            .any(|x| x.name.eq("stmtxxx")));
     }
 
     #[tokio::test]

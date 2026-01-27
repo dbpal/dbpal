@@ -444,7 +444,8 @@ impl DBPal {
     }
 
     pub async fn establish_conn(
-        &self, config: &DBConnectionConfig,
+        &self,
+        config: &DBConnectionConfig,
     ) -> anyhow::Result<DatabaseBackend> {
         let db = config.open().await?;
         // make sure connection is ok

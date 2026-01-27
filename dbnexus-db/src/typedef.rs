@@ -1,8 +1,8 @@
-use typescript_type_def::TypeDef;
 use typescript_type_def::type_expr::{
     DefinedTypeInfo, Ident, ObjectField, TypeDefinition, TypeExpr, TypeInfo, TypeName, TypeObject,
     TypeString, TypeUnion,
 };
+use typescript_type_def::TypeDef;
 
 use crate::language_server::CompletionItem;
 

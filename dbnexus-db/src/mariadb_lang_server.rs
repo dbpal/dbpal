@@ -5,7 +5,9 @@ use std::ops::DerefMut;
 
 impl MariaDB {
     pub(crate) async fn language_server_list_function(
-        &self, schema: Option<&str>, include_build_in: bool,
+        &self,
+        schema: Option<&str>,
+        include_build_in: bool,
     ) -> anyhow::Result<Vec<CompletionItem>> {
         let mut ret = LangServerCommon::list_function(self.db.as_ref(), schema, false).await?;
         if include_build_in {
@@ -19,7 +21,8 @@ impl MariaDB {
     }
 
     pub(crate) async fn lang_server_list_table(
-        &self, schema: Option<&str>,
+        &self,
+        schema: Option<&str>,
     ) -> anyhow::Result<Vec<String>> {
         let mut result = LangServerCommon::list_table(self.db.as_ref(), schema).await?;
         let mut conn = self.db.get_conn().await?;

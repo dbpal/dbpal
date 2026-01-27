@@ -26,7 +26,8 @@ where
 /// create csv file list of string
 /// each line of line separator
 pub(crate) fn create_csv(
-    ds: &[Option<String>], delimiter: char,
+    ds: &[Option<String>],
+    delimiter: char,
 ) -> anyhow::Result<tokio_util::bytes::Bytes> {
     let mut writer = csv::WriterBuilder::new()
         .delimiter(delimiter as u8)
@@ -43,7 +44,8 @@ pub(crate) fn create_csv(
 }
 
 pub fn separate_sql_by_sqlparser_tokenizer(
-    sql: &str, dialect: &dyn Dialect,
+    sql: &str,
+    dialect: &dyn Dialect,
 ) -> anyhow::Result<Vec<String>> {
     let tokens: Vec<_> = sqlparser::tokenizer::Tokenizer::new(dialect, sql)
         .tokenize()?

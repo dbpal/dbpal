@@ -19,19 +19,19 @@ RDB$RELATION_NAME 的数据类型是 CHAR(31)，定长字符，不足 31 字节�
 */
 use crate::datasource_config::FireBirdConfig;
 use crate::db::{
-    BackendKind, CheckConn, CreateIndexReq, ExportFrame, ExportKind, ExportQueryResult, Field,
-    GetBackendKind, Index, IndexKind, ListTable, MetaValue, OptionMustBeSomeErr,
-    POOL_MAX_CONNECTIONS, QueryEvent, QueryEventEmitter, QueryResp, QuerySql, ReadOnlyTrait,
-    SchemaTrait, ServerMetas, ShowTableParameter, SqlBuilder, XlsxEdit, create_html_table_data,
-    create_html_table_header, create_markdown_data, create_markdown_header, escape_sql_str,
-    export_query_as_xlsx_send_blocking_data,
+    create_html_table_data, create_html_table_header, create_markdown_data, create_markdown_header,
+    escape_sql_str, export_query_as_xlsx_send_blocking_data, BackendKind, CheckConn,
+    CreateIndexReq, ExportFrame, ExportKind, ExportQueryResult, Field, GetBackendKind, Index,
+    IndexKind, ListTable, MetaValue, OptionMustBeSomeErr, QueryEvent, QueryEventEmitter, QueryResp,
+    QuerySql, ReadOnlyTrait, SchemaTrait, ServerMetas, ShowTableParameter, SqlBuilder, XlsxEdit,
+    POOL_MAX_CONNECTIONS,
 };
 
 use crate::helper::create_csv;
 use crate::language_server::LexerCompletionTrait;
 use dashmap::{DashMap, DashSet};
 use r2d2::{Pool, PooledConnection};
-use rsfbclient::{Execute, FbError, Queryable, Row, SqlType, builder_pure_rust};
+use rsfbclient::{builder_pure_rust, Execute, FbError, Queryable, Row, SqlType};
 use rsfbclient_rust::RustFbClient;
 
 use std::collections::{HashMap, HashSet};
@@ -111,7 +111,8 @@ fn is_time(x: &Option<&String>) -> bool {
 }
 
 fn encode_row(
-    row: &Row, types: Option<HashMap<&String, &Field>>,
+    row: &Row,
+    types: Option<HashMap<&String, &Field>>,
 ) -> anyhow::Result<Vec<Option<String>>> {
     let get_type = |name: &String| {
         types
@@ -177,7 +178,10 @@ impl ExportQueryResult for FireBirdDB {
     }
 
     async fn export_query_result(
-        &self, _query_id: Option<&str>, sql: &str, kind: ExportKind,
+        &self,
+        _query_id: Option<&str>,
+        sql: &str,
+        kind: ExportKind,
         sender: tokio::sync::mpsc::Sender<ExportFrame>,
     ) -> anyhow::Result<()> {
         let this = Clone::clone(self);
@@ -318,7 +322,10 @@ impl QuerySql for FireBirdDB {
     }
 
     async fn query_sql(
-        &self, query_id: &str, sql: &str, emit: QueryEventEmitter,
+        &self,
+        query_id: &str,
+        sql: &str,
+        emit: QueryEventEmitter,
     ) -> anyhow::Result<()> {
         crate::language_server::LangServerCommon::contains_tx_operation_error(self, sql)?;
         let this = Clone::clone(self);
@@ -360,7 +367,9 @@ impl QuerySql for FireBirdDB {
         anyhow::Ok(Some(row_aff))
     }
     async fn execute_sql(
-        &self, query_id: &str, sql: &str,
+        &self,
+        query_id: &str,
+        sql: &str,
     ) -> anyhow::Result<Result<QueryResp, String>> {
         crate::language_server::LangServerCommon::contains_tx_operation_error(self, sql)?;
         let this = Clone::clone(self);
@@ -437,7 +446,10 @@ impl ServerMetas for FireBirdDB {
 
 impl FireBirdDB {
     async fn export_table_as_sql(
-        &self, table_name: &str, para: Option<ShowTableParameter>, include_table_schema: bool,
+        &self,
+        table_name: &str,
+        para: Option<ShowTableParameter>,
+        include_table_schema: bool,
         sender: tokio::sync::mpsc::Sender<ExportFrame>,
     ) -> anyhow::Result<()> {
         if include_table_schema {
@@ -570,7 +582,10 @@ impl SchemaTrait for FireBirdDB {
     }
 
     async fn export_table_or_view(
-        &self, name: &str, para: Option<ShowTableParameter>, kind: ExportKind,
+        &self,
+        name: &str,
+        para: Option<ShowTableParameter>,
+        kind: ExportKind,
         sender: tokio::sync::mpsc::Sender<ExportFrame>,
     ) -> anyhow::Result<()> {
         match kind {
@@ -649,7 +664,10 @@ impl SchemaTrait for FireBirdDB {
     }
 
     async fn show_table(
-        &self, table_name: &str, para: ShowTableParameter, emit: QueryEventEmitter,
+        &self,
+        table_name: &str,
+        para: ShowTableParameter,
+        emit: QueryEventEmitter,
     ) -> anyhow::Result<()> {
         let fs = self.show_table_columns(table_name).await?;
         let table_name = table_name.to_owned();
@@ -814,7 +832,10 @@ impl SchemaTrait for FireBirdDB {
     }
 
     async fn show_view(
-        &self, view_name: &str, para: ShowTableParameter, emit: QueryEventEmitter,
+        &self,
+        view_name: &str,
+        para: ShowTableParameter,
+        emit: QueryEventEmitter,
     ) -> anyhow::Result<()> {
         let this = Clone::clone(self);
         let view_name = view_name.to_owned();
@@ -889,7 +910,9 @@ impl SqlBuilder for FireBirdDB {
 
 impl FireBirdDB {
     fn query_count(
-        conn: &mut PooledConnection<PoolManager>, name: &str, where_str: Option<&str>,
+        conn: &mut PooledConnection<PoolManager>,
+        name: &str,
+        where_str: Option<&str>,
     ) -> anyhow::Result<usize> {
         let mut s = format!(r#"SELECT count(1) from "{name}" "#);
         if let Some(where_str) = where_str {
@@ -973,8 +996,12 @@ impl FireBirdDB {
 }
 
 pub(crate) fn gen_show_sql(
-    table_name: &str, fields: Option<String>, where_str: Option<&str>, order_by: Option<&str>,
-    page: usize, page_size: usize,
+    table_name: &str,
+    fields: Option<String>,
+    where_str: Option<&str>,
+    order_by: Option<&str>,
+    page: usize,
+    page_size: usize,
 ) -> String {
     let mut sql = format!(
         r#"SELECT  {}  FROM "{table_name}""#,

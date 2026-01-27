@@ -87,7 +87,11 @@ import { showTable } from "./handlers.ts";
 import { AddTableView } from "./LeftTable.tsx";
 
 class RedisZsetHashModifyReq {
-  constructor(public oldKey: string, public newKey: string, public value: string) {}
+  constructor(
+    public oldKey: string,
+    public newKey: string,
+    public value: string,
+  ) {}
 }
 
 enum RedisEditorMode {
@@ -214,6 +218,7 @@ function RedisStringTable(props: { uuid: string; stringKey: string }) {
         height: "100%",
       }}
     >
+      <QueryStatus setRef={queryStatus} />
       {typeof content == "string" && (
         <RedisValueEditor value={content} valueRef={valueRef} />
       )}
@@ -228,7 +233,6 @@ function RedisStringTable(props: { uuid: string; stringKey: string }) {
           set
         </Button>
       </Stack>
-      <QueryStatus setRef={queryStatus} />
     </Stack>
   );
 }
@@ -968,6 +972,7 @@ function RedisSetTable(props: { setKey: string; uuid: string }) {
   }, [fetchDur, lastFetchTime, setKey]);
   return (
     <Stack style={{ height: "100%" }}>
+      <QueryStatus setRef={queryStatus} />
       <StackRowCenter>
         <Button
           color="primary"
@@ -1006,7 +1011,7 @@ function RedisSetTable(props: { setKey: string; uuid: string }) {
         </Tooltip>
         <AddTable uuid={uuid} redisKey={setKey} redisType={RedisTableType.Set} />{" "}
       </StackRowCenter>
-      <QueryStatus setRef={queryStatus} />
+
       {resp && (
         <DataGrid
           slots={slots}
@@ -1745,6 +1750,7 @@ function RedisZsetTable(props: { uuid: string; zsetKey: string }) {
   }, [fetchDur, lastFetchTime, zsetKey]);
   return (
     <Stack style={{ height: "100%" }}>
+      <QueryStatus setRef={queryStatus} />
       <StackRowCenter>
         <Button
           color="primary"
@@ -1845,7 +1851,7 @@ function RedisZsetTable(props: { uuid: string; zsetKey: string }) {
         />
         <AddTable uuid={uuid} redisKey={zsetKey} redisType={RedisTableType.Zset} />
       </StackRowCenter>
-      <QueryStatus setRef={queryStatus} />
+
       {resp && (
         <DataGrid
           slots={slots}
@@ -2138,6 +2144,7 @@ function RedisHashTable(props: { hashKey: string; uuid: string }) {
   }, [fetchDur, hashKey, lastFetchTime]);
   return (
     <Stack style={{ height: "100%" }}>
+      <QueryStatus setRef={queryStatus} />
       <StackRowCenter>
         <Button
           color="primary"
@@ -2178,7 +2185,7 @@ function RedisHashTable(props: { hashKey: string; uuid: string }) {
         </Tooltip>
         <AddTable uuid={uuid} redisKey={hashKey} redisType={RedisTableType.Hash} />
       </StackRowCenter>
-      <QueryStatus setRef={queryStatus} />
+
       {resp && (
         <DataGrid
           slots={slots}

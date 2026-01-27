@@ -7,10 +7,10 @@ use std::vec;
 
 use crate::db::GetBackendKind;
 use crate::language_server::{
-    CompletionItem, CompletionKind, CompletionList, LanguageServer, in_pos,
+    in_pos, CompletionItem, CompletionKind, CompletionList, LanguageServer,
 };
 
-use crate::redis::{RedisDB, RedisToken, get_command_from_sql};
+use crate::redis::{get_command_from_sql, RedisDB, RedisToken};
 use futures_core::future::BoxFuture;
 use futures_util::{FutureExt, StreamExt};
 use redis::aio::MultiplexedConnection;
@@ -61,7 +61,9 @@ impl RedisDB {
     }
 
     async fn completion_hash_keys(
-        &self, hash_key: &str, p: &str,
+        &self,
+        hash_key: &str,
+        p: &str,
     ) -> anyhow::Result<CompletionList> {
         let conn = self.get_query_conn()?;
         let mut conn = conn.lock().await;
@@ -126,7 +128,9 @@ impl RedisDB {
     }
 
     async fn completion_zset_member(
-        &self, key: &str, member: &str,
+        &self,
+        key: &str,
+        member: &str,
     ) -> anyhow::Result<CompletionList> {
         let conn = self.get_query_conn()?;
         let mut conn = conn.lock().await;
@@ -161,33 +165,33 @@ impl RedisDB {
     }
 
     fn make_auto_completion_fn_by_command<'a, 'b>(
-        &'a self, command: &'b str, patterns: &'b [String],
+        &'a self,
+        command: &'b str,
+        patterns: &'b [String],
     ) -> anyhow::Result<Vec<BoxFuture<'b, anyhow::Result<CompletionList>>>>
     where
         'a: 'b,
     {
         if is_simple_command(command) {
-            return anyhow::Ok(vec![
-                async {
-                    let x: Vec<_> = get_simple_command_sub(command)
-                        .iter()
-                        .map(|x| x.to_uppercase())
-                        .collect();
-                    anyhow::Ok(CompletionList {
-                        items: x
-                            .into_iter()
-                            .map(|x| CompletionItem {
-                                kind: CompletionKind::Command,
-                                item: x.into(),
-                                desc: None,
-                            })
-                            .collect(),
-                        incomplete: false,
-                        from_dot: false,
-                    })
-                }
-                .boxed(),
-            ]);
+            return anyhow::Ok(vec![async {
+                let x: Vec<_> = get_simple_command_sub(command)
+                    .iter()
+                    .map(|x| x.to_uppercase())
+                    .collect();
+                anyhow::Ok(CompletionList {
+                    items: x
+                        .into_iter()
+                        .map(|x| CompletionItem {
+                            kind: CompletionKind::Command,
+                            item: x.into(),
+                            desc: None,
+                        })
+                        .collect(),
+                    incomplete: false,
+                    from_dot: false,
+                })
+            }
+            .boxed()]);
         }
 
         /// dummy auto completion don't return anything
@@ -219,41 +223,39 @@ impl RedisDB {
                 vec![]
             }
             "BGSAVE" => {
-                vec![
-                    async move {
-                        anyhow::Ok(
-                            vec![
-                                CompletionItem {
-                                    item: "SCHEDULE".into(),
-                                    kind: CompletionKind::Text,
-                                    desc: None,
-                                },
-                                CompletionItem {
-                                    item: "FORCE".into(),
-                                    kind: CompletionKind::Text,
-                                    desc: None,
-                                },
-                                CompletionItem {
-                                    item: "SCHEDULE FORCE".into(),
-                                    kind: CompletionKind::Text,
-                                    desc: None,
-                                },
-                                CompletionItem {
-                                    item: "SCHEDULE CRON".into(),
-                                    kind: CompletionKind::Text,
-                                    desc: None,
-                                },
-                                CompletionItem {
-                                    item: "SCHEDULE INTERVAL".into(),
-                                    kind: CompletionKind::Text,
-                                    desc: None,
-                                },
-                            ]
-                            .into(),
-                        )
-                    }
-                    .boxed(),
-                ]
+                vec![async move {
+                    anyhow::Ok(
+                        vec![
+                            CompletionItem {
+                                item: "SCHEDULE".into(),
+                                kind: CompletionKind::Text,
+                                desc: None,
+                            },
+                            CompletionItem {
+                                item: "FORCE".into(),
+                                kind: CompletionKind::Text,
+                                desc: None,
+                            },
+                            CompletionItem {
+                                item: "SCHEDULE FORCE".into(),
+                                kind: CompletionKind::Text,
+                                desc: None,
+                            },
+                            CompletionItem {
+                                item: "SCHEDULE CRON".into(),
+                                kind: CompletionKind::Text,
+                                desc: None,
+                            },
+                            CompletionItem {
+                                item: "SCHEDULE INTERVAL".into(),
+                                kind: CompletionKind::Text,
+                                desc: None,
+                            },
+                        ]
+                        .into(),
+                    )
+                }
+                .boxed()]
             }
             "BITCOUNT" => {
                 let key = patterns.first();
@@ -277,54 +279,52 @@ impl RedisDB {
             }
 
             "BITOP" => {
-                let mut vs = vec![
-                    async move {
-                        let ret = vec![
-                            CompletionItem {
-                                item: "AND".into(),
-                                kind: CompletionKind::Text,
-                                desc: None,
-                            },
-                            CompletionItem {
-                                item: "OR".into(),
-                                kind: CompletionKind::Text,
-                                desc: None,
-                            },
-                            CompletionItem {
-                                item: "XOR".into(),
-                                kind: CompletionKind::Text,
-                                desc: None,
-                            },
-                            CompletionItem {
-                                item: "NOT".into(),
-                                kind: CompletionKind::Text,
-                                desc: None,
-                            },
-                            CompletionItem {
-                                item: "DIFF".into(),
-                                kind: CompletionKind::Text,
-                                desc: None,
-                            },
-                            CompletionItem {
-                                item: "DIFF1".into(),
-                                kind: CompletionKind::Text,
-                                desc: None,
-                            },
-                            CompletionItem {
-                                item: "ANDOR".into(),
-                                kind: CompletionKind::Text,
-                                desc: None,
-                            },
-                            CompletionItem {
-                                item: "ONE".into(),
-                                kind: CompletionKind::Text,
-                                desc: None,
-                            },
-                        ];
-                        anyhow::Ok(CompletionList::from(ret))
-                    }
-                    .boxed(),
-                ];
+                let mut vs = vec![async move {
+                    let ret = vec![
+                        CompletionItem {
+                            item: "AND".into(),
+                            kind: CompletionKind::Text,
+                            desc: None,
+                        },
+                        CompletionItem {
+                            item: "OR".into(),
+                            kind: CompletionKind::Text,
+                            desc: None,
+                        },
+                        CompletionItem {
+                            item: "XOR".into(),
+                            kind: CompletionKind::Text,
+                            desc: None,
+                        },
+                        CompletionItem {
+                            item: "NOT".into(),
+                            kind: CompletionKind::Text,
+                            desc: None,
+                        },
+                        CompletionItem {
+                            item: "DIFF".into(),
+                            kind: CompletionKind::Text,
+                            desc: None,
+                        },
+                        CompletionItem {
+                            item: "DIFF1".into(),
+                            kind: CompletionKind::Text,
+                            desc: None,
+                        },
+                        CompletionItem {
+                            item: "ANDOR".into(),
+                            kind: CompletionKind::Text,
+                            desc: None,
+                        },
+                        CompletionItem {
+                            item: "ONE".into(),
+                            kind: CompletionKind::Text,
+                            desc: None,
+                        },
+                    ];
+                    anyhow::Ok(CompletionList::from(ret))
+                }
+                .boxed()];
                 let x = patterns
                     .iter()
                     .skip(1)
@@ -565,40 +565,38 @@ impl RedisDB {
                 // https://github.com/redis/redis-doc/blob/master/commands/info.md
                 // info has no separate documentation for each command
                 // so simple command completion will not working
-                vec![
-                    async move {
-                        const INFO_SECTIONS: &[&str] = &[
-                            "server",
-                            "clients",
-                            "memory",
-                            "persistence",
-                            "stats",
-                            "replication",
-                            "cpu",
-                            "commandstats",
-                            "latencystats",
-                            "sentinel",
-                            "cluster",
-                            "modules",
-                            "keyspace",
-                            "errorstats",
-                            "all",
-                            "default",
-                        ];
-                        anyhow::Ok(
-                            INFO_SECTIONS
-                                .iter()
-                                .map(|x| CompletionItem {
-                                    item: (*x).into(),
-                                    kind: CompletionKind::Command,
-                                    desc: None,
-                                })
-                                .collect::<Vec<_>>()
-                                .into(),
-                        )
-                    }
-                    .boxed(),
-                ]
+                vec![async move {
+                    const INFO_SECTIONS: &[&str] = &[
+                        "server",
+                        "clients",
+                        "memory",
+                        "persistence",
+                        "stats",
+                        "replication",
+                        "cpu",
+                        "commandstats",
+                        "latencystats",
+                        "sentinel",
+                        "cluster",
+                        "modules",
+                        "keyspace",
+                        "errorstats",
+                        "all",
+                        "default",
+                    ];
+                    anyhow::Ok(
+                        INFO_SECTIONS
+                            .iter()
+                            .map(|x| CompletionItem {
+                                item: (*x).into(),
+                                kind: CompletionKind::Command,
+                                desc: None,
+                            })
+                            .collect::<Vec<_>>()
+                            .into(),
+                    )
+                }
+                .boxed()]
             }
             "KEYS" => {
                 vec![]
@@ -1008,7 +1006,10 @@ impl RedisDB {
 #[async_trait::async_trait]
 impl LanguageServer for RedisDB {
     async fn ai_text_completion(
-        &self, text: &str, line: u32, col: u32,
+        &self,
+        text: &str,
+        line: u32,
+        col: u32,
     ) -> anyhow::Result<CompletionList> {
         let loc = sqlparser::tokenizer::Location::new(line as u64, col as u64);
 
@@ -1092,7 +1093,12 @@ impl LanguageServer for RedisDB {
     }
 
     async fn auto_completion(
-        &self, query_id: Option<String>, sql: &str, line: u32, col: u32, _use_lexer: bool,
+        &self,
+        query_id: Option<String>,
+        sql: &str,
+        line: u32,
+        col: u32,
+        _use_lexer: bool,
     ) -> anyhow::Result<CompletionList> {
         self.completion_id.set_optional(query_id);
         let pos = sqlparser::tokenizer::Location {

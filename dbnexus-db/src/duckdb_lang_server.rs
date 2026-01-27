@@ -1,8 +1,8 @@
 use crate::db::{CatalogTrait, SequenceDetail};
 use crate::duckdb::{DuckDB, DuckDbPooledConn};
 use crate::language_server::{
-    AstCompletionHelper, CompletionItem, CompletionKind, CompletionList, GetKeyWords,
-    LangServerCommon, LanguageServer, LexerCompletionTrait, try_parser_dot_lexer,
+    try_parser_dot_lexer, AstCompletionHelper, CompletionItem, CompletionKind, CompletionList,
+    GetKeyWords, LangServerCommon, LanguageServer, LexerCompletionTrait,
 };
 use crate::sqlparser_completion::TempTableColumn;
 use duckdb::types::Value;
@@ -26,14 +26,22 @@ impl LanguageServer for DuckDB {
     }
 
     async fn auto_completion(
-        &self, query_id: Option<String>, sql: &str, line: u32, col: u32, use_lexer: bool,
+        &self,
+        query_id: Option<String>,
+        sql: &str,
+        line: u32,
+        col: u32,
+        use_lexer: bool,
     ) -> anyhow::Result<CompletionList> {
         self.completion_id.set_optional(query_id);
         try_parser_dot_lexer(self, sql, line, col, use_lexer).await
     }
 
     async fn ai_text_completion(
-        &self, sql: &str, line: u32, col: u32,
+        &self,
+        sql: &str,
+        line: u32,
+        col: u32,
     ) -> anyhow::Result<CompletionList> {
         LexerCompletionTrait::ai_text_completion(self, sql, line, col).await
     }
@@ -128,7 +136,10 @@ impl LangServerCommon for DuckDB {
     }
 
     async fn list_column(
-        &self, schema: Option<&str>, name: &str, is_call: Option<Vec<String>>,
+        &self,
+        schema: Option<&str>,
+        name: &str,
+        is_call: Option<Vec<String>>,
     ) -> anyhow::Result<Vec<TempTableColumn>> {
         let this = Clone::clone(self);
         let schema = this.get_schema(schema).await?;
@@ -191,7 +202,9 @@ impl LangServerCommon for DuckDB {
     }
 
     async fn list_function(
-        &self, _schema: Option<&str>, _include_build_in: bool,
+        &self,
+        _schema: Option<&str>,
+        _include_build_in: bool,
     ) -> anyhow::Result<Vec<CompletionItem>> {
         let this = Clone::clone(self);
         let sql = r#"SELECT function_name ,description  FROM duckdb_functions()"#;
@@ -224,7 +237,8 @@ impl LangServerCommon for DuckDB {
 
 impl AstCompletionHelper for DuckDB {
     async fn get_query_columns(
-        &self, sql: &str,
+        &self,
+        sql: &str,
     ) -> anyhow::Result<Vec<crate::sqlparser_completion::TempTableColumn>> {
         let sql = format!("select * from ({sql})  limit 1");
 
@@ -384,8 +398,8 @@ mod tests {
     use crate::db::{QuerySql, SchemaTrait};
     use crate::duckdb::make_test_object;
     use crate::enable_test_log;
-    use crate::language_server::LanguageServer;
     use crate::language_server::completion_test::test_file_auto_completion;
+    use crate::language_server::LanguageServer;
     use std::path::Path;
 
     // partition test failed , sqlparser can't parse a valid partition statement.

@@ -1398,7 +1398,7 @@ function QueryStatus(props: { setRef: RefObject<SetStatusFn> }) {
     queryStatus && (
       <Stack
         direction="row"
-        style={{ position: "absolute", bottom: 0, left: 0, opacity: 0.5, zIndex: 14 }}
+        // style={{ position: "absolute", bottom: 0, left: 0, opacity: 0.5, zIndex: 114 }}
       >
         <CircularProgress />
         <Typography> {queryStatus} </Typography>

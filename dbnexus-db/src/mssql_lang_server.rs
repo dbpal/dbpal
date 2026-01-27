@@ -4,8 +4,8 @@
 
 use crate::db::{CatalogTrait, CreatedTypeDef};
 use crate::language_server::{
-    AstCompletionHelper, CompletionItem, CompletionKind, CompletionList, DBExecutable, ErrAndLoc,
-    GetKeyWords, LangServerCommon, LanguageServer, LexerCompletionTrait, try_parser_dot_lexer,
+    try_parser_dot_lexer, AstCompletionHelper, CompletionItem, CompletionKind, CompletionList,
+    DBExecutable, ErrAndLoc, GetKeyWords, LangServerCommon, LanguageServer, LexerCompletionTrait,
 };
 use crate::mssql::{ConvertColumnDataToString, SqlServerDB};
 use crate::sqlparser_completion::TempTableColumn;
@@ -49,7 +49,10 @@ impl LanguageServer for SqlServerDB {
     }
 
     async fn ai_text_completion(
-        &self, text: &str, line: u32, col: u32,
+        &self,
+        text: &str,
+        line: u32,
+        col: u32,
     ) -> anyhow::Result<CompletionList> {
         LexerCompletionTrait::ai_text_completion(self, text, line, col).await
     }
@@ -61,7 +64,12 @@ impl LanguageServer for SqlServerDB {
     }
 
     async fn auto_completion(
-        &self, _query_id: Option<String>, sql: &str, line: u32, col: u32, use_lexer: bool,
+        &self,
+        _query_id: Option<String>,
+        sql: &str,
+        line: u32,
+        col: u32,
+        use_lexer: bool,
     ) -> anyhow::Result<CompletionList> {
         try_parser_dot_lexer(self, sql, line, col, use_lexer).await
     }
@@ -207,7 +215,10 @@ impl LangServerCommon for SqlServerDB {
     }
 
     async fn list_column(
-        &self, schema: Option<&str>, name: &str, is_call: Option<Vec<String>>,
+        &self,
+        schema: Option<&str>,
+        name: &str,
+        is_call: Option<Vec<String>>,
     ) -> anyhow::Result<Vec<TempTableColumn>> {
         let sql = if let Some(is_call) = is_call {
             format!(
@@ -238,7 +249,9 @@ impl LangServerCommon for SqlServerDB {
             .map(|x| x.into_iter().map(|x| x.name).collect())
     }
     async fn list_function(
-        &self, schema: Option<&str>, include_build_in: bool,
+        &self,
+        schema: Option<&str>,
+        include_build_in: bool,
     ) -> anyhow::Result<Vec<CompletionItem>> {
         let schema = self.schema_merge_config(schema);
         let mut ret = if let Some(schema) = &schema {
@@ -331,7 +344,9 @@ impl LangServerCommon for SqlServerDB {
 #[async_trait::async_trait]
 impl AstCompletionHelper for SqlServerDB {
     async fn list_constraint(
-        &self, _schema: Option<&str>, table_name: &str,
+        &self,
+        _schema: Option<&str>,
+        table_name: &str,
     ) -> anyhow::Result<Vec<String>> {
         let db: &String = self.config.db_str()?;
         let sql = format!(

@@ -11,14 +11,14 @@ use tokio::task::spawn_blocking;
 
 use crate::datasource_config::OracleDBConfig;
 use crate::db::{
-    BackendKind, CheckConn, ColumnType, CreateIndexReq, CreateSchemaExtra, CreateTableAndIndexSql,
-    DBTrait, DefAndMetas, ExportFrame, ExportKind, ExportQueryResult, Field, GetBackendKind, Index,
-    IndexKind, ListTable, MetaValue, NamedStaff, OptionMustBeSomeErr, POOL_MAX_CONNECTIONS,
-    ProcedureDetail, QueryEvent, QueryEventEmitter, QueryResp, QuerySql, ReadOnlyTrait,
-    SchemaTrait, ServerMetas, ShowTableParameter, SqlBuilder, TriggerDetail, TriggerEnable,
-    TriggerEvent, TriggerTiming, UdfOrProcedureExtraParameter, XlsxEdit, create_html_table_data,
-    create_html_table_header, create_markdown_data, create_markdown_header, escape_sql_str,
-    export_query_as_xlsx_send_blocking_data,
+    create_html_table_data, create_html_table_header, create_markdown_data, create_markdown_header,
+    escape_sql_str, export_query_as_xlsx_send_blocking_data, BackendKind, CheckConn, ColumnType,
+    CreateIndexReq, CreateSchemaExtra, CreateTableAndIndexSql, DBTrait, DefAndMetas, ExportFrame,
+    ExportKind, ExportQueryResult, Field, GetBackendKind, Index, IndexKind, ListTable, MetaValue,
+    NamedStaff, OptionMustBeSomeErr, ProcedureDetail, QueryEvent, QueryEventEmitter, QueryResp,
+    QuerySql, ReadOnlyTrait, SchemaTrait, ServerMetas, ShowTableParameter, SqlBuilder,
+    TriggerDetail, TriggerEnable, TriggerEvent, TriggerTiming, UdfOrProcedureExtraParameter,
+    XlsxEdit, POOL_MAX_CONNECTIONS,
 };
 
 use crate::helper::{create_csv, run_with_timeout};
@@ -81,7 +81,10 @@ impl ExportQueryResult for OracleDB {
     }
 
     async fn export_query_result(
-        &self, query_id: Option<&str>, sql: &str, kind: ExportKind,
+        &self,
+        query_id: Option<&str>,
+        sql: &str,
+        kind: ExportKind,
         sender: tokio::sync::mpsc::Sender<ExportFrame>,
     ) -> anyhow::Result<()> {
         let this = Clone::clone(self);
@@ -260,7 +263,9 @@ impl QuerySql for OracleDB {
     }
 
     async fn execute_sql(
-        &self, query_id: &str, sql: &str,
+        &self,
+        query_id: &str,
+        sql: &str,
     ) -> anyhow::Result<Result<QueryResp, String>> {
         let this = Clone::clone(self);
         let query_id = query_id.to_owned();
@@ -282,7 +287,10 @@ impl QuerySql for OracleDB {
     }
 
     async fn query_sql(
-        &self, query_id: &str, sql: &str, emit: QueryEventEmitter,
+        &self,
+        query_id: &str,
+        sql: &str,
+        emit: QueryEventEmitter,
     ) -> anyhow::Result<()> {
         let this = Clone::clone(self);
         let query_id = query_id.to_owned();
@@ -327,8 +335,12 @@ impl QuerySql for OracleDB {
 }
 
 fn gen_show_sql(
-    table_name: &str, fields: Option<String>, where_str: Option<&str>, order_by: Option<&str>,
-    page: usize, page_size: usize,
+    table_name: &str,
+    fields: Option<String>,
+    where_str: Option<&str>,
+    order_by: Option<&str>,
+    page: usize,
+    page_size: usize,
 ) -> String {
     let mut sql = format!(
         r#"SELECT {} FROM "{table_name}""#,
@@ -688,7 +700,9 @@ fn encode_row_as_json(r: &Row) -> anyhow::Result<serde_json::map::Map<String, se
 
 impl OracleDB {
     pub(crate) async fn create_view_sql_impl(
-        &self, view_name: &str, materialized: bool,
+        &self,
+        view_name: &str,
+        materialized: bool,
     ) -> anyhow::Result<String> {
         let sql = if materialized {
             format!(
@@ -713,7 +727,9 @@ impl OracleDB {
 
 impl OracleDB {
     pub(crate) async fn create_index_sql(
-        &self, name: &str, schema: &str,
+        &self,
+        name: &str,
+        schema: &str,
     ) -> anyhow::Result<String> {
         let sql = format!("SELECT DBMS_METADATA.GET_DDL('INDEX', '{name}', '{schema}') FROM dual;");
         log::info!("sql:{}", sql);
@@ -768,7 +784,10 @@ impl OracleDB {
 
 impl OracleDB {
     async fn export_table_as_sql(
-        &self, table_name: &str, para: Option<ShowTableParameter>, include_table_schema: bool,
+        &self,
+        table_name: &str,
+        para: Option<ShowTableParameter>,
+        include_table_schema: bool,
         sender: tokio::sync::mpsc::Sender<ExportFrame>,
     ) -> anyhow::Result<()> {
         let cols = SchemaTrait::show_table_columns(self, table_name).await?;
@@ -823,7 +842,8 @@ impl OracleDB {
     }
 
     fn get_conn_by_query_id(
-        &self, query_id: Option<&str>,
+        &self,
+        query_id: Option<&str>,
     ) -> anyhow::Result<Arc<Mutex<oracle::Connection>>> {
         match query_id {
             Some(query_id) => match self.query_connection.get(&query_id.to_string()) {
@@ -853,7 +873,8 @@ impl CheckConn for OracleDB {
 
 impl OracleDB {
     pub(crate) async fn query_size(
-        &self, names: &[String],
+        &self,
+        names: &[String],
     ) -> anyhow::Result<HashMap<String, Option<i64>>> {
         let sql = format!(
             r#"
@@ -1040,7 +1061,8 @@ impl SchemaTrait for OracleDB {
     }
 
     async fn show_create_table_sql(
-        &self, table_name: &str,
+        &self,
+        table_name: &str,
     ) -> anyhow::Result<CreateTableAndIndexSql> {
         let create_table = self.create_table_sql_impl(table_name).await?;
         let indexes = self.show_indexes(table_name).await?;
@@ -1062,7 +1084,10 @@ impl SchemaTrait for OracleDB {
     }
 
     async fn export_table_or_view(
-        &self, name: &str, para: Option<ShowTableParameter>, kind: ExportKind,
+        &self,
+        name: &str,
+        para: Option<ShowTableParameter>,
+        kind: ExportKind,
         sender: tokio::sync::mpsc::Sender<ExportFrame>,
     ) -> anyhow::Result<()> {
         match kind {
@@ -1164,7 +1189,10 @@ impl SchemaTrait for OracleDB {
     }
 
     async fn rename_index(
-        &self, _table_name: &str, oldname: &str, newname: &str,
+        &self,
+        _table_name: &str,
+        oldname: &str,
+        newname: &str,
     ) -> anyhow::Result<()> {
         let sql = format!(r#"ALTER INDEX "{oldname}" RENAME TO "{newname}""#);
         log::info!("sql:{}", sql);
@@ -1191,7 +1219,11 @@ impl SchemaTrait for OracleDB {
     }
 
     async fn modify_table_column(
-        &self, table: &str, old_name: &str, new_name: &str, typ: Option<ColumnType>,
+        &self,
+        table: &str,
+        old_name: &str,
+        new_name: &str,
+        typ: Option<ColumnType>,
     ) -> anyhow::Result<()> {
         if old_name != new_name {
             let sql =
@@ -1227,7 +1259,10 @@ impl SchemaTrait for OracleDB {
     }
 
     async fn add_table_column(
-        &self, table: &str, name: &str, typ: ColumnType,
+        &self,
+        table: &str,
+        name: &str,
+        typ: ColumnType,
     ) -> anyhow::Result<()> {
         let sql = format!(
             r#"ALTER TABLE "{table}" ADD "{name}"  {}  {} {}"#,
@@ -1248,7 +1283,10 @@ impl SchemaTrait for OracleDB {
     }
 
     async fn show_table(
-        &self, table_name: &str, para: ShowTableParameter, emit: QueryEventEmitter,
+        &self,
+        table_name: &str,
+        para: ShowTableParameter,
+        emit: QueryEventEmitter,
     ) -> anyhow::Result<()> {
         let ShowTableParameter {
             where_str,
@@ -1369,7 +1407,10 @@ impl SchemaTrait for OracleDB {
     }
 
     async fn show_view(
-        &self, view_name: &str, para: ShowTableParameter, emit: QueryEventEmitter,
+        &self,
+        view_name: &str,
+        para: ShowTableParameter,
+        emit: QueryEventEmitter,
     ) -> anyhow::Result<()> {
         let ShowTableParameter {
             where_str,
@@ -1506,7 +1547,9 @@ impl SchemaTrait for OracleDB {
     }
 
     async fn show_udf(
-        &self, name: &str, _arg: Option<UdfOrProcedureExtraParameter>,
+        &self,
+        name: &str,
+        _arg: Option<UdfOrProcedureExtraParameter>,
     ) -> anyhow::Result<DefAndMetas> {
         let sql = self.get_user_source(name).await?;
         log::info!("sql:{}", sql);
@@ -1517,7 +1560,9 @@ impl SchemaTrait for OracleDB {
     }
 
     async fn drop_udf(
-        &self, name: &str, _extra: Option<UdfOrProcedureExtraParameter>,
+        &self,
+        name: &str,
+        _extra: Option<UdfOrProcedureExtraParameter>,
     ) -> anyhow::Result<()> {
         let sql = format!(r#"DROP FUNCTION "{name}""#);
         log::info!("sql:{}", sql);
@@ -1530,7 +1575,9 @@ impl SchemaTrait for OracleDB {
     }
 
     async fn show_procedure(
-        &self, name: &str, _arg: Option<UdfOrProcedureExtraParameter>,
+        &self,
+        name: &str,
+        _arg: Option<UdfOrProcedureExtraParameter>,
     ) -> anyhow::Result<ProcedureDetail> {
         let sql = self.get_user_source(name).await?;
         log::info!("sql:{}", sql);
@@ -1541,7 +1588,9 @@ impl SchemaTrait for OracleDB {
     }
 
     async fn drop_procedure(
-        &self, name: &str, _arg: Option<UdfOrProcedureExtraParameter>,
+        &self,
+        name: &str,
+        _arg: Option<UdfOrProcedureExtraParameter>,
     ) -> anyhow::Result<()> {
         let sql = format!(r#"DROP PROCEDURE "{name}""#);
         log::info!("sql:{}", sql);
@@ -1552,7 +1601,8 @@ impl SchemaTrait for OracleDB {
 
 impl OracleDB {
     pub(crate) async fn list_procedure_impl(
-        &self, schema: &str,
+        &self,
+        schema: &str,
     ) -> anyhow::Result<Vec<NamedStaff>> {
         let sql = format!(
             r#"
@@ -1663,7 +1713,9 @@ impl DBTrait for OracleDB {
     }
 
     async fn create_schema(
-        &self, _name: &str, _extra: Option<CreateSchemaExtra>,
+        &self,
+        _name: &str,
+        _extra: Option<CreateSchemaExtra>,
     ) -> anyhow::Result<()> {
         self.backend_name().not_support_feature()
     }

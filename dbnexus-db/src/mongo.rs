@@ -6,13 +6,11 @@ use std::time::Duration;
 use bson::Bson;
 use dashmap::DashSet;
 use futures_util::StreamExt;
-use mongodb::bson::{Document, doc};
+use mongodb::bson::{doc, Document};
 use mongodb::options::{IndexOptions, ServerAddress, Tls, TlsOptions};
 use mongodb::results::{CollectionType, DeleteResult, InsertOneResult, UpdateResult};
-use mongodb::{IndexModel, bson};
+use mongodb::{bson, IndexModel};
 
-#[cfg(test)]
-use crate::TEST_HOST;
 use crate::datasource_config::MongoDBConfig;
 use crate::db::{
     BackendKind, CheckConn, CreateSchemaExtra, DBTrait, ExportFrame, ExportKind, ExportQueryResult,
@@ -20,6 +18,8 @@ use crate::db::{
     QueryEventEmitter, QueryResp, QuerySql, ReadOnlyTrait, SchemaTrait, ServerMetas,
     ShowTableParameter,
 };
+#[cfg(test)]
+use crate::TEST_HOST;
 
 #[derive(Clone)]
 pub struct MongoDB {
@@ -88,7 +88,10 @@ impl ReadOnlyTrait for MongoDB {
 #[async_trait::async_trait]
 impl ExportQueryResult for MongoDB {
     async fn export_query_result(
-        &self, _query_id: Option<&str>, _sql: &str, _kind: ExportKind,
+        &self,
+        _query_id: Option<&str>,
+        _sql: &str,
+        _kind: ExportKind,
         _sender: tokio::sync::mpsc::Sender<ExportFrame>,
     ) -> anyhow::Result<()> {
         self.backend_name().not_support_feature()
@@ -126,7 +129,9 @@ impl DBTrait for MongoDB {
     }
 
     async fn create_schema(
-        &self, name: &str, _extra: Option<CreateSchemaExtra>,
+        &self,
+        name: &str,
+        _extra: Option<CreateSchemaExtra>,
     ) -> anyhow::Result<()> {
         self.can_write()?;
         self.created_databases.insert(name.to_owned());
@@ -234,7 +239,9 @@ impl MongoDB {
     /// normal `insert` , `update` ,`delete` works very bad with mongodb
     /// So i just impl those method on  type`Document`
     pub async fn insert(
-        &self, collection_name: &str, doc: Document,
+        &self,
+        collection_name: &str,
+        doc: Document,
     ) -> anyhow::Result<InsertOneResult> {
         let db = self.get_db().await?;
         let ret = db
@@ -245,7 +252,11 @@ impl MongoDB {
     }
 
     pub async fn create_index(
-        &self, collection_name: &str, index_name: Option<String>, unique: bool, keys: Document,
+        &self,
+        collection_name: &str,
+        index_name: Option<String>,
+        unique: bool,
+        keys: Document,
     ) -> anyhow::Result<()> {
         let db = self.get_db().await?;
         let mut options = IndexOptions::default();
@@ -259,7 +270,9 @@ impl MongoDB {
     }
 
     pub async fn get_one_document_by_id(
-        &self, collection_name: &str, id: bson::Bson,
+        &self,
+        collection_name: &str,
+        id: bson::Bson,
     ) -> anyhow::Result<Document> {
         let db = self.get_db().await?;
         if let Some(document) = db
@@ -274,7 +287,9 @@ impl MongoDB {
     }
 
     pub async fn update_one(
-        &self, collection_name: &str, mut doc: Document,
+        &self,
+        collection_name: &str,
+        mut doc: Document,
     ) -> anyhow::Result<UpdateResult> {
         self.can_write()?;
         let id = match doc.remove("_id") {
@@ -290,7 +305,9 @@ impl MongoDB {
     }
 
     pub async fn delete_by_ids(
-        &self, collection_name: &str, ids: Vec<bson::Bson>,
+        &self,
+        collection_name: &str,
+        ids: Vec<bson::Bson>,
     ) -> anyhow::Result<DeleteResult> {
         self.can_write()?;
         let db = self.get_db().await?;
@@ -304,7 +321,12 @@ impl MongoDB {
     }
 
     pub async fn show_collection_table_list(
-        &self, collection_name: &str, filter: Document, sort: Document, page: u64, page_size: u64,
+        &self,
+        collection_name: &str,
+        filter: Document,
+        sort: Document,
+        page: u64,
+        page_size: u64,
     ) -> anyhow::Result<QueryResp> {
         let db = self.get_db().await?;
         let count: u64 = db
@@ -330,7 +352,12 @@ impl MongoDB {
     }
 
     pub async fn show_collection_json(
-        &self, collection_name: &str, filter: Document, sort: Document, page: u64, page_size: u64,
+        &self,
+        collection_name: &str,
+        filter: Document,
+        sort: Document,
+        page: u64,
+        page_size: u64,
     ) -> anyhow::Result<DocsAndCount> {
         let db = self.get_db().await?;
         let count = db
@@ -354,7 +381,12 @@ impl MongoDB {
     }
 
     pub async fn show_collection_docs(
-        &self, collection_name: &str, filter: Document, sort: Document, page: u64, page_size: u64,
+        &self,
+        collection_name: &str,
+        filter: Document,
+        sort: Document,
+        page: u64,
+        page_size: u64,
     ) -> anyhow::Result<DocsAndCount> {
         let db = self.get_db().await?;
         let count = db
@@ -396,7 +428,9 @@ pub struct JsonAndCount {
 }
 impl MongoDB {
     async fn duplicate_collection_impl(
-        &self, old_collection: &str, dup: &str,
+        &self,
+        old_collection: &str,
+        dup: &str,
     ) -> anyhow::Result<()> {
         let db = self.get_db().await?;
         let old_table = db.collection::<Document>(old_collection);
@@ -458,7 +492,8 @@ impl ServerMetas for MongoDB {
 
 impl MongoDB {
     pub(crate) async fn list_collection_name_by_type(
-        &self, ty: Option<CollectionType>,
+        &self,
+        ty: Option<CollectionType>,
     ) -> anyhow::Result<Vec<String>> {
         let conn = self.get_db().await?;
         let mut cols = conn.list_collections().await?;
@@ -550,7 +585,10 @@ impl SchemaTrait for MongoDB {
     }
 
     async fn export_table_or_view(
-        &self, name: &str, _para: Option<ShowTableParameter>, kind: ExportKind,
+        &self,
+        name: &str,
+        _para: Option<ShowTableParameter>,
+        kind: ExportKind,
         sender: tokio::sync::mpsc::Sender<ExportFrame>,
     ) -> anyhow::Result<()> {
         match kind {
@@ -571,7 +609,10 @@ impl SchemaTrait for MongoDB {
     }
 
     async fn show_view(
-        &self, _view_name: &str, _para: ShowTableParameter, _: QueryEventEmitter,
+        &self,
+        _view_name: &str,
+        _para: ShowTableParameter,
+        _: QueryEventEmitter,
     ) -> anyhow::Result<()> {
         anyhow::bail!("use mongo special method")
     }
@@ -622,7 +663,10 @@ impl SchemaTrait for MongoDB {
     }
 
     async fn rename_index(
-        &self, table_name: &str, oldname: &str, newname: &str,
+        &self,
+        table_name: &str,
+        oldname: &str,
+        newname: &str,
     ) -> anyhow::Result<()> {
         if oldname == "_id_" {
             anyhow::bail!("can't rename this index");
@@ -658,7 +702,10 @@ impl SchemaTrait for MongoDB {
     }
 
     async fn show_table(
-        &self, _table_name: &str, _para: ShowTableParameter, _: QueryEventEmitter,
+        &self,
+        _table_name: &str,
+        _para: ShowTableParameter,
+        _: QueryEventEmitter,
     ) -> anyhow::Result<()> {
         anyhow::bail!("use mongo special method")
     }
@@ -711,13 +758,18 @@ impl SchemaTrait for MongoDB {
 #[async_trait::async_trait]
 impl QuerySql for MongoDB {
     async fn query_sql(
-        &self, _id: &str, _sql: &str, _emit: QueryEventEmitter,
+        &self,
+        _id: &str,
+        _sql: &str,
+        _emit: QueryEventEmitter,
     ) -> anyhow::Result<()> {
         self.backend_name().not_support_feature()
     }
 
     async fn execute_sql(
-        &self, _query_id: &str, _sql: &str,
+        &self,
+        _query_id: &str,
+        _sql: &str,
     ) -> anyhow::Result<Result<QueryResp, String>> {
         self.backend_name().not_support_feature()
     }
@@ -772,7 +824,7 @@ mod tests {
 
     use bson::oid::ObjectId;
     use bson::spec::BinarySubtype;
-    use bson::{Binary, Bson, DateTime, Decimal128, Document, Regex, Timestamp, Uuid, doc};
+    use bson::{doc, Binary, Bson, DateTime, Decimal128, Document, Regex, Timestamp, Uuid};
     use mongodb::bson;
     use mongodb::options::TimeseriesOptions;
 

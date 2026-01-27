@@ -1,19 +1,19 @@
-#[cfg(test)]
-use crate::TEST_HOST;
 use crate::datasource_config::SqlServerDBConfig;
 use crate::db::{
-    BackendKind, CatalogTrait, CheckConn, ColumnType, CreateDatabaseExtra, CreateIndexReq,
-    CreateSchemaExtra, DBTrait, DefAndMetas, ExportFrame, ExportKind, ExportQueryResult, Field,
-    GetBackendKind, Index, IndexKind, ListTable, MetaValue, NamedStaff, POOL_MAX_CONNECTIONS,
-    ProcedureDetail, QueryEvent, QueryResp, QuerySql, ReadOnlyTrait, SchemaTrait, ServerMetas,
-    ShowTableParameter, SqlBuilder, TriggerDetail, TriggerEnable, TriggerEvent, TriggerTiming,
-    UdfOrProcedureExtraParameter, XlsxEdit, create_html_table_data, create_html_table_header,
-    create_markdown_data, create_markdown_header, escape_sql_str, export_query_as_xlsx_send_data,
-    format_data_time_fix_offset,
+    create_html_table_data, create_html_table_header, create_markdown_data, create_markdown_header,
+    escape_sql_str, export_query_as_xlsx_send_data, format_data_time_fix_offset, BackendKind,
+    CatalogTrait, CheckConn, ColumnType, CreateDatabaseExtra, CreateIndexReq, CreateSchemaExtra,
+    DBTrait, DefAndMetas, ExportFrame, ExportKind, ExportQueryResult, Field, GetBackendKind, Index,
+    IndexKind, ListTable, MetaValue, NamedStaff, ProcedureDetail, QueryEvent, QueryResp, QuerySql,
+    ReadOnlyTrait, SchemaTrait, ServerMetas, ShowTableParameter, SqlBuilder, TriggerDetail,
+    TriggerEnable, TriggerEvent, TriggerTiming, UdfOrProcedureExtraParameter, XlsxEdit,
+    POOL_MAX_CONNECTIONS,
 };
 use crate::db::{OptionMustBeSomeErr, QueryEventEmitter};
 use crate::helper::create_csv;
 use crate::language_server::LexerCompletionTrait;
+#[cfg(test)]
+use crate::TEST_HOST;
 use chrono::FixedOffset;
 use dashmap::DashMap;
 use futures_util::StreamExt;
@@ -278,8 +278,13 @@ fn encode_row(row: &tiberius::Row) -> anyhow::Result<Vec<Option<String>>> {
 }
 
 fn gen_show_sql(
-    schema: &str, table_name: &str, fields: Option<String>, where_str: Option<&str>,
-    order_by: Option<&str>, page: usize, page_size: usize,
+    schema: &str,
+    table_name: &str,
+    fields: Option<String>,
+    where_str: Option<&str>,
+    order_by: Option<&str>,
+    page: usize,
+    page_size: usize,
 ) -> String {
     let mut sql = format!(
         r#"SELECT {} FROM "{schema}"."{table_name}""#,
@@ -354,7 +359,9 @@ impl SqlServerDB {
 
 impl SqlServerDB {
     pub(crate) async fn list_table_impl(
-        &self, db: &str, schema: &str,
+        &self,
+        db: &str,
+        schema: &str,
     ) -> anyhow::Result<Vec<ListTable>> {
         if schema.eq_ignore_ascii_case("sys") {
             //  这里没有找到可以查询的语句 所以让AI帮我做成一个列表
@@ -410,7 +417,8 @@ impl SqlServerDB {
     }
 
     pub(crate) async fn list_procedure_impl(
-        &self, schema: &str,
+        &self,
+        schema: &str,
     ) -> anyhow::Result<Vec<NamedStaff>> {
         let sql = format!(
             r#"
@@ -531,7 +539,10 @@ impl SchemaTrait for SqlServerDB {
     }
 
     async fn rename_index(
-        &self, table: &str, old_name: &str, new_name: &str,
+        &self,
+        table: &str,
+        old_name: &str,
+        new_name: &str,
     ) -> anyhow::Result<()> {
         let sql = format!("EXEC sp_rename '{table}.{old_name}', '{new_name}', 'INDEX';");
         log::info!("sql:{}", sql);
@@ -540,7 +551,10 @@ impl SchemaTrait for SqlServerDB {
     }
 
     async fn add_table_column(
-        &self, table: &str, name: &str, col: ColumnType,
+        &self,
+        table: &str,
+        name: &str,
+        col: ColumnType,
     ) -> anyhow::Result<()> {
         let sql = format!(
             r#"ALTER TABLE "{table}" ADD "{name}" {} {} {}"#,
@@ -566,7 +580,11 @@ impl SchemaTrait for SqlServerDB {
     }
 
     async fn modify_table_column(
-        &self, table: &str, old_name: &str, new_name: &str, typ: Option<crate::db::ColumnType>,
+        &self,
+        table: &str,
+        old_name: &str,
+        new_name: &str,
+        typ: Option<crate::db::ColumnType>,
     ) -> anyhow::Result<()> {
         let mut conn = self.get_conn().await?;
         if old_name != new_name {
@@ -727,7 +745,10 @@ impl SchemaTrait for SqlServerDB {
     }
 
     async fn export_table_or_view(
-        &self, table_name: &str, para: Option<ShowTableParameter>, kind: ExportKind,
+        &self,
+        table_name: &str,
+        para: Option<ShowTableParameter>,
+        kind: ExportKind,
         sender: tokio::sync::mpsc::Sender<ExportFrame>,
     ) -> anyhow::Result<()> {
         match kind {
@@ -772,7 +793,10 @@ impl SchemaTrait for SqlServerDB {
     }
 
     async fn show_view(
-        &self, view_name: &str, para: ShowTableParameter, emit: QueryEventEmitter,
+        &self,
+        view_name: &str,
+        para: ShowTableParameter,
+        emit: QueryEventEmitter,
     ) -> anyhow::Result<()> {
         let ShowTableParameter {
             where_str,
@@ -914,7 +938,10 @@ impl SchemaTrait for SqlServerDB {
     }
 
     async fn show_table(
-        &self, table_name: &str, para: ShowTableParameter, emit: QueryEventEmitter,
+        &self,
+        table_name: &str,
+        para: ShowTableParameter,
+        emit: QueryEventEmitter,
     ) -> anyhow::Result<()> {
         let ShowTableParameter {
             where_str,
@@ -1054,7 +1081,9 @@ impl SchemaTrait for SqlServerDB {
     }
 
     async fn show_udf(
-        &self, name: &str, _arg: Option<UdfOrProcedureExtraParameter>,
+        &self,
+        name: &str,
+        _arg: Option<UdfOrProcedureExtraParameter>,
     ) -> anyhow::Result<DefAndMetas> {
         let sql = format!(
             r#"
@@ -1123,7 +1152,9 @@ impl SchemaTrait for SqlServerDB {
     }
 
     async fn drop_udf(
-        &self, name: &str, _extra: Option<UdfOrProcedureExtraParameter>,
+        &self,
+        name: &str,
+        _extra: Option<UdfOrProcedureExtraParameter>,
     ) -> anyhow::Result<()> {
         let sql = format!(r#"DROP FUNCTION "{}"."{name}""#, Self::DBO_SCHEMA);
         log::info!("sql:{}", sql);
@@ -1137,7 +1168,9 @@ impl SchemaTrait for SqlServerDB {
     }
 
     async fn show_procedure(
-        &self, name: &str, _arg: Option<UdfOrProcedureExtraParameter>,
+        &self,
+        name: &str,
+        _arg: Option<UdfOrProcedureExtraParameter>,
     ) -> anyhow::Result<ProcedureDetail> {
         let sql = format!(
             r#"
@@ -1180,7 +1213,9 @@ impl SchemaTrait for SqlServerDB {
     }
 
     async fn drop_procedure(
-        &self, name: &str, _arg: Option<UdfOrProcedureExtraParameter>,
+        &self,
+        name: &str,
+        _arg: Option<UdfOrProcedureExtraParameter>,
     ) -> anyhow::Result<()> {
         let sql = format!(r#"DROP PROCEDURE dbo."{name}""#);
         log::info!("sql:{}", sql);
@@ -1236,7 +1271,10 @@ impl SqlBuilder for SqlServerDB {
 
 impl SqlServerDB {
     async fn query_count(
-        conn: &mut Connection, schema: &str, name: &str, where_str: Option<&str>,
+        conn: &mut Connection,
+        schema: &str,
+        name: &str,
+        where_str: Option<&str>,
     ) -> anyhow::Result<i32> {
         let sql = format!(
             r#"SELECT count(*) from "{schema}"."{name}" {}"#,
@@ -1266,7 +1304,9 @@ impl SqlServerDB {
 }
 impl SqlServerDB {
     async fn is_primary(
-        conn: &mut Connection, table_name: &str, col_name: &str,
+        conn: &mut Connection,
+        table_name: &str,
+        col_name: &str,
     ) -> anyhow::Result<bool> {
         let s = format!(
             r#"
@@ -1293,7 +1333,9 @@ impl SqlServerDB {
     }
 
     async fn is_auto_increment(
-        conn: &mut Connection, table_name: &str, col_name: &str,
+        conn: &mut Connection,
+        table_name: &str,
+        col_name: &str,
     ) -> anyhow::Result<bool> {
         let s = format!(
             r#"
@@ -1402,7 +1444,10 @@ fn encode_row_as_json(row: &Row) -> anyhow::Result<serde_json::Map<String, serde
 
 impl SqlServerDB {
     async fn export_table_as_sql(
-        &self, table_name: &str, para: Option<ShowTableParameter>, include_table_schema: bool,
+        &self,
+        table_name: &str,
+        para: Option<ShowTableParameter>,
+        include_table_schema: bool,
         sender: tokio::sync::mpsc::Sender<ExportFrame>,
     ) -> anyhow::Result<()> {
         if include_table_schema {
@@ -1461,7 +1506,8 @@ impl SqlServerDB {
     }
 
     async fn get_conn_by_query_id(
-        &self, query_id: Option<&str>,
+        &self,
+        query_id: Option<&str>,
     ) -> anyhow::Result<Arc<Mutex<Connection>>> {
         match query_id {
             Some(query_id) => match self.query_connection.get(&query_id.to_string()) {
@@ -1498,7 +1544,10 @@ impl ExportQueryResult for SqlServerDB {
     }
 
     async fn export_query_result(
-        &self, query_id: Option<&str>, sql: &str, kind: ExportKind,
+        &self,
+        query_id: Option<&str>,
+        sql: &str,
+        kind: ExportKind,
         sender: tokio::sync::mpsc::Sender<ExportFrame>,
     ) -> anyhow::Result<()> {
         let conn = self.get_conn_by_query_id(query_id).await?;
@@ -1684,7 +1733,9 @@ impl QuerySql for SqlServerDB {
     }
 
     async fn execute_sql(
-        &self, query_id: &str, sql: &str,
+        &self,
+        query_id: &str,
+        sql: &str,
     ) -> anyhow::Result<Result<QueryResp, String>> {
         let conn = match self.query_connection.get(&query_id.to_string()) {
             Some(x) => x.clone(),
@@ -1701,7 +1752,10 @@ impl QuerySql for SqlServerDB {
     }
 
     async fn query_sql(
-        &self, query_id: &str, sql: &str, emit: QueryEventEmitter,
+        &self,
+        query_id: &str,
+        sql: &str,
+        emit: QueryEventEmitter,
     ) -> anyhow::Result<()> {
         let conn = match self.query_connection.get(&query_id.to_string()) {
             Some(x) => x.clone(),
@@ -1830,7 +1884,9 @@ impl CatalogTrait for SqlServerDB {
     }
 
     async fn create_database(
-        &self, name: &str, _extra: Option<CreateDatabaseExtra>,
+        &self,
+        name: &str,
+        _extra: Option<CreateDatabaseExtra>,
     ) -> anyhow::Result<()> {
         self.can_write()?;
         let sql = format!("CREATE DATABASE {name}");

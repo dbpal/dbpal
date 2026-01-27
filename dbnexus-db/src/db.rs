@@ -221,12 +221,17 @@ pub trait SchemaTrait:
     async fn list_table(&self) -> anyhow::Result<Vec<ListTable>>;
     async fn show_table_columns(&self, table_name: &str) -> anyhow::Result<Vec<Field>>;
     async fn show_table(
-        &self, table_name: &str, _: ShowTableParameter, _: QueryEventEmitter,
+        &self,
+        table_name: &str,
+        _: ShowTableParameter,
+        _: QueryEventEmitter,
     ) -> anyhow::Result<()>;
 
     #[cfg(test)]
     async fn show_table_collect(
-        &self, table_name: &str, para: ShowTableParameter,
+        &self,
+        table_name: &str,
+        para: ShowTableParameter,
     ) -> anyhow::Result<QueryResp> {
         let result = QueryRespMemoryCollector::default();
         let result_clone = result.clone();
@@ -237,7 +242,9 @@ pub trait SchemaTrait:
 
     #[cfg(test)]
     async fn show_view_collect(
-        &self, table_name: &str, para: ShowTableParameter,
+        &self,
+        table_name: &str,
+        para: ShowTableParameter,
     ) -> anyhow::Result<QueryResp> {
         let result = QueryRespMemoryCollector::default();
         let result_clone = result.clone();
@@ -247,7 +254,9 @@ pub trait SchemaTrait:
     }
 
     async fn table_insert_sql(
-        &self, table_name: &str, values: HashMap<String, Option<String>>,
+        &self,
+        table_name: &str,
+        values: HashMap<String, Option<String>>,
     ) -> anyhow::Result<String> {
         let fs = self.show_table_columns(table_name).await?;
         let sql = SqlBuilder::insert_sql(self, table_name, &fs, &values)?;
@@ -255,7 +264,9 @@ pub trait SchemaTrait:
     }
 
     async fn table_insert(
-        &self, table_name: &str, values: HashMap<String, Option<String>>,
+        &self,
+        table_name: &str,
+        values: HashMap<String, Option<String>>,
     ) -> anyhow::Result<Option<usize>> {
         let sql = self.table_insert_sql(table_name, values).await?;
         let r = self.execute_sql_no_open_conn(&sql).await?;
@@ -263,7 +274,9 @@ pub trait SchemaTrait:
     }
 
     async fn table_update_sql(
-        &self, table_name: &str, values: HashMap<String, Option<String>>,
+        &self,
+        table_name: &str,
+        values: HashMap<String, Option<String>>,
         wheres: HashMap<String, Option<String>>,
     ) -> anyhow::Result<String> {
         let fs = self.show_table_columns(table_name).await?;
@@ -272,7 +285,9 @@ pub trait SchemaTrait:
     }
 
     async fn table_update(
-        &self, table_name: &str, values: HashMap<String, Option<String>>,
+        &self,
+        table_name: &str,
+        values: HashMap<String, Option<String>>,
         wheres: HashMap<String, Option<String>>,
     ) -> anyhow::Result<Option<usize>> {
         let sql = self.table_update_sql(table_name, values, wheres).await?;
@@ -282,14 +297,18 @@ pub trait SchemaTrait:
     async fn truncate_table(&self, table_name: &str) -> anyhow::Result<()>;
 
     async fn table_delete_sql(
-        &self, table_name: &str, wheres: HashMap<String, Option<String>>,
+        &self,
+        table_name: &str,
+        wheres: HashMap<String, Option<String>>,
     ) -> anyhow::Result<String> {
         let fs = self.show_table_columns(table_name).await?;
         SqlBuilder::delete_sql(self, table_name, &fs, &wheres)
     }
 
     async fn table_delete(
-        &self, table_name: &str, wheres: HashMap<String, Option<String>>,
+        &self,
+        table_name: &str,
+        wheres: HashMap<String, Option<String>>,
     ) -> anyhow::Result<Option<usize>> {
         let fs = self.show_table_columns(table_name).await?;
         let sql = SqlBuilder::delete_sql(self, table_name, &fs, &wheres)?;
@@ -313,18 +332,28 @@ pub trait SchemaTrait:
         self.backend_name().not_support_feature()
     }
     async fn modify_table_column(
-        &self, _table: &str, _old_name: &str, _new_name: &str, _typ: Option<ColumnType>,
+        &self,
+        _table: &str,
+        _old_name: &str,
+        _new_name: &str,
+        _typ: Option<ColumnType>,
     ) -> anyhow::Result<()> {
         self.backend_name().not_support_feature()
     }
     async fn add_table_column(
-        &self, _table: &str, _name: &str, _col: ColumnType,
+        &self,
+        _table: &str,
+        _name: &str,
+        _col: ColumnType,
     ) -> anyhow::Result<()> {
         self.backend_name().not_support_feature()
     }
 
     async fn rename_index(
-        &self, _table_name: &str, _oldname: &str, _newname: &str,
+        &self,
+        _table_name: &str,
+        _oldname: &str,
+        _newname: &str,
     ) -> anyhow::Result<()> {
         self.backend_name().not_support_feature()
     }
@@ -350,14 +379,20 @@ pub trait SchemaTrait:
     }
 
     async fn export_table_or_view(
-        &self, _name: &str, _: Option<ShowTableParameter>, _kind: ExportKind,
+        &self,
+        _name: &str,
+        _: Option<ShowTableParameter>,
+        _kind: ExportKind,
         _sender: tokio::sync::mpsc::Sender<ExportFrame>,
     ) -> anyhow::Result<()> {
         self.backend_name().not_support_feature()
     }
 
     async fn show_view(
-        &self, _view_name: &str, _para: ShowTableParameter, _: QueryEventEmitter,
+        &self,
+        _view_name: &str,
+        _para: ShowTableParameter,
+        _: QueryEventEmitter,
     ) -> anyhow::Result<()> {
         self.backend_name().not_support_feature()
     }
@@ -384,8 +419,12 @@ pub trait SchemaTrait:
 
     /// export as sql only support table so the frontend should only not pass this kind
     async fn export_table_or_view_to_file(
-        &self, table_name: &str, para: Option<ShowTableParameter>, filepath: &str,
-        kind: ExportKind, emit: ExportedSizeEmitter,
+        &self,
+        table_name: &str,
+        para: Option<ShowTableParameter>,
+        filepath: &str,
+        kind: ExportKind,
+        emit: ExportedSizeEmitter,
     ) -> anyhow::Result<()> {
         if !self.table_exists(table_name).await? {
             anyhow::bail!("table not exists")
@@ -413,7 +452,8 @@ pub trait SchemaTrait:
     }
 
     async fn show_create_table_sql(
-        &self, _table_name: &str,
+        &self,
+        _table_name: &str,
     ) -> anyhow::Result<CreateTableAndIndexSql> {
         self.backend_name().not_support_feature()
     }
@@ -444,13 +484,17 @@ pub trait SchemaTrait:
     }
 
     async fn show_udf(
-        &self, _name: &str, _arg: Option<UdfOrProcedureExtraParameter>,
+        &self,
+        _name: &str,
+        _arg: Option<UdfOrProcedureExtraParameter>,
     ) -> anyhow::Result<DefAndMetas> {
         self.backend_name().not_support_feature()
     }
 
     async fn drop_udf(
-        &self, _name: &str, _extra: Option<UdfOrProcedureExtraParameter>,
+        &self,
+        _name: &str,
+        _extra: Option<UdfOrProcedureExtraParameter>,
     ) -> anyhow::Result<()> {
         self.backend_name().not_support_feature()
     }
@@ -459,12 +503,16 @@ pub trait SchemaTrait:
         self.backend_name().not_support_feature()
     }
     async fn show_procedure(
-        &self, _name: &str, _arg: Option<UdfOrProcedureExtraParameter>,
+        &self,
+        _name: &str,
+        _arg: Option<UdfOrProcedureExtraParameter>,
     ) -> anyhow::Result<ProcedureDetail> {
         self.backend_name().not_support_feature()
     }
     async fn drop_procedure(
-        &self, _name: &str, _arg: Option<UdfOrProcedureExtraParameter>,
+        &self,
+        _name: &str,
+        _arg: Option<UdfOrProcedureExtraParameter>,
     ) -> anyhow::Result<()> {
         self.backend_name().not_support_feature()
     }
@@ -487,7 +535,9 @@ pub trait SchemaTrait:
 
     #[cfg(test)]
     async fn export_table_to_string(
-        &self, table_name: &str, kind: ExportKind,
+        &self,
+        table_name: &str,
+        kind: ExportKind,
     ) -> anyhow::Result<String> {
         let (sender, receiver) = tokio::sync::mpsc::channel(10);
         let h1 = {
@@ -565,7 +615,9 @@ pub trait SqlBuilder: GetBackendKind {
     fn put_value_in_sql(&self, _typ: &str, _value: Option<&str>) -> anyhow::Result<String>;
 
     fn make_where(
-        &self, fs: &[Field], wheres: &HashMap<String, Option<String>>,
+        &self,
+        fs: &[Field],
+        wheres: &HashMap<String, Option<String>>,
         field_by_name: &HashMap<&String, &Field>,
     ) -> anyhow::Result<String> {
         // if contains primary key should use primary key to delete
@@ -606,7 +658,10 @@ pub trait SqlBuilder: GetBackendKind {
     }
 
     fn delete_sql(
-        &self, table_name: &str, fs: &[Field], wheres: &HashMap<String, Option<String>>,
+        &self,
+        table_name: &str,
+        fs: &[Field],
+        wheres: &HashMap<String, Option<String>>,
     ) -> anyhow::Result<String> {
         let schema = self.get_schema();
         let mut field_by_name = HashMap::new();
@@ -629,7 +684,10 @@ pub trait SqlBuilder: GetBackendKind {
     }
 
     fn update_sql(
-        &self, table_name: &str, fs: &[Field], values: &HashMap<String, Option<String>>,
+        &self,
+        table_name: &str,
+        fs: &[Field],
+        values: &HashMap<String, Option<String>>,
         wheres: &HashMap<String, Option<String>>,
     ) -> anyhow::Result<String> {
         //
@@ -678,7 +736,10 @@ pub trait SqlBuilder: GetBackendKind {
     }
 
     fn insert_sql(
-        &self, table_name: &str, fs: &[Field], values: &HashMap<String, Option<String>>,
+        &self,
+        table_name: &str,
+        fs: &[Field],
+        values: &HashMap<String, Option<String>>,
     ) -> anyhow::Result<String> {
         let schema = self.get_schema();
         #[allow(clippy::format_in_format_args)]
@@ -911,7 +972,9 @@ pub trait CatalogTrait:
     async fn list_database(&self) -> anyhow::Result<Vec<String>>;
     async fn open_db(&self, name: &str) -> anyhow::Result<Arc<dyn DBTrait>>;
     async fn create_database(
-        &self, name: &str, extra: Option<CreateDatabaseExtra>,
+        &self,
+        name: &str,
+        extra: Option<CreateDatabaseExtra>,
     ) -> anyhow::Result<()>;
     async fn drop_database(&self, name: &str) -> anyhow::Result<()>;
 }
@@ -936,7 +999,7 @@ pub enum CreateDatabaseExtra {
 #[serde(rename_all = "lowercase")]
 pub enum CouchBaseBucketType {
     Couchbase,
-    EPHEMERAL,
+    Ephemeral,
 }
 
 /// named staff maybe used for view udf etc...
@@ -990,7 +1053,9 @@ pub trait DBTrait:
     async fn list_schema(&self) -> anyhow::Result<Vec<String>>;
     async fn open_schema(&self, name: &str) -> anyhow::Result<Arc<dyn SchemaTrait>>;
     async fn create_schema(
-        &self, name: &str, extra: Option<CreateSchemaExtra>,
+        &self,
+        name: &str,
+        extra: Option<CreateSchemaExtra>,
     ) -> anyhow::Result<()>;
     async fn drop_schema(&self, name: &str) -> anyhow::Result<()>;
     fn as_any(&self) -> &dyn std::any::Any;
@@ -1031,7 +1096,9 @@ pub struct XlsxEdit {
 }
 
 pub(crate) async fn export_query_as_xlsx_send_data(
-    row_num: &mut u32, data: Vec<Option<String>>, sender: tokio::sync::mpsc::Sender<ExportFrame>,
+    row_num: &mut u32,
+    data: Vec<Option<String>>,
+    sender: tokio::sync::mpsc::Sender<ExportFrame>,
 ) -> anyhow::Result<()> {
     for (col, d) in data.into_iter().enumerate() {
         if let Some(d) = d {
@@ -1052,7 +1119,9 @@ pub(crate) async fn export_query_as_xlsx_send_data(
 }
 
 pub(crate) fn export_query_as_xlsx_send_blocking_data(
-    row_num: &mut u32, data: Vec<Option<String>>, sender: tokio::sync::mpsc::Sender<ExportFrame>,
+    row_num: &mut u32,
+    data: Vec<Option<String>>,
+    sender: tokio::sync::mpsc::Sender<ExportFrame>,
 ) -> anyhow::Result<()> {
     for (col, d) in data.into_iter().enumerate() {
         if let Some(d) = d {
@@ -1251,7 +1320,10 @@ impl CreateIndexReq {
     }
 
     pub(crate) fn common_sql(
-        &self, table: &str, has_order: bool, quote_str: &str,
+        &self,
+        table: &str,
+        has_order: bool,
+        quote_str: &str,
     ) -> anyhow::Result<String> {
         let sql = format!(
             "CREATE {} INDEX {} ON {table}({})",
@@ -1276,7 +1348,8 @@ pub struct CreateIndexColumn {
 
 #[cfg(test)]
 async fn collect_export_str(
-    kind: ExportKind, mut receiver: tokio::sync::mpsc::Receiver<ExportFrame>,
+    kind: ExportKind,
+    mut receiver: tokio::sync::mpsc::Receiver<ExportFrame>,
 ) -> anyhow::Result<String> {
     match kind {
         ExportKind::Json { pretty } => {
@@ -1342,13 +1415,19 @@ pub trait ExportQueryResult: GetBackendKind + Send + Sync + 'static {
     fn clone(&self) -> Box<dyn ExportQueryResult>;
 
     async fn export_query_result(
-        &self, query_id: Option<&str>, _sql: &str, _kind: ExportKind,
+        &self,
+        query_id: Option<&str>,
+        _sql: &str,
+        _kind: ExportKind,
         _sender: tokio::sync::mpsc::Sender<ExportFrame>,
     ) -> anyhow::Result<()>;
 
     #[cfg(test)]
     async fn export_query_result_to_string(
-        &self, query_id: &str, sql: &str, kind: ExportKind,
+        &self,
+        query_id: &str,
+        sql: &str,
+        kind: ExportKind,
     ) -> anyhow::Result<String> {
         let (sender, receiver) = tokio::sync::mpsc::channel(10);
         let j1 = {
@@ -1366,7 +1445,12 @@ pub trait ExportQueryResult: GetBackendKind + Send + Sync + 'static {
         j2.await?
     }
     async fn export_query_result_to_file(
-        &self, query_id: &str, sql: &str, kind: ExportKind, file: &str, emit: ExportedSizeEmitter,
+        &self,
+        query_id: &str,
+        sql: &str,
+        kind: ExportKind,
+        file: &str,
+        emit: ExportedSizeEmitter,
     ) -> anyhow::Result<()> {
         log::info!("sql:{}", sql);
         let (sender, receiver) = tokio::sync::mpsc::channel(10);
@@ -1393,8 +1477,11 @@ pub trait ExportQueryResult: GetBackendKind + Send + Sync + 'static {
 }
 
 async fn write_export_file(
-    kind: ExportKind, filepath: &str, mut receiver: tokio::sync::mpsc::Receiver<ExportFrame>,
-    title: &str, emit: ExportedSizeEmitter,
+    kind: ExportKind,
+    filepath: &str,
+    mut receiver: tokio::sync::mpsc::Receiver<ExportFrame>,
+    title: &str,
+    emit: ExportedSizeEmitter,
 ) -> anyhow::Result<()> {
     let mut time_elapsed = TimeElapsed::new();
     let mut total = 0;
@@ -1546,11 +1633,16 @@ pub trait QuerySql: GetBackendKind + Send + Sync + 'static + LanguageServer {
     }
 
     async fn query_sql(
-        &self, query_id: &str, _sql: &str, emit: QueryEventEmitter,
+        &self,
+        query_id: &str,
+        _sql: &str,
+        emit: QueryEventEmitter,
     ) -> anyhow::Result<()>;
 
     async fn execute_sql(
-        &self, query_id: &str, _sql: &str,
+        &self,
+        query_id: &str,
+        _sql: &str,
     ) -> anyhow::Result<Result<QueryResp, String>>;
     async fn execute_sql_no_open_conn(&self, sql: &str) -> anyhow::Result<Option<usize>>;
 
@@ -1701,7 +1793,9 @@ impl QueryResp {
 
 impl QueryResp {
     pub fn new(
-        fields: Vec<Field>, total: usize, data: Vec<Vec<Option<String>>>,
+        fields: Vec<Field>,
+        total: usize,
+        data: Vec<Vec<Option<String>>>,
         sql: impl Into<Option<String>>,
     ) -> anyhow::Result<Self> {
         let sql = sql.into();
@@ -1773,8 +1867,12 @@ impl Field {
 
 impl Field {
     pub fn new(
-        name: impl Into<String>, typ: impl Into<String>, nullable: bool,
-        default_value: Option<String>, is_primary: bool, is_auto_increment: bool,
+        name: impl Into<String>,
+        typ: impl Into<String>,
+        nullable: bool,
+        default_value: Option<String>,
+        is_primary: bool,
+        is_auto_increment: bool,
     ) -> Self {
         let name = name.into();
         let typ = typ.into();
@@ -1857,7 +1955,10 @@ pub enum TriggerEnable {
 
 impl TriggerDetail {
     pub fn new(
-        name: &str, timing: TriggerTiming, event: impl Into<TriggerEvent>, sql: impl Into<String>,
+        name: &str,
+        timing: TriggerTiming,
+        event: impl Into<TriggerEvent>,
+        sql: impl Into<String>,
         enable: Option<TriggerEnable>,
     ) -> Self {
         Self {
@@ -2202,7 +2303,7 @@ impl From<Vec<Vec<Option<String>>>> for QueryEvent {
     }
 }
 
-pub(crate) fn need_paid() -> anyhow::Result<()> {
+pub fn need_paid() -> anyhow::Result<()> {
     if cfg!(feature = "paid") {
         anyhow::Ok(())
     } else {

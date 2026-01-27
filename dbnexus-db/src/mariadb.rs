@@ -12,7 +12,8 @@ use crate::sub::SubDB;
 
 impl MariaDB {
     pub(crate) async fn list_sequences_impl(
-        &self, schema: &str,
+        &self,
+        schema: &str,
     ) -> anyhow::Result<Vec<SequenceDetail>> {
         let sql = format!(
             "

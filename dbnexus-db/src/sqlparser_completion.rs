@@ -272,7 +272,9 @@ impl Scope {
 
 impl<'a> CompletionStatement<'a> {
     pub(crate) fn new(
-        loc: Location, helper: &'a dyn AstCompletionHelper, scopes: &'a Scopes,
+        loc: Location,
+        helper: &'a dyn AstCompletionHelper,
+        scopes: &'a Scopes,
     ) -> Self {
         Self {
             loc,
@@ -1907,7 +1909,8 @@ impl<'a> CompletionStatement<'a> {
 
 impl<'a> CompletionStatement<'a> {
     async fn c_on_create_server_statement(
-        &mut self, create_server_statement: &CreateServerStatement,
+        &mut self,
+        create_server_statement: &CreateServerStatement,
     ) {
         if self.in_pos(&create_server_statement.name.span()) {
             self.set_on_def();
@@ -2041,7 +2044,9 @@ impl<'a> CompletionStatement<'a> {
     }
 
     async fn c_on_grant_objects(
-        &mut self, objects: &GrantObjects, tables_or_views: &mut Option<Vec<ObjectName>>,
+        &mut self,
+        objects: &GrantObjects,
+        tables_or_views: &mut Option<Vec<ObjectName>>,
     ) {
         match objects {
             GrantObjects::FutureExternalTablesInSchema { schemas }
@@ -2394,27 +2399,21 @@ mod tests {
 
     #[test]
     fn test_table_entered_equal_name() {
-        assert!(
-            TableEntered::Temp {
-                table: Default::default(),
-                alias: Some(Ident::new("abc")),
-            }
-            .equal_name(&Ident::new("ABC"))
-        );
-        assert!(
-            TableEntered::Temp {
-                table: Default::default(),
-                alias: Some(Ident::with_quote('"', "abc")),
-            }
-            .equal_name(&Ident::new("abc"))
-        );
-        assert!(
-            !TableEntered::Temp {
-                table: Default::default(),
-                alias: Some(Ident::with_quote('"', "abc")),
-            }
-            .equal_name(&Ident::new("ABC"))
-        );
+        assert!(TableEntered::Temp {
+            table: Default::default(),
+            alias: Some(Ident::new("abc")),
+        }
+        .equal_name(&Ident::new("ABC")));
+        assert!(TableEntered::Temp {
+            table: Default::default(),
+            alias: Some(Ident::with_quote('"', "abc")),
+        }
+        .equal_name(&Ident::new("abc")));
+        assert!(!TableEntered::Temp {
+            table: Default::default(),
+            alias: Some(Ident::with_quote('"', "abc")),
+        }
+        .equal_name(&Ident::new("ABC")));
     }
 
     #[test]
