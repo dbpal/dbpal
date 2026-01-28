@@ -27,8 +27,8 @@ import {
 } from "@mui/material";
 import AttachFileIcon from "@mui/icons-material/AttachFile";
 import VisibilityIcon from "@mui/icons-material/Visibility";
-import { NotificationContext } from "./Notification";
-import { types } from "./ApiStruct";
+import { NotificationContext } from "./Notification.tsx";
+import { types } from "./ApiStruct.ts";
 import { message, open } from "@tauri-apps/plugin-dialog";
 import { invoke } from "@tauri-apps/api/core";
 import {
@@ -36,11 +36,11 @@ import {
   connectionChangeEvent,
   extractBaseName,
   PassWordManager,
-} from "./Common";
-import { DataSourceKind } from "./helper";
+} from "./Common.ts";
+import { DataSourceKind } from "./helper.ts";
 import { openUrl } from "@tauri-apps/plugin-opener";
 import { platform } from "@tauri-apps/plugin-os";
-import { StackRowCenter, UrlDocument } from "./CommonComp2";
+import { StackRowCenter, UrlDocument } from "./CommonComp2.tsx";
 import { emit } from "@tauri-apps/api/event";
 
 function HostAndPort(props: { host; port; setHost; setPort }) {
@@ -310,7 +310,7 @@ function SslFiles(props: { files: types.SSLFiles; setFiles; enabled: boolean }) 
   );
 }
 
-function PGSSL(props: { ssl: types.PgSsl; setSsl: any }) {
+function PGSSL(props: { ssl: types.PgSsl; setSsl }) {
   const { ssl, setSsl } = props;
   const modes = [
     "disable",
@@ -763,7 +763,7 @@ function TestConnAndSave(props: {
   const { connectionNameDom, makeConfig } = props;
   const [testLoading, setTestLoading] = useState(false);
   const { showNotification } = useContext(NotificationContext);
-  const handleTestConnection = async () => {
+  const handleTestConnection = () => {
     const config = makeConfig();
     if (!config.name) {
       config.name = "test_connection";
@@ -784,7 +784,7 @@ function TestConnAndSave(props: {
     }
   };
 
-  const handleSaveConnection = async () => {
+  const handleSaveConnection = () => {
     const config = makeConfig();
     if (!config) {
       return;
@@ -1598,7 +1598,7 @@ function OdbcDriverCommon(props: { config: RefObject<types.OdbcCommon> }) {
 }
 
 //@ts-ignore
-function Db2(props: { config?: any }) {
+function Db2(props: { config? }) {
   const { config } = props;
   const [host, setHost] = useState(getHost(config));
   const [port, setPort] = useState<string>((config?.port || 50000) + "");
@@ -1680,7 +1680,7 @@ function Db2(props: { config?: any }) {
   );
 }
 
-function CouchBase(props: { config?: any }) {
+function CouchBase(props: { config? }) {
   const { config } = props;
   const [connStr, setConnStr] = useState(
     (config && config["conn_str"]) || "couchbase://127.0.0.1",

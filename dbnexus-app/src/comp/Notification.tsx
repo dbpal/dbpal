@@ -119,7 +119,7 @@ function NotificationProvider(props: { children: ReactNode }) {
   );
 }
 
-// eslint-disable-next-line @typescript-eslint/no-unused-vars
+ 
 //@ts-ignore
 function isCancelledError(e: { cancelled?: boolean }) {
   return typeof e == "object" && e.cancelled;

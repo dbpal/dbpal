@@ -1,5 +1,5 @@
 import { ReactNode, useCallback, useContext, useEffect, useRef, useState } from "react";
-import { modalStyle, tabsHasId, EscDownEvent, modalHandleClose } from "./Common";
+import { modalStyle, tabsHasId, EscDownEvent, modalHandleClose } from "./Common.ts";
 import types from "./ApiStruct";
 import { NotificationContext } from "./Notification";
 import { invoke } from "@tauri-apps/api/core";

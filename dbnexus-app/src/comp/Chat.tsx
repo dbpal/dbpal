@@ -10,7 +10,7 @@ import {
   TabActiveContext,
   TableType,
   ViewKind,
-} from "./helper";
+} from "./helper.ts";
 import {
   Autocomplete,
   Button,
@@ -30,21 +30,21 @@ import {
   SliderSize,
   SimpleFlexEditor,
   StackRowCenter,
-} from "./CommonComp2";
+} from "./CommonComp2.tsx";
 import ArrowCircleUpIcon from "@mui/icons-material/ArrowCircleUp";
 import EventNoteIcon from "@mui/icons-material/EventNote";
 import EditIcon from "@mui/icons-material/Edit";
-import { NotificationContext } from "./Notification";
+import { NotificationContext } from "./Notification.tsx";
 import { PromptTemplate } from "@langchain/core/prompts";
 import {
   AITextCompletionName,
   editorAppendContent,
   SetAutoCompletionName,
-} from "./Common";
-import { ModalHeader } from "./CommonComp";
-import { AllKindQuery } from "./Left";
+} from "./Common.ts";
+import { ModalHeader } from "./CommonComp.tsx";
+import { AllKindQuery } from "./Left.tsx";
 import { invoke } from "@tauri-apps/api/core";
-import types from "./ApiStruct";
+import types from "./ApiStruct.ts";
 import DeleteForeverIcon from "@mui/icons-material/DeleteForever";
 import { HumanMessage, AIMessage, BaseMessage } from "@langchain/core/messages";
 import { FaArrowAltCircleRight } from "react-icons/fa";
@@ -69,9 +69,9 @@ import {
   showUdf,
   tryGetMaxID,
   showViewColumns,
-} from "./handlers";
+} from "./handlers.ts";
 
-import * as mongoQueryBackend from "./MongoQueryBackend";
+import * as mongoQueryBackend from "./MongoQueryBackend.ts";
 
 class SimpleArrayMemory {
   history: BaseMessage[];
@@ -337,7 +337,7 @@ human:{question}
     return MakePrompt.redisTemplate.format(inputs);
   }
 
-  async mongoDatabaseInformation() {
+  mongoDatabaseInformation() {
     let ret = "we have some predefine some variable u can use.\n";
     ret += "```typescript";
     ret += mongoQueryBackend.interfaceRawText;
@@ -412,7 +412,7 @@ human:{question}
           }
         }
         {
-          const def = await callErrorable(async () => {
+          const def = await callErrorable(() => {
             return createTableAndIndexSql(elements.uuid, table.name);
           }, null);
           if (def) {
@@ -436,7 +436,7 @@ human:{question}
           }
         }
         {
-          const def = await callErrorable(async () => {
+          const def = await callErrorable(() => {
             return createViewSql(elements.uuid, view.name, ViewKind.View);
           }, null);
           if (def) {
@@ -458,7 +458,7 @@ human:{question}
           }
         }
         {
-          const def = await callErrorable(async () => {
+          const def = await callErrorable(() => {
             return createViewSql(elements.uuid, view.name, ViewKind.MaterializedView);
           }, null);
           if (def) {
@@ -531,7 +531,7 @@ human:{question}
   async allSqlElements(): Promise<DatabaseElements[]> {
     let fixed = [this.uuid];
     try {
-      let name = SetAutoCompletionName.get(this.editor.getModel().id);
+      const name = SetAutoCompletionName.get(this.editor.getModel().id);
       fixed = await invoke<string[]>("ai_get_search_path", {
         name: this.uuid,
         queryId: name?.queryId,
@@ -541,7 +541,7 @@ human:{question}
     } catch (e) {
       console.log("get ai search path failed", e);
     }
-    let ret: DatabaseElements[] = [];
+    const ret: DatabaseElements[] = [];
     for (const uuid of fixed) {
       const tables = await callErrorable(async () => {
         return await listTable(uuid, TableType.Normal);
@@ -549,7 +549,7 @@ human:{question}
       const views = await callErrorable(async () => {
         return await listView(uuid, ViewKind.View);
       });
-      const materializedViews = await callErrorable(async () => {
+      const materializedViews = await callErrorable(() => {
         return listView(uuid, ViewKind.MaterializedView);
       });
       const udfs = await callErrorable(async () => {
@@ -591,7 +591,7 @@ human:{question}
     }
     return ret;
   }
-  async createPrompt(): Promise<string> {
+  createPrompt(): Promise<string> {
     switch (this.kind) {
       case DataSourceKind.Mongo:
         return this.createMongoPrompt();

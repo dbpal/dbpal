@@ -22,6 +22,7 @@ WHERE TABSCHEMA = '${schema}';
   static async connect(config: types.Db2Config) {
     const connStr =
       `Driver=${config.driver_name};Hostname=${config.host};Port=${config.port};Protocol=TCPIP;UID=${config.username};PWD=${config.password};CodePage=1208;Database=${config.db};`;
+    console.log("conn str:", connStr);
     const conn = await connect(connStr);
 
     if (config.schema) {

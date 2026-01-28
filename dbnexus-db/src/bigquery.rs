@@ -276,8 +276,10 @@ mod tests {
 
     #[tokio::test]
     async fn test_check_conn() {
+        // export https_proxy=http://127.0.0.1:7897 http_proxy=http://127.0.0.1:7897 all_proxy=socks5://127.0.0.1:7897
         std::env::set_var("https_proxy", "http://127.0.0.1:7897");
         std::env::set_var("http_proxy", "http://127.0.0.1:7897");
+        std::env::set_var("all_proxy", "socks5://127.0.0.1:7897");
         for (k, v) in std::env::vars() {
             println!("k={},v={}", k, v);
         }

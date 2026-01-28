@@ -20,12 +20,12 @@ import {
   modalHandleClose,
   modalStyle,
   tabsHasId,
-} from "./Common";
-import types from "./ApiStruct";
+} from "./Common.ts";
+import types from "./ApiStruct.ts";
 import { invoke } from "@tauri-apps/api/core";
-import { NotificationContext } from "./Notification";
-import { TabContent } from "./Tabs";
-import { DefAndMetasView } from "./UdfAndMetaView";
+import { NotificationContext } from "./Notification.tsx";
+import { TabContent } from "./Tabs.tsx";
+import { DefAndMetasView } from "./UdfAndMetaView.tsx";
 import {
   ConnTypeContext,
   ContextMenuContext,
@@ -36,10 +36,10 @@ import {
   secondConfirm,
   TabsSetContext,
   UuidContext,
-} from "./helper";
+} from "./helper.ts";
 
-import { ExceedMaxTreeItem, MenuRefresh } from "./CommonComp";
-import { listSequence } from "./handlers";
+import { ExceedMaxTreeItem, MenuRefresh } from "./CommonComp.tsx";
+import { listSequence } from "./handlers.ts";
 import { GrSteps } from "react-icons/gr";
 function SequenceTree() {
   const { uuid } = useContext(UuidContext);
@@ -70,23 +70,25 @@ function SequenceTree() {
   return (
     <TreeItem
       itemId={idForTree.current}
-      label=<Stack
-        direction="row"
-        sx={{ alignItems: "center" }}
-        onContextMenu={e => {
-          setUpMenu({
-            content: (
-              <MenuList>
-                <MenuRefresh reload={reload} />
-              </MenuList>
-            ),
-            event: e,
-          });
-        }}
-      >
-        <GrSteps />
-        <span> sequences </span>
-      </Stack>
+      label={
+        <Stack
+          direction="row"
+          sx={{ alignItems: "center" }}
+          onContextMenu={e => {
+            setUpMenu({
+              content: (
+                <MenuList>
+                  <MenuRefresh reload={reload} />
+                </MenuList>
+              ),
+              event: e,
+            });
+          }}
+        >
+          <GrSteps />
+          <span> sequences </span>
+        </Stack>
+      }
     >
       {seq
         .filter(e => matchPattern(e.name))
@@ -100,27 +102,29 @@ function SequenceTree() {
               key={seq.name}
               itemId={id}
               style={{ alignItems: "center" }}
-              label=<Stack
-                direction="row"
-                onContextMenu={e => {
-                  setUpMenu({
-                    content: (
-                      <SequenceMenu
-                        reload={reload}
-                        uuid={uuid}
-                        kind={kind}
-                        seq={seq}
-                        id={id}
-                      />
-                    ),
-                    event: e,
-                  });
-                }}
-                sx={{ alignItems: "center" }}
-              >
-                <GrSteps />
-                <span>{seq.name}</span>
-              </Stack>
+              label={
+                <Stack
+                  direction="row"
+                  onContextMenu={e => {
+                    setUpMenu({
+                      content: (
+                        <SequenceMenu
+                          reload={reload}
+                          uuid={uuid}
+                          kind={kind}
+                          seq={seq}
+                          id={id}
+                        />
+                      ),
+                      event: e,
+                    });
+                  }}
+                  sx={{ alignItems: "center" }}
+                >
+                  <GrSteps />
+                  <span>{seq.name}</span>
+                </Stack>
+              }
             />
           );
         })}
@@ -172,15 +176,13 @@ function SequenceMenu(props: {
           new TabContent(
             id,
             seq.name,
-            (
-              <DefAndMetasView
-                reloadOP={async () => {
-                  return Promise.resolve(details2DefMetas(seq));
-                }}
-                kind={kind}
-                uuid={uuid}
-              />
-            ),
+            <DefAndMetasView
+              reloadOP={() => {
+                return Promise.resolve(details2DefMetas(seq));
+              }}
+              kind={kind}
+              uuid={uuid}
+            />,
             <GrSteps className="tab-icon-size" />,
           ),
         ];

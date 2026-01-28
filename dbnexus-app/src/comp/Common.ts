@@ -1,9 +1,9 @@
 import { SxProps } from "@mui/material";
-import { languages, editor, Position } from "monaco-editor";
-import { types } from "./ApiStruct";
+import { editor, languages, Position } from "monaco-editor";
+import { types } from "./ApiStruct.ts";
 import { format as formatSql, SqlLanguage } from "sql-formatter";
 import { createContext } from "react";
-import { TabContent } from "./Tabs";
+import { TabContent } from "./Tabs.tsx";
 import { Channel, invoke } from "@tauri-apps/api/core";
 import { message } from "@tauri-apps/plugin-dialog";
 import * as keyring from "tauri-plugin-keyring-api";
@@ -15,7 +15,7 @@ import {
   MuiDataGridData,
   QueryRespData,
   secondConfirm,
-} from "./helper";
+} from "./helper.ts";
 import { GridColDef } from "@mui/x-data-grid";
 import { loader } from "@monaco-editor/react";
 
@@ -71,19 +71,22 @@ class ConnectionHandler {
     const c = await appDatabase.select<Connection[]>(
       "select * from connection order by id desc",
     );
-    return c.map(x => JSON.parse(x.config));
+    return c.map((x) => JSON.parse(x.config));
   }
   static async save(config: types.DBConnectionConfig) {
-    return appDatabase.execute("insert into connection(name,config) values(?,?)", [
-      config.name,
-      JSON.stringify(config),
-    ]);
+    return appDatabase.execute(
+      "insert into connection(name,config) values(?,?)",
+      [
+        config.name,
+        JSON.stringify(config),
+      ],
+    );
   }
 
   static nameDuplicated(name: string): Promise<boolean> {
     return appDatabase
       .select("select count(*) as count from connection where name=?", [name])
-      .then(x => x[0].count != 0);
+      .then((x) => x[0].count != 0);
   }
 }
 
@@ -109,7 +112,7 @@ async function dropDatabase(props: {
         okCallback();
       }
     })
-    .catch(e => {
+    .catch((e) => {
       showNotification("error", "drop failed", e);
     });
 }
@@ -127,7 +130,7 @@ async function dropSchema({ uuid, schema, showNotification, okCallback }) {
       showNotification("success", "Drop OK");
       okCallback();
     })
-    .catch(e => {
+    .catch((e) => {
       showNotification("error", "Drop failure", e);
     });
 }
@@ -161,16 +164,21 @@ const autoCompletion = async (
     const sql = modal.getValue();
     const name = SetAutoCompletionName.get(modal.id);
     if (!name) {
-      console.error("editor id map to backend name is nul,this is internal bug");
+      console.error(
+        "editor id map to backend name is nul,this is internal bug",
+      );
       return;
     }
-    const completionItem = await invoke<types.CompletionList>("auto_completion", {
-      sql,
-      line: pos.lineNumber,
-      col: pos.column,
-      name: name.name,
-      queryId: name.queryId,
-    });
+    const completionItem = await invoke<types.CompletionList>(
+      "auto_completion",
+      {
+        sql,
+        line: pos.lineNumber,
+        col: pos.column,
+        name: name.name,
+        queryId: name.queryId,
+      },
+    );
     const suggestions = backendCompletionItemToEditor(completionItem.items);
     suggestions.incomplete = completionItem.incomplete;
     return suggestions;
@@ -213,7 +221,7 @@ const aiTextAutoCompletion = async (
   }
 };
 
-loader.init().then(monaco => {
+loader.init().then((monaco) => {
   monaco.languages.registerCompletionItemProvider("sql", {
     triggerCharacters: ["."],
     provideCompletionItems(model, position: Position) {
@@ -233,7 +241,9 @@ loader.init().then(monaco => {
     provideDocumentFormattingEdits(model, options) {
       const name = SetAutoCompletionName.get(model.id);
       if (!name) {
-        console.error("editor id map to backend name is nul,this is internal bug");
+        console.error(
+          "editor id map to backend name is nul,this is internal bug",
+        );
         return;
       }
       const text = makeFormatFn(name.kind)(model.getValue(), {
@@ -387,7 +397,11 @@ class QueryConn {
       queryId: this.queryId,
     });
   }
-  queryOP(sql: string, emit: Channel<QueryEvent>, maxRow: number): Promise<void> {
+  queryOP(
+    sql: string,
+    emit: Channel<QueryEvent>,
+    maxRow: number,
+  ): Promise<void> {
     return invoke<void>("query_sql", {
       name: this.uuid,
       queryId: this.queryId,
@@ -414,14 +428,17 @@ class QueryConn {
       queryId: this.queryId,
     })
       .then(() => {})
-      .catch(e => {
+      .catch((e) => {
         console.error("close connection failed,err", e);
       });
   }
 }
 
 function modalHandleClose(
-  callback: (e: EscDownEvent, reason: "backdropClick" | "escapeKeyDown") => void,
+  callback: (
+    e: EscDownEvent,
+    reason: "backdropClick" | "escapeKeyDown",
+  ) => void,
 ) {
   return (e: EscDownEvent, reason: "backdropClick" | "escapeKeyDown") => {
     if (reason === "backdropClick") {
@@ -561,9 +578,12 @@ class TableFilterHandler {
   }
   static async deleteByConnectionName(name: string) {
     try {
-      await appDatabase.execute("delete from table_filter where connection_name=?", [
-        name,
-      ]);
+      await appDatabase.execute(
+        "delete from table_filter where connection_name=?",
+        [
+          name,
+        ],
+      );
     } catch (e) {
       console.error("delete table filter failed,err:", e);
       message("delete table filter failed,err:" + String(e), { kind: "error" });
@@ -572,25 +592,31 @@ class TableFilterHandler {
 }
 
 export {
-  modalStyle,
-  tabsHasId,
-  OpenedContext,
+  AITextCompletionName,
+  connectionChangeEvent,
   ConnectionHandler,
   dropDatabase,
   dropSchema,
-  reloadOK,
-  keyNotInTable,
-  extractBaseName,
-  modalHandleClose,
-  SetAutoCompletionName,
-  NameAndQueryId,
-  PassWordManager,
-  connectionChangeEvent,
   editorAppendContent,
-  AITextCompletionName,
+  extractBaseName,
+  keyNotInTable,
   makeFormatFn,
+  modalHandleClose,
+  modalStyle,
+  NameAndQueryId,
+  OpenedContext,
+  PassWordManager,
   QueryConn,
+  reloadOK,
+  SetAutoCompletionName,
   TableFilterHandler,
+  tabsHasId,
 };
 
-export type { DefAndMetas, EscDownEvent, FieldAndGridField, TableFilter, QueryEvent };
+export type {
+  DefAndMetas,
+  EscDownEvent,
+  FieldAndGridField,
+  QueryEvent,
+  TableFilter,
+};
