@@ -1694,13 +1694,17 @@ pub async fn auto_completion(
 pub async fn ai_text_completion(
     name: String,
     text: String,
-    query_id: &str,
+    query_id: Option<&str>,
     line: u32,
     col: u32,
     app: tauri::State<'_, DBPal>,
 ) -> Result<CompletionList, ErrorFrontend> {
     let db = app.get_backend(name.as_str()).await?;
-    let uuids = app.ai_get_search_path(db, &name, query_id, &text).await?;
+    let uuids = if let Some(query_id) = query_id {
+        app.ai_get_search_path(db, &name, query_id, &text).await?
+    } else {
+        vec![name.to_string()]
+    };
     let mut ret = vec![];
     for uuid in uuids {
         let db = app.get_backend(&uuid).await?;
