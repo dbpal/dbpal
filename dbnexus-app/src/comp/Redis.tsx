@@ -60,7 +60,6 @@ import {
   pageSizeOptions,
   RedisTableType,
   DataSourceKind,
-  SetStatusFn,
   newEmptyResp,
   secondConfirm,
 } from "./helper.ts";
@@ -180,7 +179,7 @@ function RedisStringTable(props: { uuid: string; stringKey: string }) {
   const [loading, setLoading] = useState(false);
   const { showNotification } = useContext(NotificationContext);
   const valueRef = useRef(new EditorAndMode());
-  const queryStatus = useRef<SetStatusFn>(null);
+  const [queryStatus, setQueryStatus] = useState("");
   useEffect(() => {
     showTable({
       uuid,
@@ -189,7 +188,7 @@ function RedisStringTable(props: { uuid: string; stringKey: string }) {
       handleResult: resp => {
         setContent(resp.data[0]["result"]);
       },
-      setStatus: queryStatus,
+      setStatus: setQueryStatus,
       setLoading,
     });
   }, [showNotification, stringKey, uuid]);
@@ -218,7 +217,7 @@ function RedisStringTable(props: { uuid: string; stringKey: string }) {
         height: "100%",
       }}
     >
-      <QueryStatus setRef={queryStatus} />
+      <QueryStatus status={queryStatus} />
       {typeof content == "string" && (
         <RedisValueEditor value={content} valueRef={valueRef} />
       )}
@@ -834,7 +833,7 @@ function RedisSetTable(props: { setKey: string; uuid: string }) {
   const [selectRow, setSelectRow] = useState<{ id; value }>(null);
   const [loading, setLoading] = useState(false);
   const maxRowRef = useRef(getSliderSizeStoreValue(redisMaxRowKey, redisMinRow));
-  const queryStatus = useRef<SetStatusFn>(null);
+  const [queryStatus, setQueryStatus] = useState("");
   const handleReload = useCallback(
     showOK => {
       setLoading(true);
@@ -852,7 +851,7 @@ function RedisSetTable(props: { setKey: string; uuid: string }) {
             reloadOK(showNotification);
           }
         },
-        setStatus: queryStatus,
+        setStatus: setQueryStatus,
         handleResult: resp => {
           resp.data.forEach((e, index) => {
             e["id"] = index;
@@ -972,7 +971,7 @@ function RedisSetTable(props: { setKey: string; uuid: string }) {
   }, [fetchDur, lastFetchTime, setKey]);
   return (
     <Stack style={{ height: "100%" }}>
-      <QueryStatus setRef={queryStatus} />
+      <QueryStatus status={queryStatus} />
       <StackRowCenter>
         <Button
           color="primary"
@@ -1246,7 +1245,7 @@ function RedisListTable(props: { listKey: string; uuid: string }) {
   const [page, setPage] = useState(0);
   const [loading, setLoading] = useState(false);
   const setting = useContext(SettingContext);
-  const queryStatus = useRef<SetStatusFn>(null);
+  const [queryStatus, setQueryStatus] = useState("");
   const handleReload = useCallback(
     (showOk: boolean) => {
       showTable({
@@ -1276,7 +1275,7 @@ function RedisListTable(props: { listKey: string; uuid: string }) {
           setResp(resp);
           setRespOrigin(resp);
         },
-        setStatus: queryStatus,
+        setStatus: setQueryStatus,
       });
     },
     [listKey, showNotification, uuid],
@@ -1445,7 +1444,7 @@ function RedisListTable(props: { listKey: string; uuid: string }) {
   }, [fetchDur, handleReload, lastFetchTime, listKey, loading, uuid]);
   return (
     <Stack style={{ height: "100%" }}>
-      <QueryStatus setRef={queryStatus} />
+      <QueryStatus status={queryStatus} />
       {resp && (
         <DataGrid
           slots={slots}
@@ -1588,7 +1587,7 @@ function RedisZsetTable(props: { uuid: string; zsetKey: string }) {
   const { showNotification } = useContext(NotificationContext);
   const setting = useContext(SettingContext);
   const maxRowRef = useRef(getSliderSizeStoreValue(redisMaxRowKey, redisMinRow));
-  const queryStatus = useRef<SetStatusFn>(null);
+  const [queryStatus, setQueryStatus] = useState("");
   const handleReload = useCallback(
     (showOK: boolean) => {
       if (minErr || maxErr) {
@@ -1598,7 +1597,7 @@ function RedisZsetTable(props: { uuid: string; zsetKey: string }) {
       const maxValue = parseFloat(max);
       setLoading(true);
       showTable({
-        setStatus: queryStatus,
+        setStatus: setQueryStatus,
         uuid,
         name: zsetKey,
         setLoading,
@@ -1750,7 +1749,7 @@ function RedisZsetTable(props: { uuid: string; zsetKey: string }) {
   }, [fetchDur, lastFetchTime, zsetKey]);
   return (
     <Stack style={{ height: "100%" }}>
-      <QueryStatus setRef={queryStatus} />
+      <QueryStatus status={queryStatus} />
       <StackRowCenter>
         <Button
           color="primary"
@@ -1994,7 +1993,7 @@ function RedisHashTable(props: { hashKey: string; uuid: string }) {
     setLastFetchTime(new Date());
   }, [resp]);
   const [fetchDur, setFetchDur] = useState(0);
-  const queryStatus = useRef<SetStatusFn>(null);
+  const [queryStatus, setQueryStatus] = useState("");
 
   const handleReload = useCallback(
     showOK => {
@@ -2009,7 +2008,7 @@ function RedisHashTable(props: { hashKey: string; uuid: string }) {
         handleExecuteTime: t => {
           setFetchDur(t);
         },
-        setStatus: queryStatus,
+        setStatus: setQueryStatus,
         para: { limit: maxRowRef.current, where_str: keyMatch ? keyMatch : null },
         setLoading,
         showNotification,
@@ -2144,7 +2143,7 @@ function RedisHashTable(props: { hashKey: string; uuid: string }) {
   }, [fetchDur, hashKey, lastFetchTime]);
   return (
     <Stack style={{ height: "100%" }}>
-      <QueryStatus setRef={queryStatus} />
+      <QueryStatus status={queryStatus} />
       <StackRowCenter>
         <Button
           color="primary"

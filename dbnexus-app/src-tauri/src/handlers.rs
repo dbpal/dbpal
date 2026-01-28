@@ -1600,8 +1600,6 @@ pub async fn auto_completion(
     col: u32,
     app: tauri::State<'_, DBPal>,
 ) -> Result<CompletionList, ErrorFrontend> {
-    random_sleep().await;
-    random_error()?;
     let use_lexer = true;
     // 避免多个线程同时访问
     // 主要是后端实现更简单了比如可以把 completion——id缓存起来
@@ -1629,8 +1627,6 @@ pub async fn ai_text_completion(
     col: u32,
     app: tauri::State<'_, DBPal>,
 ) -> Result<CompletionList, ErrorFrontend> {
-    random_sleep().await;
-    random_error()?;
     let db = app.get_backend(name.as_str()).await?;
     let uuids = app.ai_get_search_path(db, &name, query_id, &text).await?;
     let mut ret = vec![];

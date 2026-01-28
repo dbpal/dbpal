@@ -35,8 +35,8 @@ function prettyMs(x: number) {
 
 let appDatabase: Database = await Database.load("sqlite:dbpal.sqlite.db");
 
-appDatabase.select("select * from column_width").then(xs => {
-  (xs as { name: string; width: number }[]).forEach(e => {
+appDatabase.select("select * from column_width").then((xs) => {
+  (xs as { name: string; width: number }[]).forEach((e) => {
     ColumnWidth.instance.width[e.name] = e.width;
   });
 });
@@ -67,7 +67,7 @@ class QueryLogHandler {
         [this.uuid, this.name, sql, language, success ? 1 : 0],
       )
       .then(() => {})
-      .catch(e => {
+      .catch((e) => {
         message("save query log failed,e" + String(e), { kind: "error" });
       });
   }
@@ -81,9 +81,9 @@ class QueryLogHandler {
     const sql = `
     select * from query_log where uuid=? ${
       matchSql ? `and sql like '%${matchSql}%'` : ""
-    } order by ${order_by ? order_by : "create_at desc"} limit ${pageSize} offset ${
-      pageSize * (page - 1)
-    }`;
+    } order by ${
+      order_by ? order_by : "create_at desc"
+    } limit ${pageSize} offset ${pageSize * (page - 1)}`;
     console.info("query log sql:", sql);
     return appDatabase.select(sql, [this.uuid]);
   }
@@ -91,10 +91,14 @@ class QueryLogHandler {
     const sql = `select count(*) as total from query_log where uuid=? ${
       matchSql ? `and sql like '%${matchSql}%'` : ""
     }`;
-    return appDatabase.select(sql, [this.uuid]).then(e => (e ? e[0].total : 0));
+    return appDatabase.select(sql, [this.uuid]).then(
+      (e) => (e ? e[0].total : 0),
+    );
   }
   async delete(): Promise<QueryResult> {
-    return appDatabase.execute("delete from query_log where uuid=?", [this.uuid]);
+    return appDatabase.execute("delete from query_log where uuid=?", [
+      this.uuid,
+    ]);
   }
   static async deleteByConnectionName(name): Promise<QueryResult> {
     return appDatabase.execute("delete from query_log where name=?", [name]);
@@ -125,7 +129,8 @@ async function secondConfirm({
 }
 
 function generateRandomString(length: number = 10): string {
-  const characters = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
+  const characters =
+    "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
   let result = "";
   for (let i = 0; i < length; i++) {
     const randomIndex = Math.floor(Math.random() * characters.length);
@@ -149,7 +154,9 @@ function hexTryToString(hex): string | null {
     bytes.push(parseInt(hex.substr(i, 2), 16));
   }
   try {
-    return new TextDecoder("utf-8", { fatal: true }).decode(new Uint8Array(bytes));
+    return new TextDecoder("utf-8", { fatal: true }).decode(
+      new Uint8Array(bytes),
+    );
   } catch {
     return null;
   }
@@ -175,7 +182,7 @@ function stringToHexArray(str: string): Uint8Array {
 
 function arrayToHex(uint8Array: Uint8Array | number[]) {
   return Array.from(uint8Array) // 将 Uint8Array 转换为普通数组
-    .map(byte => byte.toString(16).padStart(2, "0")) // 转换每个字节为十六进制并补齐
+    .map((byte) => byte.toString(16).padStart(2, "0")) // 转换每个字节为十六进制并补齐
     .join(""); // 连接为一个字符串
 }
 
@@ -344,7 +351,8 @@ function connTypeToDataSourceKind(name: string): DataSourceKind {
 function isTypeLargeText(s: string): boolean {
   const toUpper = s.toUpperCase();
   return (
-    toUpper.includes("TEXT") || toUpper.includes("LONG") || toUpper.includes("CLOB")
+    toUpper.includes("TEXT") || toUpper.includes("LONG") ||
+    toUpper.includes("CLOB")
   );
 }
 
@@ -408,7 +416,7 @@ class SaveDomSizes {
   static async getSize(key: string): Promise<undefined | UISize> {
     return appDatabase
       .select("select width, height from element_size where name = ?", [key])
-      .then(xs => {
+      .then((xs) => {
         if (xs instanceof Array) {
           return xs[0];
         }
@@ -454,7 +462,7 @@ class FavoriteSql {
   static async getDistinctUuid() {
     return appDatabase
       .select<{ uuid: string }[]>("SELECT DISTINCT  uuid from favorite_sql")
-      .then(x => x.map(y => y.uuid));
+      .then((x) => x.map((y) => y.uuid));
   }
 
   // todo performance issue????
@@ -478,7 +486,9 @@ class FavoriteSql {
 
   static async deleteByConnectionName(name: string) {
     try {
-      appDatabase.execute(`delete from favorite_sql where connection_name=?`, [name]);
+      appDatabase.execute(`delete from favorite_sql where connection_name=?`, [
+        name,
+      ]);
     } catch (e) {
       console.error("delete all logs belong to a key failed", e);
       return;
@@ -512,7 +522,7 @@ class ColumnWidth {
   }
   async reset(): Promise<void> {
     this.width = {};
-    return appDatabase.execute("delete from column_width").then(x => {
+    return appDatabase.execute("delete from column_width").then((x) => {
       console.info("delete of", x.rowsAffected, "rows");
     });
   }
@@ -530,7 +540,7 @@ const handleCopyToClipboard = (text, showNotification?, okCallBack?) => {
         okCallBack();
       }
     })
-    .catch(e => {
+    .catch((e) => {
       if (showNotification) {
         showNotification("warning", "copy to clipboard failed", e);
       }
@@ -592,14 +602,14 @@ function saveAndSetSize(
   key: string,
   set: "height" | "width" | "both" = "both",
 ): () => void {
-  const e = new ResizeObserver(en => {
+  const e = new ResizeObserver((en) => {
     const height = en[0].target.clientHeight;
     const width = en[0].target.clientWidth;
     if (width && height) {
       SaveDomSizes.saveSize(key, { width, height });
     }
   });
-  SaveDomSizes.getSize(key).then(size => {
+  SaveDomSizes.getSize(key).then((size) => {
     if (size) {
       const div = dom as HTMLDivElement;
       if (set == "height" || set == "both") {
@@ -657,7 +667,10 @@ class UserSettingAppearance {
       let setting = await appStore.get<UserSettingAppearance>(
         UserSettingAppearance.key,
       );
-      setting = { ...new UserSettingAppearance(), ...setting } as UserSettingAppearance;
+      setting = {
+        ...new UserSettingAppearance(),
+        ...setting,
+      } as UserSettingAppearance;
       Object.setPrototypeOf(setting, UserSettingAppearance.prototype);
       return setting;
     } catch (e) {
@@ -677,7 +690,9 @@ class UserSettingExport {
   }
   static async get(): Promise<UserSettingExport> {
     try {
-      let setting = await appStore.get<UserSettingExport>(UserSettingExport.key);
+      let setting = await appStore.get<UserSettingExport>(
+        UserSettingExport.key,
+      );
       setting = { ...new UserSettingExport(), ...setting } as UserSettingExport;
       Object.setPrototypeOf(setting, UserSettingExport.prototype);
       return setting;
@@ -788,7 +803,7 @@ class LoggerLevel {
   }
 }
 {
-  appStore.get<string>(LoggerLevel.key).then(level => {
+  appStore.get<string>(LoggerLevel.key).then((level) => {
     if (level) {
       LoggerLevel.level = level;
     }
@@ -841,7 +856,7 @@ function executeSqlWithoutConn(uuid: string, sql: string) {
   return invoke<QueryRespData>("execute_sql_no_open_conn", {
     name: uuid,
     sql,
-  }).then(e => {
+  }).then((e) => {
     if (SaveQueryLogConfigure.get()) {
       new QueryLogHandler(uuid).save(sql, rustResultOk(e));
     }
@@ -857,7 +872,7 @@ function getStackTrace() {
 class ColorFn {
   static hexToRgb(hex) {
     hex = hex.replace("#", "");
-    if (hex.length === 3) hex = [...hex].map(c => c + c).join("");
+    if (hex.length === 3) hex = [...hex].map((c) => c + c).join("");
     const num = parseInt(hex, 16);
     return [(num >> 16) & 255, (num >> 8) & 255, num & 255];
   }
@@ -866,7 +881,7 @@ class ColorFn {
     const lum = (0.299 * r + 0.587 * g + 0.114 * b) / 255;
     return lum > 0.5;
   }
-  static isColor = str => {
+  static isColor = (str) => {
     const o = new Option().style;
     o.color = str;
     return o.color !== "";
@@ -877,7 +892,7 @@ class SavePageSize {
   key = "dbpal-page-size";
 
   save(size: number) {
-    if (pageSizeOptions.find(e => size == e)) {
+    if (pageSizeOptions.find((e) => size == e)) {
       localStorage.setItem(this.key, size + "");
     } else {
       getStackTrace();
@@ -1151,93 +1166,91 @@ function newEmptyResp(): MuiDataGridData {
 const MaxTreeContext = createContext<number>(120);
 
 export {
-  TabsSetContext,
-  ConnTypeContext,
-  UuidContext,
-  ContextMenuContext,
-  TabContent,
-  generateRandomString,
-  hexTryToString,
-  hexToString,
-  stringToHex,
-  backendCompletionItemToEditor,
-  extractConfigNameFromUuid,
-  errToString,
-  getViewportSize,
-  isTypeLargeText,
-  DataSourceKind,
-  connTypeToDataSourceKind,
-  secondConfirm,
-  appStore,
-  ColumnWidth,
-  handleCopyToClipboard,
-  validJson,
-  TabActiveContext,
-  FavoriteSql,
-  MatchPatternContext,
-  quoteDatabaseIdentifier,
-  saveAndSetSize,
-  SaveDomSizes,
-  DocsAndCount,
-  UserSetting,
-  SettingContext,
-  SetCloseConfirmTextContext,
-  WindowFocusContext,
-  editorSetPositionAndReveal,
-  postgresLike,
-  getEditorText,
-  executeSqlWithoutConn,
-  QueryLogHandler,
-  ColorFn,
-  getSupportExportKind,
-  SavePageSize,
-  rustResultOk,
-  generateDefaultFilename,
-  pageSizeOptions,
-  textEllipsisStyle,
-  SaveAlign,
-  SaveMatchPattern,
-  SaveLeftTopShow,
-  RedisTableType,
-  extractFieldAndIDFromMouseEvent,
-  editorPositionToEnd,
-  KeyPressed,
-  dataGridStyle,
-  isMacOs,
-  LoggerLevel,
-  ViewKind,
-  registeredThemes,
-  getLanguageFromDataSourceKind,
-  SaveQueryLogConfigure,
-  UserSettingAppearance,
-  UserSettingExport,
-  UserSettingEditor,
-  settingChangeEvent,
-  UserSettingMisc,
-  dataGridheaderFontSize,
-  TableType,
-  appTheme,
-  isDarkTheme,
   appDatabase,
-  shrinkAble,
+  appStore,
+  appTheme,
+  backendCompletionItemToEditor,
+  ColorFn,
+  ColumnWidth,
+  ConnTypeContext,
+  connTypeToDataSourceKind,
+  ContextMenuContext,
+  dataGridheaderFontSize,
+  dataGridStyle,
+  DataSourceKind,
+  DocsAndCount,
+  editorPositionToEnd,
+  editorSetPositionAndReveal,
+  errToString,
+  executeSqlWithoutConn,
+  extractConfigNameFromUuid,
+  extractFieldAndIDFromMouseEvent,
+  extractLastNameFromUuid,
+  FavoriteSql,
+  generateDefaultFilename,
+  generateRandomString,
+  getEditorText,
+  getLanguageFromDataSourceKind,
+  getSupportExportKind,
+  getViewportSize,
+  handleCopyToClipboard,
+  hexToString,
+  hexTryToString,
+  isDarkTheme,
+  isMacOs,
+  isTypeLargeText,
   isWindows,
+  KeyPressed,
   LLMConfig,
   LLMConfigContext,
-  MongoLanguage,
-  extractLastNameFromUuid,
-  resizeHandlerSize,
-  prettyMs,
-  newEmptyResp,
+  LoggerLevel,
+  MatchPatternContext,
   MaxTreeContext,
+  MongoLanguage,
+  newEmptyResp,
+  pageSizeOptions,
+  postgresLike,
+  prettyMs,
+  QueryLogHandler,
+  quoteDatabaseIdentifier,
+  RedisTableType,
+  registeredThemes,
+  resizeHandlerSize,
+  rustResultOk,
+  SaveAlign,
+  saveAndSetSize,
+  SaveDomSizes,
+  SaveLeftTopShow,
+  SaveMatchPattern,
+  SavePageSize,
+  SaveQueryLogConfigure,
+  secondConfirm,
+  SetCloseConfirmTextContext,
+  settingChangeEvent,
+  SettingContext,
+  shrinkAble,
+  stringToHex,
+  TabActiveContext,
+  TabContent,
+  TableType,
+  TabsSetContext,
+  textEllipsisStyle,
+  UserSetting,
+  UserSettingAppearance,
+  UserSettingEditor,
+  UserSettingExport,
+  UserSettingMisc,
+  UuidContext,
+  validJson,
+  ViewKind,
+  WindowFocusContext,
 };
 
-type SetStatusFn = (s: string) => void;
-
-export type { ErrAndLoc, QueryRespData, SetStatusFn };
+export type { ErrAndLoc, QueryRespData };
 
 async function webviewWIndowInit() {
   const currentWebview = WebviewWindow.getCurrent();
-  appStore.get<number>("zoom").then(async zoom => {
+  appStore.get<number>("zoom").then(async (zoom) => {
     if (zoom) {
       try {
         await currentWebview.setZoom(zoom);
@@ -1250,27 +1263,27 @@ async function webviewWIndowInit() {
   if (["windows", "linux"].includes(platform())) {
     document.addEventListener("keydown", function (event) {
       if (event.key === "F11") {
-        currentWebview.isFullscreen().then(isFull => {
+        currentWebview.isFullscreen().then((isFull) => {
           currentWebview.setFullscreen(!isFull);
         });
       }
     });
   }
-  currentWebview.theme().then(async theme => {
+  currentWebview.theme().then(async (theme) => {
     if (!theme) {
       return;
     }
     appTheme = theme;
     notifySettingChange();
   });
-  currentWebview.onThemeChanged(async msg => {
+  currentWebview.onThemeChanged(async (msg) => {
     appTheme = msg.payload;
     notifySettingChange();
   });
   if (platform() == "linux") {
     //  https://github.com/tauri-apps/tauri/issues/9427
     setInterval(() => {
-      currentWebview.theme().then(theme => {
+      currentWebview.theme().then((theme) => {
         if (appTheme == theme) {
           return;
         }

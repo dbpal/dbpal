@@ -37,7 +37,6 @@ import {
   saveAndSetSize,
   SavePageSize,
   secondConfirm,
-  SetStatusFn,
   SettingContext,
   shrinkAble,
   validJson,
@@ -137,7 +136,7 @@ function CouchBaseTable(props: { uuid: string; table: string }) {
   const [gridColCount, setGridColCount] = useState(3);
   const [editorHeight, setEditorHeight] = useState(500);
   const [loading, setLoading] = useState(true);
-  const queryStatus = useRef<SetStatusFn>(null);
+  const [queryStatus, setQueryStatus] = useState("");
   const { showNotification } = useContext(NotificationContext);
   const [showAdd, setShowAdd] = useState(false);
   const [addModalBox, setAddModalBox] = useState(null);
@@ -175,11 +174,11 @@ function CouchBaseTable(props: { uuid: string; table: string }) {
           setResp(resp => {
             return { ...resp, data: [...resp.data, ...news] };
           });
-          queryStatus.current(`received ${news.length} rows`);
+          setQueryStatus(`received ${news.length} rows`);
           break;
         }
         case "status": {
-          queryStatus.current(event.status);
+          setQueryStatus(event.status);
           break;
         }
         case "err": {
@@ -187,7 +186,7 @@ function CouchBaseTable(props: { uuid: string; table: string }) {
           break;
         }
         case "end": {
-          queryStatus.current("");
+          setQueryStatus("");
           break;
         }
       }
@@ -218,7 +217,7 @@ function CouchBaseTable(props: { uuid: string; table: string }) {
   }, [handleReload]);
   return (
     <Stack style={{ height: "100%" }}>
-      <QueryStatus setRef={queryStatus} />
+      <QueryStatus status={queryStatus} />
       <Stack
         direction="row"
         style={{ alignItems: "center", justifyContent: "space-between" }}
@@ -731,7 +730,7 @@ function CouchBaseQuery(props: {
   const [gridColCount, setGridColCount] = useState(3);
   const [editor, setEditor] = useState<editor.IStandaloneCodeEditor>(null);
   const maxRow = useRef(2000);
-  const queryStatus = useRef<SetStatusFn>(null);
+  const [queryStatus, setQueryStatus] = useState("");
   const { showNotification } = useContext(NotificationContext);
   const [showQueryLog, setShowQueryLog] = useState(false);
   const kind = DataSourceKind.CouchBase;
@@ -821,17 +820,17 @@ function CouchBaseQuery(props: {
           setResp(resp => {
             return [...resp, ...xs];
           });
-          queryStatus.current?.(`receive ${xs.length} rows`);
+          setQueryStatus(`receive ${xs.length} rows`);
           break;
         }
         case "err":
           showNotification("error", "query failed", event.err);
           break;
         case "end":
-          queryStatus.current?.("");
+          setQueryStatus("");
           break;
         case "status":
-          queryStatus.current?.(event.status);
+          setQueryStatus(event.status);
           break;
       }
     });
@@ -874,7 +873,7 @@ function CouchBaseQuery(props: {
           executeTimes={executeTimes}
           kind={kind}
         />
-        <QueryStatus setRef={queryStatus} />
+        <QueryStatus status={queryStatus} />
         <Stack
           direction="row"
           style={{

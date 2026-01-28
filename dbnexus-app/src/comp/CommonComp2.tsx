@@ -1,7 +1,6 @@
 import {
   CSSProperties,
   ReactNode,
-  RefObject,
   useCallback,
   useContext,
   useEffect,
@@ -56,7 +55,6 @@ import {
   quoteDatabaseIdentifier,
   saveAndSetSize,
   secondConfirm,
-  SetStatusFn,
   SettingContext,
   TabActiveContext,
   TabContent,
@@ -1382,26 +1380,15 @@ function AppDataGridToolBar(props: {
   );
 }
 
-function QueryStatus(props: { setRef: RefObject<SetStatusFn> }) {
-  const { setRef } = props;
-  const [queryStatus, setQueryStatus] = useState("");
-  useEffect(() => {
-    setRef.current = s => {
-      setQueryStatus(s);
-    };
-  }, [setRef]);
-
-  useEffect(() => {
-    console.log(new Date().toLocaleString(), "query status", queryStatus);
-  }, [queryStatus]);
+function QueryStatus({ status }) {
   return (
-    queryStatus && (
+    status && (
       <Stack
         direction="row"
         // style={{ position: "absolute", bottom: 0, left: 0, opacity: 0.5, zIndex: 114 }}
       >
         <CircularProgress />
-        <Typography> {queryStatus} </Typography>
+        <Typography> {status} </Typography>
       </Stack>
     )
   );

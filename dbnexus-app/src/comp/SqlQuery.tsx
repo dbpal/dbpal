@@ -16,7 +16,6 @@ import PlayArrowIcon from "@mui/icons-material/PlayArrow";
 import { FaExclamation } from "react-icons/fa";
 import {
   ReactNode,
-  RefObject,
   useCallback,
   useContext,
   useEffect,
@@ -53,7 +52,6 @@ import {
   SaveQueryLogConfigure,
   secondConfirm,
   SetCloseConfirmTextContext,
-  SetStatusFn,
   SettingContext,
   shrinkAble,
   TabActiveContext,
@@ -218,7 +216,7 @@ function SqlQuery(props: {
   const [showExport, setShowExport] = useState(false);
   const [openOk, setOpenOk] = useState(false);
   const [tryCheckSql, setTryCheckSql] = useState(SaveCheckSql.get());
-  const queryStatus = useRef<SetStatusFn>(null);
+  const [queryStatus, setQueryStatus] = useState("");
 
   useEffect(() => {
     SaveCheckSql.save(tryCheckSql);
@@ -364,7 +362,7 @@ function SqlQuery(props: {
     let emit = new Channel<QueryEvent>(e => {
       // In Strict Mode, React will call your initializer function twice in order to help you find accidental impurities. This is development-only behavior and does not affect production. If your initializer function is pure (as it should be), this should not affect the behavior. The result from one of the calls will be ignored.
       setResp(resp => {
-        return appendQueryResult(resp, e, queryStatus);
+        return appendQueryResult(resp, e, setQueryStatus);
       });
     });
 
@@ -610,7 +608,7 @@ function SqlQuery(props: {
                 dbpal use Stream technology to query data,so we can query large data
               </Typography>
             />
-            <QueryStatus setRef={queryStatus} />
+            <QueryStatus status={queryStatus} />
           </Stack>
 
           <div
@@ -699,7 +697,7 @@ function SqlQuery(props: {
 function appendQueryResult(
   data: QueryRespData[],
   event: QueryEvent,
-  setQueryStatus: RefObject<SetStatusFn>,
+  setQueryStatus: (string) => void,
 ): QueryRespData[] {
   switch (event.kind) {
     case "structure":
@@ -711,7 +709,7 @@ function appendQueryResult(
         return data;
       }
       let data0 = event.data[0];
-      setQueryStatus.current(
+      setQueryStatus(
         `backend send ${event.data.length} record,data:${data0.slice(0, 3).join("-")}`,
       );
       let index = null;
@@ -722,7 +720,7 @@ function appendQueryResult(
         }
       }
       if (index === null) {
-        setQueryStatus.current(
+        setQueryStatus(
           "should be able to find the index the place data ,this is internal error",
         );
         return data;
@@ -743,11 +741,11 @@ function appendQueryResult(
       return arr;
     }
     case "status": {
-      setQueryStatus.current(event.status);
+      setQueryStatus(event.status);
       return data;
     }
     case "end":
-      setQueryStatus.current("");
+      setQueryStatus("");
       return data;
     default:
       console.error("backend give some data which we can not handle", event);

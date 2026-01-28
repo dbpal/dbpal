@@ -72,7 +72,6 @@ import {
   pageSizeOptions,
   dataGridheaderFontSize,
   shrinkAble,
-  SetStatusFn,
   executeSqlWithoutConn,
   SetCloseConfirmTextContext,
   getSupportExportKind,
@@ -372,7 +371,7 @@ function SqlTableView(props: {
   const [viewInModal, setViewInModal] = useState<object>(null);
   const [showExport, setShowExport] = useState(false);
   const [showAdd, setShowAdd] = useState(false);
-  const queryStatus = useRef<SetStatusFn>(null);
+  const [queryStatus, setQueryStatus] = useState("");
   const [clickedField, setClickedField] = useState("");
   const handleResp = (resp: MuiDataGridData) => {
     resp.data.forEach((data, index) => {
@@ -447,7 +446,7 @@ function SqlTableView(props: {
       }
       showTable({
         para: makePara(),
-        setStatus: queryStatus,
+        setStatus: setQueryStatus,
         name: tableName,
         isView: !isTable,
         uuid,
@@ -850,7 +849,7 @@ function SqlTableView(props: {
   const someModel = clientModel ? "client" : "server";
   return (
     <Stack style={{ height: "100%" }}>
-      <QueryStatus setRef={queryStatus} />
+      <QueryStatus status={queryStatus} />
       {ops.map((operation, idx) => (
         <DatabaseOperationView
           op={operation}

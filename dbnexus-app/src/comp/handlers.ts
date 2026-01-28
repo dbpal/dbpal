@@ -4,13 +4,11 @@ import {
   DataSourceKind,
   ErrAndLoc,
   MuiDataGridData,
-  SetStatusFn,
   TableType,
   ViewKind,
 } from "./helper";
 import { message } from "@tauri-apps/plugin-dialog";
 import { QueryEvent } from "./Common";
-import { RefObject } from "react";
 
 async function tryGetMaxID(uuid: string, tableOrView: string) {
   try {
@@ -297,7 +295,7 @@ async function showTable(
     isView?: boolean;
     showNotification;
     handleExecuteTime?: (ms: number) => void;
-    setStatus: RefObject<SetStatusFn>;
+    setStatus: (string) => void;
   } & ShowTableCallBack,
 ) {
   let {
@@ -333,15 +331,15 @@ async function showTable(
       switch (event.kind) {
         case "structure":
           if (event.resp.data.length > 0) {
-            setStatus.current(`server send ${event.resp.data.length} records`);
+            setStatus(`server send ${event.resp.data.length} records`);
           } else {
-            setStatus.current(`server send me column definition.`);
+            setStatus(`server send me column definition.`);
           }
           resp = event.resp;
           handleResult(resp);
           break;
         case "data": {
-          setStatus.current(`server send ${event.data.length} records`);
+          setStatus(`server send ${event.data.length} records`);
           let cop = { ...resp };
           cop.data = [
             ...cop.data,
@@ -358,10 +356,10 @@ async function showTable(
           break;
         }
         case "status":
-          setStatus.current(`${event.status}`);
+          setStatus(`${event.status}`);
           break;
         case "end":
-          setStatus.current("");
+          setStatus("");
           break;
         default:
           console.error("server send wrong kind of data:", event);
@@ -384,7 +382,7 @@ async function showTable(
       handleExecuteTime(new Date().getTime() - now.getTime());
     }
     setLoading(false);
-    setStatus.current("");
+    setStatus("");
   }
 }
 
