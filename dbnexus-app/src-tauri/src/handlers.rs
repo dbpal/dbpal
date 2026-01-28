@@ -68,7 +68,6 @@ fn make_openai(req: &OpenAIReq) -> OpenAI<OpenAIConfig> {
     op = op.with_temperature(req.temperature);
     op = op.with_top_p(req.top_p);
     api = api.with_options(op);
-
     api
 }
 

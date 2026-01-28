@@ -13,7 +13,9 @@ import {
 import {
   Autocomplete,
   Button,
+  Checkbox,
   Divider,
+  FormControlLabel,
   IconButton,
   Paper,
   Stack,
@@ -623,6 +625,22 @@ function SqlChatTextInput(props: {
   const [invokeStatus, setInvokeStatus] = useState("");
   const chatMemoryK = useRef<number>(4);
   const [cancelFN, setCancelFN] = useState<() => void>(null);
+  const cleanEditorkey = "ai-chat-clean-editor";
+  const [cleanEditor, setCleanEditor] = useState(
+    (function () {
+      const r = localStorage.getItem(cleanEditorkey);
+      if (r) {
+        return r == "1";
+      } else {
+        return false;
+      }
+    })(),
+  );
+
+  useEffect(() => {
+    localStorage.setItem(cleanEditorkey, cleanEditor ? "1" : "0");
+  }, [cleanEditor]);
+
   const makePrompt = async () => {
     chatMemory.current.setK(chatMemoryK.current);
     try {
@@ -645,12 +663,16 @@ function SqlChatTextInput(props: {
   const handleChat = async () => {
     try {
       // 清空内容，同时保留在 Undo 栈里
-      editor.executeEdits("my-source", [
-        {
-          range: editor.getModel().getFullModelRange(), // 全选
-          text: "",
-        },
-      ]);
+      if (cleanEditor) {
+        editor.executeEdits("my-source", [
+          {
+            range: editor.getModel().getFullModelRange(), // 全选
+            text: "",
+          },
+        ]);
+      } else {
+        editorAppendContent(editor, "\n");
+      }
       setPrevQuestion(newQuestion);
       setInvokeStatus("making prompt");
       chatMemory.current.addUserMessage(newQuestion);
@@ -752,6 +774,16 @@ function SqlChatTextInput(props: {
             chatMemoryK.current = value;
           }}
           notice="chat memory buffer size"
+        />
+
+        <FormControlLabel
+          control={
+            <Checkbox
+              checked={cleanEditor}
+              onChange={e => setCleanEditor(e.target.checked)}
+            />
+          }
+          label="clean editor"
         />
 
         <Tooltip title="chat input location">
