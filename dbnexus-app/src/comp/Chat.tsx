@@ -693,7 +693,6 @@ function SqlChatTextInput(props: {
           i++;
         },
         f => {
-          console.log("cancel fn", f);
           setCancelFN(() => {
             // 这里必须写一个callback不然会被直接执行
             return f;
