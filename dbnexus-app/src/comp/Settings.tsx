@@ -594,8 +594,7 @@ function LLMSetting(props: { handleClose?: () => void }) {
     }, 400);
     try {
       const config = makeConfig();
-      const llm = config.createChatAPI();
-      const resp = await llm.invoke("hello!");
+      const resp = await config.invoke("hello!");
       showNotification(
         "success",
         "config setting is ok,llm response:",

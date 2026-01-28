@@ -1077,9 +1077,15 @@ const shrinkAble = {
   minWidth: "3rem",
 };
 
-class OpenAICallHandle {
-  constructor(public llm: LLMConfig) {
-  }
+class LLMConfig {
+  baseUrl: string;
+  apiKey: string;
+  model: string;
+  temperature: number = 0;
+  static key = "llm-config-4k9zF7m5p3T1H2";
+  maxToken: number = 0;
+  topP: number = 0;
+  aiTextTemplates: any = {};
 
   async invoke(msg: string): Promise<string> {
     return await invoke<string>("openai_invoke", {
@@ -1089,13 +1095,13 @@ class OpenAICallHandle {
 
   makeReq(msg: string): types.OpenAIReq {
     return {
-      url: this.llm.baseUrl,
-      api_key: this.llm.apiKey,
-      model: this.llm.model,
+      url: this.baseUrl,
+      api_key: this.apiKey,
+      model: this.model,
       msg,
-      temperature: this.llm.temperature,
-      max_tokens: this.llm.maxToken,
-      top_p: this.llm.topP,
+      temperature: this.temperature,
+      max_tokens: this.maxToken,
+      top_p: this.topP,
     };
   }
   async stream(
@@ -1111,20 +1117,6 @@ class OpenAICallHandle {
       cancelTask(taskId);
     });
     await invoke("openai_stream", { req: this.makeReq(msg), emit, taskId });
-  }
-}
-
-class LLMConfig {
-  baseUrl: string;
-  apiKey: string;
-  model: string;
-  temperature: number = 0;
-  static key = "llm-config-4k9zF7m5p3T1H2";
-  maxToken: number = 0;
-  topP: number = 0;
-  aiTextTemplates: any = {};
-  createChatAPI(): OpenAICallHandle {
-    return new OpenAICallHandle(this);
   }
 
   async save() {
@@ -1230,7 +1222,6 @@ export {
   MaxTreeContext,
   MongoLanguage,
   newEmptyResp,
-  OpenAICallHandle,
   pageSizeOptions,
   postgresLike,
   prettyMs,

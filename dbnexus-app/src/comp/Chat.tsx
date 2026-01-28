@@ -684,7 +684,7 @@ function SqlChatTextInput(props: {
         return;
       }
       let i = 0;
-      await config.createChatAPI().stream(
+      await config.stream(
         prompt,
         msg => {
           setInvokeStatus("receiving stream response#" + i);
