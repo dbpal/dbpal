@@ -425,7 +425,7 @@ function SqlQuery(props: {
     const cancel = (e: KeyboardEvent) => {
       if (e.key == "Escape" && loading && vis) {
         e.preventDefault();
-        cancelTask(conn.queryId, showNotification);
+        cancelTask(conn.queryId);
       }
     };
     document.addEventListener("keydown", cancel);
@@ -505,7 +505,7 @@ function SqlQuery(props: {
                 {loading && (
                   <CancelButton
                     handleCancel={() => {
-                      cancelTask(conn.queryId, showNotification);
+                      cancelTask(conn.queryId);
                     }}
                   />
                 )}

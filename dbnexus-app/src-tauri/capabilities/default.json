@@ -49,14 +49,6 @@
         "$HOME/.local/share/site.dbpal.dev/logs/*"
       ]
     },
-    {
-      "identifier": "http:default",
-      "allow": [
-        {
-          "url": "https://**"
-        }
-      ]
-    },
     "opener:default",
     "os:default",
     "process:default",
@@ -88,7 +80,6 @@
         }
       ]
     },
-    "http:default",
     "log:default"
   ]
 }

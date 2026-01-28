@@ -1,4 +1,3 @@
-import { ChatOpenAI } from "@langchain/openai";
 import {
   appStore,
   DataSourceKind,
@@ -30,6 +29,7 @@ import {
   SliderSize,
   SimpleFlexEditor,
   StackRowCenter,
+  CancelButton,
 } from "./CommonComp2.tsx";
 import ArrowCircleUpIcon from "@mui/icons-material/ArrowCircleUp";
 import EventNoteIcon from "@mui/icons-material/EventNote";
@@ -612,23 +612,17 @@ function SqlChatTextInput(props: {
 }) {
   const { uuid, kind, editor, setChatDirection, chatDirection } = props;
   const config = useContext(LLMConfigContext);
-  const [chatApi, setChatApi] = useState<ChatOpenAI>(null);
   const [prevQuestion, setPrevQuestion] = useState("");
   const [newQuestion, setNewQuestion] = useState("");
   const { showNotification } = useContext(NotificationContext);
   const [showPrompt, setShowPrompt] = useState(false);
-  useEffect(() => {
-    setChatApi(config.createChatAPI());
-  }, [config]);
-
-  const [loading, setLoading] = useState(false);
   const [chatHistory, setChatHistory] = useState<string[]>([]);
   const [showChatHistory, setShowChatHistory] = useState(false);
   const chatMemory = useRef(new SimpleArrayMemory());
   const [showEditPromptTemplate, setShowEditPromptTemplate] = useState(false);
   const [invokeStatus, setInvokeStatus] = useState("");
   const chatMemoryK = useRef<number>(4);
-
+  const [cancelFN, setCancelFN] = useState<() => void>(null);
   const makePrompt = async () => {
     chatMemory.current.setK(chatMemoryK.current);
     try {
@@ -650,7 +644,6 @@ function SqlChatTextInput(props: {
 
   const handleChat = async () => {
     try {
-      setLoading(true);
       // 清空内容，同时保留在 Undo 栈里
       editor.executeEdits("my-source", [
         {
@@ -668,14 +661,23 @@ function SqlChatTextInput(props: {
       if (!prompt) {
         return;
       }
-      const stream = await chatApi.stream(prompt);
       let i = 0;
-      for await (const msg of stream) {
-        setInvokeStatus("receiving stream response#" + i);
-        editorAppendContent(editor, msg.content);
-        wholeText += msg.content;
-        i++;
-      }
+      await config.createChatAPI().stream(
+        prompt,
+        msg => {
+          setInvokeStatus("receiving stream response#" + i);
+          editorAppendContent(editor, msg);
+          wholeText += msg;
+          i++;
+        },
+        f => {
+          console.log("cancel fn", f);
+          setCancelFN(() => {
+            // 这里必须写一个callback不然会被直接执行
+            return f;
+          });
+        },
+      );
       setInvokeStatus("done");
       setTimeout(() => {
         setInvokeStatus("");
@@ -685,26 +687,30 @@ function SqlChatTextInput(props: {
     } catch (e) {
       showNotification("error", "call llm failed", e);
     } finally {
-      setLoading(false);
+      setCancelFN(null);
     }
   };
-
   return (
     <Stack style={{ height: "100%", width: "100%" }}>
       <Stack
         direction="row"
         style={{ alignItems: "center", overflow: "auto", paddingBottom: "0.5rem" }}
       >
-        <IconButton
-          onClick={handleChat}
-          disabled={newQuestion == prevQuestion}
-          loading={loading}
-        >
-          <ArrowCircleUpIcon
-            style={{ fontSize: "1.8rem" }}
-            color={newQuestion == prevQuestion ? "disabled" : "primary"}
+        {cancelFN ? (
+          <CancelButton
+            handleCancel={() => {
+              cancelFN();
+              setCancelFN(null);
+            }}
           />
-        </IconButton>
+        ) : (
+          <IconButton onClick={handleChat} disabled={newQuestion == prevQuestion}>
+            <ArrowCircleUpIcon
+              style={{ fontSize: "1.8rem" }}
+              color={newQuestion == prevQuestion ? "disabled" : "primary"}
+            />
+          </IconButton>
+        )}
 
         <Tooltip title="history">
           <IconButton

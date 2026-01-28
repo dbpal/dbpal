@@ -272,18 +272,17 @@ impl bb8::ManageConnection for ConnManager {
 #[cfg(test)]
 mod tests {
 
+    use crate::enable_test_log;
+
     use super::*;
 
     #[tokio::test]
     async fn test_check_conn() {
+        enable_test_log();
         // export https_proxy=http://127.0.0.1:7897 http_proxy=http://127.0.0.1:7897 all_proxy=socks5://127.0.0.1:7897
         std::env::set_var("https_proxy", "http://127.0.0.1:7897");
         std::env::set_var("http_proxy", "http://127.0.0.1:7897");
         std::env::set_var("all_proxy", "socks5://127.0.0.1:7897");
-        for (k, v) in std::env::vars() {
-            println!("k={},v={}", k, v);
-        }
-
         let db = make_test_object().await;
         crate::db::CheckConn::check_conn(&db).await.unwrap();
     }

@@ -260,10 +260,9 @@ function listView(uuid: string, viewKind: ViewKind) {
   return invoke<types.ListTable[]>(invokeName, { name: uuid });
 }
 
-async function cancelTask(taskId: string, showNotification): Promise<void> {
+async function cancelTask(taskId: string): Promise<void> {
   try {
     return await invoke<void>("cancel_task", { taskId });
-    showNotification("success", "cancel task ok");
   } catch (e) {
     message("cancel task failed,err" + String(e), { kind: "error" });
     console.error(e);

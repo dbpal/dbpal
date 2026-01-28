@@ -1,5 +1,6 @@
 use crate::language_server::LanguageServer;
 use chrono::{DateTime, FixedOffset};
+use core::str;
 use std::collections::HashMap;
 use std::fmt::Debug;
 use std::ops::Deref;
@@ -2309,6 +2310,17 @@ pub fn need_paid() -> anyhow::Result<()> {
     } else {
         anyhow::bail!("this feature is paid")
     }
+}
+
+#[derive(serde::Serialize, serde::Deserialize, typescript_type_def::TypeDef, Debug, Clone)]
+pub struct OpenAIReq {
+    pub url: String,
+    pub api_key: String,
+    pub model: String,
+    pub msg: String,
+    pub temperature: f32,
+    pub max_tokens: Option<u32>,
+    pub top_p: f32,
 }
 
 pub(crate) const POOL_MAX_CONNECTIONS: u32 = 200;

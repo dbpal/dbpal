@@ -13,6 +13,7 @@ import {
   Button,
   Checkbox,
   Chip,
+  CircularProgress,
   Components,
   createTheme,
   CssBaseline,
@@ -56,6 +57,7 @@ import {
   LLMConfigContext,
   shrinkAble,
   LoggerLevel,
+  prettyMs,
 } from "./helper";
 import { Position } from "monaco-editor";
 import { invoke } from "@tauri-apps/api/core";
@@ -539,11 +541,10 @@ function LLMSetting(props: { handleClose?: () => void }) {
   const [model, setModel] = useState("");
   const [apiKey, setApiKey] = useState("");
   const { showNotification } = useContext(NotificationContext);
-  const [loading, setLoading] = useState(false);
   const [maxToken, setMaxToken] = useState("");
   const [topP, setTopP] = useState("");
   const [moddelCan, setModdelCan] = useState<ModelDef[]>([]);
-
+  const [helloTime, setHelloTime] = useState(0);
   useEffect(() => {
     LLMConfig.get().then(e => {
       if (e) {
@@ -587,7 +588,10 @@ function LLMSetting(props: { handleClose?: () => void }) {
   };
 
   const handleHello = async () => {
-    setLoading(true);
+    const now = new Date();
+    const int = setInterval(() => {
+      setHelloTime(new Date().getTime() - now.getTime());
+    }, 400);
     try {
       const config = makeConfig();
       const llm = config.createChatAPI();
@@ -595,12 +599,16 @@ function LLMSetting(props: { handleClose?: () => void }) {
       showNotification(
         "success",
         "config setting is ok,llm response:",
-        <Typography color="info"> {resp.content as string} </Typography>,
+        <Typography color="info"> {resp} </Typography>,
       );
     } catch (e) {
       showNotification("error", "test llm config  failed", e);
+      console.error("hello error", e);
     } finally {
-      setLoading(false);
+      clearInterval(int);
+      setTimeout(() => {
+        setHelloTime(0);
+      }, 1000);
     }
   };
 
@@ -614,8 +622,8 @@ function LLMSetting(props: { handleClose?: () => void }) {
       return;
     }
     try {
-      const x = await listLLMModels(baseUrl, apiKey);
-      setModdelCan(x);
+      const ms = await listLLMModels(baseUrl, apiKey);
+      setModdelCan(ms);
       showNotification("success", "load model candidates ok");
     } catch (e) {
       showNotification("error", "load model can failed", e);
@@ -791,13 +799,14 @@ function LLMSetting(props: { handleClose?: () => void }) {
       <Stack direction="row">
         <Button onClick={handleSave}>save</Button>
 
-        <Button
-          onClick={handleHello}
-          loading={loading}
-          variant="outlined"
-          color="secondary"
-        >
-          hello!
+        <Button onClick={handleHello} variant="outlined" color="secondary">
+          {helloTime ? (
+            <>
+              {prettyMs(helloTime)} <CircularProgress />
+            </>
+          ) : (
+            "hello!"
+          )}
         </Button>
       </Stack>
     </Stack>

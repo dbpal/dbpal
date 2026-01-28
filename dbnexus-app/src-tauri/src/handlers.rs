@@ -1,3 +1,4 @@
+use crate::app::{self, name_to_parts, DBConnectionConfig, DBPal, DatabaseBackend};
 use dashmap::DashMap;
 use dbnexus_db::cassandra::CassandraDB;
 use dbnexus_db::clickhouse::ClickHouseDB;
@@ -5,9 +6,9 @@ use dbnexus_db::couchbase::CouchBaseDB;
 use dbnexus_db::db::{
     escape_sql_str, ColumnType, CreateDatabaseExtra, CreateIndexReq, CreateSchemaExtra,
     CreateTableAndIndexSql, CreateTableReq, CreatedTypeDef, DBTrait, DefAndMetas, ExportKind,
-    Field, Index, ListTable, MetaValue, NamedStaff, OptionMustBeSomeErr, ProcedureDetail,
-    QueryEventEmit, QueryResp, SequenceDetail, ShowTableParameter, SqlEvent, TimeElapsed,
-    TriggerDetail, UdfOrProcedureExtraParameter,
+    Field, Index, ListTable, MetaValue, NamedStaff, OpenAIReq, OptionMustBeSomeErr,
+    ProcedureDetail, QueryEventEmit, QueryResp, SequenceDetail, ShowTableParameter, SqlEvent,
+    TimeElapsed, TriggerDetail, UdfOrProcedureExtraParameter,
 };
 use dbnexus_db::firebird::FireBirdDB;
 use dbnexus_db::language_server::{CompletionList, ErrAndLoc};
@@ -21,16 +22,18 @@ use dbnexus_db::redis::{RedisDB, RedisListTable, RedisToken};
 use dbnexus_db::redis_lang_server::REDIS_COMMANDS_MD_FILES;
 use dbnexus_db::sqlite::SqliteDB;
 use dbnexus_db::sub::SubDB;
+use font_kit::error::SelectionError;
+use futures_util::StreamExt;
+use include_dir::{include_dir, Dir};
+use langchain_rust::language_models::llm::LLM;
+use langchain_rust::language_models::LLMError;
+use langchain_rust::llm::{OpenAI, OpenAIConfig};
+use mongodb::bson::{self, doc, Document};
 use std::collections::{HashMap, HashSet};
 use std::str::FromStr;
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::{Arc, LazyLock, Mutex, RwLock};
 use std::time::Duration;
-
-use crate::app::{self, name_to_parts, DBConnectionConfig, DBPal, DatabaseBackend};
-use font_kit::error::SelectionError;
-use include_dir::{include_dir, Dir};
-use mongodb::bson::{self, doc, Document};
 use tauri::ipc::Channel;
 use tauri::State;
 use tokio_util::sync::CancellationToken;
@@ -45,6 +48,76 @@ pub struct TaskManager {
 pub fn log_level_ref() -> &'static RwLock<Option<log::Level>> {
     static LOG_LEVEL_LOC: RwLock<Option<log::Level>> = RwLock::new(None);
     &LOG_LEVEL_LOC
+}
+
+fn make_openai(req: &OpenAIReq) -> OpenAI<OpenAIConfig> {
+    #[cfg(debug_assertions)]
+    log::info!("open ai req:{:?}", req);
+    let mut config = OpenAIConfig::default();
+    config = config.with_api_base(&req.url);
+    config = config.with_api_key(&req.api_key);
+    let mut api = OpenAI::default();
+    api = api.with_config(config);
+    api = api.with_model(&req.model);
+    let mut op = langchain_rust::language_models::options::CallOptions::default();
+    if let Some(max_token) = req.max_tokens {
+        if max_token != 0 {
+            op = op.with_max_tokens(max_token);
+        }
+    }
+    op = op.with_temperature(req.temperature);
+    op = op.with_top_p(req.top_p);
+    api = api.with_options(op);
+
+    api
+}
+
+#[tauri::command]
+pub async fn openai_invoke(req: OpenAIReq) -> Result<String, ErrorFrontend> {
+    let api = make_openai(&req);
+    let r = api.invoke(&req.msg).await.map_err(ErrorFrontend::from)?;
+    Ok(r)
+}
+
+#[tauri::command]
+pub async fn openai_stream(
+    req: OpenAIReq,
+    emit: Channel<String>,
+    task_id: String,
+    task_manager: tauri::State<'_, TaskManager>,
+) -> Result<(), ErrorFrontend> {
+    use langchain_rust::schemas::Message;
+    let (token, _guard) = task_manager.add(task_id);
+    let fur = async {
+        let api = make_openai(&req);
+        let mut r = api
+            .stream(&[Message::new_human_message(&req.msg)])
+            .await
+            .map_err(ErrorFrontend::from)?;
+        while let Some(result) = r.next().await {
+            //  https://github.com/Abraxas-365/langchain-rust/issues/140
+            match &result {
+                Ok(_) => {}
+                Err(err) => match err {
+                    LLMError::OpenAIError(open_aierror) => {
+                        if format!("{:?}", open_aierror).contains("Stream ended") {
+                            break;
+                        }
+                    }
+                    _ => {}
+                },
+            }
+            let result = result.map_err(ErrorFrontend::from)?;
+            emit.send(result.content)?;
+        }
+        Ok(())
+    };
+    tokio::select! {
+        res = fur => {res},
+        _ = token.cancelled() => {
+            Ok(())
+        }
+    }
 }
 
 #[tauri::command]
@@ -452,7 +525,7 @@ pub async fn show_table(
     random_sleep().await;
     random_error()?;
     let token = CancellationToken::new();
-    let token_msg = CanTokenMsg::new(token.clone());
+    let token_msg = CancelTokenMsg::new(token.clone());
     let token_msg_clone = token_msg.clone();
     let sender = Arc::new(QueryEventChannelEmit::new(
         emit,
@@ -1098,11 +1171,11 @@ pub async fn is_dangerous_sql(
 
 // cancel token and msg
 #[derive(Clone)]
-struct CanTokenMsg {
+struct CancelTokenMsg {
     token: CancellationToken,
     msg: Arc<Mutex<Option<String>>>,
 }
-impl CanTokenMsg {
+impl CancelTokenMsg {
     fn cancel(&self, msg: impl Into<String>) {
         let msg = msg.into();
         *self.msg.lock().expect("lock failed") = Some(msg);
@@ -1123,7 +1196,7 @@ impl CanTokenMsg {
 
 struct QueryEventChannelEmit {
     channel: Channel<QueryEvent>,
-    cancel_msg: CanTokenMsg,
+    cancel_msg: CancelTokenMsg,
     limit: Option<usize>,
     emitted_size: AtomicUsize,
     cache: Arc<Mutex<Vec<Vec<Option<String>>>>>,
@@ -1137,7 +1210,7 @@ impl QueryEventChannelEmit {
 }
 
 impl QueryEventChannelEmit {
-    fn new(channel: Channel<QueryEvent>, cancel_msg: CanTokenMsg, limit: Option<usize>) -> Self {
+    fn new(channel: Channel<QueryEvent>, cancel_msg: CancelTokenMsg, limit: Option<usize>) -> Self {
         Self {
             channel,
             cancel_msg,
@@ -1242,7 +1315,7 @@ pub async fn query_sql(
         .await
         .map_err(ErrorFrontend::from)?;
     let (token, _guard) = task_manager.add(query_id.to_string());
-    let cancel_msg: CanTokenMsg = CanTokenMsg::new(token.clone());
+    let cancel_msg: CancelTokenMsg = CancelTokenMsg::new(token.clone());
     let sender = Arc::new(QueryEventChannelEmit::new(
         emit,
         cancel_msg.clone(),
@@ -3490,13 +3563,23 @@ fn parse_bson_doc(bs: &[u8]) -> Result<Document, String> {
     Ok(doc)
 }
 
-#[derive(serde::Serialize)]
+#[derive(serde::Serialize, Debug, Clone)]
 pub struct ErrorFrontend {
     // short message on why
     reason: String,
     // long message about why and backtrace
     detail: String,
     cancelled: bool,
+}
+
+impl From<LLMError> for ErrorFrontend {
+    fn from(value: LLMError) -> Self {
+        ErrorFrontend {
+            reason: value.to_string(),
+            detail: format!("{:?}", value),
+            cancelled: false,
+        }
+    }
 }
 
 impl From<SelectionError> for ErrorFrontend {

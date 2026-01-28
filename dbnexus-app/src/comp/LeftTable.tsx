@@ -763,7 +763,7 @@ function DupTable(props: {
         {loading && (
           <CancelButton
             handleCancel={() => {
-              cancelTask(taskId.current, showNotification);
+              cancelTask(taskId.current);
               handleClose();
             }}
           />

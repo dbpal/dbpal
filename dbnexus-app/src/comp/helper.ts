@@ -10,7 +10,7 @@ import {
 import { ask, message } from "@tauri-apps/plugin-dialog";
 import { Store } from "@tauri-apps/plugin-store";
 import { writeText } from "@tauri-apps/plugin-clipboard-manager";
-import { invoke } from "@tauri-apps/api/core";
+import { Channel, invoke } from "@tauri-apps/api/core";
 import { BSON } from "bson";
 import Database, { QueryResult } from "@tauri-apps/plugin-sql";
 import { WebviewWindow } from "@tauri-apps/api/webviewWindow";
@@ -19,11 +19,10 @@ import themelist from "../../monaco-themes/themes/themelist.json";
 import { loader } from "@monaco-editor/react";
 // import { emit } from "@tauri-apps/api/event";
 import { PassWordManager } from "./Common";
-import { ChatOpenAI } from "@langchain/openai";
-import { fetch as tauriFetch } from "@tauri-apps/plugin-http";
 import * as monaco from "monaco-editor";
 import prettyMilliseconds from "pretty-ms";
 import { emitTo } from "@tauri-apps/api/event";
+import { cancelTask } from "./handlers";
 
 loader.config({ monaco });
 
@@ -1077,6 +1076,44 @@ const shrinkAble = {
   overflow: "hidden",
   minWidth: "3rem",
 };
+
+class OpenAICallHandle {
+  constructor(public llm: LLMConfig) {
+  }
+
+  async invoke(msg: string): Promise<string> {
+    return await invoke<string>("openai_invoke", {
+      req: this.makeReq(msg),
+    });
+  }
+
+  makeReq(msg: string): types.OpenAIReq {
+    return {
+      url: this.llm.baseUrl,
+      api_key: this.llm.apiKey,
+      model: this.llm.model,
+      msg,
+      temperature: this.llm.temperature,
+      max_tokens: this.llm.maxToken,
+      top_p: this.llm.topP,
+    };
+  }
+  async stream(
+    msg: string,
+    handleMessage: (_: string) => void,
+    handleCancel: (_: () => void) => void,
+  ) {
+    const taskId = generateRandomString();
+    const emit = new Channel<string>((event) => {
+      handleMessage(event);
+    });
+    handleCancel(() => {
+      cancelTask(taskId);
+    });
+    await invoke("openai_stream", { req: this.makeReq(msg), emit, taskId });
+  }
+}
+
 class LLMConfig {
   baseUrl: string;
   apiKey: string;
@@ -1086,25 +1123,10 @@ class LLMConfig {
   maxToken: number = 0;
   topP: number = 0;
   aiTextTemplates: any = {};
-  createChatAPI() {
-    const llm = new ChatOpenAI({
-      apiKey: this.apiKey,
-      temperature: this.temperature,
-      modelName: this.model,
-      configuration: {
-        baseURL: this.baseUrl,
-        defaultHeaders: {
-          "X-Accel-Buffering": "no",
-          "Cache-Control": "no-cache",
-        },
-        fetch: tauriFetch,
-      },
-      topP: this.topP,
-      maxTokens: this.maxToken,
-      streaming: true,
-    });
-    return llm;
+  createChatAPI(): OpenAICallHandle {
+    return new OpenAICallHandle(this);
   }
+
   async save() {
     try {
       // save to password manager
@@ -1208,6 +1230,7 @@ export {
   MaxTreeContext,
   MongoLanguage,
   newEmptyResp,
+  OpenAICallHandle,
   pageSizeOptions,
   postgresLike,
   prettyMs,

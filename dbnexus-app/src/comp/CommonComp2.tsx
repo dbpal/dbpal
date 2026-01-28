@@ -1004,7 +1004,7 @@ function CancelButton({ handleCancel }) {
         handleCancel();
       }}
     >
-      <CancelIcon />
+      <CancelIcon /> <CircularProgress />
     </IconButton>
   );
 }

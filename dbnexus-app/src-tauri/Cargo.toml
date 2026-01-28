@@ -13,6 +13,7 @@ tauri-build = { version = "2", features = [] }
 
 
 [dependencies]
+langchain-rust = "=4.6.0"
 mimalloc = { version = "*", features = ["v3"] }
 tauri = { version = "2", features = ["devtools"] }
 tauri-plugin-dialog = "2.4"
@@ -48,7 +49,6 @@ include_dir.workspace = true
 rustls = { version = "0.23", features = ["aws-lc-rs"] }
 tauri-plugin-shell = "2"
 sys-locale = "0.3.2"
-tauri-plugin-http = "2"
 tokio-util.workspace = true
 tauri-plugin-devtools = "2.0.1"
 tauri-plugin-log = "2"

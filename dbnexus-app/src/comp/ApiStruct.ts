@@ -517,4 +517,14 @@ export namespace types {
         "bucket_type": types.CouchBaseBucketType;
     });
     export type BackendKind = ("Mysql" | "Tidb" | "Mariadb" | "LibSql" | "PostGres" | "CockRoach" | "SqlServer" | "Mongo" | "Redis" | "Sqlite" | "Cassandra" | "ClickHouse" | "Firebird" | "Oracle" | "DuckDB" | "BigQuery" | "Db2" | "CouchBase");
+    export type F32 = number;
+    export type OpenAIReq = {
+        "url": string;
+        "api_key": string;
+        "model": string;
+        "msg": string;
+        "temperature": types.F32;
+        "max_tokens": (types.U32 | null);
+        "top_p": types.F32;
+    };
 }
