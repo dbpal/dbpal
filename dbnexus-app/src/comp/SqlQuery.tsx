@@ -66,6 +66,7 @@ import {
   QueryStatus,
   SaveFavoriteSqlView,
   SliderSize,
+  ToggleChatShow,
 } from "./CommonComp2.tsx";
 import { ModifyLLMConfigModal } from "./Settings.tsx";
 import { cancelTask, checkSql } from "./handlers.ts";
@@ -570,6 +571,7 @@ function SqlQuery(props: {
               kind={kind}
               editor={editor}
             />
+
             {editor && (
               <LoadStoreFile
                 getQuery={() => {
@@ -591,6 +593,9 @@ function SqlQuery(props: {
                 <EventNoteIcon />
               </IconButton>
             </Tooltip>
+
+            <ToggleChatShow />
+
             {extras}
             <ModifyLLMConfigModal />
             <ExecutingTime loading={loading} disableTime />

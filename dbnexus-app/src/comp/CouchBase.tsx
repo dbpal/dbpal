@@ -23,6 +23,7 @@ import {
   SimpleFlexEditor,
   SliderSize,
   TableAddButton,
+  ToggleChatShow,
 } from "./CommonComp2.tsx";
 import { ReactNode, useCallback, useContext, useEffect, useRef, useState } from "react";
 import {
@@ -963,6 +964,9 @@ function CouchBaseQuery(props: {
             {viewMode == QueryViewMode.Json && (
               <SetTheme theme={jsonEditorTheme} setTheme={setJsonEditorTheme} />
             )}
+
+            <ToggleChatShow />
+
             <SliderSize
               storeKey="couchbase-sql-query"
               min={1000}

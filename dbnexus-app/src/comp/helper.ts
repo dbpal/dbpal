@@ -1179,11 +1179,16 @@ function newEmptyResp(): MuiDataGridData {
 
 const MaxTreeContext = createContext<number>(120);
 
+const ChatShowContext = createContext<
+  { show: boolean; setShow: (_: boolean) => void }
+>(null);
+
 export {
   appDatabase,
   appStore,
   appTheme,
   backendCompletionItemToEditor,
+  ChatShowContext,
   ColorFn,
   ColumnWidth,
   ConnTypeContext,

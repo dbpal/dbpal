@@ -1,15 +1,16 @@
 import {
   appStore,
+  ChatShowContext,
   DataSourceKind,
   extractLastNameFromUuid,
   handleCopyToClipboard,
   LLMConfig,
   LLMConfigContext,
-  resizeHandlerSize,
   TabActiveContext,
   TableType,
   ViewKind,
 } from "./helper.ts";
+import CloseIcon from "@mui/icons-material/Close";
 import {
   Autocomplete,
   Button,
@@ -23,7 +24,6 @@ import {
   Tooltip,
   Typography,
 } from "@mui/material";
-import { Panel, PanelGroup, PanelResizeHandle } from "react-resizable-panels";
 import { useCallback, useContext, useEffect, useRef, useState } from "react";
 import { editor } from "monaco-editor";
 import {
@@ -49,8 +49,6 @@ import { invoke } from "@tauri-apps/api/core";
 import types from "./ApiStruct.ts";
 import DeleteForeverIcon from "@mui/icons-material/DeleteForever";
 import { HumanMessage, AIMessage, BaseMessage } from "@langchain/core/messages";
-import { FaArrowAltCircleRight } from "react-icons/fa";
-import { FaArrowAltCircleDown } from "react-icons/fa";
 import {
   callErrorable,
   createTableAndIndexSql,
@@ -117,17 +115,6 @@ class SimpleArrayMemory {
   }
 }
 
-class SaveChatDirection {
-  static key = "dbpal-chat-direction";
-
-  static get() {
-    return localStorage.getItem(SaveChatDirection.key);
-  }
-  static set(d: string) {
-    localStorage.setItem(SaveChatDirection.key, d);
-  }
-}
-
 function Chat(props: {
   uuid: string;
   kind: DataSourceKind;
@@ -138,56 +125,30 @@ function Chat(props: {
   const { uuid, kind, favoriteName, value, language } = props;
   const [editor, setEditor] = useState<editor.IStandaloneCodeEditor>(null);
   const llmconfig = useContext(LLMConfigContext);
-  const [chatDirection, setChatDirection] = useState(
-    SaveChatDirection.get() || "vertical",
-  );
-  useEffect(() => {
-    SaveChatDirection.set(chatDirection);
-  }, [chatDirection]);
-
+  const [show, setShow] = useState(false);
   return (
     <Stack
       style={{
         height: "100%",
         width: "100%",
+        position: "relative",
       }}
     >
-      <PanelGroup direction={chatDirection as "vertical"} autoSaveId="chat">
-        <Panel minSize={10} maxSize={100} collapsible collapsedSize={0}>
-          <AllKindQuery
-            uuid={uuid}
-            kind={kind}
-            handleEditor={e => {
-              setEditor(e);
-            }}
-            favoriteName={favoriteName}
-            value={value}
-            language={language}
-          />
-        </Panel>
-
-        {llmconfig && (
-          <PanelResizeHandle
-            style={{
-              width: chatDirection != "vertical" ? resizeHandlerSize : undefined,
-              height: chatDirection == "vertical" ? resizeHandlerSize : undefined,
-            }}
-            id="chat-resize-bar"
-            className="resize-handle"
-          />
-        )}
+      <ChatShowContext.Provider value={{ show, setShow }}>
+        <AllKindQuery
+          uuid={uuid}
+          kind={kind}
+          handleEditor={e => {
+            setEditor(e);
+          }}
+          favoriteName={favoriteName}
+          value={value}
+          language={language}
+        />
         {llmconfig && editor && (
-          <Panel id="chat-input" collapsible maxSize={65} collapsedSize={0} minSize={8}>
-            <SqlChatTextInput
-              uuid={uuid}
-              kind={kind}
-              editor={editor}
-              setChatDirection={setChatDirection}
-              chatDirection={chatDirection}
-            />
-          </Panel>
+          <SqlChatTextInput uuid={uuid} kind={kind} editor={editor} />
         )}
-      </PanelGroup>
+      </ChatShowContext.Provider>
     </Stack>
   );
 }
@@ -609,10 +570,8 @@ function SqlChatTextInput(props: {
   uuid: string;
   kind: DataSourceKind;
   editor: editor.IStandaloneCodeEditor;
-  setChatDirection;
-  chatDirection;
 }) {
-  const { uuid, kind, editor, setChatDirection, chatDirection } = props;
+  const { uuid, kind, editor } = props;
   const config = useContext(LLMConfigContext);
   const [prevQuestion, setPrevQuestion] = useState("");
   const [newQuestion, setNewQuestion] = useState("");
@@ -626,6 +585,8 @@ function SqlChatTextInput(props: {
   const chatMemoryK = useRef<number>(4);
   const [cancelFN, setCancelFN] = useState<() => void>(null);
   const cleanEditorkey = "ai-chat-clean-editor";
+  const { show, setShow } = useContext(ChatShowContext);
+
   const [cleanEditor, setCleanEditor] = useState(
     (function () {
       const r = localStorage.getItem(cleanEditorkey);
@@ -636,6 +597,20 @@ function SqlChatTextInput(props: {
       }
     })(),
   );
+
+  const vis = useContext(TabActiveContext);
+  useEffect(() => {
+    const closeThis = (e: KeyboardEvent) => {
+      if (e.key === "Escape" && vis) {
+        e.preventDefault();
+        setShow(false);
+      }
+    };
+    document.addEventListener("keydown", closeThis);
+    return () => {
+      document.removeEventListener("keydown", closeThis);
+    };
+  }, [vis, setShow]);
 
   useEffect(() => {
     localStorage.setItem(cleanEditorkey, cleanEditor ? "1" : "0");
@@ -711,106 +686,123 @@ function SqlChatTextInput(props: {
       setCancelFN(null);
     }
   };
+
   return (
-    <Stack style={{ height: "100%", width: "100%" }}>
-      <Stack
-        direction="row"
-        style={{ alignItems: "center", overflow: "auto", paddingBottom: "0.5rem" }}
+    <>
+      <Paper
+        style={{
+          height: "30vh",
+          width: "80%",
+          display: show ? "flex" : "none",
+          position: "absolute",
+          flexDirection: "column",
+          bottom: 0,
+          left: "10%",
+          border: "2px solid gray",
+          borderRadius: "1rem",
+          zIndex: 14,
+        }}
       >
-        {cancelFN ? (
-          <CancelButton
-            handleCancel={() => {
-              cancelFN();
-              setCancelFN(null);
-            }}
-          />
-        ) : (
-          <IconButton onClick={handleChat} disabled={newQuestion == prevQuestion}>
-            <ArrowCircleUpIcon
-              style={{ fontSize: "1.8rem" }}
-              color={newQuestion == prevQuestion ? "disabled" : "primary"}
-            />
-          </IconButton>
-        )}
-
-        <Tooltip title="history">
-          <IconButton
-            onClick={() => {
-              setShowChatHistory(e => !e);
-            }}
-            disabled={chatHistory.length == 0}
+        <Stack
+          direction="row"
+          style={{ alignItems: "center", justifyContent: "space-between" }}
+        >
+          <Stack
+            direction="row"
+            style={{ alignItems: "center", overflow: "auto", paddingBottom: "0.5rem" }}
           >
-            <EventNoteIcon color={chatHistory.length == 0 ? "disabled" : "primary"} />
-          </IconButton>
-        </Tooltip>
-        <Tooltip title="show prompt">
-          <Button
-            disabled={newQuestion.trim() == ""}
-            onClick={() => {
-              setShowPrompt(e => !e);
-            }}
-            variant={showPrompt ? "contained" : "text"}
-          >
-            prompt
-          </Button>
-        </Tooltip>
-        <Tooltip title="edit prompt template">
-          <IconButton
-            onClick={() => {
-              setShowEditPromptTemplate(e => !e);
-            }}
-          >
-            <EditIcon color="secondary" />
-          </IconButton>
-        </Tooltip>
-
-        <SliderSize
-          storeKey="chat-memory-buffer-size"
-          max={20}
-          min={0}
-          step={2}
-          handleValue={value => {
-            chatMemoryK.current = value;
-          }}
-          notice="chat memory buffer size"
-        />
-
-        <FormControlLabel
-          control={
-            <Checkbox
-              checked={cleanEditor}
-              onChange={e => setCleanEditor(e.target.checked)}
-            />
-          }
-          label="clean editor"
-        />
-
-        <Tooltip title="chat input location">
-          <IconButton
-            onClick={() => {
-              setChatDirection(e => (e == "vertical" ? "horizontal" : "vertical"));
-            }}
-          >
-            {chatDirection == "vertical" ? (
-              <FaArrowAltCircleRight fontSize="1.4rem"> </FaArrowAltCircleRight>
+            {cancelFN ? (
+              <CancelButton
+                handleCancel={() => {
+                  cancelFN();
+                  setCancelFN(null);
+                }}
+              />
             ) : (
-              <FaArrowAltCircleDown fontSize="1.4rem"> </FaArrowAltCircleDown>
+              <IconButton onClick={handleChat} disabled={newQuestion == prevQuestion}>
+                <ArrowCircleUpIcon
+                  style={{ fontSize: "1.8rem" }}
+                  color={newQuestion == prevQuestion ? "disabled" : "primary"}
+                />
+              </IconButton>
             )}
-          </IconButton>
-        </Tooltip>
-      </Stack>
-      <Divider> </Divider>
-      <SimpleFlexEditor
-        language="text"
-        handleValue={v => {
-          setNewQuestion(v);
-        }}
-        barLeft={invokeStatus && <Typography color="info">{invokeStatus}</Typography>}
-        handleEditor={e => {
-          AITextCompletionName.set(e.getModel().id, editor.getModel().id);
-        }}
-        dontFocus
-      />
+            <Tooltip title="history">
+              <IconButton
+                onClick={() => {
+                  setShowChatHistory(e => !e);
+                }}
+                disabled={chatHistory.length == 0}
+              >
+                <EventNoteIcon
+                  color={chatHistory.length == 0 ? "disabled" : "primary"}
+                />
+              </IconButton>
+            </Tooltip>
+            <Tooltip title="show prompt">
+              <Button
+                disabled={newQuestion.trim() == ""}
+                onClick={() => {
+                  setShowPrompt(e => !e);
+                }}
+                variant={showPrompt ? "contained" : "text"}
+              >
+                prompt
+              </Button>
+            </Tooltip>
+            <Tooltip title="edit prompt template">
+              <IconButton
+                onClick={() => {
+                  setShowEditPromptTemplate(e => !e);
+                }}
+              >
+                <EditIcon color="secondary" />
+              </IconButton>
+            </Tooltip>
+            <SliderSize
+              storeKey="chat-memory-buffer-size"
+              max={20}
+              min={0}
+              step={2}
+              handleValue={value => {
+                chatMemoryK.current = value;
+              }}
+              notice="chat memory buffer size"
+            />
+            <FormControlLabel
+              control={
+                <Checkbox
+                  checked={cleanEditor}
+                  onChange={e => setCleanEditor(e.target.checked)}
+                />
+              }
+              label="clean editor"
+            />
+          </Stack>
+
+          <Stack direction="row">
+            <IconButton
+              onClick={() => {
+                setShow(false);
+              }}
+            >
+              <CloseIcon />
+            </IconButton>
+          </Stack>
+        </Stack>
+
+        <Divider> </Divider>
+        <SimpleFlexEditor
+          language="text"
+          handleValue={v => {
+            setNewQuestion(v);
+          }}
+          barLeft={invokeStatus && <Typography color="info">{invokeStatus}</Typography>}
+          handleEditor={e => {
+            AITextCompletionName.set(e.getModel().id, editor.getModel().id);
+          }}
+          dontFocus
+        />
+      </Paper>
       {showChatHistory && (
         <ChatHistory
           history={chatHistory}
@@ -839,7 +831,7 @@ function SqlChatTextInput(props: {
           makePrompt={makePrompt}
         />
       )}
-    </Stack>
+    </>
   );
 }
 
@@ -887,6 +879,7 @@ function EditPromptTemplate(props: {
   useEffect(() => {
     const closeThis = (e: KeyboardEvent) => {
       if (e.key === "Escape" && vis) {
+        e.preventDefault();
         handleClose();
       }
     };
@@ -962,18 +955,6 @@ function ChatHistory(props: {
   handleClean;
 }) {
   const { history, handleClose, handleClean } = props;
-  const vis = useContext(TabActiveContext);
-  useEffect(() => {
-    const closeThis = (e: KeyboardEvent) => {
-      if (e.key === "Escape" && vis) {
-        handleClose();
-      }
-    };
-    document.addEventListener("keydown", closeThis);
-    return () => {
-      document.removeEventListener("keydown", closeThis);
-    };
-  }, [vis, handleClose]);
   const wrapperRef = useRef(null);
   useEffect(() => {
     const el = wrapperRef.current;
@@ -1042,21 +1023,7 @@ function ShowPrompt(props: {
 }) {
   const { handleClose, makePrompt } = props;
   const [prompt, setPrompt] = useState("");
-  const vis = useContext(TabActiveContext);
   const { showNotification } = useContext(NotificationContext);
-
-  useEffect(() => {
-    const closeThis = (e: KeyboardEvent) => {
-      if (e.key === "Escape" && vis) {
-        handleClose();
-      }
-    };
-    document.addEventListener("keydown", closeThis);
-    return () => {
-      document.removeEventListener("keydown", closeThis);
-    };
-  }, [vis, handleClose]);
-
   useEffect(() => {
     makePrompt().then(e => {
       setPrompt(e);

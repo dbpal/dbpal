@@ -44,6 +44,7 @@ import {
   SimpleFlexEditor,
   StackRowCenter,
   syntaxHightLightTheme,
+  ToggleChatShow,
 } from "./CommonComp2";
 import { QueryLog } from "./QueryLog";
 import InfoIcon from "@mui/icons-material/Info";
@@ -687,6 +688,8 @@ function MongoQuery(props: {
         >
           <span>debug???</span>
         </Tooltip>
+
+        <ToggleChatShow />
       </Stack>
       <div
         style={{

@@ -43,6 +43,7 @@ import {
 } from "@mui/material";
 import AttachFileIcon from "@mui/icons-material/AttachFile";
 import {
+  ChatShowContext,
   DataSourceKind,
   editorPositionToEnd,
   editorSetPositionAndReveal,
@@ -78,6 +79,7 @@ import {
 } from "./Common";
 import AddIcon from "@mui/icons-material/Add";
 import types from "./ApiStruct";
+import ChatBubbleIcon from "@mui/icons-material/ChatBubble";
 import { MetaValueView, ModalHeader, SelectPageSize } from "./CommonComp";
 import { readFile, writeTextFile } from "@tauri-apps/plugin-fs";
 import { save, open, DialogFilter, message } from "@tauri-apps/plugin-dialog";
@@ -1568,6 +1570,23 @@ function SetFilterSort(props: {
     </Modal>
   );
 }
+
+function ToggleChatShow() {
+  const { show, setShow } = useContext(ChatShowContext);
+  return (
+    <>
+      <Button
+        onClick={() => {
+          setShow(!show);
+        }}
+        variant={show ? "contained" : "text"}
+      >
+        <ChatBubbleIcon />
+      </Button>
+    </>
+  );
+}
+
 export {
   CreateDatabase,
   CreateSchema,
@@ -1595,4 +1614,5 @@ export {
   StackRowCenter,
   getSliderSizeStoreValue,
   SetFilterSort,
+  ToggleChatShow,
 };
