@@ -1443,6 +1443,8 @@ function TriggersStructure(props: {
             e.preventDefault();
             setRow(null);
           })}
+          disableAutoFocus
+          disableEnforceFocus
         >
           <Box
             sx={{ resize: "both", ...modalStyle }}

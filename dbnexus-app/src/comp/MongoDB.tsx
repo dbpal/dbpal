@@ -1421,6 +1421,8 @@ function MongoTableList(props: {
             e.preventDefault();
             setSelectModifyDoc(null);
           })}
+          disableAutoFocus
+          disableEnforceFocus
         >
           <Box
             sx={{ resize: "both", ...modalStyle }}
