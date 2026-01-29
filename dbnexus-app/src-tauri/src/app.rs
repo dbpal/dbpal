@@ -25,9 +25,9 @@ pub struct OpenAIReq {
     pub api_key: String,
     pub model: String,
     pub msg: String,
-    pub temperature: f32,
+    pub temperature: Option<f32>,
     pub max_tokens: Option<u32>,
-    pub top_p: f32,
+    pub top_p: Option<f32>,
 }
 
 #[allow(unused)]

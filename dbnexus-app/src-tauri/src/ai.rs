@@ -52,8 +52,13 @@ fn make_openai(req: &app::OpenAIReq) -> OpenAI<OpenAIConfig> {
             op = op.with_max_tokens(max_token);
         }
     }
-    op = op.with_temperature(req.temperature);
-    op = op.with_top_p(req.top_p);
+
+    if let Some(temperature) = req.temperature {
+        op = op.with_temperature(temperature);
+    }
+    if let Some(top_p) = req.top_p {
+        op = op.with_top_p(top_p);
+    }
     api = api.with_options(op);
     api
 }
