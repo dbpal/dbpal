@@ -17,6 +17,7 @@ import SaveIcon from "@mui/icons-material/Save";
 import { FaBookmark } from "react-icons/fa";
 import { IoMdInformationCircleOutline } from "react-icons/io";
 import CancelIcon from "@mui/icons-material/Cancel";
+import ChatBubbleOutlineIcon from "@mui/icons-material/ChatBubbleOutline";
 import {
   Autocomplete,
   Box,
@@ -1351,7 +1352,7 @@ function AppDataGridPagination(props: { showPageSelect?: boolean }) {
 
 function LastFetchTime(props: { date: Date }) {
   const { date } = props;
-  return <Typography color="info"> {date.toLocaleString()} </Typography>;
+  return <Typography color="info"> {date.toLocaleTimeString()} </Typography>;
 }
 
 function AppDataGridToolBar(props: {
@@ -1571,18 +1572,20 @@ function SetFilterSort(props: {
   );
 }
 
-function ToggleChatShow() {
-  const { show, setShow } = useContext(ChatShowContext);
+function ToggleChatShow(props: { do_query: () => void }) {
+  const { do_query } = props;
+  const { show, setShow, doQuery } = useContext(ChatShowContext);
+  // eslint-disable-next-line react-hooks/immutability
+  doQuery.current = do_query;
   return (
     <>
-      <Button
+      <IconButton
         onClick={() => {
           setShow(!show);
         }}
-        variant={show ? "contained" : "text"}
       >
-        <ChatBubbleIcon />
-      </Button>
+        {show ? <ChatBubbleIcon color="success" /> : <ChatBubbleOutlineIcon />}
+      </IconButton>
     </>
   );
 }

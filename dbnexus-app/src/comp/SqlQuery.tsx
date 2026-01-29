@@ -49,7 +49,7 @@ import {
   QueryLogHandler,
   resizeHandlerSize,
   rustResultOk,
-  SaveQueryLogConfigure,
+  saveQueryLog,
   secondConfirm,
   SetCloseConfirmTextContext,
   SettingContext,
@@ -327,7 +327,7 @@ function SqlQuery(props: {
     conn
       .executeOP(text)
       .then(e => {
-        if (SaveQueryLogConfigure.get()) {
+        if (saveQueryLog.get()) {
           queryLogHandler.current.save(text, rustResultOk(e));
         }
         setTimeout(() => {
@@ -370,13 +370,13 @@ function SqlQuery(props: {
     conn
       .queryOP(text, emit, maxRow.current)
       .then(() => {
-        if (SaveQueryLogConfigure.get()) {
+        if (saveQueryLog.get()) {
           queryLogHandler.current.save(text, true);
         }
         showNotification("success", "query OK");
       })
       .catch(e => {
-        if (SaveQueryLogConfigure.get()) {
+        if (saveQueryLog.get()) {
           queryLogHandler.current.save(text, false);
         }
         showNotification("error", "query failed", e);
@@ -464,6 +464,7 @@ function SqlQuery(props: {
             kind={kind}
             queryId={conn.queryId}
           />
+          <QueryStatus status={queryStatus} />
           <Stack
             direction="row"
             sx={{
@@ -594,11 +595,15 @@ function SqlQuery(props: {
               </IconButton>
             </Tooltip>
 
-            <ToggleChatShow />
+            <ToggleChatShow
+              do_query={() => {
+                handleQuery(false);
+              }}
+            />
 
             {extras}
             <ModifyLLMConfigModal />
-            <ExecutingTime loading={loading} disableTime />
+            <ExecutingTime loading={loading} />
             <SliderSize
               storeKey="sql-query"
               min={1000}
@@ -613,9 +618,7 @@ function SqlQuery(props: {
                 dbpal use Stream technology to query data,so we can query large data
               </Typography>
             />
-            <QueryStatus status={queryStatus} />
           </Stack>
-
           <div
             style={{
               flex: 1,

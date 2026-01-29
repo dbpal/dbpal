@@ -10,14 +10,16 @@ mod tests {
     use dbnexus_db::db::{
         BackendKind, ColumnType, CouchBaseBucketType, CreateDatabaseExtra, CreateIndexColumn,
         CreateIndexReq, CreateTableAndIndexSql, CreateTableReq, CreateTableReqColumn,
-        CreatedTypeDef, IndexKind, OpenAIReq, SequenceDetail, ShowTableParameter, SqlEvent,
-        SqlNullAble, UdfOrProcedureExtraParameter,
+        CreatedTypeDef, IndexKind, SequenceDetail, ShowTableParameter, SqlEvent, SqlNullAble,
+        UdfOrProcedureExtraParameter,
     };
     use dbnexus_db::language_server::CompletionList;
     use futures_util::StreamExt;
     use langchain_rust::language_models::llm::LLM;
     use langchain_rust::llm::{OpenAI, OpenAIConfig};
     use langchain_rust::schemas::Message;
+
+    use crate::app::OpenAIReq;
     #[test]
     fn generate_ts_def() {
         use dbnexus_db::datasource_config::{

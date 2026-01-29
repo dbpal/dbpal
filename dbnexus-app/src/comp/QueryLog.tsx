@@ -36,7 +36,7 @@ import {
   QueryLogHandler,
   saveAndSetSize,
   SavePageSize,
-  SaveQueryLogConfigure,
+  saveQueryLog,
   secondConfirm,
   TabActiveContext,
 } from "./helper.ts";
@@ -182,7 +182,7 @@ function QueryLog(props: {
   }, [vis, showQueryLog, setShowQueryLog]);
 
   const [dom, setDom] = useState<HTMLDivElement>(null);
-  const [saveQueryLog, setSaveQueryLog] = useState(SaveQueryLogConfigure.get());
+  const [sq, setSq] = useState(saveQueryLog.get());
   const slots = useMemo(() => {
     return {
       pagination: () => {
@@ -269,11 +269,11 @@ function QueryLog(props: {
             <FormControlLabel
               control={
                 <Checkbox
-                  checked={saveQueryLog}
+                  checked={sq}
                   onChange={() => {
-                    const newValue = !saveQueryLog;
-                    SaveQueryLogConfigure.set(newValue);
-                    setSaveQueryLog(newValue);
+                    const newValue = !sq;
+                    saveQueryLog.save(newValue);
+                    setSq(newValue);
                   }}
                 />
               }

@@ -784,7 +784,9 @@ function ExecutingTime(props: {
       </Tooltip>
       {!disableTime && (
         <Tooltip title="loaded at">
-          <Typography style={shrinkAble}>{lastLoadTime.toLocaleString()}</Typography>
+          <Typography style={shrinkAble}>
+            {lastLoadTime.toLocaleTimeString()}
+          </Typography>
         </Tooltip>
       )}
     </>

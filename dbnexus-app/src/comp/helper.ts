@@ -6,6 +6,7 @@ import {
   MouseEvent,
   ReactElement,
   ReactNode,
+  RefObject,
 } from "react";
 import { ask, message } from "@tauri-apps/plugin-dialog";
 import { Store } from "@tauri-apps/plugin-store";
@@ -355,15 +356,14 @@ function isTypeLargeText(s: string): boolean {
   );
 }
 
-class SaveLeftTopShow {
-  key = "dbpal-left-top-show";
+class SaveBoolToLocalStorage {
+  constructor(public key: string) {}
   get() {
     return localStorage.getItem(this.key) == "1";
   }
   save(x: boolean) {
     localStorage.setItem(this.key, x ? "1" : "0");
   }
-  static instance = new SaveLeftTopShow();
 }
 
 class SaveMatchPattern {
@@ -836,30 +836,10 @@ function getEditorText(editor: editor.IStandaloneCodeEditor, showNotification) {
   return text;
 }
 
-class SaveQueryLogConfigure {
-  static key = "dbpal-save-query-log";
-  static get() {
-    try {
-      return "1" == localStorage.getItem(SaveQueryLogConfigure.key);
-    } catch (e) {
-      console.error("get query log failed", e);
-      return false;
-    }
-  }
-  static set(save: boolean) {
-    localStorage.setItem(SaveQueryLogConfigure.key, save ? "1" : "0");
-  }
-}
-
 function executeSqlWithoutConn(uuid: string, sql: string) {
   return invoke<QueryRespData>("execute_sql_no_open_conn", {
     name: uuid,
     sql,
-  }).then((e) => {
-    if (SaveQueryLogConfigure.get()) {
-      new QueryLogHandler(uuid).save(sql, rustResultOk(e));
-    }
-    return e;
   });
 }
 
@@ -1180,8 +1160,13 @@ function newEmptyResp(): MuiDataGridData {
 const MaxTreeContext = createContext<number>(120);
 
 const ChatShowContext = createContext<
-  { show: boolean; setShow: (_: boolean) => void }
+  {
+    show: boolean;
+    setShow: (_: boolean) => void;
+    doQuery: RefObject<() => void>;
+  }
 >(null);
+const saveQueryLog = new SaveBoolToLocalStorage("save-query-log");
 
 export {
   appDatabase,
@@ -1238,11 +1223,11 @@ export {
   rustResultOk,
   SaveAlign,
   saveAndSetSize,
+  SaveBoolToLocalStorage,
   SaveDomSizes,
-  SaveLeftTopShow,
   SaveMatchPattern,
   SavePageSize,
-  SaveQueryLogConfigure,
+  saveQueryLog,
   secondConfirm,
   SetCloseConfirmTextContext,
   settingChangeEvent,

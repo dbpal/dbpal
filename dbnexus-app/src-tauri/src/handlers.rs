@@ -1,4 +1,7 @@
-use crate::app::{self, name_to_parts, DBConnectionConfig, DBPal, DatabaseBackend};
+use crate::app::{
+    self, name_to_parts, CancelTokenMsg, DBConnectionConfig, DBPal, DatabaseBackend, ErrorFrontend,
+    TaskManager,
+};
 use dashmap::DashMap;
 use dbnexus_db::cassandra::CassandraDB;
 use dbnexus_db::clickhouse::ClickHouseDB;
@@ -6,13 +9,11 @@ use dbnexus_db::couchbase::CouchBaseDB;
 use dbnexus_db::db::{
     escape_sql_str, ColumnType, CreateDatabaseExtra, CreateIndexReq, CreateSchemaExtra,
     CreateTableAndIndexSql, CreateTableReq, CreatedTypeDef, DBTrait, DefAndMetas, ExportKind,
-    Field, Index, ListTable, MetaValue, NamedStaff, OpenAIReq, OptionMustBeSomeErr,
-    ProcedureDetail, QueryEventEmit, QueryResp, SequenceDetail, ShowTableParameter, SqlEvent,
-    TimeElapsed, TriggerDetail, UdfOrProcedureExtraParameter,
+    Field, Index, ListTable, MetaValue, NamedStaff, OptionMustBeSomeErr, ProcedureDetail,
+    QueryEventEmit, QueryResp, SequenceDetail, ShowTableParameter, SqlEvent, TimeElapsed,
+    TriggerDetail, UdfOrProcedureExtraParameter,
 };
-use dbnexus_db::firebird::FireBirdDB;
 use dbnexus_db::language_server::{CompletionList, ErrAndLoc};
-use dbnexus_db::libsql::LibSqlDB;
 use dbnexus_db::mongo::MongoDB;
 use dbnexus_db::mssql::SqlServerDB;
 use dbnexus_db::mysql::MysqlDB;
@@ -20,14 +21,8 @@ use dbnexus_db::oracle::OracleDB;
 use dbnexus_db::pg::PostGresDB;
 use dbnexus_db::redis::{RedisDB, RedisListTable, RedisToken};
 use dbnexus_db::redis_lang_server::REDIS_COMMANDS_MD_FILES;
-use dbnexus_db::sqlite::SqliteDB;
 use dbnexus_db::sub::SubDB;
-use font_kit::error::SelectionError;
-use futures_util::StreamExt;
 use include_dir::{include_dir, Dir};
-use langchain_rust::language_models::llm::LLM;
-use langchain_rust::language_models::LLMError;
-use langchain_rust::llm::{OpenAI, OpenAIConfig};
 use mongodb::bson::{self, doc, Document};
 use std::collections::{HashMap, HashSet};
 use std::str::FromStr;
@@ -38,85 +33,9 @@ use tauri::ipc::Channel;
 use tauri::State;
 use tokio_util::sync::CancellationToken;
 
-// 管理所有任务的取消令牌
-
-#[derive(Clone, Default)]
-pub struct TaskManager {
-    tokens: Arc<std::sync::Mutex<HashMap<String, CancellationToken>>>,
-}
-
 pub fn log_level_ref() -> &'static RwLock<Option<log::Level>> {
     static LOG_LEVEL_LOC: RwLock<Option<log::Level>> = RwLock::new(None);
     &LOG_LEVEL_LOC
-}
-
-fn make_openai(req: &OpenAIReq) -> OpenAI<OpenAIConfig> {
-    #[cfg(debug_assertions)]
-    log::info!("open ai req:{:?}", req);
-    let mut config = OpenAIConfig::default();
-    config = config.with_api_base(&req.url);
-    config = config.with_api_key(&req.api_key);
-    let mut api = OpenAI::default();
-    api = api.with_config(config);
-    api = api.with_model(&req.model);
-    let mut op = langchain_rust::language_models::options::CallOptions::default();
-    if let Some(max_token) = req.max_tokens {
-        if max_token != 0 {
-            op = op.with_max_tokens(max_token);
-        }
-    }
-    op = op.with_temperature(req.temperature);
-    op = op.with_top_p(req.top_p);
-    api = api.with_options(op);
-    api
-}
-
-#[tauri::command]
-pub async fn openai_invoke(req: OpenAIReq) -> Result<String, ErrorFrontend> {
-    let api = make_openai(&req);
-    let r = api.invoke(&req.msg).await.map_err(ErrorFrontend::from)?;
-    Ok(r)
-}
-
-#[tauri::command]
-pub async fn openai_stream(
-    req: OpenAIReq,
-    emit: Channel<String>,
-    task_id: String,
-    task_manager: tauri::State<'_, TaskManager>,
-) -> Result<(), ErrorFrontend> {
-    use langchain_rust::schemas::Message;
-    let (token, _guard) = task_manager.add(task_id);
-    let fur = async {
-        let api = make_openai(&req);
-        let mut r = api
-            .stream(&[Message::new_human_message(&req.msg)])
-            .await
-            .map_err(ErrorFrontend::from)?;
-        while let Some(result) = r.next().await {
-            //  https://github.com/Abraxas-365/langchain-rust/issues/140
-            match &result {
-                Ok(_) => {}
-                Err(err) => match err {
-                    LLMError::OpenAIError(open_aierror) => {
-                        if format!("{:?}", open_aierror).contains("Stream ended") {
-                            break;
-                        }
-                    }
-                    _ => {}
-                },
-            }
-            let result = result.map_err(ErrorFrontend::from)?;
-            emit.send(result.content)?;
-        }
-        Ok(())
-    };
-    tokio::select! {
-        res = fur => {res},
-        _ = token.cancelled() => {
-            Ok(())
-        }
-    }
 }
 
 #[tauri::command]
@@ -128,36 +47,6 @@ pub fn set_log_level(level: String) {
             .ok(),
     };
     *log_level_ref().write().expect("lock failed") = level;
-}
-
-impl TaskManager {
-    fn add(&self, task_id: String) -> (CancellationToken, impl Drop) {
-        let token = CancellationToken::new();
-        struct XDrop {
-            task_id: String,
-            manager: TaskManager,
-        }
-        impl Drop for XDrop {
-            fn drop(&mut self) {
-                self.manager
-                    .tokens
-                    .lock()
-                    .expect("lock should be ok")
-                    .remove(&self.task_id);
-            }
-        }
-        self.tokens
-            .lock()
-            .expect("must be lock ok")
-            .insert(task_id.clone(), token.clone());
-        (
-            token,
-            XDrop {
-                task_id,
-                manager: self.clone(),
-            },
-        )
-    }
 }
 
 #[tauri::command]
@@ -301,7 +190,7 @@ pub async fn drop_database(
     random_sleep().await;
     random_error()?;
     log::info!("drop db:{} {}", name, database);
-    let x = app
+    let backend = app
         .get_backend(name.as_str())
         .await
         .map_err(ErrorFrontend::from)?;
@@ -310,8 +199,7 @@ pub async fn drop_database(
 
     let key = format!("{}/{}", name, database);
     app.close_conn_has_prefix(&key).await;
-
-    match x {
+    match backend {
         DatabaseBackend::Catalog(x) => {
             app.backend.lock().await.remove(&key);
 
@@ -342,11 +230,11 @@ pub async fn drop_schema(
     // first close connections because we want delete it
     let key = format!("{}/{}", name, schema);
     app.close_conn_has_prefix(&key).await;
-    let x = app
+    let backend = app
         .get_backend(name.as_str())
         .await
         .map_err(ErrorFrontend::from)?;
-    match x {
+    match backend {
         DatabaseBackend::DataBase(x) => {
             app.backend.lock().await.remove(&key);
             x.drop_schema(&schema).await.map_err(ErrorFrontend::from)?;
@@ -369,11 +257,11 @@ pub async fn create_database(
     random_sleep().await;
     random_error()?;
 
-    let x = app
+    let backend = app
         .get_backend(name.as_str())
         .await
         .map_err(ErrorFrontend::from)?;
-    match x {
+    match backend {
         DatabaseBackend::Catalog(x) => {
             x.create_database(&database, extra)
                 .await
@@ -398,11 +286,11 @@ pub async fn create_schema(
     random_sleep().await;
     random_error()?;
 
-    let x = app
+    let backend = app
         .get_backend(name.as_str())
         .await
         .map_err(ErrorFrontend::from)?;
-    match x {
+    match backend {
         DatabaseBackend::DataBase(x) => {
             x.create_schema(&schema, extra)
                 .await
@@ -467,7 +355,6 @@ pub async fn mongo_list_time_serial_collection(
     random_sleep().await;
     random_error()?;
     let schema = app.get_schema(&name).await.map_err(ErrorFrontend::from)?;
-
     let ret = match schema.as_any().downcast_ref::<MongoDB>() {
         Some(x) => x
             .list_time_serial_collection()
@@ -531,7 +418,6 @@ pub async fn show_table(
         token_msg_clone,
         para.limit,
     ));
-
     let db = app.get_schema(&name).await?;
     let fur = async {
         if is_view {
@@ -857,8 +743,9 @@ pub async fn server_metas(
 ) -> Result<Vec<MetaValue>, ErrorFrontend> {
     random_sleep().await;
     random_error()?;
-    let o = app.get_backend(&name).await.map_err(ErrorFrontend::from)?;
-    o.as_server_mates()
+    let backend = app.get_backend(&name).await.map_err(ErrorFrontend::from)?;
+    backend
+        .as_server_mates()
         .show_metas()
         .await
         .map_err(ErrorFrontend::from)
@@ -873,11 +760,11 @@ pub async fn get_redis_type_hint(
 ) -> Result<HashMap<String, String>, ErrorFrontend> {
     random_sleep().await;
     random_error()?;
-    let s = app
+    let schema = app
         .get_schema(name.as_str())
         .await
         .map_err(ErrorFrontend::from)?;
-    let x = match s.as_any().downcast_ref::<RedisDB>() {
+    let x = match schema.as_any().downcast_ref::<RedisDB>() {
         Some(x) => x.get_redis_type_hint(&text, query_id).await,
         None => return Err(ErrorFrontend::from("this is not redis db")),
     };
@@ -984,11 +871,12 @@ pub async fn list_materialized_view(
 ) -> Result<Vec<ListTable>, ErrorFrontend> {
     random_sleep().await;
     random_error()?;
-    let s = app
+    let schema = app
         .get_schema(name.as_str())
         .await
         .map_err(ErrorFrontend::from)?;
-    s.list_materialized_view()
+    schema
+        .list_materialized_view()
         .await
         .map_err(ErrorFrontend::from)
 }
@@ -1013,7 +901,6 @@ pub async fn drop_materialized_view(
     random_sleep().await;
     random_error()?;
     let schema = app.get_schema(&name).await.map_err(ErrorFrontend::from)?;
-
     schema
         .drop_materialized_view(&view_name)
         .await
@@ -1044,7 +931,6 @@ pub async fn show_view_columns(
     random_sleep().await;
     random_error()?;
     let schema = app.get_schema(&name).await.map_err(ErrorFrontend::from)?;
-
     schema
         .show_view_columns(&view_name)
         .await
@@ -1059,7 +945,6 @@ pub async fn list_created_types(
     random_sleep().await;
     random_error()?;
     let schema = app.get_schema(&name).await.map_err(ErrorFrontend::from)?;
-
     schema
         .list_created_types()
         .await
@@ -1074,7 +959,6 @@ pub async fn list_event(
     random_sleep().await;
     random_error()?;
     let schema = app.get_schema(&name).await.map_err(ErrorFrontend::from)?;
-
     schema.list_event().await.map_err(ErrorFrontend::from)
 }
 
@@ -1166,31 +1050,6 @@ pub async fn is_dangerous_sql(
         .map_err(ErrorFrontend::from)?;
 
     Ok(result)
-}
-
-// cancel token and msg
-#[derive(Clone)]
-struct CancelTokenMsg {
-    token: CancellationToken,
-    msg: Arc<Mutex<Option<String>>>,
-}
-impl CancelTokenMsg {
-    fn cancel(&self, msg: impl Into<String>) {
-        let msg = msg.into();
-        *self.msg.lock().expect("lock failed") = Some(msg);
-        self.token.cancel();
-    }
-
-    fn get_msg(&self) -> Option<String> {
-        self.msg.lock().expect("lock failed").clone()
-    }
-
-    fn new(token: CancellationToken) -> Self {
-        Self {
-            token,
-            msg: Arc::new(Mutex::new(None)),
-        }
-    }
 }
 
 struct QueryEventChannelEmit {
@@ -3345,24 +3204,11 @@ pub async fn put_value_in_sql(
     value: Option<String>,
     app: tauri::State<'_, DBPal>,
 ) -> Result<String, ErrorFrontend> {
-    use dbnexus_db::db::SqlBuilder;
-
     let schema = app
         .get_schema(name.as_str())
         .await
         .map_err(ErrorFrontend::from)?;
-    let a = schema.as_any();
-    #[inline]
-    fn xxx<T: SqlBuilder + 'static>(
-        a: &dyn std::any::Any,
-        typ: &str,
-        value: Option<&str>,
-    ) -> Result<String, ErrorFrontend> {
-        if let Some(x) = a.downcast_ref::<T>() {
-            return x.put_value_in_sql(typ, value).map_err(ErrorFrontend::from);
-        }
-        Err(ErrorFrontend::from("type not match"))
-    }
+
     // due to this error mysql sometime confuse about the real type.
     // special case
     // https://github.com/launchbadge/sqlx/issues/3390
@@ -3382,42 +3228,9 @@ pub async fn put_value_in_sql(
             });
         }
     }
-    let value = value.as_deref();
-    if let Ok(e) = xxx::<SqliteDB>(a, &typ, value) {
-        return Ok(e);
-    }
-    if let Ok(e) = xxx::<LibSqlDB>(a, &typ, value) {
-        return Ok(e);
-    }
-    if let Ok(e) = xxx::<PostGresDB>(a, &typ, value) {
-        return Ok(e);
-    }
-    if let Ok(e) = xxx::<OracleDB>(a, &typ, value) {
-        return Ok(e);
-    }
-    if let Ok(e) = xxx::<ClickHouseDB>(a, &typ, value) {
-        return Ok(e);
-    }
-    if let Ok(e) = xxx::<CassandraDB>(a, &typ, value) {
-        return Ok(e);
-    }
-    if let Ok(e) = xxx::<FireBirdDB>(a, &typ, value) {
-        return Ok(e);
-    }
-    if let Ok(e) = xxx::<SqlServerDB>(a, &typ, value) {
-        return Ok(e);
-    }
-    #[cfg(feature = "duckdb")]
-    {
-        use dbnexus_db::duckdb::DuckDB;
-        if let Ok(e) = xxx::<DuckDB>(a, &typ, value) {
-            return Ok(e);
-        }
-    }
-
-    Err(ErrorFrontend::from(
-        "not valid schema to put value in sql.maybe a internal error",
-    ))
+    schema
+        .put_value_in_sql(&typ, value.as_deref())
+        .map_err(ErrorFrontend::from)
 }
 
 #[tauri::command]
@@ -3564,118 +3377,6 @@ fn encode_bson_doc(doc: &Document) -> Result<Vec<u8>, String> {
 fn parse_bson_doc(bs: &[u8]) -> Result<Document, String> {
     let doc = bson::Document::from_reader(std::io::Cursor::new(bs)).map_err(|e| e.to_string())?;
     Ok(doc)
-}
-
-#[derive(serde::Serialize, Debug, Clone)]
-pub struct ErrorFrontend {
-    // short message on why
-    reason: String,
-    // long message about why and backtrace
-    detail: String,
-    cancelled: bool,
-}
-
-impl From<LLMError> for ErrorFrontend {
-    fn from(value: LLMError) -> Self {
-        ErrorFrontend {
-            reason: value.to_string(),
-            detail: format!("{:?}", value),
-            cancelled: false,
-        }
-    }
-}
-
-impl From<SelectionError> for ErrorFrontend {
-    fn from(value: SelectionError) -> Self {
-        ErrorFrontend {
-            reason: value.to_string(),
-            detail: value.to_string(),
-            cancelled: false,
-        }
-    }
-}
-impl From<tauri::Error> for ErrorFrontend {
-    fn from(value: tauri::Error) -> Self {
-        let x = Self {
-            reason: format!("{}", value),
-            detail: format!("{:?}", value),
-            cancelled: false,
-        };
-        log::error!("error:{}", x.reason);
-        x
-    }
-}
-impl From<anyhow::Error> for ErrorFrontend {
-    fn from(value: anyhow::Error) -> Self {
-        let x = Self {
-            reason: format!("{}", value),
-            detail: format!("{:?}", value),
-            cancelled: false,
-        };
-        log::error!("error:{}", x.reason);
-        x
-    }
-}
-
-impl From<std::io::Error> for ErrorFrontend {
-    fn from(value: std::io::Error) -> Self {
-        let x = Self {
-            reason: format!("{}", value),
-            detail: "".to_string(),
-            cancelled: false,
-        };
-        log::error!("error:{}", x.reason);
-        x
-    }
-}
-
-impl From<hex::FromHexError> for ErrorFrontend {
-    fn from(value: hex::FromHexError) -> Self {
-        let x = Self {
-            reason: format!("{}", value),
-            detail: "".to_string(),
-            cancelled: false,
-        };
-        log::error!("error:{}", x.reason);
-        x
-    }
-}
-impl From<String> for ErrorFrontend {
-    fn from(value: String) -> Self {
-        Self {
-            reason: value,
-            detail: "".to_string(),
-            cancelled: false,
-        }
-    }
-}
-impl From<&str> for ErrorFrontend {
-    fn from(value: &str) -> Self {
-        Self {
-            reason: value.to_owned(),
-            detail: "".to_string(),
-            cancelled: false,
-        }
-    }
-}
-
-impl From<bson::oid::Error> for ErrorFrontend {
-    fn from(value: bson::oid::Error) -> Self {
-        Self {
-            reason: format!("{}", value),
-            detail: format!("{:?}", value),
-            cancelled: false,
-        }
-    }
-}
-impl From<serde_json::Error> for ErrorFrontend {
-    fn from(value: serde_json::Error) -> Self {
-        Self {
-            reason: format!("{}", value),
-            detail: format!("{:?}", value),
-            cancelled: false,
-        }
-    }
 }
 
 fn block_random_sleep() {

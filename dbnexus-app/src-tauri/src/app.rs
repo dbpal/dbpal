@@ -9,11 +9,35 @@ use dbnexus_db::db::{
 use dbnexus_db::language_server::LanguageServer;
 use dbnexus_db::mongo::MongoDB;
 use dbnexus_db::sub::SubDB;
+use font_kit::error::SelectionError;
+use langchain_rust::language_models::LLMError;
+use mongodb::bson;
 use std::collections::HashMap;
 use std::sync::Arc;
 use std::time::Duration;
 use tokio::sync::Mutex;
+use tokio_util::sync::CancellationToken;
 use typescript_type_def::TypeDef;
+
+#[derive(serde::Serialize, serde::Deserialize, typescript_type_def::TypeDef, Debug, Clone)]
+pub struct OpenAIReq {
+    pub url: String,
+    pub api_key: String,
+    pub model: String,
+    pub msg: String,
+    pub temperature: f32,
+    pub max_tokens: Option<u32>,
+    pub top_p: f32,
+}
+
+#[allow(unused)]
+#[derive(serde::Serialize, serde::Deserialize, typescript_type_def::TypeDef, Debug, Clone)]
+
+pub struct OpenAIReqInput {
+    pub prompt: String,
+    // pub inputs: serde_json::Map<String, serde_json::Value>,
+}
+
 impl DBConnectionConfig {
     pub fn get_name(&self) -> &str {
         match self {
@@ -575,6 +599,188 @@ pub(crate) fn generate_random_string(len: usize) -> String {
         })
         .collect();
     rand_string
+}
+
+#[derive(serde::Serialize, Debug, Clone)]
+pub struct ErrorFrontend {
+    // short message on why
+    pub reason: String,
+    // long message about why and backtrace
+    pub detail: String,
+    pub cancelled: bool,
+}
+
+// 管理所有任务的取消令牌
+
+#[derive(Clone, Default)]
+pub struct TaskManager {
+    pub tokens: Arc<std::sync::Mutex<HashMap<String, CancellationToken>>>,
+}
+
+impl From<langchain_rust::chain::ChainError> for ErrorFrontend {
+    fn from(value: langchain_rust::chain::ChainError) -> Self {
+        ErrorFrontend {
+            reason: value.to_string(),
+            detail: format!("{:?}", value),
+            cancelled: false,
+        }
+    }
+}
+
+impl From<LLMError> for ErrorFrontend {
+    fn from(value: LLMError) -> Self {
+        ErrorFrontend {
+            reason: value.to_string(),
+            detail: format!("{:?}", value),
+            cancelled: false,
+        }
+    }
+}
+
+impl From<SelectionError> for ErrorFrontend {
+    fn from(value: SelectionError) -> Self {
+        ErrorFrontend {
+            reason: value.to_string(),
+            detail: value.to_string(),
+            cancelled: false,
+        }
+    }
+}
+impl From<tauri::Error> for ErrorFrontend {
+    fn from(value: tauri::Error) -> Self {
+        let x = Self {
+            reason: format!("{}", value),
+            detail: format!("{:?}", value),
+            cancelled: false,
+        };
+        log::error!("error:{}", x.reason);
+        x
+    }
+}
+impl From<anyhow::Error> for ErrorFrontend {
+    fn from(value: anyhow::Error) -> Self {
+        let x = Self {
+            reason: format!("{}", value),
+            detail: format!("{:?}", value),
+            cancelled: false,
+        };
+        log::error!("error:{}", x.reason);
+        x
+    }
+}
+
+impl From<std::io::Error> for ErrorFrontend {
+    fn from(value: std::io::Error) -> Self {
+        let x = Self {
+            reason: format!("{}", value),
+            detail: "".to_string(),
+            cancelled: false,
+        };
+        log::error!("error:{}", x.reason);
+        x
+    }
+}
+
+impl From<hex::FromHexError> for ErrorFrontend {
+    fn from(value: hex::FromHexError) -> Self {
+        let x = Self {
+            reason: format!("{}", value),
+            detail: "".to_string(),
+            cancelled: false,
+        };
+        log::error!("error:{}", x.reason);
+        x
+    }
+}
+impl From<String> for ErrorFrontend {
+    fn from(value: String) -> Self {
+        Self {
+            reason: value,
+            detail: "".to_string(),
+            cancelled: false,
+        }
+    }
+}
+impl From<&str> for ErrorFrontend {
+    fn from(value: &str) -> Self {
+        Self {
+            reason: value.to_owned(),
+            detail: "".to_string(),
+            cancelled: false,
+        }
+    }
+}
+
+impl From<bson::oid::Error> for ErrorFrontend {
+    fn from(value: bson::oid::Error) -> Self {
+        Self {
+            reason: format!("{}", value),
+            detail: format!("{:?}", value),
+            cancelled: false,
+        }
+    }
+}
+impl From<serde_json::Error> for ErrorFrontend {
+    fn from(value: serde_json::Error) -> Self {
+        Self {
+            reason: format!("{}", value),
+            detail: format!("{:?}", value),
+            cancelled: false,
+        }
+    }
+}
+
+// cancel token and msg
+#[derive(Clone)]
+pub struct CancelTokenMsg {
+    token: CancellationToken,
+    msg: Arc<std::sync::Mutex<Option<String>>>,
+}
+impl CancelTokenMsg {
+    pub fn cancel(&self, msg: impl Into<String>) {
+        let msg = msg.into();
+        *self.msg.lock().expect("lock failed") = Some(msg);
+        self.token.cancel();
+    }
+    pub fn get_msg(&self) -> Option<String> {
+        self.msg.lock().expect("lock failed").clone()
+    }
+    pub fn new(token: CancellationToken) -> Self {
+        Self {
+            token,
+            msg: Arc::new(std::sync::Mutex::new(None)),
+        }
+    }
+}
+
+impl TaskManager {
+    pub fn add(&self, task_id: String) -> (CancellationToken, impl Drop) {
+        let token = CancellationToken::new();
+        struct XDrop {
+            task_id: String,
+            manager: TaskManager,
+        }
+        impl Drop for XDrop {
+            fn drop(&mut self) {
+                self.manager
+                    .tokens
+                    .lock()
+                    .expect("lock should be ok")
+                    .remove(&self.task_id);
+            }
+        }
+        self.tokens
+            .lock()
+            .expect("must be lock ok")
+            .insert(task_id.clone(), token.clone());
+        (
+            token,
+            XDrop {
+                task_id,
+                manager: self.clone(),
+            },
+        )
+    }
 }
 
 #[cfg(test)]

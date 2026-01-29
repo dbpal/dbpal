@@ -6,6 +6,7 @@ import {
   handleCopyToClipboard,
   LLMConfig,
   LLMConfigContext,
+  SaveBoolToLocalStorage,
   TabActiveContext,
   TableType,
   ViewKind,
@@ -20,6 +21,7 @@ import {
   IconButton,
   Paper,
   Stack,
+  Switch,
   TextField,
   Tooltip,
   Typography,
@@ -125,7 +127,13 @@ function Chat(props: {
   const { uuid, kind, favoriteName, value, language } = props;
   const [editor, setEditor] = useState<editor.IStandaloneCodeEditor>(null);
   const llmconfig = useContext(LLMConfigContext);
-  const [show, setShow] = useState(false);
+  const saveChatShow = useRef(new SaveBoolToLocalStorage("chat-show-" + uuid));
+  const [show, setShow] = useState(saveChatShow.current.get());
+  useEffect(() => {
+    saveChatShow.current.save(show);
+  }, [show]);
+  const doQuery = useRef<() => void>(null);
+
   return (
     <Stack
       style={{
@@ -134,7 +142,13 @@ function Chat(props: {
         position: "relative",
       }}
     >
-      <ChatShowContext.Provider value={{ show, setShow }}>
+      <ChatShowContext.Provider
+        value={{
+          show,
+          setShow,
+          doQuery,
+        }}
+      >
         <AllKindQuery
           uuid={uuid}
           kind={kind}
@@ -584,19 +598,11 @@ function SqlChatTextInput(props: {
   const [invokeStatus, setInvokeStatus] = useState("");
   const chatMemoryK = useRef<number>(4);
   const [cancelFN, setCancelFN] = useState<() => void>(null);
-  const cleanEditorkey = "ai-chat-clean-editor";
-  const { show, setShow } = useContext(ChatShowContext);
-
-  const [cleanEditor, setCleanEditor] = useState(
-    (function () {
-      const r = localStorage.getItem(cleanEditorkey);
-      if (r) {
-        return r == "1";
-      } else {
-        return false;
-      }
-    })(),
-  );
+  const saveCleanEditor = useRef(new SaveBoolToLocalStorage("ai-chat-clean-editor"));
+  const { show, setShow, doQuery } = useContext(ChatShowContext);
+  const [cleanEditor, setCleanEditor] = useState(saveCleanEditor.current.get());
+  const saveQueryAfter = useRef(new SaveBoolToLocalStorage("ai-chat-query-after"));
+  const [queryAfter, setQueryAfter] = useState(saveQueryAfter.current.get());
 
   const vis = useContext(TabActiveContext);
   useEffect(() => {
@@ -613,8 +619,12 @@ function SqlChatTextInput(props: {
   }, [vis, setShow]);
 
   useEffect(() => {
-    localStorage.setItem(cleanEditorkey, cleanEditor ? "1" : "0");
+    saveCleanEditor.current.save(cleanEditor);
   }, [cleanEditor]);
+
+  useEffect(() => {
+    saveQueryAfter.current.save(queryAfter);
+  }, [queryAfter]);
 
   const makePrompt = async () => {
     chatMemory.current.setK(chatMemoryK.current);
@@ -680,6 +690,13 @@ function SqlChatTextInput(props: {
       }, 5000);
       setChatHistory(e => [...e, wholeText]);
       chatMemory.current.addAIMessage(wholeText);
+      if (queryAfter) {
+        if (!doQuery.current) {
+          showNotification("error", "do query is null ,this is a internal error");
+        } else {
+          doQuery.current();
+        }
+      }
     } catch (e) {
       showNotification("error", "call llm failed", e);
     } finally {
@@ -701,6 +718,7 @@ function SqlChatTextInput(props: {
           border: "2px solid gray",
           borderRadius: "1rem",
           zIndex: 14,
+          opacity: 0.9,
         }}
       >
         <Stack
@@ -768,15 +786,28 @@ function SqlChatTextInput(props: {
               }}
               notice="chat memory buffer size"
             />
-            <FormControlLabel
-              control={
-                <Checkbox
-                  checked={cleanEditor}
-                  onChange={e => setCleanEditor(e.target.checked)}
-                />
-              }
-              label="clean editor"
-            />
+            <Tooltip title="delete all content from the editor before we receive the response">
+              <FormControlLabel
+                control={
+                  <Checkbox
+                    checked={cleanEditor}
+                    onChange={e => setCleanEditor(e.target.checked)}
+                  />
+                }
+                label="clean editor"
+              />
+            </Tooltip>
+            <Tooltip title="do query after we receive the response">
+              <FormControlLabel
+                control={
+                  <Switch
+                    checked={queryAfter}
+                    onChange={e => setQueryAfter(e.target.checked)}
+                  />
+                }
+                label="auto query"
+              />
+            </Tooltip>
           </Stack>
 
           <Stack direction="row">

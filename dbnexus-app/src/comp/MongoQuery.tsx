@@ -27,7 +27,7 @@ import {
   isWindows,
   MongoLanguage,
   QueryLogHandler,
-  SaveQueryLogConfigure,
+  saveQueryLog,
   secondConfirm,
   SettingContext,
   validJson,
@@ -543,7 +543,7 @@ function MongoQuery(props: {
       showNotification("warning", "can't execute empty statement");
       return;
     }
-    if (SaveQueryLogConfigure.get()) {
+    if (saveQueryLog.get()) {
       new QueryLogHandler(uuid).save(code, true, language);
     }
     if (language == MongoLanguage.ts) {
@@ -689,7 +689,7 @@ function MongoQuery(props: {
           <span>debug???</span>
         </Tooltip>
 
-        <ToggleChatShow />
+        <ToggleChatShow do_query={handleExecute} />
       </Stack>
       <div
         style={{

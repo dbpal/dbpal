@@ -623,12 +623,12 @@ function CouchBaseEditor(props: {
           <Tooltip title="copy id">
             <Typography
               color="info"
-              style={{ cursor: "pointer" }}
+              style={{ cursor: "pointer", alignContent: "center" }}
               onClick={() => {
                 handleCopyToClipboard(docid, showNotification);
               }}
             >
-              docid:{docid}
+              #{docid}
             </Typography>
           </Tooltip>
         )}
@@ -965,7 +965,7 @@ function CouchBaseQuery(props: {
               <SetTheme theme={jsonEditorTheme} setTheme={setJsonEditorTheme} />
             )}
 
-            <ToggleChatShow />
+            <ToggleChatShow do_query={handleQuery} />
 
             <SliderSize
               storeKey="couchbase-sql-query"

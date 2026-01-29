@@ -73,7 +73,7 @@ import {
   handleCopyToClipboard,
   MatchPatternContext,
   MaxTreeContext,
-  SaveLeftTopShow,
+  SaveBoolToLocalStorage,
   SaveMatchPattern,
   secondConfirm,
   SettingContext,
@@ -140,12 +140,12 @@ function LeftTop(props: { matchPattern: string[]; setMatchPattern; extra: ReactN
   const [showFavoriteSql, setShowFavoriteSql] = useState(false);
   const [showCopyConn, setShowCopyConn] = useState(false);
   const { showNotification } = useContext(NotificationContext);
-  const [show, setShow] = useState(SaveLeftTopShow.instance.get());
+  const saveLeftTopShow = useRef(new SaveBoolToLocalStorage("left-top-show"));
+  const [show, setShow] = useState(saveLeftTopShow.current.get());
   const { setTabs, setSelectTab, tabs } = useContext(TabsSetContext);
   useEffect(() => {
-    SaveLeftTopShow.instance.save(show);
+    saveLeftTopShow.current.save(show);
   }, [show]);
-
   const showAddConnection = useCallback(
     async (conn?: types.DBConnectionConfig) => {
       setTabs(e => {
