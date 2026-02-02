@@ -432,6 +432,16 @@ pub(crate) fn name_to_parts(name: &str) -> Vec<&str> {
     name.split("/").collect()
 }
 
+impl From<tokio::time::error::Elapsed> for ErrorFrontend {
+    fn from(_value: tokio::time::error::Elapsed) -> Self {
+        Self {
+            reason: "operation timeout".into(),
+            detail: "".into(),
+            cancelled: false,
+        }
+    }
+}
+
 fn name_starts(name: &str, prefix: &str) -> bool {
     let name = name_to_parts(name);
     let prefix = name_to_parts(prefix);

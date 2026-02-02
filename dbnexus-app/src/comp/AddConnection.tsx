@@ -1173,7 +1173,7 @@ function AddConnection(props: { config?: types.DBConnectionConfig }) {
   const makeConfigRef = useRef(null);
 
   return (
-    <Stack>
+    <Stack style={{ maxWidth: "800px", margin: "0 auto" }}>
       <FormControl fullWidth>
         <InputLabel>Connection Type</InputLabel>
         <Select

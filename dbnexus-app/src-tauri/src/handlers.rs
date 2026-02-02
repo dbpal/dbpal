@@ -1402,17 +1402,21 @@ pub async fn test_connection(
 pub async fn try_list_database_schema_candidates(
     conn: DBConnectionConfig,
 ) -> Result<Vec<String>, ErrorFrontend> {
-    let x = conn.open().await?;
-    match x {
-        DatabaseBackend::Catalog(catalog_trait) => catalog_trait
-            .list_database()
-            .await
-            .map_err(ErrorFrontend::from),
-        DatabaseBackend::DataBase(db_trait) => {
-            db_trait.list_schema().await.map_err(ErrorFrontend::from)
+    tokio::time::timeout(Duration::from_secs(5), async {
+        let x = conn.open().await?;
+        match x {
+            DatabaseBackend::Catalog(catalog_trait) => catalog_trait
+                .list_database()
+                .await
+                .map_err(ErrorFrontend::from),
+            DatabaseBackend::DataBase(db_trait) => {
+                db_trait.list_schema().await.map_err(ErrorFrontend::from)
+            }
+            DatabaseBackend::Schema(_) => Ok(vec![]),
         }
-        DatabaseBackend::Schema(_) => Ok(vec![]),
-    }
+    })
+    .await
+    .map_err(ErrorFrontend::from)?
 }
 
 #[tauri::command]
