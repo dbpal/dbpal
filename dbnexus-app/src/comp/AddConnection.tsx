@@ -25,6 +25,7 @@ import {
   IconButton,
   Autocomplete,
 } from "@mui/material";
+import RefreshIcon from "@mui/icons-material/Refresh";
 import AttachFileIcon from "@mui/icons-material/AttachFile";
 import VisibilityIcon from "@mui/icons-material/Visibility";
 import { NotificationContext } from "./Notification.tsx";
@@ -407,7 +408,7 @@ function DbSchemaCadidates(props: {
     <Stack direction="row">
       <Autocomplete
         options={candidates}
-        style={{ flex: 1 }}
+        style={{ width: "12rem" }}
         value={name}
         renderInput={params => <TextField {...params} label={`${label} candidates`} />}
         freeSolo
@@ -418,31 +419,8 @@ function DbSchemaCadidates(props: {
           setName(value);
         }}
       />
-
-      <TextField
-        label={label}
-        style={{ flex: 1 }}
-        value={name}
-        onChange={e => setName(e.target.value)}
-        slotProps={{
-          input: {
-            endAdornment: name && (
-              <InputAdornment position="end">
-                <IconButton
-                  onClick={() => {
-                    setName("");
-                  }}
-                  edge="end"
-                >
-                  <ClearIcon fontSize="small" />
-                </IconButton>
-              </InputAdornment>
-            ),
-          },
-        }}
-      />
-      <Button onClick={handleReload} loading={loading}>
-        load candidates
+      <Button onClick={handleReload} loading={loading} variant="outlined">
+        <RefreshIcon />
       </Button>
     </Stack>
   );

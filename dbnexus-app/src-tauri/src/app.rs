@@ -351,9 +351,7 @@ impl DBConnectionConfig {
 #[derive(Clone, Debug)]
 pub enum DatabaseBackend {
     Catalog(Arc<dyn dbnexus_db::db::CatalogTrait>),
-    /// database can contains multi database
     DataBase(Arc<dyn dbnexus_db::db::DBTrait>),
-    /// a schema
     Schema(Arc<dyn dbnexus_db::db::SchemaTrait>),
 }
 
