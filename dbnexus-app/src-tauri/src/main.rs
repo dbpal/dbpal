@@ -137,9 +137,7 @@ fn is_macos() -> bool {
 
 #[allow(dead_code)]
 fn get_logger_level() -> Option<log::Level> {
-    *handlers::log_level_ref()
-        .read()
-        .expect("lock failed")
+    *handlers::log_level_ref().read().expect("lock failed")
 }
 
 #[allow(unused)]

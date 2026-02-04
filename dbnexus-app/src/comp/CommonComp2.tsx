@@ -987,6 +987,13 @@ function SaveFavoriteSqlView(props: {
                       return;
                     }
                     setShowFavoriteName(false);
+                    new FavoriteSql(
+                      uuid,
+                      favoriteName,
+                      kind,
+                      editor.getValue(),
+                      language,
+                    ).save(showNotification);
                   }}
                 >
                   <FaBookmark> </FaBookmark>

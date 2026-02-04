@@ -23,7 +23,9 @@ impl LanguageServer for CouchBaseDB {
         _use_lexer: bool,
     ) -> anyhow::Result<crate::language_server::CompletionList> {
         let dot = LangServerCommon::try_completion_dot(self, sql, line, col).await;
-        if let Ok(r) = dot { return anyhow::Ok(r) }
+        if let Ok(r) = dot {
+            return anyhow::Ok(r);
+        }
         LexerCompletionTrait::do_auto_completion(self, sql, line, col).await
     }
 
