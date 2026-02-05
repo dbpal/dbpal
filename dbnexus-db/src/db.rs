@@ -30,6 +30,7 @@ pub enum BackendKind {
     BigQuery,
     Db2,
     CouchBase,
+    Neo4j,
 }
 
 impl BackendKind {

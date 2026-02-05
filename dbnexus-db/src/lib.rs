@@ -3,11 +3,9 @@ use lazy_static::lazy_static;
 use log::{Level, LevelFilter, Metadata, Record};
 use std::sync::Once;
 
-pub mod datasource_config;
-pub mod db;
-pub mod language_server;
-
+#[cfg(feature = "bigquery")]
 pub mod bigquery;
+#[cfg(feature = "bigquery")]
 pub mod bigquery_lang_server;
 pub mod cassandra;
 pub mod cassandra_lang_server;
@@ -17,6 +15,8 @@ pub mod cockroach;
 pub mod cockroach_lang_server;
 pub mod couchbase;
 pub mod couchbase_lang_server;
+pub mod datasource_config;
+pub mod db;
 #[cfg(feature = "duckdb")]
 pub mod duckdb;
 #[cfg(feature = "duckdb")]
@@ -24,6 +24,7 @@ pub mod duckdb_lang_server;
 pub mod firebird;
 pub mod firebird_lang_server;
 pub mod helper;
+pub mod language_server;
 pub mod libsql;
 pub mod libsql_lang_server;
 pub mod mariadb;
@@ -34,6 +35,11 @@ pub mod mssql;
 pub mod mssql_lang_server;
 pub mod mysql;
 pub mod mysql_lang_server;
+#[cfg(feature = "neo4j")]
+pub mod neo4j;
+#[cfg(feature = "neo4j")]
+pub mod neo4j_lang_server;
+
 #[cfg(feature = "odbc")]
 pub mod odbc;
 pub mod oracle;

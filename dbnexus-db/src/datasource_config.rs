@@ -508,3 +508,14 @@ impl CouchBaseDBConfig {
         self.scope.as_deref().expect("must be some")
     }
 }
+
+#[derive(Debug, Clone, serde::Deserialize, serde::Serialize, TypeDef)]
+
+pub struct Neo4JDbConfig {
+    pub uri: String,
+    pub username: String,
+    pub password: String,
+    pub read_only: bool,
+    pub db: Option<String>,
+    pub client_certificate: Option<String>,
+}
