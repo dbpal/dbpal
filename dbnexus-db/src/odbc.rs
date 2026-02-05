@@ -1,32 +1,25 @@
 #![allow(unused)]
-use std::ffi::CStr;
+
 use std::num::NonZero;
-use std::string;
+
+use std::sync::atomic::AtomicBool;
 use std::sync::atomic::Ordering;
-use std::sync::{Arc, Mutex, OnceLock};
-use std::{ffi::CString, sync::atomic::AtomicBool};
+use std::sync::{Arc, Mutex};
 
 use crate::db::{
     create_html_table_data, create_html_table_header, create_markdown_data, create_markdown_header,
     ExportFrame, ExportKind, Field, QueryEventEmitter, QueryResp, XlsxEdit,
 };
-use crate::db::{QuerySql, TimeElapsed};
+
 use crate::helper::create_csv;
-use anyhow::Error;
-use gcp_bigquery_client::model::row;
-use mongodb::bson::de;
-use odbc_api::buffers::{AnyBuffer, TextRowSet};
-use odbc_api::handles::{Statement, StatementImpl};
+
+use odbc_api::handles::StatementImpl;
 use odbc_api::sys::{Date, Numeric, Time, Timestamp};
 use odbc_api::{
     buffers::{AnySlice, BufferDesc, ColumnarAnyBuffer},
-    sys::AttrConnectionPooling,
-    Connection, ConnectionOptions, Cursor, DataType, Environment, Nullability, Nullable,
-    ResultSetMetadata,
+    Connection, ConnectionOptions, Cursor, DataType, Environment, Nullability, ResultSetMetadata,
 };
 use odbc_api::{Bit, CursorImpl};
-use redis::FromRedisValue;
-use sqlx_core::bytes::buf;
 /// Maximum number of rows fetched with one row set. Fetching batches of rows is usually much
 /// faster than fetching individual rows.
 use std::sync::LazyLock;
@@ -510,7 +503,7 @@ impl OdbcDbQuery {
             let OdbcColumnMeta {
                 col_names,
                 col_types,
-                col_nulls,
+                col_nulls: _,
                 buffer_desc,
             } = this.helper.collect_meta(&mut cursor)?;
             emit.send(

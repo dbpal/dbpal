@@ -61,6 +61,7 @@ random-sleep = []
 random-error = []
 duckdb = ["dbnexus-db/duckdb"]
 paid = ["dbnexus-db/paid"]
+hive = ["dbnexus-db/hive"]
 devtools = []
 
 [target.'cfg(not(any(target_os = "android", target_os = "ios")))'.dependencies]

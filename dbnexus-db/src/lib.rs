@@ -15,6 +15,10 @@ pub mod cockroach;
 pub mod cockroach_lang_server;
 pub mod couchbase;
 pub mod couchbase_lang_server;
+
+#[cfg(feature = "hive")]
+pub mod hive;
+
 pub mod datasource_config;
 pub mod db;
 #[cfg(feature = "duckdb")]
