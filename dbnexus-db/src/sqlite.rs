@@ -1215,6 +1215,7 @@ impl ExportQueryResult for SqliteDB {
                 }
                 ExportKind::MarkDown => {
                     if first {
+                        first = false;
                         let cols: Vec<_> =
                             row.columns().iter().map(|x| x.name().to_string()).collect();
                         sender
