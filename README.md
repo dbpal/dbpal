@@ -119,3 +119,11 @@ docker run  --name some-neo4j  -d     \
     --publish=7474:7474 --publish=7687:7687 \
     neo4j
  默认密码是和用户名一样 我改成test1234
+。
+
+
+
+~~~
+解决没有签名的问题
+xattr -d com.apple.quarantine /Applications/dbpal.app  
+~~~
