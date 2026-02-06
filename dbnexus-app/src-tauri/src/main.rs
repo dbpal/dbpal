@@ -1,126 +1,285 @@
+#![warn(clippy::unwrap_used)]
 // Prevents additional console window on Windows in release, DO NOT REMOVE!!
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
+
+mod ai;
 mod app;
 mod handlers;
 
-use app::{App, DBConnectionConfig};
+use app::DBPal;
 use handlers::{
-    PASSWORD_KEY, add_table_column, auto_completion, cassandra_drop_aggregate,
-    cassandra_list_aggregate, cassandra_show_aggregate, check_conn, close_conn,
-    config_list_database_or_schema, conn_opend, create_database, create_index, create_schema,
-    create_table_and_index_sql, create_view_sql, delete, delete_password, disable_trigger,
-    drop_database, drop_index, drop_materialized_view, drop_procedure, drop_schema, drop_table,
-    drop_table_column, drop_trigger, drop_udf, drop_view, duplicate_table, enable_trigger,
-    execute_sql, export_query_result_to_file, export_table_or_view, format_sql,
-    has_entered_password, insert, is_dangerous_sql, list_created_types, list_data_types,
-    list_database, list_materialized_view, list_procedure, list_schema, list_table, list_udf,
-    list_view, modify_table_column, mongo_create_index, mongo_delete_ids,
-    mongo_get_one_document_by_id, mongo_insert, mongo_list_time_serial_collection,
-    mongo_query_collection_count_docs, mongo_query_collection_create_index,
-    mongo_query_collection_create_search_index, mongo_query_collection_delete_many,
-    mongo_query_collection_delete_one, mongo_query_collection_distinct,
-    mongo_query_collection_drop, mongo_query_collection_drop_index,
-    mongo_query_collection_drop_indexes, mongo_query_collection_drop_search_index,
-    mongo_query_collection_find, mongo_query_collection_find_one,
-    mongo_query_collection_find_one_and_delete, mongo_query_collection_find_one_and_replace,
-    mongo_query_collection_insert_many, mongo_query_collection_insert_one,
-    mongo_query_collection_list_index_names, mongo_query_collection_list_indexes,
-    mongo_query_collection_list_search_indexes, mongo_query_collection_replace_one,
-    mongo_query_collection_update_many, mongo_query_collection_update_one, mongo_query_db_drop,
-    mongo_query_db_list_collection_names, mongo_query_db_run_command, mongo_show_collection_docs,
-    mongo_show_collection_table_list, mongo_update_one, open_conn, page_init_callback,
-    put_value_in_sql, query_commit, query_get_commit, query_logs, query_rollback,
-    query_set_autocommit, query_sql, query_sql_close_connection, query_sql_open_connection,
-    query_sql_re_connection, query_tx_execute_counts, redis_hash_add, redis_hash_del,
-    redis_hash_replace, redis_list_lpush, redis_list_remove, redis_list_rpush, redis_list_set,
-    redis_list_table, redis_set_add, redis_set_del, redis_set_replace, redis_string_set,
-    redis_zset_add, redis_zset_del, redis_zset_replace, redis_zset_show_table, rename_index,
-    rename_table, save_entered_password, save_password, server_metas, show_indexes, show_procedure,
-    show_table, show_table_columns, show_trigger, show_udf, show_view, show_view_columns,
-    test_connection, truncate_table, update,
+    add_table_column, ai_get_search_path, ai_text_completion, all_font_family, auto_completion,
+    cancel_task, cassandra_drop_aggregate, cassandra_list_aggregate, cassandra_show_aggregate,
+    check_conn, check_sql, close_conn, command_panic, conn_opened, create_database, create_index,
+    create_schema, create_table, create_table_req_sql, create_view_sql, disable_trigger,
+    drop_created_type, drop_database, drop_event, drop_index, drop_materialized_view,
+    drop_procedure, drop_schema, drop_sequence, drop_table, drop_table_column, drop_trigger,
+    drop_udf, drop_view, duplicate_table, enable_trigger, establish_conn, execute_sql,
+    execute_sql_no_open_conn, export_query_result_to_file, export_table_or_view,
+    extract_table_select_selection, extract_table_select_sort, get_locale, get_redis_doc,
+    get_redis_type_hint, is_dangerous_sql, list_created_types, list_data_types, list_database,
+    list_event, list_materialized_view, list_procedure, list_schema, list_sequence,
+    list_sql_current_values, list_table, list_udf, list_view, modify_table_column,
+    monaco_editor_themes, mongo_create_index, mongo_delete_ids, mongo_get_one_document_by_id,
+    mongo_insert, mongo_list_time_serial_collection, mongo_query_collection_count_docs,
+    mongo_query_collection_create_index, mongo_query_collection_create_search_index,
+    mongo_query_collection_delete_many, mongo_query_collection_delete_one,
+    mongo_query_collection_distinct, mongo_query_collection_drop,
+    mongo_query_collection_drop_index, mongo_query_collection_drop_indexes,
+    mongo_query_collection_drop_search_index, mongo_query_collection_find,
+    mongo_query_collection_find_one, mongo_query_collection_find_one_and_delete,
+    mongo_query_collection_find_one_and_replace, mongo_query_collection_insert_many,
+    mongo_query_collection_insert_one, mongo_query_collection_list_index_names,
+    mongo_query_collection_list_indexes, mongo_query_collection_list_search_indexes,
+    mongo_query_collection_replace_one, mongo_query_collection_update_many,
+    mongo_query_collection_update_one, mongo_query_db_drop, mongo_query_db_list_collection_names,
+    mongo_query_db_run_command, mongo_show_collection_docs, mongo_show_collection_table_list,
+    mongo_update_one, page_init_callback, put_value_in_sql, query_commit, query_get_commit,
+    query_rollback, query_set_autocommit, query_sql, query_sql_close_connection,
+    query_sql_open_connection, redis_hash_add, redis_hash_del, redis_hash_replace,
+    redis_list_lpush, redis_list_remove, redis_list_rpush, redis_list_set, redis_list_table,
+    redis_set_add, redis_set_del, redis_set_replace, redis_string_set, redis_zset_add,
+    redis_zset_del, redis_zset_replace, rename_index, rename_sequence, rename_table, server_metas,
+    set_log_level, show_create_table_sql, show_indexes, show_procedure, show_table,
+    show_table_columns, show_trigger, show_udf, show_view_columns, table_delete, table_delete_sql,
+    table_insert, table_update, table_update_sql, test_connection, truncate_table, try_get_max_id,
+    try_list_database_schema_candidates, valid_json,
 };
+
+use ai::openai_invoke;
+use ai::openai_stream;
+
+use std::io::Write;
+use std::panic;
+use std::path::PathBuf;
 use tauri::menu::{AboutMetadata, Menu, MenuItem, PredefinedMenuItem, Submenu};
 use tauri::{Emitter, Manager};
-use tauri_plugin_store::StoreExt;
+#[allow(unused_imports)]
+use tauri_plugin_log::{Target, TargetKind};
+mod migration;
+use mimalloc::MiMalloc;
+use rustls::crypto::{aws_lc_rs, CryptoProvider};
+use std::fs::OpenOptions;
+use std::sync::Once;
 
-fn main() {
-    let runtime = tokio::runtime::Builder::new_multi_thread()
-        .enable_all()
-        .thread_stack_size(4 * 1024 * 1024)
-        .build()
-        .unwrap();
+use crate::app::TaskManager;
 
-    runtime.block_on(async {
-        main_();
-    })
+#[global_allocator]
+static GLOBAL: MiMalloc = MiMalloc;
+
+static HOOK_SET: Once = Once::new();
+
+#[allow(unused)]
+fn setup_panic_hook(dir: PathBuf) {
+    HOOK_SET.call_once(|| {
+        panic::set_hook(Box::new(move |panic_info| {
+            eprintln!("{}", panic_info);
+            eprintln!("{}", std::backtrace::Backtrace::capture());
+            // 1. 提取信息（防御式，每一步都可能失败）
+            let payload = panic_info
+                .payload()
+                .downcast_ref::<String>()
+                .map(|s| s.as_str())
+                .or_else(|| panic_info.payload().downcast_ref::<&str>().copied())
+                .unwrap_or("Unknown panic");
+
+            let location = panic_info
+                .location()
+                .map(|loc| format!("{}:{}:{}", loc.file(), loc.line(), loc.column()))
+                .unwrap_or_else(|| "Unknown location".to_string());
+            let current_thread = std::thread::current();
+            let err = std::fs::create_dir_all(&dir);
+            if let Err(err) = err {
+                eprintln!("create dir failed,err:{:?}", err);
+            }
+            let thread = current_thread.name().unwrap_or("unnamed");
+            let mut filepath = dir.clone();
+            filepath = filepath.join("dbpal.panic");
+            match OpenOptions::new()
+                .create(true)
+                .truncate(true)
+                .write(true)
+                .open(&filepath)
+            {
+                Ok(mut file) => {
+                    //   忽略所有错误，避免二次 panic
+                    let err = writeln!(
+                        file,
+                        "[{}] Thread '{}' panicked at '{}': {}",
+                        chrono::Local::now().format("%Y-%m-%d %H:%M:%S%.3f"),
+                        thread,
+                        location,
+                        payload
+                    );
+                    if let Err(err) = err {
+                        eprintln!("write backtrace failed,err:{:?}", err);
+                    }
+                    let err = writeln!(file, "{}", std::backtrace::Backtrace::capture());
+                    if let Err(err) = err {
+                        eprintln!("write backtrace failed,err:{:?}", err);
+                    }
+                }
+                Err(err) => {
+                    eprintln!("create file failed,err:{:?}", err);
+                }
+            }
+            // 4. 立即退出（不尝试任何 UI 操作）
+            std::process::exit(101); // 101 是 panic 退出码惯例
+        }));
+    });
 }
 
-fn main_() {
-    {
-        use env_logger::{Builder, Env};
-        let mut builder = Builder::from_env(Env::default());
-        builder.format_file(true);
-        builder.format_line_number(true);
-        builder.try_init().unwrap();
-    }
-    let app = App::new();
-    let saved_password = app.saved_password.clone();
+// is this macbook computer
+#[inline(always)]
+fn is_macos() -> bool {
+    cfg!(target_os = "macos")
+}
 
-    tauri::Builder::default()
+#[allow(dead_code)]
+fn get_logger_level() -> Option<log::Level> {
+    *handlers::log_level_ref().read().expect("lock failed")
+}
+
+#[allow(unused)]
+fn logger_test() {
+    #[cfg(debug_assertions)]
+    std::thread::spawn(|| loop {
+        use std::time::Duration;
+        log::trace!("this is trace log");
+        log::debug!("this is debug log");
+        log::info!("this is info log");
+        log::warn!("this is warn log");
+        log::error!("this is error log");
+        std::thread::sleep(std::time::Duration::from_secs(1));
+    });
+}
+
+const STORE_FILE: &str = "store.json";
+
+mod zoom {
+    use crate::STORE_FILE;
+    use tauri::{AppHandle, Manager};
+    use tauri_plugin_store::StoreExt;
+    pub(super) const STEP: f64 = 0.03;
+
+    pub(crate) fn get_configured_zoom(handle: &AppHandle) -> anyhow::Result<f64> {
+        let x = handle
+            .get_store(STORE_FILE)
+            .map(|store| store.get("zoom").and_then(|x| x.as_f64()));
+        Ok(x.flatten().unwrap_or(1.0))
+    }
+
+    pub(crate) fn configure_zoom(handle: &AppHandle, zoom: f64) -> anyhow::Result<()> {
+        let store = handle.get_store(STORE_FILE);
+        if let Some(store) = store {
+            store.set("zoom", zoom);
+        }
+        Ok(())
+    }
+    pub(crate) fn set_webview_zoom(handle: &AppHandle, zoom: f64) {
+        let views = handle.webview_windows();
+        for view in views.values() {
+            if let Err(err) = view.set_zoom(zoom) {
+                log::error!("set view zoom failed:{}", err);
+            }
+        }
+    }
+}
+
+// api key sk-2zegNGK2WhxZ9jToc17JBp260Z5vD5Cdd4zXG4s4WISRyczO
+// https://api.moonshot.cn/v1
+
+fn main() {
+    // logger_test();
+
+    let runtime = tokio::runtime::Builder::new_multi_thread()
+        .enable_all()
+        .build()
+        .expect("should build runtime");
+
+    tauri::async_runtime::set(runtime.handle().clone());
+
+    // https://github.com/tauri-apps/tauri/issues/4788
+    let _ = fix_path_env::fix();
+    CryptoProvider::install_default(aws_lc_rs::default_provider())
+        .expect("Failed to install default crypto provider");
+    let dbpal = DBPal::new();
+    let task_manager = TaskManager::default();
+    let setup = move |app: &mut tauri::App| {
+        setup_panic_hook(
+            app.path()
+                .app_log_dir()
+                .expect("should be able to get app data dir"),
+        );
+        #[cfg(debug_assertions)] // only include this code on debug builds
+        {
+            let window = app
+                .get_webview_window("main")
+                .expect("should be able to get main window");
+            window.open_devtools();
+        }
+        Ok(())
+    };
+    let about_meta = AboutMetadata {
+        website: Some("https://dbpal.site".to_string()),
+        name: Some("dbpal".to_string()),
+        authors: Some(vec![
+            "756445638@qq.com".to_string(),
+            "yuyangxxxmail@gmail.com".to_string(),
+        ]),
+        copyright: Some("Copyright © yuyang 2025 All rights reserved.".to_string()),
+        ..AboutMetadata::default()
+    };
+    #[allow(unused_mut)]
+    let mut builder =
+        tauri::Builder::default().plugin(tauri_plugin_window_state::Builder::new().build());
+
+    #[cfg(feature = "devtools")]
+    {
+        let _devtools = tauri_plugin_devtools::init();
+        builder = builder.plugin(_devtools);
+    }
+
+    #[cfg(not(feature = "devtools"))]
+    {
+        builder = builder.plugin(
+            tauri_plugin_log::Builder::new()
+                .filter(|meta| {
+                    let level = get_logger_level();
+                    match level {
+                        Some(level) => level >= meta.level(),
+                        None => false,
+                    }
+                })
+                .targets(vec![
+                    Target::new(TargetKind::LogDir { file_name: None }),
+                    Target::new(TargetKind::Stdout),
+                ])
+                .max_file_size(10 * 1024 * 1024)
+                .build(),
+        );
+    }
+
+    builder
+        .plugin(tauri_plugin_shell::init())
+        .plugin(tauri_plugin_autostart::Builder::new().build())
+        .plugin(
+            tauri_plugin_sql::Builder::new()
+                .add_migrations("sqlite:dbpal.sqlite.db", migration::migrations())
+                .build(),
+        )
+        .plugin(tauri_plugin_process::init())
         .plugin(tauri_plugin_os::init())
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_fs::init())
-        .plugin(tauri_plugin_http::init())
         .plugin(tauri_plugin_store::Builder::new().build())
-        .plugin(tauri_plugin_shell::init())
         .plugin(tauri_plugin_store::Builder::new().build())
         .plugin(tauri_plugin_clipboard_manager::init())
         .plugin(tauri_plugin_opener::init())
-        .manage(app)
-        .setup(|app| {
-            #[cfg(debug_assertions)] // only include this code on debug builds
-            {
-                let window = app.get_webview_window("main").unwrap();
-                window.open_devtools();
-            }
-            let store = app.store("store.json").unwrap();
-            *unsafe { App::get_config_ref() } = Some(Box::new(move |name| {
-                let configs: Vec<DBConnectionConfig> = serde_json::from_value(
-                    store
-                        .get("connection_config")
-                        .unwrap_or(serde_json::Value::Array(vec![])),
-                )?;
-
-                for mut c in configs.into_iter() {
-                    if c.get_name() != name {
-                        continue;
-                    }
-                    if c.need_password() {
-                        if let Some(pass) = saved_password.get(&c.get_name().to_string()) {
-                            c.set_password(pass.clone());
-                        }else {
-                            match keyring::Entry::new(PASSWORD_KEY, name) {
-                                Ok(en) => match en.get_password() {
-                                    Ok(pass) => c.set_password(pass),
-                                    Err(err) => {
-                                        log::error!("get password for '{}' failed,err:{}", name, err)
-                                    }
-                                },
-                                Err(err) => {
-                                    log::error!(
-                                        "get password entry failed:{} maybe user don't set a password should be fine",
-                                        err
-                                    )
-                                }
-                            };
-                        }
-                    }
-                    return anyhow::Ok(c);
-                }
-                anyhow::bail!(format!("config named '{}' not found", name))
-            }));
-            Ok(())
-        })
+        .plugin(tauri_plugin_keyring::init())
+        .manage(dbpal)
+        .manage(task_manager)
+        .setup(setup)
         .menu(|handle| {
             Menu::with_items(
                 handle,
@@ -135,12 +294,19 @@ fn main_() {
                                 "add_config",
                                 "Add Connection",
                                 true,
-                                None as Option<&'static str>,
+                                Some(if is_macos() { "command+n" } else { "control+n" }),
                             )?,
                             &MenuItem::with_id(
                                 handle,
-                                "show_settings",
+                                "show_setting",
                                 "settings",
+                                true,
+                                Some(if is_macos() { "command+," } else { "control+," }),
+                            )?,
+                            &MenuItem::with_id(
+                                handle,
+                                "relauch",
+                                "relauch",
                                 true,
                                 None as Option<&'static str>,
                             )?,
@@ -163,7 +329,6 @@ fn main_() {
                             &PredefinedMenuItem::redo(handle, None)?,
                         ],
                     )?,
-                    #[cfg(any(target_os = "windows", target_os = "macos"))]
                     &Submenu::with_items(
                         handle,
                         "window",
@@ -173,48 +338,104 @@ fn main_() {
                             &PredefinedMenuItem::maximize(handle, None)?,
                             #[cfg(any(target_os = "windows", target_os = "macos"))]
                             &PredefinedMenuItem::minimize(handle, None)?,
-                            #[cfg(any(target_os = "macos"))]
+                            #[cfg(target_os = "macos")]
                             &PredefinedMenuItem::fullscreen(handle, None)?,
+                            // #[cfg(any(target_os = "macos"))]
+                            // &PredefinedMenuItem::show_all(handle, None)?,
+                            #[cfg(any(target_os = "macos", target_os = "windows",))]
+                            &PredefinedMenuItem::hide(handle, None)?,
+                            &MenuItem::with_id(
+                                handle,
+                                "zoom_in",
+                                "zoom in",
+                                true,
+                                Some(if is_macos() { "command+-" } else { "ctrl+-" }),
+                            )?,
+                            &MenuItem::with_id(
+                                handle,
+                                "zoom_out",
+                                "zoom out",
+                                true,
+                                Some(if is_macos() { "command+=" } else { "ctrl+=" }),
+                            )?,
+                            &MenuItem::with_id(
+                                handle,
+                                "zoom_reset",
+                                "reset zoom",
+                                true,
+                                None as Option<&'static str>,
+                            )?,
                         ],
                     )?,
                     &Submenu::with_items(
                         handle,
                         "about",
                         true,
-                        &[
-                            &MenuItem::with_id(
-                                handle,
-                                "open_dev_tools",
-                                "open dev tools",
-                                true,
-                                None as Option<&'static str>,
-                            )?,
-                            &PredefinedMenuItem::about(handle, Some("make database management easy."),Some({
-                                let mut meta = AboutMetadata ::default();
-                                meta.website  = Some("https://dbpal.site".to_string());
-                                meta.name = Some("dbpals".to_string());
-                                meta.authors = Some(vec!["756445638@qq.com".to_string()]);
-                                meta.copyright = Some("Copyright © yuyang 2025 All rights reserved.".to_string());
-                                meta
-                            }))?,
-                        ],
+                        &[&PredefinedMenuItem::about(
+                            handle,
+                            Some("make database management easy."),
+                            Some(about_meta),
+                        )?],
                     )?,
                 ],
             )
         })
-        .on_menu_event(|handle, event| {
-            log::info!("on_menu_event:{:?}", event);
+        .on_menu_event(move |handle, event| {
+            log::info!("on menu event:{:?}", event);
             if event.id.0 == "add_config" {
-                handle.emit("add_config", "").unwrap();
+                if let Err(err) = handle.emit("add_config", "") {
+                    log::error!("emit add_config failed:{}", err);
+                }
             }
-            if event.id.0 == "show_settings" {
-                handle.emit("show_settings", "").unwrap();
+            if event.id.0 == "show_setting" {
+                if let Err(err) = handle.emit("show_setting", "") {
+                    println!("emit show_setting failed:{}", err)
+                }
             }
-
-            if event.id.0 == "open_dev_tools" {
-                let windows = handle.webview_windows();
-                for w in windows.values() {
-                    w.open_devtools();
+            if event.id.0 == "relauch" {
+                handle.restart();
+            }
+            if event.id.0 == "zoom_in" {
+                match zoom::get_configured_zoom(handle) {
+                    Ok(x) => {
+                        let mut zoom = x - zoom::STEP;
+                        let min = 0.3;
+                        if zoom < min {
+                            zoom = min;
+                        }
+                        zoom::set_webview_zoom(handle, zoom);
+                        if let Err(err) = zoom::configure_zoom(handle, zoom) {
+                            log::error!("set zoom failed:{}", err);
+                        }
+                    }
+                    Err(err) => {
+                        log::error!("get zoom failed,err{}", err);
+                    }
+                }
+            }
+            if event.id.0 == "zoom_out" {
+                match zoom::get_configured_zoom(handle) {
+                    Ok(x) => {
+                        let mut zoom = x + zoom::STEP;
+                        let max = 2f64;
+                        if zoom > max {
+                            zoom = max;
+                        }
+                        zoom::set_webview_zoom(handle, zoom);
+                        if let Err(err) = zoom::configure_zoom(handle, zoom) {
+                            log::error!("set zoom failed:{}", err);
+                        }
+                    }
+                    Err(err) => {
+                        log::error!("get zoom failed,err{}", err);
+                    }
+                }
+            }
+            if event.id.0 == "zoom_reset" {
+                let zoom = 1f64;
+                zoom::set_webview_zoom(handle, zoom);
+                if let Err(err) = zoom::configure_zoom(handle, zoom) {
+                    log::error!("set zoom failed:{}", err);
                 }
             }
         })
@@ -230,22 +451,19 @@ fn main_() {
             rename_index,
             show_table_columns,
             show_table,
-            insert,
-            update,
+            table_insert,
+            table_update_sql,
             truncate_table,
-            delete,
+            table_delete_sql,
             list_view,
             drop_view,
             drop_table,
-            show_view,
             query_sql,
             redis_list_table,
             query_sql_close_connection,
             query_sql_open_connection,
-            query_sql_re_connection,
             export_table_or_view,
             show_trigger,
-            format_sql,
             test_connection,
             rename_table,
             duplicate_table,
@@ -269,7 +487,7 @@ fn main_() {
             redis_zset_replace,
             redis_string_set,
             mongo_get_one_document_by_id,
-            config_list_database_or_schema,
+            try_list_database_schema_candidates,
             list_schema,
             drop_table_column,
             show_view_columns,
@@ -290,14 +508,12 @@ fn main_() {
             show_indexes,
             drop_index,
             list_materialized_view,
-            open_conn,
+            establish_conn,
             drop_materialized_view,
             server_metas,
             auto_completion,
-            query_logs,
             is_dangerous_sql,
             export_query_result_to_file,
-            redis_zset_show_table,
             page_init_callback,
             mongo_query_collection_count_docs,
             mongo_query_collection_create_index,
@@ -324,8 +540,6 @@ fn main_() {
             mongo_query_collection_replace_one,
             mongo_query_collection_update_many,
             mongo_query_collection_update_one,
-            save_password,
-            delete_password,
             create_index,
             mongo_list_time_serial_collection,
             mongo_create_index,
@@ -334,16 +548,42 @@ fn main_() {
             cassandra_list_aggregate,
             cassandra_show_aggregate,
             list_created_types,
-            conn_opend,
-            create_table_and_index_sql,
+            conn_opened,
+            show_create_table_sql,
             execute_sql,
-            save_entered_password,
-            has_entered_password,
             query_get_commit,
             query_set_autocommit,
             query_commit,
             query_rollback,
-            query_tx_execute_counts
+            valid_json,
+            list_sequence,
+            drop_sequence,
+            rename_sequence,
+            command_panic,
+            all_font_family,
+            list_sql_current_values,
+            check_sql,
+            execute_sql_no_open_conn,
+            drop_created_type,
+            list_event,
+            drop_event,
+            extract_table_select_selection,
+            extract_table_select_sort,
+            get_redis_doc,
+            monaco_editor_themes,
+            ai_text_completion,
+            get_redis_type_hint,
+            get_locale,
+            try_get_max_id,
+            ai_get_search_path,
+            cancel_task,
+            set_log_level,
+            create_table_req_sql,
+            create_table,
+            table_update,
+            table_delete,
+            openai_stream,
+            openai_invoke,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

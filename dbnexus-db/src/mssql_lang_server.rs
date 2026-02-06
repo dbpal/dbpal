@@ -1,251 +1,108 @@
-use std::borrow::Cow;
-use std::ops::DerefMut;
-use std::sync::Arc;
+/*
+    在 SQL Server 里，只有 dbo 这个默认 schema 下的对象可以“省略 schema 前缀”直接访问；其余自定义 schema 都必须显式写  schema.object 。
+*/
 
-use futures_util::StreamExt;
-use tiberius::QueryItem;
-
-use crate::db::{CatalogTrait, FormatSqlOpts, SchemaTrait};
-use crate::helper::sqlformat_format_sql;
+use crate::db::{CatalogTrait, CreatedTypeDef};
 use crate::language_server::{
-    AstCompletionHelper, CompletionItem, CompletionKind, LangServerCommon, LanguageServer,
-    LexerCompletionTrait, try_completion_on_syntax,
+    try_parser_dot_lexer, AstCompletionHelper, CompletionItem, CompletionKind, CompletionList,
+    DBExecutable, ErrAndLoc, GetKeyWords, LangServerCommon, LanguageServer, LexerCompletionTrait,
 };
-use crate::mssql::MsSqlServerDB;
-
+use crate::mssql::{ConvertColumnDataToString, SqlServerDB};
+use crate::sqlparser_completion::TempTableColumn;
+use futures_util::StreamExt;
+use std::ops::DerefMut;
+use tiberius::QueryItem;
 #[async_trait::async_trait]
-impl LexerCompletionTrait for MsSqlServerDB {
-    type Dialect = sqlparser::dialect::MsSqlDialect;
-
-    const KEY_WORDS: &'static [&'static str] = KEYWORDS;
-    const TYPES: &'static [&'static str] = TYPES;
-
-    async fn list_table_or_view(&self) -> anyhow::Result<Vec<String>> {
-        // TODO select maybe allow empty database and schema
-        let mut ret = AstCompletionHelper::list_table(self, None, None)
-            .await
-            .unwrap_or_default();
-        ret.extend(
-            AstCompletionHelper::list_view(self, None, None)
-                .await
-                .unwrap_or_default()
-                .into_iter(),
-        );
-        anyhow::Ok(ret)
-    }
-
-    async fn list_function(&self) -> anyhow::Result<Vec<CompletionItem>> {
-        AstCompletionHelper::list_function(self, None, None, true).await
+impl LexerCompletionTrait for SqlServerDB {
+    async fn get_types(&self) -> anyhow::Result<Vec<String>> {
+        let r = SQLSERVER_TYPES.iter().map(|x| x.to_string()).collect();
+        anyhow::Ok(r)
     }
 }
 
-impl MsSqlServerDB {
-    fn db_merge_config<'a, 'b>(&'a self, db: Option<&'b str>) -> Option<&'a str>
-    where
-        'b: 'a,
-    {
-        if db.is_some() {
-            return db;
-        }
-        return self.config.db.as_ref().map(|x| x.as_str());
-    }
-
-    fn not_allow_empty_db<'a>(db: Option<&'a str>) -> anyhow::Result<&'a str> {
-        match db {
-            Some(x) => return anyhow::Ok(x),
-            None => anyhow::bail!("empty database"),
-        }
+#[async_trait::async_trait]
+impl GetKeyWords for SqlServerDB {
+    async fn key_words(&self) -> anyhow::Result<Vec<String>> {
+        anyhow::Ok(SQLSERVER_KEYWORDS.iter().map(|x| x.to_string()).collect())
     }
 }
+
 #[async_trait::async_trait]
-impl LanguageServer for MsSqlServerDB {
+impl LanguageServer for SqlServerDB {
+    async fn try_get_max_id(&self, name: &str) -> anyhow::Result<String> {
+        let sql = format!("SELECT MAX(id) FROM \"{name}\"");
+        let mut conn = self.get_conn().await?;
+        let mut stream = conn.simple_query(&sql).await?;
+        while let Some(item) = stream.next().await {
+            let item = item?;
+            match item {
+                QueryItem::Row(row) => {
+                    let x: Option<ConvertColumnDataToString> = row.try_get(0)?;
+                    if let Some(x) = x {
+                        return anyhow::Ok(x.value);
+                    }
+                }
+                QueryItem::Metadata(..) => {}
+            }
+        }
+        anyhow::bail!("no max id found.")
+    }
+
+    async fn ai_text_completion(
+        &self,
+        text: &str,
+        line: u32,
+        col: u32,
+    ) -> anyhow::Result<CompletionList> {
+        LexerCompletionTrait::ai_text_completion(self, text, line, col).await
+    }
+    fn extract_table_select_selection(&self, sql: &str) -> anyhow::Result<Option<String>> {
+        LangServerCommon::extract_table_select_selection(self, sql)
+    }
+    fn extract_table_select_sort(&self, sql: &str) -> anyhow::Result<Option<String>> {
+        LangServerCommon::extract_table_select_sort(self, sql)
+    }
+
     async fn auto_completion(
-        &self, sql: &str, line: u32, col: u32, use_lexer: bool,
-    ) -> anyhow::Result<Vec<CompletionItem>> {
-        let r = try_completion_on_syntax(
-            &sql,
-            line,
-            col,
-            sqlparser::dialect::MsSqlDialect {},
-            Arc::new(Clone::clone(self)),
-        )
-        .await;
-        match r {
-            Ok(xs) => return Ok(xs),
-            Err(err) => {
-                log::error!("completion on ast failed,err:{}", err);
-            }
-        };
-        if !use_lexer {
-            log::warn!("disabled use lexer , we will return empty data.");
-            return anyhow::Ok(vec![]);
-        }
-        return LexerCompletionTrait::do_auto_completion(
-            self,
-            sql,
-            &sqlparser::dialect::MsSqlDialect {},
-            sqlparser::tokenizer::Location {
-                line: line as u64,
-                column: col as u64,
-            },
-        )
-        .await;
+        &self,
+        _query_id: Option<String>,
+        sql: &str,
+        line: u32,
+        col: u32,
+        use_lexer: bool,
+    ) -> anyhow::Result<CompletionList> {
+        try_parser_dot_lexer(self, sql, line, col, use_lexer).await
     }
 
-    fn format_sql(&self, sql: &str, ops: Option<FormatSqlOpts>) -> anyhow::Result<String> {
-        anyhow::Ok(sqlformat_format_sql(sql, ops.map(|x| x.into())))
+    async fn check_sql(&self, sql: &str) -> anyhow::Result<Option<ErrAndLoc>> {
+        LangServerCommon::parse_err(self, sql)
+    }
+
+    fn is_dangerous_sql(&self, sql: &str) -> anyhow::Result<bool> {
+        LangServerCommon::is_dangerous_sql_by_parser(self, sql)
+    }
+}
+
+impl SqlServerDB {
+    fn schema_merge_config(&self, schema: Option<&str>) -> Option<String> {
+        if schema.is_some() {
+            return schema.map(|x| x.to_string());
+        }
+        self.config.schema.as_ref().map(|x| x.to_string())
+    }
+    fn not_allow_empty_schema(&self, schema: Option<&str>) -> anyhow::Result<String> {
+        match self.schema_merge_config(schema) {
+            Some(x) => anyhow::Ok(x),
+            None => anyhow::Ok(Self::DBO_SCHEMA.to_string()),
+        }
     }
 }
 
 #[async_trait::async_trait]
-impl LangServerCommon for MsSqlServerDB {
-    async fn list_database(&self) -> anyhow::Result<Vec<String>> {
-        CatalogTrait::list_database(self).await
-    }
-
-    async fn list_schema(&self, _db: Option<&str>) -> anyhow::Result<Vec<String>> {
-        anyhow::Ok(vec![MsSqlServerDB::ONLY_SCHEMA.to_string()])
-    }
-}
-
-#[async_trait::async_trait]
-impl AstCompletionHelper for MsSqlServerDB {
-    async fn list_role(&self) -> anyhow::Result<Vec<String>> {
-        let sql = r#"
-        SELECT name AS RoleName
-            FROM sys.database_principals
-            WHERE type = 'R';  -- 'R' 表示角色
-        "#;
-        let mut conn = self.get_conn().await?;
-        let mut stream = conn.deref_mut().simple_query(sql).await?;
-        let mut ret = Vec::new();
-        while let Some(item) = stream.next().await {
-            let item = item?;
-            match item {
-                QueryItem::Row(row) => {
-                    let name: Option<&str> = row.get(0);
-                    ret.push(name.unwrap_or_default().to_string());
-                }
-                QueryItem::Metadata(_) => {}
-            }
-        }
-        anyhow::Ok(ret)
-    }
-
-    async fn list_table(
-        &self, db: Option<&str>, _schema: Option<&str>,
-    ) -> anyhow::Result<Vec<String>> {
-        let db = Self::not_allow_empty_db(self.db_merge_config(db))?;
-        self.list_table_impl(db, Self::ONLY_SCHEMA)
-            .await
-            .map(|x| x.into_iter().map(|x| x.name).collect())
-    }
-
-    async fn list_constraint(
-        &self, db: Option<&str>, _schema: Option<&str>, table_name: &str,
-    ) -> anyhow::Result<Vec<String>> {
-        let db = Self::not_allow_empty_db(self.db_merge_config(db))?;
-        let sql = format!(
-            r#"
-            SELECT CONSTRAINT_NAME
-            FROM INFORMATION_SCHEMA.TABLE_CONSTRAINTS
-            WHERE   CONSTRAINT_CATALOG='{}'  AND CONSTRAINT_SCHEMA ='{}' AND TABLE_NAME = '{}';
-        "#,
-            db,
-            Self::ONLY_SCHEMA,
-            table_name
-        );
-        log::info!("sql:{}", sql);
-        let mut conn = self.get_conn().await?;
-        let mut stream = conn.deref_mut().simple_query(&sql).await?;
-        let mut ret = Vec::new();
-        while let Some(item) = stream.next().await {
-            let item = item?;
-            match item {
-                QueryItem::Row(row) => {
-                    let name: Option<&str> = row.get(0);
-                    ret.push(name.unwrap_or_default().to_string());
-                }
-                QueryItem::Metadata(_) => {}
-            }
-        }
-        anyhow::Ok(ret)
-    }
-
-    async fn list_view(
-        &self, _db: Option<&str>, _schema: Option<&str>,
-    ) -> anyhow::Result<Vec<String>> {
-        SchemaTrait::list_view(self)
-            .await
-            .map(|x| x.into_iter().map(|x| x.name).collect())
-    }
-
-    async fn list_column(
-        &self, db: Option<&str>, _schema: Option<&str>, name: &str,
-    ) -> anyhow::Result<Vec<CompletionItem>> {
-        let db = Self::not_allow_empty_db(self.db_merge_config(db))?;
-        let sql = format!(
-            r#"  select TOP 1 * from  "{}"."{}"."{}" "#,
-            db,
-            Self::ONLY_SCHEMA,
-            name
-        );
-        log::info!("sql:{}", sql);
-        let mut conn = self.get_conn().await?;
-        let mut s = conn.simple_query(&sql).await?;
-        while let Some(s) = s.next().await {
-            let s = s?;
-            match s {
-                QueryItem::Row(_) => {}
-                QueryItem::Metadata(result_metadata) => {
-                    return anyhow::Ok(
-                        result_metadata
-                            .columns()
-                            .iter()
-                            .map(|x| CompletionItem {
-                                item: x.name().to_string().into(),
-                                desc: Some(format!("{:?}", x.column_type()).into()),
-                                kind: CompletionKind::Column,
-                            })
-                            .collect(),
-                    );
-                }
-            }
-        }
-        anyhow::Ok(vec![])
-    }
-
-    async fn list_function(
-        &self, _db: Option<&str>, _schema: Option<&str>, include_build_in: bool,
-    ) -> anyhow::Result<Vec<CompletionItem>> {
-        let mut ret = SchemaTrait::list_udf(self)
-            .await
-            .map(|x| {
-                x.into_iter().map(|x| CompletionItem {
-                    item: x.name.into(),
-                    desc: None,
-                    kind: CompletionKind::Function,
-                })
-            })?
-            .collect::<Vec<_>>();
-        if include_build_in {
-            ret.extend(mssql_build_in().into_iter());
-        }
-        anyhow::Ok(ret)
-    }
-
-    async fn list_procedure(
-        &self, db: Option<&str>, _schema: Option<&str>,
-    ) -> anyhow::Result<Vec<String>> {
-        let db = Self::not_allow_empty_db(self.db_merge_config(db))?;
-        self.list_procedure_impl(db, Self::ONLY_SCHEMA)
-            .await
-            .map(|x| x.into_iter().map(|x| x.name).collect())
-    }
-
+impl LangServerCommon for SqlServerDB {
     async fn list_index(&self, _schema: Option<&str>) -> anyhow::Result<Vec<String>> {
         let sql = r#"
-       SELECT 
+        SELECT 
             i.name AS IndexName  FROM 
             sys.indexes AS i
         INNER JOIN 
@@ -284,25 +141,755 @@ impl AstCompletionHelper for MsSqlServerDB {
 
         anyhow::Ok(ret)
     }
+
+    async fn list_variable(&self) -> anyhow::Result<Vec<String>> {
+        anyhow::Ok(
+            SQL_SERVER_GLOBAL_VARS
+                .iter()
+                .map(|x| x.to_string())
+                .collect(),
+        )
+    }
+
+    async fn list_role(&self) -> anyhow::Result<Vec<String>> {
+        let sql = r#"
+        SELECT name AS RoleName
+            FROM sys.database_principals
+            WHERE type = 'R';  -- 'R' 表示角色
+        "#;
+        let mut conn = self.get_conn().await?;
+        let mut stream = conn.deref_mut().simple_query(sql).await?;
+        let mut ret = Vec::new();
+        while let Some(item) = stream.next().await {
+            let item = item?;
+            match item {
+                QueryItem::Row(row) => {
+                    let name: Option<&str> = row.get(0);
+                    ret.push(name.unwrap_or_default().to_string());
+                }
+                QueryItem::Metadata(_) => {}
+            }
+        }
+        anyhow::Ok(ret)
+    }
+
+    async fn list_created_type(&self, schema: Option<&str>) -> anyhow::Result<Vec<CreatedTypeDef>> {
+        let schema = self.not_allow_empty_schema(schema)?;
+        let sql = format!(
+            r#"
+            SELECT
+                s.name AS schema_name,
+                t.name AS type_name
+            FROM sys.types AS t
+            JOIN sys.schemas AS s ON t.schema_id = s.schema_id
+            WHERE t.is_user_defined = 1
+            AND s.name = '{}';   -- 把 dbo 换成目标 schema
+
+        "#,
+            schema
+        );
+        let mut conn = self.get_conn().await?;
+        let conn = conn.deref_mut();
+        let mut stream = conn.simple_query(&sql).await?;
+
+        let mut ret = vec![];
+        while let Some(item) = stream.next().await {
+            let item = item?;
+            match item {
+                QueryItem::Row(row) => {
+                    let name: Option<&str> = row.try_get(0)?;
+                    if let Some(name) = name {
+                        ret.push(CreatedTypeDef {
+                            name: name.to_string(),
+                            sql: None,
+                        });
+                    }
+                }
+                QueryItem::Metadata(..) => {}
+            }
+        }
+        anyhow::Ok(ret)
+    }
+    async fn list_database(&self) -> anyhow::Result<Vec<String>> {
+        CatalogTrait::list_database(self).await
+    }
+
+    async fn list_column(
+        &self,
+        schema: Option<&str>,
+        name: &str,
+        is_call: Option<Vec<String>>,
+    ) -> anyhow::Result<Vec<TempTableColumn>> {
+        let sql = if let Some(is_call) = is_call {
+            format!(
+                r#"  select  {}{}({}) "#,
+                match schema {
+                    Some(x) => format!("\"{}\".", x),
+                    None => "".to_string(),
+                },
+                name,
+                is_call.join(",")
+            )
+        } else {
+            format!(
+                r#"  select TOP 1 * from  {}"{}" "#,
+                match schema {
+                    Some(x) => format!("\"{}\".", x),
+                    None => "".to_string(),
+                },
+                name
+            )
+        };
+        self.get_query_columns(&sql).await
+    }
+
+    async fn list_procedure(&self, schema: Option<&str>) -> anyhow::Result<Vec<String>> {
+        LangServerCommon::list_execute(self, schema)
+            .await
+            .map(|x| x.into_iter().map(|x| x.name).collect())
+    }
+    async fn list_function(
+        &self,
+        schema: Option<&str>,
+        include_build_in: bool,
+    ) -> anyhow::Result<Vec<CompletionItem>> {
+        let schema = self.schema_merge_config(schema);
+        let mut ret = if let Some(schema) = &schema {
+            self.list_udf_impl(schema)
+                .await
+                .map(|x| {
+                    x.into_iter().map(|x| CompletionItem {
+                        item: x.name.into(),
+                        desc: None,
+                        kind: CompletionKind::Function,
+                    })
+                })?
+                .collect::<Vec<_>>()
+        } else {
+            vec![]
+        };
+        if include_build_in {
+            ret.extend(SQLSERVER_FUNCTIONS.iter().map(|x| CompletionItem {
+                item: (*x).into(),
+                kind: CompletionKind::Function,
+                desc: None,
+            }));
+        }
+        anyhow::Ok(ret)
+    }
+    fn dialect(&self) -> Box<dyn sqlparser::dialect::Dialect + Send + Sync> {
+        Box::new(sqlparser::dialect::MsSqlDialect {})
+    }
+
+    async fn list_table(&self, schema: Option<&str>) -> anyhow::Result<Vec<String>> {
+        let db = self.config.db_str()?;
+        let schema = self.not_allow_empty_schema(schema)?;
+        self.list_table_impl(db, &schema)
+            .await
+            .map(|x| x.into_iter().map(|x| x.name).collect())
+    }
+    async fn list_schema(&self) -> anyhow::Result<Vec<String>> {
+        let sql = r#"
+            SELECT 
+                s.name AS SchemaName
+            FROM 
+                sys.schemas s
+            ORDER BY 
+                s.name;
+        "#;
+        let mut conn = self.get_conn().await?;
+        let conn = conn.deref_mut();
+        let mut stream = conn.simple_query(sql).await?;
+        let mut ret = Vec::new();
+        while let Some(item) = stream.next().await {
+            let item = item?;
+            match item {
+                QueryItem::Row(row) => {
+                    let name: Option<&str> = row.try_get(0)?;
+                    if let Some(name) = name {
+                        ret.push(name.to_string());
+                    }
+                }
+                QueryItem::Metadata(..) => {}
+            }
+        }
+        anyhow::Ok(ret)
+    }
+
+    async fn list_view(&self, schema: Option<&str>) -> anyhow::Result<Vec<String>> {
+        let schema = self.not_allow_empty_schema(schema)?;
+        self.list_view_impl(&schema)
+            .await
+            .map(|x| x.into_iter().map(|x| x.name).collect())
+    }
+
+    async fn list_execute(&self, schema: Option<&str>) -> anyhow::Result<Vec<DBExecutable>> {
+        let call_schema = schema;
+        let schema = self.not_allow_empty_schema(schema)?;
+        let mut ret: Vec<crate::db::NamedStaff> = self.list_procedure_impl(&schema).await?;
+        if call_schema.is_none() && schema != Self::SYS_SCHEMA {
+            ret.extend(self.list_procedure_impl(Self::SYS_SCHEMA).await?);
+        }
+        anyhow::Ok(
+            ret.into_iter()
+                .map(|x| DBExecutable {
+                    name: x.name,
+                    statement: None,
+                })
+                .collect(),
+        )
+    }
 }
 
-#[cfg(test)]
+#[async_trait::async_trait]
+impl AstCompletionHelper for SqlServerDB {
+    async fn list_constraint(
+        &self,
+        _schema: Option<&str>,
+        table_name: &str,
+    ) -> anyhow::Result<Vec<String>> {
+        let db: &String = self.config.db_str()?;
+        let sql = format!(
+            r#"
+            SELECT CONSTRAINT_NAME
+            FROM INFORMATION_SCHEMA.TABLE_CONSTRAINTS
+            WHERE   CONSTRAINT_CATALOG='{}'  AND CONSTRAINT_SCHEMA ='{}' AND TABLE_NAME = '{}';
+        "#,
+            db,
+            Self::DBO_SCHEMA,
+            table_name
+        );
+        log::info!("sql:{}", sql);
+        let mut conn = self.get_conn().await?;
+        let mut stream = conn.deref_mut().simple_query(&sql).await?;
+        let mut ret = Vec::new();
+        while let Some(item) = stream.next().await {
+            let item = item?;
+            match item {
+                QueryItem::Row(row) => {
+                    let name: Option<&str> = row.get(0);
+                    ret.push(name.unwrap_or_default().to_string());
+                }
+                QueryItem::Metadata(_) => {}
+            }
+        }
+        anyhow::Ok(ret)
+    }
 
+    async fn get_query_columns(&self, sql: &str) -> anyhow::Result<Vec<TempTableColumn>> {
+        let mut conn = self.get_conn().await?;
+        let mut s = conn.simple_query(sql).await?;
+        while let Some(s) = s.next().await {
+            let s = s?;
+            match s {
+                QueryItem::Row(_) => {}
+                QueryItem::Metadata(result_metadata) => {
+                    return anyhow::Ok(
+                        result_metadata
+                            .columns()
+                            .iter()
+                            .map(|x| TempTableColumn {
+                                name: x.name().to_string(),
+                                data_type: Some(format!("{:?}", x.column_type())),
+                            })
+                            .collect(),
+                    );
+                }
+            }
+        }
+        log::error!("no result found");
+        anyhow::Ok(vec![])
+    }
+}
+
+/// SQL Server 2022 全部内置函数名称
+pub const SQLSERVER_FUNCTIONS: &[&str] = &[
+    // 数学
+    "ABS",
+    "ACOS",
+    "ASIN",
+    "ATAN",
+    "ATN2",
+    "CEILING",
+    "COS",
+    "COT",
+    "DEGREES",
+    "EXP",
+    "FLOOR",
+    "LOG",
+    "LOG10",
+    "PI",
+    "POWER",
+    "RADIANS",
+    "RAND",
+    "ROUND",
+    "SIGN",
+    "SIN",
+    "SQRT",
+    "SQUARE",
+    "TAN",
+    // 字符串
+    "ASCII",
+    "CHAR",
+    "CHARINDEX",
+    "CONCAT",
+    "CONCAT_WS",
+    "DATALENGTH",
+    "DIFFERENCE",
+    "FORMAT",
+    "LEFT",
+    "LEN",
+    "LOWER",
+    "LTRIM",
+    "NCHAR",
+    "PATINDEX",
+    "QUOTENAME",
+    "REPLACE",
+    "REPLICATE",
+    "REVERSE",
+    "RIGHT",
+    "RTRIM",
+    "SOUNDEX",
+    "SPACE",
+    "STR",
+    "STUFF",
+    "SUBSTRING",
+    "TRANSLATE",
+    "TRIM",
+    "UNICODE",
+    "UPPER",
+    // 日期时间
+    "CURRENT_TIMESTAMP",
+    "CURRENT_TIMEZONE",
+    "CURRENT_TIMEZONE_ID",
+    "DATEADD",
+    "DATEDIFF",
+    "DATENAME",
+    "DATEPART",
+    "DAY",
+    "EOMONTH",
+    "GETDATE",
+    "GETUTCDATE",
+    "ISDATE",
+    "MONTH",
+    "SMALLDATETIMEFROMPARTS",
+    "SWITCHOFFSET",
+    "SYSDATETIME",
+    "SYSDATETIMEOFFSET",
+    "SYSUTCDATETIME",
+    "TIMEFROMPARTS",
+    "TODATETIMEOFFSET",
+    "YEAR",
+    // JSON
+    "ISJSON",
+    "JSON_MODIFY",
+    "JSON_QUERY",
+    "JSON_VALUE",
+    // 聚合/分析
+    "AVG",
+    "CHECKSUM_AGG",
+    "COUNT",
+    "COUNT_BIG",
+    "CUME_DIST",
+    "DENSE_RANK",
+    "FIRST_VALUE",
+    "LAG",
+    "LAST_VALUE",
+    "LEAD",
+    "MAX",
+    "MIN",
+    "NTILE",
+    "PERCENTILE_CONT",
+    "PERCENTILE_DISC",
+    "PERCENT_RANK",
+    "RANK",
+    "ROW_NUMBER",
+    "STDEV",
+    "STDEVP",
+    "SUM",
+    "VAR",
+    "VARP",
+    // 加密/哈希
+    "CERTENCODED",
+    "CERTPRIVATEKEY",
+    "DECRYPTBYASYMKEY",
+    "DECRYPTBYCERT",
+    "DECRYPTBYKEY",
+    "DECRYPTBYKEYAUTOASYMKEY",
+    "DECRYPTBYKEYAUTOCERT",
+    "DECRYPTBYPASSPHRASE",
+    "ENCRYPTBYASYMKEY",
+    "ENCRYPTBYCERT",
+    "ENCRYPTBYKEY",
+    "ENCRYPTBYPASSPHRASE",
+    "HASHBYTES",
+    "IS_OBJECTSIGNED",
+    "KEY_GUID",
+    "KEY_ID",
+    "SIGNBYASYMKEY",
+    "SIGNBYCERT",
+    "VERIFYSIGNEDBYCERT",
+    "VERIFYSIGNEDBYASYMKEY",
+    // 转换
+    "CAST",
+    "CONVERT",
+    "COALESCE",
+    "ISNULL",
+    "NULLIF",
+    // 系统信息
+    "APP_NAME",
+    "CURRENT_USER",
+    "DATABASEPROPERTYEX",
+    "DB_ID",
+    "DB_NAME",
+    "HOST_ID",
+    "HOST_NAME",
+    "IS_MEMBER",
+    "IS_SRVROLEMEMBER",
+    "ORIGINAL_DB_NAME",
+    "ORIGINAL_LOGIN",
+    "SERVERPROPERTY",
+    "SESSION_USER",
+    "SYSTEM_USER",
+    "USER_ID",
+    "USER_NAME",
+    // 其他常用
+    "BINARY_CHECKSUM",
+    "CHECKSUM",
+    "ERROR_LINE",
+    "ERROR_MESSAGE",
+    "ERROR_NUMBER",
+    "ERROR_PROCEDURE",
+    "ERROR_SEVERITY",
+    "ERROR_STATE",
+    "FORMATMESSAGE",
+    "GETANSINULL",
+    "HOST_NAME",
+    "IDENT_CURRENT",
+    "IDENT_INCR",
+    "IDENT_SEED",
+    "IDENTITY",
+    "ISNUMERIC",
+    "NEWID",
+    "NEWSEQUENTIALID",
+    "PARSENAME",
+    "ROWCOUNT_BIG",
+    "SCOPE_IDENTITY",
+    "SERVERPROPERTY",
+    "SESSIONPROPERTY",
+    "STATS_DATE",
+    "XACT_STATE", // 如需继续扩展，可执行：
+                  // SELECT name FROM master.sys.all_objects
+                  // WHERE type IN ('FN','IF','TF','FS','FT','AF') AND is_ms_shipped = 1 ORDER BY name;
+];
+
+/// SQL Server 2022 保留关键字（官方版）
+pub const SQLSERVER_KEYWORDS: &[&str] = &[
+    "ADD",
+    "ALL",
+    "ALTER",
+    "AND",
+    "ANY",
+    "AS",
+    "ASC",
+    "AUTHORIZATION",
+    "BACKUP",
+    "BEGIN",
+    "BETWEEN",
+    "BREAK",
+    "BROWSE",
+    "BULK",
+    "BY",
+    "CASCADE",
+    "CASE",
+    "CHECK",
+    "CHECKPOINT",
+    "CLOSE",
+    "CLUSTERED",
+    "COALESCE",
+    "COLLATE",
+    "COLUMN",
+    "COMMIT",
+    "COMPUTE",
+    "CONSTRAINT",
+    "CONTAINS",
+    "CONTAINSTABLE",
+    "CONTINUE",
+    "CONVERT",
+    "CREATE",
+    "CROSS",
+    "CURRENT",
+    "CURRENT_DATE",
+    "CURRENT_TIME",
+    "CURRENT_TIMESTAMP",
+    "CURRENT_USER",
+    "CURSOR",
+    "DATABASE",
+    "DBCC",
+    "DEALLOCATE",
+    "DECLARE",
+    "DEFAULT",
+    "DELETE",
+    "DENY",
+    "DESC",
+    "DISK",
+    "DISTINCT",
+    "DISTRIBUTED",
+    "DOUBLE",
+    "DROP",
+    "DUMP",
+    "ELSE",
+    "END",
+    "ERRLVL",
+    "ESCAPE",
+    "EXCEPT",
+    "EXEC",
+    "EXECUTE",
+    "EXISTS",
+    "EXIT",
+    "EXTERNAL",
+    "FETCH",
+    "FILE",
+    "FILLFACTOR",
+    "FOR",
+    "FOREIGN",
+    "FREETEXT",
+    "FREETEXTTABLE",
+    "FROM",
+    "FULL",
+    "FUNCTION",
+    "GOTO",
+    "GRANT",
+    "GROUP",
+    "HAVING",
+    "HOLDLOCK",
+    "IDENTITY",
+    "IDENTITY_INSERT",
+    "IDENTITYCOL",
+    "IF",
+    "IN",
+    "INDEX",
+    "INNER",
+    "INSERT",
+    "INTERSECT",
+    "INTO",
+    "IS",
+    "JOIN",
+    "KEY",
+    "KILL",
+    "LEFT",
+    "LIKE",
+    "LINENO",
+    "LOAD",
+    "MERGE",
+    "NATIONAL",
+    "NOCHECK",
+    "NONCLUSTERED",
+    "NOT",
+    "NULL",
+    "NULLIF",
+    "OF",
+    "OFF",
+    "OFFSETS",
+    "ON",
+    "OPEN",
+    "OPENDATASOURCE",
+    "OPENQUERY",
+    "OPENROWSET",
+    "OPENXML",
+    "OPTION",
+    "OR",
+    "ORDER",
+    "OUTER",
+    "OVER",
+    "PERCENT",
+    "PIVOT",
+    "PLAN",
+    "PRECISION",
+    "PRIMARY",
+    "PRINT",
+    "PROC",
+    "PROCEDURE",
+    "PUBLIC",
+    "RAISERROR",
+    "READ",
+    "READTEXT",
+    "RECONFIGURE",
+    "REFERENCES",
+    "REPLICATION",
+    "RESTORE",
+    "RESTRICT",
+    "RETURN",
+    "REVERT",
+    "REVOKE",
+    "RIGHT",
+    "ROLLBACK",
+    "ROWCOUNT",
+    "ROWGUIDCOL",
+    "RULE",
+    "SAVE",
+    "SCHEMA",
+    "SECURITYAUDIT",
+    "SELECT",
+    "SEMANTICKEYPHRASETABLE",
+    "SEMANTICSIMILARITYDETAILSTABLE",
+    "SEMANTICSIMILARITYTABLE",
+    "SESSION_USER",
+    "SET",
+    "SETUSER",
+    "SHUTDOWN",
+    "SOME",
+    "STATISTICS",
+    "SYSTEM_USER",
+    "TABLE",
+    "TABLESAMPLE",
+    "TEXTSIZE",
+    "THEN",
+    "TO",
+    "TOP",
+    "TRAN",
+    "TRANSACTION",
+    "TRIGGER",
+    "TRUNCATE",
+    "TSEQUAL",
+    "UNION",
+    "UNIQUE",
+    "UNPIVOT",
+    "UPDATE",
+    "UPDATETEXT",
+    "USE",
+    "USER",
+    "VALUES",
+    "VARYING",
+    "VIEW",
+    "WAITFOR",
+    "WHEN",
+    "WHERE",
+    "WHILE",
+    "WITH",
+    "WRITETEXT",
+];
+
+/// SQL Server 2022 全部系统数据类型
+pub const SQLSERVER_TYPES: &[&str] = &[
+    // 精确数值
+    "BIGINT",
+    "INT",
+    "SMALLINT",
+    "TINYINT",
+    "BIT",
+    "DECIMAL",
+    "NUMERIC",
+    "MONEY",
+    "SMALLMONEY",
+    // 近似数值
+    "FLOAT",
+    "REAL",
+    // 日期/时间
+    "DATE",
+    "TIME",
+    "DATETIME",
+    "DATETIME2",
+    "DATETIMEOFFSET",
+    "SMALLDATETIME",
+    // 字符
+    "CHAR",
+    "VARCHAR",
+    "TEXT",
+    "NCHAR",
+    "NVARCHAR",
+    "NTEXT",
+    // 二进制
+    "BINARY",
+    "VARBINARY",
+    "IMAGE",
+    // 其他
+    "CURSOR",
+    "SQL_VARIANT",
+    "TABLE",
+    "TIMESTAMP",
+    "UNIQUEIDENTIFIER",
+    "XML",
+    "GEOMETRY",
+    "GEOGRAPHY",
+    "HIERARCHYID",
+    // 变长 MAX
+    "VARCHAR(MAX)",
+    "NVARCHAR(MAX)",
+    "VARBINARY(MAX)",
+];
+
+/// SQL Server 所有 @@ 全局变量名（系统函数）
+/// 用法：format!("@@{}", VAR[i])
+pub const SQL_SERVER_GLOBAL_VARS: &[&str] = &[
+    "DATEFIRST",
+    "DBTS",
+    "LANGID",
+    "LANGUAGE",
+    "LOCK_TIMEOUT",
+    "MAX_CONNECTIONS",
+    "MAX_PRECISION",
+    "NESTLEVEL",
+    "OPTIONS",
+    "REMSERVER",
+    "SERVERNAME",
+    "SERVICENAME",
+    "SPID",
+    "TEXTSIZE",
+    "VERSION",
+    "CURSOR_ROWS",
+    "FETCH_STATUS",
+    "PROCID",
+    "ERROR",
+    "ROWCOUNT",
+    "TRANCOUNT",
+    "IDENTITY",
+    "PACK_RECEIVED",
+    "PACK_SENT",
+    "PACKET_ERRORS",
+    "TOTAL_READ",
+    "TOTAL_WRITE",
+    "TOTAL_ERRORS",
+    "CONNECTIONS",
+    "CPU_BUSY",
+    "IDLE",
+    "IO_BUSY",
+    "PACKET_ERRORS",
+    "TIMETICKS",
+    "TOTAL_ERRORS",
+    "TOTAL_READ",
+    "TOTAL_WRITE",
+    "BUSY",
+    "IDLE",
+    "IO_BUSY",
+    "PACK_RECEIVED",
+    "PACK_SENT",
+    "PACKET_ERRORS",
+    "TIMETICKS",
+    "TOTAL_ERRORS",
+    "TOTAL_READ",
+    "TOTAL_WRITE",
+];
+
+#[cfg(test)]
 mod tests {
     use std::path::Path;
 
     use crate::db::QuerySql;
     use crate::enable_test_log;
     use crate::language_server::completion_test::test_file_auto_completion;
-    use crate::mssql::make_test_object;
+    use crate::language_server::{LangServerCommon, LanguageServer};
+    use crate::mssql::{make_test_object, test_lock};
 
-    #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+    #[tokio::test]
     async fn test_auto_completion() {
+        let _guard = test_lock().lock().await;
         let db = make_test_object().await;
         enable_test_log();
-        let query_id = db.open_connection().await.unwrap();
+        let query_id = "";
+        db.open_connection(query_id).await.unwrap();
         let _ = db
-            .query_sql(
+            .execute_sql(
                 query_id,
                 r#"
                 CREATE TABLE departments (
@@ -320,519 +907,50 @@ mod tests {
             )
             .await;
 
+        db.execute_sql(
+            query_id,
+            "INSERT INTO departments (name) VALUES ('人力资源'), ('财务部'), ('市场部');",
+        )
+        .await
+        .unwrap()
+        .unwrap();
         let manifest_dir = env!("CARGO_MANIFEST_DIR");
         let mut file_path = Path::new(manifest_dir).to_path_buf();
         file_path.push("tests");
         file_path.push("mssql_auto_completion_test.sql");
         let content = std::fs::read_to_string(file_path.as_path()).unwrap();
-        test_file_auto_completion(&content, &db, false).await;
+        test_file_auto_completion(&content, &db, None, false).await;
     }
-    #[ignore = "xxx"]
-    #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+
+    #[ignore = "手动跑跑的测试"]
+    #[tokio::test]
     async fn test_completion_xxx() {
+        let _guard = test_lock().lock().await;
         enable_test_log();
         let db = make_test_object().await;
         test_file_auto_completion(
             r#"GRANT SELECT ON dbo.employees TO public;
 20 dbo ; 30 employees"#,
             &db,
+            None,
             false,
         )
         .await;
     }
-}
-
-const KEYWORDS: &'static [&'static str] = &[
-    "ABSOLUTE",
-    "EXEC",
-    "OVERLAPS",
-    "ACTION",
-    "EXECUTE",
-    "PAD",
-    "ADA",
-    "EXISTS",
-    "PARTIAL",
-    "ADD",
-    "EXTERNAL",
-    "PASCAL",
-    "ALL",
-    "EXTRACT",
-    "POSITION",
-    "ALLOCATE",
-    "FALSE",
-    "PRECISION",
-    "ALTER",
-    "FETCH",
-    "PREPARE",
-    "AND",
-    "FIRST",
-    "PRESERVE",
-    "ANY",
-    "FLOAT",
-    "PRIMARY",
-    "ARE",
-    "FOR",
-    "PRIOR",
-    "AS",
-    "FOREIGN",
-    "PRIVILEGES",
-    "ASC",
-    "FORTRAN",
-    "PROCEDURE",
-    "ASSERTION",
-    "FOUND",
-    "PUBLIC",
-    "AT",
-    "FROM",
-    "READ",
-    "AUTHORIZATION",
-    "FULL",
-    "REAL",
-    "AVG",
-    "GET",
-    "REFERENCES",
-    "BEGIN",
-    "GLOBAL",
-    "RELATIVE",
-    "BETWEEN",
-    "GO",
-    "RESTRICT",
-    "BIT",
-    "GOTO",
-    "REVOKE",
-    "BIT_LENGTH",
-    "GRANT",
-    "RIGHT",
-    "BOTH",
-    "GROUP",
-    "ROLLBACK",
-    "BY",
-    "HAVING",
-    "ROWS",
-    "CASCADE",
-    "HOUR",
-    "SCHEMA",
-    "CASCADED",
-    "IDENTITY",
-    "SCROLL",
-    "CASE",
-    "IMMEDIATE",
-    "SECOND",
-    "CAST",
-    "IN",
-    "SECTION",
-    "CATALOG",
-    "INCLUDE",
-    "SELECT",
-    "CHAR",
-    "INDEX",
-    "SESSION",
-    "CHAR_LENGTH",
-    "INDICATOR",
-    "SESSION_USER",
-    "CHARACTER",
-    "INITIALLY",
-    "SET",
-    "CHARACTER_LENGTH",
-    "INNER",
-    "SIZE",
-    "CHECK",
-    "INPUT",
-    "SMALLINT",
-    "CLOSE",
-    "INSENSITIVE",
-    "SOME",
-    "COALESCE",
-    "INSERT",
-    "SPACE",
-    "COLLATE",
-    "INT",
-    "SQL",
-    "COLLATION",
-    "INTEGER",
-    "SQLCA",
-    "COLUMN",
-    "INTERSECT",
-    "SQLCODE",
-    "COMMIT",
-    "INTERVAL",
-    "SQLERROR",
-    "CONNECT",
-    "INTO",
-    "SQLSTATE",
-    "CONNECTION",
-    "IS",
-    "SQLWARNING",
-    "CONSTRAINT",
-    "ISOLATION",
-    "SUBSTRING",
-    "CONSTRAINTS",
-    "JOIN",
-    "SUM",
-    "CONTINUE",
-    "KEY",
-    "SYSTEM_USER",
-    "CONVERT",
-    "LANGUAGE",
-    "TABLE",
-    "CORRESPONDING",
-    "LAST",
-    "TEMPORARY",
-    "COUNT",
-    "LEADING",
-    "THEN",
-    "CREATE",
-    "LEFT",
-    "TIME",
-    "CROSS",
-    "LEVEL",
-    "TIMESTAMP",
-    "CURRENT",
-    "LIKE",
-    "TIMEZONE_HOUR",
-    "CURRENT_DATE",
-    "LOCAL",
-    "TIMEZONE_MINUTE",
-    "CURRENT_TIME",
-    "LOWER",
-    "TO",
-    "CURRENT_TIMESTAMP",
-    "MATCH",
-    "TRAILING",
-    "CURRENT_USER",
-    "MAX",
-    "TRANSACTION",
-    "CURSOR",
-    "MIN",
-    "TRANSLATE",
-    "DATE",
-    "MINUTE",
-    "TRANSLATION",
-    "DAY",
-    "MODULE",
-    "TRIM",
-    "DEALLOCATE",
-    "MONTH",
-    "TRUE",
-    "DEC",
-    "NAMES",
-    "UNION",
-    "DECIMAL",
-    "NATIONAL",
-    "UNIQUE",
-    "DECLARE",
-    "NATURAL",
-    "UNKNOWN",
-    "DEFAULT",
-    "NCHAR",
-    "UPDATE",
-    "DEFERRABLE",
-    "NEXT",
-    "UPPER",
-    "DEFERRED",
-    "NO",
-    "USAGE",
-    "DELETE",
-    "NONE",
-    "USER",
-    "DESC",
-    "NOT",
-    "USING",
-    "DESCRIBE",
-    "NULL",
-    "VALUE",
-    "DESCRIPTOR",
-    "NULLIF",
-    "VALUES",
-    "DIAGNOSTICS",
-    "NUMERIC",
-    "VARCHAR",
-    "DISCONNECT",
-    "OCTET_LENGTH",
-    "VARYING",
-    "DISTINCT",
-    "OF",
-    "VIEW",
-    "DOMAIN",
-    "ON",
-    "WHEN",
-    "DOUBLE",
-    "ONLY",
-    "WHENEVER",
-    "DROP",
-    "OPEN",
-    "WHERE",
-    "ELSE",
-    "OPTION",
-    "WITH",
-    "END",
-    "OR",
-    "WORK",
-    "END-EXEC",
-    "ORDER",
-    "WRITE",
-    "ESCAPE",
-    "OUTER",
-    "YEAR",
-    "EXCEPT",
-    "OUTPUT",
-    "ZONE",
-    "EXCEPTION",
-];
-
-const TYPES: &'static [&'static str] = &[
-    "tinyint",
-    "smallint",
-    "int",
-    "bigint",
-    "float",
-    "bit",
-    "nvarchar",
-    "varchar",
-    "nchar",
-    "char",
-    "ntext",
-    "text",
-    "binary",
-    "varbinary",
-    "image",
-    "uniqueidentifier",
-    "numeric",
-    "decimal",
-    "xml",
-    "datetime",
-    "datetime2",
-    "smalldatetime",
-    "date",
-    "time",
-    "datetimeoffset",
-];
-
-fn mssql_build_in() -> Vec<CompletionItem> {
-    static SS: &'static [[&'static str; 2]] = &[
-        [
-            "ASCII",
-            "Returns the ASCII value for the specific character",
-        ],
-        ["CHAR", "Returns the character based on the ASCII code"],
-        [
-            "CHARINDEX",
-            "Returns the position of a substring in a string",
-        ],
-        ["CONCAT", "Adds two or more strings together"],
-        [
-            "CONCAT_WS",
-            "Adds two or more strings together with a separator",
-        ],
-        [
-            "DATALENGTH",
-            "Returns the number of bytes used to represent an expression",
-        ],
-        [
-            "DIFFERENCE",
-            "Compares two SOUNDEX values, and returns an integer value",
-        ],
-        ["FORMAT", "Formats a value with the specified format"],
-        [
-            "LEFT",
-            "Extracts a number of characters from a string (starting from left)",
-        ],
-        ["LEN", "Returns the length of a string"],
-        ["LOWER", "Converts a string to lower-case"],
-        ["LTRIM", "Removes leading spaces from a string"],
-        [
-            "NCHAR",
-            "Returns the Unicode character based on the number code",
-        ],
-        ["PATINDEX", "Returns the position of a pattern in a string"],
-        [
-            "QUOTENAME",
-            "Returns a Unicode string with delimiters added to make the string a valid SQL Server delimited identifier",
-        ],
-        [
-            "REPLACE",
-            "Replaces all occurrences of a substring within a string, with a new substring",
-        ],
-        ["REPLICATE", "Repeats a string a specified number of times"],
-        ["REVERSE", "Reverses a string and returns the result"],
-        [
-            "RIGHT",
-            "Extracts a number of characters from a string (starting from right)",
-        ],
-        ["RTRIM", "Removes trailing spaces from a string"],
-        [
-            "SOUNDEX",
-            "Returns a four-character code to evaluate the similarity of two strings",
-        ],
-        [
-            "SPACE",
-            "Returns a string of the specified number of space characters",
-        ],
-        ["STR", "Returns a number as string"],
-        [
-            "STUFF",
-            "Deletes a part of a string and then inserts another part into the string, starting at a specified position",
-        ],
-        ["SUBSTRING", "Extracts some characters from a string"],
-        [
-            "TRANSLATE",
-            "Returns the string from the first argument after the characters specified in the second argument are translated into the characters specified in the third argument.",
-        ],
-        [
-            "TRIM",
-            "Removes leading and trailing spaces (or other specified characters) from a string",
-        ],
-        [
-            "UNICODE",
-            "Returns the Unicode value for the first character of the input expression",
-        ],
-        ["UPPER", "Converts a string to upper-case"],
-        ["ABS", "Returns the absolute value of a number"],
-        ["ACOS", "Returns the arc cosine of a number"],
-        ["ASIN", "Returns the arc sine of a number"],
-        ["ATAN", "Returns the arc tangent of a number"],
-        ["ATN2", "Returns the arc tangent of two numbers"],
-        ["AVG", "Returns the average value of an expression"],
-        [
-            "CEILING",
-            "Returns the smallest integer value that is >= a number",
-        ],
-        [
-            "COUNT",
-            "Returns the number of records returned by a select query",
-        ],
-        ["COS", "Returns the cosine of a number"],
-        ["COT", "Returns the cotangent of a number"],
-        ["DEGREES", "Converts a value in radians to degrees"],
-        ["EXP", "Returns e raised to the power of a specified number"],
-        [
-            "FLOOR",
-            "Returns the largest integer value that is <= to a number",
-        ],
-        [
-            "LOG",
-            "Returns the natural logarithm of a number, or the logarithm of a number to a specified base",
-        ],
-        [
-            "LOG10",
-            "Returns the natural logarithm of a number to base 10",
-        ],
-        ["MAX", "Returns the maximum value in a set of values"],
-        ["MIN", "Returns the minimum value in a set of values"],
-        ["PI", "Returns the value of PI"],
-        [
-            "POWER",
-            "Returns the value of a number raised to the power of another number",
-        ],
-        ["RADIANS", "Converts a degree value into radians"],
-        ["RAND", "Returns a random number"],
-        [
-            "ROUND",
-            "Rounds a number to a specified number of decimal places",
-        ],
-        ["SIGN", "Returns the sign of a number"],
-        ["SIN", "Returns the sine of a number"],
-        ["SQRT", "Returns the square root of a number"],
-        ["SQUARE", "Returns the square of a number"],
-        ["SUM", "Calculates the sum of a set of values"],
-        ["TAN", "Returns the tangent of a number"],
-        ["CURRENT_TIMESTAMP", "Returns the current date and time"],
-        [
-            "DATEADD",
-            "Adds a time/date interval to a date and then returns the date",
-        ],
-        ["DATEDIFF", "Returns the difference between two dates"],
-        [
-            "DATEFROMPARTS",
-            "Returns a date from the specified parts (year, month, and day values)",
-        ],
-        ["DATENAME", "Returns a specified part of a date (as string)"],
-        [
-            "DATEPART",
-            "Returns a specified part of a date (as integer)",
-        ],
-        ["DAY", "Returns the day of the month for a specified date"],
-        [
-            "GETDATE",
-            "Returns the current database system date and time",
-        ],
-        [
-            "GETUTCDATE",
-            "Returns the current database system UTC date and time",
-        ],
-        [
-            "ISDATE",
-            "Checks an expression and returns 1 if it is a valid date, otherwise 0",
-        ],
-        [
-            "MONTH",
-            "Returns the month part for a specified date (a number from 1 to 12)",
-        ],
-        ["SYSDATETIME", "Returns the date and time of the SQL Server"],
-        ["YEAR", "Returns the year part for a specified date"],
-        [
-            "CAST",
-            "Converts a value (of any type) into a specified datatype",
-        ],
-        ["COALESCE", "Returns the first non-null value in a list"],
-        [
-            "CONVERT",
-            "Converts a value (of any type) into a specified datatype",
-        ],
-        [
-            "CURRENT_USER",
-            "Returns the name of the current user in the SQL Server database",
-        ],
-        [
-            "IIF",
-            "Returns a value if a condition is TRUE, or another value if a condition is FALSE",
-        ],
-        [
-            "ISNULL",
-            "Return a specified value if the expression is NULL, otherwise return the expression",
-        ],
-        ["ISNUMERIC", "Tests whether an expression is numeric"],
-        ["NULLIF", "Returns NULL if two expressions are equal"],
-        [
-            "SESSION_USER",
-            "Returns the name of the current user in the SQL Server database",
-        ],
-        [
-            "SESSIONPROPERTY",
-            "Returns the session settings for a specified option",
-        ],
-        ["SYSTEM_USER", "Returns the login name for the current user"],
-        [
-            "USER_NAME",
-            "Returns the database user name based on the specified id",
-        ],
-    ];
-
-    lazy_static::lazy_static! {
-        static ref CS : Vec<CompletionItem> = SS.iter().map(|x| CompletionItem {
-            item : Cow::Borrowed(x[0].into()),
-            kind : CompletionKind::Pragma,
-            desc: Some( x[1].into()),
-        }).collect();
+    #[ignore = "手动跑跑的测试"]
+    #[tokio::test]
+    async fn test_completion_execute() {
+        let _guard = test_lock().lock().await;
+        let db = make_test_object().await;
+        let x = db.list_execute(None).await;
+        println!("###########:{:?}", x);
     }
-    return CS.clone();
-}
 
-#[cfg(test)]
-#[test]
-fn mysql_fn() {
-    let s = include_str!("./mssql_fn_str");
-    for line in s.lines() {
-        if line.trim() == "" {
-            continue;
-        }
-        let (cmd, desc) = line.split_once(&[' ', '\t']).unwrap();
-        let cmd = cmd.trim();
-        let desc = desc.trim();
-        let cmds: Vec<_> = cmd.split(',').collect();
+    #[tokio::test]
 
-        for cmd in cmds.iter() {
-            println!("[\"{}\" , \"{}\" ],", cmd, desc);
-        }
+    async fn test_try_get_max_id() {
+        let db = make_test_object().await;
+        let max_id = db.try_get_max_id("departments").await.unwrap();
+        println!("max id is:{}", max_id);
     }
 }

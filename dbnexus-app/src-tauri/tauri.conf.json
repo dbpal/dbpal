@@ -1,25 +1,22 @@
 {
   "productName": "dbpal",
-  "version": "1.2.4",
+  "version": "1.2.5",
   "identifier": "site.dbpal.dev",
   "build": {
-    "beforeDevCommand": "yarn dev",
+    "beforeDevCommand": "pnpm dev",
     "devUrl": "http://localhost:1420",
-    "beforeBuildCommand": "yarn build",
+    "beforeBuildCommand": "pnpm build",
     "frontendDist": "../dist"
   },
   "app": {
     "windows": [
       {
-        "title": "dbpal",
-        "width": 800,
-        "height": 600,
-        "maximized": true
+        "title": "dbpal"
       }
     ],
     "security": {
       "csp": null,
-      "capabilities": ["main-capability"]
+      "capabilities": ["main-capability", "desktop-capability"]
     }
   },
   "bundle": {
@@ -32,5 +29,6 @@
       "icons/icon.icns",
       "icons/icon.ico"
     ]
-  }
+  },
+  "plugins": {}
 }

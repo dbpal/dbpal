@@ -1,61 +1,55 @@
-use std::borrow::Cow;
+use crate::datasource_config::SqlServerDBConfig;
+use crate::db::{
+    create_html_table_data, create_html_table_header, create_markdown_data, create_markdown_header,
+    escape_sql_str, export_query_as_xlsx_send_data, format_data_time_fix_offset, BackendKind,
+    CatalogTrait, CheckConn, ColumnType, CreateDatabaseExtra, CreateIndexReq, CreateSchemaExtra,
+    DBTrait, DefAndMetas, ExportFrame, ExportKind, ExportQueryResult, Field, GetBackendKind, Index,
+    IndexKind, ListTable, MetaValue, NamedStaff, ProcedureDetail, QueryEvent, QueryResp, QuerySql,
+    ReadOnlyTrait, SchemaTrait, ServerMetas, ShowTableParameter, SqlBuilder, TriggerDetail,
+    TriggerEnable, TriggerEvent, TriggerTiming, UdfOrProcedureExtraParameter, XlsxEdit,
+    POOL_MAX_CONNECTIONS,
+};
+use crate::db::{OptionMustBeSomeErr, QueryEventEmitter};
+use crate::helper::create_csv;
+use crate::language_server::LexerCompletionTrait;
+#[cfg(test)]
+use crate::TEST_HOST;
+use chrono::FixedOffset;
+use dashmap::DashMap;
+use futures_util::StreamExt;
+use sqlparser::tokenizer::Token;
 use std::collections::HashMap;
 use std::ops::DerefMut;
 use std::sync::Arc;
 use std::time::Duration;
-
-use chrono::FixedOffset;
-use dashmap::DashMap;
-use futures_core::future::BoxFuture;
-use futures_util::{StreamExt, TryStreamExt};
-use sqlparser::tokenizer::Token;
-use tiberius::{Client, ColumnData, FromSql, Row};
+use tiberius::{Client, ColumnData, ExecuteResult, FromSql, Row};
 use tokio::net::TcpStream;
 use tokio::sync::Mutex;
 use tokio_util::compat::{Compat, TokioAsyncWriteCompatExt};
 
-use crate::MemoryLimit;
-#[cfg(test)]
-use crate::TEST_HOST;
-use crate::datasource_config::SqlServerDBConfig;
-use crate::db::{
-    BackendName, CatalogTrait, CheckConn, ColumnType, CreateDatabaseExtra, CreateSchemaExtra,
-    DBTrait, DefAndMetas, ExportKind, ExportQueryResult, Field, Index, IndexKind, ListTable,
-    NamedStaff, ProcedureDetail, QueryResp, QuerySql, QuoteStyle, ReadOnlyTrait, SchemaTrait,
-    ServerMetas, ShowExtraArgs, SqlBuilder, SqlExecuteRet, TriggerDetail, TriggerEnable,
-    TriggerEvent, TriggerTiming, UdfOrProcedureExtraParameter, format_data_time_fix_offset,
-    not_support_features,
-};
-use crate::helper::{
-    SqlKind, SqlWithKind, TXExecuteTimes, create_csv, is_dangerous_sql_by_parser, sql_to_sql_seq,
-};
-use crate::meta_value::MetaValue;
-use crate::query_log::{QueryLogEvent, QueryLogMap};
-
 #[derive(Clone)]
-pub struct MsSqlServerDB {
+pub struct SqlServerDB {
     pool: bb8::Pool<bb8_tiberius::ConnectionManager>,
     pub(crate) config: SqlServerDBConfig,
-    query_logs: QueryLogMap,
-    query_connections: Arc<DashMap<uuid::Uuid, Arc<Mutex<Connection>>>>,
-    tx_execute_times: TXExecuteTimes,
+    query_connection: Arc<DashMap<String, Arc<Mutex<Connection>>>>,
 }
 
-impl std::fmt::Debug for MsSqlServerDB {
+impl std::fmt::Debug for SqlServerDB {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "mssql on:{:?}", self.config)
     }
 }
 
-impl MsSqlServerDB {
-    pub const ONLY_SCHEMA: &str = "dbo";
+impl SqlServerDB {
+    pub(crate) const DBO_SCHEMA: &str = "dbo";
+    pub(crate) const SYS_SCHEMA: &str = "sys";
+    pub(crate) const INFORMATION_SCHEMA_SCHEMA: &str = "INFORMATION_SCHEMA";
 }
 #[async_trait::async_trait]
-impl ServerMetas for MsSqlServerDB {
+impl ServerMetas for SqlServerDB {
     async fn show_metas(&self) -> anyhow::Result<Vec<MetaValue>> {
         let mut conn = self.get_conn().await?;
         let mut ret = Vec::new();
-
         let mut stream = conn
             .simple_query(
                 r#"
@@ -145,43 +139,49 @@ impl ServerMetas for MsSqlServerDB {
             "#,
             )
             .await?;
-        let mut rows = Vec::new();
-
         while let Some(item) = stream.next().await {
             let item = item?;
             match item {
                 tiberius::QueryItem::Row(r) => {
-                    rows.push(r);
+                    let m = encode_row(&r)?;
+                    ret.push(MetaValue::new(
+                        m.first()
+                            .expect("must have results")
+                            .as_ref()
+                            .option_must_be_some()?
+                            .to_string(),
+                        m[1].clone(),
+                    ));
                 }
                 tiberius::QueryItem::Metadata(_) => {}
             }
         }
-        let metas = encode_rows(&rows)?;
-        for m in metas.iter() {
-            ret.push(MetaValue::new_opt(
-                m.get(0).unwrap().as_ref().unwrap().to_string(),
-                (&m[1]).clone(),
-            ));
-        }
-
         anyhow::Ok(ret)
     }
 }
-impl MsSqlServerDB {
+
+impl SqlServerDB {
     pub async fn new(c: SqlServerDBConfig) -> anyhow::Result<Self> {
-        let manager = bb8_tiberius::ConnectionManager::new(make_config(&c));
-        let pool = bb8::Pool::builder().max_size(50).build(manager).await?;
+        let manager = bb8_tiberius::ConnectionManager::new(make_config(&c)?);
+        let mut builder = bb8::Pool::builder();
+        if let Some(x) = c.conn_timeout {
+            builder = builder.connection_timeout(x.into());
+        }
+        builder = builder.max_size(POOL_MAX_CONNECTIONS);
+        builder = builder.min_idle(Some(5));
+        let pool = builder.build(manager).await?;
         anyhow::Ok(Self {
             config: c,
             pool,
-            query_connections: Default::default(),
-            query_logs: Default::default(),
-            tx_execute_times: Default::default(),
+            query_connection: Default::default(),
         })
     }
 }
 
-fn make_config(c: &SqlServerDBConfig) -> tiberius::Config {
+fn make_config(c: &SqlServerDBConfig) -> anyhow::Result<tiberius::Config> {
+    if c.trust_cert && c.cert_ca.is_some() {
+        anyhow::bail!("can't be able both trust_cert and use trust certificate.")
+    }
     let mut config = tiberius::Config::new();
     config.host(&c.host);
     config.port(c.port);
@@ -192,13 +192,15 @@ fn make_config(c: &SqlServerDBConfig) -> tiberius::Config {
     }
 
     if let Some(db) = c.db.as_ref() {
-        config.database(&db);
+        config.database(db);
     }
-
     if c.trust_cert {
         config.trust_cert(); // on production, it is not a good idea to do this
     }
-    config
+    if let Some(x) = &c.cert_ca {
+        config.trust_cert_ca(x);
+    }
+    anyhow::Ok(config)
 }
 
 fn get_column_type_string(c: tiberius::ColumnType) -> String {
@@ -216,9 +218,8 @@ fn get_fields_from_meta(meta: &tiberius::ResultMetadata) -> Vec<Field> {
     }
     ret
 }
-
-struct ConvertColumnDataToString {
-    value: String,
+pub struct ConvertColumnDataToString {
+    pub(crate) value: String,
 }
 
 impl<'a> tiberius::FromSql<'a> for ConvertColumnDataToString {
@@ -267,41 +268,39 @@ impl<'a> tiberius::FromSql<'a> for ConvertColumnDataToString {
     }
 }
 
-fn make_table_list_from_meta_and_row(
-    meta: &tiberius::ResultMetadata, rows: &Vec<tiberius::Row>, total: usize,
-    sql: impl Into<String>,
-) -> anyhow::Result<QueryResp> {
-    let fields = get_fields_from_meta(meta);
-    let data = encode_rows(rows)?;
-
-    anyhow::Ok(QueryResp::new(fields, total, data, Some(sql.into()))?)
-}
-
-fn encode_rows(rows: &Vec<tiberius::Row>) -> anyhow::Result<Vec<Vec<Option<String>>>> {
-    let mut data = vec![];
-    for r in rows.iter() {
-        let mut values: Vec<Option<String>> = Vec::new();
-        for index in 0..rows[0].columns().len() {
-            let v: Option<ConvertColumnDataToString> = r.try_get(index)?;
-            values.push(v.map(|x| x.value));
-        }
-        data.push(values);
+fn encode_row(row: &tiberius::Row) -> anyhow::Result<Vec<Option<String>>> {
+    let mut values: Vec<Option<String>> = Vec::new();
+    for index in 0..row.columns().len() {
+        let v: Option<ConvertColumnDataToString> = row.try_get(index)?;
+        values.push(v.map(|x| x.value));
     }
-    anyhow::Ok(data)
+    anyhow::Ok(values)
 }
 
-fn gen_select_sql(
-    schema: &str, table_name: &str, where_str: Option<&str>, order_by: Option<&str>, page: usize,
+fn gen_show_sql(
+    schema: &str,
+    table_name: &str,
+    fields: Option<String>,
+    where_str: Option<&str>,
+    order_by: Option<&str>,
+    page: usize,
     page_size: usize,
 ) -> String {
-    let mut sql = format!(r#"SELECT * FROM "{schema}"."{table_name}""#);
+    let mut sql = format!(
+        r#"SELECT {} FROM "{schema}"."{table_name}""#,
+        if let Some(fields) = fields {
+            fields
+        } else {
+            "*".to_string()
+        }
+    );
     if let Some(where_str) = where_str {
         sql.push_str(format!(" WHERE {where_str} ").as_str());
     }
     if let Some(order_by) = order_by {
         sql.push_str(format!(" ORDER BY {order_by} ").as_str());
     } else {
-        // sql server 的offet子句只能和order by一起使用
+        // sql server 的offset子句只能和order by一起使用
         sql.push_str(" ORDER  BY (SELECT NULL) ")
     }
 
@@ -314,63 +313,76 @@ fn gen_select_sql(
 // TODO sqlparse don't support parse trigger statement
 // use lexer to solve this issue.
 fn extract_trigger_event_base_on_lexer(sql: &str) -> anyhow::Result<TriggerEvent> {
-    let t = sqlparser::tokenizer::Tokenizer::new(&sqlparser::dialect::SQLiteDialect {}, &sql)
+    let t = sqlparser::tokenizer::Tokenizer::new(&sqlparser::dialect::MsSqlDialect {}, sql)
         .tokenize()?;
     let mut event = None;
 
     for token in t {
-        match token {
-            Token::Word(x) => {
-                let word = x.to_string().to_uppercase();
-                match word.as_str() {
-                    "INSERT" | "UPDATE" | "DELETE" => {
-                        event = Some(word);
-                    }
-
-                    _ => {}
+        if let Token::Word(x) = token {
+            let word = x.to_string().to_uppercase();
+            match word.as_str() {
+                "INSERT" | "UPDATE" | "DELETE" => {
+                    event = Some(word);
                 }
+
+                _ => {}
             }
-            _ => {}
         }
     }
     if event.is_none() {
         anyhow::bail!("trigger statement is not valid");
     }
-    let event = event.unwrap();
+    let event = event.option_must_be_some()?;
 
     anyhow::Ok(TriggerEvent::try_from(event.as_str())?)
 }
 
 #[async_trait::async_trait]
-impl CheckConn for MsSqlServerDB {
+impl CheckConn for SqlServerDB {
     async fn check_conn(&self) -> anyhow::Result<Duration> {
         let ins = std::time::Instant::now();
         let mut conn = self.get_conn().await?;
         let conn = conn.deref_mut();
-        let _x = conn.query("select 1", &[]).await?;
+        conn.query("select 1", &[]).await?;
         anyhow::Ok(ins.elapsed())
     }
 }
 
-impl MsSqlServerDB {
-    async fn execute_simple_execute(&self, sql: &str) -> anyhow::Result<()> {
+impl SqlServerDB {
+    async fn execute_simple_execute(&self, sql: &str) -> anyhow::Result<ExecuteResult> {
         let mut conn = self.get_conn().await?;
         let conn = conn.deref_mut();
-        let mut stream = conn.simple_query(sql).await?;
-        while let Some(item) = stream.next().await {
-            let _item = item?;
-        }
-        anyhow::Ok(())
+        let r = conn.execute(sql, &[]).await?;
+        anyhow::Ok(r)
     }
 }
 
-impl MsSqlServerDB {
+impl SqlServerDB {
     pub(crate) async fn list_table_impl(
-        &self, db: &str, schema: &str,
+        &self,
+        db: &str,
+        schema: &str,
     ) -> anyhow::Result<Vec<ListTable>> {
+        if schema.eq_ignore_ascii_case("sys") {
+            //  这里没有找到可以查询的语句 所以让AI帮我做成一个列表
+            return anyhow::Ok(
+                SYS_OBJECTS
+                    .iter()
+                    .map(|x| ListTable::from(x.to_string()))
+                    .collect(),
+            );
+        }
+        if schema.eq_ignore_ascii_case(Self::INFORMATION_SCHEMA_SCHEMA) {
+            return anyhow::Ok(
+                INFORMATION_SCHEMA_VIEWS
+                    .iter()
+                    .map(|x| ListTable::from(x.to_string()))
+                    .collect(),
+            );
+        }
         let mut conn = self.get_conn().await?;
         let conn = conn.deref_mut();
-        let mut stream = conn
+        let mut stream: tiberius::QueryStream<'_> = conn
             .query(
                 format!(
                     r#"
@@ -388,11 +400,12 @@ impl MsSqlServerDB {
 
         while let Some(item) = stream.next().await {
             let item = item?;
-
             match item {
                 tiberius::QueryItem::Row(r) => {
                     let table_name: Option<&str> = r.try_get(0)?;
-                    ret.push(table_name.unwrap().to_string());
+                    if let Some(table_name) = table_name {
+                        ret.push(table_name.to_string());
+                    }
                 }
 
                 tiberius::QueryItem::Metadata(_) => {
@@ -404,18 +417,17 @@ impl MsSqlServerDB {
     }
 
     pub(crate) async fn list_procedure_impl(
-        &self, db: &str, schema: &str,
+        &self,
+        schema: &str,
     ) -> anyhow::Result<Vec<NamedStaff>> {
         let sql = format!(
             r#"
-            SELECT 
-                ROUTINE_NAME 
-            FROM 
-                INFORMATION_SCHEMA.ROUTINES 
-            WHERE 
-                ROUTINE_TYPE = 'PROCEDURE'  AND SPECIFIC_CATALOG='{}' AND  SPECIFIC_SCHEMA='{}';
+                SELECT  name
+                    FROM    sys.all_objects
+                    WHERE   type = 'P'              -- P 表示存储过程
+                    AND   schema_id = SCHEMA_ID('{}');   -- 只取 sys schema 下的
             "#,
-            db, schema
+            schema
         );
         log::info!("sql:{}", sql);
         let mut conn = self.get_conn().await?;
@@ -432,42 +444,88 @@ impl MsSqlServerDB {
                 tiberius::QueryItem::Metadata(_) => {}
             }
         }
-
         anyhow::Ok(ret)
     }
 }
 
-impl BackendName for MsSqlServerDB {
-    fn backend_name(&self) -> &str {
-        "sqlserver"
+impl GetBackendKind for SqlServerDB {
+    fn backend_name(&self) -> BackendKind {
+        BackendKind::SqlServer
     }
 }
 
-fn type_support_compare(_tpe: &str) -> bool {
-    true
-}
-
-impl QuoteStyle for MsSqlServerDB {
-    fn quote_style(&self) -> &'static str {
-        "\""
-    }
-}
-
-#[async_trait::async_trait]
-impl SchemaTrait for MsSqlServerDB {
-    async fn create_index(
-        &self, table: &str, name: &str, kind: IndexKind, fields: &[String],
-    ) -> anyhow::Result<()> {
+impl SqlServerDB {
+    pub(crate) async fn list_udf_impl(&self, schema: &str) -> anyhow::Result<Vec<NamedStaff>> {
         let sql = format!(
-            "CREATE {} INDEX {} ON {table}({})",
-            match kind {
-                IndexKind::Index => "",
-                IndexKind::Primary => anyhow::bail!("can't create primary index"),
-                IndexKind::Unique => "Unique",
-            },
-            name,
-            fields.join(",")
+            r#"
+            SELECT 
+                name AS FunctionName
+            FROM 
+                sys.objects
+            WHERE 
+                type IN ('FN', 'IF', 'TF') AND  SCHEMA_NAME(schema_id) = '{}';
+        "#,
+            schema
         );
+        log::info!("sql:{}", sql);
+        let mut conn = self.get_conn().await?;
+        let conn = conn.deref_mut();
+        let mut stream = conn.query(sql.as_str(), &[]).await?;
+        let mut ret = Vec::new();
+
+        while let Some(item) = stream.next().await {
+            let item = item?;
+            match item {
+                tiberius::QueryItem::Row(row) => {
+                    let name: Option<&str> = row.try_get(0)?;
+                    if let Some(name) = name {
+                        ret.push(NamedStaff::from(name.to_owned()));
+                    }
+                }
+                tiberius::QueryItem::Metadata(_result_metadata) => {}
+            }
+        }
+
+        anyhow::Ok(ret)
+    }
+
+    pub(crate) async fn list_view_impl(&self, schema: &str) -> anyhow::Result<Vec<ListTable>> {
+        let sql = format!(
+            r#"
+            SELECT 
+                TABLE_NAME AS ViewName
+            FROM 
+                INFORMATION_SCHEMA.VIEWS
+            WHERE 
+                TABLE_SCHEMA = '{schema}';
+        "#
+        );
+        let mut conn = self.get_conn().await?;
+        let conn = conn.deref_mut();
+        let mut stream = conn.query(sql, &[]).await?;
+        let mut ret = vec![];
+        while let Some(row) = stream.next().await {
+            let row = row?;
+            match row {
+                tiberius::QueryItem::Row(row) => {
+                    let name: Option<&str> = row.try_get(0)?;
+                    if let Some(name) = name {
+                        ret.push(ListTable::from(name.to_string()));
+                    }
+                }
+                tiberius::QueryItem::Metadata(_) => {}
+            }
+        }
+        anyhow::Ok(ret)
+    }
+}
+#[async_trait::async_trait]
+impl SchemaTrait for SqlServerDB {
+    fn list_sql_current_values(&self) -> &'static [&'static str] {
+        <Self as SqlBuilder>::get_current_values(self)
+    }
+    async fn create_index(&self, table: &str, req: &CreateIndexReq) -> anyhow::Result<()> {
+        let sql = req.common_sql(table, true, self.backend_name().quote_style())?;
         log::info!("sql:{}", sql);
         let mut conn = self.get_conn().await?;
         conn.execute(&sql, &[]).await?;
@@ -476,50 +534,57 @@ impl SchemaTrait for MsSqlServerDB {
 
     async fn drop_index(&self, table_name: &str, index: &str) -> anyhow::Result<()> {
         let sql = format!(r#"DROP INDEX "{index}" ON "{table_name}";"#);
-        self.execute_simple_execute(&sql).await
+        self.execute_simple_execute(&sql).await?;
+        anyhow::Ok(())
     }
 
     async fn rename_index(
-        &self, table: &str, old_name: &str, new_name: &str,
+        &self,
+        table: &str,
+        old_name: &str,
+        new_name: &str,
     ) -> anyhow::Result<()> {
         let sql = format!("EXEC sp_rename '{table}.{old_name}', '{new_name}', 'INDEX';");
         log::info!("sql:{}", sql);
-        self.execute_simple_execute(&sql).await
+        self.execute_simple_execute(&sql).await?;
+        anyhow::Ok(())
     }
 
     async fn add_table_column(
-        &self, table: &str, name: &str, col: ColumnType,
+        &self,
+        table: &str,
+        name: &str,
+        col: ColumnType,
     ) -> anyhow::Result<()> {
         let sql = format!(
             r#"ALTER TABLE "{table}" ADD "{name}" {} {} {}"#,
             col.typ,
-            if let Some(nullness) = col.nullness.as_ref() {
-                nullness.as_str()
-            } else {
-                ""
-            },
+            col.nullable.unwrap_or_default(),
             if let Some(d) = col.default_value.as_ref() {
                 format!(
                     "DEFAULT {}",
-                    self.put_value_in_sql(&col.typ, None, Some(d.as_str()))?
+                    self.put_value_in_sql(&col.typ, Some(d.as_str()))?
                 )
             } else {
                 "".to_owned()
             }
         );
         log::info!("sql:{}", sql);
-
         let mut conn = self.get_conn().await?;
         conn.deref_mut().execute(&sql, &[]).await?;
         anyhow::Ok(())
     }
 
-    fn list_data_types(&self) -> anyhow::Result<&'static [&'static str]> {
-        anyhow::Ok(crate::mysql_lang_server::TYPES)
+    async fn list_data_types(&self) -> anyhow::Result<Vec<String>> {
+        LexerCompletionTrait::get_types(self).await
     }
 
     async fn modify_table_column(
-        &self, table: &str, old_name: &str, new_name: &str, typ: Option<crate::db::ColumnType>,
+        &self,
+        table: &str,
+        old_name: &str,
+        new_name: &str,
+        typ: Option<crate::db::ColumnType>,
     ) -> anyhow::Result<()> {
         let mut conn = self.get_conn().await?;
         if old_name != new_name {
@@ -537,11 +602,7 @@ impl SchemaTrait for MsSqlServerDB {
             ALTER TABLE {table} ALTER COLUMN {new_name} {} {};
             "#,
                 typ.typ,
-                if let Some(null) = typ.nullness.as_ref() {
-                    null.as_str()
-                } else {
-                    ""
-                }
+                typ.nullable.unwrap_or_default()
             );
             log::info!("sql:{}", sql);
             conn.deref_mut().execute(&sql, &[]).await?;
@@ -566,14 +627,15 @@ impl SchemaTrait for MsSqlServerDB {
         if self.table_exists(dup).await? {
             anyhow::bail!(format!("table '{}' already exists", dup));
         }
-        let schema = self.config.must_schema().as_str();
+        let schema = self.config.schema_str()?.as_str();
         let sql = format!(
             r#"
             SELECT * INTO "{schema}"."{dup}" FROM "{schema}"."{table}" 
         "#
         );
         log::info!("sql:{}", sql);
-        self.execute_simple_execute(sql.as_str()).await
+        self.execute_simple_execute(sql.as_str()).await?;
+        anyhow::Ok(())
     }
 
     async fn rename_table(&self, old: &str, new: &str) -> anyhow::Result<()> {
@@ -583,7 +645,8 @@ impl SchemaTrait for MsSqlServerDB {
         "#
         );
         log::info!("sql:{}", sql);
-        self.execute_simple_execute(&sql).await
+        self.execute_simple_execute(&sql).await?;
+        anyhow::Ok(())
     }
 
     async fn list_trigger(&self, table_name: &str) -> anyhow::Result<Vec<NamedStaff>> {
@@ -608,7 +671,7 @@ impl SchemaTrait for MsSqlServerDB {
             match item {
                 tiberius::QueryItem::Row(x) => {
                     let name: Option<&str> = x.try_get(0)?;
-                    ret.push(name.unwrap().to_string());
+                    ret.push(name.option_must_be_some()?.to_string());
                 }
                 tiberius::QueryItem::Metadata(_) => {}
             }
@@ -628,7 +691,7 @@ impl SchemaTrait for MsSqlServerDB {
             WHERE
                 t.parent_class_desc = 'OBJECT_OR_COLUMN'
                 AND OBJECT_NAME(t.parent_id) = '{table}' and name ='{name}'
-      "#
+            "#
         );
         log::info!("sql:{}", sql);
         let mut conn = self.get_conn().await?;
@@ -645,7 +708,7 @@ impl SchemaTrait for MsSqlServerDB {
                     result = Some((
                         name.unwrap_or_default(),
                         is_instead_of_trigger.unwrap_or_default(),
-                        sql.unwrap().to_string(),
+                        sql.option_must_be_some()?.to_string(),
                     ));
                 }
                 tiberius::QueryItem::Metadata(_) => {}
@@ -672,46 +735,57 @@ impl SchemaTrait for MsSqlServerDB {
     async fn drop_trigger(&self, table: &str, name: &str) -> anyhow::Result<()> {
         let sql = format!(
             r#"
-         DROP TRIGGER "{}"."{name}" ON "{table}";
+            DROP TRIGGER "{}"."{name}" ON "{table}";
         "#,
-            Self::ONLY_SCHEMA
+            Self::DBO_SCHEMA
         );
         log::info!("sql:{}", sql);
-        let mut conn = self.get_conn().await?;
-        let conn = conn.deref_mut();
-
-        conn.execute(sql.as_str(), &[]).await?;
-
+        self.execute_simple_execute(&sql).await?;
         anyhow::Ok(())
     }
 
     async fn export_table_or_view(
-        &self, table_name: &str, kind: ExportKind,
-        sender: tokio::sync::mpsc::Sender<Cow<'static, str>>,
+        &self,
+        table_name: &str,
+        para: Option<ShowTableParameter>,
+        kind: ExportKind,
+        sender: tokio::sync::mpsc::Sender<ExportFrame>,
     ) -> anyhow::Result<()> {
         match kind {
-            ExportKind::CSV {
-                include_header,
-                delimiter,
-            } => {
-                self.export_table_as_csv(table_name, include_header, delimiter, sender)
-                    .await
-            }
-            ExportKind::Json { pretty } => {
-                self.export_table_as_json(table_name, pretty, sender).await
-            }
-            ExportKind::JsonLine => self.export_table_as_json_line(table_name, sender).await,
             ExportKind::Sql {
                 include_table_schema,
             } => {
-                self.export_table_as_sql(table_name, include_table_schema, sender)
+                self.export_table_as_sql(table_name, para, include_table_schema, sender)
                     .await
+            }
+            _ => {
+                let sql = if let Some(para) = para {
+                    let ShowTableParameter {
+                        where_str,
+                        order_by,
+                        page,
+                        page_size,
+                        ..
+                    } = &para;
+                    gen_show_sql(
+                        self.config.schema_str()?,
+                        table_name,
+                        None,
+                        where_str.as_deref(),
+                        order_by.as_deref(),
+                        *page,
+                        *page_size,
+                    )
+                } else {
+                    format!(r#"SELECT * from "{}" "#, table_name)
+                };
+                self.export_query_result(None, &sql, kind, sender).await
             }
         }
     }
 
     fn clone(&self) -> Box<dyn SchemaTrait> {
-        Box::new(Clone::clone(self))
+        Box::new(Clone::clone(self)) as Box<dyn SchemaTrait>
     }
 
     fn as_any(&self) -> &dyn std::any::Any {
@@ -719,49 +793,72 @@ impl SchemaTrait for MsSqlServerDB {
     }
 
     async fn show_view(
-        &self, view_name: &str, where_str: Option<&str>, order_by: Option<&str>, page: usize,
-        page_size: usize, _extra: Option<ShowExtraArgs>,
-    ) -> anyhow::Result<QueryResp> {
-        let mut conn = self.get_conn().await?;
-        let conn = conn.deref_mut();
-        let total = MsSqlServerDB::query_count(conn, view_name, where_str.clone()).await?;
-        let sql = gen_select_sql(
-            self.config.must_schema().as_str(),
-            view_name,
+        &self,
+        view_name: &str,
+        para: ShowTableParameter,
+        emit: QueryEventEmitter,
+    ) -> anyhow::Result<()> {
+        let ShowTableParameter {
             where_str,
             order_by,
             page,
             page_size,
+            ..
+        } = &para;
+
+        emit.send("trying to get connection.".into())?;
+        let mut conn = self.get_conn().await?;
+        let conn = conn.deref_mut();
+        emit.send("trying to get total amount.".into())?;
+        let total = SqlServerDB::query_count(
+            conn,
+            self.config.schema_str()?,
+            view_name,
+            where_str.as_deref(),
+        )
+        .await?;
+        let sql = gen_show_sql(
+            self.config.schema_str()?.as_str(),
+            view_name,
+            None,
+            where_str.as_deref(),
+            order_by.as_deref(),
+            *page,
+            *page_size,
         );
         log::info!("sql:{}", sql);
+        emit.send("trying to get data.".into())?;
         let mut stream = conn.query(&sql, &[]).await?;
-        let mut meta = None;
-        let mut rows = Vec::with_capacity(page_size);
         while let Some(item) = stream.next().await {
             let item = item?;
             match item {
                 tiberius::QueryItem::Row(row) => {
-                    rows.push(row);
+                    let data = encode_row(&row)?;
+                    emit.send(data.into())?;
                 }
-                tiberius::QueryItem::Metadata(m) => meta = Some(m),
+                tiberius::QueryItem::Metadata(m) => {
+                    emit.send(
+                        QueryResp {
+                            fields: get_fields_from_meta(&m),
+                            sql: sql.clone().into(),
+                            total: total as usize,
+                            ..Default::default()
+                        }
+                        .into(),
+                    )?;
+                }
             }
         }
-        let ret = match meta {
-            Some(meta) => make_table_list_from_meta_and_row(&meta, &rows, total as usize, sql)?,
-            None => anyhow::bail!("SELECT should yield at lease one meta"),
-        };
-        anyhow::Ok(ret)
+        anyhow::Ok(())
     }
 
     async fn drop_view(&self, view_name: &str) -> anyhow::Result<()> {
         self.can_write()?;
-        let schema = self.config.must_schema().as_str();
+        let schema = self.config.schema_str()?.as_str();
 
         let s = format!(r#"DROP VIEW "{schema}"."{view_name}""#);
-        let mut conn = self.get_conn().await?;
-        let conn = conn.deref_mut();
+        self.execute_simple_execute(&s).await?;
 
-        conn.execute(s.as_str(), &[]).await?;
         anyhow::Ok(())
     }
 
@@ -769,53 +866,27 @@ impl SchemaTrait for MsSqlServerDB {
         self.can_write()?;
         let sql = format!(r#"DROP TABLE "{table}""#);
         log::info!("sql:{}", sql);
-        let mut conn = self.get_conn().await?;
-        let conn = conn.deref_mut();
-        conn.execute(sql.as_str(), &[]).await?;
+        self.execute_simple_execute(&sql).await?;
+
         anyhow::Ok(())
     }
 
-    async fn list_view(&self) -> anyhow::Result<Vec<NamedStaff>> {
-        let mut conn = self.get_conn().await?;
-        let conn = conn.deref_mut();
-        let mut stream = conn
-            .query(
-                r#"
-                SELECT name
-                FROM sys.views;
-        "#,
-                &[],
-            )
-            .await?;
-        let mut ret = Vec::new();
-
-        while let Some(item) = stream.next().await {
-            let item = item?;
-
-            match item {
-                tiberius::QueryItem::Row(r) => {
-                    let table_name: Option<&str> = r.try_get(0)?;
-                    ret.push(table_name.unwrap().to_string());
-                }
-                tiberius::QueryItem::Metadata(_) => {
-                    // I know the meta pretty well
-                }
-            }
-        }
-        anyhow::Ok(ret.into_iter().map(NamedStaff::from).collect())
+    async fn list_view(&self) -> anyhow::Result<Vec<ListTable>> {
+        self.list_view_impl(self.config.schema_str()?.as_str())
+            .await
     }
 
     async fn list_table(&self) -> anyhow::Result<Vec<ListTable>> {
         self.list_table_impl(
-            self.config.must_db().as_str(),
-            self.config.must_schema().as_str(),
+            self.config.db_str()?.as_str(),
+            self.config.schema_str()?.as_str(),
         )
         .await
     }
 
     async fn show_table_columns(&self, table_name: &str) -> anyhow::Result<Vec<Field>> {
         let mut conn = self.get_conn().await?;
-        let mut conn = conn.deref_mut();
+        let conn = conn.deref_mut();
         let mut stream = conn
             .query(
                 format!(
@@ -835,9 +906,9 @@ impl SchemaTrait for MsSqlServerDB {
             match item {
                 tiberius::QueryItem::Row(row) => {
                     let name: Option<&str> = row.try_get(0)?;
-                    let name = name.unwrap().to_string();
+                    let name = name.option_must_be_some()?.to_string();
                     let data_type: Option<&str> = row.try_get(1)?;
-                    let data_type = data_type.unwrap().to_string();
+                    let data_type = data_type.option_must_be_some()?.to_string();
                     let default_value: Option<&str> = row.try_get(2)?;
                     let nullable: Option<&str> = row.try_get(3)?;
                     ret.push(Field::new(
@@ -856,9 +927,9 @@ impl SchemaTrait for MsSqlServerDB {
         }
         drop(stream);
         for f in ret.iter_mut() {
-            let is_primary = MsSqlServerDB::is_primary(&mut conn, table_name, &f.field).await?;
+            let is_primary = SqlServerDB::is_primary(conn, table_name, &f.field).await?;
             let is_auto_increment =
-                MsSqlServerDB::is_auto_increment(&mut conn, table_name, &f.field).await?;
+                SqlServerDB::is_auto_increment(conn, table_name, &f.field).await?;
             f.is_primary = is_primary;
             f.is_auto_increment = is_auto_increment;
         }
@@ -867,44 +938,66 @@ impl SchemaTrait for MsSqlServerDB {
     }
 
     async fn show_table(
-        &self, table_name: &str, where_str: Option<&str>, order_by: Option<&str>, page: usize,
-        page_size: usize, _extra: Option<ShowExtraArgs>,
-    ) -> anyhow::Result<QueryResp> {
-        let mut conn = self.get_conn().await?;
-        let conn = conn.deref_mut();
-        let total = MsSqlServerDB::query_count(conn, table_name, where_str.clone()).await?;
-        let sql = gen_select_sql(
-            self.config.must_schema().as_str(),
-            table_name,
+        &self,
+        table_name: &str,
+        para: ShowTableParameter,
+        emit: QueryEventEmitter,
+    ) -> anyhow::Result<()> {
+        let ShowTableParameter {
             where_str,
             order_by,
             page,
             page_size,
+            ..
+        } = &para;
+        emit.send("trying to get connection.".into())?;
+        let mut conn = self.get_conn().await?;
+        let conn = conn.deref_mut();
+        emit.send("trying to get total amount.".into())?;
+        let total = SqlServerDB::query_count(
+            conn,
+            self.config.schema_str()?,
+            table_name,
+            where_str.as_deref(),
+        )
+        .await?;
+        let fields = self.show_table_columns(table_name).await?;
+        let sql = gen_show_sql(
+            self.config.schema_str()?.as_str(),
+            table_name,
+            Some(self.backend_name().format_fields(Some(&fields))),
+            where_str.as_deref(),
+            order_by.as_deref(),
+            *page,
+            *page_size,
         );
-
+        emit.send(
+            QueryResp {
+                fields,
+                total: total as usize,
+                sql: sql.clone().into(),
+                ..Default::default()
+            }
+            .into(),
+        )?;
+        emit.send("trying to query data.".into())?;
         let mut stream = conn
             .query(&sql, &[])
             .await
             .map_err(|e| anyhow::Error::msg(format!("err:'{}' sql:'{}'", e, sql)))?;
-        let mut meta = None;
-        let mut rows = Vec::with_capacity(page_size);
         while let Some(item) = stream.next().await {
             let item = item?;
             match item {
                 tiberius::QueryItem::Row(row) => {
-                    rows.push(row);
+                    let d = encode_row(&row)?;
+                    emit.send(d.into())?;
                 }
-                tiberius::QueryItem::Metadata(m) => meta = Some(m),
+                tiberius::QueryItem::Metadata(..) => {
+                    // we have send the fields.
+                }
             }
         }
-        let cols = self.show_table_columns(table_name).await?;
-        let mut ret = match meta {
-            Some(x) => make_table_list_from_meta_and_row(&x, &rows, total as usize, sql)?,
-            None => anyhow::bail!("SELECT should yield at lease one meta"),
-        };
-        // infered schema is accurate as show_table_columns
-        ret.fields = cols;
-        anyhow::Ok(ret)
+        anyhow::Ok(())
     }
 
     async fn show_indexes(&self, table_name: &str) -> anyhow::Result<Vec<Index>> {
@@ -931,10 +1024,10 @@ impl SchemaTrait for MsSqlServerDB {
             match item {
                 tiberius::QueryItem::Row(r) => {
                     let name: Option<&str> = r.try_get(0)?;
-                    let name = name.unwrap().to_string();
+                    let name = name.option_must_be_some()?.to_string();
                     let is_unique: Option<bool> = r.try_get(1)?;
                     let col: Option<&str> = r.try_get(2)?;
-                    let col = col.unwrap().to_string();
+                    let col = col.option_must_be_some()?.to_string();
                     if let Some(x) = ret.get_mut(&name) {
                         x.columns.push(col);
                     } else {
@@ -955,51 +1048,7 @@ impl SchemaTrait for MsSqlServerDB {
                 tiberius::QueryItem::Metadata(_) => {}
             }
         }
-        anyhow::Ok(ret.into_iter().map(|(_, v)| v).collect())
-    }
-
-    async fn insert(
-        &self, table_name: &str, values: HashMap<String, Option<String>>,
-    ) -> anyhow::Result<SqlExecuteRet> {
-        self.can_write()?;
-
-        let fs = self.show_table_columns(table_name).await?;
-        let s = self.insert_sql(
-            self.config.schema.as_ref().map(|x| x.as_str()),
-            table_name,
-            &fs,
-            &values,
-        )?;
-
-        log::trace!("insert sql:{}", s);
-
-        let mut conn = self.get_conn().await?;
-        let conn = conn.deref_mut();
-        let _r = conn.execute(s.as_str(), &[]).await?;
-        anyhow::Ok(SqlExecuteRet {
-            sql: s,
-            changes: Some(1), // I know this
-        })
-    }
-
-    async fn update(
-        &self, table_name: &str, values: HashMap<String, Option<String>>,
-        wheres: HashMap<String, Option<String>>,
-    ) -> anyhow::Result<SqlExecuteRet> {
-        self.can_write()?;
-
-        let fs = self.show_table_columns(table_name).await?;
-        let s = self.update_sql(
-            self.config.schema.as_ref().map(|x| x.as_str()),
-            table_name,
-            &fs,
-            &values,
-            &wheres,
-        )?;
-        let mut conn = self.get_conn().await?;
-        let conn = conn.deref_mut();
-        let r = conn.execute(s.as_str(), &[]).await?;
-        anyhow::Ok(SqlExecuteRet::from((s, r.rows_affected().iter().sum())))
+        anyhow::Ok(ret.into_values().collect())
     }
 
     async fn truncate_table(&self, table_name: &str) -> anyhow::Result<()> {
@@ -1009,90 +1058,32 @@ impl SchemaTrait for MsSqlServerDB {
             TRUNCATE TABLE "{table_name}";
         "#
         );
-        let mut conn = self.get_conn().await?;
-        let conn = conn.deref_mut();
-        conn.execute(s.as_str(), &[]).await?;
+        self.execute_simple_execute(&s).await?;
         anyhow::Ok(())
     }
 
-    async fn delete(
-        &self, table_name: &str, wheres: HashMap<String, Option<String>>,
-    ) -> anyhow::Result<SqlExecuteRet> {
-        self.can_write()?;
-
-        let fields = self.show_table_columns(table_name).await?;
-        let sql = self.delete_sql(
-            self.config.schema.as_ref().map(|x| x.as_str()),
-            table_name,
-            &fields,
-            &wheres,
-        )?;
-        log::info!("sql:{}", sql);
-        let mut conn = self.get_conn().await?;
-        let conn = conn.deref_mut();
-
-        let r = conn.execute(sql.as_str(), &[]).await?;
-        anyhow::Ok(SqlExecuteRet {
-            sql,
-            changes: Some(r.rows_affected().iter().sum()),
-        })
-    }
-
     async fn disable_trigger(&self, table: &str, name: &str) -> anyhow::Result<()> {
-        let mut conn = self.get_conn().await?;
-        let conn = conn.deref_mut();
-
         let sql = format!("ENABLE TRIGGER {name} ON {table}");
         log::info!("sql:{}", sql);
-        conn.execute(sql.as_str(), &[]).await?;
+        self.execute_simple_execute(sql.as_str()).await?;
         anyhow::Ok(())
     }
 
     async fn enable_trigger(&self, table: &str, name: &str) -> anyhow::Result<()> {
-        let mut conn = self.get_conn().await?;
-        let conn = conn.deref_mut();
-
         let sql = format!("DISABLE TRIGGER {name} ON {table}");
         log::info!("sql:{}", sql);
-        conn.execute(sql.as_str(), &[]).await?;
+        self.execute_simple_execute(sql.as_str()).await?;
         anyhow::Ok(())
     }
 
     async fn list_udf(&self) -> anyhow::Result<Vec<NamedStaff>> {
-        let sql = format!(
-            r#"
-            SELECT 
-                name AS FunctionName
-            FROM 
-                sys.objects
-            WHERE 
-                type IN ('FN', 'IF', 'TF') AND  SCHEMA_NAME(schema_id) = '{}';
-        "#,
-            Self::ONLY_SCHEMA
-        );
-        log::info!("sql:{}", sql);
-        let mut conn = self.get_conn().await?;
-        let conn = conn.deref_mut();
-        let mut stream = conn.query(sql.as_str(), &[]).await?;
-        let mut ret = Vec::new();
-
-        while let Some(item) = stream.next().await {
-            let item = item?;
-            match item {
-                tiberius::QueryItem::Row(row) => {
-                    let name: Option<&str> = row.try_get(0)?;
-                    ret.push(NamedStaff::from(name.unwrap().to_owned()));
-                }
-
-                tiberius::QueryItem::Metadata(_result_metadata) => {}
-            }
-        }
-
-        anyhow::Ok(ret)
+        self.list_udf_impl(self.config.schema_str()?).await
     }
 
     async fn show_udf(
-        &self, name: &str, _arg: Option<UdfOrProcedureExtraParameter>,
+        &self,
+        name: &str,
+        _arg: Option<UdfOrProcedureExtraParameter>,
     ) -> anyhow::Result<DefAndMetas> {
         let sql = format!(
             r#"
@@ -1122,15 +1113,15 @@ impl SchemaTrait for MsSqlServerDB {
                     let modify_date: Option<chrono::NaiveDateTime> = row.try_get(2)?;
                     metas.push(MetaValue::new(
                         "type_desc",
-                        type_desc.unwrap_or_default().to_string(),
+                        type_desc.map(|x| x.to_string()),
                     ));
                     metas.push(MetaValue::new(
                         "create_date",
-                        create_date.unwrap_or_default(),
+                        create_date.map(|x| x.to_string()),
                     ));
                     metas.push(MetaValue::new(
                         "modify_date",
-                        modify_date.unwrap_or_default(),
+                        modify_date.map(|x| x.to_string()),
                     ));
                 }
                 tiberius::QueryItem::Metadata(_result_metadata) => {}
@@ -1157,31 +1148,29 @@ impl SchemaTrait for MsSqlServerDB {
                 tiberius::QueryItem::Metadata(_result_metadata) => {}
             }
         }
-        anyhow::bail!("query udf defition failed, no result.")
+        anyhow::bail!("query udf definition failed, no result.")
     }
 
     async fn drop_udf(
-        &self, name: &str, _extra: Option<UdfOrProcedureExtraParameter>,
+        &self,
+        name: &str,
+        _extra: Option<UdfOrProcedureExtraParameter>,
     ) -> anyhow::Result<()> {
-        let sql = format!(r#"DROP FUNCTION "{}"."{name}""#, Self::ONLY_SCHEMA);
+        let sql = format!(r#"DROP FUNCTION "{}"."{name}""#, Self::DBO_SCHEMA);
         log::info!("sql:{}", sql);
-        let mut conn = self.get_conn().await?;
-        let conn = conn.deref_mut();
-        conn.execute(sql.as_str(), &[]).await?;
-
+        self.execute_simple_execute(sql.as_str()).await?;
         anyhow::Ok(())
     }
 
     async fn list_procedure(&self) -> anyhow::Result<Vec<NamedStaff>> {
-        self.list_procedure_impl(
-            self.config.must_db().as_str(),
-            self.config.must_schema().as_str(),
-        )
-        .await
+        self.list_procedure_impl(self.config.schema_str()?.as_str())
+            .await
     }
 
     async fn show_procedure(
-        &self, name: &str, _arg: Option<UdfOrProcedureExtraParameter>,
+        &self,
+        name: &str,
+        _arg: Option<UdfOrProcedureExtraParameter>,
     ) -> anyhow::Result<ProcedureDetail> {
         let sql = format!(
             r#"
@@ -1212,38 +1201,52 @@ impl SchemaTrait for MsSqlServerDB {
                     return anyhow::Ok(ProcedureDetail::new(
                         def.unwrap_or_default().to_string(),
                         vec![
-                            MetaValue::new("create_date", create_date.unwrap_or_default()),
-                            MetaValue::new("modify_date", modify_date.unwrap_or_default()),
+                            MetaValue::new("create_date", create_date.map(|x| x.to_string())),
+                            MetaValue::new("modify_date", modify_date.map(|x| x.to_string())),
                         ],
                     ));
                 }
                 tiberius::QueryItem::Metadata(_) => {}
             }
         }
-        anyhow::bail!("query precedure contains no result.")
+        anyhow::bail!("query procedure failed, no result.")
     }
 
     async fn drop_procedure(
-        &self, name: &str, _arg: Option<UdfOrProcedureExtraParameter>,
+        &self,
+        name: &str,
+        _arg: Option<UdfOrProcedureExtraParameter>,
     ) -> anyhow::Result<()> {
         let sql = format!(r#"DROP PROCEDURE dbo."{name}""#);
         log::info!("sql:{}", sql);
-        let mut conn = self.get_conn().await?;
-        let conn = conn.deref_mut();
-        conn.execute(&sql, &[]).await?;
+        self.execute_simple_execute(&sql).await?;
         anyhow::Ok(())
     }
 }
+/// SQL Server 里可直接写在 SQL 语句中的 CURRENT_* / 无括号字面量
+pub const SQLSERVER_CURRENT_LITERALS: &[&str] = &[
+    "CURRENT_TIMESTAMP", //  2025-08-25 14:36:07.123
+    "CURRENT_DATE",      //  2025-08-25   （SQL Server 2022+ 支持）
+    "CURRENT_TIME",      //  14:36:07.123 （SQL Server 2022+ 支持）
+    "CURRENT_USER",      //  dbo
+];
+impl SqlBuilder for SqlServerDB {
+    fn get_schema(&self) -> Option<&str> {
+        self.config.schema.as_deref()
+    }
 
-impl SqlBuilder for MsSqlServerDB {
+    fn get_current_values(&self) -> &'static [&'static str] {
+        SQLSERVER_CURRENT_LITERALS
+    }
     /// format a value make it suitable for insert into sql.
     /// this method current use in `insert_sql` etc.
-    fn put_value_in_sql(
-        &self, typ: &str, _: Option<i64>, value: Option<&str>,
-    ) -> anyhow::Result<String> {
+    fn put_value_in_sql(&self, typ: &str, value: Option<&str>) -> anyhow::Result<String> {
+        if self.hit_current_value(value) {
+            return anyhow::Result::Ok(value.option_must_be_some()?.to_string());
+        }
         let default_value = value.map(|x| x.to_string()).unwrap_or("null".to_string());
         let single_quote = value
-            .map(|x| format!("'{}'", x))
+            .map(|x| format!("'{}'", escape_sql_str(x)))
             .unwrap_or("null".to_string());
         let v = match typ.to_uppercase().as_str() {
             "TINYINT" | "SMALLINT" | "INT" | "BIGINT" | "FLOAT" | "REAL" | "INT4" | "INT2"
@@ -1264,18 +1267,17 @@ impl SqlBuilder for MsSqlServerDB {
         log::trace!("type:{:?} encode '{:?}' as #{}#", typ, value, v);
         anyhow::Ok(v)
     }
-
-    fn type_support_compare(&self, typ: &str) -> bool {
-        type_support_compare(typ)
-    }
 }
 
-impl MsSqlServerDB {
+impl SqlServerDB {
     async fn query_count(
-        conn: &mut Connection, name: &str, where_str: Option<&str>,
+        conn: &mut Connection,
+        schema: &str,
+        name: &str,
+        where_str: Option<&str>,
     ) -> anyhow::Result<i32> {
         let sql = format!(
-            r#"SELECT count(*) from "{name}" {}"#,
+            r#"SELECT count(*) from "{schema}"."{name}" {}"#,
             match where_str {
                 Some(x) => format!("  where {} ", x),
                 None => "".to_string(),
@@ -1300,9 +1302,11 @@ impl MsSqlServerDB {
         anyhow::Ok(count.unwrap_or_default())
     }
 }
-impl MsSqlServerDB {
+impl SqlServerDB {
     async fn is_primary(
-        conn: &mut Connection, table_name: &str, col_name: &str,
+        conn: &mut Connection,
+        table_name: &str,
+        col_name: &str,
     ) -> anyhow::Result<bool> {
         let s = format!(
             r#"
@@ -1329,7 +1333,9 @@ impl MsSqlServerDB {
     }
 
     async fn is_auto_increment(
-        conn: &mut Connection, table_name: &str, col_name: &str,
+        conn: &mut Connection,
+        table_name: &str,
+        col_name: &str,
     ) -> anyhow::Result<bool> {
         let s = format!(
             r#"
@@ -1363,13 +1369,13 @@ struct ExtractValueAsJson {
 impl<'a> FromSql<'a> for ExtractValueAsJson {
     fn from_sql(value: &'a ColumnData<'static>) -> tiberius::Result<Option<Self>> {
         let value = match value {
-            tiberius::ColumnData::U8(x) => x.clone().map(serde_json::Value::from),
-            tiberius::ColumnData::I16(x) => x.clone().map(serde_json::Value::from),
-            tiberius::ColumnData::I32(x) => x.clone().map(serde_json::Value::from),
-            tiberius::ColumnData::I64(x) => x.clone().map(serde_json::Value::from),
-            tiberius::ColumnData::F32(x) => x.clone().map(serde_json::Value::from),
-            tiberius::ColumnData::F64(x) => x.clone().map(serde_json::Value::from),
-            tiberius::ColumnData::Bit(x) => x.clone().map(serde_json::Value::from),
+            tiberius::ColumnData::U8(x) => (*x).map(serde_json::Value::from),
+            tiberius::ColumnData::I16(x) => (*x).map(serde_json::Value::from),
+            tiberius::ColumnData::I32(x) => (*x).map(serde_json::Value::from),
+            tiberius::ColumnData::I64(x) => (*x).map(serde_json::Value::from),
+            tiberius::ColumnData::F32(x) => (*x).map(serde_json::Value::from),
+            tiberius::ColumnData::F64(x) => (*x).map(serde_json::Value::from),
+            tiberius::ColumnData::Bit(x) => (*x).map(serde_json::Value::from),
             tiberius::ColumnData::String(x) => x
                 .as_ref()
                 .map(|x| x.to_string())
@@ -1436,208 +1442,95 @@ fn encode_row_as_json(row: &Row) -> anyhow::Result<serde_json::Map<String, serde
     anyhow::Ok(values)
 }
 
-impl MsSqlServerDB {
+impl SqlServerDB {
     async fn export_table_as_sql(
-        &self, table_name: &str, include_table_schema: bool,
-        sender: tokio::sync::mpsc::Sender<Cow<'static, str>>,
+        &self,
+        table_name: &str,
+        para: Option<ShowTableParameter>,
+        include_table_schema: bool,
+        sender: tokio::sync::mpsc::Sender<ExportFrame>,
     ) -> anyhow::Result<()> {
         if include_table_schema {
-            let ss = SchemaTrait::create_table_and_index_sql(self, table_name).await?;
-            sender.send(Cow::Owned(ss.create_table.clone())).await?;
-            sender.send(";\n".into()).await?;
-            for index in ss.indexes.into_iter() {
-                sender.send(Cow::Owned(index)).await?;
-                sender.send(";\n".into()).await?;
-            }
+            // let ss = SchemaTrait::create_table_and_index_sql(self, table_name).await?;
+            // sender.send(ss.create_table.clone().into()).await?;
+            // sender.send(";\n".into()).await?;
+            // for index in ss.indexes.into_iter() {
+            //     sender.send(index.into()).await?;
+            //     sender.send(";\n".into()).await?;
+            // }
+
+            anyhow::bail!("sqlserver not suport export table schema");
         }
         let mut conn = self.get_conn().await?;
         let conn = conn.deref_mut();
         let cols = SchemaTrait::show_table_columns(self, table_name).await?;
-        let sql = format!("SELECT * from {}", table_name);
+        let sql = if let Some(para) = para {
+            let ShowTableParameter {
+                where_str,
+                order_by,
+                page,
+                page_size,
+                ..
+            } = &para;
+            gen_show_sql(
+                self.config.schema_str()?,
+                table_name,
+                Some(self.backend_name().format_fields(Some(&cols))),
+                where_str.as_deref(),
+                order_by.as_deref(),
+                *page,
+                *page_size,
+            )
+        } else {
+            format!(r#"SELECT * from "{}""#, table_name)
+        };
         log::info!("sql:{}", sql);
-        let mut stream = conn.query(sql.as_str(), &[]).await?.try_chunks(100);
-        while let Some(rows) = stream.next().await {
-            let rows = rows?;
-            let mut rows_row = Vec::with_capacity(rows.len());
-            for r in rows.into_iter() {
-                match r {
-                    tiberius::QueryItem::Row(x) => rows_row.push(x),
-                    tiberius::QueryItem::Metadata(_) => {}
-                }
-            }
-            let data = encode_rows(&rows_row)?;
-            for d in data.into_iter() {
-                let mut m = HashMap::new();
-                for (d, f) in d.into_iter().zip(cols.iter()) {
-                    m.insert(f.field.clone(), d);
-                }
-
-                let insert_sql = self.insert_sql(
-                    self.config.schema.as_ref().map(|x| x.as_str()),
-                    table_name,
-                    &cols,
-                    &m,
-                )?;
-                sender.send(Cow::Owned(insert_sql)).await?;
-                sender.send(";\n".into()).await?;
-            }
-        }
-        anyhow::Ok(())
-    }
-
-    async fn export_query_result_as_json_line(
-        &self, sql: &str, sender: tokio::sync::mpsc::Sender<Cow<'static, str>>,
-    ) -> anyhow::Result<()> {
-        let mut conn = self.get_conn().await?;
-        let conn = conn.deref_mut();
-
-        let mut stream = conn.query(sql, &[]).await?;
-
+        let mut stream = conn.query(sql.as_str(), &[]).await?;
         while let Some(row) = stream.next().await {
             let row = row?;
-            let row = match row {
-                tiberius::QueryItem::Row(r) => r,
-                tiberius::QueryItem::Metadata(_) => {
-                    continue;
-                }
-            };
-            let value = encode_row_as_json(&row)?;
-            sender
-                .send(Cow::Owned(serde_json::to_string(&value)?))
-                .await?;
-
-            sender.send("\n".into()).await?;
-        }
-
-        anyhow::Ok(())
-    }
-
-    async fn export_table_as_json_line(
-        &self, table_name: &str, sender: tokio::sync::mpsc::Sender<Cow<'static, str>>,
-    ) -> anyhow::Result<()> {
-        let sql = format!("SELECT * from {}", table_name);
-        log::info!("sql:{}", sql);
-        self.export_query_result_as_json_line(&sql, sender).await
-    }
-
-    async fn export_query_result_as_json(
-        &self, sql: &str, pretty: bool, sender: tokio::sync::mpsc::Sender<Cow<'static, str>>,
-    ) -> anyhow::Result<()> {
-        let mut conn = self.get_conn().await?;
-        let conn = conn.deref_mut();
-
-        let mut stream = conn.query(sql, &[]).await?;
-
-        sender.send("[".into()).await?;
-        let mut first = true;
-        while let Some(row) = stream.next().await {
-            let row = row?;
-            let row = match row {
-                tiberius::QueryItem::Row(r) => r,
-                tiberius::QueryItem::Metadata(_) => {
-                    continue;
-                }
-            };
-            let value = encode_row_as_json(&row)?;
-            if !first {
-                sender.send(",".into()).await?;
-            }
-            if pretty {
-                sender.send("\n".into()).await?;
-            }
-            sender
-                .send(Cow::Owned(if pretty {
-                    serde_json::to_string_pretty(&value)?
-                } else {
-                    serde_json::to_string(&value)?
-                }))
-                .await?;
-            first = false;
-        }
-        if pretty {
-            sender.send("\n".into()).await?;
-        }
-        sender.send("]".into()).await?;
-        anyhow::Ok(())
-    }
-
-    async fn export_table_as_json(
-        &self, table_name: &str, pretty: bool, sender: tokio::sync::mpsc::Sender<Cow<'static, str>>,
-    ) -> anyhow::Result<()> {
-        let sql = format!("SELECT * from {}", table_name);
-        log::info!("sql:{}", sql);
-        self.export_query_result_as_json(&sql, pretty, sender).await
-    }
-
-    async fn export_query_result_as_csv(
-        &self, sql: &str, include_header: bool, delimiter: char,
-        sender: tokio::sync::mpsc::Sender<Cow<'static, str>>,
-    ) -> anyhow::Result<()> {
-        let mut conn = self.get_conn().await?;
-        let conn = conn.deref_mut();
-        let mut first = true;
-
-        let mut stream = conn.query(sql, &[]).await?.try_chunks(100);
-        while let Some(rows) = stream.next().await {
-            let rows = rows?;
-
-            let mut rows_row = Vec::new();
-            for r in rows.into_iter() {
-                match r {
-                    tiberius::QueryItem::Row(r) => {
-                        rows_row.push(r);
+            match row {
+                tiberius::QueryItem::Row(row) => {
+                    let data = encode_row(&row)?;
+                    let mut m = HashMap::new();
+                    for (d, f) in data.into_iter().zip(cols.iter()) {
+                        m.insert(f.field.clone(), d);
                     }
-                    tiberius::QueryItem::Metadata(meta) => {
-                        if first && include_header {
-                            let fs = meta
-                                .columns()
-                                .iter()
-                                .map(|x| x.name().to_string())
-                                .map(Some)
-                                .collect::<Vec<_>>();
-                            sender
-                                .send(Cow::Owned(create_csv(&vec![fs], delimiter)))
-                                .await?;
-                            first = false
-                        }
-                    }
+                    let insert_sql = self.insert_sql(table_name, &cols, &m)?;
+                    sender.send(insert_sql.into()).await?;
+                    sender.send(";\n".into()).await?;
                 }
-            }
-
-            if rows_row.len() > 0 {
-                let s = create_csv(&encode_rows(&rows_row)?, delimiter);
-                sender.send(Cow::Owned(s)).await?;
+                tiberius::QueryItem::Metadata(..) => {}
             }
         }
-
         anyhow::Ok(())
     }
 
-    async fn export_table_as_csv(
-        &self, table_name: &str, include_header: bool, delimiter: char,
-        sender: tokio::sync::mpsc::Sender<Cow<'static, str>>,
-    ) -> anyhow::Result<()> {
-        let sql = format!("SELECT * from {}", table_name);
-        log::info!("sql:{}", sql);
-        self.export_query_result_as_csv(&sql, include_header, delimiter, sender)
-            .await
+    async fn get_conn_by_query_id(
+        &self,
+        query_id: Option<&str>,
+    ) -> anyhow::Result<Arc<Mutex<Connection>>> {
+        match query_id {
+            Some(query_id) => match self.query_connection.get(&query_id.to_string()) {
+                Some(x) => anyhow::Ok(x.clone()),
+                None => anyhow::bail!("query_id not found"),
+            },
+            None => {
+                let r = self.new_tcp_conn().await?;
+                anyhow::Ok(Arc::new(Mutex::new(r)))
+            }
+        }
     }
 }
 
-impl MsSqlServerDB {
+impl SqlServerDB {
     /// this fn create a `Connection` only use for query connection
-    /// because `query_connections` use in `SqlServer`,
+    /// because `query_connection` use in `SqlServer`,
     /// we can't create self reference struct in rust.
     async fn new_tcp_conn(&self) -> anyhow::Result<Connection> {
-        let config = make_config(&self.config);
+        let config = make_config(&self.config)?;
         let tcp = TcpStream::connect(config.get_addr()).await?;
         tcp.set_nodelay(true)?;
-
         let client = tiberius::Client::connect(config, tcp.compat_write()).await?;
-        // if let Some(s) = self.config.schema.as_ref() {
-        //     set_current_schema(&mut client, s).await?;
-        // }
-
         anyhow::Ok(client)
     }
 }
@@ -1645,43 +1538,122 @@ impl MsSqlServerDB {
 type Connection = Client<Compat<TcpStream>>;
 
 #[async_trait::async_trait]
-impl ExportQueryResult for MsSqlServerDB {
+impl ExportQueryResult for SqlServerDB {
     fn clone(&self) -> Box<dyn ExportQueryResult> {
-        Box::new(Clone::clone(self))
+        Box::new(Clone::clone(self)) as Box<dyn ExportQueryResult>
     }
 
     async fn export_query_result(
-        &self, sql: &str, kind: ExportKind, sender: tokio::sync::mpsc::Sender<Cow<'static, str>>,
+        &self,
+        query_id: Option<&str>,
+        sql: &str,
+        kind: ExportKind,
+        sender: tokio::sync::mpsc::Sender<ExportFrame>,
     ) -> anyhow::Result<()> {
-        match kind {
-            ExportKind::CSV {
-                include_header,
-                delimiter,
-            } => {
-                self.export_query_result_as_csv(sql, include_header, delimiter, sender)
-                    .await
+        let conn = self.get_conn_by_query_id(query_id).await?;
+        let mut conn = conn.lock().await;
+        let conn = conn.deref_mut();
+        let mut first = true;
+        let mut stream = conn.query(sql, &[]).await?;
+        let mut row_num = 0;
+        while let Some(rows) = stream.next().await {
+            let row = rows?;
+            match row {
+                tiberius::QueryItem::Row(row) => match kind {
+                    ExportKind::Csv { delimiter, .. } => {
+                        let s = create_csv(&encode_row(&row)?, delimiter);
+                        sender.send(s?.into()).await?;
+                    }
+                    ExportKind::Json { .. } | ExportKind::JsonLine => {
+                        let value = encode_row_as_json(&row)?;
+                        sender.send(value.into()).await?;
+                    }
+                    ExportKind::Sql { .. } => anyhow::bail!("can't export query result to sql"),
+                    ExportKind::Xlsx { .. } => {
+                        let d = encode_row(&row)?;
+                        export_query_as_xlsx_send_data(&mut row_num, d, sender.clone()).await?;
+                    }
+                    ExportKind::Html { .. } => {
+                        let s = create_html_table_data(&[encode_row(&row)?]);
+                        sender.send(s.into()).await?;
+                    }
+                    ExportKind::MarkDown => {
+                        let s = create_markdown_data(&encode_row(&row)?);
+                        sender.send(s.into()).await?;
+                    }
+                },
+                tiberius::QueryItem::Metadata(meta) => match kind {
+                    ExportKind::Csv {
+                        include_header,
+                        delimiter,
+                    } => {
+                        if first && include_header {
+                            first = false;
+                            let fs = meta
+                                .columns()
+                                .iter()
+                                .map(|x| x.name().to_string())
+                                .map(Some)
+                                .collect::<Vec<_>>();
+                            sender.send(create_csv(&fs, delimiter)?.into()).await?;
+                        }
+                    }
+                    ExportKind::Json { .. } | ExportKind::JsonLine => {}
+                    ExportKind::Sql { .. } => {
+                        anyhow::bail!("can't export query result to sql")
+                    }
+                    ExportKind::Xlsx { include_header } => {
+                        if first && include_header {
+                            first = false;
+                            for (index, col) in meta.columns().iter().enumerate() {
+                                sender
+                                    .send(
+                                        XlsxEdit {
+                                            row: row_num,
+                                            column: index as rust_xlsxwriter::ColNum,
+                                            content: col.name().to_owned(),
+                                        }
+                                        .into(),
+                                    )
+                                    .await?;
+                            }
+                        }
+                    }
+                    ExportKind::Html { include_header } => {
+                        if first && include_header {
+                            first = false;
+                            let fs = meta
+                                .columns()
+                                .iter()
+                                .map(|x| x.name().to_string())
+                                .collect::<Vec<_>>();
+                            sender.send(create_html_table_header(&fs).into()).await?;
+                        }
+                    }
+                    ExportKind::MarkDown => {
+                        if first {
+                            first = false;
+                            let fs = meta
+                                .columns()
+                                .iter()
+                                .map(|x| x.name().to_string())
+                                .collect::<Vec<_>>();
+                            sender.send(create_markdown_header(&fs).into()).await?;
+                        }
+                    }
+                },
             }
-            ExportKind::Json { pretty } => {
-                self.export_query_result_as_json(sql, pretty, sender).await
-            }
-            ExportKind::JsonLine => self.export_query_result_as_json_line(sql, sender).await,
-            ExportKind::Sql {
-                include_table_schema: _,
-            } => ExportKind::cannot_query_result_export_as_sql(),
         }
+        anyhow::Ok(())
     }
 }
 
 #[async_trait::async_trait]
-impl QuerySql for MsSqlServerDB {
-    fn tx_execute_counts(&self, query_id: uuid::Uuid) -> anyhow::Result<usize> {
-        anyhow::Ok(self.tx_execute_times.get(query_id))
-    }
-
-    async fn get_auto_commit(&self, query_id: uuid::Uuid) -> anyhow::Result<bool> {
-        let conn = match self.query_connections.get(&query_id) {
+impl QuerySql for SqlServerDB {
+    async fn get_auto_commit(&self, query_id: &str) -> anyhow::Result<bool> {
+        let conn = match self.query_connection.get(&query_id.to_string()) {
             Some(x) => x.clone(),
-            None => anyhow::bail!(format!("id connection '{}' not opened", query_id)),
+            None => anyhow::bail!(format!("id connection '{}' not found", query_id)),
         };
         let mut conn = conn.lock().await;
         let conn = conn.deref_mut();
@@ -1704,13 +1676,13 @@ impl QuerySql for MsSqlServerDB {
         anyhow::Ok(true)
     }
 
-    async fn set_auto_commit(&self, query_id: uuid::Uuid, commit: bool) -> anyhow::Result<()> {
+    async fn set_auto_commit(&self, query_id: &str, commit: bool) -> anyhow::Result<()> {
         if commit {
             anyhow::bail!("mssql use commit or rollback to end transaction");
         }
-        let conn = match self.query_connections.get(&query_id) {
+        let conn = match self.query_connection.get(&query_id.to_string()) {
             Some(x) => x.clone(),
-            None => anyhow::bail!(format!("id connection '{}' not opened", query_id)),
+            None => anyhow::bail!(format!("id connection '{}' not found", query_id)),
         };
         let mut conn = conn.lock().await;
         let conn = conn.deref_mut();
@@ -1718,142 +1690,105 @@ impl QuerySql for MsSqlServerDB {
         anyhow::Ok(())
     }
 
-    async fn commit(&self, query_id: uuid::Uuid) -> anyhow::Result<()> {
-        let conn = match self.query_connections.get(&query_id) {
+    async fn commit(&self, query_id: &str) -> anyhow::Result<()> {
+        let conn = match self.query_connection.get(&query_id.to_string()) {
             Some(x) => x.clone(),
-            None => anyhow::bail!(format!("id connection '{}' not opened", query_id)),
+            None => anyhow::bail!(format!("id connection '{}' not found", query_id)),
         };
         let mut conn = conn.lock().await;
         let conn = conn.deref_mut();
         conn.simple_query("COMMIT TRANSACTION;").await?;
-        self.tx_execute_times.reset(query_id);
+
         anyhow::Ok(())
     }
 
-    async fn rollback(&self, query_id: uuid::Uuid) -> anyhow::Result<()> {
-        let conn = match self.query_connections.get(&query_id) {
+    async fn rollback(&self, query_id: &str) -> anyhow::Result<()> {
+        let conn = match self.query_connection.get(&query_id.to_string()) {
             Some(x) => x.clone(),
-            None => anyhow::bail!(format!("id connection '{}' not opened", query_id)),
+            None => anyhow::bail!(format!("id connection '{}' not found", query_id)),
         };
         let mut conn = conn.lock().await;
         let conn = conn.deref_mut();
         conn.simple_query("ROLLBACK TRANSACTION;").await?;
-        self.tx_execute_times.reset(query_id);
+
         anyhow::Ok(())
     }
 
-    fn get_query_log(&self, id: uuid::Uuid) -> anyhow::Result<Vec<QueryLogEvent>> {
-        anyhow::Ok(self.query_logs.get(&id))
-    }
-
-    fn is_dangerous_sql(&self, sql: &str) -> anyhow::Result<bool> {
-        is_dangerous_sql_by_parser(sql, &sqlparser::dialect::GenericDialect {})
-    }
-
-    async fn open_connection(&self) -> anyhow::Result<uuid::Uuid> {
+    async fn open_connection(&self, id: &str) -> anyhow::Result<()> {
         let conn = self.new_tcp_conn().await?;
-
-        let id = uuid::Uuid::new_v4();
-        self.query_connections
-            .insert(id.clone(), Arc::new(Mutex::new(conn)));
-        anyhow::Ok(id)
-    }
-
-    async fn re_connect(&self, id: uuid::Uuid) -> anyhow::Result<()> {
-        let conn = self.new_tcp_conn().await?;
-        self.query_connections
-            .insert(id.clone(), Arc::new(Mutex::new(conn)));
-        self.tx_execute_times.reset(id);
+        self.query_connection
+            .insert(id.to_owned(), Arc::new(Mutex::new(conn)));
         anyhow::Ok(())
     }
 
-    async fn close_connection(&self, id: uuid::Uuid) -> anyhow::Result<()> {
-        self.query_logs.remove(&id);
-        self.query_connections.remove(&id);
-        self.tx_execute_times.reset(id);
+    async fn close_connection(&self, id: &str) -> anyhow::Result<()> {
+        self.query_connection.remove(&id.to_string());
+
         anyhow::Ok(())
+    }
+    async fn execute_sql_no_open_conn(&self, sql: &str) -> anyhow::Result<Option<usize>> {
+        let mut conn = self.get_conn().await?;
+        conn.simple_query(sql.trim()).await?;
+        anyhow::Ok(None)
     }
 
     async fn execute_sql(
-        &self, query_id: uuid::Uuid, sql: &str,
+        &self,
+        query_id: &str,
+        sql: &str,
     ) -> anyhow::Result<Result<QueryResp, String>> {
-        if !self.get_auto_commit(query_id).await? {
-            self.tx_execute_times.inc(query_id);
-        }
-        let mut query_log = self.query_logs.get_guard(query_id, sql);
-        let conn = match self.query_connections.get(&query_id) {
+        let conn = match self.query_connection.get(&query_id.to_string()) {
             Some(x) => x.clone(),
-            None => anyhow::bail!(format!("id connection '{}' not opened", query_id)),
+            None => anyhow::bail!(format!("id connection '{}' not found", query_id)),
         };
         let mut conn = conn.lock().await;
         let conn = conn.deref_mut();
 
-        let ret = match conn.execute(sql, &[]).await {
-            Ok(x) => Ok(QueryResp::row_affected(x.total(), sql.to_owned())),
+        let ret = match conn.simple_query(sql.trim()).await {
+            Ok(..) => Ok(QueryResp::execute_ok(sql.to_owned())),
             Err(err) => Err(err.to_string()),
         };
-        query_log.set_success(ret.is_ok());
         anyhow::Ok(ret)
     }
 
     async fn query_sql(
-        &self, query_id: uuid::Uuid, sql: &str,
-    ) -> anyhow::Result<Vec<Result<QueryResp, String>>> {
-        if !self.get_auto_commit(query_id).await? {
-            self.tx_execute_times.inc(query_id);
-        }
-        let mut query_log = self.query_logs.get_guard(query_id, sql);
-        let conn = match self.query_connections.get(&query_id) {
+        &self,
+        query_id: &str,
+        sql: &str,
+        emit: QueryEventEmitter,
+    ) -> anyhow::Result<()> {
+        let conn = match self.query_connection.get(&query_id.to_string()) {
             Some(x) => x.clone(),
-            None => anyhow::bail!(format!("id connection '{}' not opened", query_id)),
+            None => anyhow::bail!(format!("id connection '{}' not found", query_id)),
         };
         let mut conn = conn.lock().await;
         let conn = conn.deref_mut();
-
-        let mut ret = Vec::with_capacity(0);
-
         let mut stream = conn.simple_query(sql).await?;
-        let mut meta_prev = None;
-        let mut rows = Vec::new();
-        let mut ml = MemoryLimit::new();
-
         while let Some(item) = stream.next().await {
             let item = match item {
                 Ok(item) => item,
                 Err(err) => {
-                    ret.push(Err(err.to_string()));
+                    emit.send(QueryEvent::Err(err.to_string()))?;
                     continue;
                 }
             };
-            ml.exceed_error()?;
             match item {
-                tiberius::QueryItem::Row(row) => rows.push(row),
+                tiberius::QueryItem::Row(row) => {
+                    emit.send(encode_row(&row)?.into())?;
+                }
                 tiberius::QueryItem::Metadata(meta) => {
-                    if meta_prev.is_some() {
-                        let table_list = make_table_list_from_meta_and_row(
-                            meta_prev.as_ref().unwrap(),
-                            &rows,
-                            rows.len(),
-                            "".to_string(),
-                        )?;
-                        ret.push(Ok(table_list));
-                        rows = vec![];
-                    }
-                    meta_prev = Some(meta);
+                    let f = get_fields_from_meta(&meta);
+                    emit.send(
+                        QueryResp {
+                            fields: f,
+                            ..Default::default()
+                        }
+                        .into(),
+                    )?;
                 }
             }
         }
-        if meta_prev.is_some() {
-            let table_list = make_table_list_from_meta_and_row(
-                meta_prev.as_ref().unwrap(),
-                &rows,
-                rows.len(),
-                "",
-            )?;
-            ret.push(Ok(table_list));
-        }
-        query_log.set_success(ret.iter().all(|x| x.is_ok()));
-        anyhow::Ok(ret)
+        anyhow::Ok(())
     }
 }
 
@@ -1867,71 +1802,54 @@ async fn set_current_schema(conn: &mut Connection, schema: &str) -> anyhow::Resu
     let sql = format!("SET CURRENT_SCHEMA = '{schema}'");
     log::info!("sql:{}", sql);
 
-    conn.simple_query(sql.as_str()).await.unwrap();
+    conn.simple_query(sql.as_str()).await?;
     anyhow::Ok(())
 }
 
-impl MsSqlServerDB {
-    pub(crate) async fn get_conn<'a>(
-        &'a self,
-    ) -> anyhow::Result<bb8::PooledConnection<'a, bb8_tiberius::ConnectionManager>> {
-        let conn =
-            tokio::time::timeout(Duration::from_secs(5), async { self.pool.get().await }).await??;
-
+impl SqlServerDB {
+    pub(crate) async fn get_conn(
+        &self,
+    ) -> anyhow::Result<bb8::PooledConnection<'static, bb8_tiberius::ConnectionManager>> {
+        let conn = tokio::time::timeout(Duration::from_secs(5), async {
+            self.pool.get_owned().await
+        })
+        .await??;
         anyhow::Ok(conn)
     }
-
-    #[allow(unused)]
-    async fn with_conn<R>(
-        &self,
-        call_back: impl FnOnce(&mut Client<Compat<TcpStream>>) -> BoxFuture<anyhow::Result<R>>,
-    ) -> anyhow::Result<R> {
-        let mut conn = self.get_conn().await?;
-        let conn = conn.deref_mut();
-        call_back(conn).await
-    }
-}
-
-#[allow(dead_code)]
-fn get_sql_seq(sql: &str) -> anyhow::Result<Vec<SqlWithKind>> {
-    let dialect = sqlparser::dialect::MsSqlDialect {};
-
-    sql_to_sql_seq(
-        sql,
-        &dialect,
-        |s| SqlKind::get_from_statement(s),
-        |x| SqlKind::get_from_sql(x),
-    )
 }
 
 #[async_trait::async_trait]
-impl crate::db::DBTrait for MsSqlServerDB {
+impl crate::db::DBTrait for SqlServerDB {
     fn as_any(&self) -> &dyn std::any::Any {
         self
     }
 
     async fn list_schema(&self) -> anyhow::Result<Vec<String>> {
-        anyhow::Ok(vec!["dbo".to_string()])
+        anyhow::Ok(vec![
+            Self::DBO_SCHEMA.to_string(),
+            // Self::INFORMATION_SCHEMA_SCHEMA.to_string(),
+            // Self::SYS_SCHEMA.to_string(),
+        ])
     }
 
     async fn open_schema(&self, name: &str) -> anyhow::Result<Arc<dyn SchemaTrait>> {
         let mut x = Clone::clone(self);
         x.config.schema = Some(name.to_owned());
-        x.query_connections = Default::default();
+        x.query_connection = Default::default();
         Ok(Arc::new(x))
     }
 
     async fn create_schema(&self, _name: &str, _: Option<CreateSchemaExtra>) -> anyhow::Result<()> {
-        not_support_features(self.backend_name())
+        self.backend_name().not_support_feature()
     }
 
     async fn drop_schema(&self, _name: &str) -> anyhow::Result<()> {
-        not_support_features(self.backend_name())
+        self.backend_name().not_support_feature()
     }
 }
 
 #[async_trait::async_trait]
-impl CatalogTrait for MsSqlServerDB {
+impl CatalogTrait for SqlServerDB {
     async fn list_database(&self) -> anyhow::Result<Vec<String>> {
         let mut conn = self.get_conn().await?;
         let mut stream = conn
@@ -1966,7 +1884,9 @@ impl CatalogTrait for MsSqlServerDB {
     }
 
     async fn create_database(
-        &self, name: &str, _extra: Option<CreateDatabaseExtra>,
+        &self,
+        name: &str,
+        _extra: Option<CreateDatabaseExtra>,
     ) -> anyhow::Result<()> {
         self.can_write()?;
         let sql = format!("CREATE DATABASE {name}");
@@ -1988,53 +1908,366 @@ impl CatalogTrait for MsSqlServerDB {
 
 #[allow(dead_code)]
 #[cfg(test)]
-pub(crate) async fn make_test_object() -> MsSqlServerDB {
-    let ss = MsSqlServerDB::new(SqlServerDBConfig {
+pub(crate) async fn make_test_object() -> SqlServerDB {
+    let ss = SqlServerDB::new(SqlServerDBConfig {
         host: TEST_HOST.to_string(),
+        conn_timeout: Some(5000.into()),
         port: 1433,
         username: Some("sa".to_string()),
         password: Some("sfdewRE123".to_string()),
         db: Some("test".to_string()),
         trust_cert: true,
-        schema: Some(MsSqlServerDB::ONLY_SCHEMA.to_string()),
+        schema: Some(SqlServerDB::DBO_SCHEMA.to_string()),
         read_only: false,
-        save_password: true,
+
+        cert_ca: None,
     })
     .await
     .unwrap();
     ss
 }
-impl ReadOnlyTrait for MsSqlServerDB {
+impl ReadOnlyTrait for SqlServerDB {
     fn read_only(&self) -> bool {
         self.config.read_only
     }
 }
 
+// when I test via `cargo test`
+// sometimes I have this error
+// ERROR - Transaction (Process ID 76) was deadlocked on lock resources with
+// another process and has been chosen as the deadlock victim. Rerun the
+// transaction. code=1205 maybe I need mutex to run one test a time.
+#[cfg(test)]
+pub(crate) fn test_lock() -> &'static Mutex<()> {
+    static MUTEX: Mutex<()> = Mutex::const_new(());
+    &MUTEX
+}
+/// SQL Server `sys` 架构下所有目录视图 / 表的固定名称（完整列表）
+pub const SYS_OBJECTS: &[&str] = &[
+    "all_columns",
+    "all_objects",
+    "all_parameters",
+    "all_sql_modules",
+    "all_views",
+    "allocation_units",
+    "assemblies",
+    "assembly_files",
+    "assembly_modules",
+    "assembly_references",
+    "asymmetric_keys",
+    "availability_databases_cluster",
+    "availability_group_listener_ip_addresses",
+    "availability_group_listeners",
+    "availability_groups",
+    "availability_groups_cluster",
+    "availability_read_only_routing_lists",
+    "availability_replicas",
+    "backup_devices",
+    "certificates",
+    "change_tracking_databases",
+    "change_tracking_tables",
+    "check_constraints",
+    "column_encryption_key_values",
+    "column_encryption_keys",
+    "column_master_keys",
+    "column_store_dictionaries",
+    "column_store_row_groups",
+    "column_store_segments",
+    "column_type_usages",
+    "column_xml_schema_collection_usages",
+    "columns",
+    "computed_columns",
+    "configurations",
+    "conversation_endpoints",
+    "conversation_groups",
+    "conversation_priorities",
+    "crypt_properties",
+    "cryptographic_providers",
+    "data_spaces",
+    "database_audit_specification_details",
+    "database_audit_specifications",
+    "database_files",
+    "database_filestream_options",
+    "database_mirroring",
+    "database_mirroring_endpoints",
+    "database_mirroring_witnesses",
+    "database_principals",
+    "database_recovery_status",
+    "database_role_members",
+    "databases",
+    "default_constraints",
+    "destination_data_spaces",
+    "dm_audit_actions",
+    "dm_audit_class_type_map",
+    "dm_broker_activated_tasks",
+    "dm_broker_connections",
+    "dm_broker_forwarded_messages",
+    "dm_broker_queue_monitors",
+    "dm_clr_appdomains",
+    "dm_clr_loaded_assemblies",
+    "dm_clr_properties",
+    "dm_clr_tasks",
+    "dm_cdc_errors",
+    "dm_cdc_log_scan_sessions",
+    "dm_cdc_errors",
+    "dm_db_file_space_usage",
+    "dm_db_log_space_usage",
+    "dm_db_partition_stats",
+    "dm_db_session_space_usage",
+    "dm_db_task_space_usage",
+    "dm_exec_background_job_queue",
+    "dm_exec_background_job_queue_stats",
+    "dm_exec_cached_plans",
+    "dm_exec_connections",
+    "dm_exec_procedure_stats",
+    "dm_exec_query_memory_grants",
+    "dm_exec_query_optimizer_info",
+    "dm_exec_query_stats",
+    "dm_exec_requests",
+    "dm_exec_sessions",
+    "dm_exec_sql_text",
+    "dm_exec_text_query_plan",
+    "dm_exec_trigger_stats",
+    "dm_filestream_file_io_handles",
+    "dm_filestream_file_io_requests",
+    "dm_fts_active_catalogs",
+    "dm_fts_fdhosts",
+    "dm_fts_index_keywords",
+    "dm_fts_index_keywords_by_document",
+    "dm_fts_index_population",
+    "dm_fts_memory_buffers",
+    "dm_fts_memory_pools",
+    "dm_fts_outstanding_batches",
+    "dm_fts_population_ranges",
+    "dm_io_backup_tapes",
+    "dm_io_cluster_shared_drives",
+    "dm_io_pending_io_requests",
+    "dm_os_buffer_descriptors",
+    "dm_os_child_instances",
+    "dm_os_cluster_nodes",
+    "dm_os_dispatcher_pools",
+    "dm_os_hosts",
+    "dm_os_latch_stats",
+    "dm_os_loaded_modules",
+    "dm_os_memory_allocations",
+    "dm_os_memory_brokers",
+    "dm_os_memory_cache_clock_hands",
+    "dm_os_memory_cache_counters",
+    "dm_os_memory_cache_entries",
+    "dm_os_memory_cache_hash_tables",
+    "dm_os_memory_clerks",
+    "dm_os_memory_nodes",
+    "dm_os_memory_objects",
+    "dm_os_memory_pools",
+    "dm_os_nodes",
+    "dm_os_performance_counters",
+    "dm_os_process_memory",
+    "dm_os_schedulers",
+    "dm_os_stacks",
+    "dm_os_sys_info",
+    "dm_os_sys_memory",
+    "dm_os_tasks",
+    "dm_os_virtual_address_dump",
+    "dm_os_wait_stats",
+    "dm_os_waiting_tasks",
+    "dm_os_windows_info",
+    "dm_qn_subscriptions",
+    "dm_repl_articles",
+    "dm_repl_schemas",
+    "dm_repl_tranhash",
+    "dm_repl_traninfo",
+    "dm_resource_governor_configuration",
+    "dm_resource_governor_resource_pools",
+    "dm_resource_governor_workload_groups",
+    "dm_server_audit_status",
+    "dm_server_registry",
+    "dm_server_services",
+    "dm_tran_active_snapshot_database_transactions",
+    "dm_tran_active_transactions",
+    "dm_tran_commit_table",
+    "dm_tran_current_snapshot",
+    "dm_tran_current_transaction",
+    "dm_tran_database_transactions",
+    "dm_tran_locks",
+    "dm_tran_session_transactions",
+    "dm_tran_top_version_generators",
+    "dm_tran_transactions_snapshot",
+    "dm_tran_version_store",
+    "dm_xe_map_values",
+    "dm_xe_object_columns",
+    "dm_xe_objects",
+    "dm_xe_packages",
+    "dm_xe_session_events",
+    "dm_xe_session_object_columns",
+    "dm_xe_session_targets",
+    "dm_xe_sessions",
+    "endpoints",
+    "event_notification_event_types",
+    "event_notifications",
+    "events",
+    "extended_procedures",
+    "extended_properties",
+    "filegroups",
+    "filetable_system_defined_objects",
+    "foreign_key_columns",
+    "foreign_keys",
+    "fulltext_catalogs",
+    "fulltext_index_catalog_usages",
+    "fulltext_index_columns",
+    "fulltext_indexes",
+    "fulltext_languages",
+    "fulltext_stoplists",
+    "fulltext_stopwords",
+    "function_order_columns",
+    "geography_columns",
+    "geometry_columns",
+    "hobt_tuples",
+    "http_endpoints",
+    "identity_columns",
+    "index_columns",
+    "indexes",
+    "internal_tables",
+    "key_constraints",
+    "key_encryptions",
+    "linked_logins",
+    "linked_servers",
+    "login_token",
+    "master_files",
+    "master_key_passwords",
+    "message_type_xml_schema_collection_usages",
+    "messages",
+    "module_assembly_usages",
+    "numbered_procedures",
+    "objects",
+    "parameter_type_usages",
+    "parameter_xml_schema_collection_usages",
+    "parameters",
+    "partition_functions",
+    "partition_parameters",
+    "partition_range_values",
+    "partition_schemes",
+    "partitions",
+    "plan_guides",
+    "procedures",
+    "queue_messages_1977058079",
+    "queue_messages_2009058193",
+    "queue_messages_2041058307",
+    "remote_logins",
+    "remote_service_bindings",
+    "resource_governor_configuration",
+    "resource_governor_resource_pools",
+    "resource_governor_workload_groups",
+    "routes",
+    "schemas",
+    "securable_classes",
+    "server_audits",
+    "server_event_notifications",
+    "server_event_sessions",
+    "server_permissions",
+    "server_principals",
+    "server_role_members",
+    "service_broker_endpoints",
+    "service_contract_message_usages",
+    "service_contract_usages",
+    "service_contracts",
+    "service_message_types",
+    "service_queue_usages",
+    "service_queues",
+    "services",
+    "spatial_index_tessellations",
+    "spatial_indexes",
+    "spatial_reference_systems",
+    "sql_dependencies",
+    "sql_expression_dependencies",
+    "sql_modules",
+    "stats",
+    "stats_columns",
+    "symmetric_keys",
+    "synonyms",
+    "syslanguages",
+    "table_types",
+    "tables",
+    "tcp_endpoints",
+    "trace_categories",
+    "trace_columns",
+    "trace_event_bindings",
+    "trace_events",
+    "trace_subclass_values",
+    "traces",
+    "transmission_queue",
+    "trigger_events",
+    "triggers",
+    "type_assembly_usages",
+    "types",
+    "user_token",
+    "via_endpoints",
+    "views",
+    "xml_indexes",
+    "xml_schema_attributes",
+    "xml_schema_collections",
+    "xml_schema_component_placements",
+    "xml_schema_components",
+    "xml_schema_elements",
+    "xml_schema_facets",
+    "xml_schema_model_groups",
+    "xml_schema_namespaces",
+    "xml_schema_types",
+    "xml_schema_wildcards",
+    "xml_schema_wildcard_namespaces",
+];
+/// SQL Server INFORMATION_SCHEMA 全部系统视图
+pub const INFORMATION_SCHEMA_VIEWS: &[&str] = &[
+    "CHECK_CONSTRAINTS",
+    "COLUMN_DOMAIN_USAGE",
+    "COLUMN_PRIVILEGES",
+    "COLUMNS",
+    "CONSTRAINT_COLUMN_USAGE",
+    "CONSTRAINT_TABLE_USAGE",
+    "DOMAIN_CONSTRAINTS",
+    "DOMAINS",
+    "KEY_COLUMN_USAGE",
+    "PARAMETERS",
+    "REFERENTIAL_CONSTRAINTS",
+    "ROUTINES",
+    "ROUTINE_COLUMNS",
+    "SCHEMATA",
+    "TABLE_CONSTRAINTS",
+    "TABLE_PRIVILEGES",
+    "TABLES",
+    "VIEW_COLUMN_USAGE",
+    "VIEW_TABLE_USAGE",
+    "VIEWS",
+];
+
 #[cfg(test)]
 mod tests {
 
     use super::*;
-    use crate::db::CatalogTrait;
+    use crate::db::{
+        CatalogTrait, CreateIndexColumn, CreateTableReq, CreateTableReqColumn, ShowTableParameter,
+        SqlNullAble, TestQueryEventEmit,
+    };
     use crate::enable_test_log;
 
     #[tokio::test]
     async fn test_procedure() {
         let _guard = test_lock().lock().await;
         let db = make_test_object().await;
-        let query_id = db.open_connection().await.unwrap();
+        let query_id = "";
+        db.open_connection(query_id).await.unwrap();
         let _ = db.drop_procedure("test_procedure", None).await;
-        db.query_sql(
+        db.execute_sql(
             query_id,
             r#"
-            CREATE PROCEDURE dbo.test_procedure
-                
-            AS
-            BEGIN
-                SELECT 1
-            END;
+CREATE PROCEDURE dbo.test_procedure
+AS
+BEGIN
+    SELECT 1;
+END;
         "#,
         )
         .await
+        .unwrap()
         .unwrap();
         let list = db.list_procedure().await.unwrap();
         for l in list.iter() {
@@ -2047,9 +2280,10 @@ mod tests {
     async fn test_udf() {
         let _guard = test_lock().lock().await;
         let db = make_test_object().await;
-        let query_id = db.open_connection().await.unwrap();
+        let query_id = "";
+        db.open_connection(query_id).await.unwrap();
         let _ = db.drop_udf("test_udf", None).await;
-        db.query_sql(
+        db.execute_sql(
             query_id,
             r#"
             CREATE FUNCTION dbo.test_udf
@@ -2064,6 +2298,7 @@ mod tests {
         "#,
         )
         .await
+        .unwrap()
         .unwrap();
         let list = db.list_udf().await.unwrap();
         for l in list.iter() {
@@ -2112,7 +2347,7 @@ mod tests {
         {
             let x = extract_trigger_event_from_sql(
                 r#"
-             CREATE TRIGGER tr_test_create_trigger_insert
+            CREATE TRIGGER tr_test_create_trigger_insert
             ON test_create_trigger
             AFTER INSERT
             AS
@@ -2127,16 +2362,13 @@ mod tests {
         }
     }
 
-    // when I test via `cargo test`
-    // sometimes I have this error
-    // ERROR - Transaction (Process ID 76) was deadlocked on lock resources with
-    // another process and has been chosen as the deadlock victim. Rerun the
-    // transaction. code=1205 maybe I need mutex to run one test a time.
-    fn test_lock() -> &'static Mutex<()> {
-        static MUTEX: Mutex<()> = Mutex::const_new(());
-        &MUTEX
+    #[tokio::test]
+    async fn test_check_conn() {
+        let _guard = test_lock().lock().await;
+        let db = make_test_object().await;
+        let metas = CheckConn::check_conn(&db).await.unwrap();
+        println!("{:?}", metas);
     }
-
     #[tokio::test]
     async fn test_server_metas() {
         let _guard = test_lock().lock().await;
@@ -2165,11 +2397,12 @@ mod tests {
         let db = make_test_object().await;
         let table_name = "test_commit";
         let _ = db.drop_table(table_name, false).await;
-        let query_id = db.open_connection().await.unwrap();
+        let query_id = "";
+        db.open_connection(query_id).await.unwrap();
         db.execute_sql(
             query_id,
             r#"
-             CREATE TABLE test_commit (
+            CREATE TABLE test_commit (
                 ID INTEGER PRIMARY KEY,
                 NAME VARCHAR(50)
             );
@@ -2193,7 +2426,7 @@ mod tests {
         db.rollback(query_id).await.unwrap();
 
         assert!(
-            db.show_table(table_name, None, None, 1, 100, None)
+            db.show_table_collect(table_name, ShowTableParameter::new_stupid_test("id asc"),)
                 .await
                 .unwrap()
                 .total
@@ -2214,15 +2447,12 @@ mod tests {
 
         db.commit(query_id).await.unwrap();
         assert!(
-            db.show_table(table_name, None, None, 1, 100, None)
+            db.show_table_collect(table_name, ShowTableParameter::new_stupid_test("id asc"),)
                 .await
                 .unwrap()
                 .total
                 == 1
         );
-        db.re_connect(query_id).await.unwrap();
-
-        assert!(db.get_auto_commit(query_id).await.unwrap());
     }
 
     #[tokio::test]
@@ -2230,7 +2460,8 @@ mod tests {
         let _guard = test_lock().lock().await;
         let db = make_test_object().await;
 
-        let query_id = db.open_connection().await.unwrap();
+        let query_id = "";
+        db.open_connection(query_id).await.unwrap();
         let _ = db.drop_table("test_rename", false).await;
         let _ = db.drop_table("test_rename2", false).await;
         db.execute_sql(
@@ -2250,9 +2481,12 @@ mod tests {
             .await
             .unwrap();
 
-        db.show_table("test_rename2", None, None, 1, 100, None)
-            .await
-            .unwrap();
+        db.show_table_collect(
+            "test_rename2",
+            ShowTableParameter::new_stupid_test("id asc"),
+        )
+        .await
+        .unwrap();
     }
 
     #[tokio::test]
@@ -2260,11 +2494,12 @@ mod tests {
         let _guard = test_lock().lock().await;
         let db = make_test_object().await;
 
-        let query_id = db.open_connection().await.unwrap();
+        let query_id = "";
+        db.open_connection(query_id).await.unwrap();
         let _ = db.drop_table("test_duplicate", false).await;
         let _ = db.drop_table("test_duplicate2", false).await;
 
-        db.query_sql(
+        db.execute_sql(
             query_id,
             r#"
                 CREATE TABLE test_duplicate (
@@ -2281,13 +2516,17 @@ mod tests {
                 "#,
         )
         .await
+        .unwrap()
         .unwrap();
         db.duplicate_table("test_duplicate", "test_duplicate2")
             .await
             .unwrap();
 
         let resp = db
-            .show_table("test_duplicate2", None, None, 1, 100, None)
+            .show_table_collect(
+                "test_duplicate2",
+                ShowTableParameter::new_stupid_test("id asc"),
+            )
             .await
             .unwrap();
         assert_eq!(resp.data.len(), 5);
@@ -2298,41 +2537,39 @@ mod tests {
         let _guard = test_lock().lock().await;
         let db = make_test_object().await;
 
-        let query_id = db.open_connection().await.unwrap();
+        let query_id = "";
+        db.open_connection(query_id).await.unwrap();
         let _ = db.drop_table("test_create_trigger", false).await;
         let _ = db.drop_table("test_create_trigger_update", false).await;
-        let x = db
-            .query_sql(
-                query_id,
-                r#"
+        db.execute_sql(
+            query_id,
+            r#"
             CREATE TABLE test_create_trigger (
                 id INT PRIMARY KEY,
                 name VARCHAR(50)
             );
         "#,
-            )
-            .await
-            .unwrap();
-        println!("!!!{:?}", x);
+        )
+        .await
+        .unwrap()
+        .unwrap();
 
-        let x = db
-            .query_sql(
-                query_id,
-                r#"
+        db.execute_sql(
+            query_id,
+            r#"
         
         CREATE TABLE test_create_trigger_update (
             id INT PRIMARY KEY,
             email VARCHAR(100)
         );
     "#,
-            )
-            .await
-            .unwrap();
-        println!("!!!{:?}", x);
-        let x = db
-            .query_sql(
-                query_id,
-                r#"CREATE TRIGGER tr_test_create_trigger_insert
+        )
+        .await
+        .unwrap()
+        .unwrap();
+        db.execute_sql(
+            query_id,
+            r#"CREATE TRIGGER tr_test_create_trigger_insert
             ON test_create_trigger
             AFTER INSERT
             AS
@@ -2341,10 +2578,10 @@ mod tests {
                 SELECT id, 'test@example.com' FROM inserted
             END
         "#,
-            )
-            .await
-            .unwrap();
-        println!("!!!{:?}", x);
+        )
+        .await
+        .unwrap()
+        .unwrap();
         let tris = db.list_trigger("test_create_trigger").await.unwrap();
         for tri in tris.iter() {
             let detail = db
@@ -2368,30 +2605,28 @@ mod tests {
         enable_test_log();
         let db = make_test_object().await;
 
-        let id = db.open_connection().await.unwrap();
-
-        let ret = db
-            .query_sql(
-                id.clone(),
-                r#"BEGIN TRANSACTION;
+        let id = "";
+        db.open_connection("").await.unwrap();
+        db.execute_sql(
+            id,
+            r#"BEGIN TRANSACTION;
         
             drop table if exists test_query;
             CREATE TABLE test_query (
                 id INT PRIMARY KEY,
                 name VARCHAR(50),
                 age INT
-              );
+            );
 
-              INSERT INTO test_query (id, name, age) VALUES (1, 'John', 25);
-              INSERT INTO test_query (id, name, age) VALUES (2, 'Jane', 30);
-              INSERT INTO test_query (id, name, age) VALUES (3, 'Mike', 35);
-              COMMIT;
+            INSERT INTO test_query (id, name, age) VALUES (1, 'John', 25);
+            INSERT INTO test_query (id, name, age) VALUES (2, 'Jane', 30);
+            INSERT INTO test_query (id, name, age) VALUES (3, 'Mike', 35);
+            COMMIT;
         "#,
-            )
-            .await
-            .unwrap();
-
-        println!("begin ret:{:?}", ret);
+        )
+        .await
+        .unwrap()
+        .unwrap();
     }
 
     #[tokio::test]
@@ -2400,10 +2635,10 @@ mod tests {
         let db = make_test_object().await;
         let db = &db as &dyn crate::db::DBTrait;
 
-        let dbnames = db.list_schema().await.unwrap();
-        assert_eq!(dbnames, vec![MsSqlServerDB::ONLY_SCHEMA]);
-        for dbname in dbnames.iter() {
-            db.open_schema(&dbname).await.unwrap();
+        let db_names = db.list_schema().await.unwrap();
+        assert_eq!(db_names, vec![SqlServerDB::DBO_SCHEMA]);
+        for db_name in db_names.iter() {
+            db.open_schema(db_name).await.unwrap();
         }
     }
     #[ignore = "run manually"]
@@ -2411,66 +2646,83 @@ mod tests {
     async fn test_select_xxx() {
         let _guard = test_lock().lock().await;
         let db = make_test_object().await;
-        let query_id = db.open_connection().await.unwrap();
-
-        let x = db
-            .query_sql(query_id, "SELECT  COUNT(*) from test_type1 ")
-            .await
-            .unwrap();
-
-        for x in x.iter() {
-            println!("query resp:{:?}", x);
-        }
+        let query_id = "";
+        db.open_connection(query_id).await.unwrap();
+        db.query_sql(
+            query_id,
+            "SELECT  COUNT(*) from test_type1 ",
+            Arc::new(TestQueryEventEmit::default()),
+        )
+        .await
+        .unwrap();
     }
+
+    // #[tokio::test]
+    // async fn xxx() {
+    //     let mut config = tiberius::Config::new();
+    //     config.host("127.0.0.1");
+    //     config.port(1433);
+    //     config.username("sa");
+    //     config.pas("sfdewRE123");
+    //     config.database("test");
+    //     config.trust_cert();
+
+    //     let tcp = TcpStream::connect(config.get_addr()).await?;
+    //     tcp.set_nodelay(true)?;
+    //     let c = Client::connect(config, tcp.compat_write()).await.unwrap();
+    // }
+
     #[tokio::test]
     async fn test_view() {
         let _guard = test_lock().lock().await;
         let db = make_test_object().await;
-
-        let _ = db.drop_table("test_view_table", false).await;
         let _ = db.drop_view("test_view").await;
-        let conn_id = db.open_connection().await.unwrap();
-
-        let _ = db
-            .query_sql(
-                conn_id,
-                r#"
-            CREATE TABLE test_view_table (
+        let _ = db.drop_table("test_view_table", false).await;
+        let query_id = "";
+        db.open_connection("").await.unwrap();
+        db.execute_sql(
+            query_id,
+            r#"CREATE TABLE test_view_table (
                 id INT PRIMARY KEY,
                 name VARCHAR(50),
                 age INT,
                 email VARCHAR(100)
-            );
-            INSERT INTO test_view_table (id, name, age, email)
+            )"#,
+        )
+        .await
+        .unwrap()
+        .unwrap();
+        db.execute_sql(
+            query_id,
+            r#" INSERT INTO test_view_table (id, name, age, email)
                 VALUES
                     (1, 'John Doe', 35, 'john.doe@example.com'),
                     (2, 'Jane Smith', 28, 'jane.smith@example.com'),
                     (3, 'Bob Johnson', 42, 'bob.johnson@example.com'),
                     (4, 'Sarah Lee', 31, 'sarah.lee@example.com'),
-                    (5, 'Tom Wilson', 25, 'tom.wilson@example.com');
-             
-        "#,
-            )
-            .await;
+                    (5, 'Tom Wilson', 25, 'tom.wilson@example.com')"#,
+        )
+        .await
+        .unwrap()
+        .unwrap();
 
-        let _ = db
-            .query_sql(
-                conn_id,
-                r#"CREATE VIEW test_view AS
+        db.execute_sql(
+            query_id,
+            r#"CREATE VIEW test_view AS
                 SELECT
                     id,
                     name,
                     age,
                     email
                 FROM
-                    test_view_table;
-        "#,
-            )
-            .await
-            .unwrap();
+                    test_view_table"#,
+        )
+        .await
+        .unwrap()
+        .unwrap();
 
         let resp = db
-            .show_view("test_view", None, None, 1, 100, None)
+            .show_view_collect("test_view", ShowTableParameter::new_stupid_test("id asc"))
             .await
             .unwrap();
         println!("resp:{:?}", resp);
@@ -2480,30 +2732,77 @@ mod tests {
     async fn test_index() {
         let _guard = test_lock().lock().await;
         let db = make_test_object().await;
-        let _ = db.drop_table("test_index_table", false).await;
+        let table_name = "test_index_table";
+        let _ = db.drop_table(table_name, false).await;
+        let req = CreateTableReq {
+            name: table_name.to_owned(),
+            columns: vec![
+                CreateTableReqColumn {
+                    name: "Column1".to_string(),
+                    data_type: "int".to_string(),
+                    auto_increment: false,
+                    primary_key: true,
+                    default_value: Some(1.to_string()),
+                    nullable: SqlNullAble::NotNull,
+                },
+                CreateTableReqColumn {
+                    name: "name".to_string(),
+                    data_type: "int".to_string(),
+                    auto_increment: false,
+                    primary_key: false,
+                    default_value: None,
+                    nullable: Default::default(),
+                },
+                CreateTableReqColumn {
+                    name: "age".to_string(),
+                    data_type: "int".to_string(),
+                    auto_increment: false,
+                    primary_key: false,
+                    default_value: None,
+                    nullable: Default::default(),
+                },
+            ],
+            indexes: vec![],
+        };
+        db.create_table(&req).await.unwrap();
+        std::thread::sleep(Duration::from_secs(1));
 
-        let query_id = db.open_connection().await.unwrap();
+        //
 
-        let _ = db
-            .query_sql(
-                query_id,
-                r#"
-                CREATE TABLE test_index_table (
-                        Column1 int,
-                        Column2 int,
-                    );
-                    -- 添加唯一索引
-                CREATE UNIQUE INDEX IX_YourTableName_Column1_Column2
-                    ON test_index_table (Column1, Column2);
-        "#,
-            )
+        let index_name = format!("{}_name_age", table_name);
+        let index_name2 = format!("{}2", index_name);
+
+        db.create_index(
+            table_name,
+            &CreateIndexReq {
+                name: index_name.clone(),
+                columns: vec![
+                    CreateIndexColumn {
+                        col: "name".into(),
+                        asc: Some(true),
+                    },
+                    CreateIndexColumn {
+                        col: "age".into(),
+                        asc: Some(true),
+                    },
+                ],
+                kind: IndexKind::Unique,
+            },
+        )
+        .await
+        .unwrap();
+
+        db.rename_index(table_name, &index_name, &index_name2)
+            .await
+            .unwrap();
+        db.rename_index(table_name, &index_name2, &index_name)
             .await
             .unwrap();
 
-        std::thread::sleep(Duration::from_secs(1));
-        let indexes = db.show_indexes("test_index_table").await.unwrap();
-        println!("indexes:{:?}", indexes);
-        db.drop_table("test_index_table", false).await.unwrap();
+        let indexes = db.show_indexes(table_name).await.unwrap();
+        for index in indexes.iter() {
+            println!("index:{:?}", index);
+        }
     }
 
     #[tokio::test]
@@ -2511,9 +2810,9 @@ mod tests {
         let _guard = test_lock().lock().await;
         let table_name = "test_export";
         let db = make_test_object().await;
-        let mut conn = db.get_conn().await.unwrap();
-        let conn = conn.deref_mut();
-        let rs = vec![
+        let query_id = "";
+        db.open_connection(query_id).await.unwrap();
+        let rs = [
             r#"drop table if exists test_export;"#,
             r#"CREATE TABLE test_export (
                 id INT IDENTITY(1,1) PRIMARY KEY,
@@ -2526,7 +2825,7 @@ mod tests {
             "INSERT INTO test_export (name, age, email) VALUES ('Bob', 40, 'bob@example.com');",
         ];
         for s in rs.iter() {
-            conn.execute(*s, &[]).await.unwrap();
+            let _ = db.execute_sql(query_id, s).await.unwrap();
         }
 
         {
@@ -2548,7 +2847,7 @@ mod tests {
             let s = db
                 .export_table_to_string(
                     table_name,
-                    ExportKind::CSV {
+                    ExportKind::Csv {
                         include_header: true,
                         delimiter: ',',
                     },
@@ -2575,14 +2874,14 @@ mod tests {
         let sql = sql.as_str();
         {
             let s = db
-                .export_query_result_to_string(sql, ExportKind::JsonLine)
+                .export_query_result_to_string(query_id, sql, ExportKind::JsonLine)
                 .await
                 .unwrap();
             println!("json:{}", s);
         }
         {
             let s = db
-                .export_query_result_to_string(sql, ExportKind::Json { pretty: true })
+                .export_query_result_to_string(query_id, sql, ExportKind::Json { pretty: true })
                 .await
                 .unwrap();
             println!("json:{}", s);
@@ -2591,8 +2890,9 @@ mod tests {
         {
             let s = db
                 .export_query_result_to_string(
+                    query_id,
                     sql,
-                    ExportKind::CSV {
+                    ExportKind::Csv {
                         include_header: true,
                         delimiter: ',',
                     },
@@ -2602,6 +2902,8 @@ mod tests {
             println!("csv:{}", s);
         }
     }
+
+    #[ignore = "xxx"]
     #[tokio::test]
     async fn test_list_table() {
         let _guard = test_lock().lock().await;
@@ -2611,17 +2913,42 @@ mod tests {
         let table = pg.list_table().await.unwrap();
         println!("{:?}", table);
     }
+
+    #[ignore = "xxx"]
+    #[tokio::test]
+    async fn test_table_not_impl_will_panic() {
+        let _guard = test_lock().lock().await;
+        enable_test_log();
+        let db = make_test_object().await;
+        let query_id = "";
+        db.open_connection(query_id).await.unwrap();
+        db.query_sql(
+            query_id,
+            r#"
+            SELECT   *
+FROM sys.sequences;
+
+
+        "#,
+            Arc::new(TestQueryEventEmit::default()),
+        )
+        .await
+        .unwrap();
+    }
+
     #[tokio::test]
     async fn test_table_column() {
+        let _guard = test_lock().lock().await;
         enable_test_log();
         let db = make_test_object().await;
 
         let table_name = "test_column";
         let _ = db.drop_table(table_name, false).await;
 
-        let query_id = db.open_connection().await.unwrap();
+        let query_id = "";
+        db.open_connection(query_id).await.unwrap();
         let _resp = db
-            .query_sql(
+            .execute_sql(
                 query_id,
                 r#"
                 CREATE TABLE test_column
@@ -2631,6 +2958,7 @@ mod tests {
                 "#,
             )
             .await
+            .unwrap()
             .unwrap();
 
         db.add_table_column(
@@ -2638,7 +2966,7 @@ mod tests {
             "name",
             ColumnType {
                 typ: "TINYINT".to_string(),
-                nullness: Some("null".to_string()),
+                nullable: SqlNullAble::Null.into(),
                 after: None,
                 // must be none here
                 // query failed
@@ -2657,7 +2985,7 @@ mod tests {
             "name2",
             Some(ColumnType {
                 typ: "SMALLINT".to_string(),
-                nullness: Some("null".to_string()),
+                nullable: SqlNullAble::Null.into(),
                 after: None,
                 default_value: Some("2".to_string()),
             }),
@@ -2671,7 +2999,7 @@ mod tests {
     #[tokio::test]
     async fn test_type1() {
         let _guard = test_lock().lock().await;
-        enable_test_log();
+        // enable_test_log();
         let db = make_test_object().await;
         let mut conn = db.get_conn().await.unwrap();
         let conn = conn.deref_mut();
@@ -2704,8 +3032,8 @@ mod tests {
         values.insert("col_bigint".to_string(), Some("10000".to_string()));
         values.insert("col_float".to_string(), Some("3.14".to_string()));
         values.insert("col_double".to_string(), Some("3.14159".to_string()));
-        db.insert(table_name, values.clone()).await.unwrap();
-        db.update(table_name, values, {
+        db.table_insert(table_name, values.clone()).await.unwrap();
+        db.table_update(table_name, values, {
             let mut wheres = HashMap::new();
             wheres.insert("id".to_string(), Some("1".to_string()));
             wheres
@@ -2713,10 +3041,65 @@ mod tests {
         .await
         .unwrap();
         let list = db
-            .show_table(table_name, None, None, 1, 100, None)
+            .show_table_collect(table_name, ShowTableParameter::new_stupid_test("id asc"))
             .await
             .unwrap();
         println!("ret:{:?}", list);
+
+        {
+            let e = db
+                .export_table_to_string(
+                    table_name,
+                    crate::db::ExportKind::Csv {
+                        include_header: false,
+                        delimiter: ',',
+                    },
+                )
+                .await
+                .unwrap();
+            println!("export csv:{}", e);
+            let e = db
+                .export_table_to_string(
+                    table_name,
+                    crate::db::ExportKind::Csv {
+                        include_header: true,
+                        delimiter: ',',
+                    },
+                )
+                .await
+                .unwrap();
+            println!("export csv:{}", e);
+            let e = db
+                .export_table_to_string(table_name, crate::db::ExportKind::Json { pretty: true })
+                .await
+                .unwrap();
+            println!("export json:{}", e);
+            let e = db
+                .export_table_to_string(
+                    table_name,
+                    crate::db::ExportKind::Sql {
+                        include_table_schema: false,
+                    },
+                )
+                .await
+                .unwrap();
+            println!("export sql:{}", e);
+            let e = db
+                .export_table_to_string(
+                    table_name,
+                    crate::db::ExportKind::Html {
+                        include_header: true,
+                    },
+                )
+                .await
+                .unwrap();
+            println!("export html:{}", e);
+            let e = db
+                .export_table_to_string(table_name, crate::db::ExportKind::MarkDown)
+                .await
+                .unwrap();
+            println!("export markdown:{}", e);
+        }
     }
 
     #[tokio::test]
@@ -2760,8 +3143,8 @@ mod tests {
         values.insert("ntext_column".to_string(), Some("f".to_string()));
         values.insert("text_column".to_string(), Some("g".to_string()));
 
-        db.insert(table_name, values.clone()).await.unwrap();
-        db.update(table_name, values, {
+        db.table_insert(table_name, values.clone()).await.unwrap();
+        db.table_update(table_name, values, {
             let mut wheres = HashMap::new();
             wheres.insert("id".to_string(), Some("1".to_string()));
             wheres
@@ -2769,7 +3152,7 @@ mod tests {
         .await
         .unwrap();
         let list = db
-            .show_table(table_name, None, None, 1, 100, None)
+            .show_table_collect(table_name, ShowTableParameter::new_stupid_test("id asc"))
             .await
             .unwrap();
         println!("ret:{:?}", list);
@@ -2818,8 +3201,8 @@ mod tests {
         );
         values.insert("NumericColumn".to_string(), Some("123.45".to_string()));
         values.insert("DecimalColumn".to_string(), Some("12.3456".to_string()));
-        db.insert(table_name, values.clone()).await.unwrap();
-        db.update(table_name, values, {
+        db.table_insert(table_name, values.clone()).await.unwrap();
+        db.table_update(table_name, values, {
             let mut wheres = HashMap::new();
             wheres.insert("id".to_string(), Some("1".to_string()));
             wheres
@@ -2827,7 +3210,7 @@ mod tests {
         .await
         .unwrap();
         let list = db
-            .show_table(table_name, None, None, 1, 100, None)
+            .show_table_collect(table_name, ShowTableParameter::new_stupid_test("id asc"))
             .await
             .unwrap();
         println!("ret:{:?}", list);
@@ -2888,8 +3271,8 @@ mod tests {
             "DateTimeOffsetData".to_string(),
             Some("2022-01-01 12:34:56.1234567 +01:00".to_string()),
         );
-        db.insert(table_name, values.clone()).await.unwrap();
-        db.update(table_name, values, {
+        db.table_insert(table_name, values.clone()).await.unwrap();
+        db.table_update(table_name, values, {
             let mut wheres = HashMap::new();
             wheres.insert("id".to_string(), Some("1".to_string()));
             wheres
@@ -2897,7 +3280,7 @@ mod tests {
         .await
         .unwrap();
         let list = db
-            .show_table(table_name, None, None, 1, 100, None)
+            .show_table_collect(table_name, ShowTableParameter::new_stupid_test("id asc"))
             .await
             .unwrap();
         println!("ret:{:?}", list);

@@ -1,64 +1,84 @@
-use std::sync::Arc;
 use std::vec;
 
-use crate::clickhouse::{ClickHouseDB, JsonRespMeta};
+use futures_util::StreamExt;
+
+use crate::clickhouse::{ClickHouseDB, FieldsOrData};
 use crate::db::DBTrait;
 use crate::language_server::{
-    AstCompletionHelper, CompletionItem, CompletionKind, LangServerCommon, LanguageServer,
-    LexerCompletionTrait, try_completion_on_syntax,
+    try_parser_dot_lexer, AstCompletionHelper, CompletionItem, CompletionKind, CompletionList,
+    ErrAndLoc, GetKeyWords, LangServerCommon, LanguageServer, LexerCompletionTrait,
 };
+use crate::sqlparser_completion::TempTableColumn;
+
+#[async_trait::async_trait]
+impl GetKeyWords for ClickHouseDB {
+    async fn key_words(&self) -> anyhow::Result<Vec<String>> {
+        let mut lock = self.key_words_cache.lock().await;
+        if !lock.is_empty() {
+            return anyhow::Ok(lock.clone());
+        }
+        let sql = "select * from system.keywords";
+        let ret: Vec<String> = self.client.query(sql).fetch_all().await?;
+        *lock = ret;
+        return anyhow::Ok(lock.clone());
+    }
+}
 
 #[async_trait::async_trait]
 
 impl LanguageServer for ClickHouseDB {
-    async fn auto_completion(
-        &self, sql: &str, line: u32, col: u32, use_lexer: bool,
-    ) -> anyhow::Result<Vec<CompletionItem>> {
-        let r = try_completion_on_syntax(
-            &sql,
-            line,
-            col,
-            sqlparser::dialect::SQLiteDialect {},
-            Arc::new(Clone::clone(self)),
-        )
-        .await;
+    async fn try_get_max_id(&self, name: &str) -> anyhow::Result<String> {
+        let sql = format!("select max(id) from `{name}`");
 
-        match r {
-            Ok(xs) => return Ok(xs),
-            Err(err) => {
-                log::error!("completion on ast failed,err:{:?}", err);
-            }
-        };
-        if !use_lexer {
-            log::warn!("disabled use lexer , we can return empty data.");
-            return anyhow::Ok(vec![]);
-        }
-        return LexerCompletionTrait::do_auto_completion(
-            self,
-            sql,
-            &sqlparser::dialect::ClickHouseDialect {},
-            sqlparser::tokenizer::Location {
-                line: line as u64,
-                column: col as u64,
-            },
-        )
-        .await;
+        let r: i64 = self.client.query(&sql).fetch_one().await?;
+        anyhow::Ok(r.to_string())
+    }
+
+    async fn ai_text_completion(
+        &self,
+        text: &str,
+        line: u32,
+        col: u32,
+    ) -> anyhow::Result<CompletionList> {
+        LexerCompletionTrait::ai_text_completion(self, text, line, col).await
+    }
+    fn extract_table_select_selection(&self, sql: &str) -> anyhow::Result<Option<String>> {
+        LangServerCommon::extract_table_select_selection(self, sql)
+    }
+    fn extract_table_select_sort(&self, sql: &str) -> anyhow::Result<Option<String>> {
+        LangServerCommon::extract_table_select_sort(self, sql)
+    }
+
+    async fn auto_completion(
+        &self,
+        _query_id: Option<String>,
+        sql: &str,
+        line: u32,
+        col: u32,
+        use_lexer: bool,
+    ) -> anyhow::Result<CompletionList> {
+        // self.completion_id.set_optional(query_id);
+        try_parser_dot_lexer(self, sql, line, col, use_lexer).await
+    }
+
+    async fn check_sql(&self, sql: &str) -> anyhow::Result<Option<ErrAndLoc>> {
+        LangServerCommon::parse_err(self, sql)
+    }
+    fn is_dangerous_sql(&self, sql: &str) -> anyhow::Result<bool> {
+        LangServerCommon::is_dangerous_sql_by_parser(self, sql)
     }
 }
 
 impl ClickHouseDB {
-    fn schema_merge_config<'a, 'b>(&'a self, schema: Option<&'b str>) -> Option<&'a str>
-    where
-        'b: 'a,
-    {
+    fn schema_merge_config(&self, schema: Option<&str>) -> Option<String> {
         if schema.is_some() {
-            return schema;
+            return schema.map(|x| x.to_string());
         }
-        return self.config.db.as_deref();
+        self.config.db.clone()
     }
 
-    fn not_allow_none_schema(schema: Option<&str>) -> anyhow::Result<&str> {
-        match schema {
+    fn not_allow_none_schema(&self, schema: Option<&str>) -> anyhow::Result<String> {
+        match self.schema_merge_config(schema) {
             Some(x) => anyhow::Ok(x),
             None => anyhow::bail!("empty schema"),
         }
@@ -67,75 +87,68 @@ impl ClickHouseDB {
 #[async_trait::async_trait]
 
 impl LangServerCommon for ClickHouseDB {
-    async fn list_schema(&self, _db: Option<&str>) -> anyhow::Result<Vec<String>> {
-        DBTrait::list_schema(self).await
-    }
-}
-
-#[async_trait::async_trait]
-impl AstCompletionHelper for ClickHouseDB {
     async fn list_cluster(&self) -> anyhow::Result<Vec<String>> {
         let sql = r#"
-         SELECT
+        SELECT
             cluster 
         FROM
             system.clusters
 
         "#;
-        let conn = self.get_conn()?;
-        let ret: Vec<String> = conn.query(sql).fetch_all().await?;
+
+        let ret: Vec<String> = self.client.query(sql).fetch_all().await?;
         anyhow::Ok(ret)
     }
-
-    async fn list_table(
-        &self, _db: Option<&str>, schema: Option<&str>,
-    ) -> anyhow::Result<Vec<String>> {
-        let db = Self::not_allow_none_schema(self.schema_merge_config(schema))?;
-        let v = self.list_table_impl(db).await?;
-        anyhow::Ok(v.into_iter().map(|x| x.name).collect())
+    fn clickhouse_format_clause(&self) -> Vec<String> {
+        CLICKHOUSE_FORMATS.iter().map(|x| x.to_string()).collect()
     }
-
-    async fn list_view(
-        &self, _db: Option<&str>, schema: Option<&str>,
-    ) -> anyhow::Result<Vec<String>> {
-        let db = Self::not_allow_none_schema(self.schema_merge_config(schema))?;
-        let mut ret = Vec::new();
-        ret.extend(self.list_view_impl(db).await?.into_iter().map(|x| x.name));
-        ret.extend(
-            self.list_materialized_view_impl(db)
-                .await?
-                .into_iter()
-                .map(|x| x.name),
-        );
-        anyhow::Ok(ret)
+    async fn list_index(&self, _schema: Option<&str>) -> anyhow::Result<Vec<String>> {
+        // clickhouse 不支持索引
+        anyhow::Ok(vec![])
     }
-
     async fn list_column(
-        &self, _db: Option<&str>, schema: Option<&str>, name: &str,
-    ) -> anyhow::Result<Vec<CompletionItem>> {
-        let db = Self::not_allow_none_schema(self.schema_merge_config(schema))?;
-        let sql = format!(r#"select * from "{}"."{}"  limit 0 "#, db, name);
-        let meta = self.query_as_json(&sql).await?.meta;
-        anyhow::Ok(
-            meta.into_iter()
-                .map(|x| {
-                    let JsonRespMeta { name, r#type } = x;
-                    CompletionItem {
-                        item: name.into(),
-                        kind: CompletionKind::Column,
-                        desc: Some(r#type.into()),
-                    }
-                })
-                .collect(),
-        )
+        &self,
+        schema: Option<&str>,
+        name: &str,
+        is_call: Option<Vec<String>>,
+    ) -> anyhow::Result<Vec<TempTableColumn>> {
+        let sql = if let Some(is_call) = is_call {
+            format!(
+                r#"select {}{}({})"#,
+                match schema {
+                    Some(x) => format!("\"{}\".", x),
+                    None => "".to_string(),
+                },
+                name,
+                is_call.join(",")
+            )
+        } else {
+            format!(
+                r#"select * from {}"{}""#,
+                match schema {
+                    Some(x) => format!("\"{}\".", x),
+                    None => "".to_string(),
+                },
+                name
+            )
+        };
+        self.get_query_columns(&sql).await
+    }
+
+    async fn list_schema(&self) -> anyhow::Result<Vec<String>> {
+        DBTrait::list_schema(self).await
     }
 
     async fn list_function(
-        &self, _db: Option<&str>, _schema: Option<&str>, _include_build_in: bool,
+        &self,
+        _schema: Option<&str>,
+        _include_build_in: bool,
     ) -> anyhow::Result<Vec<CompletionItem>> {
+        // 在 ClickHouse 中，使用以下查询可以查看所有函数，包括表函数（table functions）：
+        // 看起来clickhouse 都有全局的作用域
         let sql = "select name , description from system.functions";
-        let conn = self.get_conn()?;
-        let result: Vec<(String, String)> = conn.query(sql).fetch_all().await?;
+
+        let result: Vec<(String, String)> = self.client.query(sql).fetch_all().await?;
 
         anyhow::Ok(
             result
@@ -149,55 +162,87 @@ impl AstCompletionHelper for ClickHouseDB {
         )
     }
 
-    async fn list_index(&self, _schema: Option<&str>) -> anyhow::Result<Vec<String>> {
+    fn dialect(&self) -> Box<dyn sqlparser::dialect::Dialect + Send + Sync> {
+        Box::new(sqlparser::dialect::ClickHouseDialect {})
+    }
+    async fn list_table(&self, schema: Option<&str>) -> anyhow::Result<Vec<String>> {
+        let db = self.not_allow_none_schema(schema)?;
+        let v = self.list_table_impl(&db).await?;
+        anyhow::Ok(v.into_iter().map(|x| x.name).collect())
+    }
+
+    async fn list_view(&self, schema: Option<&str>) -> anyhow::Result<Vec<String>> {
+        let db = self.not_allow_none_schema(schema)?;
+        let mut ret = Vec::new();
+        ret.extend(self.list_view_impl(&db).await?.into_iter().map(|x| x.name));
+        ret.extend(
+            self.list_materialized_view_impl(&db)
+                .await?
+                .into_iter()
+                .map(|x| x.name),
+        );
+        anyhow::Ok(ret)
+    }
+}
+
+#[async_trait::async_trait]
+impl AstCompletionHelper for ClickHouseDB {
+    async fn list_clickhouse_table_projects(
+        &self,
+        schema: Option<&str>,
+        table: &str,
+    ) -> anyhow::Result<Vec<String>> {
+        let db = self.not_allow_none_schema(schema)?;
+        let sql = format!(
+            r#"
+            SELECT name 
+                FROM system.projections 
+                WHERE "table"  = '{table}' and database = '{db}'
+        "#
+        );
+        let result: Vec<String> = self.client.query(&sql).fetch_all().await?;
+        anyhow::Ok(result)
+    }
+
+    async fn get_query_columns(&self, sql: &str) -> anyhow::Result<Vec<TempTableColumn>> {
+        let sql = format!("select * from({}) limit 1", sql);
+        let mut stream = self.query_row(&sql).await?;
+
+        while let Some(x) = stream.next().await {
+            match x? {
+                FieldsOrData::Fields(fields) => {
+                    return anyhow::Ok(
+                        fields
+                            .into_iter()
+                            .map(|x| TempTableColumn {
+                                name: x.field,
+                                data_type: Some(x.data_type),
+                            })
+                            .collect(),
+                    );
+                }
+                FieldsOrData::Data(..) => {}
+                FieldsOrData::ReadingColumns => {}
+            }
+        }
+
         anyhow::Ok(vec![])
     }
 }
 
 #[async_trait::async_trait]
 impl LexerCompletionTrait for ClickHouseDB {
-    type Dialect = sqlparser::dialect::ClickHouseDialect;
-
-    const KEY_WORDS: &'static [&'static str] = &[];
-    const TEXTS: &'static [&'static str] = &["true", "false"];
-    const TYPES: &'static [&'static str] = TYPES;
-
-    async fn list_function(&self) -> anyhow::Result<Vec<CompletionItem>> {
-        AstCompletionHelper::list_function(self, None, None, true).await
+    async fn get_types(&self) -> anyhow::Result<Vec<String>> {
+        let r = ["true", "false"].iter().map(|x| x.to_string()).collect();
+        anyhow::Ok(r)
     }
 
-    async fn get_key_words_from_query(&self) -> anyhow::Result<Vec<CompletionItem>> {
-        let sql = "select * from system.keywords";
-        let conn = self.get_conn()?;
-        let ret: Vec<String> = conn.query(sql).fetch_all().await?;
-        anyhow::Ok(
-            ret.into_iter()
-                .map(|x| CompletionItem {
-                    item: x.into(),
-                    kind: CompletionKind::KeyWord,
-                    desc: None,
-                })
-                .collect(),
-        )
-    }
-
-    async fn list_table_or_view(&self) -> anyhow::Result<Vec<String>> {
-        let mut x = AstCompletionHelper::list_table(self, None, None)
-            .await
-            .ok()
-            .unwrap_or_default();
-        x.extend(
-            AstCompletionHelper::list_view(self, None, None)
-                .await
-                .ok()
-                .unwrap_or_default()
-                .into_iter(),
-        );
-        anyhow::Ok(x)
+    async fn get_text(&self) -> anyhow::Result<Vec<String>> {
+        anyhow::Ok(CLICKHOUSE_TYPES.iter().map(|x| x.to_string()).collect())
     }
 }
 
-const TYPES: &'static [&'static str] = &[
+const CLICKHOUSE_TYPES: &[&str] = &[
     "UInt8",
     "UInt16",
     "UInt32",
@@ -229,29 +274,104 @@ const TYPES: &'static [&'static str] = &[
     "JSON",
 ];
 
-#[cfg(test)]
+// clickhouse_formats.rs
+pub const CLICKHOUSE_FORMATS: &[&str] = &[
+    "Arrow",
+    "ArrowStream",
+    "Avro",
+    "CapnProto",
+    "CSV",
+    "CSVWithNames",
+    "CSVWithNamesAndTypes",
+    "CustomSeparated",
+    "CustomSeparatedWithNames",
+    "CustomSeparatedWithNamesAndTypes",
+    "ExcelCSV",
+    "HiveText",
+    "HTML",
+    "JSON",
+    "JSONAsString",
+    "JSONColumns",
+    "JSONColumnsWithMetadata",
+    "JSONCompact",
+    "JSONCompactColumns",
+    "JSONCompactEachRow",
+    "JSONCompactEachRowWithNames",
+    "JSONCompactEachRowWithNamesAndTypes",
+    "JSONCompactStrings",
+    "JSONEachRow",
+    "JSONEachRowWithProgress",
+    "JSONLines",
+    "JSONObjectEachRow",
+    "JSONStrings",
+    "JSONStringsEachRow",
+    "JSONStringsEachRowWithProgress",
+    "Markdown",
+    "MsgPack",
+    "MySQLDump",
+    "Native",
+    "Null",
+    "ORC",
+    "Parquet",
+    "ParquetMetadata",
+    "Pretty",
+    "PrettyCompact",
+    "PrettyCompactMonoBlock",
+    "PrettyCompactNoEscapes",
+    "PrettyMonoBlock",
+    "PrettyNoEscapes",
+    "PrettySpace",
+    "PrettySpaceNoEscapes",
+    "Prometheus",
+    "Protobuf",
+    "ProtobufList",
+    "ProtobufSingle",
+    "RawBLOB",
+    "RowBinary",
+    "RowBinaryWithNames",
+    "RowBinaryWithNamesAndTypes",
+    "SQLInsert",
+    "TSKV",
+    "TabSeparated",
+    "TabSeparatedRaw",
+    "TabSeparatedRawWithNames",
+    "TabSeparatedRawWithNamesAndTypes",
+    "TabSeparatedWithNames",
+    "TabSeparatedWithNamesAndTypes",
+    "Template",
+    "TemplateIgnoreSpaces",
+    "TSV",
+    "TSVWithNames",
+    "TSVWithNamesAndTypes",
+    "Values",
+    "Vertical",
+    "VerticalRaw",
+    "XML",
+    "YAML",
+];
 
+#[cfg(test)]
 mod tests {
-    use std::collections::HashSet;
     use std::path::Path;
 
-    use crate::clickhouse::{ClickHouseDB, make_test_object};
-    use crate::db::{QuerySql, monaco_editor_keyword_regexp};
+    use crate::clickhouse::make_test_object;
+    use crate::db::{QuerySql, SchemaTrait};
     use crate::enable_test_log;
-    use crate::language_server::LexerCompletionTrait;
     use crate::language_server::completion_test::test_file_auto_completion;
 
     // partition test failed , sqlparser can't parse a valid partition statement.
-    #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+    #[tokio::test]
     async fn test_auto_completion() {
         let db = make_test_object();
         // enable_test_log();
-        let query_id = db.open_connection().await.unwrap();
-        let _ = db
-            .query_sql(
-                query_id,
-                r#"
-                 CREATE TABLE employees (
+        let query_id = "";
+        db.open_connection(query_id).await.unwrap();
+        let _ = db.drop_table("employees", false).await;
+        db.execute_sql(
+            query_id,
+            r#"
+                CREATE TABLE employees (
+                    id UInt32,
                     employee_id UInt32,
                     first_name String,
                     last_name String,
@@ -261,7 +381,27 @@ mod tests {
                     salary Float64
                 ) ENGINE = MergeTree()
                 ORDER BY employee_id;
-         "#,
+            "#,
+        )
+        .await
+        .unwrap()
+        .unwrap();
+
+        let _ = db
+            .execute_sql(
+                query_id,
+                r#"
+                ALTER TABLE employees 
+                    ADD PROJECTION employee_salary_projection 
+                    (
+                        SELECT 
+                            department, 
+                            AVG(salary) AS avg_salary, 
+                            COUNT(*) AS employee_count 
+                        GROUP BY 
+                            department
+                    );
+            "#,
             )
             .await
             .unwrap();
@@ -271,47 +411,13 @@ mod tests {
         file_path.push("tests");
         file_path.push("clickhouse_auto_completion_test.sql");
         let content = std::fs::read_to_string(file_path.as_path()).unwrap();
-        test_file_auto_completion(&content, &db, false).await;
+        test_file_auto_completion(&content, &db, None, false).await;
     }
-    #[ignore = "xxx"]
-    #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+    #[ignore = "手动跑跑的测试"]
+    #[tokio::test]
     async fn test_completion_xxx() {
         enable_test_log();
         let db = make_test_object();
-        test_file_auto_completion(
-            r#"CREATE TABLE example_table(id UInt32, name String,event_date Date,value Float32) ENGINE = MergeTree() PARTITION BY toYYYYMM(event_date) ORDER BY (event_date, id);
-135 event_date"#,
-            &db,
-            false,
-        )
-        .await;
-    }
-
-    // clickhouse is a little different keyword can select from database
-    // but frontend still need this definition.
-    #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
-    async fn print_key_words() {
-        let db = make_test_object();
-
-        let keywords = <ClickHouseDB as LexerCompletionTrait>::get_key_words_from_query(&db)
-            .await
-            .unwrap()
-            .into_iter()
-            .map(|x| x.item.to_string())
-            .collect::<Vec<_>>();
-        // `ADMIN OPTION FOR` clickhouse can have this kind of result.
-
-        let keywords = keywords
-            .into_iter()
-            .map(|x| x.split(" ").map(|x| x.to_uppercase()).collect::<Vec<_>>())
-            .flat_map(|x| x.into_iter())
-            .collect::<HashSet<_>>();
-
-        let keywords = keywords.into_iter().collect::<Vec<_>>();
-
-        let keywords: Vec<&str> = keywords.iter().map(|x| x.as_str()).collect();
-
-        let s = monaco_editor_keyword_regexp(&keywords[..]);
-        println!("{}", s);
+        test_file_auto_completion(include_str!("./xxx.sql"), &db, None, false).await;
     }
 }

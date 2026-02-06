@@ -1,53 +1,99 @@
 import {
-  Button,
   Checkbox,
   Chip,
   Divider,
   FormControlLabel,
+  IconButton,
   Stack,
   TextField,
-  Tooltip,
-} from '@mui/material';
-import { useContext, useState } from 'react';
-import types from './ApiStruct';
-import { NotificationContext } from './Notification';
-import { save } from '@tauri-apps/plugin-dialog';
-import ArrowCircleDownIcon from '@mui/icons-material/ArrowCircleDown';
-import { invoke } from '@tauri-apps/api/core';
-import { DataSourceKind } from './helper';
+  Typography,
+} from "@mui/material";
+import { filesize } from "filesize";
+import { useContext, useEffect, useRef, useState } from "react";
+import types from "./ApiStruct";
+import { NotificationContext } from "./Notification";
+import { save } from "@tauri-apps/plugin-dialog";
+import ArrowCircleDownIcon from "@mui/icons-material/ArrowCircleDown";
+import { Channel, invoke } from "@tauri-apps/api/core";
+import { ModalHeader, OpenFileWithDefaultApp } from "./CommonComp";
+import {
+  generateDefaultFilename,
+  generateRandomString,
+  SettingContext,
+} from "./helper";
+
+import { cancelTask } from "./handlers";
+import { CancelButton, StackRowCenter } from "./CommonComp2";
+function IncludeHeader({ includeHeader, setIncludeHeader }) {
+  return (
+    <FormControlLabel
+      control={
+        <Checkbox
+          checked={includeHeader}
+          onChange={e => {
+            setIncludeHeader(e.target.checked);
+          }}
+          name="myCheckbox"
+          color="primary"
+        />
+      }
+      label="Include Header(if applicable)"
+    />
+  );
+}
+
+let lastExportKind = "csv";
 function ExportView(props: {
-  exportOP: (kind: types.ExportKind, file: string) => Promise<void>;
+  name: string;
+  exportOP: (
+    kind: types.ExportKind,
+    file: string,
+    taskId: string,
+    c: Channel<number>,
+  ) => Promise<void>;
   supportKind: string[];
-  handleClose;
-  supportCsvHeader: boolean;
+  handleClose: () => void;
 }) {
-  const { exportOP, handleClose, supportKind, supportCsvHeader } = props;
-  const [kind, setKind] = useState(supportKind[0]);
-  const [includeCsvHeader, setIncluCsvdeHeader] = useState(false);
-  const [delimiter, setDelimiter] = useState(',');
+  const { exportOP, supportKind, name, handleClose } = props;
+  const lastKind = supportKind.find(k => k === lastExportKind);
+  const [kind, setKind] = useState(lastExportKind ? lastKind : supportKind[0]);
+  const setting = useContext(SettingContext);
+  const [includeHeader, setIncludeHeader] = useState(setting.export.includeHeader);
+  const [delimiter, setDelimiter] = useState(setting.export.csvDelimiter);
   const [pretty, setPretty] = useState(true);
-  const [includeTableSchema, setIncludeTableScheam] = useState(false);
+  const [includeTableSchema, setIncludeTableSchema] = useState(false);
   const { showNotification } = useContext(NotificationContext);
   const [loading, setLoading] = useState(false);
-
+  const [file, setFile] = useState<string | null>(null);
+  const taskId = useRef(generateRandomString(5));
+  useEffect(() => {
+    lastExportKind = kind;
+  }, [kind]);
+  const exportedSize = useRef(null);
   const makeConfig = (): types.ExportKind | null => {
     switch (kind) {
-      case 'csv':
+      case "csv":
         if (delimiter.length > 1) {
-          showNotification('error', 'delimiter expect one character');
+          showNotification("error", "delimiter expect one character");
           return;
         }
         return {
-          export_kind: 'csv',
-          include_header: includeCsvHeader,
+          export_kind: "csv",
+          include_header: includeHeader,
           delimiter,
         };
-      case 'sql':
-        return { export_kind: 'sql', include_table_schema: includeTableSchema };
-      case 'json':
-        return { export_kind: 'json', pretty };
-      case 'jsonline':
-        return { export_kind: 'jsonline' };
+      case "sql":
+        return { export_kind: "sql", include_table_schema: includeTableSchema };
+      case "json":
+        return { export_kind: "json", pretty };
+      case "jsonline":
+        return { export_kind: "jsonline" };
+      case "xlsx":
+        return { export_kind: "xlsx", include_header: includeHeader };
+      case "html":
+        return { export_kind: "html", include_header: includeHeader };
+      case "markdown":
+        return { export_kind: "markdown" };
     }
   };
 
@@ -56,78 +102,90 @@ function ExportView(props: {
     if (!config) {
       return;
     }
-
-    const file = await save();
+    const file = await save({
+      defaultPath: generateDefaultFilename(name, kind),
+    });
     if (!file) {
       return;
     }
+    exportedSize.current.innerText = "";
+    const c = new Channel<number>(x => {
+      exportedSize.current.innerText = `exported ${filesize(x)}`;
+    });
     try {
       setLoading(true);
-      await exportOP(config, file);
+      await exportOP(config, file, taskId.current, c);
     } catch (e) {
-      setLoading(false);
-      showNotification('error', 'Export Failure', e);
+      showNotification("warning", "export failure", e);
       return;
+    } finally {
+      setLoading(false);
     }
-    setLoading(false);
-
-    showNotification('success', 'Export OK');
-    handleClose();
+    showNotification("success", "export OK");
+    setFile(file);
   };
-
+  useEffect(() => {
+    setFile("");
+  }, [kind]);
   return (
-    <Stack spacing={1}>
-      <Stack direction="row" spacing={1}>
-        {supportKind.map((e) => (
+    <Stack>
+      <ModalHeader
+        title={`export ${name}`}
+        handleClose={() => {
+          if (loading) {
+            showNotification("warning", "exporting, please wait");
+            return;
+          }
+          handleClose();
+        }}
+      />
+      <Stack direction="row">
+        {supportKind.map(e => (
           <Chip
-            disabled={kind == e}
             onClick={() => {
               setKind(e);
             }}
             key={e}
             label={e}
-            color="info"
-          ></Chip>
+            color={e == kind ? "success" : "default"}
+          />
         ))}
       </Stack>
-      {kind == 'csv' && (
-        <Stack spacing={1}>
-          {supportCsvHeader && (
-            <FormControlLabel
-              control={
-                <Checkbox
-                  checked={includeCsvHeader}
-                  onChange={(e) => {
-                    setIncluCsvdeHeader(e.target.checked);
-                  }}
-                  name="myCheckbox"
-                  color="primary"
-                />
-              }
-              label="Include Header"
-            />
-          )}
+      {kind == "csv" && (
+        <Stack>
+          <IncludeHeader
+            includeHeader={includeHeader}
+            setIncludeHeader={setIncludeHeader}
+          />
           <Stack direction="row">
             <TextField
-              size="small"
               value={delimiter}
-              onChange={(e) => {
+              onChange={e => {
                 setDelimiter(e.target.value);
               }}
               label="delimiter"
               error={delimiter.length > 1}
-            ></TextField>
+              helperText="only accept one character"
+            />
           </Stack>
         </Stack>
       )}
-      {kind == 'sql' && (
+      {kind == "xlsx" && (
+        <Stack>
+          <IncludeHeader
+            includeHeader={includeHeader}
+            setIncludeHeader={setIncludeHeader}
+          />
+        </Stack>
+      )}
+      {kind == "sql" && (
         <Stack>
           <FormControlLabel
             control={
               <Checkbox
                 checked={includeTableSchema}
-                onChange={(e) => {
-                  setIncludeTableScheam(e.target.checked);
+                onChange={e => {
+                  setIncludeTableSchema(e.target.checked);
                 }}
                 name="myCheckbox"
                 color="primary"
@@ -137,13 +195,13 @@ function ExportView(props: {
           />
         </Stack>
       )}
-      {kind == 'json' && (
+      {kind == "json" && (
         <Stack>
           <FormControlLabel
             control={
               <Checkbox
                 checked={pretty}
-                onChange={(e) => {
+                onChange={e => {
                   setPretty(e.target.checked);
                 }}
                 name="pretty"
@@ -154,63 +212,69 @@ function ExportView(props: {
           />
         </Stack>
       )}
-      {/* json line have no setttings */}
+      {/* json line have no settings */}
 
-      {kind == 'jsonline' && <></>}
+      {kind == "jsonline" && <></>}
 
-      <Divider></Divider>
-      <Stack>
-        <Button
+      {kind == "html" && (
+        <IncludeHeader
+          includeHeader={includeHeader}
+          setIncludeHeader={setIncludeHeader}
+        />
+      )}
+
+      <Divider />
+
+      <StackRowCenter>
+        <IconButton
           onClick={async () => {
             handleExport();
           }}
+          color="primary"
           loading={loading}
         >
-          <Tooltip title="export">
-            <ArrowCircleDownIcon> </ArrowCircleDownIcon>
-          </Tooltip>
-        </Button>
-      </Stack>
+          <ArrowCircleDownIcon />
+        </IconButton>
+        {loading && (
+          <CancelButton
+            handleCancel={() => {
+              cancelTask(taskId.current);
+              exportedSize.current.innerText = "";
+            }}
+          />
+        )}
+        <Typography ref={exportedSize} />
+        <OpenFileWithDefaultApp file={file} />
+      </StackRowCenter>
     </Stack>
   );
 }
 
 function ExportTableOrView(props: {
-  handleClose;
   uuid: string;
   name: string;
   supportKind: string[];
-  kind: DataSourceKind;
+  handleClose: () => void;
+  para?: types.ShowTableParameter;
 }) {
-  let { handleClose, uuid, name, supportKind, kind } = props;
-
+  const { uuid, name, supportKind, handleClose, para } = props;
   return (
     <ExportView
-      handleClose={handleClose}
-      exportOP={async (kind, filepath) => {
-        return await invoke('export_table_or_view', {
+      exportOP={async (kind, filepath, taskId, sizeEmitter) => {
+        return await invoke("export_table_or_view", {
           name: uuid,
           tableOrView: name,
           filepath,
           kind,
+          sizeEmitter,
+          taskId,
+          para,
         });
       }}
       supportKind={supportKind}
-      supportCsvHeader={
-        kind == DataSourceKind.LibSql ||
-        kind == DataSourceKind.Sqlite ||
-        kind == DataSourceKind.Postgres ||
-        kind == DataSourceKind.Cockroach ||
-        kind == DataSourceKind.Mysql ||
-        kind == DataSourceKind.MariaDB ||
-        kind == DataSourceKind.TiDB ||
-        kind == DataSourceKind.MsSql ||
-        kind == DataSourceKind.Cassandra ||
-        kind == DataSourceKind.FireBird ||
-        kind == DataSourceKind.ClickHouse ||
-        kind == DataSourceKind.Oracle
-      }
-    ></ExportView>
+      name={name}
+      handleClose={handleClose}
+    />
   );
 }
 

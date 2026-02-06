@@ -1,18 +1,30 @@
 
 
-[build]
-rustflags = ["-Z", "threads=8"]
+
+[target.x86_64-unknown-linux-gnu]
+linker = "clang"
+rustflags = ["-C", "link-arg=-fuse-ld=mold"]
+
+
+[target.arm64-apple-darwin]
+linker = "clang"
+rustflags = ["-C", "link-arg=-fuse-ld=mold"]
+
 
 [profile.release]
 opt-level = "z"
+debug = 0
+
+[profile.release.package.dbpal]
+debug = 1
+
+[profile.release.package.dbnexus_db]
+debug = 1
+
 
 [target.x86_64-pc-windows-msvc]
-rustflags = ["-C", "link-arg=/STACK:8000000", "-C", "link-arg=/FORCE:MULTIPLE"]
+rustflags = ["-C", "link-arg=/STACK:8000000"]
 
 # 64 bit Mingw
 [target.x86_64-pc-windows-gnu]
 rustflags = ["-C", "link-arg=-Wl,--stack,8000000"]
-
-
-[profile.dev]
-split-debuginfo = "unpacked"

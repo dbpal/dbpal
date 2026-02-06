@@ -4,28 +4,25 @@ import {
   useContext,
   useEffect,
   useMemo,
+  useRef,
   useState,
-} from 'react';
+} from "react";
 import {
-  progressBarSizeSmall,
   tabsHasId,
   modalStyle,
-  DocsAndCount,
-  SettingContext,
-  initMonacoLanague,
-  SimpleResizeEditor,
-  makeAutoComplete,
   EscDownEvent,
-} from './Common';
-import ContentCopyIcon from '@mui/icons-material/ContentCopy';
-import { NotificationContext } from './Notification';
-
-import { invoke } from '@tauri-apps/api/core';
-import { IoConstructOutline } from 'react-icons/io5';
+  modalHandleClose,
+  SetAutoCompletionName,
+  NameAndQueryId,
+} from "./Common";
+import ContentCopyIcon from "@mui/icons-material/ContentCopy";
+import { NotificationContext } from "./Notification";
+import { invoke } from "@tauri-apps/api/core";
+import { IoConstructOutline } from "react-icons/io5";
 import {
   Box,
   Button,
-  Chip,
+  ButtonGroup,
   CircularProgress,
   Divider,
   ListItemIcon,
@@ -33,147 +30,130 @@ import {
   MenuItem,
   MenuList,
   Modal,
-  Paper,
   Stack,
   Typography,
-} from '@mui/material';
-import ArrowCircleDownIcon from '@mui/icons-material/ArrowCircleDown';
-import DeleteForeverIcon from '@mui/icons-material/DeleteForever';
-import VisibilityIcon from '@mui/icons-material/Visibility';
-
-import types from './ApiStruct';
-import { TreeItem } from '@mui/x-tree-view/TreeItem';
-import ListIcon from '@mui/icons-material/List';
-import { SqlTableView } from './SqlTableView';
-import { TabContent } from './Tabs';
-import { ExportTableOrView } from './Export';
+} from "@mui/material";
+import ArrowCircleDownIcon from "@mui/icons-material/ArrowCircleDown";
+import DeleteForeverIcon from "@mui/icons-material/DeleteForever";
+import VisibilityIcon from "@mui/icons-material/Visibility";
+import ViewComfyAltIcon from "@mui/icons-material/ViewComfyAlt";
+import types from "./ApiStruct";
+import { TreeItem } from "@mui/x-tree-view/TreeItem";
+import ListIcon from "@mui/icons-material/List";
+import { SqlTableView } from "./SqlTableView";
+import { TabContent } from "./Tabs";
+import { ExportTableOrView } from "./Export";
 import {
-  calMenuStyle,
-  columnWidths,
+  ColumnWidth,
   ConnTypeContext,
   ContextMenuContext,
-  datagridContainerHeight,
+  dataGridStyle,
   DataSourceKind,
+  extractFieldAndIDFromMouseEvent,
   generateRandomString,
+  getLanguageFromDataSourceKind,
+  getSupportExportKind,
   handleCopyToClipboard,
   MatchPatternContext,
+  MaxTreeContext,
   secondConfirm,
+  SettingContext,
   TabsSetContext,
   UuidContext,
-  VisiableContext,
-} from './helper';
-import { MenuRefresh } from './CommonComp';
-import { MongoTable } from './MongoDB';
-import { BSON, EJSON } from 'bson';
-
-enum ViewKind {
-  Normal,
-  Materrialized,
-}
-import CalendarViewWeekIcon from '@mui/icons-material/CalendarViewWeek';
+  ViewKind,
+} from "./helper";
+import { ExceedMaxTreeItem, MenuRefresh } from "./CommonComp";
+import { MongoTable } from "./MongoDB";
 import {
   DataGrid,
   GridColDef,
+  GridSlotsComponent,
   GridSlotsComponentsProps,
-} from '@mui/x-data-grid';
-function ViewsTree(props: { viewkind: ViewKind }) {
-  const { viewkind } = props;
+} from "@mui/x-data-grid";
+import { AppDataGridPagination, SimpleFlexEditor } from "./CommonComp2";
+import { createViewSql, listView, showViewColumns } from "./handlers";
+import { filesize } from "filesize";
+function ViewsTree(props: { viewKind: ViewKind }) {
+  const { viewKind } = props;
   const { uuid } = useContext(UuidContext);
-  const [views, setViews] = useState<types.NamedStaff[] | types.ListTable[]>(
-    []
-  );
+  const [views, setViews] = useState<types.ListTable[]>([]);
   const { showNotification } = useContext(NotificationContext);
   const [loading, setLoading] = useState(false);
-  let invokeName = '';
-  switch (viewkind) {
-    case ViewKind.Normal:
-      invokeName = 'list_view';
-      break;
-    case ViewKind.Materrialized:
-      invokeName = 'list_materialized_view';
-      break;
-  }
+  const maxsize = useContext(MaxTreeContext);
 
-  const handleReload = () => {
+  const [exceed, setExceed] = useState(0);
+  const matchPattern = useContext(MatchPatternContext);
+  useEffect(() => {
+    setExceed(views.filter(e => matchPattern(e.name)).length);
+  }, [views, matchPattern]);
+  const handleReload = useCallback(() => {
     setLoading(true);
-    invoke<types.NamedStaff[] | types.ListTable[]>(invokeName, { name: uuid })
-      .then((ts) => {
+    listView(uuid, viewKind)
+      .then(ts => {
         setViews(ts);
       })
-      .catch((e) => {
-        showNotification('error', 'list view failed', e);
+      .catch(e => {
+        showNotification("error", "list view failed", e);
       })
       .finally(() => {
         setLoading(false);
       });
-  };
+  }, [showNotification, uuid, viewKind]);
   useEffect(() => {
     handleReload();
-  }, []);
+  }, [handleReload]);
 
-  let { setUpMenu } = useContext(ContextMenuContext);
-  let itemId;
-  switch (viewkind) {
-    case ViewKind.Normal:
-      itemId = uuid + '-views';
-      break;
-    case ViewKind.Materrialized:
-      itemId = uuid + '-materialized-views';
-      break;
-  }
+  const { setUpMenu } = useContext(ContextMenuContext);
 
   let name;
-  let icon;
-
-  switch (viewkind) {
-    case ViewKind.Normal:
-      name = 'views';
-      icon = <VisibilityIcon></VisibilityIcon>;
+  const icon = getIcon(viewKind);
+  switch (viewKind) {
+    case ViewKind.View:
+      name = "views";
       break;
-    case ViewKind.Materrialized:
-      name = 'materialized views';
-      icon = <CalendarViewWeekIcon></CalendarViewWeekIcon>;
+    case ViewKind.MaterializedView:
+      name = "materialized views";
       break;
   }
-  const matchPattern = useContext(MatchPatternContext);
+  const tressId = useRef(generateRandomString());
   return (
     <TreeItem
-      itemId={itemId}
+      itemId={tressId.current}
       label=<Stack
         direction="row"
-        spacing={1}
-        onContextMenu={(e) => {
+        onContextMenu={e => {
           setUpMenu({
             content: (
-              <Paper>
-                <MenuList>
-                  <MenuRefresh reload={handleReload}></MenuRefresh>
-                </MenuList>
-              </Paper>
+              <MenuList>
+                <MenuRefresh reload={handleReload} />
+              </MenuList>
             ),
-            style: calMenuStyle(e, 70),
+            event: e,
           });
         }}
       >
         {icon}
         <span> {name} </span>
-        {loading && (
-          <CircularProgress size={progressBarSizeSmall}></CircularProgress>
-        )}
+        {loading && <CircularProgress />}
       </Stack>
     >
       {views
-        .filter((e) => matchPattern(e.name))
-        .map((e) => (
-          <ViewTree
-            viewkind={viewkind}
-            key={e.name}
-            view={e.name}
-            reload={handleReload}
-            //@ts-ignore
-            size={e.size}
-          ></ViewTree>
-        ))}
+        .filter(e => matchPattern(e.name))
+        .map((e, index) => {
+          if (index >= maxsize) {
+            return;
+          }
+          return (
+            <ViewTree
+              viewKind={viewKind}
+              key={e.name}
+              view={e.name}
+              reload={handleReload}
+              size={e.size}
+            />
+          );
+        })}
+      <ExceedMaxTreeItem exceed={exceed} maxTreeSize={maxsize} />
     </TreeItem>
   );
 }
@@ -185,37 +165,31 @@ function StatementStructure(props: {
   viewKind: ViewKind;
 }) {
   const { uuid, kind, view, viewKind } = props;
-  const [sql, setSql] = useState('');
+  const [sql, setSql] = useState("");
   const [loading, setLoading] = useState(false);
   const { showNotification } = useContext(NotificationContext);
-  const handleReload = () => {
+  const handleReload = useCallback(() => {
     setLoading(true);
-    invoke<string>('create_view_sql', {
-      name: uuid,
-      viewName: view,
-      materialized: viewKind == ViewKind.Materrialized,
-    })
-      .then((e) => {
+    createViewSql(uuid, view, viewKind)
+      .then(e => {
         setSql(e);
       })
-      .catch((e) => {
-        showNotification('error', 'fetch create sql failed', e);
+      .catch(e => {
+        showNotification("error", "fetch create sql failed", e);
       })
       .finally(() => {
         setLoading(false);
       });
-  };
+  }, [showNotification, uuid, view, viewKind]);
   useEffect(() => {
     handleReload();
-  }, []);
+  }, [handleReload]);
 
-  initMonacoLanague(uuid, kind);
   return (
-    <Stack spacing={1}>
+    <Stack style={{ height: "100%" }}>
       <Stack direction="row">
         <Button
           loading={loading}
-          variant="contained"
           onClick={() => {
             handleReload();
           }}
@@ -224,11 +198,17 @@ function StatementStructure(props: {
         </Button>
       </Stack>
       {sql && (
-        <SimpleResizeEditor
+        <SimpleFlexEditor
           readOnly={true}
-          language={uuid}
+          language={getLanguageFromDataSourceKind(kind)}
           value={sql}
-        ></SimpleResizeEditor>
+          handleEditor={editor => {
+            SetAutoCompletionName.set(
+              editor.getModel().id,
+              new NameAndQueryId(uuid, kind),
+            );
+          }}
+        />
       )}
     </Stack>
   );
@@ -242,8 +222,8 @@ function ViewStructure(props: {
 }) {
   const { uuid, view, viewKind, kind } = props;
 
-  const [structure, setStructure] = useState('columns');
-  const structures = [{ name: 'columns', color: 'primary' }, ,];
+  const [structure, setStructure] = useState("column");
+  const structures = ["column"];
 
   const supportStatement = [
     DataSourceKind.LibSql,
@@ -255,37 +235,57 @@ function ViewStructure(props: {
   ].includes(kind);
 
   if (supportStatement) {
-    structures.push({ name: 'statement', color: 'secondary' });
+    structures.push("statement");
   }
 
   return (
-    <Stack spacing={1}>
-      <Stack direction="row" spacing={1} style={{ justifyContent: 'center' }}>
-        {structures.map((e) => (
-          <Chip
-            onClick={() => {
-              setStructure(e.name);
-            }}
-            disabled={structure == e.name}
-            key={e.name}
-            //@ts-ignore
-            color={e.color}
-            label={e.name}
-          ></Chip>
-        ))}
+    <Stack style={{ height: "100%" }}>
+      <Stack direction="row" style={{ justifyContent: "center" }}>
+        <Stack direction="row" justifyContent="center">
+          <ButtonGroup>
+            {structures.map(e => {
+              return (
+                <Button
+                  disabled={structure == e}
+                  onClick={() => {
+                    setStructure(e);
+                  }}
+                  variant="contained"
+                  key={e}
+                >
+                  {e}
+                </Button>
+              );
+            })}
+          </ButtonGroup>
+        </Stack>
       </Stack>
-      {structure == 'columns' && (
-        <ColumnsContent uuid={uuid} view={view}></ColumnsContent>
-      )}
-      {structure == 'statement' && (
-        <StatementStructure
-          uuid={uuid}
-          kind={kind}
-          viewKind={viewKind}
-          view={view}
-        ></StatementStructure>
+      {structure == "column" && <ColumnsContent uuid={uuid} view={view} />}
+      {structure == "statement" && (
+        <StatementStructure uuid={uuid} kind={kind} viewKind={viewKind} view={view} />
       )}
     </Stack>
+  );
+}
+
+function ColumnsMenu(props: { content: string }) {
+  const { content } = props;
+  const { showNotification } = useContext(NotificationContext);
+  return (
+    <MenuList>
+      {content && (
+        <MenuItem
+          onClick={() => {
+            handleCopyToClipboard(content, showNotification);
+          }}
+        >
+          <ListItemIcon>
+            <ContentCopyIcon />
+          </ListItemIcon>
+          <ListItemText> Copy </ListItemText>
+        </MenuItem>
+      )}
+    </MenuList>
   );
 }
 
@@ -297,171 +297,149 @@ function ColumnsContent(props: { uuid: string; view: string }) {
   const { showNotification } = useContext(NotificationContext);
   const [loading, setLoading] = useState(false);
   const onColumnResize = useCallback(({ colDef, width }) => {
-    columnWidths.saveColumnWidths(colDef.field, width);
+    ColumnWidth.instance.save(colDef.field, width);
   }, []);
 
-  const handleReload = () => {
+  const handleReload = useCallback(() => {
     setLoading(true);
-    invoke<types.Field[]>('show_view_columns', {
-      name: uuid,
-      viewName: view,
-    })
-      .then((fs) => {
+    showViewColumns(uuid, view)
+      .then(fs => {
         setFields(fs);
       })
-      .catch((e) => {
-        showNotification('error', 'list column failed', e);
+      .catch(e => {
+        showNotification("error", "list column failed", e);
       })
       .finally(() => {
         setLoading(false);
       });
-  };
+  }, [showNotification, uuid, view]);
 
   useEffect(() => {
     handleReload();
+  }, [handleReload]);
+  const cols = useMemo(() => {
+    return [
+      { field: "field" },
+      {
+        field: "data_type",
+        renderHeader: () => {
+          return "data type";
+        },
+      },
+    ] as GridColDef[];
   }, []);
-  let cols = useMemo(() => {
-    return [{ field: 'field' }, { field: 'typ' }, ,] as GridColDef[];
-  }, []);
-  cols.forEach((e) => {
-    const width = columnWidths.getWidth(e.field);
+  cols.forEach(e => {
+    const width = ColumnWidth.instance.get(e.field);
     if (width) {
       e.width = width;
     }
   });
-  const vis = useContext(VisiableContext);
+
   const { setUpMenu } = useContext(ContextMenuContext);
-
-  function Menu(props: { content: string }) {
-    const { content } = props;
-
-    return (
-      <Paper>
-        <MenuList>
-          {content && (
-            <MenuItem
-              onClick={() => {
-                handleCopyToClipboard(content, showNotification);
-              }}
-            >
-              <ListItemIcon>
-                <ContentCopyIcon></ContentCopyIcon>
-              </ListItemIcon>
-              <ListItemText> Copy </ListItemText>
-            </MenuItem>
-          )}
-        </MenuList>
-      </Paper>
-    );
-  }
 
   const slotProps = useMemo(() => {
     return {
       row: {
-        onContextMenu: (e) => {
+        onContextMenu: e => {
           const { target } = e;
           {
-            const field = (target as HTMLDivElement).getAttribute('data-field');
+            const field = extractFieldAndIDFromMouseEvent(e).field;
             if (!field) {
               return;
             }
           }
-          let content = (target as HTMLDivElement).innerHTML;
+          const content = (target as HTMLDivElement).innerHTML;
           setUpMenu({
-            content: <Menu content={content}></Menu>,
-            style: calMenuStyle(e, 100),
+            content: <ColumnsMenu content={content} />,
+            event: e,
           });
         },
-        style: { cursor: 'context-menu' },
+        style: { cursor: "context-menu" },
+      },
+      toolbar: {
+        csvOptions: {
+          delimiter: setting.export.csvDelimiter,
+          includeHeaders: setting.export.includeHeader,
+        },
       },
     } as GridSlotsComponentsProps;
-  }, []);
+  }, [setUpMenu, setting.export.csvDelimiter, setting.export.includeHeader]);
 
-  const getRowId = useCallback((e) => {
-    return e['field'];
+  const getRowId = useCallback(e => {
+    return e["field"];
   }, []);
-
+  const slots = useMemo(() => {
+    return {
+      pagination: AppDataGridPagination,
+    } as Partial<GridSlotsComponent>;
+  }, []);
   return (
-    <Stack spacing={1}>
-      <Stack direction="row" spacing={1}>
-        <Button loading={loading} onClick={handleReload} variant="contained">
+    <Stack style={{ height: "100%" }}>
+      <Stack direction="row">
+        <Button loading={loading} onClick={handleReload}>
           reload
         </Button>
       </Stack>
-
-      {vis && (
-        <div
-          style={{
-            display: 'grid',
-            height: datagridContainerHeight(fields.length),
-          }}
-        >
-          <DataGrid
-            getRowId={getRowId}
-            slotProps={slotProps}
-            onColumnResize={onColumnResize}
-            showCellVerticalBorder
-            showColumnVerticalBorder
-            rowHeight={setting.datagridRowHeight}
-            columnHeaderHeight={setting.datagridHeaderHeight}
-            columns={cols}
-            rows={fields}
-          ></DataGrid>
-        </div>
-      )}
+      <DataGrid
+        slots={slots}
+        getRowId={getRowId}
+        slotProps={slotProps}
+        onColumnResize={onColumnResize}
+        columns={cols}
+        rows={fields}
+        style={dataGridStyle}
+        loading={loading}
+      />
     </Stack>
   );
 }
 
-function ViewTree(props: {
-  view: string;
-  reload;
-  viewkind: ViewKind;
-  size?: string;
-}) {
-  let { view, reload, viewkind, size } = props;
-  const { uuid } = useContext(UuidContext);
-  const { kind: conn_type } = useContext(ConnTypeContext);
-  let { setUpMenu } = useContext(ContextMenuContext);
-  let icon;
-  switch (viewkind) {
-    case ViewKind.Materrialized:
-      icon = <CalendarViewWeekIcon></CalendarViewWeekIcon>;
-      break;
-    case ViewKind.Normal:
-      icon = <VisibilityIcon></VisibilityIcon>;
-      break;
+function getIcon(viewKind: ViewKind) {
+  switch (viewKind) {
+    case ViewKind.MaterializedView:
+      return <ViewComfyAltIcon />;
+    default:
+      return <VisibilityIcon />;
   }
+}
+function ViewTree(props: { view: string; reload; viewKind: ViewKind; size?: number }) {
+  const { view, reload, viewKind, size } = props;
+  const { uuid } = useContext(UuidContext);
+  const { kind } = useContext(ConnTypeContext);
+  const { setUpMenu } = useContext(ContextMenuContext);
+  const icon = getIcon(viewKind);
+
   return (
     <TreeItem
-      itemId={uuid + '-view-' + view}
+      itemId={uuid + "-view-" + viewKind + "-" + view}
       label={
         <Stack
           direction="row"
-          spacing={1}
-          sx={{ justifyContent: 'space-between' }}
-          onContextMenu={(e) => {
+          sx={{ justifyContent: "space-between" }}
+          onContextMenu={e => {
             setUpMenu({
               content: (
                 <ViewMenu
-                  kind={conn_type}
+                  kind={kind}
                   reload={reload}
                   view={view}
                   uuid={uuid}
-                  viewkind={viewkind}
+                  viewKind={viewKind}
                 />
               ),
-              style: calMenuStyle(e, 100),
+              event: e,
             });
           }}
         >
-          <Stack direction="row" spacing={1}>
+          <Stack direction="row">
             {icon} <span> {view} </span>
           </Stack>
-          {viewkind == ViewKind.Materrialized && <span> {size} </span>}
+          {viewKind == ViewKind.MaterializedView && size && (
+            <span> {filesize(size, { round: 0 })} </span>
+          )}
         </Stack>
       }
-    ></TreeItem>
+    />
   );
 }
 
@@ -470,48 +448,48 @@ function ViewMenu(props: {
   uuid: string;
   reload;
   kind: DataSourceKind;
-  viewkind: ViewKind;
+  viewKind: ViewKind;
 }) {
-  let { view, uuid, reload, kind, viewkind } = props;
+  const { view, uuid, reload, kind, viewKind } = props;
   const { showNotification } = useContext(NotificationContext);
   const [showExport, setShowExport] = useState(false);
   const handleDrop = async () => {
-    let confirm = await secondConfirm({
-      title: 'Drop view',
-      content: '',
-      confirmText: 'Drop',
+    const confirm = await secondConfirm({
+      title: `Drop view '${view}'`,
+      content: "",
+      confirmText: "Drop",
     });
     if (!confirm) {
       return;
     }
     let invokeName;
-    switch (viewkind) {
-      case ViewKind.Normal:
-        invokeName = 'drop_view';
+    switch (viewKind) {
+      case ViewKind.View:
+        invokeName = "drop_view";
         break;
-      case ViewKind.Materrialized:
-        invokeName = 'drop_materialized_view';
+      case ViewKind.MaterializedView:
+        invokeName = "drop_materialized_view";
         break;
     }
     invoke(invokeName, { name: uuid, viewName: view })
-      .then((_) => {
-        showNotification('success', 'Drop View OK');
+      .then(() => {
+        showNotification("success", "Drop View OK");
         reload();
       })
-      .catch((e) => {
-        showNotification('error', 'Drop View Failure', e);
+      .catch(e => {
+        showNotification("error", "Drop View Failure", e);
       });
   };
   const { tabs, setTabs, setSelectTab } = useContext(TabsSetContext);
 
   const handleViewData = () => {
-    const id = uuid + '-view-' + generateRandomString();
+    const id = uuid + "-view-" + generateRandomString();
 
     let list: ReactNode = null;
     switch (kind) {
       case DataSourceKind.MariaDB:
       case DataSourceKind.Mysql:
-      case DataSourceKind.MsSql:
+      case DataSourceKind.SqlServer:
       case DataSourceKind.Sqlite:
       case DataSourceKind.Postgres:
       case DataSourceKind.Oracle:
@@ -524,125 +502,52 @@ function ViewMenu(props: {
       case DataSourceKind.Cockroach:
         list = (
           <SqlTableView
-            autoCompletion={makeAutoComplete(uuid)}
+            isTable={false}
             tableName={view}
             kind={kind}
+            uuid={uuid}
             notWarnPri={true}
-            reloadOP={async (
-              where: string,
-              orderBy: string,
-              page: number,
-              pageSize: number,
-              extra
-            ) => {
-              let where_null = where ? where : null;
-              let orderBy_null = orderBy ? orderBy : null;
-              return await invoke<types.MuiDataGridData>('show_view', {
-                name: uuid,
-                viewName: view,
-                whereStr: where_null,
-                orderBy: orderBy_null,
-                page,
-                pageSize,
-                extra,
-              });
-            }}
-            put_value_in_sql={async (typ, value) => {
-              return invoke('put_value_in_sql', {
-                name: uuid,
-                typ,
-                value: value ? value : null,
-              });
-            }}
-          ></SqlTableView>
+          />
         );
         break;
 
       case DataSourceKind.Mongo:
-        list = (
-          <MongoTable
-            reloadOPTableList={async (filter, sort, page, pageSize) => {
-              return await invoke('mongo_show_collection_table_list', {
-                name: uuid,
-                tableName: view,
-                filter: BSON.serialize(filter),
-                sort: BSON.serialize(sort),
-                page,
-                pageSize,
-              });
-            }}
-            realodOPDocs={async (filter, sort, page, pageSize) => {
-              try {
-                let x = await invoke('mongo_show_collection_docs', {
-                  name: uuid,
-                  tableName: view,
-                  filter: BSON.serialize(filter),
-                  sort: BSON.serialize(sort),
-                  page,
-                  pageSize,
-                });
-                //@ts-ignore
-                let docs = x.docs.map((e) =>
-                  BSON.deserialize(new Uint8Array(e))
-                );
-                //@ts-ignore
-                let count = x.count;
-                return new DocsAndCount(docs, count);
-              } catch (e) {
-                throw e;
-              }
-            }}
-            loadOne={async (id) => {
-              try {
-                let x = await invoke<number[]>('mongo_get_one_document_by_id', {
-                  name: uuid,
-                  tableName: view,
-                  id: JSON.stringify(EJSON.serialize(id)),
-                });
-                return BSON.deserialize(new Uint8Array(x));
-              } catch (e) {
-                throw e;
-              }
-            }}
-          ></MongoTable>
-        );
+        list = <MongoTable isTable={false} uuid={uuid} table={view} />;
         break;
-
       default:
-        showNotification('error', `datasouce ${kind} need impl view`);
+        showNotification("error", `data source ${kind} need impl view`);
     }
 
-    setTabs((e) => {
-      setSelectTab(tabs.length);
+    setTabs(e => {
+      setTimeout(() => {
+        setSelectTab(tabs.length);
+      }, 100);
+
       return [
         ...e,
-        new TabContent(id, view, list, <VisibilityIcon> </VisibilityIcon>),
+        new TabContent(id, view, list, <VisibilityIcon className="tab-icon-size" />),
       ];
     });
   };
 
-  const handleSturcture = () => {
-    let id = uuid + '-view-' + view + '-structure';
-    let index = tabsHasId(tabs, id);
-    if (typeof index == 'number') {
+  const handleStructure = () => {
+    const id = uuid + "-view-" + view + "-structure";
+    const index = tabsHasId(tabs, id);
+    if (typeof index == "number") {
       setSelectTab(index);
     } else {
-      setTabs((e) => {
-        setSelectTab(tabs.length);
+      setTabs(e => {
+        setTimeout(() => {
+          setSelectTab(tabs.length);
+        }, 100);
+
         return [
           ...e,
           new TabContent(
             id,
             `${view}`,
-            (
-              <ViewStructure
-                view={view}
-                uuid={uuid}
-                kind={kind}
-                viewKind={viewkind}
-              ></ViewStructure>
-            ),
-            <IoConstructOutline> </IoConstructOutline>
+            <ViewStructure view={view} uuid={uuid} kind={kind} viewKind={viewKind} />,
+            <IoConstructOutline className="tab-icon-size" />,
           ),
         ];
       });
@@ -650,24 +555,19 @@ function ViewMenu(props: {
   };
 
   return (
-    <Paper>
+    <div>
       <MenuList>
         <MenuItem onClick={handleViewData}>
           <ListItemIcon>
-            <ListIcon></ListIcon>
+            <ListIcon />
           </ListItemIcon>
           <ListItemText> View Data</ListItemText>
-          <Typography
-            variant="body2"
-            sx={{ color: 'text.secondary' }}
-          ></Typography>
+          <Typography variant="body2" sx={{ color: "text.secondary" }} />
         </MenuItem>
 
-        <MenuItem onClick={handleSturcture}>
+        <MenuItem onClick={handleStructure}>
           <ListItemIcon>
-            <IoConstructOutline
-              style={{ fontSize: '1.2rem' }}
-            ></IoConstructOutline>
+            <IoConstructOutline style={{ fontSize: "1.2rem" }} />
           </ListItemIcon>
           <ListItemText> Structure </ListItemText>
         </MenuItem>
@@ -677,66 +577,58 @@ function ViewMenu(props: {
           }}
         >
           <ListItemIcon>
-            <ContentCopyIcon></ContentCopyIcon>
+            <ContentCopyIcon />
           </ListItemIcon>
           <ListItemText> Copy Name </ListItemText>
         </MenuItem>
 
-        <Divider></Divider>
+        <Divider />
         <MenuItem
           onClick={() => {
             setShowExport(true);
           }}
         >
           <ListItemIcon>
-            <ArrowCircleDownIcon></ArrowCircleDownIcon>
+            <ArrowCircleDownIcon />
           </ListItemIcon>
           <ListItemText> Export </ListItemText>
         </MenuItem>
-        <Divider></Divider>
+        <Divider />
         <MenuItem
-          sx={{ color: 'error.main' }}
+          sx={{ color: "error.main" }}
           onClick={() => {
             handleDrop();
           }}
         >
           <ListItemIcon>
-            <DeleteForeverIcon color="error"></DeleteForeverIcon>
+            <DeleteForeverIcon color="error" />
           </ListItemIcon>
           <ListItemText>Drop </ListItemText>
-          <Typography
-            variant="body2"
-            sx={{ color: 'text.secondary' }}
-          ></Typography>
+          <Typography variant="body2" sx={{ color: "text.secondary" }} />
         </MenuItem>
       </MenuList>
 
       {showExport && (
         <Modal
           open={showExport}
-          onClose={(e: EscDownEvent, reason) => {
-            if (reason === 'backdropClick') {
-              return;
-            }
-
+          onClose={modalHandleClose((e: EscDownEvent) => {
             e.preventDefault();
             setShowExport(false);
-          }}
+          })}
         >
           <Box sx={modalStyle} width="45%">
             <ExportTableOrView
               uuid={uuid}
               name={view}
+              supportKind={getSupportExportKind(kind, false)}
               handleClose={() => {
                 setShowExport(false);
               }}
-              kind={kind}
-              supportKind={['csv', 'json', 'jsonline']}
-            ></ExportTableOrView>
+            />
           </Box>
         </Modal>
       )}
-    </Paper>
+    </div>
   );
 }
 

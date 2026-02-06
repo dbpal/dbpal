@@ -50,3 +50,39 @@ FLUSH TABLES employees;
 23 employees
 explain  select * from employees
 33 employees
+SELECT test.employees from employees
+22 employees
+SELECT test from employees
+12 test
+SELECT sys.xxx from sys_config
+15 format_bytes
+SELECT sys.xxx from sys.format_bytes
+37 format_bytes
+SELECT ENGINE from information_schema.ENGINES
+14 ENGINE ; 46 ENGINES
+SELECT * from test
+19 test
+EXPLAIN test
+13 test ; 13 SELECT
+test.
+6 employees
+employees.
+11 id
+SELECT * FROM JSON_TABLE('[{"a": 1, "b": 2}, {"a": 3, "b": 4}]','$[*]' COLUMNS(a INT PATH '$.a' DEFAULT '0' ON EMPTY,b INT PATH '$.b' NULL ON ERROR )) AS jt WHERE a > 0 ;
+165 a ; 165 jt
+SELECT * from (SELECT NOW() as now) t WHERE t.now;
+46 t ; 50 now
+SELECT * FROM employees WHERE MATCH(id) AGAINST ('+MySQL -Oracle "全文索引"' IN BOOLEAN MODE);
+24 employees ; 39 id 
+select employees.* from employees
+17 employees
+select * from employees JOIN employees using (id) 
+24 employees ; 49 id
+rename table test.employees to test.employees_new
+18 test ; 28 employees ; 36 test
+delete employees from departments d where d.id = 1000
+17 employees ; 44 d; 47 id
+show create table employees
+28 employees
+show create event do_nothing_event_loop
+40 do_nothing_event_loop

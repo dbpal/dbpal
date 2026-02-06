@@ -1,21 +1,22 @@
-import React, { useContext, useState } from 'react';
+import React, { useContext, useEffect, useRef, useState } from "react";
 import {
   Stack,
-  Button,
-  Paper,
   MenuItem,
   MenuList,
-  Divider,
-  Chip,
-} from '@mui/material';
-
+  Tabs,
+  Tab,
+  Tooltip,
+  Typography,
+} from "@mui/material";
+import CloseIcon from "@mui/icons-material/Close";
 import {
-  calMenuStyle,
   ContextMenuContext,
   secondConfirm,
+  SetCloseConfirmTextContext,
   TabContent,
-  VisiableContext,
-} from './helper';
+  TabActiveContext,
+  WindowFocusContext,
+} from "./helper";
 
 function TabsMenu(props: {
   index;
@@ -24,75 +25,65 @@ function TabsMenu(props: {
   changeTab;
   tabsLength;
   selectIndex;
-  setHideAll;
 }) {
-  const {
-    index,
-    handleClose,
-    setTabs,
-    changeTab,
-    tabsLength,
-    selectIndex,
-    setHideAll,
-  } = props;
+  const { index, handleClose, setTabs, changeTab, tabsLength, selectIndex } = props;
 
   return (
-    <Paper>
-      <MenuList>
+    <MenuList>
+      <MenuItem
+        onClick={() => {
+          handleClose(index);
+        }}
+      >
+        close
+      </MenuItem>
+      {index != 0 && (
         <MenuItem
           onClick={() => {
-            handleClose(index);
+            setTabs(e => {
+              changeTab(0);
+              return e.slice(index);
+            });
           }}
         >
-          close
+          close to left
         </MenuItem>
-        {index != 0 && (
-          <MenuItem
-            onClick={() => {
-              setTabs((e) => {
-                changeTab(0);
-                return e.slice(index);
-              });
-            }}
-          >
-            close to left
-          </MenuItem>
-        )}
-        {index != tabsLength - 1 && (
-          <MenuItem
-            onClick={() => {
-              setTabs((e) => {
-                let x = e.slice(0, index + 1);
-                if (selectIndex > index) {
-                  changeTab(index);
-                }
-                return x;
-              });
-            }}
-          >
-            close to right
-          </MenuItem>
-        )}
-        {tabsLength > 1 && (
-          <MenuItem
-            onClick={() => {
-              setTabs((e) => {
-                let x = [e[selectIndex]];
-                changeTab(0);
-                return x;
-              });
-            }}
-          >
-            close others
-          </MenuItem>
-        )}
-
+      )}
+      {index != tabsLength - 1 && (
+        <MenuItem
+          onClick={() => {
+            setTabs(e => {
+              const x = e.slice(0, index + 1);
+              if (selectIndex > index) {
+                changeTab(index);
+              }
+              return x;
+            });
+          }}
+        >
+          close to right
+        </MenuItem>
+      )}
+      {tabsLength > 1 && (
+        <MenuItem
+          onClick={() => {
+            setTabs(e => {
+              const x = [e[selectIndex]];
+              changeTab(0);
+              return x;
+            });
+          }}
+        >
+          close others
+        </MenuItem>
+      )}
+      {tabsLength > 1 && (
         <MenuItem
           onClick={async () => {
             const confirm = await secondConfirm({
-              title: 'close all tab',
-              content: 'are u sure',
-              confirmText: 'Close',
+              title: "close all tab",
+              confirmText: "Close",
+              kind: "error",
             });
             if (!confirm) {
               return;
@@ -103,110 +94,137 @@ function TabsMenu(props: {
         >
           close all
         </MenuItem>
-
-        <MenuItem
-          onClick={() => {
-            setHideAll(true);
-          }}
-        >
-          hide all
-        </MenuItem>
-      </MenuList>
-    </Paper>
+      )}
+    </MenuList>
   );
+}
+
+function getLength(header: string, width: number, tabs: TabContent[]) {
+  let total: number = tabs.reduce((acc, cur) => {
+    return acc + cur.header.length;
+  }, 0);
+  return (width * header.length * 1.5) / total;
 }
 
 function TabsWithContent_(props: {
   tabs: TabContent[];
   handleClose: (index: number) => void;
-  changeTab: (index: Number) => void;
+  changeTab: (index: number) => void;
   selectIndex: number;
   setTabs;
 }) {
-  let { tabs, handleClose, selectIndex, changeTab, setTabs } = props;
+  const { tabs, handleClose, selectIndex, changeTab, setTabs } = props;
   const { setUpMenu } = useContext(ContextMenuContext);
-  const [hideAll, setHideAll] = useState(false);
-
+  const windowFocus = useContext(WindowFocusContext);
+  const rootStack = useRef<HTMLDivElement>(null);
+  const [tabWidth, setTabWidth] = useState(100);
+  useEffect(() => {
+    if (tabs.length == 0) {
+      return;
+    }
+    const e = new ResizeObserver(en => {
+      const width = en[0].target.clientWidth;
+      if (width) {
+        setTabWidth(width);
+      }
+    });
+    e.observe(rootStack.current);
+    return () => {
+      e.disconnect();
+    };
+  }, [tabs]);
   return (
-    <Stack spacing={1}>
-      {hideAll && (
-        <Stack>
-          <Button
-            onClick={() => {
-              setHideAll(false);
-            }}
-          >
-            all tabs
-          </Button>
-        </Stack>
-      )}
-
-      {!hideAll && (
-        <Stack
-          direction="row"
-          style={{
-            flexWrap: 'wrap',
-          }}
-        >
-          {tabs.map((tab, index) => {
-            return (
-              <Chip
-                label={tab.header}
-                onDelete={() => {
-                  handleClose(index);
-                }}
-                key={tab.id}
-                size="small"
-                icon={tab.icon}
-                clickable
-                color={index == selectIndex ? 'primary' : 'default'}
-                onContextMenu={(e) => {
-                  setUpMenu({
-                    content: (
-                      <TabsMenu
-                        index={index}
-                        handleClose={handleClose}
-                        setTabs={setTabs}
-                        tabsLength={tabs.length}
-                        changeTab={changeTab}
-                        selectIndex={selectIndex}
-                        setHideAll={setHideAll}
-                      ></TabsMenu>
-                    ),
-                    style: calMenuStyle(e, 100),
-                  });
-                }}
-                onClick={() => {
-                  changeTab(index);
-                }}
-                sx={
-                  index != selectIndex
-                    ? {
-                        margin: '2px',
-                        '& .MuiChip-deleteIcon': {
-                          visibility: 'hidden', // 默认隐藏删除按钮
-                        },
-                        '&:hover .MuiChip-deleteIcon': {
-                          visibility: 'visible', // hover 时显示删除按钮
-                        },
-                      }
-                    : { margin: '2px' }
-                }
-              ></Chip>
-            );
-          })}
-        </Stack>
-      )}
-      {tabs.length > 0 && <Divider style={{ borderWidth: '2px' }}></Divider>}
-      <div style={{ paddingRight: '18px' }}>
+    <Stack style={{ width: "100%", height: "100%" }} ref={rootStack}>
+      <Tabs
+        value={selectIndex}
+        variant="scrollable"
+        scrollButtons="auto"
+        allowScrollButtonsMobile
+        onChange={(_, newValue) => {
+          changeTab(newValue);
+        }}
+        sx={{
+          // 1. Tab 之间缝隙
+          "& .MuiTabs-flexContainer": { columnGap: 0 }, // 4px
+          // 2. Tab 内边距
+          "& .MuiTab-root": { minHeight: 36, px: 0.4 }, // 高度36px，左右12px
+          opacity: windowFocus ? 1 : 0.6,
+        }}
+      >
+        {tabs.map((tab, index) => {
+          const max = getLength(tab.header, tabWidth, tabs);
+          return (
+            <Tab
+              style={{ maxWidth: max + "px" }}
+              key={tab.id}
+              label=<Tooltip title={tab.header}>
+                <Stack
+                  direction="row"
+                  style={{
+                    textTransform: "none",
+                    alignItems: "center",
+                  }}
+                  onContextMenu={e => {
+                    setUpMenu({
+                      content: (
+                        <TabsMenu
+                          index={index}
+                          handleClose={handleClose}
+                          setTabs={setTabs}
+                          tabsLength={tabs.length}
+                          changeTab={changeTab}
+                          selectIndex={selectIndex}
+                        />
+                      ),
+                      event: e,
+                    });
+                  }}
+                >
+                  {tabs.length <= 8 && max > 100 ? tab.icon : undefined}
+                  <Typography
+                    style={{
+                      fontWeight: index == selectIndex ? "bolder" : "normal",
+                      minWidth: "2rem",
+                      whiteSpace: "nowrap",
+                      overflow: "hidden",
+                      textOverflow: "clip",
+                      flex: 1,
+                      // fontSize: index == selectIndex ? "1.1rem" : "1rem",
+                    }}
+                  >
+                    {tab.header}
+                  </Typography>
+                  <CloseIcon
+                    onClick={() => {
+                      handleClose(index);
+                    }}
+                    style={{ fontSize: "0.9rem" }}
+                    color="warning"
+                  />
+                </Stack>
+              </Tooltip>
+            />
+          );
+        })}
+      </Tabs>
+      <div style={{ flex: 1 }}>
         {tabs.map((tab, index) => (
-          <VisiableContext.Provider key={tab.id} value={selectIndex == index}>
-            <div hidden={selectIndex !== index}>{tab.content}</div>
-          </VisiableContext.Provider>
+          <TabActiveContext.Provider key={tab.id} value={selectIndex == index}>
+            <SetCloseConfirmTextContext
+              value={e => {
+                tabs[index].closeConfirmText = e;
+              }}
+            >
+              <div
+                hidden={selectIndex !== index}
+                style={{ height: "100%", position: "relative" }}
+              >
+                {tab.content}
+              </div>
+            </SetCloseConfirmTextContext>
+          </TabActiveContext.Provider>
         ))}
       </div>
-
-      <div style={{ minHeight: '300px' }}></div>
     </Stack>
   );
 }

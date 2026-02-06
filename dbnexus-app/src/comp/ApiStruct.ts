@@ -2,102 +2,169 @@
 
 export default types;
 export namespace types {
+    export type U32 = number;
+    export type ConnTimeOut = types.U32;
     export type SqliteDBConfig = {
         "path": string;
         "read_only": boolean;
+        "conn_timeout": (types.ConnTimeOut | null);
     };
-    export type EnableSsl = {
-        "ssl_enable"?: boolean;
-        "ssl_ca"?: (string | null);
-        "ssl_cert"?: (string | null);
-        "ssl_key"?: (string | null);
+    export type SSLFiles = {
+        "ssl_ca": (string | null);
+        "ssl_cert": (string | null);
+        "ssl_key": (string | null);
     };
+    export type MySqlSslMode = (
+    /**
+     * Establish an unencrypted connection.
+     */
+"disabled" | 
+    /**
+     * Establish an encrypted connection if the server supports encrypted connections, falling
+     * back to an unencrypted connection if an encrypted connection cannot be established.
+     * 
+     * This is the default if `ssl_mode` is not specified.
+     */
+"preferred" | 
+    /**
+     * Establish an encrypted connection if the server supports encrypted connections.
+     * The connection attempt fails if an encrypted connection cannot be established.
+     */
+"required" | 
+    /**
+     * Like `Required`, but additionally verify the server Certificate Authority (CA)
+     * certificate against the configured CA certificates. The connection attempt fails
+     * if no valid matching CA certificates are found.
+     */
+"verifyca" | 
+    /**
+     * Like `VerifyCa`, but additionally perform host name identity verification by
+     * checking the host name the client uses for connecting to the server against the
+     * identity in the certificate that the server sends to the client.
+     */
+"verifyidentity");
+    export type MysqlSsl = (types.SSLFiles & {
+        "ssl_mode": types.MySqlSslMode;
+    });
     export type U16 = number;
-    export type MysqlDBConfig = (types.EnableSsl & {
+    export type MysqlDBConfig = (types.MysqlSsl & {
         "host": string;
         "port": types.U16;
         "username": string;
         "password": (string | null);
-        "save_password": boolean;
         "db": (string | null);
         "read_only": boolean;
+        "conn_timeout": (types.ConnTimeOut | null);
     });
-    export type PGDBConfig = (types.EnableSsl & {
+    export type PgSslMode = (
+    /**
+     * Only try a non-SSL connection.
+     */
+"disable" | 
+    /**
+     * First try a non-SSL connection; if that fails, try an SSL connection.
+     */
+"allow" | 
+    /**
+     * First try an SSL connection; if that fails, try a non-SSL connection.
+     * 
+     * This is the default if no other mode is specified
+     */
+"prefer" | 
+    /**
+     * Only try an SSL connection. If a root CA file is present, verify the connection
+     * in the same way as if `VerifyCa` was specified.
+     */
+"require" | 
+    /**
+     * Only try an SSL connection, and verify that the server certificate is issued by a
+     * trusted certificate authority (CA).
+     */
+"verifyca" | 
+    /**
+     * Only try an SSL connection; verify that the server certificate is issued by a trusted
+     * CA and that the requested server host name matches that in the certificate.
+     */
+"verifyfull");
+    export type PgSsl = (types.SSLFiles & {
+        "ssl_mode": types.PgSslMode;
+    });
+    export type PGDBConfig = (types.PgSsl & {
         "host": string;
         "port": types.U16;
         "username": string;
         "password": (string | null);
-        "save_password": boolean;
         "db": (string | null);
         "schema": (string | null);
         "read_only": boolean;
+        "conn_timeout": (types.ConnTimeOut | null);
     });
     export type SqlServerDBConfig = {
         "host": string;
         "port": types.U16;
         "username": (string | null);
         "password": (string | null);
-        "save_password": boolean;
         "db": (string | null);
         "trust_cert": boolean;
         "schema": (string | null);
         "read_only": boolean;
+        "conn_timeout": (types.ConnTimeOut | null);
+        "cert_ca": (string | null);
     };
-    export type U64 = number;
-    export type MongoDBConfig = {
+    export type MongoSsl = (types.SSLFiles & {
+        "enable_ssl": boolean;
+    });
+    export type MongoDBConfig = (types.MongoSsl & {
         "host": string;
         "port": types.U16;
         "username": (string | null);
         "password": (string | null);
-        "save_password": boolean;
-
-        /**
-         * milliseconds
-         */
-        "call_timeout": (types.U64 | null);
+        "conn_timeout": (types.ConnTimeOut | null);
         "db": (string | null);
         "read_only": boolean;
-    };
+    });
     export type RedisDBConfig = {
         "host": string;
         "port": (types.U16 | null);
         "username": (string | null);
         "password": (string | null);
-        "save_password": boolean;
         "db": (string | null);
         "read_only": boolean;
+        "enable_ssl": boolean;
+        "conn_timeout": (types.ConnTimeOut | null);
     };
     export type OracleDBConfig = {
         "username": string;
         "password": string;
-        "save_password": boolean;
         "host": string;
         "port": types.U16;
         "schema": (string | null);
-        "call_timeout": (types.U64 | null);
+        "conn_timeout": (types.ConnTimeOut | null);
         "read_only": boolean;
         "db": string;
     };
+    export type CassandraSsl = types.SSLFiles;
     export type CassandraDBConfig = {
         "host": string;
         "port": (types.U16 | null);
         "username": (string | null);
         "password": (string | null);
-        "save_password": boolean;
         "db": (string | null);
         "read_only": boolean;
+        "ssl": types.CassandraSsl;
+        "conn_timeout": (types.ConnTimeOut | null);
     };
     export type ClickHouseConfig = {
         "host": string;
         "port": types.U16;
         "username": string;
         "password": (string | null);
-        "save_password": boolean;
         "db": (string | null);
         "read_only": boolean;
         "https": boolean;
+        "conn_timeout": (types.ConnTimeOut | null);
     };
-    export type LibSqlDBConfigSouce = (({
+    export type LibSqlDBConfigSource = (({
         "source": "local";
     } & {
         "path": string;
@@ -106,26 +173,53 @@ export namespace types {
     } & {
         "url": string;
         "auth_token": string;
-        "path": string;
+        "path": (string | null);
     }));
-    export type LibSqlDBConfig = (types.LibSqlDBConfigSouce & {
+    export type LibSqlDBConfig = (types.LibSqlDBConfigSource & {
         "replica": boolean;
         "read_only": boolean;
+        "conn_timeout": (types.ConnTimeOut | null);
     });
     export type FireBirdConfig = {
         "host": string;
         "port": types.U16;
         "username": string;
         "password": string;
-        "save_password": boolean;
         "db": string;
         "read_only": boolean;
+        "conn_timeout": (types.ConnTimeOut | null);
     };
     export type DuckDBConfig = {
         "path": string;
         "read_only": boolean;
         "db": (string | null);
         "schema": (string | null);
+        "conn_timeout": (types.ConnTimeOut | null);
+    };
+    export type Usize = number;
+    export type OdbcCommon = {
+        "driver_name": string;
+        "max_str_len": types.Usize;
+        "max_bin_len": types.Usize;
+    };
+    export type Db2Config = (types.OdbcCommon & {
+        "host": string;
+        "port": types.U16;
+        "username": string;
+        "password": string;
+        "db": string;
+        "read_only": boolean;
+        "conn_timeout": (types.ConnTimeOut | null);
+        "schema": (string | null);
+    });
+    export type CouchBaseDBConfig = {
+        "conn_str": string;
+        "username": string;
+        "password": string;
+        "read_only": boolean;
+        "bucket": (string | null);
+        "scope": (string | null);
+        "conn_timeout": (types.ConnTimeOut | null);
     };
     export type DBConnectionConfig = (({
         "conn_type": "sqlite";
@@ -135,46 +229,57 @@ export namespace types {
         "conn_type": "mysql";
     } & (types.MysqlDBConfig & {
         "name": string;
+        "save_password": boolean;
     })) | ({
         "conn_type": "mariadb";
     } & (types.MysqlDBConfig & {
         "name": string;
+        "save_password": boolean;
     })) | ({
         "conn_type": "tidb";
     } & (types.MysqlDBConfig & {
         "name": string;
+        "save_password": boolean;
     })) | ({
         "conn_type": "postgres";
     } & (types.PGDBConfig & {
         "name": string;
+        "save_password": boolean;
     })) | ({
         "conn_type": "cockroach";
     } & (types.PGDBConfig & {
         "name": string;
+        "save_password": boolean;
     })) | ({
-        "conn_type": "mssql";
+        "conn_type": "sqlserver";
     } & (types.SqlServerDBConfig & {
         "name": string;
+        "save_password": boolean;
     })) | ({
         "conn_type": "mongo";
     } & (types.MongoDBConfig & {
         "name": string;
+        "save_password": boolean;
     })) | ({
         "conn_type": "redis";
     } & (types.RedisDBConfig & {
         "name": string;
+        "save_password": boolean;
     })) | ({
         "conn_type": "oracle";
     } & (types.OracleDBConfig & {
         "name": string;
+        "save_password": boolean;
     })) | ({
         "conn_type": "cassandra";
     } & (types.CassandraDBConfig & {
         "name": string;
+        "save_password": boolean;
     })) | ({
         "conn_type": "clickhouse";
     } & (types.ClickHouseConfig & {
         "name": string;
+        "save_password": boolean;
     })) | ({
         "conn_type": "libsql";
     } & (types.LibSqlDBConfig & {
@@ -183,19 +288,30 @@ export namespace types {
         "conn_type": "firebird";
     } & (types.FireBirdConfig & {
         "name": string;
+        "save_password": boolean;
     })) | ({
         "conn_type": "duckdb";
     } & (types.DuckDBConfig & {
         "name": string;
+    })) | ({
+        "conn_type": "db2";
+    } & (types.Db2Config & {
+        "name": string;
+        "save_password": boolean;
+    })) | ({
+        "conn_type": "couchbase";
+    } & (types.CouchBaseDBConfig & {
+        "name": string;
+        "save_password": boolean;
     })));
+    export type U64 = number;
     export type ListTable = {
         "name": string;
-        "size": (string | null);
+        "size": (types.U64 | null);
     };
-    export type I64 = number;
     export type Field = {
         "field": string;
-        "typ": string;
+        "data_type": string;
         "nullable": boolean;
 
         /**
@@ -209,18 +325,17 @@ export namespace types {
         "is_primary": boolean;
         "is_auto_increment": boolean;
         "sortable": boolean;
-        "firebird_binary_sub_type": (types.I64 | null);
     };
-    export type IndexKind = ("Index" | "Unique" | "Primary");
+    export type IndexKind = ("index" | "unique" | "primary");
     export type Index = {
         "name": (string | null);
         "kind": types.IndexKind;
         "columns": (string)[];
     };
-    export type SqlExecuteRet = {
-        "sql": string;
-        "changes": (types.U64 | null);
-    };
+
+    /**
+     * meta value can used in various place.
+     */
     export type MetaValue = {
         "name": string;
         "value": (string | null);
@@ -251,7 +366,17 @@ export namespace types {
         "export_kind": "sql";
     } & {
         "include_table_schema": boolean;
-    }));
+    }) | ({
+        "export_kind": "xlsx";
+    } & {
+        "include_header": boolean;
+    }) | ({
+        "export_kind": "html";
+    } & {
+        "include_header": boolean;
+    }) | {
+        "export_kind": "markdown";
+    });
     export type RedisListTable = {
         "string_tables": (string)[];
         "list_tables": (string)[];
@@ -284,9 +409,9 @@ export namespace types {
     export type CompletionItem = {
         "item": string;
         "kind": CompletionKind;
-        "desc": (string | null);
+        "desc"?: (string | null);
     };
-    export type CompletionKind = ("Command" | "KeyWord" | "Function" | "Database" | "Schema" | "Table" | "View" | "Column" | "Text" | "Type" | "Index" | "Sequence" | "Stage" | "Trigger" | "Event" | "Procedure" | "Extension" | "User" | "Role" | "Constraint" | "Partition" | "PrepareStatement" | "Pragma" | "Policy" | "Variable" | "Rule" | "Cluster");
+    export type CompletionKind = ("Command" | "KeyWord" | "Function" | "Database" | "Schema" | "Table" | "View" | "Column" | "Text" | "Type" | "Index" | "Sequence" | "Stage" | "Trigger" | "Event" | "Procedure" | "Extension" | "User" | "Role" | "Constraint" | "Partition" | "PrepareStatement" | "Pragma" | "Policy" | "Variable" | "Rule" | "Cluster" | "ClickHouseTableProjection" | "Prepare" | "Module" | "Domain" | "Stream");
     export type DefAndMetas = {
         "def": string;
         "metas": (types.MetaValue)[];
@@ -294,33 +419,6 @@ export namespace types {
     export type ProcedureDetail = {
         "def": string;
         "metas": (types.MetaValue)[];
-    };
-    export type U8 = number;
-    export type FormatSqlOptsIndent = (({
-        "ident": "spaces";
-    } & types.U8) | {
-        "ident": "tabs";
-    });
-
-    /**
-     * almost copied from https://docs.rs/sqlformat/0.2.4/sqlformat/struct.FormatOptions.html
-     */
-    export type FormatSqlOpts = {
-        "indent": types.FormatSqlOptsIndent;
-        "uppercase": (boolean | null);
-        "lines_between_queries": types.U8;
-    };
-    export type Usize = number;
-    export type MuiDataGridData = {
-        "fields": (types.Field)[];
-        "data": (Record<string, string>)[];
-        "sql": (string | null);
-        "total": types.Usize;
-    };
-    export type QueryLogEvent = {
-        "time": types.U64;
-        "sql": string;
-        "success": boolean;
     };
 
     /**
@@ -335,16 +433,98 @@ export namespace types {
          */
         "indexes": (string)[];
     };
+    export type SqlNullAble = ("none" | "null" | "notnull");
     export type ColumnType = {
         "typ": string;
-        "nullness": (string | null);
+        "nullable": (types.SqlNullAble | null);
         "after": (string | null);
         "default_value": (string | null);
     };
-    export type QueryResp = {
-        "fields": (types.Field)[];
-        "total": types.Usize;
-        "data": (((string | null))[])[];
+    export type SequenceDetail = {
+        "start_value": string;
+        "min_value": string;
+        "max_value": string;
+        "increment_by": string;
+        "last_value": (string | null);
+        "name": string;
+        "sql": string;
+        "data_type": string;
+    };
+    export type CreatedTypeDef = {
+        "name": string;
         "sql": (string | null);
+    };
+    export type SqlEvent = {
+        "name": string;
+        "sql": string;
+        "metas": (types.MetaValue)[];
+    };
+    export type CompletionList = {
+        "items": (types.CompletionItem)[];
+        "incomplete": boolean;
+        "from_dot": boolean;
+    };
+    export type UdfOrProcedureExtraParameter = (({
+        "extra": "postgres";
+    } & {
+        "parameters": string;
+    }) | ({
+        "extra": "cassandra";
+    } & {
+        "parameters": (string)[];
+    }));
+    export type F64 = number;
+    export type ShowTableParameter = {
+        "where_str"?: (string | null);
+        "order_by"?: (string | null);
+        "page"?: types.Usize;
+        "page_size"?: types.Usize;
+        "limit"?: (types.Usize | null);
+        "min"?: (types.F64 | null);
+        "max"?: (types.F64 | null);
+        "allow_filtering"?: boolean;
+    };
+    export type CreateTableReqColumn = {
+        "name": string;
+        "data_type": string;
+        "auto_increment": boolean;
+        "primary_key": boolean;
+        "default_value": (string | null);
+        "nullable": types.SqlNullAble;
+    };
+    export type CreateIndexColumn = {
+        "col": string;
+        "asc": (boolean | null);
+    };
+    export type CreateIndexReq = {
+        "name": string;
+        "columns": (types.CreateIndexColumn)[];
+        "kind": types.IndexKind;
+    };
+    export type CreateTableReq = {
+        "name": string;
+        "columns": (types.CreateTableReqColumn)[];
+        "indexes": (types.CreateIndexReq)[];
+    };
+    export type CouchBaseBucketType = ("couchbase" | "ephemeral");
+    export type CreateDatabaseExtra = ({
+        "extra": "couchbase";
+    } & {
+        "ram_quota_mb": types.U64;
+        "flush_enabled": boolean;
+        "num_replicas": types.U32;
+        "max_expiry": (types.U64 | null);
+        "bucket_type": types.CouchBaseBucketType;
+    });
+    export type BackendKind = ("Mysql" | "Tidb" | "Mariadb" | "LibSql" | "PostGres" | "CockRoach" | "SqlServer" | "Mongo" | "Redis" | "Sqlite" | "Cassandra" | "ClickHouse" | "Firebird" | "Oracle" | "DuckDB" | "BigQuery" | "Db2" | "CouchBase");
+    export type F32 = number;
+    export type OpenAIReq = {
+        "url": string;
+        "api_key": string;
+        "model": string;
+        "msg": string;
+        "temperature": types.F32;
+        "max_tokens": (types.U32 | null);
+        "top_p": types.F32;
     };
 }

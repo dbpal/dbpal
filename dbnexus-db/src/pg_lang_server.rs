@@ -1,103 +1,307 @@
-use std::ops::DerefMut;
-use std::sync::Arc;
-
-use sqlx::Row;
-
-use crate::db::{CatalogTrait, FormatSqlOpts};
-use crate::helper::sqlformat_format_sql;
+use crate::db::{CatalogTrait, CreatedTypeDef, OptionMustBeSomeErr, SequenceDetail};
 use crate::language_server::{
-    AstCompletionHelper, CompletionItem, CompletionKind, LangServerCommon, LanguageServer,
-    LexerCompletionTrait, try_completion_on_syntax,
+    try_parser_dot_lexer, AstCompletionHelper, CompletionItem, CompletionKind, CompletionList,
+    DBExecutable, ErrAndLoc, GetKeyWords, LangServerCommon, LanguageServer, LexerCompletionTrait,
+    PostGresExtension,
 };
 use crate::pg::PostGresDB;
-
+use crate::sqlparser_completion::TempTableColumn;
+use sqlx::{AssertSqlSafe, Column, Executor, Row, SqlSafeStr, Statement};
+use std::collections::HashSet;
+use std::ops::DerefMut;
 #[async_trait::async_trait]
 impl LexerCompletionTrait for PostGresDB {
-    type Dialect = sqlparser::dialect::PostgreSqlDialect;
-
-    const KEY_WORDS: &'static [&'static str] = PG_KEYWORDS;
-    const TYPES: &'static [&'static str] = TYPES;
-
-    async fn list_table_or_view(&self) -> anyhow::Result<Vec<String>> {
-        let mut ret = AstCompletionHelper::list_table(self, None, None).await?;
-        ret.extend(
-            AstCompletionHelper::list_view(self, None, None)
-                .await?
-                .into_iter(),
-        );
-        anyhow::Ok(ret)
-    }
-
-    async fn list_function(&self) -> anyhow::Result<Vec<CompletionItem>> {
-        AstCompletionHelper::list_function(self, None, None, true).await
+    async fn get_types(&self) -> anyhow::Result<Vec<String>> {
+        let r = POSTGRES_TYPES
+            .iter()
+            .map(|x| x.to_string())
+            .collect::<Vec<_>>();
+        return anyhow::Ok(r);
     }
 }
 
-impl PostGresDB {
-    fn db_merge_config<'a, 'b>(&'a self, db: Option<&'b str>) -> Option<&'a str>
-    where
-        'b: 'a,
-    {
-        if db.is_some() {
-            return db;
+#[async_trait::async_trait]
+impl GetKeyWords for PostGresDB {
+    async fn key_words(&self) -> anyhow::Result<Vec<String>> {
+        let mut lock = self.key_words_cache.lock().await;
+        if !lock.is_empty() {
+            return anyhow::Ok(lock.clone());
         }
-        return self.config.db.as_ref().map(|x| x.as_str());
-    }
-
-    fn schema_merge_config<'a, 'b>(&'a self, schema: Option<&'b str>) -> Option<&'a str>
-    where
-        'b: 'a,
-    {
-        if schema.is_some() {
-            return schema;
-        }
-        return self.config.schema.as_deref();
-    }
-}
-
-impl PostGresDB {
-    async fn list_build_functions(&self) -> anyhow::Result<Vec<CompletionItem>> {
-        let sql = r#"SELECT p.proname AS function_name,
-             d.description AS function_description
-            FROM pg_catalog.pg_proc p
-            JOIN pg_catalog.pg_namespace n ON n.oid = p.pronamespace
-            LEFT JOIN pg_catalog.pg_description d ON d.objoid = p.oid
-            WHERE n.nspname = 'pg_catalog'  -- 只查询内置函数
-            ORDER BY p.proname;"#;
-        log::info!("sql:{}", sql);
         let mut conn = self.get_conn().await?;
-        let rows = sqlx::query(&sql).fetch_all(conn.deref_mut()).await?;
-        let mut ret = Vec::with_capacity(rows.len());
-        for r in rows.iter() {
-            let name: String = r.try_get(0)?;
-            let desc: Option<String> = r.try_get(1)?;
-            ret.push(CompletionItem {
-                item: name.into(),
-                kind: CompletionKind::Function,
-                desc: desc.map(|x| x.into()),
-            });
+        let rows = sqlx::raw_sql("select word from pg_get_keywords()")
+            .fetch_all(conn.deref_mut())
+            .await?;
+        let mut ret = vec![];
+        for row in rows.iter() {
+            let c: String = row.try_get(0)?;
+            ret.push(c);
         }
-        anyhow::Ok(ret)
+        *lock = ret;
+        return anyhow::Ok(lock.clone());
     }
+}
+
+impl PostGresDB {
+    pub(crate) async fn query_search_path(
+        &self,
+        conn: &mut sqlx::pool::PoolConnection<sqlx::Postgres>,
+    ) -> anyhow::Result<Option<HashSet<String>>> {
+        let row = sqlx::raw_sql("SHOW search_path;")
+            .fetch_one(conn.deref_mut())
+            .await
+            .map_err(|e| log::error!("query search path failed,err:{}", e))
+            .ok();
+        let r = match row {
+            Some(x) => {
+                // information_schema, public like this
+                let s: Option<String> = x.try_get(0).ok().flatten();
+                s.map(|string| {
+                    string
+                        .split(",")
+                        .map(|x| x.trim().to_string())
+                        .collect::<HashSet<_>>()
+                })
+            }
+            None => None,
+        };
+        anyhow::Ok(r)
+    }
+
+    pub(crate) async fn get_search_path(
+        &self,
+        schema: Option<&str>,
+        include_catalog: bool,
+    ) -> HashSet<String> {
+        if let Some(schema) = schema {
+            let mut m = HashSet::new();
+            m.insert(schema.to_string());
+            return m;
+        }
+        let ret = match self.query_connection.get(&self.completion_id.get()) {
+            Some(conn) => {
+                let mut conn = conn.lock().await;
+                let conn: &mut sqlx::pool::PoolConnection<sqlx::Postgres> = conn.deref_mut();
+                let r = self
+                    .query_search_path(conn)
+                    .await
+                    .map_err(|e| log::error!("get search path failed,err:{}", e))
+                    .unwrap_or_default();
+                r
+            }
+            None => None,
+        };
+        if let Some(mut ret) = ret {
+            if include_catalog {
+                ret.insert(Self::SCHEMA_CATALOG.to_string());
+            }
+            return ret;
+        }
+        let mut ret = HashSet::new();
+        if let Some(s) = self.config.schema.as_ref() {
+            ret.insert(s.to_string());
+        }
+        if include_catalog {
+            ret.insert(Self::SCHEMA_CATALOG.to_string());
+        }
+        ret
+    }
+    const SCHEMA_CATALOG: &str = "pg_catalog";
 }
 
 #[async_trait::async_trait]
 
 impl AstCompletionHelper for PostGresDB {
-    async fn list_table(
-        &self, db: Option<&str>, schema: Option<&str>,
-    ) -> anyhow::Result<Vec<String>> {
-        let mut sql =
-            r#"select table_name FROM information_schema.tables  WHERE table_type = 'BASE TABLE' "#
-                .to_string();
-        if let Some(db) = self.db_merge_config(db) {
-            sql.push_str(format!(" AND table_catalog = '{}'", db).as_str());
-        }
-        if let Some(schema) = self.schema_merge_config(schema) {
-            sql.push_str(format!(" AND table_schema = '{}'", schema).as_str());
-        }
+    async fn get_query_columns(&self, sql: &str) -> anyhow::Result<Vec<TempTableColumn>> {
         let mut conn = self.get_conn().await?;
-        let rows = sqlx::query(&sql).fetch_all(conn.deref_mut()).await?;
+        let s = conn
+            .deref_mut()
+            .prepare_with(AssertSqlSafe(sql).into_sql_str(), &[])
+            .await?;
+        let ret = s
+            .columns()
+            .iter()
+            .map(|x| TempTableColumn {
+                name: x.name().to_string(),
+                data_type: Some(x.type_info().to_string()),
+            })
+            .collect::<Vec<_>>();
+        anyhow::Ok(ret)
+    }
+
+    async fn table_policy(&self, schema: Option<&str>, table: &str) -> anyhow::Result<Vec<String>> {
+        let schemas = self.get_search_path(schema, false).await;
+        let mut ret = Vec::new();
+        let mut conn = self.get_conn().await?;
+        for schema in schemas.iter() {
+            let sql = format!(
+                r#"SELECT policyname
+                FROM pg_policies
+                WHERE tablename = '{}' AND schemaname='{}';  -- 替换为你的表名"#,
+                table, schema
+            );
+            log::info!("sql:{}", sql);
+            let rows = sqlx::raw_sql(AssertSqlSafe(sql.as_str()))
+                .fetch_all(conn.deref_mut())
+                .await?;
+
+            for r in rows.iter() {
+                let name: String = r.try_get(0)?;
+                ret.push(name)
+            }
+        }
+
+        anyhow::Ok(ret)
+    }
+
+    async fn list_postgres_rule(
+        &self,
+        schema: Option<&str>,
+        table: &str,
+    ) -> anyhow::Result<Vec<String>> {
+        let schemas = self.get_search_path(schema, false).await;
+        let ret = vec![];
+        let mut conn = self.get_conn().await?;
+        for schema in schemas.iter() {
+            let sql = format!(
+                r#"select rulename from pg_rules where tablename='{}' and schemaname='{}'"#,
+                table, schema
+            );
+            let rows = sqlx::raw_sql(AssertSqlSafe(sql.as_str()))
+                .fetch_all(conn.deref_mut())
+                .await?;
+            let mut ret = Vec::with_capacity(rows.len());
+            for r in rows.iter() {
+                let name: String = r.try_get(0)?;
+                ret.push(name)
+            }
+        }
+        anyhow::Ok(ret)
+    }
+
+    async fn list_constraint(
+        &self,
+        schema: Option<&str>,
+        table_name: &str,
+    ) -> anyhow::Result<Vec<String>> {
+        let schemas = self.get_search_path(schema, false).await;
+        let mut conn = self.get_conn().await?;
+        let mut ret = Vec::new();
+        for schema in schemas.iter() {
+            let mut sql =
+                "SELECT constraint_name FROM information_schema.table_constraints".to_string();
+            let db = self.config.db_str()?;
+            sql.push_str(format!(" WHERE table_catalog='{}'", db).as_str());
+            sql.push_str(" AND ");
+            sql.push_str(format!("table_schema='{}'", schema).as_str());
+            sql.push_str(" AND ");
+            sql.push_str(format!(" table_name='{}'", table_name).as_str());
+            let rows = sqlx::raw_sql(AssertSqlSafe(sql.as_str()))
+                .fetch_all(conn.deref_mut())
+                .await?;
+
+            for r in rows.iter() {
+                let name: String = r.try_get(0)?;
+                ret.push(name)
+            }
+        }
+        anyhow::Ok(ret)
+    }
+    async fn list_table_trigger(
+        &self,
+        schema: Option<&str>,
+        table: &str,
+    ) -> anyhow::Result<Vec<String>> {
+        let mut conn = self.get_conn().await?;
+        let schemas = self.get_search_path(schema, false).await;
+        let mut ret = Vec::new();
+        for schema in schemas.iter() {
+            let sql = format!(
+                r#"
+                SELECT tgname AS trigger_name
+                    FROM pg_trigger
+                    JOIN pg_class ON pg_trigger.tgrelid = pg_class.oid
+                    JOIN pg_namespace ON pg_class.relnamespace = pg_namespace.oid
+                    WHERE pg_class.relname = '{}'
+                    AND pg_namespace.nspname = '{}'
+            "#,
+                table, schema,
+            );
+            log::info!("sql:{}", sql);
+            let rows = sqlx::raw_sql(AssertSqlSafe(sql.as_str()))
+                .fetch_all(conn.deref_mut())
+                .await?;
+            for r in rows.iter() {
+                let name: String = r.try_get(0)?;
+                ret.push(name)
+            }
+        }
+        anyhow::Ok(ret)
+    }
+}
+
+#[async_trait::async_trait]
+
+impl LangServerCommon for PostGresDB {
+    async fn postgres_list_extension(
+        &self,
+        installed: bool,
+    ) -> anyhow::Result<Vec<PostGresExtension>> {
+        let mut conn = self.get_conn().await?;
+        if !installed {
+            let sql = "SELECT name,comment  FROM pg_available_extensions";
+            let rows = sqlx::query(sql).fetch_all(conn.deref_mut()).await?;
+            let mut ret = Vec::with_capacity(rows.len());
+            for row in rows.iter() {
+                let name: String = row.try_get(0)?;
+                let comment: Option<String> = row.try_get(1)?;
+                ret.push(PostGresExtension { name, comment });
+            }
+            return anyhow::Ok(ret);
+        }
+        let sql = "SELECT extname  FROM pg_extension";
+        let rows = sqlx::query(sql).fetch_all(conn.deref_mut()).await?;
+        let mut ret = Vec::with_capacity(rows.len());
+        for row in rows.iter() {
+            let name: String = row.try_get(0)?;
+            ret.push(PostGresExtension {
+                name,
+                comment: None,
+            });
+        }
+        anyhow::Ok(ret)
+    }
+
+    async fn list_index(&self, schema: Option<&str>) -> anyhow::Result<Vec<String>> {
+        let schemas = self.get_search_path(schema, true).await;
+        let mut conn = self.get_conn().await?;
+        let mut ret = Vec::new();
+        for schema in schemas.iter() {
+            let sql = format!(
+                r#"
+            SELECT indexname AS index_name
+                FROM pg_indexes
+                WHERE schemaname = '{}';
+                "#,
+                schema
+            );
+            let rows = sqlx::raw_sql(AssertSqlSafe(sql.as_str()))
+                .fetch_all(conn.deref_mut())
+                .await?;
+            for r in rows.iter() {
+                let name: String = r.try_get(0)?;
+                ret.push(name);
+            }
+        }
+
+        anyhow::Ok(ret)
+    }
+
+    async fn list_variable(&self) -> anyhow::Result<Vec<String>> {
+        let sql = "show all";
+        let mut conn = self.get_conn().await?;
+        let rows = sqlx::raw_sql(AssertSqlSafe(sql))
+            .fetch_all(conn.deref_mut())
+            .await?;
         let mut ret = Vec::with_capacity(rows.len());
         for r in rows.iter() {
             let name: String = r.try_get(0)?;
@@ -106,11 +310,125 @@ impl AstCompletionHelper for PostGresDB {
         anyhow::Ok(ret)
     }
 
-    async fn list_procedure(
-        &self, _db: Option<&str>, schema: Option<&str>,
-    ) -> anyhow::Result<Vec<String>> {
-        let sql = if let Some(schema) = self.schema_merge_config(schema) {
-            format!(
+    async fn list_role(&self) -> anyhow::Result<Vec<String>> {
+        let sql = r#"
+        SELECT rolname AS role_name
+            FROM pg_roles
+        "#;
+        log::info!("sql:{}", sql);
+        let mut conn = self.get_conn().await?;
+        let rows = sqlx::raw_sql(AssertSqlSafe(sql))
+            .fetch_all(conn.deref_mut())
+            .await?;
+        let mut ret = Vec::with_capacity(rows.len());
+        for r in rows.iter() {
+            let name: String = r.try_get(0)?;
+            ret.push(name)
+        }
+        anyhow::Ok(ret)
+    }
+
+    async fn list_user(&self) -> anyhow::Result<Vec<String>> {
+        let sql = "SELECT usename  from pg_user";
+        let mut conn = self.get_conn().await?;
+        let rows = sqlx::query(sql).fetch_all(conn.deref_mut()).await?;
+        let mut ret = Vec::with_capacity(rows.len());
+        for row in rows {
+            let name: Option<String> = row.try_get(0)?;
+            if let Some(name) = name {
+                ret.push(name);
+            }
+        }
+        anyhow::Ok(ret)
+    }
+
+    async fn list_domain(&self, schema: Option<&str>) -> anyhow::Result<Vec<String>> {
+        let schemas = self.get_search_path(schema, true).await;
+        let mut conn = self.get_conn().await?;
+        let mut ret = Vec::new();
+        for schema in schemas.iter() {
+            let sql = format!(
+                r#"
+                SELECT domain_name
+                FROM information_schema.domains
+                WHERE domain_schema = '{}'   -- 换成实际 schema 名
+                ORDER BY domain_name;
+            "#,
+                schema,
+            );
+            let rows = sqlx::query(AssertSqlSafe(sql.as_str()))
+                .fetch_all(conn.deref_mut())
+                .await?;
+            for row in rows {
+                let name: Option<String> = row.try_get(0)?;
+                if let Some(name) = name {
+                    ret.push(name);
+                }
+            }
+        }
+
+        anyhow::Ok(ret)
+    }
+
+    async fn list_sequence(&self, schema: Option<&str>) -> anyhow::Result<Vec<SequenceDetail>> {
+        let schema = self.get_search_path(schema, true).await;
+        let mut ret = Vec::new();
+        for schema in schema.iter() {
+            ret.extend(
+                self.list_sequences_impl(schema)
+                    .await
+                    .unwrap_or_default()
+                    .into_iter(),
+            );
+        }
+        anyhow::Ok(ret)
+    }
+
+    async fn list_created_type(&self, schema: Option<&str>) -> anyhow::Result<Vec<CreatedTypeDef>> {
+        let schema = self.get_search_path(schema, true).await;
+        let mut ret = Vec::new();
+        for schema in schema.iter() {
+            let x = self
+                .list_created_types_impl(schema, false)
+                .await
+                .unwrap_or_default();
+            ret.extend(x.into_iter());
+        }
+        anyhow::Ok(ret)
+    }
+    async fn list_database(&self) -> anyhow::Result<Vec<String>> {
+        CatalogTrait::list_database(self).await
+    }
+
+    async fn list_column(
+        &self,
+        schema: Option<&str>,
+        name: &str,
+        is_call: Option<Vec<String>>,
+    ) -> anyhow::Result<Vec<TempTableColumn>> {
+        let sql = format!(
+            r#"select * from {}"{}"{}"#,
+            match schema {
+                Some(x) => format!("\"{}\".", x),
+                None => "".to_string(),
+            },
+            name,
+            if let Some(args) = is_call {
+                format!("({})", args.join(","))
+            } else {
+                "".to_string()
+            }
+        );
+        log::info!("sql:{}", sql);
+        self.get_query_columns(&sql).await
+    }
+
+    async fn list_procedure(&self, schema: Option<&str>) -> anyhow::Result<Vec<String>> {
+        let schemas = self.get_search_path(schema, true).await;
+        let mut conn = self.get_conn().await?;
+        let mut ret = Vec::new();
+        for schema in schemas.iter() {
+            let sql = format!(
                 r#"
             SELECT 
                 p.proname AS procedure_name
@@ -125,102 +443,33 @@ impl AstCompletionHelper for PostGresDB {
                 p.proname;
             "#,
                 schema
-            )
-        } else {
-            format!(
-                r#"
-            SELECT 
-                p.proname AS procedure_name
-            FROM 
-                pg_catalog.pg_proc p
-            JOIN 
-                pg_catalog.pg_namespace n ON n.oid = p.pronamespace
-            WHERE 
-                p.prokind = 'p'  -- 仅选择存储过程
-            ORDER BY 
-                p.proname;
-            "#
-            )
-        };
-        log::info!("sql:{}", sql);
-        let mut conn = self.get_conn().await?;
-        let rows = sqlx::query(&sql).fetch_all(conn.deref_mut()).await?;
-        let mut ret = Vec::with_capacity(rows.len());
-        for r in rows.iter() {
-            let name: String = r.try_get(0)?;
-            ret.push(name);
+            );
+            log::info!("sql:{}", sql);
+
+            let rows = sqlx::raw_sql(AssertSqlSafe(sql.as_str()))
+                .fetch_all(conn.deref_mut())
+                .await?;
+            for r in rows.iter() {
+                let name: String = r.try_get(0)?;
+                ret.push(name);
+            }
         }
-        anyhow::Ok(ret)
-    }
-
-    async fn list_view(
-        &self,
-        _db: Option<&str>, // can't filter on catelog 根据表结构
-        schema: Option<&str>,
-    ) -> anyhow::Result<Vec<String>> {
-        let mut sql = "SELECT viewname FROM pg_views ".to_string();
-        if let Some(schema) = self.schema_merge_config(schema) {
-            sql.push_str(format!(" WHERE schemaname='{}'", schema).as_str());
-        }
-        // postgres has materilized view in other table
-        sql.push_str(format!("UNION SELECT matviewname from pg_matviews").as_str());
-
-        if let Some(schema) = self.schema_merge_config(schema) {
-            sql.push_str(format!(" WHERE schemaname='{}'", schema).as_str());
-        }
-
-        let mut conn = self.get_conn().await?;
-        let rows = sqlx::query(&sql).fetch_all(conn.deref_mut()).await?;
-        let mut ret = Vec::with_capacity(rows.len());
-        for r in rows.iter() {
-            let name: String = r.try_get(0)?;
-            ret.push(name);
-        }
-
-        anyhow::Ok(ret)
-    }
-
-    async fn list_column(
-        &self, db: Option<&str>, schema: Option<&str>, name: &str,
-    ) -> anyhow::Result<Vec<CompletionItem>> {
-        use sqlx::{Column, Executor, Statement};
-        let db = self.db_merge_config(db);
-        let schema = self.schema_merge_config(schema);
-
-        if db.is_none() || schema.is_none() {
-            anyhow::bail!("need database and schema config");
-        }
-        let db = db.unwrap();
-        let schema = schema.unwrap();
-
-        let sql = format!(r#"select * from "{}"."{}"."{}""#, db, schema, name);
-        log::info!("sql:{}", sql);
-        let mut conn = self.get_conn().await?;
-        let s = conn.deref_mut().prepare_with(&sql, &[]).await?;
-        let ret = s
-            .columns()
-            .iter()
-            .map(|x| CompletionItem {
-                item: x.name().to_string().into(),
-                desc: Some(x.type_info().to_string().into()),
-                kind: CompletionKind::Column,
-            })
-            .collect::<Vec<_>>();
         anyhow::Ok(ret)
     }
 
     async fn list_function(
         &self,
-        _db: Option<&str>, // how to filter on this???
         schema: Option<&str>,
         include_build_in: bool,
     ) -> anyhow::Result<Vec<CompletionItem>> {
-        let sql;
-        if let Some(schema) = self.schema_merge_config(schema) {
-            sql = format!(
+        let schemas = self.get_search_path(schema, include_build_in).await;
+        let mut ret = Vec::new();
+        for schema in schemas.iter() {
+            let sql = format!(
                 r#"
             SELECT  
-                p.proname AS function_name
+                p.proname AS function_name,
+                pg_catalog.pg_get_function_identity_arguments(p.oid) AS args  -- 参数列表
             FROM pg_catalog.pg_proc p
             JOIN pg_catalog.pg_namespace n ON n.oid = p.pronamespace
             WHERE n.nspname = '{}'  -- 替换为你的模式名
@@ -228,269 +477,122 @@ impl AstCompletionHelper for PostGresDB {
         "#,
                 schema
             );
-        } else {
-            sql = format!(
-                r#"
-            SELECT 
-                p.proname AS function_name
-            FROM pg_catalog.pg_proc p
-            JOIN pg_catalog.pg_namespace n ON n.oid = p.pronamespace
-            ORDER BY p.proname;
-        "#,
-            );
-        }
-        log::info!("sql:{}", sql);
-        let mut conn = self.get_conn().await?;
-        let rows = sqlx::query(&sql).fetch_all(conn.deref_mut()).await?;
-        let mut ret = Vec::with_capacity(rows.len());
-        for r in rows.iter() {
-            let name: String = r.try_get(0)?;
-            ret.push(CompletionItem {
-                item: name.into(),
-                desc: None,
-                kind: CompletionKind::Function,
-            });
-        }
-        if include_build_in {
-            ret.extend(self.list_build_functions().await?.into_iter());
-        }
-        anyhow::Ok(ret)
-    }
 
-    async fn list_index(&self, schema: Option<&str>) -> anyhow::Result<Vec<String>> {
-        let sql = if let Some(schema) = self.schema_merge_config(schema) {
-            format!(
-                r#"
-            SELECT indexname AS index_name
-                FROM pg_indexes
-                WHERE schemaname = '{}';
-                "#,
-                schema
-            )
-        } else {
-            r#"
-            SELECT indexname AS index_name
-                FROM pg_indexes
-                "#
-            .to_string()
-        };
-        log::info!("sql:{}", sql);
-        let mut conn = self.get_conn().await?;
-        let rows = sqlx::query(&sql).fetch_all(conn.deref_mut()).await?;
-        let mut ret = Vec::with_capacity(rows.len());
-        for r in rows.iter() {
-            let name: String = r.try_get(0)?;
-            ret.push(name);
-        }
-        anyhow::Ok(ret)
-    }
+            log::info!("sql:{}", sql);
+            let mut conn = self.get_conn().await?;
+            let rows = sqlx::raw_sql(AssertSqlSafe(sql.as_str()))
+                .fetch_all(conn.deref_mut())
+                .await?;
 
-    async fn list_variable(&self) -> anyhow::Result<Vec<String>> {
-        let sql = "show all";
-        let mut conn = self.get_conn().await?;
-        let rows = sqlx::query(&sql).fetch_all(conn.deref_mut()).await?;
-        let mut ret = Vec::with_capacity(rows.len());
-        for r in rows.iter() {
-            let name: String = r.try_get(0)?;
-            ret.push(name);
-        }
-        anyhow::Ok(ret)
-    }
-
-    async fn postgres_table_policy(
-        &self, _db: Option<&str>, schema: Option<&str>, table: &str,
-    ) -> anyhow::Result<Vec<String>> {
-        let sql = if let Some(schema) = self.schema_merge_config(schema) {
-            format!(
-                r#"SELECT policyname
-                FROM pg_policies
-                WHERE tablename = '{}' AND schemaname='{}';  -- 替换为你的表名"#,
-                table, schema
-            )
-        } else {
-            format!(
-                r#"SELECT policyname
-                FROM pg_policies
-                WHERE tablename = '{}';  -- 替换为你的表名"#,
-                table
-            )
-        };
-        log::info!("sql:{}", sql);
-        let mut conn = self.get_conn().await?;
-        let rows = sqlx::query(&sql).fetch_all(conn.deref_mut()).await?;
-        let mut ret = Vec::with_capacity(rows.len());
-        for r in rows.iter() {
-            let name: String = r.try_get(0)?;
-            ret.push(name)
-        }
-        anyhow::Ok(ret)
-    }
-
-    async fn list_role(&self) -> anyhow::Result<Vec<String>> {
-        let sql = r#"
-        SELECT rolname AS role_name
-            FROM pg_roles
-        "#;
-        log::info!("sql:{}", sql);
-        let mut conn = self.get_conn().await?;
-        let rows = sqlx::query(&sql).fetch_all(conn.deref_mut()).await?;
-        let mut ret = Vec::with_capacity(rows.len());
-        for r in rows.iter() {
-            let name: String = r.try_get(0)?;
-            ret.push(name)
-        }
-        anyhow::Ok(ret)
-    }
-
-    async fn list_postgres_rule(
-        &self, _db: Option<&str>, schema: Option<&str>, table: &str,
-    ) -> anyhow::Result<Vec<String>> {
-        // 这里schemaname实际上是db的名字 我观察出来的
-        // 对吗？？？
-        let sql = if let Some(schema) = self.db_merge_config(schema) {
-            format!(
-                r#"select rulename from pg_rules where tablename='{}' and schemaname='{}'"#,
-                table, schema
-            )
-        } else {
-            format!(
-                r#"select rulename from pg_rules where tablename='{}'"#,
-                table
-            )
-        };
-        log::info!("sql:{}", sql);
-        let mut conn = self.get_conn().await?;
-        let rows = sqlx::query(&sql).fetch_all(conn.deref_mut()).await?;
-        let mut ret = Vec::with_capacity(rows.len());
-        for r in rows.iter() {
-            let name: String = r.try_get(0)?;
-            ret.push(name)
-        }
-        anyhow::Ok(ret)
-    }
-
-    async fn list_constraint(
-        &self, db: Option<&str>, schema: Option<&str>, table_name: &str,
-    ) -> anyhow::Result<Vec<String>> {
-        let mut sql =
-            "SELECT constraint_name FROM information_schema.table_constraints".to_string();
-        let mut has_where = false;
-        if let Some(db) = self.db_merge_config(db) {
-            has_where = true;
-            sql.push_str(format!(" WHERE table_catalog='{}'", db).as_str());
-        }
-        if let Some(schema) = self.schema_merge_config(schema) {
-            if has_where {
-                sql.push_str(" AND ");
-            } else {
-                sql.push_str(" WHERE ");
+            for r in rows.iter() {
+                let name: String = r.try_get(0)?;
+                let args: Option<String> = r.try_get(1)?;
+                ret.push(CompletionItem {
+                    item: name.into(),
+                    desc: args.map(|x| x.into()),
+                    kind: CompletionKind::Function,
+                });
             }
-            has_where = true;
-            sql.push_str(format!("table_schema='{}'", schema).as_str());
         }
-        if has_where {
-            sql.push_str(" AND ");
-        } else {
-            sql.push_str(" WHERE ");
-        }
-        sql.push_str(format!(" table_name='{}'", table_name).as_str());
+        anyhow::Ok(ret)
+    }
+    async fn list_view(&self, schema: Option<&str>) -> anyhow::Result<Vec<String>> {
+        let schemas = self.get_search_path(schema, true).await;
         let mut conn = self.get_conn().await?;
-        let rows = sqlx::query(&sql).fetch_all(conn.deref_mut()).await?;
-        let mut ret = Vec::with_capacity(rows.len());
-        for r in rows.iter() {
-            let name: String = r.try_get(0)?;
-            ret.push(name)
-        }
-        anyhow::Ok(ret)
-    }
-
-    async fn list_prepare_name(&self, query_id: uuid::Uuid) -> anyhow::Result<Vec<String>> {
-        let sql = r#"
-        SELECT name
-            FROM pg_prepared_statements;
-        "#;
-        log::info!("sql:{}", sql);
-        let conn = match self.query_connection.get(&query_id).map(|x| x.clone()) {
-            Some(x) => x,
-            None => anyhow::bail!(format!("can't find query of {}", query_id)),
-        };
-        let mut conn = conn.lock().await;
-        let conn = conn.deref_mut();
-        let rows = sqlx::query(&sql).fetch_all(conn.deref_mut()).await?;
-        let mut ret = Vec::with_capacity(rows.len());
-        for r in rows.iter() {
-            let name: String = r.try_get(0)?;
-            ret.push(name)
-        }
-        anyhow::Ok(ret)
-    }
-
-    async fn list_table_trigger(
-        &self, _db: Option<&str>, schema: Option<&str>, table: &str,
-    ) -> anyhow::Result<Vec<String>> {
-        let sql = if let Some(schema) = self.schema_merge_config(schema) {
-            format!(
+        let mut ret = Vec::new();
+        for schema in schemas.iter() {
+            let sql = format!(
                 r#"
-                SELECT tgname AS trigger_name
-                    FROM pg_trigger
-                    JOIN pg_class ON pg_trigger.tgrelid = pg_class.oid
-                    JOIN pg_namespace ON pg_class.relnamespace = pg_namespace.oid
-                    WHERE pg_class.relname = '{}'
-                    AND pg_namespace.nspname = '{}'
+                SELECT viewname 
+                FROM pg_views 
+                WHERE schemaname = '{schema}'
+
+                UNION 
+
+                SELECT matviewname 
+                FROM pg_matviews 
+                WHERE schemaname = '{schema}';
             "#,
-                table, schema,
-            )
-        } else {
-            format!(
-                r#"
-                SELECT tgname AS trigger_name
-                    FROM pg_trigger
-                    JOIN pg_class ON pg_trigger.tgrelid = pg_class.oid
-                    JOIN pg_namespace ON pg_class.relnamespace = pg_namespace.oid
-                    WHERE pg_class.relname = '{}'
-            "#,
-                table,
-            )
-        };
-        log::info!("sql:{}", sql);
+            );
+            let rows = sqlx::raw_sql(AssertSqlSafe(sql.as_str()))
+                .fetch_all(conn.deref_mut())
+                .await?;
+            for r in rows.iter() {
+                let name: String = r.try_get(0)?;
+                ret.push(name);
+            }
+        }
+
+        anyhow::Ok(ret)
+    }
+
+    async fn list_table(&self, schema: Option<&str>) -> anyhow::Result<Vec<String>> {
+        let db = self.config.db_str()?;
+        let schemas = self.get_search_path(schema, true).await;
         let mut conn = self.get_conn().await?;
-        let rows = sqlx::query(&sql).fetch_all(conn.deref_mut()).await?;
-        let mut ret = Vec::with_capacity(rows.len());
-        for r in rows.iter() {
-            let name: String = r.try_get(0)?;
-            ret.push(name)
+        let mut ret = Vec::new();
+        for schema in schemas.iter() {
+            let sql = format!(
+                r#"select table_name FROM information_schema.tables  WHERE table_type = 'BASE TABLE' AND table_schema = '{schema}'AND table_catalog = '{db}'  "#
+            );
+            let rows = sqlx::raw_sql(AssertSqlSafe(sql.as_str()))
+                .fetch_all(conn.deref_mut())
+                .await?;
+            for r in rows.iter() {
+                let name: String = r.try_get(0)?;
+                ret.push(name);
+            }
         }
         anyhow::Ok(ret)
     }
-}
-
-#[async_trait::async_trait]
-
-impl LangServerCommon for PostGresDB {
-    async fn list_database(&self) -> anyhow::Result<Vec<String>> {
-        CatalogTrait::list_database(self).await
+    fn dialect(&self) -> Box<dyn sqlparser::dialect::Dialect + Send + Sync> {
+        Box::new(sqlparser::dialect::PostgreSqlDialect {})
     }
-
-    async fn list_schema(&self, db: Option<&str>) -> anyhow::Result<Vec<String>> {
+    async fn list_schema(&self) -> anyhow::Result<Vec<String>> {
         let mut conn = self.get_conn().await?;
-        let db = self.db_merge_config(db);
-        if db.is_none() {
-            log::error!("list_schema using a empty db:{:?}", db);
-        }
+        let db = self.config.db_str()?;
         let sql = format!(
             r#"
         SELECT schema_name 
             FROM information_schema.schemata
             WHERE schemata.catalog_name ='{}'
     "#,
-            db.unwrap_or_default(),
+            db,
         );
         log::info!("sql:{}", sql);
-        let rows = sqlx::query(&sql).fetch_all(conn.deref_mut()).await?;
+        let rows = sqlx::raw_sql(AssertSqlSafe(sql.as_str()))
+            .fetch_all(conn.deref_mut())
+            .await?;
         let mut ret = Vec::with_capacity(rows.len());
         for r in rows.iter() {
             let name: String = r.try_get(0)?;
             ret.push(name)
+        }
+        anyhow::Ok(ret)
+    }
+
+    async fn list_execute(&self, _: Option<&str>) -> anyhow::Result<Vec<DBExecutable>> {
+        let conn = self.query_connection.get(&self.completion_id.get());
+        if conn.is_none() {
+            anyhow::bail!("query_id should be able get connection")
+        }
+        let conn = conn.option_must_be_some()?;
+        let mut conn = conn.lock().await;
+
+        let sql = r#"
+            SELECT name,statement FROM pg_prepared_statements;
+        "#;
+        let rows = sqlx::raw_sql(sql)
+            .fetch_all(conn.deref_mut().deref_mut())
+            .await?;
+        let mut ret = Vec::with_capacity(rows.len());
+        for row in rows.iter() {
+            let name: String = row.try_get(0)?;
+            let statement: String = row.try_get(1)?;
+            ret.push(DBExecutable {
+                name,
+                statement: Some(statement),
+            });
         }
         anyhow::Ok(ret)
     }
@@ -498,124 +600,65 @@ impl LangServerCommon for PostGresDB {
 
 #[async_trait::async_trait]
 impl LanguageServer for PostGresDB {
-    async fn auto_completion(
-        &self, sql: &str, line: u32, col: u32, use_lexer: bool,
-    ) -> anyhow::Result<Vec<CompletionItem>> {
-        let r = try_completion_on_syntax(
-            &sql,
-            line,
-            col,
-            sqlparser::dialect::PostgreSqlDialect {},
-            Arc::new(Clone::clone(self)),
-        )
-        .await;
-        match r {
-            Ok(xs) => return Ok(xs),
-            Err(err) => {
-                log::error!("completion on ast failed,err:{}", err);
+    async fn get_search_path(&self, query_id: &str) -> anyhow::Result<HashSet<String>> {
+        match self.query_connection.get(&query_id.to_string()) {
+            Some(conn) => {
+                let conn = conn.clone();
+                let mut conn = conn.lock().await;
+                self.query_search_path(conn.deref_mut())
+                    .await
+                    .map(|x| x.unwrap_or_default())
             }
-        };
-        if !use_lexer {
-            log::warn!("disabled use lexer , we will return empty data.");
-            return anyhow::Ok(vec![]);
+            None => anyhow::bail!("query_id should be able get connection"),
         }
-        return LexerCompletionTrait::do_auto_completion(
-            self,
-            sql,
-            &sqlparser::dialect::PostgreSqlDialect {},
-            sqlparser::tokenizer::Location {
-                line: line as u64,
-                column: col as u64,
-            },
-        )
-        .await;
     }
 
-    fn format_sql(&self, sql: &str, ops: Option<FormatSqlOpts>) -> anyhow::Result<String> {
-        anyhow::Ok(sqlformat_format_sql(sql, ops.map(|x| x.into())))
+    async fn try_get_max_id(&self, name: &str) -> anyhow::Result<String> {
+        let sql = format!("SELECT MAX(id) FROM \"{name}\"");
+        let mut conn = self.get_conn().await?;
+        let row = sqlx::query(AssertSqlSafe(sql.as_str()))
+            .fetch_one(conn.deref_mut())
+            .await?;
+        let id: Option<i64> = row.try_get_unchecked(0)?;
+        anyhow::Ok(id.unwrap_or_default().to_string())
     }
-}
 
-#[cfg(test)]
-mod tests {
-    use std::path::Path;
-
-    use crate::db::QuerySql;
-    use crate::enable_test_log;
-    use crate::language_server::completion_test::test_file_auto_completion;
-    use crate::pg::make_test_object;
-
-    #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
-    async fn test_auto_completion() {
-        let db = make_test_object().await;
-        let query_id = db.open_connection().await.unwrap();
-        let _ = db
-            .query_sql(
-                query_id,
-                r#"
-        -- 我们创建一下的表来做测试的
-
-        CREATE TABLE departments (
-            id SERIAL PRIMARY KEY,
-            name VARCHAR(100) NOT NULL
-        );
-        CREATE TABLE employees (
-            id SERIAL PRIMARY KEY,
-            name VARCHAR(100) NOT NULL,
-            department_id INTEGER REFERENCES departments(id)
-        );
-        CREATE OR REPLACE RULE do_nothing_rule AS
-            ON INSERT TO employees
-            DO INSTEAD
-            NOTHING;
-        CREATE OR REPLACE FUNCTION do_nothing()
-        RETURNS TRIGGER AS $$
-        BEGIN
-            RETURN NULL;  -- 不执行任何操作
-        END;
-        $$ LANGUAGE plpgsql;
-
-        CREATE TRIGGER do_nothing_trigger
-        BEFORE INSERT OR UPDATE OR DELETE ON employees
-        FOR EACH ROW
-        EXECUTE FUNCTION do_nothing();
-        create  view employees_test as select * from employees e;
-
-        ALTER TABLE employees ENABLE ROW LEVEL SECURITY;
-
-        CREATE POLICY no_op_policy
-        ON employees
-        USING (true)  -- 任何行都可以访问
-        WITH CHECK (true);  -- 任何行都可以插入/更新
-        "#,
-            )
-            .await;
-
-        enable_test_log();
-        let manifest_dir = env!("CARGO_MANIFEST_DIR");
-        let mut file_path = Path::new(manifest_dir).to_path_buf();
-        file_path.push("tests");
-        file_path.push("pg_auto_completion_test.sql");
-        let content = std::fs::read_to_string(file_path.as_path()).unwrap();
-
-        test_file_auto_completion(&content, &db, false).await;
+    async fn ai_text_completion(
+        &self,
+        text: &str,
+        line: u32,
+        col: u32,
+    ) -> anyhow::Result<CompletionList> {
+        LexerCompletionTrait::ai_text_completion(self, text, line, col).await
     }
-    #[ignore = "xxx"]
-    #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
-    async fn test_completion_xxx() {
-        enable_test_log();
-        let db = make_test_object().await;
-        test_file_auto_completion(
-            r#"DROP PROCEDURE procedure_name() 
-30 test_procedure"#,
-            &db,
-            false,
-        )
-        .await;
+    fn extract_table_select_selection(&self, sql: &str) -> anyhow::Result<Option<String>> {
+        LangServerCommon::extract_table_select_selection(self, sql)
+    }
+    fn extract_table_select_sort(&self, sql: &str) -> anyhow::Result<Option<String>> {
+        LangServerCommon::extract_table_select_sort(self, sql)
+    }
+
+    async fn auto_completion(
+        &self,
+        query_id: Option<String>,
+        sql: &str,
+        line: u32,
+        col: u32,
+        use_lexer: bool,
+    ) -> anyhow::Result<CompletionList> {
+        self.completion_id.set_optional(query_id);
+        try_parser_dot_lexer(self, sql, line, col, use_lexer).await
+    }
+
+    async fn check_sql(&self, sql: &str) -> anyhow::Result<Option<ErrAndLoc>> {
+        LangServerCommon::parse_err(self, sql)
+    }
+
+    fn is_dangerous_sql(&self, sql: &str) -> anyhow::Result<bool> {
+        LangServerCommon::is_dangerous_sql_by_parser(self, sql)
     }
 }
-
-pub(crate) const TYPES: &[&str] = &[
+pub(crate) const POSTGRES_TYPES: &[&str] = &[
     "BOOL",
     "BYTEA",
     "NAME",
@@ -711,845 +754,146 @@ pub(crate) const TYPES: &[&str] = &[
     "SMALLSERIAL",
 ];
 
-pub(crate) const PG_KEYWORDS: &[&str] = &[
-    "ABORT",
-    "ABS",
-    "ABSENT",
-    "ABSOLUTE",
-    "ACCESS",
-    "ACCORDING",
-    "ACOS",
-    "ACTION",
-    "ADA",
-    "ADD",
-    "ADMIN",
-    "AFTER",
-    "AGGREGATE",
-    "ALL",
-    "ALLOCATE",
-    "ALSO",
-    "ALTER",
-    "ALWAYS",
-    "ANALYSE",
-    "ANALYZE",
-    "AND",
-    "ANY",
-    "ANY_VALUE",
-    "ARE",
-    "ARRAY",
-    "ARRAY_AGG",
-    "ARRAY_​MAX_​CARDINALITY",
-    "AS",
-    "ASC",
-    "ASENSITIVE",
-    "ASIN",
-    "ASSERTION",
-    "ASSIGNMENT",
-    "ASYMMETRIC",
-    "AT",
-    "ATAN",
-    "ATOMIC",
-    "ATTACH",
-    "ATTRIBUTE",
-    "ATTRIBUTES",
-    "AUTHORIZATION",
-    "AVG",
-    "BACKWARD",
-    "BASE64",
-    "BEFORE",
-    "BEGIN",
-    "BEGIN_FRAME",
-    "BEGIN_PARTITION",
-    "BERNOULLI",
-    "BETWEEN",
-    "BIGINT",
-    "BINARY",
-    "BIT",
-    "BIT_LENGTH",
-    "BLOB",
-    "BLOCKED",
-    "BOM",
-    "BOOLEAN",
-    "BOTH",
-    "BREADTH",
-    "BTRIM",
-    "BY",
-    "C",
-    "CACHE",
-    "CALL",
-    "CALLED",
-    "CARDINALITY",
-    "CASCADE",
-    "CASCADED",
-    "CASE",
-    "CAST",
-    "CATALOG",
-    "CATALOG_NAME",
-    "CEIL",
-    "CEILING",
-    "CHAIN",
-    "CHAINING",
-    "CHAR",
-    "CHARACTER",
-    "CHARACTERISTICS",
-    "CHARACTERS",
-    "CHARACTER_LENGTH",
-    "CHARACTER_​SET_​CATALOG",
-    "CHARACTER_SET_NAME",
-    "CHARACTER_SET_SCHEMA",
-    "CHAR_LENGTH",
-    "CHECK",
-    "CHECKPOINT",
-    "CLASS",
-    "CLASSIFIER",
-    "CLASS_ORIGIN",
-    "CLOB",
-    "CLOSE",
-    "CLUSTER",
-    "COALESCE",
-    "COBOL",
-    "COLLATE",
-    "COLLATION",
-    "COLLATION_CATALOG",
-    "COLLATION_NAME",
-    "COLLATION_SCHEMA",
-    "COLLECT",
-    "COLUMN",
-    "COLUMNS",
-    "COLUMN_NAME",
-    "COMMAND_FUNCTION",
-    "COMMAND_​FUNCTION_​CODE",
-    "COMMENT",
-    "COMMENTS",
-    "COMMIT",
-    "COMMITTED",
-    "COMPRESSION",
-    "CONCURRENTLY",
-    "CONDITION",
-    "CONDITIONAL",
-    "CONDITION_NUMBER",
-    "CONFIGURATION",
-    "CONFLICT",
-    "CONNECT",
-    "CONNECTION",
-    "CONNECTION_NAME",
-    "CONSTRAINT",
-    "CONSTRAINTS",
-    "CONSTRAINT_CATALOG",
-    "CONSTRAINT_NAME",
-    "CONSTRAINT_SCHEMA",
-    "CONSTRUCTOR",
-    "CONTAINS",
-    "CONTENT",
-    "CONTINUE",
-    "CONTROL",
-    "CONVERSION",
-    "CONVERT",
-    "COPARTITION",
-    "COPY",
-    "CORR",
-    "CORRESPONDING",
-    "COS",
-    "COSH",
-    "COST",
-    "COUNT",
-    "COVAR_POP",
-    "COVAR_SAMP",
-    "CREATE",
-    "CROSS",
-    "CSV",
-    "CUBE",
-    "CUME_DIST",
-    "CURRENT",
-    "CURRENT_CATALOG",
-    "CURRENT_DATE",
-    "CURRENT_DEFAULT_TRANSFORM_GROUP",
-    "CURRENT_PATH",
-    "CURRENT_ROLE",
-    "CURRENT_ROW",
-    "CURRENT_SCHEMA",
-    "CURRENT_TIME",
-    "CURRENT_TIMESTAMP",
-    "CURRENT_TRANSFORM_GROUP_FOR_TYPE",
-    "CURRENT_USER",
-    "CURSOR",
-    "CURSOR_NAME",
-    "CYCLE",
-    "DATA",
-    "DATABASE",
-    "DATALINK",
-    "DATE",
-    "DATETIME_INTERVAL_CODE",
-    "DATETIME_INTERVAL_PRECISION",
-    "DAY",
-    "DB",
-    "DEALLOCATE",
-    "DEC",
-    "DECFLOAT",
-    "DECIMAL",
-    "DECLARE",
-    "DEFAULT",
-    "DEFAULTS",
-    "DEFERRABLE",
-    "DEFERRED",
-    "DEFINE",
-    "DEFINED",
-    "DEFINER",
-    "DEGREE",
-    "DELETE",
-    "DELIMITER",
-    "DELIMITERS",
-    "DENSE_RANK",
-    "DEPENDS",
-    "DEPTH",
-    "DEREF",
-    "DERIVED",
-    "DESC",
-    "DESCRIBE",
-    "DESCRIPTOR",
-    "DETACH",
-    "DETERMINISTIC",
-    "DIAGNOSTICS",
-    "DICTIONARY",
-    "DISABLE",
-    "DISCARD",
-    "DISCONNECT",
-    "DISPATCH",
-    "DISTINCT",
-    "DLNEWCOPY",
-    "DLPREVIOUSCOPY",
-    "DLURLCOMPLETE",
-    "DLURLCOMPLETEONLY",
-    "DLURLCOMPLETEWRITE",
-    "DLURLPATH",
-    "DLURLPATHONLY",
-    "DLURLPATHWRITE",
-    "DLURLSCHEME",
-    "DLURLSERVER",
-    "DLVALUE",
-    "DO",
-    "DOCUMENT",
-    "DOMAIN",
-    "DOUBLE",
-    "DROP",
-    "DYNAMIC",
-    "DYNAMIC_FUNCTION",
-    "DYNAMIC_FUNCTION_CODE",
-    "EACH",
-    "ELEMENT",
-    "ELSE",
-    "EMPTY",
-    "ENABLE",
-    "ENCODING",
-    "ENCRYPTED",
-    "END",
-    "END-EXEC",
-    "END_FRAME",
-    "END_PARTITION",
-    "ENFORCED",
-    "ENUM",
-    "EQUALS",
-    "ERROR",
-    "ESCAPE",
-    "EVENT",
-    "EVERY",
-    "EXCEPT",
-    "EXCEPTION",
-    "EXCLUDE",
-    "EXCLUDING",
-    "EXCLUSIVE",
-    "EXEC",
-    "EXECUTE",
-    "EXISTS",
-    "EXP",
-    "EXPLAIN",
-    "EXPRESSION",
-    "EXTENSION",
-    "EXTERNAL",
-    "EXTRACT",
-    "FALSE",
-    "FAMILY",
-    "FETCH",
-    "FILE",
-    "FILTER",
-    "FINAL",
-    "FINALIZE",
-    "FINISH",
-    "FIRST",
-    "FIRST_VALUE",
-    "FLAG",
-    "FLOAT",
-    "FLOOR",
-    "FOLLOWING",
-    "FOR",
-    "FORCE",
-    "FOREIGN",
-    "FORMAT",
-    "FORTRAN",
-    "FORWARD",
-    "FOUND",
-    "FRAME_ROW",
-    "FREE",
-    "FREEZE",
-    "FROM",
-    "FS",
-    "FULFILL",
-    "FULL",
-    "FUNCTION",
-    "FUNCTIONS",
-    "FUSION",
-    "G",
-    "GENERAL",
-    "GENERATED",
-    "GET",
-    "GLOBAL",
-    "GO",
-    "GOTO",
-    "GRANT",
-    "GRANTED",
-    "GREATEST",
-    "GROUP",
-    "GROUPING",
-    "GROUPS",
-    "HANDLER",
-    "HAVING",
-    "HEADER",
-    "HEX",
-    "HIERARCHY",
-    "HOLD",
-    "HOUR",
-    "ID",
-    "IDENTITY",
-    "IF",
-    "IGNORE",
-    "ILIKE",
-    "IMMEDIATE",
-    "IMMEDIATELY",
-    "IMMUTABLE",
-    "IMPLEMENTATION",
-    "IMPLICIT",
-    "IMPORT",
-    "IN",
-    "INCLUDE",
-    "INCLUDING",
-    "INCREMENT",
-    "INDENT",
-    "INDEX",
-    "INDEXES",
-    "INDICATOR",
-    "INHERIT",
-    "INHERITS",
-    "INITIAL",
-    "INITIALLY",
-    "INLINE",
-    "INNER",
-    "INOUT",
-    "INPUT",
-    "INSENSITIVE",
-    "INSERT",
-    "INSTANCE",
-    "INSTANTIABLE",
-    "INSTEAD",
-    "INT",
-    "INTEGER",
-    "INTEGRITY",
-    "INTERSECT",
-    "INTERSECTION",
-    "INTERVAL",
-    "INTO",
-    "INVOKER",
-    "IS",
-    "ISNULL",
-    "ISOLATION",
-    "JOIN",
-    "JSON",
-    "JSON_ARRAY",
-    "JSON_ARRAYAGG",
-    "JSON_EXISTS",
-    "JSON_OBJECT",
-    "JSON_OBJECTAGG",
-    "JSON_QUERY",
-    "JSON_SCALAR",
-    "JSON_SERIALIZE",
-    "JSON_TABLE",
-    "JSON_TABLE_PRIMITIVE",
-    "JSON_VALUE",
-    "K",
-    "KEEP",
-    "KEY",
-    "KEYS",
-    "KEY_MEMBER",
-    "KEY_TYPE",
-    "LABEL",
-    "LAG",
-    "LANGUAGE",
-    "LARGE",
-    "LAST",
-    "LAST_VALUE",
-    "LATERAL",
-    "LEAD",
-    "LEADING",
-    "LEAKPROOF",
-    "LEAST",
-    "LEFT",
-    "LENGTH",
-    "LEVEL",
-    "LIBRARY",
-    "LIKE",
-    "LIKE_REGEX",
-    "LIMIT",
-    "LINK",
-    "LISTAGG",
-    "LISTEN",
-    "LN",
-    "LOAD",
-    "LOCAL",
-    "LOCALTIME",
-    "LOCALTIMESTAMP",
-    "LOCATION",
-    "LOCATOR",
-    "LOCK",
-    "LOCKED",
-    "LOG",
-    "LOG10",
-    "LOGGED",
-    "LOWER",
-    "LPAD",
-    "LTRIM",
-    "M",
-    "MAP",
-    "MAPPING",
-    "MATCH",
-    "MATCHED",
-    "MATCHES",
-    "MATCH_NUMBER",
-    "MATCH_RECOGNIZE",
-    "MATERIALIZED",
-    "MAX",
-    "MAXVALUE",
-    "MEASURES",
-    "MEMBER",
-    "MERGE",
-    "MESSAGE_LENGTH",
-    "MESSAGE_OCTET_LENGTH",
-    "MESSAGE_TEXT",
-    "METHOD",
-    "MIN",
-    "MINUTE",
-    "MINVALUE",
-    "MOD",
-    "MODE",
-    "MODIFIES",
-    "MODULE",
-    "MONTH",
-    "MORE",
-    "MOVE",
-    "MULTISET",
-    "MUMPS",
-    "NAME",
-    "NAMES",
-    "NAMESPACE",
-    "NATIONAL",
-    "NATURAL",
-    "NCHAR",
-    "NCLOB",
-    "NESTED",
-    "NESTING",
-    "NEW",
-    "NEXT",
-    "NFC",
-    "NFD",
-    "NFKC",
-    "NFKD",
-    "NIL",
-    "NO",
-    "NONE",
-    "NORMALIZE",
-    "NORMALIZED",
-    "NOT",
-    "NOTHING",
-    "NOTIFY",
-    "NOTNULL",
-    "NOWAIT",
-    "NTH_VALUE",
-    "NTILE",
-    "NULL",
-    "NULLABLE",
-    "NULLIF",
-    "NULLS",
-    "NULL_ORDERING",
-    "NUMBER",
-    "NUMERIC",
-    "OBJECT",
-    "OCCURRENCE",
-    "OCCURRENCES_REGEX",
-    "OCTETS",
-    "OCTET_LENGTH",
-    "OF",
-    "OFF",
-    "OFFSET",
-    "OIDS",
-    "OLD",
-    "OMIT",
-    "ON",
-    "ONE",
-    "ONLY",
-    "OPEN",
-    "OPERATOR",
-    "OPTION",
-    "OPTIONS",
-    "OR",
-    "ORDER",
-    "ORDERING",
-    "ORDINALITY",
-    "OTHERS",
-    "OUT",
-    "OUTER",
-    "OUTPUT",
-    "OVER",
-    "OVERFLOW",
-    "OVERLAPS",
-    "OVERLAY",
-    "OVERRIDING",
-    "OWNED",
-    "OWNER",
-    "P",
-    "PAD",
-    "PARALLEL",
-    "PARAMETER",
-    "PARAMETER_MODE",
-    "PARAMETER_NAME",
-    "PARAMETER_​ORDINAL_​POSITION",
-    "PARAMETER_​SPECIFIC_​CATALOG",
-    "PARAMETER_​SPECIFIC_​NAME",
-    "PARAMETER_​SPECIFIC_​SCHEMA",
-    "PARSER",
-    "PARTIAL",
-    "PARTITION",
-    "PASCAL",
-    "PASS",
-    "PASSING",
-    "PASSTHROUGH",
-    "PASSWORD",
-    "PAST",
-    "PATH",
-    "PATTERN",
-    "PER",
-    "PERCENT",
-    "PERCENTILE_CONT",
-    "PERCENTILE_DISC",
-    "PERCENT_RANK",
-    "PERIOD",
-    "PERMISSION",
-    "PERMUTE",
-    "PIPE",
-    "PLACING",
-    "PLAN",
-    "PLANS",
-    "PLI",
-    "POLICY",
-    "PORTION",
-    "POSITION",
-    "POSITION_REGEX",
-    "POWER",
-    "PRECEDES",
-    "PRECEDING",
-    "PRECISION",
-    "PREPARE",
-    "PREPARED",
-    "PRESERVE",
-    "PREV",
-    "PRIMARY",
-    "PRIOR",
-    "PRIVATE",
-    "PRIVILEGES",
-    "PROCEDURAL",
-    "PROCEDURE",
-    "PROCEDURES",
-    "PROGRAM",
-    "PRUNE",
-    "PTF",
-    "PUBLIC",
-    "PUBLICATION",
-    "QUOTE",
-    "QUOTES",
-    "RANGE",
-    "RANK",
-    "READ",
-    "READS",
-    "REAL",
-    "REASSIGN",
-    "RECHECK",
-    "RECOVERY",
-    "RECURSIVE",
-    "REF",
-    "REFERENCES",
-    "REFERENCING",
-    "REFRESH",
-    "REGR_AVGX",
-    "REGR_AVGY",
-    "REGR_COUNT",
-    "REGR_INTERCEPT",
-    "REGR_R2",
-    "REGR_SLOPE",
-    "REGR_SXX",
-    "REGR_SXY",
-    "REGR_SYY",
-    "REINDEX",
-    "RELATIVE",
-    "RELEASE",
-    "RENAME",
-    "REPEATABLE",
-    "REPLACE",
-    "REPLICA",
-    "REQUIRING",
-    "RESET",
-    "RESPECT",
-    "RESTART",
-    "RESTORE",
-    "RESTRICT",
-    "RESULT",
-    "RETURN",
-    "RETURNED_CARDINALITY",
-    "RETURNED_LENGTH",
-    "RETURNED_OCTET_LENGTH",
-    "RETURNED_SQLSTATE",
-    "RETURNING",
-    "RETURNS",
-    "REVOKE",
-    "RIGHT",
-    "ROLE",
-    "ROLLBACK",
-    "ROLLUP",
-    "ROUTINE",
-    "ROUTINES",
-    "ROUTINE_CATALOG",
-    "ROUTINE_NAME",
-    "ROUTINE_SCHEMA",
-    "ROW",
-    "ROWS",
-    "ROW_COUNT",
-    "ROW_NUMBER",
-    "RPAD",
-    "RTRIM",
-    "RULE",
-    "RUNNING",
-    "SAVEPOINT",
-    "SCALAR",
-    "SCALE",
-    "SCHEMA",
-    "SCHEMAS",
-    "SCHEMA_NAME",
-    "SCOPE",
-    "SCOPE_CATALOG",
-    "SCOPE_NAME",
-    "SCOPE_SCHEMA",
-    "SCROLL",
-    "SEARCH",
-    "SECOND",
-    "SECTION",
-    "SECURITY",
-    "SEEK",
-    "SELECT",
-    "SELECTIVE",
-    "SELF",
-    "SEMANTICS",
-    "SENSITIVE",
-    "SEQUENCE",
-    "SEQUENCES",
-    "SERIALIZABLE",
-    "SERVER",
-    "SERVER_NAME",
-    "SESSION",
-    "SESSION_USER",
-    "SET",
-    "SETOF",
-    "SETS",
-    "SHARE",
-    "SHOW",
-    "SIMILAR",
-    "SIMPLE",
-    "SIN",
-    "SINH",
-    "SIZE",
-    "SKIP",
-    "SMALLINT",
-    "SNAPSHOT",
-    "SOME",
-    "SORT_DIRECTION",
-    "SOURCE",
-    "SPACE",
-    "SPECIFIC",
-    "SPECIFICTYPE",
-    "SPECIFIC_NAME",
-    "SQL",
-    "SQLCODE",
-    "SQLERROR",
-    "SQLEXCEPTION",
-    "SQLSTATE",
-    "SQLWARNING",
-    "SQRT",
-    "STABLE",
-    "STANDALONE",
-    "START",
-    "STATE",
-    "STATEMENT",
-    "STATIC",
-    "STATISTICS",
-    "STDDEV_POP",
-    "STDDEV_SAMP",
-    "STDIN",
-    "STDOUT",
-    "STORAGE",
-    "STORED",
-    "STRICT",
-    "STRING",
-    "STRIP",
-    "STRUCTURE",
-    "STYLE",
-    "SUBCLASS_ORIGIN",
-    "SUBMULTISET",
-    "SUBSCRIPTION",
-    "SUBSET",
-    "SUBSTRING",
-    "SUBSTRING_REGEX",
-    "SUCCEEDS",
-    "SUM",
-    "SUPPORT",
-    "SYMMETRIC",
-    "SYSID",
-    "SYSTEM",
-    "SYSTEM_TIME",
-    "SYSTEM_USER",
-    "T",
-    "TABLE",
-    "TABLES",
-    "TABLESAMPLE",
-    "TABLESPACE",
-    "TABLE_NAME",
-    "TAN",
-    "TANH",
-    "TEMP",
-    "TEMPLATE",
-    "TEMPORARY",
-    "TEXT",
-    "THEN",
-    "THROUGH",
-    "TIES",
-    "TIME",
-    "TIMESTAMP",
-    "TIMEZONE_HOUR",
-    "TIMEZONE_MINUTE",
-    "TO",
-    "TOKEN",
-    "TOP_LEVEL_COUNT",
-    "TRAILING",
-    "TRANSACTION",
-    "TRANSACTIONS_​COMMITTED",
-    "TRANSACTIONS_​ROLLED_​BACK",
-    "TRANSACTION_ACTIVE",
-    "TRANSFORM",
-    "TRANSFORMS",
-    "TRANSLATE",
-    "TRANSLATE_REGEX",
-    "TRANSLATION",
-    "TREAT",
-    "TRIGGER",
-    "TRIGGER_CATALOG",
-    "TRIGGER_NAME",
-    "TRIGGER_SCHEMA",
-    "TRIM",
-    "TRIM_ARRAY",
-    "TRUE",
-    "TRUNCATE",
-    "TRUSTED",
-    "TYPE",
-    "TYPES",
-    "UESCAPE",
-    "UNBOUNDED",
-    "UNCOMMITTED",
-    "UNCONDITIONAL",
-    "UNDER",
-    "UNENCRYPTED",
-    "UNION",
-    "UNIQUE",
-    "UNKNOWN",
-    "UNLINK",
-    "UNLISTEN",
-    "UNLOGGED",
-    "UNMATCHED",
-    "UNNAMED",
-    "UNNEST",
-    "UNTIL",
-    "UNTYPED",
-    "UPDATE",
-    "UPPER",
-    "URI",
-    "USAGE",
-    "USER",
-    "USER_​DEFINED_​TYPE_​CATALOG",
-    "USER_​DEFINED_​TYPE_​CODE",
-    "USER_​DEFINED_​TYPE_​NAME",
-    "USER_​DEFINED_​TYPE_​SCHEMA",
-    "USING",
-    "UTF16",
-    "UTF32",
-    "UTF8",
-    "VACUUM",
-    "VALID",
-    "VALIDATE",
-    "VALIDATOR",
-    "VALUE",
-    "VALUES",
-    "VALUE_OF",
-    "VARBINARY",
-    "VARCHAR",
-    "VARIADIC",
-    "VARYING",
-    "VAR_POP",
-    "VAR_SAMP",
-    "VERBOSE",
-    "VERSION",
-    "VERSIONING",
-    "VIEW",
-    "VIEWS",
-    "VOLATILE",
-    "WHEN",
-    "WHENEVER",
-    "WHERE",
-    "WHITESPACE",
-    "WIDTH_BUCKET",
-    "WINDOW",
-    "WITH",
-    "WITHIN",
-    "WITHOUT",
-    "WORK",
-    "WRAPPER",
-    "WRITE",
-    "XML",
-    "XMLAGG",
-    "XMLATTRIBUTES",
-    "XMLBINARY",
-    "XMLCAST",
-    "XMLCOMMENT",
-    "XMLCONCAT",
-    "XMLDECLARATION",
-    "XMLDOCUMENT",
-    "XMLELEMENT",
-    "XMLEXISTS",
-    "XMLFOREST",
-    "XMLITERATE",
-    "XMLNAMESPACES",
-    "XMLPARSE",
-    "XMLPI",
-    "XMLQUERY",
-    "XMLROOT",
-    "XMLSCHEMA",
-    "XMLSERIALIZE",
-    "XMLTABLE",
-    "XMLTEXT",
-    "XMLVALIDATE",
-    "YEAR",
-    "YES",
-    "ZONE",
-];
+#[cfg(test)]
+mod tests {
+    use crate::db::QuerySql;
+    use crate::enable_test_log;
+    use crate::language_server::completion_test::test_file_auto_completion;
+    use crate::language_server::{LangServerCommon, LanguageServer};
+    use crate::pg::make_test_object;
+    use std::path::Path;
+
+    #[tokio::test]
+    async fn test_auto_completion() {
+        enable_test_log();
+        let db = make_test_object().await;
+        let query_id = "";
+        db.open_connection(query_id).await.unwrap();
+
+        let sql = [
+            r#"CREATE TABLE departments (
+            id SERIAL PRIMARY KEY,
+            name VARCHAR(100) NOT NULL
+        );"#,
+            r#"
+            CREATE TABLE departments (
+            id SERIAL PRIMARY KEY,
+            name VARCHAR(100) NOT NULL
+        );
+        "#,
+            r#"
+        CREATE TABLE employees (
+            id SERIAL PRIMARY KEY,
+            name VARCHAR(100) NOT NULL,
+            department_id INTEGER REFERENCES departments(id)
+        );
+            "#,
+            r#"
+            CREATE OR REPLACE RULE do_nothing_rule AS
+            ON INSERT TO employees
+            DO INSTEAD
+            NOTHING;"#,
+            r#"
+            CREATE OR REPLACE FUNCTION do_nothing()
+            RETURNS TRIGGER AS $$
+            BEGIN
+                RETURN NULL;  -- 不执行任何操作
+            END;
+            $$ LANGUAGE plpgsql;
+            "#,
+            r#"
+        CREATE TRIGGER do_nothing_trigger
+        BEFORE INSERT OR UPDATE OR DELETE ON employees
+        FOR EACH ROW
+        EXECUTE FUNCTION do_nothing();
+            "#,
+            r#"
+
+        create  view employees_test as select * from employees e;
+            "#,
+            r#"
+                ALTER TABLE employees ENABLE ROW LEVEL SECURITY;
+            "#,
+            r#"
+        CREATE POLICY no_op_policy
+        ON employees
+        USING (true)  -- 任何行都可以访问
+        WITH CHECK (true);  -- 任何行都可以插入/更新
+            "#,
+            r#"
+        CREATE SEQUENCE do_nothing_seq;
+
+            "#,
+            r#"
+                CREATE OR REPLACE PROCEDURE do_nothing_procedure()
+                LANGUAGE plpgsql
+                AS $$
+                BEGIN
+                    -- 这里什么都不做
+                    RETURN;
+                END;
+                $$;
+            "#,
+        ];
+        for sql in sql.iter() {
+            let ret = db.execute_sql(query_id, sql).await;
+            if let Some(err) = ret.err() {
+                log::error!("execute sql error:should be fine,err{}", err);
+            }
+        }
+
+        db.execute_sql(
+            query_id,
+            "INSERT INTO departments (name) VALUES ('人力资源'), ('财务部'), ('市场部');",
+        )
+        .await
+        .unwrap()
+        .unwrap();
+
+        let manifest_dir = env!("CARGO_MANIFEST_DIR");
+        let mut file_path = Path::new(manifest_dir).to_path_buf();
+        file_path.push("tests");
+        file_path.push("pg_auto_completion_test.sql");
+        let content = std::fs::read_to_string(file_path.as_path()).unwrap();
+
+        test_file_auto_completion(&content, &db, None, false).await;
+    }
+
+    #[ignore = "手动跑跑的测试"]
+    #[tokio::test]
+    async fn test_completion_xxx() {
+        enable_test_log();
+        let db = make_test_object().await;
+        test_file_auto_completion(include_str!("./xxx.sql"), &db, None, false).await;
+    }
+
+    #[tokio::test]
+    async fn test_prepare() {
+        let db = make_test_object().await;
+        let query_id = "";
+        db.open_connection(query_id).await.unwrap();
+        db.execute_sql(
+            query_id,
+            r#"
+            PREPARE select_one AS SELECT 1;
+        "#,
+        )
+        .await
+        .unwrap()
+        .unwrap();
+        assert!(db
+            .list_execute(None)
+            .await
+            .unwrap()
+            .iter()
+            .any(|x| x.name.eq("select_one")));
+    }
+
+    #[tokio::test]
+
+    async fn test_try_get_max_id() {
+        let db = make_test_object().await;
+        let max_id = db.try_get_max_id("departments").await.unwrap();
+        println!("max id is:{}", max_id);
+    }
+}

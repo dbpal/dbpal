@@ -1,64 +1,59 @@
-'use strict';
+import ReactDOM from "react-dom/client";
+import { WebviewWindow } from "@tauri-apps/api/webviewWindow";
 
-import ReactDOM from 'react-dom/client';
+import { App } from "./comp/MainPage";
+import { invoke } from "@tauri-apps/api/core";
+import { appStore, LoggerLevel, secondConfirm } from "./comp/helper.ts";
+import { saveWindowState, StateFlags } from "@tauri-apps/plugin-window-state";
 
-import './comp/MainPage';
-import MainPage from './comp/MainPage';
-import { debugBuild } from './comp/debug';
-import { invoke } from '@tauri-apps/api/core';
-import React from 'react';
-import * as tauriwindow from '@tauri-apps/api/window';
-import { platform } from '@tauri-apps/plugin-os';
-import { secondConfirm } from './comp/helper';
+saveWindowState(StateFlags.ALL);
 
-if (['windows', 'linux'].includes(platform())) {
-  document.addEventListener('keydown', function (event) {
-    if (event.key === 'F11') {
-      const window = tauriwindow.getCurrent();
-      window.isFullscreen().then((isFull) => {
-        window.setFullscreen(!isFull);
-      });
-    }
+const currentWebview = WebviewWindow.getCurrent();
+
+currentWebview.onCloseRequested(async event => {
+  const confirm = await secondConfirm({
+    title: "close the window",
+    content: "exit the app",
+    confirmText: "close",
   });
-}
-
-let appWindow = tauriwindow.getCurrent();
-if (appWindow) {
-  appWindow.onCloseRequested(async (event) => {
-    let confirm = await secondConfirm({
-      title: 'close the window',
-      content: 'are u sure to exit the app',
-      confirmText: 'close',
-    });
-    if (!confirm) {
-      event.preventDefault();
-    }
-  });
-}
-
-if (!debugBuild) {
-  document.addEventListener('contextmenu', function (event) {
+  if (!confirm) {
     event.preventDefault();
-  });
-
-  document.addEventListener('keydown', function (event) {
-    // Prevent F5 or Ctrl+R (Windows/Linux) and Command+R (Mac) from refreshing the page
-    if (
-      event.key === 'F5' ||
-      (event.ctrlKey && event.key === 'r') ||
-      (event.metaKey && event.key === 'r')
-    ) {
-      event.preventDefault();
+    return;
+  }
+  const views = await WebviewWindow.getAll();
+  for (const view of views) {
+    if (view.label != currentWebview.label) {
+      // close all webview
+      await view.close();
     }
-  });
-}
-// call every time maybe use refresh this app some what.
-window.addEventListener('load', (_event) => {
-  invoke('page_init_callback');
+    // no need close current view just not calling `event.preventDefault()`
+    //  await currentWebview.close();
+  }
 });
 
-ReactDOM.createRoot(document.getElementById('root') as HTMLElement).render(
-  <React.StrictMode>
-    <MainPage></MainPage>
-  </React.StrictMode>
-);
+if (import.meta.env.DEV) {
+  invoke("page_init_callback").then(() => {
+    console.info("page init callback successfully");
+  });
+}
+
+function setLogLevel(level: string) {
+  if (level) {
+    invoke("set_log_level", { level });
+  }
+}
+
+ReactDOM.createRoot(document.getElementById("root") as HTMLElement).render(<App />);
+appStore.onKeyChange<string>(LoggerLevel.key, level => {
+  setLogLevel(level);
+});
+
+appStore.get<string>(LoggerLevel.key).then(level => {
+  setLogLevel(level);
+});
+
+// if (import.meta.env.DEV) {
+//   setTimeout(() => {
+//     invoke("command_panic");
+//   }, 4000);
+// }
