@@ -1,67 +1,71 @@
-use std::sync::Arc;
-
-use tokio::task::block_in_place;
-
-use crate::db::DBTrait;
+use crate::db::{name_start_ascii_alphabetic, DBTrait};
 use crate::language_server::{
-    AstCompletionHelper, CompletionItem, CompletionKind, LangServerCommon, LanguageServer,
-    LexerCompletionTrait, try_completion_on_syntax,
+    try_parser_dot_lexer, AstCompletionHelper, CompletionItem, CompletionKind, CompletionList,
+    GetKeyWords, LangServerCommon, LanguageServer, LexerCompletionTrait,
 };
 use crate::oracle::OracleDB;
+use crate::sqlparser_completion::TempTableColumn;
 
 #[async_trait::async_trait]
 impl LexerCompletionTrait for OracleDB {
-    type Dialect = sqlparser::dialect::GenericDialect;
+    async fn get_types(&self) -> anyhow::Result<Vec<String>> {
+        let r = ORACLE_TYPES.iter().map(|x| x.to_string()).collect();
+        anyhow::Ok(r)
+    }
+}
 
-    const KEY_WORDS: &'static [&'static str] = ORACLE_KEY_WORDS;
-    const TYPES: &'static [&'static str] = ORACLE_TYPES;
+#[async_trait::async_trait]
 
-    async fn list_table_or_view(&self) -> anyhow::Result<Vec<String>> {
-        let sql = format!(r#"SELECT TABLE_NAME FROM DBA_TABLES"#);
-        log::info!("sql:{}", sql);
-        let conn = self.get_conn()?;
-        let result = block_in_place(|| conn.query(&sql, &[]))?;
+impl GetKeyWords for OracleDB {
+    async fn key_words(&self) -> anyhow::Result<Vec<String>> {
+        let mut lock = self.key_words_cache.lock().await;
+        if !lock.is_empty() {
+            return anyhow::Ok(lock.clone());
+        }
+        let sql = r#"
+            SELECT  keyword 
+                FROM V$RESERVED_WORDS
+        "#;
+        let result = self.query(sql).await?;
         let mut ret = Vec::new();
         for r in result {
-            let r = r?;
-            let name: String = r.get(0)?;
-            ret.push(name);
+            let name: Option<String> = r.get(0)?;
+            if let Some(name) = name {
+                let name = name.trim().to_string();
+                if name.is_empty() {
+                    continue;
+                }
+                if !name_start_ascii_alphabetic(&name) {
+                    continue;
+                }
+                ret.push(name);
+            }
         }
-        anyhow::Ok(ret)
-    }
-
-    async fn list_function(&self) -> anyhow::Result<Vec<CompletionItem>> {
-        AstCompletionHelper::list_function(self, None, None, true).await
+        *lock = ret;
+        return anyhow::Ok(lock.clone());
     }
 }
 
 impl OracleDB {
-    fn schema_merge_config<'a, 'b>(&'a self, schema: Option<&'b str>) -> Option<&'a str>
-    where
-        'b: 'a,
-    {
+    fn schema_merge_config(&self, schema: Option<&str>) -> Option<String> {
         if schema.is_some() {
-            return schema;
+            return schema.map(|x| x.to_string());
         }
-        return self.config.schema.as_deref();
+        self.config.schema.as_ref().map(|x| x.to_string())
     }
-
-    fn not_allow_empty_schema<'a>(schema: Option<&'a str>) -> anyhow::Result<&'a str> {
-        match schema {
-            Some(x) => return anyhow::Ok(x),
+    fn not_allow_empty_schema(&self, schema: Option<&str>) -> anyhow::Result<String> {
+        match self.schema_merge_config(schema) {
+            Some(x) => anyhow::Ok(x),
             None => anyhow::bail!("empty schema"),
         }
     }
 }
 
 impl OracleDB {
-    fn extact_names(&self, sql: &str) -> anyhow::Result<Vec<String>> {
-        let conn = self.get_conn()?;
-        let rows = conn.query(sql, &[])?;
+    async fn extact_names(&self, sql: &str) -> anyhow::Result<Vec<String>> {
+        let rows = self.query(sql).await?;
         let mut ret = Vec::new();
         for row in rows {
-            let row = row?;
-
             let name = row.get(0)?;
             ret.push(name);
         }
@@ -71,55 +75,71 @@ impl OracleDB {
 
 #[async_trait::async_trait]
 impl AstCompletionHelper for OracleDB {
-    async fn list_table(
-        &self, _db: Option<&str>, schema: Option<&str>,
-    ) -> anyhow::Result<Vec<String>> {
-        let schema = Self::not_allow_empty_schema(self.schema_merge_config(schema))?;
-
-        self.list_table_impl(schema)
-            .await
-            .map(|x| x.into_iter().map(|x| x.name).collect())
-    }
-
-    async fn list_view(
-        &self, _db: Option<&str>, schema: Option<&str>,
-    ) -> anyhow::Result<Vec<String>> {
-        let schema = Self::not_allow_empty_schema(self.schema_merge_config(schema))?;
-
-        self.list_view_impl(schema)
-            .await
-            .map(|x| x.into_iter().map(|x| x.name).collect())
-    }
-
-    async fn list_column(
-        &self, _db: Option<&str>, schema: Option<&str>, name: &str,
-    ) -> anyhow::Result<Vec<CompletionItem>> {
-        let schema = Self::not_allow_empty_schema(self.schema_merge_config(schema))?;
-        let sql = format!(r#"select * from "{}"."{}""#, schema, name);
-        log::info!("sql:{}", sql);
-        let conn = self.get_conn()?;
-
-        let row = conn.query_row(&sql, &[])?;
-
+    async fn get_query_columns(&self, sql: &str) -> anyhow::Result<Vec<TempTableColumn>> {
+        let row = self.query_row(sql).await?;
         anyhow::Ok(
             row.column_info()
                 .iter()
-                .map(|x| {
-                    CompletionItem {
-                        item: x.name().to_string().into(),
-                        desc: Some(x.oracle_type().to_string().into()),
-                        kind: CompletionKind::Column,
-                    }
+                .map(|x| TempTableColumn {
+                    name: x.name().to_string(),
+                    data_type: Some(x.oracle_type().to_string()),
                 })
                 .collect(),
         )
     }
+}
+
+#[async_trait::async_trait]
+impl LangServerCommon for OracleDB {
+    async fn list_index(&self, schema: Option<&str>) -> anyhow::Result<Vec<String>> {
+        let schema = self.not_allow_empty_schema(schema)?;
+        let sql = format!(
+            "SELECT INDEX_NAME FROM ALL_INDEXES WHERE OWNER='{}'",
+            schema
+        );
+        log::info!("sql:{}", sql);
+        let rows = self.query(&sql).await?;
+        let mut ret = Vec::new();
+        for row in rows {
+            let name: String = row.get(0)?;
+            ret.push(name);
+        }
+        anyhow::Ok(ret)
+    }
+    /*
+    -- 最简单的调用
+    SELECT scott.函数名(参数) AS 别名 FROM dual;
+
+    -- 例子
+    SELECT scott.f_get_emp_name(7839) AS ename FROM dual;
+    调用函数的例子和调用一个表一样 所以is_call不需要单独处理
+    */
+    async fn list_column(
+        &self,
+        schema: Option<&str>,
+        name: &str,
+        _is_call: Option<Vec<String>>,
+    ) -> anyhow::Result<Vec<TempTableColumn>> {
+        let sql = format!(
+            r#"select * from {}"{}""#,
+            match schema {
+                Some(x) => format!("\"{}\".", x),
+                None => "".to_string(),
+            },
+            name
+        );
+        log::info!("sql:{}", sql);
+        self.get_query_columns(&sql).await
+    }
 
     async fn list_function(
-        &self, _db: Option<&str>, schema: Option<&str>, include_build_in: bool,
+        &self,
+        schema: Option<&str>,
+        include_build_in: bool,
     ) -> anyhow::Result<Vec<CompletionItem>> {
-        let ret = self.extact_names(
-            r#"
+        let ret = self
+            .extact_names(
+                r#"
             SELECT
                 object_name
             FROM
@@ -127,7 +147,8 @@ impl AstCompletionHelper for OracleDB {
             WHERE
                 object_type = 'FUNCTION'
         "#,
-        )?;
+            )
+            .await?;
 
         if let Some(schema) = self.schema_merge_config(schema) {
             self.extact_names(
@@ -144,104 +165,99 @@ impl AstCompletionHelper for OracleDB {
                     schema
                 )
                 .as_str(),
-            )?;
+            )
+            .await?;
         }
         let mut ret: Vec<_> = ret
             .into_iter()
-            .map(|x| {
-                CompletionItem {
-                    item: x.into(),
-                    kind: CompletionKind::Function,
-                    desc: None,
-                }
+            .map(|x| CompletionItem {
+                item: x.into(),
+                kind: CompletionKind::Function,
+                desc: None,
             })
             .collect();
 
         if include_build_in {
-            ret.extend(ORACLE_BUILD_IN_FUNCTIONS.iter().map(|x| {
-                CompletionItem {
-                    item: (*x).into(),
-                    kind: CompletionKind::Function,
-                    desc: None,
-                }
+            ret.extend(ORACLE_BUILD_IN_FUNCTIONS.iter().map(|x| CompletionItem {
+                item: (*x).into(),
+                kind: CompletionKind::Function,
+                desc: None,
             }));
         }
         anyhow::Ok(ret)
     }
 
-    async fn list_procedure(
-        &self, _db: Option<&str>, schema: Option<&str>,
-    ) -> anyhow::Result<Vec<String>> {
-        let schema = Self::not_allow_empty_schema(self.schema_merge_config(schema))?;
-        self.list_procedure_impl(schema)
+    async fn list_procedure(&self, schema: Option<&str>) -> anyhow::Result<Vec<String>> {
+        let schema = self.not_allow_empty_schema(schema)?;
+        self.list_procedure_impl(&schema)
             .await
             .map(|x| x.into_iter().map(|x| x.name).collect())
     }
 
-    async fn list_index(&self, schema: Option<&str>) -> anyhow::Result<Vec<String>> {
-        let schema = Self::not_allow_empty_schema(self.schema_merge_config(schema))?;
-        let sql = format!(
-            "SELECT INDEX_NAME FROM ALL_INDEXES WHERE OWNER='{}'",
-            schema
-        );
-        log::info!("sql:{}", sql);
-        let conn = self.get_conn()?;
-        let rows = conn.query(&sql, &[])?;
-        let mut ret = Vec::new();
-        for row in rows {
-            let row = row?;
-
-            let name: String = row.get(0)?;
-
-            ret.push(name);
-        }
-        anyhow::Ok(ret)
+    fn dialect(&self) -> Box<dyn sqlparser::dialect::Dialect + Send + Sync> {
+        Box::new(sqlparser::dialect::OracleDialect {})
     }
-}
-
-#[async_trait::async_trait]
-impl LangServerCommon for OracleDB {
-    async fn list_schema(&self, _db: Option<&str>) -> anyhow::Result<Vec<String>> {
+    async fn list_schema(&self) -> anyhow::Result<Vec<String>> {
         DBTrait::list_schema(self).await
+    }
+    async fn list_table(&self, schema: Option<&str>) -> anyhow::Result<Vec<String>> {
+        let schema = self.not_allow_empty_schema(schema)?;
+
+        self.list_table_impl(&schema)
+            .await
+            .map(|x| x.into_iter().map(|x| x.name).collect())
+    }
+    async fn list_view(&self, schema: Option<&str>) -> anyhow::Result<Vec<String>> {
+        let schema = self.not_allow_empty_schema(schema)?;
+
+        self.list_view_impl(&schema)
+            .await
+            .map(|x| x.into_iter().map(|x| x.name).collect())
     }
 }
 
 #[async_trait::async_trait]
 impl LanguageServer for OracleDB {
-    async fn auto_completion(
-        &self, sql: &str, line: u32, col: u32, use_lexer: bool,
-    ) -> anyhow::Result<Vec<CompletionItem>> {
-        let r = try_completion_on_syntax(
-            &sql,
-            line,
-            col,
-            sqlparser::dialect::MySqlDialect {},
-            Arc::new(Clone::clone(self)),
-        )
-        .await;
-        match r {
-            Ok(xs) => return Ok(xs),
-            Err(err) => {
-                log::error!("completion on ast failed,err:{}", err);
-            }
-        };
-        if !use_lexer {
-            log::warn!("disabled use lexer , we will return empty data.");
-            return anyhow::Ok(vec![]);
+    async fn try_get_max_id(&self, name: &str) -> anyhow::Result<String> {
+        let sql = format!("SELECT MAX(id) FROM \"{name}\"");
+        let row = self.query_row(sql).await?;
+        if !row.sql_values().is_empty() {
+            return anyhow::Ok("".to_string());
         }
-        return LexerCompletionTrait::do_auto_completion(
-            self,
-            sql,
-            &sqlparser::dialect::GenericDialect {},
-            sqlparser::tokenizer::Location {
-                line: line as u64,
-                column: col as u64,
-            },
-        )
-        .await;
+        anyhow::Ok(row.sql_values()[0].to_string())
+    }
+
+    async fn ai_text_completion(
+        &self,
+        text: &str,
+        line: u32,
+        col: u32,
+    ) -> anyhow::Result<CompletionList> {
+        LexerCompletionTrait::ai_text_completion(self, text, line, col).await
+    }
+    fn extract_table_select_selection(&self, sql: &str) -> anyhow::Result<Option<String>> {
+        LangServerCommon::extract_table_select_selection(self, sql)
+    }
+    fn extract_table_select_sort(&self, sql: &str) -> anyhow::Result<Option<String>> {
+        LangServerCommon::extract_table_select_sort(self, sql)
+    }
+
+    async fn auto_completion(
+        &self,
+        _query_id: Option<String>,
+        sql: &str,
+        line: u32,
+        col: u32,
+        use_lexer: bool,
+    ) -> anyhow::Result<CompletionList> {
+        try_parser_dot_lexer(self, sql, line, col, use_lexer).await
+    }
+    fn is_dangerous_sql(&self, sql: &str) -> anyhow::Result<bool> {
+        LangServerCommon::is_dangerous_sql_by_parser(self, sql)
     }
 }
-pub(crate) const ORACLE_TYPES: &'static [&'static str] = &[
+
+pub(crate) const ORACLE_TYPES: &[&str] = &[
     "NUMBER",
     "BINARY_FLOAT",
     "BINARY_DOUBLE",
@@ -263,477 +279,9 @@ pub(crate) const ORACLE_TYPES: &'static [&'static str] = &[
     "XMLType",
 ];
 
-const ORACLE_KEY_WORDS: &'static [&'static str] = &[
-    "ACCESS",
-    "ELSE",
-    "MODIFY",
-    "START",
-    "ADD",
-    "EXCLUSIVE",
-    "NOAUDIT",
-    "SELECT",
-    "ALL",
-    "EXISTS",
-    "NOCOMPRESS",
-    "SESSION",
-    "ALTER",
-    "FILE",
-    "NOT",
-    "SET",
-    "AND",
-    "FLOAT",
-    "NOTFOUND",
-    "SHARE",
-    "ANY",
-    "FOR",
-    "NOWAIT",
-    "SIZE",
-    "ARRAYLEN",
-    "FROM",
-    "NULL",
-    "SMALLINT",
-    "AS",
-    "GRANT",
-    "NUMBER",
-    "SQLBUF",
-    "ASC",
-    "GROUP",
-    "OF",
-    "SUCCESSFUL",
-    "AUDIT",
-    "HAVING",
-    "OFFLINE",
-    "SYNONYM",
-    "BETWEEN",
-    "IDENTIFIED",
-    "ON",
-    "SYSDATE",
-    "BY",
-    "IMMEDIATE",
-    "ONLINE",
-    "TABLE",
-    "CHAR",
-    "IN",
-    "OPTION",
-    "THEN",
-    "CHECK",
-    "INCREMENT",
-    "OR",
-    "TO",
-    "CLUSTER",
-    "INDEX",
-    "ORDER",
-    "TRIGGER",
-    "COLUMN",
-    "INITIAL",
-    "PCTFREE",
-    "UID",
-    "COMMENT",
-    "INSERT",
-    "PRIOR",
-    "UNION",
-    "COMPRESS",
-    "INTEGER",
-    "PRIVILEGES",
-    "UNIQUE",
-    "CONNECT",
-    "INTERSECT",
-    "PUBLIC",
-    "UPDATE",
-    "CREATE",
-    "INTO",
-    "RAW",
-    "USER",
-    "CURRENT",
-    "IS",
-    "RENAME",
-    "VALIDATE",
-    "DATE",
-    "LEVEL",
-    "RESOURCE",
-    "VALUES",
-    "DECIMAL",
-    "LIKE",
-    "REVOKE",
-    "VARCHAR",
-    "DEFAULT",
-    "LOCK",
-    "ROW",
-    "VARCHAR2",
-    "DELETE",
-    "LONG",
-    "ROWID",
-    "VIEW",
-    "DESC",
-    "MAXEXTENTS",
-    "ROWLABEL",
-    "WHENEVER",
-    "DISTINCT",
-    "MINUS",
-    "ROWNUM",
-    "WHERE",
-    "DROP",
-    "MODE",
-    "ROWS",
-    "WITH",
-    "ADMIN",
-    "CURSOR",
-    "FOUND",
-    "MOUNT",
-    "AFTER",
-    "CYCLE",
-    "FUNCTION",
-    "NEXT",
-    "ALLOCATE",
-    "DATABASE",
-    "GO",
-    "NEW",
-    "ANALYZE",
-    "DATAFILE",
-    "GOTO",
-    "NOARCHIVELOG",
-    "ARCHIVE",
-    "DBA",
-    "GROUPS",
-    "NOCACHE",
-    "ARCHIVELOG",
-    "DEC",
-    "INCLUDING",
-    "NOCYCLE",
-    "AUTHORIZATION",
-    "DECLARE",
-    "INDICATOR",
-    "NOMAXVALUE",
-    "AVG",
-    "DISABLE",
-    "INITRANS",
-    "NOMINVALUE",
-    "BACKUP",
-    "DISMOUNT",
-    "INSTANCE",
-    "NONE",
-    "BEGIN",
-    "DOUBLE",
-    "INT",
-    "NOORDER",
-    "BECOME",
-    "DUMP",
-    "KEY",
-    "NORESETLOGS",
-    "BEFORE",
-    "EACH",
-    "LANGUAGE",
-    "NORMAL",
-    "BLOCK",
-    "ENABLE",
-    "LAYER",
-    "NOSORT",
-    "BODY",
-    "END",
-    "LINK",
-    "NUMERIC",
-    "CACHE",
-    "ESCAPE",
-    "LISTS",
-    "OFF",
-    "CANCEL",
-    "EVENTS",
-    "LOGFILE",
-    "OLD",
-    "CASCADE",
-    "EXCEPT",
-    "MANAGE",
-    "ONLY",
-    "CHANGE",
-    "EXCEPTIONS",
-    "MANUAL",
-    "OPEN",
-    "CHARACTER",
-    "EXEC",
-    "MAX",
-    "OPTIMAL",
-    "CHECKPOINT",
-    "EXPLAIN",
-    "MAXDATAFILES",
-    "OWN",
-    "CLOSE",
-    "EXECUTE",
-    "MAXINSTANCES",
-    "PACKAGE",
-    "COBOL",
-    "EXTENT",
-    "MAXLOGFILES",
-    "PARALLEL",
-    "COMMIT",
-    "EXTERNALLY",
-    "MAXLOGHISTORY",
-    "PCTINCREASE",
-    "COMPILE",
-    "FETCH",
-    "MAXLOGMEMBERS",
-    "PCTUSED",
-    "CONSTRAINT",
-    "FLUSH",
-    "MAXTRANS",
-    "PLAN",
-    "CONSTRAINTS",
-    "FREELIST",
-    "MAXVALUE",
-    "PLI",
-    "CONTENTS",
-    "FREELISTS",
-    "MIN",
-    "PRECISION",
-    "CONTINUE",
-    "FORCE",
-    "MINEXTENTS",
-    "PRIMARY",
-    "CONTROLFILE",
-    "FOREIGN",
-    "MINVALUE",
-    "PRIVATE",
-    "COUNT",
-    "FORTRAN",
-    "MODULE",
-    "PROCEDURE",
-    "PROFILE",
-    "SAVEPOINT",
-    "SQLSTATE",
-    "TRACING",
-    "QUOTA",
-    "SCHEMA",
-    "STATEMENT_ID",
-    "TRANSACTION",
-    "READ",
-    "SCN",
-    "STATISTICS",
-    "TRIGGERS",
-    "REAL",
-    "SECTION",
-    "STOP",
-    "TRUNCATE",
-    "RECOVER",
-    "SEGMENT",
-    "STORAGE",
-    "UNDER",
-    "REFERENCES",
-    "SEQUENCE",
-    "SUM",
-    "UNLIMITED",
-    "REFERENCING",
-    "SHARED",
-    "SWITCH",
-    "UNTIL",
-    "RESETLOGS",
-    "SNAPSHOT",
-    "SYSTEM",
-    "USE",
-    "RESTRICTED",
-    "SOME",
-    "TABLES",
-    "USING",
-    "REUSE",
-    "SORT",
-    "TABLESPACE",
-    "WHEN",
-    "ROLE",
-    "SQL",
-    "TEMPORARY",
-    "WRITE",
-    "ROLES",
-    "SQLCODE",
-    "THREAD",
-    "WORK",
-    "ROLLBACK",
-    "SQLERROR",
-    "TIME",
-    "ABORT",
-    "BETWEEN",
-    "CRASH",
-    "DIGITS",
-    "ACCEPT",
-    "BINARY_INTEGER",
-    "CREATE",
-    "DISPOSE",
-    "ACCESS",
-    "BODY",
-    "CURRENT",
-    "DISTINCT",
-    "ADD",
-    "BOOLEAN",
-    "CURRVAL",
-    "DO",
-    "ALL",
-    "BY",
-    "CURSOR",
-    "DROP",
-    "ALTER",
-    "CASE",
-    "DATABASE",
-    "ELSE",
-    "AND",
-    "CHAR",
-    "DATA_BASE",
-    "ELSIF",
-    "ANY",
-    "CHAR_BASE",
-    "DATE",
-    "END",
-    "ARRAY",
-    "CHECK",
-    "DBA",
-    "ENTRY",
-    "ARRAYLEN",
-    "CLOSE",
-    "DEBUGOFF",
-    "EXCEPTION",
-    "AS",
-    "CLUSTER",
-    "DEBUGON",
-    "EXCEPTION_INIT",
-    "ASC",
-    "CLUSTERS",
-    "DECLARE",
-    "EXISTS",
-    "ASSERT",
-    "COLAUTH",
-    "DECIMAL",
-    "EXIT",
-    "ASSIGN",
-    "COLUMNS",
-    "DEFAULT",
-    "FALSE",
-    "AT",
-    "COMMIT",
-    "DEFINITION",
-    "FETCH",
-    "AUTHORIZATION",
-    "COMPRESS",
-    "DELAY",
-    "FLOAT",
-    "AVG",
-    "CONNECT",
-    "DELETE",
-    "FOR",
-    "BASE_TABLE",
-    "CONSTANT",
-    "DESC",
-    "FORM",
-    "FUNCTION",
-    "NEW",
-    "RELEASE",
-    "SUM",
-    "GENERIC",
-    "NEXTVAL",
-    "REMR",
-    "TABAUTH",
-    "GOTO",
-    "NOCOMPRESS",
-    "RENAME",
-    "TABLE",
-    "GRANT",
-    "NOT",
-    "RESOURCE",
-    "TABLES",
-    "GROUP",
-    "NULL",
-    "RETURN",
-    "TASK",
-    "HAVING",
-    "NUMBER",
-    "REVERSE",
-    "TERMINATE",
-    "IDENTIFIED",
-    "NUMBER_BASE",
-    "REVOKE",
-    "THEN",
-    "IF",
-    "OF",
-    "ROLLBACK",
-    "TO",
-    "IN",
-    "ON",
-    "ROWID",
-    "TRUE",
-    "INDEX",
-    "OPEN",
-    "ROWLABEL",
-    "TYPE",
-    "INDEXES",
-    "OPTION",
-    "ROWNUM",
-    "UNION",
-    "INDICATOR",
-    "OR",
-    "ROWTYPE",
-    "UNIQUE",
-    "INSERT",
-    "ORDER",
-    "RUN",
-    "UPDATE",
-    "INTEGER",
-    "OTHERS",
-    "SAVEPOINT",
-    "USE",
-    "INTERSECT",
-    "OUT",
-    "SCHEMA",
-    "VALUES",
-    "INTO",
-    "PACKAGE",
-    "SELECT",
-    "VARCHAR",
-    "IS",
-    "PARTITION",
-    "SEPARATE",
-    "VARCHAR2",
-    "LEVEL",
-    "PCTFREE",
-    "SET",
-    "VARIANCE",
-    "LIKE",
-    "POSITIVE",
-    "SIZE",
-    "VIEW",
-    "LIMITED",
-    "PRAGMA",
-    "SMALLINT",
-    "VIEWS",
-    "LOOP",
-    "PRIOR",
-    "SPACE",
-    "WHEN",
-    "MAX",
-    "PRIVATE",
-    "SQL",
-    "WHERE",
-    "MIN",
-    "PROCEDURE",
-    "SQLCODE",
-    "WHILE",
-    "MINUS",
-    "PUBLIC",
-    "SQLERRM",
-    "WITH",
-    "MLSLABEL",
-    "RAISE",
-    "START",
-    "WORK",
-    "MOD",
-    "RANGE",
-    "STATEMENT",
-    "XOR",
-    "MODE",
-    "REAL",
-    "STDDEV",
-    "NATURAL",
-    "RECORD",
-    "SUBTYPE",
-];
-
 /// https://docs.oracle.com/en/database/oracle/oracle-database/19/sqlrf/Single-Row-Functions.html#GUID-B93F789D-B486-49FF-B0CD-0C6181C5D85C
 ///  all function collect from.
-const ORACLE_BUILD_IN_FUNCTIONS: &'static [&'static str] = &[
+const ORACLE_BUILD_IN_FUNCTIONS: &[&str] = &[
     // Numeric Functions
     "ABS",
     "ACOS",

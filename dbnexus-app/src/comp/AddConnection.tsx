@@ -1,9 +1,15 @@
-import { useContext, useEffect, useRef, useState } from 'react';
-
+import {
+  createContext,
+  RefObject,
+  useContext,
+  useEffect,
+  useRef,
+  useState,
+} from "react";
+import ClearIcon from "@mui/icons-material/Clear";
 import {
   TextField,
   Button,
-  Switch,
   FormControlLabel,
   Typography,
   FormControl,
@@ -11,123 +17,190 @@ import {
   Select,
   MenuItem,
   Stack,
-  Alert,
   Divider,
-  RadioGroup,
-  Radio,
   Checkbox,
   Chip,
   Tooltip,
-} from '@mui/material';
-import { NotificationContext } from './Notification';
-import { types } from './ApiStruct';
-import { open } from '@tauri-apps/plugin-dialog';
-import { invoke } from '@tauri-apps/api/core';
-import { appStore, AppStoreKey, extractBaseName, msgTimeout } from './Common';
-import { DataSourceKind } from './helper';
-import { openUrl } from '@tauri-apps/plugin-opener';
+  InputAdornment,
+  IconButton,
+  Autocomplete,
+} from "@mui/material";
+import RefreshIcon from "@mui/icons-material/Refresh";
+import AttachFileIcon from "@mui/icons-material/AttachFile";
+import VisibilityIcon from "@mui/icons-material/Visibility";
+import { NotificationContext } from "./Notification.tsx";
+import { types } from "./ApiStruct.ts";
+import { message, open } from "@tauri-apps/plugin-dialog";
+import { invoke } from "@tauri-apps/api/core";
+import {
+  ConnectionHandler,
+  connectionChangeEvent,
+  extractBaseName,
+  PassWordManager,
+} from "./Common.ts";
+import { DataSourceKind } from "./helper.ts";
+import { openUrl } from "@tauri-apps/plugin-opener";
+import { platform } from "@tauri-apps/plugin-os";
+import { StackRowCenter, UrlDocument } from "./CommonComp2.tsx";
+import { emit } from "@tauri-apps/api/event";
 
-async function selectOneFile() {
-  const selected = await open({
-    multiple: false,
-  });
-  return selected;
-}
-
-function HostAndPort(props: { host; port; setHost; setPort; onBlur }) {
-  let { host, port, setHost, setPort, onBlur } = props;
+function HostAndPort(props: { host; port; setHost; setPort }) {
+  const { host, port, setHost, setPort } = props;
   return (
     <Stack direction="row">
       <TextField
-        size="small"
         fullWidth
         label="Host"
         value={host}
-        onBlur={onBlur}
         sx={{ mr: 1 }}
-        onChange={(e) => setHost(e.target.value)}
+        onChange={e => setHost(e.target.value)}
+        slotProps={{
+          input: {
+            endAdornment: host && (
+              <InputAdornment position="end">
+                <IconButton
+                  onClick={() => {
+                    setHost("");
+                  }}
+                  edge="end"
+                >
+                  <ClearIcon fontSize="small" />
+                </IconButton>
+              </InputAdornment>
+            ),
+          },
+        }}
+        required
       />
       <TextField
-        size="small"
         fullWidth
         label="port"
-        onBlur={onBlur}
         error={isNaN(parseInt(port))}
         value={port}
-        onChange={(e) => setPort(e.target.value)}
+        onChange={e => setPort(e.target.value)}
       />
     </Stack>
   );
 }
 
-function SelectPath(props: { path; setPath }) {
-  let { path, setPath } = props;
+function SelectPath(props: { path; setPath; label: string; required: boolean }) {
+  const { path, setPath, label, required } = props;
   return (
-    <Stack direction="row" sx={{ alignItems: 'center' }}>
-      <Chip
-        label={`path:` + (path ? path : '')}
-        onClick={() => {
-          selectOneFile().then((e) => {
-            setPath(e);
-          });
+    <Stack direction="row" sx={{ alignItems: "center" }}>
+      <TextField
+        value={path}
+        onChange={e => {
+          setPath(e.target.value);
         }}
-        color="primary"
-      ></Chip>
+        style={{ flex: 1 }}
+        label={label}
+        required={required}
+        slotProps={{
+          input: {
+            endAdornment: (
+              <>
+                {path && (
+                  <InputAdornment position="end">
+                    <IconButton
+                      onClick={() => {
+                        setPath("");
+                      }}
+                      edge="end"
+                    >
+                      <ClearIcon fontSize="small" />
+                    </IconButton>
+                  </InputAdornment>
+                )}
+                <IconButton
+                  onClick={() => {
+                    open({ multiple: false }).then(e => {
+                      setPath(e);
+                    });
+                  }}
+                  color="primary"
+                >
+                  <AttachFileIcon />
+                </IconButton>
+              </>
+            ),
+          },
+        }}
+      />
     </Stack>
   );
 }
 
 function UserAndPassword(props: {
-  user;
-  password;
+  user: string;
+  password: string;
   setUser;
   setPassword;
-  onBlur;
   savePassword;
   setSavePassword;
 }) {
-  let {
-    user,
-    password,
-    setUser,
-    setPassword,
-    onBlur,
-    savePassword,
-    setSavePassword,
-  } = props;
-
+  const { user, password, setUser, setPassword, savePassword, setSavePassword } = props;
+  const [passwordVisible, setPasswordVisible] = useState(false);
   return (
     <Stack direction="row">
       <TextField
-        size="small"
         fullWidth
         label="User"
         value={user}
         sx={{ mr: 1 }}
-        onBlur={onBlur}
-        onChange={(e) => setUser(e.target.value)}
+        onChange={e => setUser(e.target.value)}
+        slotProps={{
+          input: {
+            endAdornment: user && (
+              <InputAdornment position="end">
+                <IconButton
+                  onClick={() => {
+                    setUser("");
+                  }}
+                  edge="end"
+                >
+                  <ClearIcon fontSize="small" />
+                </IconButton>
+              </InputAdornment>
+            ),
+          },
+        }}
       />
       <TextField
-        size="small"
         fullWidth
         label="Password"
-        onBlur={onBlur}
-        type="password"
+        type={passwordVisible ? "text" : "password"}
         value={password}
-        onChange={(e) => setPassword(e.target.value)}
+        onChange={e => setPassword(e.target.value)}
+        slotProps={{
+          input: {
+            endAdornment: !passwordVisible &&
+              password != "" &&
+              platform() != "windows" && ( // window 已经有了这个功能了
+                <InputAdornment position="end">
+                  <IconButton
+                    onClick={() => {
+                      setPasswordVisible(true);
+                    }}
+                    edge="end"
+                  >
+                    <VisibilityIcon fontSize="small" />
+                  </IconButton>
+                </InputAdornment>
+              ),
+          },
+        }}
       />
-
       <Stack
         style={{
-          width: '31rem',
-          justifyContent: 'center',
-          alignItems: 'center',
+          width: "31rem",
+          justifyContent: "center",
+          alignItems: "center",
         }}
         direction="row"
       >
         <Checkbox
           checked={savePassword}
-          onChange={(e) => {
+          onChange={e => {
             setSavePassword(e.target.checked);
           }}
           name="save password"
@@ -138,1014 +211,600 @@ function UserAndPassword(props: {
   );
 }
 
-//@ts-ignore
-function EnableSSL(props: { useSSL; setUseSSL }) {
-  let { useSSL, setUseSSL } = props;
-  return (
-    <FormControlLabel
-      control={
-        <Switch
-          checked={useSSL}
-          onChange={(e) => setUseSSL(e.target.checked)}
-        />
-      }
-      label="Enable SSL"
-    />
-  );
-}
-
 function Https(props: { https; setHttps }) {
-  let { https, setHttps } = props;
+  const { https, setHttps } = props;
   return (
     <FormControlLabel
-      control={
-        <Switch checked={https} onChange={(e) => setHttps(e.target.checked)} />
-      }
+      control={<Checkbox checked={https} onChange={e => setHttps(e.target.checked)} />}
       label="HTTPS"
     />
   );
 }
 
-function TrustCert(props: { trustCert; setTrustCert }) {
-  let { trustCert, setTrustCert } = props;
+function SqlServerCert(props: { data: SqlServerCertData; setData }) {
+  const { data, setData } = props;
   return (
-    <Stack direction="row" style={{ alignItems: 'center' }}>
+    <StackRowCenter>
       <FormControlLabel
         control={
-          <Switch
-            checked={trustCert}
-            onChange={(e) => setTrustCert(e.target.checked)}
+          <Checkbox
+            checked={data.trust_cert}
+            onChange={e =>
+              setData({
+                ...data,
+                trust_cert: e.target.checked,
+              } as SqlServerCertData)
+            }
           />
         }
         label="Trust Cert"
       />
       <Chip
         label="?"
-        size="small"
         onClick={() => {
           openUrl(
-            'https://docs.rs/tiberius/0.12.3/tiberius/struct.Config.html#method.trust_cert'
+            "https://docs.rs/tiberius/0.12.3/tiberius/struct.Config.html#method.trust_cert",
           );
         }}
-      ></Chip>
-    </Stack>
+      />
+    </StackRowCenter>
   );
 }
 
-function EnableSSlCert(props: {
-  sslCa;
-  setSslCa;
-  sslCert;
-  setSslCert;
-  enableSsl;
-  setEnableSsl;
-  sslKey;
-  setSslKey;
-}) {
-  const {
-    sslCa,
-    setSslCa,
-    sslCert,
-    setSslCert,
-    sslKey,
-    setSslKey,
-    enableSsl,
-    setEnableSsl,
-  } = props;
+interface SqlServerCertData {
+  trust_cert: boolean;
+  cert_ca: string | null;
+}
+
+function SslFiles(props: { files: types.SSLFiles; setFiles; enabled: boolean }) {
+  const { files, setFiles, enabled } = props;
 
   return (
-    <Stack
-      direction="row"
-      spacing={1}
-      style={{ alignItems: 'center', flexWrap: 'wrap' }}
-    >
+    enabled && (
       <>
-        <Checkbox
-          checked={enableSsl}
-          onChange={(e) => {
-            setEnableSsl(e.target.checked);
-          }}
-        ></Checkbox>
-        enable ssl
-      </>
-      {enableSsl && (
-        <>
+        <Stack direction="row" style={{ flexWrap: "wrap" }}>
           <Tooltip
-            title={sslCa}
+            title={files.ssl_ca}
             onClick={async () => {
-              let file = await selectOneFile();
+              const file = await open({ multiple: false });
               if (file) {
-                setSslCa(file);
+                setFiles({ ...files, ssl_ca: file });
               }
             }}
           >
             <Chip
-              label={
-                'CA Cert(optional):' + (sslCa ? extractBaseName(sslCa) : '')
-              }
-              size="small"
-            ></Chip>
+              label={"CA Cert:" + (files.ssl_ca ? extractBaseName(files.ssl_ca) : "")}
+              variant="outlined"
+            />
           </Tooltip>
-          <Tooltip title={sslCert}>
+          <Tooltip title={files.ssl_cert}>
             <Chip
+              variant="outlined"
               onClick={async () => {
-                let file = await selectOneFile();
+                const file = await open({ multiple: false });
                 if (file) {
-                  setSslCert(file);
+                  setFiles({ ...files, ssl_cert: file });
                 }
               }}
               label={
-                'Certificate(optional):' +
-                (sslCert ? extractBaseName(sslCert) : '')
+                "Certificate:" + (files.ssl_cert ? extractBaseName(files.ssl_cert) : "")
               }
-              size="small"
-            ></Chip>
+            />
           </Tooltip>
-          <Tooltip title={sslKey}>
+          <Tooltip title={files.ssl_key}>
             <Chip
+              variant="outlined"
               onClick={async () => {
-                let file = await selectOneFile();
+                const file = await open({ multiple: false });
                 if (file) {
-                  setSslKey(file);
+                  setFiles({ ...files, ssl_key: file });
                 }
               }}
-              size="small"
               label={
-                'Key File(optional):' + (sslKey ? extractBaseName(sslKey) : '')
+                "Key File:" + (files.ssl_key ? extractBaseName(files.ssl_key) : "")
               }
-            ></Chip>
+            />
           </Tooltip>
-        </>
-      )}
+        </Stack>
+      </>
+    )
+  );
+}
+
+function PGSSL(props: { ssl: types.PgSsl; setSsl }) {
+  const { ssl, setSsl } = props;
+  const modes = [
+    "disable",
+    "allow",
+    "prefer",
+    "require",
+    "verifyca",
+    "verifyfull",
+  ] as types.PgSslMode[];
+
+  return (
+    <Stack direction="row" style={{ alignItems: "center", flexWrap: "wrap" }}>
+      <FormControl style={{ width: "12rem" }}>
+        <InputLabel> ssl mode </InputLabel>
+        <Select
+          value={ssl.ssl_mode}
+          label="ssl mode"
+          onChange={e => setSsl({ ...ssl, ssl_mode: e.target.value } as types.PgSsl)}
+        >
+          {modes.map(e => (
+            <MenuItem value={e} key={e}>
+              {e}
+            </MenuItem>
+          ))}
+        </Select>
+      </FormControl>
+      <UrlDocument url="https://docs.rs/sqlx/latest/sqlx/postgres/enum.PgSslMode.html" />
+
+      <SslFiles enabled={ssl.ssl_mode != "disable"} files={ssl} setFiles={setSsl} />
+    </Stack>
+  );
+}
+function MysqlSSl(props: { ssl: types.MysqlSsl; setSsl: any }) {
+  const { ssl, setSsl } = props;
+  const modes = [
+    "disabled",
+    "preferred",
+    "required",
+    "verifyca",
+    "verifyidentity",
+  ] as types.MySqlSslMode[];
+  return (
+    <Stack direction="row" style={{ alignItems: "center", flexWrap: "wrap" }}>
+      <FormControl style={{ width: "12rem" }}>
+        <InputLabel> ssl mode </InputLabel>
+        <Select
+          value={ssl.ssl_mode}
+          label="ssl mode"
+          onChange={e => setSsl({ ...ssl, ssl_mode: e.target.value } as types.MysqlSsl)}
+        >
+          {modes.map(e => (
+            <MenuItem value={e} key={e}>
+              {e}
+            </MenuItem>
+          ))}
+        </Select>
+      </FormControl>
+      <UrlDocument url="https://docs.rs/sqlx/latest/sqlx/mysql/enum.MySqlSslMode.html" />
+
+      <SslFiles enabled={ssl.ssl_mode != "disabled"} files={ssl} setFiles={setSsl} />
     </Stack>
   );
 }
 
-function Database(props: {
-  database;
-  setDatabase;
-  candidates: string[];
-  onBlur?;
-  lable?: string;
+function DbSchemaCadidates(props: {
+  name;
+  setName;
+  label: string;
+  makeConfig: MakeConfig;
 }) {
-  let { database, setDatabase, candidates, onBlur, lable } = props;
-
-  if (!lable) {
-    lable = 'database';
-  }
-  return (
-    <Stack>
-      {candidates.length > 0 && (
-        <Stack direction="row" style={{ flexWrap: 'wrap' }}>
-          {candidates.map((e) => (
-            <Button
-              key={e}
-              onClick={() => {
-                setDatabase(e);
-              }}
-            >
-              {e}
-            </Button>
-          ))}
-        </Stack>
-      )}
-      <Stack direction="row">
-        <TextField
-          fullWidth
-          size="small"
-          label={lable}
-          value={database}
-          onBlur={onBlur}
-          onChange={(e) => setDatabase(e.target.value)}
-        />
-      </Stack>
-    </Stack>
-  );
-}
-
-function Schema(props: { schema; setSchema; candidates: string[] }) {
-  let { schema, setSchema, candidates } = props;
-
-  return (
-    <Stack>
-      {candidates.length > 0 && (
-        <Stack direction="row" style={{ flexWrap: 'wrap' }}>
-          {candidates.map((e) => (
-            <Button
-              key={e}
-              onClick={() => {
-                setSchema(e);
-              }}
-            >
-              {e}
-            </Button>
-          ))}
-        </Stack>
-      )}
-      <Stack direction="row">
-        <TextField
-          size="small"
-          label="schema"
-          value={schema}
-          onChange={(e) => setSchema(e.target.value)}
-        />
-      </Stack>
-    </Stack>
-  );
-}
-
-function AddConnection(props: { handleClose: () => void; config?: object }) {
-  let { handleClose, config } = props;
-  if (!config) {
-    config = {};
-  }
-  const getConfig = (key: string, defaultValue: any = '') => {
-    let v = config[key];
-    if (!(key in config)) {
-      v = defaultValue;
-    }
-    return v;
-  };
-  const [connectionType, setConnectionType] = useState(
-    getConfig('conn_type', 'mysql')
-  );
-  const [connectionName, setConnectionName] = useState(getConfig('name'));
-  const connectionNameDom = useRef(null);
-  const [savePassword, setSavePassword] = useState(
-    getConfig('save_password', true)
-  );
-  const [host, setHost] = useState(getConfig('host'));
-  const [port, setPort] = useState('' + getConfig('port', 0));
-  const [user, setUser] = useState(getConfig('username'));
-  const [password, setPassword] = useState('');
-  const [database, setDatabase] = useState(getConfig('db'));
-  const [readOnly, setReadOnly] = useState(getConfig('read_only', false));
-
-  const [testLoading, setTestLoading] = useState(false);
-  const [triggerReLoad, setTriggerReload] = useState(false);
-  const [path, setPath] = useState(getConfig('path'));
+  const { name, setName, label, makeConfig } = props;
+  const [candidates, setCadidates] = useState([]);
   const { showNotification } = useContext(NotificationContext);
-  const [testOk, setTestOk] = useState(false);
-  const [trustCert, setTrustCert] = useState(getConfig('trust_cert', false));
-  const [databaseCandidates, setDatabaseCandidates] = useState([]);
-  const [schema, setSchema] = useState(getConfig('schema'));
-  const [https, setHttps] = useState(getConfig('https', false));
-  const [sslCa, setSslCa] = useState(getConfig('ssl_ca'));
-  const [sslCert, setSslCert] = useState(getConfig('ssl_cert'));
-  const [sslKey, setSslKey] = useState(getConfig('ssl_key'));
-  const [sslEnable, setSslEnable] = useState(false);
-  const toggleTriggerReload = () => {
-    setTriggerReload((e) => !e);
+  const [loading, setLoading] = useState(false);
+  const handleReload = () => {
+    const config = makeConfig();
+    if (!config.name) {
+      config.name = "test_conn";
+    }
+    setLoading(true);
+    invoke<string[]>("try_list_database_schema_candidates", { conn: config })
+      .then(e => {
+        showNotification("success", "fetch candidates success");
+        setCadidates(e);
+      })
+      .catch(e => {
+        showNotification("warning", `list ${label} failed`, e);
+      })
+      .finally(() => {
+        setLoading(false);
+      });
   };
-  const [libSqlModel, setlibSqlModal] = useState<'remote' | 'local'>(
-    //@ts-ignore
-    getConfig('source', 'local') // backend has name this to source
+  return (
+    <Stack direction="row">
+      <Autocomplete
+        options={candidates}
+        style={{ width: "12rem" }}
+        value={name}
+        renderInput={params => <TextField {...params} label={`${label} candidates`} />}
+        freeSolo
+        onChange={(_, name) => {
+          setName(name);
+        }}
+        onInputChange={(_, value) => {
+          setName(value);
+        }}
+      />
+      <Button onClick={handleReload} loading={loading} variant="outlined">
+        <RefreshIcon />
+      </Button>
+    </Stack>
   );
-  const [url, setUrl] = useState(getConfig('url'));
-  const [replica, setReplica] = useState(getConfig('replica', false));
-  const [authToken, setAuthToken] = useState(getConfig('auth_token'));
-  const [schemaCandidates, setSchemesCandidats] = useState([]);
-  const makeConfig = (): types.DBConnectionConfig | null => {
-    let portInt = parseInt(port);
-    let user_null = user ? user : null;
-    let pass_null = password ? password : null;
-    let db_null = database ? database : null;
-    let schema_null = schema ? schema : null;
-    switch (connectionType) {
-      case DataSourceKind.FireBird:
-        return {
-          conn_type: connectionType,
-          host: host,
-          port: portInt,
-          db: database,
-          username: user,
-          password: password,
-          read_only: readOnly,
-          name: connectionName,
-          save_password: savePassword,
-        };
-      case DataSourceKind.LibSql:
-        return {
-          conn_type: connectionType,
-          replica: replica,
-          source: libSqlModel,
-          path: path,
-          url: url,
-          auth_token: authToken,
-          read_only: readOnly,
-          name: connectionName,
-        };
+}
 
-      case DataSourceKind.ClickHouse:
-        return {
-          conn_type: connectionType,
-          host: host,
-          port: portInt,
-          username: user,
-          password: pass_null,
-          db: db_null,
-          read_only: readOnly,
-          name: connectionName,
-          https: https,
-          save_password: savePassword,
-        };
+type MakeConfig = () => types.DBConnectionConfig;
+
+function Mysql(props: { config; kind: DataSourceKind }) {
+  const { config, kind } = props;
+  const { connectionName, connTimeOut, readOnly, makeConfigRef } =
+    useContext(AddConnectionContext);
+  let defaultPort = 3306;
+  if (kind == DataSourceKind.TiDB) {
+    defaultPort = 4000;
+  }
+  const [host, setHost] = useState(getHost(config));
+  const [port, setPort] = useState((config?.port || defaultPort) + "");
+  const [user, setUser] = useState(getUser(config));
+  const [password, setPassword] = useState(getPassword(config));
+  const [database, setDatabase] = useState(getDB(config));
+  const [ssl, setSsl] = useState<types.MysqlSsl>({
+    ssl_mode: config?.ssl_mode || "preferred",
+    ssl_ca: config?.ssl_ca,
+    ssl_cert: config?.ssl_cert,
+    ssl_key: config?.ssl_key,
+  });
+  const [savePassword, setSavePassword] = useState(getSavePassword(config));
+
+  function makeConfig(): types.DBConnectionConfig {
+    const x: types.MysqlDBConfig = {
+      host,
+      port: parseInt(port),
+      username: user,
+      password: password ? password : null,
+      db: database ? database : null,
+      read_only: readOnly,
+      conn_timeout: connTimeOut,
+      ...ssl,
+    };
+    switch (kind) {
       case DataSourceKind.Mysql:
-        return {
-          conn_type: connectionType,
-          host: host,
-          port: portInt,
-          username: user,
-          password: pass_null,
-          db: db_null,
-          read_only: readOnly,
-          name: connectionName,
-          save_password: savePassword,
-          ssl_enable: sslEnable,
-          ssl_ca: sslCa,
-          ssl_cert: sslCert,
-          ssl_key: sslKey,
-        };
-      case DataSourceKind.Cassandra:
-        return {
-          conn_type: connectionType,
-          host: host,
-          port: portInt,
-          username: user_null,
-          password: pass_null,
-          db: db_null,
-          read_only: readOnly,
-          name: connectionName,
-          save_password: savePassword,
-        };
       case DataSourceKind.MariaDB:
-        return {
-          conn_type: connectionType,
-          host: host,
-          port: portInt,
-          username: user,
-          password: pass_null,
-          db: db_null,
-          read_only: readOnly,
-          name: connectionName,
-          save_password: savePassword,
-        };
       case DataSourceKind.TiDB:
         return {
-          conn_type: connectionType,
-          host: host,
-          port: portInt,
-          username: user,
-          password: pass_null,
-          db: db_null,
-          read_only: readOnly,
+          conn_type: kind,
           name: connectionName,
           save_password: savePassword,
+          ...x,
         };
+      default:
+        message("pass wrong kind of parameter, kind:" + kind, {
+          kind: "error",
+        });
+    }
+  }
+  makeConfigRef.current = makeConfig;
+
+  return (
+    <Stack>
+      <HostAndPort host={host} port={port} setHost={setHost} setPort={setPort} />
+      <UserAndPassword
+        user={user}
+        password={password}
+        setUser={setUser}
+        setPassword={setPassword}
+        savePassword={savePassword}
+        setSavePassword={setSavePassword}
+      />
+      <DbSchemaCadidates
+        name={database}
+        label="database"
+        setName={setDatabase}
+        makeConfig={makeConfig}
+      />
+      <MysqlSSl ssl={ssl} setSsl={setSsl} />
+    </Stack>
+  );
+}
+
+function Oracle(props: { config? }) {
+  const { config } = props;
+  const [host, setHost] = useState(getHost(config));
+  const [port, setPort] = useState((config?.port || 1521) + "");
+  const [user, setUser] = useState(getUser(config));
+  const [password, setPassword] = useState(getPassword(config));
+  const [database, setDatabase] = useState(config?.db);
+  const [savePassword, setSavePassword] = useState(getSavePassword(config));
+  const [schema, setSchema] = useState(getSchema(config));
+  const { connTimeOut, connectionName, readOnly, makeConfigRef } =
+    useContext(AddConnectionContext);
+
+  function makeConfig(): types.DBConnectionConfig {
+    return {
+      conn_type: "oracle",
+      name: connectionName,
+      host,
+      port: parseInt(port),
+      username: user,
+      password: password ? password : null,
+      save_password: savePassword,
+      db: database,
+      schema: schema ? schema : null,
+      conn_timeout: connTimeOut,
+      read_only: readOnly,
+    };
+  }
+  makeConfigRef.current = makeConfig;
+
+  return (
+    <Stack>
+      <Typography
+        color="info"
+        style={{ cursor: "pointer" }}
+        onClick={() => {
+          openUrl(
+            "https://odpi-c.readthedocs.io/en/latest/user_guide/installation.html",
+          );
+        }}
+      >
+        oracle need extra driver
+      </Typography>
+      <HostAndPort host={host} port={port} setHost={setHost} setPort={setPort} />
+      <UserAndPassword
+        user={user}
+        password={password}
+        setUser={setUser}
+        setPassword={setPassword}
+        savePassword={savePassword}
+        setSavePassword={setSavePassword}
+      />
+      <TextField
+        value={database}
+        label="database"
+        onChange={e => {
+          setDatabase(e.target.value);
+        }}
+      />
+      {database && (
+        <DbSchemaCadidates
+          name={schema}
+          setName={setSchema}
+          makeConfig={makeConfig}
+          label="schema"
+        />
+      )}
+    </Stack>
+  );
+}
+
+function ClickHouse(props: { config? }) {
+  const { config } = props;
+  const [host, setHost] = useState(getHost(config));
+  const [port, setPort] = useState((config?.port || 8123) + "");
+  const [user, setUser] = useState(getUser(config));
+  const [password, setPassword] = useState(getPassword(config));
+  const [database, setDatabase] = useState(getDB(config));
+  const [savePassword, setSavePassword] = useState(getSavePassword(config));
+  const [https, setHttps] = useState(config?.https);
+  const { connTimeOut, connectionName, readOnly, makeConfigRef } =
+    useContext(AddConnectionContext);
+  function makeConfig(): types.DBConnectionConfig {
+    return {
+      conn_type: "clickhouse",
+      name: connectionName,
+      host,
+      port: parseInt(port),
+      username: user,
+      password: password ? password : null,
+      save_password: savePassword,
+      db: database ? database : null,
+      https: !!https,
+      read_only: readOnly,
+      conn_timeout: connTimeOut,
+    };
+  }
+  makeConfigRef.current = makeConfig;
+
+  return (
+    <Stack>
+      <HostAndPort host={host} port={port} setHost={setHost} setPort={setPort} />
+      <UserAndPassword
+        user={user}
+        password={password}
+        setUser={setUser}
+        setPassword={setPassword}
+        savePassword={savePassword}
+        setSavePassword={setSavePassword}
+      />
+      <DbSchemaCadidates
+        name={database}
+        setName={setDatabase}
+        makeConfig={makeConfig}
+        label="database"
+      />
+      <Https https={https} setHttps={setHttps} />
+    </Stack>
+  );
+}
+
+function PostGres(props: { config; kind: DataSourceKind }) {
+  const { config, kind } = props;
+  const [host, setHost] = useState(getHost(config));
+  const [port, setPort] = useState<string>((config?.port || 5432) + "");
+
+  const [user, setUser] = useState(getUser(config));
+  const [password, setPassword] = useState(getPassword(config));
+  const [database, setDatabase] = useState(getDB(config));
+  const [ssl, setSSl] = useState<types.PgSsl>({
+    ssl_mode: config?.ssl_mode || "prefer",
+    ssl_ca: config?.ssl_ca,
+    ssl_cert: config?.ssl_cert,
+    ssl_key: config?.ssl_key,
+  });
+  const [schema, setSchema] = useState(getSchema(config));
+  const { connTimeOut, connectionName, readOnly, makeConfigRef } =
+    useContext(AddConnectionContext);
+  const [savePassword, setSavePassword] = useState(getSavePassword(config));
+
+  function makeConfig(): types.DBConnectionConfig {
+    const x: types.PGDBConfig = {
+      host,
+      port: parseInt(port),
+      username: user,
+      password: password ? password : null,
+      db: database ? database : null,
+      read_only: readOnly,
+      conn_timeout: connTimeOut,
+      schema: schema ? schema : null,
+      ...ssl,
+    };
+    switch (kind) {
       case DataSourceKind.Postgres:
-        return {
-          conn_type: connectionType,
-          host: host,
-          port: portInt,
-          username: user,
-          password: pass_null,
-          db: db_null,
-          read_only: readOnly,
-          name: connectionName,
-          schema: schema_null,
-          save_password: savePassword,
-          ssl_enable: sslEnable,
-          ssl_ca: sslCa,
-          ssl_cert: sslCert,
-          ssl_key: sslKey,
-        };
       case DataSourceKind.Cockroach:
         return {
-          conn_type: connectionType,
-          host: host,
-          port: portInt,
-          username: user,
-          password: pass_null,
-          db: db_null,
-          read_only: readOnly,
+          conn_type: kind,
           name: connectionName,
-          schema: schema_null,
           save_password: savePassword,
-          ssl_enable: sslEnable,
-          ssl_ca: sslCa,
-          ssl_cert: sslCert,
-          ssl_key: sslKey,
+          ...x,
         };
-      case DataSourceKind.Sqlite:
-        return {
-          conn_type: connectionType,
-          path: path,
-          read_only: readOnly,
-          name: connectionName,
-        };
-      case DataSourceKind.DuckDB:
-        return {
-          conn_type: connectionType,
-          path: path,
-          db: db_null,
-          schema: schema_null,
-          read_only: readOnly,
-          name: connectionName,
-        };
-      case DataSourceKind.Redis:
-        return {
-          conn_type: connectionType,
-          read_only: readOnly,
-          name: connectionName,
-          host: host,
-          port: portInt,
-          db: db_null,
-          username: user_null,
-          password: pass_null,
-          save_password: savePassword,
-        };
-      case DataSourceKind.Mongo:
-        return {
-          conn_type: connectionType,
-          read_only: readOnly,
-          name: connectionName,
-          host: host,
-          port: portInt,
-          db: db_null,
-          username: user_null,
-          password: pass_null,
-          call_timeout: null,
-          save_password: savePassword,
-        };
-      case DataSourceKind.MsSql:
-        return {
-          conn_type: connectionType,
-          read_only: readOnly,
-          name: connectionName,
-          host: host,
-          port: portInt,
-          db: db_null,
-          username: user,
-          password: password,
-          trust_cert: trustCert,
-          schema: null,
-          save_password: savePassword,
-        };
-      case DataSourceKind.Oracle:
-        return {
-          name: connectionName,
-          conn_type: connectionType,
-          host: host,
-          port: portInt,
-          username: user,
-          password: password,
-          db: database,
-          read_only: readOnly,
-          schema: schema ? schema : null,
-          call_timeout: null,
-          save_password: savePassword,
-        };
+      default:
+        message("pass wrong kind of parameter, kind:" + kind, {
+          kind: "error",
+        });
     }
-  };
-  const handleTestConnection = async () => {
+  }
+
+  makeConfigRef.current = makeConfig;
+  return (
+    <Stack>
+      <HostAndPort host={host} port={port} setHost={setHost} setPort={setPort} />
+      <UserAndPassword
+        user={user}
+        password={password}
+        setUser={setUser}
+        setPassword={setPassword}
+        savePassword={savePassword}
+        setSavePassword={setSavePassword}
+      />
+      <DbSchemaCadidates
+        name={database}
+        setName={setDatabase}
+        makeConfig={makeConfig}
+        label="database"
+      />
+      {database && (
+        <DbSchemaCadidates
+          name={schema}
+          setName={setSchema}
+          label="schema"
+          makeConfig={makeConfig}
+        />
+      )}
+      <PGSSL ssl={ssl} setSsl={setSSl} />
+    </Stack>
+  );
+}
+
+function Sqlite(props: { config? }) {
+  const { config } = props;
+  const [path, setPath] = useState(config?.path);
+  const { connTimeOut, connectionName, readOnly, makeConfigRef } =
+    useContext(AddConnectionContext);
+
+  function makeConfig(): types.DBConnectionConfig {
+    return {
+      conn_type: "sqlite",
+      name: connectionName,
+      path,
+      conn_timeout: connTimeOut,
+      read_only: readOnly,
+    };
+  }
+  makeConfigRef.current = makeConfig;
+
+  return (
+    <Stack>
+      <SelectPath path={path} setPath={setPath} required label="sqlite database file" />
+    </Stack>
+  );
+}
+
+const AddConnectionContext = createContext<{
+  connectionName: string;
+  readOnly: boolean;
+  connTimeOut: number | null;
+  connectionNameDom: RefObject<HTMLInputElement>;
+  makeConfigRef: RefObject<() => types.DBConnectionConfig>;
+}>(null);
+
+// global var make it simple the pass the parameter
+// add connection run in separete window
+// let globalMakeConfig: MakeConfig = null;
+
+function TestConnAndSave(props: {
+  connectionNameDom;
+  makeConfig: () => types.DBConnectionConfig;
+}) {
+  const { connectionNameDom, makeConfig } = props;
+  const [testLoading, setTestLoading] = useState(false);
+  const { showNotification } = useContext(NotificationContext);
+  const handleTestConnection = () => {
     const config = makeConfig();
+    if (!config.name) {
+      config.name = "test_connection";
+    }
     if (config) {
-      console.log('test config:', config);
+      console.info("test config:", config);
       setTestLoading(true);
-      invoke('test_connection', { config })
+      invoke("test_connection", { config })
         .then(() => {
-          setTestLoading(false);
-          setTestOk(true);
-          setTimeout(() => {
-            setTestOk(false);
-          }, msgTimeout);
+          showNotification("success", "test connection ok");
         })
-        .catch((e) => {
+        .catch(e => {
+          showNotification("warning", "test connection failed", e);
+        })
+        .finally(() => {
           setTestLoading(false);
-          showNotification('error', 'test connection failed', e);
         });
     }
   };
 
-  useEffect(() => {
-    switch (connectionType) {
-      case DataSourceKind.MariaDB:
-      case DataSourceKind.Mysql:
-        setPort('3306');
-        break;
-      case DataSourceKind.TiDB:
-        setPort('4000');
-        break;
-      case DataSourceKind.Sqlite:
-        break;
-      case DataSourceKind.Postgres:
-        setPort('5432');
-        break;
-      case DataSourceKind.MsSql:
-        setPort('1433');
-        break;
-      case DataSourceKind.Redis:
-        setPort('6379');
-        break;
-      case DataSourceKind.Mongo:
-        setPort('27017');
-        break;
-      case DataSourceKind.Oracle:
-        setPort('1521');
-        break;
-      case DataSourceKind.Cassandra:
-        setPort('9042');
-        break;
-      case DataSourceKind.ClickHouse:
-        setPort('8123');
-        break;
-      case DataSourceKind.FireBird:
-        setPort('3050');
-        break;
-      case DataSourceKind.Cockroach:
-        setPort('26257');
-        break;
-    }
-  }, [connectionType]);
-  const handleSaveConnection = async () => {
-    if (!connectionName) {
-      showNotification('error', 'Connection Name is empty.');
-      connectionNameDom.current.focus();
-      return;
-    }
-
+  const handleSaveConnection = () => {
     const config = makeConfig();
     if (!config) {
       return;
     }
-
-    let connections = await (
-      await appStore()
-    ).get<types.DBConnectionConfig[]>(AppStoreKey.ConnectionConfig);
-    if (!connections) {
-      connections = [];
+    if (!config.name) {
+      connectionNameDom.current.focus();
+      showNotification("warning", "connection name is empty.");
+      return;
     }
-    if (connectionName.includes('/')) {
-      showNotification('error', "connection name can't contains '/'");
+    const password = config["password"];
+    const savePassword = config["save_password"];
+    if (config.name.includes("/")) {
+      showNotification("error", `connection name can't  contains '/'`);
       connectionNameDom.current.focus();
       return;
     }
-    if (connections.find((e) => e.name == connectionName)) {
-      showNotification('error', 'name already been taken');
-      connectionNameDom.current.focus();
-      return;
-    }
-    if (password && !savePassword) {
+    if (password) {
       try {
-        await invoke('save_entered_password', {
-          name: connectionName,
-          pass: password,
-        });
+        PassWordManager.savePassword(config.name, password, savePassword);
       } catch (e) {
-        showNotification('error', 'save password failed', e);
-        return;
-      }
-    }
-    if (password && savePassword) {
-      try {
-        await invoke('save_password', {
-          name: connectionName,
-          pass: password,
-        });
-      } catch (e) {
-        showNotification('error', 'save password failed', e);
+        showNotification("error", "save password failed", e);
         return;
       }
     }
     if (password) {
-      config['password'] = '';
+      config["password"] = "";
     }
-
-    connections = [config, ...connections];
-    (await appStore())
-      .set(AppStoreKey.ConnectionConfig, connections)
-      .then((_) => {
-        showNotification('success', 'Add Connection OK');
-        handleClose();
+    ConnectionHandler.save(config)
+      .then(() => {
+        showNotification("success", "add connection OK");
+        emit(connectionChangeEvent, "");
+        // handleClose();
       })
-      .catch((e) => {
-        showNotification('error', 'Add Connection failure', e);
+      .catch(e => {
+        showNotification("error", "add connection failure", e);
       });
   };
-
-  useEffect(() => {
-    let config = makeConfig();
-    if (connectionType === DataSourceKind.Oracle) {
-      // TODO oracle have bug right now
-      return;
-    }
-    if (config) {
-      invoke<string[]>('config_list_database_or_schema', { conn: config })
-        .then((e) => {
-          setDatabaseCandidates(e);
-        })
-        .catch((e) => {
-          console.log('list database failed,', e);
-          setDatabaseCandidates([]);
-        });
-    }
-  }, [triggerReLoad]);
-
-  useEffect(() => {
-    if (
-      database &&
-      (connectionType === DataSourceKind.Postgres ||
-        connectionType === DataSourceKind.Oracle ||
-        connectionType === DataSourceKind.Cockroach)
-    ) {
-      let config = makeConfig();
-      if (config) {
-        invoke<string[]>('config_list_database_or_schema', { conn: config })
-          .then((e) => {
-            setSchemesCandidats(e);
-          })
-          .catch((e) => {
-            console.log('list schemas failed,', e);
-            setSchemesCandidats([]);
-          });
-      }
-    }
-  }, [database]);
-
   return (
-    <Stack spacing={1}>
-      <Typography variant="h6">New Connection</Typography>
-      <FormControl fullWidth>
-        <InputLabel>Connection Type</InputLabel>
-        <Select
-          size="small"
-          value={connectionType}
-          label="Connection Type"
-          onChange={(e) => setConnectionType(e.target.value as DataSourceKind)}
-        >
-          <MenuItem value={DataSourceKind.Mysql}>MySQL</MenuItem>
-          <MenuItem value={DataSourceKind.MariaDB}>MariaDB</MenuItem>
-          <MenuItem value={DataSourceKind.TiDB}>TIDB</MenuItem>
-          <MenuItem value={DataSourceKind.Postgres}>PostgreSQL</MenuItem>
-          <MenuItem value={DataSourceKind.Sqlite}>SQLite</MenuItem>
-          <MenuItem value={DataSourceKind.Redis}>Redis</MenuItem>
-          <MenuItem value={DataSourceKind.Mongo}>Mongo</MenuItem>
-          <MenuItem value={DataSourceKind.Oracle}>Oracel</MenuItem>
-          <MenuItem value={DataSourceKind.MsSql}>
-            Sql Server(microsoft)
-          </MenuItem>
-          <MenuItem value={DataSourceKind.Cassandra}>Cassandra</MenuItem>
-          <MenuItem value={DataSourceKind.ClickHouse}>Clickhouse</MenuItem>
-          <MenuItem value={DataSourceKind.LibSql}> LibSql </MenuItem>
-          <MenuItem value={DataSourceKind.FireBird}> FireBird </MenuItem>
-          {/* <MenuItem value={DataSourceKind.DuckDB}> Duckdb </MenuItem> */}
-          <MenuItem value={DataSourceKind.Cockroach}> Cockroach </MenuItem>
-        </Select>
-      </FormControl>
-
-      {(connectionType === DataSourceKind.Mysql ||
-        connectionType === DataSourceKind.MariaDB ||
-        connectionType === DataSourceKind.TiDB) && (
-        <>
-          <HostAndPort
-            host={host}
-            port={port}
-            onBlur={toggleTriggerReload}
-            setHost={setHost}
-            setPort={setPort}
-          ></HostAndPort>
-          <UserAndPassword
-            user={user}
-            onBlur={toggleTriggerReload}
-            password={password}
-            setUser={setUser}
-            setPassword={setPassword}
-            savePassword={savePassword}
-            setSavePassword={setSavePassword}
-          ></UserAndPassword>
-          <Database
-            database={database}
-            candidates={databaseCandidates}
-            setDatabase={setDatabase}
-          ></Database>
-          <EnableSSlCert
-            enableSsl={sslEnable}
-            setEnableSsl={setSslEnable}
-            sslCa={sslCa}
-            setSslCa={setSslCa}
-            sslCert={sslCert}
-            setSslCert={setSslCert}
-            sslKey={sslKey}
-            setSslKey={setSslKey}
-          ></EnableSSlCert>
-        </>
-      )}
-
-      {connectionType === DataSourceKind.LibSql && (
-        <LibSql
-          url={url}
-          setUrl={setUrl}
-          path={path}
-          setPath={setPath}
-          replica={replica}
-          setReplica={setReplica}
-          authToken={authToken}
-          setAuthToken={setAuthToken}
-          setlibSqlModal={setlibSqlModal}
-          libSqlModel={libSqlModel}
-        ></LibSql>
-      )}
-
-      {connectionType === DataSourceKind.FireBird && (
-        <>
-          <HostAndPort
-            host={host}
-            port={port}
-            setHost={setHost}
-            setPort={setPort}
-            onBlur={toggleTriggerReload}
-          ></HostAndPort>
-          <UserAndPassword
-            user={user}
-            password={password}
-            setUser={setUser}
-            onBlur={toggleTriggerReload}
-            setPassword={setPassword}
-            savePassword={savePassword}
-            setSavePassword={setSavePassword}
-          ></UserAndPassword>
-          <Database
-            candidates={[]}
-            database={database}
-            setDatabase={setDatabase}
-            onBlur={toggleTriggerReload}
-          ></Database>
-        </>
-      )}
-
-      {(connectionType === DataSourceKind.Postgres ||
-        connectionType === DataSourceKind.Cockroach) && (
-        <>
-          <HostAndPort
-            host={host}
-            port={port}
-            setHost={setHost}
-            setPort={setPort}
-            onBlur={toggleTriggerReload}
-          ></HostAndPort>
-          <UserAndPassword
-            user={user}
-            password={password}
-            setUser={setUser}
-            onBlur={toggleTriggerReload}
-            setPassword={setPassword}
-            savePassword={savePassword}
-            setSavePassword={setSavePassword}
-          ></UserAndPassword>
-          <Database
-            candidates={databaseCandidates}
-            database={database}
-            setDatabase={setDatabase}
-            onBlur={toggleTriggerReload}
-          ></Database>
-          <EnableSSlCert
-            enableSsl={sslEnable}
-            setEnableSsl={setSslEnable}
-            sslCa={sslCa}
-            setSslCa={setSslCa}
-            sslCert={sslCert}
-            setSslCert={setSslCert}
-            sslKey={sslKey}
-            setSslKey={setSslKey}
-          ></EnableSSlCert>
-
-          {database && (
-            <Schema
-              schema={schema}
-              setSchema={setSchema}
-              candidates={schemaCandidates}
-            ></Schema>
-          )}
-        </>
-      )}
-      {connectionType === DataSourceKind.ClickHouse && (
-        <>
-          <HostAndPort
-            host={host}
-            port={port}
-            setHost={setHost}
-            setPort={setPort}
-            onBlur={toggleTriggerReload}
-          ></HostAndPort>
-          <UserAndPassword
-            user={user}
-            password={password}
-            setUser={setUser}
-            onBlur={toggleTriggerReload}
-            setPassword={setPassword}
-            savePassword={savePassword}
-            setSavePassword={setSavePassword}
-          ></UserAndPassword>
-          <Database
-            candidates={databaseCandidates}
-            database={database}
-            setDatabase={setDatabase}
-            onBlur={toggleTriggerReload}
-          ></Database>
-          <Https https={https} setHttps={setHttps}></Https>
-        </>
-      )}
-
-      {connectionType === DataSourceKind.Cassandra && (
-        <>
-          <HostAndPort
-            host={host}
-            port={port}
-            setHost={setHost}
-            setPort={setPort}
-            onBlur={toggleTriggerReload}
-          ></HostAndPort>
-          <UserAndPassword
-            user={user}
-            password={password}
-            setUser={setUser}
-            onBlur={toggleTriggerReload}
-            setPassword={setPassword}
-            savePassword={savePassword}
-            setSavePassword={setSavePassword}
-          ></UserAndPassword>
-          <Database
-            candidates={databaseCandidates}
-            database={database}
-            setDatabase={setDatabase}
-            onBlur={toggleTriggerReload}
-            lable="key space"
-          ></Database>
-        </>
-      )}
-      {connectionType === DataSourceKind.Redis && (
-        <>
-          <HostAndPort
-            host={host}
-            port={port}
-            onBlur={toggleTriggerReload}
-            setHost={setHost}
-            setPort={setPort}
-          ></HostAndPort>
-          <UserAndPassword
-            onBlur={toggleTriggerReload}
-            user={user}
-            password={password}
-            setUser={setUser}
-            setPassword={setPassword}
-            savePassword={savePassword}
-            setSavePassword={setSavePassword}
-          ></UserAndPassword>
-          <Database
-            candidates={databaseCandidates}
-            database={database}
-            setDatabase={setDatabase}
-          ></Database>
-        </>
-      )}
-      {connectionType === DataSourceKind.Mongo && (
-        <>
-          <HostAndPort
-            onBlur={toggleTriggerReload}
-            host={host}
-            port={port}
-            setHost={setHost}
-            setPort={setPort}
-          ></HostAndPort>
-          <UserAndPassword
-            onBlur={toggleTriggerReload}
-            user={user}
-            password={password}
-            setUser={setUser}
-            setPassword={setPassword}
-            savePassword={savePassword}
-            setSavePassword={setSavePassword}
-          ></UserAndPassword>
-          <Database
-            candidates={databaseCandidates}
-            database={database}
-            setDatabase={setDatabase}
-          ></Database>
-        </>
-      )}
-      {connectionType === DataSourceKind.MsSql && (
-        <>
-          <HostAndPort
-            onBlur={toggleTriggerReload}
-            host={host}
-            port={port}
-            setHost={setHost}
-            setPort={setPort}
-          ></HostAndPort>
-          <UserAndPassword
-            onBlur={toggleTriggerReload}
-            user={user}
-            password={password}
-            setUser={setUser}
-            setPassword={setPassword}
-            savePassword={savePassword}
-            setSavePassword={setSavePassword}
-          ></UserAndPassword>
-          <Database
-            database={database}
-            setDatabase={setDatabase}
-            candidates={databaseCandidates}
-          ></Database>
-          <TrustCert
-            trustCert={trustCert}
-            setTrustCert={setTrustCert}
-          ></TrustCert>
-        </>
-      )}
-
-      {connectionType === DataSourceKind.Oracle && (
-        <>
-          <Typography
-            color="info"
-            style={{ cursor: 'pointer' }}
-            onClick={() => {
-              openUrl(
-                'https://odpi-c.readthedocs.io/en/latest/user_guide/installation.html'
-              );
-            }}
-          >
-            oracle need extra driver{' '}
-          </Typography>
-          <HostAndPort
-            onBlur={toggleTriggerReload}
-            host={host}
-            port={port}
-            setHost={setHost}
-            setPort={setPort}
-          ></HostAndPort>
-          <UserAndPassword
-            onBlur={toggleTriggerReload}
-            user={user}
-            password={password}
-            setUser={setUser}
-            setPassword={setPassword}
-            savePassword={savePassword}
-            setSavePassword={setSavePassword}
-          ></UserAndPassword>
-          <Database
-            database={database}
-            setDatabase={setDatabase}
-            candidates={databaseCandidates}
-          ></Database>
-          {database && (
-            <Schema
-              schema={schema}
-              setSchema={setSchema}
-              candidates={schemaCandidates}
-            ></Schema>
-          )}
-        </>
-      )}
-      {connectionType === DataSourceKind.Sqlite && (
-        <SelectPath path={path} setPath={setPath}></SelectPath>
-      )}
-      {connectionType === DataSourceKind.DuckDB && (
-        <>
-          <SelectPath path={path} setPath={setPath}></SelectPath>
-          <Database
-            database={database}
-            candidates={databaseCandidates}
-            onBlur={toggleTriggerReload}
-            setDatabase={setDatabase}
-          ></Database>
-        </>
-      )}
-
-      <Stack direction="row" style={{ alignItems: 'center' }} spacing={2}>
-        <TextField
-          size="small"
-          label="Connection Name"
-          value={connectionName}
-          fullWidth
-          inputRef={connectionNameDom}
-          required
-          onChange={(e) => setConnectionName(e.target.value)}
-        />
-        <FormControlLabel
-          style={{ width: '180px' }}
-          control={
-            <Switch
-              size="small"
-              checked={readOnly}
-              onChange={(e) => setReadOnly(e.target.checked)}
-            />
-          }
-          label="Read Only"
-        />
-      </Stack>
-      <Divider></Divider>
-      <Stack direction="row" spacing={1} alignContent="center">
+    <Stack>
+      <Divider />
+      <StackRowCenter>
         <Button
-          variant="contained"
           color="primary"
           onClick={() => {
             handleSaveConnection();
@@ -1161,77 +820,647 @@ function AddConnection(props: { handleClose: () => void; config?: object }) {
         >
           test
         </Button>
-        {testOk && <Alert severity="success"> Test OK </Alert>}
+      </StackRowCenter>
+    </Stack>
+  );
+}
+
+function getHost(config?: { host: string }) {
+  return config?.host ? config.host : "localhost";
+}
+
+function getUser(config?: { username: string }) {
+  return config?.username ? config.username : "";
+}
+function getPassword(config?: { password: string }) {
+  return config?.password ? config.password : "";
+}
+function getSavePassword(config?: { save_password: boolean }) {
+  return config ? config.save_password : true;
+}
+
+function getDB(config?: { db: string }) {
+  return config ? config.db : "";
+}
+function getSchema(config?: { schema: string }) {
+  return config ? config.schema : "";
+}
+
+function FireBird(props: { config? }) {
+  const { config } = props;
+  const [host, setHost] = useState(getHost(config));
+  const [port, setPort] = useState((config?.port || 3050) + "");
+  const [user, setUser] = useState(getUser(config));
+  const [password, setPassword] = useState(getPassword(config));
+  const [savePassword, setSavePassword] = useState(getSavePassword(config));
+  const { connTimeOut, connectionName, readOnly, makeConfigRef } =
+    useContext(AddConnectionContext);
+  const [database, setDatabase] = useState(getDB(config));
+  function makeConfig(): types.DBConnectionConfig {
+    return {
+      conn_type: "firebird",
+      name: connectionName,
+      host,
+      port: parseInt(port),
+      username: user,
+      password,
+      save_password: savePassword,
+      db: database ? database : null,
+      conn_timeout: connTimeOut,
+      read_only: readOnly,
+    };
+  }
+  makeConfigRef.current = makeConfig;
+
+  return (
+    <Stack>
+      <HostAndPort host={host} port={port} setHost={setHost} setPort={setPort} />
+      <UserAndPassword
+        user={user}
+        password={password}
+        setUser={setUser}
+        setPassword={setPassword}
+        savePassword={savePassword}
+        setSavePassword={setSavePassword}
+      />
+      <TextField
+        label="database"
+        value={database}
+        onChange={e => {
+          setDatabase(e.target.value);
+        }}
+      />
+    </Stack>
+  );
+}
+
+function Redis(props: { config? }) {
+  const { config } = props;
+  const [host, setHost] = useState(getHost(config));
+  const [port, setPort] = useState((config?.port || 6379) + "");
+  const [user, setUser] = useState(getUser(config));
+  const [password, setPassword] = useState(getPassword(config) + "");
+  const [savePassword, setSavePassword] = useState(getSavePassword(config));
+  const [database, setDatabase] = useState(getDB(config));
+  const { connectionName, connTimeOut, readOnly, makeConfigRef } =
+    useContext(AddConnectionContext);
+  const [enableSSL, setEnableSSL] = useState(!!config?.enable_ssl);
+  function makeConfig(): types.DBConnectionConfig {
+    return {
+      name: connectionName,
+      conn_type: "redis",
+      host,
+      port: parseInt(port),
+      username: user,
+      password: password ? password : null,
+      read_only: readOnly,
+      conn_timeout: connTimeOut,
+      db: database ? database : null,
+      save_password: savePassword,
+      enable_ssl: enableSSL,
+    };
+  }
+
+  makeConfigRef.current = makeConfig;
+
+  return (
+    <Stack>
+      <HostAndPort host={host} port={port} setHost={setHost} setPort={setPort} />
+      <UserAndPassword
+        user={user}
+        password={password}
+        setUser={setUser}
+        setPassword={setPassword}
+        savePassword={savePassword}
+        setSavePassword={setSavePassword}
+      />
+      <DbSchemaCadidates
+        name={database}
+        setName={setDatabase}
+        label="database"
+        makeConfig={makeConfig}
+      />
+      <FormControlLabel
+        control={
+          <Checkbox
+            checked={enableSSL}
+            onChange={e => setEnableSSL(e.target.checked)}
+          />
+        }
+        label="enable ssl"
+      />
+    </Stack>
+  );
+}
+
+function MongoDb(props: { config? }) {
+  const { config } = props;
+  const [host, setHost] = useState(getHost(config));
+  const [port, setPort] = useState((config?.port || 27017) + "");
+  const [user, setUser] = useState(getUser(config));
+  const [password, setPassword] = useState(getPassword(config));
+  const [savePassword, setSavePassword] = useState(getSavePassword(config));
+  const [database, setDatabase] = useState(getDB(config));
+  const [enableSSL, setEnableSSL] = useState(false);
+  const { connTimeOut, connectionName, readOnly, makeConfigRef } =
+    useContext(AddConnectionContext);
+
+  const [sslFiles, setSslFile] = useState<types.SSLFiles>({
+    ssl_ca: null,
+    ssl_cert: null,
+    ssl_key: null,
+  });
+  function makeConfig(): types.DBConnectionConfig {
+    return {
+      conn_type: "mongo",
+      name: connectionName,
+      read_only: readOnly,
+      host,
+      username: user ? user : null,
+      password: password ? password : null,
+      conn_timeout: connTimeOut,
+      port: parseInt(port),
+      save_password: savePassword,
+      enable_ssl: enableSSL,
+      db: database ? database : null,
+      ...sslFiles,
+    };
+  }
+  makeConfigRef.current = makeConfig;
+  return (
+    <Stack>
+      <HostAndPort host={host} port={port} setHost={setHost} setPort={setPort} />
+      <UserAndPassword
+        user={user}
+        password={password}
+        setUser={setUser}
+        setPassword={setPassword}
+        savePassword={savePassword}
+        setSavePassword={setSavePassword}
+      />
+      <DbSchemaCadidates
+        name={database}
+        setName={setDatabase}
+        label="database"
+        makeConfig={makeConfig}
+      />
+      <Stack direction="row" alignItems="center">
+        <FormControlLabel
+          style={{ width: "180px" }}
+          control={
+            <Checkbox
+              checked={enableSSL}
+              onChange={e => setEnableSSL(e.target.checked)}
+            />
+          }
+          label="Enable SSL"
+        />
+        <SslFiles enabled={enableSSL} files={sslFiles} setFiles={setSslFile} />
       </Stack>
     </Stack>
   );
 }
 
-function LibSql(props: {
-  replica: boolean;
-  setReplica;
-  path: string;
-  setPath;
-  url: string;
-  setUrl;
-  authToken: string;
-  setAuthToken;
-  libSqlModel;
-  setlibSqlModal;
-}) {
-  const {
-    replica,
-    setReplica,
-    path,
-    setPath,
-    url,
-    setUrl,
-    authToken,
-    setAuthToken,
-    libSqlModel,
-    setlibSqlModal,
-  } = props;
-  let models = ['remote', 'local'];
+function Cassandra(props: { config? }) {
+  const { config } = props;
+  const [host, setHost] = useState(getHost(config));
+  const [port, setPort] = useState((config?.port || 9042) + "");
+  const [user, setUser] = useState(getUser(config));
+  const [password, setPassword] = useState(getPassword(config));
+  const [savePassword, setSavePassword] = useState(getSavePassword(config));
+  const [database, setDatabase] = useState("");
+  const { connTimeOut, connectionName, readOnly, makeConfigRef } =
+    useContext(AddConnectionContext);
+  function makeConfig(): types.DBConnectionConfig {
+    return {
+      conn_type: "cassandra",
+      name: connectionName,
+      host,
+      username: user ? user : "",
+      password: password ? password : null,
+      db: database ? database : null,
+      save_password: savePassword,
+      read_only: readOnly,
+      conn_timeout: connTimeOut,
+      port: parseInt(port),
+      ssl: { ssl_ca: null, ssl_cert: null, ssl_key: null },
+    };
+  }
+  makeConfigRef.current = makeConfig;
+  return (
+    <Stack>
+      <HostAndPort host={host} port={port} setHost={setHost} setPort={setPort} />
+      <UserAndPassword
+        user={user}
+        password={password}
+        setUser={setUser}
+        setPassword={setPassword}
+        savePassword={savePassword}
+        setSavePassword={setSavePassword}
+      />
+      <DbSchemaCadidates
+        name={database}
+        setName={setDatabase}
+        label="database"
+        makeConfig={makeConfig}
+      />
+    </Stack>
+  );
+}
+
+function SqlServer(props: { config? }) {
+  const { config } = props;
+  const [host, setHost] = useState(getHost(config));
+  const [port, setPort] = useState((config?.port || 1433) + "");
+  const [user, setUser] = useState(getUser(config));
+  const [password, setPassword] = useState(getPassword(config));
+  const [savePassword, setSavePassword] = useState(getSavePassword(config));
+
+  const [database, setDatabase] = useState(getDB(config));
+  const [sqlserverCert, setSqlServerCert] = useState<SqlServerCertData>({
+    trust_cert: config ? config.trust_cert : false,
+    cert_ca: config ? config.cert_ca : "",
+  });
+  const [schema, setSchema] = useState(getSchema(config));
+  const { connTimeOut, connectionName, readOnly, makeConfigRef } =
+    useContext(AddConnectionContext);
+
+  function makeConfig(): types.DBConnectionConfig {
+    return {
+      conn_type: "sqlserver",
+      read_only: readOnly,
+      conn_timeout: connTimeOut,
+      username: user,
+      password: password,
+      name: connectionName,
+      host,
+      db: database ? database : null,
+      port: parseInt(port),
+      save_password: savePassword,
+      trust_cert: sqlserverCert.trust_cert,
+      cert_ca: sqlserverCert.cert_ca ? sqlserverCert.cert_ca : null,
+      schema: schema ? schema : null,
+    };
+  }
+  makeConfigRef.current = makeConfig;
+
+  return (
+    <Stack>
+      <HostAndPort host={host} port={port} setHost={setHost} setPort={setPort} />
+      <UserAndPassword
+        user={user}
+        password={password}
+        setUser={setUser}
+        setPassword={setPassword}
+        savePassword={savePassword}
+        setSavePassword={setSavePassword}
+      />
+      <DbSchemaCadidates
+        name={database}
+        setName={setDatabase}
+        label="database"
+        makeConfig={makeConfig}
+      />
+      {database && (
+        <DbSchemaCadidates
+          name={schema}
+          setName={setSchema}
+          label="schema"
+          makeConfig={makeConfig}
+        />
+      )}
+      <SqlServerCert data={sqlserverCert} setData={setSqlServerCert} />
+    </Stack>
+  );
+}
+
+function AddConnection(props: { config?: types.DBConnectionConfig }) {
+  const { config } = props;
+  const [connectionType, setConnectionType] = useState(config?.conn_type || "mysql");
+  const [connectionName, setConnectionName] = useState(config?.name);
+  const [connTimeout, setConnTimeout] = useState<string>(
+    config && config.conn_timeout ? config.conn_timeout.toString() : "",
+  );
+  const connectionNameDom = useRef<HTMLInputElement>(null);
+  const [readOnly, setReadOnly] = useState(config?.read_only);
+  const [cnameDuplicated, setCnameDuplicated] = useState(false);
+  useEffect(() => {
+    ConnectionHandler.nameDuplicated(connectionName).then(setCnameDuplicated);
+  }, [connectionName]);
+
+  const makeConfigRef = useRef(null);
+
+  return (
+    <Stack style={{ maxWidth: "800px", margin: "0 auto" }}>
+      <FormControl fullWidth>
+        <InputLabel>Connection Type</InputLabel>
+        <Select
+          value={connectionType}
+          label="Connection Type"
+          onChange={e => setConnectionType(e.target.value as DataSourceKind)}
+          disabled={!!config}
+        >
+          <MenuItem value={DataSourceKind.Mysql}>MySQL</MenuItem>
+          <MenuItem value={DataSourceKind.MariaDB}>MariaDB</MenuItem>
+          <MenuItem value={DataSourceKind.TiDB}>TIDB</MenuItem>
+          <MenuItem value={DataSourceKind.Postgres}>PostgreSQL</MenuItem>
+          <MenuItem value={DataSourceKind.Sqlite}>SQLite</MenuItem>
+          <MenuItem value={DataSourceKind.Redis}>Redis</MenuItem>
+          <MenuItem value={DataSourceKind.Mongo}>Mongo</MenuItem>
+          <MenuItem value={DataSourceKind.Oracle}>Oracle</MenuItem>
+          <MenuItem value={DataSourceKind.SqlServer}>Sql Server(microsoft)</MenuItem>
+          <MenuItem value={DataSourceKind.Cassandra}>Cassandra</MenuItem>
+          <MenuItem value={DataSourceKind.ClickHouse}>Clickhouse</MenuItem>
+          <MenuItem value={DataSourceKind.LibSql}> LibSql </MenuItem>
+          <MenuItem value={DataSourceKind.FireBird}> FireBird </MenuItem>
+          <MenuItem value={DataSourceKind.DuckDB}> Duckdb </MenuItem>
+          <MenuItem value={DataSourceKind.Cockroach}> Cockroach </MenuItem>
+
+          <MenuItem value={DataSourceKind.CouchBase}> CouchBase </MenuItem>
+          {/* <MenuItem value={DataSourceKind.Db2}> Db2(luw) </MenuItem> */}
+        </Select>
+      </FormControl>
+      <Stack direction="row" style={{ alignItems: "flex-start" }}>
+        <TextField
+          label="Connection Name"
+          value={connectionName}
+          inputRef={connectionNameDom}
+          required
+          onChange={e => setConnectionName(e.target.value)}
+          error={cnameDuplicated}
+          helperText={cnameDuplicated ? "Connection name duplicated" : ""}
+          slotProps={{
+            input: {
+              endAdornment: connectionName && (
+                <InputAdornment position="end">
+                  <IconButton
+                    onClick={() => {
+                      setConnectionName("");
+                    }}
+                    edge="end"
+                  >
+                    <ClearIcon fontSize="small" />
+                  </IconButton>
+                </InputAdornment>
+              ),
+            },
+          }}
+          style={{ flex: 1 }}
+        />
+        <TextField
+          label="connection timeout"
+          value={connTimeout}
+          style={{ flex: 1 }}
+          onChange={e => setConnTimeout(e.target.value)}
+          slotProps={{
+            input: {
+              endAdornment: connTimeout && (
+                <InputAdornment position="end">
+                  <IconButton
+                    onClick={() => {
+                      setConnTimeout("");
+                    }}
+                    edge="end"
+                  >
+                    <ClearIcon fontSize="small" />
+                  </IconButton>
+                </InputAdornment>
+              ),
+            },
+          }}
+          error={connTimeout ? isNaN(parseInt(connTimeout)) : false}
+          helperText="milliseconds to wait for connect"
+        />
+        <FormControlLabel
+          style={{ width: "180px" }}
+          control={
+            <Checkbox
+              checked={readOnly}
+              onChange={e => setReadOnly(e.target.checked)}
+            />
+          }
+          label="Read Only"
+        />
+      </Stack>
+
+      <AddConnectionContext
+        value={{
+          connectionName,
+          connectionNameDom,
+          readOnly: !!readOnly,
+          connTimeOut: connTimeout ? parseInt(connTimeout) : null,
+          makeConfigRef: makeConfigRef,
+        }}
+      >
+        <Stack>
+          <Typography variant="h6"> server info </Typography>
+          <Divider />
+          {(connectionType === DataSourceKind.Mysql ||
+            connectionType === DataSourceKind.MariaDB ||
+            connectionType === DataSourceKind.TiDB) && (
+            <Mysql config={config} kind={connectionType as DataSourceKind} />
+          )}
+
+          {connectionType === DataSourceKind.LibSql && <LibSql config={config} />}
+
+          {connectionType === DataSourceKind.FireBird && <FireBird config={config} />}
+
+          {(connectionType === DataSourceKind.Postgres ||
+            connectionType === DataSourceKind.Cockroach) && (
+            <PostGres config={config} kind={connectionType as DataSourceKind} />
+          )}
+          {connectionType === DataSourceKind.ClickHouse && (
+            <ClickHouse config={config} />
+          )}
+
+          {connectionType === DataSourceKind.Cassandra && <Cassandra config={config} />}
+
+          {connectionType === DataSourceKind.Redis && <Redis config={config} />}
+          {connectionType === DataSourceKind.Mongo && <MongoDb config={config} />}
+          {connectionType === DataSourceKind.SqlServer && <SqlServer config={config} />}
+          {connectionType === DataSourceKind.Oracle && <Oracle config={config} />}
+          {connectionType === DataSourceKind.Sqlite && <Sqlite config={config} />}
+          {connectionType === DataSourceKind.DuckDB && <DuckDB config={config} />}
+
+          {connectionType === DataSourceKind.Db2 && <Db2 config={config} />}
+
+          {connectionType === DataSourceKind.CouchBase && <CouchBase config={config} />}
+        </Stack>
+      </AddConnectionContext>
+
+      <TestConnAndSave
+        connectionNameDom={connectionNameDom}
+        makeConfig={() => {
+          return makeConfigRef.current();
+        }}
+      />
+    </Stack>
+  );
+}
+
+function DuckDB(props: { config? }) {
+  const { config } = props;
+
+  function getConfigStr(key: string) {
+    if (!config) {
+      return "";
+    }
+    const v = config[key];
+    return v ? v : "";
+  }
+  const [path, setPath] = useState(getConfigStr("path"));
+  const [db, setDb] = useState(getConfigStr("db"));
+  const [schema, setSchema] = useState(getConfigStr("schema"));
+  const { connTimeOut, connectionName, readOnly, makeConfigRef } =
+    useContext(AddConnectionContext);
+  function makeConfig(): types.DBConnectionConfig {
+    const x: types.DBConnectionConfig = {
+      conn_type: "duckdb",
+      path,
+      db: db ? db : null,
+      conn_timeout: connTimeOut,
+      name: connectionName,
+      read_only: readOnly,
+      schema: schema ? schema : null,
+    };
+    console.info("makeConfig", x);
+    return x;
+  }
+  makeConfigRef.current = makeConfig;
+  return (
+    <Stack>
+      <SelectPath path={path} setPath={setPath} label="database file path" required />
+      {path && (
+        <DbSchemaCadidates
+          name={db}
+          setName={setDb}
+          makeConfig={makeConfig}
+          label="database"
+        />
+      )}
+      {db && (
+        <DbSchemaCadidates
+          name={schema}
+          setName={setSchema}
+          label="schema"
+          makeConfig={makeConfig}
+        />
+      )}
+    </Stack>
+  );
+}
+
+function LibSql(props: { config }) {
+  const { config } = props;
+  const urlOld = config && config.source == "remote" && config.url;
+  const [url, setUrl] = useState(urlOld ? urlOld : "");
+  // const [replica, setReplica] = useState(config?.replica);
+  const oldAuth = config && config.source == "remote" && config.auth_token;
+  const [authToken, setAuthToken] = useState(oldAuth ? oldAuth : "");
+  const [libSqlModel] = useState<"remote">(config?.source || "remote");
+  const [path] = useState(config?.path);
+  const { connTimeOut, connectionName, readOnly, makeConfigRef } =
+    useContext(AddConnectionContext);
+
+  function makeConfig(): types.DBConnectionConfig {
+    const x: types.DBConnectionConfig = {
+      conn_type: "libsql",
+      name: connectionName,
+      conn_timeout: connTimeOut,
+      source: libSqlModel,
+      url: url,
+      auth_token: authToken,
+      replica: false,
+      read_only: readOnly,
+      path: path ? path : null,
+    };
+    console.info("makeConfig", x);
+    return x;
+  }
+
+  makeConfigRef.current = makeConfig;
+
+  // const models = ['remote', 'local'];
   return (
     <>
-      <RadioGroup
+      {/* <RadioGroup
         row
         onChange={(e) => {
-          setlibSqlModal(e.target.value);
+          setLibSqlModal(e.target.value as 'remote');
         }}
         value={libSqlModel}
       >
         {models.map((e) => (
           <FormControlLabel key={e} value={e} control={<Radio />} label={e} />
         ))}
-      </RadioGroup>
+      </RadioGroup> */}
 
-      {libSqlModel === 'local' && (
-        <SelectPath path={path} setPath={setPath}></SelectPath>
-      )}
-      {libSqlModel === 'remote' && (
+      {/* {libSqlModel === "local" && (
+        <SelectPath
+          path={path}
+          setPath={setPath}
+          required
+          label="libsql database file"
+        />
+      )} */}
+      {libSqlModel === "remote" && (
         <>
-          <Stack direction="row" spacing={1}>
+          <Stack direction="row">
             <TextField
               value={url}
               label="url"
-              onChange={(e) => {
+              onChange={e => {
                 setUrl(e.target.value);
               }}
               fullWidth
-              size="small"
-            ></TextField>
+              slotProps={{
+                input: {
+                  endAdornment: url && (
+                    <InputAdornment position="end">
+                      <IconButton
+                        onClick={() => {
+                          setUrl("");
+                        }}
+                        edge="end"
+                      >
+                        <ClearIcon fontSize="small" />
+                      </IconButton>
+                    </InputAdornment>
+                  ),
+                },
+              }}
+            />
             <TextField
               fullWidth
               value={authToken}
-              size="small"
               label="auth token "
-              onChange={(e) => {
+              onChange={e => {
                 setAuthToken(e.target.value);
               }}
-            ></TextField>
+              slotProps={{
+                input: {
+                  endAdornment: authToken && (
+                    <InputAdornment position="end">
+                      <IconButton
+                        onClick={() => {
+                          setAuthToken("");
+                        }}
+                        edge="end"
+                      >
+                        <ClearIcon fontSize="small" />
+                      </IconButton>
+                    </InputAdornment>
+                  ),
+                },
+              }}
+            />
           </Stack>
-          <Stack direction="row" style={{ alignItems: 'center' }}>
+          {/* <Stack
+            direction="row"
+            style={{ alignItems: 'center' }}
+            
+            flex={1}
+          >
             <Checkbox
               value={replica}
               onChange={(e) => {
@@ -1239,11 +1468,275 @@ function LibSql(props: {
               }}
             ></Checkbox>
             replica
-            {replica && <SelectPath path={path} setPath={setPath}></SelectPath>}
-          </Stack>
+            {replica && (
+              <SelectPath
+                label="replica"
+                path={path}
+                setPath={setPath}
+                required={false}
+              ></SelectPath>
+            )}
+          </Stack> */}
         </>
       )}
     </>
+  );
+}
+
+function OdbcDriverCommon(props: { config: RefObject<types.OdbcCommon> }) {
+  const { config } = props;
+  const [driverName, setDriverName] = useState(config.current.driver_name);
+  const [maxStrLen, setMaxStrLen] = useState(config.current.max_str_len + "");
+  const [maxbinLen, setMaxBinLen] = useState(config.current.max_bin_len + "");
+
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/immutability
+    config.current.driver_name = driverName;
+    config.current.max_str_len = parseInt(maxStrLen);
+    config.current.max_bin_len = parseInt(maxbinLen);
+  }, [config, driverName, maxStrLen, maxbinLen]);
+
+  return (
+    <Stack direction="row">
+      <TextField
+        label="driver name"
+        value={driverName}
+        sx={{ mr: 1 }}
+        onChange={e => setDriverName(e.target.value)}
+        slotProps={{
+          input: {
+            endAdornment: driverName && (
+              <InputAdornment position="end">
+                <IconButton
+                  onClick={() => {
+                    setDriverName("");
+                  }}
+                  edge="end"
+                >
+                  <ClearIcon fontSize="small" />
+                </IconButton>
+              </InputAdornment>
+            ),
+          },
+        }}
+        required
+      />
+
+      <TextField
+        label="max string length"
+        value={maxStrLen}
+        sx={{ mr: 1 }}
+        onChange={e => setMaxStrLen(e.target.value)}
+        slotProps={{
+          input: {
+            endAdornment: maxStrLen && (
+              <InputAdornment position="end">
+                <IconButton
+                  onClick={() => {
+                    setMaxStrLen("");
+                  }}
+                  edge="end"
+                >
+                  <ClearIcon fontSize="small" />
+                </IconButton>
+              </InputAdornment>
+            ),
+          },
+        }}
+        error={maxStrLen ? isNaN(parseInt(maxStrLen)) : false}
+        required
+      />
+
+      <TextField
+        label="max bin length"
+        value={maxbinLen}
+        sx={{ mr: 1 }}
+        onChange={e => setMaxBinLen(e.target.value)}
+        slotProps={{
+          input: {
+            endAdornment: maxbinLen && (
+              <InputAdornment position="end">
+                <IconButton
+                  onClick={() => {
+                    setMaxBinLen("");
+                  }}
+                  edge="end"
+                >
+                  <ClearIcon fontSize="small" />
+                </IconButton>
+              </InputAdornment>
+            ),
+          },
+        }}
+        error={maxbinLen ? isNaN(parseInt(maxbinLen)) : false}
+        required
+      />
+    </Stack>
+  );
+}
+
+//@ts-ignore
+function Db2(props: { config? }) {
+  const { config } = props;
+  const [host, setHost] = useState(getHost(config));
+  const [port, setPort] = useState<string>((config?.port || 50000) + "");
+
+  const [user, setUser] = useState(getUser(config));
+  const [password, setPassword] = useState(getPassword(config));
+  const [database, setDatabase] = useState(getDB(config));
+  const [schema, setSchema] = useState(getSchema(config));
+  const { connTimeOut, connectionName, readOnly, makeConfigRef } =
+    useContext(AddConnectionContext);
+  const [savePassword, setSavePassword] = useState(getSavePassword(config));
+  const odbccommon = useRef<types.OdbcCommon>({
+    driver_name: "Driver_IBM_DB2",
+    max_str_len: 4096,
+    max_bin_len: 4096,
+  });
+
+  function makeConfig(): types.DBConnectionConfig {
+    return {
+      conn_type: "db2",
+      host,
+      port: parseInt(port),
+      username: user,
+      password: password,
+      save_password: savePassword,
+      db: database,
+      schema: schema ? schema : null,
+      conn_timeout: connTimeOut,
+      read_only: readOnly,
+      name: connectionName,
+      ...odbccommon.current,
+    };
+  }
+  makeConfigRef.current = makeConfig;
+  return (
+    <Stack>
+      <HostAndPort host={host} port={port} setHost={setHost} setPort={setPort} />
+      <UserAndPassword
+        user={user}
+        password={password}
+        setUser={setUser}
+        setPassword={setPassword}
+        savePassword={savePassword}
+        setSavePassword={setSavePassword}
+      />
+      <TextField
+        label="database"
+        value={database}
+        sx={{ mr: 1 }}
+        onChange={e => setDatabase(e.target.value)}
+        slotProps={{
+          input: {
+            endAdornment: database && (
+              <InputAdornment position="end">
+                <IconButton
+                  onClick={() => {
+                    setDatabase("");
+                  }}
+                  edge="end"
+                >
+                  <ClearIcon fontSize="small" />
+                </IconButton>
+              </InputAdornment>
+            ),
+          },
+        }}
+        required
+      />
+      {database && (
+        <DbSchemaCadidates
+          name={schema}
+          setName={setSchema}
+          label="schema"
+          makeConfig={makeConfig}
+        />
+      )}
+      <OdbcDriverCommon config={odbccommon} />
+    </Stack>
+  );
+}
+
+function CouchBase(props: { config? }) {
+  const { config } = props;
+  const [connStr, setConnStr] = useState(
+    (config && config["conn_str"]) || "couchbase://127.0.0.1",
+  );
+  const [user, setUser] = useState(getUser(config) || "Administrator");
+  const [password, setPassword] = useState(getPassword(config));
+  const [bucket, setBucket] = useState(getDB(config));
+  const [scope, setScope] = useState(getSchema(config));
+  const { connTimeOut, connectionName, readOnly, makeConfigRef } =
+    useContext(AddConnectionContext);
+  const [savePassword, setSavePassword] = useState(getSavePassword(config));
+
+  function makeConfig(): types.DBConnectionConfig {
+    return {
+      conn_type: "couchbase",
+      conn_str: connStr,
+      username: user,
+      password: password,
+      save_password: savePassword,
+      bucket: bucket ? bucket : null,
+      scope: scope ? scope : null,
+      conn_timeout: connTimeOut,
+      read_only: readOnly,
+      name: connectionName,
+    };
+  }
+
+  makeConfigRef.current = makeConfig;
+  return (
+    <Stack>
+      <TextField
+        fullWidth
+        label="connection string"
+        value={connStr}
+        sx={{ mr: 1 }}
+        onChange={e => setConnStr(e.target.value)}
+        slotProps={{
+          input: {
+            endAdornment: connStr && (
+              <InputAdornment position="end">
+                <IconButton
+                  onClick={() => {
+                    setConnStr("");
+                  }}
+                  edge="end"
+                >
+                  <ClearIcon fontSize="small" />
+                </IconButton>
+              </InputAdornment>
+            ),
+          },
+        }}
+        required
+      />
+
+      <UserAndPassword
+        user={user}
+        password={password}
+        setUser={setUser}
+        setPassword={setPassword}
+        savePassword={savePassword}
+        setSavePassword={setSavePassword}
+      />
+      <DbSchemaCadidates
+        name={bucket}
+        setName={setBucket}
+        label="bucket"
+        makeConfig={makeConfig}
+      />
+      {bucket && (
+        <DbSchemaCadidates
+          name={scope}
+          setName={setScope}
+          label="scope"
+          makeConfig={makeConfig}
+        />
+      )}
+    </Stack>
   );
 }
 

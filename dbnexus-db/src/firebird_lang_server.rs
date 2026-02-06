@@ -1,205 +1,115 @@
-use std::sync::Arc;
-
-use rsfbclient::Queryable;
-
 use crate::db::SchemaTrait;
 use crate::firebird::FireBirdDB;
 use crate::language_server::{
-    AstCompletionHelper, CompletionItem, CompletionKind, LangServerCommon, LanguageServer,
-    LexerCompletionTrait, try_completion_on_syntax,
+    try_parser_dot_lexer, AstCompletionHelper, CompletionItem, CompletionKind, CompletionList,
+    GetKeyWords, LangServerCommon, LanguageServer, LexerCompletionTrait,
 };
+use crate::sqlparser_completion::TempTableColumn;
+use rsfbclient::{Queryable, Row};
+use tokio::task::spawn_blocking;
+
+#[async_trait::async_trait]
+impl GetKeyWords for FireBirdDB {
+    async fn key_words(&self) -> anyhow::Result<Vec<String>> {
+        let mut lock = self.key_words_completion.lock().await;
+        if !lock.is_empty() {
+            return Ok(lock.clone());
+        }
+        *lock = FIREBIRD_KEYWORDS.iter().map(|x| x.to_string()).collect();
+        anyhow::Ok(lock.clone())
+    }
+}
 
 #[async_trait::async_trait]
 impl LanguageServer for FireBirdDB {
-    async fn auto_completion(
-        &self, sql: &str, line: u32, col: u32, use_lexer: bool,
-    ) -> anyhow::Result<Vec<CompletionItem>> {
-        let r = try_completion_on_syntax(
-            &sql,
-            line,
-            col,
-            sqlparser::dialect::GenericDialect {},
-            Arc::new(Clone::clone(self)),
-        )
-        .await;
-
-        match r {
-            Ok(xs) => return Ok(xs),
-            Err(err) => {
-                log::error!("completion on ast failed,err:{}", err);
+    async fn try_get_max_id(&self, name: &str) -> anyhow::Result<String> {
+        let this = Clone::clone(self);
+        let name = name.to_string();
+        spawn_blocking(move || {
+            let sql = format!("SELECT MAX(id) FROM \"{name}\"");
+            let mut conn = this.get_conn()?;
+            let row: Option<(i64,)> = conn.query_first(&sql, ())?;
+            if let Some(row) = row {
+                anyhow::Ok(row.0.to_string())
+            } else {
+                anyhow::bail!("no max id found")
             }
-        };
-        if !use_lexer {
-            log::warn!("disabled use lexer , we can return empty data.");
-            return anyhow::Ok(vec![]);
-        }
-        return LexerCompletionTrait::do_auto_completion(
-            self,
-            sql,
-            &sqlparser::dialect::GenericDialect {},
-            sqlparser::tokenizer::Location {
-                line: line as u64,
-                column: col as u64,
-            },
-        )
-        .await;
+        })
+        .await?
+    }
+
+    async fn ai_text_completion(
+        &self,
+        text: &str,
+        line: u32,
+        col: u32,
+    ) -> anyhow::Result<CompletionList> {
+        LexerCompletionTrait::ai_text_completion(self, text, line, col).await
+    }
+    fn extract_table_select_selection(&self, sql: &str) -> anyhow::Result<Option<String>> {
+        LangServerCommon::extract_table_select_selection(self, sql)
+    }
+    fn extract_table_select_sort(&self, sql: &str) -> anyhow::Result<Option<String>> {
+        LangServerCommon::extract_table_select_sort(self, sql)
+    }
+
+    async fn auto_completion(
+        &self,
+        _query_id: Option<String>,
+        sql: &str,
+        line: u32,
+        col: u32,
+        use_lexer: bool,
+    ) -> anyhow::Result<CompletionList> {
+        try_parser_dot_lexer(self, sql, line, col, use_lexer).await
+    }
+
+    fn is_dangerous_sql(&self, sql: &str) -> anyhow::Result<bool> {
+        LangServerCommon::is_dangerous_sql_by_parser(self, sql)
     }
 }
 
 #[async_trait::async_trait]
 impl AstCompletionHelper for FireBirdDB {
-    async fn list_table(
-        &self, _db: Option<&str>, _schema: Option<&str>,
-    ) -> anyhow::Result<Vec<String>> {
-        let sql = r#"
-            SELECT 
-                RDB$RELATION_NAME AS TABLE_NAME
-            FROM 
-                RDB$RELATIONS
-            WHERE 
-                RDB$VIEW_BLR IS NULL  -- 排除视图
-       "#;
-        let mut conn = self.get_conn()?;
-        let rows: Vec<(String,)> = conn.query(sql, ())?;
-        anyhow::Ok(rows.into_iter().map(|x| x.0.trim().to_owned()).collect())
-    }
-
-    async fn list_view(
-        &self, _db: Option<&str>, _schema: Option<&str>,
-    ) -> anyhow::Result<Vec<String>> {
-        let sql = r#"
-          SELECT RDB$RELATION_NAME
-            FROM RDB$RELATIONS
-            WHERE RDB$VIEW_BLR IS NOT NULL;
-   "#;
-        let mut conn = self.get_conn()?;
-        let rows: Vec<(String,)> = conn.query(sql, ())?;
-        anyhow::Ok(rows.into_iter().map(|x| x.0.trim().to_owned()).collect())
-    }
-
-    async fn list_column(
-        &self, _db: Option<&str>, _schema: Option<&str>, name: &str,
-    ) -> anyhow::Result<Vec<CompletionItem>> {
-        SchemaTrait::show_table_columns(self, name).await.map(|x| {
-            x.into_iter()
-                .map(|x| {
-                    CompletionItem {
-                        item: x.field.clone().into(),
-                        kind: CompletionKind::Column,
-                        desc: None,
-                    }
-                })
-                .collect()
+    async fn get_query_columns(&self, sql: &str) -> anyhow::Result<Vec<TempTableColumn>> {
+        let this = Clone::clone(self);
+        let sql = sql.to_string();
+        spawn_blocking(move || {
+            let mut conn = this.get_conn()?;
+            let row: Option<Row> = conn.query_first(&sql, ())?;
+            if let Some(row) = row {
+                let ret: Vec<_> = row
+                    .cols
+                    .iter()
+                    .map(|x| TempTableColumn {
+                        name: x.name.clone(),
+                        data_type: None,
+                    })
+                    .collect();
+                anyhow::Ok(ret)
+            } else {
+                log::error!("no results");
+                anyhow::Ok(vec![])
+            }
         })
-    }
-
-    async fn list_function(
-        &self, _db: Option<&str>, _schema: Option<&str>, _include_build_in: bool,
-    ) -> anyhow::Result<Vec<CompletionItem>> {
-        let sql = r#"
-            SELECT 
-            RDB$FUNCTION_NAME AS FunctionName 
-            FROM 
-            RDB$FUNCTIONS
-        "#;
-
-        let mut conn = self.get_conn()?;
-
-        let rows: Vec<(String,)> = conn.query(sql, ())?;
-
-        anyhow::Ok(
-            rows.into_iter()
-                .map(|x| {
-                    CompletionItem {
-                        item: x.0.trim().to_owned().into(),
-                        kind: CompletionKind::Function,
-                        desc: None,
-                    }
-                })
-                .collect(),
-        )
-    }
-
-    async fn list_index(&self, _schema: Option<&str>) -> anyhow::Result<Vec<String>> {
-        let sql = r#"
-            SELECT RDB$INDEX_NAME AS IndexName
-                FROM RDB$INDICES
-        "#;
-
-        let mut conn = self.get_conn()?;
-        let rows: Vec<(String,)> = conn.query(sql, ())?;
-        anyhow::Ok(rows.into_iter().map(|x| x.0.trim().to_owned()).collect())
+        .await?
     }
 }
 
 #[async_trait::async_trait]
 impl LexerCompletionTrait for FireBirdDB {
-    type Dialect = sqlparser::dialect::GenericDialect;
-
-    const KEY_WORDS: &'static [&'static str] = KEY_WORDS;
-    const TEXTS: &'static [&'static str] = &["true", "false"];
-    const TYPES: &'static [&'static str] = TYPES;
-
-    async fn list_table_or_view(&self) -> anyhow::Result<Vec<String>> {
-        let mut ret: Vec<_> = AstCompletionHelper::list_table(self, None, None).await?;
-
-        ret.extend(
-            AstCompletionHelper::list_view(self, None, None)
-                .await?
-                .into_iter(),
-        );
-
-        anyhow::Ok(ret)
+    async fn get_types(&self) -> anyhow::Result<Vec<String>> {
+        let r = FIREBIRD_TYPES.iter().map(|x| x.to_string()).collect();
+        anyhow::Ok(r)
     }
 
-    async fn list_function(&self) -> anyhow::Result<Vec<CompletionItem>> {
-        AstCompletionHelper::list_function(self, None, None, true).await
+    async fn get_text(&self) -> anyhow::Result<Vec<String>> {
+        let r = ["true", "false"].iter().map(|x| x.to_string()).collect();
+        anyhow::Ok(r)
     }
 }
 
-#[cfg(test)]
-
-mod tests {
-    use std::path::Path;
-
-    use crate::db::QuerySql;
-    use crate::enable_test_log;
-    use crate::firebird::make_test_object;
-    use crate::language_server::completion_test::test_file_auto_completion;
-
-    // partition test failed , sqlparser can't parse a valid partition statement.
-    #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
-    async fn test_auto_completion() {
-        let db = make_test_object();
-        enable_test_log();
-        let query_id = db.open_connection().await.unwrap();
-        let _ = db
-            .execute_sql(
-                query_id,
-                r#"
-                    CREATE TABLE EMPLOYEE (
-                        EMPLOYEEID INTEGER NOT NULL PRIMARY KEY, -- 雇员编号，主键
-                        FIRSTNAME VARCHAR(50) NOT NULL, -- 雇员名字
-                        LASTNAME VARCHAR(50) NOT NULL, -- 雇员姓氏
-                        GENDER CHAR(1) CHECK (GENDER IN ('M', 'F')), -- 性别，M 表示男性，F 表示女性
-                        BIRTHDATE DATE, -- 出生日期
-                        HIREDATE DATE -- 入职日期
-                    );
-                "#,
-            )
-            .await
-            .unwrap();
-
-        let manifest_dir = env!("CARGO_MANIFEST_DIR");
-        let mut file_path = Path::new(manifest_dir).to_path_buf();
-        file_path.push("tests");
-        file_path.push("firebird_auto_completion_test.sql");
-        let content = std::fs::read_to_string(file_path.as_path()).unwrap();
-        test_file_auto_completion(&content, &db, false).await;
-    }
-}
-
-const TYPES: &'static [&'static str] = &[
+const FIREBIRD_TYPES: &[&str] = &[
     "INT64",
     "CHAR",
     "TIMESTAMP",
@@ -215,31 +125,130 @@ const TYPES: &'static [&'static str] = &[
 ];
 
 #[async_trait::async_trait]
-impl LangServerCommon for FireBirdDB {}
-//  https://firebirdsql.org/refdocs/langrefupd25-reskeywords-full-keywords.html
-const KEY_WORDS: &'static [&'static str] = &[
-    "ABS",
-    "ACCENT",
-    "ACOS",
-    "ACTION",
+impl LangServerCommon for FireBirdDB {
+    async fn list_index(&self, _schema: Option<&str>) -> anyhow::Result<Vec<String>> {
+        let this = Clone::clone(self);
+        spawn_blocking(move || {
+            let sql = r#"
+            SELECT RDB$INDEX_NAME AS IndexName
+                FROM RDB$INDICES
+        "#;
+            let mut conn = this.get_conn()?;
+            let rows: Vec<(String,)> = conn.query(sql, ())?;
+            anyhow::Ok(rows.into_iter().map(|x| x.0.trim().to_owned()).collect())
+        })
+        .await?
+    }
+    async fn list_column(
+        &self,
+        _schema: Option<&str>,
+        name: &str,
+        is_call: Option<Vec<String>>,
+    ) -> anyhow::Result<Vec<TempTableColumn>> {
+        /*
+                    -- 直接写
+        SELECT ABS(-1)  FROM RDB$DATABASE;   -- 返回 1
+        SELECT SUBSTRING('abc' FROM 2 FOR 2) FROM RDB$DATABASE;
+        */
+        if let Some(is_call) = is_call {
+            let sql = format!("SELECT {}({}) FROM RDB$DATABASE", name, is_call.concat());
+            self.get_query_columns(&sql).await
+        } else {
+            SchemaTrait::show_table_columns(self, name).await.map(|x| {
+                x.into_iter()
+                    .map(|x| TempTableColumn {
+                        name: x.field.clone(),
+                        data_type: Some(x.data_type.clone()),
+                    })
+                    .collect()
+            })
+        }
+    }
+
+    async fn list_function(
+        &self,
+        _schema: Option<&str>,
+        _include_build_in: bool,
+    ) -> anyhow::Result<Vec<CompletionItem>> {
+        let this = Clone::clone(self);
+        spawn_blocking(move || {
+            let sql = r#"
+            SELECT 
+            RDB$FUNCTION_NAME AS FunctionName 
+            FROM 
+            RDB$FUNCTIONS
+        "#;
+            let mut conn = this.get_conn()?;
+            let rows: Vec<(String,)> = conn.query(sql, ())?;
+            let mut result: Vec<_> = rows
+                .into_iter()
+                .map(|x| CompletionItem {
+                    item: x.0.trim().to_owned().into(),
+                    kind: CompletionKind::Function,
+                    desc: None,
+                })
+                .collect();
+            result.extend(FB_BUILTIN_FUNCTIONS.iter().map(|x| CompletionItem {
+                item: (*x).into(),
+                kind: CompletionKind::Function,
+                desc: None,
+            }));
+            anyhow::Ok(result)
+        })
+        .await?
+    }
+    fn dialect(&self) -> Box<dyn sqlparser::dialect::Dialect + Send + Sync> {
+        Box::new(sqlparser::dialect::GenericDialect {})
+    }
+    async fn list_table(&self, _schema: Option<&str>) -> anyhow::Result<Vec<String>> {
+        let this = Clone::clone(self);
+        spawn_blocking(move || {
+            let sql = r#"
+            SELECT 
+                RDB$RELATION_NAME AS TABLE_NAME
+            FROM 
+                RDB$RELATIONS
+            WHERE 
+                RDB$VIEW_BLR IS NULL  -- 排除视图
+        "#;
+            let mut conn = this.get_conn()?;
+            let rows: Vec<(String,)> = conn.query(sql, ())?;
+            anyhow::Ok(rows.into_iter().map(|x| x.0.trim().to_owned()).collect())
+        })
+        .await?
+    }
+
+    async fn list_view(&self, _schema: Option<&str>) -> anyhow::Result<Vec<String>> {
+        let this = Clone::clone(self);
+        spawn_blocking(move || {
+            let sql = r#"
+        SELECT RDB$RELATION_NAME
+            FROM RDB$RELATIONS
+            WHERE RDB$VIEW_BLR IS NOT NULL;
+        "#;
+            let mut conn = this.get_conn()?;
+            let rows: Vec<(String,)> = conn.query(sql, ())?;
+            anyhow::Ok(rows.into_iter().map(|x| x.0.trim().to_owned()).collect())
+        })
+        .await?
+    }
+}
+
+/// 给我firebird的完整的关键字列表rust数组 并且去掉了内置函数
+/// Firebird 4.0 **保留关键字**（不含内置函数）
+pub const FIREBIRD_KEYWORDS: &[&str] = &[
     "ACTIVE",
     "ADD",
     "ADMIN",
     "AFTER",
     "ALL",
     "ALTER",
-    "ALWAYS",
     "AND",
     "ANY",
     "AS",
     "ASC",
     "ASCENDING",
-    "ASCII_CHAR",
-    "ASCII_VAL",
-    "ASIN",
     "AT",
-    "ATAN",
-    "ATAN2",
     "AUTO",
     "AUTONOMOUS",
     "AVG",
@@ -248,12 +257,6 @@ const KEY_WORDS: &'static [&'static str] = &[
     "BEGIN",
     "BETWEEN",
     "BIGINT",
-    "BIN_AND",
-    "BIN_NOT",
-    "BIN_OR",
-    "BIN_SHL",
-    "BIN_SHR",
-    "BIN_XOR",
     "BIT_LENGTH",
     "BLOB",
     "BLOCK",
@@ -264,13 +267,8 @@ const KEY_WORDS: &'static [&'static str] = &[
     "CASCADE",
     "CASE",
     "CAST",
-    "CEIL",
-    "CEILING",
     "CHAR",
-    "CHAR_LENGTH",
-    "CHAR_TO_UUID",
     "CHARACTER",
-    "CHARACTER_LENGTH",
     "CHECK",
     "CLOSE",
     "COALESCE",
@@ -286,9 +284,6 @@ const KEY_WORDS: &'static [&'static str] = &[
     "CONNECT",
     "CONSTRAINT",
     "CONTAINING",
-    "COS",
-    "COSH",
-    "COT",
     "COUNT",
     "CREATE",
     "CROSS",
@@ -303,15 +298,11 @@ const KEY_WORDS: &'static [&'static str] = &[
     "CURRENT_USER",
     "CURSOR",
     "DATA",
-    "DATABASE",
     "DATE",
-    "DATEADD",
-    "DATEDIFF",
     "DAY",
     "DEC",
     "DECIMAL",
     "DECLARE",
-    "DECODE",
     "DEFAULT",
     "DELETE",
     "DELETING",
@@ -332,17 +323,13 @@ const KEY_WORDS: &'static [&'static str] = &[
     "EXCEPTION",
     "EXECUTE",
     "EXISTS",
-    "EXIT",
-    "EXP",
     "EXTERNAL",
     "EXTRACT",
     "FETCH",
     "FILE",
     "FILTER",
     "FIRST",
-    "FIRSTNAME",
     "FLOAT",
-    "FLOOR",
     "FOR",
     "FOREIGN",
     "FREE_IT",
@@ -351,7 +338,6 @@ const KEY_WORDS: &'static [&'static str] = &[
     "FUNCTION",
     "GDSCODE",
     "GEN_ID",
-    "GEN_UUID",
     "GENERATED",
     "GENERATOR",
     "GLOBAL",
@@ -363,7 +349,6 @@ const KEY_WORDS: &'static [&'static str] = &[
     "HOUR",
     "IF",
     "IGNORE",
-    "IIF",
     "IN",
     "INACTIVE",
     "INDEX",
@@ -379,8 +364,8 @@ const KEY_WORDS: &'static [&'static str] = &[
     "ISOLATION",
     "JOIN",
     "KEY",
+    "LAG",
     "LAST",
-    "LASTNAME",
     "LEADING",
     "LEAVE",
     "LEFT",
@@ -389,27 +374,24 @@ const KEY_WORDS: &'static [&'static str] = &[
     "LIKE",
     "LIMBO",
     "LIST",
-    "LN",
+    "LOCAL",
+    "LOCALTIME",
+    "LOCALTIMESTAMP",
     "LOCK",
     "LOG",
-    "LOG10",
     "LONG",
     "LOWER",
     "LPAD",
     "MANUAL",
     "MAPPING",
+    "MATCH",
     "MATCHED",
-    "MATCHING",
     "MAX",
+    "MAXIMUM",
     "MAXIMUM_SEGMENT",
-    "MAXVALUE",
     "MERGE",
-    "MIDDLENAME",
-    "MILLISECOND",
     "MIN",
     "MINUTE",
-    "MINVALUE",
-    "MOD",
     "MODULE_NAME",
     "MONTH",
     "NAMES",
@@ -434,6 +416,7 @@ const KEY_WORDS: &'static [&'static str] = &[
     "OS_NAME",
     "OUTER",
     "OUTPUT_TYPE",
+    "OVER",
     "OVERFLOW",
     "OVERLAY",
     "PAD",
@@ -454,7 +437,6 @@ const KEY_WORDS: &'static [&'static str] = &[
     "PRIVILEGES",
     "PROCEDURE",
     "PROTECTED",
-    "RAND",
     "RDB$DB_KEY",
     "READ",
     "REAL",
@@ -478,7 +460,7 @@ const KEY_WORDS: &'static [&'static str] = &[
     "RIGHT",
     "ROLE",
     "ROLLBACK",
-    "ROUND",
+    "ROW",
     "ROW_COUNT",
     "ROWS",
     "RPAD",
@@ -489,15 +471,10 @@ const KEY_WORDS: &'static [&'static str] = &[
     "SEGMENT",
     "SELECT",
     "SENSITIVE",
-    "SEQUENCE",
     "SET",
     "SHADOW",
     "SHARED",
-    "SIGN",
-    "SIMILAR",
-    "SIN",
     "SINGULAR",
-    "SINH",
     "SIZE",
     "SKIP",
     "SMALLINT",
@@ -506,37 +483,29 @@ const KEY_WORDS: &'static [&'static str] = &[
     "SORT",
     "SOURCE",
     "SPACE",
+    "SQL",
     "SQLCODE",
     "SQLSTATE",
-    "SQRT",
-    "STABILITY",
     "START",
     "STARTING",
-    "STARTS",
     "STATEMENT",
+    "STATIC",
     "STATISTICS",
     "SUB_TYPE",
-    "SUBSTRING",
     "SUM",
     "SUSPEND",
     "TABLE",
-    "TAN",
-    "TANH",
     "TEMPORARY",
     "THEN",
     "TIME",
-    "TIMEOUT",
     "TIMESTAMP",
     "TO",
     "TRAILING",
     "TRANSACTION",
     "TRIGGER",
     "TRIM",
-    "TRUNC",
-    "TWO_PHASE",
     "TYPE",
     "UNCOMMITTED",
-    "UNDO",
     "UNION",
     "UNIQUE",
     "UPDATE",
@@ -563,3 +532,128 @@ const KEY_WORDS: &'static [&'static str] = &[
     "YEAR",
     "YEARDAY",
 ];
+
+/*
+    firebird所有的内置函数 ABS 之类的给我一个rust数组 我直接处理
+*/
+/// Firebird 内置函数（标量）名称表，按字母序
+pub const FB_BUILTIN_FUNCTIONS: &[&str] = &[
+    "ABS",
+    "ACOS",
+    "ASCII_CHAR",
+    "ASCII_VAL",
+    "ASIN",
+    "ATAN",
+    "ATAN2",
+    "BIN_AND",
+    "BIN_OR",
+    "BIN_XOR",
+    "BIT_LENGTH",
+    "CAST",
+    "CEIL",
+    "CEILING",
+    "CHAR_LENGTH",
+    "CHAR_TO_UUID",
+    "COS",
+    "COT",
+    "DATEADD",
+    "DATEDIFF",
+    "DAY",
+    "EXP",
+    "FLOOR",
+    "GEN_UUID",
+    "HASH",
+    "HOUR",
+    "LEFT",
+    "LN",
+    "LOG",
+    "LOWER",
+    "LPAD",
+    "MILLISECOND",
+    "MINUTE",
+    "MONTH",
+    "OCTET_LENGTH",
+    "PI",
+    "POWER",
+    "RAND",
+    "REPLACE",
+    "REVERSE",
+    "RIGHT",
+    "ROUND",
+    "RPAD",
+    "SECOND",
+    "SIGN",
+    "SIN",
+    "SQRT",
+    "SUBSTRING",
+    "TAN",
+    "TRIM",
+    "UPPER",
+    "UUID_TO_CHAR",
+    "WEEK",
+    "WEEKDAY",
+    "YEAR",
+];
+
+#[cfg(test)]
+mod tests {
+    use std::path::Path;
+
+    use crate::db::{QuerySql, SchemaTrait};
+    use crate::enable_test_log;
+    use crate::firebird::make_test_object;
+    use crate::language_server::completion_test::test_file_auto_completion;
+    use crate::language_server::LanguageServer;
+
+    // partition test failed , sqlparser can't parse a valid partition statement.
+    #[tokio::test]
+    async fn test_auto_completion() {
+        let db = make_test_object().await;
+        enable_test_log();
+        let query_id = "";
+        db.open_connection(query_id).await.unwrap();
+        let _ = db.drop_table("EMPLOYEE", false).await;
+        let _ = db
+            .execute_sql(
+                query_id,
+                r#"
+                    CREATE TABLE EMPLOYEE (
+                        EMPLOYEEID INTEGER NOT NULL PRIMARY KEY, -- 雇员编号，主键
+                        ID INTEGER,
+                        FIRSTNAME VARCHAR(50) NOT NULL, -- 雇员名字
+                        LASTNAME VARCHAR(50) NOT NULL, -- 雇员姓氏
+                        GENDER CHAR(1) CHECK (GENDER IN ('M', 'F')), -- 性别，M 表示男性，F 表示女性
+                        BIRTHDATE DATE, -- 出生日期
+                        HIREDATE DATE -- 入职日期
+                    );
+                "#,
+            )
+            .await
+            .unwrap();
+        db.execute_sql(query_id, "INSERT INTO EMPLOYEE (GENDER, EMPLOYEEID, ID, FIRSTNAME, LASTNAME, BIRTHDATE, HIREDATE) VALUES ('M', 1, 1, 'John', 'Doe', '1985-05-15', '2020-01-10')")
+            .await
+            .unwrap()
+            .unwrap();
+        let manifest_dir = env!("CARGO_MANIFEST_DIR");
+        let mut file_path = Path::new(manifest_dir).to_path_buf();
+        file_path.push("tests");
+        file_path.push("firebird_auto_completion_test.sql");
+        let content = std::fs::read_to_string(file_path.as_path()).unwrap();
+        test_file_auto_completion(&content, &db, None, false).await;
+    }
+
+    #[ignore = "手动跑跑的测试"]
+    #[tokio::test]
+    async fn test_completion_xxx() {
+        enable_test_log();
+        let db = make_test_object().await;
+        test_file_auto_completion(include_str!("./xxx.sql"), &db, None, true).await;
+    }
+
+    #[tokio::test]
+    async fn test_try_get_max_id() {
+        let db = make_test_object().await;
+        let max_id = db.try_get_max_id("EMPLOYEE").await.unwrap();
+        println!("max id is:{}", max_id);
+    }
+}

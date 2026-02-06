@@ -1,295 +1,377 @@
-import { types } from './ApiStruct.ts';
+import { types } from "./ApiStruct.ts";
 import {
   Alert,
+  Box,
+  Button,
   Divider,
   ListItemIcon,
   ListItemText,
   MenuItem,
   MenuList,
-  Paper,
+  Modal,
   Stack,
   Tab,
   Tabs,
   Tooltip,
   Typography,
-} from '@mui/material';
-import { v4 as uuidv4 } from 'uuid';
+} from "@mui/material";
 import {
-  calMenuStyle,
-  datagridContainerHeight,
-  generateRandomString,
   handleCopyToClipboard,
-  columnWidths,
   ContextMenuContext,
-  VisiableContext,
-} from './helper.ts';
+  SettingContext,
+  saveAndSetSize,
+  ColumnWidth,
+  MuiDataGridData,
+  extractFieldAndIDFromMouseEvent,
+  dataGridStyle,
+  QueryRespData,
+} from "./helper.ts";
 import {
   DataGrid,
+  GridSlotsComponent,
   GridSlotsComponentsProps,
   GridSortModel,
-} from '@mui/x-data-grid';
+} from "@mui/x-data-grid";
 import React, {
   CSSProperties,
-  memo,
   useCallback,
   useContext,
   useEffect,
   useMemo,
   useState,
-} from 'react';
-import { SettingContext } from './Common.tsx';
-import ArrowUpwardIcon from '@mui/icons-material/ArrowUpward';
-import ArrowDownwardIcon from '@mui/icons-material/ArrowDownward';
+} from "react";
+import { EscDownEvent, keyNotInTable, modalHandleClose, modalStyle } from "./Common";
+import ArrowUpwardIcon from "@mui/icons-material/ArrowUpward";
+import ArrowDownwardIcon from "@mui/icons-material/ArrowDownward";
 
-import ContentCopyIcon from '@mui/icons-material/ContentCopy';
-import { NotificationContext } from './Notification.tsx';
+import ContentCopyIcon from "@mui/icons-material/ContentCopy";
+import { NotificationContext } from "./Notification.tsx";
+import {
+  AppColumnMenu,
+  ModalHeader,
+  ResetColumnWidth,
+  ViewRowInModal,
+} from "./CommonComp.tsx";
+import VisibilityIcon from "@mui/icons-material/Visibility";
+import { AppDataGridPagination, StackRowCenter } from "./CommonComp2.tsx";
 
-function RespContextMenu(props: { content; field; setSort }) {
-  const { content, field, setSort } = props;
+function RespContextMenu(props: { content; field; setSort; viewInModal }) {
+  const { content, field, setSort, viewInModal } = props;
   const { showNotification } = useContext(NotificationContext);
   return (
-    <Paper>
-      <MenuList>
-        {content && (
-          <MenuItem
-            onClick={() => {
-              handleCopyToClipboard(content, showNotification);
-            }}
-          >
-            <ListItemIcon>
-              <ContentCopyIcon></ContentCopyIcon>
-            </ListItemIcon>
-            <ListItemText> Copy </ListItemText>
-          </MenuItem>
-        )}
+    <MenuList>
+      {content && (
+        <MenuItem
+          onClick={() => {
+            handleCopyToClipboard(content, showNotification);
+          }}
+        >
+          <ListItemIcon>
+            <ContentCopyIcon />
+          </ListItemIcon>
+          <ListItemText> Copy </ListItemText>
+        </MenuItem>
+      )}
 
-        <MenuItem
-          onClick={() => {
-            handleCopyToClipboard(field, showNotification);
-          }}
-        >
-          <ListItemIcon>
-            <ContentCopyIcon></ContentCopyIcon>
-          </ListItemIcon>
-          <ListItemText> Copy Field </ListItemText>
-        </MenuItem>
-        <Divider></Divider>
-        <MenuItem
-          onClick={() => {
-            setSort([{ field, sort: 'asc' }] as GridSortModel);
-          }}
-        >
-          <ListItemIcon>
-            <ArrowUpwardIcon></ArrowUpwardIcon>
-          </ListItemIcon>
-          <ListItemText> {field} ASC </ListItemText>
-        </MenuItem>
-        <MenuItem
-          onClick={() => {
-            setSort([{ field, sort: 'desc' }] as GridSortModel);
-          }}
-        >
-          <ListItemIcon>
-            <ArrowDownwardIcon></ArrowDownwardIcon>
-          </ListItemIcon>
-          <ListItemText> {field} DESC </ListItemText>
-        </MenuItem>
-      </MenuList>
-    </Paper>
+      <MenuItem onClick={viewInModal}>
+        <ListItemIcon>
+          <VisibilityIcon style={{ fontSize: "1.4rem" }} />
+        </ListItemIcon>
+        <ListItemText> View in Modal </ListItemText>
+      </MenuItem>
+      <Divider />
+      <MenuItem
+        onClick={() => {
+          setSort([{ field, sort: "asc" }] as GridSortModel);
+        }}
+      >
+        <ListItemIcon>
+          <ArrowUpwardIcon />
+        </ListItemIcon>
+        <ListItemText> {field} ASC </ListItemText>
+      </MenuItem>
+      <MenuItem
+        onClick={() => {
+          setSort([{ field, sort: "desc" }] as GridSortModel);
+        }}
+      >
+        <ListItemIcon>
+          <ArrowDownwardIcon />
+        </ListItemIcon>
+        <ListItemText> {field} DESC </ListItemText>
+      </MenuItem>
+    </MenuList>
   );
 }
 
-function QueryResp_(props: { data: types.MuiDataGridData }) {
-  let { data } = props;
-  data.data.forEach((e) => {
-    if (!('id' in e)) {
-      e.id = uuidv4();
-    }
+function smallDataSet(fields: types.Field[]) {
+  return fields.length <= 4;
+}
+
+function queryRespFix(data: MuiDataGridData) {
+  data.data.forEach((e, index) => {
+    e[keyNotInTable] = index;
   });
-  data.fields.forEach((e) => {
-    const width = columnWidths.getWidth(e.field);
-    if (width) {
-      e['width'] = width;
+  const considerSmallDataSet = smallDataSet(data.fields);
+  data.fields.forEach(field => {
+    if (considerSmallDataSet) {
+      field["flex"] = 1;
+    } else {
+      const width = ColumnWidth.instance.get(field.field);
+      if (width) {
+        field["width"] = width;
+      }
     }
-    //@ts-ignore
-    e.renderHeader = (e) => {
-      let def = e.colDef;
+    field["renderHeader"] = e => {
+      const def = e.colDef as types.Field;
       return (
-        <Tooltip title={def.typ}>
-          <strong> {def.field}</strong>
+        <Tooltip title={`${def.field} ${def.data_type}`}>
+          <span> {def.field}</span>
         </Tooltip>
       );
     };
   });
+}
 
-  const onColumnResize = useCallback(({ colDef, width }) => {
-    columnWidths.saveColumnWidths(colDef.field, width);
-  }, []);
-  const vis = useContext(VisiableContext);
+function QueryResp(props: { data: MuiDataGridData }) {
+  const { data } = props;
+
+  queryRespFix(data);
+
+  const setting = useContext(SettingContext);
+
+  const [viewInModal, setViewInModal] = useState<object>(null);
+  const onColumnResize = useCallback(
+    ({ colDef, width }) => {
+      if (!data) {
+        return;
+      }
+      if (smallDataSet(data.fields)) {
+        return;
+      }
+      ColumnWidth.instance.save(colDef.field, width);
+    },
+    [data],
+  );
+
   const [sortModel, setSortModel] = useState<GridSortModel>([]);
   const { setUpMenu } = useContext(ContextMenuContext);
   const slotProps = useMemo(() => {
+    if (!data) {
+      return undefined;
+    }
     return {
       row: {
-        onContextMenu: (e) => {
-          const { target } = e;
-          let content = (target as HTMLDivElement).innerHTML;
-          let field = (target as HTMLDivElement).getAttribute('data-field');
+        onContextMenu: e => {
+          const { id, field } = extractFieldAndIDFromMouseEvent(e);
           if (!field) {
             return;
           }
+          const row = {
+            ...data.data.find(e => e[keyNotInTable] == id),
+          };
+          delete row[keyNotInTable];
+          const content = row[field];
           setUpMenu({
             content: (
               <RespContextMenu
+                viewInModal={() => {
+                  setViewInModal(row);
+                }}
                 content={content}
                 field={field}
                 setSort={setSortModel}
-              ></RespContextMenu>
+              />
             ),
-            style: calMenuStyle(e, 200),
+            event: e,
           });
         },
-        style: { cursor: 'context-menu' },
+        style: { cursor: "context-menu" },
+      },
+      toolbar: {
+        csvOptions: {
+          delimiter: setting.export.csvDelimiter,
+          includeHeaders: setting.export.includeHeader,
+        },
       },
     } as GridSlotsComponentsProps;
-  }, []);
-  const setting = useContext(SettingContext);
-  const onSortModelChange = useCallback((e) => {
+  }, [data, setUpMenu, setting.export.csvDelimiter, setting.export.includeHeader]);
+
+  const onSortModelChange = useCallback(e => {
     setSortModel(e);
   }, []);
+  const [viewInModalBox, setViewInModalBox] = useState(null);
+  useEffect(() => {
+    if (viewInModalBox) {
+      const x1 = saveAndSetSize(viewInModalBox, "view-row-in-modal");
+      return () => {
+        x1();
+      };
+    }
+  }, [viewInModalBox]);
 
+  const slots = useMemo(() => {
+    return {
+      columnMenu: AppColumnMenu,
+      pagination: () => {
+        return (
+          <Stack
+            direction="row"
+            style={{
+              alignItems: "center",
+              justifyContent: "space-between",
+              flex: 1,
+            }}
+          >
+            <Stack style={{ flex: 1, alignItems: "center" }} direction="row">
+              <ResetColumnWidth />
+              <Typography color="info">rows: {data.data.length} </Typography>
+            </Stack>
+            <AppDataGridPagination showPageSelect />
+          </Stack>
+        );
+      },
+    } as Partial<GridSlotsComponent>;
+  }, [data.data.length]);
   return (
-    <Stack spacing={1}>
-      {data.sql && <Typography color="info">sql: {data.sql} </Typography>}
-      {vis && (
-        <div
-          style={{
-            display: 'grid',
-            height: datagridContainerHeight(data.data.length),
-          }}
-        >
+    <div
+      style={{
+        height: "100%",
+        display: "flex",
+        flexDirection: "column",
+      }}
+    >
+      {data && (
+        <Stack flex={1}>
+          {data.sql && (
+            <Typography
+              color="info"
+              style={{
+                whiteSpace: "nowrap",
+                textOverflow: "ellipsis",
+                overflow: "hidden",
+              }}
+            >
+              sql: {data.sql}
+            </Typography>
+          )}
+
           <DataGrid
+            getRowId={getRowId}
+            slots={slots}
             sortModel={sortModel}
             onSortModelChange={onSortModelChange}
-            showCellVerticalBorder
-            showColumnVerticalBorder
             slotProps={slotProps}
-            rowHeight={setting.datagridRowHeight}
-            columnHeaderHeight={setting.datagridHeaderHeight}
+            style={dataGridStyle}
             columns={data.fields}
             rows={data.data}
             filterMode="client" // 使用客户端过滤
             onColumnResize={onColumnResize}
-          ></DataGrid>
-        </div>
+          />
+        </Stack>
       )}
-    </Stack>
-  );
-}
 
-interface TabPanelProps {
-  children?: React.ReactNode;
-  index: number;
-  value: number;
-  idPrefix: string;
-}
-
-function CustomTabPanel(props: TabPanelProps) {
-  const { children, value, index, idPrefix, ...other } = props;
-  return (
-    <div
-      role="tabpanel"
-      hidden={value !== index}
-      id={`${idPrefix}-tabpanel-${index}`}
-      {...other}
-    >
-      {value === index && <div>{children}</div>}
+      {viewInModal && (
+        <Modal
+          open={!!viewInModal}
+          onClose={modalHandleClose((e: EscDownEvent) => {
+            e.preventDefault();
+            setViewInModal(null);
+          })}
+        >
+          <Box
+            sx={{ resize: "both", ...modalStyle }}
+            ref={setViewInModalBox}
+            width="80%"
+            height="30vh"
+          >
+            <ModalHeader
+              title="View Row"
+              handleClose={() => {
+                setViewInModal(null);
+              }}
+            />
+            <ViewRowInModal fields={data.fields} data={viewInModal} />
+          </Box>
+        </Modal>
+      )}
     </div>
   );
 }
 
-let styleForTrans: CSSProperties = {
-  transition: 'all 0.3s ease',
-  position: 'relative',
-  overflow: 'hidden',
+function getRowId(row) {
+  return row[keyNotInTable];
+}
+
+const styleForTrans: CSSProperties = {
+  transition: "all 0.5s ease",
+  position: "relative",
+  overflow: "hidden",
 };
 
-function MultiQueryResp_(props: { data: any[] }) {
-  let { data } = props;
+function MultiQueryResp(props: { data: QueryRespData[] }) {
+  const { data } = props;
+  const [value, setValue] = React.useState(0);
+
+  const { showNotification } = useContext(NotificationContext);
   if (data.length == 0) {
     return <></>;
   }
-  const [top, setTop] = useState(0);
-  const [value, setValue] = React.useState(0);
-  const [opacity, setOpacity] = useState(1);
-  useEffect(() => {
-    if (value >= data.length) {
-      setValue(0);
-    }
-    setTop(50);
-    setOpacity(0);
-    setTimeout(() => {
-      setTop(0);
-      setOpacity(1);
-    }, 400);
-  }, [data]);
-
   if (data.length == 1) {
     return data[0].Err ? (
-      <Alert
-        style={{ top, opacity, left: top, ...styleForTrans }}
-        severity="error"
-      >
-        {data[0].Err}
-      </Alert>
+      <StackRowCenter>
+        <Button
+          onClick={() => {
+            handleCopyToClipboard(data[0].Err, showNotification);
+          }}
+        >
+          copy
+        </Button>
+        <Alert severity="error">{data[0].Err}</Alert>
+      </StackRowCenter>
     ) : (
-      <div style={{ top, opacity, left: top, ...styleForTrans }}>
-        <QueryResp data={data[0].Ok}></QueryResp>
-      </div>
+      <QueryResp data={data[0].Ok} />
     );
   }
-
   const handleChange = (_event: React.SyntheticEvent, newValue: number) => {
     setValue(newValue);
   };
-
-  let idPrefix = generateRandomString(10);
-  const vis = useContext(VisiableContext);
   return (
-    <div style={{ top, opacity, left: top, ...styleForTrans }}>
-      <div style={{ display: 'grid' }}>
-        <Tabs
-          value={value}
-          onChange={handleChange}
-          variant="scrollable"
-          scrollButtons="auto"
-        >
-          {data.map((_, index) => (
-            <Tab label={`Result ${index + 1}`} key={index} />
-          ))}
-        </Tabs>
-      </div>
+    <div
+      style={{
+        height: "100%",
+        display: "flex",
+        flexDirection: "column",
+        ...styleForTrans,
+      }}
+    >
+      <Tabs
+        value={value}
+        onChange={handleChange}
+        variant="scrollable"
+        scrollButtons="auto"
+      >
+        {data.map((_, index) => (
+          <Tab label={`Result ${index + 1}`} key={index} />
+        ))}
+      </Tabs>
 
-      {data.map((e, index) => {
-        return (
-          <VisiableContext.Provider
-            value={vis && index == value}
-            key={`panel${index}`}
-          >
-            <CustomTabPanel idPrefix={idPrefix} value={value} index={index}>
+      <div style={{ height: "100px", flex: 1 }}>
+        {data.map((e, index) => {
+          return (
+            <div hidden={value != index} key={index} style={{ height: "100%" }}>
               {e.Err ? (
                 <Alert severity="error">{e.Err}</Alert>
               ) : (
-                <QueryResp data={e.Ok}></QueryResp>
+                <QueryResp data={e.Ok} />
               )}
-            </CustomTabPanel>
-          </VisiableContext.Provider>
-        );
-      })}
+            </div>
+          );
+        })}
+      </div>
     </div>
   );
 }
-const MultiQueryResp = memo(MultiQueryResp_);
-const QueryResp = memo(QueryResp_);
 
 export { MultiQueryResp, QueryResp };
+export type { QueryRespData };

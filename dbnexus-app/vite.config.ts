@@ -1,32 +1,33 @@
-import { defineConfig } from 'vite';
-import react from '@vitejs/plugin-react';
-import { internalIpV4 } from 'internal-ip';
-import topLevelAwait from 'vite-plugin-top-level-await';
-import fs from 'fs';
-
-// @ts-expect-error process is a nodejs global
+import { defineConfig } from "vite";
+import react from "@vitejs/plugin-react";
+import { internalIpV4 } from "internal-ip";
+import { resolve } from "path";
+import { ViteEjsPlugin } from "vite-plugin-ejs";
 const mobile = !!/android|ios/.exec(process.env.TAURI_ENV_PLATFORM);
 
 // https://vitejs.dev/config/
 export default defineConfig(async ({ command }) => {
-  {
-    const debugFile = __dirname + '/src/comp/debug.ts';
-    const content = `const debugBuild = ${command == 'serve'};
-export { debugBuild }`;
-    fs.writeFileSync(debugFile, content);
-  }
   return {
     plugins: [
-      topLevelAwait({
-        // The export name of top-level await promise for each chunk module
-        promiseExportName: '__tla',
-        // The function to generate import names of top-level await promise in each chunk module
-        promiseImportName: (i) => `__tla_${i}`,
+      ViteEjsPlugin({ debug: command == "serve" }),
+      react({
+        babel: {
+          plugins: ["babel-plugin-react-compiler"],
+        },
       }),
-      react(),
     ],
     build: {
-      target: 'esnext',
+      target: "esnext",
+      rollupOptions: {
+        input: {
+          main: resolve(__dirname, "index.html"),
+        },
+        output: {
+          manualChunks: id => {
+            if (id.includes("monaco-editor")) return "monaco";
+          },
+        },
+      },
     },
     // Vite options tailored for Tauri development and only applied in `tauri dev` or `tauri build`
     //
@@ -36,17 +37,17 @@ export { debugBuild }`;
     server: {
       port: 1420,
       strictPort: true,
-      host: mobile ? '0.0.0.0' : false,
+      host: mobile ? "0.0.0.0" : false,
       hmr: mobile
         ? {
-          protocol: 'ws',
-          host: await internalIpV4(),
-          port: 1421,
-        }
+            protocol: "ws",
+            host: await internalIpV4(),
+            port: 1421,
+          }
         : undefined,
       watch: {
         // 3. tell vite to ignore watching `src-tauri`
-        ignored: ['**/src-tauri/**'],
+        ignored: ["**/src-tauri/**"],
       },
     },
   };

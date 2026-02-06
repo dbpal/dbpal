@@ -2,37 +2,15 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
-    <link rel="icon" type="image/svg+xml" href="/vite.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Tauri + React + TS</title>
-    <style>
-      #menu-div {
-        position: fixed;
-        z-index: 10000;
-        height: auto;
-        opacity: 1;
-      }
-      html {
-        /* font-size: 15px;    */
-        transition: all 1s ease;
-      }
-      .welcome-image-container {
-        overflow: hidden; /* 隐藏溢出的部分 */
-        position: relative;
-      }
-
-      .welcome-image-container img {
-        transition: transform 0.5s ease; /* 添加过渡效果 */
-      }
-
-      .welcome-image-container:hover img {
-        transform: scale(1.25); /* 悬停时放大图片 */
-      }
-    </style>
   </head>
 
   <body>
     <div id="root"></div>
+    <% if (debug) { %>
+    <script src="http://localhost:8097"></script>
+    <% } %>
+
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>

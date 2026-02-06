@@ -6,12 +6,12 @@ homepage.workspace = true
 repository.workspace = true
 license.workspace = true
 
+
 [dependencies]
-bb8.workspace = true
-anyhow.workspace = true
-serde.workspace = true
-async-trait.workspace = true
-sqlx = { version = "0.8.5", features = [
+couchbase = { version = "1.0.0-beta.1", features = [] }
+snowflake-connector-rs = { version = "0.7.3", optional = true }
+gcp-bigquery-client = { version = "0.27.0", optional = true }
+sqlx = { version = "0.9.0-alpha.1", features = [
     "runtime-tokio",
     "postgres",
     "sqlite",
@@ -25,58 +25,88 @@ sqlx = { version = "0.8.5", features = [
     "json",
     "tls-rustls",
 ] }
-sqlx-core = { version = "*", features = [] }
+odbc-api = { version = "20.0", optional = true, features = [
+    "vendored-unix-odbc",
+] }
+sqlx-core = { version = "0.9.0-alpha.1", features = ["any"] }
+bb8 = "0.9"
+anyhow.workspace = true
+serde.workspace = true
+async-trait.workspace = true
+redis = { version = "*", features = [
+    "tokio-comp",
+    "aio",
+    "tls-rustls",
+    "connection-manager",
+    "safe_iterators",
+    "tokio-rustls-comp",
 
-
+] }
+neo4rs = { version = "0.8.0", optional = true }
+tokio-stream = { version = "0.1.17", features = ["io-util"] }
+rust_xlsxwriter = { version = "0.90.0", features = ["constant_memory"] }
 dashmap.workspace = true
 hex.workspace = true
-mac_address.workspace = true
-ipnetwork.workspace = true
-chrono.workspace = true
-bit-vec = "0.6.3"
+mac_address = "1.1.5"
+ipnetwork = "0.21"
+chrono = "0.4.34"
+bit-vec = "=0.6.3"
 uuid.workspace = true
 serde_json.workspace = true
-sqlparser.workspace = true
+sqlparser = { version = "0.60", features = ["serde"] }
 lazy_static.workspace = true
-line-index.workspace = true
 log.workspace = true
-redis.workspace = true
+duckdb = { version = "1.4.1", features = [
+    "bundled",
+    "r2d2",
+    "extensions-full",
+], optional = true }
+cql3-parser = { git = "https://github.com/shotover/rust-cql3-parser", branch = "main" }
 futures-util.workspace = true
 futures-core.workspace = true
 mongodb.workspace = true
-tiberius.workspace = true
+tiberius = { version = "0.12.3", default-features = false, features = [
+    "chrono",
+    "rust_decimal",
+    "tds73",
+    "rustls",
+] }
+scylla = { version = "1.4.1", features = [] }
+bb8-tiberius = "0.16"
 tokio.workspace = true
 tokio-util.workspace = true
-rust_decimal.workspace = true
-bb8-tiberius = "*"
+rust_decimal = "*"
+regex = "*"
+v_htmlescape = "0.15.8"
 oracle = { version = "0.6.3", features = ["chrono"] }
 pg_interval = "*"
 typescript-type-def = "*"
-sqlformat = "*"
-fuzzy-matcher = "*"
-bson = "*"
 humantime = "*"
-humansize = "*"
 memory-stats = "1.2.0"
-rand = "*"
-enum-iterator = "2.1.0"
-cdrs-tokio = "8.1.5"
+rand.workspace = true
 num-bigint = "*"
 r2d2 = "*"
 base64 = "*"
-reqwest = { version = "0.12", features = ["json", "rustls-tls"] }
-clickhouse = { version = "0.13.1", features = ["rustls-tls", "time", "uuid"] }
-# https://github.com/duckdb/duckdb-rs/issues/436  
-duckdb = { version = "=1.2.2", features = ["bundled"], optional = true }
-libduckdb-sys = { version = "=1.2.2", optional = true }
-cql3-parser = { git = "https://github.com/dbpal/rust-cql3-parser", rev = "89aef5f99854449a78dc37a17363823f889374c8" }
-libsql = { version = "0.9.7" }
-rsfbclient = { version = "0.25.1", default-features = false, features = [
+reqwest = { version = "0.12", features = ["json", "rustls-tls", "stream"] }
+clickhouse = { version = "0.14", features = ["rustls-tls", "time", "uuid"] }
+libsql = { version = "0.9.7", default-features = false, features = [
+    "remote",
+    "tls",
+] }
+rsfbclient = { version = "0.26", default-features = false, features = [
     "pure_rust",
 ] }
+csv = "*"
 rsfbclient-rust = "*"
+include_dir.workspace = true
 [dev-dependencies]
-
+opener = "*"
 
 [features]
-duckdb = ["dep:duckdb", "dep:libduckdb-sys"]
+duckdb = ["dep:duckdb"]
+paid = []
+odbc = ["dep:odbc-api"]
+bigquery = ["dep:gcp-bigquery-client"]
+snowflake = ["dep:snowflake-connector-rs"]
+neo4j = ["dep:neo4rs"]
+hive = ["odbc"]

@@ -1,23 +1,20 @@
 import {
-  ReactNode,
+  RefObject,
   useCallback,
   useContext,
   useEffect,
   useMemo,
+  useRef,
   useState,
-} from 'react';
+} from "react";
 import {
   Button,
   Stack,
   Box,
   TextField,
   MenuItem,
-  FormControl,
-  InputLabel,
-  Select,
   Typography,
   Modal,
-  Paper,
   MenuList,
   ListItemIcon,
   ListItemText,
@@ -25,106 +22,143 @@ import {
   Radio,
   FormControlLabel,
   Chip,
-} from '@mui/material';
-import { v4 as uuidv4 } from 'uuid';
-import ContentCopyIcon from '@mui/icons-material/ContentCopy';
-import DeleteForeverIcon from '@mui/icons-material/DeleteForever';
-import {
-  modalStyle,
-  SettingContext,
-  reloadOK,
-  SimpleResizeEditor,
-  EscDownEvent,
-} from './Common.tsx';
+  Tooltip,
+  InputAdornment,
+  IconButton,
+  Divider,
+} from "@mui/material";
 
-import { types } from './ApiStruct.ts';
-import { openUrl } from '@tauri-apps/plugin-opener';
-import { NotificationContext } from './Notification';
+import ContentCopyIcon from "@mui/icons-material/ContentCopy";
+import DeleteForeverIcon from "@mui/icons-material/DeleteForever";
+import { modalStyle, reloadOK, EscDownEvent, modalHandleClose } from "./Common";
+import ClearIcon from "@mui/icons-material/Clear";
+import { openUrl } from "@tauri-apps/plugin-opener";
+import { NotificationContext } from "./Notification";
 import {
   DataGrid,
+  GridCallbackDetails,
   GridPaginationModel,
+  GridSlotsComponent,
   GridSlotsComponentsProps,
   GridSortModel,
-} from '@mui/x-data-grid';
-
+} from "@mui/x-data-grid";
 import {
-  calMenuStyle,
+  ColumnWidth,
   ContextMenuContext,
-  datagridContainerHeight,
   handleCopyToClipboard,
   hexToString,
   hexTryToString,
+  ErrAndLoc,
+  saveAndSetSize,
+  SettingContext,
   stringToHex,
-  VisiableContext,
-} from './helper.ts';
-import { pageSizeOptions } from './CommonComp.tsx';
+  validJson,
+  SavePageSize,
+  MuiDataGridData,
+  extractFieldAndIDFromMouseEvent,
+  dataGridStyle,
+  pageSizeOptions,
+  RedisTableType,
+  DataSourceKind,
+  newEmptyResp,
+  secondConfirm,
+} from "./helper.ts";
+import {
+  AppColumnMenu,
+  ModalHeader,
+  ResetColumnWidth,
+  TimeDuration,
+} from "./CommonComp.tsx";
+import { editor, Position } from "monaco-editor";
+import {
+  SliderSize,
+  SimpleFlexEditor,
+  TableAddButton,
+  AppDataGridPagination,
+  AppDataGridToolBar,
+  LastFetchTime,
+  QueryStatus,
+  StackRowCenter,
+  getSliderSizeStoreValue,
+} from "./CommonComp2.tsx";
+import { invoke } from "@tauri-apps/api/core";
+import { showTable } from "./handlers.ts";
+import { AddTableView } from "./LeftTable.tsx";
 
 class RedisZsetHashModifyReq {
   constructor(
     public oldKey: string,
     public newKey: string,
-    public value: string
+    public value: string,
   ) {}
 }
 
 enum RedisEditorMode {
-  Hex,
-  Text,
-  Json,
+  Hex = "hex",
+  Text = "text",
+  Json = "json",
 }
 
-function RedisAddList(props: {
-  lpushOP: (value: string) => Promise<void>;
-  rpushOP: (value: string) => Promise<void>;
-}) {
-  const { lpushOP, rpushOP } = props;
+type ListPushDirection = "left" | "right";
+function RedisAddList(props: { uuid: string; listKey: string }) {
+  const { uuid, listKey } = props;
+
+  const lpushOP = async value => {
+    return await invoke("redis_list_lpush", {
+      name: uuid,
+      key: listKey,
+      value,
+    });
+  };
+  const rpushOP = async value => {
+    return await invoke("redis_list_rpush", {
+      name: uuid,
+      key: listKey,
+      value,
+    });
+  };
   const [loading, setLoading] = useState(false);
-  const [direction, setDirection] = useState<'left' | 'right'>('left');
-  const [key, setKey] = useState('');
+  const [direction, setDirection] = useState<ListPushDirection>("left");
   const { showNotification } = useContext(NotificationContext);
+  const valueRef = useRef(new EditorAndMode());
   const handleAdd = () => {
-    // reset some state
+    const content = valueRef.current.getValue();
+    if (!content) {
+      showNotification("warning", "Please input value");
+      return;
+    }
     setLoading(true);
-    (direction == 'left' ? lpushOP : rpushOP)(key)
+    (direction == "left" ? lpushOP : rpushOP)(content)
       .then(() => {
-        showNotification('success', 'Push OK');
+        showNotification("success", "Push OK");
       })
-      .catch((e) => {
-        showNotification('error', 'Push OK', e);
+      .catch(e => {
+        showNotification("error", "Push Failure", e);
       })
       .finally(() => {
         setLoading(false);
       });
   };
   return (
-    <Stack spacing={1}>
-      <Stack direction="row" style={{ alignItems: 'center' }} spacing={1}>
+    <Stack style={{ height: "100%" }}>
+      <StackRowCenter>
         <Typography color="info"> direction: </Typography>
         <RadioGroup
           row
           onChange={(_e, value) => {
-            //@ts-ignore
-            setDirection(value);
+            setDirection(value as ListPushDirection);
           }}
           value={direction}
         >
           <FormControlLabel value="left" control={<Radio />} label="head" />
           <FormControlLabel value="right" control={<Radio />} label="tail" />
         </RadioGroup>
-      </Stack>
+      </StackRowCenter>
 
-      <RedisValueEditor
-        handleValue={(e) => setKey(e)}
-        editorHeight="60vh"
-      ></RedisValueEditor>
+      <RedisValueEditor valueRef={valueRef} />
 
-      <Stack direction="row" spacing={1}>
-        <Button
-          loading={loading}
-          color="primary"
-          variant="contained"
-          onClick={handleAdd}
-        >
+      <Stack direction="row">
+        <Button loading={loading} color="primary" onClick={handleAdd}>
           push
         </Button>
       </Stack>
@@ -132,43 +166,65 @@ function RedisAddList(props: {
   );
 }
 
-function RedisStringTable(props: {
-  modifyOP: (content: string) => Promise<void>;
-  content: string;
-}) {
-  const { modifyOP, content } = props;
-  const [newContent, setNewConent] = useState(content);
+function RedisStringTable(props: { uuid: string; stringKey: string }) {
+  const { uuid, stringKey } = props;
+  const modifyOP = async value => {
+    return await invoke("redis_string_set", {
+      name: uuid,
+      key: stringKey,
+      value,
+    });
+  };
+  const [content, setContent] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const { showNotification } = useContext(NotificationContext);
-  const handleModify = () => {
+  const valueRef = useRef(new EditorAndMode());
+  const [queryStatus, setQueryStatus] = useState("");
+  useEffect(() => {
+    showTable({
+      uuid,
+      name: stringKey,
+      showNotification,
+      handleResult: resp => {
+        setContent(resp.data[0]["result"]);
+      },
+      setStatus: setQueryStatus,
+      setLoading,
+    });
+  }, [showNotification, stringKey, uuid]);
+
+  const handleModify = async () => {
+    const confirm = await secondConfirm({ title: "sure to modify?" });
+    if (!confirm) {
+      return;
+    }
     setLoading(true);
-    modifyOP(newContent)
+    modifyOP(valueRef.current.getValue())
       .then(() => {
-        showNotification('success', 'Modify OK');
+        showNotification("success", "Modify OK");
       })
-      .catch((e) => {
-        showNotification('error', 'Modify failure', e);
+      .catch(e => {
+        showNotification("error", "Modify failure", e);
       })
       .finally(() => {
         setLoading(false);
       });
   };
-
   return (
-    <Stack spacing={1}>
-      <RedisValueEditor
-        oldValue={newContent}
-        handleValue={(e) => {
-          setNewConent(e);
-        }}
-        editorHeight="60vh"
-      ></RedisValueEditor>
-
-      <Stack width="100px" direction="row" spacing={1}>
+    <Stack
+      style={{
+        overflow: "auto",
+        height: "100%",
+      }}
+    >
+      <QueryStatus status={queryStatus} />
+      {typeof content == "string" && (
+        <RedisValueEditor value={content} valueRef={valueRef} />
+      )}
+      <Stack direction="row">
         <Button
           loading={loading}
           color="primary"
-          variant="contained"
           onClick={() => {
             handleModify();
           }}
@@ -180,42 +236,43 @@ function RedisStringTable(props: {
   );
 }
 
-function RedisAddSet(props: { addOP: (key: string) => Promise<void> }) {
-  let { addOP } = props;
+function RedisAddSet(props: { uuid: string; setKey: string }) {
+  const { uuid, setKey } = props;
+
+  const addOP = async member => {
+    return await invoke("redis_set_add", {
+      name: uuid,
+      key: setKey,
+      member,
+    });
+  };
   const [loading, setLoading] = useState(false);
-  const [key, setKey] = useState('');
+  const valueRef = useRef(new EditorAndMode());
   const { showNotification } = useContext(NotificationContext);
   const handleAdd = () => {
-    // reset some state
+    const c = valueRef.current.getValue();
+    if (!c) {
+      showNotification("warning", "please input value");
+      return;
+    }
     setLoading(true);
-    addOP(key)
+    addOP(c)
       .then(() => {
-        showNotification('success', 'Add ok');
+        showNotification("success", "Add ok");
       })
-      .catch((e) => {
-        showNotification('error', 'Add error', e);
+      .catch(e => {
+        showNotification("error", "Add error", e);
       })
       .finally(() => {
         setLoading(false);
       });
   };
-
   return (
-    <Stack spacing={1}>
-      <RedisValueEditor
-        handleValue={(e) => {
-          setKey(e);
-        }}
-        editorHeight="60vh"
-      ></RedisValueEditor>
+    <Stack style={{ height: "100%" }}>
+      <RedisValueEditor valueRef={valueRef} />
 
-      <Stack direction="row" spacing={1}>
-        <Button
-          color="primary"
-          variant="contained"
-          loading={loading}
-          onClick={handleAdd}
-        >
+      <Stack direction="row">
+        <Button color="primary" loading={loading} onClick={handleAdd}>
           add
         </Button>
       </Stack>
@@ -223,24 +280,29 @@ function RedisAddSet(props: { addOP: (key: string) => Promise<void> }) {
   );
 }
 
-function RedisAddHash(props: {
-  addOP: (key: string, value: string) => Promise<void>;
-}) {
-  let { addOP } = props;
-  const [loading, setLoading] = useState(false);
-  const [value, setValue] = useState('');
-  const [key, setKey] = useState('');
+function RedisAddHash(props: { uuid: string; hashKey: string }) {
+  const { uuid, hashKey } = props;
 
+  const addOP = async (member, value) => {
+    return await invoke("redis_hash_add", {
+      name: uuid,
+      key: hashKey,
+      member,
+      value,
+    });
+  };
+  const [loading, setLoading] = useState(false);
+  const key = useRef(new EditorAndMode());
+  const value = useRef(new EditorAndMode());
   const { showNotification } = useContext(NotificationContext);
   const handleAdd = () => {
-    // reset some state
     setLoading(true);
-    addOP(key, value)
+    addOP(key.current.getValue(), value.current.getValue())
       .then(() => {
-        showNotification('success', 'Add OK');
+        showNotification("success", "Add OK");
       })
-      .catch((e) => {
-        showNotification('success', 'Add Error', e);
+      .catch(e => {
+        showNotification("error", "Add Error", e);
       })
       .finally(() => {
         setLoading(false);
@@ -248,58 +310,48 @@ function RedisAddHash(props: {
   };
 
   return (
-    <Stack spacing={1}>
-      <RedisValueEditor
-        oldValue={key}
-        handleValue={(e) => {
-          setKey(e);
-        }}
-        editorHeight="40vh"
-        header=<span color="info"> key </span>
-      ></RedisValueEditor>
+    <Stack height={"100%"}>
+      <div style={{ flex: 1, display: "flex", flexDirection: "column" }}>
+        <RedisValueEditor value="" header="key" valueRef={key} />
+      </div>
+      <div style={{ flex: 1.5, display: "flex", flexDirection: "column" }}>
+        <RedisValueEditor value="" valueRef={value} header="value" />
+      </div>
 
-      <RedisValueEditor
-        oldValue={value}
-        handleValue={(e) => {
-          setValue(e);
-        }}
-        editorHeight="40vh"
-        header=<span color="info"> value </span>
-      ></RedisValueEditor>
-
-      <Stack direction="row" spacing={1}>
-        <Button
-          loading={loading}
-          color="primary"
-          variant="contained"
-          onClick={handleAdd}
-        >
+      <Stack direction="row">
+        <Button loading={loading} color="primary" onClick={handleAdd}>
           Add
         </Button>
       </Stack>
     </Stack>
   );
 }
-function RedisAddZset(props: {
-  addOP: (key: string, value: number) => Promise<void>;
-}) {
-  let { addOP } = props;
-  const [loading, setLoading] = useState(false);
-  const [score, setScore] = useState('');
-  const [key, setKey] = useState('');
-  const [scoreErr, setScoreErr] = useState(false);
+function RedisAddZset(props: { uuid: string; zsetKey: string }) {
+  const { uuid, zsetKey } = props;
 
+  const addOP = async (member, value) => {
+    return await invoke("redis_zset_add", {
+      name: uuid,
+      key: zsetKey,
+      member,
+      value,
+    });
+  };
+
+  const [loading, setLoading] = useState(false);
+  const [score, setScore] = useState("");
+  const valueRef = useRef(new EditorAndMode());
   const { showNotification } = useContext(NotificationContext);
 
   const handleAdd = () => {
     // reset some state
     setLoading(true);
-    addOP(key, parseFloat(score))
+    addOP(valueRef.current.getValue(), parseFloat(score))
       .then(() => {
-        showNotification('success', 'Add OK');
+        showNotification("success", "Add OK");
       })
-      .catch((e) => {
-        showNotification('success', 'Add Failure', e);
+      .catch(e => {
+        showNotification("error", "Add Failure", e);
       })
       .finally(() => {
         setLoading(false);
@@ -307,35 +359,37 @@ function RedisAddZset(props: {
   };
 
   return (
-    <Stack spacing={1}>
-      <TextField
-        size="small"
-        value={score}
-        label="score"
-        error={scoreErr}
-        helperText="put a valid float64 value"
-        onChange={(event) => {
-          setScore(event.target.value);
-          setScoreErr(isNaN(parseFloat(event.target.value)));
-        }}
-      ></TextField>
-
-      <RedisValueEditor
-        handleValue={(e) => {
-          setKey(e);
-        }}
-        editorHeight="60vh"
-      ></RedisValueEditor>
-
-      <Stack direction="row" spacing={1}>
-        <Button
-          loading={loading}
-          color="primary"
-          variant="contained"
-          onClick={handleAdd}
-        >
+    <Stack style={{ height: "100%" }}>
+      <RedisValueEditor valueRef={valueRef} />
+      <Stack direction="row" style={{ alignItems: "flex-start" }}>
+        <Button loading={loading} color="primary" onClick={handleAdd}>
           Add
         </Button>
+        <TextField
+          value={score}
+          label="score"
+          error={score ? isNaN(parseFloat(score)) : false}
+          helperText="put a valid float64 value"
+          onChange={event => {
+            setScore(event.target.value);
+          }}
+          slotProps={{
+            input: {
+              endAdornment: score && (
+                <InputAdornment position="end">
+                  <IconButton
+                    onClick={() => {
+                      setScore("");
+                    }}
+                    edge="end"
+                  >
+                    <ClearIcon fontSize="small" />
+                  </IconButton>
+                </InputAdornment>
+              ),
+            },
+          }}
+        />
       </Stack>
     </Stack>
   );
@@ -349,21 +403,29 @@ function RedisEditHash(props: {
 }) {
   const { oldKey, oldValue, modifyOP, handleClose } = props;
   const [loading, setLoading] = useState(false);
-  const [newKey, setNewKey] = useState(oldKey);
-  const [newValue, setNewValue] = useState(oldValue);
+  const newkey = useRef(new EditorAndMode());
+  const newValue = useRef(new EditorAndMode());
   const { showNotification } = useContext(NotificationContext);
 
-  const handleModify = () => {
-    // reset some state
+  const handleModify = async () => {
+    const confirm = await secondConfirm({ title: "sure to modify?" });
+    if (!confirm) {
+      return;
+    }
     setLoading(true);
-    modifyOP(new RedisZsetHashModifyReq(oldKey, newKey, newValue))
+    modifyOP(
+      new RedisZsetHashModifyReq(
+        oldKey,
+        newkey.current.getValue(),
+        newValue.current.getValue(),
+      ),
+    )
       .then(() => {
-        showNotification('success', 'Modify OK');
-
+        showNotification("success", "Modify OK");
         handleClose();
       })
-      .catch((e) => {
-        showNotification('success', 'Modify failure', e);
+      .catch(e => {
+        showNotification("error", "Modify failure", e);
       })
       .finally(() => {
         setLoading(false);
@@ -371,32 +433,16 @@ function RedisEditHash(props: {
   };
 
   return (
-    <Stack spacing={1}>
-      <RedisValueEditor
-        oldValue={newKey}
-        handleValue={(e) => {
-          setNewKey(e);
-        }}
-        editorHeight="29vh"
-        header=<span color="info"> key </span>
-      ></RedisValueEditor>
+    <Stack flex={1}>
+      <div style={{ flex: 1, display: "flex", flexDirection: "column" }}>
+        <RedisValueEditor value={oldKey} valueRef={newkey} header="key" />
+      </div>
+      <div style={{ flex: 1.6, display: "flex", flexDirection: "column" }}>
+        <RedisValueEditor value={oldValue} valueRef={newValue} header="value" />
+      </div>
 
-      <RedisValueEditor
-        oldValue={newValue}
-        handleValue={(e) => {
-          setNewValue(e);
-        }}
-        editorHeight="29vh"
-        header=<span color="info"> value </span>
-      ></RedisValueEditor>
-
-      <Stack direction="row" spacing={1}>
-        <Button
-          loading={loading}
-          color="primary"
-          variant="contained"
-          onClick={handleModify}
-        >
+      <Stack direction="row">
+        <Button loading={loading} color="primary" onClick={handleModify}>
           modify
         </Button>
       </Stack>
@@ -412,26 +458,25 @@ function RedisEditZset(props: {
 }) {
   const { oldKey, oldValue, modifyOP, handleClose } = props;
   const [loading, setLoading] = useState(false);
-
-  const [newKey, setNewKey] = useState(oldKey);
+  const newKey = useRef(new EditorAndMode());
   const [newValue, setNewValue] = useState(oldValue);
-  const [newValueErr, setNewValueErr] = useState(false);
   const { showNotification } = useContext(NotificationContext);
-
-  const handleModify = () => {
-    if (oldKey == newKey && oldValue == newValue) {
+  const handleModify = async () => {
+    if (oldKey == newKey.current.getValue() && oldValue == newValue) {
       return;
     }
-    // reset some state
+    const confirm = await secondConfirm({ title: "sure to modify?" });
+    if (!confirm) {
+      return;
+    }
     setLoading(true);
-
-    modifyOP(oldKey, newKey, parseInt(newValue))
+    modifyOP(oldKey, newKey.current.getValue(), parseInt(newValue))
       .then(() => {
-        showNotification('success', 'Modify OK');
+        showNotification("success", "Modify OK");
         handleClose();
       })
-      .catch((e) => {
-        showNotification('error', 'Modify Failure', e);
+      .catch(e => {
+        showNotification("error", "Modify Failure", e);
       })
       .finally(() => {
         setLoading(false);
@@ -439,39 +484,37 @@ function RedisEditZset(props: {
   };
 
   return (
-    <Stack spacing={1}>
-      <TextField
-        size="small"
-        value={newValue}
-        label="score"
-        error={newValueErr}
-        helperText="put a valid float64 value"
-        onChange={(event) => {
-          setNewValue(event.target.value);
-          if (isNaN(parseFloat(event.target.value))) {
-            setNewValueErr(true);
-          } else {
-            setNewValueErr(false);
-          }
-        }}
-      ></TextField>
-      <RedisValueEditor
-        oldValue={oldKey}
-        handleValue={(e) => {
-          setNewKey(e);
-        }}
-        editorHeight="60vh"
-      ></RedisValueEditor>
-
-      <Stack direction="row" spacing={1}>
-        <Button
-          loading={loading}
-          color="primary"
-          variant="contained"
-          onClick={handleModify}
-        >
+    <Stack flex={1}>
+      <RedisValueEditor value={oldKey} valueRef={newKey} />
+      <Stack direction="row" style={{ alignItems: "flex-start" }}>
+        <Button loading={loading} color="primary" onClick={handleModify}>
           modify
         </Button>
+        <TextField
+          value={newValue}
+          label="score"
+          error={newValue ? isNaN(parseFloat(newValue)) : false}
+          helperText="put a valid float64 value"
+          onChange={event => {
+            setNewValue(event.target.value);
+          }}
+          slotProps={{
+            input: {
+              endAdornment: newValue && (
+                <InputAdornment position="end">
+                  <IconButton
+                    onClick={() => {
+                      setNewValue("");
+                    }}
+                    edge="end"
+                  >
+                    <ClearIcon fontSize="small" />
+                  </IconButton>
+                </InputAdornment>
+              ),
+            },
+          }}
+        />
       </Stack>
     </Stack>
   );
@@ -483,88 +526,99 @@ function RedisEditModeSelect(props: {
 }) {
   const { mode, handleChange } = props;
   return (
-    <FormControl fullWidth>
-      <InputLabel id="simple-select-label">viewer</InputLabel>
-      <Select
-        size="small"
-        value={mode}
-        onChange={(e) => {
-          handleChange(e.target.value as RedisEditorMode);
-        }}
-        label="viewer"
-      >
-        <MenuItem value={RedisEditorMode.Text}>text</MenuItem>
-        <MenuItem value={RedisEditorMode.Json}>json</MenuItem>
-        <MenuItem value={RedisEditorMode.Hex}>hex</MenuItem>
-      </Select>
-    </FormControl>
+    <>
+      {[RedisEditorMode.Text, RedisEditorMode.Json, RedisEditorMode.Hex].map(e => {
+        return (
+          <Chip
+            key={e}
+            label={e}
+            onClick={() => {
+              handleChange(e);
+            }}
+            color={mode == e ? "success" : "default"}
+          />
+        );
+      })}
+    </>
   );
 }
 
+/// editor and edit mode use to get value
+class EditorAndMode {
+  editor: editor.IStandaloneCodeEditor;
+  mode: RedisEditorMode;
+  getValue() {
+    switch (this.mode) {
+      case RedisEditorMode.Hex:
+        return this.editor.getValue();
+      default:
+        return stringToHex(this.editor.getValue());
+    }
+  }
+}
+
 function RedisValueEditor(props: {
-  oldValue?: string;
-  handleValue: (a: string) => void;
-  editorHeight: string;
-  header?: ReactNode;
+  value?: string;
+  valueRef: RefObject<EditorAndMode>;
+  header?: string;
 }) {
-  let { oldValue, handleValue, editorHeight, header } = props;
-  const [newValue, setNewValue] = useState<string>('');
-  const [editModel, setEditModel] = useState<RedisEditorMode>(
-    RedisEditorMode.Text
-  );
+  const { value, valueRef, header } = props;
+  const [newValue, setNewValue] = useState<string>("");
+  const [editModel, setEditModel] = useState<RedisEditorMode>(RedisEditorMode.Text);
+  const [jsonErr, setJsonErr] = useState<ErrAndLoc>(null);
+  const [jsonErrPos, setJsonErrPos] = useState<Position>(null);
   useEffect(() => {
-    let value = hexTryToString(oldValue);
-    if (typeof value === 'string') {
+    const v = hexTryToString(value);
+    if (typeof v === "string") {
       let isJson = false;
       try {
-        isJson = typeof JSON.parse(value) == 'object';
-      } catch (e) {}
+        isJson = typeof JSON.parse(v) == "object";
+      } catch (e) {
+        if (import.meta.env.DEV) {
+          console.log("not valid json ", e, "we will use text mode");
+        }
+      }
       if (isJson) {
         setEditModel(RedisEditorMode.Json);
       } else {
         setEditModel(RedisEditorMode.Text);
       }
-      setNewValue(value);
+      setNewValue(v);
     } else {
       setEditModel(RedisEditorMode.Hex);
-      setNewValue(oldValue);
+      setNewValue(value);
     }
-  }, []);
-  useEffect(() => {
-    switch (editModel) {
-      case RedisEditorMode.Hex:
-        handleValue(newValue);
-        break;
-      default:
-        handleValue(stringToHex(newValue));
-    }
-  }, [newValue]);
+  }, [value]);
 
+  // check if json ok
+  useEffect(() => {
+    if (editModel != RedisEditorMode.Json) {
+      setJsonErr(null);
+      return;
+    }
+    validJson(newValue).then(e => {
+      setJsonErr(e);
+    });
+  }, [newValue, editModel]);
+  useEffect(() => {
+    valueRef.current.mode = editModel;
+  }, [editModel, valueRef]);
   return (
-    <Stack spacing={1}>
-      <Stack direction="row" spacing={1} style={{ alignItems: 'center' }}>
-        {header}
-        {editModel == RedisEditorMode.Hex && (
-          <>
-            <span style={{ width: '18rem', textAlign: 'center' }}>
-              looking for hex editor???
-            </span>
-            <Chip
-              label="try hexed.it"
-              onClick={() => {
-                openUrl('https://hexed.it/');
-              }}
-              size="small"
-            ></Chip>
-          </>
-        )}
+    <Stack flex={1}>
+      <StackRowCenter>
+        <Typography
+          variant="h6"
+          color="info"
+          style={{ fontWeight: "bold", textDecoration: "underline" }}
+        >
+          {header}
+        </Typography>
         <RedisEditModeSelect
           mode={editModel}
-          handleChange={(mode) => {
+          handleChange={mode => {
             if (
               mode == RedisEditorMode.Hex &&
-              (editModel == RedisEditorMode.Json ||
-                editModel == RedisEditorMode.Text)
+              (editModel == RedisEditorMode.Json || editModel == RedisEditorMode.Text)
             ) {
               setNewValue(stringToHex(newValue));
             }
@@ -575,71 +629,93 @@ function RedisValueEditor(props: {
               setNewValue(hexToString(newValue));
             setEditModel(mode);
           }}
-        ></RedisEditModeSelect>
-      </Stack>
-
-      <SimpleResizeEditor
-        language={editModel == RedisEditorMode.Json ? 'json' : 'text'}
-        // in some times newvalue is not change as a string
-        value={typeof newValue == 'object' ? '' : newValue}
-        onMount={(editor) => {
-          editor.onDidChangeModelContent(() => {
-            const value = editor.getValue();
-            setNewValue(value);
-          });
+        />
+        {editModel == RedisEditorMode.Hex && (
+          <>
+            <span>looking for hex editor???</span>
+            <Chip
+              label="try hexed.it"
+              onClick={() => {
+                openUrl("https://hexed.it/");
+              }}
+            />
+          </>
+        )}
+      </StackRowCenter>
+      <SimpleFlexEditor
+        language={editModel == RedisEditorMode.Json ? "json" : "text"}
+        value={newValue}
+        handleValue={v => {
+          setNewValue(v);
         }}
-        wordWrap="on"
-        style={{ height: editorHeight }}
-      ></SimpleResizeEditor>
+        handleEditor={ed => {
+          valueRef.current.editor = ed;
+        }}
+        errPos={jsonErrPos}
+        barLeft={
+          jsonErr ? (
+            <Typography
+              color="error"
+              variant="body1"
+              style={{ cursor: "pointer" }}
+              onClick={() => {
+                if (!jsonErr) {
+                  return;
+                }
+                setJsonErrPos(new Position(jsonErr.line, jsonErr.column));
+              }}
+            >
+              {jsonErr.msg}
+            </Typography>
+          ) : undefined
+        }
+      />
+      {editModel == RedisEditorMode.Hex && (
+        <Stack>
+          <Divider />
+          <pre style={{ maxHeight: "10vh", overflow: "auto" }}>
+            {hexToString(newValue)}
+          </pre>
+        </Stack>
+      )}
     </Stack>
   );
 }
 
 function RedisEditList(props: {
-  modifyOP: (index: number, newValue: string) => Promise<void>;
+  modifyOP: (newValue: string) => Promise<void>;
   oldValue: string;
-  index: number;
   handleClose: () => void;
 }) {
-  let { oldValue, modifyOP, handleClose, index } = props;
+  const { oldValue, modifyOP, handleClose } = props;
   const [loading, setLoading] = useState(false);
-  const [newValue, setNewValue] = useState('');
+  const newValue = useRef(new EditorAndMode());
   const { showNotification } = useContext(NotificationContext);
 
   // really modify the content.
-  const handleModify = () => {
+  const handleModify = async () => {
+    const confirm = await secondConfirm({ title: "sure to modify?" });
+    if (!confirm) {
+      return;
+    }
     setLoading(true);
-    modifyOP(index, newValue)
+    modifyOP(newValue.current.getValue())
       .then(() => {
-        setNewValue('');
-        showNotification('success', 'Modify OK', '');
+        showNotification("success", "Modify OK", "");
         handleClose();
       })
-      .catch((e) => {
-        showNotification('success', 'Modify Failure', e);
+      .catch(e => {
+        showNotification("error", "Modify Failure", e);
       })
       .finally(() => {
         setLoading(false);
       });
   };
-
   return (
-    <Stack spacing={1}>
-      <RedisValueEditor
-        oldValue={oldValue}
-        handleValue={(e) => {
-          setNewValue(e);
-        }}
-        editorHeight="60vh"
-      ></RedisValueEditor>
-      <Stack direction="row" spacing={1}>
-        <Button
-          loading={loading}
-          color="primary"
-          variant="contained"
-          disabled={newValue == ''}
-          onClick={handleModify}
-        >
+    <Stack flex={1}>
+      <RedisValueEditor value={oldValue} valueRef={newValue} />
+      <Stack direction="row">
+        <Button loading={loading} color="primary" onClick={handleModify}>
           modify
         </Button>
       </Stack>
@@ -652,22 +728,24 @@ function RedisEditSet(props: {
   oldValue: string;
   handleClose: () => void;
 }) {
-  let { oldValue, modifyOP, handleClose } = props;
+  const { oldValue, modifyOP, handleClose } = props;
   const [loading, setLoading] = useState(false);
-  const [newValue, setNewValue] = useState('');
+  const newValue = useRef(new EditorAndMode());
   const { showNotification } = useContext(NotificationContext);
 
-  // really modify the content.
-  const handleModify = () => {
+  const handleModify = async () => {
+    const confirm = await secondConfirm({ title: "sure to modify?" });
+    if (!confirm) {
+      return;
+    }
     setLoading(true);
-    modifyOP(oldValue, newValue)
+    modifyOP(oldValue, newValue.current.getValue())
       .then(() => {
-        setNewValue('');
-        showNotification('success', 'Modify OK');
+        showNotification("success", "Modify OK");
         handleClose();
       })
-      .catch((e) => {
-        showNotification('success', 'Modify Failure', e);
+      .catch(e => {
+        showNotification("error", "Modify Failure", e);
       })
       .finally(() => {
         setLoading(false);
@@ -675,22 +753,10 @@ function RedisEditSet(props: {
   };
 
   return (
-    <Stack spacing={1}>
-      <RedisValueEditor
-        oldValue={oldValue}
-        handleValue={(e) => {
-          setNewValue(e);
-        }}
-        editorHeight="60vh"
-      ></RedisValueEditor>
-      <Stack direction="row" spacing={1}>
-        <Button
-          loading={loading}
-          color="primary"
-          variant="contained"
-          disabled={newValue == ''}
-          onClick={handleModify}
-        >
+    <Stack flex={1}>
+      <RedisValueEditor value={oldValue} valueRef={newValue} />
+      <Stack direction="row">
+        <Button loading={loading} color="primary" onClick={handleModify}>
           modify
         </Button>
       </Stack>
@@ -698,117 +764,144 @@ function RedisEditSet(props: {
   );
 }
 
-function redisRenderCell(p: any) {
-  let value = hexTryToString(p);
-  if (typeof value === 'string') {
-    return value;
-  } else {
-    return 'BINARY HEX ' + p;
-  }
-}
-
 function RedisSetTableContextMenu(props: { delOP: () => void; content }) {
   const { delOP, content } = props;
   const { showNotification } = useContext(NotificationContext);
   return (
-    <Paper>
-      <MenuList>
-        {content && (
-          <MenuItem
-            onClick={() => {
-              handleCopyToClipboard(content, showNotification);
-            }}
-          >
-            <ListItemIcon>
-              <ContentCopyIcon></ContentCopyIcon>
-            </ListItemIcon>
-            <ListItemText> Copy </ListItemText>
-          </MenuItem>
-        )}
-
+    <MenuList>
+      {content && (
         <MenuItem
           onClick={() => {
-            delOP();
+            handleCopyToClipboard(content, showNotification);
           }}
         >
           <ListItemIcon>
-            <DeleteForeverIcon></DeleteForeverIcon>
+            <ContentCopyIcon />
           </ListItemIcon>
-          <ListItemText> Delete </ListItemText>
+          <ListItemText> Copy </ListItemText>
         </MenuItem>
-      </MenuList>
-    </Paper>
+      )}
+
+      <MenuItem
+        onClick={() => {
+          delOP();
+        }}
+      >
+        <ListItemIcon>
+          <DeleteForeverIcon />
+        </ListItemIcon>
+        <ListItemText> Delete </ListItemText>
+      </MenuItem>
+    </MenuList>
   );
 }
 
-function RedisSetTable(props: {
-  reloadOP: (keyMatch: string) => Promise<types.MuiDataGridData>;
-  modifyOP: (oldvalue: string, newValue: string) => Promise<void>;
+function LimitMaxRowNotice() {
+  return <Stack> limit the max row retrun. </Stack>;
+}
 
-  delOP: (value: string) => Promise<void>;
-}) {
-  const { reloadOP, modifyOP, delOP } = props;
-  const [keyMatch, setKeyMatch] = useState('');
-  const [resp, setResp] = useState<types.MuiDataGridData | null>(null);
-  const { showNotification } = useContext(NotificationContext);
-  const [selectRow, setSelectRow] = useState(null);
-  const [loading, setLoading] = useState(false);
-  const handleReload = (showOK) => {
-    setLoading(true);
-    reloadOP(keyMatch)
-      .then((resp) => {
-        resp.data.forEach((e) => {
-          e.id = uuidv4();
-        });
-        resp.fields[0]['flex'] = 1;
-        resp.fields[0]['renderCell'] = (p) => {
-          return redisRenderCell(p.row.value);
-        };
-        setResp(resp);
-        if (showOK) {
-          reloadOK(showNotification);
-        }
-      })
-      .catch((e) => {
-        showNotification('error', 'load data error', e);
-      })
-      .finally(() => {
-        setLoading(false);
-      });
+const keyMatcherHelpText = "key matcher string,could be *key,key*,*key*";
+
+function RedisSetTable(props: { setKey: string; uuid: string }) {
+  const { setKey, uuid } = props;
+  const modifyOP = async (old, newValue) => {
+    return await invoke("redis_set_replace", {
+      name: uuid,
+      key: setKey,
+      old,
+      new: newValue,
+    });
   };
+  const delOP = useCallback(
+    async (member: string) => {
+      return await invoke("redis_set_del", {
+        name: uuid,
+        key: setKey,
+        member,
+      });
+    },
+    [setKey, uuid],
+  );
+  const [keyMatch, setKeyMatch] = useState("");
+  const [resp, setResp] = useState<MuiDataGridData>(null);
+  const [lastFetchTime, setLastFetchTime] = useState(new Date());
+  useEffect(() => {
+    setLastFetchTime(new Date());
+  }, [resp]);
+  const [fetchDur, setFetchDur] = useState(0);
+  const { showNotification } = useContext(NotificationContext);
+  const [selectRow, setSelectRow] = useState<{ id; value }>(null);
+  const [loading, setLoading] = useState(false);
+  const maxRowRef = useRef(getSliderSizeStoreValue(redisMaxRowKey, redisMinRow));
+  const [queryStatus, setQueryStatus] = useState("");
+  const handleReload = useCallback(
+    showOK => {
+      setLoading(true);
+      showTable({
+        uuid,
+        name: setKey,
+        setLoading,
+        para: { limit: maxRowRef.current, where_str: keyMatch ? keyMatch : null },
+        handleExecuteTime: t => {
+          setFetchDur(t);
+        },
+        showNotification,
+        okCallBack: () => {
+          if (showOK) {
+            reloadOK(showNotification);
+          }
+        },
+        setStatus: setQueryStatus,
+        handleResult: resp => {
+          resp.data.forEach((e, index) => {
+            e["id"] = index;
+          });
+          resp.fields[0]["flex"] = 1;
+          resp.fields[0]["valueGetter"] = valueGetter;
+          setResp(resp);
+        },
+      });
+    },
+    [keyMatch, setKey, showNotification, uuid],
+  );
 
   useEffect(() => {
     handleReload(false);
-  }, []);
+  }, [handleReload]);
 
-  const handleDel = async (id: string) => {
-    let del = resp.data.find((e) => e['id'] == id);
-    try {
-      await delOP(del.value);
-      showNotification('success', 'Delete OK');
-    } catch (e) {
-      showNotification('error', 'delete failure', e);
-    }
-
-    handleReload(false);
-  };
-  const onRowDoubleClick = useCallback((e) => {
+  const handleDel = useCallback(
+    async (id: string) => {
+      const confirm = await secondConfirm({ title: "sure to delete?" });
+      if (!confirm) {
+        return;
+      }
+      const del = resp.data.find(e => e["id"] == id);
+      try {
+        await delOP(del.value);
+        showNotification("success", "Delete OK");
+      } catch (e) {
+        showNotification("error", "delete failure", e);
+      }
+      handleReload(false);
+    },
+    [delOP, handleReload, resp, showNotification],
+  );
+  const onRowDoubleClick = useCallback(e => {
     setSelectRow(e.row);
   }, []);
 
-  const vis = useContext(VisiableContext);
   const { setUpMenu } = useContext(ContextMenuContext);
+  const setting = useContext(SettingContext);
   const slotProps = useMemo(() => {
     return {
       row: {
-        onContextMenu: (e) => {
-          const { currentTarget, target } = e;
-          let content = (target as HTMLDivElement).innerHTML;
-          let id = (currentTarget as HTMLDivElement).getAttribute('data-id');
-          let field = (target as HTMLDivElement).getAttribute('data-field');
-          if (!field) {
+        onContextMenu: e => {
+          const { target } = e;
+          const { field, id } = extractFieldAndIDFromMouseEvent(e);
+          if (field) {
             return;
           }
+          const content = (target as HTMLDivElement).innerHTML;
           setUpMenu({
             content: (
               <RedisSetTableContextMenu
@@ -816,31 +909,71 @@ function RedisSetTable(props: {
                 delOP={() => {
                   handleDel(id);
                 }}
-              ></RedisSetTableContextMenu>
+              />
             ),
-            style: calMenuStyle(e, 200),
+            event: e,
           });
         },
-        style: { cursor: 'context-menu' },
+        style: { cursor: "context-menu" },
+      },
+      toolbar: {
+        csvOptions: {
+          delimiter: setting.export.csvDelimiter,
+          includeHeaders: setting.export.includeHeader,
+        },
       },
     } as GridSlotsComponentsProps;
-  }, [resp]);
-  const settings = useContext(SettingContext);
+  }, [handleDel, setUpMenu, setting.export.csvDelimiter, setting.export.includeHeader]);
+
+  const [modifyModalBox, setModifyModalBox] = useState<HTMLDivElement | null>(null);
+  useEffect(() => {
+    if (modifyModalBox) {
+      const clean = saveAndSetSize(modifyModalBox, "redis-edit");
+      return clean;
+    }
+  }, [modifyModalBox]);
+  const slots = useMemo(() => {
+    return {
+      columnMenu: AppColumnMenu,
+      toolbar: () => {
+        return <AppDataGridToolBar left=<></> title={setKey} />;
+      },
+      pagination: () => {
+        return (
+          <Stack
+            direction="row"
+            style={{
+              alignItems: "center",
+              justifyContent: "space-between",
+              flex: 1,
+            }}
+          >
+            <Stack style={{ flex: 1, alignItems: "center" }} direction="row">
+              <LastFetchTime date={lastFetchTime} />
+              <TimeDuration dur={fetchDur} />
+              <SliderSize
+                storeKey={redisMaxRowKey}
+                min={redisMinRow}
+                max={50000}
+                step={1000}
+                handleValue={v => {
+                  maxRowRef.current = v;
+                }}
+                notice=<LimitMaxRowNotice />
+              />
+              <DoubleClickToModify />
+            </Stack>
+            <AppDataGridPagination showPageSelect />
+          </Stack>
+        );
+      },
+    } as Partial<GridSlotsComponent>;
+  }, [fetchDur, lastFetchTime, setKey]);
   return (
-    <Stack spacing={1}>
-      <Stack direction="row" spacing={1} alignItems="center">
-        <TextField
-          size="small"
-          label="key match could be *key,key*,*key*"
-          variant="outlined"
-          value={keyMatch}
-          onChange={(event) => {
-            setKeyMatch(event.target.value);
-          }}
-          style={{ width: '35%' }}
-        />
+    <Stack style={{ height: "100%" }}>
+      <QueryStatus status={queryStatus} />
+      <StackRowCenter>
         <Button
-          variant="contained"
           color="primary"
           onClick={() => {
             handleReload(true);
@@ -849,63 +982,90 @@ function RedisSetTable(props: {
         >
           reload
         </Button>
-      </Stack>
+        <Tooltip title={keyMatcherHelpText}>
+          <TextField
+            label="key matcher"
+            value={keyMatch}
+            onChange={event => {
+              setKeyMatch(event.target.value);
+            }}
+            style={{ maxWidth: "15rem", flex: 1 }}
+            slotProps={{
+              input: {
+                endAdornment: keyMatch && (
+                  <InputAdornment position="end">
+                    <IconButton
+                      onClick={() => {
+                        setKeyMatch("");
+                      }}
+                      edge="end"
+                    >
+                      <ClearIcon fontSize="small" />
+                    </IconButton>
+                  </InputAdornment>
+                ),
+              },
+            }}
+          />
+        </Tooltip>
+        <AddTable uuid={uuid} redisKey={setKey} redisType={RedisTableType.Set} />{" "}
+      </StackRowCenter>
 
-      {resp && vis && (
-        <div
-          style={{
-            display: 'grid',
-            height: datagridContainerHeight(resp.data.length),
-          }}
-        >
-          <DataGrid
-            showCellVerticalBorder
-            showColumnVerticalBorder
-            slotProps={slotProps}
-            rowHeight={settings.datagridRowHeight}
-            columnHeaderHeight={settings.datagridHeaderHeight}
-            rows={resp.data}
-            editMode="row"
-            checkboxSelection={false}
-            onRowDoubleClick={onRowDoubleClick}
-            columns={resp.fields}
-            disableColumnFilter
-          ></DataGrid>
-        </div>
+      {resp && (
+        <DataGrid
+          slots={slots}
+          slotProps={slotProps}
+          rows={resp.data}
+          editMode="row"
+          checkboxSelection={false}
+          onRowDoubleClick={onRowDoubleClick}
+          columns={resp.fields}
+          paginationMode="client"
+          disableColumnFilter
+          style={dataGridStyle}
+          loading={loading}
+        />
       )}
 
       {selectRow && (
         <Modal
           open={!!selectRow}
-          onClose={(e: EscDownEvent, reason) => {
-            if (reason === 'backdropClick') {
-              return;
-            }
-
+          onClose={modalHandleClose((e: EscDownEvent) => {
             e.preventDefault();
             setSelectRow(null);
-          }}
+          })}
         >
-          <Box sx={modalStyle} width="80%">
+          <Box
+            sx={{ resize: "both", ...modalStyle }}
+            width="80%"
+            ref={setModifyModalBox}
+            height="70vh"
+          >
+            <ModalHeader
+              handleClose={() => {
+                setSelectRow(null);
+              }}
+              title="Edit Set value"
+            />
             <RedisEditSet
               modifyOP={async (oldValue, newValue) => {
-                try {
-                  await modifyOP(oldValue, newValue);
-                } catch (e) {
-                  throw e;
-                }
-                //@ts-ignore
-                selectRow.value = newValue;
-                handleReload(false);
+                modifyOP(oldValue, newValue);
+                const idx = resp.data.findIndex(e => e["id"] == selectRow.id);
+                setResp({
+                  ...resp,
+                  data: resp.data.map((e, index) => {
+                    if (index == idx) {
+                      e.value = newValue;
+                    }
+                    return e;
+                  }),
+                });
               }}
-              //@ts-ignore
-              key={selectRow.id}
-              //@ts-ignore
               oldValue={selectRow.value}
               handleClose={() => {
                 setSelectRow(null);
               }}
-            ></RedisEditSet>
+            />
           </Box>
         </Modal>
       )}
@@ -918,11 +1078,11 @@ function RedisListTableContextMenu(props: {
   content;
 }) {
   const { delOP, content } = props;
-  const [count, setCount] = useState('1');
+  const [count, setCount] = useState("1");
   const [showDel, setShowDel] = useState(false);
   const { showNotification } = useContext(NotificationContext);
   return (
-    <Paper>
+    <div>
       <MenuList>
         {content && (
           <MenuItem
@@ -931,7 +1091,7 @@ function RedisListTableContextMenu(props: {
             }}
           >
             <ListItemIcon>
-              <ContentCopyIcon></ContentCopyIcon>
+              <ContentCopyIcon />
             </ListItemIcon>
             <ListItemText> Copy </ListItemText>
           </MenuItem>
@@ -943,7 +1103,7 @@ function RedisListTableContextMenu(props: {
           }}
         >
           <ListItemIcon>
-            <DeleteForeverIcon></DeleteForeverIcon>
+            <DeleteForeverIcon />
           </ListItemIcon>
           <ListItemText> Delete </ListItemText>
         </MenuItem>
@@ -952,40 +1112,42 @@ function RedisListTableContextMenu(props: {
       {showDel && (
         <Modal
           open={!!showDel}
-          onClose={(e: EscDownEvent, reason) => {
-            if (reason === 'backdropClick') {
-              return;
-            }
-
+          onClose={modalHandleClose((e: EscDownEvent) => {
             e.preventDefault();
             setShowDel(null);
-          }}
+          })}
         >
           <Box sx={modalStyle} width="40%">
-            <Stack spacing={1}>
+            <ModalHeader
+              title="Delete Redis List"
+              handleClose={() => {
+                setShowDel(null);
+              }}
+            />
+            <Stack>
               <TextField
-                size="small"
                 value={count}
                 label="delete count"
-                onChange={(e) => {
+                onChange={e => {
                   setCount(e.target.value);
                 }}
                 helperText=<span
-                  style={{ cursor: 'pointer' }}
+                  style={{ cursor: "pointer" }}
                   onClick={() => {
-                    openUrl('https://redis.io/docs/latest/commands/lrem/');
+                    openUrl("https://redis.io/docs/latest/commands/lrem/");
                   }}
                 >
                   count???
                 </span>
                 type="number"
-              ></TextField>
+              />
               <Stack direction="row">
                 <Button
                   onClick={async () => {
                     await delOP(parseInt(count));
                     setShowDel(false);
                   }}
+                  variant="outlined"
                 >
                   delete
                 </Button>
@@ -994,205 +1156,356 @@ function RedisListTableContextMenu(props: {
           </Box>
         </Modal>
       )}
-    </Paper>
+    </div>
   );
 }
 
-function RedisListTable(props: {
-  reloadOP: () => Promise<types.MuiDataGridData>;
-  modifyOP: (index: number, newValue: string) => Promise<void>;
-  delOP: (count: number, value: string) => Promise<void>;
+function AddTable(props: {
+  uuid: string;
+  redisKey: string;
+  redisType: RedisTableType;
 }) {
-  const { reloadOP, modifyOP, delOP } = props;
-  const [resp, setResp] = useState<types.MuiDataGridData | null>(null);
-  const [resp2, setResp2] = useState<types.MuiDataGridData | null>(null);
+  const { redisKey, redisType, uuid } = props;
+  const [showAdd, setShowAdd] = useState(false);
+  const [addModalBox, setAddModalBox] = useState<HTMLDivElement | null>(null);
+  useEffect(() => {
+    if (addModalBox) {
+      const clean = saveAndSetSize(addModalBox, "redis-add-" + redisType);
+      return clean;
+    }
+  }, [addModalBox, redisType]);
+  return (
+    <>
+      <TableAddButton handleAdd={() => setShowAdd(true)} />
+      {showAdd && (
+        <Modal
+          open={showAdd}
+          onClose={modalHandleClose((e: EscDownEvent) => {
+            e.preventDefault();
+            setShowAdd(false);
+          })}
+        >
+          <Box
+            sx={{ resize: "both", ...modalStyle }}
+            width="80%"
+            height="70vh"
+            ref={setAddModalBox}
+          >
+            <ModalHeader
+              noTextTransform
+              title={`add ${redisKey} `}
+              handleClose={() => {
+                setShowAdd(false);
+              }}
+            />
+            <AddTableView
+              uuid={uuid}
+              table={redisKey}
+              redisTableType={redisType}
+              kind={DataSourceKind.Redis}
+            />
+          </Box>
+        </Modal>
+      )}
+    </>
+  );
+}
+
+function RedisListTable(props: { listKey: string; uuid: string }) {
+  const { listKey, uuid } = props;
+  const modifyOP = async (index, value) => {
+    return await invoke("redis_list_set", {
+      name: uuid,
+      key: listKey,
+      value,
+      index,
+    });
+  };
+  const delOP = useCallback(
+    async (count, value) => {
+      return await invoke("redis_list_remove", {
+        name: uuid,
+        key: listKey,
+        value,
+        count,
+      });
+    },
+    [listKey, uuid],
+  );
+  const [resp, setResp] = useState<MuiDataGridData>(newEmptyResp());
+  const [lastFetchTime, setLastFetchTime] = useState(new Date());
+  useEffect(() => {
+    setLastFetchTime(new Date());
+  }, [resp]);
+  const [fetchDur, setFetchDur] = useState(0);
+  const [respOrigin, setRespOrigin] = useState<MuiDataGridData>(newEmptyResp());
   const [selectRow, setSelectRow] = useState<any>(null);
   const { showNotification } = useContext(NotificationContext);
-  const [pageSize, setPageSize] = useState(useContext(SettingContext).pageSize);
+  const [pageSize, setPageSize] = useState(SavePageSize.instance.get());
   const [page, setPage] = useState(0);
   const [loading, setLoading] = useState(false);
-
-  const handleReload = (showReloadOK: boolean) => {
-    setLoading(true);
-    reloadOP()
-      .then((resp) => {
-        resp.data.forEach((e) => {
-          e.id = uuidv4();
-        });
-        resp.fields[1]['sortable'] = false;
-        resp.fields[1]['flex'] = 1;
-        resp.fields[0]['flex'] = 1;
-        resp.fields[1]['renderCell'] = (p) => {
-          return redisRenderCell(p.row.value);
-        };
-        setResp(resp);
-        setResp2(resp);
-        if (showReloadOK) {
-          reloadOK(showNotification);
-        }
-      })
-      .catch((e) => {
-        showNotification('error', 'load data error', e);
-      })
-      .finally(() => {
-        setLoading(false);
+  const setting = useContext(SettingContext);
+  const [queryStatus, setQueryStatus] = useState("");
+  const handleReload = useCallback(
+    (showOk: boolean) => {
+      showTable({
+        uuid,
+        name: listKey,
+        setLoading,
+        showNotification,
+        okCallBack: showOk
+          ? () => {
+              showNotification("success", "reload OK");
+            }
+          : undefined,
+        handleExecuteTime: t => {
+          setFetchDur(t);
+        },
+        handleResult: resp => {
+          resp.data.forEach((e, index) => {
+            e["id"] = index;
+          });
+          const seqWidth = ColumnWidth.instance.get("seq");
+          if (seqWidth) {
+            resp.fields[0]["width"] = seqWidth;
+          }
+          resp.fields[1]["sortable"] = false;
+          resp.fields[1]["flex"] = 1;
+          resp.fields[1]["valueGetter"] = valueGetter;
+          setResp(resp);
+          setRespOrigin(resp);
+        },
+        setStatus: setQueryStatus,
       });
-  };
+    },
+    [listKey, showNotification, uuid],
+  );
 
   useEffect(() => {
     handleReload(false);
-  }, []);
+  }, [handleReload]);
 
-  const handleDel = async (id, deleteCount: number) => {
-    let del = resp.data.find((e) => e.id == id);
-    try {
-      await delOP(deleteCount, del.value);
-      showNotification('success', 'Delete OK');
-    } catch (e) {
-      showNotification('error', 'Delete failure', e);
-    }
-    handleReload(false);
-  };
+  const handleDel = useCallback(
+    async (id, deleteCount: number) => {
+      const confirm = await secondConfirm({ title: "sure to delete?" });
+      if (!confirm) {
+        return;
+      }
+      const del = resp.data.find(e => e.id == id);
+      try {
+        await delOP(deleteCount, del.value);
+        showNotification("success", "Delete OK");
+      } catch (e) {
+        showNotification("error", "Delete failure", e);
+      }
+      handleReload(false);
+    },
+    [delOP, handleReload, resp, showNotification],
+  );
 
-  const onRowDoubleClick = useCallback((e) => {
+  const onRowDoubleClick = useCallback(e => {
     setSelectRow(e.row);
   }, []);
 
-  const onPaginationModelChange = useCallback((x: GridPaginationModel) => {
-    setPage(x.page);
-    setPageSize(x.pageSize);
-  }, []);
+  const onPaginationModelChange = useCallback(
+    (e: GridPaginationModel, reason: GridCallbackDetails<"pagination">) => {
+      setPage(e.page);
+      setPageSize(e.pageSize);
+      if (reason.reason == "setPaginationModel") {
+        SavePageSize.instance.save(e.pageSize);
+      }
+    },
+    [],
+  );
+
   const paginationModel = useMemo(() => {
     return { page, pageSize };
   }, [page, pageSize]);
   const onSortModelChange = useCallback(
     (c: GridSortModel) => {
       if (c.length == 0) {
-        setResp(resp2);
+        setResp(respOrigin);
         return;
       }
-      let s = c[0];
+      const s = c[0];
       if (!s.sort) {
-        setResp(resp2);
+        setResp(respOrigin);
         return;
       }
-      if (s.sort == 'asc') {
-        setResp(resp2);
+      if (s.sort == "asc") {
+        setResp(respOrigin);
         return;
       }
       setResp({
-        sql: resp2.sql,
-        total: resp2.total,
-        fields: resp2.fields,
-        data: resp2.data.slice().reverse(),
-      } as types.MuiDataGridData);
+        sql: respOrigin.sql,
+        total: respOrigin.total,
+        fields: respOrigin.fields,
+        data: respOrigin.data.slice().reverse(),
+      } as MuiDataGridData);
     },
-    [resp2]
+    [respOrigin],
   );
-  const vis = useContext(VisiableContext);
+
   const { setUpMenu } = useContext(ContextMenuContext);
   const slotProps = useMemo(() => {
     return {
       row: {
-        onContextMenu: (e) => {
-          const { currentTarget, target } = e;
-          let content = (target as HTMLDivElement).innerHTML;
-          let id = (currentTarget as HTMLDivElement).getAttribute('data-id');
-          let field = (target as HTMLDivElement).getAttribute('data-field');
+        onContextMenu: e => {
+          const { target } = e;
+          const content = (target as HTMLDivElement).innerHTML;
+          const { id, field } = extractFieldAndIDFromMouseEvent(e);
           if (!field) {
             return;
           }
           setUpMenu({
             content: (
               <RedisListTableContextMenu
-                delOP={async (count) => {
+                delOP={async count => {
                   handleDel(id, count);
                 }}
                 content={content}
-              ></RedisListTableContextMenu>
+              />
             ),
-            style: calMenuStyle(e, 200),
+            event: e,
           });
         },
-        style: { cursor: 'context-menu' },
+        style: { cursor: "context-menu" },
+      },
+      toolbar: {
+        csvOptions: {
+          delimiter: setting.export.csvDelimiter,
+          includeHeaders: setting.export.includeHeader,
+        },
       },
     } as GridSlotsComponentsProps;
-  }, [resp]);
-  const setting = useContext(SettingContext);
-  return (
-    <Stack spacing={1}>
-      <Stack direction="row" spacing={1}>
-        <Button
-          variant="contained" // 可以是 'text', 'outlined', 或 'contained'
-          color="primary" // 主题颜色
-          onClick={() => {
-            handleReload(true);
-          }} // 点击事件处理
-          loading={loading}
-        >
-          reload
-        </Button>
-      </Stack>
-      {resp && vis && (
-        <div
-          style={{
-            display: 'grid',
-            height: datagridContainerHeight(resp.data.length),
-          }}
-        >
-          <DataGrid
-            loading={loading}
-            showCellVerticalBorder
-            showColumnVerticalBorder
-            slotProps={slotProps}
-            rowHeight={setting.datagridRowHeight}
-            columnHeaderHeight={setting.datagridHeaderHeight}
-            checkboxSelection={false}
-            disableMultipleRowSelection
-            disableColumnFilter
-            rows={resp.data}
-            columns={resp.fields}
-            paginationModel={paginationModel}
-            onRowDoubleClick={onRowDoubleClick}
-            pageSizeOptions={pageSizeOptions}
-            onPaginationModelChange={onPaginationModelChange}
-            sortingMode="server"
-            paginationMode="client"
-            onSortModelChange={onSortModelChange}
-          ></DataGrid>
-        </div>
-      )}
+  }, [handleDel, setUpMenu, setting.export.csvDelimiter, setting.export.includeHeader]);
 
+  const onColumnResize = useCallback(({ colDef, width }) => {
+    if (colDef.field == "seq") {
+      ColumnWidth.instance.save(colDef.field, width);
+    }
+  }, []);
+
+  const [modifyModalBox, setModifyModalBox] = useState<HTMLDivElement | null>(null);
+  useEffect(() => {
+    if (modifyModalBox) {
+      const clean = saveAndSetSize(modifyModalBox, "redis-edit");
+      return clean;
+    }
+  }, [modifyModalBox]);
+  const slots = useMemo(() => {
+    return {
+      columnMenu: AppColumnMenu,
+      toolbar: () => {
+        return (
+          <AppDataGridToolBar
+            left=<>
+              <Button
+                color="primary"
+                onClick={() => {
+                  handleReload(true);
+                }}
+                loading={loading}
+              >
+                reload
+              </Button>
+              <AddTable
+                uuid={uuid}
+                redisKey={listKey}
+                redisType={RedisTableType.List}
+              />
+            </>
+            title={listKey}
+          />
+        );
+      },
+      pagination: () => {
+        return (
+          <Stack
+            direction="row"
+            style={{
+              alignItems: "center",
+              justifyContent: "space-between",
+              flex: 1,
+            }}
+          >
+            <Stack style={{ alignItems: "center", flex: 1 }} direction="row">
+              <LastFetchTime date={lastFetchTime} />
+              <TimeDuration dur={fetchDur} />
+              <DoubleClickToModify />
+              <ResetColumnWidth />
+            </Stack>
+
+            <AppDataGridPagination showPageSelect />
+          </Stack>
+        );
+      },
+    } as Partial<GridSlotsComponent>;
+  }, [fetchDur, handleReload, lastFetchTime, listKey, loading, uuid]);
+  return (
+    <Stack style={{ height: "100%" }}>
+      <QueryStatus status={queryStatus} />
+      {resp && (
+        <DataGrid
+          slots={slots}
+          loading={loading}
+          slotProps={slotProps}
+          checkboxSelection={false}
+          disableMultipleRowSelection
+          disableColumnFilter
+          rows={resp.data}
+          onColumnResize={onColumnResize}
+          columns={resp.fields}
+          paginationModel={paginationModel}
+          onRowDoubleClick={onRowDoubleClick}
+          pageSizeOptions={pageSizeOptions}
+          onPaginationModelChange={onPaginationModelChange}
+          sortingMode="server"
+          paginationMode="client"
+          style={dataGridStyle}
+          onSortModelChange={onSortModelChange}
+        />
+      )}
       {selectRow && (
         <Modal
           open={!!selectRow}
-          onClose={(e: EscDownEvent, reason) => {
-            if (reason === 'backdropClick') {
-              return;
-            }
-
+          onClose={modalHandleClose((e: EscDownEvent) => {
             e.preventDefault();
             setSelectRow(null);
-          }}
+          })}
         >
-          <Box sx={modalStyle} width="80%">
-            <RedisEditList
-              modifyOP={async (index, newValue) => {
-                try {
-                  await modifyOP(index, newValue);
-                } catch (e) {
-                  throw e;
-                }
-                handleReload(false);
-                selectRow.value = newValue;
-              }}
-              key={selectRow.id}
-              oldValue={selectRow.value}
-              index={parseInt(selectRow.seq)}
+          <Box
+            sx={{ resize: "both", ...modalStyle }}
+            width="80%"
+            height="70vh"
+            ref={setModifyModalBox}
+          >
+            <ModalHeader
+              title="Edit List value"
               handleClose={() => {
                 setSelectRow(null);
               }}
-            ></RedisEditList>
+            />
+            <RedisEditList
+              modifyOP={async newValue => {
+                const index = parseInt(selectRow.seq);
+                modifyOP(index, newValue);
+                setResp({
+                  ...resp,
+                  data: resp.data.map((e, idx) => {
+                    if (index == idx) {
+                      e.value = newValue;
+                    }
+                    return e;
+                  }),
+                });
+              }}
+              key={selectRow.id}
+              oldValue={selectRow.value}
+              handleClose={() => {
+                setSelectRow(null);
+              }}
+            />
           </Box>
         </Modal>
       )}
@@ -1204,125 +1517,158 @@ function RedisZSetTableContextMenu(props: { delOP: () => void; content }) {
   const { delOP, content } = props;
   const { showNotification } = useContext(NotificationContext);
   return (
-    <Paper>
-      <MenuList>
-        {content && (
-          <MenuItem
-            onClick={() => {
-              handleCopyToClipboard(content, showNotification);
-            }}
-          >
-            <ListItemIcon>
-              <ContentCopyIcon></ContentCopyIcon>
-            </ListItemIcon>
-            <ListItemText> Copy </ListItemText>
-          </MenuItem>
-        )}
-
+    <MenuList>
+      {content && (
         <MenuItem
           onClick={() => {
-            delOP();
+            handleCopyToClipboard(content, showNotification);
           }}
         >
           <ListItemIcon>
-            <DeleteForeverIcon></DeleteForeverIcon>
+            <ContentCopyIcon />
           </ListItemIcon>
-          <ListItemText> Delete </ListItemText>
+          <ListItemText> Copy </ListItemText>
         </MenuItem>
-      </MenuList>
-    </Paper>
+      )}
+
+      <MenuItem
+        onClick={() => {
+          delOP();
+        }}
+      >
+        <ListItemIcon>
+          <DeleteForeverIcon />
+        </ListItemIcon>
+        <ListItemText> Delete </ListItemText>
+      </MenuItem>
+    </MenuList>
   );
 }
 
-function RedisZsetTable(props: {
-  reloadOP: (
-    keyMatch: string,
-    min: number | null,
-    max: number | null
-  ) => Promise<types.MuiDataGridData>;
+const redisMaxRowKey = "redis-value";
+const redisMinRow = 1000;
 
-  modifyOP: (
-    oldMember: string,
-    newKey: string,
-    newValue: number
-  ) => Promise<void>;
+function RedisZsetTable(props: { uuid: string; zsetKey: string }) {
+  const { uuid, zsetKey } = props;
+  const modifyOP = async (oldMember: string, newKey: string, newValue: number) => {
+    return await invoke("redis_zset_replace", {
+      name: uuid,
+      key: zsetKey,
+      oldMember: oldMember,
+      newMember: newKey,
+      newValue,
+    });
+  };
+  const delOP = useCallback(
+    async member => {
+      return await invoke("redis_zset_del", {
+        name: uuid,
+        key: zsetKey,
+        member,
+      });
+    },
+    [uuid, zsetKey],
+  );
+  const [keyMatch, setKeyMatch] = useState("");
+  const [resp, setResp] = useState<MuiDataGridData>(newEmptyResp());
 
-  delOP: (key: string) => Promise<void>;
-}) {
-  const { reloadOP, modifyOP, delOP } = props;
-  const [keyMatch, setKeyMatch] = useState('');
-  const [resp, setResp] = useState<types.MuiDataGridData | null>(null);
+  const [lastFetchTime, setLastFetchTime] = useState(new Date());
+  useEffect(() => {
+    setLastFetchTime(new Date());
+  }, [resp]);
+  const [fetchDur, setFetchDur] = useState(0);
+
   const [selectRow, setSelectRow] = useState<any>();
-
-  const [min, setMin] = useState('');
-  const [max, setMax] = useState('');
+  const [min, setMin] = useState("");
+  const [max, setMax] = useState("");
   const [minErr, setMinErr] = useState(false);
   const [maxErr, setMaxErr] = useState(false);
   const [loading, setLoading] = useState(false);
   const { showNotification } = useContext(NotificationContext);
-  const handleReload = (showOK: boolean) => {
-    if (minErr || maxErr) {
-      return;
-    }
-    let minValue = parseFloat(min);
-    let maxValue = parseFloat(max);
-    setLoading(true);
-    reloadOP(keyMatch, minValue, maxValue)
-      .then((resp) => {
-        resp.data.forEach((e) => {
-          e.id = uuidv4();
-        });
-        resp.fields[0]['flex'] = 1;
-        resp.fields[1]['flex'] = 1;
-        resp.fields[0]['renderCell'] = (p) => {
-          return redisRenderCell(p.row.key);
-        };
-        resp.data.forEach((e) => {
-          //@ts-ignore rewrite to float value
-          e.score = parseFloat(e['score']);
-        });
-        setResp(resp);
-        if (showOK) {
-          reloadOK(showNotification);
-        }
-      })
-      .catch((e) => {
-        showNotification('error', 'load data error', e);
-      })
-      .finally(() => {
-        setLoading(false);
+  const setting = useContext(SettingContext);
+  const maxRowRef = useRef(getSliderSizeStoreValue(redisMaxRowKey, redisMinRow));
+  const [queryStatus, setQueryStatus] = useState("");
+  const handleReload = useCallback(
+    (showOK: boolean) => {
+      if (minErr || maxErr) {
+        return;
+      }
+      const minValue = parseFloat(min);
+      const maxValue = parseFloat(max);
+      setLoading(true);
+      showTable({
+        setStatus: setQueryStatus,
+        uuid,
+        name: zsetKey,
+        setLoading,
+        para: {
+          min: minValue,
+          max: maxValue,
+          where_str: keyMatch ? keyMatch : null,
+          limit: maxRowRef.current,
+        },
+        handleExecuteTime: t => {
+          setFetchDur(t);
+        },
+        showNotification,
+        okCallBack: showOK
+          ? () => {
+              showNotification("success", "reload OK");
+            }
+          : undefined,
+        handleResult: resp => {
+          resp.data.forEach((e, index) => {
+            e["id"] = index;
+          });
+          resp.fields[1]["flex"] = 1;
+          const scoreWidth = ColumnWidth.instance.get("score");
+          if (scoreWidth) {
+            resp.fields[0]["width"] = scoreWidth;
+          }
+          resp.data.forEach(e => {
+            e.score = parseFloat(e["score"]);
+          });
+          resp.fields[1]["valueGetter"] = valueGetter;
+          setResp(resp);
+        },
       });
-  };
+    },
+    [keyMatch, max, maxErr, min, minErr, showNotification, uuid, zsetKey],
+  );
 
   useEffect(() => {
     handleReload(false);
-  }, []);
+  }, [handleReload]);
 
-  const handleDel = async (id: string) => {
-    let del = resp.data.find((e) => e['id'] == id);
-    try {
-      await delOP(del.key);
-      showNotification('success', 'Delete OK');
-    } catch (e) {
-      showNotification('error', 'delete failure', e);
-    }
-
-    handleReload(false);
-  };
-  const onRowDoubleClick = useCallback((e) => {
+  const handleDel = useCallback(
+    async (id: string) => {
+      const confirm = await secondConfirm({ title: "sure to delete?" });
+      if (!confirm) {
+        return;
+      }
+      const del = resp.data.find(e => e["id"] == id);
+      try {
+        await delOP(del.key);
+        showNotification("success", "Delete OK");
+      } catch (e) {
+        showNotification("error", "delete failure", e);
+      }
+      handleReload(false);
+    },
+    [delOP, handleReload, resp, showNotification],
+  );
+  const onRowDoubleClick = useCallback(e => {
     setSelectRow(e.row);
   }, []);
 
-  const vis = useContext(VisiableContext);
   const { setUpMenu } = useContext(ContextMenuContext);
   const slotProps = useMemo(() => {
     return {
       row: {
-        onContextMenu: (e) => {
-          const { currentTarget, target } = e;
-          let content = (target as HTMLDivElement).innerHTML;
-          let id = (currentTarget as HTMLDivElement).getAttribute('data-id');
-          let field = (target as HTMLDivElement).getAttribute('data-field');
+        onContextMenu: e => {
+          const { target } = e;
+          const content = (target as HTMLDivElement).innerHTML;
+          const { id, field } = extractFieldAndIDFromMouseEvent(e);
           if (!field) {
             return;
           }
@@ -1333,62 +1679,79 @@ function RedisZsetTable(props: {
                 delOP={() => {
                   handleDel(id);
                 }}
-              ></RedisZSetTableContextMenu>
+              />
             ),
-            style: calMenuStyle(e, 200),
+            event: e,
           });
         },
-        style: { cursor: 'context-menu' },
+        style: { cursor: "context-menu" },
+      },
+      toolbar: {
+        csvOptions: {
+          delimiter: setting.export.csvDelimiter,
+          includeHeaders: setting.export.includeHeader,
+        },
       },
     } as GridSlotsComponentsProps;
-  }, [resp]);
-  const setting = useContext(SettingContext);
-  return (
-    <Stack spacing={1}>
-      <Stack direction="row" spacing={1} style={{ alignItems: 'center' }}>
-        <TextField
-          size="small"
-          label="key match could be *key,key*,*key*"
-          variant="outlined"
-          value={keyMatch}
-          onChange={(event) => {
-            setKeyMatch(event.target.value);
-          }}
-          style={{ width: '35%' }}
-        />
-        <TextField
-          size="small"
-          label="minimum value(float64)"
-          variant="outlined"
-          value={min}
-          error={minErr}
-          onChange={(event) => {
-            if (event.target.value) {
-              setMinErr(isNaN(parseFloat(event.target.value)));
-            } else {
-              setMinErr(false);
-            }
-            setMin(event.target.value);
-          }}
-        />
+  }, [handleDel, setUpMenu, setting.export.csvDelimiter, setting.export.includeHeader]);
 
-        <TextField
-          size="small"
-          label="maxiumn value(float64)"
-          variant="outlined"
-          value={max}
-          error={maxErr}
-          onChange={(event) => {
-            if (event.target.value) {
-              setMaxErr(isNaN(parseFloat(event.target.value)));
-            } else {
-              setMaxErr(false);
-            }
-            setMax(event.target.value);
-          }}
-        />
+  const [modifyModalBox, setModifyModalBox] = useState<HTMLDivElement | null>(null);
+  useEffect(() => {
+    if (modifyModalBox) {
+      const clean = saveAndSetSize(modifyModalBox, "redis-edit");
+      return clean;
+    }
+  }, [modifyModalBox]);
+
+  const onColumnResize = useCallback(({ colDef, width }) => {
+    if (colDef.field == "score") {
+      ColumnWidth.instance.save(colDef.field, width);
+    }
+  }, []);
+  const slots = useMemo(() => {
+    return {
+      columnMenu: AppColumnMenu,
+      toolbar: () => {
+        return <AppDataGridToolBar title={zsetKey} />;
+      },
+      pagination: () => {
+        return (
+          <Stack
+            direction="row"
+            style={{
+              alignItems: "center",
+              justifyContent: "space-between",
+              flex: 1,
+            }}
+          >
+            <Stack direction="row" style={{ flex: 1, alignItems: "center" }}>
+              <LastFetchTime date={lastFetchTime} />
+              <TimeDuration dur={fetchDur} />
+              <SliderSize
+                max={50000}
+                step={1000}
+                storeKey={redisMaxRowKey}
+                min={redisMinRow}
+                notice=<LimitMaxRowNotice />
+                handleValue={v => {
+                  maxRowRef.current = v;
+                }}
+              />
+              <DoubleClickToModify />
+              <ResetColumnWidth />
+            </Stack>
+
+            <AppDataGridPagination showPageSelect />
+          </Stack>
+        );
+      },
+    } as Partial<GridSlotsComponent>;
+  }, [fetchDur, lastFetchTime, zsetKey]);
+  return (
+    <Stack style={{ height: "100%" }}>
+      <QueryStatus status={queryStatus} />
+      <StackRowCenter>
         <Button
-          variant="contained"
           color="primary"
           onClick={() => {
             handleReload(true);
@@ -1397,53 +1760,147 @@ function RedisZsetTable(props: {
         >
           reload
         </Button>
-      </Stack>
 
-      {resp && vis && (
-        <div
-          style={{
-            display: 'grid',
-            height: datagridContainerHeight(resp.data.length),
+        <Tooltip title={keyMatcherHelpText}>
+          <TextField
+            label="key matcher"
+            value={keyMatch}
+            onChange={event => {
+              setKeyMatch(event.target.value);
+            }}
+            slotProps={{
+              input: {
+                endAdornment: keyMatch && (
+                  <InputAdornment position="end">
+                    <IconButton
+                      onClick={() => {
+                        setKeyMatch("");
+                      }}
+                      edge="end"
+                    >
+                      <ClearIcon fontSize="small" />
+                    </IconButton>
+                  </InputAdornment>
+                ),
+              },
+            }}
+            style={{ width: "25%" }}
+          />
+        </Tooltip>
+
+        <TextField
+          label="minimum value"
+          value={min}
+          error={minErr}
+          onChange={event => {
+            if (event.target.value) {
+              setMinErr(isNaN(parseFloat(event.target.value)));
+            } else {
+              setMinErr(false);
+            }
+            setMin(event.target.value);
           }}
-        >
-          <DataGrid
-            loading={loading}
-            showCellVerticalBorder
-            showColumnVerticalBorder
-            slotProps={slotProps}
-            rowHeight={setting.datagridRowHeight}
-            columnHeaderHeight={setting.datagridHeaderHeight}
-            rows={resp.data}
-            checkboxSelection={false}
-            editMode="row"
-            onRowDoubleClick={onRowDoubleClick}
-            columns={resp.fields}
-            disableColumnFilter
-          ></DataGrid>
-        </div>
-      )}
+          slotProps={{
+            input: {
+              endAdornment: min && (
+                <InputAdornment position="end">
+                  <IconButton
+                    onClick={() => {
+                      setMin("");
+                    }}
+                    edge="end"
+                  >
+                    <ClearIcon fontSize="small" />
+                  </IconButton>
+                </InputAdornment>
+              ),
+            },
+          }}
+          style={{ width: "15%" }}
+        />
+        <TextField
+          label="maximum value"
+          value={max}
+          error={maxErr}
+          onChange={event => {
+            if (event.target.value) {
+              setMaxErr(isNaN(parseFloat(event.target.value)));
+            } else {
+              setMaxErr(false);
+            }
+            setMax(event.target.value);
+          }}
+          slotProps={{
+            input: {
+              endAdornment: max && (
+                <InputAdornment position="end">
+                  <IconButton
+                    onClick={() => {
+                      setMax("");
+                    }}
+                    edge="end"
+                  >
+                    <ClearIcon fontSize="small" />
+                  </IconButton>
+                </InputAdornment>
+              ),
+            },
+          }}
+          style={{ width: "15%" }}
+        />
+        <AddTable uuid={uuid} redisKey={zsetKey} redisType={RedisTableType.Zset} />
+      </StackRowCenter>
 
+      {resp && (
+        <DataGrid
+          slots={slots}
+          onColumnResize={onColumnResize}
+          loading={loading}
+          slotProps={slotProps}
+          rows={resp.data}
+          checkboxSelection={false}
+          editMode="row"
+          onRowDoubleClick={onRowDoubleClick}
+          columns={resp.fields}
+          disableColumnFilter
+          style={dataGridStyle}
+          paginationMode="client"
+        />
+      )}
       {selectRow && (
         <Modal
           open={!!selectRow}
-          onClose={(e: EscDownEvent, reason) => {
-            if (reason === 'backdropClick') {
-              return;
-            }
-
+          onClose={modalHandleClose((e: EscDownEvent) => {
             e.preventDefault();
             setSelectRow(null);
-          }}
+          })}
         >
-          <Box sx={modalStyle} width="80%">
+          <Box
+            sx={{ resize: "both", ...modalStyle }}
+            width="80%"
+            height="70vh"
+            ref={setModifyModalBox}
+          >
+            <ModalHeader
+              title="Edit Zset Value"
+              handleClose={() => {
+                setSelectRow(null);
+              }}
+            />
             <RedisEditZset
               modifyOP={async (oldKey, newKey, value) => {
-                try {
-                  await modifyOP(oldKey, newKey, value);
-                } catch (e) {
-                  throw e;
-                }
-                handleReload(false);
+                modifyOP(oldKey, newKey, value);
+                const idx = resp.data.findIndex(e => oldKey === e.key);
+                setResp({
+                  ...resp,
+                  data: resp.data.map((e, index) => {
+                    if (index == idx) {
+                      e.key = newKey;
+                      e.score = value;
+                    }
+                    return e;
+                  }),
+                });
               }}
               key={selectRow}
               oldValue={selectRow.score}
@@ -1451,7 +1908,7 @@ function RedisZsetTable(props: {
               handleClose={() => {
                 setSelectRow(null);
               }}
-            ></RedisEditZset>
+            />
           </Box>
         </Modal>
       )}
@@ -1464,7 +1921,7 @@ function RedisHashTableContextMenu(props: { delOP: () => void; content }) {
 
   const { showNotification } = useContext(NotificationContext);
   return (
-    <Paper>
+    <div>
       <MenuList>
         {content && (
           <MenuItem
@@ -1473,7 +1930,7 @@ function RedisHashTableContextMenu(props: { delOP: () => void; content }) {
             }}
           >
             <ListItemIcon>
-              <ContentCopyIcon></ContentCopyIcon>
+              <ContentCopyIcon />
             </ListItemIcon>
             <ListItemText> Copy </ListItemText>
           </MenuItem>
@@ -1485,88 +1942,125 @@ function RedisHashTableContextMenu(props: { delOP: () => void; content }) {
           }}
         >
           <ListItemIcon>
-            <DeleteForeverIcon></DeleteForeverIcon>
+            <DeleteForeverIcon />
           </ListItemIcon>
           <ListItemText> Delete </ListItemText>
         </MenuItem>
       </MenuList>
-    </Paper>
+    </div>
   );
 }
 
-function RedisHashTable(props: {
-  reloadOP: (keyMatch: string) => Promise<types.MuiDataGridData>;
-  modifyOP: (
-    oldMember: string,
-    newMember: string,
-    newValue: string
-  ) => Promise<void>;
+const valueGetter = value => {
+  const x = hexTryToString(value);
+  if (typeof x === "string") {
+    return x;
+  } else {
+    return "binary value of " + value;
+  }
+};
+function RedisHashTable(props: { hashKey: string; uuid: string }) {
+  const { uuid, hashKey } = props;
+  const delOP = useCallback(
+    async member => {
+      return await invoke("redis_hash_del", {
+        name: uuid,
+        key: hashKey,
+        member,
+      });
+    },
+    [hashKey, uuid],
+  );
 
-  delOP: (key: string) => Promise<void>;
-}) {
-  const { reloadOP, modifyOP, delOP } = props;
-  const [keyMatch, setKeyMatch] = useState('');
-  const [resp, setResp] = useState<types.MuiDataGridData | null>(null);
+  const modifyOP = async (oldMember, newMember, newValue) => {
+    return await invoke("redis_hash_replace", {
+      name: uuid,
+      key: hashKey,
+      oldMember,
+      newMember,
+      newValue,
+    });
+  };
+  const [keyMatch, setKeyMatch] = useState("");
+  const [resp, setResp] = useState<MuiDataGridData>(newEmptyResp());
   const { showNotification } = useContext(NotificationContext);
   const [selectRow, setSelectRow] = useState<any>(null);
   const [loading, setLoading] = useState(false);
-  const handleReload = (showOK) => {
-    setLoading(true);
-    reloadOP(keyMatch)
-      .then((resp) => {
-        resp.data.forEach((e) => {
-          e.id = uuidv4();
-        });
-        resp.fields[0]['flex'] = 1;
-        resp.fields[1]['flex'] = 1;
-        resp.fields[0]['renderCell'] = (p) => {
-          return redisRenderCell(p.row.key);
-        };
-        resp.fields[1]['renderCell'] = (p) => {
-          return redisRenderCell(p.row.value);
-        };
-        setResp(resp);
-        if (showOK) {
-          reloadOK(showNotification);
-        }
-      })
-      .catch((e) => {
-        showNotification('error', 'load data error', e);
-      })
-      .finally(() => {
-        setLoading(false);
-      });
-  };
+  const setting = useContext(SettingContext);
+  const maxRowRef = useRef(getSliderSizeStoreValue(redisMaxRowKey, redisMinRow));
+  const [lastFetchTime, setLastFetchTime] = useState(new Date());
+  useEffect(() => {
+    setLastFetchTime(new Date());
+  }, [resp]);
+  const [fetchDur, setFetchDur] = useState(0);
+  const [queryStatus, setQueryStatus] = useState("");
 
+  const handleReload = useCallback(
+    showOK => {
+      showTable({
+        uuid,
+        name: hashKey,
+        okCallBack: showOK
+          ? () => {
+              showNotification("success", "reload OK");
+            }
+          : undefined,
+        handleExecuteTime: t => {
+          setFetchDur(t);
+        },
+        setStatus: setQueryStatus,
+        para: { limit: maxRowRef.current, where_str: keyMatch ? keyMatch : null },
+        setLoading,
+        showNotification,
+        handleResult: resp => {
+          resp.data.forEach((e, index) => {
+            e["id"] = index;
+          });
+          const keyWidth = ColumnWidth.instance.get("key");
+          resp.fields[0]["width"] = keyWidth;
+          resp.fields[1]["flex"] = 1;
+          resp.fields[0]["valueGetter"] = valueGetter;
+          resp.fields[1]["valueGetter"] = valueGetter;
+          setResp(resp);
+        },
+      });
+    },
+    [hashKey, keyMatch, showNotification, uuid],
+  );
   useEffect(() => {
     handleReload(false);
-  }, []);
+  }, [handleReload]);
 
-  const handleDel = async (id: string) => {
-    let del = resp.data.find((e) => e['id'] == id);
-    try {
-      await delOP(del.key);
-      showNotification('success', 'Delete OK');
-    } catch (e) {
-      showNotification('error', 'Delete failure', e);
-    }
+  const handleDel = useCallback(
+    async (id: string) => {
+      const confirm = await secondConfirm({ title: "sure to delete?" });
+      if (!confirm) {
+        return;
+      }
+      const del = resp.data.find(e => e["id"] == id);
+      try {
+        await delOP(del.key);
+        showNotification("success", "Delete OK");
+      } catch (e) {
+        showNotification("error", "Delete failure", e);
+      }
 
-    handleReload(false);
-  };
-  const onRowDoubleClick = useCallback((e) => {
+      handleReload(false);
+    },
+    [delOP, handleReload, resp, showNotification],
+  );
+  const onRowDoubleClick = useCallback(e => {
     setSelectRow(e.row);
   }, []);
 
-  const vis = useContext(VisiableContext);
   const { setUpMenu } = useContext(ContextMenuContext);
   const slotProps = useMemo(() => {
     return {
       row: {
-        onContextMenu: (e) => {
-          const { currentTarget, target } = e;
-          let content = (target as HTMLDivElement).innerHTML;
-          let id = (currentTarget as HTMLDivElement).getAttribute('data-id');
-          let field = (target as HTMLDivElement).getAttribute('data-field');
+        onContextMenu: e => {
+          const { target } = e;
+          const content = (target as HTMLDivElement).innerHTML;
+          const { id, field } = extractFieldAndIDFromMouseEvent(e);
           if (!field) {
             return;
           }
@@ -1577,32 +2071,82 @@ function RedisHashTable(props: {
                 delOP={() => {
                   handleDel(id);
                 }}
-              ></RedisHashTableContextMenu>
+              />
             ),
-            style: calMenuStyle(e, 200),
+            event: e,
           });
         },
-        style: { cursor: 'context-menu' },
+        style: { cursor: "context-menu" },
+      },
+      toolbar: {
+        csvOptions: {
+          delimiter: setting.export.csvDelimiter,
+          includeHeaders: setting.export.includeHeader,
+        },
       },
     } as GridSlotsComponentsProps;
-  }, [resp]);
-  const setting = useContext(SettingContext);
+  }, [handleDel, setUpMenu, setting.export.csvDelimiter, setting.export.includeHeader]);
+
+  const [modifyModalBox, setModifyModalBox] = useState<HTMLDivElement | null>(null);
+  useEffect(() => {
+    if (modifyModalBox) {
+      const clean = saveAndSetSize(modifyModalBox, "redis-edit");
+      return clean;
+    }
+  }, [modifyModalBox]);
+  const onColumnResize = useCallback(({ colDef, width }) => {
+    if (colDef.field == "key") {
+      ColumnWidth.instance.save(colDef.field, width);
+    }
+  }, []);
+  const slots = useMemo(() => {
+    return {
+      columnMenu: AppColumnMenu,
+      toolbar: () => {
+        return <AppDataGridToolBar left=<></> title={hashKey} />;
+      },
+      pagination: () => {
+        return (
+          <Stack
+            direction="row"
+            style={{
+              alignItems: "center",
+              justifyContent: "space-between",
+              flex: 1,
+            }}
+          >
+            <StackRowCenter>
+              <LastFetchTime date={lastFetchTime} />
+              <TimeDuration dur={fetchDur} />
+              <SliderSize
+                storeKey={redisMaxRowKey}
+                min={redisMinRow}
+                max={50000}
+                step={1000}
+                handleValue={v => {
+                  maxRowRef.current = v;
+                }}
+                notice=<LimitMaxRowNotice />
+              />
+
+              <DoubleClickToModify />
+
+              <ResetColumnWidth />
+            </StackRowCenter>
+            <Stack direction="row" alignItems="center">
+              <AppDataGridPagination showPageSelect />
+            </Stack>
+          </Stack>
+        );
+      },
+    } as Partial<GridSlotsComponent>;
+  }, [fetchDur, hashKey, lastFetchTime]);
   return (
-    <Stack spacing={1}>
-      <Stack direction="row" spacing={1} alignItems="center">
-        <TextField
-          size="small"
-          label="key match could be *key,key*,*key*"
-          variant="outlined" // 可以是 'outlined', 'filled', or 'standard'
-          value={keyMatch}
-          onChange={(event) => {
-            setKeyMatch(event.target.value);
-          }}
-          style={{ width: '35%' }}
-        />
+    <Stack style={{ height: "100%" }}>
+      <QueryStatus status={queryStatus} />
+      <StackRowCenter>
         <Button
-          variant="contained" // 可以是 'text', 'outlined', 或 'contained'
-          color="primary" // 主题颜色
+          color="primary"
           onClick={() => {
             handleReload(true);
           }} // 点击事件处理
@@ -1610,55 +2154,89 @@ function RedisHashTable(props: {
         >
           reload
         </Button>
-      </Stack>
 
-      {resp && vis && (
-        <div
-          style={{
-            display: 'grid',
-            height: datagridContainerHeight(resp.data.length),
-          }}
-        >
-          <DataGrid
-            loading={loading}
-            showCellVerticalBorder
-            showColumnVerticalBorder
-            slotProps={slotProps}
-            rowHeight={setting.datagridRowHeight}
-            columnHeaderHeight={setting.datagridHeaderHeight}
-            rows={resp.data}
-            checkboxSelection={false}
-            editMode="row"
-            onRowDoubleClick={onRowDoubleClick}
-            columns={resp.fields}
-            disableColumnFilter
-          ></DataGrid>
-        </div>
+        <Tooltip title={keyMatcherHelpText}>
+          <TextField
+            label="key matcher"
+            variant="outlined"
+            value={keyMatch}
+            onChange={event => {
+              setKeyMatch(event.target.value);
+            }}
+            slotProps={{
+              input: {
+                endAdornment: keyMatch && (
+                  <InputAdornment position="end">
+                    <IconButton
+                      onClick={() => {
+                        setKeyMatch("");
+                      }}
+                      edge="end"
+                    >
+                      <ClearIcon fontSize="small" />
+                    </IconButton>
+                  </InputAdornment>
+                ),
+              },
+            }}
+            style={{ maxWidth: "15rem", flex: 1 }}
+          />
+        </Tooltip>
+        <AddTable uuid={uuid} redisKey={hashKey} redisType={RedisTableType.Hash} />
+      </StackRowCenter>
+
+      {resp && (
+        <DataGrid
+          slots={slots}
+          onColumnResize={onColumnResize}
+          loading={loading}
+          slotProps={slotProps}
+          rows={resp.data}
+          checkboxSelection={false}
+          editMode="row"
+          onRowDoubleClick={onRowDoubleClick}
+          columns={resp.fields}
+          paginationMode="client"
+          disableColumnFilter
+          style={dataGridStyle}
+        />
       )}
 
       {selectRow && (
         <Modal
           open={!!selectRow}
-          onClose={(e: EscDownEvent, reason) => {
-            if (reason === 'backdropClick') {
-              return;
-            }
-
+          onClose={modalHandleClose((e: EscDownEvent) => {
             e.preventDefault();
             setSelectRow(null);
-          }}
+          })}
         >
-          <Box sx={modalStyle} width="80%">
+          <Box
+            sx={{ resize: "both", ...modalStyle }}
+            width="80%"
+            height="70vh"
+            ref={setModifyModalBox}
+          >
+            <ModalHeader
+              title="Edit Hash Value"
+              handleClose={() => {
+                setSelectRow(null);
+              }}
+            />
             <RedisEditHash
-              modifyOP={async (req) => {
-                try {
-                  await modifyOP(req.oldKey, req.newKey, req.value);
-                } catch (e) {
-                  throw e;
-                }
-                selectRow.key = req.newKey;
-                selectRow.value = req.value;
-                handleReload(false);
+              modifyOP={async req => {
+                modifyOP(req.oldKey, req.newKey, req.value);
+                const idx = resp.data.findIndex(e => (e.key = req.oldKey));
+
+                setResp({
+                  ...resp,
+                  data: resp.data.map((e, index) => {
+                    if (index == idx) {
+                      e.key = req.newKey;
+                      e.value = req.newKey;
+                    }
+                    return e;
+                  }),
+                });
               }}
               handleClose={() => {
                 setSelectRow(null);
@@ -1666,7 +2244,7 @@ function RedisHashTable(props: {
               key={selectRow.id}
               oldValue={selectRow.value}
               oldKey={selectRow.key}
-            ></RedisEditHash>
+            />
           </Box>
         </Modal>
       )}
@@ -1674,55 +2252,11 @@ function RedisHashTable(props: {
   );
 }
 
-function RedisModifyKeyName(props: {
-  name: string;
-  modifyOP: (oldName: string, newName: string) => Promise<void>;
-}) {
-  let { name, modifyOP } = props;
-  const [newName, setNewName] = useState(name);
-  const { showNotification } = useContext(NotificationContext);
-  const [loading, setLoading] = useState(false);
-
-  const handleModify = () => {
-    setLoading(true);
-    modifyOP(newName, name)
-      .then(() => {
-        showNotification('success', 'Modify OK');
-      })
-      .catch((e) => {
-        showNotification('error', 'Modify failure', e);
-      })
-      .finally(() => {
-        setLoading(false);
-      });
-  };
-
+function DoubleClickToModify() {
   return (
-    <Stack spacing={1}>
-      <Stack direction="row">
-        <Typography variant="subtitle1"> New name: </Typography>
-      </Stack>
-
-      <TextField
-        size="small"
-        value={newName}
-        onChange={(e) => {
-          setNewName(e.target.value);
-        }}
-        label="name"
-      ></TextField>
-      <Stack direction="row" spacing={1}>
-        <Button
-          loading={loading}
-          disabled={name == newName}
-          color="primary"
-          variant="contained"
-          onClick={handleModify}
-        >
-          Save
-        </Button>
-      </Stack>
-    </Stack>
+    <Tooltip title="double click a row to modify.">
+      <span> modify? </span>
+    </Tooltip>
   );
 }
 
@@ -1733,7 +2267,6 @@ export {
   RedisZsetTable,
   RedisSetTable,
   RedisValueEditor,
-  RedisModifyKeyName,
   // add
   RedisAddSet,
   RedisAddHash,

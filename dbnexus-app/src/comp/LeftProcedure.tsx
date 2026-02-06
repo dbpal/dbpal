@@ -1,171 +1,155 @@
-import {
-  ListItemIcon,
-  ListItemText,
-  MenuItem,
-  MenuList,
-  Paper,
-  Stack,
-} from '@mui/material';
-import { TreeItem } from '@mui/x-tree-view/TreeItem';
-import { useContext, useEffect, useState } from 'react';
-import DeleteForeverIcon from '@mui/icons-material/DeleteForever';
-import InfoIcon from '@mui/icons-material/Info';
-import { initMonacoLanague, tabsHasId } from './Common';
-import types from './ApiStruct';
-import { invoke } from '@tauri-apps/api/core';
-import { NotificationContext } from './Notification';
-import { TabContent } from './Tabs';
-import { DefAndMetasView } from './UdfAndMetaView';
+import { ListItemIcon, ListItemText, MenuItem, MenuList, Stack } from "@mui/material";
+import { TreeItem } from "@mui/x-tree-view/TreeItem";
+import { useCallback, useContext, useEffect, useRef, useState } from "react";
+import DeleteForeverIcon from "@mui/icons-material/DeleteForever";
+import InfoIcon from "@mui/icons-material/Info";
+import { tabsHasId } from "./Common";
+import types from "./ApiStruct";
+import { invoke } from "@tauri-apps/api/core";
+import { NotificationContext } from "./Notification";
+import { TabContent } from "./Tabs";
+import { DefAndMetasView } from "./UdfAndMetaView";
 
-import { SiProcessingfoundation } from 'react-icons/si';
+import { SiProcessingfoundation } from "react-icons/si";
 import {
-  calMenuStyle,
   ConnTypeContext,
   ContextMenuContext,
   DataSourceKind,
+  generateRandomString,
   MatchPatternContext,
+  MaxTreeContext,
   secondConfirm,
   TabsSetContext,
   UuidContext,
-} from './helper';
-import { MenuRefresh } from './CommonComp';
+} from "./helper";
+import { ExceedMaxTreeItem, MenuRefresh, UdfNameAndParameters } from "./CommonComp";
+import { listProcedure, makeShowProcedureExtraArg, showProcedure } from "./handlers";
 function ProceduresTree() {
   const { uuid } = useContext(UuidContext);
   const { kind } = useContext(ConnTypeContext);
-  const idPrefix = uuid + '-procudures-';
   const [ps, setPos] = useState<types.NamedStaff[]>([]);
   const { showNotification } = useContext(NotificationContext);
-  const reload = () => {
-    invoke<types.NamedStaff[]>('list_procedure', { name: uuid })
-      .then((ts) => {
+  const maxsize = useContext(MaxTreeContext);
+  const reload = useCallback(() => {
+    listProcedure(uuid)
+      .then(ts => {
         setPos(ts);
       })
-      .catch((e) => {
-        showNotification('error', 'list procedure failed', e);
+      .catch(e => {
+        showNotification("error", "list procedure failed", e);
       });
-  };
+  }, [showNotification, uuid]);
 
-  const getItemId = (x: types.NamedStaff) => {
-    switch (kind) {
-      case DataSourceKind.Postgres:
-      case DataSourceKind.Cockroach:
-        let p = x.parameters;
-        return idPrefix + '-' + x.name + '-' + p;
-      default:
-        return idPrefix + '-' + x.name;
-    }
-  };
-  let { setUpMenu } = useContext(ContextMenuContext);
+  const [exceed, setExceed] = useState(0);
+  const matchPattern = useContext(MatchPatternContext);
+  useEffect(() => {
+    setExceed(ps.filter(e => matchPattern(e.name)).length);
+  }, [ps, matchPattern]);
+
+  const { setUpMenu } = useContext(ContextMenuContext);
   useEffect(() => {
     reload();
-  }, []);
-  const matchPattern = useContext(MatchPatternContext);
+  }, [reload]);
+
+  const idForTrees = useRef(generateRandomString());
   return (
     <TreeItem
-      itemId={idPrefix}
+      itemId={idForTrees.current}
       label=<Stack
         direction="row"
-        spacing={1}
-        sx={{ alignItems: 'center' }}
-        onContextMenu={(e) => {
+        sx={{ alignItems: "center" }}
+        onContextMenu={e => {
           setUpMenu({
             content: (
-              <Paper>
-                <MenuList>
-                  <MenuRefresh reload={reload}></MenuRefresh>
-                </MenuList>
-              </Paper>
+              <MenuList>
+                <MenuRefresh reload={reload} />
+              </MenuList>
             ),
-            style: calMenuStyle(e, 70),
+            event: e,
           });
         }}
       >
-        <SiProcessingfoundation></SiProcessingfoundation>
+        <SiProcessingfoundation />
         <span> procedures </span>
       </Stack>
     >
       {ps
-        .filter((e) => matchPattern(e.name))
-        .map((p) => (
-          <TreeItem
-            key={p.name + '-' + p.parameters}
-            itemId={getItemId(p)}
-            style={{ alignItems: 'center' }}
-            label=<Stack
-              spacing={1}
-              direction="row"
-              onContextMenu={(e) => {
-                setUpMenu({
-                  content: (
-                    <ProcedureMenu
-                      reload={reload}
-                      uuid={uuid}
-                      kind={kind}
-                      procedure={p.name}
-                      parameters={p.parameters}
-                    ></ProcedureMenu>
-                  ),
-                  style: calMenuStyle(e, 100),
-                });
-              }}
-              sx={{ alignItems: 'center' }}
-            >
-              <SiProcessingfoundation></SiProcessingfoundation>
-              <span>{p.name}</span>
-              {kind == DataSourceKind.Postgres ||
-                (kind == DataSourceKind.Cockroach && (
-                  <em> ( {p.parameters} ) </em>
-                ))}
-            </Stack>
-          ></TreeItem>
-        ))}
+        .filter(e => matchPattern(e.name))
+        .map((p, index) => {
+          if (index >= maxsize) {
+            return;
+          }
+          const id = `${uuid}-procedure-${index}`;
+          return (
+            <TreeItem
+              key={p.name + "-" + p.parameters}
+              itemId={id}
+              style={{ alignItems: "center" }}
+              label=<Stack
+                direction="row"
+                onContextMenu={e => {
+                  setUpMenu({
+                    content: (
+                      <ProcedureMenu
+                        reload={reload}
+                        uuid={uuid}
+                        kind={kind}
+                        procedure={p}
+                        id={id}
+                      />
+                    ),
+                    event: e,
+                  });
+                }}
+                sx={{ alignItems: "center" }}
+              >
+                <SiProcessingfoundation />
+                <UdfNameAndParameters udf={p} kind={kind} />
+              </Stack>
+            />
+          );
+        })}
+      <ExceedMaxTreeItem maxTreeSize={maxsize} exceed={exceed} />
     </TreeItem>
   );
 }
 
 function ProcedureMenu(props: {
-  uuid;
-  procedure;
-  parameters?: string;
-  reload;
+  uuid: string;
+  procedure: types.NamedStaff;
+  reload: () => void;
   kind: DataSourceKind;
+  id: string;
 }) {
-  const { uuid, procedure, parameters, reload, kind } = props;
-
+  const { uuid, procedure, reload, kind, id } = props;
   const { setSelectTab, setTabs, tabs } = useContext(TabsSetContext);
-  let arg =
-    kind == DataSourceKind.Cockroach || kind == DataSourceKind.Postgres
-      ? { extra: 'postgres', parameters }
-      : null;
   const { showNotification } = useContext(NotificationContext);
 
   const handleOpenDetails = () => {
-    initMonacoLanague(uuid, kind);
-    const id = uuid + '-' + '-procedure-' + procedure;
-    let index = tabsHasId(tabs, id);
-    if (typeof index == 'number') {
+    const index = tabsHasId(tabs, id);
+    if (typeof index == "number") {
       setSelectTab(index);
     } else {
-      setTabs((e) => {
-        setSelectTab(tabs.length);
+      setTabs(e => {
+        setTimeout(() => {
+          setSelectTab(tabs.length);
+        }, 100);
+
         return [
           ...e,
           new TabContent(
             id,
-            procedure,
+            procedure.name,
             (
               <DefAndMetasView
                 reloadOP={async () => {
-                  return await invoke<types.ProcedureDetail>('show_procedure', {
-                    name: uuid,
-                    procedure,
-                    arg,
-                  });
+                  return showProcedure(uuid, procedure, kind);
                 }}
-                language={uuid}
-              ></DefAndMetasView>
+                kind={kind}
+                uuid={uuid}
+              />
             ),
-            <SiProcessingfoundation></SiProcessingfoundation>
+            <SiProcessingfoundation className="tab-icon-size" />,
           ),
         ];
       });
@@ -173,50 +157,49 @@ function ProcedureMenu(props: {
   };
 
   const handleDrop = async () => {
-    let confirm = await secondConfirm({
+    const confirm = await secondConfirm({
       title: `Drop Procedure '${procedure}'`,
-      confirmText: 'Drop',
+      confirmText: "Drop",
+      kind: "error",
     });
     if (!confirm) {
       return;
     }
-
-    invoke('drop_procedure', { name: uuid, procedure, arg })
+    const arg = makeShowProcedureExtraArg(procedure, kind);
+    invoke("drop_procedure", { name: uuid, procedure, arg })
       .then(() => {
-        showNotification('success', 'Drop procedure OK');
+        showNotification("success", "Drop procedure OK");
         reload();
       })
-      .catch((e) => {
-        showNotification('error', 'Drop procedure Failure', e);
+      .catch(e => {
+        showNotification("error", "Drop procedure Failure", e);
       });
   };
   return (
-    <Paper>
-      <MenuList>
-        <MenuItem
-          onClick={() => {
-            handleOpenDetails();
-          }}
-        >
-          <ListItemIcon>
-            <InfoIcon></InfoIcon>
-          </ListItemIcon>
-          <ListItemText> Detail </ListItemText>
-        </MenuItem>
+    <MenuList>
+      <MenuItem
+        onClick={() => {
+          handleOpenDetails();
+        }}
+      >
+        <ListItemIcon>
+          <InfoIcon />
+        </ListItemIcon>
+        <ListItemText> Detail </ListItemText>
+      </MenuItem>
 
-        <MenuItem
-          sx={{ color: 'error.main' }}
-          onClick={() => {
-            handleDrop();
-          }}
-        >
-          <ListItemIcon>
-            <DeleteForeverIcon color="error"></DeleteForeverIcon>
-          </ListItemIcon>
-          <ListItemText> Drop</ListItemText>
-        </MenuItem>
-      </MenuList>
-    </Paper>
+      <MenuItem
+        sx={{ color: "error.main" }}
+        onClick={() => {
+          handleDrop();
+        }}
+      >
+        <ListItemIcon>
+          <DeleteForeverIcon color="error" />
+        </ListItemIcon>
+        <ListItemText> Drop</ListItemText>
+      </MenuItem>
+    </MenuList>
   );
 }
 

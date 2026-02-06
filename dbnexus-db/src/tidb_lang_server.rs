@@ -1,137 +1,86 @@
-use std::sync::Arc;
+use std::ops::DerefMut;
 
-use crate::db::DBTrait;
-use crate::language_server::{
-    AstCompletionHelper, CompletionItem, LangServerCommon, LanguageServer, LexerCompletionTrait,
-    try_completion_on_syntax,
-};
-use crate::mysql::MysqlDB;
+#[cfg(test)]
+use crate::datasource_config::MysqlDBConfig;
+use crate::language_server::{CompletionItem, CompletionKind, GetKeyWords};
+
+#[cfg(test)]
+use crate::sub::SubDB;
 use crate::tidb::TiDB;
+use sqlx::Row;
 
-#[async_trait::async_trait]
-impl LanguageServer for TiDB {
-    async fn auto_completion(
-        &self, sql: &str, line: u32, col: u32, use_lexer: bool,
+impl TiDB {
+    pub(crate) async fn key_words(self) -> anyhow::Result<Vec<String>> {
+        /*
+            原因一句话：TiDB v7.5.1 还没有 information_schema.keywords 这张表，所以你查不到。
+
+            该表是 v7.5.3（2024-08-05 发布的 LTS）才正式加入的
+        你当前的 8.0.11-TiDB-v7.5.1 恰好是 7.5.1，版本号里前面只是伪装成 MySQL 8.0 的“兼容前缀”，实际内核仍是 7.5.1，因此 表不存在。
+         */
+        let result = GetKeyWords::key_words(self.db.as_ref())
+            .await
+            .unwrap_or_default();
+        if !result.is_empty() {
+            return anyhow::Ok(result);
+        }
+        let result = TIDB_KEYWORDS
+            .iter()
+            .map(|x| x.to_string())
+            .collect::<Vec<_>>();
+        anyhow::Ok(result)
+    }
+
+    pub(crate) async fn list_function(
+        &self,
+        _schema: Option<&str>,
+        include_build_in: bool,
     ) -> anyhow::Result<Vec<CompletionItem>> {
-        let r = try_completion_on_syntax(
-            &sql,
-            line,
-            col,
-            sqlparser::dialect::MySqlDialect {},
-            Arc::new(Clone::clone(self)),
-        )
-        .await;
-        match r {
-            Ok(xs) => return Ok(xs),
-            Err(err) => {
-                log::error!("completion on ast failed,err:{}", err);
-            }
-        };
-        if !use_lexer {
-            log::warn!("disabled use lexer , we will return empty data.");
+        if !include_build_in {
             return anyhow::Ok(vec![]);
         }
-        return LexerCompletionTrait::do_auto_completion(
-            self,
-            sql,
-            &sqlparser::dialect::MySqlDialect {},
-            sqlparser::tokenizer::Location {
-                line: line as u64,
-                column: col as u64,
-            },
-        )
-        .await;
+        let mut ret = vec![];
+        let mut conn = self.db.get_conn().await?;
+        let rows = sqlx::raw_sql("SHOW BUILTINS;")
+            .fetch_all(conn.deref_mut())
+            .await?;
+        for row in rows.iter() {
+            let name: Option<String> = row.try_get(0)?;
+            if let Some(name) = name {
+                ret.push(CompletionItem {
+                    item: name.into(),
+                    kind: CompletionKind::Function,
+                    desc: None,
+                });
+            }
+        }
+        anyhow::Ok(ret)
     }
 }
 
-#[async_trait::async_trait]
-impl AstCompletionHelper for TiDB {
-    async fn list_table(
-        &self, _db: Option<&str>, schema: Option<&str>,
-    ) -> anyhow::Result<Vec<String>> {
-        AstCompletionHelper::list_table(self.db.as_ref(), None, schema).await
-    }
+#[allow(dead_code)]
+#[cfg(test)]
+pub(crate) fn make_config() -> MysqlDBConfig {
+    MysqlDBConfig {
+        conn_timeout: Some(5000.into()),
+        host: crate::TEST_HOST.to_string(),
+        username: "root".to_string(),
+        password: Some("root".to_string()),
+        port: 3307,
+        db: Some("test".to_string()),
+        read_only: false,
 
-    async fn list_view(
-        &self, _db: Option<&str>, schema: Option<&str>,
-    ) -> anyhow::Result<Vec<String>> {
-        AstCompletionHelper::list_view(self.db.as_ref(), None, schema).await
-    }
-
-    async fn list_column(
-        &self, _db: Option<&str>, schema: Option<&str>, name: &str,
-    ) -> anyhow::Result<Vec<CompletionItem>> {
-        AstCompletionHelper::list_column(self.db.as_ref(), None, schema, &name).await
-    }
-
-    async fn list_function(
-        &self, _db: Option<&str>, schema: Option<&str>, include_build_in: bool,
-    ) -> anyhow::Result<Vec<CompletionItem>> {
-        AstCompletionHelper::list_function(self.db.as_ref(), None, schema, include_build_in).await
-    }
-
-    async fn list_procedure(
-        &self, _db: Option<&str>, schema: Option<&str>,
-    ) -> anyhow::Result<Vec<String>> {
-        AstCompletionHelper::list_procedure(self.db.as_ref(), None, schema).await
-    }
-
-    async fn list_index(&self, schema: Option<&str>) -> anyhow::Result<Vec<String>> {
-        AstCompletionHelper::list_index(self.db.as_ref(), schema).await
-    }
-
-    async fn list_variable(&self) -> anyhow::Result<Vec<String>> {
-        AstCompletionHelper::list_variable(self.db.as_ref()).await
-    }
-
-    async fn list_partition(
-        &self, _db: Option<&str>, schema: Option<&str>, table: &str,
-    ) -> anyhow::Result<Vec<String>> {
-        AstCompletionHelper::list_partition(self.db.as_ref(), None, schema, &table).await
-    }
-
-    async fn list_constraint(
-        &self, _db: Option<&str>, schema: Option<&str>, table_name: &str,
-    ) -> anyhow::Result<Vec<String>> {
-        AstCompletionHelper::list_constraint(self.db.as_ref(), None, schema, &table_name).await
-    }
-
-    async fn list_table_trigger(
-        &self, _db: Option<&str>, schema: Option<&str>, table: &str,
-    ) -> anyhow::Result<Vec<String>> {
-        AstCompletionHelper::list_table_trigger(self.db.as_ref(), None, schema, &table).await
+        ssl: Default::default(),
     }
 }
 
-#[async_trait::async_trait]
-
-impl LangServerCommon for TiDB {
-    async fn list_database(&self) -> anyhow::Result<Vec<String>> {
-        anyhow::Ok(vec![])
-    }
-
-    async fn list_schema(&self, _db: Option<&str>) -> anyhow::Result<Vec<String>> {
-        DBTrait::list_schema(self).await
-    }
+#[cfg(test)]
+pub(crate) async fn make_test_object_tidb(config: MysqlDBConfig) -> SubDB {
+    use std::sync::Arc;
+    let db = SubDB::TiDB(Arc::new(crate::mysql::MysqlDB::new(config).await.unwrap()));
+    db
 }
-#[async_trait::async_trait]
-impl LexerCompletionTrait for TiDB {
-    type Dialect = sqlparser::dialect::MySqlDialect;
-
-    const KEY_WORDS: &'static [&'static str] = KEY_WORDS;
-    const TEXTS: &'static [&'static str] = MysqlDB::TEXTS;
-    const TYPES: &'static [&'static str] = MysqlDB::TYPES;
-
-    async fn list_function(&self) -> anyhow::Result<Vec<CompletionItem>> {
-        AstCompletionHelper::list_function(self, None, None, true).await
-    }
-
-    async fn list_table_or_view(&self) -> anyhow::Result<Vec<String>> {
-        self.db.list_table_or_view().await
-    }
-}
-
-const KEY_WORDS: &'static [&'static str] = &[
+/// TiDB 关键字全集（含保留/非保留）
+pub const TIDB_KEYWORDS: &[&str] = &[
     "ACCOUNT",
     "ACTION",
     "ADD",
@@ -268,42 +217,39 @@ const KEY_WORDS: &'static [&'static str] = &[
     "DAY_SECOND",
     "DDL",
     "DEALLOCATE",
+    "DEC",
     "DECIMAL",
     "DECLARE",
     "DEFAULT",
     "DEFINER",
-    "DELAY_KEY_WRITE",
     "DELAYED",
+    "DELAY_KEY_WRITE",
     "DELETE",
     "DENSE_RANK",
-    "DEPENDENCY",
-    "DEPTH",
     "DESC",
     "DESCRIBE",
-    "DIGEST",
+    "DETERMINISTIC",
+    "DIAGNOSTICS",
     "DIRECTORY",
     "DISABLE",
-    "DISABLED",
     "DISCARD",
+    "DISK",
     "DISTINCT",
     "DISTINCTROW",
     "DIV",
     "DO",
     "DOUBLE",
-    "DRAINER",
     "DROP",
-    "DRY",
     "DUAL",
+    "DUMPFILE",
     "DUPLICATE",
     "DYNAMIC",
+    "EACH",
     "ELSE",
     "ELSEIF",
     "ENABLE",
-    "ENABLED",
     "ENCLOSED",
     "ENCRYPTION",
-    "ENCRYPTION_KEYFILE",
-    "ENCRYPTION_METHOD",
     "END",
     "ENFORCED",
     "ENGINE",
@@ -315,10 +261,10 @@ const KEY_WORDS: &'static [&'static str] = &[
     "ESCAPED",
     "EVENT",
     "EVENTS",
-    "EVOLVE",
+    "EVERY",
     "EXCEPT",
     "EXCHANGE",
-    "EXCLUSIVE",
+    "EXCLUDE",
     "EXECUTE",
     "EXISTS",
     "EXIT",
@@ -326,12 +272,16 @@ const KEY_WORDS: &'static [&'static str] = &[
     "EXPIRE",
     "EXPLAIN",
     "EXTENDED",
-    "FAILED_LOGIN_ATTEMPTS",
+    "EXTENSION",
+    "EXTERNAL",
+    "EXTRACT",
     "FALSE",
     "FAULTS",
     "FETCH",
     "FIELDS",
     "FILE",
+    "FILE_BLOCK_SIZE",
+    "FILTER",
     "FIRST",
     "FIRST_VALUE",
     "FIXED",
@@ -351,42 +301,43 @@ const KEY_WORDS: &'static [&'static str] = &[
     "FUNCTION",
     "GENERAL",
     "GENERATED",
+    "GEOMETRY",
+    "GEOMETRYCOLLECTION",
+    "GET_FORMAT",
+    "GET_LOCK",
     "GLOBAL",
     "GRANT",
     "GRANTS",
     "GROUP",
-    "GROUPS",
+    "GROUP_CONCAT",
+    "GROUP_REPLICATION",
     "HANDLER",
     "HASH",
     "HAVING",
     "HELP",
     "HIGH_PRIORITY",
-    "HISTOGRAM",
-    "HISTOGRAMS_IN_FLIGHT",
     "HISTORY",
+    "HOST",
     "HOSTS",
     "HOUR",
     "HOUR_MICROSECOND",
     "HOUR_MINUTE",
     "HOUR_SECOND",
-    "HYPO",
     "IDENTIFIED",
     "IF",
     "IGNORE",
-    "IGNORE_STATS",
-    "ILIKE",
     "IMPORT",
-    "IMPORTS",
     "IN",
-    "INCREMENT",
-    "INCREMENTAL",
     "INDEX",
     "INDEXES",
     "INFILE",
+    "INITIAL_SIZE",
     "INNER",
     "INOUT",
+    "INSENSITIVE",
     "INSERT",
     "INSERT_METHOD",
+    "INSTALL",
     "INSTANCE",
     "INT",
     "INT1",
@@ -395,32 +346,34 @@ const KEY_WORDS: &'static [&'static str] = &[
     "INT4",
     "INT8",
     "INTEGER",
-    "INTERSECT",
     "INTERVAL",
     "INTO",
     "INVISIBLE",
-    "INVOKER",
     "IO",
+    "IO_AFTER_GTIDS",
+    "IO_BEFORE_GTIDS",
     "IPC",
     "IS",
     "ISOLATION",
     "ISSUER",
     "ITERATE",
-    "JOB",
-    "JOBS",
     "JOIN",
     "JSON",
+    "JSON_ARRAY",
+    "JSON_ARRAYAGG",
+    "JSON_OBJECT",
+    "JSON_OBJECTAGG",
+    "JSON_TABLE",
+    "JSON_VALUE",
     "KEY",
-    "KEYS",
     "KEY_BLOCK_SIZE",
+    "KEYS",
     "KILL",
-    "LABELS",
     "LAG",
     "LANGUAGE",
     "LAST",
-    "LAST_BACKUP",
     "LAST_VALUE",
-    "LASTVAL",
+    "LATERAL",
     "LEAD",
     "LEADING",
     "LEAVE",
@@ -433,94 +386,127 @@ const KEY_WORDS: &'static [&'static str] = &[
     "LINES",
     "LIST",
     "LOAD",
-    "LOAD_STATS",
     "LOCAL",
     "LOCALTIME",
     "LOCALTIMESTAMP",
-    "LOCATION",
     "LOCK",
     "LOCKED",
+    "LOCKS",
+    "LOGFILE",
     "LOGS",
     "LONG",
     "LONGBLOB",
     "LONGTEXT",
+    "LOOP",
     "LOW_PRIORITY",
     "MASTER",
+    "MASTER_AUTO_POSITION",
+    "MASTER_BIND",
+    "MASTER_CONNECT_RETRY",
+    "MASTER_DELAY",
+    "MASTER_HEARTBEAT_PERIOD",
+    "MASTER_HOST",
+    "MASTER_LOG_FILE",
+    "MASTER_LOG_POS",
+    "MASTER_PASSWORD",
+    "MASTER_PORT",
+    "MASTER_RETRY_COUNT",
+    "MASTER_SSL",
+    "MASTER_SSL_CA",
+    "MASTER_SSL_CAPATH",
+    "MASTER_SSL_CERT",
+    "MASTER_SSL_CIPHER",
+    "MASTER_SSL_CRL",
+    "MASTER_SSL_CRLPATH",
+    "MASTER_SSL_KEY",
+    "MASTER_TLS_VERSION",
+    "MASTER_USER",
     "MATCH",
+    "MAX",
     "MAXVALUE",
     "MAX_CONNECTIONS_PER_HOUR",
-    "MAX_IDXNUM",
-    "MAX_MINUTES",
     "MAX_QUERIES_PER_HOUR",
     "MAX_ROWS",
+    "MAX_SIZE",
     "MAX_UPDATES_PER_HOUR",
     "MAX_USER_CONNECTIONS",
-    "MB",
+    "MBRContains",
+    "MBRCoveredBy",
+    "MBRCovers",
+    "MBRDisjoint",
+    "MBREquals",
+    "MBRIntersects",
+    "MBROverlaps",
+    "MBRTouches",
+    "MBRWithin",
+    "MEDIUM",
     "MEDIUMBLOB",
     "MEDIUMINT",
     "MEDIUMTEXT",
-    "MEMBER",
     "MEMORY",
     "MERGE",
     "MICROSECOND",
     "MIDDLEINT",
+    "MIN",
     "MINUTE",
     "MINUTE_MICROSECOND",
     "MINUTE_SECOND",
-    "MINVALUE",
     "MIN_ROWS",
     "MOD",
     "MODE",
+    "MODIFIES",
     "MODIFY",
     "MONTH",
+    "MULTILINESTRING",
+    "MULTIPOINT",
+    "MULTIPOLYGON",
+    "MUTEX",
+    "MYSQL_ERRNO",
+    "NAME",
     "NAMES",
     "NATIONAL",
     "NATURAL",
     "NCHAR",
+    "NDB",
+    "NDBCLUSTER",
+    "NESTED",
     "NEVER",
+    "NEW",
     "NEXT",
-    "NEXTVAL",
     "NO",
-    "NOCACHE",
-    "NOCYCLE",
     "NODEGROUP",
-    "NODE_ID",
-    "NODE_STATE",
-    "NOMAXVALUE",
-    "NOMINVALUE",
-    "NONCLUSTERED",
     "NONE",
     "NOT",
-    "NOWAIT",
+    "NOW",
+    "NO_WAIT",
     "NO_WRITE_TO_BINLOG",
     "NTH_VALUE",
     "NTILE",
     "NULL",
     "NULLS",
+    "NUMBER",
     "NUMERIC",
     "NVARCHAR",
     "OF",
     "OFF",
     "OFFSET",
-    "OLTP_READ_ONLY",
-    "OLTP_READ_WRITE",
-    "OLTP_WRITE_ONLY",
+    "OLD",
     "ON",
-    "ON_DUPLICATE",
-    "ONLINE",
+    "ONE",
     "ONLY",
     "OPEN",
-    "OPTIMISTIC",
     "OPTIMIZE",
+    "OPTIMIZER_COSTS",
     "OPTION",
-    "OPTIONAL",
     "OPTIONALLY",
     "OR",
     "ORDER",
+    "ORDINALITY",
     "OUT",
     "OUTER",
     "OUTFILE",
     "OVER",
+    "OWNER",
     "PACK_KEYS",
     "PAGE",
     "PARSER",
@@ -531,19 +517,21 @@ const KEY_WORDS: &'static [&'static str] = &[
     "PASSWORD",
     "PASSWORD_LOCK_TIME",
     "PAUSE",
-    "PERCENT",
     "PERCENT_RANK",
-    "PER_DB",
-    "PER_TABLE",
-    "PESSIMISTIC",
+    "PERSIST",
+    "PERSIST_ONLY",
+    "PHASE",
+    "PLUGIN",
     "PLUGINS",
     "POINT",
-    "POLICY",
+    "POLYGON",
+    "PORT",
+    "POSITION",
     "PRECEDING",
     "PRECISION",
     "PREPARE",
     "PRESERVE",
-    "PRE_SPLIT_REGIONS",
+    "PREV",
     "PRIMARY",
     "PRIVILEGES",
     "PROCEDURE",
@@ -552,26 +540,29 @@ const KEY_WORDS: &'static [&'static str] = &[
     "PROFILE",
     "PROFILES",
     "PROXY",
-    "PUMP",
     "PURGE",
     "QUARTER",
-    "QUERIES",
     "QUERY",
     "QUICK",
-    "RANGE",
     "RANK",
-    "RATE_LIMIT",
     "READ",
+    "READ_ONLY",
+    "READ_WRITE",
     "REAL",
     "REBUILD",
-    "RECOMMEND",
     "RECOVER",
     "RECURSIVE",
+    "REDOFILE",
+    "REDO_BUFFER_SIZE",
     "REDUNDANT",
+    "REFERENCE",
     "REFERENCES",
     "REGEXP",
-    "REGION",
-    "REGIONS",
+    "RELAY",
+    "RELAYLOG",
+    "RELAY_LOG_FILE",
+    "RELAY_LOG_POS",
+    "RELAY_THREAD",
     "RELEASE",
     "RELOAD",
     "REMOVE",
@@ -581,19 +572,27 @@ const KEY_WORDS: &'static [&'static str] = &[
     "REPEAT",
     "REPEATABLE",
     "REPLACE",
-    "REPLICA",
-    "REPLICAS",
+    "REPLICATE_DO_DB",
+    "REPLICATE_DO_TABLE",
+    "REPLICATE_IGNORE_DB",
+    "REPLICATE_IGNORE_TABLE",
+    "REPLICATE_REWRITE_DB",
+    "REPLICATE_WILD_DO_TABLE",
+    "REPLICATE_WILD_IGNORE_TABLE",
     "REPLICATION",
     "REQUIRE",
-    "REQUIRED",
     "RESET",
+    "RESIGNAL",
     "RESOURCE",
     "RESPECT",
     "RESTART",
     "RESTORE",
-    "RESTORES",
     "RESTRICT",
+    "RESULT",
     "RESUME",
+    "RETURN",
+    "RETURNED_SQLSTATE",
+    "RETURNS",
     "REUSE",
     "REVERSE",
     "REVOKE",
@@ -602,59 +601,55 @@ const KEY_WORDS: &'static [&'static str] = &[
     "ROLE",
     "ROLLBACK",
     "ROLLUP",
+    "ROTATE",
     "ROUTINE",
     "ROW",
     "ROW_COUNT",
     "ROW_FORMAT",
-    "ROW_NUMBER",
     "ROWS",
+    "ROW_NUMBER",
     "RTREE",
-    "RUN",
-    "SAMPLERATE",
-    "SAMPLES",
-    "SAN",
     "SAVEPOINT",
+    "SCHEMA",
+    "SCHEMAS",
     "SECOND",
     "SECOND_MICROSECOND",
-    "SECONDARY",
-    "SECONDARY_ENGINE",
-    "SECONDARY_LOAD",
-    "SECONDARY_UNLOAD",
     "SECURITY",
     "SELECT",
-    "SEND_CREDENTIALS_TO_TIKV",
     "SEPARATOR",
-    "SEQUENCE",
     "SERIAL",
     "SERIALIZABLE",
+    "SERVER",
     "SESSION",
-    "SESSION_STATES",
     "SET",
-    "SETVAL",
-    "SHARD_ROW_ID_BITS",
     "SHARE",
-    "SHARED",
     "SHOW",
     "SHUTDOWN",
+    "SIGNAL",
     "SIGNED",
     "SIMPLE",
     "SKIP",
-    "SKIP_SCHEMA_FILES",
     "SLAVE",
     "SLOW",
     "SMALLINT",
     "SNAPSHOT",
     "SOME",
+    "SONAME",
+    "SOUNDS",
     "SOURCE",
     "SPATIAL",
-    "SPLIT",
+    "SPECIFIC",
     "SQL",
+    "SQLEXCEPTION",
+    "SQLSTATE",
+    "SQLWARNING",
     "SQL_BIG_RESULT",
     "SQL_BUFFER_RESULT",
     "SQL_CACHE",
     "SQL_CALC_FOUND_ROWS",
     "SQL_NO_CACHE",
     "SQL_SMALL_RESULT",
+    "SQL_THREAD",
     "SQL_TSI_DAY",
     "SQL_TSI_HOUR",
     "SQL_TSI_MINUTE",
@@ -663,46 +658,40 @@ const KEY_WORDS: &'static [&'static str] = &[
     "SQL_TSI_SECOND",
     "SQL_TSI_WEEK",
     "SQL_TSI_YEAR",
-    "SQLEXCEPTION",
-    "SQLSTATE",
-    "SQLWARNING",
     "SSL",
+    "STACKED",
     "START",
     "STARTING",
-    "STATISTICS",
     "STATS",
     "STATS_AUTO_RECALC",
-    "STATS_BUCKETS",
-    "STATS_COL_CHOICE",
-    "STATS_COL_LIST",
-    "STATS_EXTENDED",
-    "STATS_HEALTHY",
-    "STATS_HISTOGRAMS",
-    "STATS_LOCKED",
-    "STATS_META",
-    "STATS_OPTIONS",
     "STATS_PERSISTENT",
     "STATS_SAMPLE_PAGES",
-    "STATS_SAMPLE_RATE",
-    "STATS_TOPN",
     "STATUS",
+    "STDDEV",
+    "STDDEV_POP",
+    "STDDEV_SAMP",
+    "STOP",
     "STORAGE",
     "STORED",
     "STRAIGHT_JOIN",
-    "STRICT_FORMAT",
+    "STRING",
+    "SUBCLASS_ORIGIN",
     "SUBJECT",
     "SUBPARTITION",
     "SUBPARTITIONS",
+    "SUBSTRING",
+    "SUM",
     "SUPER",
+    "SUSPEND",
     "SWAPS",
     "SWITCHES",
+    "SYSDATE",
     "SYSTEM",
-    "SYSTEM_TIME",
     "TABLE",
     "TABLES",
-    "TABLESAMPLE",
     "TABLESPACE",
     "TABLE_CHECKSUM",
+    "TABLE_NAME",
     "TEMPORARY",
     "TEMPTABLE",
     "TERMINATED",
@@ -736,7 +725,8 @@ const KEY_WORDS: &'static [&'static str] = &[
     "TTL_ENABLE",
     "TTL_JOB_INTERVAL",
     "TYPE",
-    "UNBOUNDED",
+    "TYPES",
+    "UBOUNDED",
     "UNCOMMITTED",
     "UNDEFINED",
     "UNICODE",
@@ -748,6 +738,7 @@ const KEY_WORDS: &'static [&'static str] = &[
     "UNSIGNED",
     "UNTIL",
     "UPDATE",
+    "UPGRADE",
     "USAGE",
     "USE",
     "USER",
@@ -769,7 +760,6 @@ const KEY_WORDS: &'static [&'static str] = &[
     "VISIBLE",
     "WAIT",
     "WAIT_TIFLASH_READY",
-    "WARNINGS",
     "WEEK",
     "WEIGHT_STRING",
     "WHEN",
@@ -788,3 +778,39 @@ const KEY_WORDS: &'static [&'static str] = &[
     "YEAR_MONTH",
     "ZEROFILL",
 ];
+
+#[cfg(test)]
+mod tests {
+    use crate::{
+        db::QuerySql, language_server::LangServerCommon, tidb::make_config,
+        tidb_lang_server::make_test_object_tidb,
+    };
+
+    /*
+    TODO support this.
+    在 TiDB 中，“当前连接” 已经 PREPARE 的语句不会单独写入 information_schema 表，而是 保存在会话内存 里，因此官方没有 “一条 SQL 列出所有 prepare” 的固定表。
+    但你可以通过以下 两种方式 实时查看：
+     */
+    #[ignore = "xxxx"]
+    #[tokio::test]
+    async fn test_prepare() {
+        let db = make_test_object_tidb(make_config()).await;
+        let query_id = "";
+        db.open_connection(query_id).await.unwrap();
+        db.execute_sql(
+            query_id,
+            r#"
+            PREPARE stmtxxx FROM 'SELECT 1';
+        "#,
+        )
+        .await
+        .unwrap()
+        .unwrap();
+        assert!(db
+            .list_execute(None)
+            .await
+            .unwrap()
+            .iter()
+            .any(|x| x.name.eq("stmtxxx")));
+    }
+}

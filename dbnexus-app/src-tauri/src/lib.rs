@@ -1,197 +1,142 @@
 pub mod app;
 pub mod handlers;
+
 #[cfg(test)]
 mod tests {
-    use dbnexus_db::cassandra::CassandraDB;
-    use dbnexus_db::datasource_config::{CassandraDBConfig, EnableSsl, LibSqlDBConfigSouce};
-    use dbnexus_db::db::{ColumnType, CreateTableAndIndexSql};
+    use dbnexus_db::datasource_config::{
+        CassandraDBConfig, CouchBaseDBConfig, Db2Config, LibSqlDBConfigSource, MySqlSslMode,
+        MysqlSsl, OdbcCommon, PgSsl, PgSslMode, SSLFiles,
+    };
+    use dbnexus_db::db::{
+        BackendKind, ColumnType, CouchBaseBucketType, CreateDatabaseExtra, CreateIndexColumn,
+        CreateIndexReq, CreateTableAndIndexSql, CreateTableReq, CreateTableReqColumn,
+        CreatedTypeDef, IndexKind, SequenceDetail, ShowTableParameter, SqlEvent, SqlNullAble,
+        UdfOrProcedureExtraParameter,
+    };
+    use dbnexus_db::language_server::CompletionList;
+    use futures_util::StreamExt;
+    use langchain_rust::language_models::llm::LLM;
+    use langchain_rust::llm::{OpenAI, OpenAIConfig};
+    use langchain_rust::schemas::Message;
 
+    use crate::app::OpenAIReq;
     #[test]
     fn generate_ts_def() {
-        use std::io::prelude::*;
-        use std::path::Path;
-
         use dbnexus_db::datasource_config::{
             MongoDBConfig, MysqlDBConfig, PGDBConfig, RedisDBConfig, SqlServerDBConfig,
         };
         use dbnexus_db::db::{
-            DefAndMetas, ExportKind, Field, FormatSqlOpts, FormatSqlOptsIndent, Index, ListTable,
-            NamedStaff, ProcedureDetail, SqlExecuteRet, TriggerDetail, TriggerEnable, TriggerEvent,
-            TriggerTiming,
+            DefAndMetas, ExportKind, Field, Index, ListTable, NamedStaff, ProcedureDetail,
+            TriggerDetail, TriggerEnable, TriggerEvent, TriggerTiming,
         };
         use dbnexus_db::language_server::{CompletionItem, CompletionKind};
-        use dbnexus_db::query_log::QueryLogEvent;
         use dbnexus_db::redis::RedisListTable;
+        use std::path::Path;
         use typescript_type_def::{
-            DefinitionFileOptions, TypeDef, write_definition_file_from_type_infos,
+            write_definition_file_from_type_infos, DefinitionFileOptions, TypeDef,
         };
 
         use crate::app::{self};
-        use crate::handlers::MuiDataGridData;
-
         let dir = env!("CARGO_MANIFEST_DIR");
         let filepath = Path::new(&dir)
             .to_path_buf()
             .join("../src/comp/ApiStruct.ts");
 
-        let ts_module = {
-            let api = vec![
-                &app::DBConnectionConfig::INFO,
-                &PGDBConfig::INFO,
-                &SqlServerDBConfig::INFO,
-                &ListTable::INFO,
-                &Field::INFO,
-                &Index::INFO,
-                &SqlExecuteRet::INFO,
-                &NamedStaff::INFO,
-                &ExportKind::INFO,
-                &RedisListTable::INFO,
-                &TriggerDetail::INFO,
-                &TriggerEvent::INFO,
-                &TriggerTiming::INFO,
-                &TriggerEnable::INFO,
-                &CompletionItem::INFO,
-                &CompletionKind::INFO,
-                &DefAndMetas::INFO,
-                &ProcedureDetail::INFO,
-                &FormatSqlOpts::INFO,
-                &FormatSqlOptsIndent::INFO,
-                &RedisDBConfig::INFO,
-                &MysqlDBConfig::INFO,
-                &MongoDBConfig::INFO,
-                &MuiDataGridData::INFO,
-                &QueryLogEvent::INFO,
-                &CassandraDBConfig::INFO,
-                &LibSqlDBConfigSouce::INFO,
-                &CreateTableAndIndexSql::INFO,
-                &EnableSsl::INFO,
-                &ColumnType::INFO,
-            ];
-
-            let mut buf = Vec::new();
-            let options: DefinitionFileOptions = DefinitionFileOptions::default();
-            write_definition_file_from_type_infos(&mut buf, options, &api).unwrap();
-            buf
-        };
         let mut ops = std::fs::OpenOptions::new();
         ops.write(true);
         ops.truncate(true);
         ops.create(true);
 
         let mut file = ops.open(filepath.as_path()).unwrap();
-        file.write_all(&ts_module).unwrap();
+
+        let api = vec![
+            &app::DBConnectionConfig::INFO,
+            &PGDBConfig::INFO,
+            &SqlServerDBConfig::INFO,
+            &ListTable::INFO,
+            &Field::INFO,
+            &Index::INFO,
+            &NamedStaff::INFO,
+            &ExportKind::INFO,
+            &RedisListTable::INFO,
+            &TriggerDetail::INFO,
+            &TriggerEvent::INFO,
+            &TriggerTiming::INFO,
+            &TriggerEnable::INFO,
+            &CompletionItem::INFO,
+            &CompletionKind::INFO,
+            &DefAndMetas::INFO,
+            &ProcedureDetail::INFO,
+            &RedisDBConfig::INFO,
+            &MysqlDBConfig::INFO,
+            &MongoDBConfig::INFO,
+            &CassandraDBConfig::INFO,
+            &LibSqlDBConfigSource::INFO,
+            &CreateTableAndIndexSql::INFO,
+            &PgSsl::INFO,
+            &MysqlSsl::INFO,
+            &ColumnType::INFO,
+            &SequenceDetail::INFO,
+            &CreatedTypeDef::INFO,
+            &SqlEvent::INFO,
+            &CompletionList::INFO,
+            &PgSslMode::INFO,
+            &MySqlSslMode::INFO,
+            &SSLFiles::INFO,
+            &UdfOrProcedureExtraParameter::INFO,
+            &ShowTableParameter::INFO,
+            &Db2Config::INFO,
+            &CreateTableReq::INFO,
+            &CreateTableReqColumn::INFO,
+            &CreateIndexColumn::INFO,
+            &OdbcCommon::INFO,
+            &CreateIndexReq::INFO,
+            &IndexKind::INFO,
+            &SqlNullAble::INFO,
+            &CouchBaseDBConfig::INFO,
+            &CreateDatabaseExtra::INFO,
+            &CouchBaseBucketType::INFO,
+            &BackendKind::INFO,
+            &OpenAIReq::INFO,
+        ];
+        let options: DefinitionFileOptions = DefinitionFileOptions::default();
+        write_definition_file_from_type_infos(&mut file, options, &api).unwrap();
+
+        // copy to deno backend
+        {
+
+            // let filepath = Path::new(&dir)
+            //     .to_path_buf()
+            //     .join("../../dbnexus-db/deno/src/api.ts");
+
+            // println!("!!!!!!!!!!!!!!{:?}", filepath);
+
+            // let mut ops = std::fs::OpenOptions::new();
+            // ops.write(true);
+            // ops.truncate(true);
+            // ops.create(true);
+
+            // let mut file = ops.open(filepath.as_path()).unwrap();
+            // write_definition_file_from_type_infos(&mut file, options, &api).unwrap();
+        }
+
         println!("generate OK.")
     }
 
-    #[test]
-    fn generate_keywords() {
-        use std::env;
-        use std::io::Write;
-        use std::path::Path;
-
-        use dbnexus_db::db::monaco_editor_keyword_regexp;
-        use dbnexus_db::firebird::FireBirdDB;
-        use dbnexus_db::language_server::LexerCompletionTrait;
-        use dbnexus_db::mssql::MsSqlServerDB;
-        use dbnexus_db::mysql::MysqlDB;
-        use dbnexus_db::oracle::OracleDB;
-        use dbnexus_db::pg::PostGresDB;
-        use dbnexus_db::redis_lang_server::REDIS_COMMANDS;
-        use dbnexus_db::sqlite::SqliteDB;
-        use dbnexus_db::tidb::TiDB;
-
-        fn compose(name: &str, content: &str) -> String {
-            return format!("const {} = {};", name, content);
-        }
-
-        let exe = env::current_exe().unwrap();
-
-        let dir = env!("CARGO_MANIFEST_DIR");
-        let filepath = Path::new(&dir)
-            .to_path_buf()
-            .join("../src/comp/keywords.ts");
-
-        let mut ops = std::fs::OpenOptions::new();
-        ops.write(true);
-        ops.truncate(true);
-        ops.create(true);
-        let mut file = ops.open(filepath).unwrap();
-
-        file.write(format!("// generate by {:?}\n", exe).as_bytes())
+    #[tokio::test]
+    async fn test_open_api() {
+        let mut config = OpenAIConfig::default();
+        config = config.with_api_base("https://api.moonshot.cn/v1");
+        config = config.with_api_key("sk-2zegNGK2WhxZ9jToc17JBp260Z5vD5Cdd4zXG4s4WISRyczO");
+        let mut api = OpenAI::default();
+        api = api.with_config(config);
+        api = api.with_model("kimi-latest");
+        let mut r = api
+            .stream(&[Message::new_human_message("hello")])
+            .await
             .unwrap();
-        file.write(format!("// don't edit!!!\n").as_bytes())
-            .unwrap();
-        // redis
-        {
-            let content = monaco_editor_keyword_regexp(REDIS_COMMANDS);
-            file.write(compose("redisKeywords", &content).as_bytes())
-                .unwrap();
-            file.write("\n".as_bytes()).unwrap();
+        while let Some(r) = r.next().await {
+            println!("!!!:{:?}", r.unwrap().content);
         }
-        // mysql
-        {
-            let content = MysqlDB::monaco_editor_keyword_regexp();
-            file.write(compose("mysqlKeywords", &content).as_bytes())
-                .unwrap();
-            file.write("\n".as_bytes()).unwrap();
-        }
-
-        // mssql
-        {
-            let content = MsSqlServerDB::monaco_editor_keyword_regexp();
-            file.write(compose("mssqlKeywords", &content).as_bytes())
-                .unwrap();
-            file.write("\n".as_bytes()).unwrap();
-        }
-        // postgres
-        {
-            let content = PostGresDB::monaco_editor_keyword_regexp();
-            file.write(compose("postgresKeywords", &content).as_bytes())
-                .unwrap();
-            file.write("\n".as_bytes()).unwrap();
-        }
-        // sqlite
-
-        {
-            let content = SqliteDB::monaco_editor_keyword_regexp();
-            file.write(compose("sqliteKeywords", &content).as_bytes())
-                .unwrap();
-            file.write("\n".as_bytes()).unwrap();
-        }
-        // oracle
-
-        {
-            let content = OracleDB::monaco_editor_keyword_regexp();
-            file.write(compose("oracleKeywords", &content).as_bytes())
-                .unwrap();
-            file.write("\n".as_bytes()).unwrap();
-        }
-        // tidb
-        {
-            let content = TiDB::monaco_editor_keyword_regexp();
-            file.write(compose("tidbKeywords", &content).as_bytes())
-                .unwrap();
-            file.write("\n".as_bytes()).unwrap();
-        }
-
-        // cassandra
-        {
-            let content = CassandraDB::monaco_editor_keyword_regexp();
-            file.write(compose("cassandraKeywords", &content).as_bytes())
-                .unwrap();
-            file.write("\n".as_bytes()).unwrap();
-        }
-        {
-            let content = FireBirdDB::monaco_editor_keyword_regexp();
-            file.write(compose("firebirdKeywords", &content).as_bytes())
-                .unwrap();
-            file.write("\n".as_bytes()).unwrap();
-        }
-
-        // TODO add more
-        file.write(
-        r#"export { redisKeywords , mysqlKeywords  , mssqlKeywords , postgresKeywords , sqliteKeywords , oracleKeywords ,tidbKeywords , cassandraKeywords  , firebirdKeywords }"#.as_bytes(),
-    )
-    .unwrap();
     }
 }

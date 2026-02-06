@@ -1,20 +1,26 @@
-use std::sync::Once;
-use std::sync::atomic::{AtomicUsize, Ordering};
-
+#![warn(clippy::unwrap_used)]
 use lazy_static::lazy_static;
 use log::{Level, LevelFilter, Metadata, Record};
+use std::sync::Once;
 
-pub mod datasource_config;
-pub mod db;
-pub mod language_server;
-pub mod meta_value;
-
+#[cfg(feature = "bigquery")]
+pub mod bigquery;
+#[cfg(feature = "bigquery")]
+pub mod bigquery_lang_server;
 pub mod cassandra;
 pub mod cassandra_lang_server;
 pub mod clickhouse;
 pub mod clickhouse_lang_server;
 pub mod cockroach;
 pub mod cockroach_lang_server;
+pub mod couchbase;
+pub mod couchbase_lang_server;
+
+#[cfg(feature = "hive")]
+pub mod hive;
+
+pub mod datasource_config;
+pub mod db;
 #[cfg(feature = "duckdb")]
 pub mod duckdb;
 #[cfg(feature = "duckdb")]
@@ -22,27 +28,40 @@ pub mod duckdb_lang_server;
 pub mod firebird;
 pub mod firebird_lang_server;
 pub mod helper;
+pub mod language_server;
 pub mod libsql;
 pub mod libsql_lang_server;
 pub mod mariadb;
+pub mod mariadb_lang_server;
 pub mod mongo;
 pub mod mongo_lang_server;
 pub mod mssql;
 pub mod mssql_lang_server;
 pub mod mysql;
 pub mod mysql_lang_server;
+#[cfg(feature = "neo4j")]
+pub mod neo4j;
+#[cfg(feature = "neo4j")]
+pub mod neo4j_lang_server;
+
+#[cfg(feature = "odbc")]
+pub mod odbc;
 pub mod oracle;
 pub mod oracle_lang_server;
 pub mod pg;
 pub mod pg_format;
 pub mod pg_lang_server;
-pub mod query_log;
 pub mod redis;
 pub mod redis_lang_server;
+#[cfg(feature = "snowflake")]
+pub mod snowflake;
+pub mod snowflake_lang_server;
 pub mod sqlite;
 pub mod sqlite_lang_server;
 pub mod sqlparser_completing;
 pub mod sqlparser_completion;
+pub mod sub;
+pub mod sub_lang_server;
 pub mod tidb;
 pub mod tidb_lang_server;
 pub mod typedef;
@@ -61,7 +80,7 @@ impl log::Log for SimpleLogger {
     fn log(&self, record: &Record) {
         if self.enabled(record.metadata()) {
             eprintln!(
-                "{}:{}  {} - {}",
+                "{}:{} {}-{}",
                 record.file().unwrap_or_default(),
                 record.line().unwrap_or_default(),
                 record.level(),
@@ -79,54 +98,6 @@ pub fn enable_test_log() {
     INIT.call_once(|| {
         log::set_logger(&LOGGER)
             .map(|()| log::set_max_level(LevelFilter::Trace))
-            .unwrap()
+            .expect("should set ok")
     })
-}
-
-/// limit memory when doing some operation
-/// like select a lot of data from database.
-pub struct MemoryLimit {
-    count: usize,
-    m: usize,
-}
-
-impl MemoryLimit {
-    pub fn new() -> Self {
-        Self { count: 0, m: 10000 }
-    }
-}
-
-#[allow(unused)]
-impl MemoryLimit {
-    pub fn instance() -> &'static AtomicUsize {
-        // default to 200M
-        static SIZE: AtomicUsize = AtomicUsize::new(1200 * 1024 * 1024);
-        &SIZE
-    }
-
-    pub fn get_limit() -> usize {
-        Self::instance().load(Ordering::Relaxed)
-    }
-
-    pub fn set_limit(x: usize) {
-        Self::instance().store(x, Ordering::Relaxed)
-    }
-
-    pub fn exceed() -> bool {
-        memory_stats::memory_stats()
-            .map(|usage| usage.physical_mem > Self::get_limit())
-            .unwrap_or(false)
-    }
-
-    pub fn exceed_error(&mut self) -> anyhow::Result<()> {
-        self.count += 1;
-        if (self.count % self.m) == 0 && Self::exceed() {
-            Err(anyhow::Error::msg(format!(
-                "exceed max memory of {}m",
-                Self::get_limit() >> 20
-            )))
-        } else {
-            Ok(())
-        }
-    }
 }

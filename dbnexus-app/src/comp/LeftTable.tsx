@@ -1,47 +1,45 @@
-import { ReactNode, useContext, useEffect, useState } from 'react';
-import {
-  modalStyle,
-  progressBarSizeSmall,
-  tabsHasId,
-  DocsAndCount,
-  makeAutoComplete,
-  EscDownEvent,
-} from './Common';
-import types from './ApiStruct';
-import { NotificationContext } from './Notification';
-import { invoke } from '@tauri-apps/api/core';
-import { TreeItem } from '@mui/x-tree-view/TreeItem';
-import ListIcon from '@mui/icons-material/List';
-import EditIcon from '@mui/icons-material/Edit';
-import DeleteForeverIcon from '@mui/icons-material/DeleteForever';
-import ContentCopyIcon from '@mui/icons-material/ContentCopy';
-import PlaylistRemoveIcon from '@mui/icons-material/PlaylistRemove';
-import TableViewIcon from '@mui/icons-material/TableView';
-import ArrowCircleDownIcon from '@mui/icons-material/ArrowCircleDown';
-import { IoConstructOutline } from 'react-icons/io5';
-import { HiOutlineDuplicate } from 'react-icons/hi';
+import { ReactNode, useCallback, useContext, useEffect, useRef, useState } from "react";
+import { modalStyle, tabsHasId, EscDownEvent, modalHandleClose } from "./Common.ts";
+import types from "./ApiStruct";
+import { NotificationContext } from "./Notification";
+import { invoke } from "@tauri-apps/api/core";
+import { TreeItem } from "@mui/x-tree-view/TreeItem";
+import ListIcon from "@mui/icons-material/List";
+import EditIcon from "@mui/icons-material/Edit";
+import DeleteForeverIcon from "@mui/icons-material/DeleteForever";
+import ContentCopyIcon from "@mui/icons-material/ContentCopy";
+import PlaylistRemoveIcon from "@mui/icons-material/PlaylistRemove";
+import TableViewIcon from "@mui/icons-material/TableView";
+import ArrowCircleDownIcon from "@mui/icons-material/ArrowCircleDown";
+import { IoConstructOutline } from "react-icons/io5";
+import { HiOutlineDuplicate } from "react-icons/hi";
+import FilterAltIcon from "@mui/icons-material/FilterAlt";
+
 import {
   Box,
   Button,
+  Checkbox,
+  Chip,
   CircularProgress,
   Divider,
   FormControlLabel,
+  IconButton,
+  InputAdornment,
   ListItemIcon,
   ListItemText,
   MenuItem,
   MenuList,
   Modal,
-  Paper,
   Stack,
-  Switch,
   TextField,
   Tooltip,
-} from '@mui/material';
+} from "@mui/material";
+import ClearIcon from "@mui/icons-material/Clear";
 
-import { TabContent } from './Tabs';
-import { SqlTableView, SqlTableViewData } from './SqlTableView';
-import { ExportTableOrView } from './Export';
-import AddIcon from '@mui/icons-material/Add';
+import { TabContent } from "./Tabs";
+import { SqlTableView, SqlTableViewData } from "./SqlTableView";
+import { ExportTableOrView } from "./Export";
+import AddIcon from "@mui/icons-material/Add";
 import {
   RedisAddHash,
   RedisAddList,
@@ -52,11 +50,10 @@ import {
   RedisSetTable,
   RedisStringTable,
   RedisZsetTable,
-} from './Redis';
-import { MongoTable, MongoTableAdd } from './MongoDB';
-import { BSON, EJSON } from 'bson';
+} from "./Redis";
+import { MongoTable, MongoTableAdd } from "./MongoDB";
+import { BSON } from "bson";
 import {
-  calMenuStyle,
   ConnTypeContext,
   ContextMenuContext,
   DataSourceKind,
@@ -66,101 +63,111 @@ import {
   TabsSetContext,
   UuidContext,
   handleCopyToClipboard,
-} from './helper';
-import { MenuRefresh } from './CommonComp';
-import { TableStructure } from './TableStructure';
+  getSupportExportKind,
+  RedisTableType,
+  TableType,
+  shrinkAble,
+  MaxTreeContext,
+} from "./helper";
+import { ExceedMaxTreeItem, MenuRefresh, ModalHeader } from "./CommonComp";
+import { TableStructure } from "./TableStructure";
+import { cancelTask, listTable, makeTableInsertFn, showTableColumn } from "./handlers";
+import { filesize } from "filesize";
+import { CancelButton, StackRowCenter } from "./CommonComp2";
+import { CouchBaseTable } from "./CouchBase";
 
-enum TablesType {
-  Normal,
-  MongoTimeSerial,
-}
-
-function TablesTree(props: { typ: TablesType }) {
+function TablesTree(props: { typ: TableType }) {
   const { typ } = props;
-
   const { uuid } = useContext(UuidContext);
+  const { kind } = useContext(ConnTypeContext);
   const [tables, setTables] = useState<types.ListTable[]>([]);
   const { showNotification } = useContext(NotificationContext);
   const [loading, setLoading] = useState(false);
-
-  const handleReload = () => {
+  const [exceed, setExceed] = useState(0);
+  const matchPattern = useContext(MatchPatternContext);
+  const maxsize = useContext(MaxTreeContext);
+  useEffect(() => {
+    setExceed(tables.filter(e => matchPattern(e.name)).length);
+  }, [tables, matchPattern]);
+  const handleReload = useCallback(() => {
     setLoading(true);
-    let invokeName;
-    switch (typ) {
-      case TablesType.Normal:
-        invokeName = 'list_table';
-        break;
-      case TablesType.MongoTimeSerial:
-        invokeName = 'mongo_list_time_serial_collection';
-        break;
-    }
-
-    invoke<types.ListTable[]>(invokeName, { name: uuid })
-      .then((ts) => {
+    listTable(uuid, typ)
+      .then(ts => {
         setTables(ts);
       })
-      .catch((e) => {
-        showNotification('error', 'list table failed', e);
+      .catch(e => {
+        showNotification("error", "list table failed", e);
       })
       .finally(() => {
         setLoading(false);
       });
-  };
+  }, [showNotification, typ, uuid]);
   useEffect(() => {
     handleReload();
-  }, []);
+  }, [handleReload]);
 
-  let { setUpMenu } = useContext(ContextMenuContext);
+  const { setUpMenu } = useContext(ContextMenuContext);
 
   let tablesText;
-  switch (typ) {
-    case TablesType.Normal:
-      tablesText = 'tables';
+
+  switch (kind) {
+    case DataSourceKind.CouchBase:
+      tablesText = "collections";
       break;
-    case TablesType.MongoTimeSerial:
-      tablesText = 'time serial';
-      break;
+    default: {
+      switch (typ) {
+        case TableType.Normal:
+          tablesText = "tables";
+          break;
+        case TableType.MongoTimeSerial:
+          tablesText = "time serial";
+          break;
+      }
+    }
   }
-  const matchPattern = useContext(MatchPatternContext);
+
+  const tablesId = useRef(generateRandomString());
   return (
     <TreeItem
-      itemId={uuid + '-tables-' + typ + '-'}
+      itemId={tablesId.current}
       label=<Stack
-        spacing={1}
         direction="row"
-        sx={{ alignItems: 'center' }}
-        onContextMenu={(e) => {
+        sx={{ alignItems: "center" }}
+        onContextMenu={e => {
           setUpMenu({
             content: (
-              <Paper>
-                <MenuList>
-                  <MenuRefresh reload={handleReload}></MenuRefresh>
-                </MenuList>
-              </Paper>
+              <MenuList>
+                <MenuRefresh reload={handleReload} />
+              </MenuList>
             ),
-            style: calMenuStyle(e, 70),
+            event: e,
           });
         }}
       >
-        <TableViewIcon></TableViewIcon>
+        <TableViewIcon />
         <span> {tablesText} </span>
-        {loading && (
-          <CircularProgress size={progressBarSizeSmall}></CircularProgress>
-        )}
+        {loading && <CircularProgress />}
       </Stack>
     >
       {tables
-        .filter((e) => matchPattern(e.name))
-        .map((e) => {
+        .filter(e => matchPattern(e.name))
+        .map((e, index) => {
+          if (index >= maxsize) {
+            return;
+          }
+          const id = `${uuid}-table-${typ}-${index}`;
+
           return (
             <TableTree
               key={e.name}
               size={e.size}
               reloadTables={handleReload}
               table={e.name}
-            ></TableTree>
+              id={id}
+            />
           );
         })}
+      <ExceedMaxTreeItem exceed={exceed} maxTreeSize={maxsize} />
     </TreeItem>
   );
 }
@@ -168,22 +175,22 @@ function TablesTree(props: { typ: TablesType }) {
 function TableTree(props: {
   table: string;
   reloadTables;
-  size: string | null;
+  size: number | null;
+  id: string;
 }) {
-  let { table, reloadTables, size } = props;
+  const { table, reloadTables, size, id } = props;
   const { uuid } = useContext(UuidContext);
   const { kind } = useContext(ConnTypeContext);
-  let { setUpMenu } = useContext(ContextMenuContext);
+  const { setUpMenu } = useContext(ContextMenuContext);
 
   return (
     <TreeItem
-      itemId={uuid + '-table-' + table}
+      itemId={id}
       label={
         <Stack
           direction="row"
-          spacing={1}
           justifyContent="space-between"
-          onContextMenu={(e) => {
+          onContextMenu={e => {
             setUpMenu({
               content: (
                 <TableMenu
@@ -193,17 +200,21 @@ function TableTree(props: {
                   uuid={uuid}
                 />
               ),
-              style: calMenuStyle(e, 200),
+              event: e,
             });
           }}
         >
-          <Stack direction="row" spacing={1}>
+          <StackRowCenter>
             <TableViewIcon> </TableViewIcon> <span>{table}</span>
-          </Stack>
-          <span> {size} </span>
+          </StackRowCenter>
+          {size && (
+            <span style={{ ...shrinkAble, minWidth: 0 }}>
+              {filesize(size, { round: 0 })}
+            </span>
+          )}
         </Stack>
       }
-    ></TreeItem>
+    />
   );
 }
 
@@ -214,43 +225,42 @@ function DropTable(props: {
   handleClose;
   kind: DataSourceKind;
 }) {
-  let { table, reloadTables, uuid, handleClose, kind } = props;
+  const { table, reloadTables, uuid, handleClose, kind } = props;
   const [loading, setLoading] = useState(false);
   const { showNotification } = useContext(NotificationContext);
   const [cascade, setCascade] = useState(false);
 
   const handleDrop = async () => {
     const confirm = await secondConfirm({
-      confirmText: 'Drop',
-      title: `are u sure to drop table '${table}'`,
+      confirmText: "Drop",
+      title: `drop table '${table}'`,
+      kind: "error",
     });
     if (!confirm) {
       return;
     }
     setLoading(true);
-    invoke('drop_table', { name: uuid, tableName: table, cascade })
+    invoke("drop_table", { name: uuid, tableName: table, cascade })
       .then(() => {
-        showNotification('success', 'Drop table OK');
+        showNotification("success", "Drop table OK");
         reloadTables();
         handleClose();
       })
-      .catch((e) => {
-        showNotification('error', 'Drop table failure', e);
+      .catch(e => {
+        showNotification("error", "Drop table failure", e);
       })
       .finally(() => {
         setLoading(false);
       });
   };
 
-  const suportCascade = (): boolean => {
+  const supportCascade = (): boolean => {
     switch (kind) {
       case DataSourceKind.Mysql:
       case DataSourceKind.MariaDB:
       case DataSourceKind.TiDB:
       case DataSourceKind.Postgres:
-      case DataSourceKind.Sqlite:
       case DataSourceKind.Cockroach:
-      case DataSourceKind.LibSql:
       case DataSourceKind.Oracle:
         return true;
       default:
@@ -259,25 +269,17 @@ function DropTable(props: {
   };
 
   return (
-    <Stack spacing={1}>
-      {suportCascade() && (
+    <Stack>
+      {supportCascade() && (
         <FormControlLabel
           control={
-            <Switch
-              checked={cascade}
-              onChange={(e) => setCascade(e.target.checked)}
-            />
+            <Checkbox checked={cascade} onChange={e => setCascade(e.target.checked)} />
           }
           label="CASCADE"
         />
       )}
-      <Stack direction="row" spacing={1}>
-        <Button
-          loading={loading}
-          color="error"
-          variant="contained"
-          onClick={handleDrop}
-        >
+      <Stack direction="row">
+        <Button loading={loading} color="error" onClick={handleDrop}>
           drop
         </Button>
       </Stack>
@@ -285,328 +287,40 @@ function DropTable(props: {
   );
 }
 
-async function makeViewTable(
-  uuid,
-  table: string,
-  kind: DataSourceKind,
-  redisTableType: RedisTableType,
-  showNotification
-) {
-  let tableList: ReactNode = null;
-  switch (kind) {
-    case DataSourceKind.MariaDB:
-    case DataSourceKind.Mysql:
-    case DataSourceKind.MsSql:
-    case DataSourceKind.Sqlite:
-    case DataSourceKind.Postgres:
-    case DataSourceKind.Oracle:
-    case DataSourceKind.TiDB:
-    case DataSourceKind.Cassandra:
-    case DataSourceKind.ClickHouse:
-    case DataSourceKind.LibSql:
-    case DataSourceKind.FireBird:
-    case DataSourceKind.DuckDB:
-    case DataSourceKind.Cockroach:
-      tableList = (
-        <SqlTableView
-          autoCompletion={makeAutoComplete(uuid)}
-          tableName={table}
-          kind={kind}
-          reloadOP={async (
-            where: string,
-            orderBy: string,
-            page: number,
-            pageSize: number,
-            extra
-          ) => {
-            let where_null = where ? where : null;
-            let orderBy_null = orderBy ? orderBy : null;
-            return await invoke<types.MuiDataGridData>('show_table', {
-              name: uuid,
-              tableName: table,
-              whereStr: where_null,
-              orderBy: orderBy_null,
-              page,
-              pageSize,
-              extra,
-            });
-          }}
-          updateOP={async (wheres, values) => {
-            return await invoke<types.SqlExecuteRet>('update', {
-              name: uuid,
-              tableName: table,
-              values,
-              wheres,
-            });
-          }}
-          deleteOP={async (wheres) => {
-            return await invoke<types.SqlExecuteRet>('delete', {
-              name: uuid,
-              tableName: table,
-              wheres,
-            });
-          }}
-          put_value_in_sql={async (typ, value) => {
-            return invoke('put_value_in_sql', {
-              name: uuid,
-              typ,
-              value: value ? value : null,
-            });
-          }}
-          addOP={async (values) => {
-            return invoke('insert', {
-              name: uuid,
-              tableName: table,
-              values,
-            });
-          }}
-        ></SqlTableView>
-      );
+function makeRedisViewTable(uuid, table, redisType: RedisTableType) {
+  let tableList;
+  switch (redisType) {
+    case RedisTableType.String:
+      tableList = <RedisStringTable uuid={uuid} stringKey={table} />;
       break;
-    case DataSourceKind.Redis:
-      switch (redisTableType) {
-        case RedisTableType.String:
-          tableList = (
-            <RedisStringTable
-              modifyOP={async (value) => {
-                return await invoke('redis_string_set', {
-                  name: uuid,
-                  key: table,
-                  value,
-                });
-              }}
-              content={await (async () => {
-                try {
-                  let x = await invoke<types.MuiDataGridData>('show_table', {
-                    name: uuid,
-                    tableName: table,
-                    whereStr: null,
-                    orderBy: null,
-                    page: 0,
-                    pageSize: 0,
-                  });
-                  return x.data[0]['value'];
-                } catch (e) {
-                  showNotification(
-                    'success',
-                    'load redis string table failed',
-                    e
-                  );
-                }
-              })()}
-            ></RedisStringTable>
-          );
-          break;
-        case RedisTableType.List:
-          tableList = (
-            <RedisListTable
-              reloadOP={async () => {
-                return await invoke('show_table', {
-                  name: uuid,
-                  tableName: table,
-                  page: 0,
-                  pageSize: 0,
-                  whereStr: null,
-                  orderBy: null,
-                });
-              }}
-              modifyOP={async (index, value) => {
-                return await invoke('redis_list_set', {
-                  name: uuid,
-                  key: table,
-                  value,
-                  index,
-                });
-              }}
-              delOP={async (count, value) => {
-                return await invoke('redis_list_remove', {
-                  name: uuid,
-                  key: table,
-                  value,
-                  count,
-                });
-              }}
-            ></RedisListTable>
-          );
-          break;
-
-        case RedisTableType.Set:
-          tableList = (
-            <RedisSetTable
-              reloadOP={async (keyMatch) => {
-                return await invoke('show_table', {
-                  name: uuid,
-                  tableName: table,
-                  page: 0,
-                  pageSize: 0,
-                  whereStr: keyMatch ? keyMatch : null,
-                  orderBy: null,
-                });
-              }}
-              modifyOP={async (old, newx) => {
-                return await invoke('redis_set_replace', {
-                  name: uuid,
-                  key: table,
-                  old,
-                  new: newx,
-                });
-              }}
-              delOP={async (member) => {
-                return await invoke('redis_set_del', {
-                  name: uuid,
-                  key: table,
-                  member,
-                });
-              }}
-            ></RedisSetTable>
-          );
-          break;
-        case RedisTableType.Zset:
-          tableList = (
-            <RedisZsetTable
-              reloadOP={async (keyMatch, min, max) => {
-                return await invoke('redis_zset_show_table', {
-                  name: uuid,
-                  key: table,
-                  min: typeof min == 'number' ? min : null,
-                  max: typeof max == 'number' ? max : null,
-                  whereStr: keyMatch ? keyMatch : null,
-                });
-              }}
-              modifyOP={async (
-                oldMember: string,
-                newKey: string,
-                newValue: number
-              ) => {
-                return await invoke('redis_zset_replace', {
-                  name: uuid,
-                  key: table,
-                  oldMember: oldMember,
-                  newMember: newKey,
-                  newValue,
-                });
-              }}
-              delOP={async (member) => {
-                return await invoke('redis_zset_del', {
-                  name: uuid,
-                  key: table,
-                  member,
-                });
-              }}
-            ></RedisZsetTable>
-          );
-          break;
-        case RedisTableType.Hash:
-          tableList = (
-            <RedisHashTable
-              reloadOP={async (keyMatch) => {
-                return await invoke('show_table', {
-                  name: uuid,
-                  tableName: table,
-                  page: 0,
-                  pageSize: 0,
-                  whereStr: keyMatch ? keyMatch : null,
-                  orderBy: null,
-                });
-              }}
-              delOP={async (member) => {
-                return await invoke('redis_hash_del', {
-                  name: uuid,
-                  key: table,
-                  member,
-                });
-              }}
-              modifyOP={async (oldMember, newMember, newValue) => {
-                return await invoke('redis_hash_replace', {
-                  name: uuid,
-                  key: table,
-                  oldMember,
-                  newMember,
-                  newValue,
-                });
-              }}
-            ></RedisHashTable>
-          );
-          break;
-      }
-
+    case RedisTableType.List:
+      tableList = <RedisListTable uuid={uuid} listKey={table} />;
       break;
-    case DataSourceKind.Mongo:
-      tableList = (
-        <MongoTable
-          reloadOPTableList={async (filter, sort, page, pageSize) => {
-            return await invoke('mongo_show_collection_table_list', {
-              name: uuid,
-              tableName: table,
-              filter: BSON.serialize(filter),
-              sort: BSON.serialize(sort),
-              page,
-              pageSize,
-            });
-          }}
-          realodOPDocs={async (filter, sort, page, pageSize) => {
-            try {
-              let x = await invoke('mongo_show_collection_docs', {
-                name: uuid,
-                tableName: table,
-                filter: BSON.serialize(filter),
-                sort: BSON.serialize(sort),
-                page,
-                pageSize,
-              });
-              //@ts-ignore
-              let docs = x.docs.map((e) => BSON.deserialize(new Uint8Array(e)));
-              //@ts-ignore
-              let count = x.count;
-              return new DocsAndCount(docs, count);
-            } catch (e) {
-              throw e;
-            }
-          }}
-          modifyOP={async (doc) => {
-            return invoke('mongo_update_one', {
-              name: uuid,
-              tableName: table,
-              doc: BSON.serialize(doc),
-            });
-          }}
-          loadOne={async (id) => {
-            try {
-              let x = await invoke<number[]>('mongo_get_one_document_by_id', {
-                name: uuid,
-                tableName: table,
-                id: JSON.stringify(EJSON.serialize(id)),
-              });
-              return BSON.deserialize(new Uint8Array(x));
-            } catch (e) {
-              throw e;
-            }
-          }}
-          deleteOP={async (ids) => {
-            return invoke('mongo_delete_ids', {
-              name: uuid,
-              tableName: table,
-              ids: JSON.stringify(EJSON.serialize(ids)),
-            });
-          }}
-        ></MongoTable>
-      );
+
+    case RedisTableType.Set:
+      tableList = <RedisSetTable setKey={table} uuid={uuid} />;
+      break;
+    case RedisTableType.Zset:
+      tableList = <RedisZsetTable zsetKey={table} uuid={uuid} />;
+      break;
+    case RedisTableType.Hash:
+      tableList = <RedisHashTable hashKey={table} uuid={uuid} />;
       break;
   }
   return tableList;
 }
 
-async function makeAddTable(
+function makeViewTable(
   uuid,
   table: string,
   kind: DataSourceKind,
-  redisTableType: RedisTableType
+  redisTableType: RedisTableType,
 ) {
   let tableList: ReactNode = null;
   switch (kind) {
     case DataSourceKind.MariaDB:
     case DataSourceKind.Mysql:
-    case DataSourceKind.MsSql:
+    case DataSourceKind.SqlServer:
     case DataSourceKind.Sqlite:
     case DataSourceKind.Postgres:
     case DataSourceKind.Oracle:
@@ -617,121 +331,78 @@ async function makeAddTable(
     case DataSourceKind.FireBird:
     case DataSourceKind.DuckDB:
     case DataSourceKind.Cockroach:
-      tableList = (
-        <SqlTableViewData
-          buttonName="add"
-          handleData={async (values) => {
-            return invoke('insert', {
-              name: uuid,
-              tableName: table,
-              values,
-            });
-          }}
-          fields={await (async () => {
-            return invoke('show_table_columns', {
-              name: uuid,
-              tableName: table,
-            });
-          })()}
-        ></SqlTableViewData>
-      );
+      tableList = <SqlTableView isTable tableName={table} uuid={uuid} kind={kind} />;
       break;
+    case DataSourceKind.Redis:
+      tableList = makeRedisViewTable(uuid, table, redisTableType);
+      break;
+    case DataSourceKind.Mongo:
+      tableList = <MongoTable uuid={uuid} table={table} isTable />;
+      break;
+    case DataSourceKind.CouchBase:
+      tableList = <CouchBaseTable uuid={uuid} table={table} />;
+  }
+  return tableList;
+}
+
+function AddTableView(props: {
+  uuid: string;
+  table: string;
+  kind: DataSourceKind;
+  redisTableType?: RedisTableType;
+}) {
+  const { uuid, table, kind, redisTableType } = props;
+  const [fields, setFields] = useState<types.Field[]>([]);
+  const { showNotification } = useContext(NotificationContext);
+  switch (kind) {
     case DataSourceKind.Redis:
       switch (redisTableType) {
         case RedisTableType.String:
-          tableList = (
-            <RedisStringTable
-              modifyOP={async (value) => {
-                return await invoke('redis_string_set', {
-                  name: uuid,
-                  key: table,
-                  value,
-                });
-              }}
-              content={''}
-            ></RedisStringTable>
-          );
-          break;
+          return <RedisStringTable uuid={uuid} stringKey={table} />;
         case RedisTableType.List:
-          tableList = (
-            <RedisAddList
-              lpushOP={async (value) => {
-                return await invoke('redis_list_lpush', {
-                  name: uuid,
-                  key: table,
-                  value,
-                });
-              }}
-              rpushOP={async (value) => {
-                return await invoke('redis_list_rpush', {
-                  name: uuid,
-                  key: table,
-                  value,
-                });
-              }}
-            ></RedisAddList>
-          );
-          break;
-
+          return <RedisAddList uuid={uuid} listKey={table} />;
         case RedisTableType.Set:
-          tableList = (
-            <RedisAddSet
-              addOP={async (member) => {
-                return await invoke('redis_set_add', {
-                  name: uuid,
-                  key: table,
-                  member,
-                });
-              }}
-            ></RedisAddSet>
-          );
-          break;
+          return <RedisAddSet uuid={uuid} setKey={table} />;
         case RedisTableType.Zset:
-          tableList = (
-            <RedisAddZset
-              addOP={async (member, value) => {
-                return await invoke('redis_zset_add', {
-                  name: uuid,
-                  key: table,
-                  member,
-                  value,
-                });
-              }}
-            ></RedisAddZset>
-          );
-          break;
+          return <RedisAddZset uuid={uuid} zsetKey={table} />;
         case RedisTableType.Hash:
-          tableList = (
-            <RedisAddHash
-              addOP={async (member, value) => {
-                return await invoke('redis_hash_add', {
-                  name: uuid,
-                  key: table,
-                  member,
-                  value,
-                });
-              }}
-            ></RedisAddHash>
-          );
-          break;
+          return <RedisAddHash uuid={uuid} hashKey={table} />;
       }
       break;
+
     case DataSourceKind.Mongo:
-      tableList = (
+      return (
         <MongoTableAdd
-          addOP={async (data) => {
-            return invoke<void>('mongo_insert', {
+          addOP={async data => {
+            return invoke<void>("mongo_insert", {
               name: uuid,
               tableName: table,
               doc: BSON.serialize(data),
             });
           }}
-        ></MongoTableAdd>
+        />
       );
-      break;
   }
 
-  return tableList;
+  // eslint-disable-next-line react-hooks/rules-of-hooks
+  useEffect(() => {
+    showTableColumn(uuid, table)
+      .then(e => {
+        setFields(e);
+      })
+      .catch(e => {
+        showNotification("error", "list fields failed", e);
+      });
+  }, [showNotification, table, uuid]);
+
+  return (
+    <SqlTableViewData
+      isAdd
+      buttonName="add"
+      handleData={makeTableInsertFn(uuid, table)}
+      fields={fields}
+    />
+  );
 }
 
 function TableMenu(props: {
@@ -741,8 +412,8 @@ function TableMenu(props: {
   kind: DataSourceKind;
   redisTableType?: RedisTableType;
 }) {
-  let { table, uuid, reload, kind, redisTableType } = props;
-  const [showDup, setshowDup] = useState(false);
+  const { table, uuid, reload, kind, redisTableType } = props;
+  const [showDup, setShowDup] = useState(false);
   const [showRename, setShowRename] = useState(false);
   const [showDrop, setShowDrop] = useState(false);
   const [showExport, setShowExport] = useState(false);
@@ -752,98 +423,92 @@ function TableMenu(props: {
 
   const handleTruncateTable = async () => {
     const confirm = await secondConfirm({
-      title: 'Truncate',
-      confirmText: 'Truncate',
-      content: '',
+      title: `Truncate '${table}'`,
+      confirmText: "Truncate",
+      content: "",
+      kind: "error",
     });
     if (!confirm) {
       return;
     }
-    invoke('truncate_table', { tableName: table, name: uuid })
+    invoke("truncate_table", { tableName: table, name: uuid })
       .then(() => {
-        showNotification('success', `Truncate table OK`);
+        showNotification("success", `Truncate table OK`);
       })
-      .catch((e) => {
-        showNotification('error', `Truncate  table failure`, e);
+      .catch(e => {
+        showNotification("error", `Truncate  table failure`, e);
       });
   };
 
-  const handleViewData = async () => {
-    const id = uuid + '-table-' + generateRandomString(10);
-    let tableList: ReactNode = await makeViewTable(
-      uuid,
-      table,
-      kind,
-      redisTableType,
-      showNotification
-    );
-    setTabs((e) => {
-      setSelectTab(tabs.length);
+  const handleViewData = () => {
+    const id = uuid + "-table-" + generateRandomString(10);
+    const tableList: ReactNode = makeViewTable(uuid, table, kind, redisTableType);
+    setTabs(e => {
+      setTimeout(() => {
+        setSelectTab(tabs.length);
+      }, 100);
+
       return [
         ...e,
-        new TabContent(id, table, tableList, <TableViewIcon> </TableViewIcon>),
+        new TabContent(
+          id,
+          table,
+          tableList,
+          <TableViewIcon className="tab-icon-size" />,
+        ),
       ];
     });
   };
   const handleAddData = async () => {
     const id = generateRandomString(10);
-    let tableList: ReactNode = await makeAddTable(
-      uuid,
-      table,
-      kind,
-      redisTableType
-    );
-    setTabs((e) => {
-      setSelectTab(tabs.length);
+
+    setTabs(e => {
+      setTimeout(() => {
+        setSelectTab(tabs.length);
+      }, 100);
       return [
         ...e,
         new TabContent(
           id,
           `${table}*`,
-          tableList,
-          <TableViewIcon> </TableViewIcon>
+          <AddTableView
+            uuid={uuid}
+            kind={kind}
+            table={table}
+            redisTableType={redisTableType}
+          />,
+          <TableViewIcon className="tab-icon-size" />,
         ),
       ];
     });
   };
-  const handleStrucure = () => {
-    let id = uuid + '-table-' + table + '-struct';
-    let index = tabsHasId(tabs, id);
-    if (typeof index == 'number') {
+
+  const handleStructure = () => {
+    const id = uuid + "-table-" + table + "-struct";
+    const index = tabsHasId(tabs, id);
+    if (typeof index == "number") {
       setSelectTab(index);
     } else {
-      setTabs((e) => {
-        setSelectTab(tabs.length);
+      setTabs(e => {
+        setTimeout(() => {
+          setSelectTab(tabs.length);
+        }, 100);
+
         return [
           ...e,
           new TabContent(
             id,
             `${table}`,
-            (
-              <TableStructure
-                kind={kind}
-                table={table}
-                uuid={uuid}
-              ></TableStructure>
-            ),
-            <IoConstructOutline> </IoConstructOutline>
+            <TableStructure kind={kind} table={table} uuid={uuid} />,
+            <IoConstructOutline className="tab-icon-size" />,
           ),
         ];
       });
     }
   };
 
-  const getExportKind = () => {
-    switch (kind) {
-      case DataSourceKind.Redis:
-        return ['csv', 'sql', 'json', 'jsonline'];
-      default:
-        return ['csv', 'sql', 'json', 'jsonline'];
-    }
-  };
-
   return (
-    <Paper>
+    <div>
       <MenuList>
         <MenuItem
           onClick={() => {
@@ -851,41 +516,26 @@ function TableMenu(props: {
           }}
         >
           <ListItemIcon>
-            <ListIcon></ListIcon>
+            <ListIcon />
           </ListItemIcon>
           <ListItemText> View Data</ListItemText>
         </MenuItem>
-        {kind != DataSourceKind.Redis && (
+
+        {redisTableType != RedisTableType.String && (
           <MenuItem
             onClick={() => {
               handleAddData();
             }}
           >
             <ListItemIcon>
-              <AddIcon></AddIcon>
+              <AddIcon />
             </ListItemIcon>
             <ListItemText> Add Data </ListItemText>
           </MenuItem>
         )}
-        {kind == DataSourceKind.Redis &&
-          redisTableType != RedisTableType.String && (
-            <MenuItem
-              onClick={() => {
-                handleAddData();
-              }}
-            >
-              <ListItemIcon>
-                <AddIcon></AddIcon>
-              </ListItemIcon>
-              <ListItemText> Add Data</ListItemText>
-            </MenuItem>
-          )}
-
-        <MenuItem onClick={handleStrucure}>
+        <MenuItem onClick={handleStructure}>
           <ListItemIcon>
-            <IoConstructOutline
-              style={{ fontSize: '1.2rem' }}
-            ></IoConstructOutline>
+            <IoConstructOutline style={{ fontSize: "1.2rem" }} />
           </ListItemIcon>
           <ListItemText> Structure </ListItemText>
         </MenuItem>
@@ -896,22 +546,20 @@ function TableMenu(props: {
           }}
         >
           <ListItemIcon>
-            <ContentCopyIcon></ContentCopyIcon>
+            <ContentCopyIcon />
           </ListItemIcon>
           <ListItemText> Copy Name </ListItemText>
         </MenuItem>
 
-        <Divider></Divider>
+        <Divider />
 
         <MenuItem
           onClick={() => {
-            setshowDup(true);
+            setShowDup(true);
           }}
         >
           <ListItemIcon>
-            <HiOutlineDuplicate
-              style={{ fontSize: '1.7rem' }}
-            ></HiOutlineDuplicate>
+            <HiOutlineDuplicate style={{ fontSize: "1.7rem" }} />
           </ListItemIcon>
           <ListItemText> Duplicate </ListItemText>
         </MenuItem>
@@ -921,7 +569,7 @@ function TableMenu(props: {
           }}
         >
           <ListItemIcon>
-            <ArrowCircleDownIcon></ArrowCircleDownIcon>
+            <ArrowCircleDownIcon />
           </ListItemIcon>
           <ListItemText> Export </ListItemText>
         </MenuItem>
@@ -931,30 +579,30 @@ function TableMenu(props: {
           }}
         >
           <ListItemIcon>
-            <EditIcon></EditIcon>
+            <EditIcon />
           </ListItemIcon>
           <ListItemText> Rename </ListItemText>
         </MenuItem>
-        <Divider></Divider>
+        <Divider />
         <MenuItem
-          sx={{ color: 'error.main' }}
+          sx={{ color: "error.main" }}
           onClick={() => {
             handleTruncateTable();
           }}
         >
           <ListItemIcon>
-            <PlaylistRemoveIcon color="error"></PlaylistRemoveIcon>
+            <PlaylistRemoveIcon color="error" />
           </ListItemIcon>
           <ListItemText> Truncate </ListItemText>
         </MenuItem>
         <MenuItem
-          sx={{ color: 'error.main' }}
+          sx={{ color: "error.main" }}
           onClick={() => {
             setShowDrop(true);
           }}
         >
           <ListItemIcon>
-            <DeleteForeverIcon color="error"></DeleteForeverIcon>
+            <DeleteForeverIcon color="error" />
           </ListItemIcon>
           <ListItemText>Drop</ListItemText>
         </MenuItem>
@@ -962,40 +610,44 @@ function TableMenu(props: {
       {showDup && (
         <Modal
           open={showDup}
-          onClose={(e: EscDownEvent, reason) => {
-            if (reason === 'backdropClick') {
-              return;
-            }
-
+          onClose={modalHandleClose((e: EscDownEvent) => {
             e.preventDefault();
-            setshowDup(false);
-          }}
+            setShowDup(false);
+          })}
         >
           <Box sx={modalStyle} width="45%">
+            <ModalHeader
+              title="Duplicate"
+              handleClose={() => {
+                setShowDup(false);
+              }}
+            />
             <DupTable
               table={table}
               uuid={uuid}
               handleClose={() => {
-                setshowDup(false);
+                setShowDup(false);
               }}
               reloadTables={reload}
-            ></DupTable>
+            />
           </Box>
         </Modal>
       )}
       {showRename && (
         <Modal
           open={showRename}
-          onClose={(e: EscDownEvent, reason) => {
-            if (reason === 'backdropClick') {
-              return;
-            }
-
+          onClose={modalHandleClose((e: EscDownEvent) => {
             e.preventDefault();
             setShowRename(false);
-          }}
+          })}
         >
           <Box sx={modalStyle} width="45%">
+            <ModalHeader
+              handleClose={() => {
+                setShowRename(false);
+              }}
+              title="Rename"
+            />
             <RenameTable
               uuid={uuid}
               table={table}
@@ -1003,32 +655,27 @@ function TableMenu(props: {
               handleClose={() => {
                 setShowRename(false);
               }}
-            ></RenameTable>
+            />
           </Box>
         </Modal>
       )}
       {showExport && (
         <Modal
           open={showExport}
-          onClose={(e: EscDownEvent, reason) => {
-            if (reason === 'backdropClick') {
-              return;
-            }
-
+          onClose={modalHandleClose((e: EscDownEvent) => {
             e.preventDefault();
             setShowExport(false);
-          }}
+          })}
         >
           <Box sx={modalStyle} width="45%">
             <ExportTableOrView
-              uuid={uuid}
-              name={table}
               handleClose={() => {
                 setShowExport(false);
               }}
-              supportKind={getExportKind()}
-              kind={kind}
-            ></ExportTableOrView>
+              uuid={uuid}
+              name={table}
+              supportKind={getSupportExportKind(kind, true)}
+            />
           </Box>
         </Modal>
       )}
@@ -1036,16 +683,18 @@ function TableMenu(props: {
       {showDrop && (
         <Modal
           open={showDrop}
-          onClose={(e: EscDownEvent, reason) => {
-            if (reason === 'backdropClick') {
-              return;
-            }
-
+          onClose={modalHandleClose((e: EscDownEvent) => {
             e.preventDefault();
             setShowDrop(false);
-          }}
+          })}
         >
           <Box sx={modalStyle} width="45%">
+            <ModalHeader
+              handleClose={() => {
+                setShowDrop(false);
+              }}
+              title="Drop Table"
+            />
             <DropTable
               uuid={uuid}
               table={table}
@@ -1054,11 +703,11 @@ function TableMenu(props: {
                 setShowDrop(false);
               }}
               kind={kind}
-            ></DropTable>
+            />
           </Box>
         </Modal>
       )}
-    </Paper>
+    </div>
   );
 }
 
@@ -1072,20 +721,26 @@ function DupTable(props: {
   const [loading, setLoading] = useState(false);
   const [name, setName] = useState(table);
   const { showNotification } = useContext(NotificationContext);
+  const taskId = useRef(generateRandomString());
   const handleRename = () => {
     if (name == table) {
-      showNotification('error', 'name not changed');
+      showNotification("error", "name not changed");
       return;
     }
     setLoading(true);
-    invoke('duplicate_table', { name: uuid, from: table, to: name })
+    invoke("duplicate_table", {
+      name: uuid,
+      from: table,
+      to: name,
+      taskId: taskId.current,
+    })
       .then(() => {
-        showNotification('success', 'Duplicate OK');
+        showNotification("success", "duplicate OK");
         reloadTables();
         handleClose();
       })
-      .catch((e) => {
-        showNotification('error', 'Duplicate failure', e);
+      .catch(e => {
+        showNotification("error", "duplicate failure", e);
       })
       .finally(() => {
         setLoading(false);
@@ -1093,24 +748,26 @@ function DupTable(props: {
   };
 
   return (
-    <Stack spacing={1}>
+    <Stack>
       <TextField
-        size="small"
         value={name}
         label="duplicate name"
-        onChange={(e) => {
+        onChange={e => {
           setName(e.target.value);
         }}
-      ></TextField>
-      <Stack direction="row" spacing={1}>
-        <Button
-          loading={loading}
-          color="primary"
-          variant="contained"
-          onClick={handleRename}
-        >
+      />
+      <Stack direction="row">
+        <Button loading={loading} color="primary" onClick={handleRename}>
           duplicate
         </Button>
+        {loading && (
+          <CancelButton
+            handleCancel={() => {
+              cancelTask(taskId.current);
+              handleClose();
+            }}
+          />
+        )}
       </Stack>
     </Stack>
   );
@@ -1128,26 +785,26 @@ function RenameTable(props: {
   const { showNotification } = useContext(NotificationContext);
   const handleRename = async () => {
     if (newName == table) {
-      showNotification('error', 'name not changed');
+      showNotification("error", "name not changed");
       return;
     }
     const confirm = await secondConfirm({
-      title: 'rename table',
-      content: `are u sure going to rename table '${table}'`,
-      confirmText: 'Rename',
+      title: "rename table",
+      content: `rename table '${table}'`,
+      confirmText: "Rename",
     });
     if (!confirm) {
       return;
     }
     setLoading(true);
-    invoke('rename_table', { name: uuid, old: table, new: newName })
+    invoke("rename_table", { name: uuid, old: table, new: newName })
       .then(() => {
-        showNotification('success', 'Rename OK');
+        showNotification("success", "rename OK");
         reloadTables();
         handleClose();
       })
-      .catch((e) => {
-        showNotification('error', 'Rename failure', e);
+      .catch(e => {
+        showNotification("error", "rename failure", e);
       })
       .finally(() => {
         setLoading(false);
@@ -1155,22 +812,16 @@ function RenameTable(props: {
   };
 
   return (
-    <Stack spacing={1}>
+    <Stack>
       <TextField
-        size="small"
         value={newName}
         label="New Name"
-        onChange={(e) => {
+        onChange={e => {
           setNewName(e.target.value);
         }}
-      ></TextField>
-      <Stack direction="row" spacing={1}>
-        <Button
-          loading={loading}
-          color="primary"
-          variant="contained"
-          onClick={handleRename}
-        >
+      />
+      <Stack direction="row">
+        <Button loading={loading} color="primary" onClick={handleRename}>
           rename
         </Button>
       </Stack>
@@ -1178,201 +829,224 @@ function RenameTable(props: {
   );
 }
 
-function RedisTables(prpos: { schema?: string }) {
-  const { schema } = prpos;
+function RedisOneTableKind(props: {
+  tables: string[];
+  typ: RedisTableType;
+  kind: DataSourceKind;
+  handleReload;
+  uuid;
+}) {
+  const { tables, typ, kind, handleReload, uuid } = props;
+  let name;
+  switch (typ) {
+    case RedisTableType.String:
+      name = "string";
+      break;
+    case RedisTableType.List:
+      name = "list";
+      break;
+    case RedisTableType.Set:
+      name = "set";
+      break;
+    case RedisTableType.Zset:
+      name = "zset";
+      break;
+    case RedisTableType.Hash:
+      name = "hash";
+      break;
+  }
+  const tablesID = useRef(generateRandomString());
+  const { setUpMenu } = useContext(ContextMenuContext);
+  return (
+    <TreeItem
+      itemId={tablesID.current}
+      label=<Stack
+        direction="row"
+        sx={{ alignItems: "center" }}
+        onContextMenu={e => {
+          setUpMenu({
+            content: (
+              <MenuList>
+                <MenuRefresh reload={handleReload} />
+              </MenuList>
+            ),
+            event: e,
+          });
+        }}
+      >
+        <span>{name}</span>
+      </Stack>
+    >
+      {tables.map(table => (
+        <TreeItem
+          key={table}
+          itemId={uuid + "-key-" + name + "-" + table}
+          label=<Stack
+            direction="row"
+            onContextMenu={e => {
+              setUpMenu({
+                content: (
+                  <TableMenu
+                    kind={kind}
+                    reload={handleReload}
+                    table={table}
+                    uuid={uuid}
+                    redisTableType={typ}
+                  />
+                ),
+                event: e,
+              });
+            }}
+          >
+            <span> {table} </span>
+          </Stack>
+        />
+      ))}
+    </TreeItem>
+  );
+}
 
+function RedisTables() {
   const { kind } = useContext(ConnTypeContext);
   const { uuid } = useContext(UuidContext);
-  const getPrefix = () => {
-    return uuid + schema + '-table-';
-  };
-  const [filter, setFilter] = useState('');
+  const [filter, setFilter] = useState("");
   const [tables, setTables] = useState<types.RedisListTable>();
   const [loading, setLoading] = useState(false);
   const { showNotification } = useContext(NotificationContext);
   const max = 50;
 
-  const handleReload = () => {
+  const handleReload = useCallback(() => {
     setLoading(true);
-    invoke<types.RedisListTable>('redis_list_table', {
+    invoke<types.RedisListTable>("redis_list_table", {
       name: uuid,
       filter: filter ? filter : null,
       max,
     })
-      .then((e) => {
+      .then(e => {
         setTables(e);
       })
-      .catch((e) => {
-        showNotification('error', 'list redis table failed', e);
+      .catch(e => {
+        showNotification("error", "list redis table failed", e);
       })
       .finally(() => {
         setLoading(false);
       });
-  };
+  }, [filter, showNotification, uuid]);
   useEffect(() => {
     handleReload();
-  }, []);
+  }, [handleReload]);
   useEffect(() => {
     handleReload();
-  }, [filter]);
+  }, [filter, handleReload]);
 
   const [showEditFilter, setShowEditFilter] = useState(false);
-  let filterTreeID = getPrefix() + '-filter-';
-
-  let stringTableTreePrefix = getPrefix() + '-table-string-';
-  let listTableTreePrefix = getPrefix() + '-table-list-';
-  let setTableTreePrefix = getPrefix() + '-table-set-';
-  let zsetTableTreePrefix = getPrefix() + '-table-sset-';
-  let hashTableTreePrefix = getPrefix() + '-table-hash-';
-
-  const makeOneKind = (
-    idPrefix: string,
-    tables: string[],
-    typ: RedisTableType
-  ) => {
-    let name;
-    switch (typ) {
-      case RedisTableType.String:
-        name = 'string';
-        break;
-      case RedisTableType.List:
-        name = 'list';
-        break;
-      case RedisTableType.Set:
-        name = 'set';
-        break;
-      case RedisTableType.Zset:
-        name = 'zset';
-        break;
-      case RedisTableType.Hash:
-        name = 'hash';
-        break;
-    }
-    return (
-      <TreeItem
-        itemId={idPrefix}
-        label=<Stack
-          spacing={1}
-          direction="row"
-          sx={{ alignItems: 'center' }}
-          onContextMenu={(e) => {
-            setUpMenu({
-              content: (
-                <Paper>
-                  <MenuList>
-                    <MenuRefresh reload={handleReload}></MenuRefresh>
-                  </MenuList>
-                </Paper>
-              ),
-              style: calMenuStyle(e, 70),
-            });
-          }}
-        >
-          <span>{name}</span>
-        </Stack>
-      >
-        {tables.map((table) => (
-          <TreeItem
-            key={table}
-            itemId={idPrefix + table}
-            label=<Stack
-              direction="row"
-              onContextMenu={(e) => {
-                setUpMenu({
-                  content: (
-                    <TableMenu
-                      kind={kind}
-                      reload={handleReload}
-                      table={table}
-                      uuid={uuid}
-                      redisTableType={typ}
-                    />
-                  ),
-                  style: calMenuStyle(e, 200),
-                });
-              }}
-            >
-              <span> {table} </span>
-            </Stack>
-          ></TreeItem>
-        ))}
-      </TreeItem>
-    );
-  };
-
-  let { setUpMenu } = useContext(ContextMenuContext);
+  const filterTreeID = useRef(generateRandomString());
   return (
     <>
       <TreeItem
-        itemId={filterTreeID}
+        itemId={filterTreeID.current}
         label=<Stack
           direction="row"
-          style={{ cursor: 'pointer' }}
+          style={{ cursor: "pointer" }}
           onClick={() => {
             setShowEditFilter(true);
           }}
         >
           {tables && tables.has_more ? (
-            <Tooltip title={`result exceed ${max},some result are omited`}>
-              <em style={{ color: 'red' }}> filter:{filter} </em>
+            <Tooltip title={`result exceed ${max},some result are omitted`}>
+              <Chip
+                color="error"
+                icon={<FilterAltIcon />}
+                label={`${filter}`}
+                variant="outlined"
+              />
             </Tooltip>
           ) : (
-            <em> filter:{filter} </em>
+            <Chip icon={<FilterAltIcon />} label={`${filter}`} />
           )}
-          {loading && (
-            <CircularProgress size={progressBarSizeSmall}></CircularProgress>
-          )}
+          {loading && <CircularProgress />}
         </Stack>
-      ></TreeItem>
-      {tables &&
-        makeOneKind(
-          stringTableTreePrefix,
-          tables.string_tables,
-          RedisTableType.String
-        )}
-      {tables &&
-        makeOneKind(
-          listTableTreePrefix,
-          tables.list_tables,
-          RedisTableType.List
-        )}
-      {tables &&
-        makeOneKind(setTableTreePrefix, tables.set_tables, RedisTableType.Set)}
-      {tables &&
-        makeOneKind(
-          zsetTableTreePrefix,
-          tables.zset_tables,
-          RedisTableType.Zset
-        )}
-      {tables &&
-        makeOneKind(
-          hashTableTreePrefix,
-          tables.hash_tables,
-          RedisTableType.Hash
-        )}
+      />
+      {tables && (
+        <>
+          <RedisOneTableKind
+            kind={kind}
+            typ={RedisTableType.String}
+            tables={tables.string_tables}
+            handleReload={handleReload}
+            uuid={uuid}
+          />
+          <RedisOneTableKind
+            kind={kind}
+            typ={RedisTableType.List}
+            tables={tables.list_tables}
+            handleReload={handleReload}
+            uuid={uuid}
+          />
+          <RedisOneTableKind
+            kind={kind}
+            typ={RedisTableType.Set}
+            tables={tables.set_tables}
+            handleReload={handleReload}
+            uuid={uuid}
+          />
+          <RedisOneTableKind
+            kind={kind}
+            typ={RedisTableType.Zset}
+            tables={tables.zset_tables}
+            handleReload={handleReload}
+            uuid={uuid}
+          />
+          <RedisOneTableKind
+            kind={kind}
+            typ={RedisTableType.Hash}
+            tables={tables.hash_tables}
+            handleReload={handleReload}
+            uuid={uuid}
+          />
+        </>
+      )}
+
       {showEditFilter && (
         <Modal
           open={showEditFilter}
-          onClose={(e: EscDownEvent, reason) => {
-            if (reason === 'backdropClick') {
-              return;
-            }
-
+          onClose={modalHandleClose((e: EscDownEvent) => {
             e.preventDefault();
             setShowEditFilter(false);
-          }}
+          })}
         >
           <Box sx={modalStyle} width="45%">
+            <ModalHeader
+              handleClose={() => {
+                setShowEditFilter(false);
+              }}
+              title="Edit key match string"
+            />
             <TextField
-              size="small"
               value={filter}
               fullWidth
               label="filer"
-              helperText="can be *key or key* etc..."
-              onChange={(e) => {
+              helperText="key filter"
+              onChange={e => {
                 setFilter(e.target.value);
               }}
-            ></TextField>
+              slotProps={{
+                input: {
+                  endAdornment: filter && (
+                    <InputAdornment position="end">
+                      <IconButton
+                        onClick={() => {
+                          setFilter("");
+                        }}
+                        edge="end"
+                      >
+                        <ClearIcon fontSize="small" />
+                      </IconButton>
+                    </InputAdornment>
+                  ),
+                },
+              }}
+            />
           </Box>
         </Modal>
       )}
@@ -1380,12 +1054,4 @@ function RedisTables(prpos: { schema?: string }) {
   );
 }
 
-enum RedisTableType {
-  String,
-  List,
-  Set,
-  Zset,
-  Hash,
-}
-
-export { TablesTree, TablesType, RedisTables };
+export { TablesTree, RedisTables, makeRedisViewTable, AddTableView };

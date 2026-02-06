@@ -1,124 +1,105 @@
-use std::collections::{HashMap, HashSet};
-use std::ops::{Deref, DerefMut};
+use crate::db::BackendKind;
+use crate::helper::try_remove_one_at;
+use crate::language_server::{AstCompletionHelper, CompletionItem, CompletionKind, ErrAndLoc};
+use sqlparser::ast::*;
+use sqlparser::tokenizer::{Location, Span};
+use std::collections::HashSet;
+use std::ops::DerefMut;
 use std::sync::{Arc, Mutex};
 
-use sqlparser::ast::{
-    AlterIndexOperation, AlterRoleOperation, AssignmentTarget, CopySource, CreateFunctionBody,
-    DataType, Declare, DeclareAssignment, GrantObjects, GranteeName, Ident, ObjectName,
-    ObjectNamePart, OneOrManyWithParens, Privileges, SchemaName, SelectItem, SequenceOptions,
-    Spanned, Statement, TableConstraint, TableFactor, TableObject, TriggerEvent,
-    UpdateTableFromKind, UserDefinedTypeRepresentation,
-};
-use sqlparser::tokenizer::{Location, Span};
-
-use crate::language_server::{AstCompletionHelper, CompletionItem, CompletionKind};
-
-pub struct CompletionStatement {
+pub struct CompletionStatement<'a> {
     pub(crate) loc: Location,
     pub(crate) result: Option<Vec<CompletionItem>>,
-    pub(crate) helper: Arc<dyn AstCompletionHelper>,
-    pub(crate) scopes: Scopes,
+    pub(crate) helper: &'a dyn AstCompletionHelper,
+    pub(crate) scopes: &'a Scopes,
     pub(crate) on_def: bool,
-    pub(crate) has_err: bool,
+    pub(crate) select_item_columns: HashSet<TempTableColumn>,
 }
 
 #[derive(Clone)]
 pub struct Scopes {
-    ss: Arc<Mutex<Vec<Scope>>>,
+    pub(crate) scopes: Arc<Mutex<Vec<Scope>>>,
 }
 
 pub(crate) struct ScopesDropGuard {
-    ss: Arc<Mutex<Vec<Scope>>>,
-    n: usize,
+    scopes: Arc<Mutex<Vec<Scope>>>,
 }
 
 impl Drop for ScopesDropGuard {
     fn drop(&mut self) {
-        let n = self.n;
-        let mut m = self.ss.lock().unwrap();
+        let mut m = self.scopes.lock().expect("lock failed");
         let m = m.deref_mut();
-        for _ in 0..n {
-            m.pop();
-        }
+        m.pop();
     }
 }
 
 impl Scopes {
-    pub(crate) fn nearest_from_tables(&self) -> Vec<FromTableOrTemp> {
-        let x = self.ss.lock().unwrap();
-        for s in x.deref().iter().rev() {
-            if s.from_tables.len() > 0 {
-                return s.from_tables.clone();
+    #[allow(unused)]
+    pub(crate) fn debug(&self) {
+        for (index, s) in self
+            .scopes
+            .lock()
+            .expect("lock failed")
+            .iter()
+            .rev()
+            .enumerate()
+        {
+            println!("scope {:?}-----------------", index);
+            for t in s.vars.iter() {
+                println!("var:{:?}", t);
+            }
+            for t in s.tables.iter() {
+                println!("tbl:{:?}", t)
             }
         }
-        vec![]
     }
-
-    pub(crate) fn drop_n(&self, n: usize) -> ScopesDropGuard {
-        ScopesDropGuard {
-            ss: self.ss.clone(),
-            n,
+    pub(crate) fn new() -> Self {
+        Self {
+            scopes: Arc::new(Mutex::new(vec![Scope::default()])),
         }
-    }
-
-    pub(crate) fn enter_declare(&self, d: Arc<Declare>) {
-        self.current_scope(|x| x.enter_declare(d));
     }
 
     pub(crate) fn current_scope<R>(&self, f: impl FnOnce(&mut Scope) -> R) -> R {
-        f(self.ss.lock().unwrap().last_mut().unwrap())
+        f(self
+            .scopes
+            .lock()
+            .expect("lock failed")
+            .last_mut()
+            .expect("we have at least one scope"))
     }
 
-    pub(crate) fn new() -> Self {
-        Self {
-            // at lease one scope.
-            ss: Arc::new(Mutex::new(vec![Scope::default()])),
+    pub(crate) fn tables_cloned(&self) -> Vec<TableEntered> {
+        let mut ret = vec![];
+        let lock = self.scopes.lock().expect("lock failed");
+        for s in lock.iter().rev() {
+            ret.extend(s.tables.clone().into_iter());
         }
+        ret
     }
 
-    pub(crate) fn tables(&self) -> Vec<String> {
-        let mut names: HashSet<String> = HashSet::new();
-        self.inner_first(|scope| {
-            if let Some(table) = &scope.this_table {
-                match table {
-                    ThisTableEnum::Table { name } => {
-                        let name = name.0.last().unwrap();
-                        let name_str = name.to_string();
-                        names.insert(name_str);
-                    }
-                    ThisTableEnum::Temp { temp: _ } => {
-                        // nothing to here.
-                    }
-                }
-            }
-            for name in scope.table_entered.keys() {
-                let name_str = name.to_string();
-                names.insert(name_str);
-            }
-            for temp in scope.temp_tables.keys() {
-                let name_str = temp.to_string();
-                names.insert(name_str);
-            }
-            // this clouse need return a option.
-            return None as Option<()>;
-        });
-        names.into_iter().collect()
+    pub(crate) fn vars_cloned(&self) -> Vec<Var> {
+        let mut ret = vec![];
+        let lock = self.scopes.lock().expect("lock failed");
+        for s in lock.iter().rev() {
+            ret.extend(s.vars.iter().cloned());
+        }
+        ret
     }
 
-    pub(crate) fn push(&self, scope: Scope) -> ScopesDropGuard {
-        self.ss.lock().unwrap().push(scope);
+    pub(crate) fn enter(&self, scope: Scope) -> ScopesDropGuard {
+        self.scopes.lock().expect("lock failed").push(scope);
         ScopesDropGuard {
-            ss: self.ss.clone(),
-            n: 1,
+            scopes: self.scopes.clone(),
         }
     }
-
-    pub(crate) fn push_without_guard(&self, s: Scope) {
-        self.ss.lock().unwrap().push(s);
+    pub(crate) fn enter_var(&self, var: Var) {
+        self.current_scope(|s| {
+            s.enter_var(var);
+        });
     }
 
     pub(crate) fn inner_first<R>(&self, mut f: impl FnMut(&Scope) -> Option<R>) -> Option<R> {
-        for s in self.ss.lock().unwrap().iter().rev() {
+        for s in self.scopes.lock().expect("lock failed").iter().rev() {
             let x = f(s);
             if x.is_some() {
                 return x;
@@ -127,180 +108,181 @@ impl Scopes {
         None
     }
 
-    pub(crate) fn nearest_table_named(&self, name: &Ident) -> Option<NearNestTableNamed> {
-        let name = name.to_owned();
-        self.inner_first(|scope| -> Option<NearNestTableNamed> {
-            let alias = scope.table_entered.get(&name).map(|x| x.clone());
-            if alias.is_some() {
-                return alias.map(|alias| NearNestTableNamed::Alias { table: alias });
-            }
-
-            let temp_table = scope.temp_tables.get(&name).map(|x| x.clone());
-            if temp_table.is_some() {
-                return temp_table.map(|temp_table| NearNestTableNamed::Temp { table: temp_table });
+    pub(crate) fn nearest_table_named(&self, name: &Ident) -> Option<TableEntered> {
+        self.inner_first(|scope| -> Option<TableEntered> {
+            for t in scope.tables.iter().rev() {
+                if t.equal_name(name) {
+                    return Some(t.clone());
+                }
             }
             None
         })
     }
-
-    pub(crate) fn this_table(&self) -> Option<ThisTableEnum> {
-        let m = self.ss.lock().unwrap();
-        let m = m.deref();
-        for x in m.iter().rev() {
-            if x.this_table.is_some() {
-                return x.this_table.clone();
-            }
-        }
-        None
-    }
-}
-
-pub(crate) enum NearNestTableNamed {
-    Alias { table: ObjectName },
-    Temp { table: TempTable },
 }
 
 #[derive(Clone, Debug)]
 pub struct TempTableColumn {
     pub(crate) name: String,
-    pub(crate) typ: Option<String>,
+    pub(crate) data_type: Option<String>,
 }
+impl std::hash::Hash for TempTableColumn {
+    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
+        self.name.hash(state);
+    }
+}
+
+impl PartialEq for TempTableColumn {
+    fn eq(&self, other: &Self) -> bool {
+        self.name == other.name
+    }
+}
+impl Eq for TempTableColumn {}
 
 impl From<TempTableColumn> for CompletionItem {
     fn from(value: TempTableColumn) -> Self {
-        Self::from(&value)
+        let TempTableColumn { name, data_type } = value;
+        Self {
+            item: name.into(),
+            kind: CompletionKind::Column,
+            desc: data_type.map(|x| x.into()),
+        }
     }
 }
 impl From<&TempTableColumn> for CompletionItem {
     fn from(value: &TempTableColumn) -> Self {
         Self {
-            item: value.name.to_string().into(),
+            item: value.name.clone().into(),
             kind: CompletionKind::Column,
-            desc: value.typ.as_ref().map(|x| x.clone().into()),
+            desc: value.data_type.as_ref().map(|x| x.clone().into()),
         }
     }
 }
 
-impl From<&CompletionItem> for TempTableColumn {
-    fn from(value: &CompletionItem) -> Self {
-        debug_assert!(value.kind == CompletionKind::Column);
+impl From<String> for TempTableColumn {
+    fn from(value: String) -> Self {
         Self {
-            name: value.item.to_string(),
-            typ: value.desc.as_ref().map(|x| x.to_string()),
+            name: value,
+            data_type: None,
         }
     }
 }
-impl From<CompletionItem> for TempTableColumn {
-    fn from(value: CompletionItem) -> Self {
-        Self::from(&value)
-    }
-}
-#[derive(Clone, Debug)]
+
+#[derive(Clone, Debug, Default)]
 pub struct TempTable {
     pub(crate) columns: Arc<Vec<TempTableColumn>>,
 }
 
-#[derive(Debug, Clone)]
-pub enum ThisTableEnum {
-    Table { name: ObjectName },
-    Temp { temp: TempTable },
-}
-
-impl From<ObjectName> for ThisTableEnum {
-    fn from(value: ObjectName) -> Self {
-        Self::Table { name: value }
-    }
-}
-
 #[derive(Clone, Default, Debug)]
 pub struct Scope {
-    table_entered: HashMap<Ident, ObjectName>,
-    this_table: Option<ThisTableEnum>,
-    temp_tables: HashMap<Ident, TempTable>,
-    // https://www.postgresql.org/docs/current/plpgsql-declarations.html
-
-    // right sqlparse have problem to parse function or precedure body
-    // `declares` and `vars` not used.
-    #[allow(unused)]
-    declares: HashMap<String, Arc<Declare>>,
-    //
-    #[allow(unused)]
-    vars: HashMap<String, Var>,
-
-    pub(crate) from_tables: Vec<FromTableOrTemp>,
+    tables: Vec<TableEntered>,
+    vars: Vec<Var>,
 }
 
 #[derive(Clone, Debug)]
-pub(crate) enum FromTableOrTemp {
-    FromTable { table: ObjectName },
-    Temp { table: TempTable },
-    Unnamed { table: TempTable },
+pub(crate) enum TableEntered {
+    ObjectName {
+        table: ObjectName,
+        alias: Option<Ident>,
+    },
+    Temp {
+        table: TempTable,
+        alias: Option<Ident>,
+    },
 }
 
-impl From<ObjectName> for FromTableOrTemp {
-    fn from(value: ObjectName) -> Self {
-        Self::FromTable { table: value }
+impl TableEntered {
+    pub(crate) fn get_name(&self) -> Option<&Ident> {
+        match self {
+            TableEntered::ObjectName { alias, table } => {
+                if let Some(alias) = alias {
+                    Some(alias)
+                } else {
+                    match table.0.last().expect("table have at least one part") {
+                        ObjectNamePart::Identifier(ident) => Some(ident),
+                        ObjectNamePart::Function(object_name_part_function) => {
+                            // TODO
+                            Some(&object_name_part_function.name)
+                        }
+                    }
+                }
+            }
+            TableEntered::Temp { alias, .. } => alias.as_ref(),
+        }
     }
-}
 
-impl From<TempTable> for FromTableOrTemp {
-    fn from(value: TempTable) -> Self {
-        Self::Temp { table: value }
+    fn equal_name(&self, name: &Ident) -> bool {
+        self.get_name()
+            .map(
+                |x: &Ident| match (x.quote_style.is_some(), name.quote_style.is_some()) {
+                    (false, false) => name.value.eq_ignore_ascii_case(&x.value),
+                    _ => x.value == name.value,
+                },
+            )
+            .unwrap_or(false)
     }
 }
 
 #[derive(Clone, Debug)]
 pub struct Var {
-    #[allow(dead_code)]
-    datatype: DataType,
+    pub(crate) data_type: Option<DataType>,
+    pub(crate) name: Ident,
 }
 
-impl Scope {
-    pub(crate) fn enter_table(&mut self, alias: Ident, table_name: ObjectName) {
-        self.table_entered.insert(alias, table_name);
-    }
-
-    pub(crate) fn enter_temp_table(&mut self, name: Ident, table_name: TempTable) {
-        self.temp_tables.insert(name, table_name);
-    }
-
-    pub(crate) fn enter_declare(&mut self, d: Arc<Declare>) {
-        for name in d.names.iter() {
-            self.declares.insert(name.value.clone(), d.clone());
-        }
-    }
-
-    pub(crate) fn from_temp_tables(temp_tables: HashMap<Ident, TempTable>) -> Self {
+impl From<String> for Var {
+    fn from(value: String) -> Self {
         Self {
-            temp_tables,
-            ..Default::default()
-        }
-    }
-
-    pub(crate) fn from_this_table(this_table: ObjectName) -> Self {
-        Self {
-            this_table: Some(ThisTableEnum::from(this_table)),
-            ..Default::default()
-        }
-    }
-
-    pub(crate) fn from_vars(vars: HashMap<String, Var>) -> Self {
-        Self {
-            vars,
-            ..Default::default()
+            data_type: None,
+            name: Ident::new(value),
         }
     }
 }
 
-impl CompletionStatement {
-    pub(crate) fn new(loc: Location, helper: Arc<dyn AstCompletionHelper>) -> Self {
+impl Scope {
+    pub(crate) fn enter_table(&mut self, alias: Option<Ident>, table_name: ObjectName) {
+        log::info!("enter table {:?} {:?}", alias, table_name);
+        self.tables.push(TableEntered::ObjectName {
+            table: table_name,
+            alias,
+        });
+    }
+
+    pub(crate) fn enter_temp_table(&mut self, alias: Option<Ident>, temp: TempTable) {
+        if temp.columns.is_empty() {
+            log::error!("enter temp table {:?} {:?}", alias, temp);
+        } else {
+            log::info!("enter temp table {:?} {:?}", alias, temp);
+        }
+
+        self.tables.push(TableEntered::Temp { table: temp, alias });
+    }
+    pub(crate) fn enter_temp_cols(&mut self, cols: Vec<TempTableColumn>) {
+        self.enter_temp_table(
+            None,
+            TempTable {
+                columns: Arc::new(cols),
+            },
+        );
+    }
+
+    pub(crate) fn enter_var(&mut self, var: Var) {
+        log::info!("enter var:{:?}", var);
+        self.vars.push(var);
+    }
+}
+
+impl<'a> CompletionStatement<'a> {
+    pub(crate) fn new(
+        loc: Location,
+        helper: &'a dyn AstCompletionHelper,
+        scopes: &'a Scopes,
+    ) -> Self {
         Self {
             loc,
             helper,
             result: None,
-            scopes: Scopes::new(),
+            scopes,
             on_def: false,
-            has_err: false,
+            select_item_columns: Default::default(),
         }
     }
 
@@ -308,32 +290,29 @@ impl CompletionStatement {
         self.on_def = true
     }
 
-    pub(crate) fn set_has_err(&mut self) {
-        self.has_err = true
-    }
-
     pub(crate) fn finished(&self) -> bool {
-        self.result.is_some() || self.on_def || self.has_err
+        self.result.is_some() || self.on_def
     }
 
     pub(crate) fn in_pos(&self, span: &Span) -> bool {
         (self.loc.line >= span.start.line && self.loc.line <= span.end.line)
             && (self.loc.column >= span.start.column && self.loc.column <= span.end.column)
     }
-
-    pub(crate) fn in_pos_optinal(&self, span: Option<&Span>) -> bool {
-        span.map(|span| self.in_pos(span)).unwrap_or_default()
-    }
 }
-impl CompletionStatement {
+impl<'a> CompletionStatement<'a> {
     pub(crate) async fn completion_on_statement(&mut self, statement: &Statement) {
+        let _guard = match statement {
+            // only `Declare` enter var will enter var in outer scope
+            Statement::Declare { .. } | Statement::Set(..) => None,
+            _ => Some(self.scopes.enter(Scope::default())),
+        };
         match statement {
-            Statement::Analyze {
+            Statement::Analyze(Analyze {
                 table_name,
                 columns,
                 partitions,
                 ..
-            } => {
+            }) => {
                 self.c_on_table(table_name).await;
                 if self.finished() {
                     return;
@@ -353,11 +332,12 @@ impl CompletionStatement {
                     }
                 }
             }
-            Statement::Truncate {
+            Statement::Truncate(Truncate {
                 table_names,
                 on_cluster,
+                partitions,
                 ..
-            } => {
+            }) => {
                 for t in table_names.iter() {
                     self.c_on_table(&t.name).await;
                     if self.finished() {
@@ -366,57 +346,51 @@ impl CompletionStatement {
                 }
                 if let Some(on_cluster) = on_cluster.as_ref() {
                     self.c_on_cluster(on_cluster).await;
-                    if self.finished() {
-                        return;
-                    }
                 }
-                // TODO how should I handle partitions
-            }
-            Statement::Msck { .. } => {
-                // hive not support rigth now
-            }
-            Statement::Query(query) => {
-                let _ = self.c_on_query(&query).await;
-            }
-            Statement::Insert(insert) => {
-                match &insert.table {
-                    TableObject::TableName(object_name) => {
-                        self.c_on_table(object_name).await;
+                if let Some(partitions) = partitions.as_ref() {
+                    for t in table_names.iter() {
+                        self.scopes.current_scope(|scope| {
+                            scope.enter_table(None, t.name.clone());
+                        });
+                    }
+                    for p in partitions.iter() {
+                        self.c_on_expr(p).await;
                         if self.finished() {
                             return;
                         }
                     }
-                    TableObject::TableFunction(..) => {}
                 }
-
+            }
+            Statement::Msck { .. } => {
+                // hive not support right now
+            }
+            Statement::Query(query) => {
+                let _ = self.c_on_query(query).await;
+            }
+            Statement::Insert(insert) => {
                 match &insert.table {
-                    TableObject::TableName(object_name) => {
-                        for c in insert.columns.iter() {
-                            self.c_on_column(object_name, c, false).await;
+                    TableObject::TableName(table_name) => {
+                        self.c_on_table(table_name).await;
+                        if self.finished() {
+                            return;
+                        }
+                        for c in insert.columns.iter().chain(insert.after_columns.iter()) {
+                            self.c_on_column(table_name, c, false).await;
                             if self.finished() {
                                 return;
                             }
                         }
+                        self.scopes
+                            .current_scope(|s| s.enter_table(None, table_name.clone()));
                     }
-                    TableObject::TableFunction(..) => {}
-                }
-                match &insert.table {
-                    TableObject::TableName(object_name) => {
-                        // I don't understand this,But we can still suggest table column
-                        for c in insert.after_columns.iter() {
-                            self.c_on_column(object_name, c, false).await;
-                            if self.finished() {
-                                return;
-                            }
-                        }
+                    // table function in include in function.
+                    TableObject::TableFunction(f) => {
+                        self.c_on_function_call(f).await;
                     }
-
-                    TableObject::TableFunction(..) => {}
                 }
-
                 //
                 if let Some(query) = &insert.source {
-                    let _ = self.c_on_query(&query).await;
+                    let _ = self.c_on_query(query).await;
                     if self.finished() {
                         return;
                     }
@@ -428,136 +402,130 @@ impl CompletionStatement {
                         return;
                     }
                 }
-                match &insert.table {
-                    TableObject::TableName(object_name) => {
-                        // 在 SQL 中，特别是在 PostgreSQL 中，RETURNING 关键字用于在 INSERT、UPDATE
-                        // 或 DELETE 语句后返回被操作的行的特定列。
-                        // 这使得你可以在执行数据修改后立即获取相关信息，例如新插入的记录的 ID。
-                        let _gurad = self
-                            .scopes
-                            .push(Scope::from_this_table(object_name.clone()));
-                        if let Some(returning) = &insert.returning {
-                            for r in returning.iter() {
-                                match r {
-                                    SelectItem::UnnamedExpr(expr) => {
-                                        self.c_on_expr(expr).await;
-                                    }
-                                    SelectItem::ExprWithAlias { expr, alias } => {
-                                        if self.in_pos(&alias.span) {
-                                            self.set_on_def();
-                                            return;
-                                        }
-                                        self.c_on_expr(expr).await;
-                                    }
-                                    SelectItem::QualifiedWildcard(..) => {
-                                        // nothing here
-                                    }
-                                    SelectItem::Wildcard(..) => {
-                                        // nothing here
-                                    }
-                                }
-                            }
-                        }
-                        // 在 SQL 中，特别是在 PostgreSQL 中，RETURNING 关键字用于在 INSERT、UPDATE
-                        // 或 DELETE 语句后返回被操作的行的特定列。
-                        // 这使得你可以在执行数据修改后立即获取相关信息，例如新插入的记录的 ID。
-                        let _gurad = self
-                            .scopes
-                            .push(Scope::from_this_table(object_name.clone()));
-                        if let Some(returning) = &insert.returning {
-                            for r in returning.iter() {
-                                match r {
-                                    SelectItem::UnnamedExpr(expr) => {
-                                        self.c_on_expr(expr).await;
-                                    }
-                                    SelectItem::ExprWithAlias { expr, alias } => {
-                                        if self.in_pos(&alias.span) {
-                                            self.set_on_def();
-                                            return;
-                                        }
-                                        self.c_on_expr(expr).await;
-                                    }
-                                    SelectItem::QualifiedWildcard(..) => {
-                                        // nothing here
-                                    }
-                                    SelectItem::Wildcard(..) => {
-                                        // nothing here
-                                    }
-                                }
-                            }
+                if let Some(returning) = &insert.returning {
+                    // 在 SQL 中，特别是在 PostgreSQL 中，RETURNING 关键字用于在 INSERT、UPDATE
+                    // 或 DELETE 语句后返回被操作的行的特定列。
+                    // 这使得你可以在执行数据修改后立即获取相关信息，例如新插入的记录的 ID。
+                    self.c_on_select_items(&returning[..]).await;
+                    if self.finished() {
+                        return;
+                    }
+                }
+                for ass in insert.assignments.iter() {
+                    self.c_on_assignment(ass).await;
+                    if self.finished() {
+                        return;
+                    }
+                }
+                if let Some(ss) = &insert.settings.as_ref() {
+                    for s in ss.iter() {
+                        self.c_on_setting(s).await;
+                        if self.finished() {
+                            return;
                         }
                     }
-                    TableObject::TableFunction(..) => {}
-                };
+                }
+                if let Some(c) = insert.format_clause.as_ref() {
+                    self.c_on_input_format_clause(c).await;
+                }
             }
-
             Statement::Install { extension_name } => {
-                self.c_on_duck_extension(&extension_name, Some(false)).await;
+                self.c_on_duck_extension(extension_name).await;
             }
             Statement::Load { extension_name } => {
-                self.c_on_duck_extension(&extension_name, Some(true)).await;
+                self.c_on_duck_extension(extension_name).await;
             }
-            Statement::Directory { .. } => {
-                // TODO maybe dump some data to a file.
+            Statement::Directory { source, .. } => {
+                let _ = self.c_on_query(source).await;
             }
             Statement::Call(function) => {
                 Box::pin(self.c_on_function_call(function)).await;
             }
-            Statement::Copy { source, .. } => {
+            Statement::Copy {
+                source, options, ..
+            } => {
                 match source {
                     CopySource::Table {
                         table_name,
                         columns,
                     } => {
-                        self.c_on_table(table_name).await;
+                        self.c_on_table_or_view(table_name).await;
                         if self.finished() {
                             return;
                         }
                         for c in columns.iter() {
-                            self.c_on_column(table_name, &c, false).await;
+                            self.c_on_column(table_name, c, false).await;
                             if self.finished() {
                                 return;
                             }
                         }
+                        for op in options.iter() {
+                            match op {
+                                CopyOption::ForceQuote(idents)
+                                | CopyOption::ForceNotNull(idents)
+                                | CopyOption::ForceNull(idents) => {
+                                    for col in idents.iter() {
+                                        self.c_on_column(table_name, col, false).await;
+                                        if self.finished() {
+                                            return;
+                                        }
+                                    }
+                                }
+                                _ => {}
+                            }
+                        }
                     }
                     CopySource::Query(query) => {
-                        let _ = self.c_on_query(&query).await;
+                        let columns = self.c_on_query(query).await.ok().unwrap_or_default();
+                        for op in options.iter() {
+                            match op {
+                                CopyOption::ForceQuote(idents)
+                                | CopyOption::ForceNotNull(idents)
+                                | CopyOption::ForceNull(idents) => {
+                                    for col in idents.iter() {
+                                        if self.in_pos(&col.span) {
+                                            self.result = Some(
+                                                columns
+                                                    .iter()
+                                                    .map(CompletionItem::from)
+                                                    .collect::<Vec<_>>(),
+                                            );
+                                        }
+                                    }
+                                }
+                                _ => {}
+                            }
+                        }
                     }
                 };
             }
             Statement::CopyIntoSnowflake { .. } => {
-                // snow flake not support at all
+                // snowflake not support at all
             }
             Statement::Close { .. } => {
-                //
+                // fallback to lexer
             }
-            Statement::Update {
+            Statement::Update(Update {
                 table,
                 assignments,
                 from,
                 selection,
                 returning,
+                or: _,
+                limit,
                 ..
-            } => {
+            }) => {
                 let mut joins = vec![table.clone()];
-                if let Some(x) = from.as_ref() {
+                if let Some(kind) = from.as_ref() {
                     joins.extend(
-                        match x {
+                        match kind {
                             UpdateTableFromKind::BeforeSet(items) => items.clone(),
                             UpdateTableFromKind::AfterSet(items) => items.clone(),
                         }
                         .into_iter(),
                     );
                 }
-
-                let _guard = self.c_on_table_with_joins(&joins[..]).await;
-                let table = match &table.relation {
-                    TableFactor::Table { name, .. } => Some(name.clone()),
-                    _ => {
-                        log::error!("update from table is not a Table but:{}", table);
-                        None
-                    }
-                };
+                self.c_on_table_with_joins(&joins[..]).await;
                 if let Some(selection) = selection {
                     Box::pin(self.c_on_expr(selection)).await;
                     if self.finished() {
@@ -565,62 +533,36 @@ impl CompletionStatement {
                     }
                 }
                 for ass in assignments.iter() {
-                    self.c_on_expr(&ass.value).await;
+                    self.c_on_assignment(ass).await;
                     if self.finished() {
                         return;
-                    }
-                    if let Some(table) = &table {
-                        match &ass.target {
-                            AssignmentTarget::ColumnName(object_name) => {
-                                match object_name.0.len() {
-                                    1 => {
-                                        Box::pin(self.c_on_column(
-                                            table,
-                                            match object_name.0.last().unwrap() {
-                                                sqlparser::ast::ObjectNamePart::Identifier(
-                                                    ident,
-                                                ) => ident,
-                                            },
-                                            false,
-                                        ))
-                                        .await;
-                                    }
-                                    2 | 3 | 4 => {}
-                                    _ => {
-                                        log::error!("unhandled object name for column target")
-                                    }
-                                }
-                            }
-
-                            AssignmentTarget::Tuple(_vec) => todo!(),
-                        }
                     }
                 }
                 if let Some(p) = returning {
-                    let _ = self.c_on_select_item(&p).await;
+                    self.c_on_select_items(p).await;
+                }
+                if let Some(limit) = limit {
+                    self.c_on_expr(limit).await;
                 }
             }
             Statement::Delete(delete) => {
-                let _guard = self.c_from_table(&delete.from).await;
+                self.c_on_from_table(&delete.from).await;
                 if self.finished() {
                     return;
                 }
-                let _guard = if let Some(other) = &delete.using {
-                    let _guard = self.c_on_table_with_joins(&other).await;
+                if let Some(other) = &delete.using {
+                    self.c_on_table_with_joins(other).await;
                     if self.finished() {
                         return;
                     }
-                    _guard
-                } else {
-                    // 0 means drop nothing.
-                    self.scopes.drop_n(0)
-                };
-
-                for t in delete.tables.iter() {
-                    self.c_on_table(t).await;
+                }
+                for table in delete.tables.iter() {
+                    self.c_on_table(table).await;
                     if self.finished() {
                         return;
                     }
+                    self.scopes
+                        .current_scope(|s| s.enter_table(None, table.clone()));
                 }
                 if let Some(s) = &delete.selection {
                     Box::pin(self.c_on_expr(s)).await;
@@ -635,228 +577,76 @@ impl CompletionStatement {
                     }
                 }
                 if let Some(r) = &delete.returning {
-                    let _ = self.c_on_select_item(&r[..]).await;
+                    self.c_on_select_items(&r[..]).await;
                 }
             }
-            Statement::CreateView { query, name, .. } => {
+            Statement::CreateView(CreateView {
+                query,
+                name,
+                columns,
+                cluster_by,
+                options,
+                to,
+                ..
+            }) => {
+                // name is user defined no need completion.
+                let cols = self.c_on_query(query).await.unwrap_or_default();
+                self.scopes.current_scope(|s| s.enter_temp_cols(cols));
                 if self.in_pos(&name.span()) {
                     self.set_on_def();
                     return;
                 }
-                // name is user defined no need completion.
-                let _ = self.c_on_query(&query).await;
+                let cols: Vec<_> = columns
+                    .iter()
+                    .map(|x| TempTableColumn {
+                        name: x.name.value.clone(),
+                        data_type: x.data_type.as_ref().map(|x| x.to_string()),
+                    })
+                    .collect();
+
+                self.scopes.current_scope(|s| {
+                    s.enter_temp_table(
+                        None,
+                        TempTable {
+                            columns: Arc::new(cols),
+                        },
+                    )
+                });
+                for col in columns.iter() {
+                    self.c_on_view_column_def(col).await;
+                    if self.finished() {
+                        return;
+                    }
+                }
+
+                for c in cluster_by.iter() {
+                    self.c_on_cluster(c).await;
+                    if self.finished() {
+                        return;
+                    }
+                }
+                self.c_on_create_table_options(options).await;
+                if self.finished() {
+                    return;
+                }
+                if let Some(to) = to {
+                    self.c_on_table(to).await;
+                }
             }
             Statement::CreateTable(create_table) => {
-                if self.in_pos(&create_table.name.span()) {
-                    self.set_on_def();
+                self.c_on_create_table(create_table).await;
+            }
+            Statement::CreateVirtualTable {
+                name, module_name, ..
+            } => {
+                self.c_on_schema(name).await;
+                if self.finished() {
                     return;
                 }
-                let mut scope = Scope::default();
-                let this_table = ThisTableEnum::Temp {
-                    temp: TempTable {
-                        columns: Arc::new(
-                            create_table
-                                .columns
-                                .iter()
-                                .map(|c| {
-                                    TempTableColumn {
-                                        name: c.name.value.clone(),
-                                        typ: Some(c.data_type.to_string()),
-                                    }
-                                })
-                                .collect(),
-                        ),
-                    },
-                };
-                scope.this_table = Some(this_table);
-                let _guard = self.scopes.push(scope);
-                for c in create_table.columns.iter() {
-                    if self.in_pos(&c.name.span) {
-                        self.set_on_def();
-                        return;
-                    }
-                    for op in c.options.iter() {
-                        Box::pin(self.c_on_column_option_def(op)).await;
-                        if self.finished() {
-                            return;
-                        }
-                    }
-                }
-                if let Some(on_cluster) = create_table.on_cluster.as_ref() {
-                    self.c_on_cluster(on_cluster).await;
-                    if self.finished() {
-                        return;
-                    }
-                }
-                if let Some(p) = create_table.primary_key.as_ref() {
-                    self.c_on_expr(p.as_ref()).await;
-                    if self.finished() {
-                        return;
-                    }
-                }
-                if let Some(p) = create_table.order_by.as_ref() {
-                    match p {
-                        OneOrManyWithParens::One(p) => self.c_on_expr(p).await,
-                        OneOrManyWithParens::Many(items) => {
-                            for item in items.iter() {
-                                self.c_on_expr(item).await;
-                                if self.finished() {
-                                    return;
-                                }
-                            }
-                        }
-                    }
-                }
-                for c in create_table.constraints.iter() {
-                    match c {
-                        TableConstraint::Unique {
-                            name,
-                            index_name,
-                            columns,
-                            ..
-                        }
-                        | TableConstraint::PrimaryKey {
-                            name,
-                            index_name,
-                            columns,
-                            ..
-                        } => {
-                            if let Some(name) = name {
-                                if self.in_pos(&name.span) {
-                                    self.set_on_def();
-                                    return;
-                                }
-                            }
-                            if let Some(name) = index_name {
-                                if self.in_pos(&name.span) {
-                                    self.set_on_def();
-                                    return;
-                                }
-                            }
-                            if columns.iter().any(|x| self.in_pos(&x.span)) {
-                                // hit column
-                                self.result = Some(
-                                    columns
-                                        .iter()
-                                        .map(|x| {
-                                            CompletionItem {
-                                                item: x.value.clone().into(),
-                                                kind: CompletionKind::Column,
-                                                desc: None,
-                                            }
-                                        })
-                                        .collect(),
-                                );
-                            }
-                        }
-                        TableConstraint::ForeignKey {
-                            name,
-                            columns,
-                            foreign_table,
-                            referred_columns,
-                            ..
-                        } => {
-                            if let Some(name) = name {
-                                if self.in_pos(&name.span) {
-                                    return;
-                                }
-                            }
-                            if columns.iter().any(|x| self.in_pos(&x.span)) {
-                                // hit column
-                                self.result = Some(
-                                    columns
-                                        .iter()
-                                        .map(|x| {
-                                            CompletionItem {
-                                                item: x.value.clone().into(),
-                                                kind: CompletionKind::Column,
-                                                desc: None,
-                                            }
-                                        })
-                                        .collect(),
-                                );
-                                return;
-                            }
-                            self.c_on_table(foreign_table).await;
-                            for r in referred_columns.iter() {
-                                self.c_on_column(foreign_table, r, false).await;
-                                if self.finished() {
-                                    return;
-                                }
-                            }
-                        }
-                        TableConstraint::Check { name, expr } => {
-                            if let Some(name) = name {
-                                if self.in_pos(&name.span) {
-                                    return;
-                                }
-                            }
-
-                            Box::pin(self.c_on_expr(&expr)).await;
-                        }
-                        TableConstraint::Index { name, columns, .. } => {
-                            if let Some(name) = name {
-                                if self.in_pos(&name.span) {
-                                    return;
-                                }
-                            }
-
-                            if columns.iter().any(|x| self.in_pos(&x.span)) {
-                                // hit column
-                                self.result = Some(
-                                    columns
-                                        .iter()
-                                        .map(|x| {
-                                            CompletionItem {
-                                                item: x.value.clone().into(),
-                                                kind: CompletionKind::Column,
-                                                desc: None,
-                                            }
-                                        })
-                                        .collect(),
-                                );
-                            }
-                        }
-                        TableConstraint::FulltextOrSpatial {
-                            opt_index_name,
-                            columns,
-                            ..
-                        } => {
-                            if let Some(name) = opt_index_name {
-                                if self.in_pos(&name.span) {
-                                    return;
-                                }
-                            }
-
-                            if columns.iter().any(|x| self.in_pos(&x.span)) {
-                                // hit column
-                                self.result = Some(
-                                    columns
-                                        .iter()
-                                        .map(|x| {
-                                            CompletionItem {
-                                                item: x.value.clone().into(),
-                                                kind: CompletionKind::Column,
-                                                desc: None,
-                                            }
-                                        })
-                                        .collect(),
-                                );
-                            }
-                        }
-                    }
-                }
-                if let Some(query) = &create_table.query {
-                    let _ = self.c_on_query(query).await;
-                }
-
-                // 其他都可以fallback 到lexer的实现
-            }
-            Statement::CreateVirtualTable { name, .. } => {
                 if self.in_pos(&name.span()) {
                     self.set_on_def();
-                    return;
-                };
+                }
+                self.c_on_sqlite_module_name(module_name).await;
             }
             Statement::CreateIndex(create_index) => {
                 if let Some(name) = &create_index.name {
@@ -869,14 +659,14 @@ impl CompletionStatement {
                 if self.finished() {
                     return;
                 }
-                let _guard = self
-                    .scopes
-                    .push(Scope::from_this_table(create_index.table_name.clone()));
+                self.scopes
+                    .current_scope(|s| s.enter_table(None, create_index.table_name.clone()));
+
                 // using 在 PostgreSQL 中，USING 关键字用于指定索引的类型，例如
                 // B-tree、HASH、GIN 等。示例如下： using 用lexer的自动完成即可
 
                 for c in create_index.columns.iter() {
-                    self.c_on_order_by_expr(c).await;
+                    self.c_on_order_by_expr(&c.column).await;
                     if self.finished() {
                         return;
                     }
@@ -897,16 +687,23 @@ impl CompletionStatement {
                         return;
                     }
                 }
+                for w in create_index.with.iter() {
+                    self.c_on_expr(w).await;
+                    if self.finished() {
+                        return;
+                    }
+                }
             }
-            Statement::CreateRole {
+            Statement::CreateRole(CreateRole {
                 names,
                 in_role,
                 in_group,
                 role,
                 user,
                 admin,
+                authorization_owner,
                 ..
-            } => {
+            }) => {
                 for name in names.iter() {
                     if self.in_pos(&name.span()) {
                         self.set_on_def();
@@ -925,6 +722,19 @@ impl CompletionStatement {
                         return;
                     }
                 }
+                if let Some(auth) = authorization_owner {
+                    match auth.0.len() {
+                        1 => match auth.0.last().expect("we have checked the length") {
+                            ObjectNamePart::Identifier(ident) => self.c_on_role(ident).await,
+                            ObjectNamePart::Function(..) => {
+                                // TODO
+                            }
+                        },
+                        _ => {
+                            log::error!("name length not right:{:?}", auth)
+                        }
+                    }
+                }
             }
             Statement::CreateSecret { .. } => {
                 // duckdb syntax
@@ -934,17 +744,45 @@ impl CompletionStatement {
                 name,
                 using,
                 with_check,
+                to,
                 ..
             } => {
                 if self.in_pos(&name.span) {
                     self.set_on_def();
                     return;
                 }
-                self.c_on_table(table_name).await;
+                // CREATE POLICY 是 PostgreSQL 中用于定义行级安全策略的命令，
+                // 主要适用于表（tables）和视图（views）。通过行级安全，您可以控制用户在表或视图中可访问的行。
+                self.c_on_table_or_view(table_name).await;
                 if self.finished() {
                     return;
                 }
-                let _guard = self.scopes.push(Scope::from_this_table(table_name.clone()));
+                if let Some(to) = to.as_ref() {
+                    if to.iter().any(|x| match x {
+                        Owner::Ident(ident) => self.in_pos(&ident.span),
+                        _ => false,
+                    }) {
+                        // this postgres specific statement
+                        // hit the position
+                        // 是的，CREATE POLICY 语句中的 TO 子句用于指定角色（role）。这允许您定义特定角色对表或视图的访问权限。
+                        let mut results: Vec<_> = self.helper.list_role_completion().await;
+                        // https://www.postgresql.org/docs/current/sql-createpolicy.html
+                        results.extend(
+                            ["PUBLIC", "CURRENT_ROLE", "CURRENT_USER", "SESSION_USER"]
+                                .iter()
+                                .map(|x| CompletionItem {
+                                    item: (*x).into(),
+                                    kind: CompletionKind::Role,
+                                    desc: None,
+                                }),
+                        );
+                        self.result = Some(results);
+                        return;
+                    }
+                }
+                self.scopes
+                    .current_scope(|s| s.enter_table(None, table_name.clone()));
+
                 if let Some(x) = using {
                     self.c_on_expr(x).await;
                     if self.finished() {
@@ -953,20 +791,24 @@ impl CompletionStatement {
                 }
                 if let Some(x) = with_check {
                     self.c_on_expr(x).await;
-                    if self.finished() {
-                        return;
-                    }
+                    if self.finished() {}
                 }
             }
-            Statement::AlterTable {
+            Statement::AlterTable(AlterTable {
                 name,
                 operations,
                 on_cluster,
                 ..
-            } => {
-                self.c_on_alert_table(name, operations).await;
+            }) => {
+                self.c_on_table(name).await;
                 if self.finished() {
                     return;
+                }
+                for op in operations.iter() {
+                    self.c_on_alert_table_operation(name, op).await;
+                    if self.finished() {
+                        return;
+                    }
                 }
                 if let Some(on_cluster) = on_cluster.as_ref() {
                     self.c_on_cluster(on_cluster).await;
@@ -979,27 +821,41 @@ impl CompletionStatement {
                 }
                 match operation {
                     AlterIndexOperation::RenameIndex { index_name } => {
+                        self.c_on_schema(index_name).await;
                         if self.in_pos(&index_name.span()) {
                             self.set_on_def();
-                            return;
                         }
                     }
                 }
             }
-            Statement::AlterView { name, query, .. } => {
+            Statement::AlterView {
+                name,
+                query,
+                columns: _,
+                with_options,
+            } => {
                 self.c_on_view(name).await;
                 if self.finished() {
                     return;
                 }
-                let _ = self.c_on_query(&query).await;
+                let cols = self.c_on_query(query).await.unwrap_or_default();
+                self.scopes.current_scope(|s| s.enter_temp_cols(cols));
+                for w in with_options.iter() {
+                    self.c_on_sql_option(w).await;
+                    if self.finished() {
+                        return;
+                    }
+                }
             }
             Statement::AlterRole { name, operation } => {
                 self.c_on_role(name).await;
+                if self.finished() {
+                    return;
+                }
                 match operation {
                     AlterRoleOperation::RenameRole { role_name } => {
                         if self.in_pos(&role_name.span) {
                             self.set_on_def();
-                            return;
                         }
                     }
                     AlterRoleOperation::AddMember { member_name } => {
@@ -1008,48 +864,68 @@ impl CompletionStatement {
                     AlterRoleOperation::DropMember { member_name } => {
                         self.c_on_role(member_name).await;
                     }
-                    AlterRoleOperation::WithOptions { options: _ } => {
-                        // even through have expr
-                        // I think they are literal.
+                    AlterRoleOperation::WithOptions { options } => {
+                        for op in options.iter() {
+                            self.c_on_role_option(op).await;
+                            if self.finished() {
+                                return;
+                            }
+                        }
                     }
-                    AlterRoleOperation::Set { .. } => {
-                        // TODO what is this.
-                    }
+                    AlterRoleOperation::Set { config_value, .. } => match config_value {
+                        SetConfigValue::Default => {}
+                        SetConfigValue::FromCurrent => {}
+                        SetConfigValue::Value(expr) => self.c_on_expr(expr).await,
+                    },
                     AlterRoleOperation::Reset { .. } => {
-                        // TODO what is this.
+                        // no completion on this.
                     }
                 }
             }
             Statement::AlterPolicy {
                 table_name, name, ..
             } => {
-                self.c_on_table(table_name).await;
+                self.c_on_table_or_view(table_name).await;
                 if self.finished() {
                     return;
                 }
-                self.c_on_policy(table_name, name).await;
+                self.c_on_table_policy(table_name, name).await;
             }
-            Statement::AttachDatabase { .. } => {
-                // fallback to lexer
-                // this SQLite-specific
+            Statement::AttachDatabase {
+                schema_name,
+                database_file_name,
+                ..
+            } => {
+                if self.in_pos(&schema_name.span) {
+                    self.set_on_def();
+                    return;
+                }
+                self.c_on_expr(database_file_name).await;
             }
             Statement::AttachDuckDBDatabase { .. } => {
-                // duckdb not supported
+                // fallback to lexer
             }
             Statement::DetachDuckDBDatabase { .. } => {
-                // duckdb not supported
+                // fallback to lexer
             }
             Statement::Drop {
-                object_type, names, ..
+                object_type,
+                names,
+                table,
+                ..
             } => {
+                if let Some(table) = table {
+                    self.c_on_table(table).await;
+                }
+
                 for name in names.iter() {
-                    self.c_on_type_drop(object_type.clone(), name).await;
+                    self.c_on_object_type_drop(*object_type, name).await;
                     if self.finished() {
                         return;
                     }
                 }
             }
-            Statement::DropFunction { func_desc, .. } => {
+            Statement::DropFunction(DropFunction { func_desc, .. }) => {
                 for d in func_desc.iter() {
                     self.c_on_function_drop(&d.name).await;
                     if self.finished() {
@@ -1066,7 +942,8 @@ impl CompletionStatement {
                 }
             }
             Statement::DropSecret { .. } => {
-                // fallback to lexer
+                // DROP SECRET 并不是 SQL 标准语句，而是部分现代数据库为管理“外部访问密钥”引入的扩展命令，
+                // 用于删除事先通过 CREATE SECRET 注册的凭证对象。目前可见于以下系统
             }
             Statement::DropPolicy {
                 table_name, name, ..
@@ -1075,46 +952,39 @@ impl CompletionStatement {
                 if self.finished() {
                     return;
                 }
-                self.c_on_policy(table_name, name).await;
+                self.c_on_table_policy(table_name, name).await;
             }
             Statement::Declare { stmts } => {
-                for d in stmts.iter() {
-                    for name in d.names.iter() {
+                for declare in stmts.iter() {
+                    for name in declare.names.iter() {
                         if self.in_pos(&name.span) {
                             self.set_on_def();
                             return;
                         }
+                        self.scopes.enter_var(Var {
+                            name: name.clone(),
+                            data_type: declare.data_type.clone(),
+                        });
                     }
-                    if let Some(expr) = &d.assignment {
-                        match expr {
-                            DeclareAssignment::Expr(expr) => {
-                                self.c_on_expr(&expr).await;
-                            }
-                            DeclareAssignment::Default(expr) => {
-                                self.c_on_expr(&expr).await;
-                            }
-                            DeclareAssignment::DuckAssignment(expr) => {
-                                self.c_on_expr(&expr).await;
-                            }
-                            DeclareAssignment::For(expr) => {
-                                self.c_on_expr(&expr).await;
-                            }
-                            DeclareAssignment::MsSqlAssignment(expr) => {
-                                self.c_on_expr(&expr).await;
-                            }
+                    if let Some(d) = declare.data_type.as_ref() {
+                        self.c_on_data_type(d).await;
+                        if self.finished() {
+                            return;
                         }
                     }
-                    if let Some(for_query) = &d.for_query {
-                        let _ = self.c_on_query(&for_query).await;
+                    if let Some(expr) = &declare.assignment {
+                        self.c_on_declare_assignment(expr).await;
                     }
-                    self.scopes.enter_declare(Arc::new(d.clone()));
+                    if let Some(for_query) = &declare.for_query {
+                        let _ = self.c_on_query(for_query).await;
+                    }
                 }
             }
-            Statement::CreateExtension { .. } => {
-                // fallback to lexer
-            }
-            Statement::Fetch { .. } => {
-                // fallback to lexer
+            Statement::Fetch { into, .. } => {
+                if let Some(into) = into {
+                    self.c_on_table(into).await;
+                }
+                // other fallback to lexer
             }
             Statement::Flush { tables, .. } => {
                 for table in tables.iter() {
@@ -1127,48 +997,18 @@ impl CompletionStatement {
             }
             Statement::Discard { .. } => {
                 // fallback to lexer
+                // no completable elements
             }
-            Statement::SetRole { role_name, .. } => {
-                // fallback to lexer
-                if let Some(name) = role_name {
-                    self.c_on_role(name).await;
-                }
-            }
-            Statement::SetVariable { variables, .. } => {
-                // fallback to lexer
-
-                for v in variables.iter() {
-                    match v.0.len() {
-                        1 => {
-                            self.c_on_variable(match &v.0[0] {
-                                ObjectNamePart::Identifier(ident) => ident,
-                            })
-                            .await
-                        }
-
-                        _ => {
-                            log::error!("not handled variable name length:{:?}", v);
-                        }
-                    }
-                }
-            }
-            Statement::SetTimeZone { .. } => {
-                // fallback to lexer
-            }
-            Statement::SetNames { .. } => {
-                // this ast have no span info.
-                // so we can't do
-            }
-            Statement::SetNamesDefault {} => {
-                // fallback to lexer
-            }
-            Statement::ShowFunctions { .. } => {
+            Statement::ShowFunctions { filter } => {
                 // Presto-specific
                 // no one can write a sql like this???
+                if let Some(filter) = filter {
+                    self.c_on_show_statement_filter(filter).await;
+                }
             }
             Statement::ShowVariable { variable } => {
-                let name = self.helper.backend_name();
-                if name == "postgres" {
+                let kind = self.helper.backend_name();
+                if kind.postgres_like() {
                     for var in variable {
                         self.c_on_variable(var).await;
                         if self.finished() {
@@ -1177,45 +1017,119 @@ impl CompletionStatement {
                     }
                 }
             }
-            Statement::ShowStatus { .. } => {
-                //
+            Statement::ShowStatus { filter, .. } => {
+                // nothing to show here
+                // SHOW STATUS LIKE 'Connections';
+                // fallback to lexer
+                if let Some(filter) = filter {
+                    self.c_on_show_statement_filter(filter).await;
+                }
             }
-            Statement::ShowVariables { .. } => {
-                // this is show all variable
-                // no need to completion.
+            Statement::ShowVariables { filter, .. } => {
+                // 给我的语法结构不好做自动完成
+                // SHOW VARIABLES LIKE 'version';
+                // fallback to lexer
+                if let Some(filter) = filter {
+                    self.c_on_show_statement_filter(filter).await;
+                }
             }
             Statement::ShowCreate { obj_type, obj_name } => {
-                self.c_on_mysql_show_create(obj_type.clone(), obj_name)
-                    .await;
+                self.c_on_mysql_show_create(*obj_type, obj_name).await;
             }
-            Statement::ShowColumns { .. } => {}
-            Statement::ShowDatabases { .. } => {}
-            Statement::ShowSchemas { .. } => {}
-            Statement::ShowTables { .. } => {}
-            Statement::ShowViews { .. } => {}
-            Statement::ShowCollation { .. } => {}
-            Statement::Use(_x) => {
-                // TODO maybe can auto completion.
-                // wo perfer use don't use this statment.
+            Statement::ShowColumns { .. } => {
+                // fallback to lexer
+                // lexer completion will suggest tables.
             }
-            Statement::StartTransaction { .. } => {}
-            Statement::SetTransaction { .. } => {}
+            Statement::ShowDatabases { .. } => {
+                // fallback to lexer
+            }
+            Statement::ShowSchemas { .. } => {
+                //  fallback to lexer
+            }
+            Statement::ShowTables { .. } => {
+                // SHOW TABLES LIKE 'emp%';
+                // fallback to lexer
+            }
+            Statement::ShowViews { .. } => {
+                // SHOW VIEWS LIKE 'emp%';
+            }
+            Statement::ShowCollation { .. } => {
+                // fallback to lexer
+            }
+            Statement::Use(u) => {
+                match u {
+                    Use::Catalog(object_name)
+                    | Use::Schema(object_name)
+                    | Use::Database(object_name) => {
+                        if self.in_pos(&object_name.span()) {
+                            let results = self.helper.list_database_schema_completion().await;
+                            self.result = Some(results)
+                        }
+                    }
+                    Use::Warehouse(..) => {
+                        // TODO
+                    }
+                    Use::Role(object_name) => self.c_on_role_objectname(object_name).await,
+                    Use::SecondaryRoles(..) => {
+                        // USE SECONDARY ROLES ALL 是 Snowflake 数据库的 SQL 语句
+                    }
+                    Use::Object(..) => {
+                        // TODO use a table???
+                    }
+                    Use::Default => {}
+                }
+            }
+            Statement::StartTransaction {
+                statements,
+                exception,
+                ..
+            } => {
+                for s in statements.iter() {
+                    Box::pin(self.completion_on_statement(s)).await;
+                    if self.finished() {
+                        return;
+                    }
+                }
+
+                if let Some(exception) = exception {
+                    for when in exception.iter() {
+                        if when.idents.iter().any(|s| self.in_pos(&s.span)) {
+                            // those a expection names suppose to be defintion
+                            self.set_on_def();
+                            return;
+                        }
+
+                        for stmt in when.statements.iter() {
+                            Box::pin(self.completion_on_statement(stmt)).await;
+                            if self.finished() {
+                                return;
+                            }
+                        }
+                    }
+                }
+            }
             Statement::Comment {
                 object_type,
                 object_name,
                 ..
             } => {
                 //
-                self.c_on_postgres_comment_object(object_type.clone(), object_name)
+                self.c_on_postgres_comment_object(*object_type, object_name)
                     .await;
             }
             Statement::Commit { .. } => {
-                //
+                // fallback to lexer
             }
             Statement::Rollback { .. } => {
-                //
+                // fallback to lexer
             }
-            Statement::CreateSchema { schema_name, .. } => {
+            Statement::CreateSchema {
+                schema_name,
+                with,
+                options,
+                default_collate_spec,
+                ..
+            } => {
                 // no need to completion.
                 match schema_name {
                     SchemaName::Simple(object_name) => {
@@ -1237,12 +1151,30 @@ impl CompletionStatement {
                         }
                     }
                 }
+                if let Some(with) = with {
+                    for w in with.iter() {
+                        self.c_on_sql_option(w).await;
+                        if self.finished() {
+                            return;
+                        }
+                    }
+                }
+                if let Some(ops) = options {
+                    for op in ops.iter() {
+                        self.c_on_sql_option(op).await;
+                        if self.finished() {
+                            return;
+                        }
+                    }
+                }
+                if let Some(d) = default_collate_spec {
+                    self.c_on_expr(d).await;
+                }
             }
             Statement::CreateDatabase { db_name, .. } => {
                 //
                 if self.in_pos(&db_name.span()) {
                     self.set_on_def();
-                    return;
                 }
             }
             Statement::CreateFunction(create_f) => {
@@ -1250,7 +1182,6 @@ impl CompletionStatement {
                     self.set_on_def();
                     return;
                 }
-                let mut vars = HashMap::new();
                 if let Some(args) = &create_f.args {
                     for a in args.iter() {
                         if let Some(name) = &a.name {
@@ -1258,103 +1189,134 @@ impl CompletionStatement {
                                 self.set_on_def();
                                 return;
                             }
-                            vars.insert(
-                                name.value.clone(),
-                                Var {
-                                    datatype: a.data_type.clone(),
-                                },
-                            );
                         }
-
+                        self.c_on_data_type(&a.data_type).await;
+                        if self.finished() {
+                            return;
+                        }
                         if let Some(expr) = &a.default_expr {
                             self.c_on_expr(expr).await;
                             if self.finished() {
                                 return;
                             }
                         }
+                        if let Some(name) = a.name.as_ref() {
+                            self.scopes.current_scope(|s| {
+                                s.enter_var(Var {
+                                    data_type: Some(a.data_type.clone()),
+                                    name: name.clone(),
+                                })
+                            });
+                        }
                     }
                 }
-                let _gurad = self.scopes.push(Scope::from_vars(vars));
-                // TODO why just a expr.
+                if let Some(r) = create_f.return_type.as_ref() {
+                    self.c_on_data_type(r).await;
+                    if self.finished() {
+                        return;
+                    }
+                }
+                if let Some(x) = create_f.options.as_ref() {
+                    for op in x.iter() {
+                        self.c_on_sql_option(op).await;
+                        if self.finished() {
+                            return;
+                        }
+                    }
+                }
                 // due to this https://github.com/apache/datafusion-sqlparser-rs/issues/1356
                 if let Some(x) = &create_f.function_body {
                     match x {
-                        CreateFunctionBody::AsBeforeOptions(expr) => {
+                        CreateFunctionBody::AsBeforeOptions {
+                            body: expr,
+                            link_symbol,
+                        } => {
+                            self.c_on_expr(expr).await;
+                            if let Some(expr) = link_symbol {
+                                self.c_on_expr(expr).await;
+                            }
+                        }
+                        CreateFunctionBody::AsAfterOptions(expr)
+                        | CreateFunctionBody::Return(expr)
+                        | CreateFunctionBody::AsReturnExpr(expr) => {
                             self.c_on_expr(expr).await;
                         }
-                        CreateFunctionBody::AsAfterOptions(expr) => {
-                            self.c_on_expr(expr).await;
+                        CreateFunctionBody::AsBeginEnd(begin_end_statements) => {
+                            self.c_on_begin_end_statements(begin_end_statements).await;
                         }
-                        CreateFunctionBody::Return(expr) => {
-                            self.c_on_expr(expr).await;
+                        CreateFunctionBody::AsReturnSelect(select) => {
+                            let _ = self.c_on_select(select).await;
                         }
                     }
                 }
             }
-            Statement::CreateTrigger {
-                name,
-                table_name,
-                events,
-                referenced_table_name,
-                referencing,
-                condition,
-                exec_body,
-                ..
-            } => {
-                // fallback to lexer
-                if self.in_pos(&name.span()) {
+            Statement::CreateTrigger(create_trigger) => {
+                if self.in_pos(&create_trigger.name.span()) {
                     self.set_on_def();
                     return;
                 }
-                self.c_on_table(table_name).await;
+                self.c_on_table(&create_trigger.table_name).await;
                 if self.finished() {
                     return;
                 }
-                for e in events.iter() {
-                    match e {
-                        TriggerEvent::Update(fields) => {
-                            for field in fields.iter() {
-                                self.c_on_column(table_name, field, false).await;
-                                if self.finished() {
-                                    return;
-                                }
+                for e in create_trigger.events.iter() {
+                    if let TriggerEvent::Update(fields) = e {
+                        for field in fields.iter() {
+                            self.c_on_column(&create_trigger.table_name, field, false)
+                                .await;
+                            if self.finished() {
+                                return;
                             }
                         }
-                        _ => {}
                     }
                 }
-                if let Some(r) = referenced_table_name {
+                if let Some(r) = create_trigger.referenced_table_name.as_ref() {
                     self.c_on_table(r).await;
                     if self.finished() {
                         return;
                     }
                 }
-                for r in referencing.iter() {
-                    // TODO is this actual a table name.
+                for r in create_trigger.referencing.iter() {
                     self.c_on_table(&r.transition_relation_name).await;
+                    self.scopes
+                        .current_scope(|s| s.enter_table(None, r.transition_relation_name.clone()));
                 }
                 let mut scope = Scope::default();
-                // TODO `NEW` and `OLD` is suitable for all database we
-                // support right now????
-                scope.enter_table(Ident::new("NEW"), table_name.clone());
-                scope.enter_table(Ident::new("OLD"), table_name.clone());
-                let _gurad = self.scopes.push(scope);
-                if let Some(c) = condition {
+                /*
+                    AI提示词 没有 NEW/OLD，而是使用 inserted.col 和 deleted.col 两张“伪表”
+                */
+                if self.helper.backend_name() == BackendKind::SqlServer {
+                    // 	没有 NEW/OLD，而是使用 inserted.col 和 deleted.col 两张“伪表”
+                    scope.enter_table(
+                        Some(Ident::new("inserted")),
+                        create_trigger.table_name.clone(),
+                    );
+                    scope.enter_table(
+                        Some(Ident::new("deleted")),
+                        create_trigger.table_name.clone(),
+                    );
+                } else {
+                    scope.enter_table(Some(Ident::new("NEW")), create_trigger.table_name.clone());
+                    scope.enter_table(Some(Ident::new("OLD")), create_trigger.table_name.clone());
+                }
+                let _guard = self.scopes.enter(scope);
+                if let Some(c) = create_trigger.condition.as_ref() {
                     self.c_on_expr(c).await;
                     if self.finished() {
                         return;
                     }
                 }
-                self.c_on_trigger_exec_body(exec_body).await;
+                if let Some(exec_body) = &create_trigger.exec_body {
+                    self.c_on_trigger_exec_body(exec_body).await;
+                }
+                if let Some(ss) = &create_trigger.statements.as_ref() {
+                    self.c_on_conditional_statements(ss).await;
+                }
             }
-            Statement::DropTrigger {
-                trigger_name,
-                table_name,
-                ..
-            } => {
-                if let Some(table_name) = table_name {
-                    if trigger_name.0.len() > 1 {
-                        log::error!("multi part trigger name:{:?}", trigger_name);
+            Statement::DropTrigger(drop_trigger) => {
+                if let Some(table_name) = drop_trigger.table_name.as_ref() {
+                    if drop_trigger.trigger_name.0.len() > 1 {
+                        log::error!("multi part trigger name:{:?}", drop_trigger.trigger_name);
                     }
                     self.c_on_table(table_name).await;
                     if self.finished() {
@@ -1362,14 +1324,16 @@ impl CompletionStatement {
                     }
                     self.c_on_table_trigger(
                         table_name,
-                        match &trigger_name.0[0] {
+                        match &drop_trigger.trigger_name.0[0] {
                             ObjectNamePart::Identifier(ident) => ident,
+                            ObjectNamePart::Function(object_name_part_function) => {
+                                &object_name_part_function.name
+                            }
                         },
                     )
                     .await;
                 }
             }
-
             Statement::CreateProcedure {
                 name, params, body, ..
             } => {
@@ -1383,17 +1347,39 @@ impl CompletionStatement {
                             self.set_on_def();
                             return;
                         }
+                        self.c_on_data_type(&p.data_type).await;
+                        if self.finished() {
+                            return;
+                        }
+                        self.scopes.current_scope(|s| {
+                            s.enter_var(Var {
+                                name: p.name.clone(),
+                                data_type: p.data_type.clone().into(),
+                            })
+                        });
                     }
                 }
-                for s in body.iter() {
-                    Box::pin(self.completion_on_statement(s)).await;
-                    if self.finished() {
-                        return;
-                    }
-                }
+                self.c_on_conditional_statements(body).await;
             }
-            Statement::CreateMacro { .. } => {
-                // DuckDB not support.
+            Statement::CreateMacro { name, args, .. } => {
+                if self.in_pos(&name.span()) {
+                    self.set_on_def();
+                    return;
+                }
+                if let Some(args) = args {
+                    for arg in args.iter() {
+                        if self.in_pos(&arg.name.span) {
+                            self.set_on_def();
+                            return;
+                        }
+                        if let Some(expr) = arg.default_expr.as_ref() {
+                            self.c_on_expr(expr).await;
+                            if self.finished() {
+                                return;
+                            }
+                        }
+                    }
+                }
             }
             Statement::CreateStage { .. } => {
                 // snowflake not support
@@ -1426,10 +1412,12 @@ impl CompletionStatement {
                         match g {
                             GranteeName::ObjectName(object_name) => {
                                 if let Some(name) = object_name.0.first() {
-                                    self.c_on_role(match name {
-                                        ObjectNamePart::Identifier(ident) => ident,
-                                    })
-                                    .await;
+                                    match name {
+                                        ObjectNamePart::Identifier(ident) => {
+                                            self.c_on_role(ident).await
+                                        }
+                                        ObjectNamePart::Function(..) => {}
+                                    }
                                     if self.finished() {
                                         return;
                                     }
@@ -1450,37 +1438,18 @@ impl CompletionStatement {
                         return;
                     }
                 }
-                let mut tables = None;
+                let mut tables_or_views = None as Option<Vec<ObjectName>>;
                 if let Some(objects) = objects {
-                    match objects {
-                        GrantObjects::AllSequencesInSchema { schemas: _schemas } => {}
-                        GrantObjects::AllTablesInSchema { schemas: _schemas } => {}
-                        GrantObjects::Schemas(_vec) => {}
-                        GrantObjects::Sequences(_vec) => {}
-                        GrantObjects::Tables(vec) => {
-                            for table in vec.iter() {
-                                self.c_on_table(table).await;
-                                if self.finished() {
-                                    return;
-                                }
-                            }
-                            tables = Some(vec);
-                        }
-                        GrantObjects::Databases(..) => {}
-                        GrantObjects::Views(..) => {}
-                        GrantObjects::Warehouses(..) => {}
-                        GrantObjects::Integrations(..) => {}
-                    }
+                    self.c_on_grant_objects(objects, &mut tables_or_views).await;
                 }
-
-                if let Some(tables) = tables {
+                if let Some(tables_or_views) = tables_or_views {
                     match privileges {
                         Privileges::All { .. } => {
                             // nothing here
                         }
                         Privileges::Actions(vec) => {
                             for a in vec.iter() {
-                                self.c_on_privileges_action(&tables[..], a).await;
+                                self.c_on_privileges_action(&tables_or_views[..], a).await;
                                 if self.finished() {
                                     return;
                                 }
@@ -1489,10 +1458,14 @@ impl CompletionStatement {
                     }
                 }
             }
-
-            Statement::Deallocate { .. } => {}
+            Statement::Deallocate { name, .. } => {
+                self.c_on_prepare_ident(name).await;
+            }
             Statement::Execute {
-                parameters, using, ..
+                parameters,
+                using,
+                name,
+                ..
             } => {
                 for p in parameters.iter() {
                     self.c_on_expr(p).await;
@@ -1505,36 +1478,101 @@ impl CompletionStatement {
                     if self.finished() {
                         return;
                     }
+                    if let Some(name) = u.alias.as_ref() {
+                        if self.in_pos(&name.span) {
+                            self.set_on_def();
+                            return;
+                        }
+                    }
+                }
+                if let Some(name) = name.as_ref() {
+                    self.c_on_execute(name).await;
                 }
             }
             Statement::Prepare {
-                name, statement, ..
+                name,
+                statement,
+                data_types,
             } => {
                 if self.in_pos(&name.span) {
                     self.set_on_def();
                     return;
                 }
+                for data_type in data_types.iter() {
+                    self.c_on_data_type(data_type).await;
+                    if self.finished() {
+                        return;
+                    }
+                }
                 Box::pin(self.completion_on_statement(statement)).await;
             }
             Statement::Kill { .. } => {}
             Statement::ExplainTable { table_name, .. } => {
-                self.c_on_table(table_name).await;
+                if self.helper.backend_name().mysql_like() {
+                    //
+                    self.c_on_table(table_name).await;
+                    if self.last_name_in_pos(table_name) && table_name.0.len() == 1 {
+                        let mut results = self.result.take().unwrap_or_default();
+                        let kw = self.helper.key_words_completion().await;
+                        // possible
+                        results.extend(kw.into_iter());
+                        self.result = Some(results);
+                    }
+                }
             }
-            Statement::Explain { statement, .. } => {
+            Statement::Explain {
+                statement, options, ..
+            } => {
                 Box::pin(self.completion_on_statement(statement)).await;
+                if self.finished() {
+                    return;
+                }
+                if let Some(ops) = options {
+                    for op in ops.iter() {
+                        if let Some(arg) = op.arg.as_ref() {
+                            self.c_on_expr(arg).await;
+                            if self.finished() {
+                                return;
+                            }
+                        }
+                    }
+                }
             }
             Statement::Savepoint { name } => {
                 if self.in_pos(&name.span) {
                     self.set_on_def();
-                    return;
                 }
             }
             Statement::ReleaseSavepoint { .. } => {
                 // 我在postgres和mysql都没找到可以查询savepoint的语句
                 // 所以这里不能做
             }
-            Statement::Merge { .. } => {
-                // Snowflake not support rightnow
+            Statement::Merge {
+                table,
+                source,
+                on,
+                output,
+                clauses,
+                ..
+            } => {
+                self.c_on_table_factor(table).await;
+                if self.finished() {
+                    return;
+                }
+                self.c_on_table_factor(source).await;
+                if self.finished() {
+                    return;
+                }
+                self.c_on_expr(on).await;
+                for cl in clauses.iter() {
+                    self.c_on_merge_clause(cl).await;
+                    if self.finished() {
+                        return;
+                    }
+                }
+                if let Some(output) = output {
+                    self.c_on_output_clause(output).await;
+                }
             }
             Statement::Cache { .. } => {
                 // Spark SQL
@@ -1545,34 +1583,24 @@ impl CompletionStatement {
             Statement::CreateSequence {
                 name,
                 sequence_options,
+                data_type,
                 ..
             } => {
+                if let Some(d) = data_type {
+                    self.c_on_data_type(d).await;
+                }
+                self.c_on_schema(name).await;
+                if self.finished() {
+                    return;
+                }
                 if self.in_pos(&name.span()) {
                     self.set_on_def();
                     return;
                 }
                 for op in sequence_options.iter() {
-                    match op {
-                        SequenceOptions::IncrementBy(expr, _) => {
-                            self.c_on_expr(expr).await;
-                        }
-                        SequenceOptions::MinValue(expr) => {
-                            if let Some(expr) = expr {
-                                self.c_on_expr(expr).await;
-                            }
-                        }
-                        SequenceOptions::MaxValue(expr) => {
-                            if let Some(expr) = expr {
-                                self.c_on_expr(expr).await;
-                            }
-                        }
-                        SequenceOptions::StartWith(expr, _) => {
-                            self.c_on_expr(expr).await;
-                        }
-                        SequenceOptions::Cache(expr) => {
-                            self.c_on_expr(expr).await;
-                        }
-                        SequenceOptions::Cycle(_) => {}
+                    self.c_on_sequence_options(op).await;
+                    if self.finished() {
+                        return;
                     }
                 }
             }
@@ -1584,27 +1612,32 @@ impl CompletionStatement {
                     self.set_on_def();
                     return;
                 }
-                match representation {
-                    UserDefinedTypeRepresentation::Composite { attributes } => {
-                        for a in attributes.iter() {
-                            if self.in_pos(&a.name.span) {
-                                self.set_on_def();
-                                return;
+                if let Some(rep) = representation {
+                    match rep {
+                        UserDefinedTypeRepresentation::Composite { attributes } => {
+                            for a in attributes.iter() {
+                                if self.in_pos(&a.name.span) {
+                                    self.set_on_def();
+                                    return;
+                                }
+                                self.c_on_data_type(&a.data_type).await;
+                                if self.finished() {
+                                    return;
+                                }
                             }
                         }
-                    }
-                    UserDefinedTypeRepresentation::Enum { labels } => {
-                        for a in labels.iter() {
-                            if self.in_pos(&a.span) {
+                        UserDefinedTypeRepresentation::Enum { labels } => {
+                            if labels.iter().any(|i| self.in_pos(&i.span)) {
                                 self.set_on_def();
-                                return;
                             }
                         }
+                        UserDefinedTypeRepresentation::Range { .. } => {}
+                        UserDefinedTypeRepresentation::SqlDefinition { .. } => {}
                     }
                 }
             }
             Statement::Pragma { name, .. } => {
-                self.c_on_pragma(name).await;
+                self.c_on_sqlite_pragma(name).await;
             }
             Statement::LockTables { tables } => {
                 for t in tables.iter() {
@@ -1624,34 +1657,122 @@ impl CompletionStatement {
                 }
             }
             Statement::UnlockTables => {}
-            Statement::Unload { .. } => {
-                // not support right now
+            Statement::Unload { query, with, .. } => {
+                if let Some(q) = query.as_ref() {
+                    let _ = self.c_on_query(q).await;
+                }
+                for w in with.iter() {
+                    self.c_on_sql_option(w).await;
+                    if self.finished() {
+                        return;
+                    }
+                }
             }
-            Statement::OptimizeTable { name, .. } => {
-                self.c_on_table(&name).await;
+            Statement::OptimizeTable {
+                name,
+                on_cluster,
+                deduplicate,
+                ..
+            } => {
+                self.c_on_table(name).await;
+                if let Some(on_cluster) = on_cluster {
+                    self.c_on_cluster(on_cluster).await;
+                }
+                if let Some(deduplicate) = deduplicate {
+                    match deduplicate {
+                        Deduplicate::All => {}
+                        Deduplicate::ByExpression(expr) => {
+                            self.c_on_expr(expr).await;
+                        }
+                    }
+                }
             }
-            Statement::LISTEN { .. } => {}
+            Statement::LISTEN { .. } => {
+                // 非常奇怪的命令像是 消息中间件
+            }
             Statement::UNLISTEN { .. } => {}
             Statement::NOTIFY { .. } => {}
-            Statement::LoadData { .. } => {}
-            Statement::CreateConnector(..) => {}
-            Statement::AlterType(..) => {
-                // TODO list type for this.
+            Statement::LoadData {
+                table_name,
+                partitioned,
+                ..
+            } => {
+                self.c_on_table(table_name).await;
+                if let Some(partitioned) = partitioned {
+                    for p in partitioned.iter() {
+                        self.c_on_partition_expr(table_name, p).await;
+                        if self.finished() {
+                            return;
+                        }
+                    }
+                }
             }
-            Statement::AlterConnector { .. } => {}
-            Statement::AlterSession { .. } => {}
-            Statement::DropConnector { .. } => {}
-            Statement::DropExtension { .. } => {}
-            Statement::ShowObjects(..) => {}
+            Statement::CreateConnector(..) => {
+                // hive not support
+            }
+            Statement::AlterType(at) => {
+                self.c_on_type(&at.name).await;
+                match &at.operation {
+                    AlterTypeOperation::Rename(alter_type_rename) => {
+                        if self.in_pos(&alter_type_rename.new_name.span) {
+                            self.set_on_def();
+                        }
+                    }
+                    AlterTypeOperation::AddValue(..) => {
+                        // fallback to lexer
+                    }
+                    AlterTypeOperation::RenameValue(..) => {
+                        // fallback to lexer
+                    }
+                }
+            }
+            Statement::AlterConnector { .. } => {
+                // hive not support
+            }
+            Statement::AlterSession { .. } => {
+                // snowflake not support
+            }
+            Statement::DropConnector { .. } => {
+                // hive not support
+            }
+            Statement::CreateExtension(CreateExtension { name, schema, .. }) => {
+                self.c_on_postgres_extension(name, false).await;
+                if self.finished() {
+                    return;
+                }
+                if let Some(schema) = schema {
+                    if self.in_pos(&schema.span) {
+                        self.result = Some(self.helper.list_schema_completion().await);
+                    }
+                }
+            }
+            Statement::DropExtension(DropExtension { names, .. }) => {
+                for name in names.iter() {
+                    self.c_on_postgres_extension(name, true).await;
+                    if self.finished() {
+                        return;
+                    }
+                }
+            }
+            Statement::ShowObjects(..) => {
+                // Snowflake  not support
+            }
             Statement::RenameTable(rename_tables) => {
                 for rename in rename_tables.iter() {
                     self.c_on_table(&rename.old_name).await;
-                    self.c_on_table(&rename.new_name).await;
+                    self.c_on_schema(&rename.new_name).await;
+                    if self.last_name_in_pos(&rename.new_name) {
+                        self.set_on_def();
+                        return;
+                    }
                 }
             }
-            Statement::List(..) => {}
-            Statement::Remove(..) => {}
-            Statement::SetSessionParam(..) => {}
+            Statement::List(..) => {
+                // Snowflake not support
+            }
+            Statement::Remove(..) => {
+                // Snowflake not support
+            }
             Statement::RaisError {
                 message,
                 severity,
@@ -1659,39 +1780,731 @@ impl CompletionStatement {
                 arguments,
                 ..
             } => {
-                self.c_on_expr(&message).await;
-                self.c_on_expr(&severity).await;
-                self.c_on_expr(&state).await;
+                self.c_on_expr(message).await;
+                self.c_on_expr(severity).await;
+                self.c_on_expr(state).await;
                 for ar in arguments.iter() {
-                    self.c_on_expr(&ar).await;
+                    self.c_on_expr(ar).await;
+                    if self.finished() {
+                        return;
+                    }
                 }
+            }
+            Statement::Set(set) => self.c_on_set(set).await,
+            Statement::Case(case_statement) => self.c_on_case_statement(case_statement).await,
+            Statement::If(if_statement) => self.c_on_if_statement(if_statement).await,
+            Statement::While(while_statement) => self.c_on_while_statement(while_statement).await,
+            Statement::Raise(raise_statement) => self.c_on_raise_statement(raise_statement).await,
+            Statement::Open(open_statement) => self.c_on_open_statement(open_statement).await,
+            Statement::DropDomain(drop_domain) => self.c_on_drop_domain(drop_domain).await,
+            Statement::Deny(deny_statement) => self.c_on_deny_statement(deny_statement).await,
+            Statement::CreateDomain(create_domain) => self.c_on_create_domain(create_domain).await,
+            Statement::Print(print_statement) => self.c_on_print_statement(print_statement).await,
+            Statement::Return(return_statement) => {
+                self.c_on_return_statement(return_statement).await
+            }
+            Statement::CreateServer(create_server_statement) => {
+                self.c_on_create_server_statement(create_server_statement)
+                    .await;
+            }
+            Statement::AlterSchema(alter_schema) => self.c_on_alter_schema(alter_schema).await,
+            Statement::ShowCharset(show_charset) => {
+                if let Some(filter) = show_charset.filter.as_ref() {
+                    self.c_on_show_statement_filter(filter).await;
+                }
+            }
+            Statement::ExportData(export_data) => self.c_on_export_data(export_data).await,
+            Statement::CreateUser(..) => {
+                // fallback to lexer
+            }
+            Statement::Vacuum(..) => {
+                // redshift not support right now
+            }
+            Statement::CreateOperator(..) => {}
+            Statement::CreateOperatorFamily(..) => {}
+            Statement::CreateOperatorClass(..) => {}
+            Statement::DropOperator(..) => {}
+            Statement::DropOperatorFamily(..) => {}
+            Statement::DropOperatorClass(..) => {}
+            Statement::AlterUser(..) => {}
+            Statement::Reset(..) => {}
+        }
+    }
+
+    pub(crate) async fn c_on_export_data(&mut self, _export_data: &ExportData) {
+        // bigquery not support
+    }
+
+    pub(crate) async fn c_on_alter_schema(&mut self, alter_schema: &AlterSchema) {
+        if self.in_pos(&alter_schema.name.span()) {
+            self.result = Some(self.helper.list_database_schema_completion().await);
+            return;
+        }
+        for op in alter_schema.operations.iter() {
+            self.c_on_alter_schema_operation(op).await;
+            if self.finished() {
+                return;
+            }
+        }
+    }
+    pub(crate) async fn c_on_alter_schema_operation(&mut self, op: &AlterSchemaOperation) {
+        match op {
+            AlterSchemaOperation::SetDefaultCollate { collate } => {
+                self.c_on_expr(collate).await;
+            }
+            AlterSchemaOperation::AddReplica { options, .. } => {
+                if let Some(options) = options {
+                    for option in options.iter() {
+                        self.c_on_sql_option(option).await;
+                        if self.finished() {
+                            return;
+                        }
+                    }
+                }
+            }
+            AlterSchemaOperation::DropReplica { .. } => {}
+            AlterSchemaOperation::SetOptionsParens { options } => {
+                for option in options.iter() {
+                    self.c_on_sql_option(option).await;
+                    if self.finished() {
+                        return;
+                    }
+                }
+            }
+            AlterSchemaOperation::Rename { name } => {
+                if self.in_pos(&name.span()) {
+                    self.set_on_def();
+                }
+            }
+            AlterSchemaOperation::OwnerTo { owner } => {
+                self.c_on_owner(owner).await;
+            }
+        }
+    }
+    pub(crate) async fn c_on_sequence_options(&mut self, op: &SequenceOptions) {
+        match op {
+            SequenceOptions::IncrementBy(expr, _) => {
+                self.c_on_expr(expr).await;
+            }
+            SequenceOptions::MinValue(expr) => {
+                if let Some(expr) = expr {
+                    self.c_on_expr(expr).await;
+                }
+            }
+            SequenceOptions::MaxValue(expr) => {
+                if let Some(expr) = expr {
+                    self.c_on_expr(expr).await;
+                }
+            }
+            SequenceOptions::StartWith(expr, _) => {
+                self.c_on_expr(expr).await;
+            }
+            SequenceOptions::Cache(expr) => {
+                self.c_on_expr(expr).await;
+            }
+            SequenceOptions::Cycle(_) => {}
+        }
+    }
+}
+
+impl<'a> CompletionStatement<'a> {
+    async fn c_on_create_server_statement(
+        &mut self,
+        create_server_statement: &CreateServerStatement,
+    ) {
+        if self.in_pos(&create_server_statement.name.span()) {
+            self.set_on_def();
+        }
+    }
+    async fn c_on_conditional_statements(&mut self, ast: &ConditionalStatements) {
+        match ast {
+            ConditionalStatements::Sequence { statements } => {
+                for stmt in statements.iter() {
+                    Box::pin(self.completion_on_statement(stmt)).await;
+                }
+            }
+            ConditionalStatements::BeginEnd(begin_end_statements) => {
+                self.c_on_begin_end_statements(begin_end_statements).await;
+            }
+        }
+    }
+    async fn c_on_begin_end_statements(&mut self, ast: &BeginEndStatements) {
+        // begin ane end introduce a new scope
+        let _guard = self.scopes.enter(Scope::default());
+        for s in ast.statements.iter() {
+            Box::pin(self.completion_on_statement(s)).await;
+            if self.finished() {
+                return;
+            }
+        }
+    }
+
+    async fn c_on_create_table(&mut self, create_table: &CreateTable) {
+        self.c_on_schema(&create_table.name).await;
+        if self.finished() {
+            return;
+        }
+        if self.in_pos(&create_table.name.span()) {
+            self.set_on_def();
+            return;
+        }
+        let this_table = TempTable {
+            columns: Arc::new(
+                create_table
+                    .columns
+                    .iter()
+                    .map(|c| TempTableColumn {
+                        name: c.name.value.clone(),
+                        data_type: Some(c.data_type.to_string()),
+                    })
+                    .collect(),
+            ),
+        };
+        self.scopes
+            .current_scope(|scope| scope.enter_temp_table(None, this_table.clone()));
+        for c in create_table.columns.iter() {
+            if self.in_pos(&c.name.span) {
+                self.set_on_def();
+                return;
+            }
+            self.c_on_data_type(&c.data_type).await;
+            if self.finished() {
+                return;
+            }
+            for op in c.options.iter() {
+                Box::pin(self.c_on_column_option_def(op)).await;
+                if self.finished() {
+                    return;
+                }
+            }
+        }
+        if let Some(on_cluster) = create_table.on_cluster.as_ref() {
+            self.c_on_cluster(on_cluster).await;
+            if self.finished() {
+                return;
+            }
+        }
+        if let Some(p) = create_table.primary_key.as_ref() {
+            self.c_on_expr(p.as_ref()).await;
+            if self.finished() {
+                return;
+            }
+        }
+        if let Some(p) = create_table.order_by.as_ref() {
+            match p {
+                OneOrManyWithParens::One(p) => self.c_on_expr(p).await,
+                OneOrManyWithParens::Many(items) => {
+                    for item in items.iter() {
+                        self.c_on_expr(item).await;
+                        if self.finished() {
+                            return;
+                        }
+                    }
+                }
+            }
+        }
+        for c in create_table.constraints.iter() {
+            self.c_on_table_constraint(c, None).await;
+        }
+        if let Some(query) = &create_table.query {
+            let _ = self.c_on_query(query).await;
+        }
+        if let Some(i) = create_table.inherits.as_ref() {
+            for t in i.iter() {
+                self.c_on_table(t).await;
+                if self.finished() {
+                    return;
+                }
+            }
+        }
+        if let Some(like) = create_table.like.as_ref() {
+            self.c_on_create_table_like_kind(like).await;
+        }
+        if let Some(clone) = create_table.clone.as_ref() {
+            self.c_on_table(clone).await;
+            if self.finished() {}
+        }
+
+        // 其他都可以fallback 到lexer的实现
+    }
+
+    pub(crate) async fn c_on_create_table_like_kind(&mut self, ast: &CreateTableLikeKind) {
+        match ast {
+            CreateTableLikeKind::Parenthesized(create_table_like) => {
+                self.c_on_create_table_like(create_table_like).await;
+            }
+            CreateTableLikeKind::Plain(create_table_like) => {
+                self.c_on_create_table_like(create_table_like).await;
+            }
+        }
+    }
+
+    pub(crate) async fn c_on_create_table_like(&mut self, ast: &CreateTableLike) {
+        self.c_on_table_or_view(&ast.name).await;
+    }
+
+    async fn c_on_grant_objects(
+        &mut self,
+        objects: &GrantObjects,
+        tables_or_views: &mut Option<Vec<ObjectName>>,
+    ) {
+        match objects {
+            GrantObjects::FutureExternalTablesInSchema { schemas }
+            | GrantObjects::FutureMaterializedViewsInSchema { schemas }
+            | GrantObjects::FutureSequencesInSchema { schemas }
+            | GrantObjects::AllViewsInSchema { schemas }
+            | GrantObjects::FutureTablesInSchema { schemas }
+            | GrantObjects::FutureViewsInSchema { schemas }
+            | GrantObjects::AllMaterializedViewsInSchema { schemas }
+            | GrantObjects::AllExternalTablesInSchema { schemas }
+            | GrantObjects::AllSequencesInSchema { schemas }
+            | GrantObjects::AllTablesInSchema { schemas }
+            | GrantObjects::AllFunctionsInSchema { schemas }
+            | GrantObjects::Schemas(schemas) => {
+                if schemas.iter().any(|x| self.in_pos(&x.span())) {
+                    let result = self.helper.list_database_schema_completion().await;
+                    self.result = Some(result);
+                }
+            }
+            GrantObjects::Sequences(vec) => {
+                for s in vec.iter() {
+                    self.c_on_sequence(s).await;
+                    if self.finished() {
+                        return;
+                    }
+                }
+            }
+            GrantObjects::Tables(vec) => {
+                for table in vec.iter() {
+                    self.c_on_table(table).await;
+                    if self.finished() {
+                        return;
+                    }
+                }
+                *tables_or_views = Some(vec.clone());
+            }
+            GrantObjects::Databases(databases)
+            | GrantObjects::FutureSchemasInDatabase { databases } => {
+                if databases.iter().any(|x| self.in_pos(&x.span())) {
+                    self.result = Some(self.helper.list_database_schema_completion().await);
+                }
+            }
+            GrantObjects::Views(views) => {
+                for view in views.iter() {
+                    self.c_on_view(view).await;
+                    if self.finished() {
+                        return;
+                    }
+                }
+                *tables_or_views = Some(views.clone());
+            }
+            GrantObjects::Warehouses(..) => {
+                // TODO
+            }
+            GrantObjects::Integrations(..) => {
+                // I don't know what is it
+            }
+            GrantObjects::ResourceMonitors(..) => {
+                // I don't know what is it
+            }
+            GrantObjects::Users(users) => {
+                if users.iter().any(|x| self.in_pos(&x.span())) {
+                    self.result = Some(self.helper.list_user_completion().await)
+                }
+            }
+            GrantObjects::ComputePools(..) => {
+                // I don't know what is it
+            }
+            GrantObjects::Connections(..) => {
+                // I don't know what is it
+            }
+            GrantObjects::FailoverGroup(..) => {
+                // I don't know what is it
+            }
+            GrantObjects::ReplicationGroup(..) => {
+                // I don't know what is it
+            }
+            GrantObjects::ExternalVolumes(..) => {
+                // I don't know what is it
+            }
+            GrantObjects::Procedure { name, arg_types } => {
+                for t in arg_types.iter() {
+                    self.c_on_data_type(t).await;
+                    if self.finished() {
+                        return;
+                    }
+                }
+                self.c_on_procedure(name).await;
+            }
+            GrantObjects::Function { name, .. } => {
+                self.c_on_function(name).await;
+            }
+        }
+    }
+
+    fn try_remove_one_at(&self, value: String) -> String {
+        if self.helper.backend_name().support_at() {
+            try_remove_one_at(value)
+        } else {
+            value
+        }
+    }
+
+    async fn object_name_to_string(&self, name: &ObjectName) -> String {
+        let x = self
+            .object_name_to_idents(name)
+            .await
+            .into_iter()
+            .map(|x| x.to_string())
+            .collect::<Vec<_>>()
+            .join(".");
+        self.try_remove_one_at(x)
+    }
+
+    async fn c_on_set(&mut self, ast: &Set) {
+        match ast {
+            Set::SingleAssignment {
+                variable, values, ..
+            } => {
+                for var in variable.0.iter() {
+                    match var {
+                        ObjectNamePart::Identifier(ident) => {
+                            self.c_on_variable(ident).await;
+                        }
+                        ObjectNamePart::Function(..) => {}
+                    }
+                }
+                for value in values.iter() {
+                    self.c_on_expr(value).await;
+                    if self.finished() {
+                        return;
+                    }
+                }
+                let name = self.object_name_to_string(variable).await;
+                self.scopes.current_scope(|s| s.enter_var(name.into()))
+            }
+            Set::ParenthesizedAssignments { variables, values } => {
+                for var in variables.iter() {
+                    for var in var.0.iter() {
+                        match var {
+                            ObjectNamePart::Identifier(ident) => {
+                                self.c_on_variable(ident).await;
+                            }
+                            ObjectNamePart::Function(..) => {}
+                        }
+                    }
+                    let name = self.object_name_to_string(var).await;
+                    self.scopes.current_scope(|s| s.enter_var(name.into()))
+                }
+                for value in values.iter() {
+                    self.c_on_expr(value).await;
+                    if self.finished() {
+                        return;
+                    }
+                }
+            }
+            Set::MultipleAssignments { assignments } => {
+                for ass in assignments.iter() {
+                    for name in ass.name.0.iter() {
+                        match name {
+                            ObjectNamePart::Identifier(ident) => self.c_on_variable(ident).await,
+                            ObjectNamePart::Function(..) => {}
+                        }
+                    }
+                    self.c_on_expr(&ass.value).await;
+                    if self.finished() {
+                        return;
+                    }
+                    let name = self.object_name_to_string(&ass.name).await;
+                    self.scopes.current_scope(|s| s.enter_var(name.into()))
+                }
+            }
+            Set::SetSessionParam(..) => {
+                // no completionable items
+            }
+            Set::SetRole { role_name, .. } => {
+                if let Some(role_name) = role_name {
+                    self.c_on_role(role_name).await;
+                }
+            }
+            Set::SetTimeZone { value, .. } => {
+                self.c_on_expr(value).await;
+            }
+            Set::SetNames { .. } => {}
+            Set::SetNamesDefault {} => {}
+            Set::SetTransaction { .. } => {
+                // fallback to lexer
+            }
+            Set::SetSessionAuthorization(..) => {}
+        }
+    }
+
+    async fn c_on_conditional_statement_block(&mut self, s: &ConditionalStatementBlock) {
+        if let Some(condition) = s.condition.as_ref() {
+            self.c_on_expr(condition).await;
+        }
+        self.c_on_conditional_statements(&s.conditional_statements)
+            .await;
+    }
+
+    async fn c_on_case_statement(&mut self, ast: &CaseStatement) {
+        if let Some(match_expr) = ast.match_expr.as_ref() {
+            self.c_on_expr(match_expr).await;
+        }
+        for wb in ast.when_blocks.iter() {
+            self.c_on_conditional_statement_block(wb).await;
+            if self.finished() {
+                return;
+            }
+        }
+        if let Some(else_block) = ast.else_block.as_ref() {
+            self.c_on_conditional_statement_block(else_block).await;
+            if self.finished() {}
+        }
+    }
+
+    async fn c_on_if_statement(&mut self, ast: &IfStatement) {
+        self.c_on_conditional_statement_block(&ast.if_block).await;
+        if self.finished() {
+            return;
+        }
+        for e in ast.elseif_blocks.iter() {
+            self.c_on_conditional_statement_block(e).await;
+        }
+        if let Some(e) = ast.else_block.as_ref() {
+            self.c_on_conditional_statement_block(e).await
+        }
+    }
+
+    async fn c_on_while_statement(&mut self, ast: &WhileStatement) {
+        self.c_on_conditional_statement_block(&ast.while_block)
+            .await
+    }
+    async fn c_on_raise_statement(&mut self, ast: &RaiseStatement) {
+        if let Some(value) = ast.value.as_ref() {
+            match value {
+                RaiseStatementValue::UsingMessage(expr) => self.c_on_expr(expr).await,
+                RaiseStatementValue::Expr(expr) => self.c_on_expr(expr).await,
+            }
+        }
+    }
+
+    async fn c_on_open_statement(&mut self, ast: &OpenStatement) {
+        if self.in_pos(&ast.cursor_name.span) {
+            self.set_on_def();
+        }
+    }
+    async fn c_on_drop_domain(&mut self, ast: &DropDomain) {
+        self.c_on_schema(&ast.name).await;
+        if !self.last_name_in_pos(&ast.name) {
+            return;
+        }
+        log::info!("hit drop domain:{:?}", ast.name);
+        let (schema, _) = self.extract_schema_and_item(&ast.name);
+        self.result = Some(self.helper.list_domain_completion(schema.as_deref()).await);
+    }
+    async fn c_on_grantee(&mut self, g: &Grantee) {
+        if let Some(name) = g.name.as_ref() {
+            match name {
+                GranteeName::ObjectName(object_name) => {
+                    self.c_on_role_objectname(object_name).await;
+                }
+                GranteeName::UserHost { user, .. } => {
+                    self.c_on_user(user).await;
+                }
+            }
+        }
+    }
+
+    async fn c_on_deny_statement(&mut self, ast: &DenyStatement) {
+        let mut tables = None;
+        self.c_on_grant_objects(&ast.objects, &mut tables).await;
+        for g in ast.grantees.iter() {
+            self.c_on_grantee(g).await;
+            if self.finished() {
+                return;
+            }
+        }
+        if let Some(g) = ast.granted_by.as_ref() {
+            self.c_on_role(g).await;
+        }
+    }
+    /*
+    example:
+
+    CREATE DOMAIN phone_cn AS text
+    CHECK (
+        VALUE ~ '^1[0-9]{10}$'   -- 11 位，1 开头
+        AND VALUE IS NOT NULL        -- 显式拒绝 NULL
+    );*/
+    async fn c_on_create_domain(&mut self, ast: &CreateDomain) {
+        self.c_on_schema(&ast.name).await;
+        if self.last_name_in_pos(&ast.name) {
+            self.set_on_def();
+            return;
+        }
+        self.c_on_data_type(&ast.data_type).await;
+        if let Some(d) = ast.default.as_ref() {
+            self.c_on_expr(d).await;
+        }
+        //
+        for _ in ast.constraints.iter() {
+            // TODO here I don't the table is
+            // looking at the syntax I think I want to fallback to lexer
+        }
+    }
+
+    async fn c_on_print_statement(&mut self, ast: &PrintStatement) {
+        self.c_on_expr(&ast.message).await;
+    }
+    async fn c_on_return_statement(&mut self, ast: &ReturnStatement) {
+        if let Some(expr) = &ast.value {
+            match expr {
+                ReturnStatementValue::Expr(expr) => self.c_on_expr(expr).await,
             }
         }
     }
 }
 
+use regex::Regex;
+
+/// 从错误字符串中提取 `Line: X, Column: Y`
+pub fn sqlparser_err_extract_line_col(error: impl Into<String>) -> (Option<u32>, Option<u32>) {
+    // 匹配两种常见格式：
+    // 1. Line: 2, Column: 14
+    // 2. line 2, column 14
+    let error = error.into();
+    let re = Regex::new(r"(?i)line\s*[:]?\s*(\d+).*column\s*[:]?\s*(\d+)")
+        .expect("this regexp must compile");
+    if let Some(caps) = re.captures(&error) {
+        let line = caps.get(1).and_then(|s| s.as_str().parse().ok());
+        let col = caps.get(2).and_then(|s| s.as_str().parse().ok());
+        (line, col)
+    } else {
+        (None, None)
+    }
+}
+
+impl From<sqlparser::parser::ParserError> for ErrAndLoc {
+    fn from(value: sqlparser::parser::ParserError) -> Self {
+        let msg = value.to_string();
+        let (line, column) = sqlparser_err_extract_line_col(&msg);
+        Self { line, column, msg }
+    }
+}
+
 #[cfg(test)]
 mod tests {
+    use super::*;
+
+    #[test]
+    fn test_table_entered_equal_name() {
+        assert!(TableEntered::Temp {
+            table: Default::default(),
+            alias: Some(Ident::new("abc")),
+        }
+        .equal_name(&Ident::new("ABC")));
+        assert!(TableEntered::Temp {
+            table: Default::default(),
+            alias: Some(Ident::with_quote('"', "abc")),
+        }
+        .equal_name(&Ident::new("abc")));
+        assert!(!TableEntered::Temp {
+            table: Default::default(),
+            alias: Some(Ident::with_quote('"', "abc")),
+        }
+        .equal_name(&Ident::new("ABC")));
+    }
+
+    #[test]
+    fn test_extract_line_col() {
+        {
+            let err = "Expected: SELECT, VALUES, or a subquery in the query body, found: from at Line: 2, Column: 14";
+            let (line, col) = sqlparser_err_extract_line_col(err);
+            assert_eq!(line, Some(2));
+            assert_eq!(col, Some(14));
+        }
+        {
+            let err = "Expected: an SQL statement, found: 3.14 at Line: 3, Column: 22";
+            let (line, col) = sqlparser_err_extract_line_col(err);
+            assert_eq!(line, Some(3));
+            assert_eq!(col, Some(22));
+        }
+    }
     #[ignore = "this is just a test for me"]
     #[test]
     fn test_sql_statement() {
         let sql = r#"
-            SHOW Databa
+            delete emp from emp where emp.id = 1
         "#;
-
         let dialect = sqlparser::dialect::MySqlDialect {};
         let p = sqlparser::parser::Parser::new(&dialect);
         let mut p = p.try_with_sql(sql).unwrap();
         let statement = p.parse_statement().unwrap();
-        // let s = serde_json::to_string(match &statement {
-        //     Statement::Delete(x) => &x.from,
-        //     _ => {
-        //         unreachable!()
-        //     }
-        // })
-        // .unwrap();
+
         let s = serde_json::to_string(&statement).unwrap();
 
-        println!("{}", s);
+        println!("{:?}", s);
+    }
+
+    #[ignore = "this is just a test for me"]
+    #[test]
+    fn test_sql_statementxxxx() {
+        let sql = r#"
+
+SELECT *
+FROM XMLTABLE(
+        '/users/user'
+        PASSING XMLPARSE(
+            DOCUMENT $$
+            <users>
+                <user id="1" name="Alice" age="30"/>
+                <user id="2" name="Bob"   age="25"/>
+            </users>
+            $$
+        )
+        COLUMNS
+            id   int         PATH '@id',
+            name text        PATH '@name',
+            age  int         PATH '@age'
+) AS t WHERE t.id > 0 ;
+
+        "#;
+        let dialect = sqlparser::dialect::PostgreSqlDialect {};
+        let p = sqlparser::parser::Parser::new(&dialect);
+        let mut p = p.try_with_sql(sql).unwrap();
+        let statement = p.parse_statement().unwrap();
+
+        let s = serde_json::to_string(&statement).unwrap();
+
+        println!("{:?}", s);
+    }
+
+    #[ignore = "this is just a test for me"]
+    #[test]
+    fn test_sql_lexer() {
+        let sql = r#"
+            select 1
+        "#;
+        let dialect = sqlparser::dialect::MySqlDialect {};
+        let tokens = sqlparser::tokenizer::Tokenizer::new(&dialect, sql)
+            .tokenize_with_location()
+            .unwrap_or_default();
+        for t in tokens.iter() {
+            println!("{:?}", t);
+        }
+    }
+
+    #[ignore = "this is just a test for me"]
+    #[test]
+    fn test_sql_lexer111() {
+        let sql = r#" abc. "#;
+        let dialect = sqlparser::dialect::PostgreSqlDialect {};
+        let tokens = sqlparser::tokenizer::Tokenizer::new(&dialect, sql)
+            .tokenize_with_location()
+            .unwrap_or_default();
+        for t in tokens.iter() {
+            println!("{:?}", t);
+        }
     }
 }

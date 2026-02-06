@@ -1,5 +1,5 @@
 select employees.id  from employees
-13 employees ; 19 name ; 32 departments
+13 employees ; 19 name ; 36 departments
 SELECT e.id AS EmployeeID,  e.name AS EmployeeName,  d.name AS DepartmentName FROM employees AS e JOIN departments AS d ON e.department_id = d.id;
 9 e ; 9 employees ; 12 name ; 54 d ; 54 departments ; 60 name ; 93 departments ; 125 e ; 125 departments ; 139 department_id ; 143 d ; 146 id
 SELECT e.id AS EmployeeID,e.name AS EmployeeName,d.name AS DepartmentName FROM employees AS e JOIN departments AS d USING (department_id);
@@ -13,7 +13,7 @@ insert into employees (id) select id from employees
 insert into employees (id) values (1)
 26 name
 select count(*) from employees
-11 count ; 11 abs ; 11 sin
+11 count ; 11 abs
 update employees set name = 1 where id = 10000
 25 name ; 25 id ; 39 name
 delete from employees where id = 1000
@@ -36,3 +36,19 @@ drop index employees_name
 26 employees_name
 PRAGMA user_version;
 12 user_version
+select employees.id  from employees order by id limit id offset 100
+48 id ; 57 id 
+main.
+6 employees
+employees.
+11 id
+CREATE VIRTUAL TABLE documents USING fts5(title, content); 
+42 fts5
+select * from (employees join employees)
+25 employees ; 40 employees
+SELECT name FROM pragma_function_list()
+12 name
+SELECT * from (SELECT abs(-1)) where "abs(-1)" > 0
+39 abs(-1)
+SELECT * from (select * from (SELECT 1 as xxxx)) ORDER BY xxxx
+63 xxxx

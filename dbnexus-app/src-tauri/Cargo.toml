@@ -2,7 +2,7 @@
 name = "dbpal"
 version = "0.0.0"
 description = "A database management system"
-authors = ["yuyangxxxmail@gmailc.om"]
+authors = ["yuyangxxxmail@gmail.com"]
 edition = "2021"
 default-run = "dbpal"
 
@@ -13,9 +13,10 @@ tauri-build = { version = "2", features = [] }
 
 
 [dependencies]
+langchain-rust = "=4.6.0"
+mimalloc = { version = "*", features = ["v3"] }
 tauri = { version = "2", features = ["devtools"] }
-tauri-plugin-shell = "2"
-tauri-plugin-dialog = "2"
+tauri-plugin-dialog = "2.4"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 dbnexus-db.workspace = true
@@ -29,24 +30,28 @@ lazy_static.workspace = true
 log.workspace = true
 uuid.workspace = true
 typescript-type-def = "*"
-bson.workspace = true
-hex = "*"
+hex.workspace = true
 mongodb.workspace = true
-env_logger.workspace = true
-rand = "*"
-tauri-plugin-fs = "2"
+rand.workspace = true
+chrono.workspace = true
+tauri-plugin-fs = "2.4"
 humantime = "*"
-tauri-plugin-store = "2"
-tauri-plugin-http = "2"
-enum-iterator = "*"
-tauri-plugin-clipboard-manager = "2"
-keyring = { version = "3", features = [
-    "apple-native",
-    "windows-native",
-    "sync-secret-service",
-] }
-tauri-plugin-opener = "2"
-tauri-plugin-os = "2"
+tauri-plugin-store = { version = "=2.4.1" }
+tauri-plugin-clipboard-manager = "2.3"
+tauri-plugin-keyring = "0.1.0"
+tauri-plugin-opener = "2.5"
+tauri-plugin-os = "2.3"
+font-kit = "0.14.3"
+tauri-plugin-process = "2"
+fix-path-env = { git = "https://github.com/tauri-apps/fix-path-env-rs" }
+tauri-plugin-sql = { version = "2", features = ["sqlite"] }
+include_dir.workspace = true
+rustls = { version = "0.23", features = ["aws-lc-rs"] }
+tauri-plugin-shell = "2"
+sys-locale = "0.3.2"
+tokio-util.workspace = true
+tauri-plugin-devtools = "2.0.1"
+tauri-plugin-log = "2"
 [features]
 # This feature is used for production builds or when a dev server is not specified, DO NOT REMOVE!!
 custom-protocol = ["tauri/custom-protocol"]
@@ -55,8 +60,10 @@ custom-protocol = ["tauri/custom-protocol"]
 random-sleep = []
 random-error = []
 duckdb = ["dbnexus-db/duckdb"]
+paid = ["dbnexus-db/paid"]
+hive = ["dbnexus-db/hive"]
+devtools = []
 
-
-[lib]
-name = "dbnexus_app_lib"
-crate-type = ["lib", "cdylib", "staticlib"]
+[target.'cfg(not(any(target_os = "android", target_os = "ios")))'.dependencies]
+tauri-plugin-autostart = "2"
+tauri-plugin-window-state = "2"

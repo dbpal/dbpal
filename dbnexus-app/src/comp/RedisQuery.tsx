@@ -1,150 +1,146 @@
-import { useState, useRef, useEffect } from 'react';
-import SplitPane from 'react-split-pane';
-import './style/react-split-pane.css';
-import { Position } from 'monaco-editor';
+import { useState, useRef, useEffect } from "react";
+import { editor } from "monaco-editor";
+import { Panel, PanelGroup, PanelResizeHandle } from "react-resizable-panels";
 
-import { SqlQuery } from './SqlQuery.tsx';
-import { fetch } from '@tauri-apps/plugin-http';
-import { MakeIQueryConn } from './Common.tsx';
+import { SqlQuery } from "./SqlQuery.tsx";
+import { DataSourceKind, resizeHandlerSize, shrinkAble } from "./helper.ts";
+import { Chip, Tooltip } from "@mui/material";
+import { invoke } from "@tauri-apps/api/core";
+import { AppMarkDown } from "./CommonComp2.tsx";
+
+class SaveShowDoc {
+  key = "dbpal-redis-show-doc";
+
+  save(x: boolean) {
+    localStorage.setItem(this.key, x ? "1" : "0");
+  }
+
+  get(): boolean {
+    return localStorage.getItem(this.key) == "1";
+  }
+  static instance = new SaveShowDoc();
+}
+
 function RedisQuery(props: {
-  makeConn: MakeIQueryConn;
-  connectInfo?;
-  language;
-  saveFavoriteSql: (name, sql: string) => void;
   favoriteName?: string;
   value?: string;
+  uuid: string;
+  handleEditor: (x: editor.IStandaloneCodeEditor) => void;
 }) {
-  const {
-    language,
-    makeConn,
-    connectInfo,
-    saveFavoriteSql,
-    favoriteName,
-    value,
-  } = props;
-  const [command, setCommand] = useState('get');
-  const [isDragging, setIsDragging] = useState(false);
-  const iframeRef = useRef(null);
-
-  // 禁用 iframe 的鼠标事件
-  const disableIframe = () => {
-    if (iframeRef.current) {
-      iframeRef.current.style.pointerEvents = 'none';
-    }
-  };
-
-  const urlPrefix = 'https://redis.io/docs/latest/commands/';
-
-  const getURL = (command: string) => {
-    return urlPrefix + command + '/' + '#examples';
-  };
-
-  // 启用 iframe 的鼠标事件
-  const enableIframe = () => {
-    if (iframeRef.current) {
-      iframeRef.current.style.pointerEvents = 'auto';
-    }
-  };
+  const { favoriteName, value, uuid, handleEditor } = props;
+  const [doc, setDoc] = useState("");
+  const editorRef = useRef<editor.IStandaloneCodeEditor>(null);
+  const [showDoc, setShowDoc] = useState(SaveShowDoc.instance.get());
+  const [prevLine, setPrevLine] = useState("");
+  useEffect(() => {
+    SaveShowDoc.instance.save(showDoc);
+  }, [showDoc]);
 
   useEffect(() => {
-    if (isDragging) {
-      disableIframe();
-    } else {
-      enableIframe();
-    }
-  }, [isDragging]);
-  const validURL = async (url) => {
-    let x = await fetch(url);
-    return x.ok;
-  };
-  const tryUpdateCommand = (text: string, pos: Position) => {
-    const linesArray = text.split('\n');
-    const line = pos.lineNumber - 1;
-    if (line >= linesArray.length) {
-      return;
-    }
-    let cmds = linesArray[line].split(' ');
-    let cmd = '';
-    for (let i = 0; i < cmds.length; i++) {
-      let c = cmds[i];
-      if (c) {
-        cmd = c;
-        break;
+    const tryUpdateCommand = () => {
+      if (!showDoc) {
+        return;
       }
-    }
-    if (!cmd) {
-      return;
-    }
-    let url = getURL(cmd);
-
-    validURL(url)
-      .then((e) => {
-        if (e) {
-          setCommand(cmd);
-        }
-      })
-      .catch((e) => {
-        console.log('not valid url error:', e);
-      });
-  };
+      if (!editorRef.current) {
+        return;
+      }
+      const model = editorRef.current.getModel();
+      const pos = editorRef.current.getPosition();
+      if (!pos) {
+        return;
+      }
+      const line = model.getLineContent(pos.lineNumber).trim();
+      if (!line) {
+        return;
+      }
+      if (line === prevLine) {
+        // line not change no need to update
+        return;
+      }
+      invoke<string>("get_redis_doc", { line })
+        .then(e => {
+          setPrevLine(line);
+          setDoc(e);
+        })
+        .catch(() => {
+          // console.log('get redis doc failed', e);
+        });
+    };
+    const int = setInterval(() => {
+      tryUpdateCommand();
+    }, 1000);
+    return () => {
+      clearInterval(int);
+    };
+  }, [showDoc, prevLine]);
 
   return (
-    //@ts-ignore
-    <SplitPane
-      split="vertical"
-      minSize={50}
-      defaultSize="40vw"
-      step={5}
-      onDragStarted={() => {
-        setIsDragging(true);
-      }} // 拖动开始
-      //@ts-ignore
-      onDragFinished={(_: number): void => {
-        setIsDragging(false);
-      }} // 拖动结束
-      style={{ position: 'relative' }}
+    <PanelGroup
+      direction="horizontal"
+      autoSaveId="redis-query"
+      style={{
+        height: "100%",
+      }}
     >
-      <SqlQuery
-        handelTextAndPositionChange={(text, pos) => {
-          if (!pos) {
-            return;
-          }
-          if (!text) {
-            return;
-          }
-          tryUpdateCommand(text, pos);
-        }}
-        language={language}
-        connectInfo={connectInfo}
-        makeConn={makeConn}
-        favoriteName={favoriteName}
-        saveFavoriteSql={saveFavoriteSql}
-        value={value}
-      ></SqlQuery>
-
-      <div
-        style={{
-          height: '100vh',
-          position: 'relative',
-        }}
-      >
-        <iframe
-          ref={iframeRef} // 绑定 iframe 引用
-          src={getURL(command)}
-          style={{
-            width: '100%',
-            height: '100%',
-            border: 'none', // 去掉边框
-            position: 'absolute',
-            top: 0,
-            left: 0,
-            padding: 0,
-            margin: 0,
+      <Panel defaultSize={40} minSize={4}>
+        <SqlQuery
+          handleEditor={e => {
+            handleEditor(e);
+            editorRef.current = e;
           }}
-          title="Full Size Iframe"
+          uuid={uuid}
+          favoriteName={favoriteName}
+          value={value}
+          kind={DataSourceKind.Redis}
+          extras={
+            <>
+              <Tooltip title="toggle show redis document">
+                <Chip
+                  onClick={() => {
+                    setShowDoc(e => !e);
+                  }}
+                  style={shrinkAble}
+                  color={showDoc ? "success" : "primary"}
+                  label={`${showDoc ? "hidden" : "show"} doc`}
+                />
+              </Tooltip>
+            </>
+          }
         />
-      </div>
-    </SplitPane>
+      </Panel>
+
+      {showDoc && (
+        <PanelResizeHandle
+          style={{ width: resizeHandlerSize }}
+          className="resize-handle"
+        />
+      )}
+      {showDoc && (
+        <Panel
+          collapsible
+          collapsedSize={0}
+          minSize={15}
+          style={{
+            display: "flex",
+            flexDirection: "column",
+          }}
+        >
+          <div
+            style={{
+              height: "100px",
+              flexGrow: 1,
+              flexShrink: 1,
+              overflow: "auto",
+              padding: "0.4rem",
+            }}
+          >
+            <AppMarkDown placeHolder="when typing markdown document will show atomically">
+              {doc}
+            </AppMarkDown>
+          </div>
+        </Panel>
+      )}
+    </PanelGroup>
   );
 }
 

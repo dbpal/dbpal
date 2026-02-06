@@ -1,74 +1,126 @@
-import { useContext, useEffect, useState } from 'react';
+import { useCallback, useContext, useEffect, useState } from "react";
 
-import { NotificationContext } from './Notification';
-import { Button, Stack, Typography } from '@mui/material';
-import { DefAndMetas, SimpleResizeEditor } from './Common';
-import { MetaValuesView } from './CommonComp';
+import { NotificationContext } from "./Notification";
+import { DefAndMetas } from "./Common";
+import { DataSourceKind, resizeHandlerSize } from "./helper";
+import types from "./ApiStruct";
+import { AllKindChat } from "./Chat";
+import { MetaValueView } from "./CommonComp";
+import { Panel, PanelGroup, PanelResizeHandle } from "react-resizable-panels";
+import { CircularProgress } from "@mui/material";
 
 function DefAndMetasView(props: {
   reloadOP: () => Promise<DefAndMetas>;
-  language: string;
+  uuid: string;
+  kind: DataSourceKind;
 }) {
-  let { reloadOP, language } = props;
-  const titleVariant = 'h6';
+  const { reloadOP, kind, uuid } = props;
   const [loading, setLoading] = useState(false);
-  const [detail, setDetail] = useState<DefAndMetas | null>(null);
+  const [detail, setDetail] = useState<DefAndMetas>({
+    def: "",
+    metas: [],
+  });
   const { showNotification } = useContext(NotificationContext);
-
-  const handleReload = (showok) => {
-    setLoading(true);
-    reloadOP()
-      .then((detail) => {
-        setDetail(detail);
-        if (showok) {
-          showNotification('success', 'reload ok');
-        }
-      })
-      .catch((e) => {
-        showNotification('error', 'fetch detail failed', e);
-      })
-      .finally(() => {
-        setLoading(false);
-      });
-  };
+  const handleReload = useCallback(
+    showOk => {
+      setLoading(true);
+      reloadOP()
+        .then(detail => {
+          setDetail(detail);
+          if (showOk) {
+            showNotification("success", "reload ok");
+          }
+        })
+        .catch(e => {
+          showNotification("error", "fetch detail failed", e);
+        })
+        .finally(() => {
+          setLoading(false);
+        });
+    },
+    [reloadOP, showNotification],
+  );
 
   useEffect(() => {
     handleReload(false);
-  }, []);
-
+  }, [handleReload]);
   return (
-    <Stack spacing={1}>
-      <Stack direction="row" spacing={1}>
-        <Button
-          loading={loading}
-          variant="contained"
-          color="primary"
-          onClick={() => {
-            handleReload(true);
-          }}
-        >
-          reload
-        </Button>
-      </Stack>
-      {detail && (
-        <div style={{ display: 'grid' }}>
-          <Typography variant={titleVariant}> Statement </Typography>
-          <SimpleResizeEditor
-            style={{ minHeight: '200px' }}
-            language={language}
-            value={detail.def}
-            readOnly={true}
-          ></SimpleResizeEditor>
-          {detail.metas.length > 0 && (
-            <>
-              <Typography variant={titleVariant}> Some Metas </Typography>
-              <MetaValuesView values={detail.metas}></MetaValuesView>
-            </>
-          )}
-        </div>
+    <PanelGroup style={{ height: "100%" }} direction="vertical" autoSaveId="udf-view">
+      <Panel>
+        {loading && <CircularProgress />}
+        <AllKindChat uuid={uuid} kind={kind} value={detail.def} />
+      </Panel>
+      {detail.metas.length > 0 && (
+        <>
+          <PanelResizeHandle
+            style={{ height: resizeHandlerSize }}
+            className="resize-handle"
+          />
+          <Panel collapsible collapsedSize={0} minSize={10}>
+            <div
+              style={{
+                height: "100%",
+                display: "flex",
+                flexDirection: "column",
+              }}
+            >
+              <MetaValueView values={detail.metas} />
+            </div>
+          </Panel>
+        </>
       )}
-    </Stack>
+    </PanelGroup>
   );
 }
 
-export { DefAndMetasView };
+function triggerDetailsToMetas(x: types.TriggerDetail): types.MetaValue[] {
+  const getEnableStr = (): string => {
+    return x.enable.enable + "";
+  };
+
+  const getEnableDesc = (): string => {
+    if (x.enable.kind == "postgres") {
+      return `Controls in which session_replication_role modes the trigger fires. O = trigger fires in
+      “origin” and “local” modes, D = trigger is disabled, R = trigger fires in “replica” mode, A
+      = trigger fires always.`;
+    }
+    return "";
+  };
+  const ret: types.MetaValue[] = [
+    // todo timing can be object
+    { name: "timing", value: x.timing as string, desc: "" },
+    { name: "event", value: x.event, desc: "" },
+  ];
+  if (x.enable) {
+    ret.push({
+      name: "enable",
+      value: getEnableStr(),
+      desc: getEnableDesc(),
+    });
+  }
+  return ret;
+}
+
+function TriggerDetail(props: {
+  reloadOP: () => Promise<types.TriggerDetail>;
+  uuid: string;
+  kind: DataSourceKind;
+}) {
+  const { reloadOP, uuid, kind } = props;
+  return (
+    <DefAndMetasView
+      kind={kind}
+      reloadOP={async () => {
+        return reloadOP().then(detail => {
+          return {
+            def: detail.sql,
+            metas: [...triggerDetailsToMetas(detail), ...detail.metas],
+            detail,
+          };
+        });
+      }}
+      uuid={uuid}
+    />
+  );
+}
+export { DefAndMetasView, TriggerDetail };

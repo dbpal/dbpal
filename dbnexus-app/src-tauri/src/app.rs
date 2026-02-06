@@ -1,24 +1,41 @@
-use std::collections::HashMap;
-use std::sync::Arc;
-
-use dashmap::DashMap;
 use dbnexus_db::datasource_config::{
-    CassandraDBConfig, ClickHouseConfig, DuckDBConfig, FireBirdConfig, LibSqlDBConfig,
-    MongoDBConfig, MysqlDBConfig, OracleDBConfig, PGDBConfig, RedisDBConfig, SqlServerDBConfig,
-    SqliteDBConfig,
+    CassandraDBConfig, ClickHouseConfig, CouchBaseDBConfig, Db2Config, DuckDBConfig,
+    FireBirdConfig, LibSqlDBConfig, MongoDBConfig, MysqlDBConfig, OracleDBConfig, PGDBConfig,
+    RedisDBConfig, SqlServerDBConfig, SqliteDBConfig,
 };
 use dbnexus_db::db::{
-    CatalogTrait, DBTrait, Field, Index, ListTable, NamedStaff, QueryResp, SchemaTrait,
-    ShowExtraArgs, SqlExecuteRet,
+    CatalogTrait, CheckConn, DBTrait, ExportQueryResult, QuerySql, SchemaTrait, ServerMetas,
 };
+use dbnexus_db::language_server::LanguageServer;
 use dbnexus_db::mongo::MongoDB;
-use dbnexus_db::redis::{RedisDB, RedisListTable};
+use dbnexus_db::sub::SubDB;
+use font_kit::error::SelectionError;
+use langchain_rust::language_models::LLMError;
+use mongodb::bson;
+use std::collections::HashMap;
+use std::sync::Arc;
+use std::time::Duration;
 use tokio::sync::Mutex;
+use tokio_util::sync::CancellationToken;
 use typescript_type_def::TypeDef;
 
-#[derive(Clone, Debug, serde::Serialize, serde::Deserialize, Default)]
-pub struct DBNexusConfigs {
-    connection_configs: Vec<DBConnectionConfig>,
+#[derive(serde::Serialize, serde::Deserialize, typescript_type_def::TypeDef, Debug, Clone)]
+pub struct OpenAIReq {
+    pub url: String,
+    pub api_key: String,
+    pub model: String,
+    pub msg: String,
+    pub temperature: Option<f32>,
+    pub max_tokens: Option<u32>,
+    pub top_p: Option<f32>,
+}
+
+#[allow(unused)]
+#[derive(serde::Serialize, serde::Deserialize, typescript_type_def::TypeDef, Debug, Clone)]
+
+pub struct OpenAIReqInput {
+    pub prompt: String,
+    // pub inputs: serde_json::Map<String, serde_json::Value>,
 }
 
 impl DBConnectionConfig {
@@ -29,7 +46,7 @@ impl DBConnectionConfig {
             | DBConnectionConfig::MariaDB { name, .. }
             | DBConnectionConfig::Tidb { name, .. }
             | DBConnectionConfig::Postgres { name, .. }
-            | DBConnectionConfig::MsSql { name, .. }
+            | DBConnectionConfig::SqlServer { name, .. }
             | DBConnectionConfig::Mongo { name, .. }
             | DBConnectionConfig::Redis { name, .. }
             | DBConnectionConfig::Oracle { name, .. }
@@ -38,7 +55,9 @@ impl DBConnectionConfig {
             | DBConnectionConfig::LibSql { name, .. }
             | DBConnectionConfig::FireBird { name, .. }
             | DBConnectionConfig::DuckDB { name, .. }
-            | DBConnectionConfig::CockRoach { name, .. } => name.as_str(),
+            | DBConnectionConfig::CockRoach { name, .. }
+            | DBConnectionConfig::Db2 { name, .. }
+            | DBConnectionConfig::CouchBase { name, .. } => name.as_str(),
         }
     }
 }
@@ -55,56 +74,67 @@ pub enum DBConnectionConfig {
         #[serde(flatten)]
         conn: MysqlDBConfig,
         name: String,
+        save_password: bool,
     },
     MariaDB {
         #[serde(flatten)]
         conn: MysqlDBConfig,
         name: String,
+        save_password: bool,
     },
     Tidb {
         #[serde(flatten)]
         conn: MysqlDBConfig,
         name: String,
+        save_password: bool,
     },
     Postgres {
         #[serde(flatten)]
         conn: PGDBConfig,
         name: String,
+        save_password: bool,
     },
     CockRoach {
         #[serde(flatten)]
         conn: PGDBConfig,
         name: String,
+        save_password: bool,
     },
-    MsSql {
+    SqlServer {
         #[serde(flatten)]
         conn: SqlServerDBConfig,
         name: String,
+        save_password: bool,
     },
     Mongo {
         #[serde(flatten)]
         conn: MongoDBConfig,
         name: String,
+        save_password: bool,
     },
     Redis {
         #[serde(flatten)]
         conn: RedisDBConfig,
         name: String,
+        save_password: bool,
     },
     Oracle {
         #[serde(flatten)]
         conn: OracleDBConfig,
         name: String,
+        save_password: bool,
     },
     Cassandra {
         #[serde(flatten)]
         conn: CassandraDBConfig,
         name: String,
+        save_password: bool,
     },
     ClickHouse {
         #[serde(flatten)]
         conn: ClickHouseConfig,
         name: String,
+        save_password: bool,
     },
     LibSql {
         #[serde(flatten)]
@@ -115,172 +145,142 @@ pub enum DBConnectionConfig {
         #[serde(flatten)]
         conn: FireBirdConfig,
         name: String,
+        save_password: bool,
     },
     DuckDB {
         #[serde(flatten)]
         conn: DuckDBConfig,
         name: String,
     },
+    Db2 {
+        #[serde(flatten)]
+        conn: Db2Config,
+        name: String,
+        save_password: bool,
+    },
+
+    CouchBase {
+        #[serde(flatten)]
+        conn: CouchBaseDBConfig,
+        name: String,
+        save_password: bool,
+    },
 }
 
 impl DBConnectionConfig {
-    pub fn need_password(&mut self) -> bool {
+    pub async fn open(&self) -> anyhow::Result<DatabaseBackend> {
         match self {
-            DBConnectionConfig::Sqlite { .. } => false,
-            DBConnectionConfig::DuckDB { .. } => false,
-            DBConnectionConfig::LibSql { .. } => false,
-            _ => true,
-        }
-    }
-
-    pub fn set_password(&mut self, pass: String) {
-        match self {
-            DBConnectionConfig::Sqlite { .. } => {}
-            DBConnectionConfig::Mysql { conn, .. } => {
-                conn.password = Some(pass);
+            DBConnectionConfig::Sqlite { conn, .. } => {
+                let db: Arc<dyn SchemaTrait> =
+                    Arc::new(dbnexus_db::sqlite::SqliteDB::new(conn.clone()).await?)
+                        as Arc<dyn SchemaTrait>;
+                anyhow::Ok(DatabaseBackend::Schema(db))
             }
-            DBConnectionConfig::MariaDB { conn, .. } => {
-                conn.password = Some(pass);
-            }
-            DBConnectionConfig::Tidb { conn, .. } => {
-                conn.password = Some(pass);
-            }
+            DBConnectionConfig::Mysql { conn, .. } => match &conn.db {
+                Some(_) => {
+                    let db: Arc<dyn SchemaTrait> =
+                        Arc::new(dbnexus_db::mysql::MysqlDB::new(conn.clone()).await?)
+                            as Arc<dyn SchemaTrait>;
+                    anyhow::Ok(DatabaseBackend::Schema(db))
+                }
+                None => {
+                    let db: Arc<dyn DBTrait> =
+                        Arc::new(dbnexus_db::mysql::MysqlDB::new(conn.clone()).await?)
+                            as Arc<dyn DBTrait>;
+                    anyhow::Ok(DatabaseBackend::DataBase(db))
+                }
+            },
+            DBConnectionConfig::MariaDB { conn, .. } => match &conn.db {
+                Some(_) => {
+                    let db: Arc<dyn SchemaTrait> =
+                        Arc::new(SubDB::new_mariadb(conn.clone()).await?) as Arc<dyn SchemaTrait>;
+                    anyhow::Ok(DatabaseBackend::Schema(db))
+                }
+                None => {
+                    let db: Arc<dyn DBTrait> =
+                        Arc::new(SubDB::new_mariadb(conn.clone()).await?) as Arc<dyn DBTrait>;
+                    anyhow::Ok(DatabaseBackend::DataBase(db))
+                }
+            },
+            DBConnectionConfig::Tidb { conn, .. } => match &conn.db {
+                Some(_) => {
+                    let db: Arc<dyn SchemaTrait> =
+                        Arc::new(SubDB::new_tidb(conn.clone()).await?) as Arc<dyn SchemaTrait>;
+                    anyhow::Ok(DatabaseBackend::Schema(db))
+                }
+                None => {
+                    let db: Arc<dyn DBTrait> =
+                        Arc::new(SubDB::new_tidb(conn.clone()).await?) as Arc<dyn DBTrait>;
+                    anyhow::Ok(DatabaseBackend::DataBase(db))
+                }
+            },
             DBConnectionConfig::Postgres { conn, .. } => {
-                conn.password = Some(pass);
-            }
-            DBConnectionConfig::MsSql { conn, .. } => {
-                conn.password = Some(pass);
-            }
-            DBConnectionConfig::Mongo { conn, .. } => {
-                conn.password = Some(pass);
-            }
-            DBConnectionConfig::Redis { conn, .. } => {
-                conn.password = Some(pass);
-            }
-            DBConnectionConfig::Oracle { conn, .. } => {
-                conn.password = pass;
-            }
-            DBConnectionConfig::FireBird { conn, .. } => {
-                conn.password = pass;
-            }
-            DBConnectionConfig::Cassandra { conn, .. } => conn.password = Some(pass),
-            DBConnectionConfig::DuckDB { .. } => {}
-            DBConnectionConfig::ClickHouse { conn, .. } => conn.password = Some(pass),
-            DBConnectionConfig::LibSql { .. } => {}
-            DBConnectionConfig::CockRoach { conn, .. } => {
-                conn.password = Some(pass);
-            }
-        }
-    }
-}
-impl DBConnectionConfig {
-    pub async fn open(&self) -> anyhow::Result<Open> {
-        match self {
-            DBConnectionConfig::Sqlite { conn, name: _ } => {
-                let db: Arc<dyn SchemaTrait> = Arc::new(
-                    dbnexus_db::sqlite::SqliteDB::new(conn.path.clone(), conn.read_only).await?,
-                );
-
-                anyhow::Ok(Open::Schema(db))
-            }
-            DBConnectionConfig::Mysql { conn, name: _ }
-            | DBConnectionConfig::MariaDB { conn, name: _ } => {
-                match &conn.db {
-                    Some(_) => {
-                        let db: Arc<dyn SchemaTrait> =
-                            Arc::new(dbnexus_db::mysql::MysqlDB::new(conn.clone()).await?);
-
-                        anyhow::Ok(Open::Schema(db))
-                    }
-                    None => {
-                        let db: Arc<dyn DBTrait> =
-                            Arc::new(dbnexus_db::mysql::MysqlDB::new(conn.clone()).await?);
-                        anyhow::Ok(Open::DataBase(db))
-                    }
-                }
-            }
-            DBConnectionConfig::Tidb { conn, name: _ } => {
-                match &conn.db {
-                    Some(_) => {
-                        let db: Arc<dyn SchemaTrait> =
-                            Arc::new(dbnexus_db::tidb::TiDB::new(conn.clone()).await?);
-
-                        anyhow::Ok(Open::Schema(db))
-                    }
-                    None => {
-                        let db: Arc<dyn DBTrait> =
-                            Arc::new(dbnexus_db::tidb::TiDB::new(conn.clone()).await?);
-                        anyhow::Ok(Open::DataBase(db))
-                    }
-                }
-            }
-            DBConnectionConfig::Postgres { conn, name: _ } => {
                 let o = Arc::new(dbnexus_db::pg::PostGresDB::new(conn.clone()).await?);
                 if conn.db.is_none() {
-                    return anyhow::Ok(Open::Catalog(o as Arc<dyn CatalogTrait>));
+                    return anyhow::Ok(DatabaseBackend::Catalog(o as Arc<dyn CatalogTrait>));
                 }
 
                 match &conn.schema {
-                    None => anyhow::Ok(Open::DataBase(o as Arc<dyn DBTrait>)),
-                    Some(_) => anyhow::Ok(Open::Schema(o as Arc<dyn SchemaTrait>)),
+                    None => anyhow::Ok(DatabaseBackend::DataBase(o as Arc<dyn DBTrait>)),
+                    Some(_) => anyhow::Ok(DatabaseBackend::Schema(o as Arc<dyn SchemaTrait>)),
                 }
             }
             DBConnectionConfig::CockRoach { conn, .. } => {
-                let o = Arc::new(dbnexus_db::cockroach::CockRoachDB::new(conn.clone()).await?);
+                let o = Arc::new(SubDB::new_cockroach(conn.clone()).await?);
                 if conn.db.is_none() {
-                    return anyhow::Ok(Open::Catalog(o as Arc<dyn CatalogTrait>));
+                    return anyhow::Ok(DatabaseBackend::Catalog(o as Arc<dyn CatalogTrait>));
                 }
                 match &conn.schema {
-                    None => anyhow::Ok(Open::DataBase(o as Arc<dyn DBTrait>)),
-                    Some(_) => anyhow::Ok(Open::Schema(o as Arc<dyn SchemaTrait>)),
+                    None => anyhow::Ok(DatabaseBackend::DataBase(o as Arc<dyn DBTrait>)),
+                    Some(_) => anyhow::Ok(DatabaseBackend::Schema(o as Arc<dyn SchemaTrait>)),
                 }
             }
-            DBConnectionConfig::MsSql { conn, name: _ } => {
-                let o = Arc::new(dbnexus_db::mssql::MsSqlServerDB::new(conn.clone()).await?);
+            DBConnectionConfig::SqlServer { conn, .. } => {
+                let o = Arc::new(dbnexus_db::mssql::SqlServerDB::new(conn.clone()).await?);
                 if conn.db.is_none() {
-                    return anyhow::Ok(Open::Catalog(o as Arc<dyn CatalogTrait>));
+                    return anyhow::Ok(DatabaseBackend::Catalog(o as Arc<dyn CatalogTrait>));
                 }
                 match &conn.schema {
-                    Some(_) => anyhow::Ok(Open::Schema(o as Arc<dyn SchemaTrait>)),
-                    None => anyhow::Ok(Open::DataBase(o as Arc<dyn DBTrait>)),
+                    Some(_) => anyhow::Ok(DatabaseBackend::Schema(o as Arc<dyn SchemaTrait>)),
+                    None => anyhow::Ok(DatabaseBackend::DataBase(o as Arc<dyn DBTrait>)),
                 }
             }
-            DBConnectionConfig::Mongo { conn, name: _ } => {
+            DBConnectionConfig::Mongo { conn, .. } => {
                 let db: Arc<MongoDB> = Arc::new(dbnexus_db::mongo::MongoDB::new(conn.clone())?);
                 match conn.db {
-                    Some(_) => anyhow::Ok(Open::Schema(db)),
-                    None => anyhow::Ok(Open::DataBase(db)),
+                    Some(_) => anyhow::Ok(DatabaseBackend::Schema(db as Arc<dyn SchemaTrait>)),
+                    None => anyhow::Ok(DatabaseBackend::DataBase(db as Arc<dyn DBTrait>)),
                 }
             }
             DBConnectionConfig::Redis { conn, .. } => {
                 let redis = dbnexus_db::redis::RedisDB::new(conn.clone()).await?;
 
                 let db = match &conn.db {
-                    Some(_) => Open::Schema(Arc::new(redis) as Arc<dyn SchemaTrait>),
-                    None => Open::DataBase(Arc::new(redis) as Arc<dyn DBTrait>),
+                    Some(_) => DatabaseBackend::Schema(Arc::new(redis) as Arc<dyn SchemaTrait>),
+                    None => DatabaseBackend::DataBase(Arc::new(redis) as Arc<dyn DBTrait>),
                 };
 
                 anyhow::Ok(db)
             }
-            DBConnectionConfig::Oracle { conn, name: _ } => {
-                match conn.schema.as_ref() {
-                    Some(_) => {
-                        let db: Arc<dyn SchemaTrait> =
-                            Arc::new(dbnexus_db::oracle::OracleDB::new(conn.clone(), None)?);
-                        anyhow::Ok(Open::Schema(db))
-                    }
-                    None => {
-                        let db: Arc<dyn DBTrait> =
-                            Arc::new(dbnexus_db::oracle::OracleDB::new(conn.clone(), None)?);
-                        anyhow::Ok(Open::DataBase(db))
-                    }
+            DBConnectionConfig::Oracle { conn, .. } => match conn.schema.as_ref() {
+                Some(_) => {
+                    let db: Arc<dyn SchemaTrait> =
+                        Arc::new(dbnexus_db::oracle::OracleDB::new(conn.clone(), None)?)
+                            as Arc<dyn SchemaTrait>;
+                    anyhow::Ok(DatabaseBackend::Schema(db))
                 }
-            }
+                None => {
+                    let db: Arc<dyn DBTrait> =
+                        Arc::new(dbnexus_db::oracle::OracleDB::new(conn.clone(), None)?)
+                            as Arc<dyn DBTrait>;
+                    anyhow::Ok(DatabaseBackend::DataBase(db))
+                }
+            },
             DBConnectionConfig::Cassandra { conn, .. } => {
                 let db = dbnexus_db::cassandra::CassandraDB::new(conn.clone()).await?;
                 let db = match &conn.db {
-                    Some(_) => Open::Schema(Arc::new(db) as Arc<dyn SchemaTrait>),
-                    None => Open::DataBase(Arc::new(db) as Arc<dyn DBTrait>),
+                    Some(_) => DatabaseBackend::Schema(Arc::new(db) as Arc<dyn SchemaTrait>),
+                    None => DatabaseBackend::DataBase(Arc::new(db) as Arc<dyn DBTrait>),
                 };
                 anyhow::Ok(db)
             }
@@ -288,37 +288,60 @@ impl DBConnectionConfig {
                 #[cfg(feature = "duckdb")]
                 {
                     let db = dbnexus_db::duckdb::DuckDB::new(_conn.clone())?;
-                    return match &_conn.db {
-                        Some(_) => {
-                            match &_conn.schema {
-                                Some(_) => {
-                                    anyhow::Ok(Open::from(Arc::new(db) as Arc<dyn SchemaTrait>))
-                                }
-                                None => anyhow::Ok(Open::from(Arc::new(db) as Arc<dyn DBTrait>)),
+                    match &_conn.db {
+                        Some(_) => match &_conn.schema {
+                            Some(_) => anyhow::Ok(DatabaseBackend::from(
+                                Arc::new(db) as Arc<dyn SchemaTrait>
+                            )),
+                            None => {
+                                anyhow::Ok(DatabaseBackend::from(Arc::new(db) as Arc<dyn DBTrait>))
                             }
+                        },
+                        None => {
+                            anyhow::Ok(DatabaseBackend::from(Arc::new(db) as Arc<dyn CatalogTrait>))
                         }
-                        None => anyhow::Ok(Open::from(Arc::new(db) as Arc<dyn CatalogTrait>)),
-                    };
+                    }
                 }
                 #[cfg(not(feature = "duckdb"))]
-                anyhow::bail!("need enable duckdb support")
+                anyhow::bail!("duckdb feature not enabled")
             }
             DBConnectionConfig::ClickHouse { conn, .. } => {
                 let db = dbnexus_db::clickhouse::ClickHouseDB::new(conn.clone())?;
                 let db = match &conn.db {
-                    Some(_) => Open::Schema(Arc::new(db) as Arc<dyn SchemaTrait>),
-                    None => Open::DataBase(Arc::new(db) as Arc<dyn DBTrait>),
+                    Some(_) => DatabaseBackend::Schema(Arc::new(db) as Arc<dyn SchemaTrait>),
+                    None => DatabaseBackend::DataBase(Arc::new(db) as Arc<dyn DBTrait>),
                 };
 
                 anyhow::Ok(db)
             }
             DBConnectionConfig::LibSql { conn, .. } => {
                 let db = dbnexus_db::libsql::LibSqlDB::new(conn.clone()).await?;
-                return anyhow::Ok(Open::from(Arc::new(db) as Arc<dyn SchemaTrait>));
+                anyhow::Ok(DatabaseBackend::from(Arc::new(db) as Arc<dyn SchemaTrait>))
             }
             DBConnectionConfig::FireBird { conn, .. } => {
-                let db = dbnexus_db::firebird::FireBirdDB::new(conn.clone())?;
-                anyhow::Ok(Open::from(Arc::new(db) as Arc<dyn SchemaTrait>))
+                let db = dbnexus_db::firebird::FireBirdDB::new(conn.clone()).await?;
+                anyhow::Ok(DatabaseBackend::from(Arc::new(db) as Arc<dyn SchemaTrait>))
+            }
+            DBConnectionConfig::Db2 { conn: _conn, .. } => {
+                // let db = dbnexus_db::db2::Db2Db::new(_conn.clone()).await?;
+                // let r = match &_conn.schema {
+                //     Some(_) => DatabaseBackend::Schema(Arc::new(db) as Arc<dyn SchemaTrait>),
+                //     None => DatabaseBackend::DataBase(Arc::new(db) as Arc<dyn DBTrait>),
+                // };
+                // anyhow::Ok(r)
+                anyhow::bail!("db2 not supported")
+            }
+
+            DBConnectionConfig::CouchBase { conn, .. } => {
+                let db = dbnexus_db::couchbase::CouchBaseDB::new(conn.clone()).await?;
+                let db = match conn.bucket {
+                    Some(..) => match conn.scope {
+                        Some(_) => DatabaseBackend::from(Arc::new(db) as Arc<dyn SchemaTrait>),
+                        None => DatabaseBackend::from(Arc::new(db) as Arc<dyn DBTrait>),
+                    },
+                    None => DatabaseBackend::from(Arc::new(db) as Arc<dyn CatalogTrait>),
+                };
+                anyhow::Ok(db)
             }
         }
     }
@@ -326,274 +349,458 @@ impl DBConnectionConfig {
 
 /// opened database variant for frontend
 #[derive(Clone, Debug)]
-pub enum Open {
+pub enum DatabaseBackend {
     Catalog(Arc<dyn dbnexus_db::db::CatalogTrait>),
-    /// database can contains multi database
     DataBase(Arc<dyn dbnexus_db::db::DBTrait>),
-    /// a schema
     Schema(Arc<dyn dbnexus_db::db::SchemaTrait>),
 }
 
-impl From<Arc<dyn dbnexus_db::db::CatalogTrait>> for Open {
+impl DatabaseBackend {
+    pub(crate) async fn check_conn(&self) -> anyhow::Result<Duration> {
+        self.as_check_conn().check_conn().await
+    }
+    pub(crate) fn as_query_sql(&self) -> &dyn QuerySql {
+        match self {
+            DatabaseBackend::Catalog(x) => x.as_ref(),
+            DatabaseBackend::DataBase(x) => x.as_ref(),
+            DatabaseBackend::Schema(x) => x.as_ref(),
+        }
+    }
+    pub(crate) fn as_export_query_result(&self) -> &dyn ExportQueryResult {
+        match self {
+            DatabaseBackend::Catalog(x) => x.as_ref(),
+            DatabaseBackend::DataBase(x) => x.as_ref(),
+            DatabaseBackend::Schema(x) => x.as_ref(),
+        }
+    }
+
+    pub(crate) fn as_language_server(&self) -> &dyn LanguageServer {
+        match self {
+            DatabaseBackend::Catalog(x) => x.as_ref(),
+            DatabaseBackend::DataBase(x) => x.as_ref(),
+            DatabaseBackend::Schema(x) => x.as_ref(),
+        }
+    }
+    pub(crate) fn as_check_conn(&self) -> &dyn CheckConn {
+        match self {
+            DatabaseBackend::Catalog(x) => x.as_ref(),
+            DatabaseBackend::DataBase(x) => x.as_ref(),
+            DatabaseBackend::Schema(x) => x.as_ref(),
+        }
+    }
+    pub(crate) fn as_server_mates(&self) -> &dyn ServerMetas {
+        match self {
+            DatabaseBackend::Catalog(x) => x.as_ref(),
+            DatabaseBackend::DataBase(x) => x.as_ref(),
+            DatabaseBackend::Schema(x) => x.as_ref(),
+        }
+    }
+}
+
+impl From<Arc<dyn dbnexus_db::db::CatalogTrait>> for DatabaseBackend {
     fn from(value: Arc<dyn dbnexus_db::db::CatalogTrait>) -> Self {
         Self::Catalog(value)
     }
 }
 
-impl From<Arc<dyn dbnexus_db::db::DBTrait>> for Open {
+impl From<Arc<dyn dbnexus_db::db::DBTrait>> for DatabaseBackend {
     fn from(value: Arc<dyn dbnexus_db::db::DBTrait>) -> Self {
         Self::DataBase(value)
     }
 }
-impl From<Arc<dyn dbnexus_db::db::SchemaTrait>> for Open {
+impl From<Arc<dyn dbnexus_db::db::SchemaTrait>> for DatabaseBackend {
     fn from(value: Arc<dyn dbnexus_db::db::SchemaTrait>) -> Self {
         Self::Schema(value)
     }
 }
 
-/// all the databases
-#[derive(Clone)]
-pub struct App {
-    pub opens: Arc<Mutex<HashMap<String, Open>>>,
-    pub saved_password: Arc<DashMap<String, String>>,
+#[derive(Clone, Default)]
+pub struct DBPal {
+    /// all the databases
+    pub backend: Arc<Mutex<HashMap<String, DatabaseBackend>>>,
 }
 
-impl App {
+impl DBPal {
     pub fn new() -> Self {
+        Default::default()
+    }
+}
+
+pub(crate) fn name_to_parts(name: &str) -> Vec<&str> {
+    name.split("/").collect()
+}
+
+impl From<tokio::time::error::Elapsed> for ErrorFrontend {
+    fn from(_value: tokio::time::error::Elapsed) -> Self {
         Self {
-            opens: Default::default(),
-            saved_password: Default::default(),
+            reason: "operation timeout".into(),
+            detail: "".into(),
+            cancelled: false,
         }
     }
 }
-type GetConfigFN = Box<dyn Fn(&str) -> anyhow::Result<DBConnectionConfig>>;
 
-impl App {
-    pub async fn insert_open(&self, name: impl Into<String>, open: Open, notice: &str) {
-        let name = name.into();
-        match &open {
-            Open::Catalog(x) => {
-                log::info!("name '{}' is catalog,notice:{} trait{:?}", name, notice, x)
-            }
-            Open::DataBase(x) => {
-                log::info!("name '{}' is database,notice:{} trait{:?}", name, notice, x)
-            }
-            Open::Schema(x) => {
-                log::info!("name '{}' is schema,notice:{} trait{:?}", name, notice, x)
-            }
+fn name_starts(name: &str, prefix: &str) -> bool {
+    let name = name_to_parts(name);
+    let prefix = name_to_parts(prefix);
+
+    name.len() >= prefix.len() && name.iter().zip(prefix.iter()).all(|(x, y)| *x == *y)
+}
+
+impl DBPal {
+    #[allow(unused)]
+    pub async fn print_keys(&self) {
+        for k in self.backend.lock().await.keys() {
+            println!("!!!!!!!!!!!!!!!!!{}", k);
         }
-        self.opens.lock().await.insert(name, open);
     }
 
-    pub unsafe fn get_config_ref() -> &'static mut Option<GetConfigFN> {
-        static mut GET_CONFIG_FN: Option<GetConfigFN> = None;
-        #[allow(static_mut_refs)] // this var will init once by main
-        &mut GET_CONFIG_FN
-    }
-
-    pub async fn enter_open_child(&self, name: &str, open: &Open) -> anyhow::Result<()> {
-        match &open {
-            Open::Catalog(catalog_trait) => {
-                let databases = catalog_trait.list_database().await?;
-                for database in databases.iter() {
-                    let name = format!("{}/{}", name, database);
-                    let dbtrait = match self.get_opened(&name).await {
-                        Ok(x) => {
-                            match x {
-                                Open::DataBase(x) => x.clone(),
-                                _ => unreachable!(),
-                            }
-                        }
-                        Err(_) => {
-                            log::info!("enter child named:{}", name);
-                            let dbtrait = catalog_trait.open_db(&database).await?;
-
-                            self.insert_open(
-                                name.clone(),
-                                dbtrait.clone().into(),
-                                "enter_open_child enter",
-                            )
-                            .await;
-
-                            dbtrait.clone()
-                        }
-                    };
-
-                    let schemas = dbtrait.list_schema().await?;
-                    for schema in schemas.iter() {
-                        let name = format!("{}/{}", name, schema);
-                        match self.get_opened(&name).await {
-                            Ok(_) => {}
-                            Err(_) => {
-                                log::info!("enter child named:{}", name);
-                                let s = dbtrait.open_schema(&schema).await?;
-                                self.insert_open(name, s.clone().into(), "enter_open_child enter")
-                                    .await;
-                            }
-                        }
-                    }
-                }
-            }
-            Open::DataBase(dbtrait) => {
-                let schemas = dbtrait.list_schema().await?;
-                for schema in schemas.iter() {
-                    let name = format!("{}/{}", name, schema);
-                    match self.get_opened(&name).await {
-                        Ok(_) => {}
-                        Err(_) => {
-                            log::info!("enter child named:{}", name);
-                            let s = dbtrait.open_schema(&schema).await?;
-                            self.insert_open(name, s.clone().into(), "enter_open_child enter")
-                                .await;
-                        }
-                    }
-                }
-            }
-            Open::Schema(_) => {}
-        }
-        anyhow::Ok(())
-    }
-
-    pub async fn open(&self, name: &str) -> anyhow::Result<Open> {
-        if let Some(x) = self.opens.lock().await.get(&name.to_string()) {
-            return anyhow::Ok(x.clone());
-        }
-        let config = unsafe { (Self::get_config_ref().as_ref().map(|x| x(name))).unwrap()? };
-        #[cfg(debug_assertions)]
-        println!("open config:{:?}", config);
-        let db = config.open().await?;
-        match &db {
-            Open::DataBase(x) => {
-                x.check_conn().await?;
-            }
-            Open::Schema(x) => {
-                x.check_conn().await?;
-            }
-            Open::Catalog(x) => {
-                x.check_conn().await?;
-            }
-        }
-        self.enter_open_child(name, &db).await?;
-        self.insert_open(name.to_string(), db.clone(), "open enter")
-            .await;
-        anyhow::Ok(db)
-    }
-
-    pub async fn close_conn_has_prefix(&self, name: &str) {
+    pub async fn close_conn_has_prefix(&self, prefix: &str) {
         let mut v = Vec::new();
-        for k in self.opens.lock().await.keys() {
-            if k.starts_with(name) {
+        for k in self.backend.lock().await.keys() {
+            if name_starts(k, prefix) {
                 v.push(k.clone());
             }
         }
-
-        for k in v.into_iter() {
-            self.opens.lock().await.remove(&k);
+        for conn in v {
+            log::info!("delete conn:{}", conn);
+            self.backend.lock().await.remove(&conn);
         }
-    }
-
-    pub async fn list_table(&self, name: &str) -> anyhow::Result<Vec<ListTable>> {
-        let db = self.get_schema(name).await?;
-        db.list_table().await
-    }
-
-    pub async fn show_table_columns(
-        &self, name: &str, table_name: &str,
-    ) -> anyhow::Result<Vec<Field>> {
-        let db = self.get_schema(name).await?;
-        db.show_table_columns(table_name).await
-    }
-
-    pub async fn show_table(
-        &self, name: &str, table_name: &str, where_str: Option<&str>, order_by: Option<&str>,
-        page: usize, page_size: usize, extra: Option<ShowExtraArgs>,
-    ) -> anyhow::Result<QueryResp> {
-        let db = self.get_schema(name).await?;
-        db.show_table(table_name, where_str, order_by, page, page_size, extra)
-            .await
-    }
-
-    pub async fn show_indexes(&self, name: &str, table_name: &str) -> anyhow::Result<Vec<Index>> {
-        let db = self.get_schema(name).await?;
-        db.show_indexes(table_name).await
-    }
-
-    pub async fn insert(
-        &self, name: &str, table_name: &str, values: HashMap<String, Option<String>>,
-    ) -> anyhow::Result<SqlExecuteRet> {
-        let db = self.get_schema(name).await?;
-        db.insert(table_name, values).await
-    }
-
-    pub async fn update(
-        &self, name: &str, table_name: &str, values: HashMap<String, Option<String>>,
-        wheres: HashMap<String, Option<String>>,
-    ) -> anyhow::Result<SqlExecuteRet> {
-        let db = self.get_schema(name).await?;
-        db.update(table_name, values, wheres).await
-    }
-
-    pub async fn truncate_table(&self, name: &str, table_name: &str) -> anyhow::Result<()> {
-        let db = self.get_schema(name).await?;
-        db.truncate_table(table_name).await
-    }
-
-    pub async fn delete(
-        &self, name: &str, table_name: &str, wheres: HashMap<String, Option<String>>,
-    ) -> anyhow::Result<SqlExecuteRet> {
-        let db = self.get_schema(name).await?;
-        db.delete(table_name, wheres).await
-    }
-
-    pub async fn list_view(&self, name: &str) -> anyhow::Result<Vec<NamedStaff>> {
-        let db = self.get_schema(name).await?;
-        db.list_view().await
-    }
-
-    pub async fn drop_view(&self, name: &str, view_name: &str) -> anyhow::Result<()> {
-        let db = self.get_schema(name).await?;
-        db.drop_view(view_name).await
-    }
-
-    pub async fn drop_table(
-        &self, name: &str, table_name: &str, cascade: bool,
-    ) -> anyhow::Result<()> {
-        let db = self.get_schema(name).await?;
-        db.drop_table(table_name, cascade).await
-    }
-
-    pub async fn show_view(
-        &self, name: &str, view_name: &str, where_str: Option<&str>, order_by: Option<&str>,
-        page: usize, page_size: usize, _extra: Option<ShowExtraArgs>,
-    ) -> anyhow::Result<QueryResp> {
-        let db = self.get_schema(name).await?;
-        db.show_view(view_name, where_str, order_by, page, page_size, _extra)
-            .await
     }
 
     pub async fn get_schema(&self, name: &str) -> anyhow::Result<Arc<dyn SchemaTrait>> {
-        match self.get_opened(name).await? {
-            Open::Schema(x) => anyhow::Ok(x.clone()),
-            _ => anyhow::bail!(format!("'{}' a schema trait", name)),
+        match self.get_backend(name).await? {
+            DatabaseBackend::Schema(x) => anyhow::Ok(x.clone()),
+            backend => anyhow::bail!(format!("'{}' not a schema trait,but:{:?}", name, backend)),
         }
     }
 
-    pub async fn get_opened(&self, name: &str) -> anyhow::Result<Open> {
-        let db = self.opens.lock().await.get(name).map(|x| x.clone());
-        let x = match db {
-            Some(x) => x,
-            None => anyhow::bail!("'{}' not found,the connection maybe closed???", name),
+    pub async fn establish_conn(
+        &self,
+        config: &DBConnectionConfig,
+    ) -> anyhow::Result<DatabaseBackend> {
+        let db = config.open().await?;
+        // make sure connection is ok
+        db.check_conn().await?;
+        self.backend
+            .lock()
+            .await
+            .insert(config.get_name().to_owned(), db.clone());
+        anyhow::Ok(db)
+    }
+
+    pub async fn get_backend(&self, name: &str) -> anyhow::Result<DatabaseBackend> {
+        let db = self.backend.lock().await.get(name).cloned();
+        if let Some(db) = db {
+            return anyhow::Ok(db);
+        }
+        // try open and enter
+        let name_parts = name_to_parts(name);
+        match name_parts.len() {
+            1 => {
+                anyhow::bail!(format!("connection '{}' not established", name))
+            }
+            2 => {
+                let backend = self
+                    .backend
+                    .lock()
+                    .await
+                    .get(&name_parts[0].to_string())
+                    .cloned();
+                match backend {
+                    Some(DatabaseBackend::DataBase(x)) => {
+                        let schema = x.open_schema(name_parts[1]).await?;
+                        self.backend
+                            .lock()
+                            .await
+                            .insert(name.to_string(), schema.clone().into());
+                        anyhow::Ok(DatabaseBackend::Schema(schema))
+                    }
+                    Some(DatabaseBackend::Catalog(x)) => {
+                        let db = x.open_db(name_parts[1]).await?;
+                        self.backend
+                            .lock()
+                            .await
+                            .insert(name.to_string(), db.clone().into());
+                        anyhow::Ok(DatabaseBackend::DataBase(db))
+                    }
+                    _ => {
+                        log::error!(
+                            "'{}' not found ,should be catalog or database trait but:{:?}",
+                            name_parts[0],
+                            backend
+                        );
+                        anyhow::bail!(format!("connection '{}' not established", name))
+                    }
+                }
+            }
+            3 => {
+                let db_name = format!("{}/{}", &name_parts[0], &name_parts[1]);
+                let open = self.backend.lock().await.get(&db_name).cloned();
+                let db_trait = match open {
+                    Some(x) => match x {
+                        DatabaseBackend::DataBase(x) => x.clone(),
+                        x => {
+                            anyhow::bail!("this must be db trait but:{:?}", x)
+                        }
+                    },
+                    None => {
+                        let c = self
+                            .backend
+                            .lock()
+                            .await
+                            .get(&name_parts[0].to_string())
+                            .cloned();
+                        match c {
+                            Some(x) => match x {
+                                DatabaseBackend::Catalog(x) => {
+                                    let db = x.open_db(name_parts[1]).await?;
+                                    self.backend.lock().await.insert(db_name, db.clone().into());
+                                    db
+                                }
+                                _ => {
+                                    log::error!("internal error,catalog must been entered ");
+                                    anyhow::bail!(format!("connection '{}' not established", name))
+                                }
+                            },
+                            None => {
+                                log::error!("internal error,catalog must been entered");
+                                anyhow::bail!(format!("connection '{}' not established", name))
+                            }
+                        }
+                    }
+                };
+                let schema = db_trait.open_schema(name_parts[2]).await?;
+                self.backend
+                    .lock()
+                    .await
+                    .insert(name.to_string(), schema.clone().into());
+                anyhow::Ok(DatabaseBackend::Schema(schema))
+            }
+            _ => {
+                // nothing to do here
+                log::error!("'{}' name part not right, this is a internal error", name);
+                anyhow::bail!(format!("connection '{}' not established", name))
+            }
+        }
+    }
+
+    pub async fn conn_opened(&self, name: &str) -> bool {
+        let x = name_to_parts(name);
+        self.backend.lock().await.contains_key(&x[0].to_string())
+    }
+}
+
+#[allow(dead_code)]
+pub(crate) fn generate_random_string(len: usize) -> String {
+    use rand::prelude::*;
+    // 定义只包含字母和数字的字符集
+    const CHARSET: &[u8] = b"ABCDEFGHIJKLMNOPQRSTUVWXYZ\
+                              abcdefghijklmnopqrstuvwxyz\
+                              0123456789";
+
+    let mut rng = rand::rng();
+    let rand_string: String = (0..len)
+        .map(|_| {
+            let idx = rng.random_range(0usize..CHARSET.len());
+            CHARSET[idx] as char
+        })
+        .collect();
+    rand_string
+}
+
+#[derive(serde::Serialize, Debug, Clone)]
+pub struct ErrorFrontend {
+    // short message on why
+    pub reason: String,
+    // long message about why and backtrace
+    pub detail: String,
+    pub cancelled: bool,
+}
+
+// 管理所有任务的取消令牌
+
+#[derive(Clone, Default)]
+pub struct TaskManager {
+    pub tokens: Arc<std::sync::Mutex<HashMap<String, CancellationToken>>>,
+}
+
+impl From<langchain_rust::chain::ChainError> for ErrorFrontend {
+    fn from(value: langchain_rust::chain::ChainError) -> Self {
+        ErrorFrontend {
+            reason: value.to_string(),
+            detail: format!("{:?}", value),
+            cancelled: false,
+        }
+    }
+}
+
+impl From<LLMError> for ErrorFrontend {
+    fn from(value: LLMError) -> Self {
+        ErrorFrontend {
+            reason: value.to_string(),
+            detail: format!("{:?}", value),
+            cancelled: false,
+        }
+    }
+}
+
+impl From<SelectionError> for ErrorFrontend {
+    fn from(value: SelectionError) -> Self {
+        ErrorFrontend {
+            reason: value.to_string(),
+            detail: value.to_string(),
+            cancelled: false,
+        }
+    }
+}
+impl From<tauri::Error> for ErrorFrontend {
+    fn from(value: tauri::Error) -> Self {
+        let x = Self {
+            reason: format!("{}", value),
+            detail: format!("{:?}", value),
+            cancelled: false,
         };
-        anyhow::Ok(x)
+        log::error!("error:{}", x.reason);
+        x
     }
+}
+impl From<anyhow::Error> for ErrorFrontend {
+    fn from(value: anyhow::Error) -> Self {
+        let x = Self {
+            reason: format!("{}", value),
+            detail: format!("{:?}", value),
+            cancelled: false,
+        };
+        log::error!("error:{}", x.reason);
+        x
+    }
+}
 
-    pub async fn redis_list_table(
-        &self, name: &str, filter: Option<&str>, max: usize,
-    ) -> anyhow::Result<RedisListTable> {
-        let db = self.get_schema(name).await?;
-        match db.as_any().downcast_ref::<RedisDB>() {
-            Some(x) => x.redis_list_table(filter, max).await,
-            None => anyhow::bail!(format!("'{}' not a redis", name)),
+impl From<std::io::Error> for ErrorFrontend {
+    fn from(value: std::io::Error) -> Self {
+        let x = Self {
+            reason: format!("{}", value),
+            detail: "".to_string(),
+            cancelled: false,
+        };
+        log::error!("error:{}", x.reason);
+        x
+    }
+}
+
+impl From<hex::FromHexError> for ErrorFrontend {
+    fn from(value: hex::FromHexError) -> Self {
+        let x = Self {
+            reason: format!("{}", value),
+            detail: "".to_string(),
+            cancelled: false,
+        };
+        log::error!("error:{}", x.reason);
+        x
+    }
+}
+impl From<String> for ErrorFrontend {
+    fn from(value: String) -> Self {
+        Self {
+            reason: value,
+            detail: "".to_string(),
+            cancelled: false,
         }
+    }
+}
+impl From<&str> for ErrorFrontend {
+    fn from(value: &str) -> Self {
+        Self {
+            reason: value.to_owned(),
+            detail: "".to_string(),
+            cancelled: false,
+        }
+    }
+}
+
+impl From<bson::oid::Error> for ErrorFrontend {
+    fn from(value: bson::oid::Error) -> Self {
+        Self {
+            reason: format!("{}", value),
+            detail: format!("{:?}", value),
+            cancelled: false,
+        }
+    }
+}
+impl From<serde_json::Error> for ErrorFrontend {
+    fn from(value: serde_json::Error) -> Self {
+        Self {
+            reason: format!("{}", value),
+            detail: format!("{:?}", value),
+            cancelled: false,
+        }
+    }
+}
+
+// cancel token and msg
+#[derive(Clone)]
+pub struct CancelTokenMsg {
+    token: CancellationToken,
+    msg: Arc<std::sync::Mutex<Option<String>>>,
+}
+impl CancelTokenMsg {
+    pub fn cancel(&self, msg: impl Into<String>) {
+        let msg = msg.into();
+        *self.msg.lock().expect("lock failed") = Some(msg);
+        self.token.cancel();
+    }
+    pub fn get_msg(&self) -> Option<String> {
+        self.msg.lock().expect("lock failed").clone()
+    }
+    pub fn new(token: CancellationToken) -> Self {
+        Self {
+            token,
+            msg: Arc::new(std::sync::Mutex::new(None)),
+        }
+    }
+}
+
+impl TaskManager {
+    pub fn add(&self, task_id: String) -> (CancellationToken, impl Drop) {
+        let token = CancellationToken::new();
+        struct XDrop {
+            task_id: String,
+            manager: TaskManager,
+        }
+        impl Drop for XDrop {
+            fn drop(&mut self) {
+                self.manager
+                    .tokens
+                    .lock()
+                    .expect("lock should be ok")
+                    .remove(&self.task_id);
+            }
+        }
+        self.tokens
+            .lock()
+            .expect("must be lock ok")
+            .insert(task_id.clone(), token.clone());
+        (
+            token,
+            XDrop {
+                task_id,
+                manager: self.clone(),
+            },
+        )
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+
+    fn test_name_starts() {
+        assert!(name_starts("pg/xxx", "pg"));
+        assert!(name_starts("pg/xxx/abc", "pg"));
+        //
+        assert!(!name_starts("pg", "pg/xxx"));
     }
 }
