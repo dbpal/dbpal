@@ -1924,7 +1924,6 @@ pub async fn mongo_insert(
     random_sleep().await;
     random_error()?;
     let doc = parse_bson_doc(doc.as_slice())?;
-
     let db = app
         .get_schema(name.as_str())
         .await

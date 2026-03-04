@@ -86,7 +86,7 @@ import { readFile, writeTextFile } from "@tauri-apps/plugin-fs";
 import { save, open, DialogFilter, message } from "@tauri-apps/plugin-dialog";
 import ReactMarkdown from "react-markdown";
 import { oneDark, oneLight } from "react-syntax-highlighter/dist/esm/styles/prism";
-import { styled } from "@mui/material/styles";
+import { styled, useTheme } from "@mui/material/styles";
 import { Prism as SyntaxHighlighter } from "react-syntax-highlighter";
 import { openUrl } from "@tauri-apps/plugin-opener";
 import {
@@ -1375,16 +1375,17 @@ function AppDataGridToolBar(props: {
   noWrapLeft?: boolean; // don't wrap left in `Stack` node
 }) {
   const { title, left, right, noWrapLeft } = props;
+  const theme = useTheme();
   return (
     <Stack
       direction="row"
       style={{
         alignItems: "center",
         justifyContent: "space-between",
-        border: "1px solid grey",
+        border: "2px solid " + theme.palette.secondary.main,
         borderRadius: "4px",
         padding: "2px",
-        overflow: "auto",
+        msOverflowX: "auto",
       }}
     >
       {noWrapLeft ? left : <StackRowCenter>{left}</StackRowCenter>}
