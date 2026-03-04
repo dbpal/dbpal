@@ -55,7 +55,7 @@ pub async fn cancel_task(
     state: State<'_, TaskManager>,
 ) -> Result<(), ErrorFrontend> {
     // 通知取消
-    if let Some(token) = state.tokens.lock().expect("should lock ok").get(&task_id) {
+    if let Some(token) = state.tokens.get(&task_id) {
         token.cancel(); // 触发取消
     } else {
         return Err(ErrorFrontend::from(format!(

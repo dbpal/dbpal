@@ -221,6 +221,7 @@ function QueryResp(props: { data: MuiDataGridData }) {
               alignItems: "center",
               justifyContent: "space-between",
               flex: 1,
+              overflow: "auto",
             }}
           >
             <Stack style={{ flex: 1, alignItems: "center" }} direction="row">

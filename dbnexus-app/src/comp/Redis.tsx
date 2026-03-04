@@ -946,6 +946,7 @@ function RedisSetTable(props: { setKey: string; uuid: string }) {
               alignItems: "center",
               justifyContent: "space-between",
               flex: 1,
+              overflow: "auto",
             }}
           >
             <Stack style={{ flex: 1, alignItems: "center" }} direction="row">
@@ -1427,6 +1428,7 @@ function RedisListTable(props: { listKey: string; uuid: string }) {
               alignItems: "center",
               justifyContent: "space-between",
               flex: 1,
+              overflow: "auto",
             }}
           >
             <Stack style={{ alignItems: "center", flex: 1 }} direction="row">
@@ -1722,6 +1724,7 @@ function RedisZsetTable(props: { uuid: string; zsetKey: string }) {
               alignItems: "center",
               justifyContent: "space-between",
               flex: 1,
+              overflow: "auto",
             }}
           >
             <Stack direction="row" style={{ flex: 1, alignItems: "center" }}>
@@ -2113,6 +2116,7 @@ function RedisHashTable(props: { hashKey: string; uuid: string }) {
               alignItems: "center",
               justifyContent: "space-between",
               flex: 1,
+              overflow: "auto",
             }}
           >
             <StackRowCenter>

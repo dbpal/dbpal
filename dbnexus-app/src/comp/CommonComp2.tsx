@@ -615,6 +615,12 @@ function ConnConfigInfo(props: { uuid }) {
           case DataSourceKind.Sqlite:
             configMetas = [{ name: "path", value: config.path } as types.MetaValue];
             break;
+          case DataSourceKind.CouchBase:
+            configMetas = [
+              { name: "username", value: config.username } as types.MetaValue,
+              { name: "conn str", value: config.conn_str } as types.MetaValue,
+            ];
+            break;
         }
         setMetas([...configMetas, ...metas]);
         if (showOK) {
@@ -1378,6 +1384,7 @@ function AppDataGridToolBar(props: {
         border: "1px solid grey",
         borderRadius: "4px",
         padding: "2px",
+        overflow: "auto",
       }}
     >
       {noWrapLeft ? left : <StackRowCenter>{left}</StackRowCenter>}

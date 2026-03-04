@@ -1,3 +1,4 @@
+use dashmap::DashMap;
 use dbnexus_db::datasource_config::{
     CassandraDBConfig, ClickHouseConfig, CouchBaseDBConfig, Db2Config, DuckDBConfig,
     FireBirdConfig, LibSqlDBConfig, MongoDBConfig, MysqlDBConfig, OracleDBConfig, PGDBConfig,
@@ -622,7 +623,7 @@ pub struct ErrorFrontend {
 
 #[derive(Clone, Default)]
 pub struct TaskManager {
-    pub tokens: Arc<std::sync::Mutex<HashMap<String, CancellationToken>>>,
+    pub tokens: Arc<DashMap<String, CancellationToken>>,
 }
 
 impl From<langchain_rust::chain::ChainError> for ErrorFrontend {
@@ -770,17 +771,10 @@ impl TaskManager {
         }
         impl Drop for XDrop {
             fn drop(&mut self) {
-                self.manager
-                    .tokens
-                    .lock()
-                    .expect("lock should be ok")
-                    .remove(&self.task_id);
+                self.manager.tokens.remove(&self.task_id);
             }
         }
-        self.tokens
-            .lock()
-            .expect("must be lock ok")
-            .insert(task_id.clone(), token.clone());
+        self.tokens.insert(task_id.clone(), token.clone());
         (
             token,
             XDrop {

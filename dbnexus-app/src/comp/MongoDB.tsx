@@ -1358,6 +1358,7 @@ function MongoTableList(props: {
             style={{
               alignItems: "center",
               justifyContent: "space-between",
+              overflow: "auto",
             }}
           >
             <Stack style={{ flex: 1, alignItems: "center" }} direction="row">
@@ -1757,7 +1758,7 @@ function MongoTable(props: { uuid: string; table: string; isTable: boolean }) {
               />
               <SliderSize
                 name="height"
-                min={300}
+                min={200}
                 max={1000}
                 notice="mongodb editor height"
                 step={10}

@@ -718,7 +718,6 @@ function SqlChatTextInput(props: {
           border: "2px solid gray",
           borderRadius: "1rem",
           zIndex: 14,
-          opacity: 0.9,
         }}
       >
         <Stack

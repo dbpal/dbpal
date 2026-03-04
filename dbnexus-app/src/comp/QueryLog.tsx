@@ -187,7 +187,10 @@ function QueryLog(props: {
     return {
       pagination: () => {
         return (
-          <Stack direction="row" style={{ flex: 1, justifyContent: "flex-end" }}>
+          <Stack
+            direction="row"
+            style={{ flex: 1, justifyContent: "flex-end", overflow: "auto" }}
+          >
             <AppDataGridPagination showPageSelect />
           </Stack>
         );

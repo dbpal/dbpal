@@ -52,7 +52,6 @@ fn make_openai(req: &app::OpenAIReq) -> OpenAI<OpenAIConfig> {
             op = op.with_max_tokens(max_token);
         }
     }
-
     if let Some(temperature) = req.temperature {
         op = op.with_temperature(temperature);
     }
@@ -66,7 +65,6 @@ fn make_openai(req: &app::OpenAIReq) -> OpenAI<OpenAIConfig> {
 #[tauri::command]
 pub async fn openai_invoke(req: app::OpenAIReq) -> Result<String, ErrorFrontend> {
     let api = make_openai(&req);
-
     let r = api.invoke(&req.msg).await.map_err(ErrorFrontend::from)?;
     Ok(r)
 }
@@ -93,17 +91,6 @@ pub async fn openai_stream(
                     break;
                 }
             }
-            // match &result {
-            //     Ok(_) => {}
-            //     Err(err) => match err {
-            //         LLMError::OpenAIError(open_aierror) => {
-            //             if format!("{:?}", open_aierror).contains("Stream ended") {
-            //                 break;
-            //             }
-            //         }
-            //         _ => {}
-            //     },
-            // }
             let result = result.map_err(ErrorFrontend::from)?;
             emit.send(result.content)?;
         }

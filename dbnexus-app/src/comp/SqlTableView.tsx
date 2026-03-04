@@ -810,6 +810,7 @@ function SqlTableView(props: {
               alignItems: "center",
               justifyContent: "space-between",
               flex: 1,
+              overflow: "auto",
             }}
           >
             <Stack direction="row" flex={1} style={{ alignItems: "center" }}>
