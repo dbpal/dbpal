@@ -183,7 +183,7 @@ function TabsWithContent_(props: {
                   {tabs.length <= 8 && max > 100 ? tab.icon : undefined}
                   <Typography
                     style={{
-                      fontWeight: index == selectIndex ? "bolder" : "normal",
+                      fontWeight: index == selectIndex ? "bolder" : undefined,
                       minWidth: "2rem",
                       whiteSpace: "nowrap",
                       overflow: "hidden",

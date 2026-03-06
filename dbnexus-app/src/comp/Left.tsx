@@ -293,14 +293,14 @@ function LeftTop(props: {
             }}
           >
             {matchPattern.length > 0 ? (
-              <FilterAltIcon style={{ fontSize: "2.4rem" }} color="success" />
+              <FilterAltIcon style={{ fontSize: "2.7rem" }} color="success" />
             ) : (
-              <FilterAltOutlinedIcon style={{ fontSize: "2.4rem" }} />
+              <FilterAltOutlinedIcon style={{ fontSize: "2.7rem" }} />
             )}
           </IconButton>
         </Tooltip>
       </Stack>
-      {show && <Divider />}
+      {show && <Divider color="info" />}
       {showEditFilter && (
         <Modal
           open={showEditFilter}

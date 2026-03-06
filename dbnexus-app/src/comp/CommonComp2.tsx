@@ -1384,7 +1384,7 @@ function AppDataGridToolBar(props: {
         justifyContent: "space-between",
         border: "2px solid " + theme.palette.secondary.main,
         borderRadius: "4px",
-        padding: "2px",
+        padding: "8px 4px",
         overflowX: "auto",
       }}
     >
@@ -1401,10 +1401,7 @@ function AppDataGridToolBar(props: {
 function QueryStatus({ status }) {
   return (
     status && (
-      <Stack
-        direction="row"
-        // style={{ position: "absolute", bottom: 0, left: 0, opacity: 0.5, zIndex: 114 }}
-      >
+      <Stack direction="row">
         <CircularProgress />
         <Typography> {status} </Typography>
       </Stack>

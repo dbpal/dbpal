@@ -440,6 +440,10 @@ function SqlTableView(props: {
   }, [allowFiltering, page, pageSize, sort, where]);
   const handleReload = useCallback(
     (showOK: boolean) => {
+      if (ops.length > 0) {
+        showNotification("warning", "we have unsaved changes");
+        return;
+      }
       switch (kind) {
         case DataSourceKind.Cassandra:
           break;
@@ -467,7 +471,7 @@ function SqlTableView(props: {
         },
       });
     },
-    [isTable, kind, makePara, showNotification, tableName, uuid],
+    [isTable, kind, makePara, ops.length, showNotification, tableName, uuid],
   );
 
   const handleProcessRowUpdate = useCallback(
@@ -561,6 +565,11 @@ function SqlTableView(props: {
   const { setUpMenu } = useContext(ContextMenuContext);
   const onSortModelChange = useCallback(
     (sorts: GridSortModel) => {
+      if (ops.length > 0) {
+        showNotification("warning", "we have unsaved changes");
+        return;
+      }
+
       if (sorts.length == 0) {
         setSort("");
         return;
@@ -574,7 +583,7 @@ function SqlTableView(props: {
         `${quoteDatabaseIdentifier(kind)(sort.field)} ${sort.sort.toUpperCase()}`,
       );
     },
-    [kind],
+    [kind, ops.length, showNotification],
   );
 
   const onProcessRowUpdateError = useCallback(
@@ -745,6 +754,7 @@ function SqlTableView(props: {
                   }}
                   style={shrinkAble}
                   size="medium"
+                  disabled={ops.length > 0}
                   color="primary"
                   icon={<FilterAltIcon />}
                 />
@@ -756,6 +766,7 @@ function SqlTableView(props: {
                   onClick={() => {
                     setShowSetSort(true);
                   }}
+                  disabled={ops.length > 0}
                   style={shrinkAble}
                   size="medium"
                   color="secondary"
@@ -839,6 +850,7 @@ function SqlTableView(props: {
     kind,
     lastFetchTime,
     loading,
+    ops.length,
     opsIds.size,
     resp.data.length,
     resp.total,
