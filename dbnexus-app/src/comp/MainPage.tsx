@@ -45,12 +45,16 @@ function ShowPanic() {
 
   useEffect(() => {
     setTimeout(() => {
-      getPanicFilePath().then(path =>
-        readTextFile(path).then(content => {
-          setPanicInfo(content);
-        }),
-      );
-    }, 1000);
+      (async () => {
+        try {
+          const filepath = await getPanicFilePath();
+          const x = await readTextFile(filepath);
+          setPanicInfo(x);
+        } catch (e) {
+          console.error("trying to get panic info failed", e);
+        }
+      })();
+    }, Math.random() * 1000);
   }, []);
   return (
     <div>
