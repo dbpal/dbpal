@@ -601,31 +601,6 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn create_bucket_and_scope() {
-        println!("make test object");
-        let db = make_test_object().await;
-        println!("trying to creteate bucket");
-        let _err = db
-            .create_database(
-                "test",
-                Some(CreateDatabaseExtra::Couchbase {
-                    ram_quota_mb: 100,
-                    flush_enabled: true,
-                    num_replicas: 1,
-                    max_expiry: None,
-                    bucket_type: CouchBaseBucketType::Couchbase,
-                }),
-            )
-            .await;
-        if let Err(_err) = _err {
-            println!("create database error,err:{}", _err);
-        }
-        let _err = db.create_schema("xxx", None).await;
-        if let Err(_err) = _err {
-            println!("create schema error,err:{}", _err);
-        }
-    }
-    #[tokio::test]
 
     async fn test_db() {
         enable_test_log();
@@ -637,6 +612,7 @@ mod tests {
     #[tokio::test]
 
     async fn test_catalog() {
+        enable_test_log();
         let db = make_test_object().await;
         let bs = db.list_database().await.unwrap();
         println!("buckets:{:?}", bs);

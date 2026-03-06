@@ -127,7 +127,7 @@ function ViewModeSwitcher({ setViewMode, viewMode }) {
 function CouchBaseTable(props: { uuid: string; table: string }) {
   const { uuid, table } = props;
   const [page, setPage] = useState(1);
-  const [pageSize, setPageSize] = useState(SavePageSize.instance.get());
+  const [pageSize, setPageSize] = useState(SavePageSize.couchbase.get());
   const [where, setWhere] = useState("");
   const [sort, setSort] = useState("");
   const [showSetSort, setShowSetSort] = useState(false);
@@ -149,6 +149,10 @@ function CouchBaseTable(props: { uuid: string; table: string }) {
   useEffect(() => {
     JsonEditorThemeSaver.save(jsonEditorTheme);
   }, [jsonEditorTheme]);
+
+  useEffect(() => {
+    SavePageSize.couchbase.save(pageSize);
+  }, [pageSize]);
 
   useEffect(() => {
     if (addModalBox) {

@@ -832,6 +832,7 @@ function executeSqlWithoutConn(uuid: string, sql: string) {
   });
 }
 
+//@ts-ignore
 function getStackTrace() {
   const error = new Error();
   console.error(error.stack);
@@ -857,14 +858,18 @@ class ColorFn {
 }
 
 class SavePageSize {
-  key = "dbpal-page-size";
+  key: string;
+
+  defaultValue: number;
+
+  constructor(dv: number, k = "") {
+    this.defaultValue = dv;
+
+    this.key = "dbpal-page-size" + "-" + k;
+  }
 
   save(size: number) {
-    if (pageSizeOptions.find(e => size == e)) {
-      localStorage.setItem(this.key, size + "");
-    } else {
-      getStackTrace();
-    }
+    localStorage.setItem(this.key, size + "");
   }
 
   get() {
@@ -877,9 +882,11 @@ class SavePageSize {
       console.log("get page size failed", e);
       console.error("get page size failed");
     }
-    return 100;
+    return this.defaultValue;
   }
-  static instance = new SavePageSize();
+  static instance = new SavePageSize(100);
+  static couchbase = new SavePageSize(10, "couchbase");
+  static mongodb = new SavePageSize(10, "mongodb");
 }
 
 function getSupportExportKind(kind: DataSourceKind, isTable: boolean) {

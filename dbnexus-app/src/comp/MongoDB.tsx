@@ -1513,12 +1513,9 @@ function MongoTableObject(props: {
   } = props;
   const [docs, setDocs] = useState<DocsAndCount>({ docs: [], count: 0 });
   const [page, setPage] = useState(1);
-  const pageStoreKey = "mongo-table-page-size";
-  const [pageSize, setPageSize] = useState(
-    parseInt(localStorage.getItem(pageStoreKey)) || 10,
-  );
+  const [pageSize, setPageSize] = useState(SavePageSize.mongodb.get());
   useEffect(() => {
-    localStorage.setItem(pageStoreKey, pageSize + "");
+    SavePageSize.mongodb.save(pageSize);
   }, [pageSize]);
 
   const { showNotification } = useContext(NotificationContext);
@@ -1559,7 +1556,14 @@ function MongoTableObject(props: {
     handleReload(true);
   }, [handleReload, triggerReload]);
   return (
-    <Stack style={{ flex: 1, height: "100px" }}>
+    <Stack
+      style={{
+        flexShrink: 1,
+        flexGrow: 1,
+        flexBasis: "0",
+        height: "100px",
+      }}
+    >
       <div
         style={{
           flex: 1,

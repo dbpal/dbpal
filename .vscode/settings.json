@@ -5,8 +5,7 @@
   "rust-analyzer.checkOnSave": true,
   "rust-analyzer.cargo.features": [
     "random-error",
-    "random-sleep",
-    "hive"
+    "random-sleep"
   ],
   "search.exclude": {
     "**/node_modules": true,

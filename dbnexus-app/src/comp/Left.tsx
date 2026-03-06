@@ -131,11 +131,17 @@ import { CreateTable } from "./CreateTable.tsx";
 import { AddConnection } from "./AddConnection.tsx";
 import { ModifySetting } from "./Settings.tsx";
 import { CouchBaseQuery } from "./CouchBase.tsx";
-
+import FilterAltIcon from "@mui/icons-material/FilterAlt";
+import FilterAltOutlinedIcon from "@mui/icons-material/FilterAltOutlined";
 const settingId = generateRandomString();
 
-function LeftTop(props: { matchPattern: string[]; setMatchPattern; extra: ReactNode }) {
-  const { matchPattern, setMatchPattern, extra } = props;
+function LeftTop(props: {
+  matchPattern: string[];
+  setMatchPattern;
+  setMaxTreeSize;
+  maxTreeSize;
+}) {
+  const { matchPattern, setMatchPattern, setMaxTreeSize, maxTreeSize } = props;
   const [matchPatterInput, setMatchPatternInput] = useState("");
   const [showFavoriteSql, setShowFavoriteSql] = useState(false);
   const [showCopyConn, setShowCopyConn] = useState(false);
@@ -146,6 +152,7 @@ function LeftTop(props: { matchPattern: string[]; setMatchPattern; extra: ReactN
   useEffect(() => {
     saveLeftTopShow.current.save(show);
   }, [show]);
+  const [showEditFilter, setShowEditFilter] = useState(false);
   const showAddConnection = useCallback(
     async (conn?: types.DBConnectionConfig) => {
       setTabs(e => {
@@ -228,7 +235,7 @@ function LeftTop(props: { matchPattern: string[]; setMatchPattern; extra: ReactN
         direction="row"
         style={{
           justifyContent: "center",
-          flexWrap: "wrap",
+          // flexWrap: "wrap",
           display: show ? "flex" : "none",
         }}
       >
@@ -272,84 +279,145 @@ function LeftTop(props: { matchPattern: string[]; setMatchPattern; extra: ReactN
             <FaCopy style={{ fontSize: "2.2rem" }}> </FaCopy>
           </IconButton>
         </Tooltip>
-      </Stack>
 
-      <Stack
-        style={{
-          display: show ? "flex" : "none",
-          border: "2px solid " + theme.palette.success.main,
-          borderRadius: "0.5rem",
-          padding: "2px 0.5rem",
-        }}
-      >
-        <Typography color="info">
-          match pattern for table,view,udf,procedure etc
-        </Typography>
-        <Stack direction="row" style={{ flexWrap: "wrap", alignItems: "center" }}>
-          {matchPattern.length > 1 && (
-            <IconButton
-              onClick={() => {
-                setMatchPattern([]);
-              }}
-            >
-              <CloseIcon />
-            </IconButton>
-          )}
-          {matchPattern.map((e, index) => (
-            <Chip
-              key={index}
-              label={e}
-              color="success"
-              onDelete={() => {
-                setMatchPattern(arr => arr.filter((_, eIndex) => eIndex !== index));
+        <Tooltip
+          title={
+            matchPattern.length > 0
+              ? `filter on ${matchPattern.join(",")}`
+              : "show editor filter,can match table,view etc..."
+          }
+        >
+          <IconButton
+            onClick={() => {
+              setShowEditFilter(true);
+            }}
+          >
+            {matchPattern.length > 0 ? (
+              <FilterAltIcon style={{ fontSize: "2.4rem" }} color="success" />
+            ) : (
+              <FilterAltOutlinedIcon style={{ fontSize: "2.4rem" }} />
+            )}
+          </IconButton>
+        </Tooltip>
+      </Stack>
+      {show && <Divider />}
+      {showEditFilter && (
+        <Modal
+          open={showEditFilter}
+          onClose={modalHandleClose((e: EscDownEvent) => {
+            e.preventDefault();
+            setShowEditFilter(false);
+          })}
+        >
+          <Box sx={modalStyle} width="45%">
+            <ModalHeader
+              title="edit filter"
+              handleClose={() => {
+                setShowEditFilter(false);
               }}
             />
-          ))}
-        </Stack>
-        <Stack direction="row" style={{ alignItems: "flex-end" }} spacing={1}>
-          <TextField
-            fullWidth
-            value={matchPatterInput}
-            label="match pattern"
-            onChange={e => {
-              setMatchPatternInput(e.target.value.trim());
-            }}
-            slotProps={{
-              input: {
-                endAdornment: matchPatterInput && (
-                  <InputAdornment position="end">
-                    <IconButton
-                      onClick={() => {
-                        setMatchPatternInput("");
-                      }}
-                      edge="end"
-                    >
-                      <ClearIcon fontSize="small" />
-                    </IconButton>
-                  </InputAdornment>
-                ),
-              },
-            }}
-          />
-          <Button
-            onClick={() => {
-              if (matchPattern.find(e => e == matchPatterInput)) {
-                showNotification("warning", "the value already exists");
-                return;
-              }
-              if (!matchPatterInput) {
-                showNotification("warning", "please input match pattern");
-                return;
-              }
-              setMatchPattern((e: string[]) => [...e, matchPatterInput]);
-            }}
-            variant="outlined"
-          >
-            apply
-          </Button>
-        </Stack>
-      </Stack>
-      {show && extra}
+            <Stack
+              style={{
+                display: show ? "flex" : "none",
+                border: "2px solid " + theme.palette.success.main,
+                borderRadius: "0.5rem",
+                padding: "2px 0.5rem",
+              }}
+            >
+              <Typography color="info">
+                match pattern for table,view,udf,procedure etc
+              </Typography>
+              <Stack direction="row" style={{ flexWrap: "wrap", alignItems: "center" }}>
+                {matchPattern.length > 1 && (
+                  <IconButton
+                    onClick={() => {
+                      setMatchPattern([]);
+                      setShowEditFilter(false);
+                    }}
+                  >
+                    <CloseIcon />
+                  </IconButton>
+                )}
+                {matchPattern.map((e, index) => (
+                  <Chip
+                    key={index}
+                    label={e}
+                    color="success"
+                    onDelete={() => {
+                      setMatchPattern(arr =>
+                        arr.filter((_, eIndex) => eIndex !== index),
+                      );
+                    }}
+                  />
+                ))}
+              </Stack>
+              <Stack direction="row" style={{ alignItems: "flex-end" }} spacing={1}>
+                <TextField
+                  fullWidth
+                  value={matchPatterInput}
+                  label="match pattern"
+                  onChange={e => {
+                    setMatchPatternInput(e.target.value.trim());
+                  }}
+                  slotProps={{
+                    input: {
+                      endAdornment: matchPatterInput && (
+                        <InputAdornment position="end">
+                          <IconButton
+                            onClick={() => {
+                              setMatchPatternInput("");
+                            }}
+                            edge="end"
+                          >
+                            <ClearIcon fontSize="small" />
+                          </IconButton>
+                        </InputAdornment>
+                      ),
+                    },
+                  }}
+                />
+                <Button
+                  onClick={() => {
+                    if (matchPattern.find(e => e == matchPatterInput)) {
+                      showNotification("warning", "the value already exists");
+                      return;
+                    }
+                    if (!matchPatterInput) {
+                      showNotification("warning", "please input match pattern");
+                      return;
+                    }
+                    setMatchPattern((e: string[]) => [...e, matchPatterInput]);
+                  }}
+                  variant="outlined"
+                >
+                  apply
+                </Button>
+              </Stack>
+            </Stack>
+
+            <StackRowCenter>
+              <span color="info">max tree size({maxTreeSize}):</span>
+              <Slider
+                min={(function () {
+                  if (import.meta.env.DEV) {
+                    return 1;
+                  } else {
+                    return 100;
+                  }
+                })()}
+                max={1000}
+                onChange={(_, value) => {
+                  setMaxTreeSize(value);
+                }}
+                style={{
+                  flex: 1,
+                  width: "40%",
+                }}
+              />
+            </StackRowCenter>
+          </Box>
+        </Modal>
+      )}
       {showFavoriteSql && (
         <Modal
           open={showFavoriteSql}
@@ -634,28 +702,8 @@ function Left() {
       <LeftTop
         matchPattern={matchPattern}
         setMatchPattern={setMatchPattern}
-        extra=<>
-          <StackRowCenter>
-            <span color="info">max tree size({maxTreeSize}):</span>
-            <Slider
-              min={(function () {
-                if (import.meta.env.DEV) {
-                  return 1;
-                } else {
-                  return 100;
-                }
-              })()}
-              max={1000}
-              onChange={(_, value) => {
-                setMaxTreeSize(value);
-              }}
-              style={{
-                flex: 1,
-                width: "40%",
-              }}
-            />
-          </StackRowCenter>
-        </>
+        maxTreeSize={maxTreeSize}
+        setMaxTreeSize={setMaxTreeSize}
       />
       <Stack spacing={0.3}>
         {configs.map(e => {
@@ -677,6 +725,9 @@ function Left() {
             </MatchPatternContext.Provider>
           );
         })}
+        {configs.length == 0 && (
+          <Typography color="info"> trying to add connection </Typography>
+        )}
       </Stack>
     </Stack>
   );
@@ -715,7 +766,7 @@ function FavoriteSqlMenu(props: { content: string; id: number; handleReload }) {
   );
 }
 
-function FavoriteSqlList(props: { handleClose }) {
+function FavoriteSqlList(props: { handleClose: () => void }) {
   const { handleClose } = props;
   const { showNotification } = useContext(NotificationContext);
   const [fs, setFs] = useState<FavoriteSql[]>([]);
