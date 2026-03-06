@@ -441,7 +441,7 @@ function SqlTableView(props: {
   const handleReload = useCallback(
     (showOK: boolean) => {
       if (ops.length > 0) {
-        showNotification("warning", "we have unsaved changes");
+        showNotification("warning", "we have unsaved changes,not loading data");
         return;
       }
       switch (kind) {
@@ -566,7 +566,7 @@ function SqlTableView(props: {
   const onSortModelChange = useCallback(
     (sorts: GridSortModel) => {
       if (ops.length > 0) {
-        showNotification("warning", "we have unsaved changes");
+        showNotification("warning", "we have unsaved changes,sorting mode not change");
         return;
       }
 
