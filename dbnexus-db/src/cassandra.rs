@@ -38,7 +38,7 @@ use crate::db::{
 };
 
 use crate::firebird::gen_show_sql;
-use crate::helper::{create_csv, separate_sql_by_sqlparser_tokenizer};
+use crate::helper::create_csv;
 use crate::language_server::LexerCompletionTrait;
 use chrono::{DateTime, NaiveDate, NaiveTime};
 use cql3_parser::cassandra_ast::CassandraAST;
@@ -388,12 +388,6 @@ fn encode_value_as_string(value: CqlValue, is_nested: bool) -> anyhow::Result<St
     anyhow::Ok(v)
 }
 
-fn sql_to_each(sql: &str) -> Vec<String> {
-    separate_sql_by_sqlparser_tokenizer(sql, &sqlparser::dialect::GenericDialect {})
-        .map_err(|e| log::error!("try separate sql failed,err:{}", e))
-        .unwrap_or(vec![sql.to_string()])
-}
-
 impl CassandraDB {
     fn get_session_by_query_id(&self, query_id: Option<&str>) -> anyhow::Result<Arc<Session>> {
         match query_id {
@@ -512,9 +506,7 @@ impl ExportQueryResult for CassandraDB {
 #[async_trait::async_trait]
 impl QuerySql for CassandraDB {
     async fn execute_sql_no_open_conn(&self, sql: &str) -> anyhow::Result<Option<usize>> {
-        for sql in sql_to_each(sql).iter() {
-            self.session.query_unpaged(sql.as_str(), &[]).await?;
-        }
+        self.session.query_unpaged(sql, &[]).await?;
         anyhow::Ok(None)
     }
 
@@ -527,19 +519,12 @@ impl QuerySql for CassandraDB {
             Some(x) => x.clone(),
             None => anyhow::bail!("query connection closed???"),
         };
-        let mut ret = vec![];
-        for sql in sql_to_each(sql).iter() {
-            let resp = conn.query_unpaged(sql.as_str(), &[]).await;
-            match resp {
-                Ok(_) => ret.push(Some("execute ok".to_string())),
-                Err(err) => ret.push(Some(format!("err:{}", err))),
-            }
-        }
-        anyhow::Ok(Ok(QueryResp {
-            fields: vec![Field::from_name_type("execute result", "")],
-            data: vec![ret],
-            ..Default::default()
-        }))
+        let resp = conn
+            .query_unpaged(sql, &[])
+            .await
+            .map(|_| QueryResp::execute_ok(Some(sql.to_owned())))
+            .map_err(|e| format!("{:?}", e));
+        anyhow::Ok(resp)
     }
 
     async fn query_sql(
@@ -552,27 +537,26 @@ impl QuerySql for CassandraDB {
             Some(x) => x.clone(),
             None => anyhow::bail!("query connection closed???"),
         };
-        for sql in sql_to_each(sql) {
-            let pager = conn.query_iter(sql.as_str(), &[]).await?;
-            emit.send(
-                QueryResp {
-                    fields: pager
-                        .column_specs()
-                        .iter()
-                        .map(|x| Field::from_name_type(x.name(), format!("{:?}", x.typ())))
-                        .collect(),
-                    sql: Some(sql.to_string()),
-                    ..Default::default()
-                }
-                .into(),
-            )?;
-            let mut stream = pager.rows_stream::<Row>()?;
-            while let Some(x) = stream.next().await {
-                let row = x?;
-                let d = encode_row(row)?;
-                emit.send(d.into())?;
+        let pager = conn.query_iter(sql, &[]).await?;
+        emit.send(
+            QueryResp {
+                fields: pager
+                    .column_specs()
+                    .iter()
+                    .map(|x| Field::from_name_type(x.name(), format!("{:?}", x.typ())))
+                    .collect(),
+                sql: Some(sql.to_string()),
+                ..Default::default()
             }
+            .into(),
+        )?;
+        let mut stream = pager.rows_stream::<Row>()?;
+        while let Some(x) = stream.next().await {
+            let row = x?;
+            let d = encode_row(row)?;
+            emit.send(d.into())?;
         }
+
         anyhow::Ok(())
     }
 
@@ -1330,7 +1314,7 @@ impl CassandraDB {
         anyhow::Ok(ret)
     }
 }
-
+// cqlsh -u cassandra -p  cassandra
 #[cfg(test)]
 pub(crate) async fn make_test_object(db: Option<String>) -> CassandraDB {
     use crate::{
@@ -1646,18 +1630,15 @@ mod tests {
         .unwrap()
         .unwrap();
 
-        db.execute_sql(
-            query_id,
-            r#"
-        INSERT INTO test_sort (sort_key, id, name, value) VALUES (1, uuid(), 'Alice', 30);
+        for sql in
+            r#"INSERT INTO test_sort (sort_key, id, name, value) VALUES (1, uuid(), 'Alice', 30);
         INSERT INTO test_sort (sort_key, id, name, value) VALUES (1, uuid(), 'Bob', 20);
         INSERT INTO test_sort (sort_key, id, name, value) VALUES (1, uuid(), 'Charlie', 25);
-        INSERT INTO test_sort (sort_key, id, name, value) VALUES (2, uuid(), 'Diana', 35);
-        "#,
-        )
-        .await
-        .unwrap()
-        .unwrap();
+        INSERT INTO test_sort (sort_key, id, name, value) VALUES (2, uuid(), 'Diana', 35);"#
+                .lines()
+        {
+            db.execute_sql(query_id, sql).await.unwrap().unwrap();
+        }
 
         let resp = db
             .show_table_collect(table_name, new_test_show_parameter())
@@ -1702,17 +1683,15 @@ mod tests {
         .await
         .unwrap()
         .unwrap();
-        db.execute_sql(
-            query_id,
-            r#"
-        INSERT INTO test_duplicate_table (id, name, value) VALUES (uuid(), 'Alice', 10);
+        for sql in
+            r#"INSERT INTO test_duplicate_table (id, name, value) VALUES (uuid(), 'Alice', 10);
         INSERT INTO test_duplicate_table (id, name, value) VALUES (uuid(), 'Bob', 20);
-        INSERT INTO test_duplicate_table (id, name, value) VALUES (uuid(), 'Charlie', 30);
-    "#,
-        )
-        .await
-        .unwrap()
-        .unwrap();
+        INSERT INTO test_duplicate_table (id, name, value) VALUES (uuid(), 'Charlie', 30);"#
+                .lines()
+        {
+            db.execute_sql(query_id, sql).await.unwrap().unwrap();
+        }
+
         db.duplicate_table(table_name, table_dup).await.unwrap();
 
         let resp = db
@@ -2667,12 +2646,12 @@ mod tests {
             indexes: vec![],
         };
 
-        db.create_table(&req).await.unwrap();
-
         {
             let sql = db.create_table_sql_string(&req).unwrap();
             println!("create table sql:{}", sql);
         }
+
+        db.create_table(&req).await.unwrap();
 
         db.create_index(
             table_name,
@@ -2718,19 +2697,16 @@ mod tests {
         .await
         .unwrap()
         .unwrap();
-        db.execute_sql(
-            query_id,
-            r#"
-            INSERT INTO test_view_table (id, name, age) VALUES (uuid(), 'Alice', 30);
+        for sql in r#"INSERT INTO test_view_table (id, name, age) VALUES (uuid(), 'Alice', 30);
             INSERT INTO test_view_table (id, name, age) VALUES (uuid(), 'Bob', 25);
             INSERT INTO test_view_table (id, name, age) VALUES (uuid(), 'Charlie', 35);
             INSERT INTO test_view_table (id, name, age) VALUES (uuid(), 'Diana', 28);
-            INSERT INTO test_view_table (id, name, age) VALUES (uuid(), 'Eve', 22);
-            "#,
-        )
-        .await
-        .unwrap()
-        .unwrap();
+            INSERT INTO test_view_table (id, name, age) VALUES (uuid(), 'Eve', 22);"#
+            .lines()
+        {
+            db.execute_sql(query_id, sql).await.unwrap().unwrap();
+        }
+
         db.execute_sql(
             query_id,
             r#"
@@ -2753,14 +2729,6 @@ mod tests {
                 .unwrap();
             println!("resp:{:?}", resp);
         }
-    }
-
-    #[test]
-    fn test_parser_start_bytes() {
-        let sql = "select * from test1 ; select * from test2;";
-        let ss = sql_to_each(sql);
-        println!("{:?}", ss);
-        assert!(ss.len() == 2);
     }
 
     #[test]

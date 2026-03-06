@@ -805,10 +805,13 @@ pub trait SqlBuilder: GetBackendKind {
     // and  not primary key must can be in `PRIMARY KEY(aaa , bbb )` syntax
     // this method should be able used most cases
     fn create_table_sql(&self, req: &CreateTableReq) -> anyhow::Result<Vec<String>> {
-        let schema = self.get_schema();
         let mut sql = format!(
             "CREATE TABLE {}{}(\n",
-            schema.map(|x| self.quote(x)).unwrap_or_default(),
+            if let Some(s) = self.get_schema() {
+                format!("{}.", self.quote(s))
+            } else {
+                "".to_owned()
+            },
             self.quote(&req.name)
         );
         let last = req.columns.len() - 1;
@@ -831,7 +834,6 @@ pub trait SqlBuilder: GetBackendKind {
                         anyhow::bail!("cassandra not support null constraint")
                     }
                 },
-
                 _ => col.nullable.to_string(),
             };
             let auto_increment: &str = if col.auto_increment {
