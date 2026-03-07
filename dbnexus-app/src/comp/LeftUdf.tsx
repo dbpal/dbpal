@@ -16,7 +16,7 @@ import types from "./ApiStruct";
 import { invoke } from "@tauri-apps/api/core";
 import { NotificationContext } from "./Notification";
 import { TabContent } from "./Tabs";
-import { DefAndMetasView } from "./UdfAndMetaView";
+import { DefAndMetasView } from "./DefAndMetaView";
 
 import { TbMathFunction } from "react-icons/tb";
 import {

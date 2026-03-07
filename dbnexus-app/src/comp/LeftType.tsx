@@ -8,7 +8,7 @@ import types from "./ApiStruct";
 import { invoke } from "@tauri-apps/api/core";
 import { NotificationContext } from "./Notification";
 import { TabContent } from "./Tabs";
-import { DefAndMetasView } from "./UdfAndMetaView";
+import { DefAndMetasView } from "./DefAndMetaView";
 import { PiTreeStructureFill } from "react-icons/pi";
 import {
   ConnTypeContext,
@@ -23,6 +23,7 @@ import {
 } from "./helper";
 import { ExceedMaxTreeItem, MenuRefresh } from "./CommonComp";
 import { listCreatedTypes } from "./handlers";
+import { CopySql } from "./CommonComp2";
 function TypesTree() {
   const { uuid } = useContext(UuidContext);
   const { kind } = useContext(ConnTypeContext);
@@ -164,8 +165,8 @@ function TypeMenu(props: {
     }
 
     invoke("drop_created_type", { name: uuid, typeName: createdType.name })
-      .then(() => {
-        showNotification("success", "Drop type OK");
+      .then((sql) => {
+        showNotification("success", "Drop type OK", <CopySql sql={sql} />);
         reload();
       })
 

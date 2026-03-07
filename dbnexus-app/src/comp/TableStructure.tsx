@@ -60,7 +60,7 @@ import { BSON } from "bson";
 import { MongoValueEditor } from "./MongoDB";
 import { ModalHeader, TrueOrFalse } from "./CommonComp";
 import ClearIcon from "@mui/icons-material/Clear";
-import { DefAndMetasView, TriggerDetail } from "./UdfAndMetaView";
+import { DefAndMetasView, TriggerDetail } from "./DefAndMetaView";
 import {
   createTableAndIndexSql,
   formatCreateTableAndIndexSql,
@@ -1322,8 +1322,8 @@ function TriggersStructure(props: {
   const handleEnables = useCallback(
     (invoke_name: string, trigger, operation: string) => {
       invoke(invoke_name, { trigger, ...callPara })
-        .then(() => {
-          showNotification("error", `${operation}  OK`);
+        .then((sql) => {
+          showNotification("success", `${operation}  OK`, <CopySql sql={sql} />);
           handleReload();
         })
         .catch((e) => {

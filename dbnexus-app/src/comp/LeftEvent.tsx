@@ -8,7 +8,7 @@ import types from "./ApiStruct";
 import { invoke } from "@tauri-apps/api/core";
 import { NotificationContext } from "./Notification";
 import { TabContent } from "./Tabs";
-import { DefAndMetasView } from "./UdfAndMetaView";
+import { DefAndMetasView } from "./DefAndMetaView";
 import { MdOutlineEventRepeat } from "react-icons/md";
 import {
   ConnTypeContext,

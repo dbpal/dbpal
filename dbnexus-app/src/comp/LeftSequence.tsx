@@ -25,7 +25,7 @@ import types from "./ApiStruct.ts";
 import { invoke } from "@tauri-apps/api/core";
 import { NotificationContext } from "./Notification.tsx";
 import { TabContent } from "./Tabs.tsx";
-import { DefAndMetasView } from "./UdfAndMetaView.tsx";
+import { DefAndMetasView } from "./DefAndMetaView.tsx";
 import {
   ConnTypeContext,
   ContextMenuContext,
