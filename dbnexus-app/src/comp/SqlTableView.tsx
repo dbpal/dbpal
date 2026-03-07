@@ -116,7 +116,7 @@ const confirmAboutPrimary = async (
   if (notWarnPri) {
     return true;
   }
-  const hasPri = !!fields.find(x => x.is_primary);
+  const hasPri = !!fields.find((x) => x.is_primary);
   if (hasPri) {
     return true;
   }
@@ -127,7 +127,7 @@ const confirmAboutPrimary = async (
   });
 };
 
-const getRowId = e => e[keyNotInTable];
+const getRowId = (e) => e[keyNotInTable];
 
 let EditInModalLanguage = "text";
 const editInModalLanguages = [
@@ -150,7 +150,7 @@ function EditInModal(props: { content: string; handleModify }) {
       setJsonErr(null);
       return;
     }
-    validJson(value).then(e => {
+    validJson(value).then((e) => {
       setJsonErr(e);
     });
   }, [value, language]);
@@ -158,7 +158,7 @@ function EditInModal(props: { content: string; handleModify }) {
   return (
     <Stack flex={1}>
       <Stack direction="row">
-        {editInModalLanguages.map(e => (
+        {editInModalLanguages.map((e) => (
           <Chip
             key={e.language}
             label={e.language}
@@ -173,7 +173,7 @@ function EditInModal(props: { content: string; handleModify }) {
       <SimpleFlexEditor
         value={content}
         language={language}
-        handleValue={v => {
+        handleValue={(v) => {
           setValue(v);
         }}
         errPos={jsonErrPos}
@@ -243,11 +243,11 @@ function DatabaseOperationView(props: {
   const handleApply = () => {
     setLoading(true);
     executeSqlWithoutConn(uuid, sql)
-      .then(row_aff => {
+      .then((row_aff) => {
         showNotification("success", "database operation ok", `row affected:${row_aff}`);
         handleDelete(true);
       })
-      .catch(e => {
+      .catch((e) => {
         showNotification("error", "update failed", e);
       })
       .finally(() => {
@@ -345,7 +345,7 @@ function SqlTableView(props: {
     }
   }, [ops, setCloseConfirm]);
 
-  const rowInOps = id => {
+  const rowInOps = (id) => {
     return opsIds.has(id);
   };
   const [highLightRow, setHighLightRow] = useState("");
@@ -355,7 +355,7 @@ function SqlTableView(props: {
       return;
     }
     // get index
-    const index = resp.data.findIndex(e => e[keyNotInTable] === highLightRow);
+    const index = resp.data.findIndex((e) => e[keyNotInTable] === highLightRow);
     if (index != -1) {
       apiRef.current.scrollToIndexes({ rowIndex: index });
     }
@@ -377,7 +377,7 @@ function SqlTableView(props: {
     resp.data.forEach((data, index) => {
       data[keyNotInTable] = index + "";
     });
-    resp.fields.forEach(field => {
+    resp.fields.forEach((field) => {
       const width = ColumnWidth.instance.get(field.field);
       if (width) {
         field["width"] = width;
@@ -385,7 +385,7 @@ function SqlTableView(props: {
     });
     for (let i = 0; i < resp.fields.length; i++) {
       const field = resp.fields[i] as FieldAndGridField;
-      field.renderHeader = e => {
+      field.renderHeader = (e) => {
         const field = e.colDef as unknown as FieldAndGridField;
         const makeTitle = (): string => {
           let ret = field.field + " ";
@@ -405,7 +405,7 @@ function SqlTableView(props: {
         };
         return (
           <Stack
-            onClick={e => {
+            onClick={(e) => {
               e.stopPropagation();
               setClickedField(field.field);
             }}
@@ -455,7 +455,7 @@ function SqlTableView(props: {
         isView: !isTable,
         uuid,
         setLoading,
-        handleExecuteTime: dur => {
+        handleExecuteTime: (dur) => {
           setFetchDur(dur);
         },
         okCallBack: showOK
@@ -466,7 +466,7 @@ function SqlTableView(props: {
             }
           : undefined,
         showNotification,
-        handleResult: resp => {
+        handleResult: (resp) => {
           handleResp(resp);
         },
       });
@@ -500,10 +500,13 @@ function SqlTableView(props: {
       }
       try {
         const sql = await getUpdateSql(old, updateRow);
-        setOps(e => [...e, new DatabaseOperation(DatabaseOpKind.Update, sql, oldRow)]);
+        setOps((e) => [
+          ...e,
+          new DatabaseOperation(DatabaseOpKind.Update, sql, oldRow),
+        ]);
         handleResp({
           ...resp,
-          data: resp.data.map(e =>
+          data: resp.data.map((e) =>
             e[keyNotInTable] == newRow[keyNotInTable] ? newRow : e,
           ),
         });
@@ -517,7 +520,7 @@ function SqlTableView(props: {
   );
 
   const handleDelete = useCallback(
-    async id => {
+    async (id) => {
       if (!(await confirmAboutPrimary(notWarnPri, resp.fields))) {
         return;
       }
@@ -538,7 +541,7 @@ function SqlTableView(props: {
       try {
         let old2 = { ...old };
         const sql = await getDeleteSql(old2);
-        setOps(e => [...e, new DatabaseOperation(DatabaseOpKind.Delete, sql, old)]);
+        setOps((e) => [...e, new DatabaseOperation(DatabaseOpKind.Delete, sql, old)]);
       } catch (e) {
         showNotification("error", "generate delete sql failed", e);
       }
@@ -587,7 +590,7 @@ function SqlTableView(props: {
   );
 
   const onProcessRowUpdateError = useCallback(
-    e => {
+    (e) => {
       showNotification("error", "update failed", e);
     },
     [showNotification],
@@ -599,14 +602,14 @@ function SqlTableView(props: {
   const slotProps = useMemo(() => {
     return {
       row: {
-        onContextMenu: e => {
+        onContextMenu: (e) => {
           const { id, field } = extractFieldAndIDFromMouseEvent(e);
           if (!field) {
             return;
           }
-          const row = { ...resp.data.find(e => e[keyNotInTable] == id) };
+          const row = { ...resp.data.find((e) => e[keyNotInTable] == id) };
           const content = row[field];
-          const nullable = resp.fields.find(e => e.field == field).nullable;
+          const nullable = resp.fields.find((e) => e.field == field).nullable;
           setUpMenu({
             content: (
               <Menu
@@ -635,16 +638,16 @@ function SqlTableView(props: {
                 addOP={isTable && addOP}
                 setSort={setSort}
                 setWhere={setWhere}
-                put_value_in_sql={value => {
+                put_value_in_sql={(value) => {
                   return put_value_in_sql(
-                    resp.fields.find(e => e.field == field).data_type,
+                    resp.fields.find((e) => e.field == field).data_type,
                     value,
                   );
                 }}
                 setNull={
                   isTable
                     ? async () => {
-                        const row = resp.data.find(e => e[keyNotInTable] == id);
+                        const row = resp.data.find((e) => e[keyNotInTable] == id);
                         let newRow = { ...row };
                         newRow[field] = null;
                         await handleProcessRowUpdate(newRow, row);
@@ -780,7 +783,7 @@ function SqlTableView(props: {
                     control={
                       <Checkbox
                         checked={allowFiltering}
-                        onChange={e => setAllowFiltering(e.target.checked)}
+                        onChange={(e) => setAllowFiltering(e.target.checked)}
                       />
                     }
                     label="allow filtering"
@@ -797,7 +800,7 @@ function SqlTableView(props: {
                   max={100000}
                   storeKey="sqltable-limit"
                   step={1000}
-                  handleValue={v => {
+                  handleValue={(v) => {
                     clientModelLimit.current = v;
                   }}
                 />
@@ -866,8 +869,8 @@ function SqlTableView(props: {
       {ops.map((operation, idx) => (
         <DatabaseOperationView
           op={operation}
-          handleDelete={applied => {
-            setOps(ops => ops.filter((_, index) => idx != index));
+          handleDelete={(applied) => {
+            setOps((ops) => ops.filter((_, index) => idx != index));
 
             switch (operation.op) {
               case DatabaseOpKind.Update:
@@ -875,10 +878,10 @@ function SqlTableView(props: {
                   // the value have been updated.
                 } else {
                   if (!applied) {
-                    setResp(resp => {
+                    setResp((resp) => {
                       return {
                         ...resp,
-                        data: resp.data.map(data =>
+                        data: resp.data.map((data) =>
                           data[keyNotInTable] == operation.old[keyNotInTable]
                             ? operation.old
                             : data,
@@ -890,11 +893,11 @@ function SqlTableView(props: {
                 break;
               case DatabaseOpKind.Delete: {
                 if (applied) {
-                  setResp(resp => {
+                  setResp((resp) => {
                     return {
                       ...resp,
                       data: resp.data.filter(
-                        data => data[keyNotInTable] != operation.old[keyNotInTable],
+                        (data) => data[keyNotInTable] != operation.old[keyNotInTable],
                       ),
                     };
                   });
@@ -922,7 +925,7 @@ function SqlTableView(props: {
 
       <DataGrid
         slots={slots}
-        getCellClassName={e => {
+        getCellClassName={(e) => {
           if (e.id == highLightRow) {
             return "datagrid-field-row-highligth";
           }
@@ -1027,7 +1030,7 @@ function SqlTableView(props: {
             />
             <EditInModal
               content={editCellInModal.content}
-              handleModify={async value => {
+              handleModify={async (value) => {
                 const newRow = { ...editCellInModal.row };
                 newRow[editCellInModal.field] = value;
                 await handleProcessRowUpdate(newRow, editCellInModal.row);
@@ -1061,7 +1064,7 @@ function SqlTableView(props: {
               buttonName="modify"
               fields={resp.fields}
               isAdd={false}
-              handleData={async args => {
+              handleData={async (args) => {
                 await handleProcessRowUpdate(args, editRowInModal);
               }}
               handleClose={() => setRowEditInModal(null)}
@@ -1095,7 +1098,7 @@ function SqlTableView(props: {
           tableName={tableName}
           open={showSetWhere}
           value={where}
-          setValue={v => {
+          setValue={(v) => {
             setWhere(v);
           }}
           handleClose={() => {
@@ -1111,7 +1114,7 @@ function SqlTableView(props: {
           tableName={tableName}
           open={showSetSort}
           value={sort}
-          setValue={v => {
+          setValue={(v) => {
             setSort(v);
           }}
           kind={kind}
@@ -1140,7 +1143,7 @@ function SqlTableViewData(props: {
   if (!initValues) {
     initValues = {};
   }
-  fields.forEach(e => {
+  fields.forEach((e) => {
     if (e.is_auto_increment && isAdd) {
       initValues[e.field] = "";
     }
@@ -1189,7 +1192,7 @@ function SqlTableViewData(props: {
           handleClose();
         }
       })
-      .catch(e => {
+      .catch((e) => {
         console.error("handle value failure", e);
         showNotification("error", `${buttonName} failure`, e);
       })
@@ -1202,9 +1205,10 @@ function SqlTableViewData(props: {
     <Stack>
       {fields
         .filter(
-          f => filterFn(f.field) || (args[f.field] ? filterFn(args[f.field]) : !filter),
+          (f) =>
+            filterFn(f.field) || (args[f.field] ? filterFn(args[f.field]) : !filter),
         )
-        .map(f => {
+        .map((f) => {
           return (
             <Stack
               key={f.field}
@@ -1212,7 +1216,7 @@ function SqlTableViewData(props: {
               sx={{ alignContent: "center", justifyContent: "center" }}
             >
               <TextField
-                inputRef={x => {
+                inputRef={(x) => {
                   inputDoms.current[f.field] = x;
                 }}
                 disabled={f.is_auto_increment}
@@ -1231,7 +1235,7 @@ function SqlTableViewData(props: {
                 multiline={isTypeLargeText(f.data_type)}
                 rows={4}
                 fullWidth
-                onChange={e => {
+                onChange={(e) => {
                   const value = e.target.value;
                   const newArgs = { ...args };
                   newArgs[f.field] = value;
@@ -1248,7 +1252,7 @@ function SqlTableViewData(props: {
         </Button>
         <TextField
           value={filter}
-          onChange={e => {
+          onChange={(e) => {
             setFilter(e.target.value);
           }}
           label="filter"
@@ -1499,7 +1503,7 @@ function Menu(props: {
               handleClose={() => {
                 setShowFilter(false);
               }}
-              put_value_in_sql={value => {
+              put_value_in_sql={(value) => {
                 return put_value_in_sql(value);
               }}
             />
@@ -1529,10 +1533,10 @@ function FilterOnValue(props: {
   }, [compare]);
   useEffect(() => {
     put_value_in_sql(content)
-      .then(value => {
+      .then((value) => {
         setFormatValue(value);
       })
-      .catch(e => {
+      .catch((e) => {
         showNotification("error", "put value in sql failed", e);
       });
   }, [content, put_value_in_sql, showNotification]);
@@ -1559,7 +1563,7 @@ function FilterOnValue(props: {
   return (
     <Stack spacing={1}>
       <Stack direction="row">
-        {compares.map(x => (
+        {compares.map((x) => (
           <Chip
             key={x}
             onClick={() => {
@@ -1572,7 +1576,7 @@ function FilterOnValue(props: {
         ))}
       </Stack>
       <Stack direction="row">
-        {["null", "not null"].map(e => (
+        {["null", "not null"].map((e) => (
           <Chip
             label={e}
             color={compare == e ? "success" : "default"}
@@ -1585,7 +1589,7 @@ function FilterOnValue(props: {
       </Stack>
       {formatValue.endsWith("'") && (
         <Stack direction="row">
-          {["starts", "ends", "contains"].map(e => (
+          {["starts", "ends", "contains"].map((e) => (
             <Chip
               label={e}
               color={compare == e ? "success" : "default"}

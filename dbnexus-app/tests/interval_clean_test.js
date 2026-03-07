@@ -8,5 +8,5 @@ const int = setInterval(() => {
 
 setUpClean("call me", () => {
   console.log("call release resource function");
-})
+});
 // if u don't clean this interval ,it will run forever

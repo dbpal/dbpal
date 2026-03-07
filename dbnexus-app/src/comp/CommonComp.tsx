@@ -114,7 +114,7 @@ function SelectAlign(props: { align: "left" | "right" | "center"; handleChange }
       style={{ width: "8rem" }}
       value={align}
       freeSolo={false}
-      renderInput={params => <TextField {...params} label="align" />}
+      renderInput={(params) => <TextField {...params} label="align" />}
       onChange={(_, align) => {
         SaveAlign.instance.save(align);
         handleChange(align);
@@ -131,7 +131,7 @@ function LogLevelSelection({ handleChange, level }) {
       style={{ width: "14rem" }}
       value={level}
       freeSolo={false}
-      renderInput={params => <TextField {...params} label="logger level" />}
+      renderInput={(params) => <TextField {...params} label="logger level" />}
       onChange={(_, level) => {
         handleChange(level);
       }}
@@ -202,7 +202,7 @@ function MenuCloseConn({ handleClose, name }) {
           .then(() => {
             handleClose();
           })
-          .catch(e => {
+          .catch((e) => {
             showNotification("error", "close connection failed", e);
           });
       }}
@@ -216,19 +216,19 @@ function MenuCloseConn({ handleClose, name }) {
 }
 
 function ConnPingTime({ uuid }) {
-  const [pingTime, setStatus] = useState("");
+  const [pingTime, setStatus] = useState<number | null>(null);
   const [err, setErr] = useState("");
 
   useEffect(() => {
     const reloadStatus = () => {
-      invoke<string>("check_conn", { name: uuid })
-        .then(ping => {
+      invoke<number>("check_conn", { name: uuid })
+        .then((ping) => {
           setStatus(ping);
           setErr("");
         })
-        .catch(e => {
+        .catch((e) => {
           setErr(errToString(e));
-          setStatus("");
+          setStatus(null);
         });
     };
     const interval = setInterval(() => {
@@ -240,16 +240,18 @@ function ConnPingTime({ uuid }) {
   }, [uuid]);
 
   return (
-    (pingTime || err) &&
-    (pingTime ? (
-      <Tooltip title="ping time">
-        <Typography color="green"> {pingTime} </Typography>
-      </Tooltip>
-    ) : (
-      <Tooltip title={err}>
-        <Typography color="error"> err </Typography>
-      </Tooltip>
-    ))
+    <>
+      {typeof pingTime == "number" && (
+        <Tooltip title="ping time">
+          <Typography color="green"> {prettyMs(pingTime)} </Typography>
+        </Tooltip>
+      )}
+      {err && (
+        <Tooltip title={err}>
+          <Typography color="error"> err </Typography>
+        </Tooltip>
+      )}
+    </>
   );
 }
 
@@ -351,12 +353,12 @@ function SelectPageSize({ pageSize, handleChange, options = pageSizeOptions }) {
       <InputLabel>page size </InputLabel>
       <Select
         value={pageSize}
-        onChange={e => {
+        onChange={(e) => {
           handleChange(e.target.value);
         }}
         label="page size"
       >
-        {options.map(e => (
+        {options.map((e) => (
           <MenuItem value={e} key={e}>
             {e}
           </MenuItem>
@@ -461,7 +463,7 @@ function MetaValueView({ values = [] as types.MetaValue[] }) {
   const slotProps = useMemo(() => {
     return {
       row: {
-        onContextMenu: e => {
+        onContextMenu: (e) => {
           const { target } = e;
           const content = (target as HTMLDivElement).innerHTML;
           const field = extractFieldAndIDFromMouseEvent(e).field;
@@ -490,7 +492,7 @@ function MetaValueView({ values = [] as types.MetaValue[] }) {
     } as GridSlotsComponentsProps;
   }, [setUpMenu, setting]);
 
-  const onSortModelChange = useCallback(e => {
+  const onSortModelChange = useCallback((e) => {
     setSortModel(e);
   }, []);
 
@@ -588,7 +590,7 @@ function ViewRowInModal(props: { fields: types.Field[]; data: object; isTable? }
   const theme = useTheme();
   return (
     <Stack>
-      {fields.map(f => {
+      {fields.map((f) => {
         return (
           <Stack
             style={{
@@ -850,7 +852,7 @@ function SelectColumns(props: {
         value={includes}
         multiple
         onChange={(_, v) => setIncludes(v)}
-        renderInput={params => <TextField {...params} label="select columns" />}
+        renderInput={(params) => <TextField {...params} label="select columns" />}
       />
     </Stack>
   );
@@ -866,7 +868,7 @@ function OpenFileWithDefaultApp({ file }) {
             onClick={() => {
               openPath(file)
                 .then(() => {})
-                .catch(e => {
+                .catch((e) => {
                   showNotification("warning", "open export file failed", e);
                 });
             }}
@@ -895,7 +897,7 @@ function ExportMarkDownTable(props: {
   const [file, setFile] = useState("");
   const makeMarkDownStr = () => {
     let ret = "";
-    includes.forEach(x => {
+    includes.forEach((x) => {
       ret += `| ${x} `;
     });
     ret += "|\n";
@@ -916,8 +918,8 @@ function ExportMarkDownTable(props: {
     });
     ret += "|\n";
 
-    data.forEach(data => {
-      includes.forEach(x => {
+    data.forEach((data) => {
+      includes.forEach((x) => {
         ret += `| ${data[x]} `;
       });
       ret += "|\n";
@@ -956,7 +958,7 @@ function ExportMarkDownTable(props: {
   return (
     <Stack>
       <SelectColumns
-        fields={fields.map(x => x.field)}
+        fields={fields.map((x) => x.field)}
         includes={includes}
         setIncludes={setIncludes}
         includeAll
@@ -982,7 +984,7 @@ function ExportMarkDownTable(props: {
         </Button>
         <SelectAlign
           align={SaveAlign.instance.get() as "center"}
-          handleChange={e => {
+          handleChange={(e) => {
             setAlign(e);
           }}
         />
@@ -999,7 +1001,7 @@ function ResizeParentHeight(props: {
   const { box, min, saveHeightName } = props;
 
   useEffect(() => {
-    SaveDomSizes.getSize(saveHeightName).then(e => {
+    SaveDomSizes.getSize(saveHeightName).then((e) => {
       if (e && e.height) {
         box.style.height = e.height + "px";
       }

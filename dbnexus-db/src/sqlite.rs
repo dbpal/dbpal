@@ -337,7 +337,7 @@ impl SchemaTrait for SqliteDB {
         _old_name: &str,
         _new_name: &str,
         _typ: Option<ColumnType>,
-    ) -> anyhow::Result<()> {
+    ) -> anyhow::Result<String> {
         self.backend_name().not_support_feature()
     }
 
@@ -346,7 +346,7 @@ impl SchemaTrait for SqliteDB {
         table: &str,
         name: &str,
         col: ColumnType,
-    ) -> anyhow::Result<()> {
+    ) -> anyhow::Result<String> {
         let sql = format!(
             r#"ALTER TABLE "{table}" ADD COLUMN "{name}" {} {} {}"#,
             col.typ,
@@ -365,34 +365,34 @@ impl SchemaTrait for SqliteDB {
         sqlx::raw_sql(AssertSqlSafe(sql.as_str()))
             .execute(conn.deref_mut())
             .await?;
-        anyhow::Ok(())
+        anyhow::Ok(sql)
     }
 
-    async fn drop_table_column(&self, table: &str, col: &str) -> anyhow::Result<()> {
+    async fn drop_table_column(&self, table: &str, col: &str) -> anyhow::Result<String> {
         let sql = format!(r#"ALTER TABLE "{table}" DROP COLUMN "{col}";"#);
         let mut conn = self.get_conn().await?;
         conn.execute(AssertSqlSafe(sql.as_str())).await?;
-        anyhow::Ok(())
+        anyhow::Ok(sql)
     }
 
-    async fn create_index(&self, table: &str, req: &CreateIndexReq) -> anyhow::Result<()> {
+    async fn create_index(&self, table: &str, req: &CreateIndexReq) -> anyhow::Result<String> {
         let sql = req.common_sql(table, true, self.backend_name().quote_style())?;
         log::info!("sql:{}", sql);
         let mut conn = self.get_conn().await?;
         sqlx::raw_sql(AssertSqlSafe(sql.as_str()))
             .execute(conn.deref_mut())
             .await?;
-        anyhow::Ok(())
+        anyhow::Ok(sql)
     }
 
-    async fn drop_index(&self, _table_name: &str, index: &str) -> anyhow::Result<()> {
+    async fn drop_index(&self, _table_name: &str, index: &str) -> anyhow::Result<String> {
         let sql = format!(r#"DROP INDEX "{index}";"#);
         log::info!("sql:{}", sql);
         let mut conn = self.get_conn().await?;
         sqlx::raw_sql(AssertSqlSafe(sql.as_str()))
             .execute(conn.deref_mut())
             .await?;
-        anyhow::Ok(())
+        anyhow::Ok(sql)
     }
 
     async fn show_view_columns(&self, view_name: &str) -> anyhow::Result<Vec<Field>> {
@@ -426,14 +426,14 @@ impl SchemaTrait for SqliteDB {
         anyhow::Ok(())
     }
 
-    async fn rename_table(&self, old: &str, new: &str) -> anyhow::Result<()> {
+    async fn rename_table(&self, old: &str, new: &str) -> anyhow::Result<String> {
         let mut conn = self.get_conn().await?;
         let sql = format!(r#"ALTER TABLE "{old}" RENAME TO "{new}""#);
         log::info!("sql:{}", sql);
         sqlx::raw_sql(AssertSqlSafe(sql.as_str()))
             .execute(conn.deref_mut())
             .await?;
-        anyhow::Ok(())
+        anyhow::Ok(sql)
     }
 
     async fn list_trigger(&self, table_name: &str) -> anyhow::Result<Vec<NamedStaff>> {
@@ -462,7 +462,7 @@ impl SchemaTrait for SqliteDB {
         query_trigger_detail(conn.deref_mut(), name).await
     }
 
-    async fn drop_trigger(&self, _table: &str, name: &str) -> anyhow::Result<()> {
+    async fn drop_trigger(&self, _table: &str, name: &str) -> anyhow::Result<String> {
         let sql = format!(
             r#"
         DROP TRIGGER "{name}"
@@ -473,7 +473,7 @@ impl SchemaTrait for SqliteDB {
         sqlx::raw_sql(AssertSqlSafe(sql.as_str()))
             .execute(conn.deref_mut())
             .await?;
-        anyhow::Ok(())
+        anyhow::Ok(sql)
     }
 
     async fn show_create_table_sql(
@@ -543,40 +543,40 @@ impl SchemaTrait for SqliteDB {
     async fn list_view(&self) -> anyhow::Result<Vec<ListTable>> {
         self.list_view_impl(Self::MAIN_DB).await
     }
-    async fn drop_view(&self, view_name: &str) -> anyhow::Result<()> {
+    async fn drop_view(&self, view_name: &str) -> anyhow::Result<String> {
         self.can_write()?;
 
-        let s = format!(r#"DROP VIEW "{view_name}""#);
+        let sql = format!(r#"DROP VIEW "{view_name}""#);
         let mut conn = self.get_conn().await?;
-        sqlx::raw_sql(AssertSqlSafe(s.as_str()))
+        sqlx::raw_sql(AssertSqlSafe(sql.as_str()))
             .execute(conn.deref_mut())
             .await?;
-        anyhow::Ok(())
+        anyhow::Ok(sql)
     }
 
-    async fn drop_table(&self, table: &str, _cascade: bool) -> anyhow::Result<()> {
+    async fn drop_table(&self, table: &str, _cascade: bool) -> anyhow::Result<String> {
         self.can_write()?;
-        let s = format!(r#"DROP TABLE "{table}" "#,);
+        let sql = format!(r#"DROP TABLE "{table}" "#,);
         let mut conn = self.get_conn().await?;
-        sqlx::raw_sql(AssertSqlSafe(s.as_str()))
+        sqlx::raw_sql(AssertSqlSafe(sql.as_str()))
             .execute(conn.deref_mut())
             .await?;
-        anyhow::Ok(())
+        anyhow::Ok(sql)
     }
 
-    async fn truncate_table(&self, table_name: &str) -> anyhow::Result<()> {
+    async fn truncate_table(&self, table_name: &str) -> anyhow::Result<String> {
         self.can_write()?;
-        let s = format!(
+        let sql = format!(
             r#"
             DELETE FROM "{table_name}";
             DELETE FROM sqlite_sequence WHERE name = '{table_name}';
         "#
         );
         let mut conn = self.get_conn().await?;
-        sqlx::raw_sql(AssertSqlSafe(s.as_str()))
+        sqlx::raw_sql(AssertSqlSafe(sql.as_str()))
             .execute(conn.deref_mut())
             .await?;
-        anyhow::Ok(())
+        anyhow::Ok(sql)
     }
 
     async fn list_table(&self) -> anyhow::Result<Vec<ListTable>> {
@@ -1472,7 +1472,6 @@ impl ReadOnlyTrait for SqliteDB {
 
 #[cfg(test)]
 mod tests {
-
     use super::*;
     use crate::db::{
         CreateIndexColumn, CreateTableReq, CreateTableReqColumn, ShowTableParameter, SqlNullAble,
@@ -1516,20 +1515,23 @@ mod tests {
             .await
             .unwrap() .unwrap();
 
-        db.add_table_column(
-            table_name,
-            "name",
-            ColumnType {
-                typ: "VARCHAR(255)".to_string(),
-                nullable: SqlNullAble::Null.into(),
-                after: Some("id".to_string()),
-                default_value: Some("abc".to_string()),
-            },
-        )
-        .await
-        .unwrap();
+        let sql = db
+            .add_table_column(
+                table_name,
+                "name",
+                ColumnType {
+                    typ: "VARCHAR(255)".to_string(),
+                    nullable: SqlNullAble::Null.into(),
+                    after: Some("id".to_string()),
+                    default_value: Some("abc".to_string()),
+                },
+            )
+            .await
+            .unwrap();
 
-        db.drop_table_column(table_name, "name").await.unwrap();
+        println!("create table column sql:{}", sql);
+        let sql = db.drop_table_column(table_name, "name").await.unwrap();
+        println!("drop table column sql:{}", sql);
     }
 
     #[test]

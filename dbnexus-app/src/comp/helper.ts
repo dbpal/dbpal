@@ -35,8 +35,8 @@ function prettyMs(x: number) {
 
 let appDatabase: Database = await Database.load("sqlite:dbpal.sqlite.db");
 
-appDatabase.select("select * from column_width").then(xs => {
-  (xs as { name: string; width: number }[]).forEach(e => {
+appDatabase.select("select * from column_width").then((xs) => {
+  (xs as { name: string; width: number }[]).forEach((e) => {
     ColumnWidth.instance.width[e.name] = e.width;
   });
 });
@@ -67,7 +67,7 @@ class QueryLogHandler {
         [this.uuid, this.name, sql, language, success ? 1 : 0],
       )
       .then(() => {})
-      .catch(e => {
+      .catch((e) => {
         message("save query log failed,e" + String(e), { kind: "error" });
       });
   }
@@ -91,7 +91,7 @@ class QueryLogHandler {
     const sql = `select count(*) as total from query_log where uuid=? ${
       matchSql ? `and sql like '%${matchSql}%'` : ""
     }`;
-    return appDatabase.select(sql, [this.uuid]).then(e => (e ? e[0].total : 0));
+    return appDatabase.select(sql, [this.uuid]).then((e) => (e ? e[0].total : 0));
   }
   async delete(): Promise<QueryResult> {
     return appDatabase.execute("delete from query_log where uuid=?", [this.uuid]);
@@ -175,7 +175,7 @@ function stringToHexArray(str: string): Uint8Array {
 
 function arrayToHex(uint8Array: Uint8Array | number[]) {
   return Array.from(uint8Array) // 将 Uint8Array 转换为普通数组
-    .map(byte => byte.toString(16).padStart(2, "0")) // 转换每个字节为十六进制并补齐
+    .map((byte) => byte.toString(16).padStart(2, "0")) // 转换每个字节为十六进制并补齐
     .join(""); // 连接为一个字符串
 }
 
@@ -407,7 +407,7 @@ class SaveDomSizes {
   static async getSize(key: string): Promise<undefined | UISize> {
     return appDatabase
       .select("select width, height from element_size where name = ?", [key])
-      .then(xs => {
+      .then((xs) => {
         if (xs instanceof Array) {
           return xs[0];
         }
@@ -453,7 +453,7 @@ class FavoriteSql {
   static async getDistinctUuid() {
     return appDatabase
       .select<{ uuid: string }[]>("SELECT DISTINCT  uuid from favorite_sql")
-      .then(x => x.map(y => y.uuid));
+      .then((x) => x.map((y) => y.uuid));
   }
 
   // todo performance issue????
@@ -511,7 +511,7 @@ class ColumnWidth {
   }
   async reset(): Promise<void> {
     this.width = {};
-    return appDatabase.execute("delete from column_width").then(x => {
+    return appDatabase.execute("delete from column_width").then((x) => {
       console.info("delete of", x.rowsAffected, "rows");
     });
   }
@@ -529,7 +529,7 @@ const handleCopyToClipboard = (text, showNotification?, okCallBack?) => {
         okCallBack();
       }
     })
-    .catch(e => {
+    .catch((e) => {
       if (showNotification) {
         showNotification("warning", "copy to clipboard failed", e);
       }
@@ -591,14 +591,14 @@ function saveAndSetSize(
   key: string,
   set: "height" | "width" | "both" = "both",
 ): () => void {
-  const e = new ResizeObserver(en => {
+  const e = new ResizeObserver((en) => {
     const height = en[0].target.clientHeight;
     const width = en[0].target.clientWidth;
     if (width && height) {
       SaveDomSizes.saveSize(key, { width, height });
     }
   });
-  SaveDomSizes.getSize(key).then(size => {
+  SaveDomSizes.getSize(key).then((size) => {
     if (size) {
       const div = dom as HTMLDivElement;
       if (set == "height" || set == "both") {
@@ -770,8 +770,6 @@ class UserSettingMisc {
 
 const SettingContext = createContext<UserSetting>(null);
 
-const WindowFocusContext = createContext(true);
-
 function editorSetPositionAndReveal(
   editor: editor.IStandaloneCodeEditor,
   pos: Position,
@@ -791,7 +789,7 @@ class LoggerLevel {
   }
 }
 {
-  appStore.get<string>(LoggerLevel.key).then(level => {
+  appStore.get<string>(LoggerLevel.key).then((level) => {
     if (level) {
       LoggerLevel.level = level;
     }
@@ -841,7 +839,7 @@ function getStackTrace() {
 class ColorFn {
   static hexToRgb(hex) {
     hex = hex.replace("#", "");
-    if (hex.length === 3) hex = [...hex].map(c => c + c).join("");
+    if (hex.length === 3) hex = [...hex].map((c) => c + c).join("");
     const num = parseInt(hex, 16);
     return [(num >> 16) & 255, (num >> 8) & 255, num & 255];
   }
@@ -850,7 +848,7 @@ class ColorFn {
     const lum = (0.299 * r + 0.587 * g + 0.114 * b) / 255;
     return lum > 0.5;
   }
-  static isColor = str => {
+  static isColor = (str) => {
     const o = new Option().style;
     o.color = str;
     return o.color !== "";
@@ -1086,7 +1084,7 @@ class LLMConfig {
     handleCancel: (_: () => void) => void,
   ) {
     const taskId = generateRandomString();
-    const emit = new Channel<string>(event => {
+    const emit = new Channel<string>((event) => {
       handleMessage(event);
     });
     handleCancel(() => {
@@ -1241,14 +1239,13 @@ export {
   UuidContext,
   validJson,
   ViewKind,
-  WindowFocusContext,
 };
 
 export type { ErrAndLoc, QueryRespData };
 
 async function webviewWIndowInit() {
   const currentWebview = WebviewWindow.getCurrent();
-  appStore.get<number>("zoom").then(async zoom => {
+  appStore.get<number>("zoom").then(async (zoom) => {
     if (zoom) {
       try {
         await currentWebview.setZoom(zoom);
@@ -1261,27 +1258,27 @@ async function webviewWIndowInit() {
   if (["windows", "linux"].includes(platform())) {
     document.addEventListener("keydown", function (event) {
       if (event.key === "F11") {
-        currentWebview.isFullscreen().then(isFull => {
+        currentWebview.isFullscreen().then((isFull) => {
           currentWebview.setFullscreen(!isFull);
         });
       }
     });
   }
-  currentWebview.theme().then(async theme => {
+  currentWebview.theme().then(async (theme) => {
     if (!theme) {
       return;
     }
     appTheme = theme;
     notifySettingChange();
   });
-  currentWebview.onThemeChanged(async msg => {
+  currentWebview.onThemeChanged(async (msg) => {
     appTheme = msg.payload;
     notifySettingChange();
   });
   if (platform() == "linux") {
     // https://github.com/tauri-apps/tauri/issues/9427
     setInterval(() => {
-      currentWebview.theme().then(theme => {
+      currentWebview.theme().then((theme) => {
         if (appTheme == theme) {
           return;
         }

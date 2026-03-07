@@ -99,7 +99,7 @@ function SqlTransaction(props: { conn: QueryConn; executeTimes: number }) {
 
   useEffect(() => {
     //这里的顺序很重要
-    setTxCount(e => e + 1);
+    setTxCount((e) => e + 1);
     handleQueryCommit();
   }, [executeTimes, handleQueryCommit]);
 
@@ -141,7 +141,7 @@ function SqlTransaction(props: { conn: QueryConn; executeTimes: number }) {
   const reverseCommitMode = async () => {
     try {
       await conn.setAutoCommit(!commit);
-      setCommit(e => !e);
+      setCommit((e) => !e);
       showNotification("success", "set commit mode ok");
     } catch (e) {
       showNotification("error", "set commit failed", e);
@@ -245,7 +245,7 @@ function SqlQuery(props: {
         setSqlErr(null);
         return;
       }
-      checkSql(uuid, editor.getValue()).then(e => {
+      checkSql(uuid, editor.getValue()).then((e) => {
         setSqlErr(e);
       });
     });
@@ -261,7 +261,7 @@ function SqlQuery(props: {
       .then(() => {
         setOpenOk(true);
       })
-      .catch(e => {
+      .catch((e) => {
         showNotification("error", "establish connection failed", e);
       })
       .finally(() => {
@@ -281,12 +281,12 @@ function SqlQuery(props: {
       .then(() => {
         showNotification("success", "Reconnect OK");
       })
-      .catch(e => {
+      .catch((e) => {
         showNotification("error", "Reconnect Failure", e);
       })
       .finally(() => {
         // trigger some reload like sqltransaction
-        setExecuteTimes(e => e + 1);
+        setExecuteTimes((e) => e + 1);
         setMakeConnLoading(false);
       });
   };
@@ -326,7 +326,7 @@ function SqlQuery(props: {
     setLoading(true);
     conn
       .executeOP(text)
-      .then(e => {
+      .then((e) => {
         if (saveQueryLog.get()) {
           queryLogHandler.current.save(text, rustResultOk(e));
         }
@@ -335,11 +335,11 @@ function SqlQuery(props: {
         }, 50);
         showNotification("success", "execute ok");
       })
-      .catch(e => {
+      .catch((e) => {
         showNotification("error", "query failed", e);
       })
       .finally(() => {
-        setExecuteTimes(e => e + 1);
+        setExecuteTimes((e) => e + 1);
         setLoading(false);
       });
   };
@@ -360,9 +360,9 @@ function SqlQuery(props: {
       return;
     }
     setLoading(true);
-    let emit = new Channel<QueryEvent>(e => {
+    let emit = new Channel<QueryEvent>((e) => {
       // In Strict Mode, React will call your initializer function twice in order to help you find accidental impurities. This is development-only behavior and does not affect production. If your initializer function is pure (as it should be), this should not affect the behavior. The result from one of the calls will be ignored.
-      setResp(resp => {
+      setResp((resp) => {
         return appendQueryResult(resp, e, setQueryStatus);
       });
     });
@@ -375,14 +375,14 @@ function SqlQuery(props: {
         }
         showNotification("success", "query OK");
       })
-      .catch(e => {
+      .catch((e) => {
         if (saveQueryLog.get()) {
           queryLogHandler.current.save(text, false);
         }
         showNotification("error", "query failed", e);
       })
       .finally(() => {
-        setExecuteTimes(e => e + 1);
+        setExecuteTimes((e) => e + 1);
         setLoading(false);
       });
   };
@@ -527,7 +527,7 @@ function SqlQuery(props: {
                 <Tooltip title="try check sql,right now implemented it using parser">
                   <Checkbox
                     checked={tryCheckSql}
-                    onChange={e => {
+                    onChange={(e) => {
                       setTryCheckSql(e.target.checked);
                     }}
                     name="myCheckbox"
@@ -587,7 +587,7 @@ function SqlQuery(props: {
             <Tooltip title="query log">
               <IconButton
                 onClick={() => {
-                  setShowQueryLog(prev => !prev);
+                  setShowQueryLog((prev) => !prev);
                 }}
                 color="primary"
               >
@@ -609,7 +609,7 @@ function SqlQuery(props: {
               min={1000}
               max={100000}
               step={1000}
-              handleValue={v => {
+              handleValue={(v) => {
                 maxRow.current = v;
               }}
               notice=<Typography>
@@ -736,7 +736,7 @@ function appendQueryResult(
       let cop = { ...data[index].Ok } as MuiDataGridData;
       cop.data = [
         ...cop.data,
-        ...event.data.map(d => {
+        ...event.data.map((d) => {
           let obj = {};
           d.forEach((e, index) => {
             obj[cop.fields[index].field] = e;

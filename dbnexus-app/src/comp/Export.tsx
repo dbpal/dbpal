@@ -30,7 +30,7 @@ function IncludeHeader({ includeHeader, setIncludeHeader }) {
       control={
         <Checkbox
           checked={includeHeader}
-          onChange={e => {
+          onChange={(e) => {
             setIncludeHeader(e.target.checked);
           }}
           name="myCheckbox"
@@ -55,7 +55,7 @@ function ExportView(props: {
   handleClose: () => void;
 }) {
   const { exportOP, supportKind, name, handleClose } = props;
-  const lastKind = supportKind.find(k => k === lastExportKind);
+  const lastKind = supportKind.find((k) => k === lastExportKind);
   const [kind, setKind] = useState(lastExportKind ? lastKind : supportKind[0]);
   const setting = useContext(SettingContext);
   const [includeHeader, setIncludeHeader] = useState(setting.export.includeHeader);
@@ -109,7 +109,7 @@ function ExportView(props: {
       return;
     }
     exportedSize.current.innerText = "";
-    const c = new Channel<number>(x => {
+    const c = new Channel<number>((x) => {
       exportedSize.current.innerText = `exported ${filesize(x)}`;
     });
     try {
@@ -140,7 +140,7 @@ function ExportView(props: {
         }}
       />
       <Stack direction="row">
-        {supportKind.map(e => (
+        {supportKind.map((e) => (
           <Chip
             onClick={() => {
               setKind(e);
@@ -160,7 +160,7 @@ function ExportView(props: {
           <Stack direction="row">
             <TextField
               value={delimiter}
-              onChange={e => {
+              onChange={(e) => {
                 setDelimiter(e.target.value);
               }}
               label="delimiter"
@@ -184,7 +184,7 @@ function ExportView(props: {
             control={
               <Checkbox
                 checked={includeTableSchema}
-                onChange={e => {
+                onChange={(e) => {
                   setIncludeTableSchema(e.target.checked);
                 }}
                 name="myCheckbox"
@@ -201,7 +201,7 @@ function ExportView(props: {
             control={
               <Checkbox
                 checked={pretty}
-                onChange={e => {
+                onChange={(e) => {
                   setPretty(e.target.checked);
                 }}
                 name="pretty"

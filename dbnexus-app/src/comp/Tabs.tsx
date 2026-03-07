@@ -15,7 +15,6 @@ import {
   SetCloseConfirmTextContext,
   TabContent,
   TabActiveContext,
-  WindowFocusContext,
 } from "./helper";
 
 function TabsMenu(props: {
@@ -40,7 +39,7 @@ function TabsMenu(props: {
       {index != 0 && (
         <MenuItem
           onClick={() => {
-            setTabs(e => {
+            setTabs((e) => {
               changeTab(0);
               return e.slice(index);
             });
@@ -52,7 +51,7 @@ function TabsMenu(props: {
       {index != tabsLength - 1 && (
         <MenuItem
           onClick={() => {
-            setTabs(e => {
+            setTabs((e) => {
               const x = e.slice(0, index + 1);
               if (selectIndex > index) {
                 changeTab(index);
@@ -67,7 +66,7 @@ function TabsMenu(props: {
       {tabsLength > 1 && (
         <MenuItem
           onClick={() => {
-            setTabs(e => {
+            setTabs((e) => {
               const x = [e[selectIndex]];
               changeTab(0);
               return x;
@@ -115,14 +114,13 @@ function TabsWithContent_(props: {
 }) {
   const { tabs, handleClose, selectIndex, changeTab, setTabs } = props;
   const { setUpMenu } = useContext(ContextMenuContext);
-  const windowFocus = useContext(WindowFocusContext);
   const rootStack = useRef<HTMLDivElement>(null);
   const [tabWidth, setTabWidth] = useState(100);
   useEffect(() => {
     if (tabs.length == 0) {
       return;
     }
-    const e = new ResizeObserver(en => {
+    const e = new ResizeObserver((en) => {
       const width = en[0].target.clientWidth;
       if (width) {
         setTabWidth(width);
@@ -148,7 +146,6 @@ function TabsWithContent_(props: {
           "& .MuiTabs-flexContainer": { columnGap: 0 }, // 4px
           // 2. Tab 内边距
           "& .MuiTab-root": { minHeight: 36, px: 0.4 }, // 高度36px，左右12px
-          opacity: windowFocus ? 1 : 0.6,
         }}
       >
         {tabs.map((tab, index) => {
@@ -164,7 +161,7 @@ function TabsWithContent_(props: {
                     textTransform: "none",
                     alignItems: "center",
                   }}
-                  onContextMenu={e => {
+                  onContextMenu={(e) => {
                     setUpMenu({
                       content: (
                         <TabsMenu
@@ -211,7 +208,7 @@ function TabsWithContent_(props: {
         {tabs.map((tab, index) => (
           <TabActiveContext.Provider key={tab.id} value={selectIndex == index}>
             <SetCloseConfirmTextContext
-              value={e => {
+              value={(e) => {
                 tabs[index].closeConfirmText = e;
               }}
             >

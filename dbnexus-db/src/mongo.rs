@@ -475,10 +475,7 @@ impl ServerMetas for MongoDB {
         }
         {
             let up_time = server_status.get_i64("uptimeMillis")?;
-            ret.push(MetaValue::new(
-                "up_time",
-                humantime::format_duration(Duration::from_millis(up_time as u64)).to_string(),
-            ));
+            ret.push(MetaValue::new("up_time", up_time.to_string()));
         }
         let to_string_keys = &["catalogStats", "connections", "storageEngine"];
         for k in to_string_keys.iter() {
@@ -525,7 +522,7 @@ impl MongoDB {
         anyhow::Ok(ts.into_iter().map(ListTable::from).collect())
     }
 
-    pub async fn drop_mongo_time_serial_collection(&self, name: &str) -> anyhow::Result<()> {
+    pub async fn drop_mongo_time_serial_collection(&self, name: &str) -> anyhow::Result<String> {
         self.drop_table(name, false).await
     }
 }
@@ -569,15 +566,14 @@ impl SchemaTrait for MongoDB {
         anyhow::Ok(())
     }
 
-    async fn rename_table(&self, old: &str, new: &str) -> anyhow::Result<()> {
+    async fn rename_table(&self, old: &str, new: &str) -> anyhow::Result<String> {
         let old = format!("{}.{}", self.db_name.as_ref().option_must_be_some()?, old);
         let new = format!("{}.{}", self.db_name.as_ref().option_must_be_some()?, new);
         let cmd = bson::doc! { "renameCollection":  old , "to": new};
         let client = self.get_conn().await?;
         let db = client.database("admin");
-
         db.run_command(cmd).await?;
-        anyhow::Ok(())
+        anyhow::Ok("".to_string())
     }
 
     fn clone(&self) -> Box<dyn SchemaTrait> {
@@ -621,15 +617,15 @@ impl SchemaTrait for MongoDB {
         self
     }
 
-    async fn drop_view(&self, view_name: &str) -> anyhow::Result<()> {
+    async fn drop_view(&self, view_name: &str) -> anyhow::Result<String> {
         self.drop_table(view_name, false).await
     }
 
-    async fn drop_table(&self, collect_name: &str, _cascade: bool) -> anyhow::Result<()> {
+    async fn drop_table(&self, collect_name: &str, _cascade: bool) -> anyhow::Result<String> {
         self.can_write()?;
         let conn = self.get_db().await?;
         conn.collection::<Document>(collect_name).drop().await?;
-        anyhow::Ok(())
+        anyhow::Ok("".to_string())
     }
 
     async fn list_view(&self) -> anyhow::Result<Vec<ListTable>> {
@@ -651,7 +647,7 @@ impl SchemaTrait for MongoDB {
         self.show_columns_impl(table_name).await
     }
 
-    async fn drop_index(&self, table_name: &str, index: &str) -> anyhow::Result<()> {
+    async fn drop_index(&self, table_name: &str, index: &str) -> anyhow::Result<String> {
         if index == "_id_" {
             anyhow::bail!("can't drop this index");
         }
@@ -659,7 +655,7 @@ impl SchemaTrait for MongoDB {
         db.collection::<Document>(table_name)
             .drop_index(index)
             .await?;
-        anyhow::Ok(())
+        anyhow::Ok("".to_owned())
     }
 
     async fn rename_index(
@@ -667,13 +663,12 @@ impl SchemaTrait for MongoDB {
         table_name: &str,
         oldname: &str,
         newname: &str,
-    ) -> anyhow::Result<()> {
+    ) -> anyhow::Result<String> {
         if oldname == "_id_" {
             anyhow::bail!("can't rename this index");
         }
         let db = self.get_db().await?;
         let mut indexes = db.collection::<Document>(table_name).list_indexes().await?;
-
         while let Some(index_model) = indexes.next().await {
             let mut index_model = index_model?;
             if index_model
@@ -695,7 +690,7 @@ impl SchemaTrait for MongoDB {
                 db.collection::<Document>(table_name)
                     .create_index(index_model)
                     .await?;
-                return anyhow::Ok(());
+                return anyhow::Ok("".into());
             }
         }
         anyhow::bail!(format!("index '{}' not found", oldname))
@@ -739,15 +734,14 @@ impl SchemaTrait for MongoDB {
         anyhow::Ok(ret)
     }
 
-    async fn truncate_table(&self, table_name: &str) -> anyhow::Result<()> {
+    async fn truncate_table(&self, table_name: &str) -> anyhow::Result<String> {
         self.can_write()?;
 
         let db = self.get_db().await?;
         db.collection::<Document>(table_name)
             .delete_many(doc! {})
             .await?;
-
-        anyhow::Ok(())
+        anyhow::Ok("".to_string())
     }
 
     async fn show_view_columns(&self, view_name: &str) -> anyhow::Result<Vec<Field>> {

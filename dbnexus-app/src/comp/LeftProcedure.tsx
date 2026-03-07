@@ -24,6 +24,7 @@ import {
 } from "./helper";
 import { ExceedMaxTreeItem, MenuRefresh, UdfNameAndParameters } from "./CommonComp";
 import { listProcedure, makeShowProcedureExtraArg, showProcedure } from "./handlers";
+import { CopySql } from "./CommonComp2";
 function ProceduresTree() {
   const { uuid } = useContext(UuidContext);
   const { kind } = useContext(ConnTypeContext);
@@ -32,10 +33,10 @@ function ProceduresTree() {
   const maxsize = useContext(MaxTreeContext);
   const reload = useCallback(() => {
     listProcedure(uuid)
-      .then(ts => {
+      .then((ts) => {
         setPos(ts);
       })
-      .catch(e => {
+      .catch((e) => {
         showNotification("error", "list procedure failed", e);
       });
   }, [showNotification, uuid]);
@@ -43,7 +44,7 @@ function ProceduresTree() {
   const [exceed, setExceed] = useState(0);
   const matchPattern = useContext(MatchPatternContext);
   useEffect(() => {
-    setExceed(ps.filter(e => matchPattern(e.name)).length);
+    setExceed(ps.filter((e) => matchPattern(e.name)).length);
   }, [ps, matchPattern]);
 
   const { setUpMenu } = useContext(ContextMenuContext);
@@ -58,7 +59,7 @@ function ProceduresTree() {
       label=<Stack
         direction="row"
         sx={{ alignItems: "center" }}
-        onContextMenu={e => {
+        onContextMenu={(e) => {
           setUpMenu({
             content: (
               <MenuList>
@@ -74,7 +75,7 @@ function ProceduresTree() {
       </Stack>
     >
       {ps
-        .filter(e => matchPattern(e.name))
+        .filter((e) => matchPattern(e.name))
         .map((p, index) => {
           if (index >= maxsize) {
             return;
@@ -87,7 +88,7 @@ function ProceduresTree() {
               style={{ alignItems: "center" }}
               label=<Stack
                 direction="row"
-                onContextMenu={e => {
+                onContextMenu={(e) => {
                   setUpMenu({
                     content: (
                       <ProcedureMenu
@@ -130,7 +131,7 @@ function ProcedureMenu(props: {
     if (typeof index == "number") {
       setSelectTab(index);
     } else {
-      setTabs(e => {
+      setTabs((e) => {
         setTimeout(() => {
           setSelectTab(tabs.length);
         }, 100);
@@ -140,15 +141,13 @@ function ProcedureMenu(props: {
           new TabContent(
             id,
             procedure.name,
-            (
-              <DefAndMetasView
-                reloadOP={async () => {
-                  return showProcedure(uuid, procedure, kind);
-                }}
-                kind={kind}
-                uuid={uuid}
-              />
-            ),
+            <DefAndMetasView
+              reloadOP={async () => {
+                return showProcedure(uuid, procedure, kind);
+              }}
+              kind={kind}
+              uuid={uuid}
+            />,
             <SiProcessingfoundation className="tab-icon-size" />,
           ),
         ];
@@ -167,11 +166,11 @@ function ProcedureMenu(props: {
     }
     const arg = makeShowProcedureExtraArg(procedure, kind);
     invoke("drop_procedure", { name: uuid, procedure, arg })
-      .then(() => {
-        showNotification("success", "Drop procedure OK");
+      .then((sql) => {
+        showNotification("success", "Drop procedure OK", <CopySql sql={sql} />);
         reload();
       })
-      .catch(e => {
+      .catch((e) => {
         showNotification("error", "Drop procedure Failure", e);
       });
   };

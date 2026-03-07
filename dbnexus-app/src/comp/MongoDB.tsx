@@ -110,7 +110,7 @@ const mongoID = "_id";
 const mongoBsonKeywords =
   /\b(as|int|long|date|timestamp|decimal|binary|generic|function|byte_array|uuid|md5|encrypted|column|sensitive|int8_array|float32_array|user_define|true|false|null|undefined|code)\b/i;
 function mongoBsonAutoCompletion(): languages.CompletionList {
-  const generateSubTypes = MongoBsonBinaryAllSubType.allValues().map(e => {
+  const generateSubTypes = MongoBsonBinaryAllSubType.allValues().map((e) => {
     return {
       label: e,
       insertText: e,
@@ -208,7 +208,7 @@ const languageXXX = "mongoBson";
 function initMongoBsonLanguage() {
   loader
     .init()
-    .then(monaco => {
+    .then((monaco) => {
       monaco.languages.register({ id: languageXXX });
       monaco.languages.setMonarchTokensProvider(languageXXX, {
         ignoreCase: true,
@@ -248,7 +248,7 @@ function initMongoBsonLanguage() {
         },
       });
     })
-    .catch(e => {
+    .catch((e) => {
       console.error("init monaco language error:", e);
     });
 }
@@ -284,7 +284,7 @@ function MongoBsonEditor(props: {
         setErr(e);
       }
     });
-    const d2 = ce.onDidChangeCursorPosition(event => {
+    const d2 = ce.onDidChangeCursorPosition((event) => {
       setPos(event.position);
     });
     return () => {
@@ -414,7 +414,7 @@ function MongoValueEditor(props: {
     return viewmoDelSet || viewModel;
   };
   const confirmAndSet = setOP
-    ? async doc => {
+    ? async (doc) => {
         if (needConfirm) {
           const confirm = await secondConfirm({ title: "are u sure to modify" });
           if (!confirm) {
@@ -636,7 +636,7 @@ function MongoTableToolBar(props: {
               }}
             />
             <MongoValueEditor
-              setOP={async doc => {
+              setOP={async (doc) => {
                 handleFilter(doc);
                 setShowModifyFilter(false);
               }}
@@ -668,7 +668,7 @@ function MongoTableToolBar(props: {
               title="Modify Sort"
             />
             <MongoValueEditor
-              setOP={async doc => {
+              setOP={async (doc) => {
                 handleSort(doc);
                 setShowModifySort(false);
               }}
@@ -853,7 +853,7 @@ function MongoTableListContextMenu(props: {
             />
             <MongoTableListMenuFilter
               loadValue={async () => {
-                return loadDoc().then(x => x[field]);
+                return loadDoc().then((x) => x[field]);
               }}
               setFilter={setFilter}
               field={field}
@@ -883,10 +883,10 @@ function MongoTableListMenuFilter(props: {
   const [doc, setDoc] = useState({});
   useEffect(() => {
     loadValue()
-      .then(v => {
+      .then((v) => {
         setValue(v);
       })
-      .catch(e => {
+      .catch((e) => {
         showNotification("error", "get field value failed", e);
       });
   }, [loadValue, showNotification]);
@@ -929,7 +929,7 @@ function MongoTableListMenuFilter(props: {
   return (
     <Stack>
       <Stack direction="row">
-        {compares.map(x => (
+        {compares.map((x) => (
           <Chip
             key={x}
             onClick={() => {
@@ -941,7 +941,7 @@ function MongoTableListMenuFilter(props: {
         ))}
       </Stack>
       <StackRowCenter>
-        {["null", "not null"].map(condition => (
+        {["null", "not null"].map((condition) => (
           <Chip
             key={condition}
             label={condition}
@@ -954,7 +954,7 @@ function MongoTableListMenuFilter(props: {
       </StackRowCenter>
       {typeof value == "string" && (
         <StackRowCenter>
-          {["starts", "contains", "ends"].map(e => (
+          {["starts", "contains", "ends"].map((e) => (
             <Chip
               label={e}
               color={compare === e ? "success" : "default"}
@@ -1019,7 +1019,7 @@ function JsonEditor(props: {
       value={newValue}
       language="json"
       errPos={jsonErrPos}
-      handleValue={v => {
+      handleValue={(v) => {
         setNewValue(v);
       }}
       barLeft=<Stack direction="row" alignItems="center">
@@ -1096,10 +1096,10 @@ function BsonJsonPagination({
       />
       <SelectPageSize
         pageSize={pageSize}
-        handleChange={size => {
+        handleChange={(size) => {
           setPageSize(size);
         }}
-        options={[2, 3, 5].map(x => x * gridColCount)}
+        options={[2, 3, 5].map((x) => x * gridColCount)}
       />
     </Stack>
   );
@@ -1152,26 +1152,26 @@ function MongoTableList(props: {
   }, [resp]);
   const [fetchDur, setFetchDur] = useState(0);
   const handleReload = useCallback(
-    async showOK => {
+    async (showOK) => {
       const now = new Date();
       setLoading(true);
       reloadOP(filter, sort, page + 1, pageSize)
-        .then(r => {
+        .then((r) => {
           r.data.forEach((e, index) => {
             e[keyNotInTable] = index;
           });
-          r.fields.forEach(f => {
+          r.fields.forEach((f) => {
             const width = ColumnWidth.instance.get(f.field);
             if (width) {
               f["width"] = width;
             }
 
-            f["renderHeader"] = e => {
+            f["renderHeader"] = (e) => {
               const field = e.colDef as unknown as FieldAndGridField;
 
               return (
                 <Stack
-                  onClick={e => {
+                  onClick={(e) => {
                     e.stopPropagation();
                     setClickedField(field.field);
                   }}
@@ -1193,7 +1193,7 @@ function MongoTableList(props: {
             reloadOK(showNotification);
           }
         })
-        .catch(e => {
+        .catch((e) => {
           showNotification("error", "fetch data failed", e);
         })
         .finally(() => {
@@ -1223,7 +1223,7 @@ function MongoTableList(props: {
     },
     [loadOne, showNotification],
   );
-  const getRowId = useCallback(e => {
+  const getRowId = useCallback((e) => {
     return renderId(e[keyNotInTable]);
   }, []);
   const onPaginationModelChange = useCallback(
@@ -1237,8 +1237,8 @@ function MongoTableList(props: {
     [],
   );
   const onRowDoubleClick = useCallback(
-    e => {
-      handleLoadOne(EJSON.parse(e.row[mongoID])).then(doc => {
+    (e) => {
+      handleLoadOne(EJSON.parse(e.row[mongoID])).then((doc) => {
         if (doc) {
           setSelectModifyDoc(doc);
         }
@@ -1252,7 +1252,7 @@ function MongoTableList(props: {
   }, [page, pageSize]);
 
   const onSortModelChange = useCallback(
-    e => {
+    (e) => {
       if (e.length == 0) {
         setSort({});
         return;
@@ -1275,7 +1275,7 @@ function MongoTableList(props: {
     }
     return deleteOP
       ? async (id: string) => {
-          const del = resp.data.find(e => e[keyNotInTable] == id);
+          const del = resp.data.find((e) => e[keyNotInTable] == id);
           try {
             await deleteOP([EJSON.parse(del[mongoID])]);
             showNotification("success", "delete OK");
@@ -1294,14 +1294,14 @@ function MongoTableList(props: {
     }
     return {
       row: {
-        onContextMenu: e => {
+        onContextMenu: (e) => {
           const { currentTarget, target } = e;
           const field = (target as HTMLDivElement).getAttribute("data-field");
           const id = (currentTarget as HTMLDivElement).getAttribute("data-id");
           if (!field) {
             return;
           }
-          const row = resp.data.find(e => e[keyNotInTable] == id);
+          const row = resp.data.find((e) => e[keyNotInTable] == id);
           setUpMenu({
             content: (
               <MongoTableListContextMenu
@@ -1316,7 +1316,7 @@ function MongoTableList(props: {
                 field={field}
                 setFilter={setFilter}
                 loadDoc={async () => {
-                  const doc = resp.data.find(x => x[keyNotInTable] == id);
+                  const doc = resp.data.find((x) => x[keyNotInTable] == id);
                   return await loadOne(EJSON.parse(doc[mongoID]));
                 }}
                 setSort={setSort}
@@ -1387,7 +1387,7 @@ function MongoTableList(props: {
     <Stack style={{ height: "100%" }}>
       {resp && (
         <DataGrid
-          getCellClassName={e => {
+          getCellClassName={(e) => {
             if (e.field == clickedField) {
               return "datagrid-field-clicked";
             } else {
@@ -1440,7 +1440,7 @@ function MongoTableList(props: {
             <MongoValueEditor
               setOP={
                 modifyOP
-                  ? async doc => {
+                  ? async (doc) => {
                       try {
                         await modifyOP(doc);
                       } catch (e) {
@@ -1520,16 +1520,16 @@ function MongoTableObject(props: {
 
   const { showNotification } = useContext(NotificationContext);
   const handleReload = useCallback(
-    async showOK => {
+    async (showOK) => {
       setLoading(true);
       reloadOPDocs(filter, sort, page, pageSize)
-        .then(resp => {
+        .then((resp) => {
           setDocs(resp);
           if (showOK) {
             reloadOK(showNotification);
           }
         })
-        .catch(e => {
+        .catch((e) => {
           showNotification("error", "fetch data failed", e);
         })
         .finally(() => {
@@ -1602,7 +1602,7 @@ function MongoTableObject(props: {
                 viewModel={viewModel}
                 setOP={
                   modifyOP
-                    ? async doc => {
+                    ? async (doc) => {
                         try {
                           await modifyOP(doc);
                         } catch (e) {
@@ -1664,8 +1664,8 @@ class MongoTableHandler {
         sort: BSON.serialize(sort),
         page,
         pageSize,
-      }).then(x => {
-        const docs = x.docs.map(e => BSON.deserialize(new Uint8Array(e)));
+      }).then((x) => {
+        const docs = x.docs.map((e) => BSON.deserialize(new Uint8Array(e)));
         const count = x.count;
         return new DocsAndCount(docs, count);
       });
@@ -1678,14 +1678,14 @@ class MongoTableHandler {
         name: uuid,
         tableName: table,
         id: JSON.stringify(EJSON.serialize(id)),
-      }).then(x => {
+      }).then((x) => {
         return BSON.deserialize(new Uint8Array(x));
       });
     };
   }
 
   static modifyOP(uuid: string, table: string) {
-    return async doc => {
+    return async (doc) => {
       return invoke<void>("mongo_update_one", {
         name: uuid,
         tableName: table,
@@ -1694,7 +1694,7 @@ class MongoTableHandler {
     };
   }
   static deleteOP(uuid, table) {
-    return async ids => {
+    return async (ids) => {
       if (!Array.isArray(ids)) {
         ids = [ids];
       }
@@ -1729,16 +1729,16 @@ function MongoTable(props: { uuid: string; table: string; isTable: boolean }) {
       <MongoTableToolBar
         sort={sort}
         filter={filter}
-        handleFilter={e => {
+        handleFilter={(e) => {
           setFilter(e);
         }}
-        handleSort={e => {
+        handleSort={(e) => {
           setSort(e);
         }}
         handleReload={async () => {
-          setTriggerReload(prev => prev + 1);
+          setTriggerReload((prev) => prev + 1);
         }}
-        handleViewModel={e => {
+        handleViewModel={(e) => {
           setViewModel(e);
         }}
         viewModel={viewModel}
@@ -1754,7 +1754,7 @@ function MongoTable(props: { uuid: string; table: string; isTable: boolean }) {
                 max={5}
                 notice="mongodb editor grid column count"
                 step={1}
-                handleValue={v => {
+                handleValue={(v) => {
                   setGridColCount(v);
                 }}
                 storeKey="mongo-table-list-grid-col-count"
@@ -1766,7 +1766,7 @@ function MongoTable(props: { uuid: string; table: string; isTable: boolean }) {
                 max={1000}
                 notice="mongodb editor height"
                 step={10}
-                handleValue={v => {
+                handleValue={(v) => {
                   setEditorHeight(v);
                 }}
                 storeKey="mongo-table-editor-height"
@@ -1783,7 +1783,7 @@ function MongoTable(props: { uuid: string; table: string; isTable: boolean }) {
           reloadOP={reloadOPTableList}
           loadOne={loadOne}
           modifyOP={modifyOP}
-          setSort={o => {
+          setSort={(o) => {
             setSort(o);
           }}
           deleteOP={deleteOP}
@@ -1815,7 +1815,7 @@ function MongoTable(props: { uuid: string; table: string; isTable: boolean }) {
 function MongoTableAdd(props: { addOP: (doc: BSON.Document) => Promise<void> }) {
   const { addOP } = props;
   const { showNotification } = useContext(NotificationContext);
-  const handleAdd = async doc => {
+  const handleAdd = async (doc) => {
     try {
       await addOP(doc);
     } catch (e) {

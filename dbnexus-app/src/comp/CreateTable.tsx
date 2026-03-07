@@ -113,7 +113,7 @@ function CreateTable(props: { uuid: string; kind: DataSourceKind }) {
       return;
     }
     invoke<string>("create_table_req_sql", { name: uuid, req })
-      .then(sql => {
+      .then((sql) => {
         setEditorValue("");
         setTimeout(() => {
           setEditorValue(
@@ -124,7 +124,7 @@ function CreateTable(props: { uuid: string; kind: DataSourceKind }) {
           );
         }, 200);
       })
-      .catch(e => {
+      .catch((e) => {
         showNotification("error", "try generate sql failed", e);
       });
   }, [kind, makeReq, setting.editor.tabSize, showNotification, uuid]);
@@ -139,7 +139,7 @@ function CreateTable(props: { uuid: string; kind: DataSourceKind }) {
       .then(() => {
         showNotification("success", "create table ok");
       })
-      .catch(e => {
+      .catch((e) => {
         showNotification("error", "create table failed", e);
       })
       .finally(() => {
@@ -160,21 +160,21 @@ function CreateTable(props: { uuid: string; kind: DataSourceKind }) {
               index={index}
               kind={kind}
               handleClose={() => {
-                setCols(cols => {
+                setCols((cols) => {
                   return cols.filter((_, idx) => index != idx);
                 });
               }}
               uuid={uuid}
               key={index}
               col={col}
-              handleCol={newCol => {
-                setCols(cols => {
+              handleCol={(newCol) => {
+                setCols((cols) => {
                   cols[index] = newCol;
                   return [...cols];
                 });
               }}
               resetAutoInc={() => {
-                cols.forEach(col => {
+                cols.forEach((col) => {
                   if (col.auto_increment) {
                     col.auto_increment = false;
                     col.primary_key = false;
@@ -227,8 +227,8 @@ function CreateTable(props: { uuid: string; kind: DataSourceKind }) {
                 <Stack key={index} direction="row" style={{}}>
                   <CreateIndexReq
                     style={{ width: "28rem" }}
-                    fields={cols.filter(e => !!e.name).map(f => f.name)}
-                    handleReq={ret => {
+                    fields={cols.filter((e) => !!e.name).map((f) => f.name)}
+                    handleReq={(ret) => {
                       indexes[index] = ret;
                       setIndexes([...indexes]);
                     }}
@@ -253,7 +253,7 @@ function CreateTable(props: { uuid: string; kind: DataSourceKind }) {
         </Button>
         <TextField
           value={table}
-          onChange={e => {
+          onChange={(e) => {
             setTable(e.target.value);
           }}
           inputRef={tableNameRef}
@@ -286,7 +286,7 @@ function CreateTable(props: { uuid: string; kind: DataSourceKind }) {
             if (!showQuery) {
               setCreateSql();
             }
-            setShowQuery(e => !e);
+            setShowQuery((e) => !e);
           }}
           variant={showQuery ? "outlined" : "contained"}
         >
@@ -342,7 +342,7 @@ function TableColumn(props: {
           label="auto increment"
           control=<Checkbox
             checked={col.auto_increment}
-            onChange={e => {
+            onChange={(e) => {
               const auto_inc = e.target.checked;
               if (auto_inc) {
                 resetAutoInc();
@@ -362,7 +362,7 @@ function TableColumn(props: {
           control=<Checkbox
             disabled={col.auto_increment}
             checked={col.primary_key}
-            onChange={e => {
+            onChange={(e) => {
               handleCol({ ...col, primary_key: e.target.checked });
             }}
           />
@@ -370,7 +370,7 @@ function TableColumn(props: {
       </Tooltip>
       <TextField
         value={col.name}
-        onChange={e => {
+        onChange={(e) => {
           handleCol({ ...col, name: e.target.value });
         }}
         style={{ flex: 1 }}
@@ -398,7 +398,7 @@ function TableColumn(props: {
         }}
       />
       <TypeSelect
-        handleChange={dt => {
+        handleChange={(dt) => {
           handleCol({ ...col, data_type: dt });
         }}
         uuid={uuid}
@@ -408,7 +408,7 @@ function TableColumn(props: {
       {supportNull && (
         <ColumnNullness
           nullable={col.nullable}
-          handleNullable={e => {
+          handleNullable={(e) => {
             handleCol({ ...col, nullable: e ? e : null });
           }}
         />
@@ -417,7 +417,7 @@ function TableColumn(props: {
         <SqlDefaultValue
           uuid={uuid}
           defaultValue={col.default_value}
-          setDefaultValue={dv => {
+          setDefaultValue={(dv) => {
             handleCol({ ...col, default_value: dv ? dv : null });
           }}
         />

@@ -113,7 +113,7 @@ function queryRespFix(data: MuiDataGridData) {
     e[keyNotInTable] = index;
   });
   const considerSmallDataSet = smallDataSet(data.fields);
-  data.fields.forEach(field => {
+  data.fields.forEach((field) => {
     if (considerSmallDataSet) {
       field["flex"] = 1;
     } else {
@@ -122,7 +122,7 @@ function queryRespFix(data: MuiDataGridData) {
         field["width"] = width;
       }
     }
-    field["renderHeader"] = e => {
+    field["renderHeader"] = (e) => {
       const def = e.colDef as types.Field;
       return (
         <Tooltip title={`${def.field} ${def.data_type}`}>
@@ -162,13 +162,13 @@ function QueryResp(props: { data: MuiDataGridData }) {
     }
     return {
       row: {
-        onContextMenu: e => {
+        onContextMenu: (e) => {
           const { id, field } = extractFieldAndIDFromMouseEvent(e);
           if (!field) {
             return;
           }
           const row = {
-            ...data.data.find(e => e[keyNotInTable] == id),
+            ...data.data.find((e) => e[keyNotInTable] == id),
           };
           delete row[keyNotInTable];
           const content = row[field];
@@ -197,7 +197,7 @@ function QueryResp(props: { data: MuiDataGridData }) {
     } as GridSlotsComponentsProps;
   }, [data, setUpMenu, setting.export.csvDelimiter, setting.export.includeHeader]);
 
-  const onSortModelChange = useCallback(e => {
+  const onSortModelChange = useCallback((e) => {
     setSortModel(e);
   }, []);
   const [viewInModalBox, setViewInModalBox] = useState(null);

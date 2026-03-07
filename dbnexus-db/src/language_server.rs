@@ -202,6 +202,7 @@ pub trait LexerCompletionTrait: LangServerCommon {
             // this is not access var via @@ we better completion all variable
             all_item.extend(self.list_variable_completion().await);
         }
+
         // 推送词法部分
         for t in tokens.iter() {
             if let Token::Word(x) = &t.token {
@@ -397,7 +398,6 @@ pub trait LexerCompletionTrait: LangServerCommon {
                 .unwrap_or_default();
             ret.extend(columns.into_iter().map(CompletionItem::from));
         }
-
         remove_duplicate(ret)
     }
 }

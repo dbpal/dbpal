@@ -152,7 +152,7 @@ function Chat(props: {
         <AllKindQuery
           uuid={uuid}
           kind={kind}
-          handleEditor={e => {
+          handleEditor={(e) => {
             setEditor(e);
           }}
           favoriteName={favoriteName}
@@ -302,7 +302,7 @@ human:{question}
       database_information: await this.redisDatabaseInformation(),
       chat_history: this.memory
         .getMessages()
-        .map(x => x.toFormattedString())
+        .map((x) => x.toFormattedString())
         .join("\n"),
       locale: await getLocale(),
     };
@@ -329,7 +329,7 @@ human:{question}
       database_information: await this.mongoDatabaseInformation(),
       chat_history: this.memory
         .getMessages()
-        .map(x => x.toFormattedString())
+        .map((x) => x.toFormattedString())
         .join("\n"),
       locale: await getLocale(),
       language: this.language,
@@ -350,7 +350,7 @@ human:{question}
       chat_history:
         this.memory
           .getMessages()
-          .map(x => x.toFormattedString())
+          .map((x) => x.toFormattedString())
           .join("\n") + "\n",
       locale: await getLocale(),
     };
@@ -377,10 +377,10 @@ human:{question}
         }
         const cols = await showTableColumn(elements.uuid, table.name);
         ret += `${table.name} is table
-        Columns:${cols.map(x => x.field).join(",")}
+        Columns:${cols.map((x) => x.field).join(",")}
         Primary key: ${cols
-          .filter(x => x.is_primary)
-          .map(x => (x.is_auto_increment ? `${x.field}(auto increment)` : x.field))
+          .filter((x) => x.is_primary)
+          .map((x) => (x.is_auto_increment ? `${x.field}(auto increment)` : x.field))
           .join(",")}\n`;
         {
           const maxID = await tryGetMaxID(elements.uuid, table.name);
@@ -405,7 +405,7 @@ human:{question}
         }
         const cols = await showViewColumns(elements.uuid, view.name);
         ret += `${view.name} is view 
-        Columns:${cols.map(x => x.field).join(",")}\n`;
+        Columns:${cols.map((x) => x.field).join(",")}\n`;
         {
           const maxID = await tryGetMaxID(elements.uuid, view.name);
           if (maxID) {
@@ -427,7 +427,7 @@ human:{question}
         }
         const cols = await showViewColumns(elements.uuid, view.name);
         ret += `${view.name} is materalized view 
-        Columns:${cols.map(x => x.field).join(",")}\n`;
+        Columns:${cols.map((x) => x.field).join(",")}\n`;
         {
           const maxID = await tryGetMaxID(elements.uuid, view.name);
           if (maxID) {
@@ -661,7 +661,7 @@ function SqlChatTextInput(props: {
       setPrevQuestion(newQuestion);
       setInvokeStatus("making prompt");
       chatMemory.current.addUserMessage(newQuestion);
-      setChatHistory(e => [...e, newQuestion]);
+      setChatHistory((e) => [...e, newQuestion]);
       let wholeText = "";
       setInvokeStatus("trying getting stream response");
       const prompt = await makePrompt();
@@ -671,13 +671,13 @@ function SqlChatTextInput(props: {
       let i = 0;
       await config.stream(
         prompt,
-        msg => {
+        (msg) => {
           setInvokeStatus("receiving stream response#" + i);
           editorAppendContent(editor, msg);
           wholeText += msg;
           i++;
         },
-        f => {
+        (f) => {
           setCancelFN(() => {
             // 这里必须写一个callback不然会被直接执行
             return f;
@@ -688,7 +688,7 @@ function SqlChatTextInput(props: {
       setTimeout(() => {
         setInvokeStatus("");
       }, 5000);
-      setChatHistory(e => [...e, wholeText]);
+      setChatHistory((e) => [...e, wholeText]);
       chatMemory.current.addAIMessage(wholeText);
       if (queryAfter) {
         if (!doQuery.current) {
@@ -746,7 +746,7 @@ function SqlChatTextInput(props: {
             <Tooltip title="history">
               <IconButton
                 onClick={() => {
-                  setShowChatHistory(e => !e);
+                  setShowChatHistory((e) => !e);
                 }}
                 disabled={chatHistory.length == 0}
               >
@@ -759,7 +759,7 @@ function SqlChatTextInput(props: {
               <Button
                 disabled={newQuestion.trim() == ""}
                 onClick={() => {
-                  setShowPrompt(e => !e);
+                  setShowPrompt((e) => !e);
                 }}
                 variant={showPrompt ? "contained" : "text"}
               >
@@ -769,7 +769,7 @@ function SqlChatTextInput(props: {
             <Tooltip title="edit prompt template">
               <IconButton
                 onClick={() => {
-                  setShowEditPromptTemplate(e => !e);
+                  setShowEditPromptTemplate((e) => !e);
                 }}
               >
                 <EditIcon color="secondary" />
@@ -780,7 +780,7 @@ function SqlChatTextInput(props: {
               max={20}
               min={0}
               step={2}
-              handleValue={value => {
+              handleValue={(value) => {
                 chatMemoryK.current = value;
               }}
               notice="chat memory buffer size"
@@ -790,7 +790,7 @@ function SqlChatTextInput(props: {
                 control={
                   <Checkbox
                     checked={cleanEditor}
-                    onChange={e => setCleanEditor(e.target.checked)}
+                    onChange={(e) => setCleanEditor(e.target.checked)}
                   />
                 }
                 label="clean editor"
@@ -801,7 +801,7 @@ function SqlChatTextInput(props: {
                 control={
                   <Switch
                     checked={queryAfter}
-                    onChange={e => setQueryAfter(e.target.checked)}
+                    onChange={(e) => setQueryAfter(e.target.checked)}
                   />
                 }
                 label="auto query"
@@ -823,11 +823,11 @@ function SqlChatTextInput(props: {
         <Divider> </Divider>
         <SimpleFlexEditor
           language="text"
-          handleValue={v => {
+          handleValue={(v) => {
             setNewQuestion(v);
           }}
           barLeft={invokeStatus && <Typography color="info">{invokeStatus}</Typography>}
-          handleEditor={e => {
+          handleEditor={(e) => {
             AITextCompletionName.set(e.getModel().id, editor.getModel().id);
           }}
           dontFocus
@@ -936,10 +936,10 @@ function EditPromptTemplate(props: {
         <ModalHeader title="edit template" handleClose={handleClose} />
         <SimpleFlexEditor
           value={newTemplate}
-          handleValue={v => {
+          handleValue={(v) => {
             setNewTemplate(v);
           }}
-          handleEditor={e => {
+          handleEditor={(e) => {
             setEditor(e);
           }}
           language="text"
@@ -951,7 +951,7 @@ function EditPromptTemplate(props: {
             options={MakePrompt.getDefaultTemplatePredefineVariables(kind)}
             style={{ width: "22rem" }}
             value={templateVar}
-            renderInput={params => (
+            renderInput={(params) => (
               <TextField {...params} label="variable can be use in template" />
             )}
             freeSolo={false}
@@ -1055,7 +1055,7 @@ function ShowPrompt(props: {
   const [prompt, setPrompt] = useState("");
   const { showNotification } = useContext(NotificationContext);
   useEffect(() => {
-    makePrompt().then(e => {
+    makePrompt().then((e) => {
       setPrompt(e);
     });
   }, [makePrompt]);
@@ -1107,12 +1107,12 @@ function AllKindChat(props: {
 
   const handleReload = useCallback(() => {
     LLMConfig.get()
-      .then(config => {
+      .then((config) => {
         if (config && config.enable()) {
           setConfig(config);
         }
       })
-      .catch(e => {
+      .catch((e) => {
         showNotification("error", "get llm config failed", e);
       });
   }, [showNotification]);
@@ -1121,7 +1121,7 @@ function AllKindChat(props: {
       handleReload();
     });
     return () => {
-      unlisten.then(x => {
+      unlisten.then((x) => {
         x();
       });
     };

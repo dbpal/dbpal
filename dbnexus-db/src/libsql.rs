@@ -508,26 +508,26 @@ impl SchemaTrait for LibSqlDB {
         LexerCompletionTrait::get_types(self).await
     }
 
-    async fn create_index(&self, table: &str, req: &CreateIndexReq) -> anyhow::Result<()> {
+    async fn create_index(&self, table: &str, req: &CreateIndexReq) -> anyhow::Result<String> {
         let sql = req.common_sql(table, true, self.backend_name().quote_style())?;
         log::info!("sql:{}", sql);
         let conn = self.get_conn().await?;
         conn.execute(&sql, params!()).await?;
-        anyhow::Ok(())
+        anyhow::Ok(sql)
     }
 
-    async fn drop_index(&self, _table_name: &str, index: &str) -> anyhow::Result<()> {
+    async fn drop_index(&self, _table_name: &str, index: &str) -> anyhow::Result<String> {
         let sql = format!(r#"DROP INDEX "{index}";"#);
         log::info!("sql:{}", sql);
         let conn = self.get_conn().await?;
         conn.execute(&sql, params!()).await?;
-        anyhow::Ok(())
+        anyhow::Ok(sql)
     }
-    async fn drop_table_column(&self, table: &str, col: &str) -> anyhow::Result<()> {
+    async fn drop_table_column(&self, table: &str, col: &str) -> anyhow::Result<String> {
         let sql = format!(r#"ALTER TABLE "{table}" DROP COLUMN "{col}";"#);
         let conn = self.get_conn().await?;
         conn.execute(&sql, params!()).await?;
-        anyhow::Ok(())
+        anyhow::Ok(sql)
     }
 
     async fn add_table_column(
@@ -535,7 +535,7 @@ impl SchemaTrait for LibSqlDB {
         table: &str,
         name: &str,
         col: ColumnType,
-    ) -> anyhow::Result<()> {
+    ) -> anyhow::Result<String> {
         let sql = format!(
             r#"ALTER TABLE "{table}" ADD COLUMN "{name}" {} {} {}"#,
             col.typ,
@@ -552,7 +552,7 @@ impl SchemaTrait for LibSqlDB {
         log::info!("sql:{}", sql);
         let conn = self.get_conn().await?;
         conn.execute(&sql, params!()).await?;
-        anyhow::Ok(())
+        anyhow::Ok(sql)
     }
 
     async fn show_view_columns(&self, view_name: &str) -> anyhow::Result<Vec<Field>> {
@@ -579,12 +579,12 @@ impl SchemaTrait for LibSqlDB {
         anyhow::Ok(())
     }
 
-    async fn rename_table(&self, old: &str, new: &str) -> anyhow::Result<()> {
+    async fn rename_table(&self, old: &str, new: &str) -> anyhow::Result<String> {
         let conn = self.get_conn().await?;
         let sql = format!(r#"ALTER TABLE "{old}" RENAME TO "{new}""#);
         log::info!("sql:{}", sql);
         conn.execute(&sql, params!()).await?;
-        anyhow::Ok(())
+        anyhow::Ok(sql)
     }
 
     async fn list_trigger(&self, table_name: &str) -> anyhow::Result<Vec<NamedStaff>> {
@@ -611,7 +611,7 @@ impl SchemaTrait for LibSqlDB {
         query_trigger_detail(conn.deref_mut(), name).await
     }
 
-    async fn drop_trigger(&self, _table: &str, name: &str) -> anyhow::Result<()> {
+    async fn drop_trigger(&self, _table: &str, name: &str) -> anyhow::Result<String> {
         let sql = format!(
             r#"
             DROP TRIGGER "{name}"
@@ -620,7 +620,7 @@ impl SchemaTrait for LibSqlDB {
         log::info!("sql:{}", sql);
         let conn = self.get_conn().await?;
         conn.execute(&sql, params!()).await?;
-        anyhow::Ok(())
+        anyhow::Ok(sql)
     }
 
     async fn show_create_table_sql(
@@ -692,25 +692,24 @@ impl SchemaTrait for LibSqlDB {
         self.list_view_impl(SqliteDB::MAIN_DB).await
     }
 
-    async fn drop_view(&self, view_name: &str) -> anyhow::Result<()> {
+    async fn drop_view(&self, view_name: &str) -> anyhow::Result<String> {
         self.can_write()?;
 
         let sql = format!(r#"DROP VIEW "{view_name}""#);
         let conn = self.get_conn().await?;
         conn.execute(&sql, params!()).await?;
-        anyhow::Ok(())
+        anyhow::Ok(sql)
     }
 
-    async fn drop_table(&self, table: &str, _cascade: bool) -> anyhow::Result<()> {
+    async fn drop_table(&self, table: &str, _cascade: bool) -> anyhow::Result<String> {
         self.can_write()?;
-        let s = format!(r#"DROP TABLE "{table}" "#,);
+        let sql = format!(r#"DROP TABLE "{table}" "#,);
         let conn = self.get_conn().await?;
-        conn.execute(&s, params!()).await?;
-
-        anyhow::Ok(())
+        conn.execute(&sql, params!()).await?;
+        anyhow::Ok(sql)
     }
 
-    async fn truncate_table(&self, table_name: &str) -> anyhow::Result<()> {
+    async fn truncate_table(&self, table_name: &str) -> anyhow::Result<String> {
         self.can_write()?;
         let sql = format!(
             r#"
@@ -721,7 +720,7 @@ impl SchemaTrait for LibSqlDB {
         let conn = self.get_conn().await?;
         conn.execute(&sql, params!()).await?;
 
-        anyhow::Ok(())
+        anyhow::Ok(sql)
     }
 
     async fn list_table(&self) -> anyhow::Result<Vec<ListTable>> {
@@ -1194,20 +1193,23 @@ mod tests {
             .await
             .unwrap() .unwrap() ;
 
-        db.add_table_column(
-            table_name,
-            "name",
-            ColumnType {
-                typ: "VARCHAR(255)".to_string(),
-                nullable: SqlNullAble::Null.into(),
-                after: Some("id".to_string()),
-                default_value: Some("abc".to_string()),
-            },
-        )
-        .await
-        .unwrap();
+        let sql = db
+            .add_table_column(
+                table_name,
+                "name",
+                ColumnType {
+                    typ: "VARCHAR(255)".to_string(),
+                    nullable: SqlNullAble::Null.into(),
+                    after: Some("id".to_string()),
+                    default_value: Some("abc".to_string()),
+                },
+            )
+            .await
+            .unwrap();
+        println!("add table column:{}", sql);
 
-        db.drop_table_column(table_name, "name").await.unwrap();
+        let sql = db.drop_table_column(table_name, "name").await.unwrap();
+        println!("drop table column:{}", sql);
     }
 
     #[tokio::test]

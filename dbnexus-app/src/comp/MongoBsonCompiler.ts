@@ -49,7 +49,10 @@ function trimQuoteMark(str: string): string {
 }
 
 class MongoBsonKV {
-  constructor(public key: Token, public value: MongoBsonValue) {}
+  constructor(
+    public key: Token,
+    public value: MongoBsonValue,
+  ) {}
 }
 
 class MongoBsonAs {
@@ -556,7 +559,7 @@ class MongoBsonArray {
   ) {}
 
   compile(): any {
-    return this.elements.map(e => e.compile());
+    return this.elements.map((e) => e.compile());
   }
 }
 
@@ -585,7 +588,10 @@ interface Token {
 
 class MongoBsonError extends Error {
   msgWithLoc: string;
-  constructor(public msg: string, public loc?: Location) {
+  constructor(
+    public msg: string,
+    public loc?: Location,
+  ) {
     const msgWithLoc = MongoBsonError.makeMsg(msg, loc);
     super(msgWithLoc);
     this.msgWithLoc = msgWithLoc;
@@ -678,7 +684,7 @@ class Parser {
   parseBinaryTypeAnnotation(): MongoBsonBinaryAllSubType | null {
     const token = this.peek();
     const valueLow = token.value.toLowerCase();
-    const t = MongoBsonBinaryAllSubType.allValues().find(e => valueLow == e);
+    const t = MongoBsonBinaryAllSubType.allValues().find((e) => valueLow == e);
     if (t) {
       this.next();
       return new MongoBsonBinaryAllSubType(token);
@@ -928,7 +934,7 @@ function toMongoBson(a: any): MongoBsonValue {
         return new MongoBsonValue(MongoBsonValueKind.Binary, a as Binary);
       }
       if (a instanceof Array) {
-        const elements = a.map(e => {
+        const elements = a.map((e) => {
           return toMongoBson(e);
         });
         return new MongoBsonValue(

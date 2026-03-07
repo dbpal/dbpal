@@ -194,9 +194,7 @@ pub async fn drop_database(
         .get_backend(name.as_str())
         .await
         .map_err(ErrorFrontend::from)?;
-
     // first close connections because we want delete it
-
     let key = format!("{}/{}", name, database);
     app.close_conn_has_prefix(&key).await;
     match backend {
@@ -237,8 +235,7 @@ pub async fn drop_schema(
     match backend {
         DatabaseBackend::DataBase(x) => {
             app.backend.lock().await.remove(&key);
-            x.drop_schema(&schema).await.map_err(ErrorFrontend::from)?;
-            Ok(())
+            x.drop_schema(&schema).await.map_err(ErrorFrontend::from)
         }
         _ => Err(ErrorFrontend::from(format!(
             "'{}' is not a db database",
@@ -256,7 +253,6 @@ pub async fn create_database(
 ) -> Result<(), ErrorFrontend> {
     random_sleep().await;
     random_error()?;
-
     let backend = app
         .get_backend(name.as_str())
         .await
@@ -268,7 +264,6 @@ pub async fn create_database(
                 .map_err(ErrorFrontend::from)?;
             Ok(())
         }
-
         _ => Err(ErrorFrontend::from(format!(
             "'{}' is not a db catalog",
             name
@@ -285,7 +280,6 @@ pub async fn create_schema(
 ) -> Result<(), ErrorFrontend> {
     random_sleep().await;
     random_error()?;
-
     let backend = app
         .get_backend(name.as_str())
         .await
@@ -458,7 +452,7 @@ pub async fn create_index(
     table_name: String,
     req: CreateIndexReq,
     app: tauri::State<'_, DBPal>,
-) -> Result<(), ErrorFrontend> {
+) -> Result<String, ErrorFrontend> {
     random_sleep().await;
     random_error()?;
     let schema = app
@@ -492,12 +486,9 @@ pub async fn mongo_create_index(
         Some(x) => x
             .create_index(&table_name, index_name, unique, keys)
             .await
-            .map_err(ErrorFrontend::from)?,
-        None => {
-            return Err(ErrorFrontend::from(format!("'{}' not a mongo", name)));
-        }
-    };
-    Ok(())
+            .map_err(ErrorFrontend::from),
+        None => Err(ErrorFrontend::from(format!("'{}' not a mongo", name))),
+    }
 }
 #[tauri::command]
 pub async fn rename_index(
@@ -506,7 +497,7 @@ pub async fn rename_index(
     old_name: String,
     new_name: String,
     app: tauri::State<'_, DBPal>,
-) -> Result<(), ErrorFrontend> {
+) -> Result<String, ErrorFrontend> {
     random_sleep().await;
     random_error()?;
     let schema = app
@@ -525,7 +516,7 @@ pub async fn drop_index(
     table_name: String,
     index: String,
     app: tauri::State<'_, DBPal>,
-) -> Result<(), ErrorFrontend> {
+) -> Result<String, ErrorFrontend> {
     random_sleep().await;
     random_error()?;
     let schema = app
@@ -590,7 +581,7 @@ pub async fn truncate_table(
     name: String,
     table_name: String,
     app: tauri::State<'_, DBPal>,
-) -> Result<(), ErrorFrontend> {
+) -> Result<String, ErrorFrontend> {
     random_sleep().await;
     random_error()?;
     let db = app.get_schema(&name).await?;
@@ -605,7 +596,7 @@ pub async fn drop_table_column(
     table_name: String,
     column_name: String,
     app: tauri::State<'_, DBPal>,
-) -> Result<(), ErrorFrontend> {
+) -> Result<String, ErrorFrontend> {
     random_sleep().await;
     random_error()?;
     let schema = app
@@ -615,8 +606,7 @@ pub async fn drop_table_column(
     schema
         .drop_table_column(&table_name, &column_name)
         .await
-        .map_err(ErrorFrontend::from)?;
-    Ok(())
+        .map_err(ErrorFrontend::from)
 }
 
 #[tauri::command]
@@ -627,7 +617,7 @@ pub async fn modify_table_column(
     new_name: String,
     typ: Option<ColumnType>,
     app: tauri::State<'_, DBPal>,
-) -> Result<(), ErrorFrontend> {
+) -> Result<String, ErrorFrontend> {
     random_sleep().await;
     random_error()?;
     let schema = app
@@ -637,8 +627,7 @@ pub async fn modify_table_column(
     schema
         .modify_table_column(&table_name, &old_name, &new_name, typ)
         .await
-        .map_err(ErrorFrontend::from)?;
-    Ok(())
+        .map_err(ErrorFrontend::from)
 }
 
 #[tauri::command]
@@ -648,7 +637,7 @@ pub async fn add_table_column(
     col_name: String,
     typ: ColumnType,
     app: tauri::State<'_, DBPal>,
-) -> Result<(), ErrorFrontend> {
+) -> Result<String, ErrorFrontend> {
     random_sleep().await;
     random_error()?;
     let schema = app
@@ -658,8 +647,7 @@ pub async fn add_table_column(
     schema
         .add_table_column(&table_name, &col_name, typ)
         .await
-        .map_err(ErrorFrontend::from)?;
-    Ok(())
+        .map_err(ErrorFrontend::from)
 }
 
 #[tauri::command]
@@ -692,7 +680,6 @@ pub async fn list_sql_current_values(
         .await
         .map_err(ErrorFrontend::from)?;
     let ret = schema.list_sql_current_values();
-
     Ok(ret)
 }
 
@@ -764,11 +751,11 @@ pub async fn get_redis_type_hint(
         .get_schema(name.as_str())
         .await
         .map_err(ErrorFrontend::from)?;
-    let x = match schema.as_any().downcast_ref::<RedisDB>() {
+    match schema.as_any().downcast_ref::<RedisDB>() {
         Some(x) => x.get_redis_type_hint(&text, query_id).await,
         None => return Err(ErrorFrontend::from("this is not redis db")),
-    };
-    x.map_err(ErrorFrontend::from)
+    }
+    .map_err(ErrorFrontend::from)
 }
 
 impl DatabaseBackend {
@@ -885,7 +872,7 @@ pub async fn drop_view(
     name: String,
     view_name: String,
     app: tauri::State<'_, DBPal>,
-) -> Result<(), ErrorFrontend> {
+) -> Result<String, ErrorFrontend> {
     random_sleep().await;
     random_error()?;
     let db = app.get_schema(&name).await?;
@@ -897,7 +884,7 @@ pub async fn drop_materialized_view(
     name: String,
     view_name: String,
     app: tauri::State<'_, DBPal>,
-) -> Result<(), ErrorFrontend> {
+) -> Result<String, ErrorFrontend> {
     random_sleep().await;
     random_error()?;
     let schema = app.get_schema(&name).await.map_err(ErrorFrontend::from)?;
@@ -913,7 +900,7 @@ pub async fn drop_table(
     table_name: String,
     cascade: bool,
     app: tauri::State<'_, DBPal>,
-) -> Result<(), ErrorFrontend> {
+) -> Result<String, ErrorFrontend> {
     random_sleep().await;
     random_error()?;
     let db = app.get_schema(&name).await?;
@@ -967,7 +954,7 @@ pub async fn drop_event(
     name: String,
     event_name: String,
     app: tauri::State<'_, DBPal>,
-) -> Result<(), ErrorFrontend> {
+) -> Result<String, ErrorFrontend> {
     random_sleep().await;
     random_error()?;
     let schema = app.get_schema(&name).await.map_err(ErrorFrontend::from)?;
@@ -1353,7 +1340,7 @@ pub async fn check_conn(
     name: String,
     app: tauri::State<'_, DBPal>,
 ) -> Result<
-    String, // human readable time
+    u128, // human readable time
     ErrorFrontend,
 > {
     random_sleep().await;
@@ -1361,13 +1348,10 @@ pub async fn check_conn(
     let timeout = 5;
     tokio::time::timeout(Duration::from_secs(timeout), async move {
         let db = app.get_backend(&name).await?;
-        db.check_conn().await.map_err(ErrorFrontend::from).map(|d| {
-            //
-            humantime::format_duration(Duration::from_millis(
-                d.as_millis() as u64, // 最小单位毫秒
-            ))
-            .to_string()
-        })
+        db.check_conn()
+            .await
+            .map_err(ErrorFrontend::from)
+            .map(|d| d.as_millis())
     })
     .await
     .map_err(|_| {
@@ -1639,8 +1623,7 @@ pub async fn query_set_autocommit(
         .as_query_sql()
         .set_auto_commit(query_id, commit)
         .await
-        .map_err(ErrorFrontend::from)?;
-    Ok(())
+        .map_err(ErrorFrontend::from)
 }
 
 #[tauri::command]
@@ -1705,7 +1688,7 @@ pub async fn drop_trigger(
     table_name: String,
     trigger: String,
     app: tauri::State<'_, DBPal>,
-) -> Result<(), ErrorFrontend> {
+) -> Result<String, ErrorFrontend> {
     random_sleep().await;
     random_error()?;
     let db = app
@@ -1724,7 +1707,7 @@ pub async fn enable_trigger(
     table_name: String,
     trigger: String,
     app: tauri::State<'_, DBPal>,
-) -> Result<(), ErrorFrontend> {
+) -> Result<String, ErrorFrontend> {
     random_sleep().await;
     random_error()?;
     let db = app
@@ -1742,7 +1725,7 @@ pub async fn disable_trigger(
     table_name: String,
     trigger: String,
     app: tauri::State<'_, DBPal>,
-) -> Result<(), ErrorFrontend> {
+) -> Result<String, ErrorFrontend> {
     random_sleep().await;
     random_error()?;
     let db = app
@@ -1791,7 +1774,7 @@ pub async fn rename_table(
     old: String,
     new: String,
     app: tauri::State<'_, DBPal>,
-) -> Result<(), ErrorFrontend> {
+) -> Result<String, ErrorFrontend> {
     random_sleep().await;
     random_error()?;
     let db = app
@@ -1828,15 +1811,14 @@ pub async fn create_table(
     name: String,
     req: CreateTableReq,
     app: tauri::State<'_, DBPal>,
-) -> Result<(), ErrorFrontend> {
+) -> Result<String, ErrorFrontend> {
     random_sleep().await;
     random_error()?;
     let db = app
         .get_schema(name.as_str())
         .await
         .map_err(ErrorFrontend::from)?;
-    db.create_table(&req).await.map_err(ErrorFrontend::from)?;
-    Ok(())
+    db.create_table(&req).await.map_err(ErrorFrontend::from)
 }
 
 #[tauri::command]
@@ -3068,7 +3050,7 @@ pub async fn drop_procedure(
     procedure: String,
     arg: Option<UdfOrProcedureExtraParameter>,
     app: tauri::State<'_, DBPal>,
-) -> Result<(), ErrorFrontend> {
+) -> Result<String, ErrorFrontend> {
     let schema = app
         .get_schema(name.as_str())
         .await
@@ -3119,8 +3101,7 @@ pub async fn drop_sequence(
     schema
         .drop_sequence(&seq, cascade)
         .await
-        .map_err(ErrorFrontend::from)?;
-    Ok(())
+        .map_err(ErrorFrontend::from)
 }
 
 #[tauri::command]
@@ -3129,7 +3110,7 @@ pub async fn rename_sequence(
     app: tauri::State<'_, DBPal>,
     old: String,
     new: String,
-) -> Result<(), ErrorFrontend> {
+) -> Result<String, ErrorFrontend> {
     let schema = app
         .get_schema(name.as_str())
         .await
@@ -3137,9 +3118,7 @@ pub async fn rename_sequence(
     schema
         .rename_sequence(&old, &new)
         .await
-        .map_err(ErrorFrontend::from)?;
-
-    Ok(())
+        .map_err(ErrorFrontend::from)
 }
 
 #[tauri::command]
@@ -3165,7 +3144,7 @@ pub async fn drop_udf(
     udf: String,
     arg: Option<UdfOrProcedureExtraParameter>,
     app: tauri::State<'_, DBPal>,
-) -> Result<(), ErrorFrontend> {
+) -> Result<String, ErrorFrontend> {
     let schema = app
         .get_schema(name.as_str())
         .await
@@ -3217,7 +3196,6 @@ pub async fn put_value_in_sql(
     // https://github.com/launchbadge/sqlx/issues/3390
     {
         let x = schema.backend_name();
-
         if x.mysql_like() {
             return Ok(match value {
                 Some(x) => {
@@ -3291,7 +3269,7 @@ pub async fn cassandra_drop_aggregate(
     agg_name: String,
     parameters: Vec<String>,
     app: tauri::State<'_, DBPal>,
-) -> Result<(), ErrorFrontend> {
+) -> Result<String, ErrorFrontend> {
     let schema = app
         .get_schema(name.as_str())
         .await
@@ -3301,15 +3279,12 @@ pub async fn cassandra_drop_aggregate(
         Some(x) => x
             .drop_aggregate(&agg_name, parameters)
             .await
-            .map_err(ErrorFrontend::from)?,
-        None => {
-            return Err(ErrorFrontend::from(format!(
-                "'{}' is not a cassandra",
-                name
-            )));
-        }
-    };
-    Ok(())
+            .map_err(ErrorFrontend::from),
+        None => Err(ErrorFrontend::from(format!(
+            "'{}' is not a cassandra",
+            name
+        ))),
+    }
 }
 
 #[tauri::command]
@@ -3317,7 +3292,7 @@ pub async fn drop_created_type(
     name: String,
     type_name: String,
     app: tauri::State<'_, DBPal>,
-) -> Result<(), ErrorFrontend> {
+) -> Result<String, ErrorFrontend> {
     let schema = app
         .get_schema(name.as_str())
         .await
@@ -3326,8 +3301,7 @@ pub async fn drop_created_type(
     schema
         .drop_created_type(&type_name)
         .await
-        .map_err(ErrorFrontend::from)?;
-    Ok(())
+        .map_err(ErrorFrontend::from)
 }
 
 #[tauri::command]
@@ -3403,16 +3377,6 @@ async fn random_sleep() {
             std::time::Duration::from_millis(millis)
         };
         tokio::time::sleep(duration).await
-    }
-}
-
-impl ErrorFrontend {
-    fn cancelled(msg: Option<String>) -> Self {
-        Self {
-            reason: msg.unwrap_or("this task is cancelled".to_string()),
-            detail: "".to_string(),
-            cancelled: true,
-        }
     }
 }
 

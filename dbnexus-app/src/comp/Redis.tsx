@@ -103,14 +103,14 @@ type ListPushDirection = "left" | "right";
 function RedisAddList(props: { uuid: string; listKey: string }) {
   const { uuid, listKey } = props;
 
-  const lpushOP = async value => {
+  const lpushOP = async (value) => {
     return await invoke("redis_list_lpush", {
       name: uuid,
       key: listKey,
       value,
     });
   };
-  const rpushOP = async value => {
+  const rpushOP = async (value) => {
     return await invoke("redis_list_rpush", {
       name: uuid,
       key: listKey,
@@ -132,7 +132,7 @@ function RedisAddList(props: { uuid: string; listKey: string }) {
       .then(() => {
         showNotification("success", "Push OK");
       })
-      .catch(e => {
+      .catch((e) => {
         showNotification("error", "Push Failure", e);
       })
       .finally(() => {
@@ -168,7 +168,7 @@ function RedisAddList(props: { uuid: string; listKey: string }) {
 
 function RedisStringTable(props: { uuid: string; stringKey: string }) {
   const { uuid, stringKey } = props;
-  const modifyOP = async value => {
+  const modifyOP = async (value) => {
     return await invoke("redis_string_set", {
       name: uuid,
       key: stringKey,
@@ -185,7 +185,7 @@ function RedisStringTable(props: { uuid: string; stringKey: string }) {
       uuid,
       name: stringKey,
       showNotification,
-      handleResult: resp => {
+      handleResult: (resp) => {
         setContent(resp.data[0]["result"]);
       },
       setStatus: setQueryStatus,
@@ -203,7 +203,7 @@ function RedisStringTable(props: { uuid: string; stringKey: string }) {
       .then(() => {
         showNotification("success", "Modify OK");
       })
-      .catch(e => {
+      .catch((e) => {
         showNotification("error", "Modify failure", e);
       })
       .finally(() => {
@@ -239,7 +239,7 @@ function RedisStringTable(props: { uuid: string; stringKey: string }) {
 function RedisAddSet(props: { uuid: string; setKey: string }) {
   const { uuid, setKey } = props;
 
-  const addOP = async member => {
+  const addOP = async (member) => {
     return await invoke("redis_set_add", {
       name: uuid,
       key: setKey,
@@ -260,7 +260,7 @@ function RedisAddSet(props: { uuid: string; setKey: string }) {
       .then(() => {
         showNotification("success", "Add ok");
       })
-      .catch(e => {
+      .catch((e) => {
         showNotification("error", "Add error", e);
       })
       .finally(() => {
@@ -301,7 +301,7 @@ function RedisAddHash(props: { uuid: string; hashKey: string }) {
       .then(() => {
         showNotification("success", "Add OK");
       })
-      .catch(e => {
+      .catch((e) => {
         showNotification("error", "Add Error", e);
       })
       .finally(() => {
@@ -350,7 +350,7 @@ function RedisAddZset(props: { uuid: string; zsetKey: string }) {
       .then(() => {
         showNotification("success", "Add OK");
       })
-      .catch(e => {
+      .catch((e) => {
         showNotification("error", "Add Failure", e);
       })
       .finally(() => {
@@ -370,7 +370,7 @@ function RedisAddZset(props: { uuid: string; zsetKey: string }) {
           label="score"
           error={score ? isNaN(parseFloat(score)) : false}
           helperText="put a valid float64 value"
-          onChange={event => {
+          onChange={(event) => {
             setScore(event.target.value);
           }}
           slotProps={{
@@ -424,7 +424,7 @@ function RedisEditHash(props: {
         showNotification("success", "Modify OK");
         handleClose();
       })
-      .catch(e => {
+      .catch((e) => {
         showNotification("error", "Modify failure", e);
       })
       .finally(() => {
@@ -475,7 +475,7 @@ function RedisEditZset(props: {
         showNotification("success", "Modify OK");
         handleClose();
       })
-      .catch(e => {
+      .catch((e) => {
         showNotification("error", "Modify Failure", e);
       })
       .finally(() => {
@@ -495,7 +495,7 @@ function RedisEditZset(props: {
           label="score"
           error={newValue ? isNaN(parseFloat(newValue)) : false}
           helperText="put a valid float64 value"
-          onChange={event => {
+          onChange={(event) => {
             setNewValue(event.target.value);
           }}
           slotProps={{
@@ -527,7 +527,7 @@ function RedisEditModeSelect(props: {
   const { mode, handleChange } = props;
   return (
     <>
-      {[RedisEditorMode.Text, RedisEditorMode.Json, RedisEditorMode.Hex].map(e => {
+      {[RedisEditorMode.Text, RedisEditorMode.Json, RedisEditorMode.Hex].map((e) => {
         return (
           <Chip
             key={e}
@@ -596,7 +596,7 @@ function RedisValueEditor(props: {
       setJsonErr(null);
       return;
     }
-    validJson(newValue).then(e => {
+    validJson(newValue).then((e) => {
       setJsonErr(e);
     });
   }, [newValue, editModel]);
@@ -615,7 +615,7 @@ function RedisValueEditor(props: {
         </Typography>
         <RedisEditModeSelect
           mode={editModel}
-          handleChange={mode => {
+          handleChange={(mode) => {
             if (
               mode == RedisEditorMode.Hex &&
               (editModel == RedisEditorMode.Json || editModel == RedisEditorMode.Text)
@@ -645,10 +645,10 @@ function RedisValueEditor(props: {
       <SimpleFlexEditor
         language={editModel == RedisEditorMode.Json ? "json" : "text"}
         value={newValue}
-        handleValue={v => {
+        handleValue={(v) => {
           setNewValue(v);
         }}
-        handleEditor={ed => {
+        handleEditor={(ed) => {
           valueRef.current.editor = ed;
         }}
         errPos={jsonErrPos}
@@ -704,7 +704,7 @@ function RedisEditList(props: {
         showNotification("success", "Modify OK", "");
         handleClose();
       })
-      .catch(e => {
+      .catch((e) => {
         showNotification("error", "Modify Failure", e);
       })
       .finally(() => {
@@ -744,7 +744,7 @@ function RedisEditSet(props: {
         showNotification("success", "Modify OK");
         handleClose();
       })
-      .catch(e => {
+      .catch((e) => {
         showNotification("error", "Modify Failure", e);
       })
       .finally(() => {
@@ -835,14 +835,14 @@ function RedisSetTable(props: { setKey: string; uuid: string }) {
   const maxRowRef = useRef(getSliderSizeStoreValue(redisMaxRowKey, redisMinRow));
   const [queryStatus, setQueryStatus] = useState("");
   const handleReload = useCallback(
-    showOK => {
+    (showOK) => {
       setLoading(true);
       showTable({
         uuid,
         name: setKey,
         setLoading,
         para: { limit: maxRowRef.current, where_str: keyMatch ? keyMatch : null },
-        handleExecuteTime: t => {
+        handleExecuteTime: (t) => {
           setFetchDur(t);
         },
         showNotification,
@@ -852,7 +852,7 @@ function RedisSetTable(props: { setKey: string; uuid: string }) {
           }
         },
         setStatus: setQueryStatus,
-        handleResult: resp => {
+        handleResult: (resp) => {
           resp.data.forEach((e, index) => {
             e["id"] = index;
           });
@@ -875,7 +875,7 @@ function RedisSetTable(props: { setKey: string; uuid: string }) {
       if (!confirm) {
         return;
       }
-      const del = resp.data.find(e => e["id"] == id);
+      const del = resp.data.find((e) => e["id"] == id);
       try {
         await delOP(del.value);
         showNotification("success", "Delete OK");
@@ -886,7 +886,7 @@ function RedisSetTable(props: { setKey: string; uuid: string }) {
     },
     [delOP, handleReload, resp, showNotification],
   );
-  const onRowDoubleClick = useCallback(e => {
+  const onRowDoubleClick = useCallback((e) => {
     setSelectRow(e.row);
   }, []);
 
@@ -895,7 +895,7 @@ function RedisSetTable(props: { setKey: string; uuid: string }) {
   const slotProps = useMemo(() => {
     return {
       row: {
-        onContextMenu: e => {
+        onContextMenu: (e) => {
           const { target } = e;
           const { field, id } = extractFieldAndIDFromMouseEvent(e);
           if (field) {
@@ -957,7 +957,7 @@ function RedisSetTable(props: { setKey: string; uuid: string }) {
                 min={redisMinRow}
                 max={50000}
                 step={1000}
-                handleValue={v => {
+                handleValue={(v) => {
                   maxRowRef.current = v;
                 }}
                 notice=<LimitMaxRowNotice />
@@ -987,7 +987,7 @@ function RedisSetTable(props: { setKey: string; uuid: string }) {
           <TextField
             label="key matcher"
             value={keyMatch}
-            onChange={event => {
+            onChange={(event) => {
               setKeyMatch(event.target.value);
             }}
             style={{ maxWidth: "15rem", flex: 1 }}
@@ -1051,7 +1051,7 @@ function RedisSetTable(props: { setKey: string; uuid: string }) {
             <RedisEditSet
               modifyOP={async (oldValue, newValue) => {
                 modifyOP(oldValue, newValue);
-                const idx = resp.data.findIndex(e => e["id"] == selectRow.id);
+                const idx = resp.data.findIndex((e) => e["id"] == selectRow.id);
                 setResp({
                   ...resp,
                   data: resp.data.map((e, index) => {
@@ -1129,7 +1129,7 @@ function RedisListTableContextMenu(props: {
               <TextField
                 value={count}
                 label="delete count"
-                onChange={e => {
+                onChange={(e) => {
                   setCount(e.target.value);
                 }}
                 helperText=<span
@@ -1259,10 +1259,10 @@ function RedisListTable(props: { listKey: string; uuid: string }) {
               showNotification("success", "reload OK");
             }
           : undefined,
-        handleExecuteTime: t => {
+        handleExecuteTime: (t) => {
           setFetchDur(t);
         },
-        handleResult: resp => {
+        handleResult: (resp) => {
           resp.data.forEach((e, index) => {
             e["id"] = index;
           });
@@ -1292,7 +1292,7 @@ function RedisListTable(props: { listKey: string; uuid: string }) {
       if (!confirm) {
         return;
       }
-      const del = resp.data.find(e => e.id == id);
+      const del = resp.data.find((e) => e.id == id);
       try {
         await delOP(deleteCount, del.value);
         showNotification("success", "Delete OK");
@@ -1304,7 +1304,7 @@ function RedisListTable(props: { listKey: string; uuid: string }) {
     [delOP, handleReload, resp, showNotification],
   );
 
-  const onRowDoubleClick = useCallback(e => {
+  const onRowDoubleClick = useCallback((e) => {
     setSelectRow(e.row);
   }, []);
 
@@ -1351,7 +1351,7 @@ function RedisListTable(props: { listKey: string; uuid: string }) {
   const slotProps = useMemo(() => {
     return {
       row: {
-        onContextMenu: e => {
+        onContextMenu: (e) => {
           const { target } = e;
           const content = (target as HTMLDivElement).innerHTML;
           const { id, field } = extractFieldAndIDFromMouseEvent(e);
@@ -1361,7 +1361,7 @@ function RedisListTable(props: { listKey: string; uuid: string }) {
           setUpMenu({
             content: (
               <RedisListTableContextMenu
-                delOP={async count => {
+                delOP={async (count) => {
                   handleDel(id, count);
                 }}
                 content={content}
@@ -1489,7 +1489,7 @@ function RedisListTable(props: { listKey: string; uuid: string }) {
               }}
             />
             <RedisEditList
-              modifyOP={async newValue => {
+              modifyOP={async (newValue) => {
                 const index = parseInt(selectRow.seq);
                 modifyOP(index, newValue);
                 setResp({
@@ -1562,7 +1562,7 @@ function RedisZsetTable(props: { uuid: string; zsetKey: string }) {
     });
   };
   const delOP = useCallback(
-    async member => {
+    async (member) => {
       return await invoke("redis_zset_del", {
         name: uuid,
         key: zsetKey,
@@ -1609,7 +1609,7 @@ function RedisZsetTable(props: { uuid: string; zsetKey: string }) {
           where_str: keyMatch ? keyMatch : null,
           limit: maxRowRef.current,
         },
-        handleExecuteTime: t => {
+        handleExecuteTime: (t) => {
           setFetchDur(t);
         },
         showNotification,
@@ -1618,7 +1618,7 @@ function RedisZsetTable(props: { uuid: string; zsetKey: string }) {
               showNotification("success", "reload OK");
             }
           : undefined,
-        handleResult: resp => {
+        handleResult: (resp) => {
           resp.data.forEach((e, index) => {
             e["id"] = index;
           });
@@ -1627,7 +1627,7 @@ function RedisZsetTable(props: { uuid: string; zsetKey: string }) {
           if (scoreWidth) {
             resp.fields[0]["width"] = scoreWidth;
           }
-          resp.data.forEach(e => {
+          resp.data.forEach((e) => {
             e.score = parseFloat(e["score"]);
           });
           resp.fields[1]["valueGetter"] = valueGetter;
@@ -1648,7 +1648,7 @@ function RedisZsetTable(props: { uuid: string; zsetKey: string }) {
       if (!confirm) {
         return;
       }
-      const del = resp.data.find(e => e["id"] == id);
+      const del = resp.data.find((e) => e["id"] == id);
       try {
         await delOP(del.key);
         showNotification("success", "Delete OK");
@@ -1659,7 +1659,7 @@ function RedisZsetTable(props: { uuid: string; zsetKey: string }) {
     },
     [delOP, handleReload, resp, showNotification],
   );
-  const onRowDoubleClick = useCallback(e => {
+  const onRowDoubleClick = useCallback((e) => {
     setSelectRow(e.row);
   }, []);
 
@@ -1667,7 +1667,7 @@ function RedisZsetTable(props: { uuid: string; zsetKey: string }) {
   const slotProps = useMemo(() => {
     return {
       row: {
-        onContextMenu: e => {
+        onContextMenu: (e) => {
           const { target } = e;
           const content = (target as HTMLDivElement).innerHTML;
           const { id, field } = extractFieldAndIDFromMouseEvent(e);
@@ -1736,7 +1736,7 @@ function RedisZsetTable(props: { uuid: string; zsetKey: string }) {
                 storeKey={redisMaxRowKey}
                 min={redisMinRow}
                 notice=<LimitMaxRowNotice />
-                handleValue={v => {
+                handleValue={(v) => {
                   maxRowRef.current = v;
                 }}
               />
@@ -1768,7 +1768,7 @@ function RedisZsetTable(props: { uuid: string; zsetKey: string }) {
           <TextField
             label="key matcher"
             value={keyMatch}
-            onChange={event => {
+            onChange={(event) => {
               setKeyMatch(event.target.value);
             }}
             slotProps={{
@@ -1795,7 +1795,7 @@ function RedisZsetTable(props: { uuid: string; zsetKey: string }) {
           label="minimum value"
           value={min}
           error={minErr}
-          onChange={event => {
+          onChange={(event) => {
             if (event.target.value) {
               setMinErr(isNaN(parseFloat(event.target.value)));
             } else {
@@ -1825,7 +1825,7 @@ function RedisZsetTable(props: { uuid: string; zsetKey: string }) {
           label="maximum value"
           value={max}
           error={maxErr}
-          onChange={event => {
+          onChange={(event) => {
             if (event.target.value) {
               setMaxErr(isNaN(parseFloat(event.target.value)));
             } else {
@@ -1893,7 +1893,7 @@ function RedisZsetTable(props: { uuid: string; zsetKey: string }) {
             <RedisEditZset
               modifyOP={async (oldKey, newKey, value) => {
                 modifyOP(oldKey, newKey, value);
-                const idx = resp.data.findIndex(e => oldKey === e.key);
+                const idx = resp.data.findIndex((e) => oldKey === e.key);
                 setResp({
                   ...resp,
                   data: resp.data.map((e, index) => {
@@ -1954,7 +1954,7 @@ function RedisHashTableContextMenu(props: { delOP: () => void; content }) {
   );
 }
 
-const valueGetter = value => {
+const valueGetter = (value) => {
   const x = hexTryToString(value);
   if (typeof x === "string") {
     return x;
@@ -1965,7 +1965,7 @@ const valueGetter = value => {
 function RedisHashTable(props: { hashKey: string; uuid: string }) {
   const { uuid, hashKey } = props;
   const delOP = useCallback(
-    async member => {
+    async (member) => {
       return await invoke("redis_hash_del", {
         name: uuid,
         key: hashKey,
@@ -1999,7 +1999,7 @@ function RedisHashTable(props: { hashKey: string; uuid: string }) {
   const [queryStatus, setQueryStatus] = useState("");
 
   const handleReload = useCallback(
-    showOK => {
+    (showOK) => {
       showTable({
         uuid,
         name: hashKey,
@@ -2008,14 +2008,14 @@ function RedisHashTable(props: { hashKey: string; uuid: string }) {
               showNotification("success", "reload OK");
             }
           : undefined,
-        handleExecuteTime: t => {
+        handleExecuteTime: (t) => {
           setFetchDur(t);
         },
         setStatus: setQueryStatus,
         para: { limit: maxRowRef.current, where_str: keyMatch ? keyMatch : null },
         setLoading,
         showNotification,
-        handleResult: resp => {
+        handleResult: (resp) => {
           resp.data.forEach((e, index) => {
             e["id"] = index;
           });
@@ -2040,7 +2040,7 @@ function RedisHashTable(props: { hashKey: string; uuid: string }) {
       if (!confirm) {
         return;
       }
-      const del = resp.data.find(e => e["id"] == id);
+      const del = resp.data.find((e) => e["id"] == id);
       try {
         await delOP(del.key);
         showNotification("success", "Delete OK");
@@ -2052,7 +2052,7 @@ function RedisHashTable(props: { hashKey: string; uuid: string }) {
     },
     [delOP, handleReload, resp, showNotification],
   );
-  const onRowDoubleClick = useCallback(e => {
+  const onRowDoubleClick = useCallback((e) => {
     setSelectRow(e.row);
   }, []);
 
@@ -2060,7 +2060,7 @@ function RedisHashTable(props: { hashKey: string; uuid: string }) {
   const slotProps = useMemo(() => {
     return {
       row: {
-        onContextMenu: e => {
+        onContextMenu: (e) => {
           const { target } = e;
           const content = (target as HTMLDivElement).innerHTML;
           const { id, field } = extractFieldAndIDFromMouseEvent(e);
@@ -2127,7 +2127,7 @@ function RedisHashTable(props: { hashKey: string; uuid: string }) {
                 min={redisMinRow}
                 max={50000}
                 step={1000}
-                handleValue={v => {
+                handleValue={(v) => {
                   maxRowRef.current = v;
                 }}
                 notice=<LimitMaxRowNotice />
@@ -2164,7 +2164,7 @@ function RedisHashTable(props: { hashKey: string; uuid: string }) {
             label="key matcher"
             variant="outlined"
             value={keyMatch}
-            onChange={event => {
+            onChange={(event) => {
               setKeyMatch(event.target.value);
             }}
             slotProps={{
@@ -2227,9 +2227,9 @@ function RedisHashTable(props: { hashKey: string; uuid: string }) {
               }}
             />
             <RedisEditHash
-              modifyOP={async req => {
+              modifyOP={async (req) => {
                 modifyOP(req.oldKey, req.newKey, req.value);
-                const idx = resp.data.findIndex(e => (e.key = req.oldKey));
+                const idx = resp.data.findIndex((e) => (e.key = req.oldKey));
 
                 setResp({
                   ...resp,

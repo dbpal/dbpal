@@ -147,7 +147,7 @@ impl CatalogTrait for SubDB {
     }
     async fn drop_database(&self, name: &str) -> anyhow::Result<()> {
         match self {
-            SubDB::CocoRoach(db) => db.drop_created_type(name).await,
+            SubDB::CocoRoach(db) => db.drop_database(name).await,
             _ => anyhow::bail!("not support"),
         }
     }
@@ -297,7 +297,7 @@ impl SchemaTrait for SubDB {
         self
     }
 
-    async fn rename_table(&self, old: &str, new: &str) -> anyhow::Result<()> {
+    async fn rename_table(&self, old: &str, new: &str) -> anyhow::Result<String> {
         self.as_schema().rename_table(old, new).await
     }
 
@@ -350,7 +350,7 @@ impl SchemaTrait for SubDB {
             .await
     }
 
-    async fn truncate_table(&self, table_name: &str) -> anyhow::Result<()> {
+    async fn truncate_table(&self, table_name: &str) -> anyhow::Result<String> {
         self.as_schema().truncate_table(table_name).await
     }
 
@@ -360,10 +360,10 @@ impl SchemaTrait for SubDB {
             _ => self.as_schema().list_view().await,
         }
     }
-    async fn drop_view(&self, _view_name: &str) -> anyhow::Result<()> {
+    async fn drop_view(&self, _view_name: &str) -> anyhow::Result<String> {
         self.as_schema().drop_view(_view_name).await
     }
-    async fn drop_table(&self, table: &str, cascade: bool) -> anyhow::Result<()> {
+    async fn drop_table(&self, table: &str, cascade: bool) -> anyhow::Result<String> {
         self.as_schema().drop_table(table, cascade).await
     }
 
@@ -375,7 +375,7 @@ impl SchemaTrait for SubDB {
         self.as_schema().list_data_types().await
     }
 
-    async fn drop_table_column(&self, _table: &str, col: &str) -> anyhow::Result<()> {
+    async fn drop_table_column(&self, _table: &str, col: &str) -> anyhow::Result<String> {
         self.as_schema().drop_table_column(_table, col).await
     }
     async fn modify_table_column(
@@ -384,7 +384,7 @@ impl SchemaTrait for SubDB {
         old_name: &str,
         new_name: &str,
         typ: Option<ColumnType>,
-    ) -> anyhow::Result<()> {
+    ) -> anyhow::Result<String> {
         self.as_schema()
             .modify_table_column(table, old_name, new_name, typ)
             .await
@@ -394,7 +394,7 @@ impl SchemaTrait for SubDB {
         table: &str,
         name: &str,
         col: ColumnType,
-    ) -> anyhow::Result<()> {
+    ) -> anyhow::Result<String> {
         self.as_schema().add_table_column(table, name, col).await
     }
 
@@ -403,7 +403,7 @@ impl SchemaTrait for SubDB {
         table_name: &str,
         _oldname: &str,
         newname: &str,
-    ) -> anyhow::Result<()> {
+    ) -> anyhow::Result<String> {
         self.as_schema()
             .rename_index(table_name, _oldname, newname)
             .await
@@ -413,11 +413,11 @@ impl SchemaTrait for SubDB {
         self.as_schema().show_indexes(table_name).await
     }
 
-    async fn create_index(&self, table: &str, req: &CreateIndexReq) -> anyhow::Result<()> {
+    async fn create_index(&self, table: &str, req: &CreateIndexReq) -> anyhow::Result<String> {
         self.as_schema().create_index(table, req).await
     }
 
-    async fn drop_index(&self, table_name: &str, _index: &str) -> anyhow::Result<()> {
+    async fn drop_index(&self, table_name: &str, _index: &str) -> anyhow::Result<String> {
         self.as_schema().drop_index(table_name, _index).await
     }
 
@@ -425,7 +425,7 @@ impl SchemaTrait for SubDB {
         self.as_schema().list_materialized_view().await
     }
 
-    async fn drop_materialized_view(&self, _name: &str) -> anyhow::Result<()> {
+    async fn drop_materialized_view(&self, _name: &str) -> anyhow::Result<String> {
         self.as_schema().drop_materialized_view(_name).await
     }
 
@@ -488,14 +488,14 @@ impl SchemaTrait for SubDB {
     async fn show_trigger(&self, table: &str, name: &str) -> anyhow::Result<TriggerDetail> {
         self.as_schema().show_trigger(table, name).await
     }
-    async fn drop_trigger(&self, table: &str, name: &str) -> anyhow::Result<()> {
+    async fn drop_trigger(&self, table: &str, name: &str) -> anyhow::Result<String> {
         self.as_schema().drop_trigger(table, name).await
     }
 
-    async fn disable_trigger(&self, table: &str, name: &str) -> anyhow::Result<()> {
+    async fn disable_trigger(&self, table: &str, name: &str) -> anyhow::Result<String> {
         self.as_schema().disable_trigger(table, name).await
     }
-    async fn enable_trigger(&self, table: &str, name: &str) -> anyhow::Result<()> {
+    async fn enable_trigger(&self, table: &str, name: &str) -> anyhow::Result<String> {
         self.as_schema().enable_trigger(table, name).await
     }
 
@@ -515,7 +515,7 @@ impl SchemaTrait for SubDB {
         &self,
         name: &str,
         extra: Option<UdfOrProcedureExtraParameter>,
-    ) -> anyhow::Result<()> {
+    ) -> anyhow::Result<String> {
         self.as_schema().drop_udf(name, extra).await
     }
 
@@ -533,7 +533,7 @@ impl SchemaTrait for SubDB {
         &self,
         name: &str,
         arg: Option<UdfOrProcedureExtraParameter>,
-    ) -> anyhow::Result<()> {
+    ) -> anyhow::Result<String> {
         self.as_schema().drop_procedure(name, arg).await
     }
 
@@ -544,7 +544,7 @@ impl SchemaTrait for SubDB {
         self.as_schema().list_created_types().await
     }
 
-    async fn drop_created_type(&self, _name: &str) -> anyhow::Result<()> {
+    async fn drop_created_type(&self, _name: &str) -> anyhow::Result<String> {
         self.as_schema().drop_created_type(_name).await
     }
 
@@ -568,13 +568,12 @@ impl SchemaTrait for SubDB {
             _ => self.as_schema().list_sequence().await,
         }
     }
-    async fn rename_sequence(&self, old: &str, new: &str) -> anyhow::Result<()> {
+    async fn rename_sequence(&self, old: &str, new: &str) -> anyhow::Result<String> {
         match self {
             SubDB::MariaDb(db) => {
                 let t = MariaDB { db: db.clone() };
                 t.rename_sequence(old, new).await
             }
-
             _ => self.as_schema().rename_sequence(old, new).await,
         }
     }
@@ -595,7 +594,7 @@ impl SchemaTrait for SubDB {
     async fn list_event(&self) -> anyhow::Result<Vec<SqlEvent>> {
         self.as_schema().list_event().await
     }
-    async fn drop_event(&self, name: &str) -> anyhow::Result<()> {
+    async fn drop_event(&self, name: &str) -> anyhow::Result<String> {
         self.as_schema().drop_event(name).await
     }
 }

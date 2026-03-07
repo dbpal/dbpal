@@ -84,15 +84,15 @@ function ViewsTree(props: { viewKind: ViewKind }) {
   const [exceed, setExceed] = useState(0);
   const matchPattern = useContext(MatchPatternContext);
   useEffect(() => {
-    setExceed(views.filter(e => matchPattern(e.name)).length);
+    setExceed(views.filter((e) => matchPattern(e.name)).length);
   }, [views, matchPattern]);
   const handleReload = useCallback(() => {
     setLoading(true);
     listView(uuid, viewKind)
-      .then(ts => {
+      .then((ts) => {
         setViews(ts);
       })
-      .catch(e => {
+      .catch((e) => {
         showNotification("error", "list view failed", e);
       })
       .finally(() => {
@@ -121,7 +121,7 @@ function ViewsTree(props: { viewKind: ViewKind }) {
       itemId={tressId.current}
       label=<Stack
         direction="row"
-        onContextMenu={e => {
+        onContextMenu={(e) => {
           setUpMenu({
             content: (
               <MenuList>
@@ -138,7 +138,7 @@ function ViewsTree(props: { viewKind: ViewKind }) {
       </Stack>
     >
       {views
-        .filter(e => matchPattern(e.name))
+        .filter((e) => matchPattern(e.name))
         .map((e, index) => {
           if (index >= maxsize) {
             return;
@@ -171,10 +171,10 @@ function StatementStructure(props: {
   const handleReload = useCallback(() => {
     setLoading(true);
     createViewSql(uuid, view, viewKind)
-      .then(e => {
+      .then((e) => {
         setSql(e);
       })
-      .catch(e => {
+      .catch((e) => {
         showNotification("error", "fetch create sql failed", e);
       })
       .finally(() => {
@@ -202,7 +202,7 @@ function StatementStructure(props: {
           readOnly={true}
           language={getLanguageFromDataSourceKind(kind)}
           value={sql}
-          handleEditor={editor => {
+          handleEditor={(editor) => {
             SetAutoCompletionName.set(
               editor.getModel().id,
               new NameAndQueryId(uuid, kind),
@@ -243,7 +243,7 @@ function ViewStructure(props: {
       <Stack direction="row" style={{ justifyContent: "center" }}>
         <Stack direction="row" justifyContent="center">
           <ButtonGroup>
-            {structures.map(e => {
+            {structures.map((e) => {
               return (
                 <Button
                   disabled={structure == e}
@@ -303,10 +303,10 @@ function ColumnsContent(props: { uuid: string; view: string }) {
   const handleReload = useCallback(() => {
     setLoading(true);
     showViewColumns(uuid, view)
-      .then(fs => {
+      .then((fs) => {
         setFields(fs);
       })
-      .catch(e => {
+      .catch((e) => {
         showNotification("error", "list column failed", e);
       })
       .finally(() => {
@@ -328,7 +328,7 @@ function ColumnsContent(props: { uuid: string; view: string }) {
       },
     ] as GridColDef[];
   }, []);
-  cols.forEach(e => {
+  cols.forEach((e) => {
     const width = ColumnWidth.instance.get(e.field);
     if (width) {
       e.width = width;
@@ -340,7 +340,7 @@ function ColumnsContent(props: { uuid: string; view: string }) {
   const slotProps = useMemo(() => {
     return {
       row: {
-        onContextMenu: e => {
+        onContextMenu: (e) => {
           const { target } = e;
           {
             const field = extractFieldAndIDFromMouseEvent(e).field;
@@ -365,7 +365,7 @@ function ColumnsContent(props: { uuid: string; view: string }) {
     } as GridSlotsComponentsProps;
   }, [setUpMenu, setting.export.csvDelimiter, setting.export.includeHeader]);
 
-  const getRowId = useCallback(e => {
+  const getRowId = useCallback((e) => {
     return e["field"];
   }, []);
   const slots = useMemo(() => {
@@ -416,7 +416,7 @@ function ViewTree(props: { view: string; reload; viewKind: ViewKind; size?: numb
         <Stack
           direction="row"
           sx={{ justifyContent: "space-between" }}
-          onContextMenu={e => {
+          onContextMenu={(e) => {
             setUpMenu({
               content: (
                 <ViewMenu
@@ -476,7 +476,7 @@ function ViewMenu(props: {
         showNotification("success", "Drop View OK");
         reload();
       })
-      .catch(e => {
+      .catch((e) => {
         showNotification("error", "Drop View Failure", e);
       });
   };
@@ -518,7 +518,7 @@ function ViewMenu(props: {
         showNotification("error", `data source ${kind} need impl view`);
     }
 
-    setTabs(e => {
+    setTabs((e) => {
       setTimeout(() => {
         setSelectTab(tabs.length);
       }, 100);
@@ -536,7 +536,7 @@ function ViewMenu(props: {
     if (typeof index == "number") {
       setSelectTab(index);
     } else {
-      setTabs(e => {
+      setTabs((e) => {
         setTimeout(() => {
           setSelectTab(tabs.length);
         }, 100);

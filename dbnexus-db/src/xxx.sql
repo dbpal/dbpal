@@ -1,2 +1,1 @@
-install xxx
-12 sqlite
+SELECT * FROM  system.

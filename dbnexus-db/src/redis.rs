@@ -1061,10 +1061,10 @@ impl SchemaTrait for RedisDB {
         anyhow::Ok(())
     }
 
-    async fn rename_table(&self, old: &str, new: &str) -> anyhow::Result<()> {
+    async fn rename_table(&self, old: &str, new: &str) -> anyhow::Result<String> {
         let mut conn = self.get_conn().await?;
         let _: () = conn.rename(old, new).await?;
-        anyhow::Ok(())
+        anyhow::Ok("".to_string())
     }
 
     fn as_any(&self) -> &dyn std::any::Any {
@@ -1268,7 +1268,7 @@ impl SchemaTrait for RedisDB {
         }
     }
 
-    async fn truncate_table(&self, key: &str) -> anyhow::Result<()> {
+    async fn truncate_table(&self, key: &str) -> anyhow::Result<String> {
         let mut conn = self.get_conn().await?;
         let typ = Self::get_key_type(&mut conn, key).await?;
         match typ {
@@ -1281,14 +1281,14 @@ impl SchemaTrait for RedisDB {
                 )
             }
         }
-        anyhow::Ok(())
+        anyhow::Ok("".to_string())
     }
 
-    async fn drop_table(&self, table: &str, _cascade: bool) -> anyhow::Result<()> {
+    async fn drop_table(&self, table: &str, _cascade: bool) -> anyhow::Result<String> {
         self.can_write()?;
         let mut conn: ConnectionManager = self.get_conn().await?;
         let _: () = conn.del(table).await?;
-        Ok(())
+        Ok("".to_string())
     }
 }
 

@@ -46,7 +46,8 @@ impl AstCompletion {
     }
 
     async fn need_key_space_identifier(
-        &self, key_space: Option<&Identifier>,
+        &self,
+        key_space: Option<&Identifier>,
     ) -> anyhow::Result<String> {
         let x = key_space.map(|x| x.to_string());
         self.db.need_key_space(x.as_deref()).await
@@ -260,7 +261,10 @@ impl AstCompletion {
     }
 
     async fn on_table_or_view_column(
-        &mut self, table: &FQName, col: &Identifier, is_expr: bool,
+        &mut self,
+        table: &FQName,
+        col: &Identifier,
+        is_expr: bool,
     ) -> anyhow::Result<()> {
         if !self.in_pos(col.span()) {
             return anyhow::Ok(());
@@ -389,7 +393,9 @@ impl AstCompletion {
     }
 
     async fn on_relation_element(
-        &mut self, table: &FQName, r: &RelationElement,
+        &mut self,
+        table: &FQName,
+        r: &RelationElement,
     ) -> anyhow::Result<()> {
         self.on_operand(table, &r.obj).await?;
         self.on_operand(table, &r.value).await?;
@@ -439,12 +445,10 @@ impl AstCompletion {
                 return anyhow::Ok(());
             }
         }
-
         if !self.in_pos(a.name.span()) {
             return anyhow::Ok(());
         }
         let key_space = self.need_key_space_identifier(a.keyspace.as_ref()).await?;
-
         let sql = format!(
             r#"
             SELECT function_name 

@@ -10,7 +10,7 @@ saveWindowState(StateFlags.ALL);
 
 const currentWebview = WebviewWindow.getCurrent();
 
-currentWebview.onCloseRequested(async event => {
+currentWebview.onCloseRequested(async (event) => {
   const confirm = await secondConfirm({
     title: "close the window",
     content: "exit the app",
@@ -44,11 +44,11 @@ function setLogLevel(level: string) {
 }
 
 ReactDOM.createRoot(document.getElementById("root") as HTMLElement).render(<App />);
-appStore.onKeyChange<string>(LoggerLevel.key, level => {
+appStore.onKeyChange<string>(LoggerLevel.key, (level) => {
   setLogLevel(level);
 });
 
-appStore.get<string>(LoggerLevel.key).then(level => {
+appStore.get<string>(LoggerLevel.key).then((level) => {
   setLogLevel(level);
 });
 

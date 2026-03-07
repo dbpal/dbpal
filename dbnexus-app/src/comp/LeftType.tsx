@@ -32,17 +32,17 @@ function TypesTree() {
 
   const reload = useCallback(() => {
     listCreatedTypes(uuid)
-      .then(ts => {
+      .then((ts) => {
         setTypes(ts);
       })
-      .catch(e => {
+      .catch((e) => {
         showNotification("error", "list types failed", e);
       });
   }, [showNotification, uuid]);
   const [exceed, setExceed] = useState(0);
   const matchPattern = useContext(MatchPatternContext);
   useEffect(() => {
-    setExceed(types.filter(e => matchPattern(e.name)).length);
+    setExceed(types.filter((e) => matchPattern(e.name)).length);
   }, [types, matchPattern]);
 
   const { setUpMenu } = useContext(ContextMenuContext);
@@ -57,7 +57,7 @@ function TypesTree() {
       label=<Stack
         direction="row"
         sx={{ alignItems: "center" }}
-        onContextMenu={e => {
+        onContextMenu={(e) => {
           setUpMenu({
             content: (
               <MenuList>
@@ -73,7 +73,7 @@ function TypesTree() {
       </Stack>
     >
       {types
-        .filter(typ => matchPattern(typ.name))
+        .filter((typ) => matchPattern(typ.name))
         .map((typ, index) => {
           if (index >= maxsize) {
             return;
@@ -86,7 +86,7 @@ function TypesTree() {
               style={{ alignItems: "center" }}
               label=<Stack
                 direction="row"
-                onContextMenu={e => {
+                onContextMenu={(e) => {
                   setUpMenu({
                     content: (
                       <TypeMenu
@@ -128,7 +128,7 @@ function TypeMenu(props: {
     if (typeof index == "number") {
       setSelectTab(index);
     } else {
-      setTabs(e => {
+      setTabs((e) => {
         setTimeout(() => {
           setSelectTab(tabs.length);
         }, 100);
@@ -137,18 +137,16 @@ function TypeMenu(props: {
           new TabContent(
             id,
             createdType.name,
-            (
-              <DefAndMetasView
-                reloadOP={async () => {
-                  return Promise.resolve({
-                    def: createdType.sql,
-                    metas: [],
-                  });
-                }}
-                kind={kind}
-                uuid={uuid}
-              />
-            ),
+            <DefAndMetasView
+              reloadOP={async () => {
+                return Promise.resolve({
+                  def: createdType.sql,
+                  metas: [],
+                });
+              }}
+              kind={kind}
+              uuid={uuid}
+            />,
             <PiTreeStructureFill className="tab-icon-size" />,
           ),
         ];
@@ -171,7 +169,7 @@ function TypeMenu(props: {
         reload();
       })
 
-      .catch(e => {
+      .catch((e) => {
         showNotification("error", "Drop type Failure", e);
       });
   };

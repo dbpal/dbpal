@@ -6,8 +6,8 @@ use crate::db::{
     ExportFrame, ExportKind, ExportQueryResult, Field, GetBackendKind, Index, IndexKind, ListTable,
     MetaValue, NamedStaff, OptionMustBeSomeErr, ProcedureDetail, QueryEvent, QueryEventEmitter,
     QueryResp, QuerySql, ReadOnlyTrait, SchemaTrait, ServerMetas, ShowTableParameter, SqlBuilder,
-    SqlEvent, TriggerDetail, TriggerEvent, TriggerTiming, UdfOrProcedureExtraParameter, XlsxEdit,
-    POOL_MAX_CONNECTIONS,
+    SqlCollect, SqlEvent, TriggerDetail, TriggerEvent, TriggerTiming, UdfOrProcedureExtraParameter,
+    XlsxEdit, POOL_MAX_CONNECTIONS,
 };
 use crate::helper::create_csv;
 use crate::language_server::LexerCompletionTrait;
@@ -668,36 +668,36 @@ impl SchemaTrait for MysqlDB {
     async fn list_event(&self) -> anyhow::Result<Vec<SqlEvent>> {
         self.list_event_impl(self.config.schema_str()?).await
     }
-    async fn drop_event(&self, name: &str) -> anyhow::Result<()> {
+    async fn drop_event(&self, name: &str) -> anyhow::Result<String> {
         let sql = format!(r#"DROP EVENT `{}`"#, name);
         let mut conn = self.get_conn().await?;
         sqlx::raw_sql(AssertSqlSafe(sql.as_str()))
             .execute(conn.deref_mut())
             .await?;
-        anyhow::Ok(())
+        anyhow::Ok(sql)
     }
 
     fn list_sql_current_values(&self) -> &'static [&'static str] {
         <Self as SqlBuilder>::get_current_values(self)
     }
-    async fn create_index(&self, table: &str, req: &CreateIndexReq) -> anyhow::Result<()> {
+    async fn create_index(&self, table: &str, req: &CreateIndexReq) -> anyhow::Result<String> {
         let sql = req.common_sql(table, true, self.backend_name().quote_style())?;
         log::info!("sql:{}", sql);
         let mut conn = self.get_conn().await?;
         sqlx::raw_sql(AssertSqlSafe(sql.as_str()))
             .execute(conn.deref_mut())
             .await?;
-        anyhow::Ok(())
+        anyhow::Ok(sql)
     }
 
-    async fn drop_index(&self, table_name: &str, index: &str) -> anyhow::Result<()> {
+    async fn drop_index(&self, table_name: &str, index: &str) -> anyhow::Result<String> {
         let sql = format!(r#"ALTER TABLE `{table_name}` DROP INDEX `{index}`"#);
         log::info!("sql:{}", sql);
         let mut conn = self.get_conn().await?;
         sqlx::raw_sql(AssertSqlSafe(sql.as_str()))
             .execute(conn.deref_mut())
             .await?;
-        anyhow::Ok(())
+        anyhow::Ok(sql)
     }
 
     async fn add_table_column(
@@ -705,7 +705,7 @@ impl SchemaTrait for MysqlDB {
         table: &str,
         name: &str,
         col: ColumnType,
-    ) -> anyhow::Result<()> {
+    ) -> anyhow::Result<String> {
         let mut sql = format!(
             "ALTER TABLE `{table}` ADD COLUMN `{name}` {} {} {}",
             col.typ,
@@ -723,12 +723,11 @@ impl SchemaTrait for MysqlDB {
             sql.push_str(format!(" after {}", a).as_str());
         }
         log::info!("sql:{}", sql);
-
         let mut conn = self.get_conn().await?;
         sqlx::raw_sql(AssertSqlSafe(sql.as_str()))
             .execute(conn.deref_mut())
             .await?;
-        anyhow::Ok(())
+        anyhow::Ok(sql)
     }
 
     async fn list_data_types(&self) -> anyhow::Result<Vec<String>> {
@@ -741,49 +740,47 @@ impl SchemaTrait for MysqlDB {
         old_name: &str,
         new_name: &str,
         typ: Option<ColumnType>,
-    ) -> anyhow::Result<()> {
+    ) -> anyhow::Result<String> {
         let mut conn = self.get_conn().await?;
+        let mut sc = SqlCollect::default();
+
         if old_name != new_name {
-            let sql = format!(
-                r#"
-            ALTER TABLE `{table}`
-                RENAME COLUMN `{old_name}` TO `{new_name}`;
-            "#
-            );
+            let sql =
+                format!(r#"ALTER TABLE `{table}` RENAME COLUMN `{old_name}` TO `{new_name}`"#);
             log::info!("sql:{}", sql);
             sqlx::raw_sql(AssertSqlSafe(sql.as_str()))
                 .execute(conn.deref_mut())
                 .await?;
+            sc.collect(sql);
         }
         if let Some(typ) = typ.as_ref() {
             let sql = format!(
-                r#"
-            ALTER TABLE `{table}`
-                MODIFY COLUMN `{new_name}` {} {};
-            "#,
+                r#"ALTER TABLE `{table}` MODIFY COLUMN `{new_name}` {} {} {}"#,
                 &typ.typ,
                 typ.nullable.unwrap_or_default(),
+                if let Some(dv) = typ.default_value.as_ref() {
+                    format!("DEFAULT {}", self.put_value_in_sql(&typ.typ, Some(&dv))?)
+                } else {
+                    "".to_string()
+                }
             );
             log::info!("sql:{}", sql);
             sqlx::raw_sql(AssertSqlSafe(sql.as_str()))
                 .execute(conn.deref_mut())
                 .await?;
+            sc.collect(sql);
         }
-        anyhow::Ok(())
+        anyhow::Ok(sc.into())
     }
 
-    async fn drop_table_column(&self, table: &str, col: &str) -> anyhow::Result<()> {
-        let sql = format!(
-            r#"
-            ALTER TABLE `{table}` DROP COLUMN `{col}`;
-        "#
-        );
+    async fn drop_table_column(&self, table: &str, col: &str) -> anyhow::Result<String> {
+        let sql = format!(r#"ALTER TABLE `{table}` DROP COLUMN `{col}`"#);
         log::info!("sql:{}", sql);
         let mut conn = self.get_conn().await?;
         sqlx::raw_sql(AssertSqlSafe(sql.as_str()))
             .execute(conn.deref_mut())
             .await?;
-        anyhow::Ok(())
+        anyhow::Ok(sql)
     }
 
     async fn show_view_columns(&self, view_name: &str) -> anyhow::Result<Vec<Field>> {
@@ -825,13 +822,13 @@ impl SchemaTrait for MysqlDB {
         &self,
         name: &str,
         _arg: Option<UdfOrProcedureExtraParameter>,
-    ) -> anyhow::Result<()> {
+    ) -> anyhow::Result<String> {
         let sql = format!("DROP PROCEDURE `{name}`");
         log::info!("sql:{}", sql);
         let mut conn = self.get_conn().await?;
         conn.execute(sqlx::raw_sql(AssertSqlSafe(sql.as_str())))
             .await?;
-        anyhow::Ok(())
+        anyhow::Ok(sql)
     }
 
     async fn show_udf(
@@ -858,13 +855,13 @@ impl SchemaTrait for MysqlDB {
         &self,
         name: &str,
         _extra: Option<UdfOrProcedureExtraParameter>,
-    ) -> anyhow::Result<()> {
+    ) -> anyhow::Result<String> {
         let sql = format!("DROP FUNCTION `{name}`");
         log::info!("sql:{}", sql);
         let mut conn = self.get_conn().await?;
         conn.execute(sqlx::raw_sql(AssertSqlSafe(sql.as_str())))
             .await?;
-        anyhow::Ok(())
+        anyhow::Ok(sql)
     }
 
     async fn list_udf(&self) -> anyhow::Result<Vec<NamedStaff>> {
@@ -895,24 +892,24 @@ impl SchemaTrait for MysqlDB {
         table_name: &str,
         oldname: &str,
         newname: &str,
-    ) -> anyhow::Result<()> {
+    ) -> anyhow::Result<String> {
         let sql = format!("ALTER TABLE `{table_name}` RENAME INDEX `{oldname}` TO `{newname}`");
         log::info!("sql:{}", sql);
         let mut conn = self.get_conn().await?;
         sqlx::raw_sql(AssertSqlSafe(sql.as_str()))
             .execute(conn.deref_mut())
             .await?;
-        anyhow::Ok(())
+        anyhow::Ok(sql)
     }
 
-    async fn rename_table(&self, old: &str, new: &str) -> anyhow::Result<()> {
+    async fn rename_table(&self, old: &str, new: &str) -> anyhow::Result<String> {
         let sql = format!("RENAME TABLE `{old}` TO `{new}`");
         log::info!("sql:{}", sql);
         let mut conn = self.get_conn().await?;
         sqlx::raw_sql(AssertSqlSafe(sql.as_str()))
             .execute(conn.deref_mut())
             .await?;
-        anyhow::Ok(())
+        anyhow::Ok(sql)
     }
 
     async fn show_trigger(&self, _table: &str, name: &str) -> anyhow::Result<TriggerDetail> {
@@ -933,7 +930,7 @@ impl SchemaTrait for MysqlDB {
         anyhow::Ok(d)
     }
 
-    async fn drop_trigger(&self, _table: &str, name: &str) -> anyhow::Result<()> {
+    async fn drop_trigger(&self, _table: &str, name: &str) -> anyhow::Result<String> {
         let sql = format!(
             r#"
         DROP TRIGGER `{name}`
@@ -944,7 +941,7 @@ impl SchemaTrait for MysqlDB {
         conn.execute(sqlx::raw_sql(AssertSqlSafe(sql.as_str())))
             .await?;
 
-        anyhow::Ok(())
+        anyhow::Ok(sql)
     }
 
     async fn list_trigger(&self, table_name: &str) -> anyhow::Result<Vec<NamedStaff>> {
@@ -1108,7 +1105,7 @@ impl SchemaTrait for MysqlDB {
         anyhow::Ok(())
     }
 
-    async fn drop_view(&self, view_name: &str) -> anyhow::Result<()> {
+    async fn drop_view(&self, view_name: &str) -> anyhow::Result<String> {
         self.can_write()?;
 
         let mut conn = self.get_conn().await?;
@@ -1117,10 +1114,10 @@ impl SchemaTrait for MysqlDB {
         sqlx::raw_sql(AssertSqlSafe(sql.as_str()))
             .execute(conn.deref_mut())
             .await?;
-        anyhow::Ok(())
+        anyhow::Ok(sql)
     }
 
-    async fn drop_table(&self, table: &str, cascade: bool) -> anyhow::Result<()> {
+    async fn drop_table(&self, table: &str, cascade: bool) -> anyhow::Result<String> {
         self.can_write()?;
         let mut conn = self.get_conn().await?;
         let sql = format!(
@@ -1131,25 +1128,25 @@ impl SchemaTrait for MysqlDB {
         sqlx::raw_sql(AssertSqlSafe(sql.as_str()))
             .execute(conn.deref_mut())
             .await?;
-        anyhow::Ok(())
+        anyhow::Ok(sql)
     }
 
     async fn list_view(&self) -> anyhow::Result<Vec<ListTable>> {
         self.list_view_impl(self.config.schema_str()?).await
     }
 
-    async fn truncate_table(&self, table_name: &str) -> anyhow::Result<()> {
+    async fn truncate_table(&self, table_name: &str) -> anyhow::Result<String> {
         self.can_write()?;
-        let s = format!(
+        let sql = format!(
             r#"
             TRUNCATE TABLE `{table_name}`;
         "#
         );
         let mut conn = self.get_conn().await?;
-        sqlx::raw_sql(AssertSqlSafe(s.as_str()))
+        sqlx::raw_sql(AssertSqlSafe(sql.as_str()))
             .execute(conn.deref_mut())
             .await?;
-        anyhow::Ok(())
+        anyhow::Ok(sql)
     }
 
     async fn list_table(&self) -> anyhow::Result<Vec<ListTable>> {
@@ -2055,34 +2052,41 @@ pub(crate) mod test_fns {
             .unwrap()
             .unwrap();
 
-        db.add_table_column(
-            table_name,
-            "name",
-            ColumnType {
-                typ: "VARCHAR(255)".to_string(),
-                nullable: SqlNullAble::Null.into(),
-                after: Some("id".to_string()),
-                default_value: Some("abc".to_string()),
-            },
-        )
-        .await
-        .unwrap();
+        let sql = db
+            .add_table_column(
+                table_name,
+                "name",
+                ColumnType {
+                    typ: "VARCHAR(255)".to_string(),
+                    nullable: SqlNullAble::Null.into(),
+                    after: Some("id".to_string()),
+                    default_value: Some("abc".to_string()),
+                },
+            )
+            .await
+            .unwrap();
 
-        db.modify_table_column(
-            table_name,
-            "name",
-            "name2",
-            Some(ColumnType {
-                typ: "VARCHAR(100)".to_string(),
-                nullable: SqlNullAble::Null.into(),
-                after: None,
-                default_value: Some("abc111".to_string()),
-            }),
-        )
-        .await
-        .unwrap();
+        println!("add table column sql:{}", sql);
 
-        db.drop_table_column(table_name, "name2").await.unwrap();
+        let sql = db
+            .modify_table_column(
+                table_name,
+                "name",
+                "name2",
+                Some(ColumnType {
+                    typ: "VARCHAR(100)".to_string(),
+                    nullable: SqlNullAble::Null.into(),
+                    after: None,
+                    default_value: Some("abc111".to_string()),
+                }),
+            )
+            .await
+            .unwrap();
+
+        println!("modify table column sql:{}", sql);
+
+        let sql = db.drop_table_column(table_name, "name2").await.unwrap();
+        println!("drop table column sql:{}", sql);
     }
 
     pub(crate) async fn test_duplicate(db: MysqlDB) {

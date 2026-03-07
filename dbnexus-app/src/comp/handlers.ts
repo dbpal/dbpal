@@ -167,20 +167,13 @@ function listMaterializedView(uuid: string) {
   return invoke<types.ListTable[]>("list_materialized_view", { name: uuid });
 }
 
-function makeShowProcedureExtraArg(
-  udf: types.NamedStaff,
-  kind: DataSourceKind,
-) {
+function makeShowProcedureExtraArg(udf: types.NamedStaff, kind: DataSourceKind) {
   return kind == DataSourceKind.Cockroach || kind == DataSourceKind.Postgres
     ? { extra: "postgres", parameters: udf.parameters }
     : null;
 }
 
-function showProcedure(
-  uuid: string,
-  udf: types.NamedStaff,
-  kind: DataSourceKind,
-) {
+function showProcedure(uuid: string, udf: types.NamedStaff, kind: DataSourceKind) {
   const arg = makeShowProcedureExtraArg(udf, kind);
   return invoke<types.ProcedureDetail>("show_procedure", {
     name: uuid,

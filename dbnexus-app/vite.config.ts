@@ -23,7 +23,7 @@ export default defineConfig(async ({ command }) => {
           main: resolve(__dirname, "index.html"),
         },
         output: {
-          manualChunks: id => {
+          manualChunks: (id) => {
             if (id.includes("monaco-editor")) return "monaco";
           },
         },

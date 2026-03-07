@@ -69,7 +69,7 @@ function QueryLog(props: {
   const [matchSql, setMatchSql] = useState("");
   const [orderBy, setOrderBy] = useState("");
   const [total, setTotal] = useState(0);
-  const onRowDoubleClick = useCallback(e => {
+  const onRowDoubleClick = useCallback((e) => {
     setSelectSql(e.row);
   }, []);
   const handler = useRef(new QueryLogHandler(uuid));
@@ -101,7 +101,7 @@ function QueryLog(props: {
       renderHeader: () => {
         return "time";
       },
-      renderCell: params => {
+      renderCell: (params) => {
         // 加z是utc时间
         return <div>{new Date(params.value + "Z").toLocaleString()}</div>;
       },
@@ -109,7 +109,7 @@ function QueryLog(props: {
     {
       width: ColumnWidth.instance.get("success"),
       field: "success",
-      renderCell: p => {
+      renderCell: (p) => {
         const success = p.row.success;
         if (success) {
           return <DoneIcon color="success" />;
@@ -155,8 +155,8 @@ function QueryLog(props: {
     }
   }, []);
   const onSortModelChange = useCallback((modal: GridSortModel) => {
-    modal = modal.filter(x => x.sort);
-    const orderBy = modal.map(e => `${e.field} ${e.sort}`).join(" ");
+    modal = modal.filter((x) => x.sort);
+    const orderBy = modal.map((e) => `${e.field} ${e.sort}`).join(" ");
     setOrderBy(orderBy);
   }, []);
   const [modalBox, setModalBox] = useState(null);
@@ -169,7 +169,7 @@ function QueryLog(props: {
   const vis = useContext(TabActiveContext);
 
   useEffect(() => {
-    const call = e => {
+    const call = (e) => {
       if (e.key === "Escape" && vis && showQueryLog) {
         setShowQueryLog(false);
         e.preventDefault();
@@ -240,7 +240,7 @@ function QueryLog(props: {
           filter {sqlDesc}:
           <TextField
             value={matchSql}
-            onChange={e => {
+            onChange={(e) => {
               setMatchSql(e.target.value);
             }}
             style={{ flex: 1, maxWidth: "20rem" }}
@@ -330,7 +330,7 @@ function QueryLog(props: {
             />
             <SimpleFlexEditor
               value={selectSql.sql}
-              handleEditor={e => {
+              handleEditor={(e) => {
                 SetAutoCompletionName.set(
                   e.getModel().id,
                   new NameAndQueryId(uuid, kind, queryId),

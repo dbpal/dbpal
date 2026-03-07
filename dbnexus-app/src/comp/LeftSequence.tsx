@@ -41,6 +41,7 @@ import {
 import { ExceedMaxTreeItem, MenuRefresh } from "./CommonComp.tsx";
 import { listSequence } from "./handlers.ts";
 import { GrSteps } from "react-icons/gr";
+import { CopySql } from "./CommonComp2.tsx";
 function SequenceTree() {
   const { uuid } = useContext(UuidContext);
   const { kind } = useContext(ConnTypeContext);
@@ -49,10 +50,10 @@ function SequenceTree() {
   const maxsize = useContext(MaxTreeContext);
   const reload = useCallback(() => {
     listSequence(uuid)
-      .then(ts => {
+      .then((ts) => {
         setSeq(ts);
       })
-      .catch(e => {
+      .catch((e) => {
         showNotification("error", "list sequence failed", e);
       });
   }, [showNotification, uuid]);
@@ -60,7 +61,7 @@ function SequenceTree() {
   const [exceed, setExceed] = useState(0);
   const matchPattern = useContext(MatchPatternContext);
   useEffect(() => {
-    setExceed(seq.filter(e => matchPattern(e.name)).length);
+    setExceed(seq.filter((e) => matchPattern(e.name)).length);
   }, [seq, matchPattern]);
   const { setUpMenu } = useContext(ContextMenuContext);
   useEffect(() => {
@@ -74,7 +75,7 @@ function SequenceTree() {
         <Stack
           direction="row"
           sx={{ alignItems: "center" }}
-          onContextMenu={e => {
+          onContextMenu={(e) => {
             setUpMenu({
               content: (
                 <MenuList>
@@ -91,7 +92,7 @@ function SequenceTree() {
       }
     >
       {seq
-        .filter(e => matchPattern(e.name))
+        .filter((e) => matchPattern(e.name))
         .map((seq, index) => {
           if (index >= maxsize) {
             return;
@@ -105,7 +106,7 @@ function SequenceTree() {
               label={
                 <Stack
                   direction="row"
-                  onContextMenu={e => {
+                  onContextMenu={(e) => {
                     setUpMenu({
                       content: (
                         <SequenceMenu
@@ -166,7 +167,7 @@ function SequenceMenu(props: {
     if (typeof index == "number") {
       setSelectTab(index);
     } else {
-      setTabs(e => {
+      setTabs((e) => {
         setTimeout(() => {
           setSelectTab(tabs.length);
         }, 100);
@@ -200,12 +201,12 @@ function SequenceMenu(props: {
       return;
     }
     invoke("drop_sequence", { name: uuid, seq: seq.name, cascade })
-      .then(() => {
-        showNotification("success", "Drop sequence OK");
+      .then((sql) => {
+        showNotification("success", "Drop sequence OK", <CopySql sql={sql} />);
         reload();
         setShowDrop(false);
       })
-      .catch(e => {
+      .catch((e) => {
         showNotification("error", "Drop sequence Failure", e);
       });
   };
@@ -251,7 +252,7 @@ function SequenceMenu(props: {
                     control={
                       <Checkbox
                         checked={cascade}
-                        onChange={e => setCascade(e.target.checked)}
+                        onChange={(e) => setCascade(e.target.checked)}
                       />
                     }
                     label="CasCade"

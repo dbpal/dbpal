@@ -80,7 +80,6 @@ import {
   TableType,
   TabsSetContext,
   UuidContext,
-  WindowFocusContext,
 } from "./helper";
 import { TbDatabaseSearch } from "react-icons/tb";
 import { SqlQuery } from "./SqlQuery";
@@ -155,7 +154,7 @@ function LeftTop(props: {
   const [showEditFilter, setShowEditFilter] = useState(false);
   const showAddConnection = useCallback(
     async (conn?: types.DBConnectionConfig) => {
-      setTabs(e => {
+      setTabs((e) => {
         setTimeout(() => {
           setSelectTab(e.length + 1);
         }, 100);
@@ -178,7 +177,7 @@ function LeftTop(props: {
       showAddConnection();
     });
     return () => {
-      unlisten.then(callback => {
+      unlisten.then((callback) => {
         callback();
       });
     };
@@ -190,7 +189,7 @@ function LeftTop(props: {
       if (typeof index == "number") {
         setSelectTab(index);
       } else {
-        setTabs(e => {
+        setTabs((e) => {
           setTimeout(() => {
             setSelectTab(e.length + 1);
           }, 100);
@@ -207,14 +206,14 @@ function LeftTop(props: {
       }
     });
     return () => {
-      unlisten.then(callback => {
+      unlisten.then((callback) => {
         callback();
       });
     };
   }, [setSelectTab, setTabs, tabs]);
 
   const toggleShow = () => {
-    setShow(e => !e);
+    setShow((e) => !e);
   };
   const theme = useTheme();
   return (
@@ -344,7 +343,7 @@ function LeftTop(props: {
                     label={e}
                     color="success"
                     onDelete={() => {
-                      setMatchPattern(arr =>
+                      setMatchPattern((arr) =>
                         arr.filter((_, eIndex) => eIndex !== index),
                       );
                     }}
@@ -356,7 +355,7 @@ function LeftTop(props: {
                   fullWidth
                   value={matchPatterInput}
                   label="match pattern"
-                  onChange={e => {
+                  onChange={(e) => {
                     setMatchPatternInput(e.target.value.trim());
                   }}
                   slotProps={{
@@ -378,7 +377,7 @@ function LeftTop(props: {
                 />
                 <Button
                   onClick={() => {
-                    if (matchPattern.find(e => e == matchPatterInput)) {
+                    if (matchPattern.find((e) => e == matchPatterInput)) {
                       showNotification("warning", "the value already exists");
                       return;
                     }
@@ -460,7 +459,7 @@ function LeftTop(props: {
               handleClose={() => {
                 setShowCopyConn(false);
               }}
-              setCopyConn={conn => {
+              setCopyConn={(conn) => {
                 showAddConnection(conn);
               }}
             />
@@ -496,10 +495,10 @@ function CopyConnection(props: { handleClose; setCopyConn }) {
   const { handleClose, setCopyConn } = props;
   const [conns, setConns] = useState<types.DBConnectionConfig[]>([]);
   const [sortModel, setSortModel] = useState<GridSortModel>([]);
-  const getRowId = useCallback(e => {
+  const getRowId = useCallback((e) => {
     return e.name;
   }, []);
-  const onSortModelChange = useCallback(e => {
+  const onSortModelChange = useCallback((e) => {
     setSortModel(e);
   }, []);
 
@@ -508,7 +507,7 @@ function CopyConnection(props: { handleClose; setCopyConn }) {
   const { setUpMenu } = useContext(ContextMenuContext);
 
   const handleRow = useCallback(
-    async conn => {
+    async (conn) => {
       const password = await PassWordManager.getPassword(conn.name);
       const cop = { ...conn };
       if (password) {
@@ -522,7 +521,7 @@ function CopyConnection(props: { handleClose; setCopyConn }) {
   const slotProps = useMemo(() => {
     return {
       row: {
-        onContextMenu: e => {
+        onContextMenu: (e) => {
           const { target } = e;
           const content = (target as HTMLDivElement).innerHTML;
           const field = extractFieldAndIDFromMouseEvent(e).field;
@@ -564,7 +563,7 @@ function CopyConnection(props: { handleClose; setCopyConn }) {
         },
       },
     ] as GridColDef[];
-    cols.forEach(e => {
+    cols.forEach((e) => {
       const width = ColumnWidth.instance.get(e.field);
       if (width) {
         e.width = width;
@@ -578,7 +577,7 @@ function CopyConnection(props: { handleClose; setCopyConn }) {
   }, []);
 
   const onRowDoubleClick = useCallback(
-    row => {
+    (row) => {
       handleRow(row.row);
     },
     [handleRow],
@@ -651,13 +650,13 @@ function Left() {
   }, [maxTreeSize]);
   const handleReload = useCallback(async () => {
     ConnectionHandler.getAll()
-      .then(e => {
+      .then((e) => {
         if (!e) {
           e = [];
         }
         setConfigs(e);
       })
-      .catch(e => {
+      .catch((e) => {
         showNotification("error", "list all config failure", e);
       });
   }, [showNotification]);
@@ -670,7 +669,7 @@ function Left() {
       handleReload();
     });
     return () => {
-      unlisten.then(e => {
+      unlisten.then((e) => {
         e();
       });
     };
@@ -691,12 +690,10 @@ function Left() {
     },
     [matchPattern],
   );
-  const windowFocus = useContext(WindowFocusContext);
   return (
     <Stack
       style={{
         overflow: "auto",
-        opacity: windowFocus ? 1 : "0.6",
       }}
     >
       <LeftTop
@@ -706,7 +703,7 @@ function Left() {
         setMaxTreeSize={setMaxTreeSize}
       />
       <Stack spacing={0.3}>
-        {configs.map(e => {
+        {configs.map((e) => {
           return (
             <MatchPatternContext.Provider value={matchFN} key={e.name}>
               <ConnTypeContext.Provider
@@ -777,7 +774,7 @@ function FavoriteSqlList(props: { handleClose: () => void }) {
   const [distinctUuid, setDistinctUuid] = useState<string[]>([]);
   const setting = useContext(SettingContext);
   const handleReload = useCallback(
-    async showOK => {
+    async (showOK) => {
       try {
         const us = await FavoriteSql.getDistinctUuid();
         setDistinctUuid(us);
@@ -818,7 +815,7 @@ function FavoriteSqlList(props: { handleClose: () => void }) {
         if (!(await checkConnOpened(row.uuid))) {
           return;
         }
-        setTabs(tabs => {
+        setTabs((tabs) => {
           const content = (
             <AllKindChat
               kind={row.kind}
@@ -848,7 +845,7 @@ function FavoriteSqlList(props: { handleClose: () => void }) {
     },
     [checkConnOpened, handleClose, setSelectTab, setTabs, showNotification],
   );
-  const onSortModelChange = useCallback(e => {
+  const onSortModelChange = useCallback((e) => {
     setSortModel(e);
   }, []);
 
@@ -860,7 +857,7 @@ function FavoriteSqlList(props: { handleClose: () => void }) {
   const slotProps = useMemo(() => {
     return {
       row: {
-        onContextMenu: e => {
+        onContextMenu: (e) => {
           const { target } = e;
           const content = (target as HTMLDivElement).innerHTML;
           const { field, id } = extractFieldAndIDFromMouseEvent(e);
@@ -902,7 +899,7 @@ function FavoriteSqlList(props: { handleClose: () => void }) {
       { field: "sql" },
       { field: "lastModified" },
     ] as GridColDef[];
-    cols.forEach(e => {
+    cols.forEach((e) => {
       const width = ColumnWidth.instance.get(e.field);
       if (width) {
         e.width = width;
@@ -915,7 +912,7 @@ function FavoriteSqlList(props: { handleClose: () => void }) {
   }, []);
 
   const onRowDoubleClick = useCallback(
-    row => {
+    (row) => {
       handleRow(row.row);
     },
     [handleRow],
@@ -945,7 +942,7 @@ function FavoriteSqlList(props: { handleClose: () => void }) {
           options={distinctUuid}
           style={{ width: "22rem" }}
           value={uuidFilter}
-          renderInput={params => (
+          renderInput={(params) => (
             <TextField {...params} label="filter connection name" />
           )}
           freeSolo={false}
@@ -1102,7 +1099,7 @@ function SchemaTree(props: { schema?: string; reloadSchemas? }) {
       itemId={idForTree.current}
       label=<Stack
         direction="row"
-        onContextMenu={e => {
+        onContextMenu={(e) => {
           setUpMenu({
             content: (
               <SchemaMenu
@@ -1635,10 +1632,10 @@ function CatalogTree() {
   const handleReload = useCallback(() => {
     setLoading(true);
     invoke<string[]>("list_database", { name })
-      .then(ds => {
+      .then((ds) => {
         setDatabases(ds);
       })
-      .catch(e => {
+      .catch((e) => {
         showNotification("error", "list database failed", e);
       })
       .finally(() => {
@@ -1659,7 +1656,7 @@ function CatalogTree() {
       itemId={name}
       label=<Stack
         direction="row"
-        onContextMenu={e => {
+        onContextMenu={(e) => {
           setUpMenu({
             content: (
               <CatalogMenu
@@ -1687,7 +1684,7 @@ function CatalogTree() {
       </Stack>
       key={name}
     >
-      {databases.map(e => {
+      {databases.map((e) => {
         return (
           <UuidContext.Provider key={e} value={{ uuid: name + "/" + e }}>
             <DatabaseTree key={e} database={e} reloadDatabase={handleReload} />
@@ -1709,10 +1706,10 @@ function DatabaseTree(props: { database?: string; reloadDatabase?: () => void })
   const handleReload = useCallback(() => {
     setLoading(true);
     listSchema(name)
-      .then(ds => {
+      .then((ds) => {
         setSchemas(ds);
       })
-      .catch(e => {
+      .catch((e) => {
         showNotification("error", "list schema failed", e);
       })
       .finally(() => {
@@ -1733,7 +1730,7 @@ function DatabaseTree(props: { database?: string; reloadDatabase?: () => void })
       label=<Stack
         direction="row"
         alignContent="baseline"
-        onContextMenu={e => {
+        onContextMenu={(e) => {
           setUpMenu({
             content: (
               <DatabaseMenu
@@ -1766,7 +1763,7 @@ function DatabaseTree(props: { database?: string; reloadDatabase?: () => void })
       </Stack>
       key={name + database}
     >
-      {schemas.map(e => {
+      {schemas.map((e) => {
         return (
           <UuidContext.Provider key={e} value={{ uuid: name + "/" + e }}>
             <SchemaTree key={e} schema={e} reloadSchemas={handleReload} />

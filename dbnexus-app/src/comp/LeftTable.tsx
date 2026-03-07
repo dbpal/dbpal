@@ -73,7 +73,7 @@ import { ExceedMaxTreeItem, MenuRefresh, ModalHeader } from "./CommonComp";
 import { TableStructure } from "./TableStructure";
 import { cancelTask, listTable, makeTableInsertFn, showTableColumn } from "./handlers";
 import { filesize } from "filesize";
-import { CancelButton, StackRowCenter } from "./CommonComp2";
+import { CancelButton, CopySql, StackRowCenter } from "./CommonComp2";
 import { CouchBaseTable } from "./CouchBase";
 
 function TablesTree(props: { typ: TableType }) {
@@ -87,15 +87,15 @@ function TablesTree(props: { typ: TableType }) {
   const matchPattern = useContext(MatchPatternContext);
   const maxsize = useContext(MaxTreeContext);
   useEffect(() => {
-    setExceed(tables.filter(e => matchPattern(e.name)).length);
+    setExceed(tables.filter((e) => matchPattern(e.name)).length);
   }, [tables, matchPattern]);
   const handleReload = useCallback(() => {
     setLoading(true);
     listTable(uuid, typ)
-      .then(ts => {
+      .then((ts) => {
         setTables(ts);
       })
-      .catch(e => {
+      .catch((e) => {
         showNotification("error", "list table failed", e);
       })
       .finally(() => {
@@ -133,7 +133,7 @@ function TablesTree(props: { typ: TableType }) {
       label=<Stack
         direction="row"
         sx={{ alignItems: "center" }}
-        onContextMenu={e => {
+        onContextMenu={(e) => {
           setUpMenu({
             content: (
               <MenuList>
@@ -150,7 +150,7 @@ function TablesTree(props: { typ: TableType }) {
       </Stack>
     >
       {tables
-        .filter(e => matchPattern(e.name))
+        .filter((e) => matchPattern(e.name))
         .map((e, index) => {
           if (index >= maxsize) {
             return;
@@ -190,7 +190,7 @@ function TableTree(props: {
         <Stack
           direction="row"
           justifyContent="space-between"
-          onContextMenu={e => {
+          onContextMenu={(e) => {
             setUpMenu({
               content: (
                 <TableMenu
@@ -241,12 +241,12 @@ function DropTable(props: {
     }
     setLoading(true);
     invoke("drop_table", { name: uuid, tableName: table, cascade })
-      .then(() => {
-        showNotification("success", "Drop table OK");
+      .then((sql) => {
+        showNotification("success", "Drop table OK", <CopySql sql={sql} />);
         reloadTables();
         handleClose();
       })
-      .catch(e => {
+      .catch((e) => {
         showNotification("error", "Drop table failure", e);
       })
       .finally(() => {
@@ -273,7 +273,10 @@ function DropTable(props: {
       {supportCascade() && (
         <FormControlLabel
           control={
-            <Checkbox checked={cascade} onChange={e => setCascade(e.target.checked)} />
+            <Checkbox
+              checked={cascade}
+              onChange={(e) => setCascade(e.target.checked)}
+            />
           }
           label="CASCADE"
         />
@@ -373,7 +376,7 @@ function AddTableView(props: {
     case DataSourceKind.Mongo:
       return (
         <MongoTableAdd
-          addOP={async data => {
+          addOP={async (data) => {
             return invoke<void>("mongo_insert", {
               name: uuid,
               tableName: table,
@@ -387,10 +390,10 @@ function AddTableView(props: {
   // eslint-disable-next-line react-hooks/rules-of-hooks
   useEffect(() => {
     showTableColumn(uuid, table)
-      .then(e => {
+      .then((e) => {
         setFields(e);
       })
-      .catch(e => {
+      .catch((e) => {
         showNotification("error", "list fields failed", e);
       });
   }, [showNotification, table, uuid]);
@@ -432,10 +435,10 @@ function TableMenu(props: {
       return;
     }
     invoke("truncate_table", { tableName: table, name: uuid })
-      .then(() => {
-        showNotification("success", `Truncate table OK`);
+      .then((sql) => {
+        showNotification("success", `Truncate table OK`, <CopySql sql={sql} />);
       })
-      .catch(e => {
+      .catch((e) => {
         showNotification("error", `Truncate  table failure`, e);
       });
   };
@@ -443,7 +446,7 @@ function TableMenu(props: {
   const handleViewData = () => {
     const id = uuid + "-table-" + generateRandomString(10);
     const tableList: ReactNode = makeViewTable(uuid, table, kind, redisTableType);
-    setTabs(e => {
+    setTabs((e) => {
       setTimeout(() => {
         setSelectTab(tabs.length);
       }, 100);
@@ -462,7 +465,7 @@ function TableMenu(props: {
   const handleAddData = async () => {
     const id = generateRandomString(10);
 
-    setTabs(e => {
+    setTabs((e) => {
       setTimeout(() => {
         setSelectTab(tabs.length);
       }, 100);
@@ -489,7 +492,7 @@ function TableMenu(props: {
     if (typeof index == "number") {
       setSelectTab(index);
     } else {
-      setTabs(e => {
+      setTabs((e) => {
         setTimeout(() => {
           setSelectTab(tabs.length);
         }, 100);
@@ -739,7 +742,7 @@ function DupTable(props: {
         reloadTables();
         handleClose();
       })
-      .catch(e => {
+      .catch((e) => {
         showNotification("error", "duplicate failure", e);
       })
       .finally(() => {
@@ -752,7 +755,7 @@ function DupTable(props: {
       <TextField
         value={name}
         label="duplicate name"
-        onChange={e => {
+        onChange={(e) => {
           setName(e.target.value);
         }}
       />
@@ -798,12 +801,12 @@ function RenameTable(props: {
     }
     setLoading(true);
     invoke("rename_table", { name: uuid, old: table, new: newName })
-      .then(() => {
-        showNotification("success", "rename OK");
+      .then((sql) => {
+        showNotification("success", "rename OK", <CopySql sql={sql} />);
         reloadTables();
         handleClose();
       })
-      .catch(e => {
+      .catch((e) => {
         showNotification("error", "rename failure", e);
       })
       .finally(() => {
@@ -816,7 +819,7 @@ function RenameTable(props: {
       <TextField
         value={newName}
         label="New Name"
-        onChange={e => {
+        onChange={(e) => {
           setNewName(e.target.value);
         }}
       />
@@ -863,7 +866,7 @@ function RedisOneTableKind(props: {
       label=<Stack
         direction="row"
         sx={{ alignItems: "center" }}
-        onContextMenu={e => {
+        onContextMenu={(e) => {
           setUpMenu({
             content: (
               <MenuList>
@@ -877,13 +880,13 @@ function RedisOneTableKind(props: {
         <span>{name}</span>
       </Stack>
     >
-      {tables.map(table => (
+      {tables.map((table) => (
         <TreeItem
           key={table}
           itemId={uuid + "-key-" + name + "-" + table}
           label=<Stack
             direction="row"
-            onContextMenu={e => {
+            onContextMenu={(e) => {
               setUpMenu({
                 content: (
                   <TableMenu
@@ -922,10 +925,10 @@ function RedisTables() {
       filter: filter ? filter : null,
       max,
     })
-      .then(e => {
+      .then((e) => {
         setTables(e);
       })
-      .catch(e => {
+      .catch((e) => {
         showNotification("error", "list redis table failed", e);
       })
       .finally(() => {
@@ -1027,7 +1030,7 @@ function RedisTables() {
               fullWidth
               label="filer"
               helperText="key filter"
-              onChange={e => {
+              onChange={(e) => {
                 setFilter(e.target.value);
               }}
               slotProps={{

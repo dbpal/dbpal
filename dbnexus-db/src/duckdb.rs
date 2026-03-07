@@ -6,7 +6,7 @@ use crate::db::{
     CreateTableAndIndexSql, DBTrait, ExportFrame, ExportKind, ExportQueryResult, Field,
     GetBackendKind, Index, IndexKind, ListTable, MetaValue, QueryEventEmitter, QueryResp, QuerySql,
     ReadOnlyTrait, SchemaTrait, SequenceDetail, ServerMetas, ShowTableParameter, SqlBuilder,
-    POOL_MAX_CONNECTIONS,
+    SqlCollect, POOL_MAX_CONNECTIONS,
 };
 use crate::helper::{create_csv, separate_sql_by_sqlparser_tokenizer};
 use chrono::NaiveDate;
@@ -784,13 +784,14 @@ impl SchemaTrait for DuckDB {
         _table: &str,
         _old_name: &str,
         _new_name: &str,
-    ) -> anyhow::Result<()> {
+    ) -> anyhow::Result<String> {
         self.backend_name().not_support_feature()
     }
 
-    async fn drop_index(&self, _table_name: &str, index: &str) -> anyhow::Result<()> {
+    async fn drop_index(&self, _table_name: &str, index: &str) -> anyhow::Result<String> {
         let sql = format!(r#"DROP INDEX "{index}";"#);
-        self.execute(sql).await.map(|_| ())
+        self.execute(&sql).await?;
+        anyhow::Ok(sql)
     }
 
     async fn show_indexes(&self, table_name: &str) -> anyhow::Result<Vec<Index>> {
@@ -830,21 +831,21 @@ impl SchemaTrait for DuckDB {
         .await?
     }
 
-    async fn create_index(&self, table: &str, req: &CreateIndexReq) -> anyhow::Result<()> {
+    async fn create_index(&self, table: &str, req: &CreateIndexReq) -> anyhow::Result<String> {
         let sql = req.common_sql(table, true, self.backend_name().quote_style())?;
         log::info!("sql:{}", sql);
-        self.execute(sql).await?;
-        anyhow::Ok(())
+        self.execute(&sql).await?;
+        anyhow::Ok(sql)
     }
 
-    async fn drop_table_column(&self, table: &str, col: &str) -> anyhow::Result<()> {
+    async fn drop_table_column(&self, table: &str, col: &str) -> anyhow::Result<String> {
         let sql = format!(
             r#"
             ALTER TABLE "{table}" DROP COLUMN "{col}";
         "#
         );
-        self.execute(sql).await?;
-        anyhow::Ok(())
+        self.execute(&sql).await?;
+        anyhow::Ok(sql)
     }
 
     async fn modify_table_column(
@@ -853,66 +854,53 @@ impl SchemaTrait for DuckDB {
         old_name: &str,
         new_name: &str,
         typ: Option<ColumnType>,
-    ) -> anyhow::Result<()> {
+    ) -> anyhow::Result<String> {
+        let mut sc = SqlCollect::default();
+
         if old_name != new_name {
-            let sql = format!(
-                r#"
-            ALTER TABLE "{table}" RENAME COLUMN "{old_name}" TO "{new_name}";
-            "#
-            );
+            let sql =
+                format!(r#"ALTER TABLE "{table}" RENAME COLUMN "{old_name}" TO "{new_name}""#);
             log::info!("sql:{}", sql);
-            self.execute(sql).await?;
+            self.execute(&sql).await?;
+            sc.collect(sql);
         }
         if let Some(typ) = typ.as_ref() {
             let sql = format!(
-                r#"
-            ALTER TABLE {table} 
-                    ALTER COLUMN "{new_name}" SET DATA TYPE {};
-            "#,
+                r#"ALTER TABLE {table} ALTER COLUMN "{new_name}" SET DATA TYPE {}"#,
                 typ.typ
             );
             log::info!("sql:{}", sql);
-
-            self.execute(sql).await?;
-
+            self.execute(&sql).await?;
+            sc.collect(sql);
             if let Some(null) = typ.nullable.as_ref() {
                 match null {
                     crate::db::SqlNullAble::None => {}
                     crate::db::SqlNullAble::Null => {
-                        let sql = format!(
-                            r#"
-                        ALTER TABLE {table} 
-                            ALTER COLUMN {new_name} DROP NOT NULL;
-                    "#
-                        );
+                        let sql =
+                            format!(r#"ALTER TABLE {table} ALTER COLUMN {new_name} DROP NOT NULL"#);
                         log::info!("sql:{}", sql);
-                        self.execute(sql).await?;
+                        self.execute(&sql).await?;
+                        sc.collect(sql);
                     }
                     crate::db::SqlNullAble::NotNull => {
-                        let sql = format!(
-                            r#"
-                        ALTER TABLE {table} 
-                            ALTER COLUMN {new_name} SET NOT NULL;
-                    "#
-                        );
+                        let sql =
+                            format!(r#"ALTER TABLE {table}  ALTER COLUMN {new_name} SET NOT NULL"#);
                         log::info!("sql:{}", sql);
-                        self.execute(sql).await?;
+                        self.execute(&sql).await?;
+                        sc.collect(sql);
                     }
                 }
             }
-
             if let Some(x) = typ.default_value.as_ref() {
                 let sql = format!(
-                    r#"
-                    ALTER TABLE "{table}" ALTER COLUMN "{new_name}" SET DEFAULT {};
-                    "#,
+                    r#"ALTER TABLE "{table}" ALTER COLUMN "{new_name}" SET DEFAULT {}"#,
                     self.put_value_in_sql(&typ.typ, Some(x.as_str()))?
                 );
-
-                self.execute(sql).await?;
+                self.execute(&sql).await?;
+                sc.collect(sql);
             }
         }
-        anyhow::Ok(())
+        anyhow::Ok(sc.into())
     }
 
     async fn add_table_column(
@@ -920,7 +908,7 @@ impl SchemaTrait for DuckDB {
         table: &str,
         name: &str,
         col: ColumnType,
-    ) -> anyhow::Result<()> {
+    ) -> anyhow::Result<String> {
         let sql = format!(
             r#"ALTER TABLE "{table}" ADD COLUMN "{name}" {} {} {}"#,
             col.typ,
@@ -935,8 +923,8 @@ impl SchemaTrait for DuckDB {
             }
         );
 
-        self.execute(sql).await?;
-        anyhow::Ok(())
+        self.execute(&sql).await?;
+        anyhow::Ok(sql)
     }
 
     async fn export_table_or_view(
@@ -1029,10 +1017,10 @@ impl SchemaTrait for DuckDB {
             .await
     }
 
-    async fn drop_view(&self, view_name: &str) -> anyhow::Result<()> {
+    async fn drop_view(&self, view_name: &str) -> anyhow::Result<String> {
         let sql = format!(r#"DROP VIEW "{view_name}";"#);
-        self.execute(sql).await?;
-        anyhow::Ok(())
+        self.execute(&sql).await?;
+        anyhow::Ok(sql)
     }
 
     async fn show_view(
@@ -1159,11 +1147,10 @@ impl SchemaTrait for DuckDB {
         self
     }
 
-    async fn rename_table(&self, old: &str, new: &str) -> anyhow::Result<()> {
+    async fn rename_table(&self, old: &str, new: &str) -> anyhow::Result<String> {
         let sql = format!(r#"ALTER TABLE "{old}"  RENAME TO "{new}";"#);
-        self.execute(sql).await?;
-
-        anyhow::Ok(())
+        self.execute(&sql).await?;
+        anyhow::Ok(sql)
     }
 
     async fn duplicate_table(&self, table: &str, dup: &str) -> anyhow::Result<()> {
@@ -1269,16 +1256,16 @@ impl SchemaTrait for DuckDB {
         .await?
     }
 
-    async fn truncate_table(&self, table_name: &str) -> anyhow::Result<()> {
+    async fn truncate_table(&self, table_name: &str) -> anyhow::Result<String> {
         let sql = format!(r#"DELETE FROM "{}";"#, table_name);
-        self.execute(sql).await?;
-        anyhow::Ok(())
+        self.execute(sql.clone()).await?;
+        anyhow::Ok(sql)
     }
 
-    async fn drop_table(&self, table: &str, _cascade: bool) -> anyhow::Result<()> {
+    async fn drop_table(&self, table: &str, _cascade: bool) -> anyhow::Result<String> {
         let sql = format!(r#"DROP TABLE "{}";"#, table);
-        self.execute(sql).await?;
-        anyhow::Ok(())
+        self.execute(sql.clone()).await?;
+        anyhow::Ok(sql)
     }
 
     fn clone(&self) -> Box<dyn SchemaTrait> {
@@ -1293,7 +1280,7 @@ impl SchemaTrait for DuckDB {
         self.list_sequence_impl(self.config.db_str(), self.config.schema_str())
             .await
     }
-    async fn rename_sequence(&self, _old: &str, _new: &str) -> anyhow::Result<()> {
+    async fn rename_sequence(&self, _old: &str, _new: &str) -> anyhow::Result<String> {
         self.backend_name().not_support_feature()
     }
 
@@ -1796,7 +1783,6 @@ mod tests {
         enable_test_log();
         let db = make_test_object(Some("main".to_string()));
         let table_name = "test_column";
-
         let query_id = "";
         db.open_connection(query_id).await.unwrap();
         let _ = db
@@ -1814,47 +1800,55 @@ mod tests {
             .await
             .unwrap();
 
-        db.add_table_column(
-            table_name,
-            "email",
-            ColumnType {
-                typ: "BIGINT".to_string(),
-                nullable: SqlNullAble::Null.into(),
-                after: None,
-                default_value: Some(1.to_string()),
-            },
-        )
-        .await
-        .unwrap();
+        let sql = db
+            .add_table_column(
+                table_name,
+                "email",
+                ColumnType {
+                    typ: "BIGINT".to_string(),
+                    nullable: SqlNullAble::Null.into(),
+                    after: None,
+                    default_value: Some(1.to_string()),
+                },
+            )
+            .await
+            .unwrap();
 
-        db.modify_table_column(
-            table_name,
-            "email",
-            "email2",
-            Some(ColumnType {
-                typ: "INT4".to_string(),
-                nullable: SqlNullAble::NotNull.into(),
-                after: None,
-                default_value: Some(2.to_string()),
-            }),
-        )
-        .await
-        .unwrap();
+        println!("add table column sql:{}", sql);
 
-        db.modify_table_column(
-            table_name,
-            "email2",
-            "email2",
-            Some(ColumnType {
-                typ: "INT4".to_string(),
-                nullable: SqlNullAble::Null.into(),
-                after: None,
-                default_value: Some(2.to_string()),
-            }),
-        )
-        .await
-        .unwrap();
-        db.drop_table_column(table_name, "email2").await.unwrap();
+        let sql = db
+            .modify_table_column(
+                table_name,
+                "email",
+                "email2",
+                Some(ColumnType {
+                    typ: "INT4".to_string(),
+                    nullable: SqlNullAble::NotNull.into(),
+                    after: None,
+                    default_value: Some(2.to_string()),
+                }),
+            )
+            .await
+            .unwrap();
+        println!("modify table column sql:{}", sql);
+
+        let sql = db
+            .modify_table_column(
+                table_name,
+                "email2",
+                "email2",
+                Some(ColumnType {
+                    typ: "INT4".to_string(),
+                    nullable: SqlNullAble::Null.into(),
+                    after: None,
+                    default_value: Some(2.to_string()),
+                }),
+            )
+            .await
+            .unwrap();
+        println!("modify table column sql:{}", sql);
+        let sql = db.drop_table_column(table_name, "email2").await.unwrap();
+        println!("drop table column sql:{}", sql);
     }
 
     #[tokio::test]

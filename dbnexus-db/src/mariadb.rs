@@ -69,13 +69,13 @@ impl MariaDB {
         self.list_sequences_impl(self.db.config.schema_str()?).await
     }
 
-    pub(crate) async fn rename_sequence(&self, old: &str, new: &str) -> anyhow::Result<()> {
+    pub(crate) async fn rename_sequence(&self, old: &str, new: &str) -> anyhow::Result<String> {
         let sql = format!("RENAME TABLE {old}  TO {new}");
         let mut conn = self.db.get_conn().await?;
         sqlx::raw_sql(AssertSqlSafe(sql.as_str()))
             .execute(conn.deref_mut())
             .await?;
-        anyhow::Ok(())
+        anyhow::Ok(sql)
     }
 
     pub(crate) async fn drop_sequence(&self, name: &str, _cascade: bool) -> anyhow::Result<()> {

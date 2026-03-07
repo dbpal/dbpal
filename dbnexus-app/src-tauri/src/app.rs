@@ -619,6 +619,15 @@ pub struct ErrorFrontend {
     pub cancelled: bool,
 }
 
+impl ErrorFrontend {
+    pub(crate) fn cancelled(msg: Option<String>) -> Self {
+        Self {
+            reason: msg.unwrap_or("this task is cancelled".to_string()),
+            detail: "".to_string(),
+            cancelled: true,
+        }
+    }
+}
 // 管理所有任务的取消令牌
 
 #[derive(Clone, Default)]

@@ -15,7 +15,6 @@ import {
   ContextMenuContext,
   secondConfirm,
   TabsSetContext,
-  WindowFocusContext,
   getViewportSize,
   KeyPressed,
   resizeHandlerSize,
@@ -23,7 +22,6 @@ import {
 } from "./helper.ts";
 import "../app.css";
 import { Box, Button, IconButton, Modal, Paper, Stack, useTheme } from "@mui/material";
-import { WebviewWindow } from "@tauri-apps/api/webviewWindow";
 import { EscDownEvent, modalHandleClose, modalStyle } from "./Common.ts";
 import { ModalHeader } from "./CommonComp.tsx";
 import { appLogDir, join } from "@tauri-apps/api/path";
@@ -38,7 +36,7 @@ function ShowPanic() {
   const theme = useTheme();
 
   const getPanicFilePath = async () => {
-    return appLogDir().then(e => {
+    return appLogDir().then((e) => {
       return join(e, "dbpal.panic");
     });
   };
@@ -141,8 +139,8 @@ function App() {
             return;
           }
         }
-        setTabs(prevTabs => {
-          return prevTabs.filter(x => x.id !== id);
+        setTabs((prevTabs) => {
+          return prevTabs.filter((x) => x.id !== id);
         });
       })();
     },
@@ -152,11 +150,11 @@ function App() {
   const shortCuts = useCallback(
     (e: KeyboardEvent) => {
       const prevTab = () => {
-        setTab(e => (e > 0 ? e - 1 : e));
+        setTab((e) => (e > 0 ? e - 1 : e));
       };
       const nextTab = () => {
         if (tabs.length - 1 > tab) {
-          setTab(e => e + 1);
+          setTab((e) => e + 1);
         }
       };
       const closeCurrentTab = () => {
@@ -186,10 +184,10 @@ function App() {
   }, [shortCuts]);
   useEffect(() => {
     if (tab > 0 && tab >= tabs.length) {
-      setTab(e => e - 1);
+      setTab((e) => e - 1);
     }
   }, [tabs, tab]);
-  const changeTab = useCallback(index => {
+  const changeTab = useCallback((index) => {
     setTab(index as number);
   }, []);
 
@@ -198,77 +196,57 @@ function App() {
       <TabsSetContext.Provider value={{ setTabs, tabs, setSelectTab: setTab }}>
         <NotificationProvider>
           <Menu>
-            <WindowFocus>
-              <div>
-                <ShowPanic />
-                <PanelGroup
-                  direction="horizontal"
+            <div>
+              <ShowPanic />
+              <PanelGroup
+                direction="horizontal"
+                style={{
+                  height: "100vh",
+                  width: "100vw",
+                  padding: "0.5rem 1rem",
+                }}
+                autoSaveId="main"
+              >
+                <Panel
                   style={{
-                    height: "100vh",
-                    width: "100vw",
-                    padding: "0.5rem 1rem",
+                    overflowY: "auto",
+                    overflowX: "hidden",
+                    height: "100%",
+                    paddingRight: "2px",
                   }}
-                  autoSaveId="main"
+                  minSize={10}
+                  maxSize={85}
+                  collapsible
+                  collapsedSize={0}
                 >
-                  <Panel
-                    style={{
-                      overflowY: "auto",
-                      overflowX: "hidden",
-                      height: "100%",
-                      paddingRight: "2px",
-                    }}
-                    minSize={10}
-                    maxSize={85}
-                    collapsible
-                    collapsedSize={0}
-                  >
-                    <Left />
-                  </Panel>
-                  <PanelResizeHandle
-                    style={{ width: resizeHandlerSize }}
-                    className="resize-handle"
+                  <Left />
+                </Panel>
+                <PanelResizeHandle
+                  style={{ width: resizeHandlerSize }}
+                  className="resize-handle"
+                />
+                <Panel
+                  style={{
+                    overflow: "auto",
+                    height: "100%",
+                    paddingLeft: "2px",
+                  }}
+                >
+                  <TabsWithContent
+                    handleClose={closeTab}
+                    tabs={tabs}
+                    selectIndex={tab}
+                    changeTab={changeTab}
+                    setTabs={setTabs}
                   />
-                  <Panel
-                    style={{
-                      overflow: "auto",
-                      height: "100%",
-                      paddingLeft: "2px",
-                    }}
-                  >
-                    <TabsWithContent
-                      handleClose={closeTab}
-                      tabs={tabs}
-                      selectIndex={tab}
-                      changeTab={changeTab}
-                      setTabs={setTabs}
-                    />
-                  </Panel>
-                </PanelGroup>
-              </div>
-            </WindowFocus>
+                </Panel>
+              </PanelGroup>
+            </div>
           </Menu>
         </NotificationProvider>
       </TabsSetContext.Provider>
     </SettingComp>
   );
-}
-
-function WindowFocus(props: { children: ReactNode }) {
-  const { children } = props;
-  const [windowFocus, setWindowsFocus] = useState(true);
-  useEffect(() => {
-    const webview = WebviewWindow.getCurrent();
-    const unlisten = webview.onFocusChanged(e => {
-      setWindowsFocus(e.payload);
-    });
-    return () => {
-      unlisten.then(callback => {
-        callback();
-      });
-    };
-  }, []);
-
-  return <WindowFocusContext value={windowFocus}>{children}</WindowFocusContext>;
 }
 
 function Menu(props: { children: ReactNode }) {

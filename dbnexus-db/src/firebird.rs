@@ -20,7 +20,7 @@ RDB$RELATION_NAME 的数据类型是 CHAR(31)，定长字符，不足 31 字节�
 use crate::datasource_config::FireBirdConfig;
 use crate::db::{
     create_html_table_data, create_html_table_header, create_markdown_data, create_markdown_header,
-    escape_sql_str, export_query_as_xlsx_send_blocking_data, BackendKind, CheckConn,
+    escape_sql_str, export_query_as_xlsx_send_blocking_data, BackendKind, CheckConn, ColumnType,
     CreateIndexReq, ExportFrame, ExportKind, ExportQueryResult, Field, GetBackendKind, Index,
     IndexKind, ListTable, MetaValue, OptionMustBeSomeErr, QueryEvent, QueryEventEmitter, QueryResp,
     QuerySql, ReadOnlyTrait, SchemaTrait, ServerMetas, ShowTableParameter, SqlBuilder, XlsxEdit,
@@ -716,11 +716,51 @@ impl SchemaTrait for FireBirdDB {
         .await?
     }
 
-    async fn truncate_table(&self, table_name: &str) -> anyhow::Result<()> {
+    async fn truncate_table(&self, table_name: &str) -> anyhow::Result<String> {
         // firebird have no truncate statement.
         let sql = format!(r#"DELETE FROM "{}""#, table_name);
-        self.execute(sql).await?;
-        anyhow::Ok(())
+        self.execute(&sql).await?;
+        anyhow::Ok(sql.clone())
+    }
+
+    // not tested...
+    async fn modify_table_column(
+        &self,
+        _table: &str,
+        _old_name: &str,
+        _new_name: &str,
+        _typ: Option<ColumnType>,
+    ) -> anyhow::Result<String> {
+        self.backend_name().not_support_feature()
+    }
+
+    // not tested...
+    async fn add_table_column(
+        &self,
+        table: &str,
+        name: &str,
+        col: ColumnType,
+    ) -> anyhow::Result<String> {
+        let sql = format!(
+            r#"ALTER TABLE "{table}" ADD "{name}" {} {} {}"#,
+            col.typ,
+            if let Some(dv) = col.default_value.as_ref() {
+                format!(" DEFAULT {}", self.put_value_in_sql(&col.typ, Some(dv))?)
+            } else {
+                "".to_string()
+            },
+            col.nullable.map(|x| x.to_string()).unwrap_or_default(),
+        );
+        log::info!("sql:{}", sql);
+        self.execute(&sql).await?;
+        anyhow::Ok(sql)
+    }
+
+    // not tested...
+    async fn drop_table_column(&self, table: &str, col: &str) -> anyhow::Result<String> {
+        let sql = format!(r#"ALTER TABLE "{table}" DROP "{col}""#);
+        self.execute(&sql).await?;
+        anyhow::Ok(sql)
     }
 
     async fn list_view(&self) -> anyhow::Result<Vec<ListTable>> {
@@ -742,27 +782,27 @@ impl SchemaTrait for FireBirdDB {
         .await?
     }
 
-    async fn drop_view(&self, view_name: &str) -> anyhow::Result<()> {
+    async fn drop_view(&self, view_name: &str) -> anyhow::Result<String> {
         let sql = format!(r#"DROP VIEW "{}""#, view_name);
-        self.execute(sql).await?;
-        anyhow::Ok(())
+        self.execute(sql.clone()).await?;
+        anyhow::Ok(sql)
     }
 
-    async fn drop_table(&self, table: &str, _cascade: bool) -> anyhow::Result<()> {
+    async fn drop_table(&self, table: &str, _cascade: bool) -> anyhow::Result<String> {
         let sql = format!(r#"DROP TABLE "{}""#, table);
-        self.execute(sql).await?;
-        anyhow::Ok(())
+        self.execute(sql.clone()).await?;
+        anyhow::Ok(sql)
     }
 
     fn clone(&self) -> Box<dyn SchemaTrait> {
         Box::new(Clone::clone(self)) as Box<dyn SchemaTrait>
     }
 
-    async fn create_index(&self, table: &str, req: &CreateIndexReq) -> anyhow::Result<()> {
+    async fn create_index(&self, table: &str, req: &CreateIndexReq) -> anyhow::Result<String> {
         let sql = req.common_sql(table, true, self.backend_name().quote_style())?;
         log::info!("sql:{}", sql);
-        self.execute(sql).await?;
-        anyhow::Ok(())
+        self.execute(&sql).await?;
+        anyhow::Ok(sql)
     }
 
     async fn show_indexes(&self, table_name: &str) -> anyhow::Result<Vec<Index>> {
@@ -825,10 +865,10 @@ impl SchemaTrait for FireBirdDB {
         .await?
     }
 
-    async fn drop_index(&self, _table_name: &str, index: &str) -> anyhow::Result<()> {
+    async fn drop_index(&self, _table_name: &str, index: &str) -> anyhow::Result<String> {
         let sql = format!(r#"DROP INDEX "{}";"#, index);
         self.execute(&sql).await?;
-        anyhow::Ok(())
+        anyhow::Ok(sql)
     }
 
     async fn show_view(
@@ -1199,6 +1239,67 @@ mod tests {
             println!("view:{:?}", view);
         }
     }
+
+    // #[tokio::test]
+    // async fn test_table_column() {
+    //     let _guard = test_lock().lock().await;
+    //     let db = make_test_object().await;
+    //     let table_name = "TEST_COLUMN";
+    //     let _ = db.drop_table(table_name, false).await;
+    //     let query_id = "";
+    //     enable_test_log();
+    //     db.open_connection(query_id).await.unwrap();
+    //     let _resp = db
+    //         .execute_sql(
+    //             query_id,
+    //             r#"
+    //         CREATE TABLE TEST_COLUMN
+    //         (
+    //             ID INTEGER GENERATED BY DEFAULT AS IDENTITY PRIMARY KEY -- 主键，无符号32位整数
+    //         )
+    //         "#,
+    //         )
+    //         .await
+    //         .unwrap()
+    //         .unwrap();
+
+    //     let sql = db
+    //         .add_table_column(
+    //             table_name,
+    //             "NAME",
+    //             ColumnType {
+    //                 typ: "text".to_string(),
+    //                 nullable: Some(SqlNullAble::NotNull),
+    //                 default_value: Some("abc".to_string()),
+    //                 after: None,
+    //             },
+    //         )
+    //         .await
+    //         .unwrap();
+
+    //     println!("add table column sql:{}", sql);
+
+    //     let sql = db
+    //         .modify_table_column(
+    //             table_name,
+    //             "name",
+    //             "name2",
+    //             Some(ColumnType {
+    //                 typ: "VARCHAR(100)".to_string(),
+    //                 nullable: SqlNullAble::Null.into(),
+    //                 after: None,
+    //                 default_value: Some("abc111".to_string()),
+    //             }),
+    //         )
+    //         .await
+    //         .unwrap();
+
+    //     println!("modify table column sql:{}", sql);
+
+    //     let sql = db.drop_table_column(table_name, "name2").await.unwrap();
+    //     println!("drop table column sql:{}", sql);
+    // }
+
     #[tokio::test]
     async fn test_index() {
         let _guard = test_lock().lock().await;

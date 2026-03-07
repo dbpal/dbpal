@@ -196,12 +196,15 @@ pub trait SchemaTrait:
     + ExportQueryResult
     + SqlBuilder
 {
-    async fn create_table(&self, req: &CreateTableReq) -> anyhow::Result<()> {
+    async fn create_table(&self, req: &CreateTableReq) -> anyhow::Result<String> {
         let ss = SchemaTrait::create_table_sql(self, req)?;
+        let mut sc = SqlCollect::default();
+
         for sql in ss.iter() {
             self.execute_sql_no_open_conn(sql).await?;
+            sc.collect(sql);
         }
-        anyhow::Ok(())
+        anyhow::Ok(sc.into())
     }
     fn create_table_sql(&self, req: &CreateTableReq) -> anyhow::Result<Vec<String>> {
         SqlBuilder::create_table_sql(self, req)
@@ -213,10 +216,10 @@ pub trait SchemaTrait:
 
     fn as_any(&self) -> &dyn std::any::Any;
 
-    async fn rename_table(&self, old: &str, new: &str) -> anyhow::Result<()> {
+    async fn rename_table(&self, old: &str, new: &str) -> anyhow::Result<String> {
         self.duplicate_table(old, new).await?;
         self.drop_table(old, false).await?;
-        anyhow::Ok(())
+        anyhow::Ok("".to_string())
     }
 
     async fn duplicate_table(&self, table: &str, dup: &str) -> anyhow::Result<()>;
@@ -296,7 +299,7 @@ pub trait SchemaTrait:
         self.execute_sql_no_open_conn(&sql).await
     }
 
-    async fn truncate_table(&self, table_name: &str) -> anyhow::Result<()>;
+    async fn truncate_table(&self, table_name: &str) -> anyhow::Result<String>;
 
     async fn table_delete_sql(
         &self,
@@ -321,16 +324,16 @@ pub trait SchemaTrait:
     async fn list_view(&self) -> anyhow::Result<Vec<ListTable>> {
         self.backend_name().not_support_feature()
     }
-    async fn drop_view(&self, _view_name: &str) -> anyhow::Result<()> {
+    async fn drop_view(&self, _view_name: &str) -> anyhow::Result<String> {
         self.backend_name().not_support_feature()
     }
-    async fn drop_table(&self, table: &str, cascade: bool) -> anyhow::Result<()>;
+    async fn drop_table(&self, table: &str, cascade: bool) -> anyhow::Result<String>;
 
     fn clone(&self) -> Box<dyn SchemaTrait>;
 
     async fn list_data_types(&self) -> anyhow::Result<Vec<String>>;
 
-    async fn drop_table_column(&self, _table: &str, _col: &str) -> anyhow::Result<()> {
+    async fn drop_table_column(&self, _table: &str, _col: &str) -> anyhow::Result<String> {
         self.backend_name().not_support_feature()
     }
     async fn modify_table_column(
@@ -339,7 +342,7 @@ pub trait SchemaTrait:
         _old_name: &str,
         _new_name: &str,
         _typ: Option<ColumnType>,
-    ) -> anyhow::Result<()> {
+    ) -> anyhow::Result<String> {
         self.backend_name().not_support_feature()
     }
     async fn add_table_column(
@@ -347,7 +350,7 @@ pub trait SchemaTrait:
         _table: &str,
         _name: &str,
         _col: ColumnType,
-    ) -> anyhow::Result<()> {
+    ) -> anyhow::Result<String> {
         self.backend_name().not_support_feature()
     }
 
@@ -356,7 +359,7 @@ pub trait SchemaTrait:
         _table_name: &str,
         _oldname: &str,
         _newname: &str,
-    ) -> anyhow::Result<()> {
+    ) -> anyhow::Result<String> {
         self.backend_name().not_support_feature()
     }
 
@@ -364,11 +367,11 @@ pub trait SchemaTrait:
         self.backend_name().not_support_feature()
     }
 
-    async fn create_index(&self, _table: &str, _: &CreateIndexReq) -> anyhow::Result<()> {
+    async fn create_index(&self, _table: &str, _: &CreateIndexReq) -> anyhow::Result<String> {
         self.backend_name().not_support_feature()
     }
 
-    async fn drop_index(&self, _table_name: &str, _index: &str) -> anyhow::Result<()> {
+    async fn drop_index(&self, _table_name: &str, _index: &str) -> anyhow::Result<String> {
         self.backend_name().not_support_feature()
     }
 
@@ -376,7 +379,7 @@ pub trait SchemaTrait:
         self.backend_name().not_support_feature()
     }
 
-    async fn drop_materialized_view(&self, _name: &str) -> anyhow::Result<()> {
+    async fn drop_materialized_view(&self, _name: &str) -> anyhow::Result<String> {
         self.backend_name().not_support_feature()
     }
 
@@ -470,14 +473,14 @@ pub trait SchemaTrait:
     async fn show_trigger(&self, _table: &str, _name: &str) -> anyhow::Result<TriggerDetail> {
         self.backend_name().not_support_feature()
     }
-    async fn drop_trigger(&self, _table: &str, _name: &str) -> anyhow::Result<()> {
+    async fn drop_trigger(&self, _table: &str, _name: &str) -> anyhow::Result<String> {
         self.backend_name().not_support_feature()
     }
 
-    async fn disable_trigger(&self, _table: &str, _name: &str) -> anyhow::Result<()> {
+    async fn disable_trigger(&self, _table: &str, _name: &str) -> anyhow::Result<String> {
         self.backend_name().not_support_feature()
     }
-    async fn enable_trigger(&self, _table: &str, _name: &str) -> anyhow::Result<()> {
+    async fn enable_trigger(&self, _table: &str, _name: &str) -> anyhow::Result<String> {
         self.backend_name().not_support_feature()
     }
 
@@ -497,7 +500,7 @@ pub trait SchemaTrait:
         &self,
         _name: &str,
         _extra: Option<UdfOrProcedureExtraParameter>,
-    ) -> anyhow::Result<()> {
+    ) -> anyhow::Result<String> {
         self.backend_name().not_support_feature()
     }
 
@@ -515,7 +518,7 @@ pub trait SchemaTrait:
         &self,
         _name: &str,
         _arg: Option<UdfOrProcedureExtraParameter>,
-    ) -> anyhow::Result<()> {
+    ) -> anyhow::Result<String> {
         self.backend_name().not_support_feature()
     }
 
@@ -531,7 +534,7 @@ pub trait SchemaTrait:
         self.backend_name().not_support_feature()
     }
 
-    async fn drop_created_type(&self, _name: &str) -> anyhow::Result<()> {
+    async fn drop_created_type(&self, _name: &str) -> anyhow::Result<String> {
         self.backend_name().not_support_feature()
     }
 
@@ -559,7 +562,7 @@ pub trait SchemaTrait:
     async fn list_sequence(&self) -> anyhow::Result<Vec<SequenceDetail>> {
         self.backend_name().not_support_feature()
     }
-    async fn rename_sequence(&self, _old: &str, _new: &str) -> anyhow::Result<()> {
+    async fn rename_sequence(&self, _old: &str, _new: &str) -> anyhow::Result<String> {
         self.backend_name().not_support_feature()
     }
 
@@ -572,7 +575,7 @@ pub trait SchemaTrait:
     async fn list_event(&self) -> anyhow::Result<Vec<SqlEvent>> {
         anyhow::Ok(vec![])
     }
-    async fn drop_event(&self, _name: &str) -> anyhow::Result<()> {
+    async fn drop_event(&self, _name: &str) -> anyhow::Result<String> {
         self.backend_name().not_support_feature()
     }
 }
@@ -2314,6 +2317,25 @@ pub fn need_paid() -> anyhow::Result<()> {
         anyhow::bail!("this feature is paid")
     }
 }
+
+#[derive(Clone, Debug, Default)]
+pub struct SqlCollect {
+    sql: String,
+}
+
+impl SqlCollect {
+    pub fn collect(&mut self, sql: impl Into<String>) {
+        let sql = sql.into();
+        self.sql.push_str(format!("{};\n", sql).as_str());
+    }
+}
+
+impl From<SqlCollect> for String {
+    fn from(value: SqlCollect) -> Self {
+        value.sql
+    }
+}
+
 pub(crate) const POOL_MAX_CONNECTIONS: u32 = 200;
 
 #[cfg(test)]

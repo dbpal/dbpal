@@ -214,7 +214,7 @@ function TsEditCompilerOptions(props: { handleClose: () => void }) {
       <SimpleFlexEditor
         value={value}
         language="json"
-        handleValue={value => {
+        handleValue={(value) => {
           setValue(value);
         }}
         errPos={jsonErrPos}
@@ -240,7 +240,7 @@ function TsEditCompilerOptions(props: { handleClose: () => void }) {
         <Link
           href="#"
           underline="hover"
-          onClick={e => {
+          onClick={(e) => {
             e.preventDefault();
             openUrl("https://www.typescriptlang.org/tsconfig/#compilerOptions");
           }}
@@ -257,7 +257,7 @@ function CompilerNotice(props: { compileDir: string; width: string }) {
 
   const [rootPath, setRootPath] = useState("");
   useEffect(() => {
-    new TSCompiler(compileDir).getRootDir().then(path => {
+    new TSCompiler(compileDir).getRootDir().then((path) => {
       setRootPath(path);
     });
   }, [compileDir]);
@@ -265,7 +265,7 @@ function CompilerNotice(props: { compileDir: string; width: string }) {
   return (
     <Stack style={{ width, padding: "0.5rem" }}>
       <AppMarkDown
-        handlePathUrl={p => {
+        handlePathUrl={(p) => {
           openPath(p);
         }}
       >
@@ -299,10 +299,10 @@ function TypeScript(props: {
       return;
     }
     TSCompiler.getTscVersion()
-      .then(v => {
+      .then((v) => {
         setTscVersion(v);
       })
-      .catch(e => {
+      .catch((e) => {
         showNotification("error", "is typescript  global installed?", e);
       });
   }, [language, showNotification]);
@@ -313,7 +313,7 @@ function TypeScript(props: {
         options={[MongoLanguage.js, MongoLanguage.ts]}
         value={language}
         style={{ width: "12rem" }}
-        renderInput={params => <TextField {...params} label={"language"} />}
+        renderInput={(params) => <TextField {...params} label={"language"} />}
         freeSolo={false}
         onChange={(_, name) => {
           (async () => {
@@ -424,7 +424,7 @@ function TsCompilerMsg(props: {
   useEffect(() => {
     const lines = (out.stdout + out.stderr).split("\n");
     setLines(
-      lines.map(x => {
+      lines.map((x) => {
         const pos = extractLineAndColumn(x);
         return { msg: x, pos };
       }),
@@ -512,7 +512,7 @@ function MongoQuery(props: {
   }, [language]);
 
   const setUpClean = (name: string, fn: () => void) => {
-    setCleanFns(e => [...e, { name, fn }]);
+    setCleanFns((e) => [...e, { name, fn }]);
   };
   const jsCodeMount = useCallback((ed: editor.IStandaloneCodeEditor) => {
     setEditor(ed);
@@ -532,7 +532,7 @@ function MongoQuery(props: {
   }, [editor, handleEditor]);
 
   useEffect(() => {
-    import("bson").then(e => {
+    import("bson").then((e) => {
       setBson(e);
     });
   }, []);
@@ -564,7 +564,7 @@ function MongoQuery(props: {
       }
       code = out.jsCode;
     }
-    setExecuteTimes(e => e + 1);
+    setExecuteTimes((e) => e + 1);
     eval(code);
     showNotification(
       "success",
@@ -635,7 +635,7 @@ function MongoQuery(props: {
         <Tooltip title="query log">
           <IconButton
             onClick={() => {
-              setShowQueryLog(prev => !prev);
+              setShowQueryLog((prev) => !prev);
             }}
             color="primary"
           >

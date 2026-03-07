@@ -71,6 +71,7 @@ import {
 import {
   AppDataGridPagination,
   ColumnNullness,
+  CopySql,
   CreateIndexReq,
   SqlDefaultValue,
   StackRowCenter,
@@ -148,10 +149,10 @@ function ColumnsStructure(props: {
   const handleReload = useCallback(() => {
     setLoading(true);
     showTableColumn(uuid, table)
-      .then(fs => {
+      .then((fs) => {
         setFields(fs);
       })
-      .catch(e => {
+      .catch((e) => {
         showNotification("error", "list column failed", e);
       })
       .finally(() => {
@@ -175,11 +176,11 @@ function ColumnsStructure(props: {
         tableName: table,
         columnName: col,
       })
-        .then(() => {
-          showNotification("success", "Drop column OK");
+        .then((sql) => {
+          showNotification("success", "Drop column OK", <CopySql sql={sql} />);
           handleReload();
         })
-        .catch(e => {
+        .catch((e) => {
           showNotification("error", "Drop column Failure", e);
         });
     },
@@ -202,7 +203,7 @@ function ColumnsStructure(props: {
       },
       {
         field: "nullable",
-        renderCell: row => {
+        renderCell: (row) => {
           return <TrueOrFalse value={row.row["nullable"]} />;
         },
       },
@@ -211,7 +212,7 @@ function ColumnsStructure(props: {
         renderHeader: () => {
           return "primary key";
         },
-        renderCell: row => {
+        renderCell: (row) => {
           return <TrueOrFalse value={row.row["is_primary"]} />;
         },
       },
@@ -220,7 +221,7 @@ function ColumnsStructure(props: {
         renderHeader: () => {
           return "auto increment";
         },
-        renderCell: row => {
+        renderCell: (row) => {
           return <TrueOrFalse value={row.row["is_auto_increment"]} />;
         },
       },
@@ -232,13 +233,13 @@ function ColumnsStructure(props: {
       },
       {
         field: "sortable",
-        renderCell: row => {
+        renderCell: (row) => {
           return <TrueOrFalse value={row.row["sortable"]} />;
         },
       },
     ] as GridColDef[];
   }, []);
-  cols.forEach(e => {
+  cols.forEach((e) => {
     const width = ColumnWidth.instance.get(e.field);
     if (width) {
       e.width = width;
@@ -249,7 +250,7 @@ function ColumnsStructure(props: {
   const slotProps = useMemo(() => {
     return {
       row: {
-        onContextMenu: e => {
+        onContextMenu: (e) => {
           const { target } = e;
           const { id, field } = extractFieldAndIDFromMouseEvent(e);
           if (!field) {
@@ -285,11 +286,11 @@ function ColumnsStructure(props: {
     supportModifyColumn,
   ]);
 
-  const getRowId = useCallback(e => {
+  const getRowId = useCallback((e) => {
     return e["field"];
   }, []);
 
-  const onRowDoubleClick = useCallback(row => {
+  const onRowDoubleClick = useCallback((row) => {
     setRow(row.row);
   }, []);
 
@@ -411,6 +412,7 @@ function ColumnsStructure(props: {
                 typ={row.data_type}
                 reload={handleReload}
                 kind={kind}
+                defaultValue={row.default_value}
               />
             </Box>
           </Modal>
@@ -443,12 +445,12 @@ function RenameIndex(props: {
       oldName: indexName,
       newName: newName,
     })
-      .then(() => {
-        showNotification("success", "Rename OK");
+      .then((sql) => {
+        showNotification("success", "Rename OK", <CopySql sql={sql} />);
         reload();
         handleClose();
       })
-      .catch(e => {
+      .catch((e) => {
         showNotification("error", "Rename Failure", e);
       })
       .finally(() => {
@@ -460,7 +462,7 @@ function RenameIndex(props: {
       <TextField
         label="new name"
         value={newName}
-        onChange={e => {
+        onChange={(e) => {
           setNewname(e.target.value);
         }}
       />
@@ -540,10 +542,10 @@ function IndexesStructure(props: {
   const handleReload = useCallback(() => {
     setLoading(true);
     showIndexes(uuid, table)
-      .then(indexes => {
+      .then((indexes) => {
         setIndexes(indexes);
       })
-      .catch(e => {
+      .catch((e) => {
         showNotification("error", "list indexes failed", e);
       })
       .finally(() => {
@@ -552,7 +554,7 @@ function IndexesStructure(props: {
   }, [showNotification, table, uuid]);
 
   const handleDrop = useCallback(
-    async indexName => {
+    async (indexName) => {
       const confirm = await secondConfirm({
         title: `drop index '${indexName}'`,
         content: "Are u sure to drop the index",
@@ -566,11 +568,11 @@ function IndexesStructure(props: {
         tableName: table,
         index: indexName,
       })
-        .then(() => {
-          showNotification("success", "Drop OK");
+        .then((sql) => {
+          showNotification("success", "Drop OK", <CopySql sql={sql} />);
           handleReload();
         })
-        .catch(e => {
+        .catch((e) => {
           showNotification("error", "Drop index failure", e);
         });
     },
@@ -582,7 +584,7 @@ function IndexesStructure(props: {
   const cols = useMemo(() => {
     return [{ field: "name" }, { field: "kind" }, { field: "columns" }] as GridColDef[];
   }, []);
-  cols.forEach(e => {
+  cols.forEach((e) => {
     const width = ColumnWidth.instance.get(e.field);
     if (width) {
       e.width = width;
@@ -594,7 +596,7 @@ function IndexesStructure(props: {
   const slotProps = useMemo(() => {
     return {
       row: {
-        onContextMenu: e => {
+        onContextMenu: (e) => {
           const { currentTarget, target } = e;
           {
             const { field } = extractFieldAndIDFromMouseEvent(e);
@@ -632,7 +634,7 @@ function IndexesStructure(props: {
     setting.export.includeHeader,
   ]);
 
-  const getRowId = useCallback(e => {
+  const getRowId = useCallback((e) => {
     return e["name"];
   }, []);
 
@@ -789,7 +791,7 @@ function MongoAddIndex(props: { uuid; table; handleClose; reload }) {
   const indexNameDom = useRef<HTMLInputElement>(null);
   const { showNotification } = useContext(NotificationContext);
 
-  const handleAdd = async keys => {
+  const handleAdd = async (keys) => {
     try {
       if (!indexName) {
         showNotification("warning", "index name can't be none");
@@ -815,7 +817,7 @@ function MongoAddIndex(props: { uuid; table; handleClose; reload }) {
     <Stack flex={1}>
       <TextField
         value={indexName}
-        onChange={e => {
+        onChange={(e) => {
           setIndexName(e.target.value);
         }}
         inputRef={indexNameDom}
@@ -825,17 +827,17 @@ function MongoAddIndex(props: { uuid; table; handleClose; reload }) {
 
       <RadioGroup
         row
-        onChange={e => {
+        onChange={(e) => {
           setIndexType(e.target.value);
         }}
         value={indexType}
       >
-        {indexTypes.map(e => (
+        {indexTypes.map((e) => (
           <FormControlLabel key={e} value={e} control={<Radio />} label={e} />
         ))}
       </RadioGroup>
       <MongoValueEditor
-        setOP={async doc => {
+        setOP={async (doc) => {
           handleAdd(doc);
         }}
         doc={{}}
@@ -859,10 +861,10 @@ function AddIndex(props: {
   const [req, setReq] = useState<types.CreateIndexReq>(null);
   useEffect(() => {
     showTableColumn(uuid, table)
-      .then(e => {
+      .then((e) => {
         setFields(e);
       })
-      .catch(e => {
+      .catch((e) => {
         showNotification("error", "list fields failed", e);
       });
   }, [showNotification, table, uuid]);
@@ -876,12 +878,12 @@ function AddIndex(props: {
       return;
     }
     try {
-      await invoke("create_index", {
+      const sql = await invoke("create_index", {
         name: uuid,
         tableName: table,
         req,
       });
-      showNotification("success", "create index ok");
+      showNotification("success", "create index ok", <CopySql sql={sql} />);
       handleClose();
       reload();
     } catch (e) {
@@ -892,10 +894,10 @@ function AddIndex(props: {
   return (
     <Stack>
       <CreateIndexReq
-        handleReq={s => {
+        handleReq={(s) => {
           setReq(s);
         }}
-        fields={fields.map(e => e.field)}
+        fields={fields.map((e) => e.field)}
         kind={kind}
       />
       <Divider />
@@ -923,10 +925,11 @@ function TableAddColumn(props: {
   const { showNotification } = useContext(NotificationContext);
   const [after, setAfter] = useState("");
   const [defaultValue, setDefaultValue] = useState("");
-  const supportAfter =
-    kind == DataSourceKind.Mysql ||
-    kind == DataSourceKind.MariaDB ||
-    kind == DataSourceKind.TiDB;
+  const supportAfter = [
+    DataSourceKind.Mysql,
+    kind == DataSourceKind.MariaDB,
+    kind == DataSourceKind.TiDB,
+  ].includes(kind);
   const nameDom = useRef(null);
   const [loading, setLoading] = useState(false);
 
@@ -952,12 +955,12 @@ function TableAddColumn(props: {
         default_value: defaultValue ? defaultValue : null,
       } as types.ColumnType,
     })
-      .then(() => {
-        showNotification("success", "Add Column OK");
+      .then((sql) => {
+        showNotification("success", "Add Column OK", <CopySql sql={sql} />);
         handleClose();
         reload();
       })
-      .catch(e => {
+      .catch((e) => {
         showNotification("error", "Add Column failure", e);
       })
       .finally(() => {
@@ -973,7 +976,7 @@ function TableAddColumn(props: {
         value={name}
         required
         inputRef={nameDom}
-        onChange={e => {
+        onChange={(e) => {
           setName(e.target.value.trim());
         }}
         slotProps={{
@@ -997,7 +1000,7 @@ function TableAddColumn(props: {
       <StackRowCenter>
         <TypeSelect
           uuid={uuid}
-          handleChange={e => {
+          handleChange={(e) => {
             setTyp(e);
           }}
           style={{ flex: 1 }}
@@ -1006,7 +1009,7 @@ function TableAddColumn(props: {
         {supportNull && (
           <ColumnNullness
             nullable={nullable}
-            handleNullable={e => {
+            handleNullable={(e) => {
               setNullness(e);
             }}
           />
@@ -1023,10 +1026,10 @@ function TableAddColumn(props: {
       {supportAfter && (
         <Autocomplete
           freeSolo={false}
-          options={fields.map(e => e.field)}
+          options={fields.map((e) => e.field)}
           style={{ width: "22rem" }}
           value={after}
-          renderInput={params => <TextField {...params} label="after column" />}
+          renderInput={(params) => <TextField {...params} label="after column" />}
           onChange={(_, field) => {
             setAfter(field);
           }}
@@ -1050,14 +1053,18 @@ function ModifyTableColumn(props: {
   reload;
   typ: string;
   kind: DataSourceKind;
+  defaultValue: string;
 }) {
-  const { uuid, table, col, handleClose, reload, typ, kind } = props;
+  const { uuid, table, col, handleClose, reload, typ, kind, defaultValue } = props;
   const [loading, setLoading] = useState(false);
   const [newName, setNewName] = useState(col);
   const [newTyp, setNewTyp] = useState(typ);
   const { showNotification } = useContext(NotificationContext);
   const [modifyType, setModifyType] = useState(false);
+  const supportModifyType = ![DataSourceKind.Cassandra].includes(kind);
+  const supportModifyDefault = ![DataSourceKind.SqlServer].includes(kind);
   const [nullable, setNullness] = useState<null | types.SqlNullAble>(null);
+  const [newDv, setNewDv] = useState(supportModifyDefault ? defaultValue : null);
   const handleModify = () => {
     if (newName == col && !newTyp) {
       showNotification("warning", "nothing is changed");
@@ -1069,11 +1076,11 @@ function ModifyTableColumn(props: {
     }
     setLoading(true);
     let typePara: types.ColumnType = null;
-    if (typ != newTyp) {
+    if (modifyType) {
       typePara = {
         typ: newTyp,
         nullable: nullable ? nullable : nullable,
-        default_value: null,
+        default_value: newDv ? newDv : null,
         after: null,
       };
     }
@@ -1084,26 +1091,26 @@ function ModifyTableColumn(props: {
       newName: newName,
       typ: typePara,
     })
-      .then(() => {
-        showNotification("success", "Modify column OK");
+      .then((sql) => {
+        showNotification("success", "Modify column OK", <CopySql sql={sql} />);
         reload();
         handleClose();
       })
-      .catch(e => {
+      .catch((e) => {
         showNotification("error", "Modify column Failure", e);
       })
       .finally(() => {
         setLoading(false);
       });
   };
-  const supportModifyType = kind != DataSourceKind.Cassandra;
+
   return (
     <Stack>
       <TextField
         fullWidth
         label="New Name"
         value={newName}
-        onChange={e => {
+        onChange={(e) => {
           setNewName(e.target.value);
         }}
         required
@@ -1130,7 +1137,7 @@ function ModifyTableColumn(props: {
           control={
             <Checkbox
               checked={modifyType}
-              onChange={e => {
+              onChange={(e) => {
                 setModifyType(e.target.checked);
               }}
               name="myCheckbox"
@@ -1145,7 +1152,7 @@ function ModifyTableColumn(props: {
         <StackRowCenter>
           <TypeSelect
             uuid={uuid}
-            handleChange={e => {
+            handleChange={(e) => {
               setNewTyp(e);
             }}
             style={{ flex: 1 }}
@@ -1153,6 +1160,16 @@ function ModifyTableColumn(props: {
           />
           {kindSupportNull(kind) && (
             <ColumnNullness nullable={nullable} handleNullable={setNullness} />
+          )}
+
+          {supportModifyDefault && (
+            <SqlDefaultValue
+              defaultValue={newDv}
+              uuid={uuid}
+              setDefaultValue={(v) => {
+                setNewDv(v);
+              }}
+            />
           )}
         </StackRowCenter>
       )}
@@ -1266,10 +1283,10 @@ function TriggersStructure(props: {
   const handleReload = useCallback(() => {
     setLoading(true);
     showTrigger(uuid, table)
-      .then(ts => {
+      .then((ts) => {
         setTriggers(ts);
       })
-      .catch(e => {
+      .catch((e) => {
         showNotification("error", "list indexes failed", e);
       })
       .finally(() => {
@@ -1281,7 +1298,7 @@ function TriggersStructure(props: {
   }, [table, uuid]);
 
   const handleDrop = useCallback(
-    async trigger => {
+    async (trigger) => {
       const confirm = await secondConfirm({
         title: `Drop trigger '${trigger}'`,
         confirmText: "Drop",
@@ -1290,12 +1307,12 @@ function TriggersStructure(props: {
       if (!confirm) {
         return;
       }
-      invoke("drop_trigger", { trigger, ...callPara })
-        .then(() => {
-          showNotification("success", "Drop Trigger OK");
+      invoke<string>("drop_trigger", { trigger, ...callPara })
+        .then((sql) => {
+          showNotification("success", "Drop Trigger OK", <CopySql sql={sql} />);
           handleReload();
         })
-        .catch(e => {
+        .catch((e) => {
           showNotification("error", "Drop trigger failure", e);
         });
     },
@@ -1309,7 +1326,7 @@ function TriggersStructure(props: {
           showNotification("error", `${operation}  OK`);
           handleReload();
         })
-        .catch(e => {
+        .catch((e) => {
           showNotification("error", `${operation}  Failure`, e);
         });
     },
@@ -1326,7 +1343,7 @@ function TriggersStructure(props: {
       { field: "sql" },
       {
         field: "enable",
-        renderCell: r => {
+        renderCell: (r) => {
           const enable = r.row.enable as types.TriggerEnable;
           if (!enable) {
             return;
@@ -1341,7 +1358,7 @@ function TriggersStructure(props: {
       },
     ] as GridColDef[];
   }, []);
-  cols.forEach(e => {
+  cols.forEach((e) => {
     const width = ColumnWidth.instance.get(e.field);
     if (width) {
       e.width = width;
@@ -1352,7 +1369,7 @@ function TriggersStructure(props: {
   const slotProps = useMemo(() => {
     return {
       row: {
-        onContextMenu: e => {
+        onContextMenu: (e) => {
           const { currentTarget, target } = e;
           {
             const { field } = extractFieldAndIDFromMouseEvent(e);
@@ -1362,7 +1379,7 @@ function TriggersStructure(props: {
           }
           const content = (target as HTMLDivElement).innerHTML;
           const name = (currentTarget as HTMLDivElement).getAttribute("data-id");
-          const detail = triggers.find(e => e.name == name);
+          const detail = triggers.find((e) => e.name == name);
           setUpMenu({
             content: (
               <TriggerMenu
@@ -1393,10 +1410,10 @@ function TriggersStructure(props: {
     triggers,
   ]);
 
-  const getRowId = useCallback(e => {
+  const getRowId = useCallback((e) => {
     return e["name"];
   }, []);
-  const onRowDoubleClick = useCallback(row => {
+  const onRowDoubleClick = useCallback((row) => {
     setRow(row.row);
   }, []);
 
@@ -1527,7 +1544,7 @@ function TableStructure(props: { table: string; uuid: string; kind: DataSourceKi
     <Stack style={{ height: "100%" }}>
       <Stack direction="row" justifyContent="center">
         <ButtonGroup>
-          {structures.map(e => {
+          {structures.map((e) => {
             return (
               <Button
                 disabled={structure == e}
@@ -1569,7 +1586,7 @@ function StatementStructure(props: {
     <Stack style={{ height: "100%" }}>
       <DefAndMetasView
         reloadOP={async () => {
-          return createTableAndIndexSql(uuid, table).then(e => {
+          return createTableAndIndexSql(uuid, table).then((e) => {
             return {
               def: formatCreateTableAndIndexSql(e),
               metas: [],

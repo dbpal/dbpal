@@ -5,9 +5,9 @@ use crate::db::{
     CatalogTrait, CheckConn, ColumnType, CreateDatabaseExtra, CreateIndexReq, CreateSchemaExtra,
     DBTrait, DefAndMetas, ExportFrame, ExportKind, ExportQueryResult, Field, GetBackendKind, Index,
     IndexKind, ListTable, MetaValue, NamedStaff, ProcedureDetail, QueryEvent, QueryResp, QuerySql,
-    ReadOnlyTrait, SchemaTrait, ServerMetas, ShowTableParameter, SqlBuilder, TriggerDetail,
-    TriggerEnable, TriggerEvent, TriggerTiming, UdfOrProcedureExtraParameter, XlsxEdit,
-    POOL_MAX_CONNECTIONS,
+    ReadOnlyTrait, SchemaTrait, ServerMetas, ShowTableParameter, SqlBuilder, SqlCollect,
+    TriggerDetail, TriggerEnable, TriggerEvent, TriggerTiming, UdfOrProcedureExtraParameter,
+    XlsxEdit, POOL_MAX_CONNECTIONS,
 };
 use crate::db::{OptionMustBeSomeErr, QueryEventEmitter};
 use crate::helper::create_csv;
@@ -524,18 +524,18 @@ impl SchemaTrait for SqlServerDB {
     fn list_sql_current_values(&self) -> &'static [&'static str] {
         <Self as SqlBuilder>::get_current_values(self)
     }
-    async fn create_index(&self, table: &str, req: &CreateIndexReq) -> anyhow::Result<()> {
+    async fn create_index(&self, table: &str, req: &CreateIndexReq) -> anyhow::Result<String> {
         let sql = req.common_sql(table, true, self.backend_name().quote_style())?;
         log::info!("sql:{}", sql);
         let mut conn = self.get_conn().await?;
         conn.execute(&sql, &[]).await?;
-        anyhow::Ok(())
+        anyhow::Ok(sql)
     }
 
-    async fn drop_index(&self, table_name: &str, index: &str) -> anyhow::Result<()> {
+    async fn drop_index(&self, table_name: &str, index: &str) -> anyhow::Result<String> {
         let sql = format!(r#"DROP INDEX "{index}" ON "{table_name}";"#);
         self.execute_simple_execute(&sql).await?;
-        anyhow::Ok(())
+        anyhow::Ok(sql)
     }
 
     async fn rename_index(
@@ -543,11 +543,11 @@ impl SchemaTrait for SqlServerDB {
         table: &str,
         old_name: &str,
         new_name: &str,
-    ) -> anyhow::Result<()> {
+    ) -> anyhow::Result<String> {
         let sql = format!("EXEC sp_rename '{table}.{old_name}', '{new_name}', 'INDEX';");
         log::info!("sql:{}", sql);
         self.execute_simple_execute(&sql).await?;
-        anyhow::Ok(())
+        anyhow::Ok(sql)
     }
 
     async fn add_table_column(
@@ -555,7 +555,7 @@ impl SchemaTrait for SqlServerDB {
         table: &str,
         name: &str,
         col: ColumnType,
-    ) -> anyhow::Result<()> {
+    ) -> anyhow::Result<String> {
         let sql = format!(
             r#"ALTER TABLE "{table}" ADD "{name}" {} {} {}"#,
             col.typ,
@@ -572,7 +572,7 @@ impl SchemaTrait for SqlServerDB {
         log::info!("sql:{}", sql);
         let mut conn = self.get_conn().await?;
         conn.deref_mut().execute(&sql, &[]).await?;
-        anyhow::Ok(())
+        anyhow::Ok(sql)
     }
 
     async fn list_data_types(&self) -> anyhow::Result<Vec<String>> {
@@ -585,32 +585,34 @@ impl SchemaTrait for SqlServerDB {
         old_name: &str,
         new_name: &str,
         typ: Option<crate::db::ColumnType>,
-    ) -> anyhow::Result<()> {
+    ) -> anyhow::Result<String> {
         let mut conn = self.get_conn().await?;
+        let mut sc = SqlCollect::default();
+        if let Some(typ) = typ.as_ref() {
+            if typ.default_value.is_some() {
+                anyhow::bail!("sql server does not support modify column with default value");
+            }
+        }
         if old_name != new_name {
-            let sql = format!(
-                r#"
-            EXEC sp_rename '{table}.{old_name}', '{new_name}', 'COLUMN';
-            "#
-            );
+            let sql = format!(r#"EXEC sp_rename '{table}.{old_name}', '{new_name}', 'COLUMN'"#);
             log::info!("sql:{}", sql);
             conn.deref_mut().execute(&sql, &[]).await?;
+            sc.collect(sql);
         }
         if let Some(typ) = typ.as_ref() {
             let sql = format!(
-                r#"
-            ALTER TABLE {table} ALTER COLUMN {new_name} {} {};
-            "#,
+                r#"ALTER TABLE {table} ALTER COLUMN {new_name} {} {}"#,
                 typ.typ,
-                typ.nullable.unwrap_or_default()
+                typ.nullable.unwrap_or_default(),
             );
             log::info!("sql:{}", sql);
             conn.deref_mut().execute(&sql, &[]).await?;
+            sc.collect(sql);
         }
-        anyhow::Ok(())
+        anyhow::Ok(sc.into())
     }
 
-    async fn drop_table_column(&self, table: &str, col: &str) -> anyhow::Result<()> {
+    async fn drop_table_column(&self, table: &str, col: &str) -> anyhow::Result<String> {
         let sql = format!(
             r#"
             ALTER TABLE "{table}" DROP COLUMN "{col}";
@@ -620,7 +622,7 @@ impl SchemaTrait for SqlServerDB {
         let mut conn = self.get_conn().await?;
         let conn = conn.deref_mut();
         conn.execute(&sql, &[]).await?;
-        anyhow::Ok(())
+        anyhow::Ok(sql)
     }
 
     async fn duplicate_table(&self, table: &str, dup: &str) -> anyhow::Result<()> {
@@ -638,7 +640,7 @@ impl SchemaTrait for SqlServerDB {
         anyhow::Ok(())
     }
 
-    async fn rename_table(&self, old: &str, new: &str) -> anyhow::Result<()> {
+    async fn rename_table(&self, old: &str, new: &str) -> anyhow::Result<String> {
         let sql = format!(
             r#"
             EXEC sp_rename '{old}', '{new}';
@@ -646,7 +648,7 @@ impl SchemaTrait for SqlServerDB {
         );
         log::info!("sql:{}", sql);
         self.execute_simple_execute(&sql).await?;
-        anyhow::Ok(())
+        anyhow::Ok(sql)
     }
 
     async fn list_trigger(&self, table_name: &str) -> anyhow::Result<Vec<NamedStaff>> {
@@ -732,7 +734,7 @@ impl SchemaTrait for SqlServerDB {
         ))
     }
 
-    async fn drop_trigger(&self, table: &str, name: &str) -> anyhow::Result<()> {
+    async fn drop_trigger(&self, table: &str, name: &str) -> anyhow::Result<String> {
         let sql = format!(
             r#"
             DROP TRIGGER "{}"."{name}" ON "{table}";
@@ -741,7 +743,7 @@ impl SchemaTrait for SqlServerDB {
         );
         log::info!("sql:{}", sql);
         self.execute_simple_execute(&sql).await?;
-        anyhow::Ok(())
+        anyhow::Ok(sql)
     }
 
     async fn export_table_or_view(
@@ -852,23 +854,22 @@ impl SchemaTrait for SqlServerDB {
         anyhow::Ok(())
     }
 
-    async fn drop_view(&self, view_name: &str) -> anyhow::Result<()> {
+    async fn drop_view(&self, view_name: &str) -> anyhow::Result<String> {
         self.can_write()?;
         let schema = self.config.schema_str()?.as_str();
 
-        let s = format!(r#"DROP VIEW "{schema}"."{view_name}""#);
-        self.execute_simple_execute(&s).await?;
-
-        anyhow::Ok(())
+        let sql = format!(r#"DROP VIEW "{schema}"."{view_name}""#);
+        self.execute_simple_execute(&sql).await?;
+        anyhow::Ok(sql)
     }
 
-    async fn drop_table(&self, table: &str, _cascade: bool) -> anyhow::Result<()> {
+    async fn drop_table(&self, table: &str, _cascade: bool) -> anyhow::Result<String> {
         self.can_write()?;
         let sql = format!(r#"DROP TABLE "{table}""#);
         log::info!("sql:{}", sql);
         self.execute_simple_execute(&sql).await?;
 
-        anyhow::Ok(())
+        anyhow::Ok(sql)
     }
 
     async fn list_view(&self) -> anyhow::Result<Vec<ListTable>> {
@@ -1051,29 +1052,29 @@ impl SchemaTrait for SqlServerDB {
         anyhow::Ok(ret.into_values().collect())
     }
 
-    async fn truncate_table(&self, table_name: &str) -> anyhow::Result<()> {
+    async fn truncate_table(&self, table_name: &str) -> anyhow::Result<String> {
         self.can_write()?;
-        let s = format!(
+        let sql = format!(
             r#"
             TRUNCATE TABLE "{table_name}";
         "#
         );
-        self.execute_simple_execute(&s).await?;
-        anyhow::Ok(())
+        self.execute_simple_execute(&sql).await?;
+        anyhow::Ok(sql)
     }
 
-    async fn disable_trigger(&self, table: &str, name: &str) -> anyhow::Result<()> {
+    async fn disable_trigger(&self, table: &str, name: &str) -> anyhow::Result<String> {
         let sql = format!("ENABLE TRIGGER {name} ON {table}");
         log::info!("sql:{}", sql);
         self.execute_simple_execute(sql.as_str()).await?;
-        anyhow::Ok(())
+        anyhow::Ok(sql)
     }
 
-    async fn enable_trigger(&self, table: &str, name: &str) -> anyhow::Result<()> {
+    async fn enable_trigger(&self, table: &str, name: &str) -> anyhow::Result<String> {
         let sql = format!("DISABLE TRIGGER {name} ON {table}");
         log::info!("sql:{}", sql);
         self.execute_simple_execute(sql.as_str()).await?;
-        anyhow::Ok(())
+        anyhow::Ok(sql)
     }
 
     async fn list_udf(&self) -> anyhow::Result<Vec<NamedStaff>> {
@@ -1155,11 +1156,11 @@ impl SchemaTrait for SqlServerDB {
         &self,
         name: &str,
         _extra: Option<UdfOrProcedureExtraParameter>,
-    ) -> anyhow::Result<()> {
+    ) -> anyhow::Result<String> {
         let sql = format!(r#"DROP FUNCTION "{}"."{name}""#, Self::DBO_SCHEMA);
         log::info!("sql:{}", sql);
         self.execute_simple_execute(sql.as_str()).await?;
-        anyhow::Ok(())
+        anyhow::Ok(sql)
     }
 
     async fn list_procedure(&self) -> anyhow::Result<Vec<NamedStaff>> {
@@ -1216,11 +1217,11 @@ impl SchemaTrait for SqlServerDB {
         &self,
         name: &str,
         _arg: Option<UdfOrProcedureExtraParameter>,
-    ) -> anyhow::Result<()> {
+    ) -> anyhow::Result<String> {
         let sql = format!(r#"DROP PROCEDURE dbo."{name}""#);
         log::info!("sql:{}", sql);
         self.execute_simple_execute(&sql).await?;
-        anyhow::Ok(())
+        anyhow::Ok(sql)
     }
 }
 /// SQL Server 里可直接写在 SQL 语句中的 CURRENT_* / 无括号字面量
@@ -2947,53 +2948,60 @@ FROM sys.sequences;
 
         let query_id = "";
         db.open_connection(query_id).await.unwrap();
-        let _resp = db
-            .execute_sql(
-                query_id,
-                r#"
+        db.execute_sql(
+            query_id,
+            r#"
                 CREATE TABLE test_column
                 (
                     id INT PRIMARY KEY                     -- 主键，无符号32位整数
                 )
                 "#,
+        )
+        .await
+        .unwrap()
+        .unwrap();
+
+        let sql = db
+            .add_table_column(
+                table_name,
+                "name",
+                ColumnType {
+                    typ: "TINYINT".to_string(),
+                    nullable: SqlNullAble::Null.into(),
+                    after: None,
+                    // must be none here
+                    // query failed
+                    // Token error: 'The object 'DF__test_colum__name__6C2EE8AB' is dependent on column
+                    // 'name2'.' on server sqlpreview executing on line 1 (code: 5074, state: 1, class:
+                    // 16)
+                    default_value: None,
+                },
             )
             .await
-            .unwrap()
             .unwrap();
 
-        db.add_table_column(
-            table_name,
-            "name",
-            ColumnType {
-                typ: "TINYINT".to_string(),
-                nullable: SqlNullAble::Null.into(),
-                after: None,
-                // must be none here
-                // query failed
-                // Token error: 'The object 'DF__test_colum__name__6C2EE8AB' is dependent on column
-                // 'name2'.' on server sqlpreview executing on line 1 (code: 5074, state: 1, class:
-                // 16)
-                default_value: None,
-            },
-        )
-        .await
-        .unwrap();
+        println!("add table column sql:{}", sql);
 
-        db.modify_table_column(
-            table_name,
-            "name",
-            "name2",
-            Some(ColumnType {
-                typ: "SMALLINT".to_string(),
-                nullable: SqlNullAble::Null.into(),
-                after: None,
-                default_value: Some("2".to_string()),
-            }),
-        )
-        .await
-        .unwrap();
+        let sql = db
+            .modify_table_column(
+                table_name,
+                "name",
+                "name2",
+                Some(ColumnType {
+                    typ: "SMALLINT".to_string(),
+                    nullable: SqlNullAble::Null.into(),
+                    after: None,
+                    default_value: None,
+                }),
+            )
+            .await
+            .unwrap();
 
-        db.drop_table_column(table_name, "name2").await.unwrap();
+        println!("modify table column sql:{}", sql);
+
+        let sql = db.drop_table_column(table_name, "name2").await.unwrap();
+
+        println!("drop table column sql:{}", sql);
     }
 
     #[tokio::test]

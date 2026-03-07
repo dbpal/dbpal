@@ -23,6 +23,7 @@ import {
 } from "./helper";
 import { ExceedMaxTreeItem, MenuRefresh } from "./CommonComp";
 import { listEvent } from "./handlers";
+import { CopySql } from "./CommonComp2";
 function EventsTree() {
   const { uuid } = useContext(UuidContext);
   const { kind } = useContext(ConnTypeContext);
@@ -31,17 +32,17 @@ function EventsTree() {
   const maxsize = useContext(MaxTreeContext);
   const reload = useCallback(() => {
     listEvent(uuid)
-      .then(ts => {
+      .then((ts) => {
         setEvents(ts);
       })
-      .catch(e => {
+      .catch((e) => {
         showNotification("error", "list event failed", e);
       });
   }, [showNotification, uuid]);
   const [exceed, setExceed] = useState(0);
   const matchPattern = useContext(MatchPatternContext);
   useEffect(() => {
-    setExceed(evens.filter(e => matchPattern(e.name)).length);
+    setExceed(evens.filter((e) => matchPattern(e.name)).length);
   }, [evens, matchPattern]);
 
   const { setUpMenu } = useContext(ContextMenuContext);
@@ -57,7 +58,7 @@ function EventsTree() {
       label=<Stack
         direction="row"
         sx={{ alignItems: "center" }}
-        onContextMenu={e => {
+        onContextMenu={(e) => {
           setUpMenu({
             content: (
               <MenuList>
@@ -73,7 +74,7 @@ function EventsTree() {
       </Stack>
     >
       {evens
-        .filter(event => matchPattern(event.name))
+        .filter((event) => matchPattern(event.name))
         .map((event, index) => {
           if (index >= maxsize) {
             return;
@@ -87,7 +88,7 @@ function EventsTree() {
               style={{ alignItems: "center" }}
               label=<Stack
                 direction="row"
-                onContextMenu={e => {
+                onContextMenu={(e) => {
                   setUpMenu({
                     content: (
                       <EventMenu
@@ -129,7 +130,7 @@ function EventMenu(props: {
     if (typeof index == "number") {
       setSelectTab(index);
     } else {
-      setTabs(e => {
+      setTabs((e) => {
         setTimeout(() => {
           setSelectTab(tabs.length);
         }, 100);
@@ -139,18 +140,16 @@ function EventMenu(props: {
           new TabContent(
             id,
             event.name,
-            (
-              <DefAndMetasView
-                reloadOP={async () => {
-                  return Promise.resolve({
-                    def: event.sql,
-                    metas: event.metas,
-                  } as DefAndMetas);
-                }}
-                kind={kind}
-                uuid={uuid}
-              />
-            ),
+            <DefAndMetasView
+              reloadOP={async () => {
+                return Promise.resolve({
+                  def: event.sql,
+                  metas: event.metas,
+                } as DefAndMetas);
+              }}
+              kind={kind}
+              uuid={uuid}
+            />,
             <MdOutlineEventRepeat className="tab-icon-size" />,
           ),
         ];
@@ -167,11 +166,11 @@ function EventMenu(props: {
       return;
     }
     invoke("drop_event", { name: uuid, eventName: event.name })
-      .then(() => {
-        showNotification("success", "Drop event OK");
+      .then((sql) => {
+        showNotification("success", "Drop event OK", <CopySql sql={sql} />);
         reload();
       })
-      .catch(e => {
+      .catch((e) => {
         showNotification("error", "Drop event failed", e);
       });
   };

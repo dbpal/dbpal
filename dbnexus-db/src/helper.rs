@@ -4,7 +4,7 @@ use sqlparser::tokenizer::Token;
 use std::sync::mpsc;
 use std::thread;
 use std::time::Duration;
-pub(crate) fn run_with_timeout<F, T>(f: F, timeout: Duration) -> anyhow::Result<T>
+pub fn run_with_timeout<F, T>(f: F, timeout: Duration) -> anyhow::Result<T>
 where
     F: FnOnce() -> T + Send + 'static,
     T: Send + 'static,

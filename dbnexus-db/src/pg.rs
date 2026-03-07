@@ -18,8 +18,9 @@ use crate::db::{
     CreatedTypeDef, DBTrait, DefAndMetas, ExportFrame, ExportKind, ExportQueryResult, Field,
     GetBackendKind, Index, IndexKind, ListTable, MetaValue, NamedStaff, OptionMustBeSomeErr,
     ProcedureDetail, QueryEvent, QueryEventEmitter, QueryResp, QuerySql, ReadOnlyTrait,
-    SchemaTrait, SequenceDetail, ServerMetas, ShowTableParameter, SqlBuilder, TriggerDetail,
-    TriggerEvent, TriggerTiming, UdfOrProcedureExtraParameter, XlsxEdit, POOL_MAX_CONNECTIONS,
+    SchemaTrait, SequenceDetail, ServerMetas, ShowTableParameter, SqlBuilder, SqlCollect,
+    TriggerDetail, TriggerEvent, TriggerTiming, UdfOrProcedureExtraParameter, XlsxEdit,
+    POOL_MAX_CONNECTIONS,
 };
 
 use crate::helper::create_csv;
@@ -473,13 +474,13 @@ impl SchemaTrait for PostGresDB {
         self.list_sequences_impl(self.config.schema_str()?).await
     }
 
-    async fn rename_sequence(&self, old: &str, new: &str) -> anyhow::Result<()> {
+    async fn rename_sequence(&self, old: &str, new: &str) -> anyhow::Result<String> {
         let sql = format!(r#"ALTER SEQUENCE "{old}" RENAME TO "{new}";"#);
         let mut conn = self.get_conn().await?;
         sqlx::raw_sql(AssertSqlSafe(sql.as_str()))
             .execute(conn.deref_mut())
             .await?;
-        anyhow::Ok(())
+        anyhow::Ok(sql)
     }
 
     async fn drop_sequence(&self, name: &str, cascade: bool) -> anyhow::Result<()> {
@@ -499,34 +500,34 @@ impl SchemaTrait for PostGresDB {
         self.list_created_types_impl(self.config.schema_str()?, true)
             .await
     }
-    async fn drop_created_type(&self, name: &str) -> anyhow::Result<()> {
+    async fn drop_created_type(&self, name: &str) -> anyhow::Result<String> {
         let sql = format!(r#"DROP TYPE  "{}"."{name}" "#, self.config.schema_str()?);
         log::info!("sql:{}", sql);
         let mut conn = self.get_conn().await?;
         sqlx::raw_sql(AssertSqlSafe(sql.as_str()))
             .execute(conn.deref_mut())
             .await?;
-        anyhow::Ok(())
+        anyhow::Ok(sql)
     }
 
-    async fn create_index(&self, table: &str, req: &CreateIndexReq) -> anyhow::Result<()> {
+    async fn create_index(&self, table: &str, req: &CreateIndexReq) -> anyhow::Result<String> {
         let sql = req.common_sql(table, true, self.backend_name().quote_style())?;
         log::info!("sql:{}", sql);
         let mut conn = self.get_conn().await?;
         sqlx::raw_sql(AssertSqlSafe(sql.as_str()))
             .execute(conn.deref_mut())
             .await?;
-        anyhow::Ok(())
+        anyhow::Ok(sql)
     }
 
-    async fn drop_index(&self, _table_name: &str, index: &str) -> anyhow::Result<()> {
+    async fn drop_index(&self, _table_name: &str, index: &str) -> anyhow::Result<String> {
         let sql = format!("DROP INDEX \"{index}\";");
         log::info!("sql:{}", sql);
         let mut conn = self.get_conn().await?;
         sqlx::raw_sql(AssertSqlSafe(sql.as_str()))
             .execute(conn.deref_mut())
             .await?;
-        anyhow::Ok(())
+        anyhow::Ok(sql)
     }
 
     async fn rename_index(
@@ -534,14 +535,14 @@ impl SchemaTrait for PostGresDB {
         _table: &str,
         old_name: &str,
         new_name: &str,
-    ) -> anyhow::Result<()> {
+    ) -> anyhow::Result<String> {
         let sql = format!("ALTER INDEX \"{old_name}\" RENAME TO \"{new_name}\";");
         log::info!("sql:{}", sql);
         let mut conn = self.get_conn().await?;
         sqlx::raw_sql(AssertSqlSafe(sql.as_str()))
             .execute(conn.deref_mut())
             .await?;
-        anyhow::Ok(())
+        anyhow::Ok(sql)
     }
 
     async fn add_table_column(
@@ -549,7 +550,7 @@ impl SchemaTrait for PostGresDB {
         table: &str,
         name: &str,
         col: ColumnType,
-    ) -> anyhow::Result<()> {
+    ) -> anyhow::Result<String> {
         let sql = format!(
             "ALTER TABLE {table} ADD COLUMN \"{name}\" {} {} {}",
             col.typ,
@@ -569,7 +570,7 @@ impl SchemaTrait for PostGresDB {
             .execute(conn.deref_mut())
             .await
             .map_err(|e| anyhow::Error::msg(format!("err:{} sql:{}", e, sql)))?;
-        anyhow::Ok(())
+        anyhow::Ok(sql)
     }
 
     async fn list_data_types(&self) -> anyhow::Result<Vec<String>> {
@@ -582,81 +583,73 @@ impl SchemaTrait for PostGresDB {
         old_name: &str,
         new_name: &str,
         typ: Option<ColumnType>,
-    ) -> anyhow::Result<()> {
+    ) -> anyhow::Result<String> {
         let mut conn = self.get_conn().await?;
+        let mut sc = SqlCollect::default();
         if old_name != new_name {
-            let sql = format!(
-                r#"
-            ALTER TABLE "{table}" RENAME COLUMN "{old_name}" TO "{new_name}";
-            "#
-            );
+            let sql =
+                format!(r#"ALTER TABLE "{table}" RENAME COLUMN "{old_name}" TO "{new_name}""#);
             sqlx::raw_sql(AssertSqlSafe(sql.as_str()))
                 .execute(conn.deref_mut())
                 .await?;
             log::info!("sql:{}", sql);
+            sc.collect(sql);
         }
         if let Some(typ) = typ.as_ref() {
             let sql = format!(
-                r#"
-            ALTER TABLE {table} 
-                    ALTER COLUMN "{new_name}" SET DATA TYPE {};
-            "#,
+                r#"ALTER TABLE {table} ALTER COLUMN "{new_name}" SET DATA TYPE {}"#,
                 typ.typ
             );
             log::info!("sql:{}", sql);
             sqlx::raw_sql(AssertSqlSafe(sql.as_str()))
                 .execute(conn.deref_mut())
                 .await?;
-
+            sc.collect(sql);
             if let Some(null) = typ.nullable.as_ref() {
-                match null {
-                    crate::db::SqlNullAble::None => {}
+                let sql = match null {
+                    crate::db::SqlNullAble::None => None,
                     crate::db::SqlNullAble::Null => {
                         let sql = format!(
-                            r#"
-                        ALTER TABLE {table} 
-                            ALTER COLUMN {new_name} DROP NOT NULL;
-                    "#
+                            r#"ALTER TABLE  "{table}" ALTER COLUMN "{new_name}" DROP NOT NULL"#
                         );
-                        sqlx::raw_sql(AssertSqlSafe(sql.as_str()))
-                            .execute(conn.deref_mut())
-                            .await?;
+                        Some(sql)
                     }
                     crate::db::SqlNullAble::NotNull => {
                         let sql = format!(
-                            r#"
-                        ALTER TABLE {table} 
-                            ALTER COLUMN {new_name} SET NOT NULL;
-                    "#
+                            r#"ALTER TABLE "{table}" ALTER COLUMN  "{new_name}" SET NOT NULL"#
                         );
-
-                        sqlx::raw_sql(AssertSqlSafe(sql.as_str()))
-                            .execute(conn.deref_mut())
-                            .await?;
+                        Some(sql)
                     }
+                };
+                if let Some(sql) = sql {
+                    sqlx::raw_sql(AssertSqlSafe(sql.as_str()))
+                        .execute(conn.deref_mut())
+                        .await?;
+                    sc.collect(sql);
                 }
-                log::info!("sql:{}", sql);
+            }
+            if let Some(dv) = typ.default_value.as_ref() {
+                let sql = format!(
+                    r#"ALTER TABLE "{table}" ALTER COLUMN "{new_name}" SET DEFAULT {}"#,
+                    self.put_value_in_sql(&typ.typ, Some(dv))?
+                );
                 sqlx::raw_sql(AssertSqlSafe(sql.as_str()))
                     .execute(conn.deref_mut())
                     .await?;
+                sc.collect(sql);
             }
         }
-        anyhow::Ok(())
+        anyhow::Ok(sc.into())
     }
 
-    async fn drop_table_column(&self, table: &str, col: &str) -> anyhow::Result<()> {
-        let sql = format!(
-            r#"
-            ALTER TABLE "{table}"
-                DROP COLUMN "{col}";
-        "#
-        );
+    async fn drop_table_column(&self, table: &str, col: &str) -> anyhow::Result<String> {
+        let sql = format!(r#"ALTER TABLE "{table}" DROP COLUMN "{col}""#);
         log::info!("sql:{}", sql);
         let mut conn = self.get_conn().await?;
         sqlx::raw_sql(AssertSqlSafe(sql.as_str()))
             .execute(conn.deref_mut())
             .await?;
-        anyhow::Ok(())
+        anyhow::Ok(sql)
     }
 
     async fn show_view_columns(&self, view_name: &str) -> anyhow::Result<Vec<Field>> {
@@ -760,7 +753,7 @@ impl SchemaTrait for PostGresDB {
         &self,
         name: &str,
         arg: Option<UdfOrProcedureExtraParameter>,
-    ) -> anyhow::Result<()> {
+    ) -> anyhow::Result<String> {
         let arg: &UdfOrProcedureExtraParameter = match arg.as_ref() {
             Some(arg) => arg,
             None => anyhow::bail!(format!("postgres need extra argument.")),
@@ -775,7 +768,7 @@ impl SchemaTrait for PostGresDB {
         sqlx::raw_sql(AssertSqlSafe(sql.as_str()))
             .execute(conn.deref_mut())
             .await?;
-        anyhow::Ok(())
+        anyhow::Ok(sql)
     }
 
     async fn list_udf(&self) -> anyhow::Result<Vec<NamedStaff>> {
@@ -862,7 +855,7 @@ impl SchemaTrait for PostGresDB {
         &self,
         name: &str,
         extra: Option<UdfOrProcedureExtraParameter>,
-    ) -> anyhow::Result<()> {
+    ) -> anyhow::Result<String> {
         let parameters = match &extra {
             Some(x) => match x {
                 UdfOrProcedureExtraParameter::PostGres { parameters } => parameters,
@@ -885,27 +878,27 @@ impl SchemaTrait for PostGresDB {
         sqlx::raw_sql(AssertSqlSafe(sql.as_str()))
             .execute(conn.deref_mut())
             .await?;
-        anyhow::Ok(())
+        anyhow::Ok(sql)
     }
 
-    async fn disable_trigger(&self, table: &str, name: &str) -> anyhow::Result<()> {
+    async fn disable_trigger(&self, table: &str, name: &str) -> anyhow::Result<String> {
         let mut conn = self.get_conn().await?;
         let sql = format!(r#"ALTER TABLE "{table}" DISABLE TRIGGER "{name}""#);
         log::info!("sql:{}", sql);
         sqlx::raw_sql(AssertSqlSafe(sql.as_str()))
             .execute(conn.deref_mut())
             .await?;
-        anyhow::Ok(())
+        anyhow::Ok(sql)
     }
 
-    async fn enable_trigger(&self, table: &str, name: &str) -> anyhow::Result<()> {
+    async fn enable_trigger(&self, table: &str, name: &str) -> anyhow::Result<String> {
         let mut conn = self.get_conn().await?;
         let sql = format!(r#"ALTER TABLE "{table}" ENABLE TRIGGER "{name}""#);
         log::info!("sql:{}", sql);
         sqlx::raw_sql(AssertSqlSafe(sql.as_str()))
             .execute(conn.deref_mut())
             .await?;
-        anyhow::Ok(())
+        anyhow::Ok(sql)
     }
 
     async fn duplicate_table(&self, table: &str, dup: &str) -> anyhow::Result<()> {
@@ -923,7 +916,7 @@ impl SchemaTrait for PostGresDB {
         anyhow::Ok(())
     }
 
-    async fn rename_table(&self, old: &str, new: &str) -> anyhow::Result<()> {
+    async fn rename_table(&self, old: &str, new: &str) -> anyhow::Result<String> {
         let schema = self.config.schema_str()?;
         let sql = format!(r#"ALTER TABLE "{schema}"."{old}" RENAME TO "{new}""#);
         log::info!("sql:{}", sql);
@@ -932,7 +925,7 @@ impl SchemaTrait for PostGresDB {
         sqlx::raw_sql(AssertSqlSafe(sql.as_str()))
             .execute(conn.deref_mut())
             .await?;
-        anyhow::Ok(())
+        anyhow::Ok(sql)
     }
 
     async fn list_trigger(&self, table_name: &str) -> anyhow::Result<Vec<NamedStaff>> {
@@ -990,7 +983,7 @@ impl SchemaTrait for PostGresDB {
         ))
     }
 
-    async fn drop_trigger(&self, table: &str, name: &str) -> anyhow::Result<()> {
+    async fn drop_trigger(&self, table: &str, name: &str) -> anyhow::Result<String> {
         let schema = self.config.schema_str()?;
         let sql = format!(
             r#"
@@ -1002,7 +995,7 @@ impl SchemaTrait for PostGresDB {
         sqlx::raw_sql(AssertSqlSafe(sql.as_str()))
             .execute(conn.deref_mut())
             .await?;
-        anyhow::Ok(())
+        anyhow::Ok(sql)
     }
 
     async fn export_table_or_view(
@@ -1181,7 +1174,7 @@ impl SchemaTrait for PostGresDB {
         anyhow::Ok(())
     }
 
-    async fn drop_view(&self, view_name: &str) -> anyhow::Result<()> {
+    async fn drop_view(&self, view_name: &str) -> anyhow::Result<String> {
         self.can_write()?;
         let mut conn = self.get_conn().await?;
         let schema = self.config.schema_str()?;
@@ -1191,10 +1184,10 @@ impl SchemaTrait for PostGresDB {
         sqlx::raw_sql(AssertSqlSafe(sql.as_str()))
             .execute(conn.deref_mut())
             .await?;
-        anyhow::Ok(())
+        anyhow::Ok(sql)
     }
 
-    async fn drop_table(&self, table: &str, cascade: bool) -> anyhow::Result<()> {
+    async fn drop_table(&self, table: &str, cascade: bool) -> anyhow::Result<String> {
         self.can_write()?;
         let schema = self.config.schema_str()?;
         let mut conn = self.get_conn().await?;
@@ -1206,7 +1199,7 @@ impl SchemaTrait for PostGresDB {
         sqlx::raw_sql(AssertSqlSafe(sql.as_str()))
             .execute(conn.deref_mut())
             .await?;
-        anyhow::Ok(())
+        anyhow::Ok(sql)
     }
 
     async fn list_view(&self) -> anyhow::Result<Vec<ListTable>> {
@@ -1234,19 +1227,19 @@ impl SchemaTrait for PostGresDB {
         anyhow::Ok(ret.into_iter().map(ListTable::from).collect())
     }
 
-    async fn truncate_table(&self, table_name: &str) -> anyhow::Result<()> {
+    async fn truncate_table(&self, table_name: &str) -> anyhow::Result<String> {
         self.can_write()?;
         let schema = self.config.schema_str()?;
-        let s = format!(
+        let sql = format!(
             r#"
             TRUNCATE TABLE "{schema}"."{table_name}";
         "#
         );
         let mut conn = self.get_conn().await?;
-        sqlx::raw_sql(AssertSqlSafe(s.as_str()))
+        sqlx::raw_sql(AssertSqlSafe(sql.as_str()))
             .execute(conn.deref_mut())
             .await?;
-        anyhow::Ok(())
+        anyhow::Ok(sql)
     }
 
     async fn list_table(&self) -> anyhow::Result<Vec<ListTable>> {
@@ -1433,7 +1426,7 @@ impl SchemaTrait for PostGresDB {
         anyhow::Ok(())
     }
 
-    async fn drop_materialized_view(&self, name: &str) -> anyhow::Result<()> {
+    async fn drop_materialized_view(&self, name: &str) -> anyhow::Result<String> {
         let schema = self.config.schema_str()?;
         let sql = format!(
             r#"DROP MATERIALIZED VIEW  "{}"."{}" RESTRICT"#,
@@ -1444,7 +1437,7 @@ impl SchemaTrait for PostGresDB {
         sqlx::raw_sql(AssertSqlSafe(sql.as_str()))
             .execute(conn.deref_mut())
             .await?;
-        anyhow::Ok(())
+        anyhow::Ok(sql)
     }
 
     async fn show_indexes(&self, table_name: &str) -> anyhow::Result<Vec<Index>> {
@@ -3099,34 +3092,41 @@ mod tests {
         .unwrap()
         .unwrap();
 
-        db.add_table_column(
-            table_name,
-            "name",
-            ColumnType {
-                typ: "INT2".to_string(),
-                nullable: SqlNullAble::Null.into(),
-                after: None,
-                default_value: Some("1".to_string()),
-            },
-        )
-        .await
-        .unwrap();
+        let sql = db
+            .add_table_column(
+                table_name,
+                "name",
+                ColumnType {
+                    typ: "INT2".to_string(),
+                    nullable: SqlNullAble::Null.into(),
+                    after: None,
+                    default_value: Some("1".to_string()),
+                },
+            )
+            .await
+            .unwrap();
 
-        db.modify_table_column(
-            table_name,
-            "name",
-            "name2",
-            Some(ColumnType {
-                typ: "INT4".to_string(),
-                nullable: SqlNullAble::Null.into(),
-                after: None,
-                default_value: Some("2".to_string()),
-            }),
-        )
-        .await
-        .unwrap();
+        println!("add table column sql:{}", sql);
 
-        db.drop_table_column(table_name, "name2").await.unwrap();
+        let sql = db
+            .modify_table_column(
+                table_name,
+                "name",
+                "name2",
+                Some(ColumnType {
+                    typ: "INT4".to_string(),
+                    nullable: SqlNullAble::Null.into(),
+                    after: None,
+                    default_value: Some("2".to_string()),
+                }),
+            )
+            .await
+            .unwrap();
+
+        println!("modify table column sql:{}", sql);
+
+        let sql = db.drop_table_column(table_name, "name2").await.unwrap();
+        println!("drop table column sql:{}", sql);
     }
 
     #[tokio::test]

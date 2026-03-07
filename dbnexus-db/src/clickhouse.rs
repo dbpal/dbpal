@@ -5,7 +5,7 @@ use crate::db::{
     CreateTableAndIndexSql, DBTrait, DefAndMetas, ExportFrame, ExportKind, ExportQueryResult,
     Field, GetBackendKind, ListTable, MetaValue, NamedStaff, OptionMustBeSomeErr, QueryEvent,
     QueryEventEmitter, QueryResp, QuerySql, ReadOnlyTrait, SchemaTrait, ServerMetas,
-    ShowTableParameter, SqlBuilder, UdfOrProcedureExtraParameter, XlsxEdit,
+    ShowTableParameter, SqlBuilder, SqlCollect, UdfOrProcedureExtraParameter, XlsxEdit,
 };
 
 use crate::helper::separate_sql_by_sqlparser_tokenizer;
@@ -191,16 +191,16 @@ impl SchemaTrait for ClickHouseDB {
         self.list_materialized_view_impl(self.config.db_str()).await
     }
 
-    async fn drop_materialized_view(&self, name: &str) -> anyhow::Result<()> {
+    async fn drop_materialized_view(&self, name: &str) -> anyhow::Result<String> {
         self.drop_table(name, false).await
     }
 
-    async fn drop_view(&self, view_name: &str) -> anyhow::Result<()> {
+    async fn drop_view(&self, view_name: &str) -> anyhow::Result<String> {
         let sql = format!(r#"DROP VIEW `{view_name}`"#);
         log::info!("sql:{}", sql);
 
         self.client.query(&sql).execute().await?;
-        anyhow::Ok(())
+        anyhow::Ok(sql)
     }
 
     async fn show_create_table_sql(
@@ -262,13 +262,13 @@ impl SchemaTrait for ClickHouseDB {
         Box::new(Clone::clone(self)) as Box<dyn SchemaTrait>
     }
 
-    async fn rename_table(&self, old: &str, new: &str) -> anyhow::Result<()> {
+    async fn rename_table(&self, old: &str, new: &str) -> anyhow::Result<String> {
         self.can_write()?;
         let sql = format!(r#"RENAME TABLE `{old}` TO `{new}`"#);
         log::info!("sql:{}", sql);
 
         self.client.query(&sql).execute().await?;
-        anyhow::Ok(())
+        anyhow::Ok(sql)
     }
 
     async fn duplicate_table(&self, table: &str, dup: &str) -> anyhow::Result<()> {
@@ -315,12 +315,12 @@ impl SchemaTrait for ClickHouseDB {
         anyhow::Ok(())
     }
 
-    async fn truncate_table(&self, table_name: &str) -> anyhow::Result<()> {
+    async fn truncate_table(&self, table_name: &str) -> anyhow::Result<String> {
         self.can_write()?;
         let sql = format!(r#"TRUNCATE TABLE `{table_name}`"#);
         log::info!("sql:{}", sql);
         self.client.query(&sql).execute().await?;
-        anyhow::Ok(())
+        anyhow::Ok(sql)
     }
 
     fn as_any(&self) -> &dyn std::any::Any {
@@ -508,26 +508,21 @@ impl SchemaTrait for ClickHouseDB {
         anyhow::Ok(())
     }
 
-    async fn drop_table(&self, table: &str, _cascade: bool) -> anyhow::Result<()> {
+    async fn drop_table(&self, table: &str, _cascade: bool) -> anyhow::Result<String> {
         self.can_write()?;
         let sql = format!(r#"DROP TABLE `{table}`"#);
         log::info!("sql:{}", sql);
 
         self.client.query(&sql).execute().await?;
-        anyhow::Ok(())
+        anyhow::Ok(sql)
     }
 
-    async fn drop_table_column(&self, table: &str, col: &str) -> anyhow::Result<()> {
-        let sql = format!(
-            r#"
-        ALTER TABLE `{}` DROP COLUMN `{}`;
-        "#,
-            table, col,
-        );
+    async fn drop_table_column(&self, table: &str, col: &str) -> anyhow::Result<String> {
+        let sql = format!(r#"ALTER TABLE `{}` DROP COLUMN `{}`;"#, table, col,);
         log::info!("sql:{}", sql);
 
         self.client.query(&sql).execute().await?;
-        anyhow::Ok(())
+        anyhow::Ok(sql)
     }
 
     async fn modify_table_column(
@@ -536,41 +531,36 @@ impl SchemaTrait for ClickHouseDB {
         old_name: &str,
         new_name: &str,
         typ: Option<ColumnType>,
-    ) -> anyhow::Result<()> {
+    ) -> anyhow::Result<String> {
+        let mut sc = SqlCollect::default();
         if old_name != new_name {
             let sql = format!(
-                r#"ALTER TABLE `{}`
-                    RENAME COLUMN `{}` TO `{}`"#,
+                r#"ALTER TABLE `{}` RENAME COLUMN `{}` TO `{}`"#,
                 table, old_name, new_name
             );
             log::info!("sql:{}", sql);
             self.client.query(&sql).execute().await?;
+            sc.collect(sql);
         }
-
         if let Some(typ) = typ.as_ref() {
             let sql = format!(
-                r#"
-                ALTER TABLE `{}`
-                MODIFY COLUMN `{}` {}
-            "#,
+                r#"ALTER TABLE `{}` MODIFY COLUMN `{}` {}"#,
                 table, new_name, &typ.typ
             );
             log::info!("sql:{}", sql);
             self.client.query(&sql).execute().await?;
-
+            sc.collect(sql);
             if let Some(dv) = typ.default_value.as_ref() {
                 let sql = format!(
-                    r#"
-                    ALTER TABLE {table}
-                    MODIFY COLUMN {new_name} DEFAULT {}
-                "#,
+                    r#"ALTER TABLE {table} MODIFY COLUMN {new_name} DEFAULT {}"#,
                     self.put_value_in_sql(&typ.typ, Some(dv.as_str()))?
                 );
                 log::info!("sql:{}", sql);
                 self.client.query(&sql).execute().await?;
+                sc.collect(sql);
             }
         }
-        anyhow::Ok(())
+        anyhow::Ok(sc.into())
     }
 
     async fn add_table_column(
@@ -578,12 +568,8 @@ impl SchemaTrait for ClickHouseDB {
         table: &str,
         name: &str,
         col: ColumnType,
-    ) -> anyhow::Result<()> {
-        let mut sql = format!(
-            r#"ALTER TABLE `{table}`
-                ADD COLUMN `{name}` {} "#,
-            col.typ
-        );
+    ) -> anyhow::Result<String> {
+        let mut sql = format!(r#"ALTER TABLE `{table}` ADD COLUMN `{name}` {} "#, col.typ);
         if let Some(dv) = col.default_value.as_ref() {
             sql.push_str(
                 format!(
@@ -593,9 +579,8 @@ impl SchemaTrait for ClickHouseDB {
                 .as_str(),
             );
         }
-
         self.client.query(&sql).execute().await?;
-        anyhow::Ok(())
+        anyhow::Ok(sql)
     }
 
     async fn list_udf(&self) -> anyhow::Result<Vec<NamedStaff>> {
@@ -625,11 +610,11 @@ impl SchemaTrait for ClickHouseDB {
         &self,
         name: &str,
         _extra: Option<UdfOrProcedureExtraParameter>,
-    ) -> anyhow::Result<()> {
+    ) -> anyhow::Result<String> {
         let sql = format!("DROP FUNCTION `{name}`",);
 
         self.client.query(&sql).execute().await?;
-        anyhow::Ok(())
+        anyhow::Ok(sql)
     }
 }
 
@@ -928,7 +913,6 @@ impl QuerySql for ClickHouseDB {
         sql: &str,
     ) -> anyhow::Result<Result<QueryResp, String>> {
         self.not_allow_switch_db(sql)?;
-
         let ret = match self.client.query(sql).execute().await {
             Ok(_) => Ok(QueryResp::execute_ok(sql.to_string())),
             Err(err) => Err(err.to_string()),
@@ -1486,34 +1470,40 @@ from test
         .unwrap()
         .unwrap();
 
-        db.add_table_column(
-            table_name,
-            "name",
-            ColumnType {
-                typ: "String".to_string(),
-                nullable: Default::default(),
-                after: None,
-                default_value: Some("abc".to_string()),
-            },
-        )
-        .await
-        .unwrap();
+        let sql = db
+            .add_table_column(
+                table_name,
+                "name",
+                ColumnType {
+                    typ: "String".to_string(),
+                    nullable: Default::default(),
+                    after: None,
+                    default_value: Some("abc".to_string()),
+                },
+            )
+            .await
+            .unwrap();
 
-        db.modify_table_column(
-            table_name,
-            "name",
-            "name2",
-            Some(ColumnType {
-                typ: "Nullable(String)".to_string(),
-                nullable: Default::default(),
-                after: None,
-                default_value: Some("abc111".to_string()),
-            }),
-        )
-        .await
-        .unwrap();
+        println!("add table column sql:{}", sql);
 
-        db.drop_table_column(table_name, "name2").await.unwrap();
+        let sql = db
+            .modify_table_column(
+                table_name,
+                "name",
+                "name2",
+                Some(ColumnType {
+                    typ: "Nullable(String)".to_string(),
+                    nullable: Default::default(),
+                    after: None,
+                    default_value: Some("abc111".to_string()),
+                }),
+            )
+            .await
+            .unwrap();
+        println!("modify table column sql:{}", sql);
+
+        let sql = db.drop_table_column(table_name, "name2").await.unwrap();
+        println!("drop table column sql:{}", sql);
     }
     #[tokio::test]
     async fn test_list_databases() {

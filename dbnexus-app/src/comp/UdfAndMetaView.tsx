@@ -22,16 +22,16 @@ function DefAndMetasView(props: {
   });
   const { showNotification } = useContext(NotificationContext);
   const handleReload = useCallback(
-    showOk => {
+    (showOk) => {
       setLoading(true);
       reloadOP()
-        .then(detail => {
+        .then((detail) => {
           setDetail(detail);
           if (showOk) {
             showNotification("success", "reload ok");
           }
         })
-        .catch(e => {
+        .catch((e) => {
           showNotification("error", "fetch detail failed", e);
         })
         .finally(() => {
@@ -111,7 +111,7 @@ function TriggerDetail(props: {
     <DefAndMetasView
       kind={kind}
       reloadOP={async () => {
-        return reloadOP().then(detail => {
+        return reloadOP().then((detail) => {
           return {
             def: detail.sql,
             metas: [...triggerDetailsToMetas(detail), ...detail.metas],

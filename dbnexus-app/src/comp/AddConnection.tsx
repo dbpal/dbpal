@@ -53,7 +53,7 @@ function HostAndPort(props: { host; port; setHost; setPort }) {
         label="Host"
         value={host}
         sx={{ mr: 1 }}
-        onChange={e => setHost(e.target.value)}
+        onChange={(e) => setHost(e.target.value)}
         slotProps={{
           input: {
             endAdornment: host && (
@@ -77,7 +77,7 @@ function HostAndPort(props: { host; port; setHost; setPort }) {
         label="port"
         error={isNaN(parseInt(port))}
         value={port}
-        onChange={e => setPort(e.target.value)}
+        onChange={(e) => setPort(e.target.value)}
       />
     </Stack>
   );
@@ -89,7 +89,7 @@ function SelectPath(props: { path; setPath; label: string; required: boolean }) 
     <Stack direction="row" sx={{ alignItems: "center" }}>
       <TextField
         value={path}
-        onChange={e => {
+        onChange={(e) => {
           setPath(e.target.value);
         }}
         style={{ flex: 1 }}
@@ -113,7 +113,7 @@ function SelectPath(props: { path; setPath; label: string; required: boolean }) 
                 )}
                 <IconButton
                   onClick={() => {
-                    open({ multiple: false }).then(e => {
+                    open({ multiple: false }).then((e) => {
                       setPath(e);
                     });
                   }}
@@ -147,7 +147,7 @@ function UserAndPassword(props: {
         label="User"
         value={user}
         sx={{ mr: 1 }}
-        onChange={e => setUser(e.target.value)}
+        onChange={(e) => setUser(e.target.value)}
         slotProps={{
           input: {
             endAdornment: user && (
@@ -170,7 +170,7 @@ function UserAndPassword(props: {
         label="Password"
         type={passwordVisible ? "text" : "password"}
         value={password}
-        onChange={e => setPassword(e.target.value)}
+        onChange={(e) => setPassword(e.target.value)}
         slotProps={{
           input: {
             endAdornment: !passwordVisible &&
@@ -200,7 +200,7 @@ function UserAndPassword(props: {
       >
         <Checkbox
           checked={savePassword}
-          onChange={e => {
+          onChange={(e) => {
             setSavePassword(e.target.checked);
           }}
           name="save password"
@@ -215,7 +215,9 @@ function Https(props: { https; setHttps }) {
   const { https, setHttps } = props;
   return (
     <FormControlLabel
-      control={<Checkbox checked={https} onChange={e => setHttps(e.target.checked)} />}
+      control={
+        <Checkbox checked={https} onChange={(e) => setHttps(e.target.checked)} />
+      }
       label="HTTPS"
     />
   );
@@ -229,7 +231,7 @@ function SqlServerCert(props: { data: SqlServerCertData; setData }) {
         control={
           <Checkbox
             checked={data.trust_cert}
-            onChange={e =>
+            onChange={(e) =>
               setData({
                 ...data,
                 trust_cert: e.target.checked,
@@ -329,9 +331,9 @@ function PGSSL(props: { ssl: types.PgSsl; setSsl }) {
         <Select
           value={ssl.ssl_mode}
           label="ssl mode"
-          onChange={e => setSsl({ ...ssl, ssl_mode: e.target.value } as types.PgSsl)}
+          onChange={(e) => setSsl({ ...ssl, ssl_mode: e.target.value } as types.PgSsl)}
         >
-          {modes.map(e => (
+          {modes.map((e) => (
             <MenuItem value={e} key={e}>
               {e}
             </MenuItem>
@@ -360,9 +362,11 @@ function MysqlSSl(props: { ssl: types.MysqlSsl; setSsl: any }) {
         <Select
           value={ssl.ssl_mode}
           label="ssl mode"
-          onChange={e => setSsl({ ...ssl, ssl_mode: e.target.value } as types.MysqlSsl)}
+          onChange={(e) =>
+            setSsl({ ...ssl, ssl_mode: e.target.value } as types.MysqlSsl)
+          }
         >
-          {modes.map(e => (
+          {modes.map((e) => (
             <MenuItem value={e} key={e}>
               {e}
             </MenuItem>
@@ -393,11 +397,11 @@ function DbSchemaCadidates(props: {
     }
     setLoading(true);
     invoke<string[]>("try_list_database_schema_candidates", { conn: config })
-      .then(e => {
+      .then((e) => {
         showNotification("success", "fetch candidates success");
         setCadidates(e);
       })
-      .catch(e => {
+      .catch((e) => {
         showNotification("warning", `list ${label} failed`, e);
       })
       .finally(() => {
@@ -410,7 +414,9 @@ function DbSchemaCadidates(props: {
         options={candidates}
         style={{ width: "12rem" }}
         value={name}
-        renderInput={params => <TextField {...params} label={`${label} candidates`} />}
+        renderInput={(params) => (
+          <TextField {...params} label={`${label} candidates`} />
+        )}
         freeSolo
         onChange={(_, name) => {
           setName(name);
@@ -554,7 +560,7 @@ function Oracle(props: { config? }) {
       <TextField
         value={database}
         label="database"
-        onChange={e => {
+        onChange={(e) => {
           setDatabase(e.target.value);
         }}
       />
@@ -753,7 +759,7 @@ function TestConnAndSave(props: {
         .then(() => {
           showNotification("success", "test connection ok");
         })
-        .catch(e => {
+        .catch((e) => {
           showNotification("warning", "test connection failed", e);
         })
         .finally(() => {
@@ -796,7 +802,7 @@ function TestConnAndSave(props: {
         emit(connectionChangeEvent, "");
         // handleClose();
       })
-      .catch(e => {
+      .catch((e) => {
         showNotification("error", "add connection failure", e);
       });
   };
@@ -886,7 +892,7 @@ function FireBird(props: { config? }) {
       <TextField
         label="database"
         value={database}
-        onChange={e => {
+        onChange={(e) => {
           setDatabase(e.target.value);
         }}
       />
@@ -944,7 +950,7 @@ function Redis(props: { config? }) {
         control={
           <Checkbox
             checked={enableSSL}
-            onChange={e => setEnableSSL(e.target.checked)}
+            onChange={(e) => setEnableSSL(e.target.checked)}
           />
         }
         label="enable ssl"
@@ -1010,7 +1016,7 @@ function MongoDb(props: { config? }) {
           control={
             <Checkbox
               checked={enableSSL}
-              onChange={e => setEnableSSL(e.target.checked)}
+              onChange={(e) => setEnableSSL(e.target.checked)}
             />
           }
           label="Enable SSL"
@@ -1157,7 +1163,7 @@ function AddConnection(props: { config?: types.DBConnectionConfig }) {
         <Select
           value={connectionType}
           label="Connection Type"
-          onChange={e => setConnectionType(e.target.value as DataSourceKind)}
+          onChange={(e) => setConnectionType(e.target.value as DataSourceKind)}
           disabled={!!config}
         >
           <MenuItem value={DataSourceKind.Mysql}>MySQL</MenuItem>
@@ -1186,7 +1192,7 @@ function AddConnection(props: { config?: types.DBConnectionConfig }) {
           value={connectionName}
           inputRef={connectionNameDom}
           required
-          onChange={e => setConnectionName(e.target.value)}
+          onChange={(e) => setConnectionName(e.target.value)}
           error={cnameDuplicated}
           helperText={cnameDuplicated ? "Connection name duplicated" : ""}
           slotProps={{
@@ -1211,7 +1217,7 @@ function AddConnection(props: { config?: types.DBConnectionConfig }) {
           label="connection timeout"
           value={connTimeout}
           style={{ flex: 1 }}
-          onChange={e => setConnTimeout(e.target.value)}
+          onChange={(e) => setConnTimeout(e.target.value)}
           slotProps={{
             input: {
               endAdornment: connTimeout && (
@@ -1236,7 +1242,7 @@ function AddConnection(props: { config?: types.DBConnectionConfig }) {
           control={
             <Checkbox
               checked={readOnly}
-              onChange={e => setReadOnly(e.target.checked)}
+              onChange={(e) => setReadOnly(e.target.checked)}
             />
           }
           label="Read Only"
@@ -1409,7 +1415,7 @@ function LibSql(props: { config }) {
             <TextField
               value={url}
               label="url"
-              onChange={e => {
+              onChange={(e) => {
                 setUrl(e.target.value);
               }}
               fullWidth
@@ -1434,7 +1440,7 @@ function LibSql(props: { config }) {
               fullWidth
               value={authToken}
               label="auth token "
-              onChange={e => {
+              onChange={(e) => {
                 setAuthToken(e.target.value);
               }}
               slotProps={{
@@ -1502,7 +1508,7 @@ function OdbcDriverCommon(props: { config: RefObject<types.OdbcCommon> }) {
         label="driver name"
         value={driverName}
         sx={{ mr: 1 }}
-        onChange={e => setDriverName(e.target.value)}
+        onChange={(e) => setDriverName(e.target.value)}
         slotProps={{
           input: {
             endAdornment: driverName && (
@@ -1526,7 +1532,7 @@ function OdbcDriverCommon(props: { config: RefObject<types.OdbcCommon> }) {
         label="max string length"
         value={maxStrLen}
         sx={{ mr: 1 }}
-        onChange={e => setMaxStrLen(e.target.value)}
+        onChange={(e) => setMaxStrLen(e.target.value)}
         slotProps={{
           input: {
             endAdornment: maxStrLen && (
@@ -1551,7 +1557,7 @@ function OdbcDriverCommon(props: { config: RefObject<types.OdbcCommon> }) {
         label="max bin length"
         value={maxbinLen}
         sx={{ mr: 1 }}
-        onChange={e => setMaxBinLen(e.target.value)}
+        onChange={(e) => setMaxBinLen(e.target.value)}
         slotProps={{
           input: {
             endAdornment: maxbinLen && (
@@ -1626,7 +1632,7 @@ function Db2(props: { config? }) {
         label="database"
         value={database}
         sx={{ mr: 1 }}
-        onChange={e => setDatabase(e.target.value)}
+        onChange={(e) => setDatabase(e.target.value)}
         slotProps={{
           input: {
             endAdornment: database && (
@@ -1694,7 +1700,7 @@ function CouchBase(props: { config? }) {
         label="connection string"
         value={connStr}
         sx={{ mr: 1 }}
-        onChange={e => setConnStr(e.target.value)}
+        onChange={(e) => setConnStr(e.target.value)}
         slotProps={{
           input: {
             endAdornment: connStr && (

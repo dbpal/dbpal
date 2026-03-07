@@ -18,6 +18,7 @@ import { FaBookmark } from "react-icons/fa";
 import { IoMdInformationCircleOutline } from "react-icons/io";
 import CancelIcon from "@mui/icons-material/Cancel";
 import ChatBubbleOutlineIcon from "@mui/icons-material/ChatBubbleOutline";
+import ContentCopyIcon from "@mui/icons-material/ContentCopy";
 import {
   Autocomplete,
   Box,
@@ -51,6 +52,7 @@ import {
   FavoriteSql,
   generateRandomString,
   getLanguageFromDataSourceKind,
+  handleCopyToClipboard,
   isDarkTheme,
   isMacOs,
   KeyPressed,
@@ -144,7 +146,7 @@ function CreateDatabase(props: {
         showNotification("success", "Create OK");
         handleClose();
       })
-      .catch(e => {
+      .catch((e) => {
         showNotification("error", "Create Failure", e);
       });
   };
@@ -157,7 +159,7 @@ function CreateDatabase(props: {
             options={["couchbase", "ephemeral"] as types.CouchBaseBucketType[]}
             style={{ flex: 1 }}
             value={couchbasExtra.bucket_type}
-            renderInput={params => <TextField {...params} label={`bucket type`} />}
+            renderInput={(params) => <TextField {...params} label={`bucket type`} />}
             freeSolo={false}
             onChange={(_, value) => {
               setCouchbaseExtra({ ...couchbasExtra, bucket_type: value });
@@ -167,7 +169,7 @@ function CreateDatabase(props: {
             <TextField
               label="ram quota mb"
               value={couchbasExtra.ram_quota_mb}
-              onChange={e =>
+              onChange={(e) =>
                 setCouchbaseExtra({ ...couchbasExtra, ram_quota_mb: e.target.value })
               }
               style={{ flex: 1 }}
@@ -192,7 +194,7 @@ function CreateDatabase(props: {
             <TextField
               label="max expiry(in seconds)"
               value={couchbasExtra.max_expiry}
-              onChange={e =>
+              onChange={(e) =>
                 setCouchbaseExtra({ ...couchbasExtra, max_expiry: e.target.value })
               }
               style={{ flex: 1 }}
@@ -224,7 +226,7 @@ function CreateDatabase(props: {
             <TextField
               label="number of replicas"
               value={couchbasExtra.num_replicas}
-              onChange={e =>
+              onChange={(e) =>
                 setCouchbaseExtra({ ...couchbasExtra, num_replicas: e.target.value })
               }
               error={isNaN(parseInt(couchbasExtra.num_replicas))}
@@ -249,7 +251,7 @@ function CreateDatabase(props: {
               control={
                 <Checkbox
                   checked={couchbasExtra.flush_enabled}
-                  onChange={e =>
+                  onChange={(e) =>
                     setCouchbaseExtra({
                       ...couchbasExtra,
                       flush_enabled: e.target.checked,
@@ -267,7 +269,7 @@ function CreateDatabase(props: {
         <TextField
           inputRef={databaseDom}
           value={database}
-          onChange={e => {
+          onChange={(e) => {
             setDatabase(e.target.value);
           }}
           label="database name"
@@ -329,7 +331,7 @@ function CreateSchema(props: {
         handleClose();
         handleReload();
       })
-      .catch(e => {
+      .catch((e) => {
         showNotification("error", "create failure", e);
       });
   };
@@ -340,26 +342,26 @@ function CreateSchema(props: {
       <Stack>
         <RadioGroup
           row
-          onChange={e => {
+          onChange={(e) => {
             setReplicationStrategy(e.target.value);
           }}
           value={replicationStrategy}
         >
-          {replicationStrategies.map(e => (
+          {replicationStrategies.map((e) => (
             <FormControlLabel key={e} value={e} control={<Radio />} label={e} />
           ))}
         </RadioGroup>
         <TextField
           type="number"
           value={replicationFactor}
-          onChange={e => {
+          onChange={(e) => {
             setReplicationFactor(e.target.value);
           }}
           label="replication factor"
         />
         <TextField
           value={schema}
-          onChange={e => {
+          onChange={(e) => {
             setSchema(e.target.value);
           }}
           inputRef={schemaDom}
@@ -386,13 +388,13 @@ function CreateSchema(props: {
     return (
       <Stack>
         <Autocomplete
-          options={range.filter(e => {
+          options={range.filter((e) => {
             return !schemaSet.has(e);
           })}
           freeSolo={false}
           fullWidth
           value={schema}
-          renderInput={params => <TextField {...params} label="database" />}
+          renderInput={(params) => <TextField {...params} label="database" />}
           onChange={(_, schema) => {
             setSchema(schema);
           }}
@@ -415,7 +417,7 @@ function CreateSchema(props: {
       <Stack>
         <TextField
           value={schema}
-          onChange={e => {
+          onChange={(e) => {
             setSchema(e.target.value);
           }}
           label="name"
@@ -546,7 +548,7 @@ function EditorBar(props: { left?: any; pos: Position }) {
 function MenuConnectionInfo({ uuid }) {
   const { setTabs, setSelectTab } = useContext(TabsSetContext);
   const handleInfo = async () => {
-    setTabs(e => {
+    setTabs((e) => {
       setTimeout(() => {
         setSelectTab(e.length + 1);
       }, 100);
@@ -840,7 +842,7 @@ function AppMarkDown(props: {
   function CustomLink(props: { href: string; children: ReactNode }) {
     const { href, children } = props;
     const { showNotification } = useContext(NotificationContext);
-    const handleClick = event => {
+    const handleClick = (event) => {
       event.preventDefault();
       // 在这里处理链接点击，比如使用 Tauri API 打开链接
       console.info(`Link clicked: ${href}`);
@@ -849,7 +851,7 @@ function AppMarkDown(props: {
           .then(() => {
             showNotification("success", "open url OK");
           })
-          .catch(e => {
+          .catch((e) => {
             showNotification("error", "open url failed", e);
           });
       } else {
@@ -913,7 +915,7 @@ function UrlDocument(props: { url: string }) {
       <InfoIcon
         href={url}
         style={{ cursor: "pointer" }}
-        onClick={e => {
+        onClick={(e) => {
           e.preventDefault();
           openUrl(url);
         }}
@@ -979,7 +981,7 @@ function SaveFavoriteSqlView(props: {
                 fullWidth
                 label="name"
                 value={favoriteName}
-                onChange={e => {
+                onChange={(e) => {
                   setFavoriteName(e.target.value);
                 }}
                 required
@@ -1130,7 +1132,7 @@ function SelectColumnAsc(props: {
                   control={
                     <Checkbox
                       checked={f.asc}
-                      onChange={e => {
+                      onChange={(e) => {
                         includes[index].asc = e.target.checked;
                         setIncludes([...includes]);
                       }}
@@ -1140,7 +1142,7 @@ function SelectColumnAsc(props: {
               )}
               <IconButton
                 onClick={() => {
-                  let i = includes.filter(x => x.col != f.col);
+                  let i = includes.filter((x) => x.col != f.col);
                   setIncludes(i);
                 }}
               >
@@ -1152,15 +1154,15 @@ function SelectColumnAsc(props: {
       </Stack>
       <Autocomplete
         style={{ flex: 1 }}
-        options={fields.filter(e => {
-          return !includes.find(f => f.col == e);
+        options={fields.filter((e) => {
+          return !includes.find((f) => f.col == e);
         })}
         freeSolo={false}
         value={value}
         onChange={(_, value) => {
           setValue(value);
           if (value) {
-            const index = includes.findIndex(e => e.col == value);
+            const index = includes.findIndex((e) => e.col == value);
             if (index == -1) {
               setIncludes([
                 ...includes,
@@ -1169,7 +1171,7 @@ function SelectColumnAsc(props: {
             }
           }
         }}
-        renderInput={params => <TextField {...params} label="select columns" />}
+        renderInput={(params) => <TextField {...params} label="select columns" />}
       />
     </Stack>
   );
@@ -1202,12 +1204,12 @@ function CreateIndexReq(props: {
           <FormLabel component="legend">unique</FormLabel>
           <RadioGroup
             row
-            onChange={e => {
+            onChange={(e) => {
               setReq({ ...req, kind: e.target.value as types.IndexKind });
             }}
             value={req.kind}
           >
-            {indexTypes.map(e => (
+            {indexTypes.map((e) => (
               <FormControlLabel key={e} value={e} control={<Radio />} label={e} />
             ))}
           </RadioGroup>
@@ -1219,7 +1221,7 @@ function CreateIndexReq(props: {
     <Stack style={style}>
       <TextField
         value={req.name}
-        onChange={e => {
+        onChange={(e) => {
           setReq({ ...req, name: e.target.value });
         }}
         label="index name"
@@ -1243,7 +1245,7 @@ function CreateIndexReq(props: {
       />
       <SelectColumnAsc
         includes={req.columns}
-        setIncludes={rs => {
+        setIncludes={(rs) => {
           setReq({ ...req, columns: rs });
         }}
         kind={kind}
@@ -1259,10 +1261,10 @@ function TypeSelect(props: { handleChange; uuid; type; style?: CSSProperties }) 
   const { showNotification } = useContext(NotificationContext);
   useEffect(() => {
     invoke<string[]>("list_data_types", { name: uuid })
-      .then(ts => {
+      .then((ts) => {
         setTypes(ts);
       })
-      .catch(e => {
+      .catch((e) => {
         showNotification("error", "should not return a error", e);
       });
   }, [showNotification, uuid]);
@@ -1272,7 +1274,7 @@ function TypeSelect(props: { handleChange; uuid; type; style?: CSSProperties }) 
       options={types}
       style={{ width: "22rem", ...style }}
       value={type}
-      renderInput={params => (
+      renderInput={(params) => (
         <TextField {...params} label={`type def may require size varchar(100)`} />
       )}
       onChange={(_, t) => {
@@ -1296,7 +1298,7 @@ function ColumnNullness(props: {
       value={nullable}
       options={opts}
       style={{ width: "7rem" }}
-      renderInput={params => <TextField {...params} label="specify null" />}
+      renderInput={(params) => <TextField {...params} label="specify null" />}
       onChange={(_, value) => {
         handleNullness(value);
       }}
@@ -1311,10 +1313,10 @@ function SqlDefaultValue(props: { uuid: string; defaultValue; setDefaultValue })
   const { showNotification } = useContext(NotificationContext);
   useEffect(() => {
     invoke<string[]>("list_sql_current_values", { name: uuid })
-      .then(ts => {
+      .then((ts) => {
         setCurrentValue(ts);
       })
-      .catch(e => {
+      .catch((e) => {
         showNotification("success", "list sql current values failed", e);
       });
   }, [showNotification, uuid]);
@@ -1326,7 +1328,7 @@ function SqlDefaultValue(props: { uuid: string; defaultValue; setDefaultValue })
         options={currentValue}
         style={{ width: "14rem" }}
         value={defaultValue}
-        renderInput={params => <TextField {...params} label="default value" />}
+        renderInput={(params) => <TextField {...params} label="default value" />}
         onChange={(_, value) => {
           setDefaultValue(value);
         }}
@@ -1354,7 +1356,7 @@ function AppDataGridPagination(props: { showPageSelect?: boolean }) {
       {showPageSelect && (
         <SelectPageSize
           pageSize={apiRef.current.state.pagination.paginationModel.pageSize}
-          handleChange={pageSize => {
+          handleChange={(pageSize) => {
             apiRef.current.setPageSize(pageSize);
           }}
         />
@@ -1519,7 +1521,7 @@ function SetFilterSort(props: {
               formatarg,
             ) + " "
           }
-          handleEditor={e => {
+          handleEditor={(e) => {
             setEditor(e);
             e.focus();
             editorPositionToEnd(e);
@@ -1564,7 +1566,7 @@ function SetFilterSort(props: {
             <Autocomplete
               value={selectFilter}
               style={{ flex: 1 }}
-              options={filters.map(e => e.filter)}
+              options={filters.map((e) => e.filter)}
               freeSolo={false}
               onChange={async (_, value) => {
                 editor.setValue(
@@ -1575,7 +1577,7 @@ function SetFilterSort(props: {
                 );
                 setSelectFilter(value);
               }}
-              renderInput={params => <TextField {...params} label="filters" />}
+              renderInput={(params) => <TextField {...params} label="filters" />}
             />
           )}
         </StackRowCenter>
@@ -1599,6 +1601,25 @@ function ToggleChatShow(props: { do_query: () => void }) {
         {show ? <ChatBubbleIcon color="success" /> : <ChatBubbleOutlineIcon />}
       </IconButton>
     </>
+  );
+}
+
+function CopySql({ sql }) {
+  const { showNotification } = useContext(NotificationContext);
+  if (!sql) {
+    return <> </>;
+  }
+  return (
+    <StackRowCenter>
+      <IconButton
+        onClick={() => {
+          handleCopyToClipboard(sql, showNotification);
+        }}
+      >
+        <ContentCopyIcon />
+      </IconButton>
+      <code> {sql} </code>
+    </StackRowCenter>
   );
 }
 
@@ -1630,4 +1651,5 @@ export {
   getSliderSizeStoreValue,
   SetFilterSort,
   ToggleChatShow,
+  CopySql,
 };

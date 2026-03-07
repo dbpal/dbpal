@@ -109,7 +109,7 @@ class JsonEditorThemeSaver {
 function ViewModeSwitcher({ setViewMode, viewMode }) {
   return (
     <ButtonGroup>
-      {[TableViewMode.Editor, TableViewMode.Json].map(m => (
+      {[TableViewMode.Editor, TableViewMode.Json].map((m) => (
         <Button
           onClick={() => {
             setViewMode(m);
@@ -164,19 +164,19 @@ function CouchBaseTable(props: { uuid: string; table: string }) {
   }, [addModalBox]);
 
   const handleReload = useCallback(() => {
-    const c = new Channel<QueryEvent>(event => {
+    const c = new Channel<QueryEvent>((event) => {
       switch (event.kind) {
         case "structure": {
-          setResp(resp => {
+          setResp((resp) => {
             return { ...resp, count: event.resp.total };
           });
           break;
         }
         case "data": {
-          const news = event.data.map(x => {
+          const news = event.data.map((x) => {
             return { data: x[1], id: x[0] };
           });
-          setResp(resp => {
+          setResp((resp) => {
             return { ...resp, data: [...resp.data, ...news] };
           });
           setQueryStatus(`received ${news.length} rows`);
@@ -210,7 +210,7 @@ function CouchBaseTable(props: { uuid: string; table: string }) {
       } as types.ShowTableParameter,
       emit: c,
     })
-      .catch(e => {
+      .catch((e) => {
         showNotification("error", "load data failed", e);
       })
       .finally(() => {
@@ -275,7 +275,7 @@ function CouchBaseTable(props: { uuid: string; table: string }) {
             max={5}
             notice="column count"
             step={1}
-            handleValue={v => {
+            handleValue={(v) => {
               setGridColCount(v);
             }}
             storeKey="couchbase-table-view-column-count"
@@ -288,7 +288,7 @@ function CouchBaseTable(props: { uuid: string; table: string }) {
               max={1000}
               notice="mongodb editor height"
               step={10}
-              handleValue={v => {
+              handleValue={(v) => {
                 setEditorHeight(v);
               }}
               storeKey="couchbase-table-editor-height"
@@ -308,7 +308,7 @@ function CouchBaseTable(props: { uuid: string; table: string }) {
           paddingRight: "1.2rem",
         }}
       >
-        {resp.data.map(item => (
+        {resp.data.map((item) => (
           <div
             style={{
               height: viewMode == TableViewMode.Editor && editorHeight + "px",
@@ -328,15 +328,15 @@ function CouchBaseTable(props: { uuid: string; table: string }) {
                   tableName: table,
                   wheres: { id: item.id },
                 });
-                setResp(resp => {
+                setResp((resp) => {
                   return {
                     count: resp.count - 1,
-                    data: resp.data.filter(y => y.id != item.id),
+                    data: resp.data.filter((y) => y.id != item.id),
                   };
                 });
               }}
               warnModify
-              handleValue={async newV => {
+              handleValue={async (newV) => {
                 await invoke("table_update", {
                   name: uuid,
                   tableName: table,
@@ -346,10 +346,10 @@ function CouchBaseTable(props: { uuid: string; table: string }) {
                   },
                   wheres: {},
                 });
-                setResp(resp => {
+                setResp((resp) => {
                   return {
                     count: resp.count,
-                    data: resp.data.map(e =>
+                    data: resp.data.map((e) =>
                       e.id == item.id ? { ...e, data: newV } : e,
                     ),
                   } as Data;
@@ -376,10 +376,10 @@ function CouchBaseTable(props: { uuid: string; table: string }) {
         <Stack direction="row" style={{ alignItems: "center" }}>
           <SelectPageSize
             pageSize={pageSize}
-            handleChange={s => {
+            handleChange={(s) => {
               setPageSize(s);
             }}
-            options={[2, 3, 10].map(x => x * gridColCount)}
+            options={[2, 3, 10].map((x) => x * gridColCount)}
           />
 
           <Pagination
@@ -397,7 +397,7 @@ function CouchBaseTable(props: { uuid: string; table: string }) {
           tableName={table}
           open={showSetWhere}
           value={where}
-          setValue={v => {
+          setValue={(v) => {
             setWhere(v);
           }}
           handleClose={() => {
@@ -413,7 +413,7 @@ function CouchBaseTable(props: { uuid: string; table: string }) {
           tableName={table}
           open={showSetSort}
           value={sort}
-          setValue={v => {
+          setValue={(v) => {
             setSort(v);
           }}
           kind={kind}
@@ -495,7 +495,7 @@ function CouchBaseEditor(props: {
         showNotification("success", `${handleValueButton} OK`);
         setChanged(false);
       })
-      .catch(e => {
+      .catch((e) => {
         showNotification("error", `${handleValueButton} failure`, e);
       })
       .finally(() => {
@@ -513,7 +513,7 @@ function CouchBaseEditor(props: {
           .then(() => {
             showNotification("success", "delete OK");
           })
-          .catch(e => {
+          .catch((e) => {
             showNotification("error", "delete failure", e);
           })
           .finally(() => {
@@ -534,7 +534,7 @@ function CouchBaseEditor(props: {
       {viewMode == TableViewMode.Editor && (
         <SimpleFlexEditor
           value={newValue}
-          handleValue={async newValue => {
+          handleValue={async (newValue) => {
             try {
               const x = await validJson(newValue);
               setJsonErr(x);
@@ -571,7 +571,7 @@ function CouchBaseEditor(props: {
         <ReactJsonView
           onEdit={
             doModify
-              ? x => {
+              ? (x) => {
                   setNewValue(stringify(x));
                   setChanged(true);
                 }
@@ -579,7 +579,7 @@ function CouchBaseEditor(props: {
           }
           onAdd={
             doModify
-              ? x => {
+              ? (x) => {
                   setNewValue(stringify(x));
                   setChanged(true);
                 }
@@ -587,7 +587,7 @@ function CouchBaseEditor(props: {
           }
           onDelete={
             doModify
-              ? x => {
+              ? (x) => {
                   setNewValue(stringify(x));
                   setChanged(true);
                 }
@@ -664,7 +664,7 @@ function CouchBaseInsert({ uuid, table }) {
         <TextField
           label="id"
           value={id}
-          onChange={e => {
+          onChange={(e) => {
             setId(e.target.value);
           }}
           slotProps={{
@@ -688,7 +688,7 @@ function CouchBaseInsert({ uuid, table }) {
         <ViewModeSwitcher viewMode={viewMode} setViewMode={setViewMode} />
       </>
       handleValueButton="insert"
-      handleValue={value => {
+      handleValue={(value) => {
         if (!id.trim()) {
           throw "id is empty";
         }
@@ -780,7 +780,7 @@ function CouchBaseQuery(props: {
           for (const k in obj[key]) {
             const fKey = `${key}.${k}`;
 
-            if (-1 == fields.findIndex(x => x.field == fKey)) {
+            if (-1 == fields.findIndex((x) => x.field == fKey)) {
               fields.push({
                 field: fKey,
               } as types.Field);
@@ -789,7 +789,7 @@ function CouchBaseQuery(props: {
           }
         } else {
           d[key] = encodeValue(obj[key]);
-          if (-1 == fields.findIndex(x => x.field == key)) {
+          if (-1 == fields.findIndex((x) => x.field == key)) {
             fields.push({
               field: key,
             } as types.Field);
@@ -814,15 +814,15 @@ function CouchBaseQuery(props: {
     }
     setLoading(true);
     setResp([]);
-    const channel = new Channel<QueryEvent>(event => {
+    const channel = new Channel<QueryEvent>((event) => {
       switch (event.kind) {
         case "structure": {
           console.error("server should not emit this.", event);
           break;
         }
         case "data": {
-          const xs = event.data.map(x => JSON.parse(x[0]));
-          setResp(resp => {
+          const xs = event.data.map((x) => JSON.parse(x[0]));
+          setResp((resp) => {
             return [...resp, ...xs];
           });
           setQueryStatus(`receive ${xs.length} rows`);
@@ -846,7 +846,7 @@ function CouchBaseQuery(props: {
       sql: text,
       emit: channel,
     })
-      .catch(e => {
+      .catch((e) => {
         showNotification("error", "query failed", e);
         new QueryLogHandler(uuid).save(text, false);
       })
@@ -855,7 +855,7 @@ function CouchBaseQuery(props: {
       })
       .finally(() => {
         setLoading(false);
-        setExecuteTimes(e => e + 1);
+        setExecuteTimes((e) => e + 1);
       });
   };
   return (
@@ -911,7 +911,7 @@ function CouchBaseQuery(props: {
             />
 
             <ButtonGroup>
-              {[QueryViewMode.Json, QueryViewMode.Table].map(e => (
+              {[QueryViewMode.Json, QueryViewMode.Table].map((e) => (
                 <Button
                   key={e}
                   disabled={e == viewMode}
@@ -944,7 +944,7 @@ function CouchBaseQuery(props: {
             <Tooltip title="query log">
               <IconButton
                 onClick={() => {
-                  setShowQueryLog(prev => !prev);
+                  setShowQueryLog((prev) => !prev);
                 }}
                 color="primary"
               >
@@ -958,7 +958,7 @@ function CouchBaseQuery(props: {
                 max={5}
                 notice="column count"
                 step={1}
-                handleValue={v => {
+                handleValue={(v) => {
                   setGridColCount(v);
                 }}
                 storeKey="couchbase-query-column-size"
@@ -976,7 +976,7 @@ function CouchBaseQuery(props: {
               min={1000}
               max={100000}
               step={1000}
-              handleValue={v => {
+              handleValue={(v) => {
                 maxRow.current = v;
               }}
               notice={
@@ -993,7 +993,7 @@ function CouchBaseQuery(props: {
         <SimpleFlexEditor
           value={value}
           language="sql"
-          handleEditor={e => {
+          handleEditor={(e) => {
             setEditor(e);
             handleEditor(e);
             SetAutoCompletionName.set(
@@ -1080,7 +1080,7 @@ function SetTheme({ theme, setTheme }) {
       options={themes}
       style={{ width: "16rem" }}
       value={theme}
-      renderInput={params => <TextField {...params} label={`json editor theme`} />}
+      renderInput={(params) => <TextField {...params} label={`json editor theme`} />}
       freeSolo={false}
       onChange={(_, v) => {
         if (v) {

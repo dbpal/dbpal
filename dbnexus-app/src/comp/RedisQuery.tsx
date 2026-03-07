@@ -58,7 +58,7 @@ function RedisQuery(props: {
         return;
       }
       invoke<string>("get_redis_doc", { line })
-        .then(e => {
+        .then((e) => {
           setPrevLine(line);
           setDoc(e);
         })
@@ -84,7 +84,7 @@ function RedisQuery(props: {
     >
       <Panel defaultSize={40} minSize={4}>
         <SqlQuery
-          handleEditor={e => {
+          handleEditor={(e) => {
             handleEditor(e);
             editorRef.current = e;
           }}
@@ -97,7 +97,7 @@ function RedisQuery(props: {
               <Tooltip title="toggle show redis document">
                 <Chip
                   onClick={() => {
-                    setShowDoc(e => !e);
+                    setShowDoc((e) => !e);
                   }}
                   style={shrinkAble}
                   color={showDoc ? "success" : "primary"}

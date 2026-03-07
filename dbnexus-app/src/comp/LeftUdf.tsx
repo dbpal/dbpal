@@ -34,6 +34,7 @@ import {
 import { ExceedMaxTreeItem, MenuRefresh, UdfNameAndParameters } from "./CommonComp";
 import { listCassandraAgg, listUdf, makeUdfExtraArg, showUdf } from "./handlers";
 import { showCassandraAgg } from "./handlers";
+import { CopySql } from "./CommonComp2";
 
 function UdfsTree() {
   const { uuid } = useContext(UuidContext);
@@ -45,15 +46,15 @@ function UdfsTree() {
   const matchPattern = useContext(MatchPatternContext);
   const maxsize = useContext(MaxTreeContext);
   useEffect(() => {
-    setExceed(udfs.filter(e => matchPattern(e.name)).length);
+    setExceed(udfs.filter((e) => matchPattern(e.name)).length);
   }, [udfs, matchPattern]);
 
   const reload = useCallback(() => {
     listUdf(uuid)
-      .then(e => {
+      .then((e) => {
         setUdfs(e);
       })
-      .catch(e => {
+      .catch((e) => {
         showNotification("error", "list udf failed", e);
       });
   }, [showNotification, uuid]);
@@ -69,7 +70,7 @@ function UdfsTree() {
       label=<Stack
         direction="row"
         sx={{ alignItems: "center" }}
-        onContextMenu={e => {
+        onContextMenu={(e) => {
           setUpMenu({
             content: (
               <MenuList>
@@ -85,7 +86,7 @@ function UdfsTree() {
       </Stack>
     >
       {udfs
-        .filter(e => matchPattern(e.name))
+        .filter((e) => matchPattern(e.name))
         .map((udf, index) => {
           if (index >= maxsize) {
             return;
@@ -98,7 +99,7 @@ function UdfsTree() {
               label=<Stack
                 direction="row"
                 sx={{ alignItems: "center" }}
-                onContextMenu={e => {
+                onContextMenu={(e) => {
                   setUpMenu({
                     content: (
                       <UdfMenu
@@ -139,7 +140,7 @@ function UdfMenu(props: {
     if (typeof index == "number") {
       setSelectTab(index);
     } else {
-      setTabs(e => {
+      setTabs((e) => {
         setTimeout(() => {
           setSelectTab(tabs.length);
         }, 100);
@@ -149,15 +150,13 @@ function UdfMenu(props: {
           new TabContent(
             id,
             udf.name,
-            (
-              <DefAndMetasView
-                reloadOP={async () => {
-                  return showUdf(uuid, udf, kind);
-                }}
-                kind={kind}
-                uuid={uuid}
-              />
-            ),
+            <DefAndMetasView
+              reloadOP={async () => {
+                return showUdf(uuid, udf, kind);
+              }}
+              kind={kind}
+              uuid={uuid}
+            />,
             <TbMathFunction className="tab-icon-size" />,
           ),
         ];
@@ -175,11 +174,11 @@ function UdfMenu(props: {
       return;
     }
     invoke("drop_udf", { name: uuid, udf: udf.name, arg: makeUdfExtraArg(udf, kind) })
-      .then(() => {
-        showNotification("success", "Drop udf OK");
+      .then((sql) => {
+        showNotification("success", "Drop udf OK", <CopySql sql={sql} />);
         reload();
       })
-      .catch(e => {
+      .catch((e) => {
         showNotification("error", "Drop udf failure", e);
       });
   };
@@ -228,7 +227,7 @@ function CassandraAggregateMenu(props: {
     if (typeof index == "number") {
       setSelectTab(index);
     } else {
-      setTabs(e => {
+      setTabs((e) => {
         setTimeout(() => {
           setSelectTab(tabs.length);
         }, 100);
@@ -238,15 +237,13 @@ function CassandraAggregateMenu(props: {
           new TabContent(
             id,
             agg,
-            (
-              <DefAndMetasView
-                reloadOP={async () => {
-                  return showCassandraAgg(uuid, agg, parameters);
-                }}
-                uuid={uuid}
-                kind={DataSourceKind.Cassandra}
-              />
-            ),
+            <DefAndMetasView
+              reloadOP={async () => {
+                return showCassandraAgg(uuid, agg, parameters);
+              }}
+              uuid={uuid}
+              kind={DataSourceKind.Cassandra}
+            />,
             <MdFunctions className="tab-icon-size" />,
           ),
         ];
@@ -269,11 +266,11 @@ function CassandraAggregateMenu(props: {
       aggName: agg,
       parameters,
     })
-      .then(() => {
-        showNotification("success", "Drop aggregate OK");
+      .then((sql) => {
+        showNotification("success", "Drop aggregate OK", <CopySql sql={sql} />);
         reload();
       })
-      .catch(e => {
+      .catch((e) => {
         showNotification("error", "Drop aggregate Failure", e);
       });
   };
@@ -316,17 +313,17 @@ function CassandraAggregatesTree() {
   const maxsize = useContext(MaxTreeContext);
   const reload = useCallback(() => {
     listCassandraAgg(uuid)
-      .then(ts => {
+      .then((ts) => {
         setAggs(ts);
       })
-      .catch(e => {
+      .catch((e) => {
         showNotification("error", "list aggregate failed", e);
       });
   }, [showNotification, uuid]);
   const [exceed, setExceed] = useState(0);
   const matchPattern = useContext(MatchPatternContext);
   useEffect(() => {
-    setExceed(aggs.filter(e => matchPattern(e.name)).length);
+    setExceed(aggs.filter((e) => matchPattern(e.name)).length);
   }, [aggs, matchPattern]);
   useEffect(() => {
     reload();
@@ -339,7 +336,7 @@ function CassandraAggregatesTree() {
       label=<Stack
         direction="row"
         sx={{ alignItems: "center" }}
-        onContextMenu={e => {
+        onContextMenu={(e) => {
           setUpMenu({
             content: (
               <MenuList>
@@ -355,7 +352,7 @@ function CassandraAggregatesTree() {
       </Stack>
     >
       {aggs
-        .filter(e => matchPattern(e.name))
+        .filter((e) => matchPattern(e.name))
         .map((agg, index) => {
           if (index >= maxsize) {
             return;
@@ -372,7 +369,7 @@ function CassandraAggregatesTree() {
               label=<Stack
                 direction="row"
                 sx={{ alignItems: "center" }}
-                onContextMenu={e => {
+                onContextMenu={(e) => {
                   setUpMenu({
                     content: (
                       <CassandraAggregateMenu

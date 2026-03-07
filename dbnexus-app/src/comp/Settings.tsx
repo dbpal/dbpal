@@ -91,7 +91,7 @@ function AppearanceSetting() {
   const oldSetting = useRef<UserSettingAppearance>(null);
 
   useEffect(() => {
-    UserSettingAppearance.get().then(setting => {
+    UserSettingAppearance.get().then((setting) => {
       setFontWeight(setting.fontWeight);
       setFontSize(setting.fontSize);
       setBgColor(isDarkTheme() ? setting.darkBgColor : setting.lightBgColor);
@@ -125,14 +125,14 @@ function AppearanceSetting() {
 
   useEffect(() => {
     const key = "zoom";
-    appStore.get<number>(key).then(z => {
+    appStore.get<number>(key).then((z) => {
       setZoom(z);
     });
-    const unlisten = appStore.onKeyChange<number>(key, z => {
+    const unlisten = appStore.onKeyChange<number>(key, (z) => {
       setZoom(z);
     });
     return () => {
-      unlisten.then(f => {
+      unlisten.then((f) => {
         f();
       });
     };
@@ -140,10 +140,10 @@ function AppearanceSetting() {
 
   useEffect(() => {
     invoke<string[]>("all_font_family", {})
-      .then(fonts => {
+      .then((fonts) => {
         setAllFonts(fonts);
       })
-      .catch(e => {
+      .catch((e) => {
         showNotification("error", "list all fonts failed", e);
       });
   }, [showNotification]);
@@ -190,7 +190,7 @@ function AppearanceSetting() {
         </Typography>
         <TextField
           value={fontWeight}
-          onChange={e => {
+          onChange={(e) => {
             setFontWeight(e.target.value);
           }}
           slotProps={{
@@ -217,7 +217,7 @@ function AppearanceSetting() {
         </Typography>
         <TextField
           value={fontFamily}
-          onChange={e => {
+          onChange={(e) => {
             setFontFamily(e.target.value);
           }}
           slotProps={{
@@ -227,7 +227,7 @@ function AppearanceSetting() {
           }}
         />
         <datalist id="fonts_list">
-          {allFonts.map(e => (
+          {allFonts.map((e) => (
             <option key={e} value={e} />
           ))}
         </datalist>
@@ -240,7 +240,7 @@ function AppearanceSetting() {
         <Typography width={headerSize}>table row height factor </Typography>
         <TextField
           value={datagridRowHeightFactor}
-          onChange={e => {
+          onChange={(e) => {
             setDatagridRowHeightFactor(e.target.value);
           }}
           error={isNaN(parseFloat(datagridRowHeightFactor))}
@@ -256,7 +256,7 @@ function AppearanceSetting() {
           <IconButton
             color={showEditBgColor ? "success" : "primary"}
             onClick={() => {
-              setShowEditBgColor(e => !e);
+              setShowEditBgColor((e) => !e);
             }}
           >
             <EditIcon> </EditIcon>
@@ -264,7 +264,7 @@ function AppearanceSetting() {
           {showEditBgColor && (
             <HexColorPicker
               color={bgColor}
-              onChange={newValue => {
+              onChange={(newValue) => {
                 setBgColor(newValue);
               }}
               style={{ position: "absolute", zIndex: 10, top: "3rem" }}
@@ -274,7 +274,7 @@ function AppearanceSetting() {
 
         <TextField
           value={bgColor}
-          onChange={e => {
+          onChange={(e) => {
             setBgColor(e.target.value);
           }}
           style={{ width: "10rem" }}
@@ -305,7 +305,7 @@ function AppearanceSetting() {
           options={["standard", "filled", "outlined"]}
           style={{ width: "22rem" }}
           value={intputVariant}
-          renderInput={params => <TextField {...params} label="input variant" />}
+          renderInput={(params) => <TextField {...params} label="input variant" />}
           freeSolo={false}
           onChange={(_, variant) => {
             if (!variant) {
@@ -341,7 +341,7 @@ function EditorSetting() {
   const { showNotification } = useContext(NotificationContext);
 
   useEffect(() => {
-    UserSettingEditor.get().then(setting => {
+    UserSettingEditor.get().then((setting) => {
       setEditorOptions(
         setting.editorOption ? JSON.stringify(setting.editorOption) : "{}",
       );
@@ -369,7 +369,7 @@ function EditorSetting() {
       <Stack direction="row" sx={{ alignItems: "center" }}>
         <Typography width={headerSize}>tab size </Typography>
 
-        {[2, 4, 8].map(e => (
+        {[2, 4, 8].map((e) => (
           <Chip
             label={e}
             color={e == tabSize ? "success" : "default"}
@@ -389,7 +389,7 @@ function EditorSetting() {
             <StackRowCenter>
               <IconButton
                 onClick={() => {
-                  setShowEditOption(e => !e);
+                  setShowEditOption((e) => !e);
                 }}
                 color={showEditOption ? "success" : "primary"}
               >
@@ -426,7 +426,7 @@ function EditorSetting() {
             options={registeredThemes}
             style={{ width: "22rem" }}
             value={customEditorTheme}
-            renderInput={params => <TextField {...params} label="editor theme" />}
+            renderInput={(params) => <TextField {...params} label="editor theme" />}
             freeSolo={false}
             onChange={(_, theme) => {
               setCustomEditorTheme(theme);
@@ -461,7 +461,7 @@ function ExportSetting() {
   const [includeHeader, setIncludeHeader] = useState(true);
   const { showNotification } = useContext(NotificationContext);
   useEffect(() => {
-    UserSettingExport.get().then(setting => {
+    UserSettingExport.get().then((setting) => {
       setCsvDelimiter(setting.csvDelimiter);
       setIncludeHeader(setting.includeHeader);
     });
@@ -485,7 +485,7 @@ function ExportSetting() {
         <Typography width={headerSize}>csv delimiter</Typography>
         <TextField
           value={csvDelimiter}
-          onChange={e => setCsvDelimiter(e.target.value)}
+          onChange={(e) => setCsvDelimiter(e.target.value)}
           error={csvDelimiter.length > 1}
           helperText="only accept one character"
         />
@@ -496,7 +496,7 @@ function ExportSetting() {
           control={
             <Checkbox
               checked={includeHeader}
-              onChange={e => setIncludeHeader(e.target.checked)}
+              onChange={(e) => setIncludeHeader(e.target.checked)}
             />
           }
           label="include header"
@@ -546,7 +546,7 @@ function LLMSetting(props: { handleClose?: () => void }) {
   const [moddelCan, setModdelCan] = useState<ModelDef[]>([]);
   const [helloTime, setHelloTime] = useState(0);
   useEffect(() => {
-    LLMConfig.get().then(e => {
+    LLMConfig.get().then((e) => {
       if (e) {
         setBaseUrl(e.baseUrl);
         setTemperature(e.temperature + "");
@@ -636,7 +636,7 @@ function LLMSetting(props: { handleClose?: () => void }) {
         <TextField
           style={{ width: "25rem" }}
           value={baseUrl}
-          onChange={e => setBaseUrl(e.target.value)}
+          onChange={(e) => setBaseUrl(e.target.value)}
           slotProps={{
             htmlInput: {
               type: "url",
@@ -664,7 +664,7 @@ function LLMSetting(props: { handleClose?: () => void }) {
         <TextField
           value={apiKey}
           style={{ width: "40rem" }}
-          onChange={e => setApiKey(e.target.value)}
+          onChange={(e) => setApiKey(e.target.value)}
           type="password"
           slotProps={{
             input: {
@@ -693,17 +693,17 @@ function LLMSetting(props: { handleClose?: () => void }) {
           style={{ flex: 1, maxWidth: "32rem" }}
           options={moddelCan}
           value={model as any}
-          renderInput={params => (
+          renderInput={(params) => (
             <TextField
               {...params}
               label={`model`}
               value={Modal}
-              onChange={e => {
+              onChange={(e) => {
                 setModel(e.target.validationMessage);
               }}
             />
           )}
-          getOptionLabel={e => {
+          getOptionLabel={(e) => {
             return typeof e == "string" ? e : e.id;
           }}
           renderOption={(props, def) => (
@@ -740,7 +740,7 @@ function LLMSetting(props: { handleClose?: () => void }) {
           helperText="only accept number"
           value={temperature}
           error={temperature ? isNaN(parseFloat(temperature)) : false}
-          onChange={e => setTemperature(e.target.value)}
+          onChange={(e) => setTemperature(e.target.value)}
         />
       </Stack>
 
@@ -749,7 +749,7 @@ function LLMSetting(props: { handleClose?: () => void }) {
         <TextField
           error={maxToken ? isNaN(parseInt(maxToken)) : false}
           value={maxToken}
-          onChange={e => setMaxToken(e.target.value)}
+          onChange={(e) => setMaxToken(e.target.value)}
           slotProps={{
             input: {
               endAdornment: maxToken && (
@@ -774,7 +774,7 @@ function LLMSetting(props: { handleClose?: () => void }) {
         <TextField
           error={topP ? isNaN(parseFloat(topP)) : false}
           value={topP}
-          onChange={e => setTopP(e.target.value)}
+          onChange={(e) => setTopP(e.target.value)}
           slotProps={{
             input: {
               endAdornment: topP && (
@@ -817,7 +817,7 @@ function MiscSetting() {
   const { showNotification } = useContext(NotificationContext);
 
   useEffect(() => {
-    UserSettingMisc.get().then(setting => {
+    UserSettingMisc.get().then((setting) => {
       setAutoStart(setting.autoStart);
     });
   }, []);
@@ -840,7 +840,7 @@ function MiscSetting() {
 
         <Checkbox
           checked={autoStart}
-          onChange={e => {
+          onChange={(e) => {
             setAutoStart(e.target.checked);
           }}
         />
@@ -849,7 +849,7 @@ function MiscSetting() {
         <Typography width={headerSize}>logger level</Typography>
         <LogLevelSelection
           level={loglevel}
-          handleChange={level => {
+          handleChange={(level) => {
             setLogLevel(level);
             LoggerLevel.set(level);
           }}
@@ -886,12 +886,12 @@ function ModifySetting() {
           setTab(value);
         }}
       >
-        {ss.map(e => (
+        {ss.map((e) => (
           <Tab value={e} label={e} key={e} />
         ))}
       </Tabs>
       <div style={{ flex: 1 }}>
-        {ss.map(setting => {
+        {ss.map((setting) => {
           let content: ReactNode;
           switch (setting) {
             case "appearance":
@@ -950,7 +950,7 @@ function EditorOptions(props: {
   const [jsonErrPos, setJsonErrPos] = useState<Position>(null);
   const [jsonErr, setJsonErr] = useState<ErrAndLoc>(null);
   useEffect(() => {
-    validJson(value).then(e => {
+    validJson(value).then((e) => {
       setJsonErr(e);
     });
   }, [value]);
@@ -972,7 +972,7 @@ function EditorOptions(props: {
         errPos={jsonErrPos}
         language="json"
         value={value}
-        handleValue={v => {
+        handleValue={(v) => {
           setValue(v);
         }}
         barLeft={
@@ -1226,7 +1226,7 @@ function SettingComp(props: { children: ReactNode }) {
     document.documentElement.style.fontWeight = setting.appearance.fontWeight;
     if (setting.misc.autoStart) {
       if (!(await isEnabledApp())) {
-        enableApp().catch(e => {
+        enableApp().catch((e) => {
           console.error("enable app autostart failed", e);
           message(`enable app autostart failed ${e.toString()}`, {
             kind: "error",
@@ -1235,7 +1235,7 @@ function SettingComp(props: { children: ReactNode }) {
       }
     } else {
       if (await isEnabledApp()) {
-        disableApp().catch(e => {
+        disableApp().catch((e) => {
           console.error("disable app autostart failed", e);
         });
       }
@@ -1250,7 +1250,7 @@ function SettingComp(props: { children: ReactNode }) {
       reload();
     });
     return () => {
-      unlisten.then(callback => {
+      unlisten.then((callback) => {
         callback();
       });
     };

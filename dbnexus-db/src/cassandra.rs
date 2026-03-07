@@ -783,11 +783,11 @@ impl SchemaTrait for CassandraDB {
         <Self as SqlBuilder>::get_current_values(self)
     }
 
-    async fn drop_created_type(&self, name: &str) -> anyhow::Result<()> {
+    async fn drop_created_type(&self, name: &str) -> anyhow::Result<String> {
         let sql = format!(r#"DROP TYPE  "{name}""#);
         log::info!("sql:{}", sql);
-        self.session.query_unpaged(sql, &[]).await?;
-        anyhow::Ok(())
+        self.session.query_unpaged(sql.clone(), &[]).await?;
+        anyhow::Ok(sql)
     }
 
     async fn list_created_types(&self) -> anyhow::Result<Vec<CreatedTypeDef>> {
@@ -795,11 +795,11 @@ impl SchemaTrait for CassandraDB {
             .await
     }
 
-    async fn drop_materialized_view(&self, name: &str) -> anyhow::Result<()> {
+    async fn drop_materialized_view(&self, name: &str) -> anyhow::Result<String> {
         let sql = format!(r#"DROP MATERIALIZED VIEW "{name}";"#);
         log::info!("sql:{}", sql);
-        self.session.query_unpaged(sql, &[]).await?;
-        anyhow::Ok(())
+        self.session.query_unpaged(sql.clone(), &[]).await?;
+        anyhow::Ok(sql)
     }
 
     async fn list_materialized_view(&self) -> anyhow::Result<Vec<ListTable>> {
@@ -851,18 +851,18 @@ impl SchemaTrait for CassandraDB {
         self
     }
 
-    async fn create_index(&self, table: &str, req: &CreateIndexReq) -> anyhow::Result<()> {
+    async fn create_index(&self, table: &str, req: &CreateIndexReq) -> anyhow::Result<String> {
         let sql = self.make_create_index_sql(table, req);
         log::info!("sql:{}", sql);
         self.session.query_unpaged(sql.as_str(), &[]).await?;
-        anyhow::Ok(())
+        anyhow::Ok(sql)
     }
 
-    async fn drop_index(&self, _table_name: &str, index: &str) -> anyhow::Result<()> {
+    async fn drop_index(&self, _table_name: &str, index: &str) -> anyhow::Result<String> {
         let sql = format!(r#"DROP INDEX IF EXISTS "{index}";"#);
         log::info!("sql:{}", sql);
-        self.session.query_unpaged(sql, &[]).await?;
-        anyhow::Ok(())
+        self.session.query_unpaged(sql.clone(), &[]).await?;
+        anyhow::Ok(sql)
     }
 
     async fn show_create_table_sql(
@@ -1026,20 +1026,20 @@ impl SchemaTrait for CassandraDB {
         anyhow::Ok(ret)
     }
 
-    async fn truncate_table(&self, table_name: &str) -> anyhow::Result<()> {
+    async fn truncate_table(&self, table_name: &str) -> anyhow::Result<String> {
         self.can_write()?;
         let sql = format!(r#"TRUNCATE "{table_name}""#);
         log::info!("sql:{}", sql);
         self.session.query_unpaged(sql.as_str(), &[]).await?;
-        anyhow::Ok(())
+        anyhow::Ok(sql)
     }
 
-    async fn drop_table(&self, table: &str, _cascade: bool) -> anyhow::Result<()> {
+    async fn drop_table(&self, table: &str, _cascade: bool) -> anyhow::Result<String> {
         self.can_write()?;
         let sql = format!(r#"DROP TABLE "{}";"#, table);
         log::info!("sql:{}", sql);
         self.session.query_unpaged(sql.as_str(), &[]).await?;
-        anyhow::Ok(())
+        anyhow::Ok(sql)
     }
 
     async fn add_table_column(
@@ -1047,11 +1047,11 @@ impl SchemaTrait for CassandraDB {
         table: &str,
         name: &str,
         col: ColumnType,
-    ) -> anyhow::Result<()> {
+    ) -> anyhow::Result<String> {
         let sql = format!("ALTER TABLE {table} ADD {name} {}", col.typ);
         log::info!("sql:{}", sql);
         self.session.query_unpaged(sql.as_str(), &[]).await?;
-        anyhow::Ok(())
+        anyhow::Ok(sql)
     }
 
     async fn modify_table_column(
@@ -1060,18 +1060,18 @@ impl SchemaTrait for CassandraDB {
         old_name: &str,
         new_name: &str,
         _typ: Option<ColumnType>,
-    ) -> anyhow::Result<()> {
+    ) -> anyhow::Result<String> {
         let sql = format!("ALTER TABLE {table} RENAME {old_name} TO {new_name}");
         log::info!("sql:{}", sql);
         self.session.query_unpaged(sql.as_str(), &[]).await?;
-        anyhow::Ok(())
+        anyhow::Ok(sql)
     }
 
-    async fn drop_table_column(&self, table: &str, col: &str) -> anyhow::Result<()> {
+    async fn drop_table_column(&self, table: &str, col: &str) -> anyhow::Result<String> {
         let sql = format!("ALTER TABLE {table} DROP {col};");
         log::info!("sql:{}", sql);
         self.session.query_unpaged(sql.as_str(), &[]).await?;
-        anyhow::Ok(())
+        anyhow::Ok(sql)
     }
 
     async fn show_view(
@@ -1145,7 +1145,7 @@ impl SchemaTrait for CassandraDB {
         &self,
         name: &str,
         extra: Option<UdfOrProcedureExtraParameter>,
-    ) -> anyhow::Result<()> {
+    ) -> anyhow::Result<String> {
         let parameters = match &extra {
             Some(extra) => match &extra {
                 UdfOrProcedureExtraParameter::Cassandra { parameters } => parameters,
@@ -1157,12 +1157,10 @@ impl SchemaTrait for CassandraDB {
         };
 
         let p = format!("({})", parameters.join(","));
-
         let sql = format!(r#"DROP FUNCTION "{name}"{p} "#);
-
         log::info!("sql:{}", sql);
-        self.session.query_unpaged(sql, &[]).await?;
-        anyhow::Ok(())
+        self.session.query_unpaged(sql.clone(), &[]).await?;
+        anyhow::Ok(sql)
     }
 
     async fn list_data_types(&self) -> anyhow::Result<Vec<String>> {
@@ -1251,7 +1249,6 @@ impl DBTrait for CassandraDB {
         extra: Option<CreateSchemaExtra>,
     ) -> anyhow::Result<()> {
         self.can_write()?;
-
         let extra = match &extra {
             Some(x) => x,
             None => anyhow::bail!("cassandra need extra parameter."),
@@ -1430,12 +1427,16 @@ impl CassandraDB {
         ));
     }
 
-    pub async fn drop_aggregate(&self, name: &str, parameters: Vec<String>) -> anyhow::Result<()> {
+    pub async fn drop_aggregate(
+        &self,
+        name: &str,
+        parameters: Vec<String>,
+    ) -> anyhow::Result<String> {
         let p = format!("({})", parameters.join(","));
         let sql = format!("DROP AGGREGATE {name}{p} ");
         log::info!("sql:{}", sql);
-        self.session.query_unpaged(sql, &[]).await?;
-        anyhow::Ok(())
+        self.session.query_unpaged(sql.clone(), &[]).await?;
+        anyhow::Ok(sql)
     }
 }
 
@@ -2404,12 +2405,10 @@ mod tests {
     #[tokio::test]
     async fn test_table_column() {
         let _guard = test_lock().lock().await;
-
         enable_test_log();
         let db = make_test_object(Some("test".to_string())).await;
         let table_name = "test_column";
         let _ = db.drop_table(table_name, false).await;
-
         let query_id = "";
         db.open_connection(query_id).await.unwrap();
         let _resp = db
@@ -2428,34 +2427,39 @@ mod tests {
             .unwrap()
             .unwrap();
 
-        db.add_table_column(
-            table_name,
-            "name",
-            ColumnType {
-                typ: "tinyint".to_string(),
-                nullable: Default::default(),
-                after: None,
-                default_value: Some("1".to_string()),
-            },
-        )
-        .await
-        .unwrap();
+        let sql = db
+            .add_table_column(
+                table_name,
+                "name",
+                ColumnType {
+                    typ: "tinyint".to_string(),
+                    nullable: Default::default(),
+                    after: None,
+                    default_value: Some("1".to_string()),
+                },
+            )
+            .await
+            .unwrap();
+        println!("add table column sql :{}", sql);
 
-        db.modify_table_column(
-            table_name,
-            "id2",
-            "name2",
-            Some(ColumnType {
-                typ: "smallint".to_string(),
-                nullable: Default::default(),
-                after: None,
-                default_value: Some("2".to_string()),
-            }),
-        )
-        .await
-        .unwrap();
+        let sql = db
+            .modify_table_column(
+                table_name,
+                "id2",
+                "name2",
+                Some(ColumnType {
+                    typ: "smallint".to_string(),
+                    nullable: Default::default(),
+                    after: None,
+                    default_value: Some("2".to_string()),
+                }),
+            )
+            .await
+            .unwrap();
+        println!("modify table column sql :{}", sql);
 
-        db.drop_table_column(table_name, "value").await.unwrap();
+        let sql = db.drop_table_column(table_name, "value").await.unwrap();
+        println!("drop table column sql :{}", sql);
     }
     #[tokio::test]
     async fn test_counter() {
