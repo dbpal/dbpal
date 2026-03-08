@@ -209,8 +209,7 @@ function App() {
               >
                 <Panel
                   style={{
-                    overflowY: "auto",
-                    overflowX: "hidden",
+                    overflow: "auto",
                     height: "100%",
                     paddingRight: "2px",
                   }}

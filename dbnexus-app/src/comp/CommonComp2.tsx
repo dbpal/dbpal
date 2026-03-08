@@ -1386,8 +1386,7 @@ function AppDataGridToolBar(props: {
         justifyContent: "space-between",
         border: "2px solid " + theme.palette.secondary.main,
         borderRadius: "4px",
-        padding: "8px 4px",
-        overflowX: "auto",
+        padding: "2px 4px",
       }}
     >
       {noWrapLeft ? left : <StackRowCenter>{left}</StackRowCenter>}
