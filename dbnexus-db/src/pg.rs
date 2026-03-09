@@ -81,17 +81,13 @@ impl PostGresDB {
         SELECT schema_name 
             FROM information_schema.schemata
             WHERE 
-            schemata.catalog_name ='{}' order by schema_name
-    "#,
+            schemata.catalog_name ='{}' order by schema_name"#,
             self.config.db_str()?
         );
-
         log::info!("sql:{}", sql);
-
         let rows = sqlx::raw_sql(AssertSqlSafe(sql.as_str()))
             .fetch_all(conn.deref_mut())
             .await?;
-
         let mut ret = Vec::with_capacity(rows.len());
         for r in rows.iter() {
             let name: String = r.try_get(0)?;

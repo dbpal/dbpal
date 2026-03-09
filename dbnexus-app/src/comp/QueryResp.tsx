@@ -104,23 +104,14 @@ function RespContextMenu(props: { content; field; setSort; viewInModal }) {
   );
 }
 
-function smallDataSet(fields: types.Field[]) {
-  return fields.length <= 4;
-}
-
 function queryRespFix(data: MuiDataGridData) {
   data.data.forEach((e, index) => {
     e[keyNotInTable] = index;
   });
-  const considerSmallDataSet = smallDataSet(data.fields);
   data.fields.forEach((field) => {
-    if (considerSmallDataSet) {
-      field["flex"] = 1;
-    } else {
-      const width = ColumnWidth.instance.get(field.field);
-      if (width) {
-        field["width"] = width;
-      }
+    const width = ColumnWidth.instance.get(field.field);
+    if (width) {
+      field["width"] = width;
     }
     field["renderHeader"] = (e) => {
       const def = e.colDef as types.Field;
@@ -144,9 +135,6 @@ function QueryResp(props: { data: MuiDataGridData }) {
   const onColumnResize = useCallback(
     ({ colDef, width }) => {
       if (!data) {
-        return;
-      }
-      if (smallDataSet(data.fields)) {
         return;
       }
       ColumnWidth.instance.save(colDef.field, width);

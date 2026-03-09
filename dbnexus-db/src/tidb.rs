@@ -18,7 +18,6 @@ pub(crate) fn make_config() -> MysqlDBConfig {
         port: 4000,
         db: None,
         read_only: false,
-
         ssl: Default::default(),
     }
 }

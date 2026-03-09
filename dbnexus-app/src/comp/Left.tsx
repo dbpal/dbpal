@@ -142,8 +142,8 @@ function LeftTop(props: {
 }) {
   const { matchPattern, setMatchPattern, setMaxTreeSize, maxTreeSize } = props;
   const [matchPatterInput, setMatchPatternInput] = useState("");
-  const [showFavoriteSql, setShowFavoriteSql] = useState(false);
-  const [showCopyConn, setShowCopyConn] = useState(false);
+  // const [showFavoriteSql, setShowFavoriteSql] = useState(false);
+  // const [showCopyConn, setShowCopyConn] = useState(false);
   const { showNotification } = useContext(NotificationContext);
   const saveLeftTopShow = useRef(new SaveBoolToLocalStorage("left-top-show"));
   const [show, setShow] = useState(saveLeftTopShow.current.get());
@@ -229,7 +229,6 @@ function LeftTop(props: {
           </IconButton>
         )}
       </Stack>
-
       <Stack
         direction="row"
         style={{
@@ -262,7 +261,20 @@ function LeftTop(props: {
         <Tooltip title="Favorite sql statement">
           <IconButton
             onClick={() => {
-              setShowFavoriteSql(true);
+              setTabs((tabs) => {
+                setTimeout(() => {
+                  setSelectTab(tabs.length);
+                }, 100);
+                return [
+                  ...tabs,
+                  new TabContent(
+                    generateRandomString(),
+                    "favorite sql",
+                    <FavoriteSqlList />,
+                    <FaBookmark />,
+                  ),
+                ];
+              });
             }}
           >
             <FaBookmark style={{ fontSize: "2.1rem" }}> </FaBookmark>
@@ -272,7 +284,20 @@ function LeftTop(props: {
         <Tooltip title="copy a connection">
           <IconButton
             onClick={() => {
-              setShowCopyConn(true);
+              return setTabs((tabs) => {
+                setTimeout(() => {
+                  setSelectTab(tabs.length);
+                }, 100);
+                return [
+                  ...tabs,
+                  new TabContent(
+                    generateRandomString(),
+                    "copy connection",
+                    <CopyConnection />,
+                    <FaCopy />,
+                  ),
+                ];
+              });
             }}
           >
             <FaCopy style={{ fontSize: "2.2rem" }}> </FaCopy>
@@ -417,55 +442,6 @@ function LeftTop(props: {
           </Box>
         </Modal>
       )}
-      {showFavoriteSql && (
-        <Modal
-          open={showFavoriteSql}
-          onClose={modalHandleClose((e: EscDownEvent) => {
-            e.preventDefault();
-            setShowFavoriteSql(false);
-          })}
-        >
-          <Box sx={modalStyle} width="75%" height="65vh">
-            <ModalHeader
-              title="Favorite SQL Statements"
-              handleClose={() => {
-                setShowFavoriteSql(false);
-              }}
-            />
-            <FavoriteSqlList
-              handleClose={() => {
-                setShowFavoriteSql(false);
-              }}
-            />
-          </Box>
-        </Modal>
-      )}
-      {showCopyConn && (
-        <Modal
-          open={showCopyConn}
-          onClose={modalHandleClose((e: EscDownEvent) => {
-            e.preventDefault();
-            setShowCopyConn(false);
-          })}
-        >
-          <Box sx={modalStyle} width="65%" height="60vh">
-            <ModalHeader
-              handleClose={() => {
-                setShowCopyConn(false);
-              }}
-              title="Copy Connection"
-            />
-            <CopyConnection
-              handleClose={() => {
-                setShowCopyConn(false);
-              }}
-              setCopyConn={(conn) => {
-                showAddConnection(conn);
-              }}
-            />
-          </Box>
-        </Modal>
-      )}
     </Stack>
   );
 }
@@ -491,8 +467,7 @@ function CopyConnectionMenu(props: { content: string }) {
   );
 }
 
-function CopyConnection(props: { handleClose; setCopyConn }) {
-  const { handleClose, setCopyConn } = props;
+function CopyConnection() {
   const [conns, setConns] = useState<types.DBConnectionConfig[]>([]);
   const [sortModel, setSortModel] = useState<GridSortModel>([]);
   const getRowId = useCallback((e) => {
@@ -505,6 +480,7 @@ function CopyConnection(props: { handleClose; setCopyConn }) {
   const { showNotification } = useContext(NotificationContext);
   const setting = useContext(SettingContext);
   const { setUpMenu } = useContext(ContextMenuContext);
+  const { setTabs, setSelectTab } = useContext(TabsSetContext);
 
   const handleRow = useCallback(
     async (conn) => {
@@ -513,11 +489,25 @@ function CopyConnection(props: { handleClose; setCopyConn }) {
       if (password) {
         cop["password"] = password;
       }
-      setCopyConn(cop);
-      handleClose();
+
+      setTabs((tabs) => {
+        setTimeout(() => {
+          setSelectTab(tabs.length);
+        }, 100);
+        return [
+          ...tabs,
+          new TabContent(
+            generateRandomString(),
+            "add connection",
+            <AddConnection config={cop} />,
+            <GrConnect />,
+          ),
+        ];
+      });
     },
-    [handleClose, setCopyConn],
+    [setSelectTab, setTabs],
   );
+
   const slotProps = useMemo(() => {
     return {
       row: {
@@ -615,7 +605,6 @@ function CopyConnection(props: { handleClose; setCopyConn }) {
           <Typography color="info">copy</Typography>
         </Tooltip>
       </Stack>
-
       <DataGrid
         getRowId={getRowId}
         style={dataGridStyle}
@@ -763,8 +752,7 @@ function FavoriteSqlMenu(props: { content: string; id: number; handleReload }) {
   );
 }
 
-function FavoriteSqlList(props: { handleClose: () => void }) {
-  const { handleClose } = props;
+function FavoriteSqlList() {
   const { showNotification } = useContext(NotificationContext);
   const [fs, setFs] = useState<FavoriteSql[]>([]);
   const [sortModel, setSortModel] = useState<GridSortModel>([
@@ -825,7 +813,6 @@ function FavoriteSqlList(props: { handleClose: () => void }) {
               language={row.language}
             />
           );
-          handleClose();
           setTimeout(() => {
             setSelectTab(tabs.length);
           }, 100);
@@ -843,7 +830,7 @@ function FavoriteSqlList(props: { handleClose: () => void }) {
         showNotification("error", "use sql failure", e);
       }
     },
-    [checkConnOpened, handleClose, setSelectTab, setTabs, showNotification],
+    [checkConnOpened, setSelectTab, setTabs, showNotification],
   );
   const onSortModelChange = useCallback((e) => {
     setSortModel(e);

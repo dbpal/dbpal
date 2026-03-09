@@ -91,10 +91,14 @@ class QueryLogHandler {
     const sql = `select count(*) as total from query_log where uuid=? ${
       matchSql ? `and sql like '%${matchSql}%'` : ""
     }`;
-    return appDatabase.select(sql, [this.uuid]).then((e) => (e ? e[0].total : 0));
+    return appDatabase.select(sql, [this.uuid]).then((
+      e,
+    ) => (e ? e[0].total : 0));
   }
   async delete(): Promise<QueryResult> {
-    return appDatabase.execute("delete from query_log where uuid=?", [this.uuid]);
+    return appDatabase.execute("delete from query_log where uuid=?", [
+      this.uuid,
+    ]);
   }
   static async deleteByConnectionName(name): Promise<QueryResult> {
     return appDatabase.execute("delete from query_log where name=?", [name]);
@@ -125,7 +129,8 @@ async function secondConfirm({
 }
 
 function generateRandomString(length: number = 10): string {
-  const characters = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
+  const characters =
+    "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
   let result = "";
   for (let i = 0; i < length; i++) {
     const randomIndex = Math.floor(Math.random() * characters.length);
@@ -149,7 +154,9 @@ function hexTryToString(hex): string | null {
     bytes.push(parseInt(hex.substr(i, 2), 16));
   }
   try {
-    return new TextDecoder("utf-8", { fatal: true }).decode(new Uint8Array(bytes));
+    return new TextDecoder("utf-8", { fatal: true }).decode(
+      new Uint8Array(bytes),
+    );
   } catch {
     return null;
   }
@@ -344,7 +351,8 @@ function connTypeToDataSourceKind(name: string): DataSourceKind {
 function isTypeLargeText(s: string): boolean {
   const toUpper = s.toUpperCase();
   return (
-    toUpper.includes("TEXT") || toUpper.includes("LONG") || toUpper.includes("CLOB")
+    toUpper.includes("TEXT") || toUpper.includes("LONG") ||
+    toUpper.includes("CLOB")
   );
 }
 
@@ -477,7 +485,9 @@ class FavoriteSql {
 
   static async deleteByConnectionName(name: string) {
     try {
-      appDatabase.execute(`delete from favorite_sql where connection_name=?`, [name]);
+      appDatabase.execute(`delete from favorite_sql where connection_name=?`, [
+        name,
+      ]);
     } catch (e) {
       console.error("delete all logs belong to a key failed", e);
       return;
@@ -680,7 +690,9 @@ class UserSettingExport {
   }
   static async get(): Promise<UserSettingExport> {
     try {
-      let setting = await appStore.get<UserSettingExport>(UserSettingExport.key);
+      let setting = await appStore.get<UserSettingExport>(
+        UserSettingExport.key,
+      );
       setting = { ...new UserSettingExport(), ...setting } as UserSettingExport;
       Object.setPrototypeOf(setting, UserSettingExport.prototype);
       return setting;
@@ -828,12 +840,6 @@ function executeSqlWithoutConn(uuid: string, sql: string) {
     name: uuid,
     sql,
   });
-}
-
-//@ts-ignore
-function getStackTrace() {
-  const error = new Error();
-  console.error(error.stack);
 }
 
 class ColorFn {
