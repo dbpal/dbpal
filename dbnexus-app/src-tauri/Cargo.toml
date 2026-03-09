@@ -13,6 +13,7 @@ tauri-build = { version = "2", features = [] }
 
 
 [dependencies]
+tauri-plugin-fs = { version = "2.4" }
 langchain-rust = "=4.6.0"
 mimalloc = { version = "*", features = ["v3"] }
 tauri = { version = "2", features = ["devtools"] }
@@ -34,7 +35,6 @@ hex.workspace = true
 mongodb.workspace = true
 rand.workspace = true
 chrono.workspace = true
-tauri-plugin-fs = "2.4"
 tauri-plugin-store = { version = "=2.4.1" }
 tauri-plugin-clipboard-manager = "2.3"
 tauri-plugin-keyring = "0.1.0"

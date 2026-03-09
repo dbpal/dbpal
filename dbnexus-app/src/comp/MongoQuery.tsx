@@ -595,13 +595,6 @@ function MongoQuery(props: {
         direction="row"
         sx={{ alignItems: "center", overflow: "auto", paddingBottom: "0.5rem" }}
       >
-        <TypeScript
-          language={language}
-          setLanguage={setLanguage}
-          editor={editor}
-          compileTime={compileTime}
-          compileDir={compileDir.current}
-        />
         <Tooltip title="execute">
           <IconButton
             onClick={() => {
@@ -611,7 +604,14 @@ function MongoQuery(props: {
           >
             <PlayArrowIcon />
           </IconButton>
-        </Tooltip>
+        </Tooltip>{" "}
+        <TypeScript
+          language={language}
+          setLanguage={setLanguage}
+          editor={editor}
+          compileTime={compileTime}
+          compileDir={compileDir.current}
+        />
         <SaveFavoriteSqlView
           language={language}
           kind={DataSourceKind.Mongo}
@@ -631,7 +631,6 @@ function MongoQuery(props: {
             editor.setValue(text);
           }}
         />
-
         <Tooltip title="query log">
           <IconButton
             onClick={() => {
@@ -642,7 +641,6 @@ function MongoQuery(props: {
             <EventNoteIcon />
           </IconButton>
         </Tooltip>
-
         {cleanFns.length > 0 && (
           <Tooltip
             title=<CallCleanFunctions
@@ -659,7 +657,6 @@ function MongoQuery(props: {
             <RiDeleteBack2Line fontSize="1.6rem" />
           </Tooltip>
         )}
-
         <Tooltip
           title=<CleanFunctionDoc />
           slotProps={{
@@ -688,7 +685,6 @@ function MongoQuery(props: {
         >
           <span>debug???</span>
         </Tooltip>
-
         <ToggleChatShow do_query={handleExecute} />
       </Stack>
       <div
