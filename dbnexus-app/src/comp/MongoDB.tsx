@@ -16,7 +16,6 @@ import {
   Typography,
 } from "@mui/material";
 import ListIcon from "@mui/icons-material/List";
-import { loader } from "@monaco-editor/react";
 import { editor, languages, Position } from "monaco-editor";
 import DeleteForeverIcon from "@mui/icons-material/DeleteForever";
 import FilterAltIcon from "@mui/icons-material/FilterAlt";
