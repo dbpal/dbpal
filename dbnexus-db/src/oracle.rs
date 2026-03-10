@@ -21,7 +21,7 @@ use crate::db::{
     XlsxEdit, POOL_MAX_CONNECTIONS,
 };
 
-use crate::helper::{create_csv, run_with_timeout};
+use crate::helper::create_csv;
 use crate::language_server::LexerCompletionTrait;
 
 #[derive(Clone)]
@@ -53,23 +53,26 @@ impl std::fmt::Debug for OracleDB {
 }
 
 impl OracleDB {
-    pub fn new(config: OracleDBConfig, min_conn: Option<u32>) -> anyhow::Result<Self> {
-        let mut builder = oracle::pool::PoolBuilder::new(
-            &config.username,
-            &config.password,
-            format!("//{}:{}/{}", config.host, config.port, config.db),
-        );
-        builder
-            .min_connections(min_conn.unwrap_or(10))
-            .max_connections(POOL_MAX_CONNECTIONS);
+    pub async fn new(config: OracleDBConfig, min_conn: Option<u32>) -> anyhow::Result<Self> {
+        spawn_blocking(move || {
+            let mut builder = oracle::pool::PoolBuilder::new(
+                &config.username,
+                &config.password,
+                format!("//{}:{}/{}", config.host, config.port, config.db),
+            );
+            builder
+                .min_connections(min_conn.unwrap_or(10))
+                .max_connections(POOL_MAX_CONNECTIONS);
 
-        let pool = builder.build()?;
-        anyhow::Ok(Self {
-            pool: Arc::new(pool),
-            query_connection: Default::default(),
-            config: Arc::new(config),
-            key_words_cache: Default::default(),
+            let pool = builder.build()?;
+            anyhow::Ok(Self {
+                pool: Arc::new(pool),
+                query_connection: Default::default(),
+                config: Arc::new(config),
+                key_words_cache: Default::default(),
+            })
         })
+        .await?
     }
 }
 
@@ -1730,13 +1733,7 @@ impl DBTrait for OracleDB {
 
 impl OracleDB {
     pub(crate) fn get_conn(&self) -> anyhow::Result<oracle::Connection> {
-        let mut conn: oracle::Connection = match self.config.conn_timeout {
-            Some(timeout) => {
-                let this = Clone::clone(self);
-                run_with_timeout(move || this.pool.get(), Duration::from(timeout))??
-            }
-            None => self.pool.get()?,
-        };
+        let mut conn = self.pool.get()?;
         if let Some(db_name) = &self.config.schema {
             let sql = format!("ALTER SESSION SET CURRENT_SCHEMA={db_name}");
             log::info!("sql:{}", sql);
@@ -1750,7 +1747,7 @@ impl OracleDB {
 // docker container create    -it    --name oracle-test  -p 1521:1521   -e
 // ORACLE_PWD=welcome123   container-registry.oracle.com/database/express:latest
 #[cfg(test)]
-pub(crate) fn make_test_object(schema: Option<String>) -> OracleDB {
+pub(crate) async fn make_test_object(schema: Option<String>) -> OracleDB {
     OracleDB::new(
         OracleDBConfig {
             conn_timeout: Some(5000.into()),
@@ -1764,6 +1761,7 @@ pub(crate) fn make_test_object(schema: Option<String>) -> OracleDB {
         },
         Some(2),
     )
+    .await
     .unwrap()
 }
 
@@ -1790,14 +1788,14 @@ mod tests {
     #[tokio::test]
     async fn test_server_metas() {
         let _guard = test_lock().lock().await;
-        let db = make_test_object(None);
+        let db = make_test_object(None).await;
         let metas = ServerMetas::show_metas(&db).await.unwrap();
         println!("{:?}", metas);
     }
     #[tokio::test]
     async fn test_procedure() {
         let _guard = test_lock().lock().await;
-        let db = make_test_object(Some("SYSTEM".to_string()));
+        let db = make_test_object(Some("SYSTEM".to_string())).await;
         let query_id = "";
         db.open_connection(query_id).await.unwrap();
         let udf_name = "DO_NOTHING_P";
@@ -1830,7 +1828,7 @@ mod tests {
     #[tokio::test]
     async fn test_udf() {
         let _guard = test_lock().lock().await;
-        let db = make_test_object(Some("SYSTEM".to_string()));
+        let db = make_test_object(Some("SYSTEM".to_string())).await;
         let query_id = "";
         db.open_connection(query_id).await.unwrap();
         let udf_name = "DO_NOTHING";
@@ -1878,7 +1876,7 @@ mod tests {
     #[tokio::test]
     async fn test_trigger() {
         let _guard = test_lock().lock().await;
-        let db = make_test_object(Some("SYSTEM".to_string()));
+        let db = make_test_object(Some("SYSTEM".to_string())).await;
         let query_id = "";
         db.open_connection(query_id).await.unwrap();
         let table_name = "TEST_TRIGGER";
@@ -1924,7 +1922,7 @@ mod tests {
     #[tokio::test]
     async fn test_rename() {
         let _guard = test_lock().lock().await;
-        let db = make_test_object(Some("SYSTEM".to_string()));
+        let db = make_test_object(Some("SYSTEM".to_string())).await;
 
         let query_id = "";
         db.open_connection(query_id).await.unwrap();
@@ -1961,7 +1959,7 @@ mod tests {
         let _guard = test_lock().lock().await;
         enable_test_log();
 
-        let db = make_test_object(Some("SYSTEM".to_string()));
+        let db = make_test_object(Some("SYSTEM".to_string())).await;
 
         let query_id = "";
         db.open_connection(query_id).await.unwrap();
@@ -2010,13 +2008,13 @@ mod tests {
     #[tokio::test]
     async fn test_check_conn() {
         let _guard = test_lock().lock().await;
-        let db = make_test_object(None);
+        let db = make_test_object(None).await;
         crate::db::CheckConn::check_conn(&db).await.unwrap();
     }
     #[tokio::test]
     async fn test_view() {
         let _guard = test_lock().lock().await;
-        let db = make_test_object(Some("SYSTEM".to_string()));
+        let db = make_test_object(Some("SYSTEM".to_string())).await;
         let query_id = "";
         db.open_connection(query_id).await.unwrap();
         let db = db;
@@ -2058,7 +2056,7 @@ TEST_VIEW_TABLE (product_name, category, price) VALUES ('Samsung Galaxy S21',
     #[tokio::test]
     async fn test_materialized_view() {
         let _guard = test_lock().lock().await;
-        let db = make_test_object(Some("SYSTEM".to_string()));
+        let db = make_test_object(Some("SYSTEM".to_string())).await;
         let query_id = "";
         db.open_connection(query_id).await.unwrap();
         let db = db;
@@ -2106,7 +2104,7 @@ TEST_MATERIALIZED_VIEW_TABLE (product_name, category, price) VALUES ('Samsung Ga
     #[tokio::test]
     async fn test_index() {
         let _guard = test_lock().lock().await;
-        let db = make_test_object(Some("SYSTEM".to_string()));
+        let db = make_test_object(Some("SYSTEM".to_string())).await;
         let query_id = "";
         db.open_connection(query_id).await.unwrap();
         let table_name = "TEST_INDEXES";
@@ -2182,7 +2180,7 @@ TEST_MATERIALIZED_VIEW_TABLE (product_name, category, price) VALUES ('Samsung Ga
     async fn test_table_column() {
         enable_test_log();
         let _guard = test_lock().lock().await;
-        let db = make_test_object(Some("SYSTEM".to_string()));
+        let db = make_test_object(Some("SYSTEM".to_string())).await;
 
         let table_name = "TEST_COLUMN";
         let _ = db.drop_table(table_name, false).await;
@@ -2236,7 +2234,7 @@ TEST_MATERIALIZED_VIEW_TABLE (product_name, category, price) VALUES ('Samsung Ga
     #[tokio::test]
     async fn test_multi_db_trait() {
         let _guard = test_lock().lock().await;
-        let db = make_test_object(None);
+        let db = make_test_object(None).await;
         let db = &db as &dyn DBTrait;
         let dbs = db.list_schema().await.unwrap();
         println!("dbs : {:?}", dbs);
@@ -2246,8 +2244,7 @@ TEST_MATERIALIZED_VIEW_TABLE (product_name, category, price) VALUES ('Samsung Ga
     #[tokio::test]
     async fn test_show_tables() {
         let _guard = test_lock().lock().await;
-        let db = make_test_object(Some("APPQOSSYS".to_string()));
-        let db = db;
+        let db = make_test_object(Some("APPQOSSYS".to_string())).await;
         let tables = db.list_table().await.unwrap();
         println!("tables : {:?}", tables);
         for t in tables.iter() {
@@ -2259,7 +2256,7 @@ TEST_MATERIALIZED_VIEW_TABLE (product_name, category, price) VALUES ('Samsung Ga
     #[tokio::test]
     async fn test_query_sql() {
         let _guard = test_lock().lock().await;
-        let db: OracleDB = make_test_object(Some("SYSTEM".to_string()));
+        let db: OracleDB = make_test_object(Some("SYSTEM".to_string())).await;
 
         // get query_uuid
         let query_uuid = "";
@@ -2304,7 +2301,7 @@ TEST_MATERIALIZED_VIEW_TABLE (product_name, category, price) VALUES ('Samsung Ga
         let _guard = test_lock().lock().await;
         enable_test_log();
         let table_name = "TEST_TYPES1";
-        let db = make_test_object(Some("SYSTEM".to_string()));
+        let db = make_test_object(Some("SYSTEM".to_string())).await;
         let query_id = "";
         db.open_connection(query_id).await.unwrap();
         let db = db;
@@ -2412,7 +2409,7 @@ TEST_MATERIALIZED_VIEW_TABLE (product_name, category, price) VALUES ('Samsung Ga
         let _guard = test_lock().lock().await;
         enable_test_log();
         let table_name = "TEST_TYPES2";
-        let db = make_test_object(Some("SYSTEM".to_string()));
+        let db = make_test_object(Some("SYSTEM".to_string())).await;
         let query_id = "";
         db.open_connection(query_id).await.unwrap();
         let db = db;
@@ -2498,7 +2495,7 @@ TEST_MATERIALIZED_VIEW_TABLE (product_name, category, price) VALUES ('Samsung Ga
         let _guard = test_lock().lock().await;
         enable_test_log();
         let table_name = "TEST_TYPES3";
-        let db = make_test_object(Some("SYSTEM".to_string()));
+        let db = make_test_object(Some("SYSTEM".to_string())).await;
         let query_id = "";
         db.open_connection(query_id).await.unwrap();
         let _ = db.drop_table(table_name, false).await;
@@ -2585,7 +2582,7 @@ TEST_MATERIALIZED_VIEW_TABLE (product_name, category, price) VALUES ('Samsung Ga
         let _guard = test_lock().lock().await;
         enable_test_log();
         let table_name = "TEST_TYPES4";
-        let db = make_test_object(Some("SYSTEM".to_string()));
+        let db = make_test_object(Some("SYSTEM".to_string())).await;
         let query_id = "";
         db.open_connection(query_id).await.unwrap();
         let _ = db.drop_table(table_name, false).await;

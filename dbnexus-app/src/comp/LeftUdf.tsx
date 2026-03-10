@@ -133,34 +133,27 @@ function UdfMenu(props: {
   id: string;
 }) {
   const { uuid, udf, reload, kind, id } = props;
-  const { setSelectTab, setTabs, tabs } = useContext(TabsSetContext);
+  const { setSelectTab, tabs, appendTab } = useContext(TabsSetContext);
   const { showNotification } = useContext(NotificationContext);
   const handleOpenDetails = () => {
     const index = tabsHasId(tabs, id);
     if (typeof index == "number") {
       setSelectTab(index);
     } else {
-      setTabs((e) => {
-        setTimeout(() => {
-          setSelectTab(tabs.length);
-        }, 100);
-
-        return [
-          ...e,
-          new TabContent(
-            id,
-            udf.name,
-            <DefAndMetasView
-              reloadOP={async () => {
-                return showUdf(uuid, udf, kind);
-              }}
-              kind={kind}
-              uuid={uuid}
-            />,
-            <TbMathFunction className="tab-icon-size" />,
-          ),
-        ];
-      });
+      appendTab(
+        new TabContent(
+          id,
+          udf.name,
+          <DefAndMetasView
+            reloadOP={async () => {
+              return showUdf(uuid, udf, kind);
+            }}
+            kind={kind}
+            uuid={uuid}
+          />,
+          <TbMathFunction className="tab-icon-size" />,
+        ),
+      );
     }
   };
 
@@ -218,7 +211,7 @@ function CassandraAggregateMenu(props: {
   reload;
 }) {
   const { uuid, agg, reload, parameters } = props;
-  const { setSelectTab, setTabs, tabs } = useContext(TabsSetContext);
+  const { setSelectTab, tabs, appendTab } = useContext(TabsSetContext);
   const { showNotification } = useContext(NotificationContext);
 
   const handleOpenDetails = () => {
@@ -227,27 +220,20 @@ function CassandraAggregateMenu(props: {
     if (typeof index == "number") {
       setSelectTab(index);
     } else {
-      setTabs((e) => {
-        setTimeout(() => {
-          setSelectTab(tabs.length);
-        }, 100);
-
-        return [
-          ...e,
-          new TabContent(
-            id,
-            agg,
-            <DefAndMetasView
-              reloadOP={async () => {
-                return showCassandraAgg(uuid, agg, parameters);
-              }}
-              uuid={uuid}
-              kind={DataSourceKind.Cassandra}
-            />,
-            <MdFunctions className="tab-icon-size" />,
-          ),
-        ];
-      });
+      appendTab(
+        new TabContent(
+          id,
+          agg,
+          <DefAndMetasView
+            reloadOP={async () => {
+              return showCassandraAgg(uuid, agg, parameters);
+            }}
+            uuid={uuid}
+            kind={DataSourceKind.Cassandra}
+          />,
+          <MdFunctions className="tab-icon-size" />,
+        ),
+      )();
     }
   };
 

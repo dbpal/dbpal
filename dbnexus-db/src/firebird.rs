@@ -104,10 +104,12 @@ fn infer_fields(row: &Row) -> Vec<Field> {
 }
 
 fn is_date(x: &Option<&String>) -> bool {
-    x.map(|x| x.eq_ignore_ascii_case("date")).unwrap_or(false)
+    x.map(|x| x.eq_ignore_ascii_case("date"))
+        .unwrap_or_default()
 }
 fn is_time(x: &Option<&String>) -> bool {
-    x.map(|x| x.eq_ignore_ascii_case("time")).unwrap_or(false)
+    x.map(|x| x.eq_ignore_ascii_case("time"))
+        .unwrap_or_default()
 }
 
 fn encode_row(
@@ -413,7 +415,6 @@ pub struct FireBirdDB {
     pool: Pool<PoolManager>,
     query_connection: Arc<DashMap<String, Arc<Mutex<PooledConnection<PoolManager>>>>>,
     query_connection_tx: Arc<DashSet<String>>,
-    pub(crate) key_words_completion: Arc<tokio::sync::Mutex<Vec<String>>>,
 }
 
 impl std::fmt::Debug for FireBirdDB {
@@ -995,7 +996,7 @@ impl FireBirdDB {
         spawn_blocking(move || {
             let mut builder = r2d2::Pool::builder();
             builder = builder.max_size(POOL_MAX_CONNECTIONS);
-            builder = builder.min_idle(Some(5));
+            builder = builder.min_idle(Some(2));
             if let Some(x) = config.conn_timeout {
                 builder = builder.connection_timeout(x.into());
             }
@@ -1007,7 +1008,6 @@ impl FireBirdDB {
                 pool,
                 query_connection: Default::default(),
                 query_connection_tx: Default::default(),
-                key_words_completion: Default::default(),
             })
         })
         .await?

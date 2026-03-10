@@ -11,7 +11,9 @@ use tokio::task::spawn_blocking;
 #[async_trait::async_trait]
 impl GetKeyWords for FireBirdDB {
     async fn key_words(&self) -> anyhow::Result<Vec<String>> {
-        let mut lock = self.key_words_completion.lock().await;
+        static KEY_WORDS_COMPLETION: tokio::sync::Mutex<Vec<String>> =
+            tokio::sync::Mutex::const_new(Vec::new());
+        let mut lock = KEY_WORDS_COMPLETION.lock().await;
         if !lock.is_empty() {
             return Ok(lock.clone());
         }

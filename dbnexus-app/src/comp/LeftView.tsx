@@ -480,7 +480,7 @@ function ViewMenu(props: {
         showNotification("error", "Drop View Failure", e);
       });
   };
-  const { tabs, setTabs, setSelectTab } = useContext(TabsSetContext);
+  const { tabs, setSelectTab, appendTab } = useContext(TabsSetContext);
 
   const handleViewData = () => {
     const id = uuid + "-view-" + generateRandomString();
@@ -518,16 +518,9 @@ function ViewMenu(props: {
         showNotification("error", `data source ${kind} need impl view`);
     }
 
-    setTabs((e) => {
-      setTimeout(() => {
-        setSelectTab(tabs.length);
-      }, 100);
-
-      return [
-        ...e,
-        new TabContent(id, view, list, <VisibilityIcon className="tab-icon-size" />),
-      ];
-    });
+    appendTab(
+      new TabContent(id, view, list, <VisibilityIcon className="tab-icon-size" />),
+    );
   };
 
   const handleStructure = () => {
@@ -536,21 +529,14 @@ function ViewMenu(props: {
     if (typeof index == "number") {
       setSelectTab(index);
     } else {
-      setTabs((e) => {
-        setTimeout(() => {
-          setSelectTab(tabs.length);
-        }, 100);
-
-        return [
-          ...e,
-          new TabContent(
-            id,
-            `${view}`,
-            <ViewStructure view={view} uuid={uuid} kind={kind} viewKind={viewKind} />,
-            <IoConstructOutline className="tab-icon-size" />,
-          ),
-        ];
-      });
+      appendTab(
+        new TabContent(
+          id,
+          `${view}`,
+          <ViewStructure view={view} uuid={uuid} kind={kind} viewKind={viewKind} />,
+          <IoConstructOutline className="tab-icon-size" />,
+        ),
+      );
     }
   };
 

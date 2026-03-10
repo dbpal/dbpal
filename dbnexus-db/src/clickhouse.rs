@@ -8,13 +8,11 @@ use crate::db::{
     ShowTableParameter, SqlBuilder, SqlCollect, UdfOrProcedureExtraParameter, XlsxEdit,
 };
 
-use crate::helper::separate_sql_by_sqlparser_tokenizer;
 use crate::language_server::LexerCompletionTrait;
 use futures_core::stream::BoxStream;
 use futures_util::StreamExt;
 use reqwest::Response;
 use sqlparser::ast::{ArrayElemTypeDef, DataType};
-use sqlparser::tokenizer::Token;
 use std::collections::{HashMap, HashSet};
 use std::sync::Arc;
 use std::time::Duration;
@@ -697,7 +695,7 @@ impl ClickHouseDB {
                 } else {
                     "CSV"
                 },
-                Some(format!("format_csv_delimiter={}", delimiter)),
+                Some(vec![("format_csv_delimiter".into(), delimiter.to_string())]),
             )
             .await?;
         let mut stream = resp.bytes_stream();
@@ -927,29 +925,25 @@ impl QuerySql for ClickHouseDB {
         emit: QueryEventEmitter,
     ) -> anyhow::Result<()> {
         self.not_allow_switch_db(sql)?;
-        let dialect = sqlparser::dialect::ClickHouseDialect {};
-        let sqls = separate_sql_by_sqlparser_tokenizer(sql, &dialect)?;
-        for sql in sqls.iter() {
-            emit.send(QueryEvent::new_status(format!(
-                "try to execute sql: {}",
-                sql
-            )))?;
-            let mut stream = self.query_row(sql).await?;
-            while let Some(row) = stream.next().await {
-                let row = row?;
-                match row {
-                    FieldsOrData::Fields(fields) => emit.send(
-                        QueryResp {
-                            fields,
-                            ..Default::default()
-                        }
-                        .into(),
-                    )?,
-                    FieldsOrData::Data(items) => {
-                        emit.send(vec![items].into())?;
+        emit.send(QueryEvent::new_status(format!(
+            "try to execute sql: {}",
+            sql
+        )))?;
+        let mut stream = self.query_row(sql).await?;
+        while let Some(row) = stream.next().await {
+            let row = row?;
+            match row {
+                FieldsOrData::Fields(fields) => emit.send(
+                    QueryResp {
+                        fields,
+                        ..Default::default()
                     }
-                    FieldsOrData::ReadingColumns => {}
+                    .into(),
+                )?,
+                FieldsOrData::Data(items) => {
+                    emit.send(vec![items].into())?;
                 }
+                FieldsOrData::ReadingColumns => {}
             }
         }
         anyhow::Ok(())
@@ -1209,7 +1203,7 @@ impl ClickHouseDB {
         &'_ self,
         query: &str,
         format: &str,
-        http_extra: Option<String>,
+        http_extra: Option<Vec<(String, String)>>,
     ) -> anyhow::Result<BoxStream<'_, Result<String, std::io::Error>>> {
         use tokio_stream::wrappers::LinesStream;
         let res = self.query_as_response(query, format, http_extra).await?;
@@ -1223,32 +1217,27 @@ impl ClickHouseDB {
     pub(crate) async fn query_as_response(
         &self,
         query: &str,
-        format: &str,
-        http_extra: Option<String>,
+        format_: &str,
+        http_extra: Option<Vec<(String, String)>>,
     ) -> anyhow::Result<Response> {
-        let host = format!(
-            "http{}://{}:{}",
-            if self.config.https { "s" } else { "" },
-            self.config.host,
-            self.config.port
-        );
-        let mut uri = format!(
-            "{}/?query={} format {format}{}",
-            host,
-            replace_new_line_to_whitespace(query)?,
-            match &self.config.db {
-                Some(x) => format!("&database={}", x),
-                None => "".to_string(),
-            }
-        );
+        let mut url = reqwest::Url::parse(
+            format!(
+                "http{}://{}:{}",
+                if self.config.https { "s" } else { "" },
+                self.config.host,
+                self.config.port
+            )
+            .as_str(),
+        )?;
+        let query_pairs = vec![("query", format!("{} FORMAT {}", query, format_))];
+        url.query_pairs_mut().extend_pairs(&query_pairs);
         if let Some(extra) = http_extra {
-            uri.push('&');
-            uri.push_str(&extra);
+            url.query_pairs_mut().extend_pairs(&extra);
         }
-        log::info!("url:{}", uri);
+        log::info!("url:{}", url);
         let response = self
             .http_client
-            .get(uri)
+            .get(url)
             .basic_auth(&self.config.username, self.config.password.as_ref())
             .send()
             .await?;
@@ -1357,20 +1346,6 @@ pub(crate) fn make_test_object() -> ClickHouseDB {
     .unwrap()
 }
 
-/// clickhouse 换行转成空格 不然用url查询会有问题
-/// 原因不详
-fn replace_new_line_to_whitespace(sql: &str) -> anyhow::Result<String> {
-    let dialect = sqlparser::dialect::ClickHouseDialect {};
-    let tokens = sqlparser::tokenizer::Tokenizer::new(&dialect, sql)
-        .tokenize()?
-        .iter()
-        .filter(|x| !matches!(x, Token::Whitespace(_)))
-        .map(|x| x.to_string())
-        .collect::<Vec<_>>();
-
-    anyhow::Ok(tokens.join(" "))
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -1381,23 +1356,6 @@ mod tests {
     };
     use crate::enable_test_log;
     use std::collections::HashMap;
-
-    #[test]
-    fn test_replace_new_line_to_whitespace() {
-        {
-            let sql = r#"select *
-from test"#;
-            let x = replace_new_line_to_whitespace(sql).unwrap();
-            assert_eq!(x, "select * from test");
-        }
-        {
-            let sql = r#"select *
-from test
-;"#;
-            let x = replace_new_line_to_whitespace(sql).unwrap();
-            assert_eq!(x, "select * from test ;");
-        }
-    }
 
     #[tokio::test]
     async fn test_udf() {
@@ -1438,6 +1396,25 @@ from test
         let db = make_test_object();
         let ping_time = db.check_conn().await.unwrap();
         println!("{:?}", ping_time);
+    }
+
+    #[tokio::test]
+    async fn test_check_query_xxx() {
+        enable_test_log();
+
+        let db = make_test_object();
+        let query_id = "";
+        db.open_connection(query_id).await.unwrap();
+        db.query_sql(
+            query_id,
+            r#"
+select * from
+default.test_dup
+        "#,
+            Arc::new(TestQueryEventEmit::default()),
+        )
+        .await
+        .unwrap();
     }
     #[tokio::test]
     async fn test_show_metas() {

@@ -578,7 +578,7 @@ impl SchemaTrait for SubDB {
         }
     }
 
-    async fn drop_sequence(&self, name: &str, cascade: bool) -> anyhow::Result<()> {
+    async fn drop_sequence(&self, name: &str, cascade: bool) -> anyhow::Result<String> {
         match self {
             SubDB::MariaDb(db) => {
                 let t = MariaDB { db: db.clone() };

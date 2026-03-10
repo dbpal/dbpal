@@ -123,37 +123,30 @@ function EventMenu(props: {
   id: string;
 }) {
   const { uuid, event, reload, kind, id } = props;
-  const { setSelectTab, setTabs, tabs } = useContext(TabsSetContext);
+  const { setSelectTab, tabs, appendTab } = useContext(TabsSetContext);
   const { showNotification } = useContext(NotificationContext);
   const handleOpenDetails = () => {
     const index = tabsHasId(tabs, id);
     if (typeof index == "number") {
       setSelectTab(index);
     } else {
-      setTabs((e) => {
-        setTimeout(() => {
-          setSelectTab(tabs.length);
-        }, 100);
-
-        return [
-          ...e,
-          new TabContent(
-            id,
-            event.name,
-            <DefAndMetasView
-              reloadOP={async () => {
-                return Promise.resolve({
-                  def: event.sql,
-                  metas: event.metas,
-                } as DefAndMetas);
-              }}
-              kind={kind}
-              uuid={uuid}
-            />,
-            <MdOutlineEventRepeat className="tab-icon-size" />,
-          ),
-        ];
-      });
+      appendTab(
+        new TabContent(
+          id,
+          event.name,
+          <DefAndMetasView
+            reloadOP={async () => {
+              return Promise.resolve({
+                def: event.sql,
+                metas: event.metas,
+              } as DefAndMetas);
+            }}
+            kind={kind}
+            uuid={uuid}
+          />,
+          <MdOutlineEventRepeat className="tab-icon-size" />,
+        ),
+      );
     }
   };
   const handleDrop = async () => {

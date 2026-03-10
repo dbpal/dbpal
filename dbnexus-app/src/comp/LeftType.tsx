@@ -122,36 +122,30 @@ function TypeMenu(props: {
   id: string;
 }) {
   const { uuid, createdType, reload, kind, id } = props;
-  const { setSelectTab, setTabs, tabs } = useContext(TabsSetContext);
+  const { setSelectTab, tabs, appendTab } = useContext(TabsSetContext);
   const { showNotification } = useContext(NotificationContext);
   const handleOpenDetails = () => {
     const index = tabsHasId(tabs, id);
     if (typeof index == "number") {
       setSelectTab(index);
     } else {
-      setTabs((e) => {
-        setTimeout(() => {
-          setSelectTab(tabs.length);
-        }, 100);
-        return [
-          ...e,
-          new TabContent(
-            id,
-            createdType.name,
-            <DefAndMetasView
-              reloadOP={async () => {
-                return Promise.resolve({
-                  def: createdType.sql,
-                  metas: [],
-                });
-              }}
-              kind={kind}
-              uuid={uuid}
-            />,
-            <PiTreeStructureFill className="tab-icon-size" />,
-          ),
-        ];
-      });
+      appendTab(
+        new TabContent(
+          id,
+          createdType.name,
+          <DefAndMetasView
+            reloadOP={async () => {
+              return Promise.resolve({
+                def: createdType.sql,
+                metas: [],
+              });
+            }}
+            kind={kind}
+            uuid={uuid}
+          />,
+          <PiTreeStructureFill className="tab-icon-size" />,
+        ),
+      );
     }
   };
   const handleDrop = async () => {

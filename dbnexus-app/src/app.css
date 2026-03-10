@@ -24,7 +24,7 @@
   background-color: gray;
 }
 .resize-handle:hover {
-  background-color: rgb(132, 244, 132);
+  background-color: rgb(107, 165, 251);
   box-shadow: 0 0 4px;
 }
 

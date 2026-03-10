@@ -10,7 +10,7 @@ import {
 } from "react";
 import { TabContent, TabsWithContent } from "./Tabs";
 import { Left } from "./Left";
-import { SettingComp } from "./Settings.tsx";
+import { SettingProvider } from "./Settings.tsx";
 import {
   ContextMenuContext,
   secondConfirm,
@@ -192,8 +192,19 @@ function App() {
   }, []);
 
   return (
-    <SettingComp>
-      <TabsSetContext.Provider value={{ setTabs, tabs, setSelectTab: setTab }}>
+    <SettingProvider>
+      <TabsSetContext.Provider
+        value={{
+          tabs,
+          setSelectTab: setTab,
+          appendTab: (tab) => {
+            setTimeout(() => {
+              setTab(tabs.length);
+            }, 100);
+            setTabs((tabs) => [...tabs, tab]);
+          },
+        }}
+      >
         <NotificationProvider>
           <Menu>
             <div>
@@ -244,7 +255,7 @@ function App() {
           </Menu>
         </NotificationProvider>
       </TabsSetContext.Provider>
-    </SettingComp>
+    </SettingProvider>
   );
 }
 

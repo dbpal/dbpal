@@ -3093,7 +3093,7 @@ pub async fn drop_sequence(
     app: tauri::State<'_, DBPal>,
     seq: String,
     cascade: bool,
-) -> Result<(), ErrorFrontend> {
+) -> Result<String, ErrorFrontend> {
     let schema = app
         .get_schema(name.as_str())
         .await

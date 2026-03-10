@@ -582,7 +582,6 @@ async fn make_test_object() -> CouchBaseDB {
 }
 
 #[cfg(test)]
-
 mod tests {
     use super::*;
     use crate::enable_test_log;

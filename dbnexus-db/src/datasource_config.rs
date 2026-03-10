@@ -312,7 +312,6 @@ pub struct SqlServerDBConfig {
     pub port: u16,
     pub username: Option<String>,
     pub password: Option<String>,
-
     pub db: Option<String>,
     pub trust_cert: bool,
     pub schema: Option<String>,
@@ -337,7 +336,6 @@ impl SqlServerDBConfig {
 pub struct OracleDBConfig {
     pub username: String,
     pub password: String,
-
     pub host: String,
     pub port: u16,
     pub schema: Option<String>,

@@ -119,8 +119,4 @@ function NotificationProvider(props: { children: ReactNode }) {
   );
 }
 
-//@ts-ignore
-function isCancelledError(e: { cancelled?: boolean }) {
-  return typeof e == "object" && e.cancelled;
-}
 export { NotificationProvider };

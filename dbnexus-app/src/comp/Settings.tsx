@@ -1215,7 +1215,7 @@ const makeTheme = (s: UserSetting) => {
   });
 };
 
-function SettingComp(props: { children: ReactNode }) {
+function SettingProvider(props: { children: ReactNode }) {
   const { children } = props;
   const [setting, setSetting] = useState<UserSetting>(null);
   const reload = async () => {
@@ -1312,4 +1312,4 @@ function ModifyLLMConfigModal() {
   );
 }
 
-export { ModifySetting, SettingComp, ModifyLLMConfigModal };
+export { ModifySetting, SettingProvider, ModifyLLMConfigModal };

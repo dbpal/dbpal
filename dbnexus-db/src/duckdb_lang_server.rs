@@ -405,7 +405,7 @@ mod tests {
     // partition test failed , sqlparser can't parse a valid partition statement.
     #[tokio::test]
     async fn test_auto_completion() {
-        let db = make_test_object(Some("main".to_string()));
+        let db = make_test_object(Some("main".to_string())).await;
         enable_test_log();
         let query_id = "";
         db.open_connection(query_id).await.unwrap();
@@ -420,8 +420,7 @@ mod tests {
                         job_title TEXT NOT NULL,         
                         hire_date DATE NOT NULL,          
                         salary DECIMAL(10, 2) NOT NULL  
-                    );
-                 "#,
+                    )#,
         )
         .await
         .unwrap()
@@ -456,14 +455,14 @@ mod tests {
     #[tokio::test]
     async fn test_completion_xxx() {
         enable_test_log();
-        let db = make_test_object("main".to_owned().into());
+        let db = make_test_object("main".to_owned().into()).await;
         test_file_auto_completion(include_str!("./xxx.sql"), &db, None, true).await;
     }
 
     #[tokio::test]
 
     async fn test_try_get_max_id() {
-        let db = make_test_object(Some("main".to_string()));
+        let db = make_test_object(Some("main".to_string())).await;
         let max_id = db.try_get_max_id("employees").await.unwrap();
         println!("max id is:{}", max_id);
     }

@@ -479,7 +479,7 @@ impl SchemaTrait for PostGresDB {
         anyhow::Ok(sql)
     }
 
-    async fn drop_sequence(&self, name: &str, cascade: bool) -> anyhow::Result<()> {
+    async fn drop_sequence(&self, name: &str, cascade: bool) -> anyhow::Result<String> {
         let sql = format!(
             r#"DROP SEQUENCE IF EXISTS "{name}" {};"#,
             if cascade { "CASCADE" } else { "" }
@@ -489,7 +489,7 @@ impl SchemaTrait for PostGresDB {
         sqlx::raw_sql(AssertSqlSafe(sql.as_str()))
             .execute(conn.deref_mut())
             .await?;
-        anyhow::Ok(())
+        anyhow::Ok(sql)
     }
 
     async fn list_created_types(&self) -> anyhow::Result<Vec<CreatedTypeDef>> {

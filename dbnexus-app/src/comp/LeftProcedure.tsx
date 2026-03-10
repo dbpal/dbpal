@@ -123,7 +123,7 @@ function ProcedureMenu(props: {
   id: string;
 }) {
   const { uuid, procedure, reload, kind, id } = props;
-  const { setSelectTab, setTabs, tabs } = useContext(TabsSetContext);
+  const { setSelectTab, tabs, appendTab } = useContext(TabsSetContext);
   const { showNotification } = useContext(NotificationContext);
 
   const handleOpenDetails = () => {
@@ -131,27 +131,20 @@ function ProcedureMenu(props: {
     if (typeof index == "number") {
       setSelectTab(index);
     } else {
-      setTabs((e) => {
-        setTimeout(() => {
-          setSelectTab(tabs.length);
-        }, 100);
-
-        return [
-          ...e,
-          new TabContent(
-            id,
-            procedure.name,
-            <DefAndMetasView
-              reloadOP={async () => {
-                return showProcedure(uuid, procedure, kind);
-              }}
-              kind={kind}
-              uuid={uuid}
-            />,
-            <SiProcessingfoundation className="tab-icon-size" />,
-          ),
-        ];
-      });
+      appendTab(
+        new TabContent(
+          id,
+          procedure.name,
+          <DefAndMetasView
+            reloadOP={async () => {
+              return showProcedure(uuid, procedure, kind);
+            }}
+            kind={kind}
+            uuid={uuid}
+          />,
+          <SiProcessingfoundation className="tab-icon-size" />,
+        ),
+      );
     }
   };
 

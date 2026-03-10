@@ -142,34 +142,26 @@ function LeftTop(props: {
 }) {
   const { matchPattern, setMatchPattern, setMaxTreeSize, maxTreeSize } = props;
   const [matchPatterInput, setMatchPatternInput] = useState("");
-  // const [showFavoriteSql, setShowFavoriteSql] = useState(false);
-  // const [showCopyConn, setShowCopyConn] = useState(false);
   const { showNotification } = useContext(NotificationContext);
   const saveLeftTopShow = useRef(new SaveBoolToLocalStorage("left-top-show"));
   const [show, setShow] = useState(saveLeftTopShow.current.get());
-  const { setTabs, setSelectTab, tabs } = useContext(TabsSetContext);
+  const { appendTab, setSelectTab, tabs } = useContext(TabsSetContext);
   useEffect(() => {
     saveLeftTopShow.current.save(show);
   }, [show]);
   const [showEditFilter, setShowEditFilter] = useState(false);
   const showAddConnection = useCallback(
     async (conn?: types.DBConnectionConfig) => {
-      setTabs((e) => {
-        setTimeout(() => {
-          setSelectTab(e.length + 1);
-        }, 100);
-        return [
-          ...e,
-          new TabContent(
-            generateRandomString(),
-            "add connection",
-            <AddConnection config={conn} />,
-            <GrConnect className="tab-icon-size" />,
-          ),
-        ];
-      });
+      appendTab(
+        new TabContent(
+          generateRandomString(),
+          "add connection",
+          <AddConnection config={conn} />,
+          <GrConnect className="tab-icon-size" />,
+        ),
+      );
     },
-    [setSelectTab, setTabs],
+    [appendTab],
   );
 
   useEffect(() => {
@@ -189,20 +181,14 @@ function LeftTop(props: {
       if (typeof index == "number") {
         setSelectTab(index);
       } else {
-        setTabs((e) => {
-          setTimeout(() => {
-            setSelectTab(e.length + 1);
-          }, 100);
-          return [
-            ...e,
-            new TabContent(
-              settingId,
-              "setting",
-              <ModifySetting />,
-              <IoMdSettings className="tab-icon-size" />,
-            ),
-          ];
-        });
+        appendTab(
+          new TabContent(
+            settingId,
+            "setting",
+            <ModifySetting />,
+            <IoMdSettings className="tab-icon-size" />,
+          ),
+        );
       }
     });
     return () => {
@@ -210,7 +196,7 @@ function LeftTop(props: {
         callback();
       });
     };
-  }, [setSelectTab, setTabs, tabs]);
+  }, [appendTab, setSelectTab, tabs]);
 
   const toggleShow = () => {
     setShow((e) => !e);
@@ -261,20 +247,14 @@ function LeftTop(props: {
         <Tooltip title="Favorite sql statement">
           <IconButton
             onClick={() => {
-              setTabs((tabs) => {
-                setTimeout(() => {
-                  setSelectTab(tabs.length);
-                }, 100);
-                return [
-                  ...tabs,
-                  new TabContent(
-                    generateRandomString(),
-                    "favorite sql",
-                    <FavoriteSqlList />,
-                    <FaBookmark />,
-                  ),
-                ];
-              });
+              appendTab(
+                new TabContent(
+                  generateRandomString(),
+                  "favorite sql",
+                  <FavoriteSqlList />,
+                  <FaBookmark />,
+                ),
+              );
             }}
           >
             <FaBookmark style={{ fontSize: "2.1rem" }}> </FaBookmark>
@@ -284,20 +264,14 @@ function LeftTop(props: {
         <Tooltip title="copy a connection">
           <IconButton
             onClick={() => {
-              return setTabs((tabs) => {
-                setTimeout(() => {
-                  setSelectTab(tabs.length);
-                }, 100);
-                return [
-                  ...tabs,
-                  new TabContent(
-                    generateRandomString(),
-                    "copy connection",
-                    <CopyConnection />,
-                    <FaCopy />,
-                  ),
-                ];
-              });
+              appendTab(
+                new TabContent(
+                  generateRandomString(),
+                  "copy connection",
+                  <CopyConnection />,
+                  <FaCopy />,
+                ),
+              );
             }}
           >
             <FaCopy style={{ fontSize: "2.2rem" }}> </FaCopy>
@@ -480,7 +454,7 @@ function CopyConnection() {
   const { showNotification } = useContext(NotificationContext);
   const setting = useContext(SettingContext);
   const { setUpMenu } = useContext(ContextMenuContext);
-  const { setTabs, setSelectTab } = useContext(TabsSetContext);
+  const { appendTab } = useContext(TabsSetContext);
 
   const handleRow = useCallback(
     async (conn) => {
@@ -489,23 +463,16 @@ function CopyConnection() {
       if (password) {
         cop["password"] = password;
       }
-
-      setTabs((tabs) => {
-        setTimeout(() => {
-          setSelectTab(tabs.length);
-        }, 100);
-        return [
-          ...tabs,
-          new TabContent(
-            generateRandomString(),
-            "add connection",
-            <AddConnection config={cop} />,
-            <GrConnect />,
-          ),
-        ];
-      });
+      appendTab(
+        new TabContent(
+          generateRandomString(),
+          "add connection",
+          <AddConnection config={cop} />,
+          <GrConnect />,
+        ),
+      );
     },
-    [setSelectTab, setTabs],
+    [appendTab],
   );
 
   const slotProps = useMemo(() => {
@@ -779,7 +746,7 @@ function FavoriteSqlList() {
     [showNotification, uuidFilter],
   );
 
-  const { setTabs, setSelectTab } = useContext(TabsSetContext);
+  const { appendTab } = useContext(TabsSetContext);
 
   const checkConnOpened = useCallback(
     async (uuid: string) => {
@@ -803,34 +770,28 @@ function FavoriteSqlList() {
         if (!(await checkConnOpened(row.uuid))) {
           return;
         }
-        setTabs((tabs) => {
-          const content = (
-            <AllKindChat
-              kind={row.kind}
-              uuid={row.uuid}
-              value={row.sql}
-              favoriteName={row.name}
-              language={row.language}
-            />
-          );
-          setTimeout(() => {
-            setSelectTab(tabs.length);
-          }, 100);
-          return [
-            ...tabs,
-            new TabContent(
-              generateRandomString(10),
-              `${row.uuid}`,
-              content,
-              <TbDatabaseSearch className="tab-icon-size" />,
-            ),
-          ];
-        });
+        const content = (
+          <AllKindChat
+            kind={row.kind}
+            uuid={row.uuid}
+            value={row.sql}
+            favoriteName={row.name}
+            language={row.language}
+          />
+        );
+        appendTab(
+          new TabContent(
+            generateRandomString(10),
+            `${row.uuid}`,
+            content,
+            <TbDatabaseSearch className="tab-icon-size" />,
+          ),
+        );
       } catch (e) {
         showNotification("error", "use sql failure", e);
       }
     },
-    [checkConnOpened, setSelectTab, setTabs, showNotification],
+    [appendTab, checkConnOpened, showNotification],
   );
   const onSortModelChange = useCallback((e) => {
     setSortModel(e);
@@ -1246,7 +1207,7 @@ function DatabaseMenu(props: {
   } = props;
   const { showNotification } = useContext(NotificationContext);
   const [showCreateSchema, setShowCreateSchema] = useState(false);
-  const { setSelectTab, setTabs } = useContext(TabsSetContext);
+  const { appendTab } = useContext(TabsSetContext);
   return (
     <div>
       <MenuList>
@@ -1256,7 +1217,7 @@ function DatabaseMenu(props: {
           kind != DataSourceKind.CouchBase && (
             <MenuNewQuery
               handleNew={() => {
-                openNewQuery(setSelectTab, setTabs, uuid, kind);
+                openNewQuery(appendTab, uuid, kind);
               }}
             />
           )}
@@ -1494,38 +1455,24 @@ function AllKindQuery(props: {
   return <div style={{ height: "100%" }}> {content}</div>;
 }
 
-function openNewQuery(setSelectTab, setTabs, uuid: string, kind: DataSourceKind) {
+function openNewQuery(appendTab, uuid: string, kind: DataSourceKind) {
   console.log("open new query uuid:", uuid);
   const id = uuid + "-query-" + generateRandomString();
   const content = <AllKindChat kind={kind} uuid={uuid} />;
-  setTabs((e: TabContent[]) => {
-    setTimeout(() => {
-      setSelectTab(e.length);
-    }, 100);
-    return [
-      ...e,
-      new TabContent(
-        id,
-        `${uuid}`,
-        content,
-        <TbDatabaseSearch className="tab-icon-size" />,
-      ),
-    ];
-  });
+  appendTab(
+    new TabContent(
+      id,
+      `${uuid}`,
+      content,
+      <TbDatabaseSearch className="tab-icon-size" />,
+    ),
+  );
 }
 
-function openNewCreateTable(setSelectTab, setTabs, uuid: string, kind: DataSourceKind) {
+function openNewCreateTable(appendTab, uuid: string, kind: DataSourceKind) {
   const id = uuid + "-query-" + generateRandomString();
   const content = <CreateTable kind={kind} uuid={uuid} />;
-  setTabs((e: TabContent[]) => {
-    setTimeout(() => {
-      setSelectTab(e.length);
-    }, 100);
-    return [
-      ...e,
-      new TabContent(id, `create table`, content, <IoIosCreate> </IoIosCreate>),
-    ];
-  });
+  appendTab(new TabContent(id, `create table`, content, <IoIosCreate> </IoIosCreate>));
 }
 
 function SchemaMenu(props: {
@@ -1548,7 +1495,7 @@ function SchemaMenu(props: {
     kind,
     setLoading,
   } = props;
-  const { setSelectTab, setTabs } = useContext(TabsSetContext);
+  const { appendTab } = useContext(TabsSetContext);
   const { showNotification } = useContext(NotificationContext);
   return (
     <MenuList>
@@ -1559,7 +1506,7 @@ function SchemaMenu(props: {
       {opened && (
         <MenuNewQuery
           handleNew={() => {
-            openNewQuery(setSelectTab, setTabs, uuid, kind);
+            openNewQuery(appendTab, uuid, kind);
           }}
         />
       )}
@@ -1570,7 +1517,7 @@ function SchemaMenu(props: {
         kind != DataSourceKind.CouchBase && (
           <MenuItem
             onClick={() => {
-              openNewCreateTable(setSelectTab, setTabs, uuid, kind);
+              openNewCreateTable(appendTab, uuid, kind);
             }}
           >
             <ListItemIcon>

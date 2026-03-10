@@ -30,7 +30,6 @@ pub enum BackendKind {
     BigQuery,
     Db2,
     CouchBase,
-    Neo4j,
 }
 
 impl BackendKind {
@@ -566,7 +565,7 @@ pub trait SchemaTrait:
         self.backend_name().not_support_feature()
     }
 
-    async fn drop_sequence(&self, _name: &str, _cascade: bool) -> anyhow::Result<()> {
+    async fn drop_sequence(&self, _name: &str, _cascade: bool) -> anyhow::Result<String> {
         self.backend_name().not_support_feature()
     }
     fn list_sql_current_values(&self) -> &'static [&'static str] {

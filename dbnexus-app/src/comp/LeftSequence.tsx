@@ -156,7 +156,7 @@ function SequenceMenu(props: {
   id: string;
 }) {
   const { uuid, seq, reload, kind, id } = props;
-  const { setSelectTab, setTabs, tabs } = useContext(TabsSetContext);
+  const { setSelectTab, tabs, appendTab } = useContext(TabsSetContext);
   const { showNotification } = useContext(NotificationContext);
   const [showDrop, setShowDrop] = useState(false);
   const [cascade, setCascade] = useState(false);
@@ -167,27 +167,20 @@ function SequenceMenu(props: {
     if (typeof index == "number") {
       setSelectTab(index);
     } else {
-      setTabs((e) => {
-        setTimeout(() => {
-          setSelectTab(tabs.length);
-        }, 100);
-
-        return [
-          ...e,
-          new TabContent(
-            id,
-            seq.name,
-            <DefAndMetasView
-              reloadOP={() => {
-                return Promise.resolve(details2DefMetas(seq));
-              }}
-              kind={kind}
-              uuid={uuid}
-            />,
-            <GrSteps className="tab-icon-size" />,
-          ),
-        ];
-      });
+      appendTab(
+        new TabContent(
+          id,
+          seq.name,
+          <DefAndMetasView
+            reloadOP={() => {
+              return Promise.resolve(details2DefMetas(seq));
+            }}
+            kind={kind}
+            uuid={uuid}
+          />,
+          <GrSteps className="tab-icon-size" />,
+        ),
+      );
     }
   };
 

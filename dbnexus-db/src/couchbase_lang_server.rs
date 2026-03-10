@@ -119,6 +119,7 @@ impl LangServerCommon for CouchBaseDB {
         let sql = format!("select * from `{name }`");
         let mut resp = s.query(sql, None).await?;
         let mut rows = resp.rows::<'_, serde_json::Map<String, Value>>();
+        #[allow(clippy::never_loop)]
         while let Some(row) = rows.next().await {
             let row = row?;
             return anyhow::Ok(

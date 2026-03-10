@@ -78,13 +78,13 @@ impl MariaDB {
         anyhow::Ok(sql)
     }
 
-    pub(crate) async fn drop_sequence(&self, name: &str, _cascade: bool) -> anyhow::Result<()> {
+    pub(crate) async fn drop_sequence(&self, name: &str, _cascade: bool) -> anyhow::Result<String> {
         let sql = format!("DROP SEQUENCE IF EXISTS {name};");
         let mut conn = self.db.get_conn().await?;
         sqlx::raw_sql(AssertSqlSafe(sql.as_str()))
             .execute(conn.deref_mut())
             .await?;
-        anyhow::Ok(())
+        anyhow::Ok(sql)
     }
 }
 

@@ -422,7 +422,7 @@ function TableMenu(props: {
   const [showExport, setShowExport] = useState(false);
 
   const { showNotification } = useContext(NotificationContext);
-  const { tabs, setTabs, setSelectTab } = useContext(TabsSetContext);
+  const { tabs, setSelectTab, appendTab } = useContext(TabsSetContext);
 
   const handleTruncateTable = async () => {
     const confirm = await secondConfirm({
@@ -446,44 +446,26 @@ function TableMenu(props: {
   const handleViewData = () => {
     const id = uuid + "-table-" + generateRandomString(10);
     const tableList: ReactNode = makeViewTable(uuid, table, kind, redisTableType);
-    setTabs((e) => {
-      setTimeout(() => {
-        setSelectTab(tabs.length);
-      }, 100);
-
-      return [
-        ...e,
-        new TabContent(
-          id,
-          table,
-          tableList,
-          <TableViewIcon className="tab-icon-size" />,
-        ),
-      ];
-    });
+    appendTab(
+      new TabContent(id, table, tableList, <TableViewIcon className="tab-icon-size" />),
+    );
   };
   const handleAddData = async () => {
     const id = generateRandomString(10);
 
-    setTabs((e) => {
-      setTimeout(() => {
-        setSelectTab(tabs.length);
-      }, 100);
-      return [
-        ...e,
-        new TabContent(
-          id,
-          `${table}*`,
-          <AddTableView
-            uuid={uuid}
-            kind={kind}
-            table={table}
-            redisTableType={redisTableType}
-          />,
-          <TableViewIcon className="tab-icon-size" />,
-        ),
-      ];
-    });
+    appendTab(
+      new TabContent(
+        id,
+        `${table}*`,
+        <AddTableView
+          uuid={uuid}
+          kind={kind}
+          table={table}
+          redisTableType={redisTableType}
+        />,
+        <TableViewIcon className="tab-icon-size" />,
+      ),
+    );
   };
 
   const handleStructure = () => {
@@ -492,21 +474,14 @@ function TableMenu(props: {
     if (typeof index == "number") {
       setSelectTab(index);
     } else {
-      setTabs((e) => {
-        setTimeout(() => {
-          setSelectTab(tabs.length);
-        }, 100);
-
-        return [
-          ...e,
-          new TabContent(
-            id,
-            `${table}`,
-            <TableStructure kind={kind} table={table} uuid={uuid} />,
-            <IoConstructOutline className="tab-icon-size" />,
-          ),
-        ];
-      });
+      appendTab(
+        new TabContent(
+          id,
+          `${table}`,
+          <TableStructure kind={kind} table={table} uuid={uuid} />,
+          <IoConstructOutline className="tab-icon-size" />,
+        ),
+      );
     }
   };
 

@@ -12,7 +12,6 @@ pub mod cassandra_lang_server;
 pub mod clickhouse;
 pub mod clickhouse_lang_server;
 pub mod cockroach;
-pub mod cockroach_lang_server;
 pub mod couchbase;
 pub mod couchbase_lang_server;
 
@@ -39,10 +38,6 @@ pub mod mssql;
 pub mod mssql_lang_server;
 pub mod mysql;
 pub mod mysql_lang_server;
-#[cfg(feature = "neo4j")]
-pub mod neo4j;
-#[cfg(feature = "neo4j")]
-pub mod neo4j_lang_server;
 
 #[cfg(feature = "odbc")]
 pub mod odbc;

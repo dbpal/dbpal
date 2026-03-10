@@ -255,7 +255,6 @@ impl DBConnectionConfig {
             }
             DBConnectionConfig::Redis { conn, .. } => {
                 let redis = dbnexus_db::redis::RedisDB::new(conn.clone()).await?;
-
                 let db = match &conn.db {
                     Some(_) => DatabaseBackend::Schema(Arc::new(redis) as Arc<dyn SchemaTrait>),
                     None => DatabaseBackend::DataBase(Arc::new(redis) as Arc<dyn DBTrait>),
@@ -266,13 +265,13 @@ impl DBConnectionConfig {
             DBConnectionConfig::Oracle { conn, .. } => match conn.schema.as_ref() {
                 Some(_) => {
                     let db: Arc<dyn SchemaTrait> =
-                        Arc::new(dbnexus_db::oracle::OracleDB::new(conn.clone(), None)?)
+                        Arc::new(dbnexus_db::oracle::OracleDB::new(conn.clone(), None).await?)
                             as Arc<dyn SchemaTrait>;
                     anyhow::Ok(DatabaseBackend::Schema(db))
                 }
                 None => {
                     let db: Arc<dyn DBTrait> =
-                        Arc::new(dbnexus_db::oracle::OracleDB::new(conn.clone(), None)?)
+                        Arc::new(dbnexus_db::oracle::OracleDB::new(conn.clone(), None).await?)
                             as Arc<dyn DBTrait>;
                     anyhow::Ok(DatabaseBackend::DataBase(db))
                 }
@@ -288,7 +287,7 @@ impl DBConnectionConfig {
             DBConnectionConfig::DuckDB { conn: _conn, .. } => {
                 #[cfg(feature = "duckdb")]
                 {
-                    let db = dbnexus_db::duckdb::DuckDB::new(_conn.clone())?;
+                    let db = dbnexus_db::duckdb::DuckDB::new(_conn.clone()).await?;
                     match &_conn.db {
                         Some(_) => match &_conn.schema {
                             Some(_) => anyhow::Ok(DatabaseBackend::from(

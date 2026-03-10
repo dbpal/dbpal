@@ -24,9 +24,7 @@ import * as monaco from "monaco-editor";
 import prettyMilliseconds from "pretty-ms";
 import { emitTo } from "@tauri-apps/api/event";
 import { cancelTask } from "./handlers";
-
 loader.config({ monaco });
-
 const pageSizeOptions = [10, 20, 50, 100];
 const appStore = await Store.load("store.json");
 function prettyMs(x: number) {
@@ -557,8 +555,8 @@ class TabContent {
 }
 const TabsSetContext = createContext<{
   tabs: TabContent[];
-  setTabs;
   setSelectTab;
+  appendTab(tab: TabContent);
 }>(null);
 
 const LLMConfigContext = createContext<null | LLMConfig>(null);
@@ -637,6 +635,7 @@ class DocsAndCount {
 }
 
 function notifySettingChange() {
+  // due to this issue https://github.com/tauri-apps/tauri/issues/14750
   setTimeout(() => {
     emitTo(
       { label: WebviewWindow.getCurrent().label, kind: "WebviewWindow" },

@@ -629,7 +629,9 @@ function ClickHouse(props: { config? }) {
 function PostGres(props: { config; kind: DataSourceKind }) {
   const { config, kind } = props;
   const [host, setHost] = useState(getHost(config));
-  const [port, setPort] = useState<string>((config?.port || 5432) + "");
+  const [port, setPort] = useState<string>(
+    (config?.port || (kind === DataSourceKind.Postgres ? 5432 : 26257)) + "",
+  );
 
   const [user, setUser] = useState(getUser(config));
   const [password, setPassword] = useState(getPassword(config));
@@ -1262,8 +1264,11 @@ function AddConnection(props: { config?: types.DBConnectionConfig }) {
           <Typography variant="h6"> server info </Typography>
           <Divider />
           {(connectionType === DataSourceKind.Mysql ||
-            connectionType === DataSourceKind.MariaDB ||
-            connectionType === DataSourceKind.TiDB) && (
+            connectionType === DataSourceKind.MariaDB) && (
+            <Mysql config={config} kind={connectionType as DataSourceKind} />
+          )}
+
+          {connectionType === DataSourceKind.TiDB && (
             <Mysql config={config} kind={connectionType as DataSourceKind} />
           )}
 

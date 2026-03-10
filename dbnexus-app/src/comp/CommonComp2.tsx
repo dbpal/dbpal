@@ -546,22 +546,16 @@ function EditorBar(props: { left?: any; pos: Position }) {
 }
 
 function MenuConnectionInfo({ uuid }) {
-  const { setTabs, setSelectTab } = useContext(TabsSetContext);
+  const { appendTab } = useContext(TabsSetContext);
   const handleInfo = async () => {
-    setTabs((e) => {
-      setTimeout(() => {
-        setSelectTab(e.length + 1);
-      }, 100);
-      return [
-        ...e,
-        new TabContent(
-          generateRandomString(),
-          uuid,
-          <ConnConfigInfo uuid={uuid} />,
-          <IoMdInformationCircleOutline className="tab-icon-size" />,
-        ),
-      ];
-    });
+    appendTab(
+      new TabContent(
+        generateRandomString(),
+        uuid,
+        <ConnConfigInfo uuid={uuid} />,
+        <IoMdInformationCircleOutline className="tab-icon-size" />,
+      ),
+    );
   };
   return (
     <MenuItem onClick={handleInfo}>
