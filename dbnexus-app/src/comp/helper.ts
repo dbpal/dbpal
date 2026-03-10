@@ -1,3 +1,8 @@
+import { loader } from "@monaco-editor/react";
+
+import * as monaco from "monaco-editor";
+loader.config({ monaco });
+
 import { editor, languages, Position } from "monaco-editor";
 import types from "./ApiStruct";
 import {
@@ -17,14 +22,13 @@ import Database, { QueryResult } from "@tauri-apps/plugin-sql";
 import { WebviewWindow } from "@tauri-apps/api/webviewWindow";
 import { platform } from "@tauri-apps/plugin-os";
 import themelist from "../../monaco-themes/themes/themelist.json";
-import { loader } from "@monaco-editor/react";
-// import { emit } from "@tauri-apps/api/event";
+
 import { PassWordManager } from "./Common";
-import * as monaco from "monaco-editor";
+
 import prettyMilliseconds from "pretty-ms";
 import { emitTo } from "@tauri-apps/api/event";
 import { cancelTask } from "./handlers";
-loader.config({ monaco });
+
 const pageSizeOptions = [10, 20, 50, 100];
 const appStore = await Store.load("store.json");
 function prettyMs(x: number) {
