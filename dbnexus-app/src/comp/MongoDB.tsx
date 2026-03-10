@@ -36,7 +36,7 @@ import {
   useRef,
   useState,
 } from "react";
-
+import { loader } from "./helper";
 import { BSON, EJSON } from "bson";
 import { NotificationContext } from "./Notification";
 import { TbJson } from "react-icons/tb";
