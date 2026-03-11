@@ -440,10 +440,10 @@ function SqlTableView(props: {
   }, [allowFiltering, page, pageSize, sort, where]);
   const handleReload = useCallback(
     (showOK: boolean) => {
-      if (ops.length > 0) {
-        showNotification("warning", "we have unsaved changes,not loading data");
-        return;
-      }
+      // if (ops.length > 0) {
+      //   showNotification("warning", "we have unsaved changes,not loading data");
+      //   return;
+      // }
       switch (kind) {
         case DataSourceKind.Cassandra:
           break;
@@ -471,7 +471,7 @@ function SqlTableView(props: {
         },
       });
     },
-    [isTable, kind, makePara, ops.length, showNotification, tableName, uuid],
+    [isTable, kind, makePara, showNotification, tableName, uuid],
   );
 
   const handleProcessRowUpdate = useCallback(
