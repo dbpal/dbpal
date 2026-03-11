@@ -839,7 +839,7 @@ function SqlTableView(props: {
                   result {resp.data.length} of {resp.total}
                 </Typography>
               )}
-              <AppDataGridPagination showPageSelect />
+              <AppDataGridPagination showPageSelect disabled={ops.length > 0} />
             </Stack>
           </Stack>
         );

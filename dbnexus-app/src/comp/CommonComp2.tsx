@@ -1334,8 +1334,11 @@ function SqlDefaultValue(props: { uuid: string; defaultValue; setDefaultValue })
   );
 }
 
-function AppDataGridPagination(props: { showPageSelect?: boolean }) {
-  const { showPageSelect } = props;
+function AppDataGridPagination(props: {
+  showPageSelect?: boolean;
+  disabled?: boolean;
+}) {
+  const { showPageSelect, disabled } = props;
   const apiRef = useGridApiContext();
   const paginationModel = useGridSelector(apiRef, gridPaginationModelSelector);
   const pageCount = useGridSelector(apiRef, gridPageCountSelector);
@@ -1345,6 +1348,7 @@ function AppDataGridPagination(props: { showPageSelect?: boolean }) {
         count={pageCount}
         page={paginationModel.page + 1}
         color="primary"
+        disabled={disabled}
         onChange={(_, value) => apiRef.current.setPage(value - 1)}
       />
       {showPageSelect && (
