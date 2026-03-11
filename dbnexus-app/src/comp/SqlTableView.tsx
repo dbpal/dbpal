@@ -440,10 +440,6 @@ function SqlTableView(props: {
   }, [allowFiltering, page, pageSize, sort, where]);
   const handleReload = useCallback(
     (showOK: boolean) => {
-      // if (ops.length > 0) {
-      //   showNotification("warning", "we have unsaved changes,not loading data");
-      //   return;
-      // }
       switch (kind) {
         case DataSourceKind.Cassandra:
           break;
@@ -557,13 +553,17 @@ function SqlTableView(props: {
   }, [page, pageSize]);
   const onPaginationModelChange = useCallback(
     (e: GridPaginationModel, reason: GridCallbackDetails<"pagination">) => {
+      if (ops.length > 0) {
+        showNotification("warning", "we have unsaved changes,not loading data");
+        return;
+      }
       setPage(e.page);
       setPageSize(e.pageSize);
       if (reason.reason == "setPaginationModel") {
         SavePageSize.instance.save(e.pageSize);
       }
     },
-    [],
+    [ops.length, showNotification],
   );
   const { setUpMenu } = useContext(ContextMenuContext);
   const onSortModelChange = useCallback(
@@ -783,6 +783,7 @@ function SqlTableView(props: {
                     control={
                       <Checkbox
                         checked={allowFiltering}
+                        disabled={ops.length > 0}
                         onChange={(e) => setAllowFiltering(e.target.checked)}
                       />
                     }
