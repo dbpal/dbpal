@@ -1962,7 +1962,7 @@ mod tests {
             .execute_sql(
                 query_id,
                 r#"
-             CREATE TABLE test_types1_array (
+            CREATE TABLE test_types1_array (
                 bigint_column BIGINT[],
                 blob_column BLOB[],
                 boolean_column BOOLEAN[],
