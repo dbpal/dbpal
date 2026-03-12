@@ -749,13 +749,13 @@ function SqlTableView(props: {
               >
                 reload
               </Button>
-              <Tooltip title="filter something like 'age=18'">
+              <Tooltip title={where ? where : "filter something like 'age=18'"}>
                 <Chip
                   label={where}
                   onClick={() => {
                     setShowSetWhere(true);
                   }}
-                  style={shrinkAble}
+                  style={{ ...shrinkAble, maxWidth: "14vw" }}
                   size="medium"
                   disabled={ops.length > 0}
                   color="primary"
