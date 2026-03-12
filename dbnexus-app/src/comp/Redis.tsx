@@ -2225,14 +2225,14 @@ function RedisHashTable(props: { hashKey: string; uuid: string }) {
             <RedisEditHash
               modifyOP={async (req) => {
                 modifyOP(req.oldKey, req.newKey, req.value);
-                const idx = resp.data.findIndex((e) => (e.key = req.oldKey));
+                const idx = resp.data.findIndex((e) => e.key == req.oldKey);
 
                 setResp({
                   ...resp,
                   data: resp.data.map((e, index) => {
                     if (index == idx) {
                       e.key = req.newKey;
-                      e.value = req.newKey;
+                      e.value = req.value;
                     }
                     return e;
                   }),
