@@ -755,7 +755,7 @@ function SqlTableView(props: {
                   onClick={() => {
                     setShowSetWhere(true);
                   }}
-                  style={{ ...shrinkAble, maxWidth: "14vw" }}
+                  style={{ ...shrinkAble, maxWidth: "14vw", textOverflow: "clip" }}
                   size="medium"
                   disabled={ops.length > 0}
                   color="primary"
@@ -763,14 +763,14 @@ function SqlTableView(props: {
                 />
               </Tooltip>
               {/* <Typography color="info"> order by </Typography> */}
-              <Tooltip title="sort something like 'age asc'">
+              <Tooltip title={sort ? sort : "sort something like 'age asc'"}>
                 <Chip
                   label={sort}
                   onClick={() => {
                     setShowSetSort(true);
                   }}
                   disabled={ops.length > 0}
-                  style={shrinkAble}
+                  style={{ ...shrinkAble, maxWidth: "12vw", textOverflow: "clip" }}
                   size="medium"
                   color="secondary"
                   variant="outlined"
