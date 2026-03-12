@@ -1464,10 +1464,7 @@ impl QuerySql for RedisDB {
             redis_cmd.arg(args);
             emit.send(
                 QueryResp {
-                    fields: vec![Field::from_name_type(
-                        format!("query result of '{}'", c.join(" ")),
-                        "",
-                    )],
+                    fields: vec![Field::from_name_type("query result", "")],
                     ..Default::default()
                 }
                 .into(),

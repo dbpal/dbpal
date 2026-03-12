@@ -1012,14 +1012,13 @@ impl LanguageServer for RedisDB {
         col: u32,
     ) -> anyhow::Result<CompletionList> {
         let loc = sqlparser::tokenizer::Location::new(line as u64, col as u64);
-
-        for text in text.lines() {
+        for (line_index, text) in text.lines().enumerate() {
             if text.trim().is_empty() {
                 continue;
             }
             let tokens = redis_tokenize(text).unwrap_or_default();
-            for (index, token) in tokens.iter().enumerate() {
-                let line = index + 1;
+            for token in tokens.iter() {
+                let line = line_index + 1;
                 if in_pos(
                     loc,
                     sqlparser::tokenizer::Location::new(line as u64, (token.start + 1) as u64),
