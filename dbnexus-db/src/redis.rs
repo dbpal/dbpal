@@ -47,14 +47,10 @@ impl RedisDB {
 
         let mut ret = HashMap::new();
         for line in text.lines() {
-            let tokens = RedisToken::tokenize(line, 1).unwrap_or_default();
-            for t in tokens {
-                match t {
-                    RedisToken::String(value) | RedisToken::NotString { value, .. } => {
-                        if let Ok(t) = conn.key_type::<'_, _, String>(&value).await {
-                            ret.insert(value.to_string(), t.to_string());
-                        }
-                    }
+            let tokens = redis_tokenize(line)?;
+            for token in tokens {
+                if let Ok(typ) = conn.key_type::<'_, _, String>(&token.token).await {
+                    ret.insert(token.token.clone(), typ);
                 }
             }
         }
@@ -247,8 +243,9 @@ fn to_json_value(x: Vec<u8>) -> serde_json::Value {
     }
 }
 
-fn escape_string_in_single_quote(s: &str) -> String {
-    s.replace("'", "\\'").replace("\n", "\\n")
+fn escape_string(s: &str) -> anyhow::Result<String> {
+    let r = shlex::try_quote(s)?;
+    anyhow::Ok(r.to_string())
 }
 
 fn check_resp(
@@ -588,7 +585,7 @@ impl RedisDB {
                 m.insert(key.to_owned(), to_json_value(value));
                 let value = serde_json::to_string(&m);
                 let value = value?;
-                sender.send(value.into()).await?;
+                sender.send(serde_json::Value::from(value).into()).await?;
             }
             RedisType::List => {
                 let total: isize = conn.llen(key).await?;
@@ -645,14 +642,7 @@ impl RedisDB {
             RedisType::String => {
                 let x: String = conn.get(key).await?;
                 sender
-                    .send(
-                        format!(
-                            "SET {} '{}'\n",
-                            key,
-                            escape_string_in_single_quote(x.as_str())
-                        )
-                        .into(),
-                    )
+                    .send(format!("SET {} '{}'\n", key, escape_string(x.as_str())?).into())
                     .await?;
             }
 
@@ -664,10 +654,7 @@ impl RedisDB {
                     let list: Vec<String> = conn.lrange(key, x, x + size).await?;
                     for l in list.iter() {
                         sender
-                            .send(
-                                format!("RPUSH {} '{}'\n", key, escape_string_in_single_quote(l))
-                                    .into(),
-                            )
+                            .send(format!("RPUSH {} '{}'\n", key, escape_string(l)?).into())
                             .await?;
                     }
                 }
@@ -677,14 +664,7 @@ impl RedisDB {
                 while let Some(value) = iter.next().await {
                     let value = value?;
                     sender
-                        .send(
-                            format!(
-                                "SADD {} '{}'\n",
-                                key,
-                                escape_string_in_single_quote(value.as_str())
-                            )
-                            .into(),
-                        )
+                        .send(format!("SADD {} '{}'\n", key, escape_string(value.as_str())?).into())
                         .await?;
                 }
             }
@@ -703,7 +683,7 @@ impl RedisDB {
                                 "HMSET {} {} '{}'\n",
                                 key,
                                 kv[0],
-                                escape_string_in_single_quote(kv[1].as_str())
+                                escape_string(kv[1].as_str())?
                             )
                             .into(),
                         )
@@ -726,7 +706,7 @@ impl RedisDB {
                                 "ZADD {} {} '{}'\n",
                                 key,
                                 kv[1],
-                                escape_string_in_single_quote(kv[0].as_str())
+                                escape_string(kv[0].as_str())?
                             )
                             .into(),
                         )
@@ -1668,210 +1648,29 @@ impl FromStr for RedisType {
     }
 }
 
-#[derive(Default, Clone, Debug)]
-enum RedisTokenState {
-    #[default]
-    Init,
-    SingleQuote,
-    DoubleQuote,
-    Trans {
-        count: usize,
-        prev: Box<RedisTokenState>,
-    },
-    Whitespace,
-    Comment,
+pub struct RedisTokenXXX {
+    pub token: String,
+    pub start: usize, // start with 0
+    pub end: usize,
 }
 
-impl RedisTokenState {
-    fn trans(&self, count: usize) -> Self {
-        Self::Trans {
-            count,
-            prev: Box::new(self.clone()),
-        }
-    }
-}
-
-#[derive(Debug, Clone)]
-pub enum RedisToken {
-    String(String),
-    NotString {
-        line: u64,
-        start_column: u64,
-        end_column: u64,
-        value: String,
-    },
-}
-
-impl RedisToken {
-    pub fn value(&self) -> &String {
-        match self {
-            RedisToken::String(value) => value,
-            RedisToken::NotString { value, .. } => value,
-        }
-    }
-}
-
-impl From<String> for RedisToken {
-    fn from(s: String) -> Self {
-        RedisToken::String(s)
-    }
-}
-impl std::fmt::Display for RedisToken {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(
-            f,
-            "{}",
-            match self {
-                RedisToken::String(x) => x,
-                RedisToken::NotString { value, .. } => value,
-            }
-        )
-    }
-}
-
-impl RedisToken {
-    pub fn tokenize(line: &str, line_number: u64) -> anyhow::Result<Vec<RedisToken>> {
-        let mut buf: Vec<char> = vec![];
-        let mut tokens = vec![];
-        let mut state = RedisTokenState::default();
-
-        fn push_token(
-            index: usize, // 这个时候我已经处理完了 要添加到结果集了 所以这个index是加了1的
-            tokens: &mut Vec<RedisToken>,
-            buf: &mut Vec<char>,
-            line_number: u64,
-        ) -> anyhow::Result<()> {
-            if buf.is_empty() {
-                return anyhow::Ok(());
-            }
-            let index = index as u64;
-            let end_column = index + 1; // 加上自身的长度
-            tokens.push(RedisToken::NotString {
-                start_column: end_column - (buf.len() as u64),
-                end_column,
-                line: line_number,
-                value: std::mem::take(buf).into_iter().collect(),
-            });
-            anyhow::Ok(())
-        }
-        let as_chars: Vec<_> = line.chars().collect();
-        for (index, c) in as_chars.iter().enumerate() {
-            match state {
-                RedisTokenState::Init => match c {
-                    '\'' => {
-                        state = RedisTokenState::SingleQuote;
-                        push_token(index, &mut tokens, &mut buf, line_number)?;
-                    }
-                    '"' => {
-                        state = RedisTokenState::DoubleQuote;
-                        push_token(index, &mut tokens, &mut buf, line_number)?;
-                    }
-                    _ if c.is_ascii_whitespace() => {
-                        push_token(index, &mut tokens, &mut buf, line_number)?;
-                        state = RedisTokenState::Whitespace;
-                    }
-                    '#' => {
-                        push_token(index, &mut tokens, &mut buf, line_number)?;
-                        state = RedisTokenState::Comment;
-                    }
-                    _ => {
-                        buf.push(*c);
-                    }
-                },
-                RedisTokenState::SingleQuote => match c {
-                    '\'' => {
-                        tokens.push(
-                            std::mem::take(&mut buf)
-                                .into_iter()
-                                .collect::<String>()
-                                .into(),
-                        );
-
-                        state = RedisTokenState::Init;
-                    }
-                    // try match \n
-                    '\\' if as_chars.get(index + 1).map(|x| *x == 'n').unwrap_or(false) => {
-                        buf.push('\n');
-                        state = state.trans(1);
-                    }
-                    '\\' if as_chars.get(index + 1).map(|x| *x == '\'').unwrap_or(false) => {
-                        buf.push('\'');
-                        state = state.trans(1);
-                    }
-
-                    _ => {
-                        buf.push(*c);
-                    }
-                },
-                RedisTokenState::DoubleQuote => {
-                    match c {
-                        '\"' => {
-                            tokens.push(
-                                std::mem::take(&mut buf)
-                                    .into_iter()
-                                    .collect::<String>()
-                                    .into(),
-                            );
-                            state = RedisTokenState::Init;
-                        }
-                        // try match \n
-                        '\\' if as_chars.get(index + 1).map(|x| *x == 'n').unwrap_or(false) => {
-                            buf.push('\n');
-                            state = state.trans(1);
-                        }
-                        '\\' if as_chars.get(index + 1).map(|x| *x == '"').unwrap_or(false) => {
-                            buf.push('\"');
-                            state = state.trans(1);
-                        }
-                        _ => {
-                            buf.push(*c);
-                        }
-                    }
-                }
-                RedisTokenState::Trans { count, prev } => {
-                    let x = count - 1;
-                    if x == 0 {
-                        state = prev.as_ref().clone();
-                    } else {
-                        state = RedisTokenState::Trans { count: x, prev }
-                    }
-                }
-                RedisTokenState::Whitespace => {
-                    if c.is_ascii_whitespace() {
-                        // nothing here
-                    } else if *c == '\'' {
-                        state = RedisTokenState::SingleQuote;
-                    } else if *c == '"' {
-                        state = RedisTokenState::DoubleQuote;
-                    } else {
-                        buf.push(*c);
-                        state = RedisTokenState::Init;
-                    }
-                }
-                RedisTokenState::Comment => {
-                    if *c == '\n' {
-                        state = RedisTokenState::Init;
-                    } else {
-                        // nothing here
-                    }
-                }
+pub fn redis_tokenize(command: &str) -> anyhow::Result<Vec<RedisTokenXXX>> {
+    // 使用 shlex 分词
+    if let Some(tokens) = shlex::split(command) {
+        let mut position = 0;
+        let mut tokens_with_positions = Vec::new();
+        for token in tokens {
+            // 找到 token 在原始字符串中的位置
+            if let Some(start) = command[position..].find(&token) {
+                let start = position + start;
+                let end = start + token.len();
+                tokens_with_positions.push(RedisTokenXXX { token, start, end });
+                position = end;
             }
         }
-        match state {
-            RedisTokenState::Init => {
-                push_token(as_chars.len(), &mut tokens, &mut buf, line_number)?;
-            }
-            RedisTokenState::SingleQuote => anyhow::bail!("unclose single quote"),
-            RedisTokenState::DoubleQuote => anyhow::bail!("unclose double quote"),
-            RedisTokenState::Trans { .. } => anyhow::bail!("this is internal error"),
-            RedisTokenState::Comment => {
-                // trailing comments should be ignored
-            }
-            RedisTokenState::Whitespace => {
-                // trailing whitespaces should be ignored
-            }
-        }
-        anyhow::Ok(tokens)
+        anyhow::Ok(tokens_with_positions)
+    } else {
+        anyhow::bail!(format!("shlex parse failed:{}", command))
     }
 }
 
@@ -1885,16 +1684,8 @@ pub(crate) fn get_command_from_sql(sql: &str) -> anyhow::Result<Vec<Vec<String>>
         if line.starts_with("#") {
             continue;
         }
-        let tokens = RedisToken::tokenize(line, 1)?;
-        commands.push(
-            tokens
-                .into_iter()
-                .map(|x| match x {
-                    RedisToken::String(value) => value,
-                    RedisToken::NotString { value, .. } => value,
-                })
-                .collect(),
-        );
+        let tokens = redis_tokenize(line)?;
+        commands.push(tokens.into_iter().map(|x| x.token).collect());
     }
     anyhow::Ok(commands)
 }
@@ -2017,39 +1808,6 @@ mod tests {
     use redis::AsyncCommands;
     use std::time::Duration;
 
-    #[cfg(test)]
-    #[test]
-    fn test_token_xxx() {
-        let tokens =
-            RedisToken::tokenize(r#"abc xyz ccc 'aaaaaa"\'\n' "bbbbbb'\"\n" aaaa "#, 1).unwrap();
-        for t in tokens.iter() {
-            println!("token:{:?}", t);
-        }
-
-        {
-            // error case
-            let tokens = RedisToken::tokenize(r#" 'a"#, 1);
-            match tokens {
-                Ok(_) => panic!("should hit error"),
-                Err(x) => assert!(x.to_string().contains("single")),
-            }
-        }
-        {
-            // error case
-            let tokens = RedisToken::tokenize(r#" "a"#, 1);
-            match tokens {
-                Ok(_) => panic!("should hit error"),
-                Err(x) => assert!(x.to_string().contains("double")),
-            }
-        }
-
-        {
-            let tokens = RedisToken::tokenize(r#"aaaa bbbb#123"#, 1).unwrap();
-            assert!(tokens[0].value() == "aaaa");
-            assert!(tokens[1].value() == "bbbb")
-        }
-    }
-
     #[tokio::test]
     async fn test_select_zset_binary() {
         let db = make_test_object().await;
@@ -2069,18 +1827,6 @@ mod tests {
                 .unwrap();
             opener::open(name.as_str()).unwrap();
         }
-    }
-
-    #[test]
-    fn test_escape_string() {
-        assert_eq!(escape_string_in_single_quote("aaa'",), "aaa\\'");
-        assert_eq!(
-            escape_string_in_single_quote(
-                r#"aaa'
-"#
-            ),
-            "aaa\\'\\n"
-        );
     }
 
     #[test]
@@ -2641,7 +2387,6 @@ db1:keys=1,expires=0,avg_ttl=0"#,
     #[tokio::test]
     async fn test_string_key() {
         let db = make_test_object().await;
-
         let query_id = "";
         db.open_connection(query_id).await.unwrap();
         let table_name = "string_value";

@@ -19,7 +19,7 @@ use dbnexus_db::mssql::SqlServerDB;
 use dbnexus_db::mysql::MysqlDB;
 use dbnexus_db::oracle::OracleDB;
 use dbnexus_db::pg::PostGresDB;
-use dbnexus_db::redis::{RedisDB, RedisListTable, RedisToken};
+use dbnexus_db::redis::{redis_tokenize, RedisDB, RedisListTable};
 use dbnexus_db::redis_lang_server::REDIS_COMMANDS_MD_FILES;
 use dbnexus_db::sub::SubDB;
 use include_dir::{include_dir, Dir};
@@ -98,17 +98,17 @@ pub async fn monaco_editor_themes() -> Result<HashMap<&'static str, &'static str
 
 #[tauri::command]
 pub async fn get_redis_doc(line: &str) -> Result<String, ErrorFrontend> {
-    let tokens = RedisToken::tokenize(line, 1).map_err(ErrorFrontend::from)?;
+    let tokens = redis_tokenize(line).map_err(ErrorFrontend::from)?;
     if tokens.is_empty() {
         return Err(ErrorFrontend::from("no tokens found,empty line??"));
     }
 
-    let command = tokens[0].value().to_lowercase();
+    let command = tokens[0].token.to_lowercase();
     if tokens.len() >= 2 {
         let file = REDIS_COMMANDS_MD_FILES
-            .get_file(format!("{}-{}.md", command, tokens[1].value().to_lowercase()).as_str());
+            .get_file(format!("{}-{}.md", command, tokens[1].token.to_lowercase()).as_str());
         if let Some(file) = file {
-            let mut ret = format!("## {} {}\n", tokens[0].value(), tokens[1].value());
+            let mut ret = format!("## {} {}\n", tokens[0].token, tokens[1].token);
             ret.push_str(file.contents_utf8().option_must_be_some()?);
             return Ok(ret);
         }
@@ -117,7 +117,7 @@ pub async fn get_redis_doc(line: &str) -> Result<String, ErrorFrontend> {
     match REDIS_COMMANDS_MD_FILES.get_file(&exact_file) {
         Some(file) => {
             let sub_match = format!("{}-", command);
-            let mut ret = format!("## {}\n", tokens[0].value());
+            let mut ret = format!("## {}\n", tokens[0].token);
             ret.push_str(file.contents_utf8().option_must_be_some()?);
             // try match sub markdown
             for en in REDIS_COMMANDS_MD_FILES.entries() {
@@ -162,7 +162,7 @@ pub async fn get_redis_doc(line: &str) -> Result<String, ErrorFrontend> {
         }
         None => Err(ErrorFrontend::from(format!(
             "no markdown file found for command '{}'",
-            tokens[0].value()
+            tokens[0].token
         ))),
     }
 }

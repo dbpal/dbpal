@@ -10,7 +10,7 @@ use crate::language_server::{
     in_pos, CompletionItem, CompletionKind, CompletionList, LanguageServer,
 };
 
-use crate::redis::{get_command_from_sql, RedisDB, RedisToken};
+use crate::redis::{get_command_from_sql, redis_tokenize, RedisDB};
 use futures_core::future::BoxFuture;
 use futures_util::{FutureExt, StreamExt};
 use redis::aio::MultiplexedConnection;
@@ -1013,53 +1013,44 @@ impl LanguageServer for RedisDB {
     ) -> anyhow::Result<CompletionList> {
         let loc = sqlparser::tokenizer::Location::new(line as u64, col as u64);
 
-        for (index, text) in text.lines().enumerate() {
+        for text in text.lines() {
             if text.trim().is_empty() {
                 continue;
             }
-            let tokens = RedisToken::tokenize(text, (index + 1) as u64).unwrap_or_default();
-
-            for token in tokens.iter() {
-                match token {
-                    RedisToken::String(_) => {}
-                    RedisToken::NotString {
-                        line,
-                        start_column,
-                        value,
-                        ..
-                    } => {
-                        if in_pos(
-                            loc,
-                            sqlparser::tokenizer::Location::new(*line, *start_column),
-                            value.len() as u64,
-                        ) {
-                            // hit  position.
-                            const MAX: usize = 200;
-                            let mut ret = Vec::with_capacity(MAX);
-                            let mut conn = self.get_conn().await?;
-                            let mut stream =
-                                conn.scan_match::<_, String>(format!("*{}*", value)).await?;
-                            let mut incomplete = false;
-                            while let Some(item) = stream.next().await {
-                                let item = item?;
-                                if ret.len() >= MAX {
-                                    incomplete = true;
-                                    break;
-                                }
-                                ret.push(CompletionItem {
-                                    item: item.into(),
-                                    kind: CompletionKind::Table,
-                                    desc: None,
-                                });
-                            }
-                            ret.extend(static_redis_command_completion_items().items.into_iter());
-                            return anyhow::Ok(CompletionList {
-                                items: ret,
-                                incomplete,
-                                from_dot: false,
-                            });
+            let tokens = redis_tokenize(text).unwrap_or_default();
+            for (index, token) in tokens.iter().enumerate() {
+                let line = index + 1;
+                if in_pos(
+                    loc,
+                    sqlparser::tokenizer::Location::new(line as u64, (token.start + 1) as u64),
+                    token.token.len() as u64,
+                ) {
+                    // hit  position.
+                    const MAX: usize = 200;
+                    let mut ret = Vec::with_capacity(MAX);
+                    let mut conn = self.get_conn().await?;
+                    let mut stream = conn
+                        .scan_match::<_, String>(format!("*{}*", token.token))
+                        .await?;
+                    let mut incomplete = false;
+                    while let Some(item) = stream.next().await {
+                        let item = item?;
+                        if ret.len() >= MAX {
+                            incomplete = true;
+                            break;
                         }
+                        ret.push(CompletionItem {
+                            item: item.into(),
+                            kind: CompletionKind::Table,
+                            desc: None,
+                        });
                     }
+                    ret.extend(static_redis_command_completion_items().items.into_iter());
+                    return anyhow::Ok(CompletionList {
+                        items: ret,
+                        incomplete,
+                        from_dot: false,
+                    });
                 }
             }
         }
@@ -1110,34 +1101,27 @@ impl LanguageServer for RedisDB {
             if sql.is_empty() {
                 continue;
             }
-            let tokens = RedisToken::tokenize(sql, (index + 1) as u64)?;
+            let tokens = redis_tokenize(sql)?;
             if tokens.is_empty() {
                 continue;
             }
-            let command = match &tokens[0] {
-                RedisToken::NotString {
-                    value,
-                    start_column,
-                    line,
-                    ..
-                } => {
-                    if in_pos(
-                        pos,
-                        sqlparser::tokenizer::Location {
-                            line: *line,
-                            column: *start_column,
-                        },
-                        value.len() as u64,
-                    ) {
-                        return anyhow::Ok(static_redis_command_completion_items());
-                    }
-                    value.clone().to_uppercase()
+
+            let command = {
+                let t = &tokens[0];
+                let line = (index + 1) as u64;
+                if in_pos(
+                    pos,
+                    sqlparser::tokenizer::Location {
+                        line: line,
+                        column: (t.start + 1) as u64,
+                    },
+                    t.token.len() as u64,
+                ) {
+                    return anyhow::Ok(static_redis_command_completion_items());
                 }
-                _ => {
-                    continue;
-                }
+                t.token.clone().to_uppercase()
             };
-            let patterns: Vec<String> = tokens.iter().skip(1).map(|x| x.to_string()).collect();
+            let patterns: Vec<String> = tokens.iter().skip(1).map(|x| x.token.clone()).collect();
             for (token, f) in tokens
                 .iter()
                 .skip(
@@ -1148,26 +1132,15 @@ impl LanguageServer for RedisDB {
                         .into_iter(),
                 )
             {
-                match token {
-                    RedisToken::NotString {
-                        start_column,
-                        value,
-                        ..
-                    } => {
-                        if in_pos(
-                            pos,
-                            sqlparser::tokenizer::Location {
-                                line: (index + 1) as u64,
-                                column: (*start_column),
-                            },
-                            value.len() as u64,
-                        ) {
-                            return f.await;
-                        }
-                    }
-                    _ => {
-                        continue;
-                    }
+                if in_pos(
+                    pos,
+                    sqlparser::tokenizer::Location {
+                        line: (index + 1) as u64,
+                        column: (token.start + 1) as u64,
+                    },
+                    token.token.len() as u64,
+                ) {
+                    return f.await;
                 }
             }
         }
@@ -1298,7 +1271,7 @@ mod tests {
             .unwrap()
             .unwrap();
 
-        test_file_auto_completion(&content, &db, None, false).await;
+        test_file_auto_completion(&content, &db, Some(query_id), false).await;
     }
     #[ignore = "手动跑跑的测试"]
     #[tokio::test]

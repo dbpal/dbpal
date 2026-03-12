@@ -290,7 +290,7 @@ function CreateTable(props: { uuid: string; kind: DataSourceKind }) {
           }}
           variant={showQuery ? "outlined" : "contained"}
         >
-          {showQuery ? "close query" : "show query"}
+          {showQuery ? "close editor" : "show editor"}
         </Button>
         {showQuery && <Button onClick={setCreateSql}> gen sql </Button>}
       </StackRowCenter>
