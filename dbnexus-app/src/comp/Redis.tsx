@@ -1049,17 +1049,8 @@ function RedisSetTable(props: { setKey: string; uuid: string }) {
             />
             <RedisEditSet
               modifyOP={async (oldValue, newValue) => {
-                modifyOP(oldValue, newValue);
-                const idx = resp.data.findIndex((e) => e["id"] == selectRow.id);
-                setResp({
-                  ...resp,
-                  data: resp.data.map((e, index) => {
-                    if (index == idx) {
-                      e.value = newValue;
-                    }
-                    return e;
-                  }),
-                });
+                await modifyOP(oldValue, newValue);
+                handleReload(false);
               }}
               oldValue={selectRow.value}
               handleClose={() => {
@@ -1889,18 +1880,8 @@ function RedisZsetTable(props: { uuid: string; zsetKey: string }) {
             />
             <RedisEditZset
               modifyOP={async (oldKey, newKey, value) => {
-                modifyOP(oldKey, newKey, value);
-                const idx = resp.data.findIndex((e) => oldKey === e.key);
-                setResp({
-                  ...resp,
-                  data: resp.data.map((e, index) => {
-                    if (index == idx) {
-                      e.key = newKey;
-                      e.score = value;
-                    }
-                    return e;
-                  }),
-                });
+                await modifyOP(oldKey, newKey, value);
+                handleReload(false);
               }}
               key={selectRow}
               oldValue={selectRow.score}
@@ -2224,19 +2205,8 @@ function RedisHashTable(props: { hashKey: string; uuid: string }) {
             />
             <RedisEditHash
               modifyOP={async (req) => {
-                modifyOP(req.oldKey, req.newKey, req.value);
-                const idx = resp.data.findIndex((e) => e.key == req.oldKey);
-
-                setResp({
-                  ...resp,
-                  data: resp.data.map((e, index) => {
-                    if (index == idx) {
-                      e.key = req.newKey;
-                      e.value = req.value;
-                    }
-                    return e;
-                  }),
-                });
+                await modifyOP(req.oldKey, req.newKey, req.value);
+                handleReload(false);
               }}
               handleClose={() => {
                 setSelectRow(null);
