@@ -49,6 +49,9 @@ impl RedisDB {
         for line in text.lines() {
             let tokens = redis_tokenize(line)?;
             for token in tokens {
+                if !conn.exists(&token.token).await? {
+                    continue;
+                }
                 if let Ok(typ) = conn.key_type::<'_, _, String>(&token.token).await {
                     ret.insert(token.token.clone(), typ);
                 }
