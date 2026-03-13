@@ -50,13 +50,12 @@ pub mod redis;
 pub mod redis_lang_server;
 #[cfg(feature = "snowflake")]
 pub mod snowflake;
+#[cfg(feature = "snowflake")]
 pub mod snowflake_lang_server;
 pub mod sqlite;
 pub mod sqlite_lang_server;
 pub mod sqlparser_completing;
 pub mod sqlparser_completion;
-pub mod sub;
-pub mod sub_lang_server;
 pub mod tidb;
 pub mod tidb_lang_server;
 pub mod typedef;

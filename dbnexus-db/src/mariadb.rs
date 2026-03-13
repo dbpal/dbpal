@@ -1,14 +1,10 @@
-use sqlx::types::BigDecimal;
-use sqlx::{AssertSqlSafe, Row};
-use std::ops::DerefMut;
-use std::sync::Arc;
-
 #[cfg(test)]
 use crate::datasource_config::MysqlDBConfig;
 use crate::db::SequenceDetail;
 use crate::mysql::MysqlDB;
-#[cfg(test)]
-use crate::sub::SubDB;
+use sqlx::types::BigDecimal;
+use sqlx::{AssertSqlSafe, Row};
+use std::ops::DerefMut;
 
 impl MariaDB {
     pub(crate) async fn list_sequences_impl(
@@ -61,7 +57,7 @@ impl MariaDB {
 }
 
 pub struct MariaDB {
-    pub(crate) db: Arc<MysqlDB>,
+    pub(crate) db: MysqlDB,
 }
 
 impl MariaDB {
@@ -104,9 +100,11 @@ pub(crate) fn make_config() -> MysqlDBConfig {
 }
 
 #[cfg(test)]
-pub(crate) async fn make_test_object_mariadb(config: MysqlDBConfig) -> SubDB {
-    use crate::{mysql::MysqlDB, sub::SubDB};
-    let db = SubDB::MariaDb(MysqlDB::new(config).await.unwrap().into());
+pub(crate) async fn make_test_object_mariadb(config: MysqlDBConfig) -> MysqlDB {
+    use crate::mysql::MysqlDB;
+    let db = MysqlDB::new(config, crate::db::BackendKind::Mariadb)
+        .await
+        .unwrap();
     db
 }
 

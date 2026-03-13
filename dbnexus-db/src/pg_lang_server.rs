@@ -1,4 +1,5 @@
-use crate::db::{CatalogTrait, CreatedTypeDef, OptionMustBeSomeErr, SequenceDetail};
+use crate::cockroach::COCKROACH_TYPES;
+use crate::db::{BackendKind, CatalogTrait, CreatedTypeDef, OptionMustBeSomeErr, SequenceDetail};
 use crate::language_server::{
     try_parser_dot_lexer, AstCompletionHelper, CompletionItem, CompletionKind, CompletionList,
     DBExecutable, ErrAndLoc, GetKeyWords, LangServerCommon, LanguageServer, LexerCompletionTrait,
@@ -12,10 +13,12 @@ use std::ops::DerefMut;
 #[async_trait::async_trait]
 impl LexerCompletionTrait for PostGresDB {
     async fn get_types(&self) -> anyhow::Result<Vec<String>> {
-        let r = POSTGRES_TYPES
-            .iter()
-            .map(|x| x.to_string())
-            .collect::<Vec<_>>();
+        let ts = match self.kind {
+            BackendKind::CockRoach => COCKROACH_TYPES,
+            _ => POSTGRES_TYPES,
+        };
+
+        let r = ts.iter().map(|x| x.to_string()).collect::<Vec<_>>();
         return anyhow::Ok(r);
     }
 }

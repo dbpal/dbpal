@@ -1482,7 +1482,7 @@ pub trait ExportQueryResult: GetBackendKind + Send + Sync + 'static {
     }
 }
 
-async fn write_export_file(
+pub(crate) async fn write_export_file(
     kind: ExportKind,
     filepath: &str,
     mut receiver: tokio::sync::mpsc::Receiver<ExportFrame>,

@@ -5,11 +5,13 @@ use dbnexus_db::datasource_config::{
     RedisDBConfig, SqlServerDBConfig, SqliteDBConfig,
 };
 use dbnexus_db::db::{
-    CatalogTrait, CheckConn, DBTrait, ExportQueryResult, QuerySql, SchemaTrait, ServerMetas,
+    BackendKind, CatalogTrait, CheckConn, DBTrait, ExportQueryResult, QuerySql, SchemaTrait,
+    ServerMetas,
 };
 use dbnexus_db::language_server::LanguageServer;
 use dbnexus_db::mongo::MongoDB;
-use dbnexus_db::sub::SubDB;
+use dbnexus_db::mysql::MysqlDB;
+use dbnexus_db::pg::PostGresDB;
 use font_kit::error::SelectionError;
 use langchain_rust::language_models::LLMError;
 use mongodb::bson;
@@ -179,44 +181,50 @@ impl DBConnectionConfig {
             }
             DBConnectionConfig::Mysql { conn, .. } => match &conn.db {
                 Some(_) => {
-                    let db: Arc<dyn SchemaTrait> =
-                        Arc::new(dbnexus_db::mysql::MysqlDB::new(conn.clone()).await?)
-                            as Arc<dyn SchemaTrait>;
+                    let db: Arc<dyn SchemaTrait> = Arc::new(
+                        dbnexus_db::mysql::MysqlDB::new(conn.clone(), BackendKind::Mysql).await?,
+                    ) as Arc<dyn SchemaTrait>;
                     anyhow::Ok(DatabaseBackend::Schema(db))
                 }
                 None => {
-                    let db: Arc<dyn DBTrait> =
-                        Arc::new(dbnexus_db::mysql::MysqlDB::new(conn.clone()).await?)
-                            as Arc<dyn DBTrait>;
+                    let db: Arc<dyn DBTrait> = Arc::new(
+                        dbnexus_db::mysql::MysqlDB::new(conn.clone(), BackendKind::Mysql).await?,
+                    ) as Arc<dyn DBTrait>;
                     anyhow::Ok(DatabaseBackend::DataBase(db))
                 }
             },
             DBConnectionConfig::MariaDB { conn, .. } => match &conn.db {
                 Some(_) => {
                     let db: Arc<dyn SchemaTrait> =
-                        Arc::new(SubDB::new_mariadb(conn.clone()).await?) as Arc<dyn SchemaTrait>;
+                        Arc::new(MysqlDB::new(conn.clone(), BackendKind::Mariadb).await?)
+                            as Arc<dyn SchemaTrait>;
                     anyhow::Ok(DatabaseBackend::Schema(db))
                 }
                 None => {
                     let db: Arc<dyn DBTrait> =
-                        Arc::new(SubDB::new_mariadb(conn.clone()).await?) as Arc<dyn DBTrait>;
+                        Arc::new(MysqlDB::new(conn.clone(), BackendKind::Mariadb).await?)
+                            as Arc<dyn DBTrait>;
                     anyhow::Ok(DatabaseBackend::DataBase(db))
                 }
             },
             DBConnectionConfig::Tidb { conn, .. } => match &conn.db {
                 Some(_) => {
                     let db: Arc<dyn SchemaTrait> =
-                        Arc::new(SubDB::new_tidb(conn.clone()).await?) as Arc<dyn SchemaTrait>;
+                        Arc::new(MysqlDB::new(conn.clone(), BackendKind::Tidb).await?)
+                            as Arc<dyn SchemaTrait>;
                     anyhow::Ok(DatabaseBackend::Schema(db))
                 }
                 None => {
                     let db: Arc<dyn DBTrait> =
-                        Arc::new(SubDB::new_tidb(conn.clone()).await?) as Arc<dyn DBTrait>;
+                        Arc::new(MysqlDB::new(conn.clone(), BackendKind::Tidb).await?)
+                            as Arc<dyn DBTrait>;
                     anyhow::Ok(DatabaseBackend::DataBase(db))
                 }
             },
             DBConnectionConfig::Postgres { conn, .. } => {
-                let o = Arc::new(dbnexus_db::pg::PostGresDB::new(conn.clone()).await?);
+                let o = Arc::new(
+                    dbnexus_db::pg::PostGresDB::new(conn.clone(), BackendKind::PostGres).await?,
+                );
                 if conn.db.is_none() {
                     return anyhow::Ok(DatabaseBackend::Catalog(o as Arc<dyn CatalogTrait>));
                 }
@@ -227,7 +235,7 @@ impl DBConnectionConfig {
                 }
             }
             DBConnectionConfig::CockRoach { conn, .. } => {
-                let o = Arc::new(SubDB::new_cockroach(conn.clone()).await?);
+                let o = Arc::new(PostGresDB::new(conn.clone(), BackendKind::CockRoach).await?);
                 if conn.db.is_none() {
                     return anyhow::Ok(DatabaseBackend::Catalog(o as Arc<dyn CatalogTrait>));
                 }

@@ -1,11 +1,9 @@
 use std::ops::DerefMut;
 
-#[cfg(test)]
-use crate::datasource_config::MysqlDBConfig;
 use crate::language_server::{CompletionItem, CompletionKind, GetKeyWords};
-
 #[cfg(test)]
-use crate::sub::SubDB;
+use crate::{datasource_config::MysqlDBConfig, db::BackendKind, mysql::MysqlDB};
+
 use crate::tidb::TiDB;
 use sqlx::Row;
 
@@ -17,9 +15,7 @@ impl TiDB {
             该表是 v7.5.3（2024-08-05 发布的 LTS）才正式加入的
         你当前的 8.0.11-TiDB-v7.5.1 恰好是 7.5.1，版本号里前面只是伪装成 MySQL 8.0 的“兼容前缀”，实际内核仍是 7.5.1，因此 表不存在。
          */
-        let result = GetKeyWords::key_words(self.db.as_ref())
-            .await
-            .unwrap_or_default();
+        let result = GetKeyWords::key_words(&self.db).await.unwrap_or_default();
         if !result.is_empty() {
             return anyhow::Ok(result);
         }
@@ -74,9 +70,8 @@ pub(crate) fn make_config() -> MysqlDBConfig {
 }
 
 #[cfg(test)]
-pub(crate) async fn make_test_object_tidb(config: MysqlDBConfig) -> SubDB {
-    use std::sync::Arc;
-    let db = SubDB::TiDB(Arc::new(crate::mysql::MysqlDB::new(config).await.unwrap()));
+pub(crate) async fn make_test_object_tidb(config: MysqlDBConfig) -> MysqlDB {
+    let db = MysqlDB::new(config, BackendKind::Tidb).await.unwrap();
     db
 }
 /// TiDB 关键字全集（含保留/非保留）
@@ -791,7 +786,7 @@ mod tests {
     在 TiDB 中，“当前连接” 已经 PREPARE 的语句不会单独写入 information_schema 表，而是 保存在会话内存 里，因此官方没有 “一条 SQL 列出所有 prepare” 的固定表。
     但你可以通过以下 两种方式 实时查看：
      */
-    #[ignore = "xxxx"]
+
     #[tokio::test]
     async fn test_prepare() {
         let db = make_test_object_tidb(make_config()).await;
@@ -806,6 +801,8 @@ mod tests {
         .await
         .unwrap()
         .unwrap();
+
+        db.completion_id.set(query_id.to_string());
         assert!(db
             .list_execute(None)
             .await

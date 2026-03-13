@@ -9,7 +9,7 @@ impl MariaDB {
         schema: Option<&str>,
         include_build_in: bool,
     ) -> anyhow::Result<Vec<CompletionItem>> {
-        let mut ret = LangServerCommon::list_function(self.db.as_ref(), schema, false).await?;
+        let mut ret = LangServerCommon::list_function(&self.db, schema, false).await?;
         if include_build_in {
             ret.extend(MARIADB_FUNCTIONS.iter().map(|x| CompletionItem {
                 item: (*x).into(),
@@ -24,7 +24,7 @@ impl MariaDB {
         &self,
         schema: Option<&str>,
     ) -> anyhow::Result<Vec<String>> {
-        let mut result = LangServerCommon::list_table(self.db.as_ref(), schema).await?;
+        let mut result = LangServerCommon::list_table(&self.db, schema).await?;
         let mut conn = self.db.get_conn().await?;
         let sql = format!(
             "select SEQUENCE_NAME  from information_schema.SEQUENCES where SEQUENCE_SCHEMA = '{}'",

@@ -21,7 +21,6 @@ use dbnexus_db::oracle::OracleDB;
 use dbnexus_db::pg::PostGresDB;
 use dbnexus_db::redis::{redis_tokenize, RedisDB, RedisListTable};
 use dbnexus_db::redis_lang_server::REDIS_COMMANDS_MD_FILES;
-use dbnexus_db::sub::SubDB;
 use include_dir::{include_dir, Dir};
 use mongodb::bson::{self, doc, Document};
 use std::collections::{HashMap, HashSet};
@@ -766,8 +765,6 @@ impl DatabaseBackend {
             DatabaseBackend::Schema(x) => {
                 let a = x.as_any();
                 if let Some(x) = a.downcast_ref::<MysqlDB>() {
-                    Some(x as &dyn DBTrait)
-                } else if let Some(x) = a.downcast_ref::<SubDB>() {
                     Some(x as &dyn DBTrait)
                 } else if let Some(x) = a.downcast_ref::<PostGresDB>() {
                     Some(x as &dyn DBTrait)

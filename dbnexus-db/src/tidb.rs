@@ -1,11 +1,9 @@
-use std::sync::Arc;
-
 #[cfg(test)]
 use crate::datasource_config::MysqlDBConfig;
 use crate::mysql::MysqlDB;
 
 pub struct TiDB {
-    pub(crate) db: Arc<MysqlDB>,
+    pub(crate) db: MysqlDB,
 }
 #[cfg(test)]
 // docker run -d --name some-tidb    -p 4000:4000   pingcap/tidb

@@ -5,12 +5,13 @@ use crate::db::{
     ColumnType, CreateIndexReq, CreateSchemaExtra, CreateTableAndIndexSql, DBTrait, DefAndMetas,
     ExportFrame, ExportKind, ExportQueryResult, Field, GetBackendKind, Index, IndexKind, ListTable,
     MetaValue, NamedStaff, OptionMustBeSomeErr, ProcedureDetail, QueryEvent, QueryEventEmitter,
-    QueryResp, QuerySql, ReadOnlyTrait, SchemaTrait, ServerMetas, ShowTableParameter, SqlBuilder,
-    SqlCollect, SqlEvent, TriggerDetail, TriggerEvent, TriggerTiming, UdfOrProcedureExtraParameter,
-    XlsxEdit, POOL_MAX_CONNECTIONS,
+    QueryResp, QuerySql, ReadOnlyTrait, SchemaTrait, SequenceDetail, ServerMetas,
+    ShowTableParameter, SqlBuilder, SqlCollect, SqlEvent, TriggerDetail, TriggerEvent,
+    TriggerTiming, UdfOrProcedureExtraParameter, XlsxEdit, POOL_MAX_CONNECTIONS,
 };
 use crate::helper::create_csv;
 use crate::language_server::LexerCompletionTrait;
+use crate::mariadb::MariaDB;
 use chrono::Utc;
 use dashmap::DashMap;
 use futures_util::StreamExt;
@@ -32,6 +33,7 @@ pub struct MysqlDB {
     pub(crate) query_connection: Arc<DashMap<String, Arc<Mutex<PoolConnection<sqlx::MySql>>>>>,
     pub(crate) key_words_cache: Arc<Mutex<Vec<String>>>,
     pub(crate) completion_id: AutoCompletionQueryId,
+    pub kind: BackendKind,
 }
 
 fn get_row_types(row: &MySqlRow) -> Vec<Field> {
@@ -521,7 +523,7 @@ impl ServerMetas for MysqlDB {
 
 impl GetBackendKind for MysqlDB {
     fn backend_name(&self) -> BackendKind {
-        BackendKind::Mysql
+        self.kind
     }
 }
 
@@ -665,6 +667,42 @@ impl MysqlDB {
 #[async_trait::async_trait]
 
 impl SchemaTrait for MysqlDB {
+    async fn list_sequence(&self) -> anyhow::Result<Vec<SequenceDetail>> {
+        match self.kind {
+            BackendKind::Mariadb => {
+                let t = MariaDB {
+                    db: Clone::clone(self),
+                };
+                t.list_sequence().await
+            }
+            _ => self.kind.not_support_feature(),
+        }
+    }
+
+    async fn rename_sequence(&self, old: &str, new: &str) -> anyhow::Result<String> {
+        match self.kind {
+            BackendKind::Mariadb => {
+                let t = MariaDB {
+                    db: Clone::clone(self),
+                };
+                t.rename_sequence(old, new).await
+            }
+            _ => self.kind.not_support_feature(),
+        }
+    }
+
+    async fn drop_sequence(&self, name: &str, cascade: bool) -> anyhow::Result<String> {
+        match self.kind {
+            BackendKind::Mariadb => {
+                let t = MariaDB {
+                    db: Clone::clone(self),
+                };
+                t.drop_sequence(name, cascade).await
+            }
+            _ => self.kind.not_support_feature(),
+        }
+    }
+
     async fn list_event(&self) -> anyhow::Result<Vec<SqlEvent>> {
         self.list_event_impl(self.config.schema_str()?).await
     }
@@ -1288,6 +1326,119 @@ impl SchemaTrait for MysqlDB {
         }
         anyhow::Ok(map.into_iter().map(|x| x.1).collect())
     }
+
+    async fn create_table(&self, req: &crate::db::CreateTableReq) -> anyhow::Result<String> {
+        let ss = SchemaTrait::create_table_sql(self, req)?;
+        let mut sc = SqlCollect::default();
+
+        for sql in ss.iter() {
+            self.execute_sql_no_open_conn(sql).await?;
+            sc.collect(sql);
+        }
+        anyhow::Ok(sc.into())
+    }
+
+    fn create_table_sql(&self, req: &crate::db::CreateTableReq) -> anyhow::Result<Vec<String>> {
+        SqlBuilder::create_table_sql(self, req)
+    }
+
+    fn create_table_sql_string(&self, req: &crate::db::CreateTableReq) -> anyhow::Result<String> {
+        SchemaTrait::create_table_sql(self, req).map(|x| x.join(";\n"))
+    }
+
+    async fn table_insert_sql(
+        &self,
+        table_name: &str,
+        values: HashMap<String, Option<String>>,
+    ) -> anyhow::Result<String> {
+        let fs = self.show_table_columns(table_name).await?;
+        let sql = SqlBuilder::insert_sql(self, table_name, &fs, &values)?;
+        anyhow::Ok(sql)
+    }
+
+    async fn table_insert(
+        &self,
+        table_name: &str,
+        values: HashMap<String, Option<String>>,
+    ) -> anyhow::Result<Option<usize>> {
+        let sql = self.table_insert_sql(table_name, values).await?;
+        let r = self.execute_sql_no_open_conn(&sql).await?;
+        anyhow::Ok(r)
+    }
+
+    async fn table_update_sql(
+        &self,
+        table_name: &str,
+        values: HashMap<String, Option<String>>,
+        wheres: HashMap<String, Option<String>>,
+    ) -> anyhow::Result<String> {
+        let fs = self.show_table_columns(table_name).await?;
+        let sql = SqlBuilder::update_sql(self, table_name, &fs, &values, &wheres)?;
+        anyhow::Ok(sql)
+    }
+
+    async fn table_update(
+        &self,
+        table_name: &str,
+        values: HashMap<String, Option<String>>,
+        wheres: HashMap<String, Option<String>>,
+    ) -> anyhow::Result<Option<usize>> {
+        let sql = self.table_update_sql(table_name, values, wheres).await?;
+        self.execute_sql_no_open_conn(&sql).await
+    }
+
+    async fn table_delete_sql(
+        &self,
+        table_name: &str,
+        wheres: HashMap<String, Option<String>>,
+    ) -> anyhow::Result<String> {
+        let fs = self.show_table_columns(table_name).await?;
+        SqlBuilder::delete_sql(self, table_name, &fs, &wheres)
+    }
+
+    async fn table_delete(
+        &self,
+        table_name: &str,
+        wheres: HashMap<String, Option<String>>,
+    ) -> anyhow::Result<Option<usize>> {
+        let fs = self.show_table_columns(table_name).await?;
+        let sql = SqlBuilder::delete_sql(self, table_name, &fs, &wheres)?;
+        let ret = self.execute_sql_no_open_conn(&sql).await?;
+        anyhow::Ok(ret)
+    }
+
+    async fn list_materialized_view(&self) -> anyhow::Result<Vec<ListTable>> {
+        self.backend_name().not_support_feature()
+    }
+
+    async fn drop_materialized_view(&self, _name: &str) -> anyhow::Result<String> {
+        self.backend_name().not_support_feature()
+    }
+
+    async fn disable_trigger(&self, _table: &str, _name: &str) -> anyhow::Result<String> {
+        self.backend_name().not_support_feature()
+    }
+
+    async fn enable_trigger(&self, _table: &str, _name: &str) -> anyhow::Result<String> {
+        self.backend_name().not_support_feature()
+    }
+
+    async fn table_exists(&self, table: &str) -> anyhow::Result<bool> {
+        let e = self
+            .list_table()
+            .await?
+            .iter()
+            .any(|x| x.name.eq_ignore_ascii_case(table));
+        anyhow::Ok(e)
+    }
+
+    async fn list_created_types(&self) -> anyhow::Result<Vec<crate::db::CreatedTypeDef>> {
+        self.backend_name().not_support_feature()
+    }
+
+    async fn drop_created_type(&self, _name: &str) -> anyhow::Result<String> {
+        self.backend_name().not_support_feature()
+    }
 }
 
 fn encode_row(r: &MySqlRow, try_blob_to_str: bool) -> anyhow::Result<Vec<Option<String>>> {
@@ -1395,7 +1546,7 @@ fn encode_row(r: &MySqlRow, try_blob_to_str: bool) -> anyhow::Result<Vec<Option<
 }
 
 impl MysqlDB {
-    pub async fn new(config: MysqlDBConfig) -> anyhow::Result<Self> {
+    pub async fn new(config: MysqlDBConfig, kind: BackendKind) -> anyhow::Result<Self> {
         let mut opts = sqlx::mysql::MySqlConnectOptions::new();
         opts = opts
             .host(&config.host)
@@ -1436,6 +1587,7 @@ impl MysqlDB {
             query_connection: Default::default(),
             key_words_cache: Default::default(),
             completion_id: Default::default(),
+            kind,
         })
     }
 
@@ -1494,7 +1646,7 @@ impl DBTrait for MysqlDB {
     async fn open_schema(&self, name: &str) -> anyhow::Result<Arc<dyn SchemaTrait>> {
         let mut config = self.config.clone();
         config.db = Some(name.to_owned());
-        let x = Self::new(config).await?;
+        let x = Self::new(config, self.kind).await?;
         Ok(Arc::new(x))
     }
 
@@ -1870,7 +2022,7 @@ pub(crate) mod test_fns {
     };
     // this test no need clean up, we use memory sqlite db.
     pub(crate) async fn make_test_object(config: MysqlDBConfig) -> MysqlDB {
-        let db = MysqlDB::new(config).await.unwrap();
+        let db = MysqlDB::new(config, BackendKind::Mysql).await.unwrap();
         db
     }
 

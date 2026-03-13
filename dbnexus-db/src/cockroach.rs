@@ -1,17 +1,8 @@
-use crate::{db::ListTable, pg::PostGresDB};
+#[cfg(test)]
+use crate::{datasource_config::PGDBConfig, db::BackendKind, pg::PostGresDB};
 
 #[cfg(test)]
-use crate::sub::SubDB;
-
-use sqlx::{AssertSqlSafe, Row};
-use std::ops::DerefMut;
-
-#[cfg(test)]
-pub(crate) async fn make_test_object() -> SubDB {
-    use std::sync::Arc;
-
-    use crate::datasource_config::PGDBConfig;
-
+pub(crate) async fn make_test_object() -> PostGresDB {
     let r = PGDBConfig {
         host: crate::TEST_HOST.to_string(),
         port: 26257,
@@ -23,8 +14,7 @@ pub(crate) async fn make_test_object() -> SubDB {
         ssl: Default::default(),
         conn_timeout: Some(5000.into()),
     };
-
-    let pg = SubDB::CocoRoach(Arc::new(PostGresDB::new(r).await.unwrap()));
+    let pg = PostGresDB::new(r, BackendKind::CockRoach).await.unwrap();
     pg
 }
 
@@ -72,36 +62,8 @@ pub(crate) const COCKROACH_TYPES: &[&str] = &[
     "VECTOR",
 ];
 
-impl PostGresDB {
-    pub(crate) async fn cock_roach_list_view(&self) -> anyhow::Result<Vec<ListTable>> {
-        let sql = format!(
-            r#"
-            SELECT  table_name 
-            FROM information_schema.tables
-            WHERE table_type = 'VIEW'
-                AND table_schema = '{}' and table_name not in (SELECT 
-                    matviewname
-            FROM 
-                pg_matviews where schemaname = '{}' ) 
-        "#,
-            self.config.schema_str()?,
-            self.config.schema_str()?,
-        );
-        let mut conn = self.get_conn().await?;
-        let rows = sqlx::raw_sql(AssertSqlSafe(sql.as_str()))
-            .fetch_all(conn.deref_mut())
-            .await?;
-        let mut ret = Vec::new();
-        for row in rows.iter() {
-            let name: String = row.try_get(0)?;
-            ret.push(ListTable::from(name));
-        }
-
-        anyhow::Ok(ret)
-    }
-}
-
 #[cfg(test)]
+
 mod tests {
     use super::*;
     use crate::db::{

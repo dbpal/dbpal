@@ -35,6 +35,7 @@ pub struct PostGresDB {
     pub(crate) query_connection: Arc<DashMap<String, Arc<Mutex<PoolConnection<sqlx::Postgres>>>>>,
     pub(crate) key_words_cache: Arc<Mutex<Vec<String>>>,
     pub(crate) completion_id: AutoCompletionQueryId,
+    pub(crate) kind: BackendKind,
 }
 
 #[async_trait::async_trait]
@@ -1199,21 +1200,40 @@ impl SchemaTrait for PostGresDB {
     }
 
     async fn list_view(&self) -> anyhow::Result<Vec<ListTable>> {
-        let mut conn = self.get_conn().await?;
-        let schema = self.config.schema_str()?;
-        let rows = sqlx::raw_sql(AssertSqlSafe(
-            format!(
-                r#"
+        let sql = match self.kind {
+            BackendKind::CockRoach => {
+                let sql = format!(
+                    r#"
+            SELECT  table_name 
+            FROM information_schema.tables
+            WHERE table_type = 'VIEW'
+                AND table_schema = '{}' and table_name not in (SELECT 
+                    matviewname
+            FROM 
+                pg_matviews where schemaname = '{}' ) 
+        "#,
+                    self.config.schema_str()?,
+                    self.config.schema_str()?,
+                );
+                sql
+            }
+            _ => {
+                let sql = format!(
+                    r#"
         SELECT table_name
         FROM information_schema.tables
         WHERE table_type = 'VIEW'
-            AND table_schema = '{schema}';
-        "#
-            )
-            .as_str(),
-        ))
-        .fetch_all(conn.deref_mut())
-        .await?;
+            AND table_schema = '{}';
+        "#,
+                    self.config.schema_str()?
+                );
+                sql
+            }
+        };
+        let mut conn = self.get_conn().await?;
+        let rows = sqlx::raw_sql(AssertSqlSafe(sql))
+            .fetch_all(conn.deref_mut())
+            .await?;
 
         let mut ret = Vec::with_capacity(rows.len());
         for r in rows.iter() {
@@ -1614,7 +1634,7 @@ impl std::fmt::Debug for PostGresDB {
 }
 
 impl PostGresDB {
-    pub async fn new(config: PGDBConfig) -> anyhow::Result<Self> {
+    pub async fn new(config: PGDBConfig, kind: BackendKind) -> anyhow::Result<Self> {
         let mut opts = sqlx::postgres::PgConnectOptions::new();
         opts = opts
             .host(&config.host)
@@ -1649,6 +1669,7 @@ impl PostGresDB {
             query_connection: Default::default(),
             key_words_cache: Default::default(),
             completion_id: Default::default(),
+            kind,
         })
     }
 
@@ -2081,7 +2102,7 @@ impl CatalogTrait for PostGresDB {
     async fn open_db(&self, name: &str) -> anyhow::Result<Arc<dyn DBTrait>> {
         let mut config = self.config.clone();
         config.db = Some(name.to_string());
-        let x = Self::new(config).await?;
+        let x = Self::new(config, self.kind).await?;
         anyhow::Ok(Arc::new(x))
     }
 
@@ -2114,18 +2135,20 @@ impl CatalogTrait for PostGresDB {
 
 #[cfg(test)]
 pub(crate) async fn make_test_object() -> PostGresDB {
-    let pg = PostGresDB::new(PGDBConfig {
-        host: crate::TEST_HOST.to_string(),
-        port: 5432,
-        username: "postgres".to_string(),
-        password: Some("root".to_string()),
-        db: Some("test".into()),
-        schema: Some("xxx".to_string()),
-        read_only: false,
-
-        ssl: Default::default(),
-        conn_timeout: Some(5000.into()),
-    })
+    let pg = PostGresDB::new(
+        PGDBConfig {
+            host: crate::TEST_HOST.to_string(),
+            port: 5432,
+            username: "postgres".to_string(),
+            password: Some("root".to_string()),
+            db: Some("test".into()),
+            schema: Some("xxx".to_string()),
+            read_only: false,
+            ssl: Default::default(),
+            conn_timeout: Some(5000.into()),
+        },
+        BackendKind::PostGres,
+    )
     .await
     .unwrap();
     pg
