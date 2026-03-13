@@ -768,7 +768,7 @@ impl QuerySql for MongoDB {
         self.backend_name().not_support_feature()
     }
 
-    async fn execute_sql_no_open_conn(&self, _sql: &str) -> anyhow::Result<Option<usize>> {
+    async fn simple_execute_sql(&self, _sql: &str) -> anyhow::Result<Option<usize>> {
         self.backend_name().not_support_feature()
     }
 

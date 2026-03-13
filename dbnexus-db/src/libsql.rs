@@ -200,7 +200,7 @@ impl QuerySql for LibSqlDB {
         }
     }
 
-    async fn execute_sql_no_open_conn(&self, sql: &str) -> anyhow::Result<Option<usize>> {
+    async fn simple_execute_sql(&self, sql: &str) -> anyhow::Result<Option<usize>> {
         let conn = self.get_conn().await?;
         conn.execute_batch(sql).await?;
         anyhow::Ok(None)
@@ -511,19 +511,19 @@ impl SchemaTrait for LibSqlDB {
     async fn create_index(&self, table: &str, req: &CreateIndexReq) -> anyhow::Result<String> {
         let sql = req.common_sql(table, true, self.backend_name().quote_style())?;
         log::info!("sql:{}", sql);
-        self.execute_sql_no_open_conn(&sql).await?;
+        self.simple_execute_sql(&sql).await?;
         anyhow::Ok(sql)
     }
 
     async fn drop_index(&self, _table_name: &str, index: &str) -> anyhow::Result<String> {
         let sql = format!(r#"DROP INDEX "{index}";"#);
         log::info!("sql:{}", sql);
-        self.execute_sql_no_open_conn(&sql).await?;
+        self.simple_execute_sql(&sql).await?;
         anyhow::Ok(sql)
     }
     async fn drop_table_column(&self, table: &str, col: &str) -> anyhow::Result<String> {
         let sql = format!(r#"ALTER TABLE "{table}" DROP COLUMN "{col}";"#);
-        self.execute_sql_no_open_conn(&sql).await?;
+        self.simple_execute_sql(&sql).await?;
         anyhow::Ok(sql)
     }
 
@@ -547,7 +547,7 @@ impl SchemaTrait for LibSqlDB {
             }
         );
         log::info!("sql:{}", sql);
-        self.execute_sql_no_open_conn(&sql).await?;
+        self.simple_execute_sql(&sql).await?;
         anyhow::Ok(sql)
     }
 
@@ -570,14 +570,14 @@ impl SchemaTrait for LibSqlDB {
         }
         let sql = format!(r#"CREATE TABLE "{dup}" AS SELECT * FROM "{table}""#);
         log::info!("sql:{}", sql);
-        self.execute_sql_no_open_conn(&sql).await?;
+        self.simple_execute_sql(&sql).await?;
         anyhow::Ok(())
     }
 
     async fn rename_table(&self, old: &str, new: &str) -> anyhow::Result<String> {
         let sql = format!(r#"ALTER TABLE "{old}" RENAME TO "{new}""#);
         log::info!("sql:{}", sql);
-        self.execute_sql_no_open_conn(&sql).await?;
+        self.simple_execute_sql(&sql).await?;
         anyhow::Ok(sql)
     }
 
@@ -612,7 +612,7 @@ impl SchemaTrait for LibSqlDB {
         "#
         );
         log::info!("sql:{}", sql);
-        self.execute_sql_no_open_conn(&sql).await?;
+        self.simple_execute_sql(&sql).await?;
         anyhow::Ok(sql)
     }
 
@@ -689,14 +689,14 @@ impl SchemaTrait for LibSqlDB {
         self.can_write()?;
 
         let sql = format!(r#"DROP VIEW "{view_name}""#);
-        self.execute_sql_no_open_conn(&sql).await?;
+        self.simple_execute_sql(&sql).await?;
         anyhow::Ok(sql)
     }
 
     async fn drop_table(&self, table: &str, _cascade: bool) -> anyhow::Result<String> {
         self.can_write()?;
         let sql = format!(r#"DROP TABLE "{table}" "#,);
-        self.execute_sql_no_open_conn(&sql).await?;
+        self.simple_execute_sql(&sql).await?;
         anyhow::Ok(sql)
     }
 
@@ -708,7 +708,7 @@ impl SchemaTrait for LibSqlDB {
             DELETE FROM sqlite_sequence WHERE name = '{table_name}';
         "#
         );
-        self.execute_sql_no_open_conn(&sql).await?;
+        self.simple_execute_sql(&sql).await?;
         anyhow::Ok(sql)
     }
 

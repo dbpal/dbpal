@@ -212,7 +212,7 @@ pub trait SchemaTrait:
         let mut sc = SqlCollect::default();
 
         for sql in ss.iter() {
-            self.execute_sql_no_open_conn(sql).await?;
+            self.simple_execute_sql(sql).await?;
             sc.collect(sql);
         }
         anyhow::Ok(sc.into())
@@ -285,7 +285,7 @@ pub trait SchemaTrait:
         values: HashMap<String, Option<String>>,
     ) -> anyhow::Result<Option<usize>> {
         let sql = self.table_insert_sql(table_name, values).await?;
-        let r = self.execute_sql_no_open_conn(&sql).await?;
+        let r = self.simple_execute_sql(&sql).await?;
         anyhow::Ok(r)
     }
 
@@ -307,7 +307,7 @@ pub trait SchemaTrait:
         wheres: HashMap<String, Option<String>>,
     ) -> anyhow::Result<Option<usize>> {
         let sql = self.table_update_sql(table_name, values, wheres).await?;
-        self.execute_sql_no_open_conn(&sql).await
+        self.simple_execute_sql(&sql).await
     }
 
     async fn truncate_table(&self, table_name: &str) -> anyhow::Result<String>;
@@ -328,7 +328,7 @@ pub trait SchemaTrait:
     ) -> anyhow::Result<Option<usize>> {
         let fs = self.show_table_columns(table_name).await?;
         let sql = SqlBuilder::delete_sql(self, table_name, &fs, &wheres)?;
-        let ret = self.execute_sql_no_open_conn(&sql).await?;
+        let ret = self.simple_execute_sql(&sql).await?;
         anyhow::Ok(ret)
     }
 
@@ -1662,7 +1662,7 @@ pub trait QuerySql: GetBackendKind + Send + Sync + 'static + LanguageServer {
         query_id: &str,
         _sql: &str,
     ) -> anyhow::Result<Result<QueryResp, String>>;
-    async fn execute_sql_no_open_conn(&self, sql: &str) -> anyhow::Result<Option<usize>>;
+    async fn simple_execute_sql(&self, sql: &str) -> anyhow::Result<Option<usize>>;
 
     async fn open_connection(&self, id: &str) -> anyhow::Result<()>;
 

@@ -1188,7 +1188,7 @@ pub enum QueryEvent {
 }
 
 #[tauri::command]
-pub async fn execute_sql_no_open_conn(
+pub async fn simple_execute_sql(
     name: String,
     sql: String,
     app: tauri::State<'_, DBPal>,
@@ -1203,7 +1203,7 @@ pub async fn execute_sql_no_open_conn(
 
     let result = db
         .as_query_sql()
-        .execute_sql_no_open_conn(&sql)
+        .simple_execute_sql(&sql)
         .await
         .map_err(ErrorFrontend::from)?;
     Ok(result)

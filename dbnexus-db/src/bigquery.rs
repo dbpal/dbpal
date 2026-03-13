@@ -105,7 +105,7 @@ impl QuerySql for BigQueryDb {
         todo!()
     }
 
-    async fn execute_sql_no_open_conn(&self, sql: &str) -> anyhow::Result<Option<usize>> {
+    async fn simple_execute_sql(&self, sql: &str) -> anyhow::Result<Option<usize>> {
         todo!()
     }
 

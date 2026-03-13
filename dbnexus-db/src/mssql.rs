@@ -525,7 +525,7 @@ impl SchemaTrait for SqlServerDB {
 
     async fn drop_index(&self, table_name: &str, index: &str) -> anyhow::Result<String> {
         let sql = format!(r#"DROP INDEX "{index}" ON "{table_name}";"#);
-        self.execute_sql_no_open_conn(&sql).await?;
+        self.simple_execute_sql(&sql).await?;
         anyhow::Ok(sql)
     }
 
@@ -537,7 +537,7 @@ impl SchemaTrait for SqlServerDB {
     ) -> anyhow::Result<String> {
         let sql = format!("EXEC sp_rename '{table}.{old_name}', '{new_name}', 'INDEX';");
         log::info!("sql:{}", sql);
-        self.execute_sql_no_open_conn(&sql).await?;
+        self.simple_execute_sql(&sql).await?;
         anyhow::Ok(sql)
     }
 
@@ -627,7 +627,7 @@ impl SchemaTrait for SqlServerDB {
         "#
         );
         log::info!("sql:{}", sql);
-        self.execute_sql_no_open_conn(&sql).await?;
+        self.simple_execute_sql(&sql).await?;
         anyhow::Ok(())
     }
 
@@ -638,7 +638,7 @@ impl SchemaTrait for SqlServerDB {
         "#
         );
         log::info!("sql:{}", sql);
-        self.execute_sql_no_open_conn(&sql).await?;
+        self.simple_execute_sql(&sql).await?;
         anyhow::Ok(sql)
     }
 
@@ -733,7 +733,7 @@ impl SchemaTrait for SqlServerDB {
             Self::DBO_SCHEMA
         );
         log::info!("sql:{}", sql);
-        self.execute_sql_no_open_conn(&sql).await?;
+        self.simple_execute_sql(&sql).await?;
         anyhow::Ok(sql)
     }
 
@@ -850,7 +850,7 @@ impl SchemaTrait for SqlServerDB {
         let schema = self.config.schema_str()?.as_str();
 
         let sql = format!(r#"DROP VIEW "{schema}"."{view_name}""#);
-        self.execute_sql_no_open_conn(&sql).await?;
+        self.simple_execute_sql(&sql).await?;
         anyhow::Ok(sql)
     }
 
@@ -858,7 +858,7 @@ impl SchemaTrait for SqlServerDB {
         self.can_write()?;
         let sql = format!(r#"DROP TABLE "{table}""#);
         log::info!("sql:{}", sql);
-        self.execute_sql_no_open_conn(&sql).await?;
+        self.simple_execute_sql(&sql).await?;
 
         anyhow::Ok(sql)
     }
@@ -1050,21 +1050,21 @@ impl SchemaTrait for SqlServerDB {
             TRUNCATE TABLE "{table_name}";
         "#
         );
-        self.execute_sql_no_open_conn(&sql).await?;
+        self.simple_execute_sql(&sql).await?;
         anyhow::Ok(sql)
     }
 
     async fn disable_trigger(&self, table: &str, name: &str) -> anyhow::Result<String> {
         let sql = format!("ENABLE TRIGGER {name} ON {table}");
         log::info!("sql:{}", sql);
-        self.execute_sql_no_open_conn(&sql).await?;
+        self.simple_execute_sql(&sql).await?;
         anyhow::Ok(sql)
     }
 
     async fn enable_trigger(&self, table: &str, name: &str) -> anyhow::Result<String> {
         let sql = format!("DISABLE TRIGGER {name} ON {table}");
         log::info!("sql:{}", sql);
-        self.execute_sql_no_open_conn(&sql).await?;
+        self.simple_execute_sql(&sql).await?;
         anyhow::Ok(sql)
     }
 
@@ -1150,7 +1150,7 @@ impl SchemaTrait for SqlServerDB {
     ) -> anyhow::Result<String> {
         let sql = format!(r#"DROP FUNCTION "{}"."{name}""#, Self::DBO_SCHEMA);
         log::info!("sql:{}", sql);
-        self.execute_sql_no_open_conn(&sql).await?;
+        self.simple_execute_sql(&sql).await?;
         anyhow::Ok(sql)
     }
 
@@ -1211,7 +1211,7 @@ impl SchemaTrait for SqlServerDB {
     ) -> anyhow::Result<String> {
         let sql = format!(r#"DROP PROCEDURE dbo."{name}""#);
         log::info!("sql:{}", sql);
-        self.execute_sql_no_open_conn(&sql).await?;
+        self.simple_execute_sql(&sql).await?;
         anyhow::Ok(sql)
     }
 }
@@ -1718,7 +1718,7 @@ impl QuerySql for SqlServerDB {
 
         anyhow::Ok(())
     }
-    async fn execute_sql_no_open_conn(&self, sql: &str) -> anyhow::Result<Option<usize>> {
+    async fn simple_execute_sql(&self, sql: &str) -> anyhow::Result<Option<usize>> {
         let mut conn = self.get_conn().await?;
         conn.simple_query(sql.trim()).await?;
         anyhow::Ok(None)

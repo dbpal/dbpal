@@ -364,7 +364,7 @@ impl QuerySql for FireBirdDB {
         })
         .await?
     }
-    async fn execute_sql_no_open_conn(&self, sql: &str) -> anyhow::Result<Option<usize>> {
+    async fn simple_execute_sql(&self, sql: &str) -> anyhow::Result<Option<usize>> {
         let sql = sql.to_owned();
         let this = Clone::clone(self);
         spawn_blocking(move || {
@@ -726,7 +726,7 @@ impl SchemaTrait for FireBirdDB {
     async fn truncate_table(&self, table_name: &str) -> anyhow::Result<String> {
         // firebird have no truncate statement.
         let sql = format!(r#"DELETE FROM "{}""#, table_name);
-        self.execute_sql_no_open_conn(&sql).await?;
+        self.simple_execute_sql(&sql).await?;
         anyhow::Ok(sql.clone())
     }
 
@@ -759,14 +759,14 @@ impl SchemaTrait for FireBirdDB {
             col.nullable.map(|x| x.to_string()).unwrap_or_default(),
         );
         log::info!("sql:{}", sql);
-        self.execute_sql_no_open_conn(&sql).await?;
+        self.simple_execute_sql(&sql).await?;
         anyhow::Ok(sql)
     }
 
     // not tested...
     async fn drop_table_column(&self, table: &str, col: &str) -> anyhow::Result<String> {
         let sql = format!(r#"ALTER TABLE "{table}" DROP "{col}""#);
-        self.execute_sql_no_open_conn(&sql).await?;
+        self.simple_execute_sql(&sql).await?;
         anyhow::Ok(sql)
     }
 
@@ -791,13 +791,13 @@ impl SchemaTrait for FireBirdDB {
 
     async fn drop_view(&self, view_name: &str) -> anyhow::Result<String> {
         let sql = format!(r#"DROP VIEW "{}""#, view_name);
-        self.execute_sql_no_open_conn(&sql).await?;
+        self.simple_execute_sql(&sql).await?;
         anyhow::Ok(sql)
     }
 
     async fn drop_table(&self, table: &str, _cascade: bool) -> anyhow::Result<String> {
         let sql = format!(r#"DROP TABLE "{}""#, table);
-        self.execute_sql_no_open_conn(&sql).await?;
+        self.simple_execute_sql(&sql).await?;
         anyhow::Ok(sql)
     }
 
@@ -808,7 +808,7 @@ impl SchemaTrait for FireBirdDB {
     async fn create_index(&self, table: &str, req: &CreateIndexReq) -> anyhow::Result<String> {
         let sql = req.common_sql(table, true, self.backend_name().quote_style())?;
         log::info!("sql:{}", sql);
-        self.execute_sql_no_open_conn(&sql).await?;
+        self.simple_execute_sql(&sql).await?;
         anyhow::Ok(sql)
     }
 
@@ -874,7 +874,7 @@ impl SchemaTrait for FireBirdDB {
 
     async fn drop_index(&self, _table_name: &str, index: &str) -> anyhow::Result<String> {
         let sql = format!(r#"DROP INDEX "{}";"#, index);
-        self.execute_sql_no_open_conn(&sql).await?;
+        self.simple_execute_sql(&sql).await?;
         anyhow::Ok(sql)
     }
 

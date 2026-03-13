@@ -1416,7 +1416,7 @@ impl QuerySql for RedisDB {
         self.query_connection.remove(&id.to_string());
         anyhow::Ok(())
     }
-    async fn execute_sql_no_open_conn(&self, _sql: &str) -> anyhow::Result<Option<usize>> {
+    async fn simple_execute_sql(&self, _sql: &str) -> anyhow::Result<Option<usize>> {
         anyhow::bail!("the frontend will not use the api for now.")
     }
     async fn execute_sql(

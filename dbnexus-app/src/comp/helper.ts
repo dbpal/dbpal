@@ -863,7 +863,7 @@ function getEditorText(editor: editor.IStandaloneCodeEditor, showNotification) {
 }
 
 function executeSqlWithoutConn(uuid: string, sql: string) {
-  return invoke<QueryRespData>("execute_sql_no_open_conn", {
+  return invoke<QueryRespData>("simple_execute_sql", {
     name: uuid,
     sql,
   });
