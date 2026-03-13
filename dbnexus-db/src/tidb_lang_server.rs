@@ -1,57 +1,9 @@
-use std::ops::DerefMut;
-
-use crate::language_server::{CompletionItem, CompletionKind, GetKeyWords};
 #[cfg(test)]
-use crate::{datasource_config::MysqlDBConfig, db::BackendKind, mysql::MysqlDB};
-
-use crate::tidb::TiDB;
-use sqlx::Row;
-
-impl TiDB {
-    pub(crate) async fn key_words(self) -> anyhow::Result<Vec<String>> {
-        /*
-            原因一句话：TiDB v7.5.1 还没有 information_schema.keywords 这张表，所以你查不到。
-
-            该表是 v7.5.3（2024-08-05 发布的 LTS）才正式加入的
-        你当前的 8.0.11-TiDB-v7.5.1 恰好是 7.5.1，版本号里前面只是伪装成 MySQL 8.0 的“兼容前缀”，实际内核仍是 7.5.1，因此 表不存在。
-         */
-        let result = GetKeyWords::key_words(&self.db).await.unwrap_or_default();
-        if !result.is_empty() {
-            return anyhow::Ok(result);
-        }
-        let result = TIDB_KEYWORDS
-            .iter()
-            .map(|x| x.to_string())
-            .collect::<Vec<_>>();
-        anyhow::Ok(result)
-    }
-
-    pub(crate) async fn list_function(
-        &self,
-        _schema: Option<&str>,
-        include_build_in: bool,
-    ) -> anyhow::Result<Vec<CompletionItem>> {
-        if !include_build_in {
-            return anyhow::Ok(vec![]);
-        }
-        let mut ret = vec![];
-        let mut conn = self.db.get_conn().await?;
-        let rows = sqlx::raw_sql("SHOW BUILTINS;")
-            .fetch_all(conn.deref_mut())
-            .await?;
-        for row in rows.iter() {
-            let name: Option<String> = row.try_get(0)?;
-            if let Some(name) = name {
-                ret.push(CompletionItem {
-                    item: name.into(),
-                    kind: CompletionKind::Function,
-                    desc: None,
-                });
-            }
-        }
-        anyhow::Ok(ret)
-    }
-}
+use crate::datasource_config::MysqlDBConfig;
+#[cfg(test)]
+use crate::db::BackendKindMysql;
+#[cfg(test)]
+use crate::mysql::MysqlDB;
 
 #[allow(dead_code)]
 #[cfg(test)]
@@ -64,14 +16,13 @@ pub(crate) fn make_config() -> MysqlDBConfig {
         port: 3307,
         db: Some("test".to_string()),
         read_only: false,
-
         ssl: Default::default(),
     }
 }
 
 #[cfg(test)]
 pub(crate) async fn make_test_object_tidb(config: MysqlDBConfig) -> MysqlDB {
-    let db = MysqlDB::new(config, BackendKind::Tidb).await.unwrap();
+    let db = MysqlDB::new(config, BackendKindMysql::Tidb).await.unwrap();
     db
 }
 /// TiDB 关键字全集（含保留/非保留）

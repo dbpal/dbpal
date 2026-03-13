@@ -13,13 +13,13 @@ use tokio::sync::Mutex;
 use crate::datasource_config::PGDBConfig;
 use crate::db::{
     create_html_table_data, create_html_table_header, create_markdown_data, create_markdown_header,
-    export_query_as_xlsx_send_data, AutoCompletionQueryId, BackendKind, CatalogTrait, CheckConn,
-    ColumnType, CreateDatabaseExtra, CreateIndexReq, CreateSchemaExtra, CreateTableAndIndexSql,
-    CreatedTypeDef, DBTrait, DefAndMetas, ExportFrame, ExportKind, ExportQueryResult, Field,
-    GetBackendKind, Index, IndexKind, ListTable, MetaValue, NamedStaff, OptionMustBeSomeErr,
-    ProcedureDetail, QueryEvent, QueryEventEmitter, QueryResp, QuerySql, ReadOnlyTrait,
-    SchemaTrait, SequenceDetail, ServerMetas, ShowTableParameter, SqlBuilder, SqlCollect,
-    TriggerDetail, TriggerEvent, TriggerTiming, UdfOrProcedureExtraParameter, XlsxEdit,
+    export_query_as_xlsx_send_data, AutoCompletionQueryId, BackendKind, BackendKindPostGres,
+    CatalogTrait, CheckConn, ColumnType, CreateDatabaseExtra, CreateIndexReq, CreateSchemaExtra,
+    CreateTableAndIndexSql, CreatedTypeDef, DBTrait, DefAndMetas, ExportFrame, ExportKind,
+    ExportQueryResult, Field, GetBackendKind, Index, IndexKind, ListTable, MetaValue, NamedStaff,
+    OptionMustBeSomeErr, ProcedureDetail, QueryEvent, QueryEventEmitter, QueryResp, QuerySql,
+    ReadOnlyTrait, SchemaTrait, SequenceDetail, ServerMetas, ShowTableParameter, SqlBuilder,
+    SqlCollect, TriggerDetail, TriggerEvent, TriggerTiming, UdfOrProcedureExtraParameter, XlsxEdit,
     POOL_MAX_CONNECTIONS,
 };
 
@@ -35,7 +35,7 @@ pub struct PostGresDB {
     pub(crate) query_connection: Arc<DashMap<String, Arc<Mutex<PoolConnection<sqlx::Postgres>>>>>,
     pub(crate) key_words_cache: Arc<Mutex<Vec<String>>>,
     pub(crate) completion_id: AutoCompletionQueryId,
-    pub(crate) kind: BackendKind,
+    pub(crate) kind: BackendKindPostGres,
 }
 
 #[async_trait::async_trait]
@@ -1201,7 +1201,7 @@ impl SchemaTrait for PostGresDB {
 
     async fn list_view(&self) -> anyhow::Result<Vec<ListTable>> {
         let sql = match self.kind {
-            BackendKind::CockRoach => {
+            BackendKindPostGres::CockRoach => {
                 let sql = format!(
                     r#"
             SELECT  table_name 
@@ -1634,7 +1634,7 @@ impl std::fmt::Debug for PostGresDB {
 }
 
 impl PostGresDB {
-    pub async fn new(config: PGDBConfig, kind: BackendKind) -> anyhow::Result<Self> {
+    pub async fn new(config: PGDBConfig, kind: BackendKindPostGres) -> anyhow::Result<Self> {
         let mut opts = sqlx::postgres::PgConnectOptions::new();
         opts = opts
             .host(&config.host)
@@ -2076,7 +2076,7 @@ async fn get_index_kind(
 
 impl GetBackendKind for PostGresDB {
     fn backend_name(&self) -> BackendKind {
-        BackendKind::PostGres
+        BackendKind::PostGres(self.kind)
     }
 }
 
@@ -2147,7 +2147,7 @@ pub(crate) async fn make_test_object() -> PostGresDB {
             ssl: Default::default(),
             conn_timeout: Some(5000.into()),
         },
-        BackendKind::PostGres,
+        BackendKindPostGres::PostGres,
     )
     .await
     .unwrap();

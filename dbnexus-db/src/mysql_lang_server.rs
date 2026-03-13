@@ -9,15 +9,15 @@ MySQL 只允许省略 sys. 前缀直接调用“函数”，对“存储过程�
 过程（procedure）、表（table）、视图（view）：一律没有特权，想跨库访问就老老实实加前缀或切换默认库。
 */
 
-use crate::db::{name_start_ascii_alphabetic, BackendKind, SqlEvent};
+use crate::db::{name_start_ascii_alphabetic, BackendKindMysql, SqlEvent};
 use crate::language_server::{
     try_parser_dot_lexer, AstCompletionHelper, CompletionItem, CompletionKind, CompletionList,
     DBExecutable, ErrAndLoc, GetKeyWords, LangServerCommon, LanguageServer, LexerCompletionTrait,
 };
-use crate::mariadb::MariaDB;
+use crate::mariadb_lang_server::MARIADB_FUNCTIONS;
 use crate::mysql::MysqlDB;
 use crate::sqlparser_completion::TempTableColumn;
-use crate::tidb::TiDB;
+use crate::tidb_lang_server::TIDB_KEYWORDS;
 use sqlx::{AssertSqlSafe, Row, SqlSafeStr};
 use std::collections::HashSet;
 use std::ops::DerefMut;
@@ -34,12 +34,14 @@ impl LexerCompletionTrait for MysqlDB {
 impl GetKeyWords for MysqlDB {
     async fn key_words(&self) -> anyhow::Result<Vec<String>> {
         match self.kind {
-            BackendKind::Tidb => {
-                let t = TiDB {
-                    db: Clone::clone(self),
-                };
-                t.key_words().await
+            BackendKindMysql::Tidb => {
+                let result = TIDB_KEYWORDS
+                    .iter()
+                    .map(|x| x.to_string())
+                    .collect::<Vec<_>>();
+                anyhow::Ok(result)
             }
+
             _ => {
                 let mut lock = self.key_words_cache.lock().await;
                 if !lock.is_empty() {
@@ -298,21 +300,27 @@ impl LangServerCommon for MysqlDB {
         include_build_in: bool,
     ) -> anyhow::Result<Vec<CompletionItem>> {
         match self.kind {
-            BackendKind::Mariadb => {
-                let t = MariaDB {
-                    db: Clone::clone(self),
-                };
-                t.language_server_list_function(schema, include_build_in)
-                    .await
+            BackendKindMysql::Tidb => {
+                if !include_build_in {
+                    return anyhow::Ok(vec![]);
+                }
+                let mut ret = vec![];
+                let mut conn = self.get_conn().await?;
+                let rows = sqlx::raw_sql("SHOW BUILTINS;")
+                    .fetch_all(conn.deref_mut())
+                    .await?;
+                for row in rows.iter() {
+                    let name: Option<String> = row.try_get(0)?;
+                    if let Some(name) = name {
+                        ret.push(CompletionItem {
+                            item: name.into(),
+                            kind: CompletionKind::Function,
+                            desc: None,
+                        });
+                    }
+                }
+                anyhow::Ok(ret)
             }
-
-            BackendKind::Tidb => {
-                let t = TiDB {
-                    db: Clone::clone(self),
-                };
-                t.list_function(schema, include_build_in).await
-            }
-
             _ => {
                 let schema = self.merge_schema(schema).await;
                 let mut conn = self.get_conn().await?;
@@ -335,13 +343,20 @@ impl LangServerCommon for MysqlDB {
                 } else {
                     Default::default()
                 };
-
                 if include_build_in {
-                    ret.extend(MYSQL_FUNCTIONS.iter().map(|x| CompletionItem {
-                        item: (*x).into(),
-                        kind: CompletionKind::Function,
-                        desc: None,
-                    }));
+                    ret.extend(
+                        if self.kind == BackendKindMysql::Mysql {
+                            MYSQL_FUNCTIONS
+                        } else {
+                            MARIADB_FUNCTIONS
+                        }
+                        .iter()
+                        .map(|x| CompletionItem {
+                            item: (*x).into(),
+                            kind: CompletionKind::Function,
+                            desc: None,
+                        }),
+                    );
                 }
                 anyhow::Ok(ret)
             }
@@ -367,22 +382,28 @@ impl LangServerCommon for MysqlDB {
         .await
     }
     async fn list_table(&self, schema: Option<&str>) -> anyhow::Result<Vec<String>> {
-        match self.kind {
-            BackendKind::Mariadb => {
-                MariaDB {
-                    db: Clone::clone(self),
-                }
-                .lang_server_list_table(schema)
-                .await
-            }
-            _ => {
-                let schema = self.not_allow_empty_schema(schema).await?;
+        let schema = self.not_allow_empty_schema(schema).await?;
+        let mut ret: Vec<String> = self
+            .list_table_impl(&schema)
+            .await
+            .map(|x| x.into_iter().map(|x| x.name).collect())?;
 
-                self.list_table_impl(&schema)
-                    .await
-                    .map(|x| x.into_iter().map(|x| x.name).collect())
+        match self.kind {
+            BackendKindMysql::Mariadb => {
+                let sql = format!(
+            "select SEQUENCE_NAME  from information_schema.SEQUENCES where SEQUENCE_SCHEMA = '{}'",schema );
+                let mut conn = self.get_conn().await?;
+                let rows = sqlx::raw_sql(AssertSqlSafe(sql.as_str()))
+                    .fetch_all(conn.deref_mut())
+                    .await?;
+                for row in rows.iter() {
+                    let name: String = row.try_get(0)?;
+                    ret.push(name);
+                }
             }
+            _ => {}
         }
+        anyhow::Ok(ret)
     }
 
     async fn list_view(&self, schema: Option<&str>) -> anyhow::Result<Vec<String>> {
@@ -916,16 +937,14 @@ mod tests {
     use std::path::Path;
 
     use crate::datasource_config::MysqlDBConfig;
-    use crate::db::{QuerySql, SchemaTrait};
+    use crate::db::{BackendKindMysql, QuerySql, SchemaTrait};
     use crate::language_server::completion_test::test_file_auto_completion;
     use crate::language_server::{LangServerCommon, LanguageServer};
     use crate::mysql::MysqlDB;
     use crate::{enable_test_log, TEST_HOST};
 
     async fn make_test_object(config: MysqlDBConfig) -> MysqlDB {
-        let db = MysqlDB::new(config, crate::db::BackendKind::Mysql)
-            .await
-            .unwrap();
+        let db = MysqlDB::new(config, BackendKindMysql::Mysql).await.unwrap();
         db
     }
     fn make_config() -> MysqlDBConfig {

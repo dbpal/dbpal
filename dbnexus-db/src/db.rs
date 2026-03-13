@@ -10,14 +10,11 @@ use tokio::io::AsyncWriteExt;
 use tokio::task::spawn_blocking;
 use typescript_type_def::TypeDef;
 
-#[derive(Clone, Copy, PartialEq, Eq, Debug, TypeDef)]
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub enum BackendKind {
-    Mysql,
-    Tidb,
-    Mariadb,
+    Mysql(BackendKindMysql),
     LibSql,
-    PostGres,
-    CockRoach,
+    PostGres(BackendKindPostGres),
     SqlServer,
     Mongo,
     Redis,
@@ -32,9 +29,24 @@ pub enum BackendKind {
     CouchBase,
 }
 
+#[derive(Clone, Copy, PartialEq, Eq, Debug, Default)]
+pub enum BackendKindMysql {
+    #[default]
+    Mysql,
+    Mariadb,
+    Tidb,
+}
+
+#[derive(Clone, Copy, PartialEq, Eq, Debug, Default)]
+pub enum BackendKindPostGres {
+    #[default]
+    PostGres,
+    CockRoach,
+}
+
 impl BackendKind {
     pub fn mysql_like(self) -> bool {
-        matches!(self, Self::Mariadb | Self::Tidb | Self::Mysql)
+        matches!(self, Self::Mysql(..))
     }
 
     // 支持这样的语法 @@或者@访问一些全局或者局部的变量
@@ -42,7 +54,7 @@ impl BackendKind {
         self.mysql_like() || self == Self::SqlServer
     }
     pub(crate) fn postgres_like(self) -> bool {
-        matches!(self, Self::PostGres | Self::CockRoach)
+        matches!(self, Self::PostGres(..))
     }
 
     pub(crate) fn sqlite_like(&self) -> bool {

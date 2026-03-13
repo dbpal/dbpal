@@ -1,17 +1,17 @@
 use crate::datasource_config::MysqlDBConfig;
 use crate::db::{
     create_html_table_data, create_html_table_header, create_markdown_data, create_markdown_header,
-    escape_sql_str, export_query_as_xlsx_send_data, AutoCompletionQueryId, BackendKind, CheckConn,
-    ColumnType, CreateIndexReq, CreateSchemaExtra, CreateTableAndIndexSql, DBTrait, DefAndMetas,
-    ExportFrame, ExportKind, ExportQueryResult, Field, GetBackendKind, Index, IndexKind, ListTable,
-    MetaValue, NamedStaff, OptionMustBeSomeErr, ProcedureDetail, QueryEvent, QueryEventEmitter,
-    QueryResp, QuerySql, ReadOnlyTrait, SchemaTrait, SequenceDetail, ServerMetas,
-    ShowTableParameter, SqlBuilder, SqlCollect, SqlEvent, TriggerDetail, TriggerEvent,
-    TriggerTiming, UdfOrProcedureExtraParameter, XlsxEdit, POOL_MAX_CONNECTIONS,
+    escape_sql_str, export_query_as_xlsx_send_data, AutoCompletionQueryId, BackendKind,
+    BackendKindMysql, CheckConn, ColumnType, CreateIndexReq, CreateSchemaExtra,
+    CreateTableAndIndexSql, DBTrait, DefAndMetas, ExportFrame, ExportKind, ExportQueryResult,
+    Field, GetBackendKind, Index, IndexKind, ListTable, MetaValue, NamedStaff, OptionMustBeSomeErr,
+    ProcedureDetail, QueryEvent, QueryEventEmitter, QueryResp, QuerySql, ReadOnlyTrait,
+    SchemaTrait, SequenceDetail, ServerMetas, ShowTableParameter, SqlBuilder, SqlCollect, SqlEvent,
+    TriggerDetail, TriggerEvent, TriggerTiming, UdfOrProcedureExtraParameter, XlsxEdit,
+    POOL_MAX_CONNECTIONS,
 };
 use crate::helper::create_csv;
 use crate::language_server::LexerCompletionTrait;
-use crate::mariadb::MariaDB;
 use chrono::Utc;
 use dashmap::DashMap;
 use futures_util::StreamExt;
@@ -33,7 +33,7 @@ pub struct MysqlDB {
     pub(crate) query_connection: Arc<DashMap<String, Arc<Mutex<PoolConnection<sqlx::MySql>>>>>,
     pub(crate) key_words_cache: Arc<Mutex<Vec<String>>>,
     pub(crate) completion_id: AutoCompletionQueryId,
-    pub kind: BackendKind,
+    pub kind: BackendKindMysql,
 }
 
 fn get_row_types(row: &MySqlRow) -> Vec<Field> {
@@ -523,7 +523,7 @@ impl ServerMetas for MysqlDB {
 
 impl GetBackendKind for MysqlDB {
     fn backend_name(&self) -> BackendKind {
-        self.kind
+        BackendKind::Mysql(self.kind)
     }
 }
 
@@ -669,37 +669,36 @@ impl MysqlDB {
 impl SchemaTrait for MysqlDB {
     async fn list_sequence(&self) -> anyhow::Result<Vec<SequenceDetail>> {
         match self.kind {
-            BackendKind::Mariadb => {
-                let t = MariaDB {
-                    db: Clone::clone(self),
-                };
-                t.list_sequence().await
-            }
-            _ => self.kind.not_support_feature(),
+            BackendKindMysql::Mariadb => self.list_sequences_impl(self.config.schema_str()?).await,
+            _ => self.backend_name().not_support_feature(),
         }
     }
 
     async fn rename_sequence(&self, old: &str, new: &str) -> anyhow::Result<String> {
         match self.kind {
-            BackendKind::Mariadb => {
-                let t = MariaDB {
-                    db: Clone::clone(self),
-                };
-                t.rename_sequence(old, new).await
+            BackendKindMysql::Mariadb => {
+                let sql = format!("RENAME TABLE {old}  TO {new}");
+                let mut conn = self.get_conn().await?;
+                sqlx::raw_sql(AssertSqlSafe(sql.as_str()))
+                    .execute(conn.deref_mut())
+                    .await?;
+                anyhow::Ok(sql)
             }
-            _ => self.kind.not_support_feature(),
+            _ => self.backend_name().not_support_feature(),
         }
     }
 
-    async fn drop_sequence(&self, name: &str, cascade: bool) -> anyhow::Result<String> {
+    async fn drop_sequence(&self, name: &str, _cascade: bool) -> anyhow::Result<String> {
         match self.kind {
-            BackendKind::Mariadb => {
-                let t = MariaDB {
-                    db: Clone::clone(self),
-                };
-                t.drop_sequence(name, cascade).await
+            BackendKindMysql::Mariadb => {
+                let sql = format!("DROP SEQUENCE IF EXISTS {name};");
+                let mut conn = self.get_conn().await?;
+                sqlx::raw_sql(AssertSqlSafe(sql.as_str()))
+                    .execute(conn.deref_mut())
+                    .await?;
+                anyhow::Ok(sql)
             }
-            _ => self.kind.not_support_feature(),
+            _ => self.backend_name().not_support_feature(),
         }
     }
 
@@ -1546,7 +1545,7 @@ fn encode_row(r: &MySqlRow, try_blob_to_str: bool) -> anyhow::Result<Vec<Option<
 }
 
 impl MysqlDB {
-    pub async fn new(config: MysqlDBConfig, kind: BackendKind) -> anyhow::Result<Self> {
+    pub async fn new(config: MysqlDBConfig, kind: BackendKindMysql) -> anyhow::Result<Self> {
         let mut opts = sqlx::mysql::MySqlConnectOptions::new();
         opts = opts
             .host(&config.host)
@@ -2022,7 +2021,7 @@ pub(crate) mod test_fns {
     };
     // this test no need clean up, we use memory sqlite db.
     pub(crate) async fn make_test_object(config: MysqlDBConfig) -> MysqlDB {
-        let db = MysqlDB::new(config, BackendKind::Mysql).await.unwrap();
+        let db = MysqlDB::new(config, BackendKindMysql::Mysql).await.unwrap();
         db
     }
 

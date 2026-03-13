@@ -1,5 +1,5 @@
 #[cfg(test)]
-use crate::{datasource_config::PGDBConfig, db::BackendKind, pg::PostGresDB};
+use crate::{datasource_config::PGDBConfig, db::BackendKindPostGres, pg::PostGresDB};
 
 #[cfg(test)]
 pub(crate) async fn make_test_object() -> PostGresDB {
@@ -14,7 +14,9 @@ pub(crate) async fn make_test_object() -> PostGresDB {
         ssl: Default::default(),
         conn_timeout: Some(5000.into()),
     };
-    let pg = PostGresDB::new(r, BackendKind::CockRoach).await.unwrap();
+    let pg = PostGresDB::new(r, BackendKindPostGres::CockRoach)
+        .await
+        .unwrap();
     pg
 }
 

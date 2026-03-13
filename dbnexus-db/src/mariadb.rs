@@ -1,12 +1,14 @@
 #[cfg(test)]
 use crate::datasource_config::MysqlDBConfig;
+#[cfg(test)]
+use crate::db::BackendKindMysql;
 use crate::db::SequenceDetail;
 use crate::mysql::MysqlDB;
 use sqlx::types::BigDecimal;
 use sqlx::{AssertSqlSafe, Row};
 use std::ops::DerefMut;
 
-impl MariaDB {
+impl MysqlDB {
     pub(crate) async fn list_sequences_impl(
         &self,
         schema: &str,
@@ -20,7 +22,7 @@ impl MariaDB {
             ",
             schema
         );
-        let mut conn = self.db.get_conn().await?;
+        let mut conn = self.get_conn().await?;
         let rows = sqlx::raw_sql(AssertSqlSafe(sql.as_str()))
             .fetch_all(conn.deref_mut())
             .await?;
@@ -56,34 +58,6 @@ impl MariaDB {
     }
 }
 
-pub struct MariaDB {
-    pub(crate) db: MysqlDB,
-}
-
-impl MariaDB {
-    pub(crate) async fn list_sequence(&self) -> anyhow::Result<Vec<SequenceDetail>> {
-        self.list_sequences_impl(self.db.config.schema_str()?).await
-    }
-
-    pub(crate) async fn rename_sequence(&self, old: &str, new: &str) -> anyhow::Result<String> {
-        let sql = format!("RENAME TABLE {old}  TO {new}");
-        let mut conn = self.db.get_conn().await?;
-        sqlx::raw_sql(AssertSqlSafe(sql.as_str()))
-            .execute(conn.deref_mut())
-            .await?;
-        anyhow::Ok(sql)
-    }
-
-    pub(crate) async fn drop_sequence(&self, name: &str, _cascade: bool) -> anyhow::Result<String> {
-        let sql = format!("DROP SEQUENCE IF EXISTS {name};");
-        let mut conn = self.db.get_conn().await?;
-        sqlx::raw_sql(AssertSqlSafe(sql.as_str()))
-            .execute(conn.deref_mut())
-            .await?;
-        anyhow::Ok(sql)
-    }
-}
-
 #[cfg(test)]
 pub(crate) fn make_config() -> MysqlDBConfig {
     MysqlDBConfig {
@@ -102,7 +76,7 @@ pub(crate) fn make_config() -> MysqlDBConfig {
 #[cfg(test)]
 pub(crate) async fn make_test_object_mariadb(config: MysqlDBConfig) -> MysqlDB {
     use crate::mysql::MysqlDB;
-    let db = MysqlDB::new(config, crate::db::BackendKind::Mariadb)
+    let db = MysqlDB::new(config, BackendKindMysql::Mariadb)
         .await
         .unwrap();
     db
