@@ -544,36 +544,41 @@ function MongoTableToolBar(props: {
           reload
         </Button>
 
-        <Chip
-          label={
-            oldMongoValueEditorMode == MongoDataViewModel.Object
-              ? bsonValue2MongoBson(filter).format()
-              : EJSON.stringify(filter)
-          }
-          onClick={() => {
-            setShowModifyFilter(true);
-          }}
-          style={shrinkAble}
-          size="medium"
-          color="primary"
-          icon={<FilterAltIcon />}
-        />
+        <Tooltip title={bsonValue2MongoBson(filter).format()}>
+          <Chip
+            label={
+              oldMongoValueEditorMode == MongoDataViewModel.Object
+                ? bsonValue2MongoBson(filter).format()
+                : EJSON.stringify(filter)
+            }
+            onClick={() => {
+              setShowModifyFilter(true);
+            }}
+            style={{ ...shrinkAble, maxWidth: "14vw" }}
+            size="medium"
+            color="primary"
+            icon={<FilterAltIcon />}
+          />
+        </Tooltip>
 
-        <Chip
-          label={
-            oldMongoValueEditorMode == MongoDataViewModel.Object
-              ? bsonValue2MongoBson(sort).format()
-              : EJSON.stringify(sort)
-          }
-          onClick={() => {
-            setShowModifySort(true);
-          }}
-          style={shrinkAble}
-          size="medium"
-          color="secondary"
-          variant="outlined"
-          icon={<FaArrowsAltV />}
-        />
+        <Tooltip title={bsonValue2MongoBson(sort).format()}>
+          <Chip
+            label={
+              oldMongoValueEditorMode == MongoDataViewModel.Object
+                ? bsonValue2MongoBson(sort).format()
+                : EJSON.stringify(sort)
+            }
+            onClick={() => {
+              setShowModifySort(true);
+            }}
+            style={{ ...shrinkAble, maxWidth: "14vw" }}
+            size="medium"
+            color="secondary"
+            variant="outlined"
+            icon={<FaArrowsAltV />}
+          />
+        </Tooltip>
+
         {isTable && (
           <TableAddButton
             handleAdd={() => {
@@ -1038,7 +1043,7 @@ function JsonEditor(props: {
         )}
         {delOP && (
           <Button
-            onClick={() => {
+            onClick={async () => {
               setLoading(true);
               delOP().finally(() => {
                 setLoading(false);
@@ -1274,6 +1279,9 @@ function MongoTableList(props: {
     }
     return deleteOP
       ? async (id: string) => {
+          if (!(await secondConfirm({ title: "sure to delete?" }))) {
+            return;
+          }
           const del = resp.data.find((e) => e[keyNotInTable] == id);
           try {
             await deleteOP([EJSON.parse(del[mongoID])]);
