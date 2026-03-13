@@ -123,10 +123,7 @@ impl DBTrait for PostGresDB {
         self.can_write()?;
         let sql = format!(r#"CREATE SCHEMA "{name}";"#);
         log::info!("sql:{}", sql);
-        let mut conn = self.get_conn().await?;
-        sqlx::raw_sql(AssertSqlSafe(sql.as_str()))
-            .execute(conn.deref_mut())
-            .await?;
+        self.execute_sql_no_open_conn(&sql).await?;
         anyhow::Ok(())
     }
 
@@ -134,10 +131,7 @@ impl DBTrait for PostGresDB {
         self.can_write()?;
         let sql = format!(r#"DROP SCHEMA "{name}"   CASCADE ;"#);
         log::info!("sql:{}", sql);
-        let mut conn = self.get_conn().await?;
-        sqlx::raw_sql(AssertSqlSafe(sql.as_str()))
-            .execute(conn.deref_mut())
-            .await?;
+        self.execute_sql_no_open_conn(&sql).await?;
         anyhow::Ok(())
     }
 }
@@ -473,10 +467,7 @@ impl SchemaTrait for PostGresDB {
 
     async fn rename_sequence(&self, old: &str, new: &str) -> anyhow::Result<String> {
         let sql = format!(r#"ALTER SEQUENCE "{old}" RENAME TO "{new}";"#);
-        let mut conn = self.get_conn().await?;
-        sqlx::raw_sql(AssertSqlSafe(sql.as_str()))
-            .execute(conn.deref_mut())
-            .await?;
+        self.execute_sql_no_open_conn(&sql).await?;
         anyhow::Ok(sql)
     }
 
@@ -486,10 +477,7 @@ impl SchemaTrait for PostGresDB {
             if cascade { "CASCADE" } else { "" }
         );
         log::info!("sql:{}", sql);
-        let mut conn = self.get_conn().await?;
-        sqlx::raw_sql(AssertSqlSafe(sql.as_str()))
-            .execute(conn.deref_mut())
-            .await?;
+        self.execute_sql_no_open_conn(&sql).await?;
         anyhow::Ok(sql)
     }
 
@@ -500,30 +488,21 @@ impl SchemaTrait for PostGresDB {
     async fn drop_created_type(&self, name: &str) -> anyhow::Result<String> {
         let sql = format!(r#"DROP TYPE  "{}"."{name}" "#, self.config.schema_str()?);
         log::info!("sql:{}", sql);
-        let mut conn = self.get_conn().await?;
-        sqlx::raw_sql(AssertSqlSafe(sql.as_str()))
-            .execute(conn.deref_mut())
-            .await?;
+        self.execute_sql_no_open_conn(&sql).await?;
         anyhow::Ok(sql)
     }
 
     async fn create_index(&self, table: &str, req: &CreateIndexReq) -> anyhow::Result<String> {
         let sql = req.common_sql(table, true, self.backend_name().quote_style())?;
         log::info!("sql:{}", sql);
-        let mut conn = self.get_conn().await?;
-        sqlx::raw_sql(AssertSqlSafe(sql.as_str()))
-            .execute(conn.deref_mut())
-            .await?;
+        self.execute_sql_no_open_conn(&sql).await?;
         anyhow::Ok(sql)
     }
 
     async fn drop_index(&self, _table_name: &str, index: &str) -> anyhow::Result<String> {
         let sql = format!("DROP INDEX \"{index}\";");
         log::info!("sql:{}", sql);
-        let mut conn = self.get_conn().await?;
-        sqlx::raw_sql(AssertSqlSafe(sql.as_str()))
-            .execute(conn.deref_mut())
-            .await?;
+        self.execute_sql_no_open_conn(&sql).await?;
         anyhow::Ok(sql)
     }
 
@@ -535,10 +514,7 @@ impl SchemaTrait for PostGresDB {
     ) -> anyhow::Result<String> {
         let sql = format!("ALTER INDEX \"{old_name}\" RENAME TO \"{new_name}\";");
         log::info!("sql:{}", sql);
-        let mut conn = self.get_conn().await?;
-        sqlx::raw_sql(AssertSqlSafe(sql.as_str()))
-            .execute(conn.deref_mut())
-            .await?;
+        self.execute_sql_no_open_conn(&sql).await?;
         anyhow::Ok(sql)
     }
 
@@ -562,11 +538,7 @@ impl SchemaTrait for PostGresDB {
             }
         );
         log::info!("sql:{}", sql);
-        let mut conn = self.get_conn().await?;
-        sqlx::raw_sql(AssertSqlSafe(sql.as_str()))
-            .execute(conn.deref_mut())
-            .await
-            .map_err(|e| anyhow::Error::msg(format!("err:{} sql:{}", e, sql)))?;
+        self.execute_sql_no_open_conn(&sql).await?;
         anyhow::Ok(sql)
     }
 
@@ -581,14 +553,12 @@ impl SchemaTrait for PostGresDB {
         new_name: &str,
         typ: Option<ColumnType>,
     ) -> anyhow::Result<String> {
-        let mut conn = self.get_conn().await?;
         let mut sc = SqlCollect::default();
         if old_name != new_name {
             let sql =
                 format!(r#"ALTER TABLE "{table}" RENAME COLUMN "{old_name}" TO "{new_name}""#);
-            sqlx::raw_sql(AssertSqlSafe(sql.as_str()))
-                .execute(conn.deref_mut())
-                .await?;
+
+            self.execute_sql_no_open_conn(&sql).await?;
             log::info!("sql:{}", sql);
             sc.collect(sql);
         }
@@ -598,9 +568,7 @@ impl SchemaTrait for PostGresDB {
                 typ.typ
             );
             log::info!("sql:{}", sql);
-            sqlx::raw_sql(AssertSqlSafe(sql.as_str()))
-                .execute(conn.deref_mut())
-                .await?;
+            self.execute_sql_no_open_conn(&sql).await?;
             sc.collect(sql);
             if let Some(null) = typ.nullable.as_ref() {
                 let sql = match null {
@@ -619,9 +587,7 @@ impl SchemaTrait for PostGresDB {
                     }
                 };
                 if let Some(sql) = sql {
-                    sqlx::raw_sql(AssertSqlSafe(sql.as_str()))
-                        .execute(conn.deref_mut())
-                        .await?;
+                    self.execute_sql_no_open_conn(&sql).await?;
                     sc.collect(sql);
                 }
             }
@@ -630,9 +596,7 @@ impl SchemaTrait for PostGresDB {
                     r#"ALTER TABLE "{table}" ALTER COLUMN "{new_name}" SET DEFAULT {}"#,
                     self.put_value_in_sql(&typ.typ, Some(dv))?
                 );
-                sqlx::raw_sql(AssertSqlSafe(sql.as_str()))
-                    .execute(conn.deref_mut())
-                    .await?;
+                self.execute_sql_no_open_conn(&sql).await?;
                 sc.collect(sql);
             }
         }
@@ -642,10 +606,7 @@ impl SchemaTrait for PostGresDB {
     async fn drop_table_column(&self, table: &str, col: &str) -> anyhow::Result<String> {
         let sql = format!(r#"ALTER TABLE "{table}" DROP COLUMN "{col}""#);
         log::info!("sql:{}", sql);
-        let mut conn = self.get_conn().await?;
-        sqlx::raw_sql(AssertSqlSafe(sql.as_str()))
-            .execute(conn.deref_mut())
-            .await?;
+        self.execute_sql_no_open_conn(&sql).await?;
         anyhow::Ok(sql)
     }
 
@@ -761,10 +722,7 @@ impl SchemaTrait for PostGresDB {
         };
         let sql = format!("DROP PROCEDURE {}({})", name, p);
         log::error!("sql:{}", sql);
-        let mut conn = self.get_conn().await?;
-        sqlx::raw_sql(AssertSqlSafe(sql.as_str()))
-            .execute(conn.deref_mut())
-            .await?;
+        self.execute_sql_no_open_conn(&sql).await?;
         anyhow::Ok(sql)
     }
 
@@ -871,30 +829,21 @@ impl SchemaTrait for PostGresDB {
             parameters
         );
         log::info!("sql:{}", sql);
-        let mut conn = self.get_conn().await?;
-        sqlx::raw_sql(AssertSqlSafe(sql.as_str()))
-            .execute(conn.deref_mut())
-            .await?;
+        self.execute_sql_no_open_conn(&sql).await?;
         anyhow::Ok(sql)
     }
 
     async fn disable_trigger(&self, table: &str, name: &str) -> anyhow::Result<String> {
-        let mut conn = self.get_conn().await?;
         let sql = format!(r#"ALTER TABLE "{table}" DISABLE TRIGGER "{name}""#);
         log::info!("sql:{}", sql);
-        sqlx::raw_sql(AssertSqlSafe(sql.as_str()))
-            .execute(conn.deref_mut())
-            .await?;
+        self.execute_sql_no_open_conn(&sql).await?;
         anyhow::Ok(sql)
     }
 
     async fn enable_trigger(&self, table: &str, name: &str) -> anyhow::Result<String> {
-        let mut conn = self.get_conn().await?;
         let sql = format!(r#"ALTER TABLE "{table}" ENABLE TRIGGER "{name}""#);
         log::info!("sql:{}", sql);
-        sqlx::raw_sql(AssertSqlSafe(sql.as_str()))
-            .execute(conn.deref_mut())
-            .await?;
+        self.execute_sql_no_open_conn(&sql).await?;
         anyhow::Ok(sql)
     }
 
@@ -906,10 +855,7 @@ impl SchemaTrait for PostGresDB {
 
         let sql = format!(r#"CREATE TABLE "{schema}"."{dup}" AS TABLE "{schema}"."{table}""#);
         log::info!("sql:{}", sql);
-        let mut conn = self.get_conn().await?;
-        sqlx::raw_sql(AssertSqlSafe(sql.as_str()))
-            .execute(conn.deref_mut())
-            .await?;
+        self.execute_sql_no_open_conn(&sql).await?;
         anyhow::Ok(())
     }
 
@@ -917,11 +863,7 @@ impl SchemaTrait for PostGresDB {
         let schema = self.config.schema_str()?;
         let sql = format!(r#"ALTER TABLE "{schema}"."{old}" RENAME TO "{new}""#);
         log::info!("sql:{}", sql);
-
-        let mut conn = self.get_conn().await?;
-        sqlx::raw_sql(AssertSqlSafe(sql.as_str()))
-            .execute(conn.deref_mut())
-            .await?;
+        self.execute_sql_no_open_conn(&sql).await?;
         anyhow::Ok(sql)
     }
 
@@ -988,10 +930,7 @@ impl SchemaTrait for PostGresDB {
         "#
         );
         log::info!("sql:{}", sql);
-        let mut conn = self.get_conn().await?;
-        sqlx::raw_sql(AssertSqlSafe(sql.as_str()))
-            .execute(conn.deref_mut())
-            .await?;
+        self.execute_sql_no_open_conn(&sql).await?;
         anyhow::Ok(sql)
     }
 
@@ -1173,29 +1112,22 @@ impl SchemaTrait for PostGresDB {
 
     async fn drop_view(&self, view_name: &str) -> anyhow::Result<String> {
         self.can_write()?;
-        let mut conn = self.get_conn().await?;
         let schema = self.config.schema_str()?;
-
         let sql = format!(r#"DROP VIEW "{schema}"."{view_name}""#);
         log::info!("sql:{}", sql);
-        sqlx::raw_sql(AssertSqlSafe(sql.as_str()))
-            .execute(conn.deref_mut())
-            .await?;
+        self.execute_sql_no_open_conn(&sql).await?;
         anyhow::Ok(sql)
     }
 
     async fn drop_table(&self, table: &str, cascade: bool) -> anyhow::Result<String> {
         self.can_write()?;
         let schema = self.config.schema_str()?;
-        let mut conn = self.get_conn().await?;
         let sql = format!(
             r#"DROP TABLE "{schema}"."{table}" {}"#,
             if cascade { " CASCADE " } else { "" }
         );
         log::info!("sql:{}", sql);
-        sqlx::raw_sql(AssertSqlSafe(sql.as_str()))
-            .execute(conn.deref_mut())
-            .await?;
+        self.execute_sql_no_open_conn(&sql).await?;
         anyhow::Ok(sql)
     }
 
@@ -1251,10 +1183,7 @@ impl SchemaTrait for PostGresDB {
             TRUNCATE TABLE "{schema}"."{table_name}";
         "#
         );
-        let mut conn = self.get_conn().await?;
-        sqlx::raw_sql(AssertSqlSafe(sql.as_str()))
-            .execute(conn.deref_mut())
-            .await?;
+        self.execute_sql_no_open_conn(&sql).await?;
         anyhow::Ok(sql)
     }
 
@@ -1449,10 +1378,7 @@ impl SchemaTrait for PostGresDB {
             schema, name
         );
         log::info!("sql:{}", sql);
-        let mut conn = self.get_conn().await?;
-        sqlx::raw_sql(AssertSqlSafe(sql.as_str()))
-            .execute(conn.deref_mut())
-            .await?;
+        self.execute_sql_no_open_conn(&sql).await?;
         anyhow::Ok(sql)
     }
 
@@ -2114,10 +2040,7 @@ impl CatalogTrait for PostGresDB {
         self.can_write()?;
         let sql = format!(r#"CREATE DATABASE "{name}""#);
         log::info!("sql:{}", sql);
-        let mut conn = self.get_conn().await?;
-        sqlx::raw_sql(AssertSqlSafe(sql.as_str()))
-            .execute(conn.deref_mut())
-            .await?;
+        self.execute_sql_no_open_conn(&sql).await?;
         anyhow::Ok(())
     }
 
@@ -2125,10 +2048,7 @@ impl CatalogTrait for PostGresDB {
         self.can_write()?;
         let sql = format!(r#"DROP DATABASE "{name}""#);
         log::info!("sql:{}", sql);
-        let mut conn = self.get_conn().await?;
-        sqlx::raw_sql(AssertSqlSafe(sql.as_str()))
-            .execute(conn.deref_mut())
-            .await?;
+        self.execute_sql_no_open_conn(&sql).await?;
         anyhow::Ok(())
     }
 }

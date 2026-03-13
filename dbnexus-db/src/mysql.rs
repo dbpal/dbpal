@@ -678,10 +678,7 @@ impl SchemaTrait for MysqlDB {
         match self.kind {
             BackendKindMysql::Mariadb => {
                 let sql = format!("RENAME TABLE {old}  TO {new}");
-                let mut conn = self.get_conn().await?;
-                sqlx::raw_sql(AssertSqlSafe(sql.as_str()))
-                    .execute(conn.deref_mut())
-                    .await?;
+                self.execute_sql_no_open_conn(&sql).await?;
                 anyhow::Ok(sql)
             }
             _ => self.backend_name().not_support_feature(),
@@ -692,10 +689,7 @@ impl SchemaTrait for MysqlDB {
         match self.kind {
             BackendKindMysql::Mariadb => {
                 let sql = format!("DROP SEQUENCE IF EXISTS {name};");
-                let mut conn = self.get_conn().await?;
-                sqlx::raw_sql(AssertSqlSafe(sql.as_str()))
-                    .execute(conn.deref_mut())
-                    .await?;
+                self.execute_sql_no_open_conn(&sql).await?;
                 anyhow::Ok(sql)
             }
             _ => self.backend_name().not_support_feature(),
@@ -707,10 +701,7 @@ impl SchemaTrait for MysqlDB {
     }
     async fn drop_event(&self, name: &str) -> anyhow::Result<String> {
         let sql = format!(r#"DROP EVENT `{}`"#, name);
-        let mut conn = self.get_conn().await?;
-        sqlx::raw_sql(AssertSqlSafe(sql.as_str()))
-            .execute(conn.deref_mut())
-            .await?;
+        self.execute_sql_no_open_conn(&sql).await?;
         anyhow::Ok(sql)
     }
 
@@ -720,20 +711,14 @@ impl SchemaTrait for MysqlDB {
     async fn create_index(&self, table: &str, req: &CreateIndexReq) -> anyhow::Result<String> {
         let sql = req.common_sql(table, true, self.backend_name().quote_style())?;
         log::info!("sql:{}", sql);
-        let mut conn = self.get_conn().await?;
-        sqlx::raw_sql(AssertSqlSafe(sql.as_str()))
-            .execute(conn.deref_mut())
-            .await?;
+        self.execute_sql_no_open_conn(&sql).await?;
         anyhow::Ok(sql)
     }
 
     async fn drop_index(&self, table_name: &str, index: &str) -> anyhow::Result<String> {
         let sql = format!(r#"ALTER TABLE `{table_name}` DROP INDEX `{index}`"#);
         log::info!("sql:{}", sql);
-        let mut conn = self.get_conn().await?;
-        sqlx::raw_sql(AssertSqlSafe(sql.as_str()))
-            .execute(conn.deref_mut())
-            .await?;
+        self.execute_sql_no_open_conn(&sql).await?;
         anyhow::Ok(sql)
     }
 
@@ -760,10 +745,7 @@ impl SchemaTrait for MysqlDB {
             sql.push_str(format!(" after {}", a).as_str());
         }
         log::info!("sql:{}", sql);
-        let mut conn = self.get_conn().await?;
-        sqlx::raw_sql(AssertSqlSafe(sql.as_str()))
-            .execute(conn.deref_mut())
-            .await?;
+        self.execute_sql_no_open_conn(&sql).await?;
         anyhow::Ok(sql)
     }
 
@@ -778,16 +760,13 @@ impl SchemaTrait for MysqlDB {
         new_name: &str,
         typ: Option<ColumnType>,
     ) -> anyhow::Result<String> {
-        let mut conn = self.get_conn().await?;
         let mut sc = SqlCollect::default();
 
         if old_name != new_name {
             let sql =
                 format!(r#"ALTER TABLE `{table}` RENAME COLUMN `{old_name}` TO `{new_name}`"#);
             log::info!("sql:{}", sql);
-            sqlx::raw_sql(AssertSqlSafe(sql.as_str()))
-                .execute(conn.deref_mut())
-                .await?;
+            self.execute_sql_no_open_conn(&sql).await?;
             sc.collect(sql);
         }
         if let Some(typ) = typ.as_ref() {
@@ -802,9 +781,7 @@ impl SchemaTrait for MysqlDB {
                 }
             );
             log::info!("sql:{}", sql);
-            sqlx::raw_sql(AssertSqlSafe(sql.as_str()))
-                .execute(conn.deref_mut())
-                .await?;
+            self.execute_sql_no_open_conn(&sql).await?;
             sc.collect(sql);
         }
         anyhow::Ok(sc.into())
@@ -813,10 +790,7 @@ impl SchemaTrait for MysqlDB {
     async fn drop_table_column(&self, table: &str, col: &str) -> anyhow::Result<String> {
         let sql = format!(r#"ALTER TABLE `{table}` DROP COLUMN `{col}`"#);
         log::info!("sql:{}", sql);
-        let mut conn = self.get_conn().await?;
-        sqlx::raw_sql(AssertSqlSafe(sql.as_str()))
-            .execute(conn.deref_mut())
-            .await?;
+        self.execute_sql_no_open_conn(&sql).await?;
         anyhow::Ok(sql)
     }
 
@@ -862,9 +836,7 @@ impl SchemaTrait for MysqlDB {
     ) -> anyhow::Result<String> {
         let sql = format!("DROP PROCEDURE `{name}`");
         log::info!("sql:{}", sql);
-        let mut conn = self.get_conn().await?;
-        conn.execute(sqlx::raw_sql(AssertSqlSafe(sql.as_str())))
-            .await?;
+        self.execute_sql_no_open_conn(&sql).await?;
         anyhow::Ok(sql)
     }
 
@@ -895,9 +867,7 @@ impl SchemaTrait for MysqlDB {
     ) -> anyhow::Result<String> {
         let sql = format!("DROP FUNCTION `{name}`");
         log::info!("sql:{}", sql);
-        let mut conn = self.get_conn().await?;
-        conn.execute(sqlx::raw_sql(AssertSqlSafe(sql.as_str())))
-            .await?;
+        self.execute_sql_no_open_conn(&sql).await?;
         anyhow::Ok(sql)
     }
 
@@ -917,10 +887,7 @@ impl SchemaTrait for MysqlDB {
         }
         let sql = format!("CREATE TABLE `{dup}` AS SELECT * FROM {table}");
         log::info!("sql:{}", sql);
-        let mut conn = self.get_conn().await?;
-        sqlx::raw_sql(AssertSqlSafe(sql.as_str()))
-            .execute(conn.deref_mut())
-            .await?;
+        self.execute_sql_no_open_conn(&sql).await?;
         anyhow::Ok(())
     }
 
@@ -932,20 +899,14 @@ impl SchemaTrait for MysqlDB {
     ) -> anyhow::Result<String> {
         let sql = format!("ALTER TABLE `{table_name}` RENAME INDEX `{oldname}` TO `{newname}`");
         log::info!("sql:{}", sql);
-        let mut conn = self.get_conn().await?;
-        sqlx::raw_sql(AssertSqlSafe(sql.as_str()))
-            .execute(conn.deref_mut())
-            .await?;
+        self.execute_sql_no_open_conn(&sql).await?;
         anyhow::Ok(sql)
     }
 
     async fn rename_table(&self, old: &str, new: &str) -> anyhow::Result<String> {
         let sql = format!("RENAME TABLE `{old}` TO `{new}`");
         log::info!("sql:{}", sql);
-        let mut conn = self.get_conn().await?;
-        sqlx::raw_sql(AssertSqlSafe(sql.as_str()))
-            .execute(conn.deref_mut())
-            .await?;
+        self.execute_sql_no_open_conn(&sql).await?;
         anyhow::Ok(sql)
     }
 
@@ -974,9 +935,7 @@ impl SchemaTrait for MysqlDB {
         "#
         );
         log::info!("sql:{}", sql);
-        let mut conn = self.get_conn().await?;
-        conn.execute(sqlx::raw_sql(AssertSqlSafe(sql.as_str())))
-            .await?;
+        self.execute_sql_no_open_conn(&sql).await?;
 
         anyhow::Ok(sql)
     }
@@ -1145,26 +1104,20 @@ impl SchemaTrait for MysqlDB {
     async fn drop_view(&self, view_name: &str) -> anyhow::Result<String> {
         self.can_write()?;
 
-        let mut conn = self.get_conn().await?;
         let sql = format!("DROP VIEW `{view_name}`");
         log::info!("sql:{}", sql);
-        sqlx::raw_sql(AssertSqlSafe(sql.as_str()))
-            .execute(conn.deref_mut())
-            .await?;
+        self.execute_sql_no_open_conn(&sql).await?;
         anyhow::Ok(sql)
     }
 
     async fn drop_table(&self, table: &str, cascade: bool) -> anyhow::Result<String> {
         self.can_write()?;
-        let mut conn = self.get_conn().await?;
         let sql = format!(
             "DROP TABLE `{table}` {}",
             if cascade { " CASCADE " } else { "" }
         );
         log::info!("sql:{}", sql);
-        sqlx::raw_sql(AssertSqlSafe(sql.as_str()))
-            .execute(conn.deref_mut())
-            .await?;
+        self.execute_sql_no_open_conn(&sql).await?;
         anyhow::Ok(sql)
     }
 
@@ -1179,10 +1132,7 @@ impl SchemaTrait for MysqlDB {
             TRUNCATE TABLE `{table_name}`;
         "#
         );
-        let mut conn = self.get_conn().await?;
-        sqlx::raw_sql(AssertSqlSafe(sql.as_str()))
-            .execute(conn.deref_mut())
-            .await?;
+        self.execute_sql_no_open_conn(&sql).await?;
         anyhow::Ok(sql)
     }
 
@@ -1657,10 +1607,7 @@ impl DBTrait for MysqlDB {
         self.can_write()?;
         let sql = format!("CREATE DATABASE `{name}`");
         log::info!("sql:{}", sql);
-        let mut conn = self.get_conn().await?;
-        sqlx::raw_sql(AssertSqlSafe(sql.as_str()))
-            .execute(conn.deref_mut())
-            .await?;
+        self.execute_sql_no_open_conn(&sql).await?;
         anyhow::Ok(())
     }
 
@@ -1668,10 +1615,7 @@ impl DBTrait for MysqlDB {
         self.can_write()?;
         let sql = format!("DROP DATABASE `{name}`");
         log::info!("sql:{}", sql);
-        let mut conn = self.get_conn().await?;
-        sqlx::raw_sql(AssertSqlSafe(sql.as_str()))
-            .execute(conn.deref_mut())
-            .await?;
+        self.execute_sql_no_open_conn(&sql).await?;
         anyhow::Ok(())
     }
 }

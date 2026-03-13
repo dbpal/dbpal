@@ -361,37 +361,28 @@ impl SchemaTrait for SqliteDB {
             }
         );
         log::info!("sql:{}", sql);
-        let mut conn = self.get_conn().await?;
-        sqlx::raw_sql(AssertSqlSafe(sql.as_str()))
-            .execute(conn.deref_mut())
-            .await?;
+        self.execute_sql_no_open_conn(&sql).await?;
+
         anyhow::Ok(sql)
     }
 
     async fn drop_table_column(&self, table: &str, col: &str) -> anyhow::Result<String> {
         let sql = format!(r#"ALTER TABLE "{table}" DROP COLUMN "{col}";"#);
-        let mut conn = self.get_conn().await?;
-        conn.execute(AssertSqlSafe(sql.as_str())).await?;
+        self.execute_sql_no_open_conn(&sql).await?;
         anyhow::Ok(sql)
     }
 
     async fn create_index(&self, table: &str, req: &CreateIndexReq) -> anyhow::Result<String> {
         let sql = req.common_sql(table, true, self.backend_name().quote_style())?;
         log::info!("sql:{}", sql);
-        let mut conn = self.get_conn().await?;
-        sqlx::raw_sql(AssertSqlSafe(sql.as_str()))
-            .execute(conn.deref_mut())
-            .await?;
+        self.execute_sql_no_open_conn(&sql).await?;
         anyhow::Ok(sql)
     }
 
     async fn drop_index(&self, _table_name: &str, index: &str) -> anyhow::Result<String> {
         let sql = format!(r#"DROP INDEX "{index}";"#);
         log::info!("sql:{}", sql);
-        let mut conn = self.get_conn().await?;
-        sqlx::raw_sql(AssertSqlSafe(sql.as_str()))
-            .execute(conn.deref_mut())
-            .await?;
+        self.execute_sql_no_open_conn(&sql).await?;
         anyhow::Ok(sql)
     }
 
@@ -418,21 +409,15 @@ impl SchemaTrait for SqliteDB {
         }
         let sql = format!(r#"CREATE TABLE "{dup}" AS SELECT * FROM "{table}""#);
         log::info!("sql:{}", sql);
-        let mut conn = self.get_conn().await?;
-        sqlx::raw_sql(AssertSqlSafe(sql.as_str()))
-            .execute(conn.deref_mut())
-            .await?;
+        self.execute_sql_no_open_conn(&sql).await?;
 
         anyhow::Ok(())
     }
 
     async fn rename_table(&self, old: &str, new: &str) -> anyhow::Result<String> {
-        let mut conn = self.get_conn().await?;
         let sql = format!(r#"ALTER TABLE "{old}" RENAME TO "{new}""#);
         log::info!("sql:{}", sql);
-        sqlx::raw_sql(AssertSqlSafe(sql.as_str()))
-            .execute(conn.deref_mut())
-            .await?;
+        self.execute_sql_no_open_conn(&sql).await?;
         anyhow::Ok(sql)
     }
 
@@ -469,10 +454,7 @@ impl SchemaTrait for SqliteDB {
         "#
         );
         log::info!("sql:{}", sql);
-        let mut conn = self.get_conn().await?;
-        sqlx::raw_sql(AssertSqlSafe(sql.as_str()))
-            .execute(conn.deref_mut())
-            .await?;
+        self.execute_sql_no_open_conn(&sql).await?;
         anyhow::Ok(sql)
     }
 
@@ -547,20 +529,14 @@ impl SchemaTrait for SqliteDB {
         self.can_write()?;
 
         let sql = format!(r#"DROP VIEW "{view_name}""#);
-        let mut conn = self.get_conn().await?;
-        sqlx::raw_sql(AssertSqlSafe(sql.as_str()))
-            .execute(conn.deref_mut())
-            .await?;
+        self.execute_sql_no_open_conn(&sql).await?;
         anyhow::Ok(sql)
     }
 
     async fn drop_table(&self, table: &str, _cascade: bool) -> anyhow::Result<String> {
         self.can_write()?;
         let sql = format!(r#"DROP TABLE "{table}" "#,);
-        let mut conn = self.get_conn().await?;
-        sqlx::raw_sql(AssertSqlSafe(sql.as_str()))
-            .execute(conn.deref_mut())
-            .await?;
+        self.execute_sql_no_open_conn(&sql).await?;
         anyhow::Ok(sql)
     }
 
@@ -572,10 +548,7 @@ impl SchemaTrait for SqliteDB {
             DELETE FROM sqlite_sequence WHERE name = '{table_name}';
         "#
         );
-        let mut conn = self.get_conn().await?;
-        sqlx::raw_sql(AssertSqlSafe(sql.as_str()))
-            .execute(conn.deref_mut())
-            .await?;
+        self.execute_sql_no_open_conn(&sql).await?;
         anyhow::Ok(sql)
     }
 
@@ -1827,32 +1800,24 @@ mod tests {
         let db = make_test_object().await;
         let _ = db.drop_table("test_create_trigger", false).await;
         let _ = db.drop_table("test_create_trigger_update", false).await;
-        let mut conn = db.get_conn().await.unwrap();
+        let query_id = "";
 
-        sqlx::raw_sql(
+        db.open_connection(query_id).await.unwrap();
+
+        db.execute_sql(
+            query_id,
             r#"
-            CREATE TABLE test_create_trigger (
+        CREATE TABLE test_create_trigger (
                 id INTEGER PRIMARY KEY AUTOINCREMENT, -- 自动递增的ID作为主键
                 info TEXT NOT NULL 
-            );
-        "#,
+            );"#,
         )
-        .execute(conn.deref_mut())
         .await
-        .unwrap();
-        sqlx::raw_sql(
-            r#"
-        CREATE TABLE test_create_trigger_update (
-            id INTEGER PRIMARY KEY AUTOINCREMENT, -- 自动递增的ID作为主键
-            info TEXT NOT NULL
-        );
-    "#,
-        )
-        .execute(conn.deref_mut())
-        .await
+        .unwrap()
         .unwrap();
 
-        sqlx::raw_sql(
+        db.execute_sql(
+            query_id,
             r#"
         CREATE TRIGGER after_insert_test_create_trigger
         AFTER INSERT ON test_create_trigger
@@ -1860,12 +1825,12 @@ mod tests {
         BEGIN
             INSERT INTO test_create_trigger_update (info)
             VALUES (NEW.info);
-        END;
-    "#,
+        END;"#,
         )
-        .execute(conn.deref_mut())
         .await
+        .unwrap()
         .unwrap();
+
         let table = "test_create_trigger";
 
         let triggers = db.list_trigger(table).await.unwrap();

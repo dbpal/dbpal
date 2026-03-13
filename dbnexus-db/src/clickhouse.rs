@@ -196,7 +196,6 @@ impl SchemaTrait for ClickHouseDB {
     async fn drop_view(&self, view_name: &str) -> anyhow::Result<String> {
         let sql = format!(r#"DROP VIEW `{view_name}`"#);
         log::info!("sql:{}", sql);
-
         self.client.query(&sql).execute().await?;
         anyhow::Ok(sql)
     }
