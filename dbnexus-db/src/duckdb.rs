@@ -762,19 +762,6 @@ impl DuckDB {
     }
 }
 
-impl DuckDB {
-    async fn execute(&self, sql: impl Into<String>) -> anyhow::Result<usize> {
-        let sql = sql.into();
-        let this = Clone::clone(self);
-        spawn_blocking(move || {
-            let conn = this.get_conn()?;
-            let aff = conn.execute(&sql, [])?;
-            anyhow::Ok(aff)
-        })
-        .await?
-    }
-}
-
 #[async_trait::async_trait]
 impl SchemaTrait for DuckDB {
     async fn rename_index(
@@ -788,7 +775,7 @@ impl SchemaTrait for DuckDB {
 
     async fn drop_index(&self, _table_name: &str, index: &str) -> anyhow::Result<String> {
         let sql = format!(r#"DROP INDEX "{index}";"#);
-        self.execute(&sql).await?;
+        self.execute_sql_no_open_conn(&sql).await?;
         anyhow::Ok(sql)
     }
 
@@ -832,13 +819,13 @@ impl SchemaTrait for DuckDB {
     async fn create_index(&self, table: &str, req: &CreateIndexReq) -> anyhow::Result<String> {
         let sql = req.common_sql(table, true, self.backend_name().quote_style())?;
         log::info!("sql:{}", sql);
-        self.execute(&sql).await?;
+        self.execute_sql_no_open_conn(&sql).await?;
         anyhow::Ok(sql)
     }
 
     async fn drop_table_column(&self, table: &str, col: &str) -> anyhow::Result<String> {
         let sql = format!(r#"ALTER TABLE "{table}" DROP COLUMN "{col}""#);
-        self.execute(&sql).await?;
+        self.execute_sql_no_open_conn(&sql).await?;
         anyhow::Ok(sql)
     }
 
@@ -855,7 +842,7 @@ impl SchemaTrait for DuckDB {
             let sql =
                 format!(r#"ALTER TABLE "{table}" RENAME COLUMN "{old_name}" TO "{new_name}""#);
             log::info!("sql:{}", sql);
-            self.execute(&sql).await?;
+            self.execute_sql_no_open_conn(&sql).await?;
             sc.collect(sql);
         }
         if let Some(typ) = typ.as_ref() {
@@ -864,7 +851,7 @@ impl SchemaTrait for DuckDB {
                 typ.typ
             );
             log::info!("sql:{}", sql);
-            self.execute(&sql).await?;
+            self.execute_sql_no_open_conn(&sql).await?;
             sc.collect(sql);
             if let Some(null) = typ.nullable.as_ref() {
                 match null {
@@ -873,14 +860,14 @@ impl SchemaTrait for DuckDB {
                         let sql =
                             format!(r#"ALTER TABLE {table} ALTER COLUMN {new_name} DROP NOT NULL"#);
                         log::info!("sql:{}", sql);
-                        self.execute(&sql).await?;
+                        self.execute_sql_no_open_conn(&sql).await?;
                         sc.collect(sql);
                     }
                     crate::db::SqlNullAble::NotNull => {
                         let sql =
                             format!(r#"ALTER TABLE {table}  ALTER COLUMN {new_name} SET NOT NULL"#);
                         log::info!("sql:{}", sql);
-                        self.execute(&sql).await?;
+                        self.execute_sql_no_open_conn(&sql).await?;
                         sc.collect(sql);
                     }
                 }
@@ -890,7 +877,7 @@ impl SchemaTrait for DuckDB {
                     r#"ALTER TABLE "{table}" ALTER COLUMN "{new_name}" SET DEFAULT {}"#,
                     self.put_value_in_sql(&typ.typ, Some(x.as_str()))?
                 );
-                self.execute(&sql).await?;
+                self.execute_sql_no_open_conn(&sql).await?;
                 sc.collect(sql);
             }
         }
@@ -917,7 +904,7 @@ impl SchemaTrait for DuckDB {
             }
         );
 
-        self.execute(&sql).await?;
+        self.execute_sql_no_open_conn(&sql).await?;
         anyhow::Ok(sql)
     }
 
@@ -1013,7 +1000,7 @@ impl SchemaTrait for DuckDB {
 
     async fn drop_view(&self, view_name: &str) -> anyhow::Result<String> {
         let sql = format!(r#"DROP VIEW "{view_name}""#);
-        self.execute(&sql).await?;
+        self.execute_sql_no_open_conn(&sql).await?;
         anyhow::Ok(sql)
     }
 
@@ -1142,13 +1129,13 @@ impl SchemaTrait for DuckDB {
 
     async fn rename_table(&self, old: &str, new: &str) -> anyhow::Result<String> {
         let sql = format!(r#"ALTER TABLE "{old}"  RENAME TO "{new}";"#);
-        self.execute(&sql).await?;
+        self.execute_sql_no_open_conn(&sql).await?;
         anyhow::Ok(sql)
     }
 
     async fn duplicate_table(&self, table: &str, dup: &str) -> anyhow::Result<()> {
         let sql = format!(r#"CREATE TABLE "{dup}" AS SELECT * FROM "{table}";"#);
-        self.execute(sql).await?;
+        self.execute_sql_no_open_conn(&sql).await?;
         anyhow::Ok(())
     }
 
@@ -1251,13 +1238,13 @@ impl SchemaTrait for DuckDB {
 
     async fn truncate_table(&self, table_name: &str) -> anyhow::Result<String> {
         let sql = format!(r#"DELETE FROM "{}" "#, table_name);
-        self.execute(sql.clone()).await?;
+        self.execute_sql_no_open_conn(&sql).await?;
         anyhow::Ok(sql)
     }
 
     async fn drop_table(&self, table: &str, _cascade: bool) -> anyhow::Result<String> {
         let sql = format!(r#"DROP TABLE "{}" "#, table);
-        self.execute(sql.clone()).await?;
+        self.execute_sql_no_open_conn(&sql).await?;
         anyhow::Ok(sql)
     }
 
@@ -1280,7 +1267,7 @@ impl SchemaTrait for DuckDB {
 
     async fn drop_sequence(&self, name: &str, _cascade: bool) -> anyhow::Result<String> {
         let sql = format!(r#"DROP SEQUENCE "{name}" "#);
-        self.execute(&sql).await?;
+        self.execute_sql_no_open_conn(&sql).await?;
         anyhow::Ok(sql)
     }
 }
@@ -1363,7 +1350,7 @@ impl DBTrait for DuckDB {
         self.can_write()?;
         let sql = format!("CREATE SCHEMA {};", name);
         log::info!("sql:{}", sql);
-        self.execute(sql).await?;
+        self.execute_sql_no_open_conn(&sql).await?;
         anyhow::Ok(())
     }
 
@@ -1371,7 +1358,7 @@ impl DBTrait for DuckDB {
         self.can_write()?;
         let sql = format!("DROP SCHEMA {} CASCADE;", name);
         log::info!("sql:{}", sql);
-        self.execute(sql).await?;
+        self.execute_sql_no_open_conn(&sql).await?;
         anyhow::Ok(())
     }
 }

@@ -196,7 +196,7 @@ impl SchemaTrait for ClickHouseDB {
     async fn drop_view(&self, view_name: &str) -> anyhow::Result<String> {
         let sql = format!(r#"DROP VIEW `{view_name}`"#);
         log::info!("sql:{}", sql);
-        self.client.query(&sql).execute().await?;
+        self.execute_sql_no_open_conn(&sql).await?;
         anyhow::Ok(sql)
     }
 
@@ -264,7 +264,7 @@ impl SchemaTrait for ClickHouseDB {
         let sql = format!(r#"RENAME TABLE `{old}` TO `{new}`"#);
         log::info!("sql:{}", sql);
 
-        self.client.query(&sql).execute().await?;
+        self.execute_sql_no_open_conn(&sql).await?;
         anyhow::Ok(sql)
     }
 
@@ -274,7 +274,7 @@ impl SchemaTrait for ClickHouseDB {
         log::info!("sql:{}", sql);
         log::info!("sql:{}", sql);
 
-        self.client.query(&sql).execute().await?;
+        self.execute_sql_no_open_conn(&sql).await?;
         // select data and insert.
 
         let (sender, mut receiver) = tokio::sync::mpsc::channel(10);
@@ -316,7 +316,7 @@ impl SchemaTrait for ClickHouseDB {
         self.can_write()?;
         let sql = format!(r#"TRUNCATE TABLE `{table_name}`"#);
         log::info!("sql:{}", sql);
-        self.client.query(&sql).execute().await?;
+        self.execute_sql_no_open_conn(&sql).await?;
         anyhow::Ok(sql)
     }
 
@@ -510,7 +510,7 @@ impl SchemaTrait for ClickHouseDB {
         let sql = format!(r#"DROP TABLE `{table}`"#);
         log::info!("sql:{}", sql);
 
-        self.client.query(&sql).execute().await?;
+        self.execute_sql_no_open_conn(&sql).await?;
         anyhow::Ok(sql)
     }
 
@@ -518,7 +518,7 @@ impl SchemaTrait for ClickHouseDB {
         let sql = format!(r#"ALTER TABLE `{}` DROP COLUMN `{}`;"#, table, col,);
         log::info!("sql:{}", sql);
 
-        self.client.query(&sql).execute().await?;
+        self.execute_sql_no_open_conn(&sql).await?;
         anyhow::Ok(sql)
     }
 
@@ -536,7 +536,7 @@ impl SchemaTrait for ClickHouseDB {
                 table, old_name, new_name
             );
             log::info!("sql:{}", sql);
-            self.client.query(&sql).execute().await?;
+            self.execute_sql_no_open_conn(&sql).await?;
             sc.collect(sql);
         }
         if let Some(typ) = typ.as_ref() {
@@ -545,7 +545,7 @@ impl SchemaTrait for ClickHouseDB {
                 table, new_name, &typ.typ
             );
             log::info!("sql:{}", sql);
-            self.client.query(&sql).execute().await?;
+            self.execute_sql_no_open_conn(&sql).await?;
             sc.collect(sql);
             if let Some(dv) = typ.default_value.as_ref() {
                 let sql = format!(
@@ -553,7 +553,7 @@ impl SchemaTrait for ClickHouseDB {
                     self.put_value_in_sql(&typ.typ, Some(dv.as_str()))?
                 );
                 log::info!("sql:{}", sql);
-                self.client.query(&sql).execute().await?;
+                self.execute_sql_no_open_conn(&sql).await?;
                 sc.collect(sql);
             }
         }
@@ -576,7 +576,7 @@ impl SchemaTrait for ClickHouseDB {
                 .as_str(),
             );
         }
-        self.client.query(&sql).execute().await?;
+        self.execute_sql_no_open_conn(&sql).await?;
         anyhow::Ok(sql)
     }
 
@@ -610,7 +610,7 @@ impl SchemaTrait for ClickHouseDB {
     ) -> anyhow::Result<String> {
         let sql = format!("DROP FUNCTION `{name}`",);
 
-        self.client.query(&sql).execute().await?;
+        self.execute_sql_no_open_conn(&sql).await?;
         anyhow::Ok(sql)
     }
 }
@@ -1049,7 +1049,7 @@ impl DBTrait for ClickHouseDB {
         let sql = format!("CREATE DATABASE IF NOT EXISTS {name};");
         log::info!("sql:{}", sql);
 
-        self.client.query(&sql).execute().await?;
+        self.execute_sql_no_open_conn(&sql).await?;
         anyhow::Ok(())
     }
 
@@ -1058,7 +1058,7 @@ impl DBTrait for ClickHouseDB {
         let sql = format!("DROP DATABASE IF EXISTS {name};");
         log::info!("sql:{}", sql);
 
-        self.client.query(&sql).execute().await?;
+        self.execute_sql_no_open_conn(&sql).await?;
         anyhow::Ok(())
     }
 }

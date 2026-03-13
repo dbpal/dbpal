@@ -511,22 +511,19 @@ impl SchemaTrait for LibSqlDB {
     async fn create_index(&self, table: &str, req: &CreateIndexReq) -> anyhow::Result<String> {
         let sql = req.common_sql(table, true, self.backend_name().quote_style())?;
         log::info!("sql:{}", sql);
-        let conn = self.get_conn().await?;
-        conn.execute(&sql, params!()).await?;
+        self.execute_sql_no_open_conn(&sql).await?;
         anyhow::Ok(sql)
     }
 
     async fn drop_index(&self, _table_name: &str, index: &str) -> anyhow::Result<String> {
         let sql = format!(r#"DROP INDEX "{index}";"#);
         log::info!("sql:{}", sql);
-        let conn = self.get_conn().await?;
-        conn.execute(&sql, params!()).await?;
+        self.execute_sql_no_open_conn(&sql).await?;
         anyhow::Ok(sql)
     }
     async fn drop_table_column(&self, table: &str, col: &str) -> anyhow::Result<String> {
         let sql = format!(r#"ALTER TABLE "{table}" DROP COLUMN "{col}";"#);
-        let conn = self.get_conn().await?;
-        conn.execute(&sql, params!()).await?;
+        self.execute_sql_no_open_conn(&sql).await?;
         anyhow::Ok(sql)
     }
 
@@ -550,8 +547,7 @@ impl SchemaTrait for LibSqlDB {
             }
         );
         log::info!("sql:{}", sql);
-        let conn = self.get_conn().await?;
-        conn.execute(&sql, params!()).await?;
+        self.execute_sql_no_open_conn(&sql).await?;
         anyhow::Ok(sql)
     }
 
@@ -574,16 +570,14 @@ impl SchemaTrait for LibSqlDB {
         }
         let sql = format!(r#"CREATE TABLE "{dup}" AS SELECT * FROM "{table}""#);
         log::info!("sql:{}", sql);
-        let conn = self.get_conn().await?;
-        conn.execute(&sql, params!()).await?;
+        self.execute_sql_no_open_conn(&sql).await?;
         anyhow::Ok(())
     }
 
     async fn rename_table(&self, old: &str, new: &str) -> anyhow::Result<String> {
-        let conn = self.get_conn().await?;
         let sql = format!(r#"ALTER TABLE "{old}" RENAME TO "{new}""#);
         log::info!("sql:{}", sql);
-        conn.execute(&sql, params!()).await?;
+        self.execute_sql_no_open_conn(&sql).await?;
         anyhow::Ok(sql)
     }
 
@@ -618,8 +612,7 @@ impl SchemaTrait for LibSqlDB {
         "#
         );
         log::info!("sql:{}", sql);
-        let conn = self.get_conn().await?;
-        conn.execute(&sql, params!()).await?;
+        self.execute_sql_no_open_conn(&sql).await?;
         anyhow::Ok(sql)
     }
 
@@ -696,16 +689,14 @@ impl SchemaTrait for LibSqlDB {
         self.can_write()?;
 
         let sql = format!(r#"DROP VIEW "{view_name}""#);
-        let conn = self.get_conn().await?;
-        conn.execute(&sql, params!()).await?;
+        self.execute_sql_no_open_conn(&sql).await?;
         anyhow::Ok(sql)
     }
 
     async fn drop_table(&self, table: &str, _cascade: bool) -> anyhow::Result<String> {
         self.can_write()?;
         let sql = format!(r#"DROP TABLE "{table}" "#,);
-        let conn = self.get_conn().await?;
-        conn.execute(&sql, params!()).await?;
+        self.execute_sql_no_open_conn(&sql).await?;
         anyhow::Ok(sql)
     }
 
@@ -717,9 +708,7 @@ impl SchemaTrait for LibSqlDB {
             DELETE FROM sqlite_sequence WHERE name = '{table_name}';
         "#
         );
-        let conn = self.get_conn().await?;
-        conn.execute(&sql, params!()).await?;
-
+        self.execute_sql_no_open_conn(&sql).await?;
         anyhow::Ok(sql)
     }
 
@@ -1280,7 +1269,6 @@ mod tests {
         let db = make_test_object().await;
         let conn = db.get_conn().await.unwrap();
         let _ = conn.execute("drop table users", params!()).await;
-
         let mut rows = conn
             .query(
                 "select 1  ; CREATE TABLE users (

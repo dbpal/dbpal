@@ -1,6 +1,6 @@
 use dashmap::DashMap;
 use oracle::pool::Pool;
-use oracle::{Connection, Row, Statement};
+use oracle::{Connection, Row};
 /// notice oracle sql 不能带有分号
 use std::collections::{HashMap, HashSet};
 use std::ops::DerefMut;
@@ -261,8 +261,14 @@ impl QuerySql for OracleDB {
     }
 
     async fn execute_sql_no_open_conn(&self, sql: &str) -> anyhow::Result<Option<usize>> {
-        let ret = self.execute(sql).await?;
-        anyhow::Ok(Some(ret.row_count()? as usize))
+        let sql = sql.to_owned();
+        let this = Clone::clone(self);
+        spawn_blocking(move || {
+            let conn = this.get_conn()?;
+            let r = conn.execute(&sql, &[])?;
+            anyhow::Ok(r.row_count().ok().map(|x| x as usize))
+        })
+        .await?
     }
 
     async fn execute_sql(
@@ -951,17 +957,6 @@ impl ReadOnlyTrait for OracleDB {
 }
 
 impl OracleDB {
-    pub(crate) async fn execute(&self, sql: impl Into<String>) -> anyhow::Result<Statement> {
-        let sql = sql.into();
-        let this = Clone::clone(self);
-        spawn_blocking(move || {
-            let conn = this.get_conn()?;
-            let r = conn.execute(&sql, &[])?;
-            anyhow::Ok(r)
-        })
-        .await?
-    }
-
     pub(crate) async fn query(&self, sql: impl Into<String>) -> anyhow::Result<Vec<Row>> {
         let sql = sql.into();
         let this = Clone::clone(self);
@@ -1021,7 +1016,7 @@ impl SchemaTrait for OracleDB {
     async fn drop_materialized_view(&self, name: &str) -> anyhow::Result<String> {
         let sql = format!(r#"DROP MATERIALIZED VIEW "{name}""#);
         log::info!("sql:{}", sql);
-        self.execute(sql.clone()).await?;
+        self.execute_sql_no_open_conn(&sql).await?;
         anyhow::Ok(sql)
     }
 
@@ -1053,13 +1048,13 @@ impl SchemaTrait for OracleDB {
         }
         let sql = format!(r#"CREATE TABLE "{dup}" AS SELECT * FROM "{table}""#);
         log::info!("sql:{}", sql);
-        self.execute(sql).await?;
+        self.execute_sql_no_open_conn(&sql).await?;
         anyhow::Ok(())
     }
 
     async fn rename_table(&self, old: &str, new: &str) -> anyhow::Result<String> {
         let sql = format!(r#"RENAME "{old}" TO "{new}""#);
-        self.execute(&sql).await?;
+        self.execute_sql_no_open_conn(&sql).await?;
         anyhow::Ok(sql)
     }
 
@@ -1187,7 +1182,7 @@ impl SchemaTrait for OracleDB {
     async fn create_index(&self, table: &str, req: &CreateIndexReq) -> anyhow::Result<String> {
         let sql = req.common_sql(table, true, self.backend_name().quote_style())?;
         log::info!("sql:{}", sql);
-        self.execute(&sql).await?;
+        self.execute_sql_no_open_conn(&sql).await?;
         anyhow::Ok(sql)
     }
 
@@ -1199,21 +1194,21 @@ impl SchemaTrait for OracleDB {
     ) -> anyhow::Result<String> {
         let sql = format!(r#"ALTER INDEX "{oldname}" RENAME TO "{newname}""#);
         log::info!("sql:{}", sql);
-        self.execute(&sql).await?;
+        self.execute_sql_no_open_conn(&sql).await?;
         anyhow::Ok(sql)
     }
 
     async fn drop_index(&self, _table_name: &str, index: &str) -> anyhow::Result<String> {
         let sql = format!("DROP INDEX {index}");
         log::info!("sql:{}", sql);
-        self.execute(&sql).await?;
+        self.execute_sql_no_open_conn(&sql).await?;
         anyhow::Ok(sql)
     }
 
     async fn drop_table_column(&self, table: &str, col: &str) -> anyhow::Result<String> {
         let sql = format!(r#"ALTER TABLE "{table}" DROP COLUMN "{col}""#);
         log::info!("sql:{}", sql);
-        self.execute(&sql).await?;
+        self.execute_sql_no_open_conn(&sql).await?;
         anyhow::Ok(sql)
     }
 
@@ -1233,19 +1228,19 @@ impl SchemaTrait for OracleDB {
             let sql =
                 format!(r#"ALTER TABLE "{table}" RENAME COLUMN "{old_name}" TO "{new_name}""#);
             log::info!("sql:{}", sql);
-            self.execute(&sql).await?;
+            self.execute_sql_no_open_conn(&sql).await?;
             sc.collect(sql);
         }
         if let Some(typ) = typ {
             let sql = format!(r#"ALTER TABLE {table} MODIFY "{new_name}" {}"#, typ.typ);
-            self.execute(&sql).await?;
+            self.execute_sql_no_open_conn(&sql).await?;
             sc.collect(sql);
             if let Some(null) = typ.nullable.as_ref() {
                 match null {
                     crate::db::SqlNullAble::Null | crate::db::SqlNullAble::NotNull => {
                         let sql = format!(r#"ALTER TABLE "{table}" MODIFY "{new_name}" {}"#, null);
                         log::info!("sql:{}", sql);
-                        self.execute(&sql).await?;
+                        self.execute_sql_no_open_conn(&sql).await?;
                         sc.collect(sql);
                     }
                     _ => {}
@@ -1257,7 +1252,7 @@ impl SchemaTrait for OracleDB {
                     self.put_value_in_sql(&typ.typ, Some(dv.as_str()))?
                 );
                 log::info!("sql:{}", sql);
-                self.execute(&sql).await?;
+                self.execute_sql_no_open_conn(&sql).await?;
                 sc.collect(sql);
             }
         }
@@ -1284,7 +1279,7 @@ impl SchemaTrait for OracleDB {
             }
         );
         log::info!("sql:{}", sql);
-        self.execute(&sql).await?;
+        self.execute_sql_no_open_conn(&sql).await?;
         anyhow::Ok(sql)
     }
 
@@ -1386,7 +1381,7 @@ impl SchemaTrait for OracleDB {
         self.can_write()?;
         let sql = format!(r#"TRUNCATE TABLE  "{table_name}""#);
         log::info!("sql:{}", sql);
-        self.execute(&sql).await?;
+        self.execute_sql_no_open_conn(&sql).await?;
         anyhow::Ok(sql)
     }
 
@@ -1397,7 +1392,7 @@ impl SchemaTrait for OracleDB {
     async fn drop_view(&self, view_name: &str) -> anyhow::Result<String> {
         let sql = format!(r#"DROP VIEW "{view_name}""#);
         log::info!("sql:{}", sql);
-        self.execute(&sql).await?;
+        self.execute_sql_no_open_conn(&sql).await?;
         anyhow::Ok(sql)
     }
 
@@ -1408,7 +1403,7 @@ impl SchemaTrait for OracleDB {
             format!(r#"DROP TABLE "{table}""#)
         };
         log::info!("sql:{}", sql);
-        self.execute(sql.clone()).await?;
+        self.execute_sql_no_open_conn(&sql).await?;
         anyhow::Ok(sql)
     }
 
@@ -1515,21 +1510,21 @@ impl SchemaTrait for OracleDB {
         let sql = format!(r#"DROP TRIGGER "{name}""#);
         log::info!("sql:{}", sql);
 
-        self.execute(&sql).await?;
+        self.execute_sql_no_open_conn(&sql).await?;
         anyhow::Ok(sql)
     }
 
     async fn disable_trigger(&self, _table: &str, name: &str) -> anyhow::Result<String> {
         let sql = format!(r#"ALTER TRIGGER "{name}" DISABLE"#);
         log::info!("sql:{}", sql);
-        self.execute(&sql).await?;
+        self.execute_sql_no_open_conn(&sql).await?;
         anyhow::Ok(sql)
     }
 
     async fn enable_trigger(&self, _table: &str, name: &str) -> anyhow::Result<String> {
         let sql = format!(r#"ALTER TRIGGER "{name}" ENABLE"#);
         log::info!("sql:{}", sql);
-        self.execute(&sql).await?;
+        self.execute_sql_no_open_conn(&sql).await?;
         anyhow::Ok(sql)
     }
 
@@ -1572,7 +1567,7 @@ impl SchemaTrait for OracleDB {
     ) -> anyhow::Result<String> {
         let sql = format!(r#"DROP FUNCTION "{name}""#);
         log::info!("sql:{}", sql);
-        self.execute(&sql).await?;
+        self.execute_sql_no_open_conn(&sql).await?;
         anyhow::Ok(sql)
     }
 
@@ -1600,7 +1595,7 @@ impl SchemaTrait for OracleDB {
     ) -> anyhow::Result<String> {
         let sql = format!(r#"DROP PROCEDURE "{name}""#);
         log::info!("sql:{}", sql);
-        self.execute(&sql).await?;
+        self.execute_sql_no_open_conn(&sql).await?;
         anyhow::Ok(sql)
     }
 }
