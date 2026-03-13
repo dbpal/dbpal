@@ -786,7 +786,7 @@ impl SchemaTrait for CassandraDB {
     async fn drop_created_type(&self, name: &str) -> anyhow::Result<String> {
         let sql = format!(r#"DROP TYPE  "{name}""#);
         log::info!("sql:{}", sql);
-        self.session.query_unpaged(sql.clone(), &[]).await?;
+        self.simple_execute_sql(&sql).await?;
         anyhow::Ok(sql)
     }
 
@@ -798,7 +798,7 @@ impl SchemaTrait for CassandraDB {
     async fn drop_materialized_view(&self, name: &str) -> anyhow::Result<String> {
         let sql = format!(r#"DROP MATERIALIZED VIEW "{name}";"#);
         log::info!("sql:{}", sql);
-        self.session.query_unpaged(sql.clone(), &[]).await?;
+        self.simple_execute_sql(&sql).await?;
         anyhow::Ok(sql)
     }
 
@@ -854,14 +854,14 @@ impl SchemaTrait for CassandraDB {
     async fn create_index(&self, table: &str, req: &CreateIndexReq) -> anyhow::Result<String> {
         let sql = self.make_create_index_sql(table, req);
         log::info!("sql:{}", sql);
-        self.session.query_unpaged(sql.as_str(), &[]).await?;
+        self.simple_execute_sql(&sql).await?;
         anyhow::Ok(sql)
     }
 
     async fn drop_index(&self, _table_name: &str, index: &str) -> anyhow::Result<String> {
         let sql = format!(r#"DROP INDEX IF EXISTS "{index}";"#);
         log::info!("sql:{}", sql);
-        self.session.query_unpaged(sql.clone(), &[]).await?;
+        self.simple_execute_sql(&sql).await?;
         anyhow::Ok(sql)
     }
 
@@ -1030,7 +1030,7 @@ impl SchemaTrait for CassandraDB {
         self.can_write()?;
         let sql = format!(r#"TRUNCATE "{table_name}""#);
         log::info!("sql:{}", sql);
-        self.session.query_unpaged(sql.as_str(), &[]).await?;
+        self.simple_execute_sql(&sql).await?;
         anyhow::Ok(sql)
     }
 
@@ -1038,7 +1038,7 @@ impl SchemaTrait for CassandraDB {
         self.can_write()?;
         let sql = format!(r#"DROP TABLE "{}";"#, table);
         log::info!("sql:{}", sql);
-        self.session.query_unpaged(sql.as_str(), &[]).await?;
+        self.simple_execute_sql(&sql).await?;
         anyhow::Ok(sql)
     }
 
@@ -1050,7 +1050,7 @@ impl SchemaTrait for CassandraDB {
     ) -> anyhow::Result<String> {
         let sql = format!("ALTER TABLE {table} ADD {name} {}", col.typ);
         log::info!("sql:{}", sql);
-        self.session.query_unpaged(sql.as_str(), &[]).await?;
+        self.simple_execute_sql(&sql).await?;
         anyhow::Ok(sql)
     }
 
@@ -1063,14 +1063,14 @@ impl SchemaTrait for CassandraDB {
     ) -> anyhow::Result<String> {
         let sql = format!("ALTER TABLE {table} RENAME {old_name} TO {new_name}");
         log::info!("sql:{}", sql);
-        self.session.query_unpaged(sql.as_str(), &[]).await?;
+        self.simple_execute_sql(&sql).await?;
         anyhow::Ok(sql)
     }
 
     async fn drop_table_column(&self, table: &str, col: &str) -> anyhow::Result<String> {
         let sql = format!("ALTER TABLE {table} DROP {col};");
         log::info!("sql:{}", sql);
-        self.session.query_unpaged(sql.as_str(), &[]).await?;
+        self.simple_execute_sql(&sql).await?;
         anyhow::Ok(sql)
     }
 
@@ -1159,7 +1159,7 @@ impl SchemaTrait for CassandraDB {
         let p = format!("({})", parameters.join(","));
         let sql = format!(r#"DROP FUNCTION "{name}"{p} "#);
         log::info!("sql:{}", sql);
-        self.session.query_unpaged(sql.clone(), &[]).await?;
+        self.simple_execute_sql(&sql).await?;
         anyhow::Ok(sql)
     }
 
@@ -1279,7 +1279,7 @@ impl DBTrait for CassandraDB {
         self.can_write()?;
         let sql = format!("DROP KEYSPACE {name}");
         log::info!("sql:{}", sql);
-        self.session.query_unpaged(sql.as_str(), &[]).await?;
+        self.simple_execute_sql(&sql).await?;
         anyhow::Ok(())
     }
 }
@@ -1435,7 +1435,7 @@ impl CassandraDB {
         let p = format!("({})", parameters.join(","));
         let sql = format!("DROP AGGREGATE {name}{p} ");
         log::info!("sql:{}", sql);
-        self.session.query_unpaged(sql.clone(), &[]).await?;
+        self.simple_execute_sql(&sql).await?;
         anyhow::Ok(sql)
     }
 }
