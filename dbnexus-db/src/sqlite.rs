@@ -1445,6 +1445,7 @@ impl ReadOnlyTrait for SqliteDB {
 
 #[cfg(test)]
 mod tests {
+
     use super::*;
     use crate::db::{
         CreateIndexColumn, CreateTableReq, CreateTableReqColumn, ShowTableParameter, SqlNullAble,
@@ -1488,23 +1489,20 @@ mod tests {
             .await
             .unwrap() .unwrap();
 
-        let sql = db
-            .add_table_column(
-                table_name,
-                "name",
-                ColumnType {
-                    typ: "VARCHAR(255)".to_string(),
-                    nullable: SqlNullAble::Null.into(),
-                    after: Some("id".to_string()),
-                    default_value: Some("abc".to_string()),
-                },
-            )
-            .await
-            .unwrap();
+        db.add_table_column(
+            table_name,
+            "name",
+            ColumnType {
+                typ: "VARCHAR(255)".to_string(),
+                nullable: SqlNullAble::Null.into(),
+                after: Some("id".to_string()),
+                default_value: Some("abc".to_string()),
+            },
+        )
+        .await
+        .unwrap();
 
-        println!("create table column sql:{}", sql);
-        let sql = db.drop_table_column(table_name, "name").await.unwrap();
-        println!("drop table column sql:{}", sql);
+        db.drop_table_column(table_name, "name").await.unwrap();
     }
 
     #[test]
@@ -1800,24 +1798,32 @@ mod tests {
         let db = make_test_object().await;
         let _ = db.drop_table("test_create_trigger", false).await;
         let _ = db.drop_table("test_create_trigger_update", false).await;
-        let query_id = "";
+        let mut conn = db.get_conn().await.unwrap();
 
-        db.open_connection(query_id).await.unwrap();
-
-        db.execute_sql(
-            query_id,
+        sqlx::raw_sql(
             r#"
-        CREATE TABLE test_create_trigger (
+            CREATE TABLE test_create_trigger (
                 id INTEGER PRIMARY KEY AUTOINCREMENT, -- 自动递增的ID作为主键
                 info TEXT NOT NULL 
-            );"#,
+            );
+        "#,
         )
+        .execute(conn.deref_mut())
         .await
-        .unwrap()
+        .unwrap();
+        sqlx::raw_sql(
+            r#"
+        CREATE TABLE test_create_trigger_update (
+            id INTEGER PRIMARY KEY AUTOINCREMENT, -- 自动递增的ID作为主键
+            info TEXT NOT NULL
+        );
+    "#,
+        )
+        .execute(conn.deref_mut())
+        .await
         .unwrap();
 
-        db.execute_sql(
-            query_id,
+        sqlx::raw_sql(
             r#"
         CREATE TRIGGER after_insert_test_create_trigger
         AFTER INSERT ON test_create_trigger
@@ -1825,12 +1831,12 @@ mod tests {
         BEGIN
             INSERT INTO test_create_trigger_update (info)
             VALUES (NEW.info);
-        END;"#,
+        END;
+    "#,
         )
+        .execute(conn.deref_mut())
         .await
-        .unwrap()
         .unwrap();
-
         let table = "test_create_trigger";
 
         let triggers = db.list_trigger(table).await.unwrap();
