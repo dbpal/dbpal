@@ -669,7 +669,7 @@ function notifySettingChange() {
       { label: WebviewWindow.getCurrent().label, kind: "WebviewWindow" },
       settingChangeEvent,
     );
-  }, Math.random() * 1000);
+  }, Math.random() * (isWindows() ? 1000 : 100));
 }
 
 class UserSettingAppearance {
