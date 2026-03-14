@@ -1,5 +1,5 @@
 use crate::db::{CatalogTrait, SequenceDetail};
-use crate::duckdb::{DuckDB, DuckDbPooledConn};
+use crate::duckdb::{DuckDB, DuckDbConn};
 use crate::language_server::{
     try_parser_dot_lexer, AstCompletionHelper, CompletionItem, CompletionKind, CompletionList,
     GetKeyWords, LangServerCommon, LanguageServer, LexerCompletionTrait,
@@ -301,7 +301,7 @@ impl DuckDB {
         .await?
     }
 
-    fn get_query_conn(&self) -> anyhow::Result<DuckDbPooledConn> {
+    fn get_query_conn(&self) -> anyhow::Result<DuckDbConn> {
         match self.query_connection.get(&self.completion_id.get()) {
             Some(x) => anyhow::Ok(x.clone()),
             None => anyhow::bail!(format!("query id '{}' not found", self.completion_id.get())),

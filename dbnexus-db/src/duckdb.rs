@@ -15,7 +15,7 @@ use duckdb::types::{TimeUnit, Value};
 use duckdb::{AccessMode, Connection, DuckdbConnectionManager};
 use r2d2::{Pool, PooledConnection};
 use std::collections::{HashMap, HashSet};
-use std::ops::DerefMut;
+use std::ops::{Deref, DerefMut};
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
 use tokio::task::spawn_blocking;
@@ -57,7 +57,7 @@ impl DuckDB {
 pub struct DuckDB {
     pub(crate) config: DuckDBConfig,
     pool: Pool<DuckdbConnectionManager>,
-    pub(crate) query_connection: Arc<DashMap<String, DuckDbPooledConn>>,
+    pub(crate) query_connection: Arc<DashMap<String, DuckDbConn>>,
     pub(crate) completion_id: AutoCompletionQueryId,
 }
 
@@ -145,10 +145,10 @@ impl GetBackendKind for DuckDB {
     }
 }
 
-pub(crate) type DuckDbPooledConn = Arc<Mutex<PooledConnection<DuckdbConnectionManager>>>;
+pub(crate) type DuckDbConn = Arc<Mutex<Connection>>;
 
 impl DuckDB {
-    fn get_conn_by_query_id(&self, query_id: Option<&str>) -> anyhow::Result<DuckDbPooledConn> {
+    fn get_conn_by_query_id(&self, query_id: Option<&str>) -> anyhow::Result<DuckDbConn> {
         match query_id {
             Some(id) => match self.query_connection.get(&id.to_string()) {
                 Some(x) => anyhow::Ok(x.clone()),
@@ -156,6 +156,7 @@ impl DuckDB {
             },
             None => {
                 let conn = self.get_conn()?;
+                let conn = conn.try_clone()?;
                 anyhow::Ok(Arc::new(Mutex::new(conn)))
             }
         }
@@ -439,6 +440,7 @@ impl QuerySql for DuckDB {
         let id = id.to_string();
         spawn_blocking(move || {
             let conn = this.get_conn()?;
+            let conn = conn.deref().try_clone()?;
             this.query_connection.insert(id, Arc::new(Mutex::new(conn)));
             anyhow::Ok(())
         })
@@ -446,15 +448,28 @@ impl QuerySql for DuckDB {
     }
 
     async fn close_connection(&self, id: &str) -> anyhow::Result<()> {
-        let conn = self.query_connection.remove(&id.to_string());
-        // if let Some((_, x)) = conn {
-        //     if let Some(x) = Arc::into_inner(x) {
-        //         let x = x.into_inner()?;
-
-        //         std::mem::drop(x);
-        //     }
-        // }
-        anyhow::Ok(())
+        let this = Clone::clone(self);
+        let id = id.to_string();
+        spawn_blocking(move || {
+            let conn = this.query_connection.remove(&id);
+            if let Some((_, conn)) = conn {
+                {
+                    // 锁定后 马上就试图去删除这个连接 有可能别人再用
+                    drop(conn.lock().expect("lock failed"));
+                }
+                let conn = Arc::try_unwrap(conn).map_err(|_| {
+                    anyhow::Error::msg("we have more than on strong ref to connection")
+                })?;
+                let conn = conn.into_inner().map_err(|e| {
+                    anyhow::Error::msg(format!("conn into inter failed,err:{:?}", e))
+                })?;
+                conn.close().unwrap();
+            } else {
+                anyhow::bail!("connection not found")
+            }
+            anyhow::Ok(())
+        })
+        .await?
     }
 
     async fn simple_execute_sql(&self, sql: &str) -> anyhow::Result<Option<usize>> {
