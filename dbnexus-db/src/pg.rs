@@ -1867,6 +1867,7 @@ impl QuerySql for PostGresDB {
             {
                 // 锁定后 马上就试图去删除这个连接 有可能别人再用
                 let _ = conn.lock().await;
+                tokio::time::sleep(Duration::from_secs(1)).await;
             }
             let conn = Arc::try_unwrap(conn)
                 .map_err(|_| anyhow::Error::msg("we have more than on strong ref to connection"))?;
