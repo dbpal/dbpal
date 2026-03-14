@@ -45,12 +45,6 @@ function NotificationProvider(props: { children: ReactNode }) {
       setNotifications((e) => e.slice(1));
     }, msgTimeout);
   };
-  const handleClose = (_, reason) => {
-    if (reason === "clickaway") {
-      return;
-    }
-    setNotifications([]);
-  };
 
   // 定义动画效果
   const transition = (props: any) => {
@@ -63,7 +57,12 @@ function NotificationProvider(props: { children: ReactNode }) {
       {open && (
         <Snackbar
           open={notifications.length > 0}
-          onClose={handleClose}
+          onClose={(_, reason) => {
+            if (reason === "clickaway") {
+              return;
+            }
+            setNotifications([]);
+          }}
           anchorOrigin={{ vertical: "top", horizontal: "right" }}
           slots={{ transition }}
         >
