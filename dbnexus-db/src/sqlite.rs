@@ -1398,6 +1398,8 @@ impl QuerySql for SqliteDB {
                 .map_err(|_| anyhow::Error::msg("we have more than on strong ref to connection"))?;
             let conn = conn.into_inner();
             conn.detach().close().await?;
+        } else {
+            anyhow::bail!("connection not found")
         }
         anyhow::Ok(())
     }
