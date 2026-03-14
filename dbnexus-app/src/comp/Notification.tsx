@@ -22,19 +22,14 @@ export const NotificationContext = createContext<NotificationContextProps>({
 
 function NotificationProvider(props: { children: ReactNode }) {
   const { children } = props;
-
-  const [open, setOpen] = useState(false);
-  const [notification, setNotification] = useState({
-    severity: "info" as AlertColor,
-    title: "",
-    message: "" as ReactElement | string | null | undefined,
-  });
-
+  const [notifications, setNotifications] = useState<
+    {
+      severity: AlertColor;
+      title: string;
+      message: ReactElement | string | null | undefined;
+    }[]
+  >([]);
   const showNotification = (severity: AlertColor, title: string, err) => {
-    if (!severity) {
-      setOpen(false);
-      return;
-    }
     // const iscancelled = isCancelledError(err);
     if (typeof err == "object" && "reason" in err) {
       console.error("detail:", err.detail);
@@ -42,36 +37,19 @@ function NotificationProvider(props: { children: ReactNode }) {
       // we only show `reason` the short message
       err = err["reason"];
     }
-    // if (severity == "error" && !React.isValidElement(err) && !iscancelled) {
-    //   err = err ? String(err) : "";
-    //   message(err, {
-    //     kind: severity,
-    //     title,
-    //     buttons: {
-    //       ok: err ? "copy error" : "ok",
-    //       cancel: "dismiss",
-    //     },
-    //   }).then((e: MessageDialogResult) => {
-    //     if (e == "copy error") {
-    //       handleCopyToClipboard(err);
-    //     }
-    //   });
-    //   return;
-    // }
     if (!React.isValidElement(err) && err) {
       err = String(err);
     }
-    setOpen(false);
+    setNotifications((e) => [...e, { severity, title, message: err }]);
     setTimeout(() => {
-      setNotification({ severity, title, message: err });
-      setOpen(true);
-    }, 100);
+      setNotifications((e) => e.slice(1));
+    }, msgTimeout);
   };
   const handleClose = (_, reason) => {
     if (reason === "clickaway") {
       return;
     }
-    setOpen(false);
+    setNotifications([]);
   };
 
   // 定义动画效果
@@ -84,35 +62,36 @@ function NotificationProvider(props: { children: ReactNode }) {
       {children}
       {open && (
         <Snackbar
-          open={open}
-          autoHideDuration={msgTimeout}
+          open={notifications.length > 0}
           onClose={handleClose}
           anchorOrigin={{ vertical: "top", horizontal: "right" }}
           slots={{ transition }}
+          style={{ overflow: "auto" }}
         >
-          <Alert
-            severity={notification.severity}
-            sx={{ maxWidth: "45vw", minWidth: "15vw" }}
-            onClose={() => {
-              setOpen(false);
-            }}
-          >
-            {/* 设置更宽的宽度 */}
-            {notification.title && (
-              <AlertTitle color={notification.severity}>
-                {notification.title}
-              </AlertTitle>
-            )}
-            <Stack direction="row" style={{ alignItems: "flex-start" }}>
-              {React.isValidElement(notification.message) ? (
-                notification.message
-              ) : (
-                <Typography color={notification.severity}>
-                  {notification.message}
-                </Typography>
-              )}
-            </Stack>
-          </Alert>
+          <Stack>
+            {notifications.map((notice, index) => (
+              <Alert
+                key={index}
+                severity={notice.severity}
+                sx={{ maxWidth: "45vw", minWidth: "15vw" }}
+                onClose={() => {
+                  setNotifications((e) => e.filter((_, i) => i !== index));
+                }}
+              >
+                {/* 设置更宽的宽度 */}
+                {notice.title && (
+                  <AlertTitle color={notice.severity}>{notice.title}</AlertTitle>
+                )}
+                <Stack direction="row" style={{ alignItems: "flex-start" }}>
+                  {React.isValidElement(notice.message) ? (
+                    notice.message
+                  ) : (
+                    <Typography color={notice.severity}>{notice.message}</Typography>
+                  )}
+                </Stack>
+              </Alert>
+            ))}
+          </Stack>
         </Snackbar>
       )}
     </NotificationContext.Provider>
