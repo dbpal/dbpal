@@ -281,6 +281,8 @@ impl QuerySql for LibSqlDB {
         anyhow::Ok(())
     }
     async fn close_connection(&self, id: &str) -> anyhow::Result<()> {
+        // no need execute close connection staff
+        // this connection is not going to put back in pool
         let id = id.to_string();
         self.query_connection_transaction.remove(&id);
         self.query_connection.remove(&id);

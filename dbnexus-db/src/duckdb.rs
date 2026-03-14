@@ -446,7 +446,14 @@ impl QuerySql for DuckDB {
     }
 
     async fn close_connection(&self, id: &str) -> anyhow::Result<()> {
-        self.query_connection.remove(&id.to_string());
+        let conn = self.query_connection.remove(&id.to_string());
+        // if let Some((_, x)) = conn {
+        //     if let Some(x) = Arc::into_inner(x) {
+        //         let x = x.into_inner()?;
+
+        //         std::mem::drop(x);
+        //     }
+        // }
         anyhow::Ok(())
     }
 

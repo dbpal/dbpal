@@ -1387,7 +1387,18 @@ impl QuerySql for SqliteDB {
     }
 
     async fn close_connection(&self, id: &str) -> anyhow::Result<()> {
-        if let Some((_, _x)) = self.query_connection.remove(&id.to_string()) {}
+        use sqlx::Connection;
+        let conn = self.query_connection.remove(&id.to_owned());
+        if let Some((_, conn)) = conn {
+            {
+                // 锁定后 马上就试图去删除这个连接 有可能别人再用
+                let _ = conn.lock().await;
+            }
+            let conn = Arc::try_unwrap(conn)
+                .map_err(|_| anyhow::Error::msg("we have more than on strong ref to connection"))?;
+            let conn = conn.into_inner();
+            conn.detach().close().await?;
+        }
         anyhow::Ok(())
     }
 }

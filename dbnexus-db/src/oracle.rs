@@ -255,7 +255,11 @@ impl QuerySql for OracleDB {
 
     async fn close_connection(&self, id: &str) -> anyhow::Result<()> {
         if let Some((_, x)) = self.query_connection.remove(&id.to_owned()) {
-            tokio::spawn(async move { x.lock().expect("lock failed").close() });
+            tokio::spawn(async move {
+                if let Err(err) = x.lock().expect("lock failed").close() {
+                    log::error!("close connection failed,err:{}", err)
+                }
+            });
         }
         anyhow::Ok(())
     }

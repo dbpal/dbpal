@@ -1714,8 +1714,8 @@ impl QuerySql for SqlServerDB {
     }
 
     async fn close_connection(&self, id: &str) -> anyhow::Result<()> {
+        // no need execute close connection staff this connection not going to put back in pool
         self.query_connection.remove(&id.to_string());
-
         anyhow::Ok(())
     }
     async fn simple_execute_sql(&self, sql: &str) -> anyhow::Result<Option<usize>> {

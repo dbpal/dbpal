@@ -1413,6 +1413,7 @@ impl QuerySql for RedisDB {
     }
 
     async fn close_connection(&self, id: &str) -> anyhow::Result<()> {
+        // no need execute close connection staff
         self.query_connection.remove(&id.to_string());
         anyhow::Ok(())
     }

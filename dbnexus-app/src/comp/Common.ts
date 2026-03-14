@@ -422,12 +422,13 @@ class QueryConn {
     return invoke("is_dangerous_sql", { name: this.uuid, sql });
   }
   destroy() {
-    console.log("destroy connection of:", this.queryId);
     invoke("query_sql_close_connection", {
       name: this.uuid,
       queryId: this.queryId,
     })
-      .then(() => {})
+      .then(() => {
+        console.log("destroy connection of:", this.queryId);
+      })
       .catch((e) => {
         console.error("close connection failed,err", e);
       });

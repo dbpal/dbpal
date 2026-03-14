@@ -30,7 +30,7 @@ use crate::db::{
 use crate::helper::create_csv;
 use crate::language_server::LexerCompletionTrait;
 use dashmap::{DashMap, DashSet};
-use r2d2::{Pool, PooledConnection};
+use r2d2::{ManageConnection, Pool, PooledConnection};
 use rsfbclient::{builder_pure_rust, Execute, FbError, Queryable, Row, SqlType};
 use rsfbclient_rust::RustFbClient;
 
@@ -41,7 +41,7 @@ use std::time::Duration;
 use tokio::task::spawn_blocking;
 
 pub struct PoolManager {
-    config: FireBirdConfig,
+    config: Arc<FireBirdConfig>,
 }
 
 pub type Connection = rsfbclient::Connection<RustFbClient>;
@@ -403,7 +403,10 @@ impl QuerySql for FireBirdDB {
         let this = Clone::clone(self);
         let id = id.to_string();
         spawn_blocking(move || {
-            let conn = this.get_conn()?;
+            let conn = PoolManager {
+                config: this.config.clone(),
+            };
+            let conn = conn.connect()?;
             this.query_connection.insert(id, Arc::new(Mutex::new(conn)));
             anyhow::Ok(())
         })
@@ -419,7 +422,7 @@ impl QuerySql for FireBirdDB {
 pub struct FireBirdDB {
     config: Arc<FireBirdConfig>,
     pool: Pool<PoolManager>,
-    query_connection: Arc<DashMap<String, Arc<Mutex<PooledConnection<PoolManager>>>>>,
+    query_connection: Arc<DashMap<String, Arc<Mutex<Connection>>>>,
     query_connection_tx: Arc<DashSet<String>>,
 }
 
@@ -1007,7 +1010,7 @@ impl FireBirdDB {
                 builder = builder.connection_timeout(x.into());
             }
             let pool = builder.build(PoolManager {
-                config: config.clone(),
+                config: Arc::new(config.clone()),
             })?;
             anyhow::Ok(Self {
                 config: Arc::new(config),
