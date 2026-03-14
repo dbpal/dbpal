@@ -66,7 +66,6 @@ function NotificationProvider(props: { children: ReactNode }) {
           onClose={handleClose}
           anchorOrigin={{ vertical: "top", horizontal: "right" }}
           slots={{ transition }}
-          style={{ overflow: "auto" }}
         >
           <Stack>
             {notifications.map((notice, index) => (
