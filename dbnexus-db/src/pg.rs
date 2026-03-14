@@ -33,7 +33,6 @@ pub struct PostGresDB {
     pool: sqlx::PgPool,
     pub(crate) config: PGDBConfig,
     pub(crate) query_connection: Arc<DashMap<String, Arc<Mutex<sqlx::PgConnection>>>>,
-    pub(crate) key_words_cache: Arc<Mutex<Vec<String>>>,
     pub(crate) completion_id: AutoCompletionQueryId,
     pub(crate) kind: BackendKindPostGres,
 }
@@ -1593,7 +1592,6 @@ impl PostGresDB {
             pool,
             config,
             query_connection: Default::default(),
-            key_words_cache: Default::default(),
             completion_id: Default::default(),
             kind,
         })

@@ -21,6 +21,7 @@ use crate::tidb_lang_server::TIDB_KEYWORDS;
 use sqlx::{AssertSqlSafe, Row, SqlSafeStr};
 use std::collections::HashSet;
 use std::ops::DerefMut;
+use tokio::sync::Mutex;
 
 use sqlx::{Column, Executor, Statement};
 #[async_trait::async_trait]
@@ -33,6 +34,7 @@ impl LexerCompletionTrait for MysqlDB {
 #[async_trait::async_trait]
 impl GetKeyWords for MysqlDB {
     async fn key_words(&self) -> anyhow::Result<Vec<String>> {
+        static KEY_WORDS_CACHE: Mutex<Vec<String>> = Mutex::const_new(Vec::new());
         match self.kind {
             BackendKindMysql::Tidb => {
                 let result = TIDB_KEYWORDS
@@ -43,7 +45,7 @@ impl GetKeyWords for MysqlDB {
             }
 
             _ => {
-                let mut lock = self.key_words_cache.lock().await;
+                let mut lock = KEY_WORDS_CACHE.lock().await;
                 if !lock.is_empty() {
                     return anyhow::Ok(lock.clone());
                 }

@@ -1,6 +1,7 @@
 use std::vec;
 
 use futures_util::StreamExt;
+use tokio::sync::Mutex;
 
 use crate::clickhouse::{ClickHouseDB, FieldsOrData};
 use crate::db::DBTrait;
@@ -13,7 +14,8 @@ use crate::sqlparser_completion::TempTableColumn;
 #[async_trait::async_trait]
 impl GetKeyWords for ClickHouseDB {
     async fn key_words(&self) -> anyhow::Result<Vec<String>> {
-        let mut lock = self.key_words_cache.lock().await;
+        static KEY_WORDS_CACHE: Mutex<Vec<String>> = Mutex::const_new(Vec::new());
+        let mut lock = KEY_WORDS_CACHE.lock().await;
         if !lock.is_empty() {
             return anyhow::Ok(lock.clone());
         }

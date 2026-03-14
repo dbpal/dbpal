@@ -1,3 +1,5 @@
+use tokio::sync::Mutex;
+
 use crate::db::{name_start_ascii_alphabetic, DBTrait};
 use crate::language_server::{
     try_parser_dot_lexer, AstCompletionHelper, CompletionItem, CompletionKind, CompletionList,
@@ -18,7 +20,8 @@ impl LexerCompletionTrait for OracleDB {
 
 impl GetKeyWords for OracleDB {
     async fn key_words(&self) -> anyhow::Result<Vec<String>> {
-        let mut lock = self.key_words_cache.lock().await;
+        static KEY_WORDS_CACHE: Mutex<Vec<String>> = Mutex::const_new(Vec::new());
+        let mut lock = KEY_WORDS_CACHE.lock().await;
         if !lock.is_empty() {
             return anyhow::Ok(lock.clone());
         }

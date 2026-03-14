@@ -350,6 +350,7 @@ class QueryConn {
       DataSourceKind.Postgres,
       DataSourceKind.Cockroach,
       DataSourceKind.SqlServer,
+      DataSourceKind.DuckDB,
     ].includes(this.kind);
   }
 

@@ -23,16 +23,13 @@ use crate::db::{
     POOL_MAX_CONNECTIONS,
 };
 use crate::helper::create_csv;
-use crate::language_server::{CompletionItem, LexerCompletionTrait};
+use crate::language_server::LexerCompletionTrait;
 
 #[derive(Clone)]
 pub struct SqliteDB {
     pool: sqlx::SqlitePool,
     config: SqliteDBConfig,
     pub(crate) query_connection: Arc<DashMap<String, Arc<Mutex<sqlx::SqliteConnection>>>>,
-    pub(crate) build_in_fn_completion: Arc<Mutex<Vec<CompletionItem>>>,
-    pub(crate) keywords_cache: Arc<Mutex<Vec<String>>>,
-    pub(crate) pragma_completion: Arc<Mutex<Vec<CompletionItem>>>,
     pub(crate) completion_id: AutoCompletionQueryId,
 }
 
@@ -1031,9 +1028,6 @@ impl SqliteDB {
             pool,
             query_connection: Default::default(),
             config: conn,
-            build_in_fn_completion: Default::default(),
-            keywords_cache: Default::default(),
-            pragma_completion: Default::default(),
             completion_id: Default::default(),
         })
     }
@@ -1241,7 +1235,7 @@ impl QuerySql for SqliteDB {
 
     async fn set_auto_commit(&self, query_id: &str, commit: bool) -> anyhow::Result<()> {
         if commit {
-            anyhow::bail!("sqlite use  commit or rollback to end transaction");
+            anyhow::bail!("sqlite use commit or rollback to end transaction");
         }
         use sqlx_core::any::AnyConnectionBackend;
         let conn = self.query_connection.get(&query_id.to_string());

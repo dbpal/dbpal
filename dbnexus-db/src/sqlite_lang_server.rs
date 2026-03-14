@@ -1,5 +1,6 @@
 use sqlx::{AssertSqlSafe, Column, Executor, Row, SqlSafeStr, Statement};
 use std::ops::DerefMut;
+use tokio::sync::Mutex;
 
 use crate::db::name_start_ascii_alphabetic;
 use crate::language_server::{
@@ -12,12 +13,7 @@ use crate::sqlparser_completion::TempTableColumn;
 impl GetKeyWords for SqliteDB {
     // some backend can use a query to query this.
     async fn key_words(&self) -> anyhow::Result<Vec<String>> {
-        let mut lock = self.keywords_cache.lock().await;
-        if !lock.is_empty() {
-            return anyhow::Ok(lock.clone());
-        }
         let ret: Vec<_> = SQLITE_KEY_WORDS.iter().map(|x| x.to_string()).collect();
-        *lock = ret.clone();
         anyhow::Ok(ret)
     }
 }
@@ -44,23 +40,22 @@ impl LangServerCommon for SqliteDB {
         anyhow::Ok(ret)
     }
     async fn sqlite_pragma(&self) -> anyhow::Result<Vec<CompletionItem>> {
-        let mut lock = self.pragma_completion.lock().await;
+        static PRAGMA_COMPLETION: Mutex<Vec<CompletionItem>> = Mutex::const_new(Vec::new());
+        let mut lock = PRAGMA_COMPLETION.lock().await;
         if !lock.is_empty() {
             return anyhow::Ok(lock.clone());
         }
         let sql = "PRAGMA pragma_list";
         let mut conn = self.get_conn().await?;
         let rows = sqlx::raw_sql(sql).fetch_all(conn.deref_mut()).await?;
-        let mut ret = Vec::with_capacity(rows.len());
         for row in rows.iter() {
             let name: String = row.try_get(0)?;
-            ret.push(CompletionItem {
+            lock.push(CompletionItem {
                 item: name.into(),
                 kind: CompletionKind::Pragma,
                 desc: None,
             });
         }
-        *lock = ret.clone();
         return anyhow::Ok(lock.clone());
     }
 
@@ -89,11 +84,11 @@ impl LangServerCommon for SqliteDB {
         include_build_in: bool,
     ) -> anyhow::Result<Vec<CompletionItem>> {
         // sqlite function are all build in functions
+        static BUILD_IN_FN_COMPLETION: Mutex<Vec<CompletionItem>> = Mutex::const_new(Vec::new());
+        let mut lock = BUILD_IN_FN_COMPLETION.lock().await;
         if !include_build_in {
             return anyhow::Ok(vec![]);
         }
-
-        let mut lock = self.build_in_fn_completion.lock().await;
         if !lock.is_empty() {
             return anyhow::Ok(lock.clone());
         }

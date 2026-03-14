@@ -271,7 +271,6 @@ impl DBConnectionConfig {
                     Some(_) => DatabaseBackend::Schema(Arc::new(redis) as Arc<dyn SchemaTrait>),
                     None => DatabaseBackend::DataBase(Arc::new(redis) as Arc<dyn DBTrait>),
                 };
-
                 anyhow::Ok(db)
             }
             DBConnectionConfig::Oracle { conn, .. } => match conn.schema.as_ref() {

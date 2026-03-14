@@ -12,6 +12,7 @@ use crate::sqlparser_completion::TempTableColumn;
 use sqlx::{AssertSqlSafe, Column, Executor, Row, SqlSafeStr, Statement};
 use std::collections::HashSet;
 use std::ops::DerefMut;
+use tokio::sync::Mutex;
 #[async_trait::async_trait]
 impl LexerCompletionTrait for PostGresDB {
     async fn get_types(&self) -> anyhow::Result<Vec<String>> {
@@ -28,7 +29,8 @@ impl LexerCompletionTrait for PostGresDB {
 #[async_trait::async_trait]
 impl GetKeyWords for PostGresDB {
     async fn key_words(&self) -> anyhow::Result<Vec<String>> {
-        let mut lock = self.key_words_cache.lock().await;
+        static KEY_WORDS_CACHE: Mutex<Vec<String>> = Mutex::const_new(Vec::new());
+        let mut lock = KEY_WORDS_CACHE.lock().await;
         if !lock.is_empty() {
             return anyhow::Ok(lock.clone());
         }

@@ -970,7 +970,6 @@ pub struct ClickHouseDB {
     pub(crate) config: ClickHouseConfig,
     pub(crate) client: Arc<clickhouse::Client>,
     pub(crate) http_client: Arc<reqwest::Client>,
-    pub(crate) key_words_cache: Arc<tokio::sync::Mutex<Vec<String>>>,
 }
 
 impl ReadOnlyTrait for ClickHouseDB {
@@ -1017,7 +1016,6 @@ impl ClickHouseDB {
             config,
             http_client: Arc::new(http_client),
             client: Arc::new(client),
-            key_words_cache: Default::default(),
         })
     }
 }
@@ -1115,6 +1113,7 @@ fn encode_nested(value: &serde_json::Value, typ: &DataType) -> anyhow::Result<St
             };
             let mut xs = Vec::with_capacity(map.len());
             for (k, v) in map.iter() {
+                // TODO I think clickhouse only accept some kind of  no need this method
                 let no_need_quote = ty_is_int(kty) || ty_is_float(kty);
                 xs.push(format!(
                     "{}:{}",

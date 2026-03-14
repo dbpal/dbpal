@@ -31,8 +31,6 @@ pub struct LibSqlDB {
     pub(crate) query_connection: Arc<DashMap<String, Connection>>,
     query_connection_transaction: Arc<DashMap<String, libsql::Transaction>>,
     pub(crate) build_in_fn_cache: Arc<Mutex<Vec<CompletionItem>>>,
-    pub(crate) keywords_cache: Arc<Mutex<Vec<String>>>,
-    pub(crate) pragma_completion: Arc<Mutex<Vec<CompletionItem>>>,
     pub(crate) completion_id: AutoCompletionQueryId,
 }
 
@@ -395,8 +393,6 @@ impl LibSqlDB {
             query_connection: Default::default(),
             query_connection_transaction: Default::default(),
             build_in_fn_cache: Default::default(),
-            keywords_cache: Default::default(),
-            pragma_completion: Default::default(),
             completion_id: Default::default(),
         })
     }

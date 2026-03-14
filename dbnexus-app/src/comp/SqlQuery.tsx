@@ -419,6 +419,7 @@ function SqlQuery(props: {
     DataSourceKind.Postgres,
     DataSourceKind.ClickHouse,
     DataSourceKind.FireBird,
+    DataSourceKind.DuckDB,
   ].includes(kind);
 
   const vis = useContext(TabActiveContext);

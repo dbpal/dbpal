@@ -10,12 +10,12 @@ use crate::db::{
 };
 use crate::helper::create_csv;
 use chrono::NaiveDate;
-use dashmap::DashMap;
+use dashmap::{DashMap, DashSet};
 use duckdb::types::{TimeUnit, Value};
 use duckdb::{AccessMode, Connection, DuckdbConnectionManager};
 use r2d2::{Pool, PooledConnection};
 use std::collections::{HashMap, HashSet};
-use std::ops::{Deref, DerefMut};
+use std::ops::Deref;
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
 use tokio::task::spawn_blocking;
@@ -59,6 +59,7 @@ pub struct DuckDB {
     pool: Pool<DuckdbConnectionManager>,
     pub(crate) query_connection: Arc<DashMap<String, DuckDbConn>>,
     pub(crate) completion_id: AutoCompletionQueryId,
+    pub(crate) query_tx: Arc<DashSet<String>>,
 }
 
 #[async_trait::async_trait]
@@ -107,6 +108,7 @@ impl DuckDB {
                 pool,
                 query_connection: Default::default(),
                 completion_id: Default::default(),
+                query_tx: Default::default(),
             })
         })
         .await?
@@ -355,12 +357,54 @@ impl ExportQueryResult for DuckDB {
     }
 }
 
+impl DuckDB {
+    async fn execute_on_query_id(
+        &self,
+        query_id: &str,
+        sql: impl Into<String>,
+    ) -> anyhow::Result<()> {
+        let this = Clone::clone(self);
+        let query_id = query_id.to_string();
+        let sql = sql.into();
+        spawn_blocking(move || {
+            let conn = match this.query_connection.get(&query_id) {
+                Some(conn) => conn.clone(),
+                None => anyhow::bail!("connection closed???"),
+            };
+            let conn = conn.lock().expect("lock failed");
+            conn.execute(&sql, [])?;
+            anyhow::Ok(())
+        })
+        .await?
+    }
+}
+
 #[async_trait::async_trait]
 impl QuerySql for DuckDB {
-    async fn set_auto_commit(&self, _query_id: &str, _commit: bool) -> anyhow::Result<()> {
-        anyhow::bail!(
-            "async rust not allow refcell and self reference,so this can't be implemented,we can't prove this is safe to rust compiler."
-        )
+    async fn get_auto_commit(&self, query_id: &str) -> anyhow::Result<bool> {
+        anyhow::Ok(!self.query_tx.contains(&query_id.to_string()))
+    }
+
+    async fn set_auto_commit(&self, query_id: &str, commit: bool) -> anyhow::Result<()> {
+        if commit {
+            anyhow::bail!("duckdb use commit or rollback to end transaction");
+        }
+        self.execute_on_query_id(&query_id, "BEGIN TRANSACTION")
+            .await?;
+        self.query_tx.insert(query_id.to_string());
+        anyhow::Ok(())
+    }
+
+    async fn commit(&self, query_id: &str) -> anyhow::Result<()> {
+        self.execute_on_query_id(&query_id, "COMMIT").await?;
+        self.query_tx.remove(&query_id.to_string());
+        anyhow::Ok(())
+    }
+
+    async fn rollback(&self, query_id: &str) -> anyhow::Result<()> {
+        self.execute_on_query_id(&query_id, "ROLLBACK").await?;
+        self.query_tx.remove(&query_id.to_string());
+        anyhow::Ok(())
     }
 
     async fn query_sql(
@@ -369,9 +413,11 @@ impl QuerySql for DuckDB {
         sql: &str,
         emit: QueryEventEmitter,
     ) -> anyhow::Result<()> {
+        crate::language_server::LangServerCommon::contains_tx_operation_error(self, sql)?;
         let this = Clone::clone(self);
         let query_id = query_id.to_string();
         let sql = sql.to_string();
+
         spawn_blocking(move || {
             let conn = match this.query_connection.get(&query_id) {
                 Some(conn) => conn.clone(),
@@ -416,23 +462,12 @@ impl QuerySql for DuckDB {
         query_id: &str,
         sql: &str,
     ) -> anyhow::Result<Result<QueryResp, String>> {
-        let this = Clone::clone(self);
-        let query_id = query_id.to_string();
-        let sql = sql.to_string();
-        spawn_blocking(move || {
-            let conn = match this.query_connection.get(&query_id) {
-                Some(x) => x.clone(),
-                None => anyhow::bail!("connection closed???"),
-            };
-            let mut conn = conn.lock().expect("lock failed");
-            let conn = conn.deref_mut();
-            let resp = match conn.execute_batch(&sql) {
-                Ok(_) => Ok(QueryResp::execute_ok(sql.to_string())),
-                Err(err) => Err(err.to_string()),
-            };
-            anyhow::Ok(resp)
-        })
-        .await?
+        crate::language_server::LangServerCommon::contains_tx_operation_error(self, sql)?;
+        let r = match self.execute_on_query_id(query_id, sql).await {
+            Ok(_) => Ok(QueryResp::execute_ok(sql.to_string())),
+            Err(err) => Err(err.to_string()),
+        };
+        anyhow::Ok(r)
     }
 
     async fn open_connection(&self, id: &str) -> anyhow::Result<()> {
@@ -448,7 +483,9 @@ impl QuerySql for DuckDB {
     }
 
     async fn close_connection(&self, id: &str) -> anyhow::Result<()> {
-        self.query_connection.remove(&id.to_string());
+        let query_id = id.to_string();
+        self.query_connection.remove(&query_id);
+        self.query_tx.remove(&query_id);
         anyhow::Ok(())
     }
 
@@ -1527,6 +1564,73 @@ mod tests {
         },
         enable_test_log,
     };
+
+    #[tokio::test]
+    async fn test_transaction() {
+        let db = make_test_object(Some("main".to_string())).await;
+
+        let table_name = "test_commit";
+        let _ = db.drop_table(table_name, false).await;
+
+        let query_id = "aaaa";
+        db.open_connection(query_id).await.unwrap();
+        db.execute_sql(
+            query_id,
+            r#"
+            CREATE TABLE test_commit (
+                ID INTEGER PRIMARY KEY,
+                NAME VARCHAR(50)
+            );
+        "#,
+        )
+        .await
+        .unwrap()
+        .unwrap();
+        db.set_auto_commit(query_id, false).await.unwrap();
+
+        db.execute_sql(
+            query_id,
+            r#"
+            INSERT INTO test_commit (ID, NAME) VALUES (1, 'Test');
+        "#,
+        )
+        .await
+        .unwrap()
+        .unwrap();
+        db.rollback(query_id).await.unwrap();
+
+        assert!(
+            db.show_table_collect(table_name, ShowTableParameter::new_stupid_test("id asc"),)
+                .await
+                .unwrap()
+                .total
+                == 0
+        );
+        db.set_auto_commit(query_id, false).await.unwrap();
+
+        db.execute_sql(
+            query_id,
+            r#"
+            INSERT INTO test_commit (ID, NAME) VALUES (1, 'Test');
+        "#,
+        )
+        .await
+        .unwrap()
+        .unwrap();
+
+        println!("!!!!!!!!!!!!:{:?}", db.query_tx);
+
+        assert!(!db.get_auto_commit(query_id).await.unwrap());
+
+        db.commit(query_id).await.unwrap();
+        assert!(
+            db.show_table_collect(table_name, ShowTableParameter::new_stupid_test("id asc"),)
+                .await
+                .unwrap()
+                .total
+                == 1
+        );
+    }
 
     #[test]
     fn test_extract_index_columns() {

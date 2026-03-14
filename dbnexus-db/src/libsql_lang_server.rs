@@ -8,12 +8,14 @@ use crate::sqlite::SqliteDB;
 use crate::sqlite_lang_server::{SQLITE_KEY_WORDS, SQLITE_TYPES};
 use crate::sqlparser_completion::TempTableColumn;
 use libsql::params;
+use tokio::sync::Mutex;
 
 #[async_trait::async_trait]
 impl GetKeyWords for LibSqlDB {
     // some backend can use a query to query this.
     async fn key_words(&self) -> anyhow::Result<Vec<String>> {
-        let mut lock = self.keywords_cache.lock().await;
+        static KEY_WORDS_CACHE: Mutex<Vec<String>> = Mutex::const_new(Vec::new());
+        let mut lock = KEY_WORDS_CACHE.lock().await;
         if !lock.is_empty() {
             return anyhow::Ok(lock.clone());
         }
@@ -124,7 +126,9 @@ impl LangServerCommon for LibSqlDB {
     }
 
     async fn sqlite_pragma(&self) -> anyhow::Result<Vec<CompletionItem>> {
-        let mut lock = self.pragma_completion.lock().await;
+        static PRAGMA_COMPLETION: Mutex<Vec<CompletionItem>> = Mutex::const_new(Vec::new());
+        let mut lock = PRAGMA_COMPLETION.lock().await;
+
         if !lock.is_empty() {
             return anyhow::Ok(lock.clone());
         }

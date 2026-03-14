@@ -29,7 +29,6 @@ pub struct OracleDB {
     pool: Arc<Pool>,
     query_connection: Arc<DashMap<String, Arc<Mutex<Connection>>>>,
     pub(crate) config: Arc<OracleDBConfig>,
-    pub(crate) key_words_cache: Arc<tokio::sync::Mutex<Vec<String>>>,
 }
 
 #[async_trait::async_trait]
@@ -69,7 +68,6 @@ impl OracleDB {
                 pool: Arc::new(pool),
                 query_connection: Default::default(),
                 config: Arc::new(config),
-                key_words_cache: Default::default(),
             })
         })
         .await?
