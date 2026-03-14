@@ -29,7 +29,7 @@ use crate::language_server::{CompletionItem, LexerCompletionTrait};
 pub struct SqliteDB {
     pool: sqlx::SqlitePool,
     config: SqliteDBConfig,
-    pub(crate) query_connection: Arc<DashMap<String, Arc<Mutex<PoolConnection<sqlx::Sqlite>>>>>,
+    pub(crate) query_connection: Arc<DashMap<String, Arc<Mutex<sqlx::SqliteConnection>>>>,
     pub(crate) build_in_fn_completion: Arc<Mutex<Vec<CompletionItem>>>,
     pub(crate) keywords_cache: Arc<Mutex<Vec<String>>>,
     pub(crate) pragma_completion: Arc<Mutex<Vec<CompletionItem>>>,
@@ -1095,7 +1095,7 @@ impl SqliteDB {
     async fn get_conn_by_query_id(
         &self,
         query_id: Option<&str>,
-    ) -> anyhow::Result<Arc<Mutex<PoolConnection<sqlx::Sqlite>>>> {
+    ) -> anyhow::Result<Arc<Mutex<sqlx::SqliteConnection>>> {
         match query_id {
             Some(id) => match self.query_connection.get(&id.to_string()) {
                 Some(x) => anyhow::Ok(x.clone()),
@@ -1103,6 +1103,7 @@ impl SqliteDB {
             },
             None => {
                 let conn = self.get_conn().await?;
+                let conn = conn.detach();
                 anyhow::Ok(Arc::new(Mutex::new(conn)))
             }
         }
@@ -1123,7 +1124,6 @@ impl ExportQueryResult for SqliteDB {
     ) -> anyhow::Result<()> {
         let conn = self.get_conn_by_query_id(query_id).await?;
         let mut conn = conn.lock().await;
-        let conn = conn.deref_mut();
         let mut stream = sqlx::raw_sql(AssertSqlSafe(sql)).fetch(conn.deref_mut());
         let mut first = true;
         let mut row_num = 0;
@@ -1330,7 +1330,7 @@ impl QuerySql for SqliteDB {
             None => anyhow::bail!("connection closed???"),
         };
         let mut conn = conn.lock().await;
-        let conn = conn.deref_mut();
+        let mut conn = conn.deref_mut();
         emit.send(QueryEvent::Status("trying to get response stream".into()))?;
         let mut stream = sqlx::raw_sql(AssertSqlSafe(sql)).fetch_many(conn.deref_mut());
         emit.send(QueryEvent::Status("get response ok.".into()))?;
@@ -1381,27 +1381,14 @@ impl QuerySql for SqliteDB {
 
     async fn open_connection(&self, id: &str) -> anyhow::Result<()> {
         let conn = self.get_conn().await?;
+        let conn = conn.detach();
         self.query_connection
             .insert(id.to_owned(), Arc::new(Mutex::new(conn)));
         anyhow::Ok(())
     }
 
     async fn close_connection(&self, id: &str) -> anyhow::Result<()> {
-        use sqlx::Connection;
-        let conn = self.query_connection.remove(&id.to_owned());
-        if let Some((_, conn)) = conn {
-            {
-                // 锁定后 马上就试图去删除这个连接 有可能别人再用
-                let _ = conn.lock().await;
-                tokio::time::sleep(Duration::from_secs(1)).await;
-            }
-            let conn = Arc::try_unwrap(conn)
-                .map_err(|_| anyhow::Error::msg("we have more than on strong ref to connection"))?;
-            let conn = conn.into_inner();
-            conn.detach().close().await?;
-        } else {
-            anyhow::bail!("connection not found")
-        }
+        self.query_connection.remove(&id.to_owned());
         anyhow::Ok(())
     }
 }

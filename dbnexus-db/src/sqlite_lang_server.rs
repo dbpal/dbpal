@@ -147,7 +147,6 @@ impl LangServerCommon for SqliteDB {
         let rows = match self.query_connection.get(&self.completion_id.get()) {
             Some(conn) => {
                 let mut conn = conn.lock().await;
-                let conn = conn.deref_mut();
                 sqlx::raw_sql(AssertSqlSafe(sql))
                     .fetch_all(conn.deref_mut())
                     .await?
@@ -277,7 +276,7 @@ impl AstCompletionHelper for SqliteDB {
         let s = match self.query_connection.get(&self.completion_id.get()) {
             Some(conn) => {
                 let mut conn = conn.lock().await;
-                let conn = conn.deref_mut();
+
                 conn.deref_mut()
                     .prepare_with(AssertSqlSafe(sql).into_sql_str(), &[])
                     .await?

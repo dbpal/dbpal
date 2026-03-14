@@ -49,10 +49,10 @@ impl GetKeyWords for PostGresDB {
 impl PostGresDB {
     pub(crate) async fn query_search_path(
         &self,
-        conn: &mut sqlx::pool::PoolConnection<sqlx::Postgres>,
+        conn: &mut sqlx::PgConnection,
     ) -> anyhow::Result<Option<HashSet<String>>> {
         let row = sqlx::raw_sql("SHOW search_path;")
-            .fetch_one(conn.deref_mut())
+            .fetch_one(conn)
             .await
             .map_err(|e| log::error!("query search path failed,err:{}", e))
             .ok();
@@ -85,9 +85,8 @@ impl PostGresDB {
         let ret = match self.query_connection.get(&self.completion_id.get()) {
             Some(conn) => {
                 let mut conn = conn.lock().await;
-                let conn: &mut sqlx::pool::PoolConnection<sqlx::Postgres> = conn.deref_mut();
                 let r = self
-                    .query_search_path(conn)
+                    .query_search_path(conn.deref_mut())
                     .await
                     .map_err(|e| log::error!("get search path failed,err:{}", e))
                     .unwrap_or_default();

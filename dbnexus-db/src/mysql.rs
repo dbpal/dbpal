@@ -30,7 +30,7 @@ use tokio::sync::Mutex;
 pub struct MysqlDB {
     pool: sqlx::MySqlPool,
     pub(crate) config: MysqlDBConfig,
-    pub(crate) query_connection: Arc<DashMap<String, Arc<Mutex<PoolConnection<sqlx::MySql>>>>>,
+    pub(crate) query_connection: Arc<DashMap<String, Arc<Mutex<sqlx::MySqlConnection>>>>,
     pub(crate) key_words_cache: Arc<Mutex<Vec<String>>>,
     pub(crate) completion_id: AutoCompletionQueryId,
     pub kind: BackendKindMysql,
@@ -340,14 +340,14 @@ impl MysqlDB {
     async fn get_conn_by_query_id(
         &self,
         query_id: Option<&str>,
-    ) -> anyhow::Result<Arc<Mutex<PoolConnection<sqlx::MySql>>>> {
+    ) -> anyhow::Result<Arc<Mutex<sqlx::MySqlConnection>>> {
         match query_id {
             Some(id) => match self.query_connection.get(&id.to_string()) {
                 Some(x) => anyhow::Ok(x.clone()),
                 None => anyhow::bail!("should be able to get connection"),
             },
             None => {
-                let conn = self.get_conn().await?;
+                let conn = self.get_conn().await?.detach();
                 anyhow::Ok(Arc::new(Mutex::new(conn)))
             }
         }
@@ -1635,7 +1635,7 @@ impl ExportQueryResult for MysqlDB {
     ) -> anyhow::Result<()> {
         let conn = self.get_conn_by_query_id(query_id).await?;
         let mut conn = conn.lock().await;
-        let conn = conn.deref_mut();
+        let mut conn = conn.deref_mut();
         let mut first = true;
         let mut stream = sqlx::raw_sql(AssertSqlSafe(sql)).fetch(conn.deref_mut());
         let mut row_num = 0;
@@ -1780,28 +1780,15 @@ impl QuerySql for MysqlDB {
     }
 
     async fn open_connection(&self, id: &str) -> anyhow::Result<()> {
-        let conn = self.get_conn().await?;
+        let conn = self.get_conn().await?.detach();
+
         self.query_connection
             .insert(id.to_string(), Arc::new(Mutex::new(conn)));
         anyhow::Ok(())
     }
 
     async fn close_connection(&self, id: &str) -> anyhow::Result<()> {
-        use sqlx::Connection;
-        let conn = self.query_connection.remove(&id.to_owned());
-        if let Some((_, conn)) = conn {
-            {
-                // 锁定后 马上就试图去删除这个连接 有可能别人再用
-                let _ = conn.lock().await;
-                tokio::time::sleep(Duration::from_secs(1)).await;
-            }
-            let conn = Arc::try_unwrap(conn)
-                .map_err(|_| anyhow::Error::msg("we have more than on strong ref to connection"))?;
-            let conn = conn.into_inner();
-            conn.detach().close().await?;
-        } else {
-            anyhow::bail!("connection not found")
-        }
+        self.query_connection.remove(&id.to_owned());
         anyhow::Ok(())
     }
     async fn simple_execute_sql(&self, sql: &str) -> anyhow::Result<Option<usize>> {
@@ -1845,7 +1832,7 @@ impl QuerySql for MysqlDB {
             None => anyhow::bail!("connection closed???"),
         };
         let mut conn = conn.lock().await;
-        let conn = conn.deref_mut();
+        let mut conn = conn.deref_mut();
         let mut stream = sqlx::raw_sql(AssertSqlSafe(sql)).fetch_many(conn.deref_mut());
         let mut emit_fields: Vec<Field> = vec![];
         let mut has_result = false;

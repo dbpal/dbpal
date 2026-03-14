@@ -448,30 +448,8 @@ impl QuerySql for DuckDB {
     }
 
     async fn close_connection(&self, id: &str) -> anyhow::Result<()> {
-        let this = Clone::clone(self);
-        let id = id.to_string();
-        spawn_blocking(move || {
-            let conn = this.query_connection.remove(&id);
-            if let Some((_, conn)) = conn {
-                {
-                    // 锁定后 马上就试图去删除这个连接 有可能别人再用
-                    drop(conn.lock().expect("lock failed"));
-                    //等一会 主要是等待arc解锁
-                    std::thread::sleep(Duration::from_secs(1));
-                }
-                let conn = Arc::try_unwrap(conn).map_err(|_| {
-                    anyhow::Error::msg("we have more than on strong ref to connection")
-                })?;
-                let conn = conn.into_inner().map_err(|e| {
-                    anyhow::Error::msg(format!("conn into inter failed,err:{:?}", e))
-                })?;
-                conn.close().unwrap();
-            } else {
-                anyhow::bail!("connection not found")
-            }
-            anyhow::Ok(())
-        })
-        .await?
+        self.query_connection.remove(&id.to_string());
+        anyhow::Ok(())
     }
 
     async fn simple_execute_sql(&self, sql: &str) -> anyhow::Result<Option<usize>> {

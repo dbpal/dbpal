@@ -156,7 +156,6 @@ impl MysqlDB {
         let used_db = match self.query_connection.get(&self.completion_id.get()) {
             Some(x) => {
                 let mut conn = x.lock().await;
-                let conn = conn.deref_mut();
                 let sql = Self::SELECT_DB_SQL;
                 let row = sqlx::raw_sql(sql).fetch_one(conn.deref_mut()).await.ok();
                 match row {
@@ -220,7 +219,6 @@ impl LangServerCommon for MysqlDB {
             None => anyhow::bail!("should be able to get query connection"),
         };
         let mut conn = conn.lock().await;
-        let conn = conn.deref_mut();
         let mut ret = HashSet::new();
 
         {
@@ -432,7 +430,7 @@ impl LangServerCommon for MysqlDB {
             None => anyhow::bail!("connection not found"),
         };
         let mut conn = conn.lock().await;
-        let conn = conn.deref_mut();
+        let mut conn = conn.deref_mut();
         let sql = r#"
             SELECT  sql_text ,statement_name   
                 FROM performance_schema.prepared_statements_instances WHERE 
