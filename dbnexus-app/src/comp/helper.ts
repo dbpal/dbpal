@@ -323,11 +323,9 @@ function getViewportSize() {
 
 function errToString(message) {
   if (typeof message == "object" && "reason" in message) {
-    // TODO show message
     message = message["reason"];
   }
   if (typeof message == "object" && message instanceof Error) {
-    // TODO show message
     message = message.toString();
   }
   return message;

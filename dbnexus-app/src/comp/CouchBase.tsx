@@ -525,8 +525,6 @@ function CouchBaseEditor(props: {
   const stringify = (v: InteractionProps) => {
     // TODO number auto convert to string
     // how to fix this.
-
-    console.log("!!!!!!!!!!!!!!", v.updated_src);
     return JSON.stringify(v.updated_src, null, setting.editor.tabSize);
   };
   return (

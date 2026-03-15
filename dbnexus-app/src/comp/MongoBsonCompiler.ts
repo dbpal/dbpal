@@ -1,15 +1,15 @@
 import { tokenize } from "esprima";
 import {
+  Binary,
   BSON,
+  Code,
+  Decimal128,
+  Document,
+  Double,
   Int32,
   Long,
   ObjectId,
   Timestamp,
-  Code,
-  Decimal128,
-  Binary,
-  Double,
-  Document,
 } from "bson";
 
 class MongoBsonObject {
@@ -96,7 +96,9 @@ class MongoBsonAs {
       ? this.binarySubType.toBinarySubTypeNumber()
       : Binary.SUBTYPE_DEFAULT;
 
-    if (ty === "object" && v instanceof Array && this.binarySubType.isFloat32()) {
+    if (
+      ty === "object" && v instanceof Array && this.binarySubType.isFloat32()
+    ) {
       return Binary.fromFloat32Array(new Float32Array(v));
     }
     if (ty === "object" && v instanceof Array && this.binarySubType.isInt8()) {
@@ -199,7 +201,8 @@ class MongoBsonAs {
 }
 
 function hasTypeKey(obj, key, t) {
-  return Object.prototype.hasOwnProperty.call(obj, key) && typeof obj[key] === t;
+  return Object.prototype.hasOwnProperty.call(obj, key) &&
+    typeof obj[key] === t;
 }
 
 const formatMaxNewLineSize = 40;
@@ -371,7 +374,12 @@ class MongoBsonValue {
     }
   }
 
-  formatArray(x: any[], newLine: boolean, tabSize: number, ident: number): string {
+  formatArray(
+    x: any[],
+    newLine: boolean,
+    tabSize: number,
+    ident: number,
+  ): string {
     let ret = "[";
     newLine = newLine || this.elementsSize() > formatMaxNewLineSize;
     if (newLine) {
@@ -443,8 +451,8 @@ class MongoBsonValue {
         const binaryValue = this.value as Binary;
         ret += "'" + binaryValue.toString("hex") + "'";
         // here is type annotation
-        ret +=
-          " as binary " + MongoBsonBinaryAllSubType.fromNumber(binaryValue.sub_type);
+        ret += " as binary " +
+          MongoBsonBinaryAllSubType.fromNumber(binaryValue.sub_type);
         return ret;
       }
       case MongoBsonValueKind.Date:
@@ -576,7 +584,11 @@ function parseMongoBson(input: string): MongoBsonObject {
 
 function formatMongoBsonStr(input: string, tabSize: number): string {
   const ast = parseMongoBson(input);
-  const s = new MongoBsonValue(MongoBsonValueKind.Object, ast).format(1, true, tabSize);
+  const s = new MongoBsonValue(MongoBsonValueKind.Object, ast).format(
+    1,
+    true,
+    tabSize,
+  );
   return s;
 }
 
@@ -785,7 +797,10 @@ class Parser {
   except(value: string): Token {
     const token = this.peek();
     if (token.value != value) {
-      throw new MongoBsonError(`expect '${value}' , but '${token.value}'`, token.loc);
+      throw new MongoBsonError(
+        `expect '${value}' , but '${token.value}'`,
+        token.loc,
+      );
     }
     this.next();
     return token;
@@ -953,7 +968,10 @@ function toMongoBson(a: any): MongoBsonValue {
           }
           kv.push(new MongoBsonKV({ value: keyStr }, toMongoBson(a[key])));
         }
-        return new MongoBsonValue(MongoBsonValueKind.Object, new MongoBsonObject(kv));
+        return new MongoBsonValue(
+          MongoBsonValueKind.Object,
+          new MongoBsonObject(kv),
+        );
       }
 
       throw new MongoBsonError(`can't convert value ${a.toString()}`);
@@ -997,10 +1015,10 @@ interface Location {
 }
 
 export {
-  parseMongoBson,
-  formatMongoBsonStr,
   bsonValue2MongoBson,
+  formatMongoBsonStr,
   MongoBsonBinaryAllSubType,
   MongoBsonError,
   MongoBsonObject,
+  parseMongoBson,
 };

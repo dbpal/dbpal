@@ -580,8 +580,7 @@ pub(crate) fn encode_row_as_json(
                 value.map(serde_json::Value::Array)
             }
             "VOID" => {
-                // TODO it this right.
-                Some(serde_json::Value::Null)
+                anyhow::bail!("void not support.")
             }
             _ => {
                 return err;
@@ -921,8 +920,7 @@ pub(crate) fn encode_row(r: &PgRow) -> anyhow::Result<Vec<Option<String>>> {
                 value.map(|x| output_pg_money_array(&x))
             }
             "VOID" => {
-                // TODO it this right.
-                None
+                anyhow::bail!("void not support")
             }
             _ => default_str,
         };
