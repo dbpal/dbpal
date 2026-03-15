@@ -26,7 +26,7 @@ self.MonacoEnvironment = {
 
 await loader.config({
   monaco,
-  paths: { vs: "node_modules/monaco-editor/min/vs" },
+  // paths: { vs: "node_modules/monaco-editor/min/vs" },
 });
 
 import { editor, languages, Position } from "monaco-editor";
