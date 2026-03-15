@@ -1,5 +1,4 @@
 import { loader } from "@monaco-editor/react";
-
 import * as monaco from "monaco-editor";
 import editorWorker from "monaco-editor/esm/vs/editor/editor.worker?worker";
 import jsonWorker from "monaco-editor/esm/vs/language/json/json.worker?worker";
@@ -25,7 +24,10 @@ self.MonacoEnvironment = {
   },
 };
 
-loader.config({ monaco });
+await loader.config({
+  monaco,
+  paths: { vs: "node_modules/monaco-editor/min/vs" },
+});
 
 import { editor, languages, Position } from "monaco-editor";
 import types from "./ApiStruct";
