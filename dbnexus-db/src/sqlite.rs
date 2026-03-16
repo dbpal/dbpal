@@ -1448,6 +1448,18 @@ mod tests {
     };
 
     #[tokio::test]
+
+    async fn test_open_lots_conn() {
+        // test sqlx `detach`
+        let db = make_test_object().await;
+        for i in 0..400 {
+            let query_id = format!("q{}", i);
+            db.open_connection(&query_id).await.unwrap();
+            db.close_connection(&query_id).await.unwrap();
+        }
+    }
+
+    #[tokio::test]
     async fn test_table_pagination() {
         let db = make_test_object().await;
         let table_name = "test_table_pagination";

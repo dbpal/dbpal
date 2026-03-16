@@ -135,7 +135,7 @@ function ShowShortCut() {
     };
   }, []);
   return (
-    <div>
+    <>
       {show && (
         <Modal
           open={show}
@@ -146,7 +146,7 @@ function ShowShortCut() {
         >
           <Box sx={modalStyle} width="75%" height="65vh">
             <ModalHeader
-              title="panic info"
+              title="Show short cuts"
               handleClose={() => {
                 setShow(false);
               }}
@@ -155,7 +155,7 @@ function ShowShortCut() {
           </Box>
         </Modal>
       )}
-    </div>
+    </>
   );
 }
 
