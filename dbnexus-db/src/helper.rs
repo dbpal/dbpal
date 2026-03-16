@@ -469,6 +469,24 @@ pub(crate) fn ty_is_decimal(ty: &DataType) -> bool {
     }
 }
 
+#[allow(dead_code)]
+pub fn generate_random_string(len: usize) -> String {
+    use rand::prelude::*;
+    // 定义只包含字母和数字的字符集
+    const CHARSET: &[u8] = b"ABCDEFGHIJKLMNOPQRSTUVWXYZ\
+                              abcdefghijklmnopqrstuvwxyz\
+                              0123456789";
+
+    let mut rng = rand::rng();
+    let rand_string: String = (0..len)
+        .map(|_| {
+            let idx = rng.random_range(0usize..CHARSET.len());
+            CHARSET[idx] as char
+        })
+        .collect();
+    rand_string
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

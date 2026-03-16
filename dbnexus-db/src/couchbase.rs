@@ -698,7 +698,7 @@ mod tests {
                 .unwrap();
         }
 
-        for i in 0..1550 {
+        for i in 0..155 {
             db.table_insert(table_name, {
                 let mut values = HashMap::new();
                 values.insert("id".to_string(), Some(format!("id_{}", i)));

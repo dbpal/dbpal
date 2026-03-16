@@ -80,7 +80,7 @@ function ProceduresTree() {
           if (index >= maxsize) {
             return;
           }
-          const id = `${uuid}-procedure-${index}`;
+          const id = `${uuid}-${p.name}-${p.rand}`;
           return (
             <TreeItem
               key={p.name + "-" + p.parameters}

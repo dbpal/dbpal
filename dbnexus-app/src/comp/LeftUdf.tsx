@@ -91,7 +91,7 @@ function UdfsTree() {
           if (index >= maxsize) {
             return;
           }
-          const id = `${uuid}-udf-${index}`;
+          const id = `${uuid}-udf-${udf.name} -${udf.rand}`;
           return (
             <TreeItem
               key={index}
@@ -343,7 +343,7 @@ function CassandraAggregatesTree() {
           if (index >= maxsize) {
             return;
           }
-          const id = `${uuid}-agg-${index}`;
+          const id = `${uuid}-agg-${agg.name}-${agg.rand}`;
           return (
             <TreeItem
               key={

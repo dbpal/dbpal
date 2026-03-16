@@ -370,32 +370,42 @@ fn main() {
                         handle,
                         "about",
                         true,
-                        &[&PredefinedMenuItem::about(
-                            handle,
-                            Some("make database management easy."),
-                            Some(about_meta),
-                        )?],
+                        &[
+                            &MenuItem::with_id(
+                                handle,
+                                "show_shortcut",
+                                "show shortcut",
+                                true,
+                                None as Option<&'static str>,
+                            )?,
+                            &PredefinedMenuItem::about(
+                                handle,
+                                Some("make database management easy."),
+                                Some(about_meta),
+                            )?,
+                        ],
                     )?,
                 ],
             )
         })
         .on_menu_event(move |handle, event| {
             log::info!("on menu event:{:?}", event);
-            if event.id.0 == "add_config" {
-                if let Err(err) = handle.emit("add_config", "") {
-                    log::error!("emit add_config failed:{}", err);
+
+            match event.id.0.as_str() {
+                "add_config" => {
+                    if let Err(err) = handle.emit("add_config", "") {
+                        log::error!("emit add_config failed:{}", err);
+                    }
                 }
-            }
-            if event.id.0 == "show_setting" {
-                if let Err(err) = handle.emit("show_setting", "") {
-                    println!("emit show_setting failed:{}", err)
+                "show_setting" => {
+                    if let Err(err) = handle.emit("show_setting", "") {
+                        println!("emit show_setting failed:{}", err)
+                    }
                 }
-            }
-            if event.id.0 == "relauch" {
-                handle.restart();
-            }
-            if event.id.0 == "zoom_in" {
-                match zoom::get_configured_zoom(handle) {
+                "relauch" => {
+                    handle.restart();
+                }
+                "zoom_in" => match zoom::get_configured_zoom(handle) {
                     Ok(x) => {
                         let mut zoom = x - zoom::STEP;
                         let min = 0.3;
@@ -410,10 +420,8 @@ fn main() {
                     Err(err) => {
                         log::error!("get zoom failed,err{}", err);
                     }
-                }
-            }
-            if event.id.0 == "zoom_out" {
-                match zoom::get_configured_zoom(handle) {
+                },
+                "zoom_out" => match zoom::get_configured_zoom(handle) {
                     Ok(x) => {
                         let mut zoom = x + zoom::STEP;
                         let max = 2f64;
@@ -428,13 +436,21 @@ fn main() {
                     Err(err) => {
                         log::error!("get zoom failed,err{}", err);
                     }
+                },
+                "zoom_reset" => {
+                    let zoom = 1f64;
+                    zoom::set_webview_zoom(handle, zoom);
+                    if let Err(err) = zoom::configure_zoom(handle, zoom) {
+                        log::error!("set zoom failed:{}", err);
+                    }
                 }
-            }
-            if event.id.0 == "zoom_reset" {
-                let zoom = 1f64;
-                zoom::set_webview_zoom(handle, zoom);
-                if let Err(err) = zoom::configure_zoom(handle, zoom) {
-                    log::error!("set zoom failed:{}", err);
+                "show_shortcut" => {
+                    if let Err(err) = handle.emit(event.id.0.as_str(), "") {
+                        log::error!("emit failed:{}", err);
+                    }
+                }
+                _ => {
+                    log::error!("unhandle menu event:{:?}", event);
                 }
             }
         })

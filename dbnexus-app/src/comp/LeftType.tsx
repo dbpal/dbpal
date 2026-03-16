@@ -79,7 +79,7 @@ function TypesTree() {
           if (index >= maxsize) {
             return;
           }
-          const id = `${uuid}-type-${index}`;
+          const id = `${uuid}-type-${typ.name}`;
           return (
             <TreeItem
               key={typ.name}

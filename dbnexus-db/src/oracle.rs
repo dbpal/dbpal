@@ -21,7 +21,7 @@ use crate::db::{
     XlsxEdit, POOL_MAX_CONNECTIONS,
 };
 
-use crate::helper::create_csv;
+use crate::helper::{create_csv, generate_random_string};
 use crate::language_server::LexerCompletionTrait;
 
 #[derive(Clone)]
@@ -930,6 +930,7 @@ impl OracleDB {
                 .map(|x| ListTable {
                     size: sizes.get(&x).and_then(|x| (*x).map(|x| x as u64)),
                     name: x,
+                    rand: generate_random_string(10),
                 })
                 .collect(),
         )
@@ -1010,6 +1011,7 @@ impl SchemaTrait for OracleDB {
                 .map(|x| ListTable {
                     size: sizes.get(&x).and_then(|x| (*x).map(|x| x as u64)),
                     name: x,
+                    rand: generate_random_string(10),
                 })
                 .collect(),
         )
@@ -1626,6 +1628,7 @@ impl OracleDB {
                 metas: vec![],
                 parameters: None,
                 cassandra_parameters: None,
+                rand: generate_random_string(10),
             });
         }
         anyhow::Ok(ret)
@@ -1780,6 +1783,45 @@ mod tests {
     fn test_lock() -> &'static Mutex<()> {
         static MUTEX: Mutex<()> = Mutex::const_new(());
         &MUTEX
+    }
+
+    #[tokio::test]
+    async fn test_table_pagination() {
+        let _guard = test_lock().lock().await;
+        let db = make_test_object(Some("SYSTEM".to_string())).await;
+        let table_name = "TEST_TABLE_PAGINATION";
+        let _ = db.drop_table(table_name, false).await;
+        db.create_table(&CreateTableReq {
+            name: table_name.into(),
+            columns: vec![
+                CreateTableReqColumn {
+                    name: "ID".into(),
+                    data_type: "SMALLINT".into(),
+                    auto_increment: false,
+                    primary_key: true,
+                    default_value: None,
+                    nullable: SqlNullAble::None,
+                },
+                CreateTableReqColumn {
+                    name: "NAME".into(),
+                    data_type: "varchar(255)".into(),
+                    auto_increment: false,
+                    primary_key: true,
+                    default_value: None,
+                    nullable: SqlNullAble::None,
+                },
+            ],
+            indexes: vec![],
+        })
+        .await
+        .unwrap();
+
+        for i in 0..155 {
+            let mut values = HashMap::new();
+            values.insert("ID".to_owned(), Some((i + 1).to_string()));
+            values.insert("NAME".to_owned(), Some(format!("name{}", i + 1)));
+            db.table_insert(table_name, values).await.unwrap();
+        }
     }
 
     #[tokio::test]

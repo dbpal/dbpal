@@ -1447,6 +1447,44 @@ mod tests {
         TestQueryEventEmit,
     };
 
+    #[tokio::test]
+    async fn test_table_pagination() {
+        let db = make_test_object().await;
+        let table_name = "test_table_pagination";
+        let _ = db.drop_table(table_name, false).await;
+        db.create_table(&CreateTableReq {
+            name: table_name.into(),
+            columns: vec![
+                CreateTableReqColumn {
+                    name: "id".into(),
+                    data_type: "SMALLINT".into(),
+                    auto_increment: false,
+                    primary_key: true,
+                    default_value: None,
+                    nullable: SqlNullAble::None,
+                },
+                CreateTableReqColumn {
+                    name: "name".into(),
+                    data_type: "varchar(255)".into(),
+                    auto_increment: false,
+                    primary_key: true,
+                    default_value: None,
+                    nullable: SqlNullAble::None,
+                },
+            ],
+            indexes: vec![],
+        })
+        .await
+        .unwrap();
+
+        for i in 0..155 {
+            let mut values = HashMap::new();
+            values.insert("id".to_owned(), Some((i + 1).to_string()));
+            values.insert("name".to_owned(), Some(format!("name{}", i + 1)));
+            db.table_insert(table_name, values).await.unwrap();
+        }
+    }
+
     #[ignore = "this test run by hand"]
     #[tokio::test]
     async fn test_do_has_data_query() {
@@ -1695,7 +1733,7 @@ mod tests {
 
             let result = db.execute_sql(query_id, &create_table).await;
             println!("create table result:{:?}", result);
-            for _ in 0..1550 {
+            for _ in 0..155 {
                 let sql = format!(
                     "insert into {table_name} values({} , {} , {} , {} ,{} ,{} ,{});",
                     rand::random::<f64>() * 100000f64,

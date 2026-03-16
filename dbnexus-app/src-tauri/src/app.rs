@@ -602,24 +602,6 @@ impl DBPal {
     }
 }
 
-#[allow(dead_code)]
-pub(crate) fn generate_random_string(len: usize) -> String {
-    use rand::prelude::*;
-    // 定义只包含字母和数字的字符集
-    const CHARSET: &[u8] = b"ABCDEFGHIJKLMNOPQRSTUVWXYZ\
-                              abcdefghijklmnopqrstuvwxyz\
-                              0123456789";
-
-    let mut rng = rand::rng();
-    let rand_string: String = (0..len)
-        .map(|_| {
-            let idx = rng.random_range(0usize..CHARSET.len());
-            CHARSET[idx] as char
-        })
-        .collect();
-    rand_string
-}
-
 #[derive(serde::Serialize, Debug, Clone)]
 pub struct ErrorFrontend {
     // short message on why

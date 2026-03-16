@@ -23,7 +23,7 @@ use crate::db::{
     POOL_MAX_CONNECTIONS,
 };
 
-use crate::helper::create_csv;
+use crate::helper::{create_csv, generate_random_string};
 use crate::language_server::LexerCompletionTrait;
 use crate::pg_format::*;
 
@@ -653,6 +653,7 @@ impl SchemaTrait for PostGresDB {
                 parameters: Some(p),
                 metas: vec![],
                 cassandra_parameters: None,
+                rand: generate_random_string(10),
             });
         }
 
@@ -756,6 +757,7 @@ impl SchemaTrait for PostGresDB {
                 parameters: arguments,
                 metas: vec![MetaValue::new("return_type", return_type)],
                 cassandra_parameters: None,
+                rand: generate_random_string(10),
             });
         }
         anyhow::Ok(ret)
@@ -1243,8 +1245,7 @@ impl SchemaTrait for PostGresDB {
         let mut ret = Vec::with_capacity(rows.len());
         for r in rows.iter() {
             let name: String = r.get(0);
-
-            ret.push(ListTable { name, size: None });
+            ret.push(ListTable::from(name));
         }
         anyhow::Ok(ret)
     }
@@ -2111,6 +2112,44 @@ mod tests {
     #[allow(unused_imports)]
     use crate::enable_test_log;
     use std::collections::HashMap;
+
+    #[tokio::test]
+    async fn test_table_pagination() {
+        let db = make_test_object().await;
+        let table_name = "test_table_pagination";
+        let _ = db.drop_table(table_name, false).await;
+        db.create_table(&CreateTableReq {
+            name: table_name.into(),
+            columns: vec![
+                CreateTableReqColumn {
+                    name: "id".into(),
+                    data_type: "SMALLINT".into(),
+                    auto_increment: false,
+                    primary_key: true,
+                    default_value: None,
+                    nullable: SqlNullAble::None,
+                },
+                CreateTableReqColumn {
+                    name: "name".into(),
+                    data_type: "varchar(255)".into(),
+                    auto_increment: false,
+                    primary_key: true,
+                    default_value: None,
+                    nullable: SqlNullAble::None,
+                },
+            ],
+            indexes: vec![],
+        })
+        .await
+        .unwrap();
+
+        for i in 0..155 {
+            let mut values = HashMap::new();
+            values.insert("id".to_owned(), Some((i + 1).to_string()));
+            values.insert("name".to_owned(), Some(format!("name{}", i + 1)));
+            db.table_insert(table_name, values).await.unwrap();
+        }
+    }
 
     #[tokio::test]
     async fn test_list_created_types() {

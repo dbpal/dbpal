@@ -1054,7 +1054,7 @@ pub(crate) fn gen_show_sql(
         sql.push_str(format!(" ORDER BY {order_by} ").as_str());
     }
     let offset = (page - 1) * page_size;
-    sql.push_str(format!(" ROWS {} TO {} ", offset + 1, offset + page_size + 1).as_str());
+    sql.push_str(format!(" ROWS {} TO {} ", offset + 1, offset + page_size).as_str());
     sql
 }
 
@@ -1088,6 +1088,46 @@ mod tests {
         let d = crate::db::CheckConn::check_conn(&db).await.unwrap();
         println!("ping time:{:?}", d);
     }
+
+    #[tokio::test]
+    async fn test_table_pagination() {
+        let _guard = test_lock().lock().await;
+        let db = make_test_object().await;
+        let table_name = "TEST_TABLE_PAGINATION";
+        let _ = db.drop_table(table_name, false).await;
+        db.create_table(&CreateTableReq {
+            name: table_name.into(),
+            columns: vec![
+                CreateTableReqColumn {
+                    name: "ID".into(),
+                    data_type: "SMALLINT".into(),
+                    auto_increment: false,
+                    primary_key: true,
+                    default_value: None,
+                    nullable: SqlNullAble::None,
+                },
+                CreateTableReqColumn {
+                    name: "NAME".into(),
+                    data_type: "varchar(255)".into(),
+                    auto_increment: false,
+                    primary_key: true,
+                    default_value: None,
+                    nullable: SqlNullAble::None,
+                },
+            ],
+            indexes: vec![],
+        })
+        .await
+        .unwrap();
+
+        for i in 0..155 {
+            let mut values = HashMap::new();
+            values.insert("ID".to_owned(), Some((i + 1).to_string()));
+            values.insert("NAME".to_owned(), Some(format!("name{}", i + 1)));
+            db.table_insert(table_name, values).await.unwrap();
+        }
+    }
+
     #[tokio::test]
     async fn test_query_multi_should_be_error() {
         let db = make_test_object().await;

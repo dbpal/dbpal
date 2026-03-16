@@ -38,7 +38,7 @@ use crate::db::{
 };
 
 use crate::firebird::gen_show_sql;
-use crate::helper::create_csv;
+use crate::helper::{create_csv, generate_random_string};
 use crate::language_server::LexerCompletionTrait;
 use chrono::{DateTime, NaiveDate, NaiveTime};
 use cql3_parser::cassandra_ast::CassandraAST;
@@ -1306,6 +1306,7 @@ impl CassandraDB {
                     MetaValue::new("return_type", return_type),
                     MetaValue::new("language", language),
                 ],
+                rand: generate_random_string(10),
             });
         }
         anyhow::Ok(ret)
@@ -1379,6 +1380,7 @@ impl CassandraDB {
                     MetaValue::new("initcond", initcond),
                 ],
                 cassandra_parameters: Some(argument_types.unwrap_or_default()),
+                rand: generate_random_string(10),
             });
         }
 

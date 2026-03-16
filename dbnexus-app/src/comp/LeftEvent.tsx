@@ -80,7 +80,7 @@ function EventsTree() {
             return;
           }
 
-          const id = `${uuid}-event-${index}`;
+          const id = `${uuid}-event-${event.name}`;
           return (
             <TreeItem
               key={event.name}

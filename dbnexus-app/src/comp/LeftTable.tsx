@@ -86,6 +86,7 @@ function TablesTree(props: { typ: TableType }) {
   const [exceed, setExceed] = useState(0);
   const matchPattern = useContext(MatchPatternContext);
   const maxsize = useContext(MaxTreeContext);
+  const tablesId = useRef(generateRandomString());
   useEffect(() => {
     setExceed(tables.filter((e) => matchPattern(e.name)).length);
   }, [tables, matchPattern]);
@@ -108,7 +109,7 @@ function TablesTree(props: { typ: TableType }) {
 
   const { setUpMenu } = useContext(ContextMenuContext);
 
-  let tablesText;
+  let tablesText: string;
 
   switch (kind) {
     case DataSourceKind.CouchBase:
@@ -126,7 +127,6 @@ function TablesTree(props: { typ: TableType }) {
     }
   }
 
-  const tablesId = useRef(generateRandomString());
   return (
     <TreeItem
       itemId={tablesId.current}
@@ -155,8 +155,7 @@ function TablesTree(props: { typ: TableType }) {
           if (index >= maxsize) {
             return;
           }
-          const id = `${uuid}-table-${typ}-${index}`;
-
+          const id = `${uuid}-table-${typ}-${e.name}-${e.rand}`;
           return (
             <TableTree
               key={e.name}
@@ -420,7 +419,6 @@ function TableMenu(props: {
   const [showRename, setShowRename] = useState(false);
   const [showDrop, setShowDrop] = useState(false);
   const [showExport, setShowExport] = useState(false);
-
   const { showNotification } = useContext(NotificationContext);
   const { tabs, setSelectTab, appendTab } = useContext(TabsSetContext);
 

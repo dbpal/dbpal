@@ -28,13 +28,13 @@ import { appLogDir, join } from "@tauri-apps/api/path";
 import { readTextFile, remove } from "@tauri-apps/plugin-fs";
 import { openUrl } from "@tauri-apps/plugin-opener";
 import DeleteForeverIcon from "@mui/icons-material/DeleteForever";
+import { listen } from "@tauri-apps/api/event";
+import { ShowCuts } from "./ShortCuts.tsx";
 
-//@ts-ignore
 function ShowPanic() {
   const [panicInfo, setPanicInfo] = useState("");
   const { showNotification } = useContext(NotificationContext);
   const theme = useTheme();
-
   const getPanicFilePath = async () => {
     return appLogDir().then((e) => {
       return join(e, "dbpal.panic");
@@ -66,7 +66,7 @@ function ShowPanic() {
         >
           <Box sx={modalStyle} width="75%" height="65vh">
             <ModalHeader
-              title="panic info"
+              title="short cuts"
               handleClose={() => {
                 setPanicInfo("");
               }}
@@ -115,6 +115,43 @@ function ShowPanic() {
                 <DeleteForeverIcon />
               </IconButton>
             </Stack>
+          </Box>
+        </Modal>
+      )}
+    </div>
+  );
+}
+
+function ShowShortCut() {
+  const [show, setShow] = useState(false);
+  useEffect(() => {
+    const unlisten = listen("show_shortcut", () => {
+      setShow(true);
+    });
+    return () => {
+      unlisten.then((callback) => {
+        callback();
+      });
+    };
+  }, []);
+  return (
+    <div>
+      {show && (
+        <Modal
+          open={show}
+          onClose={modalHandleClose((e: EscDownEvent) => {
+            e.preventDefault();
+            setShow(false);
+          })}
+        >
+          <Box sx={modalStyle} width="75%" height="65vh">
+            <ModalHeader
+              title="panic info"
+              handleClose={() => {
+                setShow(false);
+              }}
+            />
+            <ShowCuts />
           </Box>
         </Modal>
       )}
@@ -209,6 +246,7 @@ function App() {
           <Menu>
             <div>
               <ShowPanic />
+              <ShowShortCut />
               <PanelGroup
                 direction="horizontal"
                 style={{

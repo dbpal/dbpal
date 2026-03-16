@@ -1,3 +1,4 @@
+use crate::helper::generate_random_string;
 use crate::language_server::LanguageServer;
 use chrono::{DateTime, FixedOffset};
 use core::str;
@@ -1029,6 +1030,8 @@ pub struct NamedStaff {
     pub cassandra_parameters: Option<Vec<String>>,
     pub name: String,
     pub metas: Vec<MetaValue>,
+
+    pub rand: String,
 }
 
 impl From<String> for NamedStaff {
@@ -1038,6 +1041,7 @@ impl From<String> for NamedStaff {
             metas: vec![],
             parameters: None,
             cassandra_parameters: None,
+            rand: generate_random_string(10),
         }
     }
 }
@@ -1673,6 +1677,8 @@ pub trait QuerySql: GetBackendKind + Send + Sync + 'static + LanguageServer {
 pub struct ListTable {
     pub name: String,
     pub size: Option<u64>,
+    // for frontend tree item id
+    pub rand: String,
 }
 
 impl From<String> for ListTable {
@@ -1680,6 +1686,7 @@ impl From<String> for ListTable {
         Self {
             name: value,
             size: None,
+            rand: generate_random_string(10),
         }
     }
 }
@@ -1689,6 +1696,7 @@ impl ListTable {
         Self {
             name: name.into(),
             size,
+            rand: generate_random_string(10),
         }
     }
 }
@@ -1698,6 +1706,7 @@ impl From<&str> for ListTable {
         Self {
             name: value.to_string(),
             size: None,
+            rand: generate_random_string(10),
         }
     }
 }

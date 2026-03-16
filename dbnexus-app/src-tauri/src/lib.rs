@@ -21,6 +21,7 @@ mod tests {
     use crate::app::OpenAIReq;
     #[test]
     fn generate_ts_def() {
+        use crate::app::{self};
         use dbnexus_db::datasource_config::{
             MongoDBConfig, MysqlDBConfig, PGDBConfig, RedisDBConfig, SqlServerDBConfig,
         };
@@ -34,8 +35,6 @@ mod tests {
         use typescript_type_def::{
             write_definition_file_from_type_infos, DefinitionFileOptions, TypeDef,
         };
-
-        use crate::app::{self};
         let dir = env!("CARGO_MANIFEST_DIR");
         let filepath = Path::new(&dir)
             .to_path_buf()

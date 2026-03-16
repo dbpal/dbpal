@@ -97,7 +97,7 @@ function SequenceTree() {
           if (index >= maxsize) {
             return;
           }
-          const id = `${uuid}-sequence-${index}`;
+          const id = `${uuid}-sequence-${seq.name}`;
           return (
             <TreeItem
               key={seq.name}

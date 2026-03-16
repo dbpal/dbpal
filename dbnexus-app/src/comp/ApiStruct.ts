@@ -308,6 +308,7 @@ export namespace types {
     export type ListTable = {
         "name": string;
         "size": (types.U64 | null);
+        "rand": string;
     };
     export type Field = {
         "field": string;
@@ -350,6 +351,7 @@ export namespace types {
         "cassandra_parameters": ((string)[] | null);
         "name": string;
         "metas": (types.MetaValue)[];
+        "rand": string;
     };
     export type ExportKind = (({
         "export_kind": "csv";
