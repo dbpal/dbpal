@@ -2027,42 +2027,6 @@ pub enum TriggerTiming {
     String(String),
 }
 
-pub(crate) fn ty_is_int(x: &sqlparser::ast::DataType) -> bool {
-    use sqlparser::ast::DataType;
-    matches!(
-        x,
-        DataType::TinyInt(_)
-            | DataType::TinyIntUnsigned(_)
-            | DataType::Int2(_)
-            | DataType::Int2Unsigned(_)
-            | DataType::SmallInt(_)
-            | DataType::SmallIntUnsigned(_)
-            | DataType::MediumInt(_)
-            | DataType::MediumIntUnsigned(_)
-            | DataType::Int(_)
-            | DataType::Int4(_)
-            | DataType::Int8(_)
-            | DataType::Int16
-            | DataType::Int32
-            | DataType::Int64
-            | DataType::Int128
-            | DataType::Int256
-            | DataType::Integer(_)
-            | DataType::IntUnsigned(_)
-            | DataType::Int4Unsigned(_)
-            | DataType::UnsignedInteger
-            | DataType::UInt8
-            | DataType::UInt16
-            | DataType::UInt32
-            | DataType::UInt64
-            | DataType::UInt128
-            | DataType::UInt256
-            | DataType::BigInt(_)
-            | DataType::BigIntUnsigned(_)
-            | DataType::Int8Unsigned(_)
-    )
-}
-
 /// meta value can used in various place.
 #[derive(Debug, serde::Serialize, TypeDef)]
 pub struct MetaValue {
@@ -2083,28 +2047,6 @@ impl MetaValue {
     pub(crate) fn with_desc(&mut self, desc: impl Into<String>) {
         self.desc = Some(desc.into());
     }
-}
-
-// float decimal all consider as float number
-pub(crate) fn ty_is_float(x: &sqlparser::ast::DataType) -> bool {
-    use sqlparser::ast::DataType;
-
-    matches!(
-        x,
-        DataType::Numeric(_)
-            | DataType::Decimal(_)
-            | DataType::BigNumeric(_)
-            | DataType::BigDecimal(_)
-            | DataType::Dec(_)
-            | DataType::Float(_)
-            | DataType::Float4
-            | DataType::Float32
-            | DataType::Float64
-            | DataType::Real
-            | DataType::Float8
-            | DataType::Double(_)
-            | DataType::DoublePrecision
-    )
 }
 
 pub fn escape_sql_str(s: &str) -> String {

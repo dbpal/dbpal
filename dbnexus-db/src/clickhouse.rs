@@ -1,13 +1,14 @@
 use crate::datasource_config::ClickHouseConfig;
 use crate::db::{
     create_html_table_data, create_html_table_header, create_markdown_data, create_markdown_header,
-    escape_sql_str, ty_is_float, ty_is_int, BackendKind, CheckConn, ColumnType, CreateSchemaExtra,
-    CreateTableAndIndexSql, DBTrait, DefAndMetas, ExportFrame, ExportKind, ExportQueryResult,
-    Field, GetBackendKind, ListTable, MetaValue, NamedStaff, OptionMustBeSomeErr, QueryEvent,
-    QueryEventEmitter, QueryResp, QuerySql, ReadOnlyTrait, SchemaTrait, ServerMetas,
-    ShowTableParameter, SqlBuilder, SqlCollect, UdfOrProcedureExtraParameter, XlsxEdit,
+    escape_sql_str, BackendKind, CheckConn, ColumnType, CreateSchemaExtra, CreateTableAndIndexSql,
+    DBTrait, DefAndMetas, ExportFrame, ExportKind, ExportQueryResult, Field, GetBackendKind,
+    ListTable, MetaValue, NamedStaff, OptionMustBeSomeErr, QueryEvent, QueryEventEmitter,
+    QueryResp, QuerySql, ReadOnlyTrait, SchemaTrait, ServerMetas, ShowTableParameter, SqlBuilder,
+    SqlCollect, UdfOrProcedureExtraParameter, XlsxEdit,
 };
 
+use crate::helper::{ty_is_decimal, ty_is_float, ty_is_int};
 use crate::language_server::LexerCompletionTrait;
 use futures_core::stream::BoxStream;
 use futures_util::StreamExt;
@@ -1046,7 +1047,6 @@ impl DBTrait for ClickHouseDB {
         self.can_write()?;
         let sql = format!("CREATE DATABASE IF NOT EXISTS {name};");
         log::info!("sql:{}", sql);
-
         self.simple_execute_sql(&sql).await?;
         anyhow::Ok(())
     }
@@ -1055,18 +1055,24 @@ impl DBTrait for ClickHouseDB {
         self.can_write()?;
         let sql = format!("DROP DATABASE IF EXISTS {name};");
         log::info!("sql:{}", sql);
-
         self.simple_execute_sql(&sql).await?;
         anyhow::Ok(())
     }
 }
 
 fn encode_nested(value: &serde_json::Value, typ: &DataType) -> anyhow::Result<String> {
+    let need_quote = |typ: &DataType| !(ty_is_int(typ) || ty_is_float(typ) || ty_is_decimal(typ));
     let x = match value {
         serde_json::Value::Null => "null".to_string(),
         serde_json::Value::Bool(x) => x.to_string(),
         serde_json::Value::Number(number) => number.to_string(),
-        serde_json::Value::String(x) => format!("'{}'", escape_sql_str(x)),
+        serde_json::Value::String(x) => {
+            if need_quote(typ) {
+                format!("'{}'", escape_sql_str(x))
+            } else {
+                x.clone()
+            }
+        }
         serde_json::Value::Array(values) => {
             match typ {
                 DataType::Tuple(tys) => {
@@ -1085,19 +1091,16 @@ fn encode_nested(value: &serde_json::Value, typ: &DataType) -> anyhow::Result<St
                     }
                     format!("({})", xs.join(","))
                 }
-
                 DataType::Array(ty) => {
                     let mut xs = Vec::with_capacity(values.len());
+                    let ety = match ty {
+                        ArrayElemTypeDef::Parenthesis(x) => x.as_ref(),
+                        _ => {
+                            anyhow::bail!("clickhouse accept Parenthesis type parameter.")
+                        }
+                    };
                     for e in values.iter() {
-                        xs.push(encode_nested(
-                            e,
-                            match ty {
-                                ArrayElemTypeDef::Parenthesis(x) => x.as_ref(),
-                                _ => {
-                                    anyhow::bail!("clickhouse accept Parenthesis type parameter.")
-                                }
-                            },
-                        )?);
+                        xs.push(encode_nested(e, ety)?);
                     }
                     format!("[{}]", xs.join(","))
                 }
@@ -1113,14 +1116,12 @@ fn encode_nested(value: &serde_json::Value, typ: &DataType) -> anyhow::Result<St
             };
             let mut xs = Vec::with_capacity(map.len());
             for (k, v) in map.iter() {
-                // TODO I think clickhouse only accept some kind of  no need this method
-                let no_need_quote = ty_is_int(kty) || ty_is_float(kty);
                 xs.push(format!(
                     "{}:{}",
-                    if no_need_quote {
-                        k.to_string()
+                    if need_quote(kty) {
+                        format!("'{}'", escape_sql_str(k))
                     } else {
-                        format!("'{}'", k)
+                        k.clone()
                     },
                     encode_nested(v, vty)?
                 ));
@@ -1294,7 +1295,6 @@ impl SqlBuilder for ClickHouseDB {
                 if f.is_none() {
                     anyhow::bail!("field '{}' not found", k);
                 }
-
                 sql.push_str(
                     format!(
                         "{} = {}",
@@ -2122,7 +2122,6 @@ default.test_dup
 
     #[tokio::test]
     async fn test_types5() {
-        enable_test_log();
         let db = make_test_object();
         let table_name = "test_types5";
         let _ = db.drop_table(table_name, false).await;
@@ -2179,6 +2178,101 @@ default.test_dup
                 .show_table_collect(
                     table_name,
                     ShowTableParameter::new_stupid_test("date32_field asc"),
+                )
+                .await
+                .unwrap();
+
+            println!("resp:{:?}", resp);
+        }
+        {
+            let sql = db
+                .export_table_to_string(
+                    table_name,
+                    ExportKind::Sql {
+                        include_table_schema: true,
+                    },
+                )
+                .await
+                .unwrap();
+
+            println!("sql:{}", sql);
+            let csv = db
+                .export_table_to_string(
+                    table_name,
+                    ExportKind::Csv {
+                        include_header: true,
+                        delimiter: ',',
+                    },
+                )
+                .await
+                .unwrap();
+
+            println!("csv:{}", csv);
+            let jsonline = db
+                .export_table_to_string(table_name, ExportKind::JsonLine)
+                .await
+                .unwrap();
+
+            println!("jsonline:{}", jsonline);
+            let json = db
+                .export_table_to_string(table_name, ExportKind::Json { pretty: true })
+                .await
+                .unwrap();
+
+            println!("json:{}", json);
+        }
+    }
+
+    #[tokio::test]
+    async fn test_some_map() {
+        enable_test_log();
+        let db = make_test_object();
+        let table_name = "test_some_map";
+        let _ = db.drop_table(table_name, false).await;
+        let query_id = "";
+        db.open_connection(query_id).await.unwrap();
+        db.execute_sql(
+            query_id,
+            r#"
+            CREATE TABLE test_some_map
+            (
+                
+                map_field1 Map(Int32, Int32),
+                map_field2 Map(Date , Int32),
+                map_field3 Map(String , Int32),
+                map_field4 Map(IPv4 , Int32),
+            )
+            ENGINE = MergeTree()
+            ORDER BY map_field1;  
+        "#,
+        )
+        .await
+        .unwrap()
+        .unwrap();
+
+        {
+            let mut values = HashMap::new();
+
+            //  insert values
+            values.insert("map_field1".to_string(), Some("{1 : 2}".to_string()));
+            values.insert(
+                "map_field2".to_string(),
+                Some("{'2025-03-06' : 1}".to_string()),
+            );
+            values.insert("map_field3".to_string(), Some("{'aaaa' : 1}".to_string()));
+            values.insert(
+                "map_field4".to_string(),
+                Some("{'192.168.1.1' : 1}".to_string()),
+            );
+            println!("values:{:?}", values);
+
+            db.table_insert(table_name, values).await.unwrap();
+        }
+        {
+            let resp = db
+                .show_table_collect(
+                    table_name,
+                    ShowTableParameter::new_stupid_test("map_field1 asc"),
                 )
                 .await
                 .unwrap();
@@ -2336,15 +2430,15 @@ default.test_dup
         println!("{:?}", x);
         let x = parse_type("FixedString(10) ").unwrap();
         println!("{:?}", x);
-        let x = parse_type("IPv4 ").unwrap();
+        let x = parse_type("IPv4").unwrap();
         println!("{:?}", x);
-        let x = parse_type("IPv6 ").unwrap();
+        let x = parse_type("IPv6").unwrap();
         println!("{:?}", x);
-        let x = parse_type("Date ").unwrap();
+        let x = parse_type("Date").unwrap();
         println!("{:?}", x);
-        let x = parse_type("Date32 ").unwrap();
+        let x = parse_type("Date32").unwrap();
         println!("{:?}", x);
-        let x = parse_type("DateTime ").unwrap();
+        let x = parse_type("DateTime").unwrap();
         println!("{:?}", x);
         let x = parse_type("DateTime64(1) ").unwrap();
         println!("{:?}", x);
