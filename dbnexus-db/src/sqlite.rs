@@ -77,13 +77,8 @@ impl SqliteDB {
         sender: tokio::sync::mpsc::Sender<ExportFrame>,
     ) -> anyhow::Result<()> {
         if include_table_schema {
-            let ss = SchemaTrait::show_create_table_sql(self, table_name).await?;
-            sender.send(ss.create_table.clone().into()).await?;
-            sender.send(";\n".into()).await?;
-            for index in ss.indexes.into_iter() {
-                sender.send(index.into()).await?;
-                sender.send(";\n".into()).await?;
-            }
+            let create_table = SchemaTrait::show_create_table_sql(self, table_name).await?;
+            sender.send(create_table.to_string().into()).await?;
         }
         let mut conn = self.get_conn().await?;
         let cols = SchemaTrait::show_table_columns(self, table_name).await?;
@@ -97,7 +92,7 @@ impl SqliteDB {
             } = &para;
             gen_show_sql(
                 table_name,
-                self.backend_name().format_fields(Some(&cols)).into(),
+                self.backend_kind().format_fields(Some(&cols)).into(),
                 where_str.as_deref(),
                 order_by.as_deref(),
                 *page,
@@ -198,7 +193,7 @@ impl ServerMetas for SqliteDB {
     async fn show_metas(&self) -> anyhow::Result<Vec<MetaValue>> {
         let mut conn = self.get_conn().await?;
         let sql = r#"
-            SELECT sqlite_version(); -- 0 
+            SELECT sqlite_version()
         "#;
         let row = sqlx::raw_sql(AssertSqlSafe(sql))
             .fetch_one(conn.deref_mut())
@@ -217,7 +212,7 @@ impl std::fmt::Debug for SqliteDB {
 }
 
 impl GetBackendKind for SqliteDB {
-    fn backend_name(&self) -> BackendKind {
+    fn backend_kind(&self) -> BackendKind {
         BackendKind::Sqlite
     }
 }
@@ -335,7 +330,7 @@ impl SchemaTrait for SqliteDB {
         _new_name: &str,
         _typ: Option<ColumnType>,
     ) -> anyhow::Result<String> {
-        self.backend_name().not_support_feature()
+        self.backend_kind().not_support_feature()
     }
 
     async fn add_table_column(
@@ -370,7 +365,7 @@ impl SchemaTrait for SqliteDB {
     }
 
     async fn create_index(&self, table: &str, req: &CreateIndexReq) -> anyhow::Result<String> {
-        let sql = req.common_sql(table, true, self.backend_name().quote_style())?;
+        let sql = req.common_sql(table, true, self.backend_kind().quote_style())?;
         log::info!("sql:{}", sql);
         self.simple_execute_sql(&sql).await?;
         anyhow::Ok(sql)
@@ -407,7 +402,6 @@ impl SchemaTrait for SqliteDB {
         let sql = format!(r#"CREATE TABLE "{dup}" AS SELECT * FROM "{table}""#);
         log::info!("sql:{}", sql);
         self.simple_execute_sql(&sql).await?;
-
         anyhow::Ok(())
     }
 
@@ -606,7 +600,7 @@ impl SchemaTrait for SqliteDB {
         log::trace!("query count ok");
         let sql = gen_show_sql(
             table_name,
-            Some(self.backend_name().format_fields(Some(&fields))),
+            Some(self.backend_kind().format_fields(Some(&fields))),
             where_str.as_deref(),
             order_by.as_deref(),
             *page,
@@ -668,7 +662,7 @@ impl SchemaTrait for SqliteDB {
                 first = false;
                 emit.send(
                     QueryResp {
-                        fields: get_row_types(&row),
+                        fields: get_row_type(&row),
                         total,
                         sql: Some(sql.clone()),
                         ..Default::default()
@@ -750,7 +744,7 @@ impl SqliteDB {
     }
 }
 
-fn get_row_types(row: &SqliteRow) -> Vec<Field> {
+fn get_row_type(row: &SqliteRow) -> Vec<Field> {
     let mut ret = Vec::with_capacity(row.columns().len());
     for c in row.columns().iter() {
         ret.push(Field::from_name_type(
@@ -806,7 +800,6 @@ impl SqlBuilder for SqliteDB {
                 anyhow::bail!(e)
             }
         };
-
         anyhow::Ok(v)
     }
 }
@@ -1032,9 +1025,13 @@ impl SqliteDB {
         })
     }
 
-    async fn query_count(&self, name: &str, where_str: Option<&str>) -> anyhow::Result<usize> {
+    async fn query_count(
+        &self,
+        table_or_view: &str,
+        where_str: Option<&str>,
+    ) -> anyhow::Result<usize> {
         let mut conn = self.get_conn().await?;
-        let mut s = format!(r#"SELECT count(1) from "{name}" "#);
+        let mut s = format!(r#"SELECT count(1) from "{table_or_view}" "#);
         if let Some(where_str) = where_str {
             s.push_str(format!(" where {where_str}").as_str());
         }
@@ -1085,24 +1082,6 @@ pub(crate) fn extract_auto_increment_key(sql: &str) -> anyhow::Result<Option<Str
     anyhow::Ok(None)
 }
 
-impl SqliteDB {
-    async fn get_conn_by_query_id(
-        &self,
-        query_id: Option<&str>,
-    ) -> anyhow::Result<Arc<Mutex<sqlx::SqliteConnection>>> {
-        match query_id {
-            Some(id) => match self.query_connection.get(&id.to_string()) {
-                Some(x) => anyhow::Ok(x.clone()),
-                None => anyhow::bail!("should be able to get connection"),
-            },
-            None => {
-                let conn = self.get_conn().await?;
-                let conn = conn.detach();
-                anyhow::Ok(Arc::new(Mutex::new(conn)))
-            }
-        }
-    }
-}
 #[async_trait::async_trait]
 impl ExportQueryResult for SqliteDB {
     fn clone(&self) -> Box<dyn ExportQueryResult> {
@@ -1116,7 +1095,17 @@ impl ExportQueryResult for SqliteDB {
         kind: ExportKind,
         sender: tokio::sync::mpsc::Sender<ExportFrame>,
     ) -> anyhow::Result<()> {
-        let conn = self.get_conn_by_query_id(query_id).await?;
+        let conn = match query_id {
+            Some(id) => match self.query_connection.get(&id.to_string()) {
+                Some(x) => x.clone(),
+                None => anyhow::bail!("should be able to get connection"),
+            },
+            None => {
+                let conn = self.get_conn().await?;
+                let conn = conn.detach();
+                Arc::new(Mutex::new(conn))
+            }
+        };
         let mut conn = conn.lock().await;
         let mut stream = sqlx::raw_sql(AssertSqlSafe(sql)).fetch(conn.deref_mut());
         let mut first = true;
@@ -1202,7 +1191,7 @@ impl SqliteDB {
     async fn infer_fields_by_sql(&self, sql: &str) -> anyhow::Result<Vec<Field>> {
         use sqlx::Statement;
         let mut conn = self.get_conn().await?;
-        let fields = conn
+        let r = conn
             .deref_mut()
             .prepare_with(AssertSqlSafe(sql).into_sql_str(), &[])
             .await
@@ -1211,9 +1200,8 @@ impl SqliteDB {
                     .iter()
                     .map(|x| Field::from_name_type(x.name(), x.type_info().to_string()))
                     .collect::<Vec<_>>()
-            })
-            .unwrap_or_default();
-        anyhow::Ok(fields)
+            })?;
+        anyhow::Ok(r)
     }
 }
 
@@ -1344,7 +1332,7 @@ impl QuerySql for SqliteDB {
                 }
                 sqlx::Either::Right(row) => {
                     has_result = true;
-                    let fields = get_row_types(&row);
+                    let fields = get_row_type(&row);
                     if emit_fields.is_empty() || !fields.eq(&emit_fields) {
                         emit.send(
                             QueryResp {
@@ -1448,7 +1436,6 @@ mod tests {
     };
 
     #[tokio::test]
-
     async fn test_open_lots_conn() {
         // test sqlx `detach`
         let db = make_test_object().await;
@@ -1540,13 +1527,12 @@ mod tests {
             ColumnType {
                 typ: "VARCHAR(255)".to_string(),
                 nullable: SqlNullAble::Null.into(),
-                after: Some("id".to_string()),
+                after: None,
                 default_value: Some("abc".to_string()),
             },
         )
         .await
         .unwrap();
-
         db.drop_table_column(table_name, "name").await.unwrap();
     }
 
@@ -1739,12 +1725,15 @@ mod tests {
                 col5 real,
                 col6 real,
                 col7 real
-        )
+            )
             "#
             );
 
-            let result = db.execute_sql(query_id, &create_table).await;
-            println!("create table result:{:?}", result);
+            let _ = db
+                .execute_sql(query_id, &create_table)
+                .await
+                .unwrap()
+                .unwrap();
             for _ in 0..155 {
                 let sql = format!(
                     "insert into {table_name} values({} , {} , {} , {} ,{} ,{} ,{});",
@@ -2100,7 +2089,7 @@ mod tests {
             println!("html:{}", md);
         }
         {
-            let filepath = db.backend_name().make_test_xlsx_file(table_name);
+            let filepath = db.backend_kind().make_test_xlsx_file(table_name);
             db.export_table_or_view_to_file(
                 table_name,
                 None,
@@ -2114,21 +2103,6 @@ mod tests {
             .unwrap();
             opener::open(&filepath).unwrap();
         }
-    }
-
-    #[tokio::test]
-    async fn test_show_documents() {
-        let db = make_test_object().await;
-
-        let r = db
-            .show_table_collect(
-                "documents",
-                ShowTableParameter::new_stupid_test("title asc"),
-            )
-            .await
-            .unwrap();
-
-        dbg!(r);
     }
 
     #[tokio::test]

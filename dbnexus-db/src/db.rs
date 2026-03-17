@@ -30,17 +30,15 @@ pub enum BackendKind {
     CouchBase,
 }
 
-#[derive(Clone, Copy, PartialEq, Eq, Debug, Default)]
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub enum BackendKindMysql {
-    #[default]
     Mysql,
     Mariadb,
     Tidb,
 }
 
-#[derive(Clone, Copy, PartialEq, Eq, Debug, Default)]
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub enum BackendKindPostGres {
-    #[default]
     PostGres,
     CockRoach,
 }
@@ -98,7 +96,7 @@ impl std::fmt::Display for BackendKind {
 }
 
 pub trait GetBackendKind {
-    fn backend_name(&self) -> BackendKind;
+    fn backend_kind(&self) -> BackendKind;
 }
 pub trait ReadOnlyTrait {
     fn read_only(&self) -> bool;
@@ -334,10 +332,10 @@ pub trait SchemaTrait:
     }
 
     async fn list_view(&self) -> anyhow::Result<Vec<ListTable>> {
-        self.backend_name().not_support_feature()
+        self.backend_kind().not_support_feature()
     }
     async fn drop_view(&self, _view_name: &str) -> anyhow::Result<String> {
-        self.backend_name().not_support_feature()
+        self.backend_kind().not_support_feature()
     }
     async fn drop_table(&self, table: &str, cascade: bool) -> anyhow::Result<String>;
 
@@ -346,7 +344,7 @@ pub trait SchemaTrait:
     async fn list_data_types(&self) -> anyhow::Result<Vec<String>>;
 
     async fn drop_table_column(&self, _table: &str, _col: &str) -> anyhow::Result<String> {
-        self.backend_name().not_support_feature()
+        self.backend_kind().not_support_feature()
     }
     async fn modify_table_column(
         &self,
@@ -355,7 +353,7 @@ pub trait SchemaTrait:
         _new_name: &str,
         _typ: Option<ColumnType>,
     ) -> anyhow::Result<String> {
-        self.backend_name().not_support_feature()
+        self.backend_kind().not_support_feature()
     }
     async fn add_table_column(
         &self,
@@ -363,7 +361,7 @@ pub trait SchemaTrait:
         _name: &str,
         _col: ColumnType,
     ) -> anyhow::Result<String> {
-        self.backend_name().not_support_feature()
+        self.backend_kind().not_support_feature()
     }
 
     async fn rename_index(
@@ -372,27 +370,27 @@ pub trait SchemaTrait:
         _oldname: &str,
         _newname: &str,
     ) -> anyhow::Result<String> {
-        self.backend_name().not_support_feature()
+        self.backend_kind().not_support_feature()
     }
 
     async fn show_indexes(&self, _table_name: &str) -> anyhow::Result<Vec<Index>> {
-        self.backend_name().not_support_feature()
+        self.backend_kind().not_support_feature()
     }
 
     async fn create_index(&self, _table: &str, _: &CreateIndexReq) -> anyhow::Result<String> {
-        self.backend_name().not_support_feature()
+        self.backend_kind().not_support_feature()
     }
 
     async fn drop_index(&self, _table_name: &str, _index: &str) -> anyhow::Result<String> {
-        self.backend_name().not_support_feature()
+        self.backend_kind().not_support_feature()
     }
 
     async fn list_materialized_view(&self) -> anyhow::Result<Vec<ListTable>> {
-        self.backend_name().not_support_feature()
+        self.backend_kind().not_support_feature()
     }
 
     async fn drop_materialized_view(&self, _name: &str) -> anyhow::Result<String> {
-        self.backend_name().not_support_feature()
+        self.backend_kind().not_support_feature()
     }
 
     async fn export_table_or_view(
@@ -402,7 +400,7 @@ pub trait SchemaTrait:
         _kind: ExportKind,
         _sender: tokio::sync::mpsc::Sender<ExportFrame>,
     ) -> anyhow::Result<()> {
-        self.backend_name().not_support_feature()
+        self.backend_kind().not_support_feature()
     }
 
     async fn show_view(
@@ -411,7 +409,7 @@ pub trait SchemaTrait:
         _para: ShowTableParameter,
         _: QueryEventEmitter,
     ) -> anyhow::Result<()> {
-        self.backend_name().not_support_feature()
+        self.backend_kind().not_support_feature()
     }
 
     async fn show_view_columns(&self, view_name: &str) -> anyhow::Result<Vec<Field>> {
@@ -472,32 +470,32 @@ pub trait SchemaTrait:
         &self,
         _table_name: &str,
     ) -> anyhow::Result<CreateTableAndIndexSql> {
-        self.backend_name().not_support_feature()
+        self.backend_kind().not_support_feature()
     }
 
     async fn show_view_sql(&self, _view_name: &str, _materialized: bool) -> anyhow::Result<String> {
-        self.backend_name().not_support_feature()
+        self.backend_kind().not_support_feature()
     }
 
     async fn list_trigger(&self, _table_name: &str) -> anyhow::Result<Vec<NamedStaff>> {
-        self.backend_name().not_support_feature()
+        self.backend_kind().not_support_feature()
     }
     async fn show_trigger(&self, _table: &str, _name: &str) -> anyhow::Result<TriggerDetail> {
-        self.backend_name().not_support_feature()
+        self.backend_kind().not_support_feature()
     }
     async fn drop_trigger(&self, _table: &str, _name: &str) -> anyhow::Result<String> {
-        self.backend_name().not_support_feature()
+        self.backend_kind().not_support_feature()
     }
 
     async fn disable_trigger(&self, _table: &str, _name: &str) -> anyhow::Result<String> {
-        self.backend_name().not_support_feature()
+        self.backend_kind().not_support_feature()
     }
     async fn enable_trigger(&self, _table: &str, _name: &str) -> anyhow::Result<String> {
-        self.backend_name().not_support_feature()
+        self.backend_kind().not_support_feature()
     }
 
     async fn list_udf(&self) -> anyhow::Result<Vec<NamedStaff>> {
-        self.backend_name().not_support_feature()
+        self.backend_kind().not_support_feature()
     }
 
     async fn show_udf(
@@ -505,7 +503,7 @@ pub trait SchemaTrait:
         _name: &str,
         _arg: Option<UdfOrProcedureExtraParameter>,
     ) -> anyhow::Result<DefAndMetas> {
-        self.backend_name().not_support_feature()
+        self.backend_kind().not_support_feature()
     }
 
     async fn drop_udf(
@@ -513,25 +511,25 @@ pub trait SchemaTrait:
         _name: &str,
         _extra: Option<UdfOrProcedureExtraParameter>,
     ) -> anyhow::Result<String> {
-        self.backend_name().not_support_feature()
+        self.backend_kind().not_support_feature()
     }
 
     async fn list_procedure(&self) -> anyhow::Result<Vec<NamedStaff>> {
-        self.backend_name().not_support_feature()
+        self.backend_kind().not_support_feature()
     }
     async fn show_procedure(
         &self,
         _name: &str,
         _arg: Option<UdfOrProcedureExtraParameter>,
     ) -> anyhow::Result<ProcedureDetail> {
-        self.backend_name().not_support_feature()
+        self.backend_kind().not_support_feature()
     }
     async fn drop_procedure(
         &self,
         _name: &str,
         _arg: Option<UdfOrProcedureExtraParameter>,
     ) -> anyhow::Result<String> {
-        self.backend_name().not_support_feature()
+        self.backend_kind().not_support_feature()
     }
 
     async fn table_exists(&self, table: &str) -> anyhow::Result<bool> {
@@ -543,11 +541,11 @@ pub trait SchemaTrait:
         anyhow::Ok(e)
     }
     async fn list_created_types(&self) -> anyhow::Result<Vec<CreatedTypeDef>> {
-        self.backend_name().not_support_feature()
+        self.backend_kind().not_support_feature()
     }
 
     async fn drop_created_type(&self, _name: &str) -> anyhow::Result<String> {
-        self.backend_name().not_support_feature()
+        self.backend_kind().not_support_feature()
     }
 
     #[cfg(test)]
@@ -572,14 +570,14 @@ pub trait SchemaTrait:
     }
 
     async fn list_sequence(&self) -> anyhow::Result<Vec<SequenceDetail>> {
-        self.backend_name().not_support_feature()
+        self.backend_kind().not_support_feature()
     }
     async fn rename_sequence(&self, _old: &str, _new: &str) -> anyhow::Result<String> {
-        self.backend_name().not_support_feature()
+        self.backend_kind().not_support_feature()
     }
 
     async fn drop_sequence(&self, _name: &str, _cascade: bool) -> anyhow::Result<String> {
-        self.backend_name().not_support_feature()
+        self.backend_kind().not_support_feature()
     }
     fn list_sql_current_values(&self) -> &'static [&'static str] {
         &[]
@@ -588,7 +586,7 @@ pub trait SchemaTrait:
         anyhow::Ok(vec![])
     }
     async fn drop_event(&self, _name: &str) -> anyhow::Result<String> {
-        self.backend_name().not_support_feature()
+        self.backend_kind().not_support_feature()
     }
 }
 
@@ -621,9 +619,9 @@ pub trait SqlBuilder: GetBackendKind {
     fn quote(&self, name: &str) -> String {
         format!(
             "{}{}{}",
-            self.backend_name().quote_style(),
+            self.backend_kind().quote_style(),
             name,
-            self.backend_name().quote_style()
+            self.backend_kind().quote_style()
         )
     }
 
@@ -834,7 +832,7 @@ pub trait SqlBuilder: GetBackendKind {
         let pks = if has_auto_increment {
             None
         } else {
-            req.format_primary_keys(self.backend_name().quote_style())
+            req.format_primary_keys(self.backend_kind().quote_style())
         };
         for (index, col) in req.columns.iter().enumerate() {
             if col.auto_increment && col.default_value.is_some() {
@@ -842,7 +840,7 @@ pub trait SqlBuilder: GetBackendKind {
             }
             let name = self.quote(&col.name);
             let data_type = &col.data_type;
-            let nullable = match self.backend_name() {
+            let nullable = match self.backend_kind() {
                 BackendKind::Cassandra => match col.nullable {
                     SqlNullAble::None => "".to_owned(),
                     SqlNullAble::Null | SqlNullAble::NotNull => {
@@ -852,13 +850,13 @@ pub trait SqlBuilder: GetBackendKind {
                 _ => col.nullable.to_string(),
             };
             let auto_increment: &str = if col.auto_increment {
-                match self.backend_name() {
-                    _ if self.backend_name().sqlite_like() => " PRIMARY KEY AUTOINCREMENT ",
-                    _ if self.backend_name().mysql_like() => " PRIMARY KEY AUTO_INCREMENT ",
+                match self.backend_kind() {
+                    _ if self.backend_kind().sqlite_like() => " PRIMARY KEY AUTOINCREMENT ",
+                    _ if self.backend_kind().mysql_like() => " PRIMARY KEY AUTO_INCREMENT ",
                     _ => {
                         anyhow::bail!(format!(
                             "auto increment not handled for {}",
-                            self.backend_name()
+                            self.backend_kind()
                         ))
                     }
                 }
@@ -866,7 +864,7 @@ pub trait SqlBuilder: GetBackendKind {
                 ""
             };
             let dv = match &col.default_value {
-                Some(x) => match self.backend_name() {
+                Some(x) => match self.backend_kind() {
                     BackendKind::Cassandra => {
                         anyhow::bail!("cassandra not support default value")
                     }
@@ -879,7 +877,7 @@ pub trait SqlBuilder: GetBackendKind {
                 None => "".to_owned(),
             };
 
-            match self.backend_name() {
+            match self.backend_kind() {
                 BackendKind::Firebird => {
                     // somehow firebird need put nullable after default value
                     sql.push_str(
@@ -905,7 +903,7 @@ pub trait SqlBuilder: GetBackendKind {
         sql.push(')');
         let mut ret = vec![sql];
         for index in req.indexes.iter() {
-            ret.push(index.common_sql(&req.name, true, self.backend_name().quote_style())?);
+            ret.push(index.common_sql(&req.name, true, self.backend_kind().quote_style())?);
         }
         anyhow::Ok(ret)
     }
@@ -1054,10 +1052,20 @@ pub trait CheckConn: Send + Sync + 'static {
 #[derive(Clone, serde::Serialize, TypeDef, serde::Deserialize)]
 pub struct CreateTableAndIndexSql {
     pub create_table: String,
-
     /// some backend can query create table and index in one sql
     /// this can be empty
     pub indexes: Vec<String>,
+}
+
+impl std::fmt::Display for CreateTableAndIndexSql {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let mut sc = SqlCollect::default();
+        sc.collect(&self.create_table);
+        for index in self.indexes.iter() {
+            sc.collect(index);
+        }
+        write!(f, "{}", String::from(sc))
+    }
 }
 
 #[async_trait::async_trait]
@@ -1641,17 +1649,17 @@ pub(crate) async fn write_export_file(
 #[async_trait::async_trait]
 pub trait QuerySql: GetBackendKind + Send + Sync + 'static + LanguageServer {
     async fn get_auto_commit(&self, _query_id: &str) -> anyhow::Result<bool> {
-        self.backend_name().not_support_feature()
+        self.backend_kind().not_support_feature()
     }
 
     async fn set_auto_commit(&self, _query_id: &str, _commit: bool) -> anyhow::Result<()> {
-        self.backend_name().not_support_feature()
+        self.backend_kind().not_support_feature()
     }
     async fn commit(&self, _query_id: &str) -> anyhow::Result<()> {
-        self.backend_name().not_support_feature()
+        self.backend_kind().not_support_feature()
     }
     async fn rollback(&self, _query_id: &str) -> anyhow::Result<()> {
-        self.backend_name().not_support_feature()
+        self.backend_kind().not_support_feature()
     }
 
     async fn query_sql(

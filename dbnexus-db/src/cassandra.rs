@@ -131,7 +131,7 @@ impl std::fmt::Debug for CassandraDB {
 }
 
 impl GetBackendKind for CassandraDB {
-    fn backend_name(&self) -> BackendKind {
+    fn backend_kind(&self) -> BackendKind {
         BackendKind::Cassandra
     }
 }
@@ -632,13 +632,8 @@ impl CassandraDB {
         sender: tokio::sync::mpsc::Sender<ExportFrame>,
     ) -> anyhow::Result<()> {
         if include_table_schema {
-            let ss = SchemaTrait::show_create_table_sql(self, table_name).await?;
-            sender.send(ss.create_table.clone().into()).await?;
-            sender.send(";\n".into()).await?;
-            for index in ss.indexes.into_iter() {
-                sender.send(index.into()).await?;
-                sender.send(";\n".into()).await?;
-            }
+            let create_table = SchemaTrait::show_create_table_sql(self, table_name).await?;
+            sender.send(create_table.to_string().into()).await?;
         }
         let cols = self.show_table_columns(table_name).await?;
         let sql = if let Some(para) = para {
@@ -660,7 +655,7 @@ impl CassandraDB {
         } else {
             format!(
                 r#"SELECT {} from "{}""#,
-                self.backend_name().format_fields(Some(&cols)),
+                self.backend_kind().format_fields(Some(&cols)),
                 table_name
             )
         };
@@ -771,7 +766,7 @@ impl CassandraDB {
         let CreateIndexReq { name, .. } = req;
         let sql = format!(
             r#"CREATE INDEX "{name}" ON "{table}" ({});"#,
-            req.format_cols(false, self.backend_name().quote_style())
+            req.format_cols(false, self.backend_kind().quote_style())
         );
         sql
     }
@@ -979,7 +974,7 @@ impl SchemaTrait for CassandraDB {
             ..
         } = &para;
         let cols = self.show_table_columns(table_name).await?;
-        let cols_string = self.backend_name().format_fields(Some(&cols));
+        let cols_string = self.backend_kind().format_fields(Some(&cols));
         let cql = get_select_sql(
             table_name,
             cols_string,

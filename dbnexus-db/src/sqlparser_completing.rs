@@ -1503,7 +1503,7 @@ impl<'a> CompletionStatement<'a> {
             return;
         }
         log::info!("hit identifier:{:?}", ident);
-        if ident.value.starts_with("@@") && self.helper.backend_name().support_at()
+        if ident.value.starts_with("@@") && self.helper.backend_kind().support_at()
         // sql server的情况和mysql差不多
         {
             /*
@@ -1515,7 +1515,7 @@ impl<'a> CompletionStatement<'a> {
             self.result = Some(self.helper.list_variable_completion().await);
             return;
         }
-        if ident.value.starts_with("@") && self.helper.backend_name().support_at()
+        if ident.value.starts_with("@") && self.helper.backend_kind().support_at()
         // sql server的情况和mysql差不多
         {
             /*

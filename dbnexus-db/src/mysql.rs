@@ -35,10 +35,9 @@ pub struct MysqlDB {
     pub kind: BackendKindMysql,
 }
 
-fn get_row_types(row: &MySqlRow) -> Vec<Field> {
+fn get_row_type(row: &MySqlRow) -> Vec<Field> {
     let mut ret = Vec::with_capacity(row.columns().len());
-    for c in row.columns().iter() {
-        let column = c;
+    for column in row.columns().iter() {
         ret.push(Field {
             field: column.name().to_string(),
             data_type: column.type_info().to_string(),
@@ -52,7 +51,7 @@ impl MysqlDB {
     async fn infer_fields_by_sql(&self, sql: &str) -> anyhow::Result<Vec<Field>> {
         use sqlx::Statement;
         let mut conn = self.get_conn().await?;
-        let fields = conn
+        let r = conn
             .deref_mut()
             .prepare_with(AssertSqlSafe(sql).into_sql_str(), &[])
             .await
@@ -61,9 +60,8 @@ impl MysqlDB {
                     .iter()
                     .map(|x| Field::from_name_type(x.name(), x.type_info().to_string()))
                     .collect::<Vec<_>>()
-            })
-            .unwrap_or_default();
-        anyhow::Ok(fields)
+            })?;
+        anyhow::Ok(r)
     }
 }
 
@@ -102,7 +100,6 @@ fn gen_show_sql(
 fn encode_row_as_json(row: &MySqlRow, try_blob_to_str: bool) -> anyhow::Result<serde_json::Value> {
     let mut values = serde_json::Map::new();
     let null_value = serde_json::Value::Null;
-
     for c in 0..row.columns().len() {
         let col = row.column(c);
         let ty = col.type_info().name();
@@ -290,14 +287,8 @@ impl MysqlDB {
         sender: tokio::sync::mpsc::Sender<ExportFrame>,
     ) -> anyhow::Result<()> {
         if include_table_schema {
-            let ss = SchemaTrait::show_create_table_sql(self, table_name).await?;
-            sender.send(ss.create_table.clone().into()).await?;
-            sender.send(";\n".into()).await?;
-
-            for index in ss.indexes.into_iter() {
-                sender.send(index.into()).await?;
-                sender.send(";\n".into()).await?;
-            }
+            let create_table = SchemaTrait::show_create_table_sql(self, table_name).await?;
+            sender.send(create_table.to_string().into()).await?;
         }
         let mut conn = self.get_conn().await?;
         let cols = SchemaTrait::show_table_columns(self, table_name).await?;
@@ -311,7 +302,7 @@ impl MysqlDB {
             } = &para;
             gen_show_sql(
                 table_name,
-                self.backend_name().format_fields(Some(&cols)).into(),
+                self.backend_kind().format_fields(Some(&cols)).into(),
                 where_str.as_deref(),
                 order_by.as_deref(),
                 *page,
@@ -334,22 +325,6 @@ impl MysqlDB {
             sender.send(";\n".into()).await?;
         }
         anyhow::Ok(())
-    }
-
-    async fn get_conn_by_query_id(
-        &self,
-        query_id: Option<&str>,
-    ) -> anyhow::Result<Arc<Mutex<sqlx::MySqlConnection>>> {
-        match query_id {
-            Some(id) => match self.query_connection.get(&id.to_string()) {
-                Some(x) => anyhow::Ok(x.clone()),
-                None => anyhow::bail!("should be able to get connection"),
-            },
-            None => {
-                let conn = self.get_conn().await?.detach();
-                anyhow::Ok(Arc::new(Mutex::new(conn)))
-            }
-        }
     }
 }
 
@@ -404,7 +379,6 @@ async fn query_trigger_detail(
     } else {
         TriggerTiming::After
     };
-
     anyhow::Ok((
         TriggerEvent::try_from(event.as_str())?,
         timing,
@@ -476,12 +450,10 @@ impl ServerMetas for MysqlDB {
         while let Some(item) = stream.next().await {
             let item = item?;
             let row = match item {
-                sqlx::Either::Left(_x) => {
-                    // anyhow::bail!(format!("should be sqlrow but result,result:{:?}", x))
-                    // every select contains an MysqlQueryResult . just ignore them.
+                sqlx::Either::Left(_r) => {
+                    log::info!("mysql result:{:?}", _r);
                     continue;
                 }
-
                 sqlx::Either::Right(row) => row,
             };
             match metas.len() {
@@ -521,7 +493,7 @@ impl ServerMetas for MysqlDB {
 }
 
 impl GetBackendKind for MysqlDB {
-    fn backend_name(&self) -> BackendKind {
+    fn backend_kind(&self) -> BackendKind {
         BackendKind::Mysql(self.kind)
     }
 }
@@ -669,7 +641,7 @@ impl SchemaTrait for MysqlDB {
     async fn list_sequence(&self) -> anyhow::Result<Vec<SequenceDetail>> {
         match self.kind {
             BackendKindMysql::Mariadb => self.list_sequences_impl(self.config.schema_str()?).await,
-            _ => self.backend_name().not_support_feature(),
+            _ => self.backend_kind().not_support_feature(),
         }
     }
 
@@ -680,7 +652,7 @@ impl SchemaTrait for MysqlDB {
                 self.simple_execute_sql(&sql).await?;
                 anyhow::Ok(sql)
             }
-            _ => self.backend_name().not_support_feature(),
+            _ => self.backend_kind().not_support_feature(),
         }
     }
 
@@ -691,7 +663,7 @@ impl SchemaTrait for MysqlDB {
                 self.simple_execute_sql(&sql).await?;
                 anyhow::Ok(sql)
             }
-            _ => self.backend_name().not_support_feature(),
+            _ => self.backend_kind().not_support_feature(),
         }
     }
 
@@ -708,7 +680,7 @@ impl SchemaTrait for MysqlDB {
         <Self as SqlBuilder>::get_current_values(self)
     }
     async fn create_index(&self, table: &str, req: &CreateIndexReq) -> anyhow::Result<String> {
-        let sql = req.common_sql(table, true, self.backend_name().quote_style())?;
+        let sql = req.common_sql(table, true, self.backend_kind().quote_style())?;
         log::info!("sql:{}", sql);
         self.simple_execute_sql(&sql).await?;
         anyhow::Ok(sql)
@@ -1077,7 +1049,7 @@ impl SchemaTrait for MysqlDB {
                 emit.send(
                     QueryResp {
                         total,
-                        fields: get_row_types(&row),
+                        fields: get_row_type(&row),
                         sql: sql.clone().into(),
                         ..Default::default()
                     }
@@ -1213,7 +1185,7 @@ impl SchemaTrait for MysqlDB {
         let total = self.query_count(table_name, where_str.as_deref()).await?;
         let sql = gen_show_sql(
             table_name,
-            Some(self.backend_name().format_fields(Some(&fields))),
+            Some(self.backend_kind().format_fields(Some(&fields))),
             where_str.as_deref(),
             order_by.as_deref(),
             *page,
@@ -1356,19 +1328,19 @@ impl SchemaTrait for MysqlDB {
     }
 
     async fn list_materialized_view(&self) -> anyhow::Result<Vec<ListTable>> {
-        self.backend_name().not_support_feature()
+        self.backend_kind().not_support_feature()
     }
 
     async fn drop_materialized_view(&self, _name: &str) -> anyhow::Result<String> {
-        self.backend_name().not_support_feature()
+        self.backend_kind().not_support_feature()
     }
 
     async fn disable_trigger(&self, _table: &str, _name: &str) -> anyhow::Result<String> {
-        self.backend_name().not_support_feature()
+        self.backend_kind().not_support_feature()
     }
 
     async fn enable_trigger(&self, _table: &str, _name: &str) -> anyhow::Result<String> {
-        self.backend_name().not_support_feature()
+        self.backend_kind().not_support_feature()
     }
 
     async fn table_exists(&self, table: &str) -> anyhow::Result<bool> {
@@ -1381,11 +1353,11 @@ impl SchemaTrait for MysqlDB {
     }
 
     async fn list_created_types(&self) -> anyhow::Result<Vec<crate::db::CreatedTypeDef>> {
-        self.backend_name().not_support_feature()
+        self.backend_kind().not_support_feature()
     }
 
     async fn drop_created_type(&self, _name: &str) -> anyhow::Result<String> {
-        self.backend_name().not_support_feature()
+        self.backend_kind().not_support_feature()
     }
 }
 
@@ -1631,7 +1603,16 @@ impl ExportQueryResult for MysqlDB {
         kind: ExportKind,
         sender: tokio::sync::mpsc::Sender<ExportFrame>,
     ) -> anyhow::Result<()> {
-        let conn = self.get_conn_by_query_id(query_id).await?;
+        let conn = match query_id {
+            Some(id) => match self.query_connection.get(&id.to_string()) {
+                Some(x) => x.clone(),
+                None => anyhow::bail!("should be able to get connection"),
+            },
+            None => {
+                let conn = self.get_conn().await?.detach();
+                Arc::new(Mutex::new(conn))
+            }
+        };
         let mut conn = conn.lock().await;
         let mut conn = conn.deref_mut();
         let mut first = true;
@@ -1848,7 +1829,7 @@ impl QuerySql for MysqlDB {
                 }
                 sqlx::Either::Right(row) => {
                     has_result = true;
-                    let fields = get_row_types(&row);
+                    let fields = get_row_type(&row);
                     if emit_fields.is_empty() || !fields.eq(&emit_fields) {
                         emit.send(
                             QueryResp {

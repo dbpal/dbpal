@@ -1007,7 +1007,7 @@ impl<'a> CompletionStatement<'a> {
                 }
             }
             Statement::ShowVariable { variable } => {
-                let kind = self.helper.backend_name();
+                let kind = self.helper.backend_kind();
                 if kind.postgres_like() {
                     for var in variable {
                         self.c_on_variable(var).await;
@@ -1285,7 +1285,7 @@ impl<'a> CompletionStatement<'a> {
                 /*
                     AI提示词 没有 NEW/OLD，而是使用 inserted.col 和 deleted.col 两张“伪表”
                 */
-                if self.helper.backend_name() == BackendKind::SqlServer {
+                if self.helper.backend_kind() == BackendKind::SqlServer {
                     // 	没有 NEW/OLD，而是使用 inserted.col 和 deleted.col 两张“伪表”
                     scope.enter_table(
                         Some(Ident::new("inserted")),
@@ -1508,7 +1508,7 @@ impl<'a> CompletionStatement<'a> {
             }
             Statement::Kill { .. } => {}
             Statement::ExplainTable { table_name, .. } => {
-                if self.helper.backend_name().mysql_like() {
+                if self.helper.backend_kind().mysql_like() {
                     //
                     self.c_on_table(table_name).await;
                     if self.last_name_in_pos(table_name) && table_name.0.len() == 1 {
@@ -2143,7 +2143,7 @@ impl<'a> CompletionStatement<'a> {
     }
 
     fn try_remove_one_at(&self, value: String) -> String {
-        if self.helper.backend_name().support_at() {
+        if self.helper.backend_kind().support_at() {
             try_remove_one_at(value)
         } else {
             value

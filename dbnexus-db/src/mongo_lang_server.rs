@@ -15,7 +15,7 @@ impl SqlBuilder for MongoDB {
     }
 
     fn put_value_in_sql(&self, _typ: &str, _value: Option<&str>) -> anyhow::Result<String> {
-        self.backend_name().not_support_feature()
+        self.backend_kind().not_support_feature()
     }
 }
 #[async_trait::async_trait]
@@ -47,11 +47,11 @@ impl LanguageServer for MongoDB {
     }
 
     fn extract_table_select_selection(&self, _sql: &str) -> anyhow::Result<Option<String>> {
-        self.backend_name().not_support_feature()
+        self.backend_kind().not_support_feature()
     }
 
     fn extract_table_select_sort(&self, _sql: &str) -> anyhow::Result<Option<String>> {
-        self.backend_name().not_support_feature()
+        self.backend_kind().not_support_feature()
     }
 
     async fn auto_completion(
@@ -62,11 +62,11 @@ impl LanguageServer for MongoDB {
         _col: u32,
         _use_lexer: bool,
     ) -> anyhow::Result<crate::language_server::CompletionList> {
-        self.backend_name().not_support_feature()
+        self.backend_kind().not_support_feature()
     }
 
     fn is_dangerous_sql(&self, _sql: &str) -> anyhow::Result<bool> {
-        self.backend_name().not_support_feature()
+        self.backend_kind().not_support_feature()
     }
 }
 

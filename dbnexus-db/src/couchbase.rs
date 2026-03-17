@@ -30,7 +30,7 @@ pub struct CouchBaseDB {
 }
 
 impl GetBackendKind for CouchBaseDB {
-    fn backend_name(&self) -> BackendKind {
+    fn backend_kind(&self) -> BackendKind {
         BackendKind::CouchBase
     }
 }
@@ -123,19 +123,19 @@ impl QuerySql for CouchBaseDB {
         _query_id: &str,
         _sql: &str,
     ) -> anyhow::Result<Result<crate::db::QueryResp, String>> {
-        self.backend_name().not_support_feature()
+        self.backend_kind().not_support_feature()
     }
 
     async fn simple_execute_sql(&self, _sql: &str) -> anyhow::Result<Option<usize>> {
-        self.backend_name().not_support_feature()
+        self.backend_kind().not_support_feature()
     }
 
     async fn open_connection(&self, _id: &str) -> anyhow::Result<()> {
-        self.backend_name().not_support_feature()
+        self.backend_kind().not_support_feature()
     }
 
     async fn close_connection(&self, _id: &str) -> anyhow::Result<()> {
-        self.backend_name().not_support_feature()
+        self.backend_kind().not_support_feature()
     }
 }
 
@@ -412,7 +412,7 @@ impl SqlBuilder for CouchBaseDB {
     }
 
     fn put_value_in_sql(&self, _typ: &str, _value: Option<&str>) -> anyhow::Result<String> {
-        self.backend_name().not_support_feature()
+        self.backend_kind().not_support_feature()
     }
 }
 #[async_trait::async_trait]

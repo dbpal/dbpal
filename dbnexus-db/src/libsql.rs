@@ -35,12 +35,12 @@ pub struct LibSqlDB {
 }
 
 impl GetBackendKind for LibSqlDB {
-    fn backend_name(&self) -> BackendKind {
+    fn backend_kind(&self) -> BackendKind {
         BackendKind::LibSql
     }
 }
 
-fn get_row_types(r: &Row) -> Vec<Field> {
+fn get_row_type(r: &Row) -> Vec<Field> {
     let mut ret = Vec::with_capacity(r.column_count() as usize);
     for index in 0..r.column_count() {
         ret.push(Field::from_name_type(
@@ -64,7 +64,20 @@ impl ExportQueryResult for LibSqlDB {
         kind: ExportKind,
         sender: tokio::sync::mpsc::Sender<ExportFrame>,
     ) -> anyhow::Result<()> {
-        let conn = self.get_conn_by_query_id(query_id).await?;
+        let conn = match query_id {
+            Some(query_id) => match self.query_connection.get(&query_id.to_string()) {
+                Some(x) => x.clone(),
+                None => {
+                    anyhow::bail!("query_id not found ")
+                }
+            },
+            None => {
+                let x = PoolManager {
+                    config: self.config.clone(),
+                };
+                x.connect().await?
+            }
+        };
         let mut stream = conn.query(sql, params!()).await?;
         let mut first = true;
         let mut row_num = 0;
@@ -76,7 +89,7 @@ impl ExportQueryResult for LibSqlDB {
                 } => {
                     if first && include_header {
                         first = false;
-                        let fs = get_row_types(&row);
+                        let fs = get_row_type(&row);
                         let fs = fs
                             .into_iter()
                             .map(|x| x.field)
@@ -118,7 +131,7 @@ impl ExportQueryResult for LibSqlDB {
                 ExportKind::Html { include_header } => {
                     if first && include_header {
                         first = false;
-                        let fs = get_row_types(&row);
+                        let fs = get_row_type(&row);
                         let fs = fs.into_iter().map(|x| x.field).collect::<Vec<_>>();
                         sender.send(create_html_table_header(&fs).into()).await?;
                     }
@@ -128,7 +141,7 @@ impl ExportQueryResult for LibSqlDB {
                 ExportKind::MarkDown => {
                     if first {
                         first = false;
-                        let fs = get_row_types(&row);
+                        let fs = get_row_type(&row);
                         let fs = fs.into_iter().map(|x| x.field).collect::<Vec<_>>();
                         sender.send(create_markdown_header(&fs).into()).await?;
                     }
@@ -507,7 +520,7 @@ impl SchemaTrait for LibSqlDB {
     }
 
     async fn create_index(&self, table: &str, req: &CreateIndexReq) -> anyhow::Result<String> {
-        let sql = req.common_sql(table, true, self.backend_name().quote_style())?;
+        let sql = req.common_sql(table, true, self.backend_kind().quote_style())?;
         log::info!("sql:{}", sql);
         self.simple_execute_sql(&sql).await?;
         anyhow::Ok(sql)
@@ -765,7 +778,7 @@ impl SchemaTrait for LibSqlDB {
         let total = self.query_count(table_name, where_str.as_deref()).await?;
         let sql = gen_show_sql(
             table_name,
-            self.backend_name().format_fields(Some(&fields)).into(),
+            self.backend_kind().format_fields(Some(&fields)).into(),
             where_str.as_deref(),
             order_by.as_deref(),
             *page,
@@ -826,7 +839,7 @@ impl SchemaTrait for LibSqlDB {
                 first = false;
                 emit.send(
                     QueryResp {
-                        fields: get_row_types(&row),
+                        fields: get_row_type(&row),
                         total,
                         sql: sql.clone().into(),
                         ..Default::default()
@@ -957,13 +970,8 @@ impl LibSqlDB {
         sender: tokio::sync::mpsc::Sender<ExportFrame>,
     ) -> anyhow::Result<()> {
         if include_table_schema {
-            let ss = SchemaTrait::show_create_table_sql(self, table_name).await?;
-            sender.send(ss.create_table.clone().into()).await?;
-            sender.send(";\n".into()).await?;
-            for index in ss.indexes.into_iter() {
-                sender.send(index.into()).await?;
-                sender.send(";\n".into()).await?;
-            }
+            let create_table = SchemaTrait::show_create_table_sql(self, table_name).await?;
+            sender.send(create_table.to_string().into()).await?;
         }
         let conn = self.get_conn().await?;
         let cols = SchemaTrait::show_table_columns(self, table_name).await?;
@@ -1000,24 +1008,6 @@ impl LibSqlDB {
             sender.send(";\n".into()).await?;
         }
         anyhow::Ok(())
-    }
-
-    async fn get_conn_by_query_id(&self, query_id: Option<&str>) -> anyhow::Result<Connection> {
-        match query_id {
-            Some(query_id) => match self.query_connection.get(&query_id.to_string()) {
-                Some(x) => anyhow::Ok(x.clone()),
-                None => {
-                    anyhow::bail!("query_id not found ")
-                }
-            },
-            None => {
-                let x = PoolManager {
-                    config: self.config.clone(),
-                };
-                let r = x.connect().await?;
-                anyhow::Ok(r)
-            }
-        }
     }
 }
 

@@ -440,7 +440,7 @@ impl SqlServerDB {
 }
 
 impl GetBackendKind for SqlServerDB {
-    fn backend_name(&self) -> BackendKind {
+    fn backend_kind(&self) -> BackendKind {
         BackendKind::SqlServer
     }
 }
@@ -516,7 +516,7 @@ impl SchemaTrait for SqlServerDB {
         <Self as SqlBuilder>::get_current_values(self)
     }
     async fn create_index(&self, table: &str, req: &CreateIndexReq) -> anyhow::Result<String> {
-        let sql = req.common_sql(table, true, self.backend_name().quote_style())?;
+        let sql = req.common_sql(table, true, self.backend_kind().quote_style())?;
         log::info!("sql:{}", sql);
         let mut conn = self.get_conn().await?;
         conn.execute(&sql, &[]).await?;
@@ -957,7 +957,7 @@ impl SchemaTrait for SqlServerDB {
         let sql = gen_show_sql(
             self.config.schema_str()?.as_str(),
             table_name,
-            Some(self.backend_name().format_fields(Some(&fields))),
+            Some(self.backend_kind().format_fields(Some(&fields))),
             where_str.as_deref(),
             order_by.as_deref(),
             *page,
@@ -1443,16 +1443,9 @@ impl SqlServerDB {
         sender: tokio::sync::mpsc::Sender<ExportFrame>,
     ) -> anyhow::Result<()> {
         if include_table_schema {
-            // let ss = SchemaTrait::create_table_and_index_sql(self, table_name).await?;
-            // sender.send(ss.create_table.clone().into()).await?;
-            // sender.send(";\n".into()).await?;
-            // for index in ss.indexes.into_iter() {
-            //     sender.send(index.into()).await?;
-            //     sender.send(";\n".into()).await?;
-            // }
-
             anyhow::bail!("sqlserver not suport export table schema");
         }
+
         let mut conn = self.get_conn().await?;
         let conn = conn.deref_mut();
         let cols = SchemaTrait::show_table_columns(self, table_name).await?;
@@ -1467,7 +1460,7 @@ impl SqlServerDB {
             gen_show_sql(
                 self.config.schema_str()?,
                 table_name,
-                Some(self.backend_name().format_fields(Some(&cols))),
+                Some(self.backend_kind().format_fields(Some(&cols))),
                 where_str.as_deref(),
                 order_by.as_deref(),
                 *page,
@@ -1495,22 +1488,6 @@ impl SqlServerDB {
             }
         }
         anyhow::Ok(())
-    }
-
-    async fn get_conn_by_query_id(
-        &self,
-        query_id: Option<&str>,
-    ) -> anyhow::Result<Arc<Mutex<Connection>>> {
-        match query_id {
-            Some(query_id) => match self.query_connection.get(&query_id.to_string()) {
-                Some(x) => anyhow::Ok(x.clone()),
-                None => anyhow::bail!("query_id not found"),
-            },
-            None => {
-                let r = self.new_tcp_conn().await?;
-                anyhow::Ok(Arc::new(Mutex::new(r)))
-            }
-        }
     }
 }
 
@@ -1542,7 +1519,16 @@ impl ExportQueryResult for SqlServerDB {
         kind: ExportKind,
         sender: tokio::sync::mpsc::Sender<ExportFrame>,
     ) -> anyhow::Result<()> {
-        let conn = self.get_conn_by_query_id(query_id).await?;
+        let conn = match query_id {
+            Some(query_id) => match self.query_connection.get(&query_id.to_string()) {
+                Some(x) => x.clone(),
+                None => anyhow::bail!("query_id not found"),
+            },
+            None => {
+                let r = self.new_tcp_conn().await?;
+                Arc::new(Mutex::new(r))
+            }
+        };
         let mut conn = conn.lock().await;
         let conn = conn.deref_mut();
         let mut first = true;
@@ -1832,11 +1818,11 @@ impl crate::db::DBTrait for SqlServerDB {
     }
 
     async fn create_schema(&self, _name: &str, _: Option<CreateSchemaExtra>) -> anyhow::Result<()> {
-        self.backend_name().not_support_feature()
+        self.backend_kind().not_support_feature()
     }
 
     async fn drop_schema(&self, _name: &str) -> anyhow::Result<()> {
-        self.backend_name().not_support_feature()
+        self.backend_kind().not_support_feature()
     }
 }
 

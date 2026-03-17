@@ -58,7 +58,7 @@ impl PostGresDB {
     async fn infer_fields_by_sql(&self, sql: &str) -> anyhow::Result<Vec<Field>> {
         use sqlx::Statement;
         let mut conn = self.get_conn().await?;
-        let fields = conn
+        let r = conn
             .deref_mut()
             .prepare_with(AssertSqlSafe(sql).into_sql_str(), &[])
             .await
@@ -67,9 +67,9 @@ impl PostGresDB {
                     .iter()
                     .map(|x| Field::from_name_type(x.name(), x.type_info().to_string()))
                     .collect::<Vec<_>>()
-            })
-            .unwrap_or_default();
-        anyhow::Ok(fields)
+            })?;
+
+        anyhow::Ok(r)
     }
 }
 
@@ -144,18 +144,8 @@ impl PostGresDB {
         sender: tokio::sync::mpsc::Sender<ExportFrame>,
     ) -> anyhow::Result<()> {
         if include_table_schema {
-            // let ss = SchemaTrait::create_table_and_index_sql(self,
-            // table_name).await?; sender.send(Cow::Owned(ss.
-            // create_table.clone())).await?;
-            // sender.send(";\n".into()).await?;
-
-            // for index in ss.indexes.into_iter() {
-            //     sender.send(Cow::Owned(index)).await?;
-            //     sender.send(";\n".into()).await?;
-            // }
             anyhow::bail!("export create table sql not supported now.")
         }
-
         let mut conn = self.get_conn().await?;
         let cols = SchemaTrait::show_table_columns(self, table_name).await?;
         let sql = if let Some(para) = para {
@@ -170,7 +160,7 @@ impl PostGresDB {
             gen_show_sql(
                 self.config.schema_str()?,
                 table_name,
-                Some(self.backend_name().format_fields(Some(&cols))),
+                Some(self.backend_kind().format_fields(Some(&cols))),
                 where_str.as_deref(),
                 order_by.as_deref(),
                 *page,
@@ -198,22 +188,6 @@ impl PostGresDB {
             sender.send(";\n".into()).await?;
         }
         anyhow::Ok(())
-    }
-
-    async fn get_conn_by_query_id(
-        &self,
-        query_id: Option<&str>,
-    ) -> anyhow::Result<Arc<Mutex<sqlx::PgConnection>>> {
-        match query_id {
-            Some(id) => match self.query_connection.get(&id.to_string()) {
-                Some(x) => anyhow::Ok(x.clone()),
-                None => anyhow::bail!("should be able to get connection"),
-            },
-            None => {
-                let conn = self.get_conn().await?.detach();
-                anyhow::Ok(Arc::new(Mutex::new(conn)))
-            }
-        }
     }
 }
 
@@ -492,7 +466,7 @@ impl SchemaTrait for PostGresDB {
     }
 
     async fn create_index(&self, table: &str, req: &CreateIndexReq) -> anyhow::Result<String> {
-        let sql = req.common_sql(table, true, self.backend_name().quote_style())?;
+        let sql = req.common_sql(table, true, self.backend_kind().quote_style())?;
         log::info!("sql:{}", sql);
         self.simple_execute_sql(&sql).await?;
         anyhow::Ok(sql)
@@ -1343,7 +1317,7 @@ impl SchemaTrait for PostGresDB {
         let sql = gen_show_sql(
             self.config.schema_str()?,
             table_name,
-            Some(self.backend_name().format_fields(Some(&fields))),
+            Some(self.backend_kind().format_fields(Some(&fields))),
             where_str.as_deref(),
             order_by.as_deref(),
             *page,
@@ -1701,7 +1675,16 @@ impl ExportQueryResult for PostGresDB {
         kind: ExportKind,
         sender: tokio::sync::mpsc::Sender<ExportFrame>,
     ) -> anyhow::Result<()> {
-        let conn = self.get_conn_by_query_id(query_id).await?;
+        let conn = match query_id {
+            Some(id) => match self.query_connection.get(&id.to_string()) {
+                Some(x) => x.clone(),
+                None => anyhow::bail!("should be able to get connection"),
+            },
+            None => {
+                let conn = self.get_conn().await?.detach();
+                Arc::new(Mutex::new(conn))
+            }
+        };
         let mut conn = conn.lock().await;
         let mut first = true;
         let mut stream = sqlx::query(AssertSqlSafe(sql)).fetch(conn.deref_mut());
@@ -1998,7 +1981,7 @@ async fn get_index_kind(
 }
 
 impl GetBackendKind for PostGresDB {
-    fn backend_name(&self) -> BackendKind {
+    fn backend_kind(&self) -> BackendKind {
         BackendKind::PostGres(self.kind)
     }
 }

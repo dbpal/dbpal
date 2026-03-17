@@ -30,7 +30,7 @@ pub trait LanguageServer: GetBackendKind + Send + Sync + 'static {
     ) -> anyhow::Result<CompletionList>;
 
     async fn try_get_max_id(&self, _name: &str) -> anyhow::Result<String> {
-        self.backend_name().not_support_feature()
+        self.backend_kind().not_support_feature()
     }
 
     async fn get_search_path(&self, _query_id: &str) -> anyhow::Result<HashSet<String>> {
@@ -184,7 +184,7 @@ pub trait LexerCompletionTrait: LangServerCommon {
         let tokens = sqlparser::tokenizer::Tokenizer::new(self.dialect().as_ref(), sql)
             .tokenize_with_location()
             .unwrap_or_default();
-        if self.backend_name().support_at() {
+        if self.backend_kind().support_at() {
             // 试图去匹配 @@
             for t in tokens.iter() {
                 if let Token::Word(x) = &t.token {
@@ -198,7 +198,7 @@ pub trait LexerCompletionTrait: LangServerCommon {
         }
         let mut all_item = self.all_completion_items().await;
         all_item.extend(self.get_table_columns_if_possible(&tokens[..]).await);
-        if !self.backend_name().support_at() {
+        if !self.backend_kind().support_at() {
             // this is not access var via @@ we better completion all variable
             all_item.extend(self.list_variable_completion().await);
         }
@@ -211,7 +211,7 @@ pub trait LexerCompletionTrait: LangServerCommon {
                 {
                     let mut value = x.value.clone();
                     //@my_var 会被sqlparser解析成一个标识符
-                    if self.backend_name().support_at() {
+                    if self.backend_kind().support_at() {
                         value = try_remove_one_at(value);
                     }
                     all_item.push(CompletionItem {
@@ -443,7 +443,7 @@ impl From<SqlEvent> for CompletionItem {
 #[async_trait::async_trait]
 pub trait GetKeyWords: GetBackendKind {
     async fn key_words(&self) -> anyhow::Result<Vec<String>> {
-        self.backend_name().not_support_feature()
+        self.backend_kind().not_support_feature()
     }
 }
 
@@ -488,13 +488,13 @@ pub trait LangServerCommon: GetBackendKind + GetKeyWords + Send + Sync {
     // mysql use `show variables`
     // to query all variables
     async fn list_variable(&self) -> anyhow::Result<Vec<String>> {
-        self.backend_name().not_support_feature()
+        self.backend_kind().not_support_feature()
     }
     async fn list_event(&self, _schema: Option<&str>) -> anyhow::Result<Vec<SqlEvent>> {
         anyhow::Ok(vec![])
     }
     async fn sqlite_module_name(&self) -> anyhow::Result<Vec<String>> {
-        self.backend_name().not_support_feature()
+        self.backend_kind().not_support_feature()
     }
     async fn sqlite_pragma(&self) -> anyhow::Result<Vec<CompletionItem>> {
         anyhow::Ok(vec![])
@@ -529,10 +529,10 @@ pub trait LangServerCommon: GetBackendKind + GetKeyWords + Send + Sync {
         remove_duplicate(ret)
     }
     async fn list_role(&self) -> anyhow::Result<Vec<String>> {
-        self.backend_name().not_support_feature()
+        self.backend_kind().not_support_feature()
     }
     async fn list_user(&self) -> anyhow::Result<Vec<String>> {
-        self.backend_name().not_support_feature()
+        self.backend_kind().not_support_feature()
     }
     // -- 标准 SQL（PostgreSQL、Oracle、DB2 支持；MySQL 没有）
     // CREATE DOMAIN us_postal_code AS CHAR(5)
@@ -648,7 +648,7 @@ pub trait LangServerCommon: GetBackendKind + GetKeyWords + Send + Sync {
         include_build_in: bool,
     ) -> anyhow::Result<Vec<CompletionItem>>;
     async fn list_procedure(&self, _schema: Option<&str>) -> anyhow::Result<Vec<String>> {
-        self.backend_name().not_support_feature()
+        self.backend_kind().not_support_feature()
     }
     async fn list_procedure_completion(&self, schema: Option<&str>) -> Vec<CompletionItem> {
         self.list_procedure(schema)
@@ -1094,7 +1094,7 @@ pub trait AstCompletionHelper: Send + Sync + 'static + GetBackendKind + LangServ
         _schema: Option<&str>,
         _table: &str,
     ) -> anyhow::Result<Vec<String>> {
-        self.backend_name().not_support_feature()
+        self.backend_kind().not_support_feature()
     }
 
     async fn mysql_show_create_trigger(
@@ -1109,14 +1109,14 @@ pub trait AstCompletionHelper: Send + Sync + 'static + GetBackendKind + LangServ
         _schema: Option<&str>,
         _table: &str,
     ) -> anyhow::Result<Vec<String>> {
-        self.backend_name().not_support_feature()
+        self.backend_kind().not_support_feature()
     }
     async fn table_policy(
         &self,
         _schema: Option<&str>,
         _table: &str,
     ) -> anyhow::Result<Vec<String>> {
-        self.backend_name().not_support_feature()
+        self.backend_kind().not_support_feature()
     }
     async fn table_policy_completion(
         &self,
@@ -1141,21 +1141,21 @@ pub trait AstCompletionHelper: Send + Sync + 'static + GetBackendKind + LangServ
         _schema: Option<&str>,
         _table: &str,
     ) -> anyhow::Result<Vec<String>> {
-        self.backend_name().not_support_feature()
+        self.backend_kind().not_support_feature()
     }
     async fn list_constraint(
         &self,
         _schema: Option<&str>,
         _table_name: &str,
     ) -> anyhow::Result<Vec<String>> {
-        self.backend_name().not_support_feature()
+        self.backend_kind().not_support_feature()
     }
     async fn list_table_trigger(
         &self,
         _schema: Option<&str>,
         _table: &str,
     ) -> anyhow::Result<Vec<String>> {
-        self.backend_name().not_support_feature()
+        self.backend_kind().not_support_feature()
     }
 }
 
@@ -1176,7 +1176,7 @@ pub(crate) async fn try_parser_dot_lexer<T: LexerCompletionTrait + AstCompletion
     .await
     .inspect_err(|_| {
         log::error!("ast completion not finished in reasonable time this maybe a bug,sql:{} line:{} col:{} backend:{}" ,
-        sql,line,col,backend.backend_name());
+        sql,line,col,backend.backend_kind());
     })?;
     match r {
         Ok(mut xs) => {

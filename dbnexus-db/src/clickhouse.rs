@@ -21,7 +21,7 @@ use tokio::io::{AsyncBufReadExt, BufReader};
 use tokio_util::io::StreamReader;
 
 impl GetBackendKind for ClickHouseDB {
-    fn backend_name(&self) -> BackendKind {
+    fn backend_kind(&self) -> BackendKind {
         BackendKind::ClickHouse
     }
 }
@@ -36,9 +36,8 @@ impl ClickHouseDB {
     ) -> anyhow::Result<()> {
         if include_table_schema {
             let x = self.show_create_table_sql(table_name).await?;
-            sender.send(x.create_table.into()).await?;
+            sender.send(x.create_table.to_string().into()).await?;
         }
-
         let sql = if let Some(para) = para {
             let ShowTableParameter {
                 where_str,
@@ -79,9 +78,9 @@ impl ClickHouseDB {
                         });
                         m
                     };
-                    let s = self.insert_sql(table_name, &fs, &values)?;
-                    let s = format!("{};\n", s);
-                    sender.send(s.into()).await?;
+                    let sql = self.insert_sql(table_name, &fs, &values)?;
+                    let sql = format!("{};\n", sql);
+                    sender.send(sql.into()).await?;
                 }
                 FieldsOrData::ReadingColumns => {}
             }
@@ -424,7 +423,7 @@ impl SchemaTrait for ClickHouseDB {
         let sql = gen_show_sql(
             self.config.db_str(),
             table_name,
-            Some(self.backend_name().format_fields(Some(&fs))),
+            Some(self.backend_kind().format_fields(Some(&fs))),
             where_str.as_deref(),
             order_by.as_deref(),
             *page,

@@ -142,7 +142,7 @@ impl CheckConn for DuckDB {
 }
 
 impl GetBackendKind for DuckDB {
-    fn backend_name(&self) -> BackendKind {
+    fn backend_kind(&self) -> BackendKind {
         BackendKind::DuckDB
     }
 }
@@ -692,14 +692,8 @@ impl DuckDB {
         sender: tokio::sync::mpsc::Sender<ExportFrame>,
     ) -> anyhow::Result<()> {
         if include_table_schema {
-            let ss = SchemaTrait::show_create_table_sql(self, table_name).await?;
-            sender.send(ss.create_table.clone().into()).await?;
-            sender.send(";\n".into()).await?;
-
-            for index in ss.indexes.into_iter() {
-                sender.send(index.into()).await?;
-                sender.send(";\n".into()).await?;
-            }
+            let create_table = SchemaTrait::show_create_table_sql(self, table_name).await?;
+            sender.send(create_table.to_string().into()).await?;
         }
         let this = Clone::clone(self);
         let table_name = table_name.to_owned();
@@ -717,7 +711,7 @@ impl DuckDB {
                 gen_show_sql(
                     this.config.schema_str(),
                     &table_name,
-                    this.backend_name().format_fields(Some(&fs)).as_str(),
+                    this.backend_kind().format_fields(Some(&fs)).as_str(),
                     where_str.as_deref(),
                     order_by.as_deref(),
                     *page,
@@ -726,7 +720,7 @@ impl DuckDB {
             } else {
                 format!(
                     r#"SELECT {} from "{}"."{}""#,
-                    this.backend_name().format_fields(Some(&fs)),
+                    this.backend_kind().format_fields(Some(&fs)),
                     this.config.schema_str(),
                     table_name
                 )
@@ -809,7 +803,7 @@ impl SchemaTrait for DuckDB {
         _old_name: &str,
         _new_name: &str,
     ) -> anyhow::Result<String> {
-        self.backend_name().not_support_feature()
+        self.backend_kind().not_support_feature()
     }
 
     async fn drop_index(&self, _table_name: &str, index: &str) -> anyhow::Result<String> {
@@ -856,7 +850,7 @@ impl SchemaTrait for DuckDB {
     }
 
     async fn create_index(&self, table: &str, req: &CreateIndexReq) -> anyhow::Result<String> {
-        let sql = req.common_sql(table, true, self.backend_name().quote_style())?;
+        let sql = req.common_sql(table, true, self.backend_kind().quote_style())?;
         log::info!("sql:{}", sql);
         self.simple_execute_sql(&sql).await?;
         anyhow::Ok(sql)
@@ -1065,7 +1059,7 @@ impl SchemaTrait for DuckDB {
             let sql = gen_show_sql(
                 this.config.schema_str(),
                 &view_name,
-                &this.backend_name().format_fields(Some(&cols)),
+                &this.backend_kind().format_fields(Some(&cols)),
                 where_str.as_deref(),
                 order_by.as_deref(),
                 *page,
@@ -1247,7 +1241,7 @@ impl SchemaTrait for DuckDB {
             let sql = gen_show_sql(
                 this.config.schema_str(),
                 &table_name,
-                &this.backend_name().format_fields(Some(&cols)),
+                &this.backend_kind().format_fields(Some(&cols)),
                 where_str.as_deref(),
                 order_by.as_deref(),
                 *page,
@@ -1301,7 +1295,7 @@ impl SchemaTrait for DuckDB {
     }
     async fn rename_sequence(&self, _old: &str, _new: &str) -> anyhow::Result<String> {
         // duckdb
-        self.backend_name().not_support_feature()
+        self.backend_kind().not_support_feature()
     }
 
     async fn drop_sequence(&self, name: &str, _cascade: bool) -> anyhow::Result<String> {

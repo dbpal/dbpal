@@ -78,7 +78,7 @@ impl ReadOnlyTrait for FireBirdDB {
 }
 
 impl GetBackendKind for FireBirdDB {
-    fn backend_name(&self) -> BackendKind {
+    fn backend_kind(&self) -> BackendKind {
         BackendKind::Firebird
     }
 }
@@ -489,7 +489,7 @@ impl FireBirdDB {
 
                 gen_show_sql(
                     &table_name,
-                    this.backend_name().format_fields(Some(&cols)).into(),
+                    this.backend_kind().format_fields(Some(&cols)).into(),
                     where_str.as_deref(),
                     order_by.as_deref(),
                     *page,
@@ -636,7 +636,7 @@ impl SchemaTrait for FireBirdDB {
     }
 
     async fn duplicate_table(&self, _table: &str, _dup: &str) -> anyhow::Result<()> {
-        self.backend_name().not_support_feature()
+        self.backend_kind().not_support_feature()
     }
     async fn list_table(&self) -> anyhow::Result<Vec<ListTable>> {
         let this = Clone::clone(self);
@@ -703,7 +703,7 @@ impl SchemaTrait for FireBirdDB {
             )?;
             let sql = gen_show_sql(
                 &table_name,
-                Some(this.backend_name().format_fields(Some(&fs))),
+                Some(this.backend_kind().format_fields(Some(&fs))),
                 where_str.as_deref(),
                 order_by.as_deref(),
                 *page,
@@ -741,7 +741,7 @@ impl SchemaTrait for FireBirdDB {
         _new_name: &str,
         _typ: Option<ColumnType>,
     ) -> anyhow::Result<String> {
-        self.backend_name().not_support_feature()
+        self.backend_kind().not_support_feature()
     }
 
     // not tested...
@@ -809,7 +809,7 @@ impl SchemaTrait for FireBirdDB {
     }
 
     async fn create_index(&self, table: &str, req: &CreateIndexReq) -> anyhow::Result<String> {
-        let sql = req.common_sql(table, true, self.backend_name().quote_style())?;
+        let sql = req.common_sql(table, true, self.backend_kind().quote_style())?;
         log::info!("sql:{}", sql);
         self.simple_execute_sql(&sql).await?;
         anyhow::Ok(sql)

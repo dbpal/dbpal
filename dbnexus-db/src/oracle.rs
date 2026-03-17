@@ -92,8 +92,13 @@ impl ExportQueryResult for OracleDB {
         let sql = sql.to_owned();
         let query_id = query_id.map(|s| s.to_owned());
         spawn_blocking(move || {
-            let query_id = query_id.as_deref();
-            let conn = this.get_conn_by_query_id(query_id)?;
+            let conn = match query_id.as_ref() {
+                Some(query_id) => match this.query_connection.get(&query_id.to_string()) {
+                    Some(x) => x.clone(),
+                    None => anyhow::bail!("query_id not found"),
+                },
+                None => Arc::new(Mutex::new(this.get_conn()?)),
+            };
             let conn = conn.lock().expect("lock failed");
             let mut first = true;
             let rows = conn.query(&sql, &[])?;
@@ -802,7 +807,10 @@ impl OracleDB {
         sender: tokio::sync::mpsc::Sender<ExportFrame>,
     ) -> anyhow::Result<()> {
         let cols = SchemaTrait::show_table_columns(self, table_name).await?;
-        let ss = SchemaTrait::show_create_table_sql(self, table_name).await?;
+        if include_table_schema {
+            let create_table = SchemaTrait::show_create_table_sql(self, table_name).await?;
+            sender.send(create_table.to_string().into()).await?;
+        }
         let table_name = table_name.to_owned();
         let this = Clone::clone(self);
         spawn_blocking(move || {
@@ -817,7 +825,7 @@ impl OracleDB {
                 } = &para;
                 gen_show_sql(
                     &table_name,
-                    this.backend_name().format_fields(Some(&cols)).into(),
+                    this.backend_kind().format_fields(Some(&cols)).into(),
                     where_str.as_deref(),
                     order_by.as_deref(),
                     *page,
@@ -827,14 +835,6 @@ impl OracleDB {
                 format!(r#"SELECT * from "{}"."{}""#, this.schema_str(), table_name)
             };
             log::info!("sql:{}", sql);
-            if include_table_schema {
-                sender.blocking_send(ss.create_table.clone().into())?;
-                sender.blocking_send(";\n".into())?;
-                for index in ss.indexes.into_iter() {
-                    sender.blocking_send(index.into())?;
-                    sender.blocking_send(";\n".into())?;
-                }
-            }
             let rows = conn.query(sql.as_str(), &[])?;
             for row in rows {
                 let row = row?;
@@ -850,19 +850,6 @@ impl OracleDB {
             anyhow::Ok(())
         })
         .await?
-    }
-
-    fn get_conn_by_query_id(
-        &self,
-        query_id: Option<&str>,
-    ) -> anyhow::Result<Arc<Mutex<oracle::Connection>>> {
-        match query_id {
-            Some(query_id) => match self.query_connection.get(&query_id.to_string()) {
-                Some(x) => anyhow::Ok(x.clone()),
-                None => anyhow::bail!("query_id not found"),
-            },
-            None => anyhow::Ok(Arc::new(Mutex::new(self.get_conn()?))),
-        }
     }
 }
 
@@ -1184,7 +1171,7 @@ impl SchemaTrait for OracleDB {
     }
 
     async fn create_index(&self, table: &str, req: &CreateIndexReq) -> anyhow::Result<String> {
-        let sql = req.common_sql(table, true, self.backend_name().quote_style())?;
+        let sql = req.common_sql(table, true, self.backend_kind().quote_style())?;
         log::info!("sql:{}", sql);
         self.simple_execute_sql(&sql).await?;
         anyhow::Ok(sql)
@@ -1303,7 +1290,7 @@ impl SchemaTrait for OracleDB {
         let cols = self.show_table_columns(table_name).await?;
         let sql = gen_show_sql(
             table_name,
-            Some(self.backend_name().format_fields(Some(&cols))),
+            Some(self.backend_kind().format_fields(Some(&cols))),
             where_str.as_deref(),
             order_by.as_deref(),
             *page,
@@ -1684,7 +1671,7 @@ impl OracleDB {
 }
 
 impl GetBackendKind for OracleDB {
-    fn backend_name(&self) -> BackendKind {
+    fn backend_kind(&self) -> BackendKind {
         BackendKind::Oracle
     }
 }
@@ -1723,11 +1710,11 @@ impl DBTrait for OracleDB {
         _name: &str,
         _extra: Option<CreateSchemaExtra>,
     ) -> anyhow::Result<()> {
-        self.backend_name().not_support_feature()
+        self.backend_kind().not_support_feature()
     }
 
     async fn drop_schema(&self, _name: &str) -> anyhow::Result<()> {
-        self.backend_name().not_support_feature()
+        self.backend_kind().not_support_feature()
     }
 }
 

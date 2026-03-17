@@ -3192,7 +3192,7 @@ pub async fn put_value_in_sql(
     // special case
     // https://github.com/launchbadge/sqlx/issues/3390
     {
-        let x = schema.backend_name();
+        let x = schema.backend_kind();
         if x.mysql_like() {
             return Ok(match value {
                 Some(x) => {

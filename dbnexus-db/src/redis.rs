@@ -732,7 +732,7 @@ impl CheckConn for RedisDB {
 }
 
 impl GetBackendKind for RedisDB {
-    fn backend_name(&self) -> BackendKind {
+    fn backend_kind(&self) -> BackendKind {
         BackendKind::Redis
     }
 }
@@ -769,28 +769,6 @@ impl RedisDB {
     }
 }
 
-impl RedisDB {
-    async fn get_conn_by_query_id(
-        &self,
-        query_id: Option<&str>,
-    ) -> anyhow::Result<Arc<Mutex<MultiplexedConnection>>> {
-        match query_id {
-            Some(x) => match self.query_connection.get(&x.to_string()) {
-                Some(x) => anyhow::Ok(x.clone()),
-                None => anyhow::bail!("should be a valid query id"),
-            },
-            None => {
-                let x = self
-                    .get_client()
-                    .await?
-                    .get_multiplexed_async_connection()
-                    .await?;
-                anyhow::Ok(Arc::new(Mutex::new(x)))
-            }
-        }
-    }
-}
-
 #[async_trait::async_trait]
 impl ExportQueryResult for RedisDB {
     async fn export_query_result(
@@ -806,7 +784,20 @@ impl ExportQueryResult for RedisDB {
         }
         let c = &commands[0];
         log::info!("cmd is:{:?}", c);
-        let conn = self.get_conn_by_query_id(query_id).await?;
+        let conn = match query_id {
+            Some(x) => match self.query_connection.get(&x.to_string()) {
+                Some(x) => x.clone(),
+                None => anyhow::bail!("should be a valid query id"),
+            },
+            None => {
+                let x = self
+                    .get_client()
+                    .await?
+                    .get_multiplexed_async_connection()
+                    .await?;
+                Arc::new(Mutex::new(x))
+            }
+        };
         let mut conn = conn.lock().await;
         let conn = conn.deref_mut();
         let args = &c[1..];
@@ -1822,7 +1813,7 @@ mod tests {
     async fn test_query_export(db: &RedisDB, cmd: &str, key: &str, kind: ExportKind) {
         {
             // xlsx
-            let name = db.backend_name().make_test_xlsx_file(key);
+            let name = db.backend_kind().make_test_xlsx_file(key);
             db.export_query_result_to_file("", cmd, kind, &name, Arc::new(|_| {}))
                 .await
                 .unwrap();
