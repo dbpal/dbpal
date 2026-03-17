@@ -114,6 +114,12 @@ impl LangServerCommon for LibSqlDB {
         self.list_index_name_impl(schema).await
     }
     async fn sqlite_module_name(&self) -> anyhow::Result<Vec<String>> {
+        static CACHE: Mutex<Vec<String>> = Mutex::const_new(Vec::new());
+
+        let mut lock = CACHE.lock().await;
+        if !lock.is_empty() {
+            return anyhow::Ok(lock.clone());
+        }
         let sql = "SELECT name  FROM pragma_module_list";
         let conn = self.get_conn().await?;
         let mut rows = conn.query(sql, params!()).await?;
@@ -122,6 +128,7 @@ impl LangServerCommon for LibSqlDB {
             let name: String = row.get(0)?;
             ret.push(name);
         }
+        *lock = ret.clone();
         anyhow::Ok(ret)
     }
 
@@ -176,11 +183,11 @@ impl LangServerCommon for LibSqlDB {
             // libsql only have build in functions
             return anyhow::Ok(vec![]);
         }
-        let mut lock = self.build_in_fn_cache.lock().await;
+        static BUILD_IN_FN_CACHE: Mutex<Vec<CompletionItem>> = Mutex::const_new(Vec::new());
+        let mut lock = BUILD_IN_FN_CACHE.lock().await;
         if !lock.is_empty() {
             return anyhow::Ok(lock.clone());
         }
-
         let sql = r#"
             SELECT name 
             FROM pragma_function_list()
@@ -188,17 +195,20 @@ impl LangServerCommon for LibSqlDB {
         "#;
         let conn = self.get_conn().await?;
         let mut rows = conn.query(sql, params!()).await?;
+        let mut ret = Vec::new();
+
         while let Some(row) = rows.next().await? {
             let name: String = row.get(0)?;
             if !name_start_ascii_alphabetic(&name) {
                 continue;
             }
-            lock.push(CompletionItem {
+            ret.push(CompletionItem {
                 item: name.into(),
                 kind: CompletionKind::Function,
                 desc: None,
             });
         }
+        *lock = ret.clone();
         return anyhow::Ok(lock.clone());
     }
 
@@ -296,7 +306,6 @@ impl LibSqlDB {
 #[cfg(test)]
 mod tests {
     use crate::db::{QuerySql, SchemaTrait};
-    use crate::enable_test_log;
     use crate::language_server::completion_test::test_file_auto_completion;
     use crate::language_server::LanguageServer;
     use crate::libsql::make_test_object;
@@ -304,7 +313,6 @@ mod tests {
 
     #[tokio::test]
     async fn test_auto_completion() {
-        enable_test_log();
         let db = make_test_object().await;
         let _ = db.drop_table("departments", false).await;
         let _ = db.drop_table("employees", false).await;

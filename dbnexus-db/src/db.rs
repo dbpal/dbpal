@@ -1339,10 +1339,10 @@ pub struct CreateIndexReq {
 }
 
 impl CreateIndexReq {
-    pub(crate) fn format_cols(&self, has_order: bool, quote_str: &str) -> String {
+    pub(crate) fn format_cols(&self, can_have_order: bool, quote_str: &str) -> String {
         self.columns
             .iter()
-            .map(|col| match (has_order, col.asc) {
+            .map(|col| match (can_have_order, col.asc) {
                 (true, Some(order)) => {
                     format!(
                         "{} {}",
@@ -1359,7 +1359,7 @@ impl CreateIndexReq {
     pub(crate) fn common_sql(
         &self,
         table: &str,
-        has_order: bool,
+        can_have_order: bool,
         quote_str: &str,
     ) -> anyhow::Result<String> {
         let sql = format!(
@@ -1370,7 +1370,7 @@ impl CreateIndexReq {
                 IndexKind::Unique => "Unique",
             },
             self.name,
-            self.format_cols(has_order, quote_str)
+            self.format_cols(can_have_order, quote_str)
         );
         anyhow::Ok(sql)
     }

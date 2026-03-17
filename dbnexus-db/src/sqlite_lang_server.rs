@@ -20,13 +20,20 @@ impl GetKeyWords for SqliteDB {
 
 #[async_trait::async_trait]
 impl LangServerCommon for SqliteDB {
-    async fn list_index(&self, _schema: Option<&str>) -> anyhow::Result<Vec<String>> {
-        let schema = Self::merge_schema(_schema);
+    async fn list_index(&self, schema: Option<&str>) -> anyhow::Result<Vec<String>> {
+        let schema = Self::merge_schema(schema);
         self.list_index_name_impl(schema).await
     }
 
     // issue https://github.com/launchbadge/sqlx/issues/4010
     async fn sqlite_module_name(&self) -> anyhow::Result<Vec<String>> {
+        static CACHE: Mutex<Vec<String>> = Mutex::const_new(Vec::new());
+
+        let mut lock = CACHE.lock().await;
+        if !lock.is_empty() {
+            return anyhow::Ok(lock.clone());
+        }
+
         let sql = "SELECT name  FROM pragma_module_list";
         let mut conn = self.get_conn().await?;
         let rows = sqlx::raw_sql(AssertSqlSafe(sql))
@@ -37,6 +44,7 @@ impl LangServerCommon for SqliteDB {
             let name: String = row.try_get(0)?;
             ret.push(name);
         }
+        *lock = ret.clone();
         anyhow::Ok(ret)
     }
     async fn sqlite_pragma(&self) -> anyhow::Result<Vec<CompletionItem>> {
@@ -48,14 +56,16 @@ impl LangServerCommon for SqliteDB {
         let sql = "PRAGMA pragma_list";
         let mut conn = self.get_conn().await?;
         let rows = sqlx::raw_sql(sql).fetch_all(conn.deref_mut()).await?;
+        let mut ret = Vec::new();
         for row in rows.iter() {
             let name: String = row.try_get(0)?;
-            lock.push(CompletionItem {
+            ret.push(CompletionItem {
                 item: name.into(),
                 kind: CompletionKind::Pragma,
                 desc: None,
             });
         }
+        *lock = ret.clone();
         return anyhow::Ok(lock.clone());
     }
 
@@ -83,12 +93,12 @@ impl LangServerCommon for SqliteDB {
         _schema: Option<&str>,
         include_build_in: bool,
     ) -> anyhow::Result<Vec<CompletionItem>> {
-        // sqlite function are all build in functions
-        static BUILD_IN_FN_COMPLETION: Mutex<Vec<CompletionItem>> = Mutex::const_new(Vec::new());
-        let mut lock = BUILD_IN_FN_COMPLETION.lock().await;
         if !include_build_in {
             return anyhow::Ok(vec![]);
         }
+        // sqlite function are all build in functions
+        static BUILD_IN_FN_COMPLETION: Mutex<Vec<CompletionItem>> = Mutex::const_new(Vec::new());
+        let mut lock = BUILD_IN_FN_COMPLETION.lock().await;
         if !lock.is_empty() {
             return anyhow::Ok(lock.clone());
         }

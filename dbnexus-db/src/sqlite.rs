@@ -60,7 +60,6 @@ impl SqliteDB {
         let rows = sqlx::raw_sql(AssertSqlSafe(sql.as_str()))
             .fetch_all(conn.deref_mut())
             .await?;
-
         let mut ret = Vec::with_capacity(rows.len());
         for r in rows.iter() {
             let sql: String = r.try_get(0)?;
@@ -336,7 +335,6 @@ impl SchemaTrait for SqliteDB {
         );
         log::info!("sql:{}", sql);
         self.simple_execute_sql(&sql).await?;
-
         anyhow::Ok(sql)
     }
 
@@ -421,11 +419,7 @@ impl SchemaTrait for SqliteDB {
     }
 
     async fn drop_trigger(&self, _table: &str, name: &str) -> anyhow::Result<String> {
-        let sql = format!(
-            r#"
-        DROP TRIGGER "{name}"
-        "#
-        );
+        let sql = format!(r#"DROP TRIGGER "{name}""#);
         log::info!("sql:{}", sql);
         self.simple_execute_sql(&sql).await?;
         anyhow::Ok(sql)
@@ -437,7 +431,6 @@ impl SchemaTrait for SqliteDB {
     ) -> anyhow::Result<CreateTableAndIndexSql> {
         let table = self.create_table_or_view_sql(table_name, "table").await?;
         let indexes = self.get_table_indexes_sql(table_name).await?;
-
         anyhow::Ok(CreateTableAndIndexSql {
             create_table: table,
             indexes,
@@ -832,7 +825,6 @@ fn encode_row_as_json(r: &SqliteRow) -> anyhow::Result<serde_json::Value> {
                     null_value.clone()
                 }
             }
-
             _ if text_like(&typ) => {
                 let v: Option<String> = r.try_get(c)?;
                 v.map(serde_json::Value::String)
@@ -975,7 +967,6 @@ fn encode_row(row: &SqliteRow) -> anyhow::Result<Vec<Option<String>>> {
                 let v: Option<f64> = row.try_get(c)?;
                 v.map(|x| format!("{}", x))
             }
-
             "BOOLEAN" => {
                 let v: Option<bool> = row.try_get(c)?;
                 v.map(|x| format!("{}", x))
@@ -1008,15 +999,10 @@ impl SqliteDB {
             opts = opts.acquire_timeout(timeout.into());
         }
         let pool = opts.connect(conn.path.as_str()).await?;
-
         if conn.read_only {
-            let r = sqlx::raw_sql("PRAGMA query_only = true;")
+            sqlx::raw_sql("PRAGMA query_only = true;")
                 .execute(pool.acquire().await?.deref_mut())
-                .await;
-            match r {
-                Ok(_) => {}
-                Err(err) => anyhow::bail!(format!("execute query only failed,err:{}", err)),
-            }
+                .await?;
         }
         anyhow::Ok(Self {
             pool,
@@ -1295,7 +1281,6 @@ impl QuerySql for SqliteDB {
             Ok(x) => Ok(QueryResp::row_affected(x.rows_affected(), sql.to_owned())),
             Err(err) => Err(err.to_string()),
         };
-
         anyhow::Ok(ret)
     }
 

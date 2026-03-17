@@ -5,7 +5,6 @@ use std::collections::HashMap;
 use std::ops::{Deref, DerefMut};
 use std::sync::Arc;
 use std::time::Duration;
-use tokio::sync::Mutex;
 
 use crate::datasource_config::{LibSqlDBConfig, LibSqlDBConfigSource};
 use crate::db::{
@@ -17,7 +16,7 @@ use crate::db::{
     ShowTableParameter, SqlBuilder, TriggerDetail, XlsxEdit, POOL_MAX_CONNECTIONS,
 };
 use crate::helper::create_csv;
-use crate::language_server::{CompletionItem, LexerCompletionTrait};
+use crate::language_server::LexerCompletionTrait;
 
 use crate::sqlite::{
     encode_bytes, extract_auto_increment_key, extract_trigger_detail_from_sql, gen_show_sql,
@@ -30,7 +29,6 @@ pub struct LibSqlDB {
     pool: bb8::Pool<PoolManager>,
     pub(crate) query_connection: Arc<DashMap<String, Connection>>,
     query_connection_transaction: Arc<DashMap<String, libsql::Transaction>>,
-    pub(crate) build_in_fn_cache: Arc<Mutex<Vec<CompletionItem>>>,
     pub(crate) completion_id: AutoCompletionQueryId,
 }
 
@@ -159,9 +157,9 @@ impl ExportQueryResult for LibSqlDB {
 impl QuerySql for LibSqlDB {
     async fn get_auto_commit(&self, query_id: &str) -> anyhow::Result<bool> {
         anyhow::Ok(
-            self.query_connection_transaction
-                .get(&query_id.to_string())
-                .is_none(),
+            !self
+                .query_connection_transaction
+                .contains_key(&query_id.to_string()),
         )
     }
 
@@ -187,7 +185,6 @@ impl QuerySql for LibSqlDB {
         match t {
             Some(x) => {
                 x.1.commit().await?;
-
                 anyhow::Ok(())
             }
             None => {
@@ -224,14 +221,14 @@ impl QuerySql for LibSqlDB {
         let tr = self.query_connection_transaction.get(&query_id.to_owned());
         let conn = self.query_connection.get(&query_id.to_string());
         let conn = conn.as_deref();
-        let conn = match &tr {
-            Some(x) => x.deref().deref(),
+        let r = match &tr {
+            Some(x) => x.execute_batch(sql).await,
             None => match &conn {
-                Some(x) => x,
+                Some(x) => x.execute_batch(sql).await,
                 None => anyhow::bail!("collection closed????"),
             },
         };
-        let ret: Result<QueryResp, String> = match conn.execute_batch(sql).await {
+        let ret: Result<QueryResp, String> = match r {
             Ok(..) => Ok(QueryResp::execute_ok(sql.to_owned())),
             Err(err) => Err(err.to_string()),
         };
@@ -292,8 +289,6 @@ impl QuerySql for LibSqlDB {
         anyhow::Ok(())
     }
     async fn close_connection(&self, id: &str) -> anyhow::Result<()> {
-        // no need execute close connection staff
-        // this connection is not going to put back in pool
         let id = id.to_string();
         self.query_connection_transaction.remove(&id);
         self.query_connection.remove(&id);
@@ -405,7 +400,6 @@ impl LibSqlDB {
             pool,
             query_connection: Default::default(),
             query_connection_transaction: Default::default(),
-            build_in_fn_cache: Default::default(),
             completion_id: Default::default(),
         })
     }
@@ -493,7 +487,6 @@ impl LibSqlDB {
             let name: String = r.get(0)?;
             ret.push(name);
         }
-
         anyhow::Ok(ret.into_iter().map(ListTable::from).collect())
     }
 }
@@ -680,7 +673,6 @@ impl SchemaTrait for LibSqlDB {
 
     async fn drop_view(&self, view_name: &str) -> anyhow::Result<String> {
         self.can_write()?;
-
         let sql = format!(r#"DROP VIEW "{view_name}""#);
         self.simple_execute_sql(&sql).await?;
         anyhow::Ok(sql)
@@ -1074,16 +1066,10 @@ pub(crate) async fn make_test_object() -> LibSqlDB {
 #[cfg(test)]
 mod tests {
 
-    use crate::{
-        db::{
-            CreateIndexColumn, CreateTableReq, CreateTableReqColumn, SqlNullAble,
-            TestQueryEventEmit,
-        },
-        enable_test_log,
-    };
-
     use super::*;
-
+    use crate::db::{
+        CreateIndexColumn, CreateTableReq, CreateTableReqColumn, SqlNullAble, TestQueryEventEmit,
+    };
     #[tokio::test]
     async fn test_table_pagination() {
         let db = make_test_object().await;
@@ -1327,7 +1313,6 @@ mod tests {
 
     #[tokio::test]
     async fn test_triggers() {
-        // enable_test_log();
         let db = make_test_object().await;
         let _ = db.drop_table("test_create_trigger", false).await;
         let _ = db.drop_table("test_create_trigger_update", false).await;
@@ -1583,7 +1568,6 @@ mod tests {
 
     #[tokio::test]
     async fn test_list_table() {
-        enable_test_log();
         let db = make_test_object().await;
         // db.list_table()
         //     .await
@@ -1599,7 +1583,6 @@ mod tests {
     }
     #[tokio::test]
     async fn test_all_types() {
-        // enable_test_log();
         let db = make_test_object().await;
         let table_name = "test_table";
         let _ = db.drop_table(table_name, false).await;
