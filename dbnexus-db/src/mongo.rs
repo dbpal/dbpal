@@ -323,11 +323,14 @@ impl MongoDB {
     pub async fn show_collection_table_list(
         &self,
         collection_name: &str,
-        filter: Document,
-        sort: Document,
-        page: u64,
-        page_size: u64,
+        para: MongoShowTablePara,
     ) -> anyhow::Result<QueryResp> {
+        let MongoShowTablePara {
+            filter,
+            page,
+            page_size,
+            sort,
+        } = para;
         let db = self.get_db().await?;
         let count: u64 = db
             .collection::<Document>(collection_name)
@@ -354,11 +357,14 @@ impl MongoDB {
     pub async fn show_collection_json(
         &self,
         collection_name: &str,
-        filter: Document,
-        sort: Document,
-        page: u64,
-        page_size: u64,
+        para: MongoShowTablePara,
     ) -> anyhow::Result<DocsAndCount> {
+        let MongoShowTablePara {
+            filter,
+            page,
+            page_size,
+            sort,
+        } = para;
         let db = self.get_db().await?;
         let count = db
             .collection::<u64>(collection_name)
@@ -383,11 +389,14 @@ impl MongoDB {
     pub async fn show_collection_docs(
         &self,
         collection_name: &str,
-        filter: Document,
-        sort: Document,
-        page: u64,
-        page_size: u64,
+        para: MongoShowTablePara,
     ) -> anyhow::Result<DocsAndCount> {
+        let MongoShowTablePara {
+            filter,
+            page,
+            page_size,
+            sort,
+        } = para;
         let db = self.get_db().await?;
         let count = db
             .collection::<u64>(collection_name)
@@ -791,6 +800,26 @@ impl MongoDB {
     }
 }
 
+#[derive(Debug, Clone)]
+pub struct MongoFindParameter {
+    pub filter: Document,
+    pub hint: Option<Document>,
+    pub projection: Option<Document>,
+    pub sort: Option<Document>,
+    pub min: Option<Document>,
+    pub max: Option<Document>,
+    pub limit: Option<i64>,
+    pub skip: Option<u64>,
+}
+
+#[derive(Debug, Clone)]
+pub struct MongoShowTablePara {
+    pub sort: Document,
+    pub filter: Document,
+    pub page: u64,
+    pub page_size: u64,
+}
+
 // this used in test
 #[allow(unused)]
 #[cfg(test)]
@@ -824,6 +853,7 @@ mod tests {
 
     use super::make_test_object;
     use crate::db::{DBTrait, SchemaTrait, ServerMetas};
+    use crate::mongo::MongoShowTablePara;
 
     #[tokio::test]
     async fn test_multi_db() {
@@ -1069,7 +1099,15 @@ mod tests {
         db.duplicate_table(table_name, table_name2).await.unwrap();
 
         let docs = db
-            .show_collection_docs(table_name2, bson::doc! {}, bson::doc! {}, 1, 100)
+            .show_collection_docs(
+                table_name2,
+                MongoShowTablePara {
+                    filter: bson::doc! {},
+                    page: 1,
+                    page_size: 100,
+                    sort: bson::doc! {},
+                },
+            )
             .await
             .unwrap();
         println!("{:?}", docs);
@@ -1156,7 +1194,15 @@ mod tests {
         let db = make_test_object();
         let view_name = "test_mongo";
         let docs = db
-            .show_collection_docs(view_name, doc! {}, doc! {}, 1, 100)
+            .show_collection_docs(
+                view_name,
+                MongoShowTablePara {
+                    filter: doc! {},
+                    page: 1,
+                    page_size: 100,
+                    sort: doc! {},
+                },
+            )
             .await
             .unwrap();
 
@@ -1212,17 +1258,20 @@ mod tests {
             "timestamp_field": Timestamp {time: now as u32, increment: 1 },
         };
         db.insert(table, data).await.unwrap();
+
+        let para = MongoShowTablePara {
+            filter: doc! {},
+            page: 1,
+            page_size: 100,
+            sort: doc! {},
+        };
         let resp = db
-            .show_collection_table_list(table, doc! {}, doc! {}, 1, 100)
+            .show_collection_table_list(table, para.clone())
             .await
             .unwrap();
 
         println!("resp:{:?}", resp);
-
-        let resp = db
-            .show_collection_docs(table, doc! {}, doc! {}, 1, 100)
-            .await
-            .unwrap();
+        let resp = db.show_collection_docs(table, para.clone()).await.unwrap();
         for d in resp.docs {
             println!("{:?}", d);
             let json_str = serde_json::to_string_pretty(&d).unwrap();

@@ -9,7 +9,7 @@ import {
   IMongoDB,
 } from "./MongoInterface";
 import interfaceRawText from "./MongoInterface.ts?raw";
-import { loader } from "./helper";
+import { loader, MongoFindParameter } from "./helper";
 
 class MongoDBQuery implements IMongoDB {
   uuid: string;
@@ -89,17 +89,20 @@ class MongoDBQueryFindCommon {
     return this;
   }
 
-  makeCommonArg(): Record<string, unknown> {
-    return {
-      name: this.uuid,
-      col: this.col,
-      query: BSON.serialize(this.filter),
+  makeCommonArg() {
+    let para: MongoFindParameter = {
+      filter: BSON.serialize(this.filter),
       projection: BSON.serialize(this._projection),
       sort: BSON.serialize(this._sort),
       min: BSON.serialize(this._min),
       max: BSON.serialize(this._max),
       skip: this._skip,
       hint: BSON.serialize(this._hint),
+    };
+    return {
+      name: this.uuid,
+      col: this.col,
+      para,
     };
   }
 }
@@ -111,7 +114,7 @@ class MongoDBQueryFind extends MongoDBQueryFindCommon implements IFindBuilder {
       throw `limit can't be null`;
     }
     const x = this.makeCommonArg();
-    x.limit = this._limit;
+    x.para.limit = this._limit;
     return invoke<number[][]>("mongo_query_collection_find", x).then((e) => {
       const x = e.map((x) => new Uint8Array(x)).map((e) => BSON.deserialize(e));
       return x;

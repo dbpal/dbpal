@@ -760,6 +760,13 @@ function SqlTableView(props: {
                   disabled={ops.length > 0}
                   color="primary"
                   icon={<FilterAltIcon />}
+                  onDelete={
+                    where
+                      ? () => {
+                          setWhere("");
+                        }
+                      : undefined
+                  }
                 />
               </Tooltip>
               {/* <Typography color="info"> order by </Typography> */}
@@ -774,6 +781,13 @@ function SqlTableView(props: {
                   size="medium"
                   color="secondary"
                   variant="outlined"
+                  onDelete={
+                    sort
+                      ? () => {
+                          setSort("");
+                        }
+                      : undefined
+                  }
                   icon={<FaArrowsAltV />}
                 />
               </Tooltip>

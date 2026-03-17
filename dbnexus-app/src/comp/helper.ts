@@ -1275,6 +1275,17 @@ export {
   ViewKind,
 };
 
+export type MongoFindParameter = {
+  "filter": Uint8Array;
+  "hint": Uint8Array | null;
+  "projection": Uint8Array | null;
+  "sort": Uint8Array | null;
+  "min": Uint8Array | null;
+  "max": Uint8Array | null;
+  "limit"?: number;
+  "skip": number | null;
+};
+
 export type { ErrAndLoc, QueryRespData };
 
 async function webviewWIndowInit() {

@@ -94,7 +94,7 @@ async function testLimitOffsetPara() {
         let r = await col.find({ a: 1 }).limit(10).projection({ a: 1 }).find();
         console.info("@@@@@@@@@@@@", r);
         console.assert(r[0]["a"] == 1);
-        r = await col.find({}, 10).max({ a: 5 }).min({ a: 1 }).hint({ a: 1 }).find();
+        r = await col.find({}).max({ a: 5 }).limit(10).min({ a: 1 }).hint({ a: 1 }).find();
         console.assert(r.length == 4);
         console.assert(r[0]["a"] == 1);
         r = await col.find({}).limit(3).sort({ a: 1 }).skip(2).find();

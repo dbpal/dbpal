@@ -1,6 +1,6 @@
 use crate::app::{
-    self, name_to_parts, CancelTokenMsg, DBConnectionConfig, DBPal, DatabaseBackend, ErrorFrontend,
-    TaskManager,
+    self, name_to_parts, parse_bson_doc, CancelTokenMsg, DBConnectionConfig, DBPal,
+    DatabaseBackend, ErrorFrontend, MongoShowTablePara, TaskManager,
 };
 use dashmap::DashMap;
 use dbnexus_db::cassandra::CassandraDB;
@@ -1964,23 +1964,18 @@ pub async fn mongo_delete_ids(
 pub async fn mongo_show_collection_table_list(
     name: String,
     table_name: String,
-    filter: Vec<u8>,
-    page: u64,
-    page_size: u64,
-    sort: Vec<u8>,
+    para: MongoShowTablePara,
     app: tauri::State<'_, DBPal>,
 ) -> Result<MuiDataGridData, ErrorFrontend> {
     random_sleep().await;
     random_error()?;
-    let filter = parse_bson_doc(filter.as_slice())?;
-    let sort = parse_bson_doc(sort.as_slice())?;
     let db = app
         .get_schema(name.as_str())
         .await
         .map_err(|e| e.to_string())?;
     match db.as_any().downcast_ref::<MongoDB>() {
         Some(x) => {
-            x.show_collection_table_list(table_name.as_str(), filter, sort, page, page_size)
+            x.show_collection_table_list(table_name.as_str(), para.try_into()?)
                 .await
         }
         None => return Err(format!("db '{}' not mongo", name).into()),
@@ -1993,23 +1988,18 @@ pub async fn mongo_show_collection_table_list(
 pub async fn mongo_show_collection_docs(
     name: String,
     table_name: String,
-    filter: Vec<u8>,
-    sort: Vec<u8>,
     app: tauri::State<'_, DBPal>,
-    page: u64,
-    page_size: u64,
+    para: MongoShowTablePara,
 ) -> Result<DocsAndCount, ErrorFrontend> {
     random_sleep().await;
     random_error()?;
-    let filter = parse_bson_doc(filter.as_slice())?;
-    let sort = parse_bson_doc(sort.as_slice())?;
     let db = app
         .get_schema(name.as_str())
         .await
         .map_err(|e| e.to_string())?;
     let docs = match db.as_any().downcast_ref::<MongoDB>() {
         Some(x) => {
-            x.show_collection_docs(table_name.as_str(), filter, sort, page, page_size)
+            x.show_collection_docs(table_name.as_str(), para.try_into()?)
                 .await
         }
         None => return Err(format!("db '{}' not mongo", name).into()),
@@ -2315,55 +2305,17 @@ pub async fn mongo_query_collection_drop_search_index(
 pub async fn mongo_query_collection_find(
     name: String,
     col: String,
-    query: Vec<u8>,
-    hint: Option<Vec<u8>>,
-    projection: Option<Vec<u8>>,
-    sort: Option<Vec<u8>>,
-    min: Option<Vec<u8>>,
-    max: Option<Vec<u8>>,
-    limit: Option<i64>,
-    skip: Option<u64>,
+    para: app::MongoFindParameter,
     app: tauri::State<'_, DBPal>,
 ) -> Result<Vec<Vec<u8>>, ErrorFrontend> {
     random_sleep().await;
     random_error()?;
-
-    let max = if let Some(max) = max.as_ref() {
-        Some(parse_bson_doc(max)?)
-    } else {
-        None
-    };
-    let hint = if let Some(hint) = hint.as_ref() {
-        Some(parse_bson_doc(hint)?)
-    } else {
-        None
-    };
-    let min = if let Some(min) = min.as_ref() {
-        Some(parse_bson_doc(min)?)
-    } else {
-        None
-    };
-
-    let sort = if let Some(sort) = sort.as_ref() {
-        Some(parse_bson_doc(sort)?)
-    } else {
-        None
-    };
-    let projection = if let Some(projection) = projection.as_ref() {
-        Some(parse_bson_doc(projection)?)
-    } else {
-        None
-    };
-    let filter = parse_bson_doc(&query)?;
     let db = app
         .get_schema(name.as_str())
         .await
         .map_err(|e| e.to_string())?;
     let docs = match db.as_any().downcast_ref::<MongoDB>() {
-        Some(x) => {
-            x.query_collection_find(&col, projection, filter, sort, max, min, hint, limit, skip)
-                .await
-        }
+        Some(x) => x.query_collection_find(&col, para.try_into()?).await,
         None => return Err(format!("db '{}' not mongo", name).into()),
     }
     .map_err(ErrorFrontend::from)?;
@@ -2378,58 +2330,20 @@ pub async fn mongo_query_collection_find(
 pub async fn mongo_query_collection_find_one(
     name: String,
     col: String,
-    query: Vec<u8>,
-    hint: Option<Vec<u8>>,
-    projection: Option<Vec<u8>>,
-    sort: Option<Vec<u8>>,
-    min: Option<Vec<u8>>,
-    max: Option<Vec<u8>>,
-    skip: Option<u64>,
+    para: app::MongoFindParameter,
     app: tauri::State<'_, DBPal>,
 ) -> Result<Option<Vec<u8>>, ErrorFrontend> {
     random_sleep().await;
     random_error()?;
-
-    let max = if let Some(max) = max.as_ref() {
-        Some(parse_bson_doc(max)?)
-    } else {
-        None
-    };
-    let hint = if let Some(hint) = hint.as_ref() {
-        Some(parse_bson_doc(hint)?)
-    } else {
-        None
-    };
-    let min = if let Some(min) = min.as_ref() {
-        Some(parse_bson_doc(min)?)
-    } else {
-        None
-    };
-
-    let sort = if let Some(sort) = sort.as_ref() {
-        Some(parse_bson_doc(sort)?)
-    } else {
-        None
-    };
-    let projection = if let Some(projection) = projection.as_ref() {
-        Some(parse_bson_doc(projection)?)
-    } else {
-        None
-    };
-    let filter = parse_bson_doc(&query)?;
     let db = app
         .get_schema(name.as_str())
         .await
         .map_err(|e| e.to_string())?;
     let ret = match db.as_any().downcast_ref::<MongoDB>() {
-        Some(x) => {
-            x.query_collection_find_one(&col, projection, filter, sort, max, min, hint, skip)
-                .await
-        }
+        Some(x) => x.query_collection_find_one(&col, para.try_into()?).await,
         None => return Err(format!("db '{}' not mongo", name).into()),
     }
     .map_err(ErrorFrontend::from)?;
-
     Ok(match ret {
         Some(x) => Some(encode_bson_doc(&x)?),
         None => None,
@@ -3346,11 +3260,6 @@ impl TryFrom<dbnexus_db::mongo::DocsAndCount> for DocsAndCount {
 fn encode_bson_doc(doc: &Document) -> Result<Vec<u8>, String> {
     let bs = bson::to_vec(&doc).map_err(|e| e.to_string())?;
     Ok(bs)
-}
-
-fn parse_bson_doc(bs: &[u8]) -> Result<Document, String> {
-    let doc = bson::Document::from_reader(std::io::Cursor::new(bs)).map_err(|e| e.to_string())?;
-    Ok(doc)
 }
 
 fn block_random_sleep() {

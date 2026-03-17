@@ -8,7 +8,7 @@ use mongodb::{IndexModel, SearchIndexModel};
 
 use crate::db::{GetBackendKind, SchemaTrait, SqlBuilder};
 use crate::language_server::{CompletionItem, CompletionKind, CompletionList, LanguageServer};
-use crate::mongo::MongoDB;
+use crate::mongo::{MongoDB, MongoFindParameter};
 impl SqlBuilder for MongoDB {
     fn get_schema(&self) -> Option<&str> {
         None
@@ -210,15 +210,18 @@ impl MongoDB {
     pub async fn query_collection_find(
         &self,
         col: &str,
-        projection: Option<Document>,
-        filter: Document,
-        sort: Option<Document>,
-        max: Option<Document>,
-        min: Option<Document>,
-        hint: Option<Document>,
-        limit: Option<i64>,
-        skip: Option<u64>,
+        para: MongoFindParameter,
     ) -> anyhow::Result<Vec<Document>> {
+        let MongoFindParameter {
+            filter,
+            hint,
+            projection,
+            sort,
+            min,
+            max,
+            limit,
+            skip,
+        } = para;
         log::info!(
             "find parameter project:{:?} filter:{:?} sort:{:?} max:{:?} min:{:?} limit:{:?} skip:{:?}",
             projection,
@@ -229,6 +232,7 @@ impl MongoDB {
             limit,
             skip
         );
+
         let db = self.get_db().await?;
         let col = db.collection::<Document>(col);
         let mut f = col.find(filter);
@@ -265,14 +269,18 @@ impl MongoDB {
     pub async fn query_collection_find_one(
         &self,
         col: &str,
-        projection: Option<Document>,
-        filter: Document,
-        sort: Option<Document>,
-        max: Option<Document>,
-        min: Option<Document>,
-        hint: Option<Document>,
-        skip: Option<u64>,
+        para: MongoFindParameter,
     ) -> anyhow::Result<Option<Document>> {
+        let MongoFindParameter {
+            filter,
+            hint,
+            projection,
+            sort,
+            min,
+            max,
+            skip,
+            limit: _,
+        } = para;
         log::info!(
             "find parameter project:{:?} filter:{:?} sort:{:?} max:{:?} min:{:?} skip:{:?}",
             projection,

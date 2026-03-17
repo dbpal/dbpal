@@ -1,3 +1,4 @@
+use core::str;
 use dashmap::DashMap;
 use dbnexus_db::datasource_config::{
     CassandraDBConfig, ClickHouseConfig, CouchBaseDBConfig, Db2Config, DuckDBConfig,
@@ -14,7 +15,7 @@ use dbnexus_db::mysql::MysqlDB;
 use dbnexus_db::pg::PostGresDB;
 use font_kit::error::SelectionError;
 use langchain_rust::language_models::LLMError;
-use mongodb::bson;
+use mongodb::bson::{self, Document};
 use std::collections::HashMap;
 use std::sync::Arc;
 use std::time::Duration;
@@ -783,6 +784,106 @@ impl TaskManager {
                 manager: self.clone(),
             },
         )
+    }
+}
+
+#[derive(serde::Serialize, serde::Deserialize, Debug, Clone, TypeDef)]
+pub struct MongoFindParameter {
+    pub(crate) filter: Vec<u8>,
+    pub(crate) hint: Option<Vec<u8>>,
+    pub(crate) projection: Option<Vec<u8>>,
+    pub(crate) sort: Option<Vec<u8>>,
+    pub(crate) min: Option<Vec<u8>>,
+    pub(crate) max: Option<Vec<u8>>,
+    pub(crate) limit: Option<i64>,
+    pub(crate) skip: Option<u64>,
+}
+
+pub fn parse_bson_doc(bs: &[u8]) -> Result<Document, ErrorFrontend> {
+    bson::Document::from_reader(std::io::Cursor::new(bs)).map_err(ErrorFrontend::from)
+}
+
+impl From<mongodb::bson::de::Error> for ErrorFrontend {
+    fn from(value: mongodb::bson::de::Error) -> Self {
+        Self {
+            reason: value.to_string(),
+            detail: format!("{:?}", value),
+            cancelled: false,
+        }
+    }
+}
+
+impl TryFrom<MongoFindParameter> for dbnexus_db::mongo::MongoFindParameter {
+    type Error = ErrorFrontend;
+    fn try_from(value: MongoFindParameter) -> Result<Self, Self::Error> {
+        let MongoFindParameter {
+            filter,
+            hint,
+            projection,
+            sort,
+            min,
+            max,
+            limit,
+            skip,
+        } = value;
+        let r = dbnexus_db::mongo::MongoFindParameter {
+            filter: parse_bson_doc(&filter)?,
+            hint: if let Some(doc) = hint.as_ref() {
+                Some(parse_bson_doc(doc)?)
+            } else {
+                None
+            },
+            projection: if let Some(doc) = projection.as_ref() {
+                Some(parse_bson_doc(doc)?)
+            } else {
+                None
+            },
+            sort: if let Some(doc) = sort.as_ref() {
+                Some(parse_bson_doc(doc)?)
+            } else {
+                None
+            },
+            min: if let Some(doc) = min.as_ref() {
+                Some(parse_bson_doc(doc)?)
+            } else {
+                None
+            },
+            max: if let Some(doc) = max.as_ref() {
+                Some(parse_bson_doc(doc)?)
+            } else {
+                None
+            },
+            limit: limit,
+            skip: skip,
+        };
+        Ok(r)
+    }
+}
+
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+pub struct MongoShowTablePara {
+    pub(crate) sort: Vec<u8>,
+    pub(crate) filter: Vec<u8>,
+    pub(crate) page: u64,
+    pub(crate) page_size: u64,
+}
+
+impl TryFrom<MongoShowTablePara> for dbnexus_db::mongo::MongoShowTablePara {
+    type Error = ErrorFrontend;
+
+    fn try_from(value: MongoShowTablePara) -> Result<Self, Self::Error> {
+        let MongoShowTablePara {
+            filter,
+            page,
+            page_size,
+            sort,
+        } = value;
+        Ok(dbnexus_db::mongo::MongoShowTablePara {
+            filter: parse_bson_doc(&filter)?,
+            sort: parse_bson_doc(&sort)?,
+            page: page,
+            page_size: page_size,
+        })
     }
 }
 

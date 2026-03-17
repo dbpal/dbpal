@@ -558,6 +558,13 @@ function MongoTableToolBar(props: {
             size="medium"
             color="primary"
             icon={<FilterAltIcon />}
+            onDelete={
+              Object.keys(filter).length
+                ? () => {
+                    handleFilter({});
+                  }
+                : undefined
+            }
           />
         </Tooltip>
 
@@ -576,6 +583,13 @@ function MongoTableToolBar(props: {
             color="secondary"
             variant="outlined"
             icon={<FaArrowsAltV />}
+            onDelete={
+              Object.keys(sort).length
+                ? () => {
+                    handleSort({});
+                  }
+                : undefined
+            }
           />
         </Tooltip>
 
@@ -1110,14 +1124,7 @@ function BsonJsonPagination({
 }
 
 function MongoTableList(props: {
-  filter: BSON.Document;
-  sort: BSON.Document;
-  reloadOP: (
-    filter: BSON.Document,
-    sort: BSON.Document,
-    page: number,
-    pageSize: number,
-  ) => Promise<MuiDataGridData>;
+  reloadOP: (page: number, pageSize: number) => Promise<MuiDataGridData>;
   setSort;
   setFilter;
   loadOne: (id: any) => Promise<BSON.Document>;
@@ -1129,8 +1136,6 @@ function MongoTableList(props: {
   tableName: string;
 }) {
   const {
-    filter,
-    sort,
     reloadOP,
     setSort,
     loadOne,
@@ -1159,7 +1164,7 @@ function MongoTableList(props: {
     async (showOK) => {
       const now = new Date();
       setLoading(true);
-      reloadOP(filter, sort, page + 1, pageSize)
+      reloadOP(page + 1, pageSize)
         .then((r) => {
           r.data.forEach((e, index) => {
             e[keyNotInTable] = index;
@@ -1169,10 +1174,8 @@ function MongoTableList(props: {
             if (width) {
               f["width"] = width;
             }
-
             f["renderHeader"] = (e) => {
               const field = e.colDef as unknown as FieldAndGridField;
-
               return (
                 <Stack
                   onClick={(e) => {
@@ -1205,15 +1208,11 @@ function MongoTableList(props: {
           setLoading(false);
         });
     },
-    [filter, page, pageSize, reloadOP, setLoading, showNotification, sort],
+    [page, pageSize, reloadOP, setLoading, showNotification],
   );
 
   useEffect(() => {
     handleReload(false);
-  }, [page, pageSize, filter, sort, handleReload]);
-
-  useEffect(() => {
-    handleReload(true);
   }, [handleReload, triggerReload]);
 
   const handleLoadOne = useCallback(
@@ -1490,14 +1489,7 @@ function MongoTableList(props: {
 }
 
 function MongoTableObject(props: {
-  filter: BSON.Document;
-  sort: BSON.Document;
-  reloadOPDocs: (
-    filter: BSON.Document,
-    sort: BSON.Document,
-    page: number,
-    pageSize: number,
-  ) => Promise<DocsAndCount>;
+  reloadOPDocs: (page: number, pageSize: number) => Promise<DocsAndCount>;
   modifyOP?: (doc: BSON.Document) => Promise<void>;
   deleteOP?: (ids: any[] | any) => Promise<void>;
   triggerReload;
@@ -1507,8 +1499,6 @@ function MongoTableObject(props: {
   viewModel: MongoDataViewModel;
 }) {
   const {
-    filter,
-    sort,
     reloadOPDocs,
     modifyOP,
     deleteOP,
@@ -1529,7 +1519,7 @@ function MongoTableObject(props: {
   const handleReload = useCallback(
     async (showOK) => {
       setLoading(true);
-      reloadOPDocs(filter, sort, page, pageSize)
+      reloadOPDocs(page, pageSize)
         .then((resp) => {
           setDocs(resp);
           if (showOK) {
@@ -1543,7 +1533,7 @@ function MongoTableObject(props: {
           setLoading(false);
         });
     },
-    [filter, page, pageSize, reloadOPDocs, setLoading, showNotification, sort],
+    [page, pageSize, reloadOPDocs, setLoading, showNotification],
   );
 
   const handleDelete = async (ids: any[]) => {
@@ -1555,9 +1545,10 @@ function MongoTableObject(props: {
     showNotification("success", "Delete OK");
     handleReload(false);
   };
+
   useEffect(() => {
     handleReload(false);
-  }, [page, pageSize, filter, sort, handleReload]);
+  }, [handleReload]);
 
   useEffect(() => {
     handleReload(true);
@@ -1649,34 +1640,60 @@ function MongoTableObject(props: {
   );
 }
 
+type MongoShowTablePara = {
+  filter: Uint8Array;
+  page: number;
+  page_size: number;
+  sort: Uint8Array;
+};
+
 class MongoTableHandler {
-  static reloadTableList(uuid: string, table: string) {
-    return async (filter, sort, page, pageSize): Promise<MuiDataGridData> => {
-      return await invoke("mongo_show_collection_table_list", {
-        name: uuid,
-        tableName: table,
-        filter: BSON.serialize(filter),
-        sort: BSON.serialize(sort),
-        page,
-        pageSize,
-      });
+  static makeShowTablePara(filter, sort, page, pageSize): MongoShowTablePara {
+    return {
+      filter: BSON.serialize(filter),
+      sort: BSON.serialize(sort),
+      page,
+      page_size: pageSize,
     };
   }
-  static reloadDocs(uuid: string, table: string) {
-    return async (filter, sort, page, pageSize): Promise<DocsAndCount> => {
-      return invoke<{ count: number; docs: number[][] }>("mongo_show_collection_docs", {
-        name: uuid,
-        tableName: table,
-        filter: BSON.serialize(filter),
-        sort: BSON.serialize(sort),
-        page,
-        pageSize,
-      }).then((x) => {
-        const docs = x.docs.map((e) => BSON.deserialize(new Uint8Array(e)));
-        const count = x.count;
-        return new DocsAndCount(docs, count);
-      });
-    };
+
+  static async reloadTableList(
+    uuid: string,
+    table: string,
+    filter,
+    sort,
+    page,
+    pageSize,
+  ) {
+    let para: MongoShowTablePara = MongoTableHandler.makeShowTablePara(
+      filter,
+      sort,
+      page,
+      pageSize,
+    );
+    return await invoke<MuiDataGridData>("mongo_show_collection_table_list", {
+      name: uuid,
+      tableName: table,
+      para,
+    });
+  }
+
+  static reloadDocs(uuid: string, table: string, filter, sort, page, pageSize) {
+    let para: MongoShowTablePara = MongoTableHandler.makeShowTablePara(
+      filter,
+      sort,
+      page,
+      pageSize,
+    );
+    return invoke<{ count: number; docs: number[][] }>("mongo_show_collection_docs", {
+      name: uuid,
+      tableName: table,
+      para,
+    }).then((x) => {
+      const docs = x.docs.map((e) => BSON.deserialize(new Uint8Array(e)));
+      const count = x.count;
+      return new DocsAndCount(docs, count);
+    });
   }
 
   static loadOne(uuid: string, table: string) {
@@ -1716,8 +1733,6 @@ class MongoTableHandler {
 let oldViewModel = MongoDataViewModel.Object;
 function MongoTable(props: { uuid: string; table: string; isTable: boolean }) {
   const { uuid, table, isTable } = props;
-  const reloadOPTableList = MongoTableHandler.reloadTableList(uuid, table);
-  const reloadOPDocs = MongoTableHandler.reloadDocs(uuid, table);
   const modifyOP = isTable ? MongoTableHandler.modifyOP(uuid, table) : undefined;
   const loadOne = MongoTableHandler.loadOne(uuid, table);
   const deleteOP = isTable ? MongoTableHandler.deleteOP(uuid, table) : undefined;
@@ -1731,6 +1746,28 @@ function MongoTable(props: { uuid: string; table: string; isTable: boolean }) {
   }, [viewModel]);
   const [gridColCount, setGridColCount] = useState(3);
   const [editorHeight, setEditorHeight] = useState(500);
+
+  const reloadTable = useCallback(
+    (page: number, pageSize: number) => {
+      return MongoTableHandler.reloadTableList(
+        uuid,
+        table,
+        filter,
+        sort,
+        page,
+        pageSize,
+      );
+    },
+    [filter, sort, table, uuid],
+  );
+  useEffect(() => {}, [reloadTable]);
+  const reloadDocs = useCallback(
+    (page: number, pageSize: number) => {
+      return MongoTableHandler.reloadDocs(uuid, table, filter, sort, page, pageSize);
+    },
+    [filter, sort, table, uuid],
+  );
+
   return (
     <Stack style={{ height: "100%" }}>
       <MongoTableToolBar
@@ -1785,14 +1822,10 @@ function MongoTable(props: { uuid: string; table: string; isTable: boolean }) {
       {viewModel == MongoDataViewModel.List && (
         <MongoTableList
           setFilter={setFilter}
-          filter={filter}
-          sort={sort}
-          reloadOP={reloadOPTableList}
+          reloadOP={reloadTable}
           loadOne={loadOne}
           modifyOP={modifyOP}
-          setSort={(o) => {
-            setSort(o);
-          }}
+          setSort={setSort}
           deleteOP={deleteOP}
           triggerReload={triggerReload}
           loading={loading}
@@ -1800,12 +1833,9 @@ function MongoTable(props: { uuid: string; table: string; isTable: boolean }) {
           tableName={table}
         />
       )}
-
       {viewModel != MongoDataViewModel.List && (
         <MongoTableObject
-          filter={filter}
-          sort={sort}
-          reloadOPDocs={reloadOPDocs}
+          reloadOPDocs={reloadDocs}
           modifyOP={modifyOP}
           deleteOP={deleteOP}
           triggerReload={triggerReload}
