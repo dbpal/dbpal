@@ -478,26 +478,7 @@ impl FireBirdDB {
                 cols_map.insert(f.field.as_str(), f);
             });
             let mut conn = this.get_conn()?;
-            let sql = if let Some(para) = para {
-                let ShowTableParameter {
-                    where_str,
-                    order_by,
-                    page,
-                    page_size,
-                    ..
-                } = &para;
-
-                gen_show_sql(
-                    &table_name,
-                    this.backend_kind().format_fields(Some(&cols)).into(),
-                    where_str.as_deref(),
-                    order_by.as_deref(),
-                    *page,
-                    *page_size,
-                )
-            } else {
-                format!("SELECT * from {}", table_name)
-            };
+            let sql = this.gen_show_sql(&table_name, Some(&cols), para.as_ref());
             log::info!("sql:{}", sql);
             let rows: Box<dyn Iterator<Item = Result<Row, FbError>>> = conn.query_iter(&sql, ())?;
             for row in rows {
@@ -607,25 +588,7 @@ impl SchemaTrait for FireBirdDB {
             }
 
             _ => {
-                let sql = if let Some(para) = para {
-                    let ShowTableParameter {
-                        where_str,
-                        order_by,
-                        page,
-                        page_size,
-                        ..
-                    } = &para;
-                    gen_show_sql(
-                        name,
-                        None,
-                        where_str.as_deref(),
-                        order_by.as_deref(),
-                        *page,
-                        *page_size,
-                    )
-                } else {
-                    format!(r#"SELECT * FROM "{}""#, name)
-                };
+                let sql = self.gen_show_sql(name, None, para.as_ref());
                 self.export_query_result(None, &sql, kind, sender).await
             }
         }
@@ -683,16 +646,9 @@ impl SchemaTrait for FireBirdDB {
         let table_name = table_name.to_owned();
         let this = Clone::clone(self);
         spawn_blocking(move || {
-            let ShowTableParameter {
-                where_str,
-                order_by,
-                page,
-                page_size,
-                ..
-            } = &para;
             emit.send("trying to get connection".into())?;
             let mut conn = this.get_conn()?;
-            let total = Self::query_count(&mut conn, &table_name, where_str.as_deref())?;
+            let total = Self::query_count(&mut conn, &table_name, para.where_str.as_deref())?;
             emit.send(
                 QueryResp {
                     fields: fs.clone(),
@@ -701,14 +657,7 @@ impl SchemaTrait for FireBirdDB {
                 }
                 .into(),
             )?;
-            let sql = gen_show_sql(
-                &table_name,
-                Some(this.backend_kind().format_fields(Some(&fs))),
-                where_str.as_deref(),
-                order_by.as_deref(),
-                *page,
-                *page_size,
-            );
+            let sql = this.gen_show_sql(&table_name, Some(&fs), Some(&para));
             let mut fs_map = HashMap::new();
             for f in fs.iter() {
                 fs_map.insert(&f.field, f);
@@ -890,28 +839,14 @@ impl SchemaTrait for FireBirdDB {
         let this = Clone::clone(self);
         let view_name = view_name.to_owned();
         spawn_blocking(move || {
-            let ShowTableParameter {
-                where_str,
-                order_by,
-                page,
-                page_size,
-                ..
-            } = &para;
             emit.send("trying to get view columns".into())?;
             let fields = this.show_table_columns_impl(&view_name)?;
-            let sql = gen_show_sql(
-                &view_name,
-                None,
-                where_str.as_deref(),
-                order_by.as_deref(),
-                *page,
-                *page_size,
-            );
+            let sql = this.gen_show_sql(&view_name, None, Some(&para));
             emit.send("trying to get connection.".into())?;
             let mut conn = this.get_conn()?;
             log::info!("sql:{}", sql);
             emit.send("trying to query total count.".into())?;
-            let total = Self::query_count(&mut conn, &view_name, where_str.as_deref())?;
+            let total = Self::query_count(&mut conn, &view_name, para.where_str.as_deref())?;
             emit.send(
                 QueryResp {
                     fields,
@@ -955,6 +890,36 @@ impl SqlBuilder for FireBirdDB {
     }
     fn get_schema(&self) -> Option<&str> {
         None
+    }
+
+    fn gen_show_sql(
+        &self,
+        table_name: &str,
+        fields: Option<&[Field]>,
+        para: Option<&ShowTableParameter>,
+    ) -> String {
+        let mut sql = format!(
+            r#"SELECT  {}  FROM "{table_name}""#,
+            self.backend_kind().format_fields(fields)
+        );
+        if let Some(para) = para {
+            let ShowTableParameter {
+                where_str,
+                order_by,
+                page,
+                page_size,
+                ..
+            } = para;
+            if let Some(where_str) = where_str {
+                sql.push_str(format!(" WHERE {where_str} ").as_str());
+            }
+            if let Some(order_by) = order_by {
+                sql.push_str(format!(" ORDER BY {order_by} ").as_str());
+            }
+            let offset = (page - 1) * page_size;
+            sql.push_str(format!(" ROWS {} TO {} ", offset + 1, offset + page_size).as_str());
+        }
+        sql
     }
 }
 
@@ -1029,33 +994,6 @@ impl FireBirdDB {
         }?;
         anyhow::Ok(conn)
     }
-}
-
-pub(crate) fn gen_show_sql(
-    table_name: &str,
-    fields: Option<String>,
-    where_str: Option<&str>,
-    order_by: Option<&str>,
-    page: usize,
-    page_size: usize,
-) -> String {
-    let mut sql = format!(
-        r#"SELECT  {}  FROM "{table_name}""#,
-        if let Some(fields) = fields {
-            fields
-        } else {
-            "*".to_owned()
-        }
-    );
-    if let Some(where_str) = where_str {
-        sql.push_str(format!(" WHERE {where_str} ").as_str());
-    }
-    if let Some(order_by) = order_by {
-        sql.push_str(format!(" ORDER BY {order_by} ").as_str());
-    }
-    let offset = (page - 1) * page_size;
-    sql.push_str(format!(" ROWS {} TO {} ", offset + 1, offset + page_size).as_str());
-    sql
 }
 
 #[cfg(test)]

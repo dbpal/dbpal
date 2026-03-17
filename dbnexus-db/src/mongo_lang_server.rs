@@ -17,7 +17,17 @@ impl SqlBuilder for MongoDB {
     fn put_value_in_sql(&self, _typ: &str, _value: Option<&str>) -> anyhow::Result<String> {
         self.backend_kind().not_support_feature()
     }
+
+    fn gen_show_sql(
+        &self,
+        _table_name: &str,
+        _fields: Option<&[crate::db::Field]>,
+        _para: Option<&crate::db::ShowTableParameter>,
+    ) -> String {
+        "".into()
+    }
 }
+
 #[async_trait::async_trait]
 impl LanguageServer for MongoDB {
     async fn ai_text_completion(

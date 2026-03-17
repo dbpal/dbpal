@@ -82,25 +82,7 @@ impl SqliteDB {
         }
         let mut conn = self.get_conn().await?;
         let cols = SchemaTrait::show_table_columns(self, table_name).await?;
-        let sql = if let Some(para) = para {
-            let ShowTableParameter {
-                where_str,
-                order_by,
-                page,
-                page_size,
-                ..
-            } = &para;
-            gen_show_sql(
-                table_name,
-                self.backend_kind().format_fields(Some(&cols)).into(),
-                where_str.as_deref(),
-                order_by.as_deref(),
-                *page,
-                *page_size,
-            )
-        } else {
-            format!("SELECT * from {}", table_name)
-        };
+        let sql = self.gen_show_sql(table_name, Some(&cols), para.as_ref());
         log::info!("sql:{}", sql);
         let mut stream = sqlx::raw_sql(AssertSqlSafe(sql.as_str())).fetch(conn.deref_mut());
         while let Some(row) = stream.next().await {
@@ -477,25 +459,7 @@ impl SchemaTrait for SqliteDB {
                     .await
             }
             _ => {
-                let sql = if let Some(para) = para {
-                    let ShowTableParameter {
-                        where_str,
-                        order_by,
-                        page,
-                        page_size,
-                        ..
-                    } = &para;
-                    gen_show_sql(
-                        name,
-                        None,
-                        where_str.as_deref(),
-                        order_by.as_deref(),
-                        *page,
-                        *page_size,
-                    )
-                } else {
-                    format!("SELECT * from {}", name)
-                };
+                let sql = self.gen_show_sql(name, None, para.as_ref());
                 self.export_query_result(None, &sql, kind, sender).await
             }
         }
@@ -586,26 +550,14 @@ impl SchemaTrait for SqliteDB {
         para: ShowTableParameter,
         emit: QueryEventEmitter,
     ) -> anyhow::Result<()> {
-        let ShowTableParameter {
-            where_str,
-            order_by,
-            page,
-            page_size,
-            ..
-        } = &para;
         emit.send("trying to query table columns.".into())?;
         let fields = self.show_table_columns(table_name).await?;
         emit.send("trying to get total amount.".into())?;
-        let total = self.query_count(table_name, where_str.as_deref()).await?;
+        let total = self
+            .query_count(table_name, para.where_str.as_deref())
+            .await?;
         log::trace!("query count ok");
-        let sql = gen_show_sql(
-            table_name,
-            Some(self.backend_kind().format_fields(Some(&fields))),
-            where_str.as_deref(),
-            order_by.as_deref(),
-            *page,
-            *page_size,
-        );
+        let sql = self.gen_show_sql(table_name, Some(&fields), Some(&para));
         emit.send(
             QueryResp {
                 fields,
@@ -633,25 +585,13 @@ impl SchemaTrait for SqliteDB {
         para: ShowTableParameter,
         emit: QueryEventEmitter,
     ) -> anyhow::Result<()> {
-        let ShowTableParameter {
-            where_str,
-            order_by,
-            page,
-            page_size,
-            ..
-        } = &para;
         emit.send("trying to get connection.".into())?;
         let mut conn = self.get_conn().await?;
         emit.send("trying to query total amount.".into())?;
-        let total = self.query_count(view_name, where_str.as_deref()).await?;
-        let sql = gen_show_sql(
-            view_name,
-            None,
-            where_str.as_deref(),
-            order_by.as_deref(),
-            *page,
-            *page_size,
-        );
+        let total = self
+            .query_count(view_name, para.where_str.as_deref())
+            .await?;
+        let sql = self.gen_show_sql(view_name, None, Some(&para));
         log::info!("show table sql:{}", sql);
         emit.send("trying to query data.".into())?;
         let mut stream = sqlx::raw_sql(AssertSqlSafe(sql.as_str())).fetch(conn.deref_mut());
@@ -802,10 +742,71 @@ impl SqlBuilder for SqliteDB {
         };
         anyhow::Ok(v)
     }
+
+    fn gen_show_sql(
+        &self,
+        table_name: &str,
+        fields: Option<&[Field]>,
+        para: Option<&ShowTableParameter>,
+    ) -> String {
+        let mut sql = format!(
+            r#"SELECT {} FROM "{table_name}""#,
+            self.backend_kind().format_fields(fields)
+        );
+        if let Some(para) = para {
+            let ShowTableParameter {
+                where_str,
+                order_by,
+                page,
+                page_size,
+                ..
+            } = para;
+            if let Some(where_str) = where_str {
+                sql.push_str(format!(" WHERE {where_str} ").as_str());
+            }
+            if let Some(order_by) = order_by {
+                sql.push_str(format!(" ORDER BY {order_by} ").as_str());
+            }
+            let offset = (page - 1) * page_size;
+            sql.push_str(format!(" LIMIT {} OFFSET {} ", page_size, offset).as_str());
+        }
+
+        sql
+    }
 }
 
 pub(crate) fn encode_bytes(bs: &[u8]) -> String {
     format!("X'{}'", hex::encode_upper(bs))
+}
+
+pub(crate) fn gen_show_sql(
+    backend: BackendKind,
+    table_name: &str,
+    fields: Option<&[Field]>,
+    para: Option<&ShowTableParameter>,
+) -> String {
+    let mut sql = format!(
+        r#"SELECT {} FROM "{table_name}""#,
+        backend.format_fields(fields)
+    );
+    if let Some(para) = para {
+        let ShowTableParameter {
+            where_str,
+            order_by,
+            page,
+            page_size,
+            ..
+        } = para;
+        if let Some(where_str) = where_str {
+            sql.push_str(format!(" WHERE {where_str} ").as_str());
+        }
+        if let Some(order_by) = order_by {
+            sql.push_str(format!(" ORDER BY {order_by} ").as_str());
+        }
+        let offset = (page - 1) * page_size;
+        sql.push_str(format!(" LIMIT {} OFFSET {} ", page_size, offset).as_str());
+    }
+    sql
 }
 
 fn encode_row_as_json(r: &SqliteRow) -> anyhow::Result<serde_json::Value> {
@@ -1373,33 +1374,6 @@ impl QuerySql for SqliteDB {
         self.query_connection.remove(&id.to_owned());
         anyhow::Ok(())
     }
-}
-
-pub(crate) fn gen_show_sql(
-    table_name: &str,
-    fields: Option<String>,
-    where_str: Option<&str>,
-    order_by: Option<&str>,
-    page: usize,
-    page_size: usize,
-) -> String {
-    let mut sql = format!(
-        r#"SELECT {} FROM "{table_name}""#,
-        if let Some(fields) = fields {
-            fields
-        } else {
-            "*".to_owned()
-        }
-    );
-    if let Some(where_str) = where_str {
-        sql.push_str(format!(" WHERE {where_str} ").as_str());
-    }
-    if let Some(order_by) = order_by {
-        sql.push_str(format!(" ORDER BY {order_by} ").as_str());
-    }
-    let offset = (page - 1) * page_size;
-    sql.push_str(format!(" LIMIT {} OFFSET {} ", page_size, offset).as_str());
-    sql
 }
 
 #[cfg(test)]

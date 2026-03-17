@@ -38,30 +38,7 @@ impl ClickHouseDB {
             let x = self.show_create_table_sql(table_name).await?;
             sender.send(x.create_table.to_string().into()).await?;
         }
-        let sql = if let Some(para) = para {
-            let ShowTableParameter {
-                where_str,
-                order_by,
-                page,
-                page_size,
-                ..
-            } = &para;
-            gen_show_sql(
-                self.config.db_str(),
-                table_name,
-                None,
-                where_str.as_deref(),
-                order_by.as_deref(),
-                *page,
-                *page_size,
-            )
-        } else {
-            format!(
-                r#"select * from `{}`.`{}`"#,
-                self.config.db_str(),
-                table_name
-            )
-        };
+        let sql = self.gen_show_sql(table_name, None, para.as_ref());
         let mut stream = self.query_row(&sql).await?;
         let mut fs = vec![];
         while let Some(row) = stream.next().await {
@@ -87,35 +64,6 @@ impl ClickHouseDB {
         }
         anyhow::Ok(())
     }
-}
-
-fn gen_show_sql(
-    schema: &str,
-    table_name: &str,
-    fields: Option<String>,
-    where_str: Option<&str>,
-    order_by: Option<&str>,
-    page: usize,
-    page_size: usize,
-) -> String {
-    let mut sql = format!(
-        "SELECT {} from `{schema}`.`{table_name}`",
-        if let Some(x) = fields {
-            x
-        } else {
-            "*".to_owned()
-        }
-    );
-    if let Some(where_str) = where_str {
-        sql.push_str(format!(" where {where_str} ").as_str());
-    }
-    if let Some(order_by) = order_by {
-        sql.push_str(format!(" ORDER BY {order_by} ").as_str());
-    }
-    let offset = (page - 1) * page_size;
-    sql.push_str(format!(" LIMIT {} , {}", offset, page_size).as_str());
-
-    sql
 }
 
 impl ClickHouseDB {
@@ -229,26 +177,7 @@ impl SchemaTrait for ClickHouseDB {
                     .await
             }
             _ => {
-                let sql = if let Some(para) = para {
-                    let ShowTableParameter {
-                        where_str,
-                        order_by,
-                        page,
-                        page_size,
-                        ..
-                    } = &para;
-                    gen_show_sql(
-                        self.config.db_str(),
-                        name,
-                        None,
-                        where_str.as_deref(),
-                        order_by.as_deref(),
-                        *page,
-                        *page_size,
-                    )
-                } else {
-                    format!(r#"SELECT * from `{}`.`{}`"#, self.config.db_str(), name)
-                };
+                let sql = self.gen_show_sql(name, None, para.as_ref());
                 log::info!("sql:{}", sql);
                 self.export_query_result(None, &sql, kind, sender).await
             }
@@ -407,30 +336,14 @@ impl SchemaTrait for ClickHouseDB {
         para: ShowTableParameter,
         emit: QueryEventEmitter,
     ) -> anyhow::Result<()> {
-        let ShowTableParameter {
-            where_str,
-            order_by,
-            page,
-            page_size,
-            ..
-        } = &para;
         emit.send("trying to query total count.".into())?;
         let total = self
-            .query_count(self.config.db_str(), table_name, where_str.as_deref())
+            .query_count(self.config.db_str(), table_name, para.where_str.as_deref())
             .await?;
         emit.send("trying to query columns.".into())?;
         let fs = self.show_table_columns(table_name).await?;
-        let sql = gen_show_sql(
-            self.config.db_str(),
-            table_name,
-            Some(self.backend_kind().format_fields(Some(&fs))),
-            where_str.as_deref(),
-            order_by.as_deref(),
-            *page,
-            *page_size,
-        );
+        let sql = self.gen_show_sql(table_name, Some(&fs), Some(&para));
         log::info!("sql:{}", sql);
-
         emit.send(
             QueryResp {
                 fields: fs,
@@ -460,26 +373,11 @@ impl SchemaTrait for ClickHouseDB {
         para: ShowTableParameter,
         emit: QueryEventEmitter,
     ) -> anyhow::Result<()> {
-        let ShowTableParameter {
-            where_str,
-            order_by,
-            page,
-            page_size,
-            ..
-        } = &para;
         emit.send("trying to query total count.".into())?;
         let total = self
-            .query_count(self.config.db_str(), view_name, where_str.as_deref())
+            .query_count(self.config.db_str(), view_name, para.where_str.as_deref())
             .await?;
-        let sql = gen_show_sql(
-            self.config.db_str(),
-            view_name,
-            None,
-            where_str.as_deref(),
-            order_by.as_deref(),
-            *page,
-            *page_size,
-        );
+        let sql = self.gen_show_sql(view_name, None, Some(&para));
         log::info!("sql:{}", sql);
         emit.send("trying to query data.".into())?;
         let mut stream = self.query_row(&sql).await?;
@@ -1325,6 +1223,37 @@ impl SqlBuilder for ClickHouseDB {
 
     fn get_schema(&self) -> Option<&str> {
         self.config.db.as_deref()
+    }
+
+    fn gen_show_sql(
+        &self,
+        table_name: &str,
+        fields: Option<&[Field]>,
+        para: Option<&ShowTableParameter>,
+    ) -> String {
+        let schema = self.config.db_str();
+        let mut sql = format!(
+            "SELECT {} from `{schema}`.`{table_name}`",
+            self.backend_kind().format_fields(fields)
+        );
+        if let Some(para) = para {
+            let ShowTableParameter {
+                where_str,
+                order_by,
+                page,
+                page_size,
+                ..
+            } = para;
+            if let Some(where_str) = where_str {
+                sql.push_str(format!(" where {where_str} ").as_str());
+            }
+            if let Some(order_by) = order_by {
+                sql.push_str(format!(" ORDER BY {order_by} ").as_str());
+            }
+            let offset = (page - 1) * page_size;
+            sql.push_str(format!(" LIMIT {} , {}", offset, page_size).as_str());
+        }
+        sql
     }
 }
 

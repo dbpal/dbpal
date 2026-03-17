@@ -164,24 +164,6 @@ fn extract_id_and_value(
     anyhow::Ok((id, value))
 }
 
-fn gen_show_sql(
-    table: &str,
-    where_str: Option<&str>,
-    order_by: Option<&str>,
-    page: usize,
-    page_size: usize,
-) -> String {
-    let mut sql = format!("SELECT META().id, * FROM `{table}`");
-    if let Some(w) = where_str {
-        sql.push_str(format!(" where {}", w).as_str());
-    }
-    if let Some(o) = order_by {
-        sql.push_str(format!(" ORDER BY {}", o).as_str());
-    }
-    sql.push_str(format!(" LIMIT {} OFFSET {}", page_size, (page - 1) * page_size).as_str());
-    sql
-}
-
 impl CouchBaseDB {
     pub(crate) async fn query_count(
         &self,
@@ -333,23 +315,10 @@ impl SchemaTrait for CouchBaseDB {
         para: ShowTableParameter,
         emit: QueryEventEmitter,
     ) -> anyhow::Result<()> {
-        let ShowTableParameter {
-            where_str,
-            order_by,
-            page,
-            page_size,
-            ..
-        } = &para;
-        let sql = gen_show_sql(
-            table_name,
-            where_str.as_deref(),
-            order_by.as_deref(),
-            *page,
-            *page_size,
-        );
-
-        let total = self.query_count(table_name, where_str.as_deref()).await?;
-        dbg!(total);
+        let sql = self.gen_show_sql(table_name, None, Some(&para));
+        let total = self
+            .query_count(table_name, para.where_str.as_deref())
+            .await?;
         emit.send(
             QueryResp {
                 sql: Some(sql.clone()),
@@ -413,6 +382,35 @@ impl SqlBuilder for CouchBaseDB {
 
     fn put_value_in_sql(&self, _typ: &str, _value: Option<&str>) -> anyhow::Result<String> {
         self.backend_kind().not_support_feature()
+    }
+
+    fn gen_show_sql(
+        &self,
+        table_name: &str,
+        _fields: Option<&[Field]>,
+        para: Option<&ShowTableParameter>,
+    ) -> String {
+        let mut sql = format!("SELECT META().id, * FROM `{table_name}`");
+
+        if let Some(para) = para {
+            let ShowTableParameter {
+                where_str,
+                order_by,
+                page,
+                page_size,
+                ..
+            } = &para;
+            if let Some(w) = where_str {
+                sql.push_str(format!(" where {}", w).as_str());
+            }
+            if let Some(o) = order_by {
+                sql.push_str(format!(" ORDER BY {}", o).as_str());
+            }
+            sql.push_str(
+                format!(" LIMIT {} OFFSET {}", page_size, (page - 1) * page_size).as_str(),
+            );
+        }
+        sql
     }
 }
 #[async_trait::async_trait]

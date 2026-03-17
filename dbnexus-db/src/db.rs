@@ -601,6 +601,13 @@ pub trait SqlBuilder: GetBackendKind {
         &[]
     }
 
+    fn gen_show_sql(
+        &self,
+        table_name: &str,
+        fields: Option<&[Field]>,
+        para: Option<&ShowTableParameter>,
+    ) -> String;
+
     fn hit_current_value(&self, value: Option<&str>) -> bool {
         value
             .map(|x| {

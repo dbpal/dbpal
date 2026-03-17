@@ -277,39 +277,6 @@ fn encode_row(row: &tiberius::Row) -> anyhow::Result<Vec<Option<String>>> {
     anyhow::Ok(values)
 }
 
-fn gen_show_sql(
-    schema: &str,
-    table_name: &str,
-    fields: Option<String>,
-    where_str: Option<&str>,
-    order_by: Option<&str>,
-    page: usize,
-    page_size: usize,
-) -> String {
-    let mut sql = format!(
-        r#"SELECT {} FROM "{schema}"."{table_name}""#,
-        if let Some(fields) = fields {
-            fields
-        } else {
-            "*".to_string()
-        }
-    );
-    if let Some(where_str) = where_str {
-        sql.push_str(format!(" WHERE {where_str} ").as_str());
-    }
-    if let Some(order_by) = order_by {
-        sql.push_str(format!(" ORDER BY {order_by} ").as_str());
-    } else {
-        // sql server 的offset子句只能和order by一起使用
-        sql.push_str(" ORDER  BY (SELECT NULL) ")
-    }
-
-    let offset = (page - 1) * page_size;
-    sql.push_str(format!(" OFFSET {} ROWS FETCH NEXT {} ROWS ONLY", offset, page_size).as_str());
-
-    sql
-}
-
 // TODO sqlparse don't support parse trigger statement
 // use lexer to solve this issue.
 fn extract_trigger_event_base_on_lexer(sql: &str) -> anyhow::Result<TriggerEvent> {
@@ -752,26 +719,7 @@ impl SchemaTrait for SqlServerDB {
                     .await
             }
             _ => {
-                let sql = if let Some(para) = para {
-                    let ShowTableParameter {
-                        where_str,
-                        order_by,
-                        page,
-                        page_size,
-                        ..
-                    } = &para;
-                    gen_show_sql(
-                        self.config.schema_str()?,
-                        table_name,
-                        None,
-                        where_str.as_deref(),
-                        order_by.as_deref(),
-                        *page,
-                        *page_size,
-                    )
-                } else {
-                    format!(r#"SELECT * from "{}" "#, table_name)
-                };
+                let sql = self.gen_show_sql(table_name, None, para.as_ref());
                 self.export_query_result(None, &sql, kind, sender).await
             }
         }
@@ -791,14 +739,6 @@ impl SchemaTrait for SqlServerDB {
         para: ShowTableParameter,
         emit: QueryEventEmitter,
     ) -> anyhow::Result<()> {
-        let ShowTableParameter {
-            where_str,
-            order_by,
-            page,
-            page_size,
-            ..
-        } = &para;
-
         emit.send("trying to get connection.".into())?;
         let mut conn = self.get_conn().await?;
         let conn = conn.deref_mut();
@@ -807,18 +747,10 @@ impl SchemaTrait for SqlServerDB {
             conn,
             self.config.schema_str()?,
             view_name,
-            where_str.as_deref(),
+            para.where_str.as_deref(),
         )
         .await?;
-        let sql = gen_show_sql(
-            self.config.schema_str()?.as_str(),
-            view_name,
-            None,
-            where_str.as_deref(),
-            order_by.as_deref(),
-            *page,
-            *page_size,
-        );
+        let sql = self.gen_show_sql(view_name, None, Some(&para));
         log::info!("sql:{}", sql);
         emit.send("trying to get data.".into())?;
         let mut stream = conn.query(&sql, &[]).await?;
@@ -935,13 +867,6 @@ impl SchemaTrait for SqlServerDB {
         para: ShowTableParameter,
         emit: QueryEventEmitter,
     ) -> anyhow::Result<()> {
-        let ShowTableParameter {
-            where_str,
-            order_by,
-            page,
-            page_size,
-            ..
-        } = &para;
         emit.send("trying to get connection.".into())?;
         let mut conn = self.get_conn().await?;
         let conn = conn.deref_mut();
@@ -950,19 +875,11 @@ impl SchemaTrait for SqlServerDB {
             conn,
             self.config.schema_str()?,
             table_name,
-            where_str.as_deref(),
+            para.where_str.as_deref(),
         )
         .await?;
         let fields = self.show_table_columns(table_name).await?;
-        let sql = gen_show_sql(
-            self.config.schema_str()?.as_str(),
-            table_name,
-            Some(self.backend_kind().format_fields(Some(&fields))),
-            where_str.as_deref(),
-            order_by.as_deref(),
-            *page,
-            *page_size,
-        );
+        let sql = self.gen_show_sql(table_name, Some(&fields), Some(&para));
         emit.send(
             QueryResp {
                 fields,
@@ -1259,6 +1176,43 @@ impl SqlBuilder for SqlServerDB {
         log::trace!("type:{:?} encode '{:?}' as #{}#", typ, value, v);
         anyhow::Ok(v)
     }
+
+    fn gen_show_sql(
+        &self,
+        table_name: &str,
+        fields: Option<&[Field]>,
+        para: Option<&ShowTableParameter>,
+    ) -> String {
+        let schema = self.config.schema_str().expect("must be some");
+        let mut sql = format!(
+            r#"SELECT {} FROM "{schema}"."{table_name}""#,
+            self.backend_kind().format_fields(fields)
+        );
+        if let Some(para) = para {
+            let ShowTableParameter {
+                where_str,
+                order_by,
+                page,
+                page_size,
+                ..
+            } = para;
+            if let Some(where_str) = where_str {
+                sql.push_str(format!(" WHERE {where_str} ").as_str());
+            }
+            if let Some(order_by) = order_by {
+                sql.push_str(format!(" ORDER BY {order_by} ").as_str());
+            } else {
+                // sql server 的offset子句只能和order by一起使用
+                sql.push_str(" ORDER  BY (SELECT NULL) ")
+            }
+            let offset = (page - 1) * page_size;
+            sql.push_str(
+                format!(" OFFSET {} ROWS FETCH NEXT {} ROWS ONLY", offset, page_size).as_str(),
+            );
+        }
+
+        sql
+    }
 }
 
 impl SqlServerDB {
@@ -1449,26 +1403,7 @@ impl SqlServerDB {
         let mut conn = self.get_conn().await?;
         let conn = conn.deref_mut();
         let cols = SchemaTrait::show_table_columns(self, table_name).await?;
-        let sql = if let Some(para) = para {
-            let ShowTableParameter {
-                where_str,
-                order_by,
-                page,
-                page_size,
-                ..
-            } = &para;
-            gen_show_sql(
-                self.config.schema_str()?,
-                table_name,
-                Some(self.backend_kind().format_fields(Some(&cols))),
-                where_str.as_deref(),
-                order_by.as_deref(),
-                *page,
-                *page_size,
-            )
-        } else {
-            format!(r#"SELECT * from "{}""#, table_name)
-        };
+        let sql = self.gen_show_sql(table_name, Some(&cols), para.as_ref());
         log::info!("sql:{}", sql);
         let mut stream = conn.query(sql.as_str(), &[]).await?;
         while let Some(row) = stream.next().await {

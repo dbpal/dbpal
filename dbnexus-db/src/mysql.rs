@@ -70,32 +70,6 @@ impl ReadOnlyTrait for MysqlDB {
         self.config.read_only
     }
 }
-fn gen_show_sql(
-    table_name: &str,
-    fields: Option<String>,
-    where_str: Option<&str>,
-    order_by: Option<&str>,
-    page: usize,
-    page_size: usize,
-) -> String {
-    let mut sql = format!(
-        r#"SELECT {} FROM `{table_name}`"#,
-        if let Some(fields) = fields {
-            fields
-        } else {
-            "*".to_owned()
-        }
-    );
-    if let Some(where_str) = where_str {
-        sql.push_str(format!(" WHERE {where_str} ").as_str());
-    }
-    if let Some(order_by) = order_by {
-        sql.push_str(format!(" ORDER BY {order_by} ").as_str());
-    }
-    let offset = (page - 1) * page_size;
-    sql.push_str(format!(" LIMIT {} OFFSET {} ", page_size, offset).as_str());
-    sql
-}
 
 fn encode_row_as_json(row: &MySqlRow, try_blob_to_str: bool) -> anyhow::Result<serde_json::Value> {
     let mut values = serde_json::Map::new();
@@ -292,25 +266,8 @@ impl MysqlDB {
         }
         let mut conn = self.get_conn().await?;
         let cols = SchemaTrait::show_table_columns(self, table_name).await?;
-        let sql = if let Some(para) = para {
-            let ShowTableParameter {
-                where_str,
-                order_by,
-                page,
-                page_size,
-                ..
-            } = &para;
-            gen_show_sql(
-                table_name,
-                self.backend_kind().format_fields(Some(&cols)).into(),
-                where_str.as_deref(),
-                order_by.as_deref(),
-                *page,
-                *page_size,
-            )
-        } else {
-            format!(r#"SELECT * from `{}`"#, table_name)
-        };
+        let sql = self.gen_show_sql(table_name, Some(&cols), para.as_ref());
+
         log::info!("sql:{}", sql);
         let mut stream = sqlx::raw_sql(AssertSqlSafe(sql.as_str())).fetch(conn.deref_mut());
         while let Some(row) = stream.next().await {
@@ -950,25 +907,7 @@ impl SchemaTrait for MysqlDB {
                     .await
             }
             _ => {
-                let sql = if let Some(para) = para {
-                    let ShowTableParameter {
-                        where_str,
-                        order_by,
-                        page,
-                        page_size,
-                        ..
-                    } = &para;
-                    gen_show_sql(
-                        name,
-                        None,
-                        where_str.as_deref(),
-                        order_by.as_deref(),
-                        *page,
-                        *page_size,
-                    )
-                } else {
-                    format!("SELECT * from `{}`", name)
-                };
+                let sql = self.gen_show_sql(name, None, para.as_ref());
                 log::info!("sql:{}", sql);
                 self.export_query_result(None, &sql, kind, sender).await
             }
@@ -1019,26 +958,14 @@ impl SchemaTrait for MysqlDB {
         para: ShowTableParameter,
         emit: QueryEventEmitter,
     ) -> anyhow::Result<()> {
-        let ShowTableParameter {
-            where_str,
-            order_by,
-            page,
-            page_size,
-            ..
-        } = &para;
-        let sql = gen_show_sql(
-            view_name,
-            None,
-            where_str.as_deref(),
-            order_by.as_deref(),
-            *page,
-            *page_size,
-        );
+        let sql = self.gen_show_sql(view_name, None, Some(&para));
         log::info!("sql:{}", sql);
         emit.send("trying to get connection...".into())?;
         let mut conn = self.get_conn().await?;
         emit.send("trying to query total amount.".into())?;
-        let total = self.query_count(view_name, where_str.as_deref()).await?;
+        let total = self
+            .query_count(view_name, para.where_str.as_deref())
+            .await?;
         emit.send("trying to query data.".into())?;
         let mut stream = sqlx::raw_sql(AssertSqlSafe(sql.as_str())).fetch(conn.deref_mut());
         let mut first = true;
@@ -1172,25 +1099,13 @@ impl SchemaTrait for MysqlDB {
         para: ShowTableParameter,
         emit: QueryEventEmitter,
     ) -> anyhow::Result<()> {
-        let ShowTableParameter {
-            where_str,
-            order_by,
-            page,
-            page_size,
-            ..
-        } = &para;
         emit.send("trying to query table columns.".into())?;
         let fields = self.show_table_columns(table_name).await?;
         emit.send("trying to query total amount".into())?;
-        let total = self.query_count(table_name, where_str.as_deref()).await?;
-        let sql = gen_show_sql(
-            table_name,
-            Some(self.backend_kind().format_fields(Some(&fields))),
-            where_str.as_deref(),
-            order_by.as_deref(),
-            *page,
-            *page_size,
-        );
+        let total = self
+            .query_count(table_name, para.where_str.as_deref())
+            .await?;
+        let sql = self.gen_show_sql(table_name, Some(&fields), Some(&para));
         log::info!("sql:{}", sql);
         emit.send(
             QueryResp {
@@ -1931,6 +1846,38 @@ impl SqlBuilder for MysqlDB {
         };
         log::trace!("type '{ty}' encode '{:?}' as #{v}#", value);
         anyhow::Ok(v)
+    }
+
+    fn gen_show_sql(
+        &self,
+        table_name: &str,
+        fields: Option<&[Field]>,
+        para: Option<&ShowTableParameter>,
+    ) -> String {
+        let mut sql = format!(
+            r#"SELECT {} FROM `{table_name}`"#,
+            self.backend_kind().format_fields(fields)
+        );
+        if let Some(para) = para {
+            let ShowTableParameter {
+                where_str,
+                order_by,
+                page,
+                page_size,
+                ..
+            } = para;
+
+            if let Some(where_str) = where_str {
+                sql.push_str(format!(" WHERE {where_str} ").as_str());
+            }
+            if let Some(order_by) = order_by {
+                sql.push_str(format!(" ORDER BY {order_by} ").as_str());
+            }
+            let offset = (page - 1) * page_size;
+            sql.push_str(format!(" LIMIT {} OFFSET {} ", page_size, offset).as_str());
+        }
+
+        sql
     }
 }
 

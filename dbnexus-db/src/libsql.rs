@@ -655,25 +655,7 @@ impl SchemaTrait for LibSqlDB {
                     .await
             }
             _ => {
-                let sql = if let Some(para) = para {
-                    let ShowTableParameter {
-                        where_str,
-                        order_by,
-                        page,
-                        page_size,
-                        ..
-                    } = &para;
-                    gen_show_sql(
-                        name,
-                        None,
-                        where_str.as_deref(),
-                        order_by.as_deref(),
-                        *page,
-                        *page_size,
-                    )
-                } else {
-                    format!(r#"SELECT * from "{}""#, name)
-                };
+                let sql = self.gen_show_sql(name, None, para.as_ref());
                 log::info!("sql:{}", sql);
                 self.export_query_result(None, &sql, kind, sender).await
             }
@@ -764,26 +746,13 @@ impl SchemaTrait for LibSqlDB {
         para: ShowTableParameter,
         emit: QueryEventEmitter,
     ) -> anyhow::Result<()> {
-        let ShowTableParameter {
-            where_str,
-            order_by,
-            page,
-            page_size,
-            ..
-        } = &para;
-
         emit.send("trying to query table columns".into())?;
         let fields = self.show_table_columns(table_name).await?;
         emit.send("trying to query total count of this table.".into())?;
-        let total = self.query_count(table_name, where_str.as_deref()).await?;
-        let sql = gen_show_sql(
-            table_name,
-            self.backend_kind().format_fields(Some(&fields)).into(),
-            where_str.as_deref(),
-            order_by.as_deref(),
-            *page,
-            *page_size,
-        );
+        let total = self
+            .query_count(table_name, para.where_str.as_deref())
+            .await?;
+        let sql = self.gen_show_sql(table_name, Some(&fields), Some(&para));
         log::info!("show table sql:{}", sql);
         emit.send(
             QueryResp {
@@ -811,25 +780,13 @@ impl SchemaTrait for LibSqlDB {
         para: ShowTableParameter,
         emit: QueryEventEmitter,
     ) -> anyhow::Result<()> {
-        let ShowTableParameter {
-            where_str,
-            order_by,
-            page,
-            page_size,
-            ..
-        } = &para;
         emit.send("trying to get connection.".into())?;
         let conn = self.get_conn().await?;
         emit.send("trying to query total count of this view.".into())?;
-        let total = self.query_count(view_name, where_str.as_deref()).await?;
-        let sql = gen_show_sql(
-            view_name,
-            None,
-            where_str.as_deref(),
-            order_by.as_deref(),
-            *page,
-            *page_size,
-        );
+        let total = self
+            .query_count(view_name, para.where_str.as_deref())
+            .await?;
+        let sql = self.gen_show_sql(view_name, None, Some(&para));
         log::info!("show table sql:{}", sql);
         emit.send("trying to query data".into())?;
         let mut stream = conn.query(&sql, params!()).await?;
@@ -929,6 +886,15 @@ impl SqlBuilder for LibSqlDB {
     fn get_schema(&self) -> Option<&str> {
         None
     }
+
+    fn gen_show_sql(
+        &self,
+        table_name: &str,
+        fields: Option<&[Field]>,
+        para: Option<&ShowTableParameter>,
+    ) -> String {
+        gen_show_sql(self.backend_kind(), table_name, fields, para)
+    }
 }
 impl LibSqlDB {
     async fn create_table_or_view_sql(
@@ -975,25 +941,7 @@ impl LibSqlDB {
         }
         let conn = self.get_conn().await?;
         let cols = SchemaTrait::show_table_columns(self, table_name).await?;
-        let sql = if let Some(para) = para {
-            let ShowTableParameter {
-                where_str,
-                order_by,
-                page,
-                page_size,
-                ..
-            } = &para;
-            gen_show_sql(
-                table_name,
-                None,
-                where_str.as_deref(),
-                order_by.as_deref(),
-                *page,
-                *page_size,
-            )
-        } else {
-            format!(r#"SELECT * from "{}""#, table_name)
-        };
+        let sql = self.gen_show_sql(table_name, Some(&cols), para.as_ref());
         log::info!("sql:{}", sql);
         let mut rows = conn.query(&sql, params!()).await?;
 

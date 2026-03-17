@@ -20,27 +20,6 @@ use std::sync::{Arc, Mutex};
 use std::time::Duration;
 use tokio::task::spawn_blocking;
 
-fn gen_show_sql(
-    schema: &str,
-    table_name: &str,
-    fields: &str,
-    where_str: Option<&str>,
-    order_by: Option<&str>,
-    page: usize,
-    page_size: usize,
-) -> String {
-    let mut sql = format!("SELECT {fields} from \"{schema}\".\"{table_name}\"");
-    if let Some(where_str) = where_str {
-        sql.push_str(format!(" where {where_str} ").as_str());
-    }
-    if let Some(order_by) = order_by {
-        sql.push_str(format!(" ORDER BY {order_by} ").as_str());
-    }
-    let offset = (page - 1) * page_size;
-    sql.push_str(format!(" OFFSET {} LIMIT {}", offset, page_size).as_str());
-    sql
-}
-
 impl DuckDB {
     pub(crate) fn use_database(&self, conn: &Connection) -> anyhow::Result<()> {
         if let Some(db) = self.config.db.as_ref() {
@@ -259,6 +238,38 @@ impl SqlBuilder for DuckDB {
     }
     fn get_schema(&self) -> Option<&str> {
         self.config.schema.as_deref()
+    }
+
+    fn gen_show_sql(
+        &self,
+        table_name: &str,
+        fields: Option<&[Field]>,
+        para: Option<&ShowTableParameter>,
+    ) -> String {
+        let schema = self.config.schema_str();
+        let mut sql = format!(
+            "SELECT {} from \"{schema}\".\"{table_name}\"",
+            self.backend_kind().format_fields(fields)
+        );
+        if let Some(para) = para {
+            let ShowTableParameter {
+                where_str,
+                order_by,
+                page,
+                page_size,
+                ..
+            } = para;
+            if let Some(where_str) = where_str {
+                sql.push_str(format!(" where {where_str} ").as_str());
+            }
+            if let Some(order_by) = order_by {
+                sql.push_str(format!(" ORDER BY {order_by} ").as_str());
+            }
+            let offset = (page - 1) * page_size;
+            sql.push_str(format!(" OFFSET {} LIMIT {}", offset, page_size).as_str());
+        }
+
+        sql
     }
 }
 
@@ -700,31 +711,7 @@ impl DuckDB {
         let fs = self.show_table_columns(&table_name).await?;
         spawn_blocking(move || {
             let conn = this.get_conn()?;
-            let sql = if let Some(para) = para {
-                let ShowTableParameter {
-                    where_str,
-                    order_by,
-                    page,
-                    page_size,
-                    ..
-                } = &para;
-                gen_show_sql(
-                    this.config.schema_str(),
-                    &table_name,
-                    this.backend_kind().format_fields(Some(&fs)).as_str(),
-                    where_str.as_deref(),
-                    order_by.as_deref(),
-                    *page,
-                    *page_size,
-                )
-            } else {
-                format!(
-                    r#"SELECT {} from "{}"."{}""#,
-                    this.backend_kind().format_fields(Some(&fs)),
-                    this.config.schema_str(),
-                    table_name
-                )
-            };
+            let sql = this.gen_show_sql(&table_name, Some(&fs), para.as_ref());
             let mut stmt = conn.prepare(&sql)?;
             let mut stream = stmt.query([])?;
             while let Some(row) = stream.next()? {
@@ -956,26 +943,7 @@ impl SchemaTrait for DuckDB {
                     .await
             }
             _ => {
-                let sql = if let Some(para) = para {
-                    let ShowTableParameter {
-                        where_str,
-                        order_by,
-                        page,
-                        page_size,
-                        ..
-                    } = &para;
-                    gen_show_sql(
-                        self.config.schema_str(),
-                        name,
-                        "*",
-                        where_str.as_deref(),
-                        order_by.as_deref(),
-                        *page,
-                        *page_size,
-                    )
-                } else {
-                    format!(r#"SELECT * from "{}"."{}""#, self.config.schema_str(), name)
-                };
+                let sql = self.gen_show_sql(name, None, para.as_ref());
                 self.export_query_result(None, &sql, kind, sender).await
             }
         }
@@ -1047,24 +1015,8 @@ impl SchemaTrait for DuckDB {
         let cols = self.show_view_columns(view_name).await?;
         let view_name = view_name.to_owned();
         spawn_blocking(move || {
-            let ShowTableParameter {
-                where_str,
-                order_by,
-                page,
-                page_size,
-                ..
-            } = &para;
-            let total = this.query_count(&view_name, where_str.as_deref())?;
-
-            let sql = gen_show_sql(
-                this.config.schema_str(),
-                &view_name,
-                &this.backend_kind().format_fields(Some(&cols)),
-                where_str.as_deref(),
-                order_by.as_deref(),
-                *page,
-                *page_size,
-            );
+            let total = this.query_count(&view_name, para.where_str.as_deref())?;
+            let sql = this.gen_show_sql(&view_name, None, Some(&para));
             log::info!("sql:{}", sql);
             emit.send(
                 QueryResp {
@@ -1230,23 +1182,8 @@ impl SchemaTrait for DuckDB {
         let this = Clone::clone(self);
         let table_name = table_name.to_string();
         spawn_blocking(move || {
-            let ShowTableParameter {
-                where_str,
-                order_by,
-                page,
-                page_size,
-                ..
-            } = &para;
-            let total = this.query_count(&table_name, where_str.as_deref())?;
-            let sql = gen_show_sql(
-                this.config.schema_str(),
-                &table_name,
-                &this.backend_kind().format_fields(Some(&cols)),
-                where_str.as_deref(),
-                order_by.as_deref(),
-                *page,
-                *page_size,
-            );
+            let total = this.query_count(&table_name, para.where_str.as_deref())?;
+            let sql = this.gen_show_sql(&table_name, Some(&cols), Some(&para));
             log::info!("sql:{}", sql);
             emit.send(
                 QueryResp {

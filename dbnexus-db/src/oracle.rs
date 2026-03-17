@@ -350,37 +350,6 @@ impl QuerySql for OracleDB {
     }
 }
 
-fn gen_show_sql(
-    table_name: &str,
-    fields: Option<String>,
-    where_str: Option<&str>,
-    order_by: Option<&str>,
-    page: usize,
-    page_size: usize,
-) -> String {
-    let mut sql = format!(
-        r#"SELECT {} FROM "{table_name}""#,
-        if let Some(fields) = fields {
-            fields
-        } else {
-            "*".to_owned()
-        }
-    );
-    if let Some(where_str) = where_str {
-        sql.push_str(format!(" WHERE {}", where_str).as_str());
-    }
-    if let Some(order_by) = order_by {
-        sql.push_str(format!(" ORDER BY {}", order_by).as_str());
-    }
-
-    format!(
-        "{} OFFSET {} ROWS FETCH NEXT {} ROWS ONLY",
-        sql,
-        (page - 1) * page_size,
-        page_size
-    )
-}
-
 impl OracleDB {
     async fn query_count(&self, table: &str, where_str: Option<&str>) -> anyhow::Result<i64> {
         let sql = format!(
@@ -815,25 +784,7 @@ impl OracleDB {
         let this = Clone::clone(self);
         spawn_blocking(move || {
             let conn = this.get_conn()?;
-            let sql = if let Some(para) = para {
-                let ShowTableParameter {
-                    where_str,
-                    order_by,
-                    page,
-                    page_size,
-                    ..
-                } = &para;
-                gen_show_sql(
-                    &table_name,
-                    this.backend_kind().format_fields(Some(&cols)).into(),
-                    where_str.as_deref(),
-                    order_by.as_deref(),
-                    *page,
-                    *page_size,
-                )
-            } else {
-                format!(r#"SELECT * from "{}"."{}""#, this.schema_str(), table_name)
-            };
+            let sql = this.gen_show_sql(&table_name, Some(&cols), para.as_ref());
             log::info!("sql:{}", sql);
             let rows = conn.query(sql.as_str(), &[])?;
             for row in rows {
@@ -1087,25 +1038,8 @@ impl SchemaTrait for OracleDB {
                     .await
             }
             _ => {
-                let sql = if let Some(para) = para {
-                    let ShowTableParameter {
-                        where_str,
-                        order_by,
-                        page,
-                        page_size,
-                        ..
-                    } = &para;
-                    gen_show_sql(
-                        name,
-                        None,
-                        where_str.as_deref(),
-                        order_by.as_deref(),
-                        *page,
-                        *page_size,
-                    )
-                } else {
-                    format!("SELECT * from {}", name)
-                };
+                let sql = self.gen_show_sql(name, None, para.as_ref());
+
                 self.export_query_result(None, &sql, kind, sender).await
             }
         }
@@ -1280,25 +1214,13 @@ impl SchemaTrait for OracleDB {
         para: ShowTableParameter,
         emit: QueryEventEmitter,
     ) -> anyhow::Result<()> {
-        let ShowTableParameter {
-            where_str,
-            order_by,
-            page,
-            page_size,
-            ..
-        } = &para;
         let cols = self.show_table_columns(table_name).await?;
-        let sql = gen_show_sql(
-            table_name,
-            Some(self.backend_kind().format_fields(Some(&cols))),
-            where_str.as_deref(),
-            order_by.as_deref(),
-            *page,
-            *page_size,
-        );
+        let sql = self.gen_show_sql(table_name, Some(&cols), Some(&para));
         log::info!("query sql:{}", sql);
         emit.send("trying to query total amount.".into())?;
-        let total = self.query_count(table_name, where_str.as_deref()).await?;
+        let total = self
+            .query_count(table_name, para.where_str.as_deref())
+            .await?;
         emit.send(
             QueryResp {
                 total: total as usize,
@@ -1404,24 +1326,12 @@ impl SchemaTrait for OracleDB {
         para: ShowTableParameter,
         emit: QueryEventEmitter,
     ) -> anyhow::Result<()> {
-        let ShowTableParameter {
-            where_str,
-            order_by,
-            page,
-            page_size,
-            ..
-        } = &para;
-        let sql = gen_show_sql(
-            view_name,
-            None,
-            where_str.as_deref(),
-            order_by.as_deref(),
-            *page,
-            *page_size,
-        );
+        let sql = self.gen_show_sql(view_name, None, Some(&para));
         log::info!("sql:{}", sql);
         emit.send("trying to query total amount.".into())?;
-        let total = self.query_count(view_name, where_str.as_deref()).await?;
+        let total = self
+            .query_count(view_name, para.where_str.as_deref())
+            .await?;
         log::info!("query sql:{}", sql);
         emit.send("trying to query data.".into())?;
         let this = Clone::clone(self);
@@ -1645,6 +1555,45 @@ impl SqlBuilder for OracleDB {
             return anyhow::Result::Ok(value.option_must_be_some()?.to_string());
         }
         put_value_in_sql(typ, value)
+    }
+
+    fn type_support_compare(&self, _typ: &str) -> bool {
+        true
+    }
+
+    fn gen_show_sql(
+        &self,
+        table_name: &str,
+        fields: Option<&[Field]>,
+        para: Option<&ShowTableParameter>,
+    ) -> String {
+        let mut sql = format!(
+            r#"SELECT {} FROM "{table_name}""#,
+            self.backend_kind().format_fields(fields)
+        );
+        if let Some(para) = para {
+            let ShowTableParameter {
+                where_str,
+                order_by,
+                page,
+                page_size,
+                ..
+            } = &para;
+            if let Some(where_str) = where_str {
+                sql.push_str(format!(" WHERE {}", where_str).as_str());
+            }
+            if let Some(order_by) = order_by {
+                sql.push_str(format!(" ORDER BY {}", order_by).as_str());
+            }
+            format!(
+                "{} OFFSET {} ROWS FETCH NEXT {} ROWS ONLY",
+                sql,
+                (page - 1) * page_size,
+                page_size
+            )
+        } else {
+            sql
+        }
     }
 }
 impl OracleDB {

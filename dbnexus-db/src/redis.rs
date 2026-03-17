@@ -956,11 +956,20 @@ impl RedisDB {
 
 impl SqlBuilder for RedisDB {
     fn get_schema(&self) -> Option<&str> {
-        todo!()
+        None
     }
 
     fn put_value_in_sql(&self, _typ: &str, _value: Option<&str>) -> anyhow::Result<String> {
-        todo!()
+        anyhow::bail!("redis can't put value in sql")
+    }
+
+    fn gen_show_sql(
+        &self,
+        _table_name: &str,
+        _fields: Option<&[Field]>,
+        _para: Option<&ShowTableParameter>,
+    ) -> String {
+        "".to_string()
     }
 }
 

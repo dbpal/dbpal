@@ -37,7 +37,6 @@ use crate::db::{
     UdfOrProcedureExtraParameter, XlsxEdit,
 };
 
-use crate::firebird::gen_show_sql;
 use crate::helper::{create_csv, generate_random_string};
 use crate::language_server::LexerCompletionTrait;
 use chrono::{DateTime, NaiveDate, NaiveTime};
@@ -636,32 +635,9 @@ impl CassandraDB {
             sender.send(create_table.to_string().into()).await?;
         }
         let cols = self.show_table_columns(table_name).await?;
-        let sql = if let Some(para) = para {
-            let ShowTableParameter {
-                where_str,
-                order_by,
-                page,
-                page_size,
-                ..
-            } = &para;
-            gen_show_sql(
-                table_name,
-                None,
-                where_str.as_deref(),
-                order_by.as_deref(),
-                *page,
-                *page_size,
-            )
-        } else {
-            format!(
-                r#"SELECT {} from "{}""#,
-                self.backend_kind().format_fields(Some(&cols)),
-                table_name
-            )
-        };
+        let sql = self.gen_show_sql(table_name, Some(&cols), para.as_ref());
         log::info!("sql:{}", sql);
         let pager = self.session.query_iter(sql.as_str(), &[]).await?;
-
         let mut stream = pager.rows_stream::<Row>()?;
         while let Some(row) = stream.next().await {
             let row = row?;
@@ -719,6 +695,47 @@ impl SqlBuilder for CassandraDB {
 
     fn get_schema(&self) -> Option<&str> {
         self.config.db.as_deref()
+    }
+
+    fn gen_show_sql(
+        &self,
+        table_name: &str,
+        fields: Option<&[Field]>,
+        para: Option<&ShowTableParameter>,
+    ) -> String {
+        let mut sql = format!(
+            r#"SELECT {} FROM "{table_name}" "#,
+            self.backend_kind().format_fields(fields)
+        );
+        if let Some(para) = para {
+            let ShowTableParameter {
+                where_str,
+                order_by,
+                allow_filtering,
+                ..
+            } = para;
+            let x = format!(
+                r#" {} {} {} "#,
+                if let Some(where_str) = where_str.as_ref() {
+                    format!(" WHERE {} ", where_str)
+                } else {
+                    "".to_string()
+                },
+                if let Some(order) = order_by {
+                    format!(" ORDER BY {} ", order)
+                } else {
+                    "".to_string()
+                },
+                if *allow_filtering {
+                    "ALLOW FILTERING"
+                } else {
+                    ""
+                }
+            );
+            sql.push_str(x.as_str());
+        }
+
+        sql
     }
 }
 
@@ -817,26 +834,7 @@ impl SchemaTrait for CassandraDB {
                     .await
             }
             _ => {
-                let sql = if let Some(para) = para {
-                    let ShowTableParameter {
-                        where_str,
-                        order_by,
-                        page,
-                        page_size,
-                        ..
-                    } = &para;
-
-                    gen_show_sql(
-                        name,
-                        None,
-                        where_str.as_deref(),
-                        order_by.as_deref(),
-                        *page,
-                        *page_size,
-                    )
-                } else {
-                    format!(r#"SELECT * from "{}""#, name)
-                };
+                let sql = self.gen_show_sql(name, None, para.as_ref());
                 self.export_query_result(None, &sql, kind, sender).await
             }
         }
