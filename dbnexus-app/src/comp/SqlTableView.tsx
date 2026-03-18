@@ -916,7 +916,7 @@ function SqlTableView(props: {
             } else {
               showNotification(
                 "warning",
-                "the data we are loking for may not present at this page",
+                "the data we are looking for may not present at this page",
                 operation.tableId,
               );
             }
