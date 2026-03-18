@@ -1184,15 +1184,6 @@ const ChatShowContext = createContext<{
 }>(null);
 const saveQueryLog = new SaveBoolToLocalStorage("save-query-log");
 
-function tryGetId(x: object) {
-  for (const key of ["id", "ID", "Id", "iD"]) {
-    const r = x[key];
-    if (r) {
-      return r;
-    }
-  }
-}
-
 export {
   appDatabase,
   appStore,
@@ -1273,7 +1264,6 @@ export {
   UuidContext,
   validJson,
   ViewKind,
-  tryGetId,
 };
 
 export type MongoFindParameter = {

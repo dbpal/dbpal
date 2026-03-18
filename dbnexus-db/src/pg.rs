@@ -2011,9 +2011,6 @@ impl SqlBuilder for PostGresDB {
 }
 #[cfg(test)]
 mod tests {
-
-    use sqlx::Executor;
-
     use super::make_test_object;
     #[allow(unused_imports)]
     use crate::enable_test_log;
@@ -2027,6 +2024,7 @@ mod tests {
         },
         pg::PostGresDB,
     };
+    use sqlx::Executor;
     use std::{collections::HashMap, ops::DerefMut};
 
     #[tokio::test]

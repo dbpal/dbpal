@@ -75,7 +75,6 @@ import {
   executeSqlWithoutConn,
   SetCloseConfirmTextContext,
   getSupportExportKind,
-  tryGetId,
 } from "./helper";
 import { FaCopy } from "react-icons/fa6";
 import FileCopyIcon from "@mui/icons-material/FileCopy";
@@ -230,7 +229,7 @@ class DatabaseOperation {
   public constructor(
     public op: DatabaseOpKind,
     public sql: string,
-    public id: any,
+    public tableId: any,
   ) {}
 }
 
@@ -301,6 +300,13 @@ function DatabaseOperationView(props: {
   );
 }
 
+function tryGetId(data: object, fields: types.Field[]) {
+  const pf = fields.filter((e) => e.is_primary);
+  if (pf.length == 0) {
+    return;
+  }
+  return pf.map((x) => data[x.field]).join("-");
+}
 function SqlTableView(props: {
   notWarnPri?: boolean;
   kind: DataSourceKind;
@@ -332,9 +338,7 @@ function SqlTableView(props: {
   useEffect(() => {
     setLastFetchTime(new Date());
   }, [resp]);
-
   const [ops, setOps] = useState<DatabaseOperation[]>([]);
-
   const setCloseConfirm = useContext(SetCloseConfirmTextContext);
   useEffect(() => {
     if (ops.length == 0) {
@@ -356,7 +360,6 @@ function SqlTableView(props: {
   const [showAdd, setShowAdd] = useState(false);
   const [queryStatus, setQueryStatus] = useState("");
   const [clickedField, setClickedField] = useState("");
-
   const [rowBeenLocate, setRowBeenLocate] = useState("");
 
   const handleResp = (resp: MuiDataGridData) => {
@@ -484,7 +487,11 @@ function SqlTableView(props: {
         const sql = await getUpdateSql(old, updateRow);
         setOps((e) => [
           ...e,
-          new DatabaseOperation(DatabaseOpKind.Update, sql, tryGetId(oldRow)),
+          new DatabaseOperation(
+            DatabaseOpKind.Update,
+            sql,
+            tryGetId(oldRow, resp.fields),
+          ),
         ]);
         handleResp({
           ...resp,
@@ -525,7 +532,7 @@ function SqlTableView(props: {
         const sql = await getDeleteSql(old2);
         setOps((e) => [
           ...e,
-          new DatabaseOperation(DatabaseOpKind.Delete, sql, tryGetId(old)),
+          new DatabaseOperation(DatabaseOpKind.Delete, sql, tryGetId(old, resp.fields)),
         ]);
       } catch (e) {
         showNotification("error", "generate delete sql failed", e);
@@ -553,10 +560,6 @@ function SqlTableView(props: {
   const { setUpMenu } = useContext(ContextMenuContext);
   const onSortModelChange = useCallback(
     (sorts: GridSortModel) => {
-      if (ops.length > 0) {
-        showNotification("warning", "we have unsaved changes,sorting mode not change");
-        return;
-      }
       if (sorts.length == 0) {
         setSort("");
         return;
@@ -570,7 +573,7 @@ function SqlTableView(props: {
         `${quoteDatabaseIdentifier(kind)(sort.field)} ${sort.sort.toUpperCase()}`,
       );
     },
-    [kind, ops.length, showNotification],
+    [kind],
   );
 
   const onProcessRowUpdateError = useCallback(
@@ -858,7 +861,7 @@ function SqlTableView(props: {
     if (!id) {
       return false; // this id belong to row data
     }
-    return ops.findIndex((e) => e.id == id && e.op == kind) != -1;
+    return ops.findIndex((e) => e.tableId == id && e.op == kind) != -1;
   };
 
   const someModel = clientModel ? "client" : "server";
@@ -877,17 +880,28 @@ function SqlTableView(props: {
             handleReload(false);
           }}
           handleLocate={() => {
-            if (!operation.id) {
-              showNotification("warning", "the table don't contains id");
+            if (!operation.tableId) {
+              showNotification(
+                "warning",
+                "the table don't contains valid primary key to locate",
+              );
               return;
             }
-            let index = resp.data.findIndex((e) => tryGetId(e) == operation.id);
+            let index = resp.data.findIndex(
+              (e) => tryGetId(e, resp.fields) == operation.tableId,
+            );
             if (index != -1) {
               apiRef.current.scrollToIndexes({ rowIndex: index });
-              setRowBeenLocate(operation.id);
+              setRowBeenLocate(operation.tableId);
               setTimeout(() => {
                 setRowBeenLocate("");
               }, 10_000);
+            } else {
+              showNotification(
+                "warning",
+                "the data we are loking for may not present at this page",
+                operation.tableId,
+              );
             }
           }}
         />
@@ -895,7 +909,7 @@ function SqlTableView(props: {
       <DataGrid
         slots={slots}
         getCellClassName={(e) => {
-          let id = tryGetId(e.row);
+          let id = tryGetId(e.row, resp.fields);
           if (id == rowBeenLocate) {
             return "datagrid-field-row-highligth";
           }
