@@ -235,11 +235,11 @@ class DatabaseOperation {
 function DatabaseOperationView(props: {
   op: DatabaseOperation;
   reload: () => void;
-  handleDelete: () => void;
+  handleCancel: () => void;
   uuid: string;
   handleLocate: () => void;
 }) {
-  const { reload, uuid, handleDelete, handleLocate } = props;
+  const { reload, uuid, handleCancel, handleLocate } = props;
   const { sql } = props.op;
   const [loading, setLoading] = useState(false);
   const handleApply = () => {
@@ -247,7 +247,7 @@ function DatabaseOperationView(props: {
     executeSqlWithoutConn(uuid, sql)
       .then((row_aff) => {
         showNotification("success", "database operation ok", `row affected:${row_aff}`);
-        handleDelete();
+        handleCancel();
         reload();
       })
       .catch((e) => {
@@ -265,7 +265,7 @@ function DatabaseOperationView(props: {
       <Tooltip title="cancel this not apply anything">
         <IconButton
           onClick={() => {
-            handleDelete();
+            handleCancel();
           }}
         >
           <CloseIcon color="warning" />
@@ -505,12 +505,6 @@ function SqlTableView(props: {
             tryGetId(oldRow, resp.fields),
           ),
         ]);
-        handleResp({
-          ...resp,
-          data: resp.data.map((e) =>
-            e[keyNotInTable] == newRow[keyNotInTable] ? newRow : e,
-          ),
-        });
       } catch (e) {
         showNotification("error", "generate update sql failed", e);
         throw e;
@@ -887,7 +881,7 @@ function SqlTableView(props: {
       {ops.map((operation, idx) => (
         <DatabaseOperationView
           op={operation}
-          handleDelete={() => {
+          handleCancel={() => {
             setOps((ops) => ops.filter((_, index) => idx != index));
           }}
           uuid={uuid}
