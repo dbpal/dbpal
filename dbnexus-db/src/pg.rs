@@ -119,7 +119,6 @@ impl DBTrait for PostGresDB {
         name: &str,
         _extra: Option<CreateSchemaExtra>,
     ) -> anyhow::Result<()> {
-        self.can_write()?;
         let sql = format!(r#"CREATE SCHEMA "{name}";"#);
         log::info!("sql:{}", sql);
         self.simple_execute_sql(&sql).await?;
@@ -127,7 +126,6 @@ impl DBTrait for PostGresDB {
     }
 
     async fn drop_schema(&self, name: &str) -> anyhow::Result<()> {
-        self.can_write()?;
         let sql = format!(r#"DROP SCHEMA "{name}"   CASCADE ;"#);
         log::info!("sql:{}", sql);
         self.simple_execute_sql(&sql).await?;
@@ -995,7 +993,6 @@ impl SchemaTrait for PostGresDB {
     }
 
     async fn drop_view(&self, view_name: &str) -> anyhow::Result<String> {
-        self.can_write()?;
         let schema = self.config.schema_str();
         let sql = format!(r#"DROP VIEW "{schema}"."{view_name}""#);
         log::info!("sql:{}", sql);
@@ -1004,7 +1001,6 @@ impl SchemaTrait for PostGresDB {
     }
 
     async fn drop_table(&self, table: &str, cascade: bool) -> anyhow::Result<String> {
-        self.can_write()?;
         let schema = self.config.schema_str();
         let sql = format!(
             r#"DROP TABLE "{schema}"."{table}" {}"#,
@@ -1060,7 +1056,6 @@ impl SchemaTrait for PostGresDB {
     }
 
     async fn truncate_table(&self, table_name: &str) -> anyhow::Result<String> {
-        self.can_write()?;
         let schema = self.config.schema_str();
         let sql = format!(
             r#"
@@ -1472,6 +1467,11 @@ impl PostGresDB {
         let mut conn = self.pool.acquire().await?;
         if let Some(s) = &self.config.schema {
             set_current_schema(conn.deref_mut(), s).await?;
+        }
+
+        if self.read_only() {
+            let sql = "SET default_transaction_read_only = on;";
+            conn.execute(sql).await?;
         }
         anyhow::Ok(conn)
     }
@@ -1913,7 +1913,6 @@ impl CatalogTrait for PostGresDB {
         name: &str,
         _extra: Option<CreateDatabaseExtra>,
     ) -> anyhow::Result<()> {
-        self.can_write()?;
         let sql = format!(r#"CREATE DATABASE "{name}""#);
         log::info!("sql:{}", sql);
         self.simple_execute_sql(&sql).await?;
@@ -1921,7 +1920,6 @@ impl CatalogTrait for PostGresDB {
     }
 
     async fn drop_database(&self, name: &str) -> anyhow::Result<()> {
-        self.can_write()?;
         let sql = format!(r#"DROP DATABASE "{name}""#);
         log::info!("sql:{}", sql);
         self.simple_execute_sql(&sql).await?;
@@ -2014,16 +2012,58 @@ impl SqlBuilder for PostGresDB {
 #[cfg(test)]
 mod tests {
 
+    use sqlx::Executor;
+
     use super::make_test_object;
-    use crate::db::{
-        CheckConn, ColumnType, CreateIndexColumn, CreateIndexReq, CreateTableReq,
-        CreateTableReqColumn, DBTrait, ExportKind, ExportQueryResult, IndexKind, QuerySql,
-        SchemaTrait, ServerMetas, ShowTableParameter, SqlNullAble, UdfOrProcedureExtraParameter,
-    };
     #[allow(unused_imports)]
     use crate::enable_test_log;
-    use std::collections::HashMap;
+    use crate::{
+        datasource_config::PGDBConfig,
+        db::{
+            BackendKindPostGres, CheckConn, ColumnType, CreateIndexColumn, CreateIndexReq,
+            CreateTableReq, CreateTableReqColumn, DBTrait, ExportKind, ExportQueryResult,
+            IndexKind, QuerySql, SchemaTrait, ServerMetas, ShowTableParameter, SqlNullAble,
+            UdfOrProcedureExtraParameter,
+        },
+        pg::PostGresDB,
+    };
+    use std::{collections::HashMap, ops::DerefMut};
 
+    #[tokio::test]
+    async fn test_read_only() {
+        let db = PostGresDB::new(
+            PGDBConfig {
+                host: crate::TEST_HOST.to_string(),
+                port: 5432,
+                username: "postgres".to_string(),
+                password: Some("root".to_string()),
+                db: Some("test".into()),
+                schema: Some("xxx".to_string()),
+                read_only: true,
+                ssl: Default::default(),
+                conn_timeout: Some(5000.into()),
+            },
+            BackendKindPostGres::PostGres,
+        )
+        .await
+        .unwrap();
+        let mut conn = db.get_conn().await.unwrap();
+        let err = conn
+            .deref_mut()
+            .execute(
+                r#"
+        CREATE TABLE users (
+            email VARCHAR(255)
+        );
+        "#,
+            )
+            .await;
+        assert!(err.is_err());
+        if let Err(err) = err {
+            let x = format!("{:?}", err);
+            assert!(x.contains("read-only"));
+        }
+    }
     #[tokio::test]
     async fn test_table_pagination() {
         let db = make_test_object().await;

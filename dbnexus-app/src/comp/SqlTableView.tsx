@@ -20,7 +20,6 @@ import {
   Tooltip,
   Typography,
 } from "@mui/material";
-import { IoLocation } from "react-icons/io5";
 import ContentCopyIcon from "@mui/icons-material/ContentCopy";
 import CloseIcon from "@mui/icons-material/Close";
 import CheckIcon from "@mui/icons-material/Check";
@@ -28,6 +27,7 @@ import VisibilityIcon from "@mui/icons-material/Visibility";
 import EditIcon from "@mui/icons-material/Edit";
 import { NotificationContext } from "./Notification";
 import ArrowCircleDownIcon from "@mui/icons-material/ArrowCircleDown";
+import { IoLocation } from "react-icons/io5";
 import {
   DataGrid,
   GridCallbackDetails,
@@ -75,6 +75,7 @@ import {
   executeSqlWithoutConn,
   SetCloseConfirmTextContext,
   getSupportExportKind,
+  tryGetId,
 } from "./helper";
 import { FaCopy } from "react-icons/fa6";
 import FileCopyIcon from "@mui/icons-material/FileCopy";
@@ -85,6 +86,8 @@ import {
   TimeDuration,
   ViewRowInModal,
 } from "./CommonComp";
+
+import { v4 as uuidv4 } from "uuid";
 import { Position } from "monaco-editor";
 import wcmatch from "wildcard-match";
 import { MdEditNote } from "react-icons/md";
@@ -227,17 +230,18 @@ class DatabaseOperation {
   public constructor(
     public op: DatabaseOpKind,
     public sql: string,
-    public old: object,
+    public id: any,
   ) {}
 }
 
 function DatabaseOperationView(props: {
   op: DatabaseOperation;
-  handleDelete: (applied: boolean) => void;
+  reload: () => void;
+  handleDelete: () => void;
   uuid: string;
-  handleHighLight: () => void;
+  handleLocate: () => void;
 }) {
-  const { handleDelete, uuid, handleHighLight } = props;
+  const { reload, uuid, handleDelete, handleLocate } = props;
   const { sql } = props.op;
   const [loading, setLoading] = useState(false);
   const handleApply = () => {
@@ -245,7 +249,8 @@ function DatabaseOperationView(props: {
     executeSqlWithoutConn(uuid, sql)
       .then((row_aff) => {
         showNotification("success", "database operation ok", `row affected:${row_aff}`);
-        handleDelete(true);
+        handleDelete();
+        reload();
       })
       .catch((e) => {
         showNotification("error", "update failed", e);
@@ -262,7 +267,7 @@ function DatabaseOperationView(props: {
       <Tooltip title="cancel this not apply anything">
         <IconButton
           onClick={() => {
-            handleDelete(false);
+            handleDelete();
           }}
         >
           <CloseIcon color="warning" />
@@ -284,9 +289,8 @@ function DatabaseOperationView(props: {
           <ContentCopyIcon />
         </IconButton>
       </Tooltip>
-
       <Tooltip title="locate the row we are editing">
-        <IconButton onClick={handleHighLight}>
+        <IconButton onClick={handleLocate}>
           <IoLocation fontSize="1.4em" />
         </IconButton>
       </Tooltip>
@@ -330,36 +334,15 @@ function SqlTableView(props: {
   }, [resp]);
 
   const [ops, setOps] = useState<DatabaseOperation[]>([]);
-  const [opsIds, setOpsIds] = useState<Set<string>>(new Set());
+
   const setCloseConfirm = useContext(SetCloseConfirmTextContext);
   useEffect(() => {
-    const s = new Set<string>();
-    for (const op of ops) {
-      s.add(op.old[keyNotInTable]);
-    }
-    setOpsIds(s);
-    if (s.size == 0) {
+    if (ops.length == 0) {
       setCloseConfirm("");
     } else {
-      setCloseConfirm(`sure to discard ${s.size} changes?`);
+      setCloseConfirm(`sure to discard ${ops.length} changes?`);
     }
   }, [ops, setCloseConfirm]);
-
-  const rowInOps = (id) => {
-    return opsIds.has(id);
-  };
-  const [highLightRow, setHighLightRow] = useState("");
-
-  useEffect(() => {
-    if (!highLightRow) {
-      return;
-    }
-    // get index
-    const index = resp.data.findIndex((e) => e[keyNotInTable] === highLightRow);
-    if (index != -1) {
-      apiRef.current.scrollToIndexes({ rowIndex: index });
-    }
-  }, [apiRef, highLightRow, resp.data]);
 
   const [fetchDur, setFetchDur] = useState(0);
   const clientModelLimit = useRef<number>(1000);
@@ -373,9 +356,12 @@ function SqlTableView(props: {
   const [showAdd, setShowAdd] = useState(false);
   const [queryStatus, setQueryStatus] = useState("");
   const [clickedField, setClickedField] = useState("");
+
+  const [rowBeenLocate, setRowBeenLocate] = useState("");
+
   const handleResp = (resp: MuiDataGridData) => {
-    resp.data.forEach((data, index) => {
-      data[keyNotInTable] = index + "";
+    resp.data.forEach((data) => {
+      data[keyNotInTable] = uuidv4();
     });
     resp.fields.forEach((field) => {
       const width = ColumnWidth.instance.get(field.field);
@@ -498,7 +484,7 @@ function SqlTableView(props: {
         const sql = await getUpdateSql(old, updateRow);
         setOps((e) => [
           ...e,
-          new DatabaseOperation(DatabaseOpKind.Update, sql, oldRow),
+          new DatabaseOperation(DatabaseOpKind.Update, sql, tryGetId(oldRow)),
         ]);
         handleResp({
           ...resp,
@@ -537,7 +523,10 @@ function SqlTableView(props: {
       try {
         let old2 = { ...old };
         const sql = await getDeleteSql(old2);
-        setOps((e) => [...e, new DatabaseOperation(DatabaseOpKind.Delete, sql, old)]);
+        setOps((e) => [
+          ...e,
+          new DatabaseOperation(DatabaseOpKind.Delete, sql, tryGetId(old)),
+        ]);
       } catch (e) {
         showNotification("error", "generate delete sql failed", e);
       }
@@ -553,17 +542,13 @@ function SqlTableView(props: {
   }, [page, pageSize]);
   const onPaginationModelChange = useCallback(
     (e: GridPaginationModel, reason: GridCallbackDetails<"pagination">) => {
-      if (ops.length > 0) {
-        showNotification("warning", "we have unsaved changes,not loading data");
-        return;
-      }
       setPage(e.page);
       setPageSize(e.pageSize);
       if (reason.reason == "setPaginationModel") {
         SavePageSize.instance.save(e.pageSize);
       }
     },
-    [ops.length, showNotification],
+    [],
   );
   const { setUpMenu } = useContext(ContextMenuContext);
   const onSortModelChange = useCallback(
@@ -572,7 +557,6 @@ function SqlTableView(props: {
         showNotification("warning", "we have unsaved changes,sorting mode not change");
         return;
       }
-
       if (sorts.length == 0) {
         setSort("");
         return;
@@ -745,7 +729,6 @@ function SqlTableView(props: {
                 onClick={() => {
                   handleReload(true);
                 }}
-                disabled={opsIds.size > 0}
               >
                 reload
               </Button>
@@ -757,7 +740,6 @@ function SqlTableView(props: {
                   }}
                   style={{ ...shrinkAble, maxWidth: "14vw", textOverflow: "clip" }}
                   size="medium"
-                  disabled={ops.length > 0}
                   color="primary"
                   icon={<FilterAltIcon />}
                   onDelete={
@@ -769,14 +751,12 @@ function SqlTableView(props: {
                   }
                 />
               </Tooltip>
-              {/* <Typography color="info"> order by </Typography> */}
               <Tooltip title={sort ? sort : "sort something like 'age asc'"}>
                 <Chip
                   label={sort}
                   onClick={() => {
                     setShowSetSort(true);
                   }}
-                  disabled={ops.length > 0}
                   style={{ ...shrinkAble, maxWidth: "12vw", textOverflow: "clip" }}
                   size="medium"
                   color="secondary"
@@ -797,7 +777,6 @@ function SqlTableView(props: {
                     control={
                       <Checkbox
                         checked={allowFiltering}
-                        disabled={ops.length > 0}
                         onChange={(e) => setAllowFiltering(e.target.checked)}
                       />
                     }
@@ -853,7 +832,7 @@ function SqlTableView(props: {
                   result {resp.data.length} of {resp.total}
                 </Typography>
               )}
-              <AppDataGridPagination showPageSelect disabled={ops.length > 0} />
+              <AppDataGridPagination showPageSelect />
             </Stack>
           </Stack>
         );
@@ -868,14 +847,19 @@ function SqlTableView(props: {
     kind,
     lastFetchTime,
     loading,
-    ops.length,
-    opsIds.size,
     resp.data.length,
     resp.total,
     sort,
     tableName,
     where,
   ]);
+
+  const rowBeenModify = (id, kind: DatabaseOpKind) => {
+    if (!id) {
+      return false; // this id belong to row data
+    }
+    return ops.findIndex((e) => e.id == id && e.op == kind) != -1;
+  };
 
   const someModel = clientModel ? "client" : "server";
   return (
@@ -884,68 +868,42 @@ function SqlTableView(props: {
       {ops.map((operation, idx) => (
         <DatabaseOperationView
           op={operation}
-          handleDelete={(applied) => {
+          handleDelete={() => {
             setOps((ops) => ops.filter((_, index) => idx != index));
-
-            switch (operation.op) {
-              case DatabaseOpKind.Update:
-                if (applied) {
-                  // the value have been updated.
-                } else {
-                  if (!applied) {
-                    setResp((resp) => {
-                      return {
-                        ...resp,
-                        data: resp.data.map((data) =>
-                          data[keyNotInTable] == operation.old[keyNotInTable]
-                            ? operation.old
-                            : data,
-                        ),
-                      };
-                    });
-                  }
-                }
-                break;
-              case DatabaseOpKind.Delete: {
-                if (applied) {
-                  setResp((resp) => {
-                    return {
-                      ...resp,
-                      data: resp.data.filter(
-                        (data) => data[keyNotInTable] != operation.old[keyNotInTable],
-                      ),
-                    };
-                  });
-                } else {
-                  // delete one line not change the data
-                  // no need use
-                }
-                break;
-              }
-            }
           }}
           uuid={uuid}
           key={idx}
-          handleHighLight={() => {
-            setHighLightRow("");
-            setTimeout(() => {
-              setHighLightRow(operation.old[keyNotInTable]);
-            }, 200);
-            setTimeout(() => {
-              setHighLightRow("");
-            }, 10000);
+          reload={() => {
+            handleReload(false);
+          }}
+          handleLocate={() => {
+            if (!operation.id) {
+              showNotification("warning", "the table don't contains id");
+              return;
+            }
+            let index = resp.data.findIndex((e) => tryGetId(e) == operation.id);
+            if (index != -1) {
+              apiRef.current.scrollToIndexes({ rowIndex: index });
+              setRowBeenLocate(operation.id);
+              setTimeout(() => {
+                setRowBeenLocate("");
+              }, 10_000);
+            }
           }}
         />
       ))}
-
       <DataGrid
         slots={slots}
         getCellClassName={(e) => {
-          if (e.id == highLightRow) {
+          let id = tryGetId(e.row);
+          if (id == rowBeenLocate) {
             return "datagrid-field-row-highligth";
           }
-          if (rowInOps(e.id)) {
+          if (rowBeenModify(id, DatabaseOpKind.Update)) {
             return "datagrid-field-been-modify";
+          }
+          if (rowBeenModify(id, DatabaseOpKind.Delete)) {
+            return "datagrid-field-been-delete";
           }
           if (e.field == clickedField) {
             return "datagrid-field-clicked";

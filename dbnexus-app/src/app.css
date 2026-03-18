@@ -35,6 +35,16 @@
 .datagrid-field-been-modify {
   color: gray;
 }
+
+.datagrid-field-been-delete {
+  color: red;
+  text-decoration: line-through;
+}
+.tab-icon-size {
+  width: 1rem;
+  height: 1rem;
+}
+
 .datagrid-field-row-highligth {
   color: red;
   font-weight: bolder;
@@ -43,10 +53,6 @@
   text-decoration: underline;
 }
 
-.tab-icon-size {
-  width: 1rem;
-  height: 1rem;
-}
 /* 
 html {
   transition: all 0.5s ease;

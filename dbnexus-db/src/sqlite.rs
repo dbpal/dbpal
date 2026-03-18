@@ -9,7 +9,7 @@ use futures_util::StreamExt;
 use sqlparser::ast::{ColumnOption, Statement};
 use sqlparser::tokenizer::Token;
 use sqlx::pool::{PoolConnection, PoolOptions};
-use sqlx::sqlite::SqliteRow;
+use sqlx::sqlite::{SqliteConnectOptions, SqliteRow};
 use sqlx::{AssertSqlSafe, Column, Executor, Row, SqlSafeStr, SqliteConnection, TypeInfo};
 
 use crate::datasource_config::SqliteDBConfig;
@@ -474,22 +474,18 @@ impl SchemaTrait for SqliteDB {
         self.list_view_impl(Self::MAIN_DB).await
     }
     async fn drop_view(&self, view_name: &str) -> anyhow::Result<String> {
-        self.can_write()?;
-
         let sql = format!(r#"DROP VIEW "{view_name}""#);
         self.simple_execute_sql(&sql).await?;
         anyhow::Ok(sql)
     }
 
     async fn drop_table(&self, table: &str, _cascade: bool) -> anyhow::Result<String> {
-        self.can_write()?;
         let sql = format!(r#"DROP TABLE "{table}" "#,);
         self.simple_execute_sql(&sql).await?;
         anyhow::Ok(sql)
     }
 
     async fn truncate_table(&self, table_name: &str) -> anyhow::Result<String> {
-        self.can_write()?;
         let sql = format!(
             r#"
             DELETE FROM "{table_name}";
@@ -998,7 +994,11 @@ impl SqliteDB {
         if let Some(timeout) = conn.conn_timeout {
             opts = opts.acquire_timeout(timeout.into());
         }
-        let pool = opts.connect(conn.path.as_str()).await?;
+        let mut sqlite_ops = <SqliteConnectOptions as std::str::FromStr>::from_str(
+            format!("sqlite://{}", conn.path).as_str(),
+        )?;
+        sqlite_ops = sqlite_ops.read_only(true);
+        let pool = opts.connect_with(sqlite_ops).await?;
         if conn.read_only {
             sqlx::raw_sql("PRAGMA query_only = true;")
                 .execute(pool.acquire().await?.deref_mut())
@@ -1757,9 +1757,39 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn test_read_only() {
+        let path = sqlite_test_file_path();
+        let x = SqliteDB::new(SqliteDBConfig {
+            path,
+            read_only: true,
+            conn_timeout: Some(5000.into()),
+        })
+        .await
+        .unwrap();
+        let mut conn = x.get_conn().await.unwrap();
+        let err = conn
+            .execute(
+                r#"
+        CREATE TABLE IF NOT EXISTS users (
+            id INTEGER PRIMARY KEY AUTOINCREMENT, -- Best practice for unique IDs
+            username TEXT NOT NULL UNIQUE,         -- String, cannot be empty, must be unique
+            email TEXT,                            -- String
+            age INTEGER DEFAULT 18,                -- Number with a default value
+            created_at DATETIME DEFAULT CURRENT_TIMESTAMP -- Automatic timestamp
+        );
+        "#,
+            )
+            .await;
+        assert!(err.is_err());
+        if let Err(err) = err {
+            let x = format!("{:?}", err);
+            assert!(x.contains("readonly database"));
+        }
+    }
+
+    #[tokio::test]
     async fn test_duplicate() {
         let db = make_test_object().await;
-
         let _ = db.drop_table("test_duplicate", false).await;
         let _ = db.drop_table("test_duplicate2", false).await;
         let query_id = "";

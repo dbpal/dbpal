@@ -1000,8 +1000,6 @@ impl SchemaTrait for MysqlDB {
     }
 
     async fn drop_view(&self, view_name: &str) -> anyhow::Result<String> {
-        self.can_write()?;
-
         let sql = format!("DROP VIEW `{view_name}`");
         log::info!("sql:{}", sql);
         self.simple_execute_sql(&sql).await?;
@@ -1009,7 +1007,6 @@ impl SchemaTrait for MysqlDB {
     }
 
     async fn drop_table(&self, table: &str, cascade: bool) -> anyhow::Result<String> {
-        self.can_write()?;
         let sql = format!(
             "DROP TABLE `{table}` {}",
             if cascade { " CASCADE " } else { "" }
@@ -1024,7 +1021,6 @@ impl SchemaTrait for MysqlDB {
     }
 
     async fn truncate_table(&self, table_name: &str) -> anyhow::Result<String> {
-        self.can_write()?;
         let sql = format!(
             r#"
             TRUNCATE TABLE `{table_name}`;
@@ -1444,6 +1440,10 @@ impl MysqlDB {
             conn.execute(AssertSqlSafe(format!("use {};", db).as_str()))
                 .await?;
         }
+        if self.read_only() {
+            let sql = "SET SESSION TRANSACTION READ ONLY";
+            conn.execute(sql).await?;
+        }
         anyhow::Ok(conn)
     }
 }
@@ -1489,7 +1489,6 @@ impl DBTrait for MysqlDB {
         name: &str,
         _extra: Option<CreateSchemaExtra>,
     ) -> anyhow::Result<()> {
-        self.can_write()?;
         let sql = format!("CREATE DATABASE `{name}`");
         log::info!("sql:{}", sql);
         self.simple_execute_sql(&sql).await?;
@@ -1497,7 +1496,6 @@ impl DBTrait for MysqlDB {
     }
 
     async fn drop_schema(&self, name: &str) -> anyhow::Result<()> {
-        self.can_write()?;
         let sql = format!("DROP DATABASE `{name}`");
         log::info!("sql:{}", sql);
         self.simple_execute_sql(&sql).await?;
@@ -2938,6 +2936,10 @@ pub(crate) mod test_fns {
 
 #[cfg(test)]
 mod tests {
+    use std::ops::DerefMut;
+
+    use sqlx::Executor;
+
     use super::test_fns::{self, make_test_object};
     use crate::datasource_config::MysqlDBConfig;
     use crate::TEST_HOST;
@@ -2962,6 +2964,31 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn test_read_only() {
+        let mut config = make_config();
+        config.read_only = true;
+        let db = make_test_object(config).await;
+        let mut conn = db.get_conn().await.unwrap();
+        let err = conn.deref_mut().execute(r#"
+        CREATE TABLE `users` (
+            `id` bigint unsigned NOT NULL AUTO_INCREMENT COMMENT '主键ID',
+            `username` varchar(50) NOT NULL COMMENT '用户名',
+            `email` varchar(100) DEFAULT NULL COMMENT '邮箱地址',
+            `status` tinyint NOT NULL DEFAULT '1' COMMENT '状态: 0-禁用, 1-启用',
+            `created_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+            `updated_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
+            PRIMARY KEY (`id`),
+            UNIQUE KEY `uk_username` (`username`),
+            KEY `idx_status` (`status`)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci COMMENT='用户信息表';"#).await;
+        assert!(err.is_err());
+        if let Err(err) = err {
+            let x = format!("{:?}", err);
+            assert!(x.contains("READ ONLY"));
+        }
+    }
+
+    #[tokio::test]
     async fn test_table_pagination() {
         test_fns::test_table_pagination(make_test_object(make_config()).await).await;
     }
@@ -2981,6 +3008,7 @@ mod tests {
     async fn test_check_conn() {
         test_fns::test_check_conn(make_test_object(make_config()).await).await;
     }
+
     #[tokio::test]
     async fn test_export() {
         test_fns::test_export(make_test_object(make_config()).await).await;

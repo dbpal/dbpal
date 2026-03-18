@@ -1,3 +1,5 @@
+// /home/yuyang/projects/dbpal/target/debug/build/libduckdb-sys-c1b3e1ba55c29beb/out/duckdb/src/storage/single_file_block_manager.cpp:806
+
 use crate::datasource_config::DuckDBConfig;
 use crate::db::{
     create_html_table_data, create_html_table_header, create_markdown_data, create_markdown_header,
@@ -15,7 +17,6 @@ use duckdb::types::{TimeUnit, Value};
 use duckdb::{AccessMode, Connection, DuckdbConnectionManager};
 use r2d2::{Pool, PooledConnection};
 use std::collections::{HashMap, HashSet};
-use std::ops::Deref;
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
 use tokio::task::spawn_blocking;
@@ -276,8 +277,7 @@ impl ExportQueryResult for DuckDB {
                     None => anyhow::bail!("should be able to get connection"),
                 },
                 None => {
-                    let conn = this.get_conn()?;
-                    let conn = conn.try_clone()?;
+                    let conn = this.get_conn()?.try_clone()?;
                     Arc::new(Mutex::new(conn))
                 }
             };
@@ -475,8 +475,8 @@ impl QuerySql for DuckDB {
         let id = id.to_string();
         spawn_blocking(move || {
             let conn = this.get_conn()?;
-            let conn = conn.deref().try_clone()?;
-            this.query_connection.insert(id, Arc::new(Mutex::new(conn)));
+            this.query_connection
+                .insert(id, Arc::new(Mutex::new(conn.try_clone()?)));
             anyhow::Ok(())
         })
         .await?
@@ -1485,6 +1485,17 @@ mod tests {
         enable_test_log,
     };
 
+    #[allow(dead_code)]
+    pub(crate) async fn random_sleep() {
+        // let duration = {
+        //     use rand::Rng;
+        //     let mut rng = rand::rng();
+        //     let second = rng.random_range(4..10);
+        //     std::time::Duration::from_secs(second)
+        // };
+        // tokio::time::sleep(duration).await
+    }
+
     #[tokio::test]
     async fn test_table_pagination() {
         let db = make_test_object(Some("main".to_string())).await;
@@ -1521,6 +1532,7 @@ mod tests {
             values.insert("name".to_owned(), Some(format!("name{}", i + 1)));
             db.table_insert(table_name, values).await.unwrap();
         }
+        random_sleep().await;
     }
 
     #[tokio::test]
@@ -1588,6 +1600,7 @@ mod tests {
                 .total
                 == 1
         );
+        random_sleep().await;
     }
 
     #[test]
@@ -1618,6 +1631,7 @@ mod tests {
         for s in db.list_sequence().await.unwrap() {
             println!("sequence: {:?}", s);
         }
+        random_sleep().await;
     }
 
     #[tokio::test]
@@ -1689,6 +1703,7 @@ mod tests {
             .await
             .unwrap();
         println!("{:?}", resp);
+        random_sleep().await;
     }
 
     #[tokio::test]
@@ -1698,6 +1713,7 @@ mod tests {
         let db = make_test_object(Some("main".to_string())).await;
         let x = db.list_database().await.unwrap();
         println!("database:{:?}", x);
+        random_sleep().await;
     }
 
     #[tokio::test]
@@ -1706,6 +1722,7 @@ mod tests {
         let db = make_test_object(Some("main".to_string())).await;
         let metas = ServerMetas::show_metas(&db).await.unwrap();
         println!("{:?}", metas);
+        random_sleep().await;
     }
 
     #[tokio::test]
@@ -1722,6 +1739,7 @@ mod tests {
 
         let x = db.list_schema().await.unwrap();
         println!("schemas:{:?}", x);
+        random_sleep().await;
     }
 
     #[tokio::test]
@@ -1738,6 +1756,7 @@ mod tests {
         for t in views.iter() {
             println!("table:{:?}", t.name);
         }
+        random_sleep().await;
     }
 
     #[tokio::test]
@@ -1748,6 +1767,7 @@ mod tests {
         for f in x.iter() {
             println!("coldef:{:?}", f);
         }
+        random_sleep().await;
     }
 
     #[tokio::test]
@@ -1756,6 +1776,7 @@ mod tests {
         let db = make_test_object(None).await;
         let d = crate::db::CheckConn::check_conn(&db).await.unwrap();
         println!("ping time is:{:?}", d);
+        random_sleep().await;
     }
 
     #[tokio::test]
@@ -1822,6 +1843,7 @@ mod tests {
         for index in indexes.iter() {
             println!("index:{:?}", index);
         }
+        random_sleep().await;
     }
     #[tokio::test]
     async fn test_column() {
@@ -1895,6 +1917,7 @@ mod tests {
         println!("modify table column sql:{}", sql);
         let sql = db.drop_table_column(table_name, "email2").await.unwrap();
         println!("drop table column sql:{}", sql);
+        random_sleep().await;
     }
 
     #[tokio::test]
@@ -1998,6 +2021,7 @@ mod tests {
                 .unwrap();
             println!("html:{}", ret);
         }
+        random_sleep().await;
     }
 
     #[tokio::test]
@@ -2095,6 +2119,7 @@ mod tests {
                 .unwrap();
             println!("sql:{}", ret);
         }
+        random_sleep().await;
     }
 
     #[tokio::test]
@@ -2192,6 +2217,7 @@ mod tests {
                 .unwrap();
             println!("sql:{}", ret);
         }
+        random_sleep().await;
     }
 
     #[tokio::test]
@@ -2284,6 +2310,7 @@ mod tests {
                 .unwrap();
             println!("sql:{}", ret);
         }
+        random_sleep().await;
     }
 
     #[tokio::test]
@@ -2299,7 +2326,7 @@ mod tests {
             .execute_sql(
                 query_id,
                 r#"
-           CREATE TABLE test_types3 (
+            CREATE TABLE test_types3 (
                 col_smallint SMALLINT,
                 col_time TIME,
                 col_timestamptz TIMESTAMPTZ,
@@ -2377,6 +2404,7 @@ mod tests {
                 .unwrap();
             println!("sql:{}", ret);
         }
+        random_sleep().await;
     }
 
     #[tokio::test]
@@ -2392,7 +2420,7 @@ mod tests {
             .execute_sql(
                 query_id,
                 r#"
-           CREATE TABLE test_types3_array (
+            CREATE TABLE test_types3_array (
                 col_smallint SMALLINT[],
                 col_time TIME[],
                 col_timestamptz TIMESTAMPTZ[],
@@ -2467,6 +2495,7 @@ mod tests {
                 .unwrap();
             println!("sql:{}", ret);
         }
+        random_sleep().await;
     }
 
     #[ignore = "https://github.com/duckdb/duckdb-rs/issues/478"]
@@ -2482,7 +2511,7 @@ mod tests {
         db.execute_sql(
             query_id,
             r#"
-           CREATE TABLE test_types4 (
+            CREATE TABLE test_types4 (
                 -- my_uhugeint UHUGEINT,
                 my_uinteger UINTEGER,
                 my_usmallint USMALLINT,
@@ -2553,6 +2582,7 @@ mod tests {
                 .unwrap();
             println!("sql:{}", ret);
         }
+        random_sleep().await;
     }
 
     #[tokio::test]
@@ -2569,6 +2599,7 @@ mod tests {
         )
         .await
         .unwrap();
+        random_sleep().await;
     }
 
     #[tokio::test]
@@ -2657,5 +2688,6 @@ mod tests {
                 .unwrap();
             println!("sql:{}", ret);
         }
+        random_sleep().await;
     }
 }
