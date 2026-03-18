@@ -1469,7 +1469,7 @@ impl PostGresDB {
             set_current_schema(conn.deref_mut(), s).await?;
         }
 
-        if self.read_only() {
+        if self.config.read_only {
             let sql = "SET default_transaction_read_only = on;";
             conn.execute(sql).await?;
         }

@@ -1440,7 +1440,7 @@ impl MysqlDB {
             conn.execute(AssertSqlSafe(format!("use {};", db).as_str()))
                 .await?;
         }
-        if self.read_only() {
+        if self.config.read_only {
             let sql = "SET SESSION TRANSACTION READ ONLY";
             conn.execute(sql).await?;
         }

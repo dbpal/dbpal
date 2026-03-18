@@ -997,7 +997,7 @@ impl SqliteDB {
         let mut sqlite_ops = <SqliteConnectOptions as std::str::FromStr>::from_str(
             format!("sqlite://{}", conn.path).as_str(),
         )?;
-        sqlite_ops = sqlite_ops.read_only(true);
+        sqlite_ops = sqlite_ops.read_only(conn.read_only);
         let pool = opts.connect_with(sqlite_ops).await?;
         if conn.read_only {
             sqlx::raw_sql("PRAGMA query_only = true;")

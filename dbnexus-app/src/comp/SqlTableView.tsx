@@ -928,7 +928,7 @@ function SqlTableView(props: {
         getCellClassName={(e) => {
           let id = tryGetId(e.row, resp.fields);
           if (id == rowBeenLocate) {
-            return "datagrid-field-row-highligth";
+            return "datagrid-field-row-highlight";
           }
           if (rowBeenModify(id, DatabaseOpKind.Update)) {
             return "datagrid-field-been-modify";
