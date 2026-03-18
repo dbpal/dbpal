@@ -597,7 +597,7 @@ impl MysqlDB {
 impl SchemaTrait for MysqlDB {
     async fn list_sequence(&self) -> anyhow::Result<Vec<SequenceDetail>> {
         match self.kind {
-            BackendKindMysql::Mariadb => self.list_sequences_impl(self.config.schema_str()?).await,
+            BackendKindMysql::Mariadb => self.list_sequences_impl(self.config.schema_str()).await,
             _ => self.backend_kind().not_support_feature(),
         }
     }
@@ -625,7 +625,7 @@ impl SchemaTrait for MysqlDB {
     }
 
     async fn list_event(&self) -> anyhow::Result<Vec<SqlEvent>> {
-        self.list_event_impl(self.config.schema_str()?).await
+        self.list_event_impl(self.config.schema_str()).await
     }
     async fn drop_event(&self, name: &str) -> anyhow::Result<String> {
         let sql = format!(r#"DROP EVENT `{}`"#, name);
@@ -732,7 +732,7 @@ impl SchemaTrait for MysqlDB {
         let mut conn = self.get_conn().await?;
 
         let ret = FunctionOrProcedure::Procedure
-            .query_list(conn.deref_mut(), self.config.schema_str()?)
+            .query_list(conn.deref_mut(), self.config.schema_str())
             .await?;
         anyhow::Ok(ret.into_iter().map(NamedStaff::from).collect())
     }
@@ -803,7 +803,7 @@ impl SchemaTrait for MysqlDB {
         let mut conn = self.get_conn().await?;
 
         let ret = FunctionOrProcedure::Function
-            .query_list(conn.deref_mut(), self.config.schema_str()?)
+            .query_list(conn.deref_mut(), self.config.schema_str())
             .await?;
 
         anyhow::Ok(ret.into_iter().map(NamedStaff::from).collect())
@@ -876,7 +876,7 @@ impl SchemaTrait for MysqlDB {
                 WHERE EVENT_OBJECT_TABLE = '{table_name}'
                 AND TRIGGER_SCHEMA = '{}';
         "#,
-            self.config.schema_str()?
+            self.config.schema_str()
         );
         log::info!("sql:{}", sql);
         let mut conn = self.get_conn().await?;
@@ -1020,7 +1020,7 @@ impl SchemaTrait for MysqlDB {
     }
 
     async fn list_view(&self) -> anyhow::Result<Vec<ListTable>> {
-        self.list_view_impl(self.config.schema_str()?).await
+        self.list_view_impl(self.config.schema_str()).await
     }
 
     async fn truncate_table(&self, table_name: &str) -> anyhow::Result<String> {
@@ -1035,7 +1035,7 @@ impl SchemaTrait for MysqlDB {
     }
 
     async fn list_table(&self) -> anyhow::Result<Vec<ListTable>> {
-        self.list_table_impl(self.config.schema_str()?).await
+        self.list_table_impl(self.config.schema_str()).await
     }
 
     async fn show_table_columns(&self, table_name: &str) -> anyhow::Result<Vec<Field>> {

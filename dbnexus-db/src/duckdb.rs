@@ -46,13 +46,8 @@ impl ServerMetas for DuckDB {
     async fn show_metas(&self) -> anyhow::Result<Vec<MetaValue>> {
         let this = Clone::clone(self);
         spawn_blocking(move || {
-            let sql = "PRAGMA version;";
             let conn = this.get_conn()?;
-            let version = conn.query_row(sql, [], |row| {
-                let version: String = row.get(0)?;
-                Ok(version)
-            })?;
-            anyhow::Ok(vec![MetaValue::new("version", version)])
+            anyhow::Ok(vec![MetaValue::new("version", conn.version()?)])
         })
         .await?
     }
@@ -81,7 +76,7 @@ impl DuckDB {
             if let Some(timeout) = config.conn_timeout {
                 builder = builder.connection_timeout(timeout.into());
             }
-            let pool = builder.build(DuckdbConnectionManager::try_from(&config)?)?;
+            let pool = builder.build(DuckdbConnectionManager::try_from(&config).unwrap())?;
             anyhow::Ok(Self {
                 config,
                 pool,
@@ -127,22 +122,6 @@ impl GetBackendKind for DuckDB {
 }
 
 pub(crate) type DuckDbConn = Arc<Mutex<Connection>>;
-
-impl DuckDB {
-    fn get_conn_by_query_id(&self, query_id: Option<&str>) -> anyhow::Result<DuckDbConn> {
-        match query_id {
-            Some(id) => match self.query_connection.get(&id.to_string()) {
-                Some(x) => anyhow::Ok(x.clone()),
-                None => anyhow::bail!("should be able to get connection"),
-            },
-            None => {
-                let conn = self.get_conn()?;
-                let conn = conn.try_clone()?;
-                anyhow::Ok(Arc::new(Mutex::new(conn)))
-            }
-        }
-    }
-}
 
 fn encode_row_as_json<'stmt>(
     row: &duckdb::Row<'stmt>,
@@ -291,7 +270,17 @@ impl ExportQueryResult for DuckDB {
         let sql = sql.to_owned();
         let query_id = query_id.map(|s| s.to_owned());
         spawn_blocking(move || {
-            let conn = this.get_conn_by_query_id(query_id.as_deref())?;
+            let conn = match &query_id {
+                Some(id) => match this.query_connection.get(&id.to_string()) {
+                    Some(x) => x.clone(),
+                    None => anyhow::bail!("should be able to get connection"),
+                },
+                None => {
+                    let conn = this.get_conn()?;
+                    let conn = conn.try_clone()?;
+                    Arc::new(Mutex::new(conn))
+                }
+            };
             let conn = conn.lock().expect("lock failed");
             let mut stmt = conn.prepare(&sql)?;
             let mut stream = stmt.query([])?;
@@ -1764,7 +1753,7 @@ mod tests {
     #[tokio::test]
     async fn test_check_conn() {
         let _guard = test_lock().lock().await;
-        let db = make_test_object(Some("main".to_string())).await;
+        let db = make_test_object(None).await;
         let d = crate::db::CheckConn::check_conn(&db).await.unwrap();
         println!("ping time is:{:?}", d);
     }

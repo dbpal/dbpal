@@ -1529,14 +1529,6 @@ function SetFilterSort(props: {
 
         <StackRowCenter>
           <Button onClick={handleSet}>set {label}</Button>
-          <Button
-            onClick={() => {
-              editor.setValue(`select * from ${tableName}`);
-            }}
-            variant="outlined"
-          >
-            clear
-          </Button>
           {isFilter && (
             <Tooltip title="save current value to filter bookmark">
               <IconButton

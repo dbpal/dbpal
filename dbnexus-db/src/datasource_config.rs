@@ -59,9 +59,8 @@ pub struct MysqlSsl {
 }
 
 impl MysqlDBConfig {
-    pub(crate) fn schema_str(&self) -> anyhow::Result<&str> {
-        let r = self.db.as_deref().option_must_be_some()?;
-        anyhow::Ok(r)
+    pub(crate) fn schema_str(&self) -> &str {
+        self.db.as_deref().expect("must be some")
     }
 }
 
@@ -295,13 +294,11 @@ pub struct SSLFiles {
 }
 
 impl PGDBConfig {
-    pub(crate) fn db_str(&self) -> anyhow::Result<&str> {
-        let r = self.db.as_ref().option_must_be_some()?.as_str();
-        anyhow::Ok(r)
+    pub(crate) fn db_str(&self) -> &str {
+        self.db.as_ref().expect("must be some").as_str()
     }
-    pub(crate) fn schema_str(&self) -> anyhow::Result<&str> {
-        let r = self.schema.as_ref().option_must_be_some()?.as_str();
-        anyhow::Ok(r)
+    pub(crate) fn schema_str(&self) -> &str {
+        self.schema.as_ref().expect("must be some")
     }
 }
 
