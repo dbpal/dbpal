@@ -86,7 +86,6 @@ import {
   ViewRowInModal,
 } from "./CommonComp";
 
-import { v4 as uuidv4 } from "uuid";
 import { Position } from "monaco-editor";
 import wcmatch from "wildcard-match";
 import { MdEditNote } from "react-icons/md";
@@ -363,8 +362,8 @@ function SqlTableView(props: {
   const [rowBeenLocate, setRowBeenLocate] = useState("");
 
   const handleResp = (resp: MuiDataGridData) => {
-    resp.data.forEach((data) => {
-      data[keyNotInTable] = uuidv4();
+    resp.data.forEach((data, index) => {
+      data[keyNotInTable] = index + "";
     });
     resp.fields.forEach((field) => {
       const width = ColumnWidth.instance.get(field.field);
