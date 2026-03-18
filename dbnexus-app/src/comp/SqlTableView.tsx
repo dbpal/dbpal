@@ -459,8 +459,21 @@ function SqlTableView(props: {
     [isTable, kind, makePara, showNotification, tableName, uuid],
   );
 
+  const rowHasOP = useCallback(
+    (row: object) => {
+      let id = tryGetId(row, resp.fields);
+
+      return ops.find((e) => e.tableId == id);
+    },
+    [ops, resp.fields],
+  );
+
   const handleProcessRowUpdate = useCallback(
     async (newRow: object, oldRow: object) => {
+      if (rowHasOP(oldRow)) {
+        showNotification("warning", "row is modifying");
+        return oldRow;
+      }
       for (const key in newRow) {
         if (!newRow[key]) {
           newRow[key] = null;
@@ -505,7 +518,7 @@ function SqlTableView(props: {
       }
       return newRow;
     },
-    [notWarnPri, resp, showNotification, getUpdateSql],
+    [rowHasOP, notWarnPri, resp, showNotification, getUpdateSql],
   );
 
   const handleDelete = useCallback(
@@ -527,6 +540,10 @@ function SqlTableView(props: {
         );
         return;
       }
+      if (rowHasOP(old)) {
+        showNotification("warning", "row is modifying");
+        return;
+      }
       try {
         let old2 = { ...old };
         const sql = await getDeleteSql(old2);
@@ -538,7 +555,7 @@ function SqlTableView(props: {
         showNotification("error", "generate delete sql failed", e);
       }
     },
-    [getDeleteSql, notWarnPri, resp.data, resp.fields, showNotification],
+    [getDeleteSql, notWarnPri, resp.data, resp.fields, rowHasOP, showNotification],
   );
   useEffect(() => {
     handleReload(false);
