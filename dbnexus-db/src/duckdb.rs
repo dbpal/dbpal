@@ -7,8 +7,8 @@ use crate::db::{
     CatalogTrait, CheckConn, ColumnType, CreateDatabaseExtra, CreateIndexReq, CreateSchemaExtra,
     CreateTableAndIndexSql, DBTrait, ExportFrame, ExportKind, ExportQueryResult, Field,
     GetBackendKind, Index, IndexKind, ListTable, MetaValue, QueryEventEmitter, QueryResp, QuerySql,
-    ReadOnlyTrait, SchemaTrait, SequenceDetail, ServerMetas, ShowTableParameter, SqlBuilder,
-    SqlCollect, POOL_MAX_CONNECTIONS,
+    SchemaTrait, SequenceDetail, ServerMetas, ShowTableParameter, SqlBuilder, SqlCollect,
+    POOL_MAX_CONNECTIONS,
 };
 use crate::helper::create_csv;
 use chrono::NaiveDate;
@@ -257,7 +257,7 @@ impl SqlBuilder for DuckDB {
 
 impl ExportQueryResult for DuckDB {
     fn clone(&self) -> Box<dyn ExportQueryResult> {
-        Box::new(Clone::clone(self)) as Box<dyn ExportQueryResult>
+        Box::new(Clone::clone(self))
     }
 
     async fn export_query_result(
@@ -498,12 +498,6 @@ impl QuerySql for DuckDB {
             anyhow::Ok(None)
         })
         .await?
-    }
-}
-
-impl ReadOnlyTrait for DuckDB {
-    fn read_only(&self) -> bool {
-        self.config.read_only
     }
 }
 
@@ -1208,7 +1202,7 @@ impl SchemaTrait for DuckDB {
     }
 
     fn clone(&self) -> Box<dyn SchemaTrait> {
-        Box::new(Clone::clone(self)) as Box<dyn SchemaTrait>
+        Box::new(Clone::clone(self))
     }
 
     async fn list_data_types(&self) -> anyhow::Result<Vec<String>> {
@@ -1306,7 +1300,6 @@ impl DBTrait for DuckDB {
         name: &str,
         _extra: Option<CreateSchemaExtra>,
     ) -> anyhow::Result<()> {
-        self.can_write()?;
         let sql = format!("CREATE SCHEMA {};", name);
         log::info!("sql:{}", sql);
         self.simple_execute_sql(&sql).await?;
@@ -1314,7 +1307,6 @@ impl DBTrait for DuckDB {
     }
 
     async fn drop_schema(&self, name: &str) -> anyhow::Result<()> {
-        self.can_write()?;
         let sql = format!("DROP SCHEMA {} CASCADE;", name);
         log::info!("sql:{}", sql);
         self.simple_execute_sql(&sql).await?;
@@ -1475,7 +1467,6 @@ pub(crate) fn test_lock() -> &'static tokio::sync::Mutex<()> {
 
 #[cfg(test)]
 mod tests {
-
     use super::*;
     use crate::{
         db::{
@@ -1485,19 +1476,46 @@ mod tests {
         enable_test_log,
     };
 
-    #[allow(dead_code)]
-    pub(crate) async fn random_sleep() {
-        // let duration = {
-        //     use rand::Rng;
-        //     let mut rng = rand::rng();
-        //     let second = rng.random_range(4..10);
-        //     std::time::Duration::from_secs(second)
-        // };
-        // tokio::time::sleep(duration).await
-    }
+    #[tokio::test]
+    async fn test_read_only() {
+        let _gurad = test_lock().lock().await;
+        let path = duckdb_test_file_path();
+        let db = DuckDB::new(DuckDBConfig {
+            conn_timeout: None,
+            path,
+            read_only: true,
+            db: Some("test".to_string()),
+            schema: Some("main".into()),
+        })
+        .await
+        .unwrap();
 
+        let err = db
+            .simple_execute_sql(
+                r#"
+            CREATE TABLE IF NOT EXISTS sales_data (
+                order_id    INTEGER PRIMARY KEY,
+                product     VARCHAR,
+                category    ENUM('Electronics', 'Clothing', 'Home'), -- Enums are very fast in DuckDB
+                price       DOUBLE,
+                quantity    INTEGER,
+                order_date  DATE DEFAULT CURRENT_DATE,
+                tags        VARCHAR[] -- Native support for Arrays/Lists
+            );
+        "#,
+            )
+            .await;
+        assert!(err.is_err());
+        if let Err(err) = err {
+            let x = format!("{:?}", err);
+            println!("{:?}", x);
+            assert!(x.contains("read-only"));
+        }
+    }
     #[tokio::test]
     async fn test_table_pagination() {
+        let _gurad = test_lock().lock().await;
+
         let db = make_test_object(Some("main".to_string())).await;
         let table_name = "test_table_pagination";
         let _ = db.drop_table(table_name, false).await;
@@ -1532,11 +1550,11 @@ mod tests {
             values.insert("name".to_owned(), Some(format!("name{}", i + 1)));
             db.table_insert(table_name, values).await.unwrap();
         }
-        random_sleep().await;
     }
 
     #[tokio::test]
     async fn test_transaction() {
+        let _gurad = test_lock().lock().await;
         let db = make_test_object(Some("main".to_string())).await;
 
         let table_name = "test_commit";
@@ -1600,7 +1618,6 @@ mod tests {
                 .total
                 == 1
         );
-        random_sleep().await;
     }
 
     #[test]
@@ -1613,7 +1630,7 @@ mod tests {
     #[tokio::test]
 
     async fn test_seq() {
-        let _guard = test_lock().lock().await;
+        let _gurad = test_lock().lock().await;
         enable_test_log();
         let db = make_test_object(Some("main".to_string())).await;
         let query_id = "";
@@ -1631,12 +1648,11 @@ mod tests {
         for s in db.list_sequence().await.unwrap() {
             println!("sequence: {:?}", s);
         }
-        random_sleep().await;
     }
 
     #[tokio::test]
     async fn test_view() {
-        let _guard = test_lock().lock().await;
+        let _gurad = test_lock().lock().await;
         enable_test_log();
         let db = make_test_object(Some("main".to_string())).await;
         let query_id = "";
@@ -1703,31 +1719,29 @@ mod tests {
             .await
             .unwrap();
         println!("{:?}", resp);
-        random_sleep().await;
     }
 
     #[tokio::test]
     async fn test_database() {
-        let _guard = test_lock().lock().await;
+        let _gurad = test_lock().lock().await;
         enable_test_log();
         let db = make_test_object(Some("main".to_string())).await;
+
         let x = db.list_database().await.unwrap();
         println!("database:{:?}", x);
-        random_sleep().await;
     }
 
     #[tokio::test]
     async fn test_server_metas() {
-        let _guard = test_lock().lock().await;
+        let _gurad = test_lock().lock().await;
         let db = make_test_object(Some("main".to_string())).await;
         let metas = ServerMetas::show_metas(&db).await.unwrap();
         println!("{:?}", metas);
-        random_sleep().await;
     }
 
     #[tokio::test]
     async fn test_schema() {
-        let _guard = test_lock().lock().await;
+        let _gurad = test_lock().lock().await;
         let db = make_test_object(Some("main".to_string())).await;
         let schema_name = "abc";
         let _err = db.drop_schema(schema_name).await;
@@ -1739,12 +1753,11 @@ mod tests {
 
         let x = db.list_schema().await.unwrap();
         println!("schemas:{:?}", x);
-        random_sleep().await;
     }
 
     #[tokio::test]
     async fn test_list_table() {
-        let _guard = test_lock().lock().await;
+        let _gurad = test_lock().lock().await;
         let db = make_test_object(Some("main".to_string())).await;
         let tables = db.list_table().await.unwrap();
         for t in tables.iter() {
@@ -1756,32 +1769,29 @@ mod tests {
         for t in views.iter() {
             println!("table:{:?}", t.name);
         }
-        random_sleep().await;
     }
 
     #[tokio::test]
     async fn test_show_table_columns() {
-        let _guard = test_lock().lock().await;
+        let _gurad = test_lock().lock().await;
         let db = make_test_object(Some("main".to_string())).await;
         let x = db.show_table_columns("employees").await.unwrap();
         for f in x.iter() {
             println!("coldef:{:?}", f);
         }
-        random_sleep().await;
     }
 
     #[tokio::test]
     async fn test_check_conn() {
-        let _guard = test_lock().lock().await;
+        let _gurad = test_lock().lock().await;
         let db = make_test_object(None).await;
         let d = crate::db::CheckConn::check_conn(&db).await.unwrap();
         println!("ping time is:{:?}", d);
-        random_sleep().await;
     }
 
     #[tokio::test]
     async fn test_index() {
-        let _guard = test_lock().lock().await;
+        let _gurad = test_lock().lock().await;
         let db = make_test_object(Some("main".to_string())).await;
         let table_name = "test_index";
         let _ = db.drop_index(table_name, "test_index_name").await;
@@ -1843,11 +1853,10 @@ mod tests {
         for index in indexes.iter() {
             println!("index:{:?}", index);
         }
-        random_sleep().await;
     }
     #[tokio::test]
     async fn test_column() {
-        let _guard = test_lock().lock().await;
+        let _gurad = test_lock().lock().await;
         enable_test_log();
         let db = make_test_object(Some("main".to_string())).await;
         let table_name = "test_column";
@@ -1917,12 +1926,11 @@ mod tests {
         println!("modify table column sql:{}", sql);
         let sql = db.drop_table_column(table_name, "email2").await.unwrap();
         println!("drop table column sql:{}", sql);
-        random_sleep().await;
     }
 
     #[tokio::test]
     async fn test_types1() {
-        let _guard = test_lock().lock().await;
+        let _gurad = test_lock().lock().await;
         let db = make_test_object(Some("main".to_string())).await;
         let table_name = "test_types1";
         let _ = db.drop_table(table_name, false).await;
@@ -2021,12 +2029,11 @@ mod tests {
                 .unwrap();
             println!("html:{}", ret);
         }
-        random_sleep().await;
     }
 
     #[tokio::test]
     async fn test_types1_array() {
-        let _guard = test_lock().lock().await;
+        let _gurad = test_lock().lock().await;
         enable_test_log();
         let db = make_test_object(Some("main".to_string())).await;
         let table_name: &str = "test_types1_array";
@@ -2119,12 +2126,11 @@ mod tests {
                 .unwrap();
             println!("sql:{}", ret);
         }
-        random_sleep().await;
     }
 
     #[tokio::test]
     async fn test_types2() {
-        let _guard = test_lock().lock().await;
+        let _gurad = test_lock().lock().await;
         enable_test_log();
         let db = make_test_object(Some("main".to_string())).await;
         let table_name = "test_types2";
@@ -2217,14 +2223,14 @@ mod tests {
                 .unwrap();
             println!("sql:{}", ret);
         }
-        random_sleep().await;
     }
 
     #[tokio::test]
     async fn test_types2_array() {
-        let _guard = test_lock().lock().await;
+        let _gurad = test_lock().lock().await;
         enable_test_log();
         let db = make_test_object(Some("main".to_string())).await;
+
         let table_name = "test_types2_array";
         let _ = db.drop_table(table_name, false).await;
         let query_id = "";
@@ -2310,14 +2316,14 @@ mod tests {
                 .unwrap();
             println!("sql:{}", ret);
         }
-        random_sleep().await;
     }
 
     #[tokio::test]
     async fn test_types3() {
-        let _guard = test_lock().lock().await;
+        let _gurad = test_lock().lock().await;
         enable_test_log();
         let db = make_test_object(Some("main".to_string())).await;
+
         let table_name = "test_types3";
         let _ = db.drop_table(table_name, false).await;
         let query_id = "";
@@ -2404,14 +2410,14 @@ mod tests {
                 .unwrap();
             println!("sql:{}", ret);
         }
-        random_sleep().await;
     }
 
     #[tokio::test]
     async fn test_types3_array() {
-        let _guard = test_lock().lock().await;
+        let _gurad = test_lock().lock().await;
         enable_test_log();
         let db = make_test_object(Some("main".to_string())).await;
+
         let table_name = "test_types3_array";
         let _ = db.drop_table(table_name, false).await;
         let query_id = "";
@@ -2495,15 +2501,15 @@ mod tests {
                 .unwrap();
             println!("sql:{}", ret);
         }
-        random_sleep().await;
     }
 
     #[ignore = "https://github.com/duckdb/duckdb-rs/issues/478"]
     #[tokio::test]
     async fn test_types4() {
-        let _guard = test_lock().lock().await;
+        let _gurad = test_lock().lock().await;
         enable_test_log();
         let db = make_test_object(Some("main".to_string())).await;
+
         let table_name = "test_types4";
         let _ = db.drop_table(table_name, false).await;
         let query_id = "";
@@ -2582,13 +2588,12 @@ mod tests {
                 .unwrap();
             println!("sql:{}", ret);
         }
-        random_sleep().await;
     }
 
     #[tokio::test]
 
     async fn test_query_sequence_xxx() {
-        let _guard = test_lock().lock().await;
+        let _gurad = test_lock().lock().await;
         let db = make_test_object(Some("main".to_string())).await;
         let query_id = "";
         db.open_connection(query_id).await.unwrap();
@@ -2599,12 +2604,11 @@ mod tests {
         )
         .await
         .unwrap();
-        random_sleep().await;
     }
 
     #[tokio::test]
     async fn test_types5() {
-        let _guard = test_lock().lock().await;
+        let _gurad = test_lock().lock().await;
         enable_test_log();
         let db = make_test_object(Some("main".to_string())).await;
         let table_name = "test_types5";
@@ -2688,6 +2692,5 @@ mod tests {
                 .unwrap();
             println!("sql:{}", ret);
         }
-        random_sleep().await;
     }
 }

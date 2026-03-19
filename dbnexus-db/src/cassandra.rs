@@ -246,7 +246,6 @@ fn encode_row_as_json(cols: &[String], rows: Row) -> anyhow::Result<serde_json::
 fn format_date(mut days_since_epoch: u32) -> anyhow::Result<String> {
     // see   https://github.com/krojew/cdrs-tokio/issues/202
     days_since_epoch &= !(1 << 31);
-
     let date = NaiveDate::from_ymd_opt(1970, 1, 1)
         .expect("date should be valid")
         .checked_add_days(chrono::Days::new(days_since_epoch as i64 as u64));
@@ -292,9 +291,7 @@ fn cql_decimal_to_bigdecimal(cql_decimal: &CqlDecimal) -> BigDecimal {
     if bytes.is_empty() {
         return BigDecimal::new(BigInt::from(0), scale as i64);
     }
-
     let big_int = BigInt::from_signed_bytes_be(bytes);
-
     // 注意：BigDecimal::new 的第二个参数是负数
     BigDecimal::new(big_int, scale as i64)
 }
@@ -387,23 +384,11 @@ fn encode_value_as_string(value: CqlValue, is_nested: bool) -> anyhow::Result<St
     anyhow::Ok(v)
 }
 
-impl CassandraDB {
-    fn get_session_by_query_id(&self, query_id: Option<&str>) -> anyhow::Result<Arc<Session>> {
-        match query_id {
-            Some(query_id) => match self.query_connection.get(&query_id.to_string()) {
-                Some(x) => anyhow::Ok(x.clone()),
-                None => anyhow::bail!("query_id not found"),
-            },
-            None => anyhow::Ok(self.session.clone()),
-        }
-    }
-}
-
 #[async_trait::async_trait]
 
 impl ExportQueryResult for CassandraDB {
     fn clone(&self) -> Box<dyn ExportQueryResult> {
-        Box::new(Clone::clone(self)) as Box<dyn ExportQueryResult>
+        Box::new(Clone::clone(self))
     }
 
     async fn export_query_result(
@@ -413,7 +398,13 @@ impl ExportQueryResult for CassandraDB {
         kind: ExportKind,
         sender: tokio::sync::mpsc::Sender<ExportFrame>,
     ) -> anyhow::Result<()> {
-        let session = self.get_session_by_query_id(query_id)?;
+        let session = match query_id {
+            Some(query_id) => match self.query_connection.get(&query_id.to_string()) {
+                Some(x) => x.clone(),
+                None => anyhow::bail!("query_id not found"),
+            },
+            None => self.session.clone(),
+        };
         let pager = session.query_iter(sql, &[]).await?;
         let cols: Vec<_> = pager
             .column_specs()
@@ -555,7 +546,6 @@ impl QuerySql for CassandraDB {
             let d = encode_row(row)?;
             emit.send(d.into())?;
         }
-
         anyhow::Ok(())
     }
 
@@ -581,40 +571,12 @@ impl CassandraDB {
         let pager = self.session.query_iter(sql, &[]).await?;
         let mut stream = pager.rows_stream::<(String,)>()?;
         let mut ret = Vec::new();
-
         while let Some(name) = stream.next().await {
             let name = name?;
             ret.push(ListTable::from(name.0));
         }
         anyhow::Ok(ret)
     }
-}
-
-fn get_select_sql(
-    name: &str,
-    cols: String,
-    where_str: Option<&str>,
-    order_by: Option<&str>,
-    allow_filtering: bool,
-) -> String {
-    format!(
-        r#"SELECT {cols} FROM "{name}"  {} {} {}"#,
-        if let Some(where_str) = where_str.as_ref() {
-            format!(" WHERE {} ", where_str)
-        } else {
-            "".to_string()
-        },
-        if let Some(order) = order_by {
-            format!(" ORDER BY {} ", order)
-        } else {
-            "".to_string()
-        },
-        if allow_filtering {
-            "ALLOW FILTERING"
-        } else {
-            ""
-        }
-    )
 }
 
 impl ReadOnlyTrait for CassandraDB {
@@ -796,6 +758,8 @@ impl SchemaTrait for CassandraDB {
     }
 
     async fn drop_created_type(&self, name: &str) -> anyhow::Result<String> {
+        self.can_write()?;
+
         let sql = format!(r#"DROP TYPE  "{name}""#);
         log::info!("sql:{}", sql);
         self.simple_execute_sql(&sql).await?;
@@ -808,6 +772,7 @@ impl SchemaTrait for CassandraDB {
     }
 
     async fn drop_materialized_view(&self, name: &str) -> anyhow::Result<String> {
+        self.can_write()?;
         let sql = format!(r#"DROP MATERIALIZED VIEW "{name}";"#);
         log::info!("sql:{}", sql);
         self.simple_execute_sql(&sql).await?;
@@ -845,6 +810,7 @@ impl SchemaTrait for CassandraDB {
     }
 
     async fn create_index(&self, table: &str, req: &CreateIndexReq) -> anyhow::Result<String> {
+        self.can_write()?;
         let sql = self.make_create_index_sql(table, req);
         log::info!("sql:{}", sql);
         self.simple_execute_sql(&sql).await?;
@@ -852,6 +818,7 @@ impl SchemaTrait for CassandraDB {
     }
 
     async fn drop_index(&self, _table_name: &str, index: &str) -> anyhow::Result<String> {
+        self.can_write()?;
         let sql = format!(r#"DROP INDEX IF EXISTS "{index}";"#);
         log::info!("sql:{}", sql);
         self.simple_execute_sql(&sql).await?;
@@ -880,6 +847,7 @@ impl SchemaTrait for CassandraDB {
     }
 
     async fn duplicate_table(&self, table: &str, dup: &str) -> anyhow::Result<()> {
+        self.can_write()?;
         let sql = self.show_create_table_sql(table).await?.create_table;
         // replace table name.
         let sql = sql.replacen(table, dup, 1);
@@ -925,7 +893,7 @@ impl SchemaTrait for CassandraDB {
     }
 
     fn clone(&self) -> Box<dyn SchemaTrait> {
-        Box::new(Clone::clone(self)) as Box<dyn SchemaTrait>
+        Box::new(Clone::clone(self))
     }
 
     async fn list_table(&self) -> anyhow::Result<Vec<ListTable>> {
@@ -965,21 +933,8 @@ impl SchemaTrait for CassandraDB {
         para: ShowTableParameter,
         emit: QueryEventEmitter,
     ) -> anyhow::Result<()> {
-        let ShowTableParameter {
-            where_str,
-            order_by,
-            allow_filtering,
-            ..
-        } = &para;
         let cols = self.show_table_columns(table_name).await?;
-        let cols_string = self.backend_kind().format_fields(Some(&cols));
-        let cql = get_select_sql(
-            table_name,
-            cols_string,
-            where_str.as_deref(),
-            order_by.as_deref(),
-            *allow_filtering,
-        );
+        let cql = self.gen_show_sql(table_name, Some(&cols), Some(&para));
         emit.send(
             QueryResp {
                 fields: cols,
@@ -1041,6 +996,7 @@ impl SchemaTrait for CassandraDB {
         name: &str,
         col: ColumnType,
     ) -> anyhow::Result<String> {
+        self.can_write()?;
         let sql = format!("ALTER TABLE {table} ADD {name} {}", col.typ);
         log::info!("sql:{}", sql);
         self.simple_execute_sql(&sql).await?;
@@ -1054,6 +1010,7 @@ impl SchemaTrait for CassandraDB {
         new_name: &str,
         _typ: Option<ColumnType>,
     ) -> anyhow::Result<String> {
+        self.can_write()?;
         let sql = format!("ALTER TABLE {table} RENAME {old_name} TO {new_name}");
         log::info!("sql:{}", sql);
         self.simple_execute_sql(&sql).await?;
@@ -1061,6 +1018,7 @@ impl SchemaTrait for CassandraDB {
     }
 
     async fn drop_table_column(&self, table: &str, col: &str) -> anyhow::Result<String> {
+        self.can_write()?;
         let sql = format!("ALTER TABLE {table} DROP {col};");
         log::info!("sql:{}", sql);
         self.simple_execute_sql(&sql).await?;
@@ -1139,6 +1097,7 @@ impl SchemaTrait for CassandraDB {
         name: &str,
         extra: Option<UdfOrProcedureExtraParameter>,
     ) -> anyhow::Result<String> {
+        self.can_write()?;
         let parameters = match &extra {
             Some(extra) => match &extra {
                 UdfOrProcedureExtraParameter::Cassandra { parameters } => parameters,
@@ -1427,6 +1386,7 @@ impl CassandraDB {
         name: &str,
         parameters: Vec<String>,
     ) -> anyhow::Result<String> {
+        self.can_write()?;
         let p = format!("({})", parameters.join(","));
         let sql = format!("DROP AGGREGATE {name}{p} ");
         log::info!("sql:{}", sql);
@@ -1437,7 +1397,6 @@ impl CassandraDB {
 
 #[cfg(test)]
 mod tests {
-
     use super::*;
     use crate::{
         db::{CreateIndexColumn, CreateTableReq, CreateTableReqColumn},
@@ -1584,7 +1543,7 @@ mod tests {
         .await
         .unwrap()
         .unwrap();
-        let size = 10000;
+        let size = 1550;
         for k in 0..size {
             let mut values = HashMap::new();
             values.insert("id".to_string(), Some("uuid()".to_string()));

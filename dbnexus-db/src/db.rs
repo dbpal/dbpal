@@ -98,6 +98,8 @@ impl std::fmt::Display for BackendKind {
 pub trait GetBackendKind {
     fn backend_kind(&self) -> BackendKind;
 }
+
+// those backend 不支持连接支持设置用这个trait辅助实现呢
 pub trait ReadOnlyTrait {
     fn read_only(&self) -> bool;
     fn can_write(&self) -> anyhow::Result<()> {
@@ -202,7 +204,6 @@ pub trait SchemaTrait:
     + std::fmt::Debug
     + ServerMetas
     + 'static
-    + ReadOnlyTrait
     + ExportQueryResult
     + SqlBuilder
 {
@@ -990,7 +991,6 @@ pub trait CatalogTrait:
     + LanguageServer
     + Debug
     + ServerMetas
-    + ReadOnlyTrait
     + ExportQueryResult
 {
     async fn list_database(&self) -> anyhow::Result<Vec<String>>;
@@ -1077,15 +1077,7 @@ impl std::fmt::Display for CreateTableAndIndexSql {
 
 #[async_trait::async_trait]
 pub trait DBTrait:
-    Sync
-    + Send
-    + QuerySql
-    + 'static
-    + CheckConn
-    + Debug
-    + ServerMetas
-    + ReadOnlyTrait
-    + ExportQueryResult
+    Sync + Send + QuerySql + 'static + CheckConn + Debug + ServerMetas + ExportQueryResult
 {
     async fn list_schema(&self) -> anyhow::Result<Vec<String>>;
     async fn open_schema(&self, name: &str) -> anyhow::Result<Arc<dyn SchemaTrait>>;

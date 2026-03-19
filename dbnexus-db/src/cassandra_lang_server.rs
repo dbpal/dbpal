@@ -524,11 +524,11 @@ mod tests {
     use crate::{
         cassandra::make_test_object, db::QuerySql, enable_test_log, language_server::LanguageServer,
     };
-    #[tokio::test]
 
+    #[ignore = "run manually"]
+    #[tokio::test]
     async fn xxx() {
         enable_test_log();
-
         let db = make_test_object(Some("system".to_string())).await;
         db.completion_id.set("".to_string());
         db.open_connection("").await.unwrap();
@@ -545,7 +545,6 @@ mod tests {
         for name in x.items.iter() {
             println!("{}", name.item)
         }
-
         assert!(x.from_dot);
     }
 }

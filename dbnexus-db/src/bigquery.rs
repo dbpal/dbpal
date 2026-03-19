@@ -79,12 +79,6 @@ impl GetBackendKind for BigQueryDb {
     }
 }
 
-impl ReadOnlyTrait for BigQueryDb {
-    fn read_only(&self) -> bool {
-        self.config.read_only
-    }
-}
-
 #[async_trait::async_trait]
 
 impl QuerySql for BigQueryDb {

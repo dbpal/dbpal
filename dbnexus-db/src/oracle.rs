@@ -16,9 +16,9 @@ use crate::db::{
     CreateIndexReq, CreateSchemaExtra, CreateTableAndIndexSql, DBTrait, DefAndMetas, ExportFrame,
     ExportKind, ExportQueryResult, Field, GetBackendKind, Index, IndexKind, ListTable, MetaValue,
     NamedStaff, OptionMustBeSomeErr, ProcedureDetail, QueryEvent, QueryEventEmitter, QueryResp,
-    QuerySql, ReadOnlyTrait, SchemaTrait, ServerMetas, ShowTableParameter, SqlBuilder, SqlCollect,
-    TriggerDetail, TriggerEnable, TriggerEvent, TriggerTiming, UdfOrProcedureExtraParameter,
-    XlsxEdit, POOL_MAX_CONNECTIONS,
+    QuerySql, SchemaTrait, ServerMetas, ShowTableParameter, SqlBuilder, SqlCollect, TriggerDetail,
+    TriggerEnable, TriggerEvent, TriggerTiming, UdfOrProcedureExtraParameter, XlsxEdit,
+    POOL_MAX_CONNECTIONS,
 };
 
 use crate::helper::{create_csv, generate_random_string};
@@ -78,7 +78,7 @@ const QUERY_AUTO_COMMIT: bool = true;
 #[async_trait::async_trait]
 impl ExportQueryResult for OracleDB {
     fn clone(&self) -> Box<dyn ExportQueryResult> {
-        Box::new(Clone::clone(self)) as Box<dyn ExportQueryResult>
+        Box::new(Clone::clone(self)) 
     }
 
     async fn export_query_result(
@@ -891,11 +891,6 @@ impl OracleDB {
         anyhow::Ok(ret.into_iter().map(ListTable::from).collect())
     }
 }
-impl ReadOnlyTrait for OracleDB {
-    fn read_only(&self) -> bool {
-        self.config.read_only
-    }
-}
 
 impl OracleDB {
     pub(crate) async fn query(&self, sql: impl Into<String>) -> anyhow::Result<Vec<Row>> {
@@ -1093,7 +1088,7 @@ impl SchemaTrait for OracleDB {
     }
 
     fn clone(&self) -> Box<dyn SchemaTrait> {
-        Box::new(Clone::clone(self)) as Box<dyn SchemaTrait>
+        Box::new(Clone::clone(self)) 
     }
 
     fn as_any(&self) -> &dyn std::any::Any {
@@ -1291,7 +1286,6 @@ impl SchemaTrait for OracleDB {
     }
 
     async fn truncate_table(&self, table_name: &str) -> anyhow::Result<String> {
-        self.can_write()?;
         let sql = format!(r#"TRUNCATE TABLE  "{table_name}""#);
         log::info!("sql:{}", sql);
         self.simple_execute_sql(&sql).await?;
@@ -1676,12 +1670,17 @@ impl OracleDB {
             conn.execute(&sql, &[])?;
         }
         conn.set_autocommit(QUERY_AUTO_COMMIT);
+        if self.config.read_only {
+            conn.execute("ALTER SESSION SET READ_ONLY = TRUE", &[])?;
+        }
         anyhow::Ok(conn)
     }
 }
 
 // docker container create    -it    --name oracle-test  -p 1521:1521   -e
 // ORACLE_PWD=welcome123   container-registry.oracle.com/database/express:latest
+
+// docker run -d   -p 1521:1521   -e ORACLE_PASSWORD=welcome123   --name oracle-free  gvenzl/oracle-free
 #[cfg(test)]
 pub(crate) async fn make_test_object(schema: Option<String>) -> OracleDB {
     OracleDB::new(
@@ -1719,6 +1718,43 @@ mod tests {
     fn test_lock() -> &'static Mutex<()> {
         static MUTEX: Mutex<()> = Mutex::const_new(());
         &MUTEX
+    }
+
+    #[tokio::test]
+    async fn test_read_only() {
+        let _guard = test_lock().lock().await;
+        let db = OracleDB::new(
+            OracleDBConfig {
+                conn_timeout: Some(5000.into()),
+                username: "system".to_string(),
+                password: "welcome123".to_string(),
+                schema: None,
+                read_only: true,
+                host: crate::TEST_HOST.to_string(),
+                port: 1521,
+                db: "XE".to_string(),
+            },
+            Some(2),
+        )
+        .await
+        .unwrap();
+
+        let conn = db.get_conn().unwrap();
+
+        let err = conn.execute(
+            r#"
+                CREATE TABLE users (
+                username     VARCHAR2(50)
+            )
+        "#,
+            &[],
+        );
+        assert!(err.is_err());
+        if let Err(err) = err {
+            let x = format!("{:?}", err);
+            println!("{:?}", x);
+            assert!(x.contains("read-only"));
+        }
     }
 
     #[tokio::test]

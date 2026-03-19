@@ -18,8 +18,8 @@ use crate::db::{
     CreateTableAndIndexSql, CreatedTypeDef, DBTrait, DefAndMetas, ExportFrame, ExportKind,
     ExportQueryResult, Field, GetBackendKind, Index, IndexKind, ListTable, MetaValue, NamedStaff,
     OptionMustBeSomeErr, ProcedureDetail, QueryEvent, QueryEventEmitter, QueryResp, QuerySql,
-    ReadOnlyTrait, SchemaTrait, SequenceDetail, ServerMetas, ShowTableParameter, SqlBuilder,
-    SqlCollect, TriggerDetail, TriggerEvent, TriggerTiming, UdfOrProcedureExtraParameter, XlsxEdit,
+    SchemaTrait, SequenceDetail, ServerMetas, ShowTableParameter, SqlBuilder, SqlCollect,
+    TriggerDetail, TriggerEvent, TriggerTiming, UdfOrProcedureExtraParameter, XlsxEdit,
     POOL_MAX_CONNECTIONS,
 };
 
@@ -46,11 +46,6 @@ impl CheckConn for PostGresDB {
             .fetch_all(conn.deref_mut())
             .await?;
         anyhow::Ok(ins.elapsed())
-    }
-}
-impl ReadOnlyTrait for PostGresDB {
-    fn read_only(&self) -> bool {
-        self.config.read_only
     }
 }
 
@@ -938,7 +933,7 @@ impl SchemaTrait for PostGresDB {
     }
 
     fn clone(&self) -> Box<dyn SchemaTrait> {
-        Box::new(Clone::clone(self)) as Box<dyn SchemaTrait>
+        Box::new(Clone::clone(self)) 
     }
 
     fn as_any(&self) -> &dyn std::any::Any {
@@ -1561,7 +1556,7 @@ async fn set_current_schema(conn: &mut PgConnection, schema: &str) -> anyhow::Re
 
 impl ExportQueryResult for PostGresDB {
     fn clone(&self) -> Box<dyn ExportQueryResult> {
-        Box::new(Clone::clone(self)) as Box<dyn ExportQueryResult>
+        Box::new(Clone::clone(self)) 
     }
 
     async fn export_query_result(

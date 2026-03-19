@@ -18,7 +18,7 @@ use crate::db::{
     escape_sql_str, export_query_as_xlsx_send_data, AutoCompletionQueryId, BackendKind, CheckConn,
     ColumnType, CreateIndexReq, CreateTableAndIndexSql, ExportFrame, ExportKind, ExportQueryResult,
     Field, GetBackendKind, Index, IndexKind, ListTable, MetaValue, NamedStaff, OptionMustBeSomeErr,
-    QueryEvent, QueryEventEmitter, QueryResp, QuerySql, ReadOnlyTrait, SchemaTrait, ServerMetas,
+    QueryEvent, QueryEventEmitter, QueryResp, QuerySql, SchemaTrait, ServerMetas,
     ShowTableParameter, SqlBuilder, TriggerDetail, TriggerEvent, TriggerTiming, XlsxEdit,
     POOL_MAX_CONNECTIONS,
 };
@@ -463,7 +463,7 @@ impl SchemaTrait for SqliteDB {
     }
 
     fn clone(&self) -> Box<dyn SchemaTrait> {
-        Box::new(Clone::clone(self)) as Box<dyn SchemaTrait>
+        Box::new(Clone::clone(self)) 
     }
 
     fn as_any(&self) -> &dyn std::any::Any {
@@ -1072,7 +1072,7 @@ pub(crate) fn extract_auto_increment_key(sql: &str) -> anyhow::Result<Option<Str
 #[async_trait::async_trait]
 impl ExportQueryResult for SqliteDB {
     fn clone(&self) -> Box<dyn ExportQueryResult> {
-        Box::new(Clone::clone(self)) as Box<dyn ExportQueryResult>
+        Box::new(Clone::clone(self)) 
     }
 
     async fn export_query_result(
@@ -1377,12 +1377,6 @@ pub(crate) async fn make_test_object() -> SqliteDB {
     .await
     .unwrap();
     db
-}
-
-impl ReadOnlyTrait for SqliteDB {
-    fn read_only(&self) -> bool {
-        self.config.read_only
-    }
 }
 
 #[cfg(test)]

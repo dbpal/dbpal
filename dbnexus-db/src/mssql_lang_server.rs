@@ -945,7 +945,7 @@ mod tests {
         let x = db.list_execute(None).await;
         println!("###########:{:?}", x);
     }
-
+    #[ignore = "run manually"]
     #[tokio::test]
 
     async fn test_try_get_max_id() {

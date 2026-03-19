@@ -4,8 +4,8 @@ use crate::db::{
     escape_sql_str, BackendKind, CheckConn, ColumnType, CreateSchemaExtra, CreateTableAndIndexSql,
     DBTrait, DefAndMetas, ExportFrame, ExportKind, ExportQueryResult, Field, GetBackendKind,
     ListTable, MetaValue, NamedStaff, OptionMustBeSomeErr, QueryEvent, QueryEventEmitter,
-    QueryResp, QuerySql, ReadOnlyTrait, SchemaTrait, ServerMetas, ShowTableParameter, SqlBuilder,
-    SqlCollect, UdfOrProcedureExtraParameter, XlsxEdit,
+    QueryResp, QuerySql, SchemaTrait, ServerMetas, ShowTableParameter, SqlBuilder, SqlCollect,
+    UdfOrProcedureExtraParameter, XlsxEdit,
 };
 
 use crate::helper::{ty_is_decimal, ty_is_float, ty_is_int};
@@ -185,11 +185,10 @@ impl SchemaTrait for ClickHouseDB {
     }
 
     fn clone(&self) -> Box<dyn SchemaTrait> {
-        Box::new(Clone::clone(self)) as Box<dyn SchemaTrait>
+        Box::new(Clone::clone(self))
     }
 
     async fn rename_table(&self, old: &str, new: &str) -> anyhow::Result<String> {
-        self.can_write()?;
         let sql = format!(r#"RENAME TABLE `{old}` TO `{new}`"#);
         log::info!("sql:{}", sql);
 
@@ -198,7 +197,6 @@ impl SchemaTrait for ClickHouseDB {
     }
 
     async fn duplicate_table(&self, table: &str, dup: &str) -> anyhow::Result<()> {
-        self.can_write()?;
         let sql = format!(r#"CREATE TABLE `{dup}` AS `{table}`"#);
         log::info!("sql:{}", sql);
         log::info!("sql:{}", sql);
@@ -242,7 +240,6 @@ impl SchemaTrait for ClickHouseDB {
     }
 
     async fn truncate_table(&self, table_name: &str) -> anyhow::Result<String> {
-        self.can_write()?;
         let sql = format!(r#"TRUNCATE TABLE `{table_name}`"#);
         log::info!("sql:{}", sql);
         self.simple_execute_sql(&sql).await?;
@@ -404,7 +401,6 @@ impl SchemaTrait for ClickHouseDB {
     }
 
     async fn drop_table(&self, table: &str, _cascade: bool) -> anyhow::Result<String> {
-        self.can_write()?;
         let sql = format!(r#"DROP TABLE `{table}`"#);
         log::info!("sql:{}", sql);
 
@@ -745,7 +741,7 @@ impl ClickHouseDB {
 #[async_trait::async_trait]
 impl ExportQueryResult for ClickHouseDB {
     fn clone(&self) -> Box<dyn ExportQueryResult> {
-        Box::new(Clone::clone(self)) as Box<dyn ExportQueryResult>
+        Box::new(Clone::clone(self))
     }
 
     async fn export_query_result(
@@ -870,11 +866,6 @@ pub struct ClickHouseDB {
     pub(crate) http_client: Arc<reqwest::Client>,
 }
 
-impl ReadOnlyTrait for ClickHouseDB {
-    fn read_only(&self) -> bool {
-        self.config.read_only
-    }
-}
 #[async_trait::async_trait]
 
 impl CheckConn for ClickHouseDB {
@@ -900,6 +891,10 @@ impl ClickHouseDB {
         }
         if let Some(db) = config.db.as_ref() {
             client = client.with_database(db);
+        }
+
+        if config.read_only {
+            client = client.with_option("readonly", "1");
         }
 
         let http_client = {
@@ -941,7 +936,6 @@ impl DBTrait for ClickHouseDB {
         name: &str,
         _extra: Option<CreateSchemaExtra>,
     ) -> anyhow::Result<()> {
-        self.can_write()?;
         let sql = format!("CREATE DATABASE IF NOT EXISTS {name};");
         log::info!("sql:{}", sql);
         self.simple_execute_sql(&sql).await?;
@@ -949,7 +943,6 @@ impl DBTrait for ClickHouseDB {
     }
 
     async fn drop_schema(&self, name: &str) -> anyhow::Result<()> {
-        self.can_write()?;
         let sql = format!("DROP DATABASE IF EXISTS {name};");
         log::info!("sql:{}", sql);
         self.simple_execute_sql(&sql).await?;
@@ -1278,10 +1271,52 @@ mod tests {
     use super::{make_test_object, parse_type};
     use crate::db::{
         ColumnType, CreateTableReq, CreateTableReqColumn, DBTrait, ExportKind, QuerySql,
-        SchemaTrait, ServerMetas, SqlNullAble, TestQueryEventEmit,
+        SchemaTrait, ServerMetas, SqlNullAble,
     };
     use crate::enable_test_log;
     use std::collections::HashMap;
+
+    #[tokio::test]
+    async fn test_read_only() {
+        let db = ClickHouseDB::new(ClickHouseConfig {
+            conn_timeout: Some(5000.into()),
+            host: "127.0.0.1".to_string(),
+            port: 8123,
+            read_only: true,
+            db: Some("default".to_string()),
+            username: "default".to_string(),
+            password: Some("root".to_string()),
+            https: false,
+        })
+        .unwrap();
+
+        let err = db
+            .simple_execute_sql(
+                r#"
+        CREATE TABLE IF NOT EXISTS events (
+            event_id UInt64,                -- Unsigned 64-bit integer
+            event_type String,              -- Optimized string type
+            user_id FixedString(16),        -- Fixed length for UUIDs/Hashes
+            price Decimal(18, 2),           -- Precise decimal for finance
+            description LowCardinality(String), -- Optimization for strings with few unique values
+            event_date Date,
+            created_at DateTime('Asia/Shanghai') -- Timestamp with timezone
+        ) 
+        ENGINE = MergeTree()
+        PARTITION BY toYYYYMM(event_date)   -- Data is grouped into monthly folders
+        ORDER BY (event_type, event_date)   -- Primary key for fast filtering and sorting
+        PRIMARY KEY (event_type);           -- Must be a prefix of ORDER BY
+
+        "#,
+            )
+            .await;
+        assert!(err.is_err());
+        if let Err(err) = err {
+            let x = format!("{:?}", err);
+
+            assert!(x.contains("readonly"));
+        }
+    }
 
     #[tokio::test]
     async fn test_table_pagination() {
@@ -1361,24 +1396,6 @@ mod tests {
         println!("{:?}", ping_time);
     }
 
-    #[tokio::test]
-    async fn test_check_query_xxx() {
-        enable_test_log();
-
-        let db = make_test_object();
-        let query_id = "";
-        db.open_connection(query_id).await.unwrap();
-        db.query_sql(
-            query_id,
-            r#"
-select * from
-default.test_dup
-        "#,
-            Arc::new(TestQueryEventEmit::default()),
-        )
-        .await
-        .unwrap();
-    }
     #[tokio::test]
     async fn test_show_metas() {
         let db = make_test_object();
@@ -2371,22 +2388,6 @@ default.test_dup
 
             println!("json:{}", json);
         }
-    }
-
-    #[tokio::test]
-    async fn test_error_query() {
-        // enable_test_log();
-        let db = make_test_object();
-        let query_id = "";
-        db.open_connection(query_id).await.unwrap();
-
-        db.query_sql(
-            query_id,
-            "SELECT * fro test_types4",
-            Arc::new(TestQueryEventEmit::default()),
-        )
-        .await
-        .unwrap();
     }
 
     #[test]

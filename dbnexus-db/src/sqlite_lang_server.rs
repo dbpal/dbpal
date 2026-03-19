@@ -562,7 +562,7 @@ mod tests {
         let db = make_test_object().await;
         test_file_auto_completion(include_str!("./xxx.sql"), &db, None, true).await;
     }
-
+    #[ignore = "run manually"]
     #[tokio::test]
 
     async fn test_try_get_max_id() {

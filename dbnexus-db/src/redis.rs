@@ -98,24 +98,29 @@ pub struct RedisListTable {
 
 impl RedisDB {
     pub async fn list_lpush(&self, key: &str, value: &[u8]) -> anyhow::Result<()> {
+        self.can_write()?;
+
         let mut conn = self.get_conn().await?;
         let _: () = conn.lpush(key, value).await?;
         anyhow::Ok(())
     }
 
     pub async fn list_rpush(&self, key: &str, value: &[u8]) -> anyhow::Result<()> {
+        self.can_write()?;
         let mut conn = self.get_conn().await?;
         let _: () = conn.rpush(key, value).await?;
         anyhow::Ok(())
     }
 
     pub async fn list_remove(&self, key: &str, count: isize, value: &[u8]) -> anyhow::Result<()> {
+        self.can_write()?;
         let mut conn = self.get_conn().await?;
         let _: () = conn.lrem(key, count, value).await?;
         anyhow::Ok(())
     }
 
     pub async fn list_set(&self, key: &str, index: isize, value: &[u8]) -> anyhow::Result<()> {
+        self.can_write()?;
         let mut conn = self.get_conn().await?;
         let _: () = conn.lset(key, index, value).await?;
         anyhow::Ok(())
@@ -127,6 +132,7 @@ impl RedisDB {
         old_member: &[u8],
         new_member: &[u8],
     ) -> anyhow::Result<()> {
+        self.can_write()?;
         let mut conn = self.get_conn().await?;
         let _: () = conn.srem(key, old_member).await?;
         let _: () = conn.sadd(key, new_member).await?;
@@ -134,12 +140,14 @@ impl RedisDB {
     }
 
     pub async fn set_del(&self, key: &str, member: &[u8]) -> anyhow::Result<()> {
+        self.can_write()?;
         let mut conn = self.get_conn().await?;
         let _: () = conn.srem(key, member).await?;
         anyhow::Ok(())
     }
 
     pub async fn set_add(&self, key: &str, member: &[u8]) -> anyhow::Result<()> {
+        self.can_write()?;
         let mut conn = self.get_conn().await?;
         let _: () = conn.sadd(key, member).await?;
         anyhow::Ok(())
@@ -152,6 +160,7 @@ impl RedisDB {
         new_member: &[u8],
         new_value: &[u8],
     ) -> anyhow::Result<()> {
+        self.can_write()?;
         let mut conn = self.get_conn().await?;
         let _: () = conn.hdel(key, old_member).await?;
         let _: () = conn.hset(key, new_member, new_value).await?;
@@ -159,12 +168,14 @@ impl RedisDB {
     }
 
     pub async fn hash_del(&self, key: &str, member: &[u8]) -> anyhow::Result<()> {
+        self.can_write()?;
         let mut conn = self.get_conn().await?;
         let _: () = conn.hdel(key, member).await?;
         anyhow::Ok(())
     }
 
     pub async fn hash_add(&self, key: &str, member: &[u8], value: &[u8]) -> anyhow::Result<()> {
+        self.can_write()?;
         let mut conn = self.get_conn().await?;
         let _: () = conn.hset(key, member, value).await?;
         anyhow::Ok(())
@@ -177,6 +188,7 @@ impl RedisDB {
         new_member: &[u8],
         new_value: f64,
     ) -> anyhow::Result<()> {
+        self.can_write()?;
         let mut conn = self.get_conn().await?;
         let _: () = conn.zrem(key, old_member).await?;
         let _: () = conn.zadd(key, new_member, new_value).await?;
@@ -185,18 +197,21 @@ impl RedisDB {
     }
 
     pub async fn zset_del(&self, key: &str, member: &[u8]) -> anyhow::Result<()> {
+        self.can_write()?;
         let mut conn = self.get_conn().await?;
         let _: () = conn.zrem(key, member).await?;
         anyhow::Ok(())
     }
 
     pub async fn zset_add(&self, key: &str, member: &[u8], value: f64) -> anyhow::Result<()> {
+        self.can_write()?;
         let mut conn = self.get_conn().await?;
         let _: () = conn.zadd(key, member, value).await?;
         anyhow::Ok(())
     }
 
     pub async fn string_set(&self, key: &str, value: &[u8]) -> anyhow::Result<()> {
+        self.can_write()?;
         let mut conn = self.get_conn().await?;
         let _: () = conn.set(key, value).await?;
         anyhow::Result::Ok(())
@@ -737,38 +752,6 @@ impl GetBackendKind for RedisDB {
     }
 }
 
-impl RedisDB {
-    pub async fn zset_range_by_score(
-        &self,
-        key: &str,
-        min: Option<f64>,
-        max: Option<f64>,
-        page: isize,
-        page_count: isize,
-    ) -> anyhow::Result<QueryResp> {
-        let mut conn = self.get_conn().await?;
-        let offset = (page - 1) * page_count;
-        let total: usize = conn.zcount(key, min, max).await?;
-        let res: Vec<String> = conn
-            .zrangebyscore_limit_withscores(key, min, max, offset, page_count)
-            .await?;
-        let data: Vec<_> = res
-            .chunks(2)
-            .map(|x| vec![Some(x[0].clone()), Some(x[1].clone())])
-            .collect();
-
-        anyhow::Ok(QueryResp::new(
-            vec![
-                Field::from_name_type("key", "string"),
-                Field::from_name_type("value", "string"),
-            ],
-            total,
-            data,
-            None,
-        )?)
-    }
-}
-
 #[async_trait::async_trait]
 impl ExportQueryResult for RedisDB {
     async fn export_query_result(
@@ -848,7 +831,7 @@ impl ExportQueryResult for RedisDB {
     }
 
     fn clone(&self) -> Box<dyn ExportQueryResult> {
-        Box::new(Clone::clone(self)) as Box<dyn ExportQueryResult>
+        Box::new(Clone::clone(self))
     }
 }
 
@@ -1055,7 +1038,7 @@ impl SchemaTrait for RedisDB {
     }
 
     fn clone(&self) -> Box<dyn SchemaTrait> {
-        Box::new(Clone::clone(self)) as Box<dyn SchemaTrait>
+        Box::new(Clone::clone(self))
     }
 
     async fn export_table_or_view(
@@ -1839,17 +1822,6 @@ db1:keys=1,expires=0,avg_ttl=0"#,
         )
         .unwrap();
         assert_eq!(r, vec!["db0".to_string(), "db1".to_string()]);
-    }
-
-    #[tokio::test]
-    async fn test_zrange_score() {
-        enable_test_log();
-        let db = make_test_object().await;
-        let resp = db
-            .zset_range_by_score("zset_value", Some(1f64), Some(100f64), 1, 100)
-            .await
-            .unwrap();
-        println!("resp:{:?}", resp);
     }
 
     #[tokio::test]

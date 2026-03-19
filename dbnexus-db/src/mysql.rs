@@ -5,8 +5,8 @@ use crate::db::{
     BackendKindMysql, CheckConn, ColumnType, CreateIndexReq, CreateSchemaExtra,
     CreateTableAndIndexSql, DBTrait, DefAndMetas, ExportFrame, ExportKind, ExportQueryResult,
     Field, GetBackendKind, Index, IndexKind, ListTable, MetaValue, NamedStaff, OptionMustBeSomeErr,
-    ProcedureDetail, QueryEvent, QueryEventEmitter, QueryResp, QuerySql, ReadOnlyTrait,
-    SchemaTrait, SequenceDetail, ServerMetas, ShowTableParameter, SqlBuilder, SqlCollect, SqlEvent,
+    ProcedureDetail, QueryEvent, QueryEventEmitter, QueryResp, QuerySql, SchemaTrait,
+    SequenceDetail, ServerMetas, ShowTableParameter, SqlBuilder, SqlCollect, SqlEvent,
     TriggerDetail, TriggerEvent, TriggerTiming, UdfOrProcedureExtraParameter, XlsxEdit,
     POOL_MAX_CONNECTIONS,
 };
@@ -62,12 +62,6 @@ impl MysqlDB {
                     .collect::<Vec<_>>()
             })?;
         anyhow::Ok(r)
-    }
-}
-
-impl ReadOnlyTrait for MysqlDB {
-    fn read_only(&self) -> bool {
-        self.config.read_only
     }
 }
 
@@ -945,7 +939,7 @@ impl SchemaTrait for MysqlDB {
     }
 
     fn clone(&self) -> Box<dyn SchemaTrait> {
-        Box::new(Clone::clone(self)) as Box<dyn SchemaTrait>
+        Box::new(Clone::clone(self)) 
     }
 
     fn as_any(&self) -> &dyn std::any::Any {
@@ -1506,7 +1500,7 @@ impl DBTrait for MysqlDB {
 #[async_trait::async_trait]
 impl ExportQueryResult for MysqlDB {
     fn clone(&self) -> Box<dyn ExportQueryResult> {
-        Box::new(Clone::clone(self)) as Box<dyn ExportQueryResult>
+        Box::new(Clone::clone(self))
     }
 
     async fn export_query_result(

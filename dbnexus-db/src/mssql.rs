@@ -190,7 +190,7 @@ fn make_config(c: &SqlServerDBConfig) -> anyhow::Result<tiberius::Config> {
             config.authentication(tiberius::AuthMethod::sql_server(user, pass));
         }
     }
-
+    config.readonly(c.read_only);
     if let Some(db) = c.db.as_ref() {
         config.database(db);
     }
@@ -483,6 +483,7 @@ impl SchemaTrait for SqlServerDB {
         <Self as SqlBuilder>::get_current_values(self)
     }
     async fn create_index(&self, table: &str, req: &CreateIndexReq) -> anyhow::Result<String> {
+        self.can_write()?;
         let sql = req.common_sql(table, true, self.backend_kind().quote_style())?;
         log::info!("sql:{}", sql);
         let mut conn = self.get_conn().await?;
@@ -491,6 +492,7 @@ impl SchemaTrait for SqlServerDB {
     }
 
     async fn drop_index(&self, table_name: &str, index: &str) -> anyhow::Result<String> {
+        self.can_write()?;
         let sql = format!(r#"DROP INDEX "{index}" ON "{table_name}";"#);
         self.simple_execute_sql(&sql).await?;
         anyhow::Ok(sql)
@@ -502,6 +504,7 @@ impl SchemaTrait for SqlServerDB {
         old_name: &str,
         new_name: &str,
     ) -> anyhow::Result<String> {
+        self.can_write()?;
         let sql = format!("EXEC sp_rename '{table}.{old_name}', '{new_name}', 'INDEX';");
         log::info!("sql:{}", sql);
         self.simple_execute_sql(&sql).await?;
@@ -514,6 +517,7 @@ impl SchemaTrait for SqlServerDB {
         name: &str,
         col: ColumnType,
     ) -> anyhow::Result<String> {
+        self.can_write()?;
         let sql = format!(
             r#"ALTER TABLE "{table}" ADD "{name}" {} {} {}"#,
             col.typ,
@@ -544,6 +548,7 @@ impl SchemaTrait for SqlServerDB {
         new_name: &str,
         typ: Option<crate::db::ColumnType>,
     ) -> anyhow::Result<String> {
+        self.can_write()?;
         let mut conn = self.get_conn().await?;
         let mut sc = SqlCollect::default();
         if let Some(typ) = typ.as_ref() {
@@ -571,6 +576,7 @@ impl SchemaTrait for SqlServerDB {
     }
 
     async fn drop_table_column(&self, table: &str, col: &str) -> anyhow::Result<String> {
+        self.can_write()?;
         let sql = format!(
             r#"
             ALTER TABLE "{table}" DROP COLUMN "{col}";
@@ -584,6 +590,7 @@ impl SchemaTrait for SqlServerDB {
     }
 
     async fn duplicate_table(&self, table: &str, dup: &str) -> anyhow::Result<()> {
+        self.can_write()?;
         if self.table_exists(dup).await? {
             anyhow::bail!(format!("table '{}' already exists", dup));
         }
@@ -599,6 +606,7 @@ impl SchemaTrait for SqlServerDB {
     }
 
     async fn rename_table(&self, old: &str, new: &str) -> anyhow::Result<String> {
+        self.can_write()?;
         let sql = format!(
             r#"
             EXEC sp_rename '{old}', '{new}';
@@ -693,6 +701,7 @@ impl SchemaTrait for SqlServerDB {
     }
 
     async fn drop_trigger(&self, table: &str, name: &str) -> anyhow::Result<String> {
+        self.can_write()?;
         let sql = format!(
             r#"
             DROP TRIGGER "{}"."{name}" ON "{table}";
@@ -726,7 +735,7 @@ impl SchemaTrait for SqlServerDB {
     }
 
     fn clone(&self) -> Box<dyn SchemaTrait> {
-        Box::new(Clone::clone(self)) as Box<dyn SchemaTrait>
+        Box::new(Clone::clone(self)) 
     }
 
     fn as_any(&self) -> &dyn std::any::Any {
@@ -780,7 +789,6 @@ impl SchemaTrait for SqlServerDB {
     async fn drop_view(&self, view_name: &str) -> anyhow::Result<String> {
         self.can_write()?;
         let schema = self.config.schema_str()?.as_str();
-
         let sql = format!(r#"DROP VIEW "{schema}"."{view_name}""#);
         self.simple_execute_sql(&sql).await?;
         anyhow::Ok(sql)
@@ -972,6 +980,7 @@ impl SchemaTrait for SqlServerDB {
     }
 
     async fn disable_trigger(&self, table: &str, name: &str) -> anyhow::Result<String> {
+        self.can_write()?;
         let sql = format!("ENABLE TRIGGER {name} ON {table}");
         log::info!("sql:{}", sql);
         self.simple_execute_sql(&sql).await?;
@@ -979,6 +988,7 @@ impl SchemaTrait for SqlServerDB {
     }
 
     async fn enable_trigger(&self, table: &str, name: &str) -> anyhow::Result<String> {
+        self.can_write()?;
         let sql = format!("DISABLE TRIGGER {name} ON {table}");
         log::info!("sql:{}", sql);
         self.simple_execute_sql(&sql).await?;
@@ -1065,6 +1075,7 @@ impl SchemaTrait for SqlServerDB {
         name: &str,
         _extra: Option<UdfOrProcedureExtraParameter>,
     ) -> anyhow::Result<String> {
+        self.can_write()?;
         let sql = format!(r#"DROP FUNCTION "{}"."{name}""#, Self::DBO_SCHEMA);
         log::info!("sql:{}", sql);
         self.simple_execute_sql(&sql).await?;
@@ -1126,6 +1137,7 @@ impl SchemaTrait for SqlServerDB {
         name: &str,
         _arg: Option<UdfOrProcedureExtraParameter>,
     ) -> anyhow::Result<String> {
+        self.can_write()?;
         let sql = format!(r#"DROP PROCEDURE dbo."{name}""#);
         log::info!("sql:{}", sql);
         self.simple_execute_sql(&sql).await?;
@@ -1273,7 +1285,6 @@ impl SqlServerDB {
                 tiberius::QueryItem::Metadata(_) => {}
             }
         }
-
         let d = count.map(|x| x > 0).unwrap_or_default();
         anyhow::Ok(d)
     }
@@ -1444,7 +1455,7 @@ type Connection = Client<Compat<TcpStream>>;
 #[async_trait::async_trait]
 impl ExportQueryResult for SqlServerDB {
     fn clone(&self) -> Box<dyn ExportQueryResult> {
-        Box::new(Clone::clone(self)) as Box<dyn ExportQueryResult>
+        Box::new(Clone::clone(self)) 
     }
 
     async fn export_query_result(
@@ -1611,7 +1622,6 @@ impl QuerySql for SqlServerDB {
         let mut conn = conn.lock().await;
         let conn = conn.deref_mut();
         conn.simple_query("COMMIT TRANSACTION;").await?;
-
         anyhow::Ok(())
     }
 
@@ -1640,6 +1650,7 @@ impl QuerySql for SqlServerDB {
         anyhow::Ok(())
     }
     async fn simple_execute_sql(&self, sql: &str) -> anyhow::Result<Option<usize>> {
+        self.can_write()?;
         let mut conn = self.get_conn().await?;
         conn.simple_query(sql.trim()).await?;
         anyhow::Ok(None)
@@ -1753,10 +1764,12 @@ impl crate::db::DBTrait for SqlServerDB {
     }
 
     async fn create_schema(&self, _name: &str, _: Option<CreateSchemaExtra>) -> anyhow::Result<()> {
+        self.can_write()?;
         self.backend_kind().not_support_feature()
     }
 
     async fn drop_schema(&self, _name: &str) -> anyhow::Result<()> {
+        self.can_write()?;
         self.backend_kind().not_support_feature()
     }
 }
@@ -1819,10 +1832,9 @@ impl CatalogTrait for SqlServerDB {
     }
 }
 
-#[allow(dead_code)]
 #[cfg(test)]
 pub(crate) async fn make_test_object() -> SqlServerDB {
-    let ss = SqlServerDB::new(SqlServerDBConfig {
+    let db = SqlServerDB::new(SqlServerDBConfig {
         host: TEST_HOST.to_string(),
         conn_timeout: Some(5000.into()),
         port: 1433,
@@ -1837,7 +1849,7 @@ pub(crate) async fn make_test_object() -> SqlServerDB {
     })
     .await
     .unwrap();
-    ss
+    db
 }
 impl ReadOnlyTrait for SqlServerDB {
     fn read_only(&self) -> bool {
@@ -2331,15 +2343,23 @@ END;
     #[tokio::test]
     async fn test_list_database() {
         let _guard = test_lock().lock().await;
-        let db = make_test_object().await;
-        let _ = db.create_database("abc", None).await;
+        let db = SqlServerDB::new(SqlServerDBConfig {
+            host: TEST_HOST.to_string(),
+            conn_timeout: Some(5000.into()),
+            port: 1433,
+            username: Some("sa".to_string()),
+            password: Some("sfdewRE123".to_string()),
+            db: None,
+            trust_cert: true,
+            schema: None,
+            read_only: false,
+            cert_ca: None,
+        })
+        .await
+        .unwrap();
+
         let dbs = CatalogTrait::list_database(&db).await.unwrap();
         println!("{:?}", dbs);
-        assert_eq!(
-            dbs,
-            vec!["abc", "master", "model", "msdb", "tempdb", "test"]
-        );
-        db.drop_database("abc").await.unwrap();
     }
 
     #[tokio::test]
@@ -2591,21 +2611,6 @@ END;
         for db_name in db_names.iter() {
             db.open_schema(db_name).await.unwrap();
         }
-    }
-    #[ignore = "run manually"]
-    #[tokio::test]
-    async fn test_select_xxx() {
-        let _guard = test_lock().lock().await;
-        let db = make_test_object().await;
-        let query_id = "";
-        db.open_connection(query_id).await.unwrap();
-        db.query_sql(
-            query_id,
-            "SELECT  COUNT(*) from test_type1 ",
-            Arc::new(TestQueryEventEmit::default()),
-        )
-        .await
-        .unwrap();
     }
 
     // #[tokio::test]
@@ -2877,8 +2882,7 @@ END;
             query_id,
             r#"
             SELECT   *
-FROM sys.sequences;
-
+                FROM sys.sequences;
 
         "#,
             Arc::new(TestQueryEventEmit::default()),

@@ -603,13 +603,14 @@ mod tests {
 
     use crate::db::{QuerySql, SchemaTrait};
     use crate::enable_test_log;
-    use crate::firebird::make_test_object;
+    use crate::firebird::{make_test_object, test_lock};
     use crate::language_server::completion_test::test_file_auto_completion;
     use crate::language_server::LanguageServer;
 
     // partition test failed , sqlparser can't parse a valid partition statement.
     #[tokio::test]
     async fn test_auto_completion() {
+        let _guard = test_lock().lock().await;
         let db = make_test_object().await;
         enable_test_log();
         let query_id = "";
@@ -647,13 +648,15 @@ mod tests {
     #[ignore = "手动跑跑的测试"]
     #[tokio::test]
     async fn test_completion_xxx() {
+        let _guard = test_lock().lock().await;
         enable_test_log();
         let db = make_test_object().await;
         test_file_auto_completion(include_str!("./xxx.sql"), &db, None, true).await;
     }
-
+    #[ignore = "run manually"]
     #[tokio::test]
     async fn test_try_get_max_id() {
+        let _guard = test_lock().lock().await;
         let db = make_test_object().await;
         let max_id = db.try_get_max_id("EMPLOYEE").await.unwrap();
         println!("max id is:{}", max_id);

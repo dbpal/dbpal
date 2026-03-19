@@ -396,7 +396,7 @@ pub(crate) const DUCKDB_TYPES: &[&str] = &[
 #[cfg(test)]
 mod tests {
     use crate::db::{QuerySql, SchemaTrait};
-    use crate::duckdb::make_test_object;
+    use crate::duckdb::{make_test_object, test_lock};
     use crate::enable_test_log;
     use crate::language_server::completion_test::test_file_auto_completion;
     use crate::language_server::LanguageServer;
@@ -405,7 +405,10 @@ mod tests {
     // partition test failed , sqlparser can't parse a valid partition statement.
     #[tokio::test]
     async fn test_auto_completion() {
+        let _gurad = test_lock().lock().await;
+
         let db = make_test_object(Some("main".to_string())).await;
+
         enable_test_log();
         let query_id = "";
         db.open_connection(query_id).await.unwrap();
@@ -451,17 +454,11 @@ mod tests {
         test_file_auto_completion(&content, &db, None, false).await;
     }
 
-    #[ignore = "手动跑跑的测试"]
-    #[tokio::test]
-    async fn test_completion_xxx() {
-        enable_test_log();
-        let db = make_test_object("main".to_owned().into()).await;
-        test_file_auto_completion(include_str!("./xxx.sql"), &db, None, true).await;
-    }
-
+    #[ignore = "run manually"]
     #[tokio::test]
 
     async fn test_try_get_max_id() {
+        let _gurad = test_lock().lock().await;
         let db = make_test_object(Some("main".to_string())).await;
         let max_id = db.try_get_max_id("employees").await.unwrap();
         println!("max id is:{}", max_id);

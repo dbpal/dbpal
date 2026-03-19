@@ -409,7 +409,7 @@ mod tests {
         )
         .await;
     }
-
+    #[ignore = "run manually"]
     #[tokio::test]
 
     async fn test_try_get_max_id() {

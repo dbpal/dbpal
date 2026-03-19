@@ -10,7 +10,7 @@ license.workspace = true
 [dependencies]
 
 shlex = { version = "*" }
-couchbase = { version = "1.0.0-beta.1", features = [] }
+couchbase = { version = "1", features = [] }
 snowflake-connector-rs = { version = "0.7.3", optional = true }
 gcp-bigquery-client = { version = "0.27.0", optional = true }
 sqlx = { version = "0.9.0-alpha.1", features = [

@@ -43,7 +43,6 @@ impl MongoDB {
             host: config.host.to_string(),
             port: Some(config.port),
         }];
-
         opts.connect_timeout = config.conn_timeout.map(Duration::from);
         if let Some(user) = &config.username {
             let b = mongodb::options::Credential::builder();
@@ -63,7 +62,6 @@ impl MongoDB {
             opts.tls = Some(Tls::Enabled(tls_option));
         }
         let client = mongodb::Client::with_options(opts)?;
-
         anyhow::Ok(Self {
             client,
             db_name: config.db.clone(),
@@ -98,7 +96,7 @@ impl ExportQueryResult for MongoDB {
     }
 
     fn clone(&self) -> Box<dyn ExportQueryResult> {
-        Box::new(Clone::clone(self)) as Box<dyn ExportQueryResult>
+        Box::new(Clone::clone(self))
     }
 }
 #[async_trait::async_trait]
@@ -150,7 +148,6 @@ impl DBTrait for MongoDB {
 fn bson_value_to_string(b: &bson::Bson) -> anyhow::Result<Option<String>> {
     match b {
         Bson::Null | Bson::Undefined | Bson::MaxKey | Bson::MinKey => return anyhow::Ok(None),
-
         // Bson::String(x) => return anyhow::Ok(Some(x.to_owned())),
         _ => {}
     }
@@ -243,6 +240,7 @@ impl MongoDB {
         collection_name: &str,
         doc: Document,
     ) -> anyhow::Result<InsertOneResult> {
+        self.can_write()?;
         let db = self.get_db().await?;
         let ret = db
             .collection::<Document>(collection_name)
@@ -258,6 +256,7 @@ impl MongoDB {
         unique: bool,
         keys: Document,
     ) -> anyhow::Result<()> {
+        self.can_write()?;
         let db = self.get_db().await?;
         let mut options = IndexOptions::default();
         options.unique = Some(unique);
@@ -453,6 +452,7 @@ impl MongoDB {
     }
 
     async fn delete_collection(&self, collection_name: &str) -> anyhow::Result<()> {
+        self.can_write()?;
         let db = self.get_db().await?;
         db.collection::<bson::Document>(collection_name)
             .drop()
@@ -532,6 +532,7 @@ impl MongoDB {
     }
 
     pub async fn drop_mongo_time_serial_collection(&self, name: &str) -> anyhow::Result<String> {
+        self.can_write()?;
         self.drop_table(name, false).await
     }
 }
@@ -560,6 +561,7 @@ impl SchemaTrait for MongoDB {
         anyhow::Ok(vec![])
     }
     async fn duplicate_table(&self, old_collection: &str, dup: &str) -> anyhow::Result<()> {
+        self.can_write()?;
         if self.table_exists(dup).await? {
             anyhow::bail!(format!("table '{}' already exists", dup));
         }
@@ -576,6 +578,7 @@ impl SchemaTrait for MongoDB {
     }
 
     async fn rename_table(&self, old: &str, new: &str) -> anyhow::Result<String> {
+        self.can_write()?;
         let old = format!("{}.{}", self.db_name.as_ref().option_must_be_some()?, old);
         let new = format!("{}.{}", self.db_name.as_ref().option_must_be_some()?, new);
         let cmd = bson::doc! { "renameCollection":  old , "to": new};
@@ -586,7 +589,7 @@ impl SchemaTrait for MongoDB {
     }
 
     fn clone(&self) -> Box<dyn SchemaTrait> {
-        Box::new(Clone::clone(self)) as Box<dyn SchemaTrait>
+        Box::new(Clone::clone(self))
     }
 
     async fn export_table_or_view(
@@ -627,6 +630,7 @@ impl SchemaTrait for MongoDB {
     }
 
     async fn drop_view(&self, view_name: &str) -> anyhow::Result<String> {
+        self.can_write()?;
         self.drop_table(view_name, false).await
     }
 
@@ -657,6 +661,7 @@ impl SchemaTrait for MongoDB {
     }
 
     async fn drop_index(&self, table_name: &str, index: &str) -> anyhow::Result<String> {
+        self.can_write()?;
         if index == "_id_" {
             anyhow::bail!("can't drop this index");
         }
@@ -673,6 +678,7 @@ impl SchemaTrait for MongoDB {
         oldname: &str,
         newname: &str,
     ) -> anyhow::Result<String> {
+        self.can_write()?;
         if oldname == "_id_" {
             anyhow::bail!("can't rename this index");
         }
@@ -820,8 +826,6 @@ pub struct MongoShowTablePara {
     pub page_size: u64,
 }
 
-// this used in test
-#[allow(unused)]
 #[cfg(test)]
 pub(crate) fn make_test_object() -> MongoDB {
     let x = MongoDB::new(MongoDBConfig {
@@ -841,19 +845,17 @@ pub(crate) fn make_test_object() -> MongoDB {
 #[cfg(test)]
 mod tests {
 
-    use std::str::FromStr;
-    use std::time::SystemTime;
-    use std::vec;
-
+    use super::make_test_object;
+    use crate::db::{DBTrait, SchemaTrait, ServerMetas};
+    use crate::mongo::MongoShowTablePara;
     use bson::oid::ObjectId;
     use bson::spec::BinarySubtype;
     use bson::{doc, Binary, Bson, DateTime, Decimal128, Document, Regex, Timestamp, Uuid};
     use mongodb::bson;
     use mongodb::options::TimeseriesOptions;
-
-    use super::make_test_object;
-    use crate::db::{DBTrait, SchemaTrait, ServerMetas};
-    use crate::mongo::MongoShowTablePara;
+    use std::str::FromStr;
+    use std::time::SystemTime;
+    use std::vec;
 
     #[tokio::test]
     async fn test_multi_db() {

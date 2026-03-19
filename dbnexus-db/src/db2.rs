@@ -44,12 +44,6 @@ pub struct Db2Db {
 
 pub type Db2QueryConn = Arc<Mutex<PooledConnection<ODBCConnectionManager>>>;
 
-impl ReadOnlyTrait for Db2Db {
-    fn read_only(&self) -> bool {
-        self.config.read_only
-    }
-}
-
 impl Db2Db {
     pub(crate) fn get_query_conn(&self, query_id: &str) -> anyhow::Result<Db2QueryConn> {
         match self.query_connection.get(&query_id.to_string()) {

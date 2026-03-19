@@ -7,7 +7,7 @@ use couchbase::{
     bucket::Bucket,
     cluster::Cluster,
     management::buckets::bucket_settings::{BucketSettings, BucketType},
-    options::cluster_options::ClusterOptions,
+    options::{cluster_options::ClusterOptions, query_options::QueryOptions},
     scope::Scope,
 };
 use futures_util::StreamExt;
@@ -108,7 +108,13 @@ impl QuerySql for CouchBaseDB {
         emit: QueryEventEmitter,
     ) -> anyhow::Result<()> {
         let scope = self.get_scope()?;
-        let mut query_result = scope.query(sql, None).await?;
+        let mut query_result = scope
+            .query(sql, {
+                let op = QueryOptions::default();
+                let op = op.read_only(self.config.read_only);
+                Some(op)
+            })
+            .await?;
         let mut stream = query_result.rows::<'_, serde_json::Value>();
         while let Some(x) = stream.next().await {
             let x = x?;
@@ -229,6 +235,8 @@ impl SchemaTrait for CouchBaseDB {
         table_name: &str,
         values: HashMap<String, Option<String>>,
     ) -> anyhow::Result<Option<usize>> {
+        self.can_write()?;
+
         let scope = self.get_scope()?;
         let (id, value) = extract_id_and_value(&values)?;
         scope.collection(table_name).insert(id, value, None).await?;
@@ -241,6 +249,7 @@ impl SchemaTrait for CouchBaseDB {
         values: HashMap<String, Option<String>>,
         _wheres: HashMap<String, Option<String>>,
     ) -> anyhow::Result<Option<usize>> {
+        self.can_write()?;
         let (id, value) = extract_id_and_value(&values)?;
         let scope = self.get_scope()?;
         let col = scope.collection(table_name);
@@ -249,6 +258,7 @@ impl SchemaTrait for CouchBaseDB {
     }
 
     async fn duplicate_table(&self, table: &str, dup: &str) -> anyhow::Result<()> {
+        self.can_write()?;
         let bucket = self.get_bucket()?;
 
         if self.table_exists(dup).await? {
@@ -291,6 +301,7 @@ impl SchemaTrait for CouchBaseDB {
         table_name: &str,
         mut wheres: HashMap<String, Option<String>>,
     ) -> anyhow::Result<Option<usize>> {
+        self.can_write()?;
         let id = wheres.remove("id").unwrap_or_default().unwrap_or_default();
         let scope = self.get_scope()?;
         scope.collection(table_name).remove(id, None).await?;
@@ -345,6 +356,7 @@ impl SchemaTrait for CouchBaseDB {
     }
 
     async fn truncate_table(&self, table_name: &str) -> anyhow::Result<String> {
+        self.can_write()?;
         let s = self.get_scope()?;
         let sql = format!("DELETE FROM `{table_name}`");
         s.query(sql.clone(), None).await?;
@@ -352,6 +364,7 @@ impl SchemaTrait for CouchBaseDB {
     }
 
     async fn drop_table(&self, table: &str, _cascade: bool) -> anyhow::Result<String> {
+        self.can_write()?;
         let s = self.get_scope()?;
         let sql = format!("DROP COLLECTION `{table}`;");
         s.query(sql.clone(), None).await?;
@@ -359,7 +372,7 @@ impl SchemaTrait for CouchBaseDB {
     }
 
     fn clone(&self) -> Box<dyn SchemaTrait> {
-        Box::new(Clone::clone(self)) as Box<dyn SchemaTrait>
+        Box::new(Clone::clone(self))
     }
 
     async fn list_data_types(&self) -> anyhow::Result<Vec<String>> {
@@ -369,6 +382,7 @@ impl SchemaTrait for CouchBaseDB {
 
 impl CouchBaseDB {
     pub async fn collection_delete_one(&self, table_name: &str, id: &str) -> anyhow::Result<()> {
+        self.can_write()?;
         let s = self.get_scope()?;
         s.collection(table_name).remove(id, None).await?;
         anyhow::Ok(())
@@ -417,7 +431,7 @@ impl SqlBuilder for CouchBaseDB {
 
 impl ExportQueryResult for CouchBaseDB {
     fn clone(&self) -> Box<dyn ExportQueryResult> {
-        Box::new(Clone::clone(self)) as Box<dyn ExportQueryResult>
+        Box::new(Clone::clone(self))
     }
 
     async fn export_query_result(
@@ -486,6 +500,7 @@ impl DBTrait for CouchBaseDB {
         name: &str,
         _extra: Option<crate::db::CreateSchemaExtra>,
     ) -> anyhow::Result<()> {
+        self.can_write()?;
         self.get_bucket()?
             .collections()
             .create_scope(name, None)
@@ -494,6 +509,7 @@ impl DBTrait for CouchBaseDB {
     }
 
     async fn drop_schema(&self, name: &str) -> anyhow::Result<()> {
+        self.can_write()?;
         self.get_bucket()?
             .collections()
             .drop_scope(name, None)
@@ -525,6 +541,7 @@ impl CatalogTrait for CouchBaseDB {
         name: &str,
         extra: Option<CreateDatabaseExtra>,
     ) -> anyhow::Result<()> {
+        self.can_write()?;
         let setting = match extra {
             Some(CreateDatabaseExtra::Couchbase {
                 ram_quota_mb,
@@ -559,11 +576,13 @@ impl CatalogTrait for CouchBaseDB {
     }
 
     async fn drop_database(&self, name: &str) -> anyhow::Result<()> {
+        self.can_write()?;
         self.cluster.buckets().drop_bucket(name, None).await?;
         anyhow::Ok(())
     }
 }
 
+// http://localhost:8091/ui/index.html 通过这个初始化
 #[cfg(test)]
 async fn make_test_object() -> CouchBaseDB {
     CouchBaseDB::new(CouchBaseDBConfig {

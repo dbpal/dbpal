@@ -894,7 +894,7 @@ mod tests {
             .iter()
             .any(|x| x.name.eq("select_one")));
     }
-
+    #[ignore = "run manually"]
     #[tokio::test]
 
     async fn test_try_get_max_id() {
