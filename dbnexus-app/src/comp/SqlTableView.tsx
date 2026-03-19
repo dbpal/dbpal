@@ -300,9 +300,9 @@ function DatabaseOperationView(props: {
 }
 
 function tryGetId(data: object, fields: types.Field[]) {
-  const pf = fields.filter((e) => e.is_primary);
+  let pf = fields.filter((e) => e.is_primary);
   if (pf.length == 0) {
-    return;
+    pf = fields;
   }
   return pf.map((x) => data[x.field]).join("-");
 }
@@ -509,7 +509,7 @@ function SqlTableView(props: {
         showNotification("error", "generate update sql failed", e);
         throw e;
       }
-      return newRow;
+      return oldRow;
     },
     [rowHasOP, notWarnPri, resp, showNotification, getUpdateSql],
   );
