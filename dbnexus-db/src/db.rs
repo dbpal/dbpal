@@ -2306,23 +2306,3 @@ impl From<SqlCollect> for String {
 }
 
 pub(crate) const POOL_MAX_CONNECTIONS: u32 = 200;
-
-#[cfg(test)]
-mod tests {
-    use super::UdfOrProcedureExtraParameter;
-    #[test]
-    fn test_serde_udf_or_procedure_extra_parameter() {
-        let x = Some(UdfOrProcedureExtraParameter::PostGres {
-            parameters: "int".to_string(),
-        });
-        let s = serde_json::to_string_pretty(&x).unwrap();
-        println!("{}", s);
-    }
-
-    #[test]
-    fn xxx() {
-        let d = anyhow::Error::msg("haha ");
-
-        println!("{}", d.backtrace());
-    }
-}

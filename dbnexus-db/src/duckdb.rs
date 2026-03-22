@@ -1633,7 +1633,7 @@ mod tests {
         let _gurad = test_lock().lock().await;
         enable_test_log();
         let db = make_test_object(Some("main".to_string())).await;
-        let query_id = "";
+        let query_id = "aaaa";
         db.open_connection(query_id).await.unwrap();
         let name = "test_seq";
         let _ = db.drop_sequence(name, false).await;
@@ -1655,7 +1655,7 @@ mod tests {
         let _gurad = test_lock().lock().await;
         enable_test_log();
         let db = make_test_object(Some("main".to_string())).await;
-        let query_id = "";
+        let query_id = "aaaa";
         db.open_connection(query_id).await.unwrap();
         let _ = db.drop_table("test_table_view", false).await;
         let _ = db
@@ -1860,7 +1860,7 @@ mod tests {
         enable_test_log();
         let db = make_test_object(Some("main".to_string())).await;
         let table_name = "test_column";
-        let query_id = "";
+        let query_id = "aaaa";
         db.open_connection(query_id).await.unwrap();
         let _ = db
             .execute_sql(
@@ -1934,7 +1934,7 @@ mod tests {
         let db = make_test_object(Some("main".to_string())).await;
         let table_name = "test_types1";
         let _ = db.drop_table(table_name, false).await;
-        let query_id = "";
+        let query_id = "aaaa";
         db.open_connection(query_id).await.unwrap();
         let _ = db
             .execute_sql(
@@ -2038,7 +2038,7 @@ mod tests {
         let db = make_test_object(Some("main".to_string())).await;
         let table_name: &str = "test_types1_array";
         let _ = db.drop_table(table_name, false).await;
-        let query_id = "";
+        let query_id = "aaaa";
         db.open_connection(query_id).await.unwrap();
         let _ = db
             .execute_sql(
@@ -2135,7 +2135,7 @@ mod tests {
         let db = make_test_object(Some("main".to_string())).await;
         let table_name = "test_types2";
         let _ = db.drop_table(table_name, false).await;
-        let query_id = "";
+        let query_id = "aaaa";
         db.open_connection(query_id).await.unwrap();
         let _ = db
             .execute_sql(
@@ -2233,7 +2233,7 @@ mod tests {
 
         let table_name = "test_types2_array";
         let _ = db.drop_table(table_name, false).await;
-        let query_id = "";
+        let query_id = "aaaa";
         db.open_connection(query_id).await.unwrap();
         let _ = db
             .execute_sql(
@@ -2326,7 +2326,7 @@ mod tests {
 
         let table_name = "test_types3";
         let _ = db.drop_table(table_name, false).await;
-        let query_id = "";
+        let query_id = "aaaa";
         db.open_connection(query_id).await.unwrap();
         let _ = db
             .execute_sql(
@@ -2420,7 +2420,7 @@ mod tests {
 
         let table_name = "test_types3_array";
         let _ = db.drop_table(table_name, false).await;
-        let query_id = "";
+        let query_id = "aaaa";
         db.open_connection(query_id).await.unwrap();
         let _ = db
             .execute_sql(
@@ -2512,7 +2512,7 @@ mod tests {
 
         let table_name = "test_types4";
         let _ = db.drop_table(table_name, false).await;
-        let query_id = "";
+        let query_id = "aaaa";
         db.open_connection(query_id).await.unwrap();
         db.execute_sql(
             query_id,
@@ -2595,7 +2595,7 @@ mod tests {
     async fn test_query_sequence_xxx() {
         let _gurad = test_lock().lock().await;
         let db = make_test_object(Some("main".to_string())).await;
-        let query_id = "";
+        let query_id = "aaaa";
         db.open_connection(query_id).await.unwrap();
         db.query_sql(
             query_id,
@@ -2613,7 +2613,7 @@ mod tests {
         let db = make_test_object(Some("main".to_string())).await;
         let table_name = "test_types5";
         let _ = db.drop_table(table_name, false).await;
-        let query_id = "";
+        let query_id = "aaaa";
         db.open_connection(query_id).await.unwrap();
         let _ = db
             .execute_sql(

@@ -309,15 +309,16 @@ mod tests {
     use crate::language_server::completion_test::test_file_auto_completion;
     use crate::language_server::LanguageServer;
     use crate::libsql::make_test_object;
+    use std::ops::Deref;
     use std::path::Path;
 
     #[tokio::test]
     async fn test_auto_completion() {
-        let db = make_test_object().await;
+        let db = make_test_object().await.lock().await;
         let _ = db.drop_table("departments", false).await;
         let _ = db.drop_table("employees", false).await;
         let _ = db.drop_view("employees_view").await;
-        let query_id = "";
+        let query_id = "aaaa";
         db.open_connection(query_id).await.unwrap();
         db.execute_sql(
             query_id,
@@ -392,18 +393,18 @@ mod tests {
         file_path.push("sqlite_auto_completion_test.sql");
         let content = std::fs::read_to_string(file_path.as_path()).unwrap();
 
-        test_file_auto_completion(&content, &db, None, false).await;
+        test_file_auto_completion(&content, db.deref(), None, false).await;
     }
 
     #[ignore = "手动跑跑的测试"]
     #[tokio::test]
     async fn test_completion_xxx() {
         // enable_test_log();
-        let db = make_test_object().await;
+        let db = make_test_object().await.lock().await;
         test_file_auto_completion(
             r#"select employees.id  from employees
 13 employees ; 19 name ; 32 departments ; 32 main"#,
-            &db,
+            db.deref(),
             None,
             false,
         )
@@ -413,7 +414,7 @@ mod tests {
     #[tokio::test]
 
     async fn test_try_get_max_id() {
-        let db = make_test_object().await;
+        let db = make_test_object().await.lock().await;
         let max_id = db.try_get_max_id("departments").await.unwrap();
         println!("max id is:{}", max_id);
     }

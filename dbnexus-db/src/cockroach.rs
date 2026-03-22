@@ -82,7 +82,7 @@ mod tests {
         let table_name = "test_commit";
         let _ = db.drop_table(table_name, false).await;
 
-        let query_id = "";
+        let query_id = "aaaa";
         db.open_connection(query_id).await.unwrap();
         db.execute_sql(
             query_id,
@@ -143,7 +143,7 @@ mod tests {
         let db = make_test_object().await;
         let table_name = "test_column";
         let _ = db.drop_table(table_name, false).await;
-        let query_id = "";
+        let query_id = "aaaa";
         db.open_connection(query_id).await.unwrap();
         db.execute_sql(
             query_id,
@@ -196,7 +196,7 @@ mod tests {
 
         let _ = db.drop_index(table_name, index_name).await;
         let _ = db.drop_table(table_name, false).await;
-        let query_id = "";
+        let query_id = "aaaa";
         db.open_connection(query_id).await.unwrap();
 
         db.execute_sql(query_id, format!(
@@ -269,7 +269,7 @@ mod tests {
     async fn test_rename() {
         let db = make_test_object().await;
 
-        let query_id = "";
+        let query_id = "aaaa";
         db.open_connection(query_id).await.unwrap();
         let _ = db.drop_table("test_rename", false).await;
         let _ = db.drop_table("test_rename2", false).await;
@@ -301,7 +301,7 @@ mod tests {
         let db = make_test_object().await;
         let _ = db.drop_table("test_duplicate", false).await;
         let _ = db.drop_table("test_duplicate2", false).await;
-        let query_id = "";
+        let query_id = "aaaa";
         db.open_connection(query_id).await.unwrap();
         db.execute_sql(
             query_id,
@@ -339,7 +339,7 @@ mod tests {
     #[tokio::test]
     async fn test_procedure() {
         let db = make_test_object().await;
-        let query_id = "";
+        let query_id = "aaaa";
         db.open_connection(query_id).await.unwrap();
         let _ = db
             .drop_procedure(
@@ -385,7 +385,7 @@ mod tests {
         let _ = db.drop_view("test_view").await;
         let _ = db.drop_table("test_view_table", true).await;
 
-        let query_id = "";
+        let query_id = "aaaa";
         db.open_connection(query_id).await.unwrap();
         db.execute_sql(
             query_id,
@@ -425,7 +425,7 @@ mod tests {
         let _ = db.drop_materialized_view("test_material_view").await;
         let _ = db.drop_table("test_material_view_table", true).await;
 
-        let query_id = "";
+        let query_id = "aaaa";
         db.open_connection(query_id).await.unwrap();
         db.execute_sql(
             query_id,
@@ -475,7 +475,7 @@ mod tests {
     #[tokio::test]
     async fn test_udf() {
         let pg = make_test_object().await;
-        let query_id = "";
+        let query_id = "aaaa";
         pg.open_connection("").await.unwrap();
         let udf_name = "test_udf";
         let _ = pg
@@ -528,7 +528,7 @@ mod tests {
         let table_name = "test_types1";
         let db = make_test_object().await;
         let _ = db.drop_table(table_name, false).await;
-        let query_id = "";
+        let query_id = "aaaa";
         db.open_connection(query_id).await.unwrap();
         db.execute_sql(
             query_id,

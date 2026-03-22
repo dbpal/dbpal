@@ -741,7 +741,7 @@ mod tests {
     #[tokio::test]
     async fn test_prepare() {
         let db = make_test_object_tidb(make_config()).await;
-        let query_id = "";
+        let query_id = "aaaa";
         db.open_connection(query_id).await.unwrap();
         db.execute_sql(
             query_id,

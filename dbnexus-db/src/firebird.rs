@@ -1131,7 +1131,7 @@ mod tests {
         let table_name = "TEST_COMMIT";
         let _ = db.drop_table(table_name, false).await;
 
-        let query_id = "";
+        let query_id = "aaaa";
         db.open_connection(query_id).await.unwrap();
         db.execute_sql(
             query_id,
@@ -1198,7 +1198,7 @@ mod tests {
 
         let _ = db.drop_table(table_name, false).await;
 
-        let query_id = "";
+        let query_id = "aaaa";
         db.open_connection(query_id).await.unwrap();
 
         db.execute_sql(
@@ -1261,7 +1261,7 @@ mod tests {
     //     let db = make_test_object().await;
     //     let table_name = "TEST_COLUMN";
     //     let _ = db.drop_table(table_name, false).await;
-    //     let query_id = "";
+    //     let query_id = "aaaa";
     //     enable_test_log();
     //     db.open_connection(query_id).await.unwrap();
     //     let _resp = db
@@ -1414,7 +1414,7 @@ mod tests {
             println!("drop table err:{}", err);
         }
 
-        let query_id = "";
+        let query_id = "aaaa";
         db.open_connection(query_id).await.unwrap();
 
         db.execute_sql(
@@ -1463,7 +1463,7 @@ mod tests {
         if let Err(err) = _err {
             println!("drop table err:{}", err);
         }
-        let query_id = "";
+        let query_id = "aaaa";
         db.open_connection(query_id).await.unwrap();
         db.execute_sql(
             query_id,
@@ -1569,7 +1569,7 @@ mod tests {
         if let Err(err) = _err {
             println!("drop table err:{}", err);
         }
-        let query_id = "";
+        let query_id = "aaaa";
         db.open_connection(query_id).await.unwrap();
         db.execute_sql(
             query_id,

@@ -1849,7 +1849,7 @@ db1:keys=1,expires=0,avg_ttl=0"#,
         enable_test_log();
         let db = make_test_object().await;
 
-        let query_id = "";
+        let query_id = "aaaa";
         db.open_connection(query_id).await.unwrap();
         db.execute_sql(
             query_id,
@@ -1896,7 +1896,7 @@ db1:keys=1,expires=0,avg_ttl=0"#,
             let db = make_test_object().await;
             let key_name = "large_list";
             let _ = db.drop_table(key_name, false).await;
-            let query_id = "";
+            let query_id = "aaaa";
             db.open_connection(query_id).await.unwrap();
             for i in 0..3000 {
                 db.execute_sql(
@@ -1913,7 +1913,7 @@ db1:keys=1,expires=0,avg_ttl=0"#,
             let db = make_test_object().await;
             let key_name = "large_set";
             let _ = db.drop_table(key_name, false).await;
-            let query_id = "";
+            let query_id = "aaaa";
             db.open_connection(query_id).await.unwrap();
             for i in 0..3000 {
                 db.execute_sql(query_id, format!(r#"sadd {} data{}"#, key_name, i).as_str())
@@ -1927,7 +1927,7 @@ db1:keys=1,expires=0,avg_ttl=0"#,
             let db = make_test_object().await;
             let key_name = "large_zset";
             let _ = db.drop_table(key_name, false).await;
-            let query_id = "";
+            let query_id = "aaaa";
             db.open_connection(query_id).await.unwrap();
             for i in 0..3000 {
                 db.execute_sql(
@@ -1944,7 +1944,7 @@ db1:keys=1,expires=0,avg_ttl=0"#,
             let db = make_test_object().await;
             let key_name = "large_hash";
             let _ = db.drop_table(key_name, false).await;
-            let query_id = "";
+            let query_id = "aaaa";
             db.open_connection(query_id).await.unwrap();
             for i in 0..3000 {
                 db.execute_sql(
@@ -1961,7 +1961,7 @@ db1:keys=1,expires=0,avg_ttl=0"#,
     async fn test_hash_key() {
         let db = make_test_object().await;
 
-        let query_id = "";
+        let query_id = "aaaa";
         db.open_connection(query_id).await.unwrap();
         let table_name = "hash_value";
 
@@ -2056,7 +2056,7 @@ db1:keys=1,expires=0,avg_ttl=0"#,
     async fn test_zset_key() {
         let db = make_test_object().await;
         enable_test_log();
-        let query_id = "";
+        let query_id = "aaaa";
         db.open_connection(query_id).await.unwrap();
         let table_name = "zset_value";
 
@@ -2160,7 +2160,7 @@ db1:keys=1,expires=0,avg_ttl=0"#,
     async fn test_set_key() {
         let db = make_test_object().await;
 
-        let query_id = "";
+        let query_id = "aaaa";
         db.open_connection(query_id).await.unwrap();
         let table_name = "set_value";
 
@@ -2257,7 +2257,7 @@ db1:keys=1,expires=0,avg_ttl=0"#,
     async fn test_list_key() {
         let db = make_test_object().await;
 
-        let query_id = "";
+        let query_id = "aaaa";
         db.open_connection(query_id).await.unwrap();
         let table_name = "list_value";
 
@@ -2360,7 +2360,7 @@ db1:keys=1,expires=0,avg_ttl=0"#,
     #[tokio::test]
     async fn test_string_key() {
         let db = make_test_object().await;
-        let query_id = "";
+        let query_id = "aaaa";
         db.open_connection(query_id).await.unwrap();
         let table_name = "string_value";
 

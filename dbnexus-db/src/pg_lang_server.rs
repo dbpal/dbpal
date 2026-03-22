@@ -773,7 +773,7 @@ mod tests {
     async fn test_auto_completion() {
         enable_test_log();
         let db = make_test_object().await;
-        let query_id = "";
+        let query_id = "aaaa";
         db.open_connection(query_id).await.unwrap();
 
         let sql = [
@@ -876,7 +876,7 @@ mod tests {
     #[tokio::test]
     async fn test_prepare() {
         let db = make_test_object().await;
-        let query_id = "";
+        let query_id = "aaaa";
         db.open_connection(query_id).await.unwrap();
         db.execute_sql(
             query_id,

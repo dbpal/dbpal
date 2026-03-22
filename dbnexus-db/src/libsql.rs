@@ -5,6 +5,8 @@ use std::collections::HashMap;
 use std::ops::{Deref, DerefMut};
 use std::sync::Arc;
 use std::time::Duration;
+#[cfg(test)]
+use tokio::sync::{Mutex, OnceCell};
 
 use crate::datasource_config::{LibSqlDBConfig, LibSqlDBConfigSource};
 use crate::db::{
@@ -780,6 +782,26 @@ impl SchemaTrait for LibSqlDB {
             .await?;
         let sql = self.gen_show_sql(view_name, None, Some(&para));
         log::info!("show table sql:{}", sql);
+
+        if total == 0 {
+            let s = conn.prepare(&sql).await?;
+            let fields: Vec<_> = s
+                .columns()
+                .iter()
+                .map(|c| Field::from_name_type(c.name(), c.decl_type().unwrap_or_default()))
+                .collect();
+            emit.send(
+                QueryResp {
+                    fields,
+                    total,
+                    sql: sql.clone().into(),
+                    ..Default::default()
+                }
+                .into(),
+            )?;
+            return anyhow::Ok(());
+        }
+
         emit.send("trying to query data".into())?;
         let mut stream = conn.query(&sql, params!()).await?;
         let mut first = true;
@@ -799,6 +821,7 @@ impl SchemaTrait for LibSqlDB {
             let d = encode_row(&row)?;
             emit.send(d.into())?;
         }
+
         anyhow::Ok(())
     }
 
@@ -885,7 +908,7 @@ impl SqlBuilder for LibSqlDB {
         fields: Option<&[Field]>,
         para: Option<&ShowTableParameter>,
     ) -> String {
-        gen_show_sql(self.backend_kind(), table_name, fields, para)
+        gen_show_sql(table_name, fields, para)
     }
 }
 impl LibSqlDB {
@@ -1048,31 +1071,36 @@ fn encode_row_as_json(r: &Row) -> anyhow::Result<serde_json::Value> {
 
 #[cfg(test)]
 // this test no need clean up, we use memory sqlite db.
-pub(crate) async fn make_test_object() -> LibSqlDB {
-    LibSqlDB::new(LibSqlDBConfig {
-        conn_timeout: Some(5000.into()),
-        replica: false,
-        source: LibSqlDBConfigSource::Remote {
-            url: "http://localhost:8080".to_string(),
-            auth_token: "".to_string(),
-            path: None,
-        },
-        read_only: false,
+pub(crate) async fn make_test_object() -> &'static Mutex<LibSqlDB> {
+    static DB: OnceCell<Mutex<LibSqlDB>> = OnceCell::const_new();
+    DB.get_or_init(|| async {
+        let libsql = LibSqlDB::new(LibSqlDBConfig {
+            conn_timeout: Some(5000.into()),
+            replica: false,
+            source: LibSqlDBConfigSource::Remote {
+                url: "http://localhost:8080".to_string(),
+                auth_token: "".to_string(),
+
+                path: None,
+            },
+            read_only: false,
+        })
+        .await
+        .unwrap();
+        Mutex::new(libsql)
     })
     .await
-    .unwrap()
 }
 
 #[cfg(test)]
 mod tests {
-
     use super::*;
     use crate::db::{
         CreateIndexColumn, CreateTableReq, CreateTableReqColumn, SqlNullAble, TestQueryEventEmit,
     };
     #[tokio::test]
     async fn test_table_pagination() {
-        let db = make_test_object().await;
+        let db = make_test_object().await.lock().await;
         let table_name = "test_table_pagination";
         let _ = db.drop_table(table_name, false).await;
         db.create_table(&CreateTableReq {
@@ -1111,25 +1139,25 @@ mod tests {
     #[tokio::test]
 
     async fn check_conn() {
-        let db = make_test_object().await;
+        let db = make_test_object().await.lock().await;
         let d = db.check_conn().await.unwrap();
         println!("{:?}", d);
     }
 
     #[tokio::test]
     async fn test_server_metas() {
-        let db = make_test_object().await;
-        let metas = ServerMetas::show_metas(&db).await.unwrap();
+        let db = make_test_object().await.lock().await;
+        let metas = ServerMetas::show_metas(db.deref()).await.unwrap();
         println!("{:?}", metas);
     }
 
     #[tokio::test]
     async fn test_table_column() {
-        let db = make_test_object().await;
+        let db = make_test_object().await.lock().await;
         let table_name = "test_column";
         let _ = db.drop_table(table_name, false).await;
 
-        let query_id = "";
+        let query_id = "aaaa";
         db.open_connection(query_id).await.unwrap();
         db.execute_sql(
                 query_id,
@@ -1164,17 +1192,17 @@ mod tests {
 
     #[tokio::test]
     async fn test_transaction() {
-        let db = make_test_object().await;
+        let db = make_test_object().await.lock().await;
 
         let table_name = "test_commit";
         let _ = db.drop_table(table_name, false).await;
 
-        let query_id = "";
+        let query_id = "aaaa";
         db.open_connection(query_id).await.unwrap();
         db.execute_sql(
             query_id,
             r#"
-             CREATE TABLE test_commit (
+            CREATE TABLE test_commit (
                 ID INTEGER PRIMARY KEY,
                 NAME VARCHAR(50)
             );
@@ -1195,16 +1223,7 @@ mod tests {
         .unwrap()
         .unwrap();
         db.rollback(query_id).await.unwrap();
-
-        // assert_eq!(
-        //     db.show_table_collect(table_name, ShowTableParameter::new_test())
-        //         .await
-        //         .unwrap()
-        //         .total,
-        //     0
-        // );
         db.set_auto_commit(query_id, false).await.unwrap();
-
         db.execute_sql(
             query_id,
             r#"
@@ -1227,7 +1246,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_server_select() {
-        let db = make_test_object().await;
+        let db = make_test_object().await.lock().await;
         let conn = db.get_conn().await.unwrap();
         let _ = conn.execute("drop table users", params!()).await;
         let mut rows = conn
@@ -1250,11 +1269,11 @@ mod tests {
 
     #[tokio::test]
     async fn test_rename() {
-        let db = make_test_object().await;
+        let db = make_test_object().await.lock().await;
 
         let _ = db.drop_table("test_rename", false).await;
         let _ = db.drop_table("test_rename2", false).await;
-        let query_id = "";
+        let query_id = "aaaa";
         db.open_connection(query_id).await.unwrap();
         db.execute_sql(
             query_id,
@@ -1281,11 +1300,10 @@ mod tests {
 
     #[tokio::test]
     async fn test_duplicate() {
-        let db = make_test_object().await;
-
+        let db = make_test_object().await.lock().await;
         let _ = db.drop_table("test_duplicate", false).await;
         let _ = db.drop_table("test_duplicate2", false).await;
-        let query_id = "";
+        let query_id = "aaaa";
         db.open_connection(query_id).await.unwrap();
         db.execute_sql(
             query_id,
@@ -1313,10 +1331,10 @@ mod tests {
 
     #[tokio::test]
     async fn test_triggers() {
-        let db = make_test_object().await;
+        let db = make_test_object().await.lock().await;
         let _ = db.drop_table("test_create_trigger", false).await;
         let _ = db.drop_table("test_create_trigger_update", false).await;
-        let query_id = "";
+        let query_id = "aaaa";
         db.open_connection(query_id).await.unwrap();
 
         db.execute_sql(
@@ -1372,7 +1390,7 @@ mod tests {
     }
     #[tokio::test]
     async fn test_index() {
-        let db = make_test_object().await;
+        let db = make_test_object().await.lock().await;
         let table_name = "test_index";
         let index_name = "name_index";
         let _ = db.drop_index(table_name, index_name).await;
@@ -1438,11 +1456,11 @@ mod tests {
 
     #[tokio::test]
     async fn test_export_table() {
-        let db = make_test_object().await;
+        let db = make_test_object().await.lock().await;
 
         let table_name = "Persons";
         let _ = db.drop_table(table_name, false).await;
-        let query_id = "";
+        let query_id = "aaaa";
         db.open_connection(query_id).await.unwrap();
 
         db.execute_sql(
@@ -1568,7 +1586,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_list_table() {
-        let db = make_test_object().await;
+        let db = make_test_object().await.lock().await;
         // db.list_table()
         //     .await
         //     .unwrap()
@@ -1583,10 +1601,10 @@ mod tests {
     }
     #[tokio::test]
     async fn test_all_types() {
-        let db = make_test_object().await;
+        let db = make_test_object().await.lock().await;
         let table_name = "test_table";
         let _ = db.drop_table(table_name, false).await;
-        let query_id = "";
+        let query_id = "aaaa";
         db.open_connection(query_id).await.unwrap();
 
         db.execute_sql(
@@ -1650,7 +1668,10 @@ mod tests {
         println!("indexes{:?}", indexes);
         let id = "";
         db.open_connection(id).await.unwrap();
-        let _ = db.drop_view("test_view").await;
+
+        let view_name = "test_view";
+
+        let _ = db.drop_view(view_name).await;
         {
             db.query_sql(
                 id,
@@ -1666,7 +1687,7 @@ mod tests {
         }
         db.execute_sql(
             query_id,
-            format!("create view test_view as SELECT * from {table_name}").as_str(),
+            format!("create view {view_name} as SELECT * from {table_name}").as_str(),
         )
         .await
         .unwrap()
@@ -1676,6 +1697,7 @@ mod tests {
 
         let views = db.list_view().await.unwrap();
         for v in views.iter() {
+            println!("view:{:?}", v);
             let list = db
                 .show_view_collect(
                     v.name.as_str(),

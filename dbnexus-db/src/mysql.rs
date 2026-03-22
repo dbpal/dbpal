@@ -19,7 +19,6 @@ use sqlx::mysql::MySqlRow;
 use sqlx::pool::{PoolConnection, PoolOptions};
 use sqlx::types::BigDecimal;
 use sqlx::{AssertSqlSafe, Column, Executor, MySqlConnection, Row, SqlSafeStr, TypeInfo};
-
 use std::collections::HashMap;
 use std::ops::DerefMut;
 use std::sync::Arc;
@@ -261,7 +260,6 @@ impl MysqlDB {
         let mut conn = self.get_conn().await?;
         let cols = SchemaTrait::show_table_columns(self, table_name).await?;
         let sql = self.gen_show_sql(table_name, Some(&cols), para.as_ref());
-
         log::info!("sql:{}", sql);
         let mut stream = sqlx::raw_sql(AssertSqlSafe(sql.as_str())).fetch(conn.deref_mut());
         while let Some(row) = stream.next().await {
@@ -363,12 +361,10 @@ impl FunctionOrProcedure {
             self.routine_type()
         );
         log::info!("sql:{}", sql);
-
         let rows = sqlx::raw_sql(AssertSqlSafe(sql.as_str()))
             .fetch_all(conn)
             .await?;
         let mut ret = Vec::new();
-
         for r in rows.iter() {
             let name: String = r.get(0);
             ret.push(name);
@@ -478,7 +474,6 @@ impl MysqlDB {
                     }
                 },
             };
-
             ret.push(ListTable::new(table_name, size));
         }
         anyhow::Ok(ret)
@@ -534,14 +529,14 @@ impl MysqlDB {
         let sql = format!(
             r#"
             SELECT EVENT_NAME,
-        STATUS,          -- ENABLED / DISABLED / SLAVESIDE_DISABLED
-        EVENT_TYPE,      -- ONE TIME / RECURRING
-        INTERVAL_VALUE,
-        INTERVAL_FIELD,  -- 周期频率（如 1 DAY）
-        LAST_EXECUTED
-        FROM   information_schema.EVENTS
-        WHERE  EVENT_SCHEMA = '{schema}'  -- 这里换成你的库名
-        ORDER  BY EVENT_NAME;
+                STATUS,          -- ENABLED / DISABLED / SLAVESIDE_DISABLED
+                EVENT_TYPE,      -- ONE TIME / RECURRING
+                INTERVAL_VALUE,
+                INTERVAL_FIELD,  -- 周期频率（如 1 DAY）
+                LAST_EXECUTED
+            FROM   information_schema.EVENTS
+            WHERE  EVENT_SCHEMA = '{schema}'  -- 这里换成你的库名
+                ORDER  BY EVENT_NAME;
         "#
         );
         let mut conn = self.get_conn().await?;
@@ -591,15 +586,16 @@ impl MysqlDB {
 impl SchemaTrait for MysqlDB {
     async fn list_sequence(&self) -> anyhow::Result<Vec<SequenceDetail>> {
         match self.kind {
-            BackendKindMysql::Mariadb => self.list_sequences_impl(self.config.schema_str()).await,
+            BackendKindMysql::Mariadb => {
+                self.mariadb_list_sequences(self.config.schema_str()).await
+            }
             _ => self.backend_kind().not_support_feature(),
         }
     }
-
     async fn rename_sequence(&self, old: &str, new: &str) -> anyhow::Result<String> {
         match self.kind {
             BackendKindMysql::Mariadb => {
-                let sql = format!("RENAME TABLE {old}  TO {new}");
+                let sql = format!(r#"RENAME TABLE `{old}`  TO `{new}` "#);
                 self.simple_execute_sql(&sql).await?;
                 anyhow::Ok(sql)
             }
@@ -610,7 +606,7 @@ impl SchemaTrait for MysqlDB {
     async fn drop_sequence(&self, name: &str, _cascade: bool) -> anyhow::Result<String> {
         match self.kind {
             BackendKindMysql::Mariadb => {
-                let sql = format!("DROP SEQUENCE IF EXISTS {name};");
+                let sql = format!("DROP SEQUENCE IF EXISTS `{name}` ");
                 self.simple_execute_sql(&sql).await?;
                 anyhow::Ok(sql)
             }
@@ -683,7 +679,6 @@ impl SchemaTrait for MysqlDB {
         typ: Option<ColumnType>,
     ) -> anyhow::Result<String> {
         let mut sc = SqlCollect::default();
-
         if old_name != new_name {
             let sql =
                 format!(r#"ALTER TABLE `{table}` RENAME COLUMN `{old_name}` TO `{new_name}`"#);
@@ -724,7 +719,6 @@ impl SchemaTrait for MysqlDB {
 
     async fn list_procedure(&self) -> anyhow::Result<Vec<NamedStaff>> {
         let mut conn = self.get_conn().await?;
-
         let ret = FunctionOrProcedure::Procedure
             .query_list(conn.deref_mut(), self.config.schema_str())
             .await?;
@@ -768,9 +762,7 @@ impl SchemaTrait for MysqlDB {
         _arg: Option<UdfOrProcedureExtraParameter>,
     ) -> anyhow::Result<DefAndMetas> {
         let mut conn = self.get_conn().await?;
-
         let sql = format!("SHOW CREATE FUNCTION {name};");
-
         let row = sqlx::raw_sql(AssertSqlSafe(sql.as_str()))
             .fetch_one(conn.deref_mut())
             .await?;
@@ -939,7 +931,7 @@ impl SchemaTrait for MysqlDB {
     }
 
     fn clone(&self) -> Box<dyn SchemaTrait> {
-        Box::new(Clone::clone(self)) 
+        Box::new(Clone::clone(self))
     }
 
     fn as_any(&self) -> &dyn std::any::Any {
@@ -1155,7 +1147,6 @@ impl SchemaTrait for MysqlDB {
     async fn create_table(&self, req: &crate::db::CreateTableReq) -> anyhow::Result<String> {
         let ss = SchemaTrait::create_table_sql(self, req)?;
         let mut sc = SqlCollect::default();
-
         for sql in ss.iter() {
             self.simple_execute_sql(sql).await?;
             sc.collect(sql);
@@ -1932,7 +1923,7 @@ pub(crate) mod test_fns {
         let table_name = "test_commit";
         let _ = db.drop_table(table_name, false).await;
 
-        let query_id = "";
+        let query_id = "aaaa";
         db.open_connection(query_id).await.unwrap();
         db.execute_sql(
             query_id,
@@ -1988,7 +1979,7 @@ pub(crate) mod test_fns {
     }
 
     pub(crate) async fn test_procedure(db: MysqlDB) {
-        let query_id = "";
+        let query_id = "aaaa";
         db.open_connection(query_id).await.unwrap();
         let f = "test_procedure";
 
@@ -2022,7 +2013,7 @@ pub(crate) mod test_fns {
     }
 
     pub(crate) async fn test_udf(db: MysqlDB) {
-        let query_id = "";
+        let query_id = "aaaa";
         db.open_connection(query_id).await.unwrap();
         let f = "test_function";
 
@@ -2051,7 +2042,7 @@ pub(crate) mod test_fns {
     }
 
     pub(crate) async fn test_rename(db: MysqlDB) {
-        let query_id = "";
+        let query_id = "aaaa";
         db.open_connection(query_id).await.unwrap();
         let _ = db.drop_table("test_rename", false).await;
         let _ = db.drop_table("test_rename2", false).await;
@@ -2085,7 +2076,7 @@ pub(crate) mod test_fns {
         let table_name = "test_column";
         let _ = db.drop_table(table_name, false).await;
 
-        let query_id = "";
+        let query_id = "aaaa";
         db.open_connection(query_id).await.unwrap();
         let _resp = db
             .execute_sql(
@@ -2139,7 +2130,7 @@ pub(crate) mod test_fns {
     }
 
     pub(crate) async fn test_duplicate(db: MysqlDB) {
-        let query_id = "";
+        let query_id = "aaaa";
         db.open_connection(query_id).await.unwrap();
         let _ = db.drop_table("test_duplicate", false).await;
         let _ = db.drop_table("test_duplicate2", false).await;
@@ -2197,7 +2188,7 @@ pub(crate) mod test_fns {
                 .await;
         }
 
-        let query_id = "";
+        let query_id = "aaaa";
         db.open_connection(query_id).await.unwrap();
         db.execute_sql(
             query_id,
@@ -2275,7 +2266,7 @@ pub(crate) mod test_fns {
     pub(crate) async fn test_export(db: MysqlDB) {
         // init_log();
         let table_name = "test_export";
-        let query_id = "";
+        let query_id = "aaaa";
         db.open_connection(query_id).await.unwrap();
         let rs = [
             r#"drop table if exists test_export;"#,
@@ -2365,7 +2356,7 @@ pub(crate) mod test_fns {
         {
             let s = schema_trait
                 .export_query_result_to_string(
-                    "",
+                    query_id,
                     format!("select * from {table_name}").as_str(),
                     ExportKind::Csv {
                         include_header: true,
@@ -2467,7 +2458,7 @@ pub(crate) mod test_fns {
         let table_name = "test_types1";
 
         let _ = db.drop_table(table_name, false).await;
-        let query_id = "";
+        let query_id = "aaaa";
         db.open_connection(query_id).await.unwrap();
 
         db.execute_sql(
@@ -2571,7 +2562,7 @@ pub(crate) mod test_fns {
         // enable_test_log();
         let table_name = "test_types2";
         let _ = db.drop_table(table_name, false).await;
-        let query_id = "";
+        let query_id = "aaaa";
         db.open_connection(query_id).await.unwrap();
         db.execute_sql(
             query_id,
@@ -2656,7 +2647,7 @@ pub(crate) mod test_fns {
         // enable_test_log();
         let table_name = "test_types3";
         let _ = db.drop_table(table_name, false).await;
-        let query_id = "";
+        let query_id = "aaaa";
         db.open_connection(query_id).await.unwrap();
         db.execute_sql(
             query_id,
@@ -2743,7 +2734,7 @@ pub(crate) mod test_fns {
         let table_name = "test_types4";
 
         let _ = db.drop_table(table_name, false).await;
-        let query_id = "";
+        let query_id = "aaaa";
         db.open_connection(query_id).await.unwrap();
         db.execute_sql(
             query_id,
@@ -2844,7 +2835,7 @@ pub(crate) mod test_fns {
         let view_name = "test_view";
         let _ = db.drop_view(view_name).await;
         let _ = db.drop_table(table_name, true).await;
-        let query_id = "";
+        let query_id = "aaaa";
         db.open_connection(query_id).await.unwrap();
         db.execute_sql(
             query_id,
@@ -2930,13 +2921,11 @@ pub(crate) mod test_fns {
 
 #[cfg(test)]
 mod tests {
-    use std::ops::DerefMut;
-
-    use sqlx::Executor;
-
     use super::test_fns::{self, make_test_object};
     use crate::datasource_config::MysqlDBConfig;
     use crate::TEST_HOST;
+    use sqlx::Executor;
+    use std::ops::DerefMut;
 
     pub(crate) fn make_config() -> MysqlDBConfig {
         MysqlDBConfig {
@@ -2947,7 +2936,6 @@ mod tests {
             port: 3306,
             db: Some("test".to_string()),
             read_only: false,
-
             ssl: Default::default(),
         }
     }

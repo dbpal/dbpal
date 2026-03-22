@@ -423,7 +423,10 @@ impl LangServerCommon for MysqlDB {
         /*
             TODO should execute this sql but somehow owner_thread_id = connection_id()  match not working
             why????
-            SELECT statement_id, sql_text ,statement_name   FROM performance_schema.prepared_statements_instances WHERE owner_thread_id = connection_id() and  statement_name is not null;
+
+            SELECT statement_id, sql_text ,statement_name
+            FROM performance_schema.prepared_statements_instances WHERE owner_thread_id = connection_id() and  statement_name is not null;
+
         */
 
         let conn = self.query_connection.get(&self.completion_id.get());
@@ -432,7 +435,6 @@ impl LangServerCommon for MysqlDB {
             None => anyhow::bail!("connection not found"),
         };
         let mut conn = conn.lock().await;
-        let mut conn = conn.deref_mut();
         let sql = r#"
             SELECT  sql_text ,statement_name   
                 FROM performance_schema.prepared_statements_instances WHERE 
@@ -966,7 +968,7 @@ mod tests {
     async fn test_auto_completion() {
         let db = make_test_object(make_config()).await;
         enable_test_log();
-        let query_id = "";
+        let query_id = "aaaa";
         db.open_connection(query_id).await.unwrap();
         let _ = db.drop_table("departments", true).await;
         let _ = db.drop_table("employees", true).await;
@@ -1058,7 +1060,7 @@ mod tests {
     #[tokio::test]
     async fn test_prepare() {
         let db = make_test_object(make_config()).await;
-        let query_id = "";
+        let query_id = "aaaa";
         db.open_connection(query_id).await.unwrap();
         db.execute_sql(
             query_id,

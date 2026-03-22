@@ -933,7 +933,7 @@ impl SchemaTrait for PostGresDB {
     }
 
     fn clone(&self) -> Box<dyn SchemaTrait> {
-        Box::new(Clone::clone(self)) 
+        Box::new(Clone::clone(self))
     }
 
     fn as_any(&self) -> &dyn std::any::Any {
@@ -1556,7 +1556,7 @@ async fn set_current_schema(conn: &mut PgConnection, schema: &str) -> anyhow::Re
 
 impl ExportQueryResult for PostGresDB {
     fn clone(&self) -> Box<dyn ExportQueryResult> {
-        Box::new(Clone::clone(self)) 
+        Box::new(Clone::clone(self))
     }
 
     async fn export_query_result(
@@ -2099,7 +2099,7 @@ mod tests {
     async fn test_list_created_types() {
         let db = make_test_object().await;
         let _ = db.drop_created_type("test_type").await;
-        let query_id = "";
+        let query_id = "aaaa";
         db.open_connection(query_id).await.unwrap();
 
         db.execute_sql(
@@ -2119,7 +2119,7 @@ mod tests {
     #[tokio::test]
     async fn test_procedure() {
         let db = make_test_object().await;
-        let query_id = "";
+        let query_id = "aaaa";
         db.open_connection(query_id).await.unwrap();
         let parameter = "a integer".to_string();
         let name = "test_procedure";
@@ -2170,7 +2170,7 @@ mod tests {
         let _ = db.drop_view("test_view").await;
         let _ = db.drop_table("test_view_table", true).await;
 
-        let query_id = "";
+        let query_id = "aaaa";
         db.open_connection(query_id).await.unwrap();
         db.execute_sql(
             query_id,
@@ -2209,7 +2209,7 @@ mod tests {
         let _ = db.drop_materialized_view("test_material_view").await;
         let _ = db.drop_table("test_material_view_table", true).await;
 
-        let query_id = "";
+        let query_id = "aaaa";
         db.open_connection(query_id).await.unwrap();
         db.execute_sql(
             query_id,
@@ -2258,7 +2258,7 @@ mod tests {
     async fn test_rename() {
         let db = make_test_object().await;
 
-        let query_id = "";
+        let query_id = "aaaa";
         db.open_connection(query_id).await.unwrap();
         let _ = db.drop_table("test_rename", false).await;
         let _ = db.drop_table("test_rename2", false).await;
@@ -2292,7 +2292,7 @@ mod tests {
 
         let _ = db.drop_table("test_duplicate", false).await;
         let _ = db.drop_table("test_duplicate2", false).await;
-        let query_id = "";
+        let query_id = "aaaa";
         db.open_connection(query_id).await.unwrap();
 
         db.execute_sql(
@@ -2427,7 +2427,7 @@ mod tests {
                 }),
             )
             .await;
-        let query_id = "";
+        let query_id = "aaaa";
         pg.open_connection(query_id).await.unwrap();
         pg.execute_sql(
             query_id,
@@ -2470,7 +2470,7 @@ mod tests {
 
         //
         let _ = db.drop_table("test_create_trigger", true).await;
-        let query_id = "";
+        let query_id = "aaaa";
         db.open_connection(query_id).await.unwrap();
         db.execute_sql(
             query_id,
@@ -2565,7 +2565,7 @@ mod tests {
         let table_name = "test_commit";
         let _ = db.drop_table(table_name, false).await;
 
-        let query_id = "";
+        let query_id = "aaaa";
         db.open_connection(query_id).await.unwrap();
         db.execute_sql(
             query_id,
@@ -2624,7 +2624,7 @@ mod tests {
     #[tokio::test]
     async fn test_sequence() {
         let db = make_test_object().await;
-        let query_id = "";
+        let query_id = "aaaa";
         db.open_connection(query_id).await.unwrap();
         let name = "test_seq";
         let _ = db.drop_sequence(name, true).await;
@@ -2652,7 +2652,7 @@ mod tests {
     #[tokio::test]
     async fn test_export() {
         let db = make_test_object().await;
-        let query_id = "";
+        let query_id = "aaaa";
         db.open_connection(query_id).await.unwrap();
         let table_name = "test_export_table";
 
@@ -2769,7 +2769,7 @@ mod tests {
         let table_name = "test_types1";
         let pg = make_test_object().await;
         let _ = pg.drop_table(table_name, false).await;
-        let query_id = "";
+        let query_id = "aaaa";
         pg.open_connection(query_id).await.unwrap();
         pg.execute_sql(
             query_id,
@@ -2882,7 +2882,7 @@ mod tests {
         let table_name = "test_types2";
         let pg = make_test_object().await;
         let _ = pg.drop_table(table_name, false).await;
-        let query_id = "";
+        let query_id = "aaaa";
         pg.open_connection(query_id).await.unwrap();
         pg.execute_sql(
             query_id,
@@ -2995,7 +2995,7 @@ mod tests {
         let db = make_test_object().await;
         let table_name = "test_column";
         let _ = db.drop_table(table_name, false).await;
-        let query_id = "";
+        let query_id = "aaaa";
         db.open_connection(query_id).await.unwrap();
         db.execute_sql(
             query_id,
@@ -3060,7 +3060,7 @@ mod tests {
         let pg = make_test_object().await;
         let table_name = "test_types3";
         let _ = pg.drop_table(table_name, false).await;
-        let query_id = "";
+        let query_id = "aaaa";
         pg.open_connection(query_id).await.unwrap();
         pg.execute_sql(
             query_id,
@@ -3167,7 +3167,7 @@ mod tests {
         let table_name = "test_types4";
         let pg = make_test_object().await;
         let _ = pg.drop_table(table_name, false).await;
-        let query_id = "";
+        let query_id = "aaaa";
         pg.open_connection(query_id).await.unwrap();
         pg.execute_sql(
             query_id,
@@ -3267,7 +3267,7 @@ mod tests {
         let table_name = "test_types5";
         let pg = make_test_object().await;
         let _ = pg.drop_table(table_name, false).await;
-        let query_id = "";
+        let query_id = "aaaa";
         pg.open_connection(query_id).await.unwrap();
         pg.execute_sql(
             query_id,
@@ -3388,7 +3388,7 @@ mod tests {
 
         let _ = pg.drop_table(table_name, false).await;
 
-        let query_id = "";
+        let query_id = "aaaa";
         pg.open_connection(query_id).await.unwrap();
         pg.execute_sql(
             query_id,
@@ -3505,7 +3505,7 @@ mod tests {
         let pg = make_test_object().await;
         let _ = pg.drop_table(table_name, false).await;
 
-        let query_id = "";
+        let query_id = "aaaa";
         pg.open_connection(query_id).await.unwrap();
         pg.execute_sql(
             query_id,
@@ -3606,7 +3606,7 @@ mod tests {
 
         let _ = pg.drop_table(table_name, false).await;
 
-        let query_id = "";
+        let query_id = "aaaa";
         pg.open_connection(query_id).await.unwrap();
         pg.execute_sql(
             query_id,
@@ -3695,7 +3695,7 @@ mod tests {
         let pg = make_test_object().await;
         let _ = pg.drop_table(table_name, false).await;
 
-        let query_id = "";
+        let query_id = "aaaa";
         pg.open_connection(query_id).await.unwrap();
         pg.execute_sql(
             query_id,
@@ -3808,7 +3808,7 @@ mod tests {
 
         let _ = pg.drop_table(table_name, false).await;
 
-        let query_id = "";
+        let query_id = "aaaa";
         pg.open_connection(query_id).await.unwrap();
         pg.execute_sql(
             query_id,
@@ -3911,7 +3911,7 @@ mod tests {
         let table_name = "test_types11";
         let pg = make_test_object().await;
         let _ = pg.drop_table(table_name, false).await;
-        let query_id = "";
+        let query_id = "aaaa";
         pg.open_connection(query_id).await.unwrap();
         pg.execute_sql(
             query_id,

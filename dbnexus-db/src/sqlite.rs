@@ -273,7 +273,6 @@ impl SqliteDB {
             let delt_value: Option<String> = r.get(4);
             let pk: Option<i64> = r.get(5);
             let is_auto_increment = Some(name.as_str()) == increment_key;
-
             ret.push(Field::new(
                 name,
                 ty,
@@ -283,7 +282,6 @@ impl SqliteDB {
                 is_auto_increment,
             ));
         }
-
         anyhow::Ok(ret)
     }
 }
@@ -359,20 +357,10 @@ impl SchemaTrait for SqliteDB {
     }
 
     async fn show_view_columns(&self, view_name: &str) -> anyhow::Result<Vec<Field>> {
-        use sqlx::{Executor, Statement};
-        let mut conn = self.get_conn().await?;
         let sql = format!(r#"select * from "{view_name}" limit 1"#);
         log::info!("sql:{}", sql);
-        let s = conn
-            .deref_mut()
-            .prepare_with(AssertSqlSafe(sql.as_str()).into_sql_str(), &[])
-            .await?;
-        let ret = s
-            .columns()
-            .iter()
-            .map(|x| Field::from_name_type(x.name(), x.type_info().to_string()))
-            .collect::<Vec<_>>();
-        anyhow::Ok(ret)
+        let r = self.infer_fields_by_sql(&sql).await?;
+        anyhow::Ok(r)
     }
 
     async fn duplicate_table(&self, table: &str, dup: &str) -> anyhow::Result<()> {
@@ -463,7 +451,7 @@ impl SchemaTrait for SqliteDB {
     }
 
     fn clone(&self) -> Box<dyn SchemaTrait> {
-        Box::new(Clone::clone(self)) 
+        Box::new(Clone::clone(self))
     }
 
     fn as_any(&self) -> &dyn std::any::Any {
@@ -769,14 +757,13 @@ pub(crate) fn encode_bytes(bs: &[u8]) -> String {
 }
 
 pub(crate) fn gen_show_sql(
-    backend: BackendKind,
     table_name: &str,
     fields: Option<&[Field]>,
     para: Option<&ShowTableParameter>,
 ) -> String {
     let mut sql = format!(
         r#"SELECT {} FROM "{table_name}""#,
-        backend.format_fields(fields)
+        BackendKind::Sqlite.format_fields(fields)
     );
     if let Some(para) = para {
         let ShowTableParameter {
@@ -1072,7 +1059,7 @@ pub(crate) fn extract_auto_increment_key(sql: &str) -> anyhow::Result<Option<Str
 #[async_trait::async_trait]
 impl ExportQueryResult for SqliteDB {
     fn clone(&self) -> Box<dyn ExportQueryResult> {
-        Box::new(Clone::clone(self)) 
+        Box::new(Clone::clone(self))
     }
 
     async fn export_query_result(
@@ -1441,7 +1428,7 @@ mod tests {
     #[tokio::test]
     async fn test_do_has_data_query() {
         let db = make_test_object().await;
-        let query_id = "";
+        let query_id = "aaaa";
         db.open_connection(query_id).await.unwrap();
         let now = std::time::Instant::now();
         db.execute_sql(query_id, "SELECT * from has_data_0")
@@ -1459,7 +1446,7 @@ mod tests {
         let table_name = "test_column";
         let _ = db.drop_table(table_name, false).await;
 
-        let query_id = "";
+        let query_id = "aaaa";
         db.open_connection(query_id).await.unwrap();
         db
             .execute_sql (
@@ -1597,7 +1584,7 @@ mod tests {
         let table_name = "test_commit";
         let _ = db.drop_table(table_name, false).await;
 
-        let query_id = "";
+        let query_id = "aaaa";
         db.open_connection(query_id).await.unwrap();
         db.execute_sql(
             query_id,
@@ -1659,7 +1646,7 @@ mod tests {
     #[tokio::test]
     async fn test_do_has_data() {
         let db = make_test_object().await;
-        let query_id = "";
+        let query_id = "aaaa";
         db.open_connection(query_id).await.unwrap();
         let mut conn = db.get_conn().await.unwrap();
 
@@ -1724,7 +1711,7 @@ mod tests {
 
         let _ = db.drop_table("test_rename", false).await;
         let _ = db.drop_table("test_rename2", false).await;
-        let query_id = "";
+        let query_id = "aaaa";
         db.open_connection(query_id).await.unwrap();
         db.execute_sql(
             query_id,
@@ -1786,7 +1773,7 @@ mod tests {
         let db = make_test_object().await;
         let _ = db.drop_table("test_duplicate", false).await;
         let _ = db.drop_table("test_duplicate2", false).await;
-        let query_id = "";
+        let query_id = "aaaa";
         db.open_connection(query_id).await.unwrap();
         let _ = db
             .execute_sql(
@@ -1948,7 +1935,7 @@ mod tests {
         let db = make_test_object().await;
         let table_name = "Persons";
         let _ = db.drop_table(table_name, false).await;
-        let query_id = "";
+        let query_id = "aaaa";
         db.open_connection(query_id).await.unwrap();
         db.execute_sql(
             query_id,

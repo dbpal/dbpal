@@ -27,13 +27,11 @@ impl LangServerCommon for SqliteDB {
 
     // issue https://github.com/launchbadge/sqlx/issues/4010
     async fn sqlite_module_name(&self) -> anyhow::Result<Vec<String>> {
-        static CACHE: Mutex<Vec<String>> = Mutex::const_new(Vec::new());
-
-        let mut lock = CACHE.lock().await;
+        static MODULE_NAME: Mutex<Vec<String>> = Mutex::const_new(Vec::new());
+        let mut lock = MODULE_NAME.lock().await;
         if !lock.is_empty() {
             return anyhow::Ok(lock.clone());
         }
-
         let sql = "SELECT name  FROM pragma_module_list";
         let mut conn = self.get_conn().await?;
         let rows = sqlx::raw_sql(AssertSqlSafe(sql))
@@ -108,10 +106,8 @@ impl LangServerCommon for SqliteDB {
             ORDER BY name;
         "#;
         let mut conn = self.get_conn().await?;
-
         let rows = sqlx::raw_sql(sql).fetch_all(conn.deref_mut()).await?;
         let mut ret = vec![];
-
         for row in rows.iter() {
             let name: String = row.try_get(0)?;
             if !name_start_ascii_alphabetic(&name) {
@@ -148,7 +144,6 @@ impl LangServerCommon for SqliteDB {
     async fn list_schema(&self) -> anyhow::Result<Vec<String>> {
         let sql = "PRAGMA database_list";
         log::info!("sql:{}", sql);
-
         let rows = match self.query_connection.get(&self.completion_id.get()) {
             Some(conn) => {
                 let mut conn = conn.lock().await;
@@ -281,7 +276,6 @@ impl AstCompletionHelper for SqliteDB {
         let s = match self.query_connection.get(&self.completion_id.get()) {
             Some(conn) => {
                 let mut conn = conn.lock().await;
-
                 conn.deref_mut()
                     .prepare_with(AssertSqlSafe(sql).into_sql_str(), &[])
                     .await?
@@ -498,7 +492,7 @@ mod tests {
     async fn test_auto_completion() {
         enable_test_log();
         let db = make_test_object().await;
-        let query_id = "";
+        let query_id = "aaaa";
         db.open_connection(query_id).await.unwrap();
         let _ = db.drop_table("departments", false).await;
         let _ = db.drop_table("employees", false).await;

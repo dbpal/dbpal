@@ -9,7 +9,7 @@ use sqlx::{AssertSqlSafe, Row};
 use std::ops::DerefMut;
 
 impl MysqlDB {
-    pub(crate) async fn list_sequences_impl(
+    pub(crate) async fn mariadb_list_sequences(
         &self,
         schema: &str,
     ) -> anyhow::Result<Vec<SequenceDetail>> {
@@ -42,7 +42,6 @@ impl MysqlDB {
                 let create_sql: String = row.try_get(1)?;
                 create_sql
             };
-
             ret.push(SequenceDetail {
                 name,
                 data_type,
@@ -93,7 +92,7 @@ mod tests {
     #[tokio::test]
     async fn test_prepare() {
         let db = make_test_object_mariadb(make_config()).await;
-        let query_id = "";
+        let query_id = "aaaa";
         db.open_connection(query_id).await.unwrap();
         db.execute_sql(
             query_id,
@@ -104,8 +103,8 @@ mod tests {
         .await
         .unwrap()
         .unwrap();
+        db.completion_id.set(query_id.to_owned());
         let ts = db.list_execute(None).await.unwrap();
-
         assert!(ts.iter().any(|x| x.name.eq("stmtxxx")), "stmtxxx{:?}", ts);
     }
 
@@ -113,7 +112,7 @@ mod tests {
     async fn test_sequence() {
         let db = make_test_object_mariadb(make_config()).await;
         let name = "test_seq";
-        let query_id = "";
+        let query_id = "aaaa";
         db.open_connection(query_id).await.unwrap();
         let _ = db.drop_sequence(name, false).await;
 

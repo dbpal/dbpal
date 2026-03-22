@@ -1241,7 +1241,7 @@ mod tests {
         let content = std::fs::read_to_string(file_path.as_path()).unwrap();
         let db = make_test_object().await;
         // set up environment
-        let query_id = "";
+        let query_id = "aaaa";
         db.open_connection(query_id).await.unwrap();
         let _ = db.drop_table("value_string", false).await;
         let _ = db.drop_table("value_hash", false).await;

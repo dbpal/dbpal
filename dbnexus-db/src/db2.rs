@@ -667,7 +667,7 @@ mod tests {
     #[tokio::test]
     async fn test_query() {
         let db = make_test_object().await;
-        let query_id = "";
+        let query_id = "aaaa";
         db.open_connection(query_id).await.unwrap();
         db.query_sql(
             query_id,
@@ -695,7 +695,7 @@ mod tests {
 
     async fn test_types1() {
         let table_name = "TEST_TYPES1";
-        let query_id = "";
+        let query_id = "aaaa";
         let db = make_test_object().await;
         db.open_connection(query_id).await.unwrap();
         {

@@ -78,7 +78,7 @@ const QUERY_AUTO_COMMIT: bool = true;
 #[async_trait::async_trait]
 impl ExportQueryResult for OracleDB {
     fn clone(&self) -> Box<dyn ExportQueryResult> {
-        Box::new(Clone::clone(self)) 
+        Box::new(Clone::clone(self))
     }
 
     async fn export_query_result(
@@ -1088,7 +1088,7 @@ impl SchemaTrait for OracleDB {
     }
 
     fn clone(&self) -> Box<dyn SchemaTrait> {
-        Box::new(Clone::clone(self)) 
+        Box::new(Clone::clone(self))
     }
 
     fn as_any(&self) -> &dyn std::any::Any {
@@ -1807,7 +1807,7 @@ mod tests {
     async fn test_procedure() {
         let _guard = test_lock().lock().await;
         let db = make_test_object(Some("SYSTEM".to_string())).await;
-        let query_id = "";
+        let query_id = "aaaa";
         db.open_connection(query_id).await.unwrap();
         let udf_name = "DO_NOTHING_P";
         let _ = db.drop_procedure(udf_name, None).await;
@@ -1840,7 +1840,7 @@ mod tests {
     async fn test_udf() {
         let _guard = test_lock().lock().await;
         let db = make_test_object(Some("SYSTEM".to_string())).await;
-        let query_id = "";
+        let query_id = "aaaa";
         db.open_connection(query_id).await.unwrap();
         let udf_name = "DO_NOTHING";
         let _ = db.drop_udf(udf_name, None).await;
@@ -1888,7 +1888,7 @@ mod tests {
     async fn test_trigger() {
         let _guard = test_lock().lock().await;
         let db = make_test_object(Some("SYSTEM".to_string())).await;
-        let query_id = "";
+        let query_id = "aaaa";
         db.open_connection(query_id).await.unwrap();
         let table_name = "TEST_TRIGGER";
         let _ = db.drop_table(table_name, false).await;
@@ -1935,7 +1935,7 @@ mod tests {
         let _guard = test_lock().lock().await;
         let db = make_test_object(Some("SYSTEM".to_string())).await;
 
-        let query_id = "";
+        let query_id = "aaaa";
         db.open_connection(query_id).await.unwrap();
         let _ = db.drop_table("TEST_RENAME", false).await;
         let _ = db.drop_table("TEST_RENAME2", false).await;
@@ -1972,7 +1972,7 @@ mod tests {
 
         let db = make_test_object(Some("SYSTEM".to_string())).await;
 
-        let query_id = "";
+        let query_id = "aaaa";
         db.open_connection(query_id).await.unwrap();
         let _ = db.drop_table("TEST_DUPLICATE", false).await;
         let _ = db.drop_table("TEST_DUPLICATE2", false).await;
@@ -2026,7 +2026,7 @@ mod tests {
     async fn test_view() {
         let _guard = test_lock().lock().await;
         let db = make_test_object(Some("SYSTEM".to_string())).await;
-        let query_id = "";
+        let query_id = "aaaa";
         db.open_connection(query_id).await.unwrap();
         let db = db;
         let _ = db.drop_table("TEST_VIEW_TABLE", false).await;
@@ -2068,7 +2068,7 @@ TEST_VIEW_TABLE (product_name, category, price) VALUES ('Samsung Galaxy S21',
     async fn test_materialized_view() {
         let _guard = test_lock().lock().await;
         let db = make_test_object(Some("SYSTEM".to_string())).await;
-        let query_id = "";
+        let query_id = "aaaa";
         db.open_connection(query_id).await.unwrap();
         let db = db;
         let _ = db.drop_table("TEST_MATERIALIZED_VIEW_TABLE", false).await;
@@ -2116,7 +2116,7 @@ TEST_MATERIALIZED_VIEW_TABLE (product_name, category, price) VALUES ('Samsung Ga
     async fn test_index() {
         let _guard = test_lock().lock().await;
         let db = make_test_object(Some("SYSTEM".to_string())).await;
-        let query_id = "";
+        let query_id = "aaaa";
         db.open_connection(query_id).await.unwrap();
         let table_name = "TEST_INDEXES";
 
@@ -2196,7 +2196,7 @@ TEST_MATERIALIZED_VIEW_TABLE (product_name, category, price) VALUES ('Samsung Ga
         let table_name = "TEST_COLUMN";
         let _ = db.drop_table(table_name, false).await;
 
-        let query_id = "";
+        let query_id = "aaaa";
         db.open_connection(query_id).await.unwrap();
         db.execute_sql(
             query_id,
@@ -2313,7 +2313,7 @@ TEST_MATERIALIZED_VIEW_TABLE (product_name, category, price) VALUES ('Samsung Ga
         enable_test_log();
         let table_name = "TEST_TYPES1";
         let db = make_test_object(Some("SYSTEM".to_string())).await;
-        let query_id = "";
+        let query_id = "aaaa";
         db.open_connection(query_id).await.unwrap();
         let db = db;
         let _ = db.drop_table(table_name, false).await;
@@ -2421,7 +2421,7 @@ TEST_MATERIALIZED_VIEW_TABLE (product_name, category, price) VALUES ('Samsung Ga
         enable_test_log();
         let table_name = "TEST_TYPES2";
         let db = make_test_object(Some("SYSTEM".to_string())).await;
-        let query_id = "";
+        let query_id = "aaaa";
         db.open_connection(query_id).await.unwrap();
         let db = db;
         let _ = db.drop_table(table_name, false).await;
@@ -2507,7 +2507,7 @@ TEST_MATERIALIZED_VIEW_TABLE (product_name, category, price) VALUES ('Samsung Ga
         enable_test_log();
         let table_name = "TEST_TYPES3";
         let db = make_test_object(Some("SYSTEM".to_string())).await;
-        let query_id = "";
+        let query_id = "aaaa";
         db.open_connection(query_id).await.unwrap();
         let _ = db.drop_table(table_name, false).await;
         db.execute_sql(
@@ -2594,7 +2594,7 @@ TEST_MATERIALIZED_VIEW_TABLE (product_name, category, price) VALUES ('Samsung Ga
         enable_test_log();
         let table_name = "TEST_TYPES4";
         let db = make_test_object(Some("SYSTEM".to_string())).await;
-        let query_id = "";
+        let query_id = "aaaa";
         db.open_connection(query_id).await.unwrap();
         let _ = db.drop_table(table_name, false).await;
         db.execute_sql(

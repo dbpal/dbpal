@@ -410,7 +410,7 @@ mod tests {
         let db = make_test_object(Some("main".to_string())).await;
 
         enable_test_log();
-        let query_id = "";
+        let query_id = "aaaa";
         db.open_connection(query_id).await.unwrap();
         let _ = db.drop_table("employees", false).await;
         db.execute_sql(

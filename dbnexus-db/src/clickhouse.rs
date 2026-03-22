@@ -1358,7 +1358,7 @@ mod tests {
     #[tokio::test]
     async fn test_udf() {
         let db = make_test_object();
-        let query_id = "";
+        let query_id = "aaaa";
         db.open_connection(query_id).await.unwrap();
         let name = "test_udf_add";
 
@@ -1410,7 +1410,7 @@ mod tests {
         let table_name = "test_column";
         let _ = db.drop_table(table_name, false).await;
 
-        let query_id = "";
+        let query_id = "aaaa";
         db.open_connection(query_id).await.unwrap();
         db.execute_sql(
             query_id,
@@ -1481,7 +1481,7 @@ mod tests {
         let _ = db.drop_materialized_view(view_name).await;
         let _ = db.drop_table(table_name, false).await;
 
-        let query_id = "";
+        let query_id = "aaaa";
         db.open_connection(query_id).await.unwrap();
 
         let req = CreateTableReq {
@@ -1569,7 +1569,7 @@ mod tests {
         let _ = db.drop_view(view_name).await;
         let _ = db.drop_table(table_name, false).await;
 
-        let query_id = "";
+        let query_id = "aaaa";
         db.open_connection(query_id).await.unwrap();
 
         db.execute_sql(
@@ -1642,7 +1642,7 @@ mod tests {
         let name = "test_rename";
         let _ = db.drop_table(name, false).await;
 
-        let query_id = "";
+        let query_id = "aaaa";
         db.open_connection(query_id).await.unwrap();
         db.execute_sql(
             query_id,
@@ -1675,7 +1675,7 @@ mod tests {
         let _ = db.drop_table(name, false).await;
         let _ = db.drop_table(&name2, false).await;
 
-        let query_id = "";
+        let query_id = "aaaa";
         db.open_connection(query_id).await.unwrap();
         db.execute_sql(
             query_id,
@@ -1735,7 +1735,7 @@ mod tests {
         let db = make_test_object();
         let table_name = "test_types1";
         let _ = db.drop_table(table_name, false).await;
-        let query_id = "";
+        let query_id = "aaaa";
         db.open_connection(query_id).await.unwrap();
         let _resp = db
             .execute_sql(
@@ -1837,7 +1837,7 @@ mod tests {
         let db = make_test_object();
         let table_name = "test_types2";
         let _ = db.drop_table(table_name, false).await;
-        let query_id = "";
+        let query_id = "aaaa";
         db.open_connection(query_id).await.unwrap();
         db.execute_sql(
             query_id,
@@ -1920,7 +1920,7 @@ mod tests {
         let db = make_test_object();
         let table_name = "test_types3";
         let _ = db.drop_table(table_name, false).await;
-        let query_id = "";
+        let query_id = "aaaa";
         db.open_connection(query_id).await.unwrap();
         db
             .execute_sql (
@@ -2007,7 +2007,7 @@ mod tests {
         let db = make_test_object();
         let table_name = "test_types4";
         let _ = db.drop_table(table_name, false).await;
-        let query_id = "";
+        let query_id = "aaaa";
         db.open_connection(query_id).await.unwrap();
         db.execute_sql(
             query_id,
@@ -2107,7 +2107,7 @@ mod tests {
         let db = make_test_object();
         let table_name = "test_types5";
         let _ = db.drop_table(table_name, false).await;
-        let query_id = "";
+        let query_id = "aaaa";
         db.open_connection(query_id).await.unwrap();
         db
             .execute_sql (
@@ -2211,7 +2211,7 @@ mod tests {
         let db = make_test_object();
         let table_name = "test_some_map";
         let _ = db.drop_table(table_name, false).await;
-        let query_id = "";
+        let query_id = "aaaa";
         db.open_connection(query_id).await.unwrap();
         db.execute_sql(
             query_id,
@@ -2306,7 +2306,7 @@ mod tests {
         let db = make_test_object();
         let table_name = "test_types6";
         let _ = db.drop_table(table_name, false).await;
-        let query_id = "";
+        let query_id = "aaaa";
         db.open_connection(query_id).await.unwrap();
         db
             .execute_sql (

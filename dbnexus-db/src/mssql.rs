@@ -735,7 +735,7 @@ impl SchemaTrait for SqlServerDB {
     }
 
     fn clone(&self) -> Box<dyn SchemaTrait> {
-        Box::new(Clone::clone(self)) 
+        Box::new(Clone::clone(self))
     }
 
     fn as_any(&self) -> &dyn std::any::Any {
@@ -1455,7 +1455,7 @@ type Connection = Client<Compat<TcpStream>>;
 #[async_trait::async_trait]
 impl ExportQueryResult for SqlServerDB {
     fn clone(&self) -> Box<dyn ExportQueryResult> {
-        Box::new(Clone::clone(self)) 
+        Box::new(Clone::clone(self))
     }
 
     async fn export_query_result(
@@ -2216,7 +2216,7 @@ mod tests {
     async fn test_procedure() {
         let _guard = test_lock().lock().await;
         let db = make_test_object().await;
-        let query_id = "";
+        let query_id = "aaaa";
         db.open_connection(query_id).await.unwrap();
         let _ = db.drop_procedure("test_procedure", None).await;
         db.execute_sql(
@@ -2243,7 +2243,7 @@ END;
     async fn test_udf() {
         let _guard = test_lock().lock().await;
         let db = make_test_object().await;
-        let query_id = "";
+        let query_id = "aaaa";
         db.open_connection(query_id).await.unwrap();
         let _ = db.drop_udf("test_udf", None).await;
         db.execute_sql(
@@ -2368,7 +2368,7 @@ END;
         let db = make_test_object().await;
         let table_name = "test_commit";
         let _ = db.drop_table(table_name, false).await;
-        let query_id = "";
+        let query_id = "aaaa";
         db.open_connection(query_id).await.unwrap();
         db.execute_sql(
             query_id,
@@ -2431,7 +2431,7 @@ END;
         let _guard = test_lock().lock().await;
         let db = make_test_object().await;
 
-        let query_id = "";
+        let query_id = "aaaa";
         db.open_connection(query_id).await.unwrap();
         let _ = db.drop_table("test_rename", false).await;
         let _ = db.drop_table("test_rename2", false).await;
@@ -2465,7 +2465,7 @@ END;
         let _guard = test_lock().lock().await;
         let db = make_test_object().await;
 
-        let query_id = "";
+        let query_id = "aaaa";
         db.open_connection(query_id).await.unwrap();
         let _ = db.drop_table("test_duplicate", false).await;
         let _ = db.drop_table("test_duplicate2", false).await;
@@ -2508,7 +2508,7 @@ END;
         let _guard = test_lock().lock().await;
         let db = make_test_object().await;
 
-        let query_id = "";
+        let query_id = "aaaa";
         db.open_connection(query_id).await.unwrap();
         let _ = db.drop_table("test_create_trigger", false).await;
         let _ = db.drop_table("test_create_trigger_update", false).await;
@@ -2634,7 +2634,7 @@ END;
         let db = make_test_object().await;
         let _ = db.drop_view("test_view").await;
         let _ = db.drop_table("test_view_table", false).await;
-        let query_id = "";
+        let query_id = "aaaa";
         db.open_connection("").await.unwrap();
         db.execute_sql(
             query_id,
@@ -2766,7 +2766,7 @@ END;
         let _guard = test_lock().lock().await;
         let table_name = "test_export";
         let db = make_test_object().await;
-        let query_id = "";
+        let query_id = "aaaa";
         db.open_connection(query_id).await.unwrap();
         let rs = [
             r#"drop table if exists test_export;"#,
@@ -2876,7 +2876,7 @@ END;
         let _guard = test_lock().lock().await;
         enable_test_log();
         let db = make_test_object().await;
-        let query_id = "";
+        let query_id = "aaaa";
         db.open_connection(query_id).await.unwrap();
         db.query_sql(
             query_id,
@@ -2900,7 +2900,7 @@ END;
         let table_name = "test_column";
         let _ = db.drop_table(table_name, false).await;
 
-        let query_id = "";
+        let query_id = "aaaa";
         db.open_connection(query_id).await.unwrap();
         db.execute_sql(
             query_id,

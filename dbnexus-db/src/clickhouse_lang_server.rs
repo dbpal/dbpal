@@ -366,7 +366,7 @@ mod tests {
     async fn test_auto_completion() {
         let db = make_test_object();
         // enable_test_log();
-        let query_id = "";
+        let query_id = "aaaa";
         db.open_connection(query_id).await.unwrap();
         let _ = db.drop_table("employees", false).await;
         db.execute_sql(

@@ -613,7 +613,7 @@ mod tests {
         let _guard = test_lock().lock().await;
         let db = make_test_object().await;
         enable_test_log();
-        let query_id = "";
+        let query_id = "aaaa";
         db.open_connection(query_id).await.unwrap();
         let _ = db.drop_table("EMPLOYEE", false).await;
         let _ = db
