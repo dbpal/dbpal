@@ -340,7 +340,6 @@ export namespace types {
     export type MetaValue = {
         "name": string;
         "value": (string | null);
-        "desc": (string | null);
     };
 
     /**

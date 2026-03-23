@@ -230,6 +230,7 @@ impl MongoDB {
             limit,
             skip,
         } = para;
+        #[cfg(debug_assertions)]
         log::info!(
             "find parameter project:{:?} filter:{:?} sort:{:?} max:{:?} min:{:?} limit:{:?} skip:{:?}",
             projection,
@@ -289,6 +290,7 @@ impl MongoDB {
             skip,
             limit: _,
         } = para;
+        #[cfg(debug_assertions)]
         log::info!(
             "find parameter project:{:?} filter:{:?} sort:{:?} max:{:?} min:{:?} skip:{:?}",
             projection,

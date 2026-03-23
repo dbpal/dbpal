@@ -853,8 +853,8 @@ impl TryFrom<MongoFindParameter> for dbnexus_db::mongo::MongoFindParameter {
             } else {
                 None
             },
-            limit: limit,
-            skip: skip,
+            limit,
+            skip,
         };
         Ok(r)
     }
@@ -881,8 +881,8 @@ impl TryFrom<MongoShowTablePara> for dbnexus_db::mongo::MongoShowTablePara {
         Ok(dbnexus_db::mongo::MongoShowTablePara {
             filter: parse_bson_doc(&filter)?,
             sort: parse_bson_doc(&sort)?,
-            page: page,
-            page_size: page_size,
+            page,
+            page_size,
         })
     }
 }

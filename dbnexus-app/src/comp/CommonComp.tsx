@@ -448,9 +448,8 @@ function MetaValueViewMenu(props: { content: string; setSort; field: string }) {
 function MetaValueView({ values = [] as types.MetaValue[] }) {
   const setting = useContext(SettingContext);
   const columns = [
-    { field: "name", width: ColumnWidth.instance.get("name") },
-    { field: "value", width: ColumnWidth.instance.get("value") },
-    { field: "desc", flex: 1 },
+    { field: "name", width: ColumnWidth.instance.get("name"), flex: 1 },
+    { field: "value", width: ColumnWidth.instance.get("value"), flex: 1 },
   ] as GridColDef[];
 
   const [sortModel, setSortModel] = useState<GridSortModel>([]);
@@ -496,12 +495,6 @@ function MetaValueView({ values = [] as types.MetaValue[] }) {
     setSortModel(e);
   }, []);
 
-  const onColumnResize = useCallback(({ colDef, width }) => {
-    const f = colDef.field;
-    if (f == "name" || f == "value") {
-      ColumnWidth.instance.save(f, width);
-    }
-  }, []);
   const slots = useMemo(() => {
     return {
       pagination: AppDataGridPagination,
@@ -516,7 +509,6 @@ function MetaValueView({ values = [] as types.MetaValue[] }) {
       slotProps={slotProps}
       columns={columns}
       rows={values}
-      onColumnResize={onColumnResize}
     />
   );
 }

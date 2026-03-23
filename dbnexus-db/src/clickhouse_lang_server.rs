@@ -356,7 +356,7 @@ pub const CLICKHOUSE_FORMATS: &[&str] = &[
 mod tests {
     use std::path::Path;
 
-    use crate::clickhouse::make_test_object;
+    use crate::clickhouse::{make_test_object, test_lock};
     use crate::db::{QuerySql, SchemaTrait};
     use crate::enable_test_log;
     use crate::language_server::completion_test::test_file_auto_completion;
@@ -364,6 +364,7 @@ mod tests {
     // partition test failed , sqlparser can't parse a valid partition statement.
     #[tokio::test]
     async fn test_auto_completion() {
+        let _guard = test_lock().lock().await;
         let db = make_test_object();
         // enable_test_log();
         let query_id = "aaaa";

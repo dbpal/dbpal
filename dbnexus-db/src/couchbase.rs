@@ -355,20 +355,20 @@ impl SchemaTrait for CouchBaseDB {
         anyhow::Ok(())
     }
 
-    async fn truncate_table(&self, table_name: &str) -> anyhow::Result<String> {
+    async fn truncate_table(&self, table_name: &str) -> anyhow::Result<Option<String>> {
         self.can_write()?;
         let s = self.get_scope()?;
         let sql = format!("DELETE FROM `{table_name}`");
         s.query(sql.clone(), None).await?;
-        anyhow::Ok(sql)
+        anyhow::Ok(sql.into())
     }
 
-    async fn drop_table(&self, table: &str, _cascade: bool) -> anyhow::Result<String> {
+    async fn drop_table(&self, table: &str, _cascade: bool) -> anyhow::Result<Option<String>> {
         self.can_write()?;
         let s = self.get_scope()?;
         let sql = format!("DROP COLLECTION `{table}`;");
         s.query(sql.clone(), None).await?;
-        anyhow::Ok(sql)
+        anyhow::Ok(sql.into())
     }
 
     fn clone(&self) -> Box<dyn SchemaTrait> {

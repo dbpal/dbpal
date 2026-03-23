@@ -227,10 +227,10 @@ pub trait SchemaTrait:
 
     fn as_any(&self) -> &dyn std::any::Any;
 
-    async fn rename_table(&self, old: &str, new: &str) -> anyhow::Result<String> {
+    async fn rename_table(&self, old: &str, new: &str) -> anyhow::Result<Option<String>> {
         self.duplicate_table(old, new).await?;
         self.drop_table(old, false).await?;
-        anyhow::Ok("".to_string())
+        anyhow::Ok(None)
     }
 
     async fn duplicate_table(&self, table: &str, dup: &str) -> anyhow::Result<()>;
@@ -310,7 +310,7 @@ pub trait SchemaTrait:
         self.simple_execute_sql(&sql).await
     }
 
-    async fn truncate_table(&self, table_name: &str) -> anyhow::Result<String>;
+    async fn truncate_table(&self, table_name: &str) -> anyhow::Result<Option<String>>;
 
     async fn table_delete_sql(
         &self,
@@ -338,7 +338,7 @@ pub trait SchemaTrait:
     async fn drop_view(&self, _view_name: &str) -> anyhow::Result<String> {
         self.backend_kind().not_support_feature()
     }
-    async fn drop_table(&self, table: &str, cascade: bool) -> anyhow::Result<String>;
+    async fn drop_table(&self, table: &str, cascade: bool) -> anyhow::Result<Option<String>>;
 
     fn clone(&self) -> Box<dyn SchemaTrait>;
 
@@ -370,7 +370,7 @@ pub trait SchemaTrait:
         _table_name: &str,
         _oldname: &str,
         _newname: &str,
-    ) -> anyhow::Result<String> {
+    ) -> anyhow::Result<Option<String>> {
         self.backend_kind().not_support_feature()
     }
 
@@ -382,7 +382,7 @@ pub trait SchemaTrait:
         self.backend_kind().not_support_feature()
     }
 
-    async fn drop_index(&self, _table_name: &str, _index: &str) -> anyhow::Result<String> {
+    async fn drop_index(&self, _table_name: &str, _index: &str) -> anyhow::Result<Option<String>> {
         self.backend_kind().not_support_feature()
     }
 
@@ -390,7 +390,7 @@ pub trait SchemaTrait:
         self.backend_kind().not_support_feature()
     }
 
-    async fn drop_materialized_view(&self, _name: &str) -> anyhow::Result<String> {
+    async fn drop_materialized_view(&self, _name: &str) -> anyhow::Result<Option<String>> {
         self.backend_kind().not_support_feature()
     }
 
@@ -2048,7 +2048,6 @@ pub enum TriggerTiming {
 pub struct MetaValue {
     pub name: String,
     pub value: Option<String>,
-    pub desc: Option<String>,
 }
 
 impl MetaValue {
@@ -2056,12 +2055,7 @@ impl MetaValue {
         Self {
             name: name.into(),
             value: value.into(),
-            desc: None,
         }
-    }
-
-    pub(crate) fn with_desc(&mut self, desc: impl Into<String>) {
-        self.desc = Some(desc.into());
     }
 }
 

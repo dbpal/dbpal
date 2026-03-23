@@ -474,10 +474,6 @@ impl FireBirdDB {
             cols.iter().for_each(|x| {
                 types.insert(&x.field, x);
             });
-            let mut cols_map = HashMap::new();
-            cols.iter().for_each(|f| {
-                cols_map.insert(f.field.as_str(), f);
-            });
             let mut conn = this.get_conn()?;
             let sql = this.gen_show_sql(&table_name, Some(&cols), para.as_ref());
             log::info!("sql:{}", sql);
@@ -542,7 +538,6 @@ impl FireBirdDB {
         "#,
             table_name
         );
-
         let rows: Vec<(String, String, Option<i64>, String, Option<String>)> =
             conn.query(&sql, ())?;
         let mut ret = Vec::new();
@@ -676,11 +671,11 @@ impl SchemaTrait for FireBirdDB {
         .await?
     }
 
-    async fn truncate_table(&self, table_name: &str) -> anyhow::Result<String> {
+    async fn truncate_table(&self, table_name: &str) -> anyhow::Result<Option<String>> {
         // firebird have no truncate statement.
         let sql = format!(r#"DELETE FROM "{}""#, table_name);
         self.simple_execute_sql(&sql).await?;
-        anyhow::Ok(sql.clone())
+        anyhow::Ok(sql.clone().into())
     }
 
     // not tested...
@@ -748,10 +743,10 @@ impl SchemaTrait for FireBirdDB {
         anyhow::Ok(sql)
     }
 
-    async fn drop_table(&self, table: &str, _cascade: bool) -> anyhow::Result<String> {
+    async fn drop_table(&self, table: &str, _cascade: bool) -> anyhow::Result<Option<String>> {
         let sql = format!(r#"DROP TABLE "{}""#, table);
         self.simple_execute_sql(&sql).await?;
-        anyhow::Ok(sql)
+        anyhow::Ok(sql.into())
     }
 
     fn clone(&self) -> Box<dyn SchemaTrait> {
@@ -825,10 +820,10 @@ impl SchemaTrait for FireBirdDB {
         .await?
     }
 
-    async fn drop_index(&self, _table_name: &str, index: &str) -> anyhow::Result<String> {
+    async fn drop_index(&self, _table_name: &str, index: &str) -> anyhow::Result<Option<String>> {
         let sql = format!(r#"DROP INDEX "{}";"#, index);
         self.simple_execute_sql(&sql).await?;
-        anyhow::Ok(sql)
+        anyhow::Ok(sql.into())
     }
 
     async fn show_view(

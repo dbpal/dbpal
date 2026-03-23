@@ -18,8 +18,6 @@ use crate::db::{
     QueryEventEmitter, QueryResp, QuerySql, ReadOnlyTrait, SchemaTrait, ServerMetas,
     ShowTableParameter,
 };
-#[cfg(test)]
-use crate::TEST_HOST;
 
 #[derive(Clone)]
 pub struct MongoDB {
@@ -31,7 +29,7 @@ pub struct MongoDB {
 
 impl std::fmt::Debug for MongoDB {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "mssql on:{:?}", self.db_name)
+        write!(f, "mongo on:{:?}", self.db_name)
     }
 }
 
@@ -148,7 +146,6 @@ impl DBTrait for MongoDB {
 fn bson_value_to_string(b: &bson::Bson) -> anyhow::Result<Option<String>> {
     match b {
         Bson::Null | Bson::Undefined | Bson::MaxKey | Bson::MinKey => return anyhow::Ok(None),
-        // Bson::String(x) => return anyhow::Ok(Some(x.to_owned())),
         _ => {}
     }
     let x = serde_json::to_string_pretty(b)?;
@@ -169,7 +166,6 @@ fn collect_table_resp(fs: &[Field], docs: &[Document]) -> anyhow::Result<Vec<Vec
         }
         ret.push(values);
     }
-
     anyhow::Ok(ret)
 }
 
@@ -201,7 +197,6 @@ fn infer_multi_value_column_names(docs: &[Document]) -> anyhow::Result<Vec<Field
                 bson::Bson::Undefined => "undefined",
                 bson::Bson::MaxKey => "max_key",
                 bson::Bson::MinKey => "min_key",
-                // Deprecated
                 bson::Bson::DbPointer(_) => "db_pointer",
             };
             ret.insert(k.clone(), Field::from_name_type(k.as_str(), ty));
@@ -468,7 +463,6 @@ impl ServerMetas for MongoDB {
         let server_status = admin_db.run_command(doc! {"serverStatus": 1}).await?;
         // write_bson_s_json_to_file(&server_status, "./test.json");
         let mut ret = Vec::new();
-
         {
             let version = server_status.get_str("version")?.to_string();
             ret.push(MetaValue::new("version", version));
@@ -531,7 +525,10 @@ impl MongoDB {
         anyhow::Ok(ts.into_iter().map(ListTable::from).collect())
     }
 
-    pub async fn drop_mongo_time_serial_collection(&self, name: &str) -> anyhow::Result<String> {
+    pub async fn drop_mongo_time_serial_collection(
+        &self,
+        name: &str,
+    ) -> anyhow::Result<Option<String>> {
         self.can_write()?;
         self.drop_table(name, false).await
     }
@@ -577,7 +574,7 @@ impl SchemaTrait for MongoDB {
         anyhow::Ok(())
     }
 
-    async fn rename_table(&self, old: &str, new: &str) -> anyhow::Result<String> {
+    async fn rename_table(&self, old: &str, new: &str) -> anyhow::Result<Option<String>> {
         self.can_write()?;
         let old = format!("{}.{}", self.db_name.as_ref().option_must_be_some()?, old);
         let new = format!("{}.{}", self.db_name.as_ref().option_must_be_some()?, new);
@@ -585,7 +582,7 @@ impl SchemaTrait for MongoDB {
         let client = self.get_conn().await?;
         let db = client.database("admin");
         db.run_command(cmd).await?;
-        anyhow::Ok("".to_string())
+        anyhow::Ok(None)
     }
 
     fn clone(&self) -> Box<dyn SchemaTrait> {
@@ -631,14 +628,19 @@ impl SchemaTrait for MongoDB {
 
     async fn drop_view(&self, view_name: &str) -> anyhow::Result<String> {
         self.can_write()?;
-        self.drop_table(view_name, false).await
+        self.drop_table(view_name, false).await?;
+        anyhow::Ok("".into())
     }
 
-    async fn drop_table(&self, collect_name: &str, _cascade: bool) -> anyhow::Result<String> {
+    async fn drop_table(
+        &self,
+        collect_name: &str,
+        _cascade: bool,
+    ) -> anyhow::Result<Option<String>> {
         self.can_write()?;
         let conn = self.get_db().await?;
         conn.collection::<Document>(collect_name).drop().await?;
-        anyhow::Ok("".to_string())
+        anyhow::Ok(None)
     }
 
     async fn list_view(&self) -> anyhow::Result<Vec<ListTable>> {
@@ -660,7 +662,7 @@ impl SchemaTrait for MongoDB {
         self.show_columns_impl(table_name).await
     }
 
-    async fn drop_index(&self, table_name: &str, index: &str) -> anyhow::Result<String> {
+    async fn drop_index(&self, table_name: &str, index: &str) -> anyhow::Result<Option<String>> {
         self.can_write()?;
         if index == "_id_" {
             anyhow::bail!("can't drop this index");
@@ -669,7 +671,7 @@ impl SchemaTrait for MongoDB {
         db.collection::<Document>(table_name)
             .drop_index(index)
             .await?;
-        anyhow::Ok("".to_owned())
+        anyhow::Ok(None)
     }
 
     async fn rename_index(
@@ -677,7 +679,7 @@ impl SchemaTrait for MongoDB {
         table_name: &str,
         oldname: &str,
         newname: &str,
-    ) -> anyhow::Result<String> {
+    ) -> anyhow::Result<Option<String>> {
         self.can_write()?;
         if oldname == "_id_" {
             anyhow::bail!("can't rename this index");
@@ -705,7 +707,7 @@ impl SchemaTrait for MongoDB {
                 db.collection::<Document>(table_name)
                     .create_index(index_model)
                     .await?;
-                return anyhow::Ok("".into());
+                return anyhow::Ok(None);
             }
         }
         anyhow::bail!(format!("index '{}' not found", oldname))
@@ -749,14 +751,13 @@ impl SchemaTrait for MongoDB {
         anyhow::Ok(ret)
     }
 
-    async fn truncate_table(&self, table_name: &str) -> anyhow::Result<String> {
+    async fn truncate_table(&self, table_name: &str) -> anyhow::Result<Option<String>> {
         self.can_write()?;
-
         let db = self.get_db().await?;
         db.collection::<Document>(table_name)
             .delete_many(doc! {})
             .await?;
-        anyhow::Ok("".to_string())
+        anyhow::Ok(None)
     }
 
     async fn show_view_columns(&self, view_name: &str) -> anyhow::Result<Vec<Field>> {
@@ -830,7 +831,7 @@ pub struct MongoShowTablePara {
 pub(crate) fn make_test_object() -> MongoDB {
     let x = MongoDB::new(MongoDBConfig {
         conn_timeout: Some(5000.into()),
-        host: TEST_HOST.to_string(),
+        host: crate::TEST_HOST.to_string(),
         port: 27017,
         username: None,
         password: None,

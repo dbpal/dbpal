@@ -496,7 +496,7 @@ pub async fn rename_index(
     old_name: String,
     new_name: String,
     app: tauri::State<'_, DBPal>,
-) -> Result<String, ErrorFrontend> {
+) -> Result<Option<String>, ErrorFrontend> {
     random_sleep().await;
     random_error()?;
     let schema = app
@@ -515,7 +515,7 @@ pub async fn drop_index(
     table_name: String,
     index: String,
     app: tauri::State<'_, DBPal>,
-) -> Result<String, ErrorFrontend> {
+) -> Result<Option<String>, ErrorFrontend> {
     random_sleep().await;
     random_error()?;
     let schema = app
@@ -580,7 +580,7 @@ pub async fn truncate_table(
     name: String,
     table_name: String,
     app: tauri::State<'_, DBPal>,
-) -> Result<String, ErrorFrontend> {
+) -> Result<Option<String>, ErrorFrontend> {
     random_sleep().await;
     random_error()?;
     let db = app.get_schema(&name).await?;
@@ -881,7 +881,7 @@ pub async fn drop_materialized_view(
     name: String,
     view_name: String,
     app: tauri::State<'_, DBPal>,
-) -> Result<String, ErrorFrontend> {
+) -> Result<Option<String>, ErrorFrontend> {
     random_sleep().await;
     random_error()?;
     let schema = app.get_schema(&name).await.map_err(ErrorFrontend::from)?;
@@ -897,7 +897,7 @@ pub async fn drop_table(
     table_name: String,
     cascade: bool,
     app: tauri::State<'_, DBPal>,
-) -> Result<String, ErrorFrontend> {
+) -> Result<Option<String>, ErrorFrontend> {
     random_sleep().await;
     random_error()?;
     let db = app.get_schema(&name).await?;
@@ -1771,7 +1771,7 @@ pub async fn rename_table(
     old: String,
     new: String,
     app: tauri::State<'_, DBPal>,
-) -> Result<String, ErrorFrontend> {
+) -> Result<Option<String>, ErrorFrontend> {
     random_sleep().await;
     random_error()?;
     let db = app

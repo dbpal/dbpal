@@ -349,11 +349,11 @@ impl SchemaTrait for SqliteDB {
         anyhow::Ok(sql)
     }
 
-    async fn drop_index(&self, _table_name: &str, index: &str) -> anyhow::Result<String> {
+    async fn drop_index(&self, _table_name: &str, index: &str) -> anyhow::Result<Option<String>> {
         let sql = format!(r#"DROP INDEX "{index}";"#);
         log::info!("sql:{}", sql);
         self.simple_execute_sql(&sql).await?;
-        anyhow::Ok(sql)
+        anyhow::Ok(sql.into())
     }
 
     async fn show_view_columns(&self, view_name: &str) -> anyhow::Result<Vec<Field>> {
@@ -373,11 +373,11 @@ impl SchemaTrait for SqliteDB {
         anyhow::Ok(())
     }
 
-    async fn rename_table(&self, old: &str, new: &str) -> anyhow::Result<String> {
+    async fn rename_table(&self, old: &str, new: &str) -> anyhow::Result<Option<String>> {
         let sql = format!(r#"ALTER TABLE "{old}" RENAME TO "{new}""#);
         log::info!("sql:{}", sql);
         self.simple_execute_sql(&sql).await?;
-        anyhow::Ok(sql)
+        anyhow::Ok(sql.into())
     }
 
     async fn list_trigger(&self, table_name: &str) -> anyhow::Result<Vec<NamedStaff>> {
@@ -467,13 +467,13 @@ impl SchemaTrait for SqliteDB {
         anyhow::Ok(sql)
     }
 
-    async fn drop_table(&self, table: &str, _cascade: bool) -> anyhow::Result<String> {
+    async fn drop_table(&self, table: &str, _cascade: bool) -> anyhow::Result<Option<String>> {
         let sql = format!(r#"DROP TABLE "{table}" "#,);
         self.simple_execute_sql(&sql).await?;
-        anyhow::Ok(sql)
+        anyhow::Ok(sql.into())
     }
 
-    async fn truncate_table(&self, table_name: &str) -> anyhow::Result<String> {
+    async fn truncate_table(&self, table_name: &str) -> anyhow::Result<Option<String>> {
         let sql = format!(
             r#"
             DELETE FROM "{table_name}";
@@ -481,7 +481,7 @@ impl SchemaTrait for SqliteDB {
         "#
         );
         self.simple_execute_sql(&sql).await?;
-        anyhow::Ok(sql)
+        anyhow::Ok(sql.into())
     }
 
     async fn list_table(&self) -> anyhow::Result<Vec<ListTable>> {

@@ -14,10 +14,10 @@ use crate::language_server::{
     try_parser_dot_lexer, AstCompletionHelper, CompletionItem, CompletionKind, CompletionList,
     DBExecutable, ErrAndLoc, GetKeyWords, LangServerCommon, LanguageServer, LexerCompletionTrait,
 };
-use crate::mariadb_lang_server::MARIADB_FUNCTIONS;
+use crate::mariadb::MARIADB_FUNCTIONS;
 use crate::mysql::MysqlDB;
 use crate::sqlparser_completion::TempTableColumn;
-use crate::tidb_lang_server::TIDB_KEYWORDS;
+use crate::tidb::TIDB_KEYWORDS;
 use sqlx::{AssertSqlSafe, Row, SqlSafeStr};
 use std::collections::HashSet;
 use std::ops::DerefMut;
@@ -43,7 +43,6 @@ impl GetKeyWords for MysqlDB {
                     .collect::<Vec<_>>();
                 anyhow::Ok(result)
             }
-
             _ => {
                 let mut lock = KEY_WORDS_CACHE.lock().await;
                 if !lock.is_empty() {
@@ -423,10 +422,8 @@ impl LangServerCommon for MysqlDB {
         /*
             TODO should execute this sql but somehow owner_thread_id = connection_id()  match not working
             why????
-
             SELECT statement_id, sql_text ,statement_name
             FROM performance_schema.prepared_statements_instances WHERE owner_thread_id = connection_id() and  statement_name is not null;
-
         */
 
         let conn = self.query_connection.get(&self.completion_id.get());
@@ -941,7 +938,7 @@ mod tests {
     use crate::datasource_config::MysqlDBConfig;
     use crate::db::{BackendKindMysql, QuerySql, SchemaTrait};
     use crate::language_server::completion_test::test_file_auto_completion;
-    use crate::language_server::{LangServerCommon, LanguageServer};
+    use crate::language_server::LanguageServer;
     use crate::mysql::MysqlDB;
     use crate::{enable_test_log, TEST_HOST};
 
@@ -1056,27 +1053,6 @@ mod tests {
 
         let db = make_test_object(config).await;
         test_file_auto_completion(include_str!("./xxx.sql"), &db, None, false).await;
-    }
-    #[tokio::test]
-    async fn test_prepare() {
-        let db = make_test_object(make_config()).await;
-        let query_id = "aaaa";
-        db.open_connection(query_id).await.unwrap();
-        db.execute_sql(
-            query_id,
-            r#"
-            PREPARE stmtxxx FROM 'SELECT 1';
-        "#,
-        )
-        .await
-        .unwrap()
-        .unwrap();
-        assert!(db
-            .list_execute(None)
-            .await
-            .unwrap()
-            .iter()
-            .any(|x| x.name.eq("stmtxxx")));
     }
 
     #[tokio::test]

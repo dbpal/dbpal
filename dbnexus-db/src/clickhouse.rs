@@ -18,6 +18,8 @@ use std::collections::{HashMap, HashSet};
 use std::sync::Arc;
 use std::time::Duration;
 use tokio::io::{AsyncBufReadExt, BufReader};
+#[cfg(test)]
+use tokio::sync::Mutex;
 use tokio_util::io::StreamReader;
 
 impl GetBackendKind for ClickHouseDB {
@@ -137,7 +139,7 @@ impl SchemaTrait for ClickHouseDB {
         self.list_materialized_view_impl(self.config.db_str()).await
     }
 
-    async fn drop_materialized_view(&self, name: &str) -> anyhow::Result<String> {
+    async fn drop_materialized_view(&self, name: &str) -> anyhow::Result<Option<String>> {
         self.drop_table(name, false).await
     }
 
@@ -188,12 +190,11 @@ impl SchemaTrait for ClickHouseDB {
         Box::new(Clone::clone(self))
     }
 
-    async fn rename_table(&self, old: &str, new: &str) -> anyhow::Result<String> {
+    async fn rename_table(&self, old: &str, new: &str) -> anyhow::Result<Option<String>> {
         let sql = format!(r#"RENAME TABLE `{old}` TO `{new}`"#);
         log::info!("sql:{}", sql);
-
         self.simple_execute_sql(&sql).await?;
-        anyhow::Ok(sql)
+        anyhow::Ok(sql.into())
     }
 
     async fn duplicate_table(&self, table: &str, dup: &str) -> anyhow::Result<()> {
@@ -239,11 +240,11 @@ impl SchemaTrait for ClickHouseDB {
         anyhow::Ok(())
     }
 
-    async fn truncate_table(&self, table_name: &str) -> anyhow::Result<String> {
+    async fn truncate_table(&self, table_name: &str) -> anyhow::Result<Option<String>> {
         let sql = format!(r#"TRUNCATE TABLE `{table_name}`"#);
         log::info!("sql:{}", sql);
         self.simple_execute_sql(&sql).await?;
-        anyhow::Ok(sql)
+        anyhow::Ok(sql.into())
     }
 
     fn as_any(&self) -> &dyn std::any::Any {
@@ -400,12 +401,12 @@ impl SchemaTrait for ClickHouseDB {
         anyhow::Ok(())
     }
 
-    async fn drop_table(&self, table: &str, _cascade: bool) -> anyhow::Result<String> {
+    async fn drop_table(&self, table: &str, _cascade: bool) -> anyhow::Result<Option<String>> {
         let sql = format!(r#"DROP TABLE `{table}`"#);
         log::info!("sql:{}", sql);
 
         self.simple_execute_sql(&sql).await?;
-        anyhow::Ok(sql)
+        anyhow::Ok(sql.into())
     }
 
     async fn drop_table_column(&self, table: &str, col: &str) -> anyhow::Result<String> {
@@ -1266,6 +1267,12 @@ pub(crate) fn make_test_object() -> ClickHouseDB {
 }
 
 #[cfg(test)]
+pub(crate) fn test_lock() -> &'static Mutex<()> {
+    static LOCK: Mutex<()> = Mutex::const_new(());
+    &LOCK
+}
+
+#[cfg(test)]
 mod tests {
     use super::*;
     use super::{make_test_object, parse_type};
@@ -1278,6 +1285,8 @@ mod tests {
 
     #[tokio::test]
     async fn test_read_only() {
+        let _guard = test_lock().lock().await;
+
         let db = ClickHouseDB::new(ClickHouseConfig {
             conn_timeout: Some(5000.into()),
             host: "127.0.0.1".to_string(),
@@ -1320,6 +1329,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_table_pagination() {
+        let _guard = test_lock().lock().await;
         let db = make_test_object();
         let table_name = "test_table_pagination";
         let _ = db.drop_table(table_name, false).await;
@@ -1357,6 +1367,7 @@ mod tests {
     }
     #[tokio::test]
     async fn test_udf() {
+        let _guard = test_lock().lock().await;
         let db = make_test_object();
         let query_id = "aaaa";
         db.open_connection(query_id).await.unwrap();
@@ -1380,6 +1391,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_show_tables() {
+        let _guard = test_lock().lock().await;
         enable_test_log();
         let db = make_test_object();
         let mut stream = db.query_row("show TABLES from default").await.unwrap();
@@ -1391,6 +1403,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_check_conn() {
+        let _guard = test_lock().lock().await;
         let db = make_test_object();
         let ping_time = db.check_conn().await.unwrap();
         println!("{:?}", ping_time);
@@ -1398,6 +1411,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_show_metas() {
+        let _guard = test_lock().lock().await;
         let db = make_test_object();
         let metas = db.show_metas().await.unwrap();
         for meta in metas.iter() {
@@ -1406,6 +1420,7 @@ mod tests {
     }
     #[tokio::test]
     async fn test_table_column() {
+        let _guard = test_lock().lock().await;
         let db = make_test_object();
         let table_name = "test_column";
         let _ = db.drop_table(table_name, false).await;
@@ -1464,6 +1479,7 @@ mod tests {
     }
     #[tokio::test]
     async fn test_list_databases() {
+        let _guard = test_lock().lock().await;
         let db = make_test_object();
         let name = "abc";
         let _ = db.drop_schema(name).await;
@@ -1474,6 +1490,7 @@ mod tests {
     }
     #[tokio::test]
     async fn test_materialized_view() {
+        let _guard = test_lock().lock().await;
         let table_name = "test_materialized_view_table";
         let view_name = "test_materialized_view";
 
@@ -1562,6 +1579,7 @@ mod tests {
     }
     #[tokio::test]
     async fn test_view() {
+        let _guard = test_lock().lock().await;
         let table_name = "test_view_table";
         let view_name = "test_view";
 
@@ -1638,6 +1656,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_rename_truncate() {
+        let _guard = test_lock().lock().await;
         let db = make_test_object();
         let name = "test_rename";
         let _ = db.drop_table(name, false).await;
@@ -1668,7 +1687,8 @@ mod tests {
 
     #[tokio::test]
     async fn test_dup() {
-        // enable_test_log();
+        let _guard = test_lock().lock().await;
+
         let db = make_test_object();
         let name = "test_dup";
         let name2 = format!("{}2", name);
@@ -1719,6 +1739,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_list_tables() {
+        let _guard = test_lock().lock().await;
         let db = make_test_object();
 
         let ret = db.list_table().await.unwrap();
@@ -1731,6 +1752,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_types1() {
+        let _guard = test_lock().lock().await;
         enable_test_log();
         let db = make_test_object();
         let table_name = "test_types1";
@@ -1833,6 +1855,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_types2() {
+        let _guard = test_lock().lock().await;
         enable_test_log();
         let db = make_test_object();
         let table_name = "test_types2";
@@ -1916,6 +1939,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_types3() {
+        let _guard = test_lock().lock().await;
         enable_test_log();
         let db = make_test_object();
         let table_name = "test_types3";
@@ -2003,6 +2027,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_types4() {
+        let _guard = test_lock().lock().await;
         enable_test_log();
         let db = make_test_object();
         let table_name = "test_types4";
@@ -2104,6 +2129,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_types5() {
+        let _guard = test_lock().lock().await;
         let db = make_test_object();
         let table_name = "test_types5";
         let _ = db.drop_table(table_name, false).await;
@@ -2207,6 +2233,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_some_map() {
+        let _guard = test_lock().lock().await;
         enable_test_log();
         let db = make_test_object();
         let table_name = "test_some_map";
@@ -2302,6 +2329,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_types6() {
+        let _guard = test_lock().lock().await;
         enable_test_log();
         let db = make_test_object();
         let table_name = "test_types6";

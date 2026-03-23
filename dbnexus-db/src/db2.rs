@@ -620,7 +620,7 @@ impl SchemaTrait for Db2Db {
         anyhow::Ok(SqlExecuteRet { sql, changes: None })
     }
 
-    async fn drop_table(&self, table: &str, cascade: bool) -> anyhow::Result<String> {
+    async fn drop_table(&self, table: &str, cascade: bool) -> anyhow::Result<Option<String>> {
         let sql = format!(
             r#"DROP TABLE "{}"."{}" {}"#,
             self.config.schema_str(),

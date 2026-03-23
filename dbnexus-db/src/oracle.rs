@@ -950,11 +950,11 @@ impl SchemaTrait for OracleDB {
         )
     }
 
-    async fn drop_materialized_view(&self, name: &str) -> anyhow::Result<String> {
+    async fn drop_materialized_view(&self, name: &str) -> anyhow::Result<Option<String>> {
         let sql = format!(r#"DROP MATERIALIZED VIEW "{name}""#);
         log::info!("sql:{}", sql);
         self.simple_execute_sql(&sql).await?;
-        anyhow::Ok(sql)
+        anyhow::Ok(sql.into())
     }
 
     async fn show_view_columns(&self, view_name: &str) -> anyhow::Result<Vec<Field>> {
@@ -989,10 +989,10 @@ impl SchemaTrait for OracleDB {
         anyhow::Ok(())
     }
 
-    async fn rename_table(&self, old: &str, new: &str) -> anyhow::Result<String> {
+    async fn rename_table(&self, old: &str, new: &str) -> anyhow::Result<Option<String>> {
         let sql = format!(r#"RENAME "{old}" TO "{new}""#);
         self.simple_execute_sql(&sql).await?;
-        anyhow::Ok(sql)
+        anyhow::Ok(sql.into())
     }
 
     async fn show_create_table_sql(
@@ -1111,18 +1111,18 @@ impl SchemaTrait for OracleDB {
         _table_name: &str,
         oldname: &str,
         newname: &str,
-    ) -> anyhow::Result<String> {
+    ) -> anyhow::Result<Option<String>> {
         let sql = format!(r#"ALTER INDEX "{oldname}" RENAME TO "{newname}""#);
         log::info!("sql:{}", sql);
         self.simple_execute_sql(&sql).await?;
-        anyhow::Ok(sql)
+        anyhow::Ok(sql.into())
     }
 
-    async fn drop_index(&self, _table_name: &str, index: &str) -> anyhow::Result<String> {
+    async fn drop_index(&self, _table_name: &str, index: &str) -> anyhow::Result<Option<String>> {
         let sql = format!("DROP INDEX {index}");
         log::info!("sql:{}", sql);
         self.simple_execute_sql(&sql).await?;
-        anyhow::Ok(sql)
+        anyhow::Ok(sql.into())
     }
 
     async fn drop_table_column(&self, table: &str, col: &str) -> anyhow::Result<String> {
@@ -1285,11 +1285,11 @@ impl SchemaTrait for OracleDB {
         anyhow::Ok(ret.into_values().collect())
     }
 
-    async fn truncate_table(&self, table_name: &str) -> anyhow::Result<String> {
+    async fn truncate_table(&self, table_name: &str) -> anyhow::Result<Option<String>> {
         let sql = format!(r#"TRUNCATE TABLE  "{table_name}""#);
         log::info!("sql:{}", sql);
         self.simple_execute_sql(&sql).await?;
-        anyhow::Ok(sql)
+        anyhow::Ok(sql.into())
     }
 
     async fn list_view(&self) -> anyhow::Result<Vec<ListTable>> {
@@ -1303,7 +1303,7 @@ impl SchemaTrait for OracleDB {
         anyhow::Ok(sql)
     }
 
-    async fn drop_table(&self, table: &str, cascade: bool) -> anyhow::Result<String> {
+    async fn drop_table(&self, table: &str, cascade: bool) -> anyhow::Result<Option<String>> {
         let sql = if cascade {
             format!(r#"DROP TABLE "{table}" CASCADE CONSTRAINTS"#)
         } else {
@@ -1311,7 +1311,7 @@ impl SchemaTrait for OracleDB {
         };
         log::info!("sql:{}", sql);
         self.simple_execute_sql(&sql).await?;
-        anyhow::Ok(sql)
+        anyhow::Ok(sql.into())
     }
 
     async fn show_view(

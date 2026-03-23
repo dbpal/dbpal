@@ -887,6 +887,8 @@ mod tests {
         .await
         .unwrap()
         .unwrap();
+
+        db.completion_id.set(query_id.to_owned());
         assert!(db
             .list_execute(None)
             .await

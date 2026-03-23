@@ -402,7 +402,6 @@ mod tests {
     use crate::language_server::LanguageServer;
     use std::path::Path;
 
-    // partition test failed , sqlparser can't parse a valid partition statement.
     #[tokio::test]
     async fn test_auto_completion() {
         let _gurad = test_lock().lock().await;
@@ -423,7 +422,7 @@ mod tests {
                         job_title TEXT NOT NULL,         
                         hire_date DATE NOT NULL,          
                         salary DECIMAL(10, 2) NOT NULL  
-                    )#,
+                    ) "#,
         )
         .await
         .unwrap()
@@ -451,7 +450,16 @@ mod tests {
         file_path.push("tests");
         file_path.push("duckdb_auto_completion_test.sql");
         let content = std::fs::read_to_string(file_path.as_path()).unwrap();
-        test_file_auto_completion(&content, &db, None, false).await;
+        test_file_auto_completion(&content, &db, Some(query_id), false).await;
+    }
+
+    #[ignore = "手动跑跑的测试"]
+    #[tokio::test]
+    async fn test_completion_xxx() {
+        let _gurad = test_lock().lock().await;
+        enable_test_log();
+        let db = make_test_object(Some("main".to_string())).await;
+        test_file_auto_completion(include_str!("./xxx.sql"), &db, None, true).await;
     }
 
     #[ignore = "run manually"]

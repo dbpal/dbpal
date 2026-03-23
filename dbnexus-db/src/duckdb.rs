@@ -98,7 +98,7 @@ impl DuckDB {
 
 impl std::fmt::Debug for DuckDB {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "duckdb@{}", self.config.path)
+        write!(f, "duckdb@{:?}", self.config)
     }
 }
 
@@ -772,14 +772,14 @@ impl SchemaTrait for DuckDB {
         _table: &str,
         _old_name: &str,
         _new_name: &str,
-    ) -> anyhow::Result<String> {
+    ) -> anyhow::Result<Option<String>> {
         self.backend_kind().not_support_feature()
     }
 
-    async fn drop_index(&self, _table_name: &str, index: &str) -> anyhow::Result<String> {
+    async fn drop_index(&self, _table_name: &str, index: &str) -> anyhow::Result<Option<String>> {
         let sql = format!(r#"DROP INDEX "{index}";"#);
         self.simple_execute_sql(&sql).await?;
-        anyhow::Ok(sql)
+        anyhow::Ok(sql.into())
     }
 
     async fn show_indexes(&self, table_name: &str) -> anyhow::Result<Vec<Index>> {
@@ -1095,10 +1095,10 @@ impl SchemaTrait for DuckDB {
         self
     }
 
-    async fn rename_table(&self, old: &str, new: &str) -> anyhow::Result<String> {
+    async fn rename_table(&self, old: &str, new: &str) -> anyhow::Result<Option<String>> {
         let sql = format!(r#"ALTER TABLE "{old}"  RENAME TO "{new}";"#);
         self.simple_execute_sql(&sql).await?;
-        anyhow::Ok(sql)
+        anyhow::Ok(sql.into())
     }
 
     async fn duplicate_table(&self, table: &str, dup: &str) -> anyhow::Result<()> {
@@ -1118,7 +1118,7 @@ impl SchemaTrait for DuckDB {
         SELECT column_name, data_type
         FROM information_schema.columns
         WHERE table_name = '{name}'  and table_catalog = '{}' and table_schema='{}' ;
-",
+        ",
             self.config.db_str(),
             self.config.schema_str()
         );
@@ -1189,16 +1189,16 @@ impl SchemaTrait for DuckDB {
         .await?
     }
 
-    async fn truncate_table(&self, table_name: &str) -> anyhow::Result<String> {
+    async fn truncate_table(&self, table_name: &str) -> anyhow::Result<Option<String>> {
         let sql = format!(r#"DELETE FROM "{}" "#, table_name);
         self.simple_execute_sql(&sql).await?;
-        anyhow::Ok(sql)
+        anyhow::Ok(sql.into())
     }
 
-    async fn drop_table(&self, table: &str, _cascade: bool) -> anyhow::Result<String> {
+    async fn drop_table(&self, table: &str, _cascade: bool) -> anyhow::Result<Option<String>> {
         let sql = format!(r#"DROP TABLE "{}" "#, table);
         self.simple_execute_sql(&sql).await?;
-        anyhow::Ok(sql)
+        anyhow::Ok(sql.into())
     }
 
     fn clone(&self) -> Box<dyn SchemaTrait> {

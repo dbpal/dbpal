@@ -31,7 +31,6 @@ pub mod language_server;
 pub mod libsql;
 pub mod libsql_lang_server;
 pub mod mariadb;
-pub mod mariadb_lang_server;
 pub mod mongo;
 pub mod mongo_lang_server;
 pub mod mssql;
@@ -57,7 +56,6 @@ pub mod sqlite_lang_server;
 pub mod sqlparser_completing;
 pub mod sqlparser_completion;
 pub mod tidb;
-pub mod tidb_lang_server;
 pub mod typedef;
 
 lazy_static! {

@@ -12,8 +12,6 @@ use crate::db::{
 use crate::db::{OptionMustBeSomeErr, QueryEventEmitter};
 use crate::helper::create_csv;
 use crate::language_server::LexerCompletionTrait;
-#[cfg(test)]
-use crate::TEST_HOST;
 use chrono::FixedOffset;
 use dashmap::DashMap;
 use futures_util::StreamExt;
@@ -283,7 +281,6 @@ fn extract_trigger_event_base_on_lexer(sql: &str) -> anyhow::Result<TriggerEvent
     let t = sqlparser::tokenizer::Tokenizer::new(&sqlparser::dialect::MsSqlDialect {}, sql)
         .tokenize()?;
     let mut event = None;
-
     for token in t {
         if let Token::Word(x) = token {
             let word = x.to_string().to_uppercase();
@@ -291,7 +288,6 @@ fn extract_trigger_event_base_on_lexer(sql: &str) -> anyhow::Result<TriggerEvent
                 "INSERT" | "UPDATE" | "DELETE" => {
                     event = Some(word);
                 }
-
                 _ => {}
             }
         }
@@ -300,7 +296,6 @@ fn extract_trigger_event_base_on_lexer(sql: &str) -> anyhow::Result<TriggerEvent
         anyhow::bail!("trigger statement is not valid");
     }
     let event = event.option_must_be_some()?;
-
     anyhow::Ok(TriggerEvent::try_from(event.as_str())?)
 }
 
@@ -321,7 +316,7 @@ impl SqlServerDB {
         db: &str,
         schema: &str,
     ) -> anyhow::Result<Vec<ListTable>> {
-        if schema.eq_ignore_ascii_case("sys") {
+        if schema.eq_ignore_ascii_case(Self::SYS_SCHEMA) {
             //  这里没有找到可以查询的语句 所以让AI帮我做成一个列表
             return anyhow::Ok(
                 SYS_OBJECTS
@@ -355,7 +350,6 @@ impl SqlServerDB {
             )
             .await?;
         let mut ret = Vec::new();
-
         while let Some(item) = stream.next().await {
             let item = item?;
             match item {
@@ -365,7 +359,6 @@ impl SqlServerDB {
                         ret.push(table_name.to_string());
                     }
                 }
-
                 tiberius::QueryItem::Metadata(_) => {
                     // I know the meta pretty well
                 }
@@ -440,10 +433,9 @@ impl SqlServerDB {
                         ret.push(NamedStaff::from(name.to_owned()));
                     }
                 }
-                tiberius::QueryItem::Metadata(_result_metadata) => {}
+                tiberius::QueryItem::Metadata(..) => {}
             }
         }
-
         anyhow::Ok(ret)
     }
 
@@ -491,11 +483,11 @@ impl SchemaTrait for SqlServerDB {
         anyhow::Ok(sql)
     }
 
-    async fn drop_index(&self, table_name: &str, index: &str) -> anyhow::Result<String> {
+    async fn drop_index(&self, table_name: &str, index: &str) -> anyhow::Result<Option<String>> {
         self.can_write()?;
         let sql = format!(r#"DROP INDEX "{index}" ON "{table_name}";"#);
         self.simple_execute_sql(&sql).await?;
-        anyhow::Ok(sql)
+        anyhow::Ok(sql.into())
     }
 
     async fn rename_index(
@@ -503,12 +495,12 @@ impl SchemaTrait for SqlServerDB {
         table: &str,
         old_name: &str,
         new_name: &str,
-    ) -> anyhow::Result<String> {
+    ) -> anyhow::Result<Option<String>> {
         self.can_write()?;
         let sql = format!("EXEC sp_rename '{table}.{old_name}', '{new_name}', 'INDEX';");
         log::info!("sql:{}", sql);
         self.simple_execute_sql(&sql).await?;
-        anyhow::Ok(sql)
+        anyhow::Ok(sql.into())
     }
 
     async fn add_table_column(
@@ -605,7 +597,7 @@ impl SchemaTrait for SqlServerDB {
         anyhow::Ok(())
     }
 
-    async fn rename_table(&self, old: &str, new: &str) -> anyhow::Result<String> {
+    async fn rename_table(&self, old: &str, new: &str) -> anyhow::Result<Option<String>> {
         self.can_write()?;
         let sql = format!(
             r#"
@@ -614,7 +606,7 @@ impl SchemaTrait for SqlServerDB {
         );
         log::info!("sql:{}", sql);
         self.simple_execute_sql(&sql).await?;
-        anyhow::Ok(sql)
+        anyhow::Ok(sql.into())
     }
 
     async fn list_trigger(&self, table_name: &str) -> anyhow::Result<Vec<NamedStaff>> {
@@ -794,13 +786,13 @@ impl SchemaTrait for SqlServerDB {
         anyhow::Ok(sql)
     }
 
-    async fn drop_table(&self, table: &str, _cascade: bool) -> anyhow::Result<String> {
+    async fn drop_table(&self, table: &str, _cascade: bool) -> anyhow::Result<Option<String>> {
         self.can_write()?;
         let sql = format!(r#"DROP TABLE "{table}""#);
         log::info!("sql:{}", sql);
         self.simple_execute_sql(&sql).await?;
 
-        anyhow::Ok(sql)
+        anyhow::Ok(sql.into())
     }
 
     async fn list_view(&self) -> anyhow::Result<Vec<ListTable>> {
@@ -968,7 +960,7 @@ impl SchemaTrait for SqlServerDB {
         anyhow::Ok(ret.into_values().collect())
     }
 
-    async fn truncate_table(&self, table_name: &str) -> anyhow::Result<String> {
+    async fn truncate_table(&self, table_name: &str) -> anyhow::Result<Option<String>> {
         self.can_write()?;
         let sql = format!(
             r#"
@@ -976,7 +968,7 @@ impl SchemaTrait for SqlServerDB {
         "#
         );
         self.simple_execute_sql(&sql).await?;
-        anyhow::Ok(sql)
+        anyhow::Ok(sql.into())
     }
 
     async fn disable_trigger(&self, table: &str, name: &str) -> anyhow::Result<String> {
@@ -1260,6 +1252,7 @@ impl SqlServerDB {
         anyhow::Ok(count.unwrap_or_default())
     }
 }
+
 impl SqlServerDB {
     async fn is_primary(
         conn: &mut Connection,
@@ -1667,7 +1660,6 @@ impl QuerySql for SqlServerDB {
         };
         let mut conn = conn.lock().await;
         let conn = conn.deref_mut();
-
         let ret = match conn.simple_query(sql.trim()).await {
             Ok(..) => Ok(QueryResp::execute_ok(sql.to_owned())),
             Err(err) => Err(err.to_string()),
@@ -1833,23 +1825,28 @@ impl CatalogTrait for SqlServerDB {
 }
 
 #[cfg(test)]
-pub(crate) async fn make_test_object() -> SqlServerDB {
-    let db = SqlServerDB::new(SqlServerDBConfig {
-        host: TEST_HOST.to_string(),
-        conn_timeout: Some(5000.into()),
-        port: 1433,
-        username: Some("sa".to_string()),
-        password: Some("sfdewRE123".to_string()),
-        db: Some("test".to_string()),
-        trust_cert: true,
-        schema: Some(SqlServerDB::DBO_SCHEMA.to_string()),
-        read_only: false,
+pub(crate) async fn make_test_object() -> &'static Mutex<SqlServerDB> {
+    use tokio::sync::OnceCell;
+    static DB: OnceCell<Mutex<SqlServerDB>> = OnceCell::const_new();
+    DB.get_or_init(move || async {
+        let db = SqlServerDB::new(SqlServerDBConfig {
+            host: crate::TEST_HOST.to_string(),
+            conn_timeout: Some(5000.into()),
+            port: 1433,
+            username: Some("sa".to_string()),
+            password: Some("sfdewRE123".to_string()),
+            db: Some("test".to_string()),
+            trust_cert: true,
+            schema: Some(SqlServerDB::DBO_SCHEMA.to_string()),
+            read_only: false,
 
-        cert_ca: None,
+            cert_ca: None,
+        })
+        .await
+        .unwrap();
+        Mutex::new(db)
     })
     .await
-    .unwrap();
-    db
 }
 impl ReadOnlyTrait for SqlServerDB {
     fn read_only(&self) -> bool {
@@ -1857,16 +1854,6 @@ impl ReadOnlyTrait for SqlServerDB {
     }
 }
 
-// when I test via `cargo test`
-// sometimes I have this error
-// ERROR - Transaction (Process ID 76) was deadlocked on lock resources with
-// another process and has been chosen as the deadlock victim. Rerun the
-// transaction. code=1205 maybe I need mutex to run one test a time.
-#[cfg(test)]
-pub(crate) fn test_lock() -> &'static Mutex<()> {
-    static MUTEX: Mutex<()> = Mutex::const_new(());
-    &MUTEX
-}
 /// SQL Server `sys` 架构下所有目录视图 / 表的固定名称（完整列表）
 pub const SYS_OBJECTS: &[&str] = &[
     "all_columns",
@@ -2166,18 +2153,17 @@ pub const INFORMATION_SCHEMA_VIEWS: &[&str] = &[
 
 #[cfg(test)]
 mod tests {
-
     use super::*;
     use crate::db::{
         CatalogTrait, CreateIndexColumn, CreateTableReq, CreateTableReqColumn, ShowTableParameter,
         SqlNullAble, TestQueryEventEmit,
     };
     use crate::enable_test_log;
+    use std::ops::Deref;
 
     #[tokio::test]
     async fn test_table_pagination() {
-        let _guard = test_lock().lock().await;
-        let db = make_test_object().await;
+        let db = make_test_object().await.lock().await;
         let table_name = "test_table_pagination";
         let _ = db.drop_table(table_name, false).await;
         db.create_table(&CreateTableReq {
@@ -2214,8 +2200,7 @@ mod tests {
     }
     #[tokio::test]
     async fn test_procedure() {
-        let _guard = test_lock().lock().await;
-        let db = make_test_object().await;
+        let db = make_test_object().await.lock().await;
         let query_id = "aaaa";
         db.open_connection(query_id).await.unwrap();
         let _ = db.drop_procedure("test_procedure", None).await;
@@ -2241,8 +2226,7 @@ END;
 
     #[tokio::test]
     async fn test_udf() {
-        let _guard = test_lock().lock().await;
-        let db = make_test_object().await;
+        let db = make_test_object().await.lock().await;
         let query_id = "aaaa";
         db.open_connection(query_id).await.unwrap();
         let _ = db.drop_udf("test_udf", None).await;
@@ -2327,24 +2311,21 @@ END;
 
     #[tokio::test]
     async fn test_check_conn() {
-        let _guard = test_lock().lock().await;
-        let db = make_test_object().await;
-        let metas = CheckConn::check_conn(&db).await.unwrap();
+        let db = make_test_object().await.lock().await;
+        let metas = CheckConn::check_conn(db.deref()).await.unwrap();
         println!("{:?}", metas);
     }
     #[tokio::test]
     async fn test_server_metas() {
-        let _guard = test_lock().lock().await;
-        let db = make_test_object().await;
-        let metas = ServerMetas::show_metas(&db).await.unwrap();
+        let db = make_test_object().await.lock().await;
+        let metas = ServerMetas::show_metas(db.deref()).await.unwrap();
         println!("{:?}", metas);
     }
 
     #[tokio::test]
     async fn test_list_database() {
-        let _guard = test_lock().lock().await;
         let db = SqlServerDB::new(SqlServerDBConfig {
-            host: TEST_HOST.to_string(),
+            host: crate::TEST_HOST.to_string(),
             conn_timeout: Some(5000.into()),
             port: 1433,
             username: Some("sa".to_string()),
@@ -2364,8 +2345,7 @@ END;
 
     #[tokio::test]
     async fn test_transaction() {
-        let _guard = test_lock().lock().await;
-        let db = make_test_object().await;
+        let db = make_test_object().await.lock().await;
         let table_name = "test_commit";
         let _ = db.drop_table(table_name, false).await;
         let query_id = "aaaa";
@@ -2428,8 +2408,7 @@ END;
 
     #[tokio::test]
     async fn test_rename() {
-        let _guard = test_lock().lock().await;
-        let db = make_test_object().await;
+        let db = make_test_object().await.lock().await;
 
         let query_id = "aaaa";
         db.open_connection(query_id).await.unwrap();
@@ -2462,8 +2441,7 @@ END;
 
     #[tokio::test]
     async fn test_duplicate() {
-        let _guard = test_lock().lock().await;
-        let db = make_test_object().await;
+        let db = make_test_object().await.lock().await;
 
         let query_id = "aaaa";
         db.open_connection(query_id).await.unwrap();
@@ -2505,8 +2483,7 @@ END;
 
     #[tokio::test]
     async fn test_triggers() {
-        let _guard = test_lock().lock().await;
-        let db = make_test_object().await;
+        let db = make_test_object().await.lock().await;
 
         let query_id = "aaaa";
         db.open_connection(query_id).await.unwrap();
@@ -2572,9 +2549,8 @@ END;
 
     #[tokio::test]
     async fn test_query() {
-        let _guard = test_lock().lock().await;
         enable_test_log();
-        let db = make_test_object().await;
+        let db = make_test_object().await.lock().await;
 
         let id = "";
         db.open_connection("").await.unwrap();
@@ -2602,10 +2578,7 @@ END;
 
     #[tokio::test]
     async fn test_list_schema() {
-        let _guard = test_lock().lock().await;
-        let db = make_test_object().await;
-        let db = &db as &dyn crate::db::DBTrait;
-
+        let db = make_test_object().await.lock().await;
         let db_names = db.list_schema().await.unwrap();
         assert_eq!(db_names, vec![SqlServerDB::DBO_SCHEMA]);
         for db_name in db_names.iter() {
@@ -2613,29 +2586,13 @@ END;
         }
     }
 
-    // #[tokio::test]
-    // async fn xxx() {
-    //     let mut config = tiberius::Config::new();
-    //     config.host("127.0.0.1");
-    //     config.port(1433);
-    //     config.username("sa");
-    //     config.pas("sfdewRE123");
-    //     config.database("test");
-    //     config.trust_cert();
-
-    //     let tcp = TcpStream::connect(config.get_addr()).await?;
-    //     tcp.set_nodelay(true)?;
-    //     let c = Client::connect(config, tcp.compat_write()).await.unwrap();
-    // }
-
     #[tokio::test]
     async fn test_view() {
-        let _guard = test_lock().lock().await;
-        let db = make_test_object().await;
+        let db = make_test_object().await.lock().await;
         let _ = db.drop_view("test_view").await;
         let _ = db.drop_table("test_view_table", false).await;
         let query_id = "aaaa";
-        db.open_connection("").await.unwrap();
+        db.open_connection(query_id).await.unwrap();
         db.execute_sql(
             query_id,
             r#"CREATE TABLE test_view_table (
@@ -2686,8 +2643,7 @@ END;
 
     #[tokio::test]
     async fn test_index() {
-        let _guard = test_lock().lock().await;
-        let db = make_test_object().await;
+        let db = make_test_object().await.lock().await;
         let table_name = "test_index_table";
         let _ = db.drop_table(table_name, false).await;
         let req = CreateTableReq {
@@ -2722,12 +2678,8 @@ END;
         };
         db.create_table(&req).await.unwrap();
         std::thread::sleep(Duration::from_secs(1));
-
-        //
-
         let index_name = format!("{}_name_age", table_name);
         let index_name2 = format!("{}2", index_name);
-
         db.create_index(
             table_name,
             &CreateIndexReq {
@@ -2763,9 +2715,8 @@ END;
 
     #[tokio::test]
     async fn test_export() {
-        let _guard = test_lock().lock().await;
         let table_name = "test_export";
-        let db = make_test_object().await;
+        let db = make_test_object().await.lock().await;
         let query_id = "aaaa";
         db.open_connection(query_id).await.unwrap();
         let rs = [
@@ -2862,9 +2813,8 @@ END;
     #[ignore = "xxx"]
     #[tokio::test]
     async fn test_list_table() {
-        let _guard = test_lock().lock().await;
         // list all table and query
-        let pg = make_test_object().await;
+        let pg = make_test_object().await.lock().await;
 
         let table = pg.list_table().await.unwrap();
         println!("{:?}", table);
@@ -2873,9 +2823,8 @@ END;
     #[ignore = "xxx"]
     #[tokio::test]
     async fn test_table_not_impl_will_panic() {
-        let _guard = test_lock().lock().await;
         enable_test_log();
-        let db = make_test_object().await;
+        let db = make_test_object().await.lock().await;
         let query_id = "aaaa";
         db.open_connection(query_id).await.unwrap();
         db.query_sql(
@@ -2893,9 +2842,8 @@ END;
 
     #[tokio::test]
     async fn test_table_column() {
-        let _guard = test_lock().lock().await;
         enable_test_log();
-        let db = make_test_object().await;
+        let db = make_test_object().await.lock().await;
 
         let table_name = "test_column";
         let _ = db.drop_table(table_name, false).await;
@@ -2960,9 +2908,8 @@ END;
 
     #[tokio::test]
     async fn test_type1() {
-        let _guard = test_lock().lock().await;
         // enable_test_log();
-        let db = make_test_object().await;
+        let db = make_test_object().await.lock().await;
         let mut conn = db.get_conn().await.unwrap();
         let conn = conn.deref_mut();
         let table_name = "test_type1";
@@ -3066,9 +3013,8 @@ END;
 
     #[tokio::test]
     async fn test_type2() {
-        let _guard = test_lock().lock().await;
         enable_test_log();
-        let db = make_test_object().await;
+        let db = make_test_object().await.lock().await;
         let mut conn = db.get_conn().await.unwrap();
 
         let conn = conn.deref_mut();
@@ -3122,9 +3068,8 @@ END;
 
     #[tokio::test]
     async fn test_type3() {
-        let _guard = test_lock().lock().await;
         enable_test_log();
-        let db = make_test_object().await;
+        let db = make_test_object().await.lock().await;
         let mut conn = db.get_conn().await.unwrap();
         let conn = conn.deref_mut();
         let table_name = "test_type3";
@@ -3141,7 +3086,7 @@ END;
                     UniqueIdentifierColumn uniqueidentifier,
                     NumericColumn numeric(10, 2),
                     DecimalColumn decimal(12, 4)
-                  );
+                );
             "#
             ),
             &[],
@@ -3180,9 +3125,8 @@ END;
 
     #[tokio::test]
     async fn test_type4() {
-        let _guard = test_lock().lock().await;
         enable_test_log();
-        let db = make_test_object().await;
+        let db = make_test_object().await.lock().await;
         let mut conn = db.get_conn().await.unwrap();
 
         let conn = conn.deref_mut();

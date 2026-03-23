@@ -520,7 +520,7 @@ impl MysqlDB {
 
 impl std::fmt::Debug for MysqlDB {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "mysql on:{:?}", self.config)
+        write!(f, "mysql on:{:?} {:?}", self.config, self.kind)
     }
 }
 
@@ -633,11 +633,11 @@ impl SchemaTrait for MysqlDB {
         anyhow::Ok(sql)
     }
 
-    async fn drop_index(&self, table_name: &str, index: &str) -> anyhow::Result<String> {
+    async fn drop_index(&self, table_name: &str, index: &str) -> anyhow::Result<Option<String>> {
         let sql = format!(r#"ALTER TABLE `{table_name}` DROP INDEX `{index}`"#);
         log::info!("sql:{}", sql);
         self.simple_execute_sql(&sql).await?;
-        anyhow::Ok(sql)
+        anyhow::Ok(sql.into())
     }
 
     async fn add_table_column(
@@ -810,18 +810,18 @@ impl SchemaTrait for MysqlDB {
         table_name: &str,
         oldname: &str,
         newname: &str,
-    ) -> anyhow::Result<String> {
+    ) -> anyhow::Result<Option<String>> {
         let sql = format!("ALTER TABLE `{table_name}` RENAME INDEX `{oldname}` TO `{newname}`");
         log::info!("sql:{}", sql);
         self.simple_execute_sql(&sql).await?;
-        anyhow::Ok(sql)
+        anyhow::Ok(sql.into())
     }
 
-    async fn rename_table(&self, old: &str, new: &str) -> anyhow::Result<String> {
+    async fn rename_table(&self, old: &str, new: &str) -> anyhow::Result<Option<String>> {
         let sql = format!("RENAME TABLE `{old}` TO `{new}`");
         log::info!("sql:{}", sql);
         self.simple_execute_sql(&sql).await?;
-        anyhow::Ok(sql)
+        anyhow::Ok(sql.into())
     }
 
     async fn show_trigger(&self, _table: &str, name: &str) -> anyhow::Result<TriggerDetail> {
@@ -992,28 +992,28 @@ impl SchemaTrait for MysqlDB {
         anyhow::Ok(sql)
     }
 
-    async fn drop_table(&self, table: &str, cascade: bool) -> anyhow::Result<String> {
+    async fn drop_table(&self, table: &str, cascade: bool) -> anyhow::Result<Option<String>> {
         let sql = format!(
             "DROP TABLE `{table}` {}",
             if cascade { " CASCADE " } else { "" }
         );
         log::info!("sql:{}", sql);
         self.simple_execute_sql(&sql).await?;
-        anyhow::Ok(sql)
+        anyhow::Ok(sql.into())
     }
 
     async fn list_view(&self) -> anyhow::Result<Vec<ListTable>> {
         self.list_view_impl(self.config.schema_str()).await
     }
 
-    async fn truncate_table(&self, table_name: &str) -> anyhow::Result<String> {
+    async fn truncate_table(&self, table_name: &str) -> anyhow::Result<Option<String>> {
         let sql = format!(
             r#"
             TRUNCATE TABLE `{table_name}`;
         "#
         );
         self.simple_execute_sql(&sql).await?;
-        anyhow::Ok(sql)
+        anyhow::Ok(sql.into())
     }
 
     async fn list_table(&self) -> anyhow::Result<Vec<ListTable>> {
@@ -1227,7 +1227,7 @@ impl SchemaTrait for MysqlDB {
         self.backend_kind().not_support_feature()
     }
 
-    async fn drop_materialized_view(&self, _name: &str) -> anyhow::Result<String> {
+    async fn drop_materialized_view(&self, _name: &str) -> anyhow::Result<Option<String>> {
         self.backend_kind().not_support_feature()
     }
 

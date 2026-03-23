@@ -43,7 +43,7 @@ impl CheckConn for PostGresDB {
         let ins = std::time::Instant::now();
         let mut conn = self.get_conn().await?;
         sqlx::raw_sql("select 1")
-            .fetch_all(conn.deref_mut())
+            .fetch_one(conn.deref_mut())
             .await?;
         anyhow::Ok(ins.elapsed())
     }
@@ -68,8 +68,13 @@ impl PostGresDB {
     }
 }
 
-impl PostGresDB {
-    async fn list_schema_impl(&self) -> anyhow::Result<Vec<String>> {
+#[async_trait::async_trait]
+impl DBTrait for PostGresDB {
+    fn as_any(&self) -> &dyn std::any::Any {
+        self
+    }
+
+    async fn list_schema(&self) -> anyhow::Result<Vec<String>> {
         let mut conn = self.get_conn().await?;
         let sql = format!(
             r#"
@@ -89,17 +94,6 @@ impl PostGresDB {
             ret.push(name)
         }
         anyhow::Ok(ret)
-    }
-}
-
-#[async_trait::async_trait]
-impl DBTrait for PostGresDB {
-    fn as_any(&self) -> &dyn std::any::Any {
-        self
-    }
-
-    async fn list_schema(&self) -> anyhow::Result<Vec<String>> {
-        self.list_schema_impl().await
     }
 
     async fn open_schema(&self, name: &str) -> anyhow::Result<Arc<dyn SchemaTrait>> {
@@ -220,21 +214,12 @@ fn parse_trigger_type(tgtype: i16) -> anyhow::Result<(TriggerEvent, TriggerTimin
     anyhow::bail!(format!("unknown tgtype:{}", tgtype))
 }
 
-fn type_support_compare(typ: &str) -> bool {
-    !matches!(
-        typ.to_uppercase().as_str(),
-        "JSON" | "JSON[]" | "JSONPATH" | "JSONPATH[]"
-    )
-}
-
 #[async_trait::async_trait]
 
 impl ServerMetas for PostGresDB {
     async fn show_metas(&self) -> anyhow::Result<Vec<MetaValue>> {
         let mut conn = self.get_conn().await?;
-
         let mut ret = Vec::new();
-
         {
             let row = sqlx::raw_sql("SELECT version()")
                 .fetch_one(conn.deref_mut())
@@ -248,30 +233,6 @@ impl ServerMetas for PostGresDB {
                 .await?;
             let version: String = row.try_get(0)?;
             ret.push(MetaValue::new("current user", version));
-        }
-        // TODO I don't know which settings is import
-        // show them all
-        {
-            let sql = r#"
-                SELECT name,setting,short_desc 
-                FROM pg_settings
-                ORDER BY name;
-                "#;
-            log::info!("sql:{}", sql);
-            let rows = sqlx::raw_sql(AssertSqlSafe(sql))
-                .fetch_all(conn.deref_mut())
-                .await?;
-            for r in rows.iter() {
-                let name: String = r.try_get(0)?;
-                let setting: Option<String> = r.try_get(1)?;
-                let desc: Option<String> = r.try_get(2)?;
-                let mut meta = MetaValue::new(name, setting);
-                if let Some(desc) = desc {
-                    meta.with_desc(desc);
-                }
-
-                ret.push(meta);
-            }
         }
         anyhow::Ok(ret)
     }
@@ -410,11 +371,11 @@ impl SchemaTrait for PostGresDB {
         anyhow::Ok(sql)
     }
 
-    async fn drop_index(&self, _table_name: &str, index: &str) -> anyhow::Result<String> {
+    async fn drop_index(&self, _table_name: &str, index: &str) -> anyhow::Result<Option<String>> {
         let sql = format!("DROP INDEX \"{index}\";");
         log::info!("sql:{}", sql);
         self.simple_execute_sql(&sql).await?;
-        anyhow::Ok(sql)
+        anyhow::Ok(sql.into())
     }
 
     async fn rename_index(
@@ -422,11 +383,11 @@ impl SchemaTrait for PostGresDB {
         _table: &str,
         old_name: &str,
         new_name: &str,
-    ) -> anyhow::Result<String> {
+    ) -> anyhow::Result<Option<String>> {
         let sql = format!("ALTER INDEX \"{old_name}\" RENAME TO \"{new_name}\";");
         log::info!("sql:{}", sql);
         self.simple_execute_sql(&sql).await?;
-        anyhow::Ok(sql)
+        anyhow::Ok(sql.into())
     }
 
     async fn add_table_column(
@@ -772,12 +733,12 @@ impl SchemaTrait for PostGresDB {
         anyhow::Ok(())
     }
 
-    async fn rename_table(&self, old: &str, new: &str) -> anyhow::Result<String> {
+    async fn rename_table(&self, old: &str, new: &str) -> anyhow::Result<Option<String>> {
         let schema = self.config.schema_str();
         let sql = format!(r#"ALTER TABLE "{schema}"."{old}" RENAME TO "{new}""#);
         log::info!("sql:{}", sql);
         self.simple_execute_sql(&sql).await?;
-        anyhow::Ok(sql)
+        anyhow::Ok(sql.into())
     }
 
     async fn list_trigger(&self, table_name: &str) -> anyhow::Result<Vec<NamedStaff>> {
@@ -995,7 +956,7 @@ impl SchemaTrait for PostGresDB {
         anyhow::Ok(sql)
     }
 
-    async fn drop_table(&self, table: &str, cascade: bool) -> anyhow::Result<String> {
+    async fn drop_table(&self, table: &str, cascade: bool) -> anyhow::Result<Option<String>> {
         let schema = self.config.schema_str();
         let sql = format!(
             r#"DROP TABLE "{schema}"."{table}" {}"#,
@@ -1003,7 +964,7 @@ impl SchemaTrait for PostGresDB {
         );
         log::info!("sql:{}", sql);
         self.simple_execute_sql(&sql).await?;
-        anyhow::Ok(sql)
+        anyhow::Ok(sql.into())
     }
 
     async fn list_view(&self) -> anyhow::Result<Vec<ListTable>> {
@@ -1050,7 +1011,7 @@ impl SchemaTrait for PostGresDB {
         anyhow::Ok(ret.into_iter().map(ListTable::from).collect())
     }
 
-    async fn truncate_table(&self, table_name: &str) -> anyhow::Result<String> {
+    async fn truncate_table(&self, table_name: &str) -> anyhow::Result<Option<String>> {
         let schema = self.config.schema_str();
         let sql = format!(
             r#"
@@ -1058,7 +1019,7 @@ impl SchemaTrait for PostGresDB {
         "#
         );
         self.simple_execute_sql(&sql).await?;
-        anyhow::Ok(sql)
+        anyhow::Ok(sql.into())
     }
 
     async fn list_table(&self) -> anyhow::Result<Vec<ListTable>> {
@@ -1231,7 +1192,7 @@ impl SchemaTrait for PostGresDB {
         anyhow::Ok(())
     }
 
-    async fn drop_materialized_view(&self, name: &str) -> anyhow::Result<String> {
+    async fn drop_materialized_view(&self, name: &str) -> anyhow::Result<Option<String>> {
         let schema = self.config.schema_str();
         let sql = format!(
             r#"DROP MATERIALIZED VIEW  "{}"."{}" RESTRICT"#,
@@ -1239,7 +1200,7 @@ impl SchemaTrait for PostGresDB {
         );
         log::info!("sql:{}", sql);
         self.simple_execute_sql(&sql).await?;
-        anyhow::Ok(sql)
+        anyhow::Ok(sql.into())
     }
 
     async fn show_indexes(&self, table_name: &str) -> anyhow::Result<Vec<Index>> {
@@ -1399,7 +1360,6 @@ impl PostGresDB {
     ) -> anyhow::Result<usize> {
         let mut conn = self.get_conn().await?;
         let schema = self.config.schema_str();
-
         let mut sql = format!(r#"SELECT count(1) from "{schema}"."{name}" "#);
         if let Some(where_str) = where_str {
             sql.push_str(format!(" where {where_str}").as_str());
@@ -1415,7 +1375,7 @@ impl PostGresDB {
 
 impl std::fmt::Debug for PostGresDB {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "postgres on:{:?}", self.config)
+        write!(f, "postgres on:{:?} {:?}", self.config, self.kind)
     }
 }
 
@@ -1463,7 +1423,6 @@ impl PostGresDB {
         if let Some(s) = &self.config.schema {
             set_current_schema(conn.deref_mut(), s).await?;
         }
-
         if self.config.read_only {
             let sql = "SET default_transaction_read_only = on;";
             conn.execute(sql).await?;
@@ -1483,13 +1442,6 @@ fn get_rows_types(row: &PgRow) -> Vec<Field> {
         });
     }
     ret
-}
-
-#[cfg(test)]
-#[test]
-fn test_output_bytes() {
-    let x = output_bytes(&[98, 126]);
-    assert_eq!(x, "\\x627E")
 }
 
 fn get_pg_type_base_on_data_type_and_udtname(
@@ -1670,13 +1622,10 @@ impl QuerySql for PostGresDB {
             Some(x) => x.clone(),
             None => anyhow::bail!("connection closed???"),
         };
-
         let mut conn = conn.lock().await;
         let conn = conn.deref_mut();
-
-        let d = conn.get_transaction_depth();
-
-        anyhow::Ok(d == 0)
+        let depth = conn.get_transaction_depth();
+        anyhow::Ok(depth == 0)
     }
 
     async fn set_auto_commit(&self, query_id: &str, commit: bool) -> anyhow::Result<()> {
@@ -1706,7 +1655,6 @@ impl QuerySql for PostGresDB {
         let mut conn = conn.lock().await;
         let conn = conn.deref_mut();
         conn.commit().await?;
-
         anyhow::Ok(())
     }
 
@@ -1726,7 +1674,6 @@ impl QuerySql for PostGresDB {
 
     async fn open_connection(&self, id: &str) -> anyhow::Result<()> {
         let conn = self.get_conn().await?.detach();
-
         self.query_connection
             .insert(id.to_owned(), Arc::new(Mutex::new(conn)));
         anyhow::Ok(())
@@ -1755,7 +1702,6 @@ impl QuerySql for PostGresDB {
         };
         let mut conn = conn.lock().await;
         let conn = conn.deref_mut();
-
         let ret = match conn.execute(sqlx::raw_sql(AssertSqlSafe(sql))).await {
             Ok(x) => Ok(QueryResp::row_affected(x.rows_affected(), sql.to_owned())),
             Err(err) => Err(err.to_string()),
@@ -1890,7 +1836,6 @@ impl CatalogTrait for PostGresDB {
         let mut ret = Vec::with_capacity(rows.len());
         for r in rows.iter() {
             let name: String = r.try_get(0)?;
-
             ret.push(name);
         }
         anyhow::Ok(ret)
@@ -1969,7 +1914,10 @@ impl SqlBuilder for PostGresDB {
     }
 
     fn type_support_compare(&self, typ: &str) -> bool {
-        type_support_compare(typ)
+        !matches!(
+            typ.to_uppercase().as_str(),
+            "JSON" | "JSON[]" | "JSONPATH" | "JSONPATH[]"
+        )
     }
 
     fn gen_show_sql(
@@ -2021,6 +1969,12 @@ mod tests {
     };
     use sqlx::Executor;
     use std::{collections::HashMap, ops::DerefMut};
+
+    #[test]
+    fn test_output_bytes() {
+        let x = crate::pg_format::output_bytes(&[98, 126]);
+        assert_eq!(x, "\\x627E")
+    }
 
     #[tokio::test]
     async fn test_read_only() {

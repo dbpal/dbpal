@@ -91,7 +91,7 @@ impl CassandraDB {
             config
                 .conn_timeout
                 .map(|x| x.into())
-                .unwrap_or(Duration::from_secs(3)),
+                .unwrap_or(Duration::from_secs(5)),
             async { make_session(&config).await },
         )
         .await??;
@@ -125,7 +125,11 @@ impl CheckConn for CassandraDB {
 
 impl std::fmt::Debug for CassandraDB {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "host={} port={:?}", self.config.host, self.config.port)
+        write!(
+            f,
+            "cassandra host={} port={:?}",
+            self.config.host, self.config.port
+        )
     }
 }
 
@@ -771,12 +775,12 @@ impl SchemaTrait for CassandraDB {
             .await
     }
 
-    async fn drop_materialized_view(&self, name: &str) -> anyhow::Result<String> {
+    async fn drop_materialized_view(&self, name: &str) -> anyhow::Result<Option<String>> {
         self.can_write()?;
         let sql = format!(r#"DROP MATERIALIZED VIEW "{name}";"#);
         log::info!("sql:{}", sql);
         self.simple_execute_sql(&sql).await?;
-        anyhow::Ok(sql)
+        anyhow::Ok(sql.into())
     }
 
     async fn list_materialized_view(&self) -> anyhow::Result<Vec<ListTable>> {
@@ -817,12 +821,12 @@ impl SchemaTrait for CassandraDB {
         anyhow::Ok(sql)
     }
 
-    async fn drop_index(&self, _table_name: &str, index: &str) -> anyhow::Result<String> {
+    async fn drop_index(&self, _table_name: &str, index: &str) -> anyhow::Result<Option<String>> {
         self.can_write()?;
         let sql = format!(r#"DROP INDEX IF EXISTS "{index}";"#);
         log::info!("sql:{}", sql);
         self.simple_execute_sql(&sql).await?;
-        anyhow::Ok(sql)
+        anyhow::Ok(sql.into())
     }
 
     async fn show_create_table_sql(
@@ -974,20 +978,20 @@ impl SchemaTrait for CassandraDB {
         anyhow::Ok(ret)
     }
 
-    async fn truncate_table(&self, table_name: &str) -> anyhow::Result<String> {
+    async fn truncate_table(&self, table_name: &str) -> anyhow::Result<Option<String>> {
         self.can_write()?;
         let sql = format!(r#"TRUNCATE "{table_name}""#);
         log::info!("sql:{}", sql);
         self.simple_execute_sql(&sql).await?;
-        anyhow::Ok(sql)
+        anyhow::Ok(sql.into())
     }
 
-    async fn drop_table(&self, table: &str, _cascade: bool) -> anyhow::Result<String> {
+    async fn drop_table(&self, table: &str, _cascade: bool) -> anyhow::Result<Option<String>> {
         self.can_write()?;
         let sql = format!(r#"DROP TABLE "{}";"#, table);
         log::info!("sql:{}", sql);
         self.simple_execute_sql(&sql).await?;
-        anyhow::Ok(sql)
+        anyhow::Ok(sql.into())
     }
 
     async fn add_table_column(
@@ -2282,7 +2286,7 @@ mod tests {
         db.execute_sql(
             query_id,
             r#"
-               CREATE TABLE test_types4 (
+                CREATE TABLE test_types4 (
                     id UUID PRIMARY KEY,
                     map_field map<int, int>,
                     set_field set<int>,
@@ -2369,7 +2373,7 @@ mod tests {
             .execute_sql(
                 query_id,
                 r#"
-               CREATE TABLE test_column (
+                CREATE TABLE test_column (
                     id1 int,
                     id2 int,
                     value text,

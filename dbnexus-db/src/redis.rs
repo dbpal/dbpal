@@ -1027,10 +1027,10 @@ impl SchemaTrait for RedisDB {
         anyhow::Ok(())
     }
 
-    async fn rename_table(&self, old: &str, new: &str) -> anyhow::Result<String> {
+    async fn rename_table(&self, old: &str, new: &str) -> anyhow::Result<Option<String>> {
         let mut conn = self.get_conn().await?;
         let _: () = conn.rename(old, new).await?;
-        anyhow::Ok("".to_string())
+        anyhow::Ok(None)
     }
 
     fn as_any(&self) -> &dyn std::any::Any {
@@ -1234,7 +1234,7 @@ impl SchemaTrait for RedisDB {
         }
     }
 
-    async fn truncate_table(&self, key: &str) -> anyhow::Result<String> {
+    async fn truncate_table(&self, key: &str) -> anyhow::Result<Option<String>> {
         let mut conn = self.get_conn().await?;
         let typ = Self::get_key_type(&mut conn, key).await?;
         match typ {
@@ -1247,14 +1247,14 @@ impl SchemaTrait for RedisDB {
                 )
             }
         }
-        anyhow::Ok("".to_string())
+        anyhow::Ok(None)
     }
 
-    async fn drop_table(&self, table: &str, _cascade: bool) -> anyhow::Result<String> {
+    async fn drop_table(&self, table: &str, _cascade: bool) -> anyhow::Result<Option<String>> {
         self.can_write()?;
         let mut conn: ConnectionManager = self.get_conn().await?;
         let _: () = conn.del(table).await?;
-        Ok("".to_string())
+        anyhow::Ok(None)
     }
 }
 
@@ -1802,11 +1802,17 @@ mod tests {
         }
     }
 
-    async fn test_query_export(db: &RedisDB, cmd: &str, key: &str, kind: ExportKind) {
+    async fn test_query_export(
+        db: &RedisDB,
+        query_id: &str,
+        cmd: &str,
+        key: &str,
+        kind: ExportKind,
+    ) {
         {
             // xlsx
             let name = db.backend_kind().make_test_xlsx_file(key);
-            db.export_query_result_to_file("", cmd, kind, &name, Arc::new(|_| {}))
+            db.export_query_result_to_file(query_id, cmd, kind, &name, Arc::new(|_| {}))
                 .await
                 .unwrap();
             opener::open(name.as_str()).unwrap();
@@ -2147,6 +2153,7 @@ db1:keys=1,expires=0,avg_ttl=0"#,
 
         test_query_export(
             &db,
+            query_id,
             format!("zrange {table_name} 0 -1 WITHSCORES").as_str(),
             table_name,
             ExportKind::Xlsx {
