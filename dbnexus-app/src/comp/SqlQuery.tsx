@@ -47,6 +47,7 @@ import {
   getLanguageFromDataSourceKind,
   MuiDataGridData,
   QueryLogHandler,
+  QuerySomeShowContext,
   resizeHandlerSize,
   rustResultOk,
   saveQueryLog,
@@ -219,6 +220,8 @@ function SqlQuery(props: {
   const [tryCheckSql, setTryCheckSql] = useState(SaveCheckSql.get());
   const [queryStatus, setQueryStatus] = useState("");
 
+  const querySomeShow = useContext(QuerySomeShowContext);
+
   useEffect(() => {
     SaveCheckSql.save(tryCheckSql);
   }, [tryCheckSql]);
@@ -343,49 +346,52 @@ function SqlQuery(props: {
         setLoading(false);
       });
   };
-  const handleQuery = async (append: boolean, explain: boolean = false) => {
-    let text = getEditorText(editor, showNotification);
-    if (!text) {
-      return;
-    }
-    if (explain) {
-      text = `EXPLAIN ${text}`;
-    }
-    console.log("handle query");
-    if (!append) {
-      setResp([]);
-    }
-    const confirm = await warnDangerousSql(text);
-    if (!confirm) {
-      return;
-    }
-    setLoading(true);
-    let emit = new Channel<QueryEvent>((e) => {
-      // In Strict Mode, React will call your initializer function twice in order to help you find accidental impurities. This is development-only behavior and does not affect production. If your initializer function is pure (as it should be), this should not affect the behavior. The result from one of the calls will be ignored.
-      setResp((resp) => {
-        return appendQueryResult(resp, e, setQueryStatus);
+  const handleQuery = useCallback(
+    async (append: boolean, explain: boolean = false) => {
+      let text = getEditorText(editor, showNotification);
+      if (!text) {
+        return;
+      }
+      if (explain) {
+        text = `EXPLAIN ${text}`;
+      }
+      console.log("handle query");
+      if (!append) {
+        setResp([]);
+      }
+      const confirm = await warnDangerousSql(text);
+      if (!confirm) {
+        return;
+      }
+      setLoading(true);
+      let emit = new Channel<QueryEvent>((e) => {
+        // In Strict Mode, React will call your initializer function twice in order to help you find accidental impurities. This is development-only behavior and does not affect production. If your initializer function is pure (as it should be), this should not affect the behavior. The result from one of the calls will be ignored.
+        setResp((resp) => {
+          return appendQueryResult(resp, e, setQueryStatus);
+        });
       });
-    });
 
-    conn
-      .queryOP(text, emit, maxRow.current)
-      .then(() => {
-        if (saveQueryLog.get()) {
-          queryLogHandler.current.save(text, true);
-        }
-        showNotification("success", "query OK");
-      })
-      .catch((e) => {
-        if (saveQueryLog.get()) {
-          queryLogHandler.current.save(text, false);
-        }
-        showNotification("error", "query failed", e);
-      })
-      .finally(() => {
-        setExecuteTimes((e) => e + 1);
-        setLoading(false);
-      });
-  };
+      conn
+        .queryOP(text, emit, maxRow.current)
+        .then(() => {
+          if (saveQueryLog.get()) {
+            queryLogHandler.current.save(text, true);
+          }
+          showNotification("success", "query OK");
+        })
+        .catch((e) => {
+          if (saveQueryLog.get()) {
+            queryLogHandler.current.save(text, false);
+          }
+          showNotification("error", "query failed", e);
+        })
+        .finally(() => {
+          setExecuteTimes((e) => e + 1);
+          setLoading(false);
+        });
+    },
+    [conn, editor, showNotification, warnDangerousSql],
+  );
 
   const editorOptions = useMemo((): editor.IStandaloneEditorConstructionOptions => {
     return {
@@ -435,6 +441,7 @@ function SqlQuery(props: {
       document.removeEventListener("keydown", cancel);
     };
   }, [conn.queryId, loading, showNotification, vis]);
+
   return (
     <div
       style={{
@@ -603,6 +610,7 @@ function SqlQuery(props: {
             />
 
             {extras}
+
             <ModifyLLMConfigModal />
             <ExecutingTime loading={loading} />
             <SliderSize
@@ -619,6 +627,7 @@ function SqlQuery(props: {
                 dbpal use Stream technology to query data,so we can query large data
               </Typography>
             />
+            {querySomeShow}
           </Stack>
           <div
             style={{

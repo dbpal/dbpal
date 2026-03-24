@@ -311,9 +311,23 @@ function ColumnsStructure(props: {
   }, [kind, row, showNotification]);
   const slots = useMemo(() => {
     return {
-      pagination: AppDataGridPagination,
+      pagination: () => {
+        return (
+          <Stack direction="row" style={{ flex: 1, justifyContent: "space-between" }}>
+            <Stack direction="row">
+              {supportModifyColumn && (
+                <Tooltip title="double click a row to modify.">
+                  <Typography color="info"> modify </Typography>
+                </Tooltip>
+              )}{" "}
+            </Stack>
+            <AppDataGridPagination />
+          </Stack>
+        );
+      },
     } as Partial<GridSlotsComponent>;
-  }, []);
+  }, [supportModifyColumn]);
+
   return (
     <Stack style={{ height: "100%" }}>
       <StackRowCenter>
@@ -329,11 +343,6 @@ function ColumnsStructure(props: {
           >
             <AddIcon />
           </Button>
-        )}
-        {supportModifyColumn && (
-          <Tooltip title="double click a row to modify.">
-            <Typography color="info">modify </Typography>
-          </Tooltip>
         )}
       </StackRowCenter>
 
@@ -1426,20 +1435,28 @@ function TriggersStructure(props: {
   }, [modalBox]);
   const slots = useMemo(() => {
     return {
-      pagination: AppDataGridPagination,
+      pagination: () => {
+        return (
+          <Stack direction="row" style={{ flex: 1, justifyContent: "space-between" }}>
+            <Stack direction="row">
+              {triggers.length > 0 && (
+                <Tooltip title="double click a row to see detail">
+                  <Typography color="info">detail</Typography>
+                </Tooltip>
+              )}
+            </Stack>
+            <AppDataGridPagination />
+          </Stack>
+        );
+      },
     } as Partial<GridSlotsComponent>;
-  }, []);
+  }, [triggers.length]);
   return (
     <Stack style={{ height: "100%" }}>
       <StackRowCenter>
         <Button loading={loading} onClick={handleReload}>
           reload
         </Button>
-        {triggers.length > 0 && (
-          <Tooltip title="double click a row to see detail">
-            <Typography color="info">detail?</Typography>
-          </Tooltip>
-        )}
       </StackRowCenter>
 
       <DataGrid

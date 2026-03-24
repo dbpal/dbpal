@@ -159,7 +159,7 @@ mod zoom {
     use crate::STORE_FILE;
     use tauri::{AppHandle, Manager};
     use tauri_plugin_store::StoreExt;
-    pub(super) const STEP: f64 = 0.03;
+    pub(super) const STEP: f64 = 0.1;
 
     pub(crate) fn get_configured_zoom(handle: &AppHandle) -> anyhow::Result<f64> {
         let x = handle
@@ -345,15 +345,15 @@ fn main() {
                             &PredefinedMenuItem::hide(handle, None)?,
                             &MenuItem::with_id(
                                 handle,
-                                "zoom_in",
-                                "zoom in",
+                                "zoom_out",
+                                "zoom out",
                                 true,
                                 Some(if is_macos() { "command+-" } else { "ctrl+-" }),
                             )?,
                             &MenuItem::with_id(
                                 handle,
-                                "zoom_out",
-                                "zoom out",
+                                "zoom_in",
+                                "zoom in",
                                 true,
                                 Some(if is_macos() { "command+=" } else { "ctrl+=" }),
                             )?,
@@ -405,7 +405,7 @@ fn main() {
                 "relauch" => {
                     handle.restart();
                 }
-                "zoom_in" => match zoom::get_configured_zoom(handle) {
+                "zoom_out" => match zoom::get_configured_zoom(handle) {
                     Ok(x) => {
                         let mut zoom = x - zoom::STEP;
                         let min = 0.3;
@@ -421,7 +421,7 @@ fn main() {
                         log::error!("get zoom failed,err{}", err);
                     }
                 },
-                "zoom_out" => match zoom::get_configured_zoom(handle) {
+                "zoom_in" => match zoom::get_configured_zoom(handle) {
                     Ok(x) => {
                         let mut zoom = x + zoom::STEP;
                         let max = 2f64;

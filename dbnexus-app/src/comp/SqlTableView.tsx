@@ -838,6 +838,19 @@ function SqlTableView(props: {
               <LastFetchTime date={lastFetchTime} />
               <TimeDuration dur={fetchDur} />
               <ResetColumnWidth />
+              {resp.sql && (
+                <Tooltip title={resp.sql}>
+                  <Typography
+                    style={{ cursor: "pointer" }}
+                    onClick={() => {
+                      handleCopyToClipboard(resp.sql, showNotification);
+                    }}
+                    color="info"
+                  >
+                    sql
+                  </Typography>
+                </Tooltip>
+              )}
             </Stack>
             <Stack direction="row" alignItems="center">
               {!clientModel && (
@@ -861,7 +874,9 @@ function SqlTableView(props: {
     lastFetchTime,
     loading,
     resp.data.length,
+    resp.sql,
     resp.total,
+    showNotification,
     sort,
     tableName,
     where,
@@ -874,7 +889,7 @@ function SqlTableView(props: {
     return ops.findIndex((e) => e.tableId == id && e.op == kind) != -1;
   };
 
-  const someModel = clientModel ? "client" : "server";
+  const sortModel = clientModel ? "client" : "server";
   return (
     <Stack style={{ height: "100%" }}>
       <QueryStatus status={queryStatus} />
@@ -944,7 +959,7 @@ function SqlTableView(props: {
         getRowId={getRowId}
         paginationModel={clientModel ? undefined : paginationModel}
         pageSizeOptions={pageSizeOptions}
-        paginationMode={someModel}
+        paginationMode={sortModel}
         onPaginationModelChange={clientModel ? undefined : onPaginationModelChange}
         checkboxSelection={false}
         rowCount={clientModel ? resp.data.length : resp.total}

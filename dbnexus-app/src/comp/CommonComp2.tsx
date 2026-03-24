@@ -1593,13 +1593,14 @@ function ToggleChatShow(props: { do_query: () => void }) {
   );
 }
 
-function CopySql({ sql }) {
+function CopySql(props: { sql; style?: CSSProperties }) {
+  let { sql, style } = props;
   const { showNotification } = useContext(NotificationContext);
   if (!sql) {
     return <> </>;
   }
   return (
-    <StackRowCenter>
+    <Stack style={{ ...style }} direction="row">
       <IconButton
         onClick={() => {
           handleCopyToClipboard(sql, showNotification);
@@ -1608,7 +1609,7 @@ function CopySql({ sql }) {
         <ContentCopyIcon />
       </IconButton>
       <code> {sql} </code>
-    </StackRowCenter>
+    </Stack>
   );
 }
 

@@ -17,6 +17,7 @@ import {
   TabActiveContext,
 } from "./helper";
 
+import CircleIcon from "@mui/icons-material/Circle";
 function TabsMenu(props: {
   index;
   handleClose;
@@ -116,6 +117,7 @@ function TabsWithContent_(props: {
   const { setUpMenu } = useContext(ContextMenuContext);
   const rootStack = useRef<HTMLDivElement>(null);
   const [tabWidth, setTabWidth] = useState(100);
+
   useEffect(() => {
     if (tabs.length == 0) {
       return;
@@ -152,7 +154,7 @@ function TabsWithContent_(props: {
           const max = getLength(tab.header, tabWidth, tabs);
           return (
             <Tab
-              style={{ maxWidth: max + "px" }}
+              style={{ maxWidth: index == selectIndex ? undefined : max + "px" }}
               key={tab.id}
               label=<Tooltip title={tab.header}>
                 <Stack
@@ -191,13 +193,17 @@ function TabsWithContent_(props: {
                   >
                     {tab.header}
                   </Typography>
-                  <CloseIcon
-                    onClick={() => {
-                      handleClose(index);
-                    }}
-                    style={{ fontSize: "0.9rem" }}
-                    color="warning"
-                  />
+                  {tab.closeConfirmText ? (
+                    <CircleIcon style={{ fontSize: "0.9rem" }} />
+                  ) : (
+                    <CloseIcon
+                      onClick={() => {
+                        handleClose(index);
+                      }}
+                      style={{ fontSize: "0.9rem" }}
+                      color="warning"
+                    />
+                  )}
                 </Stack>
               </Tooltip>
             />
@@ -209,7 +215,12 @@ function TabsWithContent_(props: {
           <TabActiveContext.Provider key={tab.id} value={selectIndex == index}>
             <SetCloseConfirmTextContext
               value={(e) => {
-                tabs[index].closeConfirmText = e;
+                // tabs[index].closeConfirmText = e;
+                setTabs(
+                  tabs.map((tab, idx) =>
+                    index == idx ? { ...tab, closeConfirmText: e } : tab,
+                  ),
+                );
               }}
             >
               <div

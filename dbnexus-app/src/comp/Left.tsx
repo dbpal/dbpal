@@ -96,6 +96,7 @@ import {
   MenuOpenConn,
   MenuRefresh,
   ModalHeader,
+  TrueOrFalse,
 } from "./CommonComp.tsx";
 import KeyboardArrowDownIcon from "@mui/icons-material/KeyboardArrowDown";
 import KeyboardArrowRightIcon from "@mui/icons-material/KeyboardArrowRight";
@@ -323,7 +324,7 @@ function LeftTop(props: {
               }}
             >
               <Typography color="info">
-                match pattern for table,view,udf,procedure etc
+                match pattern for database schema,table,view,udf,procedure etc
               </Typography>
               <Stack direction="row" style={{ flexWrap: "wrap", alignItems: "center" }}>
                 {matchPattern.length > 1 && (
@@ -342,6 +343,7 @@ function LeftTop(props: {
                     label={e}
                     color="success"
                     onDelete={() => {
+                      setMatchPatternInput(matchPattern[index]);
                       setMatchPattern((arr) =>
                         arr.filter((_, eIndex) => eIndex !== index),
                       );
@@ -504,6 +506,8 @@ function CopyConnection() {
   const cols = useMemo(() => {
     const cols = [
       { field: "name" },
+      { field: "username" },
+
       {
         field: "conn_type",
         renderHeader: () => {
@@ -517,6 +521,15 @@ function CopyConnection() {
         field: "db",
         renderHeader: () => {
           return "database";
+        },
+      },
+      {
+        field: "read_only",
+        renderCell: (row) => {
+          return <TrueOrFalse value={row.row["read_only"]} />;
+        },
+        renderHeader: () => {
+          return "read only";
         },
       },
     ] as GridColDef[];
@@ -553,7 +566,18 @@ function CopyConnection() {
   }, [handleReload]);
   const slots = useMemo(() => {
     return {
-      pagination: AppDataGridPagination,
+      pagination: () => {
+        return (
+          <Stack direction="row" flex={1} style={{ justifyContent: "space-between" }}>
+            <Stack direction="row">
+              <Tooltip title="double click a row to copy a connection.">
+                <Typography color="info">copy?</Typography>
+              </Tooltip>
+            </Stack>
+            <AppDataGridPagination />
+          </Stack>
+        );
+      },
     } as Partial<GridSlotsComponent>;
   }, []);
   return (
@@ -568,9 +592,6 @@ function CopyConnection() {
             reload
           </Button>
         )}
-        <Tooltip title="double click a row to copy a connection.">
-          <Typography color="info">copy</Typography>
-        </Tooltip>
       </Stack>
       <DataGrid
         getRowId={getRowId}
@@ -686,7 +707,11 @@ function Left() {
   );
 }
 
-function FavoriteSqlMenu(props: { content: string; id: number; handleReload }) {
+function FavoriteSqlMenu(props: {
+  content: string;
+  id: number;
+  handleReload: () => void;
+}) {
   const { content, id, handleReload } = props;
   const { showNotification } = useContext(NotificationContext);
   return (
@@ -707,7 +732,7 @@ function FavoriteSqlMenu(props: { content: string; id: number; handleReload }) {
       <MenuItem
         onClick={async () => {
           await FavoriteSql.delete(id, showNotification);
-          handleReload(false);
+          handleReload();
         }}
       >
         <ListItemIcon>
@@ -817,7 +842,9 @@ function FavoriteSqlList() {
               <FavoriteSqlMenu
                 content={content}
                 id={parseInt(id)}
-                handleReload={handleReload}
+                handleReload={() => {
+                  handleReload(false);
+                }}
               />
             ),
             event: e,
@@ -844,7 +871,12 @@ function FavoriteSqlList() {
       },
       { field: "name" },
       { field: "kind" },
-      { field: "sql" },
+      {
+        field: "sql",
+        renderHeader: () => {
+          return "statement";
+        },
+      },
       { field: "lastModified" },
     ] as GridColDef[];
     cols.forEach((e) => {
@@ -879,9 +911,22 @@ function FavoriteSqlList() {
   };
   const slots = useMemo(() => {
     return {
-      pagination: AppDataGridPagination,
+      pagination: () => {
+        return (
+          <Stack direction="row" style={{ justifyContent: "space-between" }} flex={1}>
+            <Stack direction="row">
+              {fs.length > 0 && (
+                <Tooltip title="double click a row to use sql in new tab.">
+                  <Typography color="info">use?</Typography>
+                </Tooltip>
+              )}
+            </Stack>
+            <AppDataGridPagination />
+          </Stack>
+        );
+      },
     } as Partial<GridSlotsComponent>;
-  }, []);
+  }, [fs.length]);
 
   return (
     <Stack style={{ height: "100%" }}>
@@ -898,7 +943,6 @@ function FavoriteSqlList() {
             setUuidFilter(uuid);
           }}
         />
-
         <Button
           onClick={() => {
             handleReload(true);
@@ -916,13 +960,6 @@ function FavoriteSqlList() {
               <DeleteForeverIcon color="error" />
             </IconButton>
           </Tooltip>
-        )}
-        {fs.length > 0 && (
-          <>
-            <Tooltip title="double click a row to use sql in new tab.">
-              <Typography color="info">use</Typography>
-            </Tooltip>
-          </>
         )}
       </StackRowCenter>
       <DataGrid
@@ -1563,6 +1600,8 @@ function CatalogTree() {
   const [databases, setDatabases] = useState<string[]>([]);
   const [loading, setLoading] = useState(false);
   const { kind } = useContext(ConnTypeContext);
+
+  const matchPattern = useContext(MatchPatternContext);
   const handleReload = useCallback(() => {
     setLoading(true);
     invoke<string[]>("list_database", { name })
@@ -1618,13 +1657,15 @@ function CatalogTree() {
       </Stack>
       key={name}
     >
-      {databases.map((e) => {
-        return (
-          <UuidContext.Provider key={e} value={{ uuid: name + "/" + e }}>
-            <DatabaseTree key={e} database={e} reloadDatabase={handleReload} />
-          </UuidContext.Provider>
-        );
-      })}
+      {databases
+        .filter((db) => matchPattern(db))
+        .map((db) => {
+          return (
+            <UuidContext.Provider key={db} value={{ uuid: name + "/" + db }}>
+              <DatabaseTree key={db} database={db} reloadDatabase={handleReload} />
+            </UuidContext.Provider>
+          );
+        })}
     </TreeItem>
   );
 }
@@ -1637,6 +1678,8 @@ function DatabaseTree(props: { database?: string; reloadDatabase?: () => void })
   const [loading, setLoading] = useState(false);
   const { opened, setOpened } = useContext(OpenedContext);
   const { kind } = useContext(ConnTypeContext);
+
+  const matchPattern = useContext(MatchPatternContext);
   const handleReload = useCallback(() => {
     setLoading(true);
     listSchema(name)
@@ -1697,13 +1740,15 @@ function DatabaseTree(props: { database?: string; reloadDatabase?: () => void })
       </Stack>
       key={name + database}
     >
-      {schemas.map((e) => {
-        return (
-          <UuidContext.Provider key={e} value={{ uuid: name + "/" + e }}>
-            <SchemaTree key={e} schema={e} reloadSchemas={handleReload} />
-          </UuidContext.Provider>
-        );
-      })}
+      {schemas
+        .filter((schema) => matchPattern(schema))
+        .map((schema) => {
+          return (
+            <UuidContext.Provider key={schema} value={{ uuid: name + "/" + schema }}>
+              <SchemaTree key={schema} schema={schema} reloadSchemas={handleReload} />
+            </UuidContext.Provider>
+          );
+        })}
     </TreeItem>
   );
 }

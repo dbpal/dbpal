@@ -1111,7 +1111,7 @@ impl LanguageServer for RedisDB {
                 if in_pos(
                     pos,
                     sqlparser::tokenizer::Location {
-                        line: line,
+                        line,
                         column: (t.start + 1) as u64,
                     },
                     t.token.len() as u64,

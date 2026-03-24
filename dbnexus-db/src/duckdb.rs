@@ -77,7 +77,7 @@ impl DuckDB {
             if let Some(timeout) = config.conn_timeout {
                 builder = builder.connection_timeout(timeout.into());
             }
-            let pool = builder.build(DuckdbConnectionManager::try_from(&config).unwrap())?;
+            let pool = builder.build(DuckdbConnectionManager::try_from(&config)?)?;
             anyhow::Ok(Self {
                 config,
                 pool,
@@ -389,20 +389,20 @@ impl QuerySql for DuckDB {
         if commit {
             anyhow::bail!("duckdb use commit or rollback to end transaction");
         }
-        self.execute_on_query_id(&query_id, "BEGIN TRANSACTION")
+        self.execute_on_query_id(query_id, "BEGIN TRANSACTION")
             .await?;
         self.query_tx.insert(query_id.to_string());
         anyhow::Ok(())
     }
 
     async fn commit(&self, query_id: &str) -> anyhow::Result<()> {
-        self.execute_on_query_id(&query_id, "COMMIT").await?;
+        self.execute_on_query_id(query_id, "COMMIT").await?;
         self.query_tx.remove(&query_id.to_string());
         anyhow::Ok(())
     }
 
     async fn rollback(&self, query_id: &str) -> anyhow::Result<()> {
-        self.execute_on_query_id(&query_id, "ROLLBACK").await?;
+        self.execute_on_query_id(query_id, "ROLLBACK").await?;
         self.query_tx.remove(&query_id.to_string());
         anyhow::Ok(())
     }

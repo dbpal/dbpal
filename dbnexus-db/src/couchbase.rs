@@ -90,11 +90,11 @@ impl std::fmt::Debug for CouchBaseDB {
 impl ServerMetas for CouchBaseDB {
     async fn show_metas(&self) -> anyhow::Result<Vec<MetaValue>> {
         let x = self.cluster.diagnostics(None).await?;
-        let mut ret = vec![];
-        ret.push(MetaValue::new("version", x.version.to_string()));
-        ret.push(MetaValue::new("id", x.id.to_string()));
-        ret.push(MetaValue::new("sdk", x.sdk.to_string()));
-        anyhow::Ok(ret)
+        anyhow::Ok(vec![
+            MetaValue::new("version", x.version.to_string()),
+            MetaValue::new("id", x.id.to_string()),
+            MetaValue::new("sdk", x.sdk.to_string()),
+        ])
     }
 }
 
@@ -154,18 +154,12 @@ fn extract_id_and_value(
 ) -> anyhow::Result<(&String, serde_json::Value)> {
     // accept two parameter id and value
     let id = match values.get("id") {
-        Some(x) => match x {
-            Some(x) => x,
-            None => anyhow::bail!("id is required"),
-        },
-        None => anyhow::bail!("id is required"),
+        Some(Some(x)) => x,
+        _ => anyhow::bail!("id is required"),
     };
     let value = match values.get("value") {
-        Some(x) => match x {
-            Some(x) => serde_json::Value::from_str(x)?,
-            None => anyhow::bail!("value is required"),
-        },
-        None => anyhow::bail!("value is required"),
+        Some(Some(x)) => serde_json::Value::from_str(x)?,
+        _ => anyhow::bail!("value is required"),
     };
     anyhow::Ok((id, value))
 }
@@ -183,6 +177,7 @@ impl CouchBaseDB {
         let s = self.get_scope()?;
         let mut resp = s.query(sql, None).await?;
         let mut rows = resp.rows::<'_, Value>();
+        #[allow(clippy::never_loop)]
         while let Some(x) = rows.next().await {
             let x = x?;
             match x {
@@ -313,6 +308,7 @@ impl SchemaTrait for CouchBaseDB {
         let s = self.get_scope()?;
         let mut resp = s.query(sql, None).await?;
         let mut rows = resp.rows::<'_, serde_json::Map<String, Value>>();
+        #[allow(clippy::never_loop)]
         while let Some(row) = rows.next().await {
             let row = row?;
             return anyhow::Ok(row.keys().map(|x| Field::from_name_type(x, "")).collect());

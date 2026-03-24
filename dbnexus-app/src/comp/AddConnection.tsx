@@ -53,7 +53,7 @@ function HostAndPort(props: { host; port; setHost; setPort }) {
         label="Host"
         value={host}
         sx={{ mr: 1 }}
-        onChange={(e) => setHost(e.target.value)}
+        onChange={(event) => setHost(event.target.value)}
         slotProps={{
           input: {
             endAdornment: host && (
@@ -77,7 +77,7 @@ function HostAndPort(props: { host; port; setHost; setPort }) {
         label="port"
         error={isNaN(parseInt(port))}
         value={port}
-        onChange={(e) => setPort(e.target.value)}
+        onChange={(event) => setPort(event.target.value)}
       />
     </Stack>
   );
@@ -89,8 +89,8 @@ function SelectPath(props: { path; setPath; label: string; required: boolean }) 
     <Stack direction="row" sx={{ alignItems: "center" }}>
       <TextField
         value={path}
-        onChange={(e) => {
-          setPath(e.target.value);
+        onChange={(event) => {
+          setPath(event.target.value);
         }}
         style={{ flex: 1 }}
         label={label}
@@ -113,8 +113,8 @@ function SelectPath(props: { path; setPath; label: string; required: boolean }) 
                 )}
                 <IconButton
                   onClick={() => {
-                    open({ multiple: false }).then((e) => {
-                      setPath(e);
+                    open({ multiple: false }).then((openOk) => {
+                      setPath(openOk);
                     });
                   }}
                   color="primary"
@@ -147,7 +147,7 @@ function UserAndPassword(props: {
         label="User"
         value={user}
         sx={{ mr: 1 }}
-        onChange={(e) => setUser(e.target.value)}
+        onChange={(event) => setUser(event.target.value)}
         slotProps={{
           input: {
             endAdornment: user && (
@@ -170,7 +170,7 @@ function UserAndPassword(props: {
         label="Password"
         type={passwordVisible ? "text" : "password"}
         value={password}
-        onChange={(e) => setPassword(e.target.value)}
+        onChange={(event) => setPassword(event.target.value)}
         slotProps={{
           input: {
             endAdornment: !passwordVisible &&
@@ -200,8 +200,8 @@ function UserAndPassword(props: {
       >
         <Checkbox
           checked={savePassword}
-          onChange={(e) => {
-            setSavePassword(e.target.checked);
+          onChange={(event) => {
+            setSavePassword(event.target.checked);
           }}
           name="save password"
         />
@@ -216,7 +216,10 @@ function Https(props: { https; setHttps }) {
   return (
     <FormControlLabel
       control={
-        <Checkbox checked={https} onChange={(e) => setHttps(e.target.checked)} />
+        <Checkbox
+          checked={https}
+          onChange={(event) => setHttps(event.target.checked)}
+        />
       }
       label="HTTPS"
     />
@@ -333,9 +336,9 @@ function PGSSL(props: { ssl: types.PgSsl; setSsl }) {
           label="ssl mode"
           onChange={(e) => setSsl({ ...ssl, ssl_mode: e.target.value } as types.PgSsl)}
         >
-          {modes.map((e) => (
-            <MenuItem value={e} key={e}>
-              {e}
+          {modes.map((mode) => (
+            <MenuItem value={mode} key={mode}>
+              {mode}
             </MenuItem>
           ))}
         </Select>
@@ -397,12 +400,12 @@ function DbSchemaCadidates(props: {
     }
     setLoading(true);
     invoke<string[]>("try_list_database_schema_candidates", { conn: config })
-      .then((e) => {
+      .then((candidate) => {
         showNotification("success", "fetch candidates success");
-        setCadidates(e);
+        setCadidates(candidate);
       })
-      .catch((e) => {
-        showNotification("warning", `list ${label} failed`, e);
+      .catch((err) => {
+        showNotification("warning", `list ${label} failed`, err);
       })
       .finally(() => {
         setLoading(false);

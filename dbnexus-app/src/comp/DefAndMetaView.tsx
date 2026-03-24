@@ -2,12 +2,11 @@ import { useCallback, useContext, useEffect, useState } from "react";
 
 import { NotificationContext } from "./Notification";
 import { DefAndMetas } from "./Common";
-import { DataSourceKind, resizeHandlerSize } from "./helper";
+import { DataSourceKind, QuerySomeShowContext } from "./helper";
 import types from "./ApiStruct";
 import { AllKindChat } from "./Chat";
 import { MetaValueView } from "./CommonComp";
-import { Panel, PanelGroup, PanelResizeHandle } from "react-resizable-panels";
-import { CircularProgress } from "@mui/material";
+import { CircularProgress, Stack, Tooltip, Typography } from "@mui/material";
 
 function DefAndMetasView(props: {
   reloadOP: () => Promise<DefAndMetas>;
@@ -44,32 +43,33 @@ function DefAndMetasView(props: {
   useEffect(() => {
     handleReload(false);
   }, [handleReload]);
+
   return (
-    <PanelGroup style={{ height: "100%" }} direction="vertical" autoSaveId="udf-view">
-      <Panel>
+    <QuerySomeShowContext.Provider
+      value={
+        detail.metas.length > 0 ? (
+          <Tooltip
+            title={
+              <Stack style={{ width: "100%", height: "40vh" }}>
+                <MetaValueView values={detail.metas} />{" "}
+              </Stack>
+            }
+            slotProps={{
+              tooltip: {
+                style: { width: "1550px" },
+              },
+            }}
+          >
+            <Typography color="info"> some meta </Typography>
+          </Tooltip>
+        ) : null
+      }
+    >
+      <Stack height="100%">
         {loading && <CircularProgress />}
         <AllKindChat uuid={uuid} kind={kind} value={detail.def} />
-      </Panel>
-      {detail.metas.length > 0 && (
-        <>
-          <PanelResizeHandle
-            style={{ height: resizeHandlerSize }}
-            className="resize-handle"
-          />
-          <Panel collapsible collapsedSize={0} minSize={10}>
-            <div
-              style={{
-                height: "100%",
-                display: "flex",
-                flexDirection: "column",
-              }}
-            >
-              <MetaValueView values={detail.metas} />
-            </div>
-          </Panel>
-        </>
-      )}
-    </PanelGroup>
+      </Stack>
+    </QuerySomeShowContext.Provider>
   );
 }
 

@@ -387,20 +387,17 @@ impl LangServerCommon for MysqlDB {
             .await
             .map(|x| x.into_iter().map(|x| x.name).collect())?;
 
-        match self.kind {
-            BackendKindMysql::Mariadb => {
-                let sql = format!(
-            "select SEQUENCE_NAME  from information_schema.SEQUENCES where SEQUENCE_SCHEMA = '{}'",schema );
-                let mut conn = self.get_conn().await?;
-                let rows = sqlx::raw_sql(AssertSqlSafe(sql.as_str()))
-                    .fetch_all(conn.deref_mut())
-                    .await?;
-                for row in rows.iter() {
-                    let name: String = row.try_get(0)?;
-                    ret.push(name);
-                }
+        if self.kind == BackendKindMysql::Mariadb {
+            let sql = format!(
+        "select SEQUENCE_NAME  from information_schema.SEQUENCES where SEQUENCE_SCHEMA = '{}'",schema );
+            let mut conn = self.get_conn().await?;
+            let rows = sqlx::raw_sql(AssertSqlSafe(sql.as_str()))
+                .fetch_all(conn.deref_mut())
+                .await?;
+            for row in rows.iter() {
+                let name: String = row.try_get(0)?;
+                ret.push(name);
             }
-            _ => {}
         }
         anyhow::Ok(ret)
     }

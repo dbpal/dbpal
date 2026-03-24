@@ -692,7 +692,7 @@ impl SchemaTrait for MysqlDB {
                 &typ.typ,
                 typ.nullable.unwrap_or_default(),
                 if let Some(dv) = typ.default_value.as_ref() {
-                    format!("DEFAULT {}", self.put_value_in_sql(&typ.typ, Some(&dv))?)
+                    format!("DEFAULT {}", self.put_value_in_sql(&typ.typ, Some(dv))?)
                 } else {
                     "".to_string()
                 }
