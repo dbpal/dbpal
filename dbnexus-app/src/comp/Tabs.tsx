@@ -12,12 +12,13 @@ import CloseIcon from "@mui/icons-material/Close";
 import {
   ContextMenuContext,
   secondConfirm,
-  SetCloseConfirmTextContext,
+  TabContext,
   TabContent,
   TabActiveContext,
 } from "./helper";
 
 import CircleIcon from "@mui/icons-material/Circle";
+import { tabHasConfirmMsg } from "./store";
 
 function TabsMenu(props: {
   index;
@@ -118,8 +119,8 @@ function TabsWithContent(props: {
   const { setUpMenu } = useContext(ContextMenuContext);
   const rootStack = useRef<HTMLDivElement>(null);
   const [tabWidth, setTabWidth] = useState(100);
-  // 我没有使用常见的setstate来触发重新渲染 那样开销比较大 所以用这个变量来做触发
-  // const [rerenderOfCloseMsg, setRerenderOfCloseMsg] = useState<boolean>(false);
+
+  const tabConfirmMsg = tabHasConfirmMsg((state) => state.confirmMsgs);
 
   useEffect(() => {
     if (tabs.length == 0) {
@@ -197,15 +198,18 @@ function TabsWithContent(props: {
                   >
                     {tab.header}
                   </Typography>
-                  {/* {rerenderOfCloseMsg && <></>} */}
 
-                  <CloseIcon
-                    onClick={() => {
-                      handleClose(index);
-                    }}
-                    style={{ fontSize: "0.9rem" }}
-                    color="warning"
-                  />
+                  {tabConfirmMsg.get(tab.id) ? (
+                    <CircleIcon color="warning" style={{ fontSize: "0.9rem" }} />
+                  ) : (
+                    <CloseIcon
+                      onClick={() => {
+                        handleClose(index);
+                      }}
+                      style={{ fontSize: "0.9rem" }}
+                      color="warning"
+                    />
+                  )}
                 </Stack>
               </Tooltip>
             />
@@ -215,19 +219,14 @@ function TabsWithContent(props: {
       <div style={{ flex: 1 }}>
         {tabs.map((tab, index) => (
           <TabActiveContext.Provider key={tab.id} value={selectIndex == index}>
-            <SetCloseConfirmTextContext
-              value={(txt) => {
-                tabs[index].closeConfirmText = txt;
-                // setRerenderOfCloseMsg((e) => !e);
-              }}
-            >
+            <TabContext value={{ id: tab.id }}>
               <div
                 hidden={selectIndex !== index}
                 style={{ height: "100%", position: "relative" }}
               >
                 {tab.content}
               </div>
-            </SetCloseConfirmTextContext>
+            </TabContext>
           </TabActiveContext.Provider>
         ))}
       </div>

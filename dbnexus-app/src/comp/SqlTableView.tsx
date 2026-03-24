@@ -73,7 +73,7 @@ import {
   dataGridheaderFontSize,
   shrinkAble,
   executeSqlWithoutConn,
-  SetCloseConfirmTextContext,
+  TabContext,
   getSupportExportKind,
 } from "./helper";
 import { FaCopy } from "react-icons/fa6";
@@ -109,6 +109,7 @@ import {
 } from "./handlers";
 import { AddTableView } from "./LeftTable";
 import { ExportTableOrView } from "./Export";
+import { tabHasConfirmMsg } from "./store";
 
 const confirmAboutPrimary = async (
   notWarnPri: boolean,
@@ -338,14 +339,17 @@ function SqlTableView(props: {
     setLastFetchTime(new Date());
   }, [resp]);
   const [ops, setOps] = useState<DatabaseOperation[]>([]);
-  const setCloseConfirm = useContext(SetCloseConfirmTextContext);
+
+  const tabCtx = useContext(TabContext);
+  const { removeConfirmMsg, addConfirmMsg } = tabHasConfirmMsg((state) => state);
+
   useEffect(() => {
     if (ops.length == 0) {
-      setCloseConfirm("");
+      removeConfirmMsg(tabCtx.id);
     } else {
-      setCloseConfirm(`sure to discard ${ops.length} changes?`);
+      addConfirmMsg(tabCtx.id, `sure to discard ${ops.length} changes?`);
     }
-  }, [ops, setCloseConfirm]);
+  }, [ops, tabCtx.id, removeConfirmMsg, addConfirmMsg]);
 
   const [fetchDur, setFetchDur] = useState(0);
   const clientModelLimit = useRef<number>(1000);

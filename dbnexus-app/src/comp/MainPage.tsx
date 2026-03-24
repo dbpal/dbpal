@@ -31,6 +31,7 @@ import { openUrl } from "@tauri-apps/plugin-opener";
 import DeleteForeverIcon from "@mui/icons-material/DeleteForever";
 import { listen } from "@tauri-apps/api/event";
 import { ShowCuts } from "./ShortCuts.tsx";
+import { tabHasConfirmMsg } from "./store.ts";
 
 function ShowPanic() {
   const [panicInfo, setPanicInfo] = useState("");
@@ -163,13 +164,16 @@ function ShowShortCut() {
 function App() {
   const [tabs, setTabs] = useState<TabContent[]>([]);
   const [tab, setCurrentTab] = useState(0);
+  const cancelMsg = tabHasConfirmMsg((state) => state.confirmMsgs);
   const closeTab = useCallback(
     (index: number) => {
       (async () => {
         const id = tabs[index].id;
-        if (tabs[index].closeConfirmText) {
+        const msg = cancelMsg.get(id);
+
+        if (msg) {
           const confirm = await secondConfirm({
-            content: tabs[index].closeConfirmText,
+            content: msg,
             title: "close the tab",
             confirmText: "close",
           });
@@ -182,7 +186,7 @@ function App() {
         });
       })();
     },
-    [tabs],
+    [cancelMsg, tabs],
   );
 
   const shortCuts = useCallback(

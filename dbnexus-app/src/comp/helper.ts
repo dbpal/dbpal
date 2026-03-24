@@ -568,7 +568,6 @@ class TabContent {
     public header: string,
     public content: ReactNode,
     public icon: ReactElement,
-    public closeConfirmText?: string,
   ) {}
 }
 const TabsSetContext = createContext<{
@@ -579,7 +578,7 @@ const TabsSetContext = createContext<{
 
 const LLMConfigContext = createContext<null | LLMConfig>(null);
 
-const SetCloseConfirmTextContext = createContext<(x: string) => void>(null);
+const TabContext = createContext<{ id: string }>(null);
 
 const ConnTypeContext = createContext<{
   kind: DataSourceKind;
@@ -1247,7 +1246,7 @@ export {
   SavePageSize,
   saveQueryLog,
   secondConfirm,
-  SetCloseConfirmTextContext,
+  TabContext,
   settingChangeEvent,
   SettingContext,
   shrinkAble,

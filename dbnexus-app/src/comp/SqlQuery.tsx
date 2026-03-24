@@ -52,7 +52,7 @@ import {
   rustResultOk,
   saveQueryLog,
   secondConfirm,
-  SetCloseConfirmTextContext,
+  TabContext,
   SettingContext,
   shrinkAble,
   TabActiveContext,
@@ -73,12 +73,15 @@ import { ModifyLLMConfigModal } from "./Settings.tsx";
 import { cancelTask, checkSql } from "./handlers.ts";
 import { Channel } from "@tauri-apps/api/core";
 import { v4 as uuidv4 } from "uuid";
+import { tabHasConfirmMsg } from "./store.ts";
 function SqlTransaction(props: { conn: QueryConn; executeTimes: number }) {
   const { conn, executeTimes } = props;
   const [commit, setCommit] = useState(true);
   const { showNotification } = useContext(NotificationContext);
   const [txCount, setTxCount] = useState(0);
-  const setCloseConfirm = useContext(SetCloseConfirmTextContext);
+  const tabCtx = useContext(TabContext);
+  const { removeConfirmMsg, addConfirmMsg } = tabHasConfirmMsg((state) => state);
+
   const handleQueryCommit = useCallback(async () => {
     try {
       const c = await conn.getAutoCommit();
@@ -87,16 +90,18 @@ function SqlTransaction(props: { conn: QueryConn; executeTimes: number }) {
       showNotification("error", "get commit model failed", e);
     }
   }, [conn, showNotification]);
+
   useEffect(() => {
     setTxCount(0);
     if (commit) {
-      setCloseConfirm("");
+      removeConfirmMsg(tabCtx.id);
     } else {
-      setCloseConfirm(
+      addConfirmMsg(
+        tabCtx.id,
         "In Transaction,better commit or rollback.uncommit transaction may lead database locks",
       );
     }
-  }, [commit, setCloseConfirm]);
+  }, [commit, tabCtx.id, removeConfirmMsg, addConfirmMsg]);
 
   useEffect(() => {
     //这里的顺序很重要
