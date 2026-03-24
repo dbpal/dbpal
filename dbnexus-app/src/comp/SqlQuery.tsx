@@ -73,14 +73,14 @@ import { ModifyLLMConfigModal } from "./Settings.tsx";
 import { cancelTask, checkSql } from "./handlers.ts";
 import { Channel } from "@tauri-apps/api/core";
 import { v4 as uuidv4 } from "uuid";
-import { confirmMsgStore } from "./store.ts";
+import { useConfirmMsg } from "./store.ts";
 function SqlTransaction(props: { conn: QueryConn; executeTimes: number }) {
   const { conn, executeTimes } = props;
   const [commit, setCommit] = useState(true);
   const { showNotification } = useContext(NotificationContext);
   const [txCount, setTxCount] = useState(0);
   const tabCtx = useContext(TabContext);
-  const { removeConfirmMsg, addConfirmMsg } = confirmMsgStore((state) => state);
+  const { removeConfirmMsg, addConfirmMsg } = useConfirmMsg((state) => state);
 
   const handleQueryCommit = useCallback(async () => {
     try {

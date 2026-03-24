@@ -54,8 +54,6 @@ import {
   getLanguageFromDataSourceKind,
   getSupportExportKind,
   handleCopyToClipboard,
-  MatchPatternContext,
-  MaxTreeContext,
   secondConfirm,
   SettingContext,
   TabsSetContext,
@@ -73,16 +71,15 @@ import {
 import { AppDataGridPagination, SimpleFlexEditor } from "./CommonComp2";
 import { createViewSql, listView, showViewColumns } from "./handlers";
 import { filesize } from "filesize";
+import { useAppConfigStore } from "./store";
 function ViewsTree(props: { viewKind: ViewKind }) {
   const { viewKind } = props;
   const { uuid } = useContext(UuidContext);
   const [views, setViews] = useState<types.ListTable[]>([]);
   const { showNotification } = useContext(NotificationContext);
   const [loading, setLoading] = useState(false);
-  const maxsize = useContext(MaxTreeContext);
-
   const [exceed, setExceed] = useState(0);
-  const matchPattern = useContext(MatchPatternContext);
+  const { matchPattern, maxTree } = useAppConfigStore((state) => state);
   useEffect(() => {
     setExceed(views.filter((e) => matchPattern(e.name)).length);
   }, [views, matchPattern]);
@@ -140,7 +137,7 @@ function ViewsTree(props: { viewKind: ViewKind }) {
       {views
         .filter((e) => matchPattern(e.name))
         .map((e, index) => {
-          if (index >= maxsize) {
+          if (index >= maxTree) {
             return;
           }
           return (
@@ -153,7 +150,7 @@ function ViewsTree(props: { viewKind: ViewKind }) {
             />
           );
         })}
-      <ExceedMaxTreeItem exceed={exceed} maxTreeSize={maxsize} />
+      <ExceedMaxTreeItem exceed={exceed} maxTreeSize={maxTree} />
     </TreeItem>
   );
 }

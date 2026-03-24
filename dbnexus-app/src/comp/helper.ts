@@ -545,6 +545,7 @@ class ColumnWidth {
 }
 
 const TabActiveContext = createContext(true);
+
 const handleCopyToClipboard = (text, showNotification?, okCallBack?) => {
   writeText(text)
     .then(() => {
@@ -583,10 +584,6 @@ const TabContext = createContext<{ id: string }>(null);
 const ConnTypeContext = createContext<{
   kind: DataSourceKind;
 }>(null);
-
-const MatchPatternContext = createContext<(x: string) => boolean>(() => {
-  return true;
-});
 
 const UuidContext = createContext<{
   uuid: string;
@@ -1174,8 +1171,6 @@ function newEmptyResp(): MuiDataGridData {
   };
 }
 
-const MaxTreeContext = createContext<number>(120);
-
 const ChatShowContext = createContext<{
   show: boolean;
   setShow: (_: boolean) => void;
@@ -1225,8 +1220,6 @@ export {
   LLMConfigContext,
   loader,
   LoggerLevel,
-  MatchPatternContext,
-  MaxTreeContext,
   MongoLanguage,
   newEmptyResp,
   pageSizeOptions,

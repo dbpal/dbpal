@@ -24,8 +24,6 @@ import {
   ContextMenuContext,
   DataSourceKind,
   generateRandomString,
-  MatchPatternContext,
-  MaxTreeContext,
   secondConfirm,
   TabsSetContext,
   UuidContext,
@@ -35,6 +33,7 @@ import { ExceedMaxTreeItem, MenuRefresh, UdfNameAndParameters } from "./CommonCo
 import { listCassandraAgg, listUdf, makeUdfExtraArg, showUdf } from "./handlers";
 import { showCassandraAgg } from "./handlers";
 import { CopySql } from "./CommonComp2";
+import { useAppConfigStore } from "./store";
 
 function UdfsTree() {
   const { uuid } = useContext(UuidContext);
@@ -43,8 +42,7 @@ function UdfsTree() {
   const [udfs, setUdfs] = useState<types.NamedStaff[]>([]);
   const { showNotification } = useContext(NotificationContext);
   const [exceed, setExceed] = useState(0);
-  const matchPattern = useContext(MatchPatternContext);
-  const maxsize = useContext(MaxTreeContext);
+  const { matchPattern, maxTree } = useAppConfigStore((state) => state);
   useEffect(() => {
     setExceed(udfs.filter((e) => matchPattern(e.name)).length);
   }, [udfs, matchPattern]);
@@ -88,7 +86,7 @@ function UdfsTree() {
       {udfs
         .filter((e) => matchPattern(e.name))
         .map((udf, index) => {
-          if (index >= maxsize) {
+          if (index >= maxTree) {
             return;
           }
           const id = `${uuid}-udf-${udf.name} -${udf.rand}`;
@@ -120,7 +118,7 @@ function UdfsTree() {
             />
           );
         })}
-      <ExceedMaxTreeItem exceed={exceed} maxTreeSize={maxsize} />
+      <ExceedMaxTreeItem exceed={exceed} maxTreeSize={maxTree} />
     </TreeItem>
   );
 }
@@ -296,7 +294,6 @@ function CassandraAggregatesTree() {
   const { uuid } = useContext(UuidContext);
   const [aggs, setAggs] = useState<types.NamedStaff[]>([]);
   const { showNotification } = useContext(NotificationContext);
-  const maxsize = useContext(MaxTreeContext);
   const reload = useCallback(() => {
     listCassandraAgg(uuid)
       .then((ts) => {
@@ -307,7 +304,7 @@ function CassandraAggregatesTree() {
       });
   }, [showNotification, uuid]);
   const [exceed, setExceed] = useState(0);
-  const matchPattern = useContext(MatchPatternContext);
+  const { matchPattern, maxTree } = useAppConfigStore((state) => state);
   useEffect(() => {
     setExceed(aggs.filter((e) => matchPattern(e.name)).length);
   }, [aggs, matchPattern]);
@@ -340,7 +337,7 @@ function CassandraAggregatesTree() {
       {aggs
         .filter((e) => matchPattern(e.name))
         .map((agg, index) => {
-          if (index >= maxsize) {
+          if (index >= maxTree) {
             return;
           }
           const id = `${uuid}-agg-${agg.name}-${agg.rand}`;
@@ -375,7 +372,7 @@ function CassandraAggregatesTree() {
             />
           );
         })}
-      <ExceedMaxTreeItem exceed={exceed} maxTreeSize={maxsize} />
+      <ExceedMaxTreeItem exceed={exceed} maxTreeSize={maxTree} />
     </TreeItem>
   );
 }

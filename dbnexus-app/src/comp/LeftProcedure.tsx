@@ -16,8 +16,6 @@ import {
   ContextMenuContext,
   DataSourceKind,
   generateRandomString,
-  MatchPatternContext,
-  MaxTreeContext,
   secondConfirm,
   TabsSetContext,
   UuidContext,
@@ -25,12 +23,13 @@ import {
 import { ExceedMaxTreeItem, MenuRefresh, UdfNameAndParameters } from "./CommonComp";
 import { listProcedure, makeShowProcedureExtraArg, showProcedure } from "./handlers";
 import { CopySql } from "./CommonComp2";
+import { useAppConfigStore } from "./store";
 function ProceduresTree() {
   const { uuid } = useContext(UuidContext);
   const { kind } = useContext(ConnTypeContext);
   const [ps, setPos] = useState<types.NamedStaff[]>([]);
   const { showNotification } = useContext(NotificationContext);
-  const maxsize = useContext(MaxTreeContext);
+  const { matchPattern, maxTree } = useAppConfigStore((state) => state);
   const reload = useCallback(() => {
     listProcedure(uuid)
       .then((ts) => {
@@ -42,7 +41,6 @@ function ProceduresTree() {
   }, [showNotification, uuid]);
 
   const [exceed, setExceed] = useState(0);
-  const matchPattern = useContext(MatchPatternContext);
   useEffect(() => {
     setExceed(ps.filter((e) => matchPattern(e.name)).length);
   }, [ps, matchPattern]);
@@ -77,7 +75,7 @@ function ProceduresTree() {
       {ps
         .filter((e) => matchPattern(e.name))
         .map((p, index) => {
-          if (index >= maxsize) {
+          if (index >= maxTree) {
             return;
           }
           const id = `${uuid}-${p.name}-${p.rand}`;
@@ -110,7 +108,7 @@ function ProceduresTree() {
             />
           );
         })}
-      <ExceedMaxTreeItem maxTreeSize={maxsize} exceed={exceed} />
+      <ExceedMaxTreeItem maxTreeSize={maxTree} exceed={exceed} />
     </TreeItem>
   );
 }

@@ -31,7 +31,7 @@ import { openUrl } from "@tauri-apps/plugin-opener";
 import DeleteForeverIcon from "@mui/icons-material/DeleteForever";
 import { listen } from "@tauri-apps/api/event";
 import { ShowCuts } from "./ShortCuts.tsx";
-import { confirmMsgStore } from "./store.ts";
+import { useConfirmMsg } from "./store.ts";
 
 function ShowPanic() {
   const [panicInfo, setPanicInfo] = useState("");
@@ -164,7 +164,7 @@ function ShowShortCut() {
 function App() {
   const [tabs, setTabs] = useState<TabContent[]>([]);
   const [tab, setCurrentTab] = useState(0);
-  const cancelMsg = confirmMsgStore((state) => state.confirmMsgs);
+  const cancelMsg = useConfirmMsg((state) => state.confirmMsgs);
   const closeTab = useCallback(
     (index: number) => {
       (async () => {

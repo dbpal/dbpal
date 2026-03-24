@@ -71,8 +71,6 @@ import {
   FavoriteSql,
   generateRandomString,
   handleCopyToClipboard,
-  MatchPatternContext,
-  MaxTreeContext,
   SaveBoolToLocalStorage,
   SaveMatchPattern,
   secondConfirm,
@@ -133,6 +131,7 @@ import { ModifySetting } from "./Settings.tsx";
 import { CouchBaseQuery } from "./CouchBase.tsx";
 import FilterAltIcon from "@mui/icons-material/FilterAlt";
 import FilterAltOutlinedIcon from "@mui/icons-material/FilterAltOutlined";
+import { useAppConfigStore } from "./store.ts";
 const settingId = generateRandomString();
 
 function LeftTop(props: {
@@ -619,12 +618,17 @@ function Left() {
   const [maxTreeSize, setMaxTreeSize] = useState(
     parseInt(localStorage.getItem(maxTreeSizeKey)) || 100,
   );
+  const setMatchStateFn = useAppConfigStore((state) => state.setMatchPattern);
+  const setMaxTreeSizeStateFn = useAppConfigStore((state) => state.setMaxTree);
+
   useEffect(() => {
     SaveMatchPattern.instance.save(matchPattern);
   }, [matchPattern]);
   useEffect(() => {
     localStorage.setItem(maxTreeSizeKey, maxTreeSize + "");
-  }, [maxTreeSize]);
+    setMaxTreeSizeStateFn(maxTreeSize);
+  }, [maxTreeSize, setMaxTreeSizeStateFn]);
+
   const handleReload = useCallback(async () => {
     ConnectionHandler.getAll()
       .then((e) => {
@@ -652,8 +656,8 @@ function Left() {
     };
   }, [handleReload]);
 
-  const matchFN = useCallback(
-    (x: string) => {
+  useEffect(() => {
+    const sfn = (x: string) => {
       if (matchPattern.length == 0) {
         return true;
       }
@@ -664,9 +668,10 @@ function Left() {
         }
       }
       return false;
-    },
-    [matchPattern],
-  );
+    };
+    setMatchStateFn(sfn);
+  }, [matchPattern, setMatchStateFn]);
+
   return (
     <Stack
       style={{
@@ -682,21 +687,18 @@ function Left() {
       <Stack spacing={0.3}>
         {configs.map((e) => {
           return (
-            <MatchPatternContext.Provider value={matchFN} key={e.name}>
-              <ConnTypeContext.Provider
-                value={{ kind: connTypeToDataSourceKind(e.conn_type) }}
+            <ConnTypeContext.Provider
+              key={e.name}
+              value={{ kind: connTypeToDataSourceKind(e.conn_type) }}
+            >
+              <UuidContext.Provider
+                value={{
+                  uuid: e.name,
+                }}
               >
-                <UuidContext.Provider
-                  value={{
-                    uuid: e.name,
-                  }}
-                >
-                  <MaxTreeContext value={maxTreeSize}>
-                    <OneConfig key={e.name} config={e} />
-                  </MaxTreeContext>
-                </UuidContext.Provider>
-              </ConnTypeContext.Provider>
-            </MatchPatternContext.Provider>
+                <OneConfig key={e.name} config={e} />
+              </UuidContext.Provider>
+            </ConnTypeContext.Provider>
           );
         })}
         {configs.length == 0 && (
@@ -1601,7 +1603,6 @@ function CatalogTree() {
   const [loading, setLoading] = useState(false);
   const { kind } = useContext(ConnTypeContext);
 
-  const matchPattern = useContext(MatchPatternContext);
   const handleReload = useCallback(() => {
     setLoading(true);
     invoke<string[]>("list_database", { name })
@@ -1623,6 +1624,8 @@ function CatalogTree() {
   }, [handleReload, opened]);
 
   const { setUpMenu } = useContext(ContextMenuContext);
+
+  const matchPattern = useAppConfigStore((state) => state.matchPattern);
 
   return (
     <TreeItem
@@ -1678,8 +1681,7 @@ function DatabaseTree(props: { database?: string; reloadDatabase?: () => void })
   const [loading, setLoading] = useState(false);
   const { opened, setOpened } = useContext(OpenedContext);
   const { kind } = useContext(ConnTypeContext);
-
-  const matchPattern = useContext(MatchPatternContext);
+  const matchPattern = useAppConfigStore((state) => state.matchPattern);
   const handleReload = useCallback(() => {
     setLoading(true);
     listSchema(name)

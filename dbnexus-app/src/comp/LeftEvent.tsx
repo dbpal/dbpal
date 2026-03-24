@@ -15,8 +15,6 @@ import {
   ContextMenuContext,
   DataSourceKind,
   generateRandomString,
-  MatchPatternContext,
-  MaxTreeContext,
   secondConfirm,
   TabsSetContext,
   UuidContext,
@@ -24,12 +22,13 @@ import {
 import { ExceedMaxTreeItem, MenuRefresh } from "./CommonComp";
 import { listEvent } from "./handlers";
 import { CopySql } from "./CommonComp2";
+import { useAppConfigStore } from "./store";
 function EventsTree() {
   const { uuid } = useContext(UuidContext);
   const { kind } = useContext(ConnTypeContext);
   const [evens, setEvents] = useState<types.SqlEvent[]>([]);
   const { showNotification } = useContext(NotificationContext);
-  const maxsize = useContext(MaxTreeContext);
+  const { matchPattern, maxTree } = useAppConfigStore((state) => state);
   const reload = useCallback(() => {
     listEvent(uuid)
       .then((ts) => {
@@ -40,7 +39,6 @@ function EventsTree() {
       });
   }, [showNotification, uuid]);
   const [exceed, setExceed] = useState(0);
-  const matchPattern = useContext(MatchPatternContext);
   useEffect(() => {
     setExceed(evens.filter((e) => matchPattern(e.name)).length);
   }, [evens, matchPattern]);
@@ -76,7 +74,7 @@ function EventsTree() {
       {evens
         .filter((event) => matchPattern(event.name))
         .map((event, index) => {
-          if (index >= maxsize) {
+          if (index >= maxTree) {
             return;
           }
 
@@ -110,7 +108,7 @@ function EventsTree() {
             />
           );
         })}
-      <ExceedMaxTreeItem exceed={exceed} maxTreeSize={maxsize} />
+      <ExceedMaxTreeItem exceed={exceed} maxTreeSize={maxTree} />
     </TreeItem>
   );
 }

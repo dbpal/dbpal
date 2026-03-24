@@ -59,7 +59,6 @@ import {
   DataSourceKind,
   generateRandomString,
   secondConfirm,
-  MatchPatternContext,
   TabsSetContext,
   UuidContext,
   handleCopyToClipboard,
@@ -67,7 +66,6 @@ import {
   RedisTableType,
   TableType,
   shrinkAble,
-  MaxTreeContext,
 } from "./helper";
 import { ExceedMaxTreeItem, MenuRefresh, ModalHeader } from "./CommonComp";
 import { TableStructure } from "./TableStructure";
@@ -75,6 +73,7 @@ import { cancelTask, listTable, makeTableInsertFn, showTableColumn } from "./han
 import { filesize } from "filesize";
 import { CancelButton, CopySql, StackRowCenter } from "./CommonComp2";
 import { CouchBaseTable } from "./CouchBase";
+import { useAppConfigStore } from "./store.ts";
 
 function TablesTree(props: { typ: TableType }) {
   const { typ } = props;
@@ -84,8 +83,7 @@ function TablesTree(props: { typ: TableType }) {
   const { showNotification } = useContext(NotificationContext);
   const [loading, setLoading] = useState(false);
   const [exceed, setExceed] = useState(0);
-  const matchPattern = useContext(MatchPatternContext);
-  const maxsize = useContext(MaxTreeContext);
+  const { matchPattern, maxTree } = useAppConfigStore((state) => state);
   const tablesId = useRef(generateRandomString());
   useEffect(() => {
     setExceed(tables.filter((e) => matchPattern(e.name)).length);
@@ -152,7 +150,7 @@ function TablesTree(props: { typ: TableType }) {
       {tables
         .filter((e) => matchPattern(e.name))
         .map((e, index) => {
-          if (index >= maxsize) {
+          if (index >= maxTree) {
             return;
           }
           const id = `${uuid}-table-${typ}-${e.name}-${e.rand}`;
@@ -166,7 +164,7 @@ function TablesTree(props: { typ: TableType }) {
             />
           );
         })}
-      <ExceedMaxTreeItem exceed={exceed} maxTreeSize={maxsize} />
+      <ExceedMaxTreeItem exceed={exceed} maxTreeSize={maxTree} />
     </TreeItem>
   );
 }
