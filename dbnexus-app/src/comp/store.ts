@@ -1,3 +1,4 @@
+import { KeyboardEvent, ReactNode } from "react";
 import { create } from "zustand";
 
 export const useConfirmMsg = create<{
@@ -43,6 +44,21 @@ export const useAppConfigStore = create<AppConfigState>((set) => ({
   // 修改状态的方法
   setMaxTree: (val) => set({ maxTree: val }),
   setMatchPattern: (fn) => set({ matchPattern: fn }),
+}));
+
+export type ContextMenuState = {
+  event: KeyboardEvent;
+  content: ReactNode;
+};
+
+export const useContextMenu = create<{
+  state: ContextMenuState;
+  setUpMenu: (state: ContextMenuState) => void;
+}>((set) => ({
+  state: null,
+  setUpMenu: (s: ContextMenuState) => {
+    set(s);
+  },
 }));
 
 // export const settingStore = create<{
