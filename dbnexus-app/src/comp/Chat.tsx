@@ -37,7 +37,6 @@ import {
 import ArrowCircleUpIcon from "@mui/icons-material/ArrowCircleUp";
 import EventNoteIcon from "@mui/icons-material/EventNote";
 import EditIcon from "@mui/icons-material/Edit";
-import { NotificationContext } from "./Notification.tsx";
 import { PromptTemplate } from "@langchain/core/prompts";
 import {
   AITextCompletionName,
@@ -73,7 +72,7 @@ import {
 } from "./handlers.ts";
 
 import * as mongoQueryBackend from "./MongoQueryBackend.ts";
-import { useLLMConfig } from "./store.ts";
+import { useLLMConfig, useNotification } from "./store.ts";
 
 class SimpleArrayMemory {
   history: BaseMessage[];
@@ -589,7 +588,7 @@ function SqlChatTextInput(props: {
   const config = useLLMConfig((s) => s.config);
   const [prevQuestion, setPrevQuestion] = useState("");
   const [newQuestion, setNewQuestion] = useState("");
-  const { showNotification } = useContext(NotificationContext);
+  const { showNotification } = useNotification((s) => s);
   const [showPrompt, setShowPrompt] = useState(false);
   const [chatHistory, setChatHistory] = useState<string[]>([]);
   const [showChatHistory, setShowChatHistory] = useState(false);
@@ -876,7 +875,7 @@ function EditPromptTemplate(props: {
     userDefine ? userDefine : MakePrompt.getDefaultTemplate(kind),
   );
   const [editor, setEditor] = useState<editor.IStandaloneCodeEditor>(null);
-  const { showNotification } = useContext(NotificationContext);
+  const { showNotification } = useNotification((s) => s);
   const [templateVar, setTemplateVar] = useState("");
   const handleSave = async () => {
     try {
@@ -1053,7 +1052,7 @@ function ShowPrompt(props: {
 }) {
   const { handleClose, makePrompt } = props;
   const [prompt, setPrompt] = useState("");
-  const { showNotification } = useContext(NotificationContext);
+  const { showNotification } = useNotification((s) => s);
   useEffect(() => {
     makePrompt().then((e) => {
       setPrompt(e);
@@ -1102,7 +1101,7 @@ function AllKindChat(props: {
   favoriteName?: string;
   language?: string;
 }) {
-  const { showNotification } = useContext(NotificationContext);
+  const { showNotification } = useNotification((s) => s);
 
   const setConfig = useLLMConfig((s) => s.setConfig);
   const handleReload = useCallback(() => {

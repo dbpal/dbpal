@@ -38,7 +38,6 @@ import {
 } from "react";
 import { loader } from "./helper";
 import { BSON, EJSON } from "bson";
-import { NotificationContext } from "./Notification";
 import { TbJson } from "react-icons/tb";
 import {
   DataGrid,
@@ -97,7 +96,7 @@ import {
 import { message } from "@tauri-apps/plugin-dialog";
 import { invoke } from "@tauri-apps/api/core";
 import { AddTableView } from "./LeftTable";
-import { useContextMenu } from "./store";
+import { useContextMenu, useNotification } from "./store";
 enum MongoDataViewModel {
   List,
   Object,
@@ -292,7 +291,7 @@ function MongoBsonEditor(props: {
     };
   }, []);
 
-  const { showNotification } = useContext(NotificationContext);
+  const { showNotification } = useNotification((s) => s);
   const [content, setContent] = useState("{\n}");
   useEffect(() => {
     try {
@@ -740,7 +739,7 @@ function MongoTableListContextMenu(props: {
 }) {
   const { delOP, content, field, setFilter, loadDoc, setSort } = props;
   const [showFilter, setShowFilter] = useState(false);
-  const { showNotification } = useContext(NotificationContext);
+  const { showNotification } = useNotification((s) => s);
   const [showViewJson, setShowViewJson] = useState(false);
   const [modalBox, setModalBox] = useState(null);
 
@@ -896,7 +895,7 @@ function MongoTableListMenuFilter(props: {
   const { handleClose, loadValue, setFilter, field } = props;
   const compares = ["$eq", "$ne", "$gt", "$gte", "$lt", "$lte"];
   const [compare, setCompare] = useState(lastCompare);
-  const { showNotification } = useContext(NotificationContext);
+  const { showNotification } = useNotification((s) => s);
   const [value, setValue] = useState(null);
   const [doc, setDoc] = useState({});
   useEffect(() => {
@@ -1018,7 +1017,7 @@ function JsonEditor(props: {
   const [jsonErr, setJsonErr] = useState<ErrAndLoc | null>(null);
   const [loading, setLoading] = useState(false);
   const [jsonErrPos, setJsonErrPos] = useState<Position>(null);
-  const { showNotification } = useContext(NotificationContext);
+  const { showNotification } = useNotification((s) => s);
   useEffect(() => {
     (async () => {
       try {
@@ -1149,7 +1148,7 @@ function MongoTableList(props: {
   } = props;
   const [page, setPage] = useState(0);
   const [pageSize, setPageSize] = useState(SavePageSize.instance.get());
-  const { showNotification } = useContext(NotificationContext);
+  const { showNotification } = useNotification((s) => s);
   const [resp, setResp] = useState<MuiDataGridData | null>(null);
   const [selectModifyDoc, setSelectModifyDoc] = useState<BSON.Document | null>(null);
   const [showExport, setShowExport] = useState(false);
@@ -1515,7 +1514,7 @@ function MongoTableObject(props: {
     SavePageSize.mongodb.save(pageSize);
   }, [pageSize]);
 
-  const { showNotification } = useContext(NotificationContext);
+  const { showNotification } = useNotification((s) => s);
   const handleReload = useCallback(
     async (showOK) => {
       setLoading(true);
@@ -1851,7 +1850,7 @@ function MongoTable(props: { uuid: string; table: string; isTable: boolean }) {
 
 function MongoTableAdd(props: { addOP: (doc: BSON.Document) => Promise<void> }) {
   const { addOP } = props;
-  const { showNotification } = useContext(NotificationContext);
+  const { showNotification } = useNotification((s) => s);
   const handleAdd = async (doc) => {
     try {
       await addOP(doc);

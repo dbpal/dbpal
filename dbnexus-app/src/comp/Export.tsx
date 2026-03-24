@@ -11,7 +11,6 @@ import {
 import { filesize } from "filesize";
 import { useContext, useEffect, useRef, useState } from "react";
 import types from "./ApiStruct";
-import { NotificationContext } from "./Notification";
 import { save } from "@tauri-apps/plugin-dialog";
 import ArrowCircleDownIcon from "@mui/icons-material/ArrowCircleDown";
 import { Channel, invoke } from "@tauri-apps/api/core";
@@ -24,6 +23,7 @@ import {
 
 import { cancelTask } from "./handlers";
 import { CancelButton, StackRowCenter } from "./CommonComp2";
+import { useNotification } from "./store";
 function IncludeHeader({ includeHeader, setIncludeHeader }) {
   return (
     <FormControlLabel
@@ -62,7 +62,7 @@ function ExportView(props: {
   const [delimiter, setDelimiter] = useState(setting.export.csvDelimiter);
   const [pretty, setPretty] = useState(true);
   const [includeTableSchema, setIncludeTableSchema] = useState(false);
-  const { showNotification } = useContext(NotificationContext);
+  const { showNotification } = useNotification((s) => s);
   const [loading, setLoading] = useState(false);
   const [file, setFile] = useState<string | null>(null);
   const taskId = useRef(generateRandomString(5));

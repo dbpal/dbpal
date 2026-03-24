@@ -42,12 +42,12 @@ import {
 } from "./helper.ts";
 import { ModalHeader, ResizeParentHeight } from "./CommonComp.tsx";
 import { BsFillLightbulbFill } from "react-icons/bs";
-import { NotificationContext } from "./Notification.tsx";
 import {
   AppDataGridPagination,
   SimpleFlexEditor,
   StackRowCenter,
 } from "./CommonComp2.tsx";
+import { useNotification } from "./store.ts";
 
 const initialState: object = {
   sorting: { sortModel: [{ field: "create_at", sort: "desc" }] },
@@ -93,7 +93,7 @@ function QueryLog(props: {
       sqlDesc = "code";
       break;
   }
-  const { showNotification } = useContext(NotificationContext);
+  const { showNotification } = useNotification((s) => s);
   const columns = [
     {
       field: "create_at",

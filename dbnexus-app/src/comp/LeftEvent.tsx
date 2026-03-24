@@ -6,7 +6,6 @@ import InfoIcon from "@mui/icons-material/Info";
 import { DefAndMetas, tabsHasId } from "./Common";
 import types from "./ApiStruct";
 import { invoke } from "@tauri-apps/api/core";
-import { NotificationContext } from "./Notification";
 import { TabContent } from "./Tabs";
 import { DefAndMetasView } from "./DefAndMetaView";
 import { MdOutlineEventRepeat } from "react-icons/md";
@@ -20,12 +19,17 @@ import {
 import { ExceedMaxTreeItem, MenuRefresh } from "./CommonComp";
 import { listEvent } from "./handlers";
 import { CopySql } from "./CommonComp2";
-import { useAppConfigStore, useContextMenu, useTabsManage } from "./store";
+import {
+  useAppConfigStore,
+  useContextMenu,
+  useNotification,
+  useTabsManage,
+} from "./store";
 function EventsTree() {
   const { uuid } = useContext(UuidContext);
   const { kind } = useContext(ConnTypeContext);
   const [evens, setEvents] = useState<types.SqlEvent[]>([]);
-  const { showNotification } = useContext(NotificationContext);
+  const { showNotification } = useNotification((s) => s);
   const { matchPattern, maxTree } = useAppConfigStore((state) => state);
   const reload = useCallback(() => {
     listEvent(uuid)
@@ -120,7 +124,7 @@ function EventMenu(props: {
 }) {
   const { uuid, event, reload, kind, id } = props;
   const { setCurrentTab, tabs, appendTab } = useTabsManage((state) => state);
-  const { showNotification } = useContext(NotificationContext);
+  const { showNotification } = useNotification((s) => s);
   const handleOpenDetails = () => {
     const index = tabsHasId(tabs, id);
     if (typeof index == "number") {

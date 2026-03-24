@@ -44,7 +44,6 @@ import ArrowUpwardIcon from "@mui/icons-material/ArrowUpward";
 import ArrowDownwardIcon from "@mui/icons-material/ArrowDownward";
 
 import ContentCopyIcon from "@mui/icons-material/ContentCopy";
-import { NotificationContext } from "./Notification.tsx";
 import {
   AppColumnMenu,
   ModalHeader,
@@ -53,11 +52,11 @@ import {
 } from "./CommonComp.tsx";
 import VisibilityIcon from "@mui/icons-material/Visibility";
 import { AppDataGridPagination, StackRowCenter } from "./CommonComp2.tsx";
-import { useContextMenu } from "./store.ts";
+import { useContextMenu, useNotification } from "./store.ts";
 
 function RespContextMenu(props: { content; field; setSort; viewInModal }) {
   const { content, field, setSort, viewInModal } = props;
-  const { showNotification } = useContext(NotificationContext);
+  const { showNotification } = useNotification((s) => s);
   return (
     <MenuList>
       {content && (
@@ -302,7 +301,7 @@ function MultiQueryResp(props: { data: QueryRespData[] }) {
   const { data } = props;
   const [value, setValue] = React.useState(0);
 
-  const { showNotification } = useContext(NotificationContext);
+  const { showNotification } = useNotification((s) => s);
   if (data.length == 0) {
     return <></>;
   }

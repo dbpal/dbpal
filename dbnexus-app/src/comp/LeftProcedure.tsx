@@ -6,7 +6,6 @@ import InfoIcon from "@mui/icons-material/Info";
 import { tabsHasId } from "./Common";
 import types from "./ApiStruct";
 import { invoke } from "@tauri-apps/api/core";
-import { NotificationContext } from "./Notification";
 import { TabContent } from "./Tabs";
 import { DefAndMetasView } from "./DefAndMetaView";
 
@@ -21,12 +20,17 @@ import {
 import { ExceedMaxTreeItem, MenuRefresh, UdfNameAndParameters } from "./CommonComp";
 import { listProcedure, makeShowProcedureExtraArg, showProcedure } from "./handlers";
 import { CopySql } from "./CommonComp2";
-import { useAppConfigStore, useContextMenu, useTabsManage } from "./store";
+import {
+  useAppConfigStore,
+  useContextMenu,
+  useNotification,
+  useTabsManage,
+} from "./store";
 function ProceduresTree() {
   const { uuid } = useContext(UuidContext);
   const { kind } = useContext(ConnTypeContext);
   const [ps, setPos] = useState<types.NamedStaff[]>([]);
-  const { showNotification } = useContext(NotificationContext);
+  const { showNotification } = useNotification((s) => s);
   const { matchPattern, maxTree } = useAppConfigStore((state) => state);
   const reload = useCallback(() => {
     listProcedure(uuid)
@@ -120,7 +124,7 @@ function ProcedureMenu(props: {
 }) {
   const { uuid, procedure, reload, kind, id } = props;
   const { setCurrentTab, tabs, appendTab } = useTabsManage((state) => state);
-  const { showNotification } = useContext(NotificationContext);
+  const { showNotification } = useNotification((s) => s);
 
   const handleOpenDetails = () => {
     const index = tabsHasId(tabs, id);

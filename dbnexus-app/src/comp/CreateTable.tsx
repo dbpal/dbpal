@@ -24,10 +24,10 @@ import {
 } from "./CommonComp2";
 import CloseIcon from "@mui/icons-material/Close";
 import KeyIcon from "@mui/icons-material/Key";
-import { NotificationContext } from "./Notification";
 import { invoke } from "@tauri-apps/api/core";
 import { AllKindChat } from "./Chat";
 import { makeFormatFn } from "./Common";
+import { useNotification } from "./store";
 
 function CreateTable(props: { uuid: string; kind: DataSourceKind }) {
   const { uuid, kind } = props;
@@ -61,7 +61,7 @@ function CreateTable(props: { uuid: string; kind: DataSourceKind }) {
   const [editorValue, setEditorValue] = useState("");
   const setting = useContext(SettingContext);
   const tableNameRef = useRef<HTMLInputElement>(null);
-  const { showNotification } = useContext(NotificationContext);
+  const { showNotification } = useNotification((s) => s);
   const makeReq = useCallback(() => {
     {
       // check

@@ -35,7 +35,6 @@ import {
   useTheme,
 } from "@mui/material";
 import { HexColorPicker } from "react-colorful";
-import { NotificationContext } from "./Notification";
 import { openPath, openUrl } from "@tauri-apps/plugin-opener";
 import {
   ErrAndLoc,
@@ -74,10 +73,10 @@ import { listen } from "@tauri-apps/api/event";
 import { EscDownEvent, modalHandleClose, modalStyle } from "./Common";
 import { LogLevelSelection, ModalHeader } from "./CommonComp";
 import { appLogDir } from "@tauri-apps/api/path";
-import { useLLMConfig } from "./store";
+import { useLLMConfig, useNotification } from "./store";
 
 function AppearanceSetting() {
-  const { showNotification } = useContext(NotificationContext);
+  const { showNotification } = useNotification((s) => s);
   const [allFonts, setAllFonts] = useState<string[]>([]);
   const [showEditBgColor, setShowEditBgColor] = useState(false);
   const [fontWeight, setFontWeight] = useState("");
@@ -338,7 +337,7 @@ function EditorSetting() {
   const [customEditorTheme, setCustomEditorTheme] = useState("");
   const [highLightTheme, setHighlightTheme] = useState("");
   const muiTheme = useTheme();
-  const { showNotification } = useContext(NotificationContext);
+  const { showNotification } = useNotification((s) => s);
 
   useEffect(() => {
     UserSettingEditor.get().then((setting) => {
@@ -459,7 +458,7 @@ const headerSize = "16rem";
 function ExportSetting() {
   const [csvDelimiter, setCsvDelimiter] = useState(",");
   const [includeHeader, setIncludeHeader] = useState(true);
-  const { showNotification } = useContext(NotificationContext);
+  const { showNotification } = useNotification((s) => s);
   useEffect(() => {
     UserSettingExport.get().then((setting) => {
       setCsvDelimiter(setting.csvDelimiter);
@@ -540,7 +539,7 @@ function LLMSetting(props: { handleClose?: () => void }) {
   const [temperature, setTemperature] = useState("0");
   const [model, setModel] = useState("");
   const [apiKey, setApiKey] = useState("");
-  const { showNotification } = useContext(NotificationContext);
+  const { showNotification } = useNotification((s) => s);
   const [maxToken, setMaxToken] = useState("");
   const [topP, setTopP] = useState("");
   const [moddelCan, setModdelCan] = useState<ModelDef[]>([]);
@@ -814,7 +813,7 @@ function LLMSetting(props: { handleClose?: () => void }) {
 
 function MiscSetting() {
   const [autoStart, setAutoStart] = useState(false);
-  const { showNotification } = useContext(NotificationContext);
+  const { showNotification } = useNotification((s) => s);
 
   useEffect(() => {
     UserSettingMisc.get().then((setting) => {
@@ -944,7 +943,7 @@ function EditorOptions(props: {
   handleClose;
   style: CSSProperties;
 }) {
-  const { showNotification } = useContext(NotificationContext);
+  const { showNotification } = useNotification((s) => s);
   const { editorOptions, setEditorOptions, handleClose, style } = props;
   const [value, setValue] = useState(editorOptions);
   const [jsonErrPos, setJsonErrPos] = useState<Position>(null);

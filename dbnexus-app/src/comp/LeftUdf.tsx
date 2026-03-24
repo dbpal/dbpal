@@ -14,7 +14,6 @@ import { MdFunctions } from "react-icons/md";
 import { tabsHasId } from "./Common";
 import types from "./ApiStruct";
 import { invoke } from "@tauri-apps/api/core";
-import { NotificationContext } from "./Notification";
 import { TabContent } from "./Tabs";
 import { DefAndMetasView } from "./DefAndMetaView";
 
@@ -31,14 +30,19 @@ import { ExceedMaxTreeItem, MenuRefresh, UdfNameAndParameters } from "./CommonCo
 import { listCassandraAgg, listUdf, makeUdfExtraArg, showUdf } from "./handlers";
 import { showCassandraAgg } from "./handlers";
 import { CopySql } from "./CommonComp2";
-import { useAppConfigStore, useContextMenu, useTabsManage } from "./store";
+import {
+  useAppConfigStore,
+  useContextMenu,
+  useNotification,
+  useTabsManage,
+} from "./store";
 
 function UdfsTree() {
   const { uuid } = useContext(UuidContext);
   const { kind } = useContext(ConnTypeContext);
 
   const [udfs, setUdfs] = useState<types.NamedStaff[]>([]);
-  const { showNotification } = useContext(NotificationContext);
+  const { showNotification } = useNotification((s) => s);
   const [exceed, setExceed] = useState(0);
   const { matchPattern, maxTree } = useAppConfigStore((state) => state);
   useEffect(() => {
@@ -130,7 +134,7 @@ function UdfMenu(props: {
 }) {
   const { uuid, udf, reload, kind, id } = props;
   const { setCurrentTab, tabs, appendTab } = useTabsManage((state) => state);
-  const { showNotification } = useContext(NotificationContext);
+  const { showNotification } = useNotification((s) => s);
   const handleOpenDetails = () => {
     const index = tabsHasId(tabs, id);
     if (typeof index == "number") {
@@ -208,7 +212,7 @@ function CassandraAggregateMenu(props: {
 }) {
   const { uuid, agg, reload, parameters } = props;
   const { setCurrentTab, tabs, appendTab } = useTabsManage((state) => state);
-  const { showNotification } = useContext(NotificationContext);
+  const { showNotification } = useNotification((s) => s);
 
   const handleOpenDetails = () => {
     const id = uuid + "-" + "-cassandra-aggregate-" + agg;
@@ -291,7 +295,7 @@ function CassandraAggregateMenu(props: {
 function CassandraAggregatesTree() {
   const { uuid } = useContext(UuidContext);
   const [aggs, setAggs] = useState<types.NamedStaff[]>([]);
-  const { showNotification } = useContext(NotificationContext);
+  const { showNotification } = useNotification((s) => s);
   const reload = useCallback(() => {
     listCassandraAgg(uuid)
       .then((ts) => {

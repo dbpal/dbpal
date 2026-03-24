@@ -1,6 +1,6 @@
-import { NotificationContext, NotificationProvider } from "./Notification";
+import { NotificationProvider } from "./Notification";
 import { Panel, PanelGroup, PanelResizeHandle } from "react-resizable-panels";
-import { CSSProperties, useCallback, useContext, useEffect, useState } from "react";
+import { CSSProperties, useCallback, useEffect, useState } from "react";
 import { TabsWithContent } from "./Tabs";
 import { Left } from "./Left";
 import { SettingProvider } from "./Settings.tsx";
@@ -21,11 +21,16 @@ import { openUrl } from "@tauri-apps/plugin-opener";
 import DeleteForeverIcon from "@mui/icons-material/DeleteForever";
 import { listen } from "@tauri-apps/api/event";
 import { ShowCuts } from "./ShortCuts.tsx";
-import { useConfirmMsg, useContextMenu, useTabsManage } from "./store.ts";
+import {
+  useConfirmMsg,
+  useContextMenu,
+  useNotification,
+  useTabsManage,
+} from "./store.ts";
 
 function ShowPanic() {
   const [panicInfo, setPanicInfo] = useState("");
-  const { showNotification } = useContext(NotificationContext);
+  const { showNotification } = useNotification((s) => s);
   const theme = useTheme();
   const getPanicFilePath = async () => {
     return appLogDir().then((e) => {
@@ -225,55 +230,54 @@ function App() {
 
   return (
     <SettingProvider>
-      <NotificationProvider>
-        <Menu />
-        <div>
-          <ShowPanic />
-          <ShowShortCut />
-          <PanelGroup
-            direction="horizontal"
+      <NotificationProvider />
+      <Menu />
+      <div>
+        <ShowPanic />
+        <ShowShortCut />
+        <PanelGroup
+          direction="horizontal"
+          style={{
+            height: "100vh",
+            width: "100vw",
+            padding: "0.5rem 1rem",
+          }}
+          autoSaveId="main"
+        >
+          <Panel
             style={{
-              height: "100vh",
-              width: "100vw",
-              padding: "0.5rem 1rem",
+              overflow: "auto",
+              height: "100%",
+              paddingRight: "2px",
             }}
-            autoSaveId="main"
+            minSize={10}
+            maxSize={85}
+            collapsible
+            collapsedSize={0}
           >
-            <Panel
-              style={{
-                overflow: "auto",
-                height: "100%",
-                paddingRight: "2px",
-              }}
-              minSize={10}
-              maxSize={85}
-              collapsible
-              collapsedSize={0}
-            >
-              <Left />
-            </Panel>
-            <PanelResizeHandle
-              style={{ width: resizeHandlerSize }}
-              className="resize-handle"
+            <Left />
+          </Panel>
+          <PanelResizeHandle
+            style={{ width: resizeHandlerSize }}
+            className="resize-handle"
+          />
+          <Panel
+            style={{
+              overflow: "auto",
+              height: "100%",
+              paddingLeft: "2px",
+            }}
+          >
+            <TabsWithContent
+              handleClose={closeTab}
+              tabs={tabs}
+              selectIndex={currentTab}
+              changeTab={changeTab}
+              setTabs={setTabs}
             />
-            <Panel
-              style={{
-                overflow: "auto",
-                height: "100%",
-                paddingLeft: "2px",
-              }}
-            >
-              <TabsWithContent
-                handleClose={closeTab}
-                tabs={tabs}
-                selectIndex={currentTab}
-                changeTab={changeTab}
-                setTabs={setTabs}
-              />
-            </Panel>
-          </PanelGroup>
-        </div>
-      </NotificationProvider>
+          </Panel>
+        </PanelGroup>
+      </div>
     </SettingProvider>
   );
 }

@@ -33,7 +33,6 @@ import DeleteForeverIcon from "@mui/icons-material/DeleteForever";
 import { modalStyle, reloadOK, EscDownEvent, modalHandleClose } from "./Common";
 import ClearIcon from "@mui/icons-material/Clear";
 import { openUrl } from "@tauri-apps/plugin-opener";
-import { NotificationContext } from "./Notification";
 import {
   DataGrid,
   GridCallbackDetails,
@@ -83,7 +82,7 @@ import {
 import { invoke } from "@tauri-apps/api/core";
 import { showTable } from "./handlers.ts";
 import { AddTableView } from "./LeftTable.tsx";
-import { useContextMenu } from "./store.ts";
+import { useContextMenu, useNotification } from "./store.ts";
 
 class RedisZsetHashModifyReq {
   constructor(
@@ -119,7 +118,7 @@ function RedisAddList(props: { uuid: string; listKey: string }) {
   };
   const [loading, setLoading] = useState(false);
   const [direction, setDirection] = useState<ListPushDirection>("left");
-  const { showNotification } = useContext(NotificationContext);
+  const { showNotification } = useNotification((s) => s);
   const valueRef = useRef(new EditorAndMode());
   const handleAdd = () => {
     const content = valueRef.current.getValue();
@@ -177,7 +176,7 @@ function RedisStringTable(props: { uuid: string; stringKey: string }) {
   };
   const [content, setContent] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
-  const { showNotification } = useContext(NotificationContext);
+  const { showNotification } = useNotification((s) => s);
   const valueRef = useRef(new EditorAndMode());
   const [queryStatus, setQueryStatus] = useState("");
   useEffect(() => {
@@ -248,7 +247,7 @@ function RedisAddSet(props: { uuid: string; setKey: string }) {
   };
   const [loading, setLoading] = useState(false);
   const valueRef = useRef(new EditorAndMode());
-  const { showNotification } = useContext(NotificationContext);
+  const { showNotification } = useNotification((s) => s);
   const handleAdd = () => {
     const c = valueRef.current.getValue();
     if (!c) {
@@ -294,7 +293,7 @@ function RedisAddHash(props: { uuid: string; hashKey: string }) {
   const [loading, setLoading] = useState(false);
   const key = useRef(new EditorAndMode());
   const value = useRef(new EditorAndMode());
-  const { showNotification } = useContext(NotificationContext);
+  const { showNotification } = useNotification((s) => s);
   const handleAdd = () => {
     setLoading(true);
     addOP(key.current.getValue(), value.current.getValue())
@@ -341,7 +340,7 @@ function RedisAddZset(props: { uuid: string; zsetKey: string }) {
   const [loading, setLoading] = useState(false);
   const [score, setScore] = useState("");
   const valueRef = useRef(new EditorAndMode());
-  const { showNotification } = useContext(NotificationContext);
+  const { showNotification } = useNotification((s) => s);
 
   const handleAdd = () => {
     // reset some state
@@ -405,7 +404,7 @@ function RedisEditHash(props: {
   const [loading, setLoading] = useState(false);
   const newkey = useRef(new EditorAndMode());
   const newValue = useRef(new EditorAndMode());
-  const { showNotification } = useContext(NotificationContext);
+  const { showNotification } = useNotification((s) => s);
 
   const handleModify = async () => {
     const confirm = await secondConfirm({ title: "sure to modify?" });
@@ -460,7 +459,7 @@ function RedisEditZset(props: {
   const [loading, setLoading] = useState(false);
   const newKey = useRef(new EditorAndMode());
   const [newValue, setNewValue] = useState(oldValue);
-  const { showNotification } = useContext(NotificationContext);
+  const { showNotification } = useNotification((s) => s);
   const handleModify = async () => {
     if (oldKey == newKey.current.getValue() && oldValue == newValue) {
       return;
@@ -690,7 +689,7 @@ function RedisEditList(props: {
   const { oldValue, modifyOP, handleClose } = props;
   const [loading, setLoading] = useState(false);
   const newValue = useRef(new EditorAndMode());
-  const { showNotification } = useContext(NotificationContext);
+  const { showNotification } = useNotification((s) => s);
 
   // really modify the content.
   const handleModify = async () => {
@@ -731,7 +730,7 @@ function RedisEditSet(props: {
   const { oldValue, modifyOP, handleClose } = props;
   const [loading, setLoading] = useState(false);
   const newValue = useRef(new EditorAndMode());
-  const { showNotification } = useContext(NotificationContext);
+  const { showNotification } = useNotification((s) => s);
 
   const handleModify = async () => {
     const confirm = await secondConfirm({ title: "sure to modify?" });
@@ -766,7 +765,7 @@ function RedisEditSet(props: {
 
 function RedisSetTableContextMenu(props: { delOP: () => void; content }) {
   const { delOP, content } = props;
-  const { showNotification } = useContext(NotificationContext);
+  const { showNotification } = useNotification((s) => s);
   return (
     <MenuList>
       {content && (
@@ -829,7 +828,7 @@ function RedisSetTable(props: { setKey: string; uuid: string }) {
     setLastFetchTime(new Date());
   }, [resp]);
   const [fetchDur, setFetchDur] = useState(0);
-  const { showNotification } = useContext(NotificationContext);
+  const { showNotification } = useNotification((s) => s);
   const [selectRow, setSelectRow] = useState<{ id; value }>(null);
   const [loading, setLoading] = useState(false);
   const maxRowRef = useRef(getSliderSizeStoreValue(redisMaxRowKey, redisMinRow));
@@ -1071,7 +1070,7 @@ function RedisListTableContextMenu(props: {
   const { delOP, content } = props;
   const [count, setCount] = useState("1");
   const [showDel, setShowDel] = useState(false);
-  const { showNotification } = useContext(NotificationContext);
+  const { showNotification } = useNotification((s) => s);
   return (
     <div>
       <MenuList>
@@ -1231,7 +1230,7 @@ function RedisListTable(props: { listKey: string; uuid: string }) {
   const [fetchDur, setFetchDur] = useState(0);
   const [respOrigin, setRespOrigin] = useState<MuiDataGridData>(newEmptyResp());
   const [selectRow, setSelectRow] = useState<any>(null);
-  const { showNotification } = useContext(NotificationContext);
+  const { showNotification } = useNotification((s) => s);
   const [pageSize, setPageSize] = useState(SavePageSize.instance.get());
   const [page, setPage] = useState(0);
   const [loading, setLoading] = useState(false);
@@ -1506,7 +1505,7 @@ function RedisListTable(props: { listKey: string; uuid: string }) {
 
 function RedisZSetTableContextMenu(props: { delOP: () => void; content }) {
   const { delOP, content } = props;
-  const { showNotification } = useContext(NotificationContext);
+  const { showNotification } = useNotification((s) => s);
   return (
     <MenuList>
       {content && (
@@ -1575,7 +1574,7 @@ function RedisZsetTable(props: { uuid: string; zsetKey: string }) {
   const [minErr, setMinErr] = useState(false);
   const [maxErr, setMaxErr] = useState(false);
   const [loading, setLoading] = useState(false);
-  const { showNotification } = useContext(NotificationContext);
+  const { showNotification } = useNotification((s) => s);
   const setting = useContext(SettingContext);
   const maxRowRef = useRef(getSliderSizeStoreValue(redisMaxRowKey, redisMinRow));
   const [queryStatus, setQueryStatus] = useState("");
@@ -1900,7 +1899,7 @@ function RedisZsetTable(props: { uuid: string; zsetKey: string }) {
 function RedisHashTableContextMenu(props: { delOP: () => void; content }) {
   const { delOP, content } = props;
 
-  const { showNotification } = useContext(NotificationContext);
+  const { showNotification } = useNotification((s) => s);
   return (
     <div>
       <MenuList>
@@ -1964,7 +1963,7 @@ function RedisHashTable(props: { hashKey: string; uuid: string }) {
   };
   const [keyMatch, setKeyMatch] = useState("");
   const [resp, setResp] = useState<MuiDataGridData>(newEmptyResp());
-  const { showNotification } = useContext(NotificationContext);
+  const { showNotification } = useNotification((s) => s);
   const [selectRow, setSelectRow] = useState<any>(null);
   const [loading, setLoading] = useState(false);
   const setting = useContext(SettingContext);

@@ -23,7 +23,6 @@ import {
 } from "./Common.ts";
 import types from "./ApiStruct.ts";
 import { invoke } from "@tauri-apps/api/core";
-import { NotificationContext } from "./Notification.tsx";
 import { TabContent } from "./Tabs.tsx";
 import { DefAndMetasView } from "./DefAndMetaView.tsx";
 import {
@@ -38,12 +37,17 @@ import { ExceedMaxTreeItem, MenuRefresh } from "./CommonComp.tsx";
 import { listSequence } from "./handlers.ts";
 import { GrSteps } from "react-icons/gr";
 import { CopySql } from "./CommonComp2.tsx";
-import { useAppConfigStore, useContextMenu, useTabsManage } from "./store.ts";
+import {
+  useAppConfigStore,
+  useContextMenu,
+  useNotification,
+  useTabsManage,
+} from "./store.ts";
 function SequenceTree() {
   const { uuid } = useContext(UuidContext);
   const { kind } = useContext(ConnTypeContext);
   const [seq, setSeq] = useState<types.SequenceDetail[]>([]);
-  const { showNotification } = useContext(NotificationContext);
+  const { showNotification } = useNotification((s) => s);
   const { matchPattern, maxTree } = useAppConfigStore((state) => state);
   const reload = useCallback(() => {
     listSequence(uuid)
@@ -153,7 +157,7 @@ function SequenceMenu(props: {
 }) {
   const { uuid, seq, reload, kind, id } = props;
   const { setCurrentTab, tabs, appendTab } = useTabsManage((state) => state);
-  const { showNotification } = useContext(NotificationContext);
+  const { showNotification } = useNotification((s) => s);
   const [showDrop, setShowDrop] = useState(false);
   const [cascade, setCascade] = useState(false);
   const supportCascade = [DataSourceKind.Postgres].includes(kind);

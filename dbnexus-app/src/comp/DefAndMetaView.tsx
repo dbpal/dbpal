@@ -1,12 +1,12 @@
-import { useCallback, useContext, useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 
-import { NotificationContext } from "./Notification";
 import { DefAndMetas } from "./Common";
 import { DataSourceKind, QuerySomeShowContext } from "./helper";
 import types from "./ApiStruct";
 import { AllKindChat } from "./Chat";
 import { MetaValueView } from "./CommonComp";
 import { CircularProgress, Stack, Tooltip, Typography } from "@mui/material";
+import { useNotification } from "./store";
 
 function DefAndMetasView(props: {
   reloadOP: () => Promise<DefAndMetas>;
@@ -19,7 +19,7 @@ function DefAndMetasView(props: {
     def: "",
     metas: [],
   });
-  const { showNotification } = useContext(NotificationContext);
+  const { showNotification } = useNotification((s) => s);
   const handleReload = useCallback(
     (showOk) => {
       setLoading(true);

@@ -37,7 +37,6 @@ import {
 import { BsFillLightbulbFill } from "react-icons/bs";
 import { FaUpload } from "react-icons/fa";
 import { MdOutlineReply } from "react-icons/md";
-import { NotificationContext } from "./Notification.tsx";
 import { QueryLog } from "./QueryLog.tsx";
 import RefreshIcon from "@mui/icons-material/Refresh";
 import {
@@ -73,11 +72,11 @@ import { ModifyLLMConfigModal } from "./Settings.tsx";
 import { cancelTask, checkSql } from "./handlers.ts";
 import { Channel } from "@tauri-apps/api/core";
 import { v4 as uuidv4 } from "uuid";
-import { useConfirmMsg } from "./store.ts";
+import { useConfirmMsg, useNotification } from "./store.ts";
 function SqlTransaction(props: { conn: QueryConn; executeTimes: number }) {
   const { conn, executeTimes } = props;
   const [commit, setCommit] = useState(true);
-  const { showNotification } = useContext(NotificationContext);
+  const { showNotification } = useNotification((s) => s);
   const [txCount, setTxCount] = useState(0);
   const tabCtx = useContext(TabContext);
   const { removeConfirmMsg, addConfirmMsg } = useConfirmMsg((state) => state);
@@ -213,7 +212,7 @@ function SqlQuery(props: {
   const [pos, setPos] = useState<Position | null>(null);
   const [loading, setLoading] = useState(false);
   const [makeConnLoading, setMakeConnLoading] = useState(false);
-  const { showNotification } = useContext(NotificationContext);
+  const { showNotification } = useNotification((s) => s);
   const [showQueryLog, setShowQueryLog] = useState(false);
   const setting = useContext(SettingContext);
   const queryLogHandler = useRef(new QueryLogHandler(uuid));

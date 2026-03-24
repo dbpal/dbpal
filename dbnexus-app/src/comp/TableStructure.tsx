@@ -20,7 +20,6 @@ import {
   SettingContext,
 } from "./helper";
 import CancelIcon from "@mui/icons-material/Cancel";
-import { NotificationContext } from "./Notification";
 import { invoke } from "@tauri-apps/api/core";
 import CheckCircleIcon from "@mui/icons-material/CheckCircle";
 import {
@@ -76,7 +75,7 @@ import {
   StackRowCenter,
   TypeSelect,
 } from "./CommonComp2";
-import { useContextMenu } from "./store";
+import { useContextMenu, useNotification } from "./store";
 
 function ColumnMenu(props: {
   col: string;
@@ -84,7 +83,7 @@ function ColumnMenu(props: {
   supportModifyColumn;
   handleDrop;
 }) {
-  const { showNotification } = useContext(NotificationContext);
+  const { showNotification } = useNotification((s) => s);
   const { col, content, supportModifyColumn, handleDrop } = props;
   return (
     <MenuList>
@@ -125,7 +124,7 @@ function ColumnsStructure(props: {
   const setting = useContext(SettingContext);
   const [loading, setLoading] = useState(false);
   const [fields, setFields] = useState<types.Field[]>([]);
-  const { showNotification } = useContext(NotificationContext);
+  const { showNotification } = useNotification((s) => s);
   const [row, setRow] = useState<types.Field>(null);
   const supportModifyColumn = new Set([
     DataSourceKind.MariaDB,
@@ -440,7 +439,7 @@ function RenameIndex(props: {
   const { uuid, table, reload, handleClose, indexName } = props;
   const [loading, setLoading] = useState(false);
   const [newName, setNewname] = useState(indexName);
-  const { showNotification } = useContext(NotificationContext);
+  const { showNotification } = useNotification((s) => s);
   const handleRename = () => {
     if (newName == indexName) {
       showNotification("warning", "name not change");
@@ -491,7 +490,7 @@ function IndexMenu(props: {
   handleDrop;
 }) {
   const { content, indexName, setRenameIndexName, handleDrop } = props;
-  const { showNotification } = useContext(NotificationContext);
+  const { showNotification } = useNotification((s) => s);
 
   return (
     <MenuList>
@@ -540,7 +539,7 @@ function IndexesStructure(props: {
   const setting = useContext(SettingContext);
   const [loading, setLoading] = useState(false);
   const [indexes, setIndexes] = useState<types.Index[]>([]);
-  const { showNotification } = useContext(NotificationContext);
+  const { showNotification } = useNotification((s) => s);
   const [renameIndexName, setRenameIndexName] = useState("");
   const [showAdd, setShowAdd] = useState(false);
 
@@ -798,7 +797,7 @@ function MongoAddIndex(props: { uuid; table; handleClose; reload }) {
   const [indexType, setIndexType] = useState(indexTypes[0]);
   const [indexName, setIndexName] = useState("");
   const indexNameDom = useRef<HTMLInputElement>(null);
-  const { showNotification } = useContext(NotificationContext);
+  const { showNotification } = useNotification((s) => s);
 
   const handleAdd = async (keys) => {
     try {
@@ -866,7 +865,7 @@ function AddIndex(props: {
 }) {
   const { uuid, table, handleClose, reload, kind } = props;
   const [fields, setFields] = useState<types.Field[]>([]);
-  const { showNotification } = useContext(NotificationContext);
+  const { showNotification } = useNotification((s) => s);
   const [req, setReq] = useState<types.CreateIndexReq>(null);
   useEffect(() => {
     showTableColumn(uuid, table)
@@ -931,7 +930,7 @@ function TableAddColumn(props: {
   const [name, setName] = useState("");
   const [nullable, setNullness] = useState<types.SqlNullAble>("none");
   const [typ, setTyp] = useState("");
-  const { showNotification } = useContext(NotificationContext);
+  const { showNotification } = useNotification((s) => s);
   const [after, setAfter] = useState("");
   const [defaultValue, setDefaultValue] = useState("");
   const supportAfter = [
@@ -1068,7 +1067,7 @@ function ModifyTableColumn(props: {
   const [loading, setLoading] = useState(false);
   const [newName, setNewName] = useState(col);
   const [newTyp, setNewTyp] = useState(typ);
-  const { showNotification } = useContext(NotificationContext);
+  const { showNotification } = useNotification((s) => s);
   const [modifyType, setModifyType] = useState(false);
   const supportModifyType = ![DataSourceKind.Cassandra].includes(kind);
   const supportModifyDefault = ![DataSourceKind.SqlServer].includes(kind);
@@ -1214,7 +1213,7 @@ function TriggerMenu(props: {
   handleDrop;
 }) {
   const { content, detail, handleEnables, handleDrop } = props;
-  const { showNotification } = useContext(NotificationContext);
+  const { showNotification } = useNotification((s) => s);
   let enable: ReactNode;
   if (detail.enable) {
     enable = triggerIsEnable(detail.enable) ? (
@@ -1283,7 +1282,7 @@ function TriggersStructure(props: {
   const [loading, setLoading] = useState(false);
   const [triggers, setTriggers] = useState<types.TriggerDetail[]>([]);
   const [row, setRow] = useState<types.TriggerDetail>(null);
-  const { showNotification } = useContext(NotificationContext);
+  const { showNotification } = useNotification((s) => s);
 
   const onColumnResize = useCallback(({ colDef, width }) => {
     ColumnWidth.instance.save(colDef.field, width);

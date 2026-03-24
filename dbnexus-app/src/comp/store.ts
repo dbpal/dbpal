@@ -1,6 +1,8 @@
-import { ReactNode } from "react";
+import { ReactElement, ReactNode } from "react";
 import { create } from "zustand";
 import { LLMConfig, TabContent } from "./helper";
+import { AlertColor } from "@mui/material";
+import React from "react";
 
 export const useConfirmMsg = create<{
   confirmMsgs: Map<string, string>; // 明确 Map 的键值类型
@@ -98,6 +100,46 @@ export const useLLMConfig = create<{
   config: null,
   setConfig: (config: LLMConfig) => {
     set({ config });
+  },
+}));
+
+export type AlertMsg = {
+  severity: AlertColor;
+  title: string;
+  message: ReactElement | string | null | undefined;
+};
+
+export const useNotification = create<{
+  notifications: AlertMsg[];
+  showNotification: (severity: AlertColor, title: string, message?) => void;
+  closeMsg: (x: number) => void;
+}>((set) => ({
+  notifications: [],
+
+  closeMsg: (idx) => {
+    set((s) => ({
+      notifications: s.notifications.filter((_e, index) => idx != index),
+    }));
+  },
+  showNotification: (severity: AlertColor, title: string, err?) => {
+    if (typeof err == "object" && "reason" in err) {
+      console.error("detail:", err.detail);
+      // this a error from the backend
+      // we only show `reason` the short message
+      err = err["reason"];
+    }
+    if (!React.isValidElement(err) && err) {
+      err = String(err);
+    }
+    set((state) => {
+      return {
+        notifications: [...state.notifications, { severity, title, message: err }],
+      };
+    });
+
+    setTimeout(() => {
+      set((state) => ({ notifications: state.notifications.slice(1) }));
+    }, 10000);
   },
 }));
 

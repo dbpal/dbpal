@@ -16,7 +16,6 @@ import {
   NameAndQueryId,
 } from "./Common";
 import ContentCopyIcon from "@mui/icons-material/ContentCopy";
-import { NotificationContext } from "./Notification";
 import { invoke } from "@tauri-apps/api/core";
 import { IoConstructOutline } from "react-icons/io5";
 import {
@@ -69,12 +68,17 @@ import {
 import { AppDataGridPagination, SimpleFlexEditor } from "./CommonComp2";
 import { createViewSql, listView, showViewColumns } from "./handlers";
 import { filesize } from "filesize";
-import { useAppConfigStore, useContextMenu, useTabsManage } from "./store";
+import {
+  useAppConfigStore,
+  useContextMenu,
+  useNotification,
+  useTabsManage,
+} from "./store";
 function ViewsTree(props: { viewKind: ViewKind }) {
   const { viewKind } = props;
   const { uuid } = useContext(UuidContext);
   const [views, setViews] = useState<types.ListTable[]>([]);
-  const { showNotification } = useContext(NotificationContext);
+  const { showNotification } = useNotification((s) => s);
   const [loading, setLoading] = useState(false);
   const [exceed, setExceed] = useState(0);
   const { matchPattern, maxTree } = useAppConfigStore((state) => state);
@@ -162,7 +166,7 @@ function StatementStructure(props: {
   const { uuid, kind, view, viewKind } = props;
   const [sql, setSql] = useState("");
   const [loading, setLoading] = useState(false);
-  const { showNotification } = useContext(NotificationContext);
+  const { showNotification } = useNotification((s) => s);
   const handleReload = useCallback(() => {
     setLoading(true);
     createViewSql(uuid, view, viewKind)
@@ -265,7 +269,7 @@ function ViewStructure(props: {
 
 function ColumnsMenu(props: { content: string }) {
   const { content } = props;
-  const { showNotification } = useContext(NotificationContext);
+  const { showNotification } = useNotification((s) => s);
   return (
     <MenuList>
       {content && (
@@ -289,7 +293,7 @@ function ColumnsContent(props: { uuid: string; view: string }) {
   const setting = useContext(SettingContext);
 
   const [fields, setFields] = useState<types.Field[]>([]);
-  const { showNotification } = useContext(NotificationContext);
+  const { showNotification } = useNotification((s) => s);
   const [loading, setLoading] = useState(false);
   const onColumnResize = useCallback(({ colDef, width }) => {
     ColumnWidth.instance.save(colDef.field, width);
@@ -446,7 +450,7 @@ function ViewMenu(props: {
   viewKind: ViewKind;
 }) {
   const { view, uuid, reload, kind, viewKind } = props;
-  const { showNotification } = useContext(NotificationContext);
+  const { showNotification } = useNotification((s) => s);
   const [showExport, setShowExport] = useState(false);
   const handleDrop = async () => {
     const confirm = await secondConfirm({

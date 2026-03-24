@@ -9,7 +9,6 @@ import {
   useState,
 } from "react";
 import ClearIcon from "@mui/icons-material/Clear";
-import { NotificationContext } from "./Notification";
 import Stack from "@mui/material/Stack";
 import InfoIcon from "@mui/icons-material/Info";
 import CloseIcon from "@mui/icons-material/Close";
@@ -97,14 +96,14 @@ import {
   useGridSelector,
 } from "@mui/x-data-grid";
 import { CustomToolbar } from "./CustomToolBar";
-import { useTabsManage } from "./store";
+import { useNotification, useTabsManage } from "./store";
 function CreateDatabase(props: {
   uuid: string;
   handleClose: () => void;
   kind: DataSourceKind;
 }) {
   const { uuid, handleClose, kind } = props;
-  const { showNotification } = useContext(NotificationContext);
+  const { showNotification } = useNotification((s) => s);
   const [database, setDatabase] = useState("");
   const databaseDom = useRef(null);
 
@@ -297,7 +296,7 @@ function CreateSchema(props: {
 }) {
   const { uuid, handleClose, kind, schemas, handleReload } = props;
   const schemaSet = new Set(schemas);
-  const { showNotification } = useContext(NotificationContext);
+  const { showNotification } = useNotification((s) => s);
   const [schema, setSchema] = useState("");
   const schemaDom = useRef(null);
   const replicationStrategies = ["SimpleStrategy", "NetworkTopologyStrategy"];
@@ -569,7 +568,7 @@ function MenuConnectionInfo({ uuid }) {
 
 function ConnConfigInfo(props: { uuid }) {
   const { uuid } = props;
-  const { showNotification } = useContext(NotificationContext);
+  const { showNotification } = useNotification((s) => s);
   const [metas, setMetas] = useState<types.MetaValue[]>([]);
   const handleInfo = useCallback(
     async (showOK: boolean) => {
@@ -657,7 +656,7 @@ function LoadStoreFile(props: {
 }) {
   const { getQuery, handleLoadFile, kind } = props;
   const [file, setFile] = useState("");
-  const { showNotification } = useContext(NotificationContext);
+  const { showNotification } = useNotification((s) => s);
   const active = useContext(TabActiveContext);
 
   const filters = useMemo(() => {
@@ -835,7 +834,7 @@ function AppMarkDown(props: {
   const { children, handlePathUrl, placeHolder } = props;
   function CustomLink(props: { href: string; children: ReactNode }) {
     const { href, children } = props;
-    const { showNotification } = useContext(NotificationContext);
+    const { showNotification } = useNotification((s) => s);
     const handleClick = (event) => {
       event.preventDefault();
       // 在这里处理链接点击，比如使用 Tauri API 打开链接
@@ -928,7 +927,7 @@ function SaveFavoriteSqlView(props: {
   const { favoriteName: oldName, editor, uuid, language, kind } = props;
   const [favoriteName, setFavoriteName] = useState(oldName);
   const [showSetFavoriteName, setShowFavoriteName] = useState(false);
-  const { showNotification } = useContext(NotificationContext);
+  const { showNotification } = useNotification((s) => s);
   return (
     <>
       <Tooltip
@@ -1252,7 +1251,7 @@ function CreateIndexReq(props: {
 function TypeSelect(props: { handleChange; uuid; type; style?: CSSProperties }) {
   const { handleChange, uuid, type, style } = props;
   const [types, setTypes] = useState<string[]>([]);
-  const { showNotification } = useContext(NotificationContext);
+  const { showNotification } = useNotification((s) => s);
   useEffect(() => {
     invoke<string[]>("list_data_types", { name: uuid })
       .then((ts) => {
@@ -1304,7 +1303,7 @@ function ColumnNullness(props: {
 function SqlDefaultValue(props: { uuid: string; defaultValue; setDefaultValue }) {
   const { uuid, defaultValue, setDefaultValue } = props;
   const [currentValue, setCurrentValue] = useState<string[]>([]);
-  const { showNotification } = useContext(NotificationContext);
+  const { showNotification } = useNotification((s) => s);
   useEffect(() => {
     invoke<string[]>("list_sql_current_values", { name: uuid })
       .then((ts) => {
@@ -1452,7 +1451,7 @@ function SetFilterSort(props: {
   tableName = quoteDatabaseIdentifier(kind)(tableName);
   const [editor, setEditor] = useState<editor.IStandaloneCodeEditor>(null);
   const [modalBox, setModalBox] = useState(null);
-  const { showNotification } = useContext(NotificationContext);
+  const { showNotification } = useNotification((s) => s);
   const setting = useContext(SettingContext);
   useEffect(() => {
     if (modalBox) {
@@ -1595,7 +1594,7 @@ function ToggleChatShow(props: { do_query: () => void }) {
 
 function CopySql(props: { sql; style?: CSSProperties }) {
   let { sql, style } = props;
-  const { showNotification } = useContext(NotificationContext);
+  const { showNotification } = useNotification((s) => s);
   if (!sql) {
     return <> </>;
   }

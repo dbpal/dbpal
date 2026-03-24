@@ -28,7 +28,6 @@ import {
 import RefreshIcon from "@mui/icons-material/Refresh";
 import AttachFileIcon from "@mui/icons-material/AttachFile";
 import VisibilityIcon from "@mui/icons-material/Visibility";
-import { NotificationContext } from "./Notification.tsx";
 import { types } from "./ApiStruct.ts";
 import { message, open } from "@tauri-apps/plugin-dialog";
 import { invoke } from "@tauri-apps/api/core";
@@ -43,6 +42,7 @@ import { openUrl } from "@tauri-apps/plugin-opener";
 import { platform } from "@tauri-apps/plugin-os";
 import { StackRowCenter, UrlDocument } from "./CommonComp2.tsx";
 import { emit } from "@tauri-apps/api/event";
+import { useNotification } from "./store.ts";
 
 function HostAndPort(props: { host; port; setHost; setPort }) {
   const { host, port, setHost, setPort } = props;
@@ -391,7 +391,7 @@ function DbSchemaCadidates(props: {
 }) {
   const { name, setName, label, makeConfig } = props;
   const [candidates, setCadidates] = useState([]);
-  const { showNotification } = useContext(NotificationContext);
+  const { showNotification } = useNotification((s) => s);
   const [loading, setLoading] = useState(false);
   const handleReload = () => {
     const config = makeConfig();
@@ -751,7 +751,7 @@ function TestConnAndSave(props: {
 }) {
   const { connectionNameDom, makeConfig } = props;
   const [testLoading, setTestLoading] = useState(false);
-  const { showNotification } = useContext(NotificationContext);
+  const { showNotification } = useNotification((s) => s);
   const handleTestConnection = () => {
     const config = makeConfig();
     if (!config.name) {

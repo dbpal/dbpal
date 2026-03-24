@@ -25,7 +25,6 @@ import CloseIcon from "@mui/icons-material/Close";
 import CheckIcon from "@mui/icons-material/Check";
 import VisibilityIcon from "@mui/icons-material/Visibility";
 import EditIcon from "@mui/icons-material/Edit";
-import { NotificationContext } from "./Notification";
 import ArrowCircleDownIcon from "@mui/icons-material/ArrowCircleDown";
 import { IoLocation } from "react-icons/io5";
 import {
@@ -108,7 +107,7 @@ import {
 } from "./handlers";
 import { AddTableView } from "./LeftTable";
 import { ExportTableOrView } from "./Export";
-import { useConfirmMsg, useContextMenu } from "./store";
+import { useConfirmMsg, useContextMenu, useNotification } from "./store";
 
 const confirmAboutPrimary = async (
   notWarnPri: boolean,
@@ -258,7 +257,7 @@ function DatabaseOperationView(props: {
       });
   };
 
-  const { showNotification } = useContext(NotificationContext);
+  const { showNotification } = useNotification((s) => s);
 
   return (
     <Stack direction="row" style={{ alignItems: "center" }}>
@@ -352,7 +351,7 @@ function SqlTableView(props: {
 
   const [fetchDur, setFetchDur] = useState(0);
   const clientModelLimit = useRef<number>(1000);
-  const { showNotification } = useContext(NotificationContext);
+  const { showNotification } = useNotification((s) => s);
   const [allowFiltering, setAllowFiltering] = useState(false);
   const [editCellInModal, setEditCellInModal] = useState<EditInModalCellData>(null);
   const [editRowInModal, setRowEditInModal] = useState<object>(null);
@@ -1176,7 +1175,7 @@ function SqlTableViewData(props: {
 
   const [loading, setLoading] = useState(false);
   const [args, setArgs] = useState(initValues);
-  const { showNotification } = useContext(NotificationContext);
+  const { showNotification } = useNotification((s) => s);
   const inputDoms = useRef({});
 
   const handleModify = () => {
@@ -1331,7 +1330,7 @@ function Menu(props: {
     viewInModal,
     isTable,
   } = props;
-  const { showNotification } = useContext(NotificationContext);
+  const { showNotification } = useNotification((s) => s);
   const [showFilter, setShowFilter] = useState(false);
   const quoteFn = quoteDatabaseIdentifier(kind);
   const [showClone, setShowClone] = useState(false);
@@ -1541,7 +1540,7 @@ function FilterOnValue(props: {
   const { content, setWhere, field, handleClose, put_value_in_sql, kind } = props;
   const compares = ["=", "<>", ">", ">=", "<", "<="];
   const [compare, setCompare] = useState(lastCompare);
-  const { showNotification } = useContext(NotificationContext);
+  const { showNotification } = useNotification((s) => s);
   const [formatValue, setFormatValue] = useState("");
   useEffect(() => {
     lastCompare = compare;

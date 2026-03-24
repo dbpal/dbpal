@@ -33,7 +33,6 @@ import {
   validJson,
 } from "./helper";
 import { EscDownEvent, modalHandleClose, modalStyle } from "./Common";
-import { NotificationContext } from "./Notification";
 import { ModalHeader } from "./CommonComp";
 import { RiDeleteBack2Line } from "react-icons/ri";
 import {
@@ -54,6 +53,7 @@ import { tempDir, join } from "@tauri-apps/api/path";
 import { exists, mkdir, readTextFile, writeTextFile } from "@tauri-apps/plugin-fs";
 import { ChildProcess, Command } from "@tauri-apps/plugin-shell";
 import { openPath, openUrl } from "@tauri-apps/plugin-opener";
+import { useNotification } from "./store";
 initMongoQueryGlobals();
 
 class CompilerOutput {
@@ -189,7 +189,7 @@ function TsEditCompilerOptions(props: { handleClose: () => void }) {
   const { handleClose } = props;
   const [jsonErr, setJsonErr] = useState<ErrAndLoc | null>(null);
   const [value, setValue] = useState(SaveTsOption.getStr());
-  const { showNotification } = useContext(NotificationContext);
+  const { showNotification } = useNotification((s) => s);
   const [jsonErrPos, setJsonErrPos] = useState<Position>(null);
   useEffect(() => {
     (async () => {
@@ -292,7 +292,7 @@ function TypeScript(props: {
 }) {
   const { language, setLanguage, editor, compileTime, compileDir } = props;
   const [showEditOption, setShowEditOption] = useState(false);
-  const { showNotification } = useContext(NotificationContext);
+  const { showNotification } = useNotification((s) => s);
   const [tscVersion, setTscVersion] = useState("");
   useEffect(() => {
     if (language == MongoLanguage.js) {
@@ -500,7 +500,7 @@ function MongoQuery(props: {
   const setting = useContext(SettingContext);
   const [db] = useState(new MongoDBQuery(uuid));
   const [cleanFns, setCleanFns] = useState<CleanFunction[]>([]);
-  const { showNotification } = useContext(NotificationContext);
+  const { showNotification } = useNotification((s) => s);
   const [bson, setBson] = useState(null);
   const [language, setLanguage] = useState<MongoLanguage>(
     valueLanguage ? (valueLanguage as MongoLanguage) : lastLanguage,

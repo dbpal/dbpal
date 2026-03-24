@@ -58,13 +58,13 @@ import {
   QueryEvent,
   SetAutoCompletionName,
 } from "./Common.ts";
-import { NotificationContext } from "./Notification.tsx";
 import { editor, Position } from "monaco-editor";
 import ClearIcon from "@mui/icons-material/Clear";
 import { Panel, PanelGroup, PanelResizeHandle } from "react-resizable-panels";
 import { QueryLog } from "./QueryLog.tsx";
 import { ExportView } from "./Export.tsx";
 import { QueryResp } from "./QueryResp.tsx";
+import { useNotification } from "./store.ts";
 
 type Data = {
   data: { data: string; id: string }[];
@@ -138,7 +138,7 @@ function CouchBaseTable(props: { uuid: string; table: string }) {
   const [editorHeight, setEditorHeight] = useState(500);
   const [loading, setLoading] = useState(true);
   const [queryStatus, setQueryStatus] = useState("");
-  const { showNotification } = useContext(NotificationContext);
+  const { showNotification } = useNotification((s) => s);
   const [showAdd, setShowAdd] = useState(false);
   const [addModalBox, setAddModalBox] = useState(null);
   const [viewMode, setViewMode] = useState(TableViewModeSaver.load());
@@ -477,7 +477,7 @@ function CouchBaseEditor(props: {
   } = props;
   const setting = useContext(SettingContext);
   const [jsonErr, setJsonErr] = useState<ErrAndLoc | null>(null);
-  const { showNotification } = useContext(NotificationContext);
+  const { showNotification } = useNotification((s) => s);
   const [jsonErrPos, setJsonErrPos] = useState<Position>(null);
   const [newValue, setNewValue] = useState(value);
   const [loading, setLoading] = useState(false);
@@ -734,7 +734,7 @@ function CouchBaseQuery(props: {
   const [editor, setEditor] = useState<editor.IStandaloneCodeEditor>(null);
   const maxRow = useRef(2000);
   const [queryStatus, setQueryStatus] = useState("");
-  const { showNotification } = useContext(NotificationContext);
+  const { showNotification } = useNotification((s) => s);
   const [showQueryLog, setShowQueryLog] = useState(false);
   const kind = DataSourceKind.CouchBase;
   const [executeTimes, setExecuteTimes] = useState(0);

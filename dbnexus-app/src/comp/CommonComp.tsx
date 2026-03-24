@@ -46,7 +46,6 @@ import CloseIcon from "@mui/icons-material/Close";
 import AddIcon from "@mui/icons-material/Add";
 import { BsDatabaseAdd } from "react-icons/bs";
 import LinkOffIcon from "@mui/icons-material/LinkOff";
-import { NotificationContext } from "./Notification";
 import { invoke } from "@tauri-apps/api/core";
 import ContentCopyIcon from "@mui/icons-material/ContentCopy";
 import ArrowUpwardIcon from "@mui/icons-material/ArrowUpward";
@@ -92,7 +91,7 @@ import { writeTextFile } from "@tauri-apps/plugin-fs";
 import { FaMarkdown } from "react-icons/fa";
 import { emit } from "@tauri-apps/api/event";
 import { AppDataGridPagination, StackRowCenter } from "./CommonComp2";
-import { useContextMenu } from "./store";
+import { useContextMenu, useNotification } from "./store";
 
 function MenuExportMarkDownTable({ showExportMarkDown }) {
   return (
@@ -194,7 +193,7 @@ function MenuRefresh({ reload }) {
 }
 
 function MenuCloseConn({ handleClose, name }) {
-  const { showNotification } = useContext(NotificationContext);
+  const { showNotification } = useNotification((s) => s);
   return (
     <MenuItem
       onClick={() => {
@@ -290,7 +289,7 @@ function MenuCreateSchema(props: { handleCreate; kind: DataSourceKind }) {
 }
 
 function MenuOpenConn({ handleOpened, name, setLoading }) {
-  const { showNotification } = useContext(NotificationContext);
+  const { showNotification } = useNotification((s) => s);
 
   const handleOpenXXX = async () => {
     // try promote use to enter a password.
@@ -369,7 +368,7 @@ function SelectPageSize({ pageSize, handleChange, options = pageSizeOptions }) {
 }
 
 function MenuDeleteConfig({ name }) {
-  const { showNotification } = useContext(NotificationContext);
+  const { showNotification } = useNotification((s) => s);
   const handleDelete = async () => {
     const confirm = await secondConfirm({
       title: `drop connection '${name}'`,
@@ -407,7 +406,7 @@ function MenuDeleteConfig({ name }) {
 
 function MetaValueViewMenu(props: { content: string; setSort; field: string }) {
   const { content, setSort, field } = props;
-  const { showNotification } = useContext(NotificationContext);
+  const { showNotification } = useNotification((s) => s);
   return (
     <MenuList>
       <MenuItem
@@ -514,7 +513,7 @@ function MetaValueView({ values = [] as types.MetaValue[] }) {
 }
 
 function ResetColumnWidth() {
-  const { showNotification } = useContext(NotificationContext);
+  const { showNotification } = useNotification((s) => s);
   const handleReset = async () => {
     ColumnWidth.instance.reset();
     showNotification("success", "reset column width successfully");
@@ -789,7 +788,7 @@ function ExecutingTime(props: {
 
 function CopyMenuItem(props: GridColumnMenuItemProps) {
   const { colDef } = props;
-  const { showNotification } = useContext(NotificationContext);
+  const { showNotification } = useNotification((s) => s);
   return (
     <MenuItem
       onClick={() => {
@@ -851,7 +850,7 @@ function SelectColumns(props: {
 }
 
 function OpenFileWithDefaultApp({ file }) {
-  const { showNotification } = useContext(NotificationContext);
+  const { showNotification } = useNotification((s) => s);
   return (
     <>
       {file && (
@@ -885,7 +884,7 @@ function ExportMarkDownTable(props: {
   }
   const [includes, setIncludes] = useState<string[]>([]);
   const [align, setAlign] = useState("center");
-  const { showNotification } = useContext(NotificationContext);
+  const { showNotification } = useNotification((s) => s);
   const [file, setFile] = useState("");
   const makeMarkDownStr = () => {
     let ret = "";

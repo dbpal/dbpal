@@ -50,7 +50,6 @@ import { FaDatabase } from "react-icons/fa";
 import { FaCopy } from "react-icons/fa";
 import types from "./ApiStruct";
 import { invoke } from "@tauri-apps/api/core";
-import { NotificationContext } from "./Notification";
 import { SimpleTreeView } from "@mui/x-tree-view/SimpleTreeView";
 import { TreeItem } from "@mui/x-tree-view/TreeItem";
 import DeleteForeverIcon from "@mui/icons-material/DeleteForever";
@@ -129,7 +128,12 @@ import { ModifySetting } from "./Settings.tsx";
 import { CouchBaseQuery } from "./CouchBase.tsx";
 import FilterAltIcon from "@mui/icons-material/FilterAlt";
 import FilterAltOutlinedIcon from "@mui/icons-material/FilterAltOutlined";
-import { useAppConfigStore, useContextMenu, useTabsManage } from "./store.ts";
+import {
+  useAppConfigStore,
+  useContextMenu,
+  useNotification,
+  useTabsManage,
+} from "./store.ts";
 const settingId = generateRandomString();
 
 function LeftTop(props: {
@@ -140,7 +144,7 @@ function LeftTop(props: {
 }) {
   const { matchPattern, setMatchPattern, setMaxTreeSize, maxTreeSize } = props;
   const [matchPatterInput, setMatchPatternInput] = useState("");
-  const { showNotification } = useContext(NotificationContext);
+  const { showNotification } = useNotification((s) => s);
   const saveLeftTopShow = useRef(new SaveBoolToLocalStorage("left-top-show"));
   const [show, setShow] = useState(saveLeftTopShow.current.get());
   const { appendTab, setCurrentTab, tabs } = useTabsManage((state) => state);
@@ -420,7 +424,7 @@ function LeftTop(props: {
 }
 
 function CopyConnectionMenu(props: { content: string }) {
-  const { showNotification } = useContext(NotificationContext);
+  const { showNotification } = useNotification((s) => s);
   const { content } = props;
   return (
     <MenuList>
@@ -450,7 +454,7 @@ function CopyConnection() {
     setSortModel(e);
   }, []);
 
-  const { showNotification } = useContext(NotificationContext);
+  const { showNotification } = useNotification((s) => s);
   const setting = useContext(SettingContext);
 
   const setUpMenu = useContextMenu((state) => state.setUpMenu);
@@ -610,7 +614,7 @@ function CopyConnection() {
 
 function Left() {
   const [configs, setConfigs] = useState<types.DBConnectionConfig[]>([]);
-  const { showNotification } = useContext(NotificationContext);
+  const { showNotification } = useNotification((s) => s);
   const [matchPattern, setMatchPattern] = useState<string[]>(
     SaveMatchPattern.instance.get(),
   );
@@ -715,7 +719,7 @@ function FavoriteSqlMenu(props: {
   handleReload: () => void;
 }) {
   const { content, id, handleReload } = props;
-  const { showNotification } = useContext(NotificationContext);
+  const { showNotification } = useNotification((s) => s);
   return (
     <MenuList>
       {content && (
@@ -747,7 +751,7 @@ function FavoriteSqlMenu(props: {
 }
 
 function FavoriteSqlList() {
-  const { showNotification } = useContext(NotificationContext);
+  const { showNotification } = useNotification((s) => s);
   const [fs, setFs] = useState<FavoriteSql[]>([]);
   const [sortModel, setSortModel] = useState<GridSortModel>([
     { field: "lastModified", sort: "desc" },
@@ -1244,7 +1248,7 @@ function DatabaseMenu(props: {
     schemas,
     setLoading,
   } = props;
-  const { showNotification } = useContext(NotificationContext);
+  const { showNotification } = useNotification((s) => s);
   const [showCreateSchema, setShowCreateSchema] = useState(false);
   const { appendTab } = useTabsManage((state) => state);
   return (
@@ -1535,7 +1539,7 @@ function SchemaMenu(props: {
     setLoading,
   } = props;
   const { appendTab } = useTabsManage((state) => state);
-  const { showNotification } = useContext(NotificationContext);
+  const { showNotification } = useNotification((s) => s);
   return (
     <MenuList>
       {!schema && !opened && (
@@ -1598,7 +1602,7 @@ function SchemaMenu(props: {
 
 function CatalogTree() {
   const { uuid: name } = useContext(UuidContext);
-  const { showNotification } = useContext(NotificationContext);
+  const { showNotification } = useNotification((s) => s);
   const [databases, setDatabases] = useState<string[]>([]);
   const [loading, setLoading] = useState(false);
   const { kind } = useContext(ConnTypeContext);
@@ -1675,7 +1679,7 @@ function CatalogTree() {
 
 function DatabaseTree(props: { database?: string; reloadDatabase?: () => void }) {
   const { uuid: name } = useContext(UuidContext);
-  const { showNotification } = useContext(NotificationContext);
+  const { showNotification } = useNotification((s) => s);
   const [schemas, setSchemas] = useState<string[]>([]);
   const { database, reloadDatabase } = props;
   const [loading, setLoading] = useState(false);

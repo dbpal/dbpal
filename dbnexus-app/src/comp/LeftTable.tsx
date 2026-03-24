@@ -1,7 +1,6 @@
 import { ReactNode, useCallback, useContext, useEffect, useRef, useState } from "react";
 import { modalStyle, tabsHasId, EscDownEvent, modalHandleClose } from "./Common.ts";
 import types from "./ApiStruct";
-import { NotificationContext } from "./Notification";
 import { invoke } from "@tauri-apps/api/core";
 import { TreeItem } from "@mui/x-tree-view/TreeItem";
 import ListIcon from "@mui/icons-material/List";
@@ -71,14 +70,19 @@ import { cancelTask, listTable, makeTableInsertFn, showTableColumn } from "./han
 import { filesize } from "filesize";
 import { CancelButton, CopySql, StackRowCenter } from "./CommonComp2";
 import { CouchBaseTable } from "./CouchBase";
-import { useAppConfigStore, useContextMenu, useTabsManage } from "./store.ts";
+import {
+  useAppConfigStore,
+  useContextMenu,
+  useNotification,
+  useTabsManage,
+} from "./store.ts";
 
 function TablesTree(props: { typ: TableType }) {
   const { typ } = props;
   const { uuid } = useContext(UuidContext);
   const { kind } = useContext(ConnTypeContext);
   const [tables, setTables] = useState<types.ListTable[]>([]);
-  const { showNotification } = useContext(NotificationContext);
+  const { showNotification } = useNotification((s) => s);
   const [loading, setLoading] = useState(false);
   const [exceed, setExceed] = useState(0);
   const { matchPattern, maxTree } = useAppConfigStore((state) => state);
@@ -222,7 +226,7 @@ function DropTable(props: {
 }) {
   const { table, reloadTables, uuid, handleClose, kind } = props;
   const [loading, setLoading] = useState(false);
-  const { showNotification } = useContext(NotificationContext);
+  const { showNotification } = useNotification((s) => s);
   const [cascade, setCascade] = useState(false);
 
   const handleDrop = async () => {
@@ -351,7 +355,7 @@ function AddTableView(props: {
 }) {
   const { uuid, table, kind, redisTableType } = props;
   const [fields, setFields] = useState<types.Field[]>([]);
-  const { showNotification } = useContext(NotificationContext);
+  const { showNotification } = useNotification((s) => s);
   switch (kind) {
     case DataSourceKind.Redis:
       switch (redisTableType) {
@@ -415,7 +419,7 @@ function TableMenu(props: {
   const [showRename, setShowRename] = useState(false);
   const [showDrop, setShowDrop] = useState(false);
   const [showExport, setShowExport] = useState(false);
-  const { showNotification } = useContext(NotificationContext);
+  const { showNotification } = useNotification((s) => s);
   const { tabs, setCurrentTab, appendTab } = useTabsManage((state) => state);
 
   const handleTruncateTable = async () => {
@@ -692,7 +696,7 @@ function DupTable(props: {
   const { table, handleClose, uuid, reloadTables } = props;
   const [loading, setLoading] = useState(false);
   const [name, setName] = useState(table);
-  const { showNotification } = useContext(NotificationContext);
+  const { showNotification } = useNotification((s) => s);
   const taskId = useRef(generateRandomString());
   const handleRename = () => {
     if (name == table) {
@@ -754,7 +758,7 @@ function RenameTable(props: {
   const { table, handleClose, uuid, reloadTables } = props;
   const [loading, setLoading] = useState(false);
   const [newName, setNewName] = useState(table);
-  const { showNotification } = useContext(NotificationContext);
+  const { showNotification } = useNotification((s) => s);
   const handleRename = async () => {
     if (newName == table) {
       showNotification("error", "name not changed");
@@ -884,7 +888,7 @@ function RedisTables() {
   const [filter, setFilter] = useState("");
   const [tables, setTables] = useState<types.RedisListTable>();
   const [loading, setLoading] = useState(false);
-  const { showNotification } = useContext(NotificationContext);
+  const { showNotification } = useNotification((s) => s);
   const max = 50;
 
   const handleReload = useCallback(() => {

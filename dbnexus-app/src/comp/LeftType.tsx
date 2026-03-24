@@ -6,7 +6,6 @@ import InfoIcon from "@mui/icons-material/Info";
 import { tabsHasId } from "./Common";
 import types from "./ApiStruct";
 import { invoke } from "@tauri-apps/api/core";
-import { NotificationContext } from "./Notification";
 import { TabContent } from "./Tabs";
 import { DefAndMetasView } from "./DefAndMetaView";
 import { PiTreeStructureFill } from "react-icons/pi";
@@ -20,12 +19,17 @@ import {
 import { ExceedMaxTreeItem, MenuRefresh } from "./CommonComp";
 import { listCreatedTypes } from "./handlers";
 import { CopySql } from "./CommonComp2";
-import { useAppConfigStore, useContextMenu, useTabsManage } from "./store";
+import {
+  useAppConfigStore,
+  useContextMenu,
+  useNotification,
+  useTabsManage,
+} from "./store";
 function TypesTree() {
   const { uuid } = useContext(UuidContext);
   const { kind } = useContext(ConnTypeContext);
   const [types, setTypes] = useState<types.CreatedTypeDef[]>([]);
-  const { showNotification } = useContext(NotificationContext);
+  const { showNotification } = useNotification((s) => s);
 
   const { matchPattern, maxTree } = useAppConfigStore((state) => state);
 
@@ -120,7 +124,7 @@ function TypeMenu(props: {
 }) {
   const { uuid, createdType, reload, kind, id } = props;
   const { setCurrentTab, tabs, appendTab } = useTabsManage((state) => state);
-  const { showNotification } = useContext(NotificationContext);
+  const { showNotification } = useNotification((s) => s);
   const handleOpenDetails = () => {
     const index = tabsHasId(tabs, id);
     if (typeof index == "number") {
