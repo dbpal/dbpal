@@ -101,7 +101,9 @@ function SqlTransaction(props: { conn: QueryConn; executeTimes: number }) {
     }
   }, [commit, tabCtx.id, removeConfirmMsg, addConfirmMsg]);
   useEffect(() => {
-    removeConfirmMsg(tabCtx.id);
+    return () => {
+      removeConfirmMsg(tabCtx.id);
+    };
   }, [removeConfirmMsg, tabCtx.id]);
 
   useEffect(() => {
