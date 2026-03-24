@@ -109,7 +109,7 @@ import {
 } from "./handlers";
 import { AddTableView } from "./LeftTable";
 import { ExportTableOrView } from "./Export";
-import { tabHasConfirmMsg } from "./store";
+import { confirmMsgStore } from "./store";
 
 const confirmAboutPrimary = async (
   notWarnPri: boolean,
@@ -341,7 +341,7 @@ function SqlTableView(props: {
   const [ops, setOps] = useState<DatabaseOperation[]>([]);
 
   const tabCtx = useContext(TabContext);
-  const { removeConfirmMsg, addConfirmMsg } = tabHasConfirmMsg((state) => state);
+  const { removeConfirmMsg, addConfirmMsg } = confirmMsgStore((state) => state);
 
   useEffect(() => {
     if (ops.length == 0) {

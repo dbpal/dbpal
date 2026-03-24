@@ -1,13 +1,10 @@
 import { create } from "zustand";
 
-interface ConfirmState {
+export const confirmMsgStore = create<{
   confirmMsgs: Map<string, string>; // 明确 Map 的键值类型
   addConfirmMsg: (id: string, msg: string) => void;
   removeConfirmMsg: (id: string) => void;
-}
-
-// 连 Provider 都不用，直接创建一个 Hook！
-export const tabHasConfirmMsg = create<ConfirmState>((set) => ({
+}>((set) => ({
   // 状态：你可以直接用 Map，Zustand 没那么多限制
   confirmMsgs: new Map(),
 
@@ -26,3 +23,14 @@ export const tabHasConfirmMsg = create<ConfirmState>((set) => ({
       return { confirmMsgs: newMap };
     }),
 }));
+
+// export const settingStore = create<{
+//   setting: UserSetting | null;
+//   setSetting: (setting: UserSetting) => void;
+// }>((set) => ({
+//   setting: null,
+//   setSetting: (setting: UserSetting) =>
+//     set(() => ({
+//       setting,
+//     })),
+// }));

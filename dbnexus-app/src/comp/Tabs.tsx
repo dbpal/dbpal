@@ -18,7 +18,7 @@ import {
 } from "./helper";
 
 import CircleIcon from "@mui/icons-material/Circle";
-import { tabHasConfirmMsg } from "./store";
+import { confirmMsgStore } from "./store";
 
 function TabsMenu(props: {
   index;
@@ -120,7 +120,7 @@ function TabsWithContent(props: {
   const rootStack = useRef<HTMLDivElement>(null);
   const [tabWidth, setTabWidth] = useState(100);
 
-  const tabConfirmMsg = tabHasConfirmMsg((state) => state.confirmMsgs);
+  const tabConfirmMsg = confirmMsgStore((state) => state.confirmMsgs);
 
   useEffect(() => {
     if (tabs.length == 0) {
