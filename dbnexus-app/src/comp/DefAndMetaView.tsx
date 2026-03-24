@@ -74,7 +74,6 @@ function DefAndMetasView(props: {
 
   return (
     <>
-      value=
       <Stack height="100%">
         {loading && <CircularProgress />}
         <AllKindChat uuid={uuid} kind={kind} value={detail.def} />

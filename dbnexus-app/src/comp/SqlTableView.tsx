@@ -349,7 +349,9 @@ function SqlTableView(props: {
     }
   }, [ops, tabCtx.id, removeConfirmMsg, addConfirmMsg]);
   useEffect(() => {
-    removeConfirmMsg(tabCtx.id);
+    return () => {
+      removeConfirmMsg(tabCtx.id);
+    };
   }, [removeConfirmMsg, tabCtx.id]);
 
   const [fetchDur, setFetchDur] = useState(0);
