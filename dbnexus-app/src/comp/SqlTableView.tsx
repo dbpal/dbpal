@@ -348,6 +348,9 @@ function SqlTableView(props: {
       addConfirmMsg(tabCtx.id, `sure to discard ${ops.length} changes?`);
     }
   }, [ops, tabCtx.id, removeConfirmMsg, addConfirmMsg]);
+  useEffect(() => {
+    removeConfirmMsg(tabCtx.id);
+  }, [removeConfirmMsg, tabCtx.id]);
 
   const [fetchDur, setFetchDur] = useState(0);
   const clientModelLimit = useRef<number>(1000);

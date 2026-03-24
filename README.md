@@ -127,3 +127,6 @@ docker run  --name some-neo4j  -d     \
 解决没有签名的问题
 xattr -d com.apple.quarantine /Applications/dbpal.app  
 ~~~
+
+
+保存不显示的列

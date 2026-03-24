@@ -100,6 +100,9 @@ function SqlTransaction(props: { conn: QueryConn; executeTimes: number }) {
       );
     }
   }, [commit, tabCtx.id, removeConfirmMsg, addConfirmMsg]);
+  useEffect(() => {
+    removeConfirmMsg(tabCtx.id);
+  }, [removeConfirmMsg, tabCtx.id]);
 
   useEffect(() => {
     //这里的顺序很重要
