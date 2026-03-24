@@ -1,4 +1,4 @@
-import React, { useContext, useEffect, useRef, useState } from "react";
+import { useContext, useEffect, useRef, useState } from "react";
 import {
   Stack,
   MenuItem,
@@ -18,6 +18,7 @@ import {
 } from "./helper";
 
 import CircleIcon from "@mui/icons-material/Circle";
+
 function TabsMenu(props: {
   index;
   handleClose;
@@ -106,7 +107,7 @@ function getLength(header: string, width: number, tabs: TabContent[]) {
   return (width * header.length * 1.5) / total;
 }
 
-function TabsWithContent_(props: {
+function TabsWithContent(props: {
   tabs: TabContent[];
   handleClose: (index: number) => void;
   changeTab: (index: number) => void;
@@ -117,6 +118,8 @@ function TabsWithContent_(props: {
   const { setUpMenu } = useContext(ContextMenuContext);
   const rootStack = useRef<HTMLDivElement>(null);
   const [tabWidth, setTabWidth] = useState(100);
+  // 我没有使用常见的setstate来触发重新渲染 那样开销比较大 所以用这个变量来做触发
+  // const [rerenderOfCloseMsg, setRerenderOfCloseMsg] = useState<boolean>(false);
 
   useEffect(() => {
     if (tabs.length == 0) {
@@ -133,6 +136,7 @@ function TabsWithContent_(props: {
       e.disconnect();
     };
   }, [tabs]);
+
   return (
     <Stack style={{ width: "100%", height: "100%" }} ref={rootStack}>
       <Tabs
@@ -188,22 +192,20 @@ function TabsWithContent_(props: {
                       overflow: "hidden",
                       textOverflow: "clip",
                       flex: 1,
-                      // fontSize: index == selectIndex ? "1.1rem" : "1rem",
+                      fontSize: index == selectIndex ? "1.1rem" : "1rem",
                     }}
                   >
                     {tab.header}
                   </Typography>
-                  {tab.closeConfirmText ? (
-                    <CircleIcon style={{ fontSize: "0.9rem" }} />
-                  ) : (
-                    <CloseIcon
-                      onClick={() => {
-                        handleClose(index);
-                      }}
-                      style={{ fontSize: "0.9rem" }}
-                      color="warning"
-                    />
-                  )}
+                  {/* {rerenderOfCloseMsg && <></>} */}
+
+                  <CloseIcon
+                    onClick={() => {
+                      handleClose(index);
+                    }}
+                    style={{ fontSize: "0.9rem" }}
+                    color="warning"
+                  />
                 </Stack>
               </Tooltip>
             />
@@ -214,13 +216,9 @@ function TabsWithContent_(props: {
         {tabs.map((tab, index) => (
           <TabActiveContext.Provider key={tab.id} value={selectIndex == index}>
             <SetCloseConfirmTextContext
-              value={(e) => {
-                // tabs[index].closeConfirmText = e;
-                setTabs(
-                  tabs.map((tab, idx) =>
-                    index == idx ? { ...tab, closeConfirmText: e } : tab,
-                  ),
-                );
+              value={(txt) => {
+                tabs[index].closeConfirmText = txt;
+                // setRerenderOfCloseMsg((e) => !e);
               }}
             >
               <div
@@ -236,5 +234,5 @@ function TabsWithContent_(props: {
     </Stack>
   );
 }
-const TabsWithContent = React.memo(TabsWithContent_);
+
 export { TabsWithContent, TabContent };

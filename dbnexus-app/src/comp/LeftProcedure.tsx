@@ -123,13 +123,13 @@ function ProcedureMenu(props: {
   id: string;
 }) {
   const { uuid, procedure, reload, kind, id } = props;
-  const { setSelectTab, tabs, appendTab } = useContext(TabsSetContext);
+  const { setCurrentTab, tabs, appendTab } = useContext(TabsSetContext);
   const { showNotification } = useContext(NotificationContext);
 
   const handleOpenDetails = () => {
     const index = tabsHasId(tabs, id);
     if (typeof index == "number") {
-      setSelectTab(index);
+      setCurrentTab(index);
     } else {
       appendTab(
         new TabContent(

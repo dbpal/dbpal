@@ -420,7 +420,7 @@ function TableMenu(props: {
   const [showDrop, setShowDrop] = useState(false);
   const [showExport, setShowExport] = useState(false);
   const { showNotification } = useContext(NotificationContext);
-  const { tabs, setSelectTab, appendTab } = useContext(TabsSetContext);
+  const { tabs, setCurrentTab, appendTab } = useContext(TabsSetContext);
 
   const handleTruncateTable = async () => {
     const confirm = await secondConfirm({
@@ -470,7 +470,7 @@ function TableMenu(props: {
     const id = uuid + "-table-" + table + "-struct";
     const index = tabsHasId(tabs, id);
     if (typeof index == "number") {
-      setSelectTab(index);
+      setCurrentTab(index);
     } else {
       appendTab(
         new TabContent(

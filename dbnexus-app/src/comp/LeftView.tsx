@@ -480,7 +480,8 @@ function ViewMenu(props: {
         showNotification("error", "Drop View Failure", e);
       });
   };
-  const { tabs, setSelectTab, appendTab } = useContext(TabsSetContext);
+
+  const { tabs, setCurrentTab, appendTab } = useContext(TabsSetContext);
 
   const handleViewData = () => {
     const id = uuid + "-view-" + generateRandomString();
@@ -527,7 +528,7 @@ function ViewMenu(props: {
     const id = uuid + "-view-" + view + "-structure";
     const index = tabsHasId(tabs, id);
     if (typeof index == "number") {
-      setSelectTab(index);
+      setCurrentTab(index);
     } else {
       appendTab(
         new TabContent(

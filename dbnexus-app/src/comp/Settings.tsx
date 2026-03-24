@@ -877,13 +877,13 @@ function MiscSetting() {
 
 function ModifySetting() {
   const ss = ["appearance", "editor", "export", "llm", "misc"];
-  const [tab, setTab] = useState(ss[0]);
+  const [tab, setCurrentTab] = useState(ss[0]);
   return (
     <Stack>
       <Tabs
         value={tab}
         onChange={(_, value) => {
-          setTab(value);
+          setCurrentTab(value);
         }}
       >
         {ss.map((e) => (

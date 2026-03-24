@@ -6,6 +6,7 @@ import {
   useCallback,
   useContext,
   useEffect,
+  useMemo,
   useState,
 } from "react";
 import { TabContent, TabsWithContent } from "./Tabs";
@@ -161,7 +162,7 @@ function ShowShortCut() {
 
 function App() {
   const [tabs, setTabs] = useState<TabContent[]>([]);
-  const [tab, setTab] = useState(0);
+  const [tab, setCurrentTab] = useState(0);
   const closeTab = useCallback(
     (index: number) => {
       (async () => {
@@ -187,11 +188,11 @@ function App() {
   const shortCuts = useCallback(
     (e: KeyboardEvent) => {
       const prevTab = () => {
-        setTab((e) => (e > 0 ? e - 1 : e));
+        setCurrentTab((e) => (e > 0 ? e - 1 : e));
       };
       const nextTab = () => {
         if (tabs.length - 1 > tab) {
-          setTab((e) => e + 1);
+          setCurrentTab((e) => e + 1);
         }
       };
       const closeCurrentTab = () => {
@@ -221,27 +222,29 @@ function App() {
   }, [shortCuts]);
   useEffect(() => {
     if (tab > 0 && tab >= tabs.length) {
-      setTab((e) => e - 1);
+      setCurrentTab((e) => e - 1);
     }
   }, [tabs, tab]);
   const changeTab = useCallback((index) => {
-    setTab(index as number);
+    setCurrentTab(index as number);
   }, []);
+
+  const tabsValue = useMemo(() => {
+    return {
+      tabs,
+      setCurrentTab,
+      appendTab: (tab) => {
+        setTimeout(() => {
+          setCurrentTab(tabs.length);
+        }, 100);
+        setTabs((tabs) => [...tabs, tab]);
+      },
+    };
+  }, [tabs]);
 
   return (
     <SettingProvider>
-      <TabsSetContext.Provider
-        value={{
-          tabs,
-          setSelectTab: setTab,
-          appendTab: (tab) => {
-            setTimeout(() => {
-              setTab(tabs.length);
-            }, 100);
-            setTabs((tabs) => [...tabs, tab]);
-          },
-        }}
-      >
+      <TabsSetContext.Provider value={tabsValue}>
         <NotificationProvider>
           <Menu>
             <div>

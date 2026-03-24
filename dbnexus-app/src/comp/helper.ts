@@ -573,7 +573,7 @@ class TabContent {
 }
 const TabsSetContext = createContext<{
   tabs: TabContent[];
-  setSelectTab;
+  setCurrentTab;
   appendTab(tab: TabContent);
 }>(null);
 

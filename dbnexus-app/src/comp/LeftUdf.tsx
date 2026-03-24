@@ -133,12 +133,12 @@ function UdfMenu(props: {
   id: string;
 }) {
   const { uuid, udf, reload, kind, id } = props;
-  const { setSelectTab, tabs, appendTab } = useContext(TabsSetContext);
+  const { setCurrentTab, tabs, appendTab } = useContext(TabsSetContext);
   const { showNotification } = useContext(NotificationContext);
   const handleOpenDetails = () => {
     const index = tabsHasId(tabs, id);
     if (typeof index == "number") {
-      setSelectTab(index);
+      setCurrentTab(index);
     } else {
       appendTab(
         new TabContent(
@@ -211,14 +211,14 @@ function CassandraAggregateMenu(props: {
   reload;
 }) {
   const { uuid, agg, reload, parameters } = props;
-  const { setSelectTab, tabs, appendTab } = useContext(TabsSetContext);
+  const { setCurrentTab, tabs, appendTab } = useContext(TabsSetContext);
   const { showNotification } = useContext(NotificationContext);
 
   const handleOpenDetails = () => {
     const id = uuid + "-" + "-cassandra-aggregate-" + agg;
     const index = tabsHasId(tabs, id);
     if (typeof index == "number") {
-      setSelectTab(index);
+      setCurrentTab(index);
     } else {
       appendTab(
         new TabContent(

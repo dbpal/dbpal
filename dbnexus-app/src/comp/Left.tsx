@@ -146,7 +146,7 @@ function LeftTop(props: {
   const { showNotification } = useContext(NotificationContext);
   const saveLeftTopShow = useRef(new SaveBoolToLocalStorage("left-top-show"));
   const [show, setShow] = useState(saveLeftTopShow.current.get());
-  const { appendTab, setSelectTab, tabs } = useContext(TabsSetContext);
+  const { appendTab, setCurrentTab, tabs } = useContext(TabsSetContext);
   useEffect(() => {
     saveLeftTopShow.current.save(show);
   }, [show]);
@@ -180,7 +180,7 @@ function LeftTop(props: {
     const unlisten = listen("show_setting", () => {
       const index = tabsHasId(tabs, settingId);
       if (typeof index == "number") {
-        setSelectTab(index);
+        setCurrentTab(index);
       } else {
         appendTab(
           new TabContent(
@@ -197,7 +197,7 @@ function LeftTop(props: {
         callback();
       });
     };
-  }, [appendTab, setSelectTab, tabs]);
+  }, [appendTab, setCurrentTab, tabs]);
 
   const toggleShow = () => {
     setShow((e) => !e);
