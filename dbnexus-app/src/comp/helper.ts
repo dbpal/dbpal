@@ -574,12 +574,9 @@ class TabContent {
 
 const TabContext = createContext<{ id: string }>(null);
 
-const ConnTypeContext = createContext<{
-  kind: DataSourceKind;
-}>(null);
-
 const UuidContext = createContext<{
   uuid: string;
+  kind: DataSourceKind;
 }>(null);
 
 interface ErrAndLoc {
@@ -1176,7 +1173,6 @@ export {
   ChatShowContext,
   ColorFn,
   ColumnWidth,
-  ConnTypeContext,
   connTypeToDataSourceKind,
   dataGridheaderFontSize,
   dataGridStyle,

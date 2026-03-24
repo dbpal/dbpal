@@ -44,7 +44,6 @@ import { TabContent } from "./Tabs";
 import { ExportTableOrView } from "./Export";
 import {
   ColumnWidth,
-  ConnTypeContext,
   dataGridStyle,
   DataSourceKind,
   extractFieldAndIDFromMouseEvent,
@@ -403,8 +402,7 @@ function getIcon(viewKind: ViewKind) {
 }
 function ViewTree(props: { view: string; reload; viewKind: ViewKind; size?: number }) {
   const { view, reload, viewKind, size } = props;
-  const { uuid } = useContext(UuidContext);
-  const { kind } = useContext(ConnTypeContext);
+  const { uuid, kind } = useContext(UuidContext);
   const setUpMenu = useContextMenu((state) => state.setUpMenu);
   const icon = getIcon(viewKind);
 

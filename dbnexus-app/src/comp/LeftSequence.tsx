@@ -26,7 +26,6 @@ import { invoke } from "@tauri-apps/api/core";
 import { TabContent } from "./Tabs.tsx";
 import { DefAndMetasView } from "./DefAndMetaView.tsx";
 import {
-  ConnTypeContext,
   DataSourceKind,
   generateRandomString,
   secondConfirm,
@@ -44,8 +43,7 @@ import {
   useTabsManage,
 } from "./store.ts";
 function SequenceTree() {
-  const { uuid } = useContext(UuidContext);
-  const { kind } = useContext(ConnTypeContext);
+  const { uuid, kind } = useContext(UuidContext);
   const [seq, setSeq] = useState<types.SequenceDetail[]>([]);
   const { showNotification } = useNotification((s) => s);
   const { matchPattern, maxTree } = useAppConfigStore((state) => state);

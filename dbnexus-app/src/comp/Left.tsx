@@ -59,7 +59,6 @@ import wcmatch from "wildcard-match";
 
 import {
   ColumnWidth,
-  ConnTypeContext,
   connTypeToDataSourceKind,
   dataGridStyle,
   DataSourceKind,
@@ -691,18 +690,15 @@ function Left() {
       <Stack spacing={0.3}>
         {configs.map((e) => {
           return (
-            <ConnTypeContext.Provider
+            <UuidContext.Provider
+              value={{
+                uuid: e.name,
+                kind: connTypeToDataSourceKind(e.conn_type),
+              }}
               key={e.name}
-              value={{ kind: connTypeToDataSourceKind(e.conn_type) }}
             >
-              <UuidContext.Provider
-                value={{
-                  uuid: e.name,
-                }}
-              >
-                <OneConfig key={e.name} config={e} />
-              </UuidContext.Provider>
-            </ConnTypeContext.Provider>
+              <OneConfig key={e.name} config={e} />
+            </UuidContext.Provider>
           );
         })}
         {configs.length == 0 && (
@@ -1038,10 +1034,8 @@ function OneConfig(props: { config: types.DBConnectionConfig }) {
 }
 
 function SchemaTree(props: { schema?: string; reloadSchemas? }) {
-  const { kind } = useContext(ConnTypeContext);
-  const { uuid } = useContext(UuidContext);
+  const { uuid, kind } = useContext(UuidContext);
   const { schema, reloadSchemas } = props;
-
   const { is_connected, setConnected, removeConnected } = useConnected((s) => s);
   const SUPPORTED_PROCEDURE_KINDS = new Set([
     DataSourceKind.MariaDB,
@@ -1597,11 +1591,10 @@ function SchemaMenu(props: {
 }
 
 function CatalogTree() {
-  const { uuid: name } = useContext(UuidContext);
+  const { uuid: name, kind } = useContext(UuidContext);
   const { showNotification } = useNotification((s) => s);
   const [databases, setDatabases] = useState<string[]>([]);
   const [loading, setLoading] = useState(false);
-  const { kind } = useContext(ConnTypeContext);
 
   const handleReload = useCallback(() => {
     setLoading(true);
@@ -1665,7 +1658,7 @@ function CatalogTree() {
         .filter((db) => matchPattern(db))
         .map((db) => {
           return (
-            <UuidContext.Provider key={db} value={{ uuid: name + "/" + db }}>
+            <UuidContext.Provider key={db} value={{ uuid: name + "/" + db, kind }}>
               <DatabaseTree key={db} database={db} reloadDatabase={handleReload} />
             </UuidContext.Provider>
           );
@@ -1675,13 +1668,13 @@ function CatalogTree() {
 }
 
 function DatabaseTree(props: { database?: string; reloadDatabase?: () => void }) {
-  const { uuid: name } = useContext(UuidContext);
+  const { uuid: name, kind } = useContext(UuidContext);
   const { showNotification } = useNotification((s) => s);
   const [schemas, setSchemas] = useState<string[]>([]);
   const { database, reloadDatabase } = props;
   const [loading, setLoading] = useState(false);
   const { is_connected, setConnected, removeConnected } = useConnected((s) => s);
-  const { kind } = useContext(ConnTypeContext);
+
   const matchPattern = useAppConfigStore((state) => state.matchPattern);
   const handleReload = useCallback(() => {
     setLoading(true);
@@ -1747,7 +1740,10 @@ function DatabaseTree(props: { database?: string; reloadDatabase?: () => void })
         .filter((schema) => matchPattern(schema))
         .map((schema) => {
           return (
-            <UuidContext.Provider key={schema} value={{ uuid: name + "/" + schema }}>
+            <UuidContext.Provider
+              key={schema}
+              value={{ uuid: name + "/" + schema, kind }}
+            >
               <SchemaTree key={schema} schema={schema} reloadSchemas={handleReload} />
             </UuidContext.Provider>
           );

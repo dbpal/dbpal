@@ -19,7 +19,6 @@ import { DefAndMetasView } from "./DefAndMetaView";
 
 import { TbMathFunction } from "react-icons/tb";
 import {
-  ConnTypeContext,
   DataSourceKind,
   generateRandomString,
   secondConfirm,
@@ -38,8 +37,7 @@ import {
 } from "./store";
 
 function UdfsTree() {
-  const { uuid } = useContext(UuidContext);
-  const { kind } = useContext(ConnTypeContext);
+  const { uuid, kind } = useContext(UuidContext);
 
   const [udfs, setUdfs] = useState<types.NamedStaff[]>([]);
   const { showNotification } = useNotification((s) => s);

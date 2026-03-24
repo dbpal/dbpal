@@ -196,14 +196,3 @@ export const useQueryExtraUI = create<{
       return { extra: nextMap };
     }),
 }));
-
-// export const settingStore = create<{
-//   setting: UserSetting | null;
-//   setSetting: (setting: UserSetting) => void;
-// }>((set) => ({
-//   setting: null,
-//   setSetting: (setting: UserSetting) =>
-//     set(() => ({
-//       setting,
-//     })),
-// }));

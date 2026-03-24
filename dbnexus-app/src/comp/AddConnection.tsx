@@ -412,7 +412,7 @@ function DbSchemaCadidates(props: {
       });
   };
   return (
-    <Stack direction="row">
+    <Stack direction="row" style={{ alignItems: "flex-end" }}>
       <Autocomplete
         options={candidates}
         style={{ width: "12rem" }}

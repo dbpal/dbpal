@@ -10,7 +10,6 @@ import { TabContent } from "./Tabs";
 import { DefAndMetasView } from "./DefAndMetaView";
 import { PiTreeStructureFill } from "react-icons/pi";
 import {
-  ConnTypeContext,
   DataSourceKind,
   generateRandomString,
   secondConfirm,
@@ -26,8 +25,7 @@ import {
   useTabsManage,
 } from "./store";
 function TypesTree() {
-  const { uuid } = useContext(UuidContext);
-  const { kind } = useContext(ConnTypeContext);
+  const { uuid, kind } = useContext(UuidContext);
   const [types, setTypes] = useState<types.CreatedTypeDef[]>([]);
   const { showNotification } = useNotification((s) => s);
 

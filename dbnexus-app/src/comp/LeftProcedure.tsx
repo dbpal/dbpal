@@ -11,7 +11,6 @@ import { DefAndMetasView } from "./DefAndMetaView";
 
 import { SiProcessingfoundation } from "react-icons/si";
 import {
-  ConnTypeContext,
   DataSourceKind,
   generateRandomString,
   secondConfirm,
@@ -27,8 +26,7 @@ import {
   useTabsManage,
 } from "./store";
 function ProceduresTree() {
-  const { uuid } = useContext(UuidContext);
-  const { kind } = useContext(ConnTypeContext);
+  const { uuid, kind } = useContext(UuidContext);
   const [ps, setPos] = useState<types.NamedStaff[]>([]);
   const { showNotification } = useNotification((s) => s);
   const { matchPattern, maxTree } = useAppConfigStore((state) => state);

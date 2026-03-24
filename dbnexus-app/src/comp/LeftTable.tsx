@@ -53,7 +53,6 @@ import {
 import { MongoTable, MongoTableAdd } from "./MongoDB";
 import { BSON } from "bson";
 import {
-  ConnTypeContext,
   DataSourceKind,
   generateRandomString,
   secondConfirm,
@@ -79,8 +78,7 @@ import {
 
 function TablesTree(props: { typ: TableType }) {
   const { typ } = props;
-  const { uuid } = useContext(UuidContext);
-  const { kind } = useContext(ConnTypeContext);
+  const { uuid, kind } = useContext(UuidContext);
   const [tables, setTables] = useState<types.ListTable[]>([]);
   const { showNotification } = useNotification((s) => s);
   const [loading, setLoading] = useState(false);
@@ -178,8 +176,7 @@ function TableTree(props: {
   id: string;
 }) {
   const { table, reloadTables, size, id } = props;
-  const { uuid } = useContext(UuidContext);
-  const { kind } = useContext(ConnTypeContext);
+  const { uuid, kind } = useContext(UuidContext);
   const setUpMenu = useContextMenu((state) => state.setUpMenu);
 
   return (
@@ -883,8 +880,7 @@ function RedisOneTableKind(props: {
 }
 
 function RedisTables() {
-  const { kind } = useContext(ConnTypeContext);
-  const { uuid } = useContext(UuidContext);
+  const { uuid, kind } = useContext(UuidContext);
   const [filter, setFilter] = useState("");
   const [tables, setTables] = useState<types.RedisListTable>();
   const [loading, setLoading] = useState(false);

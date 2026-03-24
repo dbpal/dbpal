@@ -10,7 +10,6 @@ import { TabContent } from "./Tabs";
 import { DefAndMetasView } from "./DefAndMetaView";
 import { MdOutlineEventRepeat } from "react-icons/md";
 import {
-  ConnTypeContext,
   DataSourceKind,
   generateRandomString,
   secondConfirm,
@@ -26,8 +25,7 @@ import {
   useTabsManage,
 } from "./store";
 function EventsTree() {
-  const { uuid } = useContext(UuidContext);
-  const { kind } = useContext(ConnTypeContext);
+  const { uuid, kind } = useContext(UuidContext);
   const [evens, setEvents] = useState<types.SqlEvent[]>([]);
   const { showNotification } = useNotification((s) => s);
   const { matchPattern, maxTree } = useAppConfigStore((state) => state);
