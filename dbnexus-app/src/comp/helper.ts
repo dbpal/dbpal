@@ -572,8 +572,6 @@ class TabContent {
   ) {}
 }
 
-const LLMConfigContext = createContext<null | LLMConfig>(null);
-
 const TabContext = createContext<{ id: string }>(null);
 
 const ConnTypeContext = createContext<{
@@ -1207,7 +1205,6 @@ export {
   isWindows,
   KeyPressed,
   LLMConfig,
-  LLMConfigContext,
   loader,
   LoggerLevel,
   MongoLanguage,

@@ -54,7 +54,6 @@ import {
   appTheme,
   appStore,
   LLMConfig,
-  LLMConfigContext,
   shrinkAble,
   LoggerLevel,
   prettyMs,
@@ -75,6 +74,7 @@ import { listen } from "@tauri-apps/api/event";
 import { EscDownEvent, modalHandleClose, modalStyle } from "./Common";
 import { LogLevelSelection, ModalHeader } from "./CommonComp";
 import { appLogDir } from "@tauri-apps/api/path";
+import { useLLMConfig } from "./store";
 
 function AppearanceSetting() {
   const { showNotification } = useContext(NotificationContext);
@@ -1268,7 +1268,7 @@ function SettingProvider(props: { children: ReactNode }) {
 
 function ModifyLLMConfigModal() {
   const [showEdit, setShowEdit] = useState(false);
-  const config = useContext(LLMConfigContext);
+  const config = useLLMConfig((s) => s.config);
   return (
     <>
       {!config && (

@@ -5,7 +5,6 @@ import {
   extractLastNameFromUuid,
   handleCopyToClipboard,
   LLMConfig,
-  LLMConfigContext,
   SaveBoolToLocalStorage,
   TabActiveContext,
   TableType,
@@ -74,6 +73,7 @@ import {
 } from "./handlers.ts";
 
 import * as mongoQueryBackend from "./MongoQueryBackend.ts";
+import { useLLMConfig } from "./store.ts";
 
 class SimpleArrayMemory {
   history: BaseMessage[];
@@ -126,7 +126,7 @@ function Chat(props: {
 }) {
   const { uuid, kind, favoriteName, value, language } = props;
   const [editor, setEditor] = useState<editor.IStandaloneCodeEditor>(null);
-  const llmconfig = useContext(LLMConfigContext);
+  const llmconfig = useLLMConfig((s) => s.config);
   const saveChatShow = useRef(new SaveBoolToLocalStorage("chat-show-" + uuid));
   const [show, setShow] = useState(saveChatShow.current.get());
   useEffect(() => {
@@ -586,7 +586,7 @@ function SqlChatTextInput(props: {
   editor: editor.IStandaloneCodeEditor;
 }) {
   const { uuid, kind, editor } = props;
-  const config = useContext(LLMConfigContext);
+  const config = useLLMConfig((s) => s.config);
   const [prevQuestion, setPrevQuestion] = useState("");
   const [newQuestion, setNewQuestion] = useState("");
   const { showNotification } = useContext(NotificationContext);
@@ -1102,9 +1102,9 @@ function AllKindChat(props: {
   favoriteName?: string;
   language?: string;
 }) {
-  const [config, setConfig] = useState<LLMConfig>(null);
   const { showNotification } = useContext(NotificationContext);
 
+  const setConfig = useLLMConfig((s) => s.setConfig);
   const handleReload = useCallback(() => {
     LLMConfig.get()
       .then((config) => {
@@ -1115,7 +1115,8 @@ function AllKindChat(props: {
       .catch((e) => {
         showNotification("error", "get llm config failed", e);
       });
-  }, [showNotification]);
+  }, [setConfig, showNotification]);
+
   useEffect(() => {
     const unlisten = appStore.onKeyChange(LLMConfig.key, () => {
       handleReload();
@@ -1131,11 +1132,7 @@ function AllKindChat(props: {
     handleReload();
   }, [handleReload]);
 
-  return (
-    <LLMConfigContext.Provider value={config}>
-      <Chat {...props} />
-    </LLMConfigContext.Provider>
-  );
+  return <Chat {...props} />;
 }
 
 export { AllKindChat };

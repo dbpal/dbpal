@@ -1,6 +1,6 @@
 import { ReactNode } from "react";
 import { create } from "zustand";
-import { TabContent } from "./helper";
+import { LLMConfig, TabContent } from "./helper";
 
 export const useConfirmMsg = create<{
   confirmMsgs: Map<string, string>; // 明确 Map 的键值类型
@@ -88,6 +88,16 @@ export const useTabsManage = create<{
         tabs: [...state.tabs, tab],
       };
     });
+  },
+}));
+
+export const useLLMConfig = create<{
+  config: LLMConfig | null;
+  setConfig: (config: LLMConfig) => void;
+}>((set) => ({
+  config: null,
+  setConfig: (config: LLMConfig) => {
+    set({ config });
   },
 }));
 
