@@ -13,7 +13,7 @@ function Notifications() {
           position: "fixed",
           right: 0,
           top: 0,
-          zIndex: 14,
+          zIndex: 11114,
         }}
       >
         {notifications.map((notice, index) => (
