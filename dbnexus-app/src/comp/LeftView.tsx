@@ -46,7 +46,6 @@ import { ExportTableOrView } from "./Export";
 import {
   ColumnWidth,
   ConnTypeContext,
-  ContextMenuContext,
   dataGridStyle,
   DataSourceKind,
   extractFieldAndIDFromMouseEvent,
@@ -71,7 +70,7 @@ import {
 import { AppDataGridPagination, SimpleFlexEditor } from "./CommonComp2";
 import { createViewSql, listView, showViewColumns } from "./handlers";
 import { filesize } from "filesize";
-import { useAppConfigStore } from "./store";
+import { useAppConfigStore, useContextMenu } from "./store";
 function ViewsTree(props: { viewKind: ViewKind }) {
   const { viewKind } = props;
   const { uuid } = useContext(UuidContext);
@@ -100,7 +99,7 @@ function ViewsTree(props: { viewKind: ViewKind }) {
     handleReload();
   }, [handleReload]);
 
-  const { setUpMenu } = useContext(ContextMenuContext);
+  const setUpMenu = useContextMenu((state) => state.setUpMenu);
 
   let name;
   const icon = getIcon(viewKind);
@@ -332,7 +331,7 @@ function ColumnsContent(props: { uuid: string; view: string }) {
     }
   });
 
-  const { setUpMenu } = useContext(ContextMenuContext);
+  const setUpMenu = useContextMenu((state) => state.setUpMenu);
 
   const slotProps = useMemo(() => {
     return {
@@ -403,7 +402,7 @@ function ViewTree(props: { view: string; reload; viewKind: ViewKind; size?: numb
   const { view, reload, viewKind, size } = props;
   const { uuid } = useContext(UuidContext);
   const { kind } = useContext(ConnTypeContext);
-  const { setUpMenu } = useContext(ContextMenuContext);
+  const setUpMenu = useContextMenu((state) => state.setUpMenu);
   const icon = getIcon(viewKind);
 
   return (

@@ -44,7 +44,6 @@ import {
 } from "@mui/x-data-grid";
 import {
   ColumnWidth,
-  ContextMenuContext,
   handleCopyToClipboard,
   hexToString,
   hexTryToString,
@@ -84,6 +83,7 @@ import {
 import { invoke } from "@tauri-apps/api/core";
 import { showTable } from "./handlers.ts";
 import { AddTableView } from "./LeftTable.tsx";
+import { useContextMenu } from "./store.ts";
 
 class RedisZsetHashModifyReq {
   constructor(
@@ -890,7 +890,7 @@ function RedisSetTable(props: { setKey: string; uuid: string }) {
     setSelectRow(e.row);
   }, []);
 
-  const { setUpMenu } = useContext(ContextMenuContext);
+  const setUpMenu = useContextMenu((state) => state.setUpMenu);
   const setting = useContext(SettingContext);
   const slotProps = useMemo(() => {
     return {
@@ -1337,7 +1337,7 @@ function RedisListTable(props: { listKey: string; uuid: string }) {
     [respOrigin],
   );
 
-  const { setUpMenu } = useContext(ContextMenuContext);
+  const setUpMenu = useContextMenu((state) => state.setUpMenu);
   const slotProps = useMemo(() => {
     return {
       row: {
@@ -1652,7 +1652,7 @@ function RedisZsetTable(props: { uuid: string; zsetKey: string }) {
     setSelectRow(e.row);
   }, []);
 
-  const { setUpMenu } = useContext(ContextMenuContext);
+  const setUpMenu = useContextMenu((state) => state.setUpMenu);
   const slotProps = useMemo(() => {
     return {
       row: {
@@ -2034,7 +2034,7 @@ function RedisHashTable(props: { hashKey: string; uuid: string }) {
     setSelectRow(e.row);
   }, []);
 
-  const { setUpMenu } = useContext(ContextMenuContext);
+  const setUpMenu = useContextMenu((state) => state.setUpMenu);
   const slotProps = useMemo(() => {
     return {
       row: {

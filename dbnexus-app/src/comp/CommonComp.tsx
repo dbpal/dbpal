@@ -54,7 +54,6 @@ import ArrowDownwardIcon from "@mui/icons-material/ArrowDownward";
 import { IoTimerOutline } from "react-icons/io5";
 import {
   ColumnWidth,
-  ContextMenuContext,
   dataGridStyle,
   DataSourceKind,
   editorSetPositionAndReveal,
@@ -93,6 +92,7 @@ import { writeTextFile } from "@tauri-apps/plugin-fs";
 import { FaMarkdown } from "react-icons/fa";
 import { emit } from "@tauri-apps/api/event";
 import { AppDataGridPagination, StackRowCenter } from "./CommonComp2";
+import { useContextMenu } from "./store";
 
 function MenuExportMarkDownTable({ showExportMarkDown }) {
   return (
@@ -458,7 +458,7 @@ function MetaValueView({ values = [] as types.MetaValue[] }) {
       e["id"] = index;
     }
   });
-  const { setUpMenu } = useContext(ContextMenuContext);
+  const setUpMenu = useContextMenu((state) => state.setUpMenu);
   const slotProps = useMemo(() => {
     return {
       row: {

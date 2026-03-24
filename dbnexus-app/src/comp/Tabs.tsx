@@ -1,4 +1,4 @@
-import { useContext, useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
   Stack,
   MenuItem,
@@ -9,16 +9,10 @@ import {
   Typography,
 } from "@mui/material";
 import CloseIcon from "@mui/icons-material/Close";
-import {
-  ContextMenuContext,
-  secondConfirm,
-  TabContext,
-  TabContent,
-  TabActiveContext,
-} from "./helper";
+import { secondConfirm, TabContext, TabContent, TabActiveContext } from "./helper";
 
 import CircleIcon from "@mui/icons-material/Circle";
-import { useConfirmMsg } from "./store";
+import { useConfirmMsg, useContextMenu } from "./store";
 
 function TabsMenu(props: {
   index;
@@ -116,7 +110,7 @@ function TabsWithContent(props: {
   setTabs;
 }) {
   const { tabs, handleClose, selectIndex, changeTab, setTabs } = props;
-  const { setUpMenu } = useContext(ContextMenuContext);
+  const setUpMenu = useContextMenu((state) => state.setUpMenu);
   const rootStack = useRef<HTMLDivElement>(null);
   const [tabWidth, setTabWidth] = useState(100);
 

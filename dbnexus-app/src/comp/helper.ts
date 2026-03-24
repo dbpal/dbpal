@@ -589,10 +589,6 @@ const UuidContext = createContext<{
   uuid: string;
 }>(null);
 
-const ContextMenuContext = createContext<{
-  setUpMenu: ({ content, event }) => void;
-}>(null);
-
 interface ErrAndLoc {
   line?: number;
   column?: number;
@@ -1189,7 +1185,6 @@ export {
   ColumnWidth,
   ConnTypeContext,
   connTypeToDataSourceKind,
-  ContextMenuContext,
   dataGridheaderFontSize,
   dataGridStyle,
   DataSourceKind,

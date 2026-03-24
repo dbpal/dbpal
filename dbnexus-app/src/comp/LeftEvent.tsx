@@ -12,7 +12,6 @@ import { DefAndMetasView } from "./DefAndMetaView";
 import { MdOutlineEventRepeat } from "react-icons/md";
 import {
   ConnTypeContext,
-  ContextMenuContext,
   DataSourceKind,
   generateRandomString,
   secondConfirm,
@@ -22,7 +21,7 @@ import {
 import { ExceedMaxTreeItem, MenuRefresh } from "./CommonComp";
 import { listEvent } from "./handlers";
 import { CopySql } from "./CommonComp2";
-import { useAppConfigStore } from "./store";
+import { useAppConfigStore, useContextMenu } from "./store";
 function EventsTree() {
   const { uuid } = useContext(UuidContext);
   const { kind } = useContext(ConnTypeContext);
@@ -43,7 +42,7 @@ function EventsTree() {
     setExceed(evens.filter((e) => matchPattern(e.name)).length);
   }, [evens, matchPattern]);
 
-  const { setUpMenu } = useContext(ContextMenuContext);
+  const setUpMenu = useContextMenu((state) => state.setUpMenu);
 
   useEffect(() => {
     reload();

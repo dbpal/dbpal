@@ -13,7 +13,6 @@ import { DefAndMetasView } from "./DefAndMetaView";
 import { SiProcessingfoundation } from "react-icons/si";
 import {
   ConnTypeContext,
-  ContextMenuContext,
   DataSourceKind,
   generateRandomString,
   secondConfirm,
@@ -23,7 +22,7 @@ import {
 import { ExceedMaxTreeItem, MenuRefresh, UdfNameAndParameters } from "./CommonComp";
 import { listProcedure, makeShowProcedureExtraArg, showProcedure } from "./handlers";
 import { CopySql } from "./CommonComp2";
-import { useAppConfigStore } from "./store";
+import { useAppConfigStore, useContextMenu } from "./store";
 function ProceduresTree() {
   const { uuid } = useContext(UuidContext);
   const { kind } = useContext(ConnTypeContext);
@@ -45,7 +44,7 @@ function ProceduresTree() {
     setExceed(ps.filter((e) => matchPattern(e.name)).length);
   }, [ps, matchPattern]);
 
-  const { setUpMenu } = useContext(ContextMenuContext);
+  const setUpMenu = useContextMenu((state) => state.setUpMenu);
   useEffect(() => {
     reload();
   }, [reload]);

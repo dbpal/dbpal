@@ -55,7 +55,6 @@ import { MongoTable, MongoTableAdd } from "./MongoDB";
 import { BSON } from "bson";
 import {
   ConnTypeContext,
-  ContextMenuContext,
   DataSourceKind,
   generateRandomString,
   secondConfirm,
@@ -73,7 +72,7 @@ import { cancelTask, listTable, makeTableInsertFn, showTableColumn } from "./han
 import { filesize } from "filesize";
 import { CancelButton, CopySql, StackRowCenter } from "./CommonComp2";
 import { CouchBaseTable } from "./CouchBase";
-import { useAppConfigStore } from "./store.ts";
+import { useAppConfigStore, useContextMenu } from "./store.ts";
 
 function TablesTree(props: { typ: TableType }) {
   const { typ } = props;
@@ -105,7 +104,7 @@ function TablesTree(props: { typ: TableType }) {
     handleReload();
   }, [handleReload]);
 
-  const { setUpMenu } = useContext(ContextMenuContext);
+  const setUpMenu = useContextMenu((state) => state.setUpMenu);
 
   let tablesText: string;
 
@@ -178,7 +177,7 @@ function TableTree(props: {
   const { table, reloadTables, size, id } = props;
   const { uuid } = useContext(UuidContext);
   const { kind } = useContext(ConnTypeContext);
-  const { setUpMenu } = useContext(ContextMenuContext);
+  const setUpMenu = useContextMenu((state) => state.setUpMenu);
 
   return (
     <TreeItem
@@ -830,7 +829,7 @@ function RedisOneTableKind(props: {
       break;
   }
   const tablesID = useRef(generateRandomString());
-  const { setUpMenu } = useContext(ContextMenuContext);
+  const setUpMenu = useContextMenu((state) => state.setUpMenu);
   return (
     <TreeItem
       itemId={tablesID.current}

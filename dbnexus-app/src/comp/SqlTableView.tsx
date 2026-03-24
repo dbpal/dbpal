@@ -54,7 +54,6 @@ import FilterAltIcon from "@mui/icons-material/FilterAlt";
 import { FaArrowsAltV } from "react-icons/fa";
 import {
   ColumnWidth,
-  ContextMenuContext,
   DataSourceKind,
   handleCopyToClipboard,
   isTypeLargeText,
@@ -109,7 +108,7 @@ import {
 } from "./handlers";
 import { AddTableView } from "./LeftTable";
 import { ExportTableOrView } from "./Export";
-import { useConfirmMsg } from "./store";
+import { useConfirmMsg, useContextMenu } from "./store";
 
 const confirmAboutPrimary = async (
   notWarnPri: boolean,
@@ -571,7 +570,7 @@ function SqlTableView(props: {
     },
     [],
   );
-  const { setUpMenu } = useContext(ContextMenuContext);
+  const setUpMenu = useContextMenu((state) => state.setUpMenu);
   const onSortModelChange = useCallback(
     (sorts: GridSortModel) => {
       if (sorts.length == 0) {

@@ -12,7 +12,6 @@ import { DefAndMetasView } from "./DefAndMetaView";
 import { PiTreeStructureFill } from "react-icons/pi";
 import {
   ConnTypeContext,
-  ContextMenuContext,
   DataSourceKind,
   generateRandomString,
   secondConfirm,
@@ -22,7 +21,7 @@ import {
 import { ExceedMaxTreeItem, MenuRefresh } from "./CommonComp";
 import { listCreatedTypes } from "./handlers";
 import { CopySql } from "./CommonComp2";
-import { useAppConfigStore } from "./store";
+import { useAppConfigStore, useContextMenu } from "./store";
 function TypesTree() {
   const { uuid } = useContext(UuidContext);
   const { kind } = useContext(ConnTypeContext);
@@ -45,7 +44,7 @@ function TypesTree() {
     setExceed(types.filter((e) => matchPattern(e.name)).length);
   }, [types, matchPattern]);
 
-  const { setUpMenu } = useContext(ContextMenuContext);
+  const setUpMenu = useContextMenu((state) => state.setUpMenu);
   useEffect(() => {
     reload();
   }, [reload]);

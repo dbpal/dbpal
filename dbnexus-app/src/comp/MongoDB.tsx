@@ -69,7 +69,6 @@ import {
 } from "./CommonComp";
 import {
   ColumnWidth,
-  ContextMenuContext,
   DocsAndCount,
   handleCopyToClipboard,
   ErrAndLoc,
@@ -98,6 +97,7 @@ import {
 import { message } from "@tauri-apps/plugin-dialog";
 import { invoke } from "@tauri-apps/api/core";
 import { AddTableView } from "./LeftTable";
+import { useContextMenu } from "./store";
 enum MongoDataViewModel {
   List,
   Object,
@@ -1293,7 +1293,7 @@ function MongoTableList(props: {
       : undefined;
   }, [deleteOP, handleReload, resp, showNotification]);
 
-  const { setUpMenu } = useContext(ContextMenuContext);
+  const setUpMenu = useContextMenu((state) => state.setUpMenu);
   const slotProps = useMemo(() => {
     if (!resp) {
       return undefined;

@@ -28,7 +28,6 @@ import { TabContent } from "./Tabs.tsx";
 import { DefAndMetasView } from "./DefAndMetaView.tsx";
 import {
   ConnTypeContext,
-  ContextMenuContext,
   DataSourceKind,
   generateRandomString,
   secondConfirm,
@@ -40,7 +39,7 @@ import { ExceedMaxTreeItem, MenuRefresh } from "./CommonComp.tsx";
 import { listSequence } from "./handlers.ts";
 import { GrSteps } from "react-icons/gr";
 import { CopySql } from "./CommonComp2.tsx";
-import { useAppConfigStore } from "./store.ts";
+import { useAppConfigStore, useContextMenu } from "./store.ts";
 function SequenceTree() {
   const { uuid } = useContext(UuidContext);
   const { kind } = useContext(ConnTypeContext);
@@ -61,7 +60,7 @@ function SequenceTree() {
   useEffect(() => {
     setExceed(seq.filter((e) => matchPattern(e.name)).length);
   }, [seq, matchPattern]);
-  const { setUpMenu } = useContext(ContextMenuContext);
+  const setUpMenu = useContextMenu((state) => state.setUpMenu);
   useEffect(() => {
     reload();
   }, [reload]);

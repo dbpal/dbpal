@@ -21,7 +21,6 @@ import { DefAndMetasView } from "./DefAndMetaView";
 import { TbMathFunction } from "react-icons/tb";
 import {
   ConnTypeContext,
-  ContextMenuContext,
   DataSourceKind,
   generateRandomString,
   secondConfirm,
@@ -33,7 +32,7 @@ import { ExceedMaxTreeItem, MenuRefresh, UdfNameAndParameters } from "./CommonCo
 import { listCassandraAgg, listUdf, makeUdfExtraArg, showUdf } from "./handlers";
 import { showCassandraAgg } from "./handlers";
 import { CopySql } from "./CommonComp2";
-import { useAppConfigStore } from "./store";
+import { useAppConfigStore, useContextMenu } from "./store";
 
 function UdfsTree() {
   const { uuid } = useContext(UuidContext);
@@ -60,7 +59,7 @@ function UdfsTree() {
     reload();
   }, [reload]);
 
-  const { setUpMenu } = useContext(ContextMenuContext);
+  const setUpMenu = useContextMenu((state) => state.setUpMenu);
   const treeID = useRef(generateRandomString());
   return (
     <TreeItem
@@ -311,7 +310,7 @@ function CassandraAggregatesTree() {
   useEffect(() => {
     reload();
   }, [reload]);
-  const { setUpMenu } = useContext(ContextMenuContext);
+  const setUpMenu = useContextMenu((state) => state.setUpMenu);
   const tressId = useRef(generateRandomString());
   return (
     <TreeItem

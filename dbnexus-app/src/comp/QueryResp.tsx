@@ -17,7 +17,6 @@ import {
 } from "@mui/material";
 import {
   handleCopyToClipboard,
-  ContextMenuContext,
   SettingContext,
   saveAndSetSize,
   ColumnWidth,
@@ -54,6 +53,7 @@ import {
 } from "./CommonComp.tsx";
 import VisibilityIcon from "@mui/icons-material/Visibility";
 import { AppDataGridPagination, StackRowCenter } from "./CommonComp2.tsx";
+import { useContextMenu } from "./store.ts";
 
 function RespContextMenu(props: { content; field; setSort; viewInModal }) {
   const { content, field, setSort, viewInModal } = props;
@@ -143,7 +143,7 @@ function QueryResp(props: { data: MuiDataGridData }) {
   );
 
   const [sortModel, setSortModel] = useState<GridSortModel>([]);
-  const { setUpMenu } = useContext(ContextMenuContext);
+  const setUpMenu = useContextMenu((state) => state.setUpMenu);
   const slotProps = useMemo(() => {
     if (!data) {
       return undefined;

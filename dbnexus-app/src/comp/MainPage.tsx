@@ -2,7 +2,6 @@ import { NotificationContext, NotificationProvider } from "./Notification";
 import { Panel, PanelGroup, PanelResizeHandle } from "react-resizable-panels";
 import {
   CSSProperties,
-  ReactNode,
   useCallback,
   useContext,
   useEffect,
@@ -13,7 +12,6 @@ import { TabContent, TabsWithContent } from "./Tabs";
 import { Left } from "./Left";
 import { SettingProvider } from "./Settings.tsx";
 import {
-  ContextMenuContext,
   secondConfirm,
   TabsSetContext,
   getViewportSize,
@@ -31,7 +29,7 @@ import { openUrl } from "@tauri-apps/plugin-opener";
 import DeleteForeverIcon from "@mui/icons-material/DeleteForever";
 import { listen } from "@tauri-apps/api/event";
 import { ShowCuts } from "./ShortCuts.tsx";
-import { useConfirmMsg } from "./store.ts";
+import { useConfirmMsg, useContextMenu } from "./store.ts";
 
 function ShowPanic() {
   const [panicInfo, setPanicInfo] = useState("");
@@ -250,66 +248,61 @@ function App() {
     <SettingProvider>
       <TabsSetContext.Provider value={tabsValue}>
         <NotificationProvider>
-          <Menu>
-            <div>
-              <ShowPanic />
-              <ShowShortCut />
-              <PanelGroup
-                direction="horizontal"
+          <Menu />
+          <div>
+            <ShowPanic />
+            <ShowShortCut />
+            <PanelGroup
+              direction="horizontal"
+              style={{
+                height: "100vh",
+                width: "100vw",
+                padding: "0.5rem 1rem",
+              }}
+              autoSaveId="main"
+            >
+              <Panel
                 style={{
-                  height: "100vh",
-                  width: "100vw",
-                  padding: "0.5rem 1rem",
+                  overflow: "auto",
+                  height: "100%",
+                  paddingRight: "2px",
                 }}
-                autoSaveId="main"
+                minSize={10}
+                maxSize={85}
+                collapsible
+                collapsedSize={0}
               >
-                <Panel
-                  style={{
-                    overflow: "auto",
-                    height: "100%",
-                    paddingRight: "2px",
-                  }}
-                  minSize={10}
-                  maxSize={85}
-                  collapsible
-                  collapsedSize={0}
-                >
-                  <Left />
-                </Panel>
-                <PanelResizeHandle
-                  style={{ width: resizeHandlerSize }}
-                  className="resize-handle"
+                <Left />
+              </Panel>
+              <PanelResizeHandle
+                style={{ width: resizeHandlerSize }}
+                className="resize-handle"
+              />
+              <Panel
+                style={{
+                  overflow: "auto",
+                  height: "100%",
+                  paddingLeft: "2px",
+                }}
+              >
+                <TabsWithContent
+                  handleClose={closeTab}
+                  tabs={tabs}
+                  selectIndex={tab}
+                  changeTab={changeTab}
+                  setTabs={setTabs}
                 />
-                <Panel
-                  style={{
-                    overflow: "auto",
-                    height: "100%",
-                    paddingLeft: "2px",
-                  }}
-                >
-                  <TabsWithContent
-                    handleClose={closeTab}
-                    tabs={tabs}
-                    selectIndex={tab}
-                    changeTab={changeTab}
-                    setTabs={setTabs}
-                  />
-                </Panel>
-              </PanelGroup>
-            </div>
-          </Menu>
+              </Panel>
+            </PanelGroup>
+          </div>
         </NotificationProvider>
       </TabsSetContext.Provider>
     </SettingProvider>
   );
 }
 
-function Menu(props: { children: ReactNode }) {
-  const { children } = props;
-  const [menu, setUpMenu] = useState<{
-    content: ReactNode;
-    event: MouseEvent;
-  }>(null);
+function Menu() {
+  const menu = useContextMenu((state) => state.state);
   const [display, setDisplay] = useState("none");
   const [menuDiv, setMenuDiv] = useState<HTMLDivElement | null>(null);
 
@@ -337,12 +330,9 @@ function Menu(props: { children: ReactNode }) {
       menu.event.preventDefault();
     }
   }, [menu, menuDiv]);
-
   const theme = useTheme();
-
   return (
-    <ContextMenuContext.Provider value={{ setUpMenu }}>
-      {children}
+    menu && (
       <div
         ref={setMenuDiv}
         style={{
@@ -359,11 +349,11 @@ function Menu(props: { children: ReactNode }) {
       >
         <Paper elevation={24}>{menu && menu.content}</Paper>
       </div>
-    </ContextMenuContext.Provider>
+    )
   );
 }
 
-function calMenuStyle(e: MouseEvent): CSSProperties {
+function calMenuStyle(e: React.MouseEvent<any>): CSSProperties {
   const x = e.clientX;
   const y = e.clientY;
   const ret: CSSProperties = {};

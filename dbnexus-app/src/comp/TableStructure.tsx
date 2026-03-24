@@ -11,7 +11,6 @@ import types from "./ApiStruct";
 import { DefAndMetas, EscDownEvent, modalHandleClose, modalStyle } from "./Common";
 import {
   ColumnWidth,
-  ContextMenuContext,
   dataGridStyle,
   DataSourceKind,
   extractFieldAndIDFromMouseEvent,
@@ -77,6 +76,7 @@ import {
   StackRowCenter,
   TypeSelect,
 } from "./CommonComp2";
+import { useContextMenu } from "./store";
 
 function ColumnMenu(props: {
   col: string;
@@ -245,7 +245,7 @@ function ColumnsStructure(props: {
       e.width = width;
     }
   });
-  const { setUpMenu } = useContext(ContextMenuContext);
+  const setUpMenu = useContextMenu((state) => state.setUpMenu);
 
   const slotProps = useMemo(() => {
     return {
@@ -600,7 +600,7 @@ function IndexesStructure(props: {
     }
   });
 
-  const { setUpMenu } = useContext(ContextMenuContext);
+  const setUpMenu = useContextMenu((state) => state.setUpMenu);
 
   const slotProps = useMemo(() => {
     return {
@@ -1373,7 +1373,7 @@ function TriggersStructure(props: {
       e.width = width;
     }
   });
-  const { setUpMenu } = useContext(ContextMenuContext);
+  const setUpMenu = useContextMenu((state) => state.setUpMenu);
 
   const slotProps = useMemo(() => {
     return {

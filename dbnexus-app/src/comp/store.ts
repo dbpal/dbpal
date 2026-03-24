@@ -1,4 +1,4 @@
-import { KeyboardEvent, ReactNode } from "react";
+import { ReactNode } from "react";
 import { create } from "zustand";
 
 export const useConfirmMsg = create<{
@@ -47,7 +47,7 @@ export const useAppConfigStore = create<AppConfigState>((set) => ({
 }));
 
 export type ContextMenuState = {
-  event: KeyboardEvent;
+  event: React.MouseEvent<any>;
   content: ReactNode;
 };
 
@@ -57,7 +57,7 @@ export const useContextMenu = create<{
 }>((set) => ({
   state: null,
   setUpMenu: (s: ContextMenuState) => {
-    set(s);
+    set({ state: s });
   },
 }));
 

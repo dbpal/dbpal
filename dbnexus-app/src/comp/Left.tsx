@@ -63,7 +63,6 @@ import {
   ColumnWidth,
   ConnTypeContext,
   connTypeToDataSourceKind,
-  ContextMenuContext,
   dataGridStyle,
   DataSourceKind,
   extractConfigNameFromUuid,
@@ -131,7 +130,7 @@ import { ModifySetting } from "./Settings.tsx";
 import { CouchBaseQuery } from "./CouchBase.tsx";
 import FilterAltIcon from "@mui/icons-material/FilterAlt";
 import FilterAltOutlinedIcon from "@mui/icons-material/FilterAltOutlined";
-import { useAppConfigStore } from "./store.ts";
+import { useAppConfigStore, useContextMenu } from "./store.ts";
 const settingId = generateRandomString();
 
 function LeftTop(props: {
@@ -454,7 +453,9 @@ function CopyConnection() {
 
   const { showNotification } = useContext(NotificationContext);
   const setting = useContext(SettingContext);
-  const { setUpMenu } = useContext(ContextMenuContext);
+
+  const setUpMenu = useContextMenu((state) => state.setUpMenu);
+
   const { appendTab } = useContext(TabsSetContext);
 
   const handleRow = useCallback(
@@ -828,7 +829,7 @@ function FavoriteSqlList() {
     handleReload(false);
   }, [handleReload, uuidFilter]);
 
-  const { setUpMenu } = useContext(ContextMenuContext);
+  const setUpMenu = useContextMenu((state) => state.setUpMenu);
   const slotProps = useMemo(() => {
     return {
       row: {
@@ -1078,7 +1079,7 @@ function SchemaTree(props: { schema?: string; reloadSchemas? }) {
     DataSourceKind.Cassandra,
   ].includes(kind);
   const supportEvent = [DataSourceKind.Mysql, DataSourceKind.MariaDB].includes(kind);
-  const { setUpMenu } = useContext(ContextMenuContext);
+  const setUpMenu = useContextMenu((state) => state.setUpMenu);
   const [loading, setLoading] = useState(false);
   const idForTree = useRef(generateRandomString());
   return (
@@ -1623,7 +1624,7 @@ function CatalogTree() {
     }
   }, [handleReload, opened]);
 
-  const { setUpMenu } = useContext(ContextMenuContext);
+  const setUpMenu = useContextMenu((state) => state.setUpMenu);
 
   const matchPattern = useAppConfigStore((state) => state.matchPattern);
 
@@ -1701,7 +1702,7 @@ function DatabaseTree(props: { database?: string; reloadDatabase?: () => void })
       handleReload();
     }
   }, [handleReload, opened]);
-  const { setUpMenu } = useContext(ContextMenuContext);
+  const setUpMenu = useContextMenu((state) => state.setUpMenu);
 
   return (
     <TreeItem
