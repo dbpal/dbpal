@@ -1,4 +1,4 @@
-import { NotificationProvider } from "./Notification";
+import { Notifications } from "./Notification";
 import { Panel, PanelGroup, PanelResizeHandle } from "react-resizable-panels";
 import { CSSProperties, useCallback, useEffect, useState } from "react";
 import { TabsWithContent } from "./Tabs";
@@ -230,7 +230,7 @@ function App() {
 
   return (
     <SettingProvider>
-      <NotificationProvider />
+      <Notifications />
       <Menu />
       <div>
         <ShowPanic />

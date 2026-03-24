@@ -2,7 +2,7 @@ import React from "react";
 import { Alert, AlertTitle, Stack, Typography } from "@mui/material";
 import { useNotification } from "./store";
 
-function NotificationProvider() {
+function Notifications() {
   const { notifications, closeMsg } = useNotification((s) => s);
 
   return (
@@ -43,4 +43,4 @@ function NotificationProvider() {
   );
 }
 
-export { NotificationProvider };
+export { Notifications };
