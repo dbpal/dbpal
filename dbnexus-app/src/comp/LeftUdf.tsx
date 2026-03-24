@@ -24,7 +24,6 @@ import {
   DataSourceKind,
   generateRandomString,
   secondConfirm,
-  TabsSetContext,
   UuidContext,
 } from "./helper";
 
@@ -32,7 +31,7 @@ import { ExceedMaxTreeItem, MenuRefresh, UdfNameAndParameters } from "./CommonCo
 import { listCassandraAgg, listUdf, makeUdfExtraArg, showUdf } from "./handlers";
 import { showCassandraAgg } from "./handlers";
 import { CopySql } from "./CommonComp2";
-import { useAppConfigStore, useContextMenu } from "./store";
+import { useAppConfigStore, useContextMenu, useTabsManage } from "./store";
 
 function UdfsTree() {
   const { uuid } = useContext(UuidContext);
@@ -130,7 +129,7 @@ function UdfMenu(props: {
   id: string;
 }) {
   const { uuid, udf, reload, kind, id } = props;
-  const { setCurrentTab, tabs, appendTab } = useContext(TabsSetContext);
+  const { setCurrentTab, tabs, appendTab } = useTabsManage((state) => state);
   const { showNotification } = useContext(NotificationContext);
   const handleOpenDetails = () => {
     const index = tabsHasId(tabs, id);
@@ -208,7 +207,7 @@ function CassandraAggregateMenu(props: {
   reload;
 }) {
   const { uuid, agg, reload, parameters } = props;
-  const { setCurrentTab, tabs, appendTab } = useContext(TabsSetContext);
+  const { setCurrentTab, tabs, appendTab } = useTabsManage((state) => state);
   const { showNotification } = useContext(NotificationContext);
 
   const handleOpenDetails = () => {
@@ -230,7 +229,7 @@ function CassandraAggregateMenu(props: {
           />,
           <MdFunctions className="tab-icon-size" />,
         ),
-      )();
+      );
     }
   };
 

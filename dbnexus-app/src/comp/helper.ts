@@ -571,11 +571,6 @@ class TabContent {
     public icon: ReactElement,
   ) {}
 }
-const TabsSetContext = createContext<{
-  tabs: TabContent[];
-  setCurrentTab;
-  appendTab(tab: TabContent);
-}>(null);
 
 const LLMConfigContext = createContext<null | LLMConfig>(null);
 
@@ -1242,7 +1237,6 @@ export {
   TabActiveContext,
   TabContent,
   TableType,
-  TabsSetContext,
   textEllipsisStyle,
   UserSetting,
   UserSettingAppearance,

@@ -1,5 +1,6 @@
 import { ReactNode } from "react";
 import { create } from "zustand";
+import { TabContent } from "./helper";
 
 export const useConfirmMsg = create<{
   confirmMsgs: Map<string, string>; // 明确 Map 的键值类型
@@ -58,6 +59,35 @@ export const useContextMenu = create<{
   state: null,
   setUpMenu: (s: ContextMenuState) => {
     set({ state: s });
+  },
+}));
+
+export const useTabsManage = create<{
+  currentTab: number;
+  setCurrentTab: (x: number) => void;
+  tabs: TabContent[];
+  setTabs: (tabs: TabContent[]) => void;
+  appendTab: (tab: TabContent) => void;
+}>((set) => ({
+  currentTab: 0,
+  setCurrentTab: (x: number) => {
+    set({ currentTab: x });
+  },
+  tabs: [],
+  setTabs: (tabs: TabContent[]) => {
+    set({ tabs });
+  },
+  appendTab: (tab: TabContent) => {
+    // state 就是当前时刻的最新的状态
+    set((state) => {
+      setTimeout(() => {
+        state.setCurrentTab(state.tabs.length);
+      }, 100);
+
+      return {
+        tabs: [...state.tabs, tab],
+      };
+    });
   },
 }));
 

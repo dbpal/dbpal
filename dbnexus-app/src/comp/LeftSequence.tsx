@@ -31,7 +31,6 @@ import {
   DataSourceKind,
   generateRandomString,
   secondConfirm,
-  TabsSetContext,
   UuidContext,
 } from "./helper.ts";
 
@@ -39,7 +38,7 @@ import { ExceedMaxTreeItem, MenuRefresh } from "./CommonComp.tsx";
 import { listSequence } from "./handlers.ts";
 import { GrSteps } from "react-icons/gr";
 import { CopySql } from "./CommonComp2.tsx";
-import { useAppConfigStore, useContextMenu } from "./store.ts";
+import { useAppConfigStore, useContextMenu, useTabsManage } from "./store.ts";
 function SequenceTree() {
   const { uuid } = useContext(UuidContext);
   const { kind } = useContext(ConnTypeContext);
@@ -153,7 +152,7 @@ function SequenceMenu(props: {
   id: string;
 }) {
   const { uuid, seq, reload, kind, id } = props;
-  const { setCurrentTab, tabs, appendTab } = useContext(TabsSetContext);
+  const { setCurrentTab, tabs, appendTab } = useTabsManage((state) => state);
   const { showNotification } = useContext(NotificationContext);
   const [showDrop, setShowDrop] = useState(false);
   const [cascade, setCascade] = useState(false);

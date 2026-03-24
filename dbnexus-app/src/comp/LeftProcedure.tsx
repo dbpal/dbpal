@@ -16,13 +16,12 @@ import {
   DataSourceKind,
   generateRandomString,
   secondConfirm,
-  TabsSetContext,
   UuidContext,
 } from "./helper";
 import { ExceedMaxTreeItem, MenuRefresh, UdfNameAndParameters } from "./CommonComp";
 import { listProcedure, makeShowProcedureExtraArg, showProcedure } from "./handlers";
 import { CopySql } from "./CommonComp2";
-import { useAppConfigStore, useContextMenu } from "./store";
+import { useAppConfigStore, useContextMenu, useTabsManage } from "./store";
 function ProceduresTree() {
   const { uuid } = useContext(UuidContext);
   const { kind } = useContext(ConnTypeContext);
@@ -120,7 +119,7 @@ function ProcedureMenu(props: {
   id: string;
 }) {
   const { uuid, procedure, reload, kind, id } = props;
-  const { setCurrentTab, tabs, appendTab } = useContext(TabsSetContext);
+  const { setCurrentTab, tabs, appendTab } = useTabsManage((state) => state);
   const { showNotification } = useContext(NotificationContext);
 
   const handleOpenDetails = () => {

@@ -1,19 +1,11 @@
 import { NotificationContext, NotificationProvider } from "./Notification";
 import { Panel, PanelGroup, PanelResizeHandle } from "react-resizable-panels";
-import {
-  CSSProperties,
-  useCallback,
-  useContext,
-  useEffect,
-  useMemo,
-  useState,
-} from "react";
-import { TabContent, TabsWithContent } from "./Tabs";
+import { CSSProperties, useCallback, useContext, useEffect, useState } from "react";
+import { TabsWithContent } from "./Tabs";
 import { Left } from "./Left";
 import { SettingProvider } from "./Settings.tsx";
 import {
   secondConfirm,
-  TabsSetContext,
   getViewportSize,
   KeyPressed,
   resizeHandlerSize,
@@ -29,7 +21,7 @@ import { openUrl } from "@tauri-apps/plugin-opener";
 import DeleteForeverIcon from "@mui/icons-material/DeleteForever";
 import { listen } from "@tauri-apps/api/event";
 import { ShowCuts } from "./ShortCuts.tsx";
-import { useConfirmMsg, useContextMenu } from "./store.ts";
+import { useConfirmMsg, useContextMenu, useTabsManage } from "./store.ts";
 
 function ShowPanic() {
   const [panicInfo, setPanicInfo] = useState("");
@@ -160,8 +152,8 @@ function ShowShortCut() {
 }
 
 function App() {
-  const [tabs, setTabs] = useState<TabContent[]>([]);
-  const [tab, setCurrentTab] = useState(0);
+  const { tabs, setCurrentTab, setTabs, currentTab } = useTabsManage((state) => state);
+
   const cancelMsg = useConfirmMsg((state) => state.confirmMsgs);
   const closeTab = useCallback(
     (index: number) => {
@@ -179,27 +171,23 @@ function App() {
             return;
           }
         }
-        setTabs((prevTabs) => {
-          return prevTabs.filter((x) => x.id !== id);
-        });
+        setTabs(tabs.filter((x) => x.id !== id));
       })();
     },
-    [cancelMsg, tabs],
+    [cancelMsg, setTabs, tabs],
   );
 
   const shortCuts = useCallback(
     (e: KeyboardEvent) => {
       const prevTab = () => {
-        setCurrentTab((e) => (e > 0 ? e - 1 : e));
+        setCurrentTab(currentTab > 0 ? currentTab - 1 : currentTab);
       };
       const nextTab = () => {
-        if (tabs.length - 1 > tab) {
-          setCurrentTab((e) => e + 1);
-        }
+        setCurrentTab(currentTab + 1);
       };
       const closeCurrentTab = () => {
         if (tabs.length > 0) {
-          closeTab(tab);
+          closeTab(currentTab);
           e.preventDefault();
         }
       };
@@ -213,7 +201,7 @@ function App() {
         closeCurrentTab();
       }
     },
-    [tabs.length, tab, closeTab],
+    [setCurrentTab, currentTab, tabs.length, closeTab],
   );
   // shortcut
   useEffect(() => {
@@ -223,80 +211,69 @@ function App() {
     };
   }, [shortCuts]);
   useEffect(() => {
-    if (tab > 0 && tab >= tabs.length) {
-      setCurrentTab((e) => e - 1);
+    if (currentTab > 0 && currentTab >= tabs.length) {
+      setCurrentTab(currentTab - 1);
     }
-  }, [tabs, tab]);
-  const changeTab = useCallback((index) => {
-    setCurrentTab(index as number);
-  }, []);
+  }, [currentTab, setCurrentTab, tabs]);
 
-  const tabsValue = useMemo(() => {
-    return {
-      tabs,
-      setCurrentTab,
-      appendTab: (tab) => {
-        setTimeout(() => {
-          setCurrentTab(tabs.length);
-        }, 100);
-        setTabs((tabs) => [...tabs, tab]);
-      },
-    };
-  }, [tabs]);
+  const changeTab = useCallback(
+    (index) => {
+      setCurrentTab(index as number);
+    },
+    [setCurrentTab],
+  );
 
   return (
     <SettingProvider>
-      <TabsSetContext.Provider value={tabsValue}>
-        <NotificationProvider>
-          <Menu />
-          <div>
-            <ShowPanic />
-            <ShowShortCut />
-            <PanelGroup
-              direction="horizontal"
+      <NotificationProvider>
+        <Menu />
+        <div>
+          <ShowPanic />
+          <ShowShortCut />
+          <PanelGroup
+            direction="horizontal"
+            style={{
+              height: "100vh",
+              width: "100vw",
+              padding: "0.5rem 1rem",
+            }}
+            autoSaveId="main"
+          >
+            <Panel
               style={{
-                height: "100vh",
-                width: "100vw",
-                padding: "0.5rem 1rem",
+                overflow: "auto",
+                height: "100%",
+                paddingRight: "2px",
               }}
-              autoSaveId="main"
+              minSize={10}
+              maxSize={85}
+              collapsible
+              collapsedSize={0}
             >
-              <Panel
-                style={{
-                  overflow: "auto",
-                  height: "100%",
-                  paddingRight: "2px",
-                }}
-                minSize={10}
-                maxSize={85}
-                collapsible
-                collapsedSize={0}
-              >
-                <Left />
-              </Panel>
-              <PanelResizeHandle
-                style={{ width: resizeHandlerSize }}
-                className="resize-handle"
+              <Left />
+            </Panel>
+            <PanelResizeHandle
+              style={{ width: resizeHandlerSize }}
+              className="resize-handle"
+            />
+            <Panel
+              style={{
+                overflow: "auto",
+                height: "100%",
+                paddingLeft: "2px",
+              }}
+            >
+              <TabsWithContent
+                handleClose={closeTab}
+                tabs={tabs}
+                selectIndex={currentTab}
+                changeTab={changeTab}
+                setTabs={setTabs}
               />
-              <Panel
-                style={{
-                  overflow: "auto",
-                  height: "100%",
-                  paddingLeft: "2px",
-                }}
-              >
-                <TabsWithContent
-                  handleClose={closeTab}
-                  tabs={tabs}
-                  selectIndex={tab}
-                  changeTab={changeTab}
-                  setTabs={setTabs}
-                />
-              </Panel>
-            </PanelGroup>
-          </div>
-        </NotificationProvider>
-      </TabsSetContext.Provider>
+            </Panel>
+          </PanelGroup>
+        </div>
+      </NotificationProvider>
     </SettingProvider>
   );
 }

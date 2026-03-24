@@ -55,7 +55,6 @@ import {
   handleCopyToClipboard,
   secondConfirm,
   SettingContext,
-  TabsSetContext,
   UuidContext,
   ViewKind,
 } from "./helper";
@@ -70,7 +69,7 @@ import {
 import { AppDataGridPagination, SimpleFlexEditor } from "./CommonComp2";
 import { createViewSql, listView, showViewColumns } from "./handlers";
 import { filesize } from "filesize";
-import { useAppConfigStore, useContextMenu } from "./store";
+import { useAppConfigStore, useContextMenu, useTabsManage } from "./store";
 function ViewsTree(props: { viewKind: ViewKind }) {
   const { viewKind } = props;
   const { uuid } = useContext(UuidContext);
@@ -476,9 +475,7 @@ function ViewMenu(props: {
         showNotification("error", "Drop View Failure", e);
       });
   };
-
-  const { tabs, setCurrentTab, appendTab } = useContext(TabsSetContext);
-
+  const { tabs, setCurrentTab, appendTab } = useTabsManage((state) => state);
   const handleViewData = () => {
     const id = uuid + "-view-" + generateRandomString();
 

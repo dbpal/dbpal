@@ -58,7 +58,6 @@ import {
   DataSourceKind,
   generateRandomString,
   secondConfirm,
-  TabsSetContext,
   UuidContext,
   handleCopyToClipboard,
   getSupportExportKind,
@@ -72,7 +71,7 @@ import { cancelTask, listTable, makeTableInsertFn, showTableColumn } from "./han
 import { filesize } from "filesize";
 import { CancelButton, CopySql, StackRowCenter } from "./CommonComp2";
 import { CouchBaseTable } from "./CouchBase";
-import { useAppConfigStore, useContextMenu } from "./store.ts";
+import { useAppConfigStore, useContextMenu, useTabsManage } from "./store.ts";
 
 function TablesTree(props: { typ: TableType }) {
   const { typ } = props;
@@ -417,7 +416,7 @@ function TableMenu(props: {
   const [showDrop, setShowDrop] = useState(false);
   const [showExport, setShowExport] = useState(false);
   const { showNotification } = useContext(NotificationContext);
-  const { tabs, setCurrentTab, appendTab } = useContext(TabsSetContext);
+  const { tabs, setCurrentTab, appendTab } = useTabsManage((state) => state);
 
   const handleTruncateTable = async () => {
     const confirm = await secondConfirm({

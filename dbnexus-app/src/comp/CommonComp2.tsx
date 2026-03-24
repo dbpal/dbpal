@@ -62,7 +62,6 @@ import {
   SettingContext,
   TabActiveContext,
   TabContent,
-  TabsSetContext,
 } from "./helper";
 import { Editor } from "@monaco-editor/react";
 import { editor, Position } from "monaco-editor";
@@ -98,6 +97,7 @@ import {
   useGridSelector,
 } from "@mui/x-data-grid";
 import { CustomToolbar } from "./CustomToolBar";
+import { useTabsManage } from "./store";
 function CreateDatabase(props: {
   uuid: string;
   handleClose: () => void;
@@ -546,7 +546,7 @@ function EditorBar(props: { left?: any; pos: Position }) {
 }
 
 function MenuConnectionInfo({ uuid }) {
-  const { appendTab } = useContext(TabsSetContext);
+  const appendTab = useTabsManage((state) => state.appendTab);
   const handleInfo = async () => {
     appendTab(
       new TabContent(

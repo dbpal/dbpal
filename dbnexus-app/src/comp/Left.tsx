@@ -75,7 +75,6 @@ import {
   secondConfirm,
   SettingContext,
   TableType,
-  TabsSetContext,
   UuidContext,
 } from "./helper";
 import { TbDatabaseSearch } from "react-icons/tb";
@@ -130,7 +129,7 @@ import { ModifySetting } from "./Settings.tsx";
 import { CouchBaseQuery } from "./CouchBase.tsx";
 import FilterAltIcon from "@mui/icons-material/FilterAlt";
 import FilterAltOutlinedIcon from "@mui/icons-material/FilterAltOutlined";
-import { useAppConfigStore, useContextMenu } from "./store.ts";
+import { useAppConfigStore, useContextMenu, useTabsManage } from "./store.ts";
 const settingId = generateRandomString();
 
 function LeftTop(props: {
@@ -144,7 +143,7 @@ function LeftTop(props: {
   const { showNotification } = useContext(NotificationContext);
   const saveLeftTopShow = useRef(new SaveBoolToLocalStorage("left-top-show"));
   const [show, setShow] = useState(saveLeftTopShow.current.get());
-  const { appendTab, setCurrentTab, tabs } = useContext(TabsSetContext);
+  const { appendTab, setCurrentTab, tabs } = useTabsManage((state) => state);
   useEffect(() => {
     saveLeftTopShow.current.save(show);
   }, [show]);
@@ -456,7 +455,7 @@ function CopyConnection() {
 
   const setUpMenu = useContextMenu((state) => state.setUpMenu);
 
-  const { appendTab } = useContext(TabsSetContext);
+  const { appendTab } = useTabsManage((state) => state);
 
   const handleRow = useCallback(
     async (conn) => {
@@ -774,7 +773,7 @@ function FavoriteSqlList() {
     [showNotification, uuidFilter],
   );
 
-  const { appendTab } = useContext(TabsSetContext);
+  const { appendTab } = useTabsManage((state) => state);
 
   const checkConnOpened = useCallback(
     async (uuid: string) => {
@@ -1247,7 +1246,7 @@ function DatabaseMenu(props: {
   } = props;
   const { showNotification } = useContext(NotificationContext);
   const [showCreateSchema, setShowCreateSchema] = useState(false);
-  const { appendTab } = useContext(TabsSetContext);
+  const { appendTab } = useTabsManage((state) => state);
   return (
     <div>
       <MenuList>
@@ -1535,7 +1534,7 @@ function SchemaMenu(props: {
     kind,
     setLoading,
   } = props;
-  const { appendTab } = useContext(TabsSetContext);
+  const { appendTab } = useTabsManage((state) => state);
   const { showNotification } = useContext(NotificationContext);
   return (
     <MenuList>
