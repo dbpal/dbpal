@@ -1,6 +1,6 @@
 import { ReactElement, ReactNode } from "react";
 import { create } from "zustand";
-import { LLMConfig, TabContent } from "./helper";
+import { extractConfigNameFromUuid, LLMConfig, TabContent } from "./helper";
 import { AlertColor } from "@mui/material";
 import React from "react";
 
@@ -141,6 +141,60 @@ export const useNotification = create<{
       set((state) => ({ notifications: state.notifications.slice(1) }));
     }, 10000);
   },
+}));
+
+export const useConnected = create<{
+  connected: Set<string>;
+  is_connected: (name: string) => boolean;
+  setConnected: (name: string) => void;
+  removeConnected: (name: string) => void;
+}>((set, get) => ({
+  connected: new Set(),
+
+  // Use get() to access the current state
+  is_connected: (name) => {
+    name = extractConfigNameFromUuid(name);
+    return get().connected.has(name);
+  },
+
+  setConnected: (name) => {
+    set((state) => {
+      // Create a new Set instance to ensure React detects the change
+      const nextSet = new Set(state.connected);
+      nextSet.add(name);
+      return { connected: nextSet };
+    });
+  },
+  removeConnected: (name) => {
+    set((state) => {
+      // Create a new Set instance to ensure React detects the change
+      const nextSet = new Set(state.connected);
+      nextSet.delete(name);
+      return { connected: nextSet };
+    });
+  },
+}));
+
+export const useQueryExtraUI = create<{
+  extra: Map<string, ReactNode>;
+  setExtra: (id: string, extra: ReactNode) => void;
+  removeExtra: (id: string) => void;
+}>((set) => ({
+  extra: new Map(),
+
+  setExtra: (id, extra) =>
+    set((state) => {
+      const nextMap = new Map(state.extra);
+      nextMap.set(id, extra);
+      return { extra: nextMap };
+    }),
+
+  removeExtra: (id) =>
+    set((state) => {
+      const nextMap = new Map(state.extra);
+      nextMap.delete(id);
+      return { extra: nextMap };
+    }),
 }));
 
 // export const settingStore = create<{

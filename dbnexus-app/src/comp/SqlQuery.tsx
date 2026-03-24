@@ -46,7 +46,6 @@ import {
   getLanguageFromDataSourceKind,
   MuiDataGridData,
   QueryLogHandler,
-  QuerySomeShowContext,
   resizeHandlerSize,
   rustResultOk,
   saveQueryLog,
@@ -72,7 +71,7 @@ import { ModifyLLMConfigModal } from "./Settings.tsx";
 import { cancelTask, checkSql } from "./handlers.ts";
 import { Channel } from "@tauri-apps/api/core";
 import { v4 as uuidv4 } from "uuid";
-import { useConfirmMsg, useNotification } from "./store.ts";
+import { useConfirmMsg, useNotification, useQueryExtraUI } from "./store.ts";
 function SqlTransaction(props: { conn: QueryConn; executeTimes: number }) {
   const { conn, executeTimes } = props;
   const [commit, setCommit] = useState(true);
@@ -223,8 +222,8 @@ function SqlQuery(props: {
   const [openOk, setOpenOk] = useState(false);
   const [tryCheckSql, setTryCheckSql] = useState(SaveCheckSql.get());
   const [queryStatus, setQueryStatus] = useState("");
-
-  const querySomeShow = useContext(QuerySomeShowContext);
+  const tabCtx = useContext(TabContext);
+  const querySomeShow = useQueryExtraUI((s) => s.extra);
 
   useEffect(() => {
     SaveCheckSql.save(tryCheckSql);
@@ -631,7 +630,7 @@ function SqlQuery(props: {
                 dbpal use Stream technology to query data,so we can query large data
               </Typography>
             />
-            {querySomeShow}
+            {querySomeShow.get(tabCtx.id)}
           </Stack>
           <div
             style={{

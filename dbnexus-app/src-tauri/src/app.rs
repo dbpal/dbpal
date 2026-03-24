@@ -596,11 +596,6 @@ impl DBPal {
             }
         }
     }
-
-    pub async fn conn_opened(&self, name: &str) -> bool {
-        let x = name_to_parts(name);
-        self.backend.lock().await.contains_key(&x[0].to_string())
-    }
 }
 
 #[derive(serde::Serialize, Debug, Clone)]

@@ -34,7 +34,6 @@ import {
 import ContentCopyIcon from "@mui/icons-material/ContentCopy";
 import { GrConnect } from "react-icons/gr";
 import {
-  OpenedContext,
   modalStyle,
   dropDatabase,
   dropSchema,
@@ -130,6 +129,7 @@ import FilterAltIcon from "@mui/icons-material/FilterAlt";
 import FilterAltOutlinedIcon from "@mui/icons-material/FilterAltOutlined";
 import {
   useAppConfigStore,
+  useConnected,
   useContextMenu,
   useNotification,
   useTabsManage,
@@ -778,10 +778,10 @@ function FavoriteSqlList() {
   );
 
   const { appendTab } = useTabsManage((state) => state);
-
+  const is_connected = useConnected((s) => s.is_connected);
   const checkConnOpened = useCallback(
     async (uuid: string) => {
-      const connOpened = await invoke<boolean>("conn_opened", { name: uuid });
+      const connOpened = is_connected(uuid);
       if (!connOpened) {
         showNotification(
           "error",
@@ -792,7 +792,7 @@ function FavoriteSqlList() {
         return true;
       }
     },
-    [showNotification],
+    [is_connected, showNotification],
   );
 
   const handleRow = useCallback(
@@ -985,8 +985,6 @@ function FavoriteSqlList() {
 
 function OneConfig(props: { config: types.DBConnectionConfig }) {
   const { config } = props;
-  const [opened, setOpened] = useState(false);
-
   const makeTree = () => {
     switch (config.conn_type) {
       case DataSourceKind.Postgres:
@@ -1036,11 +1034,7 @@ function OneConfig(props: { config: types.DBConnectionConfig }) {
         console.error("impl database kind:", config);
     }
   };
-  return (
-    <OpenedContext.Provider value={{ opened, setOpened }}>
-      <SimpleTreeView disableSelection>{makeTree()}</SimpleTreeView>
-    </OpenedContext.Provider>
-  );
+  return <SimpleTreeView disableSelection>{makeTree()}</SimpleTreeView>;
 }
 
 function SchemaTree(props: { schema?: string; reloadSchemas? }) {
@@ -1048,7 +1042,7 @@ function SchemaTree(props: { schema?: string; reloadSchemas? }) {
   const { uuid } = useContext(UuidContext);
   const { schema, reloadSchemas } = props;
 
-  const { opened, setOpened } = useContext(OpenedContext);
+  const { is_connected, setConnected, removeConnected } = useConnected((s) => s);
   const SUPPORTED_PROCEDURE_KINDS = new Set([
     DataSourceKind.MariaDB,
     DataSourceKind.Mysql,
@@ -1057,6 +1051,8 @@ function SchemaTree(props: { schema?: string; reloadSchemas? }) {
     DataSourceKind.Oracle,
     DataSourceKind.Cockroach,
   ]);
+
+  const opened = is_connected(uuid);
 
   const supportProcedure = SUPPORTED_PROCEDURE_KINDS.has(kind);
   const supportUdf = new Set([
@@ -1098,10 +1094,10 @@ function SchemaTree(props: { schema?: string; reloadSchemas? }) {
                 schema={schema}
                 setLoading={setLoading}
                 handleOpened={() => {
-                  setOpened(true);
+                  setConnected(uuid);
                 }}
                 handleCloseConn={() => {
-                  setOpened(false);
+                  removeConnected(uuid);
                 }}
                 uuid={uuid}
                 reloadSchemas={reloadSchemas}
@@ -1620,7 +1616,8 @@ function CatalogTree() {
         setLoading(false);
       });
   }, [name, showNotification]);
-  const { opened, setOpened } = useContext(OpenedContext);
+  const { is_connected, setConnected, removeConnected } = useConnected((s) => s);
+  const opened = is_connected(name);
   useEffect(() => {
     if (opened) {
       handleReload();
@@ -1645,10 +1642,10 @@ function CatalogTree() {
                 reload={handleReload}
                 opened={opened}
                 handleOpened={() => {
-                  setOpened(true);
+                  setConnected(name);
                 }}
                 handleCloseConn={() => {
-                  setOpened(false);
+                  removeConnected(name);
                   setDatabases([]);
                 }}
                 kind={kind}
@@ -1683,7 +1680,7 @@ function DatabaseTree(props: { database?: string; reloadDatabase?: () => void })
   const [schemas, setSchemas] = useState<string[]>([]);
   const { database, reloadDatabase } = props;
   const [loading, setLoading] = useState(false);
-  const { opened, setOpened } = useContext(OpenedContext);
+  const { is_connected, setConnected, removeConnected } = useConnected((s) => s);
   const { kind } = useContext(ConnTypeContext);
   const matchPattern = useAppConfigStore((state) => state.matchPattern);
   const handleReload = useCallback(() => {
@@ -1701,10 +1698,10 @@ function DatabaseTree(props: { database?: string; reloadDatabase?: () => void })
   }, [name, showNotification]);
 
   useEffect(() => {
-    if (opened) {
+    if (is_connected(name)) {
       handleReload();
     }
-  }, [handleReload, opened]);
+  }, [handleReload, is_connected, name]);
   const setUpMenu = useContextMenu((state) => state.setUpMenu);
 
   return (
@@ -1718,12 +1715,12 @@ function DatabaseTree(props: { database?: string; reloadDatabase?: () => void })
             content: (
               <DatabaseMenu
                 setLoading={setLoading}
-                opened={opened}
+                opened={is_connected(name)}
                 handleOpened={() => {
-                  setOpened(true);
+                  setConnected(name);
                 }}
                 handleCloseConn={() => {
-                  setOpened(false);
+                  removeConnected(name);
                   setSchemas([]);
                 }}
                 database={database}
@@ -1742,7 +1739,7 @@ function DatabaseTree(props: { database?: string; reloadDatabase?: () => void })
         {database && <FaDatabase />}
         <span>{database ? database : name}</span>
         {loading && <CircularProgress />}
-        {!database && opened && <ConnPingTime uuid={name} />}
+        {!database && is_connected(name) && <ConnPingTime uuid={name} />}
       </Stack>
       key={name + database}
     >

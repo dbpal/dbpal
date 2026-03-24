@@ -1401,17 +1401,6 @@ pub async fn try_list_database_schema_candidates(
 }
 
 #[tauri::command]
-pub async fn conn_opened(
-    name: String,
-    app: tauri::State<'_, DBPal>,
-) -> Result<bool, ErrorFrontend> {
-    random_sleep().await;
-    random_error()?;
-    let opened = app.conn_opened(&name).await;
-    Ok(opened)
-}
-
-#[tauri::command]
 pub async fn list_database(
     name: String,
     app: tauri::State<'_, DBPal>,

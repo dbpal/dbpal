@@ -1165,9 +1165,9 @@ const ChatShowContext = createContext<{
   setShow: (_: boolean) => void;
   doQuery: RefObject<() => void>;
 }>(null);
+
 const saveQueryLog = new SaveBoolToLocalStorage("save-query-log");
 
-const QuerySomeShowContext = createContext<ReactNode>(null);
 export {
   appDatabase,
   appStore,
@@ -1243,7 +1243,6 @@ export {
   UuidContext,
   validJson,
   ViewKind,
-  QuerySomeShowContext,
 };
 
 export type MongoFindParameter = {

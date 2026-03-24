@@ -1,12 +1,12 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useContext, useEffect, useState } from "react";
 
 import { DefAndMetas } from "./Common";
-import { DataSourceKind, QuerySomeShowContext } from "./helper";
+import { DataSourceKind, TabContext } from "./helper";
 import types from "./ApiStruct";
 import { AllKindChat } from "./Chat";
 import { MetaValueView } from "./CommonComp";
 import { CircularProgress, Stack, Tooltip, Typography } from "@mui/material";
-import { useNotification } from "./store";
+import { useNotification, useQueryExtraUI } from "./store";
 
 function DefAndMetasView(props: {
   reloadOP: () => Promise<DefAndMetas>;
@@ -39,37 +39,47 @@ function DefAndMetasView(props: {
     },
     [reloadOP, showNotification],
   );
+  const tabCtx = useContext(TabContext);
+
+  const { setExtra, removeExtra } = useQueryExtraUI((s) => s);
+
+  useEffect(() => {
+    setExtra(
+      tabCtx.id,
+      detail.metas.length > 0 ? (
+        <Tooltip
+          title={
+            <Stack style={{ width: "100%", height: "40vh" }}>
+              <MetaValueView values={detail.metas} />{" "}
+            </Stack>
+          }
+          slotProps={{
+            tooltip: {
+              style: { width: "1550px" },
+            },
+          }}
+        >
+          <Typography color="info"> some meta </Typography>
+        </Tooltip>
+      ) : null,
+    );
+  }, [detail.metas, setExtra, tabCtx.id]);
+  useEffect(() => {
+    removeExtra(tabCtx.id);
+  }, [removeExtra, tabCtx.id]);
 
   useEffect(() => {
     handleReload(false);
   }, [handleReload]);
 
   return (
-    <QuerySomeShowContext.Provider
-      value={
-        detail.metas.length > 0 ? (
-          <Tooltip
-            title={
-              <Stack style={{ width: "100%", height: "40vh" }}>
-                <MetaValueView values={detail.metas} />{" "}
-              </Stack>
-            }
-            slotProps={{
-              tooltip: {
-                style: { width: "1550px" },
-              },
-            }}
-          >
-            <Typography color="info"> some meta </Typography>
-          </Tooltip>
-        ) : null
-      }
-    >
+    <>
+      value=
       <Stack height="100%">
         {loading && <CircularProgress />}
         <AllKindChat uuid={uuid} kind={kind} value={detail.def} />
       </Stack>
-    </QuerySomeShowContext.Provider>
+    </>
   );
 }
 

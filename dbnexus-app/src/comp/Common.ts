@@ -2,7 +2,6 @@ import { SxProps } from "@mui/material";
 import { editor, languages, Position } from "monaco-editor";
 import { types } from "./ApiStruct.ts";
 import { format as formatSql, SqlLanguage } from "sql-formatter";
-import { createContext } from "react";
 import { TabContent } from "./Tabs.tsx";
 import { Channel, invoke } from "@tauri-apps/api/core";
 import { message } from "@tauri-apps/plugin-dialog";
@@ -74,13 +73,10 @@ class ConnectionHandler {
     return c.map((x) => JSON.parse(x.config));
   }
   static async save(config: types.DBConnectionConfig) {
-    return appDatabase.execute(
-      "insert into connection(name,config) values(?,?)",
-      [
-        config.name,
-        JSON.stringify(config),
-      ],
-    );
+    return appDatabase.execute("insert into connection(name,config) values(?,?)", [
+      config.name,
+      JSON.stringify(config),
+    ]);
   }
 
   static nameDuplicated(name: string): Promise<boolean> {
@@ -150,8 +146,6 @@ interface DefAndMetas {
   metas?: types.MetaValue[];
 }
 
-const OpenedContext = createContext<{ opened: boolean; setOpened: any }>(null);
-
 function reloadOK(showNotification) {
   showNotification("success", "data loaded.");
 }
@@ -164,21 +158,16 @@ const autoCompletion = async (
     const sql = modal.getValue();
     const name = SetAutoCompletionName.get(modal.id);
     if (!name) {
-      console.error(
-        "editor id map to backend name is nul,this is internal bug",
-      );
+      console.error("editor id map to backend name is nul,this is internal bug");
       return;
     }
-    const completionItem = await invoke<types.CompletionList>(
-      "auto_completion",
-      {
-        sql,
-        line: pos.lineNumber,
-        col: pos.column,
-        name: name.name,
-        queryId: name.queryId,
-      },
-    );
+    const completionItem = await invoke<types.CompletionList>("auto_completion", {
+      sql,
+      line: pos.lineNumber,
+      col: pos.column,
+      name: name.name,
+      queryId: name.queryId,
+    });
     const suggestions = backendCompletionItemToEditor(completionItem.items);
     suggestions.incomplete = completionItem.incomplete;
     return suggestions;
@@ -241,9 +230,7 @@ loader.init().then((monaco) => {
     provideDocumentFormattingEdits(model, options) {
       const name = SetAutoCompletionName.get(model.id);
       if (!name) {
-        console.error(
-          "editor id map to backend name is nul,this is internal bug",
-        );
+        console.error("editor id map to backend name is nul,this is internal bug");
         return;
       }
       const text = makeFormatFn(name.kind)(model.getValue(), {
@@ -398,11 +385,7 @@ class QueryConn {
       queryId: this.queryId,
     });
   }
-  queryOP(
-    sql: string,
-    emit: Channel<QueryEvent>,
-    maxRow: number,
-  ): Promise<void> {
+  queryOP(sql: string, emit: Channel<QueryEvent>, maxRow: number): Promise<void> {
     return invoke<void>("query_sql", {
       name: this.uuid,
       queryId: this.queryId,
@@ -437,10 +420,7 @@ class QueryConn {
 }
 
 function modalHandleClose(
-  callback: (
-    e: EscDownEvent,
-    reason: "backdropClick" | "escapeKeyDown",
-  ) => void,
+  callback: (e: EscDownEvent, reason: "backdropClick" | "escapeKeyDown") => void,
 ) {
   return (e: EscDownEvent, reason: "backdropClick" | "escapeKeyDown") => {
     if (reason === "backdropClick") {
@@ -580,12 +560,9 @@ class TableFilterHandler {
   }
   static async deleteByConnectionName(name: string) {
     try {
-      await appDatabase.execute(
-        "delete from table_filter where connection_name=?",
-        [
-          name,
-        ],
-      );
+      await appDatabase.execute("delete from table_filter where connection_name=?", [
+        name,
+      ]);
     } catch (e) {
       console.error("delete table filter failed,err:", e);
       message("delete table filter failed,err:" + String(e), { kind: "error" });
@@ -606,7 +583,6 @@ export {
   modalHandleClose,
   modalStyle,
   NameAndQueryId,
-  OpenedContext,
   PassWordManager,
   QueryConn,
   reloadOK,
@@ -615,10 +591,4 @@ export {
   tabsHasId,
 };
 
-export type {
-  DefAndMetas,
-  EscDownEvent,
-  FieldAndGridField,
-  QueryEvent,
-  TableFilter,
-};
+export type { DefAndMetas, EscDownEvent, FieldAndGridField, QueryEvent, TableFilter };
