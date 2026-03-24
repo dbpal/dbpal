@@ -85,7 +85,6 @@ export const useTabsManage = create<{
       setTimeout(() => {
         state.setCurrentTab(state.tabs.length);
       }, 100);
-
       return {
         tabs: [...state.tabs, tab],
       };

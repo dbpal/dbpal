@@ -65,7 +65,9 @@ function DefAndMetasView(props: {
     );
   }, [detail.metas, setExtra, tabCtx.id]);
   useEffect(() => {
-    removeExtra(tabCtx.id);
+    return () => {
+      removeExtra(tabCtx.id);
+    };
   }, [removeExtra, tabCtx.id]);
 
   useEffect(() => {
