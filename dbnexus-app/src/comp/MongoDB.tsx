@@ -74,7 +74,6 @@ import {
   saveAndSetSize,
   SettingContext,
   validJson,
-  SavePageSize,
   MuiDataGridData,
   dataGridStyle,
   pageSizeOptions,
@@ -96,7 +95,7 @@ import {
 import { message } from "@tauri-apps/plugin-dialog";
 import { invoke } from "@tauri-apps/api/core";
 import { AddTableView } from "./LeftTable";
-import { useContextMenu, useNotification } from "./store";
+import { useContextMenu, useNotification, usePageSize, useSizeStore } from "./store";
 enum MongoDataViewModel {
   List,
   Object,
@@ -1147,7 +1146,7 @@ function MongoTableList(props: {
     setLoading,
   } = props;
   const [page, setPage] = useState(0);
-  const [pageSize, setPageSize] = useState(SavePageSize.instance.get());
+  const { mongo: pageSize, setPageSize } = usePageSize((s) => s);
   const { showNotification } = useNotification((s) => s);
   const [resp, setResp] = useState<MuiDataGridData | null>(null);
   const [selectModifyDoc, setSelectModifyDoc] = useState<BSON.Document | null>(null);
@@ -1231,12 +1230,11 @@ function MongoTableList(props: {
   const onPaginationModelChange = useCallback(
     (e: GridPaginationModel, reason: GridCallbackDetails<"pagination">) => {
       setPage(e.page);
-      setPageSize(e.pageSize);
       if (reason.reason == "setPaginationModel") {
-        SavePageSize.instance.save(e.pageSize);
+        setPageSize("mongo", e.pageSize);
       }
     },
-    [],
+    [setPageSize],
   );
   const onRowDoubleClick = useCallback(
     (e) => {
@@ -1509,10 +1507,7 @@ function MongoTableObject(props: {
   } = props;
   const [docs, setDocs] = useState<DocsAndCount>({ docs: [], count: 0 });
   const [page, setPage] = useState(1);
-  const [pageSize, setPageSize] = useState(SavePageSize.mongodb.get());
-  useEffect(() => {
-    SavePageSize.mongodb.save(pageSize);
-  }, [pageSize]);
+  const { sql: pageSize, setPageSize } = usePageSize((s) => s);
 
   const { showNotification } = useNotification((s) => s);
   const handleReload = useCallback(
@@ -1743,8 +1738,11 @@ function MongoTable(props: { uuid: string; table: string; isTable: boolean }) {
   useEffect(() => {
     oldViewModel = viewModel;
   }, [viewModel]);
-  const [gridColCount, setGridColCount] = useState(3);
-  const [editorHeight, setEditorHeight] = useState(500);
+
+  const storeKeyGrid = "mongo-table-grid-count";
+  const storeKeyHeight = "mongo-table-editor-height";
+
+  const { getSize } = useSizeStore((s) => s);
 
   const reloadTable = useCallback(
     (page: number, pageSize: number) => {
@@ -1797,11 +1795,8 @@ function MongoTable(props: { uuid: string; table: string; isTable: boolean }) {
                 max={5}
                 notice="mongodb editor grid column count"
                 step={1}
-                handleValue={(v) => {
-                  setGridColCount(v);
-                }}
-                storeKey="mongo-table-list-grid-col-count"
                 name="column"
+                storeKey={storeKeyGrid}
               />
               <SliderSize
                 name="height"
@@ -1809,10 +1804,7 @@ function MongoTable(props: { uuid: string; table: string; isTable: boolean }) {
                 max={1000}
                 notice="mongodb editor height"
                 step={10}
-                handleValue={(v) => {
-                  setEditorHeight(v);
-                }}
-                storeKey="mongo-table-editor-height"
+                storeKey={storeKeyHeight}
               />
             </Stack>
           )
@@ -1839,8 +1831,8 @@ function MongoTable(props: { uuid: string; table: string; isTable: boolean }) {
           deleteOP={deleteOP}
           triggerReload={triggerReload}
           setLoading={setLoading}
-          gridColCount={gridColCount}
-          editorHeight={editorHeight}
+          gridColCount={getSize(storeKeyGrid, 2)}
+          editorHeight={getSize(storeKeyHeight, 300)}
           viewModel={viewModel}
         />
       )}

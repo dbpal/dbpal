@@ -18,6 +18,8 @@ import { IoMdInformationCircleOutline } from "react-icons/io";
 import CancelIcon from "@mui/icons-material/Cancel";
 import ChatBubbleOutlineIcon from "@mui/icons-material/ChatBubbleOutline";
 import ContentCopyIcon from "@mui/icons-material/ContentCopy";
+
+import CircleIcon from "@mui/icons-material/Circle";
 import {
   Autocomplete,
   Box,
@@ -96,7 +98,7 @@ import {
   useGridSelector,
 } from "@mui/x-data-grid";
 import { CustomToolbar } from "./CustomToolBar";
-import { useNotification, useTabsManage } from "./store";
+import { useNotification, useSizeStore, useTabsManage } from "./store";
 function CreateDatabase(props: {
   uuid: string;
   handleClose: () => void;
@@ -1020,28 +1022,17 @@ function CancelButton({ handleCancel }) {
   );
 }
 
-function getSliderSizeStoreValue(storeKey: string, defaultValue: number) {
-  const keyXxx = "dbpal-max-row-" + storeKey;
-  return parseInt(localStorage.getItem(keyXxx)) || defaultValue;
-}
-
 function SliderSize(props: {
   storeKey: string;
   notice: ReactNode;
   min: number;
   max: number;
   step: number;
-  handleValue: (x: number) => void;
   name?: string;
 }) {
-  const { storeKey, handleValue, notice, min, max, step, name } = props;
+  const { storeKey, notice, min, max, step, name } = props;
   const width = "450px";
-  const keyXxx = "dbpal-max-row-" + storeKey;
-  const [maxRow, setMaxRow] = useState(getSliderSizeStoreValue(storeKey, min));
-  useEffect(() => {
-    localStorage.setItem(keyXxx, maxRow + "");
-    handleValue(maxRow);
-  }, [maxRow, keyXxx, handleValue]);
+  const { sizes, setSize } = useSizeStore((s) => s);
   return (
     <Tooltip
       slotProps={{
@@ -1057,11 +1048,11 @@ function SliderSize(props: {
       >
         <Stack>
           <Slider
-            value={maxRow}
+            value={sizes[storeKey] || min}
             min={min}
             max={max}
             onChange={(_, v) => {
-              setMaxRow(v);
+              setSize(storeKey, v);
             }}
             color="success"
             step={step}
@@ -1070,7 +1061,7 @@ function SliderSize(props: {
         </Stack>
       </Paper>
     >
-      <Chip label={`${name ? name + ":" : ""} ${maxRow}`} color="info" />
+      <Chip label={`${name ? name + ":" : ""} ${sizes[storeKey]}`} color="info" />
     </Tooltip>
   );
 }
@@ -1612,6 +1603,9 @@ function CopySql(props: { sql; style?: CSSProperties }) {
   );
 }
 
+function IconModifed() {
+  return <CircleIcon color="warning" style={{ fontSize: "0.9rem" }} />;
+}
 export {
   CreateDatabase,
   CreateSchema,
@@ -1637,8 +1631,8 @@ export {
   LastFetchTime,
   QueryStatus,
   StackRowCenter,
-  getSliderSizeStoreValue,
   SetFilterSort,
   ToggleChatShow,
   CopySql,
+  IconModifed,
 };

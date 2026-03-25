@@ -3,6 +3,7 @@ import { create } from "zustand";
 import { extractConfigNameFromUuid, LLMConfig, TabContent } from "./helper";
 import { AlertColor } from "@mui/material";
 import React from "react";
+import { persist } from "zustand/middleware";
 
 export const useConfirmMsg = create<{
   confirmMsgs: Map<string, string>; // 明确 Map 的键值类型
@@ -29,25 +30,49 @@ export const useConfirmMsg = create<{
 }));
 
 interface AppConfigState {
-  // 对应 MaxTreeContext 的值
   maxTree: number;
-  // 对应 MatchPatternContext 的函数
-  matchPattern: (x: string) => boolean;
-
-  // 更新方法
+  matchPattern: string[];
   setMaxTree: (val: number) => void;
-  setMatchPattern: (fn: (x: string) => boolean) => void;
+  setMatchPattern: (matchPattern: string[]) => void;
 }
 
-export const useAppConfigStore = create<AppConfigState>((set) => ({
-  // 初始值（取自你之前的 defaultValue）
-  maxTree: 120,
-  matchPattern: () => true,
+// Move the <AppConfigState> generic here inside the persist wrapper
+export const useMatcher = create<AppConfigState>()(
+  persist(
+    (set) => ({
+      maxTree: 120,
+      matchPattern: [],
+      setMaxTree: (val) => set({ maxTree: val }),
+      setMatchPattern: (xs) => set({ matchPattern: xs }),
+    }),
+    {
+      name: "matcher-storage",
+    },
+  ),
+);
+interface BoolSwitchState {
+  // 使用 Record 代替 Map
+  switches: Record<string, boolean>;
+  setSwitch: (key: string, value: boolean) => void;
+}
 
-  // 修改状态的方法
-  setMaxTree: (val) => set({ maxTree: val }),
-  setMatchPattern: (fn) => set({ matchPattern: fn }),
-}));
+export const useBoolSwitch = create<BoolSwitchState>()(
+  persist(
+    (set) => ({
+      switches: {}, // 初始值是空物件
+      setSwitch: (key, value) =>
+        set((state) => ({
+          switches: {
+            ...state.switches,
+            [key]: value,
+          },
+        })),
+    }),
+    {
+      name: "some-bool-switch",
+    },
+  ),
+);
 
 export type ContextMenuState = {
   event: React.MouseEvent<any>;
@@ -195,3 +220,86 @@ export const useQueryExtraUI = create<{
       return { extra: nextMap };
     }),
 }));
+
+export const useConnLoading = create<{
+  loading: Set<string>;
+  setLoading: (name: string, loading: boolean) => void;
+  isLoading: (name: string) => boolean;
+}>((set, get) => ({
+  loading: new Set(),
+
+  isLoading(name) {
+    return get().loading.has(name);
+  },
+  setLoading: (name, loading) =>
+    set((state) => {
+      const nextSet = new Set(state.loading);
+      if (loading) {
+        nextSet.add(name);
+      } else {
+        nextSet.delete(name);
+      }
+      return { loading: nextSet };
+    }),
+}));
+
+interface PageSizeState {
+  sql: number;
+  couchbase: number;
+  mongo: number;
+  // Actions to update the state
+  setPageSize: (db: keyof Omit<PageSizeState, "setPageSize">, size: number) => void;
+}
+
+export const usePageSize = create<PageSizeState>((set) => ({
+  // Initial State
+  sql: 100,
+  couchbase: 10,
+  mongo: 10,
+
+  // Action to update a specific database's page size
+  setPageSize: (db, size) =>
+    set((state) => ({
+      ...state,
+      [db]: size,
+    })),
+}));
+
+interface SizeState {
+  // 核心數據：例如 { "sidebar": 300, "editor": 500 }
+  sizes: Record<string, number>;
+
+  // 設定特定 Key 的數值
+  setSize: (key: string, value: number) => void;
+
+  // 獲取數值（支援傳入預設值，防止 undefined）
+  getSize: (key: string, defaultValue: number) => number;
+
+  // 批量更新或重置
+  resetSizes: (newSizes: Record<string, number>) => void;
+}
+
+export const useSizeStore = create<SizeState>()(
+  persist(
+    (set, get) => ({
+      sizes: {},
+      setSize: (key, value) =>
+        set((state) => ({
+          sizes: {
+            ...state.sizes,
+            [key]: value,
+          },
+        })),
+
+      // 注意：Zustand 的 state 雖然是響應式的，但 getSize 是一個 Helper 函數
+      getSize: (key, defaultValue) => {
+        return get().sizes[key] ?? defaultValue;
+      },
+
+      resetSizes: (sizes) => set({ sizes }),
+    }),
+    {
+      name: "couchbase-ui-sizes",
+    },
+  ),
+);

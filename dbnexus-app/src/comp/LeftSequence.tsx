@@ -28,6 +28,7 @@ import { DefAndMetasView } from "./DefAndMetaView.tsx";
 import {
   DataSourceKind,
   generateRandomString,
+  MatcherContext,
   secondConfirm,
   UuidContext,
 } from "./helper.ts";
@@ -36,17 +37,13 @@ import { ExceedMaxTreeItem, MenuRefresh } from "./CommonComp.tsx";
 import { listSequence } from "./handlers.ts";
 import { GrSteps } from "react-icons/gr";
 import { CopySql } from "./CommonComp2.tsx";
-import {
-  useAppConfigStore,
-  useContextMenu,
-  useNotification,
-  useTabsManage,
-} from "./store.ts";
+import { useMatcher, useContextMenu, useNotification, useTabsManage } from "./store.ts";
 function SequenceTree() {
   const { uuid, kind } = useContext(UuidContext);
   const [seq, setSeq] = useState<types.SequenceDetail[]>([]);
   const { showNotification } = useNotification((s) => s);
-  const { matchPattern, maxTree } = useAppConfigStore((state) => state);
+  const { maxTree } = useMatcher((state) => state);
+  const matchPattern = useContext(MatcherContext);
   const reload = useCallback(() => {
     listSequence(uuid)
       .then((ts) => {

@@ -60,14 +60,12 @@ import {
   errToString,
   extractFieldAndIDFromMouseEvent,
   FavoriteSql,
-  generateDefaultFilename,
   generateRandomString,
   handleCopyToClipboard,
   pageSizeOptions,
   prettyMs,
   QueryLogHandler,
   resizeHandlerSize,
-  SaveAlign,
   SaveDomSizes,
   secondConfirm,
   SettingContext,
@@ -86,12 +84,10 @@ import {
 import { TreeItem } from "@mui/x-tree-view/TreeItem";
 import { editor, Position } from "monaco-editor";
 import { openPath } from "@tauri-apps/plugin-opener";
-import { save } from "@tauri-apps/plugin-dialog";
-import { writeTextFile } from "@tauri-apps/plugin-fs";
 import { FaMarkdown } from "react-icons/fa";
 import { emit } from "@tauri-apps/api/event";
 import { AppDataGridPagination, StackRowCenter } from "./CommonComp2";
-import { useContextMenu, useNotification } from "./store";
+import { useConnLoading, useConnected, useContextMenu, useNotification } from "./store";
 
 function MenuExportMarkDownTable({ showExportMarkDown }) {
   return (
@@ -103,25 +99,6 @@ function MenuExportMarkDownTable({ showExportMarkDown }) {
     </MenuItem>
   );
 }
-
-function SelectAlign(props: { align: "left" | "right" | "center"; handleChange }) {
-  const { align, handleChange } = props;
-
-  return (
-    <Autocomplete
-      options={["left", "center", "right"]}
-      style={{ width: "8rem" }}
-      value={align}
-      freeSolo={false}
-      renderInput={(params) => <TextField {...params} label="align" />}
-      onChange={(_, align) => {
-        SaveAlign.instance.save(align);
-        handleChange(align);
-      }}
-    />
-  );
-}
-
 function LogLevelSelection({ handleChange, level }) {
   const levels = ["off", "trace", "debug", "info", "warn", "error"];
   return (
@@ -192,14 +169,15 @@ function MenuRefresh({ reload }) {
   );
 }
 
-function MenuCloseConn({ handleClose, name }) {
+function MenuCloseConn({ name }) {
   const { showNotification } = useNotification((s) => s);
+  const { removeConnected } = useConnected((s) => s);
   return (
     <MenuItem
       onClick={() => {
         invoke("close_conn", { name })
           .then(() => {
-            handleClose();
+            removeConnected(name);
           })
           .catch((e) => {
             showNotification("error", "close connection failed", e);
@@ -288,8 +266,12 @@ function MenuCreateSchema(props: { handleCreate; kind: DataSourceKind }) {
   );
 }
 
-function MenuOpenConn({ handleOpened, name, setLoading }) {
+function MenuOpenConn({ name }) {
   const { showNotification } = useNotification((s) => s);
+
+  const setConnected = useConnected((s) => s.setConnected);
+
+  const setLoading = useConnLoading((s) => s.setLoading);
 
   const handleOpenXXX = async () => {
     // try promote use to enter a password.
@@ -327,14 +309,14 @@ function MenuOpenConn({ handleOpened, name, setLoading }) {
     if (inputPass) {
       PassWordManager.savePassword(name, inputPass, false);
     }
-    handleOpened();
+    setConnected(name);
   };
   return (
     <MenuItem
       onClick={() => {
-        setLoading(true);
+        setLoading(name, true);
         handleOpenXXX().finally(() => {
-          setLoading(false);
+          setLoading(name, false);
         });
       }}
     >
@@ -872,118 +854,6 @@ function OpenFileWithDefaultApp({ file }) {
   );
 }
 
-function ExportMarkDownTable(props: {
-  fields: types.Field[];
-  data: any[];
-  name?: string;
-}) {
-  const { fields, data } = props;
-  let { name } = props;
-  if (!name) {
-    name = "export";
-  }
-  const [includes, setIncludes] = useState<string[]>([]);
-  const [align, setAlign] = useState("center");
-  const { showNotification } = useNotification((s) => s);
-  const [file, setFile] = useState("");
-  const makeMarkDownStr = () => {
-    let ret = "";
-    includes.forEach((x) => {
-      ret += `| ${x} `;
-    });
-    ret += "|\n";
-    includes.forEach(() => {
-      let alignText: string;
-      switch (align) {
-        case "left":
-          alignText = ":----";
-          break;
-        case "right":
-          alignText = "-----:";
-          break;
-        case "center":
-          alignText = ":---:";
-          break;
-      }
-      ret += "|" + alignText;
-    });
-    ret += "|\n";
-
-    data.forEach((data) => {
-      includes.forEach((x) => {
-        ret += `| ${data[x]} `;
-      });
-      ret += "|\n";
-    });
-    return ret;
-  };
-  const handleExport = async (toClipBoard: boolean) => {
-    if (includes.length == 0) {
-      showNotification("warning", "Please select column");
-      return;
-    }
-    const markdown = makeMarkDownStr();
-    if (toClipBoard) {
-      handleCopyToClipboard(markdown, undefined, () => {
-        showNotification("success", "export OK");
-      });
-      return;
-    }
-    const f = await save({
-      defaultPath: generateDefaultFilename(name, "md"),
-      filters: [{ name: "markdown", extensions: ["md"] }],
-    });
-    if (!f) {
-      return;
-    }
-    try {
-      await writeTextFile(f, markdown);
-    } catch (e) {
-      showNotification("error", "write markdown failed", e);
-      return;
-    }
-    showNotification("success", "export OK");
-    setFile(f);
-  };
-
-  return (
-    <Stack>
-      <SelectColumns
-        fields={fields.map((x) => x.field)}
-        includes={includes}
-        setIncludes={setIncludes}
-        includeAll
-      />
-      <OpenFileWithDefaultApp file={file} />
-      <Divider />
-      <StackRowCenter>
-        <Button
-          onClick={() => {
-            handleExport(false);
-          }}
-          variant="outlined"
-        >
-          save file
-        </Button>
-        <Button
-          onClick={() => {
-            handleExport(true);
-          }}
-          variant="outlined"
-        >
-          copy to clipboard
-        </Button>
-        <SelectAlign
-          align={SaveAlign.instance.get() as "center"}
-          handleChange={(e) => {
-            setAlign(e);
-          }}
-        />
-      </StackRowCenter>
-    </Stack>
-  );
-}
-
 function ResizeParentHeight(props: {
   box: HTMLDivElement;
   min: number;
@@ -1052,7 +922,6 @@ export {
   PossibleParseError,
   ExecutingTime,
   AppColumnMenu,
-  ExportMarkDownTable,
   SelectColumns,
   OpenFileWithDefaultApp,
   MenuExportMarkDownTable,

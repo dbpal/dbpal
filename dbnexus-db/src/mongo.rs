@@ -418,13 +418,13 @@ impl MongoDB {
     }
 }
 
-#[derive(Debug, Clone, serde::Serialize)]
+#[derive(Debug, Clone)]
 pub struct DocsAndCount {
     pub docs: Vec<Document>,
     pub count: u64,
 }
 
-#[derive(Debug, Clone, serde::Serialize)]
+#[derive(Debug, Clone)]
 pub struct JsonAndCount {
     pub docs: Vec<serde_json::Value>,
     pub count: u64,

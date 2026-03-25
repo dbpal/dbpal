@@ -55,6 +55,7 @@ import DeleteForeverIcon from "@mui/icons-material/DeleteForever";
 import CloseIcon from "@mui/icons-material/Close";
 import logoImg from "../../icon.png";
 import { TabContent } from "./Tabs";
+
 import wcmatch from "wildcard-match";
 
 import {
@@ -67,8 +68,7 @@ import {
   FavoriteSql,
   generateRandomString,
   handleCopyToClipboard,
-  SaveBoolToLocalStorage,
-  SaveMatchPattern,
+  MatcherContext,
   secondConfirm,
   SettingContext,
   TableType,
@@ -127,29 +127,24 @@ import { CouchBaseQuery } from "./CouchBase.tsx";
 import FilterAltIcon from "@mui/icons-material/FilterAlt";
 import FilterAltOutlinedIcon from "@mui/icons-material/FilterAltOutlined";
 import {
-  useAppConfigStore,
+  useMatcher,
+  useConnLoading,
   useConnected,
   useContextMenu,
   useNotification,
   useTabsManage,
+  useBoolSwitch,
 } from "./store.ts";
 const settingId = generateRandomString();
 
-function LeftTop(props: {
-  matchPattern: string[];
-  setMatchPattern;
-  setMaxTreeSize;
-  maxTreeSize;
-}) {
-  const { matchPattern, setMatchPattern, setMaxTreeSize, maxTreeSize } = props;
+function LeftTop() {
+  const { matchPattern, setMatchPattern, setMaxTree, maxTree } = useMatcher((s) => s);
   const [matchPatterInput, setMatchPatternInput] = useState("");
   const { showNotification } = useNotification((s) => s);
-  const saveLeftTopShow = useRef(new SaveBoolToLocalStorage("left-top-show"));
-  const [show, setShow] = useState(saveLeftTopShow.current.get());
+  const switchKey = "left-top-show";
+  const { switches, setSwitch } = useBoolSwitch((s) => s);
+  const show = switches[switchKey];
   const { appendTab, setCurrentTab, tabs } = useTabsManage((state) => state);
-  useEffect(() => {
-    saveLeftTopShow.current.save(show);
-  }, [show]);
   const [showEditFilter, setShowEditFilter] = useState(false);
   const showAddConnection = useCallback(
     async (conn?: types.DBConnectionConfig) => {
@@ -200,13 +195,13 @@ function LeftTop(props: {
   }, [appendTab, setCurrentTab, tabs]);
 
   const toggleShow = () => {
-    setShow((e) => !e);
+    setSwitch(switchKey, !switches[switchKey]);
   };
   const theme = useTheme();
   return (
     <Stack style={{ padding: "2px" }}>
       <Stack>
-        {show ? (
+        {switches[switchKey] ? (
           <IconButton onClick={toggleShow}>
             <KeyboardArrowDownIcon />
           </IconButton>
@@ -344,8 +339,8 @@ function LeftTop(props: {
                     color="success"
                     onDelete={() => {
                       setMatchPatternInput(matchPattern[index]);
-                      setMatchPattern((arr) =>
-                        arr.filter((_, eIndex) => eIndex !== index),
+                      setMatchPattern(
+                        matchPattern.filter((_, eIndex) => eIndex !== index),
                       );
                     }}
                   />
@@ -386,7 +381,7 @@ function LeftTop(props: {
                       showNotification("warning", "please input match pattern");
                       return;
                     }
-                    setMatchPattern((e: string[]) => [...e, matchPatterInput]);
+                    setMatchPattern([...matchPattern, matchPatterInput]);
                   }}
                   variant="outlined"
                 >
@@ -396,7 +391,7 @@ function LeftTop(props: {
             </Stack>
 
             <StackRowCenter>
-              <span color="info">max tree size({maxTreeSize}):</span>
+              <span color="info">max tree size({maxTree}):</span>
               <Slider
                 min={(function () {
                   if (import.meta.env.DEV) {
@@ -407,7 +402,7 @@ function LeftTop(props: {
                 })()}
                 max={1000}
                 onChange={(_, value) => {
-                  setMaxTreeSize(value);
+                  setMaxTree(value);
                 }}
                 style={{
                   flex: 1,
@@ -614,23 +609,24 @@ function CopyConnection() {
 function Left() {
   const [configs, setConfigs] = useState<types.DBConnectionConfig[]>([]);
   const { showNotification } = useNotification((s) => s);
-  const [matchPattern, setMatchPattern] = useState<string[]>(
-    SaveMatchPattern.instance.get(),
-  );
-  const maxTreeSizeKey = "max-tree-item-size";
-  const [maxTreeSize, setMaxTreeSize] = useState(
-    parseInt(localStorage.getItem(maxTreeSizeKey)) || 100,
-  );
-  const setMatchStateFn = useAppConfigStore((state) => state.setMatchPattern);
-  const setMaxTreeSizeStateFn = useAppConfigStore((state) => state.setMaxTree);
 
-  useEffect(() => {
-    SaveMatchPattern.instance.save(matchPattern);
-  }, [matchPattern]);
-  useEffect(() => {
-    localStorage.setItem(maxTreeSizeKey, maxTreeSize + "");
-    setMaxTreeSizeStateFn(maxTreeSize);
-  }, [maxTreeSize, setMaxTreeSizeStateFn]);
+  const matchPattern = useMatcher((s) => s.matchPattern);
+
+  const matchFn = useCallback(
+    (name) => {
+      if (matchPattern.length == 0) {
+        return true;
+      }
+      for (const mp of matchPattern) {
+        const matchFn = wcmatch("*" + mp + "*", { flags: "i" });
+        if (matchFn(name)) {
+          return true;
+        }
+      }
+      return false;
+    },
+    [matchPattern],
+  );
 
   const handleReload = useCallback(async () => {
     ConnectionHandler.getAll()
@@ -659,52 +655,33 @@ function Left() {
     };
   }, [handleReload]);
 
-  useEffect(() => {
-    const sfn = (x: string) => {
-      if (matchPattern.length == 0) {
-        return true;
-      }
-      for (const mp of matchPattern) {
-        const matchFn = wcmatch("*" + mp + "*", { flags: "i" });
-        if (matchFn(x)) {
-          return true;
-        }
-      }
-      return false;
-    };
-    setMatchStateFn(sfn);
-  }, [matchPattern, setMatchStateFn]);
-
   return (
     <Stack
       style={{
         overflow: "auto",
       }}
     >
-      <LeftTop
-        matchPattern={matchPattern}
-        setMatchPattern={setMatchPattern}
-        maxTreeSize={maxTreeSize}
-        setMaxTreeSize={setMaxTreeSize}
-      />
-      <Stack spacing={0.3}>
-        {configs.map((e) => {
-          return (
-            <UuidContext.Provider
-              value={{
-                uuid: e.name,
-                kind: connTypeToDataSourceKind(e.conn_type),
-              }}
-              key={e.name}
-            >
-              <OneConfig key={e.name} config={e} />
-            </UuidContext.Provider>
-          );
-        })}
-        {configs.length == 0 && (
-          <Typography color="info"> trying to add connection </Typography>
-        )}
-      </Stack>
+      <LeftTop />
+      <MatcherContext value={matchFn}>
+        <Stack spacing={0.3}>
+          {configs.map((e) => {
+            return (
+              <UuidContext.Provider
+                value={{
+                  uuid: e.name,
+                  kind: connTypeToDataSourceKind(e.conn_type),
+                }}
+                key={e.name}
+              >
+                <OneConfig key={e.name} config={e} />
+              </UuidContext.Provider>
+            );
+          })}
+          {configs.length == 0 && (
+            <Typography color="info"> trying to add connection </Typography>
+          )}
+        </Stack>
+      </MatcherContext>
     </Stack>
   );
 }
@@ -1036,7 +1013,7 @@ function OneConfig(props: { config: types.DBConnectionConfig }) {
 function SchemaTree(props: { schema?: string; reloadSchemas? }) {
   const { uuid, kind } = useContext(UuidContext);
   const { schema, reloadSchemas } = props;
-  const { is_connected, setConnected, removeConnected } = useConnected((s) => s);
+  const { is_connected } = useConnected((s) => s);
   const SUPPORTED_PROCEDURE_KINDS = new Set([
     DataSourceKind.MariaDB,
     DataSourceKind.Mysql,
@@ -1046,7 +1023,8 @@ function SchemaTree(props: { schema?: string; reloadSchemas? }) {
     DataSourceKind.Cockroach,
   ]);
 
-  const opened = is_connected(uuid);
+  const conn_established = is_connected(uuid);
+  const loadingConn = useConnLoading((s) => s);
 
   const supportProcedure = SUPPORTED_PROCEDURE_KINDS.has(kind);
   const supportUdf = new Set([
@@ -1073,7 +1051,6 @@ function SchemaTree(props: { schema?: string; reloadSchemas? }) {
   ].includes(kind);
   const supportEvent = [DataSourceKind.Mysql, DataSourceKind.MariaDB].includes(kind);
   const setUpMenu = useContextMenu((state) => state.setUpMenu);
-  const [loading, setLoading] = useState(false);
   const idForTree = useRef(generateRandomString());
   return (
     <TreeItem
@@ -1084,15 +1061,7 @@ function SchemaTree(props: { schema?: string; reloadSchemas? }) {
           setUpMenu({
             content: (
               <SchemaMenu
-                opened={opened}
                 schema={schema}
-                setLoading={setLoading}
-                handleOpened={() => {
-                  setConnected(uuid);
-                }}
-                handleCloseConn={() => {
-                  removeConnected(uuid);
-                }}
                 uuid={uuid}
                 reloadSchemas={reloadSchemas}
                 kind={kind}
@@ -1108,54 +1077,54 @@ function SchemaTree(props: { schema?: string; reloadSchemas? }) {
       >
         {schema && <LuDatabase />}
         <span> {schema ? schema : uuid}</span>
-        {!schema && opened && <ConnPingTime uuid={uuid} />}
-        {loading && <CircularProgress />}
+        {!schema && conn_established && <ConnPingTime uuid={uuid} />}
+        {loadingConn.isLoading(uuid) && <CircularProgress />}
       </Stack>
     >
-      {opened && kind == DataSourceKind.Sqlite && (
+      {conn_established && kind == DataSourceKind.Sqlite && (
         <>
           <TablesTree typ={TableType.Normal} />
           <ViewsTree viewKind={ViewKind.View} />
         </>
       )}
-      {opened && kind == DataSourceKind.CouchBase && (
+      {conn_established && kind == DataSourceKind.CouchBase && (
         <>
           <TablesTree typ={TableType.Normal} />
         </>
       )}
 
-      {opened && kind == DataSourceKind.DuckDB && (
+      {conn_established && kind == DataSourceKind.DuckDB && (
         <>
           <TablesTree typ={TableType.Normal} />
           <ViewsTree viewKind={ViewKind.View} />
         </>
       )}
-      {opened && kind == DataSourceKind.FireBird && (
+      {conn_established && kind == DataSourceKind.FireBird && (
         <>
           <TablesTree typ={TableType.Normal} />
           <ViewsTree viewKind={ViewKind.View} />
         </>
       )}
-      {opened && kind == DataSourceKind.LibSql && (
+      {conn_established && kind == DataSourceKind.LibSql && (
         <>
           <TablesTree typ={TableType.Normal} />
           <ViewsTree viewKind={ViewKind.View} />
         </>
       )}
-      {opened && kind == DataSourceKind.Cassandra && (
+      {conn_established && kind == DataSourceKind.Cassandra && (
         <>
           <TablesTree typ={TableType.Normal} />
           <ViewsTree viewKind={ViewKind.MaterializedView} />
         </>
       )}
-      {opened && kind == DataSourceKind.Mongo && (
+      {conn_established && kind == DataSourceKind.Mongo && (
         <>
           <TablesTree typ={TableType.Normal} />
           <TablesTree typ={TableType.MongoTimeSerial} />
           <ViewsTree viewKind={ViewKind.View} />
         </>
       )}
-      {opened &&
+      {conn_established &&
         (kind == DataSourceKind.Mysql ||
           kind == DataSourceKind.MariaDB ||
           kind == DataSourceKind.TiDB) && (
@@ -1164,52 +1133,54 @@ function SchemaTree(props: { schema?: string; reloadSchemas? }) {
             <ViewsTree viewKind={ViewKind.View} />
           </>
         )}
-      {opened && kind == DataSourceKind.ClickHouse && (
+      {conn_established && kind == DataSourceKind.ClickHouse && (
         <>
           <TablesTree typ={TableType.Normal} />
           <ViewsTree viewKind={ViewKind.View} />
           <ViewsTree viewKind={ViewKind.MaterializedView} />
         </>
       )}
-      {opened && kind == DataSourceKind.Postgres && (
+      {conn_established && kind == DataSourceKind.Postgres && (
         <>
           <TablesTree typ={TableType.Normal} />
           <ViewsTree viewKind={ViewKind.View} />
           <ViewsTree viewKind={ViewKind.MaterializedView} />
         </>
       )}
-      {opened && kind == DataSourceKind.Cockroach && (
+      {conn_established && kind == DataSourceKind.Cockroach && (
         <>
           <TablesTree typ={TableType.Normal} />
           <ViewsTree viewKind={ViewKind.View} />
           <ViewsTree viewKind={ViewKind.MaterializedView} />
         </>
       )}
-      {opened && kind == DataSourceKind.Oracle && (
+      {conn_established && kind == DataSourceKind.Oracle && (
         <>
           <TablesTree typ={TableType.Normal} />
           <ViewsTree viewKind={ViewKind.View} />
           <ViewsTree viewKind={ViewKind.MaterializedView} />
         </>
       )}
-      {opened && kind == DataSourceKind.SqlServer && (
+      {conn_established && kind == DataSourceKind.SqlServer && (
         <>
           <TablesTree typ={TableType.Normal} />
           <ViewsTree viewKind={ViewKind.View} />
         </>
       )}
-      {opened && (
+      {conn_established && (
         <>
           {supportProcedure && <ProceduresTree />}
           {supportUdf && <UdfsTree />}
         </>
       )}
-      {opened && <>{supportSequence && <SequenceTree />}</>}
+      {conn_established && <>{supportSequence && <SequenceTree />}</>}
 
-      {opened && kind == DataSourceKind.Cassandra && <CassandraAggregatesTree />}
-      {opened && kind == DataSourceKind.Redis && <RedisTables />}
-      {opened && supportType && <TypesTree />}
-      {opened && supportEvent && <EventsTree />}
+      {conn_established && kind == DataSourceKind.Cassandra && (
+        <CassandraAggregatesTree />
+      )}
+      {conn_established && kind == DataSourceKind.Redis && <RedisTables />}
+      {conn_established && supportType && <TypesTree />}
+      {conn_established && supportEvent && <EventsTree />}
     </TreeItem>
   );
 }
@@ -1218,33 +1189,22 @@ function DatabaseMenu(props: {
   database?: string;
   uuid: string;
   reload;
-  handleOpened;
-  opened;
-  handleCloseConn;
   reloadDatabase;
   kind: DataSourceKind;
   schemas: string[];
-  setLoading;
 }) {
-  const {
-    database,
-    uuid,
-    reload,
-    handleOpened,
-    opened,
-    handleCloseConn,
-    reloadDatabase,
-    kind,
-    schemas,
-    setLoading,
-  } = props;
+  const { database, uuid, reload, reloadDatabase, kind, schemas } = props;
   const { showNotification } = useNotification((s) => s);
   const [showCreateSchema, setShowCreateSchema] = useState(false);
   const { appendTab } = useTabsManage((state) => state);
+  const { is_connected } = useConnected((s) => s);
+
+  const conn_established = is_connected(uuid);
+
   return (
     <div>
       <MenuList>
-        {opened &&
+        {conn_established &&
           kind != DataSourceKind.Mongo &&
           kind != DataSourceKind.Redis &&
           kind != DataSourceKind.CouchBase && (
@@ -1255,7 +1215,7 @@ function DatabaseMenu(props: {
             />
           )}
 
-        {opened && kind != DataSourceKind.Oracle && (
+        {conn_established && kind != DataSourceKind.Oracle && (
           <MenuCreateSchema
             handleCreate={() => {
               setShowCreateSchema(true);
@@ -1264,20 +1224,12 @@ function DatabaseMenu(props: {
           />
         )}
 
-        {!opened && !database && (
-          <MenuOpenConn
-            name={uuid}
-            setLoading={setLoading}
-            handleOpened={handleOpened}
-          />
-        )}
+        {!conn_established && !database && <MenuOpenConn name={uuid} />}
 
-        {opened && <MenuRefresh reload={reload} />}
-        {opened && !database && <MenuConnectionInfo uuid={uuid} />}
+        {conn_established && <MenuRefresh reload={reload} />}
+        {conn_established && !database && <MenuConnectionInfo uuid={uuid} />}
 
-        {opened && !database && (
-          <MenuCloseConn name={uuid} handleClose={handleCloseConn} />
-        )}
+        {conn_established && !database && <MenuCloseConn name={uuid} />}
         {database && kind != DataSourceKind.DuckDB && (
           <MenuItem
             onClick={() => {
@@ -1346,30 +1298,18 @@ function DatabaseMenu(props: {
   );
 }
 
-function CatalogMenu(props: {
-  uuid;
-  reload;
-  handleOpened;
-  opened;
-  handleCloseConn;
-  setLoading;
-  kind: DataSourceKind;
-}) {
-  const { uuid, reload, handleOpened, opened, handleCloseConn, kind, setLoading } =
-    props;
+function CatalogMenu(props: { uuid; reload; kind: DataSourceKind }) {
+  const { uuid, reload, kind } = props;
   const [showCreateDB, setShowCreateDB] = useState(false);
+  const { is_connected } = useConnected((s) => s);
+  const conn_established = is_connected(uuid);
+
   return (
     <div>
       <MenuList>
-        {!opened && (
-          <MenuOpenConn
-            name={uuid}
-            setLoading={setLoading}
-            handleOpened={handleOpened}
-          />
-        )}
+        {!conn_established && <MenuOpenConn name={uuid} />}
 
-        {opened && kind != DataSourceKind.DuckDB && (
+        {conn_established && kind != DataSourceKind.DuckDB && (
           <MenuCreateDatabase
             handleCreate={() => {
               setShowCreateDB(true);
@@ -1378,10 +1318,9 @@ function CatalogMenu(props: {
           />
         )}
 
-        {opened && <MenuRefresh reload={reload} />}
-        {opened && <MenuConnectionInfo uuid={uuid} />}
-
-        {opened && <MenuCloseConn name={uuid} handleClose={handleCloseConn} />}
+        {conn_established && <MenuRefresh reload={reload} />}
+        {conn_established && <MenuConnectionInfo uuid={uuid} />}
+        {conn_established && <MenuCloseConn name={uuid} />}
         <Divider />
         <MenuDeleteConfig name={uuid} />
       </MenuList>
@@ -1511,32 +1450,20 @@ function openNewCreateTable(appendTab, uuid: string, kind: DataSourceKind) {
 function SchemaMenu(props: {
   schema?: string;
   uuid: string;
-  handleOpened;
-  opened;
-  handleCloseConn;
   kind: DataSourceKind;
   reloadSchemas?;
-  setLoading;
 }) {
-  const {
-    schema,
-    uuid,
-    handleOpened,
-    opened,
-    handleCloseConn,
-    reloadSchemas,
-    kind,
-    setLoading,
-  } = props;
+  const { schema, uuid, kind, reloadSchemas } = props;
   const { appendTab } = useTabsManage((state) => state);
   const { showNotification } = useNotification((s) => s);
+  const { is_connected } = useConnected((s) => s);
+  const conn_established = is_connected(uuid);
+
   return (
     <MenuList>
-      {!schema && !opened && (
-        <MenuOpenConn name={uuid} setLoading={setLoading} handleOpened={handleOpened} />
-      )}
+      {!schema && !conn_established && <MenuOpenConn name={uuid} />}
 
-      {opened && (
+      {conn_established && (
         <MenuNewQuery
           handleNew={() => {
             openNewQuery(appendTab, uuid, kind);
@@ -1544,7 +1471,7 @@ function SchemaMenu(props: {
         />
       )}
 
-      {opened &&
+      {conn_established &&
         kind != DataSourceKind.Redis &&
         kind != DataSourceKind.Mongo &&
         kind != DataSourceKind.CouchBase && (
@@ -1560,9 +1487,9 @@ function SchemaMenu(props: {
           </MenuItem>
         )}
 
-      {opened && !schema && <MenuConnectionInfo uuid={uuid} />}
+      {conn_established && !schema && <MenuConnectionInfo uuid={uuid} />}
 
-      {!schema && opened && <MenuCloseConn name={uuid} handleClose={handleCloseConn} />}
+      {!schema && conn_established && <MenuCloseConn name={uuid} />}
       {schema && kind != DataSourceKind.Oracle && (
         <MenuItem
           onClick={() => {
@@ -1594,10 +1521,15 @@ function CatalogTree() {
   const { uuid: name, kind } = useContext(UuidContext);
   const { showNotification } = useNotification((s) => s);
   const [databases, setDatabases] = useState<string[]>([]);
-  const [loading, setLoading] = useState(false);
-
+  const { isLoading, setLoading } = useConnLoading((s) => s);
+  const { is_connected } = useConnected((s) => s);
+  const conn_established = is_connected(name);
   const handleReload = useCallback(() => {
-    setLoading(true);
+    if (!conn_established) {
+      setDatabases([]);
+      return;
+    }
+    setLoading(name, true);
     invoke<string[]>("list_database", { name })
       .then((ds) => {
         setDatabases(ds);
@@ -1606,20 +1538,15 @@ function CatalogTree() {
         showNotification("error", "list database failed", e);
       })
       .finally(() => {
-        setLoading(false);
+        setLoading(name, false);
       });
-  }, [name, showNotification]);
-  const { is_connected, setConnected, removeConnected } = useConnected((s) => s);
-  const opened = is_connected(name);
+  }, [name, conn_established, setLoading, showNotification]);
+
   useEffect(() => {
-    if (opened) {
-      handleReload();
-    }
-  }, [handleReload, opened]);
-
+    handleReload();
+  }, [handleReload]);
   const setUpMenu = useContextMenu((state) => state.setUpMenu);
-
-  const matchPattern = useAppConfigStore((state) => state.matchPattern);
+  const matchPattern = useContext(MatcherContext);
 
   return (
     <TreeItem
@@ -1628,29 +1555,14 @@ function CatalogTree() {
         direction="row"
         onContextMenu={(e) => {
           setUpMenu({
-            content: (
-              <CatalogMenu
-                uuid={name}
-                setLoading={setLoading}
-                reload={handleReload}
-                opened={opened}
-                handleOpened={() => {
-                  setConnected(name);
-                }}
-                handleCloseConn={() => {
-                  removeConnected(name);
-                  setDatabases([]);
-                }}
-                kind={kind}
-              />
-            ),
+            content: <CatalogMenu uuid={name} reload={handleReload} kind={kind} />,
             event: e,
           });
         }}
       >
         <span>{name} </span>
-        {loading && <CircularProgress />}
-        {opened && <ConnPingTime uuid={name} />}
+        {isLoading(name) && <CircularProgress />}
+        {conn_established && <ConnPingTime uuid={name} />}
       </Stack>
       key={name}
     >
@@ -1672,12 +1584,16 @@ function DatabaseTree(props: { database?: string; reloadDatabase?: () => void })
   const { showNotification } = useNotification((s) => s);
   const [schemas, setSchemas] = useState<string[]>([]);
   const { database, reloadDatabase } = props;
-  const [loading, setLoading] = useState(false);
-  const { is_connected, setConnected, removeConnected } = useConnected((s) => s);
-
-  const matchPattern = useAppConfigStore((state) => state.matchPattern);
+  const { isLoading, setLoading } = useConnLoading((s) => s);
+  const { is_connected } = useConnected((s) => s);
+  const matchPattern = useContext(MatcherContext);
+  const conn_established = is_connected(name);
   const handleReload = useCallback(() => {
-    setLoading(true);
+    if (!conn_established) {
+      setSchemas([]);
+      return;
+    }
+    setLoading(name, true);
     listSchema(name)
       .then((ds) => {
         setSchemas(ds);
@@ -1686,15 +1602,13 @@ function DatabaseTree(props: { database?: string; reloadDatabase?: () => void })
         showNotification("error", "list schema failed", e);
       })
       .finally(() => {
-        setLoading(false);
+        setLoading(name, false);
       });
-  }, [name, showNotification]);
+  }, [name, conn_established, setLoading, showNotification]);
 
   useEffect(() => {
-    if (is_connected(name)) {
-      handleReload();
-    }
-  }, [handleReload, is_connected, name]);
+    handleReload();
+  }, [handleReload]);
   const setUpMenu = useContextMenu((state) => state.setUpMenu);
 
   return (
@@ -1707,15 +1621,6 @@ function DatabaseTree(props: { database?: string; reloadDatabase?: () => void })
           setUpMenu({
             content: (
               <DatabaseMenu
-                setLoading={setLoading}
-                opened={is_connected(name)}
-                handleOpened={() => {
-                  setConnected(name);
-                }}
-                handleCloseConn={() => {
-                  removeConnected(name);
-                  setSchemas([]);
-                }}
                 database={database}
                 uuid={name}
                 reload={handleReload}
@@ -1731,7 +1636,7 @@ function DatabaseTree(props: { database?: string; reloadDatabase?: () => void })
       >
         {database && <FaDatabase />}
         <span>{database ? database : name}</span>
-        {loading && <CircularProgress />}
+        {isLoading(name) && <CircularProgress />}
         {!database && is_connected(name) && <ConnPingTime uuid={name} />}
       </Stack>
       key={name + database}

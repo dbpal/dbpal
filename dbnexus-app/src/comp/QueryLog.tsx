@@ -35,8 +35,7 @@ import {
   pageSizeOptions,
   QueryLogHandler,
   saveAndSetSize,
-  SavePageSize,
-  saveQueryLog,
+  saveQueryKey,
   secondConfirm,
   TabActiveContext,
 } from "./helper.ts";
@@ -47,7 +46,7 @@ import {
   SimpleFlexEditor,
   StackRowCenter,
 } from "./CommonComp2.tsx";
-import { useNotification } from "./store.ts";
+import { useBoolSwitch, useNotification, usePageSize } from "./store.ts";
 
 const initialState: object = {
   sorting: { sortModel: [{ field: "create_at", sort: "desc" }] },
@@ -64,7 +63,7 @@ function QueryLog(props: {
   const { uuid, showQueryLog, setShowQueryLog, executeTimes, queryId, kind } = props;
   const [selectSql, setSelectSql] = useState<{ sql: string; language: string }>(null);
   const [page, setPage] = useState(0); // datagrid start with 0
-  const [pageSize, setPagesize] = useState(SavePageSize.instance.get());
+  const { sql: pageSize, setPageSize } = usePageSize((s) => s);
   const [logs, setLogs] = useState([]);
   const [matchSql, setMatchSql] = useState("");
   const [orderBy, setOrderBy] = useState("");
@@ -76,13 +75,16 @@ function QueryLog(props: {
   const paginationModel = useMemo(() => {
     return { page: page, pageSize: pageSize };
   }, [page, pageSize]);
-  const onPaginationModelChange = useCallback((e: GridPaginationModel, reason) => {
-    setPage(e.page);
-    setPagesize(e.pageSize);
-    if (reason.reason == "setPaginationModel") {
-      SavePageSize.instance.save(e.pageSize);
-    }
-  }, []);
+  const onPaginationModelChange = useCallback(
+    (e: GridPaginationModel, reason) => {
+      setPage(e.page);
+      if (reason.reason == "setPaginationModel") {
+        setPageSize("sql", e.pageSize);
+      }
+    },
+    [setPageSize],
+  );
+
   const [loading, setLoading] = useState(false);
   let sqlDesc = "sql";
   switch (kind) {
@@ -182,7 +184,9 @@ function QueryLog(props: {
   }, [vis, showQueryLog, setShowQueryLog]);
 
   const [dom, setDom] = useState<HTMLDivElement>(null);
-  const [sq, setSq] = useState(saveQueryLog.get());
+
+  const { switches, setSwitch } = useBoolSwitch((s) => s);
+
   const slots = useMemo(() => {
     return {
       pagination: () => {
@@ -272,11 +276,9 @@ function QueryLog(props: {
             <FormControlLabel
               control={
                 <Checkbox
-                  checked={sq}
+                  checked={switches[saveQueryKey]}
                   onChange={() => {
-                    const newValue = !sq;
-                    saveQueryLog.save(newValue);
-                    setSq(newValue);
+                    setSwitch(saveQueryKey, !switches[saveQueryKey]);
                   }}
                 />
               }

@@ -48,12 +48,12 @@ import {
   QueryLogHandler,
   resizeHandlerSize,
   rustResultOk,
-  saveQueryLog,
   secondConfirm,
   TabContext,
   SettingContext,
   shrinkAble,
   TabActiveContext,
+  saveQueryKey,
 } from "./helper.ts";
 import ArrowCircleDownRoundedIcon from "@mui/icons-material/ArrowCircleDownRounded";
 import { ExportView } from "./Export.tsx";
@@ -71,7 +71,13 @@ import { ModifyLLMConfigModal } from "./Settings.tsx";
 import { cancelTask, checkSql } from "./handlers.ts";
 import { Channel } from "@tauri-apps/api/core";
 import { v4 as uuidv4 } from "uuid";
-import { useConfirmMsg, useNotification, useQueryExtraUI } from "./store.ts";
+import {
+  useBoolSwitch,
+  useConfirmMsg,
+  useNotification,
+  useQueryExtraUI,
+  useSizeStore,
+} from "./store.ts";
 function SqlTransaction(props: { conn: QueryConn; executeTimes: number }) {
   const { conn, executeTimes } = props;
   const [commit, setCommit] = useState(true);
@@ -191,16 +197,6 @@ function SqlTransaction(props: { conn: QueryConn; executeTimes: number }) {
   );
 }
 
-class SaveCheckSql {
-  static key = "dbpal-save-check-sql";
-  static get(): boolean {
-    return localStorage.getItem(SaveCheckSql.key) == "1";
-  }
-  static save(x: boolean) {
-    localStorage.setItem(SaveCheckSql.key, x ? "1" : "0");
-  }
-}
-
 function SqlQuery(props: {
   uuid: string;
   value?: string;
@@ -222,18 +218,18 @@ function SqlQuery(props: {
   const queryLogHandler = useRef(new QueryLogHandler(uuid));
   const [executeTimes, setExecuteTimes] = useState(0);
   const [conn] = useState<QueryConn>(new QueryConn(uuid, uuidv4(), kind));
-  const maxRow = useRef(2000);
+  const maxSizeKey = "sql-query-max-size";
+  const getSize = useSizeStore((s) => s.getSize);
+
   const [showExport, setShowExport] = useState(false);
   const [openOk, setOpenOk] = useState(false);
-  const [tryCheckSql, setTryCheckSql] = useState(SaveCheckSql.get());
+
   const [queryStatus, setQueryStatus] = useState("");
   const tabCtx = useContext(TabContext);
   const querySomeShow = useQueryExtraUI((s) => s.extra);
-
-  useEffect(() => {
-    SaveCheckSql.save(tryCheckSql);
-  }, [tryCheckSql]);
-
+  const { switches, setSwitch } = useBoolSwitch();
+  const tryCheckSqlSwitchKey = "try-check-sql";
+  const tryCheckSql = switches[tryCheckSqlSwitchKey];
   const handleEditorDidMount = useCallback((ed: editor.IStandaloneCodeEditor) => {
     setEditor(ed);
     const d1 = ed.onDidChangeCursorPosition(() => {
@@ -338,7 +334,7 @@ function SqlQuery(props: {
     conn
       .executeOP(text)
       .then((e) => {
-        if (saveQueryLog.get()) {
+        if (switches[saveQueryKey]) {
           queryLogHandler.current.save(text, rustResultOk(e));
         }
         setTimeout(() => {
@@ -380,15 +376,15 @@ function SqlQuery(props: {
       });
 
       conn
-        .queryOP(text, emit, maxRow.current)
+        .queryOP(text, emit, getSize(maxSizeKey, 100_00))
         .then(() => {
-          if (saveQueryLog.get()) {
+          if (switches[saveQueryKey]) {
             queryLogHandler.current.save(text, true);
           }
           showNotification("success", "query OK");
         })
         .catch((e) => {
-          if (saveQueryLog.get()) {
+          if (switches[saveQueryKey]) {
             queryLogHandler.current.save(text, false);
           }
           showNotification("error", "query failed", e);
@@ -398,7 +394,7 @@ function SqlQuery(props: {
           setLoading(false);
         });
     },
-    [conn, editor, showNotification, warnDangerousSql],
+    [conn, editor, getSize, showNotification, switches, warnDangerousSql],
   );
 
   const editorOptions = useMemo((): editor.IStandaloneEditorConstructionOptions => {
@@ -544,7 +540,7 @@ function SqlQuery(props: {
                   <Checkbox
                     checked={tryCheckSql}
                     onChange={(e) => {
-                      setTryCheckSql(e.target.checked);
+                      setSwitch(tryCheckSqlSwitchKey, e.target.checked);
                     }}
                     name="myCheckbox"
                     color="primary"
@@ -622,13 +618,10 @@ function SqlQuery(props: {
             <ModifyLLMConfigModal />
             <ExecutingTime loading={loading} />
             <SliderSize
-              storeKey="sql-query"
+              storeKey={maxSizeKey}
               min={1000}
               max={100000}
               step={1000}
-              handleValue={(v) => {
-                maxRow.current = v;
-              }}
               notice=<Typography>
                 limit max rows can be query.we don&apos;t want OOM!!!😀
                 <br />

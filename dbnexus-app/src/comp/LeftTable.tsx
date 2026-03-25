@@ -62,6 +62,7 @@ import {
   RedisTableType,
   TableType,
   shrinkAble,
+  MatcherContext,
 } from "./helper";
 import { ExceedMaxTreeItem, MenuRefresh, ModalHeader } from "./CommonComp";
 import { TableStructure } from "./TableStructure";
@@ -69,12 +70,7 @@ import { cancelTask, listTable, makeTableInsertFn, showTableColumn } from "./han
 import { filesize } from "filesize";
 import { CancelButton, CopySql, StackRowCenter } from "./CommonComp2";
 import { CouchBaseTable } from "./CouchBase";
-import {
-  useAppConfigStore,
-  useContextMenu,
-  useNotification,
-  useTabsManage,
-} from "./store.ts";
+import { useMatcher, useContextMenu, useNotification, useTabsManage } from "./store.ts";
 
 function TablesTree(props: { typ: TableType }) {
   const { typ } = props;
@@ -83,7 +79,8 @@ function TablesTree(props: { typ: TableType }) {
   const { showNotification } = useNotification((s) => s);
   const [loading, setLoading] = useState(false);
   const [exceed, setExceed] = useState(0);
-  const { matchPattern, maxTree } = useAppConfigStore((state) => state);
+  const { maxTree } = useMatcher((state) => state);
+  const matchPattern = useContext(MatcherContext);
   const tablesId = useRef(generateRandomString());
   useEffect(() => {
     setExceed(tables.filter((e) => matchPattern(e.name)).length);

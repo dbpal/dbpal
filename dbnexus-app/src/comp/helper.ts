@@ -374,55 +374,6 @@ function isTypeLargeText(s: string): boolean {
   );
 }
 
-class SaveBoolToLocalStorage {
-  constructor(public key: string) {}
-  get() {
-    return localStorage.getItem(this.key) == "1";
-  }
-  save(x: boolean) {
-    localStorage.setItem(this.key, x ? "1" : "0");
-  }
-}
-
-class SaveMatchPattern {
-  key = "dbpal-match-pattern";
-  get() {
-    try {
-      const x = JSON.parse(localStorage.getItem(this.key));
-      if (x instanceof Array) {
-        return x;
-      } else {
-        return [];
-      }
-    } catch (e) {
-      console.log("get match pattern failed", e);
-      return [];
-    }
-  }
-  save(x: string[]) {
-    localStorage.setItem(this.key, JSON.stringify(x));
-  }
-  static instance = new SaveMatchPattern();
-}
-
-class SaveAlign {
-  align = "center";
-  key = "dbpal-align";
-
-  get() {
-    const r = localStorage.getItem(this.key);
-    if (r) {
-      return r;
-    } else {
-      return "center";
-    }
-  }
-  save(a: string) {
-    localStorage.setItem(this.key, a);
-  }
-  static instance = new SaveAlign();
-}
-
 class SaveDomSizes {
   static async saveSize(key: string, size: UISize) {
     return appDatabase.execute(
@@ -861,38 +812,6 @@ class ColorFn {
   };
 }
 
-class SavePageSize {
-  key: string;
-
-  defaultValue: number;
-
-  constructor(dv: number, k = "") {
-    this.defaultValue = dv;
-
-    this.key = "dbpal-page-size" + "-" + k;
-  }
-
-  save(size: number) {
-    localStorage.setItem(this.key, size + "");
-  }
-
-  get() {
-    try {
-      const x = parseInt(localStorage.getItem(this.key));
-      if (!isNaN(x)) {
-        return x;
-      }
-    } catch (e) {
-      console.log("get page size failed", e);
-      console.error("get page size failed");
-    }
-    return this.defaultValue;
-  }
-  static instance = new SavePageSize(100);
-  static couchbase = new SavePageSize(10, "couchbase");
-  static mongodb = new SavePageSize(10, "mongodb");
-}
-
 function getSupportExportKind(kind: DataSourceKind, isTable: boolean) {
   switch (kind) {
     case DataSourceKind.Mongo:
@@ -1163,9 +1082,12 @@ const ChatShowContext = createContext<{
   doQuery: RefObject<() => void>;
 }>(null);
 
-const saveQueryLog = new SaveBoolToLocalStorage("save-query-log");
+const MatcherContext = createContext<(x: string) => boolean>(() => true);
+
+const saveQueryKey = "query-4k9zF7m5p3T1H2";
 
 export {
+  saveQueryKey,
   appDatabase,
   appStore,
   appTheme,
@@ -1214,13 +1136,8 @@ export {
   registeredThemes,
   resizeHandlerSize,
   rustResultOk,
-  SaveAlign,
   saveAndSetSize,
-  SaveBoolToLocalStorage,
   SaveDomSizes,
-  SaveMatchPattern,
-  SavePageSize,
-  saveQueryLog,
   secondConfirm,
   TabContext,
   settingChangeEvent,
@@ -1239,6 +1156,7 @@ export {
   UuidContext,
   validJson,
   ViewKind,
+  MatcherContext,
 };
 
 export type MongoFindParameter = {

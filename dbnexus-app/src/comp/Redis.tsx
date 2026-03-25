@@ -51,7 +51,6 @@ import {
   SettingContext,
   stringToHex,
   validJson,
-  SavePageSize,
   MuiDataGridData,
   extractFieldAndIDFromMouseEvent,
   dataGridStyle,
@@ -77,12 +76,11 @@ import {
   LastFetchTime,
   QueryStatus,
   StackRowCenter,
-  getSliderSizeStoreValue,
 } from "./CommonComp2.tsx";
 import { invoke } from "@tauri-apps/api/core";
 import { showTable } from "./handlers.ts";
 import { AddTableView } from "./LeftTable.tsx";
-import { useContextMenu, useNotification } from "./store.ts";
+import { useContextMenu, useNotification, usePageSize, useSizeStore } from "./store.ts";
 
 class RedisZsetHashModifyReq {
   constructor(
@@ -831,7 +829,7 @@ function RedisSetTable(props: { setKey: string; uuid: string }) {
   const { showNotification } = useNotification((s) => s);
   const [selectRow, setSelectRow] = useState<{ id; value }>(null);
   const [loading, setLoading] = useState(false);
-  const maxRowRef = useRef(getSliderSizeStoreValue(redisMaxRowKey, redisMinRow));
+  const { getSize } = useSizeStore((s) => s);
   const [queryStatus, setQueryStatus] = useState("");
   const handleReload = useCallback(
     (showOK) => {
@@ -840,7 +838,10 @@ function RedisSetTable(props: { setKey: string; uuid: string }) {
         uuid,
         name: setKey,
         setLoading,
-        para: { limit: maxRowRef.current, where_str: keyMatch ? keyMatch : null },
+        para: {
+          limit: getSize(redisMaxRowKey, 100_00),
+          where_str: keyMatch ? keyMatch : null,
+        },
         handleExecuteTime: (t) => {
           setFetchDur(t);
         },
@@ -861,7 +862,7 @@ function RedisSetTable(props: { setKey: string; uuid: string }) {
         },
       });
     },
-    [keyMatch, setKey, showNotification, uuid],
+    [getSize, keyMatch, setKey, showNotification, uuid],
   );
 
   useEffect(() => {
@@ -955,9 +956,6 @@ function RedisSetTable(props: { setKey: string; uuid: string }) {
                 min={redisMinRow}
                 max={50000}
                 step={1000}
-                handleValue={(v) => {
-                  maxRowRef.current = v;
-                }}
                 notice=<LimitMaxRowNotice />
               />
               <DoubleClickToModify />
@@ -1231,7 +1229,9 @@ function RedisListTable(props: { listKey: string; uuid: string }) {
   const [respOrigin, setRespOrigin] = useState<MuiDataGridData>(newEmptyResp());
   const [selectRow, setSelectRow] = useState<any>(null);
   const { showNotification } = useNotification((s) => s);
-  const [pageSize, setPageSize] = useState(SavePageSize.instance.get());
+
+  const { sql: sqlPageSize, setPageSize } = usePageSize((s) => s);
+
   const [page, setPage] = useState(0);
   const [loading, setLoading] = useState(false);
   const setting = useContext(SettingContext);
@@ -1300,17 +1300,17 @@ function RedisListTable(props: { listKey: string; uuid: string }) {
   const onPaginationModelChange = useCallback(
     (e: GridPaginationModel, reason: GridCallbackDetails<"pagination">) => {
       setPage(e.page);
-      setPageSize(e.pageSize);
       if (reason.reason == "setPaginationModel") {
-        SavePageSize.instance.save(e.pageSize);
+        setPageSize("sql", e.pageSize);
       }
     },
-    [],
+    [setPageSize],
   );
 
   const paginationModel = useMemo(() => {
-    return { page, pageSize };
-  }, [page, pageSize]);
+    return { page, pageSize: sqlPageSize };
+  }, [page, sqlPageSize]);
+
   const onSortModelChange = useCallback(
     (c: GridSortModel) => {
       if (c.length == 0) {
@@ -1576,7 +1576,9 @@ function RedisZsetTable(props: { uuid: string; zsetKey: string }) {
   const [loading, setLoading] = useState(false);
   const { showNotification } = useNotification((s) => s);
   const setting = useContext(SettingContext);
-  const maxRowRef = useRef(getSliderSizeStoreValue(redisMaxRowKey, redisMinRow));
+
+  const getSize = useSizeStore((s) => s.getSize);
+
   const [queryStatus, setQueryStatus] = useState("");
   const handleReload = useCallback(
     (showOK: boolean) => {
@@ -1595,7 +1597,7 @@ function RedisZsetTable(props: { uuid: string; zsetKey: string }) {
           min: minValue,
           max: maxValue,
           where_str: keyMatch ? keyMatch : null,
-          limit: maxRowRef.current,
+          limit: getSize(redisMaxRowKey, 100_00),
         },
         handleExecuteTime: (t) => {
           setFetchDur(t);
@@ -1623,7 +1625,7 @@ function RedisZsetTable(props: { uuid: string; zsetKey: string }) {
         },
       });
     },
-    [keyMatch, max, maxErr, min, minErr, showNotification, uuid, zsetKey],
+    [getSize, keyMatch, max, maxErr, min, minErr, showNotification, uuid, zsetKey],
   );
 
   useEffect(() => {
@@ -1723,9 +1725,6 @@ function RedisZsetTable(props: { uuid: string; zsetKey: string }) {
                 storeKey={redisMaxRowKey}
                 min={redisMinRow}
                 notice=<LimitMaxRowNotice />
-                handleValue={(v) => {
-                  maxRowRef.current = v;
-                }}
               />
               <DoubleClickToModify />
               <ResetColumnWidth />
@@ -1967,7 +1966,8 @@ function RedisHashTable(props: { hashKey: string; uuid: string }) {
   const [selectRow, setSelectRow] = useState<any>(null);
   const [loading, setLoading] = useState(false);
   const setting = useContext(SettingContext);
-  const maxRowRef = useRef(getSliderSizeStoreValue(redisMaxRowKey, redisMinRow));
+  const getSize = useSizeStore((s) => s.getSize);
+
   const [lastFetchTime, setLastFetchTime] = useState(new Date());
   useEffect(() => {
     setLastFetchTime(new Date());
@@ -1989,7 +1989,10 @@ function RedisHashTable(props: { hashKey: string; uuid: string }) {
           setFetchDur(t);
         },
         setStatus: setQueryStatus,
-        para: { limit: maxRowRef.current, where_str: keyMatch ? keyMatch : null },
+        para: {
+          limit: getSize(redisMaxRowKey, 100_00),
+          where_str: keyMatch ? keyMatch : null,
+        },
         setLoading,
         showNotification,
         handleResult: (resp) => {
@@ -2005,7 +2008,7 @@ function RedisHashTable(props: { hashKey: string; uuid: string }) {
         },
       });
     },
-    [hashKey, keyMatch, showNotification, uuid],
+    [getSize, hashKey, keyMatch, showNotification, uuid],
   );
   useEffect(() => {
     handleReload(false);
@@ -2103,9 +2106,6 @@ function RedisHashTable(props: { hashKey: string; uuid: string }) {
                 min={redisMinRow}
                 max={50000}
                 step={1000}
-                handleValue={(v) => {
-                  maxRowRef.current = v;
-                }}
                 notice=<LimitMaxRowNotice />
               />
 

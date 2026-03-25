@@ -1,12 +1,13 @@
 import {
   CSSProperties,
   ReactNode,
+  useCallback,
   useContext,
   useEffect,
-  useRef,
   useState,
 } from "react";
 import { FaFolderOpen } from "react-icons/fa";
+import _ from "lodash";
 import {
   Autocomplete,
   Box,
@@ -61,7 +62,7 @@ import { Position } from "monaco-editor";
 import { invoke } from "@tauri-apps/api/core";
 import EditIcon from "@mui/icons-material/Edit";
 import ClearIcon from "@mui/icons-material/Clear";
-import { SimpleFlexEditor, StackRowCenter } from "./CommonComp2";
+import { IconModifed, SimpleFlexEditor, StackRowCenter } from "./CommonComp2";
 import {
   enable as enableApp,
   isEnabled as isEnabledApp,
@@ -86,8 +87,8 @@ function AppearanceSetting() {
   const [fontFamily, setFontFamily] = useState("");
   const [datagridRowHeightFactor, setDatagridRowHeightFactor] = useState("");
   const [intputVariant, setInputVariant] = useState("standard");
-
-  const oldSetting = useRef<UserSettingAppearance>(null);
+  const [modified, setModified] = useState(false);
+  const [oldSetting, setOldSetting] = useState<UserSettingAppearance>(null);
 
   useEffect(() => {
     UserSettingAppearance.get().then((setting) => {
@@ -97,7 +98,7 @@ function AppearanceSetting() {
       setFontFamily(setting.fontFamily);
       setDatagridRowHeightFactor(setting.datagridRowHeightFactor + "");
       setInputVariant(setting.intputVariant);
-      oldSetting.current = setting;
+      setOldSetting(setting);
     });
   }, []);
 
@@ -147,24 +148,50 @@ function AppearanceSetting() {
       });
   }, [showNotification]);
 
-  const handleSave = () => {
-    try {
-      const x = {
-        fontFamily,
-        fontSize,
-        fontWeight,
-        darkBgColor: isDarkTheme() ? bgColor : oldSetting.current.darkBgColor,
-        lightBgColor: !isDarkTheme() ? bgColor : oldSetting.current.lightBgColor,
-        datagridRowHeightFactor: parseFloat(datagridRowHeightFactor),
-        intputVariant,
-      } as unknown as UserSettingAppearance;
-      Object.setPrototypeOf(x, UserSettingAppearance.prototype);
-      x.save();
-    } catch (e) {
-      showNotification("error", "save setting failed", e);
+  const makeConfig = useCallback(() => {
+    if (!oldSetting) {
       return;
     }
-    showNotification("success", "save setting success");
+    const x = {
+      fontFamily,
+      fontSize,
+      fontWeight,
+      darkBgColor: isDarkTheme() ? bgColor : oldSetting.darkBgColor,
+      lightBgColor: !isDarkTheme() ? bgColor : oldSetting.lightBgColor,
+      datagridRowHeightFactor: parseFloat(datagridRowHeightFactor),
+      intputVariant,
+    } as unknown as UserSettingAppearance;
+    Object.setPrototypeOf(x, UserSettingAppearance.prototype);
+    return x;
+  }, [
+    bgColor,
+    datagridRowHeightFactor,
+    fontFamily,
+    fontSize,
+    fontWeight,
+    intputVariant,
+    oldSetting,
+  ]);
+
+  useEffect(() => {
+    if (!oldSetting) {
+      return;
+    }
+    if (!_.isEqual(oldSetting, makeConfig())) {
+      setModified(true);
+    }
+  }, [makeConfig, oldSetting]);
+
+  const handleSave = () => {
+    try {
+      const x = makeConfig();
+      x.save();
+      showNotification("success", "save appearance setting success");
+      setModified(false);
+    } catch (e) {
+      showNotification("error", "save appearance setting failed", e);
+      return;
+    }
   };
   return (
     <Stack style={{ height: "100%", textAlign: "right" }}>
@@ -324,7 +351,9 @@ function AppearanceSetting() {
       </Stack>
       <Divider />
       <Stack direction="row" sx={{ alignItems: "center" }}>
-        <Button onClick={handleSave}> save </Button>
+        <Button onClick={handleSave} disabled={!modified}>
+          {modified ? <IconModifed /> : undefined} save
+        </Button>
       </Stack>
     </Stack>
   );
@@ -338,31 +367,50 @@ function EditorSetting() {
   const [highLightTheme, setHighlightTheme] = useState("");
   const muiTheme = useTheme();
   const { showNotification } = useNotification((s) => s);
-
+  const [modified, setModified] = useState(false);
+  const [oldSetting, setOldSetting] = useState(null);
   useEffect(() => {
     UserSettingEditor.get().then((setting) => {
       setEditorOptions(
         setting.editorOption ? JSON.stringify(setting.editorOption) : "{}",
       );
+      setOldSetting(setting);
       setTabSize(setting.tabSize);
       setCustomEditorTheme(setting.theme);
     });
   }, []);
+
+  const makeConfig = useCallback(() => {
+    const obj = {
+      tabSize,
+      theme: customEditorTheme,
+      editorOption: editorOptions ? JSON.parse(editorOptions) : null,
+    } as UserSettingEditor;
+    Object.setPrototypeOf(obj, UserSettingEditor.prototype);
+    return obj;
+  }, [customEditorTheme, editorOptions, tabSize]);
+
   const handleSave = () => {
     try {
-      const obj = {
-        tabSize,
-        theme: customEditorTheme,
-        editorOption: editorOptions ? JSON.parse(editorOptions) : null,
-      } as UserSettingEditor;
-      Object.setPrototypeOf(obj, UserSettingEditor.prototype);
+      const obj = makeConfig();
       obj.save();
+      showNotification("success", "save editor setting ok");
+      setModified(false);
     } catch (e) {
-      showNotification("error", "save setting  failed", e);
+      showNotification("error", "save  editor setting failed", e);
       return;
     }
-    showNotification("success", "save setting ok");
   };
+
+  useEffect(() => {
+    if (!oldSetting) {
+      return;
+    }
+    if (!_.isEqual(oldSetting, makeConfig())) {
+      setModified(true);
+    }
+  }, [makeConfig, oldSetting]);
+
   return (
     <Stack style={{ textAlign: "right" }}>
       <Stack direction="row" sx={{ alignItems: "center" }}>
@@ -417,7 +465,6 @@ function EditorSetting() {
           </Stack>
         </Stack>
       </Stack>
-
       <Stack direction="row" sx={{ alignItems: "flex-start" }}>
         <Typography width={headerSize}>editor theme </Typography>
         <Stack direction="row" style={{ flex: 1, alignItems: "flex-start" }}>
@@ -447,7 +494,9 @@ function EditorSetting() {
       </Stack>
       <Divider />
       <Stack direction="row">
-        <Button onClick={handleSave}> save </Button>
+        <Button onClick={handleSave} disabled={!modified}>
+          {modified ? <IconModifed /> : undefined} save
+        </Button>
       </Stack>
     </Stack>
   );
@@ -459,23 +508,41 @@ function ExportSetting() {
   const [csvDelimiter, setCsvDelimiter] = useState(",");
   const [includeHeader, setIncludeHeader] = useState(true);
   const { showNotification } = useNotification((s) => s);
+  const [modified, setModified] = useState(false);
+  const [oldSetting, setOldSetting] = useState(null);
+
   useEffect(() => {
     UserSettingExport.get().then((setting) => {
       setCsvDelimiter(setting.csvDelimiter);
       setIncludeHeader(setting.includeHeader);
+      setOldSetting(setting);
     });
   }, []);
 
-  const handleSave = () => {
-    try {
-      const x = { csvDelimiter, includeHeader } as UserSettingExport;
-      Object.setPrototypeOf(x, UserSettingExport.prototype);
-      x.save();
-    } catch (e) {
-      showNotification("error", "save setting  failed", e);
+  const makeConfig = useCallback(() => {
+    const x = { csvDelimiter, includeHeader } as UserSettingExport;
+    Object.setPrototypeOf(x, UserSettingExport.prototype);
+    return x;
+  }, [csvDelimiter, includeHeader]);
+
+  useEffect(() => {
+    if (!oldSetting) {
       return;
     }
-    showNotification("success", "save setting ok");
+    if (!_.isEqual(oldSetting, makeConfig())) {
+      setModified(true);
+    }
+  }, [makeConfig, oldSetting]);
+  const handleSave = () => {
+    try {
+      const x = makeConfig();
+      x.save();
+      showNotification("success", "save export setting ok");
+      setModified(false);
+    } catch (e) {
+      showNotification("error", "save export setting failed", e);
+      return;
+    }
   };
 
   return (
@@ -504,7 +571,9 @@ function ExportSetting() {
 
       <Divider />
       <Stack direction="row">
-        <Button onClick={handleSave}>save</Button>
+        <Button onClick={handleSave} disabled={!modified}>
+          {modified ? <IconModifed /> : undefined} save
+        </Button>
       </Stack>
     </Stack>
   );
@@ -544,6 +613,9 @@ function LLMSetting(props: { handleClose?: () => void }) {
   const [topP, setTopP] = useState("");
   const [moddelCan, setModdelCan] = useState<ModelDef[]>([]);
   const [helloTime, setHelloTime] = useState(0);
+  const [modified, setModified] = useState(false);
+  const [oldSetting, setOldSetting] = useState<LLMConfig | null>(null);
+
   useEffect(() => {
     LLMConfig.get().then((e) => {
       if (e) {
@@ -554,24 +626,39 @@ function LLMSetting(props: { handleClose?: () => void }) {
         if (e.maxToken) {
           setMaxToken(e.maxToken + "");
         }
-
         if (e.topP) {
           setTopP(e.topP + "");
         }
+        setOldSetting(e);
       }
     });
   }, []);
-  const makeConfig = () => {
+  const makeConfig = useCallback(() => {
+    if (!oldSetting) {
+      return;
+    }
     const config = {
       baseUrl,
       apiKey,
       temperature: parseFloat(temperature),
       model,
       maxToken: maxToken ? parseInt(maxToken) : null,
+      topP: topP ? parseFloat(topP) : 0,
+      aiTextTemplates: oldSetting.aiTextTemplates,
     } as LLMConfig;
     Object.setPrototypeOf(config, LLMConfig.prototype);
     return config;
-  };
+  }, [apiKey, baseUrl, maxToken, model, oldSetting, temperature, topP]);
+
+  useEffect(() => {
+    if (!oldSetting) {
+      return;
+    }
+    if (!_.isEqual(oldSetting, makeConfig())) {
+      setModified(true);
+    }
+  }, [makeConfig, oldSetting]);
+
   const handleSave = async () => {
     try {
       const config = makeConfig();
@@ -579,11 +666,12 @@ function LLMSetting(props: { handleClose?: () => void }) {
       if (handleClose) {
         handleClose();
       }
+      showNotification("success", "save llm config ok");
+      setModified(false);
     } catch (e) {
       showNotification("error", "save llm config  failed", e);
       return;
     }
-    showNotification("success", "save llm config ok");
   };
 
   const handleHello = async () => {
@@ -795,7 +883,9 @@ function LLMSetting(props: { handleClose?: () => void }) {
 
       <Divider />
       <Stack direction="row">
-        <Button onClick={handleSave}>save</Button>
+        <Button onClick={handleSave} disabled={!modified}>
+          {modified ? <IconModifed /> : undefined} save
+        </Button>
 
         <Button onClick={handleHello} variant="outlined" color="secondary">
           {helloTime ? (
@@ -814,29 +904,36 @@ function LLMSetting(props: { handleClose?: () => void }) {
 function MiscSetting() {
   const [autoStart, setAutoStart] = useState(false);
   const { showNotification } = useNotification((s) => s);
+  const [oldSetting, setOldSetting] = useState(null);
 
   useEffect(() => {
     UserSettingMisc.get().then((setting) => {
+      setOldSetting(setting);
       setAutoStart(setting.autoStart);
     });
   }, []);
-  const handleSave = () => {
-    try {
-      const x = { autoStart } as UserSettingMisc;
-      Object.setPrototypeOf(x, UserSettingMisc.prototype);
-      x.save();
-    } catch (e) {
-      showNotification("error", "save setting  failed", e);
+
+  useEffect(() => {
+    if (!oldSetting) {
       return;
     }
-    showNotification("success", "save setting ok");
-  };
+    const x = { autoStart } as UserSettingMisc;
+    Object.setPrototypeOf(x, UserSettingMisc.prototype);
+    if (!_.isEqual(x, oldSetting)) {
+      x.save()
+        .then(() => {
+          showNotification("success", "save auto restart ok");
+        })
+        .catch((e) => {
+          showNotification("error", "save setting  failed", e);
+        });
+    }
+  }, [autoStart, oldSetting, showNotification]);
   const [loglevel, setLogLevel] = useState(LoggerLevel.level);
   return (
     <Stack style={{ textAlign: "right" }}>
       <Stack direction="row" sx={{ alignItems: "center" }}>
         <Typography width={headerSize}>auto start</Typography>
-
         <Checkbox
           checked={autoStart}
           onChange={(e) => {
@@ -864,11 +961,6 @@ function MiscSetting() {
             </IconButton>
           </Tooltip>
         )}
-      </Stack>
-
-      <Divider />
-      <Stack direction="row">
-        <Button onClick={handleSave}>save</Button>
       </Stack>
     </Stack>
   );

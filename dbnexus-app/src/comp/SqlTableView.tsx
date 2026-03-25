@@ -61,7 +61,6 @@ import {
   secondConfirm,
   SettingContext,
   validJson,
-  SavePageSize,
   textEllipsisStyle,
   quoteDatabaseIdentifier,
   MuiDataGridData,
@@ -107,7 +106,13 @@ import {
 } from "./handlers";
 import { AddTableView } from "./LeftTable";
 import { ExportTableOrView } from "./Export";
-import { useConfirmMsg, useContextMenu, useNotification } from "./store";
+import {
+  useConfirmMsg,
+  useContextMenu,
+  useNotification,
+  usePageSize,
+  useSizeStore,
+} from "./store";
 
 const confirmAboutPrimary = async (
   notWarnPri: boolean,
@@ -324,7 +329,7 @@ function SqlTableView(props: {
   const [showSetSort, setShowSetSort] = useState(false);
   const setting = useContext(SettingContext);
   const [page, setPage] = useState(0);
-  const [pageSize, setPageSize] = useState(SavePageSize.instance.get());
+  const { sql: pageSize, setPageSize } = usePageSize((s) => s);
   const [resp, setResp] = useState<MuiDataGridData>({
     sql: "",
     fields: [],
@@ -353,9 +358,7 @@ function SqlTableView(props: {
       removeConfirmMsg(tabCtx.id);
     };
   }, [removeConfirmMsg, tabCtx.id]);
-
   const [fetchDur, setFetchDur] = useState(0);
-  const clientModelLimit = useRef<number>(1000);
   const { showNotification } = useNotification((s) => s);
   const [allowFiltering, setAllowFiltering] = useState(false);
   const [editCellInModal, setEditCellInModal] = useState<EditInModalCellData>(null);
@@ -368,6 +371,8 @@ function SqlTableView(props: {
   const [clickedField, setClickedField] = useState("");
   const [rowBeenLocate, setRowBeenLocate] = useState("");
 
+  const maxLimitKey = "sql-max-limit";
+  const getSize = useSizeStore((s) => s.getSize);
   const handleResp = (resp: MuiDataGridData) => {
     resp.data.forEach((data, index) => {
       data[keyNotInTable] = index + "";
@@ -430,9 +435,9 @@ function SqlTableView(props: {
       page: page + 1,
       page_size: pageSize,
       allow_filtering: allowFiltering,
-      limit: clientModelLimit.current,
+      limit: getSize(maxLimitKey, 100_00),
     } as types.ShowTableParameter;
-  }, [allowFiltering, page, pageSize, sort, where]);
+  }, [allowFiltering, getSize, page, pageSize, sort, where]);
   const handleReload = useCallback(
     (showOK: boolean) => {
       switch (kind) {
@@ -567,12 +572,11 @@ function SqlTableView(props: {
   const onPaginationModelChange = useCallback(
     (e: GridPaginationModel, reason: GridCallbackDetails<"pagination">) => {
       setPage(e.page);
-      setPageSize(e.pageSize);
       if (reason.reason == "setPaginationModel") {
-        SavePageSize.instance.save(e.pageSize);
+        setPageSize("sql", e.pageSize);
       }
     },
-    [],
+    [setPageSize],
   );
   const setUpMenu = useContextMenu((state) => state.setUpMenu);
   const onSortModelChange = useCallback(
@@ -812,11 +816,8 @@ function SqlTableView(props: {
                   </Typography>
                   min={1000}
                   max={100000}
-                  storeKey="sqltable-limit"
+                  storeKey={maxLimitKey}
                   step={1000}
-                  handleValue={(v) => {
-                    clientModelLimit.current = v;
-                  }}
                 />
               )}
               {isTable && (

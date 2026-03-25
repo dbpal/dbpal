@@ -11,8 +11,8 @@ import {
 import CloseIcon from "@mui/icons-material/Close";
 import { secondConfirm, TabContext, TabContent, TabActiveContext } from "./helper";
 
-import CircleIcon from "@mui/icons-material/Circle";
 import { useConfirmMsg, useContextMenu } from "./store";
+import { IconModifed } from "./CommonComp2";
 
 function TabsMenu(props: {
   index;
@@ -194,7 +194,7 @@ function TabsWithContent(props: {
                   </Typography>
 
                   {tabConfirmMsg.get(tab.id) ? (
-                    <CircleIcon color="warning" style={{ fontSize: "0.9rem" }} />
+                    <IconModifed />
                   ) : (
                     <CloseIcon
                       onClick={() => {

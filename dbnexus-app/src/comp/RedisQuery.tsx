@@ -7,19 +7,7 @@ import { DataSourceKind, resizeHandlerSize, shrinkAble } from "./helper.ts";
 import { Chip, Tooltip } from "@mui/material";
 import { invoke } from "@tauri-apps/api/core";
 import { AppMarkDown } from "./CommonComp2.tsx";
-
-class SaveShowDoc {
-  key = "dbpal-redis-show-doc";
-
-  save(x: boolean) {
-    localStorage.setItem(this.key, x ? "1" : "0");
-  }
-
-  get(): boolean {
-    return localStorage.getItem(this.key) == "1";
-  }
-  static instance = new SaveShowDoc();
-}
+import { useBoolSwitch } from "./store.ts";
 
 function RedisQuery(props: {
   favoriteName?: string;
@@ -30,11 +18,13 @@ function RedisQuery(props: {
   const { favoriteName, value, uuid, handleEditor } = props;
   const [doc, setDoc] = useState("");
   const editorRef = useRef<editor.IStandaloneCodeEditor>(null);
-  const [showDoc, setShowDoc] = useState(SaveShowDoc.instance.get());
+  const { switches, setSwitch } = useBoolSwitch((s) => s);
+
   const [prevLine, setPrevLine] = useState("");
-  useEffect(() => {
-    SaveShowDoc.instance.save(showDoc);
-  }, [showDoc]);
+
+  const switchKey = "redis-show-doc";
+
+  const showDoc = switches[switchKey];
 
   useEffect(() => {
     const tryUpdateCommand = () => {
@@ -97,7 +87,7 @@ function RedisQuery(props: {
               <Tooltip title="toggle show redis document">
                 <Chip
                   onClick={() => {
-                    setShowDoc((e) => !e);
+                    setSwitch(switchKey, !showDoc);
                   }}
                   style={shrinkAble}
                   color={showDoc ? "success" : "primary"}

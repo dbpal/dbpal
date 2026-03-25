@@ -12,23 +12,20 @@ import { MdOutlineEventRepeat } from "react-icons/md";
 import {
   DataSourceKind,
   generateRandomString,
+  MatcherContext,
   secondConfirm,
   UuidContext,
 } from "./helper";
 import { ExceedMaxTreeItem, MenuRefresh } from "./CommonComp";
 import { listEvent } from "./handlers";
 import { CopySql } from "./CommonComp2";
-import {
-  useAppConfigStore,
-  useContextMenu,
-  useNotification,
-  useTabsManage,
-} from "./store";
+import { useMatcher, useContextMenu, useNotification, useTabsManage } from "./store";
 function EventsTree() {
   const { uuid, kind } = useContext(UuidContext);
   const [evens, setEvents] = useState<types.SqlEvent[]>([]);
   const { showNotification } = useNotification((s) => s);
-  const { matchPattern, maxTree } = useAppConfigStore((state) => state);
+  const { maxTree } = useMatcher((state) => state);
+  const matchPattern = useContext(MatcherContext);
   const reload = useCallback(() => {
     listEvent(uuid)
       .then((ts) => {

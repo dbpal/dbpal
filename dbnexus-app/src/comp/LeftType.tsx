@@ -12,24 +12,20 @@ import { PiTreeStructureFill } from "react-icons/pi";
 import {
   DataSourceKind,
   generateRandomString,
+  MatcherContext,
   secondConfirm,
   UuidContext,
 } from "./helper";
 import { ExceedMaxTreeItem, MenuRefresh } from "./CommonComp";
 import { listCreatedTypes } from "./handlers";
 import { CopySql } from "./CommonComp2";
-import {
-  useAppConfigStore,
-  useContextMenu,
-  useNotification,
-  useTabsManage,
-} from "./store";
+import { useMatcher, useContextMenu, useNotification, useTabsManage } from "./store";
 function TypesTree() {
   const { uuid, kind } = useContext(UuidContext);
   const [types, setTypes] = useState<types.CreatedTypeDef[]>([]);
   const { showNotification } = useNotification((s) => s);
-
-  const { matchPattern, maxTree } = useAppConfigStore((state) => state);
+  const { maxTree } = useMatcher((state) => state);
+  const matchPattern = useContext(MatcherContext);
 
   const reload = useCallback(() => {
     listCreatedTypes(uuid)

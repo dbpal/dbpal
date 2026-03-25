@@ -51,6 +51,7 @@ import {
   getLanguageFromDataSourceKind,
   getSupportExportKind,
   handleCopyToClipboard,
+  MatcherContext,
   secondConfirm,
   SettingContext,
   UuidContext,
@@ -67,12 +68,7 @@ import {
 import { AppDataGridPagination, SimpleFlexEditor } from "./CommonComp2";
 import { createViewSql, listView, showViewColumns } from "./handlers";
 import { filesize } from "filesize";
-import {
-  useAppConfigStore,
-  useContextMenu,
-  useNotification,
-  useTabsManage,
-} from "./store";
+import { useMatcher, useContextMenu, useNotification, useTabsManage } from "./store";
 function ViewsTree(props: { viewKind: ViewKind }) {
   const { viewKind } = props;
   const { uuid } = useContext(UuidContext);
@@ -80,7 +76,8 @@ function ViewsTree(props: { viewKind: ViewKind }) {
   const { showNotification } = useNotification((s) => s);
   const [loading, setLoading] = useState(false);
   const [exceed, setExceed] = useState(0);
-  const { matchPattern, maxTree } = useAppConfigStore((state) => state);
+  const { maxTree } = useMatcher((state) => state);
+  const matchPattern = useContext(MatcherContext);
   useEffect(() => {
     setExceed(views.filter((e) => matchPattern(e.name)).length);
   }, [views, matchPattern]);

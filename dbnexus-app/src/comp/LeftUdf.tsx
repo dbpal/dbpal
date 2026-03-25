@@ -21,6 +21,7 @@ import { TbMathFunction } from "react-icons/tb";
 import {
   DataSourceKind,
   generateRandomString,
+  MatcherContext,
   secondConfirm,
   UuidContext,
 } from "./helper";
@@ -29,12 +30,7 @@ import { ExceedMaxTreeItem, MenuRefresh, UdfNameAndParameters } from "./CommonCo
 import { listCassandraAgg, listUdf, makeUdfExtraArg, showUdf } from "./handlers";
 import { showCassandraAgg } from "./handlers";
 import { CopySql } from "./CommonComp2";
-import {
-  useAppConfigStore,
-  useContextMenu,
-  useNotification,
-  useTabsManage,
-} from "./store";
+import { useMatcher, useContextMenu, useNotification, useTabsManage } from "./store";
 
 function UdfsTree() {
   const { uuid, kind } = useContext(UuidContext);
@@ -42,7 +38,8 @@ function UdfsTree() {
   const [udfs, setUdfs] = useState<types.NamedStaff[]>([]);
   const { showNotification } = useNotification((s) => s);
   const [exceed, setExceed] = useState(0);
-  const { matchPattern, maxTree } = useAppConfigStore((state) => state);
+  const { maxTree } = useMatcher((state) => state);
+  const matchPattern = useContext(MatcherContext);
   useEffect(() => {
     setExceed(udfs.filter((e) => matchPattern(e.name)).length);
   }, [udfs, matchPattern]);
@@ -304,7 +301,8 @@ function CassandraAggregatesTree() {
       });
   }, [showNotification, uuid]);
   const [exceed, setExceed] = useState(0);
-  const { matchPattern, maxTree } = useAppConfigStore((state) => state);
+  const { maxTree } = useMatcher((state) => state);
+  const matchPattern = useContext(MatcherContext);
   useEffect(() => {
     setExceed(aggs.filter((e) => matchPattern(e.name)).length);
   }, [aggs, matchPattern]);

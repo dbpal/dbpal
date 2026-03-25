@@ -27,7 +27,7 @@ import {
   isWindows,
   MongoLanguage,
   QueryLogHandler,
-  saveQueryLog,
+  saveQueryKey,
   secondConfirm,
   SettingContext,
   validJson,
@@ -53,7 +53,7 @@ import { tempDir, join } from "@tauri-apps/api/path";
 import { exists, mkdir, readTextFile, writeTextFile } from "@tauri-apps/plugin-fs";
 import { ChildProcess, Command } from "@tauri-apps/plugin-shell";
 import { openPath, openUrl } from "@tauri-apps/plugin-opener";
-import { useNotification } from "./store";
+import { useBoolSwitch, useNotification } from "./store";
 initMongoQueryGlobals();
 
 class CompilerOutput {
@@ -68,34 +68,43 @@ function dropLastLine(str) {
   return str.split(/\r?\n/).slice(0, -1).join("\n");
 }
 
-class SaveTsOption {
-  static key = "dbpal-ts-compiler-option";
+import { create } from "zustand";
+import { persist } from "zustand/middleware";
 
-  static getStr() {
-    try {
-      const op = localStorage.getItem(SaveTsOption.key);
-      if (op) {
-        return op;
-      }
-    } catch (e) {
-      /* empty */
-      console.log("get config failed", e);
-    }
-    return `{
-        "target": "esnext",
-        "lib": [
-            "esnext",
-            "dom"
-        ]
-}`;
-  }
-  static get(): object {
-    return JSON.parse(SaveTsOption.getStr());
-  }
-  static set(x: object) {
-    localStorage.setItem(SaveTsOption.key, JSON.stringify(x, null, 2));
-  }
+// 定義初始的預設配置字串（轉為物件）
+const DEFAULT_COMPILER_OPTIONS = {
+  target: "esnext",
+  lib: ["esnext", "dom"],
+};
+
+interface TsOptionState {
+  // 存放編譯選項物件
+  options: object;
+
+  // 更新選項
+  setOptions: (newOptions: object) => void;
+
+  // 重置回預設值
+  resetOptions: () => void;
 }
+
+export const useTsOptionStore = create<TsOptionState>()(
+  persist(
+    (set) => ({
+      // 初始狀態
+      options: DEFAULT_COMPILER_OPTIONS,
+
+      setOptions: (newOptions) => set({ options: newOptions }),
+
+      resetOptions: () => set({ options: DEFAULT_COMPILER_OPTIONS }),
+    }),
+    {
+      name: "dbpal-ts-compiler-option", // localStorage 的 key
+      // 如果你想保留你原本 save 時的縮進格式（雖然 localStorage 通常不需要），
+      // 可以自定義 storage 處理，但一般預設即可。
+    },
+  ),
+);
 
 class TSCompiler {
   constructor(public compileDir: string) {}
@@ -112,7 +121,11 @@ class TSCompiler {
     return rootPath;
   }
 
-  async compile(value: string, sourceMap: boolean): Promise<CompilerOutput> {
+  async compile(
+    value: string,
+    sourceMap: boolean,
+    compilerOP: object,
+  ): Promise<CompilerOutput> {
     // dir
     const rootPath = await this.getRootDir();
 
@@ -125,9 +138,6 @@ class TSCompiler {
 
     // write config file
     const optionFilePath = await join(rootPath, "tsconfig.json");
-    const compilerOP = SaveTsOption.get();
-    // make sure compilerOptions.outDir
-
     compilerOP["outDir"] = "./dist";
     compilerOP["sourceMap"] = sourceMap;
     compilerOP["typeRoots"] = ["./types"];
@@ -188,19 +198,16 @@ class TSCompiler {
 function TsEditCompilerOptions(props: { handleClose: () => void }) {
   const { handleClose } = props;
   const [jsonErr, setJsonErr] = useState<ErrAndLoc | null>(null);
-  const [value, setValue] = useState(SaveTsOption.getStr());
+
+  const { options, setOptions } = useTsOptionStore((s) => s);
   const { showNotification } = useNotification((s) => s);
   const [jsonErrPos, setJsonErrPos] = useState<Position>(null);
-  useEffect(() => {
-    (async () => {
-      const x = await validJson(value);
-      setJsonErr(x);
-    })();
-  }, [value]);
 
+  const [editor, setEditor] = useState<editor.IStandaloneCodeEditor>(null);
   const handleSave = () => {
     try {
-      SaveTsOption.set(JSON.parse(value));
+      let x = JSON.parse(editor.getValue());
+      setOptions(x);
     } catch (e) {
       showNotification("error", "save option failed", e);
       return;
@@ -209,13 +216,25 @@ function TsEditCompilerOptions(props: { handleClose: () => void }) {
     handleClose();
   };
 
+  useEffect(() => {
+    if (!editor) {
+      return;
+    }
+
+    editor.onDidChangeModel(() => {
+      validJson(editor.getValue()).then((x) => {
+        setJsonErr(x);
+      });
+    });
+  }, [editor]);
+
   return (
     <Stack height="100%">
       <SimpleFlexEditor
-        value={value}
+        value={JSON.stringify(options, null, 2)}
         language="json"
-        handleValue={(value) => {
-          setValue(value);
+        handleEditor={(ed) => {
+          setEditor(ed);
         }}
         errPos={jsonErrPos}
         barLeft={
@@ -307,6 +326,7 @@ function TypeScript(props: {
       });
   }, [language, showNotification]);
 
+  const options = useTsOptionStore((s) => s.options);
   return (
     <>
       <Autocomplete
@@ -329,6 +349,7 @@ function TypeScript(props: {
               const result = await new TSCompiler(compileDir).compile(
                 editor.getValue(),
                 false,
+                options,
               );
               if (result.out.code != 0) {
                 showNotification(
@@ -537,19 +558,22 @@ function MongoQuery(props: {
     });
   }, []);
 
+  const { switches } = useBoolSwitch((s) => s);
+  const compilerOp = useTsOptionStore((s) => s.options);
+
   const handleExecute = async () => {
     let code = editor.getValue();
     if (!code.trim()) {
       showNotification("warning", "can't execute empty statement");
       return;
     }
-    if (saveQueryLog.get()) {
+    if (switches[saveQueryKey]) {
       new QueryLogHandler(uuid).save(code, true, language);
     }
     if (language == MongoLanguage.ts) {
       let out: CompilerOutput;
       try {
-        out = await new TSCompiler(compileDir.current).compile(code, true);
+        out = await new TSCompiler(compileDir.current).compile(code, true, compilerOp);
       } catch (e) {
         console.error("compile failed", e);
       }
@@ -572,7 +596,7 @@ function MongoQuery(props: {
     );
   };
 
-  const options = useMemo((): editor.IStandaloneEditorConstructionOptions => {
+  const editorOP = useMemo((): editor.IStandaloneEditorConstructionOptions => {
     return {
       fontSize: setting.appearance.fontSize,
       fontWeight: setting.appearance.fontWeight,
@@ -700,7 +724,7 @@ function MongoQuery(props: {
           height="99%"
           onMount={jsCodeMount}
           language={language}
-          options={options}
+          options={editorOP}
           value={value}
           theme={setting.editorTheme()}
         />
