@@ -7,7 +7,7 @@ import {
   useState,
 } from "react";
 import { FaFolderOpen } from "react-icons/fa";
-import { isEqual } from "lodash";
+import { isEqual } from "lodash-es";
 import {
   Autocomplete,
   Box,
