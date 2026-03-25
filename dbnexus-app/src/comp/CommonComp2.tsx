@@ -1033,6 +1033,8 @@ function SliderSize(props: {
   const { storeKey, notice, min, max, step, name } = props;
   const width = "450px";
   const { sizes, setSize } = useSizeStore((s) => s);
+  const size = sizes[storeKey];
+
   return (
     <Tooltip
       slotProps={{
@@ -1047,8 +1049,13 @@ function SliderSize(props: {
         }}
       >
         <Stack>
+          {!size && (
+            <Typography color="warning">
+              please select a size or default value is given{" "}
+            </Typography>
+          )}
           <Slider
-            value={sizes[storeKey] || min}
+            value={size}
             min={min}
             max={max}
             onChange={(_, v) => {
@@ -1061,7 +1068,7 @@ function SliderSize(props: {
         </Stack>
       </Paper>
     >
-      <Chip label={`${name ? name + ":" : ""} ${sizes[storeKey]}`} color="info" />
+      <Chip label={`${name ? name + ":" : ""} ${size}`} color="info" />
     </Tooltip>
   );
 }
