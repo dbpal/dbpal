@@ -177,9 +177,7 @@ function AppearanceSetting() {
     if (!oldSetting) {
       return;
     }
-    if (!_.isEqual(oldSetting, makeConfig())) {
-      setModified(true);
-    }
+    setModified(!_.isEqual(oldSetting, makeConfig()));
   }, [makeConfig, oldSetting]);
 
   const handleSave = () => {
@@ -406,9 +404,7 @@ function EditorSetting() {
     if (!oldSetting) {
       return;
     }
-    if (!_.isEqual(oldSetting, makeConfig())) {
-      setModified(true);
-    }
+    setModified(!_.isEqual(oldSetting, makeConfig()));
   }, [makeConfig, oldSetting]);
 
   return (
@@ -529,9 +525,7 @@ function ExportSetting() {
     if (!oldSetting) {
       return;
     }
-    if (!_.isEqual(oldSetting, makeConfig())) {
-      setModified(true);
-    }
+    setModified(!_.isEqual(oldSetting, makeConfig()));
   }, [makeConfig, oldSetting]);
   const handleSave = () => {
     try {
@@ -654,9 +648,7 @@ function LLMSetting(props: { handleClose?: () => void }) {
     if (!oldSetting) {
       return;
     }
-    if (!_.isEqual(oldSetting, makeConfig())) {
-      setModified(true);
-    }
+    setModified(!_.isEqual(oldSetting, makeConfig()));
   }, [makeConfig, oldSetting]);
 
   const handleSave = async () => {
