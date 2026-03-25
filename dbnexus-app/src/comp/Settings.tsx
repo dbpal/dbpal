@@ -7,7 +7,7 @@ import {
   useState,
 } from "react";
 import { FaFolderOpen } from "react-icons/fa";
-import _ from "lodash";
+import _lodash from "lodash";
 import {
   Autocomplete,
   Box,
@@ -177,7 +177,7 @@ function AppearanceSetting() {
     if (!oldSetting) {
       return;
     }
-    setModified(!_.isEqual(oldSetting, makeConfig()));
+    setModified(!_lodash.isEqual(oldSetting, makeConfig()));
   }, [makeConfig, oldSetting]);
 
   const handleSave = () => {
@@ -404,7 +404,7 @@ function EditorSetting() {
     if (!oldSetting) {
       return;
     }
-    setModified(!_.isEqual(oldSetting, makeConfig()));
+    setModified(!_lodash.isEqual(oldSetting, makeConfig()));
   }, [makeConfig, oldSetting]);
 
   return (
@@ -525,7 +525,7 @@ function ExportSetting() {
     if (!oldSetting) {
       return;
     }
-    setModified(!_.isEqual(oldSetting, makeConfig()));
+    setModified(!_lodash.isEqual(oldSetting, makeConfig()));
   }, [makeConfig, oldSetting]);
   const handleSave = () => {
     try {
@@ -648,7 +648,7 @@ function LLMSetting(props: { handleClose?: () => void }) {
     if (!oldSetting) {
       return;
     }
-    setModified(!_.isEqual(oldSetting, makeConfig()));
+    setModified(!_lodash.isEqual(oldSetting, makeConfig()));
   }, [makeConfig, oldSetting]);
 
   const handleSave = async () => {
@@ -911,7 +911,7 @@ function MiscSetting() {
     }
     const x = { autoStart } as UserSettingMisc;
     Object.setPrototypeOf(x, UserSettingMisc.prototype);
-    if (!_.isEqual(x, oldSetting)) {
+    if (!_lodash.isEqual(x, oldSetting)) {
       x.save()
         .then(() => {
           showNotification("success", "save auto restart ok");
