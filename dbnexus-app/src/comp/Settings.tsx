@@ -185,7 +185,8 @@ function AppearanceSetting() {
       const x = makeConfig();
       x.save();
       showNotification("success", "save appearance setting success");
-      setModified(false);
+
+      setOldSetting(x);
     } catch (e) {
       showNotification("error", "save appearance setting failed", e);
       return;
@@ -393,7 +394,8 @@ function EditorSetting() {
       const obj = makeConfig();
       obj.save();
       showNotification("success", "save editor setting ok");
-      setModified(false);
+
+      setOldSetting(obj);
     } catch (e) {
       showNotification("error", "save  editor setting failed", e);
       return;
@@ -532,7 +534,8 @@ function ExportSetting() {
       const x = makeConfig();
       x.save();
       showNotification("success", "save export setting ok");
-      setModified(false);
+
+      setOldSetting(x);
     } catch (e) {
       showNotification("error", "save export setting failed", e);
       return;
@@ -659,7 +662,7 @@ function LLMSetting(props: { handleClose?: () => void }) {
         handleClose();
       }
       showNotification("success", "save llm config ok");
-      setModified(false);
+      setOldSetting(config);
     } catch (e) {
       showNotification("error", "save llm config  failed", e);
       return;
