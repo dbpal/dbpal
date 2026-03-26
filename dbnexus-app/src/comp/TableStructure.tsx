@@ -10,7 +10,6 @@ import {
 import types from "./ApiStruct";
 import { DefAndMetas, EscDownEvent, modalHandleClose, modalStyle } from "./Common";
 import {
-  ColumnWidth,
   dataGridStyle,
   DataSourceKind,
   extractFieldAndIDFromMouseEvent,
@@ -75,7 +74,7 @@ import {
   StackRowCenter,
   TypeSelect,
 } from "./CommonComp2";
-import { useContextMenu, useNotification } from "./store";
+import { useColumnWidthStore, useContextMenu, useNotification } from "./store";
 
 function ColumnMenu(props: {
   col: string;
@@ -91,8 +90,7 @@ function ColumnMenu(props: {
         <MenuItem
           onClick={() => {
             handleCopyToClipboard(content, showNotification);
-          }}
-        >
+          }}>
           <ListItemIcon>
             <ContentCopyIcon />
           </ListItemIcon>
@@ -103,8 +101,7 @@ function ColumnMenu(props: {
         <MenuItem
           onClick={() => {
             handleDrop(col);
-          }}
-        >
+          }}>
           <ListItemIcon>
             <DeleteForeverIcon />
           </ListItemIcon>
@@ -126,6 +123,7 @@ function ColumnsStructure(props: {
   const [fields, setFields] = useState<types.Field[]>([]);
   const { showNotification } = useNotification((s) => s);
   const [row, setRow] = useState<types.Field>(null);
+  const { columnWidths, setColumnWidth } = useColumnWidthStore((s) => s);
   const supportModifyColumn = new Set([
     DataSourceKind.MariaDB,
     DataSourceKind.SqlServer,
@@ -141,9 +139,12 @@ function ColumnsStructure(props: {
     DataSourceKind.LibSql,
   ]).has(kind);
 
-  const onColumnResize = useCallback(({ colDef, width }) => {
-    ColumnWidth.instance.save(colDef.field, width);
-  }, []);
+  const onColumnResize = useCallback(
+    ({ colDef, width }) => {
+      setColumnWidth(colDef.field, width);
+    },
+    [setColumnWidth],
+  );
 
   const handleReload = useCallback(() => {
     setLoading(true);
@@ -239,7 +240,7 @@ function ColumnsStructure(props: {
     ] as GridColDef[];
   }, []);
   cols.forEach((e) => {
-    const width = ColumnWidth.instance.get(e.field);
+    const width = columnWidths[e.field];
     if (width) {
       e.width = width;
     }
@@ -318,7 +319,7 @@ function ColumnsStructure(props: {
                 <Tooltip title="double click a row to modify.">
                   <Typography color="info"> modify </Typography>
                 </Tooltip>
-              )}{" "}
+              )}
             </Stack>
             <AppDataGridPagination />
           </Stack>
@@ -338,8 +339,7 @@ function ColumnsStructure(props: {
           <Button
             onClick={() => {
               setShowAdd(true);
-            }}
-          >
+            }}>
             <AddIcon />
           </Button>
         )}
@@ -363,13 +363,11 @@ function ColumnsStructure(props: {
           onClose={modalHandleClose((e: EscDownEvent) => {
             e.preventDefault();
             setShowAdd(false);
-          })}
-        >
+          })}>
           <Box
             sx={{ resize: "horizontal", ...modalStyle }}
             width="60%"
-            ref={setModalBox}
-          >
+            ref={setModalBox}>
             <ModalHeader
               handleClose={() => {
                 setShowAdd(false);
@@ -397,13 +395,11 @@ function ColumnsStructure(props: {
             onClose={modalHandleClose((e: EscDownEvent) => {
               e.preventDefault();
               setRow(null);
-            })}
-          >
+            })}>
             <Box
               sx={{ resize: "horizontal", ...modalStyle }}
               width="60%"
-              ref={setModalBox}
-            >
+              ref={setModalBox}>
               <ModalHeader
                 title="Modify Column"
                 handleClose={() => {
@@ -498,8 +494,7 @@ function IndexMenu(props: {
         <MenuItem
           onClick={() => {
             handleCopyToClipboard(content, showNotification);
-          }}
-        >
+          }}>
           <ListItemIcon>
             <ContentCopyIcon />
           </ListItemIcon>
@@ -509,8 +504,7 @@ function IndexMenu(props: {
       <MenuItem
         onClick={() => {
           setRenameIndexName(indexName);
-        }}
-      >
+        }}>
         <ListItemIcon>
           <EditIcon />
         </ListItemIcon>
@@ -519,8 +513,7 @@ function IndexMenu(props: {
       <MenuItem
         onClick={() => {
           handleDrop(indexName);
-        }}
-      >
+        }}>
         <ListItemIcon>
           <DeleteForeverIcon />
         </ListItemIcon>
@@ -543,9 +536,14 @@ function IndexesStructure(props: {
   const [renameIndexName, setRenameIndexName] = useState("");
   const [showAdd, setShowAdd] = useState(false);
 
-  const onColumnResize = useCallback(({ colDef, width }) => {
-    ColumnWidth.instance.save(colDef.field, width);
-  }, []);
+  const { columnWidths, setColumnWidth } = useColumnWidthStore((s) => s);
+
+  const onColumnResize = useCallback(
+    ({ colDef, width }) => {
+      setColumnWidth(colDef.field, width);
+    },
+    [setColumnWidth],
+  );
 
   const handleReload = useCallback(() => {
     setLoading(true);
@@ -593,7 +591,7 @@ function IndexesStructure(props: {
     return [{ field: "name" }, { field: "kind" }, { field: "columns" }] as GridColDef[];
   }, []);
   cols.forEach((e) => {
-    const width = ColumnWidth.instance.get(e.field);
+    const width = columnWidths[e.field];
     if (width) {
       e.width = width;
     }
@@ -672,8 +670,7 @@ function IndexesStructure(props: {
         <Button
           onClick={() => {
             setShowAdd(true);
-          }}
-        >
+          }}>
           <AddIcon />
         </Button>
       </Stack>
@@ -695,8 +692,7 @@ function IndexesStructure(props: {
           onClose={modalHandleClose((e: EscDownEvent) => {
             e.preventDefault();
             setShowAdd(false);
-          })}
-        >
+          })}>
           <Box
             sx={{
               resize: "both",
@@ -704,8 +700,7 @@ function IndexesStructure(props: {
             }}
             width="60%"
             ref={setModalBox}
-            height={kind == DataSourceKind.Mongo ? "40vh" : "auto"}
-          >
+            height={kind == DataSourceKind.Mongo ? "40vh" : "auto"}>
             <ModalHeader
               title="create index"
               handleClose={() => {
@@ -730,16 +725,14 @@ function IndexesStructure(props: {
           onClose={modalHandleClose((e: EscDownEvent) => {
             e.preventDefault();
             setShowAdd(false);
-          })}
-        >
+          })}>
           <Box
             sx={{
               resize: "horizontal",
               ...modalStyle,
             }}
             width="60%"
-            ref={setModalBox}
-          >
+            ref={setModalBox}>
             <ModalHeader
               title="create index"
               handleClose={() => {
@@ -765,8 +758,7 @@ function IndexesStructure(props: {
           onClose={modalHandleClose((e: EscDownEvent) => {
             e.preventDefault();
             setRenameIndexName("");
-          })}
-        >
+          })}>
           <Box sx={modalStyle} width="40%">
             <ModalHeader
               title={`Rename Index`}
@@ -838,8 +830,7 @@ function MongoAddIndex(props: { uuid; table; handleClose; reload }) {
         onChange={(e) => {
           setIndexType(e.target.value);
         }}
-        value={indexType}
-      >
+        value={indexType}>
         {indexTypes.map((e) => (
           <FormControlLabel key={e} value={e} control={<Radio />} label={e} />
         ))}
@@ -995,8 +986,7 @@ function TableAddColumn(props: {
                   onClick={() => {
                     setName("");
                   }}
-                  edge="end"
-                >
+                  edge="end">
                   <ClearIcon fontSize="small" />
                 </IconButton>
               </InputAdornment>
@@ -1130,8 +1120,7 @@ function ModifyTableColumn(props: {
                   onClick={() => {
                     setNewName("");
                   }}
-                  edge="end"
-                >
+                  edge="end">
                   <ClearIcon fontSize="small" />
                 </IconButton>
               </InputAdornment>
@@ -1221,8 +1210,7 @@ function TriggerMenu(props: {
         sx={{ color: "error.main" }}
         onClick={() => {
           handleEnables("disable_trigger", detail.name, "Disable trigger");
-        }}
-      >
+        }}>
         <ListItemIcon>
           <CancelIcon />
         </ListItemIcon>
@@ -1232,8 +1220,7 @@ function TriggerMenu(props: {
       <MenuItem
         onClick={() => {
           handleEnables("enable_trigger", detail.name, "Enable trigger");
-        }}
-      >
+        }}>
         <ListItemIcon>
           <CheckCircleIcon />
         </ListItemIcon>
@@ -1248,8 +1235,7 @@ function TriggerMenu(props: {
         <MenuItem
           onClick={() => {
             handleCopyToClipboard(content, showNotification);
-          }}
-        >
+          }}>
           <ListItemIcon>
             <ContentCopyIcon />
           </ListItemIcon>
@@ -1261,8 +1247,7 @@ function TriggerMenu(props: {
       <MenuItem
         onClick={() => {
           handleDrop(detail.name);
-        }}
-      >
+        }}>
         <ListItemIcon>
           <DeleteForeverIcon />
         </ListItemIcon>
@@ -1284,9 +1269,13 @@ function TriggersStructure(props: {
   const [row, setRow] = useState<types.TriggerDetail>(null);
   const { showNotification } = useNotification((s) => s);
 
-  const onColumnResize = useCallback(({ colDef, width }) => {
-    ColumnWidth.instance.save(colDef.field, width);
-  }, []);
+  const { columnWidths, setColumnWidth } = useColumnWidthStore((s) => s);
+  const onColumnResize = useCallback(
+    ({ colDef, width }) => {
+      setColumnWidth(colDef.field, width);
+    },
+    [setColumnWidth],
+  );
 
   const handleReload = useCallback(() => {
     setLoading(true);
@@ -1367,7 +1356,7 @@ function TriggersStructure(props: {
     ] as GridColDef[];
   }, []);
   cols.forEach((e) => {
-    const width = ColumnWidth.instance.get(e.field);
+    const width = columnWidths[e.field];
     if (width) {
       e.width = width;
     }
@@ -1477,14 +1466,12 @@ function TriggersStructure(props: {
             setRow(null);
           })}
           disableAutoFocus
-          disableEnforceFocus
-        >
+          disableEnforceFocus>
           <Box
             sx={{ resize: "both", ...modalStyle }}
             width="80vw"
             height="80vh"
-            ref={setModalBox}
-          >
+            ref={setModalBox}>
             <ModalHeader
               title={`Trigger Detail`}
               handleClose={() => {
@@ -1567,8 +1554,7 @@ function TableStructure(props: { table: string; uuid: string; kind: DataSourceKi
                 onClick={() => {
                   setStructure(e);
                 }}
-                key={e}
-              >
+                key={e}>
                 {e}
               </Button>
             );

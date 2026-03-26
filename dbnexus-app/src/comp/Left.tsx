@@ -59,7 +59,6 @@ import { TabContent } from "./Tabs";
 import wcmatch from "wildcard-match";
 
 import {
-  ColumnWidth,
   connTypeToDataSourceKind,
   dataGridStyle,
   DataSourceKind,
@@ -134,16 +133,16 @@ import {
   useNotification,
   useTabsManage,
   useBoolSwitch,
+  useColumnWidthStore,
 } from "./store.ts";
 const settingId = generateRandomString();
-
+const showTopKey = "left-top-show";
 function LeftTop() {
   const { matchPattern, setMatchPattern, setMaxTree, maxTree } = useMatcher((s) => s);
   const [matchPatterInput, setMatchPatternInput] = useState("");
   const { showNotification } = useNotification((s) => s);
-  const switchKey = "left-top-show";
   const { switches, setSwitch } = useBoolSwitch((s) => s);
-  const show = switches[switchKey];
+  const show = switches[showTopKey];
   const { appendTab, setCurrentTab, tabs } = useTabsManage((state) => state);
   const [showEditFilter, setShowEditFilter] = useState(false);
   const showAddConnection = useCallback(
@@ -195,13 +194,13 @@ function LeftTop() {
   }, [appendTab, setCurrentTab, tabs]);
 
   const toggleShow = () => {
-    setSwitch(switchKey, !switches[switchKey]);
+    setSwitch(showTopKey, !switches[showTopKey]);
   };
   const theme = useTheme();
   return (
     <Stack style={{ padding: "2px" }}>
       <Stack>
-        {switches[switchKey] ? (
+        {switches[showTopKey] ? (
           <IconButton onClick={toggleShow}>
             <KeyboardArrowDownIcon />
           </IconButton>
@@ -215,10 +214,8 @@ function LeftTop() {
         direction="row"
         style={{
           justifyContent: "center",
-          // flexWrap: "wrap",
           display: show ? "flex" : "none",
-        }}
-      >
+        }}>
         <Tooltip title="DBPal site">
           <img
             src={logoImg}
@@ -234,8 +231,7 @@ function LeftTop() {
           <IconButton
             onClick={() => {
               showAddConnection();
-            }}
-          >
+            }}>
             <GrConnect style={{ fontSize: "2.1rem" }}> </GrConnect>
           </IconButton>
         </Tooltip>
@@ -251,8 +247,7 @@ function LeftTop() {
                   <FaBookmark />,
                 ),
               );
-            }}
-          >
+            }}>
             <FaBookmark style={{ fontSize: "2.1rem" }}> </FaBookmark>
           </IconButton>
         </Tooltip>
@@ -268,8 +263,7 @@ function LeftTop() {
                   <FaCopy />,
                 ),
               );
-            }}
-          >
+            }}>
             <FaCopy style={{ fontSize: "2.2rem" }}> </FaCopy>
           </IconButton>
         </Tooltip>
@@ -279,13 +273,11 @@ function LeftTop() {
             matchPattern.length > 0
               ? `filter on ${matchPattern.join(",")}`
               : "show editor filter,can match table,view etc..."
-          }
-        >
+          }>
           <IconButton
             onClick={() => {
               setShowEditFilter(true);
-            }}
-          >
+            }}>
             {matchPattern.length > 0 ? (
               <FilterAltIcon style={{ fontSize: "2.7rem" }} color="success" />
             ) : (
@@ -301,8 +293,7 @@ function LeftTop() {
           onClose={modalHandleClose((e: EscDownEvent) => {
             e.preventDefault();
             setShowEditFilter(false);
-          })}
-        >
+          })}>
           <Box sx={modalStyle} width="45%">
             <ModalHeader
               title="edit filter"
@@ -316,8 +307,7 @@ function LeftTop() {
                 border: "2px solid " + theme.palette.success.main,
                 borderRadius: "0.5rem",
                 padding: "2px 0.5rem",
-              }}
-            >
+              }}>
               <Typography color="info">
                 match pattern for database schema,table,view,udf,procedure etc
               </Typography>
@@ -327,8 +317,7 @@ function LeftTop() {
                     onClick={() => {
                       setMatchPattern([]);
                       setShowEditFilter(false);
-                    }}
-                  >
+                    }}>
                     <CloseIcon />
                   </IconButton>
                 )}
@@ -362,8 +351,7 @@ function LeftTop() {
                             onClick={() => {
                               setMatchPatternInput("");
                             }}
-                            edge="end"
-                          >
+                            edge="end">
                             <ClearIcon fontSize="small" />
                           </IconButton>
                         </InputAdornment>
@@ -383,8 +371,7 @@ function LeftTop() {
                     }
                     setMatchPattern([...matchPattern, matchPatterInput]);
                   }}
-                  variant="outlined"
-                >
+                  variant="outlined">
                   apply
                 </Button>
               </Stack>
@@ -426,8 +413,7 @@ function CopyConnectionMenu(props: { content: string }) {
         <MenuItem
           onClick={() => {
             handleCopyToClipboard(content, showNotification);
-          }}
-        >
+          }}>
           <ListItemIcon>
             <ContentCopyIcon />
           </ListItemIcon>
@@ -450,6 +436,7 @@ function CopyConnection() {
 
   const { showNotification } = useNotification((s) => s);
   const setting = useContext(SettingContext);
+  const { columnWidths, setColumnWidth } = useColumnWidthStore((s) => s);
 
   const setUpMenu = useContextMenu((state) => state.setUpMenu);
 
@@ -531,17 +518,19 @@ function CopyConnection() {
       },
     ] as GridColDef[];
     cols.forEach((e) => {
-      const width = ColumnWidth.instance.get(e.field);
-      if (width) {
-        e.width = width;
-      }
+      const width = columnWidths[e.field];
+
+      e.width = width;
     });
     return cols;
-  }, []);
+  }, [columnWidths]);
 
-  const onColumnResize = useCallback(({ colDef, width }) => {
-    ColumnWidth.instance.save(colDef.field, width);
-  }, []);
+  const onColumnResize = useCallback(
+    ({ colDef, width }) => {
+      setColumnWidth(colDef.field, width);
+    },
+    [setColumnWidth],
+  );
 
   const onRowDoubleClick = useCallback(
     (row) => {
@@ -584,8 +573,7 @@ function CopyConnection() {
           <Button
             onClick={() => {
               handleReload();
-            }}
-          >
+            }}>
             reload
           </Button>
         )}
@@ -659,8 +647,7 @@ function Left() {
     <Stack
       style={{
         overflow: "auto",
-      }}
-    >
+      }}>
       <LeftTop />
       <MatcherContext value={matchFn}>
         <Stack spacing={0.3}>
@@ -671,8 +658,7 @@ function Left() {
                   uuid: e.name,
                   kind: connTypeToDataSourceKind(e.conn_type),
                 }}
-                key={e.name}
-              >
+                key={e.name}>
                 <OneConfig key={e.name} config={e} />
               </UuidContext.Provider>
             );
@@ -699,8 +685,7 @@ function FavoriteSqlMenu(props: {
         <MenuItem
           onClick={() => {
             handleCopyToClipboard(content, showNotification);
-          }}
-        >
+          }}>
           <ListItemIcon>
             <ContentCopyIcon />
           </ListItemIcon>
@@ -712,8 +697,7 @@ function FavoriteSqlMenu(props: {
         onClick={async () => {
           await FavoriteSql.delete(id, showNotification);
           handleReload();
-        }}
-      >
+        }}>
         <ListItemIcon>
           <DeleteForeverIcon />
         </ListItemIcon>
@@ -732,6 +716,8 @@ function FavoriteSqlList() {
   const [uuidFilter, setUuidFilter] = useState("");
   const [distinctUuid, setDistinctUuid] = useState<string[]>([]);
   const setting = useContext(SettingContext);
+  const { columnWidths, setColumnWidth } = useColumnWidthStore((s) => s);
+
   const handleReload = useCallback(
     async (showOK) => {
       try {
@@ -859,16 +845,17 @@ function FavoriteSqlList() {
       { field: "lastModified" },
     ] as GridColDef[];
     cols.forEach((e) => {
-      const width = ColumnWidth.instance.get(e.field);
-      if (width) {
-        e.width = width;
-      }
+      const width = columnWidths[e.field];
+      e.width = width;
     });
     return cols;
-  }, []);
-  const onColumnResize = useCallback(({ colDef, width }) => {
-    ColumnWidth.instance.save(colDef.field, width);
-  }, []);
+  }, [columnWidths]);
+  const onColumnResize = useCallback(
+    ({ colDef, width }) => {
+      setColumnWidth(colDef.field, width);
+    },
+    [setColumnWidth],
+  );
 
   const onRowDoubleClick = useCallback(
     (row) => {
@@ -925,8 +912,7 @@ function FavoriteSqlList() {
         <Button
           onClick={() => {
             handleReload(true);
-          }}
-        >
+          }}>
           reload
         </Button>
         {fs.length > 0 && uuidFilter && (
@@ -934,8 +920,7 @@ function FavoriteSqlList() {
             <IconButton
               onClick={() => {
                 handleDelete();
-              }}
-            >
+              }}>
               <DeleteForeverIcon color="error" />
             </IconButton>
           </Tooltip>
@@ -1073,14 +1058,12 @@ function SchemaTree(props: { schema?: string; reloadSchemas? }) {
         }}
         sx={{
           alignItems: "center",
-        }}
-      >
+        }}>
         {schema && <LuDatabase />}
         <span> {schema ? schema : uuid}</span>
         {!schema && conn_established && <ConnPingTime uuid={uuid} />}
         {loadingConn.isLoading(uuid) && <CircularProgress />}
-      </Stack>
-    >
+      </Stack>>
       {conn_established && kind == DataSourceKind.Sqlite && (
         <>
           <TablesTree typ={TableType.Normal} />
@@ -1244,8 +1227,7 @@ function DatabaseMenu(props: {
                   reloadDatabase(true);
                 },
               });
-            }}
-          >
+            }}>
             <ListItemIcon>
               <DeleteForeverIcon color="error" />
             </ListItemIcon>
@@ -1262,8 +1244,7 @@ function DatabaseMenu(props: {
           onClose={modalHandleClose((e: EscDownEvent) => {
             e.preventDefault();
             setShowCreateSchema(false);
-          })}
-        >
+          })}>
           <Box sx={modalStyle} width="40%">
             <ModalHeader
               title={(function () {
@@ -1330,8 +1311,7 @@ function CatalogMenu(props: { uuid; reload; kind: DataSourceKind }) {
           onClose={modalHandleClose((e: EscDownEvent) => {
             e.preventDefault();
             setShowCreateDB(false);
-          })}
-        >
+          })}>
           <Box sx={modalStyle} width="50%">
             <ModalHeader
               handleClose={() => {
@@ -1478,8 +1458,7 @@ function SchemaMenu(props: {
           <MenuItem
             onClick={() => {
               openNewCreateTable(appendTab, uuid, kind);
-            }}
-          >
+            }}>
             <ListItemIcon>
               <IoIosCreate />
             </ListItemIcon>
@@ -1504,8 +1483,7 @@ function SchemaMenu(props: {
                 reloadSchemas(true);
               },
             });
-          }}
-        >
+          }}>
           <ListItemIcon>
             <DeleteForeverIcon color="error" />
           </ListItemIcon>
@@ -1558,14 +1536,12 @@ function CatalogTree() {
             content: <CatalogMenu uuid={name} reload={handleReload} kind={kind} />,
             event: e,
           });
-        }}
-      >
+        }}>
         <span>{name} </span>
         {isLoading(name) && <CircularProgress />}
         {conn_established && <ConnPingTime uuid={name} />}
       </Stack>
-      key={name}
-    >
+      key={name}>
       {databases
         .filter((db) => matchPattern(db))
         .map((db) => {
@@ -1632,23 +1608,20 @@ function DatabaseTree(props: { database?: string; reloadDatabase?: () => void })
             event: e,
           });
         }}
-        sx={{ alignItems: "center" }}
-      >
+        sx={{ alignItems: "center" }}>
         {database && <FaDatabase />}
         <span>{database ? database : name}</span>
         {isLoading(name) && <CircularProgress />}
         {!database && is_connected(name) && <ConnPingTime uuid={name} />}
       </Stack>
-      key={name + database}
-    >
+      key={name + database}>
       {schemas
         .filter((schema) => matchPattern(schema))
         .map((schema) => {
           return (
             <UuidContext.Provider
               key={schema}
-              value={{ uuid: name + "/" + schema, kind }}
-            >
+              value={{ uuid: name + "/" + schema, kind }}>
               <SchemaTree key={schema} schema={schema} reloadSchemas={handleReload} />
             </UuidContext.Provider>
           );

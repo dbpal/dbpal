@@ -42,7 +42,6 @@ import {
   GridSortModel,
 } from "@mui/x-data-grid";
 import {
-  ColumnWidth,
   handleCopyToClipboard,
   hexToString,
   hexTryToString,
@@ -80,7 +79,14 @@ import {
 import { invoke } from "@tauri-apps/api/core";
 import { showTable } from "./handlers.ts";
 import { AddTableView } from "./LeftTable.tsx";
-import { useContextMenu, useNotification, usePageSize, useSizeStore } from "./store.ts";
+import {
+  useColumnWidthStore,
+  useContextMenu,
+  useNotification,
+  usePageSize,
+  UseSizeConfig,
+  useSizeStore,
+} from "./store.ts";
 
 class RedisZsetHashModifyReq {
   constructor(
@@ -145,8 +151,7 @@ function RedisAddList(props: { uuid: string; listKey: string }) {
           onChange={(_e, value) => {
             setDirection(value as ListPushDirection);
           }}
-          value={direction}
-        >
+          value={direction}>
           <FormControlLabel value="left" control={<Radio />} label="head" />
           <FormControlLabel value="right" control={<Radio />} label="tail" />
         </RadioGroup>
@@ -212,8 +217,7 @@ function RedisStringTable(props: { uuid: string; stringKey: string }) {
       style={{
         overflow: "auto",
         height: "100%",
-      }}
-    >
+      }}>
       <QueryStatus status={queryStatus} />
       {typeof content == "string" && (
         <RedisValueEditor value={content} valueRef={valueRef} />
@@ -224,8 +228,7 @@ function RedisStringTable(props: { uuid: string; stringKey: string }) {
           color="primary"
           onClick={() => {
             handleModify();
-          }}
-        >
+          }}>
           set
         </Button>
       </Stack>
@@ -378,8 +381,7 @@ function RedisAddZset(props: { uuid: string; zsetKey: string }) {
                     onClick={() => {
                       setScore("");
                     }}
-                    edge="end"
-                  >
+                    edge="end">
                     <ClearIcon fontSize="small" />
                   </IconButton>
                 </InputAdornment>
@@ -503,8 +505,7 @@ function RedisEditZset(props: {
                     onClick={() => {
                       setNewValue("");
                     }}
-                    edge="end"
-                  >
+                    edge="end">
                     <ClearIcon fontSize="small" />
                   </IconButton>
                 </InputAdornment>
@@ -606,8 +607,7 @@ function RedisValueEditor(props: {
         <Typography
           variant="h6"
           color="info"
-          style={{ fontWeight: "bold", textDecoration: "underline" }}
-        >
+          style={{ fontWeight: "bold", textDecoration: "underline" }}>
           {header}
         </Typography>
         <RedisEditModeSelect
@@ -660,8 +660,7 @@ function RedisValueEditor(props: {
                   return;
                 }
                 setJsonErrPos(new Position(jsonErr.line, jsonErr.column));
-              }}
-            >
+              }}>
               {jsonErr.msg}
             </Typography>
           ) : undefined
@@ -770,8 +769,7 @@ function RedisSetTableContextMenu(props: { delOP: () => void; content }) {
         <MenuItem
           onClick={() => {
             handleCopyToClipboard(content, showNotification);
-          }}
-        >
+          }}>
           <ListItemIcon>
             <ContentCopyIcon />
           </ListItemIcon>
@@ -782,8 +780,7 @@ function RedisSetTableContextMenu(props: { delOP: () => void; content }) {
       <MenuItem
         onClick={() => {
           delOP();
-        }}
-      >
+        }}>
         <ListItemIcon>
           <DeleteForeverIcon />
         </ListItemIcon>
@@ -839,7 +836,7 @@ function RedisSetTable(props: { setKey: string; uuid: string }) {
         name: setKey,
         setLoading,
         para: {
-          limit: getSize(redisMaxRowKey, 100_00),
+          limit: getSize(UseSizeConfig.queryLimit),
           where_str: keyMatch ? keyMatch : null,
         },
         handleExecuteTime: (t) => {
@@ -946,16 +943,12 @@ function RedisSetTable(props: { setKey: string; uuid: string }) {
               alignItems: "center",
               justifyContent: "space-between",
               flex: 1,
-            }}
-          >
+            }}>
             <Stack style={{ flex: 1, alignItems: "center" }} direction="row">
               <LastFetchTime date={lastFetchTime} />
               <TimeDuration dur={fetchDur} />
               <SliderSize
-                storeKey={redisMaxRowKey}
-                min={redisMinRow}
-                max={50000}
-                step={1000}
+                config={UseSizeConfig.queryLimit}
                 notice=<LimitMaxRowNotice />
               />
               <DoubleClickToModify />
@@ -975,8 +968,7 @@ function RedisSetTable(props: { setKey: string; uuid: string }) {
           onClick={() => {
             handleReload(true);
           }}
-          loading={loading}
-        >
+          loading={loading}>
           reload
         </Button>
         <Tooltip title={keyMatcherHelpText}>
@@ -995,8 +987,7 @@ function RedisSetTable(props: { setKey: string; uuid: string }) {
                       onClick={() => {
                         setKeyMatch("");
                       }}
-                      edge="end"
-                    >
+                      edge="end">
                       <ClearIcon fontSize="small" />
                     </IconButton>
                   </InputAdornment>
@@ -1005,7 +996,7 @@ function RedisSetTable(props: { setKey: string; uuid: string }) {
             }}
           />
         </Tooltip>
-        <AddTable uuid={uuid} redisKey={setKey} redisType={RedisTableType.Set} />{" "}
+        <AddTable uuid={uuid} redisKey={setKey} redisType={RedisTableType.Set} />
       </StackRowCenter>
 
       {resp && (
@@ -1030,14 +1021,12 @@ function RedisSetTable(props: { setKey: string; uuid: string }) {
           onClose={modalHandleClose((e: EscDownEvent) => {
             e.preventDefault();
             setSelectRow(null);
-          })}
-        >
+          })}>
           <Box
             sx={{ resize: "both", ...modalStyle }}
             width="80%"
             ref={setModifyModalBox}
-            height="70vh"
-          >
+            height="70vh">
             <ModalHeader
               handleClose={() => {
                 setSelectRow(null);
@@ -1076,8 +1065,7 @@ function RedisListTableContextMenu(props: {
           <MenuItem
             onClick={() => {
               handleCopyToClipboard(content, showNotification);
-            }}
-          >
+            }}>
             <ListItemIcon>
               <ContentCopyIcon />
             </ListItemIcon>
@@ -1088,8 +1076,7 @@ function RedisListTableContextMenu(props: {
         <MenuItem
           onClick={() => {
             setShowDel(true);
-          }}
-        >
+          }}>
           <ListItemIcon>
             <DeleteForeverIcon />
           </ListItemIcon>
@@ -1103,8 +1090,7 @@ function RedisListTableContextMenu(props: {
           onClose={modalHandleClose((e: EscDownEvent) => {
             e.preventDefault();
             setShowDel(null);
-          })}
-        >
+          })}>
           <Box sx={modalStyle} width="40%">
             <ModalHeader
               title="Delete Redis List"
@@ -1123,8 +1109,7 @@ function RedisListTableContextMenu(props: {
                   style={{ cursor: "pointer" }}
                   onClick={() => {
                     openUrl("https://redis.io/docs/latest/commands/lrem/");
-                  }}
-                >
+                  }}>
                   count???
                 </span>
                 type="number"
@@ -1135,8 +1120,7 @@ function RedisListTableContextMenu(props: {
                     await delOP(parseInt(count));
                     setShowDel(false);
                   }}
-                  variant="outlined"
-                >
+                  variant="outlined">
                   delete
                 </Button>
               </Stack>
@@ -1171,14 +1155,12 @@ function AddTable(props: {
           onClose={modalHandleClose((e: EscDownEvent) => {
             e.preventDefault();
             setShowAdd(false);
-          })}
-        >
+          })}>
           <Box
             sx={{ resize: "both", ...modalStyle }}
             width="80%"
             height="70vh"
-            ref={setAddModalBox}
-          >
+            ref={setAddModalBox}>
             <ModalHeader
               noTextTransform
               title={`add ${redisKey} `}
@@ -1229,7 +1211,7 @@ function RedisListTable(props: { listKey: string; uuid: string }) {
   const [respOrigin, setRespOrigin] = useState<MuiDataGridData>(newEmptyResp());
   const [selectRow, setSelectRow] = useState<any>(null);
   const { showNotification } = useNotification((s) => s);
-
+  const { setColumnWidth, columnWidths } = useColumnWidthStore((s) => s);
   const { sql: sqlPageSize, setPageSize } = usePageSize((s) => s);
 
   const [page, setPage] = useState(0);
@@ -1255,7 +1237,7 @@ function RedisListTable(props: { listKey: string; uuid: string }) {
           resp.data.forEach((e, index) => {
             e["id"] = index;
           });
-          const seqWidth = ColumnWidth.instance.get("seq");
+          const seqWidth = columnWidths["seq"];
           if (seqWidth) {
             resp.fields[0]["width"] = seqWidth;
           }
@@ -1268,7 +1250,7 @@ function RedisListTable(props: { listKey: string; uuid: string }) {
         setStatus: setQueryStatus,
       });
     },
-    [listKey, showNotification, uuid],
+    [columnWidths, listKey, showNotification, uuid],
   );
 
   useEffect(() => {
@@ -1370,11 +1352,14 @@ function RedisListTable(props: { listKey: string; uuid: string }) {
     } as GridSlotsComponentsProps;
   }, [handleDel, setUpMenu, setting.export.csvDelimiter, setting.export.includeHeader]);
 
-  const onColumnResize = useCallback(({ colDef, width }) => {
-    if (colDef.field == "seq") {
-      ColumnWidth.instance.save(colDef.field, width);
-    }
-  }, []);
+  const onColumnResize = useCallback(
+    ({ colDef, width }) => {
+      if (colDef.field == "seq") {
+        setColumnWidth(colDef.field, width);
+      }
+    },
+    [setColumnWidth],
+  );
 
   const [modifyModalBox, setModifyModalBox] = useState<HTMLDivElement | null>(null);
   useEffect(() => {
@@ -1395,8 +1380,7 @@ function RedisListTable(props: { listKey: string; uuid: string }) {
                 onClick={() => {
                   handleReload(true);
                 }}
-                loading={loading}
-              >
+                loading={loading}>
                 reload
               </Button>
               <AddTable
@@ -1417,8 +1401,7 @@ function RedisListTable(props: { listKey: string; uuid: string }) {
               alignItems: "center",
               justifyContent: "space-between",
               flex: 1,
-            }}
-          >
+            }}>
             <Stack style={{ alignItems: "center", flex: 1 }} direction="row">
               <LastFetchTime date={lastFetchTime} />
               <TimeDuration dur={fetchDur} />
@@ -1462,14 +1445,12 @@ function RedisListTable(props: { listKey: string; uuid: string }) {
           onClose={modalHandleClose((e: EscDownEvent) => {
             e.preventDefault();
             setSelectRow(null);
-          })}
-        >
+          })}>
           <Box
             sx={{ resize: "both", ...modalStyle }}
             width="80%"
             height="70vh"
-            ref={setModifyModalBox}
-          >
+            ref={setModifyModalBox}>
             <ModalHeader
               title="Edit List value"
               handleClose={() => {
@@ -1512,8 +1493,7 @@ function RedisZSetTableContextMenu(props: { delOP: () => void; content }) {
         <MenuItem
           onClick={() => {
             handleCopyToClipboard(content, showNotification);
-          }}
-        >
+          }}>
           <ListItemIcon>
             <ContentCopyIcon />
           </ListItemIcon>
@@ -1524,8 +1504,7 @@ function RedisZSetTableContextMenu(props: { delOP: () => void; content }) {
       <MenuItem
         onClick={() => {
           delOP();
-        }}
-      >
+        }}>
         <ListItemIcon>
           <DeleteForeverIcon />
         </ListItemIcon>
@@ -1534,9 +1513,6 @@ function RedisZSetTableContextMenu(props: { delOP: () => void; content }) {
     </MenuList>
   );
 }
-
-const redisMaxRowKey = "redis-value";
-const redisMinRow = 1000;
 
 function RedisZsetTable(props: { uuid: string; zsetKey: string }) {
   const { uuid, zsetKey } = props;
@@ -1559,6 +1535,7 @@ function RedisZsetTable(props: { uuid: string; zsetKey: string }) {
     },
     [uuid, zsetKey],
   );
+  const { setColumnWidth, columnWidths } = useColumnWidthStore((s) => s);
   const [keyMatch, setKeyMatch] = useState("");
   const [resp, setResp] = useState<MuiDataGridData>(newEmptyResp());
 
@@ -1597,7 +1574,7 @@ function RedisZsetTable(props: { uuid: string; zsetKey: string }) {
           min: minValue,
           max: maxValue,
           where_str: keyMatch ? keyMatch : null,
-          limit: getSize(redisMaxRowKey, 100_00),
+          limit: getSize(UseSizeConfig.queryLimit),
         },
         handleExecuteTime: (t) => {
           setFetchDur(t);
@@ -1613,7 +1590,7 @@ function RedisZsetTable(props: { uuid: string; zsetKey: string }) {
             e["id"] = index;
           });
           resp.fields[1]["flex"] = 1;
-          const scoreWidth = ColumnWidth.instance.get("score");
+          const scoreWidth = columnWidths["score"];
           if (scoreWidth) {
             resp.fields[0]["width"] = scoreWidth;
           }
@@ -1625,7 +1602,18 @@ function RedisZsetTable(props: { uuid: string; zsetKey: string }) {
         },
       });
     },
-    [getSize, keyMatch, max, maxErr, min, minErr, showNotification, uuid, zsetKey],
+    [
+      columnWidths,
+      getSize,
+      keyMatch,
+      max,
+      maxErr,
+      min,
+      minErr,
+      showNotification,
+      uuid,
+      zsetKey,
+    ],
   );
 
   useEffect(() => {
@@ -1695,11 +1683,15 @@ function RedisZsetTable(props: { uuid: string; zsetKey: string }) {
     }
   }, [modifyModalBox]);
 
-  const onColumnResize = useCallback(({ colDef, width }) => {
-    if (colDef.field == "score") {
-      ColumnWidth.instance.save(colDef.field, width);
-    }
-  }, []);
+  const onColumnResize = useCallback(
+    ({ colDef, width }) => {
+      if (colDef.field == "score") {
+        setColumnWidth(colDef.field, width);
+      }
+    },
+    [setColumnWidth],
+  );
+
   const slots = useMemo(() => {
     return {
       columnMenu: AppColumnMenu,
@@ -1714,16 +1706,12 @@ function RedisZsetTable(props: { uuid: string; zsetKey: string }) {
               alignItems: "center",
               justifyContent: "space-between",
               flex: 1,
-            }}
-          >
+            }}>
             <Stack direction="row" style={{ flex: 1, alignItems: "center" }}>
               <LastFetchTime date={lastFetchTime} />
               <TimeDuration dur={fetchDur} />
               <SliderSize
-                max={50000}
-                step={1000}
-                storeKey={redisMaxRowKey}
-                min={redisMinRow}
+                config={UseSizeConfig.queryLimit}
                 notice=<LimitMaxRowNotice />
               />
               <DoubleClickToModify />
@@ -1745,8 +1733,7 @@ function RedisZsetTable(props: { uuid: string; zsetKey: string }) {
           onClick={() => {
             handleReload(true);
           }}
-          loading={loading}
-        >
+          loading={loading}>
           reload
         </Button>
 
@@ -1765,8 +1752,7 @@ function RedisZsetTable(props: { uuid: string; zsetKey: string }) {
                       onClick={() => {
                         setKeyMatch("");
                       }}
-                      edge="end"
-                    >
+                      edge="end">
                       <ClearIcon fontSize="small" />
                     </IconButton>
                   </InputAdornment>
@@ -1797,8 +1783,7 @@ function RedisZsetTable(props: { uuid: string; zsetKey: string }) {
                     onClick={() => {
                       setMin("");
                     }}
-                    edge="end"
-                  >
+                    edge="end">
                     <ClearIcon fontSize="small" />
                   </IconButton>
                 </InputAdornment>
@@ -1827,8 +1812,7 @@ function RedisZsetTable(props: { uuid: string; zsetKey: string }) {
                     onClick={() => {
                       setMax("");
                     }}
-                    edge="end"
-                  >
+                    edge="end">
                     <ClearIcon fontSize="small" />
                   </IconButton>
                 </InputAdornment>
@@ -1862,14 +1846,12 @@ function RedisZsetTable(props: { uuid: string; zsetKey: string }) {
           onClose={modalHandleClose((e: EscDownEvent) => {
             e.preventDefault();
             setSelectRow(null);
-          })}
-        >
+          })}>
           <Box
             sx={{ resize: "both", ...modalStyle }}
             width="80%"
             height="70vh"
-            ref={setModifyModalBox}
-          >
+            ref={setModifyModalBox}>
             <ModalHeader
               title="Edit Zset Value"
               handleClose={() => {
@@ -1906,8 +1888,7 @@ function RedisHashTableContextMenu(props: { delOP: () => void; content }) {
           <MenuItem
             onClick={() => {
               handleCopyToClipboard(content, showNotification);
-            }}
-          >
+            }}>
             <ListItemIcon>
               <ContentCopyIcon />
             </ListItemIcon>
@@ -1918,8 +1899,7 @@ function RedisHashTableContextMenu(props: { delOP: () => void; content }) {
         <MenuItem
           onClick={() => {
             delOP();
-          }}
-        >
+          }}>
           <ListItemIcon>
             <DeleteForeverIcon />
           </ListItemIcon>
@@ -1960,6 +1940,8 @@ function RedisHashTable(props: { hashKey: string; uuid: string }) {
       newValue,
     });
   };
+  const { columnWidths, setColumnWidth } = useColumnWidthStore((s) => s);
+
   const [keyMatch, setKeyMatch] = useState("");
   const [resp, setResp] = useState<MuiDataGridData>(newEmptyResp());
   const { showNotification } = useNotification((s) => s);
@@ -1990,7 +1972,7 @@ function RedisHashTable(props: { hashKey: string; uuid: string }) {
         },
         setStatus: setQueryStatus,
         para: {
-          limit: getSize(redisMaxRowKey, 100_00),
+          limit: getSize(UseSizeConfig.queryLimit),
           where_str: keyMatch ? keyMatch : null,
         },
         setLoading,
@@ -1999,7 +1981,7 @@ function RedisHashTable(props: { hashKey: string; uuid: string }) {
           resp.data.forEach((e, index) => {
             e["id"] = index;
           });
-          const keyWidth = ColumnWidth.instance.get("key");
+          const keyWidth = columnWidths["key"];
           resp.fields[0]["width"] = keyWidth;
           resp.fields[1]["flex"] = 1;
           resp.fields[0]["valueGetter"] = valueGetter;
@@ -2008,7 +1990,7 @@ function RedisHashTable(props: { hashKey: string; uuid: string }) {
         },
       });
     },
-    [getSize, hashKey, keyMatch, showNotification, uuid],
+    [columnWidths, getSize, hashKey, keyMatch, showNotification, uuid],
   );
   useEffect(() => {
     handleReload(false);
@@ -2077,11 +2059,14 @@ function RedisHashTable(props: { hashKey: string; uuid: string }) {
       return clean;
     }
   }, [modifyModalBox]);
-  const onColumnResize = useCallback(({ colDef, width }) => {
-    if (colDef.field == "key") {
-      ColumnWidth.instance.save(colDef.field, width);
-    }
-  }, []);
+  const onColumnResize = useCallback(
+    ({ colDef, width }) => {
+      if (colDef.field == "key") {
+        setColumnWidth(colDef.field, width);
+      }
+    },
+    [setColumnWidth],
+  );
   const slots = useMemo(() => {
     return {
       columnMenu: AppColumnMenu,
@@ -2096,17 +2081,13 @@ function RedisHashTable(props: { hashKey: string; uuid: string }) {
               alignItems: "center",
               justifyContent: "space-between",
               flex: 1,
-            }}
-          >
+            }}>
             <StackRowCenter>
               <LastFetchTime date={lastFetchTime} />
               <TimeDuration dur={fetchDur} />
               <SliderSize
-                storeKey={redisMaxRowKey}
-                min={redisMinRow}
-                max={50000}
-                step={1000}
                 notice=<LimitMaxRowNotice />
+                config={UseSizeConfig.queryLimit}
               />
 
               <DoubleClickToModify />
@@ -2130,8 +2111,7 @@ function RedisHashTable(props: { hashKey: string; uuid: string }) {
           onClick={() => {
             handleReload(true);
           }} // 点击事件处理
-          loading={loading}
-        >
+          loading={loading}>
           reload
         </Button>
 
@@ -2151,8 +2131,7 @@ function RedisHashTable(props: { hashKey: string; uuid: string }) {
                       onClick={() => {
                         setKeyMatch("");
                       }}
-                      edge="end"
-                    >
+                      edge="end">
                       <ClearIcon fontSize="small" />
                     </IconButton>
                   </InputAdornment>
@@ -2188,14 +2167,12 @@ function RedisHashTable(props: { hashKey: string; uuid: string }) {
           onClose={modalHandleClose((e: EscDownEvent) => {
             e.preventDefault();
             setSelectRow(null);
-          })}
-        >
+          })}>
           <Box
             sx={{ resize: "both", ...modalStyle }}
             width="80%"
             height="70vh"
-            ref={setModifyModalBox}
-          >
+            ref={setModifyModalBox}>
             <ModalHeader
               title="Edit Hash Value"
               handleClose={() => {

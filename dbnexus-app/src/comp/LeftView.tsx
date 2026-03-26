@@ -43,7 +43,6 @@ import { SqlTableView } from "./SqlTableView";
 import { TabContent } from "./Tabs";
 import { ExportTableOrView } from "./Export";
 import {
-  ColumnWidth,
   dataGridStyle,
   DataSourceKind,
   extractFieldAndIDFromMouseEvent,
@@ -68,7 +67,13 @@ import {
 import { AppDataGridPagination, SimpleFlexEditor } from "./CommonComp2";
 import { createViewSql, listView, showViewColumns } from "./handlers";
 import { filesize } from "filesize";
-import { useMatcher, useContextMenu, useNotification, useTabsManage } from "./store";
+import {
+  useMatcher,
+  useContextMenu,
+  useNotification,
+  useTabsManage,
+  useColumnWidthStore,
+} from "./store";
 function ViewsTree(props: { viewKind: ViewKind }) {
   const { viewKind } = props;
   const { uuid } = useContext(UuidContext);
@@ -125,13 +130,11 @@ function ViewsTree(props: { viewKind: ViewKind }) {
             ),
             event: e,
           });
-        }}
-      >
+        }}>
         {icon}
         <span> {name} </span>
         {loading && <CircularProgress />}
-      </Stack>
-    >
+      </Stack>>
       {views
         .filter((e) => matchPattern(e.name))
         .map((e, index) => {
@@ -187,8 +190,7 @@ function StatementStructure(props: {
           loading={loading}
           onClick={() => {
             handleReload();
-          }}
-        >
+          }}>
           reload
         </Button>
       </Stack>
@@ -246,8 +248,7 @@ function ViewStructure(props: {
                     setStructure(e);
                   }}
                   variant="contained"
-                  key={e}
-                >
+                  key={e}>
                   {e}
                 </Button>
               );
@@ -272,8 +273,7 @@ function ColumnsMenu(props: { content: string }) {
         <MenuItem
           onClick={() => {
             handleCopyToClipboard(content, showNotification);
-          }}
-        >
+          }}>
           <ListItemIcon>
             <ContentCopyIcon />
           </ListItemIcon>
@@ -291,9 +291,14 @@ function ColumnsContent(props: { uuid: string; view: string }) {
   const [fields, setFields] = useState<types.Field[]>([]);
   const { showNotification } = useNotification((s) => s);
   const [loading, setLoading] = useState(false);
-  const onColumnResize = useCallback(({ colDef, width }) => {
-    ColumnWidth.instance.save(colDef.field, width);
-  }, []);
+
+  const { columnWidths, setColumnWidth } = useColumnWidthStore((s) => s);
+  const onColumnResize = useCallback(
+    ({ colDef, width }) => {
+      setColumnWidth(colDef.field, width);
+    },
+    [setColumnWidth],
+  );
 
   const handleReload = useCallback(() => {
     setLoading(true);
@@ -324,7 +329,7 @@ function ColumnsContent(props: { uuid: string; view: string }) {
     ] as GridColDef[];
   }, []);
   cols.forEach((e) => {
-    const width = ColumnWidth.instance.get(e.field);
+    const width = columnWidths[e.field];
     if (width) {
       e.width = width;
     }
@@ -423,8 +428,7 @@ function ViewTree(props: { view: string; reload; viewKind: ViewKind; size?: numb
               ),
               event: e,
             });
-          }}
-        >
+          }}>
           <Stack direction="row">
             {icon} <span> {view} </span>
           </Stack>
@@ -553,8 +557,7 @@ function ViewMenu(props: {
         <MenuItem
           onClick={() => {
             handleCopyToClipboard(view, showNotification);
-          }}
-        >
+          }}>
           <ListItemIcon>
             <ContentCopyIcon />
           </ListItemIcon>
@@ -565,8 +568,7 @@ function ViewMenu(props: {
         <MenuItem
           onClick={() => {
             setShowExport(true);
-          }}
-        >
+          }}>
           <ListItemIcon>
             <ArrowCircleDownIcon />
           </ListItemIcon>
@@ -577,8 +579,7 @@ function ViewMenu(props: {
           sx={{ color: "error.main" }}
           onClick={() => {
             handleDrop();
-          }}
-        >
+          }}>
           <ListItemIcon>
             <DeleteForeverIcon color="error" />
           </ListItemIcon>
@@ -593,8 +594,7 @@ function ViewMenu(props: {
           onClose={modalHandleClose((e: EscDownEvent) => {
             e.preventDefault();
             setShowExport(false);
-          })}
-        >
+          })}>
           <Box sx={modalStyle} width="45%">
             <ExportTableOrView
               uuid={uuid}

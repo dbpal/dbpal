@@ -6,7 +6,8 @@
   "printWidth": 88,
   "useTabs": false,
   "bracketSpacing": true,
-  "jsxBracketSameLine": false,
   "endOfLine": "lf",
-  "multipleEmptyLines": false
+  "multipleEmptyLines": false,
+  "jsxBracketSameLine": true,
+  "bracketSameLine": true
 }

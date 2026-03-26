@@ -52,7 +52,6 @@ import ArrowDownwardIcon from "@mui/icons-material/ArrowDownward";
 import FilterAltIcon from "@mui/icons-material/FilterAlt";
 import { FaArrowsAltV } from "react-icons/fa";
 import {
-  ColumnWidth,
   DataSourceKind,
   handleCopyToClipboard,
   isTypeLargeText,
@@ -107,10 +106,12 @@ import {
 import { AddTableView } from "./LeftTable";
 import { ExportTableOrView } from "./Export";
 import {
+  useColumnWidthStore,
   useConfirmMsg,
   useContextMenu,
   useNotification,
   usePageSize,
+  UseSizeConfig,
   useSizeStore,
 } from "./store";
 
@@ -193,8 +194,7 @@ function EditInModal(props: { content: string; handleModify }) {
                   return;
                 }
                 setJsonErrPos(new Position(jsonErr.line, jsonErr.column));
-              }}
-            >
+              }}>
               {jsonErr.msg}
             </Typography>
           ) : undefined
@@ -205,8 +205,7 @@ function EditInModal(props: { content: string; handleModify }) {
         <Button
           onClick={() => {
             handleModify(value);
-          }}
-        >
+          }}>
           modify
         </Button>
       </Stack>
@@ -270,8 +269,7 @@ function DatabaseOperationView(props: {
         <IconButton
           onClick={() => {
             handleCancel();
-          }}
-        >
+          }}>
           <CloseIcon color="warning" />
         </IconButton>
       </Tooltip>
@@ -286,8 +284,7 @@ function DatabaseOperationView(props: {
         <IconButton
           onClick={() => {
             handleCopyToClipboard(sql, showNotification);
-          }}
-        >
+          }}>
           <ContentCopyIcon />
         </IconButton>
       </Tooltip>
@@ -370,61 +367,62 @@ function SqlTableView(props: {
   const [queryStatus, setQueryStatus] = useState("");
   const [clickedField, setClickedField] = useState("");
   const [rowBeenLocate, setRowBeenLocate] = useState("");
-
-  const maxLimitKey = "sql-max-limit";
+  const { columnWidths, setColumnWidth } = useColumnWidthStore();
   const getSize = useSizeStore((s) => s.getSize);
-  const handleResp = (resp: MuiDataGridData) => {
-    resp.data.forEach((data, index) => {
-      data[keyNotInTable] = index + "";
-    });
-    resp.fields.forEach((field) => {
-      const width = ColumnWidth.instance.get(field.field);
-      if (width) {
-        field["width"] = width;
-      }
-    });
-    for (let i = 0; i < resp.fields.length; i++) {
-      const field = resp.fields[i] as FieldAndGridField;
-      field.renderHeader = (e) => {
-        const field = e.colDef as unknown as FieldAndGridField;
-        const makeTitle = (): string => {
-          let ret = field.field + " ";
-          ret += field.data_type;
-          if (field.nullable) {
-            ret += " null";
-          } else {
-            ret += " not null";
-          }
-          if (field.is_auto_increment) {
-            ret += " auto increment";
-          }
-          if (field.default_value) {
-            ret += " " + field.default_value;
-          }
-          return ret;
+  const handleResp = useCallback(
+    (resp: MuiDataGridData) => {
+      resp.data.forEach((data, index) => {
+        data[keyNotInTable] = index + "";
+      });
+      resp.fields.forEach((field) => {
+        const width = columnWidths[field.field];
+        if (width) {
+          field["width"] = width;
+        }
+      });
+      for (let i = 0; i < resp.fields.length; i++) {
+        const field = resp.fields[i] as FieldAndGridField;
+        field.renderHeader = (e) => {
+          const field = e.colDef as unknown as FieldAndGridField;
+          const makeTitle = (): string => {
+            let ret = field.field + " ";
+            ret += field.data_type;
+            if (field.nullable) {
+              ret += " null";
+            } else {
+              ret += " not null";
+            }
+            if (field.is_auto_increment) {
+              ret += " auto increment";
+            }
+            if (field.default_value) {
+              ret += " " + field.default_value;
+            }
+            return ret;
+          };
+          return (
+            <Stack
+              onClick={(e) => {
+                e.stopPropagation();
+                setClickedField(field.field);
+              }}
+              style={{ alignItems: "center", cursor: "default" }}
+              direction="row">
+              <Tooltip title={makeTitle()}>
+                <Typography fontSize={dataGridheaderFontSize}>{field.field}</Typography>
+              </Tooltip>
+              {field.is_primary && <KeyIcon style={{ fontSize: "16px" }} />}
+            </Stack>
+          );
         };
-        return (
-          <Stack
-            onClick={(e) => {
-              e.stopPropagation();
-              setClickedField(field.field);
-            }}
-            style={{ alignItems: "center", cursor: "default" }}
-            direction="row"
-          >
-            <Tooltip title={makeTitle()}>
-              <Typography fontSize={dataGridheaderFontSize}>{field.field}</Typography>
-            </Tooltip>
-            {field.is_primary && <KeyIcon style={{ fontSize: "16px" }} />}
-          </Stack>
-        );
-      };
-      if (!field.is_auto_increment) {
-        field.editable = true;
+        if (!field.is_auto_increment) {
+          field.editable = true;
+        }
       }
-    }
-    setResp(resp);
-  };
+      setResp(resp);
+    },
+    [columnWidths],
+  );
 
   const makePara = useCallback(() => {
     const where_str = where.trim();
@@ -435,7 +433,7 @@ function SqlTableView(props: {
       page: page + 1,
       page_size: pageSize,
       allow_filtering: allowFiltering,
-      limit: getSize(maxLimitKey, 100_00),
+      limit: getSize(UseSizeConfig.queryLimit),
     } as types.ShowTableParameter;
   }, [allowFiltering, getSize, page, pageSize, sort, where]);
   const handleReload = useCallback(
@@ -467,7 +465,7 @@ function SqlTableView(props: {
         },
       });
     },
-    [isTable, kind, makePara, showNotification, tableName, uuid],
+    [handleResp, isTable, kind, makePara, showNotification, tableName, uuid],
   );
 
   const rowHasOP = useCallback(
@@ -604,9 +602,13 @@ function SqlTableView(props: {
     [showNotification],
   );
 
-  const onColumnResize = useCallback(({ colDef, width }) => {
-    ColumnWidth.instance.save(colDef.field, width);
-  }, []);
+  const onColumnResize = useCallback(
+    ({ colDef, width }) => {
+      setColumnWidth(colDef.field, width);
+    },
+    [setColumnWidth],
+  );
+
   const slotProps = useMemo(() => {
     return {
       row: {
@@ -741,8 +743,7 @@ function SqlTableView(props: {
               <IconButton
                 onClick={() => {
                   setShowExport(true);
-                }}
-              >
+                }}>
                 <ArrowCircleDownIcon />
               </IconButton>
             </>
@@ -752,8 +753,7 @@ function SqlTableView(props: {
                 color="primary"
                 onClick={() => {
                   handleReload(true);
-                }}
-              >
+                }}>
                 reload
               </Button>
               <Tooltip title={where ? where : "filter something like 'age=18'"}>
@@ -814,10 +814,7 @@ function SqlTableView(props: {
                     some backend not support pagination like sql,cassandra etc,we use
                     client model.
                   </Typography>
-                  min={1000}
-                  max={100000}
-                  storeKey={maxLimitKey}
-                  step={1000}
+                  config={UseSizeConfig.queryLimit}
                 />
               )}
               {isTable && (
@@ -840,8 +837,7 @@ function SqlTableView(props: {
               justifyContent: "space-between",
               flex: 1,
               overflow: "auto",
-            }}
-          >
+            }}>
             <Stack direction="row" flex={1} style={{ alignItems: "center" }}>
               <LastFetchTime date={lastFetchTime} />
               <TimeDuration dur={fetchDur} />
@@ -853,8 +849,7 @@ function SqlTableView(props: {
                     onClick={() => {
                       handleCopyToClipboard(resp.sql, showNotification);
                     }}
-                    color="info"
-                  >
+                    color="info">
                     sql
                   </Typography>
                 </Tooltip>
@@ -986,14 +981,12 @@ function SqlTableView(props: {
           onClose={modalHandleClose((e: EscDownEvent) => {
             e.preventDefault();
             setViewInModal(null);
-          })}
-        >
+          })}>
           <Box
             sx={{ resize: "both", ...modalStyle }}
             ref={setViewInModalBox}
             width="80%"
-            height="30vh"
-          >
+            height="30vh">
             <ModalHeader
               title="View Row"
               handleClose={() => {
@@ -1010,14 +1003,12 @@ function SqlTableView(props: {
           onClose={modalHandleClose((e: EscDownEvent) => {
             e.preventDefault();
             setShowAdd(false);
-          })}
-        >
+          })}>
           <Box
             sx={{ resize: "both", ...modalStyle }}
             ref={setAddModalBox}
             width="80%"
-            height="30vh"
-          >
+            height="30vh">
             <ModalHeader
               title="insert data"
               handleClose={() => {
@@ -1034,14 +1025,12 @@ function SqlTableView(props: {
           onClose={modalHandleClose((e: EscDownEvent) => {
             e.preventDefault();
             setEditCellInModal(null);
-          })}
-        >
+          })}>
           <Box
             sx={{ resize: "both", ...modalStyle }}
             ref={setEditInModalBox}
             width="80%"
-            height="30vh"
-          >
+            height="30vh">
             <ModalHeader
               title="edit cell"
               handleClose={() => {
@@ -1066,13 +1055,11 @@ function SqlTableView(props: {
           onClose={modalHandleClose((e: EscDownEvent) => {
             e.preventDefault();
             setRowEditInModal(null);
-          })}
-        >
+          })}>
           <Box
             sx={{ resize: "horizontal", ...modalStyle }}
             ref={setEditRowInModalBox}
-            width="80%"
-          >
+            width="80%">
             <ModalHeader
               title="edit row"
               handleClose={() => {
@@ -1098,8 +1085,7 @@ function SqlTableView(props: {
           onClose={modalHandleClose((e: EscDownEvent) => {
             e.preventDefault();
             setShowExport(false);
-          })}
-        >
+          })}>
           <Box sx={modalStyle} width="60%">
             <ExportTableOrView
               uuid={uuid}
@@ -1233,8 +1219,7 @@ function SqlTableViewData(props: {
             <Stack
               key={f.field}
               direction="row"
-              sx={{ alignContent: "center", justifyContent: "center" }}
-            >
+              sx={{ alignContent: "center", justifyContent: "center" }}>
               <TextField
                 inputRef={(x) => {
                   inputDoms.current[f.field] = x;
@@ -1286,8 +1271,7 @@ function SqlTableViewData(props: {
                     onClick={() => {
                       setFilter("");
                     }}
-                    edge="end"
-                  >
+                    edge="end">
                     <ClearIcon fontSize="small" />
                   </IconButton>
                 </InputAdornment>
@@ -1357,8 +1341,7 @@ function Menu(props: {
           <MenuItem
             onClick={() => {
               editCellInModal();
-            }}
-          >
+            }}>
             <ListItemIcon>
               <EditIcon />
             </ListItemIcon>
@@ -1370,8 +1353,7 @@ function Menu(props: {
           <MenuItem
             onClick={() => {
               editRowInModal();
-            }}
-          >
+            }}>
             <ListItemIcon>
               <MdEditNote fontSize="1.7rem" />
             </ListItemIcon>
@@ -1383,8 +1365,7 @@ function Menu(props: {
           <MenuItem
             onClick={() => {
               setNull();
-            }}
-          >
+            }}>
             <ListItemIcon>
               <CancelIcon />
             </ListItemIcon>
@@ -1403,8 +1384,7 @@ function Menu(props: {
           <MenuItem
             onClick={() => {
               handleCopyToClipboard(content, showNotification);
-            }}
-          >
+            }}>
             <ListItemIcon>
               <FaCopy fontSize="1.4rem" />
             </ListItemIcon>
@@ -1416,8 +1396,7 @@ function Menu(props: {
         <MenuItem
           onClick={() => {
             setSort(`${quoteField} ASC`);
-          }}
-        >
+          }}>
           <ListItemIcon>
             <ArrowUpwardIcon />
           </ListItemIcon>
@@ -1426,8 +1405,7 @@ function Menu(props: {
         <MenuItem
           onClick={() => {
             setSort(`${quoteField} DESC`);
-          }}
-        >
+          }}>
           <ListItemIcon>
             <ArrowDownwardIcon />
           </ListItemIcon>
@@ -1438,8 +1416,7 @@ function Menu(props: {
           <MenuItem
             onClick={() => {
               setShowFilter(true);
-            }}
-          >
+            }}>
             <ListItemIcon>
               <FilterAltIcon />
             </ListItemIcon>
@@ -1451,8 +1428,7 @@ function Menu(props: {
           <MenuItem
             onClick={() => {
               setShowClone(true);
-            }}
-          >
+            }}>
             <ListItemIcon>
               <FileCopyIcon />
             </ListItemIcon>
@@ -1475,13 +1451,11 @@ function Menu(props: {
           onClose={modalHandleClose((e: EscDownEvent) => {
             e.preventDefault();
             setShowClone(false);
-          })}
-        >
+          })}>
           <Box
             sx={{ resize: "horizontal", ...modalStyle }}
             width="50%"
-            ref={setCloneModalBox}
-          >
+            ref={setCloneModalBox}>
             <ModalHeader
               title="Clone Data"
               handleClose={() => {
@@ -1506,8 +1480,7 @@ function Menu(props: {
           onClose={modalHandleClose((e: EscDownEvent) => {
             e.preventDefault();
             setShowFilter(false);
-          })}
-        >
+          })}>
           <Box sx={modalStyle} width="45vw">
             <ModalHeader
               title="Quick Filter"
@@ -1628,8 +1601,7 @@ function FilterOnValue(props: {
           onClick={() => {
             setWhere(where());
             handleClose();
-          }}
-        >
+          }}>
           set
         </Button>
         <Typography color="success" style={textEllipsisStyle}>

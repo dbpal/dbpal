@@ -19,7 +19,6 @@ import {
   handleCopyToClipboard,
   SettingContext,
   saveAndSetSize,
-  ColumnWidth,
   MuiDataGridData,
   extractFieldAndIDFromMouseEvent,
   dataGridStyle,
@@ -52,7 +51,7 @@ import {
 } from "./CommonComp.tsx";
 import VisibilityIcon from "@mui/icons-material/Visibility";
 import { AppDataGridPagination, StackRowCenter } from "./CommonComp2.tsx";
-import { useContextMenu, useNotification } from "./store.ts";
+import { useColumnWidthStore, useContextMenu, useNotification } from "./store.ts";
 
 function RespContextMenu(props: { content; field; setSort; viewInModal }) {
   const { content, field, setSort, viewInModal } = props;
@@ -63,8 +62,7 @@ function RespContextMenu(props: { content; field; setSort; viewInModal }) {
         <MenuItem
           onClick={() => {
             handleCopyToClipboard(content, showNotification);
-          }}
-        >
+          }}>
           <ListItemIcon>
             <ContentCopyIcon />
           </ListItemIcon>
@@ -82,8 +80,7 @@ function RespContextMenu(props: { content; field; setSort; viewInModal }) {
       <MenuItem
         onClick={() => {
           setSort([{ field, sort: "asc" }] as GridSortModel);
-        }}
-      >
+        }}>
         <ListItemIcon>
           <ArrowUpwardIcon />
         </ListItemIcon>
@@ -92,8 +89,7 @@ function RespContextMenu(props: { content; field; setSort; viewInModal }) {
       <MenuItem
         onClick={() => {
           setSort([{ field, sort: "desc" }] as GridSortModel);
-        }}
-      >
+        }}>
         <ListItemIcon>
           <ArrowDownwardIcon />
         </ListItemIcon>
@@ -103,12 +99,12 @@ function RespContextMenu(props: { content; field; setSort; viewInModal }) {
   );
 }
 
-function queryRespFix(data: MuiDataGridData) {
+function queryRespFix(data: MuiDataGridData, columnWidths: Record<string, number>) {
   data.data.forEach((e, index) => {
     e[keyNotInTable] = index;
   });
   data.fields.forEach((field) => {
-    const width = ColumnWidth.instance.get(field.field);
+    const width = columnWidths[field.field];
     if (width) {
       field["width"] = width;
     }
@@ -125,8 +121,8 @@ function queryRespFix(data: MuiDataGridData) {
 
 function QueryResp(props: { data: MuiDataGridData }) {
   const { data } = props;
-
-  queryRespFix(data);
+  const { setColumnWidth, columnWidths } = useColumnWidthStore((s) => s);
+  queryRespFix(data, columnWidths);
 
   const setting = useContext(SettingContext);
 
@@ -136,9 +132,9 @@ function QueryResp(props: { data: MuiDataGridData }) {
       if (!data) {
         return;
       }
-      ColumnWidth.instance.save(colDef.field, width);
+      setColumnWidth(colDef.field, width);
     },
-    [data],
+    [data, setColumnWidth],
   );
 
   const [sortModel, setSortModel] = useState<GridSortModel>([]);
@@ -209,8 +205,7 @@ function QueryResp(props: { data: MuiDataGridData }) {
               justifyContent: "space-between",
               flex: 1,
               overflow: "auto",
-            }}
-          >
+            }}>
             <Stack style={{ flex: 1, alignItems: "center" }} direction="row">
               <ResetColumnWidth />
               <Typography color="info">rows: {data.data.length} </Typography>
@@ -227,8 +222,7 @@ function QueryResp(props: { data: MuiDataGridData }) {
         height: "100%",
         display: "flex",
         flexDirection: "column",
-      }}
-    >
+      }}>
       {data && (
         <Stack flex={1}>
           {data.sql && (
@@ -238,8 +232,7 @@ function QueryResp(props: { data: MuiDataGridData }) {
                 whiteSpace: "nowrap",
                 textOverflow: "ellipsis",
                 overflow: "hidden",
-              }}
-            >
+              }}>
               sql: {data.sql}
             </Typography>
           )}
@@ -265,14 +258,12 @@ function QueryResp(props: { data: MuiDataGridData }) {
           onClose={modalHandleClose((e: EscDownEvent) => {
             e.preventDefault();
             setViewInModal(null);
-          })}
-        >
+          })}>
           <Box
             sx={{ resize: "both", ...modalStyle }}
             ref={setViewInModalBox}
             width="80%"
-            height="30vh"
-          >
+            height="30vh">
             <ModalHeader
               title="View Row"
               handleClose={() => {
@@ -311,8 +302,7 @@ function MultiQueryResp(props: { data: QueryRespData[] }) {
         <Button
           onClick={() => {
             handleCopyToClipboard(data[0].Err, showNotification);
-          }}
-        >
+          }}>
           copy
         </Button>
         <Alert severity="error">{data[0].Err}</Alert>
@@ -331,14 +321,12 @@ function MultiQueryResp(props: { data: QueryRespData[] }) {
         display: "flex",
         flexDirection: "column",
         ...styleForTrans,
-      }}
-    >
+      }}>
       <Tabs
         value={value}
         onChange={handleChange}
         variant="scrollable"
-        scrollButtons="auto"
-      >
+        scrollButtons="auto">
         {data.map((_, index) => (
           <Tab label={`Result ${index + 1}`} key={index} />
         ))}

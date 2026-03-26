@@ -18,8 +18,8 @@ import { IoMdInformationCircleOutline } from "react-icons/io";
 import CancelIcon from "@mui/icons-material/Cancel";
 import ChatBubbleOutlineIcon from "@mui/icons-material/ChatBubbleOutline";
 import ContentCopyIcon from "@mui/icons-material/ContentCopy";
-import { MdOutlinePermDataSetting } from "react-icons/md";
 import CircleIcon from "@mui/icons-material/Circle";
+import DeleteForeverIcon from "@mui/icons-material/DeleteForever";
 import {
   Autocomplete,
   Box,
@@ -76,8 +76,6 @@ import {
   NameAndQueryId,
   reloadOK,
   SetAutoCompletionName,
-  TableFilter,
-  TableFilterHandler,
 } from "./Common";
 import AddIcon from "@mui/icons-material/Add";
 import types from "./ApiStruct";
@@ -97,7 +95,13 @@ import {
   useGridSelector,
 } from "@mui/x-data-grid";
 import { CustomToolbar } from "./CustomToolBar";
-import { useNotification, useSizeStore, useTabsManage } from "./store";
+import {
+  useNotification,
+  UseSizeConfig,
+  useSizeStore,
+  useTableFilter,
+  useTabsManage,
+} from "./store";
 function CreateDatabase(props: {
   uuid: string;
   handleClose: () => void;
@@ -182,8 +186,7 @@ function CreateDatabase(props: {
                         onClick={() => {
                           setCouchbaseExtra({ ...couchbasExtra, ram_quota_mb: "" });
                         }}
-                        edge="end"
-                      >
+                        edge="end">
                         <ClearIcon fontSize="small" />
                       </IconButton>
                     </InputAdornment>
@@ -211,8 +214,7 @@ function CreateDatabase(props: {
                         onClick={() => {
                           setCouchbaseExtra({ ...couchbasExtra, max_expiry: "" });
                         }}
-                        edge="end"
-                      >
+                        edge="end">
                         <ClearIcon fontSize="small" />
                       </IconButton>
                     </InputAdornment>
@@ -238,8 +240,7 @@ function CreateDatabase(props: {
                         onClick={() => {
                           setCouchbaseExtra({ ...couchbasExtra, num_replicas: "" });
                         }}
-                        edge="end"
-                      >
+                        edge="end">
                         <ClearIcon fontSize="small" />
                       </IconButton>
                     </InputAdornment>
@@ -279,8 +280,7 @@ function CreateDatabase(props: {
         <Button
           onClick={() => {
             handleCreate();
-          }}
-        >
+          }}>
           create
         </Button>
       </Stack>
@@ -345,8 +345,7 @@ function CreateSchema(props: {
           onChange={(e) => {
             setReplicationStrategy(e.target.value);
           }}
-          value={replicationStrategy}
-        >
+          value={replicationStrategy}>
           {replicationStrategies.map((e) => (
             <FormControlLabel key={e} value={e} control={<Radio />} label={e} />
           ))}
@@ -371,8 +370,7 @@ function CreateSchema(props: {
           <Button
             onClick={() => {
               handleCreate();
-            }}
-          >
+            }}>
             create
           </Button>
         </Stack>
@@ -403,8 +401,7 @@ function CreateSchema(props: {
           <Button
             onClick={() => {
               handleCreate();
-            }}
-          >
+            }}>
             create
           </Button>
         </Stack>
@@ -428,8 +425,7 @@ function CreateSchema(props: {
         <Button
           onClick={() => {
             handleCreate();
-          }}
-        >
+          }}>
           create
         </Button>
       </Stack>
@@ -513,8 +509,7 @@ function SimpleFlexEditor(props: {
         display: "flex",
         flexDirection: "column",
         flex: 1,
-      }}
-    >
+      }}>
       <div style={{ flex: 1 }}>
         <Editor
           width="99%"
@@ -639,8 +634,7 @@ function ConnConfigInfo(props: { uuid }) {
           color="primary"
           onClick={() => {
             handleInfo(true);
-          }}
-        >
+          }}>
           reload
         </Button>
       </Stack>
@@ -789,8 +783,7 @@ function LoadStoreFile(props: {
       <Tooltip
         title={`attach file,keyboard shortcut is ${
           isMacOs() ? "command+o" : "control+o"
-        }`}
-      >
+        }`}>
         <IconButton onClick={handleLoad} color="primary">
           <AttachFileIcon />
         </IconButton>
@@ -798,8 +791,7 @@ function LoadStoreFile(props: {
       <Tooltip
         title={`save query to file,keyboard shortcut is ${
           isMacOs() ? "command+s" : "control+s"
-        }`}
-      >
+        }`}>
         <IconButton onClick={handleSave} color="primary">
           <SaveIcon />
         </IconButton>
@@ -879,8 +871,7 @@ function AppMarkDown(props: {
                 style={syntaxHightLightTheme()} // Apply the chosen theme
                 language={match[1]}
                 PreTag="div"
-                {...props}
-              >
+                {...props}>
                 {String(children).replace(/\n$/, "")}
               </SyntaxHighlighter>
             ) : (
@@ -890,8 +881,7 @@ function AppMarkDown(props: {
             );
           },
           a: CustomLink,
-        }}
-      >
+        }}>
         {children ? children : placeHolder}
       </ReactMarkdown>
     </MarkdownBody>
@@ -932,8 +922,7 @@ function SaveFavoriteSqlView(props: {
   return (
     <>
       <Tooltip
-        title={`save favorite sql ${favoriteName && `as named '${favoriteName}'`}`}
-      >
+        title={`save favorite sql ${favoriteName && `as named '${favoriteName}'`}`}>
         <IconButton
           onClick={async () => {
             const sql = editor.getValue();
@@ -949,8 +938,7 @@ function SaveFavoriteSqlView(props: {
               setShowFavoriteName(true);
             }
           }}
-          color="primary"
-        >
+          color="primary">
           <FaBookmark style={{ fontSize: "1.2rem" }} />
         </IconButton>
       </Tooltip>
@@ -961,8 +949,7 @@ function SaveFavoriteSqlView(props: {
           onClose={modalHandleClose((e: EscDownEvent) => {
             e.preventDefault();
             setShowFavoriteName(false);
-          })}
-        >
+          })}>
           <Box sx={modalStyle} width="40%">
             <ModalHeader
               title="edit favorite sql name"
@@ -996,8 +983,7 @@ function SaveFavoriteSqlView(props: {
                       editor.getValue(),
                       language,
                     ).save(showNotification);
-                  }}
-                >
+                  }}>
                   <FaBookmark> </FaBookmark>
                 </IconButton>
               </Stack>
@@ -1014,25 +1000,21 @@ function CancelButton({ handleCancel }) {
       color="warning"
       onClick={() => {
         handleCancel();
-      }}
-    >
+      }}>
       <CancelIcon /> <CircularProgress />
     </IconButton>
   );
 }
 
 function SliderSize(props: {
-  storeKey: string;
   notice: ReactNode;
-  min: number;
-  max: number;
-  step: number;
+  config: UseSizeConfig;
   name?: string;
 }) {
-  const { storeKey, notice, min, max, step, name } = props;
+  const { config, notice, name } = props;
   const width = "450px";
   const { sizes, setSize } = useSizeStore((s) => s);
-  const size = sizes[storeKey];
+  const size = sizes[config.key];
 
   return (
     <Tooltip
@@ -1045,33 +1027,30 @@ function SliderSize(props: {
         style={{
           width,
           padding: "8px",
-        }}
-      >
+        }}>
         <Stack>
           {!size && (
             <Typography color="warning">
-              please select a size or default value is given{" "}
+              please select a size or default value is given
             </Typography>
           )}
           <Slider
             value={size}
-            min={min}
-            max={max}
+            min={config.min}
+            max={config.max}
             onChange={(_, v) => {
-              setSize(storeKey, v);
+              setSize(config.key, v);
             }}
             color="success"
-            step={step}
+            step={config.step}
           />
           {notice}
         </Stack>
-      </Paper>
-    >
-      {size ? (
-        <Chip label={`${name ? name + ":" : ""} ${size}`} color="info" />
-      ) : (
-        <MdOutlinePermDataSetting />
-      )}
+      </Paper>>
+      <Chip
+        label={`${name ? name + ":" : ""} ${size ? size : config.min}`}
+        color="info"
+      />
     </Tooltip>
   );
 }
@@ -1115,8 +1094,7 @@ function SelectColumnAsc(props: {
                 border: "1px solid grey",
                 borderRadius: "10px",
               }}
-              key={f.col}
-            >
+              key={f.col}>
               <Typography color="info" style={{ width: "55%" }}>
                 {f.col}
               </Typography>
@@ -1138,8 +1116,7 @@ function SelectColumnAsc(props: {
                 onClick={() => {
                   let i = includes.filter((x) => x.col != f.col);
                   setIncludes(i);
-                }}
-              >
+                }}>
                 <CancelIcon> </CancelIcon>
               </IconButton>
             </Stack>
@@ -1201,8 +1178,7 @@ function CreateIndexReq(props: {
             onChange={(e) => {
               setReq({ ...req, kind: e.target.value as types.IndexKind });
             }}
-            value={req.kind}
-          >
+            value={req.kind}>
             {indexTypes.map((e) => (
               <FormControlLabel key={e} value={e} control={<Radio />} label={e} />
             ))}
@@ -1228,8 +1204,7 @@ function CreateIndexReq(props: {
                   onClick={() => {
                     setReq({ ...req, name: "" });
                   }}
-                  edge="end"
-                >
+                  edge="end">
                   <ClearIcon fontSize="small" />
                 </IconButton>
               </InputAdornment>
@@ -1385,8 +1360,7 @@ function AppDataGridToolBar(props: {
         border: "2px solid " + theme.palette.secondary.main,
         borderRadius: "4px",
         padding: "2px 4px",
-      }}
-    >
+      }}>
       {noWrapLeft ? left : <StackRowCenter>{left}</StackRowCenter>}
       <Typography variant="h5">{title}</Typography>
       <Stack direction="row" style={{ alignItems: "center" }}>
@@ -1460,22 +1434,9 @@ function SetFilterSort(props: {
       return clean;
     }
   }, [modalBox]);
-
   const [selectFilter, setSelectFilter] = useState("");
-  const [filters, setFileters] = useState<TableFilter[]>([]);
-  const loadFilter = useCallback(async () => {
-    const x = await TableFilterHandler.get(uuid, tableName);
-    if (x) {
-      setFileters(x);
-    }
-  }, [tableName, uuid]);
-  useEffect(() => {
-    if (!isFilter) {
-      return;
-    }
-    loadFilter();
-  }, [isFilter, loadFilter]);
-
+  const { getFilter, addFilter, removeFilter } = useTableFilter((s) => s);
+  const filters = getFilter(uuid, tableName);
   const formatarg = {
     tabSize: setting.editor.tabSize,
     insertSpaces: true,
@@ -1500,14 +1461,12 @@ function SetFilterSort(props: {
       onClose={modalHandleClose((e: EscDownEvent) => {
         e.preventDefault();
         handleClose();
-      })}
-    >
+      })}>
       <Box
         sx={{ resize: "both", ...modalStyle }}
         width="75%"
         height="30vh"
-        ref={setModalBox}
-      >
+        ref={setModalBox}>
         <ModalHeader title={`set ${label}`} handleClose={handleClose} />
         <SimpleFlexEditor
           value={
@@ -1530,44 +1489,49 @@ function SetFilterSort(props: {
         <StackRowCenter>
           <Button onClick={handleSet}>set {label}</Button>
           {isFilter && (
-            <Tooltip title="save current value to filter bookmark">
+            <>
+              <Tooltip title="save current value to filter bookmark">
+                <IconButton
+                  onClick={async () => {
+                    const value = editor.getValue();
+                    if (!value) {
+                      showNotification("warning", "this editor is empty");
+                      return;
+                    }
+                    try {
+                      const filter = await extractFn(value);
+                      addFilter(uuid, tableName, filter);
+                    } catch (e) {
+                      showNotification("error", "save filter failed", e);
+                    }
+                  }}>
+                  <SaveIcon />
+                </IconButton>
+              </Tooltip>
               <IconButton
-                onClick={async () => {
-                  const value = editor.getValue();
-                  if (!value) {
-                    showNotification("warning", "this editor is empty");
-                    return;
-                  }
-                  try {
-                    const filter = await extractFn(value);
-                    await TableFilterHandler.add(uuid, tableName, filter);
-                    loadFilter();
-                  } catch (e) {
-                    showNotification("error", "save filter failed", e);
-                  }
-                }}
-              >
-                <SaveIcon />
+                onClick={() => {
+                  removeFilter(uuid, tableName);
+                  showNotification("success", "delete filter success");
+                }}>
+                <DeleteForeverIcon />
               </IconButton>
-            </Tooltip>
-          )}
-          {isFilter && (
-            <Autocomplete
-              value={selectFilter}
-              style={{ flex: 1 }}
-              options={filters.map((e) => e.filter)}
-              freeSolo={false}
-              onChange={async (_, value) => {
-                editor.setValue(
-                  makeFormatFn(kind)(
-                    `SELECT * FROM ${tableName} WHERE ${value}`,
-                    formatarg,
-                  ),
-                );
-                setSelectFilter(value);
-              }}
-              renderInput={(params) => <TextField {...params} label="filters" />}
-            />
+              <Autocomplete
+                value={selectFilter}
+                style={{ flex: 1 }}
+                options={filters}
+                freeSolo={false}
+                onChange={async (_, value) => {
+                  editor.setValue(
+                    makeFormatFn(kind)(
+                      `SELECT * FROM ${tableName} WHERE ${value}`,
+                      formatarg,
+                    ),
+                  );
+                  setSelectFilter(value);
+                }}
+                renderInput={(params) => <TextField {...params} label="filters" />}
+              />
+            </>
           )}
         </StackRowCenter>
       </Box>
@@ -1585,8 +1549,7 @@ function ToggleChatShow(props: { do_query: () => void }) {
       <IconButton
         onClick={() => {
           setShow(!show);
-        }}
-      >
+        }}>
         {show ? <ChatBubbleIcon color="success" /> : <ChatBubbleOutlineIcon />}
       </IconButton>
     </>
@@ -1604,8 +1567,7 @@ function CopySql(props: { sql; style?: CSSProperties }) {
       <IconButton
         onClick={() => {
           handleCopyToClipboard(sql, showNotification);
-        }}
-      >
+        }}>
         <ContentCopyIcon />
       </IconButton>
       <code> {sql} </code>

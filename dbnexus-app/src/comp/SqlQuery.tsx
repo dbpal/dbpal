@@ -76,6 +76,7 @@ import {
   useConfirmMsg,
   useNotification,
   useQueryExtraUI,
+  UseSizeConfig,
   useSizeStore,
 } from "./store.ts";
 function SqlTransaction(props: { conn: QueryConn; executeTimes: number }) {
@@ -196,7 +197,7 @@ function SqlTransaction(props: { conn: QueryConn; executeTimes: number }) {
     </>
   );
 }
-
+const tryCheckSqlSwitchKey = "try-check-sql";
 function SqlQuery(props: {
   uuid: string;
   value?: string;
@@ -218,17 +219,13 @@ function SqlQuery(props: {
   const queryLogHandler = useRef(new QueryLogHandler(uuid));
   const [executeTimes, setExecuteTimes] = useState(0);
   const [conn] = useState<QueryConn>(new QueryConn(uuid, uuidv4(), kind));
-  const maxSizeKey = "sql-query-max-size";
   const getSize = useSizeStore((s) => s.getSize);
-
   const [showExport, setShowExport] = useState(false);
   const [openOk, setOpenOk] = useState(false);
-
   const [queryStatus, setQueryStatus] = useState("");
   const tabCtx = useContext(TabContext);
   const querySomeShow = useQueryExtraUI((s) => s.extra);
   const { switches, setSwitch } = useBoolSwitch();
-  const tryCheckSqlSwitchKey = "try-check-sql";
   const tryCheckSql = switches[tryCheckSqlSwitchKey];
   const handleEditorDidMount = useCallback((ed: editor.IStandaloneCodeEditor) => {
     setEditor(ed);
@@ -376,7 +373,7 @@ function SqlQuery(props: {
       });
 
       conn
-        .queryOP(text, emit, getSize(maxSizeKey, 100_00))
+        .queryOP(text, emit, getSize(UseSizeConfig.queryLimit))
         .then(() => {
           if (switches[saveQueryKey]) {
             queryLogHandler.current.save(text, true);
@@ -618,10 +615,7 @@ function SqlQuery(props: {
             <ModifyLLMConfigModal />
             <ExecutingTime loading={loading} />
             <SliderSize
-              storeKey={maxSizeKey}
-              min={1000}
-              max={100000}
-              step={1000}
+              config={UseSizeConfig.queryLimit}
               notice=<Typography>
                 limit max rows can be query.we don&apos;t want OOM!!!😀
                 <br />

@@ -71,7 +71,13 @@ import {
 } from "./handlers.ts";
 
 import * as mongoQueryBackend from "./MongoQueryBackend.ts";
-import { useBoolSwitch, useLLMConfig, useNotification, useSizeStore } from "./store.ts";
+import {
+  useBoolSwitch,
+  useLLMConfig,
+  useNotification,
+  UseSizeConfig,
+  useSizeStore,
+} from "./store.ts";
 
 class SimpleArrayMemory {
   history: BaseMessage[];
@@ -115,6 +121,8 @@ class SimpleArrayMemory {
   }
 }
 
+const showChatKey = "chat-show";
+
 function Chat(props: {
   uuid: string;
   kind: DataSourceKind;
@@ -125,9 +133,9 @@ function Chat(props: {
   const { uuid, kind, favoriteName, value, language } = props;
   const [editor, setEditor] = useState<editor.IStandaloneCodeEditor>(null);
   const llmconfig = useLLMConfig((s) => s.config);
-  const switchKey = "chat-show-" + uuid;
+
   const saveChatShow = useBoolSwitch((s) => s);
-  const [show, setShow] = useState(saveChatShow.switches[switchKey]);
+  const [show, setShow] = useState(saveChatShow.switches[showChatKey]);
   const doQuery = useRef<() => void>(null);
 
   return (
@@ -575,6 +583,8 @@ human:{question}
     }
   }
 }
+const queryAfterKey = "query-after-switch";
+const cleanEditorKey = "clean-editor-key";
 
 function SqlChatTextInput(props: {
   uuid: string;
@@ -596,12 +606,9 @@ function SqlChatTextInput(props: {
   const { show, setShow, doQuery } = useContext(ChatShowContext);
   const getSize = useSizeStore((s) => s.getSize);
   const { switches, setSwitch } = useBoolSwitch((s) => s);
-  const queryAfterSwitchKey = "query-after-switch";
-  const cleanEditorKey = "clean-editor-key";
 
-  const queryAfter = switches[queryAfterSwitchKey];
+  const queryAfter = switches[queryAfterKey];
   const cleanEditor = switches[cleanEditorKey];
-  const chatMemoryStoreKey = "chat-memory-buffer-size";
 
   const vis = useContext(TabActiveContext);
   useEffect(() => {
@@ -618,7 +625,7 @@ function SqlChatTextInput(props: {
   }, [vis, setShow]);
 
   const makePrompt = async () => {
-    chatMemory.current.setK(getSize(chatMemoryStoreKey, 6));
+    chatMemory.current.setK(getSize(UseSizeConfig.chatMemoryKey));
     try {
       const prompt = await new MakePrompt(
         uuid,
@@ -639,7 +646,7 @@ function SqlChatTextInput(props: {
   const handleChat = async () => {
     try {
       // 清空内容，同时保留在 Undo 栈里
-      if (switches[cleanEditorKey]) {
+      if (cleanEditor) {
         editor.executeEdits("my-source", [
           {
             range: editor.getModel().getFullModelRange(), // 全选
@@ -681,7 +688,7 @@ function SqlChatTextInput(props: {
       }, 5000);
       setChatHistory((e) => [...e, wholeText]);
       chatMemory.current.addAIMessage(wholeText);
-      if (switches[queryAfterSwitchKey]) {
+      if (queryAfter) {
         if (!doQuery.current) {
           showNotification("error", "do query is null ,this is a internal error");
         } else {
@@ -767,10 +774,7 @@ function SqlChatTextInput(props: {
               </IconButton>
             </Tooltip>
             <SliderSize
-              storeKey={chatMemoryStoreKey}
-              max={20}
-              min={0}
-              step={2}
+              config={UseSizeConfig.chatMemoryKey}
               notice="chat memory buffer size"
             />
             <Tooltip title="delete all content from the editor before we receive the response">
@@ -789,7 +793,7 @@ function SqlChatTextInput(props: {
                 control={
                   <Switch
                     checked={queryAfter}
-                    onChange={(e) => setSwitch(queryAfterSwitchKey, e.target.checked)}
+                    onChange={(e) => setSwitch(queryAfterKey, e.target.checked)}
                   />
                 }
                 label="auto query"

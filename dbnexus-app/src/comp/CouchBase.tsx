@@ -63,7 +63,7 @@ import { Panel, PanelGroup, PanelResizeHandle } from "react-resizable-panels";
 import { QueryLog } from "./QueryLog.tsx";
 import { ExportView } from "./Export.tsx";
 import { QueryResp } from "./QueryResp.tsx";
-import { useNotification, usePageSize, useSizeStore } from "./store.ts";
+import { useNotification, usePageSize, UseSizeConfig, useSizeStore } from "./store.ts";
 import { persist } from "zustand/middleware";
 import { create } from "zustand";
 import SyntaxHighlighter from "react-syntax-highlighter";
@@ -112,8 +112,6 @@ function CouchBaseTable(props: { uuid: string; table: string }) {
   const kind = DataSourceKind.CouchBase;
   const [resp, setResp] = useState<Data>(newDataDefault());
   const { getSize } = useSizeStore((s) => s);
-  const couchbaseTableColCountKey = "couchbase-table-col-count";
-  const editorHeightKey = "couchbase-table-editor-height";
   const [loading, setLoading] = useState(true);
   const [queryStatus, setQueryStatus] = useState("");
   const { showNotification } = useNotification((s) => s);
@@ -236,20 +234,14 @@ function CouchBaseTable(props: { uuid: string; table: string }) {
         <Typography variant="h5"> {table} </Typography>
         <Stack direction="row">
           <SliderSize
-            min={1}
-            max={5}
             notice="column count"
-            step={1}
-            storeKey={couchbaseTableColCountKey}
+            config={UseSizeConfig.gridCol}
             name="column"
           />
           <SliderSize
             name="height"
-            min={100}
-            max={1000}
-            notice="mongodb editor height"
-            step={10}
-            storeKey={editorHeightKey}
+            notice="editor height"
+            config={UseSizeConfig.editorHeight}
           />
         </Stack>
       </Stack>
@@ -261,14 +253,14 @@ function CouchBaseTable(props: { uuid: string; table: string }) {
           height: "100px",
           overflow: "auto",
           display: "grid",
-          gridTemplateColumns: `repeat(${getSize(couchbaseTableColCountKey, 2)}, 1fr)`,
+          gridTemplateColumns: `repeat(${getSize(UseSizeConfig.gridCol)}, 1fr)`,
           paddingRight: "1.2rem",
         }}
       >
         {resp.data.map((item) => (
           <div
             style={{
-              height: getSize(editorHeightKey, 300) + "px",
+              height: getSize(UseSizeConfig.editorHeight) + "px",
               position: "relative",
             }}
             key={item.id}
@@ -330,7 +322,7 @@ function CouchBaseTable(props: { uuid: string; table: string }) {
             handleChange={(s) => {
               setPageSize("couchbase", s);
             }}
-            options={[2, 3, 10].map((x) => x * getSize(couchbaseTableColCountKey, 2))}
+            options={[2, 3, 10].map((x) => x * getSize(UseSizeConfig.gridCol))}
           />
 
           <Pagination
@@ -614,10 +606,8 @@ function CouchBaseQuery(props: {
   const { uuid, value, handleEditor } = props;
   const [resp, setResp] = useState<string[]>([]);
   const [loading, setLoading] = useState(false);
-  const gridColCountKey = "editor-grid-col-count";
   const { getSize } = useSizeStore((s) => s);
   const [editor, setEditor] = useState<editor.IStandaloneCodeEditor>(null);
-  const maxSizeKey = "couchbase-query-max-size";
   const [queryStatus, setQueryStatus] = useState("");
   const { showNotification } = useNotification((s) => s);
   const [showQueryLog, setShowQueryLog] = useState(false);
@@ -715,7 +705,7 @@ function CouchBaseQuery(props: {
     invoke("query_sql", {
       name: uuid,
       queryId: "",
-      maxRow: getSize(maxSizeKey, 100_00),
+      maxRow: getSize(UseSizeConfig.queryLimit),
       sql: text,
       emit: channel,
     })
@@ -827,11 +817,8 @@ function CouchBaseQuery(props: {
 
             {viewMode == CBQueryViewMode.Json && (
               <SliderSize
-                min={1}
-                max={5}
                 notice="column count"
-                step={1}
-                storeKey={gridColCountKey}
+                config={UseSizeConfig.gridCol}
                 name="column"
               />
             )}
@@ -839,10 +826,7 @@ function CouchBaseQuery(props: {
             <ToggleChatShow do_query={handleQuery} />
 
             <SliderSize
-              storeKey={maxSizeKey}
-              min={1000}
-              max={100000}
-              step={1000}
+              config={UseSizeConfig.queryLimit}
               notice={
                 <Typography>
                   limit max rows can be query.we don&apos;t want OOM!!!😀
@@ -881,7 +865,7 @@ function CouchBaseQuery(props: {
             style={{
               overflow: "auto",
               display: "grid",
-              gridTemplateColumns: `repeat(${getSize(gridColCountKey, 2)}, 1fr)`,
+              gridTemplateColumns: `repeat(${getSize(UseSizeConfig.gridCol)}, 1fr)`,
               paddingRight: "1.2rem",
             }}
           >

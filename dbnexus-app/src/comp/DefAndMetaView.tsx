@@ -50,15 +50,14 @@ function DefAndMetasView(props: {
         <Tooltip
           title={
             <Stack style={{ width: "100%", height: "40vh" }}>
-              <MetaValueView values={detail.metas} />{" "}
+              <MetaValueView values={detail.metas} />
             </Stack>
           }
           slotProps={{
             tooltip: {
               style: { width: "1550px" },
             },
-          }}
-        >
+          }}>
           <Typography color="info"> some meta </Typography>
         </Tooltip>
       ) : null,

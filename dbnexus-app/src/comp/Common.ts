@@ -10,7 +10,6 @@ import {
   appDatabase,
   backendCompletionItemToEditor,
   DataSourceKind,
-  extractConfigNameFromUuid,
   loader,
   MuiDataGridData,
   QueryRespData,
@@ -79,10 +78,12 @@ class ConnectionHandler {
     ]);
   }
 
-  static nameDuplicated(name: string): Promise<boolean> {
-    return appDatabase
-      .select("select count(*) as count from connection where name=?", [name])
-      .then((x) => x[0].count != 0);
+  static async nameDuplicated(name: string): Promise<boolean> {
+    const x = await appDatabase.select(
+      "select count(*) as count from connection where name=?",
+      [name],
+    );
+    return x[0].count != 0;
   }
 }
 
@@ -528,48 +529,6 @@ async function editorAppendContent(editor: editor.IStandaloneCodeEditor, text) {
   editor.revealLine(lastLine + 1);
 }
 
-interface TableFilter {
-  filter: string;
-}
-
-class TableFilterHandler {
-  static async get(uuid: string, name: string) {
-    return appDatabase.select<TableFilter[]>(
-      "select filter from table_filter where uuid=? and name=?",
-      [uuid, name],
-    );
-  }
-
-  static async add(uuid: string, name: string, filter: string) {
-    await appDatabase.execute(
-      "replace into table_filter (uuid,connection_name,name,filter,last_modified) values (?,?,?,?,?)",
-      [uuid, extractConfigNameFromUuid(uuid), name, filter, new Date()],
-    );
-    let count = (
-      await appDatabase.select(
-        "select count(*) as count  from table_filter where uuid=? and name=?",
-        [uuid, name],
-      )
-    )[0].count;
-    if (count > 5) {
-      await appDatabase.execute(
-        "delete from table_filter where uuid =? and name=? order by last_modified limit 1",
-        [uuid, name],
-      );
-    }
-  }
-  static async deleteByConnectionName(name: string) {
-    try {
-      await appDatabase.execute("delete from table_filter where connection_name=?", [
-        name,
-      ]);
-    } catch (e) {
-      console.error("delete table filter failed,err:", e);
-      message("delete table filter failed,err:" + String(e), { kind: "error" });
-    }
-  }
-}
-
 export {
   AITextCompletionName,
   connectionChangeEvent,
@@ -587,8 +546,7 @@ export {
   QueryConn,
   reloadOK,
   SetAutoCompletionName,
-  TableFilterHandler,
   tabsHasId,
 };
 
-export type { DefAndMetas, EscDownEvent, FieldAndGridField, QueryEvent, TableFilter };
+export type { DefAndMetas, EscDownEvent, FieldAndGridField, QueryEvent };

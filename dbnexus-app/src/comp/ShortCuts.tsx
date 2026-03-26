@@ -1,14 +1,16 @@
 import { Stack } from "@mui/material";
 import { DataGrid, GridColDef } from "@mui/x-data-grid";
-import { ColumnWidth, isMacOs } from "./helper";
+import { isMacOs } from "./helper";
+import { useColumnWidthStore } from "./store";
 
 const shortCuts = getKeyShorts();
 
 function ShowCuts() {
   const shortCutsColumns: GridColDef[] = [{ field: "name" }, { field: "shorts" }];
+  const { columnWidths, setColumnWidth } = useColumnWidthStore((s) => s);
 
   shortCutsColumns.forEach((col) => {
-    let width = ColumnWidth.instance.get(col.field);
+    let width = columnWidths[col.field];
 
     if (!width) {
       width = 300;
@@ -26,7 +28,7 @@ function ShowCuts() {
         }}
         style={{ height: "100%" }}
         onColumnResize={(resize) => {
-          ColumnWidth.instance.save(resize.colDef.field, resize.width);
+          setColumnWidth(resize.colDef.field, resize.width);
         }}
       />
     </Stack>

@@ -40,7 +40,7 @@ import {
   RefObject,
 } from "react";
 import { ask, message } from "@tauri-apps/plugin-dialog";
-import { Store } from "@tauri-apps/plugin-store";
+import { LazyStore } from "@tauri-apps/plugin-store";
 import { writeText } from "@tauri-apps/plugin-clipboard-manager";
 import { Channel, invoke } from "@tauri-apps/api/core";
 import { BSON } from "bson";
@@ -53,18 +53,12 @@ import prettyMilliseconds from "pretty-ms";
 import { cancelTask } from "./handlers";
 
 const pageSizeOptions = [10, 20, 50, 100];
-const appStore = await Store.load("store.json");
+const appStore = new LazyStore("store.json");
 function prettyMs(x: number) {
   return prettyMilliseconds(x);
 }
 
 let appDatabase: Database = await Database.load("sqlite:dbpal.sqlite.db");
-
-appDatabase.select("select * from column_width").then((xs) => {
-  (xs as { name: string; width: number }[]).forEach((e) => {
-    ColumnWidth.instance.width[e.name] = e.width;
-  });
-});
 
 function rustResultOk(x: any): boolean {
   if (x instanceof Array) {
@@ -469,29 +463,6 @@ class FavoriteSql {
   }
 }
 
-class ColumnWidth {
-  width = {};
-  constructor() {}
-  async save(name: string, width: number) {
-    this.width[name] = width;
-    appDatabase.execute("replace into column_width(name,width) values(?,?)", [
-      name,
-      Math.ceil(width),
-    ]);
-  }
-
-  get(key): number {
-    return this.width[key];
-  }
-  async reset(): Promise<void> {
-    this.width = {};
-    return appDatabase.execute("delete from column_width").then((x) => {
-      console.info("delete of", x.rowsAffected, "rows");
-    });
-  }
-  static instance = new ColumnWidth();
-}
-
 const TabActiveContext = createContext(true);
 
 const handleCopyToClipboard = (text, showNotification?, okCallBack?) => {
@@ -704,7 +675,10 @@ class UserSettingMisc {
   static async get(): Promise<UserSettingMisc> {
     try {
       const x = await appStore.get<UserSettingMisc>(UserSettingMisc.key);
-      return { ...new UserSettingMisc(), ...x } as UserSettingMisc;
+
+      const r = { ...new UserSettingMisc(), ...x } as UserSettingMisc;
+      Object.setPrototypeOf(x, UserSettingMisc.prototype);
+      return r;
     } catch (e) {
       console.log("get user setting failed, use default", e);
       return new UserSettingMisc();
@@ -1078,7 +1052,6 @@ export {
   backendCompletionItemToEditor,
   ChatShowContext,
   ColorFn,
-  ColumnWidth,
   connTypeToDataSourceKind,
   dataGridheaderFontSize,
   dataGridStyle,

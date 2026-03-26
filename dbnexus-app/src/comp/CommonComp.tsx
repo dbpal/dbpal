@@ -52,7 +52,6 @@ import ArrowUpwardIcon from "@mui/icons-material/ArrowUpward";
 import ArrowDownwardIcon from "@mui/icons-material/ArrowDownward";
 import { IoTimerOutline } from "react-icons/io5";
 import {
-  ColumnWidth,
   dataGridStyle,
   DataSourceKind,
   editorSetPositionAndReveal,
@@ -75,19 +74,20 @@ import {
 
 import { TbDatabasePlus } from "react-icons/tb";
 import LinkIcon from "@mui/icons-material/Link";
-import {
-  ConnectionHandler,
-  connectionChangeEvent,
-  PassWordManager,
-  TableFilterHandler,
-} from "./Common";
+import { ConnectionHandler, connectionChangeEvent, PassWordManager } from "./Common";
 import { TreeItem } from "@mui/x-tree-view/TreeItem";
 import { editor, Position } from "monaco-editor";
 import { openPath } from "@tauri-apps/plugin-opener";
 import { FaMarkdown } from "react-icons/fa";
 import { emit } from "@tauri-apps/api/event";
 import { AppDataGridPagination, StackRowCenter } from "./CommonComp2";
-import { useConnLoading, useConnected, useContextMenu, useNotification } from "./store";
+import {
+  useColumnWidthStore,
+  useConnLoading,
+  useConnected,
+  useContextMenu,
+  useNotification,
+} from "./store";
 
 function MenuExportMarkDownTable({ showExportMarkDown }) {
   return (
@@ -120,8 +120,7 @@ function MenuNewQuery({ handleNew }) {
     <MenuItem
       onClick={() => {
         handleNew();
-      }}
-    >
+      }}>
       <ListItemIcon>
         <AddIcon />
       </ListItemIcon>
@@ -135,8 +134,7 @@ function MenuCreateDatabase({ handleCreate, kind }) {
     <MenuItem
       onClick={() => {
         handleCreate();
-      }}
-    >
+      }}>
       <ListItemIcon>
         <BsDatabaseAdd />
       </ListItemIcon>
@@ -159,8 +157,7 @@ function MenuRefresh({ reload }) {
     <MenuItem
       onClick={() => {
         reload();
-      }}
-    >
+      }}>
       <ListItemIcon>
         <RefreshIcon />
       </ListItemIcon>
@@ -182,8 +179,7 @@ function MenuCloseConn({ name }) {
           .catch((e) => {
             showNotification("error", "close connection failed", e);
           });
-      }}
-    >
+      }}>
       <ListItemIcon>
         <LinkOffIcon />
       </ListItemIcon>
@@ -256,8 +252,7 @@ function MenuCreateSchema(props: { handleCreate; kind: DataSourceKind }) {
     <MenuItem
       onClick={() => {
         handleCreate();
-      }}
-    >
+      }}>
       <ListItemIcon>
         <TbDatabasePlus />
       </ListItemIcon>
@@ -318,8 +313,7 @@ function MenuOpenConn({ name }) {
         handleOpenXXX().finally(() => {
           setLoading(name, false);
         });
-      }}
-    >
+      }}>
       <ListItemIcon>
         <LinkIcon />
       </ListItemIcon>
@@ -337,8 +331,7 @@ function SelectPageSize({ pageSize, handleChange, options = pageSizeOptions }) {
         onChange={(e) => {
           handleChange(e.target.value);
         }}
-        label="page size"
-      >
+        label="page size">
         {options.map((e) => (
           <MenuItem value={e} key={e}>
             {e}
@@ -365,7 +358,6 @@ function MenuDeleteConfig({ name }) {
       await QueryLogHandler.deleteByConnectionName(name);
       await ConnectionHandler.deleteConn(name);
       await PassWordManager.deletePassword(name);
-      await TableFilterHandler.deleteByConnectionName(name);
       emit(connectionChangeEvent, "");
     } catch (e) {
       showNotification("error", "drop connection failed", e);
@@ -376,8 +368,7 @@ function MenuDeleteConfig({ name }) {
       onClick={() => {
         handleDelete();
       }}
-      sx={{ color: "error.main" }}
-    >
+      sx={{ color: "error.main" }}>
       <ListItemIcon>
         <DeleteForeverIcon color="error" />
       </ListItemIcon>
@@ -394,8 +385,7 @@ function MetaValueViewMenu(props: { content: string; setSort; field: string }) {
       <MenuItem
         onClick={() => {
           handleCopyToClipboard(content, showNotification);
-        }}
-      >
+        }}>
         <ListItemIcon>
           <ContentCopyIcon />
         </ListItemIcon>
@@ -405,8 +395,7 @@ function MetaValueViewMenu(props: { content: string; setSort; field: string }) {
       <MenuItem
         onClick={() => {
           setSort([{ field, sort: "asc" }] as GridSortModel);
-        }}
-      >
+        }}>
         <ListItemIcon>
           <ArrowUpwardIcon />
         </ListItemIcon>
@@ -415,8 +404,7 @@ function MetaValueViewMenu(props: { content: string; setSort; field: string }) {
       <MenuItem
         onClick={() => {
           setSort([{ field, sort: "desc" }] as GridSortModel);
-        }}
-      >
+        }}>
         <ListItemIcon>
           <ArrowDownwardIcon />
         </ListItemIcon>
@@ -428,9 +416,11 @@ function MetaValueViewMenu(props: { content: string; setSort; field: string }) {
 
 function MetaValueView({ values = [] as types.MetaValue[] }) {
   const setting = useContext(SettingContext);
+
+  const widths = useColumnWidthStore((s) => s.columnWidths);
   const columns = [
-    { field: "name", width: ColumnWidth.instance.get("name"), flex: 1 },
-    { field: "value", width: ColumnWidth.instance.get("value"), flex: 1 },
+    { field: "name", width: widths["name"], flex: 1 },
+    { field: "value", width: widths["value"], flex: 1 },
   ] as GridColDef[];
 
   const [sortModel, setSortModel] = useState<GridSortModel>([]);
@@ -496,8 +486,11 @@ function MetaValueView({ values = [] as types.MetaValue[] }) {
 
 function ResetColumnWidth() {
   const { showNotification } = useNotification((s) => s);
+
+  const reset = useColumnWidthStore((s) => s.resetWidths);
+
   const handleReset = async () => {
-    ColumnWidth.instance.reset();
+    reset();
     showNotification("success", "reset column width successfully");
   };
   return (
@@ -533,8 +526,7 @@ function ModalHeader(props: {
         marginBottom: "0.4rem",
         position: "sticky",
         top: 0,
-      }}
-    >
+      }}>
       <StackRowCenter>
         <Typography
           variant="h6"
@@ -542,8 +534,7 @@ function ModalHeader(props: {
             paddingBottom: "0.3rem",
             fontWeight: "bold",
             textTransform: noTextTransform ? undefined : "capitalize",
-          }}
-        >
+          }}>
           {title}
         </Typography>
         {headerExtra}
@@ -571,13 +562,11 @@ function ViewRowInModal(props: { fields: types.Field[]; data: object; isTable? }
               padding: "8px",
               border: "2px solid " + theme.palette.success.main,
             }}
-            key={f.field}
-          >
+            key={f.field}>
             <Stack
               direction="row"
               style={{ alignItems: "center" }}
-              divider={<span>|</span>}
-            >
+              divider={<span>|</span>}>
               <Typography variant="subtitle1">{f.field}</Typography>
               <Typography variant="body1">{f.data_type}</Typography>
               {isTable && f.is_primary && (
@@ -602,8 +591,7 @@ function ViewRowInModal(props: { fields: types.Field[]; data: object; isTable? }
                 overflow: "auto",
                 opacity: 0.9,
                 color: theme.palette.success.main,
-              }}
-            >
+              }}>
               {data[f.field]}
             </pre>
           </Stack>
@@ -650,8 +638,7 @@ function UdfNameAndParameters(props: { udf: types.NamedStaff; kind: DataSourceKi
             fontStyle: "italic",
             fontSize: "0.8rem",
             ...textEllipsisStyle,
-          }}
-        >
+          }}>
           ({parameter})
         </Typography>
       )}
@@ -681,8 +668,7 @@ function PossibleParseError(props: {
               new Position(parseErr.line, parseErr.column),
             );
           }
-        }}
-      >
+        }}>
         {parseErr.msg}
       </Typography>
     </Tooltip>
@@ -775,8 +761,7 @@ function CopyMenuItem(props: GridColumnMenuItemProps) {
     <MenuItem
       onClick={() => {
         handleCopyToClipboard(colDef.field, showNotification);
-      }}
-    >
+      }}>
       <ListItemIcon> </ListItemIcon>
       <ListItemText> Copy Field </ListItemText>
     </MenuItem>
@@ -814,8 +799,7 @@ function SelectColumns(props: {
           onClick={() => {
             setIncludes(fields);
           }}
-          variant="text"
-        >
+          variant="text">
           all
         </Button>
       )}
@@ -844,8 +828,7 @@ function OpenFileWithDefaultApp({ file }) {
                 .catch((e) => {
                   showNotification("warning", "open export file failed", e);
                 });
-            }}
-          >
+            }}>
             <FaFolderOpen fontSize="1.5rem" />
           </IconButton>
         </Tooltip>

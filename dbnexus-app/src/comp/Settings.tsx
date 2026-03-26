@@ -55,6 +55,7 @@ import {
   prettyMs,
   isDarkStr,
 } from "./helper";
+
 import { Position } from "monaco-editor";
 import { invoke } from "@tauri-apps/api/core";
 import EditIcon from "@mui/icons-material/Edit";
@@ -72,7 +73,7 @@ import { LogLevelSelection, ModalHeader } from "./CommonComp";
 import { appLogDir } from "@tauri-apps/api/path";
 import { useLLMConfig, useNotification } from "./store";
 import { WebviewWindow } from "@tauri-apps/api/webviewWindow";
-import { platform } from "@tauri-apps/plugin-os";
+// import { platform } from "@tauri-apps/plugin-os";
 
 function AppearanceSetting() {
   const { showNotification } = useNotification((s) => s);
@@ -902,7 +903,7 @@ function LLMSetting(props: { handleClose?: () => void }) {
 function MiscSetting() {
   const [autoStart, setAutoStart] = useState(false);
   const { showNotification } = useNotification((s) => s);
-  const [oldSetting, setOldSetting] = useState(null);
+  const [oldSetting, setOldSetting] = useState<UserSettingMisc>(null);
 
   useEffect(() => {
     UserSettingMisc.get().then((setting) => {
@@ -917,8 +918,8 @@ function MiscSetting() {
     }
     const x = { autoStart } as UserSettingMisc;
     Object.setPrototypeOf(x, UserSettingMisc.prototype);
-    console.log("!!!!!!!!!!!!!!!!!!!", x, oldSetting);
-    if (!isEqual(x, oldSetting)) {
+    if (x.autoStart != oldSetting.autoStart) {
+      console.log("save auto start");
       x.save()
         .then(() => {
           showNotification("success", "save auto restart ok");
@@ -1311,6 +1312,7 @@ function SettingProvider(props: { children: ReactNode }) {
 
   const [osTheme, setOsTheme] = useState("light");
   const reload = async () => {
+    // setTimeout(async () => {
     const setting = await UserSetting.load();
     setSetting(setting);
     document.documentElement.style.fontSize = setting.appearance.fontSize + "px";
@@ -1332,6 +1334,7 @@ function SettingProvider(props: { children: ReactNode }) {
         });
       }
     }
+    // }, Math.random() * 1000);
   };
   useEffect(() => {
     reload();
@@ -1349,14 +1352,14 @@ function SettingProvider(props: { children: ReactNode }) {
       setOsTheme(event.payload);
     });
 
-    if (platform() == "linux") {
-      // https://github.com/tauri-apps/tauri/issues/9427
-      setInterval(() => {
-        currentWebview.theme().then((theme) => {
-          setOsTheme(theme);
-        });
-      }, 3000);
-    }
+    // if (platform() == "linux") {
+    //   // https://github.com/tauri-apps/tauri/issues/9427
+    //   setInterval(() => {
+    //     currentWebview.theme().then((theme) => {
+    //       setOsTheme(theme);
+    //     });
+    //   }, 3000);
+    // }
 
     const unlisten = appStore.onChange((key) => {
       if (
@@ -1382,7 +1385,6 @@ function SettingProvider(props: { children: ReactNode }) {
   }, [osTheme]);
 
   const isDark = () => {
-    console.log(setting.appearance);
     return (
       isDarkStr(setting.appearance.theme) ||
       (setting.appearance.theme == "system" && isDarkStr(osTheme))

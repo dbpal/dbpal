@@ -67,7 +67,6 @@ import {
   TimeDuration,
 } from "./CommonComp";
 import {
-  ColumnWidth,
   DocsAndCount,
   handleCopyToClipboard,
   ErrAndLoc,
@@ -95,9 +94,16 @@ import {
 import { message } from "@tauri-apps/plugin-dialog";
 import { invoke } from "@tauri-apps/api/core";
 import { AddTableView } from "./LeftTable";
-import { useContextMenu, useNotification, usePageSize, useSizeStore } from "./store";
+import {
+  useColumnWidthStore,
+  useContextMenu,
+  useNotification,
+  usePageSize,
+  UseSizeConfig,
+  useSizeStore,
+} from "./store";
 enum MongoDataViewModel {
-  List,
+  TableList,
   Object,
   Json,
 }
@@ -316,8 +322,7 @@ function MongoBsonEditor(props: {
       <div
         style={{
           flex: 1,
-        }}
-      >
+        }}>
         <Editor
           width="99%"
           height="99%"
@@ -341,8 +346,7 @@ function MongoBsonEditor(props: {
                     setLoading(false);
                   });
                 }}
-                disabled={!!err}
-              >
+                disabled={!!err}>
                 {setOPName}
               </Button>
             )}
@@ -356,8 +360,7 @@ function MongoBsonEditor(props: {
                     setLoading(false);
                   });
                 }}
-                color="error"
-              >
+                color="error">
                 delete
               </Button>
             )}
@@ -375,8 +378,7 @@ function MongoBsonEditor(props: {
                     editor.current.focus();
                     editor.current.revealLines(err.loc.start.line, err.loc.end.line);
                   }
-                }}
-              >
+                }}>
                 {err.msgWithLoc}
               </Typography>
             ) : (
@@ -440,16 +442,14 @@ function MongoValueEditor(props: {
               disabled={viewModel == MongoDataViewModel.Object}
               onClick={() => {
                 setViewModel(MongoDataViewModel.Object);
-              }}
-            >
+              }}>
               <DataObjectIcon />
             </Button>
             <Button
               onClick={() => {
                 setViewModel(MongoDataViewModel.Json);
               }}
-              disabled={viewModel == MongoDataViewModel.Json}
-            >
+              disabled={viewModel == MongoDataViewModel.Json}>
               ejson
             </Button>
           </ButtonGroup>
@@ -535,8 +535,7 @@ function MongoTableToolBar(props: {
       style={{
         justifyContent: "space-between",
         alignItems: "center",
-      }}
-    >
+      }}>
       <Stack direction="row" style={{ flexWrap: "wrap", alignItems: "center" }}>
         <Button loading={loading} color="primary" onClick={handleReload}>
           reload
@@ -608,24 +607,21 @@ function MongoTableToolBar(props: {
             disabled={viewModel == MongoDataViewModel.Object}
             onClick={() => {
               handleViewModel(MongoDataViewModel.Object);
-            }}
-          >
+            }}>
             <DataObjectIcon />
           </Button>
           <Button
             onClick={() => {
               handleViewModel(MongoDataViewModel.Json);
             }}
-            disabled={viewModel == MongoDataViewModel.Json}
-          >
+            disabled={viewModel == MongoDataViewModel.Json}>
             ejson
           </Button>
           <Button
             onClick={() => {
-              handleViewModel(MongoDataViewModel.List);
+              handleViewModel(MongoDataViewModel.TableList);
             }}
-            disabled={viewModel == MongoDataViewModel.List}
-          >
+            disabled={viewModel == MongoDataViewModel.TableList}>
             <ListIcon />
           </Button>
         </ButtonGroup>
@@ -633,18 +629,18 @@ function MongoTableToolBar(props: {
 
       {showModifyFilter && (
         <Modal
+          disableAutoFocus
+          disableEnforceFocus
           open={showModifyFilter}
           onClose={modalHandleClose((e: EscDownEvent) => {
             e.preventDefault();
             setShowModifyFilter(false);
-          })}
-        >
+          })}>
           <Box
             sx={{ resize: "both", ...modalStyle }}
             width="65%"
             ref={setModalBox}
-            height="45vh"
-          >
+            height="45vh">
             <ModalHeader
               title="Modify Filter"
               handleClose={() => {
@@ -665,18 +661,18 @@ function MongoTableToolBar(props: {
 
       {showModifySort && (
         <Modal
+          disableAutoFocus
+          disableEnforceFocus
           open={showModifySort}
           onClose={modalHandleClose((e: EscDownEvent) => {
             e.preventDefault();
             setShowModifySort(false);
-          })}
-        >
+          })}>
           <Box
             sx={{ resize: "both", ...modalStyle }}
             width="65%"
             ref={setModalBox}
-            height="45vh"
-          >
+            height="45vh">
             <ModalHeader
               handleClose={() => {
                 setShowModifySort(false);
@@ -701,14 +697,12 @@ function MongoTableToolBar(props: {
           onClose={modalHandleClose((e: EscDownEvent) => {
             e.preventDefault();
             setShowAdd(false);
-          })}
-        >
+          })}>
           <Box
             sx={{ resize: "both", ...modalStyle }}
             ref={setAddModalBox}
             width="80%"
-            height="30vh"
-          >
+            height="30vh">
             <ModalHeader
               title="insert data"
               handleClose={() => {
@@ -756,8 +750,7 @@ function MongoTableListContextMenu(props: {
           <MenuItem
             onClick={() => {
               setShowViewJson(true);
-            }}
-          >
+            }}>
             <ListItemIcon>
               <TbJson fontSize="1.5rem" />
             </ListItemIcon>
@@ -769,8 +762,7 @@ function MongoTableListContextMenu(props: {
           <MenuItem
             onClick={() => {
               handleCopyToClipboard(content, showNotification);
-            }}
-          >
+            }}>
             <ListItemIcon>
               <ContentCopyIcon />
             </ListItemIcon>
@@ -783,8 +775,7 @@ function MongoTableListContextMenu(props: {
             const doc = {};
             doc[field] = 1;
             setSort(doc);
-          }}
-        >
+          }}>
           <ListItemIcon>
             <ArrowUpwardIcon />
           </ListItemIcon>
@@ -795,8 +786,7 @@ function MongoTableListContextMenu(props: {
             const doc = {};
             doc[field] = -1;
             setSort(doc);
-          }}
-        >
+          }}>
           <ListItemIcon>
             <ArrowDownwardIcon />
           </ListItemIcon>
@@ -806,8 +796,7 @@ function MongoTableListContextMenu(props: {
         <MenuItem
           onClick={() => {
             setShowFilter(true);
-          }}
-        >
+          }}>
           <ListItemIcon>
             <FilterAltIcon />
           </ListItemIcon>
@@ -817,8 +806,7 @@ function MongoTableListContextMenu(props: {
           <MenuItem
             onClick={() => {
               delOP();
-            }}
-          >
+            }}>
             <ListItemIcon>
               <DeleteForeverIcon />
             </ListItemIcon>
@@ -833,14 +821,12 @@ function MongoTableListContextMenu(props: {
           onClose={modalHandleClose((e: EscDownEvent) => {
             e.preventDefault();
             setShowViewJson(false);
-          })}
-        >
+          })}>
           <Box
             sx={{ resize: "both", ...modalStyle }}
             ref={setModalBox}
             width="75%"
-            height="65vh"
-          >
+            height="65vh">
             <ModalHeader
               title="View Json"
               handleClose={() => {
@@ -858,8 +844,7 @@ function MongoTableListContextMenu(props: {
           onClose={modalHandleClose((e: EscDownEvent) => {
             e.preventDefault();
             setShowFilter(false);
-          })}
-        >
+          })}>
           <Box sx={modalStyle} width="45%">
             <ModalHeader
               title="Quick Filter"
@@ -988,8 +973,7 @@ function MongoTableListMenuFilter(props: {
           onClick={() => {
             setFilter(doc);
             handleClose();
-          }}
-        >
+          }}>
           set
         </Button>
         <Typography color="success">{bsonValue2MongoBson(doc).format()}</Typography>
@@ -1048,8 +1032,7 @@ function JsonEditor(props: {
                 setLoading(false);
               });
             }}
-            loading={loading}
-          >
+            loading={loading}>
             {modifyOPName ? modifyOPName : "set"}
           </Button>
         )}
@@ -1063,8 +1046,7 @@ function JsonEditor(props: {
             }}
             loading={loading}
             variant="outlined"
-            color="error"
-          >
+            color="error">
             delete
           </Button>
         )}
@@ -1078,8 +1060,7 @@ function JsonEditor(props: {
                 return;
               }
               setJsonErrPos(new Position(jsonErr.line, jsonErr.column));
-            }}
-          >
+            }}>
             {jsonErr.msg}
           </Typography>
         )}
@@ -1096,26 +1077,94 @@ function BsonJsonPagination({
   page,
   setPageSize,
   gridColCount,
+  viewModel,
 }) {
+  const [showObjectDoc, setShowObjectDoc] = useState(false);
+
   return (
-    <Stack direction="row" style={{ alignItems: "center", justifyContent: "flex-end" }}>
-      <Typography>
-        result {length} of {total}
-      </Typography>
-      <Pagination
-        page={page}
-        defaultPage={1}
-        count={Math.ceil(total / pageSize)}
-        onChange={(_e, page) => {
-          setPage(page);
-        }}
-      />
-      <SelectPageSize
-        pageSize={pageSize}
-        handleChange={(size) => {
-          setPageSize(size);
-        }}
-        options={[2, 3, 5].map((x) => x * gridColCount)}
+    <Stack
+      direction="row"
+      style={{ alignItems: "center", justifyContent: "space-between" }}>
+      <Stack direction="row" style={{ alignItems: "center" }}>
+        <Typography>
+          result {length} of {total}
+        </Typography>
+        {viewModel == MongoDataViewModel.Object && (
+          <Button
+            variant="text"
+            onClick={() => {
+              setShowObjectDoc(true);
+            }}>
+            object?
+          </Button>
+        )}
+      </Stack>
+
+      <Stack direction="row" style={{ alignItems: "center" }}>
+        <Pagination
+          page={page}
+          defaultPage={1}
+          count={Math.ceil(total / pageSize)}
+          onChange={(_e, page) => {
+            setPage(page);
+          }}
+        />
+        <SelectPageSize
+          pageSize={pageSize}
+          handleChange={(size) => {
+            setPageSize(size);
+          }}
+          options={[2, 3, 5].map((x) => x * gridColCount)}
+        />
+      </Stack>
+
+      {showObjectDoc && (
+        <Modal
+          open={showObjectDoc}
+          onClose={modalHandleClose((e: EscDownEvent) => {
+            e.preventDefault();
+            setShowObjectDoc(false);
+          })}>
+          <Box sx={modalStyle} width="80vw" height="80vh">
+            <ModalHeader
+              title="mongo object"
+              handleClose={() => {
+                setShowObjectDoc(false);
+              }}
+            />
+            <ModalObjectNotice />
+          </Box>
+        </Modal>
+      )}
+    </Stack>
+  );
+}
+
+function ModalObjectNotice() {
+  return (
+    <Stack height="100%">
+      <SimpleFlexEditor
+        language={languageXXX}
+        value={`{
+  _id: '69bb51276b7795c05d1a25b2' as ObjectID, 
+  string_field: 'Hello, world!',
+  int32_field: 123,
+  float_field: 123.45,
+  bool_field: true,
+  date_field: '2026-03-19T01:28:07.000Z' as date,
+  null_field: null,
+  regex_field: /haha/i,
+  binary_field: [1,2] as binary int8_array,
+  binary_field2: [1,2] as binary float32_array,
+  binary_field3: '68656c6c6f' as binary generic,
+  binary_field4: '68656c6c6f' as binary encrypted,
+  binary_field5: '68656c6c6f' as binary sensitive,
+  uuid_field: '0fe7263c138e480ea9e1d3869857dbca' as binary uuid,
+  array_field: [1,2,3],
+  object_field: {nested_key: 'nested_value'},
+  decimal_field: '1' as decimal,
+  timestamp_field: {t: 1773883687,i:1} as timestamp
+}`}
       />
     </Stack>
   );
@@ -1157,6 +1206,7 @@ function MongoTableList(props: {
   useEffect(() => {
     setLastFetchTime(new Date());
   }, [resp]);
+  const { columnWidths, setColumnWidth } = useColumnWidthStore((s) => s);
   const [fetchDur, setFetchDur] = useState(0);
   const handleReload = useCallback(
     async (showOK) => {
@@ -1168,7 +1218,7 @@ function MongoTableList(props: {
             e[keyNotInTable] = index;
           });
           r.fields.forEach((f) => {
-            const width = ColumnWidth.instance.get(f.field);
+            const width = columnWidths[f.field];
             if (width) {
               f["width"] = width;
             }
@@ -1184,8 +1234,7 @@ function MongoTableList(props: {
                     alignItems: "center",
                     cursor: "default",
                   }}
-                  direction="row"
-                >
+                  direction="row">
                   <Typography fontSize={dataGridheaderFontSize}>
                     {field.field}
                   </Typography>
@@ -1206,7 +1255,7 @@ function MongoTableList(props: {
           setLoading(false);
         });
     },
-    [page, pageSize, reloadOP, setLoading, showNotification],
+    [columnWidths, page, pageSize, reloadOP, setLoading, showNotification],
   );
 
   useEffect(() => {
@@ -1362,8 +1411,7 @@ function MongoTableList(props: {
               alignItems: "center",
               justifyContent: "space-between",
               overflow: "auto",
-            }}
-          >
+            }}>
             <Stack style={{ flex: 1, alignItems: "center" }} direction="row">
               <LastFetchTime date={lastFetchTime} />
               <TimeDuration dur={fetchDur} />
@@ -1376,9 +1424,12 @@ function MongoTableList(props: {
       },
     } as Partial<GridSlotsComponent>;
   }, [fetchDur, lastFetchTime, tableName]);
-  const onColumnResize = useCallback(({ colDef, width }) => {
-    ColumnWidth.instance.save(colDef.field, width);
-  }, []);
+  const onColumnResize = useCallback(
+    ({ colDef, width }) => {
+      setColumnWidth(colDef.field, width);
+    },
+    [setColumnWidth],
+  );
   const [modalBox, setModalBox] = useState(null);
   useEffect(() => {
     if (modalBox) {
@@ -1420,20 +1471,18 @@ function MongoTableList(props: {
       )}
       {selectModifyDoc && (
         <Modal
+          disableAutoFocus
+          disableEnforceFocus
           open={!!selectModifyDoc}
           onClose={modalHandleClose((e: EscDownEvent) => {
             e.preventDefault();
             setSelectModifyDoc(null);
-          })}
-          disableAutoFocus
-          disableEnforceFocus
-        >
+          })}>
           <Box
             sx={{ resize: "both", ...modalStyle }}
             width="75%"
             height="60vh"
-            ref={setModalBox}
-          >
+            ref={setModalBox}>
             <ModalHeader
               title="Modify data"
               handleClose={() => {
@@ -1469,8 +1518,7 @@ function MongoTableList(props: {
           onClose={modalHandleClose((e: EscDownEvent) => {
             e.preventDefault();
             setShowExport(false);
-          })}
-        >
+          })}>
           <Box sx={modalStyle} width="60%">
             <ModalHeader
               title="export markdown table"
@@ -1554,8 +1602,7 @@ function MongoTableObject(props: {
         flexGrow: 1,
         flexBasis: "0",
         height: "100px",
-      }}
-    >
+      }}>
       <div
         style={{
           flex: 1,
@@ -1565,8 +1612,7 @@ function MongoTableObject(props: {
           display: "grid",
           gridTemplateColumns: `repeat(${gridColCount}, 1fr)`,
           paddingRight: "1.2rem",
-        }}
-      >
+        }}>
         {docs.docs.map((doc, index) => {
           return (
             <div
@@ -1575,8 +1621,7 @@ function MongoTableObject(props: {
                 height: editorHeight + "px",
                 display: "flex",
                 position: "relative",
-              }}
-            >
+              }}>
               <Typography
                 color="info"
                 style={{
@@ -1585,8 +1630,7 @@ function MongoTableObject(props: {
                   left: 0,
                   zIndex: 14,
                   opacity: 0.5,
-                }}
-              >
+                }}>
                 #{index + 1}
               </Typography>
               <MongoValueEditor
@@ -1622,6 +1666,7 @@ function MongoTableObject(props: {
 
       {/* // here is pagination */}
       <BsonJsonPagination
+        viewModel={viewModel}
         total={docs.count}
         length={docs.docs.length}
         page={page}
@@ -1739,9 +1784,6 @@ function MongoTable(props: { uuid: string; table: string; isTable: boolean }) {
     oldViewModel = viewModel;
   }, [viewModel]);
 
-  const storeKeyGrid = "mongo-table-grid-count";
-  const storeKeyHeight = "mongo-table-editor-height";
-
   const { getSize } = useSizeStore((s) => s);
 
   const reloadTable = useCallback(
@@ -1788,29 +1830,23 @@ function MongoTable(props: { uuid: string; table: string; isTable: boolean }) {
         table={table}
         isTable={isTable}
         extra={
-          viewModel != MongoDataViewModel.List && (
+          viewModel != MongoDataViewModel.TableList && (
             <Stack direction="row">
               <SliderSize
-                min={1}
-                max={5}
                 notice="mongodb editor grid column count"
-                step={1}
                 name="column"
-                storeKey={storeKeyGrid}
+                config={UseSizeConfig.gridCol}
               />
               <SliderSize
                 name="height"
-                min={200}
-                max={1000}
                 notice="mongodb editor height"
-                step={10}
-                storeKey={storeKeyHeight}
+                config={UseSizeConfig.editorHeight}
               />
             </Stack>
           )
         }
       />
-      {viewModel == MongoDataViewModel.List && (
+      {viewModel == MongoDataViewModel.TableList && (
         <MongoTableList
           setFilter={setFilter}
           reloadOP={reloadTable}
@@ -1824,15 +1860,15 @@ function MongoTable(props: { uuid: string; table: string; isTable: boolean }) {
           tableName={table}
         />
       )}
-      {viewModel != MongoDataViewModel.List && (
+      {viewModel != MongoDataViewModel.TableList && (
         <MongoTableObject
           reloadOPDocs={reloadDocs}
           modifyOP={modifyOP}
           deleteOP={deleteOP}
           triggerReload={triggerReload}
           setLoading={setLoading}
-          gridColCount={getSize(storeKeyGrid, 2)}
-          editorHeight={getSize(storeKeyHeight, 300)}
+          gridColCount={getSize(UseSizeConfig.gridCol)}
+          editorHeight={getSize(UseSizeConfig.editorHeight)}
           viewModel={viewModel}
         />
       )}
@@ -1857,8 +1893,7 @@ function MongoTableAdd(props: { addOP: (doc: BSON.Document) => Promise<void> }) 
     <Stack
       style={{
         height: "100%",
-      }}
-    >
+      }}>
       <MongoValueEditor doc={{}} setName="add" setOP={handleAdd} needConfirm={false} />
     </Stack>
   );

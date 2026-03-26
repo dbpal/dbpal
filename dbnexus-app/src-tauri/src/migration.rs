@@ -37,16 +37,6 @@ pub fn migrations() -> Vec<Migration> {
         },
         Migration {
             version: 4,
-            description: "create_column_width",
-            sql: r#"
-                CREATE TABLE IF NOT EXISTS column_width (
-                    name TEXT PRIMARY KEY NOT NULL,
-                    width INTEGER NOT NULL
-                );"#,
-            kind: MigrationKind::Up,
-        },
-        Migration {
-            version: 5,
             description: "create_favorite_sql",
             sql: r#"
             CREATE TABLE IF NOT EXISTS favorite_sql (
@@ -62,19 +52,19 @@ pub fn migrations() -> Vec<Migration> {
             kind: MigrationKind::Up,
         },
         Migration {
-            version: 6,
+            version: 5,
             description: "index_favorite_sql_uuid",
             sql: "CREATE INDEX IF NOT EXISTS index_favorite_sql_uuid ON favorite_sql (uuid);",
             kind: MigrationKind::Up,
         },
         Migration {
-            version: 7,
+            version: 6,
             description: "unique_index_favorite_sql_uuid_name",
             sql: "CREATE UNIQUE INDEX IF NOT EXISTS index_favorite_sql_uuid_name ON favorite_sql (uuid, name);",
             kind: MigrationKind::Up,
         },
         Migration {
-            version: 8,
+            version: 7,
             description: "create table connection",
             sql: r#"
                 CREATE TABLE connection (
@@ -85,36 +75,6 @@ pub fn migrations() -> Vec<Migration> {
                 
             "#,
             kind: MigrationKind::Up,
-        },
-        Migration {
-            version: 9,
-            description: "create table filter",
-            sql: r#"            
-                CREATE table IF NOT EXISTS table_filter ( 
-                    connection_name TEXT NOT NULL,
-                    uuid TEXT NOT NULL,
-                    name TEXT NOT NULL,
-                    filter TEXT not null,
-                    last_modified DATETIME NOT NULL DEFAULT current_timestamp
-                )
-            "#,
-            kind: MigrationKind::Up,
-        },
-        Migration {
-            version: 10,
-            description: "create table filter index",
-            sql: r#"            
-                CREATE INDEX table_filter_uuid_name on table_filter (uuid, name)
-            "#,
-            kind: MigrationKind::Up,
-        },
-        Migration {
-            version: 11,
-            description: "create table filter index",
-            sql: r#"            
-                CREATE UNIQUE INDEX table_filter_unique on table_filter (uuid, name,filter)
-            "#,
-            kind: MigrationKind::Up,
-        },
+        }
     ]
 }

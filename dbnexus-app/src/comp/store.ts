@@ -1,5 +1,5 @@
 import { ReactElement, ReactNode } from "react";
-import { create } from "zustand";
+import { create, StateCreator } from "zustand";
 import { extractConfigNameFromUuid, LLMConfig, TabContent } from "./helper";
 import { AlertColor } from "@mui/material";
 import React from "react";
@@ -50,6 +50,7 @@ export const useMatcher = create<AppConfigState>()(
     },
   ),
 );
+
 interface BoolSwitchState {
   // 使用 Record 代替 Map
   switches: Record<string, boolean>;
@@ -273,7 +274,7 @@ interface SizeState {
   setSize: (key: string, value: number) => void;
 
   // 獲取數值（支援傳入預設值，防止 undefined）
-  getSize: (key: string, defaultValue: number) => number;
+  getSize: (x: UseSizeConfig) => number;
 
   // 批量更新或重置
   resetSizes: (newSizes: Record<string, number>) => void;
@@ -292,8 +293,8 @@ export const useSizeStore = create<SizeState>()(
         })),
 
       // 注意：Zustand 的 state 雖然是響應式的，但 getSize 是一個 Helper 函數
-      getSize: (key, defaultValue) => {
-        return get().sizes[key] ?? defaultValue;
+      getSize: (x: UseSizeConfig) => {
+        return get().sizes[x.key] ?? x.min;
       },
 
       resetSizes: (sizes) => set({ sizes }),
@@ -302,4 +303,133 @@ export const useSizeStore = create<SizeState>()(
       name: "couchbase-ui-sizes",
     },
   ),
+);
+
+export class UseSizeConfig {
+  key: string;
+  min: number;
+  max: number;
+  step?: number;
+
+  static chatMemoryKey: UseSizeConfig = {
+    key: "chat-memory-k",
+    min: 2,
+    max: 20,
+    step: 2,
+  };
+
+  static gridCol: UseSizeConfig = {
+    key: "grid-col",
+    min: 1,
+    max: 6,
+  };
+
+  static editorHeight: UseSizeConfig = {
+    key: "editor-heigh",
+    min: 100,
+    max: 1200,
+    step: 10,
+  };
+
+  static queryLimit: UseSizeConfig = {
+    key: "query-limit",
+    min: 100,
+    max: 10_00_00,
+    step: 1000,
+  };
+}
+
+// 1. Define the shape of our state
+interface ColumnWidthsState {
+  // Key is the column field (string), value is the width (number)
+  columnWidths: Record<string, number>;
+
+  // Action to update a specific column
+  setColumnWidth: (field: string, width: number) => void;
+
+  // Optional: Reset all widths
+  resetWidths: () => void;
+}
+
+export const useColumnWidthStore = create<ColumnWidthsState>()(
+  persist(
+    (set) => ({
+      columnWidths: {},
+
+      setColumnWidth: (field, width) =>
+        set((state) => ({
+          columnWidths: {
+            ...state.columnWidths,
+            [field]: width,
+          },
+        })),
+
+      resetWidths: () => set({ columnWidths: {} }),
+    }),
+    {
+      name: "column-width-storage", // Key in LocalStorage
+    },
+  ),
+);
+
+interface TableFilterState {
+  // Key: "uuid-name" | Value: Unique array of strings
+  filters: Record<string, string[]>;
+
+  // Actions
+  addFilter: (uuid: string, name: string, filterValue: string) => void;
+  removeFilter: (uuid: string, name: string) => void;
+  // Add the definition here
+  getFilter: (uuid: string, name: string) => string[];
+}
+
+interface TableFilterState {
+  filters: Record<string, string[]>;
+  addFilter: (uuid: string, name: string, filterValue: string) => void;
+  removeFilter: (uuid: string, name: string) => void;
+  getFilter: (uuid: string, name: string) => string[];
+}
+
+// Defining the creator separately helps TS resolve the 'Partial' conflict
+const storeApi: StateCreator<TableFilterState, [["zustand/persist", unknown]]> = (
+  set,
+  get,
+) => ({
+  filters: {},
+
+  addFilter: (uuid, name, filterValue) => {
+    const key = `${uuid}-${name}`;
+    set((state) => {
+      const currentList = state.filters[key] || [];
+      if (currentList.includes(filterValue)) return state;
+
+      return {
+        filters: {
+          ...state.filters,
+          [key]: [...currentList, filterValue],
+        },
+      };
+    });
+  },
+
+  getFilter: (uuid, name) => {
+    const key = `${uuid}-${name}`;
+    // get() now correctly recognizes the state structure
+    return get().filters[key] || [];
+  },
+
+  removeFilter: (uuid, name) => {
+    const key = `${uuid}-${name}`;
+    set((state) => {
+      const newFilters = { ...state.filters };
+      delete newFilters[key];
+      return { filters: newFilters };
+    });
+  },
+});
+
+export const useTableFilter = create<TableFilterState>()(
+  persist(storeApi, {
+    name: "table-filter-storage",
+  }),
 );

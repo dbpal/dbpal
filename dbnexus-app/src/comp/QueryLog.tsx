@@ -28,7 +28,6 @@ import {
 import DoneIcon from "@mui/icons-material/Done";
 import CloseIcon from "@mui/icons-material/Close";
 import {
-  ColumnWidth,
   dataGridStyle,
   DataSourceKind,
   getLanguageFromDataSourceKind,
@@ -46,7 +45,12 @@ import {
   SimpleFlexEditor,
   StackRowCenter,
 } from "./CommonComp2.tsx";
-import { useBoolSwitch, useNotification, usePageSize } from "./store.ts";
+import {
+  useBoolSwitch,
+  useColumnWidthStore,
+  useNotification,
+  usePageSize,
+} from "./store.ts";
 
 const initialState: object = {
   sorting: { sortModel: [{ field: "create_at", sort: "desc" }] },
@@ -84,6 +88,7 @@ function QueryLog(props: {
     },
     [setPageSize],
   );
+  const { columnWidths, setColumnWidth } = useColumnWidthStore((s) => s);
 
   const [loading, setLoading] = useState(false);
   let sqlDesc = "sql";
@@ -99,7 +104,7 @@ function QueryLog(props: {
   const columns = [
     {
       field: "create_at",
-      width: ColumnWidth.instance.get("create_at"),
+      width: columnWidths["create_at"],
       renderHeader: () => {
         return "time";
       },
@@ -109,7 +114,7 @@ function QueryLog(props: {
       },
     },
     {
-      width: ColumnWidth.instance.get("success"),
+      width: columnWidths["success"],
       field: "success",
       renderCell: (p) => {
         const success = p.row.success;
@@ -150,12 +155,15 @@ function QueryLog(props: {
     }
   }, [page, pageSize, matchSql, orderBy, executeTimes, showQueryLog, showNotification]);
 
-  const onColumnResize = useCallback(({ colDef, width }) => {
-    const field = colDef.field;
-    if (field == "create_at" || field == "success") {
-      ColumnWidth.instance.save(field, width);
-    }
-  }, []);
+  const onColumnResize = useCallback(
+    ({ colDef, width }) => {
+      const field = colDef.field;
+      if (field == "create_at" || field == "success") {
+        setColumnWidth(field, width);
+      }
+    },
+    [setColumnWidth],
+  );
   const onSortModelChange = useCallback((modal: GridSortModel) => {
     modal = modal.filter((x) => x.sort);
     const orderBy = modal.map((e) => `${e.field} ${e.sort}`).join(" ");
@@ -193,8 +201,7 @@ function QueryLog(props: {
         return (
           <Stack
             direction="row"
-            style={{ flex: 1, justifyContent: "flex-end", overflow: "auto" }}
-          >
+            style={{ flex: 1, justifyContent: "flex-end", overflow: "auto" }}>
             <AppDataGridPagination showPageSelect />
           </Stack>
         );
@@ -215,22 +222,19 @@ function QueryLog(props: {
         maxHeight: "80vh",
       }}
       ref={setDom}
-      elevation={16}
-    >
+      elevation={16}>
       <Stack
         direction="row"
         style={{
           alignItems: "center",
           padding: "0px 4px",
           justifyContent: "space-between",
-        }}
-      >
+        }}>
         <StackRowCenter>
           <IconButton
             onClick={() => {
               setShowQueryLog(false);
-            }}
-          >
+            }}>
             <CloseIcon />
           </IconButton>
           <Tooltip title="double click to open code editor">
@@ -267,8 +271,7 @@ function QueryLog(props: {
                   showNotification("error", "delete failed", e);
                   return;
                 }
-              }}
-            >
+              }}>
               delete
             </Button>
           )}
@@ -316,14 +319,12 @@ function QueryLog(props: {
           onClose={modalHandleClose((e: EscDownEvent) => {
             e.preventDefault();
             setSelectSql(null);
-          })}
-        >
+          })}>
           <Box
             sx={{ resize: "both", ...modalStyle }}
             ref={setModalBox}
             width="60%"
-            height="40vh"
-          >
+            height="40vh">
             <ModalHeader
               title="View SQL"
               handleClose={() => {

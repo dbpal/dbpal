@@ -248,8 +248,7 @@ function TsEditCompilerOptions(props: { handleClose: () => void }) {
                   return;
                 }
                 setJsonErrPos(new Position(jsonErr.line, jsonErr.column));
-              }}
-            >
+              }}>
               {jsonErr.msg}
             </Typography>
           )
@@ -263,8 +262,7 @@ function TsEditCompilerOptions(props: { handleClose: () => void }) {
           onClick={(e) => {
             e.preventDefault();
             openUrl("https://www.typescriptlang.org/tsconfig/#compilerOptions");
-          }}
-        >
+          }}>
           options
         </Link>
       </StackRowCenter>
@@ -287,8 +285,7 @@ function CompilerNotice(props: { compileDir: string; width: string }) {
       <AppMarkDown
         handlePathUrl={(p) => {
           openPath(p);
-        }}
-      >
+        }}>
         {`### typescript compile notice 
   
 1. we use global installed typescript compiler.
@@ -378,8 +375,7 @@ function TypeScript(props: {
             variant="outlined"
             onClick={() => {
               setShowEditOption(true);
-            }}
-          >
+            }}>
             option
           </Button>
         </Tooltip>
@@ -396,8 +392,7 @@ function TypeScript(props: {
               style: { maxWidth: "40vw" },
             },
           }}
-          title=<CompilerNotice width="40vw" compileDir={compileDir} />
-        >
+          title=<CompilerNotice width="40vw" compileDir={compileDir} />>
           <Typography> compile </Typography>
         </Tooltip>
       )}
@@ -407,8 +402,7 @@ function TypeScript(props: {
           onClose={modalHandleClose((e: EscDownEvent) => {
             e.preventDefault();
             setShowEditOption(false);
-          })}
-        >
+          })}>
           <Box sx={modalStyle} width="75%" height="65vh">
             <ModalHeader
               title="edit compiler option"
@@ -463,12 +457,11 @@ function TsCompilerMsg(props: {
             onClick={() => {
               editor.setPosition(line.pos);
               editor.focus();
-            }}
-          >
+            }}>
             {line.msg}
           </Typography>
         );
-      })}{" "}
+      })}
     </Stack>
   );
 }
@@ -498,8 +491,7 @@ function CallCleanFunctions(props: {
             variant="outlined"
             onClick={() => {
               handleCall(index);
-            }}
-          >
+            }}>
             {x.name}
           </Button>
         ))}
@@ -618,18 +610,16 @@ function MongoQuery(props: {
       />
       <Stack
         direction="row"
-        sx={{ alignItems: "center", overflow: "auto", paddingBottom: "0.5rem" }}
-      >
+        sx={{ alignItems: "center", overflow: "auto", paddingBottom: "0.5rem" }}>
         <Tooltip title="execute">
           <IconButton
             onClick={() => {
               handleExecute();
             }}
-            color="primary"
-          >
+            color="primary">
             <PlayArrowIcon />
           </IconButton>
-        </Tooltip>{" "}
+        </Tooltip>
         <TypeScript
           language={language}
           setLanguage={setLanguage}
@@ -661,8 +651,7 @@ function MongoQuery(props: {
             onClick={() => {
               setShowQueryLog((prev) => !prev);
             }}
-            color="primary"
-          >
+            color="primary">
             <EventNoteIcon />
           </IconButton>
         </Tooltip>
@@ -677,8 +666,7 @@ function MongoQuery(props: {
               tooltip: {
                 style: { maxWidth: "45vw" },
               },
-            }}
-          >
+            }}>
             <RiDeleteBack2Line fontSize="1.6rem" />
           </Tooltip>
         )}
@@ -688,8 +676,7 @@ function MongoQuery(props: {
             tooltip: {
               style: { maxWidth: "60vw" },
             },
-          }}
-        >
+          }}>
           <InfoIcon> </InfoIcon>
         </Tooltip>
         <Tooltip
@@ -706,8 +693,7 @@ function MongoQuery(props: {
             tooltip: {
               style: { maxWidth: "40vw" },
             },
-          }}
-        >
+          }}>
           <span>debug???</span>
         </Tooltip>
         <ToggleChatShow do_query={handleExecute} />
@@ -718,8 +704,7 @@ function MongoQuery(props: {
           flexGrow: 1,
           flexShrink: 1,
           flexBasis: 0,
-        }}
-      >
+        }}>
         <Editor
           width="99%"
           height="99%"
@@ -750,10 +735,9 @@ function CleanFunctionDoc() {
       <SyntaxHighlighter
         style={syntaxHightLightTheme(isDarkMode)} // Apply the chosen theme
         language={"javascript"}
-        PreTag="div"
-      >
+        PreTag="div">
         {intervalCleanTest}
-      </SyntaxHighlighter>{" "}
+      </SyntaxHighlighter>
     </Paper>
   );
 }
