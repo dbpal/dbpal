@@ -51,7 +51,12 @@ import {
 } from "./CommonComp.tsx";
 import VisibilityIcon from "@mui/icons-material/Visibility";
 import { AppDataGridPagination, StackRowCenter } from "./CommonComp2.tsx";
-import { useColumnWidthStore, useContextMenu, useNotification } from "./store.ts";
+import {
+  useColumnWidthStore,
+  useContextMenu,
+  useNotification,
+  usePageSize,
+} from "./store.ts";
 
 function RespContextMenu(props: { content; field; setSort; viewInModal }) {
   const { content, field, setSort, viewInModal } = props;
@@ -125,6 +130,10 @@ function QueryResp(props: { data: MuiDataGridData }) {
   queryRespFix(data, columnWidths);
 
   const setting = useContext(SettingContext);
+
+  const [page, setPage] = useState(0);
+
+  const { setPageSize, sql: pageSize } = usePageSize((s) => s);
 
   const [viewInModal, setViewInModal] = useState<object>(null);
   const onColumnResize = useCallback(
@@ -248,6 +257,11 @@ function QueryResp(props: { data: MuiDataGridData }) {
             rows={data.data}
             filterMode="client" // 使用客户端过滤
             onColumnResize={onColumnResize}
+            paginationModel={{ page, pageSize }}
+            onPaginationModelChange={(e) => {
+              setPage(e.page);
+              setPageSize("sql", e.pageSize);
+            }}
           />
         </Stack>
       )}
