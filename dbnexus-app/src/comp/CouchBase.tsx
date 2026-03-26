@@ -3,7 +3,6 @@ import {
   Button,
   ButtonGroup,
   Chip,
-  Divider,
   IconButton,
   InputAdornment,
   Modal,
@@ -12,6 +11,7 @@ import {
   TextField,
   Tooltip,
   Typography,
+  useTheme,
 } from "@mui/material";
 import ArrowCircleDownRoundedIcon from "@mui/icons-material/ArrowCircleDownRounded";
 import EventNoteIcon from "@mui/icons-material/EventNote";
@@ -21,6 +21,7 @@ import {
   SetFilterSort,
   SimpleFlexEditor,
   SliderSize,
+  syntaxHightLightTheme,
   TableAddButton,
   ToggleChatShow,
 } from "./CommonComp2.tsx";
@@ -31,6 +32,7 @@ import {
   generateRandomString,
   getEditorText,
   handleCopyToClipboard,
+  isDarkStr,
   MuiDataGridData,
   QueryLogHandler,
   resizeHandlerSize,
@@ -39,6 +41,7 @@ import {
   shrinkAble,
   validJson,
 } from "./helper.ts";
+
 import DeleteForeverIcon from "@mui/icons-material/DeleteForever";
 import PlayArrowIcon from "@mui/icons-material/PlayArrow";
 import FilterAltIcon from "@mui/icons-material/FilterAlt";
@@ -63,6 +66,7 @@ import { QueryResp } from "./QueryResp.tsx";
 import { useNotification, usePageSize, useSizeStore } from "./store.ts";
 import { persist } from "zustand/middleware";
 import { create } from "zustand";
+import SyntaxHighlighter from "react-syntax-highlighter";
 
 export enum CBQueryViewMode {
   Table = "table",
@@ -608,7 +612,7 @@ function CouchBaseQuery(props: {
   handleEditor: (ed: editor.IStandaloneCodeEditor) => void;
 }) {
   const { uuid, value, handleEditor } = props;
-  const [resp, setResp] = useState<object[]>([]);
+  const [resp, setResp] = useState<string[]>([]);
   const [loading, setLoading] = useState(false);
   const gridColCountKey = "editor-grid-col-count";
   const { getSize } = useSizeStore((s) => s);
@@ -622,7 +626,7 @@ function CouchBaseQuery(props: {
   const [showExport, setShowExport] = useState(false);
   const { viewMode, setViewMode } = useCBQueryViewStore((s) => s);
   const [tableResp, setTableResp] = useState<MuiDataGridData>(null);
-
+  const theme = useTheme();
   useEffect(() => {
     if (viewMode != CBQueryViewMode.Table) {
       return;
@@ -641,8 +645,8 @@ function CouchBaseQuery(props: {
           return String(x);
       }
     }
-    for (const row of resp) {
-      let obj = row;
+
+    for (let obj of resp.map((x) => JSON.parse(x))) {
       {
         const keys = Object.keys(obj);
         if (keys.length == 1 && typeof obj[keys[0]] == "object") {
@@ -690,7 +694,7 @@ function CouchBaseQuery(props: {
           break;
         }
         case "data": {
-          const xs = event.data.map((x) => JSON.parse(x[0]));
+          const xs = event.data.map((x) => x[0]);
           setResp((resp) => {
             return [...resp, ...xs];
           });
@@ -881,12 +885,20 @@ function CouchBaseQuery(props: {
               paddingRight: "1.2rem",
             }}
           >
-            {resp.map((obj, index) => {
+            {resp.map((value, index) => {
               return (
-                <div key={index}>
-                  <div> {JSON.stringify(obj)} </div>
-                  <Divider />
-                </div>
+                <SyntaxHighlighter
+                  key={index}
+                  style={syntaxHightLightTheme(isDarkStr(theme.palette.mode))} // Apply the chosen theme
+                  language="json"
+                  customStyle={{
+                    borderRadius: "8px",
+                    fontSize: "14px",
+                    margin: "10px 0",
+                  }}
+                >
+                  {value}
+                </SyntaxHighlighter>
               );
             })}
           </div>

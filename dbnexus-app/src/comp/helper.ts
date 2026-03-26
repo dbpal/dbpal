@@ -48,11 +48,8 @@ import Database, { QueryResult } from "@tauri-apps/plugin-sql";
 import { WebviewWindow } from "@tauri-apps/api/webviewWindow";
 import { platform } from "@tauri-apps/plugin-os";
 import themelist from "../../monaco-themes/themes/themelist.json";
-
 import { PassWordManager } from "./Common";
-
 import prettyMilliseconds from "pretty-ms";
-import { emitTo } from "@tauri-apps/api/event";
 import { cancelTask } from "./handlers";
 
 const pageSizeOptions = [10, 20, 50, 100];
@@ -585,19 +582,6 @@ class DocsAndCount {
   ) {}
 }
 
-function notifySettingChange() {
-  // due to this issue https://github.com/tauri-apps/tauri/issues/14750
-  setTimeout(
-    () => {
-      emitTo(
-        { label: WebviewWindow.getCurrent().label, kind: "WebviewWindow" },
-        settingChangeEvent,
-      );
-    },
-    Math.random() * (isWindows() ? 1000 : 100),
-  );
-}
-
 class UserSettingAppearance {
   fontSize: number = 15;
   fontWeight: string = "normal";
@@ -607,9 +591,10 @@ class UserSettingAppearance {
   datagridRowHeightFactor = 2.5;
   intputVariant: string = "standard";
   static key = "dbpal-appearance-setting";
+  theme: string = "light";
+
   async save() {
     await appStore.set(UserSettingAppearance.key, this);
-    notifySettingChange();
   }
   // 可能和以前的设置冲突
   datagridRowHeight() {
@@ -639,7 +624,6 @@ class UserSettingExport {
   static key = "dbpal-export-setting";
   async save() {
     await appStore.set(UserSettingExport.key, this);
-    notifySettingChange();
   }
   static async get(): Promise<UserSettingExport> {
     try {
@@ -661,7 +645,6 @@ class UserSettingEditor {
   static key = "dbpal-editor-setting";
   async save() {
     await appStore.set(UserSettingEditor.key, this);
-    notifySettingChange();
   }
 
   static async get(): Promise<UserSettingEditor> {
@@ -680,11 +663,16 @@ class UserSetting {
   appearance: UserSettingAppearance;
   export: UserSettingExport;
   misc: UserSettingMisc;
+
   editorTheme(): string {
     if (this.editor.theme) {
       return this.editor.theme;
     }
-    return isDarkTheme() ? "vs-dark" : "light";
+    return this.isDarkTheme() ? "vs-dark" : "light";
+  }
+
+  isDarkTheme() {
+    return isDarkStr(this.appearance.theme);
   }
 
   static async load() {
@@ -706,18 +694,11 @@ class UserSetting {
   }
 }
 
-let appTheme = "light";
-
-function isDarkTheme() {
-  return appTheme == "dark";
-}
-
 class UserSettingMisc {
   static key = "dbpal-misc-setting";
   autoStart: boolean = false;
   async save() {
     await appStore.set(UserSettingMisc.key, this);
-    notifySettingChange();
   }
 
   static async get(): Promise<UserSettingMisc> {
@@ -962,7 +943,6 @@ function getLanguageFromDataSourceKind(kind: DataSourceKind): string {
   }
 }
 
-const settingChangeEvent = "setting-change";
 const dataGridheaderFontSize = "0.8rem";
 
 enum TableType {
@@ -1086,11 +1066,15 @@ const MatcherContext = createContext<(x: string) => boolean>(() => true);
 
 const saveQueryKey = "query-4k9zF7m5p3T1H2";
 
+function isDarkStr(x: string) {
+  return x == "dark";
+}
+
 export {
+  isDarkStr,
   saveQueryKey,
   appDatabase,
   appStore,
-  appTheme,
   backendCompletionItemToEditor,
   ChatShowContext,
   ColorFn,
@@ -1117,7 +1101,6 @@ export {
   handleCopyToClipboard,
   hexToString,
   hexTryToString,
-  isDarkTheme,
   isMacOs,
   isTypeLargeText,
   isWindows,
@@ -1140,7 +1123,6 @@ export {
   SaveDomSizes,
   secondConfirm,
   TabContext,
-  settingChangeEvent,
   SettingContext,
   shrinkAble,
   stringToHex,
@@ -1192,29 +1174,6 @@ async function webviewWIndowInit() {
         });
       }
     });
-  }
-  currentWebview.theme().then(async (theme) => {
-    if (!theme) {
-      return;
-    }
-    appTheme = theme;
-    notifySettingChange();
-  });
-  currentWebview.onThemeChanged(async (msg) => {
-    appTheme = msg.payload;
-    notifySettingChange();
-  });
-  if (platform() == "linux") {
-    // https://github.com/tauri-apps/tauri/issues/9427
-    setInterval(() => {
-      currentWebview.theme().then((theme) => {
-        if (appTheme == theme) {
-          return;
-        }
-        appTheme = theme;
-        notifySettingChange();
-      });
-    }, 3000);
   }
 
   if (!import.meta.env.DEV) {

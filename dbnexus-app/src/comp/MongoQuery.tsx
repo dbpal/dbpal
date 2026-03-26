@@ -12,6 +12,7 @@ import {
   TextField,
   Tooltip,
   Typography,
+  useTheme,
 } from "@mui/material";
 
 import PlayArrowIcon from "@mui/icons-material/PlayArrow";
@@ -740,10 +741,14 @@ function MongoQuery(props: {
 }
 
 function CleanFunctionDoc() {
+  const theme = useTheme();
+
+  // 判断是否为深色模式
+  const isDarkMode = theme.palette.mode === "dark";
   return (
     <Paper style={{ maxWidth: 900, overflow: "auto" }}>
       <SyntaxHighlighter
-        style={syntaxHightLightTheme()} // Apply the chosen theme
+        style={syntaxHightLightTheme(isDarkMode)} // Apply the chosen theme
         language={"javascript"}
         PreTag="div"
       >

@@ -18,7 +18,7 @@ import { IoMdInformationCircleOutline } from "react-icons/io";
 import CancelIcon from "@mui/icons-material/Cancel";
 import ChatBubbleOutlineIcon from "@mui/icons-material/ChatBubbleOutline";
 import ContentCopyIcon from "@mui/icons-material/ContentCopy";
-
+import { MdOutlinePermDataSetting } from "react-icons/md";
 import CircleIcon from "@mui/icons-material/Circle";
 import {
   Autocomplete,
@@ -54,7 +54,6 @@ import {
   generateRandomString,
   getLanguageFromDataSourceKind,
   handleCopyToClipboard,
-  isDarkTheme,
   isMacOs,
   KeyPressed,
   quoteDatabaseIdentifier,
@@ -899,8 +898,8 @@ function AppMarkDown(props: {
   );
 }
 
-function syntaxHightLightTheme() {
-  return isDarkTheme() ? oneDark : oneLight;
+function syntaxHightLightTheme(isDark: boolean) {
+  return isDark ? oneDark : oneLight;
 }
 
 function UrlDocument(props: { url: string }) {
@@ -1068,7 +1067,11 @@ function SliderSize(props: {
         </Stack>
       </Paper>
     >
-      <Chip label={`${name ? name + ":" : ""} ${size}`} color="info" />
+      {size ? (
+        <Chip label={`${name ? name + ":" : ""} ${size}`} color="info" />
+      ) : (
+        <MdOutlinePermDataSetting />
+      )}
     </Tooltip>
   );
 }

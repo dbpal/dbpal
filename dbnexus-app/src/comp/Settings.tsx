@@ -39,7 +39,6 @@ import { HexColorPicker } from "react-colorful";
 import { openPath, openUrl } from "@tauri-apps/plugin-opener";
 import {
   ErrAndLoc,
-  ColorFn,
   SettingContext,
   UserSetting,
   validJson,
@@ -47,16 +46,14 @@ import {
   UserSettingAppearance,
   UserSettingExport,
   UserSettingEditor,
-  settingChangeEvent,
   UserSettingMisc,
   dataGridheaderFontSize,
-  isDarkTheme,
-  appTheme,
   appStore,
   LLMConfig,
   shrinkAble,
   LoggerLevel,
   prettyMs,
+  isDarkStr,
 } from "./helper";
 import { Position } from "monaco-editor";
 import { invoke } from "@tauri-apps/api/core";
@@ -70,58 +67,42 @@ import {
 } from "@tauri-apps/plugin-autostart";
 import { message } from "@tauri-apps/plugin-dialog";
 import { Editor } from "@monaco-editor/react";
-import { listen } from "@tauri-apps/api/event";
 import { EscDownEvent, modalHandleClose, modalStyle } from "./Common";
 import { LogLevelSelection, ModalHeader } from "./CommonComp";
 import { appLogDir } from "@tauri-apps/api/path";
 import { useLLMConfig, useNotification } from "./store";
+import { WebviewWindow } from "@tauri-apps/api/webviewWindow";
+import { platform } from "@tauri-apps/plugin-os";
 
 function AppearanceSetting() {
   const { showNotification } = useNotification((s) => s);
   const [allFonts, setAllFonts] = useState<string[]>([]);
-  const [showEditBgColor, setShowEditBgColor] = useState(false);
   const [fontWeight, setFontWeight] = useState("");
   const [fontSize, setFontSize] = useState(15);
-  const [bgColor, setBgColor] = useState("");
-  const [bgColorErr, setBgColorErr] = useState("");
+  const [darkBgColor, setDarkBgColor] = useState("");
+  const [lightBgColor, setLightBgColor] = useState("");
   const [fontFamily, setFontFamily] = useState("");
   const [datagridRowHeightFactor, setDatagridRowHeightFactor] = useState("");
   const [intputVariant, setInputVariant] = useState("standard");
   const [modified, setModified] = useState(false);
   const [oldSetting, setOldSetting] = useState<UserSettingAppearance>(null);
+  const [theme, setTheme] = useState("");
 
   useEffect(() => {
     UserSettingAppearance.get().then((setting) => {
       setFontWeight(setting.fontWeight);
       setFontSize(setting.fontSize);
-      setBgColor(isDarkTheme() ? setting.darkBgColor : setting.lightBgColor);
+      setDarkBgColor(setting.darkBgColor);
+      setLightBgColor(setting.lightBgColor);
       setFontFamily(setting.fontFamily);
       setDatagridRowHeightFactor(setting.datagridRowHeightFactor + "");
       setInputVariant(setting.intputVariant);
+      setTheme(setting.theme);
       setOldSetting(setting);
     });
   }, []);
 
   const [zoom, setZoom] = useState(1);
-  useEffect(() => {
-    if (!bgColor) {
-      setBgColorErr("");
-      return;
-    }
-    if (!ColorFn.isColor(bgColor)) {
-      setBgColorErr("not a valid color");
-      return;
-    }
-    if (
-      (isDarkTheme() && ColorFn.isLightHex(bgColor)) ||
-      (!isDarkTheme() && !ColorFn.isLightHex(bgColor))
-    ) {
-      setBgColorErr(`please set a '${appTheme}' background color`);
-      return;
-    }
-
-    setBgColorErr("");
-  }, [bgColor]);
 
   useEffect(() => {
     const key = "zoom";
@@ -156,21 +137,24 @@ function AppearanceSetting() {
       fontFamily,
       fontSize,
       fontWeight,
-      darkBgColor: isDarkTheme() ? bgColor : oldSetting.darkBgColor,
-      lightBgColor: !isDarkTheme() ? bgColor : oldSetting.lightBgColor,
+      darkBgColor: darkBgColor,
+      lightBgColor: lightBgColor,
       datagridRowHeightFactor: parseFloat(datagridRowHeightFactor),
       intputVariant,
+      theme,
     } as unknown as UserSettingAppearance;
     Object.setPrototypeOf(x, UserSettingAppearance.prototype);
     return x;
   }, [
-    bgColor,
+    darkBgColor,
     datagridRowHeightFactor,
     fontFamily,
     fontSize,
     fontWeight,
     intputVariant,
+    lightBgColor,
     oldSetting,
+    theme,
   ]);
 
   useEffect(() => {
@@ -185,7 +169,6 @@ function AppearanceSetting() {
       const x = makeConfig();
       x.save();
       showNotification("success", "save appearance setting success");
-
       setOldSetting(x);
     } catch (e) {
       showNotification("error", "save appearance setting failed", e);
@@ -275,54 +258,22 @@ function AppearanceSetting() {
           <Typography> ?? </Typography>
         </Tooltip>
       </Stack>
-      <Stack direction="row" sx={{ alignItems: "center" }}>
-        <Typography width={headerSize}>background color </Typography>
-        <div style={{ position: "relative" }}>
-          <IconButton
-            color={showEditBgColor ? "success" : "primary"}
-            onClick={() => {
-              setShowEditBgColor((e) => !e);
-            }}
-          >
-            <EditIcon> </EditIcon>
-          </IconButton>
-          {showEditBgColor && (
-            <HexColorPicker
-              color={bgColor}
-              onChange={(newValue) => {
-                setBgColor(newValue);
-              }}
-              style={{ position: "absolute", zIndex: 10, top: "3rem" }}
-            />
-          )}
-        </div>
 
-        <TextField
-          value={bgColor}
-          onChange={(e) => {
-            setBgColor(e.target.value);
-          }}
-          style={{ width: "10rem" }}
-          error={!!bgColorErr}
-          slotProps={{
-            input: {
-              endAdornment: bgColor && (
-                <InputAdornment position="end">
-                  <IconButton
-                    onClick={() => {
-                      setBgColor("");
-                    }}
-                    edge="end"
-                  >
-                    <ClearIcon fontSize="small" />
-                  </IconButton>
-                </InputAdornment>
-              ),
-            },
+      <Stack direction="row" sx={{ alignItems: "center" }}>
+        <Typography width={headerSize}>theme </Typography>
+        <Autocomplete
+          options={["light", "dark", "system"]}
+          style={{ width: "12rem" }}
+          value={theme}
+          renderInput={(params) => <TextField {...params} label={`theme`} />}
+          freeSolo={false}
+          onChange={(_, name) => {
+            setTheme(name);
           }}
         />
-        {bgColorErr && <Typography color="error"> {bgColorErr} </Typography>}
       </Stack>
+      <SetBgColor theme="dark" bgColor={darkBgColor} setBgColor={setDarkBgColor} />
+      <SetBgColor theme="light" bgColor={lightBgColor} setBgColor={setLightBgColor} />
 
       <Stack direction="row" sx={{ alignItems: "center" }}>
         <Typography width={headerSize}>input variant</Typography>
@@ -354,6 +305,58 @@ function AppearanceSetting() {
           {modified ? <IconModifed /> : undefined} save
         </Button>
       </Stack>
+    </Stack>
+  );
+}
+
+function SetBgColor({ bgColor, setBgColor, theme }) {
+  const [showEditBgColor, setShowEditBgColor] = useState(false);
+  return (
+    <Stack direction="row" sx={{ alignItems: "center" }}>
+      <Typography width={headerSize}> {theme} background color </Typography>
+      <div style={{ position: "relative" }}>
+        <IconButton
+          color={showEditBgColor ? "success" : "primary"}
+          onClick={() => {
+            setShowEditBgColor((e) => !e);
+          }}
+        >
+          <EditIcon> </EditIcon>
+        </IconButton>
+        {showEditBgColor && (
+          <HexColorPicker
+            color={bgColor}
+            onChange={(newValue) => {
+              setBgColor(newValue);
+            }}
+            style={{ position: "absolute", zIndex: 10, top: "3rem" }}
+          />
+        )}
+      </div>
+
+      <TextField
+        value={bgColor}
+        onChange={(e) => {
+          setBgColor(e.target.value);
+        }}
+        style={{ width: "10rem" }}
+        slotProps={{
+          input: {
+            endAdornment: bgColor && (
+              <InputAdornment position="end">
+                <IconButton
+                  onClick={() => {
+                    setBgColor("");
+                  }}
+                  edge="end"
+                >
+                  <ClearIcon fontSize="small" />
+                </IconButton>
+              </InputAdornment>
+            ),
+          },
+        }}
+      />
     </Stack>
   );
 }
@@ -903,8 +906,8 @@ function MiscSetting() {
 
   useEffect(() => {
     UserSettingMisc.get().then((setting) => {
-      setOldSetting(setting);
       setAutoStart(setting.autoStart);
+      setOldSetting(setting);
     });
   }, []);
 
@@ -914,6 +917,7 @@ function MiscSetting() {
     }
     const x = { autoStart } as UserSettingMisc;
     Object.setPrototypeOf(x, UserSettingMisc.prototype);
+    console.log("!!!!!!!!!!!!!!!!!!!", x, oldSetting);
     if (!isEqual(x, oldSetting)) {
       x.save()
         .then(() => {
@@ -1270,10 +1274,10 @@ function makeComponents(
   return components;
 }
 
-const makeTheme = (s: UserSetting) => {
+const makeTheme = (s: UserSetting, isDarkTheme: boolean) => {
   const { appearance } = s;
   let color: string;
-  if (isDarkTheme()) {
+  if (isDarkTheme) {
     color = appearance.darkBgColor ? appearance.darkBgColor : "#000";
   } else {
     color = appearance.lightBgColor ? appearance.lightBgColor : "#fff";
@@ -1287,7 +1291,7 @@ const makeTheme = (s: UserSetting) => {
       fontFamily,
     },
     palette: {
-      mode: isDarkTheme() ? "dark" : "light",
+      mode: isDarkTheme ? "dark" : "light",
       background: {
         default: color,
         paper: color,
@@ -1304,6 +1308,8 @@ const makeTheme = (s: UserSetting) => {
 function SettingProvider(props: { children: ReactNode }) {
   const { children } = props;
   const [setting, setSetting] = useState<UserSetting>(null);
+
+  const [osTheme, setOsTheme] = useState("light");
   const reload = async () => {
     const setting = await UserSetting.load();
     setSetting(setting);
@@ -1332,8 +1338,37 @@ function SettingProvider(props: { children: ReactNode }) {
   }, []);
 
   useEffect(() => {
-    const unlisten = listen(settingChangeEvent, () => {
-      reload();
+    const currentWebview = WebviewWindow.getCurrent();
+    currentWebview.theme().then(async (theme) => {
+      if (!theme) {
+        return;
+      }
+      setOsTheme(theme);
+    });
+    currentWebview.onThemeChanged(async (event) => {
+      setOsTheme(event.payload);
+    });
+
+    if (platform() == "linux") {
+      // https://github.com/tauri-apps/tauri/issues/9427
+      setInterval(() => {
+        currentWebview.theme().then((theme) => {
+          setOsTheme(theme);
+        });
+      }, 3000);
+    }
+
+    const unlisten = appStore.onChange((key) => {
+      if (
+        [
+          UserSettingAppearance.key,
+          UserSettingEditor.key,
+          UserSettingExport.key,
+          UserSettingMisc.key,
+        ].includes(key)
+      ) {
+        reload();
+      }
     });
     return () => {
       unlisten.then((callback) => {
@@ -1342,9 +1377,21 @@ function SettingProvider(props: { children: ReactNode }) {
     };
   }, []);
 
+  useEffect(() => {
+    reload();
+  }, [osTheme]);
+
+  const isDark = () => {
+    console.log(setting.appearance);
+    return (
+      isDarkStr(setting.appearance.theme) ||
+      (setting.appearance.theme == "system" && isDarkStr(osTheme))
+    );
+  };
+
   return (
     setting && (
-      <ThemeProvider theme={makeTheme(setting)}>
+      <ThemeProvider theme={makeTheme(setting, isDark())}>
         <CssBaseline />
         <SettingContext.Provider value={setting}>{children}</SettingContext.Provider>
       </ThemeProvider>
