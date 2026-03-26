@@ -5,6 +5,49 @@ import { AlertColor } from "@mui/material";
 import React from "react";
 import { persist } from "zustand/middleware";
 
+import { GridColumnVisibilityModel } from "@mui/x-data-grid";
+
+interface TableColumnVisible {
+  // Key format: "tableName:uuid" -> Visibility Model
+  configs: Record<string, GridColumnVisibilityModel>;
+
+  // Action to update visibility for a specific table instance
+  setColumnVisibility: (
+    tableName: string,
+    uuid: string,
+    model: GridColumnVisibilityModel,
+  ) => void;
+
+  // Helper to get visibility (returns empty object if not found)
+  getColumnVisibility: (tableName: string, uuid: string) => GridColumnVisibilityModel;
+}
+
+export const useTableColumnVisibleStore = create<TableColumnVisible>()(
+  persist(
+    (set, get) => ({
+      configs: {},
+
+      setColumnVisibility: (tableName, uuid, model) => {
+        const key = `${tableName}:${uuid}`;
+        set((state) => ({
+          configs: {
+            ...state.configs,
+            [key]: model,
+          },
+        }));
+      },
+
+      getColumnVisibility: (tableName, uuid) => {
+        const key = `${tableName}:${uuid}`;
+        return get().configs[key] || {};
+      },
+    }),
+    {
+      name: "mui-datagrid-configs", // LocalStorage key
+    },
+  ),
+);
+
 export const useConfirmMsg = create<{
   confirmMsgs: Map<string, string>; // 明确 Map 的键值类型
   addConfirmMsg: (id: string, msg: string) => void;
@@ -432,4 +475,42 @@ export const useTableFilter = create<TableFilterState>()(
   persist(storeApi, {
     name: "table-filter-storage",
   }),
+);
+
+// 1. 定义数据项接口 (对应 SQL 表列)
+interface ElementSize {
+  width: number | null;
+  height: number | null;
+}
+
+// 2. 定义 Store 的状态与操作接口
+interface ElementSizeState {
+  // 使用对象存储，Key 为 name，Value 为数据项，模拟主键索引
+  elements: Record<string, ElementSize>;
+
+  // 操作方法：增删改
+  setElement: (name, element: ElementSize) => void;
+}
+
+// 3. 创建支持持久化的 Store
+export const useElementSizeStore = create<ElementSizeState>()(
+  persist(
+    (set) => ({
+      elements: {}, // 初始状态
+
+      // 实现设置/更新逻辑 (模拟 INSERT OR REPLACE)
+      setElement: (name, element) =>
+        set((state) => ({
+          elements: {
+            ...state.elements,
+            [name]: element,
+          },
+        })),
+
+      // 实现删除逻辑 (模拟 DELETE)
+    }),
+    {
+      name: "element-size-storage", // 存储在 localStorage 中的 Key
+    },
+  ),
 );

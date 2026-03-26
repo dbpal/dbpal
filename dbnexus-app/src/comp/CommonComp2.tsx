@@ -57,7 +57,6 @@ import {
   isMacOs,
   KeyPressed,
   quoteDatabaseIdentifier,
-  saveAndSetSize,
   secondConfirm,
   SettingContext,
   TabActiveContext,
@@ -96,6 +95,7 @@ import {
 } from "@mui/x-data-grid";
 import { CustomToolbar } from "./CustomToolBar";
 import {
+  useElementSizeStore,
   useNotification,
   UseSizeConfig,
   useSizeStore,
@@ -1428,12 +1428,7 @@ function SetFilterSort(props: {
   const [modalBox, setModalBox] = useState(null);
   const { showNotification } = useNotification((s) => s);
   const setting = useContext(SettingContext);
-  useEffect(() => {
-    if (modalBox) {
-      const clean = saveAndSetSize(modalBox, "where-sort");
-      return clean;
-    }
-  }, [modalBox]);
+
   const [selectFilter, setSelectFilter] = useState("");
   const { getFilter, addFilter, removeFilter } = useTableFilter((s) => s);
   const filters = getFilter(uuid, tableName);
@@ -1485,6 +1480,8 @@ function SetFilterSort(props: {
           }}
           language={getLanguageFromDataSourceKind(kind)}
         />
+
+        <ListenElementSize name="where-sort" dom={modalBox} set="both" />
 
         <StackRowCenter>
           <Button onClick={handleSet}>set {label}</Button>
@@ -1578,6 +1575,58 @@ function CopySql(props: { sql; style?: CSSProperties }) {
 function IconModifed() {
   return <CircleIcon color="warning" style={{ fontSize: "0.9rem" }} />;
 }
+
+function ListenElementSize(props: {
+  dom: Element;
+  name: string;
+  set: "height" | "width" | "both";
+}) {
+  const { elements, setElement } = useElementSizeStore((s) => s);
+  const { dom, name, set } = props;
+
+  useEffect(() => {
+    if (!dom) {
+      return;
+    }
+    const e = new ResizeObserver((en) => {
+      const height = en[0].target.clientHeight;
+      const width = en[0].target.clientWidth;
+      if (width && height) {
+        setElement(name, { width, height });
+      }
+    });
+
+    e.observe(dom);
+    return () => {
+      e.disconnect();
+    };
+  }, [dom, name, setElement]);
+
+  useEffect(() => {
+    if (!dom) {
+      return;
+    }
+    const size = elements[name];
+    if (size) {
+      const div = dom as HTMLDivElement;
+      if (set == "height" || set == "both") {
+        if (size.height) {
+          div.style.height = size.height + "px";
+        }
+      }
+      if (set == "width" || set == "both") {
+        if (size.width) {
+          div.style.width = size.width + "px";
+        }
+      }
+    }
+
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [dom]);
+
+  return <> </>;
+}
+
 export {
   CreateDatabase,
   CreateSchema,
@@ -1607,4 +1656,5 @@ export {
   ToggleChatShow,
   CopySql,
   IconModifed,
+  ListenElementSize,
 };

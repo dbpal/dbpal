@@ -46,7 +46,6 @@ import {
   hexToString,
   hexTryToString,
   ErrAndLoc,
-  saveAndSetSize,
   SettingContext,
   stringToHex,
   validJson,
@@ -75,6 +74,7 @@ import {
   LastFetchTime,
   QueryStatus,
   StackRowCenter,
+  ListenElementSize,
 } from "./CommonComp2.tsx";
 import { invoke } from "@tauri-apps/api/core";
 import { showTable } from "./handlers.ts";
@@ -86,6 +86,7 @@ import {
   usePageSize,
   UseSizeConfig,
   useSizeStore,
+  useTableColumnVisibleStore,
 } from "./store.ts";
 
 class RedisZsetHashModifyReq {
@@ -923,12 +924,7 @@ function RedisSetTable(props: { setKey: string; uuid: string }) {
   }, [handleDel, setUpMenu, setting.export.csvDelimiter, setting.export.includeHeader]);
 
   const [modifyModalBox, setModifyModalBox] = useState<HTMLDivElement | null>(null);
-  useEffect(() => {
-    if (modifyModalBox) {
-      const clean = saveAndSetSize(modifyModalBox, "redis-edit");
-      return clean;
-    }
-  }, [modifyModalBox]);
+
   const slots = useMemo(() => {
     return {
       columnMenu: AppColumnMenu,
@@ -959,6 +955,9 @@ function RedisSetTable(props: { setKey: string; uuid: string }) {
       },
     } as Partial<GridSlotsComponent>;
   }, [fetchDur, lastFetchTime, setKey]);
+  const { getColumnVisibility, setColumnVisibility } = useTableColumnVisibleStore(
+    (s) => s,
+  );
   return (
     <Stack style={{ height: "100%" }}>
       <QueryStatus status={queryStatus} />
@@ -1001,6 +1000,10 @@ function RedisSetTable(props: { setKey: string; uuid: string }) {
 
       {resp && (
         <DataGrid
+          columnVisibilityModel={getColumnVisibility(uuid, setKey)}
+          onColumnVisibilityModelChange={(e) => {
+            setColumnVisibility(uuid, setKey, e);
+          }}
           slots={slots}
           slotProps={slotProps}
           rows={resp.data}
@@ -1014,6 +1017,8 @@ function RedisSetTable(props: { setKey: string; uuid: string }) {
           loading={loading}
         />
       )}
+
+      <ListenElementSize dom={modifyModalBox} set="both" name="modify-set-table" />
 
       {selectRow && (
         <Modal
@@ -1140,15 +1145,13 @@ function AddTable(props: {
   const { redisKey, redisType, uuid } = props;
   const [showAdd, setShowAdd] = useState(false);
   const [addModalBox, setAddModalBox] = useState<HTMLDivElement | null>(null);
-  useEffect(() => {
-    if (addModalBox) {
-      const clean = saveAndSetSize(addModalBox, "redis-add-" + redisType);
-      return clean;
-    }
-  }, [addModalBox, redisType]);
+
   return (
     <>
       <TableAddButton handleAdd={() => setShowAdd(true)} />
+
+      <ListenElementSize dom={addModalBox} set="both" name={"redis-add-" + redisType} />
+
       {showAdd && (
         <Modal
           open={showAdd}
@@ -1362,12 +1365,7 @@ function RedisListTable(props: { listKey: string; uuid: string }) {
   );
 
   const [modifyModalBox, setModifyModalBox] = useState<HTMLDivElement | null>(null);
-  useEffect(() => {
-    if (modifyModalBox) {
-      const clean = saveAndSetSize(modifyModalBox, "redis-edit");
-      return clean;
-    }
-  }, [modifyModalBox]);
+
   const slots = useMemo(() => {
     return {
       columnMenu: AppColumnMenu,
@@ -1415,6 +1413,9 @@ function RedisListTable(props: { listKey: string; uuid: string }) {
       },
     } as Partial<GridSlotsComponent>;
   }, [fetchDur, handleReload, lastFetchTime, listKey, loading, uuid]);
+  const { getColumnVisibility, setColumnVisibility } = useTableColumnVisibleStore(
+    (s) => s,
+  );
   return (
     <Stack style={{ height: "100%" }}>
       <QueryStatus status={queryStatus} />
@@ -1436,9 +1437,16 @@ function RedisListTable(props: { listKey: string; uuid: string }) {
           sortingMode="server"
           paginationMode="client"
           style={dataGridStyle}
+          columnVisibilityModel={getColumnVisibility(uuid, listKey)}
+          onColumnVisibilityModelChange={(e) => {
+            setColumnVisibility(uuid, listKey, e);
+          }}
           onSortModelChange={onSortModelChange}
         />
       )}
+
+      <ListenElementSize dom={modifyModalBox} name="redis-modify-list" set="both" />
+
       {selectRow && (
         <Modal
           open={!!selectRow}
@@ -1676,12 +1684,6 @@ function RedisZsetTable(props: { uuid: string; zsetKey: string }) {
   }, [handleDel, setUpMenu, setting.export.csvDelimiter, setting.export.includeHeader]);
 
   const [modifyModalBox, setModifyModalBox] = useState<HTMLDivElement | null>(null);
-  useEffect(() => {
-    if (modifyModalBox) {
-      const clean = saveAndSetSize(modifyModalBox, "redis-edit");
-      return clean;
-    }
-  }, [modifyModalBox]);
 
   const onColumnResize = useCallback(
     ({ colDef, width }) => {
@@ -1724,6 +1726,9 @@ function RedisZsetTable(props: { uuid: string; zsetKey: string }) {
       },
     } as Partial<GridSlotsComponent>;
   }, [fetchDur, lastFetchTime, zsetKey]);
+  const { getColumnVisibility, setColumnVisibility } = useTableColumnVisibleStore(
+    (s) => s,
+  );
   return (
     <Stack style={{ height: "100%" }}>
       <QueryStatus status={queryStatus} />
@@ -1824,8 +1829,14 @@ function RedisZsetTable(props: { uuid: string; zsetKey: string }) {
         <AddTable uuid={uuid} redisKey={zsetKey} redisType={RedisTableType.Zset} />
       </StackRowCenter>
 
+      <ListenElementSize dom={modifyModalBox} name="redis-modify-zset" set="both" />
+
       {resp && (
         <DataGrid
+          columnVisibilityModel={getColumnVisibility(uuid, zsetKey)}
+          onColumnVisibilityModelChange={(e) => {
+            setColumnVisibility(uuid, zsetKey, e);
+          }}
           slots={slots}
           onColumnResize={onColumnResize}
           loading={loading}
@@ -2053,12 +2064,7 @@ function RedisHashTable(props: { hashKey: string; uuid: string }) {
   }, [handleDel, setUpMenu, setting.export.csvDelimiter, setting.export.includeHeader]);
 
   const [modifyModalBox, setModifyModalBox] = useState<HTMLDivElement | null>(null);
-  useEffect(() => {
-    if (modifyModalBox) {
-      const clean = saveAndSetSize(modifyModalBox, "redis-edit");
-      return clean;
-    }
-  }, [modifyModalBox]);
+
   const onColumnResize = useCallback(
     ({ colDef, width }) => {
       if (colDef.field == "key") {
@@ -2066,6 +2072,9 @@ function RedisHashTable(props: { hashKey: string; uuid: string }) {
       }
     },
     [setColumnWidth],
+  );
+  const { getColumnVisibility, setColumnVisibility } = useTableColumnVisibleStore(
+    (s) => s,
   );
   const slots = useMemo(() => {
     return {
@@ -2144,8 +2153,14 @@ function RedisHashTable(props: { hashKey: string; uuid: string }) {
         <AddTable uuid={uuid} redisKey={hashKey} redisType={RedisTableType.Hash} />
       </StackRowCenter>
 
+      <ListenElementSize dom={modifyModalBox} name="redis-modify-hash" set="both" />
+
       {resp && (
         <DataGrid
+          columnVisibilityModel={getColumnVisibility(uuid, hashKey)}
+          onColumnVisibilityModelChange={(e) => {
+            setColumnVisibility(uuid, hashKey, e);
+          }}
           slots={slots}
           onColumnResize={onColumnResize}
           loading={loading}

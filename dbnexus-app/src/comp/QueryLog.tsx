@@ -33,7 +33,6 @@ import {
   getLanguageFromDataSourceKind,
   pageSizeOptions,
   QueryLogHandler,
-  saveAndSetSize,
   saveQueryKey,
   secondConfirm,
   TabActiveContext,
@@ -42,6 +41,7 @@ import { ModalHeader, ResizeParentHeight } from "./CommonComp.tsx";
 import { BsFillLightbulbFill } from "react-icons/bs";
 import {
   AppDataGridPagination,
+  ListenElementSize,
   SimpleFlexEditor,
   StackRowCenter,
 } from "./CommonComp2.tsx";
@@ -170,12 +170,7 @@ function QueryLog(props: {
     setOrderBy(orderBy);
   }, []);
   const [modalBox, setModalBox] = useState(null);
-  useEffect(() => {
-    if (modalBox) {
-      const clean = saveAndSetSize(modalBox, "query-sql");
-      return clean;
-    }
-  }, [modalBox]);
+
   const vis = useContext(TabActiveContext);
 
   useEffect(() => {
@@ -312,6 +307,8 @@ function QueryLog(props: {
       {dom && (
         <ResizeParentHeight box={dom} min={200} saveHeightName="query-log-height" />
       )}
+
+      <ListenElementSize dom={modalBox} set="both" name="query-log-show-sql" />
 
       {selectSql && (
         <Modal

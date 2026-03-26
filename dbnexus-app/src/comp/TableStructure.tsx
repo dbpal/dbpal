@@ -14,7 +14,6 @@ import {
   DataSourceKind,
   extractFieldAndIDFromMouseEvent,
   handleCopyToClipboard,
-  saveAndSetSize,
   secondConfirm,
   SettingContext,
 } from "./helper";
@@ -70,6 +69,7 @@ import {
   ColumnNullness,
   CopySql,
   CreateIndexReq,
+  ListenElementSize,
   SqlDefaultValue,
   StackRowCenter,
   TypeSelect,
@@ -297,12 +297,6 @@ function ColumnsStructure(props: {
   const [modalBox, setModalBox] = useState(null);
 
   useEffect(() => {
-    if (modalBox) {
-      const clean = saveAndSetSize(modalBox, "table-column", "width");
-      return clean;
-    }
-  }, [modalBox]);
-  useEffect(() => {
     if (row) {
       if ([DataSourceKind.Sqlite, DataSourceKind.LibSql].includes(kind)) {
         showNotification("warning", `${kind} not support modify column`);
@@ -356,6 +350,8 @@ function ColumnsStructure(props: {
         style={dataGridStyle}
         loading={loading}
       />
+
+      <ListenElementSize dom={modalBox} name="table-add-column" set="both" />
 
       {showAdd && (
         <Modal
@@ -645,16 +641,7 @@ function IndexesStructure(props: {
   }, []);
 
   const [modalBox, setModalBox] = useState(null);
-  useEffect(() => {
-    if (modalBox) {
-      const c = saveAndSetSize(
-        modalBox,
-        "create-index" + (kind == DataSourceKind.Mongo ? "-mongo" : "-other"),
-        kind == DataSourceKind.Mongo ? "both" : "width",
-      );
-      return c;
-    }
-  }, [kind, modalBox]);
+
   const slots = useMemo(() => {
     return {
       pagination: AppDataGridPagination,
@@ -718,7 +705,7 @@ function IndexesStructure(props: {
           </Box>
         </Modal>
       )}
-
+      <ListenElementSize dom={modalBox} name="add-index" set="both" />
       {showAdd && kind != DataSourceKind.Mongo && (
         <Modal
           open={showAdd}
@@ -1415,12 +1402,7 @@ function TriggersStructure(props: {
   }, []);
 
   const [modalBox, setModalBox] = useState<HTMLDivElement | null>(null);
-  useEffect(() => {
-    if (modalBox) {
-      const c = saveAndSetSize(modalBox, "redis-edit");
-      return c;
-    }
-  }, [modalBox]);
+
   const slots = useMemo(() => {
     return {
       pagination: () => {
@@ -1458,6 +1440,9 @@ function TriggersStructure(props: {
         slots={slots}
         loading={loading}
       />
+
+      <ListenElementSize dom={modalBox} set="both" name="trigger-detail" />
+
       {row && (
         <Modal
           open={!!row}

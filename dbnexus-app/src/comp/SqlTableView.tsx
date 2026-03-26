@@ -56,7 +56,6 @@ import {
   handleCopyToClipboard,
   isTypeLargeText,
   ErrAndLoc,
-  saveAndSetSize,
   secondConfirm,
   SettingContext,
   validJson,
@@ -89,6 +88,7 @@ import {
   AppDataGridPagination,
   AppDataGridToolBar,
   LastFetchTime,
+  ListenElementSize,
   QueryStatus,
   SetFilterSort,
   SimpleFlexEditor,
@@ -113,6 +113,7 @@ import {
   usePageSize,
   UseSizeConfig,
   useSizeStore,
+  useTableColumnVisibleStore,
 } from "./store";
 
 const confirmAboutPrimary = async (
@@ -696,42 +697,13 @@ function SqlTableView(props: {
   ]);
 
   const [editInModalBox, setEditInModalBox] = useState(null);
-  useEffect(() => {
-    if (editInModalBox) {
-      const x1 = saveAndSetSize(editInModalBox, "edit-cell");
-      return () => {
-        x1();
-      };
-    }
-  }, [editInModalBox]);
+
   const [editRowInModalBox, setEditRowInModalBox] = useState(null);
-  useEffect(() => {
-    if (editRowInModalBox) {
-      const x1 = saveAndSetSize(editRowInModalBox, "edit-row", "width");
-      return () => {
-        x1();
-      };
-    }
-  }, [editRowInModalBox]);
+
   const [viewInModalBox, setViewInModalBox] = useState(null);
-  useEffect(() => {
-    if (viewInModalBox) {
-      const x1 = saveAndSetSize(viewInModalBox, "view-row-in-modal");
-      return () => {
-        x1();
-      };
-    }
-  }, [viewInModalBox]);
 
   const [addModalBox, setAddModalBox] = useState(null);
-  useEffect(() => {
-    if (addModalBox) {
-      const x1 = saveAndSetSize(addModalBox, "table-insert");
-      return () => {
-        x1();
-      };
-    }
-  }, [addModalBox]);
+
   const slots = useMemo(() => {
     return {
       columnMenu: AppColumnMenu,
@@ -893,6 +865,10 @@ function SqlTableView(props: {
   };
 
   const sortModel = clientModel ? "client" : "server";
+
+  const { getColumnVisibility, setColumnVisibility } = useTableColumnVisibleStore(
+    (s) => s,
+  );
   return (
     <Stack style={{ height: "100%" }}>
       <QueryStatus status={queryStatus} />
@@ -957,6 +933,10 @@ function SqlTableView(props: {
         onCellClick={() => {
           setClickedField("");
         }}
+        columnVisibilityModel={getColumnVisibility(uuid, tableName)}
+        onColumnVisibilityModelChange={(e) => {
+          setColumnVisibility(uuid, tableName, e);
+        }}
         slotProps={slotProps}
         style={dataGridStyle}
         getRowId={getRowId}
@@ -975,6 +955,19 @@ function SqlTableView(props: {
         onProcessRowUpdateError={onProcessRowUpdateError}
         loading={loading}
       />
+
+      <ListenElementSize dom={viewInModalBox} set="both" name="view-in-model" />
+
+      <ListenElementSize dom={addModalBox} set="both" name="view-in-model" />
+
+      <ListenElementSize dom={editInModalBox} set="both" name="table-edit-in-modal" />
+
+      <ListenElementSize
+        dom={editRowInModalBox}
+        set="both"
+        name="table-edit-row-in-modal"
+      />
+
       {viewInModal && (
         <Modal
           open={!!viewInModal}
@@ -1320,20 +1313,13 @@ function Menu(props: {
     viewInModal,
     isTable,
   } = props;
+  const quoteFn = quoteDatabaseIdentifier(kind);
   const { showNotification } = useNotification((s) => s);
   const [showFilter, setShowFilter] = useState(false);
-  const quoteFn = quoteDatabaseIdentifier(kind);
   const [showClone, setShowClone] = useState(false);
   const quoteField = quoteFn(field);
   const [cloneModalBox, setCloneModalBox] = useState(null);
-  useEffect(() => {
-    if (cloneModalBox) {
-      const clean = saveAndSetSize(cloneModalBox, "clone-data", "width");
-      return () => {
-        clean();
-      };
-    }
-  }, [cloneModalBox]);
+
   return (
     <div>
       <MenuList>
@@ -1444,6 +1430,8 @@ function Menu(props: {
           </MenuItem>
         )}
       </MenuList>
+
+      <ListenElementSize dom={cloneModalBox} set="width" name="table-edit-clone" />
 
       {showClone && (
         <Modal

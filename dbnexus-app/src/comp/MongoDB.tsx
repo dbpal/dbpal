@@ -70,7 +70,6 @@ import {
   DocsAndCount,
   handleCopyToClipboard,
   ErrAndLoc,
-  saveAndSetSize,
   SettingContext,
   validJson,
   MuiDataGridData,
@@ -86,6 +85,7 @@ import {
   AppDataGridToolBar,
   EditorBar,
   LastFetchTime,
+  ListenElementSize,
   SimpleFlexEditor,
   SliderSize,
   StackRowCenter,
@@ -101,6 +101,7 @@ import {
   usePageSize,
   UseSizeConfig,
   useSizeStore,
+  useTableColumnVisibleStore,
 } from "./store";
 enum MongoDataViewModel {
   TableList,
@@ -512,22 +513,8 @@ function MongoTableToolBar(props: {
     handleViewModel(viewModel);
   }, [handleViewModel, viewModel]);
   const [modalBox, setModalBox] = useState(null);
-  useEffect(() => {
-    if (modalBox) {
-      const c = saveAndSetSize(modalBox, "mongo-filter-sort");
-      return c;
-    }
-  }, [modalBox]);
 
   const [addModalBox, setAddModalBox] = useState(null);
-  useEffect(() => {
-    if (addModalBox) {
-      const x1 = saveAndSetSize(addModalBox, "table-insert");
-      return () => {
-        x1();
-      };
-    }
-  }, [addModalBox]);
 
   return (
     <Stack
@@ -627,6 +614,8 @@ function MongoTableToolBar(props: {
         </ButtonGroup>
       </StackRowCenter>
 
+      <ListenElementSize dom={modalBox} name="mongo-filter" set="both" />
+
       {showModifyFilter && (
         <Modal
           disableAutoFocus
@@ -691,6 +680,8 @@ function MongoTableToolBar(props: {
         </Modal>
       )}
 
+      <ListenElementSize dom={addModalBox} set="both" name="mongo-add-box" />
+
       {showAdd && (
         <Modal
           open={showAdd}
@@ -735,13 +726,6 @@ function MongoTableListContextMenu(props: {
   const { showNotification } = useNotification((s) => s);
   const [showViewJson, setShowViewJson] = useState(false);
   const [modalBox, setModalBox] = useState(null);
-
-  useEffect(() => {
-    if (modalBox) {
-      const c = saveAndSetSize(modalBox, "mongo--list-view-json");
-      return c;
-    }
-  }, [modalBox]);
 
   return (
     <div>
@@ -814,6 +798,8 @@ function MongoTableListContextMenu(props: {
           </MenuItem>
         )}
       </MenuList>
+
+      <ListenElementSize dom={modalBox} set="both" name="mongo-table-modify" />
 
       {showViewJson && (
         <Modal
@@ -1181,6 +1167,7 @@ function MongoTableList(props: {
   loading: boolean;
   setLoading;
   tableName: string;
+  uuid;
 }) {
   const {
     reloadOP,
@@ -1193,6 +1180,7 @@ function MongoTableList(props: {
     loading,
     tableName,
     setLoading,
+    uuid,
   } = props;
   const [page, setPage] = useState(0);
   const { mongo: pageSize, setPageSize } = usePageSize((s) => s);
@@ -1431,12 +1419,9 @@ function MongoTableList(props: {
     [setColumnWidth],
   );
   const [modalBox, setModalBox] = useState(null);
-  useEffect(() => {
-    if (modalBox) {
-      const clean = saveAndSetSize(modalBox, "mongo-list-modify");
-      return clean;
-    }
-  }, [modalBox]);
+  const { getColumnVisibility, setColumnVisibility } = useTableColumnVisibleStore(
+    (s) => s,
+  );
   return (
     <Stack style={{ height: "100%" }}>
       {resp && (
@@ -1450,6 +1435,10 @@ function MongoTableList(props: {
           }}
           onCellClick={() => {
             setClickedField("");
+          }}
+          columnVisibilityModel={getColumnVisibility(uuid, tableName)}
+          onColumnVisibilityModelChange={(e) => {
+            setColumnVisibility(uuid, tableName, e);
           }}
           loading={loading}
           slots={slots}
@@ -1469,6 +1458,9 @@ function MongoTableList(props: {
           onColumnResize={onColumnResize}
         />
       )}
+
+      <ListenElementSize dom={modalBox} set="both" name="mongo-table-modify-doc" />
+
       {selectModifyDoc && (
         <Modal
           disableAutoFocus
@@ -1858,6 +1850,7 @@ function MongoTable(props: { uuid: string; table: string; isTable: boolean }) {
           loading={loading}
           setLoading={setLoading}
           tableName={table}
+          uuid={uuid}
         />
       )}
       {viewModel != MongoDataViewModel.TableList && (

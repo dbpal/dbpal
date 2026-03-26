@@ -65,7 +65,6 @@ import {
   prettyMs,
   QueryLogHandler,
   resizeHandlerSize,
-  SaveDomSizes,
   secondConfirm,
   SettingContext,
   shrinkAble,
@@ -86,6 +85,7 @@ import {
   useConnLoading,
   useConnected,
   useContextMenu,
+  useElementSizeStore,
   useNotification,
 } from "./store";
 
@@ -843,14 +843,15 @@ function ResizeParentHeight(props: {
   saveHeightName;
 }) {
   const { box, min, saveHeightName } = props;
-
+  const { elements, setElement } = useElementSizeStore((s) => s);
   useEffect(() => {
-    SaveDomSizes.getSize(saveHeightName).then((e) => {
-      if (e && e.height) {
-        box.style.height = e.height + "px";
-      }
-    });
+    const size = elements[saveHeightName];
+    if (size && size.height) {
+      box.style.height = size.height + "px";
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [box.style, saveHeightName]);
+
   useEffect(() => {}, []);
   const handleDown = useCallback(
     (e: React.MouseEvent<HTMLDivElement>) => {
@@ -862,7 +863,7 @@ function ResizeParentHeight(props: {
         if (newH < min) {
           newH = min;
         }
-        SaveDomSizes.saveSize(saveHeightName, { height: newH });
+        setElement(saveHeightName, { height: newH, width: null });
         box.style.height = newH + "px";
       };
       const onUp = () => {
@@ -872,7 +873,7 @@ function ResizeParentHeight(props: {
       document.addEventListener("mousemove", onMove);
       document.addEventListener("mouseup", onUp);
     },
-    [box.offsetHeight, box.style, min, saveHeightName],
+    [box.offsetHeight, box.style, min, saveHeightName, setElement],
   );
 
   return (

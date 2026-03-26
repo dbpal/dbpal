@@ -18,7 +18,6 @@ import {
 import {
   handleCopyToClipboard,
   SettingContext,
-  saveAndSetSize,
   MuiDataGridData,
   extractFieldAndIDFromMouseEvent,
   dataGridStyle,
@@ -34,7 +33,6 @@ import React, {
   CSSProperties,
   useCallback,
   useContext,
-  useEffect,
   useMemo,
   useState,
 } from "react";
@@ -50,7 +48,11 @@ import {
   ViewRowInModal,
 } from "./CommonComp.tsx";
 import VisibilityIcon from "@mui/icons-material/Visibility";
-import { AppDataGridPagination, StackRowCenter } from "./CommonComp2.tsx";
+import {
+  AppDataGridPagination,
+  ListenElementSize,
+  StackRowCenter,
+} from "./CommonComp2.tsx";
 import {
   useColumnWidthStore,
   useContextMenu,
@@ -193,14 +195,6 @@ function QueryResp(props: { data: MuiDataGridData }) {
     setSortModel(e);
   }, []);
   const [viewInModalBox, setViewInModalBox] = useState(null);
-  useEffect(() => {
-    if (viewInModalBox) {
-      const x1 = saveAndSetSize(viewInModalBox, "view-row-in-modal");
-      return () => {
-        x1();
-      };
-    }
-  }, [viewInModalBox]);
 
   const slots = useMemo(() => {
     return {
@@ -225,6 +219,7 @@ function QueryResp(props: { data: MuiDataGridData }) {
       },
     } as Partial<GridSlotsComponent>;
   }, [data.data.length]);
+
   return (
     <div
       style={{
@@ -265,6 +260,12 @@ function QueryResp(props: { data: MuiDataGridData }) {
           />
         </Stack>
       )}
+
+      <ListenElementSize
+        dom={viewInModalBox}
+        set="both"
+        name="query-resp-view-in-modals"
+      />
 
       {viewInModal && (
         <Modal

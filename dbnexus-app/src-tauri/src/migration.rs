@@ -26,17 +26,6 @@ pub fn migrations() -> Vec<Migration> {
         },
         Migration {
             version: 3,
-            description: "create_element_size",
-            sql: r#"
-            CREATE TABLE IF NOT EXISTS element_size (
-                name TEXT PRIMARY KEY NOT NULL,
-                width INTEGER NULL,
-                height INTEGER NULL
-            );"#,
-            kind: MigrationKind::Up,
-        },
-        Migration {
-            version: 4,
             description: "create_favorite_sql",
             sql: r#"
             CREATE TABLE IF NOT EXISTS favorite_sql (
@@ -52,19 +41,19 @@ pub fn migrations() -> Vec<Migration> {
             kind: MigrationKind::Up,
         },
         Migration {
-            version: 5,
+            version: 4,
             description: "index_favorite_sql_uuid",
             sql: "CREATE INDEX IF NOT EXISTS index_favorite_sql_uuid ON favorite_sql (uuid);",
             kind: MigrationKind::Up,
         },
         Migration {
-            version: 6,
+            version: 5,
             description: "unique_index_favorite_sql_uuid_name",
             sql: "CREATE UNIQUE INDEX IF NOT EXISTS index_favorite_sql_uuid_name ON favorite_sql (uuid, name);",
             kind: MigrationKind::Up,
         },
         Migration {
-            version: 7,
+            version: 6,
             description: "create table connection",
             sql: r#"
                 CREATE TABLE connection (

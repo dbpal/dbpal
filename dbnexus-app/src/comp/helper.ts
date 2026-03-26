@@ -365,25 +365,6 @@ function isTypeLargeText(s: string): boolean {
   );
 }
 
-class SaveDomSizes {
-  static async saveSize(key: string, size: UISize) {
-    return appDatabase.execute(
-      "replace into element_size(name, width, height) values(?,?,?)",
-      [key, Math.ceil(size.width), Math.ceil(size.height)],
-    );
-  }
-  static async getSize(key: string): Promise<undefined | UISize> {
-    return appDatabase
-      .select("select width, height from element_size where name = ?", [key])
-      .then((xs) => {
-        if (xs instanceof Array) {
-          return xs[0];
-        }
-        return xs;
-      });
-  }
-}
-
 class FavoriteSql {
   constructor(
     public uuid: string,
@@ -506,44 +487,6 @@ interface ErrAndLoc {
 
 function validJson(s: string): Promise<ErrAndLoc | null> {
   return invoke<ErrAndLoc | null>("valid_json", { jsonStr: s });
-}
-
-type UISize = {
-  width?: number;
-  height?: number;
-};
-
-function saveAndSetSize(
-  dom: Element,
-  key: string,
-  set: "height" | "width" | "both" = "both",
-): () => void {
-  const e = new ResizeObserver((en) => {
-    const height = en[0].target.clientHeight;
-    const width = en[0].target.clientWidth;
-    if (width && height) {
-      SaveDomSizes.saveSize(key, { width, height });
-    }
-  });
-  SaveDomSizes.getSize(key).then((size) => {
-    if (size) {
-      const div = dom as HTMLDivElement;
-      if (set == "height" || set == "both") {
-        if (size.height) {
-          div.style.height = size.height + "px";
-        }
-      }
-      if (set == "width" || set == "both") {
-        if (size.width) {
-          div.style.width = size.width + "px";
-        }
-      }
-    }
-  });
-  e.observe(dom);
-  return () => {
-    e.disconnect();
-  };
 }
 
 class DocsAndCount {
@@ -1092,8 +1035,6 @@ export {
   registeredThemes,
   resizeHandlerSize,
   rustResultOk,
-  saveAndSetSize,
-  SaveDomSizes,
   secondConfirm,
   TabContext,
   SettingContext,

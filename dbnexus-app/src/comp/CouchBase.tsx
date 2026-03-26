@@ -16,6 +16,7 @@ import {
 import ArrowCircleDownRoundedIcon from "@mui/icons-material/ArrowCircleDownRounded";
 import EventNoteIcon from "@mui/icons-material/EventNote";
 import {
+  ListenElementSize,
   LoadStoreFile,
   QueryStatus,
   SetFilterSort,
@@ -36,7 +37,6 @@ import {
   MuiDataGridData,
   QueryLogHandler,
   resizeHandlerSize,
-  saveAndSetSize,
   secondConfirm,
   shrinkAble,
   validJson,
@@ -118,15 +118,6 @@ function CouchBaseTable(props: { uuid: string; table: string }) {
   const [showAdd, setShowAdd] = useState(false);
   const [addModalBox, setAddModalBox] = useState(null);
 
-  useEffect(() => {
-    if (addModalBox) {
-      const clean = saveAndSetSize(addModalBox, "couchbase-table-insert");
-      return () => {
-        clean();
-      };
-    }
-  }, [addModalBox]);
-
   const handleReload = useCallback(() => {
     const c = new Channel<QueryEvent>((event) => {
       switch (event.kind) {
@@ -189,15 +180,13 @@ function CouchBaseTable(props: { uuid: string; table: string }) {
       <QueryStatus status={queryStatus} />
       <Stack
         direction="row"
-        style={{ alignItems: "center", justifyContent: "space-between" }}
-      >
+        style={{ alignItems: "center", justifyContent: "space-between" }}>
         <Stack direction="row" style={{ alignItems: "center" }}>
           <Button
             onClick={() => {
               handleReload();
             }}
-            loading={loading}
-          >
+            loading={loading}>
             reload
           </Button>
           <Tooltip title="filter something like 'age=18'">
@@ -255,16 +244,14 @@ function CouchBaseTable(props: { uuid: string; table: string }) {
           display: "grid",
           gridTemplateColumns: `repeat(${getSize(UseSizeConfig.gridCol)}, 1fr)`,
           paddingRight: "1.2rem",
-        }}
-      >
+        }}>
         {resp.data.map((item) => (
           <div
             style={{
               height: getSize(UseSizeConfig.editorHeight) + "px",
               position: "relative",
             }}
-            key={item.id}
-          >
+            key={item.id}>
             <CouchBaseEditor
               docid={item.id}
               handleValueButton="modify"
@@ -308,8 +295,7 @@ function CouchBaseTable(props: { uuid: string; table: string }) {
       </div>
       <Stack
         direction="row"
-        style={{ alignItems: "center", justifyContent: "space-between" }}
-      >
+        style={{ alignItems: "center", justifyContent: "space-between" }}>
         <Stack direction="row" style={{ alignItems: "center" }}>
           <Typography color="info">
             result {resp.data.length} of {resp.count}
@@ -368,20 +354,20 @@ function CouchBaseTable(props: { uuid: string; table: string }) {
         />
       )}
 
+      <ListenElementSize dom={addModalBox} name="couch-addbox" set="both" />
+
       {showAdd && (
         <Modal
           open={showAdd}
           onClose={modalHandleClose((e: EscDownEvent) => {
             e.preventDefault();
             setShowAdd(false);
-          })}
-        >
+          })}>
           <Box
             sx={{ resize: "both", ...modalStyle }}
             ref={setAddModalBox}
             width="80%"
-            height="30vh"
-          >
+            height="30vh">
             <ModalHeader
               title="insert data"
               handleClose={() => {
@@ -488,8 +474,7 @@ function CouchBaseEditor(props: {
                     return;
                   }
                   setJsonErrPos(new Position(jsonErr.line, jsonErr.column));
-                }}
-              >
+                }}>
                 {jsonErr.msg}
               </Typography>
             )}
@@ -504,8 +489,7 @@ function CouchBaseEditor(props: {
               onClick={() => {
                 doModify();
               }}
-              loading={loading}
-            >
+              loading={loading}>
               {handleValueButton}
             </Button>
           </>
@@ -515,8 +499,7 @@ function CouchBaseEditor(props: {
             onClick={() => {
               doDelete();
             }}
-            color="warning"
-          >
+            color="warning">
             <DeleteForeverIcon />
           </Button>
         )}
@@ -528,8 +511,7 @@ function CouchBaseEditor(props: {
               style={{ cursor: "pointer", alignContent: "center" }}
               onClick={() => {
                 handleCopyToClipboard(docid, showNotification);
-              }}
-            >
+              }}>
               #{docid}
             </Typography>
           </Tooltip>
@@ -551,8 +533,7 @@ function CouchBaseInsert({ uuid, table }) {
           onClick={() => {
             setId(generateRandomString());
           }}
-          variant="text"
-        >
+          variant="text">
           gen
         </Button>
         <TextField
@@ -569,8 +550,7 @@ function CouchBaseInsert({ uuid, table }) {
                     onClick={() => {
                       setId("");
                     }}
-                    edge="end"
-                  >
+                    edge="end">
                     <ClearIcon fontSize="small" />
                   </IconButton>
                 </InputAdornment>
@@ -725,15 +705,13 @@ function CouchBaseQuery(props: {
     <PanelGroup
       style={{ height: "100%" }}
       direction="vertical"
-      autoSaveId="couchbase-query"
-    >
+      autoSaveId="couchbase-query">
       <Panel
         collapsible
         collapsedSize={0}
         minSize={10}
         defaultSize={35}
-        style={{ display: "flex", flexDirection: "column" }}
-      >
+        style={{ display: "flex", flexDirection: "column" }}>
         <QueryLog
           showQueryLog={showQueryLog}
           setShowQueryLog={setShowQueryLog}
@@ -749,8 +727,7 @@ function CouchBaseQuery(props: {
             justifyContent: "space-between",
             paddingBottom: "0.5rem",
             overflow: "auto",
-          }}
-        >
+          }}>
           <Stack direction="row" style={{ alignItems: "center" }}>
             <Tooltip title="query">
               <IconButton
@@ -758,8 +735,7 @@ function CouchBaseQuery(props: {
                 onClick={() => {
                   handleQuery();
                 }}
-                color="primary"
-              >
+                color="primary">
                 <PlayArrowIcon />
               </IconButton>
             </Tooltip>
@@ -780,8 +756,7 @@ function CouchBaseQuery(props: {
                   disabled={e == viewMode}
                   onClick={() => {
                     setViewMode(e);
-                  }}
-                >
+                  }}>
                   {e}
                 </Button>
               ))}
@@ -799,8 +774,7 @@ function CouchBaseQuery(props: {
                   }
                   setShowExport(true);
                 }}
-                color="primary"
-              >
+                color="primary">
                 <ArrowCircleDownRoundedIcon />
               </IconButton>
             </Tooltip>
@@ -809,8 +783,7 @@ function CouchBaseQuery(props: {
                 onClick={() => {
                   setShowQueryLog((prev) => !prev);
                 }}
-                color="primary"
-              >
+                color="primary">
                 <EventNoteIcon />
               </IconButton>
             </Tooltip>
@@ -867,8 +840,7 @@ function CouchBaseQuery(props: {
               display: "grid",
               gridTemplateColumns: `repeat(${getSize(UseSizeConfig.gridCol)}, 1fr)`,
               paddingRight: "1.2rem",
-            }}
-          >
+            }}>
             {resp.map((value, index) => {
               return (
                 <SyntaxHighlighter
@@ -879,8 +851,7 @@ function CouchBaseQuery(props: {
                     borderRadius: "8px",
                     fontSize: "14px",
                     margin: "10px 0",
-                  }}
-                >
+                  }}>
                   {value}
                 </SyntaxHighlighter>
               );
@@ -897,8 +868,7 @@ function CouchBaseQuery(props: {
           onClose={modalHandleClose((e: EscDownEvent) => {
             e.preventDefault();
             setShowExport(false);
-          })}
-        >
+          })}>
           <Box sx={modalStyle} width="45%">
             <ExportView
               supportKind={["json", "jsonline"]}
