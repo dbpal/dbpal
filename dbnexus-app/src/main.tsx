@@ -20,15 +20,6 @@ currentWebview.onCloseRequested(async (event) => {
     event.preventDefault();
     return;
   }
-  const views = await WebviewWindow.getAll();
-  for (const view of views) {
-    if (view.label != currentWebview.label) {
-      // close all webview
-      await view.close();
-    }
-    // no need close current view just not calling `event.preventDefault()`
-    //  await currentWebview.close();
-  }
 });
 
 if (import.meta.env.DEV) {

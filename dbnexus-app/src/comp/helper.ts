@@ -1,3 +1,5 @@
+console.log("run helper");
+
 import { MonacoEditor } from "./Editor";
 import * as monaco from "monaco-editor";
 import { editor, languages, Position } from "monaco-editor";
@@ -29,7 +31,13 @@ function prettyMs(x: number) {
   return prettyMilliseconds(x);
 }
 
-let appDatabase: Database = await Database.load("sqlite:dbpal.sqlite.db");
+let appDatabase: Database = await (async () => {
+  try {
+    return await Database.load("sqlite:dbpal.sqlite.db");
+  } catch (e) {
+    console.error("load databas error:", e);
+  }
+})();
 
 function rustResultOk(x: any): boolean {
   if (x instanceof Array) {
@@ -542,6 +550,8 @@ class UserSettingEditor {
     }
   }
 }
+
+console.log("finish helper1111.");
 
 class UserSetting {
   editor: UserSettingEditor;
