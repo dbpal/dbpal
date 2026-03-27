@@ -38,7 +38,7 @@ import {
   useRef,
   useState,
 } from "react";
-import { Editor } from "./helper";
+
 import { BSON, EJSON } from "bson";
 import { TbJson } from "react-icons/tb";
 import {
@@ -81,6 +81,7 @@ import {
   DataSourceKind,
   dataGridheaderFontSize,
   secondConfirm,
+  MonacoEditor,
 } from "./helper";
 import {
   AppDataGridPagination,
@@ -271,8 +272,6 @@ function MongoBsonEditor(props: {
   const [loading, setLoading] = useState(false);
   const newDoc = useRef(doc);
 
-  //@ts-ignore
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const handleEditorDidMount = useCallback((ce: editor.IStandaloneCodeEditor) => {
     editor.current = ce;
     ce.focus();
@@ -322,13 +321,14 @@ function MongoBsonEditor(props: {
         style={{
           flex: 1,
         }}>
-        <Editor
+        <MonacoEditor
           width="99%"
           height="99%"
           language={languageXXX}
           value={content}
           options={options}
           theme={setting.editorTheme()}
+          onMount={handleEditorDidMount}
         />
       </div>
       <EditorBar

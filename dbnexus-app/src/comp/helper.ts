@@ -1,4 +1,4 @@
-import { MonacoEditor as Editor } from "./Editor";
+import { MonacoEditor } from "./Editor";
 import * as monaco from "monaco-editor";
 import { editor, languages, Position } from "monaco-editor";
 import types from "./ApiStruct";
@@ -1022,7 +1022,7 @@ export {
   validJson,
   ViewKind,
   MatcherContext,
-  Editor,
+  MonacoEditor,
 };
 
 export type MongoFindParameter = {

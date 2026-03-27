@@ -54,7 +54,7 @@ import {
   LoggerLevel,
   prettyMs,
   isDarkStr,
-  Editor,
+  MonacoEditor,
 } from "./helper";
 
 import { Position } from "monaco-editor";
@@ -1007,13 +1007,14 @@ function EditorThemeDemo(props: { style: CSSProperties; theme: string }) {
   const { theme, style } = props;
   return (
     <Stack style={style}>
-      <Editor
+      <MonacoEditor
         value={`select * from employees where id is not null limit 10;`}
         width="99%"
         height="99%"
         language="sql"
         options={{ fontSize, fontFamily, fontWeight, readOnly: true }}
         theme={theme}
+        onMount={() => {}}
       />
     </Stack>
   );

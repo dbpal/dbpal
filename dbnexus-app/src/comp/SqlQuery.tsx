@@ -53,7 +53,7 @@ import {
   shrinkAble,
   TabActiveContext,
   saveQueryKey,
-  Editor,
+  MonacoEditor,
 } from "./helper.ts";
 import ArrowCircleDownRoundedIcon from "@mui/icons-material/ArrowCircleDownRounded";
 import { ExportView } from "./Export.tsx";
@@ -227,8 +227,7 @@ function SqlQuery(props: {
   const querySomeShow = useQueryExtraUI((s) => s.extra);
   const { switches, setSwitch } = useBoolSwitch();
   const tryCheckSql = switches[tryCheckSqlSwitchKey];
-  //@ts-ignore
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+
   const handleEditorDidMount = useCallback((ed: editor.IStandaloneCodeEditor) => {
     setEditor(ed);
     const d1 = ed.onDidChangeCursorPosition(() => {
@@ -624,13 +623,14 @@ function SqlQuery(props: {
               height: "100px",
             }}
             ref={editorDivDom}>
-            <Editor
+            <MonacoEditor
               language={getLanguageFromDataSourceKind(kind)}
               width="99%"
               height="99%"
               value={value}
               options={editorOptions}
-              theme="ligth"
+              theme={setting.editorTheme()}
+              onMount={handleEditorDidMount}
             />
           </div>
           <EditorBar

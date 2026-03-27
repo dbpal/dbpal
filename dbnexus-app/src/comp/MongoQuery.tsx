@@ -21,11 +21,11 @@ import { initMongoQueryGlobals, MongoDBQuery } from "./MongoQueryBackend";
 import EventNoteIcon from "@mui/icons-material/EventNote";
 import {
   DataSourceKind,
-  Editor,
   ErrAndLoc,
   generateRandomString,
   isMacOs,
   isWindows,
+  MonacoEditor,
   MongoLanguage,
   QueryLogHandler,
   saveQueryKey,
@@ -705,7 +705,7 @@ function MongoQuery(props: {
           flexShrink: 1,
           flexBasis: 0,
         }}>
-        <Editor
+        <MonacoEditor
           width="99%"
           height="99%"
           onMount={jsCodeMount}

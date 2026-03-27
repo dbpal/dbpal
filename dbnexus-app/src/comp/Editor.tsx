@@ -1,4 +1,4 @@
-import React, { useRef, useEffect, useState } from "react";
+import { useEffect, useState } from "react";
 import * as monaco from "monaco-editor";
 
 interface MonacoEditorProps {
@@ -9,69 +9,86 @@ interface MonacoEditorProps {
   theme?: "vs-dark" | "light" | string;
   height?: string;
   width: string;
+  onMount: (_: monaco.editor.IStandaloneCodeEditor) => void;
 }
 
-// eslint-disable-next-line react/function-component-definition
-const MonacoEditor: React.FC<MonacoEditorProps> = ({
+function MonacoEditor({
   value,
   language,
   options,
-  onChange,
   theme = "vs-dark",
-  height = "500px",
-  width = "100%",
-}) => {
+  // height,
+  // width = "100%",
+  onMount,
+}: MonacoEditorProps) {
   const [editorRef, setEditor] = useState<HTMLDivElement>(null);
-  const monacoInstance = useRef<monaco.editor.IStandaloneCodeEditor | null>(null);
+  const [monacoInstance, setInstance] =
+    useState<monaco.editor.IStandaloneCodeEditor | null>(null);
 
   useEffect(() => {
     if (!editorRef) {
       return;
     }
-    console.log("create editor ");
-    if (!monacoInstance.current) {
-      // 1. 初始化编辑器
-      monacoInstance.current = monaco.editor.create(editorRef.current, {
-        value,
-        language,
-        theme,
-        automaticLayout: true, // 自动响应容器大小
-        ...options,
-      });
 
-      // 2. 监听内容变化
-      monacoInstance.current.onDidChangeModelContent(() => {
-        const newValue = monacoInstance.current?.getValue();
-        if (onChange && newValue !== undefined) {
-          onChange(newValue);
-        }
-      });
+    if (!monacoInstance) {
+      // 1. 初始化编辑器
+      const ed = monaco.editor.create(editorRef, { automaticLayout: true });
+      setInstance(ed);
     }
 
     // 3. 组件卸载时销毁实例，防止内存泄漏
     return () => {
-      monacoInstance.current?.dispose();
+      monacoInstance?.dispose();
     };
-  }, [editorRef, language, onChange, options, theme, value]);
+  }, [editorRef, monacoInstance]);
 
-  // 响应外部 value 变化 (受控组件逻辑)
   useEffect(() => {
-    if (monacoInstance.current && value !== monacoInstance.current.getValue()) {
-      monacoInstance.current.setValue(value);
+    if (!monacoInstance) {
+      return;
     }
-  }, [value]);
+    onMount(monacoInstance);
+  }, [monacoInstance, onMount]);
 
-  // 响应语言变化
   useEffect(() => {
-    if (monacoInstance.current) {
-      const model = monacoInstance.current.getModel();
-      if (model) {
-        monaco.editor.setModelLanguage(model, language);
-      }
+    if (!monacoInstance) {
+      return;
     }
-  }, [language]);
+    if (!value) {
+      return;
+    }
+    monacoInstance.setValue(value);
+  }, [monacoInstance, value]);
 
-  return <div ref={setEditor} style={{ height, width }} />;
-};
+  useEffect(() => {
+    if (!monacoInstance) {
+      return;
+    }
+
+    monacoInstance.updateOptions(options);
+  }, [monacoInstance, options]);
+
+  useEffect(() => {
+    if (!monacoInstance) {
+      return;
+    }
+
+    if (!language) {
+      return;
+    }
+    monaco.editor.setModelLanguage(monacoInstance.getModel(), language);
+  }, [monacoInstance, language]);
+
+  useEffect(() => {
+    if (!monacoInstance) {
+      return;
+    }
+    monaco.editor.setModelLanguage(monacoInstance.getModel(), language);
+  }, [language, monacoInstance]);
+  useEffect(() => {
+    monaco.editor.setTheme(theme);
+  }, [theme]);
+
+  return <div ref={setEditor} style={{ flex: 1, width: "99%", height: "99%" }} />;
+}
 
 export { MonacoEditor };
