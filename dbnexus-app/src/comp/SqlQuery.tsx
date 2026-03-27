@@ -227,6 +227,8 @@ function SqlQuery(props: {
   const querySomeShow = useQueryExtraUI((s) => s.extra);
   const { switches, setSwitch } = useBoolSwitch();
   const tryCheckSql = switches[tryCheckSqlSwitchKey];
+  //@ts-ignore
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const handleEditorDidMount = useCallback((ed: editor.IStandaloneCodeEditor) => {
     setEditor(ed);
     const d1 = ed.onDidChangeCursorPosition(() => {
@@ -624,12 +626,11 @@ function SqlQuery(props: {
             ref={editorDivDom}>
             <Editor
               language={getLanguageFromDataSourceKind(kind)}
-              onMount={handleEditorDidMount}
               width="99%"
               height="99%"
               value={value}
               options={editorOptions}
-              theme={setting.editorTheme()}
+              theme="ligth"
             />
           </div>
           <EditorBar

@@ -10,13 +10,12 @@ import {
   appDatabase,
   backendCompletionItemToEditor,
   DataSourceKind,
-  loader,
   MuiDataGridData,
   QueryRespData,
   secondConfirm,
 } from "./helper.ts";
 import { GridColDef } from "@mui/x-data-grid";
-
+import * as monaco from "monaco-editor";
 const modalStyle: SxProps = {
   position: "fixed",
   transform: "translate(50%, 50%)",
@@ -211,47 +210,44 @@ const aiTextAutoCompletion = async (
   }
 };
 
-loader.init().then((monaco) => {
-  monaco.languages.registerCompletionItemProvider("sql", {
-    triggerCharacters: ["."],
-    provideCompletionItems(model, position: Position) {
-      return autoCompletion(model, position);
-    },
-  });
-  monaco.languages.register({ id: "text" });
+monaco.languages.registerCompletionItemProvider("sql", {
+  triggerCharacters: ["."],
+  provideCompletionItems(model, position: Position) {
+    return autoCompletion(model, position);
+  },
+});
+monaco.languages.register({ id: "text" });
 
-  monaco.languages.registerCompletionItemProvider("text", {
-    triggerCharacters: ["."],
-    provideCompletionItems(model, position: Position) {
-      return aiTextAutoCompletion(model, position);
-    },
-  });
-
-  monaco.languages.registerDocumentFormattingEditProvider("sql", {
-    provideDocumentFormattingEdits(model, options) {
-      const name = SetAutoCompletionName.get(model.id);
-      if (!name) {
-        console.error("editor id map to backend name is nul,this is internal bug");
-        return;
-      }
-      const text = makeFormatFn(name.kind)(model.getValue(), {
-        insertSpaces: options.insertSpaces,
-        tabSize: options.tabSize,
-      });
-      if (!text) {
-        return null;
-      }
-      return [{ range: model.getFullModelRange(), text }];
-    },
-  });
-
-  monaco.languages.registerCompletionItemProvider("redis", {
-    provideCompletionItems(model, position: Position) {
-      return autoCompletion(model, position);
-    },
-  });
+monaco.languages.registerCompletionItemProvider("text", {
+  triggerCharacters: ["."],
+  provideCompletionItems(model, position: Position) {
+    return aiTextAutoCompletion(model, position);
+  },
 });
 
+monaco.languages.registerDocumentFormattingEditProvider("sql", {
+  provideDocumentFormattingEdits(model, options) {
+    const name = SetAutoCompletionName.get(model.id);
+    if (!name) {
+      console.error("editor id map to backend name is nul,this is internal bug");
+      return;
+    }
+    const text = makeFormatFn(name.kind)(model.getValue(), {
+      insertSpaces: options.insertSpaces,
+      tabSize: options.tabSize,
+    });
+    if (!text) {
+      return null;
+    }
+    return [{ range: model.getFullModelRange(), text }];
+  },
+});
+
+monaco.languages.registerCompletionItemProvider("redis", {
+  provideCompletionItems(model, position: Position) {
+    return autoCompletion(model, position);
+  },
+});
 function makeFormatFn(kind: DataSourceKind) {
   return (sql: string, opts?: languages.FormattingOptions) => {
     if (!opts) {

@@ -48,7 +48,6 @@ import AttachFileIcon from "@mui/icons-material/AttachFile";
 import {
   ChatShowContext,
   DataSourceKind,
-  Editor,
   editorPositionToEnd,
   editorSetPositionAndReveal,
   FavoriteSql,
@@ -103,6 +102,7 @@ import {
   useTableFilter,
   useTabsManage,
 } from "./store";
+import { MonacoEditor } from "./Editor";
 function CreateDatabase(props: {
   uuid: string;
   handleClose: () => void;
@@ -512,13 +512,13 @@ function SimpleFlexEditor(props: {
         flex: 1,
       }}>
       <div style={{ flex: 1 }}>
-        <Editor
+        <MonacoEditor
           width="99%"
           height="99%" // 不能设置成100%好像会影响父的高度
           onMount={handleDidMount}
           language={language}
           value={value}
-          theme={setting.editorTheme()}
+          theme="light"
           options={options}
         />
       </div>

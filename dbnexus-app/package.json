@@ -14,7 +14,6 @@
     "@emotion/styled": "^11.14.1",
     "@langchain/core": "^1.1.30",
     "@langchain/openai": "^1.2.12",
-    "@monaco-editor/react": "^4.7.0",
     "@mui/icons-material": "^7.3.8",
     "@mui/material": "^7.3.8",
     "@mui/styled-engine-sc": "^7.3.8",
@@ -76,6 +75,7 @@
     "internal-ip": "^9",
     "typescript": "^5.9.3",
     "typescript-eslint": "^8.56.1",
-    "vite": "^8"
+    "vite": "^8",
+    "vite-plugin-monaco-editor": "^1.1.0"
   }
 }

@@ -3,6 +3,7 @@ import react from "@vitejs/plugin-react";
 import { internalIpV4 } from "internal-ip";
 import { resolve } from "path";
 import { ViteEjsPlugin } from "vite-plugin-ejs";
+import monacoEditorPlugin from "vite-plugin-monaco-editor";
 const mobile = !!/android|ios/.exec(process.env.TAURI_ENV_PLATFORM);
 
 // https://vitejs.dev/config/
@@ -15,6 +16,7 @@ export default defineConfig(async ({ command }) => {
           plugins: ["babel-plugin-react-compiler"],
         },
       }),
+      (monacoEditorPlugin as any).default({}),
     ],
     build: {
       target: "esnext",

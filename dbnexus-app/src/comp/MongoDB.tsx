@@ -14,6 +14,9 @@ import {
   Tooltip,
   Typography,
 } from "@mui/material";
+
+import * as monaco from "monaco-editor";
+
 import ListIcon from "@mui/icons-material/List";
 import { editor, languages, Position } from "monaco-editor";
 import DeleteForeverIcon from "@mui/icons-material/DeleteForever";
@@ -35,7 +38,7 @@ import {
   useRef,
   useState,
 } from "react";
-import { Editor, loader } from "./helper";
+import { Editor } from "./helper";
 import { BSON, EJSON } from "bson";
 import { TbJson } from "react-icons/tb";
 import {
@@ -209,51 +212,44 @@ function mongoBsonAutoCompletion(): languages.CompletionList {
 const languageXXX = "mongoBson";
 
 function initMongoBsonLanguage() {
-  loader
-    .init()
-    .then((monaco) => {
-      monaco.languages.register({ id: languageXXX });
-      monaco.languages.setMonarchTokensProvider(languageXXX, {
-        ignoreCase: true,
-        tokenizer: {
-          root: [
-            [mongoBsonKeywords, "keyword"],
-            [/"(?:\\.|[^\\"])*"/, "string"],
-            [/'(?:\\.|[^\\'])*'/, "string"],
-            [/`(?:\\.|[^\\`])*`/, "string"],
-          ],
-        },
-        brackets: [
-          { open: "{", close: "}", token: "delimiter.curly" },
-          { open: "[", close: "]", token: "delimiter.parenthesis" },
-        ],
-      });
+  monaco.languages.register({ id: languageXXX });
+  monaco.languages.setMonarchTokensProvider(languageXXX, {
+    ignoreCase: true,
+    tokenizer: {
+      root: [
+        [mongoBsonKeywords, "keyword"],
+        [/"(?:\\.|[^\\"])*"/, "string"],
+        [/'(?:\\.|[^\\'])*'/, "string"],
+        [/`(?:\\.|[^\\`])*`/, "string"],
+      ],
+    },
+    brackets: [
+      { open: "{", close: "}", token: "delimiter.curly" },
+      { open: "[", close: "]", token: "delimiter.parenthesis" },
+    ],
+  });
 
-      monaco.languages.registerDocumentFormattingEditProvider(languageXXX, {
-        provideDocumentFormattingEdits(model, options) {
-          const text = model.getValue();
-          try {
-            const result = formatMongoBsonStr(text, options.tabSize);
-            return [{ range: model.getFullModelRange(), text: result }];
-          } catch (e) {
-            if (e instanceof MongoBsonError) {
-              message(e.msgWithLoc, { kind: "error" });
-            } else {
-              message(e.toString(), { kind: "error" });
-            }
-          }
-        },
-      });
+  monaco.languages.registerDocumentFormattingEditProvider(languageXXX, {
+    provideDocumentFormattingEdits(model, options) {
+      const text = model.getValue();
+      try {
+        const result = formatMongoBsonStr(text, options.tabSize);
+        return [{ range: model.getFullModelRange(), text: result }];
+      } catch (e) {
+        if (e instanceof MongoBsonError) {
+          message(e.msgWithLoc, { kind: "error" });
+        } else {
+          message(e.toString(), { kind: "error" });
+        }
+      }
+    },
+  });
 
-      monaco.languages.registerCompletionItemProvider(languageXXX, {
-        provideCompletionItems: () => {
-          return mongoBsonAutoCompletion();
-        },
-      });
-    })
-    .catch((e) => {
-      console.error("init monaco language error:", e);
-    });
+  monaco.languages.registerCompletionItemProvider(languageXXX, {
+    provideCompletionItems: () => {
+      return mongoBsonAutoCompletion();
+    },
+  });
 }
 
 initMongoBsonLanguage();
@@ -274,6 +270,9 @@ function MongoBsonEditor(props: {
   const setting = useContext(SettingContext);
   const [loading, setLoading] = useState(false);
   const newDoc = useRef(doc);
+
+  //@ts-ignore
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const handleEditorDidMount = useCallback((ce: editor.IStandaloneCodeEditor) => {
     editor.current = ce;
     ce.focus();
@@ -326,7 +325,6 @@ function MongoBsonEditor(props: {
         <Editor
           width="99%"
           height="99%"
-          onMount={handleEditorDidMount}
           language={languageXXX}
           value={content}
           options={options}

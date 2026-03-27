@@ -9,7 +9,9 @@ import {
   IMongoDB,
 } from "./MongoInterface";
 import interfaceRawText from "./MongoInterface.ts?raw";
-import { loader, MongoFindParameter } from "./helper";
+import { MongoFindParameter } from "./helper";
+
+import * as monaco from "monaco-editor";
 
 class MongoDBQuery implements IMongoDB {
   uuid: string;
@@ -131,8 +133,7 @@ class MongoDBQueryFind extends MongoDBQueryFindCommon implements IFindBuilder {
   }
 }
 
-class MongoDBQueryFindOne extends MongoDBQueryFindCommon
-  implements IFindOneBuilder {
+class MongoDBQueryFindOne extends MongoDBQueryFindCommon implements IFindOneBuilder {
   find() {
     const x = this.makeCommonArg();
     return invoke<number[]>("mongo_query_collection_find_one", x).then((e) => {
@@ -224,25 +225,19 @@ class MongoDBQueryCollection implements IMongoCollection {
     return new MongoDBQueryFindOne(this.uuid, this.col, filter);
   }
   findOneAndDelete(filter: BSON.Document) {
-    return invoke<number[] | null>(
-      "mongo_query_collection_find_one_and_delete",
-      {
-        name: this.uuid,
-        col: this.col,
-        query: BSON.serialize(filter),
-      },
-    ).then((e) => (e ? BSON.deserialize(new Uint8Array(e)) : null));
+    return invoke<number[] | null>("mongo_query_collection_find_one_and_delete", {
+      name: this.uuid,
+      col: this.col,
+      query: BSON.serialize(filter),
+    }).then((e) => (e ? BSON.deserialize(new Uint8Array(e)) : null));
   }
   findAndReplace(filter: BSON.Document, replacement: BSON.Document) {
-    return invoke<number[] | null>(
-      "mongo_query_collection_find_one_and_replace",
-      {
-        name: this.uuid,
-        col: this.col,
-        query: BSON.serialize(filter),
-        replacement: BSON.serialize(replacement),
-      },
-    ).then((e) => (e ? BSON.serialize(new Uint8Array(e)) : null));
+    return invoke<number[] | null>("mongo_query_collection_find_one_and_replace", {
+      name: this.uuid,
+      col: this.col,
+      query: BSON.serialize(filter),
+      replacement: BSON.serialize(replacement),
+    }).then((e) => (e ? BSON.serialize(new Uint8Array(e)) : null));
   }
   insertMany(docs: BSON.Document[] | BSON.Document) {
     if (!(docs instanceof Array)) {
@@ -322,16 +317,9 @@ const globalVar = `
 const interfaceText = trimInterfaceText(interfaceRawText) + globalVar;
 
 function initMongoQueryGlobals() {
-  loader
-    .init()
-    .then((monaco) => {
-      const extraLib = interfaceText;
-      monaco.languages.typescript.javascriptDefaults.addExtraLib(extraLib);
-      monaco.languages.typescript.typescriptDefaults.addExtraLib(extraLib);
-    })
-    .catch((e) => {
-      console.log("init monaco language error:", e);
-    });
+  const extraLib = interfaceText;
+  monaco.typescript.javascriptDefaults.addExtraLib(extraLib);
+  monaco.typescript.typescriptDefaults.addExtraLib(extraLib);
 }
 
 export {
