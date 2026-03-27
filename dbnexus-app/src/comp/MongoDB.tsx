@@ -1050,17 +1050,16 @@ function JsonEditor(props: {
 }
 
 function BsonJsonPagination({
-  pageSize,
   total,
   setPage,
   length,
   page,
-  setPageSize,
+
   gridColCount,
   viewModel,
 }) {
   const [showObjectDoc, setShowObjectDoc] = useState(false);
-
+  const { mongo: pageSize, setPageSize } = usePageSize((s) => s);
   return (
     <Stack
       direction="row"
@@ -1092,7 +1091,7 @@ function BsonJsonPagination({
         <SelectPageSize
           pageSize={pageSize}
           handleChange={(size) => {
-            setPageSize(size);
+            setPageSize("mongo", size);
           }}
           options={[2, 3, 5].map((x) => x * gridColCount)}
         />
@@ -1541,7 +1540,7 @@ function MongoTableObject(props: {
   } = props;
   const [docs, setDocs] = useState<DocsAndCount>({ docs: [], count: 0 });
   const [page, setPage] = useState(1);
-  const { sql: pageSize, setPageSize } = usePageSize((s) => s);
+  const { mongo: pageSize } = usePageSize((s) => s);
 
   const { showNotification } = useNotification((s) => s);
   const handleReload = useCallback(
@@ -1657,8 +1656,6 @@ function MongoTableObject(props: {
         length={docs.docs.length}
         page={page}
         setPage={setPage}
-        pageSize={pageSize}
-        setPageSize={setPageSize}
         gridColCount={gridColCount}
       />
     </Stack>
