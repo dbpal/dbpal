@@ -292,7 +292,7 @@ function ColumnsContent(props: { uuid: string; view: string }) {
   const { showNotification } = useNotification((s) => s);
   const [loading, setLoading] = useState(false);
 
-  const { columnWidths, setColumnWidth } = useColumnWidthStore((s) => s);
+  const { getColumnWidth, setColumnWidth } = useColumnWidthStore((s) => s);
   const onColumnResize = useCallback(
     ({ colDef, width }) => {
       setColumnWidth(colDef.field, width);
@@ -329,7 +329,7 @@ function ColumnsContent(props: { uuid: string; view: string }) {
     ] as GridColDef[];
   }, []);
   cols.forEach((e) => {
-    const width = columnWidths[e.field];
+    const width = getColumnWidth(e.field);
     if (width) {
       e.width = width;
     }

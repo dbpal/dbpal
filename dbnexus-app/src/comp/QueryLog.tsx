@@ -88,7 +88,7 @@ function QueryLog(props: {
     },
     [setPageSize],
   );
-  const { columnWidths, setColumnWidth } = useColumnWidthStore((s) => s);
+  const { getColumnWidth, setColumnWidth } = useColumnWidthStore((s) => s);
 
   const [loading, setLoading] = useState(false);
   let sqlDesc = "sql";
@@ -104,7 +104,7 @@ function QueryLog(props: {
   const columns = [
     {
       field: "create_at",
-      width: columnWidths["create_at"],
+      width: getColumnWidth("create_at"),
       renderHeader: () => {
         return "time";
       },
@@ -114,7 +114,7 @@ function QueryLog(props: {
       },
     },
     {
-      width: columnWidths["success"],
+      width: getColumnWidth("success"),
       field: "success",
       renderCell: (p) => {
         const success = p.row.success;

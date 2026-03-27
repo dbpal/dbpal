@@ -436,7 +436,7 @@ function CopyConnection() {
 
   const { showNotification } = useNotification((s) => s);
   const setting = useContext(SettingContext);
-  const { columnWidths, setColumnWidth } = useColumnWidthStore((s) => s);
+  const { getColumnWidth, setColumnWidth } = useColumnWidthStore((s) => s);
 
   const setUpMenu = useContextMenu((state) => state.setUpMenu);
 
@@ -518,12 +518,12 @@ function CopyConnection() {
       },
     ] as GridColDef[];
     cols.forEach((e) => {
-      const width = columnWidths[e.field];
+      const width = getColumnWidth(e.field);
 
       e.width = width;
     });
     return cols;
-  }, [columnWidths]);
+  }, [getColumnWidth]);
 
   const onColumnResize = useCallback(
     ({ colDef, width }) => {
@@ -716,7 +716,7 @@ function FavoriteSqlList() {
   const [uuidFilter, setUuidFilter] = useState("");
   const [distinctUuid, setDistinctUuid] = useState<string[]>([]);
   const setting = useContext(SettingContext);
-  const { columnWidths, setColumnWidth } = useColumnWidthStore((s) => s);
+  const { getColumnWidth, setColumnWidth } = useColumnWidthStore((s) => s);
 
   const handleReload = useCallback(
     async (showOK) => {
@@ -845,11 +845,11 @@ function FavoriteSqlList() {
       { field: "lastModified" },
     ] as GridColDef[];
     cols.forEach((e) => {
-      const width = columnWidths[e.field];
+      const width = getColumnWidth(e.field);
       e.width = width;
     });
     return cols;
-  }, [columnWidths]);
+  }, [getColumnWidth]);
   const onColumnResize = useCallback(
     ({ colDef, width }) => {
       setColumnWidth(colDef.field, width);

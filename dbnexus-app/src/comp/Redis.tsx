@@ -1214,7 +1214,7 @@ function RedisListTable(props: { listKey: string; uuid: string }) {
   const [respOrigin, setRespOrigin] = useState<MuiDataGridData>(newEmptyResp());
   const [selectRow, setSelectRow] = useState<any>(null);
   const { showNotification } = useNotification((s) => s);
-  const { setColumnWidth, columnWidths } = useColumnWidthStore((s) => s);
+  const { setColumnWidth, getColumnWidth } = useColumnWidthStore((s) => s);
   const { sql: sqlPageSize, setPageSize } = usePageSize((s) => s);
 
   const [page, setPage] = useState(0);
@@ -1240,7 +1240,7 @@ function RedisListTable(props: { listKey: string; uuid: string }) {
           resp.data.forEach((e, index) => {
             e["id"] = index;
           });
-          const seqWidth = columnWidths["seq"];
+          const seqWidth = getColumnWidth("seq");
           if (seqWidth) {
             resp.fields[0]["width"] = seqWidth;
           }
@@ -1253,7 +1253,7 @@ function RedisListTable(props: { listKey: string; uuid: string }) {
         setStatus: setQueryStatus,
       });
     },
-    [columnWidths, listKey, showNotification, uuid],
+    [uuid, listKey, showNotification, getColumnWidth],
   );
 
   useEffect(() => {
@@ -1543,7 +1543,7 @@ function RedisZsetTable(props: { uuid: string; zsetKey: string }) {
     },
     [uuid, zsetKey],
   );
-  const { setColumnWidth, columnWidths } = useColumnWidthStore((s) => s);
+  const { setColumnWidth, getColumnWidth } = useColumnWidthStore((s) => s);
   const [keyMatch, setKeyMatch] = useState("");
   const [resp, setResp] = useState<MuiDataGridData>(newEmptyResp());
 
@@ -1598,7 +1598,7 @@ function RedisZsetTable(props: { uuid: string; zsetKey: string }) {
             e["id"] = index;
           });
           resp.fields[1]["flex"] = 1;
-          const scoreWidth = columnWidths["score"];
+          const scoreWidth = getColumnWidth("score");
           if (scoreWidth) {
             resp.fields[0]["width"] = scoreWidth;
           }
@@ -1611,16 +1611,16 @@ function RedisZsetTable(props: { uuid: string; zsetKey: string }) {
       });
     },
     [
-      columnWidths,
-      getSize,
-      keyMatch,
-      max,
+      minErr,
       maxErr,
       min,
-      minErr,
-      showNotification,
+      max,
       uuid,
       zsetKey,
+      keyMatch,
+      getSize,
+      showNotification,
+      getColumnWidth,
     ],
   );
 
@@ -1951,7 +1951,7 @@ function RedisHashTable(props: { hashKey: string; uuid: string }) {
       newValue,
     });
   };
-  const { columnWidths, setColumnWidth } = useColumnWidthStore((s) => s);
+  const { getColumnWidth, setColumnWidth } = useColumnWidthStore((s) => s);
 
   const [keyMatch, setKeyMatch] = useState("");
   const [resp, setResp] = useState<MuiDataGridData>(newEmptyResp());
@@ -1992,7 +1992,7 @@ function RedisHashTable(props: { hashKey: string; uuid: string }) {
           resp.data.forEach((e, index) => {
             e["id"] = index;
           });
-          const keyWidth = columnWidths["key"];
+          const keyWidth = getColumnWidth("key");
           resp.fields[0]["width"] = keyWidth;
           resp.fields[1]["flex"] = 1;
           resp.fields[0]["valueGetter"] = valueGetter;
@@ -2001,7 +2001,7 @@ function RedisHashTable(props: { hashKey: string; uuid: string }) {
         },
       });
     },
-    [columnWidths, getSize, hashKey, keyMatch, showNotification, uuid],
+    [getColumnWidth, getSize, hashKey, keyMatch, showNotification, uuid],
   );
   useEffect(() => {
     handleReload(false);

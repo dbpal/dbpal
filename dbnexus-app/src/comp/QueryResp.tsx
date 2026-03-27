@@ -106,12 +106,12 @@ function RespContextMenu(props: { content; field; setSort; viewInModal }) {
   );
 }
 
-function queryRespFix(data: MuiDataGridData, columnWidths: Record<string, number>) {
+function queryRespFix(data: MuiDataGridData, getColumnWidth) {
   data.data.forEach((e, index) => {
     e[keyNotInTable] = index;
   });
   data.fields.forEach((field) => {
-    const width = columnWidths[field.field];
+    const width = getColumnWidth(field.field);
     if (width) {
       field["width"] = width;
     }
@@ -128,8 +128,8 @@ function queryRespFix(data: MuiDataGridData, columnWidths: Record<string, number
 
 function QueryResp(props: { data: MuiDataGridData }) {
   const { data } = props;
-  const { setColumnWidth, columnWidths } = useColumnWidthStore((s) => s);
-  queryRespFix(data, columnWidths);
+  const { setColumnWidth, getColumnWidth } = useColumnWidthStore((s) => s);
+  queryRespFix(data, getColumnWidth);
 
   const setting = useContext(SettingContext);
 

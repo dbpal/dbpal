@@ -123,7 +123,7 @@ function ColumnsStructure(props: {
   const [fields, setFields] = useState<types.Field[]>([]);
   const { showNotification } = useNotification((s) => s);
   const [row, setRow] = useState<types.Field>(null);
-  const { columnWidths, setColumnWidth } = useColumnWidthStore((s) => s);
+  const { getColumnWidth, setColumnWidth } = useColumnWidthStore((s) => s);
   const supportModifyColumn = new Set([
     DataSourceKind.MariaDB,
     DataSourceKind.SqlServer,
@@ -240,7 +240,7 @@ function ColumnsStructure(props: {
     ] as GridColDef[];
   }, []);
   cols.forEach((e) => {
-    const width = columnWidths[e.field];
+    const width = getColumnWidth(e.field);
     if (width) {
       e.width = width;
     }
@@ -532,7 +532,7 @@ function IndexesStructure(props: {
   const [renameIndexName, setRenameIndexName] = useState("");
   const [showAdd, setShowAdd] = useState(false);
 
-  const { columnWidths, setColumnWidth } = useColumnWidthStore((s) => s);
+  const { getColumnWidth, setColumnWidth } = useColumnWidthStore((s) => s);
 
   const onColumnResize = useCallback(
     ({ colDef, width }) => {
@@ -587,7 +587,7 @@ function IndexesStructure(props: {
     return [{ field: "name" }, { field: "kind" }, { field: "columns" }] as GridColDef[];
   }, []);
   cols.forEach((e) => {
-    const width = columnWidths[e.field];
+    const width = getColumnWidth(e.field);
     if (width) {
       e.width = width;
     }
@@ -1256,7 +1256,7 @@ function TriggersStructure(props: {
   const [row, setRow] = useState<types.TriggerDetail>(null);
   const { showNotification } = useNotification((s) => s);
 
-  const { columnWidths, setColumnWidth } = useColumnWidthStore((s) => s);
+  const { getColumnWidth, setColumnWidth } = useColumnWidthStore((s) => s);
   const onColumnResize = useCallback(
     ({ colDef, width }) => {
       setColumnWidth(colDef.field, width);
@@ -1343,7 +1343,7 @@ function TriggersStructure(props: {
     ] as GridColDef[];
   }, []);
   cols.forEach((e) => {
-    const width = columnWidths[e.field];
+    const width = getColumnWidth(e.field);
     if (width) {
       e.width = width;
     }

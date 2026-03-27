@@ -392,12 +392,20 @@ interface ColumnWidthsState {
 
   // Optional: Reset all widths
   resetWidths: () => void;
+
+  //
+
+  getColumnWidth: (field: string) => number | undefined;
 }
 
 export const useColumnWidthStore = create<ColumnWidthsState>()(
   persist(
-    (set) => ({
+    (set, get) => ({
       columnWidths: {},
+
+      getColumnWidth(field) {
+        return get().columnWidths[field];
+      },
 
       setColumnWidth: (field, width) =>
         set((state) => ({

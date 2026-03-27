@@ -417,10 +417,10 @@ function MetaValueViewMenu(props: { content: string; setSort; field: string }) {
 function MetaValueView({ values = [] as types.MetaValue[] }) {
   const setting = useContext(SettingContext);
 
-  const widths = useColumnWidthStore((s) => s.columnWidths);
+  const getColumnWidth = useColumnWidthStore((s) => s.getColumnWidth);
   const columns = [
-    { field: "name", width: widths["name"], flex: 1 },
-    { field: "value", width: widths["value"], flex: 1 },
+    { field: "name", width: getColumnWidth("name"), flex: 1 },
+    { field: "value", width: getColumnWidth("value"), flex: 1 },
   ] as GridColDef[];
 
   const [sortModel, setSortModel] = useState<GridSortModel>([]);

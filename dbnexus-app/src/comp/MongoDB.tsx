@@ -1188,7 +1188,7 @@ function MongoTableList(props: {
   useEffect(() => {
     setLastFetchTime(new Date());
   }, [resp]);
-  const { columnWidths, setColumnWidth } = useColumnWidthStore((s) => s);
+  const { getColumnWidth, setColumnWidth } = useColumnWidthStore((s) => s);
   const [fetchDur, setFetchDur] = useState(0);
   const handleReload = useCallback(
     async (showOK) => {
@@ -1200,7 +1200,7 @@ function MongoTableList(props: {
             e[keyNotInTable] = index;
           });
           r.fields.forEach((f) => {
-            const width = columnWidths[f.field];
+            const width = getColumnWidth(f.field);
             if (width) {
               f["width"] = width;
             }
@@ -1237,7 +1237,7 @@ function MongoTableList(props: {
           setLoading(false);
         });
     },
-    [columnWidths, page, pageSize, reloadOP, setLoading, showNotification],
+    [getColumnWidth, page, pageSize, reloadOP, setLoading, showNotification],
   );
 
   useEffect(() => {

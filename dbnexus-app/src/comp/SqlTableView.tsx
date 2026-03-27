@@ -368,7 +368,7 @@ function SqlTableView(props: {
   const [queryStatus, setQueryStatus] = useState("");
   const [clickedField, setClickedField] = useState("");
   const [rowBeenLocate, setRowBeenLocate] = useState("");
-  const { columnWidths, setColumnWidth } = useColumnWidthStore();
+  const { getColumnWidth, setColumnWidth } = useColumnWidthStore();
   const getSize = useSizeStore((s) => s.getSize);
   const handleResp = useCallback(
     (resp: MuiDataGridData) => {
@@ -376,7 +376,7 @@ function SqlTableView(props: {
         data[keyNotInTable] = index + "";
       });
       resp.fields.forEach((field) => {
-        const width = columnWidths[field.field];
+        const width = getColumnWidth(field.field);
         if (width) {
           field["width"] = width;
         }
@@ -422,7 +422,7 @@ function SqlTableView(props: {
       }
       setResp(resp);
     },
-    [columnWidths],
+    [getColumnWidth],
   );
 
   const makePara = useCallback(() => {
