@@ -625,11 +625,8 @@ function SqlQuery(props: {
             ref={editorDivDom}>
             <MonacoEditor
               language={getLanguageFromDataSourceKind(kind)}
-              width="99%"
-              height="99%"
               value={value}
               options={editorOptions}
-              theme={setting.editorTheme()}
               onMount={handleEditorDidMount}
             />
           </div>

@@ -322,12 +322,9 @@ function MongoBsonEditor(props: {
           flex: 1,
         }}>
         <MonacoEditor
-          width="99%"
-          height="99%"
           language={languageXXX}
           value={content}
           options={options}
-          theme={setting.editorTheme()}
           onMount={handleEditorDidMount}
         />
       </div>

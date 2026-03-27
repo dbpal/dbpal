@@ -706,13 +706,10 @@ function MongoQuery(props: {
           flexBasis: 0,
         }}>
         <MonacoEditor
-          width="99%"
-          height="99%"
           onMount={jsCodeMount}
           language={language}
           options={editorOP}
           value={value}
-          theme={setting.editorTheme()}
         />
         <EditorBar pos={pos} />
       </div>

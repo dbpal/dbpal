@@ -549,17 +549,6 @@ class UserSetting {
   export: UserSettingExport;
   misc: UserSettingMisc;
 
-  editorTheme(): string {
-    if (this.editor.theme) {
-      return this.editor.theme;
-    }
-    return this.isDarkTheme() ? "vs-dark" : "light";
-  }
-
-  isDarkTheme() {
-    return isDarkStr(this.appearance.theme);
-  }
-
   static async load() {
     try {
       const ret = new UserSetting();

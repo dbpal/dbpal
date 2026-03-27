@@ -513,12 +513,9 @@ function SimpleFlexEditor(props: {
       }}>
       <div style={{ flex: 1 }}>
         <MonacoEditor
-          width="99%"
-          height="99%" // 不能设置成100%好像会影响父的高度
           onMount={handleDidMount}
           language={language}
           value={value}
-          theme="light"
           options={options}
         />
       </div>

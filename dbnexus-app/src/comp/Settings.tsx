@@ -8,6 +8,7 @@ import {
 } from "react";
 import { FaFolderOpen } from "react-icons/fa";
 import { isEqual } from "lodash-es";
+import * as monaco from "monaco-editor";
 import {
   Autocomplete,
   Box,
@@ -1005,16 +1006,27 @@ function EditorThemeDemo(props: { style: CSSProperties; theme: string }) {
   const setting = useContext(SettingContext);
   const { fontWeight, fontSize, fontFamily } = setting.appearance;
   const { theme, style } = props;
+  const [editor, setEditor] = useState<monaco.editor.IStandaloneCodeEditor>(null);
+
+  useEffect(() => {
+    if (!editor) {
+      return;
+    }
+    if (!theme) {
+      return;
+    }
+    // TODO not change
+  }, [editor, theme]);
+
   return (
     <Stack style={style}>
       <MonacoEditor
         value={`select * from employees where id is not null limit 10;`}
-        width="99%"
-        height="99%"
         language="sql"
         options={{ fontSize, fontFamily, fontWeight, readOnly: true }}
-        theme={theme}
-        onMount={() => {}}
+        onMount={(ed) => {
+          setEditor(ed);
+        }}
       />
     </Stack>
   );
@@ -1299,13 +1311,29 @@ function SettingProvider(props: { children: ReactNode }) {
   const [setting, setSetting] = useState<UserSetting>(null);
 
   const [osTheme, setOsTheme] = useState("light");
-  const reload = async () => {
+  const isDark = useCallback(() => {
+    if (!setting) {
+      return false;
+    }
+    return (
+      isDarkStr(setting.appearance.theme) ||
+      (setting.appearance.theme == "system" && isDarkStr(osTheme))
+    );
+  }, [osTheme, setting]);
+
+  const reload = useCallback(async () => {
     // setTimeout(async () => {
     const setting = await UserSetting.load();
     setSetting(setting);
     document.documentElement.style.fontSize = setting.appearance.fontSize + "px";
     document.documentElement.style.fontFamily = setting.appearance.fontFamily;
     document.documentElement.style.fontWeight = setting.appearance.fontWeight;
+    if (setting.editor.theme) {
+      monaco.editor.setTheme(setting.editor.theme);
+    } else {
+      monaco.editor.setTheme(isDark() ? "vs-dark" : "vs");
+    }
+
     if (setting.misc.autoStart) {
       if (!(await isEnabledApp())) {
         enableApp().catch((e) => {
@@ -1322,11 +1350,10 @@ function SettingProvider(props: { children: ReactNode }) {
         });
       }
     }
-    // }, Math.random() * 1000);
-  };
+  }, [isDark]);
   useEffect(() => {
     reload();
-  }, []);
+  }, [reload]);
 
   useEffect(() => {
     const currentWebview = WebviewWindow.getCurrent();
@@ -1366,18 +1393,11 @@ function SettingProvider(props: { children: ReactNode }) {
         callback();
       });
     };
-  }, []);
+  }, [reload]);
 
   useEffect(() => {
     reload();
-  }, [osTheme]);
-
-  const isDark = () => {
-    return (
-      isDarkStr(setting.appearance.theme) ||
-      (setting.appearance.theme == "system" && isDarkStr(osTheme))
-    );
-  };
+  }, [reload]);
 
   return (
     setting && (

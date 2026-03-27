@@ -6,21 +6,10 @@ interface MonacoEditorProps {
   language: string;
   options?: monaco.editor.IStandaloneEditorConstructionOptions;
   onChange?: (value: string) => void;
-  theme?: "vs-dark" | "light" | string;
-  height?: string;
-  width: string;
   onMount: (_: monaco.editor.IStandaloneCodeEditor) => void;
 }
 
-function MonacoEditor({
-  value,
-  language,
-  options,
-  theme = "vs-dark",
-  // height,
-  // width = "100%",
-  onMount,
-}: MonacoEditorProps) {
+function MonacoEditor({ value, language, options, onMount }: MonacoEditorProps) {
   const [editorRef, setEditor] = useState<HTMLDivElement>(null);
   const [monacoInstance, setInstance] =
     useState<monaco.editor.IStandaloneCodeEditor | null>(null);
@@ -29,7 +18,6 @@ function MonacoEditor({
     if (!editorRef) {
       return;
     }
-
     if (!monacoInstance) {
       // 1. 初始化编辑器
       const ed = monaco.editor.create(editorRef, { automaticLayout: true });
@@ -71,7 +59,6 @@ function MonacoEditor({
     if (!monacoInstance) {
       return;
     }
-
     if (!language) {
       return;
     }
@@ -84,9 +71,6 @@ function MonacoEditor({
     }
     monaco.editor.setModelLanguage(monacoInstance.getModel(), language);
   }, [language, monacoInstance]);
-  useEffect(() => {
-    monaco.editor.setTheme(theme);
-  }, [theme]);
 
   return <div ref={setEditor} style={{ flex: 1, width: "99%", height: "99%" }} />;
 }
