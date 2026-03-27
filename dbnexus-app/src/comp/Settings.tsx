@@ -1306,23 +1306,19 @@ const makeTheme = (s: UserSetting, isDarkTheme: boolean) => {
   });
 };
 
+const isDark = (setting: UserSetting, osTheme) => {
+  return (
+    isDarkStr(setting.appearance.theme) ||
+    (setting.appearance.theme == "system" && isDarkStr(osTheme))
+  );
+};
 function SettingProvider(props: { children: ReactNode }) {
   const { children } = props;
   const [setting, setSetting] = useState<UserSetting>(null);
 
   const [osTheme, setOsTheme] = useState("light");
-  const isDark = useCallback(() => {
-    if (!setting) {
-      return false;
-    }
-    return (
-      isDarkStr(setting.appearance.theme) ||
-      (setting.appearance.theme == "system" && isDarkStr(osTheme))
-    );
-  }, [osTheme, setting]);
 
   const reload = useCallback(async () => {
-    // setTimeout(async () => {
     const setting = await UserSetting.load();
     setSetting(setting);
     document.documentElement.style.fontSize = setting.appearance.fontSize + "px";
@@ -1331,7 +1327,7 @@ function SettingProvider(props: { children: ReactNode }) {
     if (setting.editor.theme) {
       monaco.editor.setTheme(setting.editor.theme);
     } else {
-      monaco.editor.setTheme(isDark() ? "vs-dark" : "vs");
+      monaco.editor.setTheme(isDark(setting, osTheme) ? "vs-dark" : "vs");
     }
 
     if (setting.misc.autoStart) {
@@ -1350,7 +1346,8 @@ function SettingProvider(props: { children: ReactNode }) {
         });
       }
     }
-  }, [isDark]);
+  }, [osTheme]);
+
   useEffect(() => {
     reload();
   }, [reload]);
@@ -1395,13 +1392,9 @@ function SettingProvider(props: { children: ReactNode }) {
     };
   }, [reload]);
 
-  useEffect(() => {
-    reload();
-  }, [reload]);
-
   return (
     setting && (
-      <ThemeProvider theme={makeTheme(setting, isDark())}>
+      <ThemeProvider theme={makeTheme(setting, isDark(setting, osTheme))}>
         <CssBaseline />
         <SettingContext.Provider value={setting}>{children}</SettingContext.Provider>
       </ThemeProvider>
