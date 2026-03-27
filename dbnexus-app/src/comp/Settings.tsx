@@ -54,6 +54,7 @@ import {
   LoggerLevel,
   prettyMs,
   isDarkStr,
+  Editor,
 } from "./helper";
 
 import { Position } from "monaco-editor";
@@ -67,7 +68,6 @@ import {
   disable as disableApp,
 } from "@tauri-apps/plugin-autostart";
 import { message } from "@tauri-apps/plugin-dialog";
-import { Editor } from "@monaco-editor/react";
 import { EscDownEvent, modalHandleClose, modalStyle } from "./Common";
 import { LogLevelSelection, ModalHeader } from "./CommonComp";
 import { appLogDir } from "@tauri-apps/api/path";
@@ -210,8 +210,7 @@ function AppearanceSetting() {
                     onClick={() => {
                       setFontWeight("");
                     }}
-                    edge="end"
-                  >
+                    edge="end">
                     <ClearIcon fontSize="small" />
                   </IconButton>
                 </InputAdornment>
@@ -320,8 +319,7 @@ function SetBgColor({ bgColor, setBgColor, theme }) {
           color={showEditBgColor ? "success" : "primary"}
           onClick={() => {
             setShowEditBgColor((e) => !e);
-          }}
-        >
+          }}>
           <EditIcon> </EditIcon>
         </IconButton>
         {showEditBgColor && (
@@ -349,8 +347,7 @@ function SetBgColor({ bgColor, setBgColor, theme }) {
                   onClick={() => {
                     setBgColor("");
                   }}
-                  edge="end"
-                >
+                  edge="end">
                   <ClearIcon fontSize="small" />
                 </IconButton>
               </InputAdornment>
@@ -440,8 +437,7 @@ function EditorSetting() {
                 onClick={() => {
                   setShowEditOption((e) => !e);
                 }}
-                color={showEditOption ? "success" : "primary"}
-              >
+                color={showEditOption ? "success" : "primary"}>
                 <EditIcon> </EditIcon>
               </IconButton>
               <Typography color="info">{editorOptions}</Typography>
@@ -734,8 +730,7 @@ function LLMSetting(props: { handleClose?: () => void }) {
                     onClick={() => {
                       setBaseUrl("");
                     }}
-                    edge="end"
-                  >
+                    edge="end">
                     <ClearIcon fontSize="small" />
                   </IconButton>
                 </InputAdornment>
@@ -760,8 +755,7 @@ function LLMSetting(props: { handleClose?: () => void }) {
                     onClick={() => {
                       setApiKey("");
                     }}
-                    edge="end"
-                  >
+                    edge="end">
                     <ClearIcon fontSize="small" />
                   </IconButton>
                 </InputAdornment>
@@ -800,8 +794,7 @@ function LLMSetting(props: { handleClose?: () => void }) {
                   justifyContent: "space-between",
                   alignItems: "center",
                   width: "100%",
-                }}
-              >
+                }}>
                 <span> {def.id} </span>
                 {def.context_length && (
                   <Stack direction="row" divider=<Divider />>
@@ -844,8 +837,7 @@ function LLMSetting(props: { handleClose?: () => void }) {
                     onClick={() => {
                       setMaxToken("");
                     }}
-                    edge="end"
-                  >
+                    edge="end">
                     <ClearIcon fontSize="small" />
                   </IconButton>
                 </InputAdornment>
@@ -869,8 +861,7 @@ function LLMSetting(props: { handleClose?: () => void }) {
                     onClick={() => {
                       setTopP("");
                     }}
-                    edge="end"
-                  >
+                    edge="end">
                     <ClearIcon fontSize="small" />
                   </IconButton>
                 </InputAdornment>
@@ -955,8 +946,7 @@ function MiscSetting() {
             <IconButton
               onClick={async () => {
                 openPath(await appLogDir());
-              }}
-            >
+              }}>
               <FaFolderOpen fontSize="1.5rem" />
             </IconButton>
           </Tooltip>
@@ -975,8 +965,7 @@ function ModifySetting() {
         value={tab}
         onChange={(_, value) => {
           setCurrentTab(value);
-        }}
-      >
+        }}>
         {ss.map((e) => (
           <Tab value={e} label={e} key={e} />
         ))}
@@ -1076,8 +1065,7 @@ function EditorOptions(props: {
                   return;
                 }
                 setJsonErrPos(new Position(jsonErr.line, jsonErr.column));
-              }}
-            >
+              }}>
               {jsonErr.msg}
             </Typography>
           ) : null
@@ -1095,8 +1083,7 @@ function EditorOptions(props: {
             }
             setEditorOptions(value);
             handleClose();
-          }}
-        >
+          }}>
           set
         </Button>
       </Stack>
@@ -1413,8 +1400,7 @@ function ModifyLLMConfigModal() {
               setShowEdit(true);
             }}
             style={shrinkAble}
-            variant="outlined"
-          >
+            variant="outlined">
             ai chat?
           </Button>
         </Tooltip>
@@ -1426,8 +1412,7 @@ function ModifyLLMConfigModal() {
           onClose={modalHandleClose((e: EscDownEvent) => {
             e.preventDefault();
             setShowEdit(false);
-          })}
-        >
+          })}>
           <Box sx={modalStyle} width="65vw">
             <ModalHeader
               title="edit llm config"

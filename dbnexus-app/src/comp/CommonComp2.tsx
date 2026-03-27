@@ -48,6 +48,7 @@ import AttachFileIcon from "@mui/icons-material/AttachFile";
 import {
   ChatShowContext,
   DataSourceKind,
+  Editor,
   editorPositionToEnd,
   editorSetPositionAndReveal,
   FavoriteSql,
@@ -62,7 +63,7 @@ import {
   TabActiveContext,
   TabContent,
 } from "./helper";
-import { Editor } from "@monaco-editor/react";
+
 import { editor, Position } from "monaco-editor";
 import { invoke } from "@tauri-apps/api/core";
 import {

@@ -8,6 +8,7 @@ import tsWorker from "monaco-editor/esm/vs/language/typescript/ts.worker?worker"
 
 self.MonacoEnvironment = {
   getWorker(_, label) {
+    console.log("!!!!!!!!!!!!!!!!", label);
     if (label === "json") {
       return new jsonWorker();
     }
@@ -24,10 +25,14 @@ self.MonacoEnvironment = {
   },
 };
 
-await loader.config({
+loader.config({
   monaco,
   // paths: { vs: "node_modules/monaco-editor/min/vs" },
 });
+
+await loader.init();
+
+import { Editor } from "@monaco-editor/react";
 
 import { editor, languages, Position } from "monaco-editor";
 import types from "./ApiStruct";
@@ -1053,6 +1058,7 @@ export {
   validJson,
   ViewKind,
   MatcherContext,
+  Editor,
 };
 
 export type MongoFindParameter = {

@@ -1,4 +1,3 @@
-import { Editor } from "@monaco-editor/react";
 import {
   Autocomplete,
   Box,
@@ -22,6 +21,7 @@ import { initMongoQueryGlobals, MongoDBQuery } from "./MongoQueryBackend";
 import EventNoteIcon from "@mui/icons-material/EventNote";
 import {
   DataSourceKind,
+  Editor,
   ErrAndLoc,
   generateRandomString,
   isMacOs,

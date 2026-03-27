@@ -1,4 +1,3 @@
-import { Editor } from "@monaco-editor/react";
 import { MultiQueryResp, QueryRespData } from "./QueryResp";
 import EventNoteIcon from "@mui/icons-material/EventNote";
 import {
@@ -54,6 +53,7 @@ import {
   shrinkAble,
   TabActiveContext,
   saveQueryKey,
+  Editor,
 } from "./helper.ts";
 import ArrowCircleDownRoundedIcon from "@mui/icons-material/ArrowCircleDownRounded";
 import { ExportView } from "./Export.tsx";
@@ -451,8 +451,7 @@ function SqlQuery(props: {
         display: "flex",
         flexDirection: "column",
         marginBottom: "300px",
-      }}
-    >
+      }}>
       <PanelGroup direction="vertical" style={{ flex: 1 }} autoSaveId="sql-query">
         <Panel
           minSize={10}
@@ -463,8 +462,7 @@ function SqlQuery(props: {
             flexDirection: "column",
           }}
           collapsible
-          collapsedSize={0}
-        >
+          collapsedSize={0}>
           <QueryLog
             showQueryLog={showQueryLog}
             setShowQueryLog={setShowQueryLog}
@@ -480,8 +478,7 @@ function SqlQuery(props: {
               alignItems: "center",
               overflow: "auto",
               paddingBottom: "0.7rem",
-            }}
-          >
+            }}>
             {openOk && (
               <>
                 <Tooltip title="query">
@@ -490,8 +487,7 @@ function SqlQuery(props: {
                     onClick={() => {
                       handleQuery(false);
                     }}
-                    color="primary"
-                  >
+                    color="primary">
                     <PlayArrowIcon />
                   </IconButton>
                 </Tooltip>
@@ -502,8 +498,7 @@ function SqlQuery(props: {
                     onClick={() => {
                       handleQuery(true);
                     }}
-                    color="primary"
-                  >
+                    color="primary">
                     <FastForwardIcon />
                   </IconButton>
                 </Tooltip>
@@ -527,8 +522,7 @@ function SqlQuery(props: {
                       onClick={() => {
                         handleQuery(false, true);
                       }}
-                      color="primary"
-                    >
+                      color="primary">
                       <BsFillLightbulbFill />
                     </IconButton>
                   </Tooltip>
@@ -552,8 +546,7 @@ function SqlQuery(props: {
               <IconButton
                 loading={makeConnLoading}
                 onClick={handleReconnect}
-                color="primary"
-              >
+                color="primary">
                 <RefreshIcon />
               </IconButton>
             </Tooltip>
@@ -569,8 +562,7 @@ function SqlQuery(props: {
                     }
                     setShowExport(true);
                   }}
-                  color="primary"
-                >
+                  color="primary">
                   <ArrowCircleDownRoundedIcon />
                 </IconButton>
               </Tooltip>
@@ -598,8 +590,7 @@ function SqlQuery(props: {
                 onClick={() => {
                   setShowQueryLog((prev) => !prev);
                 }}
-                color="primary"
-              >
+                color="primary">
                 <EventNoteIcon />
               </IconButton>
             </Tooltip>
@@ -630,8 +621,7 @@ function SqlQuery(props: {
               minHeight: 0,
               height: "100px",
             }}
-            ref={editorDivDom}
-          >
+            ref={editorDivDom}>
             <Editor
               language={getLanguageFromDataSourceKind(kind)}
               onMount={handleEditorDidMount}
@@ -648,8 +638,7 @@ function SqlQuery(props: {
                 style={{
                   flex: 1,
                 }}
-                direction="row"
-              >
+                direction="row">
                 {sqlErr && <PossibleParseError parseErr={sqlErr} editor={editor} />}
               </Stack>
             }
@@ -665,8 +654,7 @@ function SqlQuery(props: {
           collapsible
           collapsedSize={0}
           maxSize={100}
-          minSize={10}
-        >
+          minSize={10}>
           <div style={{ height: "100%" }}>
             <MultiQueryResp data={resp} />
           </div>
@@ -679,8 +667,7 @@ function SqlQuery(props: {
           onClose={modalHandleClose((e: EscDownEvent) => {
             e.preventDefault();
             setShowExport(false);
-          })}
-        >
+          })}>
           <Box sx={modalStyle} width="45%">
             <ExportView
               supportKind={["csv", "json", "jsonline", "xlsx", "html", "markdown"]}

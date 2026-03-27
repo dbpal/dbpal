@@ -1,4 +1,3 @@
-import Editor from "@monaco-editor/react";
 import {
   Box,
   Button,
@@ -36,7 +35,7 @@ import {
   useRef,
   useState,
 } from "react";
-import { loader } from "./helper";
+import { Editor, loader } from "./helper";
 import { BSON, EJSON } from "bson";
 import { TbJson } from "react-icons/tb";
 import {
