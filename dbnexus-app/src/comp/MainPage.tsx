@@ -3,7 +3,7 @@ import { Panel, PanelGroup, PanelResizeHandle } from "react-resizable-panels";
 import { CSSProperties, useCallback, useEffect, useState } from "react";
 import { TabsWithContent } from "./Tabs";
 import { Left } from "./Left";
-import { SettingProvider } from "./Settings.tsx";
+import { EditorSetting, SettingProvider } from "./Settings.tsx";
 import {
   secondConfirm,
   getViewportSize,
@@ -224,6 +224,7 @@ function App() {
 
   return (
     <SettingProvider>
+      <EditorSetting />
       <Notifications />
       <Menu />
       <div>

@@ -62,9 +62,6 @@ function MonacoEditor({ value, language, onMount, readOnly }: MonacoEditorProps)
     if (!monacoInstance) {
       return;
     }
-    if (!value) {
-      return;
-    }
     if (value != monacoInstance.getValue()) {
       monacoInstance.setValue(value);
     }
@@ -95,7 +92,7 @@ function MonacoEditor({ value, language, onMount, readOnly }: MonacoEditorProps)
     monaco.editor.setModelLanguage(monacoInstance.getModel(), language);
   }, [language, monacoInstance]);
 
-  return <div ref={setEditor} style={{ flex: 1, width: "99%", height: "99%" }} />;
+  return <div ref={setEditor} style={{ width: "99%", height: "99%" }} />;
 }
 
 export { MonacoEditor };

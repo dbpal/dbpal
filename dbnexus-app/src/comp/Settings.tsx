@@ -1293,4 +1293,4 @@ function ModifyLLMConfigModal() {
   );
 }
 
-export { ModifySetting, SettingProvider, ModifyLLMConfigModal };
+export { ModifySetting, SettingProvider, ModifyLLMConfigModal, EditorSetting };
