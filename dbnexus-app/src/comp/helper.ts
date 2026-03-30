@@ -21,7 +21,6 @@ import Database, { QueryResult } from "@tauri-apps/plugin-sql";
 import { WebviewWindow } from "@tauri-apps/api/webviewWindow";
 import { platform } from "@tauri-apps/plugin-os";
 import themelist from "../../monaco-themes/themes/themelist.json";
-import { PassWordManager } from "./Common";
 import prettyMilliseconds from "pretty-ms";
 import { cancelTask } from "./handlers";
 
@@ -850,7 +849,6 @@ class LLMConfig {
   static key = "llm-config-4k9zF7m5p3T1H2";
   maxToken: number = 0;
   topP: number = 0;
-  aiTextTemplates: any = {};
 
   async invoke(msg: string): Promise<string> {
     return await invoke<string>("openai_invoke", {
@@ -884,41 +882,8 @@ class LLMConfig {
     await invoke("openai_stream", { req: this.makeReq(msg), emit, taskId });
   }
 
-  async save() {
-    try {
-      // save to password manager
-      if (this.apiKey) {
-        PassWordManager.savePassword(LLMConfig.key, this.apiKey, true);
-      } else {
-        try {
-          PassWordManager.deletePassword(LLMConfig.key);
-        } catch (e) {
-          console.log("delete passwd failed", e);
-        }
-      }
-      this.apiKey = "";
-      appStore.set(LLMConfig.key, this);
-    } catch (e) {
-      console.error("save llm config failed", e);
-      message("save llm config failed", { kind: "error" });
-    }
-  }
-
   enable() {
     return this.baseUrl && this.model;
-  }
-
-  static async get(): Promise<LLMConfig | null> {
-    let ret = await appStore.get<LLMConfig | null>(LLMConfig.key);
-    if (ret) {
-      ret = { ...new LLMConfig(), ...ret } as LLMConfig;
-      Object.setPrototypeOf(ret, LLMConfig.prototype);
-      if (ret.enable()) {
-        const pass = await PassWordManager.getPassword(LLMConfig.key);
-        ret.apiKey = pass;
-      }
-    }
-    return ret;
   }
 }
 enum MongoLanguage {

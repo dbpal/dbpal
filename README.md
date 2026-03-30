@@ -130,3 +130,8 @@ xattr -d com.apple.quarantine /Applications/dbpal.app
 
 
 保存不显示的列
+
+
+https://api.openai-proxy.org/v1
+
+

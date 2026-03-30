@@ -1,11 +1,43 @@
 import { ReactElement, ReactNode } from "react";
 import { create, StateCreator } from "zustand";
-import { extractConfigNameFromUuid, LLMConfig, TabContent } from "./helper";
+import {
+  appStore,
+  DataSourceKind,
+  extractConfigNameFromUuid,
+  LLMConfig,
+  TabContent,
+} from "./helper";
 import { AlertColor } from "@mui/material";
 import React from "react";
-import { persist } from "zustand/middleware";
+import { persist, PersistStorage, StorageValue } from "zustand/middleware";
+
+class TauriStoreManger<S> implements PersistStorage<S> {
+  constructor(
+    public setBefore?: (_: S) => Promise<void>,
+    public afterFetch?: (_: S) => Promise<void>,
+  ) {}
+  async setItem(name: string, value: StorageValue<S>) {
+    if (this.setBefore) {
+      await this.setBefore(value.state);
+    }
+    return await appStore.set(name, value);
+  }
+
+  async getItem(name: string) {
+    let ret = await appStore.get<StorageValue<S>>(name);
+    if (this.afterFetch) {
+      await this.afterFetch(ret.state);
+    }
+    return ret;
+  }
+
+  removeItem(name: string) {
+    appStore.delete(name);
+  }
+}
 
 import { GridColumnVisibilityModel } from "@mui/x-data-grid";
+import { PassWordManager } from "./Common";
 
 interface TableColumnVisible {
   // Key format: "tableName:uuid" -> Visibility Model
@@ -161,15 +193,39 @@ export const useTabsManage = create<{
   },
 }));
 
-export const useLLMConfig = create<{
+interface LLMStore {
   config: LLMConfig | null;
   setConfig: (config: LLMConfig) => void;
-}>((set) => ({
-  config: null,
-  setConfig: (config: LLMConfig) => {
-    set({ config });
-  },
-}));
+  getConfig: () => LLMConfig | null;
+}
+
+export const useLLMConfig = create<LLMStore>()(
+  persist(
+    (set, get) => ({
+      config: null,
+      setConfig: (config) => set({ config }),
+
+      getConfig() {
+        return get().config;
+      },
+    }),
+
+    {
+      name: "llm-config",
+      version: 1,
+      storage: new TauriStoreManger<LLMStore>(
+        async (s) => {
+          await PassWordManager.savePassword(LLMConfig.key, s.config.apiKey, true);
+          s.config.apiKey = "";
+        },
+        async (s) => {
+          let pass = await PassWordManager.getPassword(LLMConfig.key);
+          s.config.apiKey = pass;
+        },
+      ),
+    },
+  ),
+);
 
 export type AlertMsg = {
   severity: AlertColor;
@@ -519,6 +575,44 @@ export const useElementSizeStore = create<ElementSizeState>()(
     }),
     {
       name: "element-size-storage", // 存储在 localStorage 中的 Key
+    },
+  ),
+);
+
+// 1. Define your State interface
+interface AIPromptState {
+  prompts: Record<DataSourceKind, string>;
+  getPrompt: (kind: DataSourceKind) => string | null;
+  setPrompt: (kind: DataSourceKind, prompt: string) => void;
+  removePrompt: (kind: DataSourceKind) => void;
+}
+
+// 2. Use the "Curried" version of create for better TS support with middleware
+export const useAIPrompt = create<AIPromptState>()(
+  persist(
+    (set, get) => ({
+      prompts: {} as Record<DataSourceKind, string>, // Initialize with cast if needed
+
+      removePrompt: (kind) =>
+        set((state) => ({
+          prompts: {
+            ...state.prompts,
+            [kind]: "",
+          },
+        })),
+      getPrompt: (kind) => {
+        return get().prompts[kind] ?? null;
+      },
+      setPrompt: (kind, prompt) =>
+        set((state) => ({
+          prompts: {
+            ...state.prompts,
+            [kind]: prompt,
+          },
+        })),
+    }),
+    {
+      name: "aui-prompt-storage",
     },
   ),
 );

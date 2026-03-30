@@ -1,5 +1,4 @@
 import {
-  appStore,
   ChatShowContext,
   DataSourceKind,
   extractLastNameFromUuid,
@@ -24,7 +23,7 @@ import {
   Tooltip,
   Typography,
 } from "@mui/material";
-import { useCallback, useContext, useEffect, useRef, useState } from "react";
+import { useContext, useEffect, useRef, useState } from "react";
 import { editor } from "monaco-editor";
 import {
   AppMarkDown,
@@ -72,6 +71,7 @@ import {
 
 import * as mongoQueryBackend from "./MongoQueryBackend.ts";
 import {
+  useAIPrompt,
   useBoolSwitch,
   useLLMConfig,
   useNotification,
@@ -144,15 +144,13 @@ function Chat(props: {
         height: "100%",
         width: "100%",
         position: "relative",
-      }}
-    >
+      }}>
       <ChatShowContext.Provider
         value={{
           show,
           setShow,
           doQuery,
-        }}
-      >
+        }}>
         <AllKindQuery
           uuid={uuid}
           kind={kind}
@@ -300,7 +298,7 @@ human:{question}
     return ret;
   }
 
-  async createRedisPrompt(): Promise<string> {
+  async createRedisPrompt(userDefine: string): Promise<string> {
     const inputs = {
       question: this.question.trim(),
       database_information: await this.redisDatabaseInformation(),
@@ -310,7 +308,6 @@ human:{question}
         .join("\n"),
       locale: await getLocale(),
     };
-    const userDefine = this.config.aiTextTemplates[this.kind];
     if (userDefine) {
       return PromptTemplate.fromTemplate(userDefine).format(inputs);
     }
@@ -327,7 +324,7 @@ human:{question}
     return ret;
   }
 
-  async createMongoPrompt(): Promise<string> {
+  async createMongoPrompt(userDefine): Promise<string> {
     const inputs = {
       question: this.question.trim(),
       database_information: await this.mongoDatabaseInformation(),
@@ -338,7 +335,6 @@ human:{question}
       locale: await getLocale(),
       language: this.language,
     };
-    const userDefine = this.config.aiTextTemplates[this.kind];
     if (userDefine) {
       return PromptTemplate.fromTemplate(userDefine).format(inputs);
     }
@@ -346,7 +342,7 @@ human:{question}
     return MakePrompt.mongoTemplate.format(inputs);
   }
 
-  async createSqlPrompt(): Promise<string> {
+  async createSqlPrompt(userDefine): Promise<string> {
     const inputs = {
       dialect: this.kind2CommonName(),
       question: this.question,
@@ -358,8 +354,6 @@ human:{question}
           .join("\n") + "\n",
       locale: await getLocale(),
     };
-    const userDefine = this.config.aiTextTemplates[this.kind];
-
     if (userDefine) {
       return PromptTemplate.fromTemplate(userDefine).format(inputs);
     }
@@ -572,14 +566,14 @@ human:{question}
     }
     return ret;
   }
-  createPrompt(): Promise<string> {
+  createPrompt(userDefine: string | null): Promise<string> {
     switch (this.kind) {
       case DataSourceKind.Mongo:
-        return this.createMongoPrompt();
+        return this.createMongoPrompt(userDefine);
       case DataSourceKind.Redis:
-        return this.createRedisPrompt();
+        return this.createRedisPrompt(userDefine);
       default:
-        return this.createSqlPrompt();
+        return this.createSqlPrompt(userDefine);
     }
   }
 }
@@ -624,6 +618,17 @@ function SqlChatTextInput(props: {
     };
   }, [vis, setShow]);
 
+  useEffect(() => {
+    if (!show) {
+      setShowEditPromptTemplate(false);
+      setShowChatHistory(false);
+      setShowPrompt(false);
+    }
+  }, [show]);
+
+  const getPrompt = useAIPrompt((s) => s.getPrompt);
+  const userDefine = getPrompt(kind);
+
   const makePrompt = async () => {
     chatMemory.current.setK(getSize(UseSizeConfig.chatMemoryKey));
     try {
@@ -635,7 +640,7 @@ function SqlChatTextInput(props: {
         chatMemory.current,
         editor,
         editor.getModel().getLanguageId(),
-      ).createPrompt();
+      ).createPrompt(userDefine);
       return prompt;
     } catch (e) {
       showNotification("error", "make prompt failed", e);
@@ -716,16 +721,13 @@ function SqlChatTextInput(props: {
           border: "2px solid gray",
           borderRadius: "1rem",
           zIndex: 14,
-        }}
-      >
+        }}>
         <Stack
           direction="row"
-          style={{ alignItems: "center", justifyContent: "space-between" }}
-        >
+          style={{ alignItems: "center", justifyContent: "space-between" }}>
           <Stack
             direction="row"
-            style={{ alignItems: "center", overflow: "auto", paddingBottom: "0.5rem" }}
-          >
+            style={{ alignItems: "center", overflow: "auto", paddingBottom: "0.5rem" }}>
             {cancelFN ? (
               <CancelButton
                 handleCancel={() => {
@@ -746,8 +748,7 @@ function SqlChatTextInput(props: {
                 onClick={() => {
                   setShowChatHistory((e) => !e);
                 }}
-                disabled={chatHistory.length == 0}
-              >
+                disabled={chatHistory.length == 0}>
                 <EventNoteIcon
                   color={chatHistory.length == 0 ? "disabled" : "primary"}
                 />
@@ -759,8 +760,7 @@ function SqlChatTextInput(props: {
                 onClick={() => {
                   setShowPrompt((e) => !e);
                 }}
-                variant={showPrompt ? "contained" : "text"}
-              >
+                variant={showPrompt ? "contained" : "text"}>
                 prompt
               </Button>
             </Tooltip>
@@ -768,8 +768,7 @@ function SqlChatTextInput(props: {
               <IconButton
                 onClick={() => {
                   setShowEditPromptTemplate((e) => !e);
-                }}
-              >
+                }}>
                 <EditIcon color="secondary" />
               </IconButton>
             </Tooltip>
@@ -805,8 +804,7 @@ function SqlChatTextInput(props: {
             <IconButton
               onClick={() => {
                 setShow(false);
-              }}
-            >
+              }}>
               <CloseIcon />
             </IconButton>
           </Stack>
@@ -862,8 +860,10 @@ function EditPromptTemplate(props: {
   config: LLMConfig;
   handleClose: () => void;
 }) {
-  const { kind, handleClose, config } = props;
-  const userDefine = config.aiTextTemplates[kind];
+  const { kind, handleClose } = props;
+  const { getPrompt, setPrompt, removePrompt } = useAIPrompt((s) => s);
+  const userDefine = getPrompt(kind);
+
   const [newTemplate, setNewTemplate] = useState(
     userDefine ? userDefine : MakePrompt.getDefaultTemplate(kind),
   );
@@ -871,29 +871,10 @@ function EditPromptTemplate(props: {
   const { showNotification } = useNotification((s) => s);
   const [templateVar, setTemplateVar] = useState("");
   const handleSave = async () => {
-    try {
-      const config = await LLMConfig.get();
-      if (!config.aiTextTemplates) {
-        config.aiTextTemplates = {};
-      }
-      config.aiTextTemplates[kind] = newTemplate;
-      await config.save();
-      showNotification("success", "save template ok");
-      handleClose();
-    } catch (e) {
-      showNotification("error", "save template failed", e);
-      return;
-    }
+    setPrompt(kind, newTemplate);
   };
   const handleDelete = async () => {
-    try {
-      const config = await LLMConfig.get();
-      config.aiTextTemplates[kind] = "";
-      await config.save();
-    } catch (e) {
-      showNotification("error", "reset template failed", e);
-      return;
-    }
+    removePrompt(kind);
     showNotification("success", "reset template ok");
     handleClose();
   };
@@ -922,8 +903,7 @@ function EditPromptTemplate(props: {
         zIndex: 14,
         display: "flex",
         flexDirection: "column",
-      }}
-    >
+      }}>
       <Stack style={{ height: "100%" }}>
         <ModalHeader title="edit template" handleClose={handleClose} />
         <SimpleFlexEditor
@@ -999,8 +979,7 @@ function ChatHistory(props: {
         overflow: "auto",
         padding: "0.4rem",
       }}
-      ref={wrapperRef}
-    >
+      ref={wrapperRef}>
       <ModalHeader
         title="chat history"
         headerExtra={
@@ -1020,13 +999,11 @@ function ChatHistory(props: {
                 direction="row"
                 style={{
                   justifyContent: index % 2 == 0 ? "flex-start" : "flex-end",
-                }}
-              >
+                }}>
                 <div
                   style={{
                     width: "85%",
-                  }}
-                >
+                  }}>
                   <AppMarkDown>{his}</AppMarkDown>
                 </div>
               </Stack>
@@ -1062,8 +1039,7 @@ function ShowPrompt(props: {
         width: "75%",
         height: "75%",
         overflow: "auto",
-      }}
-    >
+      }}>
       <Stack height="100%">
         <ModalHeader
           headerExtra=<>
@@ -1071,8 +1047,7 @@ function ShowPrompt(props: {
               variant="text"
               onClick={() => {
                 handleCopyToClipboard(prompt, showNotification);
-              }}
-            >
+              }}>
               copy
             </Button>
           </>
@@ -1087,44 +1062,4 @@ function ShowPrompt(props: {
   );
 }
 
-function AllKindChat(props: {
-  uuid: string;
-  kind: DataSourceKind;
-  value?: string;
-  favoriteName?: string;
-  language?: string;
-}) {
-  const { showNotification } = useNotification((s) => s);
-
-  const setConfig = useLLMConfig((s) => s.setConfig);
-  const handleReload = useCallback(() => {
-    LLMConfig.get()
-      .then((config) => {
-        if (config && config.enable()) {
-          setConfig(config);
-        }
-      })
-      .catch((e) => {
-        showNotification("error", "get llm config failed", e);
-      });
-  }, [setConfig, showNotification]);
-
-  useEffect(() => {
-    const unlisten = appStore.onKeyChange(LLMConfig.key, () => {
-      handleReload();
-    });
-    return () => {
-      unlisten.then((x) => {
-        x();
-      });
-    };
-  }, [handleReload]);
-
-  useEffect(() => {
-    handleReload();
-  }, [handleReload]);
-
-  return <Chat {...props} />;
-}
-
-export { AllKindChat };
+export { Chat as AllKindChat };

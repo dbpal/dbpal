@@ -1010,7 +1010,7 @@ function SliderSize(props: {
   name?: string;
 }) {
   const { config, notice, name } = props;
-  const width = "450px";
+  const width = "33vw";
   const { sizes, setSize } = useSizeStore((s) => s);
   const size = sizes[config.key];
 

@@ -612,29 +612,24 @@ function LLMSetting(props: { handleClose?: () => void }) {
   const [moddelCan, setModdelCan] = useState<ModelDef[]>([]);
   const [helloTime, setHelloTime] = useState(0);
   const [modified, setModified] = useState(false);
-  const [oldSetting, setOldSetting] = useState<LLMConfig | null>(null);
-
+  const { getConfig, config: oldSetting, setConfig } = useLLMConfig((s) => s);
   useEffect(() => {
-    LLMConfig.get().then((e) => {
-      if (e) {
-        setBaseUrl(e.baseUrl);
-        setTemperature(e.temperature + "");
-        setModel(e.model);
-        setApiKey(e.apiKey);
-        if (e.maxToken) {
-          setMaxToken(e.maxToken + "");
-        }
-        if (e.topP) {
-          setTopP(e.topP + "");
-        }
-        setOldSetting(e);
+    let e = getConfig();
+    if (e) {
+      setBaseUrl(e.baseUrl);
+      setTemperature(e.temperature + "");
+      setModel(e.model);
+      setApiKey(e.apiKey);
+      if (e.maxToken) {
+        setMaxToken(e.maxToken + "");
       }
-    });
-  }, []);
-  const makeConfig = useCallback(() => {
-    if (!oldSetting) {
-      return;
+      if (e.topP) {
+        setTopP(e.topP + "");
+      }
     }
+  }, [getConfig]);
+
+  const makeConfig = useCallback(() => {
     const config = {
       baseUrl,
       apiKey,
@@ -642,28 +637,21 @@ function LLMSetting(props: { handleClose?: () => void }) {
       model,
       maxToken: maxToken ? parseInt(maxToken) : null,
       topP: topP ? parseFloat(topP) : 0,
-      aiTextTemplates: oldSetting.aiTextTemplates,
     } as LLMConfig;
     Object.setPrototypeOf(config, LLMConfig.prototype);
     return config;
-  }, [apiKey, baseUrl, maxToken, model, oldSetting, temperature, topP]);
+  }, [apiKey, baseUrl, maxToken, model, temperature, topP]);
 
   useEffect(() => {
-    if (!oldSetting) {
-      return;
-    }
     setModified(!isEqual(oldSetting, makeConfig()));
   }, [makeConfig, oldSetting]);
 
   const handleSave = async () => {
     try {
-      const config = makeConfig();
-      await config.save();
+      setConfig(makeConfig());
       if (handleClose) {
         handleClose();
       }
-      showNotification("success", "save llm config ok");
-      setOldSetting(config);
     } catch (e) {
       showNotification("error", "save llm config  failed", e);
       return;
