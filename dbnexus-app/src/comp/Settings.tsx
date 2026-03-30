@@ -74,7 +74,7 @@ function AppearanceSetting() {
   const [fontSize, setFontSize] = useState(appearance.fontSize);
   const [darkBgColor, setDarkBgColor] = useState(appearance.darkBgColor);
   const [lightBgColor, setLightBgColor] = useState(appearance.lightBgColor);
-  const [fontFamily, setFontFamily] = useState(appearance.fontWeight);
+  const [fontFamily, setFontFamily] = useState(appearance.fontFamily);
   const [datagridRowHeightFactor, setDatagridRowHeightFactor] = useState(
     appearance.datagridRowHeightFactor + "",
   );
