@@ -18,7 +18,7 @@ mod tests {
     use langchain_rust::llm::{OpenAI, OpenAIConfig};
     use langchain_rust::schemas::Message;
 
-    use crate::app::OpenAIReq;
+    use crate::app::{OpenAIReq, SetZoom};
     #[test]
     fn generate_ts_def() {
         use crate::app::{self};
@@ -95,6 +95,7 @@ mod tests {
             &CreateDatabaseExtra::INFO,
             &CouchBaseBucketType::INFO,
             &OpenAIReq::INFO,
+            &SetZoom::INFO,
         ];
         let options: DefinitionFileOptions = DefinitionFileOptions::default();
         write_definition_file_from_type_infos(&mut file, options, &api).unwrap();

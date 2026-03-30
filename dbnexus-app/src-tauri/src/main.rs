@@ -7,6 +7,7 @@ mod app;
 mod handlers;
 
 use app::DBPal;
+use dbpal::app::SetZoom;
 use handlers::{
     add_table_column, ai_get_search_path, ai_text_completion, all_font_family, auto_completion,
     cancel_task, cassandra_drop_aggregate, cassandra_list_aggregate, cassandra_show_aggregate,
@@ -151,38 +152,6 @@ fn logger_test() {
         log::error!("this is error log");
         std::thread::sleep(std::time::Duration::from_secs(1));
     });
-}
-
-const STORE_FILE: &str = "store.json";
-
-mod zoom {
-    use crate::STORE_FILE;
-    use tauri::{AppHandle, Manager};
-    use tauri_plugin_store::StoreExt;
-    pub(super) const STEP: f64 = 0.1;
-
-    pub(crate) fn get_configured_zoom(handle: &AppHandle) -> anyhow::Result<f64> {
-        let x = handle
-            .get_store(STORE_FILE)
-            .map(|store| store.get("zoom").and_then(|x| x.as_f64()));
-        Ok(x.flatten().unwrap_or(1.0))
-    }
-
-    pub(crate) fn configure_zoom(handle: &AppHandle, zoom: f64) -> anyhow::Result<()> {
-        let store = handle.get_store(STORE_FILE);
-        if let Some(store) = store {
-            store.set("zoom", zoom);
-        }
-        Ok(())
-    }
-    pub(crate) fn set_webview_zoom(handle: &AppHandle, zoom: f64) {
-        let views = handle.webview_windows();
-        for view in views.values() {
-            if let Err(err) = view.set_zoom(zoom) {
-                log::error!("set view zoom failed:{}", err);
-            }
-        }
-    }
 }
 
 // api key sk-2zegNGK2WhxZ9jToc17JBp260Z5vD5Cdd4zXG4s4WISRyczO
@@ -405,43 +374,19 @@ fn main() {
                 "relauch" => {
                     handle.restart();
                 }
-                "zoom_out" => match zoom::get_configured_zoom(handle) {
-                    Ok(x) => {
-                        let mut zoom = x - zoom::STEP;
-                        let min = 0.3;
-                        if zoom < min {
-                            zoom = min;
-                        }
-                        zoom::set_webview_zoom(handle, zoom);
-                        if let Err(err) = zoom::configure_zoom(handle, zoom) {
-                            log::error!("set zoom failed:{}", err);
-                        }
+                "zoom_out" => {
+                    if let Err(err) = handle.emit("set_zoom", SetZoom::Out) {
+                        log::error!("emit zoom failed,err:{}", err)
                     }
-                    Err(err) => {
-                        log::error!("get zoom failed,err{}", err);
+                }
+                "zoom_in" => {
+                    if let Err(err) = handle.emit("set_zoom", SetZoom::In) {
+                        log::error!("emit zoom failed,err:{}", err)
                     }
-                },
-                "zoom_in" => match zoom::get_configured_zoom(handle) {
-                    Ok(x) => {
-                        let mut zoom = x + zoom::STEP;
-                        let max = 2f64;
-                        if zoom > max {
-                            zoom = max;
-                        }
-                        zoom::set_webview_zoom(handle, zoom);
-                        if let Err(err) = zoom::configure_zoom(handle, zoom) {
-                            log::error!("set zoom failed:{}", err);
-                        }
-                    }
-                    Err(err) => {
-                        log::error!("get zoom failed,err{}", err);
-                    }
-                },
+                }
                 "zoom_reset" => {
-                    let zoom = 1f64;
-                    zoom::set_webview_zoom(handle, zoom);
-                    if let Err(err) = zoom::configure_zoom(handle, zoom) {
-                        log::error!("set zoom failed:{}", err);
+                    if let Err(err) = handle.emit("set_zoom", SetZoom::Reset) {
+                        log::error!("emit zoom failed,err:{}", err)
                     }
                 }
                 "show_shortcut" => {

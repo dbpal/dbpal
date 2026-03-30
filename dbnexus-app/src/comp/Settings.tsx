@@ -35,7 +35,6 @@ import {
   validJson,
   registeredThemes,
   dataGridheaderFontSize,
-  appStore,
   LLMConfig,
   shrinkAble,
   prettyMs,
@@ -65,6 +64,8 @@ import {
   useUserSettings,
 } from "./store";
 import { WebviewWindow } from "@tauri-apps/api/webviewWindow";
+import { listen } from "@tauri-apps/api/event";
+import types from "./ApiStruct";
 
 function AppearanceSetting() {
   const { appearance, updateAppearance } = useUserSettings((s) => s);
@@ -80,25 +81,8 @@ function AppearanceSetting() {
   );
   const [intputVariant, setInputVariant] = useState(appearance.intputVariant);
   const [modified, setModified] = useState(false);
-
   const [theme, setTheme] = useState(appearance.theme);
-
-  const [zoom, setZoom] = useState(1);
-
-  useEffect(() => {
-    const key = "zoom";
-    appStore.get<number>(key).then((z) => {
-      setZoom(z);
-    });
-    const unlisten = appStore.onKeyChange<number>(key, (z) => {
-      setZoom(z);
-    });
-    return () => {
-      unlisten.then((f) => {
-        f();
-      });
-    };
-  }, []);
+  const [zoom, setZoom] = useState(appearance.zoom);
 
   useEffect(() => {
     invoke<string[]>("all_font_family", {})
@@ -120,6 +104,7 @@ function AppearanceSetting() {
       datagridRowHeightFactor: parseFloat(datagridRowHeightFactor),
       intputVariant,
       theme,
+      zoom,
     };
 
     return x;
@@ -132,6 +117,7 @@ function AppearanceSetting() {
     intputVariant,
     lightBgColor,
     theme,
+    zoom,
   ]);
 
   useEffect(() => {
@@ -265,9 +251,18 @@ function AppearanceSetting() {
 
       <Stack direction="row" sx={{ alignItems: "center" }}>
         <Typography width={headerSize}>zoom</Typography>
-        <Tooltip title="current zoom level">
-          <Typography color="info"> {zoom}</Typography>
-        </Tooltip>
+        <Typography color="info"> {zoom} </Typography>
+        <Slider
+          color="info"
+          value={zoom}
+          min={0.5}
+          max={3}
+          onChange={(_e, value) => {
+            setZoom(value);
+          }}
+          step={0.01}
+          style={{ width: "18rem" }}
+        />
       </Stack>
       <Divider />
       <Stack direction="row" sx={{ alignItems: "center" }}>
@@ -1146,11 +1141,10 @@ function makeComponents(
 }
 
 const makeTheme = (
-  s: UserSettings,
+  appearance: Partial<UserSettings["appearance"]>,
   isDarkTheme: boolean,
   datagridRowHeightXXX: number,
 ) => {
-  const { appearance } = s;
   let color: string;
   if (isDarkTheme) {
     color = appearance.darkBgColor ? appearance.darkBgColor : "#000";
@@ -1180,28 +1174,28 @@ const makeTheme = (
   });
 };
 
-const isDark = (setting: UserSettings, osTheme) => {
-  return (
-    isDarkStr(setting.appearance.theme) ||
-    (setting.appearance.theme == "system" && isDarkStr(osTheme))
-  );
+const isDark = (setting: Partial<UserSettings["appearance"]>, osTheme) => {
+  return isDarkStr(setting.theme) || (setting.theme == "system" && isDarkStr(osTheme));
 };
 function SettingProvider({ children }) {
-  const setting = useUserSettings((s) => s);
+  const { appearance, editor, misc, updateAppearance } = useUserSettings((s) => s);
   const [osTheme, setOsTheme] = useState("light");
 
   const { showNotification } = useNotification((s) => s);
+
   useEffect(() => {
-    document.documentElement.style.fontSize = setting.appearance.fontSize + "px";
-    document.documentElement.style.fontFamily = setting.appearance.fontFamily;
-    document.documentElement.style.fontWeight = setting.appearance.fontWeight;
-    if (setting.editor.theme) {
-      monaco.editor.setTheme(setting.editor.theme);
+    document.documentElement.style.fontSize = appearance.fontSize + "px";
+    document.documentElement.style.fontFamily = appearance.fontFamily;
+    document.documentElement.style.fontWeight = appearance.fontWeight;
+    if (editor.theme) {
+      monaco.editor.setTheme(editor.theme);
     } else {
-      monaco.editor.setTheme(isDark(setting, osTheme) ? "vs-dark" : "vs");
+      monaco.editor.setTheme(isDark(appearance, osTheme) ? "vs-dark" : "vs");
     }
+    let webview = WebviewWindow.getCurrent();
+
     (async () => {
-      if (setting.misc.autoStart) {
+      if (misc.autoStart) {
         if (!(await isEnabledApp())) {
           enableApp().catch((e) => {
             console.error("enable app autostart failed", e);
@@ -1217,11 +1211,19 @@ function SettingProvider({ children }) {
           });
         }
       }
-      invoke("set_log_level", { level: setting.misc.logLevel }).catch((e) => {
+      invoke("set_log_level", { level: misc.logLevel }).catch((e) => {
         showNotification("error", "set log level failed", e);
       });
     })();
-  }, [osTheme, setting, showNotification]);
+    webview.setZoom(appearance.zoom);
+  }, [
+    osTheme,
+    appearance,
+    showNotification,
+    editor.theme,
+    misc.autoStart,
+    misc.logLevel,
+  ]);
 
   useEffect(() => {
     const currentWebview = WebviewWindow.getCurrent();
@@ -1236,12 +1238,36 @@ function SettingProvider({ children }) {
     });
   }, []);
 
+  useEffect(() => {
+    const unlisten = listen<types.SetZoom>("set_zoom", (e) => {
+      let zoom = appearance.zoom;
+
+      switch (e.payload) {
+        case "in":
+          zoom = zoom + 0.1;
+
+          break;
+        case "out":
+          zoom = zoom - 0.1;
+          break;
+        case "reset":
+          zoom = 1;
+          break;
+      }
+      updateAppearance({ ...appearance, zoom });
+    });
+    return () => {
+      unlisten.then((e) => {
+        e();
+      });
+    };
+  }, [appearance, updateAppearance]);
   const datagridHeightXXX = useDatagridHeight();
 
   return (
-    setting && (
+    appearance && (
       <ThemeProvider
-        theme={makeTheme(setting, isDark(setting, osTheme), datagridHeightXXX)}>
+        theme={makeTheme(appearance, isDark(appearance, osTheme), datagridHeightXXX)}>
         <CssBaseline />
         {children}
       </ThemeProvider>

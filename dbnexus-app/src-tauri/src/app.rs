@@ -882,6 +882,15 @@ impl TryFrom<MongoShowTablePara> for dbnexus_db::mongo::MongoShowTablePara {
     }
 }
 
+#[derive(Debug, Clone, serde::Serialize, TypeDef)]
+#[serde(rename_all = "lowercase")]
+#[allow(unused)]
+pub enum SetZoom {
+    In,
+    Out,
+    Reset,
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

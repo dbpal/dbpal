@@ -82,7 +82,7 @@ export const useTableColumnVisibleStore = create<TableColumnVisible>()(
       },
     }),
     {
-      name: "mui-datagrid-configs", // LocalStorage key
+      name: "mui-datagrid-configs",
     },
   ),
 );
@@ -532,7 +532,7 @@ export const useColumnWidthStore = create<ColumnWidthsState>()(
       resetWidths: () => set({ columnWidths: {} }),
     }),
     {
-      name: "column-width-storage", // Key in LocalStorage
+      name: "column-width-storage",
     },
   ),
 );
@@ -632,7 +632,7 @@ export const useElementSizeStore = create<ElementSizeState>()(
       // 实现删除逻辑 (模拟 DELETE)
     }),
     {
-      name: "element-size-storage", // 存储在 localStorage 中的 Key
+      name: "element-size-storage",
     },
   ),
 );
@@ -685,6 +685,7 @@ export interface UserSettings {
     datagridRowHeightFactor: number;
     intputVariant: string;
     theme: string;
+    zoom: number;
   };
   export_: {
     csvDelimiter: string;
@@ -723,6 +724,7 @@ const initialSettings: UserSettings = {
     datagridRowHeightFactor: 2.5,
     intputVariant: "standard",
     theme: "light",
+    zoom: 1,
   },
   export_: {
     csvDelimiter: ",",

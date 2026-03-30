@@ -99,9 +99,7 @@ export const useTsOptionStore = create<TsOptionState>()(
       resetOptions: () => set({ options: DEFAULT_COMPILER_OPTIONS }),
     }),
     {
-      name: "dbpal-ts-compiler-option", // localStorage 的 key
-      // 如果你想保留你原本 save 時的縮進格式（雖然 localStorage 通常不需要），
-      // 可以自定義 storage 處理，但一般預設即可。
+      name: "dbpal-ts-compiler-option",
     },
   ),
 );

@@ -813,16 +813,6 @@ export type { ErrAndLoc, QueryRespData };
 
 async function webviewWIndowInit() {
   const currentWebview = WebviewWindow.getCurrent();
-  appStore.get<number>("zoom").then(async (zoom) => {
-    if (zoom) {
-      try {
-        await currentWebview.setZoom(zoom);
-      } catch (e) {
-        console.error("set zoom failed", e);
-        message("set zoom failed : " + String(e), { kind: "error" });
-      }
-    }
-  });
   if (["windows", "linux"].includes(platform())) {
     document.addEventListener("keydown", function (event) {
       if (event.key === "F11") {
