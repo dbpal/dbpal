@@ -9,6 +9,8 @@ interface MonacoEditorProps {
   readOnly?: boolean;
 }
 
+// 不能随便设置textalign 这个是继承属性 会影响monaco editor的显示呢
+
 function MonacoEditor({ value, language, onMount, readOnly }: MonacoEditorProps) {
   const editorRef = useRef<HTMLDivElement>(null);
 
