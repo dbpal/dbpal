@@ -11,8 +11,8 @@ import {
   Typography,
 } from "@mui/material";
 import ClearIcon from "@mui/icons-material/Clear";
-import { DataSourceKind, SettingContext } from "./helper";
-import { CSSProperties, useCallback, useContext, useRef, useState } from "react";
+import { DataSourceKind } from "./helper";
+import { CSSProperties, useCallback, useRef, useState } from "react";
 import types from "./ApiStruct";
 import AddIcon from "@mui/icons-material/Add";
 import {
@@ -27,7 +27,7 @@ import KeyIcon from "@mui/icons-material/Key";
 import { invoke } from "@tauri-apps/api/core";
 import { AllKindChat } from "./Chat";
 import { makeFormatFn } from "./Common";
-import { useNotification } from "./store";
+import { useNotification, useUserSettings } from "./store";
 
 function CreateTable(props: { uuid: string; kind: DataSourceKind }) {
   const { uuid, kind } = props;
@@ -59,7 +59,7 @@ function CreateTable(props: { uuid: string; kind: DataSourceKind }) {
   const [loading, setLoading] = useState(false);
   const [showQuery, setShowQuery] = useState(false);
   const [editorValue, setEditorValue] = useState("");
-  const setting = useContext(SettingContext);
+  const setting = useUserSettings((s) => s);
   const tableNameRef = useRef<HTMLInputElement>(null);
   const { showNotification } = useNotification((s) => s);
   const makeReq = useCallback(() => {
@@ -197,8 +197,7 @@ function CreateTable(props: { uuid: string; kind: DataSourceKind }) {
                 nullable: "none",
               },
             ]);
-          }}
-        >
+          }}>
           <AddIcon />
         </Button>
       </Stack>
@@ -216,8 +215,7 @@ function CreateTable(props: { uuid: string; kind: DataSourceKind }) {
                     kind: "index",
                   } as types.CreateIndexReq,
                 ]);
-              }}
-            >
+              }}>
               <AddIcon />
             </Button>
           </Stack>
@@ -237,8 +235,7 @@ function CreateTable(props: { uuid: string; kind: DataSourceKind }) {
                   <Button
                     onClick={() => {
                       setIndexes(indexes.filter((_, idx) => idx != index));
-                    }}
-                  >
+                    }}>
                     <ClearIcon />
                   </Button>
                 </Stack>
@@ -270,8 +267,7 @@ function CreateTable(props: { uuid: string; kind: DataSourceKind }) {
                         onClick={() => {
                           setTable("");
                         }}
-                        edge="end"
-                      >
+                        edge="end">
                         <ClearIcon fontSize="small" />
                       </IconButton>
                     </InputAdornment>
@@ -288,8 +284,7 @@ function CreateTable(props: { uuid: string; kind: DataSourceKind }) {
             }
             setShowQuery((e) => !e);
           }}
-          variant={showQuery ? "outlined" : "contained"}
-        >
+          variant={showQuery ? "outlined" : "contained"}>
           {showQuery ? "close editor" : "show editor"}
         </Button>
         {showQuery && <Button onClick={setCreateSql}> gen sql </Button>}
@@ -331,8 +326,7 @@ function TableColumn(props: {
       direction="row"
       style={{
         alignItems: "center",
-      }}
-    >
+      }}>
       <IconButton onClick={handleClose}>
         <CloseIcon />
       </IconButton>
@@ -386,8 +380,7 @@ function TableColumn(props: {
                       onClick={() => {
                         handleCol({ ...col, name: "" });
                       }}
-                      edge="end"
-                    >
+                      edge="end">
                       <ClearIcon fontSize="small" />
                     </IconButton>
                   </InputAdornment>

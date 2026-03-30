@@ -12,20 +12,25 @@ import { PiTreeStructureFill } from "react-icons/pi";
 import {
   DataSourceKind,
   generateRandomString,
-  MatcherContext,
   secondConfirm,
   UuidContext,
 } from "./helper";
 import { ExceedMaxTreeItem, MenuRefresh } from "./CommonComp";
 import { listCreatedTypes } from "./handlers";
 import { CopySql } from "./CommonComp2";
-import { useMatcher, useContextMenu, useNotification, useTabsManage } from "./store";
+import {
+  useMatcher,
+  useContextMenu,
+  useNotification,
+  useTabsManage,
+  useMatcherFn,
+} from "./store";
 function TypesTree() {
   const { uuid, kind } = useContext(UuidContext);
   const [types, setTypes] = useState<types.CreatedTypeDef[]>([]);
   const { showNotification } = useNotification((s) => s);
   const { maxTree } = useMatcher((state) => state);
-  const matchPattern = useContext(MatcherContext);
+  const matchPattern = useMatcherFn();
 
   const reload = useCallback(() => {
     listCreatedTypes(uuid)
@@ -62,12 +67,10 @@ function TypesTree() {
             ),
             event: e,
           });
-        }}
-      >
+        }}>
         <PiTreeStructureFill />
         <span> types </span>
-      </Stack>
-    >
+      </Stack>>
       {types
         .filter((typ) => matchPattern(typ.name))
         .map((typ, index) => {
@@ -96,8 +99,7 @@ function TypesTree() {
                     event: e,
                   });
                 }}
-                sx={{ alignItems: "center" }}
-              >
+                sx={{ alignItems: "center" }}>
                 <PiTreeStructureFill />
                 <span> {typ.name} </span>
               </Stack>
@@ -168,8 +170,7 @@ function TypeMenu(props: {
       <MenuItem
         onClick={() => {
           handleOpenDetails();
-        }}
-      >
+        }}>
         <ListItemIcon>
           <InfoIcon />
         </ListItemIcon>
@@ -180,8 +181,7 @@ function TypeMenu(props: {
         sx={{ color: "error.main" }}
         onClick={() => {
           handleDrop();
-        }}
-      >
+        }}>
         <ListItemIcon>
           <DeleteForeverIcon color="error" />
         </ListItemIcon>

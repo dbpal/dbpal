@@ -1,12 +1,4 @@
-import {
-  RefObject,
-  useCallback,
-  useContext,
-  useEffect,
-  useMemo,
-  useRef,
-  useState,
-} from "react";
+import { RefObject, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   Button,
   Stack,
@@ -46,7 +38,6 @@ import {
   hexToString,
   hexTryToString,
   ErrAndLoc,
-  SettingContext,
   stringToHex,
   validJson,
   MuiDataGridData,
@@ -87,6 +78,7 @@ import {
   UseSizeConfig,
   useSizeStore,
   useTableColumnVisibleStore,
+  useUserSettings,
 } from "./store.ts";
 
 class RedisZsetHashModifyReq {
@@ -889,7 +881,7 @@ function RedisSetTable(props: { setKey: string; uuid: string }) {
   }, []);
 
   const setUpMenu = useContextMenu((state) => state.setUpMenu);
-  const setting = useContext(SettingContext);
+  const setting = useUserSettings((s) => s);
   const slotProps = useMemo(() => {
     return {
       row: {
@@ -916,12 +908,17 @@ function RedisSetTable(props: { setKey: string; uuid: string }) {
       },
       toolbar: {
         csvOptions: {
-          delimiter: setting.export.csvDelimiter,
-          includeHeaders: setting.export.includeHeader,
+          delimiter: setting.export_.csvDelimiter,
+          includeHeaders: setting.export_.includeHeader,
         },
       },
     } as GridSlotsComponentsProps;
-  }, [handleDel, setUpMenu, setting.export.csvDelimiter, setting.export.includeHeader]);
+  }, [
+    handleDel,
+    setUpMenu,
+    setting.export_.csvDelimiter,
+    setting.export_.includeHeader,
+  ]);
 
   const [modifyModalBox, setModifyModalBox] = useState<HTMLDivElement | null>(null);
 
@@ -1219,7 +1216,7 @@ function RedisListTable(props: { listKey: string; uuid: string }) {
 
   const [page, setPage] = useState(0);
   const [loading, setLoading] = useState(false);
-  const setting = useContext(SettingContext);
+  const setting = useUserSettings((s) => s);
   const [queryStatus, setQueryStatus] = useState("");
   const handleReload = useCallback(
     (showOk: boolean) => {
@@ -1348,12 +1345,17 @@ function RedisListTable(props: { listKey: string; uuid: string }) {
       },
       toolbar: {
         csvOptions: {
-          delimiter: setting.export.csvDelimiter,
-          includeHeaders: setting.export.includeHeader,
+          delimiter: setting.export_.csvDelimiter,
+          includeHeaders: setting.export_.includeHeader,
         },
       },
     } as GridSlotsComponentsProps;
-  }, [handleDel, setUpMenu, setting.export.csvDelimiter, setting.export.includeHeader]);
+  }, [
+    handleDel,
+    setUpMenu,
+    setting.export_.csvDelimiter,
+    setting.export_.includeHeader,
+  ]);
 
   const onColumnResize = useCallback(
     ({ colDef, width }) => {
@@ -1560,7 +1562,7 @@ function RedisZsetTable(props: { uuid: string; zsetKey: string }) {
   const [maxErr, setMaxErr] = useState(false);
   const [loading, setLoading] = useState(false);
   const { showNotification } = useNotification((s) => s);
-  const setting = useContext(SettingContext);
+  const setting = useUserSettings((s) => s);
 
   const getSize = useSizeStore((s) => s.getSize);
 
@@ -1676,12 +1678,17 @@ function RedisZsetTable(props: { uuid: string; zsetKey: string }) {
       },
       toolbar: {
         csvOptions: {
-          delimiter: setting.export.csvDelimiter,
-          includeHeaders: setting.export.includeHeader,
+          delimiter: setting.export_.csvDelimiter,
+          includeHeaders: setting.export_.includeHeader,
         },
       },
     } as GridSlotsComponentsProps;
-  }, [handleDel, setUpMenu, setting.export.csvDelimiter, setting.export.includeHeader]);
+  }, [
+    handleDel,
+    setUpMenu,
+    setting.export_.csvDelimiter,
+    setting.export_.includeHeader,
+  ]);
 
   const [modifyModalBox, setModifyModalBox] = useState<HTMLDivElement | null>(null);
 
@@ -1958,7 +1965,7 @@ function RedisHashTable(props: { hashKey: string; uuid: string }) {
   const { showNotification } = useNotification((s) => s);
   const [selectRow, setSelectRow] = useState<any>(null);
   const [loading, setLoading] = useState(false);
-  const setting = useContext(SettingContext);
+  const setting = useUserSettings((s) => s);
   const getSize = useSizeStore((s) => s.getSize);
 
   const [lastFetchTime, setLastFetchTime] = useState(new Date());
@@ -2056,12 +2063,17 @@ function RedisHashTable(props: { hashKey: string; uuid: string }) {
       },
       toolbar: {
         csvOptions: {
-          delimiter: setting.export.csvDelimiter,
-          includeHeaders: setting.export.includeHeader,
+          delimiter: setting.export_.csvDelimiter,
+          includeHeaders: setting.export_.includeHeader,
         },
       },
     } as GridSlotsComponentsProps;
-  }, [handleDel, setUpMenu, setting.export.csvDelimiter, setting.export.includeHeader]);
+  }, [
+    handleDel,
+    setUpMenu,
+    setting.export_.csvDelimiter,
+    setting.export_.includeHeader,
+  ]);
 
   const [modifyModalBox, setModifyModalBox] = useState<HTMLDivElement | null>(null);
 

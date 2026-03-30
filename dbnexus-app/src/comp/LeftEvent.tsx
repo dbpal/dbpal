@@ -12,20 +12,25 @@ import { MdOutlineEventRepeat } from "react-icons/md";
 import {
   DataSourceKind,
   generateRandomString,
-  MatcherContext,
   secondConfirm,
   UuidContext,
 } from "./helper";
 import { ExceedMaxTreeItem, MenuRefresh } from "./CommonComp";
 import { listEvent } from "./handlers";
 import { CopySql } from "./CommonComp2";
-import { useMatcher, useContextMenu, useNotification, useTabsManage } from "./store";
+import {
+  useMatcher,
+  useContextMenu,
+  useNotification,
+  useTabsManage,
+  useMatcherFn,
+} from "./store";
 function EventsTree() {
   const { uuid, kind } = useContext(UuidContext);
   const [evens, setEvents] = useState<types.SqlEvent[]>([]);
   const { showNotification } = useNotification((s) => s);
   const { maxTree } = useMatcher((state) => state);
-  const matchPattern = useContext(MatcherContext);
+  const matchPattern = useMatcherFn();
   const reload = useCallback(() => {
     listEvent(uuid)
       .then((ts) => {
@@ -36,6 +41,7 @@ function EventsTree() {
       });
   }, [showNotification, uuid]);
   const [exceed, setExceed] = useState(0);
+
   useEffect(() => {
     setExceed(evens.filter((e) => matchPattern(e.name)).length);
   }, [evens, matchPattern]);
@@ -62,12 +68,10 @@ function EventsTree() {
             ),
             event: e,
           });
-        }}
-      >
+        }}>
         <MdOutlineEventRepeat />
         <span> events </span>
-      </Stack>
-    >
+      </Stack>>
       {evens
         .filter((event) => matchPattern(event.name))
         .map((event, index) => {
@@ -97,8 +101,7 @@ function EventsTree() {
                     event: e,
                   });
                 }}
-                sx={{ alignItems: "center" }}
-              >
+                sx={{ alignItems: "center" }}>
                 <MdOutlineEventRepeat />
                 <span> {event.name} </span>
               </Stack>
@@ -167,8 +170,7 @@ function EventMenu(props: {
       <MenuItem
         onClick={() => {
           handleOpenDetails();
-        }}
-      >
+        }}>
         <ListItemIcon>
           <InfoIcon />
         </ListItemIcon>
@@ -179,8 +181,7 @@ function EventMenu(props: {
         sx={{ color: "error.main" }}
         onClick={() => {
           handleDrop();
-        }}
-      >
+        }}>
         <ListItemIcon>
           <DeleteForeverIcon color="error" />
         </ListItemIcon>

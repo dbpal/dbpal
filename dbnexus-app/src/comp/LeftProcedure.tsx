@@ -13,20 +13,25 @@ import { SiProcessingfoundation } from "react-icons/si";
 import {
   DataSourceKind,
   generateRandomString,
-  MatcherContext,
   secondConfirm,
   UuidContext,
 } from "./helper";
 import { ExceedMaxTreeItem, MenuRefresh, UdfNameAndParameters } from "./CommonComp";
 import { listProcedure, makeShowProcedureExtraArg, showProcedure } from "./handlers";
 import { CopySql } from "./CommonComp2";
-import { useMatcher, useContextMenu, useNotification, useTabsManage } from "./store";
+import {
+  useMatcher,
+  useContextMenu,
+  useNotification,
+  useTabsManage,
+  useMatcherFn,
+} from "./store";
 function ProceduresTree() {
   const { uuid, kind } = useContext(UuidContext);
   const [ps, setPos] = useState<types.NamedStaff[]>([]);
   const { showNotification } = useNotification((s) => s);
   const { maxTree } = useMatcher((state) => state);
-  const matchPattern = useContext(MatcherContext);
+  const matchPattern = useMatcherFn();
   const reload = useCallback(() => {
     listProcedure(uuid)
       .then((ts) => {
@@ -63,12 +68,10 @@ function ProceduresTree() {
             ),
             event: e,
           });
-        }}
-      >
+        }}>
         <SiProcessingfoundation />
         <span> procedures </span>
-      </Stack>
-    >
+      </Stack>>
       {ps
         .filter((e) => matchPattern(e.name))
         .map((p, index) => {
@@ -97,8 +100,7 @@ function ProceduresTree() {
                     event: e,
                   });
                 }}
-                sx={{ alignItems: "center" }}
-              >
+                sx={{ alignItems: "center" }}>
                 <SiProcessingfoundation />
                 <UdfNameAndParameters udf={p} kind={kind} />
               </Stack>
@@ -167,8 +169,7 @@ function ProcedureMenu(props: {
       <MenuItem
         onClick={() => {
           handleOpenDetails();
-        }}
-      >
+        }}>
         <ListItemIcon>
           <InfoIcon />
         </ListItemIcon>
@@ -179,8 +180,7 @@ function ProcedureMenu(props: {
         sx={{ color: "error.main" }}
         onClick={() => {
           handleDrop();
-        }}
-      >
+        }}>
         <ListItemIcon>
           <DeleteForeverIcon color="error" />
         </ListItemIcon>

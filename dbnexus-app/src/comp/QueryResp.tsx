@@ -17,7 +17,6 @@ import {
 } from "@mui/material";
 import {
   handleCopyToClipboard,
-  SettingContext,
   MuiDataGridData,
   extractFieldAndIDFromMouseEvent,
   dataGridStyle,
@@ -29,13 +28,7 @@ import {
   GridSlotsComponentsProps,
   GridSortModel,
 } from "@mui/x-data-grid";
-import React, {
-  CSSProperties,
-  useCallback,
-  useContext,
-  useMemo,
-  useState,
-} from "react";
+import React, { CSSProperties, useCallback, useMemo, useState } from "react";
 import { EscDownEvent, keyNotInTable, modalHandleClose, modalStyle } from "./Common";
 import ArrowUpwardIcon from "@mui/icons-material/ArrowUpward";
 import ArrowDownwardIcon from "@mui/icons-material/ArrowDownward";
@@ -58,6 +51,7 @@ import {
   useContextMenu,
   useNotification,
   usePageSize,
+  useUserSettings,
 } from "./store.ts";
 
 function RespContextMenu(props: { content; field; setSort; viewInModal }) {
@@ -131,7 +125,7 @@ function QueryResp(props: { data: MuiDataGridData }) {
   const { setColumnWidth, getColumnWidth } = useColumnWidthStore((s) => s);
   queryRespFix(data, getColumnWidth);
 
-  const setting = useContext(SettingContext);
+  const setting = useUserSettings((s) => s);
 
   const [page, setPage] = useState(0);
 
@@ -184,12 +178,12 @@ function QueryResp(props: { data: MuiDataGridData }) {
       },
       toolbar: {
         csvOptions: {
-          delimiter: setting.export.csvDelimiter,
-          includeHeaders: setting.export.includeHeader,
+          delimiter: setting.export_.csvDelimiter,
+          includeHeaders: setting.export_.includeHeader,
         },
       },
     } as GridSlotsComponentsProps;
-  }, [data, setUpMenu, setting.export.csvDelimiter, setting.export.includeHeader]);
+  }, [data, setUpMenu, setting.export_.csvDelimiter, setting.export_.includeHeader]);
 
   const onSortModelChange = useCallback((e) => {
     setSortModel(e);

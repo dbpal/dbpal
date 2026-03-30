@@ -58,7 +58,6 @@ import {
   KeyPressed,
   quoteDatabaseIdentifier,
   secondConfirm,
-  SettingContext,
   TabActiveContext,
   TabContent,
 } from "./helper";
@@ -101,6 +100,7 @@ import {
   useSizeStore,
   useTableFilter,
   useTabsManage,
+  useUserSettings,
 } from "./store";
 import { MonacoEditor } from "./Editor";
 function CreateDatabase(props: {
@@ -457,7 +457,7 @@ function SimpleFlexEditor(props: {
     dontFocus,
   } = props;
   const [pos, setPos] = useState<Position>(null);
-  const setting = useContext(SettingContext);
+  const setting = useUserSettings((s) => s);
   const [editor, setEditor] = useState<editor.IStandaloneCodeEditor>(null);
   const handleDidMount = useCallback((ed: editor.IStandaloneCodeEditor) => {
     setEditor(ed);
@@ -1425,7 +1425,7 @@ function SetFilterSort(props: {
   const [editor, setEditor] = useState<editor.IStandaloneCodeEditor>(null);
   const [modalBox, setModalBox] = useState(null);
   const { showNotification } = useNotification((s) => s);
-  const setting = useContext(SettingContext);
+  const setting = useUserSettings((s) => s);
 
   const [selectFilter, setSelectFilter] = useState("");
   const { getFilter, addFilter, removeFilter } = useTableFilter((s) => s);

@@ -56,8 +56,6 @@ import CloseIcon from "@mui/icons-material/Close";
 import logoImg from "../../icon.png";
 import { TabContent } from "./Tabs";
 
-import wcmatch from "wildcard-match";
-
 import {
   connTypeToDataSourceKind,
   dataGridStyle,
@@ -67,9 +65,7 @@ import {
   FavoriteSql,
   generateRandomString,
   handleCopyToClipboard,
-  MatcherContext,
   secondConfirm,
-  SettingContext,
   TableType,
   UuidContext,
 } from "./helper";
@@ -134,6 +130,8 @@ import {
   useTabsManage,
   useBoolSwitch,
   useColumnWidthStore,
+  useUserSettings,
+  useMatcherFn,
 } from "./store.ts";
 const settingId = generateRandomString();
 const showTopKey = "left-top-show";
@@ -435,7 +433,7 @@ function CopyConnection() {
   }, []);
 
   const { showNotification } = useNotification((s) => s);
-  const setting = useContext(SettingContext);
+  const setting = useUserSettings((s) => s);
   const { getColumnWidth, setColumnWidth } = useColumnWidthStore((s) => s);
 
   const setUpMenu = useContextMenu((state) => state.setUpMenu);
@@ -480,8 +478,8 @@ function CopyConnection() {
       },
       toolbar: {
         csvOptions: {
-          delimiter: setting.export.csvDelimiter,
-          includeHeaders: setting.export.includeHeader,
+          delimiter: setting.export_.csvDelimiter,
+          includeHeaders: setting.export_.includeHeader,
         },
       },
     } as GridSlotsComponentsProps;
@@ -598,24 +596,6 @@ function Left() {
   const [configs, setConfigs] = useState<types.DBConnectionConfig[]>([]);
   const { showNotification } = useNotification((s) => s);
 
-  const matchPattern = useMatcher((s) => s.matchPattern);
-
-  const matchFn = useCallback(
-    (name) => {
-      if (matchPattern.length == 0) {
-        return true;
-      }
-      for (const mp of matchPattern) {
-        const matchFn = wcmatch("*" + mp + "*", { flags: "i" });
-        if (matchFn(name)) {
-          return true;
-        }
-      }
-      return false;
-    },
-    [matchPattern],
-  );
-
   const handleReload = useCallback(async () => {
     ConnectionHandler.getAll()
       .then((e) => {
@@ -649,25 +629,24 @@ function Left() {
         overflow: "auto",
       }}>
       <LeftTop />
-      <MatcherContext value={matchFn}>
-        <Stack spacing={0.3}>
-          {configs.map((e) => {
-            return (
-              <UuidContext.Provider
-                value={{
-                  uuid: e.name,
-                  kind: connTypeToDataSourceKind(e.conn_type),
-                }}
-                key={e.name}>
-                <OneConfig key={e.name} config={e} />
-              </UuidContext.Provider>
-            );
-          })}
-          {configs.length == 0 && (
-            <Typography color="info"> trying to add connection </Typography>
-          )}
-        </Stack>
-      </MatcherContext>
+
+      <Stack spacing={0.3}>
+        {configs.map((e) => {
+          return (
+            <UuidContext.Provider
+              value={{
+                uuid: e.name,
+                kind: connTypeToDataSourceKind(e.conn_type),
+              }}
+              key={e.name}>
+              <OneConfig key={e.name} config={e} />
+            </UuidContext.Provider>
+          );
+        })}
+        {configs.length == 0 && (
+          <Typography color="info"> trying to add connection </Typography>
+        )}
+      </Stack>
     </Stack>
   );
 }
@@ -715,7 +694,7 @@ function FavoriteSqlList() {
   ]);
   const [uuidFilter, setUuidFilter] = useState("");
   const [distinctUuid, setDistinctUuid] = useState<string[]>([]);
-  const setting = useContext(SettingContext);
+  const setting = useUserSettings((s) => s);
   const { getColumnWidth, setColumnWidth } = useColumnWidthStore((s) => s);
 
   const handleReload = useCallback(
@@ -819,8 +798,8 @@ function FavoriteSqlList() {
       },
       toolbar: {
         csvOptions: {
-          delimiter: setting.export.csvDelimiter,
-          includeHeaders: setting.export.includeHeader,
+          delimiter: setting.export_.csvDelimiter,
+          includeHeaders: setting.export_.includeHeader,
         },
       },
     } as GridSlotsComponentsProps;
@@ -1524,7 +1503,7 @@ function CatalogTree() {
     handleReload();
   }, [handleReload]);
   const setUpMenu = useContextMenu((state) => state.setUpMenu);
-  const matchPattern = useContext(MatcherContext);
+  const matchPattern = useMatcherFn();
 
   return (
     <TreeItem
@@ -1562,7 +1541,7 @@ function DatabaseTree(props: { database?: string; reloadDatabase?: () => void })
   const { database, reloadDatabase } = props;
   const { isLoading, setLoading } = useConnLoading((s) => s);
   const { is_connected } = useConnected((s) => s);
-  const matchPattern = useContext(MatcherContext);
+  const matchPattern = useMatcherFn();
   const conn_established = is_connected(name);
   const handleReload = useCallback(() => {
     if (!conn_established) {

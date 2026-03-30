@@ -1,4 +1,4 @@
-import { ReactElement, ReactNode } from "react";
+import { ReactElement, ReactNode, useCallback } from "react";
 import { create, StateCreator } from "zustand";
 import {
   appStore,
@@ -10,6 +10,8 @@ import {
 import { AlertColor } from "@mui/material";
 import React from "react";
 import { persist, PersistStorage, StorageValue } from "zustand/middleware";
+
+import wcmatch from "wildcard-match";
 
 class TauriStoreManger<S> implements PersistStorage<S> {
   constructor(
@@ -196,18 +198,13 @@ export const useTabsManage = create<{
 interface LLMStore {
   config: LLMConfig | null;
   setConfig: (config: LLMConfig) => void;
-  getConfig: () => LLMConfig | null;
 }
 
 export const useLLMConfig = create<LLMStore>()(
   persist(
-    (set, get) => ({
+    (set) => ({
       config: null,
       setConfig: (config) => set({ config }),
-
-      getConfig() {
-        return get().config;
-      },
     }),
 
     {
@@ -616,3 +613,128 @@ export const useAIPrompt = create<AIPromptState>()(
     },
   ),
 );
+
+export interface UserSettings {
+  appearance: {
+    fontSize: number;
+    fontWeight: string;
+    fontFamily: string;
+    lightBgColor: string;
+    darkBgColor: string;
+    datagridRowHeightFactor: number;
+    intputVariant: string;
+    theme: string;
+  };
+  export_: {
+    csvDelimiter: string;
+    includeHeader: boolean;
+  };
+  editor: {
+    tabSize: number;
+    theme: string;
+    editorOption: any;
+  };
+  misc: {
+    autoStart: boolean;
+  };
+}
+
+// 定义 Store 的状态和方法
+interface UserSettingsState extends UserSettings {
+  // Actions
+  updateAppearance: (data: Partial<UserSettings["appearance"]>) => void;
+  updateExport: (data: Partial<UserSettings["export_"]>) => void;
+  updateEditor: (data: Partial<UserSettings["editor"]>) => void;
+  updateMisc: (data: Partial<UserSettings["misc"]>) => void;
+
+  // 计算属性 (由 Selector 处理，或在此定义辅助函数)
+  getDatagridRowHeight: () => number;
+}
+
+const initialSettings: UserSettings = {
+  appearance: {
+    fontSize: 15,
+    fontWeight: "normal",
+    fontFamily: "",
+    lightBgColor: "",
+    darkBgColor: "",
+    datagridRowHeightFactor: 2.5,
+    intputVariant: "standard",
+    theme: "light",
+  },
+  export_: {
+    csvDelimiter: ",",
+    includeHeader: true,
+  },
+  editor: {
+    tabSize: 4,
+    theme: "",
+    editorOption: null,
+  },
+  misc: {
+    autoStart: false,
+  },
+};
+
+export const useUserSettings = create<UserSettingsState>()(
+  persist(
+    (set, get) => ({
+      ...initialSettings,
+
+      // 更新逻辑
+      updateAppearance: (data) =>
+        set((state) => ({ appearance: { ...state.appearance, ...data } })),
+
+      updateExport: (data) =>
+        set((state) => ({ export_: { ...state.export_, ...data } })),
+
+      updateEditor: (data) =>
+        set((state) => ({ editor: { ...state.editor, ...data } })),
+
+      updateMisc: (data) => set((state) => ({ misc: { ...state.misc, ...data } })),
+
+      // 替代原有的 datagridRowHeight() 方法
+      getDatagridRowHeight: () => {
+        const { fontSize, datagridRowHeightFactor } = get().appearance;
+        return Math.ceil(fontSize * datagridRowHeightFactor);
+      },
+    }),
+    {
+      name: "dbpal-combined-settings", // 建议合并成一个 key，方便管理
+      storage: new TauriStoreManger(), // 使用你之前的 Tauri 存储实现
+      // 如果需要处理旧版本的 key 迁移，可以在这里写 migrate
+      version: 1,
+    },
+  ),
+);
+
+export const useDatagridHeight = () => {
+  return useUserSettings((state) =>
+    Math.ceil(state.appearance.fontSize * state.appearance.datagridRowHeightFactor),
+  );
+};
+
+export const useMatcherFn = () => {
+  // 1. 只获取数据（只有当数据变了，这里才会重绘）
+  const matchPattern = useMatcher((s) => s.matchPattern);
+
+  // 2. 在外部定义逻辑函数
+  const matcher = useCallback(
+    (name: string) => {
+      if (matchPattern.length === 0) {
+        return true;
+      }
+      for (const n of matchPattern) {
+        // 优化：wcmatch 可以在循环外或者通过 memo 优化，这里为了逻辑一致保持原样
+        const matchFn = wcmatch("*" + n + "*", { flags: "i" });
+        if (matchFn(name)) {
+          return true;
+        }
+      }
+      return false;
+    },
+    [matchPattern],
+  ); // 只有 pattern 变了，matcher 函数地址才会变
+
+  return matcher;
+};

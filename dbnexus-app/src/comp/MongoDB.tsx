@@ -29,15 +29,7 @@ import {
   MongoBsonError,
   parseMongoBson,
 } from "./MongoBsonCompiler";
-import {
-  ReactNode,
-  useCallback,
-  useContext,
-  useEffect,
-  useMemo,
-  useRef,
-  useState,
-} from "react";
+import { ReactNode, useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { BSON, EJSON } from "bson";
 import { TbJson } from "react-icons/tb";
@@ -72,7 +64,6 @@ import {
   DocsAndCount,
   handleCopyToClipboard,
   ErrAndLoc,
-  SettingContext,
   validJson,
   MuiDataGridData,
   dataGridStyle,
@@ -105,6 +96,7 @@ import {
   UseSizeConfig,
   useSizeStore,
   useTableColumnVisibleStore,
+  useUserSettings,
 } from "./store";
 enum MongoDataViewModel {
   TableList,
@@ -268,7 +260,7 @@ function MongoBsonEditor(props: {
   const editor = useRef<editor.IStandaloneCodeEditor>(null);
   const [pos, setPos] = useState<Position>(null);
   const [err, setErr] = useState<MongoBsonError>(null);
-  const setting = useContext(SettingContext);
+  const setting = useUserSettings((s) => s);
   const [loading, setLoading] = useState(false);
   const newDoc = useRef(doc);
 
@@ -1181,7 +1173,7 @@ function MongoTableList(props: {
   const [resp, setResp] = useState<MuiDataGridData | null>(null);
   const [selectModifyDoc, setSelectModifyDoc] = useState<BSON.Document | null>(null);
   const [showExport, setShowExport] = useState(false);
-  const setting = useContext(SettingContext);
+  const setting = useUserSettings((s) => s);
   const [lastFetchTime, setLastFetchTime] = useState(new Date());
   const [clickedField, setClickedField] = useState("");
   useEffect(() => {
@@ -1362,8 +1354,8 @@ function MongoTableList(props: {
       },
       toolbar: {
         csvOptions: {
-          delimiter: setting.export.csvDelimiter,
-          includeHeaders: setting.export.includeHeader,
+          delimiter: setting.export_.csvDelimiter,
+          includeHeaders: setting.export_.includeHeader,
         },
       },
     } as GridSlotsComponentsProps;
@@ -1374,8 +1366,8 @@ function MongoTableList(props: {
     setFilter,
     setSort,
     setUpMenu,
-    setting.export.csvDelimiter,
-    setting.export.includeHeader,
+    setting.export_.csvDelimiter,
+    setting.export_.includeHeader,
   ]);
   const slots = useMemo(() => {
     return {

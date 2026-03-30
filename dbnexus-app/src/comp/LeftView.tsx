@@ -50,9 +50,7 @@ import {
   getLanguageFromDataSourceKind,
   getSupportExportKind,
   handleCopyToClipboard,
-  MatcherContext,
   secondConfirm,
-  SettingContext,
   UuidContext,
   ViewKind,
 } from "./helper";
@@ -73,6 +71,8 @@ import {
   useNotification,
   useTabsManage,
   useColumnWidthStore,
+  useUserSettings,
+  useMatcherFn,
 } from "./store";
 function ViewsTree(props: { viewKind: ViewKind }) {
   const { viewKind } = props;
@@ -82,7 +82,7 @@ function ViewsTree(props: { viewKind: ViewKind }) {
   const [loading, setLoading] = useState(false);
   const [exceed, setExceed] = useState(0);
   const { maxTree } = useMatcher((state) => state);
-  const matchPattern = useContext(MatcherContext);
+  const matchPattern = useMatcherFn();
   useEffect(() => {
     setExceed(views.filter((e) => matchPattern(e.name)).length);
   }, [views, matchPattern]);
@@ -286,7 +286,7 @@ function ColumnsMenu(props: { content: string }) {
 
 function ColumnsContent(props: { uuid: string; view: string }) {
   const { uuid, view } = props;
-  const setting = useContext(SettingContext);
+  const setting = useUserSettings((s) => s);
 
   const [fields, setFields] = useState<types.Field[]>([]);
   const { showNotification } = useNotification((s) => s);
@@ -358,12 +358,12 @@ function ColumnsContent(props: { uuid: string; view: string }) {
       },
       toolbar: {
         csvOptions: {
-          delimiter: setting.export.csvDelimiter,
-          includeHeaders: setting.export.includeHeader,
+          delimiter: setting.export_.csvDelimiter,
+          includeHeaders: setting.export_.includeHeader,
         },
       },
     } as GridSlotsComponentsProps;
-  }, [setUpMenu, setting.export.csvDelimiter, setting.export.includeHeader]);
+  }, [setUpMenu, setting.export_.csvDelimiter, setting.export_.includeHeader]);
 
   const getRowId = useCallback((e) => {
     return e["field"];

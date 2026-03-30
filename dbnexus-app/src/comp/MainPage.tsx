@@ -59,8 +59,7 @@ function ShowPanic() {
           onClose={modalHandleClose((e: EscDownEvent) => {
             e.preventDefault();
             setPanicInfo("");
-          })}
-        >
+          })}>
           <Box sx={modalStyle} width="75%" height="65vh">
             <ModalHeader
               title="panic info"
@@ -75,8 +74,7 @@ function ShowPanic() {
                 width: "100%",
                 flex: 1,
                 padding: "4px",
-              }}
-            >
+              }}>
               <pre style={{ color: theme.palette.error.main }}>{panicInfo}</pre>
             </Paper>
 
@@ -85,16 +83,14 @@ function ShowPanic() {
                 onClick={() => {
                   openUrl("https://github.com/dbpal/docs/issues");
                 }}
-                color="info"
-              >
+                color="info">
                 report
               </Button>
               <Button
                 variant="outlined"
                 onClick={() => {
                   handleCopyToClipboard(panicInfo, showNotification);
-                }}
-              >
+                }}>
                 copy error msg
               </Button>
               <IconButton
@@ -107,8 +103,7 @@ function ShowPanic() {
                   } catch (e) {
                     showNotification("error", "remove panic file failed", e);
                   }
-                }}
-              >
+                }}>
                 <DeleteForeverIcon />
               </IconButton>
             </Stack>
@@ -139,8 +134,7 @@ function ShowShortCut() {
           onClose={modalHandleClose((e: EscDownEvent) => {
             e.preventDefault();
             setShow(false);
-          })}
-        >
+          })}>
           <Box sx={modalStyle} width="75%" height="65vh">
             <ModalHeader
               title="keyboard short cuts"
@@ -242,8 +236,7 @@ function App() {
             width: "100vw",
             padding: "0.5rem 1rem",
           }}
-          autoSaveId="main"
-        >
+          autoSaveId="main">
           <Panel
             style={{
               overflow: "auto",
@@ -253,8 +246,7 @@ function App() {
             minSize={10}
             maxSize={85}
             collapsible
-            collapsedSize={0}
-          >
+            collapsedSize={0}>
             <Left />
           </Panel>
           <PanelResizeHandle
@@ -266,8 +258,7 @@ function App() {
               overflow: "auto",
               height: "100%",
               paddingLeft: "2px",
-            }}
-          >
+            }}>
             <TabsWithContent
               handleClose={closeTab}
               tabs={tabs}
@@ -326,8 +317,7 @@ function Menu() {
           border: "2px solid " + theme.palette.success.main,
           borderRadius: "0.5rem",
           ...(menu && calMenuStyle(menu.event)),
-        }}
-      >
+        }}>
         <Paper elevation={24}>{menu && menu.content}</Paper>
       </div>
     )

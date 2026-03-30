@@ -57,7 +57,6 @@ import {
   isTypeLargeText,
   ErrAndLoc,
   secondConfirm,
-  SettingContext,
   validJson,
   textEllipsisStyle,
   quoteDatabaseIdentifier,
@@ -114,6 +113,7 @@ import {
   UseSizeConfig,
   useSizeStore,
   useTableColumnVisibleStore,
+  useUserSettings,
 } from "./store";
 
 const confirmAboutPrimary = async (
@@ -325,7 +325,7 @@ function SqlTableView(props: {
   const [showSetWhere, setShowSetWhere] = useState(false);
   const [sort, setSort] = useState("");
   const [showSetSort, setShowSetSort] = useState(false);
-  const setting = useContext(SettingContext);
+  const setting = useUserSettings((s) => s);
   const [page, setPage] = useState(0);
   const { sql: pageSize, setPageSize } = usePageSize((s) => s);
   const [resp, setResp] = useState<MuiDataGridData>({
@@ -677,14 +677,14 @@ function SqlTableView(props: {
       },
       toolbar: {
         csvOptions: {
-          delimiter: setting.export.csvDelimiter,
-          includeHeaders: setting.export.includeHeader,
+          delimiter: setting.export_.csvDelimiter,
+          includeHeaders: setting.export_.includeHeader,
         },
       },
     } as GridSlotsComponentsProps;
   }, [
-    setting.export.csvDelimiter,
-    setting.export.includeHeader,
+    setting.export_.csvDelimiter,
+    setting.export_.includeHeader,
     resp.data,
     resp.fields,
     setUpMenu,

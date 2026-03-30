@@ -1,12 +1,4 @@
-import {
-  ReactNode,
-  useCallback,
-  useContext,
-  useEffect,
-  useMemo,
-  useRef,
-  useState,
-} from "react";
+import { ReactNode, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import types from "./ApiStruct";
 import { DefAndMetas, EscDownEvent, modalHandleClose, modalStyle } from "./Common";
 import {
@@ -15,7 +7,6 @@ import {
   extractFieldAndIDFromMouseEvent,
   handleCopyToClipboard,
   secondConfirm,
-  SettingContext,
 } from "./helper";
 import CancelIcon from "@mui/icons-material/Cancel";
 import { invoke } from "@tauri-apps/api/core";
@@ -74,7 +65,12 @@ import {
   StackRowCenter,
   TypeSelect,
 } from "./CommonComp2";
-import { useColumnWidthStore, useContextMenu, useNotification } from "./store";
+import {
+  useColumnWidthStore,
+  useContextMenu,
+  useNotification,
+  useUserSettings,
+} from "./store";
 
 function ColumnMenu(props: {
   col: string;
@@ -118,7 +114,7 @@ function ColumnsStructure(props: {
   table: string;
 }) {
   const { uuid, kind, table } = props;
-  const setting = useContext(SettingContext);
+  const setting = useUserSettings((s) => s);
   const [loading, setLoading] = useState(false);
   const [fields, setFields] = useState<types.Field[]>([]);
   const { showNotification } = useNotification((s) => s);
@@ -273,16 +269,16 @@ function ColumnsStructure(props: {
       },
       toolbar: {
         csvOptions: {
-          delimiter: setting.export.csvDelimiter,
-          includeHeaders: setting.export.includeHeader,
+          delimiter: setting.export_.csvDelimiter,
+          includeHeaders: setting.export_.includeHeader,
         },
       },
     } as GridSlotsComponentsProps;
   }, [
     handleDrop,
     setUpMenu,
-    setting.export.csvDelimiter,
-    setting.export.includeHeader,
+    setting.export_.csvDelimiter,
+    setting.export_.includeHeader,
     supportModifyColumn,
   ]);
 
@@ -525,7 +521,7 @@ function IndexesStructure(props: {
   table: string;
 }) {
   const { uuid, kind, table } = props;
-  const setting = useContext(SettingContext);
+  const setting = useUserSettings((s) => s);
   const [loading, setLoading] = useState(false);
   const [indexes, setIndexes] = useState<types.Index[]>([]);
   const { showNotification } = useNotification((s) => s);
@@ -624,16 +620,16 @@ function IndexesStructure(props: {
       },
       toolbar: {
         csvOptions: {
-          delimiter: setting.export.csvDelimiter,
-          includeHeaders: setting.export.includeHeader,
+          delimiter: setting.export_.csvDelimiter,
+          includeHeaders: setting.export_.includeHeader,
         },
       },
     } as GridSlotsComponentsProps;
   }, [
     handleDrop,
     setUpMenu,
-    setting.export.csvDelimiter,
-    setting.export.includeHeader,
+    setting.export_.csvDelimiter,
+    setting.export_.includeHeader,
   ]);
 
   const getRowId = useCallback((e) => {
@@ -1250,7 +1246,7 @@ function TriggersStructure(props: {
   table: string;
 }) {
   const { uuid, kind, table } = props;
-  const setting = useContext(SettingContext);
+  const setting = useUserSettings((s) => s);
   const [loading, setLoading] = useState(false);
   const [triggers, setTriggers] = useState<types.TriggerDetail[]>([]);
   const [row, setRow] = useState<types.TriggerDetail>(null);
@@ -1380,8 +1376,8 @@ function TriggersStructure(props: {
       },
       toolbar: {
         csvOptions: {
-          delimiter: setting.export.csvDelimiter,
-          includeHeaders: setting.export.includeHeader,
+          delimiter: setting.export_.csvDelimiter,
+          includeHeaders: setting.export_.includeHeader,
         },
       },
     } as GridSlotsComponentsProps;
@@ -1389,8 +1385,8 @@ function TriggersStructure(props: {
     handleDrop,
     handleEnables,
     setUpMenu,
-    setting.export.csvDelimiter,
-    setting.export.includeHeader,
+    setting.export_.csvDelimiter,
+    setting.export_.includeHeader,
     triggers,
   ]);
 

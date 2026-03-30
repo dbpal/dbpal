@@ -9,21 +9,17 @@ import {
   Typography,
 } from "@mui/material";
 import { filesize } from "filesize";
-import { useContext, useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import types from "./ApiStruct";
 import { save } from "@tauri-apps/plugin-dialog";
 import ArrowCircleDownIcon from "@mui/icons-material/ArrowCircleDown";
 import { Channel, invoke } from "@tauri-apps/api/core";
 import { ModalHeader, OpenFileWithDefaultApp } from "./CommonComp";
-import {
-  generateDefaultFilename,
-  generateRandomString,
-  SettingContext,
-} from "./helper";
+import { generateDefaultFilename, generateRandomString } from "./helper";
 
 import { cancelTask } from "./handlers";
 import { CancelButton, StackRowCenter } from "./CommonComp2";
-import { useNotification } from "./store";
+import { useNotification, useUserSettings } from "./store";
 function IncludeHeader({ includeHeader, setIncludeHeader }) {
   return (
     <FormControlLabel
@@ -57,9 +53,9 @@ function ExportView(props: {
   const { exportOP, supportKind, name, handleClose } = props;
   const lastKind = supportKind.find((k) => k === lastExportKind);
   const [kind, setKind] = useState(lastExportKind ? lastKind : supportKind[0]);
-  const setting = useContext(SettingContext);
-  const [includeHeader, setIncludeHeader] = useState(setting.export.includeHeader);
-  const [delimiter, setDelimiter] = useState(setting.export.csvDelimiter);
+  const setting = useUserSettings((s) => s);
+  const [includeHeader, setIncludeHeader] = useState(setting.export_.includeHeader);
+  const [delimiter, setDelimiter] = useState(setting.export_.csvDelimiter);
   const [pretty, setPretty] = useState(true);
   const [includeTableSchema, setIncludeTableSchema] = useState(false);
   const { showNotification } = useNotification((s) => s);
@@ -231,8 +227,7 @@ function ExportView(props: {
             handleExport();
           }}
           color="primary"
-          loading={loading}
-        >
+          loading={loading}>
           <ArrowCircleDownIcon />
         </IconButton>
         {loading && (

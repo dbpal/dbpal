@@ -28,7 +28,6 @@ import { DefAndMetasView } from "./DefAndMetaView.tsx";
 import {
   DataSourceKind,
   generateRandomString,
-  MatcherContext,
   secondConfirm,
   UuidContext,
 } from "./helper.ts";
@@ -37,13 +36,19 @@ import { ExceedMaxTreeItem, MenuRefresh } from "./CommonComp.tsx";
 import { listSequence } from "./handlers.ts";
 import { GrSteps } from "react-icons/gr";
 import { CopySql } from "./CommonComp2.tsx";
-import { useMatcher, useContextMenu, useNotification, useTabsManage } from "./store.ts";
+import {
+  useMatcher,
+  useContextMenu,
+  useNotification,
+  useTabsManage,
+  useMatcherFn,
+} from "./store.ts";
 function SequenceTree() {
   const { uuid, kind } = useContext(UuidContext);
   const [seq, setSeq] = useState<types.SequenceDetail[]>([]);
   const { showNotification } = useNotification((s) => s);
   const { maxTree } = useMatcher((state) => state);
-  const matchPattern = useContext(MatcherContext);
+  const matchPattern = useMatcherFn();
   const reload = useCallback(() => {
     listSequence(uuid)
       .then((ts) => {
@@ -79,13 +84,11 @@ function SequenceTree() {
               ),
               event: e,
             });
-          }}
-        >
+          }}>
           <GrSteps />
           <span> sequences </span>
         </Stack>
-      }
-    >
+      }>
       {seq
         .filter((e) => matchPattern(e.name))
         .map((seq, index) => {
@@ -115,8 +118,7 @@ function SequenceTree() {
                       event: e,
                     });
                   }}
-                  sx={{ alignItems: "center" }}
-                >
+                  sx={{ alignItems: "center" }}>
                   <GrSteps />
                   <span>{seq.name}</span>
                 </Stack>
@@ -204,8 +206,7 @@ function SequenceMenu(props: {
         <MenuItem
           onClick={() => {
             handleOpenDetails();
-          }}
-        >
+          }}>
           <ListItemIcon>
             <InfoIcon />
           </ListItemIcon>
@@ -216,8 +217,7 @@ function SequenceMenu(props: {
           sx={{ color: "error.main" }}
           onClick={() => {
             setShowDrop(true);
-          }}
-        >
+          }}>
           <ListItemIcon>
             <DeleteForeverIcon color="error" />
           </ListItemIcon>
@@ -230,8 +230,7 @@ function SequenceMenu(props: {
           onClose={modalHandleClose((e: EscDownEvent) => {
             e.preventDefault();
             setShowDrop(false);
-          })}
-        >
+          })}>
           <Box sx={modalStyle} width="45%">
             <Stack>
               {supportCascade && (
@@ -252,8 +251,7 @@ function SequenceMenu(props: {
                   onClick={() => {
                     handleDrop();
                   }}
-                  color="error"
-                >
+                  color="error">
                   Drop
                 </Button>
               </Stack>

@@ -21,7 +21,6 @@ import { TbMathFunction } from "react-icons/tb";
 import {
   DataSourceKind,
   generateRandomString,
-  MatcherContext,
   secondConfirm,
   UuidContext,
 } from "./helper";
@@ -30,7 +29,13 @@ import { ExceedMaxTreeItem, MenuRefresh, UdfNameAndParameters } from "./CommonCo
 import { listCassandraAgg, listUdf, makeUdfExtraArg, showUdf } from "./handlers";
 import { showCassandraAgg } from "./handlers";
 import { CopySql } from "./CommonComp2";
-import { useMatcher, useContextMenu, useNotification, useTabsManage } from "./store";
+import {
+  useMatcher,
+  useContextMenu,
+  useNotification,
+  useTabsManage,
+  useMatcherFn,
+} from "./store";
 
 function UdfsTree() {
   const { uuid, kind } = useContext(UuidContext);
@@ -39,7 +44,7 @@ function UdfsTree() {
   const { showNotification } = useNotification((s) => s);
   const [exceed, setExceed] = useState(0);
   const { maxTree } = useMatcher((state) => state);
-  const matchPattern = useContext(MatcherContext);
+  const matchPattern = useMatcherFn();
   useEffect(() => {
     setExceed(udfs.filter((e) => matchPattern(e.name)).length);
   }, [udfs, matchPattern]);
@@ -74,12 +79,10 @@ function UdfsTree() {
             ),
             event: e,
           });
-        }}
-      >
+        }}>
         <TbMathFunction />
         <span> udfs </span>
-      </Stack>
-    >
+      </Stack>>
       {udfs
         .filter((e) => matchPattern(e.name))
         .map((udf, index) => {
@@ -107,8 +110,7 @@ function UdfsTree() {
                     ),
                     event: e,
                   });
-                }}
-              >
+                }}>
                 <TbMathFunction />
                 <UdfNameAndParameters udf={udf} kind={kind} />
               </Stack>
@@ -176,8 +178,7 @@ function UdfMenu(props: {
       <MenuItem
         onClick={() => {
           handleOpenDetails();
-        }}
-      >
+        }}>
         <ListItemIcon>
           <InfoIcon />
         </ListItemIcon>
@@ -188,8 +189,7 @@ function UdfMenu(props: {
         sx={{ color: "error.main" }}
         onClick={() => {
           handleDrop();
-        }}
-      >
+        }}>
         <ListItemIcon>
           <DeleteForeverIcon color="error" />
         </ListItemIcon>
@@ -262,8 +262,7 @@ function CassandraAggregateMenu(props: {
         <MenuItem
           onClick={() => {
             handleOpenDetails();
-          }}
-        >
+          }}>
           <ListItemIcon>
             <InfoIcon />
           </ListItemIcon>
@@ -275,8 +274,7 @@ function CassandraAggregateMenu(props: {
           sx={{ color: "error.main" }}
           onClick={() => {
             handleDrop();
-          }}
-        >
+          }}>
           <ListItemIcon>
             <DeleteForeverIcon color="error" />
           </ListItemIcon>
@@ -302,7 +300,7 @@ function CassandraAggregatesTree() {
   }, [showNotification, uuid]);
   const [exceed, setExceed] = useState(0);
   const { maxTree } = useMatcher((state) => state);
-  const matchPattern = useContext(MatcherContext);
+  const matchPattern = useMatcherFn();
   useEffect(() => {
     setExceed(aggs.filter((e) => matchPattern(e.name)).length);
   }, [aggs, matchPattern]);
@@ -326,12 +324,10 @@ function CassandraAggregatesTree() {
             ),
             event: e,
           });
-        }}
-      >
+        }}>
         <MdFunctions />
         <span> aggregates </span>
-      </Stack>
-    >
+      </Stack>>
       {aggs
         .filter((e) => matchPattern(e.name))
         .map((agg, index) => {
@@ -362,8 +358,7 @@ function CassandraAggregatesTree() {
                     ),
                     event: e,
                   });
-                }}
-              >
+                }}>
                 <MdFunctions />
                 <UdfNameAndParameters udf={agg} kind={DataSourceKind.Cassandra} />
               </Stack>

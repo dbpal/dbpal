@@ -49,7 +49,6 @@ import {
   rustResultOk,
   secondConfirm,
   TabContext,
-  SettingContext,
   shrinkAble,
   TabActiveContext,
   saveQueryKey,
@@ -78,6 +77,7 @@ import {
   useQueryExtraUI,
   UseSizeConfig,
   useSizeStore,
+  useUserSettings,
 } from "./store.ts";
 function SqlTransaction(props: { conn: QueryConn; executeTimes: number }) {
   const { conn, executeTimes } = props;
@@ -215,7 +215,7 @@ function SqlQuery(props: {
   const [makeConnLoading, setMakeConnLoading] = useState(false);
   const { showNotification } = useNotification((s) => s);
   const [showQueryLog, setShowQueryLog] = useState(false);
-  const setting = useContext(SettingContext);
+  const setting = useUserSettings((s) => s);
   const queryLogHandler = useRef(new QueryLogHandler(uuid));
   const [executeTimes, setExecuteTimes] = useState(0);
   const [conn] = useState<QueryConn>(new QueryConn(uuid, uuidv4(), kind));

@@ -62,7 +62,6 @@ import {
   RedisTableType,
   TableType,
   shrinkAble,
-  MatcherContext,
 } from "./helper";
 import { ExceedMaxTreeItem, MenuRefresh, ModalHeader } from "./CommonComp";
 import { TableStructure } from "./TableStructure";
@@ -70,7 +69,13 @@ import { cancelTask, listTable, makeTableInsertFn, showTableColumn } from "./han
 import { filesize } from "filesize";
 import { CancelButton, CopySql, StackRowCenter } from "./CommonComp2";
 import { CouchBaseTable } from "./CouchBase";
-import { useMatcher, useContextMenu, useNotification, useTabsManage } from "./store.ts";
+import {
+  useMatcher,
+  useContextMenu,
+  useNotification,
+  useTabsManage,
+  useMatcherFn,
+} from "./store.ts";
 
 function TablesTree(props: { typ: TableType }) {
   const { typ } = props;
@@ -80,7 +85,7 @@ function TablesTree(props: { typ: TableType }) {
   const [loading, setLoading] = useState(false);
   const [exceed, setExceed] = useState(0);
   const { maxTree } = useMatcher((state) => state);
-  const matchPattern = useContext(MatcherContext);
+  const matchPattern = useMatcherFn();
   const tablesId = useRef(generateRandomString());
   useEffect(() => {
     setExceed(tables.filter((e) => matchPattern(e.name)).length);
@@ -137,13 +142,11 @@ function TablesTree(props: { typ: TableType }) {
             ),
             event: e,
           });
-        }}
-      >
+        }}>
         <TableViewIcon />
         <span> {tablesText} </span>
         {loading && <CircularProgress />}
-      </Stack>
-    >
+      </Stack>>
       {tables
         .filter((e) => matchPattern(e.name))
         .map((e, index) => {
@@ -195,8 +198,7 @@ function TableTree(props: {
               ),
               event: e,
             });
-          }}
-        >
+          }}>
           <StackRowCenter>
             <TableViewIcon> </TableViewIcon> <span>{table}</span>
           </StackRowCenter>
@@ -483,8 +485,7 @@ function TableMenu(props: {
         <MenuItem
           onClick={() => {
             handleViewData();
-          }}
-        >
+          }}>
           <ListItemIcon>
             <ListIcon />
           </ListItemIcon>
@@ -495,8 +496,7 @@ function TableMenu(props: {
           <MenuItem
             onClick={() => {
               handleAddData();
-            }}
-          >
+            }}>
             <ListItemIcon>
               <AddIcon />
             </ListItemIcon>
@@ -513,8 +513,7 @@ function TableMenu(props: {
         <MenuItem
           onClick={() => {
             handleCopyToClipboard(table, showNotification);
-          }}
-        >
+          }}>
           <ListItemIcon>
             <ContentCopyIcon />
           </ListItemIcon>
@@ -526,8 +525,7 @@ function TableMenu(props: {
         <MenuItem
           onClick={() => {
             setShowDup(true);
-          }}
-        >
+          }}>
           <ListItemIcon>
             <HiOutlineDuplicate style={{ fontSize: "1.7rem" }} />
           </ListItemIcon>
@@ -536,8 +534,7 @@ function TableMenu(props: {
         <MenuItem
           onClick={() => {
             setShowExport(true);
-          }}
-        >
+          }}>
           <ListItemIcon>
             <ArrowCircleDownIcon />
           </ListItemIcon>
@@ -546,8 +543,7 @@ function TableMenu(props: {
         <MenuItem
           onClick={() => {
             setShowRename(true);
-          }}
-        >
+          }}>
           <ListItemIcon>
             <EditIcon />
           </ListItemIcon>
@@ -558,8 +554,7 @@ function TableMenu(props: {
           sx={{ color: "error.main" }}
           onClick={() => {
             handleTruncateTable();
-          }}
-        >
+          }}>
           <ListItemIcon>
             <PlaylistRemoveIcon color="error" />
           </ListItemIcon>
@@ -569,8 +564,7 @@ function TableMenu(props: {
           sx={{ color: "error.main" }}
           onClick={() => {
             setShowDrop(true);
-          }}
-        >
+          }}>
           <ListItemIcon>
             <DeleteForeverIcon color="error" />
           </ListItemIcon>
@@ -583,8 +577,7 @@ function TableMenu(props: {
           onClose={modalHandleClose((e: EscDownEvent) => {
             e.preventDefault();
             setShowDup(false);
-          })}
-        >
+          })}>
           <Box sx={modalStyle} width="45%">
             <ModalHeader
               title="Duplicate"
@@ -609,8 +602,7 @@ function TableMenu(props: {
           onClose={modalHandleClose((e: EscDownEvent) => {
             e.preventDefault();
             setShowRename(false);
-          })}
-        >
+          })}>
           <Box sx={modalStyle} width="45%">
             <ModalHeader
               handleClose={() => {
@@ -635,8 +627,7 @@ function TableMenu(props: {
           onClose={modalHandleClose((e: EscDownEvent) => {
             e.preventDefault();
             setShowExport(false);
-          })}
-        >
+          })}>
           <Box sx={modalStyle} width="45%">
             <ExportTableOrView
               handleClose={() => {
@@ -656,8 +647,7 @@ function TableMenu(props: {
           onClose={modalHandleClose((e: EscDownEvent) => {
             e.preventDefault();
             setShowDrop(false);
-          })}
-        >
+          })}>
           <Box sx={modalStyle} width="45%">
             <ModalHeader
               handleClose={() => {
@@ -842,11 +832,9 @@ function RedisOneTableKind(props: {
             ),
             event: e,
           });
-        }}
-      >
+        }}>
         <span>{name}</span>
-      </Stack>
-    >
+      </Stack>>
       {tables.map((table) => (
         <TreeItem
           key={table}
@@ -866,8 +854,7 @@ function RedisOneTableKind(props: {
                 ),
                 event: e,
               });
-            }}
-          >
+            }}>
             <span> {table} </span>
           </Stack>
         />
@@ -919,8 +906,7 @@ function RedisTables() {
           style={{ cursor: "pointer" }}
           onClick={() => {
             setShowEditFilter(true);
-          }}
-        >
+          }}>
           {tables && tables.has_more ? (
             <Tooltip title={`result exceed ${max},some result are omitted`}>
               <Chip
@@ -982,8 +968,7 @@ function RedisTables() {
           onClose={modalHandleClose((e: EscDownEvent) => {
             e.preventDefault();
             setShowEditFilter(false);
-          })}
-        >
+          })}>
           <Box sx={modalStyle} width="45%">
             <ModalHeader
               handleClose={() => {
@@ -1007,8 +992,7 @@ function RedisTables() {
                         onClick={() => {
                           setFilter("");
                         }}
-                        edge="end"
-                      >
+                        edge="end">
                         <ClearIcon fontSize="small" />
                       </IconButton>
                     </InputAdornment>

@@ -1,11 +1,4 @@
-import {
-  CSSProperties,
-  ReactNode,
-  useCallback,
-  useContext,
-  useEffect,
-  useState,
-} from "react";
+import { CSSProperties, ReactNode, useCallback, useEffect, useState } from "react";
 import { FaFolderOpen } from "react-icons/fa";
 import { isEqual } from "lodash-es";
 import * as monaco from "monaco-editor";
@@ -40,14 +33,8 @@ import { HexColorPicker } from "react-colorful";
 import { openPath, openUrl } from "@tauri-apps/plugin-opener";
 import {
   ErrAndLoc,
-  SettingContext,
-  UserSetting,
   validJson,
   registeredThemes,
-  UserSettingAppearance,
-  UserSettingExport,
-  UserSettingEditor,
-  UserSettingMisc,
   dataGridheaderFontSize,
   appStore,
   LLMConfig,
@@ -72,9 +59,14 @@ import { message } from "@tauri-apps/plugin-dialog";
 import { EscDownEvent, modalHandleClose, modalStyle } from "./Common";
 import { LogLevelSelection, ModalHeader } from "./CommonComp";
 import { appLogDir } from "@tauri-apps/api/path";
-import { useLLMConfig, useNotification } from "./store";
+import {
+  useDatagridHeight,
+  useLLMConfig,
+  useNotification,
+  UserSettings,
+  useUserSettings,
+} from "./store";
 import { WebviewWindow } from "@tauri-apps/api/webviewWindow";
-// import { platform } from "@tauri-apps/plugin-os";
 
 function AppearanceSetting() {
   const { showNotification } = useNotification((s) => s);
@@ -87,22 +79,19 @@ function AppearanceSetting() {
   const [datagridRowHeightFactor, setDatagridRowHeightFactor] = useState("");
   const [intputVariant, setInputVariant] = useState("standard");
   const [modified, setModified] = useState(false);
-  const [oldSetting, setOldSetting] = useState<UserSettingAppearance>(null);
+  const { appearance, updateAppearance } = useUserSettings((s) => s);
   const [theme, setTheme] = useState("");
 
   useEffect(() => {
-    UserSettingAppearance.get().then((setting) => {
-      setFontWeight(setting.fontWeight);
-      setFontSize(setting.fontSize);
-      setDarkBgColor(setting.darkBgColor);
-      setLightBgColor(setting.lightBgColor);
-      setFontFamily(setting.fontFamily);
-      setDatagridRowHeightFactor(setting.datagridRowHeightFactor + "");
-      setInputVariant(setting.intputVariant);
-      setTheme(setting.theme);
-      setOldSetting(setting);
-    });
-  }, []);
+    setFontWeight(appearance.fontWeight);
+    setFontSize(appearance.fontSize);
+    setDarkBgColor(appearance.darkBgColor);
+    setLightBgColor(appearance.lightBgColor);
+    setFontFamily(appearance.fontFamily);
+    setDatagridRowHeightFactor(appearance.datagridRowHeightFactor + "");
+    setInputVariant(appearance.intputVariant);
+    setTheme(appearance.theme);
+  }, [appearance]);
 
   const [zoom, setZoom] = useState(1);
 
@@ -132,9 +121,6 @@ function AppearanceSetting() {
   }, [showNotification]);
 
   const makeConfig = useCallback(() => {
-    if (!oldSetting) {
-      return;
-    }
     const x = {
       fontFamily,
       fontSize,
@@ -144,8 +130,8 @@ function AppearanceSetting() {
       datagridRowHeightFactor: parseFloat(datagridRowHeightFactor),
       intputVariant,
       theme,
-    } as unknown as UserSettingAppearance;
-    Object.setPrototypeOf(x, UserSettingAppearance.prototype);
+    };
+
     return x;
   }, [
     darkBgColor,
@@ -155,23 +141,16 @@ function AppearanceSetting() {
     fontWeight,
     intputVariant,
     lightBgColor,
-    oldSetting,
     theme,
   ]);
 
   useEffect(() => {
-    if (!oldSetting) {
-      return;
-    }
-    setModified(!isEqual(oldSetting, makeConfig()));
-  }, [makeConfig, oldSetting]);
+    setModified(!isEqual(appearance, makeConfig()));
+  }, [makeConfig, appearance]);
 
   const handleSave = () => {
     try {
-      const x = makeConfig();
-      x.save();
-      showNotification("success", "save appearance setting success");
-      setOldSetting(x);
+      updateAppearance(makeConfig());
     } catch (e) {
       showNotification("error", "save appearance setting failed", e);
       return;
@@ -369,35 +348,24 @@ function EditorSetting() {
   const muiTheme = useTheme();
   const { showNotification } = useNotification((s) => s);
   const [modified, setModified] = useState(false);
-  const [oldSetting, setOldSetting] = useState(null);
+  const { editor, updateEditor } = useUserSettings((s) => s);
   useEffect(() => {
-    UserSettingEditor.get().then((setting) => {
-      setEditorOptions(
-        setting.editorOption ? JSON.stringify(setting.editorOption) : "{}",
-      );
-      setOldSetting(setting);
-      setTabSize(setting.tabSize);
-      setCustomEditorTheme(setting.theme);
-    });
-  }, []);
-
+    setEditorOptions(editor.editorOption ? JSON.stringify(editor.editorOption) : "{}");
+    setTabSize(editor.tabSize);
+    setCustomEditorTheme(editor.theme);
+  }, [editor.editorOption, editor.tabSize, editor.theme]);
   const makeConfig = useCallback(() => {
     const obj = {
       tabSize,
       theme: customEditorTheme,
       editorOption: editorOptions ? JSON.parse(editorOptions) : null,
-    } as UserSettingEditor;
-    Object.setPrototypeOf(obj, UserSettingEditor.prototype);
+    };
     return obj;
   }, [customEditorTheme, editorOptions, tabSize]);
 
   const handleSave = () => {
     try {
-      const obj = makeConfig();
-      obj.save();
-      showNotification("success", "save editor setting ok");
-
-      setOldSetting(obj);
+      updateEditor(makeConfig());
     } catch (e) {
       showNotification("error", "save  editor setting failed", e);
       return;
@@ -405,11 +373,8 @@ function EditorSetting() {
   };
 
   useEffect(() => {
-    if (!oldSetting) {
-      return;
-    }
-    setModified(!isEqual(oldSetting, makeConfig()));
-  }, [makeConfig, oldSetting]);
+    setModified(!isEqual(editor, makeConfig()));
+  }, [makeConfig, editor]);
 
   return (
     <Stack style={{ textAlign: "right" }}>
@@ -508,35 +473,26 @@ function ExportSetting() {
   const [includeHeader, setIncludeHeader] = useState(true);
   const { showNotification } = useNotification((s) => s);
   const [modified, setModified] = useState(false);
-  const [oldSetting, setOldSetting] = useState(null);
+  const { export_, updateExport } = useUserSettings((s) => s);
 
   useEffect(() => {
-    UserSettingExport.get().then((setting) => {
-      setCsvDelimiter(setting.csvDelimiter);
-      setIncludeHeader(setting.includeHeader);
-      setOldSetting(setting);
-    });
-  }, []);
+    setCsvDelimiter(export_.csvDelimiter);
+    setIncludeHeader(export_.includeHeader);
+  }, [export_.csvDelimiter, export_.includeHeader]);
 
   const makeConfig = useCallback(() => {
-    const x = { csvDelimiter, includeHeader } as UserSettingExport;
-    Object.setPrototypeOf(x, UserSettingExport.prototype);
+    const x = { csvDelimiter, includeHeader };
+
     return x;
   }, [csvDelimiter, includeHeader]);
 
   useEffect(() => {
-    if (!oldSetting) {
-      return;
-    }
-    setModified(!isEqual(oldSetting, makeConfig()));
-  }, [makeConfig, oldSetting]);
+    setModified(!isEqual(export_, makeConfig()));
+  }, [makeConfig, export_]);
+
   const handleSave = () => {
     try {
-      const x = makeConfig();
-      x.save();
-      showNotification("success", "save export setting ok");
-
-      setOldSetting(x);
+      updateExport(makeConfig());
     } catch (e) {
       showNotification("error", "save export setting failed", e);
       return;
@@ -612,22 +568,23 @@ function LLMSetting(props: { handleClose?: () => void }) {
   const [moddelCan, setModdelCan] = useState<ModelDef[]>([]);
   const [helloTime, setHelloTime] = useState(0);
   const [modified, setModified] = useState(false);
-  const { getConfig, config: oldSetting, setConfig } = useLLMConfig((s) => s);
+  const { config: oldSetting, setConfig } = useLLMConfig((s) => s);
   useEffect(() => {
-    let e = getConfig();
-    if (e) {
-      setBaseUrl(e.baseUrl);
-      setTemperature(e.temperature + "");
-      setModel(e.model);
-      setApiKey(e.apiKey);
-      if (e.maxToken) {
-        setMaxToken(e.maxToken + "");
-      }
-      if (e.topP) {
-        setTopP(e.topP + "");
-      }
+    console.log("oldSetting:", oldSetting);
+    if (!oldSetting) {
+      return;
     }
-  }, [getConfig]);
+    setBaseUrl(oldSetting.baseUrl);
+    setTemperature(oldSetting.temperature + "");
+    setModel(oldSetting.model);
+    setApiKey(oldSetting.apiKey);
+    if (oldSetting.maxToken) {
+      setMaxToken(oldSetting.maxToken + "");
+    }
+    if (oldSetting.topP) {
+      setTopP(oldSetting.topP + "");
+    }
+  }, [oldSetting]);
 
   const makeConfig = useCallback(() => {
     const config = {
@@ -883,32 +840,24 @@ function LLMSetting(props: { handleClose?: () => void }) {
 function MiscSetting() {
   const [autoStart, setAutoStart] = useState(false);
   const { showNotification } = useNotification((s) => s);
-  const [oldSetting, setOldSetting] = useState<UserSettingMisc>(null);
+  const { misc, updateMisc } = useUserSettings((s) => s);
 
   useEffect(() => {
-    UserSettingMisc.get().then((setting) => {
-      setAutoStart(setting.autoStart);
-      setOldSetting(setting);
-    });
-  }, []);
+    setAutoStart(misc.autoStart);
+  }, [misc]);
 
   useEffect(() => {
-    if (!oldSetting) {
-      return;
-    }
-    const x = { autoStart } as UserSettingMisc;
-    Object.setPrototypeOf(x, UserSettingMisc.prototype);
-    if (x.autoStart != oldSetting.autoStart) {
+    if (autoStart != misc.autoStart) {
       console.log("save auto start");
-      x.save()
-        .then(() => {
-          showNotification("success", "save auto restart ok");
-        })
-        .catch((e) => {
-          showNotification("error", "save setting  failed", e);
-        });
+      try {
+        updateMisc({ autoStart });
+        showNotification("success", "save auto restart ok");
+      } catch (e) {
+        showNotification("error", "save setting  failed", e);
+      }
     }
-  }, [autoStart, oldSetting, showNotification]);
+  }, [autoStart, misc.autoStart, showNotification, updateMisc]);
+
   const [loglevel, setLogLevel] = useState(LoggerLevel.level);
   return (
     <Stack style={{ textAlign: "right" }}>
@@ -991,7 +940,7 @@ function ModifySetting() {
 }
 
 function EditorThemeDemo(props: { style: CSSProperties; theme: string }) {
-  const setting = useContext(SettingContext);
+  const setting = useUserSettings((s) => s);
   const { fontWeight, fontSize, fontFamily } = setting.appearance;
   const { theme, style } = props;
   const [editor, setEditor] = useState<monaco.editor.IStandaloneCodeEditor>(null);
@@ -1263,7 +1212,11 @@ function makeComponents(
   return components;
 }
 
-const makeTheme = (s: UserSetting, isDarkTheme: boolean) => {
+const makeTheme = (
+  s: UserSettings,
+  isDarkTheme: boolean,
+  datagridRowHeightXXX: number,
+) => {
   const { appearance } = s;
   let color: string;
   if (isDarkTheme) {
@@ -1289,26 +1242,21 @@ const makeTheme = (s: UserSetting, isDarkTheme: boolean) => {
     components: makeComponents(
       fontWeight,
       appearance.intputVariant,
-      s.datagridRowHeightXXX(),
+      datagridRowHeightXXX,
     ),
   });
 };
 
-const isDark = (setting: UserSetting, osTheme) => {
+const isDark = (setting: UserSettings, osTheme) => {
   return (
     isDarkStr(setting.appearance.theme) ||
     (setting.appearance.theme == "system" && isDarkStr(osTheme))
   );
 };
-function SettingProvider(props: { children: ReactNode }) {
-  const { children } = props;
-  const [setting, setSetting] = useState<UserSetting>(null);
-
+function SettingProvider({ children }) {
+  const setting = useUserSettings((s) => s);
   const [osTheme, setOsTheme] = useState("light");
-
-  const reload = useCallback(async () => {
-    const setting = await UserSetting.load();
-    setSetting(setting);
+  useEffect(() => {
     document.documentElement.style.fontSize = setting.appearance.fontSize + "px";
     document.documentElement.style.fontFamily = setting.appearance.fontFamily;
     document.documentElement.style.fontWeight = setting.appearance.fontWeight;
@@ -1317,28 +1265,25 @@ function SettingProvider(props: { children: ReactNode }) {
     } else {
       monaco.editor.setTheme(isDark(setting, osTheme) ? "vs-dark" : "vs");
     }
-
-    if (setting.misc.autoStart) {
-      if (!(await isEnabledApp())) {
-        enableApp().catch((e) => {
-          console.error("enable app autostart failed", e);
-          message(`enable app autostart failed ${e.toString()}`, {
-            kind: "error",
+    (async () => {
+      if (setting.misc.autoStart) {
+        if (!(await isEnabledApp())) {
+          enableApp().catch((e) => {
+            console.error("enable app autostart failed", e);
+            message(`enable app autostart failed ${e.toString()}`, {
+              kind: "error",
+            });
           });
-        });
+        }
+      } else {
+        if (await isEnabledApp()) {
+          disableApp().catch((e) => {
+            console.error("disable app autostart failed", e);
+          });
+        }
       }
-    } else {
-      if (await isEnabledApp()) {
-        disableApp().catch((e) => {
-          console.error("disable app autostart failed", e);
-        });
-      }
-    }
-  }, [osTheme]);
-
-  useEffect(() => {
-    reload();
-  }, [reload]);
+    })();
+  }, [osTheme, setting]);
 
   useEffect(() => {
     const currentWebview = WebviewWindow.getCurrent();
@@ -1351,40 +1296,16 @@ function SettingProvider(props: { children: ReactNode }) {
     currentWebview.onThemeChanged(async (event) => {
       setOsTheme(event.payload);
     });
+  }, []);
 
-    // if (platform() == "linux") {
-    //   // https://github.com/tauri-apps/tauri/issues/9427
-    //   setInterval(() => {
-    //     currentWebview.theme().then((theme) => {
-    //       setOsTheme(theme);
-    //     });
-    //   }, 3000);
-    // }
-
-    const unlisten = appStore.onChange((key) => {
-      if (
-        [
-          UserSettingAppearance.key,
-          UserSettingEditor.key,
-          UserSettingExport.key,
-          UserSettingMisc.key,
-        ].includes(key)
-      ) {
-        reload();
-      }
-    });
-    return () => {
-      unlisten.then((callback) => {
-        callback();
-      });
-    };
-  }, [reload]);
+  const datagridHeightXXX = useDatagridHeight();
 
   return (
     setting && (
-      <ThemeProvider theme={makeTheme(setting, isDark(setting, osTheme))}>
+      <ThemeProvider
+        theme={makeTheme(setting, isDark(setting, osTheme), datagridHeightXXX)}>
         <CssBaseline />
-        <SettingContext.Provider value={setting}>{children}</SettingContext.Provider>
+        {children}
       </ThemeProvider>
     )
   );

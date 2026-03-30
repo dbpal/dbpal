@@ -18,15 +18,7 @@ import {
   InputLabel,
 } from "@mui/material";
 import RefreshIcon from "@mui/icons-material/Refresh";
-import {
-  ReactNode,
-  useCallback,
-  useContext,
-  useEffect,
-  useMemo,
-  useRef,
-  useState,
-} from "react";
+import { ReactNode, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { types } from "./ApiStruct";
 import DeleteForeverIcon from "@mui/icons-material/DeleteForever";
 import {
@@ -66,7 +58,6 @@ import {
   QueryLogHandler,
   resizeHandlerSize,
   secondConfirm,
-  SettingContext,
   shrinkAble,
   textEllipsisStyle,
 } from "./helper";
@@ -87,6 +78,7 @@ import {
   useContextMenu,
   useElementSizeStore,
   useNotification,
+  useUserSettings,
 } from "./store";
 
 function MenuExportMarkDownTable({ showExportMarkDown }) {
@@ -415,7 +407,7 @@ function MetaValueViewMenu(props: { content: string; setSort; field: string }) {
 }
 
 function MetaValueView({ values = [] as types.MetaValue[] }) {
-  const setting = useContext(SettingContext);
+  const setting = useUserSettings((s) => s);
 
   const getColumnWidth = useColumnWidthStore((s) => s.getColumnWidth);
   const columns = [
@@ -455,8 +447,8 @@ function MetaValueView({ values = [] as types.MetaValue[] }) {
       },
       toolbar: {
         csvOptions: {
-          delimiter: setting.export.csvDelimiter,
-          includeHeaders: setting.export.includeHeader,
+          delimiter: setting.export_.csvDelimiter,
+          includeHeaders: setting.export_.includeHeader,
         },
       },
     } as GridSlotsComponentsProps;
