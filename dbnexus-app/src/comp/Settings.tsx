@@ -147,7 +147,7 @@ function AppearanceSetting() {
     }
   };
   return (
-    <Stack style={{ height: "100%", textAlign: "right" }}>
+    <Stack style={{ height: "100%" }}>
       <Stack direction="row" sx={{ alignItems: "center" }}>
         <Typography width={headerSize} style={{ fontSize }}>
           font size
@@ -361,7 +361,7 @@ function EditorSetting() {
   }, [makeConfig, editor]);
 
   return (
-    <Stack style={{ textAlign: "right" }}>
+    <Stack>
       <Stack direction="row" sx={{ alignItems: "center" }}>
         <Typography width={headerSize}>tab size </Typography>
 
@@ -403,7 +403,7 @@ function EditorSetting() {
         </Stack>
       </Stack>
       <Stack direction="row" sx={{ alignItems: "flex-start" }}>
-        <Typography width={headerSize}>editor theme </Typography>
+        <Typography width={headerSize}> editor theme </Typography>
         <Stack direction="row" style={{ flex: 1, alignItems: "flex-start" }}>
           <Autocomplete
             options={registeredThemes}
@@ -463,7 +463,7 @@ function ExportSetting() {
   };
 
   return (
-    <Stack style={{ textAlign: "right" }}>
+    <Stack>
       <Stack direction="row" sx={{ alignItems: "center" }}>
         <Typography width={headerSize}>csv delimiter</Typography>
         <TextField
@@ -605,7 +605,7 @@ function LLMSetting(props: { handleClose?: () => void }) {
   };
 
   return (
-    <Stack style={{ textAlign: "right" }}>
+    <Stack>
       <Stack direction="row" sx={{ alignItems: "center" }}>
         <Typography width={headerSize}>base url</Typography>
         <TextField
@@ -806,7 +806,7 @@ function MiscSetting() {
   }, [autoStart, logLevel, misc, showNotification, updateMisc]);
 
   return (
-    <Stack style={{ textAlign: "right" }}>
+    <Stack>
       <Stack direction="row" sx={{ alignItems: "center" }}>
         <Typography width={headerSize}>auto start</Typography>
         <Checkbox
@@ -896,7 +896,7 @@ function EditorThemeDemo(props: { theme: string }) {
     if (!theme) {
       return;
     }
-    // TODO not change
+    editor.updateOptions({ theme });
   }, [editor, theme]);
 
   return (
@@ -1293,4 +1293,4 @@ function ModifyLLMConfigModal() {
   );
 }
 
-export { ModifySetting, SettingProvider, ModifyLLMConfigModal, EditorSetting };
+export { ModifySetting, SettingProvider, ModifyLLMConfigModal };

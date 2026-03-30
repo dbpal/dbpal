@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import * as monaco from "monaco-editor";
 import { useUserSettings } from "./store";
 
@@ -10,7 +10,8 @@ interface MonacoEditorProps {
 }
 
 function MonacoEditor({ value, language, onMount, readOnly }: MonacoEditorProps) {
-  const [editorRef, setEditor] = useState<HTMLDivElement>(null);
+  const editorRef = useRef<HTMLDivElement>(null);
+
   const [monacoInstance, setInstance] =
     useState<monaco.editor.IStandaloneCodeEditor | null>(null);
 
@@ -37,19 +38,16 @@ function MonacoEditor({ value, language, onMount, readOnly }: MonacoEditorProps)
     );
 
   useEffect(() => {
-    if (!editorRef) {
-      return;
-    }
     if (!monacoInstance) {
       // 1. 初始化编辑器
-      const ed = monaco.editor.create(editorRef, { automaticLayout: true });
+      const ed = monaco.editor.create(editorRef.current, { automaticLayout: true });
       setInstance(ed);
     }
     // 3. 组件卸载时销毁实例，防止内存泄漏
     return () => {
       monacoInstance?.dispose();
     };
-  }, [editorRef, monacoInstance]);
+  }, [monacoInstance]);
 
   useEffect(() => {
     if (!monacoInstance) {
@@ -62,7 +60,7 @@ function MonacoEditor({ value, language, onMount, readOnly }: MonacoEditorProps)
     if (!monacoInstance) {
       return;
     }
-    if (value != monacoInstance.getValue()) {
+    if (value && value != monacoInstance.getValue()) {
       monacoInstance.setValue(value);
     }
   }, [monacoInstance, value]);
@@ -71,7 +69,6 @@ function MonacoEditor({ value, language, onMount, readOnly }: MonacoEditorProps)
     if (!monacoInstance) {
       return;
     }
-
     monacoInstance.updateOptions(options);
   }, [monacoInstance, options]);
 
@@ -85,14 +82,9 @@ function MonacoEditor({ value, language, onMount, readOnly }: MonacoEditorProps)
     monaco.editor.setModelLanguage(monacoInstance.getModel(), language);
   }, [monacoInstance, language]);
 
-  useEffect(() => {
-    if (!monacoInstance) {
-      return;
-    }
-    monaco.editor.setModelLanguage(monacoInstance.getModel(), language);
-  }, [language, monacoInstance]);
-
-  return <div ref={setEditor} style={{ width: "99%", height: "99%" }} />;
+  return (
+    <div ref={editorRef} style={{ height: "99%", width: "99%", overflow: "auto" }} />
+  );
 }
 
 export { MonacoEditor };
