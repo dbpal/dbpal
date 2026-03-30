@@ -13,14 +13,13 @@ import {
 import { ask, message } from "@tauri-apps/plugin-dialog";
 import { LazyStore } from "@tauri-apps/plugin-store";
 import { writeText } from "@tauri-apps/plugin-clipboard-manager";
-import { Channel, invoke } from "@tauri-apps/api/core";
+import { invoke } from "@tauri-apps/api/core";
 import { BSON } from "bson";
 import Database, { QueryResult } from "@tauri-apps/plugin-sql";
 import { WebviewWindow } from "@tauri-apps/api/webviewWindow";
 import { platform } from "@tauri-apps/plugin-os";
 import themelist from "../../monaco-themes/themes/themelist.json";
 import prettyMilliseconds from "pretty-ms";
-import { cancelTask } from "./handlers";
 
 const pageSizeOptions = [10, 20, 50, 100];
 const appStore = new LazyStore("store.json");
@@ -704,43 +703,8 @@ class LLMConfig {
   static key = "llm-config-4k9zF7m5p3T1H2";
   maxToken: number = 0;
   topP: number = 0;
-
-  async invoke(msg: string): Promise<string> {
-    return await invoke<string>("openai_invoke", {
-      req: this.makeReq(msg),
-    });
-  }
-
-  makeReq(msg: string): types.OpenAIReq {
-    return {
-      url: this.baseUrl,
-      api_key: this.apiKey,
-      model: this.model,
-      msg,
-      temperature: this.temperature,
-      max_tokens: this.maxToken,
-      top_p: this.topP,
-    };
-  }
-  async stream(
-    msg: string,
-    handleMessage: (_: string) => void,
-    handleCancel: (_: () => void) => void,
-  ) {
-    const taskId = generateRandomString();
-    const emit = new Channel<string>((event) => {
-      handleMessage(event);
-    });
-    handleCancel(() => {
-      cancelTask(taskId);
-    });
-    await invoke("openai_stream", { req: this.makeReq(msg), emit, taskId });
-  }
-
-  enable() {
-    return this.baseUrl && this.model;
-  }
 }
+
 enum MongoLanguage {
   js = "javascript",
   ts = "typescript",

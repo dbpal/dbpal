@@ -57,6 +57,7 @@ import { EscDownEvent, modalHandleClose, modalStyle } from "./Common";
 import { LogLevelSelection, ModalHeader } from "./CommonComp";
 import { appLogDir } from "@tauri-apps/api/path";
 import {
+  makeLLMCallable,
   useDatagridHeight,
   useLLMConfig,
   useNotification,
@@ -568,7 +569,7 @@ function LLMSetting(props: { handleClose?: () => void }) {
     }, 400);
     try {
       const config = makeConfig();
-      const resp = await config.invoke("hello!");
+      const resp = await makeLLMCallable(config).invoke("hello!");
       showNotification(
         "success",
         "config setting is ok,llm response:",

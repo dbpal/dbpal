@@ -3,7 +3,6 @@ import {
   DataSourceKind,
   extractLastNameFromUuid,
   handleCopyToClipboard,
-  LLMConfig,
   TabActiveContext,
   TableType,
   ViewKind,
@@ -73,6 +72,7 @@ import * as mongoQueryBackend from "./MongoQueryBackend.ts";
 import {
   useAIPrompt,
   useBoolSwitch,
+  useLLM,
   useLLMConfig,
   useNotification,
   UseSizeConfig,
@@ -266,7 +266,6 @@ human:{question}
 
   constructor(
     public uuid: string,
-    public config: LLMConfig,
     public kind: DataSourceKind,
     public question: string,
     public memory: SimpleArrayMemory,
@@ -586,7 +585,7 @@ function SqlChatTextInput(props: {
   editor: editor.IStandaloneCodeEditor;
 }) {
   const { uuid, kind, editor } = props;
-  const config = useLLMConfig((s) => s.config);
+  const config = useLLM();
   const [prevQuestion, setPrevQuestion] = useState("");
   const [newQuestion, setNewQuestion] = useState("");
   const { showNotification } = useNotification((s) => s);
@@ -633,7 +632,6 @@ function SqlChatTextInput(props: {
     try {
       const prompt = await new MakePrompt(
         uuid,
-        config,
         kind,
         newQuestion,
         chatMemory.current,
@@ -835,7 +833,6 @@ function SqlChatTextInput(props: {
       )}
       {showEditPromptTemplate && (
         <EditPromptTemplate
-          config={config}
           handleClose={() => {
             setShowEditPromptTemplate(false);
           }}
@@ -854,11 +851,7 @@ function SqlChatTextInput(props: {
   );
 }
 
-function EditPromptTemplate(props: {
-  kind: DataSourceKind;
-  config: LLMConfig;
-  handleClose: () => void;
-}) {
+function EditPromptTemplate(props: { kind: DataSourceKind; handleClose: () => void }) {
   const { kind, handleClose } = props;
   const { getPrompt, setPrompt, removePrompt } = useAIPrompt((s) => s);
   const userDefine = getPrompt(kind);

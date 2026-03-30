@@ -1,9 +1,10 @@
-import { ReactElement, ReactNode, useCallback } from "react";
+import { ReactElement, ReactNode, useCallback, useMemo } from "react";
 import { create, StateCreator } from "zustand";
 import {
   appStore,
   DataSourceKind,
   extractConfigNameFromUuid,
+  generateRandomString,
   LLMConfig,
   TabContent,
 } from "./helper";
@@ -42,6 +43,8 @@ import { GridColumnVisibilityModel } from "@mui/x-data-grid";
 import { PassWordManager } from "./Common";
 import types from "./ApiStruct";
 import { editor } from "monaco-editor";
+import { Channel, invoke } from "@tauri-apps/api/core";
+import { cancelTask } from "./handlers";
 
 interface TableColumnVisible {
   // Key format: "tableName:uuid" -> Visibility Model
@@ -198,14 +201,21 @@ export const useTabsManage = create<{
 }));
 
 interface LLMStore {
-  config: LLMConfig | null;
+  config: LLMConfig;
   setConfig: (config: LLMConfig) => void;
 }
 
 export const useLLMConfig = create<LLMStore>()(
   persist(
     (set) => ({
-      config: null,
+      config: {
+        baseUrl: "https://api.openai.com/v1",
+        apiKey: "",
+        maxToken: 0,
+        model: "gpt-3.5-turbo",
+        temperature: 0,
+        topP: 0,
+      },
       setConfig: (config) => set({ config }),
     }),
 
@@ -226,6 +236,55 @@ export const useLLMConfig = create<LLMStore>()(
     },
   ),
 );
+
+export const makeLLMCallable = (config: LLMConfig) => {
+  const makeReq = (msg: string): types.OpenAIReq => {
+    return {
+      url: config.baseUrl,
+      api_key: config.apiKey,
+      model: config.model,
+      msg,
+      temperature: config.temperature,
+      max_tokens: config.maxToken,
+      top_p: config.topP,
+    };
+  };
+
+  return {
+    invoke: async (msg: string): Promise<string> => {
+      return await invoke<string>("openai_invoke", {
+        req: makeReq(msg),
+      });
+    },
+    stream: async (
+      msg: string,
+      handleMessage: (event: string) => void,
+      handleCancel: (cancel: () => void) => void,
+    ) => {
+      const taskId = generateRandomString();
+      const emit = new Channel<string>((event: string) => {
+        handleMessage(event);
+      });
+      handleCancel(() => {
+        cancelTask(taskId);
+      });
+      await invoke("openai_stream", { req: makeReq(msg), emit, taskId });
+    },
+  };
+};
+
+export const useLLM = () => {
+  const config = useLLMConfig((s) => s.config);
+  const r = useMemo(() => {
+    if (config.baseUrl && config.apiKey && config.model) {
+      return makeLLMCallable(config);
+    } else {
+      return null;
+    }
+  }, [config]);
+
+  return r;
+};
 
 export type AlertMsg = {
   severity: AlertColor;
