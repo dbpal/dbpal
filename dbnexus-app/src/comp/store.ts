@@ -813,6 +813,13 @@ interface ConnectionState {
   getConnection: (name: string) => Promise<types.DBConnectionConfig | null>;
 }
 
+export const passwordKey = "password";
+
+export const savePasswordKey = "save_password";
+
+function trySavePassToKeyRing(x: object) {
+  return x[savePasswordKey] === true;
+}
 export const useConnectionStore = create<ConnectionState>()(
   persist(
     (set, get) => ({
@@ -822,23 +829,37 @@ export const useConnectionStore = create<ConnectionState>()(
       getConnection: async (name) => {
         const conn = get().connections.find((c) => c.name === name);
         if (!conn) return null;
-
         // Return a copy with the password injected
-        const password = await PassWordManager.getPassword(name);
-        return { ...conn, password };
+        let password = undefined;
+        if (savePasswordKey in conn) {
+          if (true === conn[savePasswordKey]) {
+            password = await PassWordManager.getPassword(name);
+          } else {
+            password = await window.prompt("please input password:");
+          }
+        }
+        if (password) {
+          return { ...conn, password };
+        } else {
+          return conn;
+        }
       },
 
       // Add or Update
       addConnection: async (config) => {
         // 1. Handle password persistence separately
-        if (config["password"]) {
-          await PassWordManager.savePassword(config.name, config["password"], true);
+        if (config[passwordKey]) {
+          await PassWordManager.savePassword(
+            config.name,
+            config[passwordKey],
+            trySavePassToKeyRing(config),
+          );
           // Do not store the actual password in the connection state/disk
-          config["password"] = null;
+          config[passwordKey] = "";
         }
+
         const current = get().connections;
         const exists = current.some((c) => c.name === config.name);
-
         if (exists) {
           // Update: replace existing item
           set({
@@ -852,6 +873,7 @@ export const useConnectionStore = create<ConnectionState>()(
 
       // Remove by name
       removeConnection: (name) => {
+        PassWordManager.deletePassword(name);
         set((state) => ({
           connections: state.connections.filter((c) => c.name !== name),
         }));

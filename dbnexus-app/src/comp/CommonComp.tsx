@@ -266,35 +266,11 @@ function MenuOpenConn({ name }) {
     if (!config) {
       return;
     }
-    const key = "save_password";
-    let inputPass = "";
-    if (false === config[key]) {
-      const pass = PassWordManager.getPassword(name);
-      if (!pass) {
-        inputPass = window.prompt(`enter password for '${name}'`);
-        // macos will return null directly
-        if (inputPass == null) {
-          return;
-        }
-        config["password"] = inputPass;
-      } else {
-        config["password"] = pass;
-      }
-    } else {
-      // get password from keyring
-      const pass = await PassWordManager.getPassword(name);
-      if (pass) {
-        config["password"] = pass;
-      }
-    }
     try {
       await invoke("establish_conn", { config });
     } catch (e) {
       showNotification("error", "establish connection failed", e);
       return;
-    }
-    if (inputPass) {
-      PassWordManager.savePassword(name, inputPass, false);
     }
     setConnected(name);
   };
