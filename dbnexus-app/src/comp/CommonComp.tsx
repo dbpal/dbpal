@@ -64,17 +64,17 @@ import {
 
 import { TbDatabasePlus } from "react-icons/tb";
 import LinkIcon from "@mui/icons-material/Link";
-import { ConnectionHandler, connectionChangeEvent, PassWordManager } from "./Common";
+import { PassWordManager } from "./Common";
 import { TreeItem } from "@mui/x-tree-view/TreeItem";
 import { editor, Position } from "monaco-editor";
 import { openPath } from "@tauri-apps/plugin-opener";
 import { FaMarkdown } from "react-icons/fa";
-import { emit } from "@tauri-apps/api/event";
 import { AppDataGridPagination, StackRowCenter } from "./CommonComp2";
 import {
   useColumnWidthStore,
   useConnLoading,
   useConnected,
+  useConnectionStore,
   useContextMenu,
   useElementSizeStore,
   useNotification,
@@ -255,14 +255,14 @@ function MenuCreateSchema(props: { handleCreate; kind: DataSourceKind }) {
 
 function MenuOpenConn({ name }) {
   const { showNotification } = useNotification((s) => s);
-
   const setConnected = useConnected((s) => s.setConnected);
-
   const setLoading = useConnLoading((s) => s.setLoading);
+
+  const { getConnection } = useConnectionStore((s) => s);
 
   const handleOpenXXX = async () => {
     // try promote use to enter a password.
-    const config = await ConnectionHandler.getByName(name);
+    const config = await getConnection(name);
     if (!config) {
       return;
     }
@@ -336,6 +336,9 @@ function SelectPageSize({ pageSize, handleChange, options = pageSizeOptions }) {
 
 function MenuDeleteConfig({ name }) {
   const { showNotification } = useNotification((s) => s);
+
+  const { removeConnection } = useConnectionStore((s) => s);
+
   const handleDelete = async () => {
     const confirm = await secondConfirm({
       title: `drop connection '${name}'`,
@@ -348,9 +351,8 @@ function MenuDeleteConfig({ name }) {
       await invoke("close_conn", { name });
       await FavoriteSql.deleteByConnectionName(name);
       await QueryLogHandler.deleteByConnectionName(name);
-      await ConnectionHandler.deleteConn(name);
+      await removeConnection(name);
       await PassWordManager.deletePassword(name);
-      emit(connectionChangeEvent, "");
     } catch (e) {
       showNotification("error", "drop connection failed", e);
     }

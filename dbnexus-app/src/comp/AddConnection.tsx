@@ -31,18 +31,12 @@ import VisibilityIcon from "@mui/icons-material/Visibility";
 import { types } from "./ApiStruct.ts";
 import { message, open } from "@tauri-apps/plugin-dialog";
 import { invoke } from "@tauri-apps/api/core";
-import {
-  ConnectionHandler,
-  connectionChangeEvent,
-  extractBaseName,
-  PassWordManager,
-} from "./Common.ts";
+import { extractBaseName, PassWordManager } from "./Common.ts";
 import { DataSourceKind } from "./helper.ts";
 import { openUrl } from "@tauri-apps/plugin-opener";
 import { platform } from "@tauri-apps/plugin-os";
 import { StackRowCenter, UrlDocument } from "./CommonComp2.tsx";
-import { emit } from "@tauri-apps/api/event";
-import { useNotification } from "./store.ts";
+import { useConnectionStore, useNotification } from "./store.ts";
 
 function HostAndPort(props: { host; port; setHost; setPort }) {
   const { host, port, setHost, setPort } = props;
@@ -62,8 +56,7 @@ function HostAndPort(props: { host; port; setHost; setPort }) {
                   onClick={() => {
                     setHost("");
                   }}
-                  edge="end"
-                >
+                  edge="end">
                   <ClearIcon fontSize="small" />
                 </IconButton>
               </InputAdornment>
@@ -105,8 +98,7 @@ function SelectPath(props: { path; setPath; label: string; required: boolean }) 
                       onClick={() => {
                         setPath("");
                       }}
-                      edge="end"
-                    >
+                      edge="end">
                       <ClearIcon fontSize="small" />
                     </IconButton>
                   </InputAdornment>
@@ -117,8 +109,7 @@ function SelectPath(props: { path; setPath; label: string; required: boolean }) 
                       setPath(openOk);
                     });
                   }}
-                  color="primary"
-                >
+                  color="primary">
                   <AttachFileIcon />
                 </IconButton>
               </>
@@ -156,8 +147,7 @@ function UserAndPassword(props: {
                   onClick={() => {
                     setUser("");
                   }}
-                  edge="end"
-                >
+                  edge="end">
                   <ClearIcon fontSize="small" />
                 </IconButton>
               </InputAdornment>
@@ -181,8 +171,7 @@ function UserAndPassword(props: {
                     onClick={() => {
                       setPasswordVisible(true);
                     }}
-                    edge="end"
-                  >
+                    edge="end">
                     <VisibilityIcon fontSize="small" />
                   </IconButton>
                 </InputAdornment>
@@ -196,8 +185,7 @@ function UserAndPassword(props: {
           justifyContent: "center",
           alignItems: "center",
         }}
-        direction="row"
-      >
+        direction="row">
         <Checkbox
           checked={savePassword}
           onChange={(event) => {
@@ -275,8 +263,7 @@ function SslFiles(props: { files: types.SSLFiles; setFiles; enabled: boolean }) 
               if (file) {
                 setFiles({ ...files, ssl_ca: file });
               }
-            }}
-          >
+            }}>
             <Chip
               label={"CA Cert:" + (files.ssl_ca ? extractBaseName(files.ssl_ca) : "")}
               variant="outlined"
@@ -334,8 +321,7 @@ function PGSSL(props: { ssl: types.PgSsl; setSsl }) {
         <Select
           value={ssl.ssl_mode}
           label="ssl mode"
-          onChange={(e) => setSsl({ ...ssl, ssl_mode: e.target.value } as types.PgSsl)}
-        >
+          onChange={(e) => setSsl({ ...ssl, ssl_mode: e.target.value } as types.PgSsl)}>
           {modes.map((mode) => (
             <MenuItem value={mode} key={mode}>
               {mode}
@@ -367,8 +353,7 @@ function MysqlSSl(props: { ssl: types.MysqlSsl; setSsl: any }) {
           label="ssl mode"
           onChange={(e) =>
             setSsl({ ...ssl, ssl_mode: e.target.value } as types.MysqlSsl)
-          }
-        >
+          }>
           {modes.map((e) => (
             <MenuItem value={e} key={e}>
               {e}
@@ -547,8 +532,7 @@ function Oracle(props: { config? }) {
           openUrl(
             "https://odpi-c.readthedocs.io/en/latest/user_guide/installation.html",
           );
-        }}
-      >
+        }}>
         oracle need extra driver
       </Typography>
       <HostAndPort host={host} port={port} setHost={setHost} setPort={setPort} />
@@ -748,10 +732,14 @@ const AddConnectionContext = createContext<{
 function TestConnAndSave(props: {
   connectionNameDom;
   makeConfig: () => types.DBConnectionConfig;
+  cnameDuplicated: boolean;
 }) {
-  const { connectionNameDom, makeConfig } = props;
+  const { connectionNameDom, makeConfig, cnameDuplicated } = props;
   const [testLoading, setTestLoading] = useState(false);
   const { showNotification } = useNotification((s) => s);
+
+  const { addConnection } = useConnectionStore((s) => s);
+
   const handleTestConnection = () => {
     const config = makeConfig();
     if (!config.name) {
@@ -798,14 +786,10 @@ function TestConnAndSave(props: {
         return;
       }
     }
-    if (password) {
-      config["password"] = "";
-    }
-    ConnectionHandler.save(config)
+
+    addConnection(config)
       .then(() => {
         showNotification("success", "add connection OK");
-        emit(connectionChangeEvent, "");
-        // handleClose();
       })
       .catch((e) => {
         showNotification("error", "add connection failure", e);
@@ -820,15 +804,14 @@ function TestConnAndSave(props: {
           onClick={() => {
             handleSaveConnection();
           }}
-        >
+          disabled={cnameDuplicated}>
           save
         </Button>
         <Button
           variant="outlined"
           sx={{ mr: 1 }}
           onClick={handleTestConnection}
-          loading={testLoading}
-        >
+          loading={testLoading}>
           test
         </Button>
       </StackRowCenter>
@@ -1155,9 +1138,12 @@ function AddConnection(props: { config?: types.DBConnectionConfig }) {
   const connectionNameDom = useRef<HTMLInputElement>(null);
   const [readOnly, setReadOnly] = useState(config?.read_only);
   const [cnameDuplicated, setCnameDuplicated] = useState(false);
+
+  const nameExits = useConnectionStore((s) => s.nameExists);
+
   useEffect(() => {
-    ConnectionHandler.nameDuplicated(connectionName).then(setCnameDuplicated);
-  }, [connectionName]);
+    setCnameDuplicated(nameExits(connectionName));
+  }, [connectionName, nameExits]);
 
   const makeConfigRef = useRef(null);
 
@@ -1169,8 +1155,7 @@ function AddConnection(props: { config?: types.DBConnectionConfig }) {
           value={connectionType}
           label="Connection Type"
           onChange={(e) => setConnectionType(e.target.value as DataSourceKind)}
-          disabled={!!config}
-        >
+          disabled={!!config}>
           <MenuItem value={DataSourceKind.Mysql}>MySQL</MenuItem>
           <MenuItem value={DataSourceKind.MariaDB}>MariaDB</MenuItem>
           <MenuItem value={DataSourceKind.TiDB}>TIDB</MenuItem>
@@ -1208,8 +1193,7 @@ function AddConnection(props: { config?: types.DBConnectionConfig }) {
                     onClick={() => {
                       setConnectionName("");
                     }}
-                    edge="end"
-                  >
+                    edge="end">
                     <ClearIcon fontSize="small" />
                   </IconButton>
                 </InputAdornment>
@@ -1231,8 +1215,7 @@ function AddConnection(props: { config?: types.DBConnectionConfig }) {
                     onClick={() => {
                       setConnTimeout("");
                     }}
-                    edge="end"
-                  >
+                    edge="end">
                     <ClearIcon fontSize="small" />
                   </IconButton>
                 </InputAdornment>
@@ -1261,8 +1244,7 @@ function AddConnection(props: { config?: types.DBConnectionConfig }) {
           readOnly: !!readOnly,
           connTimeOut: connTimeout ? parseInt(connTimeout) : null,
           makeConfigRef: makeConfigRef,
-        }}
-      >
+        }}>
         <Stack>
           <Typography variant="h6"> server info </Typography>
           <Divider />
@@ -1307,6 +1289,7 @@ function AddConnection(props: { config?: types.DBConnectionConfig }) {
         makeConfig={() => {
           return makeConfigRef.current();
         }}
+        cnameDuplicated={cnameDuplicated}
       />
     </Stack>
   );
@@ -1435,8 +1418,7 @@ function LibSql(props: { config }) {
                         onClick={() => {
                           setUrl("");
                         }}
-                        edge="end"
-                      >
+                        edge="end">
                         <ClearIcon fontSize="small" />
                       </IconButton>
                     </InputAdornment>
@@ -1459,8 +1441,7 @@ function LibSql(props: { config }) {
                         onClick={() => {
                           setAuthToken("");
                         }}
-                        edge="end"
-                      >
+                        edge="end">
                         <ClearIcon fontSize="small" />
                       </IconButton>
                     </InputAdornment>
@@ -1525,8 +1506,7 @@ function OdbcDriverCommon(props: { config: RefObject<types.OdbcCommon> }) {
                   onClick={() => {
                     setDriverName("");
                   }}
-                  edge="end"
-                >
+                  edge="end">
                   <ClearIcon fontSize="small" />
                 </IconButton>
               </InputAdornment>
@@ -1549,8 +1529,7 @@ function OdbcDriverCommon(props: { config: RefObject<types.OdbcCommon> }) {
                   onClick={() => {
                     setMaxStrLen("");
                   }}
-                  edge="end"
-                >
+                  edge="end">
                   <ClearIcon fontSize="small" />
                 </IconButton>
               </InputAdornment>
@@ -1574,8 +1553,7 @@ function OdbcDriverCommon(props: { config: RefObject<types.OdbcCommon> }) {
                   onClick={() => {
                     setMaxBinLen("");
                   }}
-                  edge="end"
-                >
+                  edge="end">
                   <ClearIcon fontSize="small" />
                 </IconButton>
               </InputAdornment>
@@ -1649,8 +1627,7 @@ function Db2(props: { config? }) {
                   onClick={() => {
                     setDatabase("");
                   }}
-                  edge="end"
-                >
+                  edge="end">
                   <ClearIcon fontSize="small" />
                 </IconButton>
               </InputAdornment>
@@ -1717,8 +1694,7 @@ function CouchBase(props: { config? }) {
                   onClick={() => {
                     setConnStr("");
                   }}
-                  edge="end"
-                >
+                  edge="end">
                   <ClearIcon fontSize="small" />
                 </IconButton>
               </InputAdornment>

@@ -40,6 +40,7 @@ class TauriStoreManger<S> implements PersistStorage<S> {
 
 import { GridColumnVisibilityModel } from "@mui/x-data-grid";
 import { PassWordManager } from "./Common";
+import types from "./ApiStruct";
 
 interface TableColumnVisible {
   // Key format: "tableName:uuid" -> Visibility Model
@@ -740,3 +741,70 @@ export const useMatcherFn = () => {
 
   return matcher;
 };
+
+interface ConnectionState {
+  connections: types.DBConnectionConfig[];
+
+  addConnection: (config: types.DBConnectionConfig) => Promise<void>;
+  removeConnection: (name: string) => void;
+  nameExists: (name: string) => boolean;
+  getConnection: (name: string) => Promise<types.DBConnectionConfig | null>;
+}
+
+export const useConnectionStore = create<ConnectionState>()(
+  persist(
+    (set, get) => ({
+      connections: [],
+
+      // Get connection and inject password from Manager
+      getConnection: async (name) => {
+        const conn = get().connections.find((c) => c.name === name);
+        if (!conn) return null;
+
+        // Return a copy with the password injected
+        const password = await PassWordManager.getPassword(name);
+        return { ...conn, password };
+      },
+
+      // Add or Update
+      addConnection: async (config) => {
+        // 1. Handle password persistence separately
+        if (config["password"]) {
+          await PassWordManager.savePassword(config.name, config["password"], true);
+          // Do not store the actual password in the connection state/disk
+          config["password"] = null;
+        }
+        const current = get().connections;
+        const exists = current.some((c) => c.name === config.name);
+
+        if (exists) {
+          // Update: replace existing item
+          set({
+            connections: current.map((c) => (c.name === config.name ? config : c)),
+          });
+        } else {
+          // Add: prepend to list
+          set({ connections: [config, ...current] });
+        }
+      },
+
+      // Remove by name
+      removeConnection: (name) => {
+        set((state) => ({
+          connections: state.connections.filter((c) => c.name !== name),
+        }));
+        // Note: You might want to call PassWordManager.deletePassword(name) here too
+      },
+
+      // Check if name exists in array
+      nameExists: (name) => {
+        return get().connections.some((c) => c.name === name);
+      },
+    }),
+    {
+      name: "connection-storage",
+      storage: new TauriStoreManger<ConnectionState>(),
+      version: 1,
+    },
+  ),
+);

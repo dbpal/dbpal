@@ -39,8 +39,6 @@ import {
   dropSchema,
   EscDownEvent,
   modalHandleClose,
-  ConnectionHandler,
-  connectionChangeEvent,
   PassWordManager,
   tabsHasId,
 } from "./Common";
@@ -132,6 +130,7 @@ import {
   useColumnWidthStore,
   useUserSettings,
   useMatcherFn,
+  useConnectionStore,
 } from "./store.ts";
 const settingId = generateRandomString();
 const showTopKey = "left-top-show";
@@ -423,7 +422,7 @@ function CopyConnectionMenu(props: { content: string }) {
 }
 
 function CopyConnection() {
-  const [conns, setConns] = useState<types.DBConnectionConfig[]>([]);
+  const { connections } = useConnectionStore();
   const [sortModel, setSortModel] = useState<GridSortModel>([]);
   const getRowId = useCallback((e) => {
     return e.name;
@@ -432,7 +431,6 @@ function CopyConnection() {
     setSortModel(e);
   }, []);
 
-  const { showNotification } = useNotification((s) => s);
   const setting = useUserSettings((s) => s);
   const { getColumnWidth, setColumnWidth } = useColumnWidthStore((s) => s);
 
@@ -537,17 +535,6 @@ function CopyConnection() {
     [handleRow],
   );
 
-  const handleReload = useCallback(async () => {
-    try {
-      const conns = await ConnectionHandler.getAll();
-      setConns(conns);
-    } catch (e) {
-      showNotification("error", "get connections failed", e);
-    }
-  }, [showNotification]);
-  useEffect(() => {
-    handleReload();
-  }, [handleReload]);
   const slots = useMemo(() => {
     return {
       pagination: () => {
@@ -566,16 +553,6 @@ function CopyConnection() {
   }, []);
   return (
     <Stack style={{ height: "100%" }}>
-      <Stack direction="row">
-        {conns.length == 0 && (
-          <Button
-            onClick={() => {
-              handleReload();
-            }}>
-            reload
-          </Button>
-        )}
-      </Stack>
       <DataGrid
         getRowId={getRowId}
         style={dataGridStyle}
@@ -584,7 +561,7 @@ function CopyConnection() {
         onSortModelChange={onSortModelChange}
         slotProps={slotProps}
         columns={cols}
-        rows={conns}
+        rows={connections}
         onColumnResize={onColumnResize}
         onRowDoubleClick={onRowDoubleClick}
       />
@@ -593,35 +570,7 @@ function CopyConnection() {
 }
 
 function Left() {
-  const [configs, setConfigs] = useState<types.DBConnectionConfig[]>([]);
-  const { showNotification } = useNotification((s) => s);
-
-  const handleReload = useCallback(async () => {
-    ConnectionHandler.getAll()
-      .then((e) => {
-        if (!e) {
-          e = [];
-        }
-        setConfigs(e);
-      })
-      .catch((e) => {
-        showNotification("error", "list all config failure", e);
-      });
-  }, [showNotification]);
-  useEffect(() => {
-    handleReload();
-  }, [handleReload]);
-
-  useEffect(() => {
-    const unlisten = listen(connectionChangeEvent, () => {
-      handleReload();
-    });
-    return () => {
-      unlisten.then((e) => {
-        e();
-      });
-    };
-  }, [handleReload]);
+  const connections = useConnectionStore((s) => s.connections);
 
   return (
     <Stack
@@ -631,7 +580,7 @@ function Left() {
       <LeftTop />
 
       <Stack spacing={0.3}>
-        {configs.map((e) => {
+        {connections.map((e) => {
           return (
             <UuidContext.Provider
               value={{
@@ -643,7 +592,7 @@ function Left() {
             </UuidContext.Provider>
           );
         })}
-        {configs.length == 0 && (
+        {connections.length == 0 && (
           <Typography color="info"> trying to add connection </Typography>
         )}
       </Stack>

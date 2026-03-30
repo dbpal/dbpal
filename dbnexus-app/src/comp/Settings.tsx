@@ -852,7 +852,7 @@ function MiscSetting() {
       console.log("save auto start");
       try {
         updateMisc({ autoStart, logLevel });
-        showNotification("success", "save auto restart ok");
+        showNotification("success", "save setting ok");
       } catch (e) {
         showNotification("error", "save setting  failed", e);
       }

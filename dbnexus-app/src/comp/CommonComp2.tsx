@@ -65,7 +65,6 @@ import {
 import { editor, Position } from "monaco-editor";
 import { invoke } from "@tauri-apps/api/core";
 import {
-  ConnectionHandler,
   EscDownEvent,
   extractBaseName,
   makeFormatFn,
@@ -94,6 +93,7 @@ import {
 } from "@mui/x-data-grid";
 import { CustomToolbar } from "./CustomToolBar";
 import {
+  useConnectionStore,
   useElementSizeStore,
   useNotification,
   UseSizeConfig,
@@ -564,13 +564,15 @@ function ConnConfigInfo(props: { uuid }) {
   const { uuid } = props;
   const { showNotification } = useNotification((s) => s);
   const [metas, setMetas] = useState<types.MetaValue[]>([]);
+  const { getConnection } = useConnectionStore((s) => s);
+
   const handleInfo = useCallback(
     async (showOK: boolean) => {
       try {
         const metas = await invoke<types.MetaValue[]>("server_metas", {
           name: uuid,
         });
-        const config = await ConnectionHandler.getByName(uuid);
+        const config = await getConnection(uuid);
         let configMetas = [];
         switch (config.conn_type) {
           case DataSourceKind.Mysql:
@@ -619,7 +621,7 @@ function ConnConfigInfo(props: { uuid }) {
         showNotification("error", "call server metas failed", e);
       }
     },
-    [showNotification, uuid],
+    [getConnection, showNotification, uuid],
   );
   useEffect(() => {
     handleInfo(false);

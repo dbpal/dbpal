@@ -51,19 +51,6 @@ pub fn migrations() -> Vec<Migration> {
             description: "unique_index_favorite_sql_uuid_name",
             sql: "CREATE UNIQUE INDEX IF NOT EXISTS index_favorite_sql_uuid_name ON favorite_sql (uuid, name);",
             kind: MigrationKind::Up,
-        },
-        Migration {
-            version: 6,
-            description: "create table connection",
-            sql: r#"
-                CREATE TABLE connection (
-                    id   INTEGER PRIMARY KEY AUTOINCREMENT,
-                    name TEXT UNIQUE,
-                    config TEXT
-                );
-                
-            "#,
-            kind: MigrationKind::Up,
         }
     ]
 }

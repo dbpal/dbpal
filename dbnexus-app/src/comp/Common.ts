@@ -7,7 +7,6 @@ import { Channel, invoke } from "@tauri-apps/api/core";
 import { message } from "@tauri-apps/plugin-dialog";
 import * as keyring from "tauri-plugin-keyring-api";
 import {
-  appDatabase,
   backendCompletionItemToEditor,
   DataSourceKind,
   MuiDataGridData,
@@ -16,6 +15,7 @@ import {
 } from "./helper.ts";
 import { GridColDef } from "@mui/x-data-grid";
 import * as monaco from "monaco-editor";
+
 const modalStyle: SxProps = {
   position: "fixed",
   transform: "translate(50%, 50%)",
@@ -35,56 +35,6 @@ const modalStyle: SxProps = {
   flexDirection: "column",
   animation: "modalAnimation 0.6s ease-out",
 };
-
-class Connection {
-  id: number;
-  name: string;
-  config: string;
-}
-
-class ConnectionHandler {
-  static async getByName(name: string): Promise<types.DBConnectionConfig> {
-    try {
-      const x = await appDatabase.select<Connection[]>(
-        "select * from connection where name=?",
-        [name],
-      );
-      if (x.length != 1) {
-        message("database should return one result", { kind: "error" });
-        return null;
-      }
-      const c = JSON.parse(x[0].config);
-      return c as types.DBConnectionConfig;
-    } catch (e) {
-      message(`get connection failed`, { kind: "error" });
-      console.error("get connection failed,err:", e);
-    }
-    return null;
-  }
-  static async deleteConn(name: string) {
-    return appDatabase.execute("delete from connection where name = ?", [name]);
-  }
-  static async getAll(): Promise<types.DBConnectionConfig[]> {
-    const c = await appDatabase.select<Connection[]>(
-      "select * from connection order by id desc",
-    );
-    return c.map((x) => JSON.parse(x.config));
-  }
-  static async save(config: types.DBConnectionConfig) {
-    return appDatabase.execute("insert into connection(name,config) values(?,?)", [
-      config.name,
-      JSON.stringify(config),
-    ]);
-  }
-
-  static async nameDuplicated(name: string): Promise<boolean> {
-    const x = await appDatabase.select(
-      "select count(*) as count from connection where name=?",
-      [name],
-    );
-    return x[0].count != 0;
-  }
-}
 
 async function dropDatabase(props: {
   uuid: string;
@@ -505,7 +455,6 @@ class PassWordManager {
   }
 }
 
-const connectionChangeEvent = "connection-has-changged";
 async function editorAppendContent(editor: editor.IStandaloneCodeEditor, text) {
   const model = editor.getModel();
   const lastLine = model.getLineCount();
@@ -527,8 +476,6 @@ async function editorAppendContent(editor: editor.IStandaloneCodeEditor, text) {
 
 export {
   AITextCompletionName,
-  connectionChangeEvent,
-  ConnectionHandler,
   dropDatabase,
   dropSchema,
   editorAppendContent,
