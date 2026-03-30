@@ -16,7 +16,7 @@ import {
 
 import PlayArrowIcon from "@mui/icons-material/PlayArrow";
 import { editor, Position } from "monaco-editor";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { initMongoQueryGlobals, MongoDBQuery } from "./MongoQueryBackend";
 import EventNoteIcon from "@mui/icons-material/EventNote";
 import {
@@ -53,7 +53,7 @@ import { tempDir, join } from "@tauri-apps/api/path";
 import { exists, mkdir, readTextFile, writeTextFile } from "@tauri-apps/plugin-fs";
 import { ChildProcess, Command } from "@tauri-apps/plugin-shell";
 import { openPath, openUrl } from "@tauri-apps/plugin-opener";
-import { useBoolSwitch, useNotification, useUserSettings } from "./store";
+import { useBoolSwitch, useNotification } from "./store";
 initMongoQueryGlobals();
 
 class CompilerOutput {
@@ -510,7 +510,6 @@ function MongoQuery(props: {
   const [editor, setEditor] = useState<editor.IStandaloneCodeEditor>(null);
   const [pos, setPos] = useState<Position>(null);
   const [executeTimes, setExecuteTimes] = useState(0);
-  const setting = useUserSettings((s) => s);
   const [db] = useState(new MongoDBQuery(uuid));
   const [cleanFns, setCleanFns] = useState<CleanFunction[]>([]);
   const { showNotification } = useNotification((s) => s);
@@ -587,17 +586,6 @@ function MongoQuery(props: {
       "execute ok,but somehow async function or timeout function ... etc may running in background",
     );
   };
-
-  const editorOP = useMemo((): editor.IStandaloneEditorConstructionOptions => {
-    return {
-      fontSize: setting.appearance.fontSize,
-      fontWeight: setting.appearance.fontWeight,
-      fontFamily: setting.appearance.fontFamily,
-      tabSize: setting.editor.tabSize,
-      ...setting.editor.editorOption,
-    };
-  }, [setting]);
-
   return (
     <Stack style={{ height: "100%" }}>
       <QueryLog
@@ -704,12 +692,7 @@ function MongoQuery(props: {
           flexShrink: 1,
           flexBasis: 0,
         }}>
-        <MonacoEditor
-          onMount={jsCodeMount}
-          language={language}
-          options={editorOP}
-          value={value}
-        />
+        <MonacoEditor onMount={jsCodeMount} language={language} value={value} />
         <EditorBar pos={pos} />
       </div>
       {/* // we must use db etc ...  */}

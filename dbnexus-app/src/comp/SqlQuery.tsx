@@ -13,15 +13,7 @@ import {
 import { Panel, PanelGroup, PanelResizeHandle } from "react-resizable-panels";
 import PlayArrowIcon from "@mui/icons-material/PlayArrow";
 import { FaExclamation } from "react-icons/fa";
-import {
-  ReactNode,
-  useCallback,
-  useContext,
-  useEffect,
-  useMemo,
-  useRef,
-  useState,
-} from "react";
+import { ReactNode, useCallback, useContext, useEffect, useRef, useState } from "react";
 import FastForwardIcon from "@mui/icons-material/FastForward";
 import { editor, Position } from "monaco-editor";
 import {
@@ -77,8 +69,8 @@ import {
   useQueryExtraUI,
   UseSizeConfig,
   useSizeStore,
-  useUserSettings,
 } from "./store.ts";
+
 function SqlTransaction(props: { conn: QueryConn; executeTimes: number }) {
   const { conn, executeTimes } = props;
   const [commit, setCommit] = useState(true);
@@ -215,7 +207,6 @@ function SqlQuery(props: {
   const [makeConnLoading, setMakeConnLoading] = useState(false);
   const { showNotification } = useNotification((s) => s);
   const [showQueryLog, setShowQueryLog] = useState(false);
-  const setting = useUserSettings((s) => s);
   const queryLogHandler = useRef(new QueryLogHandler(uuid));
   const [executeTimes, setExecuteTimes] = useState(0);
   const [conn] = useState<QueryConn>(new QueryConn(uuid, uuidv4(), kind));
@@ -395,18 +386,7 @@ function SqlQuery(props: {
     [conn, editor, getSize, showNotification, switches, warnDangerousSql],
   );
 
-  const editorOptions = useMemo((): editor.IStandaloneEditorConstructionOptions => {
-    return {
-      fontSize: setting.appearance.fontSize,
-      fontWeight: setting.appearance.fontWeight,
-      fontFamily: setting.appearance.fontFamily,
-      tabSize: setting.editor.tabSize,
-      ...setting.editor.editorOption,
-    };
-  }, [setting]);
-
   const editorDivDom = useRef(null);
-
   useEffect(() => {
     if (conn && editor) {
       SetAutoCompletionName.set(
@@ -626,7 +606,6 @@ function SqlQuery(props: {
             <MonacoEditor
               language={getLanguageFromDataSourceKind(kind)}
               value={value}
-              options={editorOptions}
               onMount={handleEditorDidMount}
             />
           </div>

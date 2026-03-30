@@ -1,18 +1,40 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import * as monaco from "monaco-editor";
+import { useUserSettings } from "./store";
 
 interface MonacoEditorProps {
   value: string;
   language: string;
-  options?: monaco.editor.IStandaloneEditorConstructionOptions;
-  onChange?: (value: string) => void;
   onMount: (_: monaco.editor.IStandaloneCodeEditor) => void;
+  readOnly?: boolean;
 }
 
-function MonacoEditor({ value, language, options, onMount }: MonacoEditorProps) {
+function MonacoEditor({ value, language, onMount, readOnly }: MonacoEditorProps) {
   const [editorRef, setEditor] = useState<HTMLDivElement>(null);
   const [monacoInstance, setInstance] =
     useState<monaco.editor.IStandaloneCodeEditor | null>(null);
+
+  const settting = useUserSettings((s) => s);
+
+  const options: monaco.editor.IEditorOptions & monaco.editor.IGlobalEditorOptions =
+    useMemo(
+      () => ({
+        fontSize: settting.appearance.fontSize,
+        fontWeight: settting.appearance.fontWeight,
+        fontFamily: settting.appearance.fontFamily,
+        tabSize: settting.editor.tabSize,
+        readOnly: readOnly,
+        ...JSON.parse(settting.editor.editorOption),
+      }),
+      [
+        readOnly,
+        settting.appearance.fontFamily,
+        settting.appearance.fontSize,
+        settting.appearance.fontWeight,
+        settting.editor.editorOption,
+        settting.editor.tabSize,
+      ],
+    );
 
   useEffect(() => {
     if (!editorRef) {
@@ -23,7 +45,6 @@ function MonacoEditor({ value, language, options, onMount }: MonacoEditorProps) 
       const ed = monaco.editor.create(editorRef, { automaticLayout: true });
       setInstance(ed);
     }
-
     // 3. 组件卸载时销毁实例，防止内存泄漏
     return () => {
       monacoInstance?.dispose();
@@ -44,7 +65,9 @@ function MonacoEditor({ value, language, options, onMount }: MonacoEditorProps) 
     if (!value) {
       return;
     }
-    monacoInstance.setValue(value);
+    if (value != monacoInstance.getValue()) {
+      monacoInstance.setValue(value);
+    }
   }, [monacoInstance, value]);
 
   useEffect(() => {

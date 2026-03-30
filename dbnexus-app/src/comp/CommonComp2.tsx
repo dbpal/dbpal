@@ -437,27 +437,26 @@ function CreateSchema(props: {
 function SimpleFlexEditor(props: {
   language: string;
   value?: string;
-  handleValue?: (x: string) => void;
   barLeft?: ReactNode;
   readOnly?: boolean;
   errPos?: Position;
   disableEditorBar?: boolean;
   handleEditor?: (editor: editor.IStandaloneCodeEditor) => void;
   dontFocus?: boolean;
+  handleValue?: (x) => void;
 }) {
   const {
     language,
     value,
-    handleValue,
     barLeft,
     readOnly,
     errPos,
     handleEditor,
     disableEditorBar,
     dontFocus,
+    handleValue,
   } = props;
   const [pos, setPos] = useState<Position>(null);
-  const setting = useUserSettings((s) => s);
   const [editor, setEditor] = useState<editor.IStandaloneCodeEditor>(null);
   const handleDidMount = useCallback((ed: editor.IStandaloneCodeEditor) => {
     setEditor(ed);
@@ -475,34 +474,33 @@ function SimpleFlexEditor(props: {
     const d1 = editor.onDidChangeCursorPosition(() => {
       setPos(editor.getPosition());
     });
-    const d2 = editor.onDidChangeModelContent(() => {
-      if (handleValue) {
-        handleValue(editor.getValue());
-      }
-    });
+    const d2 = editor.onDidChangeModelContent(() => {});
     return () => {
       d1.dispose();
       d2.dispose();
     };
-  }, [dontFocus, editor, handleEditor, handleValue]);
-
+  }, [dontFocus, editor, handleEditor]);
   useEffect(() => {
     if (editor && errPos) {
       editorSetPositionAndReveal(editor, errPos);
     }
   }, [editor, errPos]);
 
-  const options = useMemo((): editor.IStandaloneEditorConstructionOptions => {
-    const { fontSize, fontFamily, fontWeight } = setting.appearance;
-    return {
-      fontSize,
-      fontWeight,
-      fontFamily,
-      readOnly,
-      tabSize: setting.editor.tabSize,
-      ...setting.editor.editorOption,
-    };
-  }, [readOnly, setting]);
+  useEffect(() => {
+    if (!editor) {
+      return;
+    }
+
+    if (handleValue) {
+      let d = editor.onDidChangeModelContent(() => {
+        handleValue(editor.getValue());
+      });
+
+      return () => {
+        d.dispose();
+      };
+    }
+  }, [editor, handleValue]);
 
   return (
     <div
@@ -516,7 +514,7 @@ function SimpleFlexEditor(props: {
           onMount={handleDidMount}
           language={language}
           value={value}
-          options={options}
+          readOnly={readOnly}
         />
       </div>
       {!disableEditorBar && <EditorBar left={barLeft} pos={pos} />}

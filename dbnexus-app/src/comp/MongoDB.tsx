@@ -260,7 +260,6 @@ function MongoBsonEditor(props: {
   const editor = useRef<editor.IStandaloneCodeEditor>(null);
   const [pos, setPos] = useState<Position>(null);
   const [err, setErr] = useState<MongoBsonError>(null);
-  const setting = useUserSettings((s) => s);
   const [loading, setLoading] = useState(false);
   const newDoc = useRef(doc);
 
@@ -296,17 +295,6 @@ function MongoBsonEditor(props: {
       showNotification("error", "format mongo value failed", e);
     }
   }, [doc, showNotification]);
-  const options = useMemo((): editor.IStandaloneEditorConstructionOptions => {
-    const { fontSize, fontFamily, fontWeight } = setting.appearance;
-    return {
-      readOnly: !setOP,
-      fontSize,
-      fontWeight,
-      fontFamily,
-      tabSize: setting.editor.tabSize,
-      ...setting.editor.editorOption,
-    };
-  }, [setOP, setting.appearance, setting.editor.editorOption, setting.editor.tabSize]);
   return (
     <Stack flex={1}>
       <div
@@ -316,7 +304,6 @@ function MongoBsonEditor(props: {
         <MonacoEditor
           language={languageXXX}
           value={content}
-          options={options}
           onMount={handleEditorDidMount}
         />
       </div>

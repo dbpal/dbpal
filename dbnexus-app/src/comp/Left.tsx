@@ -111,7 +111,6 @@ import {
 } from "./CommonComp2.tsx";
 import { EventsTree } from "./LeftEvent.tsx";
 import { AllKindChat } from "./Chat.tsx";
-import { editor } from "monaco-editor";
 import { listSchema } from "./handlers.ts";
 import { CreateTable } from "./CreateTable.tsx";
 import { AddConnection } from "./AddConnection.tsx";
@@ -132,6 +131,7 @@ import {
   useMatcherFn,
   useConnectionStore,
 } from "./store.ts";
+import { editor } from "monaco-editor";
 const settingId = generateRandomString();
 const showTopKey = "left-top-show";
 function LeftTop() {
@@ -1274,7 +1274,7 @@ function AllKindQuery(props: {
   uuid: string;
   value?: string;
   favoriteName?: string;
-  handleEditor: (x: editor.IStandaloneCodeEditor) => void;
+  handleEditor: (_: editor.IStandaloneCodeEditor) => void;
   language?: string;
 }) {
   const { kind, uuid, value, favoriteName, handleEditor, language } = props;

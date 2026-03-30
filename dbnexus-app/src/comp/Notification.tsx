@@ -6,7 +6,7 @@ function Notifications() {
   const { notifications, closeMsg } = useNotification((s) => s);
 
   return (
-    open && (
+    notifications.length > 0 && (
       <Stack
         style={{
           overflow: "auto",
@@ -14,8 +14,7 @@ function Notifications() {
           right: 0,
           top: 0,
           zIndex: 11114,
-        }}
-      >
+        }}>
         {notifications.map((notice, index) => (
           <Alert
             key={index}
@@ -23,8 +22,7 @@ function Notifications() {
             sx={{ maxWidth: "45vw", minWidth: "15vw" }}
             onClose={() => {
               closeMsg(index);
-            }}
-          >
+            }}>
             {/* 设置更宽的宽度 */}
             {notice.title && (
               <AlertTitle color={notice.severity}>{notice.title}</AlertTitle>

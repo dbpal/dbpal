@@ -66,8 +66,7 @@ function RedisQuery(props: {
       autoSaveId="redis-query"
       style={{
         height: "100%",
-      }}
-    >
+      }}>
       <Panel defaultSize={40} minSize={4}>
         <SqlQuery
           handleEditor={(e) => {
@@ -109,8 +108,7 @@ function RedisQuery(props: {
           style={{
             display: "flex",
             flexDirection: "column",
-          }}
-        >
+          }}>
           <div
             style={{
               height: "100px",
@@ -118,8 +116,7 @@ function RedisQuery(props: {
               flexShrink: 1,
               overflow: "auto",
               padding: "0.4rem",
-            }}
-          >
+            }}>
             <AppMarkDown placeHolder="when typing markdown document will show atomically">
               {doc}
             </AppMarkDown>

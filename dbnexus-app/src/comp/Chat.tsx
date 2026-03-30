@@ -600,7 +600,6 @@ function SqlChatTextInput(props: {
   const { show, setShow, doQuery } = useContext(ChatShowContext);
   const getSize = useSizeStore((s) => s.getSize);
   const { switches, setSwitch } = useBoolSwitch((s) => s);
-
   const queryAfter = switches[queryAfterKey];
   const cleanEditor = switches[cleanEditorKey];
 
@@ -813,12 +812,12 @@ function SqlChatTextInput(props: {
         <Divider> </Divider>
         <SimpleFlexEditor
           language="text"
-          handleValue={(v) => {
-            setNewQuestion(v);
-          }}
           barLeft={invokeStatus && <Typography color="info">{invokeStatus}</Typography>}
           handleEditor={(e) => {
             AITextCompletionName.set(e.getModel().id, editor.getModel().id);
+          }}
+          handleValue={(v) => {
+            setNewQuestion(v);
           }}
           dontFocus
         />

@@ -1,4 +1,4 @@
-import { CSSProperties, ReactNode, useCallback, useEffect, useState } from "react";
+import { ReactNode, useCallback, useEffect, useState } from "react";
 import { FaFolderOpen } from "react-icons/fa";
 import { isEqual } from "lodash-es";
 import * as monaco from "monaco-editor";
@@ -32,7 +32,6 @@ import {
 import { HexColorPicker } from "react-colorful";
 import { openPath, openUrl } from "@tauri-apps/plugin-opener";
 import {
-  ErrAndLoc,
   validJson,
   registeredThemes,
   dataGridheaderFontSize,
@@ -44,7 +43,6 @@ import {
   MonacoEditor,
 } from "./helper";
 
-import { Position } from "monaco-editor";
 import { invoke } from "@tauri-apps/api/core";
 import EditIcon from "@mui/icons-material/Edit";
 import ClearIcon from "@mui/icons-material/Clear";
@@ -68,29 +66,21 @@ import {
 import { WebviewWindow } from "@tauri-apps/api/webviewWindow";
 
 function AppearanceSetting() {
+  const { appearance, updateAppearance } = useUserSettings((s) => s);
   const { showNotification } = useNotification((s) => s);
   const [allFonts, setAllFonts] = useState<string[]>([]);
-  const [fontWeight, setFontWeight] = useState("");
-  const [fontSize, setFontSize] = useState(15);
-  const [darkBgColor, setDarkBgColor] = useState("");
-  const [lightBgColor, setLightBgColor] = useState("");
-  const [fontFamily, setFontFamily] = useState("");
-  const [datagridRowHeightFactor, setDatagridRowHeightFactor] = useState("");
-  const [intputVariant, setInputVariant] = useState("standard");
+  const [fontWeight, setFontWeight] = useState(appearance.fontWeight);
+  const [fontSize, setFontSize] = useState(appearance.fontSize);
+  const [darkBgColor, setDarkBgColor] = useState(appearance.darkBgColor);
+  const [lightBgColor, setLightBgColor] = useState(appearance.lightBgColor);
+  const [fontFamily, setFontFamily] = useState(appearance.fontWeight);
+  const [datagridRowHeightFactor, setDatagridRowHeightFactor] = useState(
+    appearance.datagridRowHeightFactor + "",
+  );
+  const [intputVariant, setInputVariant] = useState(appearance.intputVariant);
   const [modified, setModified] = useState(false);
-  const { appearance, updateAppearance } = useUserSettings((s) => s);
-  const [theme, setTheme] = useState("");
 
-  useEffect(() => {
-    setFontWeight(appearance.fontWeight);
-    setFontSize(appearance.fontSize);
-    setDarkBgColor(appearance.darkBgColor);
-    setLightBgColor(appearance.lightBgColor);
-    setFontFamily(appearance.fontFamily);
-    setDatagridRowHeightFactor(appearance.datagridRowHeightFactor + "");
-    setInputVariant(appearance.intputVariant);
-    setTheme(appearance.theme);
-  }, [appearance]);
+  const [theme, setTheme] = useState(appearance.theme);
 
   const [zoom, setZoom] = useState(1);
 
@@ -339,28 +329,22 @@ function SetBgColor({ bgColor, setBgColor, theme }) {
 }
 
 function EditorSetting() {
-  const [editorOptions, setEditorOptions] = useState("");
+  const { editor, updateEditor } = useUserSettings((s) => s);
   const [showEditOption, setShowEditOption] = useState(false);
-  const [tabSize, setTabSize] = useState(4);
-  const [customEditorTheme, setCustomEditorTheme] = useState("");
+  const [tabSize, setTabSize] = useState(editor.tabSize);
+  const [customEditorTheme, setCustomEditorTheme] = useState(editor.theme);
   const [highLightTheme, setHighlightTheme] = useState("");
-  const muiTheme = useTheme();
   const { showNotification } = useNotification((s) => s);
   const [modified, setModified] = useState(false);
-  const { editor, updateEditor } = useUserSettings((s) => s);
-  useEffect(() => {
-    setEditorOptions(editor.editorOption ? JSON.stringify(editor.editorOption) : "{}");
-    setTabSize(editor.tabSize);
-    setCustomEditorTheme(editor.theme);
-  }, [editor.editorOption, editor.tabSize, editor.theme]);
+
   const makeConfig = useCallback(() => {
     const obj = {
       tabSize,
       theme: customEditorTheme,
-      editorOption: editorOptions ? JSON.parse(editorOptions) : null,
+      editorOption: editor.editorOption,
     };
     return obj;
-  }, [customEditorTheme, editorOptions, tabSize]);
+  }, [customEditorTheme, editor.editorOption, tabSize]);
 
   const handleSave = () => {
     try {
@@ -405,24 +389,13 @@ function EditorSetting() {
                 color={showEditOption ? "success" : "primary"}>
                 <EditIcon> </EditIcon>
               </IconButton>
-              <Typography color="info">{editorOptions}</Typography>
             </StackRowCenter>
-
-            {editorOptions && (
+            {showEditOption && (
               <EditorOptions
                 handleClose={() => {
                   setShowEditOption(false);
                 }}
-                style={{
-                  height: "40vh",
-                  border: "2px solid" + muiTheme.palette.success.main,
-                  borderRadius: "8px",
-                  padding: "8px",
-                  display: showEditOption ? "flex" : "none",
-                  transform: "all 0.7s ease",
-                }}
-                editorOptions={editorOptions}
-                setEditorOptions={setEditorOptions}
+                showEditOption={showEditOption}
               />
             )}
           </Stack>
@@ -445,12 +418,6 @@ function EditorSetting() {
             }}
           />
           <EditorThemeDemo
-            style={{
-              flexGrow: 1,
-              flexShrink: 1,
-              width: "100px",
-              height: "15vh",
-            }}
             theme={highLightTheme ? highLightTheme : customEditorTheme}
           />
         </Stack>
@@ -468,16 +435,12 @@ function EditorSetting() {
 const headerSize = "16rem";
 
 function ExportSetting() {
-  const [csvDelimiter, setCsvDelimiter] = useState(",");
-  const [includeHeader, setIncludeHeader] = useState(true);
-  const { showNotification } = useNotification((s) => s);
-  const [modified, setModified] = useState(false);
   const { export_, updateExport } = useUserSettings((s) => s);
 
-  useEffect(() => {
-    setCsvDelimiter(export_.csvDelimiter);
-    setIncludeHeader(export_.includeHeader);
-  }, [export_.csvDelimiter, export_.includeHeader]);
+  const [csvDelimiter, setCsvDelimiter] = useState(export_.csvDelimiter);
+  const [includeHeader, setIncludeHeader] = useState(export_.includeHeader);
+  const { showNotification } = useNotification((s) => s);
+  const [modified, setModified] = useState(false);
 
   const makeConfig = useCallback(() => {
     const x = { csvDelimiter, includeHeader };
@@ -556,34 +519,18 @@ async function listLLMModels(baseURl: string, apiKey: string): Promise<ModelDef[
 }
 
 function LLMSetting(props: { handleClose?: () => void }) {
+  const { config: oldSetting, setConfig } = useLLMConfig((s) => s);
   const { handleClose } = props;
-  const [baseUrl, setBaseUrl] = useState("");
-  const [temperature, setTemperature] = useState("0");
-  const [model, setModel] = useState("");
-  const [apiKey, setApiKey] = useState("");
+  const [baseUrl, setBaseUrl] = useState(oldSetting.baseUrl);
+  const [temperature, setTemperature] = useState(oldSetting.temperature + "");
+  const [model, setModel] = useState(oldSetting.model);
+  const [apiKey, setApiKey] = useState(oldSetting.apiKey);
   const { showNotification } = useNotification((s) => s);
-  const [maxToken, setMaxToken] = useState("");
-  const [topP, setTopP] = useState("");
+  const [maxToken, setMaxToken] = useState(oldSetting.maxToken + "");
+  const [topP, setTopP] = useState(oldSetting.topP + "");
   const [moddelCan, setModdelCan] = useState<ModelDef[]>([]);
   const [helloTime, setHelloTime] = useState(0);
   const [modified, setModified] = useState(false);
-  const { config: oldSetting, setConfig } = useLLMConfig((s) => s);
-  useEffect(() => {
-    console.log("oldSetting:", oldSetting);
-    if (!oldSetting) {
-      return;
-    }
-    setBaseUrl(oldSetting.baseUrl);
-    setTemperature(oldSetting.temperature + "");
-    setModel(oldSetting.model);
-    setApiKey(oldSetting.apiKey);
-    if (oldSetting.maxToken) {
-      setMaxToken(oldSetting.maxToken + "");
-    }
-    if (oldSetting.topP) {
-      setTopP(oldSetting.topP + "");
-    }
-  }, [oldSetting]);
 
   const makeConfig = useCallback(() => {
     const config = {
@@ -837,27 +784,25 @@ function LLMSetting(props: { handleClose?: () => void }) {
 }
 
 function MiscSetting() {
-  const [autoStart, setAutoStart] = useState(false);
-  const [logLevel, setLogLevel] = useState("");
-  const { showNotification } = useNotification((s) => s);
   const { misc, updateMisc } = useUserSettings((s) => s);
 
-  useEffect(() => {
-    setAutoStart(misc.autoStart);
-    setLogLevel(misc.logLevel);
-  }, [misc]);
+  console.log(misc);
+  const [autoStart, setAutoStart] = useState(misc.autoStart);
+  const [logLevel, setLogLevel] = useState(misc.logLevel);
+  const { showNotification } = useNotification((s) => s);
 
   useEffect(() => {
-    if (autoStart != misc.autoStart) {
-      console.log("save auto start");
+    const x = { autoStart, logLevel };
+    if (!isEqual(x, misc)) {
+      console.log("save auto start", autoStart);
       try {
-        updateMisc({ autoStart, logLevel });
+        updateMisc(x);
         showNotification("success", "save setting ok");
       } catch (e) {
         showNotification("error", "save setting  failed", e);
       }
     }
-  }, [autoStart, logLevel, misc.autoStart, showNotification, updateMisc]);
+  }, [autoStart, logLevel, misc, showNotification, updateMisc]);
 
   return (
     <Stack style={{ textAlign: "right" }}>
@@ -939,10 +884,8 @@ function ModifySetting() {
   );
 }
 
-function EditorThemeDemo(props: { style: CSSProperties; theme: string }) {
-  const setting = useUserSettings((s) => s);
-  const { fontWeight, fontSize, fontFamily } = setting.appearance;
-  const { theme, style } = props;
+function EditorThemeDemo(props: { theme: string }) {
+  const { theme } = props;
   const [editor, setEditor] = useState<monaco.editor.IStandaloneCodeEditor>(null);
 
   useEffect(() => {
@@ -956,11 +899,17 @@ function EditorThemeDemo(props: { style: CSSProperties; theme: string }) {
   }, [editor, theme]);
 
   return (
-    <Stack style={style}>
+    <Stack
+      style={{
+        flexGrow: 1,
+        flexShrink: 1,
+        width: "100px",
+        height: "15vh",
+      }}>
       <MonacoEditor
         value={`select * from employees where id is not null limit 10;`}
         language="sql"
-        options={{ fontSize, fontFamily, fontWeight, readOnly: true }}
+        readOnly={true}
         onMount={(ed) => {
           setEditor(ed);
         }}
@@ -968,24 +917,22 @@ function EditorThemeDemo(props: { style: CSSProperties; theme: string }) {
     </Stack>
   );
 }
-function EditorOptions(props: {
-  editorOptions;
-  setEditorOptions;
-  handleClose;
-  style: CSSProperties;
-}) {
+function EditorOptions(props: { handleClose; showEditOption }) {
   const { showNotification } = useNotification((s) => s);
-  const { editorOptions, setEditorOptions, handleClose, style } = props;
-  const [value, setValue] = useState(editorOptions);
-  const [jsonErrPos, setJsonErrPos] = useState<Position>(null);
-  const [jsonErr, setJsonErr] = useState<ErrAndLoc>(null);
-  useEffect(() => {
-    validJson(value).then((e) => {
-      setJsonErr(e);
-    });
-  }, [value]);
+  const { handleClose, showEditOption } = props;
+  const { editor: editorOP, updateEditor: updateEditorOP } = useUserSettings((s) => s);
+  const [value, setValue] = useState<string>(editorOP.editorOption);
+  const muiTheme = useTheme();
   return (
-    <Stack style={style}>
+    <Stack
+      style={{
+        height: "40vh",
+        border: "2px solid" + muiTheme.palette.success.main,
+        borderRadius: "8px",
+        padding: "8px",
+        display: showEditOption ? "flex" : "none",
+        transform: "all 0.7s ease",
+      }}>
       <Stack direction="row">
         <Chip
           color="info"
@@ -999,27 +946,12 @@ function EditorOptions(props: {
         />
       </Stack>
       <SimpleFlexEditor
-        errPos={jsonErrPos}
         language="json"
-        value={value}
-        handleValue={(v) => {
-          setValue(v);
+        value={editorOP.editorOption}
+        handleValue={(newValue) => {
+          console.log("!!!!!!!!!!!!!!!", newValue);
+          setValue(newValue);
         }}
-        barLeft={
-          jsonErr ? (
-            <Typography
-              color="error"
-              style={{ cursor: "pointer" }}
-              onClick={() => {
-                if (!jsonErrPos) {
-                  return;
-                }
-                setJsonErrPos(new Position(jsonErr.line, jsonErr.column));
-              }}>
-              {jsonErr.msg}
-            </Typography>
-          ) : null
-        }
       />
       <Divider />
       <Stack direction="row">
@@ -1031,7 +963,7 @@ function EditorOptions(props: {
               showNotification("error", "not a valid json", e);
               return;
             }
-            setEditorOptions(value);
+            updateEditorOP({ ...editorOP, editorOption: value });
             handleClose();
           }}>
           set
@@ -1284,9 +1216,6 @@ function SettingProvider({ children }) {
           });
         }
       }
-
-      console.log("!!!!!!!!!!!!!!!!!!!!", setting.misc.logLevel);
-
       invoke("set_log_level", { level: setting.misc.logLevel }).catch((e) => {
         showNotification("error", "set log level failed", e);
       });

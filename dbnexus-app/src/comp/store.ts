@@ -41,6 +41,7 @@ class TauriStoreManger<S> implements PersistStorage<S> {
 import { GridColumnVisibilityModel } from "@mui/x-data-grid";
 import { PassWordManager } from "./Common";
 import types from "./ApiStruct";
+import { editor } from "monaco-editor";
 
 interface TableColumnVisible {
   // Key format: "tableName:uuid" -> Visibility Model
@@ -219,6 +220,7 @@ export const useLLMConfig = create<LLMStore>()(
         async (s) => {
           let pass = await PassWordManager.getPassword(LLMConfig.key);
           s.config.apiKey = pass;
+          Object.setPrototypeOf(s.config, LLMConfig.prototype);
         },
       ),
     },
@@ -393,7 +395,6 @@ export const useSizeStore = create<SizeState>()(
       getSize: (x: UseSizeConfig) => {
         return get().sizes[x.key] ?? x.min;
       },
-
       resetSizes: (sizes) => set({ sizes }),
     }),
     {
@@ -633,7 +634,7 @@ export interface UserSettings {
   editor: {
     tabSize: number;
     theme: string;
-    editorOption: any;
+    editorOption: string;
   };
   misc: {
     autoStart: boolean;
@@ -671,7 +672,7 @@ const initialSettings: UserSettings = {
   editor: {
     tabSize: 4,
     theme: "",
-    editorOption: null,
+    editorOption: "{\n}",
   },
   misc: {
     autoStart: false,
@@ -808,3 +809,29 @@ export const useConnectionStore = create<ConnectionState>()(
     },
   ),
 );
+
+interface EditorState {
+  values: Record<string, editor.IStandaloneCodeEditor>;
+  getEditor: (arg0: string) => editor.IStandaloneCodeEditor | null;
+  setEditor: (arg1: editor.IStandaloneCodeEditor) => void;
+  removeEditor: (arg0: string) => void;
+}
+
+export const useEditorState = create<EditorState>((set, get) => ({
+  values: {},
+  getEditor: (uuid) => {
+    return get().values[uuid];
+  },
+  setEditor: (e) => {
+    const id = e.getModel().id;
+    let _new = { ...get() };
+    _new.values[id] = e;
+    set(_new);
+  },
+
+  removeEditor: (uuid) => {
+    const values = get().values;
+    delete values[uuid];
+    set({ values });
+  },
+}));

@@ -80,7 +80,7 @@ import {
   ViewRowInModal,
 } from "./CommonComp";
 
-import { Position } from "monaco-editor";
+import { editor, Position } from "monaco-editor";
 import wcmatch from "wildcard-match";
 import { MdEditNote } from "react-icons/md";
 import {
@@ -151,16 +151,24 @@ function EditInModal(props: { content: string; handleModify }) {
   const [jsonErr, setJsonErr] = useState<ErrAndLoc>(null);
   const [jsonErrPos, setJsonErrPos] = useState<Position>(null);
   const [language, setLanguage] = useState(EditInModalLanguage);
-  const [value, setValue] = useState(content);
+  const [editor, setEditor] = useState<editor.IStandaloneCodeEditor>(null);
   useEffect(() => {
-    if (language != "json") {
-      setJsonErr(null);
+    if (!editor) {
       return;
     }
-    validJson(value).then((e) => {
-      setJsonErr(e);
+    let d = editor.getModel().onDidChangeContent(() => {
+      if (language != "json") {
+        setJsonErr(null);
+        return;
+      }
+      validJson(editor.getValue()).then((e) => {
+        setJsonErr(e);
+      });
     });
-  }, [value, language]);
+    return () => {
+      d.dispose();
+    };
+  }, [editor, language]);
 
   return (
     <Stack flex={1}>
@@ -180,8 +188,8 @@ function EditInModal(props: { content: string; handleModify }) {
       <SimpleFlexEditor
         value={content}
         language={language}
-        handleValue={(v) => {
-          setValue(v);
+        handleEditor={(ed) => {
+          setEditor(ed);
         }}
         errPos={jsonErrPos}
         barLeft={
@@ -205,7 +213,7 @@ function EditInModal(props: { content: string; handleModify }) {
       <Stack direction="row">
         <Button
           onClick={() => {
-            handleModify(value);
+            handleModify(editor.getValue());
           }}>
           modify
         </Button>
