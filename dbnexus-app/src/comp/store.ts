@@ -636,6 +636,7 @@ export interface UserSettings {
   };
   misc: {
     autoStart: boolean;
+    logLevel: string;
   };
 }
 
@@ -673,6 +674,7 @@ const initialSettings: UserSettings = {
   },
   misc: {
     autoStart: false,
+    logLevel: "info",
   },
 };
 

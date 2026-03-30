@@ -481,23 +481,6 @@ function editorSetPositionAndReveal(
   editor.revealLines(pos.lineNumber, pos.lineNumber);
 }
 
-class LoggerLevel {
-  static key: string = "logger-level";
-
-  static level: string = "none";
-  static async set(level: string) {
-    LoggerLevel.level = level;
-    await appStore.set(LoggerLevel.key, level);
-  }
-}
-{
-  appStore.get<string>(LoggerLevel.key).then((level) => {
-    if (level) {
-      LoggerLevel.level = level;
-    }
-  });
-}
-
 function postgresLike(x: DataSourceKind) {
   switch (x) {
     case DataSourceKind.Postgres:
@@ -826,7 +809,6 @@ export {
   isWindows,
   KeyPressed,
   LLMConfig,
-  LoggerLevel,
   MongoLanguage,
   newEmptyResp,
   pageSizeOptions,

@@ -39,7 +39,6 @@ import {
   appStore,
   LLMConfig,
   shrinkAble,
-  LoggerLevel,
   prettyMs,
   isDarkStr,
   MonacoEditor,
@@ -839,26 +838,27 @@ function LLMSetting(props: { handleClose?: () => void }) {
 
 function MiscSetting() {
   const [autoStart, setAutoStart] = useState(false);
+  const [logLevel, setLogLevel] = useState("");
   const { showNotification } = useNotification((s) => s);
   const { misc, updateMisc } = useUserSettings((s) => s);
 
   useEffect(() => {
     setAutoStart(misc.autoStart);
+    setLogLevel(misc.logLevel);
   }, [misc]);
 
   useEffect(() => {
     if (autoStart != misc.autoStart) {
       console.log("save auto start");
       try {
-        updateMisc({ autoStart });
+        updateMisc({ autoStart, logLevel });
         showNotification("success", "save auto restart ok");
       } catch (e) {
         showNotification("error", "save setting  failed", e);
       }
     }
-  }, [autoStart, misc.autoStart, showNotification, updateMisc]);
+  }, [autoStart, logLevel, misc.autoStart, showNotification, updateMisc]);
 
-  const [loglevel, setLogLevel] = useState(LoggerLevel.level);
   return (
     <Stack style={{ textAlign: "right" }}>
       <Stack direction="row" sx={{ alignItems: "center" }}>
@@ -873,13 +873,13 @@ function MiscSetting() {
       <Stack direction="row" sx={{ alignItems: "center" }}>
         <Typography width={headerSize}>logger level</Typography>
         <LogLevelSelection
-          level={loglevel}
+          level={logLevel}
           handleChange={(level) => {
             setLogLevel(level);
-            LoggerLevel.set(level);
+            console.log("log level:", level);
           }}
         />
-        {loglevel !== "none" && (
+        {logLevel !== "none" && (
           <Tooltip title="open log directory">
             <IconButton
               onClick={async () => {
@@ -1256,6 +1256,8 @@ const isDark = (setting: UserSettings, osTheme) => {
 function SettingProvider({ children }) {
   const setting = useUserSettings((s) => s);
   const [osTheme, setOsTheme] = useState("light");
+
+  const { showNotification } = useNotification((s) => s);
   useEffect(() => {
     document.documentElement.style.fontSize = setting.appearance.fontSize + "px";
     document.documentElement.style.fontFamily = setting.appearance.fontFamily;
@@ -1282,8 +1284,14 @@ function SettingProvider({ children }) {
           });
         }
       }
+
+      console.log("!!!!!!!!!!!!!!!!!!!!", setting.misc.logLevel);
+
+      invoke("set_log_level", { level: setting.misc.logLevel }).catch((e) => {
+        showNotification("error", "set log level failed", e);
+      });
     })();
-  }, [osTheme, setting]);
+  }, [osTheme, setting, showNotification]);
 
   useEffect(() => {
     const currentWebview = WebviewWindow.getCurrent();
