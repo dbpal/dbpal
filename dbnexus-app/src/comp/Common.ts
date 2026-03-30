@@ -2,7 +2,6 @@ import { SxProps } from "@mui/material";
 import { editor, languages, Position } from "monaco-editor";
 import { types } from "./ApiStruct.ts";
 import { format as formatSql, SqlLanguage } from "sql-formatter";
-import { TabContent } from "./Tabs.tsx";
 import { Channel, invoke } from "@tauri-apps/api/core";
 import { message } from "@tauri-apps/plugin-dialog";
 import * as keyring from "tauri-plugin-keyring-api";
@@ -12,6 +11,7 @@ import {
   MuiDataGridData,
   QueryRespData,
   secondConfirm,
+  TabContent,
 } from "./helper.ts";
 import { GridColDef } from "@mui/x-data-grid";
 import * as monaco from "monaco-editor";

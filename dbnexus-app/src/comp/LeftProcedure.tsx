@@ -6,7 +6,6 @@ import InfoIcon from "@mui/icons-material/Info";
 import { tabsHasId } from "./Common";
 import types from "./ApiStruct";
 import { invoke } from "@tauri-apps/api/core";
-import { TabContent } from "./Tabs";
 import { DefAndMetasView } from "./DefAndMetaView";
 
 import { SiProcessingfoundation } from "react-icons/si";
@@ -14,6 +13,7 @@ import {
   DataSourceKind,
   generateRandomString,
   secondConfirm,
+  TabContent,
   UuidContext,
 } from "./helper";
 import { ExceedMaxTreeItem, MenuRefresh, UdfNameAndParameters } from "./CommonComp";

@@ -35,7 +35,6 @@ import {
 } from "@mui/material";
 import ClearIcon from "@mui/icons-material/Clear";
 
-import { TabContent } from "./Tabs";
 import { SqlTableView, SqlTableViewData } from "./SqlTableView";
 import { ExportTableOrView } from "./Export";
 import AddIcon from "@mui/icons-material/Add";
@@ -62,6 +61,7 @@ import {
   RedisTableType,
   TableType,
   shrinkAble,
+  TabContent,
 } from "./helper";
 import { ExceedMaxTreeItem, MenuRefresh, ModalHeader } from "./CommonComp";
 import { TableStructure } from "./TableStructure";

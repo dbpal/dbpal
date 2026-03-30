@@ -40,7 +40,6 @@ import types from "./ApiStruct";
 import { TreeItem } from "@mui/x-tree-view/TreeItem";
 import ListIcon from "@mui/icons-material/List";
 import { SqlTableView } from "./SqlTableView";
-import { TabContent } from "./Tabs";
 import { ExportTableOrView } from "./Export";
 import {
   dataGridStyle,
@@ -51,6 +50,7 @@ import {
   getSupportExportKind,
   handleCopyToClipboard,
   secondConfirm,
+  TabContent,
   UuidContext,
   ViewKind,
 } from "./helper";

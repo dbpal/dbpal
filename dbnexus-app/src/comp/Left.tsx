@@ -52,7 +52,6 @@ import { TreeItem } from "@mui/x-tree-view/TreeItem";
 import DeleteForeverIcon from "@mui/icons-material/DeleteForever";
 import CloseIcon from "@mui/icons-material/Close";
 import logoImg from "../../icon.png";
-import { TabContent } from "./Tabs";
 
 import {
   connTypeToDataSourceKind,
@@ -64,6 +63,7 @@ import {
   generateRandomString,
   handleCopyToClipboard,
   secondConfirm,
+  TabContent,
   TableType,
   UuidContext,
 } from "./helper";

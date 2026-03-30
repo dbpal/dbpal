@@ -14,7 +14,6 @@ import { MdFunctions } from "react-icons/md";
 import { tabsHasId } from "./Common";
 import types from "./ApiStruct";
 import { invoke } from "@tauri-apps/api/core";
-import { TabContent } from "./Tabs";
 import { DefAndMetasView } from "./DefAndMetaView";
 
 import { TbMathFunction } from "react-icons/tb";
@@ -22,6 +21,7 @@ import {
   DataSourceKind,
   generateRandomString,
   secondConfirm,
+  TabContent,
   UuidContext,
 } from "./helper";
 

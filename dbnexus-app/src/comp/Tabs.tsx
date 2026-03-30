@@ -29,8 +29,7 @@ function TabsMenu(props: {
       <MenuItem
         onClick={() => {
           handleClose(index);
-        }}
-      >
+        }}>
         close
       </MenuItem>
       {index != 0 && (
@@ -40,8 +39,7 @@ function TabsMenu(props: {
               changeTab(0);
               return e.slice(index);
             });
-          }}
-        >
+          }}>
           close to left
         </MenuItem>
       )}
@@ -55,8 +53,7 @@ function TabsMenu(props: {
               }
               return x;
             });
-          }}
-        >
+          }}>
           close to right
         </MenuItem>
       )}
@@ -68,8 +65,7 @@ function TabsMenu(props: {
               changeTab(0);
               return x;
             });
-          }}
-        >
+          }}>
           close others
         </MenuItem>
       )}
@@ -86,8 +82,7 @@ function TabsMenu(props: {
             }
             setTabs([]);
             changeTab(0);
-          }}
-        >
+          }}>
           close all
         </MenuItem>
       )}
@@ -147,8 +142,7 @@ function TabsWithContent(props: {
           "& .MuiTabs-flexContainer": { columnGap: 0 }, // 4px
           // 2. Tab 内边距
           "& .MuiTab-root": { minHeight: 36, px: 0.4 }, // 高度36px，左右12px
-        }}
-      >
+        }}>
         {tabs.map((tab, index) => {
           const max = getLength(tab.header, tabWidth, tabs);
           return (
@@ -176,8 +170,7 @@ function TabsWithContent(props: {
                       ),
                       event: e,
                     });
-                  }}
-                >
+                  }}>
                   {tabs.length <= 8 && max > 100 ? tab.icon : undefined}
                   <Typography
                     style={{
@@ -188,8 +181,7 @@ function TabsWithContent(props: {
                       textOverflow: "clip",
                       flex: 1,
                       fontSize: index == selectIndex ? "1.1rem" : "1rem",
-                    }}
-                  >
+                    }}>
                     {tab.header}
                   </Typography>
 
@@ -216,8 +208,7 @@ function TabsWithContent(props: {
             <TabContext value={{ id: tab.id }}>
               <div
                 hidden={selectIndex !== index}
-                style={{ height: "100%", position: "relative" }}
-              >
+                style={{ height: "100%", position: "relative" }}>
                 {tab.content}
               </div>
             </TabContext>
@@ -228,4 +219,4 @@ function TabsWithContent(props: {
   );
 }
 
-export { TabsWithContent, TabContent };
+export { TabsWithContent };

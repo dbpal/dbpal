@@ -23,12 +23,12 @@ import {
 } from "./Common.ts";
 import types from "./ApiStruct.ts";
 import { invoke } from "@tauri-apps/api/core";
-import { TabContent } from "./Tabs.tsx";
 import { DefAndMetasView } from "./DefAndMetaView.tsx";
 import {
   DataSourceKind,
   generateRandomString,
   secondConfirm,
+  TabContent,
   UuidContext,
 } from "./helper.ts";
 
