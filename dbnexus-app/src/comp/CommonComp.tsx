@@ -69,6 +69,8 @@ import { openPath } from "@tauri-apps/plugin-opener";
 import { FaMarkdown } from "react-icons/fa";
 import { AppDataGridPagination, StackRowCenter } from "./CommonComp2";
 import {
+  passwordKey,
+  savePasswordKey,
   useColumnWidthStore,
   useConnLoading,
   useConnected,
@@ -272,6 +274,9 @@ function MenuOpenConn({ name }) {
       showNotification("error", "establish connection failed", e);
       return;
     }
+    if (false === config[savePasswordKey]) {
+      PassWordManager.savePassword(name, config[passwordKey], false);
+    }
     setConnected(name);
   };
   return (
@@ -330,7 +335,6 @@ function MenuDeleteConfig({ name }) {
       await delFav(name);
       await delQueryLog(name);
       await removeConnection(name);
-      await PassWordManager.deletePassword(name);
     } catch (e) {
       showNotification("error", "drop connection failed", e);
     }

@@ -31,7 +31,7 @@ import VisibilityIcon from "@mui/icons-material/Visibility";
 import { types } from "./ApiStruct.ts";
 import { message, open } from "@tauri-apps/plugin-dialog";
 import { invoke } from "@tauri-apps/api/core";
-import { extractBaseName, PassWordManager } from "./Common.ts";
+import { extractBaseName } from "./Common.ts";
 import { DataSourceKind } from "./helper.ts";
 import { openUrl } from "@tauri-apps/plugin-opener";
 import { platform } from "@tauri-apps/plugin-os";
@@ -771,22 +771,11 @@ function TestConnAndSave(props: {
       showNotification("warning", "connection name is empty.");
       return;
     }
-    const password = config["password"];
-    const savePassword = config["save_password"];
     if (config.name.includes("/")) {
       showNotification("error", `connection name can't  contains '/'`);
       connectionNameDom.current.focus();
       return;
     }
-    if (password) {
-      try {
-        PassWordManager.savePassword(config.name, password, savePassword);
-      } catch (e) {
-        showNotification("error", "save password failed", e);
-        return;
-      }
-    }
-
     addConnection(config)
       .then(() => {
         showNotification("success", "add connection OK");

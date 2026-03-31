@@ -836,9 +836,8 @@ export const useConnectionStore = create<ConnectionState>()(
         // Return a copy with the password injected
         let password = undefined;
         if (savePasswordKey in conn) {
-          if (true === conn[savePasswordKey]) {
-            password = await PassWordManager.getPassword(name);
-          } else {
+          password = await PassWordManager.getPassword(name);
+          if (false === conn[savePasswordKey] && !password) {
             password = await window.prompt("please input password:");
           }
         }
