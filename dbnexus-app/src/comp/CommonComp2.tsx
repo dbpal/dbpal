@@ -59,6 +59,7 @@ import {
   secondConfirm,
   TabActiveContext,
   TabContent,
+  textEllipsisStyle,
 } from "./helper";
 
 import { editor, Position } from "monaco-editor";
@@ -1009,8 +1010,8 @@ function CancelButton({ handleCancel }) {
   );
 }
 
-function SliderSize(props: { config: UseSizeConfig; name?: string }) {
-  const { config, name } = props;
+function SliderSize(props: { config: UseSizeConfig }) {
+  const { config } = props;
   const width = "33vw";
   const { sizes, setSize } = useSizeStore();
   const size = sizes[config.key];
@@ -1047,7 +1048,8 @@ function SliderSize(props: { config: UseSizeConfig; name?: string }) {
         </Stack>
       </Paper>>
       <Chip
-        label={`${name ? name + ":" : ""} ${size ? size : config.min}`}
+        style={{ ...textEllipsisStyle }}
+        label={`${config.name ? config.name + ":" : ""} ${size ? size : config.default}`}
         color="info"
       />
     </Tooltip>

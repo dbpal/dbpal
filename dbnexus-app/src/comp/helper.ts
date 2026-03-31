@@ -428,11 +428,10 @@ function generateDefaultFilename(name, extension) {
   return filename;
 }
 const textEllipsisStyle = {
-  width: "9rem",
   whiteSpace: "nowrap",
   overflow: "hidden",
   textOverflow: "ellipsis",
-  flex: 1,
+  flexShrink: 1,
 } as CSSProperties;
 
 export type MuiDataGridData = {

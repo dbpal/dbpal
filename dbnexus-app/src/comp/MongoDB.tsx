@@ -1794,8 +1794,8 @@ function MongoTable(props: { uuid: string; table: string; isTable: boolean }) {
         extra={
           viewModel != MongoDataViewModel.TableList && (
             <Stack direction="row">
-              <SliderSize name="column" config={UseSizeConfig.gridCol} />
-              <SliderSize name="height" config={UseSizeConfig.editorHeight} />
+              <SliderSize config={UseSizeConfig.gridCol} />
+              <SliderSize config={UseSizeConfig.editorHeight} />
             </Stack>
           )
         }

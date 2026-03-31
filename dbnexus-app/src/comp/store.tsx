@@ -456,7 +456,7 @@ export const useSizeStore = create<SizeState>()(
 
       // 注意：Zustand 的 state 雖然是響應式的，但 getSize 是一個 Helper 函數
       getSize: (x: UseSizeConfig) => {
-        return get().sizes[x.key] ?? x.min;
+        return get().sizes[x.key] ?? x.default;
       },
       resetSizes: (sizes) => set({ sizes }),
     }),
@@ -471,21 +471,28 @@ export class UseSizeConfig {
   min: number;
   max: number;
   step?: number;
+  default: number;
+  name: string;
+
   notice: ReactNode;
 
   static chatMemoryKey: UseSizeConfig = {
     key: "chat-memory-k",
-    min: 2,
+    min: 0,
+    default: 6,
     max: 20,
     step: 2,
     notice: "chat memory buffer size",
+    name: "memory size",
   };
 
   static gridCol: UseSizeConfig = {
     key: "grid-col",
     min: 1,
     max: 6,
+    default: 1,
     notice: "grid column count",
+    name: "column",
   };
 
   static editorHeight: UseSizeConfig = {
@@ -493,14 +500,18 @@ export class UseSizeConfig {
     min: 100,
     max: 1200,
     step: 10,
+    default: 300,
     notice: "editor height",
+    name: "editor height",
   };
 
   static queryLimit: UseSizeConfig = {
     key: "query-limit",
-    min: 10000,
+    min: 1000,
     max: 10_00_00,
     step: 1000,
+    default: 10000,
+    name: "query limit",
     notice: (
       <Typography>
         limit max rows can be query.we don&apos;t want OOM!!!😀

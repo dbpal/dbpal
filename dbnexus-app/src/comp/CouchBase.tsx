@@ -227,8 +227,8 @@ function CouchBaseTable(props: { uuid: string; table: string }) {
         </Stack>
         <Typography variant="h5"> {table} </Typography>
         <Stack direction="row">
-          <SliderSize config={UseSizeConfig.gridCol} name="column" />
-          <SliderSize name="height" config={UseSizeConfig.editorHeight} />
+          <SliderSize config={UseSizeConfig.gridCol} />
+          <SliderSize config={UseSizeConfig.editorHeight} />
         </Stack>
       </Stack>
       <div
@@ -788,7 +788,7 @@ function CouchBaseQuery(props: {
             </Tooltip>
 
             {viewMode == CBQueryViewMode.Json && (
-              <SliderSize config={UseSizeConfig.gridCol} name="column" />
+              <SliderSize config={UseSizeConfig.gridCol} />
             )}
 
             <ToggleChatShow do_query={handleQuery} />
