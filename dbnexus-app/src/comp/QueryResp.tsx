@@ -56,7 +56,7 @@ import {
 
 function RespContextMenu(props: { content; field; setSort; viewInModal }) {
   const { content, field, setSort, viewInModal } = props;
-  const { showNotification } = useNotification((s) => s);
+  const { showNotification } = useNotification();
   return (
     <MenuList>
       {content && (
@@ -122,14 +122,14 @@ function queryRespFix(data: MuiDataGridData, getColumnWidth) {
 
 function QueryResp(props: { data: MuiDataGridData }) {
   const { data } = props;
-  const { setColumnWidth, getColumnWidth } = useColumnWidthStore((s) => s);
+  const { setColumnWidth, getColumnWidth } = useColumnWidthStore();
   queryRespFix(data, getColumnWidth);
 
-  const setting = useUserSettings((s) => s);
+  const setting = useUserSettings();
 
   const [page, setPage] = useState(0);
 
-  const { setPageSize, sql: pageSize } = usePageSize((s) => s);
+  const { setPageSize, sql: pageSize } = usePageSize();
 
   const [viewInModal, setViewInModal] = useState<object>(null);
   const onColumnResize = useCallback(
@@ -301,7 +301,7 @@ function MultiQueryResp(props: { data: QueryRespData[] }) {
   const { data } = props;
   const [value, setValue] = React.useState(0);
 
-  const { showNotification } = useNotification((s) => s);
+  const { showNotification } = useNotification();
   if (data.length == 0) {
     return <></>;
   }

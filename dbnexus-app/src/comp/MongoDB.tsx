@@ -285,7 +285,7 @@ function MongoBsonEditor(props: {
     };
   }, []);
 
-  const { showNotification } = useNotification((s) => s);
+  const { showNotification } = useNotification();
   const [content, setContent] = useState("{\n}");
   useEffect(() => {
     try {
@@ -696,7 +696,7 @@ function MongoTableListContextMenu(props: {
 }) {
   const { delOP, content, field, setFilter, loadDoc, setSort } = props;
   const [showFilter, setShowFilter] = useState(false);
-  const { showNotification } = useNotification((s) => s);
+  const { showNotification } = useNotification();
   const [showViewJson, setShowViewJson] = useState(false);
   const [modalBox, setModalBox] = useState(null);
 
@@ -838,7 +838,7 @@ function MongoTableListMenuFilter(props: {
   const { handleClose, loadValue, setFilter, field } = props;
   const compares = ["$eq", "$ne", "$gt", "$gte", "$lt", "$lte"];
   const [compare, setCompare] = useState(lastCompare);
-  const { showNotification } = useNotification((s) => s);
+  const { showNotification } = useNotification();
   const [value, setValue] = useState(null);
   const [doc, setDoc] = useState({});
   useEffect(() => {
@@ -959,7 +959,7 @@ function JsonEditor(props: {
   const [jsonErr, setJsonErr] = useState<ErrAndLoc | null>(null);
   const [loading, setLoading] = useState(false);
   const [jsonErrPos, setJsonErrPos] = useState<Position>(null);
-  const { showNotification } = useNotification((s) => s);
+  const { showNotification } = useNotification();
   useEffect(() => {
     (async () => {
       try {
@@ -1038,7 +1038,7 @@ function BsonJsonPagination({
   viewModel,
 }) {
   const [showObjectDoc, setShowObjectDoc] = useState(false);
-  const { mongo: pageSize, setPageSize } = usePageSize((s) => s);
+  const { mongo: pageSize, setPageSize } = usePageSize();
   return (
     <Stack
       direction="row"
@@ -1155,18 +1155,18 @@ function MongoTableList(props: {
     uuid,
   } = props;
   const [page, setPage] = useState(0);
-  const { mongo: pageSize, setPageSize } = usePageSize((s) => s);
-  const { showNotification } = useNotification((s) => s);
+  const { mongo: pageSize, setPageSize } = usePageSize();
+  const { showNotification } = useNotification();
   const [resp, setResp] = useState<MuiDataGridData | null>(null);
   const [selectModifyDoc, setSelectModifyDoc] = useState<BSON.Document | null>(null);
   const [showExport, setShowExport] = useState(false);
-  const setting = useUserSettings((s) => s);
+  const setting = useUserSettings();
   const [lastFetchTime, setLastFetchTime] = useState(new Date());
   const [clickedField, setClickedField] = useState("");
   useEffect(() => {
     setLastFetchTime(new Date());
   }, [resp]);
-  const { getColumnWidth, setColumnWidth } = useColumnWidthStore((s) => s);
+  const { getColumnWidth, setColumnWidth } = useColumnWidthStore();
   const [fetchDur, setFetchDur] = useState(0);
   const handleReload = useCallback(
     async (showOK) => {
@@ -1519,9 +1519,9 @@ function MongoTableObject(props: {
   } = props;
   const [docs, setDocs] = useState<DocsAndCount>({ docs: [], count: 0 });
   const [page, setPage] = useState(1);
-  const { mongo: pageSize } = usePageSize((s) => s);
+  const { mongo: pageSize } = usePageSize();
 
-  const { showNotification } = useNotification((s) => s);
+  const { showNotification } = useNotification();
   const handleReload = useCallback(
     async (showOK) => {
       setLoading(true);
@@ -1746,7 +1746,7 @@ function MongoTable(props: { uuid: string; table: string; isTable: boolean }) {
     oldViewModel = viewModel;
   }, [viewModel]);
 
-  const { getSize } = useSizeStore((s) => s);
+  const { getSize } = useSizeStore();
 
   const reloadTable = useCallback(
     (page: number, pageSize: number) => {
@@ -1841,7 +1841,7 @@ function MongoTable(props: { uuid: string; table: string; isTable: boolean }) {
 
 function MongoTableAdd(props: { addOP: (doc: BSON.Document) => Promise<void> }) {
   const { addOP } = props;
-  const { showNotification } = useNotification((s) => s);
+  const { showNotification } = useNotification();
   const handleAdd = async (doc) => {
     try {
       await addOP(doc);

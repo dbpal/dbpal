@@ -73,7 +73,6 @@ import {
   useAIPrompt,
   useBoolSwitch,
   useLLM,
-  useLLMConfig,
   useNotification,
   UseSizeConfig,
   useSizeStore,
@@ -132,9 +131,9 @@ function Chat(props: {
 }) {
   const { uuid, kind, favoriteName, value, language } = props;
   const [editor, setEditor] = useState<editor.IStandaloneCodeEditor>(null);
-  const llmconfig = useLLMConfig((s) => s.config);
+  const llm = useLLM();
 
-  const saveChatShow = useBoolSwitch((s) => s);
+  const saveChatShow = useBoolSwitch();
   const [show, setShow] = useState(saveChatShow.switches[showChatKey]);
   const doQuery = useRef<() => void>(null);
 
@@ -161,9 +160,7 @@ function Chat(props: {
           value={value}
           language={language}
         />
-        {llmconfig && editor && (
-          <SqlChatTextInput uuid={uuid} kind={kind} editor={editor} />
-        )}
+        {llm && editor && <SqlChatTextInput uuid={uuid} kind={kind} editor={editor} />}
       </ChatShowContext.Provider>
     </Stack>
   );
@@ -588,7 +585,7 @@ function SqlChatTextInput(props: {
   const config = useLLM();
   const [prevQuestion, setPrevQuestion] = useState("");
   const [newQuestion, setNewQuestion] = useState("");
-  const { showNotification } = useNotification((s) => s);
+  const { showNotification } = useNotification();
   const [showPrompt, setShowPrompt] = useState(false);
   const [chatHistory, setChatHistory] = useState<string[]>([]);
   const [showChatHistory, setShowChatHistory] = useState(false);
@@ -598,7 +595,7 @@ function SqlChatTextInput(props: {
   const [cancelFN, setCancelFN] = useState<() => void>(null);
   const { show, setShow, doQuery } = useContext(ChatShowContext);
   const getSize = useSizeStore((s) => s.getSize);
-  const { switches, setSwitch } = useBoolSwitch((s) => s);
+  const { switches, setSwitch } = useBoolSwitch();
   const queryAfter = switches[queryAfterKey];
   const cleanEditor = switches[cleanEditorKey];
 
@@ -853,14 +850,14 @@ function SqlChatTextInput(props: {
 
 function EditPromptTemplate(props: { kind: DataSourceKind; handleClose: () => void }) {
   const { kind, handleClose } = props;
-  const { getPrompt, setPrompt, removePrompt } = useAIPrompt((s) => s);
+  const { getPrompt, setPrompt, removePrompt } = useAIPrompt();
   const userDefine = getPrompt(kind);
 
   const [newTemplate, setNewTemplate] = useState(
     userDefine ? userDefine : MakePrompt.getDefaultTemplate(kind),
   );
   const [editor, setEditor] = useState<editor.IStandaloneCodeEditor>(null);
-  const { showNotification } = useNotification((s) => s);
+  const { showNotification } = useNotification();
   const [templateVar, setTemplateVar] = useState("");
   const handleSave = async () => {
     setPrompt(kind, newTemplate);
@@ -1014,7 +1011,7 @@ function ShowPrompt(props: {
 }) {
   const { handleClose, makePrompt } = props;
   const [prompt, setPrompt] = useState("");
-  const { showNotification } = useNotification((s) => s);
+  const { showNotification } = useNotification();
   useEffect(() => {
     makePrompt().then((e) => {
       setPrompt(e);

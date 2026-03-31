@@ -18,7 +18,7 @@ function RedisQuery(props: {
   const { favoriteName, value, uuid, handleEditor } = props;
   const [doc, setDoc] = useState("");
   const editorRef = useRef<editor.IStandaloneCodeEditor>(null);
-  const { switches, setSwitch } = useBoolSwitch((s) => s);
+  const { switches, setSwitch } = useBoolSwitch();
   const [prevLine, setPrevLine] = useState("");
   const showDoc = switches[showRedisKey];
 

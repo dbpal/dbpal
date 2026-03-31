@@ -108,7 +108,7 @@ function newDataDefault(): Data {
 function CouchBaseTable(props: { uuid: string; table: string }) {
   const { uuid, table } = props;
   const [page, setPage] = useState(1);
-  const { couchbase: pageSize, setPageSize } = usePageSize((s) => s);
+  const { couchbase: pageSize, setPageSize } = usePageSize();
 
   const [where, setWhere] = useState("");
   const [sort, setSort] = useState("");
@@ -116,10 +116,10 @@ function CouchBaseTable(props: { uuid: string; table: string }) {
   const [showSetWhere, setShowSetWhere] = useState(false);
   const kind = DataSourceKind.CouchBase;
   const [resp, setResp] = useState<Data>(newDataDefault());
-  const { getSize } = useSizeStore((s) => s);
+  const { getSize } = useSizeStore();
   const [loading, setLoading] = useState(true);
   const [queryStatus, setQueryStatus] = useState("");
-  const { showNotification } = useNotification((s) => s);
+  const { showNotification } = useNotification();
   const [showAdd, setShowAdd] = useState(false);
   const [addModalBox, setAddModalBox] = useState(null);
 
@@ -406,7 +406,7 @@ function CouchBaseEditor(props: {
     docid,
   } = props;
   const [jsonErr, setJsonErr] = useState<ErrAndLoc | null>(null);
-  const { showNotification } = useNotification((s) => s);
+  const { showNotification } = useNotification();
   const [jsonErrPos, setJsonErrPos] = useState<Position>(null);
   const [newValue, setNewValue] = useState(value);
   const [loading, setLoading] = useState(false);
@@ -591,15 +591,15 @@ function CouchBaseQuery(props: {
   const { uuid, value, handleEditor } = props;
   const [resp, setResp] = useState<string[]>([]);
   const [loading, setLoading] = useState(false);
-  const { getSize } = useSizeStore((s) => s);
+  const { getSize } = useSizeStore();
   const [editor, setEditor] = useState<editor.IStandaloneCodeEditor>(null);
   const [queryStatus, setQueryStatus] = useState("");
-  const { showNotification } = useNotification((s) => s);
+  const { showNotification } = useNotification();
   const [showQueryLog, setShowQueryLog] = useState(false);
   const kind = DataSourceKind.CouchBase;
   const [executeTimes, setExecuteTimes] = useState(0);
   const [showExport, setShowExport] = useState(false);
-  const { viewMode, setViewMode } = useCBQueryViewStore((s) => s);
+  const { viewMode, setViewMode } = useCBQueryViewStore();
   const [tableResp, setTableResp] = useState<MuiDataGridData>(null);
   const theme = useTheme();
 

@@ -74,7 +74,7 @@ import {
 function SqlTransaction(props: { conn: QueryConn; executeTimes: number }) {
   const { conn, executeTimes } = props;
   const [commit, setCommit] = useState(true);
-  const { showNotification } = useNotification((s) => s);
+  const { showNotification } = useNotification();
   const [txCount, setTxCount] = useState(0);
   const tabCtx = useContext(TabContext);
   const { removeConfirmMsg, addConfirmMsg } = useConfirmMsg((state) => state);
@@ -205,7 +205,7 @@ function SqlQuery(props: {
   const [pos, setPos] = useState<Position | null>(null);
   const [loading, setLoading] = useState(false);
   const [makeConnLoading, setMakeConnLoading] = useState(false);
-  const { showNotification } = useNotification((s) => s);
+  const { showNotification } = useNotification();
   const [showQueryLog, setShowQueryLog] = useState(false);
 
   const [executeTimes, setExecuteTimes] = useState(0);

@@ -53,12 +53,12 @@ function ExportView(props: {
   const { exportOP, supportKind, name, handleClose } = props;
   const lastKind = supportKind.find((k) => k === lastExportKind);
   const [kind, setKind] = useState(lastExportKind ? lastKind : supportKind[0]);
-  const setting = useUserSettings((s) => s);
+  const setting = useUserSettings();
   const [includeHeader, setIncludeHeader] = useState(setting.export_.includeHeader);
   const [delimiter, setDelimiter] = useState(setting.export_.csvDelimiter);
   const [pretty, setPretty] = useState(true);
   const [includeTableSchema, setIncludeTableSchema] = useState(false);
-  const { showNotification } = useNotification((s) => s);
+  const { showNotification } = useNotification();
   const [loading, setLoading] = useState(false);
   const [file, setFile] = useState<string | null>(null);
   const taskId = useRef(generateRandomString(5));

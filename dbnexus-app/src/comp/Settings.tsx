@@ -58,6 +58,7 @@ import { appLogDir } from "@tauri-apps/api/path";
 import {
   makeLLMCallable,
   useDatagridHeight,
+  useLLM,
   useLLMConfig,
   useNotification,
   UserSettings,
@@ -68,8 +69,8 @@ import { listen } from "@tauri-apps/api/event";
 import types from "./ApiStruct";
 
 function AppearanceSetting() {
-  const { appearance, updateAppearance } = useUserSettings((s) => s);
-  const { showNotification } = useNotification((s) => s);
+  const { appearance, updateAppearance } = useUserSettings();
+  const { showNotification } = useNotification();
   const [allFonts, setAllFonts] = useState<string[]>([]);
   const [fontWeight, setFontWeight] = useState(appearance.fontWeight);
   const [fontSize, setFontSize] = useState(appearance.fontSize);
@@ -325,12 +326,12 @@ function SetBgColor({ bgColor, setBgColor, theme }) {
 }
 
 function EditorSetting() {
-  const { editor, updateEditor } = useUserSettings((s) => s);
+  const { editor, updateEditor } = useUserSettings();
   const [showEditOption, setShowEditOption] = useState(false);
   const [tabSize, setTabSize] = useState(editor.tabSize);
   const [customEditorTheme, setCustomEditorTheme] = useState(editor.theme);
   const [highLightTheme, setHighlightTheme] = useState("");
-  const { showNotification } = useNotification((s) => s);
+  const { showNotification } = useNotification();
   const [modified, setModified] = useState(false);
 
   const makeConfig = useCallback(() => {
@@ -431,11 +432,11 @@ function EditorSetting() {
 const headerSize = "16rem";
 
 function ExportSetting() {
-  const { export_, updateExport } = useUserSettings((s) => s);
+  const { export_, updateExport } = useUserSettings();
 
   const [csvDelimiter, setCsvDelimiter] = useState(export_.csvDelimiter);
   const [includeHeader, setIncludeHeader] = useState(export_.includeHeader);
-  const { showNotification } = useNotification((s) => s);
+  const { showNotification } = useNotification();
   const [modified, setModified] = useState(false);
 
   const makeConfig = useCallback(() => {
@@ -515,15 +516,17 @@ async function listLLMModels(baseURl: string, apiKey: string): Promise<ModelDef[
 }
 
 function LLMSetting(props: { handleClose?: () => void }) {
-  const { config: oldSetting, setConfig } = useLLMConfig((s) => s);
+  const { config: oldSetting, setConfig } = useLLMConfig();
   const { handleClose } = props;
   const [baseUrl, setBaseUrl] = useState(oldSetting.baseUrl);
   const [temperature, setTemperature] = useState(oldSetting.temperature + "");
   const [model, setModel] = useState(oldSetting.model);
   const [apiKey, setApiKey] = useState(oldSetting.apiKey);
-  const { showNotification } = useNotification((s) => s);
-  const [maxToken, setMaxToken] = useState(oldSetting.maxToken + "");
-  const [topP, setTopP] = useState(oldSetting.topP + "");
+  const { showNotification } = useNotification();
+  const [maxToken, setMaxToken] = useState(
+    oldSetting.maxToken ? oldSetting.maxToken + "" : "",
+  );
+  const [topP, setTopP] = useState(oldSetting.topP ? oldSetting.topP + "" : "");
   const [moddelCan, setModdelCan] = useState<ModelDef[]>([]);
   const [helloTime, setHelloTime] = useState(0);
   const [modified, setModified] = useState(false);
@@ -780,12 +783,12 @@ function LLMSetting(props: { handleClose?: () => void }) {
 }
 
 function MiscSetting() {
-  const { misc, updateMisc } = useUserSettings((s) => s);
+  const { misc, updateMisc } = useUserSettings();
 
   console.log(misc);
   const [autoStart, setAutoStart] = useState(misc.autoStart);
   const [logLevel, setLogLevel] = useState(misc.logLevel);
-  const { showNotification } = useNotification((s) => s);
+  const { showNotification } = useNotification();
 
   useEffect(() => {
     const x = { autoStart, logLevel };
@@ -914,9 +917,9 @@ function EditorThemeDemo(props: { theme: string }) {
   );
 }
 function EditorOptions(props: { handleClose; showEditOption }) {
-  const { showNotification } = useNotification((s) => s);
+  const { showNotification } = useNotification();
   const { handleClose, showEditOption } = props;
-  const { editor: editorOP, updateEditor: updateEditorOP } = useUserSettings((s) => s);
+  const { editor: editorOP, updateEditor: updateEditorOP } = useUserSettings();
   const [value, setValue] = useState<string>(editorOP.editorOption);
   const muiTheme = useTheme();
   return (
@@ -1178,10 +1181,10 @@ const isDark = (setting: Partial<UserSettings["appearance"]>, osTheme) => {
   return isDarkStr(setting.theme) || (setting.theme == "system" && isDarkStr(osTheme));
 };
 function SettingProvider({ children }) {
-  const { appearance, editor, misc, updateAppearance } = useUserSettings((s) => s);
+  const { appearance, editor, misc, updateAppearance } = useUserSettings();
   const [osTheme, setOsTheme] = useState("light");
 
-  const { showNotification } = useNotification((s) => s);
+  const { showNotification } = useNotification();
 
   useEffect(() => {
     document.documentElement.style.fontSize = appearance.fontSize + "px";
@@ -1277,10 +1280,10 @@ function SettingProvider({ children }) {
 
 function ModifyLLMConfigModal() {
   const [showEdit, setShowEdit] = useState(false);
-  const config = useLLMConfig((s) => s.config);
+  const llm = useLLM();
   return (
     <>
-      {!config && (
+      {!llm && (
         <Tooltip title="enable ai powered chat,need set up LLM server.">
           <Button
             onClick={() => {

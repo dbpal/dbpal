@@ -159,8 +159,8 @@ function MenuRefresh({ reload }) {
 }
 
 function MenuCloseConn({ name }) {
-  const { showNotification } = useNotification((s) => s);
-  const { removeConnected } = useConnected((s) => s);
+  const { showNotification } = useNotification();
+  const { removeConnected } = useConnected();
   return (
     <MenuItem
       onClick={() => {
@@ -254,11 +254,11 @@ function MenuCreateSchema(props: { handleCreate; kind: DataSourceKind }) {
 }
 
 function MenuOpenConn({ name }) {
-  const { showNotification } = useNotification((s) => s);
+  const { showNotification } = useNotification();
   const setConnected = useConnected((s) => s.setConnected);
   const setLoading = useConnLoading((s) => s.setLoading);
 
-  const { getConnection } = useConnectionStore((s) => s);
+  const { getConnection } = useConnectionStore();
 
   const handleOpenXXX = async () => {
     // try promote use to enter a password.
@@ -311,9 +311,9 @@ function SelectPageSize({ pageSize, handleChange, options = pageSizeOptions }) {
 }
 
 function MenuDeleteConfig({ name }) {
-  const { showNotification } = useNotification((s) => s);
+  const { showNotification } = useNotification();
 
-  const { removeConnection } = useConnectionStore((s) => s);
+  const { removeConnection } = useConnectionStore();
   const { deleteByConnectionName: delFav } = useFavoriteStore();
 
   const { deleteByName: delQueryLog } = useQueryLogStore();
@@ -351,7 +351,7 @@ function MenuDeleteConfig({ name }) {
 
 function MetaValueViewMenu(props: { content: string; setSort; field: string }) {
   const { content, setSort, field } = props;
-  const { showNotification } = useNotification((s) => s);
+  const { showNotification } = useNotification();
   return (
     <MenuList>
       <MenuItem
@@ -387,7 +387,7 @@ function MetaValueViewMenu(props: { content: string; setSort; field: string }) {
 }
 
 function MetaValueView({ values = [] as types.MetaValue[] }) {
-  const setting = useUserSettings((s) => s);
+  const setting = useUserSettings();
 
   const getColumnWidth = useColumnWidthStore((s) => s.getColumnWidth);
   const columns = [
@@ -457,7 +457,7 @@ function MetaValueView({ values = [] as types.MetaValue[] }) {
 }
 
 function ResetColumnWidth() {
-  const { showNotification } = useNotification((s) => s);
+  const { showNotification } = useNotification();
 
   const reset = useColumnWidthStore((s) => s.resetWidths);
 
@@ -728,7 +728,7 @@ function ExecutingTime(props: {
 
 function CopyMenuItem(props: GridColumnMenuItemProps) {
   const { colDef } = props;
-  const { showNotification } = useNotification((s) => s);
+  const { showNotification } = useNotification();
   return (
     <MenuItem
       onClick={() => {
@@ -788,7 +788,7 @@ function SelectColumns(props: {
 }
 
 function OpenFileWithDefaultApp({ file }) {
-  const { showNotification } = useNotification((s) => s);
+  const { showNotification } = useNotification();
   return (
     <>
       {file && (
@@ -815,7 +815,7 @@ function ResizeParentHeight(props: {
   saveHeightName;
 }) {
   const { box, min, saveHeightName } = props;
-  const { elements, setElement } = useElementSizeStore((s) => s);
+  const { elements, setElement } = useElementSizeStore();
   useEffect(() => {
     const size = elements[saveHeightName];
     if (size && size.height) {

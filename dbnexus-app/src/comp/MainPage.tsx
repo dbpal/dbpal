@@ -30,7 +30,7 @@ import {
 
 function ShowPanic() {
   const [panicInfo, setPanicInfo] = useState("");
-  const { showNotification } = useNotification((s) => s);
+  const { showNotification } = useNotification();
   const theme = useTheme();
   const getPanicFilePath = async () => {
     return appLogDir().then((e) => {

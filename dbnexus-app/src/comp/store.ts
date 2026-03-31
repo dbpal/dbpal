@@ -224,7 +224,11 @@ export const useLLMConfig = create<LLMStore>()(
       version: 1,
       storage: new TauriStoreManger<LLMStore>(
         async (s) => {
-          await PassWordManager.savePassword(LLMConfig.key, s.config.apiKey, true);
+          if (s.config.apiKey) {
+            await PassWordManager.savePassword(LLMConfig.key, s.config.apiKey, true);
+          } else {
+            await PassWordManager.deletePassword(LLMConfig.key);
+          }
           s.config.apiKey = "";
         },
         async (s) => {

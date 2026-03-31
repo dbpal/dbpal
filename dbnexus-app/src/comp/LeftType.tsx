@@ -28,7 +28,7 @@ import {
 function TypesTree() {
   const { uuid, kind } = useContext(UuidContext);
   const [types, setTypes] = useState<types.CreatedTypeDef[]>([]);
-  const { showNotification } = useNotification((s) => s);
+  const { showNotification } = useNotification();
   const { maxTree } = useMatcher((state) => state);
   const matchPattern = useMatcherFn();
 
@@ -120,7 +120,7 @@ function TypeMenu(props: {
 }) {
   const { uuid, createdType, reload, kind, id } = props;
   const { setCurrentTab, tabs, appendTab } = useTabsManage((state) => state);
-  const { showNotification } = useNotification((s) => s);
+  const { showNotification } = useNotification();
   const handleOpenDetails = () => {
     const index = tabsHasId(tabs, id);
     if (typeof index == "number") {

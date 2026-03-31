@@ -3,7 +3,7 @@ import { Alert, AlertTitle, Stack, Typography } from "@mui/material";
 import { useNotification } from "./store";
 
 function Notifications() {
-  const { notifications, closeMsg } = useNotification((s) => s);
+  const { notifications, closeMsg } = useNotification();
 
   return (
     notifications.length > 0 && (
