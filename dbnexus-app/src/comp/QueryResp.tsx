@@ -52,7 +52,7 @@ import {
   useNotification,
   usePageSize,
   useUserSettings,
-} from "./store.ts";
+} from "./store.tsx";
 
 function RespContextMenu(props: { content; field; setSort; viewInModal }) {
   const { content, field, setSort, viewInModal } = props;

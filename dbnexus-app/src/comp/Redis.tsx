@@ -79,7 +79,7 @@ import {
   useSizeStore,
   useTableColumnVisibleStore,
   useUserSettings,
-} from "./store.ts";
+} from "./store.tsx";
 
 class RedisZsetHashModifyReq {
   constructor(

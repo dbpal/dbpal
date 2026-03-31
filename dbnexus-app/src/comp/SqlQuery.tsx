@@ -60,7 +60,7 @@ import {
   useQueryLogStore,
   UseSizeConfig,
   useSizeStore,
-} from "./store.ts";
+} from "./store.tsx";
 
 function SqlTransaction(props: { conn: QueryConn; executeTimes: number }) {
   const { conn, executeTimes } = props;

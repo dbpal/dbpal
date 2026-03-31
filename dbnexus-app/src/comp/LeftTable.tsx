@@ -75,7 +75,7 @@ import {
   useNotification,
   useTabsManage,
   useMatcherFn,
-} from "./store.ts";
+} from "./store.tsx";
 
 function TablesTree(props: { typ: TableType }) {
   const { typ } = props;

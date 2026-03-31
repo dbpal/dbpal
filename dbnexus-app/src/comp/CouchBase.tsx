@@ -68,7 +68,7 @@ import {
   useQueryLogStore,
   UseSizeConfig,
   useSizeStore,
-} from "./store.ts";
+} from "./store.tsx";
 import { persist } from "zustand/middleware";
 import { create } from "zustand";
 import SyntaxHighlighter from "react-syntax-highlighter";

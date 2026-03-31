@@ -76,7 +76,7 @@ import {
   useNotification,
   UseSizeConfig,
   useSizeStore,
-} from "./store.ts";
+} from "./store.tsx";
 
 class SimpleArrayMemory {
   history: BaseMessage[];

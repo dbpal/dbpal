@@ -7,7 +7,7 @@ import { DataSourceKind, resizeHandlerSize, shrinkAble } from "./helper.ts";
 import { Chip, Tooltip } from "@mui/material";
 import { invoke } from "@tauri-apps/api/core";
 import { AppMarkDown } from "./CommonComp2.tsx";
-import { useBoolSwitch } from "./store.ts";
+import { useBoolSwitch } from "./store.tsx";
 const showRedisKey = "redis-show-doc";
 function RedisQuery(props: {
   favoriteName?: string;

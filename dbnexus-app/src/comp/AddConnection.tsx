@@ -36,7 +36,7 @@ import { DataSourceKind } from "./helper.ts";
 import { openUrl } from "@tauri-apps/plugin-opener";
 import { platform } from "@tauri-apps/plugin-os";
 import { StackRowCenter, UrlDocument } from "./CommonComp2.tsx";
-import { useConnectionStore, useNotification } from "./store.ts";
+import { useConnectionStore, useNotification } from "./store.tsx";
 
 function HostAndPort(props: { host; port; setHost; setPort }) {
   const { host, port, setHost, setPort } = props;

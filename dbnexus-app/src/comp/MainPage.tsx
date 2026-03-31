@@ -26,7 +26,7 @@ import {
   useContextMenu,
   useNotification,
   useTabsManage,
-} from "./store.ts";
+} from "./store.tsx";
 
 function ShowPanic() {
   const [panicInfo, setPanicInfo] = useState("");

@@ -290,7 +290,13 @@ function CreateTable(props: { uuid: string; kind: DataSourceKind }) {
         {showQuery && <Button onClick={setCreateSql}> gen sql </Button>}
       </StackRowCenter>
       {showQuery && (
-        <div style={{ minHeight: "45vh", flex: 1 }}>
+        <div
+          style={{
+            minHeight: "65vh",
+            flex: 1,
+            border: "2px solid grey",
+            borderRadius: "0.8rem",
+          }}>
           <AllKindChat value={editorValue} kind={kind} uuid={uuid} />
         </div>
       )}

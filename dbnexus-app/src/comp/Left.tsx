@@ -131,7 +131,7 @@ import {
   useConnectionStore,
   useFavoriteStore,
   FavoriteSql,
-} from "./store.ts";
+} from "./store.tsx";
 import { editor } from "monaco-editor";
 const settingId = generateRandomString();
 const showTopKey = "left-top-show";

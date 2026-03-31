@@ -42,7 +42,7 @@ import {
   useNotification,
   useTabsManage,
   useMatcherFn,
-} from "./store.ts";
+} from "./store.tsx";
 function SequenceTree() {
   const { uuid, kind } = useContext(UuidContext);
   const [seq, setSeq] = useState<types.SequenceDetail[]>([]);

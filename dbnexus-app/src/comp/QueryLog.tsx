@@ -42,7 +42,7 @@ import {
   useColumnWidthStore,
   useNotification,
   useQueryLogStore,
-} from "./store.ts";
+} from "./store.tsx";
 
 const initialState: object = {
   sorting: { sortModel: [{ field: "create_at", sort: "desc" }] },
