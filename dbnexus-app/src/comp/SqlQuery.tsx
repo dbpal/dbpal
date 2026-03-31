@@ -36,7 +36,6 @@ import {
   getEditorText,
   getLanguageFromDataSourceKind,
   MuiDataGridData,
-  QueryLogHandler,
   resizeHandlerSize,
   rustResultOk,
   secondConfirm,
@@ -67,6 +66,7 @@ import {
   useConfirmMsg,
   useNotification,
   useQueryExtraUI,
+  useQueryLogStore,
   UseSizeConfig,
   useSizeStore,
 } from "./store.ts";
@@ -207,7 +207,7 @@ function SqlQuery(props: {
   const [makeConnLoading, setMakeConnLoading] = useState(false);
   const { showNotification } = useNotification((s) => s);
   const [showQueryLog, setShowQueryLog] = useState(false);
-  const queryLogHandler = useRef(new QueryLogHandler(uuid));
+
   const [executeTimes, setExecuteTimes] = useState(0);
   const [conn] = useState<QueryConn>(new QueryConn(uuid, uuidv4(), kind));
   const getSize = useSizeStore((s) => s.getSize);
@@ -218,6 +218,8 @@ function SqlQuery(props: {
   const querySomeShow = useQueryExtraUI((s) => s.extra);
   const { switches, setSwitch } = useBoolSwitch();
   const tryCheckSql = switches[tryCheckSqlSwitchKey];
+
+  const { save: saveQueryLog } = useQueryLogStore();
 
   const handleEditorDidMount = useCallback((ed: editor.IStandaloneCodeEditor) => {
     setEditor(ed);
@@ -324,7 +326,7 @@ function SqlQuery(props: {
       .executeOP(text)
       .then((e) => {
         if (switches[saveQueryKey]) {
-          queryLogHandler.current.save(text, rustResultOk(e));
+          saveQueryLog(uuid, text, rustResultOk(e));
         }
         setTimeout(() => {
           setResp([e]);
@@ -368,13 +370,13 @@ function SqlQuery(props: {
         .queryOP(text, emit, getSize(UseSizeConfig.queryLimit))
         .then(() => {
           if (switches[saveQueryKey]) {
-            queryLogHandler.current.save(text, true);
+            saveQueryLog(uuid, text, true);
           }
           showNotification("success", "query OK");
         })
         .catch((e) => {
           if (switches[saveQueryKey]) {
-            queryLogHandler.current.save(text, false);
+            saveQueryLog(uuid, text, false);
           }
           showNotification("error", "query failed", e);
         })
@@ -383,7 +385,16 @@ function SqlQuery(props: {
           setLoading(false);
         });
     },
-    [conn, editor, getSize, showNotification, switches, warnDangerousSql],
+    [
+      conn,
+      editor,
+      getSize,
+      saveQueryLog,
+      showNotification,
+      switches,
+      uuid,
+      warnDangerousSql,
+    ],
   );
 
   const editorDivDom = useRef(null);

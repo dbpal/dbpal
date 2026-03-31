@@ -50,12 +50,10 @@ import {
   ErrAndLoc,
   errToString,
   extractFieldAndIDFromMouseEvent,
-  FavoriteSql,
   generateRandomString,
   handleCopyToClipboard,
   pageSizeOptions,
   prettyMs,
-  QueryLogHandler,
   resizeHandlerSize,
   secondConfirm,
   shrinkAble,
@@ -77,7 +75,9 @@ import {
   useConnectionStore,
   useContextMenu,
   useElementSizeStore,
+  useFavoriteStore,
   useNotification,
+  useQueryLogStore,
   useUserSettings,
 } from "./store";
 
@@ -314,7 +314,9 @@ function MenuDeleteConfig({ name }) {
   const { showNotification } = useNotification((s) => s);
 
   const { removeConnection } = useConnectionStore((s) => s);
+  const { deleteByConnectionName: delFav } = useFavoriteStore();
 
+  const { deleteByName: delQueryLog } = useQueryLogStore();
   const handleDelete = async () => {
     const confirm = await secondConfirm({
       title: `drop connection '${name}'`,
@@ -325,8 +327,8 @@ function MenuDeleteConfig({ name }) {
     }
     try {
       await invoke("close_conn", { name });
-      await FavoriteSql.deleteByConnectionName(name);
-      await QueryLogHandler.deleteByConnectionName(name);
+      await delFav(name);
+      await delQueryLog(name);
       await removeConnection(name);
       await PassWordManager.deletePassword(name);
     } catch (e) {

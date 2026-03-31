@@ -11,7 +11,7 @@ import {
 import { AlertColor } from "@mui/material";
 import React from "react";
 import { persist, PersistStorage, StorageValue } from "zustand/middleware";
-
+import Dexie, { type Table } from "dexie";
 import wcmatch from "wildcard-match";
 
 class TauriStoreManger<S> implements PersistStorage<S> {
@@ -916,5 +916,202 @@ export const useEditorState = create<EditorState>((set, get) => ({
     const values = get().values;
     delete values[uuid];
     set({ values });
+  },
+}));
+
+export interface QueryLog {
+  id?: number;
+  uuid: string;
+  name: string; // connecti0on name
+  sql: string;
+  language?: string;
+  create_at: number; // 存储时间戳
+  success: number; // 1 或 0
+}
+
+interface QueryLogState {
+  // 核心操作方法
+  save: (
+    uuid: string,
+    sql: string,
+    success: boolean,
+    language?: string,
+  ) => Promise<void>;
+  query: (uuid: string) => Promise<QueryLog[]>;
+  deleteByUuid: (uuid: string) => Promise<number>;
+  deleteByName: (name: string) => Promise<void>;
+}
+
+const maxQueryLogCount = 10000;
+
+export const useQueryLogStore = create<QueryLogState>(() => ({
+  // 保存日志
+  save: async (uuid, sql, success, language) => {
+    try {
+      // 1. Save the new log
+      await db.query_log.add({
+        uuid,
+        name: extractConfigNameFromUuid(uuid),
+        sql,
+        language,
+        success: success ? 1 : 0,
+        create_at: Date.now(),
+      });
+
+      // 2. Check the count for this specific uuid
+      const count = await db.query_log.where("uuid").equals(uuid).count();
+
+      // 3. If over limit, delete the oldest ones
+      const LIMIT = maxQueryLogCount;
+      if (count > LIMIT) {
+        const extraCount = count - LIMIT;
+
+        // Find the IDs of the oldest records for this uuid
+        const oldestLogs = await db.query_log
+          .where("uuid")
+          .equals(uuid)
+          .limit(extraCount) // Pick the first 'n' records (oldest)
+          .primaryKeys(); // Get just the IDs to speed up deletion
+
+        await db.query_log.bulkDelete(oldestLogs);
+        console.info(`Trimmed ${extraCount} old logs for uuid: ${uuid}`);
+      }
+    } catch (e) {
+      console.error("save query log failed:", e);
+    }
+  },
+
+  // 分页查询 (模拟 SQL: like, order by, limit, offset)
+  query: async (uuid) => {
+    let collection = db.query_log
+      .where("uuid")
+      .equals(uuid)
+      .reverse()
+      .sortBy("create_at ");
+    return collection;
+  },
+
+  // 删除
+  deleteByUuid: async (uuid) => {
+    return await db.query_log.where("uuid").equals(uuid).delete();
+  },
+
+  deleteByName: async (name) => {
+    await db.query_log.where("name").equals(name).delete();
+  },
+}));
+
+export interface FavoriteSql {
+  id?: number;
+  uuid: string;
+  name: string;
+  kind: string;
+  sql: string;
+  connection_name: string;
+  language?: string;
+  last_modified: number;
+}
+
+export class MyDatabase extends Dexie {
+  query_log!: Table<QueryLog>; // Previous table
+  favorite_sql!: Table<FavoriteSql>;
+
+  constructor() {
+    super("AppDatabase");
+    this.version(1).stores({
+      query_log: "++id, uuid, name,[uuid+create_at]",
+      // [uuid+name] creates the unique constraint logic
+      favorite_sql: "++id, uuid, name, connection_name, &[uuid+name]",
+    });
+  }
+}
+
+export const db = new MyDatabase();
+
+interface FavoriteStore {
+  // Actions
+  save: (
+    data: Omit<FavoriteSql, "id" | "last_modified" | "connection_name">,
+  ) => Promise<void>;
+  getByUuid: (uuid?: string) => Promise<FavoriteSql[]>;
+  getDistinctUuids: () => Promise<string[]>;
+  deleteById: (id: number) => Promise<void>;
+  clearByUuid: (uuid: string) => Promise<void>;
+  deleteByConnectionName: (name: string) => Promise<void>;
+}
+
+export const useFavoriteStore = create<FavoriteStore>(() => ({
+  // REPLACE INTO logic using db.put()
+
+  save: async (data) => {
+    const LIMIT_PER_UUID = 500; // Favorites usually have a smaller limit than logs
+    const connection_name = extractConfigNameFromUuid(data.uuid);
+
+    try {
+      // Use a Read/Write transaction for atomicity
+      await db.transaction("rw", db.favorite_sql, async () => {
+        // 1. Check for existing record (to simulate REPLACE)
+        const existing = await db.favorite_sql
+          .where("[uuid+name]")
+          .equals([data.uuid, data.name])
+          .first();
+
+        // 2. Perform the Put (Update if ID exists, otherwise Insert)
+        await db.favorite_sql.put({
+          ...data,
+          id: existing?.id,
+          connection_name,
+          last_modified: Date.now(),
+        });
+
+        // 3. Only check limit if it's a NEW record (existing was undefined)
+        if (!existing) {
+          const count = await db.favorite_sql.where("uuid").equals(data.uuid).count();
+
+          if (count > LIMIT_PER_UUID) {
+            const extraCount = count - LIMIT_PER_UUID;
+
+            // Find the oldest favorites for this uuid
+            // We use 'last_modified' or 'id' to determine "oldest"
+            const toDelete = await db.favorite_sql
+              .where("uuid")
+              .equals(data.uuid)
+              .limit(extraCount)
+              .primaryKeys();
+
+            await db.favorite_sql.bulkDelete(toDelete);
+            console.info(
+              `Limit reached. Trimmed ${extraCount} favorites for ${data.uuid}`,
+            );
+          }
+        }
+      });
+    } catch (e) {
+      console.error("Save favorite failed:", e);
+      throw e;
+    }
+  },
+
+  getByUuid: async (uuid) => {
+    if (!uuid) return await db.favorite_sql.toArray();
+    return await db.favorite_sql.where("uuid").equals(uuid).toArray();
+  },
+
+  getDistinctUuids: async () => {
+    // Dexie's uniqueKeys() is very fast for DISTINCT operations
+    const uuids = await db.favorite_sql.orderBy("uuid").uniqueKeys();
+    return uuids as string[];
+  },
+
+  deleteById: async (id) => {
+    await db.favorite_sql.delete(id);
+  },
+
+  clearByUuid: async (uuid) => {
+    await db.favorite_sql.where("uuid").equals(uuid).delete();
+  },
+
+  deleteByConnectionName: async (name) => {
+    await db.favorite_sql.where("connection_name").equals(name).delete();
   },
 }));

@@ -27,7 +27,6 @@ import {
   isWindows,
   MonacoEditor,
   MongoLanguage,
-  QueryLogHandler,
   saveQueryKey,
   secondConfirm,
   validJson,
@@ -53,7 +52,7 @@ import { tempDir, join } from "@tauri-apps/api/path";
 import { exists, mkdir, readTextFile, writeTextFile } from "@tauri-apps/plugin-fs";
 import { ChildProcess, Command } from "@tauri-apps/plugin-shell";
 import { openPath, openUrl } from "@tauri-apps/plugin-opener";
-import { useBoolSwitch, useNotification } from "./store";
+import { useBoolSwitch, useNotification, useQueryLogStore } from "./store";
 initMongoQueryGlobals();
 
 class CompilerOutput {
@@ -520,6 +519,7 @@ function MongoQuery(props: {
   useEffect(() => {
     lastLanguage = language;
   }, [language]);
+  const { save: saveQueryLog } = useQueryLogStore();
 
   const setUpClean = (name: string, fn: () => void) => {
     setCleanFns((e) => [...e, { name, fn }]);
@@ -557,7 +557,7 @@ function MongoQuery(props: {
       return;
     }
     if (switches[saveQueryKey]) {
-      new QueryLogHandler(uuid).save(code, true, language);
+      saveQueryLog(uuid, editor.getValue(), true, language);
     }
     if (language == MongoLanguage.ts) {
       let out: CompilerOutput;

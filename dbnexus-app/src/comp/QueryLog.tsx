@@ -7,17 +7,10 @@ import {
   Modal,
   Paper,
   Stack,
-  TextField,
   Tooltip,
 } from "@mui/material";
-import {
-  DataGrid,
-  GridColDef,
-  GridPaginationModel,
-  GridSlotsComponent,
-  GridSortModel,
-} from "@mui/x-data-grid";
-import { useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
+import { DataGrid, GridColDef, GridSlotsComponent } from "@mui/x-data-grid";
+import { useCallback, useContext, useEffect, useMemo, useState } from "react";
 import {
   EscDownEvent,
   modalHandleClose,
@@ -32,7 +25,6 @@ import {
   DataSourceKind,
   getLanguageFromDataSourceKind,
   pageSizeOptions,
-  QueryLogHandler,
   saveQueryKey,
   secondConfirm,
   TabActiveContext,
@@ -49,7 +41,7 @@ import {
   useBoolSwitch,
   useColumnWidthStore,
   useNotification,
-  usePageSize,
+  useQueryLogStore,
 } from "./store.ts";
 
 const initialState: object = {
@@ -66,29 +58,13 @@ function QueryLog(props: {
 }) {
   const { uuid, showQueryLog, setShowQueryLog, executeTimes, queryId, kind } = props;
   const [selectSql, setSelectSql] = useState<{ sql: string; language: string }>(null);
-  const [page, setPage] = useState(0); // datagrid start with 0
-  const { sql: pageSize, setPageSize } = usePageSize((s) => s);
   const [logs, setLogs] = useState([]);
-  const [matchSql, setMatchSql] = useState("");
-  const [orderBy, setOrderBy] = useState("");
-  const [total, setTotal] = useState(0);
   const onRowDoubleClick = useCallback((e) => {
     setSelectSql(e.row);
   }, []);
-  const handler = useRef(new QueryLogHandler(uuid));
-  const paginationModel = useMemo(() => {
-    return { page: page, pageSize: pageSize };
-  }, [page, pageSize]);
-  const onPaginationModelChange = useCallback(
-    (e: GridPaginationModel, reason) => {
-      setPage(e.page);
-      if (reason.reason == "setPaginationModel") {
-        setPageSize("sql", e.pageSize);
-      }
-    },
-    [setPageSize],
-  );
+
   const { getColumnWidth, setColumnWidth } = useColumnWidthStore((s) => s);
+  const { query, deleteByUuid } = useQueryLogStore();
 
   const [loading, setLoading] = useState(false);
   let sqlDesc = "sql";
@@ -110,7 +86,7 @@ function QueryLog(props: {
       },
       renderCell: (params) => {
         // 加z是utc时间
-        return <div>{new Date(params.value + "Z").toLocaleString()}</div>;
+        return <div>{new Date(params.value).toLocaleString()}</div>;
       },
     },
     {
@@ -139,9 +115,7 @@ function QueryLog(props: {
     const handleReload = async () => {
       setLoading(true);
       try {
-        const total = await handler.current.queryCount(matchSql);
-        setTotal(total);
-        const logs = await handler.current.query(matchSql, page + 1, pageSize, orderBy);
+        const logs = await query(uuid);
         setLogs(logs);
       } catch (e) {
         showNotification("error", "get query log error", e);
@@ -153,7 +127,7 @@ function QueryLog(props: {
     if (showQueryLog) {
       handleReload();
     }
-  }, [page, pageSize, matchSql, orderBy, executeTimes, showQueryLog, showNotification]);
+  }, [query, showNotification, showQueryLog, uuid, executeTimes]);
 
   const onColumnResize = useCallback(
     ({ colDef, width }) => {
@@ -164,11 +138,7 @@ function QueryLog(props: {
     },
     [setColumnWidth],
   );
-  const onSortModelChange = useCallback((modal: GridSortModel) => {
-    modal = modal.filter((x) => x.sort);
-    const orderBy = modal.map((e) => `${e.field} ${e.sort}`).join(" ");
-    setOrderBy(orderBy);
-  }, []);
+
   const [modalBox, setModalBox] = useState(null);
 
   const vis = useContext(TabActiveContext);
@@ -240,15 +210,7 @@ function QueryLog(props: {
           </Tooltip>
         </StackRowCenter>
         <StackRowCenter>
-          filter {sqlDesc}:
-          <TextField
-            value={matchSql}
-            onChange={(e) => {
-              setMatchSql(e.target.value);
-            }}
-            style={{ flex: 1, maxWidth: "20rem" }}
-          />
-          {total > 0 && (
+          {logs.length > 0 && (
             <Button
               onClick={async () => {
                 try {
@@ -259,8 +221,8 @@ function QueryLog(props: {
                   if (!confirm) {
                     return;
                   }
-                  const r = await handler.current.delete();
-                  showNotification("success", `deleted ${r.rowsAffected} query log`);
+                  const rowsAffected = await deleteByUuid(uuid);
+                  showNotification("success", `deleted ${rowsAffected} query log`);
                   setShowQueryLog(false);
                 } catch (e) {
                   showNotification("error", "delete failed", e);
@@ -293,13 +255,8 @@ function QueryLog(props: {
           slots={slots}
           style={dataGridStyle}
           pageSizeOptions={pageSizeOptions}
-          paginationModel={paginationModel}
-          onPaginationModelChange={onPaginationModelChange}
           initialState={initialState}
           onColumnResize={onColumnResize}
-          onSortModelChange={onSortModelChange}
-          rowCount={total}
-          paginationMode="server"
           loading={loading}
         />
       )}

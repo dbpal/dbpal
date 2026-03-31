@@ -15,7 +15,6 @@ import { LazyStore } from "@tauri-apps/plugin-store";
 import { writeText } from "@tauri-apps/plugin-clipboard-manager";
 import { invoke } from "@tauri-apps/api/core";
 import { BSON } from "bson";
-import Database, { QueryResult } from "@tauri-apps/plugin-sql";
 import { WebviewWindow } from "@tauri-apps/api/webviewWindow";
 import { platform } from "@tauri-apps/plugin-os";
 import themelist from "../../monaco-themes/themes/themelist.json";
@@ -27,14 +26,6 @@ function prettyMs(x: number) {
   return prettyMilliseconds(x);
 }
 
-let appDatabase: Database = await (async () => {
-  try {
-    return await Database.load("sqlite:dbpal.sqlite.db");
-  } catch (e) {
-    console.error("load databas error:", e);
-  }
-})();
-
 function rustResultOk(x: any): boolean {
   if (x instanceof Array) {
     for (const e of x) {
@@ -45,54 +36,6 @@ function rustResultOk(x: any): boolean {
     return true;
   }
   return !!x["Ok"];
-}
-
-class QueryLogHandler {
-  uuid: string;
-  name: string;
-  constructor(uuid: string) {
-    this.uuid = uuid;
-    this.name = extractConfigNameFromUuid(uuid);
-  }
-  async save(sql: string, success: boolean, language?: string): Promise<void> {
-    return appDatabase
-      .execute(
-        "insert into query_log (uuid,name,sql,language,success) values (?,?,?,?,?)",
-        [this.uuid, this.name, sql, language, success ? 1 : 0],
-      )
-      .then(() => {})
-      .catch((e) => {
-        message("save query log failed,e" + String(e), { kind: "error" });
-      });
-  }
-
-  async query(
-    matchSql: string,
-    page: number,
-    pageSize: number,
-    order_by: string,
-  ): Promise<any[]> {
-    const sql = `
-    select * from query_log where uuid=? ${
-      matchSql ? `and sql like '%${matchSql}%'` : ""
-    } order by ${
-      order_by ? order_by : "create_at desc"
-    } limit ${pageSize} offset ${pageSize * (page - 1)}`;
-    console.info("query log sql:", sql);
-    return appDatabase.select(sql, [this.uuid]);
-  }
-  async queryCount(matchSql: string): Promise<number> {
-    const sql = `select count(*) as total from query_log where uuid=? ${
-      matchSql ? `and sql like '%${matchSql}%'` : ""
-    }`;
-    return appDatabase.select(sql, [this.uuid]).then((e) => (e ? e[0].total : 0));
-  }
-  async delete(): Promise<QueryResult> {
-    return appDatabase.execute("delete from query_log where uuid=?", [this.uuid]);
-  }
-  static async deleteByConnectionName(name): Promise<QueryResult> {
-    return appDatabase.execute("delete from query_log where name=?", [name]);
-  }
 }
 
 interface ConfirmOptions {
@@ -338,85 +281,6 @@ function isTypeLargeText(s: string): boolean {
   return (
     toUpper.includes("TEXT") || toUpper.includes("LONG") || toUpper.includes("CLOB")
   );
-}
-
-class FavoriteSql {
-  constructor(
-    public uuid: string,
-    public name: string,
-    public kind: DataSourceKind,
-    public sql: string,
-    public language?: string,
-    public last_modified: Date = new Date(),
-    public id?: number,
-    public connection_name?: string,
-  ) {
-    this.connection_name = extractConfigNameFromUuid(uuid);
-  }
-  async save(showNotification) {
-    try {
-      await appDatabase.execute(
-        "replace into favorite_sql(uuid,connection_name,name,kind,sql,language,last_modified) values(?,?,?,?,?,?,?)",
-        [
-          this.uuid,
-          this.connection_name,
-          this.name,
-          this.kind,
-          this.sql,
-          this.language,
-          this.last_modified,
-        ],
-      );
-      showNotification("success", "save favorite sql Ok");
-    } catch (e) {
-      showNotification("error", "save favorite sql failed", e);
-      return;
-    }
-  }
-
-  static async getDistinctUuid() {
-    return appDatabase
-      .select<{ uuid: string }[]>("SELECT DISTINCT  uuid from favorite_sql")
-      .then((x) => x.map((y) => y.uuid));
-  }
-
-  // todo performance issue????
-  static async getByUuid(uuid: string): Promise<FavoriteSql[]> {
-    let sql = "select * from favorite_sql";
-    if (uuid) {
-      sql += " where uuid=?";
-    }
-    return appDatabase.select(sql, uuid ? [uuid] : []);
-  }
-
-  static async delete(id: number, showNotification) {
-    try {
-      await appDatabase.execute("delete from favorite_sql where id=?", [id]);
-    } catch (e) {
-      showNotification("error", "save favorite sql failed", e);
-      return;
-    }
-    showNotification("success", "delete sql Ok");
-  }
-
-  static async deleteByConnectionName(name: string) {
-    try {
-      appDatabase.execute(`delete from favorite_sql where connection_name=?`, [name]);
-    } catch (e) {
-      console.error("delete all logs belong to a key failed", e);
-      return;
-    }
-  }
-
-  static async clearByUuid(showNotification, uuid: string) {
-    try {
-      appDatabase.execute(`delete from favorite_sql where uuid=?`, [uuid]);
-    } catch (e) {
-      showNotification("error", "clear favorite sql failed", e);
-      return;
-    }
-    showNotification("success", "clean OK");
-  }
 }
 
 const TabActiveContext = createContext(true);
@@ -741,7 +605,6 @@ function isDarkStr(x: string) {
 export {
   isDarkStr,
   saveQueryKey,
-  appDatabase,
   appStore,
   backendCompletionItemToEditor,
   ChatShowContext,
@@ -758,7 +621,6 @@ export {
   extractConfigNameFromUuid,
   extractFieldAndIDFromMouseEvent,
   extractLastNameFromUuid,
-  FavoriteSql,
   generateDefaultFilename,
   generateRandomString,
   getEditorText,
@@ -778,7 +640,6 @@ export {
   pageSizeOptions,
   postgresLike,
   prettyMs,
-  QueryLogHandler,
   quoteDatabaseIdentifier,
   RedisTableType,
   registeredThemes,

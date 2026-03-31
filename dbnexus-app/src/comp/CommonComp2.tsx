@@ -50,7 +50,6 @@ import {
   DataSourceKind,
   editorPositionToEnd,
   editorSetPositionAndReveal,
-  FavoriteSql,
   generateRandomString,
   getLanguageFromDataSourceKind,
   handleCopyToClipboard,
@@ -95,6 +94,7 @@ import { CustomToolbar } from "./CustomToolBar";
 import {
   useConnectionStore,
   useElementSizeStore,
+  useFavoriteStore,
   useNotification,
   UseSizeConfig,
   useSizeStore,
@@ -917,23 +917,27 @@ function SaveFavoriteSqlView(props: {
   const [favoriteName, setFavoriteName] = useState(oldName);
   const [showSetFavoriteName, setShowFavoriteName] = useState(false);
   const { showNotification } = useNotification((s) => s);
+
+  const { save } = useFavoriteStore();
   return (
     <>
       <Tooltip
         title={`save favorite sql ${favoriteName && `as named '${favoriteName}'`}`}>
         <IconButton
           onClick={async () => {
-            const sql = editor.getValue();
-            if (!sql) {
-              showNotification("warning", "can't save empty statement.");
-              return;
-            }
-            if (favoriteName) {
-              new FavoriteSql(uuid, favoriteName, kind, sql, language).save(
-                showNotification,
-              );
-            } else {
-              setShowFavoriteName(true);
+            try {
+              const sql = editor.getValue();
+              if (!sql) {
+                showNotification("warning", "can't save empty statement.");
+                return;
+              }
+              if (favoriteName) {
+                save({ uuid, name: favoriteName, kind, sql, language });
+              } else {
+                setShowFavoriteName(true);
+              }
+            } catch (e) {
+              showNotification("error", "save failed.", e);
             }
           }}
           color="primary">
@@ -974,13 +978,13 @@ function SaveFavoriteSqlView(props: {
                       return;
                     }
                     setShowFavoriteName(false);
-                    new FavoriteSql(
+                    save({
                       uuid,
-                      favoriteName,
+                      name: favoriteName,
                       kind,
-                      editor.getValue(),
+                      sql: editor.getValue(),
                       language,
-                    ).save(showNotification);
+                    });
                   }}>
                   <FaBookmark> </FaBookmark>
                 </IconButton>

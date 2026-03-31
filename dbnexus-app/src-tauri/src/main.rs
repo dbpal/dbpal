@@ -49,18 +49,17 @@ use handlers::{
 use ai::openai_invoke;
 use ai::openai_stream;
 
+use mimalloc::MiMalloc;
+use rustls::crypto::{aws_lc_rs, CryptoProvider};
+use std::fs::OpenOptions;
 use std::io::Write;
 use std::panic;
 use std::path::PathBuf;
+use std::sync::Once;
 use tauri::menu::{AboutMetadata, Menu, MenuItem, PredefinedMenuItem, Submenu};
 use tauri::{Emitter, Manager};
 #[allow(unused_imports)]
 use tauri_plugin_log::{Target, TargetKind};
-mod migration;
-use mimalloc::MiMalloc;
-use rustls::crypto::{aws_lc_rs, CryptoProvider};
-use std::fs::OpenOptions;
-use std::sync::Once;
 
 use crate::app::TaskManager;
 
@@ -231,11 +230,6 @@ fn main() {
     builder
         .plugin(tauri_plugin_shell::init())
         .plugin(tauri_plugin_autostart::Builder::new().build())
-        .plugin(
-            tauri_plugin_sql::Builder::new()
-                .add_migrations("sqlite:dbpal.sqlite.db", migration::migrations())
-                .build(),
-        )
         .plugin(tauri_plugin_process::init())
         .plugin(tauri_plugin_os::init())
         .plugin(tauri_plugin_opener::init())

@@ -35,7 +35,6 @@ import {
   handleCopyToClipboard,
   isDarkStr,
   MuiDataGridData,
-  QueryLogHandler,
   resizeHandlerSize,
   secondConfirm,
   shrinkAble,
@@ -63,7 +62,13 @@ import { Panel, PanelGroup, PanelResizeHandle } from "react-resizable-panels";
 import { QueryLog } from "./QueryLog.tsx";
 import { ExportView } from "./Export.tsx";
 import { QueryResp } from "./QueryResp.tsx";
-import { useNotification, usePageSize, UseSizeConfig, useSizeStore } from "./store.ts";
+import {
+  useNotification,
+  usePageSize,
+  useQueryLogStore,
+  UseSizeConfig,
+  useSizeStore,
+} from "./store.ts";
 import { persist } from "zustand/middleware";
 import { create } from "zustand";
 import SyntaxHighlighter from "react-syntax-highlighter";
@@ -597,6 +602,8 @@ function CouchBaseQuery(props: {
   const { viewMode, setViewMode } = useCBQueryViewStore((s) => s);
   const [tableResp, setTableResp] = useState<MuiDataGridData>(null);
   const theme = useTheme();
+
+  const { save: saveQueryLog } = useQueryLogStore();
   useEffect(() => {
     if (viewMode != CBQueryViewMode.Table) {
       return;
@@ -691,10 +698,10 @@ function CouchBaseQuery(props: {
     })
       .catch((e) => {
         showNotification("error", "query failed", e);
-        new QueryLogHandler(uuid).save(text, false);
+        saveQueryLog(uuid, text, false);
       })
       .then(() => {
-        new QueryLogHandler(uuid).save(text, true);
+        saveQueryLog(uuid, text, true);
       })
       .finally(() => {
         setLoading(false);

@@ -59,7 +59,6 @@ import {
   DataSourceKind,
   extractConfigNameFromUuid,
   extractFieldAndIDFromMouseEvent,
-  FavoriteSql,
   generateRandomString,
   handleCopyToClipboard,
   secondConfirm,
@@ -130,6 +129,8 @@ import {
   useUserSettings,
   useMatcherFn,
   useConnectionStore,
+  useFavoriteStore,
+  FavoriteSql,
 } from "./store.ts";
 import { editor } from "monaco-editor";
 const settingId = generateRandomString();
@@ -607,6 +608,7 @@ function FavoriteSqlMenu(props: {
 }) {
   const { content, id, handleReload } = props;
   const { showNotification } = useNotification((s) => s);
+  const { deleteById } = useFavoriteStore();
   return (
     <MenuList>
       {content && (
@@ -623,8 +625,12 @@ function FavoriteSqlMenu(props: {
 
       <MenuItem
         onClick={async () => {
-          await FavoriteSql.delete(id, showNotification);
-          handleReload();
+          try {
+            await deleteById(id);
+            handleReload();
+          } catch (e) {
+            showNotification("error", "delete by id failed", e);
+          }
         }}>
         <ListItemIcon>
           <DeleteForeverIcon />
@@ -638,20 +644,24 @@ function FavoriteSqlMenu(props: {
 function FavoriteSqlList() {
   const { showNotification } = useNotification((s) => s);
   const [fs, setFs] = useState<FavoriteSql[]>([]);
+
   const [sortModel, setSortModel] = useState<GridSortModel>([
     { field: "lastModified", sort: "desc" },
   ]);
+
   const [uuidFilter, setUuidFilter] = useState("");
   const [distinctUuid, setDistinctUuid] = useState<string[]>([]);
   const setting = useUserSettings((s) => s);
   const { getColumnWidth, setColumnWidth } = useColumnWidthStore((s) => s);
 
+  const { getDistinctUuids, getByUuid, clearByUuid } = useFavoriteStore();
+
   const handleReload = useCallback(
     async (showOK) => {
       try {
-        const us = await FavoriteSql.getDistinctUuid();
+        const us = await getDistinctUuids();
         setDistinctUuid(us);
-        const fs = await FavoriteSql.getByUuid(uuidFilter);
+        const fs = await getByUuid(uuidFilter);
         setFs(fs);
       } catch (e) {
         showNotification("error", "list all favorite sql failed", e);
@@ -661,7 +671,7 @@ function FavoriteSqlList() {
         showNotification("success", "fetch favorite sql ok");
       }
     },
-    [showNotification, uuidFilter],
+    [getByUuid, getDistinctUuids, showNotification, uuidFilter],
   );
 
   const { appendTab } = useTabsManage((state) => state);
@@ -690,7 +700,7 @@ function FavoriteSqlList() {
         }
         const content = (
           <AllKindChat
-            kind={row.kind}
+            kind={row.kind as DataSourceKind}
             uuid={row.uuid}
             value={row.sql}
             favoriteName={row.name}
@@ -770,7 +780,16 @@ function FavoriteSqlList() {
           return "statement";
         },
       },
-      { field: "lastModified" },
+      {
+        field: "last_modified",
+        renderCell: (params) => {
+          console.log(params.value);
+          return new Date(params.value).toLocaleString();
+        },
+        renderHeader: () => {
+          return "last modified";
+        },
+      },
     ] as GridColDef[];
     cols.forEach((e) => {
       const width = getColumnWidth(e.field);
@@ -801,7 +820,11 @@ function FavoriteSqlList() {
     if (!confirm) {
       return;
     }
-    FavoriteSql.clearByUuid(showNotification, uuidFilter);
+    try {
+      clearByUuid(uuidFilter);
+    } catch (e) {
+      showNotification("error", "clean failed", e);
+    }
   };
   const slots = useMemo(() => {
     return {
