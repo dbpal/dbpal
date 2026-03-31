@@ -63,7 +63,7 @@ function QueryLog(props: {
     setSelectSql(e.row);
   }, []);
 
-  const { getColumnWidth, setColumnWidth } = useColumnWidthStore((s) => s);
+  const { getColumnWidth, setColumnWidth } = useColumnWidthStore();
   const { query, deleteByUuid } = useQueryLogStore();
 
   const [loading, setLoading] = useState(false);
@@ -76,7 +76,7 @@ function QueryLog(props: {
       sqlDesc = "code";
       break;
   }
-  const { showNotification } = useNotification((s) => s);
+  const { showNotification } = useNotification();
   const columns = [
     {
       field: "create_at",
@@ -158,7 +158,7 @@ function QueryLog(props: {
 
   const [dom, setDom] = useState<HTMLDivElement>(null);
 
-  const { switches, setSwitch } = useBoolSwitch((s) => s);
+  const { switches, setSwitch } = useBoolSwitch();
 
   const slots = useMemo(() => {
     return {

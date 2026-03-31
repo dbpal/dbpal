@@ -46,7 +46,7 @@ import {
 function SequenceTree() {
   const { uuid, kind } = useContext(UuidContext);
   const [seq, setSeq] = useState<types.SequenceDetail[]>([]);
-  const { showNotification } = useNotification((s) => s);
+  const { showNotification } = useNotification();
   const { maxTree } = useMatcher((state) => state);
   const matchPattern = useMatcherFn();
   const reload = useCallback(() => {
@@ -154,7 +154,7 @@ function SequenceMenu(props: {
 }) {
   const { uuid, seq, reload, kind, id } = props;
   const { setCurrentTab, tabs, appendTab } = useTabsManage((state) => state);
-  const { showNotification } = useNotification((s) => s);
+  const { showNotification } = useNotification();
   const [showDrop, setShowDrop] = useState(false);
   const [cascade, setCascade] = useState(false);
   const supportCascade = [DataSourceKind.Postgres].includes(kind);

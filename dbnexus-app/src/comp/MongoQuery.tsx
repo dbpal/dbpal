@@ -196,8 +196,8 @@ function TsEditCompilerOptions(props: { handleClose: () => void }) {
   const { handleClose } = props;
   const [jsonErr, setJsonErr] = useState<ErrAndLoc | null>(null);
 
-  const { options, setOptions } = useTsOptionStore((s) => s);
-  const { showNotification } = useNotification((s) => s);
+  const { options, setOptions } = useTsOptionStore();
+  const { showNotification } = useNotification();
   const [jsonErrPos, setJsonErrPos] = useState<Position>(null);
 
   const [editor, setEditor] = useState<editor.IStandaloneCodeEditor>(null);
@@ -305,7 +305,7 @@ function TypeScript(props: {
 }) {
   const { language, setLanguage, editor, compileTime, compileDir } = props;
   const [showEditOption, setShowEditOption] = useState(false);
-  const { showNotification } = useNotification((s) => s);
+  const { showNotification } = useNotification();
   const [tscVersion, setTscVersion] = useState("");
   useEffect(() => {
     if (language == MongoLanguage.js) {
@@ -509,7 +509,7 @@ function MongoQuery(props: {
   const [executeTimes, setExecuteTimes] = useState(0);
   const [db] = useState(new MongoDBQuery(uuid));
   const [cleanFns, setCleanFns] = useState<CleanFunction[]>([]);
-  const { showNotification } = useNotification((s) => s);
+  const { showNotification } = useNotification();
   const [bson, setBson] = useState(null);
   const [language, setLanguage] = useState<MongoLanguage>(
     valueLanguage ? (valueLanguage as MongoLanguage) : lastLanguage,
@@ -547,7 +547,7 @@ function MongoQuery(props: {
     });
   }, []);
 
-  const { switches } = useBoolSwitch((s) => s);
+  const { switches } = useBoolSwitch();
   const compilerOp = useTsOptionStore((s) => s.options);
 
   const handleExecute = async () => {

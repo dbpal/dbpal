@@ -78,7 +78,7 @@ function ViewsTree(props: { viewKind: ViewKind }) {
   const { viewKind } = props;
   const { uuid } = useContext(UuidContext);
   const [views, setViews] = useState<types.ListTable[]>([]);
-  const { showNotification } = useNotification((s) => s);
+  const { showNotification } = useNotification();
   const [loading, setLoading] = useState(false);
   const [exceed, setExceed] = useState(0);
   const { maxTree } = useMatcher((state) => state);
@@ -165,7 +165,7 @@ function StatementStructure(props: {
   const { uuid, kind, view, viewKind } = props;
   const [sql, setSql] = useState("");
   const [loading, setLoading] = useState(false);
-  const { showNotification } = useNotification((s) => s);
+  const { showNotification } = useNotification();
   const handleReload = useCallback(() => {
     setLoading(true);
     createViewSql(uuid, view, viewKind)
@@ -266,7 +266,7 @@ function ViewStructure(props: {
 
 function ColumnsMenu(props: { content: string }) {
   const { content } = props;
-  const { showNotification } = useNotification((s) => s);
+  const { showNotification } = useNotification();
   return (
     <MenuList>
       {content && (
@@ -286,13 +286,13 @@ function ColumnsMenu(props: { content: string }) {
 
 function ColumnsContent(props: { uuid: string; view: string }) {
   const { uuid, view } = props;
-  const setting = useUserSettings((s) => s);
+  const setting = useUserSettings();
 
   const [fields, setFields] = useState<types.Field[]>([]);
-  const { showNotification } = useNotification((s) => s);
+  const { showNotification } = useNotification();
   const [loading, setLoading] = useState(false);
 
-  const { getColumnWidth, setColumnWidth } = useColumnWidthStore((s) => s);
+  const { getColumnWidth, setColumnWidth } = useColumnWidthStore();
   const onColumnResize = useCallback(
     ({ colDef, width }) => {
       setColumnWidth(colDef.field, width);
@@ -449,7 +449,7 @@ function ViewMenu(props: {
   viewKind: ViewKind;
 }) {
   const { view, uuid, reload, kind, viewKind } = props;
-  const { showNotification } = useNotification((s) => s);
+  const { showNotification } = useNotification();
   const [showExport, setShowExport] = useState(false);
   const handleDrop = async () => {
     const confirm = await secondConfirm({

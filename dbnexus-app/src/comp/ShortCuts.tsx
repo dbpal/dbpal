@@ -7,7 +7,7 @@ const shortCuts = getKeyShorts();
 
 function ShowCuts() {
   const shortCutsColumns: GridColDef[] = [{ field: "name" }, { field: "shorts" }];
-  const { getColumnWidth, setColumnWidth } = useColumnWidthStore((s) => s);
+  const { getColumnWidth, setColumnWidth } = useColumnWidthStore();
 
   shortCutsColumns.forEach((col) => {
     let width = getColumnWidth(col.field);

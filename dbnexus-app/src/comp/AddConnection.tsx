@@ -376,7 +376,7 @@ function DbSchemaCadidates(props: {
 }) {
   const { name, setName, label, makeConfig } = props;
   const [candidates, setCadidates] = useState([]);
-  const { showNotification } = useNotification((s) => s);
+  const { showNotification } = useNotification();
   const [loading, setLoading] = useState(false);
   const handleReload = () => {
     const config = makeConfig();
@@ -736,9 +736,9 @@ function TestConnAndSave(props: {
 }) {
   const { connectionNameDom, makeConfig, cnameDuplicated } = props;
   const [testLoading, setTestLoading] = useState(false);
-  const { showNotification } = useNotification((s) => s);
+  const { showNotification } = useNotification();
 
-  const { addConnection } = useConnectionStore((s) => s);
+  const { addConnection } = useConnectionStore();
 
   const handleTestConnection = () => {
     const config = makeConfig();

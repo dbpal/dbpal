@@ -270,7 +270,7 @@ function DatabaseOperationView(props: {
       });
   };
 
-  const { showNotification } = useNotification((s) => s);
+  const { showNotification } = useNotification();
 
   return (
     <Stack direction="row" style={{ alignItems: "center" }}>
@@ -333,9 +333,9 @@ function SqlTableView(props: {
   const [showSetWhere, setShowSetWhere] = useState(false);
   const [sort, setSort] = useState("");
   const [showSetSort, setShowSetSort] = useState(false);
-  const setting = useUserSettings((s) => s);
+  const setting = useUserSettings();
   const [page, setPage] = useState(0);
-  const { sql: pageSize, setPageSize } = usePageSize((s) => s);
+  const { sql: pageSize, setPageSize } = usePageSize();
   const [resp, setResp] = useState<MuiDataGridData>({
     sql: "",
     fields: [],
@@ -365,7 +365,7 @@ function SqlTableView(props: {
     };
   }, [removeConfirmMsg, tabCtx.id]);
   const [fetchDur, setFetchDur] = useState(0);
-  const { showNotification } = useNotification((s) => s);
+  const { showNotification } = useNotification();
   const [allowFiltering, setAllowFiltering] = useState(false);
   const [editCellInModal, setEditCellInModal] = useState<EditInModalCellData>(null);
   const [editRowInModal, setRowEditInModal] = useState<object>(null);
@@ -1168,7 +1168,7 @@ function SqlTableViewData(props: {
 
   const [loading, setLoading] = useState(false);
   const [args, setArgs] = useState(initValues);
-  const { showNotification } = useNotification((s) => s);
+  const { showNotification } = useNotification();
   const inputDoms = useRef({});
 
   const handleModify = () => {
@@ -1322,7 +1322,7 @@ function Menu(props: {
     isTable,
   } = props;
   const quoteFn = quoteDatabaseIdentifier(kind);
-  const { showNotification } = useNotification((s) => s);
+  const { showNotification } = useNotification();
   const [showFilter, setShowFilter] = useState(false);
   const [showClone, setShowClone] = useState(false);
   const quoteField = quoteFn(field);
@@ -1515,7 +1515,7 @@ function FilterOnValue(props: {
   const { content, setWhere, field, handleClose, put_value_in_sql, kind } = props;
   const compares = ["=", "<>", ">", ">=", "<", "<="];
   const [compare, setCompare] = useState(lastCompare);
-  const { showNotification } = useNotification((s) => s);
+  const { showNotification } = useNotification();
   const [formatValue, setFormatValue] = useState("");
   useEffect(() => {
     lastCompare = compare;

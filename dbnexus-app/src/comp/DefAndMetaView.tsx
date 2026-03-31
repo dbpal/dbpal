@@ -19,7 +19,7 @@ function DefAndMetasView(props: {
     def: "",
     metas: [],
   });
-  const { showNotification } = useNotification((s) => s);
+  const { showNotification } = useNotification();
   const handleReload = useCallback(
     (showOk) => {
       setLoading(true);
@@ -41,7 +41,7 @@ function DefAndMetasView(props: {
   );
   const tabCtx = useContext(TabContext);
 
-  const { setExtra, removeExtra } = useQueryExtraUI((s) => s);
+  const { setExtra, removeExtra } = useQueryExtraUI();
 
   useEffect(() => {
     setExtra(

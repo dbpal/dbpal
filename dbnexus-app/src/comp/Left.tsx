@@ -136,10 +136,10 @@ import { editor } from "monaco-editor";
 const settingId = generateRandomString();
 const showTopKey = "left-top-show";
 function LeftTop() {
-  const { matchPattern, setMatchPattern, setMaxTree, maxTree } = useMatcher((s) => s);
+  const { matchPattern, setMatchPattern, setMaxTree, maxTree } = useMatcher();
   const [matchPatterInput, setMatchPatternInput] = useState("");
-  const { showNotification } = useNotification((s) => s);
-  const { switches, setSwitch } = useBoolSwitch((s) => s);
+  const { showNotification } = useNotification();
+  const { switches, setSwitch } = useBoolSwitch();
   const show = switches[showTopKey];
   const { appendTab, setCurrentTab, tabs } = useTabsManage((state) => state);
   const [showEditFilter, setShowEditFilter] = useState(false);
@@ -403,7 +403,7 @@ function LeftTop() {
 }
 
 function CopyConnectionMenu(props: { content: string }) {
-  const { showNotification } = useNotification((s) => s);
+  const { showNotification } = useNotification();
   const { content } = props;
   return (
     <MenuList>
@@ -432,8 +432,8 @@ function CopyConnection() {
     setSortModel(e);
   }, []);
 
-  const setting = useUserSettings((s) => s);
-  const { getColumnWidth, setColumnWidth } = useColumnWidthStore((s) => s);
+  const setting = useUserSettings();
+  const { getColumnWidth, setColumnWidth } = useColumnWidthStore();
 
   const setUpMenu = useContextMenu((state) => state.setUpMenu);
 
@@ -607,7 +607,7 @@ function FavoriteSqlMenu(props: {
   handleReload: () => void;
 }) {
   const { content, id, handleReload } = props;
-  const { showNotification } = useNotification((s) => s);
+  const { showNotification } = useNotification();
   const { deleteById } = useFavoriteStore();
   return (
     <MenuList>
@@ -642,7 +642,7 @@ function FavoriteSqlMenu(props: {
 }
 
 function FavoriteSqlList() {
-  const { showNotification } = useNotification((s) => s);
+  const { showNotification } = useNotification();
   const [fs, setFs] = useState<FavoriteSql[]>([]);
 
   const [sortModel, setSortModel] = useState<GridSortModel>([
@@ -651,8 +651,8 @@ function FavoriteSqlList() {
 
   const [uuidFilter, setUuidFilter] = useState("");
   const [distinctUuid, setDistinctUuid] = useState<string[]>([]);
-  const setting = useUserSettings((s) => s);
-  const { getColumnWidth, setColumnWidth } = useColumnWidthStore((s) => s);
+  const setting = useUserSettings();
+  const { getColumnWidth, setColumnWidth } = useColumnWidthStore();
 
   const { getDistinctUuids, getByUuid, clearByUuid } = useFavoriteStore();
 
@@ -949,7 +949,7 @@ function OneConfig(props: { config: types.DBConnectionConfig }) {
 function SchemaTree(props: { schema?: string; reloadSchemas? }) {
   const { uuid, kind } = useContext(UuidContext);
   const { schema, reloadSchemas } = props;
-  const { is_connected } = useConnected((s) => s);
+  const { is_connected } = useConnected();
   const SUPPORTED_PROCEDURE_KINDS = new Set([
     DataSourceKind.MariaDB,
     DataSourceKind.Mysql,
@@ -960,7 +960,7 @@ function SchemaTree(props: { schema?: string; reloadSchemas? }) {
   ]);
 
   const conn_established = is_connected(uuid);
-  const loadingConn = useConnLoading((s) => s);
+  const loadingConn = useConnLoading();
 
   const supportProcedure = SUPPORTED_PROCEDURE_KINDS.has(kind);
   const supportUdf = new Set([
@@ -1128,10 +1128,10 @@ function DatabaseMenu(props: {
   schemas: string[];
 }) {
   const { database, uuid, reload, reloadDatabase, kind, schemas } = props;
-  const { showNotification } = useNotification((s) => s);
+  const { showNotification } = useNotification();
   const [showCreateSchema, setShowCreateSchema] = useState(false);
   const { appendTab } = useTabsManage((state) => state);
-  const { is_connected } = useConnected((s) => s);
+  const { is_connected } = useConnected();
 
   const conn_established = is_connected(uuid);
 
@@ -1233,7 +1233,7 @@ function DatabaseMenu(props: {
 function CatalogMenu(props: { uuid; reload; kind: DataSourceKind }) {
   const { uuid, reload, kind } = props;
   const [showCreateDB, setShowCreateDB] = useState(false);
-  const { is_connected } = useConnected((s) => s);
+  const { is_connected } = useConnected();
   const conn_established = is_connected(uuid);
 
   return (
@@ -1386,8 +1386,8 @@ function SchemaMenu(props: {
 }) {
   const { schema, uuid, kind, reloadSchemas } = props;
   const { appendTab } = useTabsManage((state) => state);
-  const { showNotification } = useNotification((s) => s);
-  const { is_connected } = useConnected((s) => s);
+  const { showNotification } = useNotification();
+  const { is_connected } = useConnected();
   const conn_established = is_connected(uuid);
 
   return (
@@ -1448,10 +1448,10 @@ function SchemaMenu(props: {
 
 function CatalogTree() {
   const { uuid: name, kind } = useContext(UuidContext);
-  const { showNotification } = useNotification((s) => s);
+  const { showNotification } = useNotification();
   const [databases, setDatabases] = useState<string[]>([]);
-  const { isLoading, setLoading } = useConnLoading((s) => s);
-  const { is_connected } = useConnected((s) => s);
+  const { isLoading, setLoading } = useConnLoading();
+  const { is_connected } = useConnected();
   const conn_established = is_connected(name);
   const handleReload = useCallback(() => {
     if (!conn_established) {
@@ -1508,11 +1508,11 @@ function CatalogTree() {
 
 function DatabaseTree(props: { database?: string; reloadDatabase?: () => void }) {
   const { uuid: name, kind } = useContext(UuidContext);
-  const { showNotification } = useNotification((s) => s);
+  const { showNotification } = useNotification();
   const [schemas, setSchemas] = useState<string[]>([]);
   const { database, reloadDatabase } = props;
-  const { isLoading, setLoading } = useConnLoading((s) => s);
-  const { is_connected } = useConnected((s) => s);
+  const { isLoading, setLoading } = useConnLoading();
+  const { is_connected } = useConnected();
   const matchPattern = useMatcherFn();
   const conn_established = is_connected(name);
   const handleReload = useCallback(() => {

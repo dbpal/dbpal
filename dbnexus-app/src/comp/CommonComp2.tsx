@@ -95,6 +95,7 @@ import {
   useConnectionStore,
   useElementSizeStore,
   useFavoriteStore,
+  useLLM,
   useNotification,
   UseSizeConfig,
   useSizeStore,
@@ -109,7 +110,7 @@ function CreateDatabase(props: {
   kind: DataSourceKind;
 }) {
   const { uuid, handleClose, kind } = props;
-  const { showNotification } = useNotification((s) => s);
+  const { showNotification } = useNotification();
   const [database, setDatabase] = useState("");
   const databaseDom = useRef(null);
 
@@ -298,7 +299,7 @@ function CreateSchema(props: {
 }) {
   const { uuid, handleClose, kind, schemas, handleReload } = props;
   const schemaSet = new Set(schemas);
-  const { showNotification } = useNotification((s) => s);
+  const { showNotification } = useNotification();
   const [schema, setSchema] = useState("");
   const schemaDom = useRef(null);
   const replicationStrategies = ["SimpleStrategy", "NetworkTopologyStrategy"];
@@ -560,9 +561,9 @@ function MenuConnectionInfo({ uuid }) {
 
 function ConnConfigInfo(props: { uuid }) {
   const { uuid } = props;
-  const { showNotification } = useNotification((s) => s);
+  const { showNotification } = useNotification();
   const [metas, setMetas] = useState<types.MetaValue[]>([]);
-  const { getConnection } = useConnectionStore((s) => s);
+  const { getConnection } = useConnectionStore();
 
   const handleInfo = useCallback(
     async (showOK: boolean) => {
@@ -649,7 +650,7 @@ function LoadStoreFile(props: {
 }) {
   const { getQuery, handleLoadFile, kind } = props;
   const [file, setFile] = useState("");
-  const { showNotification } = useNotification((s) => s);
+  const { showNotification } = useNotification();
   const active = useContext(TabActiveContext);
 
   const filters = useMemo(() => {
@@ -825,7 +826,7 @@ function AppMarkDown(props: {
   const { children, handlePathUrl, placeHolder } = props;
   function CustomLink(props: { href: string; children: ReactNode }) {
     const { href, children } = props;
-    const { showNotification } = useNotification((s) => s);
+    const { showNotification } = useNotification();
     const handleClick = (event) => {
       event.preventDefault();
       // 在这里处理链接点击，比如使用 Tauri API 打开链接
@@ -916,7 +917,7 @@ function SaveFavoriteSqlView(props: {
   const { favoriteName: oldName, editor, uuid, language, kind } = props;
   const [favoriteName, setFavoriteName] = useState(oldName);
   const [showSetFavoriteName, setShowFavoriteName] = useState(false);
-  const { showNotification } = useNotification((s) => s);
+  const { showNotification } = useNotification();
 
   const { save } = useFavoriteStore();
   return (
@@ -1015,7 +1016,7 @@ function SliderSize(props: {
 }) {
   const { config, notice, name } = props;
   const width = "33vw";
-  const { sizes, setSize } = useSizeStore((s) => s);
+  const { sizes, setSize } = useSizeStore();
   const size = sizes[config.key];
 
   return (
@@ -1229,7 +1230,7 @@ function CreateIndexReq(props: {
 function TypeSelect(props: { handleChange; uuid; type; style?: CSSProperties }) {
   const { handleChange, uuid, type, style } = props;
   const [types, setTypes] = useState<string[]>([]);
-  const { showNotification } = useNotification((s) => s);
+  const { showNotification } = useNotification();
   useEffect(() => {
     invoke<string[]>("list_data_types", { name: uuid })
       .then((ts) => {
@@ -1281,7 +1282,7 @@ function ColumnNullness(props: {
 function SqlDefaultValue(props: { uuid: string; defaultValue; setDefaultValue }) {
   const { uuid, defaultValue, setDefaultValue } = props;
   const [currentValue, setCurrentValue] = useState<string[]>([]);
-  const { showNotification } = useNotification((s) => s);
+  const { showNotification } = useNotification();
   useEffect(() => {
     invoke<string[]>("list_sql_current_values", { name: uuid })
       .then((ts) => {
@@ -1428,11 +1429,11 @@ function SetFilterSort(props: {
   tableName = quoteDatabaseIdentifier(kind)(tableName);
   const [editor, setEditor] = useState<editor.IStandaloneCodeEditor>(null);
   const [modalBox, setModalBox] = useState(null);
-  const { showNotification } = useNotification((s) => s);
-  const setting = useUserSettings((s) => s);
+  const { showNotification } = useNotification();
+  const setting = useUserSettings();
 
   const [selectFilter, setSelectFilter] = useState("");
-  const { getFilter, addFilter, removeFilter } = useTableFilter((s) => s);
+  const { getFilter, addFilter, removeFilter } = useTableFilter();
   const filters = getFilter(uuid, tableName);
   const formatarg = {
     tabSize: setting.editor.tabSize,
@@ -1543,21 +1544,24 @@ function ToggleChatShow(props: { do_query: () => void }) {
   const { show, setShow, doQuery } = useContext(ChatShowContext);
   // eslint-disable-next-line react-hooks/immutability
   doQuery.current = do_query;
+  const llm = useLLM();
   return (
-    <>
-      <IconButton
-        onClick={() => {
-          setShow(!show);
-        }}>
-        {show ? <ChatBubbleIcon color="success" /> : <ChatBubbleOutlineIcon />}
-      </IconButton>
-    </>
+    llm && (
+      <>
+        <IconButton
+          onClick={() => {
+            setShow(!show);
+          }}>
+          {show ? <ChatBubbleIcon color="success" /> : <ChatBubbleOutlineIcon />}
+        </IconButton>
+      </>
+    )
   );
 }
 
 function CopySql(props: { sql; style?: CSSProperties }) {
   let { sql, style } = props;
-  const { showNotification } = useNotification((s) => s);
+  const { showNotification } = useNotification();
   if (!sql) {
     return <> </>;
   }
@@ -1583,7 +1587,7 @@ function ListenElementSize(props: {
   name: string;
   set: "height" | "width" | "both";
 }) {
-  const { elements, setElement } = useElementSizeStore((s) => s);
+  const { elements, setElement } = useElementSizeStore();
   const { dom, name, set } = props;
 
   useEffect(() => {

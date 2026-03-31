@@ -59,9 +59,9 @@ function CreateTable(props: { uuid: string; kind: DataSourceKind }) {
   const [loading, setLoading] = useState(false);
   const [showQuery, setShowQuery] = useState(false);
   const [editorValue, setEditorValue] = useState("");
-  const setting = useUserSettings((s) => s);
+  const setting = useUserSettings();
   const tableNameRef = useRef<HTMLInputElement>(null);
-  const { showNotification } = useNotification((s) => s);
+  const { showNotification } = useNotification();
   const makeReq = useCallback(() => {
     {
       // check

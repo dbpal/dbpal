@@ -17,7 +17,7 @@ function MonacoEditor({ value, language, onMount, readOnly }: MonacoEditorProps)
   const [monacoInstance, setInstance] =
     useState<monaco.editor.IStandaloneCodeEditor | null>(null);
 
-  const settting = useUserSettings((s) => s);
+  const settting = useUserSettings();
 
   const options: monaco.editor.IEditorOptions & monaco.editor.IGlobalEditorOptions =
     useMemo(
