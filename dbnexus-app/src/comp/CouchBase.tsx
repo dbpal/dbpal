@@ -227,16 +227,8 @@ function CouchBaseTable(props: { uuid: string; table: string }) {
         </Stack>
         <Typography variant="h5"> {table} </Typography>
         <Stack direction="row">
-          <SliderSize
-            notice="column count"
-            config={UseSizeConfig.gridCol}
-            name="column"
-          />
-          <SliderSize
-            name="height"
-            notice="editor height"
-            config={UseSizeConfig.editorHeight}
-          />
+          <SliderSize config={UseSizeConfig.gridCol} name="column" />
+          <SliderSize name="height" config={UseSizeConfig.editorHeight} />
         </Stack>
       </Stack>
       <div
@@ -796,25 +788,12 @@ function CouchBaseQuery(props: {
             </Tooltip>
 
             {viewMode == CBQueryViewMode.Json && (
-              <SliderSize
-                notice="column count"
-                config={UseSizeConfig.gridCol}
-                name="column"
-              />
+              <SliderSize config={UseSizeConfig.gridCol} name="column" />
             )}
 
             <ToggleChatShow do_query={handleQuery} />
 
-            <SliderSize
-              config={UseSizeConfig.queryLimit}
-              notice={
-                <Typography>
-                  limit max rows can be query.we don&apos;t want OOM!!!😀
-                  <br />
-                  dbpal use Stream technology to query data,so we can query large data
-                </Typography>
-              }
-            />
+            <SliderSize config={UseSizeConfig.queryLimit} />
             <ExecutingTime loading={loading} />
           </Stack>
         </Stack>

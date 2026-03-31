@@ -783,10 +783,6 @@ function RedisSetTableContextMenu(props: { delOP: () => void; content }) {
   );
 }
 
-function LimitMaxRowNotice() {
-  return <Stack> limit the max row retrun. </Stack>;
-}
-
 const keyMatcherHelpText = "key matcher string,could be *key,key*,*key*";
 
 function RedisSetTable(props: { setKey: string; uuid: string }) {
@@ -940,10 +936,7 @@ function RedisSetTable(props: { setKey: string; uuid: string }) {
             <Stack style={{ flex: 1, alignItems: "center" }} direction="row">
               <LastFetchTime date={lastFetchTime} />
               <TimeDuration dur={fetchDur} />
-              <SliderSize
-                config={UseSizeConfig.queryLimit}
-                notice=<LimitMaxRowNotice />
-              />
+              <SliderSize config={UseSizeConfig.queryLimit} />
               <DoubleClickToModify />
             </Stack>
             <AppDataGridPagination showPageSelect />
@@ -1725,10 +1718,7 @@ function RedisZsetTable(props: { uuid: string; zsetKey: string }) {
             <Stack direction="row" style={{ flex: 1, alignItems: "center" }}>
               <LastFetchTime date={lastFetchTime} />
               <TimeDuration dur={fetchDur} />
-              <SliderSize
-                config={UseSizeConfig.queryLimit}
-                notice=<LimitMaxRowNotice />
-              />
+              <SliderSize config={UseSizeConfig.queryLimit} />
               <DoubleClickToModify />
               <ResetColumnWidth />
             </Stack>
@@ -2114,10 +2104,7 @@ function RedisHashTable(props: { hashKey: string; uuid: string }) {
             <StackRowCenter>
               <LastFetchTime date={lastFetchTime} />
               <TimeDuration dur={fetchDur} />
-              <SliderSize
-                notice=<LimitMaxRowNotice />
-                config={UseSizeConfig.queryLimit}
-              />
+              <SliderSize config={UseSizeConfig.queryLimit} />
 
               <DoubleClickToModify />
 

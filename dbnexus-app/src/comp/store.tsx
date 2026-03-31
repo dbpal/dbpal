@@ -8,7 +8,7 @@ import {
   LLMConfig,
   TabContent,
 } from "./helper";
-import { AlertColor } from "@mui/material";
+import { AlertColor, Typography } from "@mui/material";
 import React from "react";
 import { persist, PersistStorage, StorageValue } from "zustand/middleware";
 import Dexie, { type Table } from "dexie";
@@ -471,18 +471,21 @@ export class UseSizeConfig {
   min: number;
   max: number;
   step?: number;
+  notice: ReactNode;
 
   static chatMemoryKey: UseSizeConfig = {
     key: "chat-memory-k",
     min: 2,
     max: 20,
     step: 2,
+    notice: "chat memory buffer size",
   };
 
   static gridCol: UseSizeConfig = {
     key: "grid-col",
     min: 1,
     max: 6,
+    notice: "grid column count",
   };
 
   static editorHeight: UseSizeConfig = {
@@ -490,6 +493,7 @@ export class UseSizeConfig {
     min: 100,
     max: 1200,
     step: 10,
+    notice: "editor height",
   };
 
   static queryLimit: UseSizeConfig = {
@@ -497,6 +501,13 @@ export class UseSizeConfig {
     min: 100,
     max: 10_00_00,
     step: 1000,
+    notice: (
+      <Typography>
+        limit max rows can be query.we don&apos;t want OOM!!!😀
+        <br />
+        dbpal use Stream technology to query data,so we can query large data
+      </Typography>
+    ),
   };
 }
 

@@ -1,15 +1,6 @@
 import { MultiQueryResp, QueryRespData } from "./QueryResp";
 import EventNoteIcon from "@mui/icons-material/EventNote";
-import {
-  Box,
-  Checkbox,
-  Chip,
-  IconButton,
-  Modal,
-  Stack,
-  Tooltip,
-  Typography,
-} from "@mui/material";
+import { Box, Checkbox, Chip, IconButton, Modal, Stack, Tooltip } from "@mui/material";
 import { Panel, PanelGroup, PanelResizeHandle } from "react-resizable-panels";
 import PlayArrowIcon from "@mui/icons-material/PlayArrow";
 import { FaExclamation } from "react-icons/fa";
@@ -597,14 +588,7 @@ function SqlQuery(props: {
 
             <ModifyLLMConfigModal />
             <ExecutingTime loading={loading} />
-            <SliderSize
-              config={UseSizeConfig.queryLimit}
-              notice=<Typography>
-                limit max rows can be query.we don&apos;t want OOM!!!😀
-                <br />
-                dbpal use Stream technology to query data,so we can query large data
-              </Typography>
-            />
+            <SliderSize config={UseSizeConfig.queryLimit} />
             {querySomeShow.get(tabCtx.id)}
           </Stack>
           <div

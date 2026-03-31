@@ -1009,12 +1009,8 @@ function CancelButton({ handleCancel }) {
   );
 }
 
-function SliderSize(props: {
-  notice: ReactNode;
-  config: UseSizeConfig;
-  name?: string;
-}) {
-  const { config, notice, name } = props;
+function SliderSize(props: { config: UseSizeConfig; name?: string }) {
+  const { config, name } = props;
   const width = "33vw";
   const { sizes, setSize } = useSizeStore();
   const size = sizes[config.key];
@@ -1047,7 +1043,7 @@ function SliderSize(props: {
             color="success"
             step={config.step}
           />
-          {notice}
+          {config.notice}
         </Stack>
       </Paper>>
       <Chip

@@ -788,15 +788,7 @@ function SqlTableView(props: {
                   />
                 </>
               )}
-              {clientModel && (
-                <SliderSize
-                  notice=<Typography>
-                    some backend not support pagination like sql,cassandra etc,we use
-                    client model.
-                  </Typography>
-                  config={UseSizeConfig.queryLimit}
-                />
-              )}
+              {clientModel && <SliderSize config={UseSizeConfig.queryLimit} />}
               {isTable && (
                 <TableAddButton
                   handleAdd={() => {

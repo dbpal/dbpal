@@ -766,10 +766,7 @@ function SqlChatTextInput(props: {
                 <EditIcon color="secondary" />
               </IconButton>
             </Tooltip>
-            <SliderSize
-              config={UseSizeConfig.chatMemoryKey}
-              notice="chat memory buffer size"
-            />
+            <SliderSize config={UseSizeConfig.chatMemoryKey} />
             <Tooltip title="delete all content from the editor before we receive the response">
               <FormControlLabel
                 control={
