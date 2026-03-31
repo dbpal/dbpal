@@ -1022,7 +1022,7 @@ export class MyDatabase extends Dexie {
   constructor() {
     super("AppDatabase");
     this.version(1).stores({
-      query_log: "++id, uuid, name,[uuid+create_at]",
+      query_log: "++id,id,uuid,name,[uuid+create_at]",
       // [uuid+name] creates the unique constraint logic
       favorite_sql: "++id, uuid, name, connection_name, &[uuid+name]",
     });

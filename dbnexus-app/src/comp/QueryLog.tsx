@@ -273,7 +273,9 @@ function QueryLog(props: {
           onClose={modalHandleClose((e: EscDownEvent) => {
             e.preventDefault();
             setSelectSql(null);
-          })}>
+          })}
+          disableEnforceFocus
+          disableAutoFocus>
           <Box
             sx={{ resize: "both", ...modalStyle }}
             ref={setModalBox}

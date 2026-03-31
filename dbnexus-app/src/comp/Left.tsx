@@ -589,7 +589,7 @@ function Left() {
                 kind: connTypeToDataSourceKind(e.conn_type),
               }}
               key={e.name}>
-              <OneConfig key={e.name} config={e} />
+              <AConnection key={e.name} config={e} />
             </UuidContext.Provider>
           );
         })}
@@ -892,7 +892,7 @@ function FavoriteSqlList() {
   );
 }
 
-function OneConfig(props: { config: types.DBConnectionConfig }) {
+function AConnection(props: { config: types.DBConnectionConfig }) {
   const { config } = props;
   const makeTree = () => {
     switch (config.conn_type) {

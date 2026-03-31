@@ -888,7 +888,7 @@ function RedisSetTable(props: { setKey: string; uuid: string }) {
         onContextMenu: (e) => {
           const { target } = e;
           const { field, id } = extractFieldAndIDFromMouseEvent(e);
-          if (field) {
+          if (!field) {
             return;
           }
           const content = (target as HTMLDivElement).innerHTML;
@@ -1023,7 +1023,9 @@ function RedisSetTable(props: { setKey: string; uuid: string }) {
           onClose={modalHandleClose((e: EscDownEvent) => {
             e.preventDefault();
             setSelectRow(null);
-          })}>
+          })}
+          disableAutoFocus
+          disableEnforceFocus>
           <Box
             sx={{ resize: "both", ...modalStyle }}
             width="80%"
@@ -1155,7 +1157,9 @@ function AddTable(props: {
           onClose={modalHandleClose((e: EscDownEvent) => {
             e.preventDefault();
             setShowAdd(false);
-          })}>
+          })}
+          disableAutoFocus
+          disableEnforceFocus>
           <Box
             sx={{ resize: "both", ...modalStyle }}
             width="80%"
@@ -1455,7 +1459,9 @@ function RedisListTable(props: { listKey: string; uuid: string }) {
           onClose={modalHandleClose((e: EscDownEvent) => {
             e.preventDefault();
             setSelectRow(null);
-          })}>
+          })}
+          disableAutoFocus
+          disableEnforceFocus>
           <Box
             sx={{ resize: "both", ...modalStyle }}
             width="80%"
@@ -1864,7 +1870,9 @@ function RedisZsetTable(props: { uuid: string; zsetKey: string }) {
           onClose={modalHandleClose((e: EscDownEvent) => {
             e.preventDefault();
             setSelectRow(null);
-          })}>
+          })}
+          disableAutoFocus
+          disableEnforceFocus>
           <Box
             sx={{ resize: "both", ...modalStyle }}
             width="80%"
@@ -2194,7 +2202,9 @@ function RedisHashTable(props: { hashKey: string; uuid: string }) {
           onClose={modalHandleClose((e: EscDownEvent) => {
             e.preventDefault();
             setSelectRow(null);
-          })}>
+          })}
+          disableAutoFocus
+          disableEnforceFocus>
           <Box
             sx={{ resize: "both", ...modalStyle }}
             width="80%"

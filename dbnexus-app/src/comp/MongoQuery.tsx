@@ -394,6 +394,8 @@ function TypeScript(props: {
       )}
       {showEditOption && (
         <Modal
+          disableAutoFocus
+          disableEnforceFocus
           open={showEditOption}
           onClose={modalHandleClose((e: EscDownEvent) => {
             e.preventDefault();
