@@ -498,7 +498,7 @@ export class UseSizeConfig {
 
   static queryLimit: UseSizeConfig = {
     key: "query-limit",
-    min: 100,
+    min: 10000,
     max: 10_00_00,
     step: 1000,
     notice: (
