@@ -13,6 +13,7 @@ mod tests {
         SequenceDetail, ShowTableParameter, SqlEvent, SqlNullAble, UdfOrProcedureExtraParameter,
     };
     use dbnexus_db::language_server::CompletionList;
+    use dbnexus_db::redis::RedisListTable;
 
     use crate::app::{OpenAIReq, SetZoom};
     #[test]
@@ -26,7 +27,6 @@ mod tests {
             TriggerDetail, TriggerEnable, TriggerEvent, TriggerTiming,
         };
         use dbnexus_db::language_server::{CompletionItem, CompletionKind};
-        use dbnexus_db::redis::RedisListTable;
         use std::path::Path;
         use typescript_type_def::{
             write_definition_file_from_type_infos, DefinitionFileOptions, TypeDef,
@@ -52,7 +52,6 @@ mod tests {
             &Index::INFO,
             &NamedStaff::INFO,
             &ExportKind::INFO,
-            &RedisListTable::INFO,
             &TriggerDetail::INFO,
             &TriggerEvent::INFO,
             &TriggerTiming::INFO,
@@ -92,6 +91,7 @@ mod tests {
             &CouchBaseBucketType::INFO,
             &OpenAIReq::INFO,
             &SetZoom::INFO,
+            &RedisListTable::INFO,
         ];
         let options: DefinitionFileOptions = DefinitionFileOptions::default();
         write_definition_file_from_type_infos(&mut file, options, &api).unwrap();

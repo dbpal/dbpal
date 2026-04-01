@@ -362,7 +362,7 @@ pub async fn mongo_list_time_serial_collection(
 }
 
 #[tauri::command]
-pub async fn redis_list_table(
+pub async fn redis_list_key(
     name: String,
     filter: Option<String>,
     max: usize,
@@ -372,7 +372,7 @@ pub async fn redis_list_table(
     random_error()?;
     let db = app.get_schema(&name).await.map_err(ErrorFrontend::from)?;
     match db.as_any().downcast_ref::<RedisDB>() {
-        Some(x) => x.redis_list_table(filter.as_deref(), max).await,
+        Some(x) => x.redis_list_key(filter.as_deref(), max).await,
         None => return Err(ErrorFrontend::from(format!("'{}' not a redis", name))),
     }
     .map_err(ErrorFrontend::from)

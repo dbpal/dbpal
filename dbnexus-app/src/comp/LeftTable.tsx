@@ -793,7 +793,7 @@ function RenameTable(props: {
 }
 
 function RedisOneTableKind(props: {
-  tables: string[];
+  tables: types.ListTable[];
   typ: RedisTableType;
   kind: DataSourceKind;
   handleReload;
@@ -840,9 +840,13 @@ function RedisOneTableKind(props: {
       </Stack>>
       {tables.map((table) => (
         <TreeItem
-          key={table}
-          itemId={uuid + "-key-" + name + "-" + table}
+          key={table.name}
+          itemId={uuid + "-key-" + name + "-" + table.name + table.rand}
           label=<Stack
+            style={{
+              justifyContent: "space-between",
+              alignItems: "center",
+            }}
             direction="row"
             onContextMenu={(e) => {
               setUpMenu({
@@ -850,7 +854,7 @@ function RedisOneTableKind(props: {
                   <TableMenu
                     kind={kind}
                     reload={handleReload}
-                    table={table}
+                    table={table.name}
                     uuid={uuid}
                     redisTableType={typ}
                   />
@@ -858,7 +862,30 @@ function RedisOneTableKind(props: {
                 event: e,
               });
             }}>
-            <span style={textEllipsisStyle}> {table} </span>
+            <Stack style={{ flexShrink: 1 }} direction="row">
+              <span style={textEllipsisStyle}> {table.name} </span>
+              &nbsp;
+            </Stack>
+
+            {table.size && (
+              <Tooltip
+                title={(function () {
+                  switch (typ) {
+                    case RedisTableType.String:
+                      return "";
+                    case RedisTableType.List:
+                      return `a list of ${table.size}`;
+                    case RedisTableType.Set:
+                      return `set with ${table.size} elements`;
+                    case RedisTableType.Zset:
+                      return `zset with ${table.size} elements`;
+                    case RedisTableType.Hash:
+                      return `hash with ${table.size} elements`;
+                  }
+                })()}>
+                <span style={textEllipsisStyle}> {table.size} </span>
+              </Tooltip>
+            )}
           </Stack>
         />
       ))}
@@ -876,7 +903,7 @@ function RedisTables() {
 
   const handleReload = useCallback(() => {
     setLoading(true);
-    invoke<types.RedisListTable>("redis_list_table", {
+    invoke<types.RedisListTable>("redis_list_key", {
       name: uuid,
       filter: filter ? filter : null,
       max,

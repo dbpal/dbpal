@@ -1680,7 +1680,7 @@ pub trait QuerySql: GetBackendKind + Send + Sync + 'static + LanguageServer {
     async fn close_connection(&self, id: &str) -> anyhow::Result<()>;
 }
 
-#[derive(Debug, serde::Serialize, TypeDef)]
+#[derive(Debug, serde::Serialize, TypeDef, Clone)]
 pub struct ListTable {
     pub name: String,
     pub size: Option<u64>,

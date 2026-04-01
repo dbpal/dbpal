@@ -378,14 +378,6 @@ export namespace types {
     }) | {
         "export_kind": "markdown";
     });
-    export type RedisListTable = {
-        "string_tables": (string)[];
-        "list_tables": (string)[];
-        "set_tables": (string)[];
-        "hash_tables": (string)[];
-        "zset_tables": (string)[];
-        "has_more": boolean;
-    };
     export type TriggerTiming = ("Before" | "After" | "InsteadOf" | {
         "String": string;
     });
@@ -529,4 +521,12 @@ export namespace types {
         "images": (string)[];
     };
     export type SetZoom = ("in" | "out" | "reset");
+    export type RedisListTable = {
+        "string_tables": (types.ListTable)[];
+        "list_tables": (types.ListTable)[];
+        "set_tables": (types.ListTable)[];
+        "hash_tables": (types.ListTable)[];
+        "zset_tables": (types.ListTable)[];
+        "has_more": boolean;
+    };
 }

@@ -86,13 +86,13 @@ impl std::fmt::Debug for RedisDB {
     }
 }
 
-#[derive(Clone, Debug, serde::Serialize, Default, TypeDef)]
+#[derive(Clone, Debug, serde::Serialize, TypeDef, Default)]
 pub struct RedisListTable {
-    string_tables: Vec<String>,
-    list_tables: Vec<String>,
-    set_tables: Vec<String>,
-    hash_tables: Vec<String>,
-    zset_tables: Vec<String>,
+    string_tables: Vec<ListTable>,
+    list_tables: Vec<ListTable>,
+    set_tables: Vec<ListTable>,
+    hash_tables: Vec<ListTable>,
+    zset_tables: Vec<ListTable>,
     has_more: bool,
 }
 
@@ -1259,17 +1259,19 @@ impl SchemaTrait for RedisDB {
 }
 
 impl RedisDB {
-    pub async fn redis_list_table(
+    pub async fn redis_list_key(
         &self,
         filter: Option<&str>,
         max: usize,
     ) -> anyhow::Result<RedisListTable> {
         let mut conn = self.get_conn().await?;
         let mut stream: AsyncIter<'_, String> = conn.scan_match(filter.unwrap_or("*")).await?;
-        let mut ret = RedisListTable::default();
         let mut count: usize = 0;
         let mut has_more = false;
         let mut tables_no_table = vec![];
+
+        let mut ret = RedisListTable::default();
+
         while let Some(table) = stream.next_item().await {
             let table = table?;
             tables_no_table.push(table);
@@ -1282,12 +1284,32 @@ impl RedisDB {
         drop(stream);
         for table in tables_no_table {
             let typ = Self::get_key_type(&mut conn, &table).await?;
+
+            let size = match typ {
+                RedisType::String => None,
+                RedisType::List => {
+                    let size: u64 = conn.llen(&table).await?;
+                    Some(size)
+                }
+                RedisType::Set => {
+                    let size: u64 = conn.scard(&table).await?;
+                    Some(size)
+                }
+                RedisType::Hash => {
+                    let size: u64 = conn.hlen(&table).await?;
+                    Some(size)
+                }
+                RedisType::Zset => {
+                    let size: u64 = conn.zcard(&table).await?;
+                    Some(size)
+                }
+            };
             match typ {
-                RedisType::String => ret.string_tables.push(table),
-                RedisType::List => ret.list_tables.push(table),
-                RedisType::Set => ret.set_tables.push(table),
-                RedisType::Hash => ret.hash_tables.push(table),
-                RedisType::Zset => ret.zset_tables.push(table),
+                RedisType::String => ret.string_tables.push(ListTable::new(table, size)),
+                RedisType::List => ret.list_tables.push(ListTable::new(table, size)),
+                RedisType::Set => ret.set_tables.push(ListTable::new(table, size)),
+                RedisType::Hash => ret.hash_tables.push(ListTable::new(table, size)),
+                RedisType::Zset => ret.zset_tables.push(ListTable::new(table, size)),
             }
         }
         ret.has_more = has_more;
@@ -1842,7 +1864,7 @@ db1:keys=1,expires=0,avg_ttl=0"#,
         enable_test_log();
         let db = make_test_object().await;
         tokio::time::sleep(Duration::from_secs(2)).await;
-        let redis_tables = db.redis_list_table(None, 100).await.unwrap();
+        let redis_tables = db.redis_list_key(None, 100).await.unwrap();
         println!("redis string tables:{:?}", redis_tables.string_tables);
         println!("redis hash tables  :{:?}", redis_tables.hash_tables);
         println!("redis zset tables  :{:?}", redis_tables.zset_tables);
