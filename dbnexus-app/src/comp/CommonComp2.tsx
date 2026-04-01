@@ -81,7 +81,6 @@ import { MetaValueView, ModalHeader, SelectPageSize } from "./CommonComp";
 import { readFile, writeTextFile } from "@tauri-apps/plugin-fs";
 import { save, open, DialogFilter, message } from "@tauri-apps/plugin-dialog";
 import ReactMarkdown from "react-markdown";
-import { vs, vscDarkPlus } from "react-syntax-highlighter/dist/esm/styles/prism";
 import { styled, useTheme } from "@mui/material/styles";
 import { openUrl } from "@tauri-apps/plugin-opener";
 import {
@@ -909,10 +908,6 @@ function AppMarkDown(props: {
   );
 }
 
-function syntaxHightLightTheme(isDark: boolean) {
-  return isDark ? vscDarkPlus : vs;
-}
-
 function UrlDocument(props: { url: string }) {
   const { url } = props;
   return (
@@ -1662,7 +1657,6 @@ export {
   LoadStoreFile,
   AppMarkDown,
   UrlDocument,
-  syntaxHightLightTheme,
   SaveFavoriteSqlView,
   CancelButton,
   SliderSize,
