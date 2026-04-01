@@ -136,11 +136,12 @@ function TabsWithContent(props: {
               key={tab.id}
               label=<Tooltip title={tab.header}>
                 <Chip
-                  color={selectIndex == index ? "primary" : "default"}
+                  color={selectIndex == index ? "success" : "default"}
                   icon={tab.icon}
                   style={{
                     textTransform: "none",
                     alignItems: "center",
+                    fontWeight: selectIndex == index ? "bolder" : undefined,
                   }}
                   deleteIcon={
                     tabConfirmMsg.get(tab.id) ? (
