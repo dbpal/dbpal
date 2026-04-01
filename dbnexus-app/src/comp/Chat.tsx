@@ -180,10 +180,12 @@ type DatabaseElements = {
   views: types.ListTable[];
   materializedViews: types.ListTable[];
   udfs: types.NamedStaff[];
+
   types: types.CreatedTypeDef[];
   events: types.SqlEvent[];
   sequences: types.SequenceDetail[];
   cassandraAggs: types.NamedStaff[];
+
   procedures: types.NamedStaff[];
   uuid: string;
 };
@@ -373,6 +375,34 @@ human:{question}
       ret += `==============================database ${extractLastNameFromUuid(
         elements.uuid,
       )}==============================\n`;
+
+      if (elements.tables.length > 0) {
+        ret += `we have fellow tables: ${elements.tables.map((x) => x.name).join(",")}\n`;
+      }
+      if (elements.views.length > 0) {
+        ret += `we have fellow view: ${elements.views.map((x) => x.name).join(",")}\n`;
+      }
+      if (elements.materializedViews.length > 0) {
+        ret += `we have fellow materialized view: ${elements.materializedViews.map((x) => x.name).join(",")}\n`;
+      }
+      if (elements.udfs.length > 0) {
+        ret += `we have fellow user define function: ${elements.udfs.map((x) => x.name).join(",")}\n`;
+      }
+      if (elements.types.length > 0) {
+        ret += `we have fellow user define type: ${elements.types.map((x) => x.name).join(",")}\n`;
+      }
+      if (elements.events.length > 0) {
+        ret += `we have fellow user define event:  ${elements.events.map((x) => x.name).join(",")}\n`;
+      }
+      if (elements.sequences.length > 0) {
+        ret += `we have fellow user define sequence: ${elements.sequences.map((x) => x.name).join(",")}\n`;
+      }
+      if (elements.cassandraAggs.length > 0) {
+        ret += `we have fellow user define aggregate function: ${elements.cassandraAggs.map((x) => x.name).join(",")}\n`;
+      }
+      if (elements.procedures.length > 0) {
+        ret += `we have fellow user define procedure:  ${elements.procedures.map((x) => x.name).join(",")}\n`;
+      }
 
       for (const table of elements.tables) {
         if (!this.question.includes(table.name)) {
