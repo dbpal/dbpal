@@ -1,13 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import {
-  Stack,
-  MenuItem,
-  MenuList,
-  Tabs,
-  Tab,
-  Tooltip,
-  Typography,
-} from "@mui/material";
+import { Stack, MenuItem, MenuList, Tabs, Tab, Tooltip, Chip } from "@mui/material";
 import CloseIcon from "@mui/icons-material/Close";
 import { secondConfirm, TabContext, TabContent, TabActiveContext } from "./helper";
 
@@ -90,13 +82,6 @@ function TabsMenu(props: {
   );
 }
 
-function getLength(header: string, width: number, tabs: TabContent[]) {
-  let total: number = tabs.reduce((acc, cur) => {
-    return acc + cur.header.length;
-  }, 0);
-  return (width * header.length * 1.5) / total;
-}
-
 function TabsWithContent(props: {
   tabs: TabContent[];
   handleClose: (index: number) => void;
@@ -144,18 +129,36 @@ function TabsWithContent(props: {
           "& .MuiTab-root": { minHeight: 36, px: 0.4 }, // 高度36px，左右12px
         }}>
         {tabs.map((tab, index) => {
-          const max = getLength(tab.header, tabWidth, tabs);
+          const max = (tabWidth * 2.2) / tabs.length;
           return (
             <Tab
-              style={{ maxWidth: index == selectIndex ? undefined : max + "px" }}
+              style={{ maxWidth: max + "px" }}
               key={tab.id}
               label=<Tooltip title={tab.header}>
-                <Stack
-                  direction="row"
+                <Chip
+                  color={selectIndex == index ? "primary" : "default"}
+                  icon={tab.icon}
                   style={{
                     textTransform: "none",
                     alignItems: "center",
                   }}
+                  deleteIcon={
+                    tabConfirmMsg.get(tab.id) ? (
+                      <IconModifed />
+                    ) : (
+                      <CloseIcon
+                        onClick={() => {
+                          handleClose(index);
+                        }}
+                        style={{ fontSize: "0.9rem" }}
+                        color="warning"
+                      />
+                    )
+                  }
+                  onDelete={() => {
+                    handleClose(index);
+                  }}
+                  label={tab.header}
                   onContextMenu={(e) => {
                     setUpMenu({
                       content: (
@@ -170,33 +173,8 @@ function TabsWithContent(props: {
                       ),
                       event: e,
                     });
-                  }}>
-                  {tabs.length <= 8 && max > 100 ? tab.icon : undefined}
-                  <Typography
-                    style={{
-                      fontWeight: index == selectIndex ? "bolder" : undefined,
-                      minWidth: "2rem",
-                      whiteSpace: "nowrap",
-                      overflow: "hidden",
-                      textOverflow: "clip",
-                      flex: 1,
-                      fontSize: index == selectIndex ? "1.1rem" : "1rem",
-                    }}>
-                    {tab.header}
-                  </Typography>
-
-                  {tabConfirmMsg.get(tab.id) ? (
-                    <IconModifed />
-                  ) : (
-                    <CloseIcon
-                      onClick={() => {
-                        handleClose(index);
-                      }}
-                      style={{ fontSize: "0.9rem" }}
-                      color="warning"
-                    />
-                  )}
-                </Stack>
+                  }}
+                />
               </Tooltip>
             />
           );

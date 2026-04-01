@@ -62,12 +62,13 @@ import {
   TableType,
   shrinkAble,
   TabContent,
+  textEllipsisStyle,
 } from "./helper";
 import { ExceedMaxTreeItem, MenuRefresh, ModalHeader } from "./CommonComp";
 import { TableStructure } from "./TableStructure";
 import { cancelTask, listTable, makeTableInsertFn, showTableColumn } from "./handlers";
 import { filesize } from "filesize";
-import { CancelButton, CopySql, StackRowCenter } from "./CommonComp2";
+import { CancelButton, CopySql } from "./CommonComp2";
 import { CouchBaseTable } from "./CouchBase";
 import {
   useMatcher,
@@ -199,9 +200,10 @@ function TableTree(props: {
               event: e,
             });
           }}>
-          <StackRowCenter>
-            <TableViewIcon> </TableViewIcon> <span>{table}</span>
-          </StackRowCenter>
+          <Stack direction="row" sx={{ alignItems: "center", flex: 1, minWidth: 0 }}>
+            <TableViewIcon sx={{ flexShrink: 0 }} /> {/* 图标不收缩 */}
+            <span style={textEllipsisStyle}>{table}</span>
+          </Stack>{" "}
           {size && (
             <span style={{ ...shrinkAble, minWidth: 0 }}>
               {filesize(size, { round: 0 })}
@@ -284,28 +286,29 @@ function DropTable(props: {
     </Stack>
   );
 }
+interface RedisViewTableProps {
+  uuid: string;
+  table: string;
+  redisType: RedisTableType;
+}
 
-function makeRedisViewTable(uuid, table, redisType: RedisTableType) {
-  let tableList;
+// 1. Rename to start with an Uppercase letter
+function RedisViewTable({ uuid, table, redisType }: RedisViewTableProps) {
+  // 2. Using a mapping object is cleaner than a switch statement
   switch (redisType) {
     case RedisTableType.String:
-      tableList = <RedisStringTable uuid={uuid} stringKey={table} />;
-      break;
+      return <RedisStringTable uuid={uuid} stringKey={table} />;
     case RedisTableType.List:
-      tableList = <RedisListTable uuid={uuid} listKey={table} />;
-      break;
-
+      return <RedisListTable uuid={uuid} listKey={table} />;
     case RedisTableType.Set:
-      tableList = <RedisSetTable setKey={table} uuid={uuid} />;
-      break;
+      return <RedisSetTable uuid={uuid} setKey={table} />;
     case RedisTableType.Zset:
-      tableList = <RedisZsetTable zsetKey={table} uuid={uuid} />;
-      break;
+      return <RedisZsetTable uuid={uuid} zsetKey={table} />;
     case RedisTableType.Hash:
-      tableList = <RedisHashTable hashKey={table} uuid={uuid} />;
-      break;
+      return <RedisHashTable uuid={uuid} hashKey={table} />;
+    default:
+      return null; // Fallback for safety
   }
-  return tableList;
 }
 
 function makeViewTable(
@@ -332,7 +335,9 @@ function makeViewTable(
       tableList = <SqlTableView isTable tableName={table} uuid={uuid} kind={kind} />;
       break;
     case DataSourceKind.Redis:
-      tableList = makeRedisViewTable(uuid, table, redisTableType);
+      tableList = (
+        <RedisViewTable uuid={uuid} table={table} redisType={redisTableType} />
+      );
       break;
     case DataSourceKind.Mongo:
       tableList = <MongoTable uuid={uuid} table={table} isTable />;
@@ -440,9 +445,7 @@ function TableMenu(props: {
   const handleViewData = () => {
     const id = uuid + "-table-" + generateRandomString(10);
     const tableList: ReactNode = makeViewTable(uuid, table, kind, redisTableType);
-    appendTab(
-      new TabContent(id, table, tableList, <TableViewIcon className="tab-icon-size" />),
-    );
+    appendTab(new TabContent(id, table, tableList, <TableViewIcon />));
   };
   const handleAddData = async () => {
     const id = generateRandomString(10);
@@ -457,7 +460,7 @@ function TableMenu(props: {
           table={table}
           redisTableType={redisTableType}
         />,
-        <TableViewIcon className="tab-icon-size" />,
+        <TableViewIcon />,
       ),
     );
   };
@@ -473,7 +476,7 @@ function TableMenu(props: {
           id,
           `${table}`,
           <TableStructure kind={kind} table={table} uuid={uuid} />,
-          <IoConstructOutline className="tab-icon-size" />,
+          <IoConstructOutline />,
         ),
       );
     }
@@ -855,7 +858,7 @@ function RedisOneTableKind(props: {
                 event: e,
               });
             }}>
-            <span> {table} </span>
+            <span style={textEllipsisStyle}> {table} </span>
           </Stack>
         />
       ))}
@@ -1007,4 +1010,4 @@ function RedisTables() {
   );
 }
 
-export { TablesTree, RedisTables, makeRedisViewTable, AddTableView };
+export { TablesTree, RedisTables, RedisViewTable, AddTableView };

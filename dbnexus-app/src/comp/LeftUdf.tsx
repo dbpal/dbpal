@@ -148,7 +148,7 @@ function UdfMenu(props: {
             kind={kind}
             uuid={uuid}
           />,
-          <TbMathFunction className="tab-icon-size" />,
+          <TbMathFunction />,
         ),
       );
     }
@@ -226,7 +226,7 @@ function CassandraAggregateMenu(props: {
             uuid={uuid}
             kind={DataSourceKind.Cassandra}
           />,
-          <MdFunctions className="tab-icon-size" />,
+          <MdFunctions />,
         ),
       );
     }

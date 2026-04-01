@@ -51,6 +51,7 @@ import {
   handleCopyToClipboard,
   secondConfirm,
   TabContent,
+  textEllipsisStyle,
   UuidContext,
   ViewKind,
 } from "./helper";
@@ -429,8 +430,8 @@ function ViewTree(props: { view: string; reload; viewKind: ViewKind; size?: numb
               event: e,
             });
           }}>
-          <Stack direction="row">
-            {icon} <span> {view} </span>
+          <Stack direction="row" style={{ alignItems: "center", flex: 1, minWidth: 0 }}>
+            {icon} <span style={textEllipsisStyle}> {view} </span>
           </Stack>
           {viewKind == ViewKind.MaterializedView && size && (
             <span> {filesize(size, { round: 0 })} </span>
@@ -515,9 +516,7 @@ function ViewMenu(props: {
         showNotification("error", `data source ${kind} need impl view`);
     }
 
-    appendTab(
-      new TabContent(id, view, list, <VisibilityIcon className="tab-icon-size" />),
-    );
+    appendTab(new TabContent(id, view, list, <VisibilityIcon />));
   };
 
   const handleStructure = () => {
@@ -531,7 +530,7 @@ function ViewMenu(props: {
           id,
           `${view}`,
           <ViewStructure view={view} uuid={uuid} kind={kind} viewKind={viewKind} />,
-          <IoConstructOutline className="tab-icon-size" />,
+          <IoConstructOutline />,
         ),
       );
     }

@@ -81,9 +81,8 @@ import { MetaValueView, ModalHeader, SelectPageSize } from "./CommonComp";
 import { readFile, writeTextFile } from "@tauri-apps/plugin-fs";
 import { save, open, DialogFilter, message } from "@tauri-apps/plugin-dialog";
 import ReactMarkdown from "react-markdown";
-import { oneDark, oneLight } from "react-syntax-highlighter/dist/esm/styles/prism";
+import { vs, vscDarkPlus } from "react-syntax-highlighter/dist/esm/styles/prism";
 import { styled, useTheme } from "@mui/material/styles";
-import { Prism as SyntaxHighlighter } from "react-syntax-highlighter";
 import { openUrl } from "@tauri-apps/plugin-opener";
 import {
   gridPageCountSelector,
@@ -105,6 +104,32 @@ import {
   useUserSettings,
 } from "./store";
 import { MonacoEditor } from "./Editor";
+
+import { Highlight, themes } from "prism-react-renderer";
+
+function AppCode(props: { codeBlock: string; language: string }) {
+  const theme = useTheme();
+  const { codeBlock, language } = props;
+  return (
+    <Highlight
+      theme={theme.palette.mode == "dark" ? themes.vsDark : themes.vsLight}
+      code={codeBlock}
+      language={language}>
+      {({ style, tokens, getLineProps, getTokenProps }) => (
+        <pre style={style}>
+          {tokens.map((line, i) => (
+            <div key={i} {...getLineProps({ line })}>
+              <span>{i + 1}</span>
+              {line.map((token, key) => (
+                <span key={key} {...getTokenProps({ token })} />
+              ))}
+            </div>
+          ))}
+        </pre>
+      )}
+    </Highlight>
+  );
+}
 function CreateDatabase(props: {
   uuid: string;
   handleClose: () => void;
@@ -546,7 +571,7 @@ function MenuConnectionInfo({ uuid }) {
         generateRandomString(),
         uuid,
         <ConnConfigInfo uuid={uuid} />,
-        <IoMdInformationCircleOutline className="tab-icon-size" />,
+        <IoMdInformationCircleOutline />,
       ),
     );
   };
@@ -866,14 +891,10 @@ function AppMarkDown(props: {
           code({ className, children, ...props }) {
             const match = /language-(\w+)/.exec(className || "");
             return match ? (
-              <SyntaxHighlighter
-                //@ts-ignore
-                style={syntaxHightLightTheme()} // Apply the chosen theme
+              <AppCode
                 language={match[1]}
-                PreTag="div"
-                {...props}>
-                {String(children).replace(/\n$/, "")}
-              </SyntaxHighlighter>
+                codeBlock={String(children).replace(/\n$/, "")}
+              />
             ) : (
               <code className={className} {...props}>
                 {children}
@@ -889,7 +910,7 @@ function AppMarkDown(props: {
 }
 
 function syntaxHightLightTheme(isDark: boolean) {
-  return isDark ? oneDark : oneLight;
+  return isDark ? vscDarkPlus : vs;
 }
 
 function UrlDocument(props: { url: string }) {
@@ -1661,4 +1682,5 @@ export {
   CopySql,
   IconModifed,
   ListenElementSize,
+  AppCode,
 };

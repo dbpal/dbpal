@@ -606,14 +606,14 @@ function UdfNameAndParameters(props: { udf: types.NamedStaff; kind: DataSourceKi
 
   return (
     <>
-      <Typography>{udf.name}</Typography>
+      <span style={textEllipsisStyle}>{udf.name}</span>
       {parameter && (
         <Typography
           color="success"
           style={{
+            ...textEllipsisStyle,
             fontStyle: "italic",
             fontSize: "0.8rem",
-            ...textEllipsisStyle,
           }}>
           ({parameter})
         </Typography>

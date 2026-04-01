@@ -13,6 +13,7 @@ import {
   generateRandomString,
   secondConfirm,
   TabContent,
+  textEllipsisStyle,
   UuidContext,
 } from "./helper";
 import { ExceedMaxTreeItem, MenuRefresh } from "./CommonComp";
@@ -103,7 +104,7 @@ function EventsTree() {
                 }}
                 sx={{ alignItems: "center" }}>
                 <MdOutlineEventRepeat />
-                <span> {event.name} </span>
+                <span style={textEllipsisStyle}> {event.name} </span>
               </Stack>
             />
           );
@@ -142,7 +143,7 @@ function EventMenu(props: {
             kind={kind}
             uuid={uuid}
           />,
-          <MdOutlineEventRepeat className="tab-icon-size" />,
+          <MdOutlineEventRepeat />,
         ),
       );
     }

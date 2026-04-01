@@ -150,7 +150,7 @@ function LeftTop() {
           generateRandomString(),
           "add connection",
           <AddConnection config={conn} />,
-          <GrConnect className="tab-icon-size" />,
+          <GrConnect />,
         ),
       );
     },
@@ -175,12 +175,7 @@ function LeftTop() {
         setCurrentTab(index);
       } else {
         appendTab(
-          new TabContent(
-            settingId,
-            "setting",
-            <ModifySetting />,
-            <IoMdSettings className="tab-icon-size" />,
-          ),
+          new TabContent(settingId, "setting", <ModifySetting />, <IoMdSettings />),
         );
       }
     });
@@ -712,7 +707,7 @@ function FavoriteSqlList() {
             generateRandomString(10),
             `${row.uuid}`,
             content,
-            <TbDatabaseSearch className="tab-icon-size" />,
+            <TbDatabaseSearch />,
           ),
         );
       } catch (e) {
@@ -1362,14 +1357,7 @@ function openNewQuery(appendTab, uuid: string, kind: DataSourceKind) {
   console.log("open new query uuid:", uuid);
   const id = uuid + "-query-" + generateRandomString();
   const content = <AllKindChat kind={kind} uuid={uuid} />;
-  appendTab(
-    new TabContent(
-      id,
-      `${uuid}`,
-      content,
-      <TbDatabaseSearch className="tab-icon-size" />,
-    ),
-  );
+  appendTab(new TabContent(id, `${uuid}`, content, <TbDatabaseSearch />));
 }
 
 function openNewCreateTable(appendTab, uuid: string, kind: DataSourceKind) {

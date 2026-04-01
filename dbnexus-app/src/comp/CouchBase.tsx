@@ -11,18 +11,17 @@ import {
   TextField,
   Tooltip,
   Typography,
-  useTheme,
 } from "@mui/material";
 import ArrowCircleDownRoundedIcon from "@mui/icons-material/ArrowCircleDownRounded";
 import EventNoteIcon from "@mui/icons-material/EventNote";
 import {
+  AppCode,
   ListenElementSize,
   LoadStoreFile,
   QueryStatus,
   SetFilterSort,
   SimpleFlexEditor,
   SliderSize,
-  syntaxHightLightTheme,
   TableAddButton,
   ToggleChatShow,
 } from "./CommonComp2.tsx";
@@ -33,7 +32,6 @@ import {
   generateRandomString,
   getEditorText,
   handleCopyToClipboard,
-  isDarkStr,
   MuiDataGridData,
   resizeHandlerSize,
   secondConfirm,
@@ -71,8 +69,6 @@ import {
 } from "./store.tsx";
 import { persist } from "zustand/middleware";
 import { create } from "zustand";
-import SyntaxHighlighter from "react-syntax-highlighter";
-
 export enum CBQueryViewMode {
   Table = "table",
   Json = "json",
@@ -593,7 +589,6 @@ function CouchBaseQuery(props: {
   const [showExport, setShowExport] = useState(false);
   const { viewMode, setViewMode } = useCBQueryViewStore();
   const [tableResp, setTableResp] = useState<MuiDataGridData>(null);
-  const theme = useTheme();
 
   const { save: saveQueryLog } = useQueryLogStore();
   useEffect(() => {
@@ -828,19 +823,7 @@ function CouchBaseQuery(props: {
               paddingRight: "1.2rem",
             }}>
             {resp.map((value, index) => {
-              return (
-                <SyntaxHighlighter
-                  key={index}
-                  style={syntaxHightLightTheme(isDarkStr(theme.palette.mode))} // Apply the chosen theme
-                  language="json"
-                  customStyle={{
-                    borderRadius: "8px",
-                    fontSize: "14px",
-                    margin: "10px 0",
-                  }}>
-                  {value}
-                </SyntaxHighlighter>
-              );
+              return <AppCode key={index} language="json" codeBlock={value} />;
             })}
           </div>
         )}

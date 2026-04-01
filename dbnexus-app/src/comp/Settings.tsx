@@ -252,6 +252,16 @@ function AppearanceSetting() {
 
       <Stack direction="row" sx={{ alignItems: "center" }}>
         <Typography width={headerSize}>zoom</Typography>
+
+        {zoom != 1 && (
+          <Button
+            variant="text"
+            onClick={() => {
+              setZoom(1);
+            }}>
+            reset
+          </Button>
+        )}
         <Typography color="info"> {zoom} </Typography>
         <Slider
           color="info"

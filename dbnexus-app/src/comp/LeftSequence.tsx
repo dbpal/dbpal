@@ -29,6 +29,7 @@ import {
   generateRandomString,
   secondConfirm,
   TabContent,
+  textEllipsisStyle,
   UuidContext,
 } from "./helper.ts";
 
@@ -120,7 +121,7 @@ function SequenceTree() {
                   }}
                   sx={{ alignItems: "center" }}>
                   <GrSteps />
-                  <span>{seq.name}</span>
+                  <span style={textEllipsisStyle}>{seq.name}</span>
                 </Stack>
               }
             />
@@ -175,7 +176,7 @@ function SequenceMenu(props: {
             kind={kind}
             uuid={uuid}
           />,
-          <GrSteps className="tab-icon-size" />,
+          <GrSteps />,
         ),
       );
     }

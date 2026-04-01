@@ -11,7 +11,6 @@ import {
   TextField,
   Tooltip,
   Typography,
-  useTheme,
 } from "@mui/material";
 
 import PlayArrowIcon from "@mui/icons-material/PlayArrow";
@@ -35,19 +34,18 @@ import { EscDownEvent, modalHandleClose, modalStyle } from "./Common";
 import { ModalHeader } from "./CommonComp";
 import { RiDeleteBack2Line } from "react-icons/ri";
 import {
+  AppCode,
   AppMarkDown,
   EditorBar,
   LoadStoreFile,
   SaveFavoriteSqlView,
   SimpleFlexEditor,
   StackRowCenter,
-  syntaxHightLightTheme,
   ToggleChatShow,
 } from "./CommonComp2";
 import { QueryLog } from "./QueryLog";
 import InfoIcon from "@mui/icons-material/Info";
 import intervalCleanTest from "../../tests/interval_clean_test.js?raw";
-import { Prism as SyntaxHighlighter } from "react-syntax-highlighter";
 import { tempDir, join } from "@tauri-apps/api/path";
 import { exists, mkdir, readTextFile, writeTextFile } from "@tauri-apps/plugin-fs";
 import { ChildProcess, Command } from "@tauri-apps/plugin-shell";
@@ -705,18 +703,9 @@ function MongoQuery(props: {
 }
 
 function CleanFunctionDoc() {
-  const theme = useTheme();
-
-  // 判断是否为深色模式
-  const isDarkMode = theme.palette.mode === "dark";
   return (
     <Paper style={{ maxWidth: 900, overflow: "auto" }}>
-      <SyntaxHighlighter
-        style={syntaxHightLightTheme(isDarkMode)} // Apply the chosen theme
-        language={"javascript"}
-        PreTag="div">
-        {intervalCleanTest}
-      </SyntaxHighlighter>
+      <AppCode language={"javascript"} codeBlock={intervalCleanTest} />
     </Paper>
   );
 }

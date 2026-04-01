@@ -68,38 +68,3 @@ pub async fn openai_invoke(req: app::OpenAIReq) -> Result<String, ErrorFrontend>
     let r = api.invoke(&req.msg).await.map_err(ErrorFrontend::from)?;
     Ok(r)
 }
-
-#[tauri::command]
-pub async fn openai_stream(
-    req: app::OpenAIReq,
-    emit: Channel<String>,
-    task_id: String,
-    task_manager: tauri::State<'_, TaskManager>,
-) -> Result<(), ErrorFrontend> {
-    let (token, _guard) = task_manager.add(task_id);
-    let fur = async {
-        let api = make_openai(&req);
-        let mut r = api
-            .stream(&[Message::new_human_message(req.msg)])
-            .await
-            .map_err(ErrorFrontend::from)?;
-        while let Some(result) = r.next().await {
-            //  https://github.com/Abraxas-365/langchain-rust/issues/140
-
-            if let Err(err) = &result {
-                if format!("{:?}", err).contains("Stream ended") {
-                    break;
-                }
-            }
-            let result = result.map_err(ErrorFrontend::from)?;
-            emit.send(result.content)?;
-        }
-        Ok(())
-    };
-    tokio::select! {
-        res = fur => {res},
-        _ = token.cancelled() => {
-            Ok(())
-        }
-    }
-}

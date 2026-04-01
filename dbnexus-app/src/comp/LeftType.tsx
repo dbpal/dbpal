@@ -13,6 +13,7 @@ import {
   generateRandomString,
   secondConfirm,
   TabContent,
+  textEllipsisStyle,
   UuidContext,
 } from "./helper";
 import { ExceedMaxTreeItem, MenuRefresh } from "./CommonComp";
@@ -101,7 +102,7 @@ function TypesTree() {
                 }}
                 sx={{ alignItems: "center" }}>
                 <PiTreeStructureFill />
-                <span> {typ.name} </span>
+                <span style={textEllipsisStyle}> {typ.name} </span>
               </Stack>
             />
           );
@@ -140,7 +141,7 @@ function TypeMenu(props: {
             kind={kind}
             uuid={uuid}
           />,
-          <PiTreeStructureFill className="tab-icon-size" />,
+          <PiTreeStructureFill />,
         ),
       );
     }

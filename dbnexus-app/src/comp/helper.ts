@@ -432,6 +432,7 @@ const textEllipsisStyle = {
   overflow: "hidden",
   textOverflow: "ellipsis",
   flexShrink: 1,
+  minWidth: "1rem",
 } as CSSProperties;
 
 export type MuiDataGridData = {
