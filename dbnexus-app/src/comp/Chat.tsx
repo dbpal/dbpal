@@ -10,11 +10,13 @@ import {
 import CloseIcon from "@mui/icons-material/Close";
 import {
   Autocomplete,
+  Box,
   Button,
   Checkbox,
   Divider,
   FormControlLabel,
   IconButton,
+  Modal,
   Paper,
   Stack,
   Switch,
@@ -24,6 +26,7 @@ import {
 } from "@mui/material";
 import { useContext, useEffect, useRef, useState } from "react";
 import { editor } from "monaco-editor";
+import ClearIcon from "@mui/icons-material/Clear";
 import {
   AppMarkDown,
   SliderSize,
@@ -37,7 +40,11 @@ import EditIcon from "@mui/icons-material/Edit";
 import { PromptTemplate } from "@langchain/core/prompts";
 import {
   AITextCompletionName,
+  convertPathToDataUrl,
   editorAppendContent,
+  EscDownEvent,
+  modalHandleClose,
+  modalStyle,
   SetAutoCompletionName,
 } from "./Common.ts";
 import { ModalHeader } from "./CommonComp.tsx";
@@ -78,6 +85,8 @@ import {
   useSizeStore,
 } from "./store.tsx";
 
+import AddPhotoAlternateIcon from "@mui/icons-material/AddPhotoAlternate";
+import { open } from "@tauri-apps/plugin-dialog";
 class SimpleArrayMemory {
   history: BaseMessage[];
   k: number;
@@ -582,9 +591,8 @@ function SqlChatTextInput(props: {
   editor: editor.IStandaloneCodeEditor;
 }) {
   const { uuid, kind, editor } = props;
-  const config = useLLM();
-  const [prevQuestion, setPrevQuestion] = useState("");
-  const [newQuestion, setNewQuestion] = useState("");
+  const llm = useLLM();
+  const [question, setQuestion] = useState("");
   const { showNotification } = useNotification();
   const [showPrompt, setShowPrompt] = useState(false);
   const [chatHistory, setChatHistory] = useState<string[]>([]);
@@ -598,6 +606,7 @@ function SqlChatTextInput(props: {
   const { switches, setSwitch } = useBoolSwitch();
   const queryAfter = switches[queryAfterKey];
   const cleanEditor = switches[cleanEditorKey];
+  const [images, setImages] = useState<string[]>([]);
 
   const vis = useContext(TabActiveContext);
   useEffect(() => {
@@ -630,7 +639,7 @@ function SqlChatTextInput(props: {
       const prompt = await new MakePrompt(
         uuid,
         kind,
-        newQuestion,
+        question,
         chatMemory.current,
         editor,
         editor.getModel().getLanguageId(),
@@ -655,10 +664,9 @@ function SqlChatTextInput(props: {
       } else {
         editorAppendContent(editor, "\n");
       }
-      setPrevQuestion(newQuestion);
       setInvokeStatus("making prompt");
-      chatMemory.current.addUserMessage(newQuestion);
-      setChatHistory((e) => [...e, newQuestion]);
+      chatMemory.current.addUserMessage(question);
+      setChatHistory((e) => [...e, question]);
       let wholeText = "";
       setInvokeStatus("trying getting stream response");
       const prompt = await makePrompt();
@@ -666,8 +674,9 @@ function SqlChatTextInput(props: {
         return;
       }
       let i = 0;
-      await config.stream(
+      await llm.stream(
         prompt,
+        images,
         (msg) => {
           setInvokeStatus("receiving stream response#" + i);
           editorAppendContent(editor, msg);
@@ -705,7 +714,7 @@ function SqlChatTextInput(props: {
     <>
       <Paper
         style={{
-          height: "30vh",
+          height: "40vh",
           width: "80%",
           display: show ? "flex" : "none",
           position: "absolute",
@@ -730,11 +739,8 @@ function SqlChatTextInput(props: {
                 }}
               />
             ) : (
-              <IconButton onClick={handleChat} disabled={newQuestion == prevQuestion}>
-                <ArrowCircleUpIcon
-                  style={{ fontSize: "1.8rem" }}
-                  color={newQuestion == prevQuestion ? "disabled" : "primary"}
-                />
+              <IconButton onClick={handleChat}>
+                <ArrowCircleUpIcon style={{ fontSize: "1.8rem" }} />
               </IconButton>
             )}
             <Tooltip title="history">
@@ -750,7 +756,7 @@ function SqlChatTextInput(props: {
             </Tooltip>
             <Tooltip title="show prompt">
               <Button
-                disabled={newQuestion.trim() == ""}
+                disabled={question.trim() == ""}
                 onClick={() => {
                   setShowPrompt((e) => !e);
                 }}
@@ -801,6 +807,30 @@ function SqlChatTextInput(props: {
           </Stack>
         </Stack>
 
+        <Stack direction="row">
+          <IconButton
+            onClick={async () => {
+              let files = await open({ multiple: true, pickerMode: "image" });
+              if (!files) {
+                return;
+              }
+              if (typeof files == "string") {
+                files = [files];
+              }
+              try {
+                for (const file of files) {
+                  const fileContent = await convertPathToDataUrl(file);
+                  setImages([...images, fileContent]);
+                }
+              } catch (e) {
+                showNotification("error", "open image failed", e);
+              }
+            }}>
+            <AddPhotoAlternateIcon />
+          </IconButton>
+          <ShowChatImages images={images} setImages={setImages} />
+        </Stack>
+
         <Divider> </Divider>
         <SimpleFlexEditor
           language="text"
@@ -809,7 +839,7 @@ function SqlChatTextInput(props: {
             AITextCompletionName.set(e.getModel().id, editor.getModel().id);
           }}
           handleValue={(v) => {
-            setNewQuestion(v);
+            setQuestion(v);
           }}
           dontFocus
         />
@@ -842,6 +872,51 @@ function SqlChatTextInput(props: {
         />
       )}
     </>
+  );
+}
+
+function ShowChatImages(props: { images: string[]; setImages }) {
+  const { images, setImages } = props;
+  const [msgDetail, setMsgDetail] = useState("");
+
+  const maxSize = "12rem";
+  return (
+    <Stack direction="row">
+      {images.map((e, index) => {
+        return (
+          <img
+            key={index}
+            src={e}
+            style={{ maxWidth: maxSize, maxHeight: maxSize, cursor: "pointer" }}
+            onClick={() => {
+              setMsgDetail(e);
+            }}
+          />
+        );
+      })}
+      {msgDetail && (
+        <Modal
+          open={!!msgDetail}
+          onClose={modalHandleClose((e: EscDownEvent) => {
+            e.preventDefault();
+            setMsgDetail("");
+          })}>
+          <Box sx={{ ...modalStyle }} width="80vw" height="60vh">
+            <Stack direction="row">
+              <IconButton
+                onClick={() => {
+                  setImages(images.filter((e) => e != msgDetail));
+                  setMsgDetail("");
+                }}>
+                <ClearIcon />
+              </IconButton>
+            </Stack>
+
+            <img src={msgDetail} style={{ width: "100%" }} />
+          </Box>
+        </Modal>
+      )}
+    </Stack>
   );
 }
 
@@ -977,6 +1052,7 @@ function ChatHistory(props: {
         }
         handleClose={handleClose}
       />
+
       <Stack>
         {history.map((his, index) => {
           return (

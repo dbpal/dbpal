@@ -34,3 +34,4 @@ tokio-util = "*"
 uuid = { version = "*", features = ["v4"] }
 typescript-type-def = "0.5.11"
 include_dir = "0.7.4"
+base64 = "*"

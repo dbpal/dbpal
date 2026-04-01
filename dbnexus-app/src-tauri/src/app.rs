@@ -32,14 +32,8 @@ pub struct OpenAIReq {
     pub temperature: Option<f32>,
     pub max_tokens: Option<u32>,
     pub top_p: Option<f32>,
-}
-
-#[allow(unused)]
-#[derive(serde::Serialize, serde::Deserialize, typescript_type_def::TypeDef, Debug, Clone)]
-
-pub struct OpenAIReqInput {
-    pub prompt: String,
-    // pub inputs: serde_json::Map<String, serde_json::Value>,
+    // data:image/jpeg;base64,
+    pub images: Vec<String>,
 }
 
 impl DBConnectionConfig {

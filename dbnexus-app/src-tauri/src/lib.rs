@@ -13,10 +13,6 @@ mod tests {
         SequenceDetail, ShowTableParameter, SqlEvent, SqlNullAble, UdfOrProcedureExtraParameter,
     };
     use dbnexus_db::language_server::CompletionList;
-    use futures_util::StreamExt;
-    use langchain_rust::language_models::llm::LLM;
-    use langchain_rust::llm::{OpenAI, OpenAIConfig};
-    use langchain_rust::schemas::Message;
 
     use crate::app::{OpenAIReq, SetZoom};
     #[test]
@@ -100,41 +96,6 @@ mod tests {
         let options: DefinitionFileOptions = DefinitionFileOptions::default();
         write_definition_file_from_type_infos(&mut file, options, &api).unwrap();
 
-        // copy to deno backend
-        {
-
-            // let filepath = Path::new(&dir)
-            //     .to_path_buf()
-            //     .join("../../dbnexus-db/deno/src/api.ts");
-
-            // println!("!!!!!!!!!!!!!!{:?}", filepath);
-
-            // let mut ops = std::fs::OpenOptions::new();
-            // ops.write(true);
-            // ops.truncate(true);
-            // ops.create(true);
-
-            // let mut file = ops.open(filepath.as_path()).unwrap();
-            // write_definition_file_from_type_infos(&mut file, options, &api).unwrap();
-        }
-
         println!("generate OK.")
-    }
-
-    #[tokio::test]
-    async fn test_open_api() {
-        let mut config = OpenAIConfig::default();
-        config = config.with_api_base("https://api.moonshot.cn/v1");
-        config = config.with_api_key("sk-2zegNGK2WhxZ9jToc17JBp260Z5vD5Cdd4zXG4s4WISRyczO");
-        let mut api = OpenAI::default();
-        api = api.with_config(config);
-        api = api.with_model("kimi-latest");
-        let mut r = api
-            .stream(&[Message::new_human_message("hello")])
-            .await
-            .unwrap();
-        while let Some(r) = r.next().await {
-            println!("!!!:{:?}", r.unwrap().content);
-        }
     }
 }

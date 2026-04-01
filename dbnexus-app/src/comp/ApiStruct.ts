@@ -526,6 +526,7 @@ export namespace types {
         "temperature": (types.F32 | null);
         "max_tokens": (types.U32 | null);
         "top_p": (types.F32 | null);
+        "images": (string)[];
     };
     export type SetZoom = ("in" | "out" | "reset");
 }

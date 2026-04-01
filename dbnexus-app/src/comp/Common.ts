@@ -15,6 +15,64 @@ import {
 } from "./helper.ts";
 import { GridColDef } from "@mui/x-data-grid";
 import * as monaco from "monaco-editor";
+import { readFile } from "@tauri-apps/plugin-fs";
+
+/**
+ * Converts a local file path to a Data URL (base64)
+ * @param filePath - Absolute path to the image (e.g., from dialog.open)
+ * @returns Promise<string> - The formatted data:image/...;base64 string
+ */
+const convertPathToDataUrl = async (filePath: string): Promise<string> => {
+  try {
+    // 1. Read file as Uint8Array
+    const contents: Uint8Array = await readFile(filePath);
+
+    // 2. Map extension to MIME type
+    const extension = filePath.split(".").pop()?.toLowerCase() || "";
+    let mimeType: string;
+
+    switch (extension) {
+      case "jpg":
+      case "jpeg":
+        mimeType = "image/jpeg";
+        break;
+      case "png":
+        mimeType = "image/png";
+        break;
+      case "gif":
+        mimeType = "image/gif";
+        break;
+      case "webp":
+        mimeType = "image/webp";
+        break;
+      case "svg":
+        mimeType = "image/svg+xml";
+        break;
+      default:
+        mimeType = "image/png"; // Default fallback
+    }
+
+    // 3. Efficient Base64 conversion (Handles large files better than .reduce)
+    const base64 = uint8ArrayToBase64(contents);
+
+    return `data:${mimeType};base64,${base64}`;
+  } catch (error) {
+    console.error("Tauri FS Error:", error);
+    throw new Error(`Failed to convert image: ${error}`);
+  }
+};
+
+/**
+ * Helper to convert Uint8Array to Base64 string efficiently
+ */
+function uint8ArrayToBase64(buffer: Uint8Array): string {
+  let binary = "";
+  const len = buffer.byteLength;
+  for (let i = 0; i < len; i++) {
+    binary += String.fromCharCode(buffer[i]);
+  }
+  return window.btoa(binary);
+}
 
 const modalStyle: SxProps = {
   position: "fixed",
@@ -490,6 +548,8 @@ export {
   reloadOK,
   SetAutoCompletionName,
   tabsHasId,
+  convertPathToDataUrl,
+  uint8ArrayToBase64,
 };
 
 export type { DefAndMetas, EscDownEvent, FieldAndGridField, QueryEvent };
