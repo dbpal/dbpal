@@ -829,7 +829,7 @@ function SqlTableView(props: {
             </Stack>
             <Stack direction="row" alignItems="center">
               {!clientModel && (
-                <Typography color="info">
+                <Typography color="info" style={textEllipsisStyle}>
                   result {resp.data.length} of {resp.total}
                 </Typography>
               )}

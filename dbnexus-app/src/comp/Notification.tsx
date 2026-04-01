@@ -14,6 +14,7 @@ function Notifications() {
           right: 0,
           top: 0,
           zIndex: 11114,
+          opacity: 0.7,
         }}>
         {notifications.map((notice, index) => (
           <Alert
