@@ -215,7 +215,7 @@ impl Tool for SqlQueryTool {
     async fn call(&self, args: Self::Args) -> Result<Self::Output, Self::Error> {
         (self.emit)(format!("--call tool sql query '{}'\n", args.query));
 
-        let ret = self
+        let (exceed, ret) = self
             .db
             .as_export_query_result()
             .export_query_result_collect(
@@ -227,6 +227,9 @@ impl Tool for SqlQueryTool {
             .await
             .map_err(|e| CallToolErr::from(format!("查询失败: {}", e)))
             .unwrap();
+        if exceed {
+            (self.emit)(format!("-- data exceed 100 some data no feed to LLM"))
+        }
         let r = expect_export_frame_all_json(ret).unwrap();
         Ok(SqlQueryOutput {
             result: serde_json::json!({"data": r}),

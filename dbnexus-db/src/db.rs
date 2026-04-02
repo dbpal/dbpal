@@ -1456,7 +1456,7 @@ pub trait ExportQueryResult: GetBackendKind + Send + Sync + 'static {
         sql: &str,
         kind: ExportKind,
         max: usize,
-    ) -> anyhow::Result<Vec<ExportFrame>> {
+    ) -> anyhow::Result<(bool, Vec<ExportFrame>)> {
         let (sender, mut receiver) = tokio::sync::mpsc::channel(10);
         let j1 = {
             let x = self.clone();
@@ -1468,19 +1468,26 @@ pub trait ExportQueryResult: GetBackendKind + Send + Sync + 'static {
             })
         };
         let j2 = {
+            let mut exceed = false;
             tokio::spawn(async move {
                 let mut ret = vec![];
                 while let Some(x) = receiver.recv().await {
                     ret.push(x);
-                    if ret.len() >= max {
+                    if ret.len() > max {
+                        exceed = true;
                         break;
                     }
                 }
 
-                anyhow::Ok(ret)
+                anyhow::Ok((exceed, ret))
             })
         };
-        j1.await??;
+        if let Err(err) = j1.await? {
+            log::error!(
+                "query failed. if channel is close this should be fine:{}",
+                err
+            );
+        }
         j2.await?
     }
 
