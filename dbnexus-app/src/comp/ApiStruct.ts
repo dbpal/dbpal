@@ -509,15 +509,14 @@ export namespace types {
         "max_expiry": (types.U64 | null);
         "bucket_type": types.CouchBaseBucketType;
     });
-    export type F32 = number;
     export type OpenAIReq = {
         "url": string;
         "api_key": string;
         "model": string;
         "msg": string;
-        "temperature": (types.F32 | null);
-        "max_tokens": (types.U32 | null);
-        "top_p": (types.F32 | null);
+        "temperature": (types.F64 | null);
+        "max_tokens": (types.U64 | null);
+        "top_p": (types.F64 | null);
         "images": (string)[];
     };
     export type SetZoom = ("in" | "out" | "reset");

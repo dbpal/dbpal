@@ -14,7 +14,7 @@ use dbnexus_db::mongo::MongoDB;
 use dbnexus_db::mysql::MysqlDB;
 use dbnexus_db::pg::PostGresDB;
 use font_kit::error::SelectionError;
-use langchain_rust::language_models::LLMError;
+
 use mongodb::bson::{self, Document};
 use std::collections::HashMap;
 use std::sync::Arc;
@@ -29,9 +29,9 @@ pub struct OpenAIReq {
     pub api_key: String,
     pub model: String,
     pub msg: String,
-    pub temperature: Option<f32>,
-    pub max_tokens: Option<u32>,
-    pub top_p: Option<f32>,
+    pub temperature: Option<f64>,
+    pub max_tokens: Option<u64>,
+    pub top_p: Option<f64>,
     // data:image/jpeg;base64,
     pub images: Vec<String>,
 }
@@ -615,26 +615,6 @@ impl ErrorFrontend {
 #[derive(Clone, Default)]
 pub struct TaskManager {
     pub tokens: Arc<DashMap<String, CancellationToken>>,
-}
-
-impl From<langchain_rust::chain::ChainError> for ErrorFrontend {
-    fn from(value: langchain_rust::chain::ChainError) -> Self {
-        ErrorFrontend {
-            reason: value.to_string(),
-            detail: format!("{:?}", value),
-            cancelled: false,
-        }
-    }
-}
-
-impl From<LLMError> for ErrorFrontend {
-    fn from(value: LLMError) -> Self {
-        ErrorFrontend {
-            reason: value.to_string(),
-            detail: format!("{:?}", value),
-            cancelled: false,
-        }
-    }
 }
 
 impl From<SelectionError> for ErrorFrontend {

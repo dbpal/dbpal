@@ -16,12 +16,12 @@ import wcmatch from "wildcard-match";
 
 class TauriStoreManger<S> implements PersistStorage<S> {
   constructor(
-    public setBefore?: (_: S) => Promise<void>,
+    public setBefore?: (_: S) => Promise<S>,
     public afterFetch?: (_: S) => Promise<void>,
   ) {}
   async setItem(name: string, value: StorageValue<S>) {
     if (this.setBefore) {
-      await this.setBefore(value.state);
+      value.state = await this.setBefore(value.state);
     }
     return await appStore.set(name, value);
   }
@@ -213,7 +213,7 @@ export const useLLMConfig = create<LLMStore>()(
         apiKey: "",
         maxToken: 0,
         model: "gpt-3.5-turbo",
-        temperature: 0,
+        temperature: null,
         topP: 0,
       },
       setConfig: (config) => set({ config }),
@@ -229,7 +229,7 @@ export const useLLMConfig = create<LLMStore>()(
           } else {
             await PassWordManager.deletePassword(LLMConfig.key);
           }
-          s.config.apiKey = "";
+          return { ...s, apiKey: "" };
         },
         async (s) => {
           let pass = await PassWordManager.getPassword(LLMConfig.key);
@@ -243,6 +243,7 @@ export const useLLMConfig = create<LLMStore>()(
 
 export const makeLLMCallable = (config: LLMConfig) => {
   const makeReq = (msg: string, images): types.OpenAIReq => {
+    // console.log("!!!!!!!!!!!!!!!!!!!!!!!", config);
     return {
       url: config.baseUrl,
       api_key: config.apiKey,
@@ -282,7 +283,7 @@ export const makeLLMCallable = (config: LLMConfig) => {
 export const useLLM = () => {
   const config = useLLMConfig((s) => s.config);
   const r = useMemo(() => {
-    if (config.baseUrl && config.apiKey && config.model) {
+    if (config.baseUrl && config.model) {
       return makeLLMCallable(config);
     } else {
       return null;

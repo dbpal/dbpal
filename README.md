@@ -135,3 +135,7 @@ xattr -d com.apple.quarantine /Applications/dbpal.app
 https://api.openai-proxy.org/v1
 
 
+
+
+// api key sk-2zegNGK2WhxZ9jToc17JBp260Z5vD5Cdd4zXG4s4WISRyczO
+// https://api.moonshot.cn/v1

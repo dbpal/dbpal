@@ -1,73 +1,133 @@
+use std::sync::Arc;
+
 use base64::Engine;
 use futures_util::StreamExt;
-use langchain_rust::{
-    language_models::llm::LLM,
-    llm::{OpenAI, OpenAIConfig},
-    schemas::{ImageContent, Message, MessageType},
-};
 
-use tauri::ipc::Channel;
+use rig::agent::{Agent, MultiTurnStreamItem, StreamingError, Text};
+use rig::client::completion::CompletionClient;
+use rig::EmptyListError;
 
 use crate::app::{self, ErrorFrontend, OpenAIReq, TaskManager};
+use rig::completion::{Message, Prompt, PromptError};
+use rig::message::{DocumentSourceKind, Image, UserContent};
+use rig::one_or_many::OneOrMany;
+use rig::providers::openai::responses_api::streaming::StreamingCompletionResponse;
+use rig::providers::openai::responses_api::ResponsesCompletionModel;
+use rig::streaming::{StreamedAssistantContent, StreamingPrompt};
+use rig::{client::Client, providers::openai};
+use tauri::ipc::Channel;
 
-// fn make_openai(req: &app::OpenAIReq) -> AgentExecutor<OpenAiToolAgent> {
-//     #[cfg(debug_assertions)]
-//     log::info!("open ai req:{:?}", req);
-//     let mut config = OpenAIConfig::default();
-//     config = config.with_api_base(&req.url);
-//     config = config.with_api_key(&req.api_key);
-//     let mut llm = OpenAI::default();
-//     llm = llm.with_config(config);
-//     llm = llm.with_model(&req.model);
-//     let mut op = langchain_rust::language_models::options::CallOptions::default();
-//     if let Some(max_token) = req.max_tokens {
-//         if max_token != 0 {
-//             op = op.with_max_tokens(max_token);
-//         }
-//     }
-
-//     op = op.with_temperature(req.temperature);
-//     op = op.with_top_p(req.top_p);
-//     llm = llm.with_options(op);
-//     let duckduckgo_tool = DuckDuckGoSearchResults::default();
-//     let agent = OpenAiToolAgentBuilder::new()
-//         .tools(&[Arc::new(duckduckgo_tool) as Arc<dyn Tool>])
-//         .options(ChainCallOptions::new().with_max_tokens(1000))
-//         .build(llm)
-//         .unwrap();
-//     AgentExecutor::from_agent(agent)
-// }
-
-fn make_openai(req: &app::OpenAIReq) -> OpenAI<OpenAIConfig> {
-    #[cfg(debug_assertions)]
-    log::info!("open ai req:{:?}", req);
-    let mut config = OpenAIConfig::default();
-    config = config.with_api_base(&req.url);
-    config = config.with_api_key(&req.api_key);
-    let mut api = OpenAI::default();
-    api = api.with_config(config);
-    api = api.with_model(&req.model);
-    let mut op = langchain_rust::language_models::options::CallOptions::default();
-    if let Some(max_token) = req.max_tokens {
-        if max_token != 0 {
-            op = op.with_max_tokens(max_token);
+impl From<PromptError> for ErrorFrontend {
+    fn from(value: PromptError) -> Self {
+        Self {
+            reason: value.to_string(),
+            detail: format!("{:?}", value),
+            cancelled: false,
         }
     }
-    if let Some(temperature) = req.temperature {
-        op = op.with_temperature(temperature);
+}
+
+fn make_openai(req: &app::OpenAIReq) -> anyhow::Result<Agent<ResponsesCompletionModel>> {
+    #[cfg(debug_assertions)]
+    log::info!("open ai req:{:?}", req);
+
+    let builder = openai::Client::builder()
+        .api_key(&req.api_key)
+        .base_url(&req.url);
+    let api: Client<openai::OpenAIResponsesExt> = builder.build()?;
+
+    let mut agent_builder = api.agent(&req.model).preamble("U are helpful assistant.");
+
+    if let Some(t) = req.max_tokens {
+        agent_builder = agent_builder.max_tokens(t);
     }
-    if let Some(top_p) = req.top_p {
-        op = op.with_top_p(top_p);
+
+    if let Some(t) = req.temperature {
+        agent_builder = agent_builder.temperature(t);
     }
-    api = api.with_options(op);
-    api
+    let agent: Agent<ResponsesCompletionModel> = agent_builder.build();
+    anyhow::Ok(agent)
 }
 
 #[tauri::command]
 pub async fn openai_invoke(req: app::OpenAIReq) -> Result<String, ErrorFrontend> {
-    let api = make_openai(&req);
-    let r = api.invoke(&req.msg).await.map_err(ErrorFrontend::from)?;
+    let api = make_openai(&req).map_err(ErrorFrontend::from)?;
+    let r = api.prompt(&req.msg).await?;
     Ok(r)
+}
+
+impl From<StreamingError> for ErrorFrontend {
+    fn from(value: StreamingError) -> Self {
+        Self {
+            reason: format!("{}", value),
+            detail: format!("{:?}", value),
+            cancelled: false,
+        }
+    }
+}
+
+impl From<EmptyListError> for ErrorFrontend {
+    fn from(value: EmptyListError) -> Self {
+        Self {
+            reason: format!("{}", value),
+            detail: format!("{:?}", value),
+            cancelled: false,
+        }
+    }
+}
+
+async fn openai_stream_xxx(
+    req: OpenAIReq,
+    emit: Arc<dyn Fn(String) + Sync + Send + 'static>,
+) -> Result<(), ErrorFrontend> {
+    let agent = make_openai(&req)?;
+
+    let msg = Message::User {
+        content: {
+            let mut content = vec![UserContent::Text(Text {
+                text: req.msg.clone(),
+            })];
+            content.extend(req.images.iter().map(|x| {
+                UserContent::Image(Image {
+                    data: DocumentSourceKind::Url(x.clone()),
+                    media_type: None,
+                    detail: None,
+                    additional_params: None,
+                })
+            }));
+            OneOrMany::many(content.into_iter())?
+        },
+    };
+    let mut stream = agent.stream_prompt(msg).await;
+
+    while let Some(chunk) = stream.next().await {
+        let chunk: MultiTurnStreamItem<StreamingCompletionResponse> =
+            chunk.map_err(ErrorFrontend::from)?;
+
+        match chunk {
+            MultiTurnStreamItem::StreamAssistantItem(streamed_assistant_content) => {
+                match streamed_assistant_content {
+                    StreamedAssistantContent::Text(text) => emit(text.text),
+                    StreamedAssistantContent::ToolCall { .. } => {}
+                    StreamedAssistantContent::ToolCallDelta { .. } => {}
+                    StreamedAssistantContent::Reasoning(..) => {}
+                    StreamedAssistantContent::ReasoningDelta { .. } => {}
+                    StreamedAssistantContent::Final(..) => {}
+                }
+            }
+            MultiTurnStreamItem::StreamUserItem(streamed_user_content) => {
+                match streamed_user_content {
+                    rig::streaming::StreamedUserContent::ToolResult { .. } => {}
+                }
+            }
+            MultiTurnStreamItem::FinalResponse(final_response) => {
+                emit(final_response.response().to_owned())
+            }
+            _ => return Err(format!("unahdnled chunk type:{:?}", chunk).into()),
+        }
+    }
+
+    Ok(())
 }
 
 #[tauri::command]
@@ -79,35 +139,13 @@ pub async fn openai_stream(
 ) -> Result<(), ErrorFrontend> {
     let (token, _guard) = task_manager.add(task_id);
     let fur = async {
-        let api = make_openai(&req);
-        let OpenAIReq { msg, images, .. } = req;
-        let mut r = api
-            .stream(&[Message {
-                content: msg,
-                message_type: MessageType::HumanMessage,
-                id: None,
-                tool_calls: None,
-                images: images
-                    .into_iter()
-                    .map(|x| ImageContent {
-                        image_url: x,
-                        detail: None,
-                    })
-                    .collect::<Vec<_>>()
-                    .into(),
-            }])
-            .await
-            .map_err(ErrorFrontend::from)?;
-        while let Some(result) = r.next().await {
-            if let Err(err) = &result {
-                if format!("{:?}", err).contains("Stream ended") {
-                    break;
-                }
-            }
-            let result = result.map_err(ErrorFrontend::from)?;
-            emit.send(result.content)?;
-        }
-        Ok(())
+        openai_stream_xxx(
+            req,
+            Arc::new(move |s| {
+                emit.send(s).unwrap();
+            }),
+        )
+        .await
     };
     tokio::select! {
         res = fur => {res},
@@ -124,69 +162,45 @@ async fn image_to_base64(path: &str) -> anyhow::Result<String> {
     let image_data = tokio::fs::read(path).await?;
     let base64_str = base64::engine::general_purpose::STANDARD.encode(image_data);
 
+    let mime = if path.ends_with(".png") {
+        "image/png"
+    } else if path.ends_with(".jpg") || path.ends_with(".jpeg") {
+        "image/jpeg"
+    } else {
+        "image/png" // 默认
+    };
+
     // 必须加上前缀，告知模型图片类型（如 image/jpeg, image/png）
-    let r = format!("data:image/jpeg;base64,{}", base64_str);
+    let r = format!("data:{};base64,{}", mime, base64_str);
     anyhow::Ok(r)
 }
 
 #[cfg(test)]
 mod tests {
-    use futures_util::StreamExt;
-    use langchain_rust::{
-        language_models::llm::LLM,
-        llm::{OpenAI, OpenAIConfig},
-        schemas::{ImageContent, Message, MessageType},
-    };
 
     use super::*;
 
     #[tokio::test]
 
     async fn test_xxx() {
-        let mut config = OpenAIConfig::default();
-        config = config.with_api_base("https://api.moonshot.cn/v1");
-        config = config.with_api_key("sk-2zegNGK2WhxZ9jToc17JBp260Z5vD5Cdd4zXG4s4WISRyczO");
-        let mut api = OpenAI::default();
-        api = api.with_config(config);
-        api = api.with_model("kimi-latest");
-
-        let image = image_to_base64("/Users/yuyang/Desktop/xxx.png")
+        let image = image_to_base64("/home/yuyang/Pictures/屏幕截图/屏幕截图_20260402_070833.png")
             .await
             .unwrap();
 
-        let mut r = api
-            .stream(&[Message {
-                content: "这种图片是什么意思呢".into(),
-                message_type: MessageType::HumanMessage,
-                id: None,
-                tool_calls: None,
-                images: Some(vec![ImageContent {
-                    image_url: image,
-                    detail: None,
-                }]),
-            }])
-            .await
-            .unwrap();
-
-        while let Some(r) = r.next().await {
-            print!("{}", r.unwrap().content);
-        }
-    }
-
-    #[tokio::test]
-    async fn test_open_api() {
-        let mut config = OpenAIConfig::default();
-        config = config.with_api_base("https://api.moonshot.cn/v1");
-        config = config.with_api_key("sk-2zegNGK2WhxZ9jToc17JBp260Z5vD5Cdd4zXG4s4WISRyczO");
-        let mut api = OpenAI::default();
-        api = api.with_config(config);
-        api = api.with_model("kimi-latest");
-        let mut r = api
-            .stream(&[Message::new_human_message("hello")])
-            .await
-            .unwrap();
-        while let Some(r) = r.next().await {
-            print!("{}", r.unwrap().content);
-        }
+        openai_stream_xxx(
+            OpenAIReq {
+                url: "https://api.openai-proxy.org/v1".into(),
+                api_key: "sk-egR0EUYn0EzVybl7D9JkUFx2ksnD62sZPQ8d0J0yJgPEiAWt".into(),
+                model: "gpt-4.1-mini".into(),
+                msg: "this image about?".into(),
+                temperature: None,
+                max_tokens: None,
+                top_p: None,
+                images: vec![image],
+            },
+            Arc::new(|x| print!("{}", x)),
+        )
+        .await
+        .unwrap();
     }
 }

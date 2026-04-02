@@ -529,7 +529,9 @@ function LLMSetting(props: { handleClose?: () => void }) {
   const { config: oldSetting, setConfig } = useLLMConfig();
   const { handleClose } = props;
   const [baseUrl, setBaseUrl] = useState(oldSetting.baseUrl);
-  const [temperature, setTemperature] = useState(oldSetting.temperature + "");
+  const [temperature, setTemperature] = useState(
+    oldSetting.temperature ? oldSetting.temperature + "" : "",
+  );
   const [model, setModel] = useState(oldSetting.model);
   const [apiKey, setApiKey] = useState(oldSetting.apiKey);
   const { showNotification } = useNotification();
@@ -794,8 +796,6 @@ function LLMSetting(props: { handleClose?: () => void }) {
 
 function MiscSetting() {
   const { misc, updateMisc } = useUserSettings();
-
-  console.log(misc);
   const [autoStart, setAutoStart] = useState(misc.autoStart);
   const [logLevel, setLogLevel] = useState(misc.logLevel);
   const { showNotification } = useNotification();

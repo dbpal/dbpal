@@ -153,9 +153,6 @@ fn logger_test() {
     });
 }
 
-// api key sk-2zegNGK2WhxZ9jToc17JBp260Z5vD5Cdd4zXG4s4WISRyczO
-// https://api.moonshot.cn/v1
-
 fn main() {
     // logger_test();
 
