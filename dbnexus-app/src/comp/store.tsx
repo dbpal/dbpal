@@ -13,6 +13,7 @@ import React from "react";
 import { persist, PersistStorage, StorageValue } from "zustand/middleware";
 import Dexie, { type Table } from "dexie";
 import wcmatch from "wildcard-match";
+import { cloneDeep } from "lodash-es";
 
 class TauriStoreManger<S> implements PersistStorage<S> {
   constructor(
@@ -21,9 +22,12 @@ class TauriStoreManger<S> implements PersistStorage<S> {
   ) {}
   async setItem(name: string, value: StorageValue<S>) {
     if (this.setBefore) {
-      value.state = await this.setBefore(value.state);
+      const new_value = cloneDeep(value);
+      new_value.state = await this.setBefore(new_value.state);
+      return await appStore.set(name, new_value);
+    } else {
+      return await appStore.set(name, value);
     }
-    return await appStore.set(name, value);
   }
 
   async getItem(name: string) {
