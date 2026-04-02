@@ -216,11 +216,8 @@ class MakePrompt {
   static sqlTemplate = PromptTemplate.fromTemplate(
     `system:You are a {dialect} database expert.
 Your answer must follow ALL of these rules:
-1. Return SQL only.
-2. Don't generate markdown.
-3. Comments must use "--" syntax.
-4. If you break any rule, you will be penalized.
-5. system locale is {locale} 
+1. Comments must use "--" syntax.
+2. system locale is {locale} 
 
 
 human: here are some information about the database
@@ -235,11 +232,8 @@ human: {question}`,
   static redisTemplate = PromptTemplate.fromTemplate(
     `system:You are a Redis expert.
 Your answer must follow ALL of these rules:
-1. Return Command only.
-2. Don't generate markdown.
-3. Comments must use "#" syntax.
-4. If you break any rule, you will be penalized.
-5. system locale is {locale}
+1. Comments must use "#" syntax.
+2. system locale is {locale}
 
 human: here are some information about the database
 {database_information}
@@ -258,8 +252,7 @@ Your answer must follow ALL of these rules:
 1. generate {language} only.
 2. Don't generate markdown
 3. Comments must use "//" syntax.
-4. If you break any rule, you will be penalized.
-5. system locale is {locale}
+4. system locale is {locale}
 
 human: here are some information about the database
 {database_information}
@@ -704,7 +697,11 @@ function SqlChatTextInput(props: {
         return;
       }
       let i = 0;
+      let queryId = SetAutoCompletionName.get(editor.getModel().id);
+
       await llm.stream(
+        queryId.name,
+        queryId.queryId,
         prompt,
         images,
         (msg) => {
@@ -769,7 +766,7 @@ function SqlChatTextInput(props: {
                 }}
               />
             ) : (
-              <IconButton onClick={handleChat}>
+              <IconButton onClick={handleChat} disabled={!question}>
                 <ArrowCircleUpIcon style={{ fontSize: "1.8rem" }} />
               </IconButton>
             )}

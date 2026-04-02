@@ -6,8 +6,8 @@ use dbnexus_db::datasource_config::{
     RedisDBConfig, SqlServerDBConfig, SqliteDBConfig,
 };
 use dbnexus_db::db::{
-    BackendKindMysql, BackendKindPostGres, CatalogTrait, CheckConn, DBTrait, ExportQueryResult,
-    QuerySql, SchemaTrait, ServerMetas,
+    BackendKind, BackendKindMysql, BackendKindPostGres, CatalogTrait, CheckConn, DBTrait,
+    ExportQueryResult, QuerySql, SchemaTrait, ServerMetas,
 };
 use dbnexus_db::language_server::LanguageServer;
 use dbnexus_db::mongo::MongoDB;
@@ -364,6 +364,15 @@ pub enum DatabaseBackend {
 impl DatabaseBackend {
     pub(crate) async fn check_conn(&self) -> anyhow::Result<Duration> {
         self.as_check_conn().check_conn().await
+    }
+
+    #[allow(unused)]
+    pub(crate) fn backend_kind(&self) -> BackendKind {
+        match self {
+            DatabaseBackend::Catalog(catalog_trait) => catalog_trait.backend_kind(),
+            DatabaseBackend::DataBase(dbtrait) => dbtrait.backend_kind(),
+            DatabaseBackend::Schema(schema_trait) => schema_trait.backend_kind(),
+        }
     }
     pub(crate) fn as_query_sql(&self) -> &dyn QuerySql {
         match self {
@@ -863,6 +872,14 @@ pub enum SetZoom {
     In,
     Out,
     Reset,
+}
+
+#[derive(Debug, Clone, serde::Serialize, TypeDef)]
+#[serde(rename_all = "lowercase")]
+#[allow(unused)]
+pub enum AiStreamMsg {
+    Notice { msg: String },
+    Resp { msg: String },
 }
 
 #[cfg(test)]

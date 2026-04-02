@@ -243,7 +243,6 @@ export const useLLMConfig = create<LLMStore>()(
 
 export const makeLLMCallable = (config: LLMConfig) => {
   const makeReq = (msg: string, images): types.OpenAIReq => {
-    // console.log("!!!!!!!!!!!!!!!!!!!!!!!", config);
     return {
       url: config.baseUrl,
       api_key: config.apiKey,
@@ -263,6 +262,8 @@ export const makeLLMCallable = (config: LLMConfig) => {
       });
     },
     stream: async (
+      uuid: string,
+      queryId: string,
       msg: string,
       images: string[],
       handleMessage: (event: string) => void,
@@ -275,7 +276,13 @@ export const makeLLMCallable = (config: LLMConfig) => {
       handleCancel(() => {
         cancelTask(taskId);
       });
-      await invoke("openai_stream", { req: makeReq(msg, images), emit, taskId });
+      await invoke("openai_stream", {
+        req: makeReq(msg, images),
+        emit,
+        taskId,
+        name: uuid,
+        queryId,
+      });
     },
   };
 };

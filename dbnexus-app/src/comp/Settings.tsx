@@ -649,7 +649,7 @@ function LLMSetting(props: { handleClose?: () => void }) {
           value={apiKey}
           style={{ width: "40rem" }}
           onChange={(e) => setApiKey(e.target.value)}
-          type="password"
+          type={import.meta.env.DEV ? undefined : "password"}
           slotProps={{
             input: {
               endAdornment: apiKey && (

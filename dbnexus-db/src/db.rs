@@ -1375,7 +1375,6 @@ pub struct CreateIndexColumn {
     pub asc: Option<bool>,
 }
 
-#[cfg(test)]
 async fn collect_export_str(
     kind: ExportKind,
     mut receiver: tokio::sync::mpsc::Receiver<ExportFrame>,
@@ -1451,7 +1450,40 @@ pub trait ExportQueryResult: GetBackendKind + Send + Sync + 'static {
         _sender: tokio::sync::mpsc::Sender<ExportFrame>,
     ) -> anyhow::Result<()>;
 
-    #[cfg(test)]
+    async fn export_query_result_collect(
+        &self,
+        query_id: Option<&str>,
+        sql: &str,
+        kind: ExportKind,
+        max: usize,
+    ) -> anyhow::Result<Vec<ExportFrame>> {
+        let (sender, mut receiver) = tokio::sync::mpsc::channel(10);
+        let j1 = {
+            let x = self.clone();
+            let sql = sql.to_string();
+            let query_id = query_id.map(|x| x.to_owned());
+            tokio::spawn(async move {
+                x.export_query_result(query_id.as_deref(), &sql, kind, sender)
+                    .await
+            })
+        };
+        let j2 = {
+            tokio::spawn(async move {
+                let mut ret = vec![];
+                while let Some(x) = receiver.recv().await {
+                    ret.push(x);
+                    if ret.len() >= max {
+                        break;
+                    }
+                }
+
+                anyhow::Ok(ret)
+            })
+        };
+        j1.await??;
+        j2.await?
+    }
+
     async fn export_query_result_to_string(
         &self,
         query_id: &str,
