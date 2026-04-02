@@ -228,7 +228,7 @@ impl Tool for SqlQueryTool {
             .map_err(|e| CallToolErr::from(format!("查询失败: {}", e)))
             .unwrap();
         if exceed {
-            (self.emit)(format!("-- data exceed 100 some data no feed to LLM"))
+            (self.emit)(format!("-- data exceed 100 some data not feed to LLM"))
         }
         let r = expect_export_frame_all_json(ret).unwrap();
         Ok(SqlQueryOutput {
