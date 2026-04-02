@@ -8,7 +8,6 @@ import {
   MouseEvent,
   ReactElement,
   ReactNode,
-  RefObject,
 } from "react";
 import { ask, message } from "@tauri-apps/plugin-dialog";
 import { LazyStore } from "@tauri-apps/plugin-store";
@@ -593,7 +592,6 @@ function newEmptyResp(): MuiDataGridData {
 const ChatShowContext = createContext<{
   show: boolean;
   setShow: (_: boolean) => void;
-  doQuery: RefObject<() => void>;
 }>(null);
 
 const saveQueryKey = "query-4k9zF7m5p3T1H2";

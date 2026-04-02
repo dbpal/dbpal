@@ -19,7 +19,6 @@ import {
   Modal,
   Paper,
   Stack,
-  Switch,
   TextField,
   Tooltip,
   Typography,
@@ -144,7 +143,6 @@ function Chat(props: {
 
   const saveChatShow = useBoolSwitch();
   const [show, setShow] = useState(saveChatShow.switches[showChatKey]);
-  const doQuery = useRef<() => void>(null);
 
   return (
     <Stack
@@ -157,7 +155,6 @@ function Chat(props: {
         value={{
           show,
           setShow,
-          doQuery,
         }}>
         <AllKindQuery
           uuid={uuid}
@@ -605,7 +602,7 @@ human:{question}
     }
   }
 }
-const queryAfterKey = "query-after-switch";
+
 const cleanEditorKey = "clean-editor-key";
 
 function SqlChatTextInput(props: {
@@ -624,10 +621,9 @@ function SqlChatTextInput(props: {
   const [showEditPromptTemplate, setShowEditPromptTemplate] = useState(false);
   const [invokeStatus, setInvokeStatus] = useState("");
   const [cancelFN, setCancelFN] = useState<() => void>(null);
-  const { show, setShow, doQuery } = useContext(ChatShowContext);
+  const { show, setShow } = useContext(ChatShowContext);
   const getSize = useSizeStore((s) => s.getSize);
   const { switches, setSwitch } = useBoolSwitch();
-  const queryAfter = switches[queryAfterKey];
   const cleanEditor = switches[cleanEditorKey];
   const [images, setImages] = useState<string[]>([]);
 
@@ -723,13 +719,6 @@ function SqlChatTextInput(props: {
       }, 5000);
       setChatHistory((e) => [...e, wholeText]);
       chatMemory.current.addAIMessage(wholeText);
-      if (queryAfter) {
-        if (!doQuery.current) {
-          showNotification("error", "do query is null ,this is a internal error");
-        } else {
-          doQuery.current();
-        }
-      }
     } catch (e) {
       showNotification("error", "call llm failed", e);
     } finally {
@@ -809,17 +798,6 @@ function SqlChatTextInput(props: {
                   />
                 }
                 label="clean editor"
-              />
-            </Tooltip>
-            <Tooltip title="do query after we receive the response">
-              <FormControlLabel
-                control={
-                  <Switch
-                    checked={queryAfter}
-                    onChange={(e) => setSwitch(queryAfterKey, e.target.checked)}
-                  />
-                }
-                label="auto query"
               />
             </Tooltip>
           </Stack>

@@ -786,7 +786,7 @@ function CouchBaseQuery(props: {
               <SliderSize config={UseSizeConfig.gridCol} />
             )}
 
-            <ToggleChatShow do_query={handleQuery} />
+            <ToggleChatShow />
 
             <SliderSize config={UseSizeConfig.queryLimit} />
             <ExecutingTime loading={loading} />

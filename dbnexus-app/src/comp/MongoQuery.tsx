@@ -681,7 +681,7 @@ function MongoQuery(props: {
           }}>
           <span>debug???</span>
         </Tooltip>
-        <ToggleChatShow do_query={handleExecute} />
+        <ToggleChatShow />
       </Stack>
       <div
         style={{

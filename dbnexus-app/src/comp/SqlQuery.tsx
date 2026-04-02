@@ -578,11 +578,7 @@ function SqlQuery(props: {
               </IconButton>
             </Tooltip>
 
-            <ToggleChatShow
-              do_query={() => {
-                handleQuery(false);
-              }}
-            />
+            <ToggleChatShow />
 
             {extras}
 

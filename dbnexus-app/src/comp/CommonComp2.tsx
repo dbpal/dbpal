@@ -1553,11 +1553,9 @@ function SetFilterSort(props: {
   );
 }
 
-function ToggleChatShow(props: { do_query: () => void }) {
-  const { do_query } = props;
-  const { show, setShow, doQuery } = useContext(ChatShowContext);
-  // eslint-disable-next-line react-hooks/immutability
-  doQuery.current = do_query;
+function ToggleChatShow() {
+  const { show, setShow } = useContext(ChatShowContext);
+
   const llm = useLLM();
   return (
     llm && (
