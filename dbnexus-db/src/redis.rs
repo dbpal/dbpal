@@ -246,13 +246,6 @@ fn split_info_colon(info: &str) -> anyhow::Result<(String, String)> {
     }
 }
 
-fn to_string_or_hex(vec: Vec<u8>) -> String {
-    let hex = format!("0x{}", hex::encode(vec.as_slice()));
-    match String::from_utf8(vec) {
-        Ok(x) => x,
-        Err(_) => hex,
-    }
-}
 fn to_json_value(x: Vec<u8>) -> serde_json::Value {
     let arr: Vec<_> = x.iter().map(|x| serde_json::Value::from(*x)).collect();
     match String::from_utf8(x) {
@@ -266,9 +259,7 @@ fn escape_string(s: &str) -> anyhow::Result<String> {
     anyhow::Ok(r.to_string())
 }
 
-fn check_resp(
-    value: Vec<Result<Vec<u8>, redis::RedisError>>,
-) -> Result<Vec<Vec<u8>>, redis::RedisError> {
+fn check_resp<T>(value: Vec<Result<T, redis::RedisError>>) -> Result<Vec<T>, redis::RedisError> {
     let mut kv = vec![];
     for v in value {
         let v = v?;
@@ -289,9 +280,9 @@ impl RedisDB {
         let ty = Self::get_key_type(&mut conn, key).await?;
         match ty {
             RedisType::String => {
-                let value: Vec<u8> = conn.get(key).await?;
+                let value: String = conn.get(key).await?;
                 sender
-                    .send(create_csv(&[Some(to_string_or_hex(value))], delimiter)?.into())
+                    .send(create_csv(&[Some(value)], delimiter)?.into())
                     .await?;
             }
 
@@ -300,11 +291,8 @@ impl RedisDB {
                 let size: isize = 100;
                 let iter = OffsetLimitIter::new(total, 100);
                 for x in iter {
-                    let list: Vec<Vec<u8>> = conn.lrange(key, x, x + size).await?;
-                    let list = list
-                        .into_iter()
-                        .map(|x| vec![Some(to_string_or_hex(x))])
-                        .collect::<Vec<_>>();
+                    let list: Vec<String> = conn.lrange(key, x, x + size).await?;
+                    let list = list.into_iter().map(|x| vec![Some(x)]).collect::<Vec<_>>();
                     for l in list {
                         sender.send(create_csv(&l, delimiter)?.into()).await?;
                     }
@@ -312,12 +300,9 @@ impl RedisDB {
             }
 
             RedisType::Set => {
-                let mut iter = conn.sscan::<_, Vec<u8>>(key).await?;
+                let mut iter = conn.sscan::<_, String>(key).await?;
                 while let Some(set) = iter.next_item().await {
-                    let set = set
-                        .into_iter()
-                        .map(|x| vec![Some(to_string_or_hex(x))])
-                        .collect::<Vec<_>>();
+                    let set = set.into_iter().map(|x| vec![Some(x)]).collect::<Vec<_>>();
                     for s in set {
                         sender.send(create_csv(&s, delimiter)?.into()).await?;
                     }
@@ -325,37 +310,25 @@ impl RedisDB {
             }
 
             RedisType::Hash => {
-                let mut stream = conn.hscan::<_, Vec<u8>>(key).await?.chunks(2);
+                let mut stream = conn.hscan::<_, String>(key).await?.chunks(2);
                 while let Some(value) = stream.next().await {
                     let kv = check_resp(value)?;
                     sender
                         .send(
-                            create_csv(
-                                &[
-                                    Some(to_string_or_hex(kv[0].clone())),
-                                    Some(to_string_or_hex(kv[1].clone())),
-                                ],
-                                delimiter,
-                            )?
-                            .into(),
+                            create_csv(&[Some(kv[0].clone()), Some(kv[1].clone())], delimiter)?
+                                .into(),
                         )
                         .await?;
                 }
             }
             RedisType::Zset => {
-                let mut stream = conn.zscan::<_, Vec<u8>>(key).await?.chunks(2);
+                let mut stream = conn.zscan::<_, String>(key).await?.chunks(2);
                 while let Some(value) = stream.next().await {
                     let kv = check_resp(value)?;
                     sender
                         .send(
-                            create_csv(
-                                &[
-                                    Some(to_string_or_hex(kv[0].clone())),
-                                    Some(to_string_or_hex(kv[1].clone())),
-                                ],
-                                delimiter,
-                            )?
-                            .into(),
+                            create_csv(&[Some(kv[0].clone()), Some(kv[1].clone())], delimiter)?
+                                .into(),
                         )
                         .await?;
                 }
@@ -373,8 +346,8 @@ impl RedisDB {
         let ty = Self::get_key_type(&mut conn, key).await?;
         match ty {
             RedisType::String => {
-                let value: Vec<u8> = conn.get(key).await?;
-                let value = Some(to_string_or_hex(value));
+                let value: String = conn.get(key).await?;
+                let value = Some(value);
                 sender
                     .send(create_html_table_data(&[vec![value]]).into())
                     .await?;
@@ -384,35 +357,29 @@ impl RedisDB {
                 let size: isize = 100;
                 let iter = OffsetLimitIter::new(total, 100);
                 for x in iter {
-                    let list: Vec<Vec<u8>> = conn.lrange(key, x, x + size).await?;
-                    let list = list
-                        .into_iter()
-                        .map(|x| vec![Some(to_string_or_hex(x))])
-                        .collect::<Vec<_>>();
+                    let list: Vec<String> = conn.lrange(key, x, x + size).await?;
+                    let list = list.into_iter().map(|x| vec![Some(x)]).collect::<Vec<_>>();
                     sender.send(create_html_table_data(&list).into()).await?;
                 }
             }
 
             RedisType::Set => {
-                let mut iter = conn.sscan::<_, Vec<u8>>(key).await?;
+                let mut iter = conn.sscan::<_, String>(key).await?;
                 while let Some(set) = iter.next_item().await {
-                    let set = set
-                        .into_iter()
-                        .map(|x| vec![Some(to_string_or_hex(x))])
-                        .collect::<Vec<_>>();
+                    let set = set.into_iter().map(|x| vec![Some(x)]).collect::<Vec<_>>();
                     sender.send(create_html_table_data(&set).into()).await?;
                 }
             }
 
             RedisType::Hash => {
-                let mut stream = conn.hscan::<_, Vec<u8>>(key).await?.chunks(2);
+                let mut stream = conn.hscan::<_, String>(key).await?.chunks(2);
                 while let Some(value) = stream.next().await {
                     let kv = check_resp(value)?;
                     sender
                         .send(
                             create_html_table_data(&[vec![
-                                Some(to_string_or_hex(kv[0].clone())),
-                                Some(to_string_or_hex(kv[1].clone())),
+                                Some(kv[0].clone()),
+                                Some(kv[1].clone()),
                             ]])
                             .into(),
                         )
@@ -420,14 +387,14 @@ impl RedisDB {
                 }
             }
             RedisType::Zset => {
-                let mut stream = conn.zscan::<_, Vec<u8>>(key).await?.chunks(2);
+                let mut stream = conn.zscan::<_, String>(key).await?.chunks(2);
                 while let Some(value) = stream.next().await {
                     let kv = check_resp(value)?;
                     sender
                         .send(
                             create_html_table_data(&[vec![
-                                Some(to_string_or_hex(kv[0].clone())),
-                                Some(to_string_or_hex(kv[1].clone())),
+                                Some(kv[0].clone()),
+                                Some(kv[1].clone()),
                             ]])
                             .into(),
                         )
@@ -452,8 +419,8 @@ impl RedisDB {
                     .send(create_markdown_header(&["value".to_string()]).into())
                     .await?;
 
-                let value: Vec<u8> = conn.get(key).await?;
-                let value = Some(to_string_or_hex(value));
+                let value: String = conn.get(key).await?;
+                let value = Some(value);
                 sender.send(create_markdown_data(&[value]).into()).await?;
             }
             RedisType::List => {
@@ -464,11 +431,8 @@ impl RedisDB {
                 let size: isize = 100;
                 let iter = OffsetLimitIter::new(total, 100);
                 for x in iter {
-                    let list: Vec<Vec<u8>> = conn.lrange(key, x, x + size).await?;
-                    let list = list
-                        .into_iter()
-                        .map(|x| vec![Some(to_string_or_hex(x))])
-                        .collect::<Vec<_>>();
+                    let list: Vec<String> = conn.lrange(key, x, x + size).await?;
+                    let list = list.into_iter().map(|x| vec![Some(x)]).collect::<Vec<_>>();
 
                     for l in list {
                         sender.send(create_markdown_data(&l).into()).await?;
@@ -480,12 +444,9 @@ impl RedisDB {
                 sender
                     .send(create_markdown_header(&["value".to_string()]).into())
                     .await?;
-                let mut iter = conn.sscan::<_, Vec<u8>>(key).await?;
+                let mut iter = conn.sscan::<_, String>(key).await?;
                 while let Some(set) = iter.next_item().await {
-                    let set = set
-                        .into_iter()
-                        .map(|x| Some(to_string_or_hex(x)))
-                        .collect::<Vec<_>>();
+                    let set = set.into_iter().map(|x| Some(x)).collect::<Vec<_>>();
                     sender.send(create_markdown_data(&set).into()).await?;
                 }
             }
@@ -493,16 +454,13 @@ impl RedisDB {
                 sender
                     .send(create_markdown_header(&["key".to_string(), "value".to_string()]).into())
                     .await?;
-                let mut stream = conn.hscan::<_, Vec<u8>>(key).await?.chunks(2);
+                let mut stream = conn.hscan::<_, String>(key).await?.chunks(2);
                 while let Some(value) = stream.next().await {
                     let kv = check_resp(value)?;
                     sender
                         .send(
-                            create_markdown_data(&[
-                                Some(to_string_or_hex(kv[0].clone())),
-                                Some(to_string_or_hex(kv[1].clone())),
-                            ])
-                            .into(),
+                            create_markdown_data(&[Some(kv[0].clone()), Some(kv[1].clone())])
+                                .into(),
                         )
                         .await?;
                 }
@@ -511,16 +469,13 @@ impl RedisDB {
                 sender
                     .send(create_markdown_header(&["key".to_string(), "score".to_string()]).into())
                     .await?;
-                let mut stream = conn.zscan::<_, Vec<u8>>(key).await?.chunks(2);
+                let mut stream = conn.zscan::<_, String>(key).await?.chunks(2);
                 while let Some(value) = stream.next().await {
                     let kv = check_resp(value)?;
                     sender
                         .send(
-                            create_markdown_data(&[
-                                Some(to_string_or_hex(kv[0].clone())),
-                                Some(to_string_or_hex(kv[1].clone())),
-                            ])
-                            .into(),
+                            create_markdown_data(&[Some(kv[0].clone()), Some(kv[1].clone())])
+                                .into(),
                         )
                         .await?;
                 }
@@ -568,9 +523,9 @@ impl RedisDB {
                 let mut m = serde_json::Map::new();
                 while let Some(value) = stream.next().await {
                     let kv = check_resp(value)?;
-                    let key = to_string_or_hex(kv[0].clone());
+                    let key = kv[0].clone();
                     let value = to_json_value(kv[1].clone());
-                    m.insert(key, value);
+                    m.insert(String::from_utf8(key)?, value);
                 }
                 sender.send(m.into()).await?;
             }
@@ -579,9 +534,9 @@ impl RedisDB {
                 let mut m = serde_json::Map::new();
                 while let Some(value) = stream.next().await {
                     let kv = check_resp(value)?;
-                    let key = to_string_or_hex(kv[0].clone());
+                    let key = kv[0].clone();
                     let value = to_json_value(kv[1].clone());
-                    m.insert(key, value);
+                    m.insert(String::from_utf8(key)?, value);
                 }
                 sender.send(m.into()).await?;
             }
@@ -630,7 +585,7 @@ impl RedisDB {
                 while let Some(value) = stream.next().await {
                     let mut m = serde_json::Map::new();
                     let kv = check_resp(value)?;
-                    let key = to_string_or_hex(kv[0].clone());
+                    let key = String::from_utf8(kv[0].clone())?;
                     m.insert(key, to_json_value(kv[1].clone()));
                     sender.send(m.into()).await?;
                 }
@@ -640,7 +595,7 @@ impl RedisDB {
                 while let Some(value) = stream.next().await {
                     let kv = check_resp(value)?;
                     let mut m = serde_json::Map::new();
-                    let key = to_string_or_hex(kv[0].clone());
+                    let key = String::from_utf8(kv[0].clone())?;
                     m.insert(key, to_json_value(kv[1].clone()));
                     sender.send(m.into()).await?;
                 }
@@ -865,13 +820,13 @@ impl RedisDB {
             RedisType::List => {
                 let total: isize = conn.llen(key).await?;
                 for i in 0..total {
-                    let value: Vec<u8> = conn.lindex(key, i).await?;
+                    let value: String = conn.lindex(key, i).await?;
                     sender
                         .send(
                             XlsxEdit {
                                 row: i as u32,
                                 column: 0,
-                                content: to_string_or_hex(value),
+                                content: value,
                             }
                             .into(),
                         )
@@ -879,7 +834,7 @@ impl RedisDB {
                 }
             }
             RedisType::Set => {
-                let mut iter = conn.sscan::<_, Vec<u8>>(key).await?;
+                let mut iter = conn.sscan::<_, String>(key).await?;
                 let mut row_num = 0;
                 while let Some(set) = iter.next().await {
                     let set = set?;
@@ -888,7 +843,7 @@ impl RedisDB {
                             XlsxEdit {
                                 row: row_num,
                                 column: 0,
-                                content: to_string_or_hex(set),
+                                content: set,
                             }
                             .into(),
                         )
@@ -897,7 +852,7 @@ impl RedisDB {
                 }
             }
             RedisType::Hash => {
-                let mut stream: AsyncIter<'_, Vec<u8>> = conn.hscan(key).await?;
+                let mut stream: AsyncIter<'_, String> = conn.hscan(key).await?;
                 let mut offset = 0;
                 while let Some(value) = stream.next().await {
                     let value = value?;
@@ -906,7 +861,7 @@ impl RedisDB {
                             XlsxEdit {
                                 row: offset / 2,
                                 column: (offset % 2) as rust_xlsxwriter::ColNum,
-                                content: to_string_or_hex(value),
+                                content: value,
                             }
                             .into(),
                         )
@@ -915,7 +870,7 @@ impl RedisDB {
                 }
             }
             RedisType::Zset => {
-                let mut stream: AsyncIter<'_, Vec<u8>> = conn.zscan(key).await?;
+                let mut stream: AsyncIter<'_, String> = conn.zscan(key).await?;
                 let mut offset = 0;
                 while let Some(value) = stream.next().await {
                     let value = value?;
@@ -924,7 +879,7 @@ impl RedisDB {
                             XlsxEdit {
                                 row: offset / 2,
                                 column: (offset % 2) as rust_xlsxwriter::ColNum,
-                                content: to_string_or_hex(value),
+                                content: value,
                             }
                             .into(),
                         )
@@ -1800,6 +1755,7 @@ pub(crate) async fn make_test_object() -> RedisDB {
     .unwrap();
     db
 }
+
 #[cfg(test)]
 mod tests {
     use super::make_test_object;
