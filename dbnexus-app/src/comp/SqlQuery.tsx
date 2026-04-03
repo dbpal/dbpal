@@ -38,7 +38,7 @@ import {
 } from "./helper.ts";
 import ArrowCircleDownRoundedIcon from "@mui/icons-material/ArrowCircleDownRounded";
 import { ExportView } from "./Export.tsx";
-import { ExecutingTime, PossibleParseError } from "./CommonComp.tsx";
+import { PossibleParseError, TimeDuration } from "./CommonComp.tsx";
 import {
   CancelButton,
   EditorBar,
@@ -198,7 +198,7 @@ function SqlQuery(props: {
   const [makeConnLoading, setMakeConnLoading] = useState(false);
   const { showNotification } = useNotification();
   const [showQueryLog, setShowQueryLog] = useState(false);
-
+  const [fetchDur, setFetchDur] = useState(0);
   const [executeTimes, setExecuteTimes] = useState(0);
   const [conn] = useState<QueryConn>(new QueryConn(uuid, uuidv4(), kind));
   const getSize = useSizeStore((s) => s.getSize);
@@ -356,7 +356,7 @@ function SqlQuery(props: {
           return appendQueryResult(resp, e, setQueryStatus);
         });
       });
-
+      const fetchBegin = new Date();
       conn
         .queryOP(text, emit, getSize(UseSizeConfig.queryLimit))
         .then(() => {
@@ -374,6 +374,7 @@ function SqlQuery(props: {
         .finally(() => {
           setExecuteTimes((e) => e + 1);
           setLoading(false);
+          setFetchDur(new Date().getTime() - fetchBegin.getTime());
         });
     },
     [
@@ -533,7 +534,6 @@ function SqlQuery(props: {
                 <RefreshIcon />
               </IconButton>
             </Tooltip>
-
             {openOk && (
               <Tooltip title="export query result to a file">
                 <IconButton
@@ -556,7 +556,6 @@ function SqlQuery(props: {
               kind={kind}
               editor={editor}
             />
-
             {editor && (
               <LoadStoreFile
                 getQuery={() => {
@@ -577,14 +576,11 @@ function SqlQuery(props: {
                 <EventNoteIcon />
               </IconButton>
             </Tooltip>
-
             <ToggleChatShow />
-
             {extras}
-
             <ModifyLLMConfigModal />
-            <ExecutingTime loading={loading} />
             <SliderSize config={UseSizeConfig.queryLimit} />
+            <TimeDuration dur={fetchDur} />
             {querySomeShow.get(tabCtx.id)}
           </Stack>
           <div

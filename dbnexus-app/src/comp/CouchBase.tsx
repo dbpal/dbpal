@@ -43,7 +43,7 @@ import DeleteForeverIcon from "@mui/icons-material/DeleteForever";
 import PlayArrowIcon from "@mui/icons-material/PlayArrow";
 import FilterAltIcon from "@mui/icons-material/FilterAlt";
 import { FaArrowsAltV } from "react-icons/fa";
-import { ExecutingTime, ModalHeader, SelectPageSize } from "./CommonComp.tsx";
+import { ModalHeader, SelectPageSize } from "./CommonComp.tsx";
 import { Channel, invoke } from "@tauri-apps/api/core";
 import types from "./ApiStruct.ts";
 import {
@@ -789,7 +789,6 @@ function CouchBaseQuery(props: {
             <ToggleChatShow />
 
             <SliderSize config={UseSizeConfig.queryLimit} />
-            <ExecutingTime loading={loading} />
           </Stack>
         </Stack>
         <SimpleFlexEditor

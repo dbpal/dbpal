@@ -893,15 +893,6 @@ pub struct AiOnlineSearch {
     pub provider: String, // duckduckgo
 }
 
-#[derive(Debug, Clone, serde::Serialize, TypeDef, Default, serde::Deserialize)]
-#[serde(rename_all = "lowercase")]
-#[allow(unused)]
-pub struct Proxy {
-    http: String,
-    https: String,
-    all_proxy: String,
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;

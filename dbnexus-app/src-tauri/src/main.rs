@@ -39,11 +39,11 @@ use handlers::{
     query_sql_open_connection, redis_hash_add, redis_hash_del, redis_hash_replace, redis_list_key,
     redis_list_lpush, redis_list_remove, redis_list_rpush, redis_list_set, redis_set_add,
     redis_set_del, redis_set_replace, redis_string_set, redis_zset_add, redis_zset_del,
-    redis_zset_replace, rename_index, rename_sequence, rename_table, server_metas, set_log_level,
-    show_create_table_sql, show_indexes, show_procedure, show_table, show_table_columns,
-    show_trigger, show_udf, show_view_columns, simple_execute_sql, table_delete, table_delete_sql,
-    table_insert, table_update, table_update_sql, test_connection, truncate_table, try_get_max_id,
-    try_list_database_schema_candidates, valid_json,
+    redis_zset_replace, rename_index, rename_sequence, rename_table, server_metas, set_env,
+    set_log_level, show_create_table_sql, show_indexes, show_procedure, show_table,
+    show_table_columns, show_trigger, show_udf, show_view_columns, simple_execute_sql,
+    table_delete, table_delete_sql, table_insert, table_update, table_update_sql, test_connection,
+    truncate_table, try_get_max_id, try_list_database_schema_candidates, valid_json,
 };
 
 use ai::openai_invoke;
@@ -534,6 +534,7 @@ fn main() {
             table_delete,
             openai_stream,
             openai_invoke,
+            set_env,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

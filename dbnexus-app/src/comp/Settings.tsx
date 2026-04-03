@@ -871,8 +871,93 @@ function MiscSetting() {
   );
 }
 
+function ProxySetting() {
+  const { updateProxy, proxy } = useUserSettings();
+  const [modified, setModified] = useState(false);
+
+  const [http, setHttp] = useState(proxy.http);
+  const [https, setHttps] = useState(proxy.https);
+  const [all, setAll] = useState(proxy.all);
+
+  const [no, setNo] = useState(proxy.no);
+  const { showNotification } = useNotification();
+  const makeConfig = useCallback(() => {
+    return { http, all, https, no } as Partial<UserSettings["proxy"]>;
+  }, [all, http, https, no]);
+
+  useEffect(() => {
+    setModified(!isEqual(proxy, makeConfig()));
+  }, [makeConfig, proxy]);
+
+  const handleSave = async () => {
+    try {
+      updateProxy(makeConfig());
+    } catch (e) {
+      console.log(e);
+      return;
+    }
+    showNotification("success", "save proxy ok");
+  };
+
+  return (
+    <Stack>
+      <Stack direction="row" sx={{ alignItems: "flex-start" }}>
+        <Typography width={headerSize}> http proxy</Typography>
+        <ProxyValue value={http} setValue={setHttp} />
+      </Stack>
+      <Stack direction="row" sx={{ alignItems: "flex-start" }}>
+        <Typography width={headerSize}> https proxy</Typography>
+        <ProxyValue value={https} setValue={setHttps} />
+      </Stack>
+
+      <Stack direction="row" sx={{ alignItems: "flex-start" }}>
+        <Typography width={headerSize}> all proxy</Typography>
+        <ProxyValue value={all} setValue={setAll} />
+      </Stack>
+
+      <Stack direction="row" sx={{ alignItems: "flex-start" }}>
+        <Typography width={headerSize}> no proxy </Typography>
+        <ProxyValue value={no} setValue={setNo} />
+      </Stack>
+      <Divider />
+      <Stack direction="row">
+        <Button onClick={handleSave} disabled={!modified}>
+          {modified ? <IconModifed /> : undefined} save
+        </Button>
+      </Stack>
+    </Stack>
+  );
+}
+
+function ProxyValue({ value, setValue }) {
+  return (
+    <TextField
+      value={value}
+      onChange={(e) => {
+        setValue(e.target.value);
+      }}
+      fullWidth
+      slotProps={{
+        input: {
+          endAdornment: value && (
+            <InputAdornment position="end">
+              <IconButton
+                onClick={() => {
+                  setValue("");
+                }}
+                edge="end">
+                <ClearIcon fontSize="small" />
+              </IconButton>
+            </InputAdornment>
+          ),
+        },
+      }}
+    />
+  );
+}
+
 function ModifySetting() {
-  const ss = ["appearance", "editor", "export", "llm", "misc"];
+  const ss = ["appearance", "editor", "export", "llm", "misc", "proxy"];
   const [tab, setCurrentTab] = useState(ss[0]);
   return (
     <Stack>
@@ -903,6 +988,9 @@ function ModifySetting() {
               break;
             case "llm":
               content = <LLMSetting />;
+              break;
+            case "proxy":
+              content = <ProxySetting />;
               break;
           }
           return (
@@ -1214,7 +1302,7 @@ const isDark = (setting: Partial<UserSettings["appearance"]>, osTheme) => {
   return isDarkStr(setting.theme) || (setting.theme == "system" && isDarkStr(osTheme));
 };
 function SettingProvider({ children }) {
-  const { appearance, editor, misc, updateAppearance } = useUserSettings();
+  const { appearance, editor, misc, updateAppearance, proxy } = useUserSettings();
   const [osTheme, setOsTheme] = useState("light");
 
   const { showNotification } = useNotification();
@@ -1247,6 +1335,21 @@ function SettingProvider({ children }) {
           });
         }
       }
+      invoke("set_env", {
+        env: {
+          http_proxy: proxy.http,
+          https_proxy: proxy.https,
+          all_proxy: proxy.all,
+          no_proxy: proxy.no,
+        },
+      })
+        .then(() => {
+          console.log("set proxy success");
+        })
+
+        .catch((e) => {
+          showNotification("error", "set proxy failed", e);
+        });
       invoke("set_log_level", { level: misc.logLevel }).catch((e) => {
         showNotification("error", "set log level failed", e);
       });
@@ -1259,6 +1362,7 @@ function SettingProvider({ children }) {
     editor.theme,
     misc.autoStart,
     misc.logLevel,
+    proxy,
   ]);
 
   useEffect(() => {

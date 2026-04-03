@@ -49,6 +49,14 @@ pub fn set_log_level(level: String) {
 }
 
 #[tauri::command]
+
+pub fn set_env(env: HashMap<String, String>) {
+    for e in env {
+        std::env::set_var(e.0, e.1);
+    }
+}
+
+#[tauri::command]
 pub async fn cancel_task(
     task_id: String,
     state: State<'_, TaskManager>,

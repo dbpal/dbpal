@@ -755,6 +755,12 @@ export interface UserSettings {
     autoStart: boolean;
     logLevel: string;
   };
+  proxy: {
+    http: string | "";
+    https: string | "";
+    no: string | "";
+    all: string | "";
+  };
 }
 
 // 定义 Store 的状态和方法
@@ -764,6 +770,8 @@ interface UserSettingsState extends UserSettings {
   updateExport: (data: Partial<UserSettings["export_"]>) => void;
   updateEditor: (data: Partial<UserSettings["editor"]>) => void;
   updateMisc: (data: Partial<UserSettings["misc"]>) => void;
+
+  updateProxy: (data: Partial<UserSettings["proxy"]>) => void;
 
   // 计算属性 (由 Selector 处理，或在此定义辅助函数)
   getDatagridRowHeight: () => number;
@@ -794,12 +802,21 @@ const initialSettings: UserSettings = {
     autoStart: false,
     logLevel: "info",
   },
+  proxy: {
+    http: "",
+
+    https: "",
+    no: "",
+    all: "",
+  },
 };
 
 export const useUserSettings = create<UserSettingsState>()(
   persist(
     (set, get) => ({
       ...initialSettings,
+
+      updateProxy: (data) => set((state) => ({ proxy: { ...state.proxy, ...data } })),
 
       // 更新逻辑
       updateAppearance: (data) =>

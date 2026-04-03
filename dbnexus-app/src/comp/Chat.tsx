@@ -52,6 +52,8 @@ import { invoke } from "@tauri-apps/api/core";
 import types from "./ApiStruct.ts";
 import DeleteForeverIcon from "@mui/icons-material/DeleteForever";
 import { HumanMessage, AIMessage, BaseMessage } from "@langchain/core/messages";
+import NavigateNextIcon from "@mui/icons-material/NavigateNext";
+import NavigateBeforeIcon from "@mui/icons-material/NavigateBefore";
 import {
   callErrorable,
   createTableAndIndexSql,
@@ -812,7 +814,7 @@ function SqlChatTextInput(props: {
           </Stack>
         </Stack>
 
-        <Stack direction="row">
+        <Stack direction="row" style={{ alignItems: "flex-end" }}>
           <IconButton
             onClick={async () => {
               let files = await open({ multiple: true, pickerMode: "image" });
@@ -882,9 +884,9 @@ function SqlChatTextInput(props: {
 
 function ShowChatImages(props: { images: string[]; setImages }) {
   const { images, setImages } = props;
-  const [msgDetail, setMsgDetail] = useState("");
-
-  const maxSize = "12rem";
+  const [showMsgIndex, setMsgShowIndex] = useState<number | null>(null);
+  const maxSize = "4vw";
+  const show = typeof showMsgIndex == "number";
   return (
     <Stack direction="row">
       {images.map((e, index) => {
@@ -894,30 +896,52 @@ function ShowChatImages(props: { images: string[]; setImages }) {
             src={e}
             style={{ maxWidth: maxSize, maxHeight: maxSize, cursor: "pointer" }}
             onClick={() => {
-              setMsgDetail(e);
+              setMsgShowIndex(index);
             }}
           />
         );
       })}
-      {msgDetail && (
+      {show && (
         <Modal
-          open={!!msgDetail}
+          open={show}
           onClose={modalHandleClose((e: EscDownEvent) => {
             e.preventDefault();
-            setMsgDetail("");
+            setMsgShowIndex(null);
           })}>
           <Box sx={{ ...modalStyle }} width="80vw" height="60vh">
             <Stack direction="row">
               <IconButton
                 onClick={() => {
-                  setImages(images.filter((e) => e != msgDetail));
-                  setMsgDetail("");
+                  setImages(images.filter((_e, idx) => idx != showMsgIndex));
+                  setMsgShowIndex(null);
                 }}>
                 <ClearIcon />
               </IconButton>
+              <IconButton>
+                <NavigateBeforeIcon
+                  onClick={() => {
+                    if (showMsgIndex == 0) {
+                      setMsgShowIndex(images.length - 1);
+                    } else {
+                      setMsgShowIndex(showMsgIndex - 1);
+                    }
+                  }}
+                />
+              </IconButton>
+              <IconButton>
+                <NavigateNextIcon
+                  onClick={() => {
+                    if (showMsgIndex == images.length - 1) {
+                      setMsgShowIndex(0);
+                    } else {
+                      setMsgShowIndex(showMsgIndex + 1);
+                    }
+                  }}
+                />
+              </IconButton>
             </Stack>
 
-            <img src={msgDetail} style={{ width: "100%" }} />
+            <img src={images[showMsgIndex]} style={{ width: "100%" }} />
           </Box>
         </Modal>
       )}

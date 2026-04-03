@@ -56,7 +56,6 @@ import {
   prettyMs,
   resizeHandlerSize,
   secondConfirm,
-  shrinkAble,
   textEllipsisStyle,
 } from "./helper";
 
@@ -664,72 +663,6 @@ function TimeDuration(props: { dur: number }) {
   );
 }
 
-function ExecutingTime(props: {
-  loading: boolean;
-  disableTime?: boolean;
-  title?: string;
-}) {
-  let { loading, disableTime, title } = props;
-  if (!title) {
-    title = "executing time";
-  }
-  const executeTimeRef = useRef(null);
-  const timeExecuteClean = useRef<() => void>(null);
-  const [lastLoadTime, setLastLoadTime] = useState(new Date());
-  const tryExecuteTimeClean = () => {
-    if (timeExecuteClean.current) {
-      timeExecuteClean.current();
-      timeExecuteClean.current = null;
-    }
-  };
-  useEffect(() => {
-    return () => {
-      tryExecuteTimeClean();
-    };
-  }, []);
-  const timeExecute = () => {
-    const now = new Date();
-    const setUp = () => {
-      const ms = new Date().getTime() - now.getTime();
-      (executeTimeRef.current as HTMLDivElement).innerHTML = prettyMs(ms);
-    };
-    const int = setInterval(() => {
-      setUp();
-    }, 100);
-    timeExecuteClean.current = () => {
-      clearInterval(int);
-      setUp();
-    };
-  };
-  useEffect(() => {
-    tryExecuteTimeClean();
-    if (!loading) {
-      setLastLoadTime(new Date());
-    } else {
-      timeExecute();
-    }
-  }, [loading]);
-  return (
-    <>
-      <Tooltip title={title}>
-        <Chip
-          color="success"
-          label={<span ref={executeTimeRef}> </span>}
-          style={shrinkAble}
-          icon={<IoTimerOutline fontSize="1.2rem" />}
-        />
-      </Tooltip>
-      {!disableTime && (
-        <Tooltip title="loaded at">
-          <Typography style={shrinkAble}>
-            {lastLoadTime.toLocaleTimeString()}
-          </Typography>
-        </Tooltip>
-      )}
-    </>
-  );
-}
-
 function CopyMenuItem(props: GridColumnMenuItemProps) {
   const { colDef } = props;
   const { showNotification } = useNotification();
@@ -880,7 +813,6 @@ export {
   ExceedMaxTreeItem,
   UdfNameAndParameters,
   PossibleParseError,
-  ExecutingTime,
   AppColumnMenu,
   SelectColumns,
   OpenFileWithDefaultApp,
