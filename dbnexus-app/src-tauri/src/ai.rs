@@ -4,14 +4,18 @@ use std::sync::Arc;
 use base64::Engine;
 use dbnexus_db::db::{BackendKind, ExportFrame, ExportKind};
 
-use rig::agent::{Agent, PromptHook, StreamingError, Text};
+use futures_util::StreamExt;
+use rig::agent::{Agent, MultiTurnStreamItem, PromptHook, StreamingError, Text};
 use rig::client::completion::CompletionClient;
 use rig::providers::openai::responses_api::ResponsesCompletionModel;
+use rig::streaming::StreamingPrompt;
 use rig::tool::ToolDyn;
 use rig::wasm_compat::{WasmCompatSend, WasmCompatSync};
 use rig::EmptyListError;
 
-use crate::app::{self, DBPal, DatabaseBackend, ErrorFrontend, OpenAIReq, TaskManager};
+use crate::app::{
+    self, AiOnlineSearch, DBPal, DatabaseBackend, ErrorFrontend, OpenAIReq, TaskManager,
+};
 use rig::completion::{CompletionModel, Message, Prompt, PromptError, ToolDefinition};
 use rig::message::{DocumentSourceKind, Image, UserContent};
 use rig::one_or_many::OneOrMany;
@@ -30,7 +34,7 @@ impl From<PromptError> for ErrorFrontend {
 
 fn make_openai(
     req: &app::OpenAIReq,
-    tools: Option<Vec<Box<dyn ToolDyn>>>,
+    tools: Vec<Box<dyn ToolDyn>>,
 ) -> anyhow::Result<Agent<ResponsesCompletionModel>> {
     #[cfg(debug_assertions)]
     log::info!("open ai req:{:?}", req);
@@ -46,17 +50,13 @@ fn make_openai(
     if let Some(t) = req.temperature {
         agent_builder = agent_builder.temperature(t);
     }
-    let agent = if let Some(tools) = tools {
-        agent_builder.tools(tools).build()
-    } else {
-        agent_builder.build()
-    };
+    let agent = agent_builder.tools(tools).build();
     anyhow::Ok(agent)
 }
 
 #[tauri::command]
 pub async fn openai_invoke(req: app::OpenAIReq) -> Result<String, ErrorFrontend> {
-    let api = make_openai(&req, None).map_err(ErrorFrontend::from)?;
+    let api = make_openai(&req, vec![]).map_err(ErrorFrontend::from)?;
     let r = api.prompt(&req.msg).await?;
     Ok(r)
 }
@@ -83,7 +83,7 @@ impl From<EmptyListError> for ErrorFrontend {
 
 async fn call_openai_stream(
     req: &OpenAIReq,
-    tools: Option<Vec<Box<dyn ToolDyn>>>,
+    tools: Vec<Box<dyn ToolDyn>>,
     emit: Emitter,
 ) -> Result<(), ErrorFrontend> {
     let agent = make_openai(&req, tools)?;
@@ -103,10 +103,21 @@ async fn call_openai_stream(
             OneOrMany::many(content.into_iter())?
         },
     };
-    let prompt = agent.prompt(msg);
+    let mut prompt = agent.stream_prompt(msg).await;
 
-    let r = prompt.await?;
-    emit(r);
+    while let Some(chunk) = prompt.next().await {
+        let chunk = chunk?;
+
+        match chunk {
+            MultiTurnStreamItem::StreamAssistantItem(..) => {}
+            MultiTurnStreamItem::StreamUserItem(..) => {}
+            MultiTurnStreamItem::FinalResponse(final_response) => {
+                emit(final_response.response().to_owned())
+            }
+            _ => todo!(),
+        }
+    }
+
     Ok(())
 }
 
@@ -228,7 +239,7 @@ impl Tool for SqlQueryTool {
             .map_err(|e| CallToolErr::from(format!("查询失败: {}", e)))
             .unwrap();
         if exceed {
-            (self.emit)(format!("-- data exceed 100 some data not feed to LLM"))
+            (self.emit)(format!("-- data exceed 100,some data not feed to LLM"))
         }
         let r = expect_export_frame_all_json(ret).unwrap();
         Ok(SqlQueryOutput {
@@ -268,11 +279,11 @@ pub async fn openai_stream(
     let emitter = Arc::new(move |s| {
         emit.send(s).unwrap();
     });
-    let fur = call_openai_stream(
-        &req,
-        Some(db.make_tools(query_id, emitter.clone())),
-        emitter,
-    );
+    let mut tools = db.make_tools(query_id, emitter.clone());
+    if let Some(x) = req.search_engine.make_tool(emitter.clone())? {
+        tools.push(x);
+    }
+    let fur = call_openai_stream(&req, tools, emitter);
     tokio::select! {
         res = fur => {res},
         _ = token.cancelled() => {
@@ -301,6 +312,150 @@ async fn image_to_base64(path: &str) -> anyhow::Result<String> {
     anyhow::Ok(r)
 }
 
+impl AiOnlineSearch {
+    fn make_tool(&self, emit: Emitter) -> Result<Option<Box<dyn ToolDyn>>, ErrorFrontend> {
+        if self.enable {
+            let engine: Box<dyn websearch::SearchProvider> = match self.provider.as_ref() {
+                "duckduckgo" => Box::new(websearch::providers::DuckDuckGoProvider::new()),
+                _ => {
+                    return Err(ErrorFrontend::from(format!(
+                        "search engine found:{}",
+                        self.provider
+                    )));
+                }
+            };
+            Ok(Some(Box::new(WebSearchTool { engine, emit })))
+        } else {
+            Ok(None)
+        }
+    }
+}
+
+/// 单个搜索结果
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+pub struct SearchInput {
+    /// 搜索查询字符串
+    pub query: String,
+    pub max_results: Option<u32>,
+}
+
+/// 搜索工具的输出结果
+#[derive(Debug, Clone, serde:: Serialize, serde::Deserialize)]
+pub struct SearchOutput {
+    /// 搜索查询
+    pub query: String,
+    /// 搜索结果列表
+    pub results: Vec<websearch::SearchResult>,
+    /// 搜索耗时 (毫秒)
+    pub search_time_ms: u64,
+}
+
+pub struct WebSearchTool {
+    engine: Box<dyn websearch::SearchProvider>,
+    emit: Emitter,
+}
+
+impl Tool for WebSearchTool {
+    const NAME: &'static str = "web_search";
+
+    type Error = CallToolErr;
+
+    type Args = SearchInput;
+
+    type Output = SearchOutput;
+
+    fn definition(
+        &self,
+        _prompt: String,
+    ) -> impl Future<Output = ToolDefinition> + WasmCompatSend + WasmCompatSync {
+        async move {
+            ToolDefinition {
+                name: Self::NAME.to_string(),
+                description: "Search the web for information and use the results to answer the user's question. \
+                    Use this tool when you need to find current information, facts, news, or specific resources \
+                    that may not be in your training data. The tool returns relevant web pages with titles, \
+                    URLs, and snippets."
+                    .to_string(),
+                parameters :serde_json::json!({
+                        "type": "object",
+                        "properties": {
+                            "query": {
+                                "type": "string",
+                                "description": "The search query string - what to search for"
+                            },
+                            "max_results": {
+                                "type": "integer",
+                                "description": "Maximum number of results to return (default: 10, max: 20)",
+                                "minimum": 10,
+                                "maximum": 20,
+                                "nullable": true
+                            }
+                        },
+                        "required": ["query"]
+                    })
+            }
+        }
+    }
+
+    fn call(
+        &self,
+        args: Self::Args,
+    ) -> impl Future<Output = Result<Self::Output, Self::Error>> + WasmCompatSend {
+        async move {
+            (self.emit)(format!(
+                "-- search internet for answer,query:{}\n",
+                args.query
+            ));
+
+            let start = std::time::Instant::now();
+            let results = self
+                .engine
+                .search(&websearch::SearchOptions {
+                    query: args.query.clone(),
+                    max_results: args.max_results,
+                    ..Default::default()
+                })
+                .await
+                .map_err(|err| {
+                    CallToolErr::from(format!("call search engine failed,err:{}", err))
+                })?;
+
+            #[cfg(debug_assertions)]
+            {
+                for r in results.iter() {
+                    println!("search result-{}-{:?} ", r.title, r.snippet);
+                }
+            }
+
+            (self.emit)(format!(
+                "-- search done:{} results {} ...\n",
+                results.len(),
+                {
+                    //
+                    let slice = results.get(0..3).unwrap_or(&results);
+                    let r = slice
+                        .iter()
+                        .map(|x| x.snippet.clone().unwrap_or_default())
+                        .collect::<Vec<_>>()
+                        .join("  ");
+
+                    if r.len() > 100 {
+                        r.chars().take(100).collect::<String>()
+                    } else {
+                        r
+                    }
+                }
+            ));
+
+            Ok(SearchOutput {
+                query: args.query.clone(),
+                search_time_ms: start.elapsed().as_millis() as u64,
+                results,
+            })
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -310,6 +465,7 @@ mod tests {
         agent::MultiTurnStreamItem,
         streaming::{StreamedAssistantContent, StreamingPrompt},
     };
+    use websearch::SearchProvider;
 
     #[tokio::test]
 
@@ -328,8 +484,9 @@ mod tests {
                 max_tokens: None,
                 top_p: None,
                 images: vec![image],
+                search_engine: Default::default(),
             },
-            None,
+            vec![],
             Arc::new(|x| print!("{}", x)),
         )
         .await
@@ -351,7 +508,7 @@ mod tests {
         let req =  &OpenAIReq {
                 url: "https://api.openai-proxy.org/v1".into(),
                 api_key: "sk-egR0EUYn0EzVybl7D9JkUFx2ksnD62sZPQ8d0J0yJgPEiAWt".into(),
-                model: "gpt-5".into(),
+                model: "gpt-4.1-mini".into(),
                 msg: r#"
 
 
@@ -389,6 +546,7 @@ human: tell me Mike's age from TABLE Persons
                 max_tokens: None,
                 top_p: None,
                 images: vec![],
+                search_engine : Default::default(),
             };
         let query_id = "aaaa";
 
@@ -437,7 +595,7 @@ human: tell me Mike's age from TABLE Persons
         let req =  &OpenAIReq {
                 url: "https://api.openai-proxy.org/v1".into(),
                 api_key: "sk-egR0EUYn0EzVybl7D9JkUFx2ksnD62sZPQ8d0J0yJgPEiAWt".into(),
-                model: "gpt-5".into(),
+                model: "gpt-4.1-mini".into(),
                 msg: r#"
 
 
@@ -475,6 +633,7 @@ human: tell me Mike's age from TABLE Persons
                 max_tokens: None,
                 top_p: None,
                 images: vec![],
+                search_engine: Default::default(),
             };
         let query_id = "aaaa";
 
@@ -539,5 +698,101 @@ human: tell me Mike's age from TABLE Persons
         }
 
         println!("done");
+    }
+
+    use std::env;
+
+    #[tokio::test]
+    async fn test_search_with_proxy() {
+        // enable_test_log();
+
+        // 打印当前代理设置
+        println!("Current proxy settings:");
+        println!("  http_proxy:  {:?}", env::var("http_proxy").ok());
+        println!("  https_proxy: {:?}", env::var("https_proxy").ok());
+        println!("  all_proxy:   {:?}", env::var("all_proxy").ok());
+
+        // 如果没有设置代理，手动设置（仅用于测试）
+        if env::var("https_proxy").is_err() {
+            println!("⚠️  No proxy detected, setting default proxy...");
+            env::set_var("http_proxy", "http://127.0.0.1:7897");
+            env::set_var("https_proxy", "http://127.0.0.1:7897");
+            env::set_var("all_proxy", "socks5://127.0.0.1:7897");
+        }
+
+        let provider = websearch::providers::DuckDuckGoProvider::new();
+
+        match provider
+            .search(&websearch::SearchOptions {
+                query: "rust language".into(),
+                max_results: 10.into(),
+                ..Default::default()
+            })
+            .await
+        {
+            Ok(results) => {
+                println!("✅ Search successful, found {} results:", results.len());
+                for (i, result) in results.iter().enumerate() {
+                    println!(
+                        "  {}. {} - {} {:?} {:?}",
+                        i + 1,
+                        result.title,
+                        result.url,
+                        result.snippet,
+                        result.raw,
+                    );
+                }
+            }
+            Err(e) => {
+                println!("❌ Search failed: {}", e);
+                println!("💡 Tip: Check if your proxy is running on 127.0.0.1:7897");
+            }
+        }
+    }
+
+    #[tokio::test]
+    async fn test_search_search_tool() {
+        // enable_test_log();
+
+        // 打印当前代理设置
+        println!("Current proxy settings:");
+        println!("  http_proxy:  {:?}", env::var("http_proxy").ok());
+        println!("  https_proxy: {:?}", env::var("https_proxy").ok());
+        println!("  all_proxy:   {:?}", env::var("all_proxy").ok());
+
+        // 如果没有设置代理，手动设置（仅用于测试）
+        if env::var("https_proxy").is_err() {
+            println!("⚠️  No proxy detected, setting default proxy...");
+            env::set_var("http_proxy", "http://127.0.0.1:7897");
+            env::set_var("https_proxy", "http://127.0.0.1:7897");
+            env::set_var("all_proxy", "socks5://127.0.0.1:7897");
+        }
+        let req = &OpenAIReq {
+            url: "https://api.openai-proxy.org/v1".into(),
+            api_key: "sk-egR0EUYn0EzVybl7D9JkUFx2ksnD62sZPQ8d0J0yJgPEiAWt".into(),
+            model: "gpt-4.1-mini".into(),
+            msg: r#"
+                tell me what time and date is in new york
+                "#
+            .into(),
+            temperature: None,
+            max_tokens: None,
+            top_p: None,
+            images: vec![],
+            search_engine: Default::default(),
+        };
+
+        let p = Arc::new(|x| println!("{}", x));
+
+        call_openai_stream(
+            &req,
+            vec![Box::new(WebSearchTool {
+                engine: Box::new(websearch::providers::DuckDuckGoProvider::new()),
+                emit: p.clone(),
+            })],
+            p,
+        )
+        .await
+        .unwrap();
     }
 }

@@ -558,16 +558,6 @@ const shrinkAble = {
   minWidth: "3rem",
 };
 
-class LLMConfig {
-  baseUrl: string;
-  apiKey: string;
-  model: string;
-  temperature: number = 0;
-  static key = "llm-config-4k9zF7m5p3T1H2";
-  maxToken: number = 0;
-  topP: number = 0;
-}
-
 enum MongoLanguage {
   js = "javascript",
   ts = "typescript",
@@ -632,7 +622,6 @@ export {
   isTypeLargeText,
   isWindows,
   KeyPressed,
-  LLMConfig,
   MongoLanguage,
   newEmptyResp,
   pageSizeOptions,

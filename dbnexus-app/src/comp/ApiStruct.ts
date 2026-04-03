@@ -509,6 +509,10 @@ export namespace types {
         "max_expiry": (types.U64 | null);
         "bucket_type": types.CouchBaseBucketType;
     });
+    export type AiOnlineSearch = {
+        "enable": boolean;
+        "provider": string;
+    };
     export type OpenAIReq = {
         "url": string;
         "api_key": string;
@@ -518,6 +522,7 @@ export namespace types {
         "max_tokens": (types.U64 | null);
         "top_p": (types.F64 | null);
         "images": (string)[];
+        "search_engine": types.AiOnlineSearch;
     };
     export type SetZoom = ("in" | "out" | "reset");
     export type RedisListTable = {

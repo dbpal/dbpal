@@ -15,7 +15,7 @@ mod tests {
     use dbnexus_db::language_server::CompletionList;
     use dbnexus_db::redis::RedisListTable;
 
-    use crate::app::{OpenAIReq, SetZoom};
+    use crate::app::{AiOnlineSearch, OpenAIReq, SetZoom};
     #[test]
     fn generate_ts_def() {
         use crate::app::{self};
@@ -92,6 +92,7 @@ mod tests {
             &OpenAIReq::INFO,
             &SetZoom::INFO,
             &RedisListTable::INFO,
+            &AiOnlineSearch::INFO,
         ];
         let options: DefinitionFileOptions = DefinitionFileOptions::default();
         write_definition_file_from_type_infos(&mut file, options, &api).unwrap();

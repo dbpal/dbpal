@@ -34,6 +34,8 @@ pub struct OpenAIReq {
     pub top_p: Option<f64>,
     // data:image/jpeg;base64,
     pub images: Vec<String>,
+
+    pub search_engine: AiOnlineSearch,
 }
 
 impl DBConnectionConfig {
@@ -619,6 +621,7 @@ impl ErrorFrontend {
         }
     }
 }
+
 // 管理所有任务的取消令牌
 
 #[derive(Clone, Default)]
@@ -880,6 +883,23 @@ pub enum SetZoom {
 pub enum AiStreamMsg {
     Notice { msg: String },
     Resp { msg: String },
+}
+
+#[derive(Debug, Clone, serde::Serialize, TypeDef, Default, serde::Deserialize)]
+#[serde(rename_all = "lowercase")]
+#[allow(unused)]
+pub struct AiOnlineSearch {
+    pub enable: bool,
+    pub provider: String, // duckduckgo
+}
+
+#[derive(Debug, Clone, serde::Serialize, TypeDef, Default, serde::Deserialize)]
+#[serde(rename_all = "lowercase")]
+#[allow(unused)]
+pub struct Proxy {
+    http: String,
+    https: String,
+    all_proxy: String,
 }
 
 #[cfg(test)]

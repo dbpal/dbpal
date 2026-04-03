@@ -899,7 +899,7 @@ function SqlTableView(props: {
               setRowBeenLocate(operation.tableId);
               setTimeout(() => {
                 setRowBeenLocate("");
-              }, 10_000);
+              }, 2_000);
             } else {
               showNotification(
                 "warning",

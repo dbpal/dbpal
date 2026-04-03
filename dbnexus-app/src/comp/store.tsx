@@ -5,7 +5,6 @@ import {
   DataSourceKind,
   extractConfigNameFromUuid,
   generateRandomString,
-  LLMConfig,
   TabContent,
 } from "./helper";
 import { AlertColor, Typography } from "@mui/material";
@@ -204,6 +203,18 @@ export const useTabsManage = create<{
   },
 }));
 
+export type LLMConfig = {
+  baseUrl: string;
+  apiKey: string;
+  model: string;
+  temperature: number;
+  maxToken: number;
+  topP: number;
+  search_engin: types.AiOnlineSearch;
+};
+
+export const LLM_CONFIG_KEY = "llm-config-4k9zF7m5p3T1H2";
+
 interface LLMStore {
   config: LLMConfig;
   setConfig: (config: LLMConfig) => void;
@@ -219,6 +230,10 @@ export const useLLMConfig = create<LLMStore>()(
         model: "gpt-3.5-turbo",
         temperature: null,
         topP: 0,
+        search_engin: {
+          enable: true,
+          provider: "duckduckgo",
+        },
       },
       setConfig: (config) => set({ config }),
     }),
@@ -229,16 +244,15 @@ export const useLLMConfig = create<LLMStore>()(
       storage: new TauriStoreManger<LLMStore>(
         async (s) => {
           if (s.config.apiKey) {
-            await PassWordManager.savePassword(LLMConfig.key, s.config.apiKey, true);
+            await PassWordManager.savePassword(LLM_CONFIG_KEY, s.config.apiKey, true);
           } else {
-            await PassWordManager.deletePassword(LLMConfig.key);
+            await PassWordManager.deletePassword(LLM_CONFIG_KEY);
           }
           return { ...s, apiKey: "" };
         },
         async (s) => {
-          let pass = await PassWordManager.getPassword(LLMConfig.key);
+          let pass = await PassWordManager.getPassword(LLM_CONFIG_KEY);
           s.config.apiKey = pass;
-          Object.setPrototypeOf(s.config, LLMConfig.prototype);
         },
       ),
     },
@@ -256,6 +270,7 @@ export const makeLLMCallable = (config: LLMConfig) => {
       max_tokens: config.maxToken,
       top_p: config.topP,
       images,
+      search_engine: config.search_engin,
     };
   };
 

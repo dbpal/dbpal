@@ -35,7 +35,6 @@ import {
   validJson,
   registeredThemes,
   dataGridheaderFontSize,
-  LLMConfig,
   shrinkAble,
   prettyMs,
   isDarkStr,
@@ -543,6 +542,10 @@ function LLMSetting(props: { handleClose?: () => void }) {
   const [helloTime, setHelloTime] = useState(0);
   const [modified, setModified] = useState(false);
 
+  const [searchEngine, setSearchEngine] = useState<types.AiOnlineSearch>(
+    oldSetting.search_engin,
+  );
+
   const makeConfig = useCallback(() => {
     const config = {
       baseUrl,
@@ -551,10 +554,11 @@ function LLMSetting(props: { handleClose?: () => void }) {
       model,
       maxToken: maxToken ? parseInt(maxToken) : null,
       topP: topP ? parseFloat(topP) : 0,
-    } as LLMConfig;
-    Object.setPrototypeOf(config, LLMConfig.prototype);
+      search_engin: searchEngine,
+    };
+
     return config;
-  }, [apiKey, baseUrl, maxToken, model, temperature, topP]);
+  }, [apiKey, baseUrl, maxToken, model, searchEngine, temperature, topP]);
 
   useEffect(() => {
     setModified(!isEqual(oldSetting, makeConfig()));
@@ -774,6 +778,25 @@ function LLMSetting(props: { handleClose?: () => void }) {
         />
       </Stack>
 
+      <Stack direction="row" sx={{ alignItems: "center" }}>
+        <Typography width={headerSize}> search engine </Typography>
+        <Checkbox
+          checked={searchEngine.enable}
+          onChange={(e) => {
+            setSearchEngine({ ...searchEngine, enable: e.target.checked });
+          }}
+        />
+        <Autocomplete
+          options={["duckduckgo"]}
+          style={{ width: "12rem" }}
+          value={searchEngine.provider}
+          renderInput={(params) => <TextField {...params} label={"search engine"} />}
+          freeSolo={false}
+          onChange={(_, value) => {
+            setSearchEngine({ ...searchEngine, provider: value });
+          }}
+        />
+      </Stack>
       <Divider />
       <Stack direction="row">
         <Button onClick={handleSave} disabled={!modified}>
