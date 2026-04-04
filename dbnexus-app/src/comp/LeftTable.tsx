@@ -85,7 +85,7 @@ function TablesTree(props: { typ: TableType }) {
   const { showNotification } = useNotification();
   const [loading, setLoading] = useState(false);
   const [exceed, setExceed] = useState(0);
-  const { maxTree } = useMatcher((state) => state);
+  const { maxTree } = useMatcher();
   const matchPattern = useMatcherFn();
   const tablesId = useRef(generateRandomString());
   useEffect(() => {
@@ -421,7 +421,7 @@ function TableMenu(props: {
   const [showDrop, setShowDrop] = useState(false);
   const [showExport, setShowExport] = useState(false);
   const { showNotification } = useNotification();
-  const { tabs, setCurrentTab, appendTab } = useTabsManage((state) => state);
+  const { tabs, setCurrentTab, appendTab } = useTabsManage();
 
   const handleTruncateTable = async () => {
     const confirm = await secondConfirm({

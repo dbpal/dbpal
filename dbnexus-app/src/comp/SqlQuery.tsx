@@ -68,7 +68,7 @@ function SqlTransaction(props: { conn: QueryConn; executeTimes: number }) {
   const { showNotification } = useNotification();
   const [txCount, setTxCount] = useState(0);
   const tabCtx = useContext(TabContext);
-  const { removeConfirmMsg, addConfirmMsg } = useConfirmMsg((state) => state);
+  const { removeConfirmMsg, addConfirmMsg } = useConfirmMsg();
 
   const handleQueryCommit = useCallback(async () => {
     try {

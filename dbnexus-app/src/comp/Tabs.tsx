@@ -1,36 +1,28 @@
 import { useEffect, useRef, useState } from "react";
 import { Stack, MenuItem, MenuList, Tabs, Tab, Tooltip, Chip } from "@mui/material";
 import CloseIcon from "@mui/icons-material/Close";
-import { secondConfirm, TabContext, TabContent, TabActiveContext } from "./helper";
+import { secondConfirm, TabContext, TabActiveContext } from "./helper";
 
-import { useConfirmMsg, useContextMenu } from "./store";
+import { useConfirmMsg, useContextMenu, useTabsManage } from "./store";
 import { IconModifed } from "./CommonComp2";
 
-function TabsMenu(props: {
-  index;
-  handleClose;
-  setTabs;
-  changeTab;
-  tabsLength;
-  selectIndex;
-}) {
-  const { index, handleClose, setTabs, changeTab, tabsLength, selectIndex } = props;
-
+function TabsMenu(props: { index: number }) {
+  const { index } = props;
+  const { closeTab, setTabs, setCurrentTab, tabs } = useTabsManage();
+  const tabsLength = tabs.length;
   return (
     <MenuList>
       <MenuItem
         onClick={() => {
-          handleClose(index);
+          closeTab(index);
         }}>
         close
       </MenuItem>
       {index != 0 && (
         <MenuItem
           onClick={() => {
-            setTabs((e) => {
-              changeTab(0);
-              return e.slice(index);
-            });
+            setCurrentTab(0);
+            setTabs(tabs.slice(index));
           }}>
           close to left
         </MenuItem>
@@ -38,13 +30,7 @@ function TabsMenu(props: {
       {index != tabsLength - 1 && (
         <MenuItem
           onClick={() => {
-            setTabs((e) => {
-              const x = e.slice(0, index + 1);
-              if (selectIndex > index) {
-                changeTab(index);
-              }
-              return x;
-            });
+            setTabs(tabs.slice(0, index + 1));
           }}>
           close to right
         </MenuItem>
@@ -52,11 +38,8 @@ function TabsMenu(props: {
       {tabsLength > 1 && (
         <MenuItem
           onClick={() => {
-            setTabs((e) => {
-              const x = [e[selectIndex]];
-              changeTab(0);
-              return x;
-            });
+            setCurrentTab(0);
+            setTabs([tabs[index]]);
           }}>
           close others
         </MenuItem>
@@ -73,7 +56,7 @@ function TabsMenu(props: {
               return;
             }
             setTabs([]);
-            changeTab(0);
+            setCurrentTab(0);
           }}>
           close all
         </MenuItem>
@@ -82,14 +65,8 @@ function TabsMenu(props: {
   );
 }
 
-function TabsWithContent(props: {
-  tabs: TabContent[];
-  handleClose: (index: number) => void;
-  changeTab: (index: number) => void;
-  selectIndex: number;
-  setTabs;
-}) {
-  const { tabs, handleClose, selectIndex, changeTab, setTabs } = props;
+function TabsWithContent() {
+  const { tabs, setCurrentTab, currentTab, closeTab } = useTabsManage();
   const setUpMenu = useContextMenu((state) => state.setUpMenu);
   const rootStack = useRef<HTMLDivElement>(null);
   const [tabWidth, setTabWidth] = useState(100);
@@ -115,12 +92,12 @@ function TabsWithContent(props: {
   return (
     <Stack style={{ width: "100%", height: "100%" }} ref={rootStack}>
       <Tabs
-        value={selectIndex}
+        value={currentTab}
         variant="scrollable"
         scrollButtons="auto"
         allowScrollButtonsMobile
         onChange={(_, newValue) => {
-          changeTab(newValue);
+          setCurrentTab(newValue);
         }}
         sx={{
           // 1. Tab 之间缝隙
@@ -136,12 +113,12 @@ function TabsWithContent(props: {
               key={tab.id}
               label=<Tooltip title={tab.header}>
                 <Chip
-                  color={selectIndex == index ? "success" : "default"}
+                  color={currentTab == index ? "success" : "default"}
                   icon={tab.icon}
                   style={{
                     textTransform: "none",
                     alignItems: "center",
-                    fontWeight: selectIndex == index ? "bolder" : undefined,
+                    fontWeight: currentTab == index ? "bolder" : undefined,
                   }}
                   deleteIcon={
                     tabConfirmMsg.get(tab.id) ? (
@@ -149,7 +126,7 @@ function TabsWithContent(props: {
                     ) : (
                       <CloseIcon
                         onClick={() => {
-                          handleClose(index);
+                          closeTab(index);
                         }}
                         style={{ fontSize: "0.9rem" }}
                         color="warning"
@@ -157,21 +134,12 @@ function TabsWithContent(props: {
                     )
                   }
                   onDelete={() => {
-                    handleClose(index);
+                    closeTab(index);
                   }}
                   label={tab.header}
                   onContextMenu={(e) => {
                     setUpMenu({
-                      content: (
-                        <TabsMenu
-                          index={index}
-                          handleClose={handleClose}
-                          setTabs={setTabs}
-                          tabsLength={tabs.length}
-                          changeTab={changeTab}
-                          selectIndex={selectIndex}
-                        />
-                      ),
+                      content: <TabsMenu index={index} />,
                       event: e,
                     });
                   }}
@@ -183,10 +151,10 @@ function TabsWithContent(props: {
       </Tabs>
       <div style={{ flex: 1 }}>
         {tabs.map((tab, index) => (
-          <TabActiveContext.Provider key={tab.id} value={selectIndex == index}>
+          <TabActiveContext.Provider key={tab.id} value={currentTab == index}>
             <TabContext value={{ id: tab.id }}>
               <div
-                hidden={selectIndex !== index}
+                hidden={currentTab !== index}
                 style={{ height: "100%", position: "relative" }}>
                 {tab.content}
               </div>

@@ -141,7 +141,7 @@ function LeftTop() {
   const { showNotification } = useNotification();
   const { switches, setSwitch } = useBoolSwitch();
   const show = switches[showTopKey];
-  const { appendTab, setCurrentTab, tabs } = useTabsManage((state) => state);
+  const { appendTab, setCurrentTab, tabs } = useTabsManage();
   const [showEditFilter, setShowEditFilter] = useState(false);
   const showAddConnection = useCallback(
     async (conn?: types.DBConnectionConfig) => {
@@ -432,7 +432,7 @@ function CopyConnection() {
 
   const setUpMenu = useContextMenu((state) => state.setUpMenu);
 
-  const { appendTab } = useTabsManage((state) => state);
+  const { appendTab } = useTabsManage();
 
   const handleRow = useCallback(
     async (conn) => {
@@ -669,7 +669,7 @@ function FavoriteSqlList() {
     [getByUuid, getDistinctUuids, showNotification, uuidFilter],
   );
 
-  const { appendTab } = useTabsManage((state) => state);
+  const { appendTab } = useTabsManage();
   const is_connected = useConnected((s) => s.is_connected);
   const checkConnOpened = useCallback(
     async (uuid: string) => {
@@ -1125,7 +1125,7 @@ function DatabaseMenu(props: {
   const { database, uuid, reload, reloadDatabase, kind, schemas } = props;
   const { showNotification } = useNotification();
   const [showCreateSchema, setShowCreateSchema] = useState(false);
-  const { appendTab } = useTabsManage((state) => state);
+  const { appendTab } = useTabsManage();
   const { is_connected } = useConnected();
 
   const conn_established = is_connected(uuid);
@@ -1373,7 +1373,7 @@ function SchemaMenu(props: {
   reloadSchemas?;
 }) {
   const { schema, uuid, kind, reloadSchemas } = props;
-  const { appendTab } = useTabsManage((state) => state);
+  const { appendTab } = useTabsManage();
   const { showNotification } = useNotification();
   const { is_connected } = useConnected();
   const conn_established = is_connected(uuid);

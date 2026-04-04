@@ -43,7 +43,7 @@ function UdfsTree() {
   const [udfs, setUdfs] = useState<types.NamedStaff[]>([]);
   const { showNotification } = useNotification();
   const [exceed, setExceed] = useState(0);
-  const { maxTree } = useMatcher((state) => state);
+  const { maxTree } = useMatcher();
   const matchPattern = useMatcherFn();
   useEffect(() => {
     setExceed(udfs.filter((e) => matchPattern(e.name)).length);
@@ -130,7 +130,7 @@ function UdfMenu(props: {
   id: string;
 }) {
   const { uuid, udf, reload, kind, id } = props;
-  const { setCurrentTab, tabs, appendTab } = useTabsManage((state) => state);
+  const { setCurrentTab, tabs, appendTab } = useTabsManage();
   const { showNotification } = useNotification();
   const handleOpenDetails = () => {
     const index = tabsHasId(tabs, id);
@@ -206,7 +206,7 @@ function CassandraAggregateMenu(props: {
   reload;
 }) {
   const { uuid, agg, reload, parameters } = props;
-  const { setCurrentTab, tabs, appendTab } = useTabsManage((state) => state);
+  const { setCurrentTab, tabs, appendTab } = useTabsManage();
   const { showNotification } = useNotification();
 
   const handleOpenDetails = () => {
@@ -299,7 +299,7 @@ function CassandraAggregatesTree() {
       });
   }, [showNotification, uuid]);
   const [exceed, setExceed] = useState(0);
-  const { maxTree } = useMatcher((state) => state);
+  const { maxTree } = useMatcher();
   const matchPattern = useMatcherFn();
   useEffect(() => {
     setExceed(aggs.filter((e) => matchPattern(e.name)).length);

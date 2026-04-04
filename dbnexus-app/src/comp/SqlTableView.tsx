@@ -350,7 +350,7 @@ function SqlTableView(props: {
   const [ops, setOps] = useState<DatabaseOperation[]>([]);
 
   const tabCtx = useContext(TabContext);
-  const { removeConfirmMsg, addConfirmMsg } = useConfirmMsg((state) => state);
+  const { removeConfirmMsg, addConfirmMsg } = useConfirmMsg();
 
   useEffect(() => {
     if (ops.length == 0) {

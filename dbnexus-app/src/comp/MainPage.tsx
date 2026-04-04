@@ -151,8 +151,7 @@ function ShowShortCut() {
 }
 
 function App() {
-  const { tabs, setCurrentTab, setTabs, currentTab } = useTabsManage((state) => state);
-
+  const { tabs, setCurrentTab, setTabs, currentTab } = useTabsManage();
   const cancelMsg = useConfirmMsg((state) => state.confirmMsgs);
   const closeTab = useCallback(
     (index: number) => {
@@ -215,13 +214,6 @@ function App() {
     }
   }, [currentTab, setCurrentTab, tabs]);
 
-  const changeTab = useCallback(
-    (index) => {
-      setCurrentTab(index as number);
-    },
-    [setCurrentTab],
-  );
-
   return (
     <SettingProvider>
       <Notifications />
@@ -259,13 +251,7 @@ function App() {
               height: "100%",
               paddingLeft: "2px",
             }}>
-            <TabsWithContent
-              handleClose={closeTab}
-              tabs={tabs}
-              selectIndex={currentTab}
-              changeTab={changeTab}
-              setTabs={setTabs}
-            />
+            <TabsWithContent />
           </Panel>
         </PanelGroup>
       </div>

@@ -30,7 +30,7 @@ function ProceduresTree() {
   const { uuid, kind } = useContext(UuidContext);
   const [ps, setPos] = useState<types.NamedStaff[]>([]);
   const { showNotification } = useNotification();
-  const { maxTree } = useMatcher((state) => state);
+  const { maxTree } = useMatcher();
   const matchPattern = useMatcherFn();
   const reload = useCallback(() => {
     listProcedure(uuid)
@@ -120,7 +120,7 @@ function ProcedureMenu(props: {
   id: string;
 }) {
   const { uuid, procedure, reload, kind, id } = props;
-  const { setCurrentTab, tabs, appendTab } = useTabsManage((state) => state);
+  const { setCurrentTab, tabs, appendTab } = useTabsManage();
   const { showNotification } = useNotification();
 
   const handleOpenDetails = () => {

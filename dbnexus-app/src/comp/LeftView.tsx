@@ -82,7 +82,7 @@ function ViewsTree(props: { viewKind: ViewKind }) {
   const { showNotification } = useNotification();
   const [loading, setLoading] = useState(false);
   const [exceed, setExceed] = useState(0);
-  const { maxTree } = useMatcher((state) => state);
+  const { maxTree } = useMatcher();
   const matchPattern = useMatcherFn();
   useEffect(() => {
     setExceed(views.filter((e) => matchPattern(e.name)).length);
@@ -479,7 +479,7 @@ function ViewMenu(props: {
         showNotification("error", "Drop View Failure", e);
       });
   };
-  const { tabs, setCurrentTab, appendTab } = useTabsManage((state) => state);
+  const { tabs, setCurrentTab, appendTab } = useTabsManage();
   const handleViewData = () => {
     const id = uuid + "-view-" + generateRandomString();
 

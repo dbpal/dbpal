@@ -30,7 +30,7 @@ function EventsTree() {
   const { uuid, kind } = useContext(UuidContext);
   const [evens, setEvents] = useState<types.SqlEvent[]>([]);
   const { showNotification } = useNotification();
-  const { maxTree } = useMatcher((state) => state);
+  const { maxTree } = useMatcher();
   const matchPattern = useMatcherFn();
   const reload = useCallback(() => {
     listEvent(uuid)
@@ -122,7 +122,7 @@ function EventMenu(props: {
   id: string;
 }) {
   const { uuid, event, reload, kind, id } = props;
-  const { setCurrentTab, tabs, appendTab } = useTabsManage((state) => state);
+  const { setCurrentTab, tabs, appendTab } = useTabsManage();
   const { showNotification } = useNotification();
   const handleOpenDetails = () => {
     const index = tabsHasId(tabs, id);

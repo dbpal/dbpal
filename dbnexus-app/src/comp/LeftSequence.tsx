@@ -48,7 +48,7 @@ function SequenceTree() {
   const { uuid, kind } = useContext(UuidContext);
   const [seq, setSeq] = useState<types.SequenceDetail[]>([]);
   const { showNotification } = useNotification();
-  const { maxTree } = useMatcher((state) => state);
+  const { maxTree } = useMatcher();
   const matchPattern = useMatcherFn();
   const reload = useCallback(() => {
     listSequence(uuid)
@@ -154,7 +154,7 @@ function SequenceMenu(props: {
   id: string;
 }) {
   const { uuid, seq, reload, kind, id } = props;
-  const { setCurrentTab, tabs, appendTab } = useTabsManage((state) => state);
+  const { setCurrentTab, tabs, appendTab } = useTabsManage();
   const { showNotification } = useNotification();
   const [showDrop, setShowDrop] = useState(false);
   const [cascade, setCascade] = useState(false);

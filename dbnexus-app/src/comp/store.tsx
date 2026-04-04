@@ -181,10 +181,20 @@ export const useTabsManage = create<{
   tabs: TabContent[];
   setTabs: (tabs: TabContent[]) => void;
   appendTab: (tab: TabContent) => void;
+  closeTab: (index: number) => void;
 }>((set) => ({
   currentTab: 0,
   setCurrentTab: (x: number) => {
     set({ currentTab: x });
+  },
+  closeTab: (index: number) => {
+    set((state) => {
+      const newTabs = [...state.tabs];
+      newTabs.splice(index, 1);
+      return {
+        tabs: newTabs,
+      };
+    });
   },
   tabs: [],
   setTabs: (tabs: TabContent[]) => {
