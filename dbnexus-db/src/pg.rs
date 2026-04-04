@@ -2860,19 +2860,6 @@ mod tests {
         .unwrap()
         .unwrap();
 
-        // sqlx::raw_sql(
-        //     r#"
-        //             INSERT INTO test_types2 (text_column, oid_column, json_column,
-        // float4_column, float8_column, macaddr8_column, macaddr8_array_column)
-        // VALUES
-        //     ('Sample text', 12345, '{"key": "value"}', 3.14, 5.6789,
-        // '08:00:2b:01:02:03:04:05', ARRAY['08:00:2b:01:02:03:04:06',
-        // '08:00:2b:01:02:03:04:07']::MACADDR8[]);         "#,
-        // )
-        // .execute(conn.deref_mut())
-        // .await
-        // .unwrap();
-
         let mut values = HashMap::new();
         values.insert("text_column".to_string(), Some("Sample text".to_string()));
         values.insert("oid_column".to_string(), Some("12345".to_string()));
@@ -3142,14 +3129,6 @@ mod tests {
         .unwrap()
         .unwrap();
 
-        //         sqlx::raw_sql(
-        //             r#"
-
-        //             INSERT INTO test_types4 (int2_array_column, int4_array_column,
-        // text_array_column, varchar_array_column, int8_array_column) VALUES
-        //     (ARRAY[1, 2, 3], ARRAY[4, 5, 6], ARRAY['A', 'B', 'C'], ARRAY['John',
-        // 'Jane', 'Bob'], ARRAY[7, 8, 9]);         "#,
-        //         ).execute(conn.deref_mut()).await.unwrap();
         let mut values = HashMap::new();
         values.insert("int2_array_column".to_string(), Some("{1,2}".to_string()));
         values.insert("int4_array_column".to_string(), Some("{1,2}".to_string()));
@@ -3245,19 +3224,6 @@ mod tests {
         .await
         .unwrap()
         .unwrap();
-
-        //         sqlx::raw_sql(
-        //             r#"
-
-        //             INSERT INTO test_types5 (path_column, path_array_column,
-        // float4_array_column, float8_array_column, macaddr_array_column,
-        // inet_array_column, date_column) VALUES
-        //     ('(1.0,2.0),(3.0,4.0)'::PATH, ARRAY['(5.0,6.0),(7.0,8.0)'::PATH,
-        // '(9.0,10.0),(11.0,12.0)'::PATH],         ARRAY[1.23, 4.56, 7.89],
-        // ARRAY[12.34, 56.78, 90.12],         ARRAY['08:00:2b:01:02:03'
-        // ::MACADDR, '08:00:2b:04:05:06'::MACADDR],         ARRAY['192.168.0.1'
-        // ::INET, '10.0.0.1'::INET], '2022-01-01'::DATE);         "#,
-        //         ).execute(conn.deref_mut()).await.unwrap();
 
         let mut values = HashMap::new();
         // values.insert(

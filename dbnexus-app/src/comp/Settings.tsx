@@ -1381,11 +1381,9 @@ function SettingProvider({ children }) {
   useEffect(() => {
     const unlisten = listen<types.SetZoom>("set_zoom", (e) => {
       let zoom = appearance.zoom;
-
       switch (e.payload) {
         case "in":
           zoom = zoom + 0.1;
-
           break;
         case "out":
           zoom = zoom - 0.1;

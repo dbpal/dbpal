@@ -1903,10 +1903,6 @@ mod tests {
         .await
         .unwrap()
         .unwrap();
-        // INSERT INTO test_types2 (id, float_value, int_value, timestamp_value,
-        // varchar_value, varint_value) VALUES (uuid(), 3.14, 42, '2023-01-01
-        // 10:00:00', 'Sample Text', '123456789012345678901234567890');
-        //
 
         let mut values = HashMap::new();
 
@@ -1999,10 +1995,6 @@ mod tests {
         .await
         .unwrap()
         .unwrap();
-        // INSERT INTO test_types2 (id, float_value, int_value, timestamp_value,
-        // varchar_value, varint_value) VALUES (uuid(), 3.14, 42, '2023-01-01
-        // 10:00:00', 'Sample Text', '123456789012345678901234567890');
-        //
 
         let mut values = HashMap::new();
 
@@ -2100,16 +2092,6 @@ mod tests {
         .await
         .unwrap()
         .unwrap();
-        // INSERT INTO test_types3 (id, timeuuid_value, inet_value, date_value,
-        // time_value, smallint_value, tinyint_value) VALUES (
-        // uuid(),
-        // now(),                          -- 生成当前的timeuuid
-        // '192.168.1.1',                 -- 示例IP地址
-        // '2023-01-01',                  -- 示例日期
-        // '10:30:00',                    -- 示例时间
-        // 123,                            -- 示例smallint值
-        // 5,                              -- 示例tinyint值
-        // );
 
         let mut values = HashMap::new();
 
@@ -2199,16 +2181,6 @@ mod tests {
         .await
         .unwrap()
         .unwrap();
-        // INSERT INTO test_types3 (id, timeuuid_value, inet_value, date_value,
-        // time_value, smallint_value, tinyint_value) VALUES (
-        // uuid(),
-        // now(),                          -- 生成当前的timeuuid
-        // '192.168.1.1',                 -- 示例IP地址
-        // '2023-01-01',                  -- 示例日期
-        // '10:30:00',                    -- 示例时间
-        // 123,                            -- 示例smallint值
-        // 5,                              -- 示例tinyint值
-        // );
 
         let mut values = HashMap::new();
 
