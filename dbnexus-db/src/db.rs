@@ -2339,3 +2339,47 @@ impl From<SqlCollect> for String {
 }
 
 pub(crate) const POOL_MAX_CONNECTIONS: u32 = 200;
+
+pub trait GetTestExportTableKinds {
+    fn get_kinds(&self) -> Vec<ExportKind> {
+        let mut r = vec![
+            ExportKind::Sql {
+                include_table_schema: false,
+            },
+            ExportKind::JsonLine,
+            ExportKind::Json { pretty: true },
+            ExportKind::Csv {
+                include_header: true,
+                delimiter: ',',
+            },
+            ExportKind::Csv {
+                include_header: false,
+                delimiter: ',',
+            },
+            ExportKind::MarkDown,
+            ExportKind::Html {
+                include_header: true,
+            },
+            ExportKind::Html {
+                include_header: false,
+            },
+            ExportKind::Xlsx {
+                include_header: true,
+            },
+            ExportKind::Xlsx {
+                include_header: false,
+            },
+        ];
+        if self.support_table_schema() {
+            r.push(ExportKind::Sql {
+                include_table_schema: true,
+            });
+        }
+
+        r
+    }
+
+    fn support_table_schema(&self) -> bool {
+        true
+    }
+}

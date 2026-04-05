@@ -17,10 +17,10 @@ use crate::db::{
     create_html_table_data, create_html_table_header, create_markdown_data, create_markdown_header,
     escape_sql_str, export_query_as_xlsx_send_data, AutoCompletionQueryId, BackendKind, CheckConn,
     ColumnType, CreateIndexReq, CreateTableAndIndexSql, ExportFrame, ExportKind, ExportQueryResult,
-    Field, GetBackendKind, Index, IndexKind, ListTable, MetaValue, NamedStaff, OptionMustBeSomeErr,
-    QueryEvent, QueryEventEmitter, QueryResp, QuerySql, SchemaTrait, ServerMetas,
-    ShowTableParameter, SqlBuilder, TriggerDetail, TriggerEvent, TriggerTiming, XlsxEdit,
-    POOL_MAX_CONNECTIONS,
+    Field, GetBackendKind, GetTestExportTableKinds, Index, IndexKind, ListTable, MetaValue,
+    NamedStaff, OptionMustBeSomeErr, QueryEvent, QueryEventEmitter, QueryResp, QuerySql,
+    SchemaTrait, ServerMetas, ShowTableParameter, SqlBuilder, TriggerDetail, TriggerEvent,
+    TriggerTiming, XlsxEdit, POOL_MAX_CONNECTIONS,
 };
 use crate::helper::create_csv;
 use crate::language_server::LexerCompletionTrait;
@@ -1365,6 +1365,8 @@ pub(crate) async fn make_test_object() -> SqliteDB {
     .unwrap();
     db
 }
+
+impl GetTestExportTableKinds for SqliteDB {}
 
 #[cfg(test)]
 mod tests {
