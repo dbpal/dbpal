@@ -13,9 +13,10 @@ use crate::db::{
     create_html_table_data, create_html_table_header, create_markdown_data, create_markdown_header,
     escape_sql_str, export_query_as_xlsx_send_data, AutoCompletionQueryId, BackendKind, CheckConn,
     ColumnType, CreateIndexReq, CreateTableAndIndexSql, ExportFrame, ExportKind, ExportQueryResult,
-    Field, GetBackendKind, Index, IndexKind, ListTable, MetaValue, NamedStaff, OptionMustBeSomeErr,
-    QueryEvent, QueryEventEmitter, QueryResp, QuerySql, ReadOnlyTrait, SchemaTrait, ServerMetas,
-    ShowTableParameter, SqlBuilder, TriggerDetail, XlsxEdit, POOL_MAX_CONNECTIONS,
+    Field, GetBackendKind, GetTestExportTableKinds, Index, IndexKind, ListTable, MetaValue,
+    NamedStaff, OptionMustBeSomeErr, QueryEvent, QueryEventEmitter, QueryResp, QuerySql,
+    ReadOnlyTrait, SchemaTrait, ServerMetas, ShowTableParameter, SqlBuilder, TriggerDetail,
+    XlsxEdit, POOL_MAX_CONNECTIONS,
 };
 use crate::helper::create_csv;
 use crate::language_server::LexerCompletionTrait;
@@ -1092,6 +1093,8 @@ pub(crate) async fn make_test_object() -> &'static Mutex<LibSqlDB> {
     .await
 }
 
+impl GetTestExportTableKinds for LibSqlDB {}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -1482,106 +1485,8 @@ mod tests {
         .await
         .unwrap()
         .unwrap();
-        let db = db;
-        {
-            let s = db
-                .export_table_to_string(
-                    table_name,
-                    ExportKind::Sql {
-                        include_table_schema: true,
-                    },
-                )
-                .await
-                .unwrap();
-            println!("sql:{}", s);
-        }
 
-        {
-            let s = db
-                .export_table_to_string(table_name, ExportKind::Json { pretty: true })
-                .await
-                .unwrap();
-            println!("json:{}", s);
-            let _: serde_json::Value = serde_json::from_str(s.as_str()).unwrap();
-        }
-        {
-            let s = db
-                .export_table_to_string(
-                    table_name,
-                    ExportKind::Csv {
-                        include_header: true,
-                        delimiter: ',',
-                    },
-                )
-                .await
-                .unwrap();
-            println!("csv:{}", s);
-        }
-        {
-            let s = db
-                .export_table_to_string(table_name, ExportKind::JsonLine)
-                .await
-                .unwrap();
-            println!("json_line:{}", s);
-        }
-        {
-            let s = db
-                .export_table_to_string(table_name, ExportKind::MarkDown)
-                .await
-                .unwrap();
-            println!("markdown:{}", s);
-        }
-        {
-            let s = db
-                .export_table_to_string(
-                    table_name,
-                    ExportKind::Html {
-                        include_header: true,
-                    },
-                )
-                .await
-                .unwrap();
-            println!("html:{}", s);
-        }
-        println!("########################################");
-
-        {
-            let s = db
-                .export_query_result_to_string(
-                    query_id,
-                    "select * from persons",
-                    ExportKind::Json { pretty: true },
-                )
-                .await
-                .unwrap();
-            println!("json:{}", s);
-            let _: serde_json::Value = serde_json::from_str(s.as_str()).unwrap();
-        }
-        {
-            let s = db
-                .export_query_result_to_string(
-                    query_id,
-                    "select * from persons",
-                    ExportKind::Csv {
-                        include_header: true,
-                        delimiter: ',',
-                    },
-                )
-                .await
-                .unwrap();
-            println!("csv:{}", s);
-        }
-        {
-            let s = db
-                .export_query_result_to_string(
-                    query_id,
-                    "select * from persons",
-                    ExportKind::JsonLine,
-                )
-                .await
-                .unwrap();
-            println!("json_line:{}", s);
-        }
+        GetTestExportTableKinds::test_export(db.deref(), table_name).await;
     }
 
     #[tokio::test]

@@ -17,10 +17,10 @@ use crate::db::{
     create_html_table_data, create_html_table_header, create_markdown_data, create_markdown_header,
     escape_sql_str, export_query_as_xlsx_send_data, AutoCompletionQueryId, BackendKind, CheckConn,
     ColumnType, CreateIndexReq, CreateTableAndIndexSql, ExportFrame, ExportKind, ExportQueryResult,
-    Field, GetBackendKind, GetTestExportTableKinds, Index, IndexKind, ListTable, MetaValue,
-    NamedStaff, OptionMustBeSomeErr, QueryEvent, QueryEventEmitter, QueryResp, QuerySql,
-    SchemaTrait, ServerMetas, ShowTableParameter, SqlBuilder, TriggerDetail, TriggerEvent,
-    TriggerTiming, XlsxEdit, POOL_MAX_CONNECTIONS,
+    Field, GetBackendKind, Index, IndexKind, ListTable, MetaValue, NamedStaff, OptionMustBeSomeErr,
+    QueryEvent, QueryEventEmitter, QueryResp, QuerySql, SchemaTrait, ServerMetas,
+    ShowTableParameter, SqlBuilder, TriggerDetail, TriggerEvent, TriggerTiming, XlsxEdit,
+    POOL_MAX_CONNECTIONS,
 };
 use crate::helper::create_csv;
 use crate::language_server::LexerCompletionTrait;
@@ -1366,15 +1366,15 @@ pub(crate) async fn make_test_object() -> SqliteDB {
     db
 }
 
-impl GetTestExportTableKinds for SqliteDB {}
+impl crate::db::GetTestExportTableKinds for SqliteDB {}
 
 #[cfg(test)]
 mod tests {
 
     use super::*;
     use crate::db::{
-        CreateIndexColumn, CreateTableReq, CreateTableReqColumn, ShowTableParameter, SqlNullAble,
-        TestQueryEventEmit,
+        CreateIndexColumn, CreateTableReq, CreateTableReqColumn, GetTestExportTableKinds,
+        ShowTableParameter, SqlNullAble, TestQueryEventEmit,
     };
 
     #[tokio::test]
@@ -1959,122 +1959,7 @@ mod tests {
         .unwrap()
         .unwrap();
 
-        let db = db;
-        {
-            let s = db
-                .export_table_to_string(
-                    table_name,
-                    ExportKind::Sql {
-                        include_table_schema: true,
-                    },
-                )
-                .await
-                .unwrap();
-            println!("sql:{}", s);
-        }
-
-        {
-            let s = db
-                .export_table_to_string(table_name, ExportKind::Json { pretty: true })
-                .await
-                .unwrap();
-            println!("json:{}", s);
-            let _: serde_json::Value = serde_json::from_str(s.as_str()).unwrap();
-        }
-        {
-            let s = db
-                .export_table_to_string(
-                    table_name,
-                    ExportKind::Csv {
-                        include_header: true,
-                        delimiter: ',',
-                    },
-                )
-                .await
-                .unwrap();
-            println!("csv:{}", s);
-        }
-        {
-            let s = db
-                .export_table_to_string(table_name, ExportKind::JsonLine)
-                .await
-                .unwrap();
-            println!("json_line:{}", s);
-        }
-        println!("########################################");
-
-        {
-            let s = db
-                .export_query_result_to_string(
-                    query_id,
-                    "select * from persons",
-                    ExportKind::Json { pretty: true },
-                )
-                .await
-                .unwrap();
-            println!("json:{}", s);
-            let _: serde_json::Value = serde_json::from_str(s.as_str()).unwrap();
-        }
-        {
-            let s = db
-                .export_query_result_to_string(
-                    query_id,
-                    "select * from persons",
-                    ExportKind::Csv {
-                        include_header: true,
-                        delimiter: ',',
-                    },
-                )
-                .await
-                .unwrap();
-            println!("csv:{}", s);
-        }
-        {
-            let s = db
-                .export_query_result_to_string(
-                    query_id,
-                    "select * from persons",
-                    ExportKind::JsonLine,
-                )
-                .await
-                .unwrap();
-            println!("json_line:{}", s);
-        }
-
-        {
-            let html = db
-                .export_table_to_string(
-                    table_name,
-                    ExportKind::Html {
-                        include_header: true,
-                    },
-                )
-                .await
-                .unwrap();
-            println!("html:{}", html);
-        }
-        {
-            let md = db
-                .export_table_to_string(table_name, ExportKind::MarkDown)
-                .await
-                .unwrap();
-            println!("html:{}", md);
-        }
-        {
-            let filepath = db.backend_kind().make_test_xlsx_file(table_name);
-            db.export_table_or_view_to_file(
-                table_name,
-                None,
-                &filepath,
-                ExportKind::Xlsx {
-                    include_header: true,
-                },
-                Arc::new(|_| {}),
-            )
-            .await
-            .unwrap();
-            opener::open(&filepath).unwrap();
-        }
+        GetTestExportTableKinds::test_export(&db, table_name).await;
     }
 
     #[tokio::test]

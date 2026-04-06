@@ -57,7 +57,7 @@ serde_json.workspace = true
 sqlparser = { version = "0.60", features = ["serde"] }
 lazy_static.workspace = true
 log.workspace = true
-duckdb = { version = "1.4.3", features = [
+duckdb = { version = "=1.4.4", features = [
     "bundled",
     "r2d2",
     "extensions-full",

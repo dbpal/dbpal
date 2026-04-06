@@ -873,18 +873,18 @@ pub const SQL_SERVER_GLOBAL_VARS: &[&str] = &[
 
 #[cfg(test)]
 mod tests {
-    use std::ops::Deref;
     use std::path::Path;
 
     use crate::db::QuerySql;
     use crate::enable_test_log;
     use crate::language_server::completion_test::test_file_auto_completion;
     use crate::language_server::{LangServerCommon, LanguageServer};
-    use crate::mssql::make_test_object;
+    use crate::mssql::{make_test_object, test_lock};
 
     #[tokio::test]
     async fn test_auto_completion() {
-        let db = make_test_object().await.lock().await;
+        let _guard = test_lock().lock().await;
+        let db = make_test_object().await;
         enable_test_log();
         let query_id = "aaaa";
         db.open_connection(query_id).await.unwrap();
@@ -919,18 +919,19 @@ mod tests {
         file_path.push("tests");
         file_path.push("mssql_auto_completion_test.sql");
         let content = std::fs::read_to_string(file_path.as_path()).unwrap();
-        test_file_auto_completion(&content, db.deref(), None, false).await;
+        test_file_auto_completion(&content, &db, None, false).await;
     }
 
     #[ignore = "手动跑跑的测试"]
     #[tokio::test]
     async fn test_completion_xxx() {
+        let _guard = test_lock().lock().await;
         enable_test_log();
-        let db = make_test_object().await.lock().await;
+        let db = make_test_object().await;
         test_file_auto_completion(
             r#"GRANT SELECT ON dbo.employees TO public;
 20 dbo ; 30 employees"#,
-            db.deref(),
+            &db,
             None,
             false,
         )
@@ -939,7 +940,8 @@ mod tests {
     #[ignore = "手动跑跑的测试"]
     #[tokio::test]
     async fn test_completion_execute() {
-        let db = make_test_object().await.lock().await;
+        let _guard = test_lock().lock().await;
+        let db = make_test_object().await;
         let x = db.list_execute(None).await;
         println!("###########:{:?}", x);
     }
@@ -947,7 +949,8 @@ mod tests {
     #[tokio::test]
 
     async fn test_try_get_max_id() {
-        let db = make_test_object().await.lock().await;
+        let _guard = test_lock().lock().await;
+        let db = make_test_object().await;
         let max_id = db.try_get_max_id("departments").await.unwrap();
         println!("max id is:{}", max_id);
     }

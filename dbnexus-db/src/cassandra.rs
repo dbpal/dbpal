@@ -31,10 +31,10 @@ use crate::db::{
     create_html_table_data, create_html_table_header, create_markdown_data, create_markdown_header,
     escape_sql_str, export_query_as_xlsx_send_data, AutoCompletionQueryId, BackendKind, CheckConn,
     ColumnType, CreateIndexReq, CreateSchemaExtra, CreateTableAndIndexSql, CreatedTypeDef, DBTrait,
-    DefAndMetas, ExportFrame, ExportKind, ExportQueryResult, Field, GetBackendKind, Index,
-    IndexKind, ListTable, MetaValue, NamedStaff, OptionMustBeSomeErr, QueryEventEmitter, QueryResp,
-    QuerySql, ReadOnlyTrait, SchemaTrait, ServerMetas, ShowTableParameter, SqlBuilder,
-    UdfOrProcedureExtraParameter, XlsxEdit,
+    DefAndMetas, ExportFrame, ExportKind, ExportQueryResult, Field, GetBackendKind,
+    GetTestExportTableKinds, Index, IndexKind, ListTable, MetaValue, NamedStaff,
+    OptionMustBeSomeErr, QueryEventEmitter, QueryResp, QuerySql, ReadOnlyTrait, SchemaTrait,
+    ServerMetas, ShowTableParameter, SqlBuilder, UdfOrProcedureExtraParameter, XlsxEdit,
 };
 
 use crate::helper::{create_csv, generate_random_string};
@@ -1399,13 +1399,12 @@ impl CassandraDB {
     }
 }
 
+impl GetTestExportTableKinds for CassandraDB {}
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{
-        db::{CreateIndexColumn, CreateTableReq, CreateTableReqColumn},
-        enable_test_log,
-    };
+    use crate::db::{CreateIndexColumn, CreateTableReq, CreateTableReqColumn};
+
     #[tokio::test]
     async fn test_list_schema() {
         let _guard = test_lock().lock().await;
@@ -1741,45 +1740,7 @@ mod tests {
                 .await;
             println!("resp:{:?}", resp);
         }
-        {
-            // export test
-
-            let ret = db
-                .export_table_to_string(
-                    table_name,
-                    ExportKind::Csv {
-                        include_header: true,
-                        delimiter: ',',
-                    },
-                )
-                .await
-                .unwrap();
-            println!("csv:{}", ret);
-            // export json
-
-            let ret = db
-                .export_table_to_string(table_name, ExportKind::Json { pretty: true })
-                .await
-                .unwrap();
-            println!("json:{}", ret);
-            // export jsonline
-            let ret = db
-                .export_table_to_string(table_name, ExportKind::JsonLine)
-                .await
-                .unwrap();
-            println!("jsonline:{}", ret);
-
-            let ret = db
-                .export_table_to_string(
-                    table_name,
-                    ExportKind::Sql {
-                        include_table_schema: true,
-                    },
-                )
-                .await
-                .unwrap();
-            println!("sql:{}", ret);
-        }
+        GetTestExportTableKinds::test_export(&db, table_name).await;
     }
     #[tokio::test]
     async fn test_types1_list() {
@@ -1837,46 +1798,7 @@ mod tests {
 
             println!("resp:{:?}", resp);
         }
-        {
-            // export test
-
-            let ret = db
-                .export_table_to_string(
-                    table_name,
-                    ExportKind::Csv {
-                        include_header: true,
-                        delimiter: ',',
-                    },
-                )
-                .await
-                .unwrap();
-            println!("csv:{}", ret);
-            // export json
-
-            let ret = db
-                .export_table_to_string(table_name, ExportKind::Json { pretty: true })
-                .await
-                .unwrap();
-            println!("json:{}", ret);
-            // export jsonline
-            let ret = db
-                .export_table_to_string(table_name, ExportKind::JsonLine)
-                .await
-                .unwrap();
-            println!("jsonline:{}", ret);
-
-            // export jsonline
-            let ret = db
-                .export_table_to_string(
-                    table_name,
-                    ExportKind::Sql {
-                        include_table_schema: true,
-                    },
-                )
-                .await
-                .unwrap();
-            println!("sql:{}", ret);
-        }
+        GetTestExportTableKinds::test_export(&db, table_name).await;
     }
 
     #[tokio::test]
@@ -1929,46 +1851,7 @@ mod tests {
 
             println!("resp:{:?}", resp);
         }
-        {
-            // export test
-
-            let ret = db
-                .export_table_to_string(
-                    table_name,
-                    ExportKind::Csv {
-                        include_header: true,
-                        delimiter: ',',
-                    },
-                )
-                .await
-                .unwrap();
-            println!("csv:{}", ret);
-            // export json
-
-            let ret = db
-                .export_table_to_string(table_name, ExportKind::Json { pretty: true })
-                .await
-                .unwrap();
-            println!("json:{}", ret);
-            // export jsonline
-            let ret = db
-                .export_table_to_string(table_name, ExportKind::JsonLine)
-                .await
-                .unwrap();
-            println!("jsonline:{}", ret);
-
-            // export jsonline
-            let ret = db
-                .export_table_to_string(
-                    table_name,
-                    ExportKind::Sql {
-                        include_table_schema: true,
-                    },
-                )
-                .await
-                .unwrap();
-            println!("sql:{}", ret);
-        }
+        GetTestExportTableKinds::test_export(&db, table_name).await;
     }
 
     #[tokio::test]
@@ -2024,46 +1907,7 @@ mod tests {
 
             println!("resp:{:?}", resp);
         }
-        {
-            // export test
-
-            let ret = db
-                .export_table_to_string(
-                    table_name,
-                    ExportKind::Csv {
-                        include_header: true,
-                        delimiter: ',',
-                    },
-                )
-                .await
-                .unwrap();
-            println!("csv:{}", ret);
-            // export json
-
-            let ret = db
-                .export_table_to_string(table_name, ExportKind::Json { pretty: true })
-                .await
-                .unwrap();
-            println!("json:{}", ret);
-            // export jsonline
-            let ret = db
-                .export_table_to_string(table_name, ExportKind::JsonLine)
-                .await
-                .unwrap();
-            println!("jsonline:{}", ret);
-
-            // export jsonline
-            let ret = db
-                .export_table_to_string(
-                    table_name,
-                    ExportKind::Sql {
-                        include_table_schema: true,
-                    },
-                )
-                .await
-                .unwrap();
-            println!("sql:{}", ret);
-        }
+        GetTestExportTableKinds::test_export(&db, table_name).await;
     }
 
     #[tokio::test]
@@ -2113,46 +1957,7 @@ mod tests {
 
             println!("resp:{:?}", resp);
         }
-        {
-            // export test
-
-            let ret = db
-                .export_table_to_string(
-                    table_name,
-                    ExportKind::Csv {
-                        include_header: true,
-                        delimiter: ',',
-                    },
-                )
-                .await
-                .unwrap();
-            println!("csv:{}", ret);
-            // export json
-
-            let ret = db
-                .export_table_to_string(table_name, ExportKind::Json { pretty: true })
-                .await
-                .unwrap();
-            println!("json:{}", ret);
-            // export jsonline
-            let ret = db
-                .export_table_to_string(table_name, ExportKind::JsonLine)
-                .await
-                .unwrap();
-            println!("jsonline:{}", ret);
-
-            // export jsonline
-            let ret = db
-                .export_table_to_string(
-                    table_name,
-                    ExportKind::Sql {
-                        include_table_schema: true,
-                    },
-                )
-                .await
-                .unwrap();
-            println!("sql:{}", ret);
-        }
+        GetTestExportTableKinds::test_export(&db, table_name).await;
     }
 
     #[tokio::test]
@@ -2205,46 +2010,7 @@ mod tests {
 
             println!("resp:{:?}", resp);
         }
-        {
-            // export test
-
-            let ret = db
-                .export_table_to_string(
-                    table_name,
-                    ExportKind::Csv {
-                        include_header: true,
-                        delimiter: ',',
-                    },
-                )
-                .await
-                .unwrap();
-            println!("csv:{}", ret);
-            // export json
-
-            let ret = db
-                .export_table_to_string(table_name, ExportKind::Json { pretty: true })
-                .await
-                .unwrap();
-            println!("json:{}", ret);
-            // export jsonline
-            let ret = db
-                .export_table_to_string(table_name, ExportKind::JsonLine)
-                .await
-                .unwrap();
-            println!("jsonline:{}", ret);
-
-            // export jsonline
-            let ret = db
-                .export_table_to_string(
-                    table_name,
-                    ExportKind::Sql {
-                        include_table_schema: true,
-                    },
-                )
-                .await
-                .unwrap();
-            println!("sql:{}", ret);
-        }
+        GetTestExportTableKinds::test_export(&db, table_name).await;
     }
 
     #[tokio::test]
@@ -2290,52 +2056,12 @@ mod tests {
 
             println!("resp:{:?}", resp);
         }
-        {
-            // export test
-
-            let ret = db
-                .export_table_to_string(
-                    table_name,
-                    ExportKind::Csv {
-                        include_header: true,
-                        delimiter: ',',
-                    },
-                )
-                .await
-                .unwrap();
-            println!("csv:{}", ret);
-            // export json
-
-            let ret = db
-                .export_table_to_string(table_name, ExportKind::Json { pretty: true })
-                .await
-                .unwrap();
-            println!("json:{}", ret);
-            // export jsonline
-            let ret = db
-                .export_table_to_string(table_name, ExportKind::JsonLine)
-                .await
-                .unwrap();
-            println!("jsonline:{}", ret);
-
-            // export jsonline
-            let ret = db
-                .export_table_to_string(
-                    table_name,
-                    ExportKind::Sql {
-                        include_table_schema: true,
-                    },
-                )
-                .await
-                .unwrap();
-            println!("sql:{}", ret);
-        }
+        GetTestExportTableKinds::test_export(&db, table_name).await;
     }
 
     #[tokio::test]
     async fn test_table_column() {
         let _guard = test_lock().lock().await;
-        enable_test_log();
         let db = make_test_object(Some("test".to_string())).await;
         let table_name = "test_column";
         let _ = db.drop_table(table_name, false).await;
@@ -2431,7 +2157,6 @@ mod tests {
     async fn test_udf() {
         let _guard = test_lock().lock().await;
 
-        enable_test_log();
         let db = make_test_object(Some("test".to_string())).await;
         let name = "test_udf";
         {

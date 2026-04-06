@@ -16,10 +16,10 @@ use crate::db::{
     export_query_as_xlsx_send_data, AutoCompletionQueryId, BackendKind, BackendKindPostGres,
     CatalogTrait, CheckConn, ColumnType, CreateDatabaseExtra, CreateIndexReq, CreateSchemaExtra,
     CreateTableAndIndexSql, CreatedTypeDef, DBTrait, DefAndMetas, ExportFrame, ExportKind,
-    ExportQueryResult, Field, GetBackendKind, Index, IndexKind, ListTable, MetaValue, NamedStaff,
-    OptionMustBeSomeErr, ProcedureDetail, QueryEvent, QueryEventEmitter, QueryResp, QuerySql,
-    SchemaTrait, SequenceDetail, ServerMetas, ShowTableParameter, SqlBuilder, SqlCollect,
-    TriggerDetail, TriggerEvent, TriggerTiming, UdfOrProcedureExtraParameter, XlsxEdit,
+    ExportQueryResult, Field, GetBackendKind, GetTestExportTableKinds, Index, IndexKind, ListTable,
+    MetaValue, NamedStaff, OptionMustBeSomeErr, ProcedureDetail, QueryEvent, QueryEventEmitter,
+    QueryResp, QuerySql, SchemaTrait, SequenceDetail, ServerMetas, ShowTableParameter, SqlBuilder,
+    SqlCollect, TriggerDetail, TriggerEvent, TriggerTiming, UdfOrProcedureExtraParameter, XlsxEdit,
     POOL_MAX_CONNECTIONS,
 };
 
@@ -1952,6 +1952,12 @@ impl SqlBuilder for PostGresDB {
         sql
     }
 }
+
+impl GetTestExportTableKinds for PostGresDB {
+    fn support_table_schema(&self) -> bool {
+        false
+    }
+}
 #[cfg(test)]
 mod tests {
     use super::make_test_object;
@@ -1961,8 +1967,8 @@ mod tests {
         datasource_config::PGDBConfig,
         db::{
             BackendKindPostGres, CheckConn, ColumnType, CreateIndexColumn, CreateIndexReq,
-            CreateTableReq, CreateTableReqColumn, DBTrait, ExportKind, ExportQueryResult,
-            IndexKind, QuerySql, SchemaTrait, ServerMetas, ShowTableParameter, SqlNullAble,
+            CreateTableReq, CreateTableReqColumn, DBTrait, GetTestExportTableKinds, IndexKind,
+            QuerySql, SchemaTrait, ServerMetas, ShowTableParameter, SqlNullAble,
             UdfOrProcedureExtraParameter,
         },
         pg::PostGresDB,
@@ -2631,90 +2637,8 @@ mod tests {
         .await
         .unwrap()
         .unwrap();
-        let schema_trait = db;
-        {
-            let e = schema_trait
-                .export_table_to_string(
-                    table_name,
-                    ExportKind::Csv {
-                        include_header: true,
-                        delimiter: ',',
-                    },
-                )
-                .await
-                .unwrap();
-            println!("csv:{}", e);
-        }
-        {
-            let e = schema_trait
-                .export_table_to_string(
-                    table_name,
-                    ExportKind::Sql {
-                        include_table_schema: false,
-                    },
-                )
-                .await
-                .unwrap();
-            println!("sql:{}", e);
-        }
-        {
-            let e = schema_trait
-                .export_table_to_string(table_name, ExportKind::Json { pretty: true })
-                .await
-                .unwrap();
-            let _: serde_json::value::Value = serde_json::from_str(e.as_str()).unwrap();
 
-            println!("json:{}", e);
-        }
-        {
-            let e = schema_trait
-                .export_table_to_string(table_name, ExportKind::JsonLine)
-                .await
-                .unwrap();
-
-            println!("json line:{}", e);
-        }
-
-        {
-            let e = schema_trait
-                .export_query_result_to_string(
-                    query_id,
-                    "select * from test_export_table",
-                    ExportKind::Csv {
-                        include_header: true,
-                        delimiter: ',',
-                    },
-                )
-                .await
-                .unwrap();
-            println!("csv:{}", e);
-        }
-
-        {
-            let e = schema_trait
-                .export_query_result_to_string(
-                    query_id,
-                    "select * from test_export_table",
-                    ExportKind::Json { pretty: true },
-                )
-                .await
-                .unwrap();
-            let _: serde_json::value::Value = serde_json::from_str(e.as_str()).unwrap();
-
-            println!("json:{}", e);
-        }
-        {
-            let e = schema_trait
-                .export_query_result_to_string(
-                    query_id,
-                    "select * from test_export_table",
-                    ExportKind::JsonLine,
-                )
-                .await
-                .unwrap();
-
-            println!("json line:{}", e);
-        }
+        GetTestExportTableKinds::test_export(&db, table_name).await;
     }
 
     #[tokio::test]
@@ -2765,69 +2689,8 @@ mod tests {
             .await
             .unwrap();
         println!("{:?}", x);
-        {
-            let json = pg
-                .export_table_to_string(table_name, ExportKind::Json { pretty: true })
-                .await
-                .unwrap();
-            let _: serde_json::Value = serde_json::from_str(json.as_str()).unwrap();
 
-            println!("export json:{}", json);
-
-            let jsonline = pg
-                .export_table_to_string(table_name, ExportKind::JsonLine)
-                .await
-                .unwrap();
-            let _: serde_json::Value = serde_json::from_str(json.as_str()).unwrap();
-
-            println!("export jsonline:{}", jsonline);
-
-            let csv = pg
-                .export_table_to_string(
-                    table_name,
-                    ExportKind::Csv {
-                        include_header: true,
-                        delimiter: ',',
-                    },
-                )
-                .await
-                .unwrap();
-            let _: serde_json::Value = serde_json::from_str(json.as_str()).unwrap();
-
-            println!("export csv:{}", csv);
-
-            let sql = pg
-                .export_table_to_string(
-                    table_name,
-                    ExportKind::Sql {
-                        include_table_schema: false,
-                    },
-                )
-                .await
-                .unwrap();
-            let _: serde_json::Value = serde_json::from_str(json.as_str()).unwrap();
-
-            println!("export sql:{}", sql);
-
-            let html = pg
-                .export_table_to_string(
-                    table_name,
-                    ExportKind::Html {
-                        include_header: true,
-                    },
-                )
-                .await
-                .unwrap();
-
-            println!("export html:{}", html);
-
-            let html = pg
-                .export_table_to_string(table_name, ExportKind::MarkDown)
-                .await
-                .unwrap();
-
-            println!("export markdown:{}", html);
-        }
+        GetTestExportTableKinds::test_export(&pg, table_name).await;
     }
 
     #[tokio::test]
@@ -2885,50 +2748,8 @@ mod tests {
             .await
             .unwrap();
         println!("{:?}", x);
-        {
-            let json = pg
-                .export_table_to_string(table_name, ExportKind::Json { pretty: true })
-                .await
-                .unwrap();
-            let _: serde_json::Value = serde_json::from_str(json.as_str()).unwrap();
 
-            println!("export json:{}", json);
-
-            let jsonline = pg
-                .export_table_to_string(table_name, ExportKind::JsonLine)
-                .await
-                .unwrap();
-            let _: serde_json::Value = serde_json::from_str(json.as_str()).unwrap();
-
-            println!("export jsonline:{}", jsonline);
-
-            let csv = pg
-                .export_table_to_string(
-                    table_name,
-                    ExportKind::Csv {
-                        include_header: true,
-                        delimiter: ',',
-                    },
-                )
-                .await
-                .unwrap();
-            let _: serde_json::Value = serde_json::from_str(json.as_str()).unwrap();
-
-            println!("export csv:{}", csv);
-
-            let sql = pg
-                .export_table_to_string(
-                    table_name,
-                    ExportKind::Sql {
-                        include_table_schema: false,
-                    },
-                )
-                .await
-                .unwrap();
-            let _: serde_json::Value = serde_json::from_str(json.as_str()).unwrap();
-
-            println!("export sql:{}", sql);
-        }
+        GetTestExportTableKinds::test_export(&pg, table_name).await;
     }
 
     #[tokio::test]
@@ -3056,50 +2877,8 @@ mod tests {
             .await
             .unwrap();
         println!("{:?}", x);
-        {
-            let json = pg
-                .export_table_to_string(table_name, ExportKind::Json { pretty: true })
-                .await
-                .unwrap();
-            let _: serde_json::Value = serde_json::from_str(json.as_str()).unwrap();
 
-            println!("export json:{}", json);
-
-            let jsonline = pg
-                .export_table_to_string(table_name, ExportKind::JsonLine)
-                .await
-                .unwrap();
-            let _: serde_json::Value = serde_json::from_str(json.as_str()).unwrap();
-
-            println!("export jsonline:{}", jsonline);
-
-            let csv = pg
-                .export_table_to_string(
-                    table_name,
-                    ExportKind::Csv {
-                        include_header: true,
-                        delimiter: ',',
-                    },
-                )
-                .await
-                .unwrap();
-            let _: serde_json::Value = serde_json::from_str(json.as_str()).unwrap();
-
-            println!("export csv:{}", csv);
-
-            let sql = pg
-                .export_table_to_string(
-                    table_name,
-                    ExportKind::Sql {
-                        include_table_schema: false,
-                    },
-                )
-                .await
-                .unwrap();
-            let _: serde_json::Value = serde_json::from_str(json.as_str()).unwrap();
-
-            println!("export sql:{}", sql);
-        }
+        GetTestExportTableKinds::test_export(&pg, table_name).await;
     }
 
     #[tokio::test]
@@ -3149,50 +2928,8 @@ mod tests {
             .await
             .unwrap();
         println!("{:?}", x);
-        {
-            let json = pg
-                .export_table_to_string(table_name, ExportKind::Json { pretty: true })
-                .await
-                .unwrap();
-            let _: serde_json::Value = serde_json::from_str(json.as_str()).unwrap();
 
-            println!("export json:{}", json);
-
-            let jsonline = pg
-                .export_table_to_string(table_name, ExportKind::JsonLine)
-                .await
-                .unwrap();
-            let _: serde_json::Value = serde_json::from_str(json.as_str()).unwrap();
-
-            println!("export jsonline:{}", jsonline);
-
-            let csv = pg
-                .export_table_to_string(
-                    table_name,
-                    ExportKind::Csv {
-                        include_header: true,
-                        delimiter: ',',
-                    },
-                )
-                .await
-                .unwrap();
-            let _: serde_json::Value = serde_json::from_str(json.as_str()).unwrap();
-
-            println!("export csv:{}", csv);
-
-            let sql = pg
-                .export_table_to_string(
-                    table_name,
-                    ExportKind::Sql {
-                        include_table_schema: false,
-                    },
-                )
-                .await
-                .unwrap();
-            let _: serde_json::Value = serde_json::from_str(json.as_str()).unwrap();
-
-            println!("export sql:{}", sql);
-        }
+        GetTestExportTableKinds::test_export(&pg, table_name).await;
     }
 
     #[tokio::test]
@@ -3255,50 +2992,8 @@ mod tests {
             .await
             .unwrap();
         println!("{:?}", x);
-        {
-            let json = pg
-                .export_table_to_string(table_name, ExportKind::Json { pretty: true })
-                .await
-                .unwrap();
-            let _: serde_json::Value = serde_json::from_str(json.as_str()).unwrap();
 
-            println!("export json:{}", json);
-
-            let jsonline = pg
-                .export_table_to_string(table_name, ExportKind::JsonLine)
-                .await
-                .unwrap();
-            let _: serde_json::Value = serde_json::from_str(json.as_str()).unwrap();
-
-            println!("export jsonline:{}", jsonline);
-
-            let csv = pg
-                .export_table_to_string(
-                    table_name,
-                    ExportKind::Csv {
-                        include_header: true,
-                        delimiter: ',',
-                    },
-                )
-                .await
-                .unwrap();
-            let _: serde_json::Value = serde_json::from_str(json.as_str()).unwrap();
-
-            println!("export csv:{}", csv);
-
-            let sql = pg
-                .export_table_to_string(
-                    table_name,
-                    ExportKind::Sql {
-                        include_table_schema: false,
-                    },
-                )
-                .await
-                .unwrap();
-            let _: serde_json::Value = serde_json::from_str(json.as_str()).unwrap();
-
-            println!("export sql:{}", sql);
-        }
+        GetTestExportTableKinds::test_export(&pg, table_name).await;
     }
 
     #[tokio::test]
@@ -3372,50 +3067,8 @@ mod tests {
             .await
             .unwrap();
         println!("{:?}", x);
-        {
-            let json = pg
-                .export_table_to_string(table_name, ExportKind::Json { pretty: true })
-                .await
-                .unwrap();
-            let _: serde_json::Value = serde_json::from_str(json.as_str()).unwrap();
 
-            println!("export json:{}", json);
-
-            let jsonline = pg
-                .export_table_to_string(table_name, ExportKind::JsonLine)
-                .await
-                .unwrap();
-            let _: serde_json::Value = serde_json::from_str(json.as_str()).unwrap();
-
-            println!("export jsonline:{}", jsonline);
-
-            let csv = pg
-                .export_table_to_string(
-                    table_name,
-                    ExportKind::Csv {
-                        include_header: true,
-                        delimiter: ',',
-                    },
-                )
-                .await
-                .unwrap();
-            let _: serde_json::Value = serde_json::from_str(json.as_str()).unwrap();
-
-            println!("export csv:{}", csv);
-
-            let sql = pg
-                .export_table_to_string(
-                    table_name,
-                    ExportKind::Sql {
-                        include_table_schema: false,
-                    },
-                )
-                .await
-                .unwrap();
-            let _: serde_json::Value = serde_json::from_str(json.as_str()).unwrap();
-
-            println!("export sql:{}", sql);
-        }
+        GetTestExportTableKinds::test_export(&pg, table_name).await;
     }
 
     #[tokio::test]
@@ -3473,50 +3126,8 @@ mod tests {
             .await
             .unwrap();
         println!("{:?}", x);
-        {
-            let json = pg
-                .export_table_to_string(table_name, ExportKind::Json { pretty: true })
-                .await
-                .unwrap();
-            let _: serde_json::Value = serde_json::from_str(json.as_str()).unwrap();
 
-            println!("export json:{}", json);
-
-            let jsonline = pg
-                .export_table_to_string(table_name, ExportKind::JsonLine)
-                .await
-                .unwrap();
-            let _: serde_json::Value = serde_json::from_str(json.as_str()).unwrap();
-
-            println!("export jsonline:{}", jsonline);
-
-            let csv = pg
-                .export_table_to_string(
-                    table_name,
-                    ExportKind::Csv {
-                        include_header: true,
-                        delimiter: ',',
-                    },
-                )
-                .await
-                .unwrap();
-            let _: serde_json::Value = serde_json::from_str(json.as_str()).unwrap();
-
-            println!("export csv:{}", csv);
-
-            let sql = pg
-                .export_table_to_string(
-                    table_name,
-                    ExportKind::Sql {
-                        include_table_schema: false,
-                    },
-                )
-                .await
-                .unwrap();
-            let _: serde_json::Value = serde_json::from_str(json.as_str()).unwrap();
-
-            println!("export sql:{}", sql);
-        }
+        GetTestExportTableKinds::test_export(&pg, table_name).await;
     }
 
     #[tokio::test]
@@ -3563,50 +3174,8 @@ mod tests {
             .await
             .unwrap();
         println!("{:?}", x);
-        {
-            let json = pg
-                .export_table_to_string(table_name, ExportKind::Json { pretty: true })
-                .await
-                .unwrap();
-            let _: serde_json::Value = serde_json::from_str(json.as_str()).unwrap();
 
-            println!("export json:{}", json);
-
-            let jsonline = pg
-                .export_table_to_string(table_name, ExportKind::JsonLine)
-                .await
-                .unwrap();
-            let _: serde_json::Value = serde_json::from_str(json.as_str()).unwrap();
-
-            println!("export jsonline:{}", jsonline);
-
-            let csv = pg
-                .export_table_to_string(
-                    table_name,
-                    ExportKind::Csv {
-                        include_header: true,
-                        delimiter: ',',
-                    },
-                )
-                .await
-                .unwrap();
-            let _: serde_json::Value = serde_json::from_str(json.as_str()).unwrap();
-
-            println!("export csv:{}", csv);
-
-            let sql = pg
-                .export_table_to_string(
-                    table_name,
-                    ExportKind::Sql {
-                        include_table_schema: false,
-                    },
-                )
-                .await
-                .unwrap();
-            let _: serde_json::Value = serde_json::from_str(json.as_str()).unwrap();
-
-            println!("export sql:{}", sql);
-        }
+        GetTestExportTableKinds::test_export(&pg, table_name).await;
     }
 
     #[tokio::test]
@@ -3675,50 +3244,8 @@ mod tests {
             .await
             .unwrap();
         println!("{:?}", x);
-        {
-            let json = pg
-                .export_table_to_string(table_name, ExportKind::Json { pretty: true })
-                .await
-                .unwrap();
-            let _: serde_json::Value = serde_json::from_str(json.as_str()).unwrap();
 
-            println!("export json:{}", json);
-
-            let jsonline = pg
-                .export_table_to_string(table_name, ExportKind::JsonLine)
-                .await
-                .unwrap();
-            let _: serde_json::Value = serde_json::from_str(json.as_str()).unwrap();
-
-            println!("export jsonline:{}", jsonline);
-
-            let csv = pg
-                .export_table_to_string(
-                    table_name,
-                    ExportKind::Csv {
-                        include_header: true,
-                        delimiter: ',',
-                    },
-                )
-                .await
-                .unwrap();
-            let _: serde_json::Value = serde_json::from_str(json.as_str()).unwrap();
-
-            println!("export csv:{}", csv);
-
-            let sql = pg
-                .export_table_to_string(
-                    table_name,
-                    ExportKind::Sql {
-                        include_table_schema: false,
-                    },
-                )
-                .await
-                .unwrap();
-            let _: serde_json::Value = serde_json::from_str(json.as_str()).unwrap();
-
-            println!("export sql:{}", sql);
-        }
+        GetTestExportTableKinds::test_export(&pg, table_name).await;
     }
 
     #[tokio::test]
@@ -3779,50 +3306,8 @@ mod tests {
             .await
             .unwrap();
         println!("{:?}", x);
-        {
-            let json = pg
-                .export_table_to_string(table_name, ExportKind::Json { pretty: true })
-                .await
-                .unwrap();
-            let _: serde_json::Value = serde_json::from_str(json.as_str()).unwrap();
 
-            println!("export json:{}", json);
-
-            let jsonline = pg
-                .export_table_to_string(table_name, ExportKind::JsonLine)
-                .await
-                .unwrap();
-            let _: serde_json::Value = serde_json::from_str(json.as_str()).unwrap();
-
-            println!("export jsonline:{}", jsonline);
-
-            let csv = pg
-                .export_table_to_string(
-                    table_name,
-                    ExportKind::Csv {
-                        include_header: true,
-                        delimiter: ',',
-                    },
-                )
-                .await
-                .unwrap();
-            let _: serde_json::Value = serde_json::from_str(json.as_str()).unwrap();
-
-            println!("export csv:{}", csv);
-
-            let sql = pg
-                .export_table_to_string(
-                    table_name,
-                    ExportKind::Sql {
-                        include_table_schema: false,
-                    },
-                )
-                .await
-                .unwrap();
-            let _: serde_json::Value = serde_json::from_str(json.as_str()).unwrap();
-
-            println!("export sql:{}", sql);
-        }
+        GetTestExportTableKinds::test_export(&pg, table_name).await;
     }
 
     #[tokio::test]
@@ -3890,49 +3375,7 @@ mod tests {
             .await
             .unwrap();
         println!("{:?}", x);
-        {
-            let json = pg
-                .export_table_to_string(table_name, ExportKind::Json { pretty: true })
-                .await
-                .unwrap();
-            let _: serde_json::Value = serde_json::from_str(json.as_str()).unwrap();
 
-            println!("export json:{}", json);
-
-            let jsonline = pg
-                .export_table_to_string(table_name, ExportKind::JsonLine)
-                .await
-                .unwrap();
-            let _: serde_json::Value = serde_json::from_str(json.as_str()).unwrap();
-
-            println!("export jsonline:{}", jsonline);
-
-            let csv = pg
-                .export_table_to_string(
-                    table_name,
-                    ExportKind::Csv {
-                        include_header: true,
-                        delimiter: ',',
-                    },
-                )
-                .await
-                .unwrap();
-            let _: serde_json::Value = serde_json::from_str(json.as_str()).unwrap();
-
-            println!("export csv:{}", csv);
-
-            let sql = pg
-                .export_table_to_string(
-                    table_name,
-                    ExportKind::Sql {
-                        include_table_schema: false,
-                    },
-                )
-                .await
-                .unwrap();
-            let _: serde_json::Value = serde_json::from_str(json.as_str()).unwrap();
-
-            println!("export sql:{}", sql);
-        }
+        GetTestExportTableKinds::test_export(&pg, table_name).await;
     }
 }

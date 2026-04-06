@@ -16,8 +16,9 @@ use crate::datasource_config::RedisDBConfig;
 use crate::db::{
     create_html_table_data, create_markdown_data, create_markdown_header, AutoCompletionQueryId,
     BackendKind, CheckConn, CreateSchemaExtra, DBTrait, ExportFrame, ExportKind, ExportQueryResult,
-    Field, GetBackendKind, ListTable, MetaValue, QueryEvent, QueryEventEmitter, QueryResp,
-    QuerySql, ReadOnlyTrait, SchemaTrait, ServerMetas, ShowTableParameter, SqlBuilder, XlsxEdit,
+    Field, GetBackendKind, GetTestExportTableKinds, ListTable, MetaValue, QueryEvent,
+    QueryEventEmitter, QueryResp, QuerySql, ReadOnlyTrait, SchemaTrait, ServerMetas,
+    ShowTableParameter, SqlBuilder, XlsxEdit,
 };
 use crate::helper::{create_csv, OffsetLimitIter};
 
@@ -1756,6 +1757,28 @@ pub(crate) async fn make_test_object() -> RedisDB {
     db
 }
 
+impl GetTestExportTableKinds for RedisDB {
+    fn get_kinds(&self) -> Vec<ExportKind> {
+        vec![
+            ExportKind::Sql {
+                include_table_schema: false,
+            },
+            ExportKind::JsonLine,
+            ExportKind::Json { pretty: true },
+            ExportKind::Csv {
+                include_header: false,
+                delimiter: ',',
+            },
+            ExportKind::MarkDown,
+            ExportKind::Html {
+                include_header: false,
+            },
+            ExportKind::Xlsx {
+                include_header: false,
+            },
+        ]
+    }
+}
 #[cfg(test)]
 mod tests {
     use super::make_test_object;
@@ -2058,57 +2081,9 @@ db1:keys=1,expires=0,avg_ttl=0"#,
             .unwrap();
         println!("query ret :{:?}", ret);
         // export
-        {
-            let s = db
-                .export_table_to_string(
-                    table_name,
-                    ExportKind::Csv {
-                        include_header: false,
-                        delimiter: ',',
-                    },
-                )
-                .await
-                .unwrap();
-            println!("csv:{}", s);
-            let s = db
-                .export_table_to_string(table_name, ExportKind::Json { pretty: true })
-                .await
-                .unwrap();
 
-            let _: serde_json::Value = serde_json::from_str(&s).unwrap();
-            println!("json:{}", s);
+        GetTestExportTableKinds::test_export(&db, table_name).await;
 
-            let s = db
-                .export_table_to_string(table_name, ExportKind::JsonLine)
-                .await
-                .unwrap();
-            println!("json_line:{}", s);
-            let s = db
-                .export_table_to_string(
-                    table_name,
-                    ExportKind::Sql {
-                        include_table_schema: false,
-                    },
-                )
-                .await
-                .unwrap();
-            println!("sql:{}", s);
-            let s = db
-                .export_table_to_string(
-                    table_name,
-                    ExportKind::Html {
-                        include_header: false,
-                    },
-                )
-                .await
-                .unwrap();
-            println!("html:{}", s);
-            let s = db
-                .export_table_to_string(table_name, ExportKind::MarkDown)
-                .await
-                .unwrap();
-            println!("markdown:{}", s);
-        }
         let cols = db.show_table_columns(table_name).await.unwrap();
         println!("{:?}", cols);
         let resp = (SchemaTrait::as_any(&db).downcast_ref::<RedisDB>())
@@ -2164,57 +2139,7 @@ db1:keys=1,expires=0,avg_ttl=0"#,
             .unwrap();
         println!("query ret :{:?}", ret);
         // export
-        {
-            let s = db
-                .export_table_to_string(
-                    table_name,
-                    ExportKind::Csv {
-                        include_header: false,
-                        delimiter: ',',
-                    },
-                )
-                .await
-                .unwrap();
-            println!("csv:{}", s);
-            let s = db
-                .export_table_to_string(table_name, ExportKind::Json { pretty: true })
-                .await
-                .unwrap();
-
-            let _: serde_json::Value = serde_json::from_str(&s).unwrap();
-            println!("json:{}", s);
-
-            let s = db
-                .export_table_to_string(table_name, ExportKind::JsonLine)
-                .await
-                .unwrap();
-            println!("json_line:{}", s);
-            let s = db
-                .export_table_to_string(
-                    table_name,
-                    ExportKind::Sql {
-                        include_table_schema: false,
-                    },
-                )
-                .await
-                .unwrap();
-            println!("sql:{}", s);
-            let s = db
-                .export_table_to_string(
-                    table_name,
-                    ExportKind::Html {
-                        include_header: false,
-                    },
-                )
-                .await
-                .unwrap();
-            println!("html:{}", s);
-            let s = db
-                .export_table_to_string(table_name, ExportKind::MarkDown)
-                .await
-                .unwrap();
-            println!("markdown:{}", s);
-        }
+        GetTestExportTableKinds::test_export(&db, table_name).await;
         let cols = db.show_table_columns(table_name).await.unwrap();
         println!("{:?}", cols);
         let resp = db
@@ -2260,57 +2185,7 @@ db1:keys=1,expires=0,avg_ttl=0"#,
             .unwrap();
         println!("query ret :{:?}", ret);
         // export
-        {
-            let s = db
-                .export_table_to_string(
-                    table_name,
-                    ExportKind::Csv {
-                        include_header: false,
-                        delimiter: ',',
-                    },
-                )
-                .await
-                .unwrap();
-            println!("csv:{}", s);
-            let s = db
-                .export_table_to_string(table_name, ExportKind::Json { pretty: true })
-                .await
-                .unwrap();
-
-            let _: serde_json::Value = serde_json::from_str(&s).unwrap();
-            println!("json:{}", s);
-
-            let s = db
-                .export_table_to_string(table_name, ExportKind::JsonLine)
-                .await
-                .unwrap();
-            println!("json_line:{}", s);
-            let s = db
-                .export_table_to_string(
-                    table_name,
-                    ExportKind::Sql {
-                        include_table_schema: false,
-                    },
-                )
-                .await
-                .unwrap();
-            println!("sql:{}", s);
-            let s = db
-                .export_table_to_string(
-                    table_name,
-                    ExportKind::Html {
-                        include_header: false,
-                    },
-                )
-                .await
-                .unwrap();
-            println!("html:{}", s);
-            let s = db
-                .export_table_to_string(table_name, ExportKind::MarkDown)
-                .await
-                .unwrap();
-            println!("markdown:{}", s);
-        }
+        GetTestExportTableKinds::test_export(&db, table_name).await;
         let cols = db.show_table_columns(table_name).await.unwrap();
         println!("{:?}", cols);
         let resp = db
@@ -2358,57 +2233,7 @@ db1:keys=1,expires=0,avg_ttl=0"#,
         println!("query_ret:{:?}", ret);
 
         // export
-        {
-            let s = db
-                .export_table_to_string(
-                    table_name,
-                    ExportKind::Csv {
-                        include_header: false,
-                        delimiter: ',',
-                    },
-                )
-                .await
-                .unwrap();
-            println!("csv:{}", s);
-            let s = db
-                .export_table_to_string(table_name, ExportKind::Json { pretty: true })
-                .await
-                .unwrap();
-
-            let _: serde_json::Value = serde_json::from_str(&s).unwrap();
-            println!("json:{}", s);
-
-            let s = db
-                .export_table_to_string(table_name, ExportKind::JsonLine)
-                .await
-                .unwrap();
-            println!("json_line:{}", s);
-            let s = db
-                .export_table_to_string(
-                    table_name,
-                    ExportKind::Sql {
-                        include_table_schema: false,
-                    },
-                )
-                .await
-                .unwrap();
-            println!("sql:{}", s);
-            let s = db
-                .export_table_to_string(
-                    table_name,
-                    ExportKind::Html {
-                        include_header: false,
-                    },
-                )
-                .await
-                .unwrap();
-            println!("html:{}", s);
-            let s = db
-                .export_table_to_string(table_name, ExportKind::MarkDown)
-                .await
-                .unwrap();
-            println!("markdown:{}", s);
-        }
+        GetTestExportTableKinds::test_export(&db, table_name).await;
         let cols = db.show_table_columns(table_name).await.unwrap();
         println!("{:?}", cols);
         let resp = db

@@ -549,7 +549,6 @@ pub trait SchemaTrait:
         self.backend_kind().not_support_feature()
     }
 
-    #[cfg(test)]
     async fn export_table_to_string(
         &self,
         table_name: &str,
@@ -1124,6 +1123,12 @@ pub struct XlsxEdit {
     pub content: String,
 }
 
+impl std::fmt::Display for XlsxEdit {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}-{}-{}", self.row, self.column, self.content)
+    }
+}
+
 pub(crate) async fn export_query_as_xlsx_send_data(
     row_num: &mut u32,
     data: Vec<Option<String>>,
@@ -1200,7 +1205,7 @@ impl std::fmt::Display for ExportFrame {
         match self {
             ExportFrame::Str(x) => write!(f, "{}", x),
             ExportFrame::String(s) => write!(f, "{}", s),
-            ExportFrame::Xlsx(xlsx_edit) => write!(f, "{:?}", xlsx_edit),
+            ExportFrame::Xlsx(xlsx_edit) => write!(f, "{}", xlsx_edit),
             ExportFrame::Bytes(bytes) => {
                 write!(f, "{}", String::from_utf8_lossy(bytes.deref()))
             }
@@ -1433,6 +1438,7 @@ async fn collect_export_str(
             let mut ret = String::new();
             while let Some(r) = receiver.recv().await {
                 ret.push_str(r.to_string().as_str());
+                ret.push('\n');
             }
             anyhow::Ok(ret)
         }
@@ -2340,7 +2346,9 @@ impl From<SqlCollect> for String {
 
 pub(crate) const POOL_MAX_CONNECTIONS: u32 = 200;
 
-pub trait GetTestExportTableKinds {
+#[async_trait::async_trait]
+
+pub trait GetTestExportTableKinds: SchemaTrait {
     fn get_kinds(&self) -> Vec<ExportKind> {
         let mut r = vec![
             ExportKind::Sql {
@@ -2381,5 +2389,13 @@ pub trait GetTestExportTableKinds {
 
     fn support_table_schema(&self) -> bool {
         true
+    }
+
+    async fn test_export(&self, table_name: &str) {
+        for kind in self.get_kinds() {
+            let str = self.export_table_to_string(table_name, kind).await.unwrap();
+
+            println!("export:{:?}\n{}", kind, str)
+        }
     }
 }

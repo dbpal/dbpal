@@ -4,10 +4,10 @@ use crate::db::{
     escape_sql_str, export_query_as_xlsx_send_data, AutoCompletionQueryId, BackendKind,
     BackendKindMysql, CheckConn, ColumnType, CreateIndexReq, CreateSchemaExtra,
     CreateTableAndIndexSql, DBTrait, DefAndMetas, ExportFrame, ExportKind, ExportQueryResult,
-    Field, GetBackendKind, Index, IndexKind, ListTable, MetaValue, NamedStaff, OptionMustBeSomeErr,
-    ProcedureDetail, QueryEvent, QueryEventEmitter, QueryResp, QuerySql, SchemaTrait,
-    SequenceDetail, ServerMetas, ShowTableParameter, SqlBuilder, SqlCollect, SqlEvent,
-    TriggerDetail, TriggerEvent, TriggerTiming, UdfOrProcedureExtraParameter, XlsxEdit,
+    Field, GetBackendKind, GetTestExportTableKinds, Index, IndexKind, ListTable, MetaValue,
+    NamedStaff, OptionMustBeSomeErr, ProcedureDetail, QueryEvent, QueryEventEmitter, QueryResp,
+    QuerySql, SchemaTrait, SequenceDetail, ServerMetas, ShowTableParameter, SqlBuilder, SqlCollect,
+    SqlEvent, TriggerDetail, TriggerEvent, TriggerTiming, UdfOrProcedureExtraParameter, XlsxEdit,
     POOL_MAX_CONNECTIONS,
 };
 use crate::helper::create_csv;
@@ -1864,12 +1864,17 @@ impl SqlBuilder for MysqlDB {
     }
 }
 
+impl GetTestExportTableKinds for MysqlDB {}
+
 #[cfg(test)]
 pub(crate) mod test_fns {
 
     use super::*;
     use crate::{
-        db::{CreateIndexColumn, CreateTableReq, CreateTableReqColumn, SqlNullAble},
+        db::{
+            CreateIndexColumn, CreateTableReq, CreateTableReqColumn, GetTestExportTableKinds,
+            SqlNullAble,
+        },
         enable_test_log,
     };
     // this test no need clean up, we use memory sqlite db.
@@ -2284,101 +2289,7 @@ pub(crate) mod test_fns {
             let _ = db.execute_sql(query_id, s).await.unwrap();
         }
 
-        {
-            let s = (db)
-                .export_table_to_string(table_name, ExportKind::Json { pretty: true })
-                .await
-                .unwrap();
-            println!("json:{}", s);
-            let _: serde_json::Value = serde_json::from_str(s.as_str()).unwrap();
-        }
-        {
-            let s = (db)
-                .export_table_to_string(
-                    table_name,
-                    ExportKind::Csv {
-                        include_header: true,
-                        delimiter: ',',
-                    },
-                )
-                .await
-                .unwrap();
-            println!("csv:{}", s);
-        }
-        {
-            let s = (db)
-                .export_table_to_string(
-                    table_name,
-                    ExportKind::Sql {
-                        include_table_schema: false,
-                    },
-                )
-                .await
-                .unwrap();
-            println!("sql:{}", s);
-        }
-
-        let schema_trait = db;
-        {
-            let s = schema_trait
-                .export_table_to_string(
-                    table_name,
-                    ExportKind::Sql {
-                        include_table_schema: true,
-                    },
-                )
-                .await
-                .unwrap();
-            println!("sql:{}", s);
-        }
-        {
-            let s = schema_trait
-                .export_table_to_string(table_name, ExportKind::JsonLine)
-                .await
-                .unwrap();
-            println!("json:{}", s);
-        }
-
-        println!("##################################");
-
-        {
-            let s = schema_trait
-                .export_query_result_to_string(
-                    query_id,
-                    format!("select * from {table_name}").as_str(),
-                    ExportKind::Json { pretty: true },
-                )
-                .await
-                .unwrap();
-            println!("json:{}", s);
-            let _: serde_json::Value = serde_json::from_str(s.as_str()).unwrap();
-        }
-        {
-            let s = schema_trait
-                .export_query_result_to_string(
-                    query_id,
-                    format!("select * from {table_name}").as_str(),
-                    ExportKind::Csv {
-                        include_header: true,
-                        delimiter: ',',
-                    },
-                )
-                .await
-                .unwrap();
-            println!("csv:{}", s);
-        }
-
-        {
-            let s = schema_trait
-                .export_query_result_to_string(
-                    query_id,
-                    format!("select * from {table_name}").as_str(),
-                    ExportKind::JsonLine,
-                )
-                .await
-                .unwrap();
-            println!("json line:{}", s);
-        }
+        GetTestExportTableKinds::test_export(&db, table_name).await;
     }
 
     pub(crate) async fn test_index(db: MysqlDB) {
@@ -2499,63 +2410,8 @@ pub(crate) mod test_fns {
             .await
             .unwrap();
         println!("{:?}", cols);
-        {
-            // export test.
-            let e = db
-                .export_table_to_string(
-                    table_name,
-                    ExportKind::Sql {
-                        include_table_schema: true,
-                    },
-                )
-                .await
-                .unwrap();
-            println!("sql:{}", e);
-            let e = db
-                .export_table_to_string(
-                    table_name,
-                    ExportKind::Csv {
-                        include_header: true,
-                        delimiter: ',',
-                    },
-                )
-                .await
-                .unwrap();
 
-            println!("csv:{}", e);
-            // export test.
-            let e = db
-                .export_table_to_string(table_name, ExportKind::Json { pretty: true })
-                .await
-                .unwrap();
-
-            println!("json:{}", e);
-
-            let e = db
-                .export_table_to_string(table_name, ExportKind::JsonLine)
-                .await
-                .unwrap();
-
-            println!("json line:{}", e);
-
-            let e = db
-                .export_table_to_string(
-                    table_name,
-                    ExportKind::Html {
-                        include_header: true,
-                    },
-                )
-                .await
-                .unwrap();
-
-            println!("html:{}", e);
-            let e = db
-                .export_table_to_string(table_name, ExportKind::MarkDown)
-                .await
-                .unwrap();
-
-            println!("markdown:{}", e);
-        }
+        GetTestExportTableKinds::test_export(&db, table_name).await;
     }
 
     pub(crate) async fn test_types2(db: MysqlDB) {
@@ -2602,45 +2458,8 @@ pub(crate) mod test_fns {
             .await
             .unwrap();
         println!("{:?}", cols);
-        {
-            // export test.
-            let e = db
-                .export_table_to_string(
-                    table_name,
-                    ExportKind::Sql {
-                        include_table_schema: true,
-                    },
-                )
-                .await
-                .unwrap();
-            println!("sql:{}", e);
-            let e = db
-                .export_table_to_string(
-                    table_name,
-                    ExportKind::Csv {
-                        include_header: true,
-                        delimiter: ',',
-                    },
-                )
-                .await
-                .unwrap();
 
-            println!("csv:{}", e);
-            // export test.
-            let e = db
-                .export_table_to_string(table_name, ExportKind::Json { pretty: true })
-                .await
-                .unwrap();
-
-            println!("json:{}", e);
-
-            let e = db
-                .export_table_to_string(table_name, ExportKind::JsonLine)
-                .await
-                .unwrap();
-
-            println!("json line:{}", e);
-        }
+        GetTestExportTableKinds::test_export(&db, table_name).await;
     }
 
     pub(crate) async fn test_types3(db: MysqlDB) {
@@ -2688,45 +2507,7 @@ pub(crate) mod test_fns {
             .await
             .unwrap();
         println!("{:?}", cols);
-        {
-            // export test.
-            let e = db
-                .export_table_to_string(
-                    table_name,
-                    ExportKind::Sql {
-                        include_table_schema: true,
-                    },
-                )
-                .await
-                .unwrap();
-            println!("sql:{}", e);
-            let e = db
-                .export_table_to_string(
-                    table_name,
-                    ExportKind::Csv {
-                        include_header: true,
-                        delimiter: ',',
-                    },
-                )
-                .await
-                .unwrap();
-
-            println!("csv:{}", e);
-            // export test.
-            let e = db
-                .export_table_to_string(table_name, ExportKind::Json { pretty: true })
-                .await
-                .unwrap();
-
-            println!("json:{}", e);
-
-            let e = db
-                .export_table_to_string(table_name, ExportKind::JsonLine)
-                .await
-                .unwrap();
-
-            println!("json line:{}", e);
-        }
+        GetTestExportTableKinds::test_export(&db, table_name).await;
     }
 
     pub(crate) async fn test_types4(db: MysqlDB) {
@@ -2782,45 +2563,7 @@ pub(crate) mod test_fns {
             .await
             .unwrap();
         println!("{:?}", cols);
-        {
-            // export test.
-            let e = db
-                .export_table_to_string(
-                    table_name,
-                    ExportKind::Sql {
-                        include_table_schema: true,
-                    },
-                )
-                .await
-                .unwrap();
-            println!("sql:{}", e);
-            let e = db
-                .export_table_to_string(
-                    table_name,
-                    ExportKind::Csv {
-                        include_header: true,
-                        delimiter: ',',
-                    },
-                )
-                .await
-                .unwrap();
-
-            println!("csv:{}", e);
-            // export test.
-            let e = db
-                .export_table_to_string(table_name, ExportKind::Json { pretty: true })
-                .await
-                .unwrap();
-
-            println!("json:{}", e);
-
-            let e = db
-                .export_table_to_string(table_name, ExportKind::JsonLine)
-                .await
-                .unwrap();
-
-            println!("json line:{}", e);
-        }
+        GetTestExportTableKinds::test_export(&db, table_name).await;
     }
 
     pub(crate) async fn test_list_database(db: MysqlDB) {

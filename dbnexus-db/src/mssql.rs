@@ -3,11 +3,11 @@ use crate::db::{
     create_html_table_data, create_html_table_header, create_markdown_data, create_markdown_header,
     escape_sql_str, export_query_as_xlsx_send_data, format_data_time_fix_offset, BackendKind,
     CatalogTrait, CheckConn, ColumnType, CreateDatabaseExtra, CreateIndexReq, CreateSchemaExtra,
-    DBTrait, DefAndMetas, ExportFrame, ExportKind, ExportQueryResult, Field, GetBackendKind, Index,
-    IndexKind, ListTable, MetaValue, NamedStaff, ProcedureDetail, QueryEvent, QueryResp, QuerySql,
-    ReadOnlyTrait, SchemaTrait, ServerMetas, ShowTableParameter, SqlBuilder, SqlCollect,
-    TriggerDetail, TriggerEnable, TriggerEvent, TriggerTiming, UdfOrProcedureExtraParameter,
-    XlsxEdit, POOL_MAX_CONNECTIONS,
+    DBTrait, DefAndMetas, ExportFrame, ExportKind, ExportQueryResult, Field, GetBackendKind,
+    GetTestExportTableKinds, Index, IndexKind, ListTable, MetaValue, NamedStaff, ProcedureDetail,
+    QueryEvent, QueryResp, QuerySql, ReadOnlyTrait, SchemaTrait, ServerMetas, ShowTableParameter,
+    SqlBuilder, SqlCollect, TriggerDetail, TriggerEnable, TriggerEvent, TriggerTiming,
+    UdfOrProcedureExtraParameter, XlsxEdit, POOL_MAX_CONNECTIONS,
 };
 use crate::db::{OptionMustBeSomeErr, QueryEventEmitter};
 use crate::helper::create_csv;
@@ -1825,28 +1825,28 @@ impl CatalogTrait for SqlServerDB {
 }
 
 #[cfg(test)]
-pub(crate) async fn make_test_object() -> &'static Mutex<SqlServerDB> {
-    use tokio::sync::OnceCell;
-    static DB: OnceCell<Mutex<SqlServerDB>> = OnceCell::const_new();
-    DB.get_or_init(move || async {
-        let db = SqlServerDB::new(SqlServerDBConfig {
-            host: crate::TEST_HOST.to_string(),
-            conn_timeout: Some(5000.into()),
-            port: 1433,
-            username: Some("sa".to_string()),
-            password: Some("sfdewRE123".to_string()),
-            db: Some("test".to_string()),
-            trust_cert: true,
-            schema: Some(SqlServerDB::DBO_SCHEMA.to_string()),
-            read_only: false,
+pub(crate) async fn make_test_object() -> SqlServerDB {
+    SqlServerDB::new(SqlServerDBConfig {
+        host: crate::TEST_HOST.to_string(),
+        conn_timeout: Some(5000.into()),
+        port: 1433,
+        username: Some("sa".to_string()),
+        password: Some("sfdewRE123".to_string()),
+        db: Some("test".to_string()),
+        trust_cert: true,
+        schema: Some(SqlServerDB::DBO_SCHEMA.to_string()),
+        read_only: false,
 
-            cert_ca: None,
-        })
-        .await
-        .unwrap();
-        Mutex::new(db)
+        cert_ca: None,
     })
     .await
+    .unwrap()
+}
+#[cfg(test)]
+pub(crate) fn test_lock() -> &'static Mutex<()> {
+    static LOCK: Mutex<()> = Mutex::const_new(());
+
+    &LOCK
 }
 impl ReadOnlyTrait for SqlServerDB {
     fn read_only(&self) -> bool {
@@ -2151,6 +2151,11 @@ pub const INFORMATION_SCHEMA_VIEWS: &[&str] = &[
     "VIEWS",
 ];
 
+impl GetTestExportTableKinds for SqlServerDB {
+    fn support_table_schema(&self) -> bool {
+        false
+    }
+}
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -2158,12 +2163,15 @@ mod tests {
         CatalogTrait, CreateIndexColumn, CreateTableReq, CreateTableReqColumn, ShowTableParameter,
         SqlNullAble, TestQueryEventEmit,
     };
+
+    #[allow(unused_imports)]
     use crate::enable_test_log;
-    use std::ops::Deref;
 
     #[tokio::test]
     async fn test_table_pagination() {
-        let db = make_test_object().await.lock().await;
+        let _guard = test_lock().lock().await;
+
+        let db = make_test_object().await;
         let table_name = "test_table_pagination";
         let _ = db.drop_table(table_name, false).await;
         db.create_table(&CreateTableReq {
@@ -2200,7 +2208,8 @@ mod tests {
     }
     #[tokio::test]
     async fn test_procedure() {
-        let db = make_test_object().await.lock().await;
+        let _guard = test_lock().lock().await;
+        let db = make_test_object().await;
         let query_id = "aaaa";
         db.open_connection(query_id).await.unwrap();
         let _ = db.drop_procedure("test_procedure", None).await;
@@ -2226,7 +2235,8 @@ END;
 
     #[tokio::test]
     async fn test_udf() {
-        let db = make_test_object().await.lock().await;
+        let _guard = test_lock().lock().await;
+        let db = make_test_object().await;
         let query_id = "aaaa";
         db.open_connection(query_id).await.unwrap();
         let _ = db.drop_udf("test_udf", None).await;
@@ -2311,19 +2321,22 @@ END;
 
     #[tokio::test]
     async fn test_check_conn() {
-        let db = make_test_object().await.lock().await;
-        let metas = CheckConn::check_conn(db.deref()).await.unwrap();
+        let _guard = test_lock().lock().await;
+        let db = make_test_object().await;
+        let metas = CheckConn::check_conn(&db).await.unwrap();
         println!("{:?}", metas);
     }
     #[tokio::test]
     async fn test_server_metas() {
-        let db = make_test_object().await.lock().await;
-        let metas = ServerMetas::show_metas(db.deref()).await.unwrap();
+        let _guard = test_lock().lock().await;
+        let db = make_test_object().await;
+        let metas = ServerMetas::show_metas(&db).await.unwrap();
         println!("{:?}", metas);
     }
 
     #[tokio::test]
     async fn test_list_database() {
+        let _guard = test_lock().lock().await;
         let db = SqlServerDB::new(SqlServerDBConfig {
             host: crate::TEST_HOST.to_string(),
             conn_timeout: Some(5000.into()),
@@ -2345,7 +2358,8 @@ END;
 
     #[tokio::test]
     async fn test_transaction() {
-        let db = make_test_object().await.lock().await;
+        let _guard = test_lock().lock().await;
+        let db = make_test_object().await;
         let table_name = "test_commit";
         let _ = db.drop_table(table_name, false).await;
         let query_id = "aaaa";
@@ -2408,7 +2422,8 @@ END;
 
     #[tokio::test]
     async fn test_rename() {
-        let db = make_test_object().await.lock().await;
+        let _guard = test_lock().lock().await;
+        let db = make_test_object().await;
 
         let query_id = "aaaa";
         db.open_connection(query_id).await.unwrap();
@@ -2441,7 +2456,8 @@ END;
 
     #[tokio::test]
     async fn test_duplicate() {
-        let db = make_test_object().await.lock().await;
+        let _guard = test_lock().lock().await;
+        let db = make_test_object().await;
 
         let query_id = "aaaa";
         db.open_connection(query_id).await.unwrap();
@@ -2483,7 +2499,8 @@ END;
 
     #[tokio::test]
     async fn test_triggers() {
-        let db = make_test_object().await.lock().await;
+        let _guard = test_lock().lock().await;
+        let db = make_test_object().await;
 
         let query_id = "aaaa";
         db.open_connection(query_id).await.unwrap();
@@ -2549,8 +2566,8 @@ END;
 
     #[tokio::test]
     async fn test_query() {
-        enable_test_log();
-        let db = make_test_object().await.lock().await;
+        let _guard = test_lock().lock().await;
+        let db = make_test_object().await;
 
         let id = "";
         db.open_connection("").await.unwrap();
@@ -2578,7 +2595,8 @@ END;
 
     #[tokio::test]
     async fn test_list_schema() {
-        let db = make_test_object().await.lock().await;
+        let _guard = test_lock().lock().await;
+        let db = make_test_object().await;
         let db_names = db.list_schema().await.unwrap();
         assert_eq!(db_names, vec![SqlServerDB::DBO_SCHEMA]);
         for db_name in db_names.iter() {
@@ -2588,7 +2606,8 @@ END;
 
     #[tokio::test]
     async fn test_view() {
-        let db = make_test_object().await.lock().await;
+        let _guard = test_lock().lock().await;
+        let db = make_test_object().await;
         let _ = db.drop_view("test_view").await;
         let _ = db.drop_table("test_view_table", false).await;
         let query_id = "aaaa";
@@ -2643,7 +2662,8 @@ END;
 
     #[tokio::test]
     async fn test_index() {
-        let db = make_test_object().await.lock().await;
+        let _guard = test_lock().lock().await;
+        let db = make_test_object().await;
         let table_name = "test_index_table";
         let _ = db.drop_table(table_name, false).await;
         let req = CreateTableReq {
@@ -2715,8 +2735,9 @@ END;
 
     #[tokio::test]
     async fn test_export() {
+        let _guard = test_lock().lock().await;
         let table_name = "test_export";
-        let db = make_test_object().await.lock().await;
+        let db = make_test_object().await;
         let query_id = "aaaa";
         db.open_connection(query_id).await.unwrap();
         let rs = [
@@ -2735,86 +2756,15 @@ END;
             let _ = db.execute_sql(query_id, s).await.unwrap();
         }
 
-        {
-            let s = db
-                .export_table_to_string(table_name, ExportKind::Json { pretty: true })
-                .await
-                .unwrap();
-            println!("json:{}", s);
-            let _: serde_json::Value = serde_json::from_str(s.as_str()).unwrap();
-        }
-        {
-            let s = db
-                .export_table_to_string(table_name, ExportKind::JsonLine)
-                .await
-                .unwrap();
-            println!("json:{}", s);
-        }
-        {
-            let s = db
-                .export_table_to_string(
-                    table_name,
-                    ExportKind::Csv {
-                        include_header: true,
-                        delimiter: ',',
-                    },
-                )
-                .await
-                .unwrap();
-            println!("csv:{}", s);
-        }
-        {
-            let s = db
-                .export_table_to_string(
-                    table_name,
-                    ExportKind::Sql {
-                        include_table_schema: false,
-                    },
-                )
-                .await
-                .unwrap();
-            println!("sql:{}", s);
-        }
-        println!("################################");
-
-        let sql = format!("select * from {}", table_name);
-        let sql = sql.as_str();
-        {
-            let s = db
-                .export_query_result_to_string(query_id, sql, ExportKind::JsonLine)
-                .await
-                .unwrap();
-            println!("json:{}", s);
-        }
-        {
-            let s = db
-                .export_query_result_to_string(query_id, sql, ExportKind::Json { pretty: true })
-                .await
-                .unwrap();
-            println!("json:{}", s);
-            let _: serde_json::Value = serde_json::from_str(s.as_str()).unwrap();
-        }
-        {
-            let s = db
-                .export_query_result_to_string(
-                    query_id,
-                    sql,
-                    ExportKind::Csv {
-                        include_header: true,
-                        delimiter: ',',
-                    },
-                )
-                .await
-                .unwrap();
-            println!("csv:{}", s);
-        }
+        GetTestExportTableKinds::test_export(&db, table_name).await;
     }
 
     #[ignore = "xxx"]
     #[tokio::test]
     async fn test_list_table() {
+        let _guard = test_lock().lock().await;
         // list all table and query
-        let pg = make_test_object().await.lock().await;
+        let pg = make_test_object().await;
 
         let table = pg.list_table().await.unwrap();
         println!("{:?}", table);
@@ -2823,8 +2773,8 @@ END;
     #[ignore = "xxx"]
     #[tokio::test]
     async fn test_table_not_impl_will_panic() {
-        enable_test_log();
-        let db = make_test_object().await.lock().await;
+        let _guard = test_lock().lock().await;
+        let db = make_test_object().await;
         let query_id = "aaaa";
         db.open_connection(query_id).await.unwrap();
         db.query_sql(
@@ -2842,8 +2792,8 @@ END;
 
     #[tokio::test]
     async fn test_table_column() {
-        enable_test_log();
-        let db = make_test_object().await.lock().await;
+        let _guard = test_lock().lock().await;
+        let db = make_test_object().await;
 
         let table_name = "test_column";
         let _ = db.drop_table(table_name, false).await;
@@ -2908,8 +2858,8 @@ END;
 
     #[tokio::test]
     async fn test_type1() {
-        // enable_test_log();
-        let db = make_test_object().await.lock().await;
+        let _guard = test_lock().lock().await;
+        let db = make_test_object().await;
         let mut conn = db.get_conn().await.unwrap();
         let conn = conn.deref_mut();
         let table_name = "test_type1";
@@ -2955,66 +2905,13 @@ END;
             .unwrap();
         println!("ret:{:?}", list);
 
-        {
-            let e = db
-                .export_table_to_string(
-                    table_name,
-                    crate::db::ExportKind::Csv {
-                        include_header: false,
-                        delimiter: ',',
-                    },
-                )
-                .await
-                .unwrap();
-            println!("export csv:{}", e);
-            let e = db
-                .export_table_to_string(
-                    table_name,
-                    crate::db::ExportKind::Csv {
-                        include_header: true,
-                        delimiter: ',',
-                    },
-                )
-                .await
-                .unwrap();
-            println!("export csv:{}", e);
-            let e = db
-                .export_table_to_string(table_name, crate::db::ExportKind::Json { pretty: true })
-                .await
-                .unwrap();
-            println!("export json:{}", e);
-            let e = db
-                .export_table_to_string(
-                    table_name,
-                    crate::db::ExportKind::Sql {
-                        include_table_schema: false,
-                    },
-                )
-                .await
-                .unwrap();
-            println!("export sql:{}", e);
-            let e = db
-                .export_table_to_string(
-                    table_name,
-                    crate::db::ExportKind::Html {
-                        include_header: true,
-                    },
-                )
-                .await
-                .unwrap();
-            println!("export html:{}", e);
-            let e = db
-                .export_table_to_string(table_name, crate::db::ExportKind::MarkDown)
-                .await
-                .unwrap();
-            println!("export markdown:{}", e);
-        }
+        GetTestExportTableKinds::test_export(&db, table_name).await;
     }
 
     #[tokio::test]
     async fn test_type2() {
-        enable_test_log();
-        let db = make_test_object().await.lock().await;
+        let _guard = test_lock().lock().await;
+        let db = make_test_object().await;
         let mut conn = db.get_conn().await.unwrap();
 
         let conn = conn.deref_mut();
@@ -3064,12 +2961,13 @@ END;
             .await
             .unwrap();
         println!("ret:{:?}", list);
+        GetTestExportTableKinds::test_export(&db, table_name).await;
     }
 
     #[tokio::test]
     async fn test_type3() {
-        enable_test_log();
-        let db = make_test_object().await.lock().await;
+        let _guard = test_lock().lock().await;
+        let db = make_test_object().await;
         let mut conn = db.get_conn().await.unwrap();
         let conn = conn.deref_mut();
         let table_name = "test_type3";
@@ -3121,12 +3019,13 @@ END;
             .await
             .unwrap();
         println!("ret:{:?}", list);
+        GetTestExportTableKinds::test_export(&db, table_name).await;
     }
 
     #[tokio::test]
     async fn test_type4() {
-        enable_test_log();
-        let db = make_test_object().await.lock().await;
+        let _guard = test_lock().lock().await;
+        let db = make_test_object().await;
         let mut conn = db.get_conn().await.unwrap();
 
         let conn = conn.deref_mut();
@@ -3190,5 +3089,6 @@ END;
             .await
             .unwrap();
         println!("ret:{:?}", list);
+        GetTestExportTableKinds::test_export(&db, table_name).await;
     }
 }
