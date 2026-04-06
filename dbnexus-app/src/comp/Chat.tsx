@@ -912,13 +912,14 @@ function ShowChatImages(props: { images: string[]; setImages }) {
             setMsgShowIndex(null);
           })}>
           <Box sx={{ ...modalStyle }} width="80vw" height="60vh">
-            <Stack direction="row">
+            <Stack direction="row" style={{ alignItems: "center" }}>
               #{showMsgIndex + 1}
               <IconButton
                 onClick={() => {
                   setImages(images.filter((_e, idx) => idx != showMsgIndex));
                   setMsgShowIndex(null);
-                }}>
+                }}
+                color="warning">
                 <DeleteForeverIcon />
               </IconButton>
               <IconButton>
