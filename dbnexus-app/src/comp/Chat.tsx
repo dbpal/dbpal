@@ -25,7 +25,6 @@ import {
 } from "@mui/material";
 import { useContext, useEffect, useRef, useState } from "react";
 import { editor } from "monaco-editor";
-import ClearIcon from "@mui/icons-material/Clear";
 import {
   AppMarkDown,
   SliderSize,
@@ -827,7 +826,11 @@ function SqlChatTextInput(props: {
               try {
                 for (const file of files) {
                   const fileContent = await convertPathToDataUrl(file);
-                  setImages([...images, fileContent]);
+                  if (images.find((x) => x == fileContent)) {
+                    showNotification("error", "image have already been add");
+                  } else {
+                    setImages([...images, fileContent]);
+                  }
                 }
               } catch (e) {
                 showNotification("error", "open image failed", e);
@@ -910,12 +913,13 @@ function ShowChatImages(props: { images: string[]; setImages }) {
           })}>
           <Box sx={{ ...modalStyle }} width="80vw" height="60vh">
             <Stack direction="row">
+              #{showMsgIndex + 1}
               <IconButton
                 onClick={() => {
                   setImages(images.filter((_e, idx) => idx != showMsgIndex));
                   setMsgShowIndex(null);
                 }}>
-                <ClearIcon />
+                <DeleteForeverIcon />
               </IconButton>
               <IconButton>
                 <NavigateBeforeIcon
@@ -1032,7 +1036,7 @@ function EditPromptTemplate(props: { kind: DataSourceKind; handleClose: () => vo
 
           <Tooltip title="delete template,after we will use system default template">
             <IconButton onClick={handleDelete}>
-              <DeleteForeverIcon> </DeleteForeverIcon>
+              <DeleteForeverIcon />
             </IconButton>
           </Tooltip>
         </StackRowCenter>
@@ -1075,7 +1079,7 @@ function ChatHistory(props: {
         headerExtra={
           <Tooltip title="delete history">
             <IconButton onClick={handleClear}>
-              <DeleteForeverIcon> </DeleteForeverIcon>
+              <DeleteForeverIcon />
             </IconButton>
           </Tooltip>
         }
