@@ -1081,7 +1081,6 @@ pub(crate) async fn make_test_object() -> &'static Mutex<LibSqlDB> {
             source: LibSqlDBConfigSource::Remote {
                 url: "http://localhost:8080".to_string(),
                 auth_token: "".to_string(),
-
                 path: None,
             },
             read_only: false,

@@ -1,23 +1,21 @@
-use std::future::Future;
-use std::sync::Arc;
-
 use base64::Engine;
 use dbnexus_db::db::{BackendKind, ExportFrame, ExportKind};
-
 use futures_util::StreamExt;
 use rig::agent::{Agent, MultiTurnStreamItem, PromptHook, StreamingError, Text};
 use rig::client::completion::CompletionClient;
 use rig::providers::openai::responses_api::ResponsesCompletionModel;
-use rig::streaming::StreamingPrompt;
+use rig::streaming::{StreamedAssistantContent, StreamingPrompt};
 use rig::tool::ToolDyn;
 use rig::wasm_compat::{WasmCompatSend, WasmCompatSync};
 use rig::EmptyListError;
+use std::future::Future;
+use std::sync::Arc;
 
 use crate::app::{
     self, AiOnlineSearch, DBPal, DatabaseBackend, ErrorFrontend, OpenAIReq, TaskManager,
 };
 use rig::completion::{CompletionModel, Message, Prompt, PromptError, ToolDefinition};
-use rig::message::{DocumentSourceKind, Image, UserContent};
+use rig::message::{DocumentSourceKind, Image, ReasoningContent, ToolResultContent, UserContent};
 use rig::one_or_many::OneOrMany;
 use rig::{client::Client, providers::openai};
 use tauri::ipc::Channel;
@@ -85,8 +83,9 @@ async fn call_openai_stream(
     req: &OpenAIReq,
     tools: Vec<Box<dyn ToolDyn>>,
     emit: Emitter,
+    comment_fn: impl Fn(&str) -> String + Send + Sync + 'static,
 ) -> Result<(), ErrorFrontend> {
-    let agent = make_openai(&req, tools)?;
+    let agent = make_openai(req, tools)?;
     let msg = Message::User {
         content: {
             let mut content = vec![UserContent::Text(Text {
@@ -104,17 +103,66 @@ async fn call_openai_stream(
         },
     };
     let mut prompt = agent.stream_prompt(msg).await;
-
     while let Some(chunk) = prompt.next().await {
         let chunk = chunk?;
-
         match chunk {
-            MultiTurnStreamItem::StreamAssistantItem(..) => {}
-            MultiTurnStreamItem::StreamUserItem(..) => {}
-            MultiTurnStreamItem::FinalResponse(final_response) => {
-                emit(final_response.response().to_owned())
+            MultiTurnStreamItem::StreamAssistantItem(item) => match item {
+                rig::streaming::StreamedAssistantContent::Text(text) => {
+                    emit(text.text().to_owned());
+                }
+                StreamedAssistantContent::ToolCall { .. } => {
+                    // tool call have notice
+                }
+                StreamedAssistantContent::ToolCallDelta { .. } => {}
+                StreamedAssistantContent::Reasoning(reasoning) => {
+                    reasoning.content.iter().for_each(|x| match x {
+                        ReasoningContent::Text { text, signature: _ } => {
+                            emit(text.clone());
+                        }
+                        ReasoningContent::Encrypted(_) => {}
+                        ReasoningContent::Redacted { .. } => {}
+                        ReasoningContent::Summary(summary) => emit(summary.clone()),
+                        _ => {
+                            log::error!("maybe handle type:{:?}", x);
+                        }
+                    })
+                }
+                StreamedAssistantContent::ReasoningDelta { reasoning, .. } => emit(reasoning),
+                StreamedAssistantContent::Final(x) => {
+                    emit(format!(
+                        "\ninput token:{} output token:{} total token:{}",
+                        x.usage.input_tokens, x.usage.output_tokens, x.usage.total_tokens,
+                    ));
+                }
+            },
+            MultiTurnStreamItem::StreamUserItem(x) => match x {
+                rig::streaming::StreamedUserContent::ToolResult {
+                    tool_result,
+                    internal_call_id: _,
+                } => {
+                    // those text in
+                    for x in tool_result.content.iter() {
+                        match x {
+                            ToolResultContent::Text(text) => emit(comment_fn(text.text())),
+                            ToolResultContent::Image(..) => {
+                                return Err(ErrorFrontend::from(
+                                    "we should not support generate image???",
+                                ))
+                            }
+                        }
+                    }
+                }
+            },
+            MultiTurnStreamItem::FinalResponse(..) => {
+                // emit(final_response.response().to_owned())
             }
-            _ => todo!(),
+            _ => {
+                return Err(ErrorFrontend {
+                    reason: format!("unhandled stream item: {:?}", chunk),
+                    detail: "".into(),
+                    cancelled: false,
+                })
+            }
         }
     }
 
@@ -132,7 +180,7 @@ impl DatabaseBackend {
     fn make_tools(&self, query_id: impl Into<String>, emit: Emitter) -> Vec<Box<dyn ToolDyn>> {
         match self.backend_kind() {
             BackendKind::Mongo => {
-                todo!()
+                vec![]
             }
 
             _ => {
@@ -147,11 +195,6 @@ impl DatabaseBackend {
     }
 }
 
-// // 工具参数定义
-// #[derive(Debug, serde::Serialize, serde:: Deserialize)]
-// struct SqlQueryArgs {
-//     query: String,
-// }
 pub struct SqlQueryTool {
     db: DatabaseBackend,
     query_id: String,
@@ -197,6 +240,11 @@ pub type Emitter = Arc<dyn Fn(String) + Send + Sync + 'static>;
 impl Tool for SqlQueryTool {
     const NAME: &'static str = "sql_query";
 
+    type Args = SqlQueryArgs;
+    type Output = SqlQueryOutput;
+    type Error = CallToolErr;
+
+    #[allow(clippy::manual_async_fn)]
     fn definition(
         &self,
         _prompt: String,
@@ -219,13 +267,12 @@ impl Tool for SqlQueryTool {
         }
     }
 
-    type Args = SqlQueryArgs;
-    type Output = SqlQueryOutput;
-    type Error = CallToolErr;
-
     async fn call(&self, args: Self::Args) -> Result<Self::Output, Self::Error> {
-        (self.emit)(format!("--call tool sql query '{}'\n", args.query));
-
+        (self.emit)(
+            self.db
+                .backend_kind()
+                .comment(format!("call tool sql query {}", args.query).as_str()),
+        );
         let (exceed, ret) = self
             .db
             .as_export_query_result()
@@ -236,12 +283,11 @@ impl Tool for SqlQueryTool {
                 100,
             )
             .await
-            .map_err(|e| CallToolErr::from(format!("查询失败: {}", e)))
-            .unwrap();
+            .map_err(|e| CallToolErr::from(format!("查询失败: {}", e)))?;
         if exceed {
-            (self.emit)(format!("-- data exceed 100,some data not feed to LLM"))
+            (self.emit)("-- data exceed 100,some data not feed to LLM".to_string())
         }
-        let r = expect_export_frame_all_json(ret).unwrap();
+        let r = expect_export_frame_all_json(ret)?;
         Ok(SqlQueryOutput {
             result: serde_json::json!({"data": r}),
             query: args.query,
@@ -249,7 +295,9 @@ impl Tool for SqlQueryTool {
     }
 }
 
-fn expect_export_frame_all_json(x: Vec<ExportFrame>) -> anyhow::Result<Vec<serde_json::Value>> {
+fn expect_export_frame_all_json(
+    x: Vec<ExportFrame>,
+) -> Result<Vec<serde_json::Value>, CallToolErr> {
     let mut ret = vec![];
     for x in x {
         match x {
@@ -257,11 +305,13 @@ fn expect_export_frame_all_json(x: Vec<ExportFrame>) -> anyhow::Result<Vec<serde
                 ret.push(x);
             }
             _ => {
-                anyhow::bail!(format!("expect json line but:{}", x));
+                return Err(CallToolErr {
+                    err_msg: format!("expect json line but:{}", x),
+                });
             }
         }
     }
-    anyhow::Ok(ret)
+    Ok(ret)
 }
 
 #[tauri::command]
@@ -277,13 +327,16 @@ pub async fn openai_stream(
     let (token, _guard) = task_manager.add(task_id);
     let db = dbpal.get_backend(&name).await?;
     let emitter = Arc::new(move |s| {
-        emit.send(s).unwrap();
+        if let Err(err) = emit.send(s) {
+            log::error!("Error sending message: {:?}", err)
+        }
     });
     let mut tools = db.make_tools(query_id, emitter.clone());
     if let Some(x) = req.search_engine.make_tool(emitter.clone())? {
         tools.push(x);
     }
-    let fur = call_openai_stream(&req, tools, emitter);
+    let db_kind = db.backend_kind();
+    let fur = call_openai_stream(&req, tools, emitter, move |x| db_kind.comment(x));
     tokio::select! {
         res = fur => {res},
         _ = token.cancelled() => {
@@ -306,7 +359,6 @@ async fn image_to_base64(path: &str) -> anyhow::Result<String> {
     } else {
         "image/png" // 默认
     };
-
     // 必须加上前缀，告知模型图片类型（如 image/jpeg, image/png）
     let r = format!("data:{};base64,{}", mime, base64_str);
     anyhow::Ok(r)
@@ -364,6 +416,7 @@ impl Tool for WebSearchTool {
 
     type Output = SearchOutput;
 
+    #[allow(clippy::manual_async_fn)]
     fn definition(
         &self,
         _prompt: String,
@@ -396,7 +449,7 @@ impl Tool for WebSearchTool {
             }
         }
     }
-
+    #[allow(clippy::manual_async_fn)]
     fn call(
         &self,
         args: Self::Args,
@@ -463,31 +516,51 @@ mod tests {
     use futures_util::StreamExt;
     use rig::{
         agent::MultiTurnStreamItem,
-        streaming::{StreamedAssistantContent, StreamingPrompt},
+        streaming::{StreamedAssistantContent, StreamedUserContent, StreamingPrompt},
     };
     use websearch::SearchProvider;
 
     #[tokio::test]
 
     async fn test_xxx() {
-        let image = image_to_base64("/home/yuyang/Pictures/屏幕截图/屏幕截图_20260402_070833.png")
-            .await
-            .unwrap();
-
         call_openai_stream(
             &OpenAIReq {
                 url: "https://api.openai-proxy.org/v1".into(),
                 api_key: "sk-egR0EUYn0EzVybl7D9JkUFx2ksnD62sZPQ8d0J0yJgPEiAWt".into(),
                 model: "gpt-4.1-mini".into(),
-                msg: "this image about?".into(),
+                msg: "hello can u help me".into(),
                 temperature: None,
                 max_tokens: None,
                 top_p: None,
-                images: vec![image],
+                images: vec![],
                 search_engine: Default::default(),
             },
             vec![],
             Arc::new(|x| print!("{}", x)),
+            |x| x.to_owned(),
+        )
+        .await
+        .unwrap();
+    }
+
+    #[tokio::test]
+
+    async fn test_xxx_qwen() {
+        call_openai_stream(
+            &OpenAIReq {
+                url: "https://dashscope.aliyuncs.com/compatible-mode/v1".into(),
+                api_key: "sk-6c19c965d3234c8fae49c19e4f0301f0".into(),
+                model: "qwen3.5-flash".into(),
+                msg: "hello can u help me".into(),
+                temperature: None,
+                max_tokens: None,
+                top_p: None,
+                images: vec![],
+                search_engine: Default::default(),
+            },
+            vec![],
+            Arc::new(|x| print!("{}", x)),
+            |x| x.to_owned(),
         )
         .await
         .unwrap();
@@ -687,7 +760,7 @@ human: tell me Mike's age from TABLE Persons
                 }
                 MultiTurnStreamItem::StreamUserItem(streamed_user_content) => {
                     match streamed_user_content {
-                        rig::streaming::StreamedUserContent::ToolResult { .. } => {}
+                        StreamedUserContent::ToolResult { .. } => {}
                     }
                 }
                 MultiTurnStreamItem::FinalResponse(final_response) => {
@@ -785,12 +858,13 @@ human: tell me Mike's age from TABLE Persons
         let p = Arc::new(|x| println!("{}", x));
 
         call_openai_stream(
-            &req,
+            req,
             vec![Box::new(WebSearchTool {
                 engine: Box::new(websearch::providers::DuckDuckGoProvider::new()),
                 emit: p.clone(),
             })],
             p,
+            |x| x.to_owned(),
         )
         .await
         .unwrap();

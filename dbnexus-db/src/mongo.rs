@@ -1215,6 +1215,11 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn test_command_find() {
+        let db = make_test_object();
+    }
+
+    #[tokio::test]
     async fn test2() {
         let db = make_test_object();
         let table = "test_mongo";

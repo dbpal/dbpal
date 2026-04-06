@@ -44,6 +44,23 @@ pub enum BackendKindPostGres {
 }
 
 impl BackendKind {
+    pub fn comment(self, comment: &str) -> String {
+        let syntax = match self {
+            Self::Mongo => "//",
+            Self::Redis => "#",
+            _ => "--",
+        };
+        comment
+            .lines()
+            .map(|x| {
+                if x.starts_with(syntax) {
+                    format!("{}\n", x)
+                } else {
+                    format!("{} {}\n", syntax, x)
+                }
+            })
+            .collect()
+    }
     pub fn mysql_like(self) -> bool {
         matches!(self, Self::Mysql(..))
     }
@@ -2393,8 +2410,10 @@ pub trait GetTestExportTableKinds: SchemaTrait {
 
     async fn test_export(&self, table_name: &str) {
         for kind in self.get_kinds() {
-            let str = self.export_table_to_string(table_name, kind).await.unwrap();
-
+            let str = self
+                .export_table_to_string(table_name, kind)
+                .await
+                .expect("should export ok");
             println!("export:{:?}\n{}", kind, str)
         }
     }

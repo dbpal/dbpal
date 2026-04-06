@@ -447,7 +447,7 @@ impl RedisDB {
                     .await?;
                 let mut iter = conn.sscan::<_, String>(key).await?;
                 while let Some(set) = iter.next_item().await {
-                    let set = set.into_iter().map(|x| Some(x)).collect::<Vec<_>>();
+                    let set = set.into_iter().map(Some).collect::<Vec<_>>();
                     sender.send(create_markdown_data(&set).into()).await?;
                 }
             }
