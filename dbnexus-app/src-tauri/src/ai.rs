@@ -417,13 +417,8 @@ impl Tool for WebSearchTool {
 
     type Output = SearchOutput;
 
-    #[allow(clippy::manual_async_fn)]
-    fn definition(
-        &self,
-        _prompt: String,
-    ) -> impl Future<Output = ToolDefinition> + WasmCompatSend + WasmCompatSync {
-        async move {
-            ToolDefinition {
+    async fn definition(&self, _prompt: String) -> ToolDefinition {
+        ToolDefinition {
                 name: Self::NAME.to_string(),
                 description: "Search the web for information and use the results to answer the user's question. \
                     Use this tool when you need to find current information, facts, news, or specific resources \
@@ -448,65 +443,57 @@ impl Tool for WebSearchTool {
                         "required": ["query"]
                     })
             }
-        }
     }
-    #[allow(clippy::manual_async_fn)]
-    fn call(
-        &self,
-        args: Self::Args,
-    ) -> impl Future<Output = Result<Self::Output, Self::Error>> + WasmCompatSend {
-        async move {
-            (self.emit)(format!(
-                "-- search internet for answer,query:{}\n",
-                args.query
-            ));
 
-            let start = std::time::Instant::now();
-            let results = self
-                .engine
-                .search(&websearch::SearchOptions {
-                    query: args.query.clone(),
-                    max_results: args.max_results,
-                    ..Default::default()
-                })
-                .await
-                .map_err(|err| {
-                    CallToolErr::from(format!("call search engine failed,err:{}", err))
-                })?;
+    async fn call(&self, args: Self::Args) -> Result<Self::Output, Self::Error> {
+        (self.emit)(format!(
+            "-- search internet for answer,query:{}\n",
+            args.query
+        ));
 
-            #[cfg(debug_assertions)]
+        let start = std::time::Instant::now();
+        let results = self
+            .engine
+            .search(&websearch::SearchOptions {
+                query: args.query.clone(),
+                max_results: args.max_results,
+                ..Default::default()
+            })
+            .await
+            .map_err(|err| CallToolErr::from(format!("call search engine failed,err:{}", err)))?;
+
+        #[cfg(debug_assertions)]
+        {
+            for r in results.iter() {
+                println!("search result-{}-{:?} ", r.title, r.snippet);
+            }
+        }
+
+        (self.emit)(format!(
+            "-- search done:{} results {} ...\n",
+            results.len(),
             {
-                for r in results.iter() {
-                    println!("search result-{}-{:?} ", r.title, r.snippet);
+                //
+                let slice = results.get(0..3).unwrap_or(&results);
+                let r = slice
+                    .iter()
+                    .map(|x| x.snippet.clone().unwrap_or_default())
+                    .collect::<Vec<_>>()
+                    .join("  ");
+
+                if r.len() > 100 {
+                    r.chars().take(100).collect::<String>()
+                } else {
+                    r
                 }
             }
+        ));
 
-            (self.emit)(format!(
-                "-- search done:{} results {} ...\n",
-                results.len(),
-                {
-                    //
-                    let slice = results.get(0..3).unwrap_or(&results);
-                    let r = slice
-                        .iter()
-                        .map(|x| x.snippet.clone().unwrap_or_default())
-                        .collect::<Vec<_>>()
-                        .join("  ");
-
-                    if r.len() > 100 {
-                        r.chars().take(100).collect::<String>()
-                    } else {
-                        r
-                    }
-                }
-            ));
-
-            Ok(SearchOutput {
-                query: args.query.clone(),
-                search_time_ms: start.elapsed().as_millis() as u64,
-                results,
-            })
-        }
+        Ok(SearchOutput {
+            query: args.query.clone(),
+            search_time_ms: start.elapsed().as_millis() as u64,
+            results,
+        })
     }
 }
 
