@@ -1,6 +1,7 @@
 use base64::Engine;
 use dbnexus_db::db::{BackendKind, ExportFrame, ExportKind};
 use futures_util::StreamExt;
+use mongodb::bson::doc;
 use rig::agent::{Agent, MultiTurnStreamItem, PromptHook, StreamingError, Text};
 use rig::client::completion::CompletionClient;
 use rig::providers::openai::responses_api::ResponsesCompletionModel;
@@ -505,6 +506,306 @@ impl Tool for WebSearchTool {
                 search_time_ms: start.elapsed().as_millis() as u64,
                 results,
             })
+        }
+    }
+}
+
+mod mongo {
+
+    use dbnexus_db::mongo::MongoDB;
+    use futures_util::{StreamExt, TryStreamExt};
+    use mongodb::{
+        bson::{doc, Bson, Document},
+        Cursor,
+    };
+    use rig::{completion::ToolDefinition, tool::Tool};
+    use serde::{Deserialize, Serialize};
+    use std::sync::Arc;
+
+    use crate::ai::CallToolErr;
+
+    pub struct MongoQueryTool {
+        client: Arc<MongoDB>,
+        db_name: String,
+        // Safety limits
+        max_limit: i64,
+        forbidden_collections: Vec<String>,
+    }
+
+    /// LLM-generated query request
+    #[derive(Debug, Deserialize, Serialize)]
+    pub struct MongoQueryRequest {
+        /// Collection name
+        pub collection: String,
+
+        /// Operation type: find, aggregate, count, distinct, etc.
+        pub operation: String,
+
+        /// Query filter (BSON format)
+        #[serde(default)]
+        pub filter: Option<Document>,
+
+        /// Aggregation pipeline (for aggregate operations)
+        #[serde(default)]
+        pub pipeline: Option<Vec<Document>>,
+
+        /// Field projection
+        #[serde(default)]
+        pub projection: Option<Document>,
+
+        /// Sort order
+        #[serde(default)]
+        pub sort: Option<Document>,
+
+        /// Pagination limit
+        #[serde(default)]
+        pub limit: Option<i64>,
+
+        /// Records to skip
+        #[serde(default)]
+        pub skip: Option<i64>,
+    }
+
+    /// Query result
+    #[derive(Debug, Serialize)]
+    pub struct MongoQueryResult {
+        pub success: bool,
+        pub count: usize,
+        pub data: Vec<Document>,
+        pub explanation: String, // LLM-readable explanation
+    }
+
+    impl Tool for MongoQueryTool {
+        const NAME: &'static str = "mongo_query";
+
+        type Args = MongoQueryRequest;
+        type Output = MongoQueryResult;
+
+        async fn call(&self, args: Self::Args) -> Result<Self::Output, CallToolErr> {
+            // Safety check
+            if self.forbidden_collections.contains(&args.collection) {
+                return Ok(MongoQueryResult {
+                    success: false,
+                    count: 0,
+                    data: vec![],
+                    explanation: format!("Collection '{}' is not allowed", args.collection),
+                });
+            }
+
+            let db = self.client.get_db().await.unwrap();
+            let collection = db.collection::<Document>(&args.collection);
+
+            // Limit return count to prevent database overload
+            let limit = args.limit.unwrap_or(50).min(self.max_limit);
+
+            let result = match args.operation.as_str() {
+                "find" => {
+                    let mut cursor = collection.find(args.filter.unwrap_or_default());
+
+                    if let Some(proj) = args.projection {
+                        cursor = cursor.projection(proj);
+                    }
+                    if let Some(sort) = args.sort {
+                        cursor = cursor.sort(sort);
+                    }
+
+                    todo!() as MongoQueryResult
+                }
+
+                "aggregate" => {
+                    let pipeline = args.pipeline.unwrap_or_default();
+                    let mut cursor = collection.aggregate(pipeline);
+                    let mut cursor: Cursor<Document> =
+                        cursor.await.map_err(|e| CallToolErr::from(e.to_string()))?;
+                    let mut docs = vec![];
+                    while let Some(x) = cursor.next().await {
+                        let x = x.unwrap();
+                        docs.push(x);
+                    }
+                    let len = docs.len();
+                    MongoQueryResult {
+                        success: true,
+                        count: len,
+                        data: docs,
+                        explanation: format!("Aggregation returned {} results", len),
+                    }
+                }
+
+                "count" => {
+                    let count = collection
+                        .count_documents(args.filter.unwrap_or_default())
+                        .await
+                        .unwrap();
+
+                    MongoQueryResult {
+                        success: true,
+                        count: count as usize,
+                        data: vec![doc! { "count": count as i64 }],
+                        explanation: format!(
+                            "Collection '{}' has {} matching records",
+                            args.collection, count
+                        ),
+                    }
+                }
+
+                _ => MongoQueryResult {
+                    success: false,
+                    count: 0,
+                    data: vec![],
+                    explanation: format!("Unsupported operation: {}", args.operation),
+                },
+            };
+
+            Ok(result) as Result<Self::Output, Self::Error>
+        }
+
+        async fn definition(&self, _: String) -> ToolDefinition {
+            ToolDefinition {
+                name: Self::NAME.to_string(),
+                description: "Execute MongoDB queries. Supports find/aggregate/count operations. \
+                Example: {\"collection\":\"users\",\"operation\":\"find\",\
+                \"filter\":{\"age\":{\"$gt\":18}},\"limit\":10}"
+                    .to_string(),
+                parameters: serde_json::json!({
+                    "type": "object",
+                    "properties": {
+                        "collection": { "type": "string", "description": "Collection name" },
+                        "operation": {
+                            "type": "string",
+                            "enum": ["find", "aggregate", "count", "distinct"],
+                            "description": "Query operation type"
+                        },
+                        "filter": {
+                            "type": "object",
+                            "description": "Query filter in MongoDB syntax"
+                        },
+                        "pipeline": {
+                            "type": "array",
+                            "description": "Aggregation pipeline (for aggregate operation)"
+                        },
+                        "projection": {
+                            "type": "object",
+                            "description": "Field projection, e.g. {\"name\": 1, \"_id\": 0}"
+                        },
+                        "sort": {
+                            "type": "object",
+                            "description": "Sort order, e.g. {\"created_at\": -1}"
+                        },
+                        "limit": { "type": "integer", "description": "Maximum records to return" },
+                        "skip": { "type": "integer", "description": "Records to skip" }
+                    },
+                    "required": ["collection", "operation"]
+                }),
+            }
+        }
+
+        type Error = CallToolErr;
+    }
+
+    #[derive(Debug, Serialize)]
+    pub struct CollectionSchema {
+        pub name: String,
+        pub sample_fields: Vec<FieldInfo>,
+        pub indexes: Vec<String>,
+        pub estimated_count: i64,
+    }
+
+    #[derive(Debug, Serialize)]
+    pub struct FieldInfo {
+        pub name: String,
+        pub bson_type: String,
+        pub sample_values: Vec<String>, // Sample values to help LLM understand
+    }
+    pub struct MongoSchemaTool {
+        client: mongodb::Client,
+        db_name: String,
+    }
+
+    impl MongoSchemaTool {
+        /// Analyze collection structure (sample documents to infer schema)
+        pub async fn analyze_collection(&self, name: &str) -> anyhow::Result<CollectionSchema> {
+            let db = self.client.database(&self.db_name);
+            let coll = db.collection::<Document>(name);
+
+            // Sample 100 documents to analyze fields
+            let mut cursor = coll.find(doc! {}).limit(100);
+            let docs: Vec<Document> = cursor.await?.try_collect().await?;
+
+            let mut field_types: std::collections::HashMap<String, Vec<String>> =
+                std::collections::HashMap::new();
+
+            for doc in &docs {
+                Self::extract_fields(doc, "", &mut field_types);
+            }
+
+            let fields = field_types
+                .into_iter()
+                .map(|(name, types)| {
+                    let unique_types: Vec<String> = types
+                        .into_iter()
+                        .collect::<std::collections::HashSet<_>>()
+                        .into_iter()
+                        .collect();
+                    FieldInfo {
+                        name,
+                        bson_type: unique_types.join("|"),
+                        sample_values: vec![], // Can add actual samples
+                    }
+                })
+                .collect();
+
+            Ok(CollectionSchema {
+                name: name.to_string(),
+                sample_fields: fields,
+                indexes: vec![], // Can read from system.indexes
+                estimated_count: coll.estimated_document_count().await? as i64,
+            })
+        }
+
+        fn extract_fields(
+            doc: &Document,
+            prefix: &str,
+            result: &mut std::collections::HashMap<String, Vec<String>>,
+        ) {
+            for (key, value) in doc {
+                let full_key = if prefix.is_empty() {
+                    key.clone()
+                } else {
+                    format!("{}.{}", prefix, key)
+                };
+
+                match value {
+                    Bson::Document(subdoc) => {
+                        result
+                            .entry(full_key.clone())
+                            .or_default()
+                            .push("object".to_string());
+                        Self::extract_fields(subdoc, &full_key, result);
+                    }
+                    Bson::Array(arr) => {
+                        result
+                            .entry(full_key)
+                            .or_default()
+                            .push("array".to_string());
+                        // Can recursively analyze array elements
+                    }
+                    other => {
+                        let type_name = match other {
+                            Bson::String(_) => "string",
+                            Bson::Int32(_) | Bson::Int64(_) => "int",
+                            Bson::Double(_) => "double",
+                            Bson::Boolean(_) => "bool",
+                            Bson::DateTime(_) => "datetime",
+                            Bson::ObjectId(_) => "objectid",
+                            _ => "other",
+                        };
+                        result
+                            .entry(full_key)
+                            .or_default()
+                            .push(type_name.to_string());
+                    }
+                }
+            }
         }
     }
 }

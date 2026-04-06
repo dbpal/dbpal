@@ -797,7 +797,7 @@ impl QuerySql for MongoDB {
 }
 
 impl MongoDB {
-    pub(crate) async fn get_db(&self) -> anyhow::Result<mongodb::Database> {
+    pub async fn get_db(&self) -> anyhow::Result<mongodb::Database> {
         let client = self.get_conn().await?;
         Ok(client.database(self.db_name.as_ref().option_must_be_some()?))
     }
