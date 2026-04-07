@@ -551,7 +551,7 @@ function LLMSetting(props: { handleClose?: () => void }) {
     const config = {
       baseUrl,
       apiKey,
-      temperature: parseFloat(temperature),
+      temperature: temperature ? parseFloat(temperature) : null,
       model,
       maxToken: maxToken ? parseInt(maxToken) : null,
       topP: topP ? parseFloat(topP) : 0,
@@ -1171,6 +1171,7 @@ function makeComponents(
         root: {
           "& .MuiDataGrid-columnHeaderTitle": {
             fontWeight,
+            border: "1.5px solid #7c7c7c",
           },
         },
         cell: {
@@ -1180,7 +1181,6 @@ function makeComponents(
         columnHeaders: {
           fontSize: dataGridheaderFontSize,
           boxShadow: "0 1px 3px",
-          // border: "2px solid #7c7c7c ",
         },
       },
       defaultProps: {

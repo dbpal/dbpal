@@ -226,14 +226,14 @@ function App() {
           style={{
             height: "100vh",
             width: "100vw",
-            padding: "0.5rem 1rem",
+            padding: "2px",
           }}
           autoSaveId="main">
           <Panel
             style={{
               overflow: "auto",
               height: "100%",
-              paddingRight: "2px",
+              padding: "2px",
             }}
             minSize={10}
             maxSize={85}

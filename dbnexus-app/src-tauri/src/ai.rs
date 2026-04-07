@@ -883,7 +883,9 @@ mod redis {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use dbnexus_db::{datasource_config::SqliteDBConfig, db::QuerySql, sqlite::SqliteDB};
+    use dbnexus_db::{
+        datasource_config::SqliteDBConfig, db::QuerySql, enable_test_log, sqlite::SqliteDB,
+    };
     use futures_util::StreamExt;
     use rig::{
         agent::MultiTurnStreamItem,
@@ -915,6 +917,31 @@ mod tests {
         )
         .await
         .unwrap();
+    }
+
+    #[tokio::test]
+
+    async fn test_xxx_1111() {
+        // enable_test_log();
+        let now = std::time::Instant::now();
+
+        let req = &OpenAIReq {
+            url: "https://dashscope.aliyuncs.com/compatible-mode/v1".into(),
+            api_key: "sk-6c19c965d3234c8fae49c19e4f0301f0".into(),
+            model: "qwen3.5-plus".into(),
+            prompt: "hello can u help me".into(),
+            temperature: None,
+            max_tokens: None,
+            top_p: None,
+            images: vec![],
+            search_engine: Default::default(),
+            chat_history: vec![],
+        };
+        let agent: Agent<ResponsesCompletionModel> = make_agent(req, vec![], None).unwrap();
+        println!("{:?}", now.elapsed());
+        let r = agent.prompt("hello").await.unwrap();
+        println!("{:?}", now.elapsed());
+        dbg!(r);
     }
 
     #[tokio::test]
