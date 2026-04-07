@@ -1,4 +1,6 @@
 
+
+
 [workspace.package]
 version = "0.0.0"
 edition = "2021"
@@ -35,3 +37,12 @@ uuid = { version = "*", features = ["v4"] }
 typescript-type-def = "0.5.11"
 include_dir = "0.7.4"
 base64 = "*"
+redis = { version = "*", features = [
+    "tokio-comp",
+    "aio",
+    "tls-rustls",
+    "connection-manager",
+    "safe_iterators",
+    "tokio-rustls-comp",
+
+] }

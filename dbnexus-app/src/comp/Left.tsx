@@ -1381,7 +1381,6 @@ function SchemaMenu(props: {
   return (
     <MenuList>
       {!schema && !conn_established && <MenuOpenConn name={uuid} />}
-
       {conn_established && (
         <MenuNewQuery
           handleNew={() => {

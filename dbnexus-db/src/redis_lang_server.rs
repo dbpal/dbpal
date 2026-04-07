@@ -20,8 +20,11 @@ use tokio::sync::Mutex;
 const MAX_COMPLETION_ITEMS: usize = 200;
 
 impl RedisDB {
-    fn get_query_conn(&self) -> anyhow::Result<Arc<Mutex<MultiplexedConnection>>> {
-        let conn = self.query_connection.get(&self.completion_id.get());
+    pub fn get_query_conn_by_id(
+        &self,
+        query_id: &String,
+    ) -> anyhow::Result<Arc<Mutex<MultiplexedConnection>>> {
+        let conn = self.query_connection.get(query_id);
         match conn {
             Some(x) => anyhow::Ok(x.clone()),
             None => {
@@ -31,6 +34,9 @@ impl RedisDB {
                 ));
             }
         }
+    }
+    fn get_query_conn(&self) -> anyhow::Result<Arc<Mutex<MultiplexedConnection>>> {
+        self.get_query_conn_by_id(&self.completion_id.get())
     }
     async fn completion_keys(&self, pattern: &str) -> anyhow::Result<CompletionList> {
         log::trace!("completion on key pattern:{}", pattern);

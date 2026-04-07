@@ -1,4 +1,4 @@
-use std::collections::{HashMap, HashSet};
+use std::collections::HashSet;
 use std::ops::DerefMut;
 use std::str::FromStr;
 use std::sync::{Arc, LazyLock};
@@ -32,35 +32,6 @@ pub struct RedisDB {
 }
 
 impl RedisDB {
-    pub async fn get_redis_type_hint(
-        &self,
-        text: &str,
-        query_id: &str,
-    ) -> anyhow::Result<HashMap<String, String>> {
-        let conn = match self.query_connection.get(&query_id.to_string()) {
-            Some(x) => x.clone(),
-            None => anyhow::bail!(format!(
-                "should be able to get connection for id:{query_id}"
-            )),
-        };
-        let mut conn = conn.lock().await;
-        let conn = conn.deref_mut();
-
-        let mut ret = HashMap::new();
-        for line in text.lines() {
-            let tokens = redis_tokenize(line)?;
-            for token in tokens {
-                if !conn.exists(&token.token).await? {
-                    continue;
-                }
-                if let Ok(typ) = conn.key_type::<'_, _, String>(&token.token).await {
-                    ret.insert(token.token.clone(), typ);
-                }
-            }
-        }
-        anyhow::Ok(ret)
-    }
-
     pub async fn new(config: RedisDBConfig) -> anyhow::Result<Self> {
         let conn_str = config.make_conn_string();
         log::info!("connect to redis var:{:?}", conn_str);
@@ -1469,7 +1440,7 @@ impl QuerySql for RedisDB {
     }
 }
 
-fn command_return_multi_value(s: &str) -> bool {
+pub fn command_return_multi_value(s: &str) -> bool {
     static ALL: LazyLock<HashSet<String>> = LazyLock::new(|| {
         REDIS_MULTI_VAL_CMDS
             .iter()

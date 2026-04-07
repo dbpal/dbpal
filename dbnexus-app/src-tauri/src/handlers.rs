@@ -736,26 +736,6 @@ pub async fn server_metas(
 }
 
 #[tauri::command]
-pub async fn get_redis_type_hint(
-    name: String,
-    text: String,
-    query_id: &str,
-    app: tauri::State<'_, DBPal>,
-) -> Result<HashMap<String, String>, ErrorFrontend> {
-    random_sleep().await;
-    random_error()?;
-    let schema = app
-        .get_schema(name.as_str())
-        .await
-        .map_err(ErrorFrontend::from)?;
-    match schema.as_any().downcast_ref::<RedisDB>() {
-        Some(x) => x.get_redis_type_hint(&text, query_id).await,
-        None => return Err(ErrorFrontend::from("this is not redis db")),
-    }
-    .map_err(ErrorFrontend::from)
-}
-
-#[tauri::command]
 pub async fn list_materialized_view(
     name: String,
     app: tauri::State<'_, DBPal>,

@@ -35,15 +35,7 @@ bb8 = "0.9"
 anyhow.workspace = true
 serde.workspace = true
 async-trait.workspace = true
-redis = { version = "*", features = [
-    "tokio-comp",
-    "aio",
-    "tls-rustls",
-    "connection-manager",
-    "safe_iterators",
-    "tokio-rustls-comp",
-
-] }
+redis.workspace = true
 tokio-stream = { version = "0.1.17", features = ["io-util"] }
 rust_xlsxwriter = { version = "0.90.0", features = ["constant_memory"] }
 dashmap.workspace = true

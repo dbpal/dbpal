@@ -3,6 +3,7 @@ use base64::Engine;
 use dbnexus_db::db::{BackendKind, ExportFrame, ExportKind};
 use dbnexus_db::mongo::MongoDB;
 
+use dbnexus_db::redis::RedisDB;
 use futures_util::StreamExt;
 use mongodb::bson::doc;
 use rig::agent::{Agent, MultiTurnStreamItem, PromptHook, StreamingError, Text};
@@ -185,6 +186,18 @@ impl DBPal {
     ) -> anyhow::Result<Vec<Box<dyn ToolDyn>>> {
         let db = self.get_backend(&name).await?;
         match db.backend_kind() {
+            BackendKind::Redis => {
+                let x = db
+                    .as_any()
+                    .downcast_ref::<RedisDB>()
+                    .expect("must be redis");
+                let client = Clone::clone(x);
+                let r: Vec<Box<dyn ToolDyn>> = vec![Box::new(redis::RedisTool {
+                    client,
+                    query_id: query_id.into(),
+                })];
+                anyhow::Ok(r)
+            }
             BackendKind::Mongo => {
                 let x = db
                     .as_any()
@@ -752,6 +765,123 @@ mod mongo {
         }
 
         type Error = CallToolErr;
+    }
+}
+
+mod redis {
+    use std::ops::DerefMut;
+
+    use dbnexus_db::redis::{command_return_multi_value, RedisDB};
+    use futures_util::StreamExt;
+    use rig::tool::Tool;
+    use serde::{Deserialize, Deserializer, Serialize};
+    use serde_json::json;
+
+    use crate::ai::CallToolErr;
+
+    #[derive(Deserialize, Serialize, Debug)]
+    pub struct RedisCommandArgs {
+        pub command: String,
+        #[serde(deserialize_with = "deserialize_maybe_string_array")]
+        pub args: Option<Vec<String>>,
+    }
+    /// 自定义反序列化：兼容 ["a"] 和 "[\"a\"]"
+    fn deserialize_maybe_string_array<'de, D>(
+        deserializer: D,
+    ) -> Result<Option<Vec<String>>, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        use serde_json::Value;
+
+        // 先解析为通用的 JSON Value
+        let v: Value = Deserialize::deserialize(deserializer)?;
+
+        match v {
+            // 情况 1: 已经是标准的数组 [ "arg1" ]
+            Value::Array(arr) => {
+                let res = arr
+                    .into_iter()
+                    .map(|v| v.as_str().unwrap_or("").to_string())
+                    .collect();
+                Ok(Some(res))
+            }
+            // 情况 2: 模型传了一个字符串 "[\"arg1\"]"
+            Value::String(s) => {
+                let parsed: Vec<String> =
+                    serde_json::from_str(&s).map_err(serde::de::Error::custom)?;
+                Ok(Some(parsed))
+            }
+            // 其他情况（如 Null）返回 None
+            _ => Ok(None),
+        }
+    }
+    // 2. 定义你的 Tool 结构体
+    pub struct RedisTool {
+        pub(crate) query_id: String,
+        pub(crate) client: RedisDB,
+    }
+
+    // 3. 实现 Tool Trait
+    impl Tool for RedisTool {
+        const NAME: &'static str = "redis_executor";
+
+        type Error = CallToolErr;
+        type Args = RedisCommandArgs;
+        type Output = Vec<String>;
+
+        async fn definition(&self, _: String) -> rig::completion::ToolDefinition {
+            rig::completion::ToolDefinition {
+                name: Self::NAME.to_string(),
+                description: "执行 Redis 命令。例如: command='GET', args=['key']".to_string(),
+                parameters: json!({
+                    "type": "object",
+                    "properties": {
+                        "command": {
+                            "type": "string",
+                            "description": "Redis 命令名称 (如: GET, SET, INFO, FLUSHDB)"
+                        },
+                        "args": {
+                            "type": "array",
+                            "items": { "type": "string" },
+                            "description": "命令参数列表。注意：必须是真实的 JSON 数组格式，例如 [\"key1\", \"value1\"]，不要传字符串形式的数组"
+                        }
+                    },
+                    // 关键改动：这里只保留 command 为必填
+                    "required": ["command"]
+                }),
+            }
+        }
+
+        async fn call(&self, args: Self::Args) -> Result<Self::Output, Self::Error> {
+            println!("!!!!!!!!!!!!!!!!!!!!!1:{:?}", args);
+
+            let RedisCommandArgs { command, args } = args;
+
+            let conn = self.client.get_query_conn_by_id(&self.query_id)?;
+            let mut conn = conn.lock().await;
+            let mut redis_cmd = redis::cmd(&command);
+            redis_cmd.arg(args);
+            let mut ret = vec![];
+            if command_return_multi_value(&command) {
+                let mut stream = redis_cmd.iter_async::<String>(conn.deref_mut()).await?;
+                while let Some(x) = stream.next().await {
+                    ret.push(x?);
+                }
+            } else {
+                let value = redis_cmd.query_async::<String>(conn.deref_mut()).await?;
+                ret.push(value);
+            }
+            Ok(ret)
+        }
+    }
+
+    impl From<redis::RedisError> for CallToolErr {
+        fn from(value: redis::RedisError) -> Self {
+            Self {
+                err_msg: value.to_string(),
+            }
+        }
     }
 }
 
