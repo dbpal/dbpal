@@ -844,7 +844,9 @@ mod redis {
                         "args": {
                             "type": "array",
                             "items": { "type": "string" },
-                            "description": "命令参数列表。注意：必须是真实的 JSON 数组格式，例如 [\"key1\", \"value1\"]，不要传字符串形式的数组"
+                            "description": "命令参数列表。注意：必须是真实的 JSON 数组格式，例如 [\"key1\", \"value1\"]，不要传字符串形式的数组 ,如果参数
+                                            是int或者float请转化成string
+                                            "
                         }
                     },
                     // 关键改动：这里只保留 command 为必填
@@ -854,10 +856,7 @@ mod redis {
         }
 
         async fn call(&self, args: Self::Args) -> Result<Self::Output, Self::Error> {
-            println!("!!!!!!!!!!!!!!!!!!!!!1:{:?}", args);
-
             let RedisCommandArgs { command, args } = args;
-
             let conn = self.client.get_query_conn_by_id(&self.query_id)?;
             let mut conn = conn.lock().await;
             let mut redis_cmd = redis::cmd(&command);
