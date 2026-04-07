@@ -40,6 +40,7 @@ import {
   Radio,
   RadioGroup,
   Slider,
+  Switch,
   TextField,
   Tooltip,
   Typography,
@@ -50,7 +51,6 @@ import {
   DataSourceKind,
   editorPositionToEnd,
   editorSetPositionAndReveal,
-  generateRandomString,
   getLanguageFromDataSourceKind,
   handleCopyToClipboard,
   isMacOs,
@@ -568,7 +568,6 @@ function MenuConnectionInfo({ uuid }) {
   const handleInfo = async () => {
     appendTab(
       new TabContent(
-        generateRandomString(),
         uuid,
         <ConnConfigInfo uuid={uuid} />,
         <IoMdInformationCircleOutline />,
@@ -1671,6 +1670,66 @@ function ListenElementSize(props: {
   return <> </>;
 }
 
+function AiMarkdownModel(props: {
+  editor: editor.IStandaloneCodeEditor;
+  markdownModel: boolean;
+  markdownModelValue;
+  setMarkdownModelValue;
+}) {
+  const { editor, markdownModel, setMarkdownModelValue, markdownModelValue } = props;
+  const markdownDivDom = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!editor) {
+      return;
+    }
+    if (!markdownModel) {
+      return;
+    }
+    setMarkdownModelValue(editor.getValue());
+    let d1 = editor.onDidChangeModelContent(() => {
+      setMarkdownModelValue(editor.getValue());
+      //div.scrollTop = div.scrollHeight;
+      markdownDivDom.current.scrollTop = markdownDivDom.current.scrollHeight;
+    });
+    return () => {
+      return d1.dispose();
+    };
+  }, [editor, markdownModel, setMarkdownModelValue]);
+
+  return (
+    <div
+      style={{
+        flex: 1,
+        minHeight: 0,
+        height: "100px",
+        display: markdownModel ? "block" : "none",
+        padding: "0.5rem",
+        overflow: "auto",
+      }}
+      ref={markdownDivDom}>
+      <AppMarkDown>{markdownModelValue}</AppMarkDown>
+    </div>
+  );
+}
+
+function AiMarkdownModelSwitch(props: { setMarkdownModel; markdownModel: boolean }) {
+  const { setMarkdownModel, markdownModel } = props;
+
+  return (
+    <FormControlLabel
+      control={
+        <Switch
+          onChange={(_e, checked) => {
+            setMarkdownModel(checked);
+          }}
+          checked={markdownModel}
+        />
+      }
+      label="markdown model"
+    />
+  );
+}
 export {
   CreateDatabase,
   CreateSchema,
@@ -1701,4 +1760,6 @@ export {
   IconModifed,
   ListenElementSize,
   AppCode,
+  AiMarkdownModel,
+  AiMarkdownModelSwitch,
 };

@@ -11,7 +11,6 @@ import {
   MuiDataGridData,
   QueryRespData,
   secondConfirm,
-  TabContent,
 } from "./helper.ts";
 import { GridColDef } from "@mui/x-data-grid";
 import * as monaco from "monaco-editor";
@@ -137,16 +136,6 @@ async function dropSchema({ uuid, schema, showNotification, okCallback }) {
     .catch((e) => {
       showNotification("error", "Drop failure", e);
     });
-}
-
-function tabsHasId(tabs: TabContent[], id: string): number | null {
-  for (let i = 0; i < tabs.length; i++) {
-    const tab = tabs[i];
-    if (tab.id === id) {
-      return i;
-    }
-  }
-  return null;
 }
 
 interface DefAndMetas {
@@ -546,7 +535,6 @@ export {
   QueryConn,
   reloadOK,
   SetAutoCompletionName,
-  tabsHasId,
   convertPathToDataUrl,
   uint8ArrayToBase64,
 };

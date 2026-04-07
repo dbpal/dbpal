@@ -303,10 +303,10 @@ const handleCopyToClipboard = (text, showNotification?, okCallBack?) => {
 
 class TabContent {
   constructor(
-    public id: string,
     public header: string,
     public content: ReactNode,
     public icon: ReactElement,
+    public id: string = generateRandomString(),
   ) {}
 }
 

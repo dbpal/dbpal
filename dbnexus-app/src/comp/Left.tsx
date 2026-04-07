@@ -40,7 +40,6 @@ import {
   EscDownEvent,
   modalHandleClose,
   PassWordManager,
-  tabsHasId,
 } from "./Common";
 import { LuDatabase } from "react-icons/lu";
 import { FaDatabase } from "react-icons/fa";
@@ -147,7 +146,6 @@ function LeftTop() {
     async (conn?: types.DBConnectionConfig) => {
       appendTab(
         new TabContent(
-          generateRandomString(),
           "add connection",
           <AddConnection config={conn} />,
           <GrConnect />,
@@ -170,14 +168,9 @@ function LeftTop() {
 
   useEffect(() => {
     const unlisten = listen("show_setting", () => {
-      const index = tabsHasId(tabs, settingId);
-      if (typeof index == "number") {
-        setCurrentTab(index);
-      } else {
-        appendTab(
-          new TabContent(settingId, "setting", <ModifySetting />, <IoMdSettings />),
-        );
-      }
+      appendTab(
+        new TabContent("setting", <ModifySetting />, <IoMdSettings />, settingId),
+      );
     });
     return () => {
       unlisten.then((callback) => {
@@ -233,12 +226,7 @@ function LeftTop() {
           <IconButton
             onClick={() => {
               appendTab(
-                new TabContent(
-                  generateRandomString(),
-                  "favorite sql",
-                  <FavoriteSqlList />,
-                  <FaBookmark />,
-                ),
+                new TabContent("favorite sql", <FavoriteSqlList />, <FaBookmark />),
               );
             }}>
             <FaBookmark style={{ fontSize: "2.1rem" }}> </FaBookmark>
@@ -249,12 +237,7 @@ function LeftTop() {
           <IconButton
             onClick={() => {
               appendTab(
-                new TabContent(
-                  generateRandomString(),
-                  "copy connection",
-                  <CopyConnection />,
-                  <FaCopy />,
-                ),
+                new TabContent("copy connection", <CopyConnection />, <FaCopy />),
               );
             }}>
             <FaCopy style={{ fontSize: "2.2rem" }}> </FaCopy>
@@ -442,12 +425,7 @@ function CopyConnection() {
         cop["password"] = password;
       }
       appendTab(
-        new TabContent(
-          generateRandomString(),
-          "add connection",
-          <AddConnection config={cop} />,
-          <GrConnect />,
-        ),
+        new TabContent("add connection", <AddConnection config={cop} />, <GrConnect />),
       );
     },
     [appendTab],
@@ -702,14 +680,7 @@ function FavoriteSqlList() {
             language={row.language}
           />
         );
-        appendTab(
-          new TabContent(
-            generateRandomString(10),
-            `${row.uuid}`,
-            content,
-            <TbDatabaseSearch />,
-          ),
-        );
+        appendTab(new TabContent(`${row.uuid}`, content, <TbDatabaseSearch />));
       } catch (e) {
         showNotification("error", "use sql failure", e);
       }
@@ -1355,15 +1326,13 @@ function AllKindQuery(props: {
 
 function openNewQuery(appendTab, uuid: string, kind: DataSourceKind) {
   console.log("open new query uuid:", uuid);
-  const id = uuid + "-query-" + generateRandomString();
   const content = <AllKindChat kind={kind} uuid={uuid} />;
-  appendTab(new TabContent(id, `${uuid}`, content, <TbDatabaseSearch />));
+  appendTab(new TabContent(`${uuid}`, content, <TbDatabaseSearch />));
 }
 
 function openNewCreateTable(appendTab, uuid: string, kind: DataSourceKind) {
-  const id = uuid + "-query-" + generateRandomString();
   const content = <CreateTable kind={kind} uuid={uuid} />;
-  appendTab(new TabContent(id, `create table`, content, <IoIosCreate> </IoIosCreate>));
+  appendTab(new TabContent(`create table`, content, <IoIosCreate> </IoIosCreate>));
 }
 
 function SchemaMenu(props: {

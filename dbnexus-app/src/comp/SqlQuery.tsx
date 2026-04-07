@@ -49,6 +49,8 @@ import ArrowCircleDownRoundedIcon from "@mui/icons-material/ArrowCircleDownRound
 import { ExportView } from "./Export.tsx";
 import { PossibleParseError, TimeDuration } from "./CommonComp.tsx";
 import {
+  AiMarkdownModel,
+  AiMarkdownModelSwitch,
   CancelButton,
   EditorBar,
   LoadStoreFile,
@@ -190,6 +192,7 @@ function SqlTransaction(props: { conn: QueryConn; executeTimes: number }) {
   );
 }
 const tryCheckSqlSwitchKey = "try-check-sql";
+
 function SqlQuery(props: {
   uuid: string;
   value?: string;
@@ -218,8 +221,11 @@ function SqlQuery(props: {
   const querySomeShow = useQueryExtraUI((s) => s.extra);
   const { switches, setSwitch } = useBoolSwitch();
   const tryCheckSql = switches[tryCheckSqlSwitchKey];
-
   const { save: saveQueryLog } = useQueryLogStore();
+  const editorDivDom = useRef<HTMLDivElement>(null);
+
+  const [markdownModel, setMarkdownModel] = useState(false);
+  const [markdownModelValue, setMarkdownModelValue] = useState("");
 
   const handleEditorDidMount = useCallback((ed: editor.IStandaloneCodeEditor) => {
     setEditor(ed);
@@ -231,6 +237,7 @@ function SqlQuery(props: {
       d1.dispose();
     };
   }, []);
+
   useEffect(() => {
     if (!editor) {
       return;
@@ -398,7 +405,6 @@ function SqlQuery(props: {
     ],
   );
 
-  const editorDivDom = useRef(null);
   useEffect(() => {
     if (conn && editor) {
       SetAutoCompletionName.set(
@@ -590,14 +596,27 @@ function SqlQuery(props: {
             <ModifyLLMConfigModal />
             <SliderSize config={UseSizeConfig.queryLimit} />
             <TimeDuration dur={fetchDur} />
+
+            <AiMarkdownModelSwitch
+              setMarkdownModel={setMarkdownModel}
+              markdownModel={markdownModel}
+            />
             {querySomeShow.get(tabCtx.id)}
           </Stack>
           <Divider />
+
+          <AiMarkdownModel
+            markdownModel={markdownModel}
+            setMarkdownModelValue={setMarkdownModelValue}
+            editor={editor}
+            markdownModelValue={markdownModelValue}
+          />
           <div
             style={{
               flex: 1,
               minHeight: 0,
               height: "100px",
+              display: markdownModel ? "none" : "block",
             }}
             ref={editorDivDom}>
             <MonacoEditor

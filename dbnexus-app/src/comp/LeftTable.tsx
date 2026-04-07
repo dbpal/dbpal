@@ -1,5 +1,5 @@
 import { ReactNode, useCallback, useContext, useEffect, useRef, useState } from "react";
-import { modalStyle, tabsHasId, EscDownEvent, modalHandleClose } from "./Common.ts";
+import { modalStyle, EscDownEvent, modalHandleClose } from "./Common.ts";
 import types from "./ApiStruct";
 import { invoke } from "@tauri-apps/api/core";
 import { TreeItem } from "@mui/x-tree-view/TreeItem";
@@ -421,7 +421,7 @@ function TableMenu(props: {
   const [showDrop, setShowDrop] = useState(false);
   const [showExport, setShowExport] = useState(false);
   const { showNotification } = useNotification();
-  const { tabs, setCurrentTab, appendTab } = useTabsManage();
+  const { appendTab } = useTabsManage();
 
   const handleTruncateTable = async () => {
     const confirm = await secondConfirm({
@@ -443,16 +443,12 @@ function TableMenu(props: {
   };
 
   const handleViewData = () => {
-    const id = uuid + "-table-" + generateRandomString(10);
     const tableList: ReactNode = makeViewTable(uuid, table, kind, redisTableType);
-    appendTab(new TabContent(id, table, tableList, <TableViewIcon />));
+    appendTab(new TabContent(table, tableList, <TableViewIcon />));
   };
   const handleAddData = async () => {
-    const id = generateRandomString(10);
-
     appendTab(
       new TabContent(
-        id,
         `${table}*`,
         <AddTableView
           uuid={uuid}
@@ -466,20 +462,13 @@ function TableMenu(props: {
   };
 
   const handleStructure = () => {
-    const id = uuid + "-table-" + table + "-struct";
-    const index = tabsHasId(tabs, id);
-    if (typeof index == "number") {
-      setCurrentTab(index);
-    } else {
-      appendTab(
-        new TabContent(
-          id,
-          `${table}`,
-          <TableStructure kind={kind} table={table} uuid={uuid} />,
-          <IoConstructOutline />,
-        ),
-      );
-    }
+    appendTab(
+      new TabContent(
+        `${table}`,
+        <TableStructure kind={kind} table={table} uuid={uuid} />,
+        <IoConstructOutline />,
+      ),
+    );
   };
 
   return (

@@ -11,7 +11,6 @@ import { useCallback, useContext, useEffect, useRef, useState } from "react";
 import DeleteForeverIcon from "@mui/icons-material/DeleteForever";
 import InfoIcon from "@mui/icons-material/Info";
 import { MdFunctions } from "react-icons/md";
-import { tabsHasId } from "./Common";
 import types from "./ApiStruct";
 import { invoke } from "@tauri-apps/api/core";
 import { DefAndMetasView } from "./DefAndMetaView";
@@ -100,13 +99,7 @@ function UdfsTree() {
                 onContextMenu={(e) => {
                   setUpMenu({
                     content: (
-                      <UdfMenu
-                        id={id}
-                        reload={reload}
-                        uuid={uuid}
-                        kind={kind}
-                        udf={udf}
-                      />
+                      <UdfMenu reload={reload} uuid={uuid} kind={kind} udf={udf} />
                     ),
                     event: e,
                   });
@@ -122,36 +115,24 @@ function UdfsTree() {
   );
 }
 
-function UdfMenu(props: {
-  uuid;
-  udf: types.NamedStaff;
-  reload;
-  kind: DataSourceKind;
-  id: string;
-}) {
-  const { uuid, udf, reload, kind, id } = props;
-  const { setCurrentTab, tabs, appendTab } = useTabsManage();
+function UdfMenu(props: { uuid; udf: types.NamedStaff; reload; kind: DataSourceKind }) {
+  const { uuid, udf, reload, kind } = props;
+  const { appendTab } = useTabsManage();
   const { showNotification } = useNotification();
   const handleOpenDetails = () => {
-    const index = tabsHasId(tabs, id);
-    if (typeof index == "number") {
-      setCurrentTab(index);
-    } else {
-      appendTab(
-        new TabContent(
-          id,
-          udf.name,
-          <DefAndMetasView
-            reloadOP={async () => {
-              return showUdf(uuid, udf, kind);
-            }}
-            kind={kind}
-            uuid={uuid}
-          />,
-          <TbMathFunction />,
-        ),
-      );
-    }
+    appendTab(
+      new TabContent(
+        udf.name,
+        <DefAndMetasView
+          reloadOP={async () => {
+            return showUdf(uuid, udf, kind);
+          }}
+          kind={kind}
+          uuid={uuid}
+        />,
+        <TbMathFunction />,
+      ),
+    );
   };
 
   const handleDrop = async () => {
@@ -206,30 +187,23 @@ function CassandraAggregateMenu(props: {
   reload;
 }) {
   const { uuid, agg, reload, parameters } = props;
-  const { setCurrentTab, tabs, appendTab } = useTabsManage();
+  const { appendTab } = useTabsManage();
   const { showNotification } = useNotification();
 
   const handleOpenDetails = () => {
-    const id = uuid + "-" + "-cassandra-aggregate-" + agg;
-    const index = tabsHasId(tabs, id);
-    if (typeof index == "number") {
-      setCurrentTab(index);
-    } else {
-      appendTab(
-        new TabContent(
-          id,
-          agg,
-          <DefAndMetasView
-            reloadOP={async () => {
-              return showCassandraAgg(uuid, agg, parameters);
-            }}
-            uuid={uuid}
-            kind={DataSourceKind.Cassandra}
-          />,
-          <MdFunctions />,
-        ),
-      );
-    }
+    appendTab(
+      new TabContent(
+        agg,
+        <DefAndMetasView
+          reloadOP={async () => {
+            return showCassandraAgg(uuid, agg, parameters);
+          }}
+          uuid={uuid}
+          kind={DataSourceKind.Cassandra}
+        />,
+        <MdFunctions />,
+      ),
+    );
   };
 
   const handleDrop = async () => {

@@ -14,13 +14,7 @@ import { TreeItem } from "@mui/x-tree-view/TreeItem";
 import { useCallback, useContext, useEffect, useRef, useState } from "react";
 import DeleteForeverIcon from "@mui/icons-material/DeleteForever";
 import InfoIcon from "@mui/icons-material/Info";
-import {
-  DefAndMetas,
-  EscDownEvent,
-  modalHandleClose,
-  modalStyle,
-  tabsHasId,
-} from "./Common.ts";
+import { DefAndMetas, EscDownEvent, modalHandleClose, modalStyle } from "./Common.ts";
 import types from "./ApiStruct.ts";
 import { invoke } from "@tauri-apps/api/core";
 import { DefAndMetasView } from "./DefAndMetaView.tsx";
@@ -113,7 +107,6 @@ function SequenceTree() {
                           uuid={uuid}
                           kind={kind}
                           seq={seq}
-                          id={id}
                         />
                       ),
                       event: e,
@@ -151,35 +144,28 @@ function SequenceMenu(props: {
   seq: types.SequenceDetail;
   reload;
   kind: DataSourceKind;
-  id: string;
 }) {
-  const { uuid, seq, reload, kind, id } = props;
-  const { setCurrentTab, tabs, appendTab } = useTabsManage();
+  const { uuid, seq, reload, kind } = props;
+  const { appendTab } = useTabsManage();
   const { showNotification } = useNotification();
   const [showDrop, setShowDrop] = useState(false);
   const [cascade, setCascade] = useState(false);
   const supportCascade = [DataSourceKind.Postgres].includes(kind);
 
   const handleOpenDetails = () => {
-    const index = tabsHasId(tabs, id);
-    if (typeof index == "number") {
-      setCurrentTab(index);
-    } else {
-      appendTab(
-        new TabContent(
-          id,
-          seq.name,
-          <DefAndMetasView
-            reloadOP={() => {
-              return Promise.resolve(details2DefMetas(seq));
-            }}
-            kind={kind}
-            uuid={uuid}
-          />,
-          <GrSteps />,
-        ),
-      );
-    }
+    appendTab(
+      new TabContent(
+        seq.name,
+        <DefAndMetasView
+          reloadOP={() => {
+            return Promise.resolve(details2DefMetas(seq));
+          }}
+          kind={kind}
+          uuid={uuid}
+        />,
+        <GrSteps />,
+      ),
+    );
   };
 
   const handleDrop = async () => {

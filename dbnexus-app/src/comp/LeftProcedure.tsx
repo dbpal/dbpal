@@ -3,7 +3,6 @@ import { TreeItem } from "@mui/x-tree-view/TreeItem";
 import { useCallback, useContext, useEffect, useRef, useState } from "react";
 import DeleteForeverIcon from "@mui/icons-material/DeleteForever";
 import InfoIcon from "@mui/icons-material/Info";
-import { tabsHasId } from "./Common";
 import types from "./ApiStruct";
 import { invoke } from "@tauri-apps/api/core";
 import { DefAndMetasView } from "./DefAndMetaView";
@@ -94,7 +93,6 @@ function ProceduresTree() {
                         uuid={uuid}
                         kind={kind}
                         procedure={p}
-                        id={id}
                       />
                     ),
                     event: e,
@@ -117,32 +115,25 @@ function ProcedureMenu(props: {
   procedure: types.NamedStaff;
   reload: () => void;
   kind: DataSourceKind;
-  id: string;
 }) {
-  const { uuid, procedure, reload, kind, id } = props;
-  const { setCurrentTab, tabs, appendTab } = useTabsManage();
+  const { uuid, procedure, reload, kind } = props;
+  const { appendTab } = useTabsManage();
   const { showNotification } = useNotification();
 
   const handleOpenDetails = () => {
-    const index = tabsHasId(tabs, id);
-    if (typeof index == "number") {
-      setCurrentTab(index);
-    } else {
-      appendTab(
-        new TabContent(
-          id,
-          procedure.name,
-          <DefAndMetasView
-            reloadOP={async () => {
-              return showProcedure(uuid, procedure, kind);
-            }}
-            kind={kind}
-            uuid={uuid}
-          />,
-          <SiProcessingfoundation />,
-        ),
-      );
-    }
+    appendTab(
+      new TabContent(
+        procedure.name,
+        <DefAndMetasView
+          reloadOP={async () => {
+            return showProcedure(uuid, procedure, kind);
+          }}
+          kind={kind}
+          uuid={uuid}
+        />,
+        <SiProcessingfoundation />,
+      ),
+    );
   };
 
   const handleDrop = async () => {

@@ -8,7 +8,6 @@ import {
   useState,
 } from "react";
 import {
-  tabsHasId,
   modalStyle,
   EscDownEvent,
   modalHandleClose,
@@ -479,10 +478,8 @@ function ViewMenu(props: {
         showNotification("error", "Drop View Failure", e);
       });
   };
-  const { tabs, setCurrentTab, appendTab } = useTabsManage();
+  const { appendTab } = useTabsManage();
   const handleViewData = () => {
-    const id = uuid + "-view-" + generateRandomString();
-
     let list: ReactNode = null;
     switch (kind) {
       case DataSourceKind.MariaDB:
@@ -516,24 +513,17 @@ function ViewMenu(props: {
         showNotification("error", `data source ${kind} need impl view`);
     }
 
-    appendTab(new TabContent(id, view, list, <VisibilityIcon />));
+    appendTab(new TabContent(view, list, <VisibilityIcon />));
   };
 
   const handleStructure = () => {
-    const id = uuid + "-view-" + view + "-structure";
-    const index = tabsHasId(tabs, id);
-    if (typeof index == "number") {
-      setCurrentTab(index);
-    } else {
-      appendTab(
-        new TabContent(
-          id,
-          `${view}`,
-          <ViewStructure view={view} uuid={uuid} kind={kind} viewKind={viewKind} />,
-          <IoConstructOutline />,
-        ),
-      );
-    }
+    appendTab(
+      new TabContent(
+        `${view}`,
+        <ViewStructure view={view} uuid={uuid} kind={kind} viewKind={viewKind} />,
+        <IoConstructOutline />,
+      ),
+    );
   };
 
   return (

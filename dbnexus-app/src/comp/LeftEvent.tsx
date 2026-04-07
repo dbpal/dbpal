@@ -3,7 +3,7 @@ import { TreeItem } from "@mui/x-tree-view/TreeItem";
 import { useCallback, useContext, useEffect, useRef, useState } from "react";
 import DeleteForeverIcon from "@mui/icons-material/DeleteForever";
 import InfoIcon from "@mui/icons-material/Info";
-import { DefAndMetas, tabsHasId } from "./Common";
+import { DefAndMetas } from "./Common";
 import types from "./ApiStruct";
 import { invoke } from "@tauri-apps/api/core";
 import { DefAndMetasView } from "./DefAndMetaView";
@@ -96,7 +96,6 @@ function EventsTree() {
                         uuid={uuid}
                         kind={kind}
                         event={event}
-                        id={id}
                       />
                     ),
                     event: e,
@@ -119,34 +118,27 @@ function EventMenu(props: {
   event: types.SqlEvent;
   reload;
   kind: DataSourceKind;
-  id: string;
 }) {
-  const { uuid, event, reload, kind, id } = props;
-  const { setCurrentTab, tabs, appendTab } = useTabsManage();
+  const { uuid, event, reload, kind } = props;
+  const { appendTab } = useTabsManage();
   const { showNotification } = useNotification();
   const handleOpenDetails = () => {
-    const index = tabsHasId(tabs, id);
-    if (typeof index == "number") {
-      setCurrentTab(index);
-    } else {
-      appendTab(
-        new TabContent(
-          id,
-          event.name,
-          <DefAndMetasView
-            reloadOP={async () => {
-              return Promise.resolve({
-                def: event.sql,
-                metas: event.metas,
-              } as DefAndMetas);
-            }}
-            kind={kind}
-            uuid={uuid}
-          />,
-          <MdOutlineEventRepeat />,
-        ),
-      );
-    }
+    appendTab(
+      new TabContent(
+        event.name,
+        <DefAndMetasView
+          reloadOP={async () => {
+            return Promise.resolve({
+              def: event.sql,
+              metas: event.metas,
+            } as DefAndMetas);
+          }}
+          kind={kind}
+          uuid={uuid}
+        />,
+        <MdOutlineEventRepeat />,
+      ),
+    );
   };
   const handleDrop = async () => {
     const confirm = await secondConfirm({
