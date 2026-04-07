@@ -628,7 +628,8 @@ function SqlTableView(props: {
           }
           const row = { ...resp.data.find((e) => e[keyNotInTable] == id) };
           const content = row[field];
-          const nullable = resp.fields.find((e) => e.field == field).nullable;
+          const nullable =
+            resp.fields.find((e) => e.field == field).nullable && content;
           setUpMenu({
             content: (
               <Menu
