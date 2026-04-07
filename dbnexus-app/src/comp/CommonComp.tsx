@@ -501,6 +501,7 @@ function ModalHeader(props: {
         marginBottom: "0.4rem",
         position: "sticky",
         top: 0,
+        backgroundColor: theme.palette.background.paper,
       }}>
       <StackRowCenter>
         <Typography

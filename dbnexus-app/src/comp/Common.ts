@@ -202,7 +202,6 @@ const aiTextAutoCompletion = async (
             line: pos.lineNumber,
             col: pos.column,
             name: name.name,
-            queryId: name.queryId,
           },
         );
         const suggestions = backendCompletionItemToEditor(completionItem.items);

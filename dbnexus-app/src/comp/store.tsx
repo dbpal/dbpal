@@ -2,7 +2,6 @@ import { ReactElement, ReactNode, useCallback, useMemo } from "react";
 import { create, StateCreator } from "zustand";
 import {
   appStore,
-  DataSourceKind,
   extractConfigNameFromUuid,
   generateRandomString,
   TabContent,
@@ -270,17 +269,22 @@ export const useLLMConfig = create<LLMStore>()(
 );
 
 export const makeLLMCallable = (config: LLMConfig) => {
-  const makeReq = (msg: string, images): types.OpenAIReq => {
+  const makeReq = (
+    prompt: string,
+    images,
+    history: types.ChatHistory[] = [],
+  ): types.OpenAIReq => {
     return {
       url: config.baseUrl,
       api_key: config.apiKey,
       model: config.model,
-      msg,
+      prompt,
       temperature: config.temperature,
       max_tokens: config.maxToken,
       top_p: config.topP,
       images,
       search_engine: config.search_engin,
+      chat_history: history,
     };
   };
 
@@ -295,6 +299,7 @@ export const makeLLMCallable = (config: LLMConfig) => {
       queryId: string,
       msg: string,
       images: string[],
+      history: types.ChatHistory[],
       handleMessage: (event: string) => void,
       handleCancel: (cancel: () => void) => void,
     ) => {
@@ -306,7 +311,7 @@ export const makeLLMCallable = (config: LLMConfig) => {
         cancelTask(taskId);
       });
       await invoke("openai_stream", {
-        req: makeReq(msg, images),
+        req: makeReq(msg, images, history),
         emit,
         taskId,
         name: uuid,
@@ -702,44 +707,6 @@ export const useElementSizeStore = create<ElementSizeState>()(
   ),
 );
 
-// 1. Define your State interface
-interface AIPromptState {
-  prompts: Record<DataSourceKind, string>;
-  getPrompt: (kind: DataSourceKind) => string | null;
-  setPrompt: (kind: DataSourceKind, prompt: string) => void;
-  removePrompt: (kind: DataSourceKind) => void;
-}
-
-// 2. Use the "Curried" version of create for better TS support with middleware
-export const useAIPrompt = create<AIPromptState>()(
-  persist(
-    (set, get) => ({
-      prompts: {} as Record<DataSourceKind, string>, // Initialize with cast if needed
-
-      removePrompt: (kind) =>
-        set((state) => ({
-          prompts: {
-            ...state.prompts,
-            [kind]: "",
-          },
-        })),
-      getPrompt: (kind) => {
-        return get().prompts[kind] ?? null;
-      },
-      setPrompt: (kind, prompt) =>
-        set((state) => ({
-          prompts: {
-            ...state.prompts,
-            [kind]: prompt,
-          },
-        })),
-    }),
-    {
-      name: "aui-prompt-storage",
-    },
-  ),
-);
-
 export interface UserSettings {
   appearance: {
     fontSize: number;
@@ -1003,7 +970,7 @@ export const useEditorState = create<EditorState>((set, get) => ({
 export interface QueryLog {
   id?: number;
   uuid: string;
-  name: string; // connecti0on name
+  name: string; // connect0on name
   sql: string;
   language?: string;
   create_at: number; // 存储时间戳

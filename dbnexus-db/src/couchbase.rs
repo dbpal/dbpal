@@ -576,6 +576,10 @@ impl CatalogTrait for CouchBaseDB {
         self.cluster.buckets().drop_bucket(name, None).await?;
         anyhow::Ok(())
     }
+
+    fn as_any(&self) -> &dyn std::any::Any {
+        self
+    }
 }
 
 // http://localhost:8091/ui/index.html 通过这个初始化

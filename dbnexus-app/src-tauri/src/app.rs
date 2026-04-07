@@ -14,6 +14,7 @@ use dbnexus_db::mongo::MongoDB;
 use dbnexus_db::mysql::MysqlDB;
 use dbnexus_db::pg::PostGresDB;
 use font_kit::error::SelectionError;
+use std::any::Any;
 
 use mongodb::bson::{self, Document};
 use std::collections::HashMap;
@@ -28,14 +29,21 @@ pub struct OpenAIReq {
     pub url: String,
     pub api_key: String,
     pub model: String,
-    pub msg: String,
+    pub prompt: String,
     pub temperature: Option<f64>,
     pub max_tokens: Option<u64>,
     pub top_p: Option<f64>,
     // data:image/jpeg;base64,
     pub images: Vec<String>,
-
     pub search_engine: AiOnlineSearch,
+    pub chat_history: Vec<ChatHistory>,
+}
+
+#[derive(serde::Serialize, serde::Deserialize, typescript_type_def::TypeDef, Debug, Clone)]
+#[serde(rename_all = "lowercase")]
+pub enum ChatHistory {
+    AI { text: String },
+    User { text: String },
 }
 
 impl DBConnectionConfig {
@@ -364,6 +372,13 @@ pub enum DatabaseBackend {
 }
 
 impl DatabaseBackend {
+    pub fn as_any(&self) -> &dyn Any {
+        match self {
+            DatabaseBackend::Catalog(x) => x.as_any(),
+            DatabaseBackend::DataBase(x) => x.as_any(),
+            DatabaseBackend::Schema(x) => x.as_any(),
+        }
+    }
     pub(crate) async fn check_conn(&self) -> anyhow::Result<Duration> {
         self.as_check_conn().check_conn().await
     }
@@ -552,7 +567,7 @@ impl DBPal {
                 }
             }
             3 => {
-                let db_name = format!("{}/{}", &name_parts[0], &name_parts[1]);
+                let db_name = append_handle_name(&name_parts[0], &name_parts[1]);
                 let open = self.backend.lock().await.get(&db_name).cloned();
                 let db_trait = match open {
                     Some(x) => match x {
@@ -620,6 +635,10 @@ impl ErrorFrontend {
             cancelled: true,
         }
     }
+}
+
+pub fn append_handle_name(name: &str, name2: &str) -> String {
+    format!("{}/{}", name, name2)
 }
 
 // 管理所有任务的取消令牌

@@ -1865,6 +1865,10 @@ impl CatalogTrait for PostGresDB {
         self.simple_execute_sql(&sql).await?;
         anyhow::Ok(())
     }
+
+    fn as_any(&self) -> &dyn std::any::Any {
+        self
+    }
 }
 
 #[cfg(test)]

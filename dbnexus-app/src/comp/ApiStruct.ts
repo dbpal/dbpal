@@ -513,16 +513,26 @@ export namespace types {
         "enable": boolean;
         "provider": string;
     };
+    export type ChatHistory = ({
+        "ai": {
+            "text": string;
+        };
+    } | {
+        "user": {
+            "text": string;
+        };
+    });
     export type OpenAIReq = {
         "url": string;
         "api_key": string;
         "model": string;
-        "msg": string;
+        "prompt": string;
         "temperature": (types.F64 | null);
         "max_tokens": (types.U64 | null);
         "top_p": (types.F64 | null);
         "images": (string)[];
         "search_engine": types.AiOnlineSearch;
+        "chat_history": (types.ChatHistory)[];
     };
     export type SetZoom = ("in" | "out" | "reset");
     export type RedisListTable = {

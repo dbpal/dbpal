@@ -1,14 +1,18 @@
 use base64::Engine;
+
 use dbnexus_db::db::{BackendKind, ExportFrame, ExportKind};
+use dbnexus_db::mongo::MongoDB;
+
 use futures_util::StreamExt;
 use mongodb::bson::doc;
 use rig::agent::{Agent, MultiTurnStreamItem, PromptHook, StreamingError, Text};
 use rig::client::completion::CompletionClient;
 use rig::providers::openai::responses_api::ResponsesCompletionModel;
-use rig::streaming::{StreamedAssistantContent, StreamingPrompt};
+use rig::streaming::{StreamedAssistantContent, StreamingChat};
 use rig::tool::ToolDyn;
 use rig::wasm_compat::{WasmCompatSend, WasmCompatSync};
 use rig::EmptyListError;
+use serde::{Deserialize, Serialize};
 use std::future::Future;
 use std::sync::Arc;
 
@@ -31,20 +35,23 @@ impl From<PromptError> for ErrorFrontend {
     }
 }
 
-fn make_openai(
+fn make_agent(
     req: &app::OpenAIReq,
     tools: Vec<Box<dyn ToolDyn>>,
+    preamble: Option<&str>,
 ) -> anyhow::Result<Agent<ResponsesCompletionModel>> {
     #[cfg(debug_assertions)]
     log::info!("open ai req:{:?}", req);
-
     let builder = openai::Client::builder()
         .api_key(&req.api_key)
         .base_url(&req.url);
     let api: Client<openai::OpenAIResponsesExt> = builder.build()?;
-    let mut agent_builder = api.agent(&req.model).preamble("U are helpful assistant.");
+    let mut agent_builder = api.agent(&req.model);
     if let Some(t) = req.max_tokens {
         agent_builder = agent_builder.max_tokens(t);
+    }
+    if let Some(t) = preamble {
+        agent_builder = agent_builder.preamble(t);
     }
     if let Some(t) = req.temperature {
         agent_builder = agent_builder.temperature(t);
@@ -55,8 +62,8 @@ fn make_openai(
 
 #[tauri::command]
 pub async fn openai_invoke(req: app::OpenAIReq) -> Result<String, ErrorFrontend> {
-    let api = make_openai(&req, vec![]).map_err(ErrorFrontend::from)?;
-    let r = api.prompt(&req.msg).await?;
+    let api = make_agent(&req, vec![], None).map_err(ErrorFrontend::from)?;
+    let r = api.prompt(&req.prompt).await?;
     Ok(r)
 }
 
@@ -81,29 +88,21 @@ impl From<EmptyListError> for ErrorFrontend {
 }
 
 async fn call_openai_stream(
-    req: &OpenAIReq,
-    tools: Vec<Box<dyn ToolDyn>>,
+    agent: Agent<ResponsesCompletionModel>,
     emit: Emitter,
     comment_fn: impl Fn(&str) -> String + Send + Sync + 'static,
+    prompt: Message,
+    history: Vec<Message>,
 ) -> Result<(), ErrorFrontend> {
-    let agent = make_openai(req, tools)?;
-    let msg = Message::User {
-        content: {
-            let mut content = vec![UserContent::Text(Text {
-                text: req.msg.clone(),
-            })];
-            content.extend(req.images.iter().map(|x| {
-                UserContent::Image(Image {
-                    data: DocumentSourceKind::Url(x.clone()),
-                    media_type: None,
-                    detail: None,
-                    additional_params: None,
-                })
-            }));
-            OneOrMany::many(content.into_iter())?
-        },
-    };
-    let mut prompt = agent.stream_prompt(msg).await;
+    #[cfg(debug_assertions)]
+    {
+        println!("prompt:{:?}", prompt);
+        history.iter().for_each(|x| {
+            println!("history:{:?}", x);
+        });
+    }
+
+    let mut prompt = agent.stream_chat(prompt, history).await;
     while let Some(chunk) = prompt.next().await {
         let chunk = chunk?;
         match chunk {
@@ -177,20 +176,36 @@ pub struct EmitSomeStatus {
 }
 impl<M> PromptHook<M> for EmitSomeStatus where M: CompletionModel + 'static {}
 
-impl DatabaseBackend {
-    fn make_tools(&self, query_id: impl Into<String>, emit: Emitter) -> Vec<Box<dyn ToolDyn>> {
-        match self.backend_kind() {
+impl DBPal {
+    async fn make_tools(
+        &self,
+        name: &str,
+        query_id: impl Into<String>,
+        emit: Emitter,
+    ) -> anyhow::Result<Vec<Box<dyn ToolDyn>>> {
+        let db = self.get_backend(&name).await?;
+        match db.backend_kind() {
             BackendKind::Mongo => {
-                vec![]
+                let x = db
+                    .as_any()
+                    .downcast_ref::<MongoDB>()
+                    .expect("must be mongodb");
+                let c = Clone::clone(x);
+                let r: Vec<Box<dyn ToolDyn>> = vec![Box::new(mongo::MongoQueryTool {
+                    client: c,
+                    max_limit: 10_000,
+                })];
+                anyhow::Ok(r)
             }
 
             _ => {
                 // sql base database
-                vec![Box::new(SqlQueryTool {
-                    db: Clone::clone(self),
+                let r: Vec<Box<dyn ToolDyn>> = vec![Box::new(SqlQueryTool {
+                    db: db,
                     query_id: query_id.into(),
-                    emit,
-                })]
+                    emit: emit.clone(),
+                })];
+                anyhow::Ok(r)
             }
         }
     }
@@ -212,10 +227,32 @@ impl std::fmt::Display for CallToolErr {
     }
 }
 
-impl<T: Into<String>> From<T> for CallToolErr {
-    fn from(value: T) -> Self {
+impl From<mongodb::error::Error> for CallToolErr {
+    fn from(value: mongodb::error::Error) -> Self {
+        Self {
+            err_msg: value.to_string(),
+        }
+    }
+}
+impl From<String> for CallToolErr {
+    fn from(value: String) -> Self {
         Self {
             err_msg: value.into(),
+        }
+    }
+}
+impl From<&str> for CallToolErr {
+    fn from(value: &str) -> Self {
+        Self {
+            err_msg: value.into(),
+        }
+    }
+}
+
+impl From<anyhow::Error> for CallToolErr {
+    fn from(value: anyhow::Error) -> Self {
+        Self {
+            err_msg: value.to_string(),
         }
     }
 }
@@ -317,7 +354,7 @@ fn expect_export_frame_all_json(
 
 #[tauri::command]
 pub async fn openai_stream(
-    req: OpenAIReq,
+    mut req: OpenAIReq,
     name: String,
     query_id: String,
     emit: Channel<String>,
@@ -326,18 +363,66 @@ pub async fn openai_stream(
     dbpal: tauri::State<'_, DBPal>,
 ) -> Result<(), ErrorFrontend> {
     let (token, _guard) = task_manager.add(task_id);
-    let db = dbpal.get_backend(&name).await?;
     let emitter = Arc::new(move |s| {
         if let Err(err) = emit.send(s) {
             log::error!("Error sending message: {:?}", err)
         }
     });
-    let mut tools = db.make_tools(query_id, emitter.clone());
+    let mut tools = dbpal
+        .make_tools(&name, query_id, emitter.clone())
+        .await
+        .map_err(ErrorFrontend::from)?;
+
     if let Some(x) = req.search_engine.make_tool(emitter.clone())? {
         tools.push(x);
     }
+    let db = dbpal
+        .get_backend(&name)
+        .await
+        .map_err(ErrorFrontend::from)?;
     let db_kind = db.backend_kind();
-    let fur = call_openai_stream(&req, tools, emitter, move |x| db_kind.comment(x));
+    let agent = make_agent(
+        &req,
+        tools,
+        Some(format!("U a are {} expert", db.backend_kind().to_string()).as_str()),
+    )
+    .unwrap();
+
+    let msg = Message::User {
+        content: {
+            let mut content = vec![];
+
+            content.push(UserContent::text(format!(
+                "system local is :{}",
+                sys_locale::get_locale().unwrap_or("en-us".to_string())
+            )));
+            content.push(UserContent::Text(Text {
+                text: req.prompt.clone(),
+            }));
+            content.extend(req.images.iter().map(|x| {
+                UserContent::Image(Image {
+                    data: DocumentSourceKind::Url(x.clone()),
+                    media_type: None,
+                    detail: None,
+                    additional_params: None,
+                })
+            }));
+            OneOrMany::many(content.into_iter())?
+        },
+    };
+    // let db_info = dbpal.make_db_info(&name).await.unwrap();
+    let mut history = vec![];
+
+    history.extend(
+        std::mem::take(&mut req.chat_history)
+            .into_iter()
+            .map(|x| match x {
+                app::ChatHistory::AI { text } => Message::assistant(text),
+                app::ChatHistory::User { text } => Message::user(text),
+            }),
+    );
+
+    let fur = call_openai_stream(agent, emitter, move |x| db_kind.comment(x), msg, history);
     tokio::select! {
         res = fur => {res},
         _ = token.cancelled() => {
@@ -385,7 +470,7 @@ impl AiOnlineSearch {
 }
 
 /// 单个搜索结果
-#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SearchInput {
     /// 搜索查询字符串
     pub query: String,
@@ -393,7 +478,7 @@ pub struct SearchInput {
 }
 
 /// 搜索工具的输出结果
-#[derive(Debug, Clone, serde:: Serialize, serde::Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SearchOutput {
     /// 搜索查询
     pub query: String,
@@ -500,23 +585,21 @@ impl Tool for WebSearchTool {
 mod mongo {
 
     use dbnexus_db::mongo::MongoDB;
-    use futures_util::{StreamExt, TryStreamExt};
+    use futures_util::StreamExt;
     use mongodb::{
-        bson::{doc, Bson, Document},
+        bson::{doc, Document},
         Cursor,
     };
     use rig::{completion::ToolDefinition, tool::Tool};
     use serde::{Deserialize, Serialize};
-    use std::sync::Arc;
 
     use crate::ai::CallToolErr;
 
     pub struct MongoQueryTool {
-        client: Arc<MongoDB>,
-        db_name: String,
+        pub(crate) client: MongoDB,
+
         // Safety limits
-        max_limit: i64,
-        forbidden_collections: Vec<String>,
+        pub(crate) max_limit: i64,
     }
 
     /// LLM-generated query request
@@ -550,58 +633,61 @@ mod mongo {
 
         /// Records to skip
         #[serde(default)]
-        pub skip: Option<i64>,
-    }
-
-    /// Query result
-    #[derive(Debug, Serialize)]
-    pub struct MongoQueryResult {
-        pub success: bool,
-        pub count: usize,
-        pub data: Vec<Document>,
-        pub explanation: String, // LLM-readable explanation
+        pub skip: Option<u64>,
     }
 
     impl Tool for MongoQueryTool {
         const NAME: &'static str = "mongo_query";
 
         type Args = MongoQueryRequest;
-        type Output = MongoQueryResult;
+        type Output = Vec<Document>;
 
         async fn call(&self, args: Self::Args) -> Result<Self::Output, CallToolErr> {
-            // Safety check
-            if self.forbidden_collections.contains(&args.collection) {
-                return Ok(MongoQueryResult {
-                    success: false,
-                    count: 0,
-                    data: vec![],
-                    explanation: format!("Collection '{}' is not allowed", args.collection),
-                });
-            }
-
             let db = self.client.get_db().await.unwrap();
-            let collection = db.collection::<Document>(&args.collection);
+
+            let MongoQueryRequest {
+                collection: collection_name,
+                operation,
+                filter,
+                pipeline,
+                projection,
+                sort,
+                limit,
+                skip,
+            } = args;
+
+            let collection = db.collection::<Document>(&collection_name);
 
             // Limit return count to prevent database overload
-            let limit = args.limit.unwrap_or(50).min(self.max_limit);
+            let limit = limit.unwrap_or(50).min(self.max_limit);
 
-            let result = match args.operation.as_str() {
+            let result = match operation.as_str() {
                 "find" => {
-                    let mut cursor = collection.find(args.filter.unwrap_or_default());
+                    let mut find = collection.find(filter.unwrap_or_default());
 
-                    if let Some(proj) = args.projection {
-                        cursor = cursor.projection(proj);
+                    if let Some(proj) = projection {
+                        find = find.projection(proj);
                     }
-                    if let Some(sort) = args.sort {
-                        cursor = cursor.sort(sort);
+                    if let Some(sort) = sort {
+                        find = find.sort(sort);
+                    }
+                    find = find.limit(limit);
+                    if let Some(skip) = skip {
+                        find = find.skip(skip);
+                    }
+                    let mut cursor = find.await?;
+                    let mut ret = Vec::new();
+                    while let Some(doc) = cursor.next().await {
+                        let doc = doc?;
+                        ret.push(doc);
                     }
 
-                    todo!() as MongoQueryResult
+                    ret
                 }
 
                 "aggregate" => {
-                    let pipeline = args.pipeline.unwrap_or_default();
-                    let mut cursor = collection.aggregate(pipeline);
+                    let pipeline = pipeline.unwrap_or_default();
+                    let cursor = collection.aggregate(pipeline);
                     let mut cursor: Cursor<Document> =
                         cursor.await.map_err(|e| CallToolErr::from(e.to_string()))?;
                     let mut docs = vec![];
@@ -609,38 +695,17 @@ mod mongo {
                         let x = x.unwrap();
                         docs.push(x);
                     }
-                    let len = docs.len();
-                    MongoQueryResult {
-                        success: true,
-                        count: len,
-                        data: docs,
-                        explanation: format!("Aggregation returned {} results", len),
-                    }
+                    docs
                 }
 
                 "count" => {
                     let count = collection
-                        .count_documents(args.filter.unwrap_or_default())
+                        .count_documents(filter.unwrap_or_default())
                         .await
                         .unwrap();
-
-                    MongoQueryResult {
-                        success: true,
-                        count: count as usize,
-                        data: vec![doc! { "count": count as i64 }],
-                        explanation: format!(
-                            "Collection '{}' has {} matching records",
-                            args.collection, count
-                        ),
-                    }
+                    vec![doc! { "count": count as i64 }]
                 }
-
-                _ => MongoQueryResult {
-                    success: false,
-                    count: 0,
-                    data: vec![],
-                    explanation: format!("Unsupported operation: {}", args.operation),
-                },
+                _ => return Err(format!("Unsupported operation: {}", operation).into()),
             };
 
             Ok(result) as Result<Self::Output, Self::Error>
@@ -688,113 +753,6 @@ mod mongo {
 
         type Error = CallToolErr;
     }
-
-    #[derive(Debug, Serialize)]
-    pub struct CollectionSchema {
-        pub name: String,
-        pub sample_fields: Vec<FieldInfo>,
-        pub indexes: Vec<String>,
-        pub estimated_count: i64,
-    }
-
-    #[derive(Debug, Serialize)]
-    pub struct FieldInfo {
-        pub name: String,
-        pub bson_type: String,
-        pub sample_values: Vec<String>, // Sample values to help LLM understand
-    }
-    pub struct MongoSchemaTool {
-        client: mongodb::Client,
-        db_name: String,
-    }
-
-    impl MongoSchemaTool {
-        /// Analyze collection structure (sample documents to infer schema)
-        pub async fn analyze_collection(&self, name: &str) -> anyhow::Result<CollectionSchema> {
-            let db = self.client.database(&self.db_name);
-            let coll = db.collection::<Document>(name);
-
-            // Sample 100 documents to analyze fields
-            let mut cursor = coll.find(doc! {}).limit(100);
-            let docs: Vec<Document> = cursor.await?.try_collect().await?;
-
-            let mut field_types: std::collections::HashMap<String, Vec<String>> =
-                std::collections::HashMap::new();
-
-            for doc in &docs {
-                Self::extract_fields(doc, "", &mut field_types);
-            }
-
-            let fields = field_types
-                .into_iter()
-                .map(|(name, types)| {
-                    let unique_types: Vec<String> = types
-                        .into_iter()
-                        .collect::<std::collections::HashSet<_>>()
-                        .into_iter()
-                        .collect();
-                    FieldInfo {
-                        name,
-                        bson_type: unique_types.join("|"),
-                        sample_values: vec![], // Can add actual samples
-                    }
-                })
-                .collect();
-
-            Ok(CollectionSchema {
-                name: name.to_string(),
-                sample_fields: fields,
-                indexes: vec![], // Can read from system.indexes
-                estimated_count: coll.estimated_document_count().await? as i64,
-            })
-        }
-
-        fn extract_fields(
-            doc: &Document,
-            prefix: &str,
-            result: &mut std::collections::HashMap<String, Vec<String>>,
-        ) {
-            for (key, value) in doc {
-                let full_key = if prefix.is_empty() {
-                    key.clone()
-                } else {
-                    format!("{}.{}", prefix, key)
-                };
-
-                match value {
-                    Bson::Document(subdoc) => {
-                        result
-                            .entry(full_key.clone())
-                            .or_default()
-                            .push("object".to_string());
-                        Self::extract_fields(subdoc, &full_key, result);
-                    }
-                    Bson::Array(arr) => {
-                        result
-                            .entry(full_key)
-                            .or_default()
-                            .push("array".to_string());
-                        // Can recursively analyze array elements
-                    }
-                    other => {
-                        let type_name = match other {
-                            Bson::String(_) => "string",
-                            Bson::Int32(_) | Bson::Int64(_) => "int",
-                            Bson::Double(_) => "double",
-                            Bson::Boolean(_) => "bool",
-                            Bson::DateTime(_) => "datetime",
-                            Bson::ObjectId(_) => "objectid",
-                            _ => "other",
-                        };
-                        result
-                            .entry(full_key)
-                            .or_default()
-                            .push(type_name.to_string());
-                    }
-                }
-            }
-        }
-    }
 }
 
 #[cfg(test)]
@@ -804,51 +762,32 @@ mod tests {
     use futures_util::StreamExt;
     use rig::{
         agent::MultiTurnStreamItem,
-        streaming::{StreamedAssistantContent, StreamedUserContent, StreamingPrompt},
+        streaming::{StreamedAssistantContent, StreamedUserContent, StreamingChat},
     };
     use websearch::SearchProvider;
 
     #[tokio::test]
 
     async fn test_xxx() {
+        let req = &OpenAIReq {
+            url: "https://dashscope.aliyuncs.com/compatible-mode/v1".into(),
+            api_key: "sk-6c19c965d3234c8fae49c19e4f0301f0".into(),
+            model: "qwen3.5-plus".into(),
+            prompt: "hello can u help me".into(),
+            temperature: None,
+            max_tokens: None,
+            top_p: None,
+            images: vec![],
+            search_engine: Default::default(),
+            chat_history: vec![],
+        };
+        let agent = make_agent(req, vec![], None).unwrap();
         call_openai_stream(
-            &OpenAIReq {
-                url: "https://dashscope.aliyuncs.com/compatible-mode/v1".into(),
-                api_key: "sk-6c19c965d3234c8fae49c19e4f0301f0".into(),
-                model: "qwen3.5-plus".into(),
-                msg: "hello can u help me".into(),
-                temperature: None,
-                max_tokens: None,
-                top_p: None,
-                images: vec![],
-                search_engine: Default::default(),
-            },
-            vec![],
+            agent,
             Arc::new(|x| print!("{}", x)),
             |x| x.to_owned(),
-        )
-        .await
-        .unwrap();
-    }
-
-    #[tokio::test]
-
-    async fn test_xxx_qwen() {
-        call_openai_stream(
-            &OpenAIReq {
-                url: "https://dashscope.aliyuncs.com/compatible-mode/v1".into(),
-                api_key: "sk-6c19c965d3234c8fae49c19e4f0301f0".into(),
-                model: "qwen3.5-flash".into(),
-                msg: "hello can u help me".into(),
-                temperature: None,
-                max_tokens: None,
-                top_p: None,
-                images: vec![],
-                search_engine: Default::default(),
-            },
+            Message::user("can u help me."),
             vec![],
-            Arc::new(|x| print!("{}", x)),
-            |x| x.to_owned(),
         )
         .await
         .unwrap();
@@ -857,8 +796,6 @@ mod tests {
     #[tokio::test]
 
     async fn test_fine_with_tool() {
-        // enable_test_log();
-
         let db = SqliteDB::new(SqliteDBConfig {
             path: "/home/yuyang/tests/sqlite.test.db".into(),
             read_only: true,
@@ -870,7 +807,8 @@ mod tests {
                 url: "https://api.openai-proxy.org/v1".into(),
                 api_key: "sk-egR0EUYn0EzVybl7D9JkUFx2ksnD62sZPQ8d0J0yJgPEiAWt".into(),
                 model: "gpt-4.1-mini".into(),
-                msg: r#"
+                chat_history : vec![],
+                prompt: r#"
 
 
 system:You are a sqlite database expert.
@@ -938,7 +876,7 @@ human: tell me Mike's age from TABLE Persons
 
         let agent = agent_builder.build();
 
-        let r = agent.prompt(&req.msg).await.unwrap();
+        let r = agent.prompt(&req.prompt).await.unwrap();
 
         println!("{}", r);
     }
@@ -953,11 +891,13 @@ human: tell me Mike's age from TABLE Persons
         })
         .await
         .unwrap();
+
         let req =  &OpenAIReq {
+            chat_history : vec![],
                 url: "https://api.openai-proxy.org/v1".into(),
                 api_key: "sk-egR0EUYn0EzVybl7D9JkUFx2ksnD62sZPQ8d0J0yJgPEiAWt".into(),
                 model: "gpt-4.1-mini".into(),
-                msg: r#"
+                prompt: r#"
 
 
 system:You are a sqlite database expert.
@@ -1025,7 +965,9 @@ human: tell me Mike's age from TABLE Persons
                 emit: Arc::new(|_| {}),
             })
             .build();
-        let mut stream = agent.stream_prompt(req.msg.clone()).await;
+        let mut stream = agent
+            .stream_chat(req.prompt.clone(), vec![] as Vec<String>)
+            .await;
 
         while let Some(chunk) = stream.next().await {
             let chunk = chunk.map_err(ErrorFrontend::from).unwrap();
@@ -1129,10 +1071,11 @@ human: tell me Mike's age from TABLE Persons
             env::set_var("all_proxy", "socks5://127.0.0.1:7897");
         }
         let req = &OpenAIReq {
+            chat_history: vec![],
             url: "https://api.openai-proxy.org/v1".into(),
             api_key: "sk-egR0EUYn0EzVybl7D9JkUFx2ksnD62sZPQ8d0J0yJgPEiAWt".into(),
             model: "gpt-4.1-mini".into(),
-            msg: r#"
+            prompt: r#"
                 tell me what time and date is in new york
                 "#
             .into(),
@@ -1145,16 +1088,20 @@ human: tell me Mike's age from TABLE Persons
 
         let p = Arc::new(|x| println!("{}", x));
 
-        call_openai_stream(
+        let agent = make_agent(
             req,
             vec![Box::new(WebSearchTool {
                 engine: Box::new(websearch::providers::DuckDuckGoProvider::new()),
                 emit: p.clone(),
             })],
-            p,
-            |x| x.to_owned(),
+            None,
         )
-        .await
         .unwrap();
+
+        let msg = Message::user(&req.prompt);
+
+        call_openai_stream(agent, p, |x| x.to_owned(), msg, vec![])
+            .await
+            .unwrap();
     }
 }

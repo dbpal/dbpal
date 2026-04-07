@@ -2,8 +2,9 @@ use crate::helper::generate_random_string;
 use crate::language_server::LanguageServer;
 use chrono::{DateTime, FixedOffset};
 use core::str;
+use std::any::Any;
 use std::collections::HashMap;
-use std::fmt::Debug;
+use std::fmt::{self, Debug};
 use std::ops::Deref;
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
@@ -28,6 +29,46 @@ pub enum BackendKind {
     BigQuery,
     Db2,
     CouchBase,
+}
+impl fmt::Display for BackendKindMysql {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            BackendKindMysql::Mysql => write!(f, "MySQL"),
+            BackendKindMysql::Mariadb => write!(f, "MariaDB"),
+            BackendKindMysql::Tidb => write!(f, "TiDB"),
+        }
+    }
+}
+
+impl fmt::Display for BackendKindPostGres {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            BackendKindPostGres::PostGres => write!(f, "PostgreSQL"),
+            BackendKindPostGres::CockRoach => write!(f, "CockroachDB"),
+        }
+    }
+}
+
+impl fmt::Display for BackendKind {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            BackendKind::Mysql(mysql) => fmt::Display::fmt(&mysql, f),
+            BackendKind::LibSql => write!(f, "LibSql"),
+            BackendKind::PostGres(pg) => fmt::Display::fmt(&pg, f),
+            BackendKind::SqlServer => write!(f, "SqlServer"),
+            BackendKind::Mongo => write!(f, "Mongo"),
+            BackendKind::Redis => write!(f, "Redis"),
+            BackendKind::Sqlite => write!(f, "Sqlite"),
+            BackendKind::Cassandra => write!(f, "Cassandra"),
+            BackendKind::ClickHouse => write!(f, "ClickHouse"),
+            BackendKind::Firebird => write!(f, "Firebird"),
+            BackendKind::Oracle => write!(f, "Oracle"),
+            BackendKind::DuckDB => write!(f, "DuckDB"),
+            BackendKind::BigQuery => write!(f, "BigQuery"),
+            BackendKind::Db2 => write!(f, "Db2"),
+            BackendKind::CouchBase => write!(f, "CouchBase"),
+        }
+    }
 }
 
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
@@ -103,12 +144,6 @@ impl BackendKind {
         } else {
             "*".to_owned()
         }
-    }
-}
-
-impl std::fmt::Display for BackendKind {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{:?}", self)
     }
 }
 
@@ -939,6 +974,17 @@ pub struct CreatedTypeDef {
     pub sql: Option<String>,
 }
 
+impl std::fmt::Display for CreatedTypeDef {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(
+            f,
+            "type:{} def:{}",
+            self.name,
+            self.sql.as_ref().unwrap_or(&"".to_string())
+        )
+    }
+}
+
 #[derive(Clone, Debug, serde::Serialize, serde::Deserialize, TypeDef)]
 pub struct ColumnType {
     // type string like `varchar`
@@ -1017,6 +1063,8 @@ pub trait CatalogTrait:
         extra: Option<CreateDatabaseExtra>,
     ) -> anyhow::Result<()>;
     async fn drop_database(&self, name: &str) -> anyhow::Result<()>;
+
+    fn as_any(&self) -> &dyn Any;
 }
 
 #[derive(Debug, serde::Serialize, serde::Deserialize, Clone, TypeDef)]
@@ -1932,6 +1980,31 @@ pub struct Field {
     pub is_auto_increment: bool,
     // right now all of implementation are sortable
     pub sortable: bool,
+}
+
+impl fmt::Display for Field {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        // 基础列定义: field_name data_type [NOT NULL] [DEFAULT xxx] [PRIMARY KEY] [AUTO_INCREMENT]
+        write!(f, "{} {}", self.field, self.data_type)?;
+
+        if !self.nullable {
+            write!(f, " NOT NULL")?;
+        }
+
+        if let Some(ref default) = self.default_value {
+            write!(f, " DEFAULT {}", default)?;
+        }
+
+        if self.is_primary {
+            write!(f, " PRIMARY KEY")?;
+        }
+
+        if self.is_auto_increment {
+            write!(f, " AUTO_INCREMENT")?;
+        }
+
+        Ok(())
+    }
 }
 
 impl Default for Field {

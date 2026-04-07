@@ -1822,6 +1822,10 @@ impl CatalogTrait for SqlServerDB {
         conn.execute(&sql, &[]).await?;
         anyhow::Ok(())
     }
+
+    fn as_any(&self) -> &dyn std::any::Any {
+        self
+    }
 }
 
 #[cfg(test)]

@@ -81,6 +81,7 @@ import { MetaValueView, ModalHeader, SelectPageSize } from "./CommonComp";
 import { readFile, writeTextFile } from "@tauri-apps/plugin-fs";
 import { save, open, DialogFilter, message } from "@tauri-apps/plugin-dialog";
 import ReactMarkdown from "react-markdown";
+import remarkGfm from "remark-gfm";
 import { styled, useTheme } from "@mui/material/styles";
 import { openUrl } from "@tauri-apps/plugin-opener";
 import {
@@ -826,14 +827,37 @@ function LoadStoreFile(props: {
 
 const MarkdownBody = styled("div")(({ theme }) => ({
   // ---- 裸标签 reset + 留一点空隙 ----
-  "& p": { margin: "0 0 0.5em 0", lineHeight: 1.45 }, // 仅下边距 0.5em
-  "& h1,& h2,& h3,& h4,& h5,& h6": { margin: "0 0 0.35em 0" }, // 标题更紧凑
+  "& p": { margin: "0 0 0.5em 0", lineHeight: 1.45 },
+  "& h1,& h2,& h3,& h4,& h5,& h6": { margin: "0 0 0.35em 0" },
   "& ul,& ol": { margin: "0 0 0.5em 0", paddingLeft: theme.spacing(2) },
   "& blockquote": {
     margin: "0 0 0.5em 0",
     paddingLeft: theme.spacing(2),
     borderLeft: `4px solid ${theme.palette.divider}`,
   },
+
+  // ---- 新增：表格样式 (Table) ----
+  "& table": {
+    width: "100%",
+    borderCollapse: "collapse",
+    marginBottom: "1em",
+    overflow: "hidden",
+    display: "block", // 允许横向滚动
+    overflowX: "auto", // 适配小屏幕
+  },
+  "& th, & td": {
+    border: `1px solid ${theme.palette.divider}`,
+    padding: theme.spacing(1, 1.5),
+    textAlign: "left",
+  },
+  "& th": {
+    backgroundColor: theme.palette.action.hover,
+    fontWeight: theme.typography.fontWeightBold,
+  },
+  "& tr:nth-of-type(even)": {
+    backgroundColor: theme.palette.action.hover, // 隔行变色
+  },
+
   // ---- 其余保持原样 ----
   "& code": {
     ...theme.typography.body2,
@@ -886,6 +910,7 @@ function AppMarkDown(props: {
   return (
     <MarkdownBody>
       <ReactMarkdown
+        remarkPlugins={[remarkGfm]}
         components={{
           code({ className, children, ...props }) {
             const match = /language-(\w+)/.exec(className || "");
@@ -1032,6 +1057,7 @@ function SliderSize(props: { config: UseSizeConfig }) {
   const { sizes, setSize } = useSizeStore();
   const size = sizes[config.key];
 
+  const sizeIsNumber = typeof size === "number";
   return (
     <Tooltip
       slotProps={{
@@ -1045,7 +1071,7 @@ function SliderSize(props: { config: UseSizeConfig }) {
           padding: "8px",
         }}>
         <Stack>
-          {!size && (
+          {!sizeIsNumber && (
             <Typography color="warning">
               please select a size or default value is given
             </Typography>
@@ -1065,7 +1091,7 @@ function SliderSize(props: { config: UseSizeConfig }) {
       </Paper>>
       <Chip
         style={{ ...textEllipsisStyle }}
-        label={`${config.name ? config.name + ":" : ""} ${size ? size : config.default}`}
+        label={`${config.name ? config.name + ":" : ""} ${sizeIsNumber ? size : config.default}`}
         color="info"
       />
     </Tooltip>

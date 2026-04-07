@@ -65,10 +65,6 @@ function listSchema(name: string) {
   return invoke<string[]>("list_schema", { name });
 }
 
-function getLocale(): Promise<string> {
-  return invoke("get_locale", {});
-}
-
 function listUdf(uuid: string) {
   return invoke<types.NamedStaff[]>("list_udf", { name: uuid });
 }
@@ -141,26 +137,6 @@ function listProcedure(uuid: string) {
 
 function listSequence(uuid: string) {
   return invoke<types.SequenceDetail[]>("list_sequence", { name: uuid });
-}
-
-async function callErrorable<T>(x: () => Promise<T>, defaultValue: any = []) {
-  try {
-    return await x();
-  } catch (e) {
-    console.log(String(e));
-    let r = "reason";
-
-    if (
-      !(
-        typeof e == "object" &&
-        r in e &&
-        (e[r] as string).includes("don't support this feature")
-      )
-    ) {
-      console.error(e);
-    }
-    return defaultValue as T;
-  }
 }
 
 function listMaterializedView(uuid: string) {
@@ -379,13 +355,11 @@ async function showTable(
 }
 
 export {
-  callErrorable,
   cancelTask,
   checkSql,
   createTableAndIndexSql,
   createViewSql,
   formatCreateTableAndIndexSql,
-  getLocale,
   listCassandraAgg,
   listCreatedTypes,
   listEvent,

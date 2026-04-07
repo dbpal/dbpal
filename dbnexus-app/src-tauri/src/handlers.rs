@@ -4,26 +4,22 @@ use crate::app::{
 };
 use dashmap::DashMap;
 use dbnexus_db::cassandra::CassandraDB;
-use dbnexus_db::clickhouse::ClickHouseDB;
-use dbnexus_db::couchbase::CouchBaseDB;
+
 use dbnexus_db::db::{
     escape_sql_str, ColumnType, CreateDatabaseExtra, CreateIndexReq, CreateSchemaExtra,
-    CreateTableAndIndexSql, CreateTableReq, CreatedTypeDef, DBTrait, DefAndMetas, ExportKind,
-    Field, Index, ListTable, MetaValue, NamedStaff, OptionMustBeSomeErr, ProcedureDetail,
-    QueryEventEmit, QueryResp, SequenceDetail, ShowTableParameter, SqlEvent, TimeElapsed,
-    TriggerDetail, UdfOrProcedureExtraParameter,
+    CreateTableAndIndexSql, CreateTableReq, CreatedTypeDef, DefAndMetas, ExportKind, Field, Index,
+    ListTable, MetaValue, NamedStaff, OptionMustBeSomeErr, ProcedureDetail, QueryEventEmit,
+    QueryResp, SequenceDetail, ShowTableParameter, SqlEvent, TimeElapsed, TriggerDetail,
+    UdfOrProcedureExtraParameter,
 };
 use dbnexus_db::language_server::{CompletionList, ErrAndLoc};
 use dbnexus_db::mongo::MongoDB;
-use dbnexus_db::mssql::SqlServerDB;
-use dbnexus_db::mysql::MysqlDB;
-use dbnexus_db::oracle::OracleDB;
-use dbnexus_db::pg::PostGresDB;
+
 use dbnexus_db::redis::{redis_tokenize, RedisDB, RedisListTable};
 use dbnexus_db::redis_lang_server::REDIS_COMMANDS_MD_FILES;
 use include_dir::{include_dir, Dir};
 use mongodb::bson::{self, doc, Document};
-use std::collections::{HashMap, HashSet};
+use std::collections::HashMap;
 use std::str::FromStr;
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::{Arc, LazyLock, Mutex, RwLock};
@@ -71,12 +67,6 @@ pub async fn cancel_task(
         )));
     }
     Ok(())
-}
-
-#[tauri::command]
-pub async fn get_locale() -> Result<String, ErrorFrontend> {
-    let r = sys_locale::get_locale().unwrap_or_else(|| String::from("en-US"));
-    Ok(r)
 }
 
 #[tauri::command]
@@ -765,97 +755,6 @@ pub async fn get_redis_type_hint(
     .map_err(ErrorFrontend::from)
 }
 
-impl DatabaseBackend {
-    fn db_trait(&self) -> Option<&dyn DBTrait> {
-        match self {
-            DatabaseBackend::Catalog(_x) => None,
-            DatabaseBackend::DataBase(x) => Some(x.as_ref()),
-            DatabaseBackend::Schema(x) => {
-                let a = x.as_any();
-                if let Some(x) = a.downcast_ref::<MysqlDB>() {
-                    Some(x as &dyn DBTrait)
-                } else if let Some(x) = a.downcast_ref::<PostGresDB>() {
-                    Some(x as &dyn DBTrait)
-                } else if let Some(x) = a.downcast_ref::<SqlServerDB>() {
-                    Some(x as &dyn DBTrait)
-                } else if let Some(x) = a.downcast_ref::<OracleDB>() {
-                    Some(x as &dyn DBTrait)
-                } else if let Some(x) = a.downcast_ref::<CassandraDB>() {
-                    Some(x as &dyn DBTrait)
-                } else if let Some(x) = a.downcast_ref::<ClickHouseDB>() {
-                    Some(x as &dyn DBTrait)
-                } else if let Some(x) = a.downcast_ref::<CouchBaseDB>() {
-                    Some(x as &dyn DBTrait)
-                } else {
-                    None
-                }
-            }
-        }
-    }
-}
-impl DBPal {
-    async fn ai_get_search_path(
-        &self,
-        backend: DatabaseBackend,
-        name: &str,
-        query_id: &str,
-        text: &str,
-    ) -> anyhow::Result<Vec<String>> {
-        match &backend {
-            DatabaseBackend::Catalog(..) => {
-                anyhow::bail!("this is a interval error,we should never hit here")
-            }
-            DatabaseBackend::DataBase(x) => {
-                // a
-                let text = text.to_lowercase();
-                let mut r = HashSet::<String>::new();
-                let databasese = x.list_schema().await?;
-                for d in databasese {
-                    if text.contains(d.to_lowercase().as_str()) {
-                        r.insert(d);
-                    }
-                }
-                r.extend(x.get_search_path(query_id).await?.into_iter());
-                Ok(r.into_iter().map(|x| format!("{}/{}", name, x)).collect())
-            }
-            DatabaseBackend::Schema(..) => {
-                let names = name_to_parts(name);
-                let db_trait = backend.db_trait();
-                match db_trait {
-                    Some(x) if names.len() == 2 => {
-                        let text = text.to_lowercase();
-                        let mut r = HashSet::<String>::new();
-                        let databasese = x.list_schema().await?;
-                        for d in databasese {
-                            if text.contains(d.to_lowercase().as_str()) {
-                                r.insert(d);
-                            }
-                        }
-                        r.extend(x.get_search_path(query_id).await?.into_iter());
-                        Ok(r.into_iter()
-                            .map(|x| format!("{}/{}", names[0], x))
-                            .collect())
-                    }
-                    _ => anyhow::Ok(vec![name.to_string()]),
-                }
-            }
-        }
-    }
-}
-
-#[tauri::command]
-pub async fn ai_get_search_path(
-    name: String,
-    query_id: &str,
-    text: String,
-    app: tauri::State<'_, DBPal>,
-) -> Result<Vec<String>, ErrorFrontend> {
-    let backend = app.get_backend(&name).await.map_err(ErrorFrontend::from)?;
-    app.ai_get_search_path(backend, &name, query_id, &text)
-        .await
-        .map_err(ErrorFrontend::from)
-}
-
 #[tauri::command]
 pub async fn list_materialized_view(
     name: String,
@@ -1535,35 +1434,24 @@ pub async fn auto_completion(
 pub async fn ai_text_completion(
     name: String,
     text: String,
-    query_id: Option<&str>,
     line: u32,
     col: u32,
     app: tauri::State<'_, DBPal>,
 ) -> Result<CompletionList, ErrorFrontend> {
-    let db = app.get_backend(name.as_str()).await?;
-    let uuids = if let Some(query_id) = query_id {
-        app.ai_get_search_path(db, &name, query_id, &text).await?
-    } else {
-        vec![name.to_string()]
-    };
-    let mut ret = vec![];
-    for uuid in uuids {
-        let db = app.get_backend(&uuid).await?;
-        let list = tokio::time::timeout(std::time::Duration::from_secs(4), async {
-            db.as_language_server()
-                .ai_text_completion(&text, line, col)
-                .await
-        })
-        .await
-        .map_err(|_| ErrorFrontend::from("ai auto completion timeout"))?
-        .map_err(|e| log::error!("completion failed,err:{}", e))
-        .unwrap_or_default();
-        if list.from_dot {
-            return Ok(list);
-        }
-        ret.extend(list.items);
+    let db = app.get_backend(&name).await?;
+    let list = tokio::time::timeout(std::time::Duration::from_secs(4), async {
+        db.as_language_server()
+            .ai_text_completion(&text, line, col)
+            .await
+    })
+    .await
+    .map_err(|_| ErrorFrontend::from("ai auto completion timeout"))?
+    .map_err(|e| log::error!("completion failed,err:{}", e))
+    .unwrap_or_default();
+    if list.from_dot {
+        return Ok(list);
     }
-    Ok(ret.into())
+    Ok(list)
 }
 
 #[tauri::command]
