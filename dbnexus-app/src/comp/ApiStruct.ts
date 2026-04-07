@@ -513,15 +513,10 @@ export namespace types {
         "enable": boolean;
         "provider": string;
     };
-    export type ChatHistory = ({
-        "ai": {
-            "text": string;
-        };
-    } | {
-        "user": {
-            "text": string;
-        };
-    });
+    export type ChatHistory = {
+        "role": string;
+        "msg": string;
+    };
     export type OpenAIReq = {
         "url": string;
         "api_key": string;

@@ -41,9 +41,9 @@ pub struct OpenAIReq {
 
 #[derive(serde::Serialize, serde::Deserialize, typescript_type_def::TypeDef, Debug, Clone)]
 #[serde(rename_all = "lowercase")]
-pub enum ChatHistory {
-    AI { text: String },
-    User { text: String },
+pub struct ChatHistory {
+    pub role: String,
+    pub msg: String,
 }
 
 impl DBConnectionConfig {

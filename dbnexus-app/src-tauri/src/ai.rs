@@ -9,7 +9,7 @@ use mongodb::bson::doc;
 use rig::agent::{Agent, MultiTurnStreamItem, PromptHook, StreamingError, Text};
 use rig::client::completion::CompletionClient;
 use rig::providers::openai::responses_api::ResponsesCompletionModel;
-use rig::streaming::{StreamedAssistantContent, StreamingChat};
+use rig::streaming::{StreamedAssistantContent, StreamingPrompt};
 use rig::tool::ToolDyn;
 use rig::wasm_compat::{WasmCompatSend, WasmCompatSync};
 use rig::EmptyListError;
@@ -57,6 +57,9 @@ fn make_agent(
     if let Some(t) = req.temperature {
         agent_builder = agent_builder.temperature(t);
     }
+    // TODO how to set this???
+    agent_builder = agent_builder.default_max_turns(10);
+
     let agent = agent_builder.tools(tools).build();
     anyhow::Ok(agent)
 }
@@ -93,17 +96,13 @@ async fn call_openai_stream(
     emit: Emitter,
     comment_fn: impl Fn(&str) -> String + Send + Sync + 'static,
     prompt: Message,
-    history: Vec<Message>,
 ) -> Result<(), ErrorFrontend> {
     #[cfg(debug_assertions)]
     {
         println!("prompt:{:?}", prompt);
-        history.iter().for_each(|x| {
-            println!("history:{:?}", x);
-        });
     }
 
-    let mut prompt = agent.stream_chat(prompt, history).await;
+    let mut prompt = agent.stream_prompt(prompt).await;
     while let Some(chunk) = prompt.next().await {
         let chunk = chunk?;
         match chunk {
@@ -367,7 +366,7 @@ fn expect_export_frame_all_json(
 
 #[tauri::command]
 pub async fn openai_stream(
-    mut req: OpenAIReq,
+    req: OpenAIReq,
     name: String,
     query_id: String,
     emit: Channel<String>,
@@ -406,12 +405,20 @@ pub async fn openai_stream(
             let mut content = vec![];
 
             content.push(UserContent::text(format!(
+                "chat_history:\n{}\n",
+                req.chat_history
+                    .iter()
+                    .map(|x| format!("{}:{}\n", x.role, x.msg,))
+                    .collect::<String>()
+            )));
+            content.push(UserContent::text(format!(
                 "system local is :{}",
                 sys_locale::get_locale().unwrap_or("en-us".to_string())
             )));
             content.push(UserContent::Text(Text {
                 text: req.prompt.clone(),
             }));
+
             content.extend(req.images.iter().map(|x| {
                 UserContent::Image(Image {
                     data: DocumentSourceKind::Url(x.clone()),
@@ -423,19 +430,8 @@ pub async fn openai_stream(
             OneOrMany::many(content.into_iter())?
         },
     };
-    // let db_info = dbpal.make_db_info(&name).await.unwrap();
-    let mut history = vec![];
 
-    history.extend(
-        std::mem::take(&mut req.chat_history)
-            .into_iter()
-            .map(|x| match x {
-                app::ChatHistory::AI { text } => Message::assistant(text),
-                app::ChatHistory::User { text } => Message::user(text),
-            }),
-    );
-
-    let fur = call_openai_stream(agent, emitter, move |x| db_kind.comment(x), msg, history);
+    let fur = call_openai_stream(agent, emitter, move |x| db_kind.comment(x), msg);
     tokio::select! {
         res = fur => {res},
         _ = token.cancelled() => {
@@ -916,7 +912,6 @@ mod tests {
             Arc::new(|x| print!("{}", x)),
             |x| x.to_owned(),
             Message::user("can u help me."),
-            vec![],
         )
         .await
         .unwrap();
@@ -1229,7 +1224,7 @@ human: tell me Mike's age from TABLE Persons
 
         let msg = Message::user(&req.prompt);
 
-        call_openai_stream(agent, p, |x| x.to_owned(), msg, vec![])
+        call_openai_stream(agent, p, |x| x.to_owned(), msg)
             .await
             .unwrap();
     }

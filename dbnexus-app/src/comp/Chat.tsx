@@ -41,48 +41,6 @@ import { useBoolSwitch, useLLM, useNotification, UseSizeConfig } from "./store.t
 
 import AddPhotoAlternateIcon from "@mui/icons-material/AddPhotoAlternate";
 import { open } from "@tauri-apps/plugin-dialog";
-import types from "./ApiStruct.ts";
-class SimpleArrayMemory {
-  history: types.ChatHistory[];
-  k: number;
-  constructor(k = 4) {
-    this.history = [];
-    this.k = k;
-  }
-
-  addUserMessage(message: string) {
-    this.history.push({ user: { text: message } });
-    this._trimHistory(); // 添加后立即修剪
-  }
-
-  addAIMessage(message: string) {
-    this.history.push({ ai: { text: message } });
-    this._trimHistory(); // 添加后立即修剪
-  }
-
-  // 内部修剪：删除最旧的消息，保留最近 k 条
-  _trimHistory() {
-    if (this.history.length > this.k) {
-      // 从头部删除多余的消息
-      this.history.splice(0, this.history.length - this.k);
-    }
-  }
-
-  setK(k: number) {
-    this.k = k;
-    this._trimHistory();
-  }
-
-  // 直接返回数组（已确保最多只有 k 条）
-  getMessages() {
-    return this.history;
-  }
-
-  // 清空历史
-  clear() {
-    this.history = [];
-  }
-}
 
 const showChatKey = "chat-show";
 
@@ -141,7 +99,6 @@ function SqlChatTextInput(props: {
   const { showNotification } = useNotification();
   const [chatHistory, setChatHistory] = useState<string[]>([]);
   const [showChatHistory, setShowChatHistory] = useState(false);
-  const chatMemory = useRef(new SimpleArrayMemory());
   const [invokeStatus, setInvokeStatus] = useState("");
   const [cancelFN, setCancelFN] = useState<() => void>(null);
   const { show, setShow } = useContext(ChatShowContext);
@@ -182,7 +139,6 @@ function SqlChatTextInput(props: {
         editorAppendContent(editor, "\n");
       }
       setInvokeStatus("making prompt");
-      chatMemory.current.addUserMessage(question);
       setChatHistory((e) => [...e, question]);
       let wholeText = "";
       setInvokeStatus("trying getting stream response");
@@ -194,8 +150,7 @@ function SqlChatTextInput(props: {
         queryId.queryId,
         question,
         images,
-
-        chatMemory.current.getMessages(),
+        [],
         (msg) => {
           setInvokeStatus("receiving stream response#" + i);
           editorAppendContent(editor, msg);
@@ -214,7 +169,6 @@ function SqlChatTextInput(props: {
         setInvokeStatus("");
       }, 5000);
       setChatHistory((e) => [...e, wholeText]);
-      chatMemory.current.addAIMessage(wholeText);
     } catch (e) {
       showNotification("error", "call llm failed", e);
     } finally {
