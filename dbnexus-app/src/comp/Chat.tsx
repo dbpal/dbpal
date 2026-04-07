@@ -190,7 +190,7 @@ function SqlChatTextInput(props: {
           border: "2px solid gray",
           borderRadius: "1rem",
           zIndex: 14,
-          overflow: "scroll",
+          overflow: "hidden",
         }}>
         <Stack
           direction="row"

@@ -20,6 +20,7 @@ use dbnexus_db::redis_lang_server::REDIS_COMMANDS_MD_FILES;
 use include_dir::{include_dir, Dir};
 use mongodb::bson::{self, doc, Document};
 use std::collections::HashMap;
+use std::env;
 use std::str::FromStr;
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::{Arc, LazyLock, Mutex, RwLock};
@@ -43,12 +44,16 @@ pub fn set_log_level(level: String) {
     };
     *log_level_ref().write().expect("lock failed") = level;
 }
-
 #[tauri::command]
-
 pub fn set_env(env: HashMap<String, String>) {
-    for e in env {
-        std::env::set_var(e.0, e.1);
+    for (key, value) in env {
+        if value.is_empty() {
+            // 如果值为空，则从当前进程中移除该环境变量
+            env::remove_var(&key);
+        } else {
+            // 否则正常设置
+            env::set_var(&key, &value);
+        }
     }
 }
 
