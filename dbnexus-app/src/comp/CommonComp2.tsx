@@ -92,6 +92,7 @@ import {
 } from "@mui/x-data-grid";
 import { CustomToolbar } from "./CustomToolBar";
 import {
+  useBoolSwitch,
   useConnectionStore,
   useElementSizeStore,
   useFavoriteStore,
@@ -1715,7 +1716,16 @@ function AiMarkdownModel(props: {
 
 function AiMarkdownModelSwitch(props: { setMarkdownModel; markdownModel: boolean }) {
   const { setMarkdownModel, markdownModel } = props;
+  const { getSwitch, setSwitch } = useBoolSwitch();
+  const switchKey = "ai-markdown-model";
+  useEffect(() => {
+    const v = getSwitch(switchKey);
+    setMarkdownModel(v);
+  }, [getSwitch, setMarkdownModel]);
 
+  useEffect(() => {
+    setSwitch(switchKey, markdownModel);
+  }, [markdownModel, setSwitch]);
   return (
     <FormControlLabel
       control={

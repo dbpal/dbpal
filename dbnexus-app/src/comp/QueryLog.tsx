@@ -158,7 +158,7 @@ function QueryLog(props: {
 
   const [dom, setDom] = useState<HTMLDivElement>(null);
 
-  const { switches, setSwitch } = useBoolSwitch();
+  const { getSwitch, setSwitch } = useBoolSwitch();
 
   const slots = useMemo(() => {
     return {
@@ -236,9 +236,9 @@ function QueryLog(props: {
             <FormControlLabel
               control={
                 <Checkbox
-                  checked={switches[saveQueryKey]}
+                  checked={getSwitch(saveQueryKey)}
                   onChange={() => {
-                    setSwitch(saveQueryKey, !switches[saveQueryKey]);
+                    setSwitch(saveQueryKey, !getSwitch(saveQueryKey));
                   }}
                 />
               }

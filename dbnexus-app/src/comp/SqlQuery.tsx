@@ -219,11 +219,10 @@ function SqlQuery(props: {
   const [queryStatus, setQueryStatus] = useState("");
   const tabCtx = useContext(TabContext);
   const querySomeShow = useQueryExtraUI((s) => s.extra);
-  const { switches, setSwitch } = useBoolSwitch();
-  const tryCheckSql = switches[tryCheckSqlSwitchKey];
+  const { getSwitch, setSwitch } = useBoolSwitch();
+  const tryCheckSql = getSwitch(tryCheckSqlSwitchKey);
   const { save: saveQueryLog } = useQueryLogStore();
   const editorDivDom = useRef<HTMLDivElement>(null);
-
   const [markdownModel, setMarkdownModel] = useState(false);
   const [markdownModelValue, setMarkdownModelValue] = useState("");
 
@@ -332,7 +331,7 @@ function SqlQuery(props: {
     conn
       .executeOP(text)
       .then((e) => {
-        if (switches[saveQueryKey]) {
+        if (getSwitch(saveQueryKey)) {
           saveQueryLog(uuid, text, rustResultOk(e));
         }
         setTimeout(() => {
@@ -376,13 +375,13 @@ function SqlQuery(props: {
       conn
         .queryOP(text, emit, getSize(UseSizeConfig.queryLimit))
         .then(() => {
-          if (switches[saveQueryKey]) {
+          if (getSwitch(saveQueryKey)) {
             saveQueryLog(uuid, text, true);
           }
           showNotification("success", "query OK");
         })
         .catch((e) => {
-          if (switches[saveQueryKey]) {
+          if (getSwitch(saveQueryKey)) {
             saveQueryLog(uuid, text, false);
           }
           showNotification("error", "query failed", e);
@@ -397,9 +396,9 @@ function SqlQuery(props: {
       conn,
       editor,
       getSize,
+      getSwitch,
       saveQueryLog,
       showNotification,
-      switches,
       uuid,
       warnDangerousSql,
     ],

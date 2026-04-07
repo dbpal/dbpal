@@ -8,7 +8,7 @@ import { Chip, Tooltip } from "@mui/material";
 import { invoke } from "@tauri-apps/api/core";
 import { AppMarkDown } from "./CommonComp2.tsx";
 import { useBoolSwitch } from "./store.tsx";
-const showRedisKey = "redis-show-doc";
+const showRedisDocKey = "redis-show-doc";
 function RedisQuery(props: {
   favoriteName?: string;
   value?: string;
@@ -18,10 +18,9 @@ function RedisQuery(props: {
   const { favoriteName, value, uuid, handleEditor } = props;
   const [doc, setDoc] = useState("");
   const editorRef = useRef<editor.IStandaloneCodeEditor>(null);
-  const { switches, setSwitch } = useBoolSwitch();
+  const { getSwitch, setSwitch } = useBoolSwitch();
   const [prevLine, setPrevLine] = useState("");
-  const showDoc = switches[showRedisKey];
-
+  const showDoc = getSwitch(showRedisDocKey);
   useEffect(() => {
     const tryUpdateCommand = () => {
       if (!showDoc) {
@@ -82,7 +81,7 @@ function RedisQuery(props: {
               <Tooltip title="toggle show redis document">
                 <Chip
                   onClick={() => {
-                    setSwitch(showRedisKey, !showDoc);
+                    setSwitch(showRedisDocKey, !showDoc);
                   }}
                   style={shrinkAble}
                   color={showDoc ? "success" : "primary"}

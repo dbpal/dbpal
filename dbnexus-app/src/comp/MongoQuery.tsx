@@ -547,7 +547,7 @@ function MongoQuery(props: {
     });
   }, []);
 
-  const { switches } = useBoolSwitch();
+  const { getSwitch } = useBoolSwitch();
   const compilerOp = useTsOptionStore((s) => s.options);
 
   const handleExecute = async () => {
@@ -556,7 +556,7 @@ function MongoQuery(props: {
       showNotification("warning", "can't execute empty statement");
       return;
     }
-    if (switches[saveQueryKey]) {
+    if (getSwitch(saveQueryKey)) {
       saveQueryLog(uuid, editor.getValue(), true, language);
     }
     if (language == MongoLanguage.ts) {

@@ -145,10 +145,9 @@ function SqlChatTextInput(props: {
   const [invokeStatus, setInvokeStatus] = useState("");
   const [cancelFN, setCancelFN] = useState<() => void>(null);
   const { show, setShow } = useContext(ChatShowContext);
-  const { switches, setSwitch } = useBoolSwitch();
-  const cleanEditor = switches[cleanEditorKey];
+  const { getSwitch, setSwitch } = useBoolSwitch();
+  const cleanEditor = getSwitch(cleanEditorKey);
   const [images, setImages] = useState<string[]>([]);
-
   const vis = useContext(TabActiveContext);
   useEffect(() => {
     const closeThis = (e: KeyboardEvent) => {

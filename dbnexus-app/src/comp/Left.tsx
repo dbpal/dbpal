@@ -138,8 +138,8 @@ function LeftTop() {
   const { matchPattern, setMatchPattern, setMaxTree, maxTree } = useMatcher();
   const [matchPatterInput, setMatchPatternInput] = useState("");
   const { showNotification } = useNotification();
-  const { switches, setSwitch } = useBoolSwitch();
-  const show = switches[showTopKey];
+  const { getSwitch, setSwitch } = useBoolSwitch();
+  const show = getSwitch(showTopKey);
   const { appendTab, setCurrentTab, tabs } = useTabsManage();
   const [showEditFilter, setShowEditFilter] = useState(false);
   const showAddConnection = useCallback(
@@ -180,13 +180,13 @@ function LeftTop() {
   }, [appendTab, setCurrentTab, tabs]);
 
   const toggleShow = () => {
-    setSwitch(showTopKey, !switches[showTopKey]);
+    setSwitch(showTopKey, !show);
   };
   const theme = useTheme();
   return (
     <Stack style={{ padding: "2px" }}>
       <Stack>
-        {switches[showTopKey] ? (
+        {getSwitch(showTopKey) ? (
           <IconButton onClick={toggleShow}>
             <KeyboardArrowDownIcon />
           </IconButton>

@@ -139,11 +139,13 @@ interface BoolSwitchState {
   // 使用 Record 代替 Map
   switches: Record<string, boolean>;
   setSwitch: (key: string, value: boolean) => void;
+  getSwitch: (key: string) => boolean;
 }
 
 export const useBoolSwitch = create<BoolSwitchState>()(
   persist(
-    (set) => ({
+    (set, get) => ({
+      getSwitch: (key) => get().switches[key] || false,
       switches: {}, // 初始值是空物件
       setSwitch: (key, value) =>
         set((state) => ({
