@@ -2,6 +2,7 @@ import { ReactNode, useCallback, useEffect, useState } from "react";
 import { FaFolderOpen } from "react-icons/fa";
 import { isEqual } from "lodash-es";
 import * as monaco from "monaco-editor";
+import type {} from "@mui/x-data-grid/themeAugmentation";
 import {
   Autocomplete,
   Box,
@@ -1165,7 +1166,6 @@ function makeComponents(
         },
       },
     },
-    //@ts-ignore
     MuiDataGrid: {
       styleOverrides: {
         root: {
@@ -1175,10 +1175,12 @@ function makeComponents(
         },
         cell: {
           fontSize: "1rem",
+          border: "1.5px solid #7c7c7c",
         },
         columnHeaders: {
           fontSize: dataGridheaderFontSize,
           boxShadow: "0 1px 3px",
+          // border: "2px solid #7c7c7c ",
         },
       },
       defaultProps: {
