@@ -624,18 +624,20 @@ function SqlQuery(props: {
               onMount={handleEditorDidMount}
             />
           </div>
-          <EditorBar
-            left={
-              <Stack
-                style={{
-                  flex: 1,
-                }}
-                direction="row">
-                {sqlErr && <PossibleParseError parseErr={sqlErr} editor={editor} />}
-              </Stack>
-            }
-            pos={pos}
-          />
+          {!markdownModel && (
+            <EditorBar
+              left={
+                <Stack
+                  style={{
+                    flex: 1,
+                  }}
+                  direction="row">
+                  {sqlErr && <PossibleParseError parseErr={sqlErr} editor={editor} />}
+                </Stack>
+              }
+              pos={pos}
+            />
+          )}
         </Panel>
         <PanelResizeHandle
           style={{ height: resizeHandlerSize }}
