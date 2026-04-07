@@ -14,7 +14,8 @@ import {
 } from "./helper.ts";
 import { GridColDef } from "@mui/x-data-grid";
 import * as monaco from "monaco-editor";
-import { readFile } from "@tauri-apps/plugin-fs";
+import { readFile, stat } from "@tauri-apps/plugin-fs";
+import { filesize } from "filesize";
 
 /**
  * Converts a local file path to a Data URL (base64)
@@ -23,6 +24,13 @@ import { readFile } from "@tauri-apps/plugin-fs";
  */
 const convertPathToDataUrl = async (filePath: string): Promise<string> => {
   try {
+    const fileInfo = await stat(filePath);
+
+    if (fileInfo.size > 10 * 1024 * 1024) {
+      message(`file is too large ${filesize(fileInfo.size)} exceed 10M`);
+      return;
+    }
+
     // 1. Read file as Uint8Array
     const contents: Uint8Array = await readFile(filePath);
 
