@@ -155,13 +155,14 @@ function reloadOK(showNotification) {
   showNotification("success", "data loaded.");
 }
 
+const dbpalQuerykey = "_dbpal_query_id_xxx_yyy_zzz";
 const autoCompletion = async (
-  modal: editor.ITextModel,
+  model: editor.ITextModel,
   pos: Position,
 ): Promise<languages.CompletionList> => {
   try {
-    const sql = modal.getValue();
-    const name = SetAutoCompletionName.get(modal.id);
+    const sql = model.getValue();
+    const name = model[dbpalQuerykey] as NameAndQueryId;
     if (!name) {
       console.error("editor id map to backend name is nul,this is internal bug");
       return;
@@ -190,7 +191,7 @@ const aiTextAutoCompletion = async (
     const text = modal.getValue();
     {
       // try if this is ai text completion
-      const name = AITextCompletionName.get(modal.id);
+      const name = modal[dbpalQuerykey];
       if (name) {
         const completionItem = await invoke<types.CompletionList>(
           "ai_text_completion",
@@ -231,7 +232,7 @@ monaco.languages.registerCompletionItemProvider("text", {
 
 monaco.languages.registerDocumentFormattingEditProvider("sql", {
   provideDocumentFormattingEdits(model, options) {
-    const name = SetAutoCompletionName.get(model.id);
+    const name = model[dbpalQuerykey];
     if (!name) {
       console.error("editor id map to backend name is nul,this is internal bug");
       return;
@@ -447,31 +448,6 @@ class NameAndQueryId {
     public queryId?: string,
   ) {}
 }
-class SetAutoCompletionName {
-  static id2Name = new Map<string, NameAndQueryId>();
-  static set(editorId: string, x: NameAndQueryId) {
-    SetAutoCompletionName.id2Name.set(editorId, x);
-  }
-
-  static get(editorId: string): NameAndQueryId | null {
-    return SetAutoCompletionName.id2Name.get(editorId);
-  }
-}
-
-class AITextCompletionName {
-  static id2Name = new Map<string, string>();
-  static set(editorID: string, queryEditorID: string) {
-    AITextCompletionName.id2Name.set(editorID, queryEditorID);
-  }
-
-  static get(editorId: string): NameAndQueryId | null {
-    let id = AITextCompletionName.id2Name.get(editorId);
-    if (!id) {
-      return null;
-    }
-    return SetAutoCompletionName.get(id);
-  }
-}
 
 type FieldAndGridField = types.Field & GridColDef;
 
@@ -529,7 +505,7 @@ async function editorAppendContent(editor: editor.IStandaloneCodeEditor, text) {
 }
 
 export {
-  AITextCompletionName,
+  dbpalQuerykey,
   dropDatabase,
   dropSchema,
   editorAppendContent,
@@ -542,7 +518,6 @@ export {
   PassWordManager,
   QueryConn,
   reloadOK,
-  SetAutoCompletionName,
   convertPathToDataUrl,
   uint8ArrayToBase64,
 };

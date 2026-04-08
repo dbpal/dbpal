@@ -1315,7 +1315,6 @@ function AllKindQuery(props: {
         />
       );
       break;
-
     case DataSourceKind.CouchBase:
       return <CouchBaseQuery uuid={uuid} value={value} handleEditor={handleEditor} />;
     default:

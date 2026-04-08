@@ -590,6 +590,8 @@ function isDarkStr(x: string) {
   return x == "dark";
 }
 
+const QueryIDContext = createContext("");
+
 export {
   isDarkStr,
   saveQueryKey,
@@ -644,6 +646,7 @@ export {
   validJson,
   ViewKind,
   MonacoEditor,
+  QueryIDContext,
 };
 
 export type MongoFindParameter = {

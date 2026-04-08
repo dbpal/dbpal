@@ -65,6 +65,7 @@ import {
 import { editor, Position } from "monaco-editor";
 import { invoke } from "@tauri-apps/api/core";
 import {
+  dbpalQuerykey,
   EscDownEvent,
   extractBaseName,
   makeFormatFn,
@@ -72,7 +73,6 @@ import {
   modalStyle,
   NameAndQueryId,
   reloadOK,
-  SetAutoCompletionName,
 } from "./Common";
 import AddIcon from "@mui/icons-material/Add";
 import types from "./ApiStruct";
@@ -1519,7 +1519,7 @@ function SetFilterSort(props: {
             setEditor(e);
             e.focus();
             editorPositionToEnd(e);
-            SetAutoCompletionName.set(e.getModel().id, new NameAndQueryId(uuid, kind));
+            e.getModel()[dbpalQuerykey] = new NameAndQueryId(uuid, kind);
           }}
           language={getLanguageFromDataSourceKind(kind)}
         />

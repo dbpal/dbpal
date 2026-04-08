@@ -2,8 +2,10 @@ import {
   ChatShowContext,
   DataSourceKind,
   extractConfigNameFromUuid,
+  QueryIDContext,
   TabActiveContext,
 } from "./helper.ts";
+import { v4 as uuidv4 } from "uuid";
 import CloseIcon from "@mui/icons-material/Close";
 import {
   Box,
@@ -28,13 +30,13 @@ import {
 import ArrowCircleUpIcon from "@mui/icons-material/ArrowCircleUp";
 import EventNoteIcon from "@mui/icons-material/EventNote";
 import {
-  AITextCompletionName,
   convertPathToDataUrl,
+  dbpalQuerykey,
   editorAppendContent,
   EscDownEvent,
   modalHandleClose,
   modalStyle,
-  SetAutoCompletionName,
+  NameAndQueryId,
 } from "./Common.ts";
 import { ModalHeader } from "./CommonComp.tsx";
 import { AllKindQuery } from "./Left.tsx";
@@ -54,7 +56,7 @@ import {
 import AddPhotoAlternateIcon from "@mui/icons-material/AddPhotoAlternate";
 import { open } from "@tauri-apps/plugin-dialog";
 
-function Chat(props: {
+function AllKindChat(props: {
   uuid: string;
   kind: DataSourceKind;
   value?: string;
@@ -72,31 +74,35 @@ function Chat(props: {
     setSwitch(showChatKey, show);
   }, [setSwitch, show, showChatKey]);
 
+  // use UUID
+  let queryId = useRef(uuidv4());
   return (
-    <Stack
-      style={{
-        height: "100%",
-        width: "100%",
-        position: "relative",
-      }}>
-      <ChatShowContext.Provider
-        value={{
-          show,
-          setShow,
+    <QueryIDContext.Provider value={queryId.current}>
+      <Stack
+        style={{
+          height: "100%",
+          width: "100%",
+          position: "relative",
         }}>
-        <AllKindQuery
-          uuid={uuid}
-          kind={kind}
-          handleEditor={(e) => {
-            setEditor(e);
-          }}
-          favoriteName={favoriteName}
-          value={value}
-          language={language}
-        />
-        {llm && editor && <SqlChatTextInput uuid={uuid} kind={kind} editor={editor} />}
-      </ChatShowContext.Provider>
-    </Stack>
+        <ChatShowContext.Provider
+          value={{
+            show,
+            setShow,
+          }}>
+          <AllKindQuery
+            uuid={uuid}
+            kind={kind}
+            handleEditor={(e) => {
+              setEditor(e);
+            }}
+            favoriteName={favoriteName}
+            value={value}
+            language={language}
+          />
+          {llm && editor && <SqlChatTextInput uuid={uuid} editor={editor} />}
+        </ChatShowContext.Provider>
+      </Stack>
+    </QueryIDContext.Provider>
   );
 }
 
@@ -104,7 +110,6 @@ const cleanEditorKey = "clean-editor-key";
 
 function SqlChatTextInput(props: {
   uuid: string;
-  kind: DataSourceKind;
   editor: editor.IStandaloneCodeEditor;
 }) {
   const { editor, uuid } = props;
@@ -159,7 +164,8 @@ function SqlChatTextInput(props: {
       let wholeText = "";
       setInvokeStatus("trying getting stream response");
       let i = 0;
-      let queryId = SetAutoCompletionName.get(editor.getModel().id);
+      let queryId = editor.getModel()[dbpalQuerykey] as NameAndQueryId;
+
       saveMessage(connName, "user", question);
       const history = messagesByNames[connName];
       await llm.stream(
@@ -167,7 +173,6 @@ function SqlChatTextInput(props: {
         queryId.queryId,
         question,
         images,
-
         (function () {
           if (!history) {
             return [];
@@ -303,9 +308,6 @@ function SqlChatTextInput(props: {
         <SimpleFlexEditor
           language="text"
           barLeft={invokeStatus && <Typography color="info">{invokeStatus}</Typography>}
-          handleEditor={(e) => {
-            AITextCompletionName.set(e.getModel().id, editor.getModel().id);
-          }}
           handleValue={(v) => {
             setQuestion(v);
           }}
@@ -461,4 +463,4 @@ function ChatHistory(props: { connName: string; handleClose: () => void }) {
   );
 }
 
-export { Chat as AllKindChat };
+export { AllKindChat };

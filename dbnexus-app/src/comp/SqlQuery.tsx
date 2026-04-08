@@ -17,13 +17,13 @@ import { ReactNode, useCallback, useContext, useEffect, useRef, useState } from 
 import FastForwardIcon from "@mui/icons-material/FastForward";
 import { editor, Position } from "monaco-editor";
 import {
+  dbpalQuerykey,
   EscDownEvent,
   modalHandleClose,
   modalStyle,
   NameAndQueryId,
   QueryConn,
   QueryEvent,
-  SetAutoCompletionName,
 } from "./Common.ts";
 import { BsFillLightbulbFill } from "react-icons/bs";
 import { FaUpload } from "react-icons/fa";
@@ -44,6 +44,7 @@ import {
   TabActiveContext,
   saveQueryKey,
   MonacoEditor,
+  QueryIDContext,
 } from "./helper.ts";
 import ArrowCircleDownRoundedIcon from "@mui/icons-material/ArrowCircleDownRounded";
 import { ExportView } from "./Export.tsx";
@@ -62,7 +63,7 @@ import {
 import { ModifyLLMConfigModal } from "./Settings.tsx";
 import { cancelTask, checkSql } from "./handlers.ts";
 import { Channel } from "@tauri-apps/api/core";
-import { v4 as uuidv4 } from "uuid";
+
 import {
   useBoolSwitch,
   useConfirmMsg,
@@ -212,7 +213,8 @@ function SqlQuery(props: {
   const [showQueryLog, setShowQueryLog] = useState(false);
   const [fetchDur, setFetchDur] = useState(0);
   const [executeTimes, setExecuteTimes] = useState(0);
-  const [conn] = useState<QueryConn>(new QueryConn(uuid, uuidv4(), kind));
+  const queryId = useContext(QueryIDContext);
+  const conn = useRef<QueryConn>(new QueryConn(uuid, queryId, kind));
   const getSize = useSizeStore((s) => s.getSize);
   const [showExport, setShowExport] = useState(false);
   const [openOk, setOpenOk] = useState(false);
@@ -260,7 +262,7 @@ function SqlQuery(props: {
 
   useEffect(() => {
     setMakeConnLoading(true);
-    conn
+    conn.current
       .open()
       .then(() => {
         setOpenOk(true);
@@ -271,16 +273,16 @@ function SqlQuery(props: {
       .finally(() => {
         setMakeConnLoading(false);
       });
-  }, [conn, showNotification]);
+  }, [showNotification]);
 
   useEffect(() => {
     return () => {
-      conn.destroy();
+      conn.current.destroy();
     };
-  }, [conn]);
+  }, []);
   const handleReconnect = async () => {
     setMakeConnLoading(true);
-    conn
+    conn.current
       .open()
       .then(() => {
         showNotification("success", "Reconnect OK");
@@ -294,28 +296,25 @@ function SqlQuery(props: {
         setMakeConnLoading(false);
       });
   };
-  const warnDangerousSql = useCallback(
-    async (text: string): Promise<boolean> => {
-      try {
-        if (await conn.isDangerSql(text)) {
-          return await secondConfirm({
-            confirmText: "Execute",
-            title: "This is a dangerous sql",
-            content: `Are u sure going to execute!!!!'`,
-          });
-        } else {
-          return true;
-        }
-      } catch (e) {
-        if (import.meta.env.DEV) {
-          console.log("warnDangerousSql error", e);
-        }
-
+  const warnDangerousSql = useCallback(async (text: string): Promise<boolean> => {
+    try {
+      if (await conn.current.isDangerSql(text)) {
+        return await secondConfirm({
+          confirmText: "Execute",
+          title: "This is a dangerous sql",
+          content: `Are u sure going to execute!!!!'`,
+        });
+      } else {
         return true;
       }
-    },
-    [conn],
-  );
+    } catch (e) {
+      if (import.meta.env.DEV) {
+        console.log("warnDangerousSql error", e);
+      }
+
+      return true;
+    }
+  }, []);
 
   const handleExecute = async () => {
     const text = getEditorText(editor, showNotification);
@@ -328,7 +327,7 @@ function SqlQuery(props: {
     }
     setResp([]);
     setLoading(true);
-    conn
+    conn.current
       .executeOP(text)
       .then((e) => {
         if (getSwitch(saveQueryKey)) {
@@ -372,7 +371,7 @@ function SqlQuery(props: {
         });
       });
       const fetchBegin = new Date();
-      conn
+      conn.current
         .queryOP(text, emit, getSize(UseSizeConfig.queryLimit))
         .then(() => {
           if (getSwitch(saveQueryKey)) {
@@ -405,13 +404,10 @@ function SqlQuery(props: {
   );
 
   useEffect(() => {
-    if (conn && editor) {
-      SetAutoCompletionName.set(
-        editor.getModel().id,
-        new NameAndQueryId(uuid, kind, conn.queryId),
-      );
+    if (editor) {
+      editor.getModel()[dbpalQuerykey] = new NameAndQueryId(uuid, kind, queryId);
     }
-  }, [conn, editor, kind, uuid]);
+  }, [editor, kind, queryId, uuid]);
 
   const supportExplain = [
     DataSourceKind.Sqlite,
@@ -432,14 +428,14 @@ function SqlQuery(props: {
     const cancel = (e: KeyboardEvent) => {
       if (e.key == "Escape" && loading && vis) {
         e.preventDefault();
-        cancelTask(conn.queryId);
+        cancelTask(queryId);
       }
     };
     document.addEventListener("keydown", cancel);
     return () => {
       document.removeEventListener("keydown", cancel);
     };
-  }, [conn.queryId, loading, showNotification, vis]);
+  }, [queryId, loading, showNotification, vis]);
 
   return (
     <div
@@ -467,7 +463,7 @@ function SqlQuery(props: {
             uuid={uuid}
             executeTimes={executeTimes}
             kind={kind}
-            queryId={conn.queryId}
+            queryId={queryId}
           />
           <QueryStatus status={queryStatus} />
           <Stack
@@ -509,7 +505,7 @@ function SqlQuery(props: {
                 {loading && (
                   <CancelButton
                     handleCancel={() => {
-                      cancelTask(conn.queryId);
+                      cancelTask(queryId);
                     }}
                   />
                 )}
@@ -537,8 +533,8 @@ function SqlQuery(props: {
                 </Tooltip>
               </>
             )}
-            {openOk && conn.supportTransaction() && (
-              <SqlTransaction executeTimes={executeTimes} conn={conn} />
+            {openOk && conn.current.supportTransaction() && (
+              <SqlTransaction executeTimes={executeTimes} conn={conn.current} />
             )}
             <Tooltip title={"reconnect"}>
               <IconButton
@@ -667,8 +663,8 @@ function SqlQuery(props: {
               supportKind={["csv", "json", "jsonline", "xlsx", "html", "markdown"]}
               exportOP={async (kind, file, taskId, sizeEmitter) => {
                 const sql = getEditorText(editor, showNotification);
-                return conn.exportQueryResult(
-                  conn.queryId,
+                return conn.current.exportQueryResult(
+                  queryId,
                   sql,
                   kind,
                   file,

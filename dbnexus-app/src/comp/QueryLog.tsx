@@ -12,11 +12,11 @@ import {
 import { DataGrid, GridColDef, GridSlotsComponent } from "@mui/x-data-grid";
 import { useCallback, useContext, useEffect, useMemo, useState } from "react";
 import {
+  dbpalQuerykey,
   EscDownEvent,
   modalHandleClose,
   modalStyle,
   NameAndQueryId,
-  SetAutoCompletionName,
 } from "./Common";
 import DoneIcon from "@mui/icons-material/Done";
 import CloseIcon from "@mui/icons-material/Close";
@@ -290,10 +290,7 @@ function QueryLog(props: {
             <SimpleFlexEditor
               value={selectSql.sql}
               handleEditor={(e) => {
-                SetAutoCompletionName.set(
-                  e.getModel().id,
-                  new NameAndQueryId(uuid, kind, queryId),
-                );
+                e.getModel()[dbpalQuerykey] = new NameAndQueryId(uuid, kind, queryId);
               }}
               language={
                 selectSql.language

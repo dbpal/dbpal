@@ -47,12 +47,12 @@ import { ModalHeader, SelectPageSize } from "./CommonComp.tsx";
 import { Channel, invoke } from "@tauri-apps/api/core";
 import types from "./ApiStruct.ts";
 import {
+  dbpalQuerykey,
   EscDownEvent,
   modalHandleClose,
   modalStyle,
   NameAndQueryId,
   QueryEvent,
-  SetAutoCompletionName,
 } from "./Common.ts";
 import { editor, Position } from "monaco-editor";
 import ClearIcon from "@mui/icons-material/Clear";
@@ -797,9 +797,9 @@ function CouchBaseQuery(props: {
           handleEditor={(e) => {
             setEditor(e);
             handleEditor(e);
-            SetAutoCompletionName.set(
-              e.getModel().id,
-              new NameAndQueryId(uuid, DataSourceKind.CouchBase),
+            e.getModel()[dbpalQuerykey] = new NameAndQueryId(
+              uuid,
+              DataSourceKind.CouchBase,
             );
           }}
         />

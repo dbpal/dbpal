@@ -7,13 +7,7 @@ import {
   useRef,
   useState,
 } from "react";
-import {
-  modalStyle,
-  EscDownEvent,
-  modalHandleClose,
-  SetAutoCompletionName,
-  NameAndQueryId,
-} from "./Common";
+import { modalStyle, EscDownEvent, modalHandleClose } from "./Common";
 import ContentCopyIcon from "@mui/icons-material/ContentCopy";
 import { invoke } from "@tauri-apps/api/core";
 import { IoConstructOutline } from "react-icons/io5";
@@ -45,7 +39,6 @@ import {
   DataSourceKind,
   extractFieldAndIDFromMouseEvent,
   generateRandomString,
-  getLanguageFromDataSourceKind,
   getSupportExportKind,
   handleCopyToClipboard,
   secondConfirm,
@@ -62,7 +55,7 @@ import {
   GridSlotsComponent,
   GridSlotsComponentsProps,
 } from "@mui/x-data-grid";
-import { AppDataGridPagination, SimpleFlexEditor } from "./CommonComp2";
+import { AppDataGridPagination } from "./CommonComp2";
 import { createViewSql, listView, showViewColumns } from "./handlers";
 import { filesize } from "filesize";
 import {
@@ -74,6 +67,7 @@ import {
   useUserSettings,
   useMatcherFn,
 } from "./store";
+import { AllKindChat } from "./Chat";
 function ViewsTree(props: { viewKind: ViewKind }) {
   const { viewKind } = props;
   const { uuid } = useContext(UuidContext);
@@ -194,19 +188,7 @@ function StatementStructure(props: {
           reload
         </Button>
       </Stack>
-      {sql && (
-        <SimpleFlexEditor
-          readOnly={true}
-          language={getLanguageFromDataSourceKind(kind)}
-          value={sql}
-          handleEditor={(editor) => {
-            SetAutoCompletionName.set(
-              editor.getModel().id,
-              new NameAndQueryId(uuid, kind),
-            );
-          }}
-        />
-      )}
+      {sql && <AllKindChat uuid={uuid} kind={kind} value={sql} />}
     </Stack>
   );
 }
