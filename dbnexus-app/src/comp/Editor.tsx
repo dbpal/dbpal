@@ -62,7 +62,7 @@ function MonacoEditor({ value, language, onMount, readOnly }: MonacoEditorProps)
     if (!monacoInstance) {
       return;
     }
-    if (value && value != monacoInstance.getValue()) {
+    if (typeof value == "string" && value != monacoInstance.getValue()) {
       monacoInstance.setValue(value);
     }
   }, [monacoInstance, value]);

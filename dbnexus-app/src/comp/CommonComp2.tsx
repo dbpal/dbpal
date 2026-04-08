@@ -120,7 +120,12 @@ function AppCode(props: {
   const { showNotification } = useNotification();
   return (
     <Paper
-      style={{ padding: "2px 4px", borderRadius: "0.4rem", margin: 0 }}
+      style={{
+        padding: "2px 4px",
+        borderRadius: "0.4rem",
+        margin: 0,
+        overflow: "auto",
+      }}
       elevation={10}>
       <Stack direction="row" style={{ alignItems: "center" }}>
         <IconButton
@@ -141,8 +146,9 @@ function AppCode(props: {
           </IconButton>
         )}
       </Stack>
+
       <Highlight
-        theme={theme.palette.mode == "dark" ? themes.vsDark : themes.vsLight}
+        theme={theme.palette.mode == "dark" ? themes.oneDark : themes.oneLight}
         code={codeBlock}
         language={language}>
         {({ style, tokens, getLineProps, getTokenProps }) => (

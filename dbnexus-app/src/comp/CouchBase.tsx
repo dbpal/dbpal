@@ -871,32 +871,41 @@ function CouchBaseQuery(props: { uuid: string; value?: string }) {
           />
         </div>
       </Panel>
-      <PanelResizeHandle
-        style={{
-          height: resizeHandlerSize,
-        }}
-        id="chat-resize-bar"
-        className="resize-handle"
-      />
 
-      <Panel collapsible collapsedSize={0} minSize={10} style={{ overflow: "auto" }}>
-        {viewMode == CBQueryViewMode.Json && (
-          <div
+      {resp.length > 0 && (
+        <>
+          <PanelResizeHandle
             style={{
-              overflow: "auto",
-              display: "grid",
-              gridTemplateColumns: `repeat(${getSize(UseSizeConfig.gridCol)}, 1fr)`,
-              paddingRight: "1.2rem",
-            }}>
-            {resp.map((value, index) => {
-              return <AppCode key={index} language="json" codeBlock={value} />;
-            })}
-          </div>
-        )}
-        {viewMode == CBQueryViewMode.Table && tableResp && (
-          <QueryResp data={tableResp} />
-        )}
-      </Panel>
+              height: resizeHandlerSize,
+            }}
+            id="chat-resize-bar"
+            className="resize-handle"
+          />
+          <Panel
+            collapsible
+            collapsedSize={0}
+            minSize={10}
+            style={{ overflow: "auto" }}>
+            {viewMode == CBQueryViewMode.Json && (
+              <div
+                style={{
+                  overflow: "auto",
+                  display: "grid",
+                  gridTemplateColumns: `repeat(${getSize(UseSizeConfig.gridCol)}, 1fr)`,
+                  paddingRight: "1.2rem",
+                }}>
+                {resp.map((value, index) => {
+                  return <AppCode key={index} language="json" codeBlock={value} />;
+                })}
+              </div>
+            )}
+            {viewMode == CBQueryViewMode.Table && tableResp && (
+              <QueryResp data={tableResp} />
+            )}
+          </Panel>{" "}
+        </>
+      )}
+
       {showExport && (
         <Modal
           open={showExport}

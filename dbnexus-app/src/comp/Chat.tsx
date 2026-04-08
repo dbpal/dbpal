@@ -7,15 +7,19 @@ import {
 } from "./helper.ts";
 import { v4 as uuidv4 } from "uuid";
 import CloseIcon from "@mui/icons-material/Close";
+import SaveIcon from "@mui/icons-material/Save";
+import { TbPrompt } from "react-icons/tb";
 import {
   Box,
   Checkbox,
+  CircularProgress,
   Divider,
   FormControlLabel,
   IconButton,
   Modal,
   Paper,
   Stack,
+  TextField,
   Tooltip,
   Typography,
 } from "@mui/material";
@@ -49,6 +53,7 @@ import {
   useChatStore,
   useLLM,
   useNotification,
+  usePromptStore,
   UseSizeConfig,
   useSizeStore,
 } from "./store.tsx";
@@ -115,6 +120,7 @@ function SqlChatTextInput(props: {
   const [question, setQuestion] = useState("");
   const { showNotification } = useNotification();
   const [showChatHistory, setShowChatHistory] = useState(false);
+  const [showEditPrompt, setShowEditPrompt] = useState(false);
   const [invokeStatus, setInvokeStatus] = useState("");
   const [cancelFN, setCancelFN] = useState<() => void>(null);
   const { show, setShow } = useContext(ChatShowContext);
@@ -142,6 +148,7 @@ function SqlChatTextInput(props: {
   useEffect(() => {
     if (!show) {
       setShowChatHistory(false);
+      setShowEditPrompt(false);
     }
   }, [show]);
 
@@ -251,6 +258,16 @@ function SqlChatTextInput(props: {
                 <EventNoteIcon />
               </IconButton>
             </Tooltip>
+
+            <Tooltip title="edit user prompt,this send to LLM every time">
+              <IconButton
+                onClick={() => {
+                  setShowEditPrompt((e) => !e);
+                }}>
+                <TbPrompt style={{ fontSize: "1.8rem" }} />
+              </IconButton>
+            </Tooltip>
+
             <SliderSize config={UseSizeConfig.chatMemoryKey} />
             <Tooltip title="delete all content from the editor before we receive the response">
               <FormControlLabel
@@ -316,14 +333,22 @@ function SqlChatTextInput(props: {
           dontFocus
         />
       </Paper>
-      {showChatHistory && (
-        <ChatHistory
-          connName={connName}
-          handleClose={() => {
-            setShowChatHistory(false);
-          }}
-        />
-      )}
+
+      <ChatHistory
+        connName={connName}
+        handleClose={() => {
+          setShowChatHistory(false);
+        }}
+        showChatHistory={showChatHistory}
+      />
+
+      <EditPrompt
+        connName={connName}
+        showEdit={showEditPrompt}
+        handleClose={() => {
+          setShowEditPrompt(false);
+        }}
+      />
     </>
   );
 }
@@ -397,21 +422,130 @@ function ShowChatImages(props: { images: string[]; setImages }) {
   );
 }
 
-function ChatHistory(props: { connName: string; handleClose: () => void }) {
-  const { handleClose, connName } = props;
-
-  const { messagesByNames, clearHistory } = useChatStore();
+function ChatHistory(props: {
+  connName: string;
+  handleClose: () => void;
+  showChatHistory;
+}) {
+  const { handleClose, connName, showChatHistory } = props;
+  const { messagesByNames, clearHistory, fetchHistory, isLoading } = useChatStore();
   const wrapperRef = useRef(null);
+
+  const [matchStr, setMatchStr] = useState("");
+  const history = messagesByNames[connName];
+
   useEffect(() => {
     const el = wrapperRef.current;
     if (el) el.scrollTop = el.scrollHeight;
   }, []);
 
-  const history = messagesByNames[connName];
-
+  useEffect(() => {
+    fetchHistory(connName);
+  }, [connName, fetchHistory]);
   const handleClear = () => {
     clearHistory(connName);
     handleClose();
+  };
+  return (
+    <Paper
+      style={{
+        position: "absolute",
+        bottom: 0,
+        right: 0,
+        width: "87%",
+        height: "87%",
+        zIndex: 14,
+        overflow: "auto",
+        padding: "0.4rem",
+        display: showChatHistory ? "block" : "none",
+      }}
+      ref={wrapperRef}>
+      <ModalHeader
+        title="chat history"
+        headerExtra={
+          <>
+            {isLoading && <CircularProgress />}
+            <TextField
+              value={matchStr}
+              onChange={(e) => {
+                setMatchStr(e.target.value);
+              }}
+              style={{ width: "10rem" }}
+              helperText="match string"
+            />
+            <Tooltip title="delete history">
+              <IconButton onClick={handleClear}>
+                <DeleteForeverIcon />
+              </IconButton>
+            </Tooltip>
+          </>
+        }
+        handleClose={handleClose}
+      />
+      {history && (
+        <Stack>
+          {history
+            .filter((his) => (matchStr ? his.content.includes(matchStr) : true))
+            .map((his, index) => {
+              return (
+                <div key={index}>
+                  <Stack
+                    direction="row"
+                    style={{
+                      justifyContent: his.role == "user" ? "flex-start" : "flex-end",
+                      maxHeight: "37vh",
+                      overflow: "auto",
+                    }}>
+                    <div
+                      style={{
+                        width: "85%",
+                        padding: "2px 4px",
+                        overflow: "auto",
+                      }}>
+                      <AppMarkDown>{his.content}</AppMarkDown>
+                    </div>
+                  </Stack>
+                  {/* If have match string , I don't know the message is paired up */}
+                  {his.role == "assistant" && <Divider />}
+                </div>
+              );
+            })}
+        </Stack>
+      )}
+    </Paper>
+  );
+}
+
+function EditPrompt(props: { connName: string; handleClose: () => void; showEdit }) {
+  const { handleClose, connName, showEdit } = props;
+  const { removePrompt, savePrompt, prompts } = usePromptStore();
+  const [value, setValue] = useState(prompts[connName] || "");
+  const { showNotification } = useNotification();
+  const handleDelete = () => {
+    try {
+      removePrompt(connName);
+      showNotification("success", "delete prompt success");
+      handleClose();
+    } catch (e) {
+      showNotification("error", "delete prompt failed", e);
+    }
+  };
+
+  useEffect(() => {
+    setValue(prompts[connName] || "");
+  }, [connName, prompts]);
+
+  useEffect(() => {
+    console.log("current edit prompt value", value);
+  }, [value]);
+
+  const handleSave = () => {
+    try {
+      savePrompt(connName, value);
+      showNotification("success", "save prompt success");
+    } catch (e) {
+      showNotification("error", "save prompt failed", e);
+    }
   };
 
   return (
@@ -425,42 +559,35 @@ function ChatHistory(props: { connName: string; handleClose: () => void }) {
         zIndex: 14,
         overflow: "auto",
         padding: "0.4rem",
-      }}
-      ref={wrapperRef}>
+        display: showEdit ? "flex" : "none",
+        flexDirection: "column",
+      }}>
       <ModalHeader
-        title="chat history"
+        title="edit prompt"
         headerExtra={
-          <Tooltip title="delete history">
-            <IconButton onClick={handleClear}>
-              <DeleteForeverIcon />
-            </IconButton>
-          </Tooltip>
+          <>
+            <Tooltip title="save this prompt">
+              <IconButton onClick={handleSave}>
+                <SaveIcon />
+              </IconButton>
+            </Tooltip>
+            <Tooltip title="delete this prompt ">
+              <IconButton onClick={handleDelete}>
+                <DeleteForeverIcon />
+              </IconButton>
+            </Tooltip>
+          </>
         }
         handleClose={handleClose}
       />
-      {history && (
-        <Stack>
-          {history.map((his, index) => {
-            return (
-              <div key={index}>
-                <Stack
-                  direction="row"
-                  style={{
-                    justifyContent: index % 2 == 0 ? "flex-start" : "flex-end",
-                  }}>
-                  <div
-                    style={{
-                      width: "85%",
-                    }}>
-                    <AppMarkDown>{his.content}</AppMarkDown>
-                  </div>
-                </Stack>
-                {index > 0 && (index + 1) % 2 == 0 && <Divider />}
-              </div>
-            );
-          })}
-        </Stack>
-      )}
+
+      <SimpleFlexEditor
+        language="text"
+        value={value}
+        handleValue={(v) => {
+          setValue(v);
+        }}
+      />
     </Paper>
   );
 }

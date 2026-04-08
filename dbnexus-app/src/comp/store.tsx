@@ -1260,3 +1260,39 @@ export const useChatStore = create<ChatState>((set, get) => ({
     }
   },
 }));
+
+interface UserPromptState {
+  prompts: Record<string, string>;
+  savePrompt: (name: string, text: string) => void;
+  removePrompt: (name: string) => void;
+}
+
+export const usePromptStore = create<UserPromptState>()(
+  persist(
+    (set) => ({
+      // Initial state
+      prompts: {},
+
+      // Save or update a prompt
+      savePrompt: (name, text) =>
+        set((state) => ({
+          prompts: {
+            ...state.prompts,
+            [name]: text,
+          },
+        })),
+
+      // Remove a specific prompt
+      removePrompt: (name) =>
+        set((state) => {
+          const newPrompts = { ...state.prompts };
+          delete newPrompts[name];
+          return { prompts: newPrompts };
+        }),
+    }),
+    {
+      name: "user-prompt-storage", // Unique name for the item in storage
+      storage: new TauriStoreManger<UserPromptState>(), // Defaults to localStorage
+    },
+  ),
+);
