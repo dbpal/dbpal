@@ -24,6 +24,7 @@ import {
   generateRandomString,
   isMacOs,
   isWindows,
+  jumpToEditorText,
   MonacoEditor,
   MongoLanguage,
   QueryIDEditorChatCtx,
@@ -732,6 +733,10 @@ function MongoQuery(props: {
         setMarkdownModelValue={setMarkdownModelValue}
         editor={editor}
         markdownModelValue={markdownModelValue}
+        appCodeHandleEdit={({ code }) => {
+          setMarkdownModel(false);
+          jumpToEditorText(editor, code);
+        }}
         appcodeExtra={({ code }) => {
           return (
             <ExecuteButton

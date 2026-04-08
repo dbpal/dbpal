@@ -585,6 +585,49 @@ const QueryIDEditorChatCtx = createContext<{ queryId: string; editor; setEditor 
 );
 
 export type AppCodeExtra = (_: { code: string; language: string }) => ReactNode;
+export type AppCodeHanleEdit = (_: { code: string }) => void;
+
+/**
+ * Focuses and scrolls to the first occurrence of a text string in the editor.
+ * @param editor The monaco editor instance
+ * @param searchText The string to search for
+ * @param caseSensitive Whether to match case (default: false)
+ */
+export function jumpToEditorText(
+  editor: monaco.editor.IStandaloneCodeEditor,
+  searchText: string,
+  caseSensitive: boolean = false,
+) {
+  const model = editor.getModel();
+  if (!model || !searchText) return;
+
+  // findMatches(searchString, searchOnlyEditableRange, isRegex, matchCase, wordSeparators, captureMatches)
+  const matches = model.findMatches(
+    searchText,
+    false, // searchOnlyEditableRange
+    false, // isRegex
+    caseSensitive,
+    null, // wordSeparators
+    false, // captureMatches
+  );
+
+  if (matches.length > 0) {
+    const firstMatchRange = matches[0].range;
+
+    // 1. Scroll the editor so the match is in the center
+    editor.revealRangeInCenter(firstMatchRange, monaco.editor.ScrollType.Smooth);
+
+    // 2. Set the cursor/selection to that range
+    editor.setSelection(firstMatchRange);
+
+    // 3. Bring focus to the editor
+    editor.focus();
+
+    console.log(`Found ${matches.length} matches. Jumping to the first one.`);
+  } else {
+    console.warn("Text not found in the editor.");
+  }
+}
 
 export function getDefautLanguage(kind: DataSourceKind) {
   switch (kind) {

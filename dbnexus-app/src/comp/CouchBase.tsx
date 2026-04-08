@@ -34,6 +34,7 @@ import {
   generateRandomString,
   getEditorText,
   handleCopyToClipboard,
+  jumpToEditorText,
   MuiDataGridData,
   QueryIDEditorChatCtx,
   resizeHandlerSize,
@@ -831,6 +832,10 @@ function CouchBaseQuery(props: { uuid: string; value?: string }) {
           markdownModel={markdownModel}
           setMarkdownModelValue={setMarkdownModelValue}
           editor={editor}
+          appCodeHandleEdit={({ code }) => {
+            setMarkdownModel(false);
+            jumpToEditorText(editor, code);
+          }}
           appcodeExtra={({ code }) => {
             return (
               <ExecuteButton

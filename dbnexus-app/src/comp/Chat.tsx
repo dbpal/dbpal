@@ -74,10 +74,6 @@ function AllKindChat(props: {
     setSwitch(showChatKey, show);
   }, [setSwitch, show, showChatKey]);
 
-  useEffect(() => {
-    console.log("!!!!!!!!!!!!!!", editor);
-  }, [editor]);
-
   // use UUID
   let queryId = useRef(uuidv4());
   return (

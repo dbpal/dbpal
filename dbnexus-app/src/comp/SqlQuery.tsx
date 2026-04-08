@@ -45,6 +45,7 @@ import {
   MonacoEditor,
   QueryIDEditorChatCtx,
   getDefautLanguage,
+  jumpToEditorText,
 } from "./helper.ts";
 import ArrowCircleDownRoundedIcon from "@mui/icons-material/ArrowCircleDownRounded";
 import { ExportView } from "./Export.tsx";
@@ -664,6 +665,10 @@ function SqlQuery(props: {
             setMarkdownModelValue={setMarkdownModelValue}
             editor={editor}
             markdownModelValue={markdownModelValue}
+            appCodeHandleEdit={({ code }) => {
+              setMarkdownModel(false);
+              jumpToEditorText(editor, code);
+            }}
             appcodeExtra={({ code }) => {
               return (
                 <QueryButtons

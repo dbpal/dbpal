@@ -48,6 +48,7 @@ import {
 import AttachFileIcon from "@mui/icons-material/AttachFile";
 import {
   AppCodeExtra,
+  AppCodeHanleEdit,
   ChatShowContext,
   DataSourceKind,
   editorPositionToEnd,
@@ -105,12 +106,17 @@ import {
   useUserSettings,
 } from "./store";
 import { MonacoEditor } from "./Editor";
-
+import EditIcon from "@mui/icons-material/Edit";
 import { Highlight, themes } from "prism-react-renderer";
 
-function AppCode(props: { codeBlock: string; language: string; extra?: AppCodeExtra }) {
+function AppCode(props: {
+  codeBlock: string;
+  language: string;
+  extra?: AppCodeExtra;
+  handleEdit?: AppCodeHanleEdit;
+}) {
   const theme = useTheme();
-  const { codeBlock, language, extra } = props;
+  const { codeBlock, language, extra, handleEdit } = props;
   const { showNotification } = useNotification();
   return (
     <Paper
@@ -125,6 +131,14 @@ function AppCode(props: { codeBlock: string; language: string; extra?: AppCodeEx
           <ContentCopyIcon />
         </IconButton>
         {extra && extra({ code: codeBlock, language })}
+        {handleEdit && (
+          <IconButton
+            onClick={() => {
+              handleEdit({ code: codeBlock });
+            }}>
+            <EditIcon />
+          </IconButton>
+        )}
       </Stack>
       <Highlight
         theme={theme.palette.mode == "dark" ? themes.vsDark : themes.vsLight}
@@ -888,8 +902,10 @@ function AppMarkDown(props: {
   handlePathUrl?: (href: string) => void;
   placeHolder?: string;
   appcodeExtra?: AppCodeExtra;
+  appCodeHandleEdit?: AppCodeHanleEdit;
 }) {
-  const { children, handlePathUrl, placeHolder, appcodeExtra } = props;
+  const { children, handlePathUrl, placeHolder, appcodeExtra, appCodeHandleEdit } =
+    props;
   function CustomLink(props: { href: string; children: ReactNode }) {
     const { href, children } = props;
     const { showNotification } = useNotification();
@@ -935,6 +951,7 @@ function AppMarkDown(props: {
               <AppCode
                 extra={appcodeExtra}
                 language={match[1]}
+                handleEdit={appCodeHandleEdit}
                 codeBlock={String(children).replace(/\n$/, "")}
               />
             ) : (
@@ -1695,6 +1712,7 @@ function AiMarkdownModel(props: {
   markdownModelValue;
   setMarkdownModelValue;
   appcodeExtra?: AppCodeExtra;
+  appCodeHandleEdit?: AppCodeHanleEdit;
 }) {
   const {
     editor,
@@ -1702,6 +1720,7 @@ function AiMarkdownModel(props: {
     setMarkdownModelValue,
     markdownModelValue,
     appcodeExtra,
+    appCodeHandleEdit,
   } = props;
   const markdownDivDom = useRef<HTMLDivElement>(null);
 
@@ -1736,7 +1755,9 @@ function AiMarkdownModel(props: {
         overflow: "auto",
       }}
       ref={markdownDivDom}>
-      <AppMarkDown appcodeExtra={appcodeExtra}>{markdownModelValue}</AppMarkDown>
+      <AppMarkDown appCodeHandleEdit={appCodeHandleEdit} appcodeExtra={appcodeExtra}>
+        {markdownModelValue}
+      </AppMarkDown>
     </div>
   );
 }
