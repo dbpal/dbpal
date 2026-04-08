@@ -854,7 +854,7 @@ function CouchBaseQuery(props: { uuid: string; value?: string }) {
           }}>
           <SimpleFlexEditor
             value={value}
-            language="sql"
+            language={markdownModel ? "markdown" : "sql"}
             handleEditor={(e) => {
               setEditor(e);
               e.getModel()[dbpalQuerykey] = new NameAndQueryId(

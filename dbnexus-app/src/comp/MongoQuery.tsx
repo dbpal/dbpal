@@ -752,12 +752,17 @@ function MongoQuery(props: {
           flexBasis: 0,
           display: markdownModel ? "none" : "block",
         }}>
-        <MonacoEditor onMount={onMount} language={language} value={value} />
+        <MonacoEditor
+          onMount={onMount}
+          language={markdownModel ? "markdown" : language}
+          value={value}
+        />
         <EditorBar pos={pos} />
       </div>
       {/* // we must use db etc ...  */}
       {db && <span />}
       {cleanFns && <span />}
+
       {bson && <span />}
       {setUpClean && <span />}
     </Stack>

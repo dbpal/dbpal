@@ -34,7 +34,6 @@ import {
   DataSourceKind,
   ErrAndLoc,
   getEditorText,
-  getLanguageFromDataSourceKind,
   MuiDataGridData,
   resizeHandlerSize,
   rustResultOk,
@@ -45,6 +44,7 @@ import {
   saveQueryKey,
   MonacoEditor,
   QueryIDEditorChatCtx,
+  getDefautLanguage,
 } from "./helper.ts";
 import ArrowCircleDownRoundedIcon from "@mui/icons-material/ArrowCircleDownRounded";
 import { ExportView } from "./Export.tsx";
@@ -691,7 +691,7 @@ function SqlQuery(props: {
             }}
             ref={editorDivDom}>
             <MonacoEditor
-              language={getLanguageFromDataSourceKind(kind)}
+              language={markdownModel ? "markdown" : getDefautLanguage(kind)}
               value={value}
               onMount={handleEditorDidMount}
             />

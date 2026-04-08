@@ -52,7 +52,6 @@ import {
   DataSourceKind,
   editorPositionToEnd,
   editorSetPositionAndReveal,
-  getLanguageFromDataSourceKind,
   handleCopyToClipboard,
   isMacOs,
   KeyPressed,
@@ -1540,7 +1539,7 @@ function SetFilterSort(props: {
             editorPositionToEnd(e);
             e.getModel()[dbpalQuerykey] = new NameAndQueryId(uuid, kind);
           }}
-          language={getLanguageFromDataSourceKind(kind)}
+          language={"sql"}
         />
 
         <ListenElementSize name="where-sort" dom={modalBox} set="both" />

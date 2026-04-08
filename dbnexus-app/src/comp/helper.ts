@@ -534,16 +534,6 @@ async function setUpEditorThemes() {
 }
 
 setUpEditorThemes();
-function getLanguageFromDataSourceKind(kind: DataSourceKind): string {
-  switch (kind) {
-    case DataSourceKind.Redis:
-      return "redis";
-    case DataSourceKind.Mongo:
-      return "javascript";
-    default:
-      return "sql";
-  }
-}
 
 const dataGridheaderFontSize = "0.8rem";
 
@@ -596,6 +586,16 @@ const QueryIDEditorChatCtx = createContext<{ queryId: string; editor; setEditor 
 
 export type AppCodeExtra = (_: { code: string; language: string }) => ReactNode;
 
+export function getDefautLanguage(kind: DataSourceKind) {
+  switch (kind) {
+    case DataSourceKind.Mongo:
+      return "javascript";
+    case DataSourceKind.Redis:
+      return "redis";
+    default:
+      return "sql";
+  }
+}
 export {
   isDarkStr,
   saveQueryKey,
@@ -618,7 +618,6 @@ export {
   generateDefaultFilename,
   generateRandomString,
   getEditorText,
-  getLanguageFromDataSourceKind,
   getSupportExportKind,
   getViewportSize,
   handleCopyToClipboard,

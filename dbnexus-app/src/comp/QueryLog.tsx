@@ -23,7 +23,7 @@ import CloseIcon from "@mui/icons-material/Close";
 import {
   dataGridStyle,
   DataSourceKind,
-  getLanguageFromDataSourceKind,
+  getDefautLanguage,
   pageSizeOptions,
   saveQueryKey,
   secondConfirm,
@@ -293,9 +293,7 @@ function QueryLog(props: {
                 e.getModel()[dbpalQuerykey] = new NameAndQueryId(uuid, kind, queryId);
               }}
               language={
-                selectSql.language
-                  ? selectSql.language
-                  : getLanguageFromDataSourceKind(kind)
+                selectSql.language ? selectSql.language : getDefautLanguage(kind)
               }
             />
           </Box>
