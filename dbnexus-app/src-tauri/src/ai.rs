@@ -422,6 +422,7 @@ pub async fn openai_stream(
             )));
             if db.backend_kind() == BackendKind::Mongo {
                 content.push(UserContent::text(make_mongo_prompt()));
+                content.push( UserContent::text("when genarate code avoid top level await,I think my runtime env may not support it."));
             }
             content.push(UserContent::text(format!(
                 "system local is :{}",

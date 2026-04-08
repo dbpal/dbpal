@@ -135,7 +135,8 @@ function AppCode(props: {
           <IconButton
             onClick={() => {
               handleEdit({ code: codeBlock });
-            }}>
+            }}
+            color="secondary">
             <EditIcon />
           </IconButton>
         )}
