@@ -1,9 +1,13 @@
-import { useState, useRef, useEffect } from "react";
-import { editor } from "monaco-editor";
+import { useState, useEffect, useContext } from "react";
 import { Panel, PanelGroup, PanelResizeHandle } from "react-resizable-panels";
 
 import { SqlQuery } from "./SqlQuery.tsx";
-import { DataSourceKind, resizeHandlerSize, shrinkAble } from "./helper.ts";
+import {
+  DataSourceKind,
+  QueryIDEditorChatCtx,
+  resizeHandlerSize,
+  shrinkAble,
+} from "./helper.ts";
 import { Chip, Tooltip } from "@mui/material";
 import { invoke } from "@tauri-apps/api/core";
 import { AppMarkDown } from "./CommonComp2.tsx";
@@ -12,20 +16,21 @@ const showRedisDocKey = "redis-show-doc";
 function RedisQuery(props: { favoriteName?: string; value?: string; uuid: string }) {
   const { favoriteName, value, uuid } = props;
   const [doc, setDoc] = useState("");
-  const editorRef = useRef<editor.IStandaloneCodeEditor>(null);
   const { getSwitch, setSwitch } = useBoolSwitch();
   const [prevLine, setPrevLine] = useState("");
   const showDoc = getSwitch(showRedisDocKey);
+
+  const { editor } = useContext(QueryIDEditorChatCtx);
   useEffect(() => {
     const tryUpdateCommand = () => {
       if (!showDoc) {
         return;
       }
-      if (!editorRef.current) {
+      if (!editor) {
         return;
       }
-      const model = editorRef.current.getModel();
-      const pos = editorRef.current.getPosition();
+      const model = editor.getModel();
+      const pos = editor.getPosition();
       if (!pos) {
         return;
       }
@@ -52,7 +57,7 @@ function RedisQuery(props: { favoriteName?: string; value?: string; uuid: string
     return () => {
       clearInterval(int);
     };
-  }, [showDoc, prevLine]);
+  }, [showDoc, prevLine, editor]);
 
   return (
     <PanelGroup
