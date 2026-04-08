@@ -149,7 +149,14 @@ function AppCode(props: {
           <pre style={style}>
             {tokens.map((line, i) => (
               <div key={i} {...getLineProps({ line })}>
-                <span>{i + 1}</span>
+                <span
+                  style={{
+                    width: "4rem",
+                    textAlign: "left",
+                    display: "inline-block",
+                  }}>
+                  {i + 1}
+                </span>
                 {line.map((token, key) => (
                   <span key={key} {...getTokenProps({ token })} />
                 ))}
