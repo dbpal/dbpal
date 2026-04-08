@@ -994,7 +994,7 @@ fn encode_row(row: &SqliteRow) -> anyhow::Result<Vec<Option<String>>> {
 impl SqliteDB {
     pub async fn new(conn: SqliteDBConfig) -> anyhow::Result<Self> {
         if !is_sqlite_file(&conn.path).await {
-            return anyhow::bail!("this is not a sqlite file");
+            anyhow::bail!("this is not a sqlite file");
         }
         let mut opts: PoolOptions<sqlx::sqlite::Sqlite> = PoolOptions::new();
         opts = opts.max_connections(POOL_MAX_CONNECTIONS);

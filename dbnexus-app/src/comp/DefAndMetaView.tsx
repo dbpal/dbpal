@@ -40,9 +40,7 @@ function DefAndMetasView(props: {
     [reloadOP, showNotification],
   );
   const tabCtx = useContext(TabContext);
-
   const { setExtra, removeExtra } = useQueryExtraUI();
-
   useEffect(() => {
     setExtra(
       tabCtx.id,

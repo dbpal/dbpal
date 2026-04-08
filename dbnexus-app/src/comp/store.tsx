@@ -147,7 +147,7 @@ export const useBoolSwitch = create<BoolSwitchState>()(
     (set, get) => ({
       getSwitch: (key) => get().switches[key] || false,
       switches: {}, // 初始值是空物件
-      setSwitch: (key, value) =>
+      setSwitch: (key, value: boolean) =>
         set((state) => ({
           switches: {
             ...state.switches,

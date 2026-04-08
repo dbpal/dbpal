@@ -54,8 +54,6 @@ import {
 import AddPhotoAlternateIcon from "@mui/icons-material/AddPhotoAlternate";
 import { open } from "@tauri-apps/plugin-dialog";
 
-const showChatKey = "chat-show";
-
 function Chat(props: {
   uuid: string;
   kind: DataSourceKind;
@@ -66,9 +64,13 @@ function Chat(props: {
   const { uuid, kind, favoriteName, value, language } = props;
   const [editor, setEditor] = useState<editor.IStandaloneCodeEditor>(null);
   const llm = useLLM();
+  const showChatKey = "chat-show-" + uuid;
+  const { getSwitch, setSwitch } = useBoolSwitch();
+  const [show, setShow] = useState(getSwitch(showChatKey));
 
-  const saveChatShow = useBoolSwitch();
-  const [show, setShow] = useState(saveChatShow.switches[showChatKey]);
+  useEffect(() => {
+    setSwitch(showChatKey, show);
+  }, [setSwitch, show, showChatKey]);
 
   return (
     <Stack
