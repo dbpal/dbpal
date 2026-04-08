@@ -11,6 +11,7 @@ use sqlparser::tokenizer::Token;
 use sqlx::pool::{PoolConnection, PoolOptions};
 use sqlx::sqlite::{SqliteConnectOptions, SqliteRow};
 use sqlx::{AssertSqlSafe, Column, Executor, Row, SqlSafeStr, SqliteConnection, TypeInfo};
+use tokio::fs::File;
 
 use crate::datasource_config::SqliteDBConfig;
 use crate::db::{
@@ -166,6 +167,22 @@ impl CheckConn for SqliteDB {
             .await?;
         anyhow::Ok(ins.elapsed())
     }
+}
+
+async fn is_sqlite_file(path: &str) -> bool {
+    let mut file = match File::open(path).await {
+        Ok(f) => f,
+        Err(_) => return false,
+    };
+    let mut header = [0u8; 16];
+    if tokio::io::AsyncReadExt::read_exact(&mut file, &mut header)
+        .await
+        .is_err()
+    {
+        return false;
+    }
+    // SQLite 标准头部：'SQLite format 3\0'
+    header == *b"SQLite format 3\0"
 }
 
 #[async_trait::async_trait]
@@ -976,6 +993,9 @@ fn encode_row(row: &SqliteRow) -> anyhow::Result<Vec<Option<String>>> {
 
 impl SqliteDB {
     pub async fn new(conn: SqliteDBConfig) -> anyhow::Result<Self> {
+        if !is_sqlite_file(&conn.path).await {
+            return anyhow::bail!("this is not a sqlite file");
+        }
         let mut opts: PoolOptions<sqlx::sqlite::Sqlite> = PoolOptions::new();
         opts = opts.max_connections(POOL_MAX_CONNECTIONS);
         if let Some(timeout) = conn.conn_timeout {
