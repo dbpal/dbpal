@@ -312,7 +312,7 @@ const globalVar = `
     const db : IMongoDB; // db is a database handle can access the database
     const setUpClean : (name :string, f : ()=>void)=> void; // setup a clean function by name and callback
     const bson : any; // bson will initialize by 'await import("bson")'
-  `;
+`;
 
 const interfaceText = trimInterfaceText(interfaceRawText) + globalVar;
 
@@ -322,10 +322,4 @@ function initMongoQueryGlobals() {
   monaco.typescript.typescriptDefaults.addExtraLib(extraLib);
 }
 
-export {
-  globalVar,
-  initMongoQueryGlobals,
-  interfaceRawText,
-  interfaceText,
-  MongoDBQuery,
-};
+export { initMongoQueryGlobals, MongoDBQuery };

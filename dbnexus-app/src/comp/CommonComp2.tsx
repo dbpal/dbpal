@@ -112,23 +112,25 @@ function AppCode(props: { codeBlock: string; language: string }) {
   const theme = useTheme();
   const { codeBlock, language } = props;
   return (
-    <Highlight
-      theme={theme.palette.mode == "dark" ? themes.vsDark : themes.vsLight}
-      code={codeBlock}
-      language={language}>
-      {({ style, tokens, getLineProps, getTokenProps }) => (
-        <pre style={style}>
-          {tokens.map((line, i) => (
-            <div key={i} {...getLineProps({ line })}>
-              <span>{i + 1}</span>
-              {line.map((token, key) => (
-                <span key={key} {...getTokenProps({ token })} />
-              ))}
-            </div>
-          ))}
-        </pre>
-      )}
-    </Highlight>
+    <Paper style={{ padding: "2px 4px", borderRadius: "0.4rem" }} elevation={10}>
+      <Highlight
+        theme={theme.palette.mode == "dark" ? themes.vsDark : themes.vsLight}
+        code={codeBlock}
+        language={language}>
+        {({ style, tokens, getLineProps, getTokenProps }) => (
+          <pre style={style}>
+            {tokens.map((line, i) => (
+              <div key={i} {...getLineProps({ line })}>
+                <span>{i + 1}</span>
+                {line.map((token, key) => (
+                  <span key={key} {...getTokenProps({ token })} />
+                ))}
+              </div>
+            ))}
+          </pre>
+        )}
+      </Highlight>
+    </Paper>
   );
 }
 function CreateDatabase(props: {
@@ -1701,7 +1703,9 @@ function AiMarkdownModel(props: {
   return (
     <div
       style={{
-        flex: 1,
+        flexGrow: 1,
+        flexShrink: 1,
+        flexBasis: 0,
         minHeight: 0,
         height: "100px",
         display: markdownModel ? "block" : "none",

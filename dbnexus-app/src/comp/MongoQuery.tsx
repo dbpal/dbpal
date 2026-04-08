@@ -31,10 +31,18 @@ import {
   secondConfirm,
   validJson,
 } from "./helper";
-import { EscDownEvent, modalHandleClose, modalStyle } from "./Common";
+import {
+  dbpalQuerykey,
+  EscDownEvent,
+  modalHandleClose,
+  modalStyle,
+  NameAndQueryId,
+} from "./Common";
 import { ModalHeader } from "./CommonComp";
 import { RiDeleteBack2Line } from "react-icons/ri";
 import {
+  AiMarkdownModel,
+  AiMarkdownModelSwitch,
   AppCode,
   AppMarkDown,
   EditorBar,
@@ -514,6 +522,8 @@ function MongoQuery(props: {
   const [language, setLanguage] = useState<MongoLanguage>(
     valueLanguage ? (valueLanguage as MongoLanguage) : lastLanguage,
   );
+  const [markdownModel, setMarkdownModel] = useState(false);
+  const [markdownModelValue, setMarkdownModelValue] = useState("");
   const [compileTime, setCompileTime] = useState<number | null>(null);
   const compileDir = useRef(generateRandomString(5));
   useEffect(() => {
@@ -532,16 +542,20 @@ function MongoQuery(props: {
   const setUpClean = (name: string, fn: () => void) => {
     setCleanFns((e) => [...e, { name, fn }]);
   };
-  const jsCodeMount = useCallback((ed: editor.IStandaloneCodeEditor) => {
-    setEditor(ed);
-    ed.focus();
-    let d1 = ed.onDidChangeCursorPosition(() => {
-      setPos(ed.getPosition());
-    });
-    return () => {
-      d1.dispose();
-    };
-  }, []);
+  const onMount = useCallback(
+    (ed: editor.IStandaloneCodeEditor) => {
+      setEditor(ed);
+      ed.getModel()[dbpalQuerykey] = new NameAndQueryId(uuid, DataSourceKind.Mongo, ""); // mongo no need query id
+      ed.focus();
+      let d1 = ed.onDidChangeCursorPosition(() => {
+        setPos(ed.getPosition());
+      });
+      return () => {
+        d1.dispose();
+      };
+    },
+    [uuid],
+  );
 
   useEffect(() => {
     import("bson").then((e) => {
@@ -684,15 +698,27 @@ function MongoQuery(props: {
           <span>debug???</span>
         </Tooltip>
         <ToggleChatShow />
+        <AiMarkdownModelSwitch
+          setMarkdownModel={setMarkdownModel}
+          markdownModel={markdownModel}
+        />
       </Stack>
+
+      <AiMarkdownModel
+        markdownModel={markdownModel}
+        setMarkdownModelValue={setMarkdownModelValue}
+        editor={editor}
+        markdownModelValue={markdownModelValue}
+      />
       <div
         style={{
           height: "100px",
           flexGrow: 1,
           flexShrink: 1,
           flexBasis: 0,
+          display: markdownModel ? "none" : "block",
         }}>
-        <MonacoEditor onMount={jsCodeMount} language={language} value={value} />
+        <MonacoEditor onMount={onMount} language={language} value={value} />
         <EditorBar pos={pos} />
       </div>
       {/* // we must use db etc ...  */}

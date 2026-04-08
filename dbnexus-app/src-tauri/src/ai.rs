@@ -417,6 +417,9 @@ pub async fn openai_stream(
                     .map(|x| format!("{}:{}\n", x.role, x.msg,))
                     .collect::<String>()
             )));
+            if db.backend_kind() == BackendKind::Mongo {
+                content.push(UserContent::text(make_mongo_prompt()));
+            }
             content.push(UserContent::text(format!(
                 "system local is :{}",
                 sys_locale::get_locale().unwrap_or("en-us".to_string())
@@ -886,6 +889,22 @@ mod redis {
     }
 }
 
+fn make_mongo_prompt() -> String {
+    format!(
+        "we have some predefine some variable u can use.\n\
+        ```typescript\n\
+        {}\n\
+        {}\n\
+        ```",
+        include_str!("../../src/comp/MongoQueryBackend.ts"),
+        r#"
+const db : IMongoDB; // db is a database handle can access the database
+const setUpClean : (name :string, f : ()=>void)=> void; // setup a clean function by name and callback
+const bson : any; // bson will initialize by 'await import("bson")'
+        "#
+    )
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -898,6 +917,12 @@ mod tests {
         streaming::{StreamedAssistantContent, StreamedUserContent, StreamingChat},
     };
     use websearch::SearchProvider;
+
+    #[test]
+
+    fn test_mongo_prompt() {
+        println!("{}", make_mongo_prompt());
+    }
     #[tokio::test]
 
     async fn test_xxx() {

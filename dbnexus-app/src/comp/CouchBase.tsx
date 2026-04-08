@@ -15,6 +15,8 @@ import {
 import ArrowCircleDownRoundedIcon from "@mui/icons-material/ArrowCircleDownRounded";
 import EventNoteIcon from "@mui/icons-material/EventNote";
 import {
+  AiMarkdownModel,
+  AiMarkdownModelSwitch,
   AppCode,
   ListenElementSize,
   LoadStoreFile,
@@ -587,6 +589,8 @@ function CouchBaseQuery(props: { uuid: string; value?: string }) {
   const { viewMode, setViewMode } = useCBQueryViewStore();
   const [tableResp, setTableResp] = useState<MuiDataGridData>(null);
   const setEditorContext = useContext(QueryIDEditorChatCtx);
+  const [markdownModel, setMarkdownModel] = useState(false);
+  const [markdownModelValue, setMarkdownModelValue] = useState("");
 
   useEffect(() => {
     setEditorContext.setEditor(editor);
@@ -731,6 +735,7 @@ function CouchBaseQuery(props: { uuid: string; value?: string }) {
                 onClick={() => {
                   handleQuery();
                 }}
+                disabled={markdownModel}
                 color="primary">
                 <PlayArrowIcon />
               </IconButton>
@@ -763,6 +768,7 @@ function CouchBaseQuery(props: { uuid: string; value?: string }) {
             <Tooltip title="export query result to a file">
               <IconButton
                 loading={loading}
+                disabled={markdownModel}
                 onClick={() => {
                   const value = getEditorText(editor, showNotification);
                   if (!value) {
@@ -791,19 +797,39 @@ function CouchBaseQuery(props: { uuid: string; value?: string }) {
             <ToggleChatShow />
 
             <SliderSize config={UseSizeConfig.queryLimit} />
+            <AiMarkdownModelSwitch
+              setMarkdownModel={setMarkdownModel}
+              markdownModel={markdownModel}
+            />
           </Stack>
         </Stack>
-        <SimpleFlexEditor
-          value={value}
-          language="sql"
-          handleEditor={(e) => {
-            setEditor(e);
-            e.getModel()[dbpalQuerykey] = new NameAndQueryId(
-              uuid,
-              DataSourceKind.CouchBase,
-            );
-          }}
+
+        <AiMarkdownModel
+          markdownModel={markdownModel}
+          setMarkdownModelValue={setMarkdownModelValue}
+          editor={editor}
+          markdownModelValue={markdownModelValue}
         />
+
+        <div
+          style={{
+            flex: 1,
+            display: !markdownModel ? "flex" : "none",
+            flexDirection: "column",
+          }}>
+          <SimpleFlexEditor
+            value={value}
+            language="sql"
+            handleEditor={(e) => {
+              setEditor(e);
+              e.getModel()[dbpalQuerykey] = new NameAndQueryId(
+                uuid,
+                DataSourceKind.CouchBase,
+                "",
+              );
+            }}
+          />
+        </div>
       </Panel>
       <PanelResizeHandle
         style={{

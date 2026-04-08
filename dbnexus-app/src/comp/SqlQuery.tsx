@@ -251,6 +251,9 @@ function SqlQuery(props: {
       return;
     }
     let x = editor.getModel().onDidChangeContent(() => {
+      if (markdownModel) {
+        return;
+      }
       if (!tryCheckSql) {
         setSqlErr(null);
         return;
@@ -262,7 +265,7 @@ function SqlQuery(props: {
     return () => {
       x.dispose();
     };
-  }, [editor, tryCheckSql, uuid]);
+  }, [editor, markdownModel, tryCheckSql, uuid]);
 
   useEffect(() => {
     setMakeConnLoading(true);
@@ -491,6 +494,7 @@ function SqlQuery(props: {
                     onClick={() => {
                       handleQuery(false);
                     }}
+                    disabled={markdownModel}
                     color="primary">
                     <PlayArrowIcon />
                   </IconButton>
@@ -502,13 +506,18 @@ function SqlQuery(props: {
                     onClick={() => {
                       handleQuery(true);
                     }}
+                    disabled={markdownModel}
                     color="primary">
                     <FastForwardIcon />
                   </IconButton>
                 </Tooltip>
 
                 <Tooltip title="execute sql not expecting result">
-                  <IconButton loading={loading} onClick={handleExecute} color="primary">
+                  <IconButton
+                    disabled={markdownModel}
+                    loading={loading}
+                    onClick={handleExecute}
+                    color="primary">
                     <FaExclamation />
                   </IconButton>
                 </Tooltip>
@@ -523,6 +532,7 @@ function SqlQuery(props: {
                   <Tooltip title="explain sql">
                     <IconButton
                       loading={loading}
+                      disabled={markdownModel}
                       onClick={() => {
                         handleQuery(false, true);
                       }}
@@ -537,6 +547,7 @@ function SqlQuery(props: {
                     onChange={(e) => {
                       setSwitch(tryCheckSqlSwitchKey, e.target.checked);
                     }}
+                    disabled={markdownModel}
                     name="myCheckbox"
                     color="primary"
                   />
@@ -565,6 +576,7 @@ function SqlQuery(props: {
                     }
                     setShowExport(true);
                   }}
+                  disabled={markdownModel}
                   color="primary">
                   <ArrowCircleDownRoundedIcon />
                 </IconButton>
