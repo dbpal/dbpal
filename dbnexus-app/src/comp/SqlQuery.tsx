@@ -392,7 +392,6 @@ function SqlQuery(props: {
         });
     },
     [
-      conn,
       editor,
       getSize,
       getSwitch,
