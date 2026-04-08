@@ -25,7 +25,7 @@ import {
   TableAddButton,
   ToggleChatShow,
 } from "./CommonComp2.tsx";
-import { ReactNode, useCallback, useEffect, useState } from "react";
+import { ReactNode, useCallback, useContext, useEffect, useState } from "react";
 import {
   DataSourceKind,
   ErrAndLoc,
@@ -33,6 +33,7 @@ import {
   getEditorText,
   handleCopyToClipboard,
   MuiDataGridData,
+  QueryIDEditorChatCtx,
   resizeHandlerSize,
   secondConfirm,
   shrinkAble,
@@ -571,12 +572,8 @@ function CouchBaseInsert({ uuid, table }) {
   );
 }
 
-function CouchBaseQuery(props: {
-  uuid: string;
-  value?: string;
-  handleEditor: (ed: editor.IStandaloneCodeEditor) => void;
-}) {
-  const { uuid, value, handleEditor } = props;
+function CouchBaseQuery(props: { uuid: string; value?: string }) {
+  const { uuid, value } = props;
   const [resp, setResp] = useState<string[]>([]);
   const [loading, setLoading] = useState(false);
   const { getSize } = useSizeStore();
@@ -589,6 +586,11 @@ function CouchBaseQuery(props: {
   const [showExport, setShowExport] = useState(false);
   const { viewMode, setViewMode } = useCBQueryViewStore();
   const [tableResp, setTableResp] = useState<MuiDataGridData>(null);
+  const setEditorContext = useContext(QueryIDEditorChatCtx);
+
+  useEffect(() => {
+    setEditorContext.setEditor(editor);
+  }, [editor, setEditor, setEditorContext]);
 
   const { save: saveQueryLog } = useQueryLogStore();
   useEffect(() => {
@@ -796,7 +798,6 @@ function CouchBaseQuery(props: {
           language="sql"
           handleEditor={(e) => {
             setEditor(e);
-            handleEditor(e);
             e.getModel()[dbpalQuerykey] = new NameAndQueryId(
               uuid,
               DataSourceKind.CouchBase,

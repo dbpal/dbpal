@@ -15,7 +15,7 @@ import {
 
 import PlayArrowIcon from "@mui/icons-material/PlayArrow";
 import { editor, Position } from "monaco-editor";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useContext, useEffect, useRef, useState } from "react";
 import { initMongoQueryGlobals, MongoDBQuery } from "./MongoQueryBackend";
 import EventNoteIcon from "@mui/icons-material/EventNote";
 import {
@@ -26,6 +26,7 @@ import {
   isWindows,
   MonacoEditor,
   MongoLanguage,
+  QueryIDEditorChatCtx,
   saveQueryKey,
   secondConfirm,
   validJson,
@@ -500,9 +501,8 @@ function MongoQuery(props: {
   favoriteName?: string;
   value?: string;
   language?: string;
-  handleEditor: (x: editor.IStandaloneCodeEditor) => void;
 }) {
-  const { uuid, value, handleEditor, language: valueLanguage, favoriteName } = props;
+  const { uuid, value, language: valueLanguage, favoriteName } = props;
   const [showQueryLog, setShowQueryLog] = useState(false);
   const [editor, setEditor] = useState<editor.IStandaloneCodeEditor>(null);
   const [pos, setPos] = useState<Position>(null);
@@ -521,6 +521,14 @@ function MongoQuery(props: {
   }, [language]);
   const { save: saveQueryLog } = useQueryLogStore();
 
+  const setEditorContext = useContext(QueryIDEditorChatCtx);
+  useEffect(() => {
+    if (!editor) {
+      return;
+    }
+    setEditorContext.setEditor(editor);
+  }, [editor, setEditor, setEditorContext]);
+
   const setUpClean = (name: string, fn: () => void) => {
     setCleanFns((e) => [...e, { name, fn }]);
   };
@@ -534,12 +542,6 @@ function MongoQuery(props: {
       d1.dispose();
     };
   }, []);
-  useEffect(() => {
-    if (!editor) {
-      return;
-    }
-    handleEditor(editor);
-  }, [editor, handleEditor]);
 
   useEffect(() => {
     import("bson").then((e) => {

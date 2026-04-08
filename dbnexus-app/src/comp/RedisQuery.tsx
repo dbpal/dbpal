@@ -9,13 +9,8 @@ import { invoke } from "@tauri-apps/api/core";
 import { AppMarkDown } from "./CommonComp2.tsx";
 import { useBoolSwitch } from "./store.tsx";
 const showRedisDocKey = "redis-show-doc";
-function RedisQuery(props: {
-  favoriteName?: string;
-  value?: string;
-  uuid: string;
-  handleEditor: (x: editor.IStandaloneCodeEditor) => void;
-}) {
-  const { favoriteName, value, uuid, handleEditor } = props;
+function RedisQuery(props: { favoriteName?: string; value?: string; uuid: string }) {
+  const { favoriteName, value, uuid } = props;
   const [doc, setDoc] = useState("");
   const editorRef = useRef<editor.IStandaloneCodeEditor>(null);
   const { getSwitch, setSwitch } = useBoolSwitch();
@@ -68,10 +63,6 @@ function RedisQuery(props: {
       }}>
       <Panel defaultSize={40} minSize={4}>
         <SqlQuery
-          handleEditor={(e) => {
-            handleEditor(e);
-            editorRef.current = e;
-          }}
           uuid={uuid}
           favoriteName={favoriteName}
           value={value}

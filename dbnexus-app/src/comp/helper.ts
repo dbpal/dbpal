@@ -590,7 +590,9 @@ function isDarkStr(x: string) {
   return x == "dark";
 }
 
-const QueryIDContext = createContext("");
+const QueryIDEditorChatCtx = createContext<{ queryId: string; editor; setEditor }>(
+  null,
+);
 
 export {
   isDarkStr,
@@ -646,7 +648,7 @@ export {
   validJson,
   ViewKind,
   MonacoEditor,
-  QueryIDContext,
+  QueryIDEditorChatCtx,
 };
 
 export type MongoFindParameter = {

@@ -2,7 +2,7 @@ import {
   ChatShowContext,
   DataSourceKind,
   extractConfigNameFromUuid,
-  QueryIDContext,
+  QueryIDEditorChatCtx,
   TabActiveContext,
 } from "./helper.ts";
 import { v4 as uuidv4 } from "uuid";
@@ -64,20 +64,25 @@ function AllKindChat(props: {
   language?: string; // mongo used this as javascript or typescript
 }) {
   const { uuid, kind, favoriteName, value, language } = props;
-  const [editor, setEditor] = useState<editor.IStandaloneCodeEditor>(null);
   const llm = useLLM();
   const showChatKey = "chat-show-" + uuid;
   const { getSwitch, setSwitch } = useBoolSwitch();
   const [show, setShow] = useState(getSwitch(showChatKey));
 
+  const [editor, setEditor] = useState<editor.IStandaloneCodeEditor>(null);
   useEffect(() => {
     setSwitch(showChatKey, show);
   }, [setSwitch, show, showChatKey]);
 
+  useEffect(() => {
+    console.log("!!!!!!!!!!!!!!", editor);
+  }, [editor]);
+
   // use UUID
   let queryId = useRef(uuidv4());
   return (
-    <QueryIDContext.Provider value={queryId.current}>
+    <QueryIDEditorChatCtx.Provider
+      value={{ queryId: queryId.current, editor, setEditor }}>
       <Stack
         style={{
           height: "100%",
@@ -92,9 +97,6 @@ function AllKindChat(props: {
           <AllKindQuery
             uuid={uuid}
             kind={kind}
-            handleEditor={(e) => {
-              setEditor(e);
-            }}
             favoriteName={favoriteName}
             value={value}
             language={language}
@@ -102,7 +104,7 @@ function AllKindChat(props: {
           {llm && editor && <SqlChatTextInput uuid={uuid} editor={editor} />}
         </ChatShowContext.Provider>
       </Stack>
-    </QueryIDContext.Provider>
+    </QueryIDEditorChatCtx.Provider>
   );
 }
 
@@ -310,6 +312,9 @@ function SqlChatTextInput(props: {
           barLeft={invokeStatus && <Typography color="info">{invokeStatus}</Typography>}
           handleValue={(v) => {
             setQuestion(v);
+          }}
+          handleEditor={(e) => {
+            e.getModel()[dbpalQuerykey] = { ...editor.getModel()[dbpalQuerykey] };
           }}
           dontFocus
         />

@@ -131,7 +131,6 @@ import {
   useFavoriteStore,
   FavoriteSql,
 } from "./store.tsx";
-import { editor } from "monaco-editor";
 const settingId = generateRandomString();
 const showTopKey = "left-top-show";
 function LeftTop() {
@@ -1263,10 +1262,9 @@ function AllKindQuery(props: {
   uuid: string;
   value?: string;
   favoriteName?: string;
-  handleEditor: (_: editor.IStandaloneCodeEditor) => void;
   language?: string;
 }) {
-  const { kind, uuid, value, favoriteName, handleEditor, language } = props;
+  const { kind, uuid, value, favoriteName, language } = props;
   let content: ReactNode;
   switch (kind) {
     case DataSourceKind.SqlServer:
@@ -1284,31 +1282,17 @@ function AllKindQuery(props: {
     case DataSourceKind.Cockroach:
     case DataSourceKind.Db2:
       content = (
-        <SqlQuery
-          uuid={uuid}
-          value={value}
-          kind={kind}
-          favoriteName={favoriteName}
-          handleEditor={handleEditor}
-        />
+        <SqlQuery uuid={uuid} value={value} kind={kind} favoriteName={favoriteName} />
       );
       break;
     case DataSourceKind.Redis:
-      content = (
-        <RedisQuery
-          handleEditor={handleEditor}
-          uuid={uuid}
-          value={value}
-          favoriteName={favoriteName}
-        />
-      );
+      content = <RedisQuery uuid={uuid} value={value} favoriteName={favoriteName} />;
       break;
 
     case DataSourceKind.Mongo:
       content = (
         <MongoQuery
           language={language}
-          handleEditor={handleEditor}
           uuid={uuid}
           value={value}
           favoriteName={favoriteName}
@@ -1316,7 +1300,7 @@ function AllKindQuery(props: {
       );
       break;
     case DataSourceKind.CouchBase:
-      return <CouchBaseQuery uuid={uuid} value={value} handleEditor={handleEditor} />;
+      return <CouchBaseQuery uuid={uuid} value={value} />;
     default:
       console.error(`impl this ${kind}`);
   }

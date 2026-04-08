@@ -44,7 +44,7 @@ import {
   TabActiveContext,
   saveQueryKey,
   MonacoEditor,
-  QueryIDContext,
+  QueryIDEditorChatCtx,
 } from "./helper.ts";
 import ArrowCircleDownRoundedIcon from "@mui/icons-material/ArrowCircleDownRounded";
 import { ExportView } from "./Export.tsx";
@@ -200,9 +200,8 @@ function SqlQuery(props: {
   favoriteName?: string;
   kind: DataSourceKind;
   extras?: ReactNode;
-  handleEditor: (ed: editor.IStandaloneCodeEditor) => void;
 }) {
-  const { uuid, value, favoriteName, kind, extras, handleEditor } = props;
+  const { uuid, value, favoriteName, kind, extras } = props;
   const [resp, setResp] = useState<QueryRespData[]>([]);
   const [sqlErr, setSqlErr] = useState<ErrAndLoc | null>(null);
   const [editor, setEditor] = useState<editor.IStandaloneCodeEditor>(null);
@@ -213,7 +212,7 @@ function SqlQuery(props: {
   const [showQueryLog, setShowQueryLog] = useState(false);
   const [fetchDur, setFetchDur] = useState(0);
   const [executeTimes, setExecuteTimes] = useState(0);
-  const queryId = useContext(QueryIDContext);
+  const { queryId } = useContext(QueryIDEditorChatCtx);
   const conn = useRef<QueryConn>(new QueryConn(uuid, queryId, kind));
   const getSize = useSizeStore((s) => s.getSize);
   const [showExport, setShowExport] = useState(false);
@@ -227,6 +226,14 @@ function SqlQuery(props: {
   const editorDivDom = useRef<HTMLDivElement>(null);
   const [markdownModel, setMarkdownModel] = useState(false);
   const [markdownModelValue, setMarkdownModelValue] = useState("");
+
+  const setEditorContext = useContext(QueryIDEditorChatCtx);
+  useEffect(() => {
+    if (!editor) {
+      return;
+    }
+    setEditorContext.setEditor(editor);
+  }, [editor, setEditorContext]);
 
   const handleEditorDidMount = useCallback((ed: editor.IStandaloneCodeEditor) => {
     setEditor(ed);
@@ -243,9 +250,6 @@ function SqlQuery(props: {
     if (!editor) {
       return;
     }
-    if (handleEditor) {
-      handleEditor(editor);
-    }
     let x = editor.getModel().onDidChangeContent(() => {
       if (!tryCheckSql) {
         setSqlErr(null);
@@ -258,7 +262,7 @@ function SqlQuery(props: {
     return () => {
       x.dispose();
     };
-  }, [editor, handleEditor, tryCheckSql, uuid]);
+  }, [editor, tryCheckSql, uuid]);
 
   useEffect(() => {
     setMakeConnLoading(true);
@@ -276,10 +280,17 @@ function SqlQuery(props: {
   }, [showNotification]);
 
   useEffect(() => {
+    // 1. Capture the current ref value into a local variable
+    const currentConn = conn.current;
+
     return () => {
-      conn.current.destroy();
+      // 2. Use the local variable, which is safely held in the closure
+      if (currentConn) {
+        currentConn.destroy();
+      }
     };
   }, []);
+
   const handleReconnect = async () => {
     setMakeConnLoading(true);
     conn.current
