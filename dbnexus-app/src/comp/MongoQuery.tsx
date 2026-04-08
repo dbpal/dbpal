@@ -22,6 +22,7 @@ import {
   DataSourceKind,
   ErrAndLoc,
   generateRandomString,
+  getEditorText,
   isMacOs,
   isWindows,
   jumpToEditorText,
@@ -636,7 +637,7 @@ function MongoQuery(props: {
         <ExecuteButton
           disabled={markdownModel}
           getText={() => {
-            let code = editor.getValue();
+            let code = getEditorText(editor, showNotification);
             if (!code.trim()) {
               showNotification("warning", "can't execute empty statement");
               return;
