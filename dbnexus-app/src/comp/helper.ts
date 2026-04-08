@@ -594,6 +594,8 @@ const QueryIDEditorChatCtx = createContext<{ queryId: string; editor; setEditor 
   null,
 );
 
+export type AppCodeExtra = (_: { code: string; language: string }) => ReactNode;
+
 export {
   isDarkStr,
   saveQueryKey,

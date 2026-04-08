@@ -47,6 +47,7 @@ import {
 } from "@mui/material";
 import AttachFileIcon from "@mui/icons-material/AttachFile";
 import {
+  AppCodeExtra,
   ChatShowContext,
   DataSourceKind,
   editorPositionToEnd,
@@ -108,11 +109,24 @@ import { MonacoEditor } from "./Editor";
 
 import { Highlight, themes } from "prism-react-renderer";
 
-function AppCode(props: { codeBlock: string; language: string }) {
+function AppCode(props: { codeBlock: string; language: string; extra?: AppCodeExtra }) {
   const theme = useTheme();
-  const { codeBlock, language } = props;
+  const { codeBlock, language, extra } = props;
+  const { showNotification } = useNotification();
   return (
-    <Paper style={{ padding: "2px 4px", borderRadius: "0.4rem" }} elevation={10}>
+    <Paper
+      style={{ padding: "2px 4px", borderRadius: "0.4rem", margin: 0 }}
+      elevation={10}>
+      <Stack direction="row" style={{ alignItems: "center" }}>
+        <IconButton
+          color="secondary"
+          onClick={() => {
+            handleCopyToClipboard(codeBlock, showNotification);
+          }}>
+          <ContentCopyIcon />
+        </IconButton>
+        {extra && extra({ code: codeBlock, language })}
+      </Stack>
       <Highlight
         theme={theme.palette.mode == "dark" ? themes.vsDark : themes.vsLight}
         code={codeBlock}
@@ -133,6 +147,7 @@ function AppCode(props: { codeBlock: string; language: string }) {
     </Paper>
   );
 }
+
 function CreateDatabase(props: {
   uuid: string;
   handleClose: () => void;
@@ -873,8 +888,9 @@ function AppMarkDown(props: {
   children: string;
   handlePathUrl?: (href: string) => void;
   placeHolder?: string;
+  appcodeExtra?: AppCodeExtra;
 }) {
-  const { children, handlePathUrl, placeHolder } = props;
+  const { children, handlePathUrl, placeHolder, appcodeExtra } = props;
   function CustomLink(props: { href: string; children: ReactNode }) {
     const { href, children } = props;
     const { showNotification } = useNotification();
@@ -918,6 +934,7 @@ function AppMarkDown(props: {
             const match = /language-(\w+)/.exec(className || "");
             return match ? (
               <AppCode
+                extra={appcodeExtra}
                 language={match[1]}
                 codeBlock={String(children).replace(/\n$/, "")}
               />
@@ -1678,8 +1695,15 @@ function AiMarkdownModel(props: {
   markdownModel: boolean;
   markdownModelValue;
   setMarkdownModelValue;
+  appcodeExtra?: AppCodeExtra;
 }) {
-  const { editor, markdownModel, setMarkdownModelValue, markdownModelValue } = props;
+  const {
+    editor,
+    markdownModel,
+    setMarkdownModelValue,
+    markdownModelValue,
+    appcodeExtra,
+  } = props;
   const markdownDivDom = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -1713,7 +1737,7 @@ function AiMarkdownModel(props: {
         overflow: "auto",
       }}
       ref={markdownDivDom}>
-      <AppMarkDown>{markdownModelValue}</AppMarkDown>
+      <AppMarkDown appcodeExtra={appcodeExtra}>{markdownModelValue}</AppMarkDown>
     </div>
   );
 }
@@ -1722,26 +1746,36 @@ function AiMarkdownModelSwitch(props: { setMarkdownModel; markdownModel: boolean
   const { setMarkdownModel, markdownModel } = props;
   const { getSwitch, setSwitch } = useBoolSwitch();
   const switchKey = "ai-markdown-model";
+  const llm = useLLM();
   useEffect(() => {
+    if (!llm) {
+      return;
+    }
     const v = getSwitch(switchKey);
     setMarkdownModel(v);
-  }, [getSwitch, setMarkdownModel]);
+  }, [getSwitch, llm, setMarkdownModel]);
 
   useEffect(() => {
+    if (!llm) {
+      return;
+    }
     setSwitch(switchKey, markdownModel);
-  }, [markdownModel, setSwitch]);
+  }, [llm, markdownModel, setSwitch]);
+
   return (
-    <FormControlLabel
-      control={
-        <Switch
-          onChange={(_e, checked) => {
-            setMarkdownModel(checked);
-          }}
-          checked={markdownModel}
-        />
-      }
-      label="markdown model"
-    />
+    llm && (
+      <FormControlLabel
+        control={
+          <Switch
+            onChange={(_e, checked) => {
+              setMarkdownModel(checked);
+            }}
+            checked={markdownModel}
+          />
+        }
+        label="markdown model"
+      />
+    )
   );
 }
 export {

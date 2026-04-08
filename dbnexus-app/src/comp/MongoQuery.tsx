@@ -504,6 +504,31 @@ function CallCleanFunctions(props: {
     </Paper>
   );
 }
+
+function ExecuteButton(props: {
+  handleEexecute: (text: string) => void;
+  getText: () => string;
+  disabled: boolean;
+}) {
+  const { handleEexecute, getText, disabled } = props;
+
+  return (
+    <Tooltip title="execute">
+      <IconButton
+        onClick={() => {
+          const text = getText();
+          if (!text) {
+            return;
+          }
+          handleEexecute(text);
+        }}
+        disabled={disabled}
+        color="primary">
+        <PlayArrowIcon />
+      </IconButton>
+    </Tooltip>
+  );
+}
 function MongoQuery(props: {
   uuid: string;
   favoriteName?: string;
@@ -566,12 +591,7 @@ function MongoQuery(props: {
   const { getSwitch } = useBoolSwitch();
   const compilerOp = useTsOptionStore((s) => s.options);
 
-  const handleExecute = async () => {
-    let code = editor.getValue();
-    if (!code.trim()) {
-      showNotification("warning", "can't execute empty statement");
-      return;
-    }
+  const handleExecute = async (code: string) => {
     if (getSwitch(saveQueryKey)) {
       saveQueryLog(uuid, editor.getValue(), true, language);
     }
@@ -612,15 +632,18 @@ function MongoQuery(props: {
       <Stack
         direction="row"
         sx={{ alignItems: "center", overflow: "auto", paddingBottom: "0.5rem" }}>
-        <Tooltip title="execute">
-          <IconButton
-            onClick={() => {
-              handleExecute();
-            }}
-            color="primary">
-            <PlayArrowIcon />
-          </IconButton>
-        </Tooltip>
+        <ExecuteButton
+          disabled={markdownModel}
+          getText={() => {
+            let code = editor.getValue();
+            if (!code.trim()) {
+              showNotification("warning", "can't execute empty statement");
+              return;
+            }
+            return code;
+          }}
+          handleEexecute={handleExecute}
+        />
         <TypeScript
           language={language}
           setLanguage={setLanguage}
@@ -709,6 +732,17 @@ function MongoQuery(props: {
         setMarkdownModelValue={setMarkdownModelValue}
         editor={editor}
         markdownModelValue={markdownModelValue}
+        appcodeExtra={({ code }) => {
+          return (
+            <ExecuteButton
+              getText={() => {
+                return code;
+              }}
+              handleEexecute={handleExecute}
+              disabled={false}
+            />
+          );
+        }}
       />
       <div
         style={{

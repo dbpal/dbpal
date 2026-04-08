@@ -129,9 +129,12 @@ async fn call_openai_stream(
                 }
                 StreamedAssistantContent::ReasoningDelta { reasoning, .. } => emit(reasoning),
                 StreamedAssistantContent::Final(x) => {
-                    emit(format!(
-                        "\ninput token:{} output token:{} total token:{}",
-                        x.usage.input_tokens, x.usage.output_tokens, x.usage.total_tokens,
+                    emit(comment_fn(
+                        format!(
+                            "\ninput token:{} output token:{} total token:{}",
+                            x.usage.input_tokens, x.usage.output_tokens, x.usage.total_tokens,
+                        )
+                        .as_str(),
                     ));
                 }
             },

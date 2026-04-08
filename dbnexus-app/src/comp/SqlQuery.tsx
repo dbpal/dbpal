@@ -194,6 +194,102 @@ function SqlTransaction(props: { conn: QueryConn; executeTimes: number }) {
 }
 const tryCheckSqlSwitchKey = "try-check-sql";
 
+function QueryButtons(props: {
+  handleQuery(text: string, append: boolean);
+  handleExecute(text: string);
+  getText: () => string; // if is empty should yield a warning ,then I don't have to check it every time
+  loading: boolean;
+  disabled: boolean;
+  handleCancel: () => void;
+  supportExplain: boolean;
+}) {
+  const {
+    getText,
+    handleQuery,
+    handleExecute,
+    loading,
+    disabled,
+    handleCancel,
+    supportExplain,
+  } = props;
+
+  return (
+    <>
+      <Tooltip title="query">
+        <IconButton
+          loading={loading}
+          onClick={() => {
+            const text = getText();
+            if (!text) {
+              return;
+            }
+            handleQuery(text, false);
+          }}
+          disabled={disabled}
+          color="primary">
+          <PlayArrowIcon />
+        </IconButton>
+      </Tooltip>
+
+      <Tooltip title="execute query and append the result to tabs">
+        <IconButton
+          loading={loading}
+          onClick={() => {
+            const text = getText();
+            if (!text) {
+              return;
+            }
+            handleQuery(text, true);
+          }}
+          disabled={disabled}
+          color="primary">
+          <FastForwardIcon />
+        </IconButton>
+      </Tooltip>
+
+      <Tooltip title="execute sql not expecting result">
+        <IconButton
+          disabled={disabled}
+          loading={loading}
+          onClick={() => {
+            const text = getText();
+            if (!text) {
+              return;
+            }
+            handleExecute(text);
+          }}
+          color="primary">
+          <FaExclamation />
+        </IconButton>
+      </Tooltip>
+      {loading && (
+        <CancelButton
+          handleCancel={() => {
+            handleCancel();
+          }}
+        />
+      )}
+      {supportExplain && (
+        <Tooltip title="explain sql">
+          <IconButton
+            loading={loading}
+            disabled={disabled}
+            onClick={() => {
+              const text = getText();
+              if (!text) {
+                return;
+              }
+              handleQuery(`EXPLAIN ${text}`, true);
+            }}
+            color="primary">
+            <BsFillLightbulbFill />
+          </IconButton>
+        </Tooltip>
+      )}
+    </>
+  );
+}
+
 function SqlQuery(props: {
   uuid: string;
   value?: string;
@@ -330,11 +426,7 @@ function SqlQuery(props: {
     }
   }, []);
 
-  const handleExecute = async () => {
-    const text = getEditorText(editor, showNotification);
-    if (!text) {
-      return;
-    }
+  const handleExecute = async (text: string) => {
     const confirm = await warnDangerousSql(text);
     if (!confirm) {
       return;
@@ -361,14 +453,7 @@ function SqlQuery(props: {
       });
   };
   const handleQuery = useCallback(
-    async (append: boolean, explain: boolean = false) => {
-      let text = getEditorText(editor, showNotification);
-      if (!text) {
-        return;
-      }
-      if (explain) {
-        text = `EXPLAIN ${text}`;
-      }
+    async (text: string, append: boolean) => {
       console.log("handle query");
       if (!append) {
         setResp([]);
@@ -405,15 +490,7 @@ function SqlQuery(props: {
           setFetchDur(new Date().getTime() - fetchBegin.getTime());
         });
     },
-    [
-      editor,
-      getSize,
-      getSwitch,
-      saveQueryLog,
-      showNotification,
-      uuid,
-      warnDangerousSql,
-    ],
+    [getSize, getSwitch, saveQueryLog, showNotification, uuid, warnDangerousSql],
   );
 
   useEffect(() => {
@@ -488,59 +565,19 @@ function SqlQuery(props: {
             }}>
             {openOk && (
               <>
-                <Tooltip title="query">
-                  <IconButton
-                    loading={loading}
-                    onClick={() => {
-                      handleQuery(false);
-                    }}
-                    disabled={markdownModel}
-                    color="primary">
-                    <PlayArrowIcon />
-                  </IconButton>
-                </Tooltip>
-
-                <Tooltip title="execute query in new tab">
-                  <IconButton
-                    loading={loading}
-                    onClick={() => {
-                      handleQuery(true);
-                    }}
-                    disabled={markdownModel}
-                    color="primary">
-                    <FastForwardIcon />
-                  </IconButton>
-                </Tooltip>
-
-                <Tooltip title="execute sql not expecting result">
-                  <IconButton
-                    disabled={markdownModel}
-                    loading={loading}
-                    onClick={handleExecute}
-                    color="primary">
-                    <FaExclamation />
-                  </IconButton>
-                </Tooltip>
-                {loading && (
-                  <CancelButton
-                    handleCancel={() => {
-                      cancelTask(queryId);
-                    }}
-                  />
-                )}
-                {supportExplain && (
-                  <Tooltip title="explain sql">
-                    <IconButton
-                      loading={loading}
-                      disabled={markdownModel}
-                      onClick={() => {
-                        handleQuery(false, true);
-                      }}
-                      color="primary">
-                      <BsFillLightbulbFill />
-                    </IconButton>
-                  </Tooltip>
-                )}
+                <QueryButtons
+                  disabled={markdownModel}
+                  getText={() => {
+                    return getEditorText(editor, showNotification);
+                  }}
+                  supportExplain={supportExplain}
+                  handleQuery={handleQuery}
+                  handleExecute={handleExecute}
+                  loading={loading}
+                  handleCancel={() => {
+                    cancelTask(queryId);
+                  }}
+                />
                 <Tooltip title="try check sql,right now implemented it using parser">
                   <Checkbox
                     checked={tryCheckSql}
@@ -608,12 +645,12 @@ function SqlQuery(props: {
                 <EventNoteIcon />
               </IconButton>
             </Tooltip>
-            <ToggleChatShow />
+
             {extras}
             <ModifyLLMConfigModal />
             <SliderSize config={UseSizeConfig.queryLimit} />
             <TimeDuration dur={fetchDur} />
-
+            <ToggleChatShow />
             <AiMarkdownModelSwitch
               setMarkdownModel={setMarkdownModel}
               markdownModel={markdownModel}
@@ -627,6 +664,23 @@ function SqlQuery(props: {
             setMarkdownModelValue={setMarkdownModelValue}
             editor={editor}
             markdownModelValue={markdownModelValue}
+            appcodeExtra={({ code }) => {
+              return (
+                <QueryButtons
+                  disabled={false}
+                  getText={() => {
+                    return code;
+                  }}
+                  supportExplain={supportExplain}
+                  loading={loading}
+                  handleQuery={handleQuery}
+                  handleExecute={handleExecute}
+                  handleCancel={() => {
+                    cancelTask(queryId);
+                  }}
+                />
+              );
+            }}
           />
           <div
             style={{

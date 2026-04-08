@@ -574,6 +574,38 @@ function CouchBaseInsert({ uuid, table }) {
   );
 }
 
+interface ExecuteButtonProps {
+  handleExecute: (text: string) => void; // 修正了拼写
+  getText: () => string;
+  disabled: boolean;
+  loading?: boolean; // 保留原有的 loading 属性支持
+}
+
+export function ExecuteButton(props: ExecuteButtonProps) {
+  const { handleExecute, getText, disabled, loading } = props;
+
+  return (
+    <Tooltip title="execute">
+      <span>
+        {/* 当 IconButton 禁用时，Tooltip 需要一个 span 包裹才能正常触发 */}
+        <IconButton
+          loading={loading}
+          onClick={() => {
+            const text = getText();
+            if (!text || text.trim() === "") {
+              return;
+            }
+            handleExecute(text);
+          }}
+          disabled={disabled}
+          color="primary">
+          <PlayArrowIcon />
+        </IconButton>
+      </span>
+    </Tooltip>
+  );
+}
+
 function CouchBaseQuery(props: { uuid: string; value?: string }) {
   const { uuid, value } = props;
   const [resp, setResp] = useState<string[]>([]);
@@ -650,11 +682,7 @@ function CouchBaseQuery(props: { uuid: string; value?: string }) {
     setTableResp({ fields, data, sql: "", total: null });
   }, [resp, uuid, viewMode]);
 
-  const handleQuery = () => {
-    const text = getEditorText(editor, showNotification);
-    if (!text) {
-      return;
-    }
+  const handleQuery = (text: string) => {
     setLoading(true);
     setResp([]);
     const channel = new Channel<QueryEvent>((event) => {
@@ -729,17 +757,14 @@ function CouchBaseQuery(props: { uuid: string; value?: string }) {
             overflow: "auto",
           }}>
           <Stack direction="row" style={{ alignItems: "center" }}>
-            <Tooltip title="query">
-              <IconButton
-                loading={loading}
-                onClick={() => {
-                  handleQuery();
-                }}
-                disabled={markdownModel}
-                color="primary">
-                <PlayArrowIcon />
-              </IconButton>
-            </Tooltip>
+            <ExecuteButton
+              disabled={markdownModel}
+              getText={() => {
+                return getEditorText(editor, showNotification);
+              }}
+              handleExecute={handleQuery}
+              loading={loading}
+            />
             <LoadStoreFile
               getQuery={() => {
                 return editor.getValue();
@@ -793,10 +818,8 @@ function CouchBaseQuery(props: { uuid: string; value?: string }) {
             {viewMode == CBQueryViewMode.Json && (
               <SliderSize config={UseSizeConfig.gridCol} />
             )}
-
-            <ToggleChatShow />
-
             <SliderSize config={UseSizeConfig.queryLimit} />
+            <ToggleChatShow />
             <AiMarkdownModelSwitch
               setMarkdownModel={setMarkdownModel}
               markdownModel={markdownModel}
@@ -808,6 +831,18 @@ function CouchBaseQuery(props: { uuid: string; value?: string }) {
           markdownModel={markdownModel}
           setMarkdownModelValue={setMarkdownModelValue}
           editor={editor}
+          appcodeExtra={({ code }) => {
+            return (
+              <ExecuteButton
+                disabled={false}
+                getText={() => {
+                  return code;
+                }}
+                handleExecute={handleQuery}
+                loading={loading}
+              />
+            );
+          }}
           markdownModelValue={markdownModelValue}
         />
 
