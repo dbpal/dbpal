@@ -1,4 +1,9 @@
-import { ChatShowContext, DataSourceKind, TabActiveContext } from "./helper.ts";
+import {
+  ChatShowContext,
+  DataSourceKind,
+  extractConfigNameFromUuid,
+  TabActiveContext,
+} from "./helper.ts";
 import CloseIcon from "@mui/icons-material/Close";
 import {
   Box,
@@ -37,7 +42,14 @@ import DeleteForeverIcon from "@mui/icons-material/DeleteForever";
 import NavigateNextIcon from "@mui/icons-material/NavigateNext";
 import NavigateBeforeIcon from "@mui/icons-material/NavigateBefore";
 
-import { useBoolSwitch, useLLM, useNotification, UseSizeConfig } from "./store.tsx";
+import {
+  useBoolSwitch,
+  useChatStore,
+  useLLM,
+  useNotification,
+  UseSizeConfig,
+  useSizeStore,
+} from "./store.tsx";
 
 import AddPhotoAlternateIcon from "@mui/icons-material/AddPhotoAlternate";
 import { open } from "@tauri-apps/plugin-dialog";
@@ -93,11 +105,10 @@ function SqlChatTextInput(props: {
   kind: DataSourceKind;
   editor: editor.IStandaloneCodeEditor;
 }) {
-  const { editor } = props;
+  const { editor, uuid } = props;
   const llm = useLLM();
   const [question, setQuestion] = useState("");
   const { showNotification } = useNotification();
-  const [chatHistory, setChatHistory] = useState<string[]>([]);
   const [showChatHistory, setShowChatHistory] = useState(false);
   const [invokeStatus, setInvokeStatus] = useState("");
   const [cancelFN, setCancelFN] = useState<() => void>(null);
@@ -106,6 +117,10 @@ function SqlChatTextInput(props: {
   const cleanEditor = getSwitch(cleanEditorKey);
   const [images, setImages] = useState<string[]>([]);
   const vis = useContext(TabActiveContext);
+  const { getSize } = useSizeStore();
+  const { messagesByNames, saveMessage } = useChatStore();
+  const connName = extractConfigNameFromUuid(uuid);
+
   useEffect(() => {
     const closeThis = (e: KeyboardEvent) => {
       if (e.key === "Escape" && vis) {
@@ -139,18 +154,30 @@ function SqlChatTextInput(props: {
         editorAppendContent(editor, "\n");
       }
       setInvokeStatus("making prompt");
-      setChatHistory((e) => [...e, question]);
       let wholeText = "";
       setInvokeStatus("trying getting stream response");
       let i = 0;
       let queryId = SetAutoCompletionName.get(editor.getModel().id);
-
+      saveMessage(connName, "user", question);
+      const history = messagesByNames[connName];
       await llm.stream(
         queryId.name,
         queryId.queryId,
         question,
         images,
-        [],
+
+        (function () {
+          if (!history) {
+            return [];
+          }
+          return history.slice(0, getSize(UseSizeConfig.chatMemoryKey)).map((h) => {
+            return {
+              role: h.role,
+              msg: h.content,
+            };
+          });
+        })(),
+
         (msg) => {
           setInvokeStatus("receiving stream response#" + i);
           editorAppendContent(editor, msg);
@@ -168,7 +195,7 @@ function SqlChatTextInput(props: {
       setTimeout(() => {
         setInvokeStatus("");
       }, 5000);
-      setChatHistory((e) => [...e, wholeText]);
+      saveMessage(connName, "assistant", wholeText);
     } catch (e) {
       showNotification("error", "call llm failed", e);
     } finally {
@@ -214,11 +241,8 @@ function SqlChatTextInput(props: {
               <IconButton
                 onClick={() => {
                   setShowChatHistory((e) => !e);
-                }}
-                disabled={chatHistory.length == 0}>
-                <EventNoteIcon
-                  color={chatHistory.length == 0 ? "disabled" : "primary"}
-                />
+                }}>
+                <EventNoteIcon />
               </IconButton>
             </Tooltip>
             <SliderSize config={UseSizeConfig.chatMemoryKey} />
@@ -288,12 +312,9 @@ function SqlChatTextInput(props: {
       </Paper>
       {showChatHistory && (
         <ChatHistory
-          history={chatHistory}
+          connName={connName}
           handleClose={() => {
             setShowChatHistory(false);
-          }}
-          handleClean={() => {
-            setChatHistory([]);
           }}
         />
       )}
@@ -370,19 +391,20 @@ function ShowChatImages(props: { images: string[]; setImages }) {
   );
 }
 
-function ChatHistory(props: {
-  history: string[];
-  handleClose: () => void;
-  handleClean;
-}) {
-  const { history, handleClose, handleClean } = props;
+function ChatHistory(props: { connName: string; handleClose: () => void }) {
+  const { handleClose, connName } = props;
+
+  const { messagesByNames, clearHistory } = useChatStore();
   const wrapperRef = useRef(null);
   useEffect(() => {
     const el = wrapperRef.current;
     if (el) el.scrollTop = el.scrollHeight;
   }, []);
+
+  const history = messagesByNames[connName];
+
   const handleClear = () => {
-    handleClean();
+    clearHistory(connName);
     handleClose();
   };
 
@@ -410,28 +432,29 @@ function ChatHistory(props: {
         }
         handleClose={handleClose}
       />
-
-      <Stack>
-        {history.map((his, index) => {
-          return (
-            <div key={index}>
-              <Stack
-                direction="row"
-                style={{
-                  justifyContent: index % 2 == 0 ? "flex-start" : "flex-end",
-                }}>
-                <div
+      {history && (
+        <Stack>
+          {history.map((his, index) => {
+            return (
+              <div key={index}>
+                <Stack
+                  direction="row"
                   style={{
-                    width: "85%",
+                    justifyContent: index % 2 == 0 ? "flex-start" : "flex-end",
                   }}>
-                  <AppMarkDown>{his}</AppMarkDown>
-                </div>
-              </Stack>
-              {index > 0 && (index + 1) % 2 == 0 && <Divider />}
-            </div>
-          );
-        })}
-      </Stack>
+                  <div
+                    style={{
+                      width: "85%",
+                    }}>
+                    <AppMarkDown>{his.content}</AppMarkDown>
+                  </div>
+                </Stack>
+                {index > 0 && (index + 1) % 2 == 0 && <Divider />}
+              </div>
+            );
+          })}
+        </Stack>
+      )}
     </Paper>
   );
 }

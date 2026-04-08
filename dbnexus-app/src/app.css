@@ -45,9 +45,11 @@
 @keyframes datagridRowBeenHight {
   from {
     background-color: rgb(242, 72, 126); /* 动画开始时的透明度 */
+    opacity: 0.5;
   }
   to {
     background-color: red; /* 动画结束时的透明度 */
+    opacity: 1;
   }
 }
 

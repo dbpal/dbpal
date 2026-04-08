@@ -143,7 +143,13 @@ async fn call_openai_stream(
                     // those text in
                     for x in tool_result.content.iter() {
                         match x {
-                            ToolResultContent::Text(text) => emit(comment_fn(text.text())),
+                            ToolResultContent::Text(text) => {
+                                emit(comment_fn(if let Some(x) = text.text().get(0..20) {
+                                    x
+                                } else {
+                                    text.text()
+                                }))
+                            }
                             ToolResultContent::Image(..) => {
                                 return Err(ErrorFrontend::from(
                                     "we should not support generate image???",
@@ -321,7 +327,7 @@ impl Tool for SqlQueryTool {
         (self.emit)(
             self.db
                 .backend_kind()
-                .comment(format!("call tool sql query {}", args.query).as_str()),
+                .comment(format!("\ncall tool sql query {}", args.query).as_str()),
         );
         let (exceed, ret) = self
             .db
@@ -892,7 +898,6 @@ mod tests {
         streaming::{StreamedAssistantContent, StreamedUserContent, StreamingChat},
     };
     use websearch::SearchProvider;
-
     #[tokio::test]
 
     async fn test_xxx() {
@@ -921,14 +926,14 @@ mod tests {
 
     #[tokio::test]
 
-    async fn test_xxx_1111() {
+    async fn test_openai_prompt() {
         // enable_test_log();
         let now = std::time::Instant::now();
 
         let req = &OpenAIReq {
-            url: "https://dashscope.aliyuncs.com/compatible-mode/v1".into(),
-            api_key: "sk-6c19c965d3234c8fae49c19e4f0301f0".into(),
-            model: "qwen3.5-plus".into(),
+            url: "https://api.openai-proxy.org/v1".into(),
+            api_key: "sk-egR0EUYn0EzVybl7D9JkUFx2ksnD62sZPQ8d0J0yJgPEiAWt".into(),
+            model: "gpt-5".into(),
             prompt: "hello can u help me".into(),
             temperature: None,
             max_tokens: None,

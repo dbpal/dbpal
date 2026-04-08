@@ -47,7 +47,6 @@ import types from "./ApiStruct";
 import { editor } from "monaco-editor";
 import { Channel, invoke } from "@tauri-apps/api/core";
 import { cancelTask } from "./handlers";
-import { message } from "@tauri-apps/plugin-dialog";
 
 interface TableColumnVisible {
   // Key format: "tableName:uuid" -> Visibility Model
@@ -306,6 +305,7 @@ export const makeLLMCallable = (config: LLMConfig) => {
       handleMessage: (event: string) => void,
       handleCancel: (cancel: () => void) => void,
     ) => {
+      console.log(" history:{}", history);
       const taskId = generateRandomString();
       const emit = new Channel<string>((event: string) => {
         handleMessage(event);
@@ -1062,12 +1062,6 @@ export interface FavoriteSql {
   language?: string;
   last_modified: number;
 }
-export interface ChatMessage {
-  id?: number;
-  name: string; // 对应你的“通过名字保存”
-  content: string; // 聊天文本
-  timestamp: number; // 保存时间
-}
 
 export class MyDatabase extends Dexie {
   query_log!: Table<QueryLog>;
@@ -1176,62 +1170,93 @@ export const useFavoriteStore = create<FavoriteStore>(() => ({
   },
 }));
 
+export interface ChatMessage {
+  id?: number;
+  name: string;
+  role: "user" | "assistant" | "system"; // 新增：定义角色类型
+  content: string;
+  timestamp: number;
+}
+
 interface ChatState {
   maxLogs: number;
+  messagesByNames: Record<string, ChatMessage[]>;
+  isLoading: boolean;
 
-  fetchHistory: (name: string, filterStr?: string) => Promise<ChatMessage[]>;
-  saveMessage: (name: string, text: string) => Promise<void>;
+  fetchHistory: (name: string) => Promise<ChatMessage[]>;
+  // 修改：增加 role 参数
+  saveMessage: (name: string, role: ChatMessage["role"], text: string) => Promise<void>;
   clearHistory: (name: string) => Promise<void>;
 }
 
-export const useChatStore = create<ChatState>((_set, get) => ({
-  messagesByNames: {}, // 初始为空对象
+export const useChatStore = create<ChatState>((set, get) => ({
+  messagesByNames: {},
   isLoading: false,
   maxLogs: 100,
 
-  fetchHistory: async (name, filterStr = "") => {
+  fetchHistory: async (name) => {
+    set({ isLoading: true });
     try {
-      // 1. 从 IndexedDB 查出该名字的数据
       const history = await db.chat_history
         .where("name")
         .equals(name)
-        .filter((msg) => msg.content.includes(filterStr))
-        .reverse()
+        // 注意：如果需要按时间正序显示，可以根据 UI 需求决定是否使用 reverse()
         .sortBy("timestamp");
+
+      set((state) => ({
+        messagesByNames: {
+          ...state.messagesByNames,
+          [name]: history,
+        },
+        isLoading: false,
+      }));
+
       return history;
     } catch (e) {
-      console.error("save chat failed,err:", e);
-      message("save chat failed:" + String(e), {});
+      console.error("fetch history failed:", e);
+      set({ isLoading: false });
+      return [];
     }
   },
 
-  saveMessage: async (name, text) => {
+  saveMessage: async (name, role, text) => {
     const { maxLogs, fetchHistory } = get();
 
-    await db.transaction("rw", db.chat_history, async () => {
-      await db.chat_history.add({
-        name,
-        content: text,
-        timestamp: Date.now(),
+    try {
+      await db.transaction("rw", db.chat_history, async () => {
+        await db.chat_history.add({
+          name,
+          role, // 保存角色信息
+          content: text,
+          timestamp: Date.now(),
+        });
+
+        const count = await db.chat_history.where({ name }).count();
+        if (count > maxLogs) {
+          const oldestKeys = await db.chat_history
+            .where({ name })
+            .limit(count - maxLogs)
+            .primaryKeys();
+          await db.chat_history.bulkDelete(oldestKeys);
+        }
       });
 
-      // 核心：这里的 count 只计算当前 name 的条数
-      const count = await db.chat_history.where({ name }).count();
-      if (count > maxLogs) {
-        // 只删除该名字下最旧的数据
-        const oldestKeys = await db.chat_history
-          .where({ name })
-          .limit(count - maxLogs)
-          .primaryKeys();
-        await db.chat_history.bulkDelete(oldestKeys);
-      }
-    });
-
-    // 重新拉取该名字的数据同步到内存
-    await fetchHistory(name);
+      await fetchHistory(name);
+    } catch (e) {
+      console.error("save message failed:", e);
+    }
   },
 
   clearHistory: async (name) => {
-    await db.chat_history.where({ name }).delete();
+    try {
+      await db.chat_history.where({ name }).delete();
+      set((state) => {
+        const newMessages = { ...state.messagesByNames };
+        delete newMessages[name];
+        return { messagesByNames: newMessages };
+      });
+    } catch (e) {
+      console.error("clear history failed:", e);
+    }
   },
 }));

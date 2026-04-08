@@ -20,7 +20,6 @@ import {
   Tooltip,
   Typography,
 } from "@mui/material";
-import ContentCopyIcon from "@mui/icons-material/ContentCopy";
 import CloseIcon from "@mui/icons-material/Close";
 import CheckIcon from "@mui/icons-material/Check";
 import VisibilityIcon from "@mui/icons-material/Visibility";
@@ -274,7 +273,7 @@ function DatabaseOperationView(props: {
 
   return (
     <Stack direction="row" style={{ alignItems: "center" }}>
-      <Tooltip title="cancel this not apply anything">
+      <Tooltip title="discard the change">
         <IconButton
           onClick={() => {
             handleCancel();
@@ -288,21 +287,17 @@ function DatabaseOperationView(props: {
           <CheckIcon color="primary" />
         </IconButton>
       </Tooltip>
-
-      <Tooltip title="copy sql">
-        <IconButton
-          onClick={() => {
-            handleCopyToClipboard(sql, showNotification);
-          }}>
-          <ContentCopyIcon />
-        </IconButton>
-      </Tooltip>
       <Tooltip title="locate the row we are editing">
         <IconButton onClick={handleLocate}>
           <IoLocation fontSize="1.4em" />
         </IconButton>
       </Tooltip>
-      <Typography color="info" style={textEllipsisStyle}>
+      <Typography
+        color="info"
+        onClick={() => {
+          handleCopyToClipboard(sql, showNotification);
+        }}
+        style={{ ...textEllipsisStyle, cursor: "pointer" }}>
         {sql}
       </Typography>
     </Stack>
@@ -393,6 +388,7 @@ function SqlTableView(props: {
         const field = resp.fields[i] as FieldAndGridField;
         field.renderHeader = (e) => {
           const field = e.colDef as unknown as FieldAndGridField;
+
           const makeTitle = (): string => {
             let ret = field.field + " ";
             ret += field.data_type;
@@ -415,7 +411,7 @@ function SqlTableView(props: {
                 e.stopPropagation();
                 setClickedField(field.field);
               }}
-              style={{ alignItems: "center", cursor: "default" }}
+              style={{ alignItems: "center" }}
               direction="row">
               <Tooltip title={makeTitle()}>
                 <Typography fontSize={dataGridheaderFontSize}>{field.field}</Typography>
@@ -912,6 +908,9 @@ function SqlTableView(props: {
         />
       ))}
       <DataGrid
+        isCellEditable={() => {
+          return isTable;
+        }}
         slots={slots}
         getCellClassName={(e) => {
           let id = tryGetId(e.row, resp.fields);

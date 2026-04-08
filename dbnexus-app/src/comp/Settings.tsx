@@ -1070,7 +1070,6 @@ function EditorOptions(props: { handleClose; showEditOption }) {
         language="json"
         value={editorOP.editorOption}
         handleValue={(newValue) => {
-          console.log("!!!!!!!!!!!!!!!", newValue);
           setValue(newValue);
         }}
       />
@@ -1171,7 +1170,14 @@ function makeComponents(
         root: {
           "& .MuiDataGrid-columnHeaderTitle": {
             fontWeight,
-            border: "1.5px solid #7c7c7c",
+          },
+          "& .MuiDataGrid-cell": {
+            padding: "0 2px",
+          },
+          // 如果你也想去掉表头的内边距
+          "& .MuiDataGrid-columnHeader": {
+            padding: "0 2px",
+            border: "1.5px solid #b7b3b3",
           },
         },
         cell: {
@@ -1189,7 +1195,7 @@ function makeComponents(
         showCellVerticalBorder: true,
         showColumnVerticalBorder: true,
         rowHeight: dataGridRowHeight,
-        columnHeaderHeight: dataGridRowHeight,
+        columnHeaderHeight: dataGridRowHeight * 0.9,
         showToolbar: true,
       },
     },
