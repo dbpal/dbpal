@@ -16,6 +16,7 @@ import {
   FormControlLabel,
   IconButton,
   Modal,
+  Pagination,
   Paper,
   Stack,
   TextField,
@@ -56,6 +57,7 @@ import {
   useUserSystemPromptStore,
   UseSizeConfig,
   useSizeStore,
+  ChatMessage,
 } from "./store.tsx";
 
 import AddPhotoAlternateIcon from "@mui/icons-material/AddPhotoAlternate";
@@ -431,9 +433,22 @@ function ChatHistory(props: {
   const { handleClose, connName, showChatHistory } = props;
   const { messagesByNames, clearHistory, fetchHistory, isLoading } = useChatStore();
   const wrapperRef = useRef(null);
-
   const [matchStr, setMatchStr] = useState("");
   const history = messagesByNames[connName];
+  const [showingHis, setShowHistory] = useState<ChatMessage[]>([]);
+  const [page, setPage] = useState(1);
+  const pageSize = 10;
+  const [length, setLength] = useState(0);
+
+  useEffect(() => {
+    if (history) {
+      let his = history.filter((his) =>
+        matchStr ? his.content.includes(matchStr) : true,
+      );
+      setLength(his.length);
+      setShowHistory(his.slice((page - 1) * pageSize, page * pageSize));
+    }
+  }, [history, matchStr, page]);
 
   useEffect(() => {
     const el = wrapperRef.current;
@@ -450,6 +465,7 @@ function ChatHistory(props: {
   if (!showChatHistory) {
     return <> </>;
   }
+
   return (
     <Paper
       style={{
@@ -461,7 +477,8 @@ function ChatHistory(props: {
         zIndex: 14,
         overflow: "auto",
         padding: "0.4rem",
-        display: "block",
+        display: "flex",
+        flexDirection: "column",
       }}
       ref={wrapperRef}>
       <ModalHeader
@@ -486,11 +503,17 @@ function ChatHistory(props: {
         }
         handleClose={handleClose}
       />
-      {history && (
-        <Stack>
-          {history
-            .filter((his) => (matchStr ? his.content.includes(matchStr) : true))
-            .map((his, index) => {
+      <div
+        style={{
+          flex: 1,
+          height: "100px",
+          minHeight: 0,
+          overflow: "auto",
+          paddingRight: "5px",
+        }}>
+        {showingHis && (
+          <Stack>
+            {showingHis.map((his, index) => {
               return (
                 <div key={index}>
                   <Stack
@@ -506,6 +529,9 @@ function ChatHistory(props: {
                         padding: "2px 4px",
                         overflow: "auto",
                       }}>
+                      <Typography color="info">
+                        {his.role}:{new Date(his.timestamp).toLocaleString()}
+                      </Typography>
                       <AppMarkDown>{his.content}</AppMarkDown>
                     </div>
                   </Stack>
@@ -514,8 +540,18 @@ function ChatHistory(props: {
                 </div>
               );
             })}
-        </Stack>
-      )}
+          </Stack>
+        )}
+      </div>
+      <Stack direction="row" style={{ justifyContent: "right" }}>
+        <Pagination
+          page={page}
+          onChange={(_, page) => {
+            setPage(page);
+          }}
+          count={Math.ceil(length / pageSize)}
+        />
+      </Stack>
     </Paper>
   );
 }

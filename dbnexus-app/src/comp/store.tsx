@@ -1060,7 +1060,7 @@ export const useQueryLogStore = create<QueryLogState>(() => ({
       .where("uuid")
       .equals(uuid)
       .reverse()
-      .sortBy("create_at ");
+      .sortBy("create_at");
     return collection;
   },
 
@@ -1222,7 +1222,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
       const history = await db.chat_history
         .where("name")
         .equals(name)
-        // 注意：如果需要按时间正序显示，可以根据 UI 需求决定是否使用 reverse()
+        .reverse() //
         .sortBy("timestamp");
 
       set((state) => ({
