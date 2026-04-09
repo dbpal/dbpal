@@ -42,6 +42,7 @@ import {
   Slider,
   Switch,
   TextField,
+  TextFieldProps,
   Tooltip,
   Typography,
 } from "@mui/material";
@@ -108,6 +109,38 @@ import {
 import { MonacoEditor } from "./Editor";
 import EditIcon from "@mui/icons-material/Edit";
 import { Highlight, themes } from "prism-react-renderer";
+
+interface ClearableTextFieldProps extends Omit<TextFieldProps, "variant"> {
+  // Use Dispatch<SetStateAction<string>> to match useState's setter type
+  onClear: () => void;
+}
+
+export function ClearableTextField({
+  value,
+  onClear,
+  ...props
+}: ClearableTextFieldProps) {
+  return (
+    <TextField
+      value={value}
+      {...props}
+      // We "merge" slotProps so you can still pass other custom input props if needed
+      slotProps={{
+        ...props.slotProps,
+        input: {
+          ...props.slotProps?.input,
+          endAdornment: value ? (
+            <InputAdornment position="end">
+              <IconButton onClick={onClear} edge="end">
+                <ClearIcon fontSize="small" />
+              </IconButton>
+            </InputAdornment>
+          ) : null,
+        },
+      }}
+    />
+  );
+}
 
 function AppCode(props: {
   codeBlock: string;
@@ -243,7 +276,7 @@ function CreateDatabase(props: {
             }}
           />
           <StackRowCenter>
-            <TextField
+            <ClearableTextField
               label="ram quota mb"
               value={couchbasExtra.ram_quota_mb}
               onChange={(e) =>
@@ -251,23 +284,9 @@ function CreateDatabase(props: {
               }
               style={{ flex: 1 }}
               error={isNaN(parseInt(couchbasExtra.ram_quota_mb))}
-              slotProps={{
-                input: {
-                  endAdornment: couchbasExtra.ram_quota_mb && (
-                    <InputAdornment position="end">
-                      <IconButton
-                        onClick={() => {
-                          setCouchbaseExtra({ ...couchbasExtra, ram_quota_mb: "" });
-                        }}
-                        edge="end">
-                        <ClearIcon fontSize="small" />
-                      </IconButton>
-                    </InputAdornment>
-                  ),
-                },
-              }}
+              onClear={() => setCouchbaseExtra({ ...couchbasExtra, ram_quota_mb: "" })}
             />
-            <TextField
+            <ClearableTextField
               label="max expiry(in seconds)"
               value={couchbasExtra.max_expiry}
               onChange={(e) =>
@@ -279,47 +298,19 @@ function CreateDatabase(props: {
                   ? isNaN(parseInt(couchbasExtra.max_expiry))
                   : false
               }
-              slotProps={{
-                input: {
-                  endAdornment: couchbasExtra.max_expiry && (
-                    <InputAdornment position="end">
-                      <IconButton
-                        onClick={() => {
-                          setCouchbaseExtra({ ...couchbasExtra, max_expiry: "" });
-                        }}
-                        edge="end">
-                        <ClearIcon fontSize="small" />
-                      </IconButton>
-                    </InputAdornment>
-                  ),
-                },
-              }}
+              onClear={() => setCouchbaseExtra({ ...couchbasExtra, max_expiry: "" })}
             />
           </StackRowCenter>
 
           <Stack direction="row" style={{ alignItems: "center" }}>
-            <TextField
+            <ClearableTextField
               label="number of replicas"
               value={couchbasExtra.num_replicas}
               onChange={(e) =>
                 setCouchbaseExtra({ ...couchbasExtra, num_replicas: e.target.value })
               }
               error={isNaN(parseInt(couchbasExtra.num_replicas))}
-              slotProps={{
-                input: {
-                  endAdornment: couchbasExtra.num_replicas && (
-                    <InputAdornment position="end">
-                      <IconButton
-                        onClick={() => {
-                          setCouchbaseExtra({ ...couchbasExtra, num_replicas: "" });
-                        }}
-                        edge="end">
-                        <ClearIcon fontSize="small" />
-                      </IconButton>
-                    </InputAdornment>
-                  ),
-                },
-              }}
+              onClear={() => setCouchbaseExtra({ ...couchbasExtra, num_replicas: "" })}
             />
             <FormControlLabel
               control={
@@ -1299,28 +1290,14 @@ function CreateIndexReq(props: {
   }
   return (
     <Stack style={style}>
-      <TextField
+      <ClearableTextField
         value={req.name}
         onChange={(e) => {
           setReq({ ...req, name: e.target.value });
         }}
         label="index name"
         required
-        slotProps={{
-          input: {
-            endAdornment: req.name && (
-              <InputAdornment position="end">
-                <IconButton
-                  onClick={() => {
-                    setReq({ ...req, name: "" });
-                  }}
-                  edge="end">
-                  <ClearIcon fontSize="small" />
-                </IconButton>
-              </InputAdornment>
-            ),
-          },
-        }}
+        onClear={() => setReq({ ...req, name: "" })}
       />
       <SelectColumnAsc
         includes={req.columns}

@@ -18,6 +18,7 @@ import {
   IconButton,
   Autocomplete,
 } from "@mui/material";
+import { ClearableTextField } from "./CommonComp2";
 import RefreshIcon from "@mui/icons-material/Refresh";
 import AttachFileIcon from "@mui/icons-material/AttachFile";
 import VisibilityIcon from "@mui/icons-material/Visibility";
@@ -126,27 +127,13 @@ function UserAndPassword(props: {
   const [passwordVisible, setPasswordVisible] = useState(false);
   return (
     <Stack direction="row">
-      <TextField
+      <ClearableTextField
         fullWidth
         label="User"
         value={user}
         sx={{ mr: 1 }}
         onChange={(event) => setUser(event.target.value)}
-        slotProps={{
-          input: {
-            endAdornment: user && (
-              <InputAdornment position="end">
-                <IconButton
-                  onClick={() => {
-                    setUser("");
-                  }}
-                  edge="end">
-                  <ClearIcon fontSize="small" />
-                </IconButton>
-              </InputAdornment>
-            ),
-          },
-        }}
+        onClear={() => setUser("")}
       />
       <TextField
         fullWidth
@@ -1182,51 +1169,23 @@ function AddConnection(props: { config?: types.DBConnectionConfig }) {
         </Select>
       </FormControl>
       <Stack direction="row" style={{ alignItems: "flex-start" }}>
-        <TextField
+        <ClearableTextField
           label="Connection Name"
           value={connectionName}
           inputRef={connectionNameDom}
           required
           onChange={(e) => setConnectionName(e.target.value)}
+          onClear={() => setConnectionName("")}
           error={cnameDuplicated}
           helperText={cnameDuplicated ? "Connection name duplicated" : ""}
-          slotProps={{
-            input: {
-              endAdornment: connectionName && (
-                <InputAdornment position="end">
-                  <IconButton
-                    onClick={() => {
-                      setConnectionName("");
-                    }}
-                    edge="end">
-                    <ClearIcon fontSize="small" />
-                  </IconButton>
-                </InputAdornment>
-              ),
-            },
-          }}
           style={{ flex: 1 }}
         />
-        <TextField
+        <ClearableTextField
           label="connection timeout"
           value={connTimeout}
           style={{ flex: 1 }}
           onChange={(e) => setConnTimeout(e.target.value)}
-          slotProps={{
-            input: {
-              endAdornment: connTimeout && (
-                <InputAdornment position="end">
-                  <IconButton
-                    onClick={() => {
-                      setConnTimeout("");
-                    }}
-                    edge="end">
-                    <ClearIcon fontSize="small" />
-                  </IconButton>
-                </InputAdornment>
-              ),
-            },
-          }}
+          onClear={() => setConnTimeout("")}
           error={connTimeout ? isNaN(parseInt(connTimeout)) : false}
           helperText="milliseconds to wait for connect"
         />
@@ -1432,51 +1391,23 @@ function LibSql(props: { config; context: AddConnectionContext }) {
       {libSqlModel === "remote" && (
         <>
           <Stack direction="row">
-            <TextField
+            <ClearableTextField
               value={url}
               label="url"
               onChange={(e) => {
                 setUrl(e.target.value);
               }}
+              onClear={() => setUrl("")}
               fullWidth
-              slotProps={{
-                input: {
-                  endAdornment: url && (
-                    <InputAdornment position="end">
-                      <IconButton
-                        onClick={() => {
-                          setUrl("");
-                        }}
-                        edge="end">
-                        <ClearIcon fontSize="small" />
-                      </IconButton>
-                    </InputAdornment>
-                  ),
-                },
-              }}
             />
-            <TextField
+            <ClearableTextField
               fullWidth
               value={authToken}
               label="auth token "
               onChange={(e) => {
                 setAuthToken(e.target.value);
               }}
-              slotProps={{
-                input: {
-                  endAdornment: authToken && (
-                    <InputAdornment position="end">
-                      <IconButton
-                        onClick={() => {
-                          setAuthToken("");
-                        }}
-                        edge="end">
-                        <ClearIcon fontSize="small" />
-                      </IconButton>
-                    </InputAdornment>
-                  ),
-                },
-              }}
+              onClear={() => setAuthToken("")}
             />
           </Stack>
           {/* <Stack
@@ -1522,73 +1453,31 @@ function OdbcDriverCommon(props: { config: RefObject<types.OdbcCommon> }) {
 
   return (
     <Stack direction="row">
-      <TextField
+      <ClearableTextField
         label="driver name"
         value={driverName}
         sx={{ mr: 1 }}
         onChange={(e) => setDriverName(e.target.value)}
-        slotProps={{
-          input: {
-            endAdornment: driverName && (
-              <InputAdornment position="end">
-                <IconButton
-                  onClick={() => {
-                    setDriverName("");
-                  }}
-                  edge="end">
-                  <ClearIcon fontSize="small" />
-                </IconButton>
-              </InputAdornment>
-            ),
-          },
-        }}
+        onClear={() => setDriverName("")}
         required
       />
 
-      <TextField
+      <ClearableTextField
         label="max string length"
         value={maxStrLen}
         sx={{ mr: 1 }}
         onChange={(e) => setMaxStrLen(e.target.value)}
-        slotProps={{
-          input: {
-            endAdornment: maxStrLen && (
-              <InputAdornment position="end">
-                <IconButton
-                  onClick={() => {
-                    setMaxStrLen("");
-                  }}
-                  edge="end">
-                  <ClearIcon fontSize="small" />
-                </IconButton>
-              </InputAdornment>
-            ),
-          },
-        }}
+        onClear={() => setMaxStrLen("")}
         error={maxStrLen ? isNaN(parseInt(maxStrLen)) : false}
         required
       />
 
-      <TextField
+      <ClearableTextField
         label="max bin length"
         value={maxbinLen}
         sx={{ mr: 1 }}
         onChange={(e) => setMaxBinLen(e.target.value)}
-        slotProps={{
-          input: {
-            endAdornment: maxbinLen && (
-              <InputAdornment position="end">
-                <IconButton
-                  onClick={() => {
-                    setMaxBinLen("");
-                  }}
-                  edge="end">
-                  <ClearIcon fontSize="small" />
-                </IconButton>
-              </InputAdornment>
-            ),
-          },
-        }}
+        onClear={() => setMaxBinLen("")}
         error={maxbinLen ? isNaN(parseInt(maxbinLen)) : false}
         required
       />
@@ -1643,26 +1532,12 @@ function Db2(props: { config?; context: AddConnectionContext }) {
         savePassword={savePassword}
         setSavePassword={setSavePassword}
       />
-      <TextField
+      <ClearableTextField
         label="database"
         value={database}
         sx={{ mr: 1 }}
         onChange={(e) => setDatabase(e.target.value)}
-        slotProps={{
-          input: {
-            endAdornment: database && (
-              <InputAdornment position="end">
-                <IconButton
-                  onClick={() => {
-                    setDatabase("");
-                  }}
-                  edge="end">
-                  <ClearIcon fontSize="small" />
-                </IconButton>
-              </InputAdornment>
-            ),
-          },
-        }}
+        onClear={() => setDatabase("")}
         required
       />
       {database && (
@@ -1709,27 +1584,13 @@ function CouchBase(props: { config?; context: AddConnectionContext }) {
   makeConfigRef.current = makeConfig;
   return (
     <Stack>
-      <TextField
+      <ClearableTextField
         fullWidth
         label="connection string"
         value={connStr}
         sx={{ mr: 1 }}
         onChange={(e) => setConnStr(e.target.value)}
-        slotProps={{
-          input: {
-            endAdornment: connStr && (
-              <InputAdornment position="end">
-                <IconButton
-                  onClick={() => {
-                    setConnStr("");
-                  }}
-                  edge="end">
-                  <ClearIcon fontSize="small" />
-                </IconButton>
-              </InputAdornment>
-            ),
-          },
-        }}
+        onClear={() => setConnStr("")}
         required
       />
 

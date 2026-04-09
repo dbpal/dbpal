@@ -22,8 +22,6 @@ import {
   CircularProgress,
   Divider,
   FormControlLabel,
-  IconButton,
-  InputAdornment,
   ListItemIcon,
   ListItemText,
   MenuItem,
@@ -33,7 +31,6 @@ import {
   TextField,
   Tooltip,
 } from "@mui/material";
-import ClearIcon from "@mui/icons-material/Clear";
 
 import { SqlTableView, SqlTableViewData } from "./SqlTableView";
 import { ExportTableOrView } from "./Export";
@@ -68,7 +65,7 @@ import { ExceedMaxTreeItem, MenuRefresh, ModalHeader } from "./CommonComp";
 import { TableStructure } from "./TableStructure";
 import { cancelTask, listTable, makeTableInsertFn, showTableColumn } from "./handlers";
 import { filesize } from "filesize";
-import { CancelButton, CopySql } from "./CommonComp2";
+import { CancelButton, ClearableTextField, CopySql } from "./CommonComp2";
 import { CouchBaseTable } from "./CouchBase";
 import {
   useMatcher,
@@ -1023,7 +1020,7 @@ function RedisTables() {
               }}
               title="Edit key match string"
             />
-            <TextField
+            <ClearableTextField
               value={filter}
               fullWidth
               label="filer"
@@ -1031,20 +1028,8 @@ function RedisTables() {
               onChange={(e) => {
                 setFilter(e.target.value);
               }}
-              slotProps={{
-                input: {
-                  endAdornment: filter && (
-                    <InputAdornment position="end">
-                      <IconButton
-                        onClick={() => {
-                          setFilter("");
-                        }}
-                        edge="end">
-                        <ClearIcon fontSize="small" />
-                      </IconButton>
-                    </InputAdornment>
-                  ),
-                },
+              onClear={() => {
+                setFilter("");
               }}
             />
           </Box>

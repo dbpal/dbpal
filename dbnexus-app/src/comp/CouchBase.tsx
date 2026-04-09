@@ -4,11 +4,9 @@ import {
   ButtonGroup,
   Chip,
   IconButton,
-  InputAdornment,
   Modal,
   Pagination,
   Stack,
-  TextField,
   Tooltip,
   Typography,
 } from "@mui/material";
@@ -18,6 +16,7 @@ import {
   AiMarkdownModel,
   AiMarkdownModelSwitch,
   AppCode,
+  ClearableTextField,
   ListenElementSize,
   LoadStoreFile,
   QueryStatus,
@@ -59,7 +58,6 @@ import {
   QueryEvent,
 } from "./Common.ts";
 import { editor, Position } from "monaco-editor";
-import ClearIcon from "@mui/icons-material/Clear";
 import { Panel, PanelGroup, PanelResizeHandle } from "react-resizable-panels";
 import { QueryLog } from "./QueryLog.tsx";
 import { ExportView } from "./Export.tsx";
@@ -549,26 +547,14 @@ function CouchBaseInsert({ uuid, table }) {
           variant="text">
           gen
         </Button>
-        <TextField
+        <ClearableTextField
           label="id"
           value={id}
           onChange={(e) => {
             setId(e.target.value);
           }}
-          slotProps={{
-            input: {
-              endAdornment: id && (
-                <InputAdornment position="end">
-                  <IconButton
-                    onClick={() => {
-                      setId("");
-                    }}
-                    edge="end">
-                    <ClearIcon fontSize="small" />
-                  </IconButton>
-                </InputAdornment>
-              ),
-            },
+          onClear={() => {
+            setId("");
           }}
           required
         />

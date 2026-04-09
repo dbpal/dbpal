@@ -9,7 +9,6 @@ import {
   Divider,
   FormControlLabel,
   IconButton,
-  InputAdornment,
   ListItemIcon,
   ListItemText,
   MenuItem,
@@ -35,7 +34,6 @@ import {
   GridSortModel,
   useGridApiRef,
 } from "@mui/x-data-grid";
-import ClearIcon from "@mui/icons-material/Clear";
 import {
   EscDownEvent,
   FieldAndGridField,
@@ -85,6 +83,7 @@ import { MdEditNote } from "react-icons/md";
 import {
   AppDataGridPagination,
   AppDataGridToolBar,
+  ClearableTextField,
   LastFetchTime,
   ListenElementSize,
   QueryStatus,
@@ -1266,7 +1265,7 @@ function SqlTableViewData(props: {
         <Button loading={loading} onClick={handleModify}>
           {buttonName}
         </Button>
-        <TextField
+        <ClearableTextField
           value={filter}
           onChange={(e) => {
             setFilter(e.target.value);
@@ -1274,20 +1273,8 @@ function SqlTableViewData(props: {
           label="filter"
           fullWidth
           helperText="can match field name and content"
-          slotProps={{
-            input: {
-              endAdornment: filter && (
-                <InputAdornment position="end">
-                  <IconButton
-                    onClick={() => {
-                      setFilter("");
-                    }}
-                    edge="end">
-                    <ClearIcon fontSize="small" />
-                  </IconButton>
-                </InputAdornment>
-              ),
-            },
+          onClear={() => {
+            setFilter("");
           }}
         />
       </Stack>

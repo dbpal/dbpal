@@ -4,9 +4,7 @@ import {
   Divider,
   FormControlLabel,
   IconButton,
-  InputAdornment,
   Stack,
-  TextField,
   Tooltip,
   Typography,
 } from "@mui/material";
@@ -16,6 +14,7 @@ import { CSSProperties, useCallback, useRef, useState } from "react";
 import types from "./ApiStruct";
 import AddIcon from "@mui/icons-material/Add";
 import {
+  ClearableTextField,
   ColumnNullness,
   CreateIndexReq,
   SqlDefaultValue,
@@ -268,7 +267,7 @@ function CreateTable(props: { uuid: string; kind: DataSourceKind }) {
         <Button onClick={handleCreate} loading={loading}>
           create
         </Button>
-        <TextField
+        <ClearableTextField
           value={table}
           onChange={(e) => {
             setTable(e.target.value);
@@ -277,24 +276,8 @@ function CreateTable(props: { uuid: string; kind: DataSourceKind }) {
           style={{ flex: 1, maxWidth: "22rem" }}
           label="table name"
           required
-          slotProps={{
-            input: {
-              endAdornment: (
-                <>
-                  {table && (
-                    <InputAdornment position="end">
-                      <IconButton
-                        onClick={() => {
-                          setTable("");
-                        }}
-                        edge="end">
-                        <ClearIcon fontSize="small" />
-                      </IconButton>
-                    </InputAdornment>
-                  )}
-                </>
-              ),
-            },
+          onClear={() => {
+            setTable("");
           }}
         />
         <Button
@@ -390,7 +373,7 @@ function TableColumn(props: {
           />
         </span>
       </Tooltip>
-      <TextField
+      <ClearableTextField
         value={col.name}
         onChange={(e) => {
           handleCol({ ...col, name: e.target.value });
@@ -398,24 +381,8 @@ function TableColumn(props: {
         style={{ flex: 1 }}
         label="column name"
         required
-        slotProps={{
-          input: {
-            endAdornment: (
-              <>
-                {col.name && (
-                  <InputAdornment position="end">
-                    <IconButton
-                      onClick={() => {
-                        handleCol({ ...col, name: "" });
-                      }}
-                      edge="end">
-                      <ClearIcon fontSize="small" />
-                    </IconButton>
-                  </InputAdornment>
-                )}
-              </>
-            ),
-          },
+        onClear={() => {
+          handleCol({ ...col, name: "" });
         }}
       />
       <TypeSelect

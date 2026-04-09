@@ -8,7 +8,6 @@ import { v4 as uuidv4 } from "uuid";
 import CloseIcon from "@mui/icons-material/Close";
 import SaveIcon from "@mui/icons-material/Save";
 import { TbPrompt } from "react-icons/tb";
-import ClearIcon from "@mui/icons-material/Clear";
 import {
   Box,
   Checkbox,
@@ -16,12 +15,10 @@ import {
   Divider,
   FormControlLabel,
   IconButton,
-  InputAdornment,
   Modal,
   Pagination,
   Paper,
   Stack,
-  TextField,
   Tooltip,
   Typography,
 } from "@mui/material";
@@ -33,6 +30,7 @@ import {
   SimpleFlexEditor,
   CancelButton,
   EscPressedDo,
+  ClearableTextField,
 } from "./CommonComp2.tsx";
 import ArrowCircleUpIcon from "@mui/icons-material/ArrowCircleUp";
 import EventNoteIcon from "@mui/icons-material/EventNote";
@@ -488,28 +486,16 @@ function ChatHistory(props: {
         headerExtra={
           <>
             {isLoading && <CircularProgress />}
-            <TextField
+            <ClearableTextField
               value={matchStr}
               onChange={(e) => {
                 setMatchStr(e.target.value);
               }}
+              onClear={() => {
+                setMatchStr("");
+              }}
               style={{ width: "10rem" }}
               helperText="match string"
-              slotProps={{
-                input: {
-                  endAdornment: matchStr && (
-                    <InputAdornment position="end">
-                      <IconButton
-                        onClick={() => {
-                          setMatchStr("");
-                        }}
-                        edge="end">
-                        <ClearIcon fontSize="small" />
-                      </IconButton>
-                    </InputAdornment>
-                  ),
-                },
-              }}
             />
             <Tooltip title="delete history">
               <IconButton onClick={handleClear}>

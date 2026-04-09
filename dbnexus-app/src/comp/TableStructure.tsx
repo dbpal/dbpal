@@ -8,6 +8,7 @@ import {
   handleCopyToClipboard,
   secondConfirm,
 } from "./helper";
+import { ClearableTextField } from "./CommonComp2";
 import CancelIcon from "@mui/icons-material/Cancel";
 import { invoke } from "@tauri-apps/api/core";
 import CheckCircleIcon from "@mui/icons-material/CheckCircle";
@@ -25,8 +26,6 @@ import {
   Checkbox,
   Divider,
   FormControlLabel,
-  IconButton,
-  InputAdornment,
   ListItemIcon,
   ListItemText,
   MenuItem,
@@ -46,7 +45,6 @@ import AddIcon from "@mui/icons-material/Add";
 import { BSON } from "bson";
 import { MongoValueEditor } from "./MongoDB";
 import { ModalHeader, TrueOrFalse } from "./CommonComp";
-import ClearIcon from "@mui/icons-material/Clear";
 import { DefAndMetasView, TriggerDetail } from "./DefAndMetaView";
 import {
   createTableAndIndexSql,
@@ -1001,28 +999,14 @@ function TableAddColumn(props: {
   const supportDefault = kindSupportDefault(kind);
   return (
     <Stack>
-      <TextField
+      <ClearableTextField
         value={name}
         required
         inputRef={nameDom}
         onChange={(e) => {
           setName(e.target.value.trim());
         }}
-        slotProps={{
-          input: {
-            endAdornment: name && (
-              <InputAdornment position="end">
-                <IconButton
-                  onClick={() => {
-                    setName("");
-                  }}
-                  edge="end">
-                  <ClearIcon fontSize="small" />
-                </IconButton>
-              </InputAdornment>
-            ),
-          },
-        }}
+        onClear={() => setName("")}
         label="column name"
       />
       <StackRowCenter>
@@ -1142,7 +1126,7 @@ function ModifyTableColumn(props: {
 
   return (
     <Stack>
-      <TextField
+      <ClearableTextField
         fullWidth
         label="New Name"
         value={newName}
@@ -1150,20 +1134,8 @@ function ModifyTableColumn(props: {
           setNewName(e.target.value);
         }}
         required
-        slotProps={{
-          input: {
-            endAdornment: newName && (
-              <InputAdornment position="end">
-                <IconButton
-                  onClick={() => {
-                    setNewName("");
-                  }}
-                  edge="end">
-                  <ClearIcon fontSize="small" />
-                </IconButton>
-              </InputAdornment>
-            ),
-          },
+        onClear={() => {
+          setNewName("");
         }}
         error={!newName}
       />

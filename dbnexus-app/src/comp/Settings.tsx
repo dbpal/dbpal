@@ -17,7 +17,6 @@ import {
   Divider,
   FormControlLabel,
   IconButton,
-  InputAdornment,
   Modal,
   Slider,
   Stack,
@@ -44,8 +43,8 @@ import {
 
 import { invoke } from "@tauri-apps/api/core";
 import EditIcon from "@mui/icons-material/Edit";
-import ClearIcon from "@mui/icons-material/Clear";
 import { IconModifed, SimpleFlexEditor, StackRowCenter } from "./CommonComp2";
+import { ClearableTextField } from "./CommonComp2";
 import {
   enable as enableApp,
   isEnabled as isEnabledApp,
@@ -169,26 +168,12 @@ function AppearanceSetting() {
         <Typography width={headerSize} style={{ fontWeight }}>
           font weight
         </Typography>
-        <TextField
+        <ClearableTextField
           value={fontWeight}
           onChange={(e) => {
             setFontWeight(e.target.value);
           }}
-          slotProps={{
-            input: {
-              endAdornment: fontWeight && (
-                <InputAdornment position="end">
-                  <IconButton
-                    onClick={() => {
-                      setFontWeight("");
-                    }}
-                    edge="end">
-                    <ClearIcon fontSize="small" />
-                  </IconButton>
-                </InputAdornment>
-              ),
-            },
-          }}
+          onClear={() => setFontWeight("")}
         />
       </Stack>
       <Stack direction="row" sx={{ alignItems: "flex-end" }}>
@@ -324,27 +309,13 @@ function SetBgColor({ bgColor, setBgColor, theme }) {
         )}
       </div>
 
-      <TextField
+      <ClearableTextField
         value={bgColor}
         onChange={(e) => {
           setBgColor(e.target.value);
         }}
+        onClear={() => setBgColor("")}
         style={{ width: "10rem" }}
-        slotProps={{
-          input: {
-            endAdornment: bgColor && (
-              <InputAdornment position="end">
-                <IconButton
-                  onClick={() => {
-                    setBgColor("");
-                  }}
-                  edge="end">
-                  <ClearIcon fontSize="small" />
-                </IconButton>
-              </InputAdornment>
-            ),
-          },
-        }}
       />
     </Stack>
   );
@@ -658,26 +629,14 @@ function LLMSetting(props: { handleClose?: () => void }) {
     <Stack>
       <Stack direction="row" sx={{ alignItems: "center" }}>
         <Typography width={headerSize}>base url</Typography>
-        <TextField
+        <ClearableTextField
           style={{ width: "25rem" }}
           value={baseUrl}
           onChange={(e) => setBaseUrl(e.target.value)}
+          onClear={() => setBaseUrl("")}
           slotProps={{
             htmlInput: {
               type: "url",
-            },
-            input: {
-              endAdornment: baseUrl && (
-                <InputAdornment position="end">
-                  <IconButton
-                    onClick={() => {
-                      setBaseUrl("");
-                    }}
-                    edge="end">
-                    <ClearIcon fontSize="small" />
-                  </IconButton>
-                </InputAdornment>
-              ),
             },
           }}
         />
@@ -685,26 +644,12 @@ function LLMSetting(props: { handleClose?: () => void }) {
 
       <Stack direction="row" sx={{ alignItems: "center" }}>
         <Typography width={headerSize}>api key</Typography>
-        <TextField
+        <ClearableTextField
           value={apiKey}
           style={{ width: "40rem" }}
           onChange={(e) => setApiKey(e.target.value)}
+          onClear={() => setApiKey("")}
           type={import.meta.env.DEV ? undefined : "password"}
-          slotProps={{
-            input: {
-              endAdornment: apiKey && (
-                <InputAdornment position="end">
-                  <IconButton
-                    onClick={() => {
-                      setApiKey("");
-                    }}
-                    edge="end">
-                    <ClearIcon fontSize="small" />
-                  </IconButton>
-                </InputAdornment>
-              ),
-            },
-          }}
         />
       </Stack>
       <Stack direction="row" sx={{ alignItems: "center" }}>
@@ -768,49 +713,21 @@ function LLMSetting(props: { handleClose?: () => void }) {
 
       <Stack direction="row" sx={{ alignItems: "center" }}>
         <Typography width={headerSize}> max token </Typography>
-        <TextField
+        <ClearableTextField
           error={maxToken ? isNaN(parseInt(maxToken)) : false}
           value={maxToken}
           onChange={(e) => setMaxToken(e.target.value)}
-          slotProps={{
-            input: {
-              endAdornment: maxToken && (
-                <InputAdornment position="end">
-                  <IconButton
-                    onClick={() => {
-                      setMaxToken("");
-                    }}
-                    edge="end">
-                    <ClearIcon fontSize="small" />
-                  </IconButton>
-                </InputAdornment>
-              ),
-            },
-          }}
+          onClear={() => setMaxToken("")}
         />
       </Stack>
 
       <Stack direction="row" sx={{ alignItems: "center" }}>
         <Typography width={headerSize}> topP </Typography>
-        <TextField
+        <ClearableTextField
           error={topP ? isNaN(parseFloat(topP)) : false}
           value={topP}
           onChange={(e) => setTopP(e.target.value)}
-          slotProps={{
-            input: {
-              endAdornment: topP && (
-                <InputAdornment position="end">
-                  <IconButton
-                    onClick={() => {
-                      setTopP("");
-                    }}
-                    edge="end">
-                    <ClearIcon fontSize="small" />
-                  </IconButton>
-                </InputAdornment>
-              ),
-            },
-          }}
+          onClear={() => setTopP("")}
         />
       </Stack>
 
@@ -834,28 +751,14 @@ function LLMSetting(props: { handleClose?: () => void }) {
         />
 
         {["serpapi", "tavily"].includes(searchEngine.provider) && (
-          <TextField
+          <ClearableTextField
             value={searchEngine.api_key}
             onChange={(e) => {
               setSearchEngine({ ...searchEngine, api_key: e.target.value });
             }}
             label="api key"
             fullWidth
-            slotProps={{
-              input: {
-                endAdornment: searchEngine.api_key && (
-                  <InputAdornment position="end">
-                    <IconButton
-                      onClick={() => {
-                        setSearchEngine({ ...searchEngine, api_key: "" });
-                      }}
-                      edge="end">
-                      <ClearIcon fontSize="small" />
-                    </IconButton>
-                  </InputAdornment>
-                ),
-              },
-            }}
+            onClear={() => setSearchEngine({ ...searchEngine, api_key: "" })}
           />
         )}
       </Stack>
@@ -997,27 +900,13 @@ function ProxySetting() {
 
 function ProxyValue({ value, setValue }) {
   return (
-    <TextField
+    <ClearableTextField
       value={value}
       onChange={(e) => {
         setValue(e.target.value);
       }}
       fullWidth
-      slotProps={{
-        input: {
-          endAdornment: value && (
-            <InputAdornment position="end">
-              <IconButton
-                onClick={() => {
-                  setValue("");
-                }}
-                edge="end">
-                <ClearIcon fontSize="small" />
-              </IconButton>
-            </InputAdornment>
-          ),
-        },
-      }}
+      onClear={() => setValue("")}
     />
   );
 }

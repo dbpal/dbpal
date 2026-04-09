@@ -6,7 +6,6 @@ import {
   CircularProgress,
   Divider,
   IconButton,
-  InputAdornment,
   ListItemIcon,
   ListItemText,
   MenuItem,
@@ -20,7 +19,6 @@ import {
   useTheme,
 } from "@mui/material";
 import { IoMdSettings } from "react-icons/io";
-import ClearIcon from "@mui/icons-material/Clear";
 import { IoIosCreate } from "react-icons/io";
 import {
   ReactNode,
@@ -102,6 +100,7 @@ import { openUrl } from "@tauri-apps/plugin-opener";
 import { TypesTree } from "./LeftType.tsx";
 import {
   AppDataGridPagination,
+  ClearableTextField,
   CreateDatabase,
   CreateSchema,
   MenuConnectionInfo,
@@ -311,28 +310,14 @@ function LeftTop() {
                 ))}
               </Stack>
               <Stack direction="row" style={{ alignItems: "flex-end" }} spacing={1}>
-                <TextField
+                <ClearableTextField
                   fullWidth
                   value={matchPatterInput}
                   label="match pattern"
                   onChange={(e) => {
                     setMatchPatternInput(e.target.value.trim());
                   }}
-                  slotProps={{
-                    input: {
-                      endAdornment: matchPatterInput && (
-                        <InputAdornment position="end">
-                          <IconButton
-                            onClick={() => {
-                              setMatchPatternInput("");
-                            }}
-                            edge="end">
-                            <ClearIcon fontSize="small" />
-                          </IconButton>
-                        </InputAdornment>
-                      ),
-                    },
-                  }}
+                  onClear={() => setMatchPatternInput("")}
                 />
                 <Button
                   onClick={() => {

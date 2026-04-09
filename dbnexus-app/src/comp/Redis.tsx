@@ -15,16 +15,14 @@ import {
   FormControlLabel,
   Chip,
   Tooltip,
-  InputAdornment,
-  IconButton,
   Divider,
 } from "@mui/material";
 
 import ContentCopyIcon from "@mui/icons-material/ContentCopy";
 import DeleteForeverIcon from "@mui/icons-material/DeleteForever";
 import { modalStyle, reloadOK, EscDownEvent, modalHandleClose } from "./Common";
-import ClearIcon from "@mui/icons-material/Clear";
 import { openUrl } from "@tauri-apps/plugin-opener";
+import { ClearableTextField } from "./CommonComp2";
 import {
   DataGrid,
   GridCallbackDetails,
@@ -358,7 +356,7 @@ function RedisAddZset(props: { uuid: string; zsetKey: string }) {
         <Button loading={loading} color="primary" onClick={handleAdd}>
           Add
         </Button>
-        <TextField
+        <ClearableTextField
           value={score}
           label="score"
           error={score ? isNaN(parseFloat(score)) : false}
@@ -366,21 +364,7 @@ function RedisAddZset(props: { uuid: string; zsetKey: string }) {
           onChange={(event) => {
             setScore(event.target.value);
           }}
-          slotProps={{
-            input: {
-              endAdornment: score && (
-                <InputAdornment position="end">
-                  <IconButton
-                    onClick={() => {
-                      setScore("");
-                    }}
-                    edge="end">
-                    <ClearIcon fontSize="small" />
-                  </IconButton>
-                </InputAdornment>
-              ),
-            },
-          }}
+          onClear={() => setScore("")}
         />
       </Stack>
     </Stack>
@@ -482,7 +466,7 @@ function RedisEditZset(props: {
         <Button loading={loading} color="primary" onClick={handleModify}>
           modify
         </Button>
-        <TextField
+        <ClearableTextField
           value={newValue}
           label="score"
           error={newValue ? isNaN(parseFloat(newValue)) : false}
@@ -490,21 +474,7 @@ function RedisEditZset(props: {
           onChange={(event) => {
             setNewValue(event.target.value);
           }}
-          slotProps={{
-            input: {
-              endAdornment: newValue && (
-                <InputAdornment position="end">
-                  <IconButton
-                    onClick={() => {
-                      setNewValue("");
-                    }}
-                    edge="end">
-                    <ClearIcon fontSize="small" />
-                  </IconButton>
-                </InputAdornment>
-              ),
-            },
-          }}
+          onClear={() => setNewValue("")}
         />
       </Stack>
     </Stack>
@@ -961,28 +931,14 @@ function RedisSetTable(props: { setKey: string; uuid: string }) {
           reload
         </Button>
         <Tooltip title={keyMatcherHelpText}>
-          <TextField
+          <ClearableTextField
             label="key matcher"
             value={keyMatch}
             onChange={(event) => {
               setKeyMatch(event.target.value);
             }}
+            onClear={() => setKeyMatch("")}
             style={{ maxWidth: "15rem", flex: 1 }}
-            slotProps={{
-              input: {
-                endAdornment: keyMatch && (
-                  <InputAdornment position="end">
-                    <IconButton
-                      onClick={() => {
-                        setKeyMatch("");
-                      }}
-                      edge="end">
-                      <ClearIcon fontSize="small" />
-                    </IconButton>
-                  </InputAdornment>
-                ),
-              },
-            }}
           />
         </Tooltip>
         <AddTable uuid={uuid} redisKey={setKey} redisType={RedisTableType.Set} />
@@ -1746,32 +1702,18 @@ function RedisZsetTable(props: { uuid: string; zsetKey: string }) {
         </Button>
 
         <Tooltip title={keyMatcherHelpText}>
-          <TextField
+          <ClearableTextField
             label="key matcher"
             value={keyMatch}
             onChange={(event) => {
               setKeyMatch(event.target.value);
             }}
-            slotProps={{
-              input: {
-                endAdornment: keyMatch && (
-                  <InputAdornment position="end">
-                    <IconButton
-                      onClick={() => {
-                        setKeyMatch("");
-                      }}
-                      edge="end">
-                      <ClearIcon fontSize="small" />
-                    </IconButton>
-                  </InputAdornment>
-                ),
-              },
-            }}
+            onClear={() => setKeyMatch("")}
             style={{ width: "25%" }}
           />
         </Tooltip>
 
-        <TextField
+        <ClearableTextField
           label="minimum value"
           value={min}
           error={minErr}
@@ -1783,24 +1725,10 @@ function RedisZsetTable(props: { uuid: string; zsetKey: string }) {
             }
             setMin(event.target.value);
           }}
-          slotProps={{
-            input: {
-              endAdornment: min && (
-                <InputAdornment position="end">
-                  <IconButton
-                    onClick={() => {
-                      setMin("");
-                    }}
-                    edge="end">
-                    <ClearIcon fontSize="small" />
-                  </IconButton>
-                </InputAdornment>
-              ),
-            },
-          }}
+          onClear={() => setMin("")}
           style={{ width: "15%" }}
         />
-        <TextField
+        <ClearableTextField
           label="maximum value"
           value={max}
           error={maxErr}
@@ -1812,21 +1740,7 @@ function RedisZsetTable(props: { uuid: string; zsetKey: string }) {
             }
             setMax(event.target.value);
           }}
-          slotProps={{
-            input: {
-              endAdornment: max && (
-                <InputAdornment position="end">
-                  <IconButton
-                    onClick={() => {
-                      setMax("");
-                    }}
-                    edge="end">
-                    <ClearIcon fontSize="small" />
-                  </IconButton>
-                </InputAdornment>
-              ),
-            },
-          }}
+          onClear={() => setMax("")}
           style={{ width: "15%" }}
         />
         <AddTable uuid={uuid} redisKey={zsetKey} redisType={RedisTableType.Zset} />
@@ -2132,28 +2046,13 @@ function RedisHashTable(props: { hashKey: string; uuid: string }) {
         </Button>
 
         <Tooltip title={keyMatcherHelpText}>
-          <TextField
+          <ClearableTextField
             label="key matcher"
-            variant="outlined"
             value={keyMatch}
             onChange={(event) => {
               setKeyMatch(event.target.value);
             }}
-            slotProps={{
-              input: {
-                endAdornment: keyMatch && (
-                  <InputAdornment position="end">
-                    <IconButton
-                      onClick={() => {
-                        setKeyMatch("");
-                      }}
-                      edge="end">
-                      <ClearIcon fontSize="small" />
-                    </IconButton>
-                  </InputAdornment>
-                ),
-              },
-            }}
+            onClear={() => setKeyMatch("")}
             style={{ maxWidth: "15rem", flex: 1 }}
           />
         </Tooltip>
