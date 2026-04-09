@@ -93,7 +93,7 @@ impl From<EmptyListError> for ErrorFrontend {
 
 async fn call_openai_stream(
     agent: Agent<ResponsesCompletionModel>,
-    emit: ToolEmitter,
+    emit: Arc<dyn Fn(String) + Send + Sync + 'static>,
     comment_fn: impl Fn(&str) -> String + Send + Sync + 'static,
     prompt: Message,
 ) -> Result<(), ErrorFrontend> {
@@ -382,20 +382,21 @@ pub async fn openai_stream(
         .await
         .map_err(ErrorFrontend::from)?;
     let db_kind = db.backend_kind();
-    let emitter = Arc::new(move |status: String| {
-        if let Err(err) = emit.send(db_kind.comment(&status)) {
-            log::error!("Error sending message: {:?}", err)
-        }
-    });
+    let tool_emitter = {
+        let emit = emit.clone();
+        Arc::new(move |status: String| {
+            if let Err(err) = emit.send(db_kind.comment(&status)) {
+                log::error!("Error sending message: {:?}", err)
+            }
+        })
+    };
     let mut tools = dbpal
-        .make_tools(&name, query_id, emitter.clone())
+        .make_tools(&name, query_id, tool_emitter.clone())
         .await
         .map_err(ErrorFrontend::from)?;
-
-    if let Some(x) = req.search_engine.make_tool(emitter.clone())? {
+    if let Some(x) = req.search_engine.make_tool(tool_emitter.clone())? {
         tools.push(x);
     }
-
     let agent = make_agent(
         &req,
         tools,
@@ -445,7 +446,16 @@ pub async fn openai_stream(
         },
     };
 
-    let fur = call_openai_stream(agent, emitter, move |x| db_kind.comment(x), msg);
+    let fur = call_openai_stream(
+        agent,
+        Arc::new(move |s| {
+            if let Err(err) = emit.send(s) {
+                println!("Error sending message: {:?}", err)
+            }
+        }),
+        move |x| db_kind.comment(x),
+        msg,
+    );
     tokio::select! {
         res = fur => {res},
         _ = token.cancelled() => {
