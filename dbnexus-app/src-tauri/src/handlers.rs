@@ -1457,23 +1457,6 @@ pub async fn check_sql(
 }
 
 #[tauri::command]
-pub async fn try_get_max_id(
-    name: String,
-    table: String,
-    app: tauri::State<'_, DBPal>,
-) -> Result<String, ErrorFrontend> {
-    random_sleep().await;
-    random_error()?;
-    let db = app.get_backend(name.as_str()).await?;
-    let ret = db
-        .as_language_server()
-        .try_get_max_id(&table)
-        .await
-        .map_err(ErrorFrontend::from)?;
-    Ok(ret)
-}
-
-#[tauri::command]
 pub async fn query_set_autocommit(
     name: String,
     query_id: &str,

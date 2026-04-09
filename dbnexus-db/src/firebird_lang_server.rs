@@ -24,22 +24,6 @@ impl GetKeyWords for FireBirdDB {
 
 #[async_trait::async_trait]
 impl LanguageServer for FireBirdDB {
-    async fn try_get_max_id(&self, name: &str) -> anyhow::Result<String> {
-        let this = Clone::clone(self);
-        let name = name.to_string();
-        spawn_blocking(move || {
-            let sql = format!("SELECT MAX(id) FROM \"{name}\"");
-            let mut conn = this.get_conn()?;
-            let row: Option<(i64,)> = conn.query_first(&sql, ())?;
-            if let Some(row) = row {
-                anyhow::Ok(row.0.to_string())
-            } else {
-                anyhow::bail!("no max id found")
-            }
-        })
-        .await?
-    }
-
     async fn ai_text_completion(
         &self,
         text: &str,
@@ -605,7 +589,6 @@ mod tests {
     use crate::enable_test_log;
     use crate::firebird::{make_test_object, test_lock};
     use crate::language_server::completion_test::test_file_auto_completion;
-    use crate::language_server::LanguageServer;
 
     // partition test failed , sqlparser can't parse a valid partition statement.
     #[tokio::test]
@@ -652,13 +635,5 @@ mod tests {
         enable_test_log();
         let db = make_test_object().await;
         test_file_auto_completion(include_str!("./xxx.sql"), &db, None, true).await;
-    }
-    #[ignore = "run manually"]
-    #[tokio::test]
-    async fn test_try_get_max_id() {
-        let _guard = test_lock().lock().await;
-        let db = make_test_object().await;
-        let max_id = db.try_get_max_id("EMPLOYEE").await.unwrap();
-        println!("max id is:{}", max_id);
     }
 }

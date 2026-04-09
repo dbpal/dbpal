@@ -71,29 +71,6 @@ impl GetKeyWords for MysqlDB {
 
 #[async_trait::async_trait]
 impl LanguageServer for MysqlDB {
-    async fn get_search_path(&self, query_id: &str) -> anyhow::Result<HashSet<String>> {
-        match self.query_connection.get(&query_id.to_string()) {
-            Some(x) => {
-                let mut conn = x.lock().await;
-                let mut r = HashSet::new();
-                if let Some(x) = self.query_select_database(conn.deref_mut()).await? {
-                    r.insert(x.to_string());
-                }
-                anyhow::Ok(r)
-            }
-            None => anyhow::bail!(format!("query_connection not found , id :{}", query_id)),
-        }
-    }
-
-    async fn try_get_max_id(&self, name: &str) -> anyhow::Result<String> {
-        let sql = format!("SELECT MAX(id) FROM `{name}`");
-        let mut conn = self.get_conn().await?;
-        let row = sqlx::query(AssertSqlSafe(sql.as_str()))
-            .fetch_one(conn.deref_mut())
-            .await?;
-        let id: Option<i64> = row.try_get_unchecked(0)?;
-        anyhow::Ok(id.unwrap_or_default().to_string())
-    }
     async fn ai_text_completion(
         &self,
         text: &str,
@@ -134,21 +111,6 @@ impl MysqlDB {
 }
 
 impl MysqlDB {
-    pub(crate) async fn query_select_database(
-        &self,
-        mut conn: &mut sqlx::MySqlConnection,
-    ) -> anyhow::Result<Option<String>> {
-        let sql = Self::SELECT_DB_SQL;
-        let row = sqlx::raw_sql(sql).fetch_one(conn.deref_mut()).await.ok();
-        let r = match row {
-            Some(row) => {
-                let name: Option<String> = row.try_get(0).ok().flatten();
-                name
-            }
-            None => None,
-        };
-        anyhow::Ok(r)
-    }
     pub(crate) async fn merge_schema(&self, schema: Option<&str>) -> Option<String> {
         if schema.is_some() {
             return schema.map(|x| x.to_string());
@@ -1068,13 +1030,5 @@ mod tests {
         });
 
         assert!(list.items.iter().any(|x| x.item == "my_var"));
-    }
-
-    #[tokio::test]
-
-    async fn test_try_get_max_id() {
-        let db = make_test_object(make_config()).await;
-        let max_id = db.try_get_max_id("departments").await.unwrap();
-        println!("max id is:{}", max_id);
     }
 }

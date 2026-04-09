@@ -11,20 +11,6 @@ use tokio::task::spawn_blocking;
 
 #[async_trait::async_trait]
 impl LanguageServer for DuckDB {
-    async fn try_get_max_id(&self, name: &str) -> anyhow::Result<String> {
-        let sql = format!(r#"select max(id) from   "{name}" "#,);
-        let this = Clone::clone(self);
-        spawn_blocking(move || {
-            let conn = this.get_conn()?;
-            let r = conn.query_row(&sql, [], |row| {
-                let r: i128 = row.get(0)?;
-                Ok(r)
-            })?;
-            anyhow::Ok(r.to_string())
-        })
-        .await?
-    }
-
     async fn auto_completion(
         &self,
         query_id: Option<String>,
@@ -460,15 +446,5 @@ mod tests {
         enable_test_log();
         let db = make_test_object(Some("main".to_string())).await;
         test_file_auto_completion(include_str!("./xxx.sql"), &db, None, true).await;
-    }
-
-    #[ignore = "run manually"]
-    #[tokio::test]
-
-    async fn test_try_get_max_id() {
-        let _gurad = test_lock().lock().await;
-        let db = make_test_object(Some("main".to_string())).await;
-        let max_id = db.try_get_max_id("employees").await.unwrap();
-        println!("max id is:{}", max_id);
     }
 }

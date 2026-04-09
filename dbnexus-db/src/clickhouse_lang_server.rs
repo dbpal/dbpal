@@ -29,13 +29,6 @@ impl GetKeyWords for ClickHouseDB {
 #[async_trait::async_trait]
 
 impl LanguageServer for ClickHouseDB {
-    async fn try_get_max_id(&self, name: &str) -> anyhow::Result<String> {
-        let sql = format!("select max(id) from `{name}`");
-
-        let r: i64 = self.client.query(&sql).fetch_one().await?;
-        anyhow::Ok(r.to_string())
-    }
-
     async fn ai_text_completion(
         &self,
         text: &str,

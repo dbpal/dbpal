@@ -326,7 +326,7 @@ export const makeLLMCallable = (config: LLMConfig) => {
 export const useLLM = () => {
   const config = useLLMConfig((s) => s.config);
   const r = useMemo(() => {
-    if (config.baseUrl && config.apiKey && config.model) {
+    if (config.baseUrl && config.model) {
       return makeLLMCallable(config);
     } else {
       return null;

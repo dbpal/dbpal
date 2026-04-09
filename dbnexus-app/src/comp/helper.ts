@@ -488,7 +488,7 @@ class KeyPressed {
   }
 
   static editorMarkdown(e: KeyboardEvent) {
-    return KeyPressed.matchControl(e, "k");
+    return KeyPressed.matchControl(e, "b");
   }
 }
 

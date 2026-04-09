@@ -1851,7 +1851,7 @@ function AiMarkdownModelSwitch(props: { setMarkdownModel; markdownModel: boolean
   return (
     llm && (
       <Tooltip
-        title={`toggle markdown model, keyboard shortcut is ${isMacOs() ? "⌘" : "Ctrl"} +k`}>
+        title={`toggle markdown model, keyboard shortcut is ${isMacOs() ? "⌘" : "Ctrl"} + B`}>
         <FormControlLabel
           control={
             <Switch

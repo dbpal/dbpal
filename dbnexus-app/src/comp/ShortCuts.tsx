@@ -53,7 +53,7 @@ function getKeyShorts(): { name: string; shorts: string }[] {
     { name: "add connection", shorts: `${CMD}+N` },
     { name: "zoom in", shorts: `${CMD}++` }, // 使用 ++ 表示加号键
     { name: "zoom out", shorts: `${CMD}+-` },
-    { name: "editor markdown", shorts: `${CMD}+K` },
+    { name: "editor markdown", shorts: `${CMD}+B` },
   ];
 
   // 针对非 Mac 平台的特殊补充

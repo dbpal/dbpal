@@ -606,29 +606,6 @@ impl LangServerCommon for PostGresDB {
 
 #[async_trait::async_trait]
 impl LanguageServer for PostGresDB {
-    async fn get_search_path(&self, query_id: &str) -> anyhow::Result<HashSet<String>> {
-        match self.query_connection.get(&query_id.to_string()) {
-            Some(conn) => {
-                let conn = conn.clone();
-                let mut conn = conn.lock().await;
-                self.query_search_path(conn.deref_mut())
-                    .await
-                    .map(|x| x.unwrap_or_default())
-            }
-            None => anyhow::bail!("query_id should be able get connection"),
-        }
-    }
-
-    async fn try_get_max_id(&self, name: &str) -> anyhow::Result<String> {
-        let sql = format!("SELECT MAX(id) FROM \"{name}\"");
-        let mut conn = self.get_conn().await?;
-        let row = sqlx::query(AssertSqlSafe(sql.as_str()))
-            .fetch_one(conn.deref_mut())
-            .await?;
-        let id: Option<i64> = row.try_get_unchecked(0)?;
-        anyhow::Ok(id.unwrap_or_default().to_string())
-    }
-
     async fn ai_text_completion(
         &self,
         text: &str,
@@ -765,7 +742,7 @@ mod tests {
     use crate::db::QuerySql;
     use crate::enable_test_log;
     use crate::language_server::completion_test::test_file_auto_completion;
-    use crate::language_server::{LangServerCommon, LanguageServer};
+    use crate::language_server::LangServerCommon;
     use crate::pg::make_test_object;
     use std::path::Path;
 
@@ -895,13 +872,5 @@ mod tests {
             .unwrap()
             .iter()
             .any(|x| x.name.eq("select_one")));
-    }
-    #[ignore = "run manually"]
-    #[tokio::test]
-
-    async fn test_try_get_max_id() {
-        let db = make_test_object().await;
-        let max_id = db.try_get_max_id("departments").await.unwrap();
-        println!("max id is:{}", max_id);
     }
 }

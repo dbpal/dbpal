@@ -221,51 +221,57 @@ function QueryButtons(props: {
   return (
     <>
       <Tooltip title="query">
-        <IconButton
-          loading={loading}
-          onClick={() => {
-            const text = getText();
-            if (!text) {
-              return;
-            }
-            handleQuery(text, false);
-          }}
-          disabled={disabled}
-          color="primary">
-          <PlayArrowIcon />
-        </IconButton>
+        <span>
+          <IconButton
+            loading={loading}
+            onClick={() => {
+              const text = getText();
+              if (!text) {
+                return;
+              }
+              handleQuery(text, false);
+            }}
+            disabled={disabled}
+            color="primary">
+            <PlayArrowIcon />
+          </IconButton>
+        </span>
       </Tooltip>
 
       <Tooltip title="execute query and append the result to tabs">
-        <IconButton
-          loading={loading}
-          onClick={() => {
-            const text = getText();
-            if (!text) {
-              return;
-            }
-            handleQuery(text, true);
-          }}
-          disabled={disabled}
-          color="primary">
-          <FastForwardIcon />
-        </IconButton>
+        <span>
+          <IconButton
+            loading={loading}
+            onClick={() => {
+              const text = getText();
+              if (!text) {
+                return;
+              }
+              handleQuery(text, true);
+            }}
+            disabled={disabled}
+            color="primary">
+            <FastForwardIcon />
+          </IconButton>
+        </span>
       </Tooltip>
 
       <Tooltip title="execute sql not expecting result">
-        <IconButton
-          disabled={disabled}
-          loading={loading}
-          onClick={() => {
-            const text = getText();
-            if (!text) {
-              return;
-            }
-            handleExecute(text);
-          }}
-          color="primary">
-          <FaExclamation />
-        </IconButton>
+        <span>
+          <IconButton
+            disabled={disabled}
+            loading={loading}
+            onClick={() => {
+              const text = getText();
+              if (!text) {
+                return;
+              }
+              handleExecute(text);
+            }}
+            color="primary">
+            <FaExclamation />
+          </IconButton>
+        </span>
       </Tooltip>
       {loading && (
         <CancelButton
@@ -276,19 +282,21 @@ function QueryButtons(props: {
       )}
       {supportExplain && (
         <Tooltip title="explain sql">
-          <IconButton
-            loading={loading}
-            disabled={disabled}
-            onClick={() => {
-              const text = getText();
-              if (!text) {
-                return;
-              }
-              handleQuery(`EXPLAIN ${text}`, true);
-            }}
-            color="primary">
-            <BsFillLightbulbFill />
-          </IconButton>
+          <span>
+            <IconButton
+              loading={loading}
+              disabled={disabled}
+              onClick={() => {
+                const text = getText();
+                if (!text) {
+                  return;
+                }
+                handleQuery(`EXPLAIN ${text}`, true);
+              }}
+              color="primary">
+              <BsFillLightbulbFill />
+            </IconButton>
+          </span>
         </Tooltip>
       )}
     </>
@@ -596,28 +604,32 @@ function SqlQuery(props: {
               <SqlTransaction executeTimes={executeTimes} conn={conn.current} />
             )}
             <Tooltip title={"reconnect"}>
-              <IconButton
-                loading={makeConnLoading}
-                onClick={handleReconnect}
-                color="primary">
-                <RefreshIcon />
-              </IconButton>
+              <span>
+                <IconButton
+                  loading={makeConnLoading}
+                  onClick={handleReconnect}
+                  color="primary">
+                  <RefreshIcon />
+                </IconButton>
+              </span>
             </Tooltip>
             {openOk && (
               <Tooltip title="export query result to a file">
-                <IconButton
-                  loading={loading}
-                  onClick={() => {
-                    const value = getEditorText(editor, showNotification);
-                    if (!value) {
-                      return;
-                    }
-                    setShowExport(true);
-                  }}
-                  disabled={markdownModel}
-                  color="primary">
-                  <ArrowCircleDownRoundedIcon />
-                </IconButton>
+                <span>
+                  <IconButton
+                    loading={loading}
+                    onClick={() => {
+                      const value = getEditorText(editor, showNotification);
+                      if (!value) {
+                        return;
+                      }
+                      setShowExport(true);
+                    }}
+                    disabled={markdownModel}
+                    color="primary">
+                    <ArrowCircleDownRoundedIcon />
+                  </IconButton>
+                </span>
               </Tooltip>
             )}
             <SaveFavoriteSqlView

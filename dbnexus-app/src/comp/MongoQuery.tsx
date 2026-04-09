@@ -520,18 +520,20 @@ function ExecuteButton(props: {
 
   return (
     <Tooltip title="execute">
-      <IconButton
-        onClick={() => {
-          const text = getText();
-          if (!text) {
-            return;
-          }
-          handleEexecute(text);
-        }}
-        disabled={disabled}
-        color="primary">
-        <PlayArrowIcon />
-      </IconButton>
+      <span>
+        <IconButton
+          onClick={() => {
+            const text = getText();
+            if (!text) {
+              return;
+            }
+            handleEexecute(text);
+          }}
+          disabled={disabled}
+          color="primary">
+          <PlayArrowIcon />
+        </IconButton>
+      </span>
     </Tooltip>
   );
 }

@@ -31,26 +31,6 @@ impl GetKeyWords for LibSqlDB {
 
 #[async_trait::async_trait]
 impl LanguageServer for LibSqlDB {
-    async fn try_get_max_id(&self, name: &str) -> anyhow::Result<String> {
-        let sql = format!("SELECT MAX(id) FROM \"{name}\"");
-        let conn = self.get_conn().await?;
-        let mut row = conn.query(&sql, params!()).await?;
-        while let Some(item) = row.next().await? {
-            let value = item.get_value(0)?;
-            return anyhow::Ok(match value {
-                libsql::Value::Null => "null".to_string(),
-                libsql::Value::Integer(x) => x.to_string(),
-                libsql::Value::Real(x) => x.to_string(),
-                libsql::Value::Text(x) => x.to_string(),
-                libsql::Value::Blob(..) => {
-                    continue;
-                }
-            });
-        }
-
-        anyhow::bail!("no max id found")
-    }
-
     async fn ai_text_completion(
         &self,
         text: &str,
@@ -307,7 +287,6 @@ impl LibSqlDB {
 mod tests {
     use crate::db::{QuerySql, SchemaTrait};
     use crate::language_server::completion_test::test_file_auto_completion;
-    use crate::language_server::LanguageServer;
     use crate::libsql::make_test_object;
     use std::ops::Deref;
     use std::path::Path;
@@ -409,13 +388,5 @@ mod tests {
             false,
         )
         .await;
-    }
-    #[ignore = "run manually"]
-    #[tokio::test]
-
-    async fn test_try_get_max_id() {
-        let db = make_test_object().await.lock().await;
-        let max_id = db.try_get_max_id("departments").await.unwrap();
-        println!("max id is:{}", max_id);
     }
 }

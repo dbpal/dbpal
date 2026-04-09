@@ -29,14 +29,6 @@ pub trait LanguageServer: GetBackendKind + Send + Sync + 'static {
         col: u32,
     ) -> anyhow::Result<CompletionList>;
 
-    async fn try_get_max_id(&self, _name: &str) -> anyhow::Result<String> {
-        self.backend_kind().not_support_feature()
-    }
-
-    async fn get_search_path(&self, _query_id: &str) -> anyhow::Result<HashSet<String>> {
-        anyhow::Ok(HashSet::new())
-    }
-
     async fn check_sql(&self, _sql: &str) -> anyhow::Result<Option<ErrAndLoc>> {
         anyhow::Ok(None)
     }

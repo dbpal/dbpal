@@ -377,16 +377,18 @@ function TableColumn(props: {
         />
       )}
       <Tooltip title="primary key">
-        <FormControlLabel
-          label=<KeyIcon />
-          control=<Checkbox
-            disabled={col.auto_increment}
-            checked={col.primary_key}
-            onChange={(e) => {
-              handleCol({ ...col, primary_key: e.target.checked });
-            }}
+        <span>
+          <FormControlLabel
+            label=<KeyIcon />
+            control=<Checkbox
+              disabled={col.auto_increment}
+              checked={col.primary_key}
+              onChange={(e) => {
+                handleCol({ ...col, primary_key: e.target.checked });
+              }}
+            />
           />
-        />
+        </span>
       </Tooltip>
       <TextField
         value={col.name}
