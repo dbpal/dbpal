@@ -486,6 +486,10 @@ class KeyPressed {
   static closeTab(e: KeyboardEvent) {
     return KeyPressed.matchControl(e, "w");
   }
+
+  static editorMarkdown(e: KeyboardEvent) {
+    return KeyPressed.matchControl(e, "k");
+  }
 }
 
 function isMacOs() {

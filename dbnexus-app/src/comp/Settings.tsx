@@ -67,6 +67,13 @@ import {
 import { WebviewWindow } from "@tauri-apps/api/webviewWindow";
 import { listen } from "@tauri-apps/api/event";
 import types from "./ApiStruct";
+import "@mui/material/Chip";
+
+declare module "@mui/material/Chip" {
+  interface ChipPropsSizeOverrides {
+    largeSmall: true; //
+  }
+}
 
 function AppearanceSetting() {
   const { appearance, updateAppearance } = useUserSettings();
@@ -1293,6 +1300,16 @@ function makeComponents(
       defaultProps: {
         size: "small",
       },
+      variants: [
+        {
+          props: { size: "largeSmall" },
+          style: {
+            height: "1.75rem",
+            fontSize: "1rem",
+            // 可以根据需要调整圆角或边距
+          },
+        },
+      ],
     },
     MuiTab: {
       styleOverrides: {

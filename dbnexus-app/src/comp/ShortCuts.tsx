@@ -36,32 +36,32 @@ function ShowCuts() {
 }
 
 function getKeyShorts(): { name: string; shorts: string }[] {
-  if (isMacOs()) {
-    return [
-      { name: "save file", shorts: "command+s" },
-      { name: "open file", shorts: "command+o" },
-      { name: "previous tab", shorts: "command+[" },
-      { name: "next tab", shorts: "command+]" },
-      { name: "close tab", shorts: "command+w" },
-      { name: "setting", shorts: "command+," },
-      { name: "add connection", shorts: "command+n" },
-      { name: "zoom in", shorts: "command+=" },
-      { name: "zoom out", shorts: "command+-" },
-    ];
-  } else {
-    return [
-      { name: "save file", shorts: "control+s" },
-      { name: "open file", shorts: "control+o" },
-      { name: "previous tab", shorts: "control+[" },
-      { name: "next tab", shorts: "control+]" },
-      { name: "close tab", shorts: "control+w" },
-      { name: "full screen", shorts: "f11" },
-      { name: "setting", shorts: "control+," },
-      { name: "add connection", shorts: "control+n" },
-      { name: "zoom in", shorts: "control+=" },
-      { name: "zoom out", shorts: "control+-" },
-    ];
+  const isMac = isMacOs();
+  // 定义修饰键符号
+  const CMD = isMac ? "⌘" : "Ctrl";
+
+  // const _ALT = isMac ? "⌥" : "Alt";
+  // const _SHIFT = isMac ? "⇧" : "Shift";
+
+  const baseShorts = [
+    { name: "save file", shorts: `${CMD}+S` },
+    { name: "open file", shorts: `${CMD}+O` },
+    { name: "previous tab", shorts: `${CMD}+[` },
+    { name: "next tab", shorts: `${CMD}+]` },
+    { name: "close tab", shorts: `${CMD}+W` },
+    { name: "setting", shorts: `${CMD}+,` },
+    { name: "add connection", shorts: `${CMD}+N` },
+    { name: "zoom in", shorts: `${CMD}++` }, // 使用 ++ 表示加号键
+    { name: "zoom out", shorts: `${CMD}+-` },
+    { name: "editor markdown", shorts: `${CMD}+K` },
+  ];
+
+  // 针对非 Mac 平台的特殊补充
+  if (!isMac) {
+    baseShorts.push({ name: "full screen", shorts: "F11" });
   }
+
+  return baseShorts;
 }
 
 export { ShowCuts };

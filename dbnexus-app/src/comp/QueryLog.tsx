@@ -10,7 +10,7 @@ import {
   Tooltip,
 } from "@mui/material";
 import { DataGrid, GridColDef, GridSlotsComponent } from "@mui/x-data-grid";
-import { useCallback, useContext, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   dbpalQuerykey,
   EscDownEvent,
@@ -27,12 +27,12 @@ import {
   pageSizeOptions,
   saveQueryKey,
   secondConfirm,
-  TabActiveContext,
 } from "./helper.ts";
 import { ModalHeader, ResizeParentHeight } from "./CommonComp.tsx";
 import { BsFillLightbulbFill } from "react-icons/bs";
 import {
   AppDataGridPagination,
+  EscPressedDo,
   ListenElementSize,
   SimpleFlexEditor,
   StackRowCenter,
@@ -142,26 +142,8 @@ function QueryLog(props: {
     },
     [setColumnWidth],
   );
-
   const [modalBox, setModalBox] = useState(null);
-
-  const vis = useContext(TabActiveContext);
-
-  useEffect(() => {
-    const call = (e) => {
-      if (e.key === "Escape" && vis && showQueryLog) {
-        setShowQueryLog(false);
-        e.preventDefault();
-      }
-    };
-    document.addEventListener("keydown", call);
-    return () => {
-      document.removeEventListener("keydown", call);
-    };
-  }, [vis, showQueryLog, setShowQueryLog]);
-
   const [dom, setDom] = useState<HTMLDivElement>(null);
-
   const { getSwitch, setSwitch } = useBoolSwitch();
 
   const slots = useMemo(() => {
@@ -192,6 +174,14 @@ function QueryLog(props: {
       }}
       ref={setDom}
       elevation={16}>
+      <EscPressedDo
+        doingIt={() => {
+          return showQueryLog;
+        }}
+        setUndo={() => {
+          setShowQueryLog(false);
+        }}
+      />
       <Stack
         direction="row"
         style={{

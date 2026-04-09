@@ -120,6 +120,7 @@ function TabsWithContent() {
                     alignItems: "center",
                     fontWeight: currentTab == index ? "bolder" : undefined,
                   }}
+                  size="largeSmall"
                   deleteIcon={
                     tabConfirmMsg.get(tab.id) ? (
                       <IconModifed />

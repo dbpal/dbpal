@@ -3,7 +3,6 @@ import {
   DataSourceKind,
   extractConfigNameFromUuid,
   QueryIDEditorChatCtx,
-  TabActiveContext,
 } from "./helper.ts";
 import { v4 as uuidv4 } from "uuid";
 import CloseIcon from "@mui/icons-material/Close";
@@ -30,6 +29,7 @@ import {
   SliderSize,
   SimpleFlexEditor,
   CancelButton,
+  EscPressedDo,
 } from "./CommonComp2.tsx";
 import ArrowCircleUpIcon from "@mui/icons-material/ArrowCircleUp";
 import EventNoteIcon from "@mui/icons-material/EventNote";
@@ -127,23 +127,10 @@ function SqlChatTextInput(props: {
   const { getSwitch, setSwitch } = useBoolSwitch();
   const cleanEditor = getSwitch(cleanEditorKey);
   const [images, setImages] = useState<string[]>([]);
-  const vis = useContext(TabActiveContext);
   const { getSize } = useSizeStore();
   const { messagesByNames, saveMessage } = useChatStore();
   const connName = extractConfigNameFromUuid(uuid);
   const { prompts: userDefinePrompts } = useUserSystemPromptStore();
-  useEffect(() => {
-    const closeThis = (e: KeyboardEvent) => {
-      if (e.key === "Escape" && vis) {
-        e.preventDefault();
-        setShow(false);
-      }
-    };
-    document.addEventListener("keydown", closeThis);
-    return () => {
-      document.removeEventListener("keydown", closeThis);
-    };
-  }, [vis, setShow]);
 
   useEffect(() => {
     if (!show) {
@@ -216,6 +203,14 @@ function SqlChatTextInput(props: {
 
   return (
     <>
+      <EscPressedDo
+        doingIt={() => {
+          return show;
+        }}
+        setUndo={() => {
+          setShow(false);
+        }}
+      />
       <Paper
         style={{
           height: "40vh",

@@ -820,7 +820,7 @@ function LoadStoreFile(props: {
   };
 
   useEffect(() => {
-    const callback = (e: KeyboardEvent) => {
+    const handleFile = (e: KeyboardEvent) => {
       if (!active) {
         return;
       }
@@ -833,9 +833,9 @@ function LoadStoreFile(props: {
         handleLoad();
       }
     };
-    document.addEventListener("keydown", callback);
+    document.addEventListener("keydown", handleFile);
     return () => {
-      document.removeEventListener("keydown", callback);
+      document.removeEventListener("keydown", handleFile);
     };
   }, [active, file, getQuery, handleLoad, handleLoadFile, handleSave]);
 
@@ -1817,6 +1817,8 @@ function AiMarkdownModelSwitch(props: { setMarkdownModel; markdownModel: boolean
   const { getSwitch, setSwitch } = useBoolSwitch();
   const switchKey = "ai-markdown-model";
   const llm = useLLM();
+
+  const vis = useContext(TabActiveContext);
   useEffect(() => {
     if (!llm) {
       return;
@@ -1832,22 +1834,60 @@ function AiMarkdownModelSwitch(props: { setMarkdownModel; markdownModel: boolean
     setSwitch(switchKey, markdownModel);
   }, [llm, markdownModel, setSwitch]);
 
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (KeyPressed.editorMarkdown(e) && vis) {
+        e.preventDefault();
+        setMarkdownModel((e: boolean) => !e);
+      }
+    };
+
+    document.addEventListener("keydown", handleKeyDown);
+    return () => {
+      document.removeEventListener("keydown", handleKeyDown);
+    };
+  }, [setMarkdownModel, vis]);
+
   return (
     llm && (
-      <FormControlLabel
-        control={
-          <Switch
-            onChange={(_e, checked) => {
-              setMarkdownModel(checked);
-            }}
-            checked={markdownModel}
-          />
-        }
-        label="markdown model"
-      />
+      <Tooltip
+        title={`toggle markdown model, keyboard shortcut is ${isMacOs() ? "⌘" : "Ctrl"} +k`}>
+        <FormControlLabel
+          control={
+            <Switch
+              onChange={(_e, checked) => {
+                setMarkdownModel(checked);
+              }}
+              checked={markdownModel}
+            />
+          }
+          label="markdown model"
+        />
+      </Tooltip>
     )
   );
 }
+
+function EscPressedDo(props: { doingIt: () => boolean; setUndo: () => void }) {
+  const vis = useContext(TabActiveContext);
+  const { doingIt, setUndo } = props;
+
+  useEffect(() => {
+    const closeThis = (e: KeyboardEvent) => {
+      if (e.key === "Escape" && vis && doingIt()) {
+        e.preventDefault();
+        setUndo();
+      }
+    };
+    document.addEventListener("keydown", closeThis);
+    return () => {
+      document.removeEventListener("keydown", closeThis);
+    };
+  }, [setUndo, doingIt, vis]);
+
+  return <></>;
+}
+
 export {
   CreateDatabase,
   CreateSchema,
@@ -1880,4 +1920,5 @@ export {
   AppCode,
   AiMarkdownModel,
   AiMarkdownModelSwitch,
+  EscPressedDo,
 };

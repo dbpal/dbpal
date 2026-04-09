@@ -40,7 +40,6 @@ import {
   secondConfirm,
   TabContext,
   shrinkAble,
-  TabActiveContext,
   saveQueryKey,
   MonacoEditor,
   QueryIDEditorChatCtx,
@@ -55,6 +54,7 @@ import {
   AiMarkdownModelSwitch,
   CancelButton,
   EditorBar,
+  EscPressedDo,
   LoadStoreFile,
   QueryStatus,
   SaveFavoriteSqlView,
@@ -522,20 +522,6 @@ function SqlQuery(props: {
     DataSourceKind.DuckDB,
   ].includes(kind);
 
-  const vis = useContext(TabActiveContext);
-  useEffect(() => {
-    const cancel = (e: KeyboardEvent) => {
-      if (e.key == "Escape" && loading && vis) {
-        e.preventDefault();
-        cancelTask(queryId);
-      }
-    };
-    document.addEventListener("keydown", cancel);
-    return () => {
-      document.removeEventListener("keydown", cancel);
-    };
-  }, [queryId, loading, showNotification, vis]);
-
   return (
     <div
       style={{
@@ -545,6 +531,12 @@ function SqlQuery(props: {
         flexDirection: "column",
         marginBottom: "300px",
       }}>
+      <EscPressedDo
+        doingIt={() => loading}
+        setUndo={() => {
+          cancelTask(queryId);
+        }}
+      />
       <PanelGroup direction="vertical" style={{ flex: 1 }} autoSaveId="sql-query">
         <Panel
           minSize={10}

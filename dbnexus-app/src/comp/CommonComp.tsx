@@ -597,7 +597,7 @@ function ExceedMaxTreeItem(props: { exceed: number; maxTreeSize: number }) {
       itemId={id.current}
       style={{ display: exceed > maxTreeSize ? "block" : "none" }}
       label=<Typography color="error" style={{ fontSize: "0.8rem" }}>
-        ({exceed}) exceed max tree items({maxTreeSize}),some item not showing
+        ({exceed}) exceed max tree items({maxTreeSize}),some item not doingIt
       </Typography>
     />
   );
