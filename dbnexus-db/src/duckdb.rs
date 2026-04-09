@@ -1354,6 +1354,10 @@ impl CatalogTrait for DuckDB {
     async fn drop_database(&self, _name: &str) -> anyhow::Result<()> {
         anyhow::bail!("duckdb can't drop database")
     }
+
+    fn as_any(&self) -> &dyn std::any::Any {
+        self
+    }
 }
 
 impl DuckDB {

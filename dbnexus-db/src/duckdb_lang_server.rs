@@ -385,7 +385,6 @@ mod tests {
     use crate::duckdb::{make_test_object, test_lock};
     use crate::enable_test_log;
     use crate::language_server::completion_test::test_file_auto_completion;
-    use crate::language_server::LanguageServer;
     use std::path::Path;
 
     #[tokio::test]
