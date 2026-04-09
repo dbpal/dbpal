@@ -490,6 +490,11 @@ function ChatHistory(props: {
         headerExtra={
           <>
             {isLoading && <CircularProgress />}
+            <Tooltip title="delete history">
+              <IconButton onClick={handleClear}>
+                <DeleteForeverIcon />
+              </IconButton>
+            </Tooltip>
             <ClearableTextField
               value={matchStr}
               onChange={(e) => {
@@ -499,13 +504,10 @@ function ChatHistory(props: {
                 setMatchStr("");
               }}
               style={{ width: "10rem" }}
-              helperText="match string"
+              helperText={
+                !matchStr ? "match string" : `showing ${length} of ${history.length}`
+              }
             />
-            <Tooltip title="delete history">
-              <IconButton onClick={handleClear}>
-                <DeleteForeverIcon />
-              </IconButton>
-            </Tooltip>
           </>
         }
         handleClose={handleClose}
