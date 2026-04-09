@@ -282,7 +282,12 @@ function MenuOpenConn({ name }) {
       return;
     }
     if (false === config[savePasswordKey]) {
-      PassWordManager.savePassword(name, config[passwordKey], false);
+      PassWordManager.savePassword(
+        PassWordManager.serviceConnection,
+        name,
+        config[passwordKey],
+        false,
+      );
     }
     setConnected(name);
   };

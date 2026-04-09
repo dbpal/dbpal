@@ -695,7 +695,7 @@ function PostGres(props: {
 
 function Sqlite(props: { config?; context: AddConnectionContext }) {
   const { config, context } = props;
-  const [path, setPath] = useState(config?.path);
+  const [path, setPath] = useState(config?.path || "");
   const { connTimeOut, connectionName, readOnly, makeConfigRef } = context;
 
   function makeConfig(): types.DBConnectionConfig {

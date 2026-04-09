@@ -251,14 +251,25 @@ export const useLLMConfig = create<LLMStore>()(
       storage: new TauriStoreManger<LLMStore>(
         async (s) => {
           if (s.config.apiKey) {
-            await PassWordManager.savePassword(LLM_CONFIG_KEY, s.config.apiKey, true);
+            await PassWordManager.savePassword(
+              PassWordManager.serviceLLM,
+              LLM_CONFIG_KEY,
+              s.config.apiKey,
+              true,
+            );
           } else {
-            await PassWordManager.deletePassword(LLM_CONFIG_KEY);
+            await PassWordManager.deletePassword(
+              PassWordManager.serviceLLM,
+              LLM_CONFIG_KEY,
+            );
           }
           return { ...s, apiKey: "" };
         },
         async (s) => {
-          let pass = await PassWordManager.getPassword(LLM_CONFIG_KEY);
+          let pass = await PassWordManager.getPassword(
+            PassWordManager.serviceLLM,
+            LLM_CONFIG_KEY,
+          );
           s.config.apiKey = pass;
         },
       ),
@@ -890,7 +901,10 @@ export const useConnectionStore = create<ConnectionState>()(
         // Return a copy with the password injected
         let password = undefined;
         if (savePasswordKey in conn) {
-          password = await PassWordManager.getPassword(name);
+          password = await PassWordManager.getPassword(
+            PassWordManager.serviceConnection,
+            name,
+          );
           if (false === conn[savePasswordKey] && !password) {
             password = await window.prompt("please input password:");
           }
@@ -907,6 +921,7 @@ export const useConnectionStore = create<ConnectionState>()(
         // 1. Handle password persistence separately
         if (config[passwordKey]) {
           await PassWordManager.savePassword(
+            PassWordManager.serviceConnection,
             config.name,
             config[passwordKey],
             trySavePassToKeyRing(config),
@@ -930,7 +945,7 @@ export const useConnectionStore = create<ConnectionState>()(
 
       // Remove by name
       removeConnection: (name) => {
-        PassWordManager.deletePassword(name);
+        PassWordManager.deletePassword(PassWordManager.serviceConnection, name);
         set((state) => ({
           connections: state.connections.filter((c) => c.name !== name),
         }));

@@ -424,7 +424,10 @@ function CopyConnection() {
 
   const handleRow = useCallback(
     async (conn) => {
-      const password = await PassWordManager.getPassword(conn.name);
+      const password = await PassWordManager.getPassword(
+        PassWordManager.serviceConnection,
+        conn.name,
+      );
       const cop = { ...conn };
       if (password) {
         cop["password"] = password;

@@ -452,21 +452,30 @@ class NameAndQueryId {
 type FieldAndGridField = types.Field & GridColDef;
 
 class PassWordManager {
-  static service = "site.dbpal.dev";
+  static serviceConnection = "connetion.site.dbpal.dev";
+  static serviceLLM = "llm.site.dbpal.dev";
+
   static password = new Map<string, string>();
-  static async savePassword(name: string, pass: string, save2KeyRing: boolean) {
-    PassWordManager.password.set(name, pass);
+
+  static async savePassword(
+    service: string,
+    name: string,
+    pass: string,
+    save2KeyRing: boolean,
+  ) {
+    PassWordManager.password.set(PassWordManager.formatKey(service, name), pass);
     if (save2KeyRing) {
       console.info("save password to keyring", name, pass);
-      await keyring.setPassword(PassWordManager.service, name, pass);
+      await keyring.setPassword(service, name, pass);
     }
   }
-  static async getPassword(name: string) {
-    if (PassWordManager.password.has(name)) {
-      return PassWordManager.password.get(name);
+  static async getPassword(service: string, name: string) {
+    const key = PassWordManager.formatKey(service, name);
+    if (PassWordManager.password.has(key)) {
+      return PassWordManager.password.get(key);
     }
     try {
-      return await keyring.getPassword(PassWordManager.service, name);
+      return await keyring.getPassword(service, name);
     } catch (e) {
       console.log(
         "get password failed,this is fine maybe this connection don't have password",
@@ -475,10 +484,13 @@ class PassWordManager {
     }
     return null;
   }
-  static async deletePassword(name: string) {
+  static formatKey(service: string, name: string) {
+    return `${service}-${name}`;
+  }
+  static async deletePassword(service: string, name: string) {
     try {
-      PassWordManager.password.delete(name);
-      return await keyring.deletePassword(PassWordManager.service, name);
+      PassWordManager.password.delete(PassWordManager.formatKey(service, name));
+      return await keyring.deletePassword(service, name);
     } catch (e) {
       console.log("delete password failure", e);
     }
