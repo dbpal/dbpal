@@ -1222,7 +1222,6 @@ export const useChatStore = create<ChatState>((set, get) => ({
       const history = await db.chat_history
         .where("name")
         .equals(name)
-        .reverse() //
         .sortBy("timestamp");
 
       set((state) => ({

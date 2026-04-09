@@ -451,6 +451,10 @@ function ChatHistory(props: {
   }, [history, matchStr, page]);
 
   useEffect(() => {
+    setPage(Math.ceil(length / pageSize));
+  }, [length]);
+
+  useEffect(() => {
     const el = wrapperRef.current;
     if (el) el.scrollTop = el.scrollHeight;
   }, []);
