@@ -97,11 +97,6 @@ async fn call_openai_stream(
     comment_fn: impl Fn(&str) -> String + Send + Sync + 'static,
     prompt: Message,
 ) -> Result<(), ErrorFrontend> {
-    #[cfg(debug_assertions)]
-    {
-        println!("prompt:{:?}", prompt);
-    }
-
     let mut prompt = agent.stream_prompt(prompt).await;
     while let Some(chunk) = prompt.next().await {
         let chunk = chunk?;
@@ -412,7 +407,9 @@ pub async fn openai_stream(
     let msg = Message::User {
         content: {
             let mut content = vec![];
-
+            if let Some(x) = req.user_system_prompt.as_ref() {
+                content.push(UserContent::text(x.clone()));
+            }
             content.push(UserContent::text(format!(
                 "chat_history:\n{}\n",
                 req.chat_history
@@ -431,7 +428,6 @@ pub async fn openai_stream(
             content.push(UserContent::Text(Text {
                 text: req.prompt.clone(),
             }));
-
             content.extend(req.images.iter().map(|x| {
                 UserContent::Image(Image {
                     data: DocumentSourceKind::Url(x.clone()),
@@ -440,6 +436,12 @@ pub async fn openai_stream(
                     additional_params: None,
                 })
             }));
+            #[cfg(debug_assertions)]
+            {
+                for c in content.iter() {
+                    println!("user content:{:?}", c);
+                }
+            }
             OneOrMany::many(content.into_iter())?
         },
     };
@@ -941,6 +943,7 @@ mod tests {
             images: vec![],
             search_engine: Default::default(),
             chat_history: vec![],
+            user_system_prompt: None,
         };
         let agent = make_agent(req, vec![], None).unwrap();
         call_openai_stream(
@@ -970,6 +973,7 @@ mod tests {
             images: vec![],
             search_engine: Default::default(),
             chat_history: vec![],
+            user_system_prompt: None,
         };
         let agent: Agent<ResponsesCompletionModel> = make_agent(req, vec![], None).unwrap();
         println!("{:?}", now.elapsed());
@@ -989,6 +993,7 @@ mod tests {
         .await
         .unwrap();
         let req =  &OpenAIReq {
+                user_system_prompt:None,
                 url: "https://api.openai-proxy.org/v1".into(),
                 api_key: "sk-egR0EUYn0EzVybl7D9JkUFx2ksnD62sZPQ8d0J0yJgPEiAWt".into(),
                 model: "gpt-4.1-mini".into(),
@@ -1120,6 +1125,7 @@ human: tell me Mike's age from TABLE Persons
                 top_p: None,
                 images: vec![],
                 search_engine: Default::default(),
+                user_system_prompt : None,
             };
         let query_id = "aaaa";
 
@@ -1269,6 +1275,7 @@ human: tell me Mike's age from TABLE Persons
             top_p: None,
             images: vec![],
             search_engine: Default::default(),
+            user_system_prompt: None,
         };
 
         let p = Arc::new(|x| println!("{}", x));

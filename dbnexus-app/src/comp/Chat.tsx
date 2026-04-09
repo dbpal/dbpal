@@ -131,7 +131,7 @@ function SqlChatTextInput(props: {
   const { getSize } = useSizeStore();
   const { messagesByNames, saveMessage } = useChatStore();
   const connName = extractConfigNameFromUuid(uuid);
-
+  const { prompts: userDefinePrompts } = usePromptStore();
   useEffect(() => {
     const closeThis = (e: KeyboardEvent) => {
       if (e.key === "Escape" && vis) {
@@ -170,7 +170,6 @@ function SqlChatTextInput(props: {
       setInvokeStatus("trying getting stream response");
       let i = 0;
       let queryId = editor.getModel()[dbpalQuerykey] as NameAndQueryId;
-
       saveMessage(connName, "user", question);
       const history = messagesByNames[connName];
       await llm.stream(
@@ -189,7 +188,7 @@ function SqlChatTextInput(props: {
             };
           });
         })(),
-
+        userDefinePrompts[connName],
         (msg) => {
           setInvokeStatus("receiving stream response#" + i);
           editorAppendContent(editor, msg);
@@ -230,7 +229,7 @@ function SqlChatTextInput(props: {
           borderRadius: "1rem",
           zIndex: 14,
           overflow: "hidden",
-          opacity: 0.85,
+          // opacity: 0.85,
         }}>
         <Stack
           direction="row"
@@ -446,6 +445,9 @@ function ChatHistory(props: {
     clearHistory(connName);
     handleClose();
   };
+  if (!showChatHistory) {
+    return <> </>;
+  }
   return (
     <Paper
       style={{
@@ -457,7 +459,7 @@ function ChatHistory(props: {
         zIndex: 14,
         overflow: "auto",
         padding: "0.4rem",
-        display: showChatHistory ? "block" : "none",
+        display: "block",
       }}
       ref={wrapperRef}>
       <ModalHeader
@@ -516,7 +518,11 @@ function ChatHistory(props: {
   );
 }
 
-function EditPrompt(props: { connName: string; handleClose: () => void; showEdit }) {
+function EditPrompt(props: {
+  connName: string;
+  handleClose: () => void;
+  showEdit: boolean;
+}) {
   const { handleClose, connName, showEdit } = props;
   const { removePrompt, savePrompt, prompts } = usePromptStore();
   const [value, setValue] = useState(prompts[connName] || "");
@@ -547,7 +553,9 @@ function EditPrompt(props: { connName: string; handleClose: () => void; showEdit
       showNotification("error", "save prompt failed", e);
     }
   };
-
+  if (!showEdit) {
+    return <> </>;
+  }
   return (
     <Paper
       style={{

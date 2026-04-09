@@ -35,6 +35,7 @@ pub struct OpenAIReq {
     pub top_p: Option<f64>,
     // data:image/jpeg;base64,
     pub images: Vec<String>,
+    pub user_system_prompt: Option<String>,
     pub search_engine: AiOnlineSearch,
     pub chat_history: Vec<ChatHistory>,
 }

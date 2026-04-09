@@ -3,6 +3,7 @@ pub mod handlers;
 
 #[cfg(test)]
 mod tests {
+    use crate::app::{AiOnlineSearch, OpenAIReq, SetZoom};
     use dbnexus_db::datasource_config::{
         CassandraDBConfig, CouchBaseDBConfig, Db2Config, LibSqlDBConfigSource, MySqlSslMode,
         MysqlSsl, OdbcCommon, PgSsl, PgSslMode, SSLFiles,
@@ -14,8 +15,6 @@ mod tests {
     };
     use dbnexus_db::language_server::CompletionList;
     use dbnexus_db::redis::RedisListTable;
-
-    use crate::app::{AiOnlineSearch, OpenAIReq, SetZoom};
     #[test]
     fn generate_ts_def() {
         use crate::app::{self};

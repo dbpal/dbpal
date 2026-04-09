@@ -526,6 +526,7 @@ export namespace types {
         "max_tokens": (types.U64 | null);
         "top_p": (types.F64 | null);
         "images": (string)[];
+        "user_system_prompt": (string | null);
         "search_engine": types.AiOnlineSearch;
         "chat_history": (types.ChatHistory)[];
     };
