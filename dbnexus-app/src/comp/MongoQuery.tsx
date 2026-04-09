@@ -21,7 +21,6 @@ import EventNoteIcon from "@mui/icons-material/EventNote";
 import {
   DataSourceKind,
   ErrAndLoc,
-  generateRandomString,
   getEditorText,
   isMacOs,
   isWindows,
@@ -33,6 +32,7 @@ import {
   secondConfirm,
   validJson,
 } from "./helper";
+import { v4 as uuidv4 } from "uuid";
 import {
   dbpalQuerykey,
   EscDownEvent,
@@ -556,7 +556,7 @@ function MongoQuery(props: {
   const [markdownModel, setMarkdownModel] = useState(false);
   const [markdownModelValue, setMarkdownModelValue] = useState("");
   const [compileTime, setCompileTime] = useState<number | null>(null);
-  const compileDir = useRef(generateRandomString(5));
+  const compileDir = useRef(uuidv4());
   useEffect(() => {
     lastLanguage = language;
   }, [language]);

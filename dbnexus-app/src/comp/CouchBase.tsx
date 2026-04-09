@@ -31,7 +31,6 @@ import { ReactNode, useCallback, useContext, useEffect, useState } from "react";
 import {
   DataSourceKind,
   ErrAndLoc,
-  generateRandomString,
   getEditorText,
   handleCopyToClipboard,
   jumpToEditorText,
@@ -42,6 +41,7 @@ import {
   shrinkAble,
   validJson,
 } from "./helper.ts";
+import { v4 as uuidv4 } from "uuid";
 
 import DeleteForeverIcon from "@mui/icons-material/DeleteForever";
 import PlayArrowIcon from "@mui/icons-material/PlayArrow";
@@ -544,7 +544,7 @@ function CouchBaseInsert({ uuid, table }) {
       barExtra=<>
         <Button
           onClick={() => {
-            setId(generateRandomString());
+            setId(uuidv4());
           }}
           variant="text">
           gen

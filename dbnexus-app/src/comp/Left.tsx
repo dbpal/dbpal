@@ -58,13 +58,13 @@ import {
   DataSourceKind,
   extractConfigNameFromUuid,
   extractFieldAndIDFromMouseEvent,
-  generateRandomString,
   handleCopyToClipboard,
   secondConfirm,
   TabContent,
   TableType,
   UuidContext,
 } from "./helper";
+import { v4 as uuidv4 } from "uuid";
 import { TbDatabaseSearch } from "react-icons/tb";
 import { SqlQuery } from "./SqlQuery";
 import { RedisQuery } from "./RedisQuery";
@@ -131,7 +131,7 @@ import {
   useFavoriteStore,
   FavoriteSql,
 } from "./store.tsx";
-const settingId = generateRandomString();
+const settingId = uuidv4();
 const showTopKey = "left-top-show";
 function LeftTop() {
   const { matchPattern, setMatchPattern, setMaxTree, maxTree } = useMatcher();
@@ -966,7 +966,7 @@ function SchemaTree(props: { schema?: string; reloadSchemas? }) {
   ].includes(kind);
   const supportEvent = [DataSourceKind.Mysql, DataSourceKind.MariaDB].includes(kind);
   const setUpMenu = useContextMenu((state) => state.setUpMenu);
-  const idForTree = useRef(generateRandomString());
+  const idForTree = useRef(uuidv4());
   return (
     <TreeItem
       itemId={idForTree.current}

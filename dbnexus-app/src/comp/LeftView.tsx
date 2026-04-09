@@ -38,7 +38,6 @@ import {
   dataGridStyle,
   DataSourceKind,
   extractFieldAndIDFromMouseEvent,
-  generateRandomString,
   getSupportExportKind,
   handleCopyToClipboard,
   secondConfirm,
@@ -47,6 +46,7 @@ import {
   UuidContext,
   ViewKind,
 } from "./helper";
+import { v4 as uuidv4 } from "uuid";
 import { ExceedMaxTreeItem, MenuRefresh } from "./CommonComp";
 import { MongoTable } from "./MongoDB";
 import {
@@ -109,7 +109,7 @@ function ViewsTree(props: { viewKind: ViewKind }) {
       name = "materialized views";
       break;
   }
-  const tressId = useRef(generateRandomString());
+  const tressId = useRef(uuidv4());
   return (
     <TreeItem
       itemId={tressId.current}

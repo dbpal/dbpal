@@ -15,7 +15,8 @@ import { save } from "@tauri-apps/plugin-dialog";
 import ArrowCircleDownIcon from "@mui/icons-material/ArrowCircleDown";
 import { Channel, invoke } from "@tauri-apps/api/core";
 import { ModalHeader, OpenFileWithDefaultApp } from "./CommonComp";
-import { generateDefaultFilename, generateRandomString } from "./helper";
+import { generateDefaultFilename } from "./helper";
+import { v4 as uuidv4 } from "uuid";
 
 import { cancelTask } from "./handlers";
 import { CancelButton, StackRowCenter } from "./CommonComp2";
@@ -61,7 +62,7 @@ function ExportView(props: {
   const { showNotification } = useNotification();
   const [loading, setLoading] = useState(false);
   const [file, setFile] = useState<string | null>(null);
-  const taskId = useRef(generateRandomString(5));
+  const taskId = useRef(uuidv4());
   useEffect(() => {
     lastExportKind = kind;
   }, [kind]);

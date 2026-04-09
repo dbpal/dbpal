@@ -50,7 +50,6 @@ import {
   ErrAndLoc,
   errToString,
   extractFieldAndIDFromMouseEvent,
-  generateRandomString,
   handleCopyToClipboard,
   pageSizeOptions,
   prettyMs,
@@ -58,6 +57,7 @@ import {
   secondConfirm,
   textEllipsisStyle,
 } from "./helper";
+import { v4 as uuidv4 } from "uuid";
 
 import { TbDatabasePlus } from "react-icons/tb";
 import LinkIcon from "@mui/icons-material/Link";
@@ -591,7 +591,7 @@ function ViewRowInModal(props: { fields: types.Field[]; data: object; isTable? }
 
 function ExceedMaxTreeItem(props: { exceed: number; maxTreeSize: number }) {
   const { exceed, maxTreeSize } = props;
-  const id = useRef(generateRandomString());
+  const id = useRef(uuidv4());
   return (
     <TreeItem
       itemId={id.current}

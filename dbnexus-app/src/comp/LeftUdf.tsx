@@ -16,13 +16,8 @@ import { invoke } from "@tauri-apps/api/core";
 import { DefAndMetasView } from "./DefAndMetaView";
 
 import { TbMathFunction } from "react-icons/tb";
-import {
-  DataSourceKind,
-  generateRandomString,
-  secondConfirm,
-  TabContent,
-  UuidContext,
-} from "./helper";
+import { DataSourceKind, secondConfirm, TabContent, UuidContext } from "./helper.ts";
+import { v4 as uuidv4 } from "uuid";
 
 import { ExceedMaxTreeItem, MenuRefresh, UdfNameAndParameters } from "./CommonComp";
 import { listCassandraAgg, listUdf, makeUdfExtraArg, showUdf } from "./handlers";
@@ -62,7 +57,7 @@ function UdfsTree() {
   }, [reload]);
 
   const setUpMenu = useContextMenu((state) => state.setUpMenu);
-  const treeID = useRef(generateRandomString());
+  const treeID = useRef(uuidv4());
   return (
     <TreeItem
       itemId={treeID.current}
@@ -298,7 +293,7 @@ function CassandraAggregatesTree() {
     reload();
   }, [reload]);
   const setUpMenu = useContextMenu((state) => state.setUpMenu);
-  const tressId = useRef(generateRandomString());
+  const tressId = useRef(uuidv4());
   return (
     <TreeItem
       itemId={tressId.current}

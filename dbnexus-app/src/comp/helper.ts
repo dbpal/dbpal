@@ -18,6 +18,7 @@ import { WebviewWindow } from "@tauri-apps/api/webviewWindow";
 import { platform } from "@tauri-apps/plugin-os";
 import themelist from "../../monaco-themes/themes/themelist.json";
 import prettyMilliseconds from "pretty-ms";
+import { v4 as uuidv4 } from "uuid";
 
 const pageSizeOptions = [10, 20, 50, 100];
 const appStore = new LazyStore("store.json");
@@ -58,16 +59,6 @@ async function secondConfirm({
     okLabel: confirmText,
     cancelLabel: cancelText,
   });
-}
-
-function generateRandomString(length: number = 10): string {
-  const characters = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
-  let result = "";
-  for (let i = 0; i < length; i++) {
-    const randomIndex = Math.floor(Math.random() * characters.length);
-    result += characters[randomIndex];
-  }
-  return result;
 }
 
 // redis的数据存储的时候都是二进制 有时候包含的是有效的
@@ -310,7 +301,7 @@ class TabContent {
     public header: string,
     public content: ReactNode,
     public icon: ReactElement,
-    public id: string = generateRandomString(),
+    public id: string = uuidv4(),
   ) {}
 }
 
@@ -663,7 +654,6 @@ export {
   extractFieldAndIDFromMouseEvent,
   extractLastNameFromUuid,
   generateDefaultFilename,
-  generateRandomString,
   getEditorText,
   getSupportExportKind,
   getViewportSize,

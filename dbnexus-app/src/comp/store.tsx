@@ -1,11 +1,7 @@
 import { ReactElement, ReactNode, useCallback, useMemo } from "react";
 import { create, StateCreator } from "zustand";
-import {
-  appStore,
-  extractConfigNameFromUuid,
-  generateRandomString,
-  TabContent,
-} from "./helper";
+import { appStore, extractConfigNameFromUuid, TabContent } from "./helper";
+import { v4 as uuidv4 } from "uuid";
 import { AlertColor, Typography } from "@mui/material";
 import React from "react";
 import { persist, PersistStorage, StorageValue } from "zustand/middleware";
@@ -309,7 +305,7 @@ export const makeLLMCallable = (config: LLMConfig) => {
       handleCancel: (cancel: () => void) => void,
     ) => {
       console.log(" history:{}", history);
-      const taskId = generateRandomString();
+      const taskId = uuidv4();
       const emit = new Channel<string>((event: string) => {
         handleMessage(event);
       });

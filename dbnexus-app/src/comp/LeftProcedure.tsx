@@ -8,13 +8,8 @@ import { invoke } from "@tauri-apps/api/core";
 import { DefAndMetasView } from "./DefAndMetaView";
 
 import { SiProcessingfoundation } from "react-icons/si";
-import {
-  DataSourceKind,
-  generateRandomString,
-  secondConfirm,
-  TabContent,
-  UuidContext,
-} from "./helper";
+import { DataSourceKind, secondConfirm, TabContent, UuidContext } from "./helper.ts";
+import { v4 as uuidv4 } from "uuid";
 import { ExceedMaxTreeItem, MenuRefresh, UdfNameAndParameters } from "./CommonComp";
 import { listProcedure, makeShowProcedureExtraArg, showProcedure } from "./handlers";
 import { CopySql } from "./CommonComp2";
@@ -55,7 +50,7 @@ function ProceduresTree() {
     reload();
   }, [reload]);
 
-  const idForTrees = useRef(generateRandomString());
+  const idForTrees = useRef(uuidv4());
   return (
     <TreeItem
       itemId={idForTrees.current}

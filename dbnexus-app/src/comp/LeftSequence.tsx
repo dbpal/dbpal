@@ -20,12 +20,12 @@ import { invoke } from "@tauri-apps/api/core";
 import { DefAndMetasView } from "./DefAndMetaView.tsx";
 import {
   DataSourceKind,
-  generateRandomString,
   secondConfirm,
   TabContent,
   textEllipsisStyle,
   UuidContext,
 } from "./helper.ts";
+import { v4 as uuidv4 } from "uuid";
 
 import { ExceedMaxTreeItem, MenuRefresh } from "./CommonComp.tsx";
 import { listSequence } from "./handlers.ts";
@@ -66,7 +66,7 @@ function SequenceTree() {
   useEffect(() => {
     reload();
   }, [reload]);
-  const idForTree = useRef(generateRandomString());
+  const idForTree = useRef(uuidv4());
   return (
     <TreeItem
       itemId={idForTree.current}

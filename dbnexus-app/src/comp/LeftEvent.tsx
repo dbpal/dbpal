@@ -10,12 +10,12 @@ import { DefAndMetasView } from "./DefAndMetaView";
 import { MdOutlineEventRepeat } from "react-icons/md";
 import {
   DataSourceKind,
-  generateRandomString,
   secondConfirm,
   TabContent,
   textEllipsisStyle,
   UuidContext,
 } from "./helper";
+import { v4 as uuidv4 } from "uuid";
 import { ExceedMaxTreeItem, MenuRefresh } from "./CommonComp";
 import { listEvent } from "./handlers";
 import { CopySql } from "./CommonComp2";
@@ -53,7 +53,7 @@ function EventsTree() {
     reload();
   }, [reload]);
 
-  const idForTrees = useRef(generateRandomString());
+  const idForTrees = useRef(uuidv4());
   return (
     <TreeItem
       itemId={idForTrees.current}

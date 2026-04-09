@@ -53,7 +53,6 @@ import { MongoTable, MongoTableAdd } from "./MongoDB";
 import { BSON } from "bson";
 import {
   DataSourceKind,
-  generateRandomString,
   secondConfirm,
   UuidContext,
   handleCopyToClipboard,
@@ -64,6 +63,7 @@ import {
   TabContent,
   textEllipsisStyle,
 } from "./helper";
+import { v4 as uuidv4 } from "uuid";
 import { ExceedMaxTreeItem, MenuRefresh, ModalHeader } from "./CommonComp";
 import { TableStructure } from "./TableStructure";
 import { cancelTask, listTable, makeTableInsertFn, showTableColumn } from "./handlers";
@@ -87,7 +87,7 @@ function TablesTree(props: { typ: TableType }) {
   const [exceed, setExceed] = useState(0);
   const { maxTree } = useMatcher();
   const matchPattern = useMatcherFn();
-  const tablesId = useRef(generateRandomString());
+  const tablesId = useRef(uuidv4());
   useEffect(() => {
     setExceed(tables.filter((e) => matchPattern(e.name)).length);
   }, [tables, matchPattern]);
@@ -693,7 +693,7 @@ function DupTable(props: {
   const [loading, setLoading] = useState(false);
   const [name, setName] = useState(table);
   const { showNotification } = useNotification();
-  const taskId = useRef(generateRandomString());
+  const taskId = useRef(uuidv4());
   const handleRename = () => {
     if (name == table) {
       showNotification({ severity: "error", title: "name not changed" });
@@ -831,7 +831,7 @@ function RedisOneTableKind(props: {
       name = "hash";
       break;
   }
-  const tablesID = useRef(generateRandomString());
+  const tablesID = useRef(uuidv4());
   const setUpMenu = useContextMenu((state) => state.setUpMenu);
   return (
     <TreeItem
@@ -943,7 +943,7 @@ function RedisTables() {
   }, [filter, handleReload]);
 
   const [showEditFilter, setShowEditFilter] = useState(false);
-  const filterTreeID = useRef(generateRandomString());
+  const filterTreeID = useRef(uuidv4());
   return (
     <>
       <TreeItem
