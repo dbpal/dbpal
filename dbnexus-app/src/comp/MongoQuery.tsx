@@ -286,7 +286,7 @@ function CompilerNotice(props: { compileDir: string; width: string }) {
   }, [compileDir]);
 
   return (
-    <Stack style={{ width, padding: "0.5rem" }}>
+    <Stack style={{ width }}>
       <AppMarkDown
         handlePathUrl={(p) => {
           openPath(p);

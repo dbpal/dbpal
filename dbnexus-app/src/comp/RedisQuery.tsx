@@ -110,7 +110,6 @@ function RedisQuery(props: { favoriteName?: string; value?: string; uuid: string
               flexGrow: 1,
               flexShrink: 1,
               overflow: "auto",
-              padding: "0.4rem",
             }}>
             <AppMarkDown placeHolder="when typing markdown document will show atomically">
               {doc}

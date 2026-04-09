@@ -535,7 +535,6 @@ function ChatHistory(props: {
                     <div
                       style={{
                         width: "85%",
-                        padding: "2px 4px",
                         overflow: "auto",
                       }}>
                       <Typography color="info">

@@ -955,28 +955,30 @@ function AppMarkDown(props: {
   }
   return (
     <MarkdownBody>
-      <ReactMarkdown
-        remarkPlugins={[remarkGfm]}
-        components={{
-          code({ className, children, ...props }) {
-            const match = /language-(\w+)/.exec(className || "");
-            return match ? (
-              <AppCode
-                extra={appcodeExtra}
-                language={match[1]}
-                handleEdit={appCodeHandleEdit}
-                codeBlock={String(children).replace(/\n$/, "")}
-              />
-            ) : (
-              <code className={className} {...props}>
-                {children}
-              </code>
-            );
-          },
-          a: CustomLink,
-        }}>
-        {children ? children : placeHolder}
-      </ReactMarkdown>
+      <div style={{ padding: "2px 0.7rem" }}>
+        <ReactMarkdown
+          remarkPlugins={[remarkGfm]}
+          components={{
+            code({ className, children, ...props }) {
+              const match = /language-(\w+)/.exec(className || "");
+              return match ? (
+                <AppCode
+                  extra={appcodeExtra}
+                  language={match[1]}
+                  handleEdit={appCodeHandleEdit}
+                  codeBlock={String(children).replace(/\n$/, "")}
+                />
+              ) : (
+                <code className={className} {...props}>
+                  {children}
+                </code>
+              );
+            },
+            a: CustomLink,
+          }}>
+          {children ? children : placeHolder}
+        </ReactMarkdown>
+      </div>
     </MarkdownBody>
   );
 }
@@ -1778,7 +1780,6 @@ function AiMarkdownModel(props: {
         minHeight: 0,
         height: "100px",
         display: markdownModel ? "block" : "none",
-        padding: "0.5rem",
         overflow: "auto",
       }}
       ref={markdownDivDom}>
