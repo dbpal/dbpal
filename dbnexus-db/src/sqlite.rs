@@ -1368,8 +1368,7 @@ impl QuerySql for SqliteDB {
     }
 }
 
-#[cfg(test)]
-pub(crate) fn sqlite_test_file_path() -> String {
+pub fn sqlite_test_file_path() -> String {
     std::env::var("DBPAL_SQLITE_TEST_FILE").unwrap()
 }
 

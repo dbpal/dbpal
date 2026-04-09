@@ -911,6 +911,8 @@ pub enum AiStreamMsg {
 pub struct AiOnlineSearch {
     pub enable: bool,
     pub provider: String, // duckduckgo
+
+    pub api_key: Option<String>,
 }
 
 #[cfg(test)]

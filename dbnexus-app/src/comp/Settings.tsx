@@ -823,7 +823,7 @@ function LLMSetting(props: { handleClose?: () => void }) {
           }}
         />
         <Autocomplete
-          options={["duckduckgo"]}
+          options={["duckduckgo", "serpapi", "tavily"]}
           style={{ width: "12rem" }}
           value={searchEngine.provider}
           renderInput={(params) => <TextField {...params} label={"search engine"} />}
@@ -832,6 +832,32 @@ function LLMSetting(props: { handleClose?: () => void }) {
             setSearchEngine({ ...searchEngine, provider: value });
           }}
         />
+
+        {["serpapi", "tavily"].includes(searchEngine.provider) && (
+          <TextField
+            value={searchEngine.api_key}
+            onChange={(e) => {
+              setSearchEngine({ ...searchEngine, api_key: e.target.value });
+            }}
+            label="api key"
+            fullWidth
+            slotProps={{
+              input: {
+                endAdornment: searchEngine.api_key && (
+                  <InputAdornment position="end">
+                    <IconButton
+                      onClick={() => {
+                        setSearchEngine({ ...searchEngine, api_key: "" });
+                      }}
+                      edge="end">
+                      <ClearIcon fontSize="small" />
+                    </IconButton>
+                  </InputAdornment>
+                ),
+              },
+            }}
+          />
+        )}
       </Stack>
       <Divider />
       <Stack direction="row">

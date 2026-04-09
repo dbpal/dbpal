@@ -93,7 +93,7 @@ impl From<EmptyListError> for ErrorFrontend {
 
 async fn call_openai_stream(
     agent: Agent<ResponsesCompletionModel>,
-    emit: Emitter,
+    emit: ToolEmitter,
     comment_fn: impl Fn(&str) -> String + Send + Sync + 'static,
     prompt: Message,
 ) -> Result<(), ErrorFrontend> {
@@ -176,7 +176,7 @@ async fn call_openai_stream(
 #[derive(Clone)]
 #[allow(unused)]
 pub struct EmitSomeStatus {
-    emit: Emitter,
+    emit: ToolEmitter,
 }
 impl<M> PromptHook<M> for EmitSomeStatus where M: CompletionModel + 'static {}
 
@@ -185,7 +185,7 @@ impl DBPal {
         &self,
         name: &str,
         query_id: impl Into<String>,
-        emit: Emitter,
+        emit: ToolEmitter,
     ) -> anyhow::Result<Vec<Box<dyn ToolDyn>>> {
         let db = self.get_backend(&name).await?;
         match db.backend_kind() {
@@ -230,7 +230,7 @@ impl DBPal {
 pub struct SqlQueryTool {
     db: DatabaseBackend,
     query_id: String,
-    emit: Emitter,
+    emit: ToolEmitter,
 }
 
 #[derive(Clone, Debug)]
@@ -289,7 +289,8 @@ pub struct SqlQueryOutput {
     query: String,
 }
 
-pub type Emitter = Arc<dyn Fn(String) + Send + Sync + 'static>;
+/// tool emitter , impl should comment and somehow send to user
+pub type ToolEmitter = Arc<dyn Fn(String) + Send + Sync + 'static>;
 
 impl Tool for SqlQueryTool {
     const NAME: &'static str = "sql_query";
@@ -322,11 +323,7 @@ impl Tool for SqlQueryTool {
     }
 
     async fn call(&self, args: Self::Args) -> Result<Self::Output, Self::Error> {
-        (self.emit)(
-            self.db
-                .backend_kind()
-                .comment(format!("\ncall tool sql query {}", args.query).as_str()),
-        );
+        (self.emit)(format!("\ncall tool sql query {}", args.query));
         let (exceed, ret) = self
             .db
             .as_export_query_result()
@@ -339,7 +336,7 @@ impl Tool for SqlQueryTool {
             .await
             .map_err(|e| CallToolErr::from(format!("查询失败: {}", e)))?;
         if exceed {
-            (self.emit)("-- data exceed 100,some data not feed to LLM".to_string())
+            (self.emit)("data exceed 100,some data not feed to LLM".to_string())
         }
         let r = expect_export_frame_all_json(ret)?;
         Ok(SqlQueryOutput {
@@ -379,8 +376,14 @@ pub async fn openai_stream(
     dbpal: tauri::State<'_, DBPal>,
 ) -> Result<(), ErrorFrontend> {
     let (token, _guard) = task_manager.add(task_id);
-    let emitter = Arc::new(move |s| {
-        if let Err(err) = emit.send(s) {
+
+    let db = dbpal
+        .get_backend(&name)
+        .await
+        .map_err(ErrorFrontend::from)?;
+    let db_kind = db.backend_kind();
+    let emitter = Arc::new(move |status: String| {
+        if let Err(err) = emit.send(db_kind.comment(&status)) {
             log::error!("Error sending message: {:?}", err)
         }
     });
@@ -392,11 +395,7 @@ pub async fn openai_stream(
     if let Some(x) = req.search_engine.make_tool(emitter.clone())? {
         tools.push(x);
     }
-    let db = dbpal
-        .get_backend(&name)
-        .await
-        .map_err(ErrorFrontend::from)?;
-    let db_kind = db.backend_kind();
+
     let agent = make_agent(
         &req,
         tools,
@@ -474,14 +473,38 @@ async fn image_to_base64(path: &str) -> anyhow::Result<String> {
     anyhow::Ok(r)
 }
 
+impl From<websearch::SearchError> for ErrorFrontend {
+    fn from(value: websearch::SearchError) -> Self {
+        Self {
+            reason: value.to_string(),
+            detail: format!("{:?}", value),
+            cancelled: false,
+        }
+    }
+}
+
 impl AiOnlineSearch {
-    fn make_tool(&self, emit: Emitter) -> Result<Option<Box<dyn ToolDyn>>, ErrorFrontend> {
+    fn make_tool(&self, emit: ToolEmitter) -> Result<Option<Box<dyn ToolDyn>>, ErrorFrontend> {
         if self.enable {
             let engine: Box<dyn websearch::SearchProvider> = match self.provider.as_ref() {
                 "duckduckgo" => Box::new(websearch::providers::DuckDuckGoProvider::new()),
+                "tavily" => {
+                    if let Some(x) = self.api_key.as_ref() {
+                        Box::new(websearch::providers::TavilyProvider::new(x)?)
+                    } else {
+                        return Err(ErrorFrontend::from("tavily need api key."));
+                    }
+                }
+                "serpapi" => {
+                    if let Some(x) = self.api_key.as_ref() {
+                        Box::new(websearch::providers::SerpApiProvider::new(x)?)
+                    } else {
+                        return Err(ErrorFrontend::from("serpapi need api key."));
+                    }
+                }
                 _ => {
                     return Err(ErrorFrontend::from(format!(
-                        "search engine found:{}",
+                        "search enginenot found:{}",
                         self.provider
                     )));
                 }
@@ -514,7 +537,7 @@ pub struct SearchOutput {
 
 pub struct WebSearchTool {
     engine: Box<dyn websearch::SearchProvider>,
-    emit: Emitter,
+    emit: ToolEmitter,
 }
 
 impl Tool for WebSearchTool {
@@ -555,10 +578,7 @@ impl Tool for WebSearchTool {
     }
 
     async fn call(&self, args: Self::Args) -> Result<Self::Output, Self::Error> {
-        (self.emit)(format!(
-            "-- search internet for answer,query:{}\n",
-            args.query
-        ));
+        (self.emit)(format!("search internet for answer,query:{}\n", args.query));
 
         let start = std::time::Instant::now();
         let results = self
@@ -578,25 +598,21 @@ impl Tool for WebSearchTool {
             }
         }
 
-        (self.emit)(format!(
-            "-- search done:{} results {} ...\n",
-            results.len(),
-            {
-                //
-                let slice = results.get(0..3).unwrap_or(&results);
-                let r = slice
-                    .iter()
-                    .map(|x| x.snippet.clone().unwrap_or_default())
-                    .collect::<Vec<_>>()
-                    .join("  ");
+        (self.emit)(format!("search done:{} results {} ...\n", results.len(), {
+            //
+            let slice = results.get(0..3).unwrap_or(&results);
+            let r = slice
+                .iter()
+                .map(|x| x.snippet.clone().unwrap_or_default())
+                .collect::<Vec<_>>()
+                .join("  ");
 
-                if r.len() > 100 {
-                    r.chars().take(100).collect::<String>()
-                } else {
-                    r
-                }
+            if r.len() > 100 {
+                r.chars().take(100).collect::<String>()
+            } else {
+                r
             }
-        ));
+        }));
 
         Ok(SearchOutput {
             query: args.query.clone(),
@@ -683,7 +699,7 @@ mod mongo {
             let collection = db.collection::<Document>(&collection_name);
 
             // Limit return count to prevent database overload
-            let limit = limit.unwrap_or(50).min(self.max_limit);
+            let limit = limit.unwrap_or(10).min(self.max_limit);
 
             let result = match operation.as_str() {
                 "find" => {
@@ -774,7 +790,6 @@ mod mongo {
                 }),
             }
         }
-
         type Error = CallToolErr;
     }
 }
@@ -915,7 +930,9 @@ const bson : any; // bson will initialize by 'await import("bson")'
 mod tests {
     use super::*;
     use dbnexus_db::{
-        datasource_config::SqliteDBConfig, db::QuerySql, enable_test_log, sqlite::SqliteDB,
+        datasource_config::SqliteDBConfig,
+        db::QuerySql,
+        sqlite::{sqlite_test_file_path, SqliteDB},
     };
     use futures_util::StreamExt;
     use rig::{
@@ -986,57 +1003,28 @@ mod tests {
 
     async fn test_fine_with_tool() {
         let db = SqliteDB::new(SqliteDBConfig {
-            path: "/home/yuyang/tests/sqlite.test.db".into(),
+            path: sqlite_test_file_path(),
             read_only: true,
             conn_timeout: None,
         })
         .await
         .unwrap();
-        let req =  &OpenAIReq {
-                user_system_prompt:None,
-                url: "https://api.openai-proxy.org/v1".into(),
-                api_key: "sk-egR0EUYn0EzVybl7D9JkUFx2ksnD62sZPQ8d0J0yJgPEiAWt".into(),
-                model: "gpt-4.1-mini".into(),
-                chat_history : vec![],
-                prompt: r#"
-
-
-system:You are a sqlite database expert.
-Your answer must follow ALL of these rules:
-1. Comments must use "--" syntax.
-2. system locale is zh-CN 
-
-
-human: here are some information about the database
-==============================database sqlitexxx==============================
-we have fellow tables: Persons,departments,employees,has_data_0,has_data_1,sqlite_sequence,test_column,test_commit,test_create_trigger,test_create_trigger_update,test_duplicate,test_duplicate2,test_index,test_rename2,test_table,test_table_pagination
-we have fellow view: test_view,employees_view
-Persons is table
-        Columns:ID,Name,Age
-        Primary key: ID
-Persons max id is 3
-Persons create table sql is:
-CREATE TABLE Persons (
-                ID INTEGER PRIMARY KEY,
-                Name TEXT,
-                Age INTEGER
-            );
-CREATE INDEX persons_idx_age ON Persons (Age);
-
-
-
-Chat History:
-
-
-
+        let req = &OpenAIReq {
+            user_system_prompt: None,
+            url: "https://dashscope.aliyuncs.com/compatible-mode/v1".into(),
+            api_key: "sk-6c19c965d3234c8fae49c19e4f0301f0".into(),
+            model: "qwen3.5-plus".into(),
+            chat_history: vec![],
+            prompt: r#"
 human: tell me Mike's age from TABLE Persons 
-                "#.into(),
-                temperature: None,
-                max_tokens: None,
-                top_p: None,
-                images: vec![],
-                search_engine : Default::default(),
-            };
+                "#
+            .into(),
+            temperature: None,
+            max_tokens: None,
+            top_p: None,
+            images: vec![],
+            search_engine: Default::default(),
+        };
         let query_id = "aaaa";
 
         db.open_connection(query_id).await.unwrap();
@@ -1075,58 +1063,29 @@ human: tell me Mike's age from TABLE Persons
 
     async fn test_steam_not_ok() {
         let db = SqliteDB::new(SqliteDBConfig {
-            path: "/home/yuyang/tests/sqlite.test.db".into(),
+            path: sqlite_test_file_path(),
             read_only: true,
             conn_timeout: None,
         })
         .await
         .unwrap();
 
-        let req =  &OpenAIReq {
-            chat_history : vec![],
-                url: "https://api.openai-proxy.org/v1".into(),
-                api_key: "sk-egR0EUYn0EzVybl7D9JkUFx2ksnD62sZPQ8d0J0yJgPEiAWt".into(),
-                model: "gpt-4.1-mini".into(),
-                prompt: r#"
-
-
-system:You are a sqlite database expert.
-Your answer must follow ALL of these rules:
-1. Comments must use "--" syntax.
-2. system locale is zh-CN 
-
-
-human: here are some information about the database
-==============================database sqlitexxx==============================
-we have fellow tables: Persons,departments,employees,has_data_0,has_data_1,sqlite_sequence,test_column,test_commit,test_create_trigger,test_create_trigger_update,test_duplicate,test_duplicate2,test_index,test_rename2,test_table,test_table_pagination
-we have fellow view: test_view,employees_view
-Persons is table
-        Columns:ID,Name,Age
-        Primary key: ID
-Persons max id is 3
-Persons create table sql is:
-CREATE TABLE Persons (
-                ID INTEGER PRIMARY KEY,
-                Name TEXT,
-                Age INTEGER
-            );
-CREATE INDEX persons_idx_age ON Persons (Age);
-
-
-
-Chat History:
-
-
-
+        let req = &OpenAIReq {
+            chat_history: vec![],
+            url: "https://api.openai-proxy.org/v1".into(),
+            api_key: "sk-egR0EUYn0EzVybl7D9JkUFx2ksnD62sZPQ8d0J0yJgPEiAWt".into(),
+            model: "gpt-4.1-mini".into(),
+            prompt: r#"
 human: tell me Mike's age from TABLE Persons 
-                "#.into(),
-                temperature: None,
-                max_tokens: None,
-                top_p: None,
-                images: vec![],
-                search_engine: Default::default(),
-                user_system_prompt : None,
-            };
+                "#
+            .into(),
+            temperature: None,
+            max_tokens: None,
+            top_p: None,
+            images: vec![],
+            search_engine: Default::default(),
+            user_system_prompt: None,
+        };
         let query_id = "aaaa";
 
         db.open_connection(query_id).await.unwrap();
@@ -1246,8 +1205,6 @@ human: tell me Mike's age from TABLE Persons
 
     #[tokio::test]
     async fn test_search_search_tool() {
-        // enable_test_log();
-
         // 打印当前代理设置
         println!("Current proxy settings:");
         println!("  http_proxy:  {:?}", env::var("http_proxy").ok());
@@ -1278,22 +1235,75 @@ human: tell me Mike's age from TABLE Persons
             user_system_prompt: None,
         };
 
-        let p = Arc::new(|x| println!("{}", x));
+        let print_steam = Arc::new(|x| print!("{}", x));
 
-        let agent = make_agent(
-            req,
-            vec![Box::new(WebSearchTool {
-                engine: Box::new(websearch::providers::DuckDuckGoProvider::new()),
-                emit: p.clone(),
-            })],
-            None,
-        )
-        .unwrap();
-
-        let msg = Message::user(&req.prompt);
-
-        call_openai_stream(agent, p, |x| x.to_owned(), msg)
-            .await
+        {
+            println!("testing duckduckgo search tool...");
+            let agent = make_agent(
+                req,
+                vec![Box::new(WebSearchTool {
+                    engine: Box::new(websearch::providers::DuckDuckGoProvider::new()),
+                    emit: print_steam.clone(),
+                })],
+                None,
+            )
             .unwrap();
+
+            let msg = Message::user(&req.prompt);
+
+            call_openai_stream(agent, print_steam.clone(), |x| x.to_owned(), msg)
+                .await
+                .unwrap();
+        }
+
+        //
+
+        {
+            println!("testing search tool...");
+            let agent = make_agent(
+                req,
+                vec![Box::new(WebSearchTool {
+                    engine: Box::new(
+                        websearch::providers::TavilyProvider::new(
+                            "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",
+                        )
+                        .unwrap(),
+                    ),
+                    emit: print_steam.clone(),
+                })],
+                None,
+            )
+            .unwrap();
+
+            let msg = Message::user(&req.prompt);
+
+            call_openai_stream(agent, print_steam.clone(), |x| x.to_owned(), msg)
+                .await
+                .unwrap();
+        }
+
+        {
+            println!("testing tavily serpapi tool...");
+            let agent = make_agent(
+                req,
+                vec![Box::new(WebSearchTool {
+                    engine: Box::new(
+                        websearch::providers::SerpApiProvider::new(
+                            "470cd3e4754aa5b76b04e80ddc85520e1d953cd303d6487ebe7c949e6629fbc4",
+                        )
+                        .unwrap(),
+                    ),
+                    emit: print_steam.clone(),
+                })],
+                None,
+            )
+            .unwrap();
+
+            let msg = Message::user(&req.prompt);
+
+            call_openai_stream(agent, print_steam.clone(), |x| x.to_owned(), msg)
+                .await
+                .unwrap();
+        }
     }
 }

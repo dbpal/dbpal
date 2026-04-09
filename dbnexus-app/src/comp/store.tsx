@@ -240,6 +240,7 @@ export const useLLMConfig = create<LLMStore>()(
         search_engin: {
           enable: true,
           provider: "duckduckgo",
+          api_key: null,
         },
       },
       setConfig: (config) => set({ config }),

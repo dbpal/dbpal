@@ -512,6 +512,7 @@ export namespace types {
     export type AiOnlineSearch = {
         "enable": boolean;
         "provider": string;
+        "api_key": (string | null);
     };
     export type ChatHistory = {
         "role": string;
