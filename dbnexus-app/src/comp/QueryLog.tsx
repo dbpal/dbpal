@@ -118,7 +118,11 @@ function QueryLog(props: {
         const logs = await query(uuid);
         setLogs(logs);
       } catch (e) {
-        showNotification("error", "get query log error", e);
+        showNotification({
+          severity: "error",
+          title: "get query log error",
+          message: e,
+        });
         return;
       } finally {
         setLoading(false);
@@ -222,10 +226,17 @@ function QueryLog(props: {
                     return;
                   }
                   const rowsAffected = await deleteByUuid(uuid);
-                  showNotification("success", `deleted ${rowsAffected} query log`);
+                  showNotification({
+                    severity: "success",
+                    title: `deleted ${rowsAffected} query log`,
+                  });
                   setShowQueryLog(false);
                 } catch (e) {
-                  showNotification("error", "delete failed", e);
+                  showNotification({
+                    severity: "error",
+                    title: "delete failed",
+                    message: e,
+                  });
                   return;
                 }
               }}>

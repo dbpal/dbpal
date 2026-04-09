@@ -149,7 +149,11 @@ function ColumnsStructure(props: {
         setFields(fs);
       })
       .catch((e) => {
-        showNotification("error", "list column failed", e);
+        showNotification({
+          severity: "error",
+          title: "list column failed",
+          message: e,
+        });
       })
       .finally(() => {
         setLoading(false);
@@ -173,11 +177,19 @@ function ColumnsStructure(props: {
         columnName: col,
       })
         .then((sql) => {
-          showNotification("success", "Drop column OK", <CopySql sql={sql} />);
+          showNotification({
+            severity: "success",
+            title: "Drop column OK",
+            message: <CopySql sql={sql} />,
+          });
           handleReload();
         })
         .catch((e) => {
-          showNotification("error", "Drop column Failure", e);
+          showNotification({
+            severity: "error",
+            title: "Drop column Failure",
+            message: e,
+          });
         });
     },
     [handleReload, showNotification, table, uuid],
@@ -295,7 +307,10 @@ function ColumnsStructure(props: {
   useEffect(() => {
     if (row) {
       if ([DataSourceKind.Sqlite, DataSourceKind.LibSql].includes(kind)) {
-        showNotification("warning", `${kind} not support modify column`);
+        showNotification({
+          severity: "warning",
+          title: `${kind} not support modify column`,
+        });
       }
     }
   }, [kind, row, showNotification]);
@@ -430,7 +445,7 @@ function RenameIndex(props: {
   const { showNotification } = useNotification();
   const handleRename = () => {
     if (newName == indexName) {
-      showNotification("warning", "name not change");
+      showNotification({ severity: "warning", title: "name not change" });
       return;
     }
     setLoading(true);
@@ -442,12 +457,16 @@ function RenameIndex(props: {
       newName: newName,
     })
       .then((sql) => {
-        showNotification("success", "Rename OK", <CopySql sql={sql} />);
+        showNotification({
+          severity: "success",
+          title: "Rename OK",
+          message: <CopySql sql={sql} />,
+        });
         reload();
         handleClose();
       })
       .catch((e) => {
-        showNotification("error", "Rename Failure", e);
+        showNotification({ severity: "error", title: "Rename Failure", message: e });
       })
       .finally(() => {
         setLoading(false);
@@ -544,7 +563,11 @@ function IndexesStructure(props: {
         setIndexes(indexes);
       })
       .catch((e) => {
-        showNotification("error", "list indexes failed", e);
+        showNotification({
+          severity: "error",
+          title: "list indexes failed",
+          message: e,
+        });
       })
       .finally(() => {
         setLoading(false);
@@ -567,11 +590,19 @@ function IndexesStructure(props: {
         index: indexName,
       })
         .then((sql) => {
-          showNotification("success", "Drop OK", <CopySql sql={sql} />);
+          showNotification({
+            severity: "success",
+            title: "Drop OK",
+            message: <CopySql sql={sql} />,
+          });
           handleReload();
         })
         .catch((e) => {
-          showNotification("error", "Drop index failure", e);
+          showNotification({
+            severity: "error",
+            title: "Drop index failure",
+            message: e,
+          });
         });
     },
     [handleReload, showNotification, table, uuid],
@@ -777,7 +808,7 @@ function MongoAddIndex(props: { uuid; table; handleClose; reload }) {
   const handleAdd = async (keys) => {
     try {
       if (!indexName) {
-        showNotification("warning", "index name can't be none");
+        showNotification({ severity: "warning", title: "index name can't be none" });
         indexNameDom.current.focus();
         return;
       }
@@ -788,11 +819,11 @@ function MongoAddIndex(props: { uuid; table; handleClose; reload }) {
         unique: indexType == "unique",
         indexName: indexName ? indexName : null,
       });
-      showNotification("success", "create index ok");
+      showNotification({ severity: "success", title: "create index ok" });
       handleClose();
       reload();
     } catch (e) {
-      showNotification("error", "create index failed", e);
+      showNotification({ severity: "error", title: "create index failed", message: e });
     }
   };
 
@@ -847,16 +878,20 @@ function AddIndex(props: {
         setFields(e);
       })
       .catch((e) => {
-        showNotification("error", "list fields failed", e);
+        showNotification({
+          severity: "error",
+          title: "list fields failed",
+          message: e,
+        });
       });
   }, [showNotification, table, uuid]);
   const handleAdd = async () => {
     if (!req.name) {
-      showNotification("warning", "index name can't be none");
+      showNotification({ severity: "warning", title: "index name can't be none" });
       return;
     }
     if (req.columns.length == 0) {
-      showNotification("warning", "select at least one column");
+      showNotification({ severity: "warning", title: "select at least one column" });
       return;
     }
     try {
@@ -865,11 +900,15 @@ function AddIndex(props: {
         tableName: table,
         req,
       });
-      showNotification("success", "create index ok", <CopySql sql={sql} />);
+      showNotification({
+        severity: "success",
+        title: "create index ok",
+        message: <CopySql sql={sql} />,
+      });
       handleClose();
       reload();
     } catch (e) {
-      showNotification("error", "create index failed", e);
+      showNotification({ severity: "error", title: "create index failed", message: e });
     }
   };
 
@@ -917,12 +956,12 @@ function TableAddColumn(props: {
 
   const handleAdd = () => {
     if (!name) {
-      showNotification("error", "column name is empty");
+      showNotification({ severity: "error", title: "column name is empty" });
       nameDom.current.focus();
       return;
     }
     if (!typ) {
-      showNotification("warning", "type is empty");
+      showNotification({ severity: "warning", title: "type is empty" });
       return;
     }
     setLoading(true);
@@ -938,12 +977,20 @@ function TableAddColumn(props: {
       } as types.ColumnType,
     })
       .then((sql) => {
-        showNotification("success", "Add Column OK", <CopySql sql={sql} />);
+        showNotification({
+          severity: "success",
+          title: "Add Column OK",
+          message: <CopySql sql={sql} />,
+        });
         handleClose();
         reload();
       })
       .catch((e) => {
-        showNotification("error", "Add Column failure", e);
+        showNotification({
+          severity: "error",
+          title: "Add Column failure",
+          message: e,
+        });
       })
       .finally(() => {
         setLoading(false);
@@ -1048,11 +1095,11 @@ function ModifyTableColumn(props: {
   const [newDv, setNewDv] = useState(supportModifyDefault ? defaultValue : null);
   const handleModify = () => {
     if (newName == col && !newTyp) {
-      showNotification("warning", "nothing is changed");
+      showNotification({ severity: "warning", title: "nothing is changed" });
       return;
     }
     if (!newName) {
-      showNotification("error", "name can't empty");
+      showNotification({ severity: "error", title: "name can't empty" });
       return;
     }
     setLoading(true);
@@ -1073,12 +1120,20 @@ function ModifyTableColumn(props: {
       typ: typePara,
     })
       .then((sql) => {
-        showNotification("success", "Modify column OK", <CopySql sql={sql} />);
+        showNotification({
+          severity: "success",
+          title: "Modify column OK",
+          message: <CopySql sql={sql} />,
+        });
         reload();
         handleClose();
       })
       .catch((e) => {
-        showNotification("error", "Modify column Failure", e);
+        showNotification({
+          severity: "error",
+          title: "Modify column Failure",
+          message: e,
+        });
       })
       .finally(() => {
         setLoading(false);
@@ -1267,7 +1322,11 @@ function TriggersStructure(props: {
         setTriggers(ts);
       })
       .catch((e) => {
-        showNotification("error", "list indexes failed", e);
+        showNotification({
+          severity: "error",
+          title: "list indexes failed",
+          message: e,
+        });
       })
       .finally(() => {
         setLoading(false);
@@ -1289,11 +1348,19 @@ function TriggersStructure(props: {
       }
       invoke<string>("drop_trigger", { trigger, ...callPara })
         .then((sql) => {
-          showNotification("success", "Drop Trigger OK", <CopySql sql={sql} />);
+          showNotification({
+            severity: "success",
+            title: "Drop Trigger OK",
+            message: <CopySql sql={sql} />,
+          });
           handleReload();
         })
         .catch((e) => {
-          showNotification("error", "Drop trigger failure", e);
+          showNotification({
+            severity: "error",
+            title: "Drop trigger failure",
+            message: e,
+          });
         });
     },
     [callPara, handleReload, showNotification],
@@ -1303,11 +1370,19 @@ function TriggersStructure(props: {
     (invoke_name: string, trigger, operation: string) => {
       invoke(invoke_name, { trigger, ...callPara })
         .then((sql) => {
-          showNotification("success", `${operation}  OK`, <CopySql sql={sql} />);
+          showNotification({
+            severity: "success",
+            title: `${operation}  OK`,
+            message: <CopySql sql={sql} />,
+          });
           handleReload();
         })
         .catch((e) => {
-          showNotification("error", `${operation}  Failure`, e);
+          showNotification({
+            severity: "error",
+            title: `${operation}  Failure`,
+            message: e,
+          });
         });
     },
     [callPara, handleReload, showNotification],

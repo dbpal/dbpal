@@ -37,7 +37,11 @@ function ProceduresTree() {
         setPos(ts);
       })
       .catch((e) => {
-        showNotification("error", "list procedure failed", e);
+        showNotification({
+          severity: "error",
+          title: "list procedure failed",
+          message: e,
+        });
       });
   }, [showNotification, uuid]);
 
@@ -148,11 +152,19 @@ function ProcedureMenu(props: {
     const arg = makeShowProcedureExtraArg(procedure, kind);
     invoke("drop_procedure", { name: uuid, procedure, arg })
       .then((sql) => {
-        showNotification("success", "Drop procedure OK", <CopySql sql={sql} />);
+        showNotification({
+          severity: "success",
+          title: "Drop procedure OK",
+          message: <CopySql sql={sql} />,
+        });
         reload();
       })
       .catch((e) => {
-        showNotification("error", "Drop procedure Failure", e);
+        showNotification({
+          severity: "error",
+          title: "Drop procedure Failure",
+          message: e,
+        });
       });
   };
   return (

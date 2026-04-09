@@ -38,7 +38,7 @@ function TypesTree() {
         setTypes(ts);
       })
       .catch((e) => {
-        showNotification("error", "list types failed", e);
+        showNotification({ severity: "error", title: "list types failed", message: e });
       });
   }, [showNotification, uuid]);
   const [exceed, setExceed] = useState(0);
@@ -149,12 +149,16 @@ function TypeMenu(props: {
 
     invoke("drop_created_type", { name: uuid, typeName: createdType.name })
       .then((sql) => {
-        showNotification("success", "Drop type OK", <CopySql sql={sql} />);
+        showNotification({
+          severity: "success",
+          title: "Drop type OK",
+          message: <CopySql sql={sql} />,
+        });
         reload();
       })
 
       .catch((e) => {
-        showNotification("error", "Drop type Failure", e);
+        showNotification({ severity: "error", title: "Drop type Failure", message: e });
       });
   };
   return (

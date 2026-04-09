@@ -337,11 +337,17 @@ function LeftTop() {
                 <Button
                   onClick={() => {
                     if (matchPattern.find((e) => e == matchPatterInput)) {
-                      showNotification("warning", "the value already exists");
+                      showNotification({
+                        severity: "warning",
+                        title: "the value already exists",
+                      });
                       return;
                     }
                     if (!matchPatterInput) {
-                      showNotification("warning", "please input match pattern");
+                      showNotification({
+                        severity: "warning",
+                        title: "please input match pattern",
+                      });
                       return;
                     }
                     setMatchPattern([...matchPattern, matchPatterInput]);
@@ -601,7 +607,11 @@ function FavoriteSqlMenu(props: {
             await deleteById(id);
             handleReload();
           } catch (e) {
-            showNotification("error", "delete by id failed", e);
+            showNotification({
+              severity: "error",
+              title: "delete by id failed",
+              message: e,
+            });
           }
         }}>
         <ListItemIcon>
@@ -636,11 +646,15 @@ function FavoriteSqlList() {
         const fs = await getByUuid(uuidFilter);
         setFs(fs);
       } catch (e) {
-        showNotification("error", "list all favorite sql failed", e);
+        showNotification({
+          severity: "error",
+          title: "list all favorite sql failed",
+          message: e,
+        });
         return;
       }
       if (showOK) {
-        showNotification("success", "fetch favorite sql ok");
+        showNotification({ severity: "success", title: "fetch favorite sql ok" });
       }
     },
     [getByUuid, getDistinctUuids, showNotification, uuidFilter],
@@ -652,10 +666,10 @@ function FavoriteSqlList() {
     async (uuid: string) => {
       const connOpened = is_connected(uuid);
       if (!connOpened) {
-        showNotification(
-          "error",
-          `connection '${extractConfigNameFromUuid(uuid)}' not opened????`,
-        );
+        showNotification({
+          severity: "error",
+          title: `connection '${extractConfigNameFromUuid(uuid)}' not opened????`,
+        });
         return false;
       } else {
         return true;
@@ -681,7 +695,7 @@ function FavoriteSqlList() {
         );
         appendTab(new TabContent(`${row.uuid}`, content, <TbDatabaseSearch />));
       } catch (e) {
-        showNotification("error", "use sql failure", e);
+        showNotification({ severity: "error", title: "use sql failure", message: e });
       }
     },
     [appendTab, checkConnOpened, showNotification],
@@ -788,7 +802,7 @@ function FavoriteSqlList() {
     try {
       clearByUuid(uuidFilter);
     } catch (e) {
-      showNotification("error", "clean failed", e);
+      showNotification({ severity: "error", title: "clean failed", message: e });
     }
   };
   const slots = useMemo(() => {
@@ -1403,7 +1417,11 @@ function CatalogTree() {
         setDatabases(ds);
       })
       .catch((e) => {
-        showNotification("error", "list database failed", e);
+        showNotification({
+          severity: "error",
+          title: "list database failed",
+          message: e,
+        });
       })
       .finally(() => {
         setLoading(name, false);
@@ -1465,7 +1483,11 @@ function DatabaseTree(props: { database?: string; reloadDatabase?: () => void })
         setSchemas(ds);
       })
       .catch((e) => {
-        showNotification("error", "list schema failed", e);
+        showNotification({
+          severity: "error",
+          title: "list schema failed",
+          message: e,
+        });
       })
       .finally(() => {
         setLoading(name, false);

@@ -257,12 +257,16 @@ function DatabaseOperationView(props: {
     setLoading(true);
     executeSqlWithoutConn(uuid, sql)
       .then((row_aff) => {
-        showNotification("success", "database operation ok", `row affected:${row_aff}`);
+        showNotification({
+          severity: "success",
+          title: "database operation ok",
+          message: `row affected:${row_aff}`,
+        });
         handleCancel();
         reload();
       })
       .catch((e) => {
-        showNotification("error", "update failed", e);
+        showNotification({ severity: "error", title: "update failed", message: e });
       })
       .finally(() => {
         setLoading(false);
@@ -485,7 +489,7 @@ function SqlTableView(props: {
   const handleProcessRowUpdate = useCallback(
     async (newRow: object, oldRow: object) => {
       if (rowHasOP(oldRow)) {
-        showNotification("warning", "row is modifying");
+        showNotification({ severity: "warning", title: "row is modifying" });
         return oldRow;
       }
       for (const key in newRow) {
@@ -521,7 +525,11 @@ function SqlTableView(props: {
           ),
         ]);
       } catch (e) {
-        showNotification("error", "generate update sql failed", e);
+        showNotification({
+          severity: "error",
+          title: "generate update sql failed",
+          message: e,
+        });
         throw e;
       }
       return oldRow;
@@ -542,14 +550,14 @@ function SqlTableView(props: {
         }
       }
       if (!old) {
-        showNotification(
-          "error",
-          "not found the record to delete this is a internal bug",
-        );
+        showNotification({
+          severity: "error",
+          title: "not found the record to delete this is a internal bug",
+        });
         return;
       }
       if (rowHasOP(old)) {
-        showNotification("warning", "row is modifying");
+        showNotification({ severity: "warning", title: "row is modifying" });
         return;
       }
       try {
@@ -560,7 +568,11 @@ function SqlTableView(props: {
           new DatabaseOperation(DatabaseOpKind.Delete, sql, tryGetId(old, resp.fields)),
         ]);
       } catch (e) {
-        showNotification("error", "generate delete sql failed", e);
+        showNotification({
+          severity: "error",
+          title: "generate delete sql failed",
+          message: e,
+        });
       }
     },
     [getDeleteSql, notWarnPri, resp.data, resp.fields, rowHasOP, showNotification],
@@ -602,7 +614,7 @@ function SqlTableView(props: {
 
   const onProcessRowUpdateError = useCallback(
     (e) => {
-      showNotification("error", "update failed", e);
+      showNotification({ severity: "error", title: "update failed", message: e });
     },
     [showNotification],
   );
@@ -882,10 +894,10 @@ function SqlTableView(props: {
           }}
           handleLocate={() => {
             if (!operation.tableId) {
-              showNotification(
-                "warning",
-                "the table don't contains valid primary key to locate",
-              );
+              showNotification({
+                severity: "warning",
+                title: "the table don't contains valid primary key to locate",
+              });
               return;
             }
             let index = resp.data.findIndex(
@@ -898,11 +910,10 @@ function SqlTableView(props: {
                 setRowBeenLocate("");
               }, 2_000);
             } else {
-              showNotification(
-                "warning",
-                "the data we are looking for may not present at this page",
-                operation.tableId,
-              );
+              showNotification({
+                severity: "warning",
+                title: "the data we are looking for may not present at this page",
+              });
             }
           }}
         />
@@ -1172,7 +1183,10 @@ function SqlTableViewData(props: {
       }
       if (!argsclone[f.field] && !f.nullable && !f.default_value) {
         inputDoms.current[f.field].focus();
-        showNotification("error", `filed '${f.field}' need be filled`);
+        showNotification({
+          severity: "error",
+          title: `filed '${f.field}' need be filled`,
+        });
         return;
       }
     }
@@ -1186,14 +1200,18 @@ function SqlTableViewData(props: {
     handleData(argsclone)
       .then(() => {
         console.log("handle value success");
-        showNotification("success", `${buttonName} OK`);
+        showNotification({ severity: "success", title: `${buttonName} OK` });
         if (handleClose) {
           handleClose();
         }
       })
       .catch((e) => {
         console.error("handle value failure", e);
-        showNotification("error", `${buttonName} failure`, e);
+        showNotification({
+          severity: "error",
+          title: `${buttonName} failure`,
+          message: e,
+        });
       })
       .finally(() => {
         setLoading(false);
@@ -1518,7 +1536,11 @@ function FilterOnValue(props: {
         setFormatValue(value);
       })
       .catch((e) => {
-        showNotification("error", "put value in sql failed", e);
+        showNotification({
+          severity: "error",
+          title: "put value in sql failed",
+          message: e,
+        });
       });
   }, [content, put_value_in_sql, showNotification]);
 

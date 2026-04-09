@@ -118,13 +118,13 @@ async function dropDatabase(props: {
   }
   invoke("drop_database", { name: uuid, database })
     .then(() => {
-      showNotification("success", "drop ok");
+      showNotification({ severity: "success", title: "drop ok" });
       if (okCallback) {
         okCallback();
       }
     })
     .catch((e) => {
-      showNotification("error", "drop failed", e);
+      showNotification({ severity: "error", title: "drop failed", message: e });
     });
 }
 
@@ -138,11 +138,11 @@ async function dropSchema({ uuid, schema, showNotification, okCallback }) {
   }
   invoke("drop_schema", { name: uuid, schema })
     .then(() => {
-      showNotification("success", "Drop OK");
+      showNotification({ severity: "success", title: "Drop OK" });
       okCallback();
     })
     .catch((e) => {
-      showNotification("error", "Drop failure", e);
+      showNotification({ severity: "error", title: "Drop failure", message: e });
     });
 }
 
@@ -152,7 +152,7 @@ interface DefAndMetas {
 }
 
 function reloadOK(showNotification) {
-  showNotification("success", "data loaded.");
+  showNotification({ severity: "success", title: "data loaded." });
 }
 
 const dbpalQuerykey = "_dbpal_query_id_xxx_yyy_zzz";

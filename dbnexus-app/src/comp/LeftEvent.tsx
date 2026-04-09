@@ -38,7 +38,7 @@ function EventsTree() {
         setEvents(ts);
       })
       .catch((e) => {
-        showNotification("error", "list event failed", e);
+        showNotification({ severity: "error", title: "list event failed", message: e });
       });
   }, [showNotification, uuid]);
   const [exceed, setExceed] = useState(0);
@@ -151,11 +151,15 @@ function EventMenu(props: {
     }
     invoke("drop_event", { name: uuid, eventName: event.name })
       .then((sql) => {
-        showNotification("success", "Drop event OK", <CopySql sql={sql} />);
+        showNotification({
+          severity: "success",
+          title: "Drop event OK",
+          message: <CopySql sql={sql} />,
+        });
         reload();
       })
       .catch((e) => {
-        showNotification("error", "Drop event failed", e);
+        showNotification({ severity: "error", title: "Drop event failed", message: e });
       });
   };
   return (

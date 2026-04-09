@@ -53,7 +53,7 @@ import {
   useChatStore,
   useLLM,
   useNotification,
-  usePromptStore,
+  useUserSystemPromptStore,
   UseSizeConfig,
   useSizeStore,
 } from "./store.tsx";
@@ -131,7 +131,7 @@ function SqlChatTextInput(props: {
   const { getSize } = useSizeStore();
   const { messagesByNames, saveMessage } = useChatStore();
   const connName = extractConfigNameFromUuid(uuid);
-  const { prompts: userDefinePrompts } = usePromptStore();
+  const { prompts: userDefinePrompts } = useUserSystemPromptStore();
   useEffect(() => {
     const closeThis = (e: KeyboardEvent) => {
       if (e.key === "Escape" && vis) {
@@ -208,7 +208,7 @@ function SqlChatTextInput(props: {
       }, 5000);
       saveMessage(connName, "assistant", wholeText);
     } catch (e) {
-      showNotification("error", "call llm failed", e);
+      showNotification({ severity: "error", title: "call llm failed", message: e });
     } finally {
       setCancelFN(null);
     }
@@ -305,13 +305,20 @@ function SqlChatTextInput(props: {
                 for (const file of files) {
                   const fileContent = await convertPathToDataUrl(file);
                   if (images.find((x) => x == fileContent)) {
-                    showNotification("error", "image have already been add");
+                    showNotification({
+                      severity: "error",
+                      title: "image have already been add",
+                    });
                   } else {
                     setImages([...images, fileContent]);
                   }
                 }
               } catch (e) {
-                showNotification("error", "open image failed", e);
+                showNotification({
+                  severity: "error",
+                  title: "open image failed",
+                  message: e,
+                });
               }
             }}>
             <AddPhotoAlternateIcon />
@@ -524,16 +531,20 @@ function EditPrompt(props: {
   showEdit: boolean;
 }) {
   const { handleClose, connName, showEdit } = props;
-  const { removePrompt, savePrompt, prompts } = usePromptStore();
+  const { removePrompt, savePrompt, prompts } = useUserSystemPromptStore();
   const [value, setValue] = useState(prompts[connName] || "");
   const { showNotification } = useNotification();
   const handleDelete = () => {
     try {
       removePrompt(connName);
-      showNotification("success", "delete prompt success");
+      showNotification({ severity: "success", title: "delete prompt success" });
       handleClose();
     } catch (e) {
-      showNotification("error", "delete prompt failed", e);
+      showNotification({
+        severity: "error",
+        title: "delete prompt failed",
+        message: e,
+      });
     }
   };
 
@@ -548,9 +559,9 @@ function EditPrompt(props: {
   const handleSave = () => {
     try {
       savePrompt(connName, value);
-      showNotification("success", "save prompt success");
+      showNotification({ severity: "success", title: "save prompt success" });
     } catch (e) {
-      showNotification("error", "save prompt failed", e);
+      showNotification({ severity: "error", title: "save prompt failed", message: e });
     }
   };
   if (!showEdit) {

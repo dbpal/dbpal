@@ -27,11 +27,15 @@ function DefAndMetasView(props: {
         .then((detail) => {
           setDetail(detail);
           if (showOk) {
-            showNotification("success", "reload ok");
+            showNotification({ severity: "success", title: "reload ok" });
           }
         })
         .catch((e) => {
-          showNotification("error", "fetch detail failed", e);
+          showNotification({
+            severity: "error",
+            title: "fetch detail failed",
+            message: e,
+          });
         })
         .finally(() => {
           setLoading(false);

@@ -201,7 +201,7 @@ function CreateDatabase(props: {
   const handleCreate = () => {
     if (!database) {
       databaseDom.current.focus();
-      showNotification("warning", "database name is empty");
+      showNotification({ severity: "warning", title: "database name is empty" });
       return;
     }
     let extra: types.CreateDatabaseExtra = null;
@@ -220,11 +220,11 @@ function CreateDatabase(props: {
     }
     invoke("create_database", { name: uuid, database, extra })
       .then(() => {
-        showNotification("success", "Create OK");
+        showNotification({ severity: "success", title: "Create OK" });
         handleClose();
       })
       .catch((e) => {
-        showNotification("error", "Create Failure", e);
+        showNotification({ severity: "error", title: "Create Failure", message: e });
       });
   };
 
@@ -381,11 +381,11 @@ function CreateSchema(props: {
   const handleCreate = () => {
     if (!schema) {
       schemaDom.current.focus();
-      showNotification("error", "Schema is empty");
+      showNotification({ severity: "error", title: "Schema is empty" });
       return;
     }
     if (schemaSet.has(schema)) {
-      showNotification("warning", `'${schema}' already exists.`);
+      showNotification({ severity: "warning", title: `'${schema}' already exists.` });
       return;
     }
     let extra = null;
@@ -400,12 +400,12 @@ function CreateSchema(props: {
     }
     invoke("create_schema", { name: uuid, schema, extra })
       .then(() => {
-        showNotification("success", "create  ok");
+        showNotification({ severity: "success", title: "create  ok" });
         handleClose();
         handleReload();
       })
       .catch((e) => {
-        showNotification("error", "create failure", e);
+        showNotification({ severity: "error", title: "create failure", message: e });
       });
   };
 
@@ -687,7 +687,11 @@ function ConnConfigInfo(props: { uuid }) {
           reloadOK(showNotification);
         }
       } catch (e) {
-        showNotification("error", "call server metas failed", e);
+        showNotification({
+          severity: "error",
+          title: "call server metas failed",
+          message: e,
+        });
       }
     },
     [getConnection, showNotification, uuid],
@@ -771,14 +775,14 @@ function LoadStoreFile(props: {
         setFile(file);
       }
     } catch (e) {
-      showNotification("error", "error to open file", e);
+      showNotification({ severity: "error", title: "error to open file", message: e });
     }
   }, [filters, handleLoadFile, showNotification]);
 
   const handleSave = useCallback(async () => {
     const content = getQuery();
     if (!content) {
-      showNotification("warning", `can't save empty content`);
+      showNotification({ severity: "warning", title: `can't save empty content` });
       return;
     }
     try {
@@ -789,10 +793,10 @@ function LoadStoreFile(props: {
         });
         setFile(ofile);
         handleLoadFile(ofile, content);
-        showNotification("success", "save file OK");
+        showNotification({ severity: "success", title: "save file OK" });
       }
     } catch (e) {
-      showNotification("error", "save file failed", e);
+      showNotification({ severity: "error", title: "save file failed", message: e });
     }
   }, [file, filters, getQuery, handleLoadFile, showNotification]);
 
@@ -811,7 +815,7 @@ function LoadStoreFile(props: {
       setFile("");
       handleLoadFile("", "");
     } catch (e) {
-      showNotification("error", "close file failed", e);
+      showNotification({ severity: "error", title: "close file failed", message: e });
     }
   };
 
@@ -930,10 +934,14 @@ function AppMarkDown(props: {
       if (href.startsWith("http")) {
         openUrl(href)
           .then(() => {
-            showNotification("success", "open url OK");
+            showNotification({ severity: "success", title: "open url OK" });
           })
           .catch((e) => {
-            showNotification("error", "open url failed", e);
+            showNotification({
+              severity: "error",
+              title: "open url failed",
+              message: e,
+            });
           });
       } else {
         if (handlePathUrl) {
@@ -1020,7 +1028,10 @@ function SaveFavoriteSqlView(props: {
             try {
               const sql = editor.getValue();
               if (!sql) {
-                showNotification("warning", "can't save empty statement.");
+                showNotification({
+                  severity: "warning",
+                  title: "can't save empty statement.",
+                });
                 return;
               }
               if (favoriteName) {
@@ -1029,7 +1040,11 @@ function SaveFavoriteSqlView(props: {
                 setShowFavoriteName(true);
               }
             } catch (e) {
-              showNotification("error", "save failed.", e);
+              showNotification({
+                severity: "error",
+                title: "save failed.",
+                message: e,
+              });
             }
           }}
           color="primary">
@@ -1066,7 +1081,10 @@ function SaveFavoriteSqlView(props: {
                   color="primary"
                   onClick={() => {
                     if (!favoriteName) {
-                      showNotification("warning", "name can't be empty");
+                      showNotification({
+                        severity: "warning",
+                        title: "name can't be empty",
+                      });
                       return;
                     }
                     setShowFavoriteName(false);
@@ -1326,7 +1344,11 @@ function TypeSelect(props: { handleChange; uuid; type; style?: CSSProperties }) 
         setTypes(ts);
       })
       .catch((e) => {
-        showNotification("error", "should not return a error", e);
+        showNotification({
+          severity: "error",
+          title: "should not return a error",
+          message: e,
+        });
       });
   }, [showNotification, uuid]);
   return (
@@ -1378,7 +1400,11 @@ function SqlDefaultValue(props: { uuid: string; defaultValue; setDefaultValue })
         setCurrentValue(ts);
       })
       .catch((e) => {
-        showNotification("success", "list sql current values failed", e);
+        showNotification({
+          severity: "success",
+          title: "list sql current values failed",
+          message: e,
+        });
       });
   }, [showNotification, uuid]);
 
@@ -1538,7 +1564,7 @@ function SetFilterSort(props: {
       setValue(value);
       handleClose();
     } catch (e) {
-      showNotification("error", "extract sql error.", e);
+      showNotification({ severity: "error", title: "extract sql error.", message: e });
       return;
     }
   };
@@ -1584,14 +1610,21 @@ function SetFilterSort(props: {
                   onClick={async () => {
                     const value = editor.getValue();
                     if (!value) {
-                      showNotification("warning", "this editor is empty");
+                      showNotification({
+                        severity: "warning",
+                        title: "this editor is empty",
+                      });
                       return;
                     }
                     try {
                       const filter = await extractFn(value);
                       addFilter(uuid, tableName, filter);
                     } catch (e) {
-                      showNotification("error", "save filter failed", e);
+                      showNotification({
+                        severity: "error",
+                        title: "save filter failed",
+                        message: e,
+                      });
                     }
                   }}>
                   <SaveIcon />
@@ -1600,7 +1633,10 @@ function SetFilterSort(props: {
               <IconButton
                 onClick={() => {
                   removeFilter(uuid, tableName);
-                  showNotification("success", "delete filter success");
+                  showNotification({
+                    severity: "success",
+                    title: "delete filter success",
+                  });
                 }}>
                 <DeleteForeverIcon />
               </IconButton>

@@ -120,16 +120,16 @@ function RedisAddList(props: { uuid: string; listKey: string }) {
   const handleAdd = () => {
     const content = valueRef.current.getValue();
     if (!content) {
-      showNotification("warning", "Please input value");
+      showNotification({ severity: "warning", title: "Please input value" });
       return;
     }
     setLoading(true);
     (direction == "left" ? lpushOP : rpushOP)(content)
       .then(() => {
-        showNotification("success", "Push OK");
+        showNotification({ severity: "success", title: "Push OK" });
       })
       .catch((e) => {
-        showNotification("error", "Push Failure", e);
+        showNotification({ severity: "error", title: "Push Failure", message: e });
       })
       .finally(() => {
         setLoading(false);
@@ -196,10 +196,10 @@ function RedisStringTable(props: { uuid: string; stringKey: string }) {
     setLoading(true);
     modifyOP(valueRef.current.getValue())
       .then(() => {
-        showNotification("success", "Modify OK");
+        showNotification({ severity: "success", title: "Modify OK" });
       })
       .catch((e) => {
-        showNotification("error", "Modify failure", e);
+        showNotification({ severity: "error", title: "Modify failure", message: e });
       })
       .finally(() => {
         setLoading(false);
@@ -245,16 +245,16 @@ function RedisAddSet(props: { uuid: string; setKey: string }) {
   const handleAdd = () => {
     const c = valueRef.current.getValue();
     if (!c) {
-      showNotification("warning", "please input value");
+      showNotification({ severity: "warning", title: "please input value" });
       return;
     }
     setLoading(true);
     addOP(c)
       .then(() => {
-        showNotification("success", "Add ok");
+        showNotification({ severity: "success", title: "Add ok" });
       })
       .catch((e) => {
-        showNotification("error", "Add error", e);
+        showNotification({ severity: "error", title: "Add error", message: e });
       })
       .finally(() => {
         setLoading(false);
@@ -292,10 +292,10 @@ function RedisAddHash(props: { uuid: string; hashKey: string }) {
     setLoading(true);
     addOP(key.current.getValue(), value.current.getValue())
       .then(() => {
-        showNotification("success", "Add OK");
+        showNotification({ severity: "success", title: "Add OK" });
       })
       .catch((e) => {
-        showNotification("error", "Add Error", e);
+        showNotification({ severity: "error", title: "Add Error", message: e });
       })
       .finally(() => {
         setLoading(false);
@@ -341,10 +341,10 @@ function RedisAddZset(props: { uuid: string; zsetKey: string }) {
     setLoading(true);
     addOP(valueRef.current.getValue(), parseFloat(score))
       .then(() => {
-        showNotification("success", "Add OK");
+        showNotification({ severity: "success", title: "Add OK" });
       })
       .catch((e) => {
-        showNotification("error", "Add Failure", e);
+        showNotification({ severity: "error", title: "Add Failure", message: e });
       })
       .finally(() => {
         setLoading(false);
@@ -413,11 +413,11 @@ function RedisEditHash(props: {
       ),
     )
       .then(() => {
-        showNotification("success", "Modify OK");
+        showNotification({ severity: "success", title: "Modify OK" });
         handleClose();
       })
       .catch((e) => {
-        showNotification("error", "Modify failure", e);
+        showNotification({ severity: "error", title: "Modify failure", message: e });
       })
       .finally(() => {
         setLoading(false);
@@ -464,11 +464,11 @@ function RedisEditZset(props: {
     setLoading(true);
     modifyOP(oldKey, newKey.current.getValue(), parseInt(newValue))
       .then(() => {
-        showNotification("success", "Modify OK");
+        showNotification({ severity: "success", title: "Modify OK" });
         handleClose();
       })
       .catch((e) => {
-        showNotification("error", "Modify Failure", e);
+        showNotification({ severity: "error", title: "Modify Failure", message: e });
       })
       .finally(() => {
         setLoading(false);
@@ -690,11 +690,11 @@ function RedisEditList(props: {
     setLoading(true);
     modifyOP(newValue.current.getValue())
       .then(() => {
-        showNotification("success", "Modify OK", "");
+        showNotification({ severity: "success", title: "Modify OK", message: "" });
         handleClose();
       })
       .catch((e) => {
-        showNotification("error", "Modify Failure", e);
+        showNotification({ severity: "error", title: "Modify Failure", message: e });
       })
       .finally(() => {
         setLoading(false);
@@ -730,11 +730,11 @@ function RedisEditSet(props: {
     setLoading(true);
     modifyOP(oldValue, newValue.current.getValue())
       .then(() => {
-        showNotification("success", "Modify OK");
+        showNotification({ severity: "success", title: "Modify OK" });
         handleClose();
       })
       .catch((e) => {
-        showNotification("error", "Modify Failure", e);
+        showNotification({ severity: "error", title: "Modify Failure", message: e });
       })
       .finally(() => {
         setLoading(false);
@@ -864,9 +864,9 @@ function RedisSetTable(props: { setKey: string; uuid: string }) {
       const del = resp.data.find((e) => e["id"] == id);
       try {
         await delOP(del.value);
-        showNotification("success", "Delete OK");
+        showNotification({ severity: "success", title: "Delete OK" });
       } catch (e) {
-        showNotification("error", "delete failure", e);
+        showNotification({ severity: "error", title: "delete failure", message: e });
       }
       handleReload(false);
     },
@@ -1224,7 +1224,7 @@ function RedisListTable(props: { listKey: string; uuid: string }) {
         showNotification,
         okCallBack: showOk
           ? () => {
-              showNotification("success", "reload OK");
+              showNotification({ severity: "success", title: "reload OK" });
             }
           : undefined,
         handleExecuteTime: (t) => {
@@ -1263,9 +1263,9 @@ function RedisListTable(props: { listKey: string; uuid: string }) {
       const del = resp.data.find((e) => e.id == id);
       try {
         await delOP(deleteCount, del.value);
-        showNotification("success", "Delete OK");
+        showNotification({ severity: "success", title: "Delete OK" });
       } catch (e) {
-        showNotification("error", "Delete failure", e);
+        showNotification({ severity: "error", title: "Delete failure", message: e });
       }
       handleReload(false);
     },
@@ -1591,7 +1591,7 @@ function RedisZsetTable(props: { uuid: string; zsetKey: string }) {
         showNotification,
         okCallBack: showOK
           ? () => {
-              showNotification("success", "reload OK");
+              showNotification({ severity: "success", title: "reload OK" });
             }
           : undefined,
         handleResult: (resp) => {
@@ -1638,9 +1638,9 @@ function RedisZsetTable(props: { uuid: string; zsetKey: string }) {
       const del = resp.data.find((e) => e["id"] == id);
       try {
         await delOP(del.key);
-        showNotification("success", "Delete OK");
+        showNotification({ severity: "success", title: "Delete OK" });
       } catch (e) {
-        showNotification("error", "delete failure", e);
+        showNotification({ severity: "error", title: "delete failure", message: e });
       }
       handleReload(false);
     },
@@ -1980,7 +1980,7 @@ function RedisHashTable(props: { hashKey: string; uuid: string }) {
         name: hashKey,
         okCallBack: showOK
           ? () => {
-              showNotification("success", "reload OK");
+              showNotification({ severity: "success", title: "reload OK" });
             }
           : undefined,
         handleExecuteTime: (t) => {
@@ -2021,9 +2021,9 @@ function RedisHashTable(props: { hashKey: string; uuid: string }) {
       const del = resp.data.find((e) => e["id"] == id);
       try {
         await delOP(del.key);
-        showNotification("success", "Delete OK");
+        showNotification({ severity: "success", title: "Delete OK" });
       } catch (e) {
-        showNotification("error", "Delete failure", e);
+        showNotification({ severity: "error", title: "Delete failure", message: e });
       }
 
       handleReload(false);

@@ -66,23 +66,29 @@ function CreateTable(props: { uuid: string; kind: DataSourceKind }) {
     {
       // check
       if (!table) {
-        showNotification("warning", "table is none");
+        showNotification({ severity: "warning", title: "table is none" });
         tableNameRef.current.focus();
         return;
       }
       if (cols.length == 0) {
-        showNotification("error", "need at least one column ");
+        showNotification({ severity: "error", title: "need at least one column " });
         return;
       }
       // check all colum
       for (let index = 0; index < cols.length; index++) {
         const col = cols[index];
         if (!col.name) {
-          showNotification("warning", `#${index} column name is none`);
+          showNotification({
+            severity: "warning",
+            title: `#${index} column name is none`,
+          });
           return;
         }
         if (!col.data_type) {
-          showNotification("warning", `#${index} column data type is none`);
+          showNotification({
+            severity: "warning",
+            title: `#${index} column data type is none`,
+          });
           return;
         }
       }
@@ -90,11 +96,17 @@ function CreateTable(props: { uuid: string; kind: DataSourceKind }) {
       for (let index = 0; index < indexes.length; index++) {
         const i = indexes[index];
         if (!i.name) {
-          showNotification("warning", `#${index} index name is none`);
+          showNotification({
+            severity: "warning",
+            title: `#${index} index name is none`,
+          });
           return;
         }
         if (i.columns.length == 0) {
-          showNotification("warning", `#${index} index need select columns`);
+          showNotification({
+            severity: "warning",
+            title: `#${index} index need select columns`,
+          });
           return;
         }
       }
@@ -125,7 +137,11 @@ function CreateTable(props: { uuid: string; kind: DataSourceKind }) {
         }, 200);
       })
       .catch((e) => {
-        showNotification("error", "try generate sql failed", e);
+        showNotification({
+          severity: "error",
+          title: "try generate sql failed",
+          message: e,
+        });
       });
   }, [kind, makeReq, setting.editor.tabSize, showNotification, uuid]);
 
@@ -137,10 +153,14 @@ function CreateTable(props: { uuid: string; kind: DataSourceKind }) {
     setLoading(true);
     invoke("create_table", { name: uuid, req })
       .then(() => {
-        showNotification("success", "create table ok");
+        showNotification({ severity: "success", title: "create table ok" });
       })
       .catch((e) => {
-        showNotification("error", "create table failed", e);
+        showNotification({
+          severity: "error",
+          title: "create table failed",
+          message: e,
+        });
       })
       .finally(() => {
         setLoading(false);

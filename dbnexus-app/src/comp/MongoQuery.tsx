@@ -215,10 +215,10 @@ function TsEditCompilerOptions(props: { handleClose: () => void }) {
       let x = JSON.parse(editor.getValue());
       setOptions(x);
     } catch (e) {
-      showNotification("error", "save option failed", e);
+      showNotification({ severity: "error", title: "save option failed", message: e });
       return;
     }
-    showNotification("success", "save option success");
+    showNotification({ severity: "success", title: "save option success" });
     handleClose();
   };
 
@@ -325,7 +325,11 @@ function TypeScript(props: {
         setTscVersion(v);
       })
       .catch((e) => {
-        showNotification("error", "is typescript  global installed?", e);
+        showNotification({
+          severity: "error",
+          title: "is typescript  global installed?",
+          message: e,
+        });
       });
   }, [language, showNotification]);
 
@@ -355,11 +359,11 @@ function TypeScript(props: {
                 options,
               );
               if (result.out.code != 0) {
-                showNotification(
-                  "error",
-                  "typescript compile error,can safe change to javascript",
-                  <TsCompilerMsg out={result.out} editor={editor} />,
-                );
+                showNotification({
+                  severity: "error",
+                  title: "typescript compile error,can safe change to javascript",
+                  message: <TsCompilerMsg out={result.out} editor={editor} />,
+                });
                 return;
               }
               editor.setValue(result.jsCode);
@@ -606,21 +610,22 @@ function MongoQuery(props: {
       }
       setCompileTime(out.compileTime);
       if (out.out.code != 0) {
-        showNotification(
-          "error",
-          "compile failed",
-          <TsCompilerMsg out={out.out} editor={editor} />,
-        );
+        showNotification({
+          severity: "error",
+          title: "compile failed",
+          message: <TsCompilerMsg out={out.out} editor={editor} />,
+        });
         return;
       }
       code = out.jsCode;
     }
     setExecuteTimes((e) => e + 1);
     eval(code);
-    showNotification(
-      "success",
-      "execute ok,but somehow async function or timeout function ... etc may running in background",
-    );
+    showNotification({
+      severity: "success",
+      title:
+        "execute ok,but somehow async function or timeout function ... etc may running in background",
+    });
   };
   return (
     <Stack style={{ height: "100%" }}>
@@ -639,7 +644,10 @@ function MongoQuery(props: {
           getText={() => {
             let code = getEditorText(editor, showNotification);
             if (!code.trim()) {
-              showNotification("warning", "can't execute empty statement");
+              showNotification({
+                severity: "warning",
+                title: "can't execute empty statement",
+              });
               return;
             }
             return code;

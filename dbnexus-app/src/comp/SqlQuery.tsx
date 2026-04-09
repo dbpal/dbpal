@@ -88,7 +88,11 @@ function SqlTransaction(props: { conn: QueryConn; executeTimes: number }) {
       const c = await conn.getAutoCommit();
       setCommit(c);
     } catch (e) {
-      showNotification("error", "get commit model failed", e);
+      showNotification({
+        severity: "error",
+        title: "get commit model failed",
+        message: e,
+      });
     }
   }, [conn, showNotification]);
 
@@ -126,10 +130,10 @@ function SqlTransaction(props: { conn: QueryConn; executeTimes: number }) {
         return;
       }
       await conn.commit();
-      showNotification("success", "commit ok");
+      showNotification({ severity: "success", title: "commit ok" });
       handleQueryCommit();
     } catch (e) {
-      showNotification("error", "commit failed", e);
+      showNotification({ severity: "error", title: "commit failed", message: e });
     }
   };
 
@@ -144,19 +148,19 @@ function SqlTransaction(props: { conn: QueryConn; executeTimes: number }) {
     }
     try {
       await conn.rollback();
-      showNotification("success", "rollback ok");
+      showNotification({ severity: "success", title: "rollback ok" });
       handleQueryCommit();
     } catch (e) {
-      showNotification("error", "rollback failed", e);
+      showNotification({ severity: "error", title: "rollback failed", message: e });
     }
   };
   const reverseCommitMode = async () => {
     try {
       await conn.setAutoCommit(!commit);
       setCommit((e) => !e);
-      showNotification("success", "set commit mode ok");
+      showNotification({ severity: "success", title: "set commit mode ok" });
     } catch (e) {
-      showNotification("error", "set commit failed", e);
+      showNotification({ severity: "error", title: "set commit failed", message: e });
     }
   };
 
@@ -372,7 +376,11 @@ function SqlQuery(props: {
         setOpenOk(true);
       })
       .catch((e) => {
-        showNotification("error", "establish connection failed", e);
+        showNotification({
+          severity: "error",
+          title: "establish connection failed",
+          message: e,
+        });
       })
       .finally(() => {
         setMakeConnLoading(false);
@@ -396,10 +404,10 @@ function SqlQuery(props: {
     conn.current
       .open()
       .then(() => {
-        showNotification("success", "Reconnect OK");
+        showNotification({ severity: "success", title: "Reconnect OK" });
       })
       .catch((e) => {
-        showNotification("error", "Reconnect Failure", e);
+        showNotification({ severity: "error", title: "Reconnect Failure", message: e });
       })
       .finally(() => {
         // trigger some reload like sqltransaction
@@ -443,10 +451,10 @@ function SqlQuery(props: {
         setTimeout(() => {
           setResp([e]);
         }, 50);
-        showNotification("success", "execute ok");
+        showNotification({ severity: "success", title: "execute ok" });
       })
       .catch((e) => {
-        showNotification("error", "query failed", e);
+        showNotification({ severity: "error", title: "query failed", message: e });
       })
       .finally(() => {
         setExecuteTimes((e) => e + 1);
@@ -477,13 +485,13 @@ function SqlQuery(props: {
           if (getSwitch(saveQueryKey)) {
             saveQueryLog(uuid, text, true);
           }
-          showNotification("success", "query OK");
+          showNotification({ severity: "success", title: "query OK" });
         })
         .catch((e) => {
           if (getSwitch(saveQueryKey)) {
             saveQueryLog(uuid, text, false);
           }
-          showNotification("error", "query failed", e);
+          showNotification({ severity: "error", title: "query failed", message: e });
         })
         .finally(() => {
           setExecuteTimes((e) => e + 1);

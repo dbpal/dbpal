@@ -346,9 +346,15 @@ export type AlertMsg = {
   message: ReactElement | string | null | undefined;
 };
 
+type NotificationParams = {
+  severity: AlertColor;
+  title: string;
+  message?: any;
+};
+
 export const useNotification = create<{
   notifications: AlertMsg[];
-  showNotification: (severity: AlertColor, title: string, message?) => void;
+  showNotification: (params: NotificationParams) => void;
   closeMsg: (x: number) => void;
 }>((set) => ({
   notifications: [],
@@ -358,19 +364,20 @@ export const useNotification = create<{
       notifications: s.notifications.filter((_e, index) => idx != index),
     }));
   },
-  showNotification: (severity: AlertColor, title: string, err?) => {
-    if (typeof err == "object" && "reason" in err) {
-      console.error("detail:", err.detail);
+  showNotification: (params: NotificationParams) => {
+    let { severity, title, message } = params;
+    if (typeof message == "object" && "reason" in message) {
+      console.error("detail:", message.detail);
       // this a error from the backend
       // we only show `reason` the short message
-      err = err["reason"];
+      message = message["reason"];
     }
-    if (!React.isValidElement(err) && err) {
-      err = String(err);
+    if (!React.isValidElement(message) && message) {
+      message = String(message);
     }
     set((state) => {
       return {
-        notifications: [...state.notifications, { severity, title, message: err }],
+        notifications: [...state.notifications, { severity, title, message }],
       };
     });
 
@@ -1270,7 +1277,7 @@ interface UserPromptState {
   removePrompt: (name: string) => void;
 }
 
-export const usePromptStore = create<UserPromptState>()(
+export const useUserSystemPromptStore = create<UserPromptState>()(
   persist(
     (set) => ({
       // Initial state

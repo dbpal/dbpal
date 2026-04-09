@@ -99,9 +99,16 @@ function ShowPanic() {
                   try {
                     await remove(await getPanicFilePath());
                     setPanicInfo("");
-                    showNotification("success", "remove panic file success.");
+                    showNotification({
+                      severity: "success",
+                      title: "remove panic file success.",
+                    });
                   } catch (e) {
-                    showNotification("error", "remove panic file failed", e);
+                    showNotification({
+                      severity: "error",
+                      title: "remove panic file failed",
+                      message: e,
+                    });
                   }
                 }}>
                 <DeleteForeverIcon />

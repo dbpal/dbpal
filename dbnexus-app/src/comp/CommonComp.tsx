@@ -170,7 +170,11 @@ function MenuCloseConn({ name }) {
             removeConnected(name);
           })
           .catch((e) => {
-            showNotification("error", "close connection failed", e);
+            showNotification({
+              severity: "error",
+              title: "close connection failed",
+              message: e,
+            });
           });
       }}>
       <ListItemIcon>
@@ -270,7 +274,11 @@ function MenuOpenConn({ name }) {
     try {
       await invoke("establish_conn", { config });
     } catch (e) {
-      showNotification("error", "establish connection failed", e);
+      showNotification({
+        severity: "error",
+        title: "establish connection failed",
+        message: e,
+      });
       return;
     }
     if (false === config[savePasswordKey]) {
@@ -335,7 +343,11 @@ function MenuDeleteConfig({ name }) {
       await delQueryLog(name);
       await removeConnection(name);
     } catch (e) {
-      showNotification("error", "drop connection failed", e);
+      showNotification({
+        severity: "error",
+        title: "drop connection failed",
+        message: e,
+      });
     }
   };
   return (
@@ -466,7 +478,7 @@ function ResetColumnWidth() {
 
   const handleReset = async () => {
     reset();
-    showNotification("success", "reset column width successfully");
+    showNotification({ severity: "success", title: "reset column width successfully" });
   };
   return (
     <Tooltip title="reset column width">
@@ -736,7 +748,11 @@ function OpenFileWithDefaultApp({ file }) {
               openPath(file)
                 .then(() => {})
                 .catch((e) => {
-                  showNotification("warning", "open export file failed", e);
+                  showNotification({
+                    severity: "warning",
+                    title: "open export file failed",
+                    message: e,
+                  });
                 });
             }}>
             <FaFolderOpen fontSize="1.5rem" />

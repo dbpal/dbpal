@@ -379,11 +379,15 @@ function DbSchemaCadidates(props: {
     setLoading(true);
     invoke<string[]>("try_list_database_schema_candidates", { conn: config })
       .then((candidate) => {
-        showNotification("success", "fetch candidates success");
+        showNotification({ severity: "success", title: "fetch candidates success" });
         setCadidates(candidate);
       })
       .catch((err) => {
-        showNotification("warning", `list ${label} failed`, err);
+        showNotification({
+          severity: "warning",
+          title: `list ${label} failed`,
+          message: err,
+        });
       })
       .finally(() => {
         setLoading(false);
@@ -745,10 +749,14 @@ function TestConnAndSave(props: {
       setTestLoading(true);
       invoke("test_connection", { config })
         .then(() => {
-          showNotification("success", "test connection ok");
+          showNotification({ severity: "success", title: "test connection ok" });
         })
         .catch((e) => {
-          showNotification("warning", "test connection failed", e);
+          showNotification({
+            severity: "warning",
+            title: "test connection failed",
+            message: e,
+          });
         })
         .finally(() => {
           setTestLoading(false);
@@ -763,20 +771,27 @@ function TestConnAndSave(props: {
     }
     if (!config.name) {
       connectionNameDom.current.focus();
-      showNotification("warning", "connection name is empty.");
+      showNotification({ severity: "warning", title: "connection name is empty." });
       return;
     }
     if (config.name.includes("/")) {
-      showNotification("error", `connection name can't  contains '/'`);
+      showNotification({
+        severity: "error",
+        title: `connection name can't  contains '/'`,
+      });
       connectionNameDom.current.focus();
       return;
     }
     addConnection(config)
       .then(() => {
-        showNotification("success", "add connection OK");
+        showNotification({ severity: "success", title: "add connection OK" });
       })
       .catch((e) => {
-        showNotification("error", "add connection failure", e);
+        showNotification({
+          severity: "error",
+          title: "add connection failure",
+          message: e,
+        });
       });
   };
   return (

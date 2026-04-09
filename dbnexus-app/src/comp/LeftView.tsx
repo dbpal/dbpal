@@ -87,7 +87,7 @@ function ViewsTree(props: { viewKind: ViewKind }) {
         setViews(ts);
       })
       .catch((e) => {
-        showNotification("error", "list view failed", e);
+        showNotification({ severity: "error", title: "list view failed", message: e });
       })
       .finally(() => {
         setLoading(false);
@@ -167,7 +167,11 @@ function StatementStructure(props: {
         setSql(e);
       })
       .catch((e) => {
-        showNotification("error", "fetch create sql failed", e);
+        showNotification({
+          severity: "error",
+          title: "fetch create sql failed",
+          message: e,
+        });
       })
       .finally(() => {
         setLoading(false);
@@ -289,7 +293,11 @@ function ColumnsContent(props: { uuid: string; view: string }) {
         setFields(fs);
       })
       .catch((e) => {
-        showNotification("error", "list column failed", e);
+        showNotification({
+          severity: "error",
+          title: "list column failed",
+          message: e,
+        });
       })
       .finally(() => {
         setLoading(false);
@@ -453,11 +461,11 @@ function ViewMenu(props: {
     }
     invoke(invokeName, { name: uuid, viewName: view })
       .then(() => {
-        showNotification("success", "Drop View OK");
+        showNotification({ severity: "success", title: "Drop View OK" });
         reload();
       })
       .catch((e) => {
-        showNotification("error", "Drop View Failure", e);
+        showNotification({ severity: "error", title: "Drop View Failure", message: e });
       });
   };
   const { appendTab } = useTabsManage();
@@ -492,7 +500,10 @@ function ViewMenu(props: {
         list = <MongoTable isTable={false} uuid={uuid} table={view} />;
         break;
       default:
-        showNotification("error", `data source ${kind} need impl view`);
+        showNotification({
+          severity: "error",
+          title: `data source ${kind} need impl view`,
+        });
     }
 
     appendTab(new TabContent(view, list, <VisibilityIcon />));

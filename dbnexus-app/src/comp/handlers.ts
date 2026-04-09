@@ -344,7 +344,7 @@ async function showTable(
       okCallBack();
     }
   } catch (e) {
-    showNotification("error", "fetch data failed", e);
+    showNotification({ severity: "error", title: "fetch data failed", message: e });
   } finally {
     if (handleExecuteTime) {
       handleExecuteTime(new Date().getTime() - now.getTime());

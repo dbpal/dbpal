@@ -54,7 +54,7 @@ function UdfsTree() {
         setUdfs(e);
       })
       .catch((e) => {
-        showNotification("error", "list udf failed", e);
+        showNotification({ severity: "error", title: "list udf failed", message: e });
       });
   }, [showNotification, uuid]);
   useEffect(() => {
@@ -146,11 +146,15 @@ function UdfMenu(props: { uuid; udf: types.NamedStaff; reload; kind: DataSourceK
     }
     invoke("drop_udf", { name: uuid, udf: udf.name, arg: makeUdfExtraArg(udf, kind) })
       .then((sql) => {
-        showNotification("success", "Drop udf OK", <CopySql sql={sql} />);
+        showNotification({
+          severity: "success",
+          title: "Drop udf OK",
+          message: <CopySql sql={sql} />,
+        });
         reload();
       })
       .catch((e) => {
-        showNotification("error", "Drop udf failure", e);
+        showNotification({ severity: "error", title: "Drop udf failure", message: e });
       });
   };
 
@@ -222,11 +226,19 @@ function CassandraAggregateMenu(props: {
       parameters,
     })
       .then((sql) => {
-        showNotification("success", "Drop aggregate OK", <CopySql sql={sql} />);
+        showNotification({
+          severity: "success",
+          title: "Drop aggregate OK",
+          message: <CopySql sql={sql} />,
+        });
         reload();
       })
       .catch((e) => {
-        showNotification("error", "Drop aggregate Failure", e);
+        showNotification({
+          severity: "error",
+          title: "Drop aggregate Failure",
+          message: e,
+        });
       });
   };
 
@@ -269,7 +281,11 @@ function CassandraAggregatesTree() {
         setAggs(ts);
       })
       .catch((e) => {
-        showNotification("error", "list aggregate failed", e);
+        showNotification({
+          severity: "error",
+          title: "list aggregate failed",
+          message: e,
+        });
       });
   }, [showNotification, uuid]);
   const [exceed, setExceed] = useState(0);

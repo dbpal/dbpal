@@ -50,7 +50,11 @@ function SequenceTree() {
         setSeq(ts);
       })
       .catch((e) => {
-        showNotification("error", "list sequence failed", e);
+        showNotification({
+          severity: "error",
+          title: "list sequence failed",
+          message: e,
+        });
       });
   }, [showNotification, uuid]);
 
@@ -179,12 +183,20 @@ function SequenceMenu(props: {
     }
     invoke("drop_sequence", { name: uuid, seq: seq.name, cascade })
       .then((sql) => {
-        showNotification("success", "Drop sequence OK", <CopySql sql={sql} />);
+        showNotification({
+          severity: "success",
+          title: "Drop sequence OK",
+          message: <CopySql sql={sql} />,
+        });
         reload();
         setShowDrop(false);
       })
       .catch((e) => {
-        showNotification("error", "Drop sequence Failure", e);
+        showNotification({
+          severity: "error",
+          title: "Drop sequence Failure",
+          message: e,
+        });
       });
   };
   return (

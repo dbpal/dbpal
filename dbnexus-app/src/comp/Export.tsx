@@ -70,7 +70,10 @@ function ExportView(props: {
     switch (kind) {
       case "csv":
         if (delimiter.length > 1) {
-          showNotification("error", "delimiter expect one character");
+          showNotification({
+            severity: "error",
+            title: "delimiter expect one character",
+          });
           return;
         }
         return {
@@ -112,12 +115,12 @@ function ExportView(props: {
       setLoading(true);
       await exportOP(config, file, taskId.current, c);
     } catch (e) {
-      showNotification("warning", "export failure", e);
+      showNotification({ severity: "warning", title: "export failure", message: e });
       return;
     } finally {
       setLoading(false);
     }
-    showNotification("success", "export OK");
+    showNotification({ severity: "success", title: "export OK" });
     setFile(file);
   };
   useEffect(() => {
@@ -129,7 +132,7 @@ function ExportView(props: {
         title={`export ${name}`}
         handleClose={() => {
           if (loading) {
-            showNotification("warning", "exporting, please wait");
+            showNotification({ severity: "warning", title: "exporting, please wait" });
             return;
           }
           handleClose();

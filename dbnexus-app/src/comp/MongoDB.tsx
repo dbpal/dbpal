@@ -292,7 +292,11 @@ function MongoBsonEditor(props: {
       const c = bsonValue2MongoBson(doc).format();
       setContent(c);
     } catch (e) {
-      showNotification("error", "format mongo value failed", e);
+      showNotification({
+        severity: "error",
+        title: "format mongo value failed",
+        message: e,
+      });
     }
   }, [doc, showNotification]);
   return (
@@ -847,7 +851,11 @@ function MongoTableListMenuFilter(props: {
         setValue(v);
       })
       .catch((e) => {
-        showNotification("error", "get field value failed", e);
+        showNotification({
+          severity: "error",
+          title: "get field value failed",
+          message: e,
+        });
       });
   }, [loadValue, showNotification]);
   useEffect(() => {
@@ -966,7 +974,11 @@ function JsonEditor(props: {
         const x = await validJson(newValue);
         setJsonErr(x);
       } catch (e) {
-        showNotification("error", "call valid json failed", e);
+        showNotification({
+          severity: "error",
+          title: "call valid json failed",
+          message: e,
+        });
         return;
       }
     })();
@@ -1208,7 +1220,11 @@ function MongoTableList(props: {
           }
         })
         .catch((e) => {
-          showNotification("error", "fetch data failed", e);
+          showNotification({
+            severity: "error",
+            title: "fetch data failed",
+            message: e,
+          });
         })
         .finally(() => {
           setFetchDur(new Date().getTime() - now.getTime());
@@ -1227,7 +1243,7 @@ function MongoTableList(props: {
       try {
         return await loadOne(id);
       } catch (e) {
-        showNotification("error", "fetch data failed", e);
+        showNotification({ severity: "error", title: "fetch data failed", message: e });
         return null;
       }
     },
@@ -1290,10 +1306,10 @@ function MongoTableList(props: {
           const del = resp.data.find((e) => e[keyNotInTable] == id);
           try {
             await deleteOP([EJSON.parse(del[mongoID])]);
-            showNotification("success", "delete OK");
+            showNotification({ severity: "success", title: "delete OK" });
             handleReload(false);
           } catch (e) {
-            showNotification("error", "delete failed", e);
+            showNotification({ severity: "error", title: "delete failed", message: e });
           }
         }
       : undefined;
@@ -1460,10 +1476,14 @@ function MongoTableList(props: {
                       try {
                         await modifyOP(doc);
                       } catch (e) {
-                        showNotification("error", "Modify failed", e);
+                        showNotification({
+                          severity: "error",
+                          title: "Modify failed",
+                          message: e,
+                        });
                         return;
                       }
-                      showNotification("success", "Modify OK");
+                      showNotification({ severity: "success", title: "Modify OK" });
                       setSelectModifyDoc(null);
                       handleReload(false);
                     }
@@ -1533,7 +1553,11 @@ function MongoTableObject(props: {
           }
         })
         .catch((e) => {
-          showNotification("error", "fetch data failed", e);
+          showNotification({
+            severity: "error",
+            title: "fetch data failed",
+            message: e,
+          });
         })
         .finally(() => {
           setLoading(false);
@@ -1546,9 +1570,9 @@ function MongoTableObject(props: {
     try {
       await deleteOP(ids);
     } catch (e) {
-      showNotification("error", "Delete failure", e);
+      showNotification({ severity: "error", title: "Delete failure", message: e });
     }
-    showNotification("success", "Delete OK");
+    showNotification({ severity: "success", title: "Delete OK" });
     handleReload(false);
   };
 
@@ -1606,10 +1630,14 @@ function MongoTableObject(props: {
                         try {
                           await modifyOP(doc);
                         } catch (e) {
-                          showNotification("error", "Modify failed", e);
+                          showNotification({
+                            severity: "error",
+                            title: "Modify failed",
+                            message: e,
+                          });
                           return;
                         }
-                        showNotification("success", "modify ok");
+                        showNotification({ severity: "success", title: "modify ok" });
                         handleReload(false);
                       }
                     : undefined
@@ -1838,10 +1866,10 @@ function MongoTableAdd(props: { addOP: (doc: BSON.Document) => Promise<void> }) 
     try {
       await addOP(doc);
     } catch (e) {
-      showNotification("error", "Add failure", e);
+      showNotification({ severity: "error", title: "Add failure", message: e });
       return;
     }
-    showNotification("success", "Add OK");
+    showNotification({ severity: "success", title: "Add OK" });
   };
 
   return (

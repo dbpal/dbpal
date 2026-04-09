@@ -98,7 +98,7 @@ function TablesTree(props: { typ: TableType }) {
         setTables(ts);
       })
       .catch((e) => {
-        showNotification("error", "list table failed", e);
+        showNotification({ severity: "error", title: "list table failed", message: e });
       })
       .finally(() => {
         setLoading(false);
@@ -239,12 +239,20 @@ function DropTable(props: {
     setLoading(true);
     invoke("drop_table", { name: uuid, tableName: table, cascade })
       .then((sql) => {
-        showNotification("success", "Drop table OK", <CopySql sql={sql} />);
+        showNotification({
+          severity: "success",
+          title: "Drop table OK",
+          message: <CopySql sql={sql} />,
+        });
         reloadTables();
         handleClose();
       })
       .catch((e) => {
-        showNotification("error", "Drop table failure", e);
+        showNotification({
+          severity: "error",
+          title: "Drop table failure",
+          message: e,
+        });
       })
       .finally(() => {
         setLoading(false);
@@ -394,7 +402,11 @@ function AddTableView(props: {
         setFields(e);
       })
       .catch((e) => {
-        showNotification("error", "list fields failed", e);
+        showNotification({
+          severity: "error",
+          title: "list fields failed",
+          message: e,
+        });
       });
   }, [showNotification, table, uuid]);
 
@@ -435,10 +447,18 @@ function TableMenu(props: {
     }
     invoke("truncate_table", { tableName: table, name: uuid })
       .then((sql) => {
-        showNotification("success", `Truncate table OK`, <CopySql sql={sql} />);
+        showNotification({
+          severity: "success",
+          title: `Truncate table OK`,
+          message: <CopySql sql={sql} />,
+        });
       })
       .catch((e) => {
-        showNotification("error", `Truncate  table failure`, e);
+        showNotification({
+          severity: "error",
+          title: `Truncate  table failure`,
+          message: e,
+        });
       });
   };
 
@@ -676,7 +696,7 @@ function DupTable(props: {
   const taskId = useRef(generateRandomString());
   const handleRename = () => {
     if (name == table) {
-      showNotification("error", "name not changed");
+      showNotification({ severity: "error", title: "name not changed" });
       return;
     }
     setLoading(true);
@@ -687,12 +707,12 @@ function DupTable(props: {
       taskId: taskId.current,
     })
       .then(() => {
-        showNotification("success", "duplicate OK");
+        showNotification({ severity: "success", title: "duplicate OK" });
         reloadTables();
         handleClose();
       })
       .catch((e) => {
-        showNotification("error", "duplicate failure", e);
+        showNotification({ severity: "error", title: "duplicate failure", message: e });
       })
       .finally(() => {
         setLoading(false);
@@ -737,7 +757,7 @@ function RenameTable(props: {
   const { showNotification } = useNotification();
   const handleRename = async () => {
     if (newName == table) {
-      showNotification("error", "name not changed");
+      showNotification({ severity: "error", title: "name not changed" });
       return;
     }
     const confirm = await secondConfirm({
@@ -751,12 +771,16 @@ function RenameTable(props: {
     setLoading(true);
     invoke("rename_table", { name: uuid, old: table, new: newName })
       .then((sql) => {
-        showNotification("success", "rename OK", <CopySql sql={sql} />);
+        showNotification({
+          severity: "success",
+          title: "rename OK",
+          message: <CopySql sql={sql} />,
+        });
         reloadTables();
         handleClose();
       })
       .catch((e) => {
-        showNotification("error", "rename failure", e);
+        showNotification({ severity: "error", title: "rename failure", message: e });
       })
       .finally(() => {
         setLoading(false);
@@ -901,7 +925,11 @@ function RedisTables() {
         setTables(e);
       })
       .catch((e) => {
-        showNotification("error", "list redis table failed", e);
+        showNotification({
+          severity: "error",
+          title: "list redis table failed",
+          message: e,
+        });
       })
       .finally(() => {
         setLoading(false);

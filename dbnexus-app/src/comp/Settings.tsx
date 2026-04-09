@@ -91,7 +91,11 @@ function AppearanceSetting() {
         setAllFonts(fonts);
       })
       .catch((e) => {
-        showNotification("error", "list all fonts failed", e);
+        showNotification({
+          severity: "error",
+          title: "list all fonts failed",
+          message: e,
+        });
       });
   }, [showNotification]);
 
@@ -129,7 +133,11 @@ function AppearanceSetting() {
     try {
       updateAppearance(makeConfig());
     } catch (e) {
-      showNotification("error", "save appearance setting failed", e);
+      showNotification({
+        severity: "error",
+        title: "save appearance setting failed",
+        message: e,
+      });
       return;
     }
   };
@@ -357,7 +365,11 @@ function EditorSetting() {
     try {
       updateEditor(makeConfig());
     } catch (e) {
-      showNotification("error", "save  editor setting failed", e);
+      showNotification({
+        severity: "error",
+        title: "save  editor setting failed",
+        message: e,
+      });
       return;
     }
   };
@@ -463,7 +475,11 @@ function ExportSetting() {
     try {
       updateExport(makeConfig());
     } catch (e) {
-      showNotification("error", "save export setting failed", e);
+      showNotification({
+        severity: "error",
+        title: "save export setting failed",
+        message: e,
+      });
       return;
     }
   };
@@ -572,7 +588,11 @@ function LLMSetting(props: { handleClose?: () => void }) {
         handleClose();
       }
     } catch (e) {
-      showNotification("error", "save llm config  failed", e);
+      showNotification({
+        severity: "error",
+        title: "save llm config  failed",
+        message: e,
+      });
       return;
     }
   };
@@ -585,13 +605,17 @@ function LLMSetting(props: { handleClose?: () => void }) {
     try {
       const config = makeConfig();
       const resp = await makeLLMCallable(config).invoke("hello!");
-      showNotification(
-        "success",
-        "config setting is ok,llm response:",
-        <Typography color="info"> {resp} </Typography>,
-      );
+      showNotification({
+        severity: "success",
+        title: "config setting is ok,llm response:",
+        message: <Typography color="info"> {resp} </Typography>,
+      });
     } catch (e) {
-      showNotification("error", "test llm config  failed", e);
+      showNotification({
+        severity: "error",
+        title: "test llm config  failed",
+        message: e,
+      });
       console.error("hello error", e);
     } finally {
       clearInterval(int);
@@ -603,19 +627,23 @@ function LLMSetting(props: { handleClose?: () => void }) {
 
   const loadModelCan = async () => {
     if (!baseUrl) {
-      showNotification("warning", "base url is empty");
+      showNotification({ severity: "warning", title: "base url is empty" });
       return;
     }
     if (!apiKey) {
-      showNotification("warning", "api key is empty");
+      showNotification({ severity: "warning", title: "api key is empty" });
       return;
     }
     try {
       const ms = await listLLMModels(baseUrl, apiKey);
       setModdelCan(ms);
-      showNotification("success", "load model candidates ok");
+      showNotification({ severity: "success", title: "load model candidates ok" });
     } catch (e) {
-      showNotification("error", "load model can failed", e);
+      showNotification({
+        severity: "error",
+        title: "load model can failed",
+        message: e,
+      });
     }
   };
 
@@ -830,9 +858,13 @@ function MiscSetting() {
       console.log("save auto start", autoStart);
       try {
         updateMisc(x);
-        showNotification("success", "save setting ok");
+        showNotification({ severity: "success", title: "save setting ok" });
       } catch (e) {
-        showNotification("error", "save setting  failed", e);
+        showNotification({
+          severity: "error",
+          title: "save setting  failed",
+          message: e,
+        });
       }
     }
   }, [autoStart, logLevel, misc, showNotification, updateMisc]);
@@ -897,7 +929,7 @@ function ProxySetting() {
       console.log(e);
       return;
     }
-    showNotification("success", "save proxy ok");
+    showNotification({ severity: "success", title: "save proxy ok" });
   };
 
   return (
@@ -1080,7 +1112,11 @@ function EditorOptions(props: { handleClose; showEditOption }) {
             try {
               await validJson(value);
             } catch (e) {
-              showNotification("error", "not a valid json", e);
+              showNotification({
+                severity: "error",
+                title: "not a valid json",
+                message: e,
+              });
               return;
             }
             updateEditorOP({ ...editorOP, editorOption: value });
@@ -1356,10 +1392,18 @@ function SettingProvider({ children }) {
         })
 
         .catch((e) => {
-          showNotification("error", "set proxy failed", e);
+          showNotification({
+            severity: "error",
+            title: "set proxy failed",
+            message: e,
+          });
         });
       invoke("set_log_level", { level: misc.logLevel }).catch((e) => {
-        showNotification("error", "set log level failed", e);
+        showNotification({
+          severity: "error",
+          title: "set log level failed",
+          message: e,
+        });
       });
     })();
     webview.setZoom(appearance.zoom);

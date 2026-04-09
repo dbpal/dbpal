@@ -147,7 +147,11 @@ function CouchBaseTable(props: { uuid: string; table: string }) {
           break;
         }
         case "err": {
-          showNotification("error", "load data failed", event.err);
+          showNotification({
+            severity: "error",
+            title: "load data failed",
+            message: event.err,
+          });
           break;
         }
         case "end": {
@@ -171,7 +175,7 @@ function CouchBaseTable(props: { uuid: string; table: string }) {
       emit: c,
     })
       .catch((e) => {
-        showNotification("error", "load data failed", e);
+        showNotification({ severity: "error", title: "load data failed", message: e });
       })
       .finally(() => {
         setLoading(false);
@@ -413,11 +417,15 @@ function CouchBaseEditor(props: {
     setLoading(true);
     handleValue(newValue)
       .then(() => {
-        showNotification("success", `${handleValueButton} OK`);
+        showNotification({ severity: "success", title: `${handleValueButton} OK` });
         setChanged(false);
       })
       .catch((e) => {
-        showNotification("error", `${handleValueButton} failure`, e);
+        showNotification({
+          severity: "error",
+          title: `${handleValueButton} failure`,
+          message: e,
+        });
       })
       .finally(() => {
         setLoading(false);
@@ -432,10 +440,14 @@ function CouchBaseEditor(props: {
         setLoading(true);
         handleDelete()
           .then(() => {
-            showNotification("success", "delete OK");
+            showNotification({ severity: "success", title: "delete OK" });
           })
           .catch((e) => {
-            showNotification("error", "delete failure", e);
+            showNotification({
+              severity: "error",
+              title: "delete failure",
+              message: e,
+            });
           })
           .finally(() => {
             setLoading(false);
@@ -452,7 +464,11 @@ function CouchBaseEditor(props: {
             const x = await validJson(newValue);
             setJsonErr(x);
           } catch (e) {
-            showNotification("error", "call valid json failed", e);
+            showNotification({
+              severity: "error",
+              title: "call valid json failed",
+              message: e,
+            });
             return;
           }
           setNewValue(newValue);
@@ -701,7 +717,11 @@ function CouchBaseQuery(props: { uuid: string; value?: string }) {
           break;
         }
         case "err":
-          showNotification("error", "query failed", event.err);
+          showNotification({
+            severity: "error",
+            title: "query failed",
+            message: event.err,
+          });
           break;
         case "end":
           setQueryStatus("");
@@ -719,7 +739,7 @@ function CouchBaseQuery(props: { uuid: string; value?: string }) {
       emit: channel,
     })
       .catch((e) => {
-        showNotification("error", "query failed", e);
+        showNotification({ severity: "error", title: "query failed", message: e });
         saveQueryLog(uuid, text, false);
       })
       .then(() => {

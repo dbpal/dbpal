@@ -288,7 +288,7 @@ const handleCopyToClipboard = (text, showNotification?, okCallBack?) => {
   writeText(text)
     .then(() => {
       if (showNotification) {
-        showNotification("success", "success copy to clipboard.");
+        showNotification({ severity: "success", title: "success copy to clipboard." });
       }
       if (okCallBack) {
         okCallBack();
@@ -296,7 +296,11 @@ const handleCopyToClipboard = (text, showNotification?, okCallBack?) => {
     })
     .catch((e) => {
       if (showNotification) {
-        showNotification("warning", "copy to clipboard failed", e);
+        showNotification({
+          severity: "warning",
+          title: "copy to clipboard failed",
+          message: e,
+        });
       }
     });
 };
@@ -364,7 +368,7 @@ function getEditorText(editor: editor.IStandaloneCodeEditor, showNotification) {
   }
   text = text.trim();
   if (!text) {
-    showNotification("warning", "empty statement");
+    showNotification({ severity: "warning", title: "empty statement" });
     return undefined;
   }
   return text;
