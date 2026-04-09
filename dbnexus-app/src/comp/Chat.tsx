@@ -8,6 +8,7 @@ import { v4 as uuidv4 } from "uuid";
 import CloseIcon from "@mui/icons-material/Close";
 import SaveIcon from "@mui/icons-material/Save";
 import { TbPrompt } from "react-icons/tb";
+import ClearIcon from "@mui/icons-material/Clear";
 import {
   Box,
   Checkbox,
@@ -15,6 +16,7 @@ import {
   Divider,
   FormControlLabel,
   IconButton,
+  InputAdornment,
   Modal,
   Pagination,
   Paper,
@@ -493,6 +495,21 @@ function ChatHistory(props: {
               }}
               style={{ width: "10rem" }}
               helperText="match string"
+              slotProps={{
+                input: {
+                  endAdornment: matchStr && (
+                    <InputAdornment position="end">
+                      <IconButton
+                        onClick={() => {
+                          setMatchStr("");
+                        }}
+                        edge="end">
+                        <ClearIcon fontSize="small" />
+                      </IconButton>
+                    </InputAdornment>
+                  ),
+                },
+              }}
             />
             <Tooltip title="delete history">
               <IconButton onClick={handleClear}>
