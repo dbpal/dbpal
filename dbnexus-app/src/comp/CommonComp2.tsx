@@ -906,15 +906,23 @@ const MarkdownBody = styled("div")(({ theme }) => ({
   },
 }));
 
-function AppMarkDown(props: {
+type AppMarkDownProps = {
   children: string;
   handlePathUrl?: (href: string) => void;
   placeHolder?: string;
   appcodeExtra?: AppCodeExtra;
   appCodeHandleEdit?: AppCodeHanleEdit;
-}) {
-  const { children, handlePathUrl, placeHolder, appcodeExtra, appCodeHandleEdit } =
-    props;
+  highlightWords?: string[];
+};
+function AppMarkDown(props: AppMarkDownProps) {
+  const {
+    children,
+    handlePathUrl,
+    placeHolder,
+    appcodeExtra,
+    appCodeHandleEdit,
+    // highlightWords,
+  } = props;
   function CustomLink(props: { href: string; children: ReactNode }) {
     const { href, children } = props;
     const { showNotification } = useNotification();
@@ -953,6 +961,23 @@ function AppMarkDown(props: {
       </a>
     );
   }
+
+  // const processedContent: RegExp | undefined = useMemo(() => {
+  //   if (!highlightWords) return undefined;
+
+  //   // 1. 将所有词用 | 拼接，并处理特殊字符转义
+  //   const pattern = highlightWords
+  //     .filter(Boolean)
+  //     .sort((a, b) => b.length - a.length)
+  //     .map((word) => word.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"))
+  //     .join("|");
+
+  //   // 2. 一次性全局替换
+  //   const regex = new RegExp(`(${pattern})`, "gi");
+  //   // return children.replace(regex, "==$1==");
+  //   return regex;
+  // }, [highlightWords]);
+
   return (
     <MarkdownBody>
       <div style={{ padding: "2px 0.7rem" }}>
@@ -1866,7 +1891,19 @@ function EscPressedDo(props: { doingIt: () => boolean; setUndo: () => void }) {
   return <></>;
 }
 
+function ShowingCount({ showing, total }) {
+  if (showing == total) {
+    return <></>;
+  }
+  return (
+    <Typography color="info" style={textEllipsisStyle}>
+      showing {showing} of {total}
+    </Typography>
+  );
+}
+
 export {
+  ShowingCount,
   CreateDatabase,
   CreateSchema,
   SimpleFlexEditor,

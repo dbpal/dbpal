@@ -433,9 +433,9 @@ function ColumnsStructure(props: {
 function RenameIndex(props: {
   uuid: string;
   table: string;
-  reload;
-  handleClose;
-  indexName;
+  reload: () => void;
+  handleClose: () => void;
+  indexName: string;
 }) {
   const { uuid, table, reload, handleClose, indexName } = props;
   const [loading, setLoading] = useState(false);

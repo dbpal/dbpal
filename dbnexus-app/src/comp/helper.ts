@@ -545,7 +545,7 @@ const shrinkAble = {
   flexShrink: 1,
   overflow: "hidden",
   minWidth: "3rem",
-};
+} as CSSProperties;
 
 enum MongoLanguage {
   js = "javascript",

@@ -365,6 +365,135 @@ fn expect_export_frame_all_json(
     Ok(ret)
 }
 
+/// Arguments for the web fetch tool
+#[derive(Deserialize, Serialize, Debug)]
+pub struct WebFetchArgs {
+    /// The URL to fetch content from
+    pub url: String,
+}
+
+/// Output structure containing the fetched content
+#[derive(Deserialize, Serialize, Debug)]
+pub struct WebFetchOutput {
+    /// The URL that was fetched
+    pub url: String,
+    /// The content type of the response (e.g., text/html, application/json)
+    pub content_type: Option<String>,
+    /// The raw content fetched from the URL
+    pub content: String,
+    /// HTTP status code
+    pub status: u16,
+}
+
+/// A tool that fetches content from a given URL
+///
+/// This tool can be used to retrieve web pages, API responses, or any HTTP-accessible content.
+/// It handles HTTP GET requests and returns the response body along with metadata.
+#[derive(Clone)]
+pub struct WebFetchTool {
+    // Optional: configure timeout, headers, etc.
+    client: reqwest::Client,
+    emit: ToolEmitter,
+}
+
+impl WebFetchTool {
+    /// Create a new instance with default configuration
+    pub fn new(emit: ToolEmitter) -> anyhow::Result<Self> {
+        let client = reqwest::Client::builder()
+            .timeout(std::time::Duration::from_secs(30))
+            .user_agent("rig-core-agent/1.0")
+            .build()?;
+
+        anyhow::Ok(Self { client, emit })
+    }
+}
+
+impl From<reqwest::Error> for CallToolErr {
+    fn from(value: reqwest::Error) -> Self {
+        CallToolErr {
+            err_msg: value.to_string(),
+        }
+    }
+}
+
+impl Tool for WebFetchTool {
+    const NAME: &'static str = "fetch_url";
+
+    type Error = CallToolErr;
+    type Args = WebFetchArgs;
+    type Output = WebFetchOutput;
+
+    /// Returns the tool definition that describes the function to the LLM
+    async fn definition(&self, _prompt: String) -> ToolDefinition {
+        ToolDefinition {
+            name: Self::NAME.to_string(),
+            description: concat!(
+                "Fetches and retrieves the content of a web page or API endpoint from a given URL. ",
+                "Use this tool when you need to access external web content, retrieve data from APIs, ",
+                "or read the content of a specific webpage. ",
+                "The tool returns the raw HTML, JSON, or text content along with HTTP status information. ",
+                "Supports standard HTTP/HTTPS URLs."
+            ).to_string(),
+            parameters: serde_json::json!({
+                "type": "object",
+                "properties": {
+                    "url": {
+                        "type": "string",
+                        "description": "The complete URL to fetch (e.g., https://api.example.com/data or https://example.com/page). Must include protocol (http:// or https://).",
+                        "format": "uri"
+                    }
+                },
+                "required": ["url"]
+            }),
+        }
+    }
+
+    /// Executes the web fetch operation
+    async fn call(&self, args: Self::Args) -> Result<Self::Output, Self::Error> {
+        if !args.url.starts_with("http://") && !args.url.starts_with("https://") {
+            return Err(CallToolErr::from(
+                "URL must start with http:// or https://".to_string(),
+            ));
+        }
+        (self.emit)(format!("fetching url: {}\n", args.url));
+        //  Execute HTTP GET request
+        let response = self
+            .client
+            .get(&args.url)
+            .send()
+            .await
+            .map_err(|e| CallToolErr::from(e.to_string()))?;
+
+        let status = response.status().as_u16();
+        let content_type = response
+            .headers()
+            .get("content-type")
+            .and_then(|v| v.to_str().ok())
+            .map(|s| s.to_string());
+
+        // Get text content (handles encoding automatically)
+        let content = response
+            .text()
+            .await
+            .map_err(|e| CallToolErr::from(e.to_string()))?;
+        (self.emit)(format!(
+            "fetched url: {} content: {}\n",
+            args.url,
+            if let Some(content) = content.get(0..100) {
+                content
+            } else {
+                content.as_str()
+            }
+        ));
+        Ok(WebFetchOutput {
+            url: args.url,
+            content_type,
+            content,
+            status,
+        })
+    }
+}
+
 #[tauri::command]
 pub async fn openai_stream(
     req: OpenAIReq,
@@ -397,6 +526,7 @@ pub async fn openai_stream(
     if let Some(x) = req.search_engine.make_tool(tool_emitter.clone())? {
         tools.push(x);
     }
+    tools.push(Box::new(WebFetchTool::new(tool_emitter.clone())?));
     let agent = make_agent(
         &req,
         tools,

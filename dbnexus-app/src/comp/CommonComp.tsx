@@ -594,15 +594,15 @@ function ViewRowInModal(props: { fields: types.Field[]; data: object; isTable? }
   );
 }
 
-function ExceedMaxTreeItem(props: { exceed: number; maxTreeSize: number }) {
-  const { exceed, maxTreeSize } = props;
+function ExceedMaxTreeItem(props: { showItems: number; maxTreeSize: number }) {
+  const { showItems, maxTreeSize } = props;
   const id = useRef(uuidv4());
   return (
     <TreeItem
       itemId={id.current}
-      style={{ display: exceed > maxTreeSize ? "block" : "none" }}
+      style={{ display: showItems > maxTreeSize ? "block" : "none" }}
       label=<Typography color="error" style={{ fontSize: "0.8rem" }}>
-        ({exceed}) exceed max tree items({maxTreeSize}),some item not doingIt
+        ({showItems}) exceed max tree items({maxTreeSize}),some item not doingIt
       </Typography>
     />
   );

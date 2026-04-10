@@ -104,6 +104,7 @@ import {
   CreateDatabase,
   CreateSchema,
   MenuConnectionInfo,
+  ShowingCount,
   StackRowCenter,
 } from "./CommonComp2.tsx";
 import { EventsTree } from "./LeftEvent.tsx";
@@ -1394,6 +1395,11 @@ function CatalogTree() {
   const { isLoading, setLoading } = useConnLoading();
   const { is_connected } = useConnected();
   const conn_established = is_connected(name);
+  const [showingDatabases, setShowingDatabases] = useState<string[]>([]);
+  const matchPattern = useMatcherFn();
+  useEffect(() => {
+    setShowingDatabases(databases.filter(matchPattern));
+  }, [databases, matchPattern]);
   const handleReload = useCallback(() => {
     if (!conn_established) {
       setDatabases([]);
@@ -1420,7 +1426,6 @@ function CatalogTree() {
     handleReload();
   }, [handleReload]);
   const setUpMenu = useContextMenu((state) => state.setUpMenu);
-  const matchPattern = useMatcherFn();
 
   return (
     <TreeItem
@@ -1436,17 +1441,16 @@ function CatalogTree() {
         <span>{name} </span>
         {isLoading(name) && <CircularProgress />}
         {conn_established && <ConnPingTime uuid={name} />}
+        <ShowingCount total={databases.length} showing={showingDatabases.length} />
       </Stack>
       key={name}>
-      {databases
-        .filter((db) => matchPattern(db))
-        .map((db) => {
-          return (
-            <UuidContext.Provider key={db} value={{ uuid: name + "/" + db, kind }}>
-              <DatabaseTree key={db} database={db} reloadDatabase={handleReload} />
-            </UuidContext.Provider>
-          );
-        })}
+      {showingDatabases.map((db) => {
+        return (
+          <UuidContext.Provider key={db} value={{ uuid: name + "/" + db, kind }}>
+            <DatabaseTree key={db} database={db} reloadDatabase={handleReload} />
+          </UuidContext.Provider>
+        );
+      })}
     </TreeItem>
   );
 }
@@ -1459,6 +1463,11 @@ function DatabaseTree(props: { database?: string; reloadDatabase?: () => void })
   const { isLoading, setLoading } = useConnLoading();
   const { is_connected } = useConnected();
   const matchPattern = useMatcherFn();
+  const [showingSchemas, setShowingSchemas] = useState<string[]>([]);
+  useEffect(() => {
+    setShowingSchemas(schemas.filter((schema) => matchPattern(schema)));
+  }, [schemas, matchPattern]);
+
   const conn_established = is_connected(name);
   const handleReload = useCallback(() => {
     if (!conn_established) {
@@ -1513,19 +1522,18 @@ function DatabaseTree(props: { database?: string; reloadDatabase?: () => void })
         <span>{database ? database : name}</span>
         {isLoading(name) && <CircularProgress />}
         {!database && is_connected(name) && <ConnPingTime uuid={name} />}
+        <ShowingCount total={schemas.length} showing={showingSchemas.length} />
       </Stack>
       key={name + database}>
-      {schemas
-        .filter((schema) => matchPattern(schema))
-        .map((schema) => {
-          return (
-            <UuidContext.Provider
-              key={schema}
-              value={{ uuid: name + "/" + schema, kind }}>
-              <SchemaTree key={schema} schema={schema} reloadSchemas={handleReload} />
-            </UuidContext.Provider>
-          );
-        })}
+      {showingSchemas.map((schema) => {
+        return (
+          <UuidContext.Provider
+            key={schema}
+            value={{ uuid: name + "/" + schema, kind }}>
+            <SchemaTree key={schema} schema={schema} reloadSchemas={handleReload} />
+          </UuidContext.Provider>
+        );
+      })}
     </TreeItem>
   );
 }

@@ -18,7 +18,7 @@ import {
 import { v4 as uuidv4 } from "uuid";
 import { ExceedMaxTreeItem, MenuRefresh } from "./CommonComp";
 import { listEvent } from "./handlers";
-import { CopySql } from "./CommonComp2";
+import { CopySql, ShowingCount } from "./CommonComp2";
 import {
   useMatcher,
   useContextMenu,
@@ -41,10 +41,10 @@ function EventsTree() {
         showNotification({ severity: "error", title: "list event failed", message: e });
       });
   }, [showNotification, uuid]);
-  const [exceed, setExceed] = useState(0);
+  const [showItems, setShowItems] = useState(0);
 
   useEffect(() => {
-    setExceed(evens.filter((e) => matchPattern(e.name)).length);
+    setShowItems(evens.filter((e) => matchPattern(e.name)).length);
   }, [evens, matchPattern]);
 
   const setUpMenu = useContextMenu((state) => state.setUpMenu);
@@ -72,6 +72,7 @@ function EventsTree() {
         }}>
         <MdOutlineEventRepeat />
         <span> events </span>
+        <ShowingCount showing={showItems} total={evens.length} />
       </Stack>>
       {evens
         .filter((event) => matchPattern(event.name))
@@ -108,7 +109,7 @@ function EventsTree() {
             />
           );
         })}
-      <ExceedMaxTreeItem exceed={exceed} maxTreeSize={maxTree} />
+      <ExceedMaxTreeItem showItems={showItems} maxTreeSize={maxTree} />
     </TreeItem>
   );
 }

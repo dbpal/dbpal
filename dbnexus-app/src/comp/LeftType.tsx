@@ -17,7 +17,7 @@ import {
 import { v4 as uuidv4 } from "uuid";
 import { ExceedMaxTreeItem, MenuRefresh } from "./CommonComp";
 import { listCreatedTypes } from "./handlers";
-import { CopySql } from "./CommonComp2";
+import { CopySql, ShowingCount } from "./CommonComp2";
 import {
   useMatcher,
   useContextMenu,
@@ -41,9 +41,9 @@ function TypesTree() {
         showNotification({ severity: "error", title: "list types failed", message: e });
       });
   }, [showNotification, uuid]);
-  const [exceed, setExceed] = useState(0);
+  const [showItems, setShowItems] = useState(0);
   useEffect(() => {
-    setExceed(types.filter((e) => matchPattern(e.name)).length);
+    setShowItems(types.filter((e) => matchPattern(e.name)).length);
   }, [types, matchPattern]);
 
   const setUpMenu = useContextMenu((state) => state.setUpMenu);
@@ -70,6 +70,7 @@ function TypesTree() {
         }}>
         <PiTreeStructureFill />
         <span> types </span>
+        <ShowingCount showing={showItems} total={types.length} />
       </Stack>>
       {types
         .filter((typ) => matchPattern(typ.name))
@@ -105,7 +106,7 @@ function TypesTree() {
             />
           );
         })}
-      <ExceedMaxTreeItem exceed={exceed} maxTreeSize={maxTree} />
+      <ExceedMaxTreeItem showItems={showItems} maxTreeSize={maxTree} />
     </TreeItem>
   );
 }

@@ -22,15 +22,15 @@ import {
   Tooltip,
   Typography,
 } from "@mui/material";
-import { useContext, useEffect, useRef, useState } from "react";
+import { useContext, useEffect, useMemo, useRef, useState } from "react";
 import { editor } from "monaco-editor";
 import {
-  AppMarkDown,
   SliderSize,
   SimpleFlexEditor,
   CancelButton,
   EscPressedDo,
   ClearableTextField,
+  AppMarkDown,
 } from "./CommonComp2.tsx";
 import ArrowCircleUpIcon from "@mui/icons-material/ArrowCircleUp";
 import EventNoteIcon from "@mui/icons-material/EventNote";
@@ -57,11 +57,12 @@ import {
   useUserSystemPromptStore,
   UseSizeConfig,
   useSizeStore,
-  ChatMessage,
 } from "./store.tsx";
 
 import AddPhotoAlternateIcon from "@mui/icons-material/AddPhotoAlternate";
 import { open } from "@tauri-apps/plugin-dialog";
+
+import { useDebounce } from "use-debounce";
 
 function AllKindChat(props: {
   uuid: string;
@@ -167,15 +168,19 @@ function SqlChatTextInput(props: {
         question,
         images,
         (function () {
-          if (!history) {
+          if (!history || history.length === 0) {
             return [];
           }
-          return history.slice(0, getSize(UseSizeConfig.chatMemoryKey)).map((h) => {
-            return {
-              role: h.role,
-              msg: h.content,
-            };
-          });
+          // Use a negative index in slice to get the last N elements
+          const size = getSize(UseSizeConfig.chatMemoryKey);
+          return history
+            .slice(-size) // This takes the last 'size' elements
+            .map((h) => {
+              return {
+                role: h.role,
+                msg: h.content,
+              };
+            });
         })(),
         userDefinePrompts[connName],
         (msg) => {
@@ -191,6 +196,7 @@ function SqlChatTextInput(props: {
           });
         },
       );
+      showNotification({ severity: "success", title: "call llm success" });
       setInvokeStatus("done");
       setTimeout(() => {
         setInvokeStatus("");
@@ -226,7 +232,6 @@ function SqlChatTextInput(props: {
           borderRadius: "1rem",
           zIndex: 14,
           overflow: "hidden",
-          // opacity: 0.85,
         }}>
         <Stack
           direction="row"
@@ -434,24 +439,36 @@ function ChatHistory(props: {
   const { messagesByNames, clearHistory, fetchHistory, isLoading } = useChatStore();
   const wrapperRef = useRef(null);
   const [matchStr, setMatchStr] = useState("");
-  const history = messagesByNames[connName];
-  const [showingHis, setShowHistory] = useState<ChatMessage[]>([]);
-  const [page, setPage] = useState(1);
-  const pageSize = 10;
-  const [length, setLength] = useState(0);
 
-  useEffect(() => {
+  const [deBouncedMatch] = useDebounce(matchStr, 500);
+
+  const history = messagesByNames[connName];
+  const [page, setPage] = useState(1);
+  const pageSize = 6;
+
+  const { showingHis, length } = useMemo(() => {
     if (history) {
       let his = history.filter((his) =>
-        matchStr ? his.content.includes(matchStr) : true,
+        deBouncedMatch
+          ? his.content.toLocaleLowerCase().includes(deBouncedMatch.toLocaleLowerCase())
+          : true,
       );
-      setLength(his.length);
-      setShowHistory(his.slice((page - 1) * pageSize, page * pageSize));
+      return {
+        showingHis: his.slice((page - 1) * pageSize, page * pageSize),
+        length: his.length,
+      };
+    } else {
+      return {
+        showingHis: [],
+        length: 0,
+      };
     }
-  }, [history, matchStr, page]);
+  }, [history, deBouncedMatch, page]);
 
   useEffect(() => {
-    setPage(Math.ceil(length / pageSize));
+    if (length > 0) {
+      setPage(Math.ceil(length / pageSize));
+    }
   }, [length]);
 
   useEffect(() => {
@@ -503,11 +520,14 @@ function ChatHistory(props: {
               onClear={() => {
                 setMatchStr("");
               }}
+              label="search in history"
               style={{ width: "10rem" }}
-              helperText={
-                !matchStr ? "match string" : `showing ${length} of ${history.length}`
-              }
             />
+            <Typography>
+              {!matchStr
+                ? `${history.length} history`
+                : `showing ${length} of ${history.length}`}
+            </Typography>
           </>
         }
         handleClose={handleClose}
@@ -540,7 +560,9 @@ function ChatHistory(props: {
                       <Typography color="info">
                         {his.role}:{new Date(his.timestamp).toLocaleString()}
                       </Typography>
-                      <AppMarkDown>{his.content}</AppMarkDown>
+                      <AppMarkDown highlightWords={matchStr ? [matchStr] : []}>
+                        {his.content}
+                      </AppMarkDown>
                     </div>
                   </Stack>
                   {/* If have match string , I don't know the message is paired up */}

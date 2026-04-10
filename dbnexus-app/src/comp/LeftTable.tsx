@@ -65,7 +65,7 @@ import { ExceedMaxTreeItem, MenuRefresh, ModalHeader } from "./CommonComp";
 import { TableStructure } from "./TableStructure";
 import { cancelTask, listTable, makeTableInsertFn, showTableColumn } from "./handlers";
 import { filesize } from "filesize";
-import { CancelButton, ClearableTextField, CopySql } from "./CommonComp2";
+import { CancelButton, ClearableTextField, CopySql, ShowingCount } from "./CommonComp2";
 import { CouchBaseTable } from "./CouchBase";
 import {
   useMatcher,
@@ -81,12 +81,12 @@ function TablesTree(props: { typ: TableType }) {
   const [tables, setTables] = useState<types.ListTable[]>([]);
   const { showNotification } = useNotification();
   const [loading, setLoading] = useState(false);
-  const [exceed, setExceed] = useState(0);
+  const [showItems, setShowItems] = useState(0);
   const { maxTree } = useMatcher();
   const matchPattern = useMatcherFn();
   const tablesId = useRef(uuidv4());
   useEffect(() => {
-    setExceed(tables.filter((e) => matchPattern(e.name)).length);
+    setShowItems(tables.filter((e) => matchPattern(e.name)).length);
   }, [tables, matchPattern]);
   const handleReload = useCallback(() => {
     setLoading(true);
@@ -143,6 +143,7 @@ function TablesTree(props: { typ: TableType }) {
         }}>
         <TableViewIcon />
         <span> {tablesText} </span>
+        <ShowingCount showing={showItems} total={tables.length} />
         {loading && <CircularProgress />}
       </Stack>>
       {tables
@@ -162,7 +163,7 @@ function TablesTree(props: { typ: TableType }) {
             />
           );
         })}
-      <ExceedMaxTreeItem exceed={exceed} maxTreeSize={maxTree} />
+      <ExceedMaxTreeItem showItems={showItems} maxTreeSize={maxTree} />
     </TreeItem>
   );
 }

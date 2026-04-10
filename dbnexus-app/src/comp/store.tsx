@@ -8,6 +8,12 @@ import { persist, PersistStorage, StorageValue } from "zustand/middleware";
 import Dexie, { type Table } from "dexie";
 import wcmatch from "wildcard-match";
 import { cloneDeep } from "lodash-es";
+import { GridColumnVisibilityModel } from "@mui/x-data-grid";
+import { PassWordManager } from "./Common";
+import types from "./ApiStruct";
+import { editor } from "monaco-editor";
+import { Channel, invoke } from "@tauri-apps/api/core";
+import { cancelTask } from "./handlers";
 
 class TauriStoreManger<S> implements PersistStorage<S> {
   constructor(
@@ -36,13 +42,6 @@ class TauriStoreManger<S> implements PersistStorage<S> {
     appStore.delete(name);
   }
 }
-
-import { GridColumnVisibilityModel } from "@mui/x-data-grid";
-import { PassWordManager } from "./Common";
-import types from "./ApiStruct";
-import { editor } from "monaco-editor";
-import { Channel, invoke } from "@tauri-apps/api/core";
-import { cancelTask } from "./handlers";
 
 interface TableColumnVisible {
   // Key format: "tableName:uuid" -> Visibility Model
@@ -240,7 +239,7 @@ export const useLLMConfig = create<LLMStore>()(
         search_engin: {
           enable: true,
           provider: "duckduckgo",
-          api_key: null,
+          api_key: "",
         },
       },
       setConfig: (config) => set({ config }),

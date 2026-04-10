@@ -55,7 +55,7 @@ import {
   GridSlotsComponent,
   GridSlotsComponentsProps,
 } from "@mui/x-data-grid";
-import { AppDataGridPagination } from "./CommonComp2";
+import { AppDataGridPagination, ShowingCount } from "./CommonComp2";
 import { createViewSql, listView, showViewColumns } from "./handlers";
 import { filesize } from "filesize";
 import {
@@ -74,11 +74,11 @@ function ViewsTree(props: { viewKind: ViewKind }) {
   const [views, setViews] = useState<types.ListTable[]>([]);
   const { showNotification } = useNotification();
   const [loading, setLoading] = useState(false);
-  const [exceed, setExceed] = useState(0);
+  const [showItems, setShowItems] = useState(0);
   const { maxTree } = useMatcher();
   const matchPattern = useMatcherFn();
   useEffect(() => {
-    setExceed(views.filter((e) => matchPattern(e.name)).length);
+    setShowItems(views.filter((e) => matchPattern(e.name)).length);
   }, [views, matchPattern]);
   const handleReload = useCallback(() => {
     setLoading(true);
@@ -127,6 +127,7 @@ function ViewsTree(props: { viewKind: ViewKind }) {
         }}>
         {icon}
         <span> {name} </span>
+        <ShowingCount showing={showItems} total={views.length} />
         {loading && <CircularProgress />}
       </Stack>>
       {views
@@ -145,7 +146,7 @@ function ViewsTree(props: { viewKind: ViewKind }) {
             />
           );
         })}
-      <ExceedMaxTreeItem exceed={exceed} maxTreeSize={maxTree} />
+      <ExceedMaxTreeItem showItems={showItems} maxTreeSize={maxTree} />
     </TreeItem>
   );
 }

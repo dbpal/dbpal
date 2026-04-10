@@ -12,7 +12,7 @@ import { DataSourceKind, secondConfirm, TabContent, UuidContext } from "./helper
 import { v4 as uuidv4 } from "uuid";
 import { ExceedMaxTreeItem, MenuRefresh, UdfNameAndParameters } from "./CommonComp";
 import { listProcedure, makeShowProcedureExtraArg, showProcedure } from "./handlers";
-import { CopySql } from "./CommonComp2";
+import { CopySql, ShowingCount } from "./CommonComp2";
 import {
   useMatcher,
   useContextMenu,
@@ -40,9 +40,9 @@ function ProceduresTree() {
       });
   }, [showNotification, uuid]);
 
-  const [exceed, setExceed] = useState(0);
+  const [showItems, setShowItems] = useState(0);
   useEffect(() => {
-    setExceed(ps.filter((e) => matchPattern(e.name)).length);
+    setShowItems(ps.filter((e) => matchPattern(e.name)).length);
   }, [ps, matchPattern]);
 
   const setUpMenu = useContextMenu((state) => state.setUpMenu);
@@ -69,6 +69,7 @@ function ProceduresTree() {
         }}>
         <SiProcessingfoundation />
         <span> procedures </span>
+        <ShowingCount showing={showItems} total={ps.length} />
       </Stack>>
       {ps
         .filter((e) => matchPattern(e.name))
@@ -104,7 +105,7 @@ function ProceduresTree() {
             />
           );
         })}
-      <ExceedMaxTreeItem maxTreeSize={maxTree} exceed={exceed} />
+      <ExceedMaxTreeItem maxTreeSize={maxTree} showItems={showItems} />
     </TreeItem>
   );
 }

@@ -22,7 +22,7 @@ import { v4 as uuidv4 } from "uuid";
 import { ExceedMaxTreeItem, MenuRefresh, UdfNameAndParameters } from "./CommonComp";
 import { listCassandraAgg, listUdf, makeUdfExtraArg, showUdf } from "./handlers";
 import { showCassandraAgg } from "./handlers";
-import { CopySql } from "./CommonComp2";
+import { CopySql, ShowingCount } from "./CommonComp2";
 import {
   useMatcher,
   useContextMenu,
@@ -36,11 +36,11 @@ function UdfsTree() {
 
   const [udfs, setUdfs] = useState<types.NamedStaff[]>([]);
   const { showNotification } = useNotification();
-  const [exceed, setExceed] = useState(0);
+  const [showItems, setShowItems] = useState(0);
   const { maxTree } = useMatcher();
   const matchPattern = useMatcherFn();
   useEffect(() => {
-    setExceed(udfs.filter((e) => matchPattern(e.name)).length);
+    setShowItems(udfs.filter((e) => matchPattern(e.name)).length);
   }, [udfs, matchPattern]);
 
   const reload = useCallback(() => {
@@ -76,6 +76,7 @@ function UdfsTree() {
         }}>
         <TbMathFunction />
         <span> udfs </span>
+        <ShowingCount showing={showItems} total={udfs.length} />
       </Stack>>
       {udfs
         .filter((e) => matchPattern(e.name))
@@ -105,7 +106,7 @@ function UdfsTree() {
             />
           );
         })}
-      <ExceedMaxTreeItem exceed={exceed} maxTreeSize={maxTree} />
+      <ExceedMaxTreeItem showItems={showItems} maxTreeSize={maxTree} />
     </TreeItem>
   );
 }
@@ -283,11 +284,11 @@ function CassandraAggregatesTree() {
         });
       });
   }, [showNotification, uuid]);
-  const [exceed, setExceed] = useState(0);
+  const [showItems, setShowItems] = useState(0);
   const { maxTree } = useMatcher();
   const matchPattern = useMatcherFn();
   useEffect(() => {
-    setExceed(aggs.filter((e) => matchPattern(e.name)).length);
+    setShowItems(aggs.filter((e) => matchPattern(e.name)).length);
   }, [aggs, matchPattern]);
   useEffect(() => {
     reload();
@@ -312,6 +313,7 @@ function CassandraAggregatesTree() {
         }}>
         <MdFunctions />
         <span> aggregates </span>
+        <ShowingCount showing={showItems} total={aggs.length} />
       </Stack>>
       {aggs
         .filter((e) => matchPattern(e.name))
@@ -350,7 +352,7 @@ function CassandraAggregatesTree() {
             />
           );
         })}
-      <ExceedMaxTreeItem exceed={exceed} maxTreeSize={maxTree} />
+      <ExceedMaxTreeItem showItems={showItems} maxTreeSize={maxTree} />
     </TreeItem>
   );
 }
