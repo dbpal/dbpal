@@ -980,7 +980,7 @@ function AppMarkDown(props: AppMarkDownProps) {
 
   return (
     <MarkdownBody>
-      <div style={{ padding: "2px 0.7rem" }}>
+      <div style={{ padding: "2px 1rem" }}>
         <ReactMarkdown
           remarkPlugins={[remarkGfm]}
           components={{
