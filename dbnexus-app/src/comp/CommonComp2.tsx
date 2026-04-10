@@ -158,10 +158,18 @@ function AppCode(props: {
         padding: "2px 4px",
         borderRadius: "0.4rem",
         margin: 0,
+        maxHeight: "55vh",
         overflow: "auto",
       }}
       elevation={10}>
-      <Stack direction="row" style={{ alignItems: "center" }}>
+      <Stack
+        direction="row"
+        style={{
+          alignItems: "center",
+          position: "sticky",
+          top: 0,
+          backgroundColor: theme.palette.background.paper,
+        }}>
         <IconButton
           color="secondary"
           onClick={() => {
