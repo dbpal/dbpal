@@ -11,6 +11,8 @@ import {
   TextField,
   Tooltip,
   Typography,
+  SxProps,
+  Theme,
 } from "@mui/material";
 
 import PlayArrowIcon from "@mui/icons-material/PlayArrow";
@@ -235,7 +237,7 @@ function TsEditCompilerOptions(props: { handleClose: () => void }) {
   }, [editor]);
 
   return (
-    <Stack height="100%">
+    <Stack sx={{ height: "100%" }}>
       <SimpleFlexEditor
         value={JSON.stringify(options, null, 2)}
         language="json"
@@ -275,8 +277,8 @@ function TsEditCompilerOptions(props: { handleClose: () => void }) {
   );
 }
 
-function CompilerNotice(props: { compileDir: string; width: string }) {
-  const { compileDir, width } = props;
+function CompilerNotice(props: { compileDir: string; sx?: SxProps<Theme> }) {
+  const { compileDir, sx } = props;
 
   const [rootPath, setRootPath] = useState("");
   useEffect(() => {
@@ -286,7 +288,7 @@ function CompilerNotice(props: { compileDir: string; width: string }) {
   }, [compileDir]);
 
   return (
-    <Stack style={{ width }}>
+    <Stack sx={sx}>
       <AppMarkDown
         handlePathUrl={(p) => {
           openPath(p);
@@ -401,7 +403,7 @@ function TypeScript(props: {
               style: { maxWidth: "40vw" },
             },
           }}
-          title=<CompilerNotice width="40vw" compileDir={compileDir} />>
+          title=<CompilerNotice sx={{ width: "40vw" }} compileDir={compileDir} />>
           <Typography> compile </Typography>
         </Tooltip>
       )}
@@ -414,7 +416,7 @@ function TypeScript(props: {
             e.preventDefault();
             setShowEditOption(false);
           })}>
-          <Box sx={modalStyle} width="75%" height="65vh">
+          <Box sx={{ ...modalStyle, width: "75%", height: "65vh" }}>
             <ModalHeader
               title="edit compiler option"
               handleClose={() => {
@@ -485,16 +487,16 @@ interface CleanFunction {
 function CallCleanFunctions(props: {
   cleanFunctions: CleanFunction[];
   setCleanFunction;
-  width: string;
+  sx?: SxProps<Theme>;
 }) {
-  const { cleanFunctions, setCleanFunction, width } = props;
+  const { cleanFunctions, setCleanFunction, sx } = props;
   const handleCall = (index: number) => {
     cleanFunctions[index].fn();
     setCleanFunction(cleanFunctions.filter((_x, i) => index != i));
   };
 
   return (
-    <Paper style={{ width }}>
+    <Paper sx={sx}>
       <Stack>
         {cleanFunctions.map((x, index) => (
           <Button
@@ -695,7 +697,7 @@ function MongoQuery(props: {
             title=<CallCleanFunctions
               cleanFunctions={cleanFns}
               setCleanFunction={setCleanFns}
-              width="45vw"
+              sx={{ width: "45vw" }}
             />
             slotProps={{
               tooltip: {
@@ -715,7 +717,7 @@ function MongoQuery(props: {
           <InfoIcon> </InfoIcon>
         </Tooltip>
         <Tooltip
-          title=<Stack width="40vw">
+          title=<Stack sx={{ width: "40vw" }}>
             <Typography color="info ">
               we are still using `console` to debug.
             </Typography>

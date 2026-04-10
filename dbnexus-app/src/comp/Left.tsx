@@ -269,7 +269,7 @@ function LeftTop() {
             e.preventDefault();
             setShowEditFilter(false);
           })}>
-          <Box sx={modalStyle} width="45%">
+          <Box sx={{ ...modalStyle, width: "45%" }}>
             <ModalHeader
               title="edit filter"
               handleClose={() => {
@@ -507,7 +507,7 @@ function CopyConnection() {
     return {
       pagination: () => {
         return (
-          <Stack direction="row" flex={1} style={{ justifyContent: "space-between" }}>
+          <Stack direction="row" style={{ justifyContent: "space-between", flex: 1 }}>
             <Stack direction="row">
               <Tooltip title="double click a row to copy a connection.">
                 <Typography color="info">copy?</Typography>
@@ -798,7 +798,7 @@ function FavoriteSqlList() {
     return {
       pagination: () => {
         return (
-          <Stack direction="row" style={{ justifyContent: "space-between" }} flex={1}>
+          <Stack direction="row" style={{ justifyContent: "space-between", flex: 1 }}>
             <Stack direction="row">
               {fs.length > 0 && (
                 <Tooltip title="double click a row to use sql in new tab.">
@@ -1164,7 +1164,7 @@ function DatabaseMenu(props: {
             e.preventDefault();
             setShowCreateSchema(false);
           })}>
-          <Box sx={modalStyle} width="40%">
+          <Box sx={{ ...modalStyle, width: "40%" }}>
             <ModalHeader
               title={(function () {
                 let name = "database";
@@ -1231,7 +1231,7 @@ function CatalogMenu(props: { uuid; reload; kind: DataSourceKind }) {
             e.preventDefault();
             setShowCreateDB(false);
           })}>
-          <Box sx={modalStyle} width="50%">
+          <Box sx={{ ...modalStyle, width: "50%" }}>
             <ModalHeader
               handleClose={() => {
                 setShowCreateDB(false);
@@ -1501,7 +1501,7 @@ function DatabaseTree(props: { database?: string; reloadDatabase?: () => void })
       itemId={name}
       label=<Stack
         direction="row"
-        alignContent="baseline"
+        sx={{ alignContent: "baseline", alignItems: "center" }}
         onContextMenu={(e) => {
           setUpMenu({
             content: (
@@ -1516,8 +1516,7 @@ function DatabaseTree(props: { database?: string; reloadDatabase?: () => void })
             ),
             event: e,
           });
-        }}
-        sx={{ alignItems: "center" }}>
+        }}>
         {database && <FaDatabase />}
         <span>{database ? database : name}</span>
         {isLoading(name) && <CircularProgress />}

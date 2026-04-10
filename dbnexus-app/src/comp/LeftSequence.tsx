@@ -231,7 +231,7 @@ function SequenceMenu(props: {
             e.preventDefault();
             setShowDrop(false);
           })}>
-          <Box sx={modalStyle} width="45%">
+          <Box sx={{ ...modalStyle, width: "45%" }}>
             <Stack>
               {supportCascade && (
                 <Stack>

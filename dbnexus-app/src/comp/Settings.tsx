@@ -150,7 +150,7 @@ function AppearanceSetting() {
   return (
     <Stack style={{ height: "100%" }}>
       <Stack direction="row" sx={{ alignItems: "center" }}>
-        <Typography width={headerSize} style={{ fontSize }}>
+        <Typography sx={{ width: headerSize }} style={{ fontSize }}>
           font size
         </Typography>
         <Chip label={fontSize} style={{ fontSize }} />
@@ -165,7 +165,7 @@ function AppearanceSetting() {
         />
       </Stack>
       <Stack direction="row" sx={{ alignItems: "center" }}>
-        <Typography width={headerSize} style={{ fontWeight }}>
+        <Typography sx={{ width: headerSize }} style={{ fontWeight }}>
           font weight
         </Typography>
         <ClearableTextField
@@ -177,7 +177,7 @@ function AppearanceSetting() {
         />
       </Stack>
       <Stack direction="row" sx={{ alignItems: "flex-end" }}>
-        <Typography width={headerSize} style={{ fontFamily }}>
+        <Typography sx={{ width: headerSize }} style={{ fontFamily }}>
           font
         </Typography>
         <TextField
@@ -197,12 +197,12 @@ function AppearanceSetting() {
           ))}
         </datalist>
 
-        <Typography color="info" fontFamily={fontFamily}>
+        <Typography color="info" sx={{ fontFamily }}>
           SELECT * FROM employees WHERE gender = &apos;M&apos; LIMIT 100
         </Typography>
       </Stack>
       <Stack direction="row" sx={{ alignItems: "center" }}>
-        <Typography width={headerSize}>table row height factor </Typography>
+        <Typography sx={{ width: headerSize }}>table row height factor </Typography>
         <TextField
           value={datagridRowHeightFactor}
           onChange={(e) => {
@@ -217,7 +217,7 @@ function AppearanceSetting() {
       </Stack>
 
       <Stack direction="row" sx={{ alignItems: "center" }}>
-        <Typography width={headerSize}>theme </Typography>
+        <Typography sx={{ width: headerSize }}>theme </Typography>
         <Autocomplete
           options={["light", "dark", "system"]}
           style={{ width: "12rem" }}
@@ -233,7 +233,7 @@ function AppearanceSetting() {
       <SetBgColor theme="light" bgColor={lightBgColor} setBgColor={setLightBgColor} />
 
       <Stack direction="row" sx={{ alignItems: "center" }}>
-        <Typography width={headerSize}>input variant</Typography>
+        <Typography sx={{ width: headerSize }}>input variant</Typography>
         <Autocomplete
           options={["standard", "filled", "outlined"]}
           style={{ width: "22rem" }}
@@ -251,7 +251,7 @@ function AppearanceSetting() {
       </Stack>
 
       <Stack direction="row" sx={{ alignItems: "center" }}>
-        <Typography width={headerSize}>zoom</Typography>
+        <Typography sx={{ width: headerSize }}>zoom</Typography>
 
         {zoom != 1 && (
           <Button
@@ -289,7 +289,7 @@ function SetBgColor({ bgColor, setBgColor, theme }) {
   const [showEditBgColor, setShowEditBgColor] = useState(false);
   return (
     <Stack direction="row" sx={{ alignItems: "center" }}>
-      <Typography width={headerSize}> {theme} background color </Typography>
+      <Typography sx={{ width: headerSize }}> {theme} background color </Typography>
       <div style={{ position: "relative" }}>
         <IconButton
           color={showEditBgColor ? "success" : "primary"}
@@ -359,7 +359,7 @@ function EditorSetting() {
   return (
     <Stack>
       <Stack direction="row" sx={{ alignItems: "center" }}>
-        <Typography width={headerSize}>tab size </Typography>
+        <Typography sx={{ width: headerSize }}>tab size </Typography>
 
         {[2, 4, 8].map((e) => (
           <Chip
@@ -375,7 +375,7 @@ function EditorSetting() {
       <Stack>
         <Stack direction="row" style={{ alignItems: "flex-start" }}>
           <Tooltip title="dbpal use monaco editor as build in editor" placement="top">
-            <Typography width={headerSize}>monaco editor options</Typography>
+            <Typography sx={{ width: headerSize }}>monaco editor options</Typography>
           </Tooltip>
           <Stack style={{ flex: 1 }}>
             <StackRowCenter>
@@ -399,7 +399,7 @@ function EditorSetting() {
         </Stack>
       </Stack>
       <Stack direction="row" sx={{ alignItems: "flex-start" }}>
-        <Typography width={headerSize}> editor theme </Typography>
+        <Typography sx={{ width: headerSize }}> editor theme </Typography>
         <Stack direction="row" style={{ flex: 1, alignItems: "flex-start" }}>
           <Autocomplete
             options={registeredThemes}
@@ -465,7 +465,7 @@ function ExportSetting() {
   return (
     <Stack>
       <Stack direction="row" sx={{ alignItems: "center" }}>
-        <Typography width={headerSize}>csv delimiter</Typography>
+        <Typography sx={{ width: headerSize }}>csv delimiter</Typography>
         <TextField
           value={csvDelimiter}
           onChange={(e) => setCsvDelimiter(e.target.value)}
@@ -474,7 +474,7 @@ function ExportSetting() {
         />
       </Stack>
       <Stack direction="row" sx={{ alignItems: "center" }}>
-        <Typography width={headerSize}>include header</Typography>
+        <Typography sx={{ width: headerSize }}>include header</Typography>
         <FormControlLabel
           control={
             <Checkbox
@@ -628,7 +628,7 @@ function LLMSetting(props: { handleClose?: () => void }) {
   return (
     <Stack>
       <Stack direction="row" sx={{ alignItems: "center" }}>
-        <Typography width={headerSize}>base url</Typography>
+        <Typography sx={{ width: headerSize }}>base url</Typography>
         <ClearableTextField
           style={{ width: "25rem" }}
           value={baseUrl}
@@ -643,7 +643,7 @@ function LLMSetting(props: { handleClose?: () => void }) {
       </Stack>
 
       <Stack direction="row" sx={{ alignItems: "center" }}>
-        <Typography width={headerSize}>api key</Typography>
+        <Typography sx={{ width: headerSize }}>api key</Typography>
         <ClearableTextField
           value={apiKey}
           style={{ width: "40rem" }}
@@ -653,7 +653,7 @@ function LLMSetting(props: { handleClose?: () => void }) {
         />
       </Stack>
       <Stack direction="row" sx={{ alignItems: "center" }}>
-        <Typography width={headerSize}>model </Typography>
+        <Typography sx={{ width: headerSize }}>model </Typography>
         <Button variant="outlined" onClick={loadModelCan}>
           load candidates
         </Button>
@@ -702,7 +702,7 @@ function LLMSetting(props: { handleClose?: () => void }) {
       </Stack>
 
       <Stack direction="row" sx={{ alignItems: "center" }}>
-        <Typography width={headerSize}>temperature</Typography>
+        <Typography sx={{ width: headerSize }}>temperature</Typography>
         <TextField
           helperText="only accept number"
           value={temperature}
@@ -712,7 +712,7 @@ function LLMSetting(props: { handleClose?: () => void }) {
       </Stack>
 
       <Stack direction="row" sx={{ alignItems: "center" }}>
-        <Typography width={headerSize}> max token </Typography>
+        <Typography sx={{ width: headerSize }}> max token </Typography>
         <ClearableTextField
           error={maxToken ? isNaN(parseInt(maxToken)) : false}
           value={maxToken}
@@ -722,7 +722,7 @@ function LLMSetting(props: { handleClose?: () => void }) {
       </Stack>
 
       <Stack direction="row" sx={{ alignItems: "center" }}>
-        <Typography width={headerSize}> topP </Typography>
+        <Typography sx={{ width: headerSize }}> topP </Typography>
         <ClearableTextField
           error={topP ? isNaN(parseFloat(topP)) : false}
           value={topP}
@@ -732,7 +732,7 @@ function LLMSetting(props: { handleClose?: () => void }) {
       </Stack>
 
       <Stack direction="row" sx={{ alignItems: "center" }}>
-        <Typography width={headerSize}> search engine </Typography>
+        <Typography sx={{ width: headerSize }}> search engine </Typography>
         <Checkbox
           checked={searchEngine.enable}
           onChange={(e) => {
@@ -808,7 +808,7 @@ function MiscSetting() {
   return (
     <Stack>
       <Stack direction="row" sx={{ alignItems: "center" }}>
-        <Typography width={headerSize}>auto start</Typography>
+        <Typography sx={{ width: headerSize }}>auto start</Typography>
         <Checkbox
           checked={autoStart}
           onChange={(e) => {
@@ -817,7 +817,7 @@ function MiscSetting() {
         />
       </Stack>
       <Stack direction="row" sx={{ alignItems: "center" }}>
-        <Typography width={headerSize}>logger level</Typography>
+        <Typography sx={{ width: headerSize }}>logger level</Typography>
         <LogLevelSelection
           level={logLevel}
           handleChange={(level) => {
@@ -871,21 +871,21 @@ function ProxySetting() {
   return (
     <Stack>
       <Stack direction="row" sx={{ alignItems: "flex-start" }}>
-        <Typography width={headerSize}> http proxy</Typography>
+        <Typography sx={{ width: headerSize }}> http proxy</Typography>
         <ProxyValue value={http} setValue={setHttp} />
       </Stack>
       <Stack direction="row" sx={{ alignItems: "flex-start" }}>
-        <Typography width={headerSize}> https proxy</Typography>
+        <Typography sx={{ width: headerSize }}> https proxy</Typography>
         <ProxyValue value={https} setValue={setHttps} />
       </Stack>
 
       <Stack direction="row" sx={{ alignItems: "flex-start" }}>
-        <Typography width={headerSize}> all proxy</Typography>
+        <Typography sx={{ width: headerSize }}> all proxy</Typography>
         <ProxyValue value={all} setValue={setAll} />
       </Stack>
 
       <Stack direction="row" sx={{ alignItems: "flex-start" }}>
-        <Typography width={headerSize}> no proxy </Typography>
+        <Typography sx={{ width: headerSize }}> no proxy </Typography>
         <ProxyValue value={no} setValue={setNo} />
       </Stack>
       <Divider />
@@ -1422,7 +1422,7 @@ function ModifyLLMConfigModal() {
             e.preventDefault();
             setShowEdit(false);
           })}>
-          <Box sx={modalStyle} width="65vw">
+          <Box sx={{ ...modalStyle, width: "65vw" }}>
             <ModalHeader
               title="edit llm config"
               handleClose={() => {

@@ -60,7 +60,7 @@ function ShowPanic() {
             e.preventDefault();
             setPanicInfo("");
           })}>
-          <Box sx={modalStyle} width="75%" height="65vh">
+          <Box sx={{ ...modalStyle, width: "75%", height: "65vh" }}>
             <ModalHeader
               title="panic info"
               handleClose={() => {
@@ -142,7 +142,7 @@ function ShowShortCut() {
             e.preventDefault();
             setShow(false);
           })}>
-          <Box sx={modalStyle} width="75%" height="65vh">
+          <Box sx={{ ...modalStyle, width: "75%", height: "65vh" }}>
             <ModalHeader
               title="keyboard short cuts"
               handleClose={() => {

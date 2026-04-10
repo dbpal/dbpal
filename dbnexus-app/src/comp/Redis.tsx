@@ -301,7 +301,7 @@ function RedisAddHash(props: { uuid: string; hashKey: string }) {
   };
 
   return (
-    <Stack height={"100%"}>
+    <Stack sx={{ height: "100%" }}>
       <div style={{ flex: 1, display: "flex", flexDirection: "column" }}>
         <RedisValueEditor value="" header="key" valueRef={key} />
       </div>
@@ -409,7 +409,7 @@ function RedisEditHash(props: {
   };
 
   return (
-    <Stack flex={1}>
+    <Stack style={{ flex: 1 }}>
       <div style={{ flex: 1, display: "flex", flexDirection: "column" }}>
         <RedisValueEditor value={oldKey} valueRef={newkey} header="key" />
       </div>
@@ -460,7 +460,7 @@ function RedisEditZset(props: {
   };
 
   return (
-    <Stack flex={1}>
+    <Stack style={{ flex: 1 }}>
       <RedisValueEditor value={oldKey} valueRef={newKey} />
       <Stack direction="row" style={{ alignItems: "flex-start" }}>
         <Button loading={loading} color="primary" onClick={handleModify}>
@@ -565,7 +565,7 @@ function RedisValueEditor(props: {
     valueRef.current.mode = editModel;
   }, [editModel, valueRef]);
   return (
-    <Stack flex={1}>
+    <Stack style={{ flex: 1 }}>
       <StackRowCenter>
         <Typography
           variant="h6"
@@ -671,7 +671,7 @@ function RedisEditList(props: {
       });
   };
   return (
-    <Stack flex={1}>
+    <Stack style={{ flex: 1 }}>
       <RedisValueEditor value={oldValue} valueRef={newValue} />
       <Stack direction="row">
         <Button loading={loading} color="primary" onClick={handleModify}>
@@ -712,7 +712,7 @@ function RedisEditSet(props: {
   };
 
   return (
-    <Stack flex={1}>
+    <Stack style={{ flex: 1 }}>
       <RedisValueEditor value={oldValue} valueRef={newValue} />
       <Stack direction="row">
         <Button loading={loading} color="primary" onClick={handleModify}>
@@ -976,10 +976,8 @@ function RedisSetTable(props: { setKey: string; uuid: string }) {
           disableAutoFocus
           disableEnforceFocus>
           <Box
-            sx={{ resize: "both", ...modalStyle }}
-            width="80%"
-            ref={setModifyModalBox}
-            height="70vh">
+            sx={{ resize: "both", ...modalStyle, width: "80%", height: "70vh" }}
+            ref={setModifyModalBox}>
             <ModalHeader
               handleClose={() => {
                 setSelectRow(null);
@@ -1044,7 +1042,7 @@ function RedisListTableContextMenu(props: {
             e.preventDefault();
             setShowDel(null);
           })}>
-          <Box sx={modalStyle} width="40%">
+          <Box sx={{ ...modalStyle, width: "40%" }}>
             <ModalHeader
               title="Delete Redis List"
               handleClose={() => {
@@ -1110,9 +1108,7 @@ function AddTable(props: {
           disableAutoFocus
           disableEnforceFocus>
           <Box
-            sx={{ resize: "both", ...modalStyle }}
-            width="80%"
-            height="70vh"
+            sx={{ resize: "both", ...modalStyle, width: "80%", height: "70vh" }}
             ref={setAddModalBox}>
             <ModalHeader
               noTextTransform
@@ -1412,9 +1408,7 @@ function RedisListTable(props: { listKey: string; uuid: string }) {
           disableAutoFocus
           disableEnforceFocus>
           <Box
-            sx={{ resize: "both", ...modalStyle }}
-            width="80%"
-            height="70vh"
+            sx={{ resize: "both", ...modalStyle, width: "80%", height: "70vh" }}
             ref={setModifyModalBox}>
             <ModalHeader
               title="Edit List value"
@@ -1778,9 +1772,7 @@ function RedisZsetTable(props: { uuid: string; zsetKey: string }) {
           disableAutoFocus
           disableEnforceFocus>
           <Box
-            sx={{ resize: "both", ...modalStyle }}
-            width="80%"
-            height="70vh"
+            sx={{ resize: "both", ...modalStyle, width: "80%", height: "70vh" }}
             ref={setModifyModalBox}>
             <ModalHeader
               title="Edit Zset Value"
@@ -2024,7 +2016,7 @@ function RedisHashTable(props: { hashKey: string; uuid: string }) {
 
               <ResetColumnWidth />
             </StackRowCenter>
-            <Stack direction="row" alignItems="center">
+            <Stack direction="row" sx={{ alignItems: "center" }}>
               <AppDataGridPagination showPageSelect />
             </Stack>
           </Stack>
@@ -2092,9 +2084,7 @@ function RedisHashTable(props: { hashKey: string; uuid: string }) {
           disableAutoFocus
           disableEnforceFocus>
           <Box
-            sx={{ resize: "both", ...modalStyle }}
-            width="80%"
-            height="70vh"
+            sx={{ resize: "both", ...modalStyle, width: "80%", height: "70vh" }}
             ref={setModifyModalBox}>
             <ModalHeader
               title="Edit Hash Value"

@@ -278,10 +278,8 @@ function QueryLog(props: {
           disableEnforceFocus
           disableAutoFocus>
           <Box
-            sx={{ resize: "both", ...modalStyle }}
-            ref={setModalBox}
-            width="60%"
-            height="40vh">
+            sx={{ resize: "both", ...modalStyle, width: "60%", height: "40vh" }}
+            ref={setModalBox}>
             <ModalHeader
               title="View SQL"
               handleClose={() => {

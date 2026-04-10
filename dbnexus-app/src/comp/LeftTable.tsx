@@ -184,7 +184,7 @@ function TableTree(props: {
       label={
         <Stack
           direction="row"
-          justifyContent="space-between"
+          sx={{ justifyContent: "space-between" }}
           onContextMenu={(e) => {
             setUpMenu({
               content: (
@@ -588,7 +588,7 @@ function TableMenu(props: {
             e.preventDefault();
             setShowDup(false);
           })}>
-          <Box sx={modalStyle} width="45%">
+          <Box sx={{ ...modalStyle, width: "45%" }}>
             <ModalHeader
               title="Duplicate"
               handleClose={() => {
@@ -613,7 +613,7 @@ function TableMenu(props: {
             e.preventDefault();
             setShowRename(false);
           })}>
-          <Box sx={modalStyle} width="45%">
+          <Box sx={{ ...modalStyle, width: "45%" }}>
             <ModalHeader
               handleClose={() => {
                 setShowRename(false);
@@ -638,7 +638,7 @@ function TableMenu(props: {
             e.preventDefault();
             setShowExport(false);
           })}>
-          <Box sx={modalStyle} width="45%">
+          <Box sx={{ ...modalStyle, width: "45%" }}>
             <ExportTableOrView
               handleClose={() => {
                 setShowExport(false);
@@ -658,7 +658,7 @@ function TableMenu(props: {
             e.preventDefault();
             setShowDrop(false);
           })}>
-          <Box sx={modalStyle} width="45%">
+          <Box sx={{ ...modalStyle, width: "45%" }}>
             <ModalHeader
               handleClose={() => {
                 setShowDrop(false);
@@ -1014,7 +1014,7 @@ function RedisTables() {
             e.preventDefault();
             setShowEditFilter(false);
           })}>
-          <Box sx={modalStyle} width="45%">
+          <Box sx={{ ...modalStyle, width: "45%" }}>
             <ModalHeader
               handleClose={() => {
                 setShowEditFilter(false);

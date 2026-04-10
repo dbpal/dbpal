@@ -300,7 +300,7 @@ function MongoBsonEditor(props: {
     }
   }, [doc, showNotification]);
   return (
-    <Stack flex={1}>
+    <Stack style={{ flex: 1 }}>
       <div
         style={{
           flex: 1,
@@ -412,7 +412,7 @@ function MongoValueEditor(props: {
       }
     : undefined;
   return (
-    <Stack flex={1}>
+    <Stack style={{ flex: 1 }}>
       {!viewmoDelSet && (
         <Stack direction="row">
           <ButtonGroup>
@@ -603,10 +603,8 @@ function MongoTableToolBar(props: {
             setShowModifyFilter(false);
           })}>
           <Box
-            sx={{ resize: "both", ...modalStyle }}
-            width="65%"
-            ref={setModalBox}
-            height="45vh">
+            sx={{ resize: "both", width: "65%", height: "45vh", ...modalStyle }}
+            ref={setModalBox}>
             <ModalHeader
               title="Modify Filter"
               handleClose={() => {
@@ -635,10 +633,8 @@ function MongoTableToolBar(props: {
             setShowModifySort(false);
           })}>
           <Box
-            sx={{ resize: "both", ...modalStyle }}
-            width="65%"
-            ref={setModalBox}
-            height="45vh">
+            sx={{ resize: "both", width: "65%", height: "45vh", ...modalStyle }}
+            ref={setModalBox}>
             <ModalHeader
               handleClose={() => {
                 setShowModifySort(false);
@@ -667,10 +663,8 @@ function MongoTableToolBar(props: {
             setShowAdd(false);
           })}>
           <Box
-            sx={{ resize: "both", ...modalStyle }}
-            ref={setAddModalBox}
-            width="80%"
-            height="30vh">
+            sx={{ resize: "both", ...modalStyle, width: "80%", height: "30vh" }}
+            ref={setAddModalBox}>
             <ModalHeader
               title="insert data"
               handleClose={() => {
@@ -786,10 +780,8 @@ function MongoTableListContextMenu(props: {
             setShowViewJson(false);
           })}>
           <Box
-            sx={{ resize: "both", ...modalStyle }}
-            ref={setModalBox}
-            width="75%"
-            height="65vh">
+            sx={{ resize: "both", ...modalStyle, width: "75%", height: "65vh" }}
+            ref={setModalBox}>
             <ModalHeader
               title="View Json"
               handleClose={() => {
@@ -808,7 +800,7 @@ function MongoTableListContextMenu(props: {
             e.preventDefault();
             setShowFilter(false);
           })}>
-          <Box sx={modalStyle} width="45%">
+          <Box sx={{ ...modalStyle, width: "45%" }}>
             <ModalHeader
               title="Quick Filter"
               handleClose={() => {
@@ -993,7 +985,7 @@ function JsonEditor(props: {
       handleValue={(v) => {
         setNewValue(v);
       }}
-      barLeft=<Stack direction="row" alignItems="center">
+      barLeft=<Stack direction="row" style={{ alignItems: "center" }}>
         {modifyOP && (
           <Button
             disabled={!!jsonErr}
@@ -1095,7 +1087,7 @@ function BsonJsonPagination({
             e.preventDefault();
             setShowObjectDoc(false);
           })}>
-          <Box sx={modalStyle} width="80vw" height="80vh">
+          <Box sx={{ ...modalStyle, width: "80vw", height: "80vh" }}>
             <ModalHeader
               title="mongo object"
               handleClose={() => {
@@ -1112,7 +1104,7 @@ function BsonJsonPagination({
 
 function ModalObjectNotice() {
   return (
-    <Stack height="100%">
+    <Stack style={{ height: "100%" }}>
       <SimpleFlexEditor
         language={languageXXX}
         value={`{
@@ -1207,7 +1199,7 @@ function MongoTableList(props: {
                     cursor: "default",
                   }}
                   direction="row">
-                  <Typography fontSize={dataGridheaderFontSize}>
+                  <Typography sx={{ fontSize: dataGridheaderFontSize }}>
                     {field.field}
                   </Typography>
                 </Stack>
@@ -1382,11 +1374,11 @@ function MongoTableList(props: {
         return (
           <Stack
             direction="row"
-            flex={1}
             style={{
               alignItems: "center",
               justifyContent: "space-between",
               overflow: "auto",
+              flex: 1,
             }}>
             <Stack style={{ flex: 1, alignItems: "center" }} direction="row">
               <LastFetchTime date={lastFetchTime} />
@@ -1459,9 +1451,7 @@ function MongoTableList(props: {
             setSelectModifyDoc(null);
           })}>
           <Box
-            sx={{ resize: "both", ...modalStyle }}
-            width="75%"
-            height="60vh"
+            sx={{ resize: "both", ...modalStyle, width: "75%", height: "60vh" }}
             ref={setModalBox}>
             <ModalHeader
               title="Modify data"
@@ -1503,7 +1493,7 @@ function MongoTableList(props: {
             e.preventDefault();
             setShowExport(false);
           })}>
-          <Box sx={modalStyle} width="60%">
+          <Box sx={{ ...modalStyle, width: "60%" }}>
             <ModalHeader
               title="export markdown table"
               handleClose={() => {

@@ -753,7 +753,7 @@ function SqlQuery(props: {
             e.preventDefault();
             setShowExport(false);
           })}>
-          <Box sx={modalStyle} width="45%">
+          <Box sx={{ ...modalStyle, width: "45%" }}>
             <ExportView
               supportKind={["csv", "json", "jsonline", "xlsx", "html", "markdown"]}
               exportOP={async (kind, file, taskId, sizeEmitter) => {

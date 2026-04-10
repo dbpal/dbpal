@@ -363,10 +363,8 @@ function CouchBaseTable(props: { uuid: string; table: string }) {
             setShowAdd(false);
           })}>
           <Box
-            sx={{ resize: "both", ...modalStyle }}
-            ref={setAddModalBox}
-            width="80%"
-            height="30vh">
+            sx={{ resize: "both", ...modalStyle, width: "80%", height: "30vh" }}
+            ref={setAddModalBox}>
             <ModalHeader
               title="insert data"
               handleClose={() => {
@@ -916,7 +914,7 @@ function CouchBaseQuery(props: { uuid: string; value?: string }) {
             e.preventDefault();
             setShowExport(false);
           })}>
-          <Box sx={modalStyle} width="45%">
+          <Box sx={{ ...modalStyle, width: "45%" }}>
             <ExportView
               supportKind={["json", "jsonline"]}
               exportOP={(kind, file, taskId, sizeEmitter) => {

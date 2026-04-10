@@ -387,7 +387,7 @@ function ShowChatImages(props: { images: string[]; setImages }) {
             e.preventDefault();
             setMsgShowIndex(null);
           })}>
-          <Box sx={{ ...modalStyle }} width="80vw" height="60vh">
+          <Box sx={{ ...modalStyle, width: "80vw", height: "60vh" }}>
             <Stack direction="row" style={{ alignItems: "center" }}>
               #{showMsgIndex + 1}
               <IconButton

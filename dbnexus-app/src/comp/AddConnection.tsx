@@ -981,7 +981,7 @@ function MongoDb(props: { config?; context: AddConnectionContext }) {
         label="database"
         makeConfig={makeConfig}
       />
-      <Stack direction="row" alignItems="center">
+      <Stack direction="row" style={{ alignItems: "center" }}>
         <FormControlLabel
           style={{ width: "180px" }}
           control={
@@ -1413,8 +1413,6 @@ function LibSql(props: { config; context: AddConnectionContext }) {
           {/* <Stack
             direction="row"
             style={{ alignItems: 'center' }}
-            
-            flex={1}
           >
             <Checkbox
               value={replica}

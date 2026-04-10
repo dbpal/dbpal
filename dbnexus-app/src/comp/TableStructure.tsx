@@ -370,8 +370,7 @@ function ColumnsStructure(props: {
             setShowAdd(false);
           })}>
           <Box
-            sx={{ resize: "horizontal", ...modalStyle }}
-            width="60%"
+            sx={{ resize: "horizontal", ...modalStyle, width: "60%" }}
             ref={setModalBox}>
             <ModalHeader
               handleClose={() => {
@@ -402,8 +401,7 @@ function ColumnsStructure(props: {
               setRow(null);
             })}>
             <Box
-              sx={{ resize: "horizontal", ...modalStyle }}
-              width="60%"
+              sx={{ resize: "horizontal", ...modalStyle, width: "60%" }}
               ref={setModalBox}>
               <ModalHeader
                 title="Modify Column"
@@ -709,10 +707,10 @@ function IndexesStructure(props: {
             sx={{
               resize: "both",
               ...modalStyle,
+              width: "60%",
+              height: kind == DataSourceKind.Mongo ? "40vh" : "auto",
             }}
-            width="60%"
-            ref={setModalBox}
-            height={kind == DataSourceKind.Mongo ? "40vh" : "auto"}>
+            ref={setModalBox}>
             <ModalHeader
               title="create index"
               handleClose={() => {
@@ -742,8 +740,8 @@ function IndexesStructure(props: {
             sx={{
               resize: "horizontal",
               ...modalStyle,
+              width: "60%",
             }}
-            width="60%"
             ref={setModalBox}>
             <ModalHeader
               title="create index"
@@ -771,7 +769,7 @@ function IndexesStructure(props: {
             e.preventDefault();
             setRenameIndexName("");
           })}>
-          <Box sx={modalStyle} width="40%">
+          <Box sx={{ ...modalStyle, width: "40%" }}>
             <ModalHeader
               title={`Rename Index`}
               handleClose={() => {
@@ -826,7 +824,7 @@ function MongoAddIndex(props: { uuid; table; handleClose; reload }) {
   };
 
   return (
-    <Stack flex={1}>
+    <Stack style={{ flex: 1 }}>
       <TextField
         value={indexName}
         onChange={(e) => {
@@ -1496,9 +1494,7 @@ function TriggersStructure(props: {
           disableAutoFocus
           disableEnforceFocus>
           <Box
-            sx={{ resize: "both", ...modalStyle }}
-            width="80vw"
-            height="80vh"
+            sx={{ resize: "both", ...modalStyle, width: "80vw", height: "80vh" }}
             ref={setModalBox}>
             <ModalHeader
               title={`Trigger Detail`}
@@ -1573,7 +1569,7 @@ function TableStructure(props: { table: string; uuid: string; kind: DataSourceKi
 
   return (
     <Stack style={{ height: "100%" }}>
-      <Stack direction="row" justifyContent="center">
+      <Stack direction="row" sx={{ justifyContent: "center" }}>
         <ButtonGroup>
           {structures.map((e) => {
             return (

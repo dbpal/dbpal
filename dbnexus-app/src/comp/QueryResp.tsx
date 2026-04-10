@@ -222,7 +222,7 @@ function QueryResp(props: { data: MuiDataGridData }) {
         flexDirection: "column",
       }}>
       {data && (
-        <Stack flex={1}>
+        <Stack style={{ flex: 1 }}>
           {data.sql && (
             <Typography
               color="info"
@@ -269,10 +269,8 @@ function QueryResp(props: { data: MuiDataGridData }) {
             setViewInModal(null);
           })}>
           <Box
-            sx={{ resize: "both", ...modalStyle }}
-            ref={setViewInModalBox}
-            width="80%"
-            height="30vh">
+            sx={{ resize: "both", ...modalStyle, width: "80%", height: "30vh" }}
+            ref={setViewInModalBox}>
             <ModalHeader
               title="View Row"
               handleClose={() => {

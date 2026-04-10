@@ -169,7 +169,7 @@ function EditInModal(props: { content: string; handleModify }) {
   }, [editor, language]);
 
   return (
-    <Stack flex={1}>
+    <Stack style={{ flex: 1 }}>
       <Stack direction="row">
         {editInModalLanguages.map((e) => (
           <Chip
@@ -417,7 +417,9 @@ function SqlTableView(props: {
               style={{ alignItems: "center" }}
               direction="row">
               <Tooltip title={makeTitle()}>
-                <Typography fontSize={dataGridheaderFontSize}>{field.field}</Typography>
+                <Typography style={{ fontSize: dataGridheaderFontSize }}>
+                  {field.field}
+                </Typography>
               </Tooltip>
               {field.is_primary && <KeyIcon style={{ fontSize: "16px" }} />}
             </Stack>
@@ -818,7 +820,7 @@ function SqlTableView(props: {
               flex: 1,
               overflow: "auto",
             }}>
-            <Stack direction="row" flex={1} style={{ alignItems: "center" }}>
+            <Stack direction="row" style={{ alignItems: "center", flex: 1 }}>
               <LastFetchTime date={lastFetchTime} />
               <TimeDuration dur={fetchDur} />
               <ResetColumnWidth />
@@ -835,7 +837,7 @@ function SqlTableView(props: {
                 </Tooltip>
               )}
             </Stack>
-            <Stack direction="row" alignItems="center">
+            <Stack direction="row" sx={{ alignItems: "center" }}>
               {!clientModel && (
                 <Typography color="info" style={textEllipsisStyle}>
                   result {resp.data.length} of {resp.total}
@@ -986,10 +988,8 @@ function SqlTableView(props: {
             setViewInModal(null);
           })}>
           <Box
-            sx={{ resize: "both", ...modalStyle }}
-            ref={setViewInModalBox}
-            width="80%"
-            height="30vh">
+            sx={{ resize: "both", ...modalStyle, width: "80%", height: "30vh" }}
+            ref={setViewInModalBox}>
             <ModalHeader
               title="View Row"
               handleClose={() => {
@@ -1008,10 +1008,8 @@ function SqlTableView(props: {
             setShowAdd(false);
           })}>
           <Box
-            sx={{ resize: "both", ...modalStyle }}
-            ref={setAddModalBox}
-            width="80%"
-            height="30vh">
+            sx={{ resize: "both", ...modalStyle, width: "80%", height: "30vh" }}
+            ref={setAddModalBox}>
             <ModalHeader
               title="insert data"
               handleClose={() => {
@@ -1030,10 +1028,8 @@ function SqlTableView(props: {
             setEditCellInModal(null);
           })}>
           <Box
-            sx={{ resize: "both", ...modalStyle }}
-            ref={setEditInModalBox}
-            width="80%"
-            height="30vh">
+            sx={{ resize: "both", ...modalStyle, width: "80%", height: "30vh" }}
+            ref={setEditInModalBox}>
             <ModalHeader
               title="edit cell"
               handleClose={() => {
@@ -1060,9 +1056,8 @@ function SqlTableView(props: {
             setRowEditInModal(null);
           })}>
           <Box
-            sx={{ resize: "horizontal", ...modalStyle }}
-            ref={setEditRowInModalBox}
-            width="80%">
+            sx={{ resize: "horizontal", ...modalStyle, width: "80%" }}
+            ref={setEditRowInModalBox}>
             <ModalHeader
               title="edit row"
               handleClose={() => {
@@ -1089,7 +1084,7 @@ function SqlTableView(props: {
             e.preventDefault();
             setShowExport(false);
           })}>
-          <Box sx={modalStyle} width="60%">
+          <Box sx={{ ...modalStyle, width: "60%" }}>
             <ExportTableOrView
               uuid={uuid}
               name={tableName}
@@ -1446,8 +1441,7 @@ function Menu(props: {
             setShowClone(false);
           })}>
           <Box
-            sx={{ resize: "horizontal", ...modalStyle }}
-            width="50%"
+            sx={{ resize: "horizontal", ...modalStyle, width: "50%" }}
             ref={setCloneModalBox}>
             <ModalHeader
               title="Clone Data"
@@ -1474,7 +1468,7 @@ function Menu(props: {
             e.preventDefault();
             setShowFilter(false);
           })}>
-          <Box sx={modalStyle} width="45vw">
+          <Box sx={{ ...modalStyle, width: "45vw" }}>
             <ModalHeader
               title="Quick Filter"
               handleClose={() => {

@@ -225,7 +225,7 @@ function ViewStructure(props: {
   return (
     <Stack style={{ height: "100%" }}>
       <Stack direction="row" style={{ justifyContent: "center" }}>
-        <Stack direction="row" justifyContent="center">
+        <Stack direction="row" sx={{ justifyContent: "center" }}>
           <ButtonGroup>
             {structures.map((e) => {
               return (
@@ -578,7 +578,7 @@ function ViewMenu(props: {
             e.preventDefault();
             setShowExport(false);
           })}>
-          <Box sx={modalStyle} width="45%">
+          <Box sx={{ ...modalStyle, width: "45%" }}>
             <ExportTableOrView
               uuid={uuid}
               name={view}

@@ -16,7 +16,7 @@ import SaveIcon from "@mui/icons-material/Save";
 import { FaBookmark } from "react-icons/fa";
 import { IoMdInformationCircleOutline } from "react-icons/io";
 import CancelIcon from "@mui/icons-material/Cancel";
-import ChatBubbleOutlineIcon from "@mui/icons-material/ChatBubbleOutline";
+import ChatBubbleOutlineOutlinedIcon from "@mui/icons-material/ChatBubbleOutlineOutlined";
 import ContentCopyIcon from "@mui/icons-material/ContentCopy";
 import CircleIcon from "@mui/icons-material/Circle";
 import DeleteForeverIcon from "@mui/icons-material/DeleteForever";
@@ -597,7 +597,9 @@ function SimpleFlexEditor(props: {
 function EditorBar(props: { left?: any; pos: Position }) {
   const { left, pos } = props;
   return (
-    <Stack justifyContent="space-between" direction="row" alignItems="center">
+    <Stack
+      style={{ justifyContent: "space-between", alignItems: "center" }}
+      direction="row">
       {left ? left : <span />}
 
       <Stack direction="row" style={{ paddingLeft: "2rem", paddingRight: "3rem" }}>
@@ -1111,7 +1113,7 @@ function SaveFavoriteSqlView(props: {
             e.preventDefault();
             setShowFavoriteName(false);
           })}>
-          <Box sx={modalStyle} width="40%">
+          <Box sx={{ ...modalStyle, width: "40%" }}>
             <ModalHeader
               title="edit favorite sql name"
               handleClose={() => {
@@ -1614,9 +1616,7 @@ function SetFilterSort(props: {
         handleClose();
       })}>
       <Box
-        sx={{ resize: "both", ...modalStyle }}
-        width="75%"
-        height="30vh"
+        sx={{ resize: "both", ...modalStyle, width: "75%", height: "30vh" }}
         ref={setModalBox}>
         <ModalHeader title={`set ${label}`} handleClose={handleClose} />
         <SimpleFlexEditor
@@ -1713,7 +1713,11 @@ function ToggleChatShow() {
           onClick={() => {
             setShow(!show);
           }}>
-          {show ? <ChatBubbleIcon color="success" /> : <ChatBubbleOutlineIcon />}
+          {show ? (
+            <ChatBubbleIcon color="success" />
+          ) : (
+            <ChatBubbleOutlineOutlinedIcon />
+          )}
         </IconButton>
       </>
     )
