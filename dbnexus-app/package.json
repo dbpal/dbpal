@@ -29,8 +29,6 @@
     "@tauri-apps/plugin-shell": "^2.3.5",
     "@tauri-apps/plugin-store": "^2.4.2",
     "@tauri-apps/plugin-window-state": "~2.4.1",
-    "@types/esprima": "^4.0.6",
-    "@types/lodash-es": "^4.17.12",
     "bson": "^7.2.0",
     "dexie": "^4.4.1",
     "esprima": "^4.0.1",
@@ -50,6 +48,7 @@
     "sql-formatter": "^15.7.2",
     "styled-components": "^6.3.11",
     "tauri-plugin-keyring-api": "^0.1.1",
+    "unist-util-visit": "^5.1.0",
     "use-debounce": "^10.1.1",
     "uuid": "^13.0.0",
     "vite-plugin-ejs": "^1.7.0",
@@ -75,6 +74,10 @@
     "typescript": "^5.9.3",
     "typescript-eslint": "^8.56.1",
     "vite": "^8",
-    "vite-plugin-monaco-editor": "^1.1.0"
+    "vite-plugin-monaco-editor": "^1.1.0",
+    "@types/hast": "^3.0.4",
+    "@types/esprima": "^4.0.6",
+    "@types/lodash-es": "^4.17.12",
+    "@types/unist": "^3.0.3"
   }
 }

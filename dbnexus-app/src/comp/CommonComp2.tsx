@@ -147,9 +147,10 @@ function AppCode(props: {
   language: string;
   extra?: AppCodeExtra;
   handleEdit?: AppCodeHanleEdit;
+  highlightStr?: string;
 }) {
   const theme = useTheme();
-  const { codeBlock, language, extra, handleEdit } = props;
+  const { codeBlock, language, extra, handleEdit, highlightStr } = props;
   const { showNotification } = useNotification();
   return (
     <Paper
@@ -196,9 +197,17 @@ function AppCode(props: {
                   }}>
                   {i + 1}
                 </span>
-                {line.map((token, key) => (
-                  <span key={key} {...getTokenProps({ token })} />
-                ))}
+                {line.map((token, key) =>
+                  (function () {
+                    if (
+                      highlightStr &&
+                      token.content.toLowerCase().includes(highlightStr)
+                    ) {
+                      return <mark>{token.content}</mark>;
+                    }
+                    return <span key={key} {...getTokenProps({ token })} />;
+                  })(),
+                )}
               </div>
             ))}
           </pre>
@@ -912,17 +921,56 @@ type AppMarkDownProps = {
   placeHolder?: string;
   appcodeExtra?: AppCodeExtra;
   appCodeHandleEdit?: AppCodeHanleEdit;
-  highlightWords?: string[];
+  highlightStr?: string;
 };
+import { visit, SKIP } from "unist-util-visit";
+
+const rehypeHighlightWords = ({ highligth }) => {
+  return (tree) => {
+    visit(tree, "text", (node, index, parent) => {
+      // 1. Basic guard clauses: if these match, we do nothing and move on
+      if (!node.value || !parent || parent.tagName === "code") return;
+
+      if (!highligth) return;
+
+      // 2. Logic to decide if we SHOULD skip (e.g., if it doesn't contain a specific string)
+      if (!node.value.toLowerCase().includes(highligth)) {
+        return; // <--- This returns the ORIGINAL node by doing nothing
+      }
+
+      // console.log("Matching node found: ", node.value);
+
+      // 3. Construct the HAST node (Only runs if the check above passes)
+      const newNode = {
+        type: "element",
+        tagName: "mark",
+        properties: {
+          style: "background-color: yellow; color: black;",
+        },
+        children: [{ type: "text", value: node.value }],
+      };
+
+      // 4. Perform the replacement
+      parent.children.splice(index, 1, newNode);
+
+      // 5. Skip the newly created node to prevent recursion
+      return [SKIP, index + 1];
+    });
+  };
+};
+
 function AppMarkDown(props: AppMarkDownProps) {
-  const {
+  let {
     children,
     handlePathUrl,
     placeHolder,
     appcodeExtra,
     appCodeHandleEdit,
-    // highlightWords,
+    highlightStr,
   } = props;
+  if (highlightStr) {
+    highlightStr = highlightStr.toLowerCase();
+  }
   function CustomLink(props: { href: string; children: ReactNode }) {
     const { href, children } = props;
     const { showNotification } = useNotification();
@@ -962,32 +1010,18 @@ function AppMarkDown(props: AppMarkDownProps) {
     );
   }
 
-  // const processedContent: RegExp | undefined = useMemo(() => {
-  //   if (!highlightWords) return undefined;
-
-  //   // 1. 将所有词用 | 拼接，并处理特殊字符转义
-  //   const pattern = highlightWords
-  //     .filter(Boolean)
-  //     .sort((a, b) => b.length - a.length)
-  //     .map((word) => word.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"))
-  //     .join("|");
-
-  //   // 2. 一次性全局替换
-  //   const regex = new RegExp(`(${pattern})`, "gi");
-  //   // return children.replace(regex, "==$1==");
-  //   return regex;
-  // }, [highlightWords]);
-
   return (
     <MarkdownBody>
       <div style={{ padding: "2px 1rem" }}>
         <ReactMarkdown
           remarkPlugins={[remarkGfm]}
+          rehypePlugins={[[rehypeHighlightWords, { highligth: highlightStr }]]}
           components={{
             code({ className, children, ...props }) {
               const match = /language-(\w+)/.exec(className || "");
               return match ? (
                 <AppCode
+                  highlightStr={highlightStr}
                   extra={appcodeExtra}
                   language={match[1]}
                   handleEdit={appCodeHandleEdit}

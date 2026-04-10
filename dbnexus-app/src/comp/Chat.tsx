@@ -560,9 +560,7 @@ function ChatHistory(props: {
                       <Typography color="info">
                         {his.role}:{new Date(his.timestamp).toLocaleString()}
                       </Typography>
-                      <AppMarkDown highlightWords={matchStr ? [matchStr] : []}>
-                        {his.content}
-                      </AppMarkDown>
+                      <AppMarkDown highlightStr={matchStr}>{his.content}</AppMarkDown>
                     </div>
                   </Stack>
                   {/* If have match string , I don't know the message is paired up */}
