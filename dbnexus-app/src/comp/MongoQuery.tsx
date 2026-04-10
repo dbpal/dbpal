@@ -556,7 +556,6 @@ function MongoQuery(props: {
     valueLanguage ? (valueLanguage as MongoLanguage) : lastLanguage,
   );
   const [markdownModel, setMarkdownModel] = useState(false);
-  const [markdownModelValue, setMarkdownModelValue] = useState("");
   const [compileTime, setCompileTime] = useState<number | null>(null);
   const compileDir = useRef(uuidv4());
   useEffect(() => {
@@ -741,9 +740,7 @@ function MongoQuery(props: {
 
       <AiMarkdownModel
         markdownModel={markdownModel}
-        setMarkdownModelValue={setMarkdownModelValue}
         editor={editor}
-        markdownModelValue={markdownModelValue}
         appCodeHandleEdit={({ code }) => {
           setMarkdownModel(false);
           jumpToEditorText(editor, code);

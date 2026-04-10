@@ -1763,21 +1763,12 @@ function ListenElementSize(props: {
 function AiMarkdownModel(props: {
   editor: editor.IStandaloneCodeEditor;
   markdownModel: boolean;
-  markdownModelValue;
-  setMarkdownModelValue;
   appcodeExtra?: AppCodeExtra;
   appCodeHandleEdit?: AppCodeHanleEdit;
 }) {
-  const {
-    editor,
-    markdownModel,
-    setMarkdownModelValue,
-    markdownModelValue,
-    appcodeExtra,
-    appCodeHandleEdit,
-  } = props;
+  const { editor, markdownModel, appcodeExtra, appCodeHandleEdit } = props;
   const markdownDivDom = useRef<HTMLDivElement>(null);
-
+  const [markdownModelValue, setMarkdownModelValue] = useState("");
   useEffect(() => {
     if (!editor) {
       return;
@@ -1788,14 +1779,24 @@ function AiMarkdownModel(props: {
     setMarkdownModelValue(editor.getValue());
     let d1 = editor.onDidChangeModelContent(() => {
       setMarkdownModelValue(editor.getValue());
-      //div.scrollTop = div.scrollHeight;
-      markdownDivDom.current.scrollTop = markdownDivDom.current.scrollHeight;
+      // 1. 计算距离底部的剩余距离
+      // scrollHeight (内容总高) - scrollTop (已滚距离) - clientHeight (可视区高度)
+      let dom = markdownDivDom.current;
+      const distanceFromBottom = dom.scrollHeight - dom.scrollTop - dom.clientHeight;
+      // 2. 设置一个缓冲区阈值（如 100 像素）
+      // 如果距离底部小于 100px，说明用户还在底部附近，允许自动滚动
+      if (distanceFromBottom < 100) {
+        dom.scrollTop = dom.scrollHeight;
+      }
     });
     return () => {
       return d1.dispose();
     };
   }, [editor, markdownModel, setMarkdownModelValue]);
 
+  if (!markdownModel) {
+    return <> </>;
+  }
   return (
     <div
       style={{
@@ -1804,7 +1805,6 @@ function AiMarkdownModel(props: {
         flexBasis: 0,
         minHeight: 0,
         height: "100px",
-        display: markdownModel ? "block" : "none",
         overflow: "auto",
       }}
       ref={markdownDivDom}>

@@ -334,7 +334,6 @@ function SqlQuery(props: {
   const { save: saveQueryLog } = useQueryLogStore();
   const editorDivDom = useRef<HTMLDivElement>(null);
   const [markdownModel, setMarkdownModel] = useState(false);
-  const [markdownModelValue, setMarkdownModelValue] = useState("");
 
   const setEditorContext = useContext(QueryIDEditorChatCtx);
   useEffect(() => {
@@ -674,9 +673,7 @@ function SqlQuery(props: {
 
           <AiMarkdownModel
             markdownModel={markdownModel}
-            setMarkdownModelValue={setMarkdownModelValue}
             editor={editor}
-            markdownModelValue={markdownModelValue}
             appCodeHandleEdit={({ code }) => {
               setMarkdownModel(false);
               jumpToEditorText(editor, code);

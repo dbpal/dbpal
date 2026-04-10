@@ -625,7 +625,6 @@ function CouchBaseQuery(props: { uuid: string; value?: string }) {
   const [tableResp, setTableResp] = useState<MuiDataGridData>(null);
   const setEditorContext = useContext(QueryIDEditorChatCtx);
   const [markdownModel, setMarkdownModel] = useState(false);
-  const [markdownModelValue, setMarkdownModelValue] = useState("");
 
   useEffect(() => {
     setEditorContext.setEditor(editor);
@@ -836,7 +835,6 @@ function CouchBaseQuery(props: { uuid: string; value?: string }) {
 
         <AiMarkdownModel
           markdownModel={markdownModel}
-          setMarkdownModelValue={setMarkdownModelValue}
           editor={editor}
           appCodeHandleEdit={({ code }) => {
             setMarkdownModel(false);
@@ -854,7 +852,6 @@ function CouchBaseQuery(props: { uuid: string; value?: string }) {
               />
             );
           }}
-          markdownModelValue={markdownModelValue}
         />
 
         <div
