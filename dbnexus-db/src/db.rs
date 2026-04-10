@@ -1622,7 +1622,7 @@ pub(crate) async fn write_export_file(
     title: &str,
     emit: ExportedSizeEmitter,
 ) -> anyhow::Result<()> {
-    let mut time_elapsed = TimeElapsed::new();
+    let mut time_elapsed = TimeElapsed::default();
     let mut total = 0;
     let r = match kind {
         ExportKind::Json { pretty } => {
@@ -2240,8 +2240,11 @@ impl Default for TimeElapsed {
 }
 
 impl TimeElapsed {
-    pub fn new() -> Self {
-        Self::default()
+    pub fn new(dur: Duration) -> Self {
+        Self {
+            d: dur,
+            ins: std::time::Instant::now(),
+        }
     }
     pub fn elapsed(&mut self) -> bool {
         let e = self.ins.elapsed() > self.d;

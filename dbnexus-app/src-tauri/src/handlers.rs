@@ -951,7 +951,7 @@ impl QueryEventChannelEmit {
             limit,
             emitted_size: AtomicUsize::new(0),
             cache: Default::default(),
-            time_elapsed: Arc::new(Mutex::new(TimeElapsed::new())),
+            time_elapsed: Arc::new(Mutex::new(TimeElapsed::new(Duration::from_secs(1)))),
         }
     }
     fn get_limit(&self) -> usize {

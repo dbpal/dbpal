@@ -1,6 +1,6 @@
 use base64::Engine;
 
-use dbnexus_db::db::{BackendKind, ExportFrame, ExportKind};
+use dbnexus_db::db::{BackendKind, ExportFrame, ExportKind, TimeElapsed};
 use dbnexus_db::mongo::MongoDB;
 
 use dbnexus_db::redis::RedisDB;
@@ -15,7 +15,8 @@ use rig::wasm_compat::{WasmCompatSend, WasmCompatSync};
 use rig::EmptyListError;
 use serde::{Deserialize, Serialize};
 use std::future::Future;
-use std::sync::Arc;
+use std::sync::{Arc, Mutex};
+use std::time::Duration;
 
 use crate::app::{
     self, AiOnlineSearch, DBPal, DatabaseBackend, ErrorFrontend, OpenAIReq, TaskManager,
@@ -494,6 +495,40 @@ impl Tool for WebFetchTool {
     }
 }
 
+pub struct SteamCache {
+    ret: String,
+    time_elapsed: TimeElapsed,
+    emit: Channel<String>,
+}
+
+impl SteamCache {
+    fn new(emit: Channel<String>) -> Self {
+        Self {
+            ret: String::new(),
+            time_elapsed: TimeElapsed::new(Duration::from_millis(400)),
+            emit,
+        }
+    }
+}
+
+impl SteamCache {
+    fn send(&mut self, x: String) {
+        self.ret.push_str(x.as_str());
+        if self.time_elapsed.elapsed() {
+            if let Err(err) = self.emit.send(std::mem::take(&mut self.ret)) {
+                log::error!("Error sending message: {:?}", err)
+            }
+        }
+    }
+}
+impl Drop for SteamCache {
+    fn drop(&mut self) {
+        if let Err(err) = self.emit.send(std::mem::take(&mut self.ret)) {
+            log::error!("Error sending message: {:?}", err)
+        }
+    }
+}
+
 #[tauri::command]
 pub async fn openai_stream(
     req: OpenAIReq,
@@ -578,11 +613,12 @@ pub async fn openai_stream(
 
     let fur = call_openai_stream(
         agent,
-        Arc::new(move |s| {
-            if let Err(err) = emit.send(s) {
-                println!("Error sending message: {:?}", err)
-            }
-        }),
+        {
+            let cache = Mutex::new(SteamCache::new(emit));
+            Arc::new(move |s| {
+                cache.lock().expect("lock failed").send(s);
+            })
+        },
         move |x| db_kind.comment(x),
         msg,
     );
