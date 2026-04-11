@@ -1171,9 +1171,12 @@ export const useFavoriteStore = create<FavoriteStore>(() => ({
     if (!uuid) return await db.favorite_sql.toArray();
     return await db.favorite_sql.where("uuid").equals(uuid).toArray();
   },
-
   getDistinctUuids: async () => {
-    // Dexie's uniqueKeys() is very fast for DISTINCT operations
+    // 先检查总数
+    const count = await db.favorite_sql.count();
+    if (count === 0) return [];
+
+    // 只有有数据时才执行索引排序
     const uuids = await db.favorite_sql.orderBy("uuid").uniqueKeys();
     return uuids as string[];
   },
