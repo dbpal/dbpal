@@ -777,8 +777,8 @@ interface UserSettingsState extends UserSettings {
 const initialSettings: UserSettings = {
   appearance: {
     fontSize: 15,
-    fontWeight: "normal",
-    fontFamily: "",
+    fontWeight: "bolder",
+    fontFamily: "PT Mono",
     lightBgColor: "",
     darkBgColor: "",
     datagridRowHeightFactor: 2.5,
