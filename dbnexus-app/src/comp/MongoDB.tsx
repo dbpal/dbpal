@@ -1138,7 +1138,7 @@ function MongoTableList(props: {
   setFilter;
   loadOne: (id: any) => Promise<BSON.Document>;
   modifyOP?: (doc: BSON.Document) => Promise<void>;
-  deleteOP?: (ids: any[] | any) => Promise<void>;
+  deleteOP?: (ids: any[] | any) => Promise<number>;
   triggerReload;
   loading: boolean;
   setLoading;
@@ -1510,7 +1510,7 @@ function MongoTableList(props: {
 function MongoTableObject(props: {
   reloadOPDocs: (page: number, pageSize: number) => Promise<DocsAndCount>;
   modifyOP?: (doc: BSON.Document) => Promise<void>;
-  deleteOP?: (ids: any[] | any) => Promise<void>;
+  deleteOP?: (ids: any[] | any) => Promise<number>;
   triggerReload;
   setLoading;
   editorHeight: number;
@@ -1831,7 +1831,7 @@ function MongoTable(props: { uuid: string; table: string; isTable: boolean }) {
   );
 }
 
-function MongoTableAdd(props: { addOP: (doc: BSON.Document) => Promise<void> }) {
+function MongoTableAdd(props: { addOP: (doc: BSON.Document) => Promise<string> }) {
   const { addOP } = props;
   const { showNotification } = useNotification();
   const handleAdd = async (doc) => {

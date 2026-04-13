@@ -14,7 +14,9 @@ use dbnexus_db::mongo::MongoDB;
 use dbnexus_db::mysql::MysqlDB;
 use dbnexus_db::pg::PostGresDB;
 use font_kit::error::SelectionError;
+use specta::datatype::DataType;
 use std::any::Any;
+use std::ops::Deref;
 
 use mongodb::bson::{self, Document};
 use std::collections::HashMap;
@@ -787,14 +789,33 @@ impl TaskManager {
     }
 }
 
+#[derive(serde::Serialize, serde::Deserialize, Debug, Clone)]
+#[serde(transparent)]
+
+pub struct JsUint8Array(Vec<u8>);
+
+impl specta::Type for JsUint8Array {
+    fn definition(_: &mut specta::Types) -> DataType {
+        DataType::Reference(specta_typescript::define("Uint8Array"))
+    }
+}
+
+impl Deref for JsUint8Array {
+    type Target = Vec<u8>;
+
+    fn deref(&self) -> &Self::Target {
+        &self.0
+    }
+}
+
 #[derive(serde::Serialize, serde::Deserialize, Debug, Clone, specta::Type)]
 pub struct MongoFindParameter {
-    pub(crate) filter: Vec<u8>,
-    pub(crate) hint: Option<Vec<u8>>,
-    pub(crate) projection: Option<Vec<u8>>,
-    pub(crate) sort: Option<Vec<u8>>,
-    pub(crate) min: Option<Vec<u8>>,
-    pub(crate) max: Option<Vec<u8>>,
+    pub(crate) filter: JsUint8Array,
+    pub(crate) hint: Option<JsUint8Array>,
+    pub(crate) projection: Option<JsUint8Array>,
+    pub(crate) sort: Option<JsUint8Array>,
+    pub(crate) min: Option<JsUint8Array>,
+    pub(crate) max: Option<JsUint8Array>,
     pub(crate) limit: Option<i64>,
     pub(crate) skip: Option<u64>,
 }
@@ -827,29 +848,29 @@ impl TryFrom<MongoFindParameter> for dbnexus_db::mongo::MongoFindParameter {
             skip,
         } = value;
         let r = dbnexus_db::mongo::MongoFindParameter {
-            filter: parse_bson_doc(&filter)?,
+            filter: parse_bson_doc(&filter.0)?,
             hint: if let Some(doc) = hint.as_ref() {
-                Some(parse_bson_doc(doc)?)
+                Some(parse_bson_doc(&doc.0)?)
             } else {
                 None
             },
             projection: if let Some(doc) = projection.as_ref() {
-                Some(parse_bson_doc(doc)?)
+                Some(parse_bson_doc(&doc.0)?)
             } else {
                 None
             },
             sort: if let Some(doc) = sort.as_ref() {
-                Some(parse_bson_doc(doc)?)
+                Some(parse_bson_doc(&doc.0)?)
             } else {
                 None
             },
             min: if let Some(doc) = min.as_ref() {
-                Some(parse_bson_doc(doc)?)
+                Some(parse_bson_doc(&doc.0)?)
             } else {
                 None
             },
             max: if let Some(doc) = max.as_ref() {
-                Some(parse_bson_doc(doc)?)
+                Some(parse_bson_doc(&doc.0)?)
             } else {
                 None
             },
@@ -862,8 +883,8 @@ impl TryFrom<MongoFindParameter> for dbnexus_db::mongo::MongoFindParameter {
 
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize, specta::Type)]
 pub struct MongoShowTablePara {
-    pub(crate) sort: Vec<u8>,
-    pub(crate) filter: Vec<u8>,
+    pub(crate) sort: JsUint8Array,
+    pub(crate) filter: JsUint8Array,
     pub(crate) page: u64,
     pub(crate) page_size: u64,
 }
@@ -879,8 +900,8 @@ impl TryFrom<MongoShowTablePara> for dbnexus_db::mongo::MongoShowTablePara {
             sort,
         } = value;
         Ok(dbnexus_db::mongo::MongoShowTablePara {
-            filter: parse_bson_doc(&filter)?,
-            sort: parse_bson_doc(&sort)?,
+            filter: parse_bson_doc(&filter.0)?,
+            sort: parse_bson_doc(&sort.0)?,
             page,
             page_size,
         })

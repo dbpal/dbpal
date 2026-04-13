@@ -1,6 +1,6 @@
 use crate::app::{
     self, name_to_parts, parse_bson_doc, CancelTokenMsg, DBConnectionConfig, DBPal,
-    DatabaseBackend, ErrorFrontend, MongoShowTablePara, TaskManager,
+    DatabaseBackend, ErrorFrontend, JsUint8Array, MongoShowTablePara, TaskManager,
 };
 use dashmap::DashMap;
 use dbnexus_db::cassandra::CassandraDB;
@@ -21,6 +21,7 @@ use mongodb::bson::{self, doc, Document};
 use rand::RngExt;
 use std::collections::HashMap;
 use std::env;
+use std::ops::Deref;
 use std::str::FromStr;
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::{Arc, LazyLock, Mutex, RwLock};
@@ -473,7 +474,7 @@ pub async fn mongo_create_index(
     name: String,
     table_name: String,
     index_name: Option<String>,
-    keys: Vec<u8>,
+    keys: JsUint8Array,
     unique: bool,
     app: tauri::State<'_, DBPal>,
 ) -> Result<(), ErrorFrontend> {
@@ -1821,12 +1822,12 @@ pub async fn duplicate_table(
 pub async fn mongo_insert(
     name: String,
     table_name: String,
-    doc: Vec<u8>,
+    doc: JsUint8Array,
     app: tauri::State<'_, DBPal>,
 ) -> Result<String, ErrorFrontend> {
     random_sleep().await;
     random_error()?;
-    let doc = parse_bson_doc(doc.as_slice())?;
+    let doc = parse_bson_doc(doc.deref())?;
     let db = app
         .get_schema(name.as_str())
         .await
@@ -1844,12 +1845,12 @@ pub async fn mongo_insert(
 pub async fn mongo_update_one(
     name: String,
     table_name: String,
-    doc: Vec<u8>,
+    doc: JsUint8Array,
     app: tauri::State<'_, DBPal>,
 ) -> Result<(), ErrorFrontend> {
     random_sleep().await;
     random_error()?;
-    let doc = parse_bson_doc(doc.as_slice())?;
+    let doc = parse_bson_doc(doc.deref())?;
     let db = app
         .get_schema(name.as_str())
         .await
@@ -2002,12 +2003,12 @@ pub async fn mongo_query_db_list_collection_names(
 #[tauri::command]
 pub async fn mongo_query_db_run_command(
     name: String,
-    command: Vec<u8>,
+    command: JsUint8Array,
     app: tauri::State<'_, DBPal>,
 ) -> Result<Vec<u8>, ErrorFrontend> {
     random_sleep().await;
     random_error()?;
-    let command = parse_bson_doc(&command)?;
+    let command = parse_bson_doc(command.deref())?;
     let db = app
         .get_schema(name.as_str())
         .await
@@ -2046,7 +2047,7 @@ pub async fn mongo_query_collection_count_docs(
 pub async fn mongo_query_collection_create_index(
     name: String,
     col: String,
-    index: Vec<u8>,
+    index: JsUint8Array,
     app: tauri::State<'_, DBPal>,
 ) -> Result<String, ErrorFrontend> {
     random_sleep().await;
@@ -2068,13 +2069,13 @@ pub async fn mongo_query_collection_create_index(
 pub async fn mongo_query_collection_create_search_index(
     name: String,
     col: String,
-    index: Vec<u8>,
+    index: JsUint8Array,
     index_name: Option<String>,
     app: tauri::State<'_, DBPal>,
 ) -> Result<String, ErrorFrontend> {
     random_sleep().await;
     random_error()?;
-    let index = parse_bson_doc(&index)?;
+    let index = parse_bson_doc(index.deref())?;
     let db = app
         .get_schema(name.as_str())
         .await
@@ -2094,12 +2095,12 @@ pub async fn mongo_query_collection_create_search_index(
 pub async fn mongo_query_collection_delete_many(
     name: String,
     col: String,
-    query: Vec<u8>,
+    query: JsUint8Array,
     app: tauri::State<'_, DBPal>,
 ) -> Result<String, ErrorFrontend> {
     random_sleep().await;
     random_error()?;
-    let query = parse_bson_doc(&query)?;
+    let query = parse_bson_doc(query.deref())?;
     let db = app
         .get_schema(name.as_str())
         .await
@@ -2116,12 +2117,12 @@ pub async fn mongo_query_collection_delete_many(
 pub async fn mongo_query_collection_delete_one(
     name: String,
     col: String,
-    query: Vec<u8>,
+    query: JsUint8Array,
     app: tauri::State<'_, DBPal>,
 ) -> Result<String, ErrorFrontend> {
     random_sleep().await;
     random_error()?;
-    let query = parse_bson_doc(&query)?;
+    let query = parse_bson_doc(query.deref())?;
     let db = app
         .get_schema(name.as_str())
         .await
@@ -2139,7 +2140,7 @@ pub async fn mongo_query_collection_delete_one(
 pub async fn mongo_query_collection_distinct(
     name: String,
     col: String,
-    query: Vec<u8>,
+    query: JsUint8Array,
     field: String,
     app: tauri::State<'_, DBPal>,
 ) -> Result<String, ErrorFrontend> {
@@ -2301,12 +2302,12 @@ pub async fn mongo_query_collection_find_one(
 pub async fn mongo_query_collection_find_one_and_delete(
     name: String,
     col: String,
-    query: Vec<u8>,
+    query: JsUint8Array,
     app: tauri::State<'_, DBPal>,
 ) -> Result<Option<Vec<u8>>, ErrorFrontend> {
     random_sleep().await;
     random_error()?;
-    let query = parse_bson_doc(&query)?;
+    let query = parse_bson_doc(query.deref())?;
     let db = app
         .get_schema(name.as_str())
         .await
@@ -2327,8 +2328,8 @@ pub async fn mongo_query_collection_find_one_and_delete(
 pub async fn mongo_query_collection_find_one_and_replace(
     name: String,
     col: String,
-    query: Vec<u8>,
-    replacement: Vec<u8>,
+    query: JsUint8Array,
+    replacement: JsUint8Array,
     app: tauri::State<'_, DBPal>,
 ) -> Result<Option<Vec<u8>>, ErrorFrontend> {
     random_sleep().await;
@@ -2359,7 +2360,7 @@ pub async fn mongo_query_collection_find_one_and_replace(
 pub async fn mongo_query_collection_insert_many(
     name: String,
     col: String,
-    data: Vec<Vec<u8>>,
+    data: Vec<JsUint8Array>,
     app: tauri::State<'_, DBPal>,
 ) -> Result<String, ErrorFrontend> {
     random_sleep().await;
@@ -2386,12 +2387,12 @@ pub async fn mongo_query_collection_insert_many(
 pub async fn mongo_query_collection_insert_one(
     name: String,
     col: String,
-    doc: Vec<u8>,
+    doc: JsUint8Array,
     app: tauri::State<'_, DBPal>,
 ) -> Result<String, ErrorFrontend> {
     random_sleep().await;
     random_error()?;
-    let doc = parse_bson_doc(&doc)?;
+    let doc = parse_bson_doc(doc.deref())?;
     let db = app
         .get_schema(name.as_str())
         .await
@@ -2475,14 +2476,14 @@ pub async fn mongo_query_collection_list_search_indexes(
 pub async fn mongo_query_collection_replace_one(
     name: String,
     col: String,
-    query: Vec<u8>,
-    replacement: Vec<u8>,
+    query: JsUint8Array,
+    replacement: JsUint8Array,
     app: tauri::State<'_, DBPal>,
 ) -> Result<String, ErrorFrontend> {
     random_sleep().await;
     random_error()?;
-    let query = parse_bson_doc(&query)?;
-    let replacement = parse_bson_doc(&replacement)?;
+    let query = parse_bson_doc(query.deref())?;
+    let replacement = parse_bson_doc(replacement.deref())?;
 
     let db = app
         .get_schema(name.as_str())
@@ -2504,14 +2505,14 @@ pub async fn mongo_query_collection_replace_one(
 pub async fn mongo_query_collection_update_many(
     name: String,
     col: String,
-    query: Vec<u8>,
-    replacement: Vec<u8>,
+    query: JsUint8Array,
+    replacement: JsUint8Array,
     app: tauri::State<'_, DBPal>,
 ) -> Result<String, ErrorFrontend> {
     random_sleep().await;
     random_error()?;
-    let query = parse_bson_doc(&query)?;
-    let replacement = parse_bson_doc(&replacement)?;
+    let query = parse_bson_doc(query.deref())?;
+    let replacement = parse_bson_doc(replacement.deref())?;
     let db = app
         .get_schema(name.as_str())
         .await
@@ -2533,14 +2534,14 @@ pub async fn mongo_query_collection_update_many(
 pub async fn mongo_query_collection_update_one(
     name: String,
     col: String,
-    query: Vec<u8>,
-    replacement: Vec<u8>,
+    query: JsUint8Array,
+    replacement: JsUint8Array,
     app: tauri::State<'_, DBPal>,
 ) -> Result<String, ErrorFrontend> {
     random_sleep().await;
     random_error()?;
-    let query = parse_bson_doc(&query)?;
-    let replacement = parse_bson_doc(&replacement)?;
+    let query = parse_bson_doc(query.deref())?;
+    let replacement = parse_bson_doc(replacement.deref())?;
     let db = app
         .get_schema(name.as_str())
         .await

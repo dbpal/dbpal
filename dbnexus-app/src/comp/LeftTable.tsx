@@ -378,7 +378,7 @@ function AddTableView(props: {
       return (
         <MongoTableAdd
           addOP={async (data) => {
-            return commands.mongoInsert(uuid, table, new Array(BSON.serialize(data)));
+            return commands.mongoInsert(uuid, table, BSON.serialize(data));
           }}
         />
       );
