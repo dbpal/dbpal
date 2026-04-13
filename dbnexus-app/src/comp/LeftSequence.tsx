@@ -15,8 +15,6 @@ import { useCallback, useContext, useEffect, useRef, useState } from "react";
 import DeleteForeverIcon from "@mui/icons-material/DeleteForever";
 import InfoIcon from "@mui/icons-material/Info";
 import { DefAndMetas, EscDownEvent, modalHandleClose, modalStyle } from "./Common.ts";
-import types from "./ApiStruct.ts";
-import { invoke } from "@tauri-apps/api/core";
 import { DefAndMetasView } from "./DefAndMetaView.tsx";
 import {
   DataSourceKind,
@@ -28,7 +26,6 @@ import {
 import { v4 as uuidv4 } from "uuid";
 
 import { ExceedMaxTreeItem, MenuRefresh } from "./CommonComp.tsx";
-import { listSequence } from "./handlers.ts";
 import { GrSteps } from "react-icons/gr";
 import { CopySql, ShowingCount } from "./CommonComp2.tsx";
 import {
@@ -38,6 +35,7 @@ import {
   useTabsManage,
   useMatcherFn,
 } from "./store.tsx";
+import { commands, SequenceDetail } from "./bindings.ts";
 function SequenceTree() {
   const { uuid, kind } = useContext(UuidContext);
   const [seq, setSeq] = useState<SequenceDetail[]>([]);
@@ -45,7 +43,8 @@ function SequenceTree() {
   const { maxTree } = useMatcher();
   const matchPattern = useMatcherFn();
   const reload = useCallback(() => {
-    listSequence(uuid)
+    commands
+      .listSequence(uuid)
       .then((ts) => {
         setSeq(ts);
       })
@@ -182,7 +181,8 @@ function SequenceMenu(props: {
     if (!confirm) {
       return;
     }
-    unwrapCommand(commands.dropSequence(uuid, seq.name, cascade))
+    commands
+      .dropSequence(uuid, seq.name, cascade)
       .then((sql) => {
         showNotification({
           severity: "success",

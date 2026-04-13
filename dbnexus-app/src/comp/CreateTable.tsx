@@ -23,7 +23,7 @@ import {
 import CloseIcon from "@mui/icons-material/Close";
 import KeyIcon from "@mui/icons-material/Key";
 import { AllKindChat } from "./Chat";
-import { makeFormatFn, unwrapCommand } from "./Common";
+import { makeFormatFn } from "./Common";
 import { useNotification, useUserSettings } from "./store";
 import {
   commands,
@@ -124,28 +124,27 @@ function CreateTable(props: { uuid: string; kind: DataSourceKind }) {
   }, [cols, indexes, showNotification, table]);
   const setCreateSql = useCallback(() => {
     const req = makeReq();
-    if (!req) {
-      return;
-    }
-    commands.createTableReqSql(uuid, req).then((sql) => {
-      if (sql.status == "ok") {
+
+    commands
+      .createTableReqSql(uuid, req)
+      .then((sql) => {
         setEditorValue("");
         setTimeout(() => {
           setEditorValue(
-            makeFormatFn(kind)(sql.data, {
+            makeFormatFn(kind)(sql, {
               insertSpaces: true,
               tabSize: setting.editor.tabSize,
             }),
           );
         }, 200);
-      } else {
+      })
+      .catch((e) => {
         showNotification({
           severity: "error",
           title: "create sql failed",
-          message: sql.error,
+          message: e,
         });
-      }
-    });
+      });
   }, [kind, makeReq, setting.editor.tabSize, showNotification, uuid]);
 
   const handleCreate = async () => {
@@ -154,7 +153,8 @@ function CreateTable(props: { uuid: string; kind: DataSourceKind }) {
       return;
     }
     setLoading(true);
-    unwrapCommand(commands.createTable(uuid, req))
+    commands
+      .createTable(uuid, req)
       .then(() => {
         showNotification({ severity: "success", title: "create table ok" });
       })

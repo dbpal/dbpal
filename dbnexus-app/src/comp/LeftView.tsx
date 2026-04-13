@@ -67,7 +67,7 @@ import {
   useMatcherFn,
 } from "./store";
 import { AllKindChat } from "./Chat";
-import { commands } from "./bindings";
+import { commands, Field, ListTable } from "./bindings";
 function ViewsTree(props: { viewKind: ViewKind }) {
   const { viewKind } = props;
   const { uuid } = useContext(UuidContext);
@@ -163,7 +163,8 @@ function StatementStructure(props: {
   const { showNotification } = useNotification();
   const handleReload = useCallback(() => {
     setLoading(true);
-    createViewSql(uuid, view, viewKind)
+    commands
+      .createViewSql(uuid, view, viewKind == ViewKind.MaterializedView)
       .then((e) => {
         setSql(e);
       })

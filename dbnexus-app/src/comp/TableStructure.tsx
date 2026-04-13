@@ -1,11 +1,5 @@
 import { ReactNode, useCallback, useEffect, useMemo, useRef, useState } from "react";
-import {
-  DefAndMetas,
-  EscDownEvent,
-  modalHandleClose,
-  modalStyle,
-  unwrapCommand,
-} from "./Common";
+import { DefAndMetas, EscDownEvent, modalHandleClose, modalStyle } from "./Common";
 import {
   dataGridStyle,
   DataSourceKind,
@@ -154,16 +148,15 @@ function ColumnsStructure(props: {
 
     commands
       .showTableColumns(uuid, table)
-      .then((ret) => {
-        if (ret.status == "ok") {
-          setFields(ret.data);
-        } else {
-          showNotification({
-            severity: "error",
-            title: "list column failed",
-            message: ret.error,
-          });
-        }
+      .then((data) => {
+        setFields(data);
+      })
+      .catch((e) => {
+        showNotification({
+          severity: "error",
+          title: "list column failed",
+          message: e,
+        });
       })
       .finally(() => {
         setLoading(false);
@@ -181,7 +174,8 @@ function ColumnsStructure(props: {
       if (!confirm) {
         return;
       }
-      unwrapCommand(commands.dropTableColumn(uuid, table, col))
+      commands
+        .dropTableColumn(uuid, table, col)
         .then((sql) => {
           showNotification({
             severity: "success",
@@ -454,7 +448,8 @@ function RenameIndex(props: {
     }
     setLoading(true);
 
-    unwrapCommand(commands.renameIndex(uuid, table, indexName, newName))
+    commands
+      .renameIndex(uuid, table, indexName, newName)
       .then((sql) => {
         showNotification({
           severity: "success",
@@ -560,16 +555,15 @@ function IndexesStructure(props: {
 
     commands
       .showIndexes(uuid, table)
-      .then((ret) => {
-        if (ret.status == "ok") {
-          setIndexes(ret.data);
-        } else {
-          showNotification({
-            severity: "error",
-            title: "show indexes failed",
-            message: ret.error,
-          });
-        }
+      .then((data) => {
+        setIndexes(data);
+      })
+      .catch((e) => {
+        showNotification({
+          severity: "error",
+          title: "show indexes failed",
+          message: e,
+        });
       })
       .finally(() => {
         setLoading(false);
@@ -586,7 +580,8 @@ function IndexesStructure(props: {
       if (!confirm) {
         return;
       }
-      unwrapCommand(commands.dropIndex(uuid, table, indexName))
+      commands
+        .dropIndex(uuid, table, indexName)
         .then((sql) => {
           showNotification({
             severity: "success",
@@ -810,14 +805,12 @@ function MongoAddIndex(props: { uuid; table; handleClose; reload }) {
         indexNameDom.current.focus();
         return;
       }
-      await unwrapCommand(
-        commands.mongoCreateIndex(
-          uuid,
-          table,
-          indexName ? indexName : null,
-          BSON.serialize(keys),
-          indexType == "unique",
-        ),
+      await commands.mongoCreateIndex(
+        uuid,
+        table,
+        indexName ? indexName : null,
+        BSON.serialize(keys),
+        indexType == "unique",
       );
       showNotification({ severity: "success", title: "create index ok" });
       handleClose();
@@ -873,17 +866,18 @@ function AddIndex(props: {
   const { showNotification } = useNotification();
   const [req, setReq] = useState<CreateIndexReq>(null);
   useEffect(() => {
-    commands.showTableColumns(uuid, table).then((ret) => {
-      if (ret.status == "ok") {
-        setFields(ret.data);
-      } else {
+    commands
+      .showTableColumns(uuid, table)
+      .then((data) => {
+        setFields(data);
+      })
+      .catch((e) => {
         showNotification({
           severity: "error",
           title: "list fields failed",
-          message: ret.error,
+          message: e,
         });
-      }
-    });
+      });
   }, [showNotification, table, uuid]);
   const handleAdd = async () => {
     if (!req.name) {
@@ -895,7 +889,7 @@ function AddIndex(props: {
       return;
     }
     try {
-      const sql = await unwrapCommand(commands.createIndex(uuid, table, req));
+      const sql = await commands.createIndex(uuid, table, req);
       showNotification({
         severity: "success",
         title: "create index ok",
@@ -961,14 +955,15 @@ function TableAddColumn(props: {
       return;
     }
     setLoading(true);
-    unwrapCommand(
-      commands.addTableColumn(uuid, table, name, {
+
+    commands
+      .addTableColumn(uuid, table, name, {
         typ: typ,
         nullable: nullable ? nullable : null,
         after: after ? after : null,
         default_value: defaultValue ? defaultValue : null,
-      } as ColumnType),
-    )
+      } as ColumnType)
+
       .then((sql) => {
         showNotification({
           severity: "success",
@@ -1091,7 +1086,8 @@ function ModifyTableColumn(props: {
         after: null,
       };
     }
-    unwrapCommand(commands.modifyTableColumn(uuid, table, col, newName, typePara))
+    commands
+      .modifyTableColumn(uuid, table, col, newName, typePara)
       .then((sql) => {
         showNotification({
           severity: "success",
@@ -1281,16 +1277,15 @@ function TriggersStructure(props: {
 
     commands
       .showTrigger(uuid, table)
-      .then((ret) => {
-        if (ret.status == "ok") {
-          setTriggers(ret.data);
-        } else {
-          showNotification({
-            severity: "error",
-            title: "list indexes failed",
-            message: ret.error,
-          });
-        }
+      .then((data) => {
+        setTriggers(data);
+      })
+      .catch((e) => {
+        showNotification({
+          severity: "error",
+          title: "list indexes failed",
+          message: e,
+        });
       })
       .finally(() => {
         setLoading(false);
@@ -1310,7 +1305,8 @@ function TriggersStructure(props: {
       if (!confirm) {
         return;
       }
-      unwrapCommand(commands.dropTrigger(undefined, undefined, trigger))
+      commands
+        .dropTrigger(undefined, undefined, trigger)
         .then((sql) => {
           showNotification({
             severity: "success",
@@ -1607,24 +1603,25 @@ function StatementStructure(props: {
     <Stack style={{ height: "100%" }}>
       <DefAndMetasView
         reloadOP={async () => {
-          return commands.showCreateTableSql(uuid, table).then((ret) => {
-            if (ret.status == "ok") {
+          return commands
+            .showCreateTableSql(uuid, table)
+            .then((data) => {
               return {
-                def: formatCreateTableAndIndexSql(ret.data),
+                def: formatCreateTableAndIndexSql(data),
                 metas: [],
               } as DefAndMetas;
-            } else {
+            })
+            .catch((e) => {
               showNotification({
                 severity: "error",
                 title: "show create table sql failed",
-                message: ret.error,
+                message: e,
               });
               return {
                 def: "",
                 metas: [],
               } as DefAndMetas;
-            }
-          });
+            });
         }}
         kind={kind}
         uuid={uuid}

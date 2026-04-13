@@ -18,7 +18,6 @@ import { platform } from "@tauri-apps/plugin-os";
 import themelist from "../../monaco-themes/themes/themelist.json";
 import prettyMilliseconds from "pretty-ms";
 import { v4 as uuidv4 } from "uuid";
-import { unwrapCommand } from "./Common";
 import { commands, CompletionItem, CompletionKind, ErrAndLoc, Field } from "./bindings";
 
 const pageSizeOptions = [10, 20, 50, 100];
@@ -312,7 +311,7 @@ const UuidContext = createContext<{
 }>(null);
 
 function validJson(s: string): Promise<ErrAndLoc | null> {
-  return commands.validJson(s).then((r) => (r.status == "ok" ? r.data : null));
+  return commands.validJson(s).then((data) => data);
 }
 
 class DocsAndCount {
@@ -359,7 +358,7 @@ function getEditorText(editor: editor.IStandaloneCodeEditor, showNotification) {
 }
 
 function executeSqlWithoutConn(uuid: string, sql: string) {
-  return unwrapCommand(commands.simpleExecuteSql(uuid, sql));
+  return commands.simpleExecuteSql(uuid, sql);
 }
 
 class ColorFn {

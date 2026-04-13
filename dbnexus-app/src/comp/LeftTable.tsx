@@ -1,5 +1,5 @@
 import { ReactNode, useCallback, useContext, useEffect, useRef, useState } from "react";
-import { modalStyle, EscDownEvent, modalHandleClose, unwrapCommand } from "./Common.ts";
+import { modalStyle, EscDownEvent, modalHandleClose } from "./Common.ts";
 import { TreeItem } from "@mui/x-tree-view/TreeItem";
 import ListIcon from "@mui/icons-material/List";
 import EditIcon from "@mui/icons-material/Edit";
@@ -71,7 +71,7 @@ import {
   useTabsManage,
   useMatcherFn,
 } from "./store.tsx";
-import { commands, Field, ListTable } from "./bindings.ts";
+import { commands, Field, ListTable, RedisListTableRet } from "./bindings.ts";
 
 function TablesTree() {
   const { uuid, kind } = useContext(UuidContext);
@@ -89,16 +89,15 @@ function TablesTree() {
     setLoading(true);
     commands
       .listTable(uuid)
-      .then((ts) => {
-        if (ts.status == "ok") {
-          setTables(ts.data);
-        } else {
-          showNotification({
-            severity: "error",
-            title: "list table failed",
-            message: ts.error,
-          });
-        }
+      .then((data) => {
+        setTables(data);
+      })
+      .catch((e) => {
+        showNotification({
+          severity: "error",
+          title: "list table failed",
+          message: e,
+        });
       })
       .finally(() => {
         setLoading(false);
@@ -231,7 +230,8 @@ function DropTable(props: {
       return;
     }
     setLoading(true);
-    unwrapCommand(commands.dropTable(uuid, table, cascade))
+    commands
+      .dropTable(uuid, table, cascade)
       .then((sql) => {
         showNotification({
           severity: "success",
@@ -378,9 +378,7 @@ function AddTableView(props: {
       return (
         <MongoTableAdd
           addOP={async (data) => {
-            return unwrapCommand(
-              commands.mongoInsert(uuid, table, new Array(BSON.serialize(data))),
-            );
+            return commands.mongoInsert(uuid, table, new Array(BSON.serialize(data)));
           }}
         />
       );
@@ -394,23 +392,26 @@ function SqlAddTableView(props: { uuid: string; table: string }) {
   const [fields, setFields] = useState<Field[]>([]);
   const { showNotification } = useNotification();
   useEffect(() => {
-    commands.showTableColumns(uuid, table).then((ret) => {
-      if (ret.status == "ok") {
-        setFields(ret.data);
-      } else {
+    commands
+      .showTableColumns(uuid, table)
+      .then((data) => {
+        setFields(data);
+      })
+      .catch((e) => {
         showNotification({
           severity: "error",
           title: "list fields failed",
-          message: ret.error,
+          message: e,
         });
-      }
-    });
+      });
   }, [showNotification, table, uuid]);
   return (
     <SqlTableViewData
       isAdd
       buttonName="add"
-      handleData={makeTableInsertFn(uuid, table)}
+      handleData={async (values) => {
+        await commands.tableInsert(uuid, table, values);
+      }}
       fields={fields}
     />
   );
@@ -441,7 +442,8 @@ function TableMenu(props: {
     if (!confirm) {
       return;
     }
-    unwrapCommand(commands.truncateTable(uuid, table))
+    commands
+      .truncateTable(uuid, table)
       .then((sql) => {
         showNotification({
           severity: "success",
@@ -696,7 +698,8 @@ function DupTable(props: {
       return;
     }
     setLoading(true);
-    unwrapCommand(commands.duplicateTable(uuid, table, taskId.current, name))
+    commands
+      .duplicateTable(uuid, table, taskId.current, name)
       .then(() => {
         showNotification({ severity: "success", title: "duplicate OK" });
         reloadTables();
@@ -760,7 +763,8 @@ function RenameTable(props: {
       return;
     }
     setLoading(true);
-    unwrapCommand(commands.renameTable(uuid, table, newName))
+    commands
+      .renameTable(uuid, table, newName)
       .then((sql) => {
         showNotification({
           severity: "success",
@@ -900,14 +904,15 @@ function RedisOneTableKind(props: {
 function RedisTables() {
   const { uuid, kind } = useContext(UuidContext);
   const [filter, setFilter] = useState("");
-  const [tables, setTables] = useState<RedisListTable>();
+  const [tables, setTables] = useState<RedisListTableRet>();
   const [loading, setLoading] = useState(false);
   const { showNotification } = useNotification();
   const max = 50;
 
   const handleReload = useCallback(() => {
     setLoading(true);
-    unwrapCommand(commands.redisListKey(uuid, filter ? filter : null, max))
+    commands
+      .redisListKey(uuid, filter ? filter : null, max)
       .then((e) => {
         setTables(e);
       })

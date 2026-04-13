@@ -14,12 +14,11 @@ use dbnexus_db::db::{
 use dbnexus_db::language_server::{CompletionList, ErrAndLoc};
 use dbnexus_db::mongo::MongoDB;
 
-use dbnexus_db::redis::{redis_tokenize, RedisDB, RedisListTable};
+use dbnexus_db::redis::{redis_tokenize, RedisDB, RedisListTableRet};
 use dbnexus_db::redis_lang_server::REDIS_COMMANDS_MD_FILES;
 use include_dir::{include_dir, Dir};
 use mongodb::bson::{self, doc, Document};
 use rand::RngExt;
-use reqwest::dns::Name;
 use std::collections::HashMap;
 use std::env;
 use std::str::FromStr;
@@ -366,7 +365,7 @@ pub async fn redis_list_key(
     filter: Option<String>,
     max: usize,
     app: tauri::State<'_, DBPal>,
-) -> Result<RedisListTable, ErrorFrontend> {
+) -> Result<RedisListTableRet, ErrorFrontend> {
     random_sleep().await;
     random_error()?;
     let db = app.get_schema(&name).await.map_err(ErrorFrontend::from)?;

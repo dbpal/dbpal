@@ -1,7 +1,6 @@
 import { Channel, invoke } from "@tauri-apps/api/core";
 import { MuiDataGridData, ViewKind } from "./helper";
-import { message } from "@tauri-apps/plugin-dialog";
-import { QueryEvent, unwrapCommand } from "./Common";
+import { QueryEvent } from "./Common";
 import {
   commands,
   CreateTableAndIndexSql,
@@ -40,10 +39,10 @@ function listView(uuid: string, viewKind: ViewKind) {
 }
 
 async function cancelTask(taskId: string): Promise<void> {
-  let r = await commands.cancelTask(taskId);
-  if (r.status == "error") {
-    message("cancel task failed,err" + String(r.error), { kind: "error" });
-    console.error(r.error);
+  try {
+    await commands.cancelTask(taskId);
+  } catch (e) {
+    console.error(e);
   }
 }
 
@@ -130,7 +129,7 @@ async function showTable(
           console.error("server send wrong kind of data:", event);
       }
     });
-    await unwrapCommand(commands.showTable(uuid, isView, name, para, emit));
+    await commands.showTable(uuid, isView, name, para, emit);
     if (okCallBack) {
       okCallBack();
     }

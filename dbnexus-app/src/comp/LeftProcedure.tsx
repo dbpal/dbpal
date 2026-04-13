@@ -19,7 +19,6 @@ import {
   useMatcherFn,
 } from "./store";
 import { commands, NamedStaff } from "./bindings.ts";
-import { makeUdfExtraArg, unwrapCommand } from "./Common.ts";
 function ProceduresTree() {
   const { uuid, kind } = useContext(UuidContext);
   const [ps, setPos] = useState<NamedStaff[]>([]);
@@ -27,17 +26,18 @@ function ProceduresTree() {
   const { maxTree } = useMatcher();
   const matchPattern = useMatcherFn();
   const reload = useCallback(() => {
-    commands.listProcedure(uuid).then((ret) => {
-      if (ret.status == "ok") {
-        setPos(ret.data);
-      } else {
+    commands
+      .listProcedure(uuid)
+      .then((data) => {
+        setPos(data);
+      })
+      .catch((e) => {
         showNotification({
           severity: "error",
           title: "list procedure failed",
-          message: ret.error,
+          message: e,
         });
-      }
-    });
+      });
   }, [showNotification, uuid]);
 
   const [showItems, setShowItems] = useState(0);
@@ -127,21 +127,20 @@ function ProcedureMenu(props: {
         <DefAndMetasView
           reloadOP={async () => {
             return commands
-              .showProcedure(uuid, procedure.name, makeUdfExtraArg(procedure, kind))
-              .then((ret) => {
-                if (ret.status == "ok") {
-                  return {
-                    def: ret.data.def,
-                    metas: ret.data.metas,
-                  };
-                } else {
-                  showNotification({
-                    severity: "error",
-                    title: "Show procedure failed",
-                    message: ret.error,
-                  });
-                  return { def: "", metas: [] };
-                }
+              .showProcedure(uuid, procedure)
+              .then((data) => {
+                return {
+                  def: data.def,
+                  metas: data.metas,
+                };
+              })
+              .catch((e) => {
+                showNotification({
+                  severity: "error",
+                  title: "Show procedure failed",
+                  message: e,
+                });
+                return { def: "", metas: [] };
               });
           }}
           kind={kind}
@@ -161,8 +160,9 @@ function ProcedureMenu(props: {
     if (!confirm) {
       return;
     }
-    const arg = makeShowProcedureExtraArg(procedure, kind);
-    unwrapCommand(commands.dropProcedure(uuid, procedure, arg))
+
+    commands
+      .dropProcedure(uuid, procedure)
       .then((sql) => {
         showNotification({
           severity: "success",

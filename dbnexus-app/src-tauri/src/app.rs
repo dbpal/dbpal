@@ -567,7 +567,7 @@ impl DBPal {
                 }
             }
             3 => {
-                let db_name = append_handle_name(&name_parts[0], &name_parts[1]);
+                let db_name = append_handle_name(name_parts[0], name_parts[1]);
                 let open = self.backend.lock().await.get(&db_name).cloned();
                 let db_trait = match open {
                     Some(x) => match x {

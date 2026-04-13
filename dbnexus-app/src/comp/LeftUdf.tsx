@@ -25,8 +25,7 @@ import {
   useTabsManage,
   useMatcherFn,
 } from "./store";
-import { commands, NamedStaff, UdfOrProcedureExtraParameter } from "./bindings.ts";
-import { makeUdfExtraArg, unwrapCommand } from "./Common.ts";
+import { commands, NamedStaff } from "./bindings.ts";
 
 function UdfsTree() {
   const { uuid, kind } = useContext(UuidContext);
@@ -41,17 +40,18 @@ function UdfsTree() {
   }, [udfs, matchPattern]);
 
   const reload = useCallback(() => {
-    commands.listUdf(uuid).then((ret) => {
-      if (ret.status == "ok") {
-        setUdfs(ret.data);
-      } else {
+    commands
+      .listUdf(uuid)
+      .then((data) => {
+        setUdfs(data);
+      })
+      .catch((e) => {
         showNotification({
           severity: "error",
           title: "list udf failed",
-          message: ret.error,
+          message: e,
         });
-      }
-    });
+      });
   }, [showNotification, uuid]);
   useEffect(() => {
     reload();
@@ -122,7 +122,7 @@ function UdfMenu(props: { uuid; udf: NamedStaff; reload; kind: DataSourceKind })
         udf.name,
         <DefAndMetasView
           reloadOP={async () => {
-            return unwrapCommand(commands.showUdf(uuid, udf, kind));
+            return commands.showUdf(uuid, udf);
           }}
           kind={kind}
           uuid={uuid}
@@ -141,7 +141,8 @@ function UdfMenu(props: { uuid; udf: NamedStaff; reload; kind: DataSourceKind })
     if (!confirm) {
       return;
     }
-    unwrapCommand(commands.dropUdf(uuid, udf.name, makeUdfExtraArg(udf, kind)))
+    commands
+      .dropUdf(uuid, udf)
       .then((sql) => {
         showNotification({
           severity: "success",
@@ -197,9 +198,7 @@ function CassandraAggregateMenu(props: {
         agg,
         <DefAndMetasView
           reloadOP={async () => {
-            return await unwrapCommand(
-              commands.cassandraShowAggregate(uuid, agg, parameters),
-            );
+            return await commands.cassandraShowAggregate(uuid, agg, parameters);
           }}
           uuid={uuid}
           kind={DataSourceKind.Cassandra}
@@ -219,7 +218,8 @@ function CassandraAggregateMenu(props: {
       return;
     }
 
-    unwrapCommand(commands.cassandraDropAggregate(uuid, agg, parameters))
+    commands
+      .cassandraDropAggregate(uuid, agg, parameters)
       .then((sql) => {
         showNotification({
           severity: "success",
@@ -271,7 +271,8 @@ function CassandraAggregatesTree() {
   const [aggs, setAggs] = useState<NamedStaff[]>([]);
   const { showNotification } = useNotification();
   const reload = useCallback(() => {
-    listCassandraAgg(uuid)
+    commands
+      .cassandraListAggregate(uuid)
       .then((ts) => {
         setAggs(ts);
       })

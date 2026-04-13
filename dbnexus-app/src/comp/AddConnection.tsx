@@ -374,17 +374,16 @@ function DbSchemaCadidates(props: {
     setLoading(true);
     commands
       .tryListDatabaseSchemaCandidates(config)
-      .then((ret) => {
-        if (ret.status == "ok") {
-          setCadidates(ret.data);
-          showNotification({ severity: "success", title: "fetch candidates success" });
-        } else {
-          showNotification({
-            severity: "warning",
-            title: `list ${label} failed`,
-            message: ret.error,
-          });
-        }
+      .then((data) => {
+        setCadidates(data);
+        showNotification({ severity: "success", title: "fetch candidates success" });
+      })
+      .catch((e) => {
+        showNotification({
+          severity: "warning",
+          title: `list ${label} failed`,
+          message: e,
+        });
       })
       .finally(() => {
         setLoading(false);

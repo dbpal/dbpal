@@ -59,7 +59,7 @@ import { v4 as uuidv4 } from "uuid";
 
 import { TbDatabasePlus } from "react-icons/tb";
 import LinkIcon from "@mui/icons-material/Link";
-import { PassWordManager, unwrapCommand } from "./Common";
+import { PassWordManager } from "./Common";
 import { TreeItem } from "@mui/x-tree-view/TreeItem";
 import { editor, Position } from "monaco-editor";
 import { openPath } from "@tauri-apps/plugin-opener";
@@ -164,7 +164,8 @@ function MenuCloseConn({ name }) {
   return (
     <MenuItem
       onClick={() => {
-        unwrapCommand(commands.closeConn(name))
+        commands
+          .closeConn(name)
           .then(() => {
             removeConnected(name);
           })
@@ -190,15 +191,16 @@ function ConnPingTime({ uuid }) {
 
   useEffect(() => {
     const reloadStatus = () => {
-      commands.checkConn(uuid).then((ret) => {
-        if (ret.status == "ok") {
-          setStatus(ret.data);
+      commands
+        .checkConn(uuid)
+        .then((data) => {
+          setStatus(data);
           setErr("");
-        } else {
-          setErr(errToString(ret.error));
+        })
+        .catch((e) => {
+          setErr(errToString(e));
           setStatus(null);
-        }
-      });
+        });
     };
     const interval = setInterval(() => {
       reloadStatus();
@@ -271,7 +273,7 @@ function MenuOpenConn({ name }) {
       return;
     }
     try {
-      await unwrapCommand(commands.establishConn(config));
+      await commands.establishConn(config);
     } catch (e) {
       showNotification({
         severity: "error",
@@ -342,7 +344,7 @@ function MenuDeleteConfig({ name }) {
       return;
     }
     try {
-      await unwrapCommand(commands.closeConn(name));
+      await commands.closeConn(name);
       await delFav(name);
       await delQueryLog(name);
       await removeConnection(name);

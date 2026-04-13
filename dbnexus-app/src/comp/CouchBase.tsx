@@ -55,7 +55,6 @@ import {
   modalStyle,
   NameAndQueryId,
   QueryEvent,
-  unwrapCommand,
 } from "./Common.ts";
 import { editor, Position } from "monaco-editor";
 import { Panel, PanelGroup, PanelResizeHandle } from "react-resizable-panels";
@@ -161,8 +160,9 @@ function CouchBaseTable(props: { uuid: string; table: string }) {
     });
     setResp(newDataDefault());
     setLoading(true);
-    unwrapCommand(
-      commands.showTable(
+
+    commands
+      .showTable(
         uuid,
         false,
         table,
@@ -173,8 +173,8 @@ function CouchBaseTable(props: { uuid: string; table: string }) {
           page: page,
         } as ShowTableParameter,
         c,
-      ),
-    )
+      )
+
       .catch((e) => {
         showNotification({ severity: "error", title: "load data failed", message: e });
       })
@@ -259,7 +259,7 @@ function CouchBaseTable(props: { uuid: string; table: string }) {
               handleValueButton="modify"
               value={item.data}
               handleDelete={async () => {
-                await unwrapCommand(commands.tableDelete(uuid, table, { id: item.id }));
+                await commands.tableDelete(uuid, table, { id: item.id });
                 setResp((resp) => {
                   return {
                     count: resp.count - 1,
@@ -269,17 +269,16 @@ function CouchBaseTable(props: { uuid: string; table: string }) {
               }}
               warnModify
               handleValue={async (newV) => {
-                await unwrapCommand(
-                  commands.tableUpdate(
-                    uuid,
-                    table,
-                    {
-                      id: item.id,
-                      value: newV,
-                    },
-                    {},
-                  ),
+                await commands.tableUpdate(
+                  uuid,
+                  table,
+                  {
+                    id: item.id,
+                    value: newV,
+                  },
+                  {},
                 );
+
                 setResp((resp) => {
                   return {
                     count: resp.count,
@@ -559,16 +558,14 @@ function CouchBaseInsert({ uuid, table }) {
         />
       </>
       handleValueButton="insert"
-      handleValue={(value) => {
+      handleValue={async (value) => {
         if (!id.trim()) {
           throw "id is empty";
         }
-        return unwrapCommand(
-          commands.tableInsert(uuid, table, {
-            id: id.trim(),
-            value,
-          }),
-        );
+        await commands.tableInsert(uuid, table, {
+          id: id.trim(),
+          value,
+        });
       }}
     />
   );
@@ -713,9 +710,10 @@ function CouchBaseQuery(props: { uuid: string; value?: string }) {
           break;
       }
     });
-    unwrapCommand(
-      commands.querySql(uuid, "", getSize(UseSizeConfig.queryLimit), text, channel),
-    )
+
+    commands
+      .querySql(uuid, "", getSize(UseSizeConfig.queryLimit), text, channel)
+
       .catch((e) => {
         showNotification({ severity: "error", title: "query failed", message: e });
         saveQueryLog(uuid, text, false);
@@ -914,16 +912,14 @@ function CouchBaseQuery(props: { uuid: string; value?: string }) {
               supportKind={["json", "jsonline"]}
               exportOP={(kind, file, taskId, sizeEmitter) => {
                 const sql = getEditorText(editor, showNotification);
-                return unwrapCommand(
-                  commands.exportQueryResultToFile(
-                    uuid,
-                    taskId,
-                    sql,
-                    "",
-                    kind,
-                    file,
-                    sizeEmitter,
-                  ),
+                return commands.exportQueryResultToFile(
+                  uuid,
+                  taskId,
+                  sql,
+                  "",
+                  kind,
+                  file,
+                  sizeEmitter,
                 );
               }}
               handleClose={() => {

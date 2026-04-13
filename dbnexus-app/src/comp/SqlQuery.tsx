@@ -369,10 +369,8 @@ function SqlQuery(props: {
         setSqlErr(null);
         return;
       }
-      commands.checkSql(uuid, editor.getValue()).then((ret) => {
-        if (ret.status === "ok") {
-          setSqlErr(ret.data);
-        }
+      commands.checkSql(uuid, editor.getValue()).then((data) => {
+        setSqlErr(data);
       });
     });
     return () => {

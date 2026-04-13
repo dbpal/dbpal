@@ -74,7 +74,6 @@ import {
   modalStyle,
   NameAndQueryId,
   reloadOK,
-  unwrapCommand,
 } from "./Common";
 import AddIcon from "@mui/icons-material/Add";
 import ChatBubbleIcon from "@mui/icons-material/ChatBubble";
@@ -267,7 +266,8 @@ function CreateDatabase(props: {
           bucket_type: couchbasExtra.bucket_type,
         };
     }
-    unwrapCommand(commands.createDatabase(uuid, database, extra))
+    commands
+      .createDatabase(uuid, database, extra)
       .then(() => {
         showNotification({ severity: "success", title: "Create OK" });
         handleClose();
@@ -405,7 +405,8 @@ function CreateSchema(props: {
         };
         break;
     }
-    unwrapCommand(commands.createSchema(uuid, schema, extra))
+    commands
+      .createSchema(uuid, schema, extra)
       .then(() => {
         showNotification({ severity: "success", title: "create  ok" });
         handleClose();
@@ -647,18 +648,7 @@ function ConnConfigInfo(props: { uuid }) {
   const handleInfo = useCallback(
     async (showOK: boolean) => {
       try {
-        let ret = await commands.serverMetas(uuid);
-        let metas: MetaValue[] = [];
-        if (ret.status === "ok") {
-          metas = ret.data;
-        } else {
-          showNotification({
-            severity: "error",
-            title: "get server metas failed",
-            message: ret.error,
-          });
-          metas = [];
-        }
+        let metas: MetaValue[] = await commands.serverMetas(uuid);
         const config = await getConnection(uuid);
         let configMetas = [];
         switch (config.conn_type) {
@@ -1405,17 +1395,18 @@ function TypeSelect(props: { handleChange; uuid; type; style?: CSSProperties }) 
   const [types, setTypes] = useState<string[]>([]);
   const { showNotification } = useNotification();
   useEffect(() => {
-    commands.listDataTypes(uuid).then((ret) => {
-      if (ret.status == "ok") {
-        setTypes(ret.data);
-      } else {
+    commands
+      .listDataTypes(uuid)
+      .then((data) => {
+        setTypes(data);
+      })
+      .catch((e) => {
         showNotification({
           severity: "error",
           title: "should not return a error",
-          message: ret.error,
+          message: e,
         });
-      }
-    });
+      });
   }, [showNotification, uuid]);
   return (
     <Autocomplete
@@ -1461,17 +1452,18 @@ function SqlDefaultValue(props: { uuid: string; defaultValue; setDefaultValue })
   const [currentValue, setCurrentValue] = useState<string[]>([]);
   const { showNotification } = useNotification();
   useEffect(() => {
-    commands.listSqlCurrentValues(uuid).then((ret) => {
-      if (ret.status == "ok") {
-        setCurrentValue(ret.data);
-      } else {
+    commands
+      .listSqlCurrentValues(uuid)
+      .then((data) => {
+        setCurrentValue(data);
+      })
+      .catch((e) => {
         showNotification({
           severity: "error",
           title: "list created types failed",
-          message: ret.error,
+          message: e,
         });
-      }
-    });
+      });
   }, [showNotification, uuid]);
 
   return (
@@ -1609,16 +1601,15 @@ function SetFilterSort(props: {
   };
 
   const handleSet = async () => {
-    let ret = await extractFn(uuid, editor.getValue());
-
-    if (ret.status == "ok") {
-      setValue(ret.data == null ? "" : ret.data);
+    try {
+      let data = await extractFn(uuid, editor.getValue());
+      setValue(data == null ? "" : data);
       handleClose();
-    } else {
+    } catch (e) {
       showNotification({
         severity: "error",
         title: "extract sql error.",
-        message: ret.error,
+        message: e,
       });
       return;
     }
@@ -1669,14 +1660,14 @@ function SetFilterSort(props: {
                       });
                       return;
                     }
-                    const ret = await extractFn(uuid, value);
-                    if (ret.status == "ok") {
-                      addFilter(uuid, tableName, ret.data);
-                    } else {
+                    try {
+                      const data = await extractFn(uuid, value);
+                      addFilter(uuid, tableName, data);
+                    } catch (e) {
                       showNotification({
                         severity: "error",
                         title: "save filter failed",
-                        message: ret.error,
+                        message: e,
                       });
                     }
                   }}>

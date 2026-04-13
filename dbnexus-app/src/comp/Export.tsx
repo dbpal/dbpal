@@ -21,7 +21,6 @@ import { cancelTask } from "./handlers";
 import { CancelButton, StackRowCenter } from "./CommonComp2";
 import { useNotification, useUserSettings } from "./store";
 import { commands, ExportKind, ShowTableParameter } from "./bindings";
-import { unwrapCommand } from "./Common";
 function IncludeHeader({ includeHeader, setIncludeHeader }) {
   return (
     <FormControlLabel
@@ -261,16 +260,14 @@ function ExportTableOrView(props: {
   return (
     <ExportView
       exportOP={async (kind, filepath, taskId, sizeEmitter) => {
-        await unwrapCommand(
-          commands.exportTableOrView(
-            uuid,
-            taskId,
-            sizeEmitter,
-            name,
-            para,
-            filepath,
-            kind,
-          ),
+        return await commands.exportTableOrView(
+          uuid,
+          taskId,
+          sizeEmitter,
+          name,
+          para,
+          filepath,
+          kind,
         );
       }}
       supportKind={supportKind}

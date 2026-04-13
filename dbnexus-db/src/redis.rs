@@ -55,7 +55,7 @@ impl std::fmt::Debug for RedisDB {
 }
 
 #[derive(Clone, Debug, serde::Serialize, Default, specta::Type)]
-pub struct RedisListTable {
+pub struct RedisListTableRet {
     string_tables: Vec<ListTable>,
     list_tables: Vec<ListTable>,
     set_tables: Vec<ListTable>,
@@ -1127,14 +1127,14 @@ impl RedisDB {
         &self,
         filter: Option<&str>,
         max: usize,
-    ) -> anyhow::Result<RedisListTable> {
+    ) -> anyhow::Result<RedisListTableRet> {
         let mut conn = self.get_conn().await?;
         let mut stream: AsyncIter<'_, String> = conn.scan_match(filter.unwrap_or("*")).await?;
         let mut count: usize = 0;
         let mut has_more = false;
         let mut tables_no_table = vec![];
 
-        let mut ret = RedisListTable::default();
+        let mut ret = RedisListTableRet::default();
 
         while let Some(table) = stream.next_item().await {
             let table = table?;

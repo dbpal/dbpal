@@ -16,14 +16,7 @@ import * as monaco from "monaco-editor";
 import { readFile, stat } from "@tauri-apps/plugin-fs";
 import { filesize } from "filesize";
 import { redisCommands } from "./redisCmd.ts";
-import {
-  commands,
-  ExportKind,
-  Field,
-  MetaValue,
-  NamedStaff,
-  UdfOrProcedureExtraParameter,
-} from "./bindings.ts";
+import { commands, ExportKind, Field, MetaValue } from "./bindings.ts";
 
 /**
  * Converts a local file path to a Data URL (base64)
@@ -176,20 +169,19 @@ const autoCompletion = async (
     console.error("editor id map to backend name is nul,this is internal bug");
     return;
   }
-  const result = await commands.autoCompletion(
-    name.queryId,
-    name.queryId,
-    sql,
-    pos.lineNumber,
-    pos.column,
-  );
-  if (result.status == "ok") {
-    const suggestions = backendCompletionItemToEditor(result.data.items);
-    suggestions.incomplete = result.data.incomplete;
+  try {
+    const result = await commands.autoCompletion(
+      name.name,
+      name.queryId,
+      sql,
+      pos.lineNumber,
+      pos.column,
+    );
+    const suggestions = backendCompletionItemToEditor(result.items);
+    suggestions.incomplete = result.incomplete;
     return suggestions;
-  } else {
-    console.error("completion server error:", result.error);
-    return { suggestions: [] };
+  } catch (e) {
+    console.error("completion error", e);
   }
 };
 
@@ -197,30 +189,29 @@ const aiTextAutoCompletion = async (
   modal: editor.ITextModel,
   pos: Position,
 ): Promise<languages.CompletionList> => {
-  const text = modal.getValue();
-  {
-    // try if this is ai text completion
-    const name = modal[dbpalQuerykey];
-    if (name) {
-      const result = await commands.aiTextCompletion(
-        name.name,
-        text,
-        pos.lineNumber,
-        pos.column,
-      );
-
-      if (result.status == "ok") {
-        const suggestions = backendCompletionItemToEditor(result.data.items);
-        suggestions.incomplete = result.data.incomplete;
+  try {
+    const text = modal.getValue();
+    {
+      // try if this is ai text completion
+      const name = modal[dbpalQuerykey];
+      if (name) {
+        const result = await commands.aiTextCompletion(
+          name.name,
+          text,
+          pos.lineNumber,
+          pos.column,
+        );
+        const suggestions = backendCompletionItemToEditor(result.items);
+        suggestions.incomplete = result.incomplete;
         return suggestions;
-      } else {
-        console.error("completion server error:", result.error);
-        return { suggestions: [] };
       }
     }
+    console.info("nothing to complete");
+    return { suggestions: [] };
+  } catch (e) {
+    console.error("AI text completion error", e);
+    return { suggestions: [] };
   }
-  console.info("nothing to complete");
-  return { suggestions: [] };
 };
 
 monaco.languages.registerCompletionItemProvider("sql", {
@@ -329,10 +320,7 @@ class QueryConn {
   }
   async open(): Promise<void> {
     console.log("open connection", this.uuid, this.queryId);
-    let r = await commands.querySqlOpenConnection(this.uuid, this.queryId);
-    if (r.status == "error") {
-      throw r.error;
-    }
+    return commands.querySqlOpenConnection(this.uuid, this.queryId);
   }
 
   supportTransaction(): boolean {
@@ -413,9 +401,7 @@ class QueryConn {
   }
 
   isDangerSql(sql: string): Promise<boolean> {
-    return commands
-      .isDangerousSql(this.uuid, sql)
-      .then((e) => (e.status == "ok" ? e.data : false));
+    return commands.isDangerousSql(this.uuid, sql);
   }
   destroy() {
     commands
@@ -588,22 +574,7 @@ export function isRedisCode(code: string) {
   }
   return false;
 }
-function makeUdfExtraArg(
-  udf: NamedStaff,
-  kind: DataSourceKind,
-): UdfOrProcedureExtraParameter {
-  let arg = null;
-  switch (kind) {
-    case DataSourceKind.Postgres:
-    case DataSourceKind.Cockroach:
-      arg = { extra: "postgres", parameters: udf.parameters };
-      break;
-    case DataSourceKind.Cassandra:
-      arg = { extra: "cassandra", parameters: udf.cassandra_parameters };
-      break;
-  }
-  return arg;
-}
+
 export {
   dbpalQuerykey,
   dropDatabase,
@@ -620,18 +591,5 @@ export {
   reloadOK,
   convertPathToDataUrl,
   uint8ArrayToBase64,
-  makeUdfExtraArg,
 };
 export type { DefAndMetas, EscDownEvent, FieldAndGridField, QueryEvent };
-
-/* Tauri Specta runtime */
-export async function unwrapCommand<T, E>(
-  result: Promise<T>,
-): Promise<{ status: "ok"; data: T } | { status: "error"; error: E }> {
-  try {
-    return { status: "ok", data: await result };
-  } catch (e) {
-    if (e instanceof Error) throw e;
-    return { status: "error", error: e as any };
-  }
-}

@@ -4,8 +4,6 @@ import { useCallback, useContext, useEffect, useRef, useState } from "react";
 import DeleteForeverIcon from "@mui/icons-material/DeleteForever";
 import InfoIcon from "@mui/icons-material/Info";
 import { DefAndMetas } from "./Common";
-import types from "./ApiStruct";
-import { invoke } from "@tauri-apps/api/core";
 import { DefAndMetasView } from "./DefAndMetaView";
 import { MdOutlineEventRepeat } from "react-icons/md";
 import {
@@ -17,7 +15,6 @@ import {
 } from "./helper";
 import { v4 as uuidv4 } from "uuid";
 import { ExceedMaxTreeItem, MenuRefresh } from "./CommonComp";
-import { listEvent } from "./handlers";
 import { CopySql, ShowingCount } from "./CommonComp2";
 import {
   useMatcher,
@@ -26,7 +23,7 @@ import {
   useTabsManage,
   useMatcherFn,
 } from "./store";
-import { commands } from "./bindings";
+import { commands, SqlEvent } from "./bindings";
 function EventsTree() {
   const { uuid, kind } = useContext(UuidContext);
   const [evens, setEvents] = useState<SqlEvent[]>([]);
@@ -34,7 +31,8 @@ function EventsTree() {
   const { maxTree } = useMatcher();
   const matchPattern = useMatcherFn();
   const reload = useCallback(() => {
-    listEvent(uuid)
+    commands
+      .listEvent(uuid)
       .then((ts) => {
         setEvents(ts);
       })
@@ -146,7 +144,8 @@ function EventMenu(props: { uuid; event: SqlEvent; reload; kind: DataSourceKind 
     if (!confirm) {
       return;
     }
-    unwrapCommand(commands.dropEvent(uuid, event.name))
+    commands
+      .dropEvent(uuid, event.name)
       .then((sql) => {
         showNotification({
           severity: "success",

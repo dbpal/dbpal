@@ -40,7 +40,6 @@ import {
   modalHandleClose,
   modalStyle,
   reloadOK,
-  unwrapCommand,
 } from "./Common";
 import DeleteForeverIcon from "@mui/icons-material/DeleteForever";
 import KeyIcon from "@mui/icons-material/Key";
@@ -338,8 +337,8 @@ function SqlTableView(props: {
   );
 
   const addOP = useCallback(
-    (x) => {
-      return commands.tableInsert(uuid, tableName, x);
+    async (x) => {
+      await commands.tableInsert(uuid, tableName, x);
     },
     [uuid, tableName],
   );
@@ -533,24 +532,15 @@ function SqlTableView(props: {
       if (!(await confirmAboutPrimary(notWarnPri, resp.fields))) {
         return oldRow;
       }
-      const ret = await getUpdateSql(old, updateRow);
-      if (ret.status == "ok") {
-        setOps((e) => [
-          ...e,
-          new DatabaseOperation(
-            DatabaseOpKind.Update,
-            ret.data,
-            tryGetId(oldRow, resp.fields),
-          ),
-        ]);
-      } else {
-        showNotification({
-          severity: "error",
-          title: "generate update sql failed",
-          message: ret.error,
-        });
-        throw ret.error;
-      }
+      const data = await getUpdateSql(old, updateRow);
+      setOps((e) => [
+        ...e,
+        new DatabaseOperation(
+          DatabaseOpKind.Update,
+          data,
+          tryGetId(oldRow, resp.fields),
+        ),
+      ]);
       return oldRow;
     },
     [rowHasOP, notWarnPri, resp, showNotification, getUpdateSql],
@@ -581,23 +571,11 @@ function SqlTableView(props: {
       }
 
       let old2 = { ...old };
-      const ret = await getDeleteSql(old2);
-      if (ret.status == "ok") {
-        setOps((e) => [
-          ...e,
-          new DatabaseOperation(
-            DatabaseOpKind.Delete,
-            ret.data,
-            tryGetId(old, resp.fields),
-          ),
-        ]);
-      } else {
-        showNotification({
-          severity: "error",
-          title: "generate delete sql failed",
-          message: ret.error,
-        });
-      }
+      const data = await getDeleteSql(old2);
+      setOps((e) => [
+        ...e,
+        new DatabaseOperation(DatabaseOpKind.Delete, data, tryGetId(old, resp.fields)),
+      ]);
     },
     [getDeleteSql, notWarnPri, resp.data, resp.fields, rowHasOP, showNotification],
   );
@@ -691,11 +669,9 @@ function SqlTableView(props: {
                 setSort={setSort}
                 setWhere={setWhere}
                 put_value_in_sql={(value) => {
-                  return unwrapCommand(
-                    putValueInSql(
-                      resp.fields.find((e) => e.field == field).data_type,
-                      value,
-                    ),
+                  return putValueInSql(
+                    resp.fields.find((e) => e.field == field).data_type,
+                    value,
                   );
                 }}
                 setNull={

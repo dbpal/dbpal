@@ -8,6 +8,7 @@ mod tests {
     use dbnexus_db::redis_lang_server::get_commands_from_docs;
     use std::io::Write;
     use std::path::Path;
+    use tauri_specta::ErrorHandlingMode;
 
     use super::*;
 
@@ -230,6 +231,7 @@ mod tests {
                 set_env,
                 table_insert_sql
             ])
+            .error_handling(ErrorHandlingMode::Throw)
             // 导出到前端目录
             .export(specta_typescript::Typescript::default(), {
                 let dir = env!("CARGO_MANIFEST_DIR");

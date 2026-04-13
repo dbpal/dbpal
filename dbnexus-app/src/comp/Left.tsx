@@ -42,8 +42,6 @@ import {
 import { LuDatabase } from "react-icons/lu";
 import { FaDatabase } from "react-icons/fa";
 import { FaCopy } from "react-icons/fa";
-import types from "./ApiStruct";
-import { invoke } from "@tauri-apps/api/core";
 import { SimpleTreeView } from "@mui/x-tree-view/SimpleTreeView";
 import { TreeItem } from "@mui/x-tree-view/TreeItem";
 import DeleteForeverIcon from "@mui/icons-material/DeleteForever";
@@ -108,7 +106,6 @@ import {
 } from "./CommonComp2.tsx";
 import { EventsTree } from "./LeftEvent.tsx";
 import { AllKindChat } from "./Chat.tsx";
-import { listSchema } from "./handlers.ts";
 import { CreateTable } from "./CreateTable.tsx";
 import { AddConnection } from "./AddConnection.tsx";
 import { ModifySetting } from "./Settings.tsx";
@@ -130,6 +127,7 @@ import {
   useFavoriteStore,
   FavoriteSql,
 } from "./store.tsx";
+import { commands, DBConnectionConfig } from "./bindings.ts";
 const settingId = uuidv4();
 const showTopKey = "left-top-show";
 function LeftTop() {
@@ -1404,7 +1402,8 @@ function CatalogTree() {
       return;
     }
     setLoading(name, true);
-    unwrapCommand(commands.listDatabase(name))
+    commands
+      .listDatabase(name)
       .then((ds) => {
         setDatabases(ds);
       })
@@ -1473,7 +1472,8 @@ function DatabaseTree(props: { database?: string; reloadDatabase?: () => void })
       return;
     }
     setLoading(name, true);
-    listSchema(name)
+    commands
+      .listSchema(name)
       .then((ds) => {
         setSchemas(ds);
       })

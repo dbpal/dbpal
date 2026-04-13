@@ -11,6 +11,7 @@ import {
 import { Chip, Tooltip } from "@mui/material";
 import { AppMarkDown } from "./CommonComp2.tsx";
 import { useBoolSwitch } from "./store.tsx";
+import { commands } from "./bindings.ts";
 const showRedisDocKey = "redis-show-doc";
 function RedisQuery(props: { favoriteName?: string; value?: string; uuid: string }) {
   const { favoriteName, value, uuid } = props;
@@ -41,7 +42,8 @@ function RedisQuery(props: { favoriteName?: string; value?: string; uuid: string
         // line not change no need to update
         return;
       }
-      unwrapCommand(commands.getRedisDoc(line))
+      commands
+        .getRedisDoc(line)
         .then((e) => {
           setPrevLine(line);
           setDoc(e);

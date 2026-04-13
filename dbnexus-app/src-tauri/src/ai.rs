@@ -188,7 +188,7 @@ impl DBPal {
         query_id: impl Into<String>,
         emit: ToolEmitter,
     ) -> anyhow::Result<Vec<Box<dyn ToolDyn>>> {
-        let db = self.get_backend(&name).await?;
+        let db = self.get_backend(name).await?;
         match db.backend_kind() {
             BackendKind::Redis => {
                 let x = db
@@ -218,7 +218,7 @@ impl DBPal {
             _ => {
                 // sql base database
                 let r: Vec<Box<dyn ToolDyn>> = vec![Box::new(SqlQueryTool {
-                    db: db,
+                    db,
                     query_id: query_id.into(),
                     emit: emit.clone(),
                 })];
@@ -254,7 +254,7 @@ impl From<mongodb::error::Error> for CallToolErr {
 impl From<String> for CallToolErr {
     fn from(value: String) -> Self {
         Self {
-            err_msg: value.into(),
+            err_msg: value,
         }
     }
 }
@@ -565,7 +565,7 @@ pub async fn openai_stream(
     let agent = make_agent(
         &req,
         tools,
-        Some(format!("U a are {} expert", db.backend_kind().to_string()).as_str()),
+        Some(format!("U a are {} expert", db.backend_kind()).as_str()),
     )
     .unwrap();
 

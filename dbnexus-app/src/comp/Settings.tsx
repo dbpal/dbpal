@@ -91,17 +91,18 @@ function AppearanceSetting() {
   const [zoom, setZoom] = useState(appearance.zoom);
 
   useEffect(() => {
-    commands.allFontFamily().then((ret) => {
-      if (ret.status == "ok") {
-        setAllFonts(ret.data);
-      } else {
+    commands
+      .allFontFamily()
+      .then((data) => {
+        setAllFonts(data);
+      })
+      .catch((e) => {
         showNotification({
           severity: "error",
           title: "list all fonts failed",
-          message: ret.error,
+          message: e,
         });
-      }
-    });
+      });
   }, [showNotification]);
 
   const makeConfig = useCallback(() => {

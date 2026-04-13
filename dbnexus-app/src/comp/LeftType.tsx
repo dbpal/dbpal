@@ -3,8 +3,6 @@ import { TreeItem } from "@mui/x-tree-view/TreeItem";
 import { useCallback, useContext, useEffect, useRef, useState } from "react";
 import DeleteForeverIcon from "@mui/icons-material/DeleteForever";
 import InfoIcon from "@mui/icons-material/Info";
-import types from "./ApiStruct";
-import { invoke } from "@tauri-apps/api/core";
 import { DefAndMetasView } from "./DefAndMetaView";
 import { PiTreeStructureFill } from "react-icons/pi";
 import {
@@ -16,7 +14,6 @@ import {
 } from "./helper";
 import { v4 as uuidv4 } from "uuid";
 import { ExceedMaxTreeItem, MenuRefresh } from "./CommonComp";
-import { listCreatedTypes } from "./handlers";
 import { CopySql, ShowingCount } from "./CommonComp2";
 import {
   useMatcher,
@@ -25,6 +22,7 @@ import {
   useTabsManage,
   useMatcherFn,
 } from "./store";
+import { commands, CreatedTypeDef } from "./bindings";
 function TypesTree() {
   const { uuid, kind } = useContext(UuidContext);
   const [types, setTypes] = useState<CreatedTypeDef[]>([]);
@@ -33,7 +31,8 @@ function TypesTree() {
   const matchPattern = useMatcherFn();
 
   const reload = useCallback(() => {
-    listCreatedTypes(uuid)
+    commands
+      .listCreatedTypes(uuid)
       .then((ts) => {
         setTypes(ts);
       })
@@ -43,7 +42,7 @@ function TypesTree() {
   }, [showNotification, uuid]);
   const [showItems, setShowItems] = useState(0);
   useEffect(() => {
-    setShowItems(filter((e) => matchPattern(e.name)).length);
+    setShowItems(types.filter((e) => matchPattern(e.name)).length);
   }, [types, matchPattern]);
 
   const setUpMenu = useContextMenu((state) => state.setUpMenu);
@@ -148,7 +147,8 @@ function TypeMenu(props: {
       return;
     }
 
-    unwrapCommand(commands.dropCreatedType(uuid, createdType.name))
+    commands
+      .dropCreatedType(uuid, createdType.name)
       .then((sql) => {
         showNotification({
           severity: "success",

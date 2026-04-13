@@ -25,7 +25,6 @@ import {
   reloadOK,
   EscDownEvent,
   modalHandleClose,
-  unwrapCommand,
 } from "./Common";
 import { openUrl } from "@tauri-apps/plugin-opener";
 import { ClearableTextField } from "./CommonComp2";
@@ -104,10 +103,10 @@ function RedisAddList(props: { uuid: string; listKey: string }) {
   const { uuid, listKey } = props;
 
   const lpushOP = async (value) => {
-    return await unwrapCommand(commands.redisListLpush(uuid, listKey, value));
+    return await (commands.redisListLpush(uuid, listKey, value));
   };
   const rpushOP = async (value) => {
-    return await unwrapCommand(commands.redisListRpush(uuid, listKey, value));
+    return await (commands.redisListRpush(uuid, listKey, value));
   };
   const [loading, setLoading] = useState(false);
   const [direction, setDirection] = useState<ListPushDirection>("left");
@@ -160,7 +159,7 @@ function RedisAddList(props: { uuid: string; listKey: string }) {
 function RedisStringTable(props: { uuid: string; stringKey: string }) {
   const { uuid, stringKey } = props;
   const modifyOP = async (value) => {
-    return await unwrapCommand(commands.redisStringSet(uuid, stringKey, value));
+    return await (commands.redisStringSet(uuid, stringKey, value));
   };
   const [content, setContent] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
@@ -225,7 +224,7 @@ function RedisAddSet(props: { uuid: string; setKey: string }) {
   const { uuid, setKey } = props;
 
   const addOP = async (member) => {
-    return await unwrapCommand(commands.redisSetAdd(uuid, setKey, member));
+    return await (commands.redisSetAdd(uuid, setKey, member));
   };
   const [loading, setLoading] = useState(false);
   const valueRef = useRef(new EditorAndMode());
@@ -265,7 +264,7 @@ function RedisAddHash(props: { uuid: string; hashKey: string }) {
   const { uuid, hashKey } = props;
 
   const addOP = async (member, value) => {
-    return await unwrapCommand(commands.redisHashAdd(uuid, hashKey, member, value));
+    return await (commands.redisHashAdd(uuid, hashKey, member, value));
   };
   const [loading, setLoading] = useState(false);
   const key = useRef(new EditorAndMode());
@@ -306,7 +305,7 @@ function RedisAddZset(props: { uuid: string; zsetKey: string }) {
   const { uuid, zsetKey } = props;
 
   const addOP = async (member, value) => {
-    return await unwrapCommand(commands.redisZsetAdd(uuid, zsetKey, member, value));
+    return await (commands.redisZsetAdd(uuid, zsetKey, member, value));
   };
 
   const [loading, setLoading] = useState(false);
@@ -738,11 +737,11 @@ const keyMatcherHelpText = "key matcher string,could be *key,key*,*key*";
 function RedisSetTable(props: { setKey: string; uuid: string }) {
   const { setKey, uuid } = props;
   const modifyOP = async (old, newValue) => {
-    return await unwrapCommand(commands.redisSetReplace(uuid, setKey, old, newValue));
+    return await (commands.redisSetReplace(uuid, setKey, old, newValue));
   };
   const delOP = useCallback(
     async (member: string) => {
-      return await unwrapCommand(commands.redisSetDel(uuid, setKey, member));
+      return await (commands.redisSetDel(uuid, setKey, member));
     },
     [setKey, uuid],
   );
@@ -1104,11 +1103,11 @@ function AddTable(props: {
 function RedisListTable(props: { listKey: string; uuid: string }) {
   const { listKey, uuid } = props;
   const modifyOP = async (index, value) => {
-    return await unwrapCommand(commands.redisListSet(uuid, listKey, value, index));
+    return await (commands.redisListSet(uuid, listKey, value, index));
   };
   const delOP = useCallback(
     async (count, value) => {
-      return await unwrapCommand(commands.redisListRemove(uuid, listKey, value, count));
+      return await (commands.redisListRemove(uuid, listKey, value, count));
     },
     [listKey, uuid],
   );
@@ -1437,13 +1436,13 @@ function RedisZSetTableContextMenu(props: { delOP: () => void; content }) {
 function RedisZsetTable(props: { uuid: string; zsetKey: string }) {
   const { uuid, zsetKey } = props;
   const modifyOP = async (oldMember: string, newKey: string, newValue: number) => {
-    return await unwrapCommand(
-      commands.redisZsetReplace(uuid, zsetKey, oldMember, newKey, newValue),
-    );
+    return await    commands.redisZsetReplace(uuid, zsetKey, oldMember, newKey, newValue);
+
+     
   };
   const delOP = useCallback(
     async (member) => {
-      return await unwrapCommand(commands.redisZsetDel(uuid, zsetKey, member));
+      return await (commands.redisZsetDel(uuid, zsetKey, member));
     },
     [uuid, zsetKey],
   );
@@ -1797,15 +1796,14 @@ function RedisHashTable(props: { hashKey: string; uuid: string }) {
   const { uuid, hashKey } = props;
   const delOP = useCallback(
     async (member) => {
-      return await unwrapCommand(commands.redisHashDel(uuid, hashKey, member));
+      return await (commands.redisHashDel(uuid, hashKey, member));
     },
     [hashKey, uuid],
   );
 
   const modifyOP = async (oldMember, newMember, newValue) => {
-    return await unwrapCommand(
-      commands.redisHashReplace(uuid, hashKey, oldMember, newMember, newValue),
-    );
+    return await   commands.redisHashReplace(uuid, hashKey, oldMember, newMember, newValue)
+;
   };
   const { getColumnWidth, setColumnWidth } = useColumnWidthStore();
 

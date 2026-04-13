@@ -9,7 +9,7 @@ import Dexie, { type Table } from "dexie";
 import wcmatch from "wildcard-match";
 import { cloneDeep } from "lodash-es";
 import { GridColumnVisibilityModel } from "@mui/x-data-grid";
-import { PassWordManager, unwrapCommand } from "./Common";
+import { PassWordManager } from "./Common";
 import { editor } from "monaco-editor";
 import { Channel } from "@tauri-apps/api/core";
 import { cancelTask } from "./handlers";
@@ -307,7 +307,7 @@ export const makeLLMCallable = (config: LLMConfig) => {
 
   return {
     invoke: async (msg: string): Promise<string> => {
-      return await unwrapCommand(commands.openaiInvoke(makeReq(msg, [], [], "")));
+      return await commands.openaiInvoke(makeReq(msg, [], [], ""));
     },
     stream: async (
       uuid: string,
@@ -327,14 +327,12 @@ export const makeLLMCallable = (config: LLMConfig) => {
       handleCancel(() => {
         cancelTask(taskId);
       });
-      await unwrapCommand(
-        commands.openaiStream(
-          makeReq(prompt, images, history, user_system_prompt),
-          uuid,
-          queryId,
-          emit,
-          taskId,
-        ),
+      await commands.openaiStream(
+        makeReq(prompt, images, history, user_system_prompt),
+        uuid,
+        queryId,
+        emit,
+        taskId,
       );
     },
   };

@@ -86,7 +86,6 @@ import {
   TableAddButton,
 } from "./CommonComp2";
 import { message } from "@tauri-apps/plugin-dialog";
-import { invoke } from "@tauri-apps/api/core";
 import { AddTableView } from "./LeftTable";
 import {
   useColumnWidthStore,
@@ -98,6 +97,7 @@ import {
   useTableColumnVisibleStore,
   useUserSettings,
 } from "./store";
+import { commands } from "./bindings";
 enum MongoDataViewModel {
   TableList,
   Object,
@@ -1690,7 +1690,7 @@ class MongoTableHandler {
       page,
       pageSize,
     );
-    return await unwrapCommand(commands.mongoShowCollectionTableList(uuid, table, para));
+    return await commands.mongoShowCollectionTableList(uuid, table, para);
   }
 
   static reloadDocs(uuid: string, table: string, filter, sort, page, pageSize) {
@@ -1700,7 +1700,7 @@ class MongoTableHandler {
       page,
       pageSize,
     );
-    return unwrapCommand(commands.mongoShowCollectionDocs(uuid, table, para)).then((x) => {
+    return commands.mongoShowCollectionDocs(uuid, table, para).then((x) => {
       const docs = x.docs.map((e) => BSON.deserialize(new Uint8Array(e)));
       const count = x.count;
       return new DocsAndCount(docs, count);
@@ -1709,15 +1709,17 @@ class MongoTableHandler {
 
   static loadOne(uuid: string, table: string) {
     return async (id): Promise<BSON.Document> => {
-      return unwrapCommand(commands.mongoGetOneDocumentById(uuid, table, JSON.stringify(EJSON.serialize(id)))).then((x) => {
-        return BSON.deserialize(new Uint8Array(x));
-      });
+      return commands
+        .mongoGetOneDocumentById(uuid, table, JSON.stringify(EJSON.serialize(id)))
+        .then((x) => {
+          return BSON.deserialize(new Uint8Array(x));
+        });
     };
   }
 
   static modifyOP(uuid: string, table: string) {
     return async (doc) => {
-      return unwrapCommand(commands.mongoUpdateOne(uuid, table, BSON.serialize(doc)));
+      return commands.mongoUpdateOne(uuid, table, BSON.serialize(doc));
     };
   }
   static deleteOP(uuid, table) {
@@ -1725,7 +1727,7 @@ class MongoTableHandler {
       if (!Array.isArray(ids)) {
         ids = [ids];
       }
-      return unwrapCommand(commands.mongoDeleteIds(uuid, table, JSON.stringify(EJSON.serialize(ids))));
+      return commands.mongoDeleteIds(uuid, table, JSON.stringify(EJSON.serialize(ids)));
     };
   }
 }

@@ -1,4 +1,3 @@
-import { types } from "./ApiStruct.ts";
 import {
   Alert,
   Box,
@@ -53,6 +52,7 @@ import {
   usePageSize,
   useUserSettings,
 } from "./store.tsx";
+import { Field } from "./bindings.ts";
 
 function RespContextMenu(props: { content; field; setSort; viewInModal }) {
   const { content, field, setSort, viewInModal } = props;
