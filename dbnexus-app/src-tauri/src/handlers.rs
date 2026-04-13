@@ -549,6 +549,20 @@ pub async fn table_insert(
 }
 
 #[tauri::command]
+pub async fn table_insert_sql(
+    name: String,
+    table_name: String,
+    values: HashMap<String, Option<String>>,
+    app: tauri::State<'_, DBPal>,
+) -> Result<String, ErrorFrontend> {
+    random_sleep().await;
+    random_error()?;
+    let db = app.get_schema(&name).await?;
+    db.table_insert_sql(&table_name, values)
+        .await
+        .map_err(ErrorFrontend::from)
+}
+#[tauri::command]
 pub async fn table_update(
     name: String,
     table_name: String,

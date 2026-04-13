@@ -16,6 +16,7 @@ import { GridColDef } from "@mui/x-data-grid";
 import * as monaco from "monaco-editor";
 import { readFile, stat } from "@tauri-apps/plugin-fs";
 import { filesize } from "filesize";
+import { redisCommands } from "./redisCmd.ts";
 
 /**
  * Converts a local file path to a Data URL (base64)
@@ -514,6 +515,71 @@ async function editorAppendContent(editor: editor.IStandaloneCodeEditor, text) {
     },
   ]);
   editor.revealLine(lastLine + 1);
+}
+
+export function isSQLCode(codeContent: string, langTag: string = ""): boolean {
+  // 1. Check Language Identifier (Highest Priority)
+  const sqlTags = new Set([
+    "sql",
+    "mysql",
+    "postgresql",
+    "postgres",
+    "psql",
+    "tsql",
+    "plsql",
+    "sqlite",
+    "mariadb",
+    "oracle",
+    "hive",
+    "presto",
+  ]);
+
+  const normalizedTag = langTag.toLowerCase().trim();
+  if (sqlTags.has(normalizedTag)) {
+    return true;
+  }
+
+  // 2. Keyword Pattern Matching (Fall-back for untagged blocks)
+  // We use word boundaries (\b) and case-insensitive flags
+  const sqlPatterns = [
+    /\bSELECT\b.*\bFROM\b/is,
+    /\bINSERT\s+INTO\b/is,
+    /\bUPDATE\b.*\bSET\b/is,
+    /\bDELETE\s+FROM\b/is,
+    /\bCREATE\s+(TABLE|VIEW|INDEX|DATABASE|SCHEMA)\b/is,
+    /\bALTER\s+TABLE\b/is,
+    /\bDROP\s+(TABLE|VIEW)\b/is,
+    /\bGROUP\s+BY\b/is,
+    /\bORDER\s+BY\b/is,
+    /\bLEFT|RIGHT|INNER\s+JOIN\b/is,
+  ];
+
+  const isKeywordMatch = sqlPatterns.some((regex) => regex.test(codeContent));
+  if (isKeywordMatch) return true;
+
+  // 3. Structural Clues (Comments or Semicolons)
+  // Only confirm if a basic SQL verb is also present to avoid false positives with Shell scripts
+  const hasSemicolon = /;\s*$/.test(codeContent);
+  const hasSqlComments = /--\s+|(\/\*[\s\S]*?\*\/)/.test(codeContent);
+  const hasBasicVerb = /\b(SELECT|INSERT|UPDATE|DELETE|CREATE|DROP|GRANT)\b/i.test(
+    codeContent,
+  );
+
+  if ((hasSemicolon || hasSqlComments) && hasBasicVerb) {
+    return true;
+  }
+
+  return false;
+}
+
+export function isRedisCode(code: string) {
+  let codeUpper = code.toUpperCase();
+  for (const cmd of redisCommands) {
+    if (codeUpper.includes(cmd)) {
+      return true;
+    }
+  }
+  return false;
 }
 
 export {

@@ -19,6 +19,8 @@ import { editor, Position } from "monaco-editor";
 import {
   dbpalQuerykey,
   EscDownEvent,
+  isRedisCode,
+  isSQLCode,
   modalHandleClose,
   modalStyle,
   NameAndQueryId,
@@ -43,7 +45,7 @@ import {
   saveQueryKey,
   MonacoEditor,
   QueryIDEditorChatCtx,
-  getDefautLanguage,
+  getDefaultLanguage,
   jumpToEditorText,
 } from "./helper.ts";
 import ArrowCircleDownRoundedIcon from "@mui/icons-material/ArrowCircleDownRounded";
@@ -679,22 +681,25 @@ function SqlQuery(props: {
               jumpToEditorText(editor, code);
             }}
             appcodeExtra={({ code, language }) => {
-              console.log("language", language, language !== "sql");
-              return (
-                <QueryButtons
-                  disabled={language !== "sql"}
-                  getText={() => {
-                    return code;
-                  }}
-                  supportExplain={supportExplain}
-                  loading={loading}
-                  handleQuery={handleQuery}
-                  handleExecute={handleExecute}
-                  handleCancel={() => {
-                    cancelTask(queryId);
-                  }}
-                />
-              );
+              if (isSQLCode(code, language) || isRedisCode(code)) {
+                return (
+                  <QueryButtons
+                    disabled={false}
+                    getText={() => {
+                      return code;
+                    }}
+                    supportExplain={supportExplain}
+                    loading={loading}
+                    handleQuery={handleQuery}
+                    handleExecute={handleExecute}
+                    handleCancel={() => {
+                      cancelTask(queryId);
+                    }}
+                  />
+                );
+              } else {
+                return <> </>;
+              }
             }}
           />
           <div
@@ -706,7 +711,7 @@ function SqlQuery(props: {
             }}
             ref={editorDivDom}>
             <MonacoEditor
-              language={markdownModel ? "markdown" : getDefautLanguage(kind)}
+              language={markdownModel ? "markdown" : getDefaultLanguage(kind)}
               value={value}
               onMount={handleEditorDidMount}
             />

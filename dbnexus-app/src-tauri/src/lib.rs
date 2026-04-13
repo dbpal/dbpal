@@ -15,6 +15,9 @@ mod tests {
     };
     use dbnexus_db::language_server::CompletionList;
     use dbnexus_db::redis::RedisListTable;
+    use dbnexus_db::redis_lang_server::get_commands_from_docs;
+    use std::io::Write;
+    use std::path::Path;
     #[test]
     fn generate_ts_def() {
         use crate::app::{self};
@@ -26,7 +29,7 @@ mod tests {
             TriggerDetail, TriggerEnable, TriggerEvent, TriggerTiming,
         };
         use dbnexus_db::language_server::{CompletionItem, CompletionKind};
-        use std::path::Path;
+
         use typescript_type_def::{
             write_definition_file_from_type_infos, DefinitionFileOptions, TypeDef,
         };
@@ -97,5 +100,36 @@ mod tests {
         write_definition_file_from_type_infos(&mut file, options, &api).unwrap();
 
         println!("generate OK.")
+    }
+
+    #[test]
+    fn generate_redis_command() {
+        let cmds = get_commands_from_docs();
+        let dir = env!("CARGO_MANIFEST_DIR");
+        let filepath = Path::new(&dir)
+            .to_path_buf()
+            .join("../src/comp/redisCmd.ts");
+
+        let mut ops = std::fs::OpenOptions::new();
+        ops.write(true);
+        ops.truncate(true);
+        ops.create(true);
+
+        let mut file = ops.open(filepath.as_path()).unwrap();
+
+        file.write("export const redisCommands = [\n".as_bytes())
+            .unwrap();
+
+        let last = cmds.len() - 1;
+
+        for (i, x) in cmds.iter().enumerate() {
+            file.write(format!(r#"  "{}""#, x).as_bytes()).unwrap();
+            if i != last {
+                file.write(",\n".as_bytes()).unwrap();
+            } else {
+                file.write("\n".as_bytes()).unwrap();
+            }
+        }
+        file.write("];".as_bytes()).unwrap();
     }
 }

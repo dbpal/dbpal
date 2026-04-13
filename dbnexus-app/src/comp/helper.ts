@@ -628,7 +628,7 @@ export function jumpToEditorText(
   }
 }
 
-export function getDefautLanguage(kind: DataSourceKind) {
+export function getDefaultLanguage(kind: DataSourceKind) {
   switch (kind) {
     case DataSourceKind.Mongo:
       return "javascript";

@@ -366,7 +366,7 @@ function CouchBaseTable(props: { uuid: string; table: string }) {
             sx={{ resize: "both", ...modalStyle, width: "80%", height: "30vh" }}
             ref={setAddModalBox}>
             <ModalHeader
-              title="insert data"
+              title="add data"
               handleClose={() => {
                 setShowAdd(false);
               }}

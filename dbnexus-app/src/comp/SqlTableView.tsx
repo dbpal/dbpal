@@ -1011,7 +1011,7 @@ function SqlTableView(props: {
             sx={{ resize: "both", ...modalStyle, width: "80%", height: "30vh" }}
             ref={setAddModalBox}>
             <ModalHeader
-              title="insert data"
+              title="add data"
               handleClose={() => {
                 setShowAdd(false);
               }}

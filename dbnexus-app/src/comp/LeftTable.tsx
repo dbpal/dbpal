@@ -361,8 +361,7 @@ function AddTableView(props: {
   redisTableType?: RedisTableType;
 }) {
   const { uuid, table, kind, redisTableType } = props;
-  const [fields, setFields] = useState<types.Field[]>([]);
-  const { showNotification } = useNotification();
+
   switch (kind) {
     case DataSourceKind.Redis:
       switch (redisTableType) {
@@ -393,7 +392,13 @@ function AddTableView(props: {
       );
   }
 
-  // eslint-disable-next-line react-hooks/rules-of-hooks
+  return <SqlAddTableView uuid={uuid} table={table} />;
+}
+
+function SqlAddTableView(props: { uuid: string; table: string }) {
+  const { uuid, table } = props;
+  const [fields, setFields] = useState<types.Field[]>([]);
+  const { showNotification } = useNotification();
   useEffect(() => {
     showTableColumn(uuid, table)
       .then((e) => {
@@ -407,7 +412,6 @@ function AddTableView(props: {
         });
       });
   }, [showNotification, table, uuid]);
-
   return (
     <SqlTableViewData
       isAdd

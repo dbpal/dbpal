@@ -42,8 +42,8 @@ use handlers::{
     redis_zset_replace, rename_index, rename_sequence, rename_table, server_metas, set_env,
     set_log_level, show_create_table_sql, show_indexes, show_procedure, show_table,
     show_table_columns, show_trigger, show_udf, show_view_columns, simple_execute_sql,
-    table_delete, table_delete_sql, table_insert, table_update, table_update_sql, test_connection,
-    truncate_table, try_list_database_schema_candidates, valid_json,
+    table_delete, table_delete_sql, table_insert, table_insert_sql, table_update, table_update_sql,
+    test_connection, truncate_table, try_list_database_schema_candidates, valid_json,
 };
 
 use ai::openai_invoke;
@@ -531,6 +531,7 @@ fn main() {
             openai_stream,
             openai_invoke,
             set_env,
+            table_insert_sql
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

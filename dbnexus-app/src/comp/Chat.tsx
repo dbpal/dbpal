@@ -521,7 +521,7 @@ function ChatHistory(props: {
                 setMatchStr("");
               }}
               label="search in history"
-              style={{ width: "10rem" }}
+              style={{ width: "13rem" }}
             />
             <Typography>
               {!matchStr

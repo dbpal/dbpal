@@ -66,7 +66,7 @@ import { TreeItem } from "@mui/x-tree-view/TreeItem";
 import { editor, Position } from "monaco-editor";
 import { openPath } from "@tauri-apps/plugin-opener";
 import { FaMarkdown } from "react-icons/fa";
-import { AppDataGridPagination, StackRowCenter } from "./CommonComp2";
+import { AppDataGridPagination } from "./CommonComp2";
 import {
   passwordKey,
   savePasswordKey,
@@ -520,7 +520,7 @@ function ModalHeader(props: {
         top: 0,
         backgroundColor: theme.palette.background.paper,
       }}>
-      <StackRowCenter>
+      <Stack direction="row" style={{ alignItems: "flex-end" }}>
         <Typography
           variant="h6"
           style={{
@@ -531,7 +531,7 @@ function ModalHeader(props: {
           {title}
         </Typography>
         {headerExtra}
-      </StackRowCenter>
+      </Stack>
 
       <Tooltip title={"esc can close this too"}>
         <IconButton color="secondary" onClick={handleClose}>

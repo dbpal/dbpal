@@ -1158,7 +1158,7 @@ impl LanguageServer for RedisDB {
 pub static REDIS_COMMANDS_MD_FILES: include_dir::Dir =
     include_dir::include_dir!("$CARGO_MANIFEST_DIR/../redis-doc/commands");
 
-fn get_commands_from_docs() -> Vec<String> {
+pub fn get_commands_from_docs() -> Vec<String> {
     let mut ret = vec![];
     for en in REDIS_COMMANDS_MD_FILES.entries() {
         match en {
