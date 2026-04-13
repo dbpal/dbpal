@@ -216,10 +216,9 @@ fn split_info_colon(info: &str) -> anyhow::Result<(String, String)> {
 }
 
 fn to_json_value(x: Vec<u8>) -> serde_json::Value {
-    let arr: Vec<_> = x.iter().map(|x| serde_json::Value::from(*x)).collect();
-    match String::from_utf8(x) {
+    match String::from_utf8(x.clone()) {
         Ok(x) => serde_json::Value::from(x),
-        Err(_) => serde_json::Value::Array(arr),
+        Err(_) => serde_json::Value::Array(x.iter().map(|x| serde_json::Value::from(*x)).collect()),
     }
 }
 
@@ -375,7 +374,7 @@ impl RedisDB {
         anyhow::Ok(())
     }
 
-    async fn export_table_as_md(
+    async fn export_table_as_markdown(
         &self,
         key: &str,
         sender: tokio::sync::mpsc::Sender<ExportFrame>,
@@ -513,66 +512,6 @@ impl RedisDB {
         anyhow::Ok(())
     }
 
-    async fn export_table_as_json_line(
-        &self,
-        key: &str,
-        sender: tokio::sync::mpsc::Sender<ExportFrame>,
-    ) -> anyhow::Result<()> {
-        let mut conn = self.get_conn().await?;
-        let ty = Self::get_key_type(&mut conn, key).await?;
-        match ty {
-            RedisType::String => {
-                let value: Vec<u8> = conn.get(key).await?;
-                let mut m = serde_json::Map::new();
-                m.insert(key.to_owned(), to_json_value(value));
-                let value = serde_json::to_string(&m);
-                let value = value?;
-                sender.send(serde_json::Value::from(value).into()).await?;
-            }
-            RedisType::List => {
-                let total: isize = conn.llen(key).await?;
-                let size: isize = 100;
-                let iter = OffsetLimitIter::new(total, 100);
-                for x in iter {
-                    let list: Vec<Vec<u8>> = conn.lrange(key, x, x + size).await?;
-                    let list = list.into_iter().map(to_json_value).collect::<Vec<_>>();
-                    let value = serde_json::value::Value::from(list);
-
-                    sender.send(value.into()).await?;
-                }
-            }
-            RedisType::Set => {
-                let mut iter = conn.sscan::<_, Vec<u8>>(key).await?;
-                while let Some(s) = iter.next().await {
-                    let s = s?;
-                    let json_value = to_json_value(s);
-                    sender.send(json_value.into()).await?;
-                }
-            }
-            RedisType::Hash => {
-                let mut stream = conn.hscan::<_, Vec<u8>>(key).await?.chunks(2);
-                while let Some(value) = stream.next().await {
-                    let mut m = serde_json::Map::new();
-                    let kv = check_resp(value)?;
-                    let key = String::from_utf8(kv[0].clone())?;
-                    m.insert(key, to_json_value(kv[1].clone()));
-                    sender.send(m.into()).await?;
-                }
-            }
-            RedisType::Zset => {
-                let mut stream = conn.zscan::<_, Vec<u8>>(key).await?.chunks(2);
-                while let Some(value) = stream.next().await {
-                    let kv = check_resp(value)?;
-                    let mut m = serde_json::Map::new();
-                    let key = String::from_utf8(kv[0].clone())?;
-                    m.insert(key, to_json_value(kv[1].clone()));
-                    sender.send(m.into()).await?;
-                }
-            }
-        }
-        anyhow::Ok(())
-    }
-
     async fn export_table_to_command(
         &self,
         key: &str,
@@ -660,6 +599,7 @@ impl RedisDB {
         anyhow::Ok(())
     }
 }
+
 #[async_trait::async_trait]
 impl CheckConn for RedisDB {
     async fn check_conn(&self) -> anyhow::Result<Duration> {
@@ -982,11 +922,12 @@ impl SchemaTrait for RedisDB {
                 }
                 self.export_table_as_csv(key, delimiter, sender).await
             }
-            ExportKind::Json { .. } => self.export_table_as_json(key, sender).await,
+            ExportKind::Json { .. } | ExportKind::JsonLine => {
+                self.export_table_as_json(key, sender).await
+            }
             ExportKind::Sql {
                 include_table_schema: _,
             } => self.export_table_to_command(key, sender).await,
-            ExportKind::JsonLine => self.export_table_as_json_line(key, sender).await,
             ExportKind::Xlsx { include_header } => {
                 self.export_table_as_xlsx(key, include_header, sender).await
             }
@@ -996,7 +937,7 @@ impl SchemaTrait for RedisDB {
                 }
                 self.export_table_as_html(key, sender).await
             }
-            ExportKind::MarkDown => self.export_table_as_md(key, sender).await,
+            ExportKind::MarkDown => self.export_table_as_markdown(key, sender).await,
         }
     }
 
