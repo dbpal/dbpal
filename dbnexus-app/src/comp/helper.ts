@@ -536,11 +536,6 @@ setUpEditorThemes();
 
 const dataGridheaderFontSize = "0.8rem";
 
-enum TableType {
-  Normal = "normal",
-  MongoTimeSerial = "time-serial",
-}
-
 const shrinkAble = {
   flexShrink: 1,
   overflow: "hidden",
@@ -684,7 +679,6 @@ export {
   stringToHex,
   TabActiveContext,
   TabContent,
-  TableType,
   textEllipsisStyle,
   UuidContext,
   validJson,

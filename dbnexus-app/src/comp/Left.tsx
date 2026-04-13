@@ -59,7 +59,6 @@ import {
   handleCopyToClipboard,
   secondConfirm,
   TabContent,
-  TableType,
   UuidContext,
 } from "./helper";
 import { v4 as uuidv4 } from "uuid";
@@ -985,44 +984,43 @@ function SchemaTree(props: { schema?: string; reloadSchemas? }) {
       </Stack>>
       {conn_established && kind == DataSourceKind.Sqlite && (
         <>
-          <TablesTree typ={TableType.Normal} />
+          <TablesTree />
           <ViewsTree viewKind={ViewKind.View} />
         </>
       )}
       {conn_established && kind == DataSourceKind.CouchBase && (
         <>
-          <TablesTree typ={TableType.Normal} />
+          <TablesTree />
         </>
       )}
 
       {conn_established && kind == DataSourceKind.DuckDB && (
         <>
-          <TablesTree typ={TableType.Normal} />
+          <TablesTree />
           <ViewsTree viewKind={ViewKind.View} />
         </>
       )}
       {conn_established && kind == DataSourceKind.FireBird && (
         <>
-          <TablesTree typ={TableType.Normal} />
+          <TablesTree />
           <ViewsTree viewKind={ViewKind.View} />
         </>
       )}
       {conn_established && kind == DataSourceKind.LibSql && (
         <>
-          <TablesTree typ={TableType.Normal} />
+          <TablesTree />
           <ViewsTree viewKind={ViewKind.View} />
         </>
       )}
       {conn_established && kind == DataSourceKind.Cassandra && (
         <>
-          <TablesTree typ={TableType.Normal} />
+          <TablesTree />
           <ViewsTree viewKind={ViewKind.MaterializedView} />
         </>
       )}
       {conn_established && kind == DataSourceKind.Mongo && (
         <>
-          <TablesTree typ={TableType.Normal} />
-          <TablesTree typ={TableType.MongoTimeSerial} />
+          <TablesTree />
           <ViewsTree viewKind={ViewKind.View} />
         </>
       )}
@@ -1031,41 +1029,41 @@ function SchemaTree(props: { schema?: string; reloadSchemas? }) {
           kind == DataSourceKind.MariaDB ||
           kind == DataSourceKind.TiDB) && (
           <>
-            <TablesTree typ={TableType.Normal} />
+            <TablesTree />
             <ViewsTree viewKind={ViewKind.View} />
           </>
         )}
       {conn_established && kind == DataSourceKind.ClickHouse && (
         <>
-          <TablesTree typ={TableType.Normal} />
+          <TablesTree />
           <ViewsTree viewKind={ViewKind.View} />
           <ViewsTree viewKind={ViewKind.MaterializedView} />
         </>
       )}
       {conn_established && kind == DataSourceKind.Postgres && (
         <>
-          <TablesTree typ={TableType.Normal} />
+          <TablesTree />
           <ViewsTree viewKind={ViewKind.View} />
           <ViewsTree viewKind={ViewKind.MaterializedView} />
         </>
       )}
       {conn_established && kind == DataSourceKind.Cockroach && (
         <>
-          <TablesTree typ={TableType.Normal} />
+          <TablesTree />
           <ViewsTree viewKind={ViewKind.View} />
           <ViewsTree viewKind={ViewKind.MaterializedView} />
         </>
       )}
       {conn_established && kind == DataSourceKind.Oracle && (
         <>
-          <TablesTree typ={TableType.Normal} />
+          <TablesTree />
           <ViewsTree viewKind={ViewKind.View} />
           <ViewsTree viewKind={ViewKind.MaterializedView} />
         </>
       )}
       {conn_established && kind == DataSourceKind.SqlServer && (
         <>
-          <TablesTree typ={TableType.Normal} />
+          <TablesTree />
           <ViewsTree viewKind={ViewKind.View} />
         </>
       )}

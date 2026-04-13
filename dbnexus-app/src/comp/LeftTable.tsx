@@ -55,7 +55,6 @@ import {
   handleCopyToClipboard,
   getSupportExportKind,
   RedisTableType,
-  TableType,
   shrinkAble,
   TabContent,
   textEllipsisStyle,
@@ -75,8 +74,7 @@ import {
   useMatcherFn,
 } from "./store.tsx";
 
-function TablesTree(props: { typ: TableType }) {
-  const { typ } = props;
+function TablesTree() {
   const { uuid, kind } = useContext(UuidContext);
   const [tables, setTables] = useState<types.ListTable[]>([]);
   const { showNotification } = useNotification();
@@ -90,7 +88,7 @@ function TablesTree(props: { typ: TableType }) {
   }, [tables, matchPattern]);
   const handleReload = useCallback(() => {
     setLoading(true);
-    listTable(uuid, typ)
+    listTable(uuid)
       .then((ts) => {
         setTables(ts);
       })
@@ -100,7 +98,7 @@ function TablesTree(props: { typ: TableType }) {
       .finally(() => {
         setLoading(false);
       });
-  }, [showNotification, typ, uuid]);
+  }, [showNotification, uuid]);
   useEffect(() => {
     handleReload();
   }, [handleReload]);
@@ -114,14 +112,7 @@ function TablesTree(props: { typ: TableType }) {
       tablesText = "collections";
       break;
     default: {
-      switch (typ) {
-        case TableType.Normal:
-          tablesText = "tables";
-          break;
-        case TableType.MongoTimeSerial:
-          tablesText = "time serial";
-          break;
-      }
+      tablesText = "tables";
     }
   }
 
@@ -152,7 +143,7 @@ function TablesTree(props: { typ: TableType }) {
           if (index >= maxTree) {
             return;
           }
-          const id = `${uuid}-table-${typ}-${e.name}-${e.rand}`;
+          const id = `${uuid}-table-${e.name}-${e.rand}`;
           return (
             <TableTree
               key={e.name}

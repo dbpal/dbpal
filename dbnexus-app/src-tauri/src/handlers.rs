@@ -344,26 +344,6 @@ pub async fn list_table(
     let db = app.get_schema(&name).await?;
     db.list_table().await.map_err(ErrorFrontend::from)
 }
-#[tauri::command]
-pub async fn mongo_list_time_serial_collection(
-    name: String,
-    app: tauri::State<'_, DBPal>,
-) -> Result<Vec<ListTable>, ErrorFrontend> {
-    random_sleep().await;
-    random_error()?;
-    let schema = app.get_schema(&name).await.map_err(ErrorFrontend::from)?;
-    let ret = match schema.as_any().downcast_ref::<MongoDB>() {
-        Some(x) => x
-            .list_time_serial_collection()
-            .await
-            .map_err(ErrorFrontend::from)?,
-        None => {
-            return Err(ErrorFrontend::from(format!("'{}' is not a mongo", name)));
-        }
-    };
-
-    Ok(ret)
-}
 
 #[tauri::command]
 pub async fn redis_list_key(

@@ -8,8 +8,10 @@ use dashmap::DashSet;
 use futures_util::StreamExt;
 use mongodb::bson::{doc, Document};
 use mongodb::options::{IndexOptions, ServerAddress, Tls, TlsOptions};
-use mongodb::results::{CollectionType, DeleteResult, InsertOneResult, UpdateResult};
-use mongodb::{bson, IndexModel};
+use mongodb::results::{
+    CollectionSpecification, CollectionType, DeleteResult, InsertOneResult, UpdateResult,
+};
+use mongodb::{bson, Cursor, IndexModel};
 
 use crate::datasource_config::MongoDBConfig;
 use crate::db::{
@@ -493,10 +495,10 @@ impl ServerMetas for MongoDB {
 impl MongoDB {
     pub(crate) async fn list_collection_name_by_type(
         &self,
-        ty: Option<CollectionType>,
+        filter_ty: impl Fn(&CollectionType) -> bool,
     ) -> anyhow::Result<Vec<String>> {
         let conn = self.get_db().await?;
-        let mut cols = conn.list_collections().await?;
+        let mut cols: Cursor<CollectionSpecification> = conn.list_collections().await?;
         let mut ret = Vec::new();
 
         while let Some(col) = cols.next().await {
@@ -504,33 +506,12 @@ impl MongoDB {
             if col.name.starts_with("system.") {
                 continue;
             }
-            if ty
-                .as_ref()
-                .map(|x| x == &col.collection_type)
-                .unwrap_or(true)
-            {
+            if filter_ty(&col.collection_type) {
                 ret.push(col.name);
             }
         }
         ret.sort();
         anyhow::Ok(ret)
-    }
-}
-
-impl MongoDB {
-    pub async fn list_time_serial_collection(&self) -> anyhow::Result<Vec<ListTable>> {
-        let ts = self
-            .list_collection_name_by_type(Some(CollectionType::Timeseries))
-            .await?;
-        anyhow::Ok(ts.into_iter().map(ListTable::from).collect())
-    }
-
-    pub async fn drop_mongo_time_serial_collection(
-        &self,
-        name: &str,
-    ) -> anyhow::Result<Option<String>> {
-        self.can_write()?;
-        self.drop_table(name, false).await
     }
 }
 
@@ -645,7 +626,11 @@ impl SchemaTrait for MongoDB {
 
     async fn list_view(&self) -> anyhow::Result<Vec<ListTable>> {
         let views = self
-            .list_collection_name_by_type(Some(CollectionType::View))
+            .list_collection_name_by_type(|t| match t {
+                CollectionType::View => true,
+
+                _ => false,
+            })
             .await?;
 
         anyhow::Ok(views.into_iter().map(ListTable::from).collect())
@@ -653,7 +638,10 @@ impl SchemaTrait for MongoDB {
 
     async fn list_table(&self) -> anyhow::Result<Vec<ListTable>> {
         let tables = self
-            .list_collection_name_by_type(Some(CollectionType::Collection))
+            .list_collection_name_by_type(|t| match t {
+                CollectionType::View => false,
+                _ => true,
+            })
             .await?;
         anyhow::Ok(tables.into_iter().map(ListTable::from).collect())
     }

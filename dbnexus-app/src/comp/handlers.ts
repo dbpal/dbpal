@@ -1,27 +1,8 @@
 import { Channel, invoke } from "@tauri-apps/api/core";
 import types from "./ApiStruct";
-import {
-  DataSourceKind,
-  ErrAndLoc,
-  MuiDataGridData,
-  TableType,
-  ViewKind,
-} from "./helper";
+import { DataSourceKind, ErrAndLoc, MuiDataGridData, ViewKind } from "./helper";
 import { message } from "@tauri-apps/plugin-dialog";
 import { QueryEvent } from "./Common";
-
-async function tryGetMaxID(uuid: string, tableOrView: string) {
-  try {
-    const r = await invoke<string>("try_get_max_id", {
-      name: uuid,
-      table: tableOrView,
-    });
-    return r;
-  } catch (e) {
-    console.error("get max id failed", e);
-    return null;
-  }
-}
 
 function makeTableUpdate(uuid: string, table: string) {
   return async (wheres, values) => {
@@ -203,17 +184,8 @@ function formatCreateTableAndIndexSql(sql: types.CreateTableAndIndexSql) {
   return ret;
 }
 
-function listTable(uuid: string, typ: TableType) {
-  let invokeName: string;
-  switch (typ) {
-    case TableType.Normal:
-      invokeName = "list_table";
-      break;
-    case TableType.MongoTimeSerial:
-      invokeName = "mongo_list_time_serial_collection";
-      break;
-  }
-  return invoke<types.ListTable[]>(invokeName, { name: uuid });
+function listTable(uuid: string) {
+  return invoke<types.ListTable[]>("list_table", { name: uuid });
 }
 
 function listView(uuid: string, viewKind: ViewKind) {
@@ -384,7 +356,6 @@ export {
   showTrigger,
   showUdf,
   showViewColumns,
-  tryGetMaxID,
 };
 
 export type { ShowTableCallBack };

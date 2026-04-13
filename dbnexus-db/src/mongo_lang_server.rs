@@ -90,7 +90,7 @@ impl MongoDB {
     }
 
     pub async fn query_db_list_collection_names(&self) -> anyhow::Result<Vec<String>> {
-        let x = self.list_collection_name_by_type(None).await?;
+        let x = self.list_collection_name_by_type(|_| true).await?;
         anyhow::Ok(x)
     }
 
