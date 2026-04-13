@@ -11,17 +11,12 @@ import { useCallback, useContext, useEffect, useRef, useState } from "react";
 import DeleteForeverIcon from "@mui/icons-material/DeleteForever";
 import InfoIcon from "@mui/icons-material/Info";
 import { MdFunctions } from "react-icons/md";
-import types from "./ApiStruct";
-import { invoke } from "@tauri-apps/api/core";
 import { DefAndMetasView } from "./DefAndMetaView";
 
 import { TbMathFunction } from "react-icons/tb";
 import { DataSourceKind, secondConfirm, TabContent, UuidContext } from "./helper.ts";
 import { v4 as uuidv4 } from "uuid";
-
 import { ExceedMaxTreeItem, MenuRefresh, UdfNameAndParameters } from "./CommonComp";
-import { listCassandraAgg, listUdf, makeUdfExtraArg, showUdf } from "./handlers";
-import { showCassandraAgg } from "./handlers";
 import { CopySql, ShowingCount } from "./CommonComp2";
 import {
   useMatcher,
@@ -30,11 +25,13 @@ import {
   useTabsManage,
   useMatcherFn,
 } from "./store";
+import { commands, NamedStaff, UdfOrProcedureExtraParameter } from "./bindings.ts";
+import { makeUdfExtraArg, unwrapCommand } from "./Common.ts";
 
 function UdfsTree() {
   const { uuid, kind } = useContext(UuidContext);
 
-  const [udfs, setUdfs] = useState<types.NamedStaff[]>([]);
+  const [udfs, setUdfs] = useState<NamedStaff[]>([]);
   const { showNotification } = useNotification();
   const [showItems, setShowItems] = useState(0);
   const { maxTree } = useMatcher();
@@ -44,13 +41,17 @@ function UdfsTree() {
   }, [udfs, matchPattern]);
 
   const reload = useCallback(() => {
-    listUdf(uuid)
-      .then((e) => {
-        setUdfs(e);
-      })
-      .catch((e) => {
-        showNotification({ severity: "error", title: "list udf failed", message: e });
-      });
+    commands.listUdf(uuid).then((ret) => {
+      if (ret.status == "ok") {
+        setUdfs(ret.data);
+      } else {
+        showNotification({
+          severity: "error",
+          title: "list udf failed",
+          message: ret.error,
+        });
+      }
+    });
   }, [showNotification, uuid]);
   useEffect(() => {
     reload();
@@ -111,7 +112,7 @@ function UdfsTree() {
   );
 }
 
-function UdfMenu(props: { uuid; udf: types.NamedStaff; reload; kind: DataSourceKind }) {
+function UdfMenu(props: { uuid; udf: NamedStaff; reload; kind: DataSourceKind }) {
   const { uuid, udf, reload, kind } = props;
   const { appendTab } = useTabsManage();
   const { showNotification } = useNotification();
@@ -121,7 +122,7 @@ function UdfMenu(props: { uuid; udf: types.NamedStaff; reload; kind: DataSourceK
         udf.name,
         <DefAndMetasView
           reloadOP={async () => {
-            return showUdf(uuid, udf, kind);
+            return unwrapCommand(commands.showUdf(uuid, udf, kind));
           }}
           kind={kind}
           uuid={uuid}
@@ -140,7 +141,7 @@ function UdfMenu(props: { uuid; udf: types.NamedStaff; reload; kind: DataSourceK
     if (!confirm) {
       return;
     }
-    invoke("drop_udf", { name: uuid, udf: udf.name, arg: makeUdfExtraArg(udf, kind) })
+    unwrapCommand(commands.dropUdf(uuid, udf.name, makeUdfExtraArg(udf, kind)))
       .then((sql) => {
         showNotification({
           severity: "success",
@@ -196,7 +197,9 @@ function CassandraAggregateMenu(props: {
         agg,
         <DefAndMetasView
           reloadOP={async () => {
-            return showCassandraAgg(uuid, agg, parameters);
+            return await unwrapCommand(
+              commands.cassandraShowAggregate(uuid, agg, parameters),
+            );
           }}
           uuid={uuid}
           kind={DataSourceKind.Cassandra}
@@ -216,11 +219,7 @@ function CassandraAggregateMenu(props: {
       return;
     }
 
-    invoke("cassandra_drop_aggregate", {
-      name: uuid,
-      aggName: agg,
-      parameters,
-    })
+    unwrapCommand(commands.cassandraDropAggregate(uuid, agg, parameters))
       .then((sql) => {
         showNotification({
           severity: "success",
@@ -269,7 +268,7 @@ function CassandraAggregateMenu(props: {
 
 function CassandraAggregatesTree() {
   const { uuid } = useContext(UuidContext);
-  const [aggs, setAggs] = useState<types.NamedStaff[]>([]);
+  const [aggs, setAggs] = useState<NamedStaff[]>([]);
   const { showNotification } = useNotification();
   const reload = useCallback(() => {
     listCassandraAgg(uuid)

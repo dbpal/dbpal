@@ -34,7 +34,7 @@ use crate::db::{
     DefAndMetas, ExportFrame, ExportKind, ExportQueryResult, Field, GetBackendKind,
     GetTestExportTableKinds, Index, IndexKind, ListTable, MetaValue, NamedStaff,
     OptionMustBeSomeErr, QueryEventEmitter, QueryResp, QuerySql, ReadOnlyTrait, SchemaTrait,
-    ServerMetas, ShowTableParameter, SqlBuilder, UdfOrProcedureExtraParameter, XlsxEdit,
+    ServerMetas, ShowTableParameter, SqlBuilder, XlsxEdit,
 };
 
 use crate::helper::{create_csv, generate_random_string};
@@ -1046,27 +1046,16 @@ impl SchemaTrait for CassandraDB {
         self.list_udf_impl(self.config.key_space_str()?).await
     }
 
-    async fn show_udf(
-        &self,
-        name: &str,
-        extra: Option<UdfOrProcedureExtraParameter>,
-    ) -> anyhow::Result<DefAndMetas> {
+    async fn show_udf(&self, name: &NamedStaff) -> anyhow::Result<DefAndMetas> {
         // add parameter to udf have this error
         // cassandra@cqlsh:test> DESCRIBE FUNCTION  test.test_udf(int);
         // Improper DESCRIBE command.
-        let sql = format!(r#" DESCRIBE FUNCTION  "{}""#, name);
+        let sql = format!(r#" DESCRIBE FUNCTION  "{}""#, name.name);
         log::info!("sql:{}", sql);
         let body = self.session.query_iter(sql, &[]).await?;
         let mut stream = body.rows_stream::<(String, Option<String>, String, String)>()?;
-        let parameters = match &extra {
-            Some(extra) => match &extra {
-                UdfOrProcedureExtraParameter::Cassandra { parameters } => parameters,
-                _ => {
-                    anyhow::bail!("show udf for cassandra need extra parameter.");
-                }
-            },
-            None => anyhow::bail!("show udf for cassandra need extra parameter."),
-        };
+        let parameters = name.cassandra_parameters.clone().unwrap_or_default();
+
         while let Some(row) = stream.next().await {
             let (_, typ, _, create_statement) = row?;
             let parameters_try_match = extract_parameter_for_function(&create_statement)?;
@@ -1096,24 +1085,17 @@ impl SchemaTrait for CassandraDB {
         ));
     }
 
-    async fn drop_udf(
-        &self,
-        name: &str,
-        extra: Option<UdfOrProcedureExtraParameter>,
-    ) -> anyhow::Result<String> {
+    async fn drop_udf(&self, name: &NamedStaff) -> anyhow::Result<String> {
         self.can_write()?;
-        let parameters = match &extra {
-            Some(extra) => match &extra {
-                UdfOrProcedureExtraParameter::Cassandra { parameters } => parameters,
-                _ => {
-                    anyhow::bail!("drop udf for cassandra need extra parameter.");
-                }
-            },
-            None => anyhow::bail!("drop udf for cassandra need extra parameter."),
-        };
 
-        let p = format!("({})", parameters.join(","));
-        let sql = format!(r#"DROP FUNCTION "{name}"{p} "#);
+        let p = format!(
+            "({})",
+            name.cassandra_parameters
+                .clone()
+                .unwrap_or_default()
+                .join(",")
+        );
+        let sql = format!(r#"DROP FUNCTION "{}"{p} "#, name.name);
         log::info!("sql:{}", sql);
         self.simple_execute_sql(&sql).await?;
         anyhow::Ok(sql)
@@ -1433,21 +1415,15 @@ mod tests {
                 .drop_aggregate("test_aggregate", vec!["int".to_string()])
                 .await;
             let _ = db
-                .drop_udf(
-                    "sum_state_function",
-                    Some(UdfOrProcedureExtraParameter::Cassandra {
-                        parameters: vec!["int".to_string(), "int".to_string()],
-                    }),
-                )
+                .drop_udf(&NamedStaff::from("sum_state_function".to_string()))
                 .await;
 
             let _ = db
-                .drop_udf(
-                    "sum_final_function",
-                    Some(UdfOrProcedureExtraParameter::Cassandra {
-                        parameters: vec!["int".to_string()],
-                    }),
-                )
+                .drop_udf(&NamedStaff {
+                    name: "sum_final_function".to_string(),
+                    cassandra_parameters: Some(vec!["int".to_string()]),
+                    ..Default::default()
+                })
                 .await;
         }
         let query_id = "aaaa";
@@ -2161,23 +2137,21 @@ mod tests {
         let name = "test_udf";
         {
             let err = db
-                .drop_udf(
-                    name,
-                    Some(UdfOrProcedureExtraParameter::Cassandra {
-                        parameters: vec!["text".to_string()],
-                    }),
-                )
+                .drop_udf(&NamedStaff {
+                    name: name.to_string(),
+                    cassandra_parameters: Some(vec!["text".to_string()]),
+                    ..Default::default()
+                })
                 .await;
             if let Err(err) = err {
                 println!("drop udf error:{}", err);
             }
             let err = db
-                .drop_udf(
-                    name,
-                    Some(UdfOrProcedureExtraParameter::Cassandra {
-                        parameters: vec!["list<int>".to_string()],
-                    }),
-                )
+                .drop_udf(&NamedStaff {
+                    name: name.to_string(),
+                    cassandra_parameters: Some(vec!["list<int>".to_string()]),
+                    ..Default::default()
+                })
                 .await;
             if let Err(err) = err {
                 println!("drop udf error:{}", err);
@@ -2215,12 +2189,11 @@ mod tests {
         list.iter().for_each(|x| println!("udf:{:?}", x));
 
         let detail = db
-            .show_udf(
-                name,
-                Some(UdfOrProcedureExtraParameter::Cassandra {
-                    parameters: vec!["list <int>".to_string()],
-                }),
-            )
+            .show_udf(&NamedStaff {
+                name: "test_udf".to_string(),
+                cassandra_parameters: Some(vec!["text".to_string()]),
+                ..Default::default()
+            })
             .await
             .unwrap();
         println!("detail:{:?}", detail);

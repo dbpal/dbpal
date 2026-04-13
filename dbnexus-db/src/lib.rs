@@ -56,7 +56,6 @@ pub mod sqlite_lang_server;
 pub mod sqlparser_completing;
 pub mod sqlparser_completion;
 pub mod tidb;
-pub mod typedef;
 
 lazy_static! {
     static ref TEST_HOST: String =

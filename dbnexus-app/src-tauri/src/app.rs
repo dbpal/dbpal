@@ -22,9 +22,8 @@ use std::sync::Arc;
 use std::time::Duration;
 use tokio::sync::Mutex;
 use tokio_util::sync::CancellationToken;
-use typescript_type_def::TypeDef;
 
-#[derive(serde::Serialize, serde::Deserialize, typescript_type_def::TypeDef, Debug, Clone)]
+#[derive(serde::Serialize, serde::Deserialize, Debug, Clone, specta::Type)]
 pub struct OpenAIReq {
     pub url: String,
     pub api_key: String,
@@ -40,7 +39,7 @@ pub struct OpenAIReq {
     pub chat_history: Vec<ChatHistory>,
 }
 
-#[derive(serde::Serialize, serde::Deserialize, typescript_type_def::TypeDef, Debug, Clone)]
+#[derive(serde::Serialize, serde::Deserialize, Debug, Clone, specta::Type)]
 #[serde(rename_all = "lowercase")]
 pub struct ChatHistory {
     pub role: String,
@@ -71,7 +70,7 @@ impl DBConnectionConfig {
     }
 }
 
-#[derive(Clone, Debug, serde::Serialize, serde::Deserialize, TypeDef)]
+#[derive(Clone, Debug, serde::Serialize, serde::Deserialize, specta::Type)]
 #[serde(tag = "conn_type", rename_all = "lowercase")]
 pub enum DBConnectionConfig {
     Sqlite {
@@ -619,7 +618,7 @@ impl DBPal {
     }
 }
 
-#[derive(serde::Serialize, Debug, Clone)]
+#[derive(serde::Serialize, Debug, Clone, specta::Type)]
 pub struct ErrorFrontend {
     // short message on why
     pub reason: String,
@@ -788,7 +787,7 @@ impl TaskManager {
     }
 }
 
-#[derive(serde::Serialize, serde::Deserialize, Debug, Clone, TypeDef)]
+#[derive(serde::Serialize, serde::Deserialize, Debug, Clone, specta::Type)]
 pub struct MongoFindParameter {
     pub(crate) filter: Vec<u8>,
     pub(crate) hint: Option<Vec<u8>>,
@@ -861,7 +860,7 @@ impl TryFrom<MongoFindParameter> for dbnexus_db::mongo::MongoFindParameter {
     }
 }
 
-#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize, specta::Type)]
 pub struct MongoShowTablePara {
     pub(crate) sort: Vec<u8>,
     pub(crate) filter: Vec<u8>,
@@ -888,7 +887,7 @@ impl TryFrom<MongoShowTablePara> for dbnexus_db::mongo::MongoShowTablePara {
     }
 }
 
-#[derive(Debug, Clone, serde::Serialize, TypeDef)]
+#[derive(Debug, Clone, serde::Serialize)]
 #[serde(rename_all = "lowercase")]
 #[allow(unused)]
 pub enum SetZoom {
@@ -897,7 +896,7 @@ pub enum SetZoom {
     Reset,
 }
 
-#[derive(Debug, Clone, serde::Serialize, TypeDef)]
+#[derive(Debug, Clone, serde::Serialize)]
 #[serde(rename_all = "lowercase")]
 #[allow(unused)]
 pub enum AiStreamMsg {
@@ -905,7 +904,7 @@ pub enum AiStreamMsg {
     Resp { msg: String },
 }
 
-#[derive(Debug, Clone, serde::Serialize, TypeDef, Default, serde::Deserialize)]
+#[derive(Debug, Clone, serde::Serialize, Default, serde::Deserialize, specta::Type)]
 #[serde(rename_all = "lowercase")]
 #[allow(unused)]
 pub struct AiOnlineSearch {

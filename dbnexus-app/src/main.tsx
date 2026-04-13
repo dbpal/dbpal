@@ -4,9 +4,9 @@ import ReactDOM from "react-dom/client";
 import { WebviewWindow } from "@tauri-apps/api/webviewWindow";
 
 import { App } from "./comp/MainPage";
-import { invoke } from "@tauri-apps/api/core";
 import { secondConfirm } from "./comp/helper.ts";
 import { saveWindowState, StateFlags } from "@tauri-apps/plugin-window-state";
+import { commands } from "./comp/bindings.ts";
 
 saveWindowState(StateFlags.ALL);
 
@@ -25,15 +25,7 @@ currentWebview.onCloseRequested(async (event) => {
 });
 
 if (import.meta.env.DEV) {
-  invoke("page_init_callback").then(() => {
-    console.info("page init callback successfully");
-  });
+  commands.pageInitCallback();
 }
 
 ReactDOM.createRoot(document.getElementById("root") as HTMLElement).render(<App />);
-
-// if (import.meta.env.DEV) {
-//   setTimeout(() => {
-//     invoke("command_panic");
-//   }, 4000);
-// }

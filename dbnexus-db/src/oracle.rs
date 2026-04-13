@@ -17,8 +17,8 @@ use crate::db::{
     ExportKind, ExportQueryResult, Field, GetBackendKind, GetTestExportTableKinds, Index,
     IndexKind, ListTable, MetaValue, NamedStaff, OptionMustBeSomeErr, ProcedureDetail, QueryEvent,
     QueryEventEmitter, QueryResp, QuerySql, SchemaTrait, ServerMetas, ShowTableParameter,
-    SqlBuilder, SqlCollect, TriggerDetail, TriggerEnable, TriggerEvent, TriggerTiming,
-    UdfOrProcedureExtraParameter, XlsxEdit, POOL_MAX_CONNECTIONS,
+    SqlBuilder, SqlCollect, TriggerDetail, TriggerEnable, TriggerEvent, TriggerTiming, XlsxEdit,
+    POOL_MAX_CONNECTIONS,
 };
 
 use crate::helper::{create_csv, generate_random_string};
@@ -1443,11 +1443,7 @@ impl SchemaTrait for OracleDB {
         anyhow::Ok(ret)
     }
 
-    async fn show_udf(
-        &self,
-        name: &str,
-        _arg: Option<UdfOrProcedureExtraParameter>,
-    ) -> anyhow::Result<DefAndMetas> {
+    async fn show_udf(&self, name: &NamedStaff) -> anyhow::Result<DefAndMetas> {
         let sql = self.get_user_source(name).await?;
         log::info!("sql:{}", sql);
         anyhow::Ok(DefAndMetas {
@@ -1456,12 +1452,8 @@ impl SchemaTrait for OracleDB {
         })
     }
 
-    async fn drop_udf(
-        &self,
-        name: &str,
-        _extra: Option<UdfOrProcedureExtraParameter>,
-    ) -> anyhow::Result<String> {
-        let sql = format!(r#"DROP FUNCTION "{name}""#);
+    async fn drop_udf(&self, name: &NamedStaff) -> anyhow::Result<String> {
+        let sql = format!(r#"DROP FUNCTION "{   }""#, name.name);
         log::info!("sql:{}", sql);
         self.simple_execute_sql(&sql).await?;
         anyhow::Ok(sql)
@@ -1471,11 +1463,7 @@ impl SchemaTrait for OracleDB {
         self.list_procedure_impl(self.schema_str()).await
     }
 
-    async fn show_procedure(
-        &self,
-        name: &str,
-        _arg: Option<UdfOrProcedureExtraParameter>,
-    ) -> anyhow::Result<ProcedureDetail> {
+    async fn show_procedure(&self, name: &NamedStaff) -> anyhow::Result<ProcedureDetail> {
         let sql = self.get_user_source(name).await?;
         log::info!("sql:{}", sql);
         anyhow::Ok(ProcedureDetail {
@@ -1484,12 +1472,8 @@ impl SchemaTrait for OracleDB {
         })
     }
 
-    async fn drop_procedure(
-        &self,
-        name: &str,
-        _arg: Option<UdfOrProcedureExtraParameter>,
-    ) -> anyhow::Result<String> {
-        let sql = format!(r#"DROP PROCEDURE "{name}""#);
+    async fn drop_procedure(&self, name: &NamedStaff) -> anyhow::Result<String> {
+        let sql = format!(r#"DROP PROCEDURE "{}""#, name.name);
         log::info!("sql:{}", sql);
         self.simple_execute_sql(&sql).await?;
         anyhow::Ok(sql)
@@ -1592,14 +1576,15 @@ impl SqlBuilder for OracleDB {
     }
 }
 impl OracleDB {
-    async fn get_user_source(&self, name: &str) -> anyhow::Result<String> {
+    async fn get_user_source(&self, name: &NamedStaff) -> anyhow::Result<String> {
         let sql = format!(
             r#"
             SELECT text
                 FROM user_source
-                WHERE name = '{name}'
+                WHERE name = '{0}'
                 ORDER BY line
-        "#
+        "#,
+            name.name
         );
         log::info!("sql:{}", sql);
         let rows = self.query(sql).await?;
@@ -1817,7 +1802,9 @@ mod tests {
         let query_id = "aaaa";
         db.open_connection(query_id).await.unwrap();
         let udf_name = "DO_NOTHING_P";
-        let _ = db.drop_procedure(udf_name, None).await;
+        let _ = db
+            .drop_procedure(&NamedStaff::from(udf_name.to_string()))
+            .await;
 
         db.execute_sql(
             query_id,
@@ -1838,7 +1825,7 @@ mod tests {
             if udf.name != udf_name {
                 continue;
             }
-            let details = db.show_procedure(&udf.name, None).await.unwrap();
+            let details = db.show_procedure(udf).await.unwrap();
             println!("detail:{:?}", details)
         }
     }
@@ -1850,7 +1837,7 @@ mod tests {
         let query_id = "aaaa";
         db.open_connection(query_id).await.unwrap();
         let udf_name = "DO_NOTHING";
-        let _ = db.drop_udf(udf_name, None).await;
+        let _ = db.drop_udf(&NamedStaff::from(udf_name.to_string())).await;
         db.execute_sql(
             query_id,
             r#"
@@ -1885,7 +1872,7 @@ mod tests {
             if udf.name != udf_name {
                 continue;
             }
-            let details = db.show_udf(&udf.name, None).await.unwrap();
+            let details = db.show_udf(udf).await.unwrap();
             println!("detail:{:?}", details)
         }
     }

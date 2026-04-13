@@ -9,7 +9,6 @@ import {
   shrinkAble,
 } from "./helper.ts";
 import { Chip, Tooltip } from "@mui/material";
-import { invoke } from "@tauri-apps/api/core";
 import { AppMarkDown } from "./CommonComp2.tsx";
 import { useBoolSwitch } from "./store.tsx";
 const showRedisDocKey = "redis-show-doc";
@@ -42,7 +41,7 @@ function RedisQuery(props: { favoriteName?: string; value?: string; uuid: string
         // line not change no need to update
         return;
       }
-      invoke<string>("get_redis_doc", { line })
+      unwrapCommand(commands.getRedisDoc(line))
         .then((e) => {
           setPrevLine(line);
           setDoc(e);

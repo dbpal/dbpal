@@ -64,7 +64,7 @@ fn make_agent(
     let agent = agent_builder.tools(tools).build();
     anyhow::Ok(agent)
 }
-
+#[specta::specta]
 #[tauri::command]
 pub async fn openai_invoke(req: app::OpenAIReq) -> Result<String, ErrorFrontend> {
     let api = make_agent(&req, vec![], None).map_err(ErrorFrontend::from)?;
@@ -528,7 +528,7 @@ impl Drop for SteamCache {
         }
     }
 }
-
+#[specta::specta]
 #[tauri::command]
 pub async fn openai_stream(
     req: OpenAIReq,

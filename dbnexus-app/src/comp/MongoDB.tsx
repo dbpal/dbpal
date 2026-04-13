@@ -1690,11 +1690,7 @@ class MongoTableHandler {
       page,
       pageSize,
     );
-    return await invoke<MuiDataGridData>("mongo_show_collection_table_list", {
-      name: uuid,
-      tableName: table,
-      para,
-    });
+    return await unwrapCommand(commands.mongoShowCollectionTableList(uuid, table, para));
   }
 
   static reloadDocs(uuid: string, table: string, filter, sort, page, pageSize) {
@@ -1704,11 +1700,7 @@ class MongoTableHandler {
       page,
       pageSize,
     );
-    return invoke<{ count: number; docs: number[][] }>("mongo_show_collection_docs", {
-      name: uuid,
-      tableName: table,
-      para,
-    }).then((x) => {
+    return unwrapCommand(commands.mongoShowCollectionDocs(uuid, table, para)).then((x) => {
       const docs = x.docs.map((e) => BSON.deserialize(new Uint8Array(e)));
       const count = x.count;
       return new DocsAndCount(docs, count);
@@ -1717,11 +1709,7 @@ class MongoTableHandler {
 
   static loadOne(uuid: string, table: string) {
     return async (id): Promise<BSON.Document> => {
-      return invoke<number[]>("mongo_get_one_document_by_id", {
-        name: uuid,
-        tableName: table,
-        id: JSON.stringify(EJSON.serialize(id)),
-      }).then((x) => {
+      return unwrapCommand(commands.mongoGetOneDocumentById(uuid, table, JSON.stringify(EJSON.serialize(id)))).then((x) => {
         return BSON.deserialize(new Uint8Array(x));
       });
     };
@@ -1729,11 +1717,7 @@ class MongoTableHandler {
 
   static modifyOP(uuid: string, table: string) {
     return async (doc) => {
-      return invoke<void>("mongo_update_one", {
-        name: uuid,
-        tableName: table,
-        doc: BSON.serialize(doc),
-      });
+      return unwrapCommand(commands.mongoUpdateOne(uuid, table, BSON.serialize(doc)));
     };
   }
   static deleteOP(uuid, table) {
@@ -1741,11 +1725,7 @@ class MongoTableHandler {
       if (!Array.isArray(ids)) {
         ids = [ids];
       }
-      return invoke<void>("mongo_delete_ids", {
-        name: uuid,
-        tableName: table,
-        ids: JSON.stringify(EJSON.serialize(ids)),
-      });
+      return unwrapCommand(commands.mongoDeleteIds(uuid, table, JSON.stringify(EJSON.serialize(ids))));
     };
   }
 }

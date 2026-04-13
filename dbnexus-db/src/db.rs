@@ -10,7 +10,6 @@ use std::sync::{Arc, Mutex};
 use std::time::Duration;
 use tokio::io::AsyncWriteExt;
 use tokio::task::spawn_blocking;
-use typescript_type_def::TypeDef;
 
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub enum BackendKind {
@@ -156,7 +155,7 @@ pub trait ReadOnlyTrait {
 
 pub type ExportedSizeEmitter = Arc<dyn Fn(usize) + Send + Sync>;
 
-#[derive(serde::Deserialize, Clone, Debug, Default, TypeDef)]
+#[derive(serde::Deserialize, Clone, Debug, Default, specta::Type)]
 pub struct ShowTableParameter {
     #[serde(default)]
     pub where_str: Option<String>,
@@ -543,37 +542,21 @@ pub trait SchemaTrait:
         self.backend_kind().not_support_feature()
     }
 
-    async fn show_udf(
-        &self,
-        _name: &str,
-        _arg: Option<UdfOrProcedureExtraParameter>,
-    ) -> anyhow::Result<DefAndMetas> {
+    async fn show_udf(&self, _name: &NamedStaff) -> anyhow::Result<DefAndMetas> {
         self.backend_kind().not_support_feature()
     }
 
-    async fn drop_udf(
-        &self,
-        _name: &str,
-        _extra: Option<UdfOrProcedureExtraParameter>,
-    ) -> anyhow::Result<String> {
+    async fn drop_udf(&self, _name: &NamedStaff) -> anyhow::Result<String> {
         self.backend_kind().not_support_feature()
     }
 
     async fn list_procedure(&self) -> anyhow::Result<Vec<NamedStaff>> {
         self.backend_kind().not_support_feature()
     }
-    async fn show_procedure(
-        &self,
-        _name: &str,
-        _arg: Option<UdfOrProcedureExtraParameter>,
-    ) -> anyhow::Result<ProcedureDetail> {
+    async fn show_procedure(&self, _name: &NamedStaff) -> anyhow::Result<ProcedureDetail> {
         self.backend_kind().not_support_feature()
     }
-    async fn drop_procedure(
-        &self,
-        _name: &str,
-        _arg: Option<UdfOrProcedureExtraParameter>,
-    ) -> anyhow::Result<String> {
+    async fn drop_procedure(&self, _name: &NamedStaff) -> anyhow::Result<String> {
         self.backend_kind().not_support_feature()
     }
 
@@ -634,7 +617,7 @@ pub trait SchemaTrait:
     }
 }
 
-#[derive(Debug, typescript_type_def::TypeDef, serde::Serialize)]
+#[derive(Debug, serde::Serialize, specta::Type)]
 pub struct SqlEvent {
     pub name: String,
     pub sql: String,
@@ -960,7 +943,7 @@ pub trait SqlBuilder: GetBackendKind {
     }
 }
 
-#[derive(Clone, Debug, serde::Serialize, serde::Deserialize, typescript_type_def::TypeDef)]
+#[derive(Clone, Debug, serde::Serialize, serde::Deserialize, specta::Type)]
 pub struct CreatedTypeDef {
     pub name: String,
     pub sql: Option<String>,
@@ -977,7 +960,7 @@ impl std::fmt::Display for CreatedTypeDef {
     }
 }
 
-#[derive(Clone, Debug, serde::Serialize, serde::Deserialize, TypeDef)]
+#[derive(Clone, Debug, serde::Serialize, serde::Deserialize, specta::Type)]
 pub struct ColumnType {
     // type string like `varchar`
     pub(crate) typ: String,
@@ -987,30 +970,13 @@ pub struct ColumnType {
     pub(crate) default_value: Option<String>,
 }
 
-#[derive(Clone, Debug, serde::Serialize, serde::Deserialize, TypeDef)]
-#[serde(tag = "extra", rename_all = "lowercase")]
-pub enum UdfOrProcedureExtraParameter {
-    PostGres {
-        parameters: String, // a integer , b integer
-    },
-    Cassandra {
-        parameters: Vec<String>, //
-    },
-}
-
-impl UdfOrProcedureExtraParameter {
-    pub(crate) fn wrong_type(&self) -> anyhow::Error {
-        anyhow::Error::msg(format!("wrong type of parameter passed:{:?}", self))
-    }
-}
-
 impl BackendKind {
     pub fn not_support_feature<T>(&self) -> anyhow::Result<T> {
         anyhow::bail!(format!("'{}' don't support this feature", self))
     }
 }
 
-#[derive(Debug, serde::Serialize, TypeDef)]
+#[derive(Debug, serde::Serialize, specta::Type)]
 pub struct ProcedureDetail {
     // definition of the sql.
     pub def: String,
@@ -1022,7 +988,7 @@ impl ProcedureDetail {
     }
 }
 
-#[derive(Debug, serde::Serialize, TypeDef)]
+#[derive(Debug, serde::Serialize, specta::Type)]
 pub struct DefAndMetas {
     // definition of the sql.
     pub def: String,
@@ -1059,7 +1025,7 @@ pub trait CatalogTrait:
     fn as_any(&self) -> &dyn Any;
 }
 
-#[derive(Debug, serde::Serialize, serde::Deserialize, Clone, TypeDef)]
+#[derive(Debug, serde::Serialize, serde::Deserialize, Clone, specta::Type)]
 #[serde(tag = "extra", rename_all = "lowercase")]
 pub enum CreateDatabaseExtra {
     Couchbase {
@@ -1075,7 +1041,7 @@ pub enum CreateDatabaseExtra {
     },
 }
 
-#[derive(Debug, serde::Serialize, serde::Deserialize, Clone, TypeDef)]
+#[derive(Debug, serde::Serialize, serde::Deserialize, Clone, specta::Type)]
 #[serde(rename_all = "lowercase")]
 pub enum CouchBaseBucketType {
     Couchbase,
@@ -1083,7 +1049,7 @@ pub enum CouchBaseBucketType {
 }
 
 /// named staff maybe used for view udf etc...
-#[derive(Debug, serde::Serialize, TypeDef)]
+#[derive(Debug, serde::Serialize, specta::Type, serde::Deserialize, Default)]
 pub struct NamedStaff {
     // some backend support reload function like postgres
     pub parameters: Option<String>,
@@ -1091,7 +1057,6 @@ pub struct NamedStaff {
     pub cassandra_parameters: Option<Vec<String>>,
     pub name: String,
     pub metas: Vec<MetaValue>,
-
     pub rand: String,
 }
 
@@ -1112,7 +1077,7 @@ pub trait CheckConn: Send + Sync + 'static {
     async fn check_conn(&self) -> anyhow::Result<Duration>;
 }
 /// create table and all index sql.
-#[derive(Clone, serde::Serialize, TypeDef, serde::Deserialize)]
+#[derive(Clone, serde::Serialize, serde::Deserialize, specta::Type)]
 pub struct CreateTableAndIndexSql {
     pub create_table: String,
     /// some backend can query create table and index in one sql
@@ -1146,7 +1111,7 @@ pub trait DBTrait:
     fn as_any(&self) -> &dyn std::any::Any;
 }
 
-#[derive(Clone, Debug, serde::Serialize, serde::Deserialize)]
+#[derive(Clone, Debug, serde::Serialize, serde::Deserialize, specta::Type)]
 #[serde(tag = "extra", rename_all = "lowercase")]
 pub enum CreateSchemaExtra {
     Cassandra {
@@ -1161,7 +1126,7 @@ pub enum CreateSchemaExtra {
     },
 }
 
-#[derive(Clone, Debug, TypeDef, serde::Serialize)]
+#[derive(Clone, Debug, serde::Serialize, serde::Deserialize, specta::Type)]
 pub struct SequenceDetail {
     pub start_value: String,
     pub min_value: String,
@@ -1323,7 +1288,7 @@ impl From<XlsxEdit> for ExportFrame {
     }
 }
 
-#[derive(Debug, Clone, TypeDef, serde::Deserialize, serde::Serialize)]
+#[derive(Debug, Clone, serde::Deserialize, serde::Serialize, specta::Type)]
 
 pub struct CreateTableReq {
     pub name: String,
@@ -1352,7 +1317,7 @@ impl CreateTableReq {
     }
 }
 
-#[derive(Debug, Clone, TypeDef, serde::Deserialize, serde::Serialize, Default)]
+#[derive(Debug, Clone, serde::Deserialize, serde::Serialize, Default, specta::Type)]
 pub struct CreateTableReqColumn {
     pub name: String,
     pub data_type: String,
@@ -1362,7 +1327,7 @@ pub struct CreateTableReqColumn {
     pub nullable: SqlNullAble,
 }
 
-#[derive(Debug, Clone, TypeDef, serde::Deserialize, serde::Serialize, Default, Copy)]
+#[derive(Debug, Clone, serde::Deserialize, serde::Serialize, Default, Copy, specta::Type)]
 #[serde(rename_all = "lowercase")]
 pub enum SqlNullAble {
     #[default]
@@ -1385,7 +1350,7 @@ impl std::fmt::Display for SqlNullAble {
     }
 }
 
-#[derive(Debug, Clone, TypeDef, serde::Deserialize, serde::Serialize)]
+#[derive(Debug, Clone, serde::Deserialize, serde::Serialize, specta::Type)]
 pub struct CreateIndexReq {
     pub name: String,
     pub columns: Vec<CreateIndexColumn>,
@@ -1430,7 +1395,7 @@ impl CreateIndexReq {
     }
 }
 
-#[derive(Debug, Clone, TypeDef, serde::Deserialize, serde::Serialize)]
+#[derive(Debug, Clone, serde::Deserialize, serde::Serialize, specta::Type)]
 
 pub struct CreateIndexColumn {
     pub col: String,
@@ -1808,7 +1773,7 @@ pub trait QuerySql: GetBackendKind + Send + Sync + 'static + LanguageServer {
     async fn close_connection(&self, id: &str) -> anyhow::Result<()>;
 }
 
-#[derive(Debug, serde::Serialize, TypeDef, Clone)]
+#[derive(Debug, serde::Serialize, Clone, specta::Type)]
 pub struct ListTable {
     pub name: String,
     pub size: Option<u64>,
@@ -1852,7 +1817,7 @@ pub trait ServerMetas: Sync + Send + 'static {
     async fn show_metas(&self) -> anyhow::Result<Vec<MetaValue>>;
 }
 
-#[derive(Debug, Clone, serde::Serialize, TypeDef)]
+#[derive(Debug, Clone, serde::Serialize, specta::Type)]
 pub struct Index {
     pub name: Option<String>,
     pub kind: IndexKind,
@@ -1870,7 +1835,7 @@ impl Index {
     }
 }
 
-#[derive(Clone, serde::Serialize, Copy, Debug, TypeDef, serde::Deserialize)]
+#[derive(Clone, serde::Serialize, Copy, Debug, serde::Deserialize, specta::Type)]
 pub enum IndexKind {
     #[serde(rename = "index")]
     Index,
@@ -1985,7 +1950,7 @@ impl QueryResp {
     }
 }
 
-#[derive(Debug, Clone, serde::Serialize, TypeDef, PartialEq, Eq)]
+#[derive(Debug, Clone, serde::Serialize, PartialEq, Eq, specta::Type)]
 pub struct Field {
     pub field: String,
     pub data_type: String,
@@ -2079,7 +2044,7 @@ pub fn format_data_time_fix_offset(x: &DateTime<FixedOffset>) -> String {
     format!("{} {}", x.naive_local(), x.offset())
 }
 
-#[derive(Clone, Debug, Copy, serde::Deserialize, serde::Serialize, TypeDef)]
+#[derive(Clone, Debug, Copy, serde::Deserialize, serde::Serialize, specta::Type)]
 #[serde(tag = "export_kind", rename_all = "lowercase")]
 pub enum ExportKind {
     Csv {
@@ -2108,7 +2073,7 @@ impl ExportKind {
     }
 }
 
-#[derive(Debug, serde::Serialize, TypeDef)]
+#[derive(Debug, serde::Serialize, specta::Type)]
 pub struct TriggerDetail {
     pub timing: TriggerTiming,
     pub event: TriggerEvent,
@@ -2129,7 +2094,7 @@ impl PartialEq for TriggerDetail {
 
 impl Eq for TriggerDetail {}
 
-#[derive(Debug, Clone, serde::Serialize, PartialEq, Eq, TypeDef)]
+#[derive(Debug, Clone, serde::Serialize, PartialEq, Eq, specta::Type)]
 #[serde(tag = "kind", rename_all = "lowercase")]
 pub enum TriggerEnable {
     // https://www.postgresql.org/docs/current/catalog-pg-trigger.html
@@ -2163,7 +2128,7 @@ impl TriggerDetail {
     }
 }
 
-#[derive(Debug, Clone, TypeDef, PartialEq, Eq, serde::Serialize)]
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, specta::Type)]
 pub enum TriggerEvent {
     Insert,
     Update,
@@ -2188,7 +2153,7 @@ impl TryFrom<&str> for TriggerEvent {
     }
 }
 
-#[derive(Debug, Clone, serde::Serialize, TypeDef, PartialEq, Eq)]
+#[derive(Debug, Clone, serde::Serialize, PartialEq, Eq, specta::Type)]
 pub enum TriggerTiming {
     Before,
     After,
@@ -2197,7 +2162,7 @@ pub enum TriggerTiming {
 }
 
 /// meta value can used in various place.
-#[derive(Debug, serde::Serialize, TypeDef)]
+#[derive(Debug, serde::Serialize, specta::Type, serde::Deserialize)]
 pub struct MetaValue {
     pub name: String,
     pub value: Option<String>,

@@ -9,11 +9,17 @@ import Dexie, { type Table } from "dexie";
 import wcmatch from "wildcard-match";
 import { cloneDeep } from "lodash-es";
 import { GridColumnVisibilityModel } from "@mui/x-data-grid";
-import { PassWordManager } from "./Common";
-import types from "./ApiStruct";
+import { PassWordManager, unwrapCommand } from "./Common";
 import { editor } from "monaco-editor";
-import { Channel, invoke } from "@tauri-apps/api/core";
+import { Channel } from "@tauri-apps/api/core";
 import { cancelTask } from "./handlers";
+import {
+  AiOnlineSearch,
+  ChatHistory,
+  commands,
+  DBConnectionConfig,
+  OpenAIReq,
+} from "./bindings";
 
 class TauriStoreManger<S> implements PersistStorage<S> {
   constructor(
@@ -216,7 +222,7 @@ export type LLMConfig = {
   temperature: number;
   maxToken: number;
   topP: number;
-  search_engin: types.AiOnlineSearch;
+  search_engin: AiOnlineSearch;
 };
 
 export const LLM_CONFIG_KEY = "llm-config-4k9zF7m5p3T1H2";
@@ -281,9 +287,9 @@ export const makeLLMCallable = (config: LLMConfig) => {
   const makeReq = (
     prompt: string,
     images,
-    history: types.ChatHistory[] = [],
+    history: ChatHistory[] = [],
     user_system_prompt: string | null,
-  ): types.OpenAIReq => {
+  ): OpenAIReq => {
     return {
       url: config.baseUrl,
       api_key: config.apiKey,
@@ -301,16 +307,14 @@ export const makeLLMCallable = (config: LLMConfig) => {
 
   return {
     invoke: async (msg: string): Promise<string> => {
-      return await invoke<string>("openai_invoke", {
-        req: makeReq(msg, [], [], ""),
-      });
+      return await unwrapCommand(commands.openaiInvoke(makeReq(msg, [], [], "")));
     },
     stream: async (
       uuid: string,
       queryId: string,
       prompt: string,
       images: string[],
-      history: types.ChatHistory[],
+      history: ChatHistory[],
       user_system_prompt: string | null,
       handleMessage: (event: string) => void,
       handleCancel: (cancel: () => void) => void,
@@ -323,13 +327,15 @@ export const makeLLMCallable = (config: LLMConfig) => {
       handleCancel(() => {
         cancelTask(taskId);
       });
-      await invoke("openai_stream", {
-        req: makeReq(prompt, images, history, user_system_prompt),
-        emit,
-        taskId,
-        name: uuid,
-        queryId,
-      });
+      await unwrapCommand(
+        commands.openaiStream(
+          makeReq(prompt, images, history, user_system_prompt),
+          uuid,
+          queryId,
+          emit,
+          taskId,
+        ),
+      );
     },
   };
 };
@@ -874,12 +880,12 @@ export const useMatcherFn = () => {
 };
 
 interface ConnectionState {
-  connections: types.DBConnectionConfig[];
+  connections: DBConnectionConfig[];
 
-  addConnection: (config: types.DBConnectionConfig) => Promise<void>;
+  addConnection: (config: DBConnectionConfig) => Promise<void>;
   removeConnection: (name: string) => void;
   nameExists: (name: string) => boolean;
-  getConnection: (name: string) => Promise<types.DBConnectionConfig | null>;
+  getConnection: (name: string) => Promise<DBConnectionConfig | null>;
 }
 
 export const passwordKey = "password";

@@ -41,7 +41,6 @@ import {
   MonacoEditor,
 } from "./helper";
 
-import { invoke } from "@tauri-apps/api/core";
 import EditIcon from "@mui/icons-material/Edit";
 import { IconModifed, SimpleFlexEditor, StackRowCenter } from "./CommonComp2";
 import { ClearableTextField } from "./CommonComp2";
@@ -65,8 +64,8 @@ import {
 } from "./store";
 import { WebviewWindow } from "@tauri-apps/api/webviewWindow";
 import { listen } from "@tauri-apps/api/event";
-import types from "./ApiStruct";
 import "@mui/material/Chip";
+import { AiOnlineSearch, commands } from "./bindings";
 
 declare module "@mui/material/Chip" {
   interface ChipPropsSizeOverrides {
@@ -92,17 +91,17 @@ function AppearanceSetting() {
   const [zoom, setZoom] = useState(appearance.zoom);
 
   useEffect(() => {
-    invoke<string[]>("all_font_family", {})
-      .then((fonts) => {
-        setAllFonts(fonts);
-      })
-      .catch((e) => {
+    commands.allFontFamily().then((ret) => {
+      if (ret.status == "ok") {
+        setAllFonts(ret.data);
+      } else {
         showNotification({
           severity: "error",
           title: "list all fonts failed",
-          message: e,
+          message: ret.error,
         });
-      });
+      }
+    });
   }, [showNotification]);
 
   const makeConfig = useCallback(() => {
@@ -537,7 +536,7 @@ function LLMSetting(props: { handleClose?: () => void }) {
   const [helloTime, setHelloTime] = useState(0);
   const [modified, setModified] = useState(false);
 
-  const [searchEngine, setSearchEngine] = useState<types.AiOnlineSearch>(
+  const [searchEngine, setSearchEngine] = useState<AiOnlineSearch>(
     oldSetting.search_engin,
   );
 
@@ -1311,14 +1310,13 @@ function SettingProvider({ children }) {
           });
         }
       }
-      invoke("set_env", {
-        env: {
+      commands
+        .setEnv({
           http_proxy: proxy.http,
           https_proxy: proxy.https,
           all_proxy: proxy.all,
           no_proxy: proxy.no,
-        },
-      })
+        })
         .then(() => {
           console.log("set proxy success");
         })
@@ -1330,7 +1328,7 @@ function SettingProvider({ children }) {
             message: e,
           });
         });
-      invoke("set_log_level", { level: misc.logLevel }).catch((e) => {
+      commands.setLogLevel(misc.logLevel).catch((e) => {
         showNotification({
           severity: "error",
           title: "set log level failed",
@@ -1363,7 +1361,7 @@ function SettingProvider({ children }) {
   }, []);
 
   useEffect(() => {
-    const unlisten = listen<types.SetZoom>("set_zoom", (e) => {
+    const unlisten = listen("set_zoom", (e) => {
       let zoom = appearance.zoom;
       switch (e.payload) {
         case "in":

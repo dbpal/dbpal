@@ -5,7 +5,6 @@ use std::time::Duration;
 use sqlparser::ast::{SetExpr, Statement, Update};
 use sqlparser::keywords::Keyword;
 use sqlparser::tokenizer::{Location, Token, TokenWithSpan};
-use typescript_type_def::TypeDef;
 
 use crate::db::{CreatedTypeDef, Field, GetBackendKind, SequenceDetail, SqlEvent};
 use crate::helper::try_remove_one_at;
@@ -41,7 +40,7 @@ pub trait LanguageServer: GetBackendKind + Send + Sync + 'static {
     fn extract_table_select_sort(&self, sql: &str) -> anyhow::Result<Option<String>>;
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, Hash)]
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, Hash, specta::Type)]
 pub struct CompletionItem {
     pub item: Cow<'static, str>,
     pub kind: CompletionKind,
@@ -58,9 +57,7 @@ impl From<Field> for CompletionItem {
     }
 }
 
-#[derive(
-    Debug, Clone, PartialEq, Eq, serde::Serialize, Hash, Default, typescript_type_def::TypeDef,
-)]
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, Hash, Default, specta::Type)]
 pub struct CompletionList {
     pub items: Vec<CompletionItem>,
     pub incomplete: bool,
@@ -81,7 +78,7 @@ impl From<CompletionItem> for String {
         value.item.into()
     }
 }
-#[derive(Clone, Copy, Debug, PartialEq, Eq, serde::Serialize, TypeDef, Hash)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, serde::Serialize, Hash, specta::Type)]
 pub enum CompletionKind {
     Command, // command right now use by redis
     KeyWord,
@@ -573,7 +570,7 @@ pub trait LangServerCommon: GetBackendKind + GetKeyWords + Send + Sync {
         anyhow::Ok(ss)
     }
 
-    // list user created types.
+    // list user created
     async fn list_created_type(
         &self,
         _schema: Option<&str>,
@@ -1389,7 +1386,7 @@ select xxxx
     //
 }
 
-#[derive(Clone, Debug, typescript_type_def ::TypeDef, serde::Serialize)]
+#[derive(Clone, Debug, serde::Serialize, specta::Type)]
 pub struct ErrAndLoc {
     pub line: Option<u32>,
     pub column: Option<u32>,

@@ -5,7 +5,7 @@ use crate::db::{
     DBTrait, DefAndMetas, ExportFrame, ExportKind, ExportQueryResult, Field, GetBackendKind,
     GetTestExportTableKinds, ListTable, MetaValue, NamedStaff, OptionMustBeSomeErr, QueryEvent,
     QueryEventEmitter, QueryResp, QuerySql, SchemaTrait, ServerMetas, ShowTableParameter,
-    SqlBuilder, SqlCollect, UdfOrProcedureExtraParameter, XlsxEdit,
+    SqlBuilder, SqlCollect, XlsxEdit,
 };
 
 use crate::helper::{ty_is_decimal, ty_is_float, ty_is_int};
@@ -482,13 +482,10 @@ impl SchemaTrait for ClickHouseDB {
         anyhow::Ok(rows.into_iter().map(NamedStaff::from).collect())
     }
 
-    async fn show_udf(
-        &self,
-        name: &str,
-        _arg: Option<UdfOrProcedureExtraParameter>,
-    ) -> anyhow::Result<DefAndMetas> {
+    async fn show_udf(&self, name: &NamedStaff) -> anyhow::Result<DefAndMetas> {
         let sql = format!(
-            r#"SELECT create_query from system.functions where origin = 'SQLUserDefined' and  name='{name}'"#
+            r#"SELECT create_query from system.functions where origin = 'SQLUserDefined' and  name='{}'"#,
+            name.name,
         );
 
         let create_query: String = self.client.query(&sql).fetch_one().await?;
@@ -498,13 +495,8 @@ impl SchemaTrait for ClickHouseDB {
         })
     }
 
-    async fn drop_udf(
-        &self,
-        name: &str,
-        _extra: Option<UdfOrProcedureExtraParameter>,
-    ) -> anyhow::Result<String> {
-        let sql = format!("DROP FUNCTION `{name}`",);
-
+    async fn drop_udf(&self, name: &NamedStaff) -> anyhow::Result<String> {
+        let sql = format!("DROP FUNCTION `{}`", name.name);
         self.simple_execute_sql(&sql).await?;
         anyhow::Ok(sql)
     }
@@ -1374,7 +1366,7 @@ mod tests {
         db.open_connection(query_id).await.unwrap();
         let name = "test_udf_add";
 
-        let _ = db.drop_udf(name, None).await;
+        let _ = db.drop_udf(&NamedStaff::from(name.to_string())).await;
 
         db.execute_sql(
             query_id,
@@ -1385,7 +1377,7 @@ mod tests {
         .unwrap();
 
         for l in db.list_udf().await.unwrap() {
-            let detail = db.show_udf(&l.name, None).await.unwrap();
+            let detail = db.show_udf(&l).await.unwrap();
             println!("detail:{:?}", detail);
         }
     }

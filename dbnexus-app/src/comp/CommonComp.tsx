@@ -19,7 +19,6 @@ import {
 } from "@mui/material";
 import RefreshIcon from "@mui/icons-material/Refresh";
 import { ReactNode, useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { types } from "./ApiStruct";
 import DeleteForeverIcon from "@mui/icons-material/DeleteForever";
 import {
   DataGrid,
@@ -38,7 +37,6 @@ import CloseIcon from "@mui/icons-material/Close";
 import AddIcon from "@mui/icons-material/Add";
 import { BsDatabaseAdd } from "react-icons/bs";
 import LinkOffIcon from "@mui/icons-material/LinkOff";
-import { invoke } from "@tauri-apps/api/core";
 import ContentCopyIcon from "@mui/icons-material/ContentCopy";
 import ArrowUpwardIcon from "@mui/icons-material/ArrowUpward";
 import ArrowDownwardIcon from "@mui/icons-material/ArrowDownward";
@@ -61,7 +59,7 @@ import { v4 as uuidv4 } from "uuid";
 
 import { TbDatabasePlus } from "react-icons/tb";
 import LinkIcon from "@mui/icons-material/Link";
-import { PassWordManager } from "./Common";
+import { PassWordManager, unwrapCommand } from "./Common";
 import { TreeItem } from "@mui/x-tree-view/TreeItem";
 import { editor, Position } from "monaco-editor";
 import { openPath } from "@tauri-apps/plugin-opener";
@@ -81,6 +79,7 @@ import {
   useQueryLogStore,
   useUserSettings,
 } from "./store";
+import { commands, Field, MetaValue, NamedStaff } from "./bindings";
 
 function MenuExportMarkDownTable({ showExportMarkDown }) {
   return (
@@ -165,7 +164,7 @@ function MenuCloseConn({ name }) {
   return (
     <MenuItem
       onClick={() => {
-        invoke("close_conn", { name })
+        unwrapCommand(commands.closeConn(name))
           .then(() => {
             removeConnected(name);
           })
@@ -191,15 +190,15 @@ function ConnPingTime({ uuid }) {
 
   useEffect(() => {
     const reloadStatus = () => {
-      invoke<number>("check_conn", { name: uuid })
-        .then((ping) => {
-          setStatus(ping);
+      commands.checkConn(uuid).then((ret) => {
+        if (ret.status == "ok") {
+          setStatus(ret.data);
           setErr("");
-        })
-        .catch((e) => {
-          setErr(errToString(e));
+        } else {
+          setErr(errToString(ret.error));
           setStatus(null);
-        });
+        }
+      });
     };
     const interval = setInterval(() => {
       reloadStatus();
@@ -272,7 +271,7 @@ function MenuOpenConn({ name }) {
       return;
     }
     try {
-      await invoke("establish_conn", { config });
+      await unwrapCommand(commands.establishConn(config));
     } catch (e) {
       showNotification({
         severity: "error",
@@ -343,7 +342,7 @@ function MenuDeleteConfig({ name }) {
       return;
     }
     try {
-      await invoke("close_conn", { name });
+      await unwrapCommand(commands.closeConn(name));
       await delFav(name);
       await delQueryLog(name);
       await removeConnection(name);
@@ -406,7 +405,7 @@ function MetaValueViewMenu(props: { content: string; setSort; field: string }) {
   );
 }
 
-function MetaValueView({ values = [] as types.MetaValue[] }) {
+function MetaValueView({ values = [] as MetaValue[] }) {
   const setting = useUserSettings();
 
   const getColumnWidth = useColumnWidthStore((s) => s.getColumnWidth);
@@ -542,7 +541,7 @@ function ModalHeader(props: {
   );
 }
 
-function ViewRowInModal(props: { fields: types.Field[]; data: object; isTable? }) {
+function ViewRowInModal(props: { fields: Field[]; data: object; isTable? }) {
   const { fields, data, isTable } = props;
   const theme = useTheme();
   return (
@@ -608,7 +607,7 @@ function ExceedMaxTreeItem(props: { showItems: number; maxTreeSize: number }) {
   );
 }
 
-function UdfNameAndParameters(props: { udf: types.NamedStaff; kind: DataSourceKind }) {
+function UdfNameAndParameters(props: { udf: NamedStaff; kind: DataSourceKind }) {
   const { udf, kind } = props;
   let parameter = "";
   switch (kind) {

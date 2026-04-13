@@ -40,7 +40,7 @@ import {
 } from "./store.tsx";
 function SequenceTree() {
   const { uuid, kind } = useContext(UuidContext);
-  const [seq, setSeq] = useState<types.SequenceDetail[]>([]);
+  const [seq, setSeq] = useState<SequenceDetail[]>([]);
   const { showNotification } = useNotification();
   const { maxTree } = useMatcher();
   const matchPattern = useMatcherFn();
@@ -130,7 +130,7 @@ function SequenceTree() {
   );
 }
 
-function details2DefMetas(d: types.SequenceDetail): DefAndMetas {
+function details2DefMetas(d: SequenceDetail): DefAndMetas {
   return {
     def: d.sql,
     metas: [
@@ -146,7 +146,7 @@ function details2DefMetas(d: types.SequenceDetail): DefAndMetas {
 
 function SequenceMenu(props: {
   uuid;
-  seq: types.SequenceDetail;
+  seq: SequenceDetail;
   reload;
   kind: DataSourceKind;
 }) {
@@ -182,7 +182,7 @@ function SequenceMenu(props: {
     if (!confirm) {
       return;
     }
-    invoke("drop_sequence", { name: uuid, seq: seq.name, cascade })
+    unwrapCommand(commands.dropSequence(uuid, seq.name, cascade))
       .then((sql) => {
         showNotification({
           severity: "success",

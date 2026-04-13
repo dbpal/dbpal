@@ -1,6 +1,5 @@
 import { SxProps } from "@mui/material";
 import { editor, languages, Position } from "monaco-editor";
-import { types } from "./ApiStruct.ts";
 import { format as formatSql, SqlLanguage } from "sql-formatter";
 import { Channel, invoke } from "@tauri-apps/api/core";
 import { message } from "@tauri-apps/plugin-dialog";
@@ -17,6 +16,14 @@ import * as monaco from "monaco-editor";
 import { readFile, stat } from "@tauri-apps/plugin-fs";
 import { filesize } from "filesize";
 import { redisCommands } from "./redisCmd.ts";
+import {
+  commands,
+  ExportKind,
+  Field,
+  MetaValue,
+  NamedStaff,
+  UdfOrProcedureExtraParameter,
+} from "./bindings.ts";
 
 /**
  * Converts a local file path to a Data URL (base64)
@@ -117,7 +124,8 @@ async function dropDatabase(props: {
   if (!confirm) {
     return;
   }
-  invoke("drop_database", { name: uuid, database })
+  commands
+    .dropDatabase(uuid, database)
     .then(() => {
       showNotification({ severity: "success", title: "drop ok" });
       if (okCallback) {
@@ -137,7 +145,8 @@ async function dropSchema({ uuid, schema, showNotification, okCallback }) {
   if (!confirm) {
     return;
   }
-  invoke("drop_schema", { name: uuid, schema })
+  commands
+    .dropSchema(uuid, schema)
     .then(() => {
       showNotification({ severity: "success", title: "Drop OK" });
       okCallback();
@@ -149,7 +158,7 @@ async function dropSchema({ uuid, schema, showNotification, okCallback }) {
 
 interface DefAndMetas {
   def: string;
-  metas?: types.MetaValue[];
+  metas?: MetaValue[];
 }
 
 function reloadOK(showNotification) {
@@ -161,25 +170,25 @@ const autoCompletion = async (
   model: editor.ITextModel,
   pos: Position,
 ): Promise<languages.CompletionList> => {
-  try {
-    const sql = model.getValue();
-    const name = model[dbpalQuerykey] as NameAndQueryId;
-    if (!name) {
-      console.error("editor id map to backend name is nul,this is internal bug");
-      return;
-    }
-    const completionItem = await invoke<types.CompletionList>("auto_completion", {
-      sql,
-      line: pos.lineNumber,
-      col: pos.column,
-      name: name.name,
-      queryId: name.queryId,
-    });
-    const suggestions = backendCompletionItemToEditor(completionItem.items);
-    suggestions.incomplete = completionItem.incomplete;
+  const sql = model.getValue();
+  const name = model[dbpalQuerykey] as NameAndQueryId;
+  if (!name) {
+    console.error("editor id map to backend name is nul,this is internal bug");
+    return;
+  }
+  const result = await commands.autoCompletion(
+    name.queryId,
+    name.queryId,
+    sql,
+    pos.lineNumber,
+    pos.column,
+  );
+  if (result.status == "ok") {
+    const suggestions = backendCompletionItemToEditor(result.data.items);
+    suggestions.incomplete = result.data.incomplete;
     return suggestions;
-  } catch (e) {
-    console.error("completion server error:", e);
+  } else {
+    console.error("completion server error:", result.error);
     return { suggestions: [] };
   }
 };
@@ -188,32 +197,30 @@ const aiTextAutoCompletion = async (
   modal: editor.ITextModel,
   pos: Position,
 ): Promise<languages.CompletionList> => {
-  try {
-    const text = modal.getValue();
-    {
-      // try if this is ai text completion
-      const name = modal[dbpalQuerykey];
-      if (name) {
-        const completionItem = await invoke<types.CompletionList>(
-          "ai_text_completion",
-          {
-            text,
-            line: pos.lineNumber,
-            col: pos.column,
-            name: name.name,
-          },
-        );
-        const suggestions = backendCompletionItemToEditor(completionItem.items);
-        suggestions.incomplete = completionItem.incomplete;
+  const text = modal.getValue();
+  {
+    // try if this is ai text completion
+    const name = modal[dbpalQuerykey];
+    if (name) {
+      const result = await commands.aiTextCompletion(
+        name.name,
+        text,
+        pos.lineNumber,
+        pos.column,
+      );
+
+      if (result.status == "ok") {
+        const suggestions = backendCompletionItemToEditor(result.data.items);
+        suggestions.incomplete = result.data.incomplete;
         return suggestions;
+      } else {
+        console.error("completion server error:", result.error);
+        return { suggestions: [] };
       }
     }
-    console.info("nothing to complete");
-    return { suggestions: [] };
-  } catch (e) {
-    console.error("completion server error:", e);
-    return { suggestions: [] };
   }
+  console.info("nothing to complete");
+  return { suggestions: [] };
 };
 
 monaco.languages.registerCompletionItemProvider("sql", {
@@ -320,12 +327,12 @@ class QueryConn {
     this.uuid = uuid;
     this.kind = kind;
   }
-  open(): Promise<void> {
+  async open(): Promise<void> {
     console.log("open connection", this.uuid, this.queryId);
-    return invoke("query_sql_open_connection", {
-      name: this.uuid,
-      id: this.queryId,
-    });
+    let r = await commands.querySqlOpenConnection(this.uuid, this.queryId);
+    if (r.status == "error") {
+      throw r.error;
+    }
   }
 
   supportTransaction(): boolean {
@@ -347,7 +354,7 @@ class QueryConn {
   exportQueryResult(
     queryId: string,
     sql: string,
-    kind: types.ExportKind,
+    kind: ExportKind,
     file: string,
     taskId: string,
     sizeEmitter: Channel<number>,
@@ -406,13 +413,13 @@ class QueryConn {
   }
 
   isDangerSql(sql: string): Promise<boolean> {
-    return invoke("is_dangerous_sql", { name: this.uuid, sql });
+    return commands
+      .isDangerousSql(this.uuid, sql)
+      .then((e) => (e.status == "ok" ? e.data : false));
   }
   destroy() {
-    invoke("query_sql_close_connection", {
-      name: this.uuid,
-      queryId: this.queryId,
-    })
+    commands
+      .querySqlCloseConnection(this.uuid, this.queryId)
       .then(() => {
         console.log("destroy connection of:", this.queryId);
       })
@@ -450,7 +457,7 @@ class NameAndQueryId {
   ) {}
 }
 
-type FieldAndGridField = types.Field & GridColDef;
+type FieldAndGridField = Field & GridColDef;
 
 class PassWordManager {
   static serviceConnection = "connetion.site.dbpal.dev";
@@ -581,7 +588,22 @@ export function isRedisCode(code: string) {
   }
   return false;
 }
-
+function makeUdfExtraArg(
+  udf: NamedStaff,
+  kind: DataSourceKind,
+): UdfOrProcedureExtraParameter {
+  let arg = null;
+  switch (kind) {
+    case DataSourceKind.Postgres:
+    case DataSourceKind.Cockroach:
+      arg = { extra: "postgres", parameters: udf.parameters };
+      break;
+    case DataSourceKind.Cassandra:
+      arg = { extra: "cassandra", parameters: udf.cassandra_parameters };
+      break;
+  }
+  return arg;
+}
 export {
   dbpalQuerykey,
   dropDatabase,
@@ -598,5 +620,18 @@ export {
   reloadOK,
   convertPathToDataUrl,
   uint8ArrayToBase64,
+  makeUdfExtraArg,
 };
 export type { DefAndMetas, EscDownEvent, FieldAndGridField, QueryEvent };
+
+/* Tauri Specta runtime */
+export async function unwrapCommand<T, E>(
+  result: Promise<T>,
+): Promise<{ status: "ok"; data: T } | { status: "error"; error: E }> {
+  try {
+    return { status: "ok", data: await result };
+  } catch (e) {
+    if (e instanceof Error) throw e;
+    return { status: "error", error: e as any };
+  }
+}

@@ -65,7 +65,6 @@ import {
 } from "./helper";
 
 import { editor, Position } from "monaco-editor";
-import { invoke } from "@tauri-apps/api/core";
 import {
   dbpalQuerykey,
   EscDownEvent,
@@ -75,9 +74,9 @@ import {
   modalStyle,
   NameAndQueryId,
   reloadOK,
+  unwrapCommand,
 } from "./Common";
 import AddIcon from "@mui/icons-material/Add";
-import types from "./ApiStruct";
 import ChatBubbleIcon from "@mui/icons-material/ChatBubble";
 import { MetaValueView, ModalHeader, SelectPageSize } from "./CommonComp";
 import { readFile, writeTextFile } from "@tauri-apps/plugin-fs";
@@ -240,7 +239,7 @@ function CreateDatabase(props: {
     flush_enabled: boolean;
     num_replicas: string;
     max_expiry: string;
-    bucket_type: types.CouchBaseBucketType;
+    bucket_type: CouchBaseBucketType;
   }>({
     ram_quota_mb: "1024",
     flush_enabled: true,
@@ -254,7 +253,7 @@ function CreateDatabase(props: {
       showNotification({ severity: "warning", title: "database name is empty" });
       return;
     }
-    let extra: types.CreateDatabaseExtra = null;
+    let extra: CreateDatabaseExtra = null;
     switch (kind) {
       case DataSourceKind.CouchBase:
         extra = {
@@ -268,7 +267,7 @@ function CreateDatabase(props: {
           bucket_type: couchbasExtra.bucket_type,
         };
     }
-    invoke("create_database", { name: uuid, database, extra })
+    unwrapCommand(commands.createDatabase(uuid, database, extra))
       .then(() => {
         showNotification({ severity: "success", title: "Create OK" });
         handleClose();
@@ -283,7 +282,7 @@ function CreateDatabase(props: {
       {kind == DataSourceKind.CouchBase && (
         <>
           <Autocomplete
-            options={["couchbase", "ephemeral"] as types.CouchBaseBucketType[]}
+            options={["couchbase", "ephemeral"] as CouchBaseBucketType[]}
             style={{ flex: 1 }}
             value={couchbasExtra.bucket_type}
             renderInput={(params) => <TextField {...params} label={`bucket type`} />}
@@ -406,7 +405,7 @@ function CreateSchema(props: {
         };
         break;
     }
-    invoke("create_schema", { name: uuid, schema, extra })
+    unwrapCommand(commands.createSchema(uuid, schema, extra))
       .then(() => {
         showNotification({ severity: "success", title: "create  ok" });
         handleClose();
@@ -642,15 +641,24 @@ function MenuConnectionInfo({ uuid }) {
 function ConnConfigInfo(props: { uuid }) {
   const { uuid } = props;
   const { showNotification } = useNotification();
-  const [metas, setMetas] = useState<types.MetaValue[]>([]);
+  const [metas, setMetas] = useState<MetaValue[]>([]);
   const { getConnection } = useConnectionStore();
 
   const handleInfo = useCallback(
     async (showOK: boolean) => {
       try {
-        const metas = await invoke<types.MetaValue[]>("server_metas", {
-          name: uuid,
-        });
+        let ret = await commands.serverMetas(uuid);
+        let metas: MetaValue[] = [];
+        if (ret.status === "ok") {
+          metas = ret.data;
+        } else {
+          showNotification({
+            severity: "error",
+            title: "get server metas failed",
+            message: ret.error,
+          });
+          metas = [];
+        }
         const config = await getConnection(uuid);
         let configMetas = [];
         switch (config.conn_type) {
@@ -667,28 +675,28 @@ function ConnConfigInfo(props: { uuid }) {
           case DataSourceKind.FireBird:
           case DataSourceKind.SqlServer:
             configMetas = [
-              { name: "host", value: config.host } as types.MetaValue,
-              { name: "port", value: config.port + "" } as types.MetaValue,
-              { name: "user", value: config.username } as types.MetaValue,
+              { name: "host", value: config.host } as MetaValue,
+              { name: "port", value: config.port + "" } as MetaValue,
+              { name: "user", value: config.username } as MetaValue,
             ];
             break;
           case DataSourceKind.LibSql:
             if (config.source === "local") {
-              configMetas = [{ name: "host", value: config.path } as types.MetaValue];
+              configMetas = [{ name: "host", value: config.path } as MetaValue];
             } else if (config.source == "remote") {
               configMetas = [
-                { name: "url", value: config.url } as types.MetaValue,
-                { name: "path", value: config.path } as types.MetaValue,
+                { name: "url", value: config.url } as MetaValue,
+                { name: "path", value: config.path } as MetaValue,
               ];
             }
             break;
           case DataSourceKind.Sqlite:
-            configMetas = [{ name: "path", value: config.path } as types.MetaValue];
+            configMetas = [{ name: "path", value: config.path } as MetaValue];
             break;
           case DataSourceKind.CouchBase:
             configMetas = [
-              { name: "username", value: config.username } as types.MetaValue,
-              { name: "conn str", value: config.conn_str } as types.MetaValue,
+              { name: "username", value: config.username } as MetaValue,
+              { name: "conn str", value: config.conn_str } as MetaValue,
             ];
             break;
         }
@@ -934,6 +942,16 @@ type AppMarkDownProps = {
   highlightStr?: string;
 };
 import { visit, SKIP } from "unist-util-visit";
+import {
+  commands,
+  CouchBaseBucketType,
+  CreateDatabaseExtra,
+  CreateIndexColumn,
+  CreateIndexReq,
+  IndexKind,
+  MetaValue,
+  SqlNullAble,
+} from "./bindings";
 
 const rehypeHighlightWords = ({ highligth }) => {
   return (tree) => {
@@ -1239,7 +1257,7 @@ function TableAddButton({ handleAdd }) {
 // useful for create index
 function SelectColumnAsc(props: {
   fields: string[];
-  includes: types.CreateIndexColumn[];
+  includes: CreateIndexColumn[];
   setIncludes;
   kind: DataSourceKind;
 }) {
@@ -1309,7 +1327,7 @@ function SelectColumnAsc(props: {
             if (index == -1) {
               setIncludes([
                 ...includes,
-                { col: value, asc: null } as types.CreateIndexColumn,
+                { col: value, asc: null } as CreateIndexColumn,
               ]);
             }
           }
@@ -1320,15 +1338,15 @@ function SelectColumnAsc(props: {
   );
 }
 
-function CreateIndexReq(props: {
+function CreateIndexView(props: {
   fields: string[];
-  handleReq: (x: types.CreateIndexReq) => void;
+  handleReq: (x: CreateIndexReq) => void;
   kind: DataSourceKind;
   style?: CSSProperties;
 }) {
   const { handleReq, kind, fields, style } = props;
   const indexTypes = ["index", "unique"];
-  const [req, setReq] = useState<types.CreateIndexReq>({
+  const [req, setReq] = useState<CreateIndexReq>({
     name: "",
     columns: [],
     kind: "index",
@@ -1348,7 +1366,7 @@ function CreateIndexReq(props: {
           <RadioGroup
             row
             onChange={(e) => {
-              setReq({ ...req, kind: e.target.value as types.IndexKind });
+              setReq({ ...req, kind: e.target.value as IndexKind });
             }}
             value={req.kind}>
             {indexTypes.map((e) => (
@@ -1387,17 +1405,17 @@ function TypeSelect(props: { handleChange; uuid; type; style?: CSSProperties }) 
   const [types, setTypes] = useState<string[]>([]);
   const { showNotification } = useNotification();
   useEffect(() => {
-    invoke<string[]>("list_data_types", { name: uuid })
-      .then((ts) => {
-        setTypes(ts);
-      })
-      .catch((e) => {
+    commands.listDataTypes(uuid).then((ret) => {
+      if (ret.status == "ok") {
+        setTypes(ret.data);
+      } else {
         showNotification({
           severity: "error",
           title: "should not return a error",
-          message: e,
+          message: ret.error,
         });
-      });
+      }
+    });
   }, [showNotification, uuid]);
   return (
     <Autocomplete
@@ -1419,11 +1437,11 @@ function TypeSelect(props: { handleChange; uuid; type; style?: CSSProperties }) 
 }
 
 function ColumnNullness(props: {
-  nullable: types.SqlNullAble;
-  handleNullable: (_: types.SqlNullAble) => void;
+  nullable: SqlNullAble;
+  handleNullable: (_: SqlNullAble) => void;
 }) {
   const { nullable, handleNullable: handleNullness } = props;
-  const opts: types.SqlNullAble[] = ["null", "notnull", "none"];
+  const opts: SqlNullAble[] = ["null", "notnull", "none"];
   return (
     <Autocomplete
       value={nullable}
@@ -1443,17 +1461,17 @@ function SqlDefaultValue(props: { uuid: string; defaultValue; setDefaultValue })
   const [currentValue, setCurrentValue] = useState<string[]>([]);
   const { showNotification } = useNotification();
   useEffect(() => {
-    invoke<string[]>("list_sql_current_values", { name: uuid })
-      .then((ts) => {
-        setCurrentValue(ts);
-      })
-      .catch((e) => {
+    commands.listSqlCurrentValues(uuid).then((ret) => {
+      if (ret.status == "ok") {
+        setCurrentValue(ret.data);
+      } else {
         showNotification({
-          severity: "success",
-          title: "list sql current values failed",
-          message: e,
+          severity: "error",
+          title: "list created types failed",
+          message: ret.error,
         });
-      });
+      }
+    });
   }, [showNotification, uuid]);
 
   return (
@@ -1557,23 +1575,6 @@ function StackRowCenter(props: { children: ReactNode; style?: CSSProperties }) {
   );
 }
 
-function makeExtractTableSelectWhere(uuid: string) {
-  return (sql: string) => {
-    return invoke<string | null>("extract_table_select_selection", {
-      name: uuid,
-      sql,
-    });
-  };
-}
-
-function makeExtractTableSelectSort(uuid: string) {
-  return (sql: string) => {
-    return invoke<string | null>("extract_table_select_sort", {
-      name: uuid,
-      sql,
-    });
-  };
-}
 function SetFilterSort(props: {
   open: boolean;
   handleClose: () => void;
@@ -1587,8 +1588,12 @@ function SetFilterSort(props: {
   let { open, handleClose, value, setValue, label, tableName, kind, uuid } = props;
   const isFilter = label == "filter";
   const extractFn = isFilter
-    ? makeExtractTableSelectWhere(uuid)
-    : makeExtractTableSelectSort(uuid);
+    ? function (uuid, sql) {
+        return commands.extractTableSelectSelection(uuid, sql);
+      }
+    : function (uuid, sql) {
+        return commands.extractTableSelectSort(uuid, sql);
+      };
   tableName = quoteDatabaseIdentifier(kind)(tableName);
   const [editor, setEditor] = useState<editor.IStandaloneCodeEditor>(null);
   const [modalBox, setModalBox] = useState(null);
@@ -1604,15 +1609,17 @@ function SetFilterSort(props: {
   };
 
   const handleSet = async () => {
-    try {
-      let value = await extractFn(editor.getValue());
-      if (value == null) {
-        value = "";
-      }
-      setValue(value);
+    let ret = await extractFn(uuid, editor.getValue());
+
+    if (ret.status == "ok") {
+      setValue(ret.data == null ? "" : ret.data);
       handleClose();
-    } catch (e) {
-      showNotification({ severity: "error", title: "extract sql error.", message: e });
+    } else {
+      showNotification({
+        severity: "error",
+        title: "extract sql error.",
+        message: ret.error,
+      });
       return;
     }
   };
@@ -1662,14 +1669,14 @@ function SetFilterSort(props: {
                       });
                       return;
                     }
-                    try {
-                      const filter = await extractFn(value);
-                      addFilter(uuid, tableName, filter);
-                    } catch (e) {
+                    const ret = await extractFn(uuid, value);
+                    if (ret.status == "ok") {
+                      addFilter(uuid, tableName, ret.data);
+                    } else {
                       showNotification({
                         severity: "error",
                         title: "save filter failed",
-                        message: e,
+                        message: ret.error,
                       });
                     }
                   }}>
@@ -1972,7 +1979,7 @@ export {
   SliderSize,
   TableAddButton,
   SelectColumnAsc,
-  CreateIndexReq,
+  CreateIndexView,
   TypeSelect,
   ColumnNullness,
   SqlDefaultValue,

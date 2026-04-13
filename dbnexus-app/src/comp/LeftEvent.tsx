@@ -26,9 +26,10 @@ import {
   useTabsManage,
   useMatcherFn,
 } from "./store";
+import { commands } from "./bindings";
 function EventsTree() {
   const { uuid, kind } = useContext(UuidContext);
-  const [evens, setEvents] = useState<types.SqlEvent[]>([]);
+  const [evens, setEvents] = useState<SqlEvent[]>([]);
   const { showNotification } = useNotification();
   const { maxTree } = useMatcher();
   const matchPattern = useMatcherFn();
@@ -114,12 +115,7 @@ function EventsTree() {
   );
 }
 
-function EventMenu(props: {
-  uuid;
-  event: types.SqlEvent;
-  reload;
-  kind: DataSourceKind;
-}) {
+function EventMenu(props: { uuid; event: SqlEvent; reload; kind: DataSourceKind }) {
   const { uuid, event, reload, kind } = props;
   const { appendTab } = useTabsManage();
   const { showNotification } = useNotification();
@@ -150,7 +146,7 @@ function EventMenu(props: {
     if (!confirm) {
       return;
     }
-    invoke("drop_event", { name: uuid, eventName: event.name })
+    unwrapCommand(commands.dropEvent(uuid, event.name))
       .then((sql) => {
         showNotification({
           severity: "success",

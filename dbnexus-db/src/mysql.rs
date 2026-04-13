@@ -7,8 +7,7 @@ use crate::db::{
     Field, GetBackendKind, GetTestExportTableKinds, Index, IndexKind, ListTable, MetaValue,
     NamedStaff, OptionMustBeSomeErr, ProcedureDetail, QueryEvent, QueryEventEmitter, QueryResp,
     QuerySql, SchemaTrait, SequenceDetail, ServerMetas, ShowTableParameter, SqlBuilder, SqlCollect,
-    SqlEvent, TriggerDetail, TriggerEvent, TriggerTiming, UdfOrProcedureExtraParameter, XlsxEdit,
-    POOL_MAX_CONNECTIONS,
+    SqlEvent, TriggerDetail, TriggerEvent, TriggerTiming, XlsxEdit, POOL_MAX_CONNECTIONS,
 };
 use crate::helper::create_csv;
 use crate::language_server::LexerCompletionTrait;
@@ -725,14 +724,10 @@ impl SchemaTrait for MysqlDB {
         anyhow::Ok(ret.into_iter().map(NamedStaff::from).collect())
     }
 
-    async fn show_procedure(
-        &self,
-        name: &str,
-        _arg: Option<UdfOrProcedureExtraParameter>,
-    ) -> anyhow::Result<ProcedureDetail> {
+    async fn show_procedure(&self, name: &NamedStaff) -> anyhow::Result<ProcedureDetail> {
         let mut conn = self.get_conn().await?;
 
-        let sql = format!("SHOW CREATE PROCEDURE {name};");
+        let sql = format!("SHOW CREATE PROCEDURE {};", name.name);
 
         let row = sqlx::raw_sql(AssertSqlSafe(sql.as_str()))
             .fetch_one(conn.deref_mut())
@@ -745,24 +740,16 @@ impl SchemaTrait for MysqlDB {
         ))
     }
 
-    async fn drop_procedure(
-        &self,
-        name: &str,
-        _arg: Option<UdfOrProcedureExtraParameter>,
-    ) -> anyhow::Result<String> {
-        let sql = format!("DROP PROCEDURE `{name}`");
+    async fn drop_procedure(&self, name: &NamedStaff) -> anyhow::Result<String> {
+        let sql = format!("DROP PROCEDURE `{}`", name.name);
         log::info!("sql:{}", sql);
         self.simple_execute_sql(&sql).await?;
         anyhow::Ok(sql)
     }
 
-    async fn show_udf(
-        &self,
-        name: &str,
-        _arg: Option<UdfOrProcedureExtraParameter>,
-    ) -> anyhow::Result<DefAndMetas> {
+    async fn show_udf(&self, name: &NamedStaff) -> anyhow::Result<DefAndMetas> {
         let mut conn = self.get_conn().await?;
-        let sql = format!("SHOW CREATE FUNCTION {name};");
+        let sql = format!("SHOW CREATE FUNCTION {};", name.name);
         let row = sqlx::raw_sql(AssertSqlSafe(sql.as_str()))
             .fetch_one(conn.deref_mut())
             .await?;
@@ -774,12 +761,8 @@ impl SchemaTrait for MysqlDB {
         ))
     }
 
-    async fn drop_udf(
-        &self,
-        name: &str,
-        _extra: Option<UdfOrProcedureExtraParameter>,
-    ) -> anyhow::Result<String> {
-        let sql = format!("DROP FUNCTION `{name}`");
+    async fn drop_udf(&self, name: &NamedStaff) -> anyhow::Result<String> {
+        let sql = format!("DROP FUNCTION `{}`", name.name);
         log::info!("sql:{}", sql);
         self.simple_execute_sql(&sql).await?;
         anyhow::Ok(sql)
@@ -1989,12 +1972,10 @@ pub(crate) mod test_fns {
         let f = "test_procedure";
 
         let _ = db
-            .drop_procedure(
-                f,
-                Some(UdfOrProcedureExtraParameter::PostGres {
-                    parameters: "".to_string(),
-                }),
-            )
+            .drop_procedure(&NamedStaff {
+                name: f.to_string(),
+                ..Default::default()
+            })
             .await;
 
         db.execute_sql(
@@ -2012,7 +1993,7 @@ pub(crate) mod test_fns {
 
         let udfs = db.list_procedure().await.unwrap();
         for udf in udfs.iter() {
-            let details = db.show_procedure(&udf.name, None).await.unwrap();
+            let details = db.show_procedure(udf).await.unwrap();
             println!("details:{:?}", details);
         }
     }
@@ -2022,7 +2003,12 @@ pub(crate) mod test_fns {
         db.open_connection(query_id).await.unwrap();
         let f = "test_function";
 
-        let _ = db.drop_udf(f, None).await;
+        let _ = db
+            .drop_udf(&NamedStaff {
+                name: f.to_string(),
+                ..Default::default()
+            })
+            .await;
 
         db.execute_sql(
             query_id,
@@ -2041,7 +2027,7 @@ pub(crate) mod test_fns {
 
         let udfs = db.list_udf().await.unwrap();
         for udf in udfs.iter() {
-            let details = db.show_udf(&udf.name, None).await.unwrap();
+            let details = db.show_udf(udf).await.unwrap();
             println!("details:{:?}", details);
         }
     }

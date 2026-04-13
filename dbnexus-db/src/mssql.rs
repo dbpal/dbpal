@@ -6,8 +6,8 @@ use crate::db::{
     DBTrait, DefAndMetas, ExportFrame, ExportKind, ExportQueryResult, Field, GetBackendKind,
     GetTestExportTableKinds, Index, IndexKind, ListTable, MetaValue, NamedStaff, ProcedureDetail,
     QueryEvent, QueryResp, QuerySql, ReadOnlyTrait, SchemaTrait, ServerMetas, ShowTableParameter,
-    SqlBuilder, SqlCollect, TriggerDetail, TriggerEnable, TriggerEvent, TriggerTiming,
-    UdfOrProcedureExtraParameter, XlsxEdit, POOL_MAX_CONNECTIONS,
+    SqlBuilder, SqlCollect, TriggerDetail, TriggerEnable, TriggerEvent, TriggerTiming, XlsxEdit,
+    POOL_MAX_CONNECTIONS,
 };
 use crate::db::{OptionMustBeSomeErr, QueryEventEmitter};
 use crate::helper::create_csv;
@@ -991,11 +991,7 @@ impl SchemaTrait for SqlServerDB {
         self.list_udf_impl(self.config.schema_str()?).await
     }
 
-    async fn show_udf(
-        &self,
-        name: &str,
-        _arg: Option<UdfOrProcedureExtraParameter>,
-    ) -> anyhow::Result<DefAndMetas> {
+    async fn show_udf(&self, name: &NamedStaff) -> anyhow::Result<DefAndMetas> {
         let sql = format!(
             r#"
         SELECT 
@@ -1005,9 +1001,10 @@ impl SchemaTrait for SqlServerDB {
         FROM 
             sys.objects AS o
         WHERE 
-            o.name = '{name}'  -- 替换为你的函数名
+            o.name = '{0}'  -- 替换为你的函数名
             AND o.type IN ('FN', 'IF', 'TF');  -- FN: 标量函数, IF: 内联表值函数, TF: 多语句表值函数
-        "#
+        "#,
+            name.name
         );
         log::info!("sql:{}", sql);
         let mut conn = self.get_conn().await?;
@@ -1041,7 +1038,8 @@ impl SchemaTrait for SqlServerDB {
         drop(resp);
         let sql = format!(
             "  SELECT 
-                OBJECT_DEFINITION(OBJECT_ID('dbo.{name}')) AS FunctionDefinition; "
+                OBJECT_DEFINITION(OBJECT_ID('dbo.{0}')) AS FunctionDefinition; ",
+            name.name
         );
         log::info!("sql:{}", sql);
         let mut resp = conn.simple_query(&sql).await?;
@@ -1062,13 +1060,9 @@ impl SchemaTrait for SqlServerDB {
         anyhow::bail!("query udf definition failed, no result.")
     }
 
-    async fn drop_udf(
-        &self,
-        name: &str,
-        _extra: Option<UdfOrProcedureExtraParameter>,
-    ) -> anyhow::Result<String> {
+    async fn drop_udf(&self, name: &NamedStaff) -> anyhow::Result<String> {
         self.can_write()?;
-        let sql = format!(r#"DROP FUNCTION "{}"."{name}""#, Self::DBO_SCHEMA);
+        let sql = format!(r#"DROP FUNCTION "{}"."{1}""#, Self::DBO_SCHEMA, name.name);
         log::info!("sql:{}", sql);
         self.simple_execute_sql(&sql).await?;
         anyhow::Ok(sql)
@@ -1079,11 +1073,7 @@ impl SchemaTrait for SqlServerDB {
             .await
     }
 
-    async fn show_procedure(
-        &self,
-        name: &str,
-        _arg: Option<UdfOrProcedureExtraParameter>,
-    ) -> anyhow::Result<ProcedureDetail> {
+    async fn show_procedure(&self, name: &NamedStaff) -> anyhow::Result<ProcedureDetail> {
         let sql = format!(
             r#"
             SELECT 
@@ -1095,8 +1085,9 @@ impl SchemaTrait for SqlServerDB {
                 JOIN 
                     sys.sql_modules m ON p.object_id = m.object_id
                 WHERE 
-                    p.name = '{name}';
-        "#
+                    p.name = '{}';
+        "#,
+            name.name
         );
         log::info!("sql:{}", sql);
         let mut conn = self.get_conn().await?;
@@ -1124,13 +1115,9 @@ impl SchemaTrait for SqlServerDB {
         anyhow::bail!("query procedure failed, no result.")
     }
 
-    async fn drop_procedure(
-        &self,
-        name: &str,
-        _arg: Option<UdfOrProcedureExtraParameter>,
-    ) -> anyhow::Result<String> {
+    async fn drop_procedure(&self, name: &NamedStaff) -> anyhow::Result<String> {
         self.can_write()?;
-        let sql = format!(r#"DROP PROCEDURE dbo."{name}""#);
+        let sql = format!(r#"DROP PROCEDURE dbo."{}""#, name.name);
         log::info!("sql:{}", sql);
         self.simple_execute_sql(&sql).await?;
         anyhow::Ok(sql)
@@ -2216,7 +2203,9 @@ mod tests {
         let db = make_test_object().await;
         let query_id = "aaaa";
         db.open_connection(query_id).await.unwrap();
-        let _ = db.drop_procedure("test_procedure", None).await;
+        let _ = db
+            .drop_procedure(&NamedStaff::from("test_procedure".to_string()))
+            .await;
         db.execute_sql(
             query_id,
             r#"
@@ -2232,7 +2221,7 @@ END;
         .unwrap();
         let list = db.list_procedure().await.unwrap();
         for l in list.iter() {
-            let details = db.show_procedure(&l.name, None).await.unwrap();
+            let details = db.show_procedure(l).await.unwrap();
             println!("udf:{},details:{:?}", l.name, details);
         }
     }
@@ -2243,7 +2232,7 @@ END;
         let db = make_test_object().await;
         let query_id = "aaaa";
         db.open_connection(query_id).await.unwrap();
-        let _ = db.drop_udf("test_udf", None).await;
+        let _ = db.drop_udf(&NamedStaff::from("test_udf".to_string())).await;
         db.execute_sql(
             query_id,
             r#"
@@ -2263,7 +2252,7 @@ END;
         .unwrap();
         let list = db.list_udf().await.unwrap();
         for l in list.iter() {
-            let details = db.show_udf(&l.name, None).await.unwrap();
+            let details = db.show_udf(l).await.unwrap();
             println!("udf:{},details:{:?}", l.name, details);
         }
     }

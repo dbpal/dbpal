@@ -10,10 +10,9 @@ import {
 } from "@mui/material";
 import { filesize } from "filesize";
 import { useEffect, useRef, useState } from "react";
-import types from "./ApiStruct";
 import { save } from "@tauri-apps/plugin-dialog";
 import ArrowCircleDownIcon from "@mui/icons-material/ArrowCircleDown";
-import { Channel, invoke } from "@tauri-apps/api/core";
+import { Channel } from "@tauri-apps/api/core";
 import { ModalHeader, OpenFileWithDefaultApp } from "./CommonComp";
 import { generateDefaultFilename } from "./helper";
 import { v4 as uuidv4 } from "uuid";
@@ -21,6 +20,8 @@ import { v4 as uuidv4 } from "uuid";
 import { cancelTask } from "./handlers";
 import { CancelButton, StackRowCenter } from "./CommonComp2";
 import { useNotification, useUserSettings } from "./store";
+import { commands, ExportKind, ShowTableParameter } from "./bindings";
+import { unwrapCommand } from "./Common";
 function IncludeHeader({ includeHeader, setIncludeHeader }) {
   return (
     <FormControlLabel
@@ -43,7 +44,7 @@ let lastExportKind = "csv";
 function ExportView(props: {
   name: string;
   exportOP: (
-    kind: types.ExportKind,
+    kind: ExportKind,
     file: string,
     taskId: string,
     c: Channel<number>,
@@ -67,7 +68,7 @@ function ExportView(props: {
     lastExportKind = kind;
   }, [kind]);
   const exportedSize = useRef(null);
-  const makeConfig = (): types.ExportKind | null => {
+  const makeConfig = (): ExportKind | null => {
     switch (kind) {
       case "csv":
         if (delimiter.length > 1) {
@@ -254,21 +255,23 @@ function ExportTableOrView(props: {
   name: string;
   supportKind: string[];
   handleClose: () => void;
-  para?: types.ShowTableParameter;
+  para?: ShowTableParameter;
 }) {
   const { uuid, name, supportKind, handleClose, para } = props;
   return (
     <ExportView
       exportOP={async (kind, filepath, taskId, sizeEmitter) => {
-        return await invoke("export_table_or_view", {
-          name: uuid,
-          tableOrView: name,
-          filepath,
-          kind,
-          sizeEmitter,
-          taskId,
-          para,
-        });
+        await unwrapCommand(
+          commands.exportTableOrView(
+            uuid,
+            taskId,
+            sizeEmitter,
+            name,
+            para,
+            filepath,
+            kind,
+          ),
+        );
       }}
       supportKind={supportKind}
       name={name}

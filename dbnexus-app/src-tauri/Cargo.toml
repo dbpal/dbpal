@@ -10,7 +10,7 @@ default-run = "dbpal"
 
 [build-dependencies]
 tauri-build = { version = "2", features = [] }
-
+tauri-typegen = "*"
 
 [dependencies]
 tauri-plugin-fs = { version = "2.4" }
@@ -21,6 +21,9 @@ tauri-plugin-dialog = "2.4"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 websearch = "*"
+tauri-specta = { version = "2.0.0-rc.24", features = ["typescript"] }
+specta.workspace = true
+specta-typescript = "0.0.11"
 dbnexus-db.workspace = true
 tokio.workspace = true
 anyhow.workspace = true
@@ -32,7 +35,6 @@ lazy_static.workspace = true
 log.workspace = true
 uuid.workspace = true
 thiserror = "*"
-typescript-type-def = "*"
 hex.workspace = true
 mongodb.workspace = true
 rand.workspace = true
@@ -55,6 +57,7 @@ tokio-util.workspace = true
 tauri-plugin-devtools = "2.0.1"
 tauri-plugin-log = "2"
 base64.workspace = true
+
 [features]
 # This feature is used for production builds or when a dev server is not specified, DO NOT REMOVE!!
 custom-protocol = ["tauri/custom-protocol"]

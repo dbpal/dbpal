@@ -1,7 +1,6 @@
 import { MonacoEditor } from "./Editor";
 import * as monaco from "monaco-editor";
 import { editor, languages, Position } from "monaco-editor";
-import types from "./ApiStruct";
 import {
   createContext,
   CSSProperties,
@@ -19,6 +18,8 @@ import { platform } from "@tauri-apps/plugin-os";
 import themelist from "../../monaco-themes/themes/themelist.json";
 import prettyMilliseconds from "pretty-ms";
 import { v4 as uuidv4 } from "uuid";
+import { unwrapCommand } from "./Common";
+import { commands, CompletionItem, CompletionKind, ErrAndLoc, Field } from "./bindings";
 
 const pageSizeOptions = [10, 20, 50, 100];
 const appStore = new LazyStore("store.json");
@@ -110,10 +111,8 @@ function stringToHex(str): string {
   return arrayToHex(stringToHexArray(str));
 }
 
-function backendCompletionItemToEditor(
-  xs: types.CompletionItem[],
-): languages.CompletionList {
-  function getKind(kind: types.CompletionKind): languages.CompletionItemKind {
+function backendCompletionItemToEditor(xs: CompletionItem[]): languages.CompletionList {
+  function getKind(kind: CompletionKind): languages.CompletionItemKind {
     switch (kind) {
       case "Command":
         return languages.CompletionItemKind.Keyword;
@@ -312,14 +311,8 @@ const UuidContext = createContext<{
   kind: DataSourceKind;
 }>(null);
 
-interface ErrAndLoc {
-  line?: number;
-  column?: number;
-  msg: string;
-}
-
 function validJson(s: string): Promise<ErrAndLoc | null> {
-  return invoke<ErrAndLoc | null>("valid_json", { jsonStr: s });
+  return commands.validJson(s).then((r) => (r.status == "ok" ? r.data : null));
 }
 
 class DocsAndCount {
@@ -366,10 +359,7 @@ function getEditorText(editor: editor.IStandaloneCodeEditor, showNotification) {
 }
 
 function executeSqlWithoutConn(uuid: string, sql: string) {
-  return invoke<QueryRespData>("simple_execute_sql", {
-    name: uuid,
-    sql,
-  });
+  return unwrapCommand(commands.simpleExecuteSql(uuid, sql));
 }
 
 class ColorFn {
@@ -430,7 +420,7 @@ const textEllipsisStyle = {
 } as CSSProperties;
 
 export type MuiDataGridData = {
-  fields: types.Field[];
+  fields: Field[];
   data: any[];
   sql: string | null;
   total: number | null;

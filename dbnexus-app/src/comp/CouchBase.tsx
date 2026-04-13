@@ -47,8 +47,7 @@ import PlayArrowIcon from "@mui/icons-material/PlayArrow";
 import FilterAltIcon from "@mui/icons-material/FilterAlt";
 import { FaArrowsAltV } from "react-icons/fa";
 import { ModalHeader, SelectPageSize } from "./CommonComp.tsx";
-import { Channel, invoke } from "@tauri-apps/api/core";
-import types from "./ApiStruct.ts";
+import { Channel } from "@tauri-apps/api/core";
 import {
   dbpalQuerykey,
   EscDownEvent,
@@ -56,6 +55,7 @@ import {
   modalStyle,
   NameAndQueryId,
   QueryEvent,
+  unwrapCommand,
 } from "./Common.ts";
 import { editor, Position } from "monaco-editor";
 import { Panel, PanelGroup, PanelResizeHandle } from "react-resizable-panels";
@@ -71,6 +71,7 @@ import {
 } from "./store.tsx";
 import { persist } from "zustand/middleware";
 import { create } from "zustand";
+import { commands, Field, ShowTableParameter } from "./bindings.ts";
 export enum CBQueryViewMode {
   Table = "table",
   Json = "json",
@@ -160,18 +161,20 @@ function CouchBaseTable(props: { uuid: string; table: string }) {
     });
     setResp(newDataDefault());
     setLoading(true);
-    invoke("show_table", {
-      name: uuid,
-      tableName: table,
-      isView: false,
-      para: {
-        where_str: where ? where : undefined,
-        sort_str: sort ? sort : undefined,
-        page_size: pageSize,
-        page: page,
-      } as types.ShowTableParameter,
-      emit: c,
-    })
+    unwrapCommand(
+      commands.showTable(
+        uuid,
+        false,
+        table,
+        {
+          where_str: where ? where : undefined,
+          sort_str: sort ? sort : undefined,
+          page_size: pageSize,
+          page: page,
+        } as ShowTableParameter,
+        c,
+      ),
+    )
       .catch((e) => {
         showNotification({ severity: "error", title: "load data failed", message: e });
       })
@@ -256,11 +259,7 @@ function CouchBaseTable(props: { uuid: string; table: string }) {
               handleValueButton="modify"
               value={item.data}
               handleDelete={async () => {
-                await invoke("table_delete", {
-                  name: uuid,
-                  tableName: table,
-                  wheres: { id: item.id },
-                });
+                await unwrapCommand(commands.tableDelete(uuid, table, { id: item.id }));
                 setResp((resp) => {
                   return {
                     count: resp.count - 1,
@@ -270,15 +269,17 @@ function CouchBaseTable(props: { uuid: string; table: string }) {
               }}
               warnModify
               handleValue={async (newV) => {
-                await invoke("table_update", {
-                  name: uuid,
-                  tableName: table,
-                  values: {
-                    id: item.id,
-                    value: newV,
-                  },
-                  wheres: {},
-                });
+                await unwrapCommand(
+                  commands.tableUpdate(
+                    uuid,
+                    table,
+                    {
+                      id: item.id,
+                      value: newV,
+                    },
+                    {},
+                  ),
+                );
                 setResp((resp) => {
                   return {
                     count: resp.count,
@@ -562,14 +563,12 @@ function CouchBaseInsert({ uuid, table }) {
         if (!id.trim()) {
           throw "id is empty";
         }
-        return invoke("table_insert", {
-          name: uuid,
-          tableName: table,
-          values: {
+        return unwrapCommand(
+          commands.tableInsert(uuid, table, {
             id: id.trim(),
             value,
-          },
-        });
+          }),
+        );
       }}
     />
   );
@@ -636,7 +635,7 @@ function CouchBaseQuery(props: { uuid: string; value?: string }) {
     if (resp.length == 0) {
       return;
     }
-    const fields: types.Field[] = [];
+    const fields: Field[] = [];
     const data: object[] = [];
 
     function encodeValue(x) {
@@ -664,7 +663,7 @@ function CouchBaseQuery(props: { uuid: string; value?: string }) {
             if (-1 == fields.findIndex((x) => x.field == fKey)) {
               fields.push({
                 field: fKey,
-              } as types.Field);
+              } as Field);
             }
             d[fKey] = encodeValue(obj[key][k]);
           }
@@ -673,7 +672,7 @@ function CouchBaseQuery(props: { uuid: string; value?: string }) {
           if (-1 == fields.findIndex((x) => x.field == key)) {
             fields.push({
               field: key,
-            } as types.Field);
+            } as Field);
           }
         }
       }
@@ -714,13 +713,9 @@ function CouchBaseQuery(props: { uuid: string; value?: string }) {
           break;
       }
     });
-    invoke("query_sql", {
-      name: uuid,
-      queryId: "",
-      maxRow: getSize(UseSizeConfig.queryLimit),
-      sql: text,
-      emit: channel,
-    })
+    unwrapCommand(
+      commands.querySql(uuid, "", getSize(UseSizeConfig.queryLimit), text, channel),
+    )
       .catch((e) => {
         showNotification({ severity: "error", title: "query failed", message: e });
         saveQueryLog(uuid, text, false);
@@ -919,15 +914,17 @@ function CouchBaseQuery(props: { uuid: string; value?: string }) {
               supportKind={["json", "jsonline"]}
               exportOP={(kind, file, taskId, sizeEmitter) => {
                 const sql = getEditorText(editor, showNotification);
-                return invoke<void>("export_query_result_to_file", {
-                  name: uuid,
-                  taskId,
-                  file,
-                  kind,
-                  sizeEmitter,
-                  sql,
-                  queryId: "",
-                });
+                return unwrapCommand(
+                  commands.exportQueryResultToFile(
+                    uuid,
+                    taskId,
+                    sql,
+                    "",
+                    kind,
+                    file,
+                    sizeEmitter,
+                  ),
+                );
               }}
               handleClose={() => {
                 setShowExport(false);

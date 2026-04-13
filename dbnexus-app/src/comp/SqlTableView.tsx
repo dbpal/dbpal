@@ -1,6 +1,5 @@
 import { useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
 import CancelIcon from "@mui/icons-material/Cancel";
-import types from "./ApiStruct";
 import {
   Box,
   Button,
@@ -41,6 +40,7 @@ import {
   modalHandleClose,
   modalStyle,
   reloadOK,
+  unwrapCommand,
 } from "./Common";
 import DeleteForeverIcon from "@mui/icons-material/DeleteForever";
 import KeyIcon from "@mui/icons-material/Key";
@@ -93,13 +93,7 @@ import {
   StackRowCenter,
   TableAddButton,
 } from "./CommonComp2";
-import {
-  makePutValueInSql,
-  makeTableDelete,
-  makeTableInsertFn,
-  makeTableUpdate,
-  showTable,
-} from "./handlers";
+import { showTable } from "./handlers";
 import { AddTableView } from "./LeftTable";
 import { ExportTableOrView } from "./Export";
 import {
@@ -113,10 +107,11 @@ import {
   useTableColumnVisibleStore,
   useUserSettings,
 } from "./store";
+import { commands, Field, ShowTableParameter } from "./bindings";
 
 const confirmAboutPrimary = async (
   notWarnPri: boolean,
-  fields: types.Field[],
+  fields: Field[],
 ): Promise<boolean> => {
   if (notWarnPri) {
     return true;
@@ -307,7 +302,7 @@ function DatabaseOperationView(props: {
   );
 }
 
-function tryGetId(data: object, fields: types.Field[]) {
+function tryGetId(data: object, fields: Field[]) {
   let pf = fields.filter((e) => e.is_primary);
   if (pf.length == 0) {
     pf = fields;
@@ -322,10 +317,33 @@ function SqlTableView(props: {
   isTable: boolean;
 }) {
   const { notWarnPri, kind, tableName, uuid, isTable } = props;
-  const getUpdateSql = makeTableUpdate(uuid, tableName);
-  const getDeleteSql = makeTableDelete(uuid, tableName);
-  const put_value_in_sql = makePutValueInSql(uuid);
-  const addOP = makeTableInsertFn(uuid, tableName);
+  const getUpdateSql = useCallback(
+    (x, y) => {
+      return commands.tableUpdateSql(uuid, tableName, x, y);
+    },
+    [tableName, uuid],
+  );
+
+  const getDeleteSql = useCallback(
+    (x) => {
+      return commands.tableDeleteSql(uuid, tableName, x);
+    },
+    [tableName, uuid],
+  );
+  const putValueInSql = useCallback(
+    (typ, x) => {
+      return commands.putValueInSql(uuid, typ, x);
+    },
+    [uuid],
+  );
+
+  const addOP = useCallback(
+    (x) => {
+      return commands.tableInsert(uuid, tableName, x);
+    },
+    [uuid, tableName],
+  );
+
   const [loading, setLoading] = useState(false);
   const [where, setWhere] = useState("");
   const [showSetWhere, setShowSetWhere] = useState(false);
@@ -444,7 +462,7 @@ function SqlTableView(props: {
       page_size: pageSize,
       allow_filtering: allowFiltering,
       limit: getSize(UseSizeConfig.queryLimit),
-    } as types.ShowTableParameter;
+    } as ShowTableParameter;
   }, [allowFiltering, getSize, page, pageSize, sort, where]);
   const handleReload = useCallback(
     (showOK: boolean) => {
@@ -515,23 +533,23 @@ function SqlTableView(props: {
       if (!(await confirmAboutPrimary(notWarnPri, resp.fields))) {
         return oldRow;
       }
-      try {
-        const sql = await getUpdateSql(old, updateRow);
+      const ret = await getUpdateSql(old, updateRow);
+      if (ret.status == "ok") {
         setOps((e) => [
           ...e,
           new DatabaseOperation(
             DatabaseOpKind.Update,
-            sql,
+            ret.data,
             tryGetId(oldRow, resp.fields),
           ),
         ]);
-      } catch (e) {
+      } else {
         showNotification({
           severity: "error",
           title: "generate update sql failed",
-          message: e,
+          message: ret.error,
         });
-        throw e;
+        throw ret.error;
       }
       return oldRow;
     },
@@ -561,18 +579,23 @@ function SqlTableView(props: {
         showNotification({ severity: "warning", title: "row is modifying" });
         return;
       }
-      try {
-        let old2 = { ...old };
-        const sql = await getDeleteSql(old2);
+
+      let old2 = { ...old };
+      const ret = await getDeleteSql(old2);
+      if (ret.status == "ok") {
         setOps((e) => [
           ...e,
-          new DatabaseOperation(DatabaseOpKind.Delete, sql, tryGetId(old, resp.fields)),
+          new DatabaseOperation(
+            DatabaseOpKind.Delete,
+            ret.data,
+            tryGetId(old, resp.fields),
+          ),
         ]);
-      } catch (e) {
+      } else {
         showNotification({
           severity: "error",
           title: "generate delete sql failed",
-          message: e,
+          message: ret.error,
         });
       }
     },
@@ -668,9 +691,11 @@ function SqlTableView(props: {
                 setSort={setSort}
                 setWhere={setWhere}
                 put_value_in_sql={(value) => {
-                  return put_value_in_sql(
-                    resp.fields.find((e) => e.field == field).data_type,
-                    value,
+                  return unwrapCommand(
+                    putValueInSql(
+                      resp.fields.find((e) => e.field == field).data_type,
+                      value,
+                    ),
                   );
                 }}
                 setNull={
@@ -710,7 +735,7 @@ function SqlTableView(props: {
     isTable,
     addOP,
     handleDelete,
-    put_value_in_sql,
+    putValueInSql,
     handleProcessRowUpdate,
   ]);
 
@@ -1137,7 +1162,7 @@ let SqlTableViewDataMatch = "";
 
 function SqlTableViewData(props: {
   handleData: (args: any) => Promise<void>;
-  fields: types.Field[];
+  fields: Field[];
   initValues?: object;
   buttonName;
   isAdd: boolean;
@@ -1287,7 +1312,7 @@ function Menu(props: {
   setNull?: () => void;
   addOP?: (x: object) => Promise<void>;
   row: object;
-  fields: types.Field[];
+  fields: Field[];
   nullable: boolean;
   editCellInModal: () => void;
   editRowInModal: () => void;

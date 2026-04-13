@@ -110,7 +110,7 @@ function queryRespFix(data: MuiDataGridData, getColumnWidth) {
       field["width"] = width;
     }
     field["renderHeader"] = (e) => {
-      const def = e.colDef as types.Field;
+      const def = e.colDef as Field;
       return (
         <Tooltip title={`${def.field} ${def.data_type}`}>
           <span> {def.field}</span>

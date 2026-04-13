@@ -11,26 +11,30 @@ import {
 import ClearIcon from "@mui/icons-material/Clear";
 import { DataSourceKind } from "./helper";
 import { CSSProperties, useCallback, useRef, useState } from "react";
-import types from "./ApiStruct";
 import AddIcon from "@mui/icons-material/Add";
 import {
   ClearableTextField,
   ColumnNullness,
-  CreateIndexReq,
+  CreateIndexView,
   SqlDefaultValue,
   StackRowCenter,
   TypeSelect,
 } from "./CommonComp2";
 import CloseIcon from "@mui/icons-material/Close";
 import KeyIcon from "@mui/icons-material/Key";
-import { invoke } from "@tauri-apps/api/core";
 import { AllKindChat } from "./Chat";
-import { makeFormatFn } from "./Common";
+import { makeFormatFn, unwrapCommand } from "./Common";
 import { useNotification, useUserSettings } from "./store";
+import {
+  commands,
+  CreateIndexReq,
+  CreateTableReq,
+  CreateTableReqColumn,
+} from "./bindings";
 
 function CreateTable(props: { uuid: string; kind: DataSourceKind }) {
   const { uuid, kind } = props;
-  const [cols, setCols] = useState<types.CreateTableReqColumn[]>([
+  const [cols, setCols] = useState<CreateTableReqColumn[]>([
     {
       name: "id",
       data_type: "",
@@ -48,7 +52,7 @@ function CreateTable(props: { uuid: string; kind: DataSourceKind }) {
       nullable: "none",
     },
   ]);
-  const [indexes, setIndexes] = useState<types.CreateIndexReq[]>([]);
+  const [indexes, setIndexes] = useState<CreateIndexReq[]>([]);
   const [table, setTable] = useState("");
   const containerStyle: CSSProperties = {
     border: "2px solid grey",
@@ -111,7 +115,7 @@ function CreateTable(props: { uuid: string; kind: DataSourceKind }) {
       }
     }
     // ok to create
-    let req: types.CreateTableReq = {
+    let req: CreateTableReq = {
       name: table,
       columns: cols,
       indexes: indexes,
@@ -123,25 +127,25 @@ function CreateTable(props: { uuid: string; kind: DataSourceKind }) {
     if (!req) {
       return;
     }
-    invoke<string>("create_table_req_sql", { name: uuid, req })
-      .then((sql) => {
+    commands.createTableReqSql(uuid, req).then((sql) => {
+      if (sql.status == "ok") {
         setEditorValue("");
         setTimeout(() => {
           setEditorValue(
-            makeFormatFn(kind)(sql, {
+            makeFormatFn(kind)(sql.data, {
               insertSpaces: true,
               tabSize: setting.editor.tabSize,
             }),
           );
         }, 200);
-      })
-      .catch((e) => {
+      } else {
         showNotification({
           severity: "error",
-          title: "try generate sql failed",
-          message: e,
+          title: "create sql failed",
+          message: sql.error,
         });
-      });
+      }
+    });
   }, [kind, makeReq, setting.editor.tabSize, showNotification, uuid]);
 
   const handleCreate = async () => {
@@ -150,7 +154,7 @@ function CreateTable(props: { uuid: string; kind: DataSourceKind }) {
       return;
     }
     setLoading(true);
-    invoke("create_table", { name: uuid, req })
+    unwrapCommand(commands.createTable(uuid, req))
       .then(() => {
         showNotification({ severity: "success", title: "create table ok" });
       })
@@ -232,7 +236,7 @@ function CreateTable(props: { uuid: string; kind: DataSourceKind }) {
                     name: "",
                     columns: [],
                     kind: "index",
-                  } as types.CreateIndexReq,
+                  } as CreateIndexReq,
                 ]);
               }}>
               <AddIcon />
@@ -242,7 +246,7 @@ function CreateTable(props: { uuid: string; kind: DataSourceKind }) {
             {indexes.map((_, index) => {
               return (
                 <Stack key={index} direction="row" style={{}}>
-                  <CreateIndexReq
+                  <CreateIndexView
                     style={{ width: "28rem" }}
                     fields={cols.filter((e) => !!e.name).map((f) => f.name)}
                     handleReq={(ret) => {
@@ -308,8 +312,8 @@ function CreateTable(props: { uuid: string; kind: DataSourceKind }) {
 }
 
 function TableColumn(props: {
-  col: types.CreateTableReqColumn;
-  handleCol: (x: types.CreateTableReqColumn) => void;
+  col: CreateTableReqColumn;
+  handleCol: (x: CreateTableReqColumn) => void;
   uuid: string;
   handleClose: () => void;
   kind: DataSourceKind;

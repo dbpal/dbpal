@@ -29,7 +29,6 @@ import ArrowCircleDownIcon from "@mui/icons-material/ArrowCircleDown";
 import DeleteForeverIcon from "@mui/icons-material/DeleteForever";
 import VisibilityIcon from "@mui/icons-material/Visibility";
 import ViewComfyAltIcon from "@mui/icons-material/ViewComfyAlt";
-import types from "./ApiStruct";
 import { TreeItem } from "@mui/x-tree-view/TreeItem";
 import ListIcon from "@mui/icons-material/List";
 import { SqlTableView } from "./SqlTableView";
@@ -56,7 +55,7 @@ import {
   GridSlotsComponentsProps,
 } from "@mui/x-data-grid";
 import { AppDataGridPagination, ShowingCount } from "./CommonComp2";
-import { createViewSql, listView, showViewColumns } from "./handlers";
+import { listView } from "./handlers";
 import { filesize } from "filesize";
 import {
   useMatcher,
@@ -68,10 +67,11 @@ import {
   useMatcherFn,
 } from "./store";
 import { AllKindChat } from "./Chat";
+import { commands } from "./bindings";
 function ViewsTree(props: { viewKind: ViewKind }) {
   const { viewKind } = props;
   const { uuid } = useContext(UuidContext);
-  const [views, setViews] = useState<types.ListTable[]>([]);
+  const [views, setViews] = useState<ListTable[]>([]);
   const { showNotification } = useNotification();
   const [loading, setLoading] = useState(false);
   const [showItems, setShowItems] = useState(0);
@@ -275,7 +275,7 @@ function ColumnsContent(props: { uuid: string; view: string }) {
   const { uuid, view } = props;
   const setting = useUserSettings();
 
-  const [fields, setFields] = useState<types.Field[]>([]);
+  const [fields, setFields] = useState<Field[]>([]);
   const { showNotification } = useNotification();
   const [loading, setLoading] = useState(false);
 
@@ -289,7 +289,8 @@ function ColumnsContent(props: { uuid: string; view: string }) {
 
   const handleReload = useCallback(() => {
     setLoading(true);
-    showViewColumns(uuid, view)
+    commands
+      .showViewColumns(uuid, view)
       .then((fs) => {
         setFields(fs);
       })

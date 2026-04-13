@@ -3,15 +3,13 @@ import { TreeItem } from "@mui/x-tree-view/TreeItem";
 import { useCallback, useContext, useEffect, useRef, useState } from "react";
 import DeleteForeverIcon from "@mui/icons-material/DeleteForever";
 import InfoIcon from "@mui/icons-material/Info";
-import types from "./ApiStruct";
-import { invoke } from "@tauri-apps/api/core";
 import { DefAndMetasView } from "./DefAndMetaView";
 
 import { SiProcessingfoundation } from "react-icons/si";
 import { DataSourceKind, secondConfirm, TabContent, UuidContext } from "./helper.ts";
 import { v4 as uuidv4 } from "uuid";
 import { ExceedMaxTreeItem, MenuRefresh, UdfNameAndParameters } from "./CommonComp";
-import { listProcedure, makeShowProcedureExtraArg, showProcedure } from "./handlers";
+
 import { CopySql, ShowingCount } from "./CommonComp2";
 import {
   useMatcher,
@@ -20,24 +18,26 @@ import {
   useTabsManage,
   useMatcherFn,
 } from "./store";
+import { commands, NamedStaff } from "./bindings.ts";
+import { makeUdfExtraArg, unwrapCommand } from "./Common.ts";
 function ProceduresTree() {
   const { uuid, kind } = useContext(UuidContext);
-  const [ps, setPos] = useState<types.NamedStaff[]>([]);
+  const [ps, setPos] = useState<NamedStaff[]>([]);
   const { showNotification } = useNotification();
   const { maxTree } = useMatcher();
   const matchPattern = useMatcherFn();
   const reload = useCallback(() => {
-    listProcedure(uuid)
-      .then((ts) => {
-        setPos(ts);
-      })
-      .catch((e) => {
+    commands.listProcedure(uuid).then((ret) => {
+      if (ret.status == "ok") {
+        setPos(ret.data);
+      } else {
         showNotification({
           severity: "error",
           title: "list procedure failed",
-          message: e,
+          message: ret.error,
         });
-      });
+      }
+    });
   }, [showNotification, uuid]);
 
   const [showItems, setShowItems] = useState(0);
@@ -112,7 +112,7 @@ function ProceduresTree() {
 
 function ProcedureMenu(props: {
   uuid: string;
-  procedure: types.NamedStaff;
+  procedure: NamedStaff;
   reload: () => void;
   kind: DataSourceKind;
 }) {
@@ -126,7 +126,23 @@ function ProcedureMenu(props: {
         procedure.name,
         <DefAndMetasView
           reloadOP={async () => {
-            return showProcedure(uuid, procedure, kind);
+            return commands
+              .showProcedure(uuid, procedure.name, makeUdfExtraArg(procedure, kind))
+              .then((ret) => {
+                if (ret.status == "ok") {
+                  return {
+                    def: ret.data.def,
+                    metas: ret.data.metas,
+                  };
+                } else {
+                  showNotification({
+                    severity: "error",
+                    title: "Show procedure failed",
+                    message: ret.error,
+                  });
+                  return { def: "", metas: [] };
+                }
+              });
           }}
           kind={kind}
           uuid={uuid}
@@ -146,7 +162,7 @@ function ProcedureMenu(props: {
       return;
     }
     const arg = makeShowProcedureExtraArg(procedure, kind);
-    invoke("drop_procedure", { name: uuid, procedure, arg })
+    unwrapCommand(commands.dropProcedure(uuid, procedure, arg))
       .then((sql) => {
         showNotification({
           severity: "success",

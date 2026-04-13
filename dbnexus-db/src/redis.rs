@@ -10,7 +10,6 @@ use futures_util::StreamExt;
 use redis::aio::{ConnectionManager, ConnectionManagerConfig, MultiplexedConnection};
 use redis::{AsyncCommands, AsyncIter, Commands, Value};
 use tokio::sync::Mutex;
-use typescript_type_def::TypeDef;
 
 use crate::datasource_config::RedisDBConfig;
 use crate::db::{
@@ -55,7 +54,7 @@ impl std::fmt::Debug for RedisDB {
     }
 }
 
-#[derive(Clone, Debug, serde::Serialize, TypeDef, Default)]
+#[derive(Clone, Debug, serde::Serialize, Default, specta::Type)]
 pub struct RedisListTable {
     string_tables: Vec<ListTable>,
     list_tables: Vec<ListTable>,

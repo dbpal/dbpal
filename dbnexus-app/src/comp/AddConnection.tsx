@@ -22,15 +22,25 @@ import { ClearableTextField } from "./CommonComp2";
 import RefreshIcon from "@mui/icons-material/Refresh";
 import AttachFileIcon from "@mui/icons-material/AttachFile";
 import VisibilityIcon from "@mui/icons-material/Visibility";
-import { types } from "./ApiStruct.ts";
 import { message, open } from "@tauri-apps/plugin-dialog";
-import { invoke } from "@tauri-apps/api/core";
 import { extractBaseName } from "./Common.ts";
 import { DataSourceKind } from "./helper.ts";
 import { openUrl } from "@tauri-apps/plugin-opener";
 import { platform } from "@tauri-apps/plugin-os";
 import { StackRowCenter, UrlDocument } from "./CommonComp2.tsx";
 import { useConnectionStore, useNotification } from "./store.tsx";
+import {
+  commands,
+  DBConnectionConfig,
+  MysqlDBConfig,
+  MysqlSsl,
+  MySqlSslMode,
+  OdbcCommon,
+  PGDBConfig,
+  PgSsl,
+  PgSslMode,
+  SSLFiles,
+} from "./bindings.ts";
 
 function HostAndPort(props: { host; port; setHost; setPort }) {
   const { host, port, setHost, setPort } = props;
@@ -229,7 +239,7 @@ interface SqlServerCertData {
   cert_ca: string | null;
 }
 
-function SslFiles(props: { files: types.SSLFiles; setFiles; enabled: boolean }) {
+function SslFiles(props: { files: SSLFiles; setFiles; enabled: boolean }) {
   const { files, setFiles, enabled } = props;
 
   return (
@@ -283,7 +293,7 @@ function SslFiles(props: { files: types.SSLFiles; setFiles; enabled: boolean }) 
   );
 }
 
-function PGSSL(props: { ssl: types.PgSsl; setSsl }) {
+function PGSSL(props: { ssl: PgSsl; setSsl }) {
   const { ssl, setSsl } = props;
   const modes = [
     "disable",
@@ -292,7 +302,7 @@ function PGSSL(props: { ssl: types.PgSsl; setSsl }) {
     "require",
     "verifyca",
     "verifyfull",
-  ] as types.PgSslMode[];
+  ] as PgSslMode[];
 
   return (
     <Stack direction="row" style={{ alignItems: "center", flexWrap: "wrap" }}>
@@ -301,7 +311,7 @@ function PGSSL(props: { ssl: types.PgSsl; setSsl }) {
         <Select
           value={ssl.ssl_mode}
           label="ssl mode"
-          onChange={(e) => setSsl({ ...ssl, ssl_mode: e.target.value } as types.PgSsl)}>
+          onChange={(e) => setSsl({ ...ssl, ssl_mode: e.target.value } as PgSsl)}>
           {modes.map((mode) => (
             <MenuItem value={mode} key={mode}>
               {mode}
@@ -315,7 +325,7 @@ function PGSSL(props: { ssl: types.PgSsl; setSsl }) {
     </Stack>
   );
 }
-function MysqlSSl(props: { ssl: types.MysqlSsl; setSsl: any }) {
+function MysqlSSl(props: { ssl: MysqlSsl; setSsl: any }) {
   const { ssl, setSsl } = props;
   const modes = [
     "disabled",
@@ -323,7 +333,7 @@ function MysqlSSl(props: { ssl: types.MysqlSsl; setSsl: any }) {
     "required",
     "verifyca",
     "verifyidentity",
-  ] as types.MySqlSslMode[];
+  ] as MySqlSslMode[];
   return (
     <Stack direction="row" style={{ alignItems: "center", flexWrap: "wrap" }}>
       <FormControl style={{ width: "12rem" }}>
@@ -331,9 +341,7 @@ function MysqlSSl(props: { ssl: types.MysqlSsl; setSsl: any }) {
         <Select
           value={ssl.ssl_mode}
           label="ssl mode"
-          onChange={(e) =>
-            setSsl({ ...ssl, ssl_mode: e.target.value } as types.MysqlSsl)
-          }>
+          onChange={(e) => setSsl({ ...ssl, ssl_mode: e.target.value } as MysqlSsl)}>
           {modes.map((e) => (
             <MenuItem value={e} key={e}>
               {e}
@@ -364,17 +372,19 @@ function DbSchemaCadidates(props: {
       config.name = "test_conn";
     }
     setLoading(true);
-    invoke<string[]>("try_list_database_schema_candidates", { conn: config })
-      .then((candidate) => {
-        showNotification({ severity: "success", title: "fetch candidates success" });
-        setCadidates(candidate);
-      })
-      .catch((err) => {
-        showNotification({
-          severity: "warning",
-          title: `list ${label} failed`,
-          message: err,
-        });
+    commands
+      .tryListDatabaseSchemaCandidates(config)
+      .then((ret) => {
+        if (ret.status == "ok") {
+          setCadidates(ret.data);
+          showNotification({ severity: "success", title: "fetch candidates success" });
+        } else {
+          showNotification({
+            severity: "warning",
+            title: `list ${label} failed`,
+            message: ret.error,
+          });
+        }
       })
       .finally(() => {
         setLoading(false);
@@ -404,7 +414,7 @@ function DbSchemaCadidates(props: {
   );
 }
 
-type MakeConfig = () => types.DBConnectionConfig;
+type MakeConfig = () => DBConnectionConfig;
 
 function Mysql(props: { config; kind: DataSourceKind; context: AddConnectionContext }) {
   const { config, kind, context } = props;
@@ -419,7 +429,7 @@ function Mysql(props: { config; kind: DataSourceKind; context: AddConnectionCont
   const [user, setUser] = useState(getUser(config));
   const [password, setPassword] = useState(getPassword(config));
   const [database, setDatabase] = useState(getDB(config));
-  const [ssl, setSsl] = useState<types.MysqlSsl>({
+  const [ssl, setSsl] = useState<MysqlSsl>({
     ssl_mode: config?.ssl_mode || "preferred",
     ssl_ca: config?.ssl_ca,
     ssl_cert: config?.ssl_cert,
@@ -427,8 +437,8 @@ function Mysql(props: { config; kind: DataSourceKind; context: AddConnectionCont
   });
   const [savePassword, setSavePassword] = useState(getSavePassword(config));
 
-  function makeConfig(): types.DBConnectionConfig {
-    const x: types.MysqlDBConfig = {
+  function makeConfig(): DBConnectionConfig {
+    const x: MysqlDBConfig = {
       host,
       port: parseInt(port),
       username: user,
@@ -489,7 +499,7 @@ function Oracle(props: { config?; context: AddConnectionContext }) {
   const [schema, setSchema] = useState(getSchema(config));
   const { connTimeOut, connectionName, readOnly, makeConfigRef } = context;
 
-  function makeConfig(): types.DBConnectionConfig {
+  function makeConfig(): DBConnectionConfig {
     return {
       conn_type: "oracle",
       name: connectionName,
@@ -557,7 +567,7 @@ function ClickHouse(props: { config?; context: AddConnectionContext }) {
   const [https, setHttps] = useState(config?.https);
   const { connTimeOut, connectionName, readOnly, makeConfigRef } = context;
 
-  function makeConfig(): types.DBConnectionConfig {
+  function makeConfig(): DBConnectionConfig {
     return {
       conn_type: "clickhouse",
       name: connectionName,
@@ -610,7 +620,7 @@ function PostGres(props: {
   const [user, setUser] = useState(getUser(config));
   const [password, setPassword] = useState(getPassword(config));
   const [database, setDatabase] = useState(getDB(config));
-  const [ssl, setSSl] = useState<types.PgSsl>({
+  const [ssl, setSSl] = useState<PgSsl>({
     ssl_mode: config?.ssl_mode || "prefer",
     ssl_ca: config?.ssl_ca,
     ssl_cert: config?.ssl_cert,
@@ -621,8 +631,8 @@ function PostGres(props: {
 
   const [savePassword, setSavePassword] = useState(getSavePassword(config));
 
-  function makeConfig(): types.DBConnectionConfig {
-    const x: types.PGDBConfig = {
+  function makeConfig(): DBConnectionConfig {
+    const x: PGDBConfig = {
       host,
       port: parseInt(port),
       username: user,
@@ -685,7 +695,7 @@ function Sqlite(props: { config?; context: AddConnectionContext }) {
   const [path, setPath] = useState(config?.path || "");
   const { connTimeOut, connectionName, readOnly, makeConfigRef } = context;
 
-  function makeConfig(): types.DBConnectionConfig {
+  function makeConfig(): DBConnectionConfig {
     return {
       conn_type: "sqlite",
       name: connectionName,
@@ -708,7 +718,7 @@ type AddConnectionContext = {
   readOnly: boolean;
   connTimeOut: number | null;
   connectionNameDom: RefObject<HTMLInputElement>;
-  makeConfigRef: RefObject<() => types.DBConnectionConfig>;
+  makeConfigRef: RefObject<() => DBConnectionConfig>;
 };
 
 // global var make it simple the pass the parameter
@@ -717,7 +727,7 @@ type AddConnectionContext = {
 
 function TestConnAndSave(props: {
   connectionNameDom;
-  makeConfig: () => types.DBConnectionConfig;
+  makeConfig: () => DBConnectionConfig;
   cnameDuplicated: boolean;
 }) {
   const { connectionNameDom, makeConfig, cnameDuplicated } = props;
@@ -734,7 +744,8 @@ function TestConnAndSave(props: {
     if (config) {
       console.info("test config:", config);
       setTestLoading(true);
-      invoke("test_connection", { config })
+      commands
+        .testConnection(config)
         .then(() => {
           showNotification({ severity: "success", title: "test connection ok" });
         })
@@ -835,7 +846,7 @@ function FireBird(props: { config?; context: AddConnectionContext }) {
   const [savePassword, setSavePassword] = useState(getSavePassword(config));
   const { connTimeOut, connectionName, readOnly, makeConfigRef } = context;
   const [database, setDatabase] = useState(getDB(config));
-  function makeConfig(): types.DBConnectionConfig {
+  function makeConfig(): DBConnectionConfig {
     return {
       conn_type: "firebird",
       name: connectionName,
@@ -883,7 +894,7 @@ function Redis(props: { config?; context: AddConnectionContext }) {
   const [database, setDatabase] = useState(getDB(config));
   const { connectionName, connTimeOut, readOnly, makeConfigRef } = context;
   const [enableSSL, setEnableSSL] = useState(!!config?.enable_ssl);
-  function makeConfig(): types.DBConnectionConfig {
+  function makeConfig(): DBConnectionConfig {
     return {
       name: connectionName,
       conn_type: "redis",
@@ -942,12 +953,12 @@ function MongoDb(props: { config?; context: AddConnectionContext }) {
   const [enableSSL, setEnableSSL] = useState(false);
   const { connTimeOut, connectionName, readOnly, makeConfigRef } = context;
 
-  const [sslFiles, setSslFile] = useState<types.SSLFiles>({
+  const [sslFiles, setSslFile] = useState<SSLFiles>({
     ssl_ca: null,
     ssl_cert: null,
     ssl_key: null,
   });
-  function makeConfig(): types.DBConnectionConfig {
+  function makeConfig(): DBConnectionConfig {
     return {
       conn_type: "mongo",
       name: connectionName,
@@ -1008,7 +1019,7 @@ function Cassandra(props: { config?; context: AddConnectionContext }) {
   const [database, setDatabase] = useState("");
   const { connTimeOut, connectionName, readOnly, makeConfigRef } = context;
 
-  function makeConfig(): types.DBConnectionConfig {
+  function makeConfig(): DBConnectionConfig {
     return {
       conn_type: "cassandra",
       name: connectionName,
@@ -1061,7 +1072,7 @@ function SqlServer(props: { config?; context: AddConnectionContext }) {
   const [schema, setSchema] = useState(getSchema(config));
   const { connTimeOut, connectionName, readOnly, makeConfigRef } = context;
 
-  function makeConfig(): types.DBConnectionConfig {
+  function makeConfig(): DBConnectionConfig {
     return {
       conn_type: "sqlserver",
       read_only: readOnly,
@@ -1110,7 +1121,7 @@ function SqlServer(props: { config?; context: AddConnectionContext }) {
   );
 }
 
-function AddConnection(props: { config?: types.DBConnectionConfig }) {
+function AddConnection(props: { config?: DBConnectionConfig }) {
   const { config } = props;
   const [connectionType, setConnectionType] = useState(config?.conn_type || "mysql");
   const [connectionName, setConnectionName] = useState(config?.name);
@@ -1299,8 +1310,8 @@ function DuckDB(props: { config?; context: AddConnectionContext }) {
   const [schema, setSchema] = useState(getConfigStr("schema"));
   const { connTimeOut, connectionName, readOnly, makeConfigRef } = context;
 
-  function makeConfig(): types.DBConnectionConfig {
-    const x: types.DBConnectionConfig = {
+  function makeConfig(): DBConnectionConfig {
+    const x: DBConnectionConfig = {
       conn_type: "duckdb",
       path,
       db: db ? db : null,
@@ -1347,8 +1358,8 @@ function LibSql(props: { config; context: AddConnectionContext }) {
   const [path] = useState(config?.path);
   const { connTimeOut, connectionName, readOnly, makeConfigRef } = context;
 
-  function makeConfig(): types.DBConnectionConfig {
-    const x: types.DBConnectionConfig = {
+  function makeConfig(): DBConnectionConfig {
+    const x: DBConnectionConfig = {
       conn_type: "libsql",
       name: connectionName,
       conn_timeout: connTimeOut,
@@ -1436,7 +1447,7 @@ function LibSql(props: { config; context: AddConnectionContext }) {
   );
 }
 
-function OdbcDriverCommon(props: { config: RefObject<types.OdbcCommon> }) {
+function OdbcDriverCommon(props: { config: RefObject<OdbcCommon> }) {
   const { config } = props;
   const [driverName, setDriverName] = useState(config.current.driver_name);
   const [maxStrLen, setMaxStrLen] = useState(config.current.max_str_len + "");
@@ -1496,13 +1507,13 @@ function Db2(props: { config?; context: AddConnectionContext }) {
   const { connTimeOut, connectionName, readOnly, makeConfigRef } = context;
 
   const [savePassword, setSavePassword] = useState(getSavePassword(config));
-  const odbccommon = useRef<types.OdbcCommon>({
+  const odbccommon = useRef<OdbcCommon>({
     driver_name: "Driver_IBM_DB2",
     max_str_len: 4096,
     max_bin_len: 4096,
   });
 
-  function makeConfig(): types.DBConnectionConfig {
+  function makeConfig(): DBConnectionConfig {
     return {
       conn_type: "db2",
       host,
@@ -1564,7 +1575,7 @@ function CouchBase(props: { config?; context: AddConnectionContext }) {
 
   const [savePassword, setSavePassword] = useState(getSavePassword(config));
 
-  function makeConfig(): types.DBConnectionConfig {
+  function makeConfig(): DBConnectionConfig {
     return {
       conn_type: "couchbase",
       conn_str: connStr,

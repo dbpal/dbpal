@@ -64,7 +64,7 @@ import {
   ToggleChatShow,
 } from "./CommonComp2.tsx";
 import { ModifyLLMConfigModal } from "./Settings.tsx";
-import { cancelTask, checkSql } from "./handlers.ts";
+import { cancelTask } from "./handlers.ts";
 import { Channel } from "@tauri-apps/api/core";
 
 import {
@@ -76,6 +76,7 @@ import {
   UseSizeConfig,
   useSizeStore,
 } from "./store.tsx";
+import { commands } from "./bindings.ts";
 
 function SqlTransaction(props: { conn: QueryConn; executeTimes: number }) {
   const { conn, executeTimes } = props;
@@ -368,8 +369,10 @@ function SqlQuery(props: {
         setSqlErr(null);
         return;
       }
-      checkSql(uuid, editor.getValue()).then((e) => {
-        setSqlErr(e);
+      commands.checkSql(uuid, editor.getValue()).then((ret) => {
+        if (ret.status === "ok") {
+          setSqlErr(ret.data);
+        }
       });
     });
     return () => {

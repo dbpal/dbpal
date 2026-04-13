@@ -69,7 +69,7 @@ mod tests {
     use super::*;
     use crate::db::{
         CatalogTrait, CheckConn, ColumnType, CreateIndexColumn, CreateIndexReq, IndexKind,
-        QuerySql, SchemaTrait, ServerMetas, SqlNullAble, UdfOrProcedureExtraParameter,
+        NamedStaff, QuerySql, SchemaTrait, ServerMetas, SqlNullAble,
     };
     use crate::db::{ExportKind, ShowTableParameter};
     use crate::enable_test_log;
@@ -341,12 +341,11 @@ mod tests {
         let query_id = "aaaa";
         db.open_connection(query_id).await.unwrap();
         let _ = db
-            .drop_procedure(
-                "test_procedure",
-                Some(UdfOrProcedureExtraParameter::PostGres {
-                    parameters: "".to_string(),
-                }),
-            )
+            .drop_procedure(&NamedStaff {
+                name: "test_procedure".to_string(),
+                parameters: Some("".to_string()),
+                ..Default::default()
+            })
             .await;
         db.execute_sql(
             query_id,
@@ -366,12 +365,7 @@ mod tests {
         let list = db.list_procedure().await.unwrap();
         for l in list.iter() {
             let details = db
-                .show_procedure(
-                    &l.name,
-                    Some(UdfOrProcedureExtraParameter::PostGres {
-                        parameters: "".to_string(),
-                    }),
-                )
+                .show_procedure(l)
                 .await
                 .unwrap();
             println!("udf:{},details:{:?}", l.name, details);
@@ -478,12 +472,11 @@ mod tests {
         pg.open_connection("").await.unwrap();
         let udf_name = "test_udf";
         let _ = pg
-            .drop_udf(
-                udf_name,
-                Some(UdfOrProcedureExtraParameter::PostGres {
-                    parameters: "a integer, b integer".to_string(),
-                }),
-            )
+            .drop_udf(&NamedStaff {
+                name: udf_name.to_string(),
+                parameters: Some("a integer, b integer".to_string()),
+                ..Default::default()
+            })
             .await;
 
         pg.execute_sql(
@@ -509,12 +502,7 @@ mod tests {
             }
             println!("udf:{:?}", l);
             let details = pg
-                .show_udf(
-                    &l.name,
-                    Some(UdfOrProcedureExtraParameter::PostGres {
-                        parameters: "int8, int8".to_string(),
-                    }),
-                )
+                .show_udf(l)
                 .await
                 .unwrap();
             println!("name:{} , udf:{:?}", l.name, details);

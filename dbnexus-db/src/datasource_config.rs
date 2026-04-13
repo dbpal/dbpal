@@ -1,8 +1,6 @@
-use typescript_type_def::TypeDef;
-
 use crate::db::OptionMustBeSomeErr;
 
-#[derive(Debug, Clone, serde::Deserialize, serde::Serialize, TypeDef)]
+#[derive(Debug, Clone, serde::Deserialize, serde::Serialize, specta::Type)]
 pub struct MongoDBConfig {
     pub host: String,
     pub port: u16,
@@ -15,13 +13,13 @@ pub struct MongoDBConfig {
     pub ssl: MongoSsl,
 }
 
-#[derive(Debug, Clone, serde::Deserialize, serde::Serialize, TypeDef, Default)]
+#[derive(Debug, Clone, serde::Deserialize, serde::Serialize, Default, specta::Type)]
 pub struct MongoSsl {
     pub enable_ssl: bool,
     #[serde(flatten)]
     pub ssl_files: SSLFiles,
 }
-#[derive(Debug, Clone, serde::Deserialize, serde::Serialize, TypeDef)]
+#[derive(Debug, Clone, serde::Deserialize, serde::Serialize, specta::Type)]
 pub struct MysqlDBConfig {
     pub host: String,
     pub port: u16,
@@ -35,7 +33,7 @@ pub struct MysqlDBConfig {
     pub conn_timeout: Option<ConnTimeOut>,
 }
 
-#[derive(Debug, Clone, Copy, serde::Serialize, serde::Deserialize, TypeDef)]
+#[derive(Debug, Clone, Copy, serde::Serialize, serde::Deserialize, specta::Type)]
 #[serde(transparent)]
 pub struct ConnTimeOut(pub u32);
 
@@ -51,7 +49,7 @@ impl From<ConnTimeOut> for std::time::Duration {
     }
 }
 
-#[derive(Debug, Clone, serde::Deserialize, serde::Serialize, TypeDef, Default)]
+#[derive(Debug, Clone, serde::Deserialize, serde::Serialize, Default, specta::Type)]
 pub struct MysqlSsl {
     pub ssl_mode: MySqlSslMode,
     #[serde(flatten)]
@@ -64,7 +62,7 @@ impl MysqlDBConfig {
     }
 }
 
-#[derive(Debug, Clone, serde::Deserialize, serde::Serialize, TypeDef)]
+#[derive(Debug, Clone, serde::Deserialize, serde::Serialize, specta::Type)]
 pub struct LibSqlDBConfig {
     pub replica: bool,
     #[serde(flatten)]
@@ -72,7 +70,7 @@ pub struct LibSqlDBConfig {
     pub read_only: bool,
     pub conn_timeout: Option<ConnTimeOut>,
 }
-#[derive(Clone, serde::Deserialize, serde::Serialize, TypeDef)]
+#[derive(Clone, serde::Deserialize, serde::Serialize, specta::Type)]
 #[serde(tag = "source", rename_all = "lowercase")]
 pub enum LibSqlDBConfigSource {
     Local {
@@ -96,7 +94,7 @@ impl std::fmt::Debug for LibSqlDBConfigSource {
     }
 }
 
-#[derive(Debug, Clone, serde::Deserialize, serde::Serialize, TypeDef)]
+#[derive(Debug, Clone, serde::Deserialize, serde::Serialize, specta::Type)]
 
 pub struct ClickHouseConfig {
     pub host: String,
@@ -115,14 +113,14 @@ impl ClickHouseConfig {
     }
 }
 
-#[derive(Debug, Clone, serde::Deserialize, serde::Serialize, TypeDef)]
+#[derive(Debug, Clone, serde::Deserialize, serde::Serialize, specta::Type)]
 pub struct SqliteDBConfig {
     pub path: String,
     pub read_only: bool,
     pub conn_timeout: Option<ConnTimeOut>,
 }
 
-#[derive(Debug, Clone, serde::Deserialize, serde::Serialize, TypeDef)]
+#[derive(Debug, Clone, serde::Deserialize, serde::Serialize, specta::Type)]
 pub struct DuckDBConfig {
     pub path: String,
     pub read_only: bool,
@@ -131,7 +129,7 @@ pub struct DuckDBConfig {
     pub conn_timeout: Option<ConnTimeOut>,
 }
 
-#[derive(Debug, Clone, serde::Deserialize, serde::Serialize, TypeDef)]
+#[derive(Debug, Clone, serde::Deserialize, serde::Serialize, specta::Type)]
 pub struct FireBirdConfig {
     pub host: String,
     pub port: u16,
@@ -155,7 +153,7 @@ impl DuckDBConfig {
     }
 }
 
-#[derive(Debug, Clone, serde::Deserialize, serde::Serialize, TypeDef)]
+#[derive(Debug, Clone, serde::Deserialize, serde::Serialize, specta::Type)]
 pub struct RedisDBConfig {
     pub host: String,
     pub port: Option<u16>,
@@ -264,7 +262,7 @@ fn test_redis_make_conn_string() {
     );
 }
 
-#[derive(Debug, Clone, serde::Deserialize, serde::Serialize, TypeDef)]
+#[derive(Debug, Clone, serde::Deserialize, serde::Serialize, specta::Type)]
 pub struct PGDBConfig {
     pub host: String,
     pub port: u16,
@@ -279,14 +277,14 @@ pub struct PGDBConfig {
     pub conn_timeout: Option<ConnTimeOut>,
 }
 
-#[derive(Debug, Clone, serde::Deserialize, serde::Serialize, TypeDef, Default)]
+#[derive(Debug, Clone, serde::Deserialize, serde::Serialize, Default, specta::Type)]
 pub struct PgSsl {
     pub ssl_mode: PgSslMode,
     #[serde(flatten)]
     pub ssl_files: SSLFiles,
 }
 
-#[derive(Debug, Clone, serde::Serialize, serde::Deserialize, Default, TypeDef)]
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize, Default, specta::Type)]
 pub struct SSLFiles {
     pub ssl_ca: Option<String>,
     pub ssl_cert: Option<String>,
@@ -302,7 +300,7 @@ impl PGDBConfig {
     }
 }
 
-#[derive(Debug, Clone, serde::Deserialize, serde::Serialize, TypeDef)]
+#[derive(Debug, Clone, serde::Deserialize, serde::Serialize, specta::Type)]
 
 pub struct SqlServerDBConfig {
     pub host: String,
@@ -329,7 +327,7 @@ impl SqlServerDBConfig {
     }
 }
 
-#[derive(Clone, Debug, serde::Serialize, serde::Deserialize, TypeDef)]
+#[derive(Clone, Debug, serde::Serialize, serde::Deserialize, specta::Type)]
 pub struct OracleDBConfig {
     pub username: String,
     pub password: String,
@@ -341,7 +339,7 @@ pub struct OracleDBConfig {
     pub db: String,
 }
 
-#[derive(Debug, Clone, serde::Deserialize, serde::Serialize, TypeDef)]
+#[derive(Debug, Clone, serde::Deserialize, serde::Serialize, specta::Type)]
 pub struct CassandraDBConfig {
     pub host: String,
     pub port: Option<u16>,
@@ -354,7 +352,7 @@ pub struct CassandraDBConfig {
     pub conn_timeout: Option<ConnTimeOut>,
 }
 
-#[derive(Debug, Clone, serde::Deserialize, serde::Serialize, TypeDef)]
+#[derive(Debug, Clone, serde::Deserialize, serde::Serialize, specta::Type)]
 pub struct CassandraSsl {
     #[serde(flatten)]
     pub ssl_files: SSLFiles,
@@ -368,7 +366,7 @@ impl CassandraDBConfig {
 }
 
 // this struct copied from sqlx postgres
-#[derive(Clone, Copy, Default, Debug, serde::Deserialize, serde::Serialize, TypeDef)]
+#[derive(Clone, Copy, Default, Debug, serde::Deserialize, serde::Serialize, specta::Type)]
 #[serde(rename_all = "lowercase")]
 pub enum PgSslMode {
     /// Only try a non-SSL connection.
@@ -410,7 +408,7 @@ impl From<PgSslMode> for sqlx::postgres::PgSslMode {
     }
 }
 
-#[derive(Debug, Clone, Copy, Default, serde::Serialize, serde ::Deserialize, TypeDef)]
+#[derive(Debug, Clone, Copy, Default, serde::Serialize, serde ::Deserialize, specta::Type)]
 #[serde(rename_all = "lowercase")]
 pub enum MySqlSslMode {
     /// Establish an unencrypted connection.
@@ -450,7 +448,7 @@ impl From<MySqlSslMode> for sqlx::mysql::MySqlSslMode {
     }
 }
 
-#[derive(Debug, Clone, serde::Deserialize, serde::Serialize, TypeDef)]
+#[derive(Debug, Clone, serde::Deserialize, serde::Serialize, specta::Type)]
 pub struct BigQueryDbConfig {
     pub dataset_id: Option<String>,
     pub credentials_file: String,
@@ -458,7 +456,7 @@ pub struct BigQueryDbConfig {
     pub conn_timeout: Option<ConnTimeOut>,
 }
 
-#[derive(Debug, Clone, serde::Deserialize, serde::Serialize, TypeDef)]
+#[derive(Debug, Clone, serde::Deserialize, serde::Serialize, specta::Type)]
 pub struct Db2Config {
     #[serde(flatten)]
     pub odbc_common: OdbcCommon,
@@ -480,14 +478,14 @@ impl Db2Config {
     }
 }
 
-#[derive(Debug, Clone, serde::Deserialize, serde::Serialize, TypeDef)]
+#[derive(Debug, Clone, serde::Deserialize, serde::Serialize, specta::Type)]
 pub struct OdbcCommon {
     pub driver_name: String,
     pub max_str_len: usize,
     pub max_bin_len: usize,
 }
 
-#[derive(Debug, Clone, serde::Serialize, serde::Deserialize, TypeDef)]
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize, specta::Type)]
 pub struct CouchBaseDBConfig {
     pub conn_str: String,
     pub username: String,
@@ -504,7 +502,7 @@ impl CouchBaseDBConfig {
     }
 }
 
-#[derive(Debug, Clone, serde::Deserialize, serde::Serialize, TypeDef)]
+#[derive(Debug, Clone, serde::Deserialize, serde::Serialize, specta::Type)]
 
 pub struct Neo4JDbConfig {
     pub uri: String,

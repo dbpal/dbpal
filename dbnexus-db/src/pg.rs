@@ -19,8 +19,7 @@ use crate::db::{
     ExportQueryResult, Field, GetBackendKind, GetTestExportTableKinds, Index, IndexKind, ListTable,
     MetaValue, NamedStaff, OptionMustBeSomeErr, ProcedureDetail, QueryEvent, QueryEventEmitter,
     QueryResp, QuerySql, SchemaTrait, SequenceDetail, ServerMetas, ShowTableParameter, SqlBuilder,
-    SqlCollect, TriggerDetail, TriggerEvent, TriggerTiming, UdfOrProcedureExtraParameter, XlsxEdit,
-    POOL_MAX_CONNECTIONS,
+    SqlCollect, TriggerDetail, TriggerEvent, TriggerTiming, XlsxEdit, POOL_MAX_CONNECTIONS,
 };
 
 use crate::helper::{create_csv, generate_random_string};
@@ -533,19 +532,7 @@ impl SchemaTrait for PostGresDB {
         anyhow::Ok(ret)
     }
 
-    async fn show_procedure(
-        &self,
-        name: &str,
-        arg: Option<UdfOrProcedureExtraParameter>,
-    ) -> anyhow::Result<ProcedureDetail> {
-        let arg: &UdfOrProcedureExtraParameter = match arg.as_ref() {
-            Some(arg) => arg,
-            None => anyhow::bail!(format!("postgres need extra argument.")),
-        };
-        let parameters = match arg {
-            UdfOrProcedureExtraParameter::PostGres { parameters } => parameters,
-            _ => return Err(arg.wrong_type()),
-        };
+    async fn show_procedure(&self, name: &NamedStaff) -> anyhow::Result<ProcedureDetail> {
         let sql = format!(
             r#"
                 SELECT 
@@ -559,8 +546,8 @@ impl SchemaTrait for PostGresDB {
                 AND p.prokind = 'p'
                 AND pg_catalog.pg_get_function_arguments(p.oid) = '{}'  -- 指定参数类型"#,
             self.config.schema_str(),
-            name,
-            parameters,
+            name.name,
+            name.parameters.as_deref().unwrap_or_default(),
         );
         log::info!("sql:{}", sql);
         let mut conn = self.get_conn().await?;
@@ -580,20 +567,12 @@ impl SchemaTrait for PostGresDB {
         })
     }
 
-    async fn drop_procedure(
-        &self,
-        name: &str,
-        arg: Option<UdfOrProcedureExtraParameter>,
-    ) -> anyhow::Result<String> {
-        let arg: &UdfOrProcedureExtraParameter = match arg.as_ref() {
-            Some(arg) => arg,
-            None => anyhow::bail!(format!("postgres need extra argument.")),
-        };
-        let p = match arg {
-            UdfOrProcedureExtraParameter::PostGres { parameters } => parameters,
-            _ => return Err(arg.wrong_type()),
-        };
-        let sql = format!("DROP PROCEDURE {}({})", name, p);
+    async fn drop_procedure(&self, name: &NamedStaff) -> anyhow::Result<String> {
+        let sql = format!(
+            "DROP PROCEDURE {}({})",
+            name.name,
+            name.parameters.as_deref().unwrap_or_default()
+        );
         log::error!("sql:{}", sql);
         self.simple_execute_sql(&sql).await?;
         anyhow::Ok(sql)
@@ -636,19 +615,7 @@ impl SchemaTrait for PostGresDB {
         anyhow::Ok(ret)
     }
 
-    async fn show_udf(
-        &self,
-        name: &str,
-        arg: Option<UdfOrProcedureExtraParameter>,
-    ) -> anyhow::Result<DefAndMetas> {
-        let arg = match &arg {
-            Some(arg) => match arg {
-                UdfOrProcedureExtraParameter::PostGres { parameters } => parameters,
-                _ => return Err(arg.wrong_type()),
-            },
-            None => anyhow::bail!(format!("postgres need extra parameter")),
-        };
-
+    async fn show_udf(&self, name: &NamedStaff) -> anyhow::Result<DefAndMetas> {
         let sql = format!(
             r#"
             SELECT  
@@ -657,11 +624,12 @@ impl SchemaTrait for PostGresDB {
                 pg_get_functiondef(p.oid) AS function_definition
             FROM pg_catalog.pg_proc p
                 JOIN pg_catalog.pg_namespace n ON n.oid = p.pronamespace
-            WHERE p.proname = '{name}' and n.nspname ='{}'  -- 替换为您要查询的函数名称
+            WHERE p.proname = '{}' and n.nspname ='{}'  -- 替换为您要查询的函数名称
                 AND pg_catalog.pg_get_function_arguments(p.oid) = '{}'
         "#,
+            name.name,
             self.config.schema_str(),
-            arg
+            name.parameters.clone().unwrap_or_default()
         );
         log::info!("sql:{}", sql);
         let mut conn = self.get_conn().await?;
@@ -680,27 +648,12 @@ impl SchemaTrait for PostGresDB {
         ))
     }
 
-    async fn drop_udf(
-        &self,
-        name: &str,
-        extra: Option<UdfOrProcedureExtraParameter>,
-    ) -> anyhow::Result<String> {
-        let parameters = match &extra {
-            Some(x) => match x {
-                UdfOrProcedureExtraParameter::PostGres { parameters } => parameters,
-                #[allow(unreachable_patterns)]
-                _ => {
-                    anyhow::bail!("must be a postgres parameter")
-                }
-            },
-            None => anyhow::bail!("postgres need extra parameters to drop udf."),
-        };
-
+    async fn drop_udf(&self, name: &NamedStaff) -> anyhow::Result<String> {
         let sql = format!(
             "DROP FUNCTION IF EXISTS {}.{}({})",
             self.config.schema_str(),
-            name,
-            parameters
+            name.name,
+            name.parameters.clone().unwrap_or_default()
         );
         log::info!("sql:{}", sql);
         self.simple_execute_sql(&sql).await?;
@@ -1963,6 +1916,7 @@ impl GetTestExportTableKinds for PostGresDB {
     }
 }
 #[cfg(test)]
+
 mod tests {
     use super::make_test_object;
     #[allow(unused_imports)]
@@ -1972,8 +1926,7 @@ mod tests {
         db::{
             BackendKindPostGres, CheckConn, ColumnType, CreateIndexColumn, CreateIndexReq,
             CreateTableReq, CreateTableReqColumn, DBTrait, GetTestExportTableKinds, IndexKind,
-            QuerySql, SchemaTrait, ServerMetas, ShowTableParameter, SqlNullAble,
-            UdfOrProcedureExtraParameter,
+            NamedStaff, QuerySql, SchemaTrait, ServerMetas, ShowTableParameter, SqlNullAble,
         },
         pg::PostGresDB,
     };
@@ -2088,12 +2041,11 @@ mod tests {
         let parameter = "a integer".to_string();
         let name = "test_procedure";
         let err = db
-            .drop_procedure(
-                name,
-                Some(UdfOrProcedureExtraParameter::PostGres {
-                    parameters: parameter.clone(),
-                }),
-            )
+            .drop_procedure(&NamedStaff {
+                name: name.to_string(),
+                parameters: Some(parameter.clone()),
+                ..Default::default()
+            })
             .await;
         if let Err(e) = err {
             log::error!("drop procedure failed: {}", e);
@@ -2115,15 +2067,7 @@ mod tests {
         .unwrap();
         let list = SchemaTrait::list_procedure(&db).await.unwrap();
         for l in list.iter() {
-            let details = db
-                .show_procedure(
-                    &l.name,
-                    Some(UdfOrProcedureExtraParameter::PostGres {
-                        parameters: l.parameters.clone().unwrap_or_default(),
-                    }),
-                )
-                .await
-                .unwrap();
+            let details = db.show_procedure(l).await.unwrap();
             println!("udf:{},details:{:?}", l.name, details);
         }
     }
@@ -2384,12 +2328,11 @@ mod tests {
         let name = "test_udf";
 
         let _ = pg
-            .drop_udf(
-                name,
-                Some(UdfOrProcedureExtraParameter::PostGres {
-                    parameters: "a integer, b integer".to_string(),
-                }),
-            )
+            .drop_udf(&NamedStaff {
+                name: name.to_string(),
+                parameters: Some("a integer, b integer".to_string()),
+                ..Default::default()
+            })
             .await;
         let query_id = "aaaa";
         pg.open_connection(query_id).await.unwrap();
@@ -2415,15 +2358,7 @@ mod tests {
                 continue;
             }
             println!("udf:{:?}", l);
-            let details = pg
-                .show_udf(
-                    &l.name,
-                    Some(UdfOrProcedureExtraParameter::PostGres {
-                        parameters: "a integer, b integer".to_string(),
-                    }),
-                )
-                .await
-                .unwrap();
+            let details = pg.show_udf(l).await.unwrap();
             println!("name:{} , udf:{:?}", l.name, details);
         }
     }
@@ -2465,12 +2400,11 @@ mod tests {
         .unwrap()
         .unwrap();
         let _ = db
-            .drop_udf(
-                "trigger_insert_test_create_trigger",
-                Some(UdfOrProcedureExtraParameter::PostGres {
-                    parameters: "".into(),
-                }),
-            )
+            .drop_udf(&NamedStaff {
+                name: "trigger_insert_test_create_trigger".to_string(),
+                parameters: Some("".into()),
+                ..Default::default()
+            })
             .await;
 
         db.execute_sql(

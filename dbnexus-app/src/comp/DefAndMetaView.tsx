@@ -2,11 +2,12 @@ import { useCallback, useContext, useEffect, useState } from "react";
 
 import { DefAndMetas } from "./Common";
 import { DataSourceKind, TabContext } from "./helper";
-import types from "./ApiStruct";
+
 import { AllKindChat } from "./Chat";
 import { MetaValueView } from "./CommonComp";
 import { CircularProgress, Stack, Tooltip, Typography } from "@mui/material";
 import { useNotification, useQueryExtraUI } from "./store";
+import { MetaValue, TriggerDetail } from "./bindings";
 
 function DefAndMetasView(props: {
   reloadOP: () => Promise<DefAndMetas>;
@@ -85,12 +86,12 @@ function DefAndMetasView(props: {
   );
 }
 
-function triggerDetailsToMetas(x: types.TriggerDetail): types.MetaValue[] {
+function triggerDetailsToMetas(x: TriggerDetail): MetaValue[] {
   const getEnableStr = (): string => {
     return x.enable.enable + "";
   };
 
-  const ret: types.MetaValue[] = [
+  const ret: MetaValue[] = [
     // todo timing can be object
     { name: "timing", value: x.timing as string },
     { name: "event", value: x.event },
@@ -104,8 +105,8 @@ function triggerDetailsToMetas(x: types.TriggerDetail): types.MetaValue[] {
   return ret;
 }
 
-function TriggerDetail(props: {
-  reloadOP: () => Promise<types.TriggerDetail>;
+function TriggerDetailView(props: {
+  reloadOP: () => Promise<TriggerDetail>;
   uuid: string;
   kind: DataSourceKind;
 }) {
@@ -126,4 +127,4 @@ function TriggerDetail(props: {
     />
   );
 }
-export { DefAndMetasView, TriggerDetail };
+export { DefAndMetasView, TriggerDetailView };

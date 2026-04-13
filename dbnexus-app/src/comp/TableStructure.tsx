@@ -1,6 +1,11 @@
 import { ReactNode, useCallback, useEffect, useMemo, useRef, useState } from "react";
-import types from "./ApiStruct";
-import { DefAndMetas, EscDownEvent, modalHandleClose, modalStyle } from "./Common";
+import {
+  DefAndMetas,
+  EscDownEvent,
+  modalHandleClose,
+  modalStyle,
+  unwrapCommand,
+} from "./Common";
 import {
   dataGridStyle,
   DataSourceKind,
@@ -45,19 +50,13 @@ import AddIcon from "@mui/icons-material/Add";
 import { BSON } from "bson";
 import { MongoValueEditor } from "./MongoDB";
 import { ModalHeader, TrueOrFalse } from "./CommonComp";
-import { DefAndMetasView, TriggerDetail } from "./DefAndMetaView";
-import {
-  createTableAndIndexSql,
-  formatCreateTableAndIndexSql,
-  showIndexes,
-  showTableColumn,
-  showTrigger,
-} from "./handlers";
+import { DefAndMetasView, TriggerDetailView } from "./DefAndMetaView";
+import { formatCreateTableAndIndexSql } from "./handlers";
 import {
   AppDataGridPagination,
   ColumnNullness,
   CopySql,
-  CreateIndexReq,
+  CreateIndexView,
   ListenElementSize,
   SqlDefaultValue,
   StackRowCenter,
@@ -69,6 +68,16 @@ import {
   useNotification,
   useUserSettings,
 } from "./store";
+import {
+  ColumnType,
+  commands,
+  CreateIndexReq,
+  Field,
+  Index,
+  SqlNullAble,
+  TriggerDetail,
+  TriggerEnable,
+} from "./bindings";
 
 function ColumnMenu(props: {
   col: string;
@@ -114,9 +123,9 @@ function ColumnsStructure(props: {
   const { uuid, kind, table } = props;
   const setting = useUserSettings();
   const [loading, setLoading] = useState(false);
-  const [fields, setFields] = useState<types.Field[]>([]);
+  const [fields, setFields] = useState<Field[]>([]);
   const { showNotification } = useNotification();
-  const [row, setRow] = useState<types.Field>(null);
+  const [row, setRow] = useState<Field>(null);
   const { getColumnWidth, setColumnWidth } = useColumnWidthStore();
   const supportModifyColumn = new Set([
     DataSourceKind.MariaDB,
@@ -142,16 +151,19 @@ function ColumnsStructure(props: {
 
   const handleReload = useCallback(() => {
     setLoading(true);
-    showTableColumn(uuid, table)
-      .then((fs) => {
-        setFields(fs);
-      })
-      .catch((e) => {
-        showNotification({
-          severity: "error",
-          title: "list column failed",
-          message: e,
-        });
+
+    commands
+      .showTableColumns(uuid, table)
+      .then((ret) => {
+        if (ret.status == "ok") {
+          setFields(ret.data);
+        } else {
+          showNotification({
+            severity: "error",
+            title: "list column failed",
+            message: ret.error,
+          });
+        }
       })
       .finally(() => {
         setLoading(false);
@@ -169,11 +181,7 @@ function ColumnsStructure(props: {
       if (!confirm) {
         return;
       }
-      invoke("drop_table_column", {
-        name: uuid,
-        tableName: table,
-        columnName: col,
-      })
+      unwrapCommand(commands.dropTableColumn(uuid, table, col))
         .then((sql) => {
           showNotification({
             severity: "success",
@@ -446,12 +454,7 @@ function RenameIndex(props: {
     }
     setLoading(true);
 
-    invoke("rename_index", {
-      name: uuid,
-      tableName: table,
-      oldName: indexName,
-      newName: newName,
-    })
+    unwrapCommand(commands.renameIndex(uuid, table, indexName, newName))
       .then((sql) => {
         showNotification({
           severity: "success",
@@ -538,7 +541,7 @@ function IndexesStructure(props: {
   const { uuid, kind, table } = props;
   const setting = useUserSettings();
   const [loading, setLoading] = useState(false);
-  const [indexes, setIndexes] = useState<types.Index[]>([]);
+  const [indexes, setIndexes] = useState<Index[]>([]);
   const { showNotification } = useNotification();
   const [renameIndexName, setRenameIndexName] = useState("");
   const [showAdd, setShowAdd] = useState(false);
@@ -554,16 +557,19 @@ function IndexesStructure(props: {
 
   const handleReload = useCallback(() => {
     setLoading(true);
-    showIndexes(uuid, table)
-      .then((indexes) => {
-        setIndexes(indexes);
-      })
-      .catch((e) => {
-        showNotification({
-          severity: "error",
-          title: "list indexes failed",
-          message: e,
-        });
+
+    commands
+      .showIndexes(uuid, table)
+      .then((ret) => {
+        if (ret.status == "ok") {
+          setIndexes(ret.data);
+        } else {
+          showNotification({
+            severity: "error",
+            title: "show indexes failed",
+            message: ret.error,
+          });
+        }
       })
       .finally(() => {
         setLoading(false);
@@ -580,11 +586,7 @@ function IndexesStructure(props: {
       if (!confirm) {
         return;
       }
-      invoke("drop_index", {
-        name: uuid,
-        tableName: table,
-        index: indexName,
-      })
+      unwrapCommand(commands.dropIndex(uuid, table, indexName))
         .then((sql) => {
           showNotification({
             severity: "success",
@@ -808,13 +810,15 @@ function MongoAddIndex(props: { uuid; table; handleClose; reload }) {
         indexNameDom.current.focus();
         return;
       }
-      await invoke("mongo_create_index", {
-        name: uuid,
-        tableName: table,
-        keys: BSON.serialize(keys),
-        unique: indexType == "unique",
-        indexName: indexName ? indexName : null,
-      });
+      await unwrapCommand(
+        commands.mongoCreateIndex(
+          uuid,
+          table,
+          indexName ? indexName : null,
+          BSON.serialize(keys),
+          indexType == "unique",
+        ),
+      );
       showNotification({ severity: "success", title: "create index ok" });
       handleClose();
       reload();
@@ -865,21 +869,21 @@ function AddIndex(props: {
   kind: DataSourceKind;
 }) {
   const { uuid, table, handleClose, reload, kind } = props;
-  const [fields, setFields] = useState<types.Field[]>([]);
+  const [fields, setFields] = useState<Field[]>([]);
   const { showNotification } = useNotification();
-  const [req, setReq] = useState<types.CreateIndexReq>(null);
+  const [req, setReq] = useState<CreateIndexReq>(null);
   useEffect(() => {
-    showTableColumn(uuid, table)
-      .then((e) => {
-        setFields(e);
-      })
-      .catch((e) => {
+    commands.showTableColumns(uuid, table).then((ret) => {
+      if (ret.status == "ok") {
+        setFields(ret.data);
+      } else {
         showNotification({
           severity: "error",
           title: "list fields failed",
-          message: e,
+          message: ret.error,
         });
-      });
+      }
+    });
   }, [showNotification, table, uuid]);
   const handleAdd = async () => {
     if (!req.name) {
@@ -891,11 +895,7 @@ function AddIndex(props: {
       return;
     }
     try {
-      const sql = await invoke("create_index", {
-        name: uuid,
-        tableName: table,
-        req,
-      });
+      const sql = await unwrapCommand(commands.createIndex(uuid, table, req));
       showNotification({
         severity: "success",
         title: "create index ok",
@@ -910,7 +910,7 @@ function AddIndex(props: {
 
   return (
     <Stack>
-      <CreateIndexReq
+      <CreateIndexView
         handleReq={(s) => {
           setReq(s);
         }}
@@ -933,11 +933,11 @@ function TableAddColumn(props: {
   handleClose;
   reload;
   kind: DataSourceKind;
-  fields: types.Field[];
+  fields: Field[];
 }) {
   const { table, uuid, handleClose, reload, kind, fields } = props;
   const [name, setName] = useState("");
-  const [nullable, setNullness] = useState<types.SqlNullAble>("none");
+  const [nullable, setNullness] = useState<SqlNullAble>("none");
   const [typ, setTyp] = useState("");
   const { showNotification } = useNotification();
   const [after, setAfter] = useState("");
@@ -961,17 +961,14 @@ function TableAddColumn(props: {
       return;
     }
     setLoading(true);
-    invoke("add_table_column", {
-      name: uuid,
-      tableName: table,
-      colName: name,
-      typ: {
+    unwrapCommand(
+      commands.addTableColumn(uuid, table, name, {
         typ: typ,
         nullable: nullable ? nullable : null,
         after: after ? after : null,
         default_value: defaultValue ? defaultValue : null,
-      } as types.ColumnType,
-    })
+      } as ColumnType),
+    )
       .then((sql) => {
         showNotification({
           severity: "success",
@@ -1073,7 +1070,7 @@ function ModifyTableColumn(props: {
   const [modifyType, setModifyType] = useState(false);
   const supportModifyType = ![DataSourceKind.Cassandra].includes(kind);
   const supportModifyDefault = ![DataSourceKind.SqlServer].includes(kind);
-  const [nullable, setNullness] = useState<null | types.SqlNullAble>(null);
+  const [nullable, setNullness] = useState<null | SqlNullAble>(null);
   const [newDv, setNewDv] = useState(supportModifyDefault ? defaultValue : null);
   const handleModify = () => {
     if (newName == col && !newTyp) {
@@ -1085,7 +1082,7 @@ function ModifyTableColumn(props: {
       return;
     }
     setLoading(true);
-    let typePara: types.ColumnType = null;
+    let typePara: ColumnType = null;
     if (modifyType) {
       typePara = {
         typ: newTyp,
@@ -1094,13 +1091,7 @@ function ModifyTableColumn(props: {
         after: null,
       };
     }
-    invoke("modify_table_column", {
-      name: uuid,
-      tableName: table,
-      oldName: col,
-      newName: newName,
-      typ: typePara,
-    })
+    unwrapCommand(commands.modifyTableColumn(uuid, table, col, newName, typePara))
       .then((sql) => {
         showNotification({
           severity: "success",
@@ -1194,7 +1185,7 @@ function kindSupportDefault(kind: DataSourceKind): boolean {
   return kind != DataSourceKind.Cassandra;
 }
 
-function triggerIsEnable(enable: types.TriggerEnable): boolean {
+function triggerIsEnable(enable: TriggerEnable): boolean {
   if (enable.kind == "postgres") {
     return enable.enable.toUpperCase() != "D";
   }
@@ -1205,7 +1196,7 @@ function triggerIsEnable(enable: types.TriggerEnable): boolean {
 
 function TriggerMenu(props: {
   content: string;
-  detail: types.TriggerDetail;
+  detail: TriggerDetail;
   handleEnables;
   handleDrop;
 }) {
@@ -1273,8 +1264,8 @@ function TriggersStructure(props: {
   const { uuid, kind, table } = props;
   const setting = useUserSettings();
   const [loading, setLoading] = useState(false);
-  const [triggers, setTriggers] = useState<types.TriggerDetail[]>([]);
-  const [row, setRow] = useState<types.TriggerDetail>(null);
+  const [triggers, setTriggers] = useState<TriggerDetail[]>([]);
+  const [row, setRow] = useState<TriggerDetail>(null);
   const { showNotification } = useNotification();
 
   const { getColumnWidth, setColumnWidth } = useColumnWidthStore();
@@ -1287,16 +1278,19 @@ function TriggersStructure(props: {
 
   const handleReload = useCallback(() => {
     setLoading(true);
-    showTrigger(uuid, table)
-      .then((ts) => {
-        setTriggers(ts);
-      })
-      .catch((e) => {
-        showNotification({
-          severity: "error",
-          title: "list indexes failed",
-          message: e,
-        });
+
+    commands
+      .showTrigger(uuid, table)
+      .then((ret) => {
+        if (ret.status == "ok") {
+          setTriggers(ret.data);
+        } else {
+          showNotification({
+            severity: "error",
+            title: "list indexes failed",
+            message: ret.error,
+          });
+        }
       })
       .finally(() => {
         setLoading(false);
@@ -1316,7 +1310,7 @@ function TriggersStructure(props: {
       if (!confirm) {
         return;
       }
-      invoke<string>("drop_trigger", { trigger, ...callPara })
+      unwrapCommand(commands.dropTrigger(undefined, undefined, trigger))
         .then((sql) => {
           showNotification({
             severity: "success",
@@ -1333,7 +1327,7 @@ function TriggersStructure(props: {
           });
         });
     },
-    [callPara, handleReload, showNotification],
+    [handleReload, showNotification],
   );
 
   const handleEnables = useCallback(
@@ -1369,7 +1363,7 @@ function TriggersStructure(props: {
       {
         field: "enable",
         renderCell: (r) => {
-          const enable = r.row.enable as types.TriggerEnable;
+          const enable = r.row.enable as TriggerEnable;
           if (!enable) {
             return;
           }
@@ -1502,7 +1496,7 @@ function TriggersStructure(props: {
                 setRow(null);
               }}
             />
-            <TriggerDetail
+            <TriggerDetailView
               reloadOP={async () => {
                 return row;
               }}
@@ -1607,16 +1601,29 @@ function StatementStructure(props: {
   table: string;
 }) {
   const { uuid, kind, table } = props;
+  const { showNotification } = useNotification();
 
   return (
     <Stack style={{ height: "100%" }}>
       <DefAndMetasView
         reloadOP={async () => {
-          return createTableAndIndexSql(uuid, table).then((e) => {
-            return {
-              def: formatCreateTableAndIndexSql(e),
-              metas: [],
-            } as DefAndMetas;
+          return commands.showCreateTableSql(uuid, table).then((ret) => {
+            if (ret.status == "ok") {
+              return {
+                def: formatCreateTableAndIndexSql(ret.data),
+                metas: [],
+              } as DefAndMetas;
+            } else {
+              showNotification({
+                severity: "error",
+                title: "show create table sql failed",
+                message: ret.error,
+              });
+              return {
+                def: "",
+                metas: [],
+              } as DefAndMetas;
+            }
           });
         }}
         kind={kind}

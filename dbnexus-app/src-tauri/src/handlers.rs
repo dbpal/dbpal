@@ -10,7 +10,6 @@ use dbnexus_db::db::{
     CreateTableAndIndexSql, CreateTableReq, CreatedTypeDef, DefAndMetas, ExportKind, Field, Index,
     ListTable, MetaValue, NamedStaff, OptionMustBeSomeErr, ProcedureDetail, QueryEventEmit,
     QueryResp, SequenceDetail, ShowTableParameter, SqlEvent, TimeElapsed, TriggerDetail,
-    UdfOrProcedureExtraParameter,
 };
 use dbnexus_db::language_server::{CompletionList, ErrAndLoc};
 use dbnexus_db::mongo::MongoDB;
@@ -20,6 +19,7 @@ use dbnexus_db::redis_lang_server::REDIS_COMMANDS_MD_FILES;
 use include_dir::{include_dir, Dir};
 use mongodb::bson::{self, doc, Document};
 use rand::RngExt;
+use reqwest::dns::Name;
 use std::collections::HashMap;
 use std::env;
 use std::str::FromStr;
@@ -35,6 +35,7 @@ pub fn log_level_ref() -> &'static RwLock<Option<log::Level>> {
     &LOG_LEVEL_LOC
 }
 
+#[specta::specta]
 #[tauri::command]
 pub fn set_log_level(level: String) {
     let level = match level.as_str() {
@@ -45,6 +46,7 @@ pub fn set_log_level(level: String) {
     };
     *log_level_ref().write().expect("lock failed") = level;
 }
+#[specta::specta]
 #[tauri::command]
 pub fn set_env(env: HashMap<String, String>) {
     for (key, value) in env {
@@ -58,6 +60,7 @@ pub fn set_env(env: HashMap<String, String>) {
     }
 }
 
+#[specta::specta]
 #[tauri::command]
 pub async fn cancel_task(
     task_id: String,
@@ -75,6 +78,7 @@ pub async fn cancel_task(
     Ok(())
 }
 
+#[specta::specta]
 #[tauri::command]
 pub async fn monaco_editor_themes() -> Result<HashMap<&'static str, &'static str>, ErrorFrontend> {
     let mut ret = HashMap::new();
@@ -99,6 +103,7 @@ pub async fn monaco_editor_themes() -> Result<HashMap<&'static str, &'static str
     Ok(ret)
 }
 
+#[specta::specta]
 #[tauri::command]
 pub async fn get_redis_doc(line: &str) -> Result<String, ErrorFrontend> {
     let tokens = redis_tokenize(line).map_err(ErrorFrontend::from)?;
@@ -170,6 +175,7 @@ pub async fn get_redis_doc(line: &str) -> Result<String, ErrorFrontend> {
     }
 }
 
+#[specta::specta]
 #[tauri::command]
 pub async fn all_font_family() -> Result<Vec<String>, ErrorFrontend> {
     let source = font_kit::source::SystemSource::new();
@@ -177,6 +183,7 @@ pub async fn all_font_family() -> Result<Vec<String>, ErrorFrontend> {
     Ok(fonts)
 }
 
+#[specta::specta]
 #[tauri::command]
 pub async fn page_init_callback(app: tauri::State<'_, DBPal>) -> Result<(), ()> {
     log::info!("page init call clear all open connection.");
@@ -184,6 +191,7 @@ pub async fn page_init_callback(app: tauri::State<'_, DBPal>) -> Result<(), ()> 
     Ok(())
 }
 
+#[specta::specta]
 #[tauri::command]
 pub async fn drop_database(
     name: String,
@@ -218,6 +226,7 @@ pub async fn drop_database(
     }
 }
 
+#[specta::specta]
 #[tauri::command]
 pub async fn drop_schema(
     name: String,
@@ -247,6 +256,7 @@ pub async fn drop_schema(
     }
 }
 
+#[specta::specta]
 #[tauri::command]
 pub async fn create_database(
     name: String,
@@ -274,6 +284,7 @@ pub async fn create_database(
     }
 }
 
+#[specta::specta]
 #[tauri::command]
 pub async fn create_schema(
     name: String,
@@ -301,6 +312,7 @@ pub async fn create_schema(
     }
 }
 
+#[specta::specta]
 #[tauri::command]
 pub async fn establish_conn(
     config: DBConnectionConfig,
@@ -327,6 +339,7 @@ pub async fn establish_conn(
     })?
 }
 
+#[specta::specta]
 #[tauri::command]
 pub async fn close_conn(name: String, app: tauri::State<'_, DBPal>) -> Result<(), ()> {
     random_sleep().await;
@@ -334,6 +347,7 @@ pub async fn close_conn(name: String, app: tauri::State<'_, DBPal>) -> Result<()
     Ok(())
 }
 
+#[specta::specta]
 #[tauri::command]
 pub async fn list_table(
     name: String,
@@ -345,6 +359,7 @@ pub async fn list_table(
     db.list_table().await.map_err(ErrorFrontend::from)
 }
 
+#[specta::specta]
 #[tauri::command]
 pub async fn redis_list_key(
     name: String,
@@ -362,6 +377,7 @@ pub async fn redis_list_key(
     .map_err(ErrorFrontend::from)
 }
 
+#[specta::specta]
 #[tauri::command]
 pub async fn show_table_columns(
     name: String,
@@ -376,6 +392,7 @@ pub async fn show_table_columns(
         .map_err(ErrorFrontend::from)
 }
 
+#[specta::specta]
 #[tauri::command]
 pub async fn show_table(
     name: String,
@@ -415,6 +432,7 @@ pub async fn show_table(
     }
 }
 
+#[specta::specta]
 #[tauri::command]
 pub async fn show_indexes(
     name: String,
@@ -429,6 +447,7 @@ pub async fn show_indexes(
         .map_err(ErrorFrontend::from)
 }
 
+#[specta::specta]
 #[tauri::command]
 pub async fn create_index(
     name: String,
@@ -449,6 +468,7 @@ pub async fn create_index(
         .map_err(ErrorFrontend::from)
 }
 
+#[specta::specta]
 #[tauri::command]
 pub async fn mongo_create_index(
     name: String,
@@ -473,6 +493,7 @@ pub async fn mongo_create_index(
         None => Err(ErrorFrontend::from(format!("'{}' not a mongo", name))),
     }
 }
+#[specta::specta]
 #[tauri::command]
 pub async fn rename_index(
     name: String,
@@ -493,6 +514,7 @@ pub async fn rename_index(
         .map_err(ErrorFrontend::from)
 }
 
+#[specta::specta]
 #[tauri::command]
 pub async fn drop_index(
     name: String,
@@ -513,6 +535,7 @@ pub async fn drop_index(
         .map_err(ErrorFrontend::from)
 }
 
+#[specta::specta]
 #[tauri::command]
 pub async fn table_insert(
     name: String,
@@ -528,6 +551,7 @@ pub async fn table_insert(
         .map_err(ErrorFrontend::from)
 }
 
+#[specta::specta]
 #[tauri::command]
 pub async fn table_insert_sql(
     name: String,
@@ -542,6 +566,7 @@ pub async fn table_insert_sql(
         .await
         .map_err(ErrorFrontend::from)
 }
+#[specta::specta]
 #[tauri::command]
 pub async fn table_update(
     name: String,
@@ -558,6 +583,7 @@ pub async fn table_update(
         .map_err(ErrorFrontend::from)
 }
 
+#[specta::specta]
 #[tauri::command]
 pub async fn table_update_sql(
     name: String,
@@ -573,6 +599,7 @@ pub async fn table_update_sql(
         .await
         .map_err(ErrorFrontend::from)
 }
+#[specta::specta]
 #[tauri::command]
 pub async fn truncate_table(
     name: String,
@@ -587,6 +614,7 @@ pub async fn truncate_table(
         .map_err(ErrorFrontend::from)
 }
 
+#[specta::specta]
 #[tauri::command]
 pub async fn drop_table_column(
     name: String,
@@ -606,6 +634,7 @@ pub async fn drop_table_column(
         .map_err(ErrorFrontend::from)
 }
 
+#[specta::specta]
 #[tauri::command]
 pub async fn modify_table_column(
     name: String,
@@ -627,6 +656,7 @@ pub async fn modify_table_column(
         .map_err(ErrorFrontend::from)
 }
 
+#[specta::specta]
 #[tauri::command]
 pub async fn add_table_column(
     name: String,
@@ -647,6 +677,7 @@ pub async fn add_table_column(
         .map_err(ErrorFrontend::from)
 }
 
+#[specta::specta]
 #[tauri::command]
 pub async fn list_data_types(
     name: String,
@@ -665,6 +696,7 @@ pub async fn list_data_types(
     Ok(ret)
 }
 
+#[specta::specta]
 #[tauri::command]
 pub async fn list_sql_current_values(
     name: String,
@@ -680,6 +712,7 @@ pub async fn list_sql_current_values(
     Ok(ret)
 }
 
+#[specta::specta]
 #[tauri::command]
 pub async fn table_delete_sql(
     name: String,
@@ -695,6 +728,7 @@ pub async fn table_delete_sql(
         .map_err(ErrorFrontend::from)
 }
 
+#[specta::specta]
 #[tauri::command]
 pub async fn table_delete(
     name: String,
@@ -710,6 +744,7 @@ pub async fn table_delete(
         .map_err(ErrorFrontend::from)
 }
 
+#[specta::specta]
 #[tauri::command]
 pub async fn list_view(
     name: String,
@@ -720,6 +755,7 @@ pub async fn list_view(
     let db = app.get_schema(&name).await?;
     db.list_view().await.map_err(ErrorFrontend::from)
 }
+#[specta::specta]
 #[tauri::command]
 pub async fn server_metas(
     name: String,
@@ -735,6 +771,7 @@ pub async fn server_metas(
         .map_err(ErrorFrontend::from)
 }
 
+#[specta::specta]
 #[tauri::command]
 pub async fn list_materialized_view(
     name: String,
@@ -751,6 +788,7 @@ pub async fn list_materialized_view(
         .await
         .map_err(ErrorFrontend::from)
 }
+#[specta::specta]
 #[tauri::command]
 pub async fn drop_view(
     name: String,
@@ -763,6 +801,7 @@ pub async fn drop_view(
     db.drop_view(&view_name).await.map_err(ErrorFrontend::from)
 }
 
+#[specta::specta]
 #[tauri::command]
 pub async fn drop_materialized_view(
     name: String,
@@ -778,6 +817,7 @@ pub async fn drop_materialized_view(
         .map_err(ErrorFrontend::from)
 }
 
+#[specta::specta]
 #[tauri::command]
 pub async fn drop_table(
     name: String,
@@ -793,6 +833,7 @@ pub async fn drop_table(
         .map_err(ErrorFrontend::from)
 }
 
+#[specta::specta]
 #[tauri::command]
 pub async fn show_view_columns(
     name: String,
@@ -808,6 +849,7 @@ pub async fn show_view_columns(
         .map_err(ErrorFrontend::from)
 }
 
+#[specta::specta]
 #[tauri::command]
 pub async fn list_created_types(
     name: String,
@@ -822,6 +864,7 @@ pub async fn list_created_types(
         .map_err(ErrorFrontend::from)
 }
 
+#[specta::specta]
 #[tauri::command]
 pub async fn list_event(
     name: String,
@@ -833,6 +876,7 @@ pub async fn list_event(
     schema.list_event().await.map_err(ErrorFrontend::from)
 }
 
+#[specta::specta]
 #[tauri::command]
 pub async fn drop_event(
     name: String,
@@ -848,6 +892,7 @@ pub async fn drop_event(
         .map_err(ErrorFrontend::from)
 }
 
+#[specta::specta]
 #[tauri::command]
 pub async fn export_query_result_to_file(
     name: String,
@@ -901,6 +946,7 @@ pub async fn export_query_result_to_file(
     r
 }
 
+#[specta::specta]
 #[tauri::command]
 pub async fn is_dangerous_sql(
     name: String,
@@ -1027,6 +1073,7 @@ impl QueryEventEmit for QueryEventChannelEmit {
     }
 }
 
+#[specta::specta]
 #[tauri::command]
 pub async fn query_sql(
     name: String,
@@ -1064,7 +1111,7 @@ pub async fn query_sql(
     }
 }
 
-#[derive(Debug, serde::Serialize)]
+#[derive(Debug, serde::Serialize, specta::Type)]
 #[serde(tag = "kind", rename_all = "lowercase")]
 pub enum QueryEvent {
     Err { err: String },
@@ -1074,6 +1121,7 @@ pub enum QueryEvent {
     End,
 }
 
+#[specta::specta]
 #[tauri::command]
 pub async fn simple_execute_sql(
     name: String,
@@ -1096,6 +1144,7 @@ pub async fn simple_execute_sql(
     Ok(result)
 }
 
+#[specta::specta]
 #[tauri::command]
 pub async fn execute_sql(
     name: String,
@@ -1128,6 +1177,7 @@ pub async fn execute_sql(
     Ok(result)
 }
 
+#[specta::specta]
 #[tauri::command]
 pub async fn query_sql_open_connection(
     name: String,
@@ -1148,6 +1198,7 @@ pub async fn query_sql_open_connection(
     result.map_err(ErrorFrontend::from)
 }
 
+#[specta::specta]
 #[tauri::command]
 pub async fn query_sql_close_connection(
     name: String,
@@ -1165,6 +1216,7 @@ pub async fn query_sql_close_connection(
     result.map_err(ErrorFrontend::from)
 }
 
+#[specta::specta]
 #[tauri::command]
 pub async fn export_table_or_view(
     name: String,
@@ -1219,6 +1271,7 @@ pub async fn export_table_or_view(
     r
 }
 
+#[specta::specta]
 #[tauri::command]
 pub async fn check_conn(
     name: String,
@@ -1246,6 +1299,7 @@ pub async fn check_conn(
     })?
 }
 
+#[specta::specta]
 #[tauri::command]
 pub async fn test_connection(
     config: DBConnectionConfig,
@@ -1266,6 +1320,7 @@ pub async fn test_connection(
     .map_err(|_| ErrorFrontend::from(format!("test connection not finished in {}s", timeout)))?
 }
 
+#[specta::specta]
 #[tauri::command]
 pub async fn try_list_database_schema_candidates(
     conn: DBConnectionConfig,
@@ -1287,6 +1342,7 @@ pub async fn try_list_database_schema_candidates(
     .map_err(ErrorFrontend::from)?
 }
 
+#[specta::specta]
 #[tauri::command]
 pub async fn list_database(
     name: String,
@@ -1311,6 +1367,7 @@ pub async fn list_database(
     .map_err(ErrorFrontend::from)
 }
 
+#[specta::specta]
 #[tauri::command]
 pub async fn list_schema(
     name: String,
@@ -1337,6 +1394,7 @@ pub async fn list_schema(
     .map_err(ErrorFrontend::from)
 }
 
+#[specta::specta]
 #[tauri::command]
 pub async fn extract_table_select_selection(
     name: String,
@@ -1353,6 +1411,7 @@ pub async fn extract_table_select_selection(
     Ok(ret)
 }
 
+#[specta::specta]
 #[tauri::command]
 pub async fn extract_table_select_sort(
     name: String,
@@ -1383,6 +1442,7 @@ fn auto_completion_mutex(name: &str) -> Arc<tokio::sync::Mutex<()>> {
     }
 }
 
+#[specta::specta]
 #[tauri::command]
 pub async fn auto_completion(
     name: String,
@@ -1410,6 +1470,7 @@ pub async fn auto_completion(
     Ok(ret)
 }
 
+#[specta::specta]
 #[tauri::command]
 pub async fn ai_text_completion(
     name: String,
@@ -1434,6 +1495,7 @@ pub async fn ai_text_completion(
     Ok(list)
 }
 
+#[specta::specta]
 #[tauri::command]
 pub async fn check_sql(
     name: String,
@@ -1451,6 +1513,7 @@ pub async fn check_sql(
     Ok(ret)
 }
 
+#[specta::specta]
 #[tauri::command]
 pub async fn query_set_autocommit(
     name: String,
@@ -1471,6 +1534,7 @@ pub async fn query_set_autocommit(
         .map_err(ErrorFrontend::from)
 }
 
+#[specta::specta]
 #[tauri::command]
 pub async fn query_get_commit(
     name: String,
@@ -1490,6 +1554,7 @@ pub async fn query_get_commit(
         .map_err(ErrorFrontend::from)
 }
 
+#[specta::specta]
 #[tauri::command]
 pub async fn query_commit(
     name: String,
@@ -1509,6 +1574,7 @@ pub async fn query_commit(
         .map_err(ErrorFrontend::from)
 }
 
+#[specta::specta]
 #[tauri::command]
 pub async fn query_rollback(
     name: String,
@@ -1527,6 +1593,7 @@ pub async fn query_rollback(
         .map_err(ErrorFrontend::from)
 }
 
+#[specta::specta]
 #[tauri::command]
 pub async fn drop_trigger(
     name: String,
@@ -1546,6 +1613,7 @@ pub async fn drop_trigger(
         .map_err(ErrorFrontend::from)
 }
 
+#[specta::specta]
 #[tauri::command]
 pub async fn enable_trigger(
     name: String,
@@ -1564,6 +1632,7 @@ pub async fn enable_trigger(
         .await
         .map_err(ErrorFrontend::from)
 }
+#[specta::specta]
 #[tauri::command]
 pub async fn disable_trigger(
     name: String,
@@ -1583,6 +1652,7 @@ pub async fn disable_trigger(
         .map_err(ErrorFrontend::from)
 }
 
+#[specta::specta]
 #[tauri::command]
 pub async fn show_trigger(
     name: String,
@@ -1613,11 +1683,12 @@ pub async fn show_trigger(
     Ok(ret)
 }
 
+#[specta::specta]
 #[tauri::command]
 pub async fn rename_table(
     name: String,
     old: String,
-    new: String,
+    new_table: String,
     app: tauri::State<'_, DBPal>,
 ) -> Result<Option<String>, ErrorFrontend> {
     random_sleep().await;
@@ -1627,10 +1698,11 @@ pub async fn rename_table(
         .await
         .map_err(ErrorFrontend::from)?;
 
-    db.rename_table(&old, &new)
+    db.rename_table(&old, &new_table)
         .await
         .map_err(ErrorFrontend::from)
 }
+#[specta::specta]
 #[tauri::command]
 pub async fn create_table_req_sql(
     name: String,
@@ -1650,6 +1722,7 @@ pub async fn create_table_req_sql(
     Ok(ret)
 }
 
+#[specta::specta]
 #[tauri::command]
 
 pub async fn create_table(
@@ -1666,6 +1739,7 @@ pub async fn create_table(
     db.create_table(&req).await.map_err(ErrorFrontend::from)
 }
 
+#[specta::specta]
 #[tauri::command]
 pub async fn show_create_table_sql(
     name: String,
@@ -1686,6 +1760,7 @@ pub async fn show_create_table_sql(
     Ok(ret)
 }
 
+#[specta::specta]
 #[tauri::command]
 pub async fn create_view_sql(
     name: String,
@@ -1707,6 +1782,7 @@ pub async fn create_view_sql(
     Ok(ret)
 }
 
+#[specta::specta]
 #[tauri::command]
 pub async fn duplicate_table(
     name: String,
@@ -1741,13 +1817,14 @@ pub async fn duplicate_table(
     result
 }
 
+#[specta::specta]
 #[tauri::command]
 pub async fn mongo_insert(
     name: String,
     table_name: String,
     doc: Vec<u8>,
     app: tauri::State<'_, DBPal>,
-) -> Result<mongodb::results::InsertOneResult, ErrorFrontend> {
+) -> Result<String, ErrorFrontend> {
     random_sleep().await;
     random_error()?;
     let doc = parse_bson_doc(doc.as_slice())?;
@@ -1760,8 +1837,10 @@ pub async fn mongo_insert(
         None => return Err(format!("db '{}' not mongo", name).into()),
     }
     .map_err(ErrorFrontend::from)
+    .map(|x| x.inserted_id.to_string())
 }
 
+#[specta::specta]
 #[tauri::command]
 pub async fn mongo_update_one(
     name: String,
@@ -1787,13 +1866,14 @@ pub async fn mongo_update_one(
     Ok(())
 }
 
+#[specta::specta]
 #[tauri::command]
 pub async fn mongo_delete_ids(
     name: String,
     table_name: String,
     ids: String,
     app: tauri::State<'_, DBPal>,
-) -> Result<mongodb::results::DeleteResult, ErrorFrontend> {
+) -> Result<u64, ErrorFrontend> {
     random_sleep().await;
     random_error()?;
     let ids: Vec<bson::Bson> = serde_json::from_str(&ids)?;
@@ -1806,8 +1886,10 @@ pub async fn mongo_delete_ids(
         None => return Err(format!("db '{}' not mongo", name).into()),
     }
     .map_err(ErrorFrontend::from)
+    .map(|x| x.deleted_count)
 }
 
+#[specta::specta]
 #[tauri::command]
 pub async fn mongo_show_collection_table_list(
     name: String,
@@ -1832,6 +1914,7 @@ pub async fn mongo_show_collection_table_list(
     .map(MuiDataGridData::from)
 }
 
+#[specta::specta]
 #[tauri::command]
 pub async fn mongo_show_collection_docs(
     name: String,
@@ -1855,6 +1938,7 @@ pub async fn mongo_show_collection_docs(
     .map_err(ErrorFrontend::from)?;
     DocsAndCount::try_from(docs).map_err(|e| e.into())
 }
+#[specta::specta]
 #[tauri::command]
 pub async fn mongo_get_one_document_by_id(
     name: String,
@@ -1877,6 +1961,7 @@ pub async fn mongo_get_one_document_by_id(
     encode_bson_doc(&doc).map_err(ErrorFrontend::from)
 }
 
+#[specta::specta]
 #[tauri::command]
 pub async fn mongo_query_db_drop(
     name: String,
@@ -1895,6 +1980,7 @@ pub async fn mongo_query_db_drop(
     .map_err(ErrorFrontend::from)?;
     Ok(())
 }
+#[specta::specta]
 #[tauri::command]
 pub async fn mongo_query_db_list_collection_names(
     name: String,
@@ -1913,6 +1999,7 @@ pub async fn mongo_query_db_list_collection_names(
     .map_err(ErrorFrontend::from)?;
     Ok(ret)
 }
+#[specta::specta]
 #[tauri::command]
 pub async fn mongo_query_db_run_command(
     name: String,
@@ -1934,6 +2021,7 @@ pub async fn mongo_query_db_run_command(
     Ok(encode_bson_doc(&ret)?)
 }
 
+#[specta::specta]
 #[tauri::command]
 pub async fn mongo_query_collection_count_docs(
     name: String,
@@ -1954,6 +2042,7 @@ pub async fn mongo_query_collection_count_docs(
     Ok(ret)
 }
 
+#[specta::specta]
 #[tauri::command]
 pub async fn mongo_query_collection_create_index(
     name: String,
@@ -1975,6 +2064,7 @@ pub async fn mongo_query_collection_create_index(
     .map_err(ErrorFrontend::from)?;
     Ok(ret.index_name)
 }
+#[specta::specta]
 #[tauri::command]
 pub async fn mongo_query_collection_create_search_index(
     name: String,
@@ -2000,6 +2090,7 @@ pub async fn mongo_query_collection_create_search_index(
     .map_err(ErrorFrontend::from)?;
     Ok(ret)
 }
+#[specta::specta]
 #[tauri::command]
 pub async fn mongo_query_collection_delete_many(
     name: String,
@@ -2021,6 +2112,7 @@ pub async fn mongo_query_collection_delete_many(
     .map_err(ErrorFrontend::from)?;
     Ok(serde_json::to_string(&ret)?)
 }
+#[specta::specta]
 #[tauri::command]
 pub async fn mongo_query_collection_delete_one(
     name: String,
@@ -2043,6 +2135,7 @@ pub async fn mongo_query_collection_delete_one(
     Ok(serde_json::to_string(&ret)?)
 }
 
+#[specta::specta]
 #[tauri::command]
 pub async fn mongo_query_collection_distinct(
     name: String,
@@ -2066,6 +2159,7 @@ pub async fn mongo_query_collection_distinct(
     serde_json::to_string(&values).map_err(ErrorFrontend::from)
 }
 
+#[specta::specta]
 #[tauri::command]
 pub async fn mongo_query_collection_drop(
     name: String,
@@ -2087,6 +2181,7 @@ pub async fn mongo_query_collection_drop(
     Ok(())
 }
 
+#[specta::specta]
 #[tauri::command]
 pub async fn mongo_query_collection_drop_index(
     name: String,
@@ -2109,6 +2204,7 @@ pub async fn mongo_query_collection_drop_index(
     Ok(())
 }
 
+#[specta::specta]
 #[tauri::command]
 pub async fn mongo_query_collection_drop_indexes(
     name: String,
@@ -2128,6 +2224,7 @@ pub async fn mongo_query_collection_drop_indexes(
     .map_err(ErrorFrontend::from)?;
     Ok(())
 }
+#[specta::specta]
 #[tauri::command]
 pub async fn mongo_query_collection_drop_search_index(
     name: String,
@@ -2149,6 +2246,7 @@ pub async fn mongo_query_collection_drop_search_index(
     Ok(())
 }
 
+#[specta::specta]
 #[tauri::command]
 pub async fn mongo_query_collection_find(
     name: String,
@@ -2174,6 +2272,7 @@ pub async fn mongo_query_collection_find(
     Ok(ret)
 }
 
+#[specta::specta]
 #[tauri::command]
 pub async fn mongo_query_collection_find_one(
     name: String,
@@ -2198,6 +2297,7 @@ pub async fn mongo_query_collection_find_one(
     })
 }
 
+#[specta::specta]
 #[tauri::command]
 pub async fn mongo_query_collection_find_one_and_delete(
     name: String,
@@ -2223,6 +2323,7 @@ pub async fn mongo_query_collection_find_one_and_delete(
         None => None,
     })
 }
+#[specta::specta]
 #[tauri::command]
 pub async fn mongo_query_collection_find_one_and_replace(
     name: String,
@@ -2254,6 +2355,7 @@ pub async fn mongo_query_collection_find_one_and_replace(
     })
 }
 
+#[specta::specta]
 #[tauri::command]
 pub async fn mongo_query_collection_insert_many(
     name: String,
@@ -2280,6 +2382,7 @@ pub async fn mongo_query_collection_insert_many(
     Ok(serde_json::to_string(&ret)?)
 }
 
+#[specta::specta]
 #[tauri::command]
 pub async fn mongo_query_collection_insert_one(
     name: String,
@@ -2302,6 +2405,7 @@ pub async fn mongo_query_collection_insert_one(
     Ok(serde_json::to_string(&ret)?)
 }
 
+#[specta::specta]
 #[tauri::command]
 pub async fn mongo_query_collection_list_index_names(
     name: String,
@@ -2321,6 +2425,7 @@ pub async fn mongo_query_collection_list_index_names(
     .map_err(ErrorFrontend::from)?;
     Ok(ret)
 }
+#[specta::specta]
 #[tauri::command]
 pub async fn mongo_query_collection_list_indexes(
     name: String,
@@ -2341,6 +2446,7 @@ pub async fn mongo_query_collection_list_indexes(
     Ok(serde_json::to_string(&indexes)?)
 }
 
+#[specta::specta]
 #[tauri::command]
 pub async fn mongo_query_collection_list_search_indexes(
     name: String,
@@ -2365,6 +2471,7 @@ pub async fn mongo_query_collection_list_search_indexes(
     Ok(ret)
 }
 
+#[specta::specta]
 #[tauri::command]
 pub async fn mongo_query_collection_replace_one(
     name: String,
@@ -2393,6 +2500,7 @@ pub async fn mongo_query_collection_replace_one(
 
     Ok(serde_json::to_string(&ret)?)
 }
+#[specta::specta]
 #[tauri::command]
 pub async fn mongo_query_collection_update_many(
     name: String,
@@ -2421,6 +2529,7 @@ pub async fn mongo_query_collection_update_many(
     Ok(serde_json::to_string(&ret)?)
 }
 
+#[specta::specta]
 #[tauri::command]
 pub async fn mongo_query_collection_update_one(
     name: String,
@@ -2449,6 +2558,7 @@ pub async fn mongo_query_collection_update_one(
     Ok(serde_json::to_string(&ret)?)
 }
 
+#[specta::specta]
 #[tauri::command]
 pub async fn redis_list_lpush(
     name: String,
@@ -2473,6 +2583,7 @@ pub async fn redis_list_lpush(
     Ok(())
 }
 
+#[specta::specta]
 #[tauri::command]
 pub async fn redis_list_rpush(
     name: String,
@@ -2497,6 +2608,7 @@ pub async fn redis_list_rpush(
     Ok(())
 }
 
+#[specta::specta]
 #[tauri::command]
 pub async fn redis_list_remove(
     name: String,
@@ -2522,6 +2634,7 @@ pub async fn redis_list_remove(
     Ok(())
 }
 
+#[specta::specta]
 #[tauri::command]
 pub async fn redis_list_set(
     name: String,
@@ -2547,16 +2660,17 @@ pub async fn redis_list_set(
     Ok(())
 }
 
+#[specta::specta]
 #[tauri::command]
 pub async fn redis_set_replace(
     name: String,
     key: String,
     old: String,
-    new: String,
+    new_value: String,
     app: tauri::State<'_, DBPal>,
 ) -> Result<(), ErrorFrontend> {
     let old = hex::decode(old.as_bytes()).map_err(ErrorFrontend::from)?;
-    let new = hex::decode(new.as_bytes()).map_err(ErrorFrontend::from)?;
+    let new = hex::decode(new_value.as_bytes()).map_err(ErrorFrontend::from)?;
 
     let schema = app
         .get_schema(name.as_str())
@@ -2573,6 +2687,7 @@ pub async fn redis_set_replace(
     Ok(())
 }
 
+#[specta::specta]
 #[tauri::command]
 pub async fn redis_set_del(
     name: String,
@@ -2596,6 +2711,7 @@ pub async fn redis_set_del(
     Ok(())
 }
 
+#[specta::specta]
 #[tauri::command]
 pub async fn redis_set_add(
     name: String,
@@ -2619,6 +2735,7 @@ pub async fn redis_set_add(
     Ok(())
 }
 
+#[specta::specta]
 #[tauri::command]
 pub async fn redis_hash_replace(
     name: String,
@@ -2648,6 +2765,7 @@ pub async fn redis_hash_replace(
     Ok(())
 }
 
+#[specta::specta]
 #[tauri::command]
 pub async fn redis_hash_del(
     name: String,
@@ -2672,6 +2790,7 @@ pub async fn redis_hash_del(
     Ok(())
 }
 
+#[specta::specta]
 #[tauri::command]
 pub async fn redis_hash_add(
     name: String,
@@ -2698,6 +2817,7 @@ pub async fn redis_hash_add(
     Ok(())
 }
 
+#[specta::specta]
 #[tauri::command]
 pub async fn redis_zset_replace(
     name: String,
@@ -2725,6 +2845,7 @@ pub async fn redis_zset_replace(
     Ok(())
 }
 
+#[specta::specta]
 #[tauri::command]
 pub async fn redis_zset_del(
     name: String,
@@ -2748,6 +2869,7 @@ pub async fn redis_zset_del(
     }
     Ok(())
 }
+#[specta::specta]
 #[tauri::command]
 pub async fn redis_zset_add(
     name: String,
@@ -2773,6 +2895,7 @@ pub async fn redis_zset_add(
     Ok(())
 }
 
+#[specta::specta]
 #[tauri::command]
 pub async fn list_procedure(
     name: String,
@@ -2786,11 +2909,12 @@ pub async fn list_procedure(
     Ok(sx)
 }
 
+#[specta::specta]
 #[tauri::command]
 pub async fn show_procedure(
     name: String,
-    procedure: String,
-    arg: Option<UdfOrProcedureExtraParameter>,
+    procedure: NamedStaff,
+
     app: tauri::State<'_, DBPal>,
 ) -> Result<ProcedureDetail, ErrorFrontend> {
     let schema = app
@@ -2798,16 +2922,16 @@ pub async fn show_procedure(
         .await
         .map_err(ErrorFrontend::from)?;
     schema
-        .show_procedure(&procedure, arg)
+        .show_procedure(&procedure)
         .await
         .map_err(ErrorFrontend::from)
 }
 
+#[specta::specta]
 #[tauri::command]
 pub async fn drop_procedure(
     name: String,
-    procedure: String,
-    arg: Option<UdfOrProcedureExtraParameter>,
+    procedure: NamedStaff,
     app: tauri::State<'_, DBPal>,
 ) -> Result<String, ErrorFrontend> {
     let schema = app
@@ -2815,11 +2939,12 @@ pub async fn drop_procedure(
         .await
         .map_err(ErrorFrontend::from)?;
     schema
-        .drop_procedure(&procedure, arg)
+        .drop_procedure(&procedure)
         .await
         .map_err(ErrorFrontend::from)
 }
 
+#[specta::specta]
 #[tauri::command]
 pub async fn list_udf(
     name: String,
@@ -2833,6 +2958,7 @@ pub async fn list_udf(
     Ok(ret)
 }
 
+#[specta::specta]
 #[tauri::command]
 pub async fn list_sequence(
     name: String,
@@ -2846,6 +2972,7 @@ pub async fn list_sequence(
     Ok(ret)
 }
 
+#[specta::specta]
 #[tauri::command]
 pub async fn drop_sequence(
     name: String,
@@ -2863,57 +2990,54 @@ pub async fn drop_sequence(
         .map_err(ErrorFrontend::from)
 }
 
+#[specta::specta]
 #[tauri::command]
 pub async fn rename_sequence(
     name: String,
     app: tauri::State<'_, DBPal>,
     old: String,
-    new: String,
+    new_name: String,
 ) -> Result<String, ErrorFrontend> {
     let schema = app
         .get_schema(name.as_str())
         .await
         .map_err(ErrorFrontend::from)?;
     schema
-        .rename_sequence(&old, &new)
+        .rename_sequence(&old, &new_name)
         .await
         .map_err(ErrorFrontend::from)
 }
 
+#[specta::specta]
 #[tauri::command]
 pub async fn show_udf(
     name: String,
-    udf: String,
-    arg: Option<UdfOrProcedureExtraParameter>,
+    udf: NamedStaff,
     app: tauri::State<'_, DBPal>,
 ) -> Result<DefAndMetas, ErrorFrontend> {
     let schema = app
         .get_schema(name.as_str())
         .await
         .map_err(ErrorFrontend::from)?;
-    schema
-        .show_udf(&udf, arg)
-        .await
-        .map_err(ErrorFrontend::from)
+    schema.show_udf(&udf).await.map_err(ErrorFrontend::from)
 }
 
+#[specta::specta]
 #[tauri::command]
 pub async fn drop_udf(
     name: String,
-    udf: String,
-    arg: Option<UdfOrProcedureExtraParameter>,
+    udf: NamedStaff,
+
     app: tauri::State<'_, DBPal>,
 ) -> Result<String, ErrorFrontend> {
     let schema = app
         .get_schema(name.as_str())
         .await
         .map_err(ErrorFrontend::from)?;
-    schema
-        .drop_udf(&udf, arg)
-        .await
-        .map_err(ErrorFrontend::from)
+    schema.drop_udf(&udf).await.map_err(ErrorFrontend::from)
 }
 
+#[specta::specta]
 #[tauri::command]
 pub async fn redis_string_set(
     name: String,
@@ -2938,6 +3062,7 @@ pub async fn redis_string_set(
     Ok(())
 }
 
+#[specta::specta]
 #[tauri::command]
 pub async fn put_value_in_sql(
     name: String,
@@ -2973,6 +3098,7 @@ pub async fn put_value_in_sql(
         .map_err(ErrorFrontend::from)
 }
 
+#[specta::specta]
 #[tauri::command]
 pub async fn cassandra_list_aggregate(
     name: String,
@@ -2995,6 +3121,7 @@ pub async fn cassandra_list_aggregate(
     Ok(ret)
 }
 
+#[specta::specta]
 #[tauri::command]
 pub async fn cassandra_show_aggregate(
     name: String,
@@ -3022,6 +3149,7 @@ pub async fn cassandra_show_aggregate(
     Ok(ret)
 }
 
+#[specta::specta]
 #[tauri::command]
 pub async fn cassandra_drop_aggregate(
     name: String,
@@ -3046,6 +3174,7 @@ pub async fn cassandra_drop_aggregate(
     }
 }
 
+#[specta::specta]
 #[tauri::command]
 pub async fn drop_created_type(
     name: String,
@@ -3063,11 +3192,13 @@ pub async fn drop_created_type(
         .map_err(ErrorFrontend::from)
 }
 
+#[specta::specta]
 #[tauri::command]
 pub async fn command_panic() -> Result<(), ErrorFrontend> {
     panic!("this is a panic for testing.")
 }
 
+#[specta::specta]
 #[tauri::command]
 pub fn valid_json(json_str: String) -> Result<Option<ErrAndLoc>, ErrorFrontend> {
     use serde_json::Value;
@@ -3081,7 +3212,7 @@ pub fn valid_json(json_str: String) -> Result<Option<ErrAndLoc>, ErrorFrontend> 
     }
 }
 
-#[derive(serde::Serialize)]
+#[derive(serde::Serialize, specta::Type)]
 pub struct DocsAndCount {
     count: u64,
     /// list of docs in bson format.
@@ -3152,7 +3283,7 @@ fn random_error() -> Result<(), ErrorFrontend> {
     }
 }
 
-#[derive(Clone, Debug, serde::Serialize, typescript_type_def::TypeDef)]
+#[derive(Clone, Debug, serde::Serialize, specta::Type)]
 pub struct MuiDataGridData {
     fields: Vec<Field>,
     data: Vec<HashMap<String, String>>,

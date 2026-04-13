@@ -141,7 +141,7 @@ function LeftTop() {
   const { appendTab, setCurrentTab, tabs } = useTabsManage();
   const [showEditFilter, setShowEditFilter] = useState(false);
   const showAddConnection = useCallback(
-    async (conn?: types.DBConnectionConfig) => {
+    async (conn?: DBConnectionConfig) => {
       appendTab(
         new TabContent(
           "add connection",
@@ -859,7 +859,7 @@ function FavoriteSqlList() {
   );
 }
 
-function AConnection(props: { config: types.DBConnectionConfig }) {
+function AConnection(props: { config: DBConnectionConfig }) {
   const { config } = props;
   const makeTree = () => {
     switch (config.conn_type) {
@@ -1404,7 +1404,7 @@ function CatalogTree() {
       return;
     }
     setLoading(name, true);
-    invoke<string[]>("list_database", { name })
+    unwrapCommand(commands.listDatabase(name))
       .then((ds) => {
         setDatabases(ds);
       })

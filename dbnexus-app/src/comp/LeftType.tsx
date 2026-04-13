@@ -27,7 +27,7 @@ import {
 } from "./store";
 function TypesTree() {
   const { uuid, kind } = useContext(UuidContext);
-  const [types, setTypes] = useState<types.CreatedTypeDef[]>([]);
+  const [types, setTypes] = useState<CreatedTypeDef[]>([]);
   const { showNotification } = useNotification();
   const { maxTree } = useMatcher();
   const matchPattern = useMatcherFn();
@@ -43,7 +43,7 @@ function TypesTree() {
   }, [showNotification, uuid]);
   const [showItems, setShowItems] = useState(0);
   useEffect(() => {
-    setShowItems(types.filter((e) => matchPattern(e.name)).length);
+    setShowItems(filter((e) => matchPattern(e.name)).length);
   }, [types, matchPattern]);
 
   const setUpMenu = useContextMenu((state) => state.setUpMenu);
@@ -70,7 +70,7 @@ function TypesTree() {
         }}>
         <PiTreeStructureFill />
         <span> types </span>
-        <ShowingCount showing={showItems} total={types.length} />
+        <ShowingCount showing={showItems} total={length} />
       </Stack>>
       {types
         .filter((typ) => matchPattern(typ.name))
@@ -113,7 +113,7 @@ function TypesTree() {
 
 function TypeMenu(props: {
   uuid;
-  createdType: types.CreatedTypeDef;
+  createdType: CreatedTypeDef;
   reload;
   kind: DataSourceKind;
 }) {
@@ -148,7 +148,7 @@ function TypeMenu(props: {
       return;
     }
 
-    invoke("drop_created_type", { name: uuid, typeName: createdType.name })
+    unwrapCommand(commands.dropCreatedType(uuid, createdType.name))
       .then((sql) => {
         showNotification({
           severity: "success",
