@@ -37,10 +37,7 @@ impl RedisDB {
         log::info!("connect to redis var:{:?}", conn_str);
         let client = redis::Client::open(conn_str.as_str())?;
         let mut conn_config = ConnectionManagerConfig::default();
-        if let Some(timeout) = config.conn_timeout {
-            conn_config = conn_config.set_connection_timeout(timeout.into());
-        }
-
+        conn_config = conn_config.set_connection_timeout(config.conn_timeout.map(Duration::from));
         let m = redis::aio::ConnectionManager::new_with_config(client, conn_config).await?;
         anyhow::Ok(Self {
             config,
@@ -1629,8 +1626,8 @@ impl ReadOnlyTrait for RedisDB {
     }
 }
 
-fn encode_response_value(v: &Value) -> anyhow::Result<Vec<String>> {
-    let ret = match v {
+fn encode_response_value(value: &Value) -> anyhow::Result<Vec<String>> {
+    let ret = match value {
         Value::Set(vs) | Value::Array(vs) => {
             // a set
             let mut result = vec![];
@@ -1674,6 +1671,7 @@ fn encode_response_value(v: &Value) -> anyhow::Result<Vec<String>> {
         Value::ServerError(server_error) => {
             vec![format!("ServerError: {:?}", server_error)]
         }
+        _ => anyhow::bail!("unsupported value type: {:?}", value),
     };
     anyhow::Ok(ret)
 }
@@ -1755,41 +1753,10 @@ mod tests {
     use super::make_test_object;
     use super::*;
     use super::{extract_db_from_info_key_space, split_info_colon, RedisDB};
-    use crate::db::{
-        DBTrait, ExportKind, ExportQueryResult, GetBackendKind, QuerySql, SchemaTrait, ServerMetas,
-        ShowTableParameter,
-    };
+    use crate::db::{DBTrait, QuerySql, SchemaTrait, ServerMetas, ShowTableParameter};
     use crate::enable_test_log;
-    use futures_util::StreamExt;
-    use redis::AsyncCommands;
+
     use std::time::Duration;
-
-    #[tokio::test]
-    async fn test_select_zset_binary() {
-        let db = make_test_object().await;
-        let mut conn = db.get_conn().await.unwrap();
-        let mut x: redis::AsyncIter<'_, Vec<u8>> = conn.zscan("zset_value").await.unwrap();
-        while let Some(val) = x.next().await {
-            println!("{:?}", val);
-        }
-    }
-
-    async fn test_query_export(
-        db: &RedisDB,
-        query_id: &str,
-        cmd: &str,
-        key: &str,
-        kind: ExportKind,
-    ) {
-        {
-            // xlsx
-            let name = db.backend_kind().make_test_xlsx_file(key);
-            db.export_query_result_to_file(query_id, cmd, kind, &name, Arc::new(|_| {}))
-                .await
-                .unwrap();
-            opener::open(name.as_str()).unwrap();
-        }
-    }
 
     #[test]
     fn test_extract_db_from_info_key_space() {
@@ -1823,7 +1790,7 @@ db1:keys=1,expires=0,avg_ttl=0"#,
     }
 
     #[tokio::test]
-    async fn test_rename() {
+    async fn test_rename_a_key() {
         enable_test_log();
         let db = make_test_object().await;
 
@@ -1863,7 +1830,6 @@ db1:keys=1,expires=0,avg_ttl=0"#,
             println!("db:{:?}", db_names);
             db.open_schema(db_name).await.unwrap();
         }
-
         db.drop_schema("db11").await.unwrap();
     }
 
@@ -1955,57 +1921,9 @@ db1:keys=1,expires=0,avg_ttl=0"#,
             .unwrap()
             .unwrap();
         // export
-        {
-            let s = db
-                .export_table_to_string(
-                    table_name,
-                    ExportKind::Csv {
-                        include_header: false,
-                        delimiter: ',',
-                    },
-                )
-                .await
-                .unwrap();
-            println!("csv:{}", s);
-            let s = db
-                .export_table_to_string(table_name, ExportKind::Json { pretty: true })
-                .await
-                .unwrap();
 
-            let _: serde_json::Value = serde_json::from_str(&s).unwrap();
-            println!("json:{}", s);
+        GetTestExportTableKinds::test_export(&db, table_name).await;
 
-            let s = db
-                .export_table_to_string(table_name, ExportKind::JsonLine)
-                .await
-                .unwrap();
-            println!("json_line:{}", s);
-            let s = db
-                .export_table_to_string(
-                    table_name,
-                    ExportKind::Sql {
-                        include_table_schema: false,
-                    },
-                )
-                .await
-                .unwrap();
-            println!("sql:{}", s);
-            let s = db
-                .export_table_to_string(
-                    table_name,
-                    ExportKind::Html {
-                        include_header: false,
-                    },
-                )
-                .await
-                .unwrap();
-            println!("html:{}", s);
-            let s = db
-                .export_table_to_string(table_name, ExportKind::MarkDown)
-                .await
-                .unwrap();
-            println!("markdown:{}", s);
-        }
         let cols = db.show_table_columns(table_name).await.unwrap();
         println!("{:?}", cols);
         let resp = db
@@ -2074,17 +1992,6 @@ db1:keys=1,expires=0,avg_ttl=0"#,
         db.duplicate_table(table_name, &table_name_dup)
             .await
             .unwrap();
-
-        test_query_export(
-            &db,
-            query_id,
-            format!("zrange {table_name} 0 -1 WITHSCORES").as_str(),
-            table_name,
-            ExportKind::Xlsx {
-                include_header: false,
-            },
-        )
-        .await;
     }
 
     #[tokio::test]

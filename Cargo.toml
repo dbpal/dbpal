@@ -31,20 +31,19 @@ log = { version = "0.4.22", features = ["std"] }
 futures-util = "*"
 futures-core = "*"
 mongodb = { version = "3.3", features = ["rustls-tls"] }
-rand = "0.9"
+rand = "0.10"
 tokio-util = "*"
 uuid = { version = "*", features = ["v4"] }
 typescript-type-def = "0.5.11"
 include_dir = "0.7.4"
 base64 = "*"
-redis = { version = "*", features = [
+redis = { version = "1", features = [
     "tokio-comp",
     "aio",
     "tls-rustls",
     "connection-manager",
-    "safe_iterators",
     "tokio-rustls-comp",
 
 ] }
 
-reqwest = { version = "0.12", features = ["json", "rustls-tls", "stream"] }
+reqwest = { version = "0.13", features = ["json", "rustls", "stream"] }

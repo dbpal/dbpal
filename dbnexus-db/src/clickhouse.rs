@@ -895,7 +895,7 @@ impl ClickHouseDB {
         }
 
         if config.read_only {
-            client = client.with_option("readonly", "1");
+            client = client.with_setting("readonly", "1");
         }
 
         let http_client = {

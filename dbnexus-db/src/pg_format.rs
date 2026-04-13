@@ -401,14 +401,14 @@ pub(crate) fn encode_row_as_json(
                 value.map(serde_json::Value::Array)
             }
             "BIT" => {
-                let value: Option<bit_vec::BitVec> = r.try_get(c)?;
+                let value: Option<sqlx_bit_vec::BitVec> = r.try_get(c)?;
                 value
                     .map(|x| output_bit_vec(&x))
                     .map(serde_json::Value::from)
             }
 
             "BIT[]" => {
-                let value: Option<Vec<bit_vec::BitVec>> = r.try_get(c)?;
+                let value: Option<Vec<sqlx_bit_vec::BitVec>> = r.try_get(c)?;
                 let value = value.map(|x| {
                     x.into_iter()
                         .map(|x| serde_json::Value::from(output_bit_vec(&x)))
@@ -419,13 +419,13 @@ pub(crate) fn encode_row_as_json(
             }
 
             "VARBIT" | "BIT VARYING" => {
-                let value: Option<bit_vec::BitVec> = r.try_get(c)?;
+                let value: Option<sqlx_bit_vec::BitVec> = r.try_get(c)?;
                 value
                     .map(|x| output_bit_vec(&x))
                     .map(serde_json::Value::from)
             }
             "VARBIT[]" => {
-                let value: Option<Vec<bit_vec::BitVec>> = r.try_get(c)?;
+                let value: Option<Vec<sqlx_bit_vec::BitVec>> = r.try_get(c)?;
                 let value = value.map(|x| {
                     x.into_iter()
                         .map(|x| serde_json::Value::from(output_bit_vec(&x)))
@@ -813,20 +813,20 @@ pub(crate) fn encode_row(r: &PgRow) -> anyhow::Result<Vec<Option<String>>> {
                 value.map(|x| output_pg_timez_array(&x))
             }
             "BIT" => {
-                let value: Option<bit_vec::BitVec> = r.try_get(c)?;
+                let value: Option<sqlx_bit_vec::BitVec> = r.try_get(c)?;
                 value.map(|x| output_bit_vec(&x))
             }
             "BIT[]" => {
-                let value: Option<Vec<bit_vec::BitVec>> = r.try_get(c)?;
+                let value: Option<Vec<sqlx_bit_vec::BitVec>> = r.try_get(c)?;
                 value.map(|x| output_bit_vec_array(&x))
             }
 
             "VARBIT" | "BIT VARYING" => {
-                let value: Option<bit_vec::BitVec> = r.try_get(c)?;
+                let value: Option<sqlx_bit_vec::BitVec> = r.try_get(c)?;
                 value.map(|x| output_bit_vec(&x))
             }
             "VARBIT[]" => {
-                let value: Option<Vec<bit_vec::BitVec>> = r.try_get(c)?;
+                let value: Option<Vec<sqlx_bit_vec::BitVec>> = r.try_get(c)?;
                 value.map(|x| output_bit_vec_array(&x))
             }
             "RECORD" => default_str,
@@ -1188,7 +1188,7 @@ pub(crate) fn output_range_array<T: std::fmt::Display>(array: &[PgRange<T>]) -> 
     ret
 }
 
-pub(crate) fn output_bit_vec(v: &bit_vec::BitVec) -> String {
+pub(crate) fn output_bit_vec(v: &sqlx_bit_vec::BitVec) -> String {
     let mut ret = String::new();
     for b in v.clone().into_iter() {
         if b {
@@ -1200,7 +1200,7 @@ pub(crate) fn output_bit_vec(v: &bit_vec::BitVec) -> String {
     ret
 }
 
-pub(crate) fn output_bit_vec_array(array: &[bit_vec::BitVec]) -> String {
+pub(crate) fn output_bit_vec_array(array: &[sqlx_bit_vec::BitVec]) -> String {
     if array.is_empty() {
         return "{}".to_string();
     }

@@ -678,10 +678,11 @@ function SqlQuery(props: {
               setMarkdownModel(false);
               jumpToEditorText(editor, code);
             }}
-            appcodeExtra={({ code }) => {
+            appcodeExtra={({ code, language }) => {
+              console.log("language", language, language !== "sql");
               return (
                 <QueryButtons
-                  disabled={false}
+                  disabled={language !== "sql"}
                   getText={() => {
                     return code;
                   }}

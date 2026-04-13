@@ -126,14 +126,6 @@ impl BackendKind {
         }
     }
 
-    #[cfg(test)]
-    pub(crate) fn make_test_xlsx_file(self, name: &str) -> String {
-        let env = std::env::temp_dir();
-        let filepath = env.join(format!("{}_{}_export.xlsx", self, name));
-        let filepath = filepath.as_path().to_str().unwrap();
-        filepath.to_string()
-    }
-
     pub fn format_fields(&self, fields: Option<&[Field]>) -> String {
         if let Some(fields) = fields {
             fields
@@ -1494,9 +1486,35 @@ async fn collect_export_str(
                         ret.push_str(&x);
                     }
                     _ => unreachable!("kind:{:?} data:{:?}", kind, x),
-                }
+                };
+
+                ret.push('\n');
             }
 
+            anyhow::Ok(ret)
+        }
+        ExportKind::Xlsx { .. } => {
+            let mut ret = String::new();
+            let mut last: Option<XlsxEdit> = None;
+            while let Some(r) = receiver.recv().await {
+                // check something
+
+                match &r {
+                    ExportFrame::Xlsx(x) => {
+                        if let Some(last) = &last {
+                            assert!(last.row + 1 == x.row || last.column + 1 == x.column);
+                        }
+                        last = Some(x.clone());
+                    }
+
+                    _ => {
+                        unreachable!()
+                    }
+                }
+
+                ret.push_str(r.to_string().as_str());
+                ret.push('\n');
+            }
             anyhow::Ok(ret)
         }
         _ => {

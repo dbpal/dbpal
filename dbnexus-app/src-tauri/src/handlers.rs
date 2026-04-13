@@ -19,6 +19,7 @@ use dbnexus_db::redis::{redis_tokenize, RedisDB, RedisListTable};
 use dbnexus_db::redis_lang_server::REDIS_COMMANDS_MD_FILES;
 use include_dir::{include_dir, Dir};
 use mongodb::bson::{self, doc, Document};
+use rand::RngExt;
 use std::collections::HashMap;
 use std::env;
 use std::str::FromStr;
@@ -3118,7 +3119,6 @@ fn encode_bson_doc(doc: &Document) -> Result<Vec<u8>, String> {
 fn block_random_sleep() {
     if cfg!(feature = "random-sleep") {
         let duration = {
-            use rand::Rng;
             let mut rng = rand::rng();
             let millis = rng.random_range(500..1700);
             std::time::Duration::from_millis(millis)
@@ -3129,7 +3129,6 @@ fn block_random_sleep() {
 async fn random_sleep() {
     if cfg!(feature = "random-sleep") {
         let duration = {
-            use rand::Rng;
             let mut rng = rand::rng();
             let millis = rng.random_range(500..1700);
 
@@ -3142,7 +3141,6 @@ async fn random_sleep() {
 fn random_error() -> Result<(), ErrorFrontend> {
     if cfg!(feature = "random-error") {
         {
-            use rand::Rng;
             let mut rng = rand::rng();
             let x: i8 = rng.random_range(1..100);
             if x > 50 {

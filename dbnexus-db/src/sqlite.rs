@@ -1671,7 +1671,7 @@ mod tests {
         db.open_connection(query_id).await.unwrap();
         let mut conn = db.get_conn().await.unwrap();
 
-        for i in 0..2 {
+        for i in 0..10 {
             let table_name = format!("has_data_{}", i);
             let err = db.drop_table(&table_name, false).await;
             if let Err(err) = err {
