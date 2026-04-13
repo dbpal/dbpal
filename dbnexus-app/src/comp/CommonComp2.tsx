@@ -1866,7 +1866,7 @@ function AiMarkdownModelSwitch(props: { setMarkdownModel; markdownModel: boolean
   const { getSwitch, setSwitch } = useBoolSwitch();
   const switchKey = "ai-markdown-model";
   const llm = useLLM();
-
+  const { show: chatshow } = useContext(ChatShowContext);
   const vis = useContext(TabActiveContext);
   useEffect(() => {
     if (!llm) {
@@ -1875,6 +1875,14 @@ function AiMarkdownModelSwitch(props: { setMarkdownModel; markdownModel: boolean
     const v = getSwitch(switchKey);
     setMarkdownModel(v);
   }, [getSwitch, llm, setMarkdownModel]);
+
+  useEffect(() => {
+    if (chatshow) {
+      // nothing to do here
+    } else {
+      setMarkdownModel(false);
+    }
+  }, [chatshow, setMarkdownModel]);
 
   useEffect(() => {
     if (!llm) {
