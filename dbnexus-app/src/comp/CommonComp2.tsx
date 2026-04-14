@@ -1512,12 +1512,12 @@ function LastFetchTime(props: { date: Date }) {
 }
 
 function AppDataGridToolBar(props: {
-  title: string;
+  title?: string;
   left?: ReactNode;
   right?: ReactNode;
-  noWrapLeft?: boolean; // don't wrap left in `Stack` node
+  disableBorder?: boolean;
 }) {
-  const { title, left, right, noWrapLeft } = props;
+  const { title, left, right, disableBorder } = props;
   const theme = useTheme();
   return (
     <Stack
@@ -1525,12 +1525,12 @@ function AppDataGridToolBar(props: {
       style={{
         alignItems: "center",
         justifyContent: "space-between",
-        border: "2px solid " + theme.palette.secondary.main,
+        border: disableBorder ? undefined : "2px solid " + theme.palette.secondary.main,
         borderRadius: "4px",
         padding: "2px 4px",
       }}>
-      {noWrapLeft ? left : <StackRowCenter>{left}</StackRowCenter>}
-      <Typography variant="h5">{title}</Typography>
+      <StackRowCenter>{left}</StackRowCenter>
+      {title && <Typography variant="h5">{title}</Typography>}
       <Stack direction="row" style={{ alignItems: "center" }}>
         {right}
         <CustomToolbar />

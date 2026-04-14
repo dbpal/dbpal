@@ -32,7 +32,11 @@ import ArrowDownwardIcon from "@mui/icons-material/ArrowDownward";
 import ContentCopyIcon from "@mui/icons-material/ContentCopy";
 import { AppColumnMenu, ResetColumnWidth, ViewRowInModal } from "./CommonComp.tsx";
 import VisibilityIcon from "@mui/icons-material/Visibility";
-import { AppDataGridPagination, StackRowCenter } from "./CommonComp2.tsx";
+import {
+  AppDataGridPagination,
+  AppDataGridToolBar,
+  StackRowCenter,
+} from "./CommonComp2.tsx";
 import {
   useColumnWidthStore,
   useContextMenu,
@@ -191,6 +195,7 @@ function QueryResp(props: { data: MuiDataGridData }) {
               overflow: "auto",
             }}>
             <Stack style={{ flex: 1, alignItems: "center" }} direction="row">
+              <AppDataGridToolBar disableBorder />
               <ResetColumnWidth />
               <Typography color="info">rows: {data.data.length} </Typography>
             </Stack>
@@ -231,6 +236,7 @@ function QueryResp(props: { data: MuiDataGridData }) {
             style={dataGridStyle}
             columns={data.fields}
             rows={data.data}
+            showToolbar={false}
             filterMode="client" // 使用客户端过滤
             onColumnResize={onColumnResize}
             paginationModel={{ page, pageSize }}
