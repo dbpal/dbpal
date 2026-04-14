@@ -122,7 +122,7 @@ const confirmAboutPrimary = async (
   return secondConfirm({
     title: "No Primary key found.",
     content: "No Primary key found,maybe multi row affected.",
-    kind: "error",
+    kind: "warning",
   });
 };
 
@@ -532,7 +532,7 @@ function SqlTableView(props: {
       if (!(await confirmAboutPrimary(notWarnPri, resp.fields))) {
         return oldRow;
       }
-      const data = await getUpdateSql(old, updateRow);
+      const data = await getUpdateSql(updateRow, old);
       setOps((e) => [
         ...e,
         new DatabaseOperation(
@@ -569,9 +569,7 @@ function SqlTableView(props: {
         showNotification({ severity: "warning", title: "row is modifying" });
         return;
       }
-
-      let old2 = { ...old };
-      const data = await getDeleteSql(old2);
+      const data = await getDeleteSql(old);
       setOps((e) => [
         ...e,
         new DatabaseOperation(DatabaseOpKind.Delete, data, tryGetId(old, resp.fields)),

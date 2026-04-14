@@ -761,17 +761,15 @@ pub trait SqlBuilder: GetBackendKind {
             let last = values.len() - 1;
             for (index, (k, v)) in values.iter().enumerate() {
                 let f = field_by_name.get(k);
-                if f.is_none() {
-                    anyhow::bail!("field '{}' not found", k);
-                }
+                let f = match f {
+                    Some(f) => *f,
+                    None => continue,
+                };
                 sql.push_str(
                     format!(
                         "{} = {}",
                         self.quote(k),
-                        self.put_value_in_sql(
-                            &f.option_must_be_some()?.data_type,
-                            v.as_ref().map(|x| x.as_str())
-                        )?
+                        self.put_value_in_sql(&f.data_type, v.as_ref().map(|x| x.as_str()))?
                     )
                     .as_str(),
                 );

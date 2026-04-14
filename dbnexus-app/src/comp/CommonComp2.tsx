@@ -109,7 +109,6 @@ import EditIcon from "@mui/icons-material/Edit";
 import { Highlight, themes } from "prism-react-renderer";
 
 interface ClearableTextFieldProps extends Omit<TextFieldProps, "variant"> {
-  // Use Dispatch<SetStateAction<string>> to match useState's setter type
   onClear: () => void;
 }
 
@@ -1829,7 +1828,7 @@ function AiMarkdownModel(props: {
       const distanceFromBottom = dom.scrollHeight - dom.scrollTop - dom.clientHeight;
       // 2. 设置一个缓冲区阈值（如 100 像素）
       // 如果距离底部小于 100px，说明用户还在底部附近，允许自动滚动
-      if (distanceFromBottom < 200) {
+      if (distanceFromBottom < 220) {
         dom.scrollTop = dom.scrollHeight;
       }
     });
