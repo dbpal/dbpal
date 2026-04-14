@@ -3,7 +3,7 @@ import * as monaco from "monaco-editor";
 import { useUserSettings } from "./store";
 
 interface MonacoEditorProps {
-  value: string;
+  value?: string;
   language: string;
   onMount: (_: monaco.editor.IStandaloneCodeEditor) => void;
   readOnly?: boolean;

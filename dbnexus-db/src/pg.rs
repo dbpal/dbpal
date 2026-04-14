@@ -23,7 +23,7 @@ use crate::db::{
 };
 
 use crate::helper::{create_csv, generate_random_string};
-use crate::language_server::LexerCompletionTrait;
+use crate::language_server::{LangServerCommon, LexerCompletionTrait};
 use crate::pg_format::*;
 
 /// postgres version of pg.
@@ -1196,7 +1196,9 @@ impl SchemaTrait for PostGresDB {
         for r in rows.iter() {
             let index_name: String = r.get(1);
             let column_names: Option<Vec<String>> = r.get(2);
-            let index_kind = get_index_kind(&mut conn, table_name, &index_name).await?;
+            let index_kind = self
+                .get_index_kind(&mut conn, table_name, &index_name)
+                .await?;
             ret.push(Index::new(
                 index_name,
                 index_kind,
@@ -1740,33 +1742,33 @@ async fn get_index_def(
     anyhow::Ok(sql)
 }
 
-async fn get_index_kind(
-    conn: &mut PoolConnection<Postgres>,
-    table_name: &str,
-    index_name: &str,
-) -> anyhow::Result<IndexKind> {
-    let sql: String = get_index_def(conn, table_name, index_name).await?;
-    let statements = sqlparser::parser::Parser::parse_sql(
-        &sqlparser::dialect::PostgreSqlDialect {},
-        sql.as_str(),
-    )?;
-    if statements.len() != 1 {
-        anyhow::bail!("parse create index should contains one statement");
-    }
-    let stmt = &statements[0];
-    use sqlparser::ast::Statement;
-
-    match stmt {
-        Statement::CreateIndex(create_index) => {
-            if create_index.unique {
-                anyhow::Ok(IndexKind::Unique)
-            } else {
-                anyhow::Ok(IndexKind::Index)
-            }
+impl PostGresDB {
+    async fn get_index_kind(
+        &self,
+        conn: &mut PoolConnection<Postgres>,
+        table_name: &str,
+        index_name: &str,
+    ) -> anyhow::Result<IndexKind> {
+        let sql: String = get_index_def(conn, table_name, index_name).await?;
+        let statements = self.parse_statements(&sql)?;
+        if statements.len() != 1 {
+            anyhow::bail!("parse create index should contains one statement");
         }
+        let stmt = &statements[0];
+        use sqlparser::ast::Statement;
 
-        _ => {
-            anyhow::bail!(format!("the sql is not a create index"))
+        match stmt {
+            Statement::CreateIndex(create_index) => {
+                if create_index.unique {
+                    anyhow::Ok(IndexKind::Unique)
+                } else {
+                    anyhow::Ok(IndexKind::Index)
+                }
+            }
+
+            _ => {
+                anyhow::bail!(format!("the sql is not a create index"))
+            }
         }
     }
 }
