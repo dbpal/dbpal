@@ -46,27 +46,15 @@ function HostAndPort(props: { host; port; setHost; setPort }) {
   const { host, port, setHost, setPort } = props;
   return (
     <Stack direction="row">
-      <TextField
+      <ClearableTextField
         fullWidth
         label="Host"
         value={host}
         sx={{ mr: 1 }}
-        onChange={(event) => setHost(event.target.value)}
-        slotProps={{
-          input: {
-            endAdornment: host && (
-              <InputAdornment position="end">
-                <IconButton
-                  onClick={() => {
-                    setHost("");
-                  }}
-                  edge="end">
-                  <ClearIcon fontSize="small" />
-                </IconButton>
-              </InputAdornment>
-            ),
-          },
+        onClear={() => {
+          setHost("");
         }}
+        onChange={(event) => setHost(event.target.value)}
         required
       />
       <TextField
