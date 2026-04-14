@@ -694,7 +694,7 @@ function LLMSetting(props: { handleClose?: () => void }) {
               </Stack>
             </li>
           )}
-          freeSolo={false}
+          freeSolo={true}
           onChange={(_, name) => {
             setModel(typeof name == "string" ? name : name.id);
           }}
@@ -740,7 +740,7 @@ function LLMSetting(props: { handleClose?: () => void }) {
           }}
         />
         <Autocomplete
-          options={["duckduckgo", "serpapi", "tavily"]}
+          options={["duckduckgo", "serpapi", "tavily", "google"]}
           style={{ width: "12rem" }}
           value={searchEngine.provider}
           renderInput={(params) => <TextField {...params} label={"search engine"} />}
@@ -750,7 +750,7 @@ function LLMSetting(props: { handleClose?: () => void }) {
           }}
         />
 
-        {["serpapi", "tavily"].includes(searchEngine.provider) && (
+        {["serpapi", "tavily", "google"].includes(searchEngine.provider) && (
           <ClearableTextField
             value={searchEngine.api_key}
             onChange={(e) => {

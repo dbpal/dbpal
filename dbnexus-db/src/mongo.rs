@@ -815,8 +815,7 @@ pub struct MongoShowTablePara {
     pub page_size: u64,
 }
 
-#[cfg(test)]
-pub(crate) fn make_test_object() -> MongoDB {
+pub fn make_test_object() -> MongoDB {
     let x = MongoDB::new(MongoDBConfig {
         conn_timeout: Some(5000.into()),
         host: crate::TEST_HOST.to_string(),

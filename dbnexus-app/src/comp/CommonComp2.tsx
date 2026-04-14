@@ -564,12 +564,10 @@ function SimpleFlexEditor(props: {
     if (!editor) {
       return;
     }
-
     if (handleValue) {
       let d = editor.onDidChangeModelContent(() => {
         handleValue(editor.getValue());
       });
-
       return () => {
         d.dispose();
       };

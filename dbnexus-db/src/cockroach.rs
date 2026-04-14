@@ -364,10 +364,7 @@ mod tests {
         .unwrap();
         let list = db.list_procedure().await.unwrap();
         for l in list.iter() {
-            let details = db
-                .show_procedure(l)
-                .await
-                .unwrap();
+            let details = db.show_procedure(l).await.unwrap();
             println!("udf:{},details:{:?}", l.name, details);
         }
     }
@@ -501,10 +498,7 @@ mod tests {
                 continue;
             }
             println!("udf:{:?}", l);
-            let details = pg
-                .show_udf(l)
-                .await
-                .unwrap();
+            let details = pg.show_udf(l).await.unwrap();
             println!("name:{} , udf:{:?}", l.name, details);
         }
     }

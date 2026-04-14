@@ -59,7 +59,7 @@ fn make_agent(
         agent_builder = agent_builder.temperature(t);
     }
     // TODO how to set this???
-    agent_builder = agent_builder.default_max_turns(10);
+    agent_builder = agent_builder.default_max_turns(20);
 
     let agent = agent_builder.tools(tools).build();
     anyhow::Ok(agent)
@@ -208,10 +208,15 @@ impl DBPal {
                     .downcast_ref::<MongoDB>()
                     .expect("must be mongodb");
                 let c = Clone::clone(x);
-                let r: Vec<Box<dyn ToolDyn>> = vec![Box::new(mongo::MongoQueryTool {
-                    client: c,
-                    max_limit: 10_000,
-                })];
+                let r: Vec<Box<dyn ToolDyn>> = vec![
+                    Box::new(mongo_tool::MongoQueryTool {
+                        client: c,
+                        max_limit: 10_000,
+                    }),
+                    Box::new(mongo_tool::MongoRunCommandTool {
+                        client: Clone::clone(x),
+                    }),
+                ];
                 anyhow::Ok(r)
             }
 
@@ -253,9 +258,7 @@ impl From<mongodb::error::Error> for CallToolErr {
 }
 impl From<String> for CallToolErr {
     fn from(value: String) -> Self {
-        Self {
-            err_msg: value,
-        }
+        Self { err_msg: value }
     }
 }
 impl From<&str> for CallToolErr {
@@ -678,6 +681,13 @@ impl AiOnlineSearch {
                         return Err(ErrorFrontend::from("serpapi need api key."));
                     }
                 }
+                "google" => {
+                    if let Some(x) = self.api_key.as_ref() {
+                        Box::new(websearch::providers::GoogleProvider::new(x, "rig-agent")?)
+                    } else {
+                        return Err(ErrorFrontend::from("serpapi need api key."));
+                    }
+                }
                 _ => {
                     return Err(ErrorFrontend::from(format!(
                         "search enginenot found:{}",
@@ -798,7 +808,7 @@ impl Tool for WebSearchTool {
     }
 }
 
-mod mongo {
+mod mongo_tool {
 
     use dbnexus_db::mongo::MongoDB;
     use futures_util::StreamExt;
@@ -879,25 +889,24 @@ mod mongo {
 
             let result = match operation.as_str() {
                 "find" => {
-                    let mut find = collection.find(filter.unwrap_or_default());
+                    let mut builder = collection.find(filter.unwrap_or_default());
 
                     if let Some(proj) = projection {
-                        find = find.projection(proj);
+                        builder = builder.projection(proj);
                     }
                     if let Some(sort) = sort {
-                        find = find.sort(sort);
+                        builder = builder.sort(sort);
                     }
-                    find = find.limit(limit);
+                    builder = builder.limit(limit);
                     if let Some(skip) = skip {
-                        find = find.skip(skip);
+                        builder = builder.skip(skip);
                     }
-                    let mut cursor = find.await?;
+                    let mut cursor = builder.await?;
                     let mut ret = Vec::new();
                     while let Some(doc) = cursor.next().await {
                         let doc = doc?;
                         ret.push(doc);
                     }
-
                     ret
                 }
 
@@ -921,6 +930,24 @@ mod mongo {
                         .unwrap();
                     vec![doc! { "count": count as i64 }]
                 }
+                "distinct" => {
+                    let field_name = projection
+                        .and_then(|p| p.keys().next().cloned())
+                        .ok_or_else(|| {
+                            CallToolErr::from("distinct requires field name in projection")
+                        })?;
+                    let result = db
+                        .run_command(doc! {
+                            "distinct": &collection_name,
+                            "key": field_name,
+                            "query": filter.unwrap_or_default()
+                        })
+                        .await
+                        .map_err(|e| CallToolErr::from(e.to_string()))?;
+
+                    vec![result] // 包装成数组保持返回类型一致
+                }
+
                 _ => return Err(format!("Unsupported operation: {}", operation).into()),
             };
 
@@ -967,6 +994,60 @@ mod mongo {
             }
         }
         type Error = CallToolErr;
+    }
+
+    #[derive(Debug, Serialize, Deserialize)]
+    pub struct RunCommandArgs {
+        /// MongoDB command document to execute. First key must be the command name.
+        /// Examples: {"serverStatus": 1}, {"createIndex": "coll", "key": {"f": 1}}
+        pub command: Document,
+    }
+
+    #[derive(Debug, Serialize, Deserialize)]
+    pub struct RunCommandOutput {
+        /// Raw response from MongoDB
+        pub result: Document,
+    }
+    #[derive(Clone)]
+    pub struct MongoRunCommandTool {
+        pub(crate) client: MongoDB,
+    }
+
+    impl Tool for MongoRunCommandTool {
+        const NAME: &'static str = "mongodb_run_command";
+
+        type Args = RunCommandArgs;
+        type Output = RunCommandOutput;
+        type Error = CallToolErr;
+
+        async fn definition(&self, _prompt: String) -> ToolDefinition {
+            ToolDefinition {
+                name: "mongodb_run_command".to_string(),
+                description:
+                    "Execute a raw MongoDB database command and return the server response."
+                        .to_string(),
+                parameters: serde_json::json!({
+                    "type": "object",
+                    "properties": {
+                        "command": {
+                            "type": "object",
+                            "description": "MongoDB command document to execute. First key must be the command name. Examples: {\"serverStatus\": 1}, {\"dbStats\": 1}, {\"createIndexes\": \"users\", \"indexes\": [{\"key\": {\"email\": 1}, \"unique\": true}]}, {\"aggregate\": \"orders\", \"pipeline\": [{\"$group\": {\"_id\": \"$status\"}}], \"cursor\": {}}"
+                        }
+                    },
+                    "required": ["command"]
+                }),
+            }
+        }
+
+        async fn call(&self, args: Self::Args) -> Result<Self::Output, Self::Error> {
+            let result = self
+                .client
+                .get_db()
+                .await?
+                .run_command(args.command)
+                .await?;
+            Ok(RunCommandOutput { result })
+        }
     }
 }
 
@@ -1097,7 +1178,7 @@ fn make_mongo_prompt() -> String {
         r#"
 const db : IMongoDB; // db is a database handle can access the database
 const setUpClean : (name :string, f : ()=>void)=> void; // setup a clean function by name and callback
-const bson : any; // bson will initialize by 'await import("bson")'
+const BSON : any; // bson will initialize by 'await import("bson")'
         "#
     )
 }
@@ -1107,7 +1188,7 @@ mod tests {
     use super::*;
     use dbnexus_db::{
         datasource_config::SqliteDBConfig,
-        db::QuerySql,
+        db::{QuerySql, SchemaTrait},
         sqlite::{sqlite_test_file_path, SqliteDB},
     };
     use futures_util::StreamExt;
@@ -1152,7 +1233,6 @@ mod tests {
     #[tokio::test]
 
     async fn test_openai_prompt() {
-        // enable_test_log();
         let now = std::time::Instant::now();
 
         let req = &OpenAIReq {
@@ -1480,6 +1560,113 @@ human: tell me Mike's age from TABLE Persons
             call_openai_stream(agent, print_steam.clone(), |x| x.to_owned(), msg)
                 .await
                 .unwrap();
+        }
+        {
+            println!("testing google tool...");
+            let agent = make_agent(
+                req,
+                vec![Box::new(WebSearchTool {
+                    engine: Box::new(
+                        websearch::providers::GoogleProvider::new(
+                            "470cd3e4754aa5b76b04e80ddc85520e1d953cd303d6487ebe7c949e6629fbc4",
+                            "rig-agent",
+                        )
+                        .unwrap(),
+                    ),
+                    emit: print_steam.clone(),
+                })],
+                None,
+            )
+            .unwrap();
+
+            let msg = Message::user(&req.prompt);
+
+            call_openai_stream(agent, print_steam.clone(), |x| x.to_owned(), msg)
+                .await
+                .unwrap();
+        }
+    }
+
+    #[tokio::test]
+
+    async fn test_mongo_tool() {
+        let db = dbnexus_db::mongo::make_test_object();
+        let col = "Person";
+        let _ = db.drop_table(col, false).await;
+        db.query_collection_insert_many(
+            col,
+            vec![
+                doc! {
+                    "name": "Alice",
+                    "age" : 18,
+                },
+                doc! {
+                    "name": "Bob",
+                    "age" : 19,
+                },
+                doc! {
+                    "name": "Mike",
+                    "age" : 55,
+                },
+            ],
+        )
+        .await
+        .unwrap();
+
+        let req = &OpenAIReq {
+            user_system_prompt: None,
+            url: "https://dashscope.aliyuncs.com/compatible-mode/v1".into(),
+            api_key: "sk-6c19c965d3234c8fae49c19e4f0301f0".into(),
+            model: "qwen3.5-plus".into(),
+            chat_history: vec![],
+            prompt: r#""#.into(),
+            temperature: None,
+            max_tokens: None,
+            top_p: None,
+            images: vec![],
+            search_engine: Default::default(),
+        };
+
+        let emit = Arc::new(|x| print!("{}", x));
+
+        {
+            //
+            let agent = make_agent(
+                req,
+                vec![
+                    Box::new(mongo_tool::MongoQueryTool {
+                        client: Clone::clone(&db),
+                        max_limit: 10,
+                    }),
+                    Box::new(mongo_tool::MongoRunCommandTool {
+                        client: Clone::clone(&db),
+                    }),
+                ],
+                Some("u are a mongo export"),
+            )
+            .unwrap();
+
+            //
+
+            println!("=============================== tell me the server version.");
+            call_openai_stream(
+                agent.clone(),
+                emit.clone(),
+                |x| x.to_string(),
+                Message::user("tell me the server version."),
+            )
+            .await
+            .unwrap();
+
+            println!("=========================================================== ");
+            call_openai_stream(
+                agent.clone(),
+                emit.clone(),
+                |x| x.to_string(),
+                Message::user("tell me who is the oldest in table Person"),
+            )
+            .await
+            .unwrap();
         }
     }
 }

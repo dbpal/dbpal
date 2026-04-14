@@ -553,7 +553,7 @@ function MongoQuery(props: {
   const [db] = useState(new MongoDBQuery(uuid));
   const [cleanFns, setCleanFns] = useState<CleanFunction[]>([]);
   const { showNotification } = useNotification();
-  const [bson, setBson] = useState(null);
+  const [BSON, setBSON] = useState(null);
   const [language, setLanguage] = useState<MongoLanguage>(
     valueLanguage ? (valueLanguage as MongoLanguage) : lastLanguage,
   );
@@ -593,7 +593,7 @@ function MongoQuery(props: {
 
   useEffect(() => {
     import("bson").then((e) => {
-      setBson(e);
+      setBSON(e);
     });
   }, []);
 
@@ -778,7 +778,7 @@ function MongoQuery(props: {
       {db && <span />}
       {cleanFns && <span />}
 
-      {bson && <span />}
+      {BSON && <span />}
       {setUpClean && <span />}
     </Stack>
   );
