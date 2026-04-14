@@ -15,8 +15,7 @@ import { GridColDef } from "@mui/x-data-grid";
 import * as monaco from "monaco-editor";
 import { readFile, stat } from "@tauri-apps/plugin-fs";
 import { filesize } from "filesize";
-import { redisCommands } from "./redisCmd.ts";
-import { commands, ExportKind, Field, MetaValue } from "./bindings.ts";
+import { commands, ExportKind, Field, MetaValue, redisCommands } from "./bindings.ts";
 
 /**
  * Converts a local file path to a Data URL (base64)
