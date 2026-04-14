@@ -555,6 +555,9 @@ function IndexesStructure(props: {
     commands
       .showIndexes(uuid, table)
       .then((data) => {
+        data.forEach((x, index) => {
+          x["id"] = index;
+        });
         setIndexes(data);
       })
       .catch((e) => {
@@ -618,22 +621,19 @@ function IndexesStructure(props: {
     return {
       row: {
         onContextMenu: (e) => {
-          const { currentTarget, target } = e;
-          {
-            const { field } = extractFieldAndIDFromMouseEvent(e);
-            if (!field) {
-              return;
-            }
+          const { field, id } = extractFieldAndIDFromMouseEvent(e);
+          if (!field) {
+            return;
           }
-          const content = (target as HTMLDivElement).innerHTML;
-          const indexName = (currentTarget as HTMLDivElement).getAttribute("data-id");
+          let row = indexes.find((e) => e["id"] == id);
+
           setUpMenu({
             content: (
               <IndexMenu
-                indexName={indexName}
+                indexName={row.name}
                 setRenameIndexName={setRenameIndexName}
                 handleDrop={handleDrop}
-                content={content}
+                content={(e.target as HTMLDivElement).innerHTML}
               />
             ),
             event: e,
@@ -650,14 +650,11 @@ function IndexesStructure(props: {
     } as GridSlotsComponentsProps;
   }, [
     handleDrop,
+    indexes,
     setUpMenu,
     setting.export_.csvDelimiter,
     setting.export_.includeHeader,
   ]);
-
-  const getRowId = useCallback((e) => {
-    return e["name"];
-  }, []);
 
   const [modalBox, setModalBox] = useState(null);
 
@@ -682,7 +679,6 @@ function IndexesStructure(props: {
       </Stack>
 
       <DataGrid
-        getRowId={getRowId}
         slotProps={slotProps}
         onColumnResize={onColumnResize}
         columns={cols}
@@ -1273,10 +1269,12 @@ function TriggersStructure(props: {
 
   const handleReload = useCallback(() => {
     setLoading(true);
-
     commands
       .showTrigger(uuid, table)
       .then((data) => {
+        data.forEach((e, index) => {
+          e["id"] = index;
+        });
         setTriggers(data);
       })
       .catch((e) => {
@@ -1382,21 +1380,16 @@ function TriggersStructure(props: {
     return {
       row: {
         onContextMenu: (e) => {
-          const { currentTarget, target } = e;
-          {
-            const { field } = extractFieldAndIDFromMouseEvent(e);
-            if (!field) {
-              return;
-            }
+          const { field, id } = extractFieldAndIDFromMouseEvent(e);
+          if (!field) {
+            return;
           }
-          const content = (target as HTMLDivElement).innerHTML;
-          const name = (currentTarget as HTMLDivElement).getAttribute("data-id");
-          const detail = triggers.find((e) => e.name == name);
+          const detail = triggers.find((e) => e["id"] == id);
           setUpMenu({
             content: (
               <TriggerMenu
                 detail={detail}
-                content={content}
+                content={(e.target as HTMLDivElement).innerHTML}
                 handleDrop={handleDrop}
                 handleEnables={handleEnables}
               />
@@ -1422,9 +1415,6 @@ function TriggersStructure(props: {
     triggers,
   ]);
 
-  const getRowId = useCallback((e) => {
-    return e["name"];
-  }, []);
   const onRowDoubleClick = useCallback((row) => {
     setRow(row.row);
   }, []);
@@ -1458,7 +1448,6 @@ function TriggersStructure(props: {
       </StackRowCenter>
 
       <DataGrid
-        getRowId={getRowId}
         slotProps={slotProps}
         onColumnResize={onColumnResize}
         columns={cols}
