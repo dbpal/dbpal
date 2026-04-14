@@ -37,6 +37,7 @@ import {
   DataGrid,
   GridCallbackDetails,
   GridPaginationModel,
+  GridSlotProps,
   GridSlotsComponent,
   GridSlotsComponentsProps,
 } from "@mui/x-data-grid";
@@ -1341,6 +1342,7 @@ function MongoTableList(props: {
         },
         style: { cursor: "context-menu" },
       },
+      pagination: { lastFetchTime, fetchDur },
       toolbar: {
         csvOptions: {
           delimiter: setting.export_.csvDelimiter,
@@ -1349,7 +1351,9 @@ function MongoTableList(props: {
       },
     } as GridSlotsComponentsProps;
   }, [
+    fetchDur,
     handleDel,
+    lastFetchTime,
     loadOne,
     resp,
     setFilter,
@@ -1364,7 +1368,10 @@ function MongoTableList(props: {
       toolbar: () => {
         return <AppDataGridToolBar title={tableName} />;
       },
-      pagination: () => {
+      pagination: ({
+        lastFetchTime,
+        fetchDur,
+      }: GridSlotProps["pagination"] & { lastFetchTime; fetchDur }) => {
         return (
           <Stack
             direction="row"
@@ -1385,7 +1392,8 @@ function MongoTableList(props: {
         );
       },
     } as Partial<GridSlotsComponent>;
-  }, [fetchDur, lastFetchTime, tableName]);
+  }, [tableName]);
+
   const onColumnResize = useCallback(
     ({ colDef, width }) => {
       setColumnWidth(colDef.field, width);

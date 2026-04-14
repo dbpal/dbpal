@@ -28,6 +28,7 @@ import {
   DataGrid,
   GridCallbackDetails,
   GridPaginationModel,
+  GridSlotProps,
   GridSlotsComponent,
   GridSlotsComponentsProps,
   GridSortModel,
@@ -307,6 +308,90 @@ function tryGetId(data: object, fields: Field[]) {
   }
   return pf.map((x) => data[x.field]).join("-");
 }
+
+interface CustomToolbarLeftProps {
+  loading: boolean;
+  handleReload: (force: boolean) => void;
+  where: string;
+  setWhere: (val: string) => void;
+  setShowSetWhere: (show: boolean) => void;
+  sort: string;
+  setSort: (val: string) => void;
+  setShowSetSort: (show: boolean) => void;
+  kind: DataSourceKind; // 假设你已经定义了这个 Enum 或 Type
+  allowFiltering: boolean;
+  setAllowFiltering: (val: boolean) => void;
+  clientModel: any; // 根据你实际的 model 类型修改
+  isTable: boolean;
+  setShowAdd: (show: boolean) => void;
+}
+// 建议放在文件顶部，或者单独的文件中
+function CustomToolbarLeft({
+  loading,
+  handleReload,
+  where,
+  setWhere,
+  setShowSetWhere,
+  sort,
+  setSort,
+  setShowSetSort,
+  kind,
+  allowFiltering,
+  setAllowFiltering,
+  clientModel,
+  isTable,
+  setShowAdd,
+}: CustomToolbarLeftProps) {
+  return (
+    <StackRowCenter>
+      <Button loading={loading} color="primary" onClick={() => handleReload(true)}>
+        reload
+      </Button>
+
+      <Tooltip title={where ? where : "filter something like 'age=18'"}>
+        <Chip
+          label={where}
+          onClick={() => setShowSetWhere(true)}
+          style={{ ...shrinkAble, maxWidth: "14vw", textOverflow: "clip" }}
+          size="medium"
+          color="primary"
+          icon={<FilterAltIcon />}
+          onDelete={where ? () => setWhere("") : undefined}
+        />
+      </Tooltip>
+
+      <Tooltip title={sort ? sort : "sort something like 'age asc'"}>
+        <Chip
+          label={sort}
+          onClick={() => setShowSetSort(true)}
+          style={{ ...shrinkAble, maxWidth: "12vw", textOverflow: "clip" }}
+          size="medium"
+          color="secondary"
+          variant="outlined"
+          onDelete={sort ? () => setSort("") : undefined}
+          icon={<FaArrowsAltV />}
+        />
+      </Tooltip>
+
+      {kind === DataSourceKind.Cassandra && (
+        <FormControlLabel
+          control={
+            <Checkbox
+              checked={allowFiltering}
+              onChange={(e) => setAllowFiltering(e.target.checked)}
+            />
+          }
+          label="allow filtering"
+        />
+      )}
+
+      {clientModel && <SliderSize config={UseSizeConfig.queryLimit} />}
+
+      {isTable && <TableAddButton handleAdd={() => setShowAdd(true)} />}
+    </StackRowCenter>
+  );
+}
+
 function SqlTableView(props: {
   notWarnPri?: boolean;
   kind: DataSourceKind;
@@ -691,7 +776,26 @@ function SqlTableView(props: {
         },
         style: { cursor: "context-menu" },
       },
+      pagination: { lastFetchTime, fetchDur },
       toolbar: {
+        dbpal: (function (): CustomToolbarLeftProps {
+          return {
+            loading,
+            handleReload,
+            where,
+            setWhere,
+            setShowSetWhere,
+            sort,
+            setSort,
+            setShowSetSort,
+            kind,
+            allowFiltering,
+            setAllowFiltering,
+            clientModel,
+            isTable,
+            setShowAdd,
+          };
+        })(),
         csvOptions: {
           delimiter: setting.export_.csvDelimiter,
           includeHeaders: setting.export_.includeHeader,
@@ -699,13 +803,21 @@ function SqlTableView(props: {
       },
     } as GridSlotsComponentsProps;
   }, [
+    lastFetchTime,
+    fetchDur,
+    loading,
+    handleReload,
+    where,
+    sort,
+    kind,
+    allowFiltering,
+    clientModel,
+    isTable,
     setting.export_.csvDelimiter,
     setting.export_.includeHeader,
     resp.data,
     resp.fields,
     setUpMenu,
-    kind,
-    isTable,
     addOP,
     handleDelete,
     putValueInSql,
@@ -718,7 +830,9 @@ function SqlTableView(props: {
   const slots = useMemo(() => {
     return {
       columnMenu: AppColumnMenu,
-      toolbar: () => {
+      toolbar: ({
+        dbpal,
+      }: GridSlotProps["toolbar"] & { dbpal: CustomToolbarLeftProps }) => {
         return (
           <AppDataGridToolBar
             title={tableName}
@@ -730,80 +844,14 @@ function SqlTableView(props: {
                 <ArrowCircleDownIcon />
               </IconButton>
             </>
-            left=<StackRowCenter>
-              <Button
-                loading={loading}
-                color="primary"
-                onClick={() => {
-                  handleReload(true);
-                }}>
-                reload
-              </Button>
-              <Tooltip title={where ? where : "filter something like 'age=18'"}>
-                <Chip
-                  label={where}
-                  onClick={() => {
-                    setShowSetWhere(true);
-                  }}
-                  style={{ ...shrinkAble, maxWidth: "14vw", textOverflow: "clip" }}
-                  size="medium"
-                  color="primary"
-                  icon={<FilterAltIcon />}
-                  onDelete={
-                    where
-                      ? () => {
-                          setWhere("");
-                        }
-                      : undefined
-                  }
-                />
-              </Tooltip>
-              <Tooltip title={sort ? sort : "sort something like 'age asc'"}>
-                <Chip
-                  label={sort}
-                  onClick={() => {
-                    setShowSetSort(true);
-                  }}
-                  style={{ ...shrinkAble, maxWidth: "12vw", textOverflow: "clip" }}
-                  size="medium"
-                  color="secondary"
-                  variant="outlined"
-                  onDelete={
-                    sort
-                      ? () => {
-                          setSort("");
-                        }
-                      : undefined
-                  }
-                  icon={<FaArrowsAltV />}
-                />
-              </Tooltip>
-              {kind == DataSourceKind.Cassandra && (
-                <>
-                  <FormControlLabel
-                    control={
-                      <Checkbox
-                        checked={allowFiltering}
-                        onChange={(e) => setAllowFiltering(e.target.checked)}
-                      />
-                    }
-                    label="allow filtering"
-                  />
-                </>
-              )}
-              {clientModel && <SliderSize config={UseSizeConfig.queryLimit} />}
-              {isTable && (
-                <TableAddButton
-                  handleAdd={() => {
-                    setShowAdd(true);
-                  }}
-                />
-              )}
-            </StackRowCenter>
+            left=<CustomToolbarLeft {...dbpal} />
           />
         );
       },
-      pagination: () => {
+      pagination: ({
+        lastFetchTime,
+        fetchDur,
+      }: GridSlotProps["pagination"] & { lastFetchTime; fetchDur }) => {
         return (
           <Stack
             direction="row"
@@ -843,21 +891,12 @@ function SqlTableView(props: {
       },
     } as Partial<GridSlotsComponent>;
   }, [
-    allowFiltering,
     clientModel,
-    fetchDur,
-    handleReload,
-    isTable,
-    kind,
-    lastFetchTime,
-    loading,
     resp.data.length,
     resp.sql,
     resp.total,
     showNotification,
-    sort,
     tableName,
-    where,
   ]);
 
   const rowBeenModify = (id, kind: DatabaseOpKind) => {
