@@ -1214,14 +1214,6 @@ impl SchemaTrait for MysqlDB {
         self.backend_kind().not_support_feature()
     }
 
-    async fn disable_trigger(&self, _table: &str, _name: &str) -> anyhow::Result<String> {
-        self.backend_kind().not_support_feature()
-    }
-
-    async fn enable_trigger(&self, _table: &str, _name: &str) -> anyhow::Result<String> {
-        self.backend_kind().not_support_feature()
-    }
-
     async fn table_exists(&self, table: &str) -> anyhow::Result<bool> {
         let e = self
             .list_table()

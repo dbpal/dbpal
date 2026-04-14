@@ -582,7 +582,7 @@ function LLMSetting(props: { handleClose?: () => void }) {
     }, 400);
     try {
       const config = makeConfig();
-      const resp = await makeLLMCallable(config).invoke("hello!");
+      const resp = await makeLLMCallable(config).prompt("hello!");
       showNotification({
         severity: "success",
         title: "config setting is ok,llm response:",

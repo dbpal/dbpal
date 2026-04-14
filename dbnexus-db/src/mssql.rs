@@ -971,17 +971,18 @@ impl SchemaTrait for SqlServerDB {
         anyhow::Ok(sql.into())
     }
 
-    async fn disable_trigger(&self, table: &str, name: &str) -> anyhow::Result<String> {
+    async fn enable_trigger(
+        &self,
+        table: &str,
+        name: &str,
+        enable: bool,
+    ) -> anyhow::Result<String> {
         self.can_write()?;
-        let sql = format!("ENABLE TRIGGER {name} ON {table}");
-        log::info!("sql:{}", sql);
-        self.simple_execute_sql(&sql).await?;
-        anyhow::Ok(sql)
-    }
+        let sql = format!(
+            "{} TRIGGER {name} ON {table}",
+            if enable { "ENABLE" } else { "DISABLE" }
+        );
 
-    async fn enable_trigger(&self, table: &str, name: &str) -> anyhow::Result<String> {
-        self.can_write()?;
-        let sql = format!("DISABLE TRIGGER {name} ON {table}");
         log::info!("sql:{}", sql);
         self.simple_execute_sql(&sql).await?;
         anyhow::Ok(sql)
@@ -1520,6 +1521,7 @@ impl ExportQueryResult for SqlServerDB {
                                         .into(),
                                     )
                                     .await?;
+                                row_num += 1;
                             }
                         }
                     }
@@ -2546,10 +2548,10 @@ END;
                 .show_trigger("test_create_trigger", &tri.name)
                 .await
                 .unwrap();
-            db.disable_trigger("test_create_trigger", &tri.name)
+            db.enable_trigger("test_create_trigger", &tri.name, false)
                 .await
                 .unwrap();
-            db.enable_trigger("test_create_trigger", &tri.name)
+            db.enable_trigger("test_create_trigger", &tri.name, true)
                 .await
                 .unwrap();
 

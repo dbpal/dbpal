@@ -1180,27 +1180,6 @@ mod tests {
         let view_names = db.list_view().await.unwrap();
         println!("view names:{:?}", view_names)
     }
-    #[tokio::test]
-    async fn test_xxx() {
-        let db = make_test_object();
-        let view_name = "test_mongo";
-        let docs = db
-            .show_collection_docs(
-                view_name,
-                MongoShowTablePara {
-                    filter: doc! {},
-                    page: 1,
-                    page_size: 100,
-                    sort: doc! {},
-                },
-            )
-            .await
-            .unwrap();
-
-        for d in docs.docs.iter() {
-            println!("{:?}", d);
-        }
-    }
 
     #[tokio::test]
     async fn test_command_find() {

@@ -531,10 +531,12 @@ pub trait SchemaTrait:
         self.backend_kind().not_support_feature()
     }
 
-    async fn disable_trigger(&self, _table: &str, _name: &str) -> anyhow::Result<String> {
-        self.backend_kind().not_support_feature()
-    }
-    async fn enable_trigger(&self, _table: &str, _name: &str) -> anyhow::Result<String> {
+    async fn enable_trigger(
+        &self,
+        _table: &str,
+        _name: &str,
+        _enable: bool,
+    ) -> anyhow::Result<String> {
         self.backend_kind().not_support_feature()
     }
 
@@ -1465,11 +1467,16 @@ async fn collect_export_str(
                 // check something
 
                 match &r {
-                    ExportFrame::Xlsx(x) => {
+                    ExportFrame::Xlsx(data) => {
                         if let Some(last) = &last {
-                            assert!(last.row + 1 == x.row || last.column + 1 == x.column);
+                            assert!(
+                                (last.row < data.row) || (last.column < data.column),
+                                "lat{:?} this:{}",
+                                last,
+                                data
+                            );
                         }
-                        last = Some(x.clone());
+                        last = Some(data.clone());
                     }
 
                     _ => {

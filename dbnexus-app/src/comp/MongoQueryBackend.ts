@@ -1,6 +1,5 @@
 // mongodb query interfaces and implementation.
 
-import { invoke } from "@tauri-apps/api/core";
 import { BSON } from "bson";
 import {
   IFindBuilder,
@@ -9,7 +8,6 @@ import {
   IMongoDB,
 } from "./MongoInterface";
 import interfaceRawText from "./MongoInterface.ts?raw";
-import { MongoFindParameter } from "./helper";
 
 import * as monaco from "monaco-editor";
 import { commands } from "./bindings";
@@ -88,7 +86,7 @@ class MongoDBQueryFindCommon {
   }
 
   makeCommonArg() {
-    let para: MongoFindParameter = {
+    return {
       filter: BSON.serialize(this.filter),
       projection: BSON.serialize(this._projection),
       sort: BSON.serialize(this._sort),
@@ -96,11 +94,6 @@ class MongoDBQueryFindCommon {
       max: BSON.serialize(this._max),
       skip: this._skip,
       hint: BSON.serialize(this._hint),
-    };
-    return {
-      name: this.uuid,
-      col: this.col,
-      para,
     };
   }
 }
@@ -111,12 +104,13 @@ class MongoDBQueryFind extends MongoDBQueryFindCommon implements IFindBuilder {
     if (!this._limit) {
       throw `limit can't be null`;
     }
-    const x = this.makeCommonArg();
-    x.para.limit = this._limit;
-    return invoke<number[][]>("mongo_query_collection_find", x).then((e) => {
-      const x = e.map((x) => new Uint8Array(x)).map((e) => BSON.deserialize(e));
-      return x;
-    });
+    const para = this.makeCommonArg();
+    return commands
+      .mongoQueryCollectionFind(this.uuid, this.col, { ...para, limit: this._limit })
+      .then((e) => {
+        const x = e.map((x) => new Uint8Array(x)).map((e) => BSON.deserialize(e));
+        return x;
+      });
   }
 
   limit(limit: number): IFindBuilder {
@@ -131,11 +125,13 @@ class MongoDBQueryFind extends MongoDBQueryFindCommon implements IFindBuilder {
 
 class MongoDBQueryFindOne extends MongoDBQueryFindCommon implements IFindOneBuilder {
   find() {
-    const x = this.makeCommonArg();
-    return invoke<number[]>("mongo_query_collection_find_one", x).then((e) => {
-      const x = BSON.deserialize(new Uint8Array(e));
-      return x;
-    });
+    const para = this.makeCommonArg();
+    return commands
+      .mongoQueryCollectionFindOne(this.uuid, this.col, { ...para, limit: null })
+      .then((e) => {
+        const x = BSON.deserialize(new Uint8Array(e));
+        return x;
+      });
   }
 }
 class MongoDBQueryCollection implements IMongoCollection {

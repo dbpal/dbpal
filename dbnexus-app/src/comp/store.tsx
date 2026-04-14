@@ -306,10 +306,10 @@ export const makeLLMCallable = (config: LLMConfig) => {
   };
 
   return {
-    invoke: async (msg: string): Promise<string> => {
+    prompt: async (msg: string): Promise<string> => {
       return await commands.openaiInvoke(makeReq(msg, [], [], ""));
     },
-    stream: async (
+    stream_prompt: async (
       uuid: string,
       queryId: string,
       prompt: string,

@@ -9,7 +9,6 @@ import {
 } from "./helper";
 import { ClearableTextField } from "./CommonComp2";
 import CancelIcon from "@mui/icons-material/Cancel";
-import { invoke } from "@tauri-apps/api/core";
 import CheckCircleIcon from "@mui/icons-material/CheckCircle";
 import {
   DataGrid,
@@ -1291,10 +1290,6 @@ function TriggersStructure(props: {
         setLoading(false);
       });
   }, [showNotification, table, uuid]);
-  const callPara = useMemo(() => {
-    return { name: uuid, tableName: table };
-  }, [table, uuid]);
-
   const handleDrop = useCallback(
     async (trigger) => {
       const confirm = await secondConfirm({
@@ -1327,8 +1322,10 @@ function TriggersStructure(props: {
   );
 
   const handleEnables = useCallback(
-    (invoke_name: string, trigger, operation: string) => {
-      invoke(invoke_name, { trigger, ...callPara })
+    (trigger: string, enable: boolean) => {
+      const operation = enable ? "enable" : "disable";
+      commands
+        .enableTrigger(uuid, table, trigger, enable)
         .then((sql) => {
           showNotification({
             severity: "success",
@@ -1345,7 +1342,7 @@ function TriggersStructure(props: {
           });
         });
     },
-    [callPara, handleReload, showNotification],
+    [handleReload, showNotification, table, uuid],
   );
 
   useEffect(() => {

@@ -95,8 +95,8 @@ pub async fn monaco_editor_themes() -> Result<HashMap<&'static str, &'static str
                 if name == "themelist.json" {
                     continue;
                 }
-                let name = name.strip_suffix(".json").expect(" must end with .json");
-                ret.insert(name, file.contents_utf8().expect("must be utf8"));
+                let db_name = name.strip_suffix(".json").expect(" must end with .json");
+                ret.insert(db_name, file.contents_utf8().expect("must be utf8"));
             }
         }
     }
@@ -147,13 +147,13 @@ pub async fn get_redis_doc(line: &str) -> Result<String, ErrorFrontend> {
                                         .and_then(|x| x.to_str())
                                         .unwrap_or_default();
                                     if name.len() > 3 {
-                                        let name = &name[0..(name.len() - 3)];
-                                        if name.contains("-") {
-                                            let name =
-                                                name.split("-").collect::<Vec<_>>().join(" ");
-                                            name
+                                        let db_name = &name[0..(name.len() - 3)];
+                                        if db_name.contains("-") {
+                                            let db_name =
+                                                db_name.split("-").collect::<Vec<_>>().join(" ");
+                                            db_name
                                         } else {
-                                            name.to_string()
+                                            db_name.to_string()
                                         }
                                     } else {
                                         name.to_string()
@@ -194,19 +194,19 @@ pub async fn page_init_callback(app: tauri::State<'_, DBPal>) -> Result<(), ()> 
 #[specta::specta]
 #[tauri::command]
 pub async fn drop_database(
-    name: String,
+    db_name: String,
     database: String,
     app: tauri::State<'_, DBPal>,
 ) -> Result<(), ErrorFrontend> {
     random_sleep().await;
     random_error()?;
-    log::info!("drop db:{} {}", name, database);
+    log::info!("drop db:{} {}", db_name, database);
     let backend = app
-        .get_backend(name.as_str())
+        .get_backend(db_name.as_str())
         .await
         .map_err(ErrorFrontend::from)?;
     // first close connections because we want delete it
-    let key = format!("{}/{}", name, database);
+    let key = format!("{}/{}", db_name, database);
     app.close_conn_has_prefix(&key).await;
     match backend {
         DatabaseBackend::Catalog(x) => {
@@ -221,7 +221,7 @@ pub async fn drop_database(
 
         _ => Err(ErrorFrontend::from(format!(
             "'{}' is not a db catalog",
-            name
+            db_name
         ))),
     }
 }
@@ -229,19 +229,19 @@ pub async fn drop_database(
 #[specta::specta]
 #[tauri::command]
 pub async fn drop_schema(
-    name: String,
+    db_name: String,
     schema: String,
     app: tauri::State<'_, DBPal>,
 ) -> Result<(), ErrorFrontend> {
     random_sleep().await;
     random_error()?;
-    log::info!("drop schema:{} {}", name, schema);
+    log::info!("drop schema:{} {}", db_name, schema);
 
     // first close connections because we want delete it
-    let key = format!("{}/{}", name, schema);
+    let key = format!("{}/{}", db_name, schema);
     app.close_conn_has_prefix(&key).await;
     let backend = app
-        .get_backend(name.as_str())
+        .get_backend(db_name.as_str())
         .await
         .map_err(ErrorFrontend::from)?;
     match backend {
@@ -251,7 +251,7 @@ pub async fn drop_schema(
         }
         _ => Err(ErrorFrontend::from(format!(
             "'{}' is not a db database",
-            name
+            db_name
         ))),
     }
 }
@@ -259,7 +259,7 @@ pub async fn drop_schema(
 #[specta::specta]
 #[tauri::command]
 pub async fn create_database(
-    name: String,
+    db_name: String,
     database: String,
     extra: Option<CreateDatabaseExtra>,
     app: tauri::State<'_, DBPal>,
@@ -267,7 +267,7 @@ pub async fn create_database(
     random_sleep().await;
     random_error()?;
     let backend = app
-        .get_backend(name.as_str())
+        .get_backend(db_name.as_str())
         .await
         .map_err(ErrorFrontend::from)?;
     match backend {
@@ -279,7 +279,7 @@ pub async fn create_database(
         }
         _ => Err(ErrorFrontend::from(format!(
             "'{}' is not a db catalog",
-            name
+            db_name
         ))),
     }
 }
@@ -287,7 +287,7 @@ pub async fn create_database(
 #[specta::specta]
 #[tauri::command]
 pub async fn create_schema(
-    name: String,
+    db_name: String,
     schema: String,
     extra: Option<CreateSchemaExtra>,
     app: tauri::State<'_, DBPal>,
@@ -295,7 +295,7 @@ pub async fn create_schema(
     random_sleep().await;
     random_error()?;
     let backend = app
-        .get_backend(name.as_str())
+        .get_backend(db_name.as_str())
         .await
         .map_err(ErrorFrontend::from)?;
     match backend {
@@ -307,7 +307,7 @@ pub async fn create_schema(
         }
         _ => Err(ErrorFrontend::from(format!(
             "'{}' is not a db database",
-            name
+            db_name
         ))),
     }
 }
@@ -341,38 +341,41 @@ pub async fn establish_conn(
 
 #[specta::specta]
 #[tauri::command]
-pub async fn close_conn(name: String, app: tauri::State<'_, DBPal>) -> Result<(), ()> {
+pub async fn close_conn(db_name: String, app: tauri::State<'_, DBPal>) -> Result<(), ()> {
     random_sleep().await;
-    app.close_conn_has_prefix(name.as_str()).await;
+    app.close_conn_has_prefix(db_name.as_str()).await;
     Ok(())
 }
 
 #[specta::specta]
 #[tauri::command]
 pub async fn list_table(
-    name: String,
+    db_name: String,
     app: tauri::State<'_, DBPal>,
 ) -> Result<Vec<ListTable>, ErrorFrontend> {
     random_sleep().await;
     random_error()?;
-    let db = app.get_schema(&name).await?;
+    let db = app.get_schema(&db_name).await?;
     db.list_table().await.map_err(ErrorFrontend::from)
 }
 
 #[specta::specta]
 #[tauri::command]
 pub async fn redis_list_key(
-    name: String,
+    db_name: String,
     filter: Option<String>,
     max: usize,
     app: tauri::State<'_, DBPal>,
 ) -> Result<RedisListTableRet, ErrorFrontend> {
     random_sleep().await;
     random_error()?;
-    let db = app.get_schema(&name).await.map_err(ErrorFrontend::from)?;
+    let db = app
+        .get_schema(&db_name)
+        .await
+        .map_err(ErrorFrontend::from)?;
     match db.as_any().downcast_ref::<RedisDB>() {
         Some(x) => x.redis_list_key(filter.as_deref(), max).await,
-        None => return Err(ErrorFrontend::from(format!("'{}' not a redis", name))),
+        None => return Err(ErrorFrontend::from(format!("'{}' not a redis", db_name))),
     }
     .map_err(ErrorFrontend::from)
 }
@@ -380,13 +383,13 @@ pub async fn redis_list_key(
 #[specta::specta]
 #[tauri::command]
 pub async fn show_table_columns(
-    name: String,
+    db_name: String,
     table_name: String,
     app: tauri::State<'_, DBPal>,
 ) -> Result<Vec<Field>, ErrorFrontend> {
     random_sleep().await;
     random_error()?;
-    let db = app.get_schema(&name).await?;
+    let db = app.get_schema(&db_name).await?;
     db.show_table_columns(&table_name)
         .await
         .map_err(ErrorFrontend::from)
@@ -395,7 +398,7 @@ pub async fn show_table_columns(
 #[specta::specta]
 #[tauri::command]
 pub async fn show_table(
-    name: String,
+    db_name: String,
     is_view: bool,
     table_name: String,
     para: ShowTableParameter,
@@ -412,7 +415,7 @@ pub async fn show_table(
         token_msg_clone,
         para.limit,
     ));
-    let db = app.get_schema(&name).await?;
+    let db = app.get_schema(&db_name).await?;
     let fur = async {
         if is_view {
             db.show_view(&table_name, para, sender)
@@ -435,13 +438,13 @@ pub async fn show_table(
 #[specta::specta]
 #[tauri::command]
 pub async fn show_indexes(
-    name: String,
+    db_name: String,
     table_name: String,
     app: tauri::State<'_, DBPal>,
 ) -> Result<Vec<Index>, ErrorFrontend> {
     random_sleep().await;
     random_error()?;
-    let db = app.get_schema(&name).await?;
+    let db = app.get_schema(&db_name).await?;
     db.show_indexes(&table_name)
         .await
         .map_err(ErrorFrontend::from)
@@ -450,7 +453,7 @@ pub async fn show_indexes(
 #[specta::specta]
 #[tauri::command]
 pub async fn create_index(
-    name: String,
+    db_name: String,
     table_name: String,
     req: CreateIndexReq,
     app: tauri::State<'_, DBPal>,
@@ -458,7 +461,7 @@ pub async fn create_index(
     random_sleep().await;
     random_error()?;
     let schema = app
-        .get_schema(name.as_str())
+        .get_schema(db_name.as_str())
         .await
         .map_err(ErrorFrontend::from)?;
 
@@ -471,7 +474,7 @@ pub async fn create_index(
 #[specta::specta]
 #[tauri::command]
 pub async fn mongo_create_index(
-    name: String,
+    db_name: String,
     table_name: String,
     index_name: Option<String>,
     keys: JsUint8Array,
@@ -482,7 +485,7 @@ pub async fn mongo_create_index(
     random_error()?;
     let keys = parse_bson_doc(&keys)?;
     let schema = app
-        .get_schema(name.as_str())
+        .get_schema(db_name.as_str())
         .await
         .map_err(ErrorFrontend::from)?;
     match schema.as_any().downcast_ref::<MongoDB>() {
@@ -490,13 +493,13 @@ pub async fn mongo_create_index(
             .create_index(&table_name, index_name, unique, keys)
             .await
             .map_err(ErrorFrontend::from),
-        None => Err(ErrorFrontend::from(format!("'{}' not a mongo", name))),
+        None => Err(ErrorFrontend::from(format!("'{}' not a mongo", db_name))),
     }
 }
 #[specta::specta]
 #[tauri::command]
 pub async fn rename_index(
-    name: String,
+    db_name: String,
     table_name: String,
     old_name: String,
     new_name: String,
@@ -505,7 +508,7 @@ pub async fn rename_index(
     random_sleep().await;
     random_error()?;
     let schema = app
-        .get_schema(name.as_str())
+        .get_schema(db_name.as_str())
         .await
         .map_err(ErrorFrontend::from)?;
     schema
@@ -517,7 +520,7 @@ pub async fn rename_index(
 #[specta::specta]
 #[tauri::command]
 pub async fn drop_index(
-    name: String,
+    db_name: String,
     table_name: String,
     index: String,
     app: tauri::State<'_, DBPal>,
@@ -525,7 +528,7 @@ pub async fn drop_index(
     random_sleep().await;
     random_error()?;
     let schema = app
-        .get_schema(name.as_str())
+        .get_schema(db_name.as_str())
         .await
         .map_err(ErrorFrontend::from)?;
 
@@ -538,14 +541,14 @@ pub async fn drop_index(
 #[specta::specta]
 #[tauri::command]
 pub async fn table_insert(
-    name: String,
+    db_name: String,
     table_name: String,
     values: HashMap<String, Option<String>>,
     app: tauri::State<'_, DBPal>,
 ) -> Result<Option<usize>, ErrorFrontend> {
     random_sleep().await;
     random_error()?;
-    let db = app.get_schema(&name).await?;
+    let db = app.get_schema(&db_name).await?;
     db.table_insert(&table_name, values)
         .await
         .map_err(ErrorFrontend::from)
@@ -554,14 +557,14 @@ pub async fn table_insert(
 #[specta::specta]
 #[tauri::command]
 pub async fn table_insert_sql(
-    name: String,
+    db_name: String,
     table_name: String,
     values: HashMap<String, Option<String>>,
     app: tauri::State<'_, DBPal>,
 ) -> Result<String, ErrorFrontend> {
     random_sleep().await;
     random_error()?;
-    let db = app.get_schema(&name).await?;
+    let db = app.get_schema(&db_name).await?;
     db.table_insert_sql(&table_name, values)
         .await
         .map_err(ErrorFrontend::from)
@@ -569,7 +572,7 @@ pub async fn table_insert_sql(
 #[specta::specta]
 #[tauri::command]
 pub async fn table_update(
-    name: String,
+    db_name: String,
     table_name: String,
     values: HashMap<String, Option<String>>,
     wheres: HashMap<String, Option<String>>,
@@ -577,7 +580,7 @@ pub async fn table_update(
 ) -> Result<Option<usize>, ErrorFrontend> {
     random_sleep().await;
     random_error()?;
-    let db = app.get_schema(&name).await?;
+    let db = app.get_schema(&db_name).await?;
     db.table_update(&table_name, values, wheres)
         .await
         .map_err(ErrorFrontend::from)
@@ -586,7 +589,7 @@ pub async fn table_update(
 #[specta::specta]
 #[tauri::command]
 pub async fn table_update_sql(
-    name: String,
+    db_name: String,
     table_name: String,
     values: HashMap<String, Option<String>>,
     wheres: HashMap<String, Option<String>>,
@@ -594,7 +597,7 @@ pub async fn table_update_sql(
 ) -> Result<String, ErrorFrontend> {
     random_sleep().await;
     random_error()?;
-    let db = app.get_schema(&name).await?;
+    let db = app.get_schema(&db_name).await?;
     db.table_update_sql(&table_name, values, wheres)
         .await
         .map_err(ErrorFrontend::from)
@@ -602,13 +605,13 @@ pub async fn table_update_sql(
 #[specta::specta]
 #[tauri::command]
 pub async fn truncate_table(
-    name: String,
+    db_name: String,
     table_name: String,
     app: tauri::State<'_, DBPal>,
 ) -> Result<Option<String>, ErrorFrontend> {
     random_sleep().await;
     random_error()?;
-    let db = app.get_schema(&name).await?;
+    let db = app.get_schema(&db_name).await?;
     db.truncate_table(&table_name)
         .await
         .map_err(ErrorFrontend::from)
@@ -617,7 +620,7 @@ pub async fn truncate_table(
 #[specta::specta]
 #[tauri::command]
 pub async fn drop_table_column(
-    name: String,
+    db_name: String,
     table_name: String,
     column_name: String,
     app: tauri::State<'_, DBPal>,
@@ -625,7 +628,7 @@ pub async fn drop_table_column(
     random_sleep().await;
     random_error()?;
     let schema = app
-        .get_schema(name.as_str())
+        .get_schema(db_name.as_str())
         .await
         .map_err(ErrorFrontend::from)?;
     schema
@@ -637,7 +640,7 @@ pub async fn drop_table_column(
 #[specta::specta]
 #[tauri::command]
 pub async fn modify_table_column(
-    name: String,
+    db_name: String,
     table_name: String,
     old_name: String,
     new_name: String,
@@ -647,7 +650,7 @@ pub async fn modify_table_column(
     random_sleep().await;
     random_error()?;
     let schema = app
-        .get_schema(name.as_str())
+        .get_schema(db_name.as_str())
         .await
         .map_err(ErrorFrontend::from)?;
     schema
@@ -659,7 +662,7 @@ pub async fn modify_table_column(
 #[specta::specta]
 #[tauri::command]
 pub async fn add_table_column(
-    name: String,
+    db_name: String,
     table_name: String,
     col_name: String,
     typ: ColumnType,
@@ -668,7 +671,7 @@ pub async fn add_table_column(
     random_sleep().await;
     random_error()?;
     let schema = app
-        .get_schema(name.as_str())
+        .get_schema(db_name.as_str())
         .await
         .map_err(ErrorFrontend::from)?;
     schema
@@ -680,13 +683,13 @@ pub async fn add_table_column(
 #[specta::specta]
 #[tauri::command]
 pub async fn list_data_types(
-    name: String,
+    db_name: String,
     app: tauri::State<'_, DBPal>,
 ) -> Result<Vec<String>, ErrorFrontend> {
     random_sleep().await;
     random_error()?;
     let schema = app
-        .get_schema(name.as_str())
+        .get_schema(db_name.as_str())
         .await
         .map_err(ErrorFrontend::from)?;
     let ret = schema
@@ -699,13 +702,13 @@ pub async fn list_data_types(
 #[specta::specta]
 #[tauri::command]
 pub async fn list_sql_current_values(
-    name: String,
+    db_name: String,
     app: tauri::State<'_, DBPal>,
 ) -> Result<&'static [&'static str], ErrorFrontend> {
     random_sleep().await;
     random_error()?;
     let schema = app
-        .get_schema(name.as_str())
+        .get_schema(db_name.as_str())
         .await
         .map_err(ErrorFrontend::from)?;
     let ret = schema.list_sql_current_values();
@@ -715,14 +718,14 @@ pub async fn list_sql_current_values(
 #[specta::specta]
 #[tauri::command]
 pub async fn table_delete_sql(
-    name: String,
+    db_name: String,
     table_name: String,
     wheres: HashMap<String, Option<String>>,
     app: tauri::State<'_, DBPal>,
 ) -> Result<String, ErrorFrontend> {
     random_sleep().await;
     random_error()?;
-    let db = app.get_schema(&name).await?;
+    let db = app.get_schema(&db_name).await?;
     db.table_delete_sql(&table_name, wheres)
         .await
         .map_err(ErrorFrontend::from)
@@ -731,14 +734,14 @@ pub async fn table_delete_sql(
 #[specta::specta]
 #[tauri::command]
 pub async fn table_delete(
-    name: String,
+    db_name: String,
     table_name: String,
     wheres: HashMap<String, Option<String>>,
     app: tauri::State<'_, DBPal>,
 ) -> Result<Option<usize>, ErrorFrontend> {
     random_sleep().await;
     random_error()?;
-    let db = app.get_schema(&name).await?;
+    let db = app.get_schema(&db_name).await?;
     db.table_delete(&table_name, wheres)
         .await
         .map_err(ErrorFrontend::from)
@@ -747,23 +750,26 @@ pub async fn table_delete(
 #[specta::specta]
 #[tauri::command]
 pub async fn list_view(
-    name: String,
+    db_name: String,
     app: tauri::State<'_, DBPal>,
 ) -> Result<Vec<ListTable>, ErrorFrontend> {
     random_sleep().await;
     random_error()?;
-    let db = app.get_schema(&name).await?;
+    let db = app.get_schema(&db_name).await?;
     db.list_view().await.map_err(ErrorFrontend::from)
 }
 #[specta::specta]
 #[tauri::command]
 pub async fn server_metas(
-    name: String,
+    db_name: String,
     app: tauri::State<'_, DBPal>,
 ) -> Result<Vec<MetaValue>, ErrorFrontend> {
     random_sleep().await;
     random_error()?;
-    let backend = app.get_backend(&name).await.map_err(ErrorFrontend::from)?;
+    let backend = app
+        .get_backend(&db_name)
+        .await
+        .map_err(ErrorFrontend::from)?;
     backend
         .as_server_mates()
         .show_metas()
@@ -774,13 +780,13 @@ pub async fn server_metas(
 #[specta::specta]
 #[tauri::command]
 pub async fn list_materialized_view(
-    name: String,
+    db_name: String,
     app: tauri::State<'_, DBPal>,
 ) -> Result<Vec<ListTable>, ErrorFrontend> {
     random_sleep().await;
     random_error()?;
     let schema = app
-        .get_schema(name.as_str())
+        .get_schema(db_name.as_str())
         .await
         .map_err(ErrorFrontend::from)?;
     schema
@@ -791,26 +797,29 @@ pub async fn list_materialized_view(
 #[specta::specta]
 #[tauri::command]
 pub async fn drop_view(
-    name: String,
+    db_name: String,
     view_name: String,
     app: tauri::State<'_, DBPal>,
 ) -> Result<String, ErrorFrontend> {
     random_sleep().await;
     random_error()?;
-    let db = app.get_schema(&name).await?;
+    let db = app.get_schema(&db_name).await?;
     db.drop_view(&view_name).await.map_err(ErrorFrontend::from)
 }
 
 #[specta::specta]
 #[tauri::command]
 pub async fn drop_materialized_view(
-    name: String,
+    db_name: String,
     view_name: String,
     app: tauri::State<'_, DBPal>,
 ) -> Result<Option<String>, ErrorFrontend> {
     random_sleep().await;
     random_error()?;
-    let schema = app.get_schema(&name).await.map_err(ErrorFrontend::from)?;
+    let schema = app
+        .get_schema(&db_name)
+        .await
+        .map_err(ErrorFrontend::from)?;
     schema
         .drop_materialized_view(&view_name)
         .await
@@ -820,14 +829,14 @@ pub async fn drop_materialized_view(
 #[specta::specta]
 #[tauri::command]
 pub async fn drop_table(
-    name: String,
+    db_name: String,
     table_name: String,
     cascade: bool,
     app: tauri::State<'_, DBPal>,
 ) -> Result<Option<String>, ErrorFrontend> {
     random_sleep().await;
     random_error()?;
-    let db = app.get_schema(&name).await?;
+    let db = app.get_schema(&db_name).await?;
     db.drop_table(&table_name, cascade)
         .await
         .map_err(ErrorFrontend::from)
@@ -836,13 +845,16 @@ pub async fn drop_table(
 #[specta::specta]
 #[tauri::command]
 pub async fn show_view_columns(
-    name: String,
+    db_name: String,
     view_name: String,
     app: tauri::State<'_, DBPal>,
 ) -> Result<Vec<Field>, ErrorFrontend> {
     random_sleep().await;
     random_error()?;
-    let schema = app.get_schema(&name).await.map_err(ErrorFrontend::from)?;
+    let schema = app
+        .get_schema(&db_name)
+        .await
+        .map_err(ErrorFrontend::from)?;
     schema
         .show_view_columns(&view_name)
         .await
@@ -852,12 +864,15 @@ pub async fn show_view_columns(
 #[specta::specta]
 #[tauri::command]
 pub async fn list_created_types(
-    name: String,
+    db_name: String,
     app: tauri::State<'_, DBPal>,
 ) -> Result<Vec<CreatedTypeDef>, ErrorFrontend> {
     random_sleep().await;
     random_error()?;
-    let schema = app.get_schema(&name).await.map_err(ErrorFrontend::from)?;
+    let schema = app
+        .get_schema(&db_name)
+        .await
+        .map_err(ErrorFrontend::from)?;
     schema
         .list_created_types()
         .await
@@ -867,25 +882,31 @@ pub async fn list_created_types(
 #[specta::specta]
 #[tauri::command]
 pub async fn list_event(
-    name: String,
+    db_name: String,
     app: tauri::State<'_, DBPal>,
 ) -> Result<Vec<SqlEvent>, ErrorFrontend> {
     random_sleep().await;
     random_error()?;
-    let schema = app.get_schema(&name).await.map_err(ErrorFrontend::from)?;
+    let schema = app
+        .get_schema(&db_name)
+        .await
+        .map_err(ErrorFrontend::from)?;
     schema.list_event().await.map_err(ErrorFrontend::from)
 }
 
 #[specta::specta]
 #[tauri::command]
 pub async fn drop_event(
-    name: String,
+    db_name: String,
     event_name: String,
     app: tauri::State<'_, DBPal>,
 ) -> Result<String, ErrorFrontend> {
     random_sleep().await;
     random_error()?;
-    let schema = app.get_schema(&name).await.map_err(ErrorFrontend::from)?;
+    let schema = app
+        .get_schema(&db_name)
+        .await
+        .map_err(ErrorFrontend::from)?;
     schema
         .drop_event(&event_name)
         .await
@@ -895,7 +916,7 @@ pub async fn drop_event(
 #[specta::specta]
 #[tauri::command]
 pub async fn export_query_result_to_file(
-    name: String,
+    db_name: String,
     task_id: String,
     sql: String,
     query_id: String,
@@ -914,7 +935,7 @@ pub async fn export_query_result_to_file(
     );
     let (token, _guard) = task_manager.add(task_id);
     let opened = app
-        .get_backend(name.as_str())
+        .get_backend(db_name.as_str())
         .await
         .map_err(ErrorFrontend::from)?;
     let size_emitter = Arc::new(move |size| {
@@ -949,7 +970,7 @@ pub async fn export_query_result_to_file(
 #[specta::specta]
 #[tauri::command]
 pub async fn is_dangerous_sql(
-    name: String,
+    db_name: String,
     sql: String,
     app: tauri::State<'_, DBPal>,
 ) -> Result<bool, ErrorFrontend> {
@@ -957,7 +978,7 @@ pub async fn is_dangerous_sql(
     random_error()?;
 
     let db = app
-        .get_backend(name.as_str())
+        .get_backend(db_name.as_str())
         .await
         .map_err(ErrorFrontend::from)?;
 
@@ -1076,7 +1097,7 @@ impl QueryEventEmit for QueryEventChannelEmit {
 #[specta::specta]
 #[tauri::command]
 pub async fn query_sql(
-    name: String,
+    db_name: String,
     query_id: &str,
     max_row: usize,
     sql: String,
@@ -1087,7 +1108,7 @@ pub async fn query_sql(
     random_sleep().await;
     random_error()?;
     let db = app
-        .get_backend(name.as_str())
+        .get_backend(db_name.as_str())
         .await
         .map_err(ErrorFrontend::from)?;
     let (token, _guard) = task_manager.add(query_id.to_string());
@@ -1124,7 +1145,7 @@ pub enum QueryEvent {
 #[specta::specta]
 #[tauri::command]
 pub async fn simple_execute_sql(
-    name: String,
+    db_name: String,
     sql: String,
     app: tauri::State<'_, DBPal>,
 ) -> Result<Option<usize>, ErrorFrontend> {
@@ -1132,7 +1153,7 @@ pub async fn simple_execute_sql(
     random_error()?;
 
     let db = app
-        .get_backend(name.as_str())
+        .get_backend(db_name.as_str())
         .await
         .map_err(ErrorFrontend::from)?;
 
@@ -1147,7 +1168,7 @@ pub async fn simple_execute_sql(
 #[specta::specta]
 #[tauri::command]
 pub async fn execute_sql(
-    name: String,
+    db_name: String,
     query_id: &str,
     sql: String,
     app: tauri::State<'_, DBPal>,
@@ -1155,7 +1176,10 @@ pub async fn execute_sql(
 ) -> Result<Result<MuiDataGridData, String>, ErrorFrontend> {
     random_sleep().await;
     random_error()?;
-    let db = app.get_backend(&name).await.map_err(ErrorFrontend::from)?;
+    let db = app
+        .get_backend(&db_name)
+        .await
+        .map_err(ErrorFrontend::from)?;
     let (token, _guard) = task_manager.add(query_id.to_string());
     let fur = async {
         #[cfg(feature = "random-sleep")]
@@ -1180,14 +1204,14 @@ pub async fn execute_sql(
 #[specta::specta]
 #[tauri::command]
 pub async fn query_sql_open_connection(
-    name: String,
+    db_name: String,
     id: String,
     app: tauri::State<'_, DBPal>,
 ) -> Result<(), ErrorFrontend> {
     random_sleep().await;
     random_error()?;
     let db = app
-        .get_backend(name.as_str())
+        .get_backend(db_name.as_str())
         .await
         .map_err(|e| e.to_string())?;
     let result = tokio::time::timeout(Duration::from_secs(5), async {
@@ -1201,15 +1225,15 @@ pub async fn query_sql_open_connection(
 #[specta::specta]
 #[tauri::command]
 pub async fn query_sql_close_connection(
-    name: String,
+    db_name: String,
     query_id: &str,
     app: tauri::State<'_, DBPal>,
 ) -> Result<(), ErrorFrontend> {
     random_sleep().await;
     random_error()?;
-    log::info!("close conn:{} {}", name, query_id);
+    log::info!("close conn:{} {}", db_name, query_id);
     let db = app
-        .get_backend(name.as_str())
+        .get_backend(db_name.as_str())
         .await
         .map_err(|e| e.to_string())?;
     let result = db.as_query_sql().close_connection(query_id).await;
@@ -1219,7 +1243,7 @@ pub async fn query_sql_close_connection(
 #[specta::specta]
 #[tauri::command]
 pub async fn export_table_or_view(
-    name: String,
+    db_name: String,
     task_id: String,
     task_manager: tauri::State<'_, TaskManager>,
     size_emitter: Channel<usize>,
@@ -1232,7 +1256,7 @@ pub async fn export_table_or_view(
     random_sleep().await;
     random_error()?;
     let db = app
-        .get_schema(name.as_str())
+        .get_schema(db_name.as_str())
         .await
         .map_err(|e| e.to_string())?;
     let (token, _guard) = task_manager.add(task_id);
@@ -1274,7 +1298,7 @@ pub async fn export_table_or_view(
 #[specta::specta]
 #[tauri::command]
 pub async fn check_conn(
-    name: String,
+    db_name: String,
     app: tauri::State<'_, DBPal>,
 ) -> Result<
     u128, // human readable time
@@ -1284,7 +1308,7 @@ pub async fn check_conn(
     random_error()?;
     let timeout = 5;
     tokio::time::timeout(Duration::from_secs(timeout), async move {
-        let db = app.get_backend(&name).await?;
+        let db = app.get_backend(&db_name).await?;
         db.check_conn()
             .await
             .map_err(ErrorFrontend::from)
@@ -1345,7 +1369,7 @@ pub async fn try_list_database_schema_candidates(
 #[specta::specta]
 #[tauri::command]
 pub async fn list_database(
-    name: String,
+    db_name: String,
     app: tauri::State<'_, DBPal>,
 ) -> Result<
     Vec<String>, // milliseconds
@@ -1353,14 +1377,14 @@ pub async fn list_database(
 > {
     random_sleep().await;
     random_error()?;
-    let db = app.get_backend(name.as_str()).await?;
-    // app.enter_open_child(name.as_str(), &db).await?;
+    let db = app.get_backend(db_name.as_str()).await?;
+    // app.enter_open_child(db_name.as_str(), &db).await?;
     match db {
         app::DatabaseBackend::Catalog(x) => x.list_database().await,
         _ => {
             return Err(ErrorFrontend::from(format!(
                 "not catalog trait but:{}",
-                name
+                db_name
             )));
         }
     }
@@ -1370,24 +1394,24 @@ pub async fn list_database(
 #[specta::specta]
 #[tauri::command]
 pub async fn list_schema(
-    name: String,
+    db_name: String,
     app: tauri::State<'_, DBPal>,
 ) -> Result<Vec<String>, ErrorFrontend> {
     random_sleep().await;
     random_error()?;
-    let db = app.get_backend(name.as_str()).await?;
+    let db = app.get_backend(db_name.as_str()).await?;
     match db {
         app::DatabaseBackend::DataBase(x) => x.list_schema().await,
         app::DatabaseBackend::Catalog(_) => {
             return Err(ErrorFrontend::from(format!(
                 "not database trait but a catalog of {}",
-                name
+                db_name
             )));
         }
         app::DatabaseBackend::Schema(_) => {
             return Err(ErrorFrontend::from(format!(
                 "not database trait but a schema of {}",
-                name
+                db_name
             )));
         }
     }
@@ -1397,13 +1421,13 @@ pub async fn list_schema(
 #[specta::specta]
 #[tauri::command]
 pub async fn extract_table_select_selection(
-    name: String,
+    db_name: String,
     sql: String,
     app: tauri::State<'_, DBPal>,
 ) -> Result<Option<String>, ErrorFrontend> {
     random_sleep().await;
     random_error()?;
-    let db = app.get_backend(name.as_str()).await?;
+    let db = app.get_backend(db_name.as_str()).await?;
     let ret = db
         .as_language_server()
         .extract_table_select_selection(&sql)
@@ -1414,13 +1438,13 @@ pub async fn extract_table_select_selection(
 #[specta::specta]
 #[tauri::command]
 pub async fn extract_table_select_sort(
-    name: String,
+    db_name: String,
     sql: String,
     app: tauri::State<'_, DBPal>,
 ) -> Result<Option<String>, ErrorFrontend> {
     random_sleep().await;
     random_error()?;
-    let db = app.get_backend(name.as_str()).await?;
+    let db = app.get_backend(db_name.as_str()).await?;
     let ret = db
         .as_language_server()
         .extract_table_select_sort(&sql)
@@ -1428,15 +1452,15 @@ pub async fn extract_table_select_sort(
     Ok(ret)
 }
 
-fn auto_completion_mutex(name: &str) -> Arc<tokio::sync::Mutex<()>> {
+fn auto_completion_mutex(db_name: &str) -> Arc<tokio::sync::Mutex<()>> {
     static LOCKS: LazyLock<Arc<DashMap<String, Arc<tokio::sync::Mutex<()>>>>> =
         LazyLock::new(|| Arc::new(DashMap::new()));
-    let name = name.to_owned();
-    match LOCKS.get(&name) {
+    let db_name = db_name.to_owned();
+    match LOCKS.get(&db_name) {
         Some(x) => x.clone(),
         None => {
             let x = Arc::new(tokio::sync::Mutex::new(()));
-            LOCKS.insert(name, x.clone());
+            LOCKS.insert(db_name, x.clone());
             x.clone()
         }
     }
@@ -1445,7 +1469,7 @@ fn auto_completion_mutex(name: &str) -> Arc<tokio::sync::Mutex<()>> {
 #[specta::specta]
 #[tauri::command]
 pub async fn auto_completion(
-    name: String,
+    db_name: String,
     query_id: Option<String>,
     sql: String,
     line: u32,
@@ -1455,10 +1479,10 @@ pub async fn auto_completion(
     let use_lexer = true;
     // 避免多个线程同时访问
     // 主要是后端实现更简单了比如可以把 completion——id缓存起来
-    let lock = auto_completion_mutex(name_to_parts(&name)[0]);
+    let lock = auto_completion_mutex(name_to_parts(&db_name)[0]);
     let _guard = lock.lock().await;
 
-    let db = app.get_backend(name.as_str()).await?;
+    let db = app.get_backend(db_name.as_str()).await?;
     let ret = tokio::time::timeout(std::time::Duration::from_secs(4), async {
         db.as_language_server()
             .auto_completion(query_id, &sql, line, col, use_lexer)
@@ -1473,13 +1497,13 @@ pub async fn auto_completion(
 #[specta::specta]
 #[tauri::command]
 pub async fn ai_text_completion(
-    name: String,
+    db_name: String,
     text: String,
     line: u32,
     col: u32,
     app: tauri::State<'_, DBPal>,
 ) -> Result<CompletionList, ErrorFrontend> {
-    let db = app.get_backend(&name).await?;
+    let db = app.get_backend(&db_name).await?;
     let list = tokio::time::timeout(std::time::Duration::from_secs(4), async {
         db.as_language_server()
             .ai_text_completion(&text, line, col)
@@ -1498,13 +1522,13 @@ pub async fn ai_text_completion(
 #[specta::specta]
 #[tauri::command]
 pub async fn check_sql(
-    name: String,
+    db_name: String,
     sql: String,
     app: tauri::State<'_, DBPal>,
 ) -> Result<Option<ErrAndLoc>, ErrorFrontend> {
     random_sleep().await;
     random_error()?;
-    let db = app.get_backend(name.as_str()).await?;
+    let db = app.get_backend(db_name.as_str()).await?;
     let ret = db
         .as_language_server()
         .check_sql(&sql)
@@ -1516,7 +1540,7 @@ pub async fn check_sql(
 #[specta::specta]
 #[tauri::command]
 pub async fn query_set_autocommit(
-    name: String,
+    db_name: String,
     query_id: &str,
     commit: bool,
     app: tauri::State<'_, DBPal>,
@@ -1524,7 +1548,7 @@ pub async fn query_set_autocommit(
     random_sleep().await;
     random_error()?;
     let backend = app
-        .get_backend(name.as_str())
+        .get_backend(db_name.as_str())
         .await
         .map_err(|e| e.to_string())?;
     backend
@@ -1537,14 +1561,14 @@ pub async fn query_set_autocommit(
 #[specta::specta]
 #[tauri::command]
 pub async fn query_get_commit(
-    name: String,
+    db_name: String,
     query_id: &str,
     app: tauri::State<'_, DBPal>,
 ) -> Result<bool, ErrorFrontend> {
     random_sleep().await;
     random_error()?;
     let backend = app
-        .get_backend(name.as_str())
+        .get_backend(db_name.as_str())
         .await
         .map_err(|e| e.to_string())?;
     backend
@@ -1557,14 +1581,14 @@ pub async fn query_get_commit(
 #[specta::specta]
 #[tauri::command]
 pub async fn query_commit(
-    name: String,
+    db_name: String,
     query_id: &str,
     app: tauri::State<'_, DBPal>,
 ) -> Result<(), ErrorFrontend> {
     random_sleep().await;
     random_error()?;
     let backend = app
-        .get_backend(name.as_str())
+        .get_backend(db_name.as_str())
         .await
         .map_err(|e| e.to_string())?;
     backend
@@ -1577,14 +1601,14 @@ pub async fn query_commit(
 #[specta::specta]
 #[tauri::command]
 pub async fn query_rollback(
-    name: String,
+    db_name: String,
     query_id: &str,
     app: tauri::State<'_, DBPal>,
 ) -> Result<(), ErrorFrontend> {
     random_sleep().await;
     random_error()?;
     let db = app
-        .get_backend(name.as_str())
+        .get_backend(db_name.as_str())
         .await
         .map_err(|e| e.to_string())?;
     db.as_query_sql()
@@ -1596,7 +1620,7 @@ pub async fn query_rollback(
 #[specta::specta]
 #[tauri::command]
 pub async fn drop_trigger(
-    name: String,
+    db_name: String,
     table_name: String,
     trigger: String,
     app: tauri::State<'_, DBPal>,
@@ -1604,7 +1628,7 @@ pub async fn drop_trigger(
     random_sleep().await;
     random_error()?;
     let db = app
-        .get_schema(name.as_str())
+        .get_schema(db_name.as_str())
         .await
         .map_err(ErrorFrontend::from)?;
 
@@ -1616,38 +1640,20 @@ pub async fn drop_trigger(
 #[specta::specta]
 #[tauri::command]
 pub async fn enable_trigger(
-    name: String,
+    db_name: String,
     table_name: String,
     trigger: String,
+    enable: bool,
     app: tauri::State<'_, DBPal>,
 ) -> Result<String, ErrorFrontend> {
     random_sleep().await;
     random_error()?;
     let db = app
-        .get_schema(name.as_str())
+        .get_schema(db_name.as_str())
         .await
         .map_err(ErrorFrontend::from)?;
 
-    db.enable_trigger(&table_name, &trigger)
-        .await
-        .map_err(ErrorFrontend::from)
-}
-#[specta::specta]
-#[tauri::command]
-pub async fn disable_trigger(
-    name: String,
-    table_name: String,
-    trigger: String,
-    app: tauri::State<'_, DBPal>,
-) -> Result<String, ErrorFrontend> {
-    random_sleep().await;
-    random_error()?;
-    let db = app
-        .get_schema(name.as_str())
-        .await
-        .map_err(ErrorFrontend::from)?;
-
-    db.disable_trigger(&table_name, &trigger)
+    db.enable_trigger(&table_name, &trigger, enable)
         .await
         .map_err(ErrorFrontend::from)
 }
@@ -1655,14 +1661,14 @@ pub async fn disable_trigger(
 #[specta::specta]
 #[tauri::command]
 pub async fn show_trigger(
-    name: String,
+    db_name: String,
     table_name: String,
     app: tauri::State<'_, DBPal>,
 ) -> Result<Vec<TriggerDetail>, ErrorFrontend> {
     random_sleep().await;
     random_error()?;
     let db = app
-        .get_schema(name.as_str())
+        .get_schema(db_name.as_str())
         .await
         .map_err(ErrorFrontend::from)?;
 
@@ -1686,7 +1692,7 @@ pub async fn show_trigger(
 #[specta::specta]
 #[tauri::command]
 pub async fn rename_table(
-    name: String,
+    db_name: String,
     old: String,
     new_table: String,
     app: tauri::State<'_, DBPal>,
@@ -1694,7 +1700,7 @@ pub async fn rename_table(
     random_sleep().await;
     random_error()?;
     let db = app
-        .get_schema(name.as_str())
+        .get_schema(db_name.as_str())
         .await
         .map_err(ErrorFrontend::from)?;
 
@@ -1705,14 +1711,14 @@ pub async fn rename_table(
 #[specta::specta]
 #[tauri::command]
 pub async fn create_table_req_sql(
-    name: String,
+    db_name: String,
     req: CreateTableReq,
     app: tauri::State<'_, DBPal>,
 ) -> Result<String, ErrorFrontend> {
     random_sleep().await;
     random_error()?;
     let db = app
-        .get_schema(name.as_str())
+        .get_schema(db_name.as_str())
         .await
         .map_err(ErrorFrontend::from)?;
 
@@ -1726,14 +1732,14 @@ pub async fn create_table_req_sql(
 #[tauri::command]
 
 pub async fn create_table(
-    name: String,
+    db_name: String,
     req: CreateTableReq,
     app: tauri::State<'_, DBPal>,
 ) -> Result<String, ErrorFrontend> {
     random_sleep().await;
     random_error()?;
     let db = app
-        .get_schema(name.as_str())
+        .get_schema(db_name.as_str())
         .await
         .map_err(ErrorFrontend::from)?;
     db.create_table(&req).await.map_err(ErrorFrontend::from)
@@ -1742,14 +1748,14 @@ pub async fn create_table(
 #[specta::specta]
 #[tauri::command]
 pub async fn show_create_table_sql(
-    name: String,
+    db_name: String,
     table_name: String,
     app: tauri::State<'_, DBPal>,
 ) -> Result<CreateTableAndIndexSql, ErrorFrontend> {
     random_sleep().await;
     random_error()?;
     let db = app
-        .get_schema(name.as_str())
+        .get_schema(db_name.as_str())
         .await
         .map_err(ErrorFrontend::from)?;
 
@@ -1763,7 +1769,7 @@ pub async fn show_create_table_sql(
 #[specta::specta]
 #[tauri::command]
 pub async fn create_view_sql(
-    name: String,
+    db_name: String,
     view_name: String,
     materialized: bool,
     app: tauri::State<'_, DBPal>,
@@ -1771,7 +1777,7 @@ pub async fn create_view_sql(
     random_sleep().await;
     random_error()?;
     let db = app
-        .get_schema(name.as_str())
+        .get_schema(db_name.as_str())
         .await
         .map_err(ErrorFrontend::from)?;
 
@@ -1785,7 +1791,7 @@ pub async fn create_view_sql(
 #[specta::specta]
 #[tauri::command]
 pub async fn duplicate_table(
-    name: String,
+    db_name: String,
     from: String,
     task_id: String,
     task_manager: tauri::State<'_, TaskManager>,
@@ -1797,7 +1803,7 @@ pub async fn duplicate_table(
     let (token, _guard) = task_manager.add(task_id);
 
     let db = app
-        .get_schema(name.as_str())
+        .get_schema(db_name.as_str())
         .await
         .map_err(ErrorFrontend::from)?;
 
@@ -1820,7 +1826,7 @@ pub async fn duplicate_table(
 #[specta::specta]
 #[tauri::command]
 pub async fn mongo_insert(
-    name: String,
+    db_name: String,
     table_name: String,
     doc: JsUint8Array,
     app: tauri::State<'_, DBPal>,
@@ -1829,12 +1835,12 @@ pub async fn mongo_insert(
     random_error()?;
     let doc = parse_bson_doc(doc.deref())?;
     let db = app
-        .get_schema(name.as_str())
+        .get_schema(db_name.as_str())
         .await
         .map_err(ErrorFrontend::from)?;
     match db.as_any().downcast_ref::<MongoDB>() {
         Some(x) => x.insert(table_name.as_str(), doc).await,
-        None => return Err(format!("db '{}' not mongo", name).into()),
+        None => return Err(format!("db '{}' not mongo", db_name).into()),
     }
     .map_err(ErrorFrontend::from)
     .map(|x| x.inserted_id.to_string())
@@ -1843,7 +1849,7 @@ pub async fn mongo_insert(
 #[specta::specta]
 #[tauri::command]
 pub async fn mongo_update_one(
-    name: String,
+    db_name: String,
     table_name: String,
     doc: JsUint8Array,
     app: tauri::State<'_, DBPal>,
@@ -1852,12 +1858,12 @@ pub async fn mongo_update_one(
     random_error()?;
     let doc = parse_bson_doc(doc.deref())?;
     let db = app
-        .get_schema(name.as_str())
+        .get_schema(db_name.as_str())
         .await
         .map_err(ErrorFrontend::from)?;
     let ret = match db.as_any().downcast_ref::<MongoDB>() {
         Some(x) => x.update_one(table_name.as_str(), doc).await,
-        None => return Err(format!("db '{}' not mongo", name).into()),
+        None => return Err(format!("db '{}' not mongo", db_name).into()),
     }
     .map_err(ErrorFrontend::from)?;
     if ret.modified_count != 1 {
@@ -1869,7 +1875,7 @@ pub async fn mongo_update_one(
 #[specta::specta]
 #[tauri::command]
 pub async fn mongo_delete_ids(
-    name: String,
+    db_name: String,
     table_name: String,
     ids: String,
     app: tauri::State<'_, DBPal>,
@@ -1878,12 +1884,12 @@ pub async fn mongo_delete_ids(
     random_error()?;
     let ids: Vec<bson::Bson> = serde_json::from_str(&ids)?;
     let db = app
-        .get_schema(name.as_str())
+        .get_schema(db_name.as_str())
         .await
         .map_err(|e| e.to_string())?;
     match db.as_any().downcast_ref::<MongoDB>() {
         Some(x) => x.delete_by_ids(table_name.as_str(), ids).await,
-        None => return Err(format!("db '{}' not mongo", name).into()),
+        None => return Err(format!("db '{}' not mongo", db_name).into()),
     }
     .map_err(ErrorFrontend::from)
     .map(|x| x.deleted_count)
@@ -1892,7 +1898,7 @@ pub async fn mongo_delete_ids(
 #[specta::specta]
 #[tauri::command]
 pub async fn mongo_show_collection_table_list(
-    name: String,
+    db_name: String,
     table_name: String,
     para: MongoShowTablePara,
     app: tauri::State<'_, DBPal>,
@@ -1900,7 +1906,7 @@ pub async fn mongo_show_collection_table_list(
     random_sleep().await;
     random_error()?;
     let db = app
-        .get_schema(name.as_str())
+        .get_schema(db_name.as_str())
         .await
         .map_err(|e| e.to_string())?;
     match db.as_any().downcast_ref::<MongoDB>() {
@@ -1908,7 +1914,7 @@ pub async fn mongo_show_collection_table_list(
             x.show_collection_table_list(table_name.as_str(), para.try_into()?)
                 .await
         }
-        None => return Err(format!("db '{}' not mongo", name).into()),
+        None => return Err(format!("db '{}' not mongo", db_name).into()),
     }
     .map_err(ErrorFrontend::from)
     .map(MuiDataGridData::from)
@@ -1917,7 +1923,7 @@ pub async fn mongo_show_collection_table_list(
 #[specta::specta]
 #[tauri::command]
 pub async fn mongo_show_collection_docs(
-    name: String,
+    db_name: String,
     table_name: String,
     app: tauri::State<'_, DBPal>,
     para: MongoShowTablePara,
@@ -1925,7 +1931,7 @@ pub async fn mongo_show_collection_docs(
     random_sleep().await;
     random_error()?;
     let db = app
-        .get_schema(name.as_str())
+        .get_schema(db_name.as_str())
         .await
         .map_err(|e| e.to_string())?;
     let docs = match db.as_any().downcast_ref::<MongoDB>() {
@@ -1933,7 +1939,7 @@ pub async fn mongo_show_collection_docs(
             x.show_collection_docs(table_name.as_str(), para.try_into()?)
                 .await
         }
-        None => return Err(format!("db '{}' not mongo", name).into()),
+        None => return Err(format!("db '{}' not mongo", db_name).into()),
     }
     .map_err(ErrorFrontend::from)?;
     DocsAndCount::try_from(docs).map_err(|e| e.into())
@@ -1941,7 +1947,7 @@ pub async fn mongo_show_collection_docs(
 #[specta::specta]
 #[tauri::command]
 pub async fn mongo_get_one_document_by_id(
-    name: String,
+    db_name: String,
     table_name: String,
     id: String,
     app: tauri::State<'_, DBPal>,
@@ -1950,12 +1956,12 @@ pub async fn mongo_get_one_document_by_id(
     random_error()?;
     let id: bson::Bson = serde_json::from_str(&id)?;
     let db = app
-        .get_schema(name.as_str())
+        .get_schema(db_name.as_str())
         .await
         .map_err(|e| e.to_string())?;
     let doc = match db.as_any().downcast_ref::<MongoDB>() {
         Some(x) => x.get_one_document_by_id(table_name.as_str(), id).await,
-        None => return Err(format!("db '{}' not mongo", name).into()),
+        None => return Err(format!("db '{}' not mongo", db_name).into()),
     }
     .map_err(ErrorFrontend::from)?;
     encode_bson_doc(&doc).map_err(ErrorFrontend::from)
@@ -1964,18 +1970,18 @@ pub async fn mongo_get_one_document_by_id(
 #[specta::specta]
 #[tauri::command]
 pub async fn mongo_query_db_drop(
-    name: String,
+    db_name: String,
     app: tauri::State<'_, DBPal>,
 ) -> Result<(), ErrorFrontend> {
     random_sleep().await;
     random_error()?;
     let db = app
-        .get_schema(name.as_str())
+        .get_schema(db_name.as_str())
         .await
         .map_err(|e| e.to_string())?;
     match db.as_any().downcast_ref::<MongoDB>() {
         Some(x) => x.query_db_drop().await,
-        None => return Err(format!("db '{}' not mongo", name).into()),
+        None => return Err(format!("db '{}' not mongo", db_name).into()),
     }
     .map_err(ErrorFrontend::from)?;
     Ok(())
@@ -1983,18 +1989,18 @@ pub async fn mongo_query_db_drop(
 #[specta::specta]
 #[tauri::command]
 pub async fn mongo_query_db_list_collection_names(
-    name: String,
+    db_name: String,
     app: tauri::State<'_, DBPal>,
 ) -> Result<Vec<String>, ErrorFrontend> {
     random_sleep().await;
     random_error()?;
     let db = app
-        .get_schema(name.as_str())
+        .get_schema(db_name.as_str())
         .await
         .map_err(|e| e.to_string())?;
     let ret = match db.as_any().downcast_ref::<MongoDB>() {
         Some(x) => x.query_db_list_collection_names().await,
-        None => return Err(format!("db '{}' not mongo", name).into()),
+        None => return Err(format!("db '{}' not mongo", db_name).into()),
     }
     .map_err(ErrorFrontend::from)?;
     Ok(ret)
@@ -2002,7 +2008,7 @@ pub async fn mongo_query_db_list_collection_names(
 #[specta::specta]
 #[tauri::command]
 pub async fn mongo_query_db_run_command(
-    name: String,
+    db_name: String,
     command: JsUint8Array,
     app: tauri::State<'_, DBPal>,
 ) -> Result<Vec<u8>, ErrorFrontend> {
@@ -2010,12 +2016,12 @@ pub async fn mongo_query_db_run_command(
     random_error()?;
     let command = parse_bson_doc(command.deref())?;
     let db = app
-        .get_schema(name.as_str())
+        .get_schema(db_name.as_str())
         .await
         .map_err(|e| e.to_string())?;
     let ret = match db.as_any().downcast_ref::<MongoDB>() {
         Some(x) => x.query_db_run_command(command).await,
-        None => return Err(format!("db '{}' not mongo", name).into()),
+        None => return Err(format!("db '{}' not mongo", db_name).into()),
     }
     .map_err(ErrorFrontend::from)?;
     Ok(encode_bson_doc(&ret)?)
@@ -2024,19 +2030,19 @@ pub async fn mongo_query_db_run_command(
 #[specta::specta]
 #[tauri::command]
 pub async fn mongo_query_collection_count_docs(
-    name: String,
+    db_name: String,
     col: String,
     app: tauri::State<'_, DBPal>,
 ) -> Result<u64, ErrorFrontend> {
     random_sleep().await;
     random_error()?;
     let db = app
-        .get_schema(name.as_str())
+        .get_schema(db_name.as_str())
         .await
         .map_err(|e| e.to_string())?;
     let ret = match db.as_any().downcast_ref::<MongoDB>() {
         Some(x) => x.query_collection_count_docs(&col).await,
-        None => return Err(format!("db '{}' not mongo", name).into()),
+        None => return Err(format!("db '{}' not mongo", db_name).into()),
     }
     .map_err(ErrorFrontend::from)?;
     Ok(ret)
@@ -2045,7 +2051,7 @@ pub async fn mongo_query_collection_count_docs(
 #[specta::specta]
 #[tauri::command]
 pub async fn mongo_query_collection_create_index(
-    name: String,
+    db_name: String,
     col: String,
     index: JsUint8Array,
     app: tauri::State<'_, DBPal>,
@@ -2054,12 +2060,12 @@ pub async fn mongo_query_collection_create_index(
     random_error()?;
     let index = parse_bson_doc(&index)?;
     let db = app
-        .get_schema(name.as_str())
+        .get_schema(db_name.as_str())
         .await
         .map_err(|e| e.to_string())?;
     let ret = match db.as_any().downcast_ref::<MongoDB>() {
         Some(x) => x.query_collection_create_index(&col, index).await,
-        None => return Err(format!("db '{}' not mongo", name).into()),
+        None => return Err(format!("db '{}' not mongo", db_name).into()),
     }
     .map_err(ErrorFrontend::from)?;
     Ok(ret.index_name)
@@ -2067,7 +2073,7 @@ pub async fn mongo_query_collection_create_index(
 #[specta::specta]
 #[tauri::command]
 pub async fn mongo_query_collection_create_search_index(
-    name: String,
+    db_name: String,
     col: String,
     index: JsUint8Array,
     index_name: Option<String>,
@@ -2077,7 +2083,7 @@ pub async fn mongo_query_collection_create_search_index(
     random_error()?;
     let index = parse_bson_doc(index.deref())?;
     let db = app
-        .get_schema(name.as_str())
+        .get_schema(db_name.as_str())
         .await
         .map_err(|e| e.to_string())?;
     let ret = match db.as_any().downcast_ref::<MongoDB>() {
@@ -2085,7 +2091,7 @@ pub async fn mongo_query_collection_create_search_index(
             x.query_collection_create_search_index(&col, index, index_name)
                 .await
         }
-        None => return Err(format!("db '{}' not mongo", name).into()),
+        None => return Err(format!("db '{}' not mongo", db_name).into()),
     }
     .map_err(ErrorFrontend::from)?;
     Ok(ret)
@@ -2093,7 +2099,7 @@ pub async fn mongo_query_collection_create_search_index(
 #[specta::specta]
 #[tauri::command]
 pub async fn mongo_query_collection_delete_many(
-    name: String,
+    db_name: String,
     col: String,
     query: JsUint8Array,
     app: tauri::State<'_, DBPal>,
@@ -2102,12 +2108,12 @@ pub async fn mongo_query_collection_delete_many(
     random_error()?;
     let query = parse_bson_doc(query.deref())?;
     let db = app
-        .get_schema(name.as_str())
+        .get_schema(db_name.as_str())
         .await
         .map_err(|e| e.to_string())?;
     let ret = match db.as_any().downcast_ref::<MongoDB>() {
         Some(x) => x.query_collection_delete_many(&col, query).await,
-        None => return Err(format!("db '{}' not mongo", name).into()),
+        None => return Err(format!("db '{}' not mongo", db_name).into()),
     }
     .map_err(ErrorFrontend::from)?;
     Ok(serde_json::to_string(&ret)?)
@@ -2115,7 +2121,7 @@ pub async fn mongo_query_collection_delete_many(
 #[specta::specta]
 #[tauri::command]
 pub async fn mongo_query_collection_delete_one(
-    name: String,
+    db_name: String,
     col: String,
     query: JsUint8Array,
     app: tauri::State<'_, DBPal>,
@@ -2124,12 +2130,12 @@ pub async fn mongo_query_collection_delete_one(
     random_error()?;
     let query = parse_bson_doc(query.deref())?;
     let db = app
-        .get_schema(name.as_str())
+        .get_schema(db_name.as_str())
         .await
         .map_err(|e| e.to_string())?;
     let ret = match db.as_any().downcast_ref::<MongoDB>() {
         Some(x) => x.query_collection_delete_one(&col, query).await,
-        None => return Err(format!("db '{}' not mongo", name).into()),
+        None => return Err(format!("db '{}' not mongo", db_name).into()),
     }
     .map_err(ErrorFrontend::from)?;
     Ok(serde_json::to_string(&ret)?)
@@ -2138,7 +2144,7 @@ pub async fn mongo_query_collection_delete_one(
 #[specta::specta]
 #[tauri::command]
 pub async fn mongo_query_collection_distinct(
-    name: String,
+    db_name: String,
     col: String,
     query: JsUint8Array,
     field: String,
@@ -2148,12 +2154,12 @@ pub async fn mongo_query_collection_distinct(
     random_error()?;
     let query = parse_bson_doc(&query)?;
     let db = app
-        .get_schema(name.as_str())
+        .get_schema(db_name.as_str())
         .await
         .map_err(|e| e.to_string())?;
     let values = match db.as_any().downcast_ref::<MongoDB>() {
         Some(x) => x.query_collection_distinct(&col, query, &field).await,
-        None => return Err(format!("db '{}' not mongo", name).into()),
+        None => return Err(format!("db '{}' not mongo", db_name).into()),
     }
     .map_err(ErrorFrontend::from)?;
     serde_json::to_string(&values).map_err(ErrorFrontend::from)
@@ -2162,7 +2168,7 @@ pub async fn mongo_query_collection_distinct(
 #[specta::specta]
 #[tauri::command]
 pub async fn mongo_query_collection_drop(
-    name: String,
+    db_name: String,
     col: String,
     app: tauri::State<'_, DBPal>,
 ) -> Result<(), ErrorFrontend> {
@@ -2170,12 +2176,12 @@ pub async fn mongo_query_collection_drop(
     random_error()?;
 
     let db = app
-        .get_schema(name.as_str())
+        .get_schema(db_name.as_str())
         .await
         .map_err(|e| e.to_string())?;
     match db.as_any().downcast_ref::<MongoDB>() {
         Some(x) => x.query_collection_drop(&col).await,
-        None => return Err(format!("db '{}' not mongo", name).into()),
+        None => return Err(format!("db '{}' not mongo", db_name).into()),
     }
     .map_err(ErrorFrontend::from)?;
     Ok(())
@@ -2184,7 +2190,7 @@ pub async fn mongo_query_collection_drop(
 #[specta::specta]
 #[tauri::command]
 pub async fn mongo_query_collection_drop_index(
-    name: String,
+    db_name: String,
     col: String,
     index: String,
     app: tauri::State<'_, DBPal>,
@@ -2193,12 +2199,12 @@ pub async fn mongo_query_collection_drop_index(
     random_error()?;
 
     let db = app
-        .get_schema(name.as_str())
+        .get_schema(db_name.as_str())
         .await
         .map_err(|e| e.to_string())?;
     match db.as_any().downcast_ref::<MongoDB>() {
         Some(x) => x.query_collection_drop_index(&col, &index).await,
-        None => return Err(format!("db '{}' not mongo", name).into()),
+        None => return Err(format!("db '{}' not mongo", db_name).into()),
     }
     .map_err(ErrorFrontend::from)?;
     Ok(())
@@ -2207,19 +2213,19 @@ pub async fn mongo_query_collection_drop_index(
 #[specta::specta]
 #[tauri::command]
 pub async fn mongo_query_collection_drop_indexes(
-    name: String,
+    db_name: String,
     col: String,
     app: tauri::State<'_, DBPal>,
 ) -> Result<(), ErrorFrontend> {
     random_sleep().await;
     random_error()?;
     let db = app
-        .get_schema(name.as_str())
+        .get_schema(db_name.as_str())
         .await
         .map_err(|e| e.to_string())?;
     match db.as_any().downcast_ref::<MongoDB>() {
         Some(x) => x.query_collection_drop_indexes(&col).await,
-        None => return Err(format!("db '{}' not mongo", name).into()),
+        None => return Err(format!("db '{}' not mongo", db_name).into()),
     }
     .map_err(ErrorFrontend::from)?;
     Ok(())
@@ -2227,7 +2233,7 @@ pub async fn mongo_query_collection_drop_indexes(
 #[specta::specta]
 #[tauri::command]
 pub async fn mongo_query_collection_drop_search_index(
-    name: String,
+    db_name: String,
     col: String,
     index: String,
     app: tauri::State<'_, DBPal>,
@@ -2235,12 +2241,12 @@ pub async fn mongo_query_collection_drop_search_index(
     random_sleep().await;
     random_error()?;
     let db = app
-        .get_schema(name.as_str())
+        .get_schema(db_name.as_str())
         .await
         .map_err(|e| e.to_string())?;
     match db.as_any().downcast_ref::<MongoDB>() {
         Some(x) => x.query_collection_drop_search_index(&col, &index).await,
-        None => return Err(format!("db '{}' not mongo", name).into()),
+        None => return Err(format!("db '{}' not mongo", db_name).into()),
     }
     .map_err(ErrorFrontend::from)?;
     Ok(())
@@ -2249,7 +2255,7 @@ pub async fn mongo_query_collection_drop_search_index(
 #[specta::specta]
 #[tauri::command]
 pub async fn mongo_query_collection_find(
-    name: String,
+    db_name: String,
     col: String,
     para: app::MongoFindParameter,
     app: tauri::State<'_, DBPal>,
@@ -2257,12 +2263,12 @@ pub async fn mongo_query_collection_find(
     random_sleep().await;
     random_error()?;
     let db = app
-        .get_schema(name.as_str())
+        .get_schema(db_name.as_str())
         .await
         .map_err(|e| e.to_string())?;
     let docs = match db.as_any().downcast_ref::<MongoDB>() {
         Some(x) => x.query_collection_find(&col, para.try_into()?).await,
-        None => return Err(format!("db '{}' not mongo", name).into()),
+        None => return Err(format!("db '{}' not mongo", db_name).into()),
     }
     .map_err(ErrorFrontend::from)?;
     let mut ret = Vec::with_capacity(docs.len());
@@ -2275,7 +2281,7 @@ pub async fn mongo_query_collection_find(
 #[specta::specta]
 #[tauri::command]
 pub async fn mongo_query_collection_find_one(
-    name: String,
+    db_name: String,
     col: String,
     para: app::MongoFindParameter,
     app: tauri::State<'_, DBPal>,
@@ -2283,12 +2289,12 @@ pub async fn mongo_query_collection_find_one(
     random_sleep().await;
     random_error()?;
     let db = app
-        .get_schema(name.as_str())
+        .get_schema(db_name.as_str())
         .await
         .map_err(|e| e.to_string())?;
     let ret = match db.as_any().downcast_ref::<MongoDB>() {
         Some(x) => x.query_collection_find_one(&col, para.try_into()?).await,
-        None => return Err(format!("db '{}' not mongo", name).into()),
+        None => return Err(format!("db '{}' not mongo", db_name).into()),
     }
     .map_err(ErrorFrontend::from)?;
     Ok(match ret {
@@ -2300,7 +2306,7 @@ pub async fn mongo_query_collection_find_one(
 #[specta::specta]
 #[tauri::command]
 pub async fn mongo_query_collection_find_one_and_delete(
-    name: String,
+    db_name: String,
     col: String,
     query: JsUint8Array,
     app: tauri::State<'_, DBPal>,
@@ -2309,12 +2315,12 @@ pub async fn mongo_query_collection_find_one_and_delete(
     random_error()?;
     let query = parse_bson_doc(query.deref())?;
     let db = app
-        .get_schema(name.as_str())
+        .get_schema(db_name.as_str())
         .await
         .map_err(|e| e.to_string())?;
     let ret = match db.as_any().downcast_ref::<MongoDB>() {
         Some(x) => x.query_collection_find_one_and_delete(&col, query).await,
-        None => return Err(format!("db '{}' not mongo", name).into()),
+        None => return Err(format!("db '{}' not mongo", db_name).into()),
     }
     .map_err(ErrorFrontend::from)?;
 
@@ -2326,7 +2332,7 @@ pub async fn mongo_query_collection_find_one_and_delete(
 #[specta::specta]
 #[tauri::command]
 pub async fn mongo_query_collection_find_one_and_replace(
-    name: String,
+    db_name: String,
     col: String,
     query: JsUint8Array,
     replacement: JsUint8Array,
@@ -2337,7 +2343,7 @@ pub async fn mongo_query_collection_find_one_and_replace(
     let query = parse_bson_doc(&query)?;
     let rep = parse_bson_doc(&replacement)?;
     let db = app
-        .get_schema(name.as_str())
+        .get_schema(db_name.as_str())
         .await
         .map_err(|e| e.to_string())?;
     let ret = match db.as_any().downcast_ref::<MongoDB>() {
@@ -2345,7 +2351,7 @@ pub async fn mongo_query_collection_find_one_and_replace(
             x.query_collection_find_one_and_replace(&col, query, rep)
                 .await
         }
-        None => return Err(format!("db '{}' not mongo", name).into()),
+        None => return Err(format!("db '{}' not mongo", db_name).into()),
     }
     .map_err(ErrorFrontend::from)?;
 
@@ -2358,7 +2364,7 @@ pub async fn mongo_query_collection_find_one_and_replace(
 #[specta::specta]
 #[tauri::command]
 pub async fn mongo_query_collection_insert_many(
-    name: String,
+    db_name: String,
     col: String,
     data: Vec<JsUint8Array>,
     app: tauri::State<'_, DBPal>,
@@ -2371,12 +2377,12 @@ pub async fn mongo_query_collection_insert_many(
         docs.push(d);
     }
     let db = app
-        .get_schema(name.as_str())
+        .get_schema(db_name.as_str())
         .await
         .map_err(|e| e.to_string())?;
     let ret = match db.as_any().downcast_ref::<MongoDB>() {
         Some(x) => x.query_collection_insert_many(&col, docs).await,
-        None => return Err(format!("db '{}' not mongo", name).into()),
+        None => return Err(format!("db '{}' not mongo", db_name).into()),
     }
     .map_err(ErrorFrontend::from)?;
     Ok(serde_json::to_string(&ret)?)
@@ -2385,7 +2391,7 @@ pub async fn mongo_query_collection_insert_many(
 #[specta::specta]
 #[tauri::command]
 pub async fn mongo_query_collection_insert_one(
-    name: String,
+    db_name: String,
     col: String,
     doc: JsUint8Array,
     app: tauri::State<'_, DBPal>,
@@ -2394,12 +2400,12 @@ pub async fn mongo_query_collection_insert_one(
     random_error()?;
     let doc = parse_bson_doc(doc.deref())?;
     let db = app
-        .get_schema(name.as_str())
+        .get_schema(db_name.as_str())
         .await
         .map_err(|e| e.to_string())?;
     let ret = match db.as_any().downcast_ref::<MongoDB>() {
         Some(x) => x.query_collection_insert_one(&col, doc).await,
-        None => return Err(format!("db '{}' not mongo", name).into()),
+        None => return Err(format!("db '{}' not mongo", db_name).into()),
     }
     .map_err(ErrorFrontend::from)?;
     Ok(serde_json::to_string(&ret)?)
@@ -2408,19 +2414,19 @@ pub async fn mongo_query_collection_insert_one(
 #[specta::specta]
 #[tauri::command]
 pub async fn mongo_query_collection_list_index_names(
-    name: String,
+    db_name: String,
     col: String,
     app: tauri::State<'_, DBPal>,
 ) -> Result<Vec<String>, ErrorFrontend> {
     random_sleep().await;
     random_error()?;
     let db = app
-        .get_schema(name.as_str())
+        .get_schema(db_name.as_str())
         .await
         .map_err(|e| e.to_string())?;
     let ret = match db.as_any().downcast_ref::<MongoDB>() {
         Some(x) => x.query_collection_list_index_names(&col).await,
-        None => return Err(format!("db '{}' not mongo", name).into()),
+        None => return Err(format!("db '{}' not mongo", db_name).into()),
     }
     .map_err(ErrorFrontend::from)?;
     Ok(ret)
@@ -2428,19 +2434,19 @@ pub async fn mongo_query_collection_list_index_names(
 #[specta::specta]
 #[tauri::command]
 pub async fn mongo_query_collection_list_indexes(
-    name: String,
+    db_name: String,
     col: String,
     app: tauri::State<'_, DBPal>,
 ) -> Result<String, ErrorFrontend> {
     random_sleep().await;
     random_error()?;
     let db = app
-        .get_schema(name.as_str())
+        .get_schema(db_name.as_str())
         .await
         .map_err(|e| e.to_string())?;
     let indexes = match db.as_any().downcast_ref::<MongoDB>() {
         Some(x) => x.query_collection_list_indexes(&col).await,
-        None => return Err(format!("db '{}' not mongo", name).into()),
+        None => return Err(format!("db '{}' not mongo", db_name).into()),
     }
     .map_err(ErrorFrontend::from)?;
     Ok(serde_json::to_string(&indexes)?)
@@ -2449,19 +2455,19 @@ pub async fn mongo_query_collection_list_indexes(
 #[specta::specta]
 #[tauri::command]
 pub async fn mongo_query_collection_list_search_indexes(
-    name: String,
+    db_name: String,
     col: String,
     app: tauri::State<'_, DBPal>,
 ) -> Result<Vec<Vec<u8>>, ErrorFrontend> {
     random_sleep().await;
     random_error()?;
     let db = app
-        .get_schema(name.as_str())
+        .get_schema(db_name.as_str())
         .await
         .map_err(|e| e.to_string())?;
     let indexes = match db.as_any().downcast_ref::<MongoDB>() {
         Some(x) => x.query_collection_list_search_indexes(&col).await,
-        None => return Err(format!("db '{}' not mongo", name).into()),
+        None => return Err(format!("db '{}' not mongo", db_name).into()),
     }
     .map_err(ErrorFrontend::from)?;
     let mut ret = Vec::with_capacity(indexes.len());
@@ -2474,7 +2480,7 @@ pub async fn mongo_query_collection_list_search_indexes(
 #[specta::specta]
 #[tauri::command]
 pub async fn mongo_query_collection_replace_one(
-    name: String,
+    db_name: String,
     col: String,
     query: JsUint8Array,
     replacement: JsUint8Array,
@@ -2486,7 +2492,7 @@ pub async fn mongo_query_collection_replace_one(
     let replacement = parse_bson_doc(replacement.deref())?;
 
     let db = app
-        .get_schema(name.as_str())
+        .get_schema(db_name.as_str())
         .await
         .map_err(|e| e.to_string())?;
     let ret = match db.as_any().downcast_ref::<MongoDB>() {
@@ -2494,7 +2500,7 @@ pub async fn mongo_query_collection_replace_one(
             x.query_collection_replace_one(&col, query, replacement)
                 .await
         }
-        None => return Err(format!("db '{}' not mongo", name).into()),
+        None => return Err(format!("db '{}' not mongo", db_name).into()),
     }
     .map_err(ErrorFrontend::from)?;
 
@@ -2503,7 +2509,7 @@ pub async fn mongo_query_collection_replace_one(
 #[specta::specta]
 #[tauri::command]
 pub async fn mongo_query_collection_update_many(
-    name: String,
+    db_name: String,
     col: String,
     query: JsUint8Array,
     replacement: JsUint8Array,
@@ -2514,7 +2520,7 @@ pub async fn mongo_query_collection_update_many(
     let query = parse_bson_doc(query.deref())?;
     let replacement = parse_bson_doc(replacement.deref())?;
     let db = app
-        .get_schema(name.as_str())
+        .get_schema(db_name.as_str())
         .await
         .map_err(|e| e.to_string())?;
     let ret = match db.as_any().downcast_ref::<MongoDB>() {
@@ -2522,7 +2528,7 @@ pub async fn mongo_query_collection_update_many(
             x.query_collection_update_many(&col, query, replacement)
                 .await
         }
-        None => return Err(format!("db '{}' not mongo", name).into()),
+        None => return Err(format!("db '{}' not mongo", db_name).into()),
     }
     .map_err(ErrorFrontend::from)?;
 
@@ -2532,7 +2538,7 @@ pub async fn mongo_query_collection_update_many(
 #[specta::specta]
 #[tauri::command]
 pub async fn mongo_query_collection_update_one(
-    name: String,
+    db_name: String,
     col: String,
     query: JsUint8Array,
     replacement: JsUint8Array,
@@ -2543,7 +2549,7 @@ pub async fn mongo_query_collection_update_one(
     let query = parse_bson_doc(query.deref())?;
     let replacement = parse_bson_doc(replacement.deref())?;
     let db = app
-        .get_schema(name.as_str())
+        .get_schema(db_name.as_str())
         .await
         .map_err(|e| e.to_string())?;
     let ret = match db.as_any().downcast_ref::<MongoDB>() {
@@ -2551,7 +2557,7 @@ pub async fn mongo_query_collection_update_one(
             x.query_collection_update_one(&col, query, replacement)
                 .await
         }
-        None => return Err(format!("db '{}' not mongo", name).into()),
+        None => return Err(format!("db '{}' not mongo", db_name).into()),
     }
     .map_err(ErrorFrontend::from)?;
 
@@ -2561,7 +2567,7 @@ pub async fn mongo_query_collection_update_one(
 #[specta::specta]
 #[tauri::command]
 pub async fn redis_list_lpush(
-    name: String,
+    db_name: String,
     key: String,
     value: String,
     app: tauri::State<'_, DBPal>,
@@ -2569,7 +2575,7 @@ pub async fn redis_list_lpush(
     let value = hex::decode(value.as_bytes()).map_err(ErrorFrontend::from)?;
 
     let schema = app
-        .get_schema(name.as_str())
+        .get_schema(db_name.as_str())
         .await
         .map_err(ErrorFrontend::from)?;
     match schema.as_any().downcast_ref::<RedisDB>() {
@@ -2578,7 +2584,7 @@ pub async fn redis_list_lpush(
                 .await
                 .map_err(ErrorFrontend::from)?;
         }
-        None => return Err(format!("uuid {} is not redis", name).into()),
+        None => return Err(format!("uuid {} is not redis", db_name).into()),
     }
     Ok(())
 }
@@ -2586,7 +2592,7 @@ pub async fn redis_list_lpush(
 #[specta::specta]
 #[tauri::command]
 pub async fn redis_list_rpush(
-    name: String,
+    db_name: String,
     key: String,
     value: String,
     app: tauri::State<'_, DBPal>,
@@ -2594,7 +2600,7 @@ pub async fn redis_list_rpush(
     let value = hex::decode(value.as_bytes()).map_err(ErrorFrontend::from)?;
 
     let schema = app
-        .get_schema(name.as_str())
+        .get_schema(db_name.as_str())
         .await
         .map_err(ErrorFrontend::from)?;
     match schema.as_any().downcast_ref::<RedisDB>() {
@@ -2603,7 +2609,7 @@ pub async fn redis_list_rpush(
                 .await
                 .map_err(ErrorFrontend::from)?;
         }
-        None => return Err(format!("uuid {} is not redis", name).into()),
+        None => return Err(format!("uuid {} is not redis", db_name).into()),
     }
     Ok(())
 }
@@ -2611,7 +2617,7 @@ pub async fn redis_list_rpush(
 #[specta::specta]
 #[tauri::command]
 pub async fn redis_list_remove(
-    name: String,
+    db_name: String,
     key: String,
     value: String,
     count: isize,
@@ -2620,7 +2626,7 @@ pub async fn redis_list_remove(
     let value = hex::decode(value.as_bytes()).map_err(ErrorFrontend::from)?;
 
     let schema = app
-        .get_schema(name.as_str())
+        .get_schema(db_name.as_str())
         .await
         .map_err(ErrorFrontend::from)?;
     match schema.as_any().downcast_ref::<RedisDB>() {
@@ -2629,7 +2635,7 @@ pub async fn redis_list_remove(
                 .await
                 .map_err(ErrorFrontend::from)?;
         }
-        None => return Err(format!("uuid {} is not redis", name).into()),
+        None => return Err(format!("uuid {} is not redis", db_name).into()),
     }
     Ok(())
 }
@@ -2637,7 +2643,7 @@ pub async fn redis_list_remove(
 #[specta::specta]
 #[tauri::command]
 pub async fn redis_list_set(
-    name: String,
+    db_name: String,
     key: String,
     value: String,
     index: isize,
@@ -2646,7 +2652,7 @@ pub async fn redis_list_set(
     let value = hex::decode(value.as_bytes()).map_err(ErrorFrontend::from)?;
 
     let schema = app
-        .get_schema(name.as_str())
+        .get_schema(db_name.as_str())
         .await
         .map_err(ErrorFrontend::from)?;
     match schema.as_any().downcast_ref::<RedisDB>() {
@@ -2655,7 +2661,7 @@ pub async fn redis_list_set(
                 .await
                 .map_err(ErrorFrontend::from)?;
         }
-        None => return Err(format!("uuid {} is not redis", name).into()),
+        None => return Err(format!("uuid {} is not redis", db_name).into()),
     }
     Ok(())
 }
@@ -2663,7 +2669,7 @@ pub async fn redis_list_set(
 #[specta::specta]
 #[tauri::command]
 pub async fn redis_set_replace(
-    name: String,
+    db_name: String,
     key: String,
     old: String,
     new_value: String,
@@ -2673,7 +2679,7 @@ pub async fn redis_set_replace(
     let new = hex::decode(new_value.as_bytes()).map_err(ErrorFrontend::from)?;
 
     let schema = app
-        .get_schema(name.as_str())
+        .get_schema(db_name.as_str())
         .await
         .map_err(ErrorFrontend::from)?;
     match schema.as_any().downcast_ref::<RedisDB>() {
@@ -2682,7 +2688,7 @@ pub async fn redis_set_replace(
                 .await
                 .map_err(ErrorFrontend::from)?;
         }
-        None => return Err(format!("uuid {} is not redis", name).into()),
+        None => return Err(format!("uuid {} is not redis", db_name).into()),
     }
     Ok(())
 }
@@ -2690,14 +2696,14 @@ pub async fn redis_set_replace(
 #[specta::specta]
 #[tauri::command]
 pub async fn redis_set_del(
-    name: String,
+    db_name: String,
     key: String,
     member: String,
     app: tauri::State<'_, DBPal>,
 ) -> Result<(), ErrorFrontend> {
     let member = hex::decode(member.as_bytes()).map_err(ErrorFrontend::from)?;
     let schema = app
-        .get_schema(name.as_str())
+        .get_schema(db_name.as_str())
         .await
         .map_err(ErrorFrontend::from)?;
     match schema.as_any().downcast_ref::<RedisDB>() {
@@ -2706,7 +2712,7 @@ pub async fn redis_set_del(
                 .await
                 .map_err(ErrorFrontend::from)?;
         }
-        None => return Err(format!("uuid {} is not redis", name).into()),
+        None => return Err(format!("uuid {} is not redis", db_name).into()),
     }
     Ok(())
 }
@@ -2714,14 +2720,14 @@ pub async fn redis_set_del(
 #[specta::specta]
 #[tauri::command]
 pub async fn redis_set_add(
-    name: String,
+    db_name: String,
     key: String,
     member: String,
     app: tauri::State<'_, DBPal>,
 ) -> Result<(), ErrorFrontend> {
     let member = hex::decode(member.as_bytes()).map_err(ErrorFrontend::from)?;
     let schema = app
-        .get_schema(name.as_str())
+        .get_schema(db_name.as_str())
         .await
         .map_err(ErrorFrontend::from)?;
     match schema.as_any().downcast_ref::<RedisDB>() {
@@ -2730,7 +2736,7 @@ pub async fn redis_set_add(
                 .await
                 .map_err(ErrorFrontend::from)?;
         }
-        None => return Err(format!("uuid {} is not redis", name).into()),
+        None => return Err(format!("uuid {} is not redis", db_name).into()),
     }
     Ok(())
 }
@@ -2738,7 +2744,7 @@ pub async fn redis_set_add(
 #[specta::specta]
 #[tauri::command]
 pub async fn redis_hash_replace(
-    name: String,
+    db_name: String,
     key: String,
     old_member: String,
     new_member: String,
@@ -2751,7 +2757,7 @@ pub async fn redis_hash_replace(
     let new_value = hex::decode(new_value.as_bytes()).map_err(ErrorFrontend::from)?;
 
     let schema = app
-        .get_schema(name.as_str())
+        .get_schema(db_name.as_str())
         .await
         .map_err(ErrorFrontend::from)?;
     match schema.as_any().downcast_ref::<RedisDB>() {
@@ -2760,7 +2766,7 @@ pub async fn redis_hash_replace(
                 .await
                 .map_err(ErrorFrontend::from)?;
         }
-        None => return Err(format!("uuid {} is not redis", name).into()),
+        None => return Err(format!("uuid {} is not redis", db_name).into()),
     }
     Ok(())
 }
@@ -2768,7 +2774,7 @@ pub async fn redis_hash_replace(
 #[specta::specta]
 #[tauri::command]
 pub async fn redis_hash_del(
-    name: String,
+    db_name: String,
     key: String,
     member: String,
     app: tauri::State<'_, DBPal>,
@@ -2776,7 +2782,7 @@ pub async fn redis_hash_del(
     let member = hex::decode(member.as_bytes()).map_err(ErrorFrontend::from)?;
 
     let schema = app
-        .get_schema(name.as_str())
+        .get_schema(db_name.as_str())
         .await
         .map_err(ErrorFrontend::from)?;
     match schema.as_any().downcast_ref::<RedisDB>() {
@@ -2785,7 +2791,7 @@ pub async fn redis_hash_del(
                 .await
                 .map_err(ErrorFrontend::from)?;
         }
-        None => return Err(format!("uuid {} is not redis", name).into()),
+        None => return Err(format!("uuid {} is not redis", db_name).into()),
     }
     Ok(())
 }
@@ -2793,7 +2799,7 @@ pub async fn redis_hash_del(
 #[specta::specta]
 #[tauri::command]
 pub async fn redis_hash_add(
-    name: String,
+    db_name: String,
     key: String,
     member: String,
     value: String,
@@ -2803,7 +2809,7 @@ pub async fn redis_hash_add(
     let value = hex::decode(value.as_bytes()).map_err(ErrorFrontend::from)?;
 
     let schema = app
-        .get_schema(name.as_str())
+        .get_schema(db_name.as_str())
         .await
         .map_err(ErrorFrontend::from)?;
     match schema.as_any().downcast_ref::<RedisDB>() {
@@ -2812,7 +2818,7 @@ pub async fn redis_hash_add(
                 .await
                 .map_err(ErrorFrontend::from)?;
         }
-        None => return Err(format!("uuid {} is not redis", name).into()),
+        None => return Err(format!("uuid {} is not redis", db_name).into()),
     }
     Ok(())
 }
@@ -2820,7 +2826,7 @@ pub async fn redis_hash_add(
 #[specta::specta]
 #[tauri::command]
 pub async fn redis_zset_replace(
-    name: String,
+    db_name: String,
     key: String,
     old_member: String,
     new_member: String,
@@ -2831,7 +2837,7 @@ pub async fn redis_zset_replace(
     let new_member = hex::decode(new_member.as_bytes()).map_err(ErrorFrontend::from)?;
 
     let schema = app
-        .get_schema(name.as_str())
+        .get_schema(db_name.as_str())
         .await
         .map_err(ErrorFrontend::from)?;
     match schema.as_any().downcast_ref::<RedisDB>() {
@@ -2840,7 +2846,7 @@ pub async fn redis_zset_replace(
                 .await
                 .map_err(ErrorFrontend::from)?;
         }
-        None => return Err(format!("uuid {} is not redis", name).into()),
+        None => return Err(format!("uuid {} is not redis", db_name).into()),
     }
     Ok(())
 }
@@ -2848,7 +2854,7 @@ pub async fn redis_zset_replace(
 #[specta::specta]
 #[tauri::command]
 pub async fn redis_zset_del(
-    name: String,
+    db_name: String,
     key: String,
     member: String,
     app: tauri::State<'_, DBPal>,
@@ -2856,7 +2862,7 @@ pub async fn redis_zset_del(
     let member = hex::decode(member.as_bytes()).map_err(ErrorFrontend::from)?;
 
     let schema = app
-        .get_schema(name.as_str())
+        .get_schema(db_name.as_str())
         .await
         .map_err(ErrorFrontend::from)?;
     match schema.as_any().downcast_ref::<RedisDB>() {
@@ -2865,14 +2871,14 @@ pub async fn redis_zset_del(
                 .await
                 .map_err(ErrorFrontend::from)?;
         }
-        None => return Err(format!("uuid {} is not redis", name).into()),
+        None => return Err(format!("uuid {} is not redis", db_name).into()),
     }
     Ok(())
 }
 #[specta::specta]
 #[tauri::command]
 pub async fn redis_zset_add(
-    name: String,
+    db_name: String,
     key: String,
     member: String,
     value: f64,
@@ -2881,7 +2887,7 @@ pub async fn redis_zset_add(
     let member = hex::decode(member.as_bytes()).map_err(ErrorFrontend::from)?;
 
     let schema = app
-        .get_schema(name.as_str())
+        .get_schema(db_name.as_str())
         .await
         .map_err(ErrorFrontend::from)?;
     match schema.as_any().downcast_ref::<RedisDB>() {
@@ -2890,7 +2896,7 @@ pub async fn redis_zset_add(
                 .await
                 .map_err(ErrorFrontend::from)?;
         }
-        None => return Err(format!("uuid {} is not redis", name).into()),
+        None => return Err(format!("uuid {} is not redis", db_name).into()),
     }
     Ok(())
 }
@@ -2898,11 +2904,11 @@ pub async fn redis_zset_add(
 #[specta::specta]
 #[tauri::command]
 pub async fn list_procedure(
-    name: String,
+    db_name: String,
     app: tauri::State<'_, DBPal>,
 ) -> Result<Vec<NamedStaff>, ErrorFrontend> {
     let schema = app
-        .get_schema(name.as_str())
+        .get_schema(db_name.as_str())
         .await
         .map_err(ErrorFrontend::from)?;
     let sx = schema.list_procedure().await.map_err(ErrorFrontend::from)?;
@@ -2912,13 +2918,13 @@ pub async fn list_procedure(
 #[specta::specta]
 #[tauri::command]
 pub async fn show_procedure(
-    name: String,
+    db_name: String,
     procedure: NamedStaff,
 
     app: tauri::State<'_, DBPal>,
 ) -> Result<ProcedureDetail, ErrorFrontend> {
     let schema = app
-        .get_schema(name.as_str())
+        .get_schema(db_name.as_str())
         .await
         .map_err(ErrorFrontend::from)?;
     schema
@@ -2930,12 +2936,12 @@ pub async fn show_procedure(
 #[specta::specta]
 #[tauri::command]
 pub async fn drop_procedure(
-    name: String,
+    db_name: String,
     procedure: NamedStaff,
     app: tauri::State<'_, DBPal>,
 ) -> Result<String, ErrorFrontend> {
     let schema = app
-        .get_schema(name.as_str())
+        .get_schema(db_name.as_str())
         .await
         .map_err(ErrorFrontend::from)?;
     schema
@@ -2947,11 +2953,11 @@ pub async fn drop_procedure(
 #[specta::specta]
 #[tauri::command]
 pub async fn list_udf(
-    name: String,
+    db_name: String,
     app: tauri::State<'_, DBPal>,
 ) -> Result<Vec<NamedStaff>, ErrorFrontend> {
     let schema = app
-        .get_schema(name.as_str())
+        .get_schema(db_name.as_str())
         .await
         .map_err(ErrorFrontend::from)?;
     let ret = schema.list_udf().await.map_err(ErrorFrontend::from)?;
@@ -2961,11 +2967,11 @@ pub async fn list_udf(
 #[specta::specta]
 #[tauri::command]
 pub async fn list_sequence(
-    name: String,
+    db_name: String,
     app: tauri::State<'_, DBPal>,
 ) -> Result<Vec<SequenceDetail>, ErrorFrontend> {
     let schema = app
-        .get_schema(name.as_str())
+        .get_schema(db_name.as_str())
         .await
         .map_err(ErrorFrontend::from)?;
     let ret = schema.list_sequence().await.map_err(ErrorFrontend::from)?;
@@ -2975,13 +2981,13 @@ pub async fn list_sequence(
 #[specta::specta]
 #[tauri::command]
 pub async fn drop_sequence(
-    name: String,
+    db_name: String,
     app: tauri::State<'_, DBPal>,
     seq: String,
     cascade: bool,
 ) -> Result<String, ErrorFrontend> {
     let schema = app
-        .get_schema(name.as_str())
+        .get_schema(db_name.as_str())
         .await
         .map_err(ErrorFrontend::from)?;
     schema
@@ -2993,13 +2999,13 @@ pub async fn drop_sequence(
 #[specta::specta]
 #[tauri::command]
 pub async fn rename_sequence(
-    name: String,
+    db_name: String,
     app: tauri::State<'_, DBPal>,
     old: String,
     new_name: String,
 ) -> Result<String, ErrorFrontend> {
     let schema = app
-        .get_schema(name.as_str())
+        .get_schema(db_name.as_str())
         .await
         .map_err(ErrorFrontend::from)?;
     schema
@@ -3011,12 +3017,12 @@ pub async fn rename_sequence(
 #[specta::specta]
 #[tauri::command]
 pub async fn show_udf(
-    name: String,
+    db_name: String,
     udf: NamedStaff,
     app: tauri::State<'_, DBPal>,
 ) -> Result<DefAndMetas, ErrorFrontend> {
     let schema = app
-        .get_schema(name.as_str())
+        .get_schema(db_name.as_str())
         .await
         .map_err(ErrorFrontend::from)?;
     schema.show_udf(&udf).await.map_err(ErrorFrontend::from)
@@ -3025,13 +3031,13 @@ pub async fn show_udf(
 #[specta::specta]
 #[tauri::command]
 pub async fn drop_udf(
-    name: String,
+    db_name: String,
     udf: NamedStaff,
 
     app: tauri::State<'_, DBPal>,
 ) -> Result<String, ErrorFrontend> {
     let schema = app
-        .get_schema(name.as_str())
+        .get_schema(db_name.as_str())
         .await
         .map_err(ErrorFrontend::from)?;
     schema.drop_udf(&udf).await.map_err(ErrorFrontend::from)
@@ -3040,7 +3046,7 @@ pub async fn drop_udf(
 #[specta::specta]
 #[tauri::command]
 pub async fn redis_string_set(
-    name: String,
+    db_name: String,
     key: String,
     value: String,
     app: tauri::State<'_, DBPal>,
@@ -3048,7 +3054,7 @@ pub async fn redis_string_set(
     let value = hex::decode(value.as_bytes()).map_err(ErrorFrontend::from)?;
 
     let schema = app
-        .get_schema(name.as_str())
+        .get_schema(db_name.as_str())
         .await
         .map_err(ErrorFrontend::from)?;
     match schema.as_any().downcast_ref::<RedisDB>() {
@@ -3057,7 +3063,7 @@ pub async fn redis_string_set(
                 .await
                 .map_err(ErrorFrontend::from)?;
         }
-        None => return Err(format!("uuid {} is not redis", name).into()),
+        None => return Err(format!("uuid {} is not redis", db_name).into()),
     }
     Ok(())
 }
@@ -3065,13 +3071,13 @@ pub async fn redis_string_set(
 #[specta::specta]
 #[tauri::command]
 pub async fn put_value_in_sql(
-    name: String,
+    db_name: String,
     typ: String,
     value: Option<String>,
     app: tauri::State<'_, DBPal>,
 ) -> Result<String, ErrorFrontend> {
     let schema = app
-        .get_schema(name.as_str())
+        .get_schema(db_name.as_str())
         .await
         .map_err(ErrorFrontend::from)?;
 
@@ -3101,11 +3107,11 @@ pub async fn put_value_in_sql(
 #[specta::specta]
 #[tauri::command]
 pub async fn cassandra_list_aggregate(
-    name: String,
+    db_name: String,
     app: tauri::State<'_, DBPal>,
 ) -> Result<Vec<NamedStaff>, ErrorFrontend> {
     let schema = app
-        .get_schema(name.as_str())
+        .get_schema(db_name.as_str())
         .await
         .map_err(ErrorFrontend::from)?;
 
@@ -3114,7 +3120,7 @@ pub async fn cassandra_list_aggregate(
         None => {
             return Err(ErrorFrontend::from(format!(
                 "'{}' is not a cassandra backend",
-                name
+                db_name
             )));
         }
     };
@@ -3124,13 +3130,13 @@ pub async fn cassandra_list_aggregate(
 #[specta::specta]
 #[tauri::command]
 pub async fn cassandra_show_aggregate(
-    name: String,
+    db_name: String,
     agg_name: String,
     parameters: Vec<String>,
     app: tauri::State<'_, DBPal>,
 ) -> Result<DefAndMetas, ErrorFrontend> {
     let schema = app
-        .get_schema(name.as_str())
+        .get_schema(db_name.as_str())
         .await
         .map_err(ErrorFrontend::from)?;
 
@@ -3142,7 +3148,7 @@ pub async fn cassandra_show_aggregate(
         None => {
             return Err(ErrorFrontend::from(format!(
                 "'{}' is not a cassandra",
-                name
+                db_name
             )));
         }
     };
@@ -3152,13 +3158,13 @@ pub async fn cassandra_show_aggregate(
 #[specta::specta]
 #[tauri::command]
 pub async fn cassandra_drop_aggregate(
-    name: String,
+    db_name: String,
     agg_name: String,
     parameters: Vec<String>,
     app: tauri::State<'_, DBPal>,
 ) -> Result<String, ErrorFrontend> {
     let schema = app
-        .get_schema(name.as_str())
+        .get_schema(db_name.as_str())
         .await
         .map_err(ErrorFrontend::from)?;
 
@@ -3169,7 +3175,7 @@ pub async fn cassandra_drop_aggregate(
             .map_err(ErrorFrontend::from),
         None => Err(ErrorFrontend::from(format!(
             "'{}' is not a cassandra",
-            name
+            db_name
         ))),
     }
 }
@@ -3177,12 +3183,12 @@ pub async fn cassandra_drop_aggregate(
 #[specta::specta]
 #[tauri::command]
 pub async fn drop_created_type(
-    name: String,
+    db_name: String,
     type_name: String,
     app: tauri::State<'_, DBPal>,
 ) -> Result<String, ErrorFrontend> {
     let schema = app
-        .get_schema(name.as_str())
+        .get_schema(db_name.as_str())
         .await
         .map_err(ErrorFrontend::from)?;
 
@@ -3304,14 +3310,14 @@ impl From<QueryResp> for MuiDataGridData {
             indexes: HashMap<String, usize>,
         }
         impl NameIndex {
-            fn get_index(&mut self, name: &String) -> Option<usize> {
-                match self.indexes.get_mut(name) {
+            fn get_index(&mut self, db_name: &String) -> Option<usize> {
+                match self.indexes.get_mut(db_name) {
                     Some(x) => {
                         *x += 1;
                         Some(*x)
                     }
                     None => {
-                        self.indexes.insert(name.clone(), 1);
+                        self.indexes.insert(db_name.clone(), 1);
                         None
                     }
                 }
@@ -3395,7 +3401,7 @@ mod tests {
         use serde_json::Value;
 
         let bad = r#"{
-        "name": "Rust"
+        "db_name": "Rust"
         "age": 12    // ← 少逗号
     }"#;
 

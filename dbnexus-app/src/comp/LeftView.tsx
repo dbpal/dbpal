@@ -9,7 +9,6 @@ import {
 } from "react";
 import { modalStyle, EscDownEvent, modalHandleClose } from "./Common";
 import ContentCopyIcon from "@mui/icons-material/ContentCopy";
-import { invoke } from "@tauri-apps/api/core";
 import { IoConstructOutline } from "react-icons/io5";
 import {
   Box,
@@ -54,7 +53,7 @@ import {
   GridSlotsComponent,
   GridSlotsComponentsProps,
 } from "@mui/x-data-grid";
-import { AppDataGridPagination, ShowingCount } from "./CommonComp2";
+import { AppDataGridPagination, CopySql, ShowingCount } from "./CommonComp2";
 import { listView } from "./handlers";
 import { filesize } from "filesize";
 import {
@@ -453,18 +452,17 @@ function ViewMenu(props: {
     if (!confirm) {
       return;
     }
-    let invokeName;
-    switch (viewKind) {
-      case ViewKind.View:
-        invokeName = "drop_view";
-        break;
-      case ViewKind.MaterializedView:
-        invokeName = "drop_materialized_view";
-        break;
-    }
-    invoke(invokeName, { name: uuid, viewName: view })
-      .then(() => {
-        showNotification({ severity: "success", title: "Drop View OK" });
+
+    (viewKind == ViewKind.MaterializedView
+      ? commands.dropMaterializedView(uuid, view)
+      : commands.dropView(uuid, view)
+    )
+      .then((sql) => {
+        showNotification({
+          severity: "success",
+          title: "Drop View OK",
+          message: <CopySql sql={sql} />,
+        });
         reload();
       })
       .catch((e) => {

@@ -1,12 +1,7 @@
-import { Channel, invoke } from "@tauri-apps/api/core";
+import { Channel } from "@tauri-apps/api/core";
 import { MuiDataGridData, ViewKind } from "./helper";
 import { QueryEvent } from "./Common";
-import {
-  commands,
-  CreateTableAndIndexSql,
-  ListTable,
-  ShowTableParameter,
-} from "./bindings";
+import { commands, CreateTableAndIndexSql, ShowTableParameter } from "./bindings";
 
 function formatCreateTableAndIndexSql(sql: CreateTableAndIndexSql) {
   function newLine(ret: string): string {
@@ -26,16 +21,12 @@ function formatCreateTableAndIndexSql(sql: CreateTableAndIndexSql) {
 }
 
 function listView(uuid: string, viewKind: ViewKind) {
-  let invokeName = "";
   switch (viewKind) {
     case ViewKind.View:
-      invokeName = "list_view";
-      break;
+      return commands.listView(uuid);
     case ViewKind.MaterializedView:
-      invokeName = "list_materialized_view";
-      break;
+      return commands.listMaterializedView(uuid);
   }
-  return invoke<ListTable[]>(invokeName, { name: uuid });
 }
 
 async function cancelTask(taskId: string): Promise<void> {

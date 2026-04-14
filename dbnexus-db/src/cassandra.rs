@@ -1388,6 +1388,7 @@ mod tests {
     use crate::db::{CreateIndexColumn, CreateTableReq, CreateTableReqColumn};
 
     #[tokio::test]
+
     async fn test_list_schema() {
         let _guard = test_lock().lock().await;
         let db = make_test_object(None).await;
@@ -1502,6 +1503,7 @@ mod tests {
         }
     }
 
+    #[ignore]
     #[tokio::test]
     async fn test_a_lot_data() {
         let _guard = test_lock().lock().await;

@@ -1,7 +1,7 @@
 import { SxProps } from "@mui/material";
 import { editor, languages, Position } from "monaco-editor";
 import { format as formatSql, SqlLanguage } from "sql-formatter";
-import { Channel, invoke } from "@tauri-apps/api/core";
+import { Channel } from "@tauri-apps/api/core";
 import { message } from "@tauri-apps/plugin-dialog";
 import * as keyring from "tauri-plugin-keyring-api";
 import {
@@ -347,57 +347,34 @@ class QueryConn {
     taskId: string,
     sizeEmitter: Channel<number>,
   ): Promise<void> {
-    return invoke<void>("export_query_result_to_file", {
-      name: this.uuid,
+    return commands.exportQueryResultToFile(
+      this.uuid,
+      taskId,
       sql,
+      queryId,
       kind,
       file,
-      taskId,
       sizeEmitter,
-      queryId,
-    });
+    );
   }
 
   setAutoCommit(commit: boolean): Promise<void> {
-    return invoke<void>("query_set_autocommit", {
-      name: this.uuid,
-      queryId: this.queryId,
-      commit,
-    });
+    return commands.querySetAutocommit(this.uuid, this.queryId, commit);
   }
   getAutoCommit(): Promise<boolean> {
-    return invoke<boolean>("query_get_commit", {
-      name: this.uuid,
-      queryId: this.queryId,
-    });
+    return commands.queryGetCommit(this.uuid, this.queryId);
   }
   commit(): Promise<void> {
-    return invoke<void>("query_commit", {
-      name: this.uuid,
-      queryId: this.queryId,
-    });
+    return commands.queryCommit(this.uuid, this.queryId);
   }
   rollback(): Promise<void> {
-    return invoke<void>("query_rollback", {
-      name: this.uuid,
-      queryId: this.queryId,
-    });
+    return commands.queryRollback(this.uuid, this.queryId);
   }
   queryOP(sql: string, emit: Channel<QueryEvent>, maxRow: number): Promise<void> {
-    return invoke<void>("query_sql", {
-      name: this.uuid,
-      queryId: this.queryId,
-      sql,
-      emit,
-      maxRow,
-    });
+    return commands.querySql(this.uuid, this.queryId, maxRow, sql, emit);
   }
   executeOP(sql: string): Promise<QueryRespData> {
-    return invoke<QueryRespData>("execute_sql", {
-      name: this.uuid,
-      queryId: this.queryId,
-      sql,
-    });
+    return commands.executeSql(this.uuid, this.queryId, sql);
   }
 
   isDangerSql(sql: string): Promise<boolean> {

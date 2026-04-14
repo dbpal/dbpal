@@ -11,7 +11,6 @@ import {
 import { ask, message } from "@tauri-apps/plugin-dialog";
 import { LazyStore } from "@tauri-apps/plugin-store";
 import { writeText } from "@tauri-apps/plugin-clipboard-manager";
-import { invoke } from "@tauri-apps/api/core";
 import { BSON } from "bson";
 import { WebviewWindow } from "@tauri-apps/api/webviewWindow";
 import { platform } from "@tauri-apps/plugin-os";
@@ -506,13 +505,14 @@ const registeredThemes = [];
 
 async function setUpEditorThemes() {
   try {
-    const themes = await invoke<object>("monaco_editor_themes");
+    const themes = await commands.monacoEditorThemes();
+    const themeObject = {};
     for (const key in themes) {
-      themes[key] = JSON.parse(themes[key]);
+      themeObject[key] = JSON.parse(themes[key]);
     }
     for (const key in themelist) {
       const v = themelist[key];
-      monaco.editor.defineTheme(key, themes[v]);
+      monaco.editor.defineTheme(key, themeObject[v]);
       registeredThemes.push(key);
     }
   } catch (e) {

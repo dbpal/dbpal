@@ -660,15 +660,16 @@ impl SchemaTrait for PostGresDB {
         anyhow::Ok(sql)
     }
 
-    async fn disable_trigger(&self, table: &str, name: &str) -> anyhow::Result<String> {
-        let sql = format!(r#"ALTER TABLE "{table}" DISABLE TRIGGER "{name}""#);
-        log::info!("sql:{}", sql);
-        self.simple_execute_sql(&sql).await?;
-        anyhow::Ok(sql)
-    }
-
-    async fn enable_trigger(&self, table: &str, name: &str) -> anyhow::Result<String> {
-        let sql = format!(r#"ALTER TABLE "{table}" ENABLE TRIGGER "{name}""#);
+    async fn enable_trigger(
+        &self,
+        table: &str,
+        name: &str,
+        enable: bool,
+    ) -> anyhow::Result<String> {
+        let sql = format!(
+            r#"ALTER TABLE "{table}" {} TRIGGER "{name}""#,
+            if enable { "ENABLE" } else { "DISABLE" }
+        );
         log::info!("sql:{}", sql);
         self.simple_execute_sql(&sql).await?;
         anyhow::Ok(sql)
@@ -2445,10 +2446,10 @@ mod tests {
                 .unwrap();
 
             // disable trigger and enable trigger test.
-            db.disable_trigger("test_create_trigger", &tri.name)
+            db.enable_trigger("test_create_trigger", &tri.name, false)
                 .await
                 .unwrap();
-            db.enable_trigger("test_create_trigger", &tri.name)
+            db.enable_trigger("test_create_trigger", &tri.name, true)
                 .await
                 .unwrap();
 

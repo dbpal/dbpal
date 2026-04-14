@@ -162,7 +162,7 @@ function SqlChatTextInput(props: {
       let queryId = editor.getModel()[dbpalQuerykey] as NameAndQueryId;
       saveMessage(connName, "user", question);
       const history = messagesByNames[connName];
-      await llm.stream(
+      await llm.stream_prompt(
         queryId.name,
         queryId.queryId,
         question,

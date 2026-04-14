@@ -1410,15 +1410,16 @@ impl SchemaTrait for OracleDB {
         anyhow::Ok(sql)
     }
 
-    async fn disable_trigger(&self, _table: &str, name: &str) -> anyhow::Result<String> {
-        let sql = format!(r#"ALTER TRIGGER "{name}" DISABLE"#);
-        log::info!("sql:{}", sql);
-        self.simple_execute_sql(&sql).await?;
-        anyhow::Ok(sql)
-    }
-
-    async fn enable_trigger(&self, _table: &str, name: &str) -> anyhow::Result<String> {
-        let sql = format!(r#"ALTER TRIGGER "{name}" ENABLE"#);
+    async fn enable_trigger(
+        &self,
+        _table: &str,
+        name: &str,
+        enable: bool,
+    ) -> anyhow::Result<String> {
+        let sql = format!(
+            r#"ALTER TRIGGER "{name}" {}"#,
+            if enable { "ENABLE" } else { "DISABLE" }
+        );
         log::info!("sql:{}", sql);
         self.simple_execute_sql(&sql).await?;
         anyhow::Ok(sql)
@@ -1919,8 +1920,12 @@ mod tests {
         for tri in triggers.iter() {
             let show_trigger = db.show_trigger(table_name, &tri.name).await.unwrap();
             println!("trigger detail:{:?}", show_trigger);
-            db.disable_trigger(table_name, &tri.name).await.unwrap();
-            db.enable_trigger(table_name, &tri.name).await.unwrap();
+            db.enable_trigger(table_name, &tri.name, false)
+                .await
+                .unwrap();
+            db.enable_trigger(table_name, &tri.name, true)
+                .await
+                .unwrap();
         }
     }
 
