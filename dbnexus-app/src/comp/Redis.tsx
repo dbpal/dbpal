@@ -38,7 +38,6 @@ import {
   ErrAndLoc,
   stringToHex,
   validJson,
-  MuiDataGridData,
   extractFieldAndIDFromMouseEvent,
   dataGridStyle,
   pageSizeOptions,
@@ -65,7 +64,7 @@ import {
   StackRowCenter,
   ListenElementSize,
 } from "./CommonComp2.tsx";
-import { commands } from "./bindings.ts";
+import { commands, MuiDataGridData } from "./bindings.ts";
 import { showTable } from "./handlers.ts";
 import { AddTableView } from "./LeftTable.tsx";
 import {
@@ -776,7 +775,7 @@ function RedisSetTable(props: { setKey: string; uuid: string }) {
         setStatus: setQueryStatus,
         handleResult: (resp) => {
           resp.data.forEach((e, index) => {
-            e["id"] = index;
+            e["id"] = index + "";
           });
           resp.fields[0]["flex"] = 1;
           resp.fields[0]["valueGetter"] = valueGetter;
@@ -1140,7 +1139,7 @@ function RedisListTable(props: { listKey: string; uuid: string }) {
         },
         handleResult: (resp) => {
           resp.data.forEach((e, index) => {
-            e["id"] = index;
+            e["id"] = index + "";
           });
           const seqWidth = getColumnWidth("seq");
           if (seqWidth) {
@@ -1492,16 +1491,14 @@ function RedisZsetTable(props: { uuid: string; zsetKey: string }) {
           : undefined,
         handleResult: (resp) => {
           resp.data.forEach((e, index) => {
-            e["id"] = index;
+            e["id"] = index + "";
           });
           resp.fields[1]["flex"] = 1;
           const scoreWidth = getColumnWidth("score");
           if (scoreWidth) {
             resp.fields[0]["width"] = scoreWidth;
           }
-          resp.data.forEach((e) => {
-            e.score = parseFloat(e["score"]);
-          });
+
           resp.fields[1]["valueGetter"] = valueGetter;
           setResp(resp);
         },
@@ -1842,7 +1839,7 @@ function RedisHashTable(props: { hashKey: string; uuid: string }) {
         showNotification,
         handleResult: (resp) => {
           resp.data.forEach((e, index) => {
-            e["id"] = index;
+            e["id"] = index + "";
           });
           const keyWidth = getColumnWidth("key");
           resp.fields[0]["width"] = keyWidth;

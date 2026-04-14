@@ -65,7 +65,6 @@ import {
   handleCopyToClipboard,
   ErrAndLoc,
   validJson,
-  MuiDataGridData,
   dataGridStyle,
   pageSizeOptions,
   shrinkAble,
@@ -97,7 +96,7 @@ import {
   useTableColumnVisibleStore,
   useUserSettings,
 } from "./store";
-import { commands } from "./bindings";
+import { commands, MuiDataGridData } from "./bindings";
 enum MongoDataViewModel {
   TableList,
   Object,
@@ -1179,7 +1178,7 @@ function MongoTableList(props: {
       reloadOP(page + 1, pageSize)
         .then((r) => {
           r.data.forEach((e, index) => {
-            e[keyNotInTable] = index;
+            e[keyNotInTable] = index + "";
           });
           r.fields.forEach((f) => {
             const width = getColumnWidth(f.field);

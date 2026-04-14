@@ -17,7 +17,13 @@ import { platform } from "@tauri-apps/plugin-os";
 import themelist from "../../monaco-themes/themes/themelist.json";
 import prettyMilliseconds from "pretty-ms";
 import { v4 as uuidv4 } from "uuid";
-import { commands, CompletionItem, CompletionKind, ErrAndLoc, Field } from "./bindings";
+import {
+  commands,
+  CompletionItem,
+  CompletionKind,
+  ErrAndLoc,
+  MuiDataGridData,
+} from "./bindings";
 
 const pageSizeOptions = [10, 20, 50, 100];
 const appStore = new LazyStore("store.json");
@@ -416,13 +422,6 @@ const textEllipsisStyle = {
   flexShrink: 1,
   minWidth: "1rem",
 } as CSSProperties;
-
-export type MuiDataGridData = {
-  fields: Field[];
-  data: any[];
-  sql: string | null;
-  total: number | null;
-};
 
 enum RedisTableType {
   String = "string",

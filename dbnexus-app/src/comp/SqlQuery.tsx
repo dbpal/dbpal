@@ -36,7 +36,6 @@ import {
   DataSourceKind,
   ErrAndLoc,
   getEditorText,
-  MuiDataGridData,
   resizeHandlerSize,
   rustResultOk,
   secondConfirm,
@@ -76,7 +75,7 @@ import {
   UseSizeConfig,
   useSizeStore,
 } from "./store.tsx";
-import { commands } from "./bindings.ts";
+import { commands, MuiDataGridData } from "./bindings.ts";
 
 function SqlTransaction(props: { conn: QueryConn; executeTimes: number }) {
   const { conn, executeTimes } = props;

@@ -1,7 +1,12 @@
 import { Channel } from "@tauri-apps/api/core";
-import { MuiDataGridData, ViewKind } from "./helper";
+import { ViewKind } from "./helper";
 import { QueryEvent } from "./Common";
-import { commands, CreateTableAndIndexSql, ShowTableParameter } from "./bindings";
+import {
+  commands,
+  CreateTableAndIndexSql,
+  MuiDataGridData,
+  ShowTableParameter,
+} from "./bindings";
 
 function formatCreateTableAndIndexSql(sql: CreateTableAndIndexSql) {
   function newLine(ret: string): string {

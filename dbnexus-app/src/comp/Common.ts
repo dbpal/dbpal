@@ -7,7 +7,6 @@ import * as keyring from "tauri-plugin-keyring-api";
 import {
   backendCompletionItemToEditor,
   DataSourceKind,
-  MuiDataGridData,
   QueryRespData,
   secondConfirm,
 } from "./helper.ts";
@@ -15,7 +14,14 @@ import { GridColDef } from "@mui/x-data-grid";
 import * as monaco from "monaco-editor";
 import { readFile, stat } from "@tauri-apps/plugin-fs";
 import { filesize } from "filesize";
-import { commands, ExportKind, Field, MetaValue, redisCommands } from "./bindings.ts";
+import {
+  commands,
+  ExportKind,
+  Field,
+  MetaValue,
+  MuiDataGridData,
+  redisCommands,
+} from "./bindings.ts";
 
 /**
  * Converts a local file path to a Data URL (base64)

@@ -56,7 +56,6 @@ import {
   validJson,
   textEllipsisStyle,
   quoteDatabaseIdentifier,
-  MuiDataGridData,
   extractFieldAndIDFromMouseEvent,
   dataGridStyle,
   pageSizeOptions,
@@ -106,7 +105,7 @@ import {
   useTableColumnVisibleStore,
   useUserSettings,
 } from "./store";
-import { commands, Field, ShowTableParameter } from "./bindings";
+import { commands, Field, MuiDataGridData, ShowTableParameter } from "./bindings";
 
 const confirmAboutPrimary = async (
   notWarnPri: boolean,
@@ -637,7 +636,7 @@ function SqlTableView(props: {
           const row = { ...resp.data.find((e) => e[keyNotInTable] == id) };
           const content = row[field];
           const nullable =
-            resp.fields.find((e) => e.field == field).nullable && content;
+            resp.fields.find((e) => e.field == field).nullable && !!content;
           setUpMenu({
             content: (
               <Menu

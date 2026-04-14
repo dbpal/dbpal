@@ -33,7 +33,6 @@ import {
   getEditorText,
   handleCopyToClipboard,
   jumpToEditorText,
-  MuiDataGridData,
   QueryIDEditorChatCtx,
   resizeHandlerSize,
   secondConfirm,
@@ -70,7 +69,7 @@ import {
 } from "./store.tsx";
 import { persist } from "zustand/middleware";
 import { create } from "zustand";
-import { commands, Field, ShowTableParameter } from "./bindings.ts";
+import { commands, Field, MuiDataGridData, ShowTableParameter } from "./bindings.ts";
 export enum CBQueryViewMode {
   Table = "table",
   Json = "json",
@@ -675,7 +674,7 @@ function CouchBaseQuery(props: { uuid: string; value?: string }) {
       }
       data.push(d);
     }
-    setTableResp({ fields, data, sql: "", total: null });
+    setTableResp({ fields, data: data as any, sql: "", total: null });
   }, [resp, uuid, viewMode]);
 
   const handleQuery = (text: string) => {

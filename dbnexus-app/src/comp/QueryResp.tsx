@@ -16,7 +16,6 @@ import {
 } from "@mui/material";
 import {
   handleCopyToClipboard,
-  MuiDataGridData,
   extractFieldAndIDFromMouseEvent,
   dataGridStyle,
   QueryRespData,
@@ -52,7 +51,7 @@ import {
   usePageSize,
   useUserSettings,
 } from "./store.tsx";
-import { Field } from "./bindings.ts";
+import { Field, MuiDataGridData } from "./bindings.ts";
 
 function RespContextMenu(props: { content; field; setSort; viewInModal }) {
   const { content, field, setSort, viewInModal } = props;
@@ -102,7 +101,7 @@ function RespContextMenu(props: { content; field; setSort; viewInModal }) {
 
 function queryRespFix(data: MuiDataGridData, getColumnWidth) {
   data.data.forEach((e, index) => {
-    e[keyNotInTable] = index;
+    e[keyNotInTable] = index + "";
   });
   data.fields.forEach((field) => {
     const width = getColumnWidth(field.field);
