@@ -594,7 +594,7 @@ function ViewRowInModal(props: {
 
   return (
     <Modal
-      open={!!data}
+      open={true}
       onClose={modalHandleClose((e: EscDownEvent) => {
         e.preventDefault();
         handleClose();
