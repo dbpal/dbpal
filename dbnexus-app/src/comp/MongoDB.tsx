@@ -72,6 +72,7 @@ import {
   dataGridheaderFontSize,
   secondConfirm,
   MonacoEditor,
+  extractFieldAndIDFromMouseEvent,
 } from "./helper";
 import {
   AppDataGridPagination,
@@ -678,11 +679,6 @@ function MongoTableToolBar(props: {
   );
 }
 
-function renderId(_id: any): string {
-  // console.log("_id", _id, EJSON.stringify(_id));
-  return EJSON.stringify(_id);
-}
-
 function MongoTableListContextMenu(props: {
   delOP?: () => void;
   content;
@@ -1241,8 +1237,9 @@ function MongoTableList(props: {
     [loadOne, showNotification],
   );
   const getRowId = useCallback((e) => {
-    return renderId(e[keyNotInTable]);
+    return e[keyNotInTable];
   }, []);
+
   const onPaginationModelChange = useCallback(
     (e: GridPaginationModel, reason: GridCallbackDetails<"pagination">) => {
       setPage(e.page);
@@ -1314,9 +1311,7 @@ function MongoTableList(props: {
     return {
       row: {
         onContextMenu: (e) => {
-          const { currentTarget, target } = e;
-          const field = (target as HTMLDivElement).getAttribute("data-field");
-          const id = (currentTarget as HTMLDivElement).getAttribute("data-id");
+          const { field, id } = extractFieldAndIDFromMouseEvent(e);
           if (!field) {
             return;
           }
@@ -1506,6 +1501,9 @@ function MongoTableList(props: {
   );
 }
 
+function renderId(x) {
+  return EJSON.stringify(x);
+}
 function MongoTableObject(props: {
   reloadOPDocs: (page: number, pageSize: number) => Promise<DocsAndCount>;
   modifyOP?: (doc: BSON.Document) => Promise<void>;
