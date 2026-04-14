@@ -338,7 +338,6 @@ function SqlChatTextInput(props: {
           handleEditor={(e) => {
             e.getModel()[dbpalQuerykey] = { ...editor.getModel()[dbpalQuerykey] };
           }}
-          dontFocus
         />
       </Paper>
 

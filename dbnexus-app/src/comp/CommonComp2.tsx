@@ -521,7 +521,6 @@ function SimpleFlexEditor(props: {
   errPos?: Position;
   disableEditorBar?: boolean;
   handleEditor?: (editor: editor.IStandaloneCodeEditor) => void;
-  dontFocus?: boolean;
   handleValue?: (x) => void;
 }) {
   const {
@@ -532,7 +531,6 @@ function SimpleFlexEditor(props: {
     errPos,
     handleEditor,
     disableEditorBar,
-    dontFocus,
     handleValue,
   } = props;
   const [pos, setPos] = useState<Position>(null);
@@ -543,9 +541,6 @@ function SimpleFlexEditor(props: {
   useEffect(() => {
     if (!editor) {
       return;
-    }
-    if (!dontFocus) {
-      editor.focus();
     }
     if (handleEditor) {
       handleEditor(editor);
@@ -558,7 +553,7 @@ function SimpleFlexEditor(props: {
       d1.dispose();
       d2.dispose();
     };
-  }, [dontFocus, editor, handleEditor]);
+  }, [editor, handleEditor]);
   useEffect(() => {
     if (editor && errPos) {
       editorSetPositionAndReveal(editor, errPos);
