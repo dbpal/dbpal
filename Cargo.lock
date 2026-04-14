@@ -7779,8 +7779,8 @@ dependencies = [
 
 [[package]]
 name = "rig-core"
-version = "0.33.0"
-source = "git+https://github.com/gold-silver-copper/rig?branch=1588-work#9609427bb4f842bc5927ee64480484f5ce34ea9e"
+version = "0.35.0"
+source = "git+https://github.com/0xPlaygrounds/rig?branch=main#fdd37576b9137a9513c0ae491b3ce87875eb9d0f"
 dependencies = [
  "as-any",
  "async-stream",

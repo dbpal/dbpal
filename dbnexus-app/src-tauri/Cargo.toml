@@ -14,7 +14,7 @@ tauri-typegen = "*"
 
 [dependencies]
 tauri-plugin-fs = { version = "2.4" }
-rig-core = { git = "https://github.com/gold-silver-copper/rig", branch = "1588-work" }
+rig-core = { git = "https://github.com/0xPlaygrounds/rig", branch = "main" }
 mimalloc = { version = "*", features = ["v3"] }
 tauri = { version = "2", features = ["devtools"] }
 tauri-plugin-dialog = "2.4"
