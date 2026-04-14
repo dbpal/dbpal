@@ -1323,3 +1323,20 @@ export const useUserSystemPromptStore = create<UserPromptState>()(
     },
   ),
 );
+
+interface ViewInModalState {
+  matchStr: string;
+  setMatchStr: (matchStr: string) => void;
+}
+
+export const useViewInModalMatchStrStore = create<ViewInModalState>()(
+  persist(
+    (set) => ({
+      matchStr: "",
+      setMatchStr: (matchStr) => set({ matchStr }),
+    }),
+    {
+      name: "view-in-modal-storage-match-str", // 存储在 localStorage 中的唯一 Key
+    },
+  ),
+);

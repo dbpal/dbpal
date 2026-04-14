@@ -713,13 +713,8 @@ function SqlTableView(props: {
   ]);
 
   const [editInModalBox, setEditInModalBox] = useState(null);
-
   const [editRowInModalBox, setEditRowInModalBox] = useState(null);
-
-  const [viewInModalBox, setViewInModalBox] = useState(null);
-
   const [addModalBox, setAddModalBox] = useState(null);
-
   const slots = useMemo(() => {
     return {
       columnMenu: AppColumnMenu,
@@ -966,8 +961,6 @@ function SqlTableView(props: {
         loading={loading}
       />
 
-      <ListenElementSize dom={viewInModalBox} set="both" name="view-in-model" />
-
       <ListenElementSize dom={addModalBox} set="both" name="view-in-model" />
 
       <ListenElementSize dom={editInModalBox} set="both" name="table-edit-in-modal" />
@@ -977,27 +970,14 @@ function SqlTableView(props: {
         set="both"
         name="table-edit-row-in-modal"
       />
-
-      {viewInModal && (
-        <Modal
-          open={!!viewInModal}
-          onClose={modalHandleClose((e: EscDownEvent) => {
-            e.preventDefault();
-            setViewInModal(null);
-          })}>
-          <Box
-            sx={{ resize: "both", ...modalStyle, width: "80%", height: "30vh" }}
-            ref={setViewInModalBox}>
-            <ModalHeader
-              title="View Row"
-              handleClose={() => {
-                setViewInModal(null);
-              }}
-            />
-            <ViewRowInModal fields={resp.fields} data={viewInModal} isTable={isTable} />
-          </Box>
-        </Modal>
-      )}
+      <ViewRowInModal
+        data={viewInModal}
+        handleClose={() => {
+          setViewInModal(null);
+        }}
+        isTable={isTable}
+        fields={resp.fields}
+      />
       {showAdd && (
         <Modal
           open={showAdd}

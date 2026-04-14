@@ -16,6 +16,8 @@ import {
   Select,
   FormControl,
   InputLabel,
+  Modal,
+  Box,
 } from "@mui/material";
 import RefreshIcon from "@mui/icons-material/Refresh";
 import { ReactNode, useCallback, useEffect, useMemo, useRef, useState } from "react";
@@ -59,12 +61,16 @@ import { v4 as uuidv4 } from "uuid";
 
 import { TbDatabasePlus } from "react-icons/tb";
 import LinkIcon from "@mui/icons-material/Link";
-import { PassWordManager } from "./Common";
+import { EscDownEvent, modalHandleClose, modalStyle, PassWordManager } from "./Common";
 import { TreeItem } from "@mui/x-tree-view/TreeItem";
 import { editor, Position } from "monaco-editor";
 import { openPath } from "@tauri-apps/plugin-opener";
 import { FaMarkdown } from "react-icons/fa";
-import { AppDataGridPagination } from "./CommonComp2";
+import {
+  AppDataGridPagination,
+  ClearableTextField,
+  ListenElementSize,
+} from "./CommonComp2";
 import {
   passwordKey,
   savePasswordKey,
@@ -78,6 +84,7 @@ import {
   useNotification,
   useQueryLogStore,
   useUserSettings,
+  useViewInModalMatchStrStore,
 } from "./store";
 import { commands, Field, MetaValue, NamedStaff } from "./bindings";
 
@@ -543,55 +550,136 @@ function ModalHeader(props: {
   );
 }
 
-function ViewRowInModal(props: { fields: Field[]; data: object; isTable? }) {
-  const { fields, data, isTable } = props;
-  const theme = useTheme();
-  return (
-    <Stack>
-      {fields.map((f) => {
-        return (
-          <Stack
-            style={{
-              borderRadius: "10px",
-              padding: "8px",
-              border: "2px solid " + theme.palette.success.main,
-            }}
-            key={f.field}>
-            <Stack
-              direction="row"
-              style={{ alignItems: "center" }}
-              divider={<span>|</span>}>
-              <Typography variant="subtitle1">{f.field}</Typography>
-              <Typography variant="body1">{f.data_type}</Typography>
-              {isTable && f.is_primary && (
-                <Typography variant="body1"> Primary Key </Typography>
-              )}
-              {isTable && f.nullable && (
-                <Typography variant="body1"> nullable </Typography>
-              )}
-              {isTable && f.is_auto_increment && (
-                <Typography variant="body1"> auto increment </Typography>
-              )}
-              {isTable && f.default_value && (
-                <Typography variant="body1" style={textEllipsisStyle}>
-                  default value({f.default_value})
-                </Typography>
-              )}
-            </Stack>
+function HighlightText({
+  text,
+  normal,
+}: {
+  text: string;
+  normal: (text: string) => ReactNode;
+}) {
+  const matchStr = useViewInModalMatchStrStore((state) => state.matchStr);
 
-            <Divider />
-            <pre
-              style={{
-                overflow: "auto",
-                opacity: 0.9,
-                color: theme.palette.success.main,
-              }}>
-              {data[f.field]}
-            </pre>
-          </Stack>
-        );
-      })}
-    </Stack>
+  if (!matchStr) return normal(text);
+
+  // 使用正则拆分字符串，'ig' 表示忽略大小写且全局匹配
+  const parts = text.split(new RegExp(`(${matchStr})`, "gi"));
+
+  return (
+    <span>
+      {parts.map((part, i) =>
+        part.toLowerCase() === matchStr.toLowerCase() ? (
+          <mark key={i}>{part}</mark>
+        ) : (
+          part
+        ),
+      )}
+    </span>
+  );
+}
+
+function ViewRowInModal(props: {
+  fields: Field[];
+  data: object;
+  isTable?;
+  handleClose: () => void;
+}) {
+  const { fields, data, isTable, handleClose } = props;
+  const theme = useTheme();
+  const { matchStr, setMatchStr } = useViewInModalMatchStrStore();
+
+  const [viewInModalBox, setViewInModalBox] = useState(null);
+  if (!data) {
+    return <> </>;
+  }
+
+  return (
+    <Modal
+      open={!!data}
+      onClose={modalHandleClose((e: EscDownEvent) => {
+        e.preventDefault();
+        handleClose();
+      })}>
+      <Box
+        sx={{ resize: "both", ...modalStyle, width: "80%", height: "30vh" }}
+        ref={setViewInModalBox}>
+        <ModalHeader
+          title="View Row"
+          handleClose={() => {
+            handleClose();
+          }}
+          headerExtra=<>
+            <ClearableTextField
+              value={matchStr}
+              onClear={() => {
+                setMatchStr("");
+              }}
+              onChange={(e) => {
+                setMatchStr(e.target.value);
+              }}
+              style={{ width: "13rem" }}
+              label="match string,only for value"
+            />
+          </>
+        />
+        <ListenElementSize
+          dom={viewInModalBox}
+          set="both"
+          name="query-resp-view-in-modals"
+        />
+
+        <Stack>
+          {fields.map((f) => {
+            return (
+              <Stack
+                style={{
+                  borderRadius: "10px",
+                  padding: "8px",
+                  border: "2px solid " + theme.palette.success.main,
+                }}
+                key={f.field}>
+                <Stack
+                  direction="row"
+                  style={{ alignItems: "center" }}
+                  divider={<span>|</span>}>
+                  <Typography variant="subtitle1">{f.field}</Typography>
+                  <Typography variant="body1">{f.data_type}</Typography>
+                  {isTable && f.is_primary && (
+                    <Typography variant="body1"> Primary Key </Typography>
+                  )}
+                  {isTable && f.nullable && (
+                    <Typography variant="body1"> nullable </Typography>
+                  )}
+                  {isTable && f.is_auto_increment && (
+                    <Typography variant="body1"> auto increment </Typography>
+                  )}
+                  {isTable && f.default_value && (
+                    <Typography variant="body1" style={textEllipsisStyle}>
+                      default value({f.default_value})
+                    </Typography>
+                  )}
+                </Stack>
+                <Divider />
+                <HighlightText
+                  text={data[f.field]}
+                  normal={(text) => {
+                    return (
+                      <pre
+                        style={{
+                          overflow: "auto",
+                          opacity: 0.9,
+                          color: theme.palette.success.main,
+                        }}>
+                        {text}{" "}
+                      </pre>
+                    );
+                  }}
+                />
+              </Stack>
+            );
+          })}
+        </Stack>
+      </Box>
+    </Modal>
   );
 }
 
@@ -842,4 +930,5 @@ export {
   MenuExportMarkDownTable,
   ResizeParentHeight,
   TimeDuration,
+  HighlightText,
 };

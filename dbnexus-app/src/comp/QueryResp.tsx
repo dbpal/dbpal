@@ -1,13 +1,11 @@
 import {
   Alert,
-  Box,
   Button,
   Divider,
   ListItemIcon,
   ListItemText,
   MenuItem,
   MenuList,
-  Modal,
   Stack,
   Tab,
   Tabs,
@@ -27,23 +25,14 @@ import {
   GridSortModel,
 } from "@mui/x-data-grid";
 import React, { CSSProperties, useCallback, useMemo, useState } from "react";
-import { EscDownEvent, keyNotInTable, modalHandleClose, modalStyle } from "./Common";
+import { keyNotInTable } from "./Common";
 import ArrowUpwardIcon from "@mui/icons-material/ArrowUpward";
 import ArrowDownwardIcon from "@mui/icons-material/ArrowDownward";
 
 import ContentCopyIcon from "@mui/icons-material/ContentCopy";
-import {
-  AppColumnMenu,
-  ModalHeader,
-  ResetColumnWidth,
-  ViewRowInModal,
-} from "./CommonComp.tsx";
+import { AppColumnMenu, ResetColumnWidth, ViewRowInModal } from "./CommonComp.tsx";
 import VisibilityIcon from "@mui/icons-material/Visibility";
-import {
-  AppDataGridPagination,
-  ListenElementSize,
-  StackRowCenter,
-} from "./CommonComp2.tsx";
+import { AppDataGridPagination, StackRowCenter } from "./CommonComp2.tsx";
 import {
   useColumnWidthStore,
   useContextMenu,
@@ -187,7 +176,6 @@ function QueryResp(props: { data: MuiDataGridData }) {
   const onSortModelChange = useCallback((e) => {
     setSortModel(e);
   }, []);
-  const [viewInModalBox, setViewInModalBox] = useState(null);
 
   const slots = useMemo(() => {
     return {
@@ -254,32 +242,13 @@ function QueryResp(props: { data: MuiDataGridData }) {
         </Stack>
       )}
 
-      <ListenElementSize
-        dom={viewInModalBox}
-        set="both"
-        name="query-resp-view-in-modals"
+      <ViewRowInModal
+        fields={data.fields}
+        data={viewInModal}
+        handleClose={() => {
+          setViewInModal(null);
+        }}
       />
-
-      {viewInModal && (
-        <Modal
-          open={!!viewInModal}
-          onClose={modalHandleClose((e: EscDownEvent) => {
-            e.preventDefault();
-            setViewInModal(null);
-          })}>
-          <Box
-            sx={{ resize: "both", ...modalStyle, width: "80%", height: "30vh" }}
-            ref={setViewInModalBox}>
-            <ModalHeader
-              title="View Row"
-              handleClose={() => {
-                setViewInModal(null);
-              }}
-            />
-            <ViewRowInModal fields={data.fields} data={viewInModal} />
-          </Box>
-        </Modal>
-      )}
     </div>
   );
 }
