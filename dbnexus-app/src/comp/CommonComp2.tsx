@@ -1947,6 +1947,12 @@ function FetchTimeAndXXX({ isLoading }) {
   useEffect(() => {
     if (isLoading) {
       fetchBeginTime.current = new Date().getTime();
+      const int = setInterval(() => {
+        setFetchTime(new Date().getTime() - fetchBeginTime.current);
+      }, 100);
+      return () => {
+        clearInterval(int);
+      };
     } else {
       setFetchTime(new Date().getTime() - fetchBeginTime.current);
       setDate(new Date());

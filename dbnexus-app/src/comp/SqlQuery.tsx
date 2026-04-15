@@ -56,6 +56,7 @@ import {
   CancelButton,
   EditorBar,
   EscPressedDo,
+  FetchTimeAndXXX,
   LoadStoreFile,
   QueryStatus,
   SaveFavoriteSqlView,
@@ -666,6 +667,8 @@ function SqlQuery(props: {
               markdownModel={markdownModel}
             />
             {querySomeShow.get(tabCtx.id)}
+
+            <FetchTimeAndXXX isLoading={loading} />
           </Stack>
           <Divider />
 
