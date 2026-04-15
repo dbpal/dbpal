@@ -649,6 +649,7 @@ impl ExportQueryResult for RedisDB {
         let args = &c[1..];
         let mut redis_cmd = redis::cmd(c[0].as_str());
         redis_cmd.arg(args);
+        // should all be captiable with iter_async `TYPE string_value` will return a error
         let mut stream = redis_cmd.iter_async::<String>(conn).await?;
         let mut row = 0;
         while let Some(value) = stream.next().await {
@@ -1386,19 +1387,12 @@ pub fn command_return_multi_value(s: &str) -> bool {
     });
     ALL.contains(&s.to_uppercase())
 }
-/*
-    ai keywords
-    给我一个数组redis的所有命令里面可以返回多个值的
-    直接给我rust数组 我拷贝使用
-*/
 
-// Redis 会返回“多个值”的命令名称列表（共 63 条）
-// 直接 copy 即可使用
+/// 完整的返回 Array/Multi-bulk 的 Redis 命令 (兼容 Redis 7.2)
 const REDIS_MULTI_VAL_CMDS: &[&str] = &[
-    // String
+    // --- String ---
     "MGET",
-    "GETRANGE",
-    // List
+    // --- List ---
     "LRANGE",
     "LPOP",
     "RPOP",
@@ -1406,7 +1400,7 @@ const REDIS_MULTI_VAL_CMDS: &[&str] = &[
     "BLPOP",
     "BRPOP",
     "BLMPOP",
-    // Set
+    // --- Set ---
     "SMEMBERS",
     "SRANDMEMBER",
     "SPOP",
@@ -1414,10 +1408,7 @@ const REDIS_MULTI_VAL_CMDS: &[&str] = &[
     "SUNION",
     "SDIFF",
     "SINTERCARD",
-    "SINTERSTORE",
-    "SUNIONSTORE",
-    "SDIFFSTORE",
-    // Sorted Set
+    // --- Sorted Set ---
     "ZRANGE",
     "ZREVRANGE",
     "ZRANGEBYSCORE",
@@ -1432,35 +1423,51 @@ const REDIS_MULTI_VAL_CMDS: &[&str] = &[
     "ZINTER",
     "ZUNION",
     "ZDIFF",
-    "ZINTERSTORE",
-    "ZUNIONSTORE",
-    "ZDIFFSTORE",
-    "ZRANK",
-    "ZREVRANK",
-    // Hash
+    "ZRANDMEMBER",
+    // --- Hash ---
     "HGETALL",
     "HKEYS",
     "HVALS",
     "HMGET",
     "HRANDFIELD",
-    // Stream
+    // --- Stream ---
     "XREAD",
     "XREADGROUP",
     "XRANGE",
     "XREVRANGE",
     "XCLAIM",
-    "XPENDING",
-    // Pub/Sub
-    "PUBSUB",
-    // Generic / Admin
+    "XAUTOCLAIM",
+    "XINFO",
+    // --- Geo (地理位置，容易遗漏) ---
+    "GEOPOS",
+    "GEORADIUS",
+    "GEORADIUSBYMEMBER",
+    "GEOSEARCH",
+    // --- Generic / Keys ---
     "KEYS",
-    "SORT",
-    "SORT_RO",
+    "SCAN",
+    "SSCAN",
+    "HSCAN",
+    "ZSCAN",
     "MIGRATE",
-    "OBJECT",
-    "MEMORY",
-    "LATENCY",
+    // --- Scripting & Functions (Redis 7+) ---
+    "EVAL",
+    "EVALSHA",
+    "FCALL",
+    "FCALL_RO",
+    "FUNCTION",
+    // --- Admin / Introspection ---
+    "ROLE",
     "SLOWLOG",
+    "COMMAND",
+    "CONFIG GET",
+    "CLIENT LIST",
+    "PUBSUB",
+    "ACL",
+    "LATENCY",
+    // --- JSON (如果你安装了 RedisJSON 模块) ---
+    "JSON.MGET",
+    "JSON.OBJKEYS",
 ];
 
 impl RedisDB {

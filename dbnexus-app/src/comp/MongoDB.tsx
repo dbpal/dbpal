@@ -67,11 +67,11 @@ import {
   dataGridStyle,
   pageSizeOptions,
   shrinkAble,
-  DataSourceKind,
   dataGridheaderFontSize,
   secondConfirm,
   MonacoEditor,
   extractFieldAndIDFromMouseEvent,
+  DataSourceKind,
 } from "./helper";
 import {
   AppDataGridPagination,
@@ -81,10 +81,8 @@ import {
   SimpleFlexEditor,
   SliderSize,
   StackRowCenter,
-  TableAddButton,
 } from "./CommonComp2";
 import { message } from "@tauri-apps/plugin-dialog";
-import { AddTableView } from "./LeftTable";
 import {
   useColumnWidthStore,
   useContextMenu,
@@ -96,6 +94,7 @@ import {
   useUserSettings,
 } from "./store";
 import { commands, MuiDataGridData } from "./bindings";
+import { AddTableModal } from "./LeftTable";
 enum MongoDataViewModel {
   TableList,
   Object,
@@ -483,13 +482,10 @@ function MongoTableToolBar(props: {
   } = props;
   const [showModifyFilter, setShowModifyFilter] = useState(false);
   const [showModifySort, setShowModifySort] = useState(false);
-  const [showAdd, setShowAdd] = useState(false);
   useEffect(() => {
     handleViewModel(viewModel);
   }, [handleViewModel, viewModel]);
   const [modalBox, setModalBox] = useState(null);
-
-  const [addModalBox, setAddModalBox] = useState(null);
 
   return (
     <Stack
@@ -502,7 +498,6 @@ function MongoTableToolBar(props: {
         <Button loading={loading} color="primary" onClick={handleReload}>
           reload
         </Button>
-
         <Tooltip title={bsonValue2MongoBson(filter).format()}>
           <Chip
             label={
@@ -526,7 +521,6 @@ function MongoTableToolBar(props: {
             }
           />
         </Tooltip>
-
         <Tooltip title={bsonValue2MongoBson(sort).format()}>
           <Chip
             label={
@@ -553,11 +547,7 @@ function MongoTableToolBar(props: {
         </Tooltip>
 
         {isTable && (
-          <TableAddButton
-            handleAdd={() => {
-              setShowAdd(true);
-            }}
-          />
+          <AddTableModal uuid={uuid} kind={DataSourceKind.Mongo} tableName={table} />
         )}
         {someNotice}
       </Stack>
@@ -647,29 +637,6 @@ function MongoTableToolBar(props: {
               needConfirm={false}
               doc={sort}
             />
-          </Box>
-        </Modal>
-      )}
-
-      <ListenElementSize dom={addModalBox} set="both" name="mongo-add-box" />
-
-      {showAdd && (
-        <Modal
-          open={showAdd}
-          onClose={modalHandleClose((e: EscDownEvent) => {
-            e.preventDefault();
-            setShowAdd(false);
-          })}>
-          <Box
-            sx={{ resize: "both", ...modalStyle, width: "80%", height: "30vh" }}
-            ref={setAddModalBox}>
-            <ModalHeader
-              title="add data"
-              handleClose={() => {
-                setShowAdd(false);
-              }}
-            />
-            <AddTableView uuid={uuid} table={table} kind={DataSourceKind.Mongo} />
           </Box>
         </Modal>
       )}

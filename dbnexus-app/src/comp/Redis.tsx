@@ -52,16 +52,15 @@ import {
   dataGridStyle,
   pageSizeOptions,
   RedisTableType,
-  DataSourceKind,
   newEmptyResp,
   secondConfirm,
+  DataSourceKind,
 } from "./helper.ts";
 import { AppColumnMenu, ModalHeader, ResetColumnWidth } from "./CommonComp.tsx";
 import { editor, Position } from "monaco-editor";
 import {
   SliderSize,
   SimpleFlexEditor,
-  TableAddButton,
   AppDataGridPagination,
   AppDataGridToolBar,
   QueryStatus,
@@ -70,7 +69,7 @@ import {
 } from "./CommonComp2.tsx";
 import { commands, MuiDataGridData } from "./bindings.ts";
 import { showTable } from "./handlers.ts";
-import { AddTableView } from "./LeftTable.tsx";
+import { AddTableModal } from "./LeftTable.tsx";
 import {
   useColumnWidthStore,
   useContextMenu,
@@ -817,7 +816,12 @@ function SetToolBar({
             style={{ maxWidth: "15rem", flex: 1 }}
           />
         </Tooltip>
-        <AddTable uuid={uuid} redisKey={setKey} redisType={RedisTableType.Set} />
+        <AddTableModal
+          kind={DataSourceKind.Redis}
+          uuid={uuid}
+          tableName={setKey}
+          redisType={RedisTableType.Set}
+        />
       </>
       title={setKey}
     />
@@ -1099,53 +1103,6 @@ function RedisListTableContextMenu(props: RedisListTableContextMenuProps) {
   );
 }
 
-function AddTable(props: {
-  uuid: string;
-  redisKey: string;
-  redisType: RedisTableType;
-}) {
-  const { redisKey, redisType, uuid } = props;
-  const [showAdd, setShowAdd] = useState(false);
-  const [addModalBox, setAddModalBox] = useState<HTMLDivElement | null>(null);
-
-  return (
-    <>
-      <TableAddButton handleAdd={() => setShowAdd(true)} />
-
-      <ListenElementSize dom={addModalBox} set="both" name={"redis-add-" + redisType} />
-
-      {showAdd && (
-        <Modal
-          open={showAdd}
-          onClose={modalHandleClose((e: EscDownEvent) => {
-            e.preventDefault();
-            setShowAdd(false);
-          })}
-          disableAutoFocus
-          disableEnforceFocus>
-          <Box
-            sx={{ resize: "both", ...modalStyle, width: "80%", height: "70vh" }}
-            ref={setAddModalBox}>
-            <ModalHeader
-              noTextTransform
-              title={`add ${redisKey} `}
-              handleClose={() => {
-                setShowAdd(false);
-              }}
-            />
-            <AddTableView
-              uuid={uuid}
-              table={redisKey}
-              redisTableType={redisType}
-              kind={DataSourceKind.Redis}
-            />
-          </Box>
-        </Modal>
-      )}
-    </>
-  );
-}
-
 type ListToolBarProps = {
   dbpal: ListToolBarDbpalProps;
 } & GridSlotProps["toolbar"];
@@ -1164,7 +1121,12 @@ function ListToolBar({
           loading={loading}>
           reload
         </Button>
-        <AddTable uuid={uuid} redisKey={listKey} redisType={RedisTableType.List} />
+        <AddTableModal
+          kind={DataSourceKind.Redis}
+          uuid={uuid}
+          tableName={listKey}
+          redisType={RedisTableType.List}
+        />
       </>
       title={listKey}
     />
@@ -1539,7 +1501,12 @@ function ZSetToolBar({
           onClear={() => setMax("")}
           style={{ width: "15%" }}
         />
-        <AddTable uuid={uuid} redisKey={zsetKey} redisType={RedisTableType.Zset} />
+        <AddTableModal
+          kind={DataSourceKind.Redis}
+          uuid={uuid}
+          tableName={zsetKey}
+          redisType={RedisTableType.Zset}
+        />
       </>
       title={zsetKey}
     />
@@ -1897,7 +1864,12 @@ function HashToolBar({
             style={{ maxWidth: "15rem", flex: 1 }}
           />
         </Tooltip>
-        <AddTable uuid={uuid} redisKey={hashKey} redisType={RedisTableType.Hash} />
+        <AddTableModal
+          kind={DataSourceKind.Redis}
+          uuid={uuid}
+          tableName={hashKey}
+          redisType={RedisTableType.Hash}
+        />
       </>
       title={hashKey}
     />

@@ -17,13 +17,11 @@ import {
   AiMarkdownModelSwitch,
   AppCode,
   ClearableTextField,
-  ListenElementSize,
   LoadStoreFile,
   QueryStatus,
   SetFilterSort,
   SimpleFlexEditor,
   SliderSize,
-  TableAddButton,
   ToggleChatShow,
 } from "./CommonComp2.tsx";
 import { ReactNode, useCallback, useContext, useEffect, useState } from "react";
@@ -45,7 +43,7 @@ import DeleteForeverIcon from "@mui/icons-material/DeleteForever";
 import PlayArrowIcon from "@mui/icons-material/PlayArrow";
 import FilterAltIcon from "@mui/icons-material/FilterAlt";
 import { FaArrowsAltV } from "react-icons/fa";
-import { ModalHeader, SelectPageSize } from "./CommonComp.tsx";
+import { SelectPageSize } from "./CommonComp.tsx";
 import { Channel } from "@tauri-apps/api/core";
 import {
   dbpalQuerykey,
@@ -70,6 +68,7 @@ import {
 import { persist } from "zustand/middleware";
 import { create } from "zustand";
 import { commands, Field, MuiDataGridData, ShowTableParameter } from "./bindings.ts";
+import { AddTableModal } from "./LeftTable.tsx";
 export enum CBQueryViewMode {
   Table = "table",
   Json = "json",
@@ -117,8 +116,6 @@ function CouchBaseTable(props: { uuid: string; table: string }) {
   const [loading, setLoading] = useState(true);
   const [queryStatus, setQueryStatus] = useState("");
   const { showNotification } = useNotification();
-  const [showAdd, setShowAdd] = useState(false);
-  const [addModalBox, setAddModalBox] = useState(null);
 
   const handleReload = useCallback(() => {
     const c = new Channel<QueryEvent>((event) => {
@@ -223,10 +220,11 @@ function CouchBaseTable(props: { uuid: string; table: string }) {
               icon={<FaArrowsAltV />}
             />
           </Tooltip>
-          <TableAddButton
-            handleAdd={() => {
-              setShowAdd(true);
-            }}
+
+          <AddTableModal
+            uuid={uuid}
+            kind={DataSourceKind.CouchBase}
+            tableName={table}
           />
         </Stack>
         <Typography variant="h5"> {table} </Typography>
@@ -350,29 +348,6 @@ function CouchBaseTable(props: { uuid: string; table: string }) {
           label="sort"
           uuid={uuid}
         />
-      )}
-
-      <ListenElementSize dom={addModalBox} name="couch-addbox" set="both" />
-
-      {showAdd && (
-        <Modal
-          open={showAdd}
-          onClose={modalHandleClose((e: EscDownEvent) => {
-            e.preventDefault();
-            setShowAdd(false);
-          })}>
-          <Box
-            sx={{ resize: "both", ...modalStyle, width: "80%", height: "30vh" }}
-            ref={setAddModalBox}>
-            <ModalHeader
-              title="add data"
-              handleClose={() => {
-                setShowAdd(false);
-              }}
-            />
-            <CouchBaseInsert uuid={uuid} table={table} />
-          </Box>
-        </Modal>
       )}
     </Stack>
   );
@@ -933,4 +908,4 @@ function CouchBaseQuery(props: { uuid: string; value?: string }) {
   );
 }
 
-export { CouchBaseTable, CouchBaseQuery };
+export { CouchBaseTable, CouchBaseQuery, CouchBaseInsert };

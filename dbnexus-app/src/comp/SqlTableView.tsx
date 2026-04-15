@@ -92,10 +92,9 @@ import {
   SimpleFlexEditor,
   SliderSize,
   StackRowCenter,
-  TableAddButton,
 } from "./CommonComp2";
 import { showTable } from "./handlers";
-import { AddTableView } from "./LeftTable";
+import { AddTableModal } from "./LeftTable";
 import { ExportTableOrView } from "./Export";
 import {
   useColumnWidthStore,
@@ -324,7 +323,8 @@ interface SqlTableCustomToolBarLeftProps {
   setAllowFiltering: (val: boolean) => void;
   clientModel: any; // 根据你实际的 model 类型修改
   isTable: boolean;
-  setShowAdd: (show: boolean) => void;
+  uuid: string;
+  tableName: string;
 }
 // 建议放在文件顶部，或者单独的文件中
 function SqlTableCustomToolBarLeft({
@@ -340,7 +340,8 @@ function SqlTableCustomToolBarLeft({
   setAllowFiltering,
   clientModel,
   isTable,
-  setShowAdd,
+  uuid,
+  tableName,
 }: SqlTableCustomToolBarLeftProps) {
   // 获取 DataGrid 内部的 api 实例
   const apiRef = useGridApiContext();
@@ -393,7 +394,7 @@ function SqlTableCustomToolBarLeft({
 
       {clientModel && <SliderSize config={UseSizeConfig.queryLimit} />}
 
-      {isTable && <TableAddButton handleAdd={() => setShowAdd(true)} />}
+      {isTable && <AddTableModal kind={kind} tableName={tableName} uuid={uuid} />}
     </StackRowCenter>
   );
 }
@@ -516,7 +517,6 @@ function SqlTableView(props: {
   const clientModel = [DataSourceKind.Cassandra].includes(kind);
   const [viewInModal, setViewInModal] = useState<object>(null);
   const [showExport, setShowExport] = useState(false);
-  const [showAdd, setShowAdd] = useState(false);
   const [queryStatus, setQueryStatus] = useState("");
   const [clickedField, setClickedField] = useState("");
   const [rowBeenLocate, setRowBeenLocate] = useState("");
@@ -839,7 +839,8 @@ function SqlTableView(props: {
             setAllowFiltering,
             clientModel,
             isTable,
-            setShowAdd,
+            tableName,
+            uuid,
           };
         })(),
         csvOptions: {
@@ -864,11 +865,13 @@ function SqlTableView(props: {
     where,
     sort,
     allowFiltering,
+    tableName,
+    uuid,
   ]);
 
   const [editInModalBox, setEditInModalBox] = useState(null);
   const [editRowInModalBox, setEditRowInModalBox] = useState(null);
-  const [addModalBox, setAddModalBox] = useState(null);
+
   const slots = useMemo(() => {
     return {
       columnMenu: AppColumnMenu,
@@ -994,11 +997,7 @@ function SqlTableView(props: {
         onProcessRowUpdateError={onProcessRowUpdateError}
         loading={loading}
       />
-
-      <ListenElementSize dom={addModalBox} set="both" name="view-in-model" />
-
       <ListenElementSize dom={editInModalBox} set="both" name="table-edit-in-modal" />
-
       <ListenElementSize
         dom={editRowInModalBox}
         set="both"
@@ -1012,26 +1011,7 @@ function SqlTableView(props: {
         isTable={isTable}
         fields={resp.fields}
       />
-      {showAdd && (
-        <Modal
-          open={showAdd}
-          onClose={modalHandleClose((e: EscDownEvent) => {
-            e.preventDefault();
-            setShowAdd(false);
-          })}>
-          <Box
-            sx={{ resize: "both", ...modalStyle, width: "80%", height: "30vh" }}
-            ref={setAddModalBox}>
-            <ModalHeader
-              title="add data"
-              handleClose={() => {
-                setShowAdd(false);
-              }}
-            />
-            <AddTableView uuid={uuid} table={tableName} kind={kind} />
-          </Box>
-        </Modal>
-      )}
+
       {editCellInModal && (
         <Modal
           open={!!editCellInModal}

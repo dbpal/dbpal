@@ -62,8 +62,15 @@ import { ExceedMaxTreeItem, MenuRefresh, ModalHeader } from "./CommonComp";
 import { TableStructure } from "./TableStructure";
 import { cancelTask } from "./handlers";
 import { filesize } from "filesize";
-import { CancelButton, ClearableTextField, CopySql, ShowingCount } from "./CommonComp2";
-import { CouchBaseTable } from "./CouchBase";
+import {
+  CancelButton,
+  ClearableTextField,
+  CopySql,
+  ListenElementSize,
+  ShowingCount,
+  TableAddButton,
+} from "./CommonComp2";
+import { CouchBaseInsert, CouchBaseTable } from "./CouchBase";
 import {
   useMatcher,
   useContextMenu,
@@ -382,9 +389,63 @@ function AddTableView(props: {
           }}
         />
       );
+    case DataSourceKind.CouchBase:
+      return <CouchBaseInsert uuid={uuid} table={table} />;
   }
 
   return <SqlAddTableView uuid={uuid} table={table} />;
+}
+
+function AddTableModal(props: {
+  uuid: string;
+  tableName: string;
+  kind: DataSourceKind;
+  redisType?: RedisTableType;
+}) {
+  const { tableName, redisType, uuid, kind } = props;
+  const [showAdd, setShowAdd] = useState(false);
+  const [addModalBox, setAddModalBox] = useState<HTMLDivElement | null>(null);
+
+  return (
+    <>
+      <TableAddButton handleAdd={() => setShowAdd(true)} />
+
+      <ListenElementSize
+        dom={addModalBox}
+        set="both"
+        name={kind + "-add-" + redisType}
+      />
+
+      {showAdd && (
+        <Modal
+          open={showAdd}
+          onClose={modalHandleClose((e: EscDownEvent) => {
+            e.preventDefault();
+            setShowAdd(false);
+          })}
+          disableAutoFocus
+          disableEnforceFocus>
+          <Box
+            sx={{ resize: "both", ...modalStyle, width: "80%", height: "70vh" }}
+            ref={setAddModalBox}>
+            <ModalHeader
+              noTextTransform
+              title={`add ${tableName} `}
+              handleClose={() => {
+                setShowAdd(false);
+              }}
+            />
+            <AddTableView
+              uuid={uuid}
+              table={tableName}
+              redisTableType={redisType}
+              kind={kind}
+            />
+          </Box>
+        </Modal>
+      )}
+    </>
+  );
 }
 
 function SqlAddTableView(props: { uuid: string; table: string }) {
@@ -1034,4 +1095,4 @@ function RedisTables() {
   );
 }
 
-export { TablesTree, RedisTables, RedisViewTable, AddTableView };
+export { TablesTree, RedisTables, RedisViewTable, AddTableView, AddTableModal };
