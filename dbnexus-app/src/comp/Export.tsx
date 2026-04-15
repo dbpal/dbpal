@@ -19,7 +19,7 @@ import { v4 as uuidv4 } from "uuid";
 
 import { cancelTask } from "./handlers";
 import { CancelButton, StackRowCenter } from "./CommonComp2";
-import { useNotification, useUserSettings } from "./store";
+import { useExportConfigStore, useNotification } from "./store";
 import { commands, ExportKind, ShowTableParameter } from "./bindings";
 function IncludeHeader({ includeHeader, setIncludeHeader }) {
   return (
@@ -54,11 +54,18 @@ function ExportView(props: {
   const { exportOP, supportKind, name, handleClose } = props;
   const lastKind = supportKind.find((k) => k === lastExportKind);
   const [kind, setKind] = useState(lastExportKind ? lastKind : supportKind[0]);
-  const setting = useUserSettings();
-  const [includeHeader, setIncludeHeader] = useState(setting.export_.includeHeader);
-  const [delimiter, setDelimiter] = useState(setting.export_.csvDelimiter);
-  const [pretty, setPretty] = useState(true);
-  const [includeTableSchema, setIncludeTableSchema] = useState(false);
+
+  const {
+    includeHeader,
+    delimter,
+    setDelimter,
+    setIncludeHeader,
+    jsonPretty,
+    setJsonPretty,
+    includeTableSchema,
+    setIncludeTableSchema,
+  } = useExportConfigStore();
+
   const { showNotification } = useNotification();
   const [loading, setLoading] = useState(false);
   const [file, setFile] = useState<string | null>(null);
@@ -70,7 +77,7 @@ function ExportView(props: {
   const makeConfig = (): ExportKind | null => {
     switch (kind) {
       case "csv":
-        if (delimiter.length > 1) {
+        if (delimter.length > 1) {
           showNotification({
             severity: "error",
             title: "delimiter expect one character",
@@ -80,12 +87,12 @@ function ExportView(props: {
         return {
           export_kind: "csv",
           include_header: includeHeader,
-          delimiter,
+          delimiter: delimter,
         };
       case "sql":
         return { export_kind: "sql", include_table_schema: includeTableSchema };
       case "json":
-        return { export_kind: "json", pretty };
+        return { export_kind: "json", pretty: jsonPretty };
       case "jsonline":
         return { export_kind: "jsonline" };
       case "xlsx":
@@ -159,12 +166,12 @@ function ExportView(props: {
           />
           <Stack direction="row">
             <TextField
-              value={delimiter}
+              value={delimter}
               onChange={(e) => {
-                setDelimiter(e.target.value);
+                setDelimter(e.target.value);
               }}
               label="delimiter"
-              error={delimiter.length > 1}
+              error={delimter.length > 1}
               helperText="only accept one character"
             />
           </Stack>
@@ -200,9 +207,9 @@ function ExportView(props: {
           <FormControlLabel
             control={
               <Checkbox
-                checked={pretty}
+                checked={jsonPretty}
                 onChange={(e) => {
-                  setPretty(e.target.checked);
+                  setJsonPretty(e.target.checked);
                 }}
                 name="pretty"
                 color="primary"

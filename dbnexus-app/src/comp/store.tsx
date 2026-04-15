@@ -743,10 +743,6 @@ export interface UserSettings {
     theme: string;
     zoom: number;
   };
-  export_: {
-    csvDelimiter: string;
-    includeHeader: boolean;
-  };
   editor: {
     tabSize: number;
     theme: string;
@@ -768,7 +764,7 @@ export interface UserSettings {
 interface UserSettingsState extends UserSettings {
   // Actions
   updateAppearance: (data: Partial<UserSettings["appearance"]>) => void;
-  updateExport: (data: Partial<UserSettings["export_"]>) => void;
+
   updateEditor: (data: Partial<UserSettings["editor"]>) => void;
   updateMisc: (data: Partial<UserSettings["misc"]>) => void;
 
@@ -789,10 +785,6 @@ const initialSettings: UserSettings = {
     intputVariant: "standard",
     theme: "light",
     zoom: 1,
-  },
-  export_: {
-    csvDelimiter: ",",
-    includeHeader: true,
   },
   editor: {
     tabSize: 4,
@@ -822,9 +814,6 @@ export const useUserSettings = create<UserSettingsState>()(
       // 更新逻辑
       updateAppearance: (data) =>
         set((state) => ({ appearance: { ...state.appearance, ...data } })),
-
-      updateExport: (data) =>
-        set((state) => ({ export_: { ...state.export_, ...data } })),
 
       updateEditor: (data) =>
         set((state) => ({ editor: { ...state.editor, ...data } })),
@@ -1337,6 +1326,50 @@ export const useViewInModalMatchStrStore = create<ViewInModalState>()(
     }),
     {
       name: "view-in-modal-storage-match-str", // 存储在 localStorage 中的唯一 Key
+    },
+  ),
+);
+
+interface ExportConfigState {
+  delimter: string; // 注意：沿用你定义的拼写 "delimter"
+  includeHeader: boolean;
+
+  setDelimter: (delimter: string) => void;
+  setIncludeHeader: (includeHeader: boolean) => void;
+
+  jsonPretty: boolean;
+  setJsonPretty: (jsonPretty: boolean) => void;
+
+  includeTableSchema: boolean;
+
+  setIncludeTableSchema: (includeTableSchema: boolean) => void;
+}
+
+export const useExportConfigStore = create<ExportConfigState>()(
+  persist(
+    (set) => ({
+      // 默认初始状态
+      delimter: ",",
+      includeHeader: true,
+      jsonPretty: true,
+      includeTableSchema: true,
+
+      setIncludeTableSchema(includeTableSchema) {
+        set({ includeTableSchema });
+      },
+
+      setJsonPretty(jsonPretty) {
+        set({ jsonPretty });
+      },
+
+      // 实现 Actions
+      setDelimter: (delimter) => set({ delimter }),
+      setIncludeHeader: (includeHeader) => set({ includeHeader }),
+    }),
+    {
+      // 存储在 localStorage 中的 key
+      name: "csv-config-storage",
+      // 默认即为 localStorage，createJSONStorage 确保数据以 JSON 格式正确存取
     },
   ),
 );

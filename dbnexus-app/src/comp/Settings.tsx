@@ -15,7 +15,6 @@ import {
   CssBaseline,
   CssVarsTheme,
   Divider,
-  FormControlLabel,
   IconButton,
   Modal,
   Slider,
@@ -430,71 +429,6 @@ function EditorSetting() {
 }
 
 const headerSize = "16rem";
-
-function ExportSetting() {
-  const { export_, updateExport } = useUserSettings();
-
-  const [csvDelimiter, setCsvDelimiter] = useState(export_.csvDelimiter);
-  const [includeHeader, setIncludeHeader] = useState(export_.includeHeader);
-  const { showNotification } = useNotification();
-  const [modified, setModified] = useState(false);
-
-  const makeConfig = useCallback(() => {
-    const x = { csvDelimiter, includeHeader };
-
-    return x;
-  }, [csvDelimiter, includeHeader]);
-
-  useEffect(() => {
-    setModified(!isEqual(export_, makeConfig()));
-  }, [makeConfig, export_]);
-
-  const handleSave = () => {
-    try {
-      updateExport(makeConfig());
-    } catch (e) {
-      showNotification({
-        severity: "error",
-        title: "save export setting failed",
-        message: e,
-      });
-      return;
-    }
-  };
-
-  return (
-    <Stack>
-      <Stack direction="row" sx={{ alignItems: "center" }}>
-        <Typography sx={{ width: headerSize }}>csv delimiter</Typography>
-        <TextField
-          value={csvDelimiter}
-          onChange={(e) => setCsvDelimiter(e.target.value)}
-          error={csvDelimiter.length > 1}
-          helperText="only accept one character"
-        />
-      </Stack>
-      <Stack direction="row" sx={{ alignItems: "center" }}>
-        <Typography sx={{ width: headerSize }}>include header</Typography>
-        <FormControlLabel
-          control={
-            <Checkbox
-              checked={includeHeader}
-              onChange={(e) => setIncludeHeader(e.target.checked)}
-            />
-          }
-          label="include header"
-        />
-      </Stack>
-
-      <Divider />
-      <Stack direction="row">
-        <Button onClick={handleSave} disabled={!modified}>
-          {modified ? <IconModifed /> : undefined} save
-        </Button>
-      </Stack>
-    </Stack>
-  );
-}
 
 interface ModelDef {
   id: string;
@@ -912,7 +846,7 @@ function ProxyValue({ value, setValue }) {
 }
 
 function ModifySetting() {
-  const ss = ["appearance", "editor", "export", "llm", "misc", "proxy"];
+  const ss = ["appearance", "editor", "llm", "misc", "proxy"];
   const [tab, setCurrentTab] = useState(ss[0]);
   return (
     <Stack>
@@ -935,9 +869,7 @@ function ModifySetting() {
             case "editor":
               content = <EditorSetting />;
               break;
-            case "export":
-              content = <ExportSetting />;
-              break;
+
             case "misc":
               content = <MiscSetting />;
               break;
@@ -1155,14 +1087,6 @@ function makeComponents(
         rowHeight: dataGridRowHeight,
         columnHeaderHeight: dataGridRowHeight * 0.9,
         showToolbar: true,
-        slotProps: {
-          toolbar: {
-            csvOptions: {
-              // delimiter: export_.csvDelimiter,
-              // includeHeaders: export_.includeHeader,
-            },
-          },
-        },
       },
     },
     MuiStack: {

@@ -605,7 +605,7 @@ function ViewRowInModal(props: {
               onChange={(e) => {
                 setMatchStr(e.target.value);
               }}
-              style={{ width: "13rem" }}
+              style={{ width: "16rem" }}
               label="match string,only for value"
             />
           </>
