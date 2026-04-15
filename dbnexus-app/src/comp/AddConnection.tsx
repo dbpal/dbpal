@@ -1,4 +1,12 @@
-import { RefObject, useEffect, useMemo, useRef, useState } from "react";
+import {
+  Dispatch,
+  RefObject,
+  SetStateAction,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import ClearIcon from "@mui/icons-material/Clear";
 import {
   TextField,
@@ -40,9 +48,26 @@ import {
   PgSsl,
   PgSslMode,
   SSLFiles,
+  OracleDBConfig,
+  ClickHouseConfig,
+  SqliteDBConfig,
+  FireBirdConfig,
+  RedisDBConfig,
+  MongoDBConfig,
+  CassandraDBConfig,
+  SqlServerDBConfig,
+  DuckDBConfig,
+  LibSqlDBConfig,
+  Db2Config,
+  CouchBaseDBConfig,
 } from "./bindings.ts";
 
-function HostAndPort(props: { host; port; setHost; setPort }) {
+function HostAndPort(props: {
+  host: string;
+  port: string;
+  setHost: Dispatch<SetStateAction<string>>;
+  setPort: Dispatch<SetStateAction<string>>;
+}) {
   const { host, port, setHost, setPort } = props;
   return (
     <Stack direction="row">
@@ -68,7 +93,12 @@ function HostAndPort(props: { host; port; setHost; setPort }) {
   );
 }
 
-function SelectPath(props: { path; setPath; label: string; required: boolean }) {
+function SelectPath(props: {
+  path: string;
+  setPath: Dispatch<SetStateAction<string>>;
+  label: string;
+  required: boolean;
+}) {
   const { path, setPath, label, required } = props;
   return (
     <Stack direction="row" sx={{ alignItems: "center" }}>
@@ -116,10 +146,10 @@ function SelectPath(props: { path; setPath; label: string; required: boolean }) 
 function UserAndPassword(props: {
   user: string;
   password: string;
-  setUser;
-  setPassword;
-  savePassword;
-  setSavePassword;
+  setUser: Dispatch<SetStateAction<string>>;
+  setPassword: Dispatch<SetStateAction<string>>;
+  savePassword: boolean;
+  setSavePassword: Dispatch<SetStateAction<boolean>>;
 }) {
   const { user, password, setUser, setPassword, savePassword, setSavePassword } = props;
   const [passwordVisible, setPasswordVisible] = useState(false);
@@ -177,7 +207,7 @@ function UserAndPassword(props: {
   );
 }
 
-function Https(props: { https; setHttps }) {
+function Https(props: { https: boolean; setHttps: Dispatch<SetStateAction<boolean>> }) {
   const { https, setHttps } = props;
   return (
     <FormControlLabel
@@ -192,7 +222,10 @@ function Https(props: { https; setHttps }) {
   );
 }
 
-function SqlServerCert(props: { data: SqlServerCertData; setData }) {
+function SqlServerCert(props: {
+  data: SqlServerCertData;
+  setData: Dispatch<SetStateAction<SqlServerCertData>>;
+}) {
   const { data, setData } = props;
   return (
     <StackRowCenter>
@@ -227,7 +260,11 @@ interface SqlServerCertData {
   cert_ca: string | null;
 }
 
-function SslFiles(props: { files: SSLFiles; setFiles; enabled: boolean }) {
+function SslFiles(props: {
+  files: SSLFiles;
+  setFiles: Dispatch<SetStateAction<SSLFiles>>;
+  enabled: boolean;
+}) {
   const { files, setFiles, enabled } = props;
 
   return (
@@ -281,7 +318,7 @@ function SslFiles(props: { files: SSLFiles; setFiles; enabled: boolean }) {
   );
 }
 
-function PGSSL(props: { ssl: PgSsl; setSsl }) {
+function PGSSL(props: { ssl: PgSsl; setSsl: Dispatch<SetStateAction<PgSsl>> }) {
   const { ssl, setSsl } = props;
   const modes = [
     "disable",
@@ -313,7 +350,10 @@ function PGSSL(props: { ssl: PgSsl; setSsl }) {
     </Stack>
   );
 }
-function MysqlSSl(props: { ssl: MysqlSsl; setSsl: any }) {
+function MysqlSSl(props: {
+  ssl: MysqlSsl;
+  setSsl: Dispatch<SetStateAction<MysqlSsl>>;
+}) {
   const { ssl, setSsl } = props;
   const modes = [
     "disabled",
@@ -345,13 +385,13 @@ function MysqlSSl(props: { ssl: MysqlSsl; setSsl: any }) {
 }
 
 function DbSchemaCadidates(props: {
-  name;
-  setName;
+  name: string;
+  setName: Dispatch<SetStateAction<string>>;
   label: string;
   makeConfig: MakeConfig;
 }) {
   const { name, setName, label, makeConfig } = props;
-  const [candidates, setCadidates] = useState([]);
+  const [candidates, setCadidates] = useState<string[]>([]);
   const { showNotification } = useNotification();
   const [loading, setLoading] = useState(false);
   const handleReload = () => {
@@ -388,7 +428,7 @@ function DbSchemaCadidates(props: {
         )}
         freeSolo
         onChange={(_, name) => {
-          setName(name);
+          setName((name ?? "") as string);
         }}
         onInputChange={(_, value) => {
           setName(value);
@@ -403,7 +443,11 @@ function DbSchemaCadidates(props: {
 
 type MakeConfig = () => DBConnectionConfig;
 
-function Mysql(props: { config; kind: DataSourceKind; context: AddConnectionContext }) {
+function Mysql(props: {
+  config?: MysqlDBConfig;
+  kind: DataSourceKind;
+  context: AddConnectionContext;
+}) {
   const { config, kind, context } = props;
   const { connectionName, connTimeOut, readOnly, makeConfigRef } = context;
 
@@ -475,7 +519,7 @@ function Mysql(props: { config; kind: DataSourceKind; context: AddConnectionCont
   );
 }
 
-function Oracle(props: { config?; context: AddConnectionContext }) {
+function Oracle(props: { config?: OracleDBConfig; context: AddConnectionContext }) {
   const { config, context } = props;
   const [host, setHost] = useState(getHost(config));
   const [port, setPort] = useState((config?.port || 1521) + "");
@@ -543,7 +587,10 @@ function Oracle(props: { config?; context: AddConnectionContext }) {
   );
 }
 
-function ClickHouse(props: { config?; context: AddConnectionContext }) {
+function ClickHouse(props: {
+  config?: ClickHouseConfig;
+  context: AddConnectionContext;
+}) {
   const { config, context } = props;
   const [host, setHost] = useState(getHost(config));
   const [port, setPort] = useState((config?.port || 8123) + "");
@@ -594,7 +641,7 @@ function ClickHouse(props: { config?; context: AddConnectionContext }) {
 }
 
 function PostGres(props: {
-  config;
+  config?: PGDBConfig;
   kind: DataSourceKind;
   context: AddConnectionContext;
 }) {
@@ -677,7 +724,7 @@ function PostGres(props: {
   );
 }
 
-function Sqlite(props: { config?; context: AddConnectionContext }) {
+function Sqlite(props: { config?: SqliteDBConfig; context: AddConnectionContext }) {
   const { config, context } = props;
   const [path, setPath] = useState(config?.path || "");
   const { connTimeOut, connectionName, readOnly, makeConfigRef } = context;
@@ -704,8 +751,8 @@ type AddConnectionContext = {
   connectionName: string;
   readOnly: boolean;
   connTimeOut: number | null;
-  connectionNameDom: RefObject<HTMLInputElement>;
-  makeConfigRef: RefObject<() => DBConnectionConfig>;
+  connectionNameDom: RefObject<HTMLInputElement | null>;
+  makeConfigRef: RefObject<MakeConfig | null>;
 };
 
 // global var make it simple the pass the parameter
@@ -713,7 +760,7 @@ type AddConnectionContext = {
 // let globalMakeConfig: MakeConfig = null;
 
 function TestConnAndSave(props: {
-  connectionNameDom;
+  connectionNameDom: RefObject<HTMLInputElement>;
   makeConfig: () => DBConnectionConfig;
   cnameDuplicated: boolean;
 }) {
@@ -755,7 +802,7 @@ function TestConnAndSave(props: {
       return;
     }
     if (!config.name) {
-      connectionNameDom.current.focus();
+      connectionNameDom.current?.focus();
       showNotification({ severity: "warning", title: "connection name is empty." });
       return;
     }
@@ -764,7 +811,7 @@ function TestConnAndSave(props: {
         severity: "error",
         title: `connection name can't  contains '/'`,
       });
-      connectionNameDom.current.focus();
+      connectionNameDom.current?.focus();
       return;
     }
     addConnection(config)
@@ -803,28 +850,28 @@ function TestConnAndSave(props: {
   );
 }
 
-function getHost(config?: { host: string }) {
-  return config?.host ? config.host : "localhost";
+function getHost(config?: Record<string, unknown>) {
+  return typeof config?.host === "string" ? config.host : "localhost";
 }
 
-function getUser(config?: { username: string }) {
-  return config?.username ? config.username : "";
+function getUser(config?: Record<string, unknown>) {
+  return typeof config?.username === "string" ? config.username : "";
 }
-function getPassword(config?: { password: string }) {
-  return config?.password ? config.password : "";
+function getPassword(config?: Record<string, unknown>) {
+  return typeof config?.password === "string" ? config.password : "";
 }
-function getSavePassword(config?: { save_password: boolean }) {
-  return config ? config.save_password : true;
-}
-
-function getDB(config?: { db: string }) {
-  return config ? config.db : "";
-}
-function getSchema(config?: { schema: string }) {
-  return config ? config.schema : "";
+function getSavePassword(config?: Record<string, unknown>) {
+  return typeof config?.save_password === "boolean" ? config.save_password : true;
 }
 
-function FireBird(props: { config?; context: AddConnectionContext }) {
+function getDB(config?: Record<string, unknown>) {
+  return typeof config?.db === "string" ? config.db : "";
+}
+function getSchema(config?: Record<string, unknown>) {
+  return typeof config?.schema === "string" ? config.schema : "";
+}
+
+function FireBird(props: { config?: FireBirdConfig; context: AddConnectionContext }) {
   const { config, context } = props;
   const [host, setHost] = useState(getHost(config));
   const [port, setPort] = useState((config?.port || 3050) + "");
@@ -871,7 +918,7 @@ function FireBird(props: { config?; context: AddConnectionContext }) {
   );
 }
 
-function Redis(props: { config?; context: AddConnectionContext }) {
+function Redis(props: { config?: RedisDBConfig; context: AddConnectionContext }) {
   const { config, context } = props;
   const [host, setHost] = useState(getHost(config));
   const [port, setPort] = useState((config?.port || 6379) + "");
@@ -929,7 +976,7 @@ function Redis(props: { config?; context: AddConnectionContext }) {
   );
 }
 
-function MongoDb(props: { config?; context: AddConnectionContext }) {
+function MongoDb(props: { config?: MongoDBConfig; context: AddConnectionContext }) {
   const { config, context } = props;
   const [host, setHost] = useState(getHost(config));
   const [port, setPort] = useState((config?.port || 27017) + "");
@@ -996,7 +1043,10 @@ function MongoDb(props: { config?; context: AddConnectionContext }) {
   );
 }
 
-function Cassandra(props: { config?; context: AddConnectionContext }) {
+function Cassandra(props: {
+  config?: CassandraDBConfig;
+  context: AddConnectionContext;
+}) {
   const { config, context } = props;
   const [host, setHost] = useState(getHost(config));
   const [port, setPort] = useState((config?.port || 9042) + "");
@@ -1043,7 +1093,10 @@ function Cassandra(props: { config?; context: AddConnectionContext }) {
   );
 }
 
-function SqlServer(props: { config?; context: AddConnectionContext }) {
+function SqlServer(props: {
+  config?: SqlServerDBConfig;
+  context: AddConnectionContext;
+}) {
   const { config, context } = props;
   const [host, setHost] = useState(getHost(config));
   const [port, setPort] = useState((config?.port || 1433) + "");
@@ -1110,8 +1163,10 @@ function SqlServer(props: { config?; context: AddConnectionContext }) {
 
 function AddConnection(props: { config?: DBConnectionConfig }) {
   const { config } = props;
-  const [connectionType, setConnectionType] = useState(config?.conn_type || "mysql");
-  const [connectionName, setConnectionName] = useState(config?.name);
+  const [connectionType, setConnectionType] = useState<DataSourceKind>(
+    (config?.conn_type as DataSourceKind) || DataSourceKind.Mysql,
+  );
+  const [connectionName, setConnectionName] = useState(config?.name || "");
   const [connTimeout, setConnTimeout] = useState<string>(
     config && config.conn_timeout ? config.conn_timeout.toString() : "",
   );
@@ -1125,7 +1180,7 @@ function AddConnection(props: { config?: DBConnectionConfig }) {
     setCnameDuplicated(nameExits(connectionName));
   }, [connectionName, nameExits]);
 
-  const makeConfigRef = useRef(null);
+  const makeConfigRef = useRef<MakeConfig | null>(null);
 
   const context = useMemo(() => {
     return {
@@ -1133,7 +1188,7 @@ function AddConnection(props: { config?: DBConnectionConfig }) {
       connectionNameDom,
       readOnly: !!readOnly,
       connTimeOut: connTimeout ? parseInt(connTimeout) : null,
-      makeConfigRef: makeConfigRef,
+      makeConfigRef,
     };
   }, [connTimeout, connectionName, readOnly]);
 
@@ -1206,7 +1261,7 @@ function AddConnection(props: { config?: DBConnectionConfig }) {
           connectionType === DataSourceKind.MariaDB) && (
           <Mysql
             context={context}
-            config={config}
+            config={config as MysqlDBConfig}
             kind={connectionType as DataSourceKind}
           />
         )}
@@ -1214,75 +1269,73 @@ function AddConnection(props: { config?: DBConnectionConfig }) {
         {connectionType === DataSourceKind.TiDB && (
           <Mysql
             context={context}
-            config={config}
+            config={config as MysqlDBConfig}
             kind={connectionType as DataSourceKind}
           />
         )}
 
         {connectionType === DataSourceKind.LibSql && (
-          <LibSql context={context} config={config} />
+          <LibSql context={context} config={config as LibSqlDBConfig} />
         )}
 
         {connectionType === DataSourceKind.FireBird && (
-          <FireBird context={context} config={config} />
+          <FireBird context={context} config={config as FireBirdConfig} />
         )}
 
         {(connectionType === DataSourceKind.Postgres ||
           connectionType === DataSourceKind.Cockroach) && (
           <PostGres
             context={context}
-            config={config}
+            config={config as PGDBConfig}
             kind={connectionType as DataSourceKind}
           />
         )}
         {connectionType === DataSourceKind.ClickHouse && (
-          <ClickHouse context={context} config={config} />
+          <ClickHouse context={context} config={config as ClickHouseConfig} />
         )}
 
         {connectionType === DataSourceKind.Cassandra && (
-          <Cassandra context={context} config={config} />
+          <Cassandra context={context} config={config as CassandraDBConfig} />
         )}
 
         {connectionType === DataSourceKind.Redis && (
-          <Redis context={context} config={config} />
+          <Redis context={context} config={config as RedisDBConfig} />
         )}
         {connectionType === DataSourceKind.Mongo && (
-          <MongoDb context={context} config={config} />
+          <MongoDb context={context} config={config as MongoDBConfig} />
         )}
         {connectionType === DataSourceKind.SqlServer && (
-          <SqlServer context={context} config={config} />
+          <SqlServer context={context} config={config as SqlServerDBConfig} />
         )}
         {connectionType === DataSourceKind.Oracle && (
-          <Oracle context={context} config={config} />
+          <Oracle context={context} config={config as OracleDBConfig} />
         )}
         {connectionType === DataSourceKind.Sqlite && (
-          <Sqlite context={context} config={config} />
+          <Sqlite context={context} config={config as SqliteDBConfig} />
         )}
         {connectionType === DataSourceKind.DuckDB && (
-          <DuckDB context={context} config={config} />
+          <DuckDB context={context} config={config as DuckDBConfig} />
         )}
 
         {connectionType === DataSourceKind.Db2 && (
-          <Db2 context={context} config={config} />
+          <Db2 context={context} config={config as Db2Config} />
         )}
 
         {connectionType === DataSourceKind.CouchBase && (
-          <CouchBase context={context} config={config} />
+          <CouchBase context={context} config={config as CouchBaseDBConfig} />
         )}
       </Stack>
 
       <TestConnAndSave
         connectionNameDom={connectionNameDom}
-        makeConfig={() => {
-          return makeConfigRef.current();
-        }}
+        makeConfig={() => makeConfigRef.current!()}
         cnameDuplicated={cnameDuplicated}
       />
     </Stack>
   );
 }
 
-function DuckDB(props: { config?; context: AddConnectionContext }) {
+function DuckDB(props: { config?: DuckDBConfig; context: AddConnectionContext }) {
   const { config, context } = props;
 
   function getConfigStr(key: string) {
@@ -1334,14 +1387,14 @@ function DuckDB(props: { config?; context: AddConnectionContext }) {
   );
 }
 
-function LibSql(props: { config; context: AddConnectionContext }) {
+function LibSql(props: { config?: LibSqlDBConfig; context: AddConnectionContext }) {
   const { config, context } = props;
   const urlOld = config && config.source == "remote" && config.url;
   const [url, setUrl] = useState(urlOld ? urlOld : "");
   // const [replica, setReplica] = useState(config?.replica);
   const oldAuth = config && config.source == "remote" && config.auth_token;
   const [authToken, setAuthToken] = useState(oldAuth ? oldAuth : "");
-  const [libSqlModel] = useState<"remote">(config?.source || "remote");
+  const [libSqlModel] = useState<"remote" | "local">(config?.source || "remote");
   const [path] = useState(config?.path);
   const { connTimeOut, connectionName, readOnly, makeConfigRef } = context;
 
@@ -1481,8 +1534,7 @@ function OdbcDriverCommon(props: { config: RefObject<OdbcCommon> }) {
   );
 }
 
-//@ts-ignore
-function Db2(props: { config?; context: AddConnectionContext }) {
+function Db2(props: { config?: Db2Config; context: AddConnectionContext }) {
   const { config, context } = props;
   const [host, setHost] = useState(getHost(config));
   const [port, setPort] = useState<string>((config?.port || 50000) + "");
@@ -1549,7 +1601,10 @@ function Db2(props: { config?; context: AddConnectionContext }) {
   );
 }
 
-function CouchBase(props: { config?; context: AddConnectionContext }) {
+function CouchBase(props: {
+  config?: CouchBaseDBConfig;
+  context: AddConnectionContext;
+}) {
   const { config, context } = props;
   const [connStr, setConnStr] = useState(
     (config && config["conn_str"]) || "couchbase://127.0.0.1",
