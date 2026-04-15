@@ -1,4 +1,13 @@
-import { useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
+import {
+  Dispatch,
+  SetStateAction,
+  useCallback,
+  useContext,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import CancelIcon from "@mui/icons-material/Cancel";
 import {
   Box,
@@ -471,13 +480,6 @@ function SqlTableView(props: {
     [uuid],
   );
 
-  const addOP = useCallback(
-    async (x) => {
-      await commands.tableInsert(uuid, tableName, x);
-    },
-    [uuid, tableName],
-  );
-
   const [loading, setLoading] = useState(false);
   const [where, setWhere] = useState("");
   const [showSetWhere, setShowSetWhere] = useState(false);
@@ -789,10 +791,11 @@ function SqlTableView(props: {
                     : undefined
                 }
                 row={row}
-                addOP={isTable && addOP}
+                uuid={uuid}
+                tableName={tableName}
                 setSort={setSort}
                 setWhere={setWhere}
-                put_value_in_sql={(value) => {
+                putValueInSql={(value) => {
                   return putValueInSql(
                     resp.fields.find((e) => e.field == field).data_type,
                     value,
@@ -856,7 +859,6 @@ function SqlTableView(props: {
     setUpMenu,
     kind,
     isTable,
-    addOP,
     handleDelete,
     putValueInSql,
     handleProcessRowUpdate,
@@ -1273,11 +1275,10 @@ function Menu(props: {
   field: string;
   content: string;
   handleDelete?: () => void;
-  setSort;
-  setWhere;
-  put_value_in_sql: (value?: string) => Promise<string>;
+  setSort: Dispatch<SetStateAction<string>>;
+  setWhere: Dispatch<SetStateAction<string>>;
+  putValueInSql: (value?: string) => Promise<string>;
   setNull?: () => void;
-  addOP?: (x: object) => Promise<void>;
   row: object;
   fields: Field[];
   nullable: boolean;
@@ -1286,6 +1287,8 @@ function Menu(props: {
   kind: DataSourceKind;
   viewInModal: () => void;
   isTable: boolean;
+  uuid: string;
+  tableName: string;
 }) {
   const {
     field,
@@ -1293,9 +1296,10 @@ function Menu(props: {
     handleDelete,
     setSort,
     setWhere,
-    put_value_in_sql,
+    putValueInSql,
     setNull,
-    addOP,
+    uuid,
+    tableName,
     row,
     fields,
     nullable,
@@ -1305,6 +1309,14 @@ function Menu(props: {
     viewInModal,
     isTable,
   } = props;
+
+  const addOP = useCallback(
+    async (x) => {
+      await commands.tableInsert(uuid, tableName, x);
+    },
+    [uuid, tableName],
+  );
+
   const quoteFn = quoteDatabaseIdentifier(kind);
   const { showNotification } = useNotification();
   const [showFilter, setShowFilter] = useState(false);
@@ -1475,8 +1487,8 @@ function Menu(props: {
               handleClose={() => {
                 setShowFilter(false);
               }}
-              put_value_in_sql={(value) => {
-                return put_value_in_sql(value);
+              putValueInSql={(value) => {
+                return putValueInSql(value);
               }}
             />
           </Box>
@@ -1493,9 +1505,9 @@ function FilterOnValue(props: {
   field: string;
   handleClose;
   kind: DataSourceKind;
-  put_value_in_sql: (x: string) => Promise<string>;
+  putValueInSql: (x: string) => Promise<string>;
 }) {
-  const { content, setWhere, field, handleClose, put_value_in_sql, kind } = props;
+  const { content, setWhere, field, handleClose, putValueInSql, kind } = props;
   const compares = ["=", "<>", ">", ">=", "<", "<="];
   const [compare, setCompare] = useState(lastCompare);
   const { showNotification } = useNotification();
@@ -1504,7 +1516,7 @@ function FilterOnValue(props: {
     lastCompare = compare;
   }, [compare]);
   useEffect(() => {
-    put_value_in_sql(content)
+    putValueInSql(content)
       .then((value) => {
         setFormatValue(value);
       })
@@ -1515,7 +1527,7 @@ function FilterOnValue(props: {
           message: e,
         });
       });
-  }, [content, put_value_in_sql, showNotification]);
+  }, [content, putValueInSql, showNotification]);
 
   const where = () => {
     const quoteField = quoteDatabaseIdentifier(kind)(field);
