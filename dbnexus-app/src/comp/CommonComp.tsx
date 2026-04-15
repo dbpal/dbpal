@@ -63,7 +63,6 @@ import { EscDownEvent, modalHandleClose, modalStyle, PassWordManager } from "./C
 import { TreeItem } from "@mui/x-tree-view/TreeItem";
 import { editor, Position } from "monaco-editor";
 import { openPath } from "@tauri-apps/plugin-opener";
-import { FaMarkdown } from "react-icons/fa";
 import {
   AppDataGridPagination,
   ClearableTextField,
@@ -85,17 +84,14 @@ import {
 } from "./store";
 import { commands, Field, MetaValue, NamedStaff } from "./bindings";
 
-function MenuExportMarkDownTable({ showExportMarkDown }) {
-  return (
-    <MenuItem onClick={showExportMarkDown}>
-      <ListItemIcon>
-        <FaMarkdown fontSize="1.5rem" />
-      </ListItemIcon>
-      <ListItemText>Export MarkDown Table</ListItemText>
-    </MenuItem>
-  );
-}
-function LogLevelSelection({ handleChange, level }) {
+/**
+ * Logger level selection control.
+ */
+function LogLevelSelection(props: {
+  handleChange: (level: string | null) => void;
+  level: string | null;
+}) {
+  const { handleChange, level } = props;
   const levels = ["off", "trace", "debug", "info", "warn", "error"];
   return (
     <Autocomplete
@@ -111,7 +107,11 @@ function LogLevelSelection({ handleChange, level }) {
   );
 }
 
-function MenuNewQuery({ handleNew }) {
+/**
+ * Menu item for creating a new query.
+ */
+function MenuNewQuery(props: { handleNew: () => void }) {
+  const { handleNew } = props;
   return (
     <MenuItem
       onClick={() => {
@@ -125,7 +125,11 @@ function MenuNewQuery({ handleNew }) {
   );
 }
 
-function MenuCreateDatabase({ handleCreate, kind }) {
+/**
+ * Menu item for creating a database or bucket.
+ */
+function MenuCreateDatabase(props: { handleCreate: () => void; kind: DataSourceKind }) {
+  const { handleCreate, kind } = props;
   return (
     <MenuItem
       onClick={() => {
@@ -148,7 +152,12 @@ function MenuCreateDatabase({ handleCreate, kind }) {
     </MenuItem>
   );
 }
-function MenuRefresh({ reload }) {
+
+/**
+ * Menu item for refreshing current data.
+ */
+function MenuRefresh(props: { reload: () => void }) {
+  const { reload } = props;
   return (
     <MenuItem
       onClick={() => {
@@ -162,7 +171,11 @@ function MenuRefresh({ reload }) {
   );
 }
 
-function MenuCloseConn({ name }) {
+/**
+ * Menu item for closing a named connection.
+ */
+function MenuCloseConn(props: { name: string }) {
+  const { name } = props;
   const { showNotification } = useNotification();
   const { removeConnected } = useConnected();
   return (
@@ -189,7 +202,11 @@ function MenuCloseConn({ name }) {
   );
 }
 
-function ConnPingTime({ uuid }) {
+/**
+ * Displays ping statistics for a connection UUID.
+ */
+function ConnPingTime(props: { uuid: string }) {
+  const { uuid } = props;
   const [pingTime, setStatus] = useState<number | null>(null);
   const [err, setErr] = useState("");
 
@@ -230,7 +247,10 @@ function ConnPingTime({ uuid }) {
   );
 }
 
-function MenuCreateSchema(props: { handleCreate; kind: DataSourceKind }) {
+/**
+ * Menu item for creating a schema or equivalent namespace object.
+ */
+function MenuCreateSchema(props: { handleCreate: () => void; kind: DataSourceKind }) {
   const { handleCreate, kind } = props;
   let name;
   switch (kind) {
@@ -263,7 +283,11 @@ function MenuCreateSchema(props: { handleCreate; kind: DataSourceKind }) {
   );
 }
 
-function MenuOpenConn({ name }) {
+/**
+ * Menu item that opens an existing connection and handles credential persistence.
+ */
+function MenuOpenConn(props: { name: string }) {
+  const { name } = props;
   const { showNotification } = useNotification();
   const setConnected = useConnected((s) => s.setConnected);
   const setLoading = useConnLoading((s) => s.setLoading);
@@ -312,14 +336,22 @@ function MenuOpenConn({ name }) {
   );
 }
 
-function SelectPageSize({ pageSize, handleChange, options = pageSizeOptions }) {
+/**
+ * Page size selector for table pagination.
+ */
+function SelectPageSize(props: {
+  pageSize: number;
+  handleChange: (value: number) => void;
+  options?: number[];
+}) {
+  const { pageSize, handleChange, options = pageSizeOptions } = props;
   return (
     <FormControl style={{ width: "10rem" }}>
       <InputLabel>page size </InputLabel>
       <Select
         value={pageSize}
         onChange={(e) => {
-          handleChange(e.target.value);
+          handleChange(e.target.value as number);
         }}
         label="page size">
         {options.map((e) => (
@@ -332,7 +364,11 @@ function SelectPageSize({ pageSize, handleChange, options = pageSizeOptions }) {
   );
 }
 
-function MenuDeleteConfig({ name }) {
+/**
+ * Menu item to show available actions for a metadata value column.
+ */
+function MenuDeleteConfig(props: { name: string }) {
+  const { name } = props;
   const { showNotification } = useNotification();
 
   const { removeConnection } = useConnectionStore();
@@ -374,7 +410,14 @@ function MenuDeleteConfig({ name }) {
   );
 }
 
-function MetaValueViewMenu(props: { content: string; setSort; field: string }) {
+/**
+ * Menu actions for sorting or copying metadata values.
+ */
+function MetaValueViewMenu(props: {
+  content: string;
+  setSort: (model: GridSortModel) => void;
+  field: string;
+}) {
   const { content, setSort, field } = props;
   const { showNotification } = useNotification();
   return (
@@ -411,6 +454,9 @@ function MetaValueViewMenu(props: { content: string; setSort; field: string }) {
   );
 }
 
+/**
+ * Table view for metadata values.
+ */
 function MetaValueView({ values = [] as MetaValue[] }) {
   const getColumnWidth = useColumnWidthStore((s) => s.getColumnWidth);
   const columns = [
@@ -473,6 +519,9 @@ function MetaValueView({ values = [] as MetaValue[] }) {
   );
 }
 
+/**
+ * Button to reset saved column widths.
+ */
 function ResetColumnWidth() {
   const { showNotification } = useNotification();
 
@@ -492,11 +541,17 @@ function ResetColumnWidth() {
   );
 }
 
+/**
+ * Icon indicator for boolean values.
+ */
 function TrueOrFalse(props: { value: boolean }) {
   const { value } = props;
   return value ? <CheckIcon> </CheckIcon> : <CloseIcon />;
 }
 
+/**
+ * Header used inside modal dialogs.
+ */
 function ModalHeader(props: {
   title: string;
   handleClose: () => void;
@@ -566,17 +621,20 @@ function HighlightText({
   );
 }
 
+/**
+ * Modal view for inspecting a single row of query results.
+ */
 function ViewRowInModal(props: {
   fields: Field[];
-  data: object;
-  isTable?;
+  data: Record<string, any>;
+  isTable?: boolean;
   handleClose: () => void;
 }) {
   const { fields, data, isTable, handleClose } = props;
   const theme = useTheme();
   const { matchStr, setMatchStr } = useViewInModalMatchStrStore();
 
-  const [viewInModalBox, setViewInModalBox] = useState(null);
+  const [viewInModalBox, setViewInModalBox] = useState<HTMLDivElement | null>(null);
   if (!data) {
     return <> </>;
   }
@@ -672,6 +730,9 @@ function ViewRowInModal(props: {
   );
 }
 
+/**
+ * Placeholder tree item shown when the tree exceeds the maximum rendered size.
+ */
 function ExceedMaxTreeItem(props: { showItems: number; maxTreeSize: number }) {
   const { showItems, maxTreeSize } = props;
   const id = useRef(uuidv4());
@@ -686,6 +747,9 @@ function ExceedMaxTreeItem(props: { showItems: number; maxTreeSize: number }) {
   );
 }
 
+/**
+ * Display UDF name and parameters in metadata lists.
+ */
 function UdfNameAndParameters(props: { udf: NamedStaff; kind: DataSourceKind }) {
   const { udf, kind } = props;
   let parameter = "";
@@ -717,6 +781,9 @@ function UdfNameAndParameters(props: { udf: NamedStaff; kind: DataSourceKind }) 
   );
 }
 
+/**
+ * Tooltip shown for a potential parse error in the editor.
+ */
 function PossibleParseError(props: {
   parseErr: ErrAndLoc;
   editor: editor.IStandaloneCodeEditor;
@@ -746,6 +813,9 @@ function PossibleParseError(props: {
   );
 }
 
+/**
+ * Menu item that copies a grid field name.
+ */
 function CopyMenuItem(props: GridColumnMenuItemProps) {
   const { colDef } = props;
   const { showNotification } = useNotification();
@@ -760,6 +830,9 @@ function CopyMenuItem(props: GridColumnMenuItemProps) {
   );
 }
 
+/**
+ * Grid column menu with custom copy field action.
+ */
 function AppColumnMenu(props: GridColumnMenuProps) {
   return (
     <GridColumnMenu
@@ -777,10 +850,13 @@ function AppColumnMenu(props: GridColumnMenuProps) {
   );
 }
 
+/**
+ * Multi-select column chooser.
+ */
 function SelectColumns(props: {
   fields: string[];
   includes: string[];
-  setIncludes;
+  setIncludes: (includes: string[]) => void;
   includeAll: boolean;
 }) {
   const { fields, includes, setIncludes, includeAll } = props;
@@ -800,14 +876,18 @@ function SelectColumns(props: {
         options={fields}
         value={includes}
         multiple
-        onChange={(_, v) => setIncludes(v)}
+        onChange={(_, v) => setIncludes(v as string[])}
         renderInput={(params) => <TextField {...params} label="select columns" />}
       />
     </Stack>
   );
 }
 
-function OpenFileWithDefaultApp({ file }) {
+/**
+ * Button to open a file path with the system default application.
+ */
+function OpenFileWithDefaultApp(props: { file?: string }) {
+  const { file } = props;
   const { showNotification } = useNotification();
   return (
     <>
@@ -833,10 +913,13 @@ function OpenFileWithDefaultApp({ file }) {
   );
 }
 
+/**
+ * Resize handle that persists parent height in the element size store.
+ */
 function ResizeParentHeight(props: {
   box: HTMLDivElement;
   min: number;
-  saveHeightName;
+  saveHeightName: string;
 }) {
   const { box, min, saveHeightName } = props;
   const { elements, setElement } = useElementSizeStore();
@@ -903,7 +986,6 @@ export {
   AppColumnMenu,
   SelectColumns,
   OpenFileWithDefaultApp,
-  MenuExportMarkDownTable,
   ResizeParentHeight,
   HighlightText,
 };

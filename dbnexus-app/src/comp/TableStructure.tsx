@@ -68,11 +68,14 @@ import {
   TriggerEnable,
 } from "./bindings";
 
+/**
+ * Context menu for a column row, supporting copy and optional drop actions.
+ */
 function ColumnMenu(props: {
   col: string;
   content: string;
-  supportModifyColumn;
-  handleDrop;
+  supportModifyColumn: boolean;
+  handleDrop: (col: string) => void;
 }) {
   const { showNotification } = useNotification();
   const { col, content, supportModifyColumn, handleDrop } = props;
@@ -131,7 +134,7 @@ function ColumnsStructure(props: {
   ]).has(kind);
 
   const onColumnResize = useCallback(
-    ({ colDef, width }) => {
+    ({ colDef, width }: { colDef: { field: string }; width: number }) => {
       setColumnWidth(colDef.field, width);
     },
     [setColumnWidth],
@@ -276,11 +279,11 @@ function ColumnsStructure(props: {
     } as GridSlotsComponentsProps;
   }, [handleDrop, setUpMenu, supportModifyColumn]);
 
-  const getRowId = useCallback((e) => {
+  const getRowId = useCallback((e: Record<string, any>) => {
     return e["field"];
   }, []);
 
-  const onRowDoubleClick = useCallback((row) => {
+  const onRowDoubleClick = useCallback((row: { row: Field }) => {
     setRow(row.row);
   }, []);
 
@@ -469,8 +472,8 @@ function RenameIndex(props: {
 function IndexMenu(props: {
   content: string;
   indexName: string;
-  setRenameIndexName;
-  handleDrop;
+  setRenameIndexName: (indexName: string) => void;
+  handleDrop: (indexName: string) => void;
 }) {
   const { content, indexName, setRenameIndexName, handleDrop } = props;
   const { showNotification } = useNotification();
@@ -525,7 +528,7 @@ function IndexesStructure(props: {
   const { getColumnWidth, setColumnWidth } = useColumnWidthStore();
 
   const onColumnResize = useCallback(
-    ({ colDef, width }) => {
+    ({ colDef, width }: { colDef: { field: string }; width: number }) => {
       setColumnWidth(colDef.field, width);
     },
     [setColumnWidth],
@@ -555,7 +558,7 @@ function IndexesStructure(props: {
   }, [showNotification, table, uuid]);
 
   const handleDrop = useCallback(
-    async (indexName) => {
+    async (indexName: string) => {
       const confirm = await secondConfirm({
         title: `drop index '${indexName}'`,
         content: "Are u sure to drop the index",
@@ -754,7 +757,12 @@ function IndexesStructure(props: {
   );
 }
 
-function MongoAddIndex(props: { uuid; table; handleClose; reload }) {
+function MongoAddIndex(props: {
+  uuid: string;
+  table: string;
+  handleClose: () => void;
+  reload: () => void;
+}) {
   const { uuid, table, handleClose, reload } = props;
 
   const indexTypes = ["normal", "unique"];
@@ -763,11 +771,11 @@ function MongoAddIndex(props: { uuid; table; handleClose; reload }) {
   const indexNameDom = useRef<HTMLInputElement>(null);
   const { showNotification } = useNotification();
 
-  const handleAdd = async (keys) => {
+  const handleAdd = async (keys: Record<string, any>) => {
     try {
       if (!indexName) {
         showNotification({ severity: "warning", title: "index name can't be none" });
-        indexNameDom.current.focus();
+        indexNameDom.current?.focus();
         return;
       }
       await commands.mongoCreateIndex(
@@ -888,9 +896,9 @@ function AddIndex(props: {
 
 function TableAddColumn(props: {
   table: string;
-  uuid;
-  handleClose;
-  reload;
+  uuid: string;
+  handleClose: () => void;
+  reload: () => void;
   kind: DataSourceKind;
   fields: Field[];
 }) {
@@ -1016,8 +1024,8 @@ function ModifyTableColumn(props: {
   uuid: string;
   table: string;
   col: string;
-  handleClose;
-  reload;
+  handleClose: () => void;
+  reload: () => void;
   typ: string;
   kind: DataSourceKind;
   defaultValue: string;
@@ -1158,8 +1166,8 @@ function triggerIsEnable(enable: TriggerEnable): boolean {
 function TriggerMenu(props: {
   content: string;
   detail: TriggerDetail;
-  handleEnables;
-  handleDrop;
+  handleEnables: (operation: "enable_trigger" | "disable_trigger", triggerName: string, title: string) => void;
+  handleDrop: (trigger: string) => void;
 }) {
   const { content, detail, handleEnables, handleDrop } = props;
   const { showNotification } = useNotification();
@@ -1230,7 +1238,7 @@ function TriggersStructure(props: {
 
   const { getColumnWidth, setColumnWidth } = useColumnWidthStore();
   const onColumnResize = useCallback(
-    ({ colDef, width }) => {
+    ({ colDef, width }: { colDef: { field: string }; width: number }) => {
       setColumnWidth(colDef.field, width);
     },
     [setColumnWidth],
@@ -1258,7 +1266,7 @@ function TriggersStructure(props: {
       });
   }, [showNotification, table, uuid]);
   const handleDrop = useCallback(
-    async (trigger) => {
+    async (trigger: string) => {
       const confirm = await secondConfirm({
         title: `Drop trigger '${trigger}'`,
         confirmText: "Drop",
@@ -1289,14 +1297,14 @@ function TriggersStructure(props: {
   );
 
   const handleEnables = useCallback(
-    (trigger: string, enable: boolean) => {
-      const operation = enable ? "enable" : "disable";
+    (operation: "enable_trigger" | "disable_trigger", triggerName: string, title: string) => {
+      const enable = operation === "enable_trigger";
       commands
-        .enableTrigger(uuid, table, trigger, enable)
+        .enableTrigger(uuid, table, triggerName, enable)
         .then((sql) => {
           showNotification({
             severity: "success",
-            title: `${operation}  OK`,
+            title: `${title} OK`,
             message: <CopySql sql={sql} />,
           });
           handleReload();
@@ -1304,7 +1312,7 @@ function TriggersStructure(props: {
         .catch((e) => {
           showNotification({
             severity: "error",
-            title: `${operation}  Failure`,
+            title: `${title} Failure`,
             message: e,
           });
         });
@@ -1371,7 +1379,7 @@ function TriggersStructure(props: {
     } as GridSlotsComponentsProps;
   }, [handleDrop, handleEnables, setUpMenu, triggers]);
 
-  const onRowDoubleClick = useCallback((row) => {
+  const onRowDoubleClick = useCallback((row: { row: TriggerDetail }) => {
     setRow(row.row);
   }, []);
 

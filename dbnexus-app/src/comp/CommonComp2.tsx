@@ -1,6 +1,8 @@
 import {
   CSSProperties,
+  Dispatch,
   ReactNode,
+  SetStateAction,
   useCallback,
   useContext,
   useEffect,
@@ -49,7 +51,7 @@ import {
 } from "@mui/material";
 import AttachFileIcon from "@mui/icons-material/AttachFile";
 import {
-  AppCodeExtra,
+  AppCodeExtraButtons,
   AppCodeHanleEdit,
   ChatShowContext,
   DataSourceKind,
@@ -145,7 +147,7 @@ export function ClearableTextField({
 function AppCode(props: {
   codeBlock: string;
   language: string;
-  extra?: AppCodeExtra;
+  extra?: AppCodeExtraButtons;
   handleEdit?: AppCodeHanleEdit;
   highlightStr?: string;
 }) {
@@ -370,10 +372,13 @@ function CreateDatabase(props: {
   );
 }
 
+/**
+ * Modal used to create a new schema / keyspace / database object.
+ */
 function CreateSchema(props: {
-  uuid;
-  handleClose;
-  handleReload;
+  uuid: string;
+  handleClose: () => void;
+  handleReload: () => void;
   kind: DataSourceKind;
   schemas: string[];
 }) {
@@ -516,6 +521,9 @@ function CreateSchema(props: {
   );
 }
 
+/**
+ * Simple editor wrapper with optional toolbar and value callbacks.
+ */
 function SimpleFlexEditor(props: {
   language: string;
   value?: string;
@@ -524,7 +532,7 @@ function SimpleFlexEditor(props: {
   errPos?: Position;
   disableEditorBar?: boolean;
   handleEditor?: (editor: editor.IStandaloneCodeEditor) => void;
-  handleValue?: (x) => void;
+  handleValue?: (value: string) => void;
 }) {
   const {
     language,
@@ -597,7 +605,7 @@ function SimpleFlexEditor(props: {
   );
 }
 
-function EditorBar(props: { left?: any; pos: Position }) {
+function EditorBar(props: { left?: ReactNode; pos: Position }) {
   const { left, pos } = props;
   return (
     <Stack
@@ -613,7 +621,11 @@ function EditorBar(props: { left?: any; pos: Position }) {
   );
 }
 
-function MenuConnectionInfo({ uuid }) {
+/**
+ * Menu item for connection info tab.
+ */
+function MenuConnectionInfo(props: { uuid: string }) {
+  const { uuid } = props;
   const appendTab = useTabsManage((state) => state.appendTab);
   const handleInfo = async () => {
     appendTab(
@@ -634,7 +646,10 @@ function MenuConnectionInfo({ uuid }) {
   );
 }
 
-function ConnConfigInfo(props: { uuid }) {
+/**
+ * Displays backend connection metadata values.
+ */
+function ConnConfigInfo(props: { uuid: string }) {
   const { uuid } = props;
   const { showNotification } = useNotification();
   const [metas, setMetas] = useState<MetaValue[]>([]);
@@ -660,28 +675,28 @@ function ConnConfigInfo(props: { uuid }) {
           case DataSourceKind.FireBird:
           case DataSourceKind.SqlServer:
             configMetas = [
-              { name: "host", value: config.host } as MetaValue,
-              { name: "port", value: config.port + "" } as MetaValue,
-              { name: "user", value: config.username } as MetaValue,
+              { name: "host", value: config.host },
+              { name: "port", value: config.port + "" },
+              { name: "user", value: config.username },
             ];
             break;
           case DataSourceKind.LibSql:
             if (config.source === "local") {
-              configMetas = [{ name: "host", value: config.path } as MetaValue];
+              configMetas = [{ name: "host", value: config.path }];
             } else if (config.source == "remote") {
               configMetas = [
-                { name: "url", value: config.url } as MetaValue,
-                { name: "path", value: config.path } as MetaValue,
+                { name: "url", value: config.url },
+                { name: "path", value: config.path },
               ];
             }
             break;
           case DataSourceKind.Sqlite:
-            configMetas = [{ name: "path", value: config.path } as MetaValue];
+            configMetas = [{ name: "path", value: config.path }];
             break;
           case DataSourceKind.CouchBase:
             configMetas = [
-              { name: "username", value: config.username } as MetaValue,
-              { name: "conn str", value: config.conn_str } as MetaValue,
+              { name: "username", value: config.username },
+              { name: "conn str", value: config.conn_str },
             ];
             break;
         }
@@ -922,7 +937,7 @@ type AppMarkDownProps = {
   children: string;
   handlePathUrl?: (href: string) => void;
   placeHolder?: string;
-  appcodeExtra?: AppCodeExtra;
+  appcodeExtra?: AppCodeExtraButtons;
   appCodeHandleEdit?: AppCodeHanleEdit;
   highlightStr?: string;
 };
@@ -1172,7 +1187,11 @@ function SaveFavoriteSqlView(props: {
     </>
   );
 }
-function CancelButton({ handleCancel }) {
+/**
+ * Cancel button used for ongoing operations.
+ */
+function CancelButton(props: { handleCancel: () => void }) {
+  const { handleCancel } = props;
   return (
     <IconButton
       color="warning"
@@ -1231,7 +1250,11 @@ function SliderSize(props: { config: UseSizeConfig }) {
   );
 }
 
-function TableAddButton({ handleAdd }) {
+/**
+ * Icon button used to add a new table row or item.
+ */
+function TableAddButton(props: { handleAdd: () => void }) {
+  const { handleAdd } = props;
   return (
     <IconButton onClick={handleAdd} color="primary">
       <AddIcon />
@@ -1241,10 +1264,13 @@ function TableAddButton({ handleAdd }) {
 
 // select column include asc or desc
 // useful for create index
+/**
+ * Multi-column selector with optional ASC ordering.
+ */
 function SelectColumnAsc(props: {
   fields: string[];
   includes: CreateIndexColumn[];
-  setIncludes;
+  setIncludes: (includes: CreateIndexColumn[]) => void;
   kind: DataSourceKind;
 }) {
   const { fields, includes, setIncludes, kind } = props;
@@ -1386,7 +1412,15 @@ function CreateIndexView(props: {
     </Stack>
   );
 }
-function TypeSelect(props: { handleChange; uuid; type; style?: CSSProperties }) {
+/**
+ * Autocomplete input for selecting a SQL type.
+ */
+function TypeSelect(props: {
+  handleChange: (value: string | null) => void;
+  uuid: string;
+  type: string | null;
+  style?: CSSProperties;
+}) {
   const { handleChange, uuid, type, style } = props;
   const [types, setTypes] = useState<string[]>([]);
   const { showNotification } = useNotification();
@@ -1443,7 +1477,11 @@ function ColumnNullness(props: {
   );
 }
 
-function SqlDefaultValue(props: { uuid: string; defaultValue; setDefaultValue }) {
+function SqlDefaultValue(props: {
+  uuid: string;
+  defaultValue: string | null;
+  setDefaultValue: (value: string | null) => void;
+}) {
   const { uuid, defaultValue, setDefaultValue } = props;
   const [currentValue, setCurrentValue] = useState<string[]>([]);
   const { showNotification } = useNotification();
@@ -1543,7 +1581,11 @@ function AppDataGridToolBar(props: {
   );
 }
 
-function QueryStatus({ status }) {
+/**
+ * Displays a running query status indicator.
+ */
+function QueryStatus(props: { status?: string }) {
+  const { status } = props;
   return (
     status && (
       <Stack direction="row">
@@ -1563,11 +1605,14 @@ function StackRowCenter(props: { children: ReactNode; style?: CSSProperties }) {
   );
 }
 
+/**
+ * Modal used to set a saved filter or sort expression for a table.
+ */
 function SetFilterSort(props: {
   open: boolean;
   handleClose: () => void;
   value: string;
-  setValue;
+  setValue: (value: string) => void;
   label: "filter" | "sort";
   tableName: string;
   kind: DataSourceKind;
@@ -1576,10 +1621,10 @@ function SetFilterSort(props: {
   let { open, handleClose, value, setValue, label, tableName, kind, uuid } = props;
   const isFilter = label == "filter";
   const extractFn = isFilter
-    ? function (uuid, sql) {
+    ? function (uuid: string, sql: string) {
         return commands.extractTableSelectSelection(uuid, sql);
       }
-    : function (uuid, sql) {
+    : function (uuid: string, sql: string) {
         return commands.extractTableSelectSort(uuid, sql);
       };
   tableName = quoteDatabaseIdentifier(kind)(tableName);
@@ -1726,7 +1771,10 @@ function ToggleChatShow() {
   );
 }
 
-function CopySql(props: { sql; style?: CSSProperties }) {
+/**
+ * Copy SQL button with inline SQL preview.
+ */
+function CopySql(props: { sql: string; style?: CSSProperties }) {
   let { sql, style } = props;
   const { showNotification } = useNotification();
   if (!sql) {
@@ -1803,7 +1851,7 @@ function ListenElementSize(props: {
 function AiMarkdownModel(props: {
   editor: editor.IStandaloneCodeEditor;
   markdownModel: boolean;
-  appcodeExtra?: AppCodeExtra;
+  appcodeExtra?: AppCodeExtraButtons;
   appCodeHandleEdit?: AppCodeHanleEdit;
 }) {
   const { editor, markdownModel, appcodeExtra, appCodeHandleEdit } = props;
@@ -1855,7 +1903,13 @@ function AiMarkdownModel(props: {
   );
 }
 
-function AiMarkdownModelSwitch(props: { setMarkdownModel; markdownModel: boolean }) {
+/**
+ * Toggle switch for AI markdown editing mode.
+ */
+function AiMarkdownModelSwitch(props: {
+  setMarkdownModel: Dispatch<SetStateAction<boolean>>;
+  markdownModel: boolean;
+}) {
   const { setMarkdownModel, markdownModel } = props;
   const { getSwitch, setSwitch } = useBoolSwitch();
   const switchKey = "ai-markdown-model";
@@ -1880,7 +1934,7 @@ function AiMarkdownModelSwitch(props: { setMarkdownModel; markdownModel: boolean
     const handleKeyDown = (e: KeyboardEvent) => {
       if (KeyPressed.editorMarkdown(e) && vis) {
         e.preventDefault();
-        setMarkdownModel((e: boolean) => !e);
+        setMarkdownModel((e) => !e);
       }
     };
 
@@ -1930,7 +1984,11 @@ function EscPressedDo(props: { doingIt: () => boolean; setUndo: () => void }) {
   return <></>;
 }
 
-function ShowingCount({ showing, total }) {
+/**
+ * Display count summary when filtered results are less than total.
+ */
+function ShowingCount(props: { showing: number; total: number }) {
+  const { showing, total } = props;
   if (showing == total) {
     return <></>;
   }
@@ -1941,7 +1999,11 @@ function ShowingCount({ showing, total }) {
   );
 }
 
-function FetchTimeAndXXX({ isLoading }) {
+/**
+ * Shows fetch duration and completion time while loading.
+ */
+function FetchTimeAndXXX(props: { isLoading: boolean }) {
+  const { isLoading } = props;
   const [fetchTime, setFetchTime] = useState<number | null>(null);
   const [date, setDate] = useState<Date>(null);
   const fetchBeginTime = useRef(new Date().getTime());

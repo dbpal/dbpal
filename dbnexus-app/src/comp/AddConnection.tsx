@@ -62,6 +62,9 @@ import {
   CouchBaseDBConfig,
 } from "./bindings.ts";
 
+/**
+ * Host and port input pair used by several connection forms.
+ */
 function HostAndPort(props: {
   host: string;
   port: string;
@@ -93,6 +96,9 @@ function HostAndPort(props: {
   );
 }
 
+/**
+ * Path selector input with a file chooser button.
+ */
 function SelectPath(props: {
   path: string;
   setPath: Dispatch<SetStateAction<string>>;
@@ -143,6 +149,9 @@ function SelectPath(props: {
   );
 }
 
+/**
+ * User and password fields with optional password visibility and save option.
+ */
 function UserAndPassword(props: {
   user: string;
   password: string;
@@ -207,6 +216,9 @@ function UserAndPassword(props: {
   );
 }
 
+/**
+ * HTTPS toggle used by connection types that support secure HTTP.
+ */
 function Https(props: { https: boolean; setHttps: Dispatch<SetStateAction<boolean>> }) {
   const { https, setHttps } = props;
   return (
@@ -222,6 +234,9 @@ function Https(props: { https: boolean; setHttps: Dispatch<SetStateAction<boolea
   );
 }
 
+/**
+ * SQL Server-specific TLS certificate configuration controls.
+ */
 function SqlServerCert(props: {
   data: SqlServerCertData;
   setData: Dispatch<SetStateAction<SqlServerCertData>>;
@@ -255,11 +270,17 @@ function SqlServerCert(props: {
   );
 }
 
+/**
+ * SQL Server certificate settings used for encrypted connections.
+ */
 interface SqlServerCertData {
   trust_cert: boolean;
   cert_ca: string | null;
 }
 
+/**
+ * Certificate file selectors for SSL/TLS-enabled connections.
+ */
 function SslFiles(props: {
   files: SSLFiles;
   setFiles: Dispatch<SetStateAction<SSLFiles>>;
@@ -384,6 +405,14 @@ function MysqlSSl(props: {
   );
 }
 
+/**
+ * Autocomplete field for database/schema candidates.
+ *
+ * @param props.name current selected value
+ * @param props.setName updates the selected candidate name
+ * @param props.label label text shown in the input field
+ * @param props.makeConfig callback to build the current connection config
+ */
 function DbSchemaCadidates(props: {
   name: string;
   setName: Dispatch<SetStateAction<string>>;
@@ -441,6 +470,9 @@ function DbSchemaCadidates(props: {
   );
 }
 
+/**
+ * Helper type for generating the current connection configuration.
+ */
 type MakeConfig = () => DBConnectionConfig;
 
 function Mysql(props: {
@@ -747,6 +779,15 @@ function Sqlite(props: { config?: SqliteDBConfig; context: AddConnectionContext 
   );
 }
 
+/**
+ * Shared context passed to each backend-specific connection form.
+ *
+ * - connectionName: current name of the connection
+ * - readOnly: whether the connection should be opened read-only
+ * - connTimeOut: connection timeout in milliseconds
+ * - connectionNameDom: ref to the connection name input field
+ * - makeConfigRef: ref used to expose the current makeConfig() function
+ */
 type AddConnectionContext = {
   connectionName: string;
   readOnly: boolean;
@@ -759,6 +800,9 @@ type AddConnectionContext = {
 // add connection run in separete window
 // let globalMakeConfig: MakeConfig = null;
 
+/**
+ * Buttons for testing and saving the current connection configuration.
+ */
 function TestConnAndSave(props: {
   connectionNameDom: RefObject<HTMLInputElement>;
   makeConfig: () => DBConnectionConfig;
@@ -850,6 +894,12 @@ function TestConnAndSave(props: {
   );
 }
 
+/**
+ * Helper functions to safely extract common fields from a backend config object.
+ */
+/**
+ * Safe field extractors for optional backend config objects.
+ */
 function getHost(config?: Record<string, unknown>) {
   return typeof config?.host === "string" ? config.host : "localhost";
 }
