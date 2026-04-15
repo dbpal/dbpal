@@ -14,14 +14,7 @@ import { GridColDef } from "@mui/x-data-grid";
 import * as monaco from "monaco-editor";
 import { readFile, stat } from "@tauri-apps/plugin-fs";
 import { filesize } from "filesize";
-import {
-  commands,
-  ExportKind,
-  Field,
-  MetaValue,
-  MuiDataGridData,
-  redisCommands,
-} from "./bindings.ts";
+import { commands, ExportKind, Field, QueryEvent, redisCommands } from "./bindings.ts";
 
 /**
  * Converts a local file path to a Data URL (base64)
@@ -152,11 +145,6 @@ async function dropSchema({ uuid, schema, showNotification, okCallback }) {
     .catch((e) => {
       showNotification({ severity: "error", title: "Drop failure", message: e });
     });
-}
-
-interface DefAndMetas {
-  def: string;
-  metas?: MetaValue[];
 }
 
 function reloadOK(showNotification) {
@@ -305,13 +293,6 @@ function makeFormatFn(kind: DataSourceKind) {
     }
   };
 }
-
-type QueryEvent =
-  | ({ kind: "structure" } & { resp: MuiDataGridData })
-  | ({ kind: "err" } & { err: string })
-  | ({ kind: "data" } & { data: string[][] })
-  | ({ kind: "status" } & { status: string })
-  | { kind: "end" };
 
 class QueryConn {
   queryId: string;
@@ -574,4 +555,4 @@ export {
   convertPathToDataUrl,
   uint8ArrayToBase64,
 };
-export type { DefAndMetas, EscDownEvent, FieldAndGridField, QueryEvent };
+export type { EscDownEvent, FieldAndGridField };

@@ -1,5 +1,5 @@
 import { ReactNode, useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { DefAndMetas, EscDownEvent, modalHandleClose, modalStyle } from "./Common";
+import { EscDownEvent, modalHandleClose, modalStyle } from "./Common";
 import {
   dataGridStyle,
   DataSourceKind,
@@ -60,6 +60,7 @@ import {
   ColumnType,
   commands,
   CreateIndexReq,
+  DefAndMetas,
   Field,
   Index,
   SqlNullAble,

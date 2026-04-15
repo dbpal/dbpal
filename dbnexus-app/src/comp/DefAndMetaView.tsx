@@ -1,13 +1,12 @@
 import { useCallback, useContext, useEffect, useState } from "react";
 
-import { DefAndMetas } from "./Common";
 import { DataSourceKind, TabContext } from "./helper";
 
 import { AllKindChat } from "./Chat";
 import { MetaValueView } from "./CommonComp";
 import { CircularProgress, Stack, Tooltip, Typography } from "@mui/material";
 import { useNotification, useQueryExtraUI } from "./store";
-import { MetaValue, TriggerDetail } from "./bindings";
+import { DefAndMetas, MetaValue, TriggerDetail } from "./bindings";
 
 function DefAndMetasView(props: {
   reloadOP: () => Promise<DefAndMetas>;

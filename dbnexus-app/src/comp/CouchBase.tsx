@@ -51,7 +51,6 @@ import {
   modalHandleClose,
   modalStyle,
   NameAndQueryId,
-  QueryEvent,
 } from "./Common.ts";
 import { editor, Position } from "monaco-editor";
 import { Panel, PanelGroup, PanelResizeHandle } from "react-resizable-panels";
@@ -67,7 +66,13 @@ import {
 } from "./store.tsx";
 import { persist } from "zustand/middleware";
 import { create } from "zustand";
-import { commands, Field, MuiDataGridData, ShowTableParameter } from "./bindings.ts";
+import {
+  commands,
+  Field,
+  MuiDataGridData,
+  QueryEvent,
+  ShowTableParameter,
+} from "./bindings.ts";
 import { AddTableModal } from "./LeftTable.tsx";
 export enum CBQueryViewMode {
   Table = "table",

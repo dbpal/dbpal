@@ -24,6 +24,7 @@ import {
   ErrAndLoc,
   MuiDataGridData,
 } from "./bindings";
+import { NotificationParams } from "./store";
 
 const pageSizeOptions = [10, 20, 50, 100];
 const appStore = new LazyStore("store.json");
@@ -71,7 +72,7 @@ async function secondConfirm({
 // 不然当成二进制数据来处理呢
 // 后台放回数据的时候都是 hex string模式
 
-function hexTryToString(hex): string | null {
+function hexTryToString(hex: string): string | null {
   if (!hex) {
     return "";
   }
@@ -111,7 +112,7 @@ function arrayToHex(uint8Array: Uint8Array | number[]) {
     .join(""); // 连接为一个字符串
 }
 
-function stringToHex(str): string {
+function stringToHex(str: string): string {
   return arrayToHex(stringToHexArray(str));
 }
 
@@ -203,14 +204,6 @@ function extractConfigNameFromUuid(uuid: string): string {
   }
 }
 
-function extractLastNameFromUuid(uuid: string) {
-  if (uuid.includes("/")) {
-    return uuid.substring(uuid.indexOf("/") + 1);
-  } else {
-    return uuid;
-  }
-}
-
 function getViewportSize() {
   const width = window.innerWidth; // 获取视口的宽度
   const height = window.innerHeight; // 获取视口的高度
@@ -218,7 +211,7 @@ function getViewportSize() {
   return { width, height }; // 返回一个对象，包含宽度和高度
 }
 
-function errToString(message) {
+function errToString(message: any) {
   if (typeof message == "object" && "reason" in message) {
     message = message["reason"];
   }
@@ -278,7 +271,11 @@ function isTypeLargeText(s: string): boolean {
 
 const TabActiveContext = createContext(true);
 
-const handleCopyToClipboard = (text, showNotification?, okCallBack?) => {
+const handleCopyToClipboard = (
+  text,
+  showNotification?: (_: NotificationParams) => void,
+  okCallBack?,
+) => {
   writeText(text)
     .then(() => {
       if (showNotification) {
@@ -335,16 +332,6 @@ function editorSetPositionAndReveal(
   editor.revealLines(pos.lineNumber, pos.lineNumber);
 }
 
-function postgresLike(x: DataSourceKind) {
-  switch (x) {
-    case DataSourceKind.Postgres:
-    case DataSourceKind.Cockroach:
-      return true;
-    default:
-      return false;
-  }
-}
-
 function getEditorText(editor: editor.IStandaloneCodeEditor, showNotification) {
   const range = editor.getSelection();
   let text: string;
@@ -396,7 +383,7 @@ function getSupportExportKind(kind: DataSourceKind, isTable: boolean) {
   }
 }
 
-function generateDefaultFilename(name, extension) {
+function generateDefaultFilename(name: string, extension: string) {
   if (extension == "jsonline") {
     /*
       统一用 .jsonl（全小写，无空格）最好。
@@ -639,7 +626,6 @@ export {
   executeSqlWithoutConn,
   extractConfigNameFromUuid,
   extractFieldAndIDFromMouseEvent,
-  extractLastNameFromUuid,
   generateDefaultFilename,
   getEditorText,
   getSupportExportKind,
@@ -654,7 +640,6 @@ export {
   MongoLanguage,
   newEmptyResp,
   pageSizeOptions,
-  postgresLike,
   prettyMs,
   quoteDatabaseIdentifier,
   RedisTableType,

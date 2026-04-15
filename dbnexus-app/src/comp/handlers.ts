@@ -1,10 +1,10 @@
 import { Channel } from "@tauri-apps/api/core";
 import { ViewKind } from "./helper";
-import { QueryEvent } from "./Common";
 import {
   commands,
   CreateTableAndIndexSql,
   MuiDataGridData,
+  QueryEvent,
   ShowTableParameter,
 } from "./bindings";
 

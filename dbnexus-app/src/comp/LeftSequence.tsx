@@ -14,7 +14,7 @@ import { TreeItem } from "@mui/x-tree-view/TreeItem";
 import { useCallback, useContext, useEffect, useRef, useState } from "react";
 import DeleteForeverIcon from "@mui/icons-material/DeleteForever";
 import InfoIcon from "@mui/icons-material/Info";
-import { DefAndMetas, EscDownEvent, modalHandleClose, modalStyle } from "./Common.ts";
+import { EscDownEvent, modalHandleClose, modalStyle } from "./Common.ts";
 import { DefAndMetasView } from "./DefAndMetaView.tsx";
 import {
   DataSourceKind,
@@ -35,7 +35,7 @@ import {
   useTabsManage,
   useMatcherFn,
 } from "./store.tsx";
-import { commands, SequenceDetail } from "./bindings.ts";
+import { commands, DefAndMetas, SequenceDetail } from "./bindings.ts";
 function SequenceTree() {
   const { uuid, kind } = useContext(UuidContext);
   const [seq, setSeq] = useState<SequenceDetail[]>([]);

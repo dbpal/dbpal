@@ -25,7 +25,6 @@ import {
   modalStyle,
   NameAndQueryId,
   QueryConn,
-  QueryEvent,
 } from "./Common.ts";
 import { BsFillLightbulbFill } from "react-icons/bs";
 import { FaUpload } from "react-icons/fa";
@@ -76,7 +75,7 @@ import {
   UseSizeConfig,
   useSizeStore,
 } from "./store.tsx";
-import { commands, MuiDataGridData } from "./bindings.ts";
+import { commands, MuiDataGridData, QueryEvent } from "./bindings.ts";
 
 function SqlTransaction(props: { conn: QueryConn; executeTimes: number }) {
   const { conn, executeTimes } = props;

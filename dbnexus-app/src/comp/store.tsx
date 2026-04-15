@@ -357,7 +357,7 @@ export type AlertMsg = {
   message: ReactElement | string | null | undefined;
 };
 
-type NotificationParams = {
+export type NotificationParams = {
   severity: AlertColor;
   title: string;
   message?: any;

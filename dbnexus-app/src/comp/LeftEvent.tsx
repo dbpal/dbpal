@@ -3,7 +3,6 @@ import { TreeItem } from "@mui/x-tree-view/TreeItem";
 import { useCallback, useContext, useEffect, useRef, useState } from "react";
 import DeleteForeverIcon from "@mui/icons-material/DeleteForever";
 import InfoIcon from "@mui/icons-material/Info";
-import { DefAndMetas } from "./Common";
 import { DefAndMetasView } from "./DefAndMetaView";
 import { MdOutlineEventRepeat } from "react-icons/md";
 import {
@@ -23,7 +22,7 @@ import {
   useTabsManage,
   useMatcherFn,
 } from "./store";
-import { commands, SqlEvent } from "./bindings";
+import { commands, DefAndMetas, SqlEvent } from "./bindings";
 function EventsTree() {
   const { uuid, kind } = useContext(UuidContext);
   const [evens, setEvents] = useState<SqlEvent[]>([]);
