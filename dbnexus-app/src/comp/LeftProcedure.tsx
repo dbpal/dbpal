@@ -1,6 +1,13 @@
 import { ListItemIcon, ListItemText, MenuItem, MenuList, Stack } from "@mui/material";
 import { TreeItem } from "@mui/x-tree-view/TreeItem";
-import { useCallback, useContext, useEffect, useRef, useState } from "react";
+import {
+  MouseEvent,
+  useCallback,
+  useContext,
+  useEffect,
+  useRef,
+  useState,
+} from "react";
 import DeleteForeverIcon from "@mui/icons-material/DeleteForever";
 import InfoIcon from "@mui/icons-material/Info";
 import { DefAndMetasView } from "./DefAndMetaView";
@@ -25,7 +32,7 @@ function ProceduresTree() {
   const { showNotification } = useNotification();
   const { maxTree } = useMatcher();
   const matchPattern = useMatcherFn();
-  const reload = useCallback(() => {
+  const reload = useCallback((): void => {
     commands
       .listProcedure(uuid)
       .then((data) => {
@@ -57,7 +64,7 @@ function ProceduresTree() {
       label=<Stack
         direction="row"
         sx={{ alignItems: "center" }}
-        onContextMenu={(e) => {
+        onContextMenu={(e: MouseEvent<HTMLDivElement>) => {
           setUpMenu({
             content: (
               <MenuList>
@@ -85,7 +92,7 @@ function ProceduresTree() {
               style={{ alignItems: "center" }}
               label=<Stack
                 direction="row"
-                onContextMenu={(e) => {
+                onContextMenu={(e: MouseEvent<HTMLDivElement>) => {
                   setUpMenu({
                     content: (
                       <ProcedureMenu
@@ -120,7 +127,7 @@ function ProcedureMenu(props: {
   const { appendTab } = useTabsManage();
   const { showNotification } = useNotification();
 
-  const handleOpenDetails = () => {
+  const handleOpenDetails = (): void => {
     appendTab(
       new TabContent(
         procedure.name,
@@ -151,7 +158,7 @@ function ProcedureMenu(props: {
     );
   };
 
-  const handleDrop = async () => {
+  const handleDrop = async (): Promise<void> => {
     const confirm = await secondConfirm({
       title: `Drop Procedure '${procedure}'`,
       confirmText: "Drop",

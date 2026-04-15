@@ -1,10 +1,8 @@
 import {
-  Box,
   Button,
   ButtonGroup,
   Chip,
   IconButton,
-  Modal,
   Pagination,
   Stack,
   Tooltip,
@@ -45,13 +43,7 @@ import FilterAltIcon from "@mui/icons-material/FilterAlt";
 import { FaArrowsAltV } from "react-icons/fa";
 import { SelectPageSize } from "./CommonComp.tsx";
 import { Channel } from "@tauri-apps/api/core";
-import {
-  dbpalQuerykey,
-  EscDownEvent,
-  modalHandleClose,
-  modalStyle,
-  NameAndQueryId,
-} from "./Common.ts";
+import { dbpalQuerykey, NameAndQueryId } from "./Common.ts";
 import { editor, Position } from "monaco-editor";
 import { Panel, PanelGroup, PanelResizeHandle } from "react-resizable-panels";
 import { QueryLog } from "./QueryLog.tsx";
@@ -880,34 +872,25 @@ function CouchBaseQuery(props: { uuid: string; value?: string }) {
       )}
 
       {showExport && (
-        <Modal
-          open={showExport}
-          onClose={modalHandleClose((e: EscDownEvent) => {
-            e.preventDefault();
+        <ExportView
+          supportKind={["json", "jsonline"]}
+          exportOP={(kind, file, taskId, sizeEmitter) => {
+            const sql = getEditorText(editor, showNotification);
+            return commands.exportQueryResultToFile(
+              uuid,
+              taskId,
+              sql,
+              "",
+              kind,
+              file,
+              sizeEmitter,
+            );
+          }}
+          handleClose={() => {
             setShowExport(false);
-          })}>
-          <Box sx={{ ...modalStyle, width: "45%" }}>
-            <ExportView
-              supportKind={["json", "jsonline"]}
-              exportOP={(kind, file, taskId, sizeEmitter) => {
-                const sql = getEditorText(editor, showNotification);
-                return commands.exportQueryResultToFile(
-                  uuid,
-                  taskId,
-                  sql,
-                  "",
-                  kind,
-                  file,
-                  sizeEmitter,
-                );
-              }}
-              handleClose={() => {
-                setShowExport(false);
-              }}
-              name="export_query_result"
-            />
-          </Box>
-        </Modal>
+          }}
+          name="export_query_result"
+        />
       )}
     </PanelGroup>
   );

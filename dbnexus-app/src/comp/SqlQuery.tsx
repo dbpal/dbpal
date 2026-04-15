@@ -1,15 +1,6 @@
 import { MultiQueryResp, QueryRespData } from "./QueryResp";
 import EventNoteIcon from "@mui/icons-material/EventNote";
-import {
-  Box,
-  Checkbox,
-  Chip,
-  Divider,
-  IconButton,
-  Modal,
-  Stack,
-  Tooltip,
-} from "@mui/material";
+import { Checkbox, Chip, Divider, IconButton, Stack, Tooltip } from "@mui/material";
 import { Panel, PanelGroup, PanelResizeHandle } from "react-resizable-panels";
 import PlayArrowIcon from "@mui/icons-material/PlayArrow";
 import { FaExclamation } from "react-icons/fa";
@@ -18,11 +9,8 @@ import FastForwardIcon from "@mui/icons-material/FastForward";
 import { editor, Position } from "monaco-editor";
 import {
   dbpalQuerykey,
-  EscDownEvent,
   isRedisCode,
   isSQLCode,
-  modalHandleClose,
-  modalStyle,
   NameAndQueryId,
   QueryConn,
 } from "./Common.ts";
@@ -749,35 +737,25 @@ function SqlQuery(props: {
           </>
         )}
       </PanelGroup>
-
       {showExport && (
-        <Modal
-          open={showExport}
-          onClose={modalHandleClose((e: EscDownEvent) => {
-            e.preventDefault();
+        <ExportView
+          supportKind={["csv", "json", "jsonline", "xlsx", "html", "markdown"]}
+          exportOP={async (kind, file, taskId, sizeEmitter) => {
+            const sql = getEditorText(editor, showNotification);
+            return conn.current.exportQueryResult(
+              queryId,
+              sql,
+              kind,
+              file,
+              taskId,
+              sizeEmitter,
+            );
+          }}
+          handleClose={() => {
             setShowExport(false);
-          })}>
-          <Box sx={{ ...modalStyle, width: "45%" }}>
-            <ExportView
-              supportKind={["csv", "json", "jsonline", "xlsx", "html", "markdown"]}
-              exportOP={async (kind, file, taskId, sizeEmitter) => {
-                const sql = getEditorText(editor, showNotification);
-                return conn.current.exportQueryResult(
-                  queryId,
-                  sql,
-                  kind,
-                  file,
-                  taskId,
-                  sizeEmitter,
-                );
-              }}
-              handleClose={() => {
-                setShowExport(false);
-              }}
-              name="export_query_result"
-            />
-          </Box>
-        </Modal>
+          }}
+          name="export_query_result"
+        />
       )}
     </div>
   );

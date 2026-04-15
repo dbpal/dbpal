@@ -1,6 +1,13 @@
 import { ListItemIcon, ListItemText, MenuItem, MenuList, Stack } from "@mui/material";
 import { TreeItem } from "@mui/x-tree-view/TreeItem";
-import { useCallback, useContext, useEffect, useRef, useState } from "react";
+import {
+  MouseEvent,
+  useCallback,
+  useContext,
+  useEffect,
+  useRef,
+  useState,
+} from "react";
 import DeleteForeverIcon from "@mui/icons-material/DeleteForever";
 import InfoIcon from "@mui/icons-material/Info";
 import { DefAndMetasView } from "./DefAndMetaView";
@@ -29,7 +36,7 @@ function EventsTree() {
   const { showNotification } = useNotification();
   const { maxTree } = useMatcher();
   const matchPattern = useMatcherFn();
-  const reload = useCallback(() => {
+  const reload = useCallback((): void => {
     commands
       .listEvent(uuid)
       .then((ts) => {
@@ -58,7 +65,7 @@ function EventsTree() {
       label=<Stack
         direction="row"
         sx={{ alignItems: "center" }}
-        onContextMenu={(e) => {
+        onContextMenu={(e: MouseEvent<HTMLDivElement>) => {
           setUpMenu({
             content: (
               <MenuList>
@@ -87,7 +94,7 @@ function EventsTree() {
               style={{ alignItems: "center" }}
               label=<Stack
                 direction="row"
-                onContextMenu={(e) => {
+                onContextMenu={(e: MouseEvent<HTMLDivElement>) => {
                   setUpMenu({
                     content: (
                       <EventMenu
@@ -112,7 +119,12 @@ function EventsTree() {
   );
 }
 
-function EventMenu(props: { uuid; event: SqlEvent; reload; kind: DataSourceKind }) {
+function EventMenu(props: {
+  uuid: string;
+  event: SqlEvent;
+  reload: () => void;
+  kind: DataSourceKind;
+}) {
   const { uuid, event, reload, kind } = props;
   const { appendTab } = useTabsManage();
   const { showNotification } = useNotification();

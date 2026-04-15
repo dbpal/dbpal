@@ -1,9 +1,11 @@
 import {
+  Box,
   Checkbox,
   Chip,
   Divider,
   FormControlLabel,
   IconButton,
+  Modal,
   Stack,
   TextField,
   Typography,
@@ -21,6 +23,7 @@ import { cancelTask } from "./handlers";
 import { CancelButton, StackRowCenter } from "./CommonComp2";
 import { useExportConfigStore, useNotification } from "./store";
 import { commands, ExportKind, ShowTableParameter } from "./bindings";
+import { EscDownEvent, modalHandleClose, modalStyle } from "./Common";
 function IncludeHeader({ includeHeader, setIncludeHeader }) {
   return (
     <FormControlLabel
@@ -135,124 +138,134 @@ function ExportView(props: {
     setFile("");
   }, [kind]);
   return (
-    <Stack>
-      <ModalHeader
-        title={`export ${name}`}
-        handleClose={() => {
-          if (loading) {
-            showNotification({ severity: "warning", title: "exporting, please wait" });
-            return;
-          }
-          handleClose();
-        }}
-      />
-      <Stack direction="row">
-        {supportKind.map((e) => (
-          <Chip
-            onClick={() => {
-              setKind(e);
-            }}
-            key={e}
-            label={e}
-            color={e == kind ? "success" : "default"}
-          />
-        ))}
-      </Stack>
-      {kind == "csv" && (
-        <Stack>
-          <IncludeHeader
-            includeHeader={includeHeader}
-            setIncludeHeader={setIncludeHeader}
-          />
-          <Stack direction="row">
-            <TextField
-              value={delimiter}
-              onChange={(e) => {
-                setDelimiter(e.target.value);
+    <Modal
+      open={true}
+      onClose={modalHandleClose((e: EscDownEvent) => {
+        e.preventDefault();
+        handleClose();
+      })}>
+      <Box sx={{ ...modalStyle, minWidth: "37rem" }}>
+        <ModalHeader
+          title={`export ${name}`}
+          handleClose={() => {
+            if (loading) {
+              showNotification({
+                severity: "warning",
+                title: "exporting, please wait",
+              });
+              return;
+            }
+            handleClose();
+          }}
+        />
+        <Stack direction="row">
+          {supportKind.map((e) => (
+            <Chip
+              onClick={() => {
+                setKind(e);
               }}
-              label="delimiter"
-              error={delimiter.length > 1}
-              helperText="only accept one character"
+              key={e}
+              label={e}
+              color={e == kind ? "success" : "default"}
+            />
+          ))}
+        </Stack>
+        {kind == "csv" && (
+          <Stack>
+            <IncludeHeader
+              includeHeader={includeHeader}
+              setIncludeHeader={setIncludeHeader}
+            />
+            <Stack direction="row">
+              <TextField
+                value={delimiter}
+                onChange={(e) => {
+                  setDelimiter(e.target.value);
+                }}
+                label="delimiter"
+                error={delimiter.length > 1}
+                helperText="only accept one character"
+              />
+            </Stack>
+          </Stack>
+        )}
+        {kind == "xlsx" && (
+          <Stack>
+            <IncludeHeader
+              includeHeader={includeHeader}
+              setIncludeHeader={setIncludeHeader}
             />
           </Stack>
-        </Stack>
-      )}
-      {kind == "xlsx" && (
-        <Stack>
+        )}
+        {kind == "sql" && (
+          <Stack>
+            <FormControlLabel
+              control={
+                <Checkbox
+                  checked={includeTableSchema}
+                  onChange={(e) => {
+                    setIncludeTableSchema(e.target.checked);
+                  }}
+                  name="myCheckbox"
+                  color="primary"
+                />
+              }
+              label="Include Table Schema(if applicable)"
+            />
+          </Stack>
+        )}
+        {kind == "json" && (
+          <Stack>
+            <FormControlLabel
+              control={
+                <Checkbox
+                  checked={jsonPretty}
+                  onChange={(e) => {
+                    setJsonPretty(e.target.checked);
+                  }}
+                  name="pretty"
+                  color="primary"
+                />
+              }
+              label="pretty"
+            />
+          </Stack>
+        )}
+        {/* json line have no settings */}
+
+        {kind == "jsonline" && <></>}
+
+        {kind == "html" && (
           <IncludeHeader
             includeHeader={includeHeader}
             setIncludeHeader={setIncludeHeader}
           />
-        </Stack>
-      )}
-      {kind == "sql" && (
-        <Stack>
-          <FormControlLabel
-            control={
-              <Checkbox
-                checked={includeTableSchema}
-                onChange={(e) => {
-                  setIncludeTableSchema(e.target.checked);
-                }}
-                name="myCheckbox"
-                color="primary"
-              />
-            }
-            label="Include Table Schema(if applicable)"
-          />
-        </Stack>
-      )}
-      {kind == "json" && (
-        <Stack>
-          <FormControlLabel
-            control={
-              <Checkbox
-                checked={jsonPretty}
-                onChange={(e) => {
-                  setJsonPretty(e.target.checked);
-                }}
-                name="pretty"
-                color="primary"
-              />
-            }
-            label="pretty"
-          />
-        </Stack>
-      )}
-      {/* json line have no settings */}
-
-      {kind == "jsonline" && <></>}
-
-      {kind == "html" && (
-        <IncludeHeader
-          includeHeader={includeHeader}
-          setIncludeHeader={setIncludeHeader}
-        />
-      )}
-
-      <Divider />
-
-      <StackRowCenter>
-        <IconButton
-          onClick={async () => {
-            handleExport();
-          }}
-          color="primary"
-          loading={loading}>
-          <ArrowCircleDownIcon />
-        </IconButton>
-        {loading && (
-          <CancelButton
-            handleCancel={() => {
-              cancelTask(taskId.current);
-              exportedSize.current.innerText = "";
-            }}
-          />
         )}
-        <Typography ref={exportedSize} />
-        <OpenFileWithDefaultApp file={file} />
-      </StackRowCenter>
-    </Stack>
+
+        <Divider />
+
+        <StackRowCenter>
+          <IconButton
+            onClick={async () => {
+              handleExport();
+            }}
+            color="primary"
+            loading={loading}>
+            <ArrowCircleDownIcon />
+          </IconButton>
+          {loading && (
+            <CancelButton
+              handleCancel={() => {
+                cancelTask(taskId.current);
+                exportedSize.current.innerText = "";
+              }}
+            />
+          )}
+          <Typography ref={exportedSize} />
+          <OpenFileWithDefaultApp file={file} />
+        </StackRowCenter>
+      </Box>
+    </Modal>
   );
 }
 
