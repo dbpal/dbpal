@@ -32,7 +32,10 @@ import {
   GridSlotsComponent,
   GridSlotsComponentsProps,
   GridSortModel,
+  useGridApiContext,
   useGridApiRef,
+  useGridSelector,
+  gridRowsLoadingSelector,
 } from "@mui/x-data-grid";
 import {
   EscDownEvent,
@@ -72,7 +75,6 @@ import {
   AppColumnMenu,
   ModalHeader,
   ResetColumnWidth,
-  TimeDuration,
   ViewRowInModal,
 } from "./CommonComp";
 
@@ -83,7 +85,7 @@ import {
   AppDataGridPagination,
   AppDataGridToolBar,
   ClearableTextField,
-  LastFetchTime,
+  FetchTimeAndDataGrid,
   ListenElementSize,
   QueryStatus,
   SetFilterSort,
@@ -309,8 +311,7 @@ function tryGetId(data: object, fields: Field[]) {
   return pf.map((x) => data[x.field]).join("-");
 }
 
-interface CustomToolbarLeftProps {
-  loading: boolean;
+interface SqlTableCustomToolBarLeftProps {
   handleReload: (force: boolean) => void;
   where: string;
   setWhere: (val: string) => void;
@@ -326,8 +327,7 @@ interface CustomToolbarLeftProps {
   setShowAdd: (show: boolean) => void;
 }
 // 建议放在文件顶部，或者单独的文件中
-function CustomToolbarLeft({
-  loading,
+function SqlTableCustomToolBarLeft({
   handleReload,
   where,
   setWhere,
@@ -341,10 +341,16 @@ function CustomToolbarLeft({
   clientModel,
   isTable,
   setShowAdd,
-}: CustomToolbarLeftProps) {
+}: SqlTableCustomToolBarLeftProps) {
+  // 获取 DataGrid 内部的 api 实例
+  const apiRef = useGridApiContext();
+
+  // 使用选择器获取当前的 loading 状态
+  const isLoading: boolean = useGridSelector(apiRef, gridRowsLoadingSelector);
+
   return (
     <StackRowCenter>
-      <Button loading={loading} color="primary" onClick={() => handleReload(true)}>
+      <Button loading={isLoading} color="primary" onClick={() => handleReload(true)}>
         reload
       </Button>
 
@@ -389,6 +395,56 @@ function CustomToolbarLeft({
 
       {isTable && <TableAddButton handleAdd={() => setShowAdd(true)} />}
     </StackRowCenter>
+  );
+}
+
+type CustomPaginationProps = { resp: MuiDataGridData; clientModel: boolean };
+export function CustomPagination({
+  dbpal: { resp, clientModel },
+}: {
+  dbpal: CustomPaginationProps;
+}) {
+  // const apiRef = useGridApiContext();
+
+  // 如果你需要用到 loading 状态来禁用按钮或显示加载中
+  // const isLoading = useGridSelector(apiRef, gridRowsLoadingSelector);
+
+  const { showNotification } = useNotification();
+
+  return (
+    <Stack
+      direction="row"
+      sx={{
+        alignItems: "center",
+        justifyContent: "space-between",
+        flex: 1,
+        overflow: "auto",
+        px: 1, // 建议加一点间距
+      }}>
+      <Stack direction="row" spacing={2} sx={{ alignItems: "center", flex: 1 }}>
+        <FetchTimeAndDataGrid />
+        <ResetColumnWidth />
+        {resp.sql && (
+          <Tooltip title={resp.sql}>
+            <Typography
+              variant="body2"
+              sx={{ cursor: "pointer", color: "info.main" }}
+              onClick={() => handleCopyToClipboard(resp.sql!, showNotification)}>
+              SQL
+            </Typography>
+          </Tooltip>
+        )}
+      </Stack>
+
+      <Stack direction="row" spacing={2} sx={{ alignItems: "center" }}>
+        {!clientModel && (
+          <Typography variant="body2" color="info.main" sx={textEllipsisStyle}>
+            result {resp.data.length} of {resp.total}
+          </Typography>
+        )}
+        <AppDataGridPagination showPageSelect />
+      </Stack>
+    </Stack>
   );
 }
 
@@ -442,10 +498,6 @@ function SqlTableView(props: {
     total: 0,
   });
   const apiRef = useGridApiRef();
-  const [lastFetchTime, setLastFetchTime] = useState(new Date());
-  useEffect(() => {
-    setLastFetchTime(new Date());
-  }, [resp]);
   const [ops, setOps] = useState<DatabaseOperation[]>([]);
 
   const tabCtx = useContext(TabContext);
@@ -463,7 +515,6 @@ function SqlTableView(props: {
       removeConfirmMsg(tabCtx.id);
     };
   }, [removeConfirmMsg, tabCtx.id]);
-  const [fetchDur, setFetchDur] = useState(0);
   const { showNotification } = useNotification();
   const [allowFiltering, setAllowFiltering] = useState(false);
   const [editCellInModal, setEditCellInModal] = useState<EditInModalCellData>(null);
@@ -560,9 +611,6 @@ function SqlTableView(props: {
         isView: !isTable,
         uuid,
         setLoading,
-        handleExecuteTime: (dur) => {
-          setFetchDur(dur);
-        },
         okCallBack: showOK
           ? () => {
               if (showOK) {
@@ -776,11 +824,15 @@ function SqlTableView(props: {
         },
         style: { cursor: "context-menu" },
       },
-      pagination: { lastFetchTime, fetchDur },
+
+      pagination: {
+        dbpal: (function (): CustomPaginationProps {
+          return { resp, clientModel };
+        })(),
+      },
       toolbar: {
-        dbpal: (function (): CustomToolbarLeftProps {
+        dbpal: (function (): SqlTableCustomToolBarLeftProps {
           return {
-            loading,
             handleReload,
             where,
             setWhere,
@@ -803,25 +855,21 @@ function SqlTableView(props: {
       },
     } as GridSlotsComponentsProps;
   }, [
-    lastFetchTime,
-    fetchDur,
-    loading,
-    handleReload,
-    where,
-    sort,
-    kind,
-    allowFiltering,
-    clientModel,
-    isTable,
     setting.export_.csvDelimiter,
     setting.export_.includeHeader,
-    resp.data,
-    resp.fields,
+    resp,
     setUpMenu,
+    kind,
+    isTable,
     addOP,
     handleDelete,
     putValueInSql,
     handleProcessRowUpdate,
+    clientModel,
+    handleReload,
+    where,
+    sort,
+    allowFiltering,
   ]);
 
   const [editInModalBox, setEditInModalBox] = useState(null);
@@ -832,7 +880,7 @@ function SqlTableView(props: {
       columnMenu: AppColumnMenu,
       toolbar: ({
         dbpal,
-      }: GridSlotProps["toolbar"] & { dbpal: CustomToolbarLeftProps }) => {
+      }: GridSlotProps["toolbar"] & { dbpal: SqlTableCustomToolBarLeftProps }) => {
         return (
           <AppDataGridToolBar
             title={tableName}
@@ -844,60 +892,13 @@ function SqlTableView(props: {
                 <ArrowCircleDownIcon />
               </IconButton>
             </>
-            left=<CustomToolbarLeft {...dbpal} />
+            left=<SqlTableCustomToolBarLeft {...dbpal} />
           />
         );
       },
-      pagination: ({
-        lastFetchTime,
-        fetchDur,
-      }: GridSlotProps["pagination"] & { lastFetchTime; fetchDur }) => {
-        return (
-          <Stack
-            direction="row"
-            style={{
-              alignItems: "center",
-              justifyContent: "space-between",
-              flex: 1,
-              overflow: "auto",
-            }}>
-            <Stack direction="row" style={{ alignItems: "center", flex: 1 }}>
-              <LastFetchTime date={lastFetchTime} />
-              <TimeDuration dur={fetchDur} />
-              <ResetColumnWidth />
-              {resp.sql && (
-                <Tooltip title={resp.sql}>
-                  <Typography
-                    style={{ cursor: "pointer" }}
-                    onClick={() => {
-                      handleCopyToClipboard(resp.sql, showNotification);
-                    }}
-                    color="info">
-                    sql
-                  </Typography>
-                </Tooltip>
-              )}
-            </Stack>
-            <Stack direction="row" sx={{ alignItems: "center" }}>
-              {!clientModel && (
-                <Typography color="info" style={textEllipsisStyle}>
-                  result {resp.data.length} of {resp.total}
-                </Typography>
-              )}
-              <AppDataGridPagination showPageSelect />
-            </Stack>
-          </Stack>
-        );
-      },
+      pagination: CustomPagination,
     } as Partial<GridSlotsComponent>;
-  }, [
-    clientModel,
-    resp.data.length,
-    resp.sql,
-    resp.total,
-    showNotification,
-    tableName,
-  ]);
+  }, [tableName]);
 
   const rowBeenModify = (id, kind: DatabaseOpKind) => {
     if (!id) {

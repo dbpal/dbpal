@@ -516,6 +516,7 @@ function CopyConnection() {
       },
     } as Partial<GridSlotsComponent>;
   }, []);
+
   return (
     <Stack style={{ height: "100%" }}>
       <DataGrid

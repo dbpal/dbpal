@@ -54,7 +54,6 @@ async function showTable(
     name: string;
     isView?: boolean;
     showNotification;
-    handleExecuteTime?: (ms: number) => void;
     setStatus: (string) => void;
   } & ShowTableCallBack,
 ) {
@@ -67,14 +66,12 @@ async function showTable(
     showNotification,
     handleResult,
     setLoading,
-    handleExecuteTime,
     setStatus,
   } = props;
   isView = !!isView;
   if (!para) {
     para = {};
   }
-  let now = new Date();
   try {
     setLoading(true);
     let resp: MuiDataGridData = null;
@@ -132,9 +129,6 @@ async function showTable(
   } catch (e) {
     showNotification({ severity: "error", title: "fetch data failed", message: e });
   } finally {
-    if (handleExecuteTime) {
-      handleExecuteTime(new Date().getTime() - now.getTime());
-    }
     setLoading(false);
     setStatus("");
   }

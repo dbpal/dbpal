@@ -7,7 +7,6 @@ import {
   MenuList,
   Stack,
   Divider,
-  Chip,
   useTheme,
   Button,
   TextField,
@@ -42,7 +41,6 @@ import LinkOffIcon from "@mui/icons-material/LinkOff";
 import ContentCopyIcon from "@mui/icons-material/ContentCopy";
 import ArrowUpwardIcon from "@mui/icons-material/ArrowUpward";
 import ArrowDownwardIcon from "@mui/icons-material/ArrowDownward";
-import { IoTimerOutline } from "react-icons/io5";
 import {
   dataGridStyle,
   DataSourceKind,
@@ -757,19 +755,6 @@ function PossibleParseError(props: {
   );
 }
 
-function TimeDuration(props: { dur: number }) {
-  const { dur } = props;
-  return (
-    !!dur && (
-      <Chip
-        label={prettyMs(dur)}
-        color={dur > 4000 ? "warning" : "info"}
-        icon={<IoTimerOutline fontSize="1.2rem" />}
-      />
-    )
-  );
-}
-
 function CopyMenuItem(props: GridColumnMenuItemProps) {
   const { colDef } = props;
   const { showNotification } = useNotification();
@@ -929,6 +914,5 @@ export {
   OpenFileWithDefaultApp,
   MenuExportMarkDownTable,
   ResizeParentHeight,
-  TimeDuration,
   HighlightText,
 };

@@ -57,6 +57,7 @@ import {
   handleCopyToClipboard,
   isMacOs,
   KeyPressed,
+  prettyMs,
   quoteDatabaseIdentifier,
   secondConfirm,
   TabActiveContext,
@@ -87,6 +88,7 @@ import { openUrl } from "@tauri-apps/plugin-opener";
 import {
   gridPageCountSelector,
   gridPaginationModelSelector,
+  gridRowsLoadingSelector,
   useGridApiContext,
   useGridSelector,
 } from "@mui/x-data-grid";
@@ -934,6 +936,7 @@ import {
   MetaValue,
   SqlNullAble,
 } from "./bindings";
+import { IoTimerOutline } from "react-icons/io5";
 
 const rehypeHighlightWords = ({ highligth }) => {
   return (tree) => {
@@ -1937,7 +1940,45 @@ function ShowingCount({ showing, total }) {
   );
 }
 
+function FetchTimeAndXXX({ isLoading }) {
+  const [fetchTime, setFetchTime] = useState<number | null>(null);
+  const [date, setDate] = useState(new Date());
+  const fetchBeginTime = useRef(new Date().getTime());
+  useEffect(() => {
+    if (isLoading) {
+      fetchBeginTime.current = new Date().getTime();
+    } else {
+      setFetchTime(new Date().getTime() - fetchBeginTime.current);
+      setDate(new Date());
+    }
+  }, [isLoading]);
+
+  return (
+    <>
+      <Typography color="info">{date.toLocaleTimeString()}</Typography>
+      {!!fetchTime && (
+        <Chip
+          label={prettyMs(fetchTime)}
+          color={fetchTime > 4000 ? "warning" : "info"}
+          icon={<IoTimerOutline fontSize="1.2rem" />}
+        />
+      )}
+    </>
+  );
+}
+
+function FetchTimeAndDataGrid() {
+  const apiRef = useGridApiContext();
+
+  // 使用选择器获取当前的 loading 状态
+  const isLoading: boolean = useGridSelector(apiRef, gridRowsLoadingSelector);
+
+  return <FetchTimeAndXXX isLoading={isLoading} />;
+}
+
 export {
+  FetchTimeAndDataGrid,
+  FetchTimeAndXXX,
   ShowingCount,
   CreateDatabase,
   CreateSchema,

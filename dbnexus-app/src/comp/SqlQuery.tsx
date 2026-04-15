@@ -49,7 +49,7 @@ import {
 } from "./helper.ts";
 import ArrowCircleDownRoundedIcon from "@mui/icons-material/ArrowCircleDownRounded";
 import { ExportView } from "./Export.tsx";
-import { PossibleParseError, TimeDuration } from "./CommonComp.tsx";
+import { PossibleParseError } from "./CommonComp.tsx";
 import {
   AiMarkdownModel,
   AiMarkdownModelSwitch,
@@ -321,7 +321,6 @@ function SqlQuery(props: {
   const [makeConnLoading, setMakeConnLoading] = useState(false);
   const { showNotification } = useNotification();
   const [showQueryLog, setShowQueryLog] = useState(false);
-  const [fetchDur, setFetchDur] = useState(0);
   const [executeTimes, setExecuteTimes] = useState(0);
   const { queryId } = useContext(QueryIDEditorChatCtx);
   const conn = useRef<QueryConn>(new QueryConn(uuid, queryId, kind));
@@ -487,7 +486,6 @@ function SqlQuery(props: {
           return appendQueryResult(resp, e, setQueryStatus);
         });
       });
-      const fetchBegin = new Date();
       conn.current
         .queryOP(text, emit, getSize(UseSizeConfig.queryLimit))
         .then(() => {
@@ -505,7 +503,6 @@ function SqlQuery(props: {
         .finally(() => {
           setExecuteTimes((e) => e + 1);
           setLoading(false);
-          setFetchDur(new Date().getTime() - fetchBegin.getTime());
         });
     },
     [getSize, getSwitch, saveQueryLog, showNotification, uuid, warnDangerousSql],
@@ -663,7 +660,6 @@ function SqlQuery(props: {
             {extras}
             <ModifyLLMConfigModal />
             <SliderSize config={UseSizeConfig.queryLimit} />
-            <TimeDuration dur={fetchDur} />
             <ToggleChatShow />
             <AiMarkdownModelSwitch
               setMarkdownModel={setMarkdownModel}

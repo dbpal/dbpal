@@ -1,4 +1,13 @@
-import { RefObject, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import {
+  Dispatch,
+  RefObject,
+  SetStateAction,
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import {
   Button,
   Stack,
@@ -22,7 +31,7 @@ import ContentCopyIcon from "@mui/icons-material/ContentCopy";
 import DeleteForeverIcon from "@mui/icons-material/DeleteForever";
 import { modalStyle, reloadOK, EscDownEvent, modalHandleClose } from "./Common";
 import { openUrl } from "@tauri-apps/plugin-opener";
-import { ClearableTextField } from "./CommonComp2";
+import { ClearableTextField, FetchTimeAndDataGrid } from "./CommonComp2";
 import {
   DataGrid,
   GridCallbackDetails,
@@ -47,12 +56,7 @@ import {
   newEmptyResp,
   secondConfirm,
 } from "./helper.ts";
-import {
-  AppColumnMenu,
-  ModalHeader,
-  ResetColumnWidth,
-  TimeDuration,
-} from "./CommonComp.tsx";
+import { AppColumnMenu, ModalHeader, ResetColumnWidth } from "./CommonComp.tsx";
 import { editor, Position } from "monaco-editor";
 import {
   SliderSize,
@@ -60,7 +64,6 @@ import {
   TableAddButton,
   AppDataGridPagination,
   AppDataGridToolBar,
-  LastFetchTime,
   QueryStatus,
   StackRowCenter,
   ListenElementSize,
@@ -94,6 +97,61 @@ enum RedisEditorMode {
 }
 
 type ListPushDirection = "left" | "right";
+
+type RedisMenuContent = string | null | undefined;
+
+interface RedisContextMenuProps {
+  delOP: () => void;
+  content?: RedisMenuContent;
+}
+
+interface RedisListTableContextMenuProps {
+  delOP: (count: number) => Promise<void>;
+  content?: RedisMenuContent;
+}
+
+interface SetToolBarDbpalProps {
+  keyMatch: string;
+  handleReload: (showOk: boolean) => void;
+  setKey: string;
+  loading: boolean;
+  setKeyMatch: Dispatch<SetStateAction<string>>;
+  uuid: string;
+}
+
+interface ListToolBarDbpalProps {
+  handleReload: (showOk: boolean) => void;
+  listKey: string;
+  loading: boolean;
+  uuid: string;
+}
+
+interface ZSetToolBarDbpalProps {
+  keyMatch: string;
+  min: string;
+  minErr: boolean;
+  max: string;
+  maxErr: boolean;
+  loading: boolean;
+  handleReload: (showOk: boolean) => void;
+  setMinErr: Dispatch<SetStateAction<boolean>>;
+  setKeyMatch: Dispatch<SetStateAction<string>>;
+  setMin: Dispatch<SetStateAction<string>>;
+  setMaxErr: Dispatch<SetStateAction<boolean>>;
+  setMax: Dispatch<SetStateAction<string>>;
+  uuid: string;
+  zsetKey: string;
+}
+
+interface HashToolBarDbpalProps {
+  keyMatch: string;
+  setKeyMatch: Dispatch<SetStateAction<string>>;
+  uuid: string;
+  hashKey: string;
+  loading: boolean;
+  handleReload: (showOk: boolean) => void;
+}
+
 function RedisAddList(props: { uuid: string; listKey: string }) {
   const { uuid, listKey } = props;
 
@@ -698,7 +756,7 @@ function RedisEditSet(props: {
   );
 }
 
-function RedisSetTableContextMenu(props: { delOP: () => void; content }) {
+function RedisSetTableContextMenu(props: RedisContextMenuProps) {
   const { delOP, content } = props;
   const { showNotification } = useNotification();
   return (
@@ -730,6 +788,42 @@ function RedisSetTableContextMenu(props: { delOP: () => void; content }) {
 
 const keyMatcherHelpText = "key matcher string,could be *key,key*,*key*";
 
+type SetToolBarParameterProps = GridSlotProps["toolbar"] & {
+  dbpal: SetToolBarDbpalProps;
+};
+
+function SetToolBar({
+  dbpal: { keyMatch, setKey, handleReload, loading, setKeyMatch, uuid },
+}: SetToolBarParameterProps) {
+  return (
+    <AppDataGridToolBar
+      left=<>
+        <Button
+          color="primary"
+          onClick={() => {
+            handleReload(true);
+          }}
+          loading={loading}>
+          reload
+        </Button>
+        <Tooltip title={keyMatcherHelpText}>
+          <ClearableTextField
+            label="key matcher"
+            value={keyMatch}
+            onChange={(event) => {
+              setKeyMatch(event.target.value);
+            }}
+            onClear={() => setKeyMatch("")}
+            style={{ maxWidth: "15rem", flex: 1 }}
+          />
+        </Tooltip>
+        <AddTable uuid={uuid} redisKey={setKey} redisType={RedisTableType.Set} />
+      </>
+      title={setKey}
+    />
+  );
+}
+
 function RedisSetTable(props: { setKey: string; uuid: string }) {
   const { setKey, uuid } = props;
   const modifyOP = async (old, newValue) => {
@@ -743,11 +837,6 @@ function RedisSetTable(props: { setKey: string; uuid: string }) {
   );
   const [keyMatch, setKeyMatch] = useState("");
   const [resp, setResp] = useState<MuiDataGridData>(null);
-  const [lastFetchTime, setLastFetchTime] = useState(new Date());
-  useEffect(() => {
-    setLastFetchTime(new Date());
-  }, [resp]);
-  const [fetchDur, setFetchDur] = useState(0);
   const { showNotification } = useNotification();
   const [selectRow, setSelectRow] = useState<{ id; value }>(null);
   const [loading, setLoading] = useState(false);
@@ -763,9 +852,6 @@ function RedisSetTable(props: { setKey: string; uuid: string }) {
         para: {
           limit: getSize(UseSizeConfig.queryLimit),
           where_str: keyMatch ? keyMatch : null,
-        },
-        handleExecuteTime: (t) => {
-          setFetchDur(t);
         },
         showNotification,
         okCallBack: () => {
@@ -839,96 +925,36 @@ function RedisSetTable(props: { setKey: string; uuid: string }) {
         style: { cursor: "context-menu" },
       },
       toolbar: {
-        keyMatch,
-        handleReload,
-        loading,
-        setKey,
+        dbpal: (function (): SetToolBarParameterProps["dbpal"] {
+          return { keyMatch, handleReload, setKey, loading, uuid, setKeyMatch };
+        })(),
+
         csvOptions: {
           delimiter: setting.export_.csvDelimiter,
           includeHeaders: setting.export_.includeHeader,
         },
       },
-      pagination: {
-        fetchDur,
-        lastFetchTime,
-      },
     } as GridSlotsComponentsProps;
   }, [
-    fetchDur,
-    handleDel,
-    keyMatch,
-    lastFetchTime,
-    setUpMenu,
     setting.export_.csvDelimiter,
     setting.export_.includeHeader,
+    setUpMenu,
+    handleDel,
+    keyMatch,
     handleReload,
-    loading,
     setKey,
+    loading,
+    uuid,
   ]);
 
   const [modifyModalBox, setModifyModalBox] = useState<HTMLDivElement | null>(null);
-
   const slots = useMemo(() => {
     return {
       columnMenu: AppColumnMenu,
-      toolbar: ({
-        keyMatch,
-        setKey,
-        handleReload,
-        loading,
-      }: GridSlotProps["toolbar"] & { keyMatch; setKey; handleReload; loading }) => {
-        return (
-          <AppDataGridToolBar
-            left=<>
-              <Button
-                color="primary"
-                onClick={() => {
-                  handleReload(true);
-                }}
-                loading={loading}>
-                reload
-              </Button>
-              <Tooltip title={keyMatcherHelpText}>
-                <ClearableTextField
-                  label="key matcher"
-                  value={keyMatch}
-                  onChange={(event) => {
-                    setKeyMatch(event.target.value);
-                  }}
-                  onClear={() => setKeyMatch("")}
-                  style={{ maxWidth: "15rem", flex: 1 }}
-                />
-              </Tooltip>
-              <AddTable uuid={uuid} redisKey={setKey} redisType={RedisTableType.Set} />
-            </>
-            title={setKey}
-          />
-        );
-      },
-      pagination: ({
-        fetchDur,
-        lastFetchTime,
-      }: GridSlotProps["pagination"] & { fetchDur; lastFetchTime; keyMatch }) => {
-        return (
-          <Stack
-            direction="row"
-            style={{
-              alignItems: "center",
-              justifyContent: "space-between",
-              flex: 1,
-            }}>
-            <Stack style={{ flex: 1, alignItems: "center" }} direction="row">
-              <LastFetchTime date={lastFetchTime} />
-              <TimeDuration dur={fetchDur} />
-              <SliderSize config={UseSizeConfig.queryLimit} />
-              <DoubleClickToModify />
-            </Stack>
-            <AppDataGridPagination showPageSelect />
-          </Stack>
-        );
-      },
+      toolbar: SetToolBar,
+      pagination: CustomPagination,
     } as Partial<GridSlotsComponent>;
-  }, [uuid]);
+  }, []);
 
   const { getColumnVisibility, setColumnVisibility } = useTableColumnVisibleStore(
     (s) => s,
@@ -994,10 +1020,7 @@ function RedisSetTable(props: { setKey: string; uuid: string }) {
   );
 }
 
-function RedisListTableContextMenu(props: {
-  delOP: (count: number) => Promise<void>;
-  content;
-}) {
+function RedisListTableContextMenu(props: RedisListTableContextMenuProps) {
   const { delOP, content } = props;
   const [count, setCount] = useState("1");
   const [showDel, setShowDel] = useState(false);
@@ -1123,6 +1146,30 @@ function AddTable(props: {
   );
 }
 
+type ListToolBarProps = {
+  dbpal: ListToolBarDbpalProps;
+} & GridSlotProps["toolbar"];
+
+function ListToolBar({
+  dbpal: { handleReload, listKey, loading, uuid },
+}: ListToolBarProps) {
+  return (
+    <AppDataGridToolBar
+      left=<>
+        <Button
+          color="primary"
+          onClick={() => {
+            handleReload(true);
+          }}
+          loading={loading}>
+          reload
+        </Button>
+        <AddTable uuid={uuid} redisKey={listKey} redisType={RedisTableType.List} />
+      </>
+      title={listKey}
+    />
+  );
+}
 function RedisListTable(props: { listKey: string; uuid: string }) {
   const { listKey, uuid } = props;
   const modifyOP = async (index, value) => {
@@ -1135,11 +1182,6 @@ function RedisListTable(props: { listKey: string; uuid: string }) {
     [listKey, uuid],
   );
   const [resp, setResp] = useState<MuiDataGridData>(newEmptyResp());
-  const [lastFetchTime, setLastFetchTime] = useState(new Date());
-  useEffect(() => {
-    setLastFetchTime(new Date());
-  }, [resp]);
-  const [fetchDur, setFetchDur] = useState(0);
   const [respOrigin, setRespOrigin] = useState<MuiDataGridData>(newEmptyResp());
   const [selectRow, setSelectRow] = useState<any>(null);
   const { showNotification } = useNotification();
@@ -1162,9 +1204,7 @@ function RedisListTable(props: { listKey: string; uuid: string }) {
               showNotification({ severity: "success", title: "reload OK" });
             }
           : undefined,
-        handleExecuteTime: (t) => {
-          setFetchDur(t);
-        },
+
         handleResult: (resp) => {
           resp.data.forEach((e, index) => {
             e["id"] = index + "";
@@ -1276,6 +1316,9 @@ function RedisListTable(props: { listKey: string; uuid: string }) {
         style: { cursor: "context-menu" },
       },
       toolbar: {
+        dbpal: (function (): ListToolBarProps["dbpal"] {
+          return { handleReload, listKey, loading, uuid };
+        })(),
         csvOptions: {
           delimiter: setting.export_.csvDelimiter,
           includeHeaders: setting.export_.includeHeader,
@@ -1284,9 +1327,13 @@ function RedisListTable(props: { listKey: string; uuid: string }) {
     } as GridSlotsComponentsProps;
   }, [
     handleDel,
+    handleReload,
+    listKey,
+    loading,
     setUpMenu,
     setting.export_.csvDelimiter,
     setting.export_.includeHeader,
+    uuid,
   ]);
 
   const onColumnResize = useCallback(
@@ -1303,50 +1350,10 @@ function RedisListTable(props: { listKey: string; uuid: string }) {
   const slots = useMemo(() => {
     return {
       columnMenu: AppColumnMenu,
-      toolbar: () => {
-        return (
-          <AppDataGridToolBar
-            left=<>
-              <Button
-                color="primary"
-                onClick={() => {
-                  handleReload(true);
-                }}
-                loading={loading}>
-                reload
-              </Button>
-              <AddTable
-                uuid={uuid}
-                redisKey={listKey}
-                redisType={RedisTableType.List}
-              />
-            </>
-            title={listKey}
-          />
-        );
-      },
-      pagination: () => {
-        return (
-          <Stack
-            direction="row"
-            style={{
-              alignItems: "center",
-              justifyContent: "space-between",
-              flex: 1,
-            }}>
-            <Stack style={{ alignItems: "center", flex: 1 }} direction="row">
-              <LastFetchTime date={lastFetchTime} />
-              <TimeDuration dur={fetchDur} />
-              <DoubleClickToModify />
-              <ResetColumnWidth />
-            </Stack>
-
-            <AppDataGridPagination showPageSelect />
-          </Stack>
-        );
-      },
+      toolbar: ListToolBar,
+      pagination: CustomPagination,
     } as Partial<GridSlotsComponent>;
-  }, [fetchDur, handleReload, lastFetchTime, listKey, loading, uuid]);
+  }, []);
   const { getColumnVisibility, setColumnVisibility } = useTableColumnVisibleStore(
     (s) => s,
   );
@@ -1426,7 +1433,7 @@ function RedisListTable(props: { listKey: string; uuid: string }) {
   );
 }
 
-function RedisZSetTableContextMenu(props: { delOP: () => void; content }) {
+function RedisZSetTableContextMenu(props: RedisContextMenuProps) {
   const { delOP, content } = props;
   const { showNotification } = useNotification();
   return (
@@ -1456,6 +1463,89 @@ function RedisZSetTableContextMenu(props: { delOP: () => void; content }) {
   );
 }
 
+type ZSetToolBarProps = {
+  dbpal: ZSetToolBarDbpalProps;
+} & GridSlotProps["toolbar"];
+
+function ZSetToolBar({
+  dbpal: {
+    keyMatch,
+    minErr,
+    max,
+    min,
+    maxErr,
+    loading,
+    handleReload,
+    setKeyMatch,
+    setMinErr,
+    setMin,
+    setMaxErr,
+    setMax,
+    uuid,
+    zsetKey,
+  },
+}: ZSetToolBarProps) {
+  return (
+    <AppDataGridToolBar
+      left=<>
+        <Button
+          color="primary"
+          onClick={() => {
+            handleReload(true);
+          }}
+          loading={loading}>
+          reload
+        </Button>
+
+        <Tooltip title={keyMatcherHelpText}>
+          <ClearableTextField
+            label="key matcher"
+            value={keyMatch}
+            onChange={(event) => {
+              setKeyMatch(event.target.value);
+            }}
+            onClear={() => setKeyMatch("")}
+            style={{ width: "25%" }}
+          />
+        </Tooltip>
+
+        <ClearableTextField
+          label="minimum value"
+          value={min}
+          error={minErr}
+          onChange={(event) => {
+            if (event.target.value) {
+              setMinErr(isNaN(parseFloat(event.target.value)));
+            } else {
+              setMinErr(false);
+            }
+            setMin(event.target.value);
+          }}
+          onClear={() => setMin("")}
+          style={{ width: "15%" }}
+        />
+        <ClearableTextField
+          label="maximum value"
+          value={max}
+          error={maxErr}
+          onChange={(event) => {
+            if (event.target.value) {
+              setMaxErr(isNaN(parseFloat(event.target.value)));
+            } else {
+              setMaxErr(false);
+            }
+            setMax(event.target.value);
+          }}
+          onClear={() => setMax("")}
+          style={{ width: "15%" }}
+        />
+        <AddTable uuid={uuid} redisKey={zsetKey} redisType={RedisTableType.Zset} />
+      </>
+      title={zsetKey}
+    />
+  );
+}
+
 function RedisZsetTable(props: { uuid: string; zsetKey: string }) {
   const { uuid, zsetKey } = props;
   const modifyOP = async (oldMember: string, newKey: string, newValue: number) => {
@@ -1470,13 +1560,6 @@ function RedisZsetTable(props: { uuid: string; zsetKey: string }) {
   const { setColumnWidth, getColumnWidth } = useColumnWidthStore();
   const [keyMatch, setKeyMatch] = useState("");
   const [resp, setResp] = useState<MuiDataGridData>(newEmptyResp());
-
-  const [lastFetchTime, setLastFetchTime] = useState(new Date());
-  useEffect(() => {
-    setLastFetchTime(new Date());
-  }, [resp]);
-  const [fetchDur, setFetchDur] = useState(0);
-
   const [selectRow, setSelectRow] = useState<any>();
   const [min, setMin] = useState("");
   const [max, setMax] = useState("");
@@ -1508,9 +1591,7 @@ function RedisZsetTable(props: { uuid: string; zsetKey: string }) {
           where_str: keyMatch ? keyMatch : null,
           limit: getSize(UseSizeConfig.queryLimit),
         },
-        handleExecuteTime: (t) => {
-          setFetchDur(t);
-        },
+
         showNotification,
         okCallBack: showOK
           ? () => {
@@ -1596,15 +1677,25 @@ function RedisZsetTable(props: { uuid: string; zsetKey: string }) {
         },
         style: { cursor: "context-menu" },
       },
-      pagination: { fetchDur, lastFetchTime },
       toolbar: {
-        keyMatch,
-        min,
-        minErr,
-        max,
-        maxErr,
-        loading,
-        handleReload,
+        dbpal: (function (): ZSetToolBarProps["dbpal"] {
+          return {
+            min,
+            max,
+            minErr,
+            maxErr,
+            setMin,
+            setMax,
+            setMinErr,
+            setMaxErr,
+            setKeyMatch,
+            uuid,
+            zsetKey,
+            keyMatch,
+            loading,
+            handleReload,
+          };
+        })(),
         csvOptions: {
           delimiter: setting.export_.csvDelimiter,
           includeHeaders: setting.export_.includeHeader,
@@ -1612,11 +1703,9 @@ function RedisZsetTable(props: { uuid: string; zsetKey: string }) {
       },
     } as GridSlotsComponentsProps;
   }, [
-    fetchDur,
     handleDel,
     handleReload,
     keyMatch,
-    lastFetchTime,
     loading,
     max,
     maxErr,
@@ -1625,6 +1714,8 @@ function RedisZsetTable(props: { uuid: string; zsetKey: string }) {
     setUpMenu,
     setting.export_.csvDelimiter,
     setting.export_.includeHeader,
+    uuid,
+    zsetKey,
   ]);
 
   const [modifyModalBox, setModifyModalBox] = useState<HTMLDivElement | null>(null);
@@ -1638,116 +1729,12 @@ function RedisZsetTable(props: { uuid: string; zsetKey: string }) {
     [setColumnWidth],
   );
 
-  const slots = useMemo(() => {
+  const slots = useMemo((): Partial<GridSlotsComponent> => {
     return {
       columnMenu: AppColumnMenu,
-      toolbar: ({
-        keyMatch,
-        min,
-        minErr,
-        max,
-        maxErr,
-        loading,
-        handleReload,
-      }: GridSlotProps["toolbar"] & {
-        keyMatch;
-        min;
-        minErr;
-        max;
-        maxErr;
-        loading;
-        handleReload;
-      }) => {
-        return (
-          <AppDataGridToolBar
-            left=<>
-              <Button
-                color="primary"
-                onClick={() => {
-                  handleReload(true);
-                }}
-                loading={loading}>
-                reload
-              </Button>
-
-              <Tooltip title={keyMatcherHelpText}>
-                <ClearableTextField
-                  label="key matcher"
-                  value={keyMatch}
-                  onChange={(event) => {
-                    setKeyMatch(event.target.value);
-                  }}
-                  onClear={() => setKeyMatch("")}
-                  style={{ width: "25%" }}
-                />
-              </Tooltip>
-
-              <ClearableTextField
-                label="minimum value"
-                value={min}
-                error={minErr}
-                onChange={(event) => {
-                  if (event.target.value) {
-                    setMinErr(isNaN(parseFloat(event.target.value)));
-                  } else {
-                    setMinErr(false);
-                  }
-                  setMin(event.target.value);
-                }}
-                onClear={() => setMin("")}
-                style={{ width: "15%" }}
-              />
-              <ClearableTextField
-                label="maximum value"
-                value={max}
-                error={maxErr}
-                onChange={(event) => {
-                  if (event.target.value) {
-                    setMaxErr(isNaN(parseFloat(event.target.value)));
-                  } else {
-                    setMaxErr(false);
-                  }
-                  setMax(event.target.value);
-                }}
-                onClear={() => setMax("")}
-                style={{ width: "15%" }}
-              />
-              <AddTable
-                uuid={uuid}
-                redisKey={zsetKey}
-                redisType={RedisTableType.Zset}
-              />
-            </>
-            title={zsetKey}
-          />
-        );
-      },
-      pagination: ({
-        lastFetchTime,
-        fetchDur,
-      }: GridSlotProps["pagination"] & { lastFetchTime; fetchDur }) => {
-        return (
-          <Stack
-            direction="row"
-            style={{
-              alignItems: "center",
-              justifyContent: "space-between",
-              flex: 1,
-            }}>
-            <Stack direction="row" style={{ flex: 1, alignItems: "center" }}>
-              <LastFetchTime date={lastFetchTime} />
-              <TimeDuration dur={fetchDur} />
-              <SliderSize config={UseSizeConfig.queryLimit} />
-              <DoubleClickToModify />
-              <ResetColumnWidth />
-            </Stack>
-
-            <AppDataGridPagination showPageSelect />
-          </Stack>
-        );
-      },
-    } as Partial<GridSlotsComponent>;
-  }, [uuid, zsetKey]);
+      toolbar: ZSetToolBar,
+    };
+  }, []);
 
   const { getColumnVisibility, setColumnVisibility } = useTableColumnVisibleStore(
     (s) => s,
@@ -1814,7 +1801,33 @@ function RedisZsetTable(props: { uuid: string; zsetKey: string }) {
   );
 }
 
-function RedisHashTableContextMenu(props: { delOP: () => void; content }) {
+function CustomPagination() {
+  return (
+    <Stack
+      direction="row"
+      sx={{
+        alignItems: "center",
+        justifyContent: "space-between",
+        flex: 1,
+        px: 1,
+      }}>
+      <StackRowCenter>
+        {/* 注意：如果 SliderSize 等组件依赖外部配置，请确保配置可用 */}
+
+        <FetchTimeAndDataGrid />
+        <SliderSize config={UseSizeConfig.queryLimit} />
+        <DoubleClickToModify />
+        <ResetColumnWidth />
+      </StackRowCenter>
+
+      <Stack direction="row" sx={{ alignItems: "center" }}>
+        <AppDataGridPagination showPageSelect />
+      </Stack>
+    </Stack>
+  );
+}
+
+function RedisHashTableContextMenu(props: RedisContextMenuProps) {
   const { delOP, content } = props;
 
   const { showNotification } = useNotification();
@@ -1855,6 +1868,44 @@ const valueGetter = (value) => {
     return "binary value of " + value;
   }
 };
+
+type HashToolBarProps = {
+  dbpal: HashToolBarDbpalProps;
+} & GridSlotProps["toolbar"];
+
+function HashToolBar({
+  dbpal: { keyMatch, setKeyMatch, uuid, hashKey, loading, handleReload },
+}: HashToolBarProps) {
+  return (
+    <AppDataGridToolBar
+      left=<>
+        <Button
+          color="primary"
+          onClick={() => {
+            handleReload(true);
+          }} // 点击事件处理
+          loading={loading}>
+          reload
+        </Button>
+
+        <Tooltip title={keyMatcherHelpText}>
+          <ClearableTextField
+            label="key matcher"
+            value={keyMatch}
+            onChange={(event) => {
+              setKeyMatch(event.target.value);
+            }}
+            onClear={() => setKeyMatch("")}
+            style={{ maxWidth: "15rem", flex: 1 }}
+          />
+        </Tooltip>
+        <AddTable uuid={uuid} redisKey={hashKey} redisType={RedisTableType.Hash} />
+      </>
+      title={hashKey}
+    />
+  );
+}
+
 function RedisHashTable(props: { hashKey: string; uuid: string }) {
   const { uuid, hashKey } = props;
   const delOP = useCallback(
@@ -1882,12 +1933,6 @@ function RedisHashTable(props: { hashKey: string; uuid: string }) {
   const [loading, setLoading] = useState(false);
   const setting = useUserSettings();
   const getSize = useSizeStore((s) => s.getSize);
-
-  const [lastFetchTime, setLastFetchTime] = useState(new Date());
-  useEffect(() => {
-    setLastFetchTime(new Date());
-  }, [resp]);
-  const [fetchDur, setFetchDur] = useState(0);
   const [queryStatus, setQueryStatus] = useState("");
 
   const handleReload = useCallback(
@@ -1900,9 +1945,7 @@ function RedisHashTable(props: { hashKey: string; uuid: string }) {
               showNotification({ severity: "success", title: "reload OK" });
             }
           : undefined,
-        handleExecuteTime: (t) => {
-          setFetchDur(t);
-        },
+
         setStatus: setQueryStatus,
         para: {
           limit: getSize(UseSizeConfig.queryLimit),
@@ -1976,11 +2019,11 @@ function RedisHashTable(props: { hashKey: string; uuid: string }) {
         },
         style: { cursor: "context-menu" },
       },
-      pagination: { fetchDur, lastFetchTime },
+
       toolbar: {
-        handleReload,
-        keyMatch,
-        loading,
+        dbpal: (function (): HashToolBarProps["dbpal"] {
+          return { keyMatch, setKeyMatch, uuid, loading, handleReload, hashKey };
+        })(),
         csvOptions: {
           delimiter: setting.export_.csvDelimiter,
           includeHeaders: setting.export_.includeHeader,
@@ -1988,15 +2031,15 @@ function RedisHashTable(props: { hashKey: string; uuid: string }) {
       },
     } as GridSlotsComponentsProps;
   }, [
-    fetchDur,
     handleDel,
     handleReload,
+    hashKey,
     keyMatch,
-    lastFetchTime,
     loading,
     setUpMenu,
     setting.export_.csvDelimiter,
     setting.export_.includeHeader,
+    uuid,
   ]);
 
   const [modifyModalBox, setModifyModalBox] = useState<HTMLDivElement | null>(null);
@@ -2015,73 +2058,10 @@ function RedisHashTable(props: { hashKey: string; uuid: string }) {
   const slots = useMemo(() => {
     return {
       columnMenu: AppColumnMenu,
-      toolbar: ({
-        handleReload,
-        keyMatch,
-        loading,
-      }: GridSlotProps["toolbar"] & { handleReload; keyMatch; loading }) => {
-        return (
-          <AppDataGridToolBar
-            left=<>
-              <Button
-                color="primary"
-                onClick={() => {
-                  handleReload(true);
-                }} // 点击事件处理
-                loading={loading}>
-                reload
-              </Button>
-
-              <Tooltip title={keyMatcherHelpText}>
-                <ClearableTextField
-                  label="key matcher"
-                  value={keyMatch}
-                  onChange={(event) => {
-                    setKeyMatch(event.target.value);
-                  }}
-                  onClear={() => setKeyMatch("")}
-                  style={{ maxWidth: "15rem", flex: 1 }}
-                />
-              </Tooltip>
-              <AddTable
-                uuid={uuid}
-                redisKey={hashKey}
-                redisType={RedisTableType.Hash}
-              />
-            </>
-            title={hashKey}
-          />
-        );
-      },
-      pagination: ({
-        fetchDur,
-        lastFetchTime,
-      }: GridSlotProps["pagination"] & { fetchDur; lastFetchTime }) => {
-        return (
-          <Stack
-            direction="row"
-            style={{
-              alignItems: "center",
-              justifyContent: "space-between",
-              flex: 1,
-            }}>
-            <StackRowCenter>
-              <LastFetchTime date={lastFetchTime} />
-              <TimeDuration dur={fetchDur} />
-              <SliderSize config={UseSizeConfig.queryLimit} />
-
-              <DoubleClickToModify />
-
-              <ResetColumnWidth />
-            </StackRowCenter>
-            <Stack direction="row" sx={{ alignItems: "center" }}>
-              <AppDataGridPagination showPageSelect />
-            </Stack>
-          </Stack>
-        );
-      },
+      toolbar: HashToolBar,
+      pagination: CustomPagination,
     } as Partial<GridSlotsComponent>;
-  }, [hashKey, uuid]);
+  }, []);
 
   return (
     <Stack style={{ height: "100%" }}>

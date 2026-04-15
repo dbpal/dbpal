@@ -37,7 +37,6 @@ import {
   DataGrid,
   GridCallbackDetails,
   GridPaginationModel,
-  GridSlotProps,
   GridSlotsComponent,
   GridSlotsComponentsProps,
 } from "@mui/x-data-grid";
@@ -59,7 +58,6 @@ import {
   ModalHeader,
   ResetColumnWidth,
   SelectPageSize,
-  TimeDuration,
 } from "./CommonComp";
 import {
   DocsAndCount,
@@ -79,7 +77,6 @@ import {
   AppDataGridPagination,
   AppDataGridToolBar,
   EditorBar,
-  LastFetchTime,
   ListenElementSize,
   SimpleFlexEditor,
   SliderSize,
@@ -1161,16 +1158,10 @@ function MongoTableList(props: {
   const [selectModifyDoc, setSelectModifyDoc] = useState<BSON.Document | null>(null);
   const [showExport, setShowExport] = useState(false);
   const setting = useUserSettings();
-  const [lastFetchTime, setLastFetchTime] = useState(new Date());
   const [clickedField, setClickedField] = useState("");
-  useEffect(() => {
-    setLastFetchTime(new Date());
-  }, [resp]);
   const { getColumnWidth, setColumnWidth } = useColumnWidthStore();
-  const [fetchDur, setFetchDur] = useState(0);
   const handleReload = useCallback(
     async (showOK) => {
-      const now = new Date();
       setLoading(true);
       reloadOP(page + 1, pageSize)
         .then((r) => {
@@ -1215,7 +1206,6 @@ function MongoTableList(props: {
           });
         })
         .finally(() => {
-          setFetchDur(new Date().getTime() - now.getTime());
           setLoading(false);
         });
     },
@@ -1342,7 +1332,6 @@ function MongoTableList(props: {
         },
         style: { cursor: "context-menu" },
       },
-      pagination: { lastFetchTime, fetchDur },
       toolbar: {
         csvOptions: {
           delimiter: setting.export_.csvDelimiter,
@@ -1351,9 +1340,7 @@ function MongoTableList(props: {
       },
     } as GridSlotsComponentsProps;
   }, [
-    fetchDur,
     handleDel,
-    lastFetchTime,
     loadOne,
     resp,
     setFilter,
@@ -1368,10 +1355,7 @@ function MongoTableList(props: {
       toolbar: () => {
         return <AppDataGridToolBar title={tableName} />;
       },
-      pagination: ({
-        lastFetchTime,
-        fetchDur,
-      }: GridSlotProps["pagination"] & { lastFetchTime; fetchDur }) => {
+      pagination: () => {
         return (
           <Stack
             direction="row"
@@ -1382,8 +1366,6 @@ function MongoTableList(props: {
               flex: 1,
             }}>
             <Stack style={{ flex: 1, alignItems: "center" }} direction="row">
-              <LastFetchTime date={lastFetchTime} />
-              <TimeDuration dur={fetchDur} />
               <ResetColumnWidth />
               <DoubleClickToModify />
             </Stack>
