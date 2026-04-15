@@ -8,7 +8,6 @@ import {
   ToolbarButton,
   ColumnsPanelTrigger,
   FilterPanelTrigger,
-  ExportCsv,
   ExportPrint,
   QuickFilter,
   QuickFilterControl,
@@ -92,8 +91,7 @@ function CustomToolbar() {
           aria-controls="export-menu"
           aria-haspopup="true"
           aria-expanded={exportMenuOpen ? "true" : undefined}
-          onClick={() => setExportMenuOpen(true)}
-        >
+          onClick={() => setExportMenuOpen(true)}>
           <FileDownloadIcon fontSize="small" />
         </ToolbarButton>
       </Tooltip>
@@ -109,14 +107,13 @@ function CustomToolbar() {
           list: {
             "aria-labelledby": "export-menu-trigger",
           },
-        }}
-      >
+        }}>
         <ExportPrint render={<MenuItem />} onClick={() => setExportMenuOpen(false)}>
           Print
         </ExportPrint>
-        <ExportCsv render={<MenuItem />} onClick={() => setExportMenuOpen(false)}>
+        {/* <ExportCsv render={<MenuItem />} onClick={() => setExportMenuOpen(false)}>
           Download as CSV
-        </ExportCsv>
+        </ExportCsv> */}
         {/* Available to MUI X Premium users */}
         {/* <ExportExcel render={<MenuItem />}>
           Download as Excel
@@ -131,8 +128,7 @@ function CustomToolbar() {
                 {...triggerProps}
                 ownerState={{ expanded: state.expanded }}
                 color="default"
-                aria-disabled={state.expanded}
-              >
+                aria-disabled={state.expanded}>
                 <SearchIcon fontSize="small" />
               </StyledToolbarButton>
             </Tooltip>
@@ -160,8 +156,7 @@ function CustomToolbar() {
                         edge="end"
                         size="small"
                         aria-label="Clear search"
-                        material={{ sx: { marginRight: -0.75 } }}
-                      >
+                        material={{ sx: { marginRight: -0.75 } }}>
                         <CancelIcon fontSize="small" />
                       </QuickFilterClear>
                     </InputAdornment>
