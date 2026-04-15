@@ -148,12 +148,17 @@ const editInModalLanguages = [
   language: string;
 }[];
 
-function EditInModal(props: { content: string; handleModify }) {
-  const { content, handleModify } = props;
+function EditInModal(props: {
+  content: string;
+  handleModify;
+  handleClose: () => void;
+}) {
+  const { content, handleModify, handleClose } = props;
   const [jsonErr, setJsonErr] = useState<ErrAndLoc>(null);
   const [jsonErrPos, setJsonErrPos] = useState<Position>(null);
   const [language, setLanguage] = useState(EditInModalLanguage);
   const [editor, setEditor] = useState<editor.IStandaloneCodeEditor>(null);
+  const [editInModalBox, setEditInModalBox] = useState(null);
   useEffect(() => {
     if (!editor) {
       return;
@@ -173,54 +178,73 @@ function EditInModal(props: { content: string; handleModify }) {
   }, [editor, language]);
 
   return (
-    <Stack style={{ flex: 1 }}>
-      <Stack direction="row">
-        {editInModalLanguages.map((e) => (
-          <Chip
-            key={e.language}
-            label={e.language}
-            color={language == e.language ? "success" : "default"}
-            onClick={() => {
-              setLanguage(e.language);
-              EditInModalLanguage = e.language;
+    <Modal
+      open={true}
+      onClose={modalHandleClose((e: EscDownEvent) => {
+        e.preventDefault();
+        handleClose();
+      })}>
+      <Box
+        sx={{ resize: "both", ...modalStyle, width: "80%", height: "30vh" }}
+        ref={setEditInModalBox}>
+        <ModalHeader
+          title="edit cell"
+          handleClose={() => {
+            handleClose();
+          }}
+        />
+
+        <ListenElementSize dom={editInModalBox} set="both" name="table-edit-in-modal" />
+        <Stack style={{ flex: 1 }}>
+          <Stack direction="row">
+            {editInModalLanguages.map((e) => (
+              <Chip
+                key={e.language}
+                label={e.language}
+                color={language == e.language ? "success" : "default"}
+                onClick={() => {
+                  setLanguage(e.language);
+                  EditInModalLanguage = e.language;
+                }}
+              />
+            ))}
+          </Stack>
+          <SimpleFlexEditor
+            value={content}
+            language={language}
+            handleEditor={(ed) => {
+              setEditor(ed);
             }}
+            errPos={jsonErrPos}
+            barLeft={
+              jsonErr ? (
+                <Typography
+                  color="error"
+                  variant="body1"
+                  style={{ cursor: "pointer" }}
+                  onClick={() => {
+                    if (!jsonErr) {
+                      return;
+                    }
+                    setJsonErrPos(new Position(jsonErr.line, jsonErr.column));
+                  }}>
+                  {jsonErr.msg}
+                </Typography>
+              ) : undefined
+            }
           />
-        ))}
-      </Stack>
-      <SimpleFlexEditor
-        value={content}
-        language={language}
-        handleEditor={(ed) => {
-          setEditor(ed);
-        }}
-        errPos={jsonErrPos}
-        barLeft={
-          jsonErr ? (
-            <Typography
-              color="error"
-              variant="body1"
-              style={{ cursor: "pointer" }}
+          <Divider />
+          <Stack direction="row">
+            <Button
               onClick={() => {
-                if (!jsonErr) {
-                  return;
-                }
-                setJsonErrPos(new Position(jsonErr.line, jsonErr.column));
+                handleModify(editor.getValue());
               }}>
-              {jsonErr.msg}
-            </Typography>
-          ) : undefined
-        }
-      />
-      <Divider />
-      <Stack direction="row">
-        <Button
-          onClick={() => {
-            handleModify(editor.getValue());
-          }}>
-          modify
-        </Button>
-      </Stack>
-    </Stack>
+              modify
+            </Button>
+          </Stack>
+        </Stack>
+      </Box>
+    </Modal>
   );
 }
 
@@ -449,6 +473,50 @@ export function CustomPagination({
         <AppDataGridPagination showPageSelect />
       </Stack>
     </Stack>
+  );
+}
+
+function EditRowInModal(props: {
+  handleClose: () => void;
+  fields: Field[];
+  handleProcessRowUpdate: (value: object, newValue: object) => void;
+  value: object;
+}) {
+  const { handleClose, value, fields, handleProcessRowUpdate } = props;
+  const [editRowInModalBox, setEditRowInModalBox] = useState(null);
+  return (
+    <Modal
+      open={true}
+      onClose={modalHandleClose((e: EscDownEvent) => {
+        e.preventDefault();
+        handleClose();
+      })}>
+      <Box
+        sx={{ resize: "horizontal", ...modalStyle, width: "80%" }}
+        ref={setEditRowInModalBox}>
+        <ModalHeader
+          title="edit row"
+          handleClose={() => {
+            handleClose();
+          }}
+        />
+        <ListenElementSize
+          dom={editRowInModalBox}
+          set="both"
+          name="table-edit-row-in-modal"
+        />
+        <SqlTableViewData
+          initValues={value}
+          buttonName="modify"
+          fields={fields}
+          isAdd={false}
+          handleData={async (args) => {
+            await handleProcessRowUpdate(args, value);
+          }}
+          handleClose={() => handleClose()}
+        />
+      </Box>
+    </Modal>
   );
 }
 
@@ -871,9 +939,6 @@ function SqlTableView(props: {
     uuid,
   ]);
 
-  const [editInModalBox, setEditInModalBox] = useState(null);
-  const [editRowInModalBox, setEditRowInModalBox] = useState(null);
-
   const slots = useMemo(() => {
     return {
       columnMenu: AppColumnMenu,
@@ -999,12 +1064,7 @@ function SqlTableView(props: {
         onProcessRowUpdateError={onProcessRowUpdateError}
         loading={loading}
       />
-      <ListenElementSize dom={editInModalBox} set="both" name="table-edit-in-modal" />
-      <ListenElementSize
-        dom={editRowInModalBox}
-        set="both"
-        name="table-edit-row-in-modal"
-      />
+
       <ViewRowInModal
         data={viewInModal}
         handleClose={() => {
@@ -1015,61 +1075,28 @@ function SqlTableView(props: {
       />
 
       {editCellInModal && (
-        <Modal
-          open={!!editCellInModal}
-          onClose={modalHandleClose((e: EscDownEvent) => {
-            e.preventDefault();
+        <EditInModal
+          content={editCellInModal.content}
+          handleModify={async (value) => {
+            const newRow = { ...editCellInModal.row };
+            newRow[editCellInModal.field] = value;
+            await handleProcessRowUpdate(newRow, editCellInModal.row);
             setEditCellInModal(null);
-          })}>
-          <Box
-            sx={{ resize: "both", ...modalStyle, width: "80%", height: "30vh" }}
-            ref={setEditInModalBox}>
-            <ModalHeader
-              title="edit cell"
-              handleClose={() => {
-                setEditCellInModal(null);
-              }}
-            />
-            <EditInModal
-              content={editCellInModal.content}
-              handleModify={async (value) => {
-                const newRow = { ...editCellInModal.row };
-                newRow[editCellInModal.field] = value;
-                await handleProcessRowUpdate(newRow, editCellInModal.row);
-                setEditCellInModal(null);
-              }}
-            />
-          </Box>
-        </Modal>
+          }}
+          handleClose={() => {
+            setEditCellInModal(null);
+          }}
+        />
       )}
       {editRowInModal && (
-        <Modal
-          open={!!editRowInModal}
-          onClose={modalHandleClose((e: EscDownEvent) => {
-            e.preventDefault();
+        <EditRowInModal
+          handleProcessRowUpdate={handleProcessRowUpdate}
+          value={editRowInModal}
+          handleClose={() => {
             setRowEditInModal(null);
-          })}>
-          <Box
-            sx={{ resize: "horizontal", ...modalStyle, width: "80%" }}
-            ref={setEditRowInModalBox}>
-            <ModalHeader
-              title="edit row"
-              handleClose={() => {
-                setRowEditInModal(null);
-              }}
-            />
-            <SqlTableViewData
-              initValues={editRowInModal}
-              buttonName="modify"
-              fields={resp.fields}
-              isAdd={false}
-              handleData={async (args) => {
-                await handleProcessRowUpdate(args, editRowInModal);
-              }}
-              handleClose={() => setRowEditInModal(null)}
-            />
-          </Box>
-        </Modal>
+          }}
+          fields={resp.fields}
+        />
       )}
       {showExport && (
         <Modal
