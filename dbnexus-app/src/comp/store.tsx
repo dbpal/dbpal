@@ -1331,10 +1331,10 @@ export const useViewInModalMatchStrStore = create<ViewInModalState>()(
 );
 
 interface ExportConfigState {
-  delimter: string; // 注意：沿用你定义的拼写 "delimter"
+  delimiter: string; // 注意：沿用你定义的拼写 "delimiter"
   includeHeader: boolean;
 
-  setDelimter: (delimter: string) => void;
+  setDelimiter: (delimiter: string) => void;
   setIncludeHeader: (includeHeader: boolean) => void;
 
   jsonPretty: boolean;
@@ -1349,7 +1349,7 @@ export const useExportConfigStore = create<ExportConfigState>()(
   persist(
     (set) => ({
       // 默认初始状态
-      delimter: ",",
+      delimiter: ",",
       includeHeader: true,
       jsonPretty: true,
       includeTableSchema: true,
@@ -1363,7 +1363,7 @@ export const useExportConfigStore = create<ExportConfigState>()(
       },
 
       // 实现 Actions
-      setDelimter: (delimter) => set({ delimter }),
+      setDelimiter: (delimiter) => set({ delimiter }),
       setIncludeHeader: (includeHeader) => set({ includeHeader }),
     }),
     {

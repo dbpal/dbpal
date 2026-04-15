@@ -57,8 +57,8 @@ function ExportView(props: {
 
   const {
     includeHeader,
-    delimter,
-    setDelimter,
+    delimiter,
+    setDelimiter,
     setIncludeHeader,
     jsonPretty,
     setJsonPretty,
@@ -77,7 +77,7 @@ function ExportView(props: {
   const makeConfig = (): ExportKind | null => {
     switch (kind) {
       case "csv":
-        if (delimter.length > 1) {
+        if (delimiter.length > 1) {
           showNotification({
             severity: "error",
             title: "delimiter expect one character",
@@ -87,7 +87,7 @@ function ExportView(props: {
         return {
           export_kind: "csv",
           include_header: includeHeader,
-          delimiter: delimter,
+          delimiter: delimiter,
         };
       case "sql":
         return { export_kind: "sql", include_table_schema: includeTableSchema };
@@ -166,12 +166,12 @@ function ExportView(props: {
           />
           <Stack direction="row">
             <TextField
-              value={delimter}
+              value={delimiter}
               onChange={(e) => {
-                setDelimter(e.target.value);
+                setDelimiter(e.target.value);
               }}
               label="delimiter"
-              error={delimter.length > 1}
+              error={delimiter.length > 1}
               helperText="only accept one character"
             />
           </Stack>
