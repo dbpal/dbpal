@@ -210,6 +210,13 @@ function QueryButtons(props: {
 
   return (
     <>
+      {loading && (
+        <CancelButton
+          handleCancel={() => {
+            handleCancel();
+          }}
+        />
+      )}
       <Tooltip title="query">
         <span>
           <IconButton
@@ -263,13 +270,7 @@ function QueryButtons(props: {
           </IconButton>
         </span>
       </Tooltip>
-      {loading && (
-        <CancelButton
-          handleCancel={() => {
-            handleCancel();
-          }}
-        />
-      )}
+
       {supportExplain && (
         <Tooltip title="explain sql">
           <span>
