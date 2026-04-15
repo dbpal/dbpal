@@ -1,4 +1,4 @@
-import { useState, useEffect, useContext } from "react";
+import { useState, useEffect, useContext, useRef } from "react";
 import { Panel, PanelGroup, PanelResizeHandle } from "react-resizable-panels";
 
 import { SqlQuery } from "./SqlQuery.tsx";
@@ -17,7 +17,7 @@ function RedisQuery(props: { favoriteName?: string; value?: string; uuid: string
   const { favoriteName, value, uuid } = props;
   const [doc, setDoc] = useState("");
   const { getSwitch, setSwitch } = useBoolSwitch();
-  const [prevLine, setPrevLine] = useState("");
+  const prevLine = useRef("");
   const showDoc = getSwitch(showRedisDocKey);
 
   const { editor } = useContext(QueryIDEditorChatCtx);
@@ -38,14 +38,14 @@ function RedisQuery(props: { favoriteName?: string; value?: string; uuid: string
       if (!line) {
         return;
       }
-      if (line === prevLine) {
+      if (line === prevLine.current) {
         // line not change no need to update
         return;
       }
       commands
         .getRedisDoc(line)
         .then((e) => {
-          setPrevLine(line);
+          prevLine.current = line;
           setDoc(e);
         })
         .catch(() => {
@@ -58,7 +58,7 @@ function RedisQuery(props: { favoriteName?: string; value?: string; uuid: string
     return () => {
       clearInterval(int);
     };
-  }, [showDoc, prevLine, editor]);
+  }, [showDoc, editor]);
 
   return (
     <PanelGroup
