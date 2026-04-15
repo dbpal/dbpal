@@ -82,7 +82,7 @@ function AppearanceSetting() {
   const [lightBgColor, setLightBgColor] = useState(appearance.lightBgColor);
   const [fontFamily, setFontFamily] = useState(appearance.fontFamily);
   const [datagridRowHeightFactor, setDatagridRowHeightFactor] = useState(
-    appearance.datagridRowHeightFactor + "",
+    appearance.datagridRowHeightFactor,
   );
   const [intputVariant, setInputVariant] = useState(appearance.intputVariant);
   const [modified, setModified] = useState(false);
@@ -111,7 +111,7 @@ function AppearanceSetting() {
       fontWeight,
       darkBgColor: darkBgColor,
       lightBgColor: lightBgColor,
-      datagridRowHeightFactor: parseFloat(datagridRowHeightFactor),
+      datagridRowHeightFactor,
       intputVariant,
       theme,
       zoom,
@@ -154,7 +154,7 @@ function AppearanceSetting() {
         </Typography>
         <Chip label={fontSize} style={{ fontSize }} />
         <Slider
-          style={{ width: "30%" }}
+          style={{ width: "12rem" }}
           value={fontSize}
           onChange={(_, value) => {
             setFontSize(value as number);
@@ -202,13 +202,16 @@ function AppearanceSetting() {
       </Stack>
       <Stack direction="row" sx={{ alignItems: "center" }}>
         <Typography sx={{ width: headerSize }}>table row height factor </Typography>
-        <TextField
+        <Typography> {datagridRowHeightFactor} </Typography>
+        <Slider
+          min={2}
+          max={5}
+          step={0.1}
           value={datagridRowHeightFactor}
-          onChange={(e) => {
-            setDatagridRowHeightFactor(e.target.value);
+          onChange={(_e, value) => {
+            setDatagridRowHeightFactor(value);
           }}
-          error={isNaN(parseFloat(datagridRowHeightFactor))}
-          helperText=""
+          style={{ width: "12rem" }}
         />
         <Tooltip title="a float value,this parameter multiply font size as the table row height">
           <Typography> ?? </Typography>
