@@ -42,7 +42,6 @@ import {
   useContextMenu,
   useNotification,
   usePageSize,
-  useUserSettings,
 } from "./store.tsx";
 import { Field, MuiDataGridData } from "./bindings.ts";
 
@@ -117,8 +116,6 @@ function QueryResp(props: { data: MuiDataGridData }) {
   const { setColumnWidth, getColumnWidth } = useColumnWidthStore();
   queryRespFix(data, getColumnWidth);
 
-  const setting = useUserSettings();
-
   const [page, setPage] = useState(0);
 
   const { setPageSize, sql: pageSize } = usePageSize();
@@ -168,14 +165,8 @@ function QueryResp(props: { data: MuiDataGridData }) {
         },
         style: { cursor: "context-menu" },
       },
-      toolbar: {
-        csvOptions: {
-          delimiter: setting.export_.csvDelimiter,
-          includeHeaders: setting.export_.includeHeader,
-        },
-      },
     } as GridSlotsComponentsProps;
-  }, [data, setUpMenu, setting.export_.csvDelimiter, setting.export_.includeHeader]);
+  }, [data, setUpMenu]);
 
   const onSortModelChange = useCallback((e) => {
     setSortModel(e);

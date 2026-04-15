@@ -81,7 +81,6 @@ import {
   useFavoriteStore,
   useNotification,
   useQueryLogStore,
-  useUserSettings,
   useViewInModalMatchStrStore,
 } from "./store";
 import { commands, Field, MetaValue, NamedStaff } from "./bindings";
@@ -413,8 +412,6 @@ function MetaValueViewMenu(props: { content: string; setSort; field: string }) {
 }
 
 function MetaValueView({ values = [] as MetaValue[] }) {
-  const setting = useUserSettings();
-
   const getColumnWidth = useColumnWidthStore((s) => s.getColumnWidth);
   const columns = [
     { field: "name", width: getColumnWidth("name"), flex: 1 },
@@ -451,14 +448,8 @@ function MetaValueView({ values = [] as MetaValue[] }) {
         },
         style: { cursor: "context-menu" },
       },
-      toolbar: {
-        csvOptions: {
-          delimiter: setting.export_.csvDelimiter,
-          includeHeaders: setting.export_.includeHeader,
-        },
-      },
     } as GridSlotsComponentsProps;
-  }, [setUpMenu, setting]);
+  }, [setUpMenu]);
 
   const onSortModelChange = useCallback((e) => {
     setSortModel(e);

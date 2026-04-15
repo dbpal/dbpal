@@ -121,7 +121,6 @@ import {
   useTabsManage,
   useBoolSwitch,
   useColumnWidthStore,
-  useUserSettings,
   useMatcherFn,
   useConnectionStore,
   useFavoriteStore,
@@ -398,7 +397,6 @@ function CopyConnection() {
     setSortModel(e);
   }, []);
 
-  const setting = useUserSettings();
   const { getColumnWidth, setColumnWidth } = useColumnWidthStore();
 
   const setUpMenu = useContextMenu((state) => state.setUpMenu);
@@ -439,14 +437,8 @@ function CopyConnection() {
         },
         style: { cursor: "context-menu" },
       },
-      toolbar: {
-        csvOptions: {
-          delimiter: setting.export_.csvDelimiter,
-          includeHeaders: setting.export_.includeHeader,
-        },
-      },
     } as GridSlotsComponentsProps;
-  }, [setUpMenu, setting]);
+  }, [setUpMenu]);
 
   const cols = useMemo(() => {
     const cols = [
@@ -620,7 +612,6 @@ function FavoriteSqlList() {
 
   const [uuidFilter, setUuidFilter] = useState("");
   const [distinctUuid, setDistinctUuid] = useState<string[]>([]);
-  const setting = useUserSettings();
   const { getColumnWidth, setColumnWidth } = useColumnWidthStore();
 
   const { getDistinctUuids, getByUuid, clearByUuid } = useFavoriteStore();
@@ -721,14 +712,8 @@ function FavoriteSqlList() {
         },
         style: { cursor: "context-menu" },
       },
-      toolbar: {
-        csvOptions: {
-          delimiter: setting.export_.csvDelimiter,
-          includeHeaders: setting.export_.includeHeader,
-        },
-      },
     } as GridSlotsComponentsProps;
-  }, [handleReload, setUpMenu, setting]);
+  }, [handleReload, setUpMenu]);
 
   const columns = useMemo(() => {
     const cols = [

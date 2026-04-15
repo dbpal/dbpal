@@ -91,7 +91,6 @@ import {
   UseSizeConfig,
   useSizeStore,
   useTableColumnVisibleStore,
-  useUserSettings,
 } from "./store";
 import { commands, MuiDataGridData } from "./bindings";
 import { AddTableModal } from "./LeftTable";
@@ -1124,7 +1123,6 @@ function MongoTableList(props: {
   const [resp, setResp] = useState<MuiDataGridData | null>(null);
   const [selectModifyDoc, setSelectModifyDoc] = useState<BSON.Document | null>(null);
   const [showExport, setShowExport] = useState(false);
-  const setting = useUserSettings();
   const [clickedField, setClickedField] = useState("");
   const { getColumnWidth, setColumnWidth } = useColumnWidthStore();
   const handleReload = useCallback(
@@ -1299,23 +1297,8 @@ function MongoTableList(props: {
         },
         style: { cursor: "context-menu" },
       },
-      toolbar: {
-        csvOptions: {
-          delimiter: setting.export_.csvDelimiter,
-          includeHeaders: setting.export_.includeHeader,
-        },
-      },
     } as GridSlotsComponentsProps;
-  }, [
-    handleDel,
-    loadOne,
-    resp,
-    setFilter,
-    setSort,
-    setUpMenu,
-    setting.export_.csvDelimiter,
-    setting.export_.includeHeader,
-  ]);
+  }, [handleDel, loadOne, resp, setFilter, setSort, setUpMenu]);
   const slots = useMemo(() => {
     return {
       columnMenu: AppColumnMenu,

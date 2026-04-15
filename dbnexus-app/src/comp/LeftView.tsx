@@ -62,7 +62,6 @@ import {
   useNotification,
   useTabsManage,
   useColumnWidthStore,
-  useUserSettings,
   useMatcherFn,
 } from "./store";
 import { AllKindChat } from "./Chat";
@@ -273,7 +272,6 @@ function ColumnsMenu(props: { content: string }) {
 
 function ColumnsContent(props: { uuid: string; view: string }) {
   const { uuid, view } = props;
-  const setting = useUserSettings();
 
   const [fields, setFields] = useState<Field[]>([]);
   const { showNotification } = useNotification();
@@ -348,14 +346,8 @@ function ColumnsContent(props: { uuid: string; view: string }) {
         },
         style: { cursor: "context-menu" },
       },
-      toolbar: {
-        csvOptions: {
-          delimiter: setting.export_.csvDelimiter,
-          includeHeaders: setting.export_.includeHeader,
-        },
-      },
     } as GridSlotsComponentsProps;
-  }, [setUpMenu, setting.export_.csvDelimiter, setting.export_.includeHeader]);
+  }, [setUpMenu]);
 
   const getRowId = useCallback((e) => {
     return e["field"];

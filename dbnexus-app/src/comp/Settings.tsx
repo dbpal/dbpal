@@ -1055,6 +1055,7 @@ function makeComponents(
   fontWeight: string | number,
   intputVariant: string,
   dataGridRowHeight: number,
+  export_: Partial<UserSettings["export_"]>,
 ) {
   const components: Components<Omit<Theme, "components" | "palette"> & CssVarsTheme> = {
     MuiCircularProgress: {
@@ -1155,6 +1156,14 @@ function makeComponents(
         rowHeight: dataGridRowHeight,
         columnHeaderHeight: dataGridRowHeight * 0.9,
         showToolbar: true,
+        slotProps: {
+          toolbar: {
+            csvOptions: {
+              delimiter: export_.csvDelimiter,
+              includeHeaders: export_.includeHeader,
+            },
+          },
+        },
       },
     },
     MuiStack: {
@@ -1244,6 +1253,7 @@ const makeTheme = (
   appearance: Partial<UserSettings["appearance"]>,
   isDarkTheme: boolean,
   datagridRowHeightXXX: number,
+  export_: Partial<UserSettings["export_"]>,
 ) => {
   let color: string;
   if (isDarkTheme) {
@@ -1270,6 +1280,7 @@ const makeTheme = (
       fontWeight,
       appearance.intputVariant,
       datagridRowHeightXXX,
+      export_,
     ),
   });
 };
@@ -1278,7 +1289,8 @@ const isDark = (setting: Partial<UserSettings["appearance"]>, osTheme) => {
   return isDarkStr(setting.theme) || (setting.theme == "system" && isDarkStr(osTheme));
 };
 function SettingProvider({ children }) {
-  const { appearance, editor, misc, updateAppearance, proxy } = useUserSettings();
+  const { appearance, editor, misc, updateAppearance, proxy, export_ } =
+    useUserSettings();
   const [osTheme, setOsTheme] = useState("light");
 
   const { showNotification } = useNotification();
@@ -1388,7 +1400,12 @@ function SettingProvider({ children }) {
   return (
     appearance && (
       <ThemeProvider
-        theme={makeTheme(appearance, isDark(appearance, osTheme), datagridHeightXXX)}>
+        theme={makeTheme(
+          appearance,
+          isDark(appearance, osTheme),
+          datagridHeightXXX,
+          export_,
+        )}>
         <CssBaseline />
         {children}
       </ThemeProvider>

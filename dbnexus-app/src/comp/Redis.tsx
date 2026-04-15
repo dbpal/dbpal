@@ -78,7 +78,6 @@ import {
   UseSizeConfig,
   useSizeStore,
   useTableColumnVisibleStore,
-  useUserSettings,
 } from "./store.tsx";
 
 class RedisZsetHashModifyReq {
@@ -903,7 +902,6 @@ function RedisSetTable(props: { setKey: string; uuid: string }) {
   }, []);
 
   const setUpMenu = useContextMenu((state) => state.setUpMenu);
-  const setting = useUserSettings();
   const slotProps = useMemo(() => {
     return {
       row: {
@@ -932,24 +930,9 @@ function RedisSetTable(props: { setKey: string; uuid: string }) {
         dbpal: (function (): SetToolBarParameterProps["dbpal"] {
           return { keyMatch, handleReload, setKey, loading, uuid, setKeyMatch };
         })(),
-
-        csvOptions: {
-          delimiter: setting.export_.csvDelimiter,
-          includeHeaders: setting.export_.includeHeader,
-        },
       },
     } as GridSlotsComponentsProps;
-  }, [
-    setting.export_.csvDelimiter,
-    setting.export_.includeHeader,
-    setUpMenu,
-    handleDel,
-    keyMatch,
-    handleReload,
-    setKey,
-    loading,
-    uuid,
-  ]);
+  }, [setUpMenu, handleDel, keyMatch, handleReload, setKey, loading, uuid]);
 
   const [modifyModalBox, setModifyModalBox] = useState<HTMLDivElement | null>(null);
   const slots = useMemo(() => {
@@ -1152,7 +1135,6 @@ function RedisListTable(props: { listKey: string; uuid: string }) {
 
   const [page, setPage] = useState(0);
   const [loading, setLoading] = useState(false);
-  const setting = useUserSettings();
   const [queryStatus, setQueryStatus] = useState("");
   const handleReload = useCallback(
     (showOk: boolean) => {
@@ -1281,22 +1263,9 @@ function RedisListTable(props: { listKey: string; uuid: string }) {
         dbpal: (function (): ListToolBarProps["dbpal"] {
           return { handleReload, listKey, loading, uuid };
         })(),
-        csvOptions: {
-          delimiter: setting.export_.csvDelimiter,
-          includeHeaders: setting.export_.includeHeader,
-        },
       },
     } as GridSlotsComponentsProps;
-  }, [
-    handleDel,
-    handleReload,
-    listKey,
-    loading,
-    setUpMenu,
-    setting.export_.csvDelimiter,
-    setting.export_.includeHeader,
-    uuid,
-  ]);
+  }, [handleDel, handleReload, listKey, loading, setUpMenu, uuid]);
 
   const onColumnResize = useCallback(
     ({ colDef, width }) => {
@@ -1534,7 +1503,6 @@ function RedisZsetTable(props: { uuid: string; zsetKey: string }) {
   const [maxErr, setMaxErr] = useState(false);
   const [loading, setLoading] = useState(false);
   const { showNotification } = useNotification();
-  const setting = useUserSettings();
 
   const getSize = useSizeStore((s) => s.getSize);
 
@@ -1663,10 +1631,6 @@ function RedisZsetTable(props: { uuid: string; zsetKey: string }) {
             handleReload,
           };
         })(),
-        csvOptions: {
-          delimiter: setting.export_.csvDelimiter,
-          includeHeaders: setting.export_.includeHeader,
-        },
       },
     } as GridSlotsComponentsProps;
   }, [
@@ -1679,8 +1643,6 @@ function RedisZsetTable(props: { uuid: string; zsetKey: string }) {
     min,
     minErr,
     setUpMenu,
-    setting.export_.csvDelimiter,
-    setting.export_.includeHeader,
     uuid,
     zsetKey,
   ]);
@@ -1901,7 +1863,6 @@ function RedisHashTable(props: { hashKey: string; uuid: string }) {
   const { showNotification } = useNotification();
   const [selectRow, setSelectRow] = useState<any>(null);
   const [loading, setLoading] = useState(false);
-  const setting = useUserSettings();
   const getSize = useSizeStore((s) => s.getSize);
   const [queryStatus, setQueryStatus] = useState("");
 
@@ -1994,23 +1955,9 @@ function RedisHashTable(props: { hashKey: string; uuid: string }) {
         dbpal: (function (): HashToolBarProps["dbpal"] {
           return { keyMatch, setKeyMatch, uuid, loading, handleReload, hashKey };
         })(),
-        csvOptions: {
-          delimiter: setting.export_.csvDelimiter,
-          includeHeaders: setting.export_.includeHeader,
-        },
       },
     } as GridSlotsComponentsProps;
-  }, [
-    handleDel,
-    handleReload,
-    hashKey,
-    keyMatch,
-    loading,
-    setUpMenu,
-    setting.export_.csvDelimiter,
-    setting.export_.includeHeader,
-    uuid,
-  ]);
+  }, [handleDel, handleReload, hashKey, keyMatch, loading, setUpMenu, uuid]);
 
   const [modifyModalBox, setModifyModalBox] = useState<HTMLDivElement | null>(null);
 

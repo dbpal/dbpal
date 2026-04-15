@@ -114,7 +114,6 @@ import {
   UseSizeConfig,
   useSizeStore,
   useTableColumnVisibleStore,
-  useUserSettings,
 } from "./store";
 import { commands, Field, MuiDataGridData, ShowTableParameter } from "./bindings";
 
@@ -553,7 +552,6 @@ function SqlTableView(props: {
   const [showSetWhere, setShowSetWhere] = useState(false);
   const [sort, setSort] = useState("");
   const [showSetSort, setShowSetSort] = useState(false);
-  const setting = useUserSettings();
   const [page, setPage] = useState(0);
   const { sql: pageSize, setPageSize } = usePageSize();
   const [resp, setResp] = useState<MuiDataGridData>({
@@ -914,15 +912,9 @@ function SqlTableView(props: {
             uuid,
           };
         })(),
-        csvOptions: {
-          delimiter: setting.export_.csvDelimiter,
-          includeHeaders: setting.export_.includeHeader,
-        },
       },
     } as GridSlotsComponentsProps;
   }, [
-    setting.export_.csvDelimiter,
-    setting.export_.includeHeader,
     resp,
     setUpMenu,
     kind,

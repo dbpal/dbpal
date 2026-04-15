@@ -55,12 +55,7 @@ import {
   StackRowCenter,
   TypeSelect,
 } from "./CommonComp2";
-import {
-  useColumnWidthStore,
-  useContextMenu,
-  useNotification,
-  useUserSettings,
-} from "./store";
+import { useColumnWidthStore, useContextMenu, useNotification } from "./store";
 import {
   ColumnType,
   commands,
@@ -114,7 +109,6 @@ function ColumnsStructure(props: {
   table: string;
 }) {
   const { uuid, kind, table } = props;
-  const setting = useUserSettings();
   const [loading, setLoading] = useState(false);
   const [fields, setFields] = useState<Field[]>([]);
   const { showNotification } = useNotification();
@@ -278,20 +272,8 @@ function ColumnsStructure(props: {
         },
         style: { cursor: "context-menu" },
       },
-      toolbar: {
-        csvOptions: {
-          delimiter: setting.export_.csvDelimiter,
-          includeHeaders: setting.export_.includeHeader,
-        },
-      },
     } as GridSlotsComponentsProps;
-  }, [
-    handleDrop,
-    setUpMenu,
-    setting.export_.csvDelimiter,
-    setting.export_.includeHeader,
-    supportModifyColumn,
-  ]);
+  }, [handleDrop, setUpMenu, supportModifyColumn]);
 
   const getRowId = useCallback((e) => {
     return e["field"];
@@ -533,7 +515,6 @@ function IndexesStructure(props: {
   table: string;
 }) {
   const { uuid, kind, table } = props;
-  const setting = useUserSettings();
   const [loading, setLoading] = useState(false);
   const [indexes, setIndexes] = useState<Index[]>([]);
   const { showNotification } = useNotification();
@@ -641,20 +622,8 @@ function IndexesStructure(props: {
         },
         style: { cursor: "context-menu" },
       },
-      toolbar: {
-        csvOptions: {
-          delimiter: setting.export_.csvDelimiter,
-          includeHeaders: setting.export_.includeHeader,
-        },
-      },
     } as GridSlotsComponentsProps;
-  }, [
-    handleDrop,
-    indexes,
-    setUpMenu,
-    setting.export_.csvDelimiter,
-    setting.export_.includeHeader,
-  ]);
+  }, [handleDrop, indexes, setUpMenu]);
 
   const [modalBox, setModalBox] = useState(null);
 
@@ -1253,7 +1222,6 @@ function TriggersStructure(props: {
   table: string;
 }) {
   const { uuid, kind, table } = props;
-  const setting = useUserSettings();
   const [loading, setLoading] = useState(false);
   const [triggers, setTriggers] = useState<TriggerDetail[]>([]);
   const [row, setRow] = useState<TriggerDetail>(null);
@@ -1399,21 +1367,8 @@ function TriggersStructure(props: {
         },
         style: { cursor: "context-menu" },
       },
-      toolbar: {
-        csvOptions: {
-          delimiter: setting.export_.csvDelimiter,
-          includeHeaders: setting.export_.includeHeader,
-        },
-      },
     } as GridSlotsComponentsProps;
-  }, [
-    handleDrop,
-    handleEnables,
-    setUpMenu,
-    setting.export_.csvDelimiter,
-    setting.export_.includeHeader,
-    triggers,
-  ]);
+  }, [handleDrop, handleEnables, setUpMenu, triggers]);
 
   const onRowDoubleClick = useCallback((row) => {
     setRow(row.row);
