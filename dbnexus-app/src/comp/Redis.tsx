@@ -1812,8 +1812,6 @@ function CustomPagination() {
         px: 1,
       }}>
       <StackRowCenter>
-        {/* 注意：如果 SliderSize 等组件依赖外部配置，请确保配置可用 */}
-
         <FetchTimeAndDataGrid />
         <SliderSize config={UseSizeConfig.queryLimit} />
         <DoubleClickToModify />

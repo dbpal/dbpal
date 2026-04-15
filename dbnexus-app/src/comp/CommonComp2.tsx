@@ -20,6 +20,7 @@ import ChatBubbleOutlineOutlinedIcon from "@mui/icons-material/ChatBubbleOutline
 import ContentCopyIcon from "@mui/icons-material/ContentCopy";
 import CircleIcon from "@mui/icons-material/Circle";
 import DeleteForeverIcon from "@mui/icons-material/DeleteForever";
+import { GiSandsOfTime } from "react-icons/gi";
 import {
   Autocomplete,
   Box,
@@ -1942,10 +1943,13 @@ function ShowingCount({ showing, total }) {
 
 function FetchTimeAndXXX({ isLoading }) {
   const [fetchTime, setFetchTime] = useState<number | null>(null);
-  const [date, setDate] = useState(new Date());
+  const [date, setDate] = useState<Date>(null);
   const fetchBeginTime = useRef(new Date().getTime());
+  const firstTime = useRef(true);
+
   useEffect(() => {
     if (isLoading) {
+      firstTime.current = false;
       fetchBeginTime.current = new Date().getTime();
       const int = setInterval(() => {
         setFetchTime(new Date().getTime() - fetchBeginTime.current);
@@ -1953,7 +1957,8 @@ function FetchTimeAndXXX({ isLoading }) {
       return () => {
         clearInterval(int);
       };
-    } else {
+    } else if (!firstTime.current) {
+      // means end the loading
       setFetchTime(new Date().getTime() - fetchBeginTime.current);
       setDate(new Date());
     }
@@ -1961,12 +1966,19 @@ function FetchTimeAndXXX({ isLoading }) {
 
   return (
     <>
-      <Typography color="info">{date.toLocaleTimeString()}</Typography>
+      {date && (
+        <Chip
+          color="info"
+          label={date.toLocaleTimeString()}
+          icon={<IoTimerOutline />}
+        />
+      )}
+
       {!!fetchTime && (
         <Chip
           label={prettyMs(fetchTime)}
-          color={fetchTime > 4000 ? "warning" : "info"}
-          icon={<IoTimerOutline fontSize="1.2rem" />}
+          color={fetchTime > 5000 ? "error" : "info"}
+          icon={<GiSandsOfTime />}
         />
       )}
     </>

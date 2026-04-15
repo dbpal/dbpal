@@ -404,13 +404,7 @@ export function CustomPagination({
 }: {
   dbpal: CustomPaginationProps;
 }) {
-  // const apiRef = useGridApiContext();
-
-  // 如果你需要用到 loading 状态来禁用按钮或显示加载中
-  // const isLoading = useGridSelector(apiRef, gridRowsLoadingSelector);
-
   const { showNotification } = useNotification();
-
   return (
     <Stack
       direction="row"
