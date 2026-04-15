@@ -24,7 +24,7 @@ import {
   GridSlotsComponentsProps,
   GridSortModel,
 } from "@mui/x-data-grid";
-import React, { CSSProperties, useCallback, useMemo, useState } from "react";
+import React, { useCallback, useMemo, useState } from "react";
 import { keyNotInTable } from "./Common";
 import ArrowUpwardIcon from "@mui/icons-material/ArrowUpward";
 import ArrowDownwardIcon from "@mui/icons-material/ArrowDownward";
@@ -254,12 +254,6 @@ function getRowId(row) {
   return row[keyNotInTable];
 }
 
-const styleForTrans: CSSProperties = {
-  transition: "all 0.5s ease",
-  position: "relative",
-  overflow: "hidden",
-};
-
 function MultiQueryResp(props: { data: QueryRespData[] }) {
   const { data } = props;
   const [value, setValue] = React.useState(0);
@@ -287,14 +281,13 @@ function MultiQueryResp(props: { data: QueryRespData[] }) {
     setValue(newValue);
   };
   return (
-    <div
+    <Stack
       style={{
         height: "100%",
-        display: "flex",
-        flexDirection: "column",
-        ...styleForTrans,
-      }}>
+      }}
+      direction="row">
       <Tabs
+        orientation="vertical"
         value={value}
         onChange={handleChange}
         variant="scrollable"
@@ -302,9 +295,10 @@ function MultiQueryResp(props: { data: QueryRespData[] }) {
         {data.map((_, index) => (
           <Tab label={`Result ${index + 1}`} key={index} />
         ))}
+        st
       </Tabs>
 
-      <div style={{ height: "100px", flex: 1 }}>
+      <div style={{ height: "100%", width: "100px", flex: 1 }}>
         {data.map((e, index) => {
           return (
             <div hidden={value != index} key={index} style={{ height: "100%" }}>
@@ -317,7 +311,7 @@ function MultiQueryResp(props: { data: QueryRespData[] }) {
           );
         })}
       </div>
-    </div>
+    </Stack>
   );
 }
 
