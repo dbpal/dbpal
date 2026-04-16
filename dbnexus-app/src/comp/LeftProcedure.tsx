@@ -49,7 +49,7 @@ function ProceduresTree() {
   }, [showNotification, uuid]);
 
   const showItems = useMemo(() => {
-    return ps.filter((e) => matchPattern(e.name)).length;
+    return ps.filter((e) => matchPattern(e.name));
   }, [ps, matchPattern]);
 
   const setUpMenu = useContextMenu((state) => state.setUpMenu);
@@ -76,43 +76,38 @@ function ProceduresTree() {
         }}>
         <SiProcessingfoundation />
         <span> procedures </span>
-        <ShowingCount showing={showItems} total={ps.length} />
+        <ShowingCount showing={showItems.length} total={ps.length} />
       </Stack>>
-      {ps
-        .filter((e) => matchPattern(e.name))
-        .map((p, index) => {
-          if (index >= maxTree) {
-            return;
-          }
-          const id = `${uuid}-${p.name}-${p.rand}`;
-          return (
-            <TreeItem
-              key={p.name + "-" + p.parameters}
-              itemId={id}
-              style={{ alignItems: "center" }}
-              label=<Stack
-                direction="row"
-                onContextMenu={(e: MouseEvent<HTMLDivElement>) => {
-                  setUpMenu({
-                    content: (
-                      <ProcedureMenu
-                        reload={reload}
-                        uuid={uuid}
-                        kind={kind}
-                        procedure={p}
-                      />
-                    ),
-                    event: e,
-                  });
-                }}
-                sx={{ alignItems: "center" }}>
-                <SiProcessingfoundation />
-                <UdfNameAndParameters udf={p} kind={kind} />
-              </Stack>
-            />
-          );
-        })}
-      <ExceedMaxTreeItem maxTreeSize={maxTree} showItems={showItems} />
+      {showItems.map((p) => {
+        const id = `${uuid}-${p.name}-${p.rand}`;
+        return (
+          <TreeItem
+            key={p.name + "-" + p.parameters}
+            itemId={id}
+            style={{ alignItems: "center" }}
+            label=<Stack
+              direction="row"
+              onContextMenu={(e: MouseEvent<HTMLDivElement>) => {
+                setUpMenu({
+                  content: (
+                    <ProcedureMenu
+                      reload={reload}
+                      uuid={uuid}
+                      kind={kind}
+                      procedure={p}
+                    />
+                  ),
+                  event: e,
+                });
+              }}
+              sx={{ alignItems: "center" }}>
+              <SiProcessingfoundation />
+              <UdfNameAndParameters udf={p} kind={kind} />
+            </Stack>
+          />
+        );
+      })}
+      <ExceedMaxTreeItem maxTreeSize={maxTree} showItems={showItems.length} />
     </TreeItem>
   );
 }

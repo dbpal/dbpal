@@ -58,7 +58,7 @@ function SequenceTree() {
   }, [showNotification, uuid]);
 
   const showItems = useMemo(() => {
-    return seq.filter((e) => matchPattern(e.name)).length;
+    return seq.filter((e) => matchPattern(e.name));
   }, [seq, matchPattern]);
   const setUpMenu = useContextMenu((state) => state.setUpMenu);
   useEffect(() => {
@@ -84,46 +84,39 @@ function SequenceTree() {
           }}>
           <GrSteps />
           <span> sequences </span>
-          <ShowingCount showing={showItems} total={seq.length} />
+          <ShowingCount showing={showItems.length} total={seq.length} />
         </Stack>
       }>
-      {seq
-        .filter((e) => matchPattern(e.name))
-        .map((seq, index) => {
-          if (index >= maxTree) {
-            return;
-          }
-          const id = `${uuid}-sequence-${seq.name}`;
-          return (
-            <TreeItem
-              key={seq.name}
-              itemId={id}
-              style={{ alignItems: "center" }}
-              label={
-                <Stack
-                  direction="row"
-                  onContextMenu={(e) => {
-                    setUpMenu({
-                      content: (
-                        <SequenceMenu
-                          reload={reload}
-                          uuid={uuid}
-                          kind={kind}
-                          seq={seq}
-                        />
-                      ),
-                      event: e,
-                    });
-                  }}
-                  sx={{ alignItems: "center" }}>
-                  <GrSteps />
-                  <span style={textEllipsisStyle}>{seq.name}</span>
-                </Stack>
-              }
-            />
-          );
-        })}
-      <ExceedMaxTreeItem showItems={showItems} maxTreeSize={maxTree} />
+      {showItems.map((seq, index) => {
+        if (index >= maxTree) {
+          return;
+        }
+        const id = `${uuid}-sequence-${seq.name}`;
+        return (
+          <TreeItem
+            key={seq.name}
+            itemId={id}
+            style={{ alignItems: "center" }}
+            label={
+              <Stack
+                direction="row"
+                onContextMenu={(e) => {
+                  setUpMenu({
+                    content: (
+                      <SequenceMenu reload={reload} uuid={uuid} kind={kind} seq={seq} />
+                    ),
+                    event: e,
+                  });
+                }}
+                sx={{ alignItems: "center" }}>
+                <GrSteps />
+                <span style={textEllipsisStyle}>{seq.name}</span>
+              </Stack>
+            }
+          />
+        );
+      })}
+      <ExceedMaxTreeItem showItems={showItems.length} maxTreeSize={maxTree} />
     </TreeItem>
   );
 }

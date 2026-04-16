@@ -48,7 +48,7 @@ function EventsTree() {
       });
   }, [showNotification, uuid]);
   const showItems = useMemo(() => {
-    return evens.filter((e) => matchPattern(e.name)).length;
+    return evens.filter((e) => matchPattern(e.name));
   }, [evens, matchPattern]);
 
   const setUpMenu = useContextMenu((state) => state.setUpMenu);
@@ -76,44 +76,33 @@ function EventsTree() {
         }}>
         <MdOutlineEventRepeat />
         <span> events </span>
-        <ShowingCount showing={showItems} total={evens.length} />
+        <ShowingCount showing={showItems.length} total={evens.length} />
       </Stack>>
-      {evens
-        .filter((event) => matchPattern(event.name))
-        .map((event, index) => {
-          if (index >= maxTree) {
-            return;
-          }
-
-          const id = `${uuid}-event-${event.name}`;
-          return (
-            <TreeItem
-              key={event.name}
-              itemId={id}
-              style={{ alignItems: "center" }}
-              label=<Stack
-                direction="row"
-                onContextMenu={(e: MouseEvent<HTMLDivElement>) => {
-                  setUpMenu({
-                    content: (
-                      <EventMenu
-                        reload={reload}
-                        uuid={uuid}
-                        kind={kind}
-                        event={event}
-                      />
-                    ),
-                    event: e,
-                  });
-                }}
-                sx={{ alignItems: "center" }}>
-                <MdOutlineEventRepeat />
-                <span style={textEllipsisStyle}> {event.name} </span>
-              </Stack>
-            />
-          );
-        })}
-      <ExceedMaxTreeItem showItems={showItems} maxTreeSize={maxTree} />
+      {showItems.map((event) => {
+        const id = `${uuid}-event-${event.name}`;
+        return (
+          <TreeItem
+            key={event.name}
+            itemId={id}
+            style={{ alignItems: "center" }}
+            label=<Stack
+              direction="row"
+              onContextMenu={(e: MouseEvent<HTMLDivElement>) => {
+                setUpMenu({
+                  content: (
+                    <EventMenu reload={reload} uuid={uuid} kind={kind} event={event} />
+                  ),
+                  event: e,
+                });
+              }}
+              sx={{ alignItems: "center" }}>
+              <MdOutlineEventRepeat />
+              <span style={textEllipsisStyle}> {event.name} </span>
+            </Stack>
+          />
+        );
+      })}
+      <ExceedMaxTreeItem showItems={showItems.length} maxTreeSize={maxTree} />
     </TreeItem>
   );
 }

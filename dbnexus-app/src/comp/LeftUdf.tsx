@@ -35,7 +35,7 @@ function UdfsTree() {
   const { maxTree } = useMatcher();
   const matchPattern = useMatcherFn();
   const showItems = useMemo(() => {
-    return udfs.filter((e) => matchPattern(e.name)).length;
+    return udfs.filter((e) => matchPattern(e.name));
   }, [udfs, matchPattern]);
 
   const reload = useCallback(() => {
@@ -76,37 +76,32 @@ function UdfsTree() {
         }}>
         <TbMathFunction />
         <span> udfs </span>
-        <ShowingCount showing={showItems} total={udfs.length} />
+        <ShowingCount showing={showItems.length} total={udfs.length} />
       </Stack>>
-      {udfs
-        .filter((e) => matchPattern(e.name))
-        .map((udf, index) => {
-          if (index >= maxTree) {
-            return;
-          }
-          const id = `${uuid}-udf-${udf.name} -${udf.rand}`;
-          return (
-            <TreeItem
-              key={index}
-              itemId={id}
-              label=<Stack
-                direction="row"
-                sx={{ alignItems: "center" }}
-                onContextMenu={(e) => {
-                  setUpMenu({
-                    content: (
-                      <UdfMenu reload={reload} uuid={uuid} kind={kind} udf={udf} />
-                    ),
-                    event: e,
-                  });
-                }}>
-                <TbMathFunction />
-                <UdfNameAndParameters udf={udf} kind={kind} />
-              </Stack>
-            />
-          );
-        })}
-      <ExceedMaxTreeItem showItems={showItems} maxTreeSize={maxTree} />
+      {showItems.map((udf) => {
+        const id = `${uuid}-udf-${udf.name} -${udf.rand}`;
+        return (
+          <TreeItem
+            key={id}
+            itemId={id}
+            label=<Stack
+              direction="row"
+              sx={{ alignItems: "center" }}
+              onContextMenu={(e) => {
+                setUpMenu({
+                  content: (
+                    <UdfMenu reload={reload} uuid={uuid} kind={kind} udf={udf} />
+                  ),
+                  event: e,
+                });
+              }}>
+              <TbMathFunction />
+              <UdfNameAndParameters udf={udf} kind={kind} />
+            </Stack>
+          />
+        );
+      })}
+      <ExceedMaxTreeItem showItems={showItems.length} maxTreeSize={maxTree} />
     </TreeItem>
   );
 }
@@ -286,7 +281,7 @@ function CassandraAggregatesTree() {
   const { maxTree } = useMatcher();
   const matchPattern = useMatcherFn();
   const showItems = useMemo(() => {
-    return aggs.filter((e) => matchPattern(e.name)).length;
+    return aggs.filter((e) => matchPattern(e.name));
   }, [aggs, matchPattern]);
 
   useEffect(() => {
@@ -312,46 +307,41 @@ function CassandraAggregatesTree() {
         }}>
         <MdFunctions />
         <span> aggregates </span>
-        <ShowingCount showing={showItems} total={aggs.length} />
+        <ShowingCount showing={showItems.length} total={aggs.length} />
       </Stack>>
-      {aggs
-        .filter((e) => matchPattern(e.name))
-        .map((agg, index) => {
-          if (index >= maxTree) {
-            return;
-          }
-          const id = `${uuid}-agg-${agg.name}-${agg.rand}`;
-          return (
-            <TreeItem
-              key={
-                agg.name +
-                "-" +
-                (agg.cassandra_parameters ? agg.cassandra_parameters.join("-") : "")
-              }
-              itemId={id}
-              label=<Stack
-                direction="row"
-                sx={{ alignItems: "center" }}
-                onContextMenu={(e) => {
-                  setUpMenu({
-                    content: (
-                      <CassandraAggregateMenu
-                        reload={reload}
-                        uuid={uuid}
-                        agg={agg.name}
-                        parameters={agg.cassandra_parameters}
-                      />
-                    ),
-                    event: e,
-                  });
-                }}>
-                <MdFunctions />
-                <UdfNameAndParameters udf={agg} kind={DataSourceKind.Cassandra} />
-              </Stack>
-            />
-          );
-        })}
-      <ExceedMaxTreeItem showItems={showItems} maxTreeSize={maxTree} />
+      {showItems.map((agg) => {
+        const id = `${uuid}-agg-${agg.name}-${agg.rand}`;
+        return (
+          <TreeItem
+            key={
+              agg.name +
+              "-" +
+              (agg.cassandra_parameters ? agg.cassandra_parameters.join("-") : "")
+            }
+            itemId={id}
+            label=<Stack
+              direction="row"
+              sx={{ alignItems: "center" }}
+              onContextMenu={(e) => {
+                setUpMenu({
+                  content: (
+                    <CassandraAggregateMenu
+                      reload={reload}
+                      uuid={uuid}
+                      agg={agg.name}
+                      parameters={agg.cassandra_parameters}
+                    />
+                  ),
+                  event: e,
+                });
+              }}>
+              <MdFunctions />
+              <UdfNameAndParameters udf={agg} kind={DataSourceKind.Cassandra} />
+            </Stack>
+          />
+        );
+      })}
+      <ExceedMaxTreeItem showItems={showItems.length} maxTreeSize={maxTree} />
     </TreeItem>
   );
 }

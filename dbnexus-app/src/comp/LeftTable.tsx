@@ -98,7 +98,7 @@ function TablesTree() {
   const matchPattern = useMatcherFn();
   const tablesId = useRef(uuidv4());
   const showItems = useMemo(() => {
-    return tables.filter((e) => matchPattern(e.name)).length;
+    return tables.filter((e) => matchPattern(e.name));
   }, [tables, matchPattern]);
   const handleReload = useCallback(() => {
     setLoading(true);
@@ -153,27 +153,22 @@ function TablesTree() {
         }}>
         <TableViewIcon />
         <span> {tablesText} </span>
-        <ShowingCount showing={showItems} total={tables.length} />
+        <ShowingCount showing={showItems.length} total={tables.length} />
         {loading && <CircularProgress />}
       </Stack>>
-      {tables
-        .filter((e) => matchPattern(e.name))
-        .map((e, index) => {
-          if (index >= maxTree) {
-            return;
-          }
-          const id = `${uuid}-table-${e.name}-${e.rand}`;
-          return (
-            <TableTree
-              key={e.name}
-              size={e.size}
-              reloadTables={handleReload}
-              table={e.name}
-              id={id}
-            />
-          );
-        })}
-      <ExceedMaxTreeItem showItems={showItems} maxTreeSize={maxTree} />
+      {showItems.map((e) => {
+        const id = `${uuid}-table-${e.name}-${e.rand}`;
+        return (
+          <TableTree
+            key={e.name}
+            size={e.size}
+            reloadTables={handleReload}
+            table={e.name}
+            id={id}
+          />
+        );
+      })}
+      <ExceedMaxTreeItem showItems={showItems.length} maxTreeSize={maxTree} />
     </TreeItem>
   );
 }

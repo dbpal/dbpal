@@ -42,7 +42,7 @@ function TypesTree() {
   }, [showNotification, uuid]);
 
   const showItems = useMemo(() => {
-    return types.filter((e) => matchPattern(e.name)).length;
+    return types.filter((e) => matchPattern(e.name));
   }, [types, matchPattern]);
 
   const setUpMenu = useContextMenu((state) => state.setUpMenu);
@@ -69,43 +69,38 @@ function TypesTree() {
         }}>
         <PiTreeStructureFill />
         <span> types </span>
-        <ShowingCount showing={showItems} total={types.length} />
+        <ShowingCount showing={showItems.length} total={types.length} />
       </Stack>>
-      {types
-        .filter((typ) => matchPattern(typ.name))
-        .map((typ, index) => {
-          if (index >= maxTree) {
-            return;
-          }
-          const id = `${uuid}-type-${typ.name}`;
-          return (
-            <TreeItem
-              key={typ.name}
-              itemId={id}
-              style={{ alignItems: "center" }}
-              label=<Stack
-                direction="row"
-                onContextMenu={(e) => {
-                  setUpMenu({
-                    content: (
-                      <TypeMenu
-                        reload={reload}
-                        uuid={uuid}
-                        kind={kind}
-                        createdType={typ}
-                      />
-                    ),
-                    event: e,
-                  });
-                }}
-                sx={{ alignItems: "center" }}>
-                <PiTreeStructureFill />
-                <span style={textEllipsisStyle}> {typ.name} </span>
-              </Stack>
-            />
-          );
-        })}
-      <ExceedMaxTreeItem showItems={showItems} maxTreeSize={maxTree} />
+      {showItems.map((typ) => {
+        const id = `${uuid}-type-${typ.name}`;
+        return (
+          <TreeItem
+            key={typ.name}
+            itemId={id}
+            style={{ alignItems: "center" }}
+            label=<Stack
+              direction="row"
+              onContextMenu={(e) => {
+                setUpMenu({
+                  content: (
+                    <TypeMenu
+                      reload={reload}
+                      uuid={uuid}
+                      kind={kind}
+                      createdType={typ}
+                    />
+                  ),
+                  event: e,
+                });
+              }}
+              sx={{ alignItems: "center" }}>
+              <PiTreeStructureFill />
+              <span style={textEllipsisStyle}> {typ.name} </span>
+            </Stack>
+          />
+        );
+      })}
+      <ExceedMaxTreeItem showItems={showItems.length} maxTreeSize={maxTree} />
     </TreeItem>
   );
 }

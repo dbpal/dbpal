@@ -73,7 +73,7 @@ function ViewsTree(props: { viewKind: ViewKind }) {
   const { maxTree } = useMatcher();
   const matchPattern = useMatcherFn();
   const showItems = useMemo(() => {
-    return views.filter((e) => matchPattern(e.name)).length;
+    return views.filter((e) => matchPattern(e.name));
   }, [views, matchPattern]);
 
   const handleReload = useCallback(() => {
@@ -123,26 +123,21 @@ function ViewsTree(props: { viewKind: ViewKind }) {
         }}>
         {icon}
         <span> {name} </span>
-        <ShowingCount showing={showItems} total={views.length} />
+        <ShowingCount showing={showItems.length} total={views.length} />
         {loading && <CircularProgress />}
       </Stack>>
-      {views
-        .filter((e) => matchPattern(e.name))
-        .map((e, index) => {
-          if (index >= maxTree) {
-            return;
-          }
-          return (
-            <ViewTree
-              viewKind={viewKind}
-              key={e.name}
-              view={e.name}
-              reload={handleReload}
-              size={e.size}
-            />
-          );
-        })}
-      <ExceedMaxTreeItem showItems={showItems} maxTreeSize={maxTree} />
+      {showItems.map((e) => {
+        return (
+          <ViewTree
+            viewKind={viewKind}
+            key={e.name}
+            view={e.name}
+            reload={handleReload}
+            size={e.size}
+          />
+        );
+      })}
+      <ExceedMaxTreeItem showItems={showItems.length} maxTreeSize={maxTree} />
     </TreeItem>
   );
 }
