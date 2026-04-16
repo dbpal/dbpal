@@ -5,6 +5,7 @@ import {
   useCallback,
   useContext,
   useEffect,
+  useMemo,
   useRef,
   useState,
 } from "react";
@@ -47,9 +48,8 @@ function ProceduresTree() {
       });
   }, [showNotification, uuid]);
 
-  const [showItems, setShowItems] = useState(0);
-  useEffect(() => {
-    setShowItems(ps.filter((e) => matchPattern(e.name)).length);
+  const showItems = useMemo(() => {
+    return ps.filter((e) => matchPattern(e.name)).length;
   }, [ps, matchPattern]);
 
   const setUpMenu = useContextMenu((state) => state.setUpMenu);

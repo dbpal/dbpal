@@ -11,7 +11,7 @@ import {
   Stack,
 } from "@mui/material";
 import { TreeItem } from "@mui/x-tree-view/TreeItem";
-import { useCallback, useContext, useEffect, useRef, useState } from "react";
+import { useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
 import DeleteForeverIcon from "@mui/icons-material/DeleteForever";
 import InfoIcon from "@mui/icons-material/Info";
 import { EscDownEvent, modalHandleClose, modalStyle } from "./Common.ts";
@@ -57,9 +57,8 @@ function SequenceTree() {
       });
   }, [showNotification, uuid]);
 
-  const [showItems, setShowItems] = useState(0);
-  useEffect(() => {
-    setShowItems(seq.filter((e) => matchPattern(e.name)).length);
+  const showItems = useMemo(() => {
+    return seq.filter((e) => matchPattern(e.name)).length;
   }, [seq, matchPattern]);
   const setUpMenu = useContextMenu((state) => state.setUpMenu);
   useEffect(() => {

@@ -5,6 +5,7 @@ import {
   useCallback,
   useContext,
   useEffect,
+  useMemo,
   useRef,
   useState,
 } from "react";
@@ -46,10 +47,8 @@ function EventsTree() {
         showNotification({ severity: "error", title: "list event failed", message: e });
       });
   }, [showNotification, uuid]);
-  const [showItems, setShowItems] = useState(0);
-
-  useEffect(() => {
-    setShowItems(evens.filter((e) => matchPattern(e.name)).length);
+  const showItems = useMemo(() => {
+    return evens.filter((e) => matchPattern(e.name)).length;
   }, [evens, matchPattern]);
 
   const setUpMenu = useContextMenu((state) => state.setUpMenu);

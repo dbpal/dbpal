@@ -69,12 +69,13 @@ function ViewsTree(props: { viewKind: ViewKind }) {
   const [views, setViews] = useState<ListTable[]>([]);
   const { showNotification } = useNotification();
   const [loading, setLoading] = useState(false);
-  const [showItems, setShowItems] = useState(0);
+
   const { maxTree } = useMatcher();
   const matchPattern = useMatcherFn();
-  useEffect(() => {
-    setShowItems(views.filter((e) => matchPattern(e.name)).length);
+  const showItems = useMemo(() => {
+    return views.filter((e) => matchPattern(e.name)).length;
   }, [views, matchPattern]);
+
   const handleReload = useCallback(() => {
     setLoading(true);
     listView(uuid, viewKind)

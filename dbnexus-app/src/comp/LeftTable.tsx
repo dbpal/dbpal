@@ -1,4 +1,12 @@
-import { ReactNode, useCallback, useContext, useEffect, useRef, useState } from "react";
+import {
+  ReactNode,
+  useCallback,
+  useContext,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import { modalStyle, EscDownEvent, modalHandleClose } from "./Common.ts";
 import { TreeItem } from "@mui/x-tree-view/TreeItem";
 import ListIcon from "@mui/icons-material/List";
@@ -85,12 +93,12 @@ function TablesTree() {
   const [tables, setTables] = useState<ListTable[]>([]);
   const { showNotification } = useNotification();
   const [loading, setLoading] = useState(false);
-  const [showItems, setShowItems] = useState(0);
+
   const { maxTree } = useMatcher();
   const matchPattern = useMatcherFn();
   const tablesId = useRef(uuidv4());
-  useEffect(() => {
-    setShowItems(tables.filter((e) => matchPattern(e.name)).length);
+  const showItems = useMemo(() => {
+    return tables.filter((e) => matchPattern(e.name)).length;
   }, [tables, matchPattern]);
   const handleReload = useCallback(() => {
     setLoading(true);

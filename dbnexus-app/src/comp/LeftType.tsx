@@ -1,6 +1,6 @@
 import { ListItemIcon, ListItemText, MenuItem, MenuList, Stack } from "@mui/material";
 import { TreeItem } from "@mui/x-tree-view/TreeItem";
-import { useCallback, useContext, useEffect, useRef, useState } from "react";
+import { useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
 import DeleteForeverIcon from "@mui/icons-material/DeleteForever";
 import InfoIcon from "@mui/icons-material/Info";
 import { DefAndMetasView } from "./DefAndMetaView";
@@ -40,9 +40,9 @@ function TypesTree() {
         showNotification({ severity: "error", title: "list types failed", message: e });
       });
   }, [showNotification, uuid]);
-  const [showItems, setShowItems] = useState(0);
-  useEffect(() => {
-    setShowItems(types.filter((e) => matchPattern(e.name)).length);
+
+  const showItems = useMemo(() => {
+    return types.filter((e) => matchPattern(e.name)).length;
   }, [types, matchPattern]);
 
   const setUpMenu = useContextMenu((state) => state.setUpMenu);

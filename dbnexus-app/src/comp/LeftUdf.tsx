@@ -7,7 +7,7 @@ import {
   Stack,
 } from "@mui/material";
 import { TreeItem } from "@mui/x-tree-view/TreeItem";
-import { useCallback, useContext, useEffect, useRef, useState } from "react";
+import { useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
 import DeleteForeverIcon from "@mui/icons-material/DeleteForever";
 import InfoIcon from "@mui/icons-material/Info";
 import { MdFunctions } from "react-icons/md";
@@ -32,11 +32,10 @@ function UdfsTree() {
 
   const [udfs, setUdfs] = useState<NamedStaff[]>([]);
   const { showNotification } = useNotification();
-  const [showItems, setShowItems] = useState(0);
   const { maxTree } = useMatcher();
   const matchPattern = useMatcherFn();
-  useEffect(() => {
-    setShowItems(udfs.filter((e) => matchPattern(e.name)).length);
+  const showItems = useMemo(() => {
+    return udfs.filter((e) => matchPattern(e.name)).length;
   }, [udfs, matchPattern]);
 
   const reload = useCallback(() => {
@@ -284,12 +283,12 @@ function CassandraAggregatesTree() {
         });
       });
   }, [showNotification, uuid]);
-  const [showItems, setShowItems] = useState(0);
   const { maxTree } = useMatcher();
   const matchPattern = useMatcherFn();
-  useEffect(() => {
-    setShowItems(aggs.filter((e) => matchPattern(e.name)).length);
+  const showItems = useMemo(() => {
+    return aggs.filter((e) => matchPattern(e.name)).length;
   }, [aggs, matchPattern]);
+
   useEffect(() => {
     reload();
   }, [reload]);
