@@ -547,7 +547,6 @@ function SqlQuery(props: {
             showQueryLog={showQueryLog}
             setShowQueryLog={setShowQueryLog}
             uuid={uuid}
-            executeTimes={executeTimes}
             kind={kind}
             queryId={queryId}
           />

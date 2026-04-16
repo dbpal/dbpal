@@ -136,9 +136,9 @@ function details2DefMetas(d: SequenceDetail): DefAndMetas {
 }
 
 function SequenceMenu(props: {
-  uuid;
+  uuid: string;
   seq: SequenceDetail;
-  reload;
+  reload: () => void;
   kind: DataSourceKind;
 }) {
   const { uuid, seq, reload, kind } = props;

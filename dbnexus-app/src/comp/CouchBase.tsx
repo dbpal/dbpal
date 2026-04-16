@@ -584,7 +584,6 @@ function CouchBaseQuery(props: { uuid: string; value?: string }) {
   const { showNotification } = useNotification();
   const [showQueryLog, setShowQueryLog] = useState(false);
   const kind = DataSourceKind.CouchBase;
-  const [executeTimes, setExecuteTimes] = useState(0);
   const [showExport, setShowExport] = useState(false);
   const { viewMode, setViewMode } = useCBQueryViewStore();
   const [tableResp, setTableResp] = useState<MuiDataGridData>(null);
@@ -694,7 +693,6 @@ function CouchBaseQuery(props: { uuid: string; value?: string }) {
       })
       .finally(() => {
         setLoading(false);
-        setExecuteTimes((e) => e + 1);
       });
   };
   return (
@@ -712,7 +710,6 @@ function CouchBaseQuery(props: { uuid: string; value?: string }) {
           showQueryLog={showQueryLog}
           setShowQueryLog={setShowQueryLog}
           uuid={uuid}
-          executeTimes={executeTimes}
           kind={kind}
         />
         <QueryStatus status={queryStatus} />

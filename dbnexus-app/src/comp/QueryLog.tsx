@@ -10,7 +10,7 @@ import {
   Tooltip,
 } from "@mui/material";
 import { DataGrid, GridColDef, GridSlotsComponent } from "@mui/x-data-grid";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { Dispatch, SetStateAction, useEffect, useMemo, useState } from "react";
 import {
   dbpalQuerykey,
   EscDownEvent,
@@ -51,17 +51,13 @@ const initialState: object = {
 function QueryLog(props: {
   uuid: string;
   showQueryLog: boolean;
-  setShowQueryLog: (x: boolean) => void;
-  executeTimes: number;
+  setShowQueryLog: Dispatch<SetStateAction<boolean>>;
   queryId?: string;
   kind: DataSourceKind;
 }) {
-  const { uuid, showQueryLog, setShowQueryLog, executeTimes, queryId, kind } = props;
+  const { uuid, showQueryLog, setShowQueryLog, queryId, kind } = props;
   const [selectSql, setSelectSql] = useState<{ sql: string; language: string }>(null);
   const [logs, setLogs] = useState([]);
-  const onRowDoubleClick = useCallback((e) => {
-    setSelectSql(e.row);
-  }, []);
 
   const { getColumnWidth, setColumnWidth } = useColumnWidthStore();
   const { query, deleteByUuid } = useQueryLogStore();
@@ -131,17 +127,8 @@ function QueryLog(props: {
     if (showQueryLog) {
       handleReload();
     }
-  }, [query, showNotification, showQueryLog, uuid, executeTimes]);
+  }, [query, showNotification, showQueryLog, uuid]);
 
-  const onColumnResize = useCallback(
-    ({ colDef, width }) => {
-      const field = colDef.field;
-      if (field == "create_at" || field == "success") {
-        setColumnWidth(field, width);
-      }
-    },
-    [setColumnWidth],
-  );
   const [modalBox, setModalBox] = useState(null);
   const [dom, setDom] = useState<HTMLDivElement>(null);
   const { getSwitch, setSwitch } = useBoolSwitch();
@@ -250,14 +237,21 @@ function QueryLog(props: {
       </Stack>
       {showQueryLog && logs.length > 0 && (
         <DataGrid
-          onRowDoubleClick={onRowDoubleClick}
+          onRowDoubleClick={(e) => {
+            setSelectSql(e.row);
+          }}
           columns={columns}
           rows={logs}
           slots={slots}
           style={dataGridStyle}
           pageSizeOptions={pageSizeOptions}
           initialState={initialState}
-          onColumnResize={onColumnResize}
+          onColumnResize={({ colDef, width }) => {
+            const field = colDef.field;
+            if (field == "create_at" || field == "success") {
+              setColumnWidth(field, width);
+            }
+          }}
           loading={loading}
         />
       )}

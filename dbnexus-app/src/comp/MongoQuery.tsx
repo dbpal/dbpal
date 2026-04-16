@@ -549,7 +549,6 @@ function MongoQuery(props: {
   const [showQueryLog, setShowQueryLog] = useState(false);
   const [editor, setEditor] = useState<editor.IStandaloneCodeEditor>(null);
   const [pos, setPos] = useState<Position>(null);
-  const [executeTimes, setExecuteTimes] = useState(0);
   const [db] = useState(new MongoDBQuery(uuid));
   const [cleanFns, setCleanFns] = useState<CleanFunction[]>([]);
   const { showNotification } = useNotification();
@@ -622,7 +621,6 @@ function MongoQuery(props: {
       }
       code = out.jsCode;
     }
-    setExecuteTimes((e) => e + 1);
     eval(code);
     showNotification({
       severity: "success",
@@ -637,7 +635,6 @@ function MongoQuery(props: {
         setShowQueryLog={setShowQueryLog}
         uuid={uuid}
         kind={DataSourceKind.Mongo}
-        executeTimes={executeTimes}
       />
       <Stack
         direction="row"

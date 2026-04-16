@@ -95,7 +95,7 @@ function ViewsTree(props: { viewKind: ViewKind }) {
 
   const setUpMenu = useContextMenu((state) => state.setUpMenu);
 
-  let name;
+  let name = "";
   const icon = getIcon(viewKind);
   switch (viewKind) {
     case ViewKind.View:
@@ -194,7 +194,7 @@ function ViewStructure(props: {
   uuid: string;
   view: string;
   viewKind: ViewKind;
-  kind;
+  kind: DataSourceKind;
 }) {
   const { uuid, view, viewKind, kind } = props;
 
@@ -379,7 +379,12 @@ function getIcon(viewKind: ViewKind) {
       return <VisibilityIcon />;
   }
 }
-function ViewTree(props: { view: string; reload; viewKind: ViewKind; size?: number }) {
+function ViewTree(props: {
+  view: string;
+  reload: () => void;
+  viewKind: ViewKind;
+  size?: number;
+}) {
   const { view, reload, viewKind, size } = props;
   const { uuid, kind } = useContext(UuidContext);
   const setUpMenu = useContextMenu((state) => state.setUpMenu);
@@ -421,7 +426,7 @@ function ViewTree(props: { view: string; reload; viewKind: ViewKind; size?: numb
 function ViewMenu(props: {
   view: string;
   uuid: string;
-  reload;
+  reload: () => void;
   kind: DataSourceKind;
   viewKind: ViewKind;
 }) {
