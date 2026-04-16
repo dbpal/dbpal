@@ -106,9 +106,9 @@ function TypesTree() {
 }
 
 function TypeMenu(props: {
-  uuid;
+  uuid: string;
   createdType: CreatedTypeDef;
-  reload;
+  reload: () => void;
   kind: DataSourceKind;
 }) {
   const { uuid, createdType, reload, kind } = props;

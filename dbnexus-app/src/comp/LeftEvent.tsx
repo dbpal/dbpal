@@ -33,11 +33,11 @@ import {
 import { commands, DefAndMetas, SqlEvent } from "./bindings";
 function EventsTree() {
   const { uuid, kind } = useContext(UuidContext);
-  const [evens, setEvents] = useState<SqlEvent[]>([]);
+  const [events, setEvents] = useState<SqlEvent[]>([]);
   const { showNotification } = useNotification();
   const { maxTree } = useMatcher();
   const matchPattern = useMatcherFn();
-  const reload = useCallback((): void => {
+  const reload = useCallback(() => {
     commands
       .listEvent(uuid)
       .then((ts) => {
@@ -48,8 +48,8 @@ function EventsTree() {
       });
   }, [showNotification, uuid]);
   const showItems = useMemo(() => {
-    return evens.filter((e) => matchPattern(e.name));
-  }, [evens, matchPattern]);
+    return events.filter((e: SqlEvent) => matchPattern(e.name));
+  }, [events, matchPattern]);
 
   const setUpMenu = useContextMenu((state) => state.setUpMenu);
 
@@ -76,7 +76,7 @@ function EventsTree() {
         }}>
         <MdOutlineEventRepeat />
         <span> events </span>
-        <ShowingCount showing={showItems.length} total={evens.length} />
+        <ShowingCount showing={showItems.length} total={events.length} />
       </Stack>>
       {showItems.map((event) => {
         const id = `${uuid}-event-${event.name}`;
@@ -107,12 +107,14 @@ function EventsTree() {
   );
 }
 
-function EventMenu(props: {
+type EventMenuProps = {
   uuid: string;
   event: SqlEvent;
   reload: () => void;
   kind: DataSourceKind;
-}) {
+};
+
+function EventMenu(props: EventMenuProps) {
   const { uuid, event, reload, kind } = props;
   const { appendTab } = useTabsManage();
   const { showNotification } = useNotification();
