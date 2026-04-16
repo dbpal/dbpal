@@ -7,11 +7,9 @@ import {
   useRef,
   useState,
 } from "react";
-import { modalStyle, EscDownEvent, modalHandleClose } from "./Common";
 import ContentCopyIcon from "@mui/icons-material/ContentCopy";
 import { IoConstructOutline } from "react-icons/io5";
 import {
-  Box,
   Button,
   ButtonGroup,
   CircularProgress,
@@ -20,7 +18,6 @@ import {
   ListItemText,
   MenuItem,
   MenuList,
-  Modal,
   Stack,
   Typography,
 } from "@mui/material";
@@ -564,23 +561,14 @@ function ViewMenu(props: {
       </MenuList>
 
       {showExport && (
-        <Modal
-          open={showExport}
-          onClose={modalHandleClose((e: EscDownEvent) => {
-            e.preventDefault();
+        <ExportTableOrView
+          uuid={uuid}
+          name={view}
+          supportKind={getSupportExportKind(kind, false)}
+          handleClose={() => {
             setShowExport(false);
-          })}>
-          <Box sx={{ ...modalStyle, width: "45%" }}>
-            <ExportTableOrView
-              uuid={uuid}
-              name={view}
-              supportKind={getSupportExportKind(kind, false)}
-              handleClose={() => {
-                setShowExport(false);
-              }}
-            />
-          </Box>
-        </Modal>
+          }}
+        />
       )}
     </div>
   );

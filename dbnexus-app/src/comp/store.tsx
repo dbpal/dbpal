@@ -1343,6 +1343,9 @@ interface ExportConfigState {
   includeTableSchema: boolean;
 
   setIncludeTableSchema: (includeTableSchema: boolean) => void;
+
+  exportKind: string;
+  setExportKind: (_: string) => void;
 }
 
 export const useExportConfigStore = create<ExportConfigState>()(
@@ -1353,6 +1356,11 @@ export const useExportConfigStore = create<ExportConfigState>()(
       includeHeader: true,
       jsonPretty: true,
       includeTableSchema: true,
+      exportKind: "csv",
+
+      setExportKind(exportKind) {
+        set({ exportKind });
+      },
 
       setIncludeTableSchema(includeTableSchema) {
         set({ includeTableSchema });

@@ -42,7 +42,6 @@ function IncludeHeader({ includeHeader, setIncludeHeader }) {
   );
 }
 
-let lastExportKind = "csv";
 function ExportView(props: {
   name: string;
   exportOP: (
@@ -55,8 +54,6 @@ function ExportView(props: {
   handleClose: () => void;
 }) {
   const { exportOP, supportKind, name, handleClose } = props;
-  const lastKind = supportKind.find((k) => k === lastExportKind);
-  const [kind, setKind] = useState(lastExportKind ? lastKind : supportKind[0]);
 
   const {
     includeHeader,
@@ -67,18 +64,17 @@ function ExportView(props: {
     setJsonPretty,
     includeTableSchema,
     setIncludeTableSchema,
+    exportKind,
+    setExportKind,
   } = useExportConfigStore();
 
   const { showNotification } = useNotification();
   const [loading, setLoading] = useState(false);
   const [file, setFile] = useState<string | null>(null);
   const taskId = useRef(uuidv4());
-  useEffect(() => {
-    lastExportKind = kind;
-  }, [kind]);
   const exportedSize = useRef(null);
   const makeConfig = (): ExportKind | null => {
-    switch (kind) {
+    switch (exportKind) {
       case "csv":
         if (delimiter.length > 1) {
           showNotification({
@@ -107,13 +103,18 @@ function ExportView(props: {
     }
   };
 
+  useEffect(() => {
+    if (!supportKind.find((e) => e == exportKind)) {
+      setExportKind(supportKind[0]);
+    }
+  }, [exportKind, setExportKind, supportKind]);
   const handleExport = async () => {
     const config = makeConfig();
     if (!config) {
       return;
     }
     const file = await save({
-      defaultPath: generateDefaultFilename(name, kind),
+      defaultPath: generateDefaultFilename(name, exportKind),
     });
     if (!file) {
       return;
@@ -136,7 +137,7 @@ function ExportView(props: {
   };
   useEffect(() => {
     setFile("");
-  }, [kind]);
+  }, [exportKind]);
   return (
     <Modal
       open={true}
@@ -162,15 +163,15 @@ function ExportView(props: {
           {supportKind.map((e) => (
             <Chip
               onClick={() => {
-                setKind(e);
+                setExportKind(e);
               }}
               key={e}
               label={e}
-              color={e == kind ? "success" : "default"}
+              color={e == exportKind ? "success" : "default"}
             />
           ))}
         </Stack>
-        {kind == "csv" && (
+        {exportKind == "csv" && (
           <Stack>
             <IncludeHeader
               includeHeader={includeHeader}
@@ -189,7 +190,7 @@ function ExportView(props: {
             </Stack>
           </Stack>
         )}
-        {kind == "xlsx" && (
+        {exportKind == "xlsx" && (
           <Stack>
             <IncludeHeader
               includeHeader={includeHeader}
@@ -197,7 +198,7 @@ function ExportView(props: {
             />
           </Stack>
         )}
-        {kind == "sql" && (
+        {exportKind == "sql" && (
           <Stack>
             <FormControlLabel
               control={
@@ -214,7 +215,7 @@ function ExportView(props: {
             />
           </Stack>
         )}
-        {kind == "json" && (
+        {exportKind == "json" && (
           <Stack>
             <FormControlLabel
               control={
@@ -233,9 +234,9 @@ function ExportView(props: {
         )}
         {/* json line have no settings */}
 
-        {kind == "jsonline" && <></>}
+        {exportKind == "jsonline" && <></>}
 
-        {kind == "html" && (
+        {exportKind == "html" && (
           <IncludeHeader
             includeHeader={includeHeader}
             setIncludeHeader={setIncludeHeader}

@@ -1091,24 +1091,15 @@ function SqlTableView(props: {
         />
       )}
       {showExport && (
-        <Modal
-          open={showExport}
-          onClose={modalHandleClose((e: EscDownEvent) => {
-            e.preventDefault();
+        <ExportTableOrView
+          uuid={uuid}
+          name={tableName}
+          supportKind={getSupportExportKind(kind, isTable)}
+          handleClose={() => {
             setShowExport(false);
-          })}>
-          <Box sx={{ ...modalStyle, width: "60%" }}>
-            <ExportTableOrView
-              uuid={uuid}
-              name={tableName}
-              supportKind={getSupportExportKind(kind, isTable)}
-              handleClose={() => {
-                setShowExport(false);
-              }}
-              para={makePara()}
-            />
-          </Box>
-        </Modal>
+          }}
+          para={makePara()}
+        />
       )}
       {showSetWhere && (
         <SetFilterSort

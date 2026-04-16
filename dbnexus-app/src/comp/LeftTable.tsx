@@ -693,23 +693,14 @@ function TableMenu(props: {
         </Modal>
       )}
       {showExport && (
-        <Modal
-          open={showExport}
-          onClose={modalHandleClose((e: EscDownEvent) => {
-            e.preventDefault();
+        <ExportTableOrView
+          handleClose={() => {
             setShowExport(false);
-          })}>
-          <Box sx={{ ...modalStyle, width: "45%" }}>
-            <ExportTableOrView
-              handleClose={() => {
-                setShowExport(false);
-              }}
-              uuid={uuid}
-              name={table}
-              supportKind={getSupportExportKind(kind, true)}
-            />
-          </Box>
-        </Modal>
+          }}
+          uuid={uuid}
+          name={table}
+          supportKind={getSupportExportKind(kind, true)}
+        />
       )}
 
       {showDrop && (
