@@ -275,7 +275,6 @@ fn encode_row(row: &tiberius::Row) -> anyhow::Result<Vec<Option<String>>> {
     anyhow::Ok(values)
 }
 
-// TODO sqlparse don't support parse trigger statement
 // use lexer to solve this issue.
 fn extract_trigger_event_base_on_lexer(sql: &str) -> anyhow::Result<TriggerEvent> {
     let t = sqlparser::tokenizer::Tokenizer::new(&sqlparser::dialect::MsSqlDialect {}, sql)

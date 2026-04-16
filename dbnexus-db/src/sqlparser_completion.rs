@@ -200,7 +200,7 @@ impl TableEntered {
                     match table.0.last().expect("table have at least one part") {
                         ObjectNamePart::Identifier(ident) => Some(ident),
                         ObjectNamePart::Function(object_name_part_function) => {
-                            // TODO
+                            // TODO  snowflack not support
                             Some(&object_name_part_function.name)
                         }
                     }
@@ -729,7 +729,7 @@ impl<'a> CompletionStatement<'a> {
                         1 => match auth.0.last().expect("we have checked the length") {
                             ObjectNamePart::Identifier(ident) => self.c_on_role(ident).await,
                             ObjectNamePart::Function(..) => {
-                                // TODO
+                                // TODO  snowflack not support
                             }
                         },
                         _ => {
@@ -1068,9 +1068,7 @@ impl<'a> CompletionStatement<'a> {
                             self.result = Some(results)
                         }
                     }
-                    Use::Warehouse(..) => {
-                        // TODO
-                    }
+                    Use::Warehouse(..) => {}
                     Use::Role(object_name) => self.c_on_role_objectname(object_name).await,
                     Use::SecondaryRoles(..) => {
                         // USE SECONDARY ROLES ALL 是 Snowflake 数据库的 SQL 语句
@@ -2103,9 +2101,7 @@ impl<'a> CompletionStatement<'a> {
                 }
                 *tables_or_views = Some(views.clone());
             }
-            GrantObjects::Warehouses(..) => {
-                // TODO
-            }
+            GrantObjects::Warehouses(..) => {}
             GrantObjects::Integrations(..) => {
                 // I don't know what is it
             }

@@ -91,8 +91,16 @@ function triggerDetailsToMetas(x: TriggerDetail): MetaValue[] {
   };
 
   const ret: MetaValue[] = [
-    // todo timing can be object
-    { name: "timing", value: x.timing as string },
+    {
+      name: "timing",
+      value: (function () {
+        if (typeof x.timing == "object") {
+          return x.timing.String;
+        } else {
+          return x.timing;
+        }
+      })(),
+    },
     { name: "event", value: x.event },
   ];
   if (x.enable) {

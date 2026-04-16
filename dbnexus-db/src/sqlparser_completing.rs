@@ -226,9 +226,7 @@ impl<'a> CompletionStatement<'a> {
                 }
             }
 
-            DataType::Custom(_object_name, ..) => {
-                // TODO list type???
-            }
+            DataType::Custom(..) => {}
             DataType::Array(array_elem_type_def) => match array_elem_type_def {
                 ArrayElemTypeDef::None => {}
                 ArrayElemTypeDef::AngleBracket(data_type)
@@ -420,7 +418,7 @@ impl<'a> CompletionStatement<'a> {
                     match name.0.first().expect("we have checked the name length") {
                         ObjectNamePart::Identifier(ident) => ident,
                         ObjectNamePart::Function(object_name_part_function) => {
-                            // TODO
+                            // TODO snowflack not support
                             &object_name_part_function.name
                         }
                     },
@@ -619,9 +617,7 @@ impl<'a> CompletionStatement<'a> {
                     }
                 }
             }
-            ObjectType::Stream => {
-                // TODO
-            }
+            ObjectType::Stream => {}
         }
     }
     pub(crate) async fn c_on_sequence(&mut self, name: &ObjectName) {
@@ -1257,9 +1253,7 @@ impl<'a> CompletionStatement<'a> {
             AlterTableOperation::ResumeRecluster => {}
             AlterTableOperation::Algorithm { .. } => {}
             AlterTableOperation::AutoIncrement { .. } => {}
-            AlterTableOperation::DropForeignKey { .. } => {
-                //  TODO support this.
-            }
+            AlterTableOperation::DropForeignKey { .. } => {}
             AlterTableOperation::DropIndex { name } => {
                 // 这里没有限定表 不过列出一个数据库下所有的index应该也是没有问题的
                 self.c_on_index(&ObjectName(vec![ObjectNamePart::Identifier(name.clone())]))
@@ -1416,7 +1410,7 @@ impl<'a> CompletionStatement<'a> {
             .map(|x| match x {
                 ObjectNamePart::Identifier(ident) => ident.clone(),
                 ObjectNamePart::Function(object_name_part_function) => {
-                    // TODO
+                    // TODO  snowflack not support
                     object_name_part_function.name.clone()
                 }
             })
