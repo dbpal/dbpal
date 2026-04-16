@@ -69,7 +69,7 @@ function TypesTree() {
         }}>
         <PiTreeStructureFill />
         <span> types </span>
-        <ShowingCount showing={showItems} total={length} />
+        <ShowingCount showing={showItems} total={types.length} />
       </Stack>>
       {types
         .filter((typ) => matchPattern(typ.name))
