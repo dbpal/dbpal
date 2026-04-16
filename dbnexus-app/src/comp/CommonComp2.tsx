@@ -1628,7 +1628,7 @@ function SetFilterSort(props: {
     : function (uuid: string, sql: string) {
         return commands.extractTableSelectSort(uuid, sql);
       };
-  tableName = quoteDatabaseIdentifier(kind)(tableName);
+  tableName = quoteDatabaseIdentifier(tableName, kind);
   const [editor, setEditor] = useState<editor.IStandaloneCodeEditor>(null);
   const [modalBox, setModalBox] = useState(null);
   const { showNotification } = useNotification();

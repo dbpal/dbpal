@@ -241,22 +241,20 @@ enum DataSourceKind {
   CouchBase = "couchbase",
 }
 
-function quoteDatabaseIdentifier(x: DataSourceKind) {
-  return (identifier: string) => {
-    let q = "";
-    switch (x) {
-      case DataSourceKind.MariaDB:
-      case DataSourceKind.TiDB:
-      case DataSourceKind.Mysql:
-      case DataSourceKind.ClickHouse:
-        q = "`";
-        break;
-      default:
-        q = '"';
-        break;
-    }
-    return q + identifier + q;
-  };
+function quoteDatabaseIdentifier(identifier: string, kind: DataSourceKind): string {
+  let q = "";
+  switch (kind) {
+    case DataSourceKind.MariaDB:
+    case DataSourceKind.TiDB:
+    case DataSourceKind.Mysql:
+    case DataSourceKind.ClickHouse:
+      q = "`";
+      break;
+    default:
+      q = '"';
+      break;
+  }
+  return q + identifier + q;
 }
 
 function connTypeToDataSourceKind(name: string): DataSourceKind {

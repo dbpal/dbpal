@@ -800,7 +800,7 @@ function SqlTableView(props: {
         return;
       }
       setSort(
-        `${quoteDatabaseIdentifier(kind)(sort.field)} ${sort.sort.toUpperCase()}`,
+        `${quoteDatabaseIdentifier(sort.field, kind)} ${sort.sort.toUpperCase()}`,
       );
     },
     [kind],
@@ -1328,11 +1328,10 @@ function Menu(props: {
     [uuid, tableName],
   );
 
-  const quoteFn = quoteDatabaseIdentifier(kind);
   const { showNotification } = useNotification();
   const [showFilter, setShowFilter] = useState(false);
   const [showClone, setShowClone] = useState(false);
-  const quoteField = quoteFn(field);
+  const quoteField = quoteDatabaseIdentifier(field, kind);
   const [cloneModalBox, setCloneModalBox] = useState(null);
 
   return (
@@ -1541,7 +1540,7 @@ function FilterOnValue(props: {
   }, [content, putValueInSql, showNotification]);
 
   const where = () => {
-    const quoteField = quoteDatabaseIdentifier(kind)(field);
+    const quoteField = quoteDatabaseIdentifier(field, kind);
     if (compare == "null") {
       return `${quoteField} IS NULL`;
     }
