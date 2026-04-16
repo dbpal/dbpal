@@ -1,4 +1,4 @@
-import { ReactNode, useCallback, useEffect, useState } from "react";
+import { ReactNode, useCallback, useEffect, useMemo, useState } from "react";
 import { FaFolderOpen } from "react-icons/fa";
 import { isEqual } from "lodash-es";
 import * as monaco from "monaco-editor";
@@ -85,7 +85,6 @@ function AppearanceSetting() {
     appearance.datagridRowHeightFactor,
   );
   const [intputVariant, setInputVariant] = useState(appearance.intputVariant);
-  const [modified, setModified] = useState(false);
   const [theme, setTheme] = useState(appearance.theme);
   const [zoom, setZoom] = useState(appearance.zoom);
 
@@ -130,8 +129,8 @@ function AppearanceSetting() {
     zoom,
   ]);
 
-  useEffect(() => {
-    setModified(!isEqual(appearance, makeConfig()));
+  const modified = useMemo(() => {
+    return !isEqual(appearance, makeConfig());
   }, [makeConfig, appearance]);
 
   const handleSave = () => {
@@ -330,7 +329,6 @@ function EditorSetting() {
   const [customEditorTheme, setCustomEditorTheme] = useState(editor.theme);
   const [highLightTheme, setHighlightTheme] = useState("");
   const { showNotification } = useNotification();
-  const [modified, setModified] = useState(false);
 
   const makeConfig = useCallback(() => {
     const obj = {
@@ -354,8 +352,8 @@ function EditorSetting() {
     }
   };
 
-  useEffect(() => {
-    setModified(!isEqual(editor, makeConfig()));
+  const modified = useMemo(() => {
+    return !isEqual(editor, makeConfig());
   }, [makeConfig, editor]);
 
   return (
@@ -472,7 +470,6 @@ function LLMSetting(props: { handleClose?: () => void }) {
   const [topP, setTopP] = useState(oldSetting.topP ? oldSetting.topP + "" : "");
   const [moddelCan, setModdelCan] = useState<ModelDef[]>([]);
   const [helloTime, setHelloTime] = useState(0);
-  const [modified, setModified] = useState(false);
 
   const [searchEngine, setSearchEngine] = useState<AiOnlineSearch>(
     oldSetting.search_engin,
@@ -492,8 +489,8 @@ function LLMSetting(props: { handleClose?: () => void }) {
     return config;
   }, [apiKey, baseUrl, maxToken, model, searchEngine, temperature, topP]);
 
-  useEffect(() => {
-    setModified(!isEqual(oldSetting, makeConfig()));
+  const modified = useMemo(() => {
+    return !isEqual(oldSetting, makeConfig());
   }, [makeConfig, oldSetting]);
 
   const handleSave = async () => {
@@ -779,7 +776,6 @@ function MiscSetting() {
 
 function ProxySetting() {
   const { updateProxy, proxy } = useUserSettings();
-  const [modified, setModified] = useState(false);
 
   const [http, setHttp] = useState(proxy.http);
   const [https, setHttps] = useState(proxy.https);
@@ -791,8 +787,8 @@ function ProxySetting() {
     return { http, all, https, no } as Partial<UserSettings["proxy"]>;
   }, [all, http, https, no]);
 
-  useEffect(() => {
-    setModified(!isEqual(proxy, makeConfig()));
+  const modified = useMemo(() => {
+    return !isEqual(proxy, makeConfig());
   }, [makeConfig, proxy]);
 
   const handleSave = async () => {
