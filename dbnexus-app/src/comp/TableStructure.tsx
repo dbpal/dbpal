@@ -1166,7 +1166,7 @@ function triggerIsEnable(enable: TriggerEnable): boolean {
 function TriggerMenu(props: {
   content: string;
   detail: TriggerDetail;
-  handleEnables: (operation: "enable_trigger" | "disable_trigger", triggerName: string, title: string) => void;
+  handleEnables: (triggerName: string, enable: boolean) => void;
   handleDrop: (trigger: string) => void;
 }) {
   const { content, detail, handleEnables, handleDrop } = props;
@@ -1177,7 +1177,7 @@ function TriggerMenu(props: {
       <MenuItem
         sx={{ color: "error.main" }}
         onClick={() => {
-          handleEnables("disable_trigger", detail.name, "Disable trigger");
+          handleEnables(detail.name, false);
         }}>
         <ListItemIcon>
           <CancelIcon />
@@ -1187,7 +1187,7 @@ function TriggerMenu(props: {
     ) : (
       <MenuItem
         onClick={() => {
-          handleEnables("enable_trigger", detail.name, "Enable trigger");
+          handleEnables(detail.name, true);
         }}>
         <ListItemIcon>
           <CheckCircleIcon />
@@ -1297,8 +1297,8 @@ function TriggersStructure(props: {
   );
 
   const handleEnables = useCallback(
-    (operation: "enable_trigger" | "disable_trigger", triggerName: string, title: string) => {
-      const enable = operation === "enable_trigger";
+    (triggerName: string, enable: boolean) => {
+      let title = enable ? "Enable" : "Disable";
       commands
         .enableTrigger(uuid, table, triggerName, enable)
         .then((sql) => {

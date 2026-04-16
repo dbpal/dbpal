@@ -1008,6 +1008,7 @@ function SqlTableView(props: {
           }}
         />
       ))}
+
       <DataGrid
         isCellEditable={() => {
           return isTable;

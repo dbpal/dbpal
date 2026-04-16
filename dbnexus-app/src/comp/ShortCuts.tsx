@@ -54,6 +54,8 @@ function getKeyShorts(): { name: string; shorts: string }[] {
     { name: "zoom in", shorts: `${CMD}++` }, // 使用 ++ 表示加号键
     { name: "zoom out", shorts: `${CMD}+-` },
     { name: "editor markdown", shorts: `${CMD}+B` },
+    { name: "prev page", shorts: `${CMD}+ArrowUp` },
+    { name: "next page", shorts: `${CMD}+ArrowDown` },
   ];
 
   // 针对非 Mac 平台的特殊补充

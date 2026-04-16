@@ -464,6 +464,20 @@ class KeyPressed {
   static editorMarkdown(e: KeyboardEvent) {
     return KeyPressed.matchControl(e, "b");
   }
+
+  static prevPage(e: KeyboardEvent) {
+    return (
+      (isMacOs() && e.metaKey && e.key === "ArrowUp") ||
+      (!isMacOs() && e.ctrlKey && e.key === "ArrowUp")
+    );
+  }
+
+  static nextPage(e: KeyboardEvent) {
+    return (
+      (isMacOs() && e.metaKey && e.key === "ArrowDown") ||
+      (!isMacOs() && e.ctrlKey && e.key === "ArrowDown")
+    );
+  }
 }
 
 function isMacOs() {

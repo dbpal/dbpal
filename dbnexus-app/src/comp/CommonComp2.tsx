@@ -1571,6 +1571,7 @@ function AppDataGridToolBar(props: {
         borderRadius: "4px",
         padding: "2px 4px",
       }}>
+      <DataGridPageKeyboardControl />
       <StackRowCenter>{left}</StackRowCenter>
       {title && <Typography variant="h5">{title}</Typography>}
       <Stack direction="row" style={{ alignItems: "center" }}>
@@ -2056,6 +2057,39 @@ function FetchTimeAndDataGrid() {
   return <FetchTimeAndXXX isLoading={isLoading} />;
 }
 
+function DataGridPageKeyboardControl() {
+  const vis = useContext(TabActiveContext);
+  const apiRef = useGridApiContext();
+
+  useEffect(() => {
+    const callback = (e: KeyboardEvent) => {
+      if (!vis) return;
+      const paginationModel = apiRef.current.state.pagination.paginationModel;
+      const pageCount = Math.ceil(
+        apiRef.current.state.rows.totalRowCount / paginationModel.pageSize,
+      );
+      if (KeyPressed.nextPage(e)) {
+        if (paginationModel.page < pageCount - 1) {
+          apiRef.current.setPage(paginationModel.page + 1);
+          e.preventDefault();
+        }
+      }
+      if (KeyPressed.prevPage(e)) {
+        if (paginationModel.page > 0) {
+          e.preventDefault();
+          apiRef.current.setPage(paginationModel.page - 1);
+        }
+      }
+    };
+    document.addEventListener("keydown", callback);
+    return () => {
+      document.removeEventListener("keydown", callback);
+    };
+  }, [apiRef, vis]);
+
+  return <> </>;
+}
+
 export {
   FetchTimeAndDataGrid,
   FetchTimeAndXXX,
@@ -2092,4 +2126,5 @@ export {
   AiMarkdownModel,
   AiMarkdownModelSwitch,
   EscPressedDo,
+  DataGridPageKeyboardControl,
 };
