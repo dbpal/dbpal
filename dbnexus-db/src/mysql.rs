@@ -4,10 +4,11 @@ use crate::db::{
     escape_sql_str, export_query_as_xlsx_send_data, AutoCompletionQueryId, BackendKind,
     BackendKindMysql, CheckConn, ColumnType, CreateIndexReq, CreateSchemaExtra,
     CreateTableAndIndexSql, DBTrait, DefAndMetas, ExportFrame, ExportKind, ExportQueryResult,
-    Field, GetBackendKind, GetTestExportTableKinds, Index, IndexKind, ListTable, MetaValue,
-    NamedStaff, OptionMustBeSomeErr, ProcedureDetail, QueryEvent, QueryEventEmitter, QueryResp,
-    QuerySql, SchemaTrait, SequenceDetail, ServerMetas, ShowTableParameter, SqlBuilder, SqlCollect,
-    SqlEvent, TriggerDetail, TriggerEvent, TriggerTiming, XlsxEdit, POOL_MAX_CONNECTIONS,
+    Field, FirstTrue, GetBackendKind, GetTestExportTableKinds, Index, IndexKind, ListTable,
+    MetaValue, NamedStaff, OptionMustBeSomeErr, ProcedureDetail, QueryEvent, QueryEventEmitter,
+    QueryResp, QuerySql, SchemaTrait, SequenceDetail, ServerMetas, ShowTableParameter, SqlBuilder,
+    SqlCollect, SqlEvent, TriggerDetail, TriggerEvent, TriggerTiming, XlsxEdit,
+    POOL_MAX_CONNECTIONS,
 };
 use crate::helper::create_csv;
 use crate::language_server::LexerCompletionTrait;
@@ -937,11 +938,11 @@ impl SchemaTrait for MysqlDB {
             .await?;
         emit.send("trying to query data.".into())?;
         let mut stream = sqlx::raw_sql(AssertSqlSafe(sql.as_str())).fetch(conn.deref_mut());
-        let mut first = true;
+        let first = FirstTrue::default();
+
         while let Some(row) = stream.next().await {
             let row = row?;
-            if first {
-                first = false;
+            if first.get() {
                 emit.send(
                     QueryResp {
                         total,
@@ -954,7 +955,7 @@ impl SchemaTrait for MysqlDB {
             }
             emit.send(encode_row(&row, true)?.into())?;
         }
-        if first {
+        if first.get() {
             let fields = self.infer_fields_by_sql(&sql).await?;
             emit.send(
                 QueryResp {
@@ -1488,7 +1489,8 @@ impl ExportQueryResult for MysqlDB {
         };
         let mut conn = conn.lock().await;
         let mut conn = conn.deref_mut();
-        let mut first = true;
+        let first = FirstTrue::default();
+
         let mut stream = sqlx::raw_sql(AssertSqlSafe(sql)).fetch(conn.deref_mut());
         let mut row_num = 0;
         while let Some(row) = stream.next().await {
@@ -1498,8 +1500,7 @@ impl ExportQueryResult for MysqlDB {
                     include_header,
                     delimiter,
                 } => {
-                    if first && include_header {
-                        first = false;
+                    if first.get() && include_header {
                         let fs = row
                             .columns()
                             .iter()
@@ -1519,8 +1520,7 @@ impl ExportQueryResult for MysqlDB {
                     anyhow::bail!("can't export query result as sql")
                 }
                 ExportKind::Xlsx { include_header } => {
-                    if first && include_header {
-                        first = false;
+                    if first.get() && include_header {
                         for (index, col) in row.columns().iter().enumerate() {
                             let col = col.name();
                             sender
@@ -1541,8 +1541,7 @@ impl ExportQueryResult for MysqlDB {
                     export_query_as_xlsx_send_data(&mut row_num, data, sender.clone()).await?;
                 }
                 ExportKind::Html { include_header } => {
-                    if first && include_header {
-                        first = false;
+                    if first.get() && include_header {
                         let fs = row
                             .columns()
                             .iter()
@@ -1554,8 +1553,7 @@ impl ExportQueryResult for MysqlDB {
                     sender.send(create_html_table_data(&[data]).into()).await?;
                 }
                 ExportKind::MarkDown => {
-                    if first {
-                        first = false;
+                    if first.get() {
                         let fs = row
                             .columns()
                             .iter()

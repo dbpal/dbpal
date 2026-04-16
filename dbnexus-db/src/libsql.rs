@@ -13,8 +13,8 @@ use crate::db::{
     create_html_table_data, create_html_table_header, create_markdown_data, create_markdown_header,
     escape_sql_str, export_query_as_xlsx_send_data, AutoCompletionQueryId, BackendKind, CheckConn,
     ColumnType, CreateIndexReq, CreateTableAndIndexSql, ExportFrame, ExportKind, ExportQueryResult,
-    Field, GetBackendKind, GetTestExportTableKinds, Index, IndexKind, ListTable, MetaValue,
-    NamedStaff, OptionMustBeSomeErr, QueryEvent, QueryEventEmitter, QueryResp, QuerySql,
+    Field, FirstTrue, GetBackendKind, GetTestExportTableKinds, Index, IndexKind, ListTable,
+    MetaValue, NamedStaff, OptionMustBeSomeErr, QueryEvent, QueryEventEmitter, QueryResp, QuerySql,
     ReadOnlyTrait, SchemaTrait, ServerMetas, ShowTableParameter, SqlBuilder, TriggerDetail,
     XlsxEdit, POOL_MAX_CONNECTIONS,
 };
@@ -80,7 +80,8 @@ impl ExportQueryResult for LibSqlDB {
             }
         };
         let mut stream = conn.query(sql, params!()).await?;
-        let mut first = true;
+        let first = FirstTrue::default();
+
         let mut row_num = 0;
         while let Some(row) = stream.next().await? {
             match kind {
@@ -88,8 +89,7 @@ impl ExportQueryResult for LibSqlDB {
                     include_header,
                     delimiter,
                 } => {
-                    if first && include_header {
-                        first = false;
+                    if first.get() && include_header {
                         let fs = get_row_type(&row);
                         let fs = fs
                             .into_iter()
@@ -107,8 +107,7 @@ impl ExportQueryResult for LibSqlDB {
                 }
                 ExportKind::Sql { .. } => anyhow::bail!("can't export query result to sql"),
                 ExportKind::Xlsx { include_header } => {
-                    if first && include_header {
-                        first = false;
+                    if first.get() && include_header {
                         for index in 0..row.column_count() {
                             sender
                                 .send(
@@ -130,8 +129,7 @@ impl ExportQueryResult for LibSqlDB {
                     export_query_as_xlsx_send_data(&mut row_num, data, sender.clone()).await?;
                 }
                 ExportKind::Html { include_header } => {
-                    if first && include_header {
-                        first = false;
+                    if first.get() && include_header {
                         let fs = get_row_type(&row);
                         let fs = fs.into_iter().map(|x| x.field).collect::<Vec<_>>();
                         sender.send(create_html_table_header(&fs).into()).await?;
@@ -140,8 +138,7 @@ impl ExportQueryResult for LibSqlDB {
                     sender.send(create_html_table_data(&[data]).into()).await?;
                 }
                 ExportKind::MarkDown => {
-                    if first {
-                        first = false;
+                    if first.get() {
                         let fs = get_row_type(&row);
                         let fs = fs.into_iter().map(|x| x.field).collect::<Vec<_>>();
                         sender.send(create_markdown_header(&fs).into()).await?;
@@ -257,10 +254,10 @@ impl QuerySql for LibSqlDB {
         let mut batch_rows = conn.execute_batch(sql).await?;
         while let Some(mut rows) = batch_rows.next_stmt_row().flatten() {
             emit.send(QueryEvent::new_status("getting next result set"))?;
-            let mut first = true;
+            let first = FirstTrue::default();
+
             while let Some(row) = rows.next().await? {
-                if first {
-                    first = false;
+                if first.get() {
                     emit.send(
                         QueryResp {
                             fields: (0..row.column_count())
@@ -805,10 +802,10 @@ impl SchemaTrait for LibSqlDB {
 
         emit.send("trying to query data".into())?;
         let mut stream = conn.query(&sql, params!()).await?;
-        let mut first = true;
+        let first = FirstTrue::default();
+
         while let Some(row) = stream.next().await? {
-            if first {
-                first = false;
+            if first.get() {
                 emit.send(
                     QueryResp {
                         fields: get_row_type(&row),

@@ -21,7 +21,7 @@ use crate::datasource_config::FireBirdConfig;
 use crate::db::{
     create_html_table_data, create_html_table_header, create_markdown_data, create_markdown_header,
     escape_sql_str, export_query_as_xlsx_send_blocking_data, BackendKind, CheckConn, ColumnType,
-    CreateIndexReq, ExportFrame, ExportKind, ExportQueryResult, Field, GetBackendKind,
+    CreateIndexReq, ExportFrame, ExportKind, ExportQueryResult, Field, FirstTrue, GetBackendKind,
     GetTestExportTableKinds, Index, IndexKind, ListTable, MetaValue, OptionMustBeSomeErr,
     QueryEvent, QueryEventEmitter, QueryResp, QuerySql, SchemaTrait, ServerMetas,
     ShowTableParameter, SqlBuilder, XlsxEdit, POOL_MAX_CONNECTIONS,
@@ -193,7 +193,8 @@ impl ExportQueryResult for FireBirdDB {
             let mut conn = this.get_conn()?;
             let stream: Box<dyn Iterator<Item = Result<Row, FbError>>> =
                 conn.query_iter(&sql, ())?;
-            let mut first = true;
+            let first = FirstTrue::default();
+
             let mut row_num = 0;
             for row in stream {
                 let row = row?;
@@ -202,8 +203,7 @@ impl ExportQueryResult for FireBirdDB {
                         include_header,
                         delimiter,
                     } => {
-                        if first && include_header {
-                            first = false;
+                        if first.get() && include_header {
                             let fs: Vec<_> =
                                 row.cols.iter().map(|x| x.name.clone()).map(Some).collect();
                             sender.blocking_send(create_csv(&fs, delimiter)?.into())?;
@@ -217,8 +217,7 @@ impl ExportQueryResult for FireBirdDB {
                     }
                     ExportKind::Sql { .. } => anyhow::bail!("can't export query result as sql"),
                     ExportKind::Xlsx { include_header } => {
-                        if first && include_header {
-                            first = false;
+                        if first.get() && include_header {
                             for (index, col) in row.cols.iter().enumerate() {
                                 sender.blocking_send(
                                     XlsxEdit {
@@ -238,8 +237,7 @@ impl ExportQueryResult for FireBirdDB {
                         )?;
                     }
                     ExportKind::Html { include_header } => {
-                        if first && include_header {
-                            first = false;
+                        if first.get() && include_header {
                             let fs: Vec<_> = row.cols.iter().map(|x| x.name.clone()).collect();
                             sender.blocking_send(create_html_table_header(&fs).into())?;
                         }
@@ -247,8 +245,7 @@ impl ExportQueryResult for FireBirdDB {
                         sender.blocking_send(create_html_table_data(&[data]).into())?;
                     }
                     ExportKind::MarkDown => {
-                        if first {
-                            first = false;
+                        if first.get() {
                             let fs: Vec<_> = row.cols.iter().map(|x| x.name.clone()).collect();
                             sender.blocking_send(create_markdown_header(&fs).into())?;
                         }
@@ -345,11 +342,11 @@ impl QuerySql for FireBirdDB {
             emit.send(QueryEvent::new_status("lock connection ok."))?;
             let stream: Box<dyn Iterator<Item = Result<Row, FbError>>> =
                 conn.query_iter(&sql, ())?;
-            let mut first = true;
+            let first = FirstTrue::default();
+
             for row in stream {
                 let item = row?;
-                if first {
-                    first = false;
+                if first.get() {
                     emit.send(
                         QueryResp {
                             fields: infer_fields(&item),

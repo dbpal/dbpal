@@ -677,7 +677,8 @@ pub trait SqlBuilder: GetBackendKind {
         let contains_pri = fs.iter().any(|x| x.is_primary);
         let mut sql = String::new();
 
-        let mut first = true;
+        let first = FirstTrue::default();
+
         for (k, v) in wheres.iter() {
             let f = field_by_name.get(k);
             let f = f.copied();
@@ -697,13 +698,12 @@ pub trait SqlBuilder: GetBackendKind {
             sql.push_str(
                 format!(
                     "{} {} = {}",
-                    if !first { " AND " } else { "" },
+                    if !first.get() { " AND " } else { "" },
                     self.quote(k),
                     self.put_value_in_sql(&f.data_type, v.as_ref().map(|x| x.as_str()))?
                 )
                 .as_str(),
             );
-            first = false;
         }
         anyhow::Ok(sql)
     }
@@ -807,7 +807,8 @@ pub trait SqlBuilder: GetBackendKind {
         //
 
         {
-            let mut first = true;
+            let first = FirstTrue::default();
+
             for f in fs.iter() {
                 if f.is_auto_increment {
                     continue;
@@ -816,18 +817,18 @@ pub trait SqlBuilder: GetBackendKind {
                     // value is null and has default value
                     continue;
                 }
-                if !first {
+                if !first.get() {
                     sql.push(',');
                 }
                 sql.push_str(self.quote(f.field.as_str()).to_string().as_str());
-                first = false;
             }
             sql.push(')');
         }
         // values
         sql.push_str(" VALUES (");
         {
-            let mut first = true;
+            let first = FirstTrue::default();
+
             for f in fs.iter() {
                 if f.is_auto_increment {
                     continue;
@@ -836,12 +837,11 @@ pub trait SqlBuilder: GetBackendKind {
                     // value is null and has default value
                     continue;
                 }
-                if !first {
+                if !first.get() {
                     sql.push(',');
                 }
                 let value = values.get(&f.field).cloned().flatten();
                 sql.push_str(&self.put_value_in_sql(&f.data_type, value.as_deref())?);
-                first = false;
             }
             sql.push(')');
         }
@@ -1409,7 +1409,8 @@ async fn collect_export_str(
     match kind {
         ExportKind::Json { pretty } => {
             let mut ret = "[".to_string();
-            let mut first = true;
+            let first = FirstTrue::default();
+
             while let Some(r) = receiver.recv().await {
                 let value = match r {
                     ExportFrame::JsonValue(x) => x,
@@ -1417,7 +1418,7 @@ async fn collect_export_str(
                         unreachable!()
                     }
                 };
-                if !first {
+                if !first.get() {
                     ret.push(',');
                 }
                 if pretty {
@@ -1431,7 +1432,6 @@ async fn collect_export_str(
                     }?
                     .as_str(),
                 );
-                first = false;
             }
             if pretty {
                 ret.push('\n');
@@ -1616,7 +1616,8 @@ pub(crate) async fn write_export_file(
         ExportKind::Json { pretty } => {
             let mut file = tokio::fs::File::create(&filepath).await?;
             file.write_all("[".as_bytes()).await?;
-            let mut first = true;
+            let first = FirstTrue::default();
+
             while let Some(e) = receiver.recv().await {
                 let value = match e {
                     ExportFrame::JsonValue(x) => x,
@@ -1624,7 +1625,7 @@ pub(crate) async fn write_export_file(
                         anyhow::bail!("not json value but:{:?}", e);
                     }
                 };
-                if !first {
+                if !first.get() {
                     file.write_all(",".as_bytes()).await?;
                 }
                 if pretty {
@@ -1640,7 +1641,6 @@ pub(crate) async fn write_export_file(
                     emit(total);
                 }
                 file.write_all(value.as_bytes()).await?;
-                first = false;
             }
             if pretty {
                 file.write_all("\n".as_bytes()).await?;
@@ -2480,5 +2480,29 @@ pub trait GetTestExportTableKinds: SchemaTrait {
                 .expect("should export ok");
             println!("export:{:?}\n{}", kind, str)
         }
+    }
+}
+
+#[derive(Clone)]
+pub struct FirstTrue {
+    value: Arc<Mutex<bool>>,
+}
+
+impl Default for FirstTrue {
+    fn default() -> Self {
+        Self {
+            value: Arc::new(Mutex::new(true)),
+        }
+    }
+}
+
+impl FirstTrue {
+    pub fn get(&self) -> bool {
+        let mut value = self.value.lock().expect("lock failed");
+        let t = *value;
+        if t {
+            *value = false;
+        }
+        return t;
     }
 }

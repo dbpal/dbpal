@@ -3,11 +3,11 @@ use crate::db::{
     create_html_table_data, create_html_table_header, create_markdown_data, create_markdown_header,
     escape_sql_str, export_query_as_xlsx_send_data, format_data_time_fix_offset, BackendKind,
     CatalogTrait, CheckConn, ColumnType, CreateDatabaseExtra, CreateIndexReq, CreateSchemaExtra,
-    DBTrait, DefAndMetas, ExportFrame, ExportKind, ExportQueryResult, Field, GetBackendKind,
-    GetTestExportTableKinds, Index, IndexKind, ListTable, MetaValue, NamedStaff, ProcedureDetail,
-    QueryEvent, QueryResp, QuerySql, ReadOnlyTrait, SchemaTrait, ServerMetas, ShowTableParameter,
-    SqlBuilder, SqlCollect, TriggerDetail, TriggerEnable, TriggerEvent, TriggerTiming, XlsxEdit,
-    POOL_MAX_CONNECTIONS,
+    DBTrait, DefAndMetas, ExportFrame, ExportKind, ExportQueryResult, Field, FirstTrue,
+    GetBackendKind, GetTestExportTableKinds, Index, IndexKind, ListTable, MetaValue, NamedStaff,
+    ProcedureDetail, QueryEvent, QueryResp, QuerySql, ReadOnlyTrait, SchemaTrait, ServerMetas,
+    ShowTableParameter, SqlBuilder, SqlCollect, TriggerDetail, TriggerEnable, TriggerEvent,
+    TriggerTiming, XlsxEdit, POOL_MAX_CONNECTIONS,
 };
 use crate::db::{OptionMustBeSomeErr, QueryEventEmitter};
 use crate::helper::create_csv;
@@ -1458,7 +1458,8 @@ impl ExportQueryResult for SqlServerDB {
         };
         let mut conn = conn.lock().await;
         let conn = conn.deref_mut();
-        let mut first = true;
+        let first = FirstTrue::default();
+
         let mut stream = conn.query(sql, &[]).await?;
         let mut row_num = 0;
         while let Some(rows) = stream.next().await {
@@ -1492,8 +1493,7 @@ impl ExportQueryResult for SqlServerDB {
                         include_header,
                         delimiter,
                     } => {
-                        if first && include_header {
-                            first = false;
+                        if first.get() && include_header {
                             let fs = meta
                                 .columns()
                                 .iter()
@@ -1508,8 +1508,7 @@ impl ExportQueryResult for SqlServerDB {
                         anyhow::bail!("can't export query result to sql")
                     }
                     ExportKind::Xlsx { include_header } => {
-                        if first && include_header {
-                            first = false;
+                        if first.get() && include_header {
                             for (index, col) in meta.columns().iter().enumerate() {
                                 sender
                                     .send(
@@ -1526,8 +1525,7 @@ impl ExportQueryResult for SqlServerDB {
                         }
                     }
                     ExportKind::Html { include_header } => {
-                        if first && include_header {
-                            first = false;
+                        if first.get() && include_header {
                             let fs = meta
                                 .columns()
                                 .iter()
@@ -1537,8 +1535,7 @@ impl ExportQueryResult for SqlServerDB {
                         }
                     }
                     ExportKind::MarkDown => {
-                        if first {
-                            first = false;
+                        if first.get() {
                             let fs = meta
                                 .columns()
                                 .iter()

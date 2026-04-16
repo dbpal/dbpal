@@ -18,10 +18,10 @@ use crate::db::{
     create_html_table_data, create_html_table_header, create_markdown_data, create_markdown_header,
     escape_sql_str, export_query_as_xlsx_send_data, AutoCompletionQueryId, BackendKind, CheckConn,
     ColumnType, CreateIndexReq, CreateTableAndIndexSql, ExportFrame, ExportKind, ExportQueryResult,
-    Field, GetBackendKind, Index, IndexKind, ListTable, MetaValue, NamedStaff, OptionMustBeSomeErr,
-    QueryEvent, QueryEventEmitter, QueryResp, QuerySql, SchemaTrait, ServerMetas,
-    ShowTableParameter, SqlBuilder, TriggerDetail, TriggerEvent, TriggerTiming, XlsxEdit,
-    POOL_MAX_CONNECTIONS,
+    Field, FirstTrue, GetBackendKind, Index, IndexKind, ListTable, MetaValue, NamedStaff,
+    OptionMustBeSomeErr, QueryEvent, QueryEventEmitter, QueryResp, QuerySql, SchemaTrait,
+    ServerMetas, ShowTableParameter, SqlBuilder, TriggerDetail, TriggerEvent, TriggerTiming,
+    XlsxEdit, POOL_MAX_CONNECTIONS,
 };
 use crate::helper::create_csv;
 use crate::language_server::LexerCompletionTrait;
@@ -589,11 +589,11 @@ impl SchemaTrait for SqliteDB {
         log::info!("show table sql:{}", sql);
         emit.send("trying to query data.".into())?;
         let mut stream = sqlx::raw_sql(AssertSqlSafe(sql.as_str())).fetch(conn.deref_mut());
-        let mut first = true;
+        let first = FirstTrue::default();
+
         while let Some(row) = stream.next().await {
             let row = row?;
-            if first {
-                first = false;
+            if first.get() {
                 emit.send(
                     QueryResp {
                         fields: get_row_type(&row),
@@ -607,7 +607,7 @@ impl SchemaTrait for SqliteDB {
             let d = encode_row(&row)?;
             emit.send(d.into())?;
         }
-        if first {
+        if first.get() {
             let fields = self.infer_fields_by_sql(&sql).await?;
             emit.send(
                 QueryResp {
@@ -1102,7 +1102,8 @@ impl ExportQueryResult for SqliteDB {
         };
         let mut conn = conn.lock().await;
         let mut stream = sqlx::raw_sql(AssertSqlSafe(sql)).fetch(conn.deref_mut());
-        let mut first = true;
+        let first = FirstTrue::default();
+
         let mut row_num = 0;
         while let Some(row) = stream.next().await {
             let row = row?;
@@ -1111,8 +1112,7 @@ impl ExportQueryResult for SqliteDB {
                     include_header,
                     delimiter,
                 } => {
-                    if first && include_header {
-                        first = false;
+                    if first.get() && include_header {
                         let fs: Vec<_> = row
                             .columns()
                             .iter()
@@ -1132,8 +1132,7 @@ impl ExportQueryResult for SqliteDB {
                     anyhow::bail!("can't export query result as sql")
                 }
                 ExportKind::Xlsx { include_header } => {
-                    if first && include_header {
-                        first = false;
+                    if first.get() && include_header {
                         for (index, col) in row.columns().iter().enumerate() {
                             sender
                                 .send(
@@ -1152,8 +1151,7 @@ impl ExportQueryResult for SqliteDB {
                     export_query_as_xlsx_send_data(&mut row_num, data, sender.clone()).await?;
                 }
                 ExportKind::Html { include_header } => {
-                    if first && include_header {
-                        first = false;
+                    if first.get() && include_header {
                         let cols: Vec<_> =
                             row.columns().iter().map(|x| x.name().to_string()).collect();
                         sender
@@ -1164,8 +1162,7 @@ impl ExportQueryResult for SqliteDB {
                     sender.send(create_html_table_data(&[data]).into()).await?;
                 }
                 ExportKind::MarkDown => {
-                    if first {
-                        first = false;
+                    if first.get() {
                         let cols: Vec<_> =
                             row.columns().iter().map(|x| x.name().to_string()).collect();
                         sender

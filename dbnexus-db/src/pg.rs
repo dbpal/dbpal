@@ -16,10 +16,11 @@ use crate::db::{
     export_query_as_xlsx_send_data, AutoCompletionQueryId, BackendKind, BackendKindPostGres,
     CatalogTrait, CheckConn, ColumnType, CreateDatabaseExtra, CreateIndexReq, CreateSchemaExtra,
     CreateTableAndIndexSql, CreatedTypeDef, DBTrait, DefAndMetas, ExportFrame, ExportKind,
-    ExportQueryResult, Field, GetBackendKind, GetTestExportTableKinds, Index, IndexKind, ListTable,
-    MetaValue, NamedStaff, OptionMustBeSomeErr, ProcedureDetail, QueryEvent, QueryEventEmitter,
-    QueryResp, QuerySql, SchemaTrait, SequenceDetail, ServerMetas, ShowTableParameter, SqlBuilder,
-    SqlCollect, TriggerDetail, TriggerEvent, TriggerTiming, XlsxEdit, POOL_MAX_CONNECTIONS,
+    ExportQueryResult, Field, FirstTrue, GetBackendKind, GetTestExportTableKinds, Index, IndexKind,
+    ListTable, MetaValue, NamedStaff, OptionMustBeSomeErr, ProcedureDetail, QueryEvent,
+    QueryEventEmitter, QueryResp, QuerySql, SchemaTrait, SequenceDetail, ServerMetas,
+    ShowTableParameter, SqlBuilder, SqlCollect, TriggerDetail, TriggerEvent, TriggerTiming,
+    XlsxEdit, POOL_MAX_CONNECTIONS,
 };
 
 use crate::helper::{create_csv, generate_random_string};
@@ -871,11 +872,11 @@ impl SchemaTrait for PostGresDB {
         let mut conn = self.get_conn().await?;
         emit.send("trying to query data.".into())?;
         let mut stream = sqlx::raw_sql(AssertSqlSafe(sql.as_str())).fetch(conn.deref_mut());
-        let mut first = true;
+        let first = FirstTrue::default();
+
         while let Some(row) = stream.next().await {
             let row = row?;
-            if first {
-                first = false;
+            if first.get() {
                 emit.send(
                     QueryResp {
                         fields: get_rows_types(&row),
@@ -888,7 +889,7 @@ impl SchemaTrait for PostGresDB {
             emit.send(encode_row(&row)?.into())?;
         }
 
-        if first {
+        if first.get() {
             let fields = self.infer_fields_by_sql(&sql).await?;
             emit.send(
                 QueryResp {
@@ -1485,7 +1486,8 @@ impl ExportQueryResult for PostGresDB {
             }
         };
         let mut conn = conn.lock().await;
-        let mut first = true;
+        let first = FirstTrue::default();
+
         let mut stream = sqlx::query(AssertSqlSafe(sql)).fetch(conn.deref_mut());
         let mut row_num = 0;
 
@@ -1496,8 +1498,7 @@ impl ExportQueryResult for PostGresDB {
                     include_header,
                     delimiter,
                 } => {
-                    if first && include_header {
-                        first = false;
+                    if first.get() && include_header {
                         let fs = row
                             .columns()
                             .iter()
@@ -1517,8 +1518,7 @@ impl ExportQueryResult for PostGresDB {
                     anyhow::bail!("can't export query result as sql")
                 }
                 ExportKind::Xlsx { include_header } => {
-                    if first && include_header {
-                        first = false;
+                    if first.get() && include_header {
                         for (index, col) in row.columns().iter().enumerate() {
                             sender
                                 .send(
@@ -1537,8 +1537,7 @@ impl ExportQueryResult for PostGresDB {
                     export_query_as_xlsx_send_data(&mut row_num, data, sender.clone()).await?;
                 }
                 ExportKind::Html { include_header } => {
-                    if first && !row.is_empty() && include_header {
-                        first = false;
+                    if first.get() && !row.is_empty() && include_header {
                         let fs = row
                             .columns()
                             .iter()
@@ -1550,8 +1549,7 @@ impl ExportQueryResult for PostGresDB {
                     sender.send(create_html_table_data(&[data]).into()).await?;
                 }
                 ExportKind::MarkDown => {
-                    if first {
-                        first = false;
+                    if first.get() {
                         let fs = row
                             .columns()
                             .iter()

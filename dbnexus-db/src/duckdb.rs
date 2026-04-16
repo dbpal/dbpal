@@ -5,7 +5,7 @@ use crate::db::{
     create_html_table_data, create_html_table_header, create_markdown_data, create_markdown_header,
     escape_sql_str, export_query_as_xlsx_send_blocking_data, AutoCompletionQueryId, BackendKind,
     CatalogTrait, CheckConn, ColumnType, CreateDatabaseExtra, CreateIndexReq, CreateSchemaExtra,
-    CreateTableAndIndexSql, DBTrait, ExportFrame, ExportKind, ExportQueryResult, Field,
+    CreateTableAndIndexSql, DBTrait, ExportFrame, ExportKind, ExportQueryResult, Field, FirstTrue,
     GetBackendKind, GetTestExportTableKinds, Index, IndexKind, ListTable, MetaValue,
     QueryEventEmitter, QueryResp, QuerySql, SchemaTrait, SequenceDetail, ServerMetas,
     ShowTableParameter, SqlBuilder, SqlCollect, POOL_MAX_CONNECTIONS,
@@ -284,7 +284,8 @@ impl ExportQueryResult for DuckDB {
             let conn = conn.lock().expect("lock failed");
             let mut stmt = conn.prepare(&sql)?;
             let mut stream = stmt.query([])?;
-            let mut first = true;
+            let first = FirstTrue::default();
+
             let mut row_num = 0;
             while let Some(row) = stream.next()? {
                 match kind {
@@ -292,8 +293,7 @@ impl ExportQueryResult for DuckDB {
                         include_header,
                         delimiter,
                     } => {
-                        if first {
-                            first = false;
+                        if first.get() {
                             if include_header {
                                 let fs =
                                     row.as_ref().column_names().into_iter().map(Some).collect();
@@ -312,8 +312,7 @@ impl ExportQueryResult for DuckDB {
                         anyhow::bail!("query as sql not supported.");
                     }
                     ExportKind::Xlsx { include_header } => {
-                        if first {
-                            first = false;
+                        if first.get() {
                             if include_header {
                                 let names: Vec<_> =
                                     row.as_ref().column_names().into_iter().map(Some).collect();
@@ -328,8 +327,7 @@ impl ExportQueryResult for DuckDB {
                         export_query_as_xlsx_send_blocking_data(&mut row_num, d, sender.clone())?;
                     }
                     ExportKind::Html { include_header } => {
-                        if first {
-                            first = false;
+                        if first.get() {
                             if include_header {
                                 let names = row.as_ref().column_names();
                                 sender.blocking_send(create_html_table_header(&names).into())?;
@@ -340,8 +338,7 @@ impl ExportQueryResult for DuckDB {
                         sender.blocking_send(r.into())?;
                     }
                     ExportKind::MarkDown => {
-                        if first {
-                            first = false;
+                        if first.get() {
                             let names = row.as_ref().column_names();
                             sender.blocking_send(create_markdown_header(&names).into())?;
                         }
@@ -426,10 +423,10 @@ impl QuerySql for DuckDB {
             let conn = conn.lock().expect("lock failed");
             let mut stmt = conn.prepare(&sql)?;
             let mut stream = stmt.query([])?;
-            let mut first = true;
+            let first = FirstTrue::default();
+
             while let Some(row) = stream.next()? {
-                if first {
-                    first = false;
+                if first.get() {
                     let stmt = row.as_ref();
                     emit.send(
                         QueryResp {

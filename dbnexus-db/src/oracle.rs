@@ -14,11 +14,11 @@ use crate::db::{
     create_html_table_data, create_html_table_header, create_markdown_data, create_markdown_header,
     escape_sql_str, export_query_as_xlsx_send_blocking_data, BackendKind, CheckConn, ColumnType,
     CreateIndexReq, CreateSchemaExtra, CreateTableAndIndexSql, DBTrait, DefAndMetas, ExportFrame,
-    ExportKind, ExportQueryResult, Field, GetBackendKind, GetTestExportTableKinds, Index,
-    IndexKind, ListTable, MetaValue, NamedStaff, OptionMustBeSomeErr, ProcedureDetail, QueryEvent,
-    QueryEventEmitter, QueryResp, QuerySql, SchemaTrait, ServerMetas, ShowTableParameter,
-    SqlBuilder, SqlCollect, TriggerDetail, TriggerEnable, TriggerEvent, TriggerTiming, XlsxEdit,
-    POOL_MAX_CONNECTIONS,
+    ExportKind, ExportQueryResult, Field, FirstTrue, GetBackendKind, GetTestExportTableKinds,
+    Index, IndexKind, ListTable, MetaValue, NamedStaff, OptionMustBeSomeErr, ProcedureDetail,
+    QueryEvent, QueryEventEmitter, QueryResp, QuerySql, SchemaTrait, ServerMetas,
+    ShowTableParameter, SqlBuilder, SqlCollect, TriggerDetail, TriggerEnable, TriggerEvent,
+    TriggerTiming, XlsxEdit, POOL_MAX_CONNECTIONS,
 };
 
 use crate::helper::{create_csv, generate_random_string};
@@ -101,7 +101,8 @@ impl ExportQueryResult for OracleDB {
                 None => Arc::new(Mutex::new(this.get_conn()?)),
             };
             let conn = conn.lock().expect("lock failed");
-            let mut first = true;
+            let first = FirstTrue::default();
+
             let rows = conn.query(&sql, &[])?;
             let mut row_num = 0;
             for row in rows {
@@ -111,7 +112,7 @@ impl ExportQueryResult for OracleDB {
                         include_header,
                         delimiter,
                     } => {
-                        if include_header && first {
+                        if include_header && first.get() {
                             let fs: Vec<_> = row
                                 .column_info()
                                 .iter()
@@ -130,7 +131,7 @@ impl ExportQueryResult for OracleDB {
                         anyhow::bail!("can't export query result to sql")
                     }
                     ExportKind::Xlsx { include_header } => {
-                        if include_header && first {
+                        if include_header && first.get() {
                             for (index, col) in row.column_info().iter().enumerate() {
                                 sender.blocking_send(
                                     XlsxEdit {
@@ -152,7 +153,7 @@ impl ExportQueryResult for OracleDB {
                         )?;
                     }
                     ExportKind::Html { include_header } => {
-                        if include_header && first {
+                        if include_header && first.get() {
                             let fs: Vec<_> = row
                                 .column_info()
                                 .iter()
@@ -164,8 +165,7 @@ impl ExportQueryResult for OracleDB {
                         sender.blocking_send(create_html_table_data(&[data]).into())?;
                     }
                     ExportKind::MarkDown => {
-                        if first {
-                            first = false;
+                        if first.get() {
                             let fs: Vec<_> = row
                                 .column_info()
                                 .iter()
@@ -323,11 +323,11 @@ impl QuerySql for OracleDB {
             emit.send(QueryEvent::new_status("locked connection."))?;
             match conn.query(&sql, &[]) {
                 Ok(rows) => {
-                    let mut first = true;
+                    let first = FirstTrue::default();
+
                     for row in rows {
                         let row = row?;
-                        if first {
-                            first = false;
+                        if first.get() {
                             let fields = infer_schema_by_row(&row);
                             emit.send(
                                 QueryResp {
@@ -1333,11 +1333,11 @@ impl SchemaTrait for OracleDB {
         spawn_blocking(move || {
             let conn = this.get_conn()?;
             let stream = conn.query(&sql, &[])?;
-            let mut first = true;
+            let first = FirstTrue::default();
+
             for row in stream {
                 let row = row?;
-                if first {
-                    first = false;
+                if first.get() {
                     emit.send(
                         QueryResp {
                             fields: infer_schema_by_row(&row),

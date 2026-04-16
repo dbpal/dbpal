@@ -610,7 +610,8 @@ impl OdbcDbQuery {
             } = this.helper.collect_meta(&mut cursor)?;
             let mut buffers = ColumnarAnyBuffer::from_descs(100, buffer_desc);
             let mut row_set_cursor = cursor.bind_buffer(&mut buffers)?;
-            let mut first = true;
+            let first = FirstTrue::default();
+
             while let Some(batch) = row_set_cursor.fetch()? {
                 match kind {
                     ExportKind::Csv {
@@ -635,7 +636,6 @@ impl OdbcDbQuery {
                     ExportKind::Xlsx { include_header } => {
                         let mut num_row = 0;
                         if first && include_header {
-                            first = false;
                             for (index, name) in col_names.iter().enumerate() {
                                 sender.blocking_send(
                                     XlsxEdit {
@@ -667,7 +667,6 @@ impl OdbcDbQuery {
                     }
                     ExportKind::Html { include_header } => {
                         if first && include_header {
-                            first = false;
                             let r = create_html_table_header(&col_names);
                             sender.blocking_send(r.into())?;
                         }
@@ -676,7 +675,6 @@ impl OdbcDbQuery {
                     }
                     ExportKind::MarkDown => {
                         if first {
-                            first = false;
                             let r = create_markdown_header(&col_names);
                             sender.blocking_send(r.into())?;
                         }
