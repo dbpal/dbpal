@@ -990,15 +990,7 @@ function SqlTableView(props: {
     } as Partial<GridSlotsComponent>;
   }, [tableName]);
 
-  const rowBeenModify = (id, kind: DatabaseOpKind) => {
-    if (!id) {
-      return false; // this id belong to row data
-    }
-    return ops.findIndex((e) => e.tableId == id && e.op == kind) != -1;
-  };
-
   const sortModel = clientModel ? "client" : "server";
-
   const { getColumnVisibility, setColumnVisibility } = useTableColumnVisibleStore(
     (s) => s,
   );
