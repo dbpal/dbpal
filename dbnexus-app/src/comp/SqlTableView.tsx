@@ -27,6 +27,8 @@ import {
   Tooltip,
   Typography,
 } from "@mui/material";
+
+import { MdOutlineReply } from "react-icons/md";
 import CloseIcon from "@mui/icons-material/Close";
 import CheckIcon from "@mui/icons-material/Check";
 import VisibilityIcon from "@mui/icons-material/Visibility";
@@ -626,6 +628,12 @@ function SqlTableView(props: {
               return (
                 <Tooltip title={`old value:${row[field]}`}>
                   <Typography sx={{ color: "#dc1414" }}>
+                    <IconButton
+                      onClick={() => {
+                        setOps(ops.filter((x) => x != modify));
+                      }}>
+                      <MdOutlineReply />
+                    </IconButton>
                     {modify.newValue[field]}
                   </Typography>
                 </Tooltip>
