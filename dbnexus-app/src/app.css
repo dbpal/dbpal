@@ -35,11 +35,11 @@
 
 @keyframes datagridRowBeenHight {
   from {
-    background-color: rgb(242, 72, 126); /* 动画开始时的透明度 */
+    background-color: rgb(181, 20, 71); /* 动画开始时的透明度 */
     opacity: 0.5;
   }
   to {
-    background-color: red; /* 动画结束时的透明度 */
+    background-color: rgb(125, 72, 72); /* 动画结束时的透明度 */
     opacity: 1;
   }
 }
@@ -47,7 +47,7 @@
 .datagrid-field-row-highlight {
   font-weight: bolder;
   font-size: 1.4rem;
-  background-color: red;
+  background-color: rgb(207, 183, 183);
   color: black;
   animation: datagridRowBeenHight 1s linear;
 }
