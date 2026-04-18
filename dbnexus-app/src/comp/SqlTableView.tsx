@@ -266,6 +266,7 @@ class DatabaseOperation {
     public op: DatabaseOpKind,
     public sql: string,
     public tableId: any,
+    public newValue: object | null,
   ) {}
 }
 
@@ -606,6 +607,16 @@ function SqlTableView(props: {
         field.renderHeader = (e) => {
           const field = e.colDef as unknown as FieldAndGridField;
 
+          field.valueGetter = (value, row, { field }) => {
+            console.log("!!!!!!!!!!!!", value, row[keyNotInTable], field);
+            const modify = ops.find((x) =>
+              x.newValue ? x.newValue[keyNotInTable] == row[keyNotInTable] : false,
+            );
+            if (modify) {
+              return modify.newValue[field];
+            }
+            return value;
+          };
           const makeTitle = (): string => {
             let ret = field.field + " ";
             ret += field.data_type;
@@ -645,7 +656,7 @@ function SqlTableView(props: {
       }
       setResp(resp);
     },
-    [getColumnWidth],
+    [getColumnWidth, ops],
   );
 
   const makePara = useCallback(() => {
@@ -733,6 +744,7 @@ function SqlTableView(props: {
           DatabaseOpKind.Update,
           data,
           tryGetId(oldRow, resp.fields),
+          newRow,
         ),
       ]);
       return oldRow;
@@ -766,7 +778,12 @@ function SqlTableView(props: {
       const data = await getDeleteSql(old);
       setOps((e) => [
         ...e,
-        new DatabaseOperation(DatabaseOpKind.Delete, data, tryGetId(old, resp.fields)),
+        new DatabaseOperation(
+          DatabaseOpKind.Delete,
+          data,
+          tryGetId(old, resp.fields),
+          null,
+        ),
       ]);
     },
     [getDeleteSql, notWarnPri, resp.data, resp.fields, rowHasOP, showNotification],
