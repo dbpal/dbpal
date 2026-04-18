@@ -606,16 +606,33 @@ function SqlTableView(props: {
         const field = resp.fields[i] as FieldAndGridField;
         field.renderHeader = (e) => {
           const field = e.colDef as unknown as FieldAndGridField;
-
-          field.valueGetter = (value, row, { field }) => {
-            console.log("!!!!!!!!!!!!", value, row[keyNotInTable], field);
+          field.renderCell = ({ field, row }) => {
             const modify = ops.find((x) =>
               x.newValue ? x.newValue[keyNotInTable] == row[keyNotInTable] : false,
             );
-            if (modify) {
-              return modify.newValue[field];
+            const deleted = ops.find(
+              (x) =>
+                x.tableId == tryGetId(row, resp.fields) &&
+                x.op == DatabaseOpKind.Delete,
+            );
+            if (deleted) {
+              return (
+                <Typography style={{ textDecoration: "line-through", color: "red" }}>
+                  {row[field]}
+                </Typography>
+              );
             }
-            return value;
+            if (modify && modify.newValue[field] != row[field]) {
+              return (
+                <Tooltip title={`old value:${row[field]}`}>
+                  <Typography sx={{ color: "#dc1414" }}>
+                    {modify.newValue[field]}
+                  </Typography>
+                </Tooltip>
+              );
+            } else {
+              return row[field];
+            }
           };
           const makeTitle = (): string => {
             let ret = field.field + " ";
@@ -1035,12 +1052,6 @@ function SqlTableView(props: {
           let id = tryGetId(e.row, resp.fields);
           if (id == rowBeenLocate) {
             return "datagrid-field-row-highlight";
-          }
-          if (rowBeenModify(id, DatabaseOpKind.Update)) {
-            return "datagrid-field-been-modify";
-          }
-          if (rowBeenModify(id, DatabaseOpKind.Delete)) {
-            return "datagrid-field-been-delete";
           }
           if (e.field == clickedField) {
             return "datagrid-field-clicked";

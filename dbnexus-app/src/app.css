@@ -32,15 +32,6 @@
   background: #c8e6c9;
   color: black;
 }
-.datagrid-field-been-modify {
-  opacity: 0.7;
-  color: rgb(250, 56, 56);
-}
-
-.datagrid-field-been-delete {
-  color: red;
-  text-decoration: line-through;
-}
 
 @keyframes datagridRowBeenHight {
   from {
