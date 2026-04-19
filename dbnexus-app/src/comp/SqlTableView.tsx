@@ -9,6 +9,8 @@ import {
   useRef,
   useState,
 } from "react";
+
+import { FaUpload } from "react-icons/fa";
 import CancelIcon from "@mui/icons-material/Cancel";
 import {
   Box,
@@ -30,12 +32,9 @@ import {
 } from "@mui/material";
 
 import { MdOutlineReply } from "react-icons/md";
-import CloseIcon from "@mui/icons-material/Close";
-import CheckIcon from "@mui/icons-material/Check";
 import VisibilityIcon from "@mui/icons-material/Visibility";
 import EditIcon from "@mui/icons-material/Edit";
 import ArrowCircleDownIcon from "@mui/icons-material/ArrowCircleDown";
-import { IoLocation } from "react-icons/io5";
 import {
   DataGrid,
   GridCallbackDetails,
@@ -78,7 +77,6 @@ import {
   pageSizeOptions,
   dataGridheaderFontSize,
   shrinkAble,
-  executeSqlWithoutConn,
   TabContext,
   getSupportExportKind,
 } from "./helper";
@@ -98,6 +96,7 @@ import {
   AppDataGridPagination,
   AppDataGridToolBar,
   ClearableTextField,
+  CopySql,
   FetchTimeAndDataGrid,
   ListenElementSize,
   QueryStatus,
@@ -273,72 +272,6 @@ class DatabaseOperation {
     public newValue: object | null,
   ) {}
 }
-
-function DatabaseOperationView(props: {
-  op: DatabaseOperation;
-  reload: () => void;
-  handleCancel: () => void;
-  uuid: string;
-  handleLocate: () => void;
-}) {
-  const { reload, uuid, handleCancel, handleLocate } = props;
-  const { sql } = props.op;
-  const [loading, setLoading] = useState(false);
-  const handleApply = () => {
-    setLoading(true);
-    executeSqlWithoutConn(uuid, sql)
-      .then((row_aff) => {
-        showNotification({
-          severity: "success",
-          title: "database operation ok",
-          message: `row affected:${row_aff}`,
-        });
-        handleCancel();
-        reload();
-      })
-      .catch((e) => {
-        showNotification({ severity: "error", title: "update failed", message: e });
-      })
-      .finally(() => {
-        setLoading(false);
-      });
-  };
-
-  const { showNotification } = useNotification();
-
-  return (
-    <Stack direction="row" style={{ alignItems: "center" }}>
-      <Tooltip title="discard the change">
-        <IconButton
-          onClick={() => {
-            handleCancel();
-          }}>
-          <CloseIcon color="warning" />
-        </IconButton>
-      </Tooltip>
-
-      <Tooltip title="apply">
-        <IconButton loading={loading} onClick={handleApply}>
-          <CheckIcon color="primary" />
-        </IconButton>
-      </Tooltip>
-      <Tooltip title="locate the row we are editing">
-        <IconButton onClick={handleLocate}>
-          <IoLocation fontSize="1.4em" />
-        </IconButton>
-      </Tooltip>
-      <Typography
-        color="info"
-        onClick={() => {
-          handleCopyToClipboard(sql, showNotification);
-        }}
-        style={{ ...textEllipsisStyle, cursor: "pointer" }}>
-        {sql}
-      </Typography>
-    </Stack>
-  );
-}
-
 function tryGetId(data: object, fields: Field[]) {
   let pf = fields.filter((e) => e.is_primary);
   if (pf.length == 0) {
@@ -524,50 +457,131 @@ function EditRowInModal(props: {
   );
 }
 
-const OpsContext = createContext<{ ops: DatabaseOperation[]; setOps; fields }>({
-  ops: [],
-  setOps: null,
-  fields: [],
-});
+const OpsContext = createContext<{
+  ops: DatabaseOperation[];
+  setOps;
+  fields: Field[];
+  uuid: string;
+  handleReload: () => void;
+  clickedField: string;
+}>(null);
+
+function CellButtons(props: {
+  op: DatabaseOperation;
+  setOps;
+  uuid;
+  firstField;
+  handleReload;
+}) {
+  const { op, setOps, uuid, firstField, handleReload } = props;
+
+  const { showNotification } = useNotification();
+  return (
+    firstField && (
+      <>
+        <IconButton
+          onClick={() => {
+            setOps((ops) => ops.filter((x) => x != op));
+          }}>
+          <MdOutlineReply />
+        </IconButton>
+        <IconButton
+          onClick={async () => {
+            try {
+              await commands.simpleExecuteSql(uuid, op.sql);
+              setOps((ops) => ops.filter((x) => x != op));
+              handleReload();
+            } catch (e) {
+              showNotification({
+                severity: "error",
+                title: "try execute sql failed",
+                message: e,
+              });
+            }
+          }}>
+          <FaUpload />
+        </IconButton>
+      </>
+    )
+  );
+}
 
 function CustomCell(props: GridRenderCellParams) {
   const { row, field } = props;
-  const { ops, setOps, fields } = useContext(OpsContext);
+  const { ops, setOps, fields, uuid, handleReload, clickedField } =
+    useContext(OpsContext);
   const modify = ops.find((x) =>
     x.newValue ? x.newValue[keyNotInTable] == row[keyNotInTable] : false,
   );
   const deleted = ops.find(
     (x) => x.tableId == tryGetId(row, fields) && x.op == DatabaseOpKind.Delete,
   );
+  const firstField = fields[0].field == field;
+  let dataField = { "data-field": field };
+
   if (deleted) {
     return (
       <Typography style={{ textDecoration: "line-through", color: "red" }}>
+        <CellButtons
+          uuid={uuid}
+          setOps={setOps}
+          op={deleted}
+          handleReload={handleReload}
+          firstField={firstField}
+        />
         {row[field]}
       </Typography>
     );
   }
-  if (modify && modify.newValue[field] != row[field]) {
+
+  if (modify) {
     return (
-      <Tooltip title={`old value:${row[field]}`}>
-        <Typography sx={{ color: "#dc1414" }}>
-          <IconButton
-            onClick={() => {
-              setOps(ops.filter((x) => x != modify));
+      <>
+        {modify.newValue[field] != row[field] ? (
+          <Typography
+            {...dataField}
+            sx={{
+              color: "#dc1414",
             }}>
-            <MdOutlineReply />
-          </IconButton>
-          {modify.newValue[field]}
-        </Typography>
-      </Tooltip>
+            <CellButtons
+              uuid={uuid}
+              setOps={setOps}
+              op={modify}
+              handleReload={handleReload}
+              firstField={firstField}
+            />
+            {modify.newValue[field]}
+          </Typography>
+        ) : (
+          <Typography {...dataField}>
+            <CellButtons
+              uuid={uuid}
+              setOps={setOps}
+              op={modify}
+              handleReload={handleReload}
+              firstField={firstField}
+            />
+            {row[field]}
+          </Typography>
+        )}
+      </>
     );
   }
-  return <Typography>{row[field]}</Typography>;
+
+  if (field == clickedField) {
+    return (
+      <Typography {...dataField} style={{ background: " #c8e6c9", color: "black" }}>
+        {row[field]}
+      </Typography>
+    );
+  }
+  return <Typography {...dataField}>{row[field]}</Typography>;
 }
 function SqlTableView(props: {
   notWarnPri?: boolean;
   kind: DataSourceKind;
   tableName: string;
-  uuid;
+  uuid: string;
   isTable: boolean;
 }) {
   const { notWarnPri, kind, tableName, uuid, isTable } = props;
@@ -631,7 +645,6 @@ function SqlTableView(props: {
   const [showExport, setShowExport] = useState(false);
   const [queryStatus, setQueryStatus] = useState("");
   const [clickedField, setClickedField] = useState("");
-  const [rowBeenLocate, setRowBeenLocate] = useState("");
   const { getColumnWidth, setColumnWidth } = useColumnWidthStore();
   const getSize = useSizeStore((s) => s.getSize);
   const handleResp = useCallback(
@@ -876,6 +889,7 @@ function SqlTableView(props: {
       row: {
         onContextMenu: (e) => {
           const { id, field } = extractFieldAndIDFromMouseEvent(e);
+          console.log("xxxxx", field);
           if (!field) {
             return;
           }
@@ -1014,61 +1028,22 @@ function SqlTableView(props: {
   return (
     <Stack style={{ height: "100%" }}>
       <QueryStatus status={queryStatus} />
-      {ops.map((operation, idx) => (
-        <DatabaseOperationView
-          op={operation}
-          handleCancel={() => {
-            setOps((ops) => ops.filter((_, index) => idx != index));
-          }}
-          uuid={uuid}
-          key={idx}
-          reload={() => {
+      <OpsContext
+        value={{
+          ops,
+          setOps,
+          fields: resp.fields,
+          uuid,
+          handleReload: () => {
             handleReload(false);
-          }}
-          handleLocate={() => {
-            if (!operation.tableId) {
-              showNotification({
-                severity: "warning",
-                title: "the table don't contains valid primary key to locate",
-              });
-              return;
-            }
-            let index = resp.data.findIndex(
-              (e) => tryGetId(e, resp.fields) == operation.tableId,
-            );
-            if (index != -1) {
-              apiRef.current.scrollToIndexes({ rowIndex: index });
-              setRowBeenLocate(operation.tableId);
-              setTimeout(() => {
-                setRowBeenLocate("");
-              }, 2_000);
-            } else {
-              showNotification({
-                severity: "warning",
-                title: "the data we are looking for may not present at this page",
-              });
-            }
-          }}
-        />
-      ))}
-
-      <OpsContext value={{ ops, setOps, fields: resp.fields }}>
+          },
+          clickedField: clickedField,
+        }}>
         <DataGrid
           isCellEditable={() => {
             return isTable;
           }}
           slots={slots}
-          getCellClassName={(e) => {
-            let id = tryGetId(e.row, resp.fields);
-            if (id == rowBeenLocate) {
-              return "datagrid-field-row-highlight";
-            }
-            if (e.field == clickedField) {
-              return "datagrid-field-clicked";
-            } else {
-              return "";
-            }
-          }}
           apiRef={apiRef}
           onCellClick={() => {
             setClickedField("");

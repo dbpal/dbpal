@@ -347,10 +347,6 @@ function getEditorText(editor: editor.IStandaloneCodeEditor, showNotification) {
   return text;
 }
 
-function executeSqlWithoutConn(uuid: string, sql: string) {
-  return commands.simpleExecuteSql(uuid, sql);
-}
-
 class ColorFn {
   static hexToRgb(hex) {
     hex = hex.replace("#", "");
@@ -635,7 +631,6 @@ export {
   editorPositionToEnd,
   editorSetPositionAndReveal,
   errToString,
-  executeSqlWithoutConn,
   extractConfigNameFromUuid,
   extractFieldAndIDFromMouseEvent,
   generateDefaultFilename,
