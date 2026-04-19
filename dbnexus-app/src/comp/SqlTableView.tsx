@@ -1,4 +1,5 @@
 import {
+  createContext,
   Dispatch,
   SetStateAction,
   useCallback,
@@ -47,6 +48,7 @@ import {
   useGridApiRef,
   useGridSelector,
   gridRowsLoadingSelector,
+  GridRenderCellParams,
 } from "@mui/x-data-grid";
 import {
   EscDownEvent,
@@ -522,6 +524,45 @@ function EditRowInModal(props: {
   );
 }
 
+const OpsContext = createContext<{ ops: DatabaseOperation[]; setOps; fields }>({
+  ops: [],
+  setOps: null,
+  fields: [],
+});
+
+function CustomCell(props: GridRenderCellParams) {
+  const { row, field } = props;
+  const { ops, setOps, fields } = useContext(OpsContext);
+  const modify = ops.find((x) =>
+    x.newValue ? x.newValue[keyNotInTable] == row[keyNotInTable] : false,
+  );
+  const deleted = ops.find(
+    (x) => x.tableId == tryGetId(row, fields) && x.op == DatabaseOpKind.Delete,
+  );
+  if (deleted) {
+    return (
+      <Typography style={{ textDecoration: "line-through", color: "red" }}>
+        {row[field]}
+      </Typography>
+    );
+  }
+  if (modify && modify.newValue[field] != row[field]) {
+    return (
+      <Tooltip title={`old value:${row[field]}`}>
+        <Typography sx={{ color: "#dc1414" }}>
+          <IconButton
+            onClick={() => {
+              setOps(ops.filter((x) => x != modify));
+            }}>
+            <MdOutlineReply />
+          </IconButton>
+          {modify.newValue[field]}
+        </Typography>
+      </Tooltip>
+    );
+  }
+  return <Typography>{row[field]}</Typography>;
+}
 function SqlTableView(props: {
   notWarnPri?: boolean;
   kind: DataSourceKind;
@@ -606,42 +647,10 @@ function SqlTableView(props: {
       });
       for (let i = 0; i < resp.fields.length; i++) {
         const field = resp.fields[i] as FieldAndGridField;
+        field.renderCell = (e) => <CustomCell {...e} />;
         field.renderHeader = (e) => {
           const field = e.colDef as unknown as FieldAndGridField;
-          field.renderCell = ({ field, row }) => {
-            const modify = ops.find((x) =>
-              x.newValue ? x.newValue[keyNotInTable] == row[keyNotInTable] : false,
-            );
-            const deleted = ops.find(
-              (x) =>
-                x.tableId == tryGetId(row, resp.fields) &&
-                x.op == DatabaseOpKind.Delete,
-            );
-            if (deleted) {
-              return (
-                <Typography style={{ textDecoration: "line-through", color: "red" }}>
-                  {row[field]}
-                </Typography>
-              );
-            }
-            if (modify && modify.newValue[field] != row[field]) {
-              return (
-                <Tooltip title={`old value:${row[field]}`}>
-                  <Typography sx={{ color: "#dc1414" }}>
-                    <IconButton
-                      onClick={() => {
-                        setOps(ops.filter((x) => x != modify));
-                      }}>
-                      <MdOutlineReply />
-                    </IconButton>
-                    {modify.newValue[field]}
-                  </Typography>
-                </Tooltip>
-              );
-            } else {
-              return row[field];
-            }
-          };
+
           const makeTitle = (): string => {
             let ret = field.field + " ";
             ret += field.data_type;
@@ -681,7 +690,7 @@ function SqlTableView(props: {
       }
       setResp(resp);
     },
-    [getColumnWidth, ops],
+    [getColumnWidth],
   );
 
   const makePara = useCallback(() => {
@@ -1043,48 +1052,50 @@ function SqlTableView(props: {
         />
       ))}
 
-      <DataGrid
-        isCellEditable={() => {
-          return isTable;
-        }}
-        slots={slots}
-        getCellClassName={(e) => {
-          let id = tryGetId(e.row, resp.fields);
-          if (id == rowBeenLocate) {
-            return "datagrid-field-row-highlight";
-          }
-          if (e.field == clickedField) {
-            return "datagrid-field-clicked";
-          } else {
-            return "";
-          }
-        }}
-        apiRef={apiRef}
-        onCellClick={() => {
-          setClickedField("");
-        }}
-        columnVisibilityModel={getColumnVisibility(uuid, tableName)}
-        onColumnVisibilityModelChange={(e) => {
-          setColumnVisibility(uuid, tableName, e);
-        }}
-        slotProps={slotProps}
-        style={dataGridStyle}
-        getRowId={getRowId}
-        paginationModel={clientModel ? undefined : paginationModel}
-        pageSizeOptions={pageSizeOptions}
-        paginationMode={sortModel}
-        onPaginationModelChange={clientModel ? undefined : onPaginationModelChange}
-        checkboxSelection={false}
-        rowCount={clientModel ? resp.data.length : resp.total}
-        sortingMode={clientModel ? "client" : "server"}
-        onSortModelChange={clientModel ? undefined : onSortModelChange}
-        columns={resp.fields}
-        rows={resp.data}
-        onColumnResize={onColumnResize}
-        processRowUpdate={isTable ? handleProcessRowUpdate : undefined}
-        onProcessRowUpdateError={onProcessRowUpdateError}
-        loading={loading}
-      />
+      <OpsContext value={{ ops, setOps, fields: resp.fields }}>
+        <DataGrid
+          isCellEditable={() => {
+            return isTable;
+          }}
+          slots={slots}
+          getCellClassName={(e) => {
+            let id = tryGetId(e.row, resp.fields);
+            if (id == rowBeenLocate) {
+              return "datagrid-field-row-highlight";
+            }
+            if (e.field == clickedField) {
+              return "datagrid-field-clicked";
+            } else {
+              return "";
+            }
+          }}
+          apiRef={apiRef}
+          onCellClick={() => {
+            setClickedField("");
+          }}
+          columnVisibilityModel={getColumnVisibility(uuid, tableName)}
+          onColumnVisibilityModelChange={(e) => {
+            setColumnVisibility(uuid, tableName, e);
+          }}
+          slotProps={slotProps}
+          style={dataGridStyle}
+          getRowId={getRowId}
+          paginationModel={clientModel ? undefined : paginationModel}
+          pageSizeOptions={pageSizeOptions}
+          paginationMode={sortModel}
+          onPaginationModelChange={clientModel ? undefined : onPaginationModelChange}
+          checkboxSelection={false}
+          rowCount={clientModel ? resp.data.length : resp.total}
+          sortingMode={clientModel ? "client" : "server"}
+          onSortModelChange={clientModel ? undefined : onSortModelChange}
+          columns={resp.fields}
+          rows={resp.data}
+          onColumnResize={onColumnResize}
+          processRowUpdate={isTable ? handleProcessRowUpdate : undefined}
+          onProcessRowUpdateError={onProcessRowUpdateError}
+          loading={loading}
+        />
+      </OpsContext>
 
       <ViewRowInModal
         data={viewInModal}
