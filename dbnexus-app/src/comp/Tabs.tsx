@@ -114,7 +114,7 @@ function TabsWithContent() {
               label=<Tooltip title={tab.header}>
                 <Chip
                   color={currentTab == index ? "success" : "default"}
-                  icon={tab.icon}
+                  icon={max < 100 ? undefined : tab.icon}
                   style={{
                     textTransform: "none",
                     alignItems: "center",
