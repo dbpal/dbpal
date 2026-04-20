@@ -54,7 +54,7 @@ async function showTable(
     name: string;
     isView?: boolean;
     showNotification;
-    setStatus: (string) => void;
+    setStatus: (_: string) => void;
   } & ShowTableCallBack,
 ) {
   let {

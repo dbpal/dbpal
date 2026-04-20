@@ -281,7 +281,7 @@ function tryGetId(data: object, fields: Field[]) {
 }
 
 interface SqlTableCustomToolBarLeftProps {
-  handleReload: (force: boolean) => void;
+  handleReload: (showOK: boolean) => void;
   where: string;
   setWhere: (val: string) => void;
   setShowSetWhere: (show: boolean) => void;
@@ -295,6 +295,8 @@ interface SqlTableCustomToolBarLeftProps {
   isTable: boolean;
   uuid: string;
   tableName: string;
+  ops: DatabaseOperation[];
+  setOps: Dispatch<SetStateAction<DatabaseOperation[]>>;
 }
 // 建议放在文件顶部，或者单独的文件中
 function SqlTableCustomToolBarLeft({
@@ -312,9 +314,13 @@ function SqlTableCustomToolBarLeft({
   isTable,
   uuid,
   tableName,
+  ops,
+  setOps,
 }: SqlTableCustomToolBarLeftProps) {
   // 获取 DataGrid 内部的 api 实例
   const apiRef = useGridApiContext();
+
+  const { showNotification } = useNotification();
 
   // 使用选择器获取当前的 loading 状态
   const isLoading: boolean = useGridSelector(apiRef, gridRowsLoadingSelector);
@@ -361,10 +367,55 @@ function SqlTableCustomToolBarLeft({
           label="allow filtering"
         />
       )}
-
       {clientModel && <SliderSize config={UseSizeConfig.queryLimit} />}
-
       {isTable && <AddTableModal kind={kind} tableName={tableName} uuid={uuid} />}
+      {ops.length > 0 && (
+        <>
+          <Tooltip
+            slotProps={{
+              tooltip: {
+                style: {
+                  maxWidth: "33vw",
+                },
+              },
+            }}
+            title=<>
+              {ops.map((x, index) => (
+                <CopySql sql={x.sql} key={index} />
+              ))}
+              <Typography style={{ fontWeight: "bold" }}> apply all </Typography>
+            </>>
+            <IconButton
+              onClick={async () => {
+                for (const op of ops) {
+                  try {
+                    await commands.simpleExecuteSql(uuid, op.sql);
+                  } catch (e) {
+                    showNotification({
+                      severity: "error",
+                      message: e,
+                      title: "apply failed",
+                    });
+                  }
+                }
+                setOps([]);
+                handleReload(false);
+              }}>
+              <FaUpload />
+            </IconButton>
+          </Tooltip>
+          <IconButton
+            color="warning"
+            onClick={async () => {
+              if (!(await secondConfirm({ title: `discard ${ops.length} changes?` }))) {
+                return;
+              }
+              setOps([]);
+            }}>
+            <MdOutlineReply style={{ fontSize: "1.4rem" }} />
+          </IconButton>
+        </>
+      )}
     </StackRowCenter>
   );
 }
@@ -459,7 +510,7 @@ function EditRowInModal(props: {
 
 const OpsContext = createContext<{
   ops: DatabaseOperation[];
-  setOps;
+  setOps: Dispatch<SetStateAction<DatabaseOperation[]>>;
   fields: Field[];
   uuid: string;
   handleReload: () => void;
@@ -468,38 +519,42 @@ const OpsContext = createContext<{
 
 function CellButtons(props: {
   op: DatabaseOperation;
-  setOps;
-  uuid;
-  firstField;
-  handleReload;
+  setOps: Dispatch<SetStateAction<DatabaseOperation[]>>;
+  uuid: string;
+  firstField: boolean;
+  handleReload: () => void;
 }) {
   const { op, setOps, uuid, firstField, handleReload } = props;
-
   const { showNotification } = useNotification();
   return (
     firstField && (
       <>
+        <Tooltip
+          title=<>
+            <CopySql sql={op.sql} />
+          </>>
+          <IconButton
+            onClick={async () => {
+              try {
+                await commands.simpleExecuteSql(uuid, op.sql);
+                setOps((ops) => ops.filter((x) => x != op));
+                handleReload();
+              } catch (e) {
+                showNotification({
+                  severity: "error",
+                  title: "try execute sql failed",
+                  message: e,
+                });
+              }
+            }}>
+            <FaUpload />
+          </IconButton>
+        </Tooltip>
         <IconButton
           onClick={() => {
             setOps((ops) => ops.filter((x) => x != op));
           }}>
-          <MdOutlineReply />
-        </IconButton>
-        <IconButton
-          onClick={async () => {
-            try {
-              await commands.simpleExecuteSql(uuid, op.sql);
-              setOps((ops) => ops.filter((x) => x != op));
-              handleReload();
-            } catch (e) {
-              showNotification({
-                severity: "error",
-                title: "try execute sql failed",
-                message: e,
-              });
-            }
-          }}>
-          <FaUpload />
+          <MdOutlineReply style={{ fontSize: "1.2rem" }} />
         </IconButton>
       </>
     )
@@ -521,7 +576,11 @@ function CustomCell(props: GridRenderCellParams) {
 
   if (deleted) {
     return (
-      <Typography style={{ textDecoration: "line-through", color: "red" }}>
+      <Stack
+        direction="row"
+        spacing={0}
+        {...dataField}
+        style={{ alignItems: "center" }}>
         <CellButtons
           uuid={uuid}
           setOps={setOps}
@@ -529,45 +588,40 @@ function CustomCell(props: GridRenderCellParams) {
           handleReload={handleReload}
           firstField={firstField}
         />
-        {row[field]}
-      </Typography>
+        <Typography style={{ textDecoration: "line-through", color: "red" }}>
+          {row[field]}
+        </Typography>
+      </Stack>
     );
   }
 
   if (modify) {
     return (
-      <>
+      <Stack
+        spacing={0}
+        direction="row"
+        style={{ alignItems: "center" }}
+        {...dataField}>
+        <CellButtons
+          uuid={uuid}
+          setOps={setOps}
+          op={modify}
+          handleReload={handleReload}
+          firstField={firstField}
+        />
         {modify.newValue[field] != row[field] ? (
           <Typography
-            {...dataField}
             sx={{
               color: "#dc1414",
             }}>
-            <CellButtons
-              uuid={uuid}
-              setOps={setOps}
-              op={modify}
-              handleReload={handleReload}
-              firstField={firstField}
-            />
             {modify.newValue[field]}
           </Typography>
         ) : (
-          <Typography {...dataField}>
-            <CellButtons
-              uuid={uuid}
-              setOps={setOps}
-              op={modify}
-              handleReload={handleReload}
-              firstField={firstField}
-            />
-            {row[field]}
-          </Typography>
+          <Typography>{row[field]}</Typography>
         )}
-      </>
+      </Stack>
     );
   }
-
   if (field == clickedField) {
     return (
       <Typography {...dataField} style={{ background: " #c8e6c9", color: "black" }}>
@@ -591,7 +645,6 @@ function SqlTableView(props: {
     },
     [tableName, uuid],
   );
-
   const getDeleteSql = useCallback(
     (x) => {
       return commands.tableDeleteSql(uuid, tableName, x);
@@ -604,7 +657,6 @@ function SqlTableView(props: {
     },
     [uuid],
   );
-
   const [loading, setLoading] = useState(false);
   const [where, setWhere] = useState("");
   const [showSetWhere, setShowSetWhere] = useState(false);
@@ -975,6 +1027,8 @@ function SqlTableView(props: {
             isTable,
             tableName,
             uuid,
+            ops,
+            setOps,
           };
         })(),
       },
@@ -984,6 +1038,8 @@ function SqlTableView(props: {
     setUpMenu,
     kind,
     isTable,
+    uuid,
+    tableName,
     handleDelete,
     putValueInSql,
     handleProcessRowUpdate,
@@ -992,8 +1048,7 @@ function SqlTableView(props: {
     where,
     sort,
     allowFiltering,
-    tableName,
-    uuid,
+    ops,
   ]);
 
   const slots = useMemo(() => {
