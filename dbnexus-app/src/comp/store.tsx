@@ -739,7 +739,6 @@ export interface UserSettings {
     lightBgColor: string;
     darkBgColor: string;
     datagridRowHeightFactor: number;
-    intputVariant: string;
     theme: string;
     zoom: number;
   };
@@ -782,7 +781,6 @@ const initialSettings: UserSettings = {
     lightBgColor: "",
     darkBgColor: "",
     datagridRowHeightFactor: 2.5,
-    intputVariant: "standard",
     theme: "light",
     zoom: 1,
   },

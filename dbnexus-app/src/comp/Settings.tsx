@@ -84,7 +84,6 @@ function AppearanceSetting() {
   const [datagridRowHeightFactor, setDatagridRowHeightFactor] = useState(
     appearance.datagridRowHeightFactor,
   );
-  const [intputVariant, setInputVariant] = useState(appearance.intputVariant);
   const [theme, setTheme] = useState(appearance.theme);
   const [zoom, setZoom] = useState(appearance.zoom);
 
@@ -111,7 +110,7 @@ function AppearanceSetting() {
       darkBgColor: darkBgColor,
       lightBgColor: lightBgColor,
       datagridRowHeightFactor,
-      intputVariant,
+
       theme,
       zoom,
     };
@@ -123,7 +122,6 @@ function AppearanceSetting() {
     fontFamily,
     fontSize,
     fontWeight,
-    intputVariant,
     lightBgColor,
     theme,
     zoom,
@@ -232,25 +230,6 @@ function AppearanceSetting() {
       </Stack>
       <SetBgColor theme="dark" bgColor={darkBgColor} setBgColor={setDarkBgColor} />
       <SetBgColor theme="light" bgColor={lightBgColor} setBgColor={setLightBgColor} />
-
-      <Stack direction="row" sx={{ alignItems: "center" }}>
-        <Typography sx={{ width: headerSize }}>input variant</Typography>
-        <Autocomplete
-          options={["standard", "filled", "outlined"]}
-          style={{ width: "22rem" }}
-          value={intputVariant}
-          renderInput={(params) => <TextField {...params} label="input variant" />}
-          freeSolo={false}
-          onChange={(_, variant) => {
-            if (!variant) {
-              return;
-            }
-            setInputVariant(variant);
-          }}
-        />
-        <TextField value={"this is demo"} variant={intputVariant as "filled"} />
-      </Stack>
-
       <Stack direction="row" sx={{ alignItems: "center" }}>
         <Typography sx={{ width: headerSize }}>zoom</Typography>
 
@@ -982,11 +961,7 @@ function EditorOptions(props: { handleClose; showEditOption }) {
   );
 }
 
-function makeComponents(
-  fontWeight: string | number,
-  intputVariant: string,
-  dataGridRowHeight: number,
-) {
+function makeComponents(fontWeight: string | number, dataGridRowHeight: number) {
   const components: Components<Omit<Theme, "components" | "palette"> & CssVarsTheme> = {
     MuiCircularProgress: {
       defaultProps: { size: "1.2rem" },
@@ -1126,13 +1101,13 @@ function makeComponents(
       },
       defaultProps: {
         size: "small",
-        variant: intputVariant as "filled",
+        variant: "outlined",
       },
     },
     MuiSelect: {
       defaultProps: {
         size: "small",
-        variant: intputVariant as "filled",
+        variant: "outlined",
       },
     },
 
@@ -1197,11 +1172,7 @@ const makeTheme = (
         paper: color,
       },
     },
-    components: makeComponents(
-      fontWeight,
-      appearance.intputVariant,
-      datagridRowHeightXXX,
-    ),
+    components: makeComponents(fontWeight, datagridRowHeightXXX),
   });
 };
 
@@ -1252,7 +1223,6 @@ function SettingProvider({ children }) {
         .then(() => {
           console.log("set proxy success");
         })
-
         .catch((e) => {
           showNotification({
             severity: "error",
