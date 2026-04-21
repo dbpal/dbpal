@@ -73,7 +73,7 @@ function SqlTransaction(props: { conn: QueryConn; executeTimes: number }) {
   const tabCtx = useContext(TabContext);
   const { removeConfirmMsg, addConfirmMsg } = useConfirmMsg();
 
-  const handleQueryCommit = useCallback(async () => {
+  const queryCommit = useCallback(async () => {
     try {
       const c = await conn.getAutoCommit();
       setCommit(c);
@@ -106,8 +106,8 @@ function SqlTransaction(props: { conn: QueryConn; executeTimes: number }) {
   useEffect(() => {
     //这里的顺序很重要
     setTxCount((e) => e + 1);
-    handleQueryCommit();
-  }, [executeTimes, handleQueryCommit]);
+    queryCommit();
+  }, [executeTimes, queryCommit]);
 
   const commitTx = async () => {
     try {
@@ -121,7 +121,7 @@ function SqlTransaction(props: { conn: QueryConn; executeTimes: number }) {
       }
       await conn.commit();
       showNotification({ severity: "success", title: "commit ok" });
-      handleQueryCommit();
+      queryCommit();
     } catch (e) {
       showNotification({ severity: "error", title: "commit failed", message: e });
     }
@@ -139,7 +139,7 @@ function SqlTransaction(props: { conn: QueryConn; executeTimes: number }) {
     try {
       await conn.rollback();
       showNotification({ severity: "success", title: "rollback ok" });
-      handleQueryCommit();
+      queryCommit();
     } catch (e) {
       showNotification({ severity: "error", title: "rollback failed", message: e });
     }

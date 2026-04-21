@@ -22,7 +22,6 @@ import ChatBubbleOutlineOutlinedIcon from "@mui/icons-material/ChatBubbleOutline
 import ContentCopyIcon from "@mui/icons-material/ContentCopy";
 import CircleIcon from "@mui/icons-material/Circle";
 import DeleteForeverIcon from "@mui/icons-material/DeleteForever";
-import { GiSandsOfTime } from "react-icons/gi";
 import {
   Autocomplete,
   Box,
@@ -953,6 +952,7 @@ import {
   SqlNullAble,
 } from "./bindings";
 import { IoTimerOutline } from "react-icons/io5";
+import { MdTimer } from "react-icons/md";
 
 const rehypeHighlightWords = ({ highligth }) => {
   return (tree) => {
@@ -2042,7 +2042,7 @@ function FetchTimeAndXXX(props: { isLoading: boolean }) {
           <Chip
             label={prettyMs(fetchTime)}
             color={fetchTime > 5000 ? "error" : "info"}
-            icon={<GiSandsOfTime />}
+            icon={<MdTimer />}
           />
         </Tooltip>
       )}

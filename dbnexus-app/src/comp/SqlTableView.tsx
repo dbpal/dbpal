@@ -606,12 +606,19 @@ function CustomCell(props: GridRenderCellParams) {
           firstField={firstField}
         />
         {modified.newValue[field] != row[field] ? (
-          <Typography
-            sx={{
-              color: "#dc1414",
-            }}>
-            {modified.newValue[field]}
-          </Typography>
+          <Tooltip
+            title=<Stack>
+              <CopySql sql={modified.sql} />
+              <Typography> old value:{row[field]} </Typography>
+            </Stack>>
+            <Typography
+              sx={{
+                color: "red",
+                fontWeight: "bolder",
+              }}>
+              {modified.newValue[field]}
+            </Typography>
+          </Tooltip>
         ) : (
           <Typography>{row[field]}</Typography>
         )}
