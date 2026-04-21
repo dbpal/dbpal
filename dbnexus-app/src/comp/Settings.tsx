@@ -742,7 +742,20 @@ function MiscSetting() {
           <Tooltip title="open log directory">
             <IconButton
               onClick={async () => {
-                openPath(await appLogDir());
+                openPath(await appLogDir())
+                  .then(() => {
+                    showNotification({
+                      severity: "success",
+                      title: "open log directory successfully",
+                    });
+                  })
+                  .catch((e) => {
+                    showNotification({
+                      severity: "error",
+                      title: "open log directory failed",
+                      message: e,
+                    });
+                  });
               }}>
               <FaFolderOpen fontSize="1.5rem" />
             </IconButton>
