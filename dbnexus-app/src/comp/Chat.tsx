@@ -82,7 +82,6 @@ function AllKindChat(props: {
     setSwitch(showChatKey, show);
   }, [setSwitch, show, showChatKey]);
 
-  // use UUID
   let queryId = useRef(uuidv4());
   return (
     <QueryIDEditorChatCtx.Provider
@@ -105,7 +104,7 @@ function AllKindChat(props: {
             value={value}
             language={language}
           />
-          {llm && editor && <SqlChatTextInput uuid={uuid} editor={editor} />}
+          {llm && editor && <SqlChatTextInput uuid={uuid} />}
         </ChatShowContext.Provider>
       </Stack>
     </QueryIDEditorChatCtx.Provider>
@@ -114,11 +113,9 @@ function AllKindChat(props: {
 
 const cleanEditorKey = "clean-editor-key";
 
-function SqlChatTextInput(props: {
-  uuid: string;
-  editor: editor.IStandaloneCodeEditor;
-}) {
-  const { editor, uuid } = props;
+function SqlChatTextInput(props: { uuid: string }) {
+  const { uuid } = props;
+  const { editor } = useContext(QueryIDEditorChatCtx);
   const llm = useLLM();
   const [question, setQuestion] = useState("");
   const { showNotification } = useNotification();
@@ -609,10 +606,6 @@ function EditPrompt(props: {
   useEffect(() => {
     setValue(prompts[connName] || "");
   }, [connName, prompts]);
-
-  useEffect(() => {
-    console.log("current edit prompt value", value);
-  }, [value]);
 
   const handleSave = () => {
     try {

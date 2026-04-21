@@ -447,10 +447,10 @@ function DbSchemaCadidates(props: {
       });
   };
   return (
-    <Stack direction="row" style={{ alignItems: "flex-end" }}>
+    <Stack direction="row" style={{ alignItems: "stretch" }}>
       <Autocomplete
         options={candidates}
-        style={{ width: "12rem" }}
+        style={{ width: "22rem" }}
         value={name}
         renderInput={(params) => (
           <TextField {...params} label={`${label} candidates`} />
@@ -1694,7 +1694,6 @@ function CouchBase(props: {
         onClear={() => setConnStr("")}
         required
       />
-
       <UserAndPassword
         user={user}
         password={password}

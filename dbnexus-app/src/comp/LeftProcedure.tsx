@@ -16,7 +16,7 @@ import { DefAndMetasView } from "./DefAndMetaView";
 import { SiProcessingfoundation } from "react-icons/si";
 import { DataSourceKind, secondConfirm, TabContent, UuidContext } from "./helper.ts";
 import { v4 as uuidv4 } from "uuid";
-import { ExceedMaxTreeItem, MenuRefresh, UdfNameAndParameters } from "./CommonComp";
+import { MenuRefresh, UdfNameAndParameters } from "./CommonComp";
 
 import { CopySql, ShowingCount } from "./CommonComp2";
 import {
@@ -49,8 +49,8 @@ function ProceduresTree() {
   }, [showNotification, uuid]);
 
   const showItems = useMemo(() => {
-    return ps.filter((e) => matchPattern(e.name));
-  }, [ps, matchPattern]);
+    return ps.filter((e) => matchPattern(e.name)).slice(0, maxTree);
+  }, [ps, maxTree, matchPattern]);
 
   const setUpMenu = useContextMenu((state) => state.setUpMenu);
   useEffect(() => {
@@ -107,7 +107,6 @@ function ProceduresTree() {
           />
         );
       })}
-      <ExceedMaxTreeItem maxTreeSize={maxTree} showItems={showItems.length} />
     </TreeItem>
   );
 }

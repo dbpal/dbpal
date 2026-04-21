@@ -19,7 +19,7 @@ import {
   Box,
 } from "@mui/material";
 import RefreshIcon from "@mui/icons-material/Refresh";
-import { ReactNode, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { ReactNode, useCallback, useEffect, useMemo, useState } from "react";
 import DeleteForeverIcon from "@mui/icons-material/DeleteForever";
 import {
   DataGrid,
@@ -55,12 +55,10 @@ import {
   secondConfirm,
   textEllipsisStyle,
 } from "./helper";
-import { v4 as uuidv4 } from "uuid";
 
 import { TbDatabasePlus } from "react-icons/tb";
 import LinkIcon from "@mui/icons-material/Link";
 import { EscDownEvent, modalHandleClose, modalStyle, PassWordManager } from "./Common";
-import { TreeItem } from "@mui/x-tree-view/TreeItem";
 import { editor, Position } from "monaco-editor";
 import { openPath } from "@tauri-apps/plugin-opener";
 import {
@@ -252,7 +250,7 @@ function ConnPingTime(props: { uuid: string }) {
  */
 function MenuCreateSchema(props: { handleCreate: () => void; kind: DataSourceKind }) {
   const { handleCreate, kind } = props;
-  let name;
+  let name = "";
   switch (kind) {
     case DataSourceKind.SqlServer:
     case DataSourceKind.Postgres:
@@ -716,7 +714,7 @@ function ViewRowInModal(props: {
                           opacity: 0.9,
                           color: theme.palette.success.main,
                         }}>
-                        {text}{" "}
+                        {text}
                       </pre>
                     );
                   }}
@@ -727,23 +725,6 @@ function ViewRowInModal(props: {
         </Stack>
       </Box>
     </Modal>
-  );
-}
-
-/**
- * Placeholder tree item shown when the tree exceeds the maximum rendered size.
- */
-function ExceedMaxTreeItem(props: { showItems: number; maxTreeSize: number }) {
-  const { showItems, maxTreeSize } = props;
-  const id = useRef(uuidv4());
-  return (
-    <TreeItem
-      itemId={id.current}
-      style={{ display: showItems > maxTreeSize ? "block" : "none" }}
-      label=<Typography color="error" style={{ fontSize: "0.8rem" }}>
-        ({showItems}) exceed max tree items({maxTreeSize}),some item not doingIt
-      </Typography>
-    />
   );
 }
 
@@ -980,7 +961,6 @@ export {
   TrueOrFalse,
   ModalHeader,
   ViewRowInModal,
-  ExceedMaxTreeItem,
   UdfNameAndParameters,
   PossibleParseError,
   AppColumnMenu,

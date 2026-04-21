@@ -25,7 +25,7 @@ import {
 } from "./helper.ts";
 import { v4 as uuidv4 } from "uuid";
 
-import { ExceedMaxTreeItem, MenuRefresh } from "./CommonComp.tsx";
+import { MenuRefresh } from "./CommonComp.tsx";
 import { GrSteps } from "react-icons/gr";
 import { CopySql, ShowingCount } from "./CommonComp2.tsx";
 import {
@@ -58,8 +58,8 @@ function SequenceTree() {
   }, [showNotification, uuid]);
 
   const showItems = useMemo(() => {
-    return seq.filter((e) => matchPattern(e.name));
-  }, [seq, matchPattern]);
+    return seq.filter((e) => matchPattern(e.name)).slice(0, maxTree);
+  }, [seq, maxTree, matchPattern]);
   const setUpMenu = useContextMenu((state) => state.setUpMenu);
   useEffect(() => {
     reload();
@@ -116,7 +116,6 @@ function SequenceTree() {
           />
         );
       })}
-      <ExceedMaxTreeItem showItems={showItems.length} maxTreeSize={maxTree} />
     </TreeItem>
   );
 }

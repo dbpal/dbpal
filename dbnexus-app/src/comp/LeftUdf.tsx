@@ -16,7 +16,7 @@ import { DefAndMetasView } from "./DefAndMetaView";
 import { TbMathFunction } from "react-icons/tb";
 import { DataSourceKind, secondConfirm, TabContent, UuidContext } from "./helper.ts";
 import { v4 as uuidv4 } from "uuid";
-import { ExceedMaxTreeItem, MenuRefresh, UdfNameAndParameters } from "./CommonComp";
+import { MenuRefresh, UdfNameAndParameters } from "./CommonComp";
 import { CopySql, ShowingCount } from "./CommonComp2";
 import {
   useMatcher,
@@ -35,8 +35,8 @@ function UdfsTree() {
   const { maxTree } = useMatcher();
   const matchPattern = useMatcherFn();
   const showItems = useMemo(() => {
-    return udfs.filter((e) => matchPattern(e.name));
-  }, [udfs, matchPattern]);
+    return udfs.filter((e) => matchPattern(e.name)).slice(0, maxTree);
+  }, [udfs, maxTree, matchPattern]);
 
   const reload = useCallback(() => {
     commands
@@ -101,7 +101,6 @@ function UdfsTree() {
           />
         );
       })}
-      <ExceedMaxTreeItem showItems={showItems.length} maxTreeSize={maxTree} />
     </TreeItem>
   );
 }
@@ -281,8 +280,8 @@ function CassandraAggregatesTree() {
   const { maxTree } = useMatcher();
   const matchPattern = useMatcherFn();
   const showItems = useMemo(() => {
-    return aggs.filter((e) => matchPattern(e.name));
-  }, [aggs, matchPattern]);
+    return aggs.filter((e) => matchPattern(e.name)).slice(0, maxTree);
+  }, [aggs, matchPattern, maxTree]);
 
   useEffect(() => {
     reload();
@@ -341,7 +340,6 @@ function CassandraAggregatesTree() {
           />
         );
       })}
-      <ExceedMaxTreeItem showItems={showItems.length} maxTreeSize={maxTree} />
     </TreeItem>
   );
 }

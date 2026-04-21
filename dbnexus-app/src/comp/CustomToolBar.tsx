@@ -58,7 +58,7 @@ const StyledTextField = styled(TextField)<{
   transition: theme.transitions.create(["width", "opacity"]),
 }));
 
-function CustomToolbar(props: { extra: React.ReactNode }) {
+function CustomToolbar(props: { extra?: React.ReactNode }) {
   const { extra } = props;
 
   const [exportMenuOpen, setExportMenuOpen] = React.useState(false);

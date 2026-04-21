@@ -13,7 +13,7 @@ import {
   UuidContext,
 } from "./helper";
 import { v4 as uuidv4 } from "uuid";
-import { ExceedMaxTreeItem, MenuRefresh } from "./CommonComp";
+import { MenuRefresh } from "./CommonComp";
 import { CopySql, ShowingCount } from "./CommonComp2";
 import {
   useMatcher,
@@ -42,8 +42,8 @@ function TypesTree() {
   }, [showNotification, uuid]);
 
   const showItems = useMemo(() => {
-    return types.filter((e) => matchPattern(e.name));
-  }, [types, matchPattern]);
+    return types.filter((e) => matchPattern(e.name)).slice(0, maxTree);
+  }, [types, maxTree, matchPattern]);
 
   const setUpMenu = useContextMenu((state) => state.setUpMenu);
   useEffect(() => {
@@ -100,7 +100,6 @@ function TypesTree() {
           />
         );
       })}
-      <ExceedMaxTreeItem showItems={showItems.length} maxTreeSize={maxTree} />
     </TreeItem>
   );
 }

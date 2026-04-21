@@ -1303,7 +1303,7 @@ function ModifyLLMConfigModal() {
   return (
     <>
       {!llm && (
-        <Tooltip title="enable ai powered chat,need set up LLM server.">
+        <Tooltip title="enable AI powered chat,need set up LLM server.">
           <Button
             onClick={() => {
               setShowEdit(true);

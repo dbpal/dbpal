@@ -43,6 +43,7 @@ import {
   useNotification,
   useQueryLogStore,
 } from "./store.tsx";
+import { CustomToolbar } from "./CustomToolBar.tsx";
 
 const initialState: object = {
   sorting: { sortModel: [{ field: "create_at", sort: "desc" }] },
@@ -139,8 +140,16 @@ function QueryLog(props: {
         return (
           <Stack
             direction="row"
-            style={{ flex: 1, justifyContent: "flex-end", overflow: "auto" }}>
-            <AppDataGridPagination showPageSelect />
+            style={{
+              flex: 1,
+              justifyContent: "space-between",
+              overflow: "auto",
+              alignItems: "center",
+            }}>
+            <CustomToolbar />
+            <Stack direction="row" style={{ alignContent: "center" }}>
+              <AppDataGridPagination showPageSelect />
+            </Stack>
           </Stack>
         );
       },

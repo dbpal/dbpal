@@ -369,6 +369,7 @@ class ColorFn {
 function getSupportExportKind(kind: DataSourceKind, isTable: boolean) {
   switch (kind) {
     case DataSourceKind.Mongo:
+    case DataSourceKind.CouchBase:
       return ["json", "jsonline"];
     default:
       return isTable

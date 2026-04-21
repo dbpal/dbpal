@@ -15,6 +15,7 @@ import {
   AiMarkdownModelSwitch,
   AppCode,
   ClearableTextField,
+  FetchTimeAndXXX,
   LoadStoreFile,
   QueryStatus,
   SetFilterSort,
@@ -202,6 +203,13 @@ function CouchBaseTable(props: { uuid: string; table: string }) {
               size="medium"
               color="primary"
               icon={<FilterAltIcon />}
+              onDelete={
+                where
+                  ? () => {
+                      setWhere("");
+                    }
+                  : undefined
+              }
             />
           </Tooltip>
           <Tooltip title="sort something like 'age asc'">
@@ -215,6 +223,13 @@ function CouchBaseTable(props: { uuid: string; table: string }) {
               color="secondary"
               variant="outlined"
               icon={<FaArrowsAltV />}
+              onDelete={
+                sort
+                  ? () => {
+                      setSort("");
+                    }
+                  : undefined
+              }
             />
           </Tooltip>
 
@@ -589,7 +604,7 @@ function CouchBaseQuery(props: { uuid: string; value?: string }) {
   const [tableResp, setTableResp] = useState<MuiDataGridData>(null);
   const setEditorContext = useContext(QueryIDEditorChatCtx);
   const [markdownModel, setMarkdownModel] = useState(false);
-
+  const [hightlightStr, setHighlightStr] = useState("");
   useEffect(() => {
     setEditorContext.setEditor(editor);
   }, [editor, setEditor, setEditorContext]);
@@ -754,7 +769,6 @@ function CouchBaseQuery(props: { uuid: string; value?: string }) {
             </ButtonGroup>
           </Stack>
           <Stack direction="row" style={{ alignItems: "center" }}>
-            <Typography color="info"> rows:{resp.length} </Typography>
             <Tooltip title="export query result to a file">
               <IconButton
                 loading={loading}
@@ -789,6 +803,7 @@ function CouchBaseQuery(props: { uuid: string; value?: string }) {
               setMarkdownModel={setMarkdownModel}
               markdownModel={markdownModel}
             />
+            <FetchTimeAndXXX isLoading={loading} />
           </Stack>
         </Stack>
 
@@ -834,39 +849,62 @@ function CouchBaseQuery(props: { uuid: string; value?: string }) {
         </div>
       </Panel>
 
-      {resp.length > 0 && (
-        <>
-          <PanelResizeHandle
+      <PanelResizeHandle
+        style={{
+          height: resizeHandlerSize,
+        }}
+        id="chat-resize-bar"
+        className="resize-handle"
+      />
+
+      <Panel collapsible collapsedSize={0} minSize={10} style={{ overflow: "auto" }}>
+        <Stack
+          direction="row"
+          style={{ justifyContent: "space-between", marginTop: "0.6rem" }}>
+          {viewMode == CBQueryViewMode.Json ? (
+            <ClearableTextField
+              value={hightlightStr}
+              onChange={(e) => {
+                setHighlightStr(e.target.value);
+              }}
+              onClear={() => {
+                setHighlightStr("");
+              }}
+              label="hight light string"
+              style={{ width: "13rem" }}
+            />
+          ) : (
+            <span> </span>
+          )}
+          {resp.length > 0 && (
+            <Typography color="info"> rows:{resp.length} </Typography>
+          )}
+        </Stack>
+
+        {viewMode == CBQueryViewMode.Json && (
+          <div
             style={{
-              height: resizeHandlerSize,
-            }}
-            id="chat-resize-bar"
-            className="resize-handle"
-          />
-          <Panel
-            collapsible
-            collapsedSize={0}
-            minSize={10}
-            style={{ overflow: "auto" }}>
-            {viewMode == CBQueryViewMode.Json && (
-              <div
-                style={{
-                  overflow: "auto",
-                  display: "grid",
-                  gridTemplateColumns: `repeat(${getSize(UseSizeConfig.gridCol)}, 1fr)`,
-                  paddingRight: "1.2rem",
-                }}>
-                {resp.map((value, index) => {
-                  return <AppCode key={index} language="json" codeBlock={value} />;
-                })}
-              </div>
-            )}
-            {viewMode == CBQueryViewMode.Table && tableResp && (
-              <QueryResp data={tableResp} />
-            )}
-          </Panel>{" "}
-        </>
-      )}
+              overflow: "auto",
+              display: "grid",
+              gridTemplateColumns: `repeat(${getSize(UseSizeConfig.gridCol)}, 1fr)`,
+              paddingRight: "1.2rem",
+            }}>
+            {resp.map((value, index) => {
+              return (
+                <AppCode
+                  key={index}
+                  language="json"
+                  codeBlock={value}
+                  highlightStr={hightlightStr}
+                />
+              );
+            })}
+          </div>
+        )}
+        {viewMode == CBQueryViewMode.Table && tableResp && (
+          <QueryResp data={tableResp} />
+        )}
+      </Panel>
 
       {showExport && (
         <ExportView

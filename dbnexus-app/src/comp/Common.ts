@@ -15,6 +15,7 @@ import * as monaco from "monaco-editor";
 import { readFile, stat } from "@tauri-apps/plugin-fs";
 import { filesize } from "filesize";
 import { commands, ExportKind, Field, QueryEvent, redisCommands } from "./bindings.ts";
+import { NotificationParams } from "./store.tsx";
 
 /**
  * Converts a local file path to a Data URL (base64)
@@ -102,10 +103,10 @@ const modalStyle: SxProps = {
 
 async function dropDatabase(props: {
   uuid: string;
-  database;
-  showNotification;
-  okCallback?;
-}) {
+  database: string;
+  showNotification: (params: NotificationParams) => void;
+  okCallback?: () => void;
+}): Promise<void> {
   const { uuid, database, showNotification, okCallback } = props;
 
   const confirm = await secondConfirm({
@@ -128,7 +129,17 @@ async function dropDatabase(props: {
     });
 }
 
-async function dropSchema({ uuid, schema, showNotification, okCallback }) {
+async function dropSchema({
+  uuid,
+  schema,
+  showNotification,
+  okCallback,
+}: {
+  uuid: string;
+  schema: string;
+  showNotification: (params: NotificationParams) => void;
+  okCallback: () => void;
+}): Promise<void> {
   const confirm = await secondConfirm({
     title: `drop '${schema}'`,
     confirmText: "Drop",
@@ -147,15 +158,15 @@ async function dropSchema({ uuid, schema, showNotification, okCallback }) {
     });
 }
 
-function reloadOK(showNotification) {
+function reloadOK(showNotification: (params: NotificationParams) => void): void {
   showNotification({ severity: "success", title: "data loaded." });
 }
 
-const dbpalQuerykey = "_dbpal_query_id_xxx_yyy_zzz";
+const dbpalQuerykey: string = "_dbpal_query_id_xxx_yyy_zzz";
 const autoCompletion = async (
   model: editor.ITextModel,
   pos: Position,
-): Promise<languages.CompletionList> => {
+): Promise<languages.CompletionList | undefined> => {
   const sql = model.getValue();
   const name = model[dbpalQuerykey] as NameAndQueryId;
   if (!name) {
@@ -245,8 +256,10 @@ monaco.languages.registerCompletionItemProvider("redis", {
     return autoCompletion(model, position);
   },
 });
-function makeFormatFn(kind: DataSourceKind) {
-  return (sql: string, opts?: languages.FormattingOptions) => {
+function makeFormatFn(
+  kind: DataSourceKind,
+): (sql: string, opts?: languages.FormattingOptions) => string | null {
+  return (sql: string, opts?: languages.FormattingOptions): string | null => {
     if (!opts) {
       opts = {
         tabSize: 2,
@@ -389,12 +402,12 @@ function modalHandleClose(
   };
 }
 
-function extractBaseName(file: string) {
-  const fileName = file.match(/[^\\/]+$/)[0];
+function extractBaseName(file: string): string {
+  const fileName = file.match(/[^\\/]+$/)?.[0] ?? "";
   return fileName;
 }
 
-const keyNotInTable = "KWfCwJ62hRf6TKuvMcsQ3eXGtD1tdg2J";
+const keyNotInTable: string = "KWfCwJ62hRf6TKuvMcsQ3eXGtD1tdg2J";
 
 type EscDownEvent = { preventDefault: () => void };
 
@@ -454,7 +467,10 @@ class PassWordManager {
   }
 }
 
-async function editorAppendContent(editor: editor.IStandaloneCodeEditor, text) {
+async function editorAppendContent(
+  editor: editor.IStandaloneCodeEditor,
+  text: string,
+): Promise<void> {
   const model = editor.getModel();
   const lastLine = model.getLineCount();
   const lastCol = model.getLineMaxColumn(lastLine);
@@ -528,8 +544,8 @@ export function isSQLCode(codeContent: string, langTag: string = ""): boolean {
   return false;
 }
 
-export function isRedisCode(code: string) {
-  let codeUpper = code.toUpperCase();
+export function isRedisCode(code: string): boolean {
+  let codeUpper: string = code.toUpperCase();
   for (const cmd of redisCommands) {
     if (codeUpper.includes(cmd)) {
       return true;

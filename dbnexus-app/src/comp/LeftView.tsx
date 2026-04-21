@@ -42,7 +42,7 @@ import {
   ViewKind,
 } from "./helper";
 import { v4 as uuidv4 } from "uuid";
-import { ExceedMaxTreeItem, MenuRefresh } from "./CommonComp";
+import { MenuRefresh } from "./CommonComp";
 import { MongoTable } from "./MongoDB";
 import {
   DataGrid,
@@ -73,8 +73,8 @@ function ViewsTree(props: { viewKind: ViewKind }) {
   const { maxTree } = useMatcher();
   const matchPattern = useMatcherFn();
   const showItems = useMemo(() => {
-    return views.filter((e) => matchPattern(e.name));
-  }, [views, matchPattern]);
+    return views.filter((e) => matchPattern(e.name)).slice(0, maxTree);
+  }, [views, maxTree, matchPattern]);
 
   const handleReload = useCallback(() => {
     setLoading(true);
@@ -137,7 +137,6 @@ function ViewsTree(props: { viewKind: ViewKind }) {
           />
         );
       })}
-      <ExceedMaxTreeItem showItems={showItems.length} maxTreeSize={maxTree} />
     </TreeItem>
   );
 }

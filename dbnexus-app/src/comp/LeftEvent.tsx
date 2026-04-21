@@ -21,7 +21,7 @@ import {
   UuidContext,
 } from "./helper";
 import { v4 as uuidv4 } from "uuid";
-import { ExceedMaxTreeItem, MenuRefresh } from "./CommonComp";
+import { MenuRefresh } from "./CommonComp";
 import { CopySql, ShowingCount } from "./CommonComp2";
 import {
   useMatcher,
@@ -48,8 +48,8 @@ function EventsTree() {
       });
   }, [showNotification, uuid]);
   const showItems = useMemo(() => {
-    return events.filter((e: SqlEvent) => matchPattern(e.name));
-  }, [events, matchPattern]);
+    return events.filter((e: SqlEvent) => matchPattern(e.name)).slice(0, maxTree);
+  }, [events, matchPattern, maxTree]);
 
   const setUpMenu = useContextMenu((state) => state.setUpMenu);
 
@@ -102,7 +102,6 @@ function EventsTree() {
           />
         );
       })}
-      <ExceedMaxTreeItem showItems={showItems.length} maxTreeSize={maxTree} />
     </TreeItem>
   );
 }

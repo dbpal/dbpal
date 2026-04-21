@@ -31,7 +31,7 @@ import ContentCopyIcon from "@mui/icons-material/ContentCopy";
 import DeleteForeverIcon from "@mui/icons-material/DeleteForever";
 import { modalStyle, reloadOK, EscDownEvent, modalHandleClose } from "./Common";
 import { openUrl } from "@tauri-apps/plugin-opener";
-import { ClearableTextField, FetchTimeAndDataGrid } from "./CommonComp2";
+import { ClearableTextField, FetchTimeDataGrid } from "./CommonComp2";
 import {
   DataGrid,
   GridCallbackDetails,
@@ -1741,7 +1741,7 @@ function CustomPagination() {
         px: 1,
       }}>
       <StackRowCenter>
-        <FetchTimeAndDataGrid />
+        <FetchTimeDataGrid />
         <SliderSize config={UseSizeConfig.queryLimit} />
         <DoubleClickToModify />
         <ResetColumnWidth />

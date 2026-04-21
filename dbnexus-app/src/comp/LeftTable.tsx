@@ -66,7 +66,7 @@ import {
   textEllipsisStyle,
 } from "./helper";
 import { v4 as uuidv4 } from "uuid";
-import { ExceedMaxTreeItem, MenuRefresh, ModalHeader } from "./CommonComp";
+import { MenuRefresh, ModalHeader } from "./CommonComp";
 import { TableStructure } from "./TableStructure";
 import { cancelTask } from "./handlers";
 import { filesize } from "filesize";
@@ -98,8 +98,8 @@ function TablesTree() {
   const matchPattern = useMatcherFn();
   const tablesId = useRef(uuidv4());
   const showItems = useMemo(() => {
-    return tables.filter((e) => matchPattern(e.name));
-  }, [tables, matchPattern]);
+    return tables.filter((e) => matchPattern(e.name)).slice(0, maxTree);
+  }, [tables, maxTree, matchPattern]);
   const handleReload = useCallback(() => {
     setLoading(true);
     commands
@@ -168,7 +168,6 @@ function TablesTree() {
           />
         );
       })}
-      <ExceedMaxTreeItem showItems={showItems.length} maxTreeSize={maxTree} />
     </TreeItem>
   );
 }

@@ -7,6 +7,7 @@ import {
   QueryEvent,
   ShowTableParameter,
 } from "./bindings";
+import { Dispatch, SetStateAction } from "react";
 
 function formatCreateTableAndIndexSql(sql: CreateTableAndIndexSql) {
   function newLine(ret: string): string {
@@ -45,8 +46,9 @@ async function cancelTask(taskId: string): Promise<void> {
 interface ShowTableCallBack {
   handleResult: (_: MuiDataGridData) => void;
   okCallBack?: () => void;
-  setLoading;
+  setLoading: Dispatch<SetStateAction<boolean>>;
 }
+
 async function showTable(
   props: {
     uuid: string;

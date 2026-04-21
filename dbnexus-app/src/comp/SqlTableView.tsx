@@ -97,7 +97,7 @@ import {
   AppDataGridToolBar,
   ClearableTextField,
   CopySql,
-  FetchTimeAndDataGrid,
+  FetchTimeDataGrid,
   ListenElementSize,
   QueryStatus,
   SetFilterSort,
@@ -438,7 +438,7 @@ export function CustomPagination({
         px: 1, // 建议加一点间距
       }}>
       <Stack direction="row" spacing={2} sx={{ alignItems: "center", flex: 1 }}>
-        <FetchTimeAndDataGrid />
+        <FetchTimeDataGrid />
         <ResetColumnWidth />
         {resp.sql && (
           <Tooltip title={resp.sql}>

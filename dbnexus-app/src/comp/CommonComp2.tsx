@@ -1548,11 +1548,6 @@ function AppDataGridPagination(props: {
   );
 }
 
-function LastFetchTime(props: { date: Date }) {
-  const { date } = props;
-  return <Typography color="info"> {date.toLocaleTimeString()} </Typography>;
-}
-
 function AppDataGridToolBar(props: {
   title?: string;
   left?: ReactNode;
@@ -2029,25 +2024,28 @@ function FetchTimeAndXXX(props: { isLoading: boolean }) {
   return (
     <>
       {date && (
-        <Chip
-          color="info"
-          label={date.toLocaleTimeString()}
-          icon={<IoTimerOutline />}
-        />
+        <Tooltip title="fetch time">
+          <Chip
+            color="info"
+            label={date.toLocaleTimeString()}
+            icon={<IoTimerOutline />}
+          />
+        </Tooltip>
       )}
-
       {!!fetchTime && (
-        <Chip
-          label={prettyMs(fetchTime)}
-          color={fetchTime > 5000 ? "error" : "info"}
-          icon={<GiSandsOfTime />}
-        />
+        <Tooltip title="fetch used duration">
+          <Chip
+            label={prettyMs(fetchTime)}
+            color={fetchTime > 5000 ? "error" : "info"}
+            icon={<GiSandsOfTime />}
+          />
+        </Tooltip>
       )}
     </>
   );
 }
 
-function FetchTimeAndDataGrid() {
+function FetchTimeDataGrid() {
   const apiRef = useGridApiContext();
 
   // 使用选择器获取当前的 loading 状态
@@ -2059,6 +2057,7 @@ function FetchTimeAndDataGrid() {
 function DataGridPageKeyboardControl() {
   const vis = useContext(TabActiveContext);
   const apiRef = useGridApiContext();
+  const { showNotification } = useNotification();
 
   useEffect(() => {
     const callback = (e: KeyboardEvent) => {
@@ -2071,11 +2070,13 @@ function DataGridPageKeyboardControl() {
         if (paginationModel.page < pageCount - 1) {
           apiRef.current.setPage(paginationModel.page + 1);
           e.preventDefault();
+          showNotification({ severity: "success", title: "next page pressed" });
         }
       }
       if (KeyPressed.prevPage(e)) {
         if (paginationModel.page > 0) {
           e.preventDefault();
+          showNotification({ severity: "success", title: "prev page pressed" });
           apiRef.current.setPage(paginationModel.page - 1);
         }
       }
@@ -2084,13 +2085,13 @@ function DataGridPageKeyboardControl() {
     return () => {
       document.removeEventListener("keydown", callback);
     };
-  }, [apiRef, vis]);
+  }, [apiRef, showNotification, vis]);
 
   return <> </>;
 }
 
 export {
-  FetchTimeAndDataGrid,
+  FetchTimeDataGrid,
   FetchTimeAndXXX,
   ShowingCount,
   CreateDatabase,
@@ -2113,7 +2114,6 @@ export {
   SqlDefaultValue,
   AppDataGridPagination,
   AppDataGridToolBar,
-  LastFetchTime,
   QueryStatus,
   StackRowCenter,
   SetFilterSort,

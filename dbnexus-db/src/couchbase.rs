@@ -221,6 +221,30 @@ impl CouchBaseDB {
 #[async_trait::async_trait]
 
 impl SchemaTrait for CouchBaseDB {
+    async fn export_table_or_view(
+        &self,
+        name: &str,
+        para: Option<ShowTableParameter>,
+        kind: ExportKind,
+        sender: tokio::sync::mpsc::Sender<crate::db::ExportFrame>,
+    ) -> anyhow::Result<()> {
+        let sql = self.gen_show_sql(name, None, para.as_ref());
+        let mut resp = self.get_scope()?.query(sql, None).await?;
+        let mut rows = resp.rows::<'_, serde_json::Value>();
+
+        while let Some(row) = rows.next().await {
+            let row = row?;
+            match kind {
+                ExportKind::Json { .. } | ExportKind::JsonLine => {
+                    sender.send(row.into()).await?;
+                }
+                _ => {
+                    anyhow::bail!(format!("not support export kind {:?}", kind))
+                }
+            }
+        }
+        anyhow::Ok(())
+    }
     fn as_any(&self) -> &dyn std::any::Any {
         self
     }
