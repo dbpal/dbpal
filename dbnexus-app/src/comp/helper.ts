@@ -204,13 +204,6 @@ function extractConfigNameFromUuid(uuid: string): string {
   }
 }
 
-function getViewportSize() {
-  const width = window.innerWidth; // 获取视口的宽度
-  const height = window.innerHeight; // 获取视口的高度
-
-  return { width, height }; // 返回一个对象，包含宽度和高度
-}
-
 function errToString(message: any) {
   if (typeof message == "object" && "reason" in message) {
     message = message["reason"];
@@ -637,7 +630,6 @@ export {
   generateDefaultFilename,
   getEditorText,
   getSupportExportKind,
-  getViewportSize,
   handleCopyToClipboard,
   hexToString,
   hexTryToString,

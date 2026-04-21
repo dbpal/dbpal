@@ -1,18 +1,26 @@
 import { Notifications } from "./Notification";
 import { Panel, PanelGroup, PanelResizeHandle } from "react-resizable-panels";
-import { CSSProperties, useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { TabsWithContent } from "./Tabs";
 import { Left } from "./Left";
 import { SettingProvider } from "./Settings.tsx";
 import {
   secondConfirm,
-  getViewportSize,
   KeyPressed,
   resizeHandlerSize,
   handleCopyToClipboard,
 } from "./helper.ts";
 import "../app.css";
-import { Box, Button, IconButton, Modal, Paper, Stack, useTheme } from "@mui/material";
+import {
+  Box,
+  Button,
+  IconButton,
+  Menu,
+  Modal,
+  Paper,
+  Stack,
+  useTheme,
+} from "@mui/material";
 import { EscDownEvent, modalHandleClose, modalStyle } from "./Common.ts";
 import { ModalHeader } from "./CommonComp.tsx";
 import { appLogDir, join } from "@tauri-apps/api/path";
@@ -224,7 +232,7 @@ function App() {
   return (
     <SettingProvider>
       <Notifications />
-      <Menu />
+      <AppMenu />
       <div>
         <ShowPanic />
         <ShowShortCut />
@@ -266,83 +274,43 @@ function App() {
   );
 }
 
-function Menu() {
+function AppMenu() {
+  // 假设你的 store 返回的对象里包含 event 和 content
   const menu = useContextMenu((state) => state.state);
-  const [display, setDisplay] = useState("none");
-  const [menuDiv, setMenuDiv] = useState<HTMLDivElement | null>(null);
+  const setUpMenu = useContextMenu((state) => state.setUpMenu); // 假设你有关闭方法
 
-  useEffect(() => {
-    if (!menuDiv) {
-      return;
-    }
-    document.addEventListener("click", () => {
-      if (!menuDiv.style) {
-        return;
-      }
-      setDisplay("none");
-    });
-  }, [menuDiv]);
+  const closeMenu = useCallback(() => {
+    setUpMenu(null);
+  }, [setUpMenu]);
+  // 如果没有菜单数据，直接不渲染
+  if (!menu || !menu.event) return null;
+  menu.event.preventDefault();
 
-  useEffect(() => {
-    if (!menu) {
-      return;
-    }
-    if (!menuDiv) {
-      return;
-    }
-    setDisplay("block");
-    if (menu && menu.event) {
-      menu.event.preventDefault();
-    }
-  }, [menu, menuDiv]);
-  const theme = useTheme();
   return (
-    menu && (
-      <div
-        ref={setMenuDiv}
-        style={{
-          position: "fixed",
-          zIndex: 10000,
-          height: "fit-content",
-          maxHeight: "48vh",
-          overflow: "auto",
-          display: display,
-          border: "2px solid " + theme.palette.success.main,
-          borderRadius: "0.5rem",
-          ...(menu && calMenuStyle(menu.event)),
-        }}>
-        <Paper elevation={24}>{menu && menu.content}</Paper>
-      </div>
-    )
+    <Menu
+      // 1. 基础开关逻辑
+      open={Boolean(menu)}
+      onClose={closeMenu} // 点击外部或按 Esc 会自动触发
+      // 2. 核心定位配置：让 MUI 接管原本 calMenuStyle 的工作
+      anchorReference="anchorPosition"
+      anchorPosition={{
+        top: menu.event.clientY,
+        left: menu.event.clientX,
+      }}
+      onClick={() => {
+        closeMenu();
+      }}
+      // 4. 优化体验
+      slotProps={{
+        backdrop: {
+          // 如果你不想要背景遮罩感，可以把背景设为透明
+          style: { backgroundColor: "transparent" },
+        },
+      }}>
+      {/* menu.content 里面应该是具体的 <MenuItem> 组件 */}
+      {menu.content}
+    </Menu>
   );
-}
-
-function calMenuStyle(e: React.MouseEvent<any>): CSSProperties {
-  const x = e.clientX;
-  const y = e.clientY;
-  const ret: CSSProperties = {};
-  const { height, width } = getViewportSize();
-  ret.top = "auto";
-  ret.bottom = "auto";
-  ret.left = "auto";
-  ret.right = "auto";
-  if (width - x > width / 2) {
-    // this is click have a lot of space on the right
-    ret.left =
-      x -
-      10 + // 稍微靠左一点
-      "px";
-  } else {
-    ret.right = width - x - 10 + "px";
-  }
-
-  if (height - y > height / 2) {
-    // 这个是点击的位置下面有很大的空间
-    ret.top = y - 10 + "px";
-  } else {
-    ret.bottom = height - y - 10 + "px";
-  }
-  return ret;
 }
 
 export { App };
