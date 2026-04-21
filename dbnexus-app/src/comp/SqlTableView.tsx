@@ -702,6 +702,11 @@ function SqlTableView(props: {
   const [clickedField, setClickedField] = useState("");
   const { getColumnWidth, setColumnWidth } = useColumnWidthStore();
   const getSize = useSizeStore((s) => s.getSize);
+  const [showFilter, setShowFilter] = useState<{
+    field: string;
+    content: string;
+    typ: string;
+  }>(null);
   const handleResp = useCallback(
     (resp: MuiDataGridData) => {
       resp.data.forEach((data, index) => {
@@ -980,13 +985,6 @@ function SqlTableView(props: {
                 uuid={uuid}
                 tableName={tableName}
                 setSort={setSort}
-                setWhere={setWhere}
-                putValueInSql={(value) => {
-                  return putValueInSql(
-                    resp.fields.find((e) => e.field == field).data_type,
-                    value,
-                  );
-                }}
                 setNull={
                   isTable
                     ? async () => {
@@ -999,6 +997,13 @@ function SqlTableView(props: {
                 }
                 viewInModal={() => {
                   setViewInModal(row);
+                }}
+                setShowFilter={() => {
+                  setShowFilter({
+                    field,
+                    content,
+                    typ: resp.fields.find((e) => e.field == field).data_type,
+                  });
                 }}
               />
             ),
@@ -1044,7 +1049,6 @@ function SqlTableView(props: {
     uuid,
     tableName,
     handleDelete,
-    putValueInSql,
     handleProcessRowUpdate,
     clientModel,
     handleReload,
@@ -1153,6 +1157,36 @@ function SqlTableView(props: {
           }}
         />
       )}
+      {showFilter && (
+        <Modal
+          open={!!showFilter}
+          onClose={modalHandleClose((e: EscDownEvent) => {
+            e.preventDefault();
+            setShowFilter(null);
+          })}>
+          <Box sx={{ ...modalStyle, width: "45vw" }}>
+            <ModalHeader
+              title="Quick Filter"
+              handleClose={() => {
+                setShowFilter(null);
+              }}
+            />
+            <FilterOnValue
+              content={showFilter.content}
+              setWhere={setWhere}
+              field={showFilter.field}
+              kind={kind}
+              handleClose={() => {
+                setShowFilter(null);
+              }}
+              putValueInSql={(value) => {
+                return putValueInSql(showFilter.typ, value);
+              }}
+            />
+          </Box>
+        </Modal>
+      )}
+
       {editRowInModal && (
         <EditRowInModal
           handleProcessRowUpdate={handleProcessRowUpdate}
@@ -1359,8 +1393,6 @@ function Menu(props: {
   content: string;
   handleDelete?: () => void;
   setSort: Dispatch<SetStateAction<string>>;
-  setWhere: Dispatch<SetStateAction<string>>;
-  putValueInSql: (value?: string) => Promise<string>;
   setNull?: () => void;
   row: object;
   fields: Field[];
@@ -1372,14 +1404,13 @@ function Menu(props: {
   isTable: boolean;
   uuid: string;
   tableName: string;
+  setShowFilter: () => void;
 }) {
   const {
     field,
     content,
     handleDelete,
     setSort,
-    setWhere,
-    putValueInSql,
     setNull,
     uuid,
     tableName,
@@ -1391,6 +1422,7 @@ function Menu(props: {
     kind,
     viewInModal,
     isTable,
+    setShowFilter,
   } = props;
 
   const addOP = useCallback(
@@ -1399,9 +1431,7 @@ function Menu(props: {
     },
     [uuid, tableName],
   );
-
   const { showNotification } = useNotification();
-  const [showFilter, setShowFilter] = useState(false);
   const [showClone, setShowClone] = useState(false);
   const quoteField = quoteDatabaseIdentifier(field, kind);
   const [cloneModalBox, setCloneModalBox] = useState(null);
@@ -1487,7 +1517,7 @@ function Menu(props: {
         {content && (
           <MenuItem
             onClick={() => {
-              setShowFilter(true);
+              setShowFilter();
             }}>
             <ListItemIcon>
               <FilterAltIcon />
@@ -1542,36 +1572,6 @@ function Menu(props: {
               handleClose={() => setShowClone(false)}
               initValues={row}
               isAdd
-            />
-          </Box>
-        </Modal>
-      )}
-
-      {showFilter && (
-        <Modal
-          open={showFilter}
-          onClose={modalHandleClose((e: EscDownEvent) => {
-            e.preventDefault();
-            setShowFilter(false);
-          })}>
-          <Box sx={{ ...modalStyle, width: "45vw" }}>
-            <ModalHeader
-              title="Quick Filter"
-              handleClose={() => {
-                setShowFilter(false);
-              }}
-            />
-            <FilterOnValue
-              content={content}
-              setWhere={setWhere}
-              field={field}
-              kind={kind}
-              handleClose={() => {
-                setShowFilter(false);
-              }}
-              putValueInSql={(value) => {
-                return putValueInSql(value);
-              }}
             />
           </Box>
         </Modal>

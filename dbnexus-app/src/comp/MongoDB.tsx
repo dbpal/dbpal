@@ -646,13 +646,11 @@ function MongoTableToolBar(props: {
 function MongoTableListContextMenu(props: {
   delOP?: () => void;
   content;
-  field;
-  setFilter;
-  loadDoc: () => Promise<BSON.Document>;
+  field: string;
   setSort;
+  setShowFilter;
 }) {
-  const { delOP, content, field, setFilter, loadDoc, setSort } = props;
-  const [showFilter, setShowFilter] = useState(false);
+  const { delOP, content, field, setShowFilter, setSort } = props;
   const { showNotification } = useNotification();
   const [showViewJson, setShowViewJson] = useState(false);
   const [modalBox, setModalBox] = useState(null);
@@ -709,7 +707,7 @@ function MongoTableListContextMenu(props: {
         <Divider />
         <MenuItem
           onClick={() => {
-            setShowFilter(true);
+            setShowFilter();
           }}>
           <ListItemIcon>
             <FilterAltIcon />
@@ -748,34 +746,6 @@ function MongoTableListContextMenu(props: {
               }}
             />
             <SimpleFlexEditor value={content} language="json" readOnly />
-          </Box>
-        </Modal>
-      )}
-
-      {showFilter && (
-        <Modal
-          open={showFilter}
-          onClose={modalHandleClose((e: EscDownEvent) => {
-            e.preventDefault();
-            setShowFilter(false);
-          })}>
-          <Box sx={{ ...modalStyle, width: "45%" }}>
-            <ModalHeader
-              title="Quick Filter"
-              handleClose={() => {
-                setShowFilter(false);
-              }}
-            />
-            <MongoTableListMenuFilter
-              loadValue={async () => {
-                return loadDoc().then((x) => x[field]);
-              }}
-              setFilter={setFilter}
-              field={field}
-              handleClose={() => {
-                setShowFilter(false);
-              }}
-            />
           </Box>
         </Modal>
       )}
@@ -1125,6 +1095,7 @@ function MongoTableList(props: {
   const [showExport, setShowExport] = useState(false);
   const [clickedField, setClickedField] = useState("");
   const { getColumnWidth, setColumnWidth } = useColumnWidthStore();
+  const [showFilter, setShowFilter] = useState<{ field: string; id: any }>(null);
   const handleReload = useCallback(
     async (showOK) => {
       setLoading(true);
@@ -1284,10 +1255,8 @@ function MongoTableList(props: {
                     : undefined
                 }
                 field={field}
-                setFilter={setFilter}
-                loadDoc={async () => {
-                  const doc = resp.data.find((x) => x[keyNotInTable] == id);
-                  return await loadOne(EJSON.parse(doc[mongoID]));
+                setShowFilter={() => {
+                  setShowFilter({ field, id: EJSON.parse(row[mongoID]) });
                 }}
                 setSort={setSort}
               />
@@ -1298,7 +1267,7 @@ function MongoTableList(props: {
         style: { cursor: "context-menu" },
       },
     } as GridSlotsComponentsProps;
-  }, [handleDel, loadOne, resp, setFilter, setSort, setUpMenu]);
+  }, [handleDel, resp, setSort, setUpMenu]);
   const slots = useMemo(() => {
     return {
       columnMenu: AppColumnMenu,
@@ -1415,6 +1384,34 @@ function MongoTableList(props: {
               }
               needConfirm
               doc={selectModifyDoc}
+            />
+          </Box>
+        </Modal>
+      )}
+
+      {showFilter && (
+        <Modal
+          open={!!showFilter}
+          onClose={modalHandleClose((e: EscDownEvent) => {
+            e.preventDefault();
+            setShowFilter(null);
+          })}>
+          <Box sx={{ ...modalStyle, width: "45%" }}>
+            <ModalHeader
+              title="Quick Filter"
+              handleClose={() => {
+                setShowFilter(null);
+              }}
+            />
+            <MongoTableListMenuFilter
+              loadValue={async () => {
+                return loadOne(showFilter.id).then((ret) => ret[showFilter.field]);
+              }}
+              setFilter={setFilter}
+              field={showFilter.field}
+              handleClose={() => {
+                setShowFilter(null);
+              }}
             />
           </Box>
         </Modal>
