@@ -268,7 +268,7 @@ class DatabaseOperation {
   public constructor(
     public op: DatabaseOpKind,
     public sql: string,
-    public tableId: any,
+    public tableId: string | null,
     public newValue: object | null,
   ) {}
 }
@@ -565,15 +565,11 @@ function CustomCell(props: GridRenderCellParams) {
   const { row, field } = props;
   const { ops, setOps, fields, uuid, handleReload, clickedField } =
     useContext(OpsContext);
-  const modify = ops.find((x) =>
-    x.newValue ? x.newValue[keyNotInTable] == row[keyNotInTable] : false,
-  );
-  const deleted = ops.find(
-    (x) => x.tableId == tryGetId(row, fields) && x.op == DatabaseOpKind.Delete,
-  );
+  let dbId = tryGetId(row, fields);
+  const modified = ops.find((x) => x.tableId == dbId && x.op == DatabaseOpKind.Update);
+  const deleted = ops.find((x) => x.tableId == dbId && x.op == DatabaseOpKind.Delete);
   const firstField = fields[0].field == field;
   let dataField = { "data-field": field };
-
   if (deleted) {
     return (
       <Stack
@@ -595,7 +591,7 @@ function CustomCell(props: GridRenderCellParams) {
     );
   }
 
-  if (modify) {
+  if (modified) {
     return (
       <Stack
         spacing={0}
@@ -605,16 +601,16 @@ function CustomCell(props: GridRenderCellParams) {
         <CellButtons
           uuid={uuid}
           setOps={setOps}
-          op={modify}
+          op={modified}
           handleReload={handleReload}
           firstField={firstField}
         />
-        {modify.newValue[field] != row[field] ? (
+        {modified.newValue[field] != row[field] ? (
           <Typography
             sx={{
               color: "#dc1414",
             }}>
-            {modify.newValue[field]}
+            {modified.newValue[field]}
           </Typography>
         ) : (
           <Typography>{row[field]}</Typography>

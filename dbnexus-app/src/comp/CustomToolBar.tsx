@@ -58,15 +58,12 @@ const StyledTextField = styled(TextField)<{
   transition: theme.transitions.create(["width", "opacity"]),
 }));
 
-function CustomToolbar(props: { extra?: React.ReactNode }) {
-  const { extra } = props;
-
+function CustomToolbar() {
   const [exportMenuOpen, setExportMenuOpen] = React.useState(false);
   const exportMenuTriggerRef = React.useRef<HTMLButtonElement>(null);
 
   return (
     <>
-      {extra}
       <Toolbar style={{ border: "none" }}>
         <Tooltip title="Columns">
           <ColumnsPanelTrigger render={<ToolbarButton />}>

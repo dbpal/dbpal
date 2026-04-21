@@ -1570,7 +1570,12 @@ function AppDataGridToolBar(props: {
       <StackRowCenter>{left}</StackRowCenter>
       {title && <Typography variant="h5">{title}</Typography>}
       <Stack direction="row" style={{ alignItems: "center" }}>
-        <CustomToolbar extra={right} />
+        {right}
+        {/* {right ? (
+          <Divider orientation="vertical" variant="middle" sx={{ mx: 0.5 }} flexItem />
+        ) : undefined} */}
+
+        <CustomToolbar />
       </Stack>
     </Stack>
   );

@@ -1476,9 +1476,9 @@ human: tell me Mike's age from TABLE Persons
         }
         let req = &OpenAIReq {
             chat_history: vec![],
-            url: "https://api.openai-proxy.org/v1".into(),
-            api_key: "sk-egR0EUYn0EzVybl7D9JkUFx2ksnD62sZPQ8d0J0yJgPEiAWt".into(),
-            model: "gpt-4.1-mini".into(),
+            url: "https://dashscope.aliyuncs.com/compatible-mode/v1".into(),
+            api_key: "sk-6c19c965d3234c8fae49c19e4f0301f0".into(),
+            model: "qwen3.6-plus".into(),
             prompt: r#"
                 tell me what time and date is in new york
                 "#
