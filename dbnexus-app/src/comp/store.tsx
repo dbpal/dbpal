@@ -743,7 +743,6 @@ export interface UserSettings {
     zoom: number;
   };
   editor: {
-    tabSize: number;
     theme: string;
     editorOption: string;
   };
@@ -785,7 +784,6 @@ const initialSettings: UserSettings = {
     zoom: 1,
   },
   editor: {
-    tabSize: 4,
     theme: "",
     editorOption: "{\n}",
   },
@@ -1379,3 +1377,16 @@ export const useExportConfigStore = create<ExportConfigState>()(
     },
   ),
 );
+
+export function useTabSize() {
+  const { editor } = useUserSettings();
+  return useMemo(() => {
+    try {
+      let x = JSON.parse(editor.editorOption);
+      return x["tabSize"];
+    } catch (_e) {
+      console.error("parse editor.editorOption failed", _e);
+      return 4;
+    }
+  }, [editor]);
+}

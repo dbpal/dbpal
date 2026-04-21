@@ -105,8 +105,8 @@ import {
   UseSizeConfig,
   useSizeStore,
   useTableFilter,
+  useTabSize,
   useTabsManage,
-  useUserSettings,
 } from "./store";
 import { MonacoEditor } from "./Editor";
 import EditIcon from "@mui/icons-material/Edit";
@@ -1631,13 +1631,14 @@ function SetFilterSort(props: {
   const [editor, setEditor] = useState<editor.IStandaloneCodeEditor>(null);
   const [modalBox, setModalBox] = useState(null);
   const { showNotification } = useNotification();
-  const setting = useUserSettings();
 
   const [selectFilter, setSelectFilter] = useState("");
   const { getFilter, addFilter, removeFilter } = useTableFilter();
   const filters = getFilter(uuid, tableName);
+  const tabSize = useTabSize();
+
   const formatarg = {
-    tabSize: setting.editor.tabSize,
+    tabSize,
     insertSpaces: true,
   };
 
@@ -1661,7 +1662,9 @@ function SetFilterSort(props: {
       onClose={modalHandleClose((e: EscDownEvent) => {
         e.preventDefault();
         handleClose();
-      })}>
+      })}
+      disableAutoFocus
+      disableEnforceFocus>
       <Box
         sx={{ resize: "both", ...modalStyle, width: "75%", height: "30vh" }}
         ref={setModalBox}>

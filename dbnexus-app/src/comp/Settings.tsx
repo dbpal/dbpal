@@ -304,19 +304,17 @@ function SetBgColor({ bgColor, setBgColor, theme }) {
 function EditorSetting() {
   const { editor, updateEditor } = useUserSettings();
   const [showEditOption, setShowEditOption] = useState(false);
-  const [tabSize, setTabSize] = useState(editor.tabSize);
   const [customEditorTheme, setCustomEditorTheme] = useState(editor.theme);
   const [highLightTheme, setHighlightTheme] = useState("");
   const { showNotification } = useNotification();
 
   const makeConfig = useCallback(() => {
     const obj = {
-      tabSize,
       theme: customEditorTheme,
       editorOption: editor.editorOption,
     };
     return obj;
-  }, [customEditorTheme, editor.editorOption, tabSize]);
+  }, [customEditorTheme, editor.editorOption]);
 
   const handleSave = () => {
     try {
@@ -337,20 +335,6 @@ function EditorSetting() {
 
   return (
     <Stack>
-      <Stack direction="row" sx={{ alignItems: "center" }}>
-        <Typography sx={{ width: headerSize }}>tab size </Typography>
-
-        {[2, 4, 8].map((e) => (
-          <Chip
-            label={e}
-            color={e == tabSize ? "success" : "default"}
-            onClick={() => {
-              setTabSize(e);
-            }}
-            key={e}
-          />
-        ))}
-      </Stack>
       <Stack>
         <Stack direction="row" style={{ alignItems: "flex-start" }}>
           <Tooltip title="dbpal use monaco editor as build in editor" placement="top">

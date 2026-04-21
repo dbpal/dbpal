@@ -25,7 +25,6 @@ function MonacoEditor({ value, language, onMount, readOnly }: MonacoEditorProps)
         fontSize: settting.appearance.fontSize,
         fontWeight: settting.appearance.fontWeight,
         fontFamily: settting.appearance.fontFamily,
-        tabSize: settting.editor.tabSize,
         readOnly: readOnly,
         ...JSON.parse(settting.editor.editorOption),
       }),
@@ -35,7 +34,6 @@ function MonacoEditor({ value, language, onMount, readOnly }: MonacoEditorProps)
         settting.appearance.fontSize,
         settting.appearance.fontWeight,
         settting.editor.editorOption,
-        settting.editor.tabSize,
       ],
     );
 

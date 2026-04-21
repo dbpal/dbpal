@@ -24,7 +24,7 @@ import CloseIcon from "@mui/icons-material/Close";
 import KeyIcon from "@mui/icons-material/Key";
 import { AllKindChat } from "./Chat";
 import { makeFormatFn } from "./Common";
-import { useNotification, useUserSettings } from "./store";
+import { useNotification, useTabSize } from "./store";
 import {
   commands,
   CreateIndexReq,
@@ -62,9 +62,10 @@ function CreateTable(props: { uuid: string; kind: DataSourceKind }) {
   const [loading, setLoading] = useState(false);
   const [showQuery, setShowQuery] = useState(false);
   const [editorValue, setEditorValue] = useState("");
-  const setting = useUserSettings();
   const tableNameRef = useRef<HTMLInputElement>(null);
   const { showNotification } = useNotification();
+  const tabSize = useTabSize();
+
   const makeReq = useCallback(() => {
     {
       // check
@@ -133,7 +134,7 @@ function CreateTable(props: { uuid: string; kind: DataSourceKind }) {
           setEditorValue(
             makeFormatFn(kind)(sql, {
               insertSpaces: true,
-              tabSize: setting.editor.tabSize,
+              tabSize,
             }),
           );
         }, 200);
@@ -145,7 +146,7 @@ function CreateTable(props: { uuid: string; kind: DataSourceKind }) {
           message: e,
         });
       });
-  }, [kind, makeReq, setting.editor.tabSize, showNotification, uuid]);
+  }, [kind, makeReq, showNotification, tabSize, uuid]);
 
   const handleCreate = async () => {
     const req = makeReq();
