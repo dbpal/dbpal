@@ -231,31 +231,29 @@ function CassandraAggregateMenu(props: {
   };
 
   return (
-    <div>
-      <MenuList>
-        <MenuItem
-          onClick={() => {
-            handleOpenDetails();
-          }}>
-          <ListItemIcon>
-            <InfoIcon />
-          </ListItemIcon>
-          <ListItemText> Detail </ListItemText>
-        </MenuItem>
+    <MenuList>
+      <MenuItem
+        onClick={() => {
+          handleOpenDetails();
+        }}>
+        <ListItemIcon>
+          <InfoIcon />
+        </ListItemIcon>
+        <ListItemText> Detail </ListItemText>
+      </MenuItem>
 
-        <Divider />
-        <MenuItem
-          sx={{ color: "error.main" }}
-          onClick={() => {
-            handleDrop();
-          }}>
-          <ListItemIcon>
-            <DeleteForeverIcon color="error" />
-          </ListItemIcon>
-          <ListItemText>Drop</ListItemText>
-        </MenuItem>
-      </MenuList>
-    </div>
+      <Divider />
+      <MenuItem
+        sx={{ color: "error.main" }}
+        onClick={() => {
+          handleDrop();
+        }}>
+        <ListItemIcon>
+          <DeleteForeverIcon color="error" />
+        </ListItemIcon>
+        <ListItemText>Drop</ListItemText>
+      </MenuItem>
+    </MenuList>
   );
 }
 

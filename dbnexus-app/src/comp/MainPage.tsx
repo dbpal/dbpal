@@ -33,6 +33,7 @@ import {
   useConfirmMsg,
   useContextMenu,
   useNotification,
+  useOneShotModalUI,
   useTabsManage,
 } from "./store.tsx";
 
@@ -168,6 +169,8 @@ function ShowShortCut() {
 function App() {
   const { tabs, setCurrentTab, setTabs, currentTab } = useTabsManage();
   const cancelMsg = useConfirmMsg((state) => state.confirmMsgs);
+
+  const { ui: oneshotUI, setUi: setOneShotUI } = useOneShotModalUI();
   const closeTab = useCallback(
     (index: number) => {
       (async () => {
@@ -233,6 +236,16 @@ function App() {
     <SettingProvider>
       <Notifications />
       <AppMenu />
+      {oneshotUI && (
+        <Modal
+          open={true}
+          onClose={modalHandleClose((e: EscDownEvent) => {
+            e.preventDefault();
+            setOneShotUI(null);
+          })}>
+          {oneshotUI}
+        </Modal>
+      )}
       <div>
         <ShowPanic />
         <ShowShortCut />

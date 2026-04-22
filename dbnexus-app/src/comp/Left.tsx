@@ -125,6 +125,7 @@ import {
   useConnectionStore,
   useFavoriteStore,
   FavoriteSql,
+  useOneShotModalUI,
 } from "./store.tsx";
 import { commands, DBConnectionConfig } from "./bindings.ts";
 const settingId = uuidv4();
@@ -1079,122 +1080,133 @@ function DatabaseMenu(props: {
 }) {
   const { database, uuid, reload, reloadDatabase, kind, schemas } = props;
   const { showNotification } = useNotification();
-  const [showCreateSchema, setShowCreateSchema] = useState(false);
   const { appendTab } = useTabsManage();
   const { is_connected } = useConnected();
 
   const conn_established = is_connected(uuid);
 
-  return (
-    <div>
-      <MenuList>
-        {conn_established &&
-          kind != DataSourceKind.Mongo &&
-          kind != DataSourceKind.Redis &&
-          kind != DataSourceKind.CouchBase && (
-            <MenuNewQuery
-              handleNew={() => {
-                openNewQuery(appendTab, uuid, kind);
-              }}
-            />
-          )}
+  const { setUi } = useOneShotModalUI();
 
-        {conn_established && kind != DataSourceKind.Oracle && (
-          <MenuCreateSchema
-            handleCreate={() => {
-              setShowCreateSchema(true);
+  return (
+    <MenuList>
+      {conn_established &&
+        kind != DataSourceKind.Mongo &&
+        kind != DataSourceKind.Redis &&
+        kind != DataSourceKind.CouchBase && (
+          <MenuNewQuery
+            handleNew={() => {
+              openNewQuery(appendTab, uuid, kind);
             }}
-            kind={kind}
           />
         )}
-
-        {!conn_established && !database && <MenuOpenConn name={uuid} />}
-
-        {conn_established && <MenuRefresh reload={reload} />}
-        {conn_established && !database && <MenuConnectionInfo uuid={uuid} />}
-
-        {conn_established && !database && <MenuCloseConn name={uuid} />}
-        {database && kind != DataSourceKind.DuckDB && (
-          <MenuItem
-            onClick={() => {
-              // we are in database context uuid contains the database name
-              // we need remove that
-              const index = uuid.indexOf("/");
-              dropDatabase({
-                uuid: uuid.substring(0, index),
-                database,
-                showNotification,
-                okCallback: () => {
-                  reloadDatabase(true);
-                },
-              });
-            }}>
-            <ListItemIcon>
-              <DeleteForeverIcon color="error" />
-            </ListItemIcon>
-            <ListItemText color="error">drop</ListItemText>
-          </MenuItem>
-        )}
-
-        {!database && <MenuDeleteConfig name={uuid} />}
-      </MenuList>
-
-      {showCreateSchema && (
-        <Modal
-          open={showCreateSchema}
-          onClose={modalHandleClose((e: EscDownEvent) => {
-            e.preventDefault();
-            setShowCreateSchema(false);
-          })}>
-          <Box sx={{ ...modalStyle, width: "40%" }}>
-            <ModalHeader
-              title={(function () {
-                let name = "database";
-                switch (kind) {
-                  case DataSourceKind.Postgres:
-                  case DataSourceKind.Cockroach:
-                  case DataSourceKind.SqlServer:
-                    name = "schema";
-                    break;
-                }
-                return `create ${name}`;
-              })()}
-              handleClose={() => {
-                setShowCreateSchema(false);
-              }}
-            />
-            <CreateSchema
-              uuid={uuid}
-              handleClose={() => {
-                reload();
-                setShowCreateSchema(false);
-              }}
-              kind={kind}
-              schemas={schemas}
-              handleReload={reload}
-            />
-          </Box>
-        </Modal>
+      {conn_established && kind != DataSourceKind.Oracle && (
+        <MenuCreateSchema
+          handleCreate={() => {
+            setUi(
+              <Box sx={{ ...modalStyle, width: "40%" }}>
+                <ModalHeader
+                  title={(function () {
+                    let name = "database";
+                    switch (kind) {
+                      case DataSourceKind.Postgres:
+                      case DataSourceKind.Cockroach:
+                      case DataSourceKind.SqlServer:
+                        name = "schema";
+                        break;
+                    }
+                    return `create ${name}`;
+                  })()}
+                  handleClose={() => {
+                    setUi(null);
+                  }}
+                />
+                <CreateSchema
+                  uuid={uuid}
+                  handleClose={() => {
+                    reload();
+                    setUi(null);
+                  }}
+                  kind={kind}
+                  schemas={schemas}
+                  handleReload={reload}
+                />
+              </Box>,
+            );
+          }}
+          kind={kind}
+        />
       )}
-    </div>
+
+      {!conn_established && !database && <MenuOpenConn name={uuid} />}
+
+      {conn_established && <MenuRefresh reload={reload} />}
+      {conn_established && !database && <MenuConnectionInfo uuid={uuid} />}
+
+      {conn_established && !database && <MenuCloseConn name={uuid} />}
+      {database && kind != DataSourceKind.DuckDB && (
+        <MenuItem
+          onClick={() => {
+            // we are in database context uuid contains the database name
+            // we need remove that
+            const index = uuid.indexOf("/");
+            dropDatabase({
+              uuid: uuid.substring(0, index),
+              database,
+              showNotification,
+              okCallback: () => {
+                reloadDatabase(true);
+              },
+            });
+          }}>
+          <ListItemIcon>
+            <DeleteForeverIcon color="error" />
+          </ListItemIcon>
+          <ListItemText color="error">drop</ListItemText>
+        </MenuItem>
+      )}
+
+      {!database && <MenuDeleteConfig name={uuid} />}
+    </MenuList>
   );
 }
 
 function CatalogMenu(props: { uuid; reload; kind: DataSourceKind }) {
   const { uuid, reload, kind } = props;
-  const [showCreateDB, setShowCreateDB] = useState(false);
   const { is_connected } = useConnected();
   const conn_established = is_connected(uuid);
-
+  const { setUi } = useOneShotModalUI();
   return (
     <div>
       <MenuList>
         {!conn_established && <MenuOpenConn name={uuid} />}
-
         {conn_established && kind != DataSourceKind.DuckDB && (
           <MenuCreateDatabase
             handleCreate={() => {
-              setShowCreateDB(true);
+              setUi(
+                <Box sx={{ ...modalStyle, width: "50%" }}>
+                  <ModalHeader
+                    handleClose={() => {
+                      setUi(null);
+                    }}
+                    title={(function () {
+                      switch (kind) {
+                        case DataSourceKind.CouchBase:
+                          return "create bucket";
+                        default:
+                          return "create database";
+                      }
+                    })()}
+                  />
+                  <CreateDatabase
+                    uuid={uuid}
+                    handleClose={() => {
+                      reload();
+                      setUi(null);
+                    }}
+                    kind={kind}
+                  />
+                </Box>,
+              );
             }}
             kind={kind}
           />
@@ -1206,38 +1218,6 @@ function CatalogMenu(props: { uuid; reload; kind: DataSourceKind }) {
         <Divider />
         <MenuDeleteConfig name={uuid} />
       </MenuList>
-      {showCreateDB && (
-        <Modal
-          open={showCreateDB}
-          onClose={modalHandleClose((e: EscDownEvent) => {
-            e.preventDefault();
-            setShowCreateDB(false);
-          })}>
-          <Box sx={{ ...modalStyle, width: "50%" }}>
-            <ModalHeader
-              handleClose={() => {
-                setShowCreateDB(false);
-              }}
-              title={(function () {
-                switch (kind) {
-                  case DataSourceKind.CouchBase:
-                    return "create bucket";
-                  default:
-                    return "create database";
-                }
-              })()}
-            />
-            <CreateDatabase
-              uuid={uuid}
-              handleClose={() => {
-                reload();
-                setShowCreateDB(false);
-              }}
-              kind={kind}
-            />
-          </Box>
-        </Modal>
-      )}
     </div>
   );
 }

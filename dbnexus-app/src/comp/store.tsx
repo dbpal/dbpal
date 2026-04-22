@@ -1390,3 +1390,20 @@ export function useTabSize() {
     }
   }, [editor]);
 }
+
+interface OneShotUI {
+  ui: ReactElement;
+  setUi: (ui: ReactElement) => void;
+}
+
+export const useOneShotModalUI = create<OneShotUI>()(
+  persist(
+    (set) => ({
+      ui: null,
+      setUi: (ui) => set({ ui }),
+    }),
+    {
+      name: "one-shot-ui-storage",
+    },
+  ),
+);

@@ -7,14 +7,13 @@ import {
   ListItemText,
   MenuItem,
   MenuList,
-  Modal,
   Stack,
 } from "@mui/material";
 import { TreeItem } from "@mui/x-tree-view/TreeItem";
 import { useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
 import DeleteForeverIcon from "@mui/icons-material/DeleteForever";
 import InfoIcon from "@mui/icons-material/Info";
-import { EscDownEvent, modalHandleClose, modalStyle } from "./Common.ts";
+import { modalStyle } from "./Common.ts";
 import { DefAndMetasView } from "./DefAndMetaView.tsx";
 import {
   DataSourceKind,
@@ -34,6 +33,7 @@ import {
   useNotification,
   useTabsManage,
   useMatcherFn,
+  useOneShotModalUI,
 } from "./store.tsx";
 import { commands, DefAndMetas, SequenceDetail } from "./bindings.ts";
 function SequenceTree() {
@@ -142,10 +142,7 @@ function SequenceMenu(props: {
 }) {
   const { uuid, seq, reload, kind } = props;
   const { appendTab } = useTabsManage();
-  const { showNotification } = useNotification();
-  const [showDrop, setShowDrop] = useState(false);
-  const [cascade, setCascade] = useState(false);
-  const supportCascade = [DataSourceKind.Postgres].includes(kind);
+  const { setUi } = useOneShotModalUI();
 
   const handleOpenDetails = () => {
     appendTab(
@@ -162,6 +159,61 @@ function SequenceMenu(props: {
       ),
     );
   };
+
+  return (
+    <div>
+      <MenuList>
+        <MenuItem
+          onClick={() => {
+            handleOpenDetails();
+          }}>
+          <ListItemIcon>
+            <InfoIcon />
+          </ListItemIcon>
+          <ListItemText> Detail </ListItemText>
+        </MenuItem>
+
+        <MenuItem
+          sx={{ color: "error.main" }}
+          onClick={() => {
+            setUi(
+              <Box sx={{ ...modalStyle, width: "45%" }}>
+                <DropSeq
+                  kind={kind}
+                  seq={seq}
+                  handleClose={() => {
+                    setUi(null);
+                  }}
+                  reload={reload}
+                  uuid={uuid}
+                />
+              </Box>,
+            );
+          }}>
+          <ListItemIcon>
+            <DeleteForeverIcon color="error" />
+          </ListItemIcon>
+          <ListItemText> Drop</ListItemText>
+        </MenuItem>
+      </MenuList>
+    </div>
+  );
+}
+
+function DropSeq(props: {
+  kind: DataSourceKind;
+  seq: SequenceDetail;
+  reload: () => void;
+  handleClose: () => void;
+  uuid;
+}) {
+  const { kind, seq, reload, handleClose, uuid } = props;
+
+  const [cascade, setCascade] = useState(false);
+  const supportCascade = [DataSourceKind.Postgres, DataSourceKind.Cockroach].includes(
+    kind,
+  );
+  const { showNotification } = useNotification();
 
   const handleDrop = async () => {
     const confirm = await secondConfirm({
@@ -181,7 +233,7 @@ function SequenceMenu(props: {
           message: <CopySql sql={sql} />,
         });
         reload();
-        setShowDrop(false);
+        handleClose();
       })
       .catch((e) => {
         showNotification({
@@ -191,66 +243,32 @@ function SequenceMenu(props: {
         });
       });
   };
-  return (
-    <div>
-      <MenuList>
-        <MenuItem
-          onClick={() => {
-            handleOpenDetails();
-          }}>
-          <ListItemIcon>
-            <InfoIcon />
-          </ListItemIcon>
-          <ListItemText> Detail </ListItemText>
-        </MenuItem>
 
-        <MenuItem
-          sx={{ color: "error.main" }}
-          onClick={() => {
-            setShowDrop(true);
-          }}>
-          <ListItemIcon>
-            <DeleteForeverIcon color="error" />
-          </ListItemIcon>
-          <ListItemText> Drop</ListItemText>
-        </MenuItem>
-      </MenuList>
-      {showDrop && (
-        <Modal
-          open={showDrop}
-          onClose={modalHandleClose((e: EscDownEvent) => {
-            e.preventDefault();
-            setShowDrop(false);
-          })}>
-          <Box sx={{ ...modalStyle, width: "45%" }}>
-            <Stack>
-              {supportCascade && (
-                <Stack>
-                  <FormControlLabel
-                    control={
-                      <Checkbox
-                        checked={cascade}
-                        onChange={(e) => setCascade(e.target.checked)}
-                      />
-                    }
-                    label="CasCade"
-                  />
-                </Stack>
-              )}
-              <Stack direction="row">
-                <Button
-                  onClick={() => {
-                    handleDrop();
-                  }}
-                  color="error">
-                  Drop
-                </Button>
-              </Stack>
-            </Stack>
-          </Box>
-        </Modal>
+  return (
+    <Stack>
+      {supportCascade && (
+        <Stack>
+          <FormControlLabel
+            control={
+              <Checkbox
+                checked={cascade}
+                onChange={(e) => setCascade(e.target.checked)}
+              />
+            }
+            label="CasCade"
+          />
+        </Stack>
       )}
-    </div>
+      <Stack direction="row">
+        <Button
+          onClick={() => {
+            handleDrop();
+          }}
+          color="error">
+          Drop
+        </Button>
+      </Stack>
+    </Stack>
   );
 }
 

@@ -85,6 +85,7 @@ import {
   useNotification,
   useTabsManage,
   useMatcherFn,
+  useOneShotModalUI,
 } from "./store.tsx";
 import { commands, Field, ListTable, RedisListTableRet } from "./bindings.ts";
 
@@ -488,12 +489,9 @@ function TableMenu(props: {
   redisTableType?: RedisTableType;
 }) {
   const { table, uuid, reload, kind, redisTableType } = props;
-  const [showDup, setShowDup] = useState(false);
-  const [showRename, setShowRename] = useState(false);
-  const [showDrop, setShowDrop] = useState(false);
-  const [showExport, setShowExport] = useState(false);
   const { showNotification } = useNotification();
   const { appendTab } = useTabsManage();
+  const { setUi } = useOneShotModalUI();
 
   const handleTruncateTable = async () => {
     const confirm = await secondConfirm({
@@ -553,185 +551,144 @@ function TableMenu(props: {
   };
 
   return (
-    <div>
-      <MenuList>
-        <MenuItem
-          onClick={() => {
-            handleViewData();
-          }}>
-          <ListItemIcon>
-            <ListIcon />
-          </ListItemIcon>
-          <ListItemText> View Data</ListItemText>
-        </MenuItem>
+    <MenuList>
+      <MenuItem
+        onClick={() => {
+          handleViewData();
+        }}>
+        <ListItemIcon>
+          <ListIcon />
+        </ListItemIcon>
+        <ListItemText> View Data</ListItemText>
+      </MenuItem>
 
-        {redisTableType != RedisTableType.String && (
-          <MenuItem
-            onClick={() => {
-              handleAddData();
-            }}>
-            <ListItemIcon>
-              <AddIcon />
-            </ListItemIcon>
-            <ListItemText> Add Data </ListItemText>
-          </MenuItem>
-        )}
-        <MenuItem onClick={handleStructure}>
+      {redisTableType != RedisTableType.String && (
+        <MenuItem
+          onClick={() => {
+            handleAddData();
+          }}>
           <ListItemIcon>
-            <IoConstructOutline style={{ fontSize: "1.2rem" }} />
+            <AddIcon />
           </ListItemIcon>
-          <ListItemText> Structure </ListItemText>
+          <ListItemText> Add Data </ListItemText>
         </MenuItem>
+      )}
+      <MenuItem onClick={handleStructure}>
+        <ListItemIcon>
+          <IoConstructOutline style={{ fontSize: "1.2rem" }} />
+        </ListItemIcon>
+        <ListItemText> Structure </ListItemText>
+      </MenuItem>
 
-        <MenuItem
-          onClick={() => {
-            handleCopyToClipboard(table, showNotification);
-          }}>
-          <ListItemIcon>
-            <ContentCopyIcon />
-          </ListItemIcon>
-          <ListItemText> Copy Name </ListItemText>
-        </MenuItem>
+      <MenuItem
+        onClick={() => {
+          handleCopyToClipboard(table, showNotification);
+        }}>
+        <ListItemIcon>
+          <ContentCopyIcon />
+        </ListItemIcon>
+        <ListItemText> Copy Name </ListItemText>
+      </MenuItem>
+      <Divider />
 
-        <Divider />
-
-        <MenuItem
-          onClick={() => {
-            setShowDup(true);
-          }}>
-          <ListItemIcon>
-            <HiOutlineDuplicate style={{ fontSize: "1.7rem" }} />
-          </ListItemIcon>
-          <ListItemText> Duplicate </ListItemText>
-        </MenuItem>
-        <MenuItem
-          onClick={() => {
-            setShowExport(true);
-          }}>
-          <ListItemIcon>
-            <ArrowCircleDownIcon />
-          </ListItemIcon>
-          <ListItemText> Export </ListItemText>
-        </MenuItem>
-        <MenuItem
-          onClick={() => {
-            setShowRename(true);
-          }}>
-          <ListItemIcon>
-            <EditIcon />
-          </ListItemIcon>
-          <ListItemText> Rename </ListItemText>
-        </MenuItem>
-        <Divider />
-        <MenuItem
-          sx={{ color: "error.main" }}
-          onClick={() => {
-            handleTruncateTable();
-          }}>
-          <ListItemIcon>
-            <PlaylistRemoveIcon color="error" />
-          </ListItemIcon>
-          <ListItemText> Truncate </ListItemText>
-        </MenuItem>
-        <MenuItem
-          sx={{ color: "error.main" }}
-          onClick={() => {
-            setShowDrop(true);
-          }}>
-          <ListItemIcon>
-            <DeleteForeverIcon color="error" />
-          </ListItemIcon>
-          <ListItemText>Drop</ListItemText>
-        </MenuItem>
-      </MenuList>
-      {showDup && (
-        <Modal
-          open={showDup}
-          onClose={modalHandleClose((e: EscDownEvent) => {
-            e.preventDefault();
-            setShowDup(false);
-          })}>
-          <Box sx={{ ...modalStyle, width: "45%" }}>
-            <ModalHeader
-              title="Duplicate"
+      <MenuItem
+        onClick={() => {
+          setUi(
+            <Box sx={{ ...modalStyle, width: "45%" }}>
+              <ModalHeader
+                title="Duplicate"
+                handleClose={() => {
+                  setUi(null);
+                }}
+              />
+              <DupTable
+                table={table}
+                uuid={uuid}
+                handleClose={() => {
+                  setUi(null);
+                }}
+                reloadTables={reload}
+              />
+            </Box>,
+          );
+        }}>
+        <ListItemIcon>
+          <HiOutlineDuplicate style={{ fontSize: "1.7rem" }} />
+        </ListItemIcon>
+        <ListItemText> Duplicate </ListItemText>
+      </MenuItem>
+      <MenuItem
+        onClick={() => {
+          setUi(
+            <ExportTableOrView
               handleClose={() => {
-                setShowDup(false);
+                setUi(null);
               }}
-            />
-            <DupTable
-              table={table}
               uuid={uuid}
-              handleClose={() => {
-                setShowDup(false);
-              }}
-              reloadTables={reload}
-            />
-          </Box>
-        </Modal>
-      )}
-      {showRename && (
-        <Modal
-          open={showRename}
-          onClose={modalHandleClose((e: EscDownEvent) => {
-            e.preventDefault();
-            setShowRename(false);
-          })}>
-          <Box sx={{ ...modalStyle, width: "45%" }}>
-            <ModalHeader
-              handleClose={() => {
-                setShowRename(false);
-              }}
-              title="Rename"
-            />
-            <RenameTable
-              uuid={uuid}
-              table={table}
-              reloadTables={reload}
-              handleClose={() => {
-                setShowRename(false);
-              }}
-            />
-          </Box>
-        </Modal>
-      )}
-      {showExport && (
-        <ExportTableOrView
-          handleClose={() => {
-            setShowExport(false);
-          }}
-          uuid={uuid}
-          name={table}
-          supportKind={getSupportExportKind(kind, true)}
-        />
-      )}
-
-      {showDrop && (
-        <Modal
-          open={showDrop}
-          onClose={modalHandleClose((e: EscDownEvent) => {
-            e.preventDefault();
-            setShowDrop(false);
-          })}>
-          <Box sx={{ ...modalStyle, width: "45%" }}>
-            <ModalHeader
-              handleClose={() => {
-                setShowDrop(false);
-              }}
-              title="Drop Table"
-            />
-            <DropTable
-              uuid={uuid}
-              table={table}
-              reloadTables={reload}
-              handleClose={() => {
-                setShowDrop(false);
-              }}
-              kind={kind}
-            />
-          </Box>
-        </Modal>
-      )}
-    </div>
+              name={table}
+              supportKind={getSupportExportKind(kind, true)}
+            />,
+          );
+        }}>
+        <ListItemIcon>
+          <ArrowCircleDownIcon />
+        </ListItemIcon>
+        <ListItemText> Export </ListItemText>
+      </MenuItem>
+      <MenuItem
+        onClick={() => {
+          setUi(
+            <Box sx={{ ...modalStyle, width: "45%" }}>
+              <RenameTable
+                table={table}
+                uuid={uuid}
+                handleClose={() => {
+                  setUi(null);
+                }}
+                reloadTables={reload}
+              />
+            </Box>,
+          );
+        }}>
+        <ListItemIcon>
+          <EditIcon />
+        </ListItemIcon>
+        <ListItemText> Rename </ListItemText>
+      </MenuItem>
+      <Divider />
+      <MenuItem
+        sx={{ color: "error.main" }}
+        onClick={() => {
+          handleTruncateTable();
+        }}>
+        <ListItemIcon>
+          <PlaylistRemoveIcon color="error" />
+        </ListItemIcon>
+        <ListItemText> Truncate </ListItemText>
+      </MenuItem>
+      <MenuItem
+        sx={{ color: "error.main" }}
+        onClick={() => {
+          setUi(
+            <Box sx={{ ...modalStyle, width: "45%" }}>
+              <DropTable
+                table={table}
+                uuid={uuid}
+                handleClose={() => {
+                  setUi(null);
+                }}
+                reloadTables={reload}
+                kind={kind}
+              />
+            </Box>,
+          );
+        }}>
+        <ListItemIcon>
+          <DeleteForeverIcon color="error" />
+        </ListItemIcon>
+        <ListItemText>Drop</ListItemText>
+      </MenuItem>
+    </MenuList>
   );
 }
 

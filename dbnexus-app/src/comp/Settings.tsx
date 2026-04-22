@@ -562,7 +562,7 @@ function LLMSetting(props: { handleClose?: () => void }) {
             <TextField
               {...params}
               label={`model`}
-              value={Modal}
+              value={model}
               onChange={(e) => {
                 setModel(e.target.validationMessage);
               }}

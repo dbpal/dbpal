@@ -60,6 +60,7 @@ import {
   useTabsManage,
   useColumnWidthStore,
   useMatcherFn,
+  useOneShotModalUI,
 } from "./store";
 import { AllKindChat } from "./Chat";
 import { commands, Field, ListTable } from "./bindings";
@@ -431,7 +432,8 @@ function ViewMenu(props: {
 }) {
   const { view, uuid, reload, kind, viewKind } = props;
   const { showNotification } = useNotification();
-  const [showExport, setShowExport] = useState(false);
+
+  const { setUi } = useOneShotModalUI();
   const handleDrop = async () => {
     const confirm = await secondConfirm({
       title: `Drop view '${view}'`,
@@ -510,67 +512,63 @@ function ViewMenu(props: {
   };
 
   return (
-    <div>
-      <MenuList>
-        <MenuItem onClick={handleViewData}>
-          <ListItemIcon>
-            <ListIcon />
-          </ListItemIcon>
-          <ListItemText> View Data</ListItemText>
-          <Typography variant="body2" sx={{ color: "text.secondary" }} />
-        </MenuItem>
+    <MenuList>
+      <MenuItem onClick={handleViewData}>
+        <ListItemIcon>
+          <ListIcon />
+        </ListItemIcon>
+        <ListItemText> View Data</ListItemText>
+        <Typography variant="body2" sx={{ color: "text.secondary" }} />
+      </MenuItem>
 
-        <MenuItem onClick={handleStructure}>
-          <ListItemIcon>
-            <IoConstructOutline style={{ fontSize: "1.2rem" }} />
-          </ListItemIcon>
-          <ListItemText> Structure </ListItemText>
-        </MenuItem>
-        <MenuItem
-          onClick={() => {
-            handleCopyToClipboard(view, showNotification);
-          }}>
-          <ListItemIcon>
-            <ContentCopyIcon />
-          </ListItemIcon>
-          <ListItemText> Copy Name </ListItemText>
-        </MenuItem>
+      <MenuItem onClick={handleStructure}>
+        <ListItemIcon>
+          <IoConstructOutline style={{ fontSize: "1.2rem" }} />
+        </ListItemIcon>
+        <ListItemText> Structure </ListItemText>
+      </MenuItem>
+      <MenuItem
+        onClick={() => {
+          handleCopyToClipboard(view, showNotification);
+        }}>
+        <ListItemIcon>
+          <ContentCopyIcon />
+        </ListItemIcon>
+        <ListItemText> Copy Name </ListItemText>
+      </MenuItem>
 
-        <Divider />
-        <MenuItem
-          onClick={() => {
-            setShowExport(true);
-          }}>
-          <ListItemIcon>
-            <ArrowCircleDownIcon />
-          </ListItemIcon>
-          <ListItemText> Export </ListItemText>
-        </MenuItem>
-        <Divider />
-        <MenuItem
-          sx={{ color: "error.main" }}
-          onClick={() => {
-            handleDrop();
-          }}>
-          <ListItemIcon>
-            <DeleteForeverIcon color="error" />
-          </ListItemIcon>
-          <ListItemText>Drop </ListItemText>
-          <Typography variant="body2" sx={{ color: "text.secondary" }} />
-        </MenuItem>
-      </MenuList>
-
-      {showExport && (
-        <ExportTableOrView
-          uuid={uuid}
-          name={view}
-          supportKind={getSupportExportKind(kind, false)}
-          handleClose={() => {
-            setShowExport(false);
-          }}
-        />
-      )}
-    </div>
+      <Divider />
+      <MenuItem
+        onClick={() => {
+          setUi(
+            <ExportTableOrView
+              uuid={uuid}
+              name={view}
+              handleClose={() => {
+                setUi(null);
+              }}
+              supportKind={getSupportExportKind(kind, false)}
+            />,
+          );
+        }}>
+        <ListItemIcon>
+          <ArrowCircleDownIcon />
+        </ListItemIcon>
+        <ListItemText> Export </ListItemText>
+      </MenuItem>
+      <Divider />
+      <MenuItem
+        sx={{ color: "error.main" }}
+        onClick={() => {
+          handleDrop();
+        }}>
+        <ListItemIcon>
+          <DeleteForeverIcon color="error" />
+        </ListItemIcon>
+        <ListItemText>Drop </ListItemText>
+        <Typography variant="body2" sx={{ color: "text.secondary" }} />
+      </MenuItem>
+    </MenuList>
   );
 }
 
