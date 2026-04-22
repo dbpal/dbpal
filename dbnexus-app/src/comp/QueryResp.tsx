@@ -316,4 +316,3 @@ function MultiQueryResp(props: { data: QueryRespData[] }) {
 }
 
 export { MultiQueryResp, QueryResp };
-export type { QueryRespData };

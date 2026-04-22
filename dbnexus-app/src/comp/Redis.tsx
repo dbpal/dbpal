@@ -45,7 +45,6 @@ import {
   handleCopyToClipboard,
   hexToString,
   hexTryToString,
-  ErrAndLoc,
   stringToHex,
   validJson,
   extractFieldAndIDFromMouseEvent,
@@ -67,7 +66,7 @@ import {
   StackRowCenter,
   ListenElementSize,
 } from "./CommonComp2.tsx";
-import { commands, MuiDataGridData } from "./bindings.ts";
+import { commands, ErrAndLoc, MuiDataGridData } from "./bindings.ts";
 import { showTable } from "./handlers.ts";
 import { AddTableModal } from "./LeftTable.tsx";
 import {

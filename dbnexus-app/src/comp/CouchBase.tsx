@@ -26,7 +26,6 @@ import {
 import { ReactNode, useCallback, useContext, useEffect, useState } from "react";
 import {
   DataSourceKind,
-  ErrAndLoc,
   getEditorText,
   handleCopyToClipboard,
   jumpToEditorText,
@@ -62,6 +61,7 @@ import { persist } from "zustand/middleware";
 import { create } from "zustand";
 import {
   commands,
+  ErrAndLoc,
   Field,
   MuiDataGridData,
   QueryEvent,

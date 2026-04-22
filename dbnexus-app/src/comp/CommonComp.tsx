@@ -45,7 +45,6 @@ import {
   dataGridStyle,
   DataSourceKind,
   editorSetPositionAndReveal,
-  ErrAndLoc,
   errToString,
   extractFieldAndIDFromMouseEvent,
   handleCopyToClipboard,
@@ -80,7 +79,7 @@ import {
   useQueryLogStore,
   useViewInModalMatchStrStore,
 } from "./store";
-import { commands, Field, MetaValue, NamedStaff } from "./bindings";
+import { commands, ErrAndLoc, Field, MetaValue, NamedStaff } from "./bindings";
 
 /**
  * Logger level selection control.

@@ -355,12 +355,6 @@ export const useLLM = () => {
   return r;
 };
 
-export type AlertMsg = {
-  severity: AlertColor;
-  title: string;
-  message: ReactElement | string | null | undefined;
-};
-
 export type NotificationParams = {
   severity: AlertColor;
   title: string;

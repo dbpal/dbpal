@@ -22,7 +22,6 @@ import { initMongoQueryGlobals, MongoDBQuery } from "./MongoQueryBackend";
 import EventNoteIcon from "@mui/icons-material/EventNote";
 import {
   DataSourceKind,
-  ErrAndLoc,
   getEditorText,
   isMacOs,
   isWindows,
@@ -78,6 +77,7 @@ function dropLastLine(str) {
 
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
+import { ErrAndLoc } from "./bindings";
 
 // 定義初始的預設配置字串（轉為物件）
 const DEFAULT_COMPILER_OPTIONS = {

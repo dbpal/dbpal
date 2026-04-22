@@ -64,7 +64,6 @@ import {
 import {
   DocsAndCount,
   handleCopyToClipboard,
-  ErrAndLoc,
   validJson,
   dataGridStyle,
   pageSizeOptions,
@@ -94,7 +93,7 @@ import {
   useSizeStore,
   useTableColumnVisibleStore,
 } from "./store";
-import { commands, MuiDataGridData } from "./bindings";
+import { commands, ErrAndLoc, MuiDataGridData } from "./bindings";
 import { AddTableModal } from "./LeftTable";
 enum MongoDataViewModel {
   TableList,

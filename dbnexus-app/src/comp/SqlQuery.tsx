@@ -1,4 +1,4 @@
-import { MultiQueryResp, QueryRespData } from "./QueryResp";
+import { MultiQueryResp } from "./QueryResp";
 import EventNoteIcon from "@mui/icons-material/EventNote";
 import { Checkbox, Chip, Divider, IconButton, Stack, Tooltip } from "@mui/material";
 import { Panel, PanelGroup, PanelResizeHandle } from "react-resizable-panels";
@@ -21,7 +21,6 @@ import { QueryLog } from "./QueryLog.tsx";
 import RefreshIcon from "@mui/icons-material/Refresh";
 import {
   DataSourceKind,
-  ErrAndLoc,
   getEditorText,
   resizeHandlerSize,
   rustResultOk,
@@ -33,6 +32,7 @@ import {
   QueryIDEditorChatCtx,
   getDefaultLanguage,
   jumpToEditorText,
+  QueryRespData,
 } from "./helper.ts";
 import ArrowCircleDownRoundedIcon from "@mui/icons-material/ArrowCircleDownRounded";
 import { ExportView } from "./Export.tsx";
@@ -64,7 +64,7 @@ import {
   UseSizeConfig,
   useSizeStore,
 } from "./store.tsx";
-import { commands, MuiDataGridData, QueryEvent } from "./bindings.ts";
+import { commands, ErrAndLoc, MuiDataGridData, QueryEvent } from "./bindings.ts";
 
 function SqlTransaction(props: { conn: QueryConn; executeTimes: number }) {
   const { conn, executeTimes } = props;

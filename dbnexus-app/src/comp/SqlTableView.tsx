@@ -69,7 +69,6 @@ import {
   DataSourceKind,
   handleCopyToClipboard,
   isTypeLargeText,
-  ErrAndLoc,
   secondConfirm,
   validJson,
   textEllipsisStyle,
@@ -119,7 +118,13 @@ import {
   useSizeStore,
   useTableColumnVisibleStore,
 } from "./store";
-import { commands, Field, MuiDataGridData, ShowTableParameter } from "./bindings";
+import {
+  commands,
+  ErrAndLoc,
+  Field,
+  MuiDataGridData,
+  ShowTableParameter,
+} from "./bindings";
 import { ExportTableOrView } from "./Export";
 
 const confirmAboutPrimary = async (
