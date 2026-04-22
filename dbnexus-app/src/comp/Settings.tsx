@@ -1036,6 +1036,16 @@ function makeComponents(fontWeight: string | number, dataGridRowHeight: number) 
         },
       },
     },
+    MuiModal: {
+      defaultProps: {
+        // 让 Modal 里的 Backdrop 默认就有动画时长
+        slotProps: {
+          backdrop: {
+            timeout: 500,
+          },
+        },
+      },
+    },
     MuiDialogTitle: {
       styleOverrides: {
         root: {
