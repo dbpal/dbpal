@@ -392,6 +392,11 @@ function SqlTableCustomToolBarLeft({
                 for (const op of ops) {
                   try {
                     await commands.simpleExecuteSql(uuid, op.sql);
+                    showNotification({
+                      severity: "success",
+                      message: <CopySql sql={op.sql} />,
+                      title: "apply success",
+                    });
                   } catch (e) {
                     showNotification({
                       severity: "error",
@@ -540,6 +545,11 @@ function CellButtons(props: {
               try {
                 await commands.simpleExecuteSql(uuid, op.sql);
                 setOps((ops) => ops.filter((x) => x != op));
+                showNotification({
+                  severity: "success",
+                  title: "execute sql success",
+                  message: <CopySql sql={op.sql} />,
+                });
                 handleReload();
               } catch (e) {
                 showNotification({

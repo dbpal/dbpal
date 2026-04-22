@@ -2,7 +2,7 @@ import { ReactElement, ReactNode, useCallback, useMemo } from "react";
 import { create, StateCreator } from "zustand";
 import { extractConfigNameFromUuid, TabContent } from "./helper";
 import { v4 as uuidv4 } from "uuid";
-import { AlertColor, Typography } from "@mui/material";
+import { AlertColor, AlertTitle, IconButton, Stack, Typography } from "@mui/material";
 import React from "react";
 import { persist, PersistStorage, StorageValue } from "zustand/middleware";
 import Dexie, { type Table } from "dexie";
@@ -14,6 +14,7 @@ import { PassWordManager } from "./Common";
 import { editor } from "monaco-editor";
 import { Channel } from "@tauri-apps/api/core";
 import { cancelTask } from "./handlers";
+import CloseIcon from "@mui/icons-material/Close";
 import {
   AiOnlineSearch,
   ChatHistory,
@@ -381,27 +382,27 @@ export const useNotification = () => {
       if (!React.isValidElement(message) && message) {
         message = String(message);
       }
-
-      const content = title ? (
-        <div>
-          <div style={{ fontWeight: "bold", marginBottom: 4 }}>{title}</div>
-          {React.isValidElement(message) ? message : <div>{message}</div>}
-        </div>
-      ) : React.isValidElement(message) ? (
-        message
-      ) : (
-        <div>{message}</div>
-      );
-      enqueueSnackbar(content, {
-        variant: severity as "default" | "error" | "success" | "warning" | "info",
-        autoHideDuration: 10000,
-        anchorOrigin: {
-          vertical: "top",
-          horizontal: "right",
+      enqueueSnackbar(
+        <Stack>
+          <AlertTitle> {title} </AlertTitle>
+          <div>{message}</div>
+        </Stack>,
+        {
+          variant: severity as "default" | "error" | "success" | "warning" | "info",
+          autoHideDuration: 10000,
+          anchorOrigin: {
+            vertical: "top",
+            horizontal: "right",
+          },
+          action: (snackbarId) => (
+            <IconButton onClick={() => closeSnackbar(snackbarId)}>
+              <CloseIcon />
+            </IconButton>
+          ),
         },
-      });
+      );
     },
-    [enqueueSnackbar],
+    [closeSnackbar, enqueueSnackbar],
   );
 
   const closeMsg = useCallback(
