@@ -226,7 +226,7 @@ function App() {
 
   return (
     <SnackbarProvider
-      maxSnack={3}
+      maxSnack={6}
       anchorOrigin={{
         vertical: "top",
         horizontal: "right",

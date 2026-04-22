@@ -219,7 +219,7 @@ export const useTabsManage = create<{
   },
 }));
 
-export type LLMConfig = {
+type LLMConfig = {
   baseUrl: string;
   apiKey: string;
   model: string;
@@ -229,7 +229,7 @@ export type LLMConfig = {
   search_engin: AiOnlineSearch;
 };
 
-export const LLM_CONFIG_KEY = "llm-config-4k9zF7m5p3T1H2";
+const LLM_CONFIG_KEY = "llm-config-4k9zF7m5p3T1H2";
 
 interface LLMStore {
   config: LLMConfig;
