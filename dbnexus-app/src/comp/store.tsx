@@ -1,6 +1,6 @@
 import { ReactElement, ReactNode, useCallback, useMemo } from "react";
 import { create, StateCreator } from "zustand";
-import { appStore, extractConfigNameFromUuid, TabContent } from "./helper";
+import { extractConfigNameFromUuid, TabContent } from "./helper";
 import { v4 as uuidv4 } from "uuid";
 import { AlertColor, Typography } from "@mui/material";
 import React from "react";
@@ -8,6 +8,7 @@ import { persist, PersistStorage, StorageValue } from "zustand/middleware";
 import Dexie, { type Table } from "dexie";
 import wcmatch from "wildcard-match";
 import { cloneDeep } from "lodash-es";
+import { useSnackbar } from "notistack";
 import { GridColumnVisibilityModel } from "@mui/x-data-grid";
 import { PassWordManager } from "./Common";
 import { editor } from "monaco-editor";
@@ -20,8 +21,10 @@ import {
   DBConnectionConfig,
   OpenAIReq,
 } from "./bindings";
+import { LazyStore } from "@tauri-apps/plugin-store";
 
 class TauriStoreManger<S> implements PersistStorage<S> {
+  appStore = new LazyStore("store.json");
   constructor(
     public setBefore?: (_: S) => Promise<S>,
     public afterFetch?: (_: S) => Promise<void>,
@@ -30,14 +33,14 @@ class TauriStoreManger<S> implements PersistStorage<S> {
     if (this.setBefore) {
       const new_value = cloneDeep(value);
       new_value.state = await this.setBefore(new_value.state);
-      return await appStore.set(name, new_value);
+      return await this.appStore.set(name, new_value);
     } else {
-      return await appStore.set(name, value);
+      return await this.appStore.set(name, value);
     }
   }
 
   async getItem(name: string) {
-    let ret = await appStore.get<StorageValue<S>>(name);
+    let ret = await this.appStore.get<StorageValue<S>>(name);
     if (this.afterFetch) {
       await this.afterFetch(ret.state);
     }
@@ -45,7 +48,7 @@ class TauriStoreManger<S> implements PersistStorage<S> {
   }
 
   removeItem(name: string) {
-    appStore.delete(name);
+    this.appStore.delete(name);
   }
 }
 
@@ -363,40 +366,56 @@ export type NotificationParams = {
   message?: any;
 };
 
-export const useNotification = create<{
-  notifications: AlertMsg[];
-  showNotification: (params: NotificationParams) => void;
-  closeMsg: (x: number) => void;
-}>((set) => ({
-  notifications: [],
+export const useNotification = () => {
+  const { enqueueSnackbar, closeSnackbar } = useSnackbar();
 
-  closeMsg: (idx) => {
-    set((s) => ({
-      notifications: s.notifications.filter((_e, index) => idx != index),
-    }));
-  },
-  showNotification: (params: NotificationParams) => {
-    let { severity, title, message } = params;
-    if (typeof message == "object" && "reason" in message) {
-      console.error("detail:", message.detail);
-      // this a error from the backend
-      // we only show `reason` the short message
-      message = message["reason"];
-    }
-    if (!React.isValidElement(message) && message) {
-      message = String(message);
-    }
-    set((state) => {
-      return {
-        notifications: [...state.notifications, { severity, title, message }],
-      };
-    });
+  const showNotification = useCallback(
+    (params: NotificationParams) => {
+      let { severity, title, message } = params;
+      if (typeof message == "object" && "reason" in message) {
+        console.error("detail:", message.detail);
+        // this a error from the backend
+        // we only show `reason` the short message
+        message = message["reason"];
+      }
+      if (!React.isValidElement(message) && message) {
+        message = String(message);
+      }
 
-    setTimeout(() => {
-      set((state) => ({ notifications: state.notifications.slice(1) }));
-    }, 10000);
-  },
-}));
+      const content = title ? (
+        <div>
+          <div style={{ fontWeight: "bold", marginBottom: 4 }}>{title}</div>
+          {React.isValidElement(message) ? message : <div>{message}</div>}
+        </div>
+      ) : React.isValidElement(message) ? (
+        message
+      ) : (
+        <div>{message}</div>
+      );
+      enqueueSnackbar(content, {
+        variant: severity as "default" | "error" | "success" | "warning" | "info",
+        autoHideDuration: 10000,
+        anchorOrigin: {
+          vertical: "top",
+          horizontal: "right",
+        },
+      });
+    },
+    [enqueueSnackbar],
+  );
+
+  const closeMsg = useCallback(
+    (key: string | number) => {
+      closeSnackbar(key);
+    },
+    [closeSnackbar],
+  );
+
+  return {
+    showNotification,
+    closeMsg,
+  };
+};
 
 export const useConnected = create<{
   connected: Set<string>;
@@ -950,6 +969,16 @@ export const useConnectionStore = create<ConnectionState>()(
       name: "connection-storage",
       storage: new TauriStoreManger<ConnectionState>(),
       version: 1,
+      onRehydrateStorage: () => {
+        console.log("开始同步数据...");
+        return (state, error) => {
+          if (error) {
+            console.error("同步失败:", error);
+          } else {
+            console.log("同步成功，数据量:", state?.connections?.length);
+          }
+        };
+      },
     },
   ),
 );

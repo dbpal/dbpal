@@ -9,7 +9,6 @@ import {
   ReactNode,
 } from "react";
 import { ask, message } from "@tauri-apps/plugin-dialog";
-import { LazyStore } from "@tauri-apps/plugin-store";
 import { writeText } from "@tauri-apps/plugin-clipboard-manager";
 import { BSON } from "bson";
 import { WebviewWindow } from "@tauri-apps/api/webviewWindow";
@@ -27,7 +26,6 @@ import {
 import { NotificationParams } from "./store";
 
 const pageSizeOptions = [10, 20, 50, 100];
-const appStore = new LazyStore("store.json");
 function prettyMs(x: number) {
   return prettyMilliseconds(x);
 }
@@ -613,7 +611,6 @@ export function getDefaultLanguage(kind: DataSourceKind) {
 export {
   isDarkStr,
   saveQueryKey,
-  appStore,
   backendCompletionItemToEditor,
   ChatShowContext,
   ColorFn,

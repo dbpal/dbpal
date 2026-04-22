@@ -1,4 +1,4 @@
-import { Notifications } from "./Notification";
+// import { Notifications } from "./Notification";
 import { Panel, PanelGroup, PanelResizeHandle } from "react-resizable-panels";
 import { useCallback, useEffect, useState } from "react";
 import { TabsWithContent } from "./Tabs";
@@ -37,6 +37,7 @@ import {
   useOneShotDialogUI,
   useTabsManage,
 } from "./store.tsx";
+import { SnackbarProvider } from "notistack";
 
 function ShowPanic() {
   const [panicInfo, setPanicInfo] = useState("");
@@ -224,59 +225,67 @@ function App() {
   }, [currentTab, setCurrentTab, tabs]);
 
   return (
-    <SettingProvider>
-      <Notifications />
-      <AppMenu />
-      {diagUi.ui && (
-        <Dialog
-          fullWidth
-          maxWidth="sm"
-          open={true}
-          onClose={() => {
-            diagUi.setUi(null);
-          }}>
-          {diagUi.title && <DialogTitle>{diagUi.title}</DialogTitle>}
-          {diagUi.ui}
-        </Dialog>
-      )}
-      <div>
-        <ShowPanic />
-        <ShowShortCut />
-        <PanelGroup
-          direction="horizontal"
-          style={{
-            height: "100vh",
-            width: "100vw",
-            padding: "4px",
-          }}
-          autoSaveId="main">
-          <Panel
+    <SnackbarProvider
+      maxSnack={3}
+      anchorOrigin={{
+        vertical: "top",
+        horizontal: "right",
+      }}
+      dense>
+      <SettingProvider>
+        {/* <Notifications /> */}
+        <AppMenu />
+        {diagUi.ui && (
+          <Dialog
+            fullWidth
+            maxWidth="sm"
+            open={true}
+            onClose={() => {
+              diagUi.setUi(null);
+            }}>
+            {diagUi.title && <DialogTitle>{diagUi.title}</DialogTitle>}
+            {diagUi.ui}
+          </Dialog>
+        )}
+        <div>
+          <ShowPanic />
+          <ShowShortCut />
+          <PanelGroup
+            direction="horizontal"
             style={{
-              overflow: "auto",
-              height: "100%",
+              height: "100vh",
+              width: "100vw",
               padding: "4px",
             }}
-            minSize={10}
-            maxSize={85}
-            collapsible
-            collapsedSize={0}>
-            <Left />
-          </Panel>
-          <PanelResizeHandle
-            style={{ width: resizeHandlerSize }}
-            className="resize-handle"
-          />
-          <Panel
-            style={{
-              overflow: "auto",
-              height: "100%",
-              paddingLeft: "2px",
-            }}>
-            <TabsWithContent />
-          </Panel>
-        </PanelGroup>
-      </div>
-    </SettingProvider>
+            autoSaveId="main">
+            <Panel
+              style={{
+                overflow: "auto",
+                height: "100%",
+                padding: "4px",
+              }}
+              minSize={10}
+              maxSize={85}
+              collapsible
+              collapsedSize={0}>
+              <Left />
+            </Panel>
+            <PanelResizeHandle
+              style={{ width: resizeHandlerSize }}
+              className="resize-handle"
+            />
+            <Panel
+              style={{
+                overflow: "auto",
+                height: "100%",
+                paddingLeft: "2px",
+              }}>
+              <TabsWithContent />
+            </Panel>
+          </PanelGroup>
+        </div>
+      </SettingProvider>
+    </SnackbarProvider>
   );
 }
 
