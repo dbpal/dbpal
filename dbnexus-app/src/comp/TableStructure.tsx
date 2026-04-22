@@ -22,6 +22,8 @@ import {
   Button,
   ButtonGroup,
   Checkbox,
+  Dialog,
+  DialogTitle,
   Divider,
   FormControlLabel,
   ListItemIcon,
@@ -286,9 +288,6 @@ function ColumnsStructure(props: {
   const onRowDoubleClick = useCallback((row: { row: Field }) => {
     setRow(row.row);
   }, []);
-
-  const [modalBox, setModalBox] = useState(null);
-
   useEffect(() => {
     if (row) {
       if ([DataSourceKind.Sqlite, DataSourceKind.LibSql].includes(kind)) {
@@ -347,69 +346,53 @@ function ColumnsStructure(props: {
         loading={loading}
       />
 
-      <ListenElementSize dom={modalBox} name="table-add-column" set="both" />
-
       {showAdd && (
-        <Modal
+        <Dialog
+          fullWidth
+          maxWidth="md"
           open={showAdd}
           onClose={modalHandleClose((e: EscDownEvent) => {
             e.preventDefault();
             setShowAdd(false);
           })}>
-          <Box
-            sx={{ resize: "horizontal", ...modalStyle, width: "60%" }}
-            ref={setModalBox}>
-            <ModalHeader
-              handleClose={() => {
-                setShowAdd(false);
-              }}
-              title="Add Column"
-            />
-            <TableAddColumn
-              table={table}
-              uuid={uuid}
-              handleClose={() => {
-                setShowAdd(false);
-              }}
-              reload={handleReload}
-              kind={kind}
-              fields={fields}
-            />
-          </Box>
-        </Modal>
+          <DialogTitle> add table column </DialogTitle>
+          <TableAddColumn
+            table={table}
+            uuid={uuid}
+            handleClose={() => {
+              setShowAdd(false);
+            }}
+            reload={handleReload}
+            kind={kind}
+            fields={fields}
+          />
+        </Dialog>
       )}
       {supportModifyColumn &&
         row &&
         ![DataSourceKind.Sqlite, DataSourceKind.LibSql].includes(kind) && (
-          <Modal
+          <Dialog
             open={!!row}
+            fullWidth
+            maxWidth="md"
             onClose={modalHandleClose((e: EscDownEvent) => {
               e.preventDefault();
               setRow(null);
             })}>
-            <Box
-              sx={{ resize: "horizontal", ...modalStyle, width: "60%" }}
-              ref={setModalBox}>
-              <ModalHeader
-                title="Modify Column"
-                handleClose={() => {
-                  setRow(null);
-                }}
-              />
-              <ModifyTableColumn
-                table={table}
-                uuid={uuid}
-                handleClose={() => {
-                  setRow(null);
-                }}
-                col={row.field}
-                typ={row.data_type}
-                reload={handleReload}
-                kind={kind}
-                defaultValue={row.default_value}
-              />
-            </Box>
-          </Modal>
+            <DialogTitle> modify table column </DialogTitle>
+            <ModifyTableColumn
+              table={table}
+              uuid={uuid}
+              handleClose={() => {
+                setRow(null);
+              }}
+              col={row.field}
+              typ={row.data_type}
+              reload={handleReload}
+              kind={kind}
+              defaultValue={row.default_value}
+            />
+          </Dialog>
         )}
     </Stack>
   );
@@ -629,8 +612,6 @@ function IndexesStructure(props: {
     } as GridSlotsComponentsProps;
   }, [handleDrop, indexes, setUpMenu]);
 
-  const [modalBox, setModalBox] = useState(null);
-
   const slots = useMemo(() => {
     return {
       pagination: AppDataGridPagination,
@@ -662,26 +643,16 @@ function IndexesStructure(props: {
       />
 
       {showAdd && kind == DataSourceKind.Mongo && (
-        <Modal
+        <Dialog
           open={showAdd}
+          fullWidth
+          maxWidth="md"
           onClose={modalHandleClose((e: EscDownEvent) => {
             e.preventDefault();
             setShowAdd(false);
           })}>
-          <Box
-            sx={{
-              resize: "both",
-              ...modalStyle,
-              width: "60%",
-              height: kind == DataSourceKind.Mongo ? "40vh" : "auto",
-            }}
-            ref={setModalBox}>
-            <ModalHeader
-              title="create index"
-              handleClose={() => {
-                setShowAdd(false);
-              }}
-            />
+          <DialogTitle> mongo create index </DialogTitle>
+          <div style={{ height: "40vh" }}>
             <MongoAddIndex
               uuid={uuid}
               table={table}
@@ -690,68 +661,49 @@ function IndexesStructure(props: {
               }}
               reload={handleReload}
             />
-          </Box>
-        </Modal>
+          </div>
+        </Dialog>
       )}
-      <ListenElementSize dom={modalBox} name="add-index" set="both" />
       {showAdd && kind != DataSourceKind.Mongo && (
-        <Modal
+        <Dialog
           open={showAdd}
           onClose={modalHandleClose((e: EscDownEvent) => {
             e.preventDefault();
             setShowAdd(false);
-          })}>
-          <Box
-            sx={{
-              resize: "horizontal",
-              ...modalStyle,
-              width: "60%",
+          })}
+          fullWidth
+          maxWidth="md">
+          <DialogTitle> create index </DialogTitle>
+          <AddIndex
+            uuid={uuid}
+            table={table}
+            handleClose={() => {
+              setShowAdd(false);
             }}
-            ref={setModalBox}>
-            <ModalHeader
-              title="create index"
-              handleClose={() => {
-                setShowAdd(false);
-              }}
-            />
-            <AddIndex
-              uuid={uuid}
-              table={table}
-              handleClose={() => {
-                setShowAdd(false);
-              }}
-              kind={kind}
-              reload={handleReload}
-            />
-          </Box>
-        </Modal>
+            kind={kind}
+            reload={handleReload}
+          />
+        </Dialog>
       )}
 
       {renameIndexName && (
-        <Modal
+        <Dialog
           open={!!renameIndexName}
-          onClose={modalHandleClose((e: EscDownEvent) => {
+          onClose={(e: EscDownEvent) => {
             e.preventDefault();
             setRenameIndexName("");
-          })}>
-          <Box sx={{ ...modalStyle, width: "40%" }}>
-            <ModalHeader
-              title={`Rename Index`}
-              handleClose={() => {
-                setRenameIndexName("");
-              }}
-            />
-            <RenameIndex
-              uuid={uuid}
-              table={table}
-              indexName={renameIndexName}
-              handleClose={() => {
-                setRenameIndexName("");
-              }}
-              reload={handleReload}
-            />
-          </Box>
-        </Modal>
+          }}>
+          <DialogTitle> rename index </DialogTitle>
+          <RenameIndex
+            uuid={uuid}
+            table={table}
+            indexName={renameIndexName}
+            handleClose={() => {
+              setRenameIndexName("");
+            }}
+            reload={handleReload}
+          />
+        </Dialog>
       )}
     </Stack>
   );
@@ -794,7 +746,7 @@ function MongoAddIndex(props: {
   };
 
   return (
-    <Stack style={{ flex: 1 }}>
+    <Stack style={{ flex: 1, height: "100%" }}>
       <TextField
         value={indexName}
         onChange={(e) => {
@@ -876,7 +828,7 @@ function AddIndex(props: {
   };
 
   return (
-    <Stack>
+    <Stack style={{ height: "100%" }}>
       <CreateIndexView
         handleReq={(s) => {
           setReq(s);
@@ -1421,9 +1373,7 @@ function TriggersStructure(props: {
         slots={slots}
         loading={loading}
       />
-
       <ListenElementSize dom={modalBox} set="both" name="trigger-detail" />
-
       {row && (
         <Modal
           open={!!row}

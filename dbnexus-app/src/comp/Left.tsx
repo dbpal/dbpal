@@ -125,7 +125,7 @@ import {
   useConnectionStore,
   useFavoriteStore,
   FavoriteSql,
-  useOneShotModalUI,
+  useOneShotDialogUI,
 } from "./store.tsx";
 import { commands, DBConnectionConfig } from "./bindings.ts";
 const settingId = uuidv4();
@@ -1085,7 +1085,7 @@ function DatabaseMenu(props: {
 
   const conn_established = is_connected(uuid);
 
-  const { setUi } = useOneShotModalUI();
+  const { setUi } = useOneShotDialogUI();
 
   return (
     <MenuList>
@@ -1103,34 +1103,28 @@ function DatabaseMenu(props: {
         <MenuCreateSchema
           handleCreate={() => {
             setUi(
-              <Box sx={{ ...modalStyle, width: "40%" }}>
-                <ModalHeader
-                  title={(function () {
-                    let name = "database";
-                    switch (kind) {
-                      case DataSourceKind.Postgres:
-                      case DataSourceKind.Cockroach:
-                      case DataSourceKind.SqlServer:
-                        name = "schema";
-                        break;
-                    }
-                    return `create ${name}`;
-                  })()}
-                  handleClose={() => {
-                    setUi(null);
-                  }}
-                />
-                <CreateSchema
-                  uuid={uuid}
-                  handleClose={() => {
-                    reload();
-                    setUi(null);
-                  }}
-                  kind={kind}
-                  schemas={schemas}
-                  handleReload={reload}
-                />
-              </Box>,
+              <CreateSchema
+                uuid={uuid}
+                handleClose={() => {
+                  reload();
+                  setUi(null);
+                }}
+                kind={kind}
+                schemas={schemas}
+                handleReload={reload}
+              />,
+              "create " +
+                (function () {
+                  let name = "database";
+                  switch (kind) {
+                    case DataSourceKind.Postgres:
+                    case DataSourceKind.Cockroach:
+                    case DataSourceKind.SqlServer:
+                      name = "schema";
+                      break;
+                  }
+                  return `create ${name}`;
+                })(),
             );
           }}
           kind={kind}
@@ -1174,7 +1168,7 @@ function CatalogMenu(props: { uuid; reload; kind: DataSourceKind }) {
   const { uuid, reload, kind } = props;
   const { is_connected } = useConnected();
   const conn_established = is_connected(uuid);
-  const { setUi } = useOneShotModalUI();
+  const { setUi } = useOneShotDialogUI();
   return (
     <div>
       <MenuList>
@@ -1183,29 +1177,22 @@ function CatalogMenu(props: { uuid; reload; kind: DataSourceKind }) {
           <MenuCreateDatabase
             handleCreate={() => {
               setUi(
-                <Box sx={{ ...modalStyle, width: "50%" }}>
-                  <ModalHeader
-                    handleClose={() => {
-                      setUi(null);
-                    }}
-                    title={(function () {
-                      switch (kind) {
-                        case DataSourceKind.CouchBase:
-                          return "create bucket";
-                        default:
-                          return "create database";
-                      }
-                    })()}
-                  />
-                  <CreateDatabase
-                    uuid={uuid}
-                    handleClose={() => {
-                      reload();
-                      setUi(null);
-                    }}
-                    kind={kind}
-                  />
-                </Box>,
+                <CreateDatabase
+                  uuid={uuid}
+                  handleClose={() => {
+                    reload();
+                    setUi(null);
+                  }}
+                  kind={kind}
+                />,
+                (function () {
+                  switch (kind) {
+                    case DataSourceKind.CouchBase:
+                      return "create bucket";
+                    default:
+                      return "create database";
+                  }
+                })(),
               );
             }}
             kind={kind}

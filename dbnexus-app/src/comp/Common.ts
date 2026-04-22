@@ -98,7 +98,6 @@ const modalStyle: SxProps = {
   display: "flex",
   overflow: "auto",
   flexDirection: "column",
-  animation: "modalAnimation 0.6s ease-out",
 };
 
 async function dropDatabase(props: {

@@ -17,6 +17,8 @@ import {
   Button,
   Checkbox,
   Chip,
+  Dialog,
+  DialogTitle,
   Divider,
   FormControlLabel,
   IconButton,
@@ -78,7 +80,6 @@ import {
   dataGridheaderFontSize,
   shrinkAble,
   TabContext,
-  getSupportExportKind,
 } from "./helper";
 import { FaCopy } from "react-icons/fa6";
 import FileCopyIcon from "@mui/icons-material/FileCopy";
@@ -107,18 +108,19 @@ import {
 } from "./CommonComp2";
 import { showTable } from "./handlers";
 import { AddTableModal } from "./LeftTable";
-import { ExportTableOrView } from "./Export";
 import {
   useColumnWidthStore,
   useConfirmMsg,
   useContextMenu,
   useNotification,
+  useOneShotDialogUI,
   usePageSize,
   UseSizeConfig,
   useSizeStore,
   useTableColumnVisibleStore,
 } from "./store";
 import { commands, Field, MuiDataGridData, ShowTableParameter } from "./bindings";
+import { ExportTableOrView } from "./Export";
 
 const confirmAboutPrimary = async (
   notWarnPri: boolean,
@@ -667,6 +669,7 @@ function SqlTableView(props: {
   const [showSetSort, setShowSetSort] = useState(false);
   const [page, setPage] = useState(0);
   const { sql: pageSize, setPageSize } = usePageSize();
+  const { setUi } = useOneShotDialogUI();
   const [resp, setResp] = useState<MuiDataGridData>({
     sql: "",
     fields: [],
@@ -697,7 +700,6 @@ function SqlTableView(props: {
   const [editRowInModal, setRowEditInModal] = useState<object>(null);
   const clientModel = [DataSourceKind.Cassandra].includes(kind);
   const [viewInModal, setViewInModal] = useState<object>(null);
-  const [showExport, setShowExport] = useState(false);
   const [queryStatus, setQueryStatus] = useState("");
   const [clickedField, setClickedField] = useState("");
   const { getColumnWidth, setColumnWidth } = useColumnWidthStore();
@@ -1070,7 +1072,15 @@ function SqlTableView(props: {
             right=<>
               <IconButton
                 onClick={() => {
-                  setShowExport(true);
+                  setUi(
+                    <ExportTableOrView
+                      uuid={uuid}
+                      name={tableName}
+                      kind={kind}
+                      isTable={isTable}
+                      para={makePara()}
+                    />,
+                  );
                 }}>
                 <ArrowCircleDownIcon />
               </IconButton>
@@ -1081,8 +1091,7 @@ function SqlTableView(props: {
       },
       pagination: CustomPagination,
     } as Partial<GridSlotsComponent>;
-  }, [tableName]);
-
+  }, [isTable, kind, makePara, setUi, tableName, uuid]);
   const sortModel = clientModel ? "client" : "server";
   const { getColumnVisibility, setColumnVisibility } = useTableColumnVisibleStore(
     (s) => s,
@@ -1158,33 +1167,26 @@ function SqlTableView(props: {
         />
       )}
       {showFilter && (
-        <Modal
+        <Dialog
           open={!!showFilter}
           onClose={modalHandleClose((e: EscDownEvent) => {
             e.preventDefault();
             setShowFilter(null);
           })}>
-          <Box sx={{ ...modalStyle, width: "45vw" }}>
-            <ModalHeader
-              title="Quick Filter"
-              handleClose={() => {
-                setShowFilter(null);
-              }}
-            />
-            <FilterOnValue
-              content={showFilter.content}
-              setWhere={setWhere}
-              field={showFilter.field}
-              kind={kind}
-              handleClose={() => {
-                setShowFilter(null);
-              }}
-              putValueInSql={(value) => {
-                return putValueInSql(showFilter.typ, value);
-              }}
-            />
-          </Box>
-        </Modal>
+          <DialogTitle> Quick filter </DialogTitle>
+          <FilterOnValue
+            content={showFilter.content}
+            setWhere={setWhere}
+            field={showFilter.field}
+            kind={kind}
+            handleClose={() => {
+              setShowFilter(null);
+            }}
+            putValueInSql={(value) => {
+              return putValueInSql(showFilter.typ, value);
+            }}
+          />
+        </Dialog>
       )}
 
       {editRowInModal && (
@@ -1195,17 +1197,6 @@ function SqlTableView(props: {
             setRowEditInModal(null);
           }}
           fields={resp.fields}
-        />
-      )}
-      {showExport && (
-        <ExportTableOrView
-          uuid={uuid}
-          name={tableName}
-          supportKind={getSupportExportKind(kind, isTable)}
-          handleClose={() => {
-            setShowExport(false);
-          }}
-          para={makePara()}
         />
       )}
       {showSetWhere && (

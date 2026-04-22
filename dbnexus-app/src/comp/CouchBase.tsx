@@ -52,6 +52,7 @@ import { ExportView } from "./Export.tsx";
 import { QueryResp } from "./QueryResp.tsx";
 import {
   useNotification,
+  useOneShotDialogUI,
   usePageSize,
   useQueryLogStore,
   UseSizeConfig,
@@ -599,12 +600,12 @@ function CouchBaseQuery(props: { uuid: string; value?: string }) {
   const { showNotification } = useNotification();
   const [showQueryLog, setShowQueryLog] = useState(false);
   const kind = DataSourceKind.CouchBase;
-  const [showExport, setShowExport] = useState(false);
   const { viewMode, setViewMode } = useCBQueryViewStore();
   const [tableResp, setTableResp] = useState<MuiDataGridData>(null);
   const setEditorContext = useContext(QueryIDEditorChatCtx);
   const [markdownModel, setMarkdownModel] = useState(false);
   const [hightlightStr, setHighlightStr] = useState("");
+  const { setUi } = useOneShotDialogUI();
   useEffect(() => {
     setEditorContext.setEditor(editor);
   }, [editor, setEditor, setEditorContext]);
@@ -778,7 +779,27 @@ function CouchBaseQuery(props: { uuid: string; value?: string }) {
                   if (!value) {
                     return;
                   }
-                  setShowExport(true);
+
+                  setUi(
+                    <ExportView
+                      supportKind={["json", "jsonline"]}
+                      exportOP={(kind, file, taskId, sizeEmitter) => {
+                        const sql = getEditorText(editor, showNotification);
+                        return commands.exportQueryResultToFile(
+                          uuid,
+                          taskId,
+                          sql,
+                          "",
+                          kind,
+                          file,
+                          sizeEmitter,
+                        );
+                      }}
+                      name="export_query_result"
+                    />,
+
+                    "export query to file",
+                  );
                 }}
                 color="primary">
                 <ArrowCircleDownRoundedIcon />
@@ -848,7 +869,6 @@ function CouchBaseQuery(props: { uuid: string; value?: string }) {
           />
         </div>
       </Panel>
-
       <PanelResizeHandle
         style={{
           height: resizeHandlerSize,
@@ -856,7 +876,6 @@ function CouchBaseQuery(props: { uuid: string; value?: string }) {
         id="chat-resize-bar"
         className="resize-handle"
       />
-
       <Panel collapsible collapsedSize={0} minSize={10} style={{ overflow: "auto" }}>
         <Stack
           direction="row"
@@ -905,28 +924,6 @@ function CouchBaseQuery(props: { uuid: string; value?: string }) {
           <QueryResp data={tableResp} />
         )}
       </Panel>
-
-      {showExport && (
-        <ExportView
-          supportKind={["json", "jsonline"]}
-          exportOP={(kind, file, taskId, sizeEmitter) => {
-            const sql = getEditorText(editor, showNotification);
-            return commands.exportQueryResultToFile(
-              uuid,
-              taskId,
-              sql,
-              "",
-              kind,
-              file,
-              sizeEmitter,
-            );
-          }}
-          handleClose={() => {
-            setShowExport(false);
-          }}
-          name="export_query_result"
-        />
-      )}
     </PanelGroup>
   );
 }

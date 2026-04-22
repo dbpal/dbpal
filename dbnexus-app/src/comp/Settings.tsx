@@ -5,7 +5,6 @@ import * as monaco from "monaco-editor";
 import type {} from "@mui/x-data-grid/themeAugmentation";
 import {
   Autocomplete,
-  Box,
   Button,
   Checkbox,
   Chip,
@@ -14,9 +13,9 @@ import {
   createTheme,
   CssBaseline,
   CssVarsTheme,
+  Dialog,
   Divider,
   IconButton,
-  Modal,
   Slider,
   Stack,
   Tab,
@@ -49,8 +48,8 @@ import {
   disable as disableApp,
 } from "@tauri-apps/plugin-autostart";
 import { message } from "@tauri-apps/plugin-dialog";
-import { EscDownEvent, modalHandleClose, modalStyle } from "./Common";
-import { LogLevelSelection, ModalHeader } from "./CommonComp";
+import { EscDownEvent, modalHandleClose } from "./Common";
+import { LogLevelSelection } from "./CommonComp";
 import { appLogDir } from "@tauri-apps/api/path";
 import {
   makeLLMCallable,
@@ -1026,6 +1025,24 @@ function makeComponents(fontWeight: string | number, dataGridRowHeight: number) 
         },
       },
     },
+    MuiDialog: {
+      styleOverrides: {
+        paper: {
+          padding: "6px", // 增加内边距
+          margin: 0,
+          "&:first-of-type": {
+            paddingTop: "24px", // 处理没有 DialogTitle 的情况
+          },
+        },
+      },
+    },
+    MuiDialogTitle: {
+      styleOverrides: {
+        root: {
+          padding: "4px",
+        },
+      },
+    },
     MuiDataGrid: {
       styleOverrides: {
         root: {
@@ -1313,26 +1330,18 @@ function ModifyLLMConfigModal() {
       )}
 
       {showEdit && (
-        <Modal
+        <Dialog
           open={showEdit}
           onClose={modalHandleClose((e: EscDownEvent) => {
             e.preventDefault();
             setShowEdit(false);
           })}>
-          <Box sx={{ ...modalStyle, width: "65vw" }}>
-            <ModalHeader
-              title="edit llm config"
-              handleClose={() => {
-                setShowEdit(false);
-              }}
-            />
-            <LLMSetting
-              handleClose={() => {
-                setShowEdit(false);
-              }}
-            />
-          </Box>
-        </Modal>
+          <LLMSetting
+            handleClose={() => {
+              setShowEdit(false);
+            }}
+          />
+        </Dialog>
       )}
     </>
   );

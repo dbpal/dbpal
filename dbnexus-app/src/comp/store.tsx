@@ -1393,17 +1393,15 @@ export function useTabSize() {
 
 interface OneShotUI {
   ui: ReactElement;
-  setUi: (ui: ReactElement) => void;
+  setUi: (ui: ReactElement, title?: string) => void;
+  title?: string;
 }
 
-export const useOneShotModalUI = create<OneShotUI>()(
-  persist(
-    (set) => ({
-      ui: null,
-      setUi: (ui) => set({ ui }),
-    }),
-    {
-      name: "one-shot-ui-storage",
-    },
-  ),
-);
+// used in place I don't hard to pass parameter mostly used in menu handle
+
+export const useOneShotDialogUI = create<OneShotUI>()((set) => ({
+  ui: null,
+  diagProps: null,
+  setUi: (ui, title: string) => set({ ui, title }),
+  title: "",
+}));

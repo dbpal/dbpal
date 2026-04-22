@@ -14,10 +14,11 @@ import "../app.css";
 import {
   Box,
   Button,
+  Dialog,
+  DialogTitle,
   IconButton,
   Menu,
   Modal,
-  Paper,
   Stack,
   useTheme,
 } from "@mui/material";
@@ -33,7 +34,7 @@ import {
   useConfirmMsg,
   useContextMenu,
   useNotification,
-  useOneShotModalUI,
+  useOneShotDialogUI,
   useTabsManage,
 } from "./store.tsx";
 
@@ -63,68 +64,58 @@ function ShowPanic() {
   return (
     <div>
       {panicInfo && (
-        <Modal
+        <Dialog
           open={!!panicInfo}
           onClose={modalHandleClose((e: EscDownEvent) => {
             e.preventDefault();
             setPanicInfo("");
           })}>
-          <Box sx={{ ...modalStyle, width: "75%", height: "65vh" }}>
-            <ModalHeader
-              title="panic info"
-              handleClose={() => {
-                setPanicInfo("");
-              }}
-            />
-            <Paper
-              elevation={8}
-              style={{
-                overflow: "auto",
-                width: "100%",
-                flex: 1,
-                padding: "4px",
-              }}>
-              <pre style={{ color: theme.palette.error.main }}>{panicInfo}</pre>
-            </Paper>
+          <DialogTitle>panic information</DialogTitle>
 
-            <Stack direction="row">
-              <Button
-                onClick={() => {
-                  openUrl("https://github.com/dbpal/docs/issues");
-                }}
-                color="info">
-                report
-              </Button>
-              <Button
-                variant="outlined"
-                onClick={() => {
-                  handleCopyToClipboard(panicInfo, showNotification);
-                }}>
-                copy error msg
-              </Button>
-              <IconButton
-                color="warning"
-                onClick={async () => {
-                  try {
-                    await remove(await getPanicFilePath());
-                    setPanicInfo("");
-                    showNotification({
-                      severity: "success",
-                      title: "remove panic file success.",
-                    });
-                  } catch (e) {
-                    showNotification({
-                      severity: "error",
-                      title: "remove panic file failed",
-                      message: e,
-                    });
-                  }
-                }}>
-                <DeleteForeverIcon />
-              </IconButton>
-            </Stack>
-          </Box>
-        </Modal>
+          <Stack
+            direction="row"
+            style={{
+              position: "sticky",
+              top: 0,
+              backgroundColor: theme.palette.background.paper,
+            }}>
+            <Button
+              onClick={() => {
+                openUrl("https://github.com/dbpal/docs/issues");
+              }}
+              color="info">
+              report
+            </Button>
+            <Button
+              variant="outlined"
+              onClick={() => {
+                handleCopyToClipboard(panicInfo, showNotification);
+              }}>
+              copy error msg
+            </Button>
+            <IconButton
+              color="warning"
+              onClick={async () => {
+                try {
+                  await remove(await getPanicFilePath());
+                  setPanicInfo("");
+                  showNotification({
+                    severity: "success",
+                    title: "remove panic file success.",
+                  });
+                } catch (e) {
+                  showNotification({
+                    severity: "error",
+                    title: "remove panic file failed",
+                    message: e,
+                  });
+                }
+              }}>
+              <DeleteForeverIcon />
+            </IconButton>
+          </Stack>
+          <pre style={{ color: theme.palette.error.main }}>{panicInfo}</pre>
+        </Dialog>
       )}
     </div>
   );
@@ -170,7 +161,7 @@ function App() {
   const { tabs, setCurrentTab, setTabs, currentTab } = useTabsManage();
   const cancelMsg = useConfirmMsg((state) => state.confirmMsgs);
 
-  const { ui: oneshotUI, setUi: setOneShotUI } = useOneShotModalUI();
+  const diagUi = useOneShotDialogUI();
   const closeTab = useCallback(
     (index: number) => {
       (async () => {
@@ -236,15 +227,17 @@ function App() {
     <SettingProvider>
       <Notifications />
       <AppMenu />
-      {oneshotUI && (
-        <Modal
+      {diagUi.ui && (
+        <Dialog
+          fullWidth
+          maxWidth="sm"
           open={true}
-          onClose={modalHandleClose((e: EscDownEvent) => {
-            e.preventDefault();
-            setOneShotUI(null);
-          })}>
-          {oneshotUI}
-        </Modal>
+          onClose={() => {
+            diagUi.setUi(null);
+          }}>
+          {diagUi.title && <DialogTitle>{diagUi.title}</DialogTitle>}
+          {diagUi.ui}
+        </Dialog>
       )}
       <div>
         <ShowPanic />

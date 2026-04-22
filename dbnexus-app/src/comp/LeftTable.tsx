@@ -26,13 +26,14 @@ import {
   Checkbox,
   Chip,
   CircularProgress,
+  Dialog,
+  DialogTitle,
   Divider,
   FormControlLabel,
   ListItemIcon,
   ListItemText,
   MenuItem,
   MenuList,
-  Modal,
   Stack,
   TextField,
   Tooltip,
@@ -59,7 +60,6 @@ import {
   secondConfirm,
   UuidContext,
   handleCopyToClipboard,
-  getSupportExportKind,
   RedisTableType,
   shrinkAble,
   TabContent,
@@ -85,7 +85,7 @@ import {
   useNotification,
   useTabsManage,
   useMatcherFn,
-  useOneShotModalUI,
+  useOneShotDialogUI,
 } from "./store.tsx";
 import { commands, Field, ListTable, RedisListTableRet } from "./bindings.ts";
 
@@ -420,7 +420,7 @@ function AddTableModal(props: {
       />
 
       {showAdd && (
-        <Modal
+        <Dialog
           open={showAdd}
           onClose={modalHandleClose((e: EscDownEvent) => {
             e.preventDefault();
@@ -445,7 +445,7 @@ function AddTableModal(props: {
               kind={kind}
             />
           </Box>
-        </Modal>
+        </Dialog>
       )}
     </>
   );
@@ -491,7 +491,7 @@ function TableMenu(props: {
   const { table, uuid, reload, kind, redisTableType } = props;
   const { showNotification } = useNotification();
   const { appendTab } = useTabsManage();
-  const { setUi } = useOneShotModalUI();
+  const { setUi } = useOneShotDialogUI();
 
   const handleTruncateTable = async () => {
     const confirm = await secondConfirm({
@@ -594,22 +594,15 @@ function TableMenu(props: {
       <MenuItem
         onClick={() => {
           setUi(
-            <Box sx={{ ...modalStyle, width: "45%" }}>
-              <ModalHeader
-                title="Duplicate"
-                handleClose={() => {
-                  setUi(null);
-                }}
-              />
-              <DupTable
-                table={table}
-                uuid={uuid}
-                handleClose={() => {
-                  setUi(null);
-                }}
-                reloadTables={reload}
-              />
-            </Box>,
+            <DupTable
+              table={table}
+              uuid={uuid}
+              handleClose={() => {
+                setUi(null);
+              }}
+              reloadTables={reload}
+            />,
+            "Duplicate table",
           );
         }}>
         <ListItemIcon>
@@ -620,14 +613,8 @@ function TableMenu(props: {
       <MenuItem
         onClick={() => {
           setUi(
-            <ExportTableOrView
-              handleClose={() => {
-                setUi(null);
-              }}
-              uuid={uuid}
-              name={table}
-              supportKind={getSupportExportKind(kind, true)}
-            />,
+            <ExportTableOrView uuid={uuid} name={table} kind={kind} isTable />,
+            `export table ${table}`,
           );
         }}>
         <ListItemIcon>
@@ -638,16 +625,15 @@ function TableMenu(props: {
       <MenuItem
         onClick={() => {
           setUi(
-            <Box sx={{ ...modalStyle, width: "45%" }}>
-              <RenameTable
-                table={table}
-                uuid={uuid}
-                handleClose={() => {
-                  setUi(null);
-                }}
-                reloadTables={reload}
-              />
-            </Box>,
+            <RenameTable
+              table={table}
+              uuid={uuid}
+              handleClose={() => {
+                setUi(null);
+              }}
+              reloadTables={reload}
+            />,
+            `rename table ${table}`,
           );
         }}>
         <ListItemIcon>
@@ -670,17 +656,16 @@ function TableMenu(props: {
         sx={{ color: "error.main" }}
         onClick={() => {
           setUi(
-            <Box sx={{ ...modalStyle, width: "45%" }}>
-              <DropTable
-                table={table}
-                uuid={uuid}
-                handleClose={() => {
-                  setUi(null);
-                }}
-                reloadTables={reload}
-                kind={kind}
-              />
-            </Box>,
+            <DropTable
+              table={table}
+              uuid={uuid}
+              handleClose={() => {
+                setUi(null);
+              }}
+              reloadTables={reload}
+              kind={kind}
+            />,
+            `drop table ${table}`,
           );
         }}>
         <ListItemIcon>
@@ -920,6 +905,8 @@ function RedisTables() {
   const { showNotification } = useNotification();
   const max = 50;
 
+  const [showEditFiler, setShowEditFiler] = useState(false);
+
   const handleReload = useCallback(() => {
     setLoading(true);
     commands
@@ -945,7 +932,6 @@ function RedisTables() {
     handleReload();
   }, [filter, handleReload]);
 
-  const [showEditFilter, setShowEditFilter] = useState(false);
   const filterTreeID = useRef(uuidv4());
   return (
     <>
@@ -955,7 +941,7 @@ function RedisTables() {
           direction="row"
           style={{ cursor: "pointer" }}
           onClick={() => {
-            setShowEditFilter(true);
+            setShowEditFiler(true);
           }}>
           {tables && tables.has_more ? (
             <Tooltip title={`result exceed ${max},some result are omitted`}>
@@ -972,6 +958,27 @@ function RedisTables() {
           {loading && <CircularProgress />}
         </Stack>
       />
+
+      {showEditFiler && (
+        <Dialog
+          open={true}
+          onClose={() => {
+            setShowEditFiler(false);
+          }}>
+          <DialogTitle>edit key filter</DialogTitle>
+          <ClearableTextField
+            value={filter}
+            onChange={(e) => {
+              setFilter(e.target.value);
+            }}
+            style={{ width: "17rem" }}
+            onClear={() => {
+              setFilter("");
+            }}
+            label="filter"
+          />
+        </Dialog>
+      )}
       {tables && (
         <>
           <RedisOneTableKind
@@ -1010,36 +1017,6 @@ function RedisTables() {
             uuid={uuid}
           />
         </>
-      )}
-
-      {showEditFilter && (
-        <Modal
-          open={showEditFilter}
-          onClose={modalHandleClose((e: EscDownEvent) => {
-            e.preventDefault();
-            setShowEditFilter(false);
-          })}>
-          <Box sx={{ ...modalStyle, width: "45%" }}>
-            <ModalHeader
-              handleClose={() => {
-                setShowEditFilter(false);
-              }}
-              title="Edit key match string"
-            />
-            <ClearableTextField
-              value={filter}
-              fullWidth
-              label="filer"
-              helperText="key filter"
-              onChange={(e) => {
-                setFilter(e.target.value);
-              }}
-              onClear={() => {
-                setFilter("");
-              }}
-            />
-          </Box>
-        </Modal>
       )}
     </>
   );

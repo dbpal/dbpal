@@ -1,5 +1,4 @@
 import {
-  Box,
   Button,
   Checkbox,
   FormControlLabel,
@@ -13,7 +12,6 @@ import { TreeItem } from "@mui/x-tree-view/TreeItem";
 import { useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
 import DeleteForeverIcon from "@mui/icons-material/DeleteForever";
 import InfoIcon from "@mui/icons-material/Info";
-import { modalStyle } from "./Common.ts";
 import { DefAndMetasView } from "./DefAndMetaView.tsx";
 import {
   DataSourceKind,
@@ -33,7 +31,7 @@ import {
   useNotification,
   useTabsManage,
   useMatcherFn,
-  useOneShotModalUI,
+  useOneShotDialogUI,
 } from "./store.tsx";
 import { commands, DefAndMetas, SequenceDetail } from "./bindings.ts";
 function SequenceTree() {
@@ -142,7 +140,7 @@ function SequenceMenu(props: {
 }) {
   const { uuid, seq, reload, kind } = props;
   const { appendTab } = useTabsManage();
-  const { setUi } = useOneShotModalUI();
+  const { setUi } = useOneShotDialogUI();
 
   const handleOpenDetails = () => {
     appendTab(
@@ -177,17 +175,16 @@ function SequenceMenu(props: {
           sx={{ color: "error.main" }}
           onClick={() => {
             setUi(
-              <Box sx={{ ...modalStyle, width: "45%" }}>
-                <DropSeq
-                  kind={kind}
-                  seq={seq}
-                  handleClose={() => {
-                    setUi(null);
-                  }}
-                  reload={reload}
-                  uuid={uuid}
-                />
-              </Box>,
+              <DropSeq
+                kind={kind}
+                seq={seq}
+                handleClose={() => {
+                  setUi(null);
+                }}
+                reload={reload}
+                uuid={uuid}
+              />,
+              `drop sequence ${seq.name}`,
             );
           }}>
           <ListItemIcon>

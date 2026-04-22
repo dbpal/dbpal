@@ -33,7 +33,6 @@ import {
   dataGridStyle,
   DataSourceKind,
   extractFieldAndIDFromMouseEvent,
-  getSupportExportKind,
   handleCopyToClipboard,
   secondConfirm,
   TabContent,
@@ -60,7 +59,7 @@ import {
   useTabsManage,
   useColumnWidthStore,
   useMatcherFn,
-  useOneShotModalUI,
+  useOneShotDialogUI,
 } from "./store";
 import { AllKindChat } from "./Chat";
 import { commands, Field, ListTable } from "./bindings";
@@ -433,7 +432,7 @@ function ViewMenu(props: {
   const { view, uuid, reload, kind, viewKind } = props;
   const { showNotification } = useNotification();
 
-  const { setUi } = useOneShotModalUI();
+  const { setUi } = useOneShotDialogUI();
   const handleDrop = async () => {
     const confirm = await secondConfirm({
       title: `Drop view '${view}'`,
@@ -541,14 +540,8 @@ function ViewMenu(props: {
       <MenuItem
         onClick={() => {
           setUi(
-            <ExportTableOrView
-              uuid={uuid}
-              name={view}
-              handleClose={() => {
-                setUi(null);
-              }}
-              supportKind={getSupportExportKind(kind, false)}
-            />,
+            <ExportTableOrView uuid={uuid} name={view} isTable={false} kind={kind} />,
+            `export view ${view}`,
           );
         }}>
         <ListItemIcon>

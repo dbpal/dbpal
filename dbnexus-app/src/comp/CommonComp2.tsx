@@ -102,6 +102,7 @@ import {
   useFavoriteStore,
   useLLM,
   useNotification,
+  useOneShotDialogUI,
   UseSizeConfig,
   useSizeStore,
   useTableFilter,
@@ -1096,9 +1097,8 @@ function SaveFavoriteSqlView(props: {
 }) {
   const { favoriteName: oldName, editor, uuid, language, kind } = props;
   const [favoriteName, setFavoriteName] = useState(oldName);
-  const [showSetFavoriteName, setShowFavoriteName] = useState(false);
   const { showNotification } = useNotification();
-
+  const { setUi } = useOneShotDialogUI();
   const { save } = useFavoriteStore();
   return (
     <>
@@ -1118,7 +1118,20 @@ function SaveFavoriteSqlView(props: {
               if (favoriteName) {
                 save({ uuid, name: favoriteName, kind, sql, language });
               } else {
-                setShowFavoriteName(true);
+                setUi(
+                  <Stack>
+                    <TextField
+                      style={{ width: "15rem" }}
+                      label="name"
+                      value={favoriteName}
+                      onChange={(e) => {
+                        setFavoriteName(e.target.value);
+                      }}
+                      required
+                    />
+                  </Stack>,
+                  "set favorite name",
+                );
               }
             } catch (e) {
               showNotification({
@@ -1132,58 +1145,6 @@ function SaveFavoriteSqlView(props: {
           <FaBookmark style={{ fontSize: "1.2rem" }} />
         </IconButton>
       </Tooltip>
-
-      {showSetFavoriteName && (
-        <Modal
-          open={showSetFavoriteName}
-          onClose={modalHandleClose((e: EscDownEvent) => {
-            e.preventDefault();
-            setShowFavoriteName(false);
-          })}>
-          <Box sx={{ ...modalStyle, width: "40%" }}>
-            <ModalHeader
-              title="edit favorite sql name"
-              handleClose={() => {
-                setShowFavoriteName(false);
-              }}
-            />
-            <Stack>
-              <TextField
-                fullWidth
-                label="name"
-                value={favoriteName}
-                onChange={(e) => {
-                  setFavoriteName(e.target.value);
-                }}
-                required
-              />
-              <Stack direction="row">
-                <IconButton
-                  color="primary"
-                  onClick={() => {
-                    if (!favoriteName) {
-                      showNotification({
-                        severity: "warning",
-                        title: "name can't be empty",
-                      });
-                      return;
-                    }
-                    setShowFavoriteName(false);
-                    save({
-                      uuid,
-                      name: favoriteName,
-                      kind,
-                      sql: editor.getValue(),
-                      language,
-                    });
-                  }}>
-                  <FaBookmark> </FaBookmark>
-                </IconButton>
-              </Stack>
-            </Stack>
-          </Box>
-        </Modal>
-      )}
     </>
   );
 }

@@ -3,6 +3,8 @@ import {
   Button,
   ButtonGroup,
   Chip,
+  Dialog,
+  DialogTitle,
   Divider,
   ListItemIcon,
   ListItemText,
@@ -1092,7 +1094,6 @@ function MongoTableList(props: {
   const { showNotification } = useNotification();
   const [resp, setResp] = useState<MuiDataGridData | null>(null);
   const [selectModifyDoc, setSelectModifyDoc] = useState<BSON.Document | null>(null);
-  const [showExport, setShowExport] = useState(false);
   const [clickedField, setClickedField] = useState("");
   const { getColumnWidth, setColumnWidth } = useColumnWidthStore();
   const [showFilter, setShowFilter] = useState<{ field: string; id: any }>(null);
@@ -1341,9 +1342,7 @@ function MongoTableList(props: {
           onColumnResize={onColumnResize}
         />
       )}
-
       <ListenElementSize dom={modalBox} set="both" name="mongo-table-modify-doc" />
-
       {selectModifyDoc && (
         <Modal
           disableAutoFocus
@@ -1388,51 +1387,24 @@ function MongoTableList(props: {
           </Box>
         </Modal>
       )}
-
       {showFilter && (
-        <Modal
-          open={!!showFilter}
-          onClose={modalHandleClose((e: EscDownEvent) => {
-            e.preventDefault();
+        <Dialog
+          open={true}
+          onClose={() => {
             setShowFilter(null);
-          })}>
-          <Box sx={{ ...modalStyle, width: "45%" }}>
-            <ModalHeader
-              title="Quick Filter"
-              handleClose={() => {
-                setShowFilter(null);
-              }}
-            />
-            <MongoTableListMenuFilter
-              loadValue={async () => {
-                return loadOne(showFilter.id).then((ret) => ret[showFilter.field]);
-              }}
-              setFilter={setFilter}
-              field={showFilter.field}
-              handleClose={() => {
-                setShowFilter(null);
-              }}
-            />
-          </Box>
-        </Modal>
-      )}
-
-      {showExport && (
-        <Modal
-          open={showExport}
-          onClose={modalHandleClose((e: EscDownEvent) => {
-            e.preventDefault();
-            setShowExport(false);
-          })}>
-          <Box sx={{ ...modalStyle, width: "60%" }}>
-            <ModalHeader
-              title="export markdown table"
-              handleClose={() => {
-                setShowExport(false);
-              }}
-            />
-          </Box>
-        </Modal>
+          }}>
+          <DialogTitle> quick filer </DialogTitle>
+          <MongoTableListMenuFilter
+            loadValue={async () => {
+              return loadOne(showFilter.id).then((ret) => ret[showFilter.field]);
+            }}
+            setFilter={setFilter}
+            field={showFilter.field}
+            handleClose={() => {
+              setShowFilter(null);
+            }}
+          />
+        </Dialog>
       )}
     </Stack>
   );
@@ -1464,7 +1436,6 @@ function MongoTableObject(props: {
   const [docs, setDocs] = useState<DocsAndCount>({ docs: [], count: 0 });
   const [page, setPage] = useState(1);
   const { mongo: pageSize } = usePageSize();
-
   const { showNotification } = useNotification();
   const handleReload = useCallback(
     async (showOK) => {

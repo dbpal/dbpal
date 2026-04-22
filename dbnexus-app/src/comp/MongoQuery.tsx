@@ -1,11 +1,9 @@
 import {
   Autocomplete,
-  Box,
   Button,
   Chip,
   IconButton,
   Link,
-  Modal,
   Paper,
   Stack,
   TextField,
@@ -13,6 +11,8 @@ import {
   Typography,
   SxProps,
   Theme,
+  Dialog,
+  DialogTitle,
 } from "@mui/material";
 
 import PlayArrowIcon from "@mui/icons-material/PlayArrow";
@@ -39,10 +39,8 @@ import {
   dbpalQuerykey,
   EscDownEvent,
   modalHandleClose,
-  modalStyle,
   NameAndQueryId,
 } from "./Common";
-import { ModalHeader } from "./CommonComp";
 import { RiDeleteBack2Line } from "react-icons/ri";
 import {
   AiMarkdownModel,
@@ -408,7 +406,7 @@ function TypeScript(props: {
         </Tooltip>
       )}
       {showEditOption && (
-        <Modal
+        <Dialog
           disableAutoFocus
           disableEnforceFocus
           open={showEditOption}
@@ -416,21 +414,14 @@ function TypeScript(props: {
             e.preventDefault();
             setShowEditOption(false);
           })}>
-          <Box sx={{ ...modalStyle, width: "75%", height: "65vh" }}>
-            <ModalHeader
-              title="edit compiler option"
-              handleClose={() => {
-                setShowEditOption(false);
-              }}
-              noTextTransform
-            />
-            <TsEditCompilerOptions
-              handleClose={() => {
-                setShowEditOption(false);
-              }}
-            />
-          </Box>
-        </Modal>
+          <DialogTitle> edit typescript compile option </DialogTitle>
+
+          <TsEditCompilerOptions
+            handleClose={() => {
+              setShowEditOption(false);
+            }}
+          />
+        </Dialog>
       )}
     </>
   );
