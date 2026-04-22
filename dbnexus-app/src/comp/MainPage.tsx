@@ -231,9 +231,9 @@ function App() {
         vertical: "top",
         horizontal: "right",
       }}
+      style={{ maxWidth: "55vw" }}
       dense>
       <SettingProvider>
-        {/* <Notifications /> */}
         <AppMenu />
         {diagUi.ui && (
           <Dialog
