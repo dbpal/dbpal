@@ -12,7 +12,6 @@ import {
   Button,
   Stack,
   Box,
-  TextField,
   MenuItem,
   Typography,
   Modal,
@@ -1006,10 +1005,57 @@ function RedisSetTable(props: { setKey: string; uuid: string }) {
   );
 }
 
+// function ListDelete(
+//   props: RedisListTableContextMenuProps & { handleClose: () => void },
+// ) {
+//   const [count, setCount] = useState("1");
+//   const { delOP, handleClose } = props;
+//   const { showNotification } = useNotification();
+//   return (
+//     <Stack>
+//       <TextField
+//         value={count}
+//         label="delete count"
+//         onChange={(e) => {
+//           setCount(e.target.value);
+//         }}
+//         helperText=<span
+//           style={{ cursor: "pointer" }}
+//           onClick={() => {
+//             openUrl("https://redis.io/docs/latest/commands/lrem/");
+//           }}>
+//           count???
+//         </span>
+//         type="number"
+//       />
+//       <Stack direction="row">
+//         <Button
+//           onClick={async () => {
+//             try {
+//               await delOP(parseInt(count));
+//               showNotification({
+//                 title: "Delete OK",
+//                 severity: "success",
+//               });
+//               handleClose();
+//             } catch (e) {
+//               showNotification({
+//                 title: "delete failure",
+//                 message: e,
+//                 severity: "error",
+//               });
+//             }
+//           }}
+//           variant="outlined">
+//           delete
+//         </Button>
+//       </Stack>
+//     </Stack>
+//   );
+// }
+
 function RedisListTableContextMenu(props: RedisListTableContextMenuProps) {
-  const { delOP, content } = props;
-  const [count, setCount] = useState("1");
-  const [showDel, setShowDel] = useState(false);
+  const { content, delOP } = props;
   const { showNotification } = useNotification();
   return (
     <div>
@@ -1025,10 +1071,21 @@ function RedisListTableContextMenu(props: RedisListTableContextMenuProps) {
             <ListItemText> Copy </ListItemText>
           </MenuItem>
         )}
-
         <MenuItem
-          onClick={() => {
-            setShowDel(true);
+          onClick={async () => {
+            try {
+              await delOP(1);
+              showNotification({
+                title: "Delete OK",
+                severity: "success",
+              });
+            } catch (e) {
+              showNotification({
+                title: "delete failure",
+                message: e,
+                severity: "error",
+              });
+            }
           }}>
           <ListItemIcon>
             <DeleteForeverIcon />
@@ -1036,51 +1093,6 @@ function RedisListTableContextMenu(props: RedisListTableContextMenuProps) {
           <ListItemText> Delete </ListItemText>
         </MenuItem>
       </MenuList>
-
-      {showDel && (
-        <Modal
-          open={!!showDel}
-          onClose={modalHandleClose((e: EscDownEvent) => {
-            e.preventDefault();
-            setShowDel(null);
-          })}>
-          <Box sx={{ ...modalStyle, width: "40%" }}>
-            <ModalHeader
-              title="Delete Redis List"
-              handleClose={() => {
-                setShowDel(null);
-              }}
-            />
-            <Stack>
-              <TextField
-                value={count}
-                label="delete count"
-                onChange={(e) => {
-                  setCount(e.target.value);
-                }}
-                helperText=<span
-                  style={{ cursor: "pointer" }}
-                  onClick={() => {
-                    openUrl("https://redis.io/docs/latest/commands/lrem/");
-                  }}>
-                  count???
-                </span>
-                type="number"
-              />
-              <Stack direction="row">
-                <Button
-                  onClick={async () => {
-                    await delOP(parseInt(count));
-                    setShowDel(false);
-                  }}
-                  variant="outlined">
-                  delete
-                </Button>
-              </Stack>
-            </Stack>
-          </Box>
-        </Modal>
-      )}
     </div>
   );
 }
@@ -1758,31 +1770,29 @@ function RedisHashTableContextMenu(props: RedisContextMenuProps) {
 
   const { showNotification } = useNotification();
   return (
-    <div>
-      <MenuList>
-        {content && (
-          <MenuItem
-            onClick={() => {
-              handleCopyToClipboard(content, showNotification);
-            }}>
-            <ListItemIcon>
-              <ContentCopyIcon />
-            </ListItemIcon>
-            <ListItemText> Copy </ListItemText>
-          </MenuItem>
-        )}
-
+    <MenuList>
+      {content && (
         <MenuItem
           onClick={() => {
-            delOP();
+            handleCopyToClipboard(content, showNotification);
           }}>
           <ListItemIcon>
-            <DeleteForeverIcon />
+            <ContentCopyIcon />
           </ListItemIcon>
-          <ListItemText> Delete </ListItemText>
+          <ListItemText> Copy </ListItemText>
         </MenuItem>
-      </MenuList>
-    </div>
+      )}
+
+      <MenuItem
+        onClick={() => {
+          delOP();
+        }}>
+        <ListItemIcon>
+          <DeleteForeverIcon />
+        </ListItemIcon>
+        <ListItemText> Delete </ListItemText>
+      </MenuItem>
+    </MenuList>
   );
 }
 

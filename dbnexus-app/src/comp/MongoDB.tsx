@@ -34,7 +34,6 @@ import {
 import { ReactNode, useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { BSON, EJSON } from "bson";
-import { TbJson } from "react-icons/tb";
 import {
   DataGrid,
   GridCallbackDetails,
@@ -653,104 +652,64 @@ function MongoTableListContextMenu(props: {
 }) {
   const { delOP, content, field, setShowFilter, setSort } = props;
   const { showNotification } = useNotification();
-  const [showViewJson, setShowViewJson] = useState(false);
-  const [modalBox, setModalBox] = useState(null);
-
   return (
-    <div>
-      <MenuList>
-        {content && (
-          <MenuItem
-            onClick={() => {
-              setShowViewJson(true);
-            }}>
-            <ListItemIcon>
-              <TbJson fontSize="1.5rem" />
-            </ListItemIcon>
-            <ListItemText> View Json in Modal </ListItemText>
-          </MenuItem>
-        )}
-
-        {content && (
-          <MenuItem
-            onClick={() => {
-              handleCopyToClipboard(content, showNotification);
-            }}>
-            <ListItemIcon>
-              <ContentCopyIcon />
-            </ListItemIcon>
-            <ListItemText> Copy </ListItemText>
-          </MenuItem>
-        )}
-        <Divider />
+    <MenuList>
+      {content && (
         <MenuItem
           onClick={() => {
-            const doc = {};
-            doc[field] = 1;
-            setSort(doc);
+            handleCopyToClipboard(content, showNotification);
           }}>
           <ListItemIcon>
-            <ArrowUpwardIcon />
+            <ContentCopyIcon />
           </ListItemIcon>
-          <ListItemText> {field} ASC </ListItemText>
+          <ListItemText> Copy </ListItemText>
         </MenuItem>
-        <MenuItem
-          onClick={() => {
-            const doc = {};
-            doc[field] = -1;
-            setSort(doc);
-          }}>
-          <ListItemIcon>
-            <ArrowDownwardIcon />
-          </ListItemIcon>
-          <ListItemText> {field} DESC </ListItemText>
-        </MenuItem>
-        <Divider />
-        <MenuItem
-          onClick={() => {
-            setShowFilter();
-          }}>
-          <ListItemIcon>
-            <FilterAltIcon />
-          </ListItemIcon>
-          <ListItemText> Quick Filter </ListItemText>
-        </MenuItem>
-        {delOP && (
-          <MenuItem
-            onClick={() => {
-              delOP();
-            }}>
-            <ListItemIcon>
-              <DeleteForeverIcon />
-            </ListItemIcon>
-            <ListItemText> Delete </ListItemText>
-          </MenuItem>
-        )}
-      </MenuList>
-
-      <ListenElementSize dom={modalBox} set="both" name="mongo-table-modify" />
-
-      {showViewJson && (
-        <Modal
-          open={showViewJson}
-          onClose={modalHandleClose((e: EscDownEvent) => {
-            e.preventDefault();
-            setShowViewJson(false);
-          })}>
-          <Box
-            sx={{ resize: "both", ...modalStyle, width: "75%", height: "65vh" }}
-            ref={setModalBox}>
-            <ModalHeader
-              title="View Json"
-              handleClose={() => {
-                setShowViewJson(false);
-              }}
-            />
-            <SimpleFlexEditor value={content} language="json" readOnly />
-          </Box>
-        </Modal>
       )}
-    </div>
+      <Divider />
+      <MenuItem
+        onClick={() => {
+          const doc = {};
+          doc[field] = 1;
+          setSort(doc);
+        }}>
+        <ListItemIcon>
+          <ArrowUpwardIcon />
+        </ListItemIcon>
+        <ListItemText> {field} ASC </ListItemText>
+      </MenuItem>
+      <MenuItem
+        onClick={() => {
+          const doc = {};
+          doc[field] = -1;
+          setSort(doc);
+        }}>
+        <ListItemIcon>
+          <ArrowDownwardIcon />
+        </ListItemIcon>
+        <ListItemText> {field} DESC </ListItemText>
+      </MenuItem>
+      <Divider />
+      <MenuItem
+        onClick={() => {
+          setShowFilter();
+        }}>
+        <ListItemIcon>
+          <FilterAltIcon />
+        </ListItemIcon>
+        <ListItemText> Quick Filter </ListItemText>
+      </MenuItem>
+      {delOP && (
+        <MenuItem
+          onClick={() => {
+            delOP();
+          }}>
+          <ListItemIcon>
+            <DeleteForeverIcon />
+          </ListItemIcon>
+          <ListItemText> Delete </ListItemText>
+        </MenuItem>
+      )}
+    </MenuList>
   );
 }
 

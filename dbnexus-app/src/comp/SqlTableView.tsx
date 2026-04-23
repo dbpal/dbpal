@@ -677,6 +677,14 @@ function SqlTableView(props: {
     },
     [uuid],
   );
+
+  const addOP = useCallback(
+    async (x) => {
+      await commands.tableInsert(uuid, tableName, x);
+    },
+    [uuid, tableName],
+  );
+
   const [loading, setLoading] = useState(false);
   const [where, setWhere] = useState("");
   const [showSetWhere, setShowSetWhere] = useState(false);
@@ -718,6 +726,7 @@ function SqlTableView(props: {
   const [queryStatus, setQueryStatus] = useState("");
   const [clickedField, setClickedField] = useState("");
   const { getColumnWidth, setColumnWidth } = useColumnWidthStore();
+  const [showClone, setShowClone] = useState<object>(null);
   const getSize = useSizeStore((s) => s.getSize);
   const [showFilter, setShowFilter] = useState<{
     field: string;
@@ -988,7 +997,6 @@ function SqlTableView(props: {
                 }}
                 isTable={isTable}
                 nullable={nullable}
-                fields={resp.fields}
                 field={field}
                 content={content}
                 handleDelete={
@@ -998,9 +1006,9 @@ function SqlTableView(props: {
                       }
                     : undefined
                 }
-                row={row}
-                uuid={uuid}
-                tableName={tableName}
+                setShowClone={() => {
+                  setShowClone(row);
+                }}
                 setSort={setSort}
                 setNull={
                   isTable
@@ -1230,6 +1238,32 @@ function SqlTableView(props: {
           uuid={uuid}
         />
       )}
+      {showClone && (
+        <Modal
+          open={!!showClone}
+          onClose={modalHandleClose((e: EscDownEvent) => {
+            e.preventDefault();
+            setShowClone(null);
+          })}>
+          <Box sx={{ resize: "horizontal", ...modalStyle, width: "50%" }}>
+            <ModalHeader
+              title="Clone Data"
+              handleClose={() => {
+                setShowClone(null);
+              }}
+            />
+            <SqlTableViewData
+              buttonName="add"
+              handleData={addOP}
+              fields={resp.fields}
+              handleClose={() => setShowClone(null)}
+              initValues={showClone}
+              isAdd
+            />
+          </Box>
+        </Modal>
+      )}
+
       {showSetSort && (
         <SetFilterSort
           tableName={tableName}
@@ -1400,17 +1434,14 @@ function Menu(props: {
   handleDelete?: () => void;
   setSort: Dispatch<SetStateAction<string>>;
   setNull?: () => void;
-  row: object;
-  fields: Field[];
   nullable: boolean;
   editCellInModal: () => void;
   editRowInModal: () => void;
   kind: DataSourceKind;
   viewInModal: () => void;
   isTable: boolean;
-  uuid: string;
-  tableName: string;
   setShowFilter: () => void;
+  setShowClone: () => void;
 }) {
   const {
     field,
@@ -1418,10 +1449,6 @@ function Menu(props: {
     handleDelete,
     setSort,
     setNull,
-    uuid,
-    tableName,
-    row,
-    fields,
     nullable,
     editCellInModal,
     editRowInModal,
@@ -1429,160 +1456,121 @@ function Menu(props: {
     viewInModal,
     isTable,
     setShowFilter,
+    setShowClone,
   } = props;
 
-  const addOP = useCallback(
-    async (x) => {
-      await commands.tableInsert(uuid, tableName, x);
-    },
-    [uuid, tableName],
-  );
   const { showNotification } = useNotification();
-  const [showClone, setShowClone] = useState(false);
   const quoteField = quoteDatabaseIdentifier(field, kind);
-  const [cloneModalBox, setCloneModalBox] = useState(null);
 
   return (
-    <div>
-      <MenuList>
-        {isTable && (
-          <MenuItem
-            onClick={() => {
-              editCellInModal();
-            }}>
-            <ListItemIcon>
-              <EditIcon />
-            </ListItemIcon>
-            <ListItemText> Edit Cell in Modal </ListItemText>
-          </MenuItem>
-        )}
-
-        {isTable && (
-          <MenuItem
-            onClick={() => {
-              editRowInModal();
-            }}>
-            <ListItemIcon>
-              <MdEditNote fontSize="1.7rem" />
-            </ListItemIcon>
-            <ListItemText> Edit Row in Modal </ListItemText>
-          </MenuItem>
-        )}
-
-        {nullable && isTable && setNull && (
-          <MenuItem
-            onClick={() => {
-              setNull();
-            }}>
-            <ListItemIcon>
-              <CancelIcon />
-            </ListItemIcon>
-            <ListItemText> Set As Null </ListItemText>
-          </MenuItem>
-        )}
-
-        <MenuItem onClick={viewInModal}>
-          <ListItemIcon>
-            <VisibilityIcon style={{ fontSize: "1.4rem" }} />
-          </ListItemIcon>
-          <ListItemText> View in Modal </ListItemText>
-        </MenuItem>
-
-        {content && (
-          <MenuItem
-            onClick={() => {
-              handleCopyToClipboard(content, showNotification);
-            }}>
-            <ListItemIcon>
-              <FaCopy fontSize="1.4rem" />
-            </ListItemIcon>
-            <ListItemText> Copy </ListItemText>
-          </MenuItem>
-        )}
-
-        <Divider />
+    <MenuList>
+      {isTable && (
         <MenuItem
           onClick={() => {
-            setSort(`${quoteField} ASC`);
+            editCellInModal();
           }}>
           <ListItemIcon>
-            <ArrowUpwardIcon />
+            <EditIcon />
           </ListItemIcon>
-          <ListItemText> {field} ASC </ListItemText>
+          <ListItemText> Edit Cell in Modal </ListItemText>
         </MenuItem>
-        <MenuItem
-          onClick={() => {
-            setSort(`${quoteField} DESC`);
-          }}>
-          <ListItemIcon>
-            <ArrowDownwardIcon />
-          </ListItemIcon>
-          <ListItemText> {field} DESC </ListItemText>
-        </MenuItem>
-
-        {content && (
-          <MenuItem
-            onClick={() => {
-              setShowFilter();
-            }}>
-            <ListItemIcon>
-              <FilterAltIcon />
-            </ListItemIcon>
-            <ListItemText> Quick Filter </ListItemText>
-          </MenuItem>
-        )}
-        {isTable && <Divider />}
-        {isTable && (
-          <MenuItem
-            onClick={() => {
-              setShowClone(true);
-            }}>
-            <ListItemIcon>
-              <FileCopyIcon />
-            </ListItemIcon>
-            <ListItemText> Clone Row </ListItemText>
-          </MenuItem>
-        )}
-        {isTable && (
-          <MenuItem onClick={handleDelete}>
-            <ListItemIcon>
-              <DeleteForeverIcon />
-            </ListItemIcon>
-            <ListItemText> Delete Row</ListItemText>
-          </MenuItem>
-        )}
-      </MenuList>
-
-      <ListenElementSize dom={cloneModalBox} set="width" name="table-edit-clone" />
-
-      {showClone && (
-        <Modal
-          open={showClone}
-          onClose={modalHandleClose((e: EscDownEvent) => {
-            e.preventDefault();
-            setShowClone(false);
-          })}>
-          <Box
-            sx={{ resize: "horizontal", ...modalStyle, width: "50%" }}
-            ref={setCloneModalBox}>
-            <ModalHeader
-              title="Clone Data"
-              handleClose={() => {
-                setShowClone(false);
-              }}
-            />
-            <SqlTableViewData
-              buttonName="add"
-              handleData={addOP}
-              fields={fields}
-              handleClose={() => setShowClone(false)}
-              initValues={row}
-              isAdd
-            />
-          </Box>
-        </Modal>
       )}
-    </div>
+
+      {isTable && (
+        <MenuItem
+          onClick={() => {
+            editRowInModal();
+          }}>
+          <ListItemIcon>
+            <MdEditNote fontSize="1.7rem" />
+          </ListItemIcon>
+          <ListItemText> Edit Row in Modal </ListItemText>
+        </MenuItem>
+      )}
+
+      {nullable && isTable && setNull && (
+        <MenuItem
+          onClick={() => {
+            setNull();
+          }}>
+          <ListItemIcon>
+            <CancelIcon />
+          </ListItemIcon>
+          <ListItemText> Set As Null </ListItemText>
+        </MenuItem>
+      )}
+
+      <MenuItem onClick={viewInModal}>
+        <ListItemIcon>
+          <VisibilityIcon style={{ fontSize: "1.4rem" }} />
+        </ListItemIcon>
+        <ListItemText> View in Modal </ListItemText>
+      </MenuItem>
+
+      {content && (
+        <MenuItem
+          onClick={() => {
+            handleCopyToClipboard(content, showNotification);
+          }}>
+          <ListItemIcon>
+            <FaCopy fontSize="1.4rem" />
+          </ListItemIcon>
+          <ListItemText> Copy </ListItemText>
+        </MenuItem>
+      )}
+
+      <Divider />
+      <MenuItem
+        onClick={() => {
+          setSort(`${quoteField} ASC`);
+        }}>
+        <ListItemIcon>
+          <ArrowUpwardIcon />
+        </ListItemIcon>
+        <ListItemText> {field} ASC </ListItemText>
+      </MenuItem>
+      <MenuItem
+        onClick={() => {
+          setSort(`${quoteField} DESC`);
+        }}>
+        <ListItemIcon>
+          <ArrowDownwardIcon />
+        </ListItemIcon>
+        <ListItemText> {field} DESC </ListItemText>
+      </MenuItem>
+
+      {content && (
+        <MenuItem
+          onClick={() => {
+            setShowFilter();
+          }}>
+          <ListItemIcon>
+            <FilterAltIcon />
+          </ListItemIcon>
+          <ListItemText> Quick Filter </ListItemText>
+        </MenuItem>
+      )}
+      {isTable && <Divider />}
+      {isTable && (
+        <MenuItem
+          onClick={() => {
+            setShowClone();
+          }}>
+          <ListItemIcon>
+            <FileCopyIcon />
+          </ListItemIcon>
+          <ListItemText> Clone Row </ListItemText>
+        </MenuItem>
+      )}
+      {isTable && (
+        <MenuItem onClick={handleDelete}>
+          <ListItemIcon>
+            <DeleteForeverIcon />
+          </ListItemIcon>
+          <ListItemText> Delete Row</ListItemText>
+        </MenuItem>
+      )}
+    </MenuList>
   );
 }
 

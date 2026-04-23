@@ -159,41 +159,39 @@ function SequenceMenu(props: {
   };
 
   return (
-    <div>
-      <MenuList>
-        <MenuItem
-          onClick={() => {
-            handleOpenDetails();
-          }}>
-          <ListItemIcon>
-            <InfoIcon />
-          </ListItemIcon>
-          <ListItemText> Detail </ListItemText>
-        </MenuItem>
+    <MenuList>
+      <MenuItem
+        onClick={() => {
+          handleOpenDetails();
+        }}>
+        <ListItemIcon>
+          <InfoIcon />
+        </ListItemIcon>
+        <ListItemText> Detail </ListItemText>
+      </MenuItem>
 
-        <MenuItem
-          sx={{ color: "error.main" }}
-          onClick={() => {
-            setUi(
-              <DropSeq
-                kind={kind}
-                seq={seq}
-                handleClose={() => {
-                  setUi(null);
-                }}
-                reload={reload}
-                uuid={uuid}
-              />,
-              `drop sequence ${seq.name}`,
-            );
-          }}>
-          <ListItemIcon>
-            <DeleteForeverIcon color="error" />
-          </ListItemIcon>
-          <ListItemText> Drop</ListItemText>
-        </MenuItem>
-      </MenuList>
-    </div>
+      <MenuItem
+        sx={{ color: "error.main" }}
+        onClick={() => {
+          setUi(
+            <DropSeq
+              kind={kind}
+              seq={seq}
+              handleClose={() => {
+                setUi(null);
+              }}
+              reload={reload}
+              uuid={uuid}
+            />,
+            `drop sequence ${seq.name}`,
+          );
+        }}>
+        <ListItemIcon>
+          <DeleteForeverIcon color="error" />
+        </ListItemIcon>
+        <ListItemText> Drop</ListItemText>
+      </MenuItem>
+    </MenuList>
   );
 }
 
