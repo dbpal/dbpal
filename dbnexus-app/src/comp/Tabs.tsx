@@ -208,6 +208,7 @@ function TabsWithContent() {
                     />
                   )
                 }
+                icon={tab.icon}
                 sx={{
                   marginLeft: "4px",
                   marginTop: "2px",
