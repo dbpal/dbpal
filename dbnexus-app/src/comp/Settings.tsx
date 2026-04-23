@@ -637,7 +637,7 @@ function LLMSetting(props: { handleClose?: () => void }) {
         />
         <Autocomplete
           options={["duckduckgo", "serpapi", "tavily", "google"]}
-          style={{ width: "12rem" }}
+          style={{ width: "19rem" }}
           value={searchEngine.provider}
           renderInput={(params) => <TextField {...params} label={"search engine"} />}
           freeSolo={false}

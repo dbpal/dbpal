@@ -1088,6 +1088,64 @@ function UrlDocument(props: { url: string }) {
   );
 }
 
+function SaveFavoriteSqlViewOnTheFly(props: {
+  uuid: string;
+  kind: DataSourceKind;
+  sql: string;
+  language?: string;
+  onChangeFavName: (name: string) => void;
+  handleClose: () => void;
+}) {
+  const { kind, sql, language, onChangeFavName, uuid, handleClose } = props;
+  const [favoriteName, setFavoriteName] = useState("");
+  const { showNotification } = useNotification();
+  const { save } = useFavoriteStore();
+  useEffect(() => {
+    onChangeFavName(favoriteName);
+  }, [favoriteName, onChangeFavName]);
+
+  return (
+    <Stack>
+      <TextField
+        style={{ width: "15rem" }}
+        label="name"
+        value={favoriteName}
+        onChange={(e) => {
+          setFavoriteName(e.target.value);
+        }}
+        required
+      />
+      <Button
+        onClick={() => {
+          try {
+            if (!favoriteName) {
+              showNotification({
+                severity: "warning",
+                title: "please input favorite name",
+              });
+
+              return;
+            }
+            save({ uuid, name: favoriteName, kind, sql, language });
+            showNotification({
+              severity: "success",
+              title: "save favorite sql success.",
+            });
+            handleClose();
+          } catch (e) {
+            showNotification({
+              severity: "error",
+              title: "save favorite sql failed",
+              message: e,
+            });
+          }
+        }}>
+        ok
+      </Button>
+    </Stack>
+  );
+}
+
 function SaveFavoriteSqlView(props: {
   favoriteName?: string;
   editor: editor.IStandaloneCodeEditor;
@@ -1117,19 +1175,24 @@ function SaveFavoriteSqlView(props: {
               }
               if (favoriteName) {
                 save({ uuid, name: favoriteName, kind, sql, language });
+                showNotification({
+                  severity: "success",
+                  title: "save favorite sql success.",
+                });
               } else {
                 setUi(
-                  <Stack>
-                    <TextField
-                      style={{ width: "15rem" }}
-                      label="name"
-                      value={favoriteName}
-                      onChange={(e) => {
-                        setFavoriteName(e.target.value);
-                      }}
-                      required
-                    />
-                  </Stack>,
+                  <SaveFavoriteSqlViewOnTheFly
+                    uuid={uuid}
+                    sql={sql}
+                    kind={kind}
+                    language={language}
+                    onChangeFavName={(name) => {
+                      setFavoriteName(name);
+                    }}
+                    handleClose={() => {
+                      setUi(null);
+                    }}
+                  />,
                   "set favorite name",
                 );
               }

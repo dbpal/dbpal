@@ -237,8 +237,7 @@ function App() {
         <AppMenu />
         {diagUi.ui && (
           <Dialog
-            fullWidth
-            maxWidth="sm"
+            slotProps={{ paper: { style: { width: "fit-content" } } }}
             open={true}
             onClose={() => {
               diagUi.setUi(null);

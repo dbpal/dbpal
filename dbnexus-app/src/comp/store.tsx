@@ -118,7 +118,7 @@ export const useConfirmMsg = create<{
     }),
 }));
 
-interface AppConfigState {
+interface MatcherTreeState {
   maxTree: number;
   matchPattern: string[];
   setMaxTree: (val: number) => void;
@@ -126,7 +126,7 @@ interface AppConfigState {
 }
 
 // Move the <AppConfigState> generic here inside the persist wrapper
-export const useMatcher = create<AppConfigState>()(
+export const useMatcher = create<MatcherTreeState>()(
   persist(
     (set) => ({
       maxTree: 120,
@@ -398,17 +398,8 @@ export const useNotification = () => {
     },
     [closeSnackbar, enqueueSnackbar],
   );
-
-  const closeMsg = useCallback(
-    (key: string | number) => {
-      closeSnackbar(key);
-    },
-    [closeSnackbar],
-  );
-
   return {
     showNotification,
-    closeMsg,
   };
 };
 
@@ -492,23 +483,30 @@ interface PageSizeState {
   sql: number;
   couchbase: number;
   mongo: number;
-  // Actions to update the state
   setPageSize: (db: keyof Omit<PageSizeState, "setPageSize">, size: number) => void;
 }
 
-export const usePageSize = create<PageSizeState>((set) => ({
-  // Initial State
-  sql: 100,
-  couchbase: 10,
-  mongo: 10,
+export const usePageSize = create<PageSizeState>()(
+  persist(
+    (set) => ({
+      // Initial State
+      sql: 100,
+      couchbase: 10,
+      mongo: 10,
 
-  // Action to update a specific database's page size
-  setPageSize: (db, size) =>
-    set((state) => ({
-      ...state,
-      [db]: size,
-    })),
-}));
+      // Action to update a specific database's page size
+      setPageSize: (db, size) =>
+        set((state) => ({
+          ...state,
+          [db]: size,
+        })),
+    }),
+    {
+      name: "page-size-storage", // 存储在 localStorage 中的 key 名称
+      // storage: createJSONStorage(() => localStorage), // 默认就是 localStorage，可省略
+    },
+  ),
+);
 
 interface SizeState {
   // 核心數據：例如 { "sidebar": 300, "editor": 500 }
@@ -543,7 +541,7 @@ export const useSizeStore = create<SizeState>()(
       resetSizes: (sizes) => set({ sizes }),
     }),
     {
-      name: "couchbase-ui-sizes",
+      name: "couchbase-some-sizes",
     },
   ),
 );
@@ -653,13 +651,6 @@ interface TableFilterState {
   addFilter: (uuid: string, name: string, filterValue: string) => void;
   removeFilter: (uuid: string, name: string) => void;
   // Add the definition here
-  getFilter: (uuid: string, name: string) => string[];
-}
-
-interface TableFilterState {
-  filters: Record<string, string[]>;
-  addFilter: (uuid: string, name: string, filterValue: string) => void;
-  removeFilter: (uuid: string, name: string) => void;
   getFilter: (uuid: string, name: string) => string[];
 }
 
@@ -807,7 +798,6 @@ const initialSettings: UserSettings = {
   },
   proxy: {
     http: "",
-
     https: "",
     no: "",
     all: "",
@@ -1007,7 +997,7 @@ export const useEditorState = create<EditorState>((set, get) => ({
 export interface QueryLog {
   id?: number;
   uuid: string;
-  name: string; // connect0on name
+  name: string; // connection name
   sql: string;
   language?: string;
   create_at: number; // 存储时间戳
@@ -1066,7 +1056,6 @@ export const useQueryLogStore = create<QueryLogState>(() => ({
     }
   },
 
-  // 分页查询 (模拟 SQL: like, order by, limit, offset)
   query: async (uuid) => {
     let collection = db.query_log
       .where("uuid")
