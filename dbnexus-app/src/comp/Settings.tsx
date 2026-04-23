@@ -1094,6 +1094,17 @@ function makeComponents(fontWeight: string | number, dataGridRowHeight: number) 
         showLastButton: true,
       },
     },
+    MuiMenu: {
+      styleOverrides: {
+        paper: {
+          padding: 0,
+        },
+        list: {
+          paddingTop: "2px", // 原生默认通常是 8px
+          paddingBottom: "2px",
+        },
+      },
+    },
     MuiMenuList: {
       styleOverrides: {
         root: {
