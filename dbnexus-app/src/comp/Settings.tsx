@@ -1030,9 +1030,6 @@ function makeComponents(fontWeight: string | number, dataGridRowHeight: number) 
         paper: {
           padding: "6px", // 增加内边距
           margin: 0,
-          "&:first-of-type": {
-            paddingTop: "24px", // 处理没有 DialogTitle 的情况
-          },
         },
       },
     },
