@@ -1283,7 +1283,7 @@ function openNewQueryWindow(uuid: string, kind: DataSourceKind) {
 
   const webview = new WebviewWindow("my-unique-label", {
     url: `query.html?uuid=${uuid}&kind=${kind}&queryId=${queryId}`,
-    title: "New Window",
+    title: `query windows of ${uuid}`,
     maximized: true,
   });
   webview.once("tauri://window-created", () => {
