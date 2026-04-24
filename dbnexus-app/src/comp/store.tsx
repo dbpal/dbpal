@@ -9,7 +9,6 @@ import { cloneDeep } from "lodash-es";
 import { useSnackbar } from "notistack";
 import { GridColumnVisibilityModel } from "@mui/x-data-grid";
 import { PassWordManager, uuidv4 } from "./Common";
-import { editor } from "monaco-editor";
 import { Channel } from "@tauri-apps/api/core";
 import { cancelTask } from "./handlers";
 import CloseIcon from "@mui/icons-material/Close";
@@ -23,8 +22,12 @@ import {
 import { LazyStore } from "@tauri-apps/plugin-store";
 import { extractConfigNameFromUuid, TabContent } from "./helper";
 
+function getStore() {
+  return new LazyStore("store.json");
+}
+
 class TauriStoreManger<S> implements PersistStorage<S> {
-  appStore = new LazyStore("store.json");
+  appStore = getStore();
   constructor(
     public setBefore?: (_: S) => Promise<S>,
     public afterFetch?: (_: S) => Promise<void>,
@@ -805,6 +808,8 @@ const initialSettings: UserSettings = {
   },
 };
 
+export const userSettingKey = "dbpal-combined-settings";
+
 export const useUserSettings = create<UserSettingsState>()(
   persist(
     (set, get) => ({
@@ -828,13 +833,17 @@ export const useUserSettings = create<UserSettingsState>()(
       },
     }),
     {
-      name: "dbpal-combined-settings", // 建议合并成一个 key，方便管理
+      name: userSettingKey, // 建议合并成一个 key，方便管理
       storage: new TauriStoreManger(), // 使用你之前的 Tauri 存储实现
       // 如果需要处理旧版本的 key 迁移，可以在这里写 migrate
       version: 1,
     },
   ),
 );
+
+getStore().onKeyChange(userSettingKey, async () => {
+  await useUserSettings.persist.rehydrate();
+});
 
 export const useDatagridHeight = () => {
   return useUserSettings((state) =>
@@ -968,32 +977,6 @@ export const useConnectionStore = create<ConnectionState>()(
     },
   ),
 );
-
-interface EditorState {
-  values: Record<string, editor.IStandaloneCodeEditor>;
-  getEditor: (arg0: string) => editor.IStandaloneCodeEditor | null;
-  setEditor: (arg1: editor.IStandaloneCodeEditor) => void;
-  removeEditor: (arg0: string) => void;
-}
-
-export const useEditorState = create<EditorState>((set, get) => ({
-  values: {},
-  getEditor: (uuid) => {
-    return get().values[uuid];
-  },
-  setEditor: (e) => {
-    const id = e.getModel().id;
-    let _new = { ...get() };
-    _new.values[id] = e;
-    set(_new);
-  },
-
-  removeEditor: (uuid) => {
-    const values = get().values;
-    delete values[uuid];
-    set({ values });
-  },
-}));
 
 export interface QueryLog {
   id?: number;
