@@ -22,12 +22,12 @@ import {
 import { LazyStore } from "@tauri-apps/plugin-store";
 import { extractConfigNameFromUuid, TabContent } from "./helper";
 
-function getStore() {
+export function getAppStore() {
   return new LazyStore("store.json");
 }
 
 class TauriStoreManger<S> implements PersistStorage<S> {
-  appStore = getStore();
+  appStore = getAppStore();
   constructor(
     public setBefore?: (_: S) => Promise<S>,
     public afterFetch?: (_: S) => Promise<void>,
@@ -808,7 +808,15 @@ const initialSettings: UserSettings = {
   },
 };
 
-export const userSettingKey = "dbpal-combined-settings";
+const userSettingKey = "dbpal-combined-settings";
+
+export function reloadSetting() {
+  getAppStore().onKeyChange(userSettingKey, async () => {
+    setTimeout(async () => {
+      await useUserSettings.persist.rehydrate();
+    }, 1000);
+  });
+}
 
 export const useUserSettings = create<UserSettingsState>()(
   persist(
@@ -840,10 +848,6 @@ export const useUserSettings = create<UserSettingsState>()(
     },
   ),
 );
-
-getStore().onKeyChange(userSettingKey, async () => {
-  await useUserSettings.persist.rehydrate();
-});
 
 export const useDatagridHeight = () => {
   return useUserSettings((state) =>
