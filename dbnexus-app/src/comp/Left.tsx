@@ -1281,7 +1281,7 @@ function openNewQueryWindow(uuid: string, kind: DataSourceKind) {
 
   let queryId = uuidv4();
 
-  const webview = new WebviewWindow("my-unique-label", {
+  const webview = new WebviewWindow(uuidv4(), {
     url: `query.html?uuid=${uuid}&kind=${kind}&queryId=${queryId}`,
     title: `query windows of ${uuid}`,
     maximized: true,
