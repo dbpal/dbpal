@@ -1,16 +1,15 @@
 import {
   Autocomplete,
-  Box,
   Button,
   Chip,
   CircularProgress,
+  Dialog,
   Divider,
   IconButton,
   ListItemIcon,
   ListItemText,
   MenuItem,
   MenuList,
-  Modal,
   Slider,
   Stack,
   TextField,
@@ -32,12 +31,13 @@ import {
 import ContentCopyIcon from "@mui/icons-material/ContentCopy";
 import { GrConnect } from "react-icons/gr";
 import {
-  modalStyle,
   dropDatabase,
   dropSchema,
   EscDownEvent,
   modalHandleClose,
   PassWordManager,
+  QueryConn,
+  uuidv4,
 } from "./Common";
 import { LuDatabase } from "react-icons/lu";
 import { FaDatabase } from "react-icons/fa";
@@ -59,7 +59,6 @@ import {
   TabContent,
   UuidContext,
 } from "./helper";
-import { v4 as uuidv4 } from "uuid";
 import { TbDatabaseSearch } from "react-icons/tb";
 import { SqlQuery } from "./SqlQuery";
 import { RedisQuery } from "./RedisQuery";
@@ -72,6 +71,7 @@ import {
   MenuCreateSchema,
   MenuDeleteConfig,
   MenuNewQuery,
+  MenuNewQueryNewWindow,
   MenuOpenConn,
   MenuRefresh,
   ModalHeader,
@@ -128,6 +128,7 @@ import {
   useOneShotDialogUI,
 } from "./store.tsx";
 import { commands, DBConnectionConfig } from "./bindings.ts";
+import { WebviewWindow } from "@tauri-apps/api/webviewWindow";
 const settingId = uuidv4();
 const showTopKey = "left-top-show";
 function LeftTop() {
@@ -260,109 +261,109 @@ function LeftTop() {
       </Stack>
       {show && <Divider color="info" />}
       {showEditFilter && (
-        <Modal
+        <Dialog
+          fullWidth
+          maxWidth="sm"
           open={showEditFilter}
           onClose={modalHandleClose((e: EscDownEvent) => {
             e.preventDefault();
             setShowEditFilter(false);
           })}>
-          <Box sx={{ ...modalStyle, width: "45%" }}>
-            <ModalHeader
-              title="edit filter"
-              handleClose={() => {
-                setShowEditFilter(false);
+          <ModalHeader
+            title="edit filter"
+            handleClose={() => {
+              setShowEditFilter(false);
+            }}
+          />
+          <Stack
+            style={{
+              display: show ? "flex" : "none",
+              border: "2px solid " + theme.palette.success.main,
+              borderRadius: "0.5rem",
+              padding: "2px 0.5rem",
+            }}>
+            <Typography color="info">
+              match pattern for database schema,table,view,udf,procedure etc
+            </Typography>
+            <Stack direction="row" style={{ flexWrap: "wrap", alignItems: "center" }}>
+              {matchPattern.length > 1 && (
+                <IconButton
+                  onClick={() => {
+                    setMatchPattern([]);
+                    setShowEditFilter(false);
+                  }}>
+                  <CloseIcon />
+                </IconButton>
+              )}
+              {matchPattern.map((e, index) => (
+                <Chip
+                  key={index}
+                  label={e}
+                  color="success"
+                  onDelete={() => {
+                    setMatchPatternInput(matchPattern[index]);
+                    setMatchPattern(
+                      matchPattern.filter((_, eIndex) => eIndex !== index),
+                    );
+                  }}
+                />
+              ))}
+            </Stack>
+            <Stack direction="row" style={{ alignItems: "flex-end" }} spacing={1}>
+              <ClearableTextField
+                fullWidth
+                value={matchPatterInput}
+                label="match pattern"
+                onChange={(e) => {
+                  setMatchPatternInput(e.target.value.trim());
+                }}
+                onClear={() => setMatchPatternInput("")}
+              />
+              <Button
+                onClick={() => {
+                  if (matchPattern.find((e) => e == matchPatterInput)) {
+                    showNotification({
+                      severity: "warning",
+                      title: "the value already exists",
+                    });
+                    return;
+                  }
+                  if (!matchPatterInput) {
+                    showNotification({
+                      severity: "warning",
+                      title: "please input match pattern",
+                    });
+                    return;
+                  }
+                  setMatchPattern([...matchPattern, matchPatterInput]);
+                }}
+                variant="outlined">
+                apply
+              </Button>
+            </Stack>
+          </Stack>
+
+          <StackRowCenter>
+            <span color="info">max tree size({maxTree}):</span>
+            <Slider
+              min={(function () {
+                if (import.meta.env.DEV) {
+                  return 1;
+                } else {
+                  return 100;
+                }
+              })()}
+              max={1000}
+              onChange={(_, value) => {
+                setMaxTree(value);
+              }}
+              style={{
+                flex: 1,
+                width: "40%",
               }}
             />
-            <Stack
-              style={{
-                display: show ? "flex" : "none",
-                border: "2px solid " + theme.palette.success.main,
-                borderRadius: "0.5rem",
-                padding: "2px 0.5rem",
-              }}>
-              <Typography color="info">
-                match pattern for database schema,table,view,udf,procedure etc
-              </Typography>
-              <Stack direction="row" style={{ flexWrap: "wrap", alignItems: "center" }}>
-                {matchPattern.length > 1 && (
-                  <IconButton
-                    onClick={() => {
-                      setMatchPattern([]);
-                      setShowEditFilter(false);
-                    }}>
-                    <CloseIcon />
-                  </IconButton>
-                )}
-                {matchPattern.map((e, index) => (
-                  <Chip
-                    key={index}
-                    label={e}
-                    color="success"
-                    onDelete={() => {
-                      setMatchPatternInput(matchPattern[index]);
-                      setMatchPattern(
-                        matchPattern.filter((_, eIndex) => eIndex !== index),
-                      );
-                    }}
-                  />
-                ))}
-              </Stack>
-              <Stack direction="row" style={{ alignItems: "flex-end" }} spacing={1}>
-                <ClearableTextField
-                  fullWidth
-                  value={matchPatterInput}
-                  label="match pattern"
-                  onChange={(e) => {
-                    setMatchPatternInput(e.target.value.trim());
-                  }}
-                  onClear={() => setMatchPatternInput("")}
-                />
-                <Button
-                  onClick={() => {
-                    if (matchPattern.find((e) => e == matchPatterInput)) {
-                      showNotification({
-                        severity: "warning",
-                        title: "the value already exists",
-                      });
-                      return;
-                    }
-                    if (!matchPatterInput) {
-                      showNotification({
-                        severity: "warning",
-                        title: "please input match pattern",
-                      });
-                      return;
-                    }
-                    setMatchPattern([...matchPattern, matchPatterInput]);
-                  }}
-                  variant="outlined">
-                  apply
-                </Button>
-              </Stack>
-            </Stack>
-
-            <StackRowCenter>
-              <span color="info">max tree size({maxTree}):</span>
-              <Slider
-                min={(function () {
-                  if (import.meta.env.DEV) {
-                    return 1;
-                  } else {
-                    return 100;
-                  }
-                })()}
-                max={1000}
-                onChange={(_, value) => {
-                  setMaxTree(value);
-                }}
-                style={{
-                  flex: 1,
-                  width: "40%",
-                }}
-              />
-            </StackRowCenter>
-          </Box>
-        </Modal>
+          </StackRowCenter>
+        </Dialog>
       )}
     </Stack>
   );
@@ -1099,6 +1100,16 @@ function DatabaseMenu(props: {
             }}
           />
         )}
+      {conn_established &&
+        kind != DataSourceKind.Mongo &&
+        kind != DataSourceKind.Redis &&
+        kind != DataSourceKind.CouchBase && (
+          <MenuNewQueryNewWindow
+            handleNew={() => {
+              openNewQueryWindow(uuid, kind);
+            }}
+          />
+        )}
       {conn_established && kind != DataSourceKind.Oracle && (
         <MenuCreateSchema
           handleCreate={() => {
@@ -1265,6 +1276,24 @@ function openNewQuery(appendTab, uuid: string, kind: DataSourceKind) {
   appendTab(new TabContent(`${uuid}`, content, <TbDatabaseSearch />));
 }
 
+function openNewQueryWindow(uuid: string, kind: DataSourceKind) {
+  console.log("open new query uuid:", uuid);
+
+  let queryId = uuidv4();
+
+  const webview = new WebviewWindow("my-unique-label", {
+    url: `query.html?uuid=${uuid}&kind=${kind}&queryId=${queryId}`,
+    title: "New Window",
+    maximized: true,
+  });
+  webview.once("tauri://window-created", () => {
+    console.log("create query window succeeded");
+  });
+  webview.once("tauri://destroyed", () => {
+    new QueryConn(uuid, queryId, kind).destroy();
+  });
+}
+
 function openNewCreateTable(appendTab, uuid: string, kind: DataSourceKind) {
   const content = <CreateTable kind={kind} uuid={uuid} />;
   appendTab(new TabContent(`create table`, content, <IoIosCreate> </IoIosCreate>));
@@ -1289,6 +1318,13 @@ function SchemaMenu(props: {
         <MenuNewQuery
           handleNew={() => {
             openNewQuery(appendTab, uuid, kind);
+          }}
+        />
+      )}
+      {conn_established && (
+        <MenuNewQueryNewWindow
+          handleNew={() => {
+            openNewQueryWindow(uuid, kind);
           }}
         />
       )}

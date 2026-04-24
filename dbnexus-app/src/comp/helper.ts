@@ -4,9 +4,11 @@ import { editor, languages, Position } from "monaco-editor";
 import {
   createContext,
   CSSProperties,
+  Dispatch,
   MouseEvent,
   ReactElement,
   ReactNode,
+  SetStateAction,
 } from "react";
 import { ask, message } from "@tauri-apps/plugin-dialog";
 import { writeText } from "@tauri-apps/plugin-clipboard-manager";
@@ -15,7 +17,6 @@ import { WebviewWindow } from "@tauri-apps/api/webviewWindow";
 import { platform } from "@tauri-apps/plugin-os";
 import themelist from "../../monaco-themes/themes/themelist.json";
 import prettyMilliseconds from "pretty-ms";
-import { v4 as uuidv4 } from "uuid";
 import {
   commands,
   CompletionItem,
@@ -24,6 +25,7 @@ import {
   MuiDataGridData,
 } from "./bindings";
 import { NotificationParams } from "./store";
+import { uuidv4 } from "./Common";
 
 const pageSizeOptions = [10, 20, 50, 100];
 function prettyMs(x: number) {
@@ -549,9 +551,11 @@ function isDarkStr(x: string) {
   return x == "dark";
 }
 
-const QueryIDEditorChatCtx = createContext<{ queryId: string; editor; setEditor }>(
-  null,
-);
+const QueryIDEditorChatCtx = createContext<{
+  queryId: string;
+  editor: editor.IStandaloneCodeEditor;
+  setEditor: Dispatch<SetStateAction<editor.IStandaloneCodeEditor>>;
+}>(null);
 
 export type AppCodeExtraButtons = (_: { code: string; language: string }) => ReactNode;
 export type AppCodeHanleEdit = (_: { code: string }) => void;

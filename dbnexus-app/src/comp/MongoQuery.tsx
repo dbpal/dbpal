@@ -33,12 +33,12 @@ import {
   secondConfirm,
   validJson,
 } from "./helper";
-import { v4 as uuidv4 } from "uuid";
 import {
   dbpalQuerykey,
   EscDownEvent,
   modalHandleClose,
   NameAndQueryId,
+  uuidv4,
 } from "./Common";
 import { RiDeleteBack2Line } from "react-icons/ri";
 import {

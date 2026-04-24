@@ -23,7 +23,9 @@ export default defineConfig(async ({ command }) => {
       rollupOptions: {
         input: {
           main: resolve(__dirname, "index.html"),
+          query: resolve(__dirname, "query.html"),
         },
+
         output: {
           manualChunks: (id) => {
             if (id.includes("monaco-editor")) return "monaco";

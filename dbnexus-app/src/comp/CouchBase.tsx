@@ -35,7 +35,6 @@ import {
   shrinkAble,
   validJson,
 } from "./helper.ts";
-import { v4 as uuidv4 } from "uuid";
 
 import DeleteForeverIcon from "@mui/icons-material/DeleteForever";
 import PlayArrowIcon from "@mui/icons-material/PlayArrow";
@@ -43,7 +42,7 @@ import FilterAltIcon from "@mui/icons-material/FilterAlt";
 import { FaArrowsAltV } from "react-icons/fa";
 import { SelectPageSize } from "./CommonComp.tsx";
 import { Channel } from "@tauri-apps/api/core";
-import { dbpalQuerykey, NameAndQueryId } from "./Common.ts";
+import { dbpalQuerykey, NameAndQueryId, uuidv4 } from "./Common.ts";
 import { editor, Position } from "monaco-editor";
 import { Panel, PanelGroup, PanelResizeHandle } from "react-resizable-panels";
 import { QueryLog } from "./QueryLog.tsx";

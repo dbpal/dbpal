@@ -1,10 +1,10 @@
 import {
-  Box,
+  AlertTitle,
   Button,
   Checkbox,
+  Dialog,
   FormControlLabel,
   IconButton,
-  Modal,
   Paper,
   Stack,
   Tooltip,
@@ -15,7 +15,6 @@ import {
   dbpalQuerykey,
   EscDownEvent,
   modalHandleClose,
-  modalStyle,
   NameAndQueryId,
 } from "./Common";
 import DoneIcon from "@mui/icons-material/Done";
@@ -28,12 +27,11 @@ import {
   saveQueryKey,
   secondConfirm,
 } from "./helper.ts";
-import { ModalHeader, ResizeParentHeight } from "./CommonComp.tsx";
+import { ResizeParentHeight } from "./CommonComp.tsx";
 import { BsFillLightbulbFill } from "react-icons/bs";
 import {
   AppDataGridPagination,
   EscPressedDo,
-  ListenElementSize,
   SimpleFlexEditor,
   StackRowCenter,
 } from "./CommonComp2.tsx";
@@ -130,7 +128,6 @@ function QueryLog(props: {
     }
   }, [query, showNotification, showQueryLog, uuid]);
 
-  const [modalBox, setModalBox] = useState(null);
   const [dom, setDom] = useState<HTMLDivElement>(null);
   const { getSwitch, setSwitch } = useBoolSwitch();
 
@@ -264,15 +261,13 @@ function QueryLog(props: {
           loading={loading}
         />
       )}
-
       {dom && (
         <ResizeParentHeight box={dom} min={200} saveHeightName="query-log-height" />
       )}
-
-      <ListenElementSize dom={modalBox} set="both" name="query-log-show-sql" />
-
       {selectSql && (
-        <Modal
+        <Dialog
+          fullWidth
+          maxWidth="md"
           open={!!selectSql}
           onClose={modalHandleClose((e: EscDownEvent) => {
             e.preventDefault();
@@ -280,26 +275,17 @@ function QueryLog(props: {
           })}
           disableEnforceFocus
           disableAutoFocus>
-          <Box
-            sx={{ resize: "both", ...modalStyle, width: "60%", height: "40vh" }}
-            ref={setModalBox}>
-            <ModalHeader
-              title="View SQL"
-              handleClose={() => {
-                setSelectSql(null);
-              }}
-            />
-            <SimpleFlexEditor
-              value={selectSql.sql}
-              handleEditor={(e) => {
-                e.getModel()[dbpalQuerykey] = new NameAndQueryId(uuid, kind, queryId);
-              }}
-              language={
-                selectSql.language ? selectSql.language : getDefaultLanguage(kind)
-              }
-            />
-          </Box>
-        </Modal>
+          <AlertTitle> view sql </AlertTitle>
+          <SimpleFlexEditor
+            value={selectSql.sql}
+            handleEditor={(e) => {
+              e.getModel()[dbpalQuerykey] = new NameAndQueryId(uuid, kind, queryId);
+            }}
+            language={
+              selectSql.language ? selectSql.language : getDefaultLanguage(kind)
+            }
+          />
+        </Dialog>
       )}
     </Paper>
   );

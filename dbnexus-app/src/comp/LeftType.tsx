@@ -12,7 +12,6 @@ import {
   textEllipsisStyle,
   UuidContext,
 } from "./helper";
-import { v4 as uuidv4 } from "uuid";
 import { MenuRefresh } from "./CommonComp";
 import { CopySql, ShowingCount } from "./CommonComp2";
 import {
@@ -23,6 +22,7 @@ import {
   useMatcherFn,
 } from "./store";
 import { commands, CreatedTypeDef } from "./bindings";
+import { uuidv4 } from "./Common";
 function TypesTree() {
   const { uuid, kind } = useContext(UuidContext);
   const [types, setTypes] = useState<CreatedTypeDef[]>([]);

@@ -23,7 +23,7 @@ import {
 import CloseIcon from "@mui/icons-material/Close";
 import KeyIcon from "@mui/icons-material/Key";
 import { AllKindChat } from "./Chat";
-import { makeFormatFn } from "./Common";
+import { formatSqlFn } from "./Common";
 import { useNotification, useTabSize } from "./store";
 import {
   commands,
@@ -132,7 +132,7 @@ function CreateTable(props: { uuid: string; kind: DataSourceKind }) {
         setEditorValue("");
         setTimeout(() => {
           setEditorValue(
-            makeFormatFn(kind)(sql, {
+            formatSqlFn(kind, sql, {
               insertSpaces: true,
               tabSize,
             }),

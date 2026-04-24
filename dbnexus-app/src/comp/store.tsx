@@ -1,7 +1,5 @@
 import { ReactElement, ReactNode, useCallback, useMemo } from "react";
 import { create, StateCreator } from "zustand";
-import { extractConfigNameFromUuid, TabContent } from "./helper";
-import { v4 as uuidv4 } from "uuid";
 import { AlertColor, AlertTitle, IconButton, Stack, Typography } from "@mui/material";
 import React from "react";
 import { persist, PersistStorage, StorageValue } from "zustand/middleware";
@@ -10,7 +8,7 @@ import wcmatch from "wildcard-match";
 import { cloneDeep } from "lodash-es";
 import { useSnackbar } from "notistack";
 import { GridColumnVisibilityModel } from "@mui/x-data-grid";
-import { PassWordManager } from "./Common";
+import { PassWordManager, uuidv4 } from "./Common";
 import { editor } from "monaco-editor";
 import { Channel } from "@tauri-apps/api/core";
 import { cancelTask } from "./handlers";
@@ -23,6 +21,7 @@ import {
   OpenAIReq,
 } from "./bindings";
 import { LazyStore } from "@tauri-apps/plugin-store";
+import { extractConfigNameFromUuid, TabContent } from "./helper";
 
 class TauriStoreManger<S> implements PersistStorage<S> {
   appStore = new LazyStore("store.json");
@@ -98,10 +97,12 @@ export const useConfirmMsg = create<{
   confirmMsgs: Map<string, string>; // 明确 Map 的键值类型
   addConfirmMsg: (id: string, msg: string) => void;
   removeConfirmMsg: (id: string) => void;
-}>((set) => ({
+  getConfirmMsg: (id: string) => string | undefined;
+}>((set, get) => ({
   // 状态：你可以直接用 Map，Zustand 没那么多限制
   confirmMsgs: new Map(),
 
+  getConfirmMsg: (id) => get().confirmMsgs.get(id),
   // 方法：直接修改逻辑
   addConfirmMsg: (id, msg) =>
     set((state) => {
@@ -1317,7 +1318,7 @@ export const useUserSystemPromptStore = create<UserPromptState>()(
     }),
     {
       name: "user-prompt-storage", // Unique name for the item in storage
-      storage: new TauriStoreManger<UserPromptState>(), // Defaults to localStorage
+      storage: new TauriStoreManger<UserPromptState>(),
     },
   ),
 );

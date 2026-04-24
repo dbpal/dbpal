@@ -20,7 +20,6 @@ import {
   textEllipsisStyle,
   UuidContext,
 } from "./helper";
-import { v4 as uuidv4 } from "uuid";
 import { MenuRefresh } from "./CommonComp";
 import { CopySql, ShowingCount } from "./CommonComp2";
 import {
@@ -31,6 +30,7 @@ import {
   useMatcherFn,
 } from "./store";
 import { commands, DefAndMetas, SqlEvent } from "./bindings";
+import { uuidv4 } from "./Common";
 function EventsTree() {
   const { uuid, kind } = useContext(UuidContext);
   const [events, setEvents] = useState<SqlEvent[]>([]);

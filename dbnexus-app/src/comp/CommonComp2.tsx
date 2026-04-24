@@ -72,7 +72,7 @@ import {
   dbpalQuerykey,
   EscDownEvent,
   extractBaseName,
-  makeFormatFn,
+  formatSqlFn,
   modalHandleClose,
   modalStyle,
   NameAndQueryId,
@@ -1695,7 +1695,8 @@ function SetFilterSort(props: {
         <ModalHeader title={`set ${label}`} handleClose={handleClose} />
         <SimpleFlexEditor
           value={
-            makeFormatFn(kind)(
+            formatSqlFn(
+              kind,
               isFilter
                 ? `SELECT * FROM ${tableName} WHERE ${value}`
                 : `SELECT * FROM ${tableName} ORDER BY ${value}`,
@@ -1759,7 +1760,8 @@ function SetFilterSort(props: {
                 freeSolo={false}
                 onChange={async (_, value) => {
                   editor.setValue(
-                    makeFormatFn(kind)(
+                    formatSqlFn(
+                      kind,
                       `SELECT * FROM ${tableName} WHERE ${value}`,
                       formatarg,
                     ),

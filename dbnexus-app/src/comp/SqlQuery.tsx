@@ -402,6 +402,7 @@ function SqlQuery(props: {
       .open()
       .then(() => {
         showNotification({ severity: "success", title: "Reconnect OK" });
+        setOpenOk(true);
       })
       .catch((e) => {
         showNotification({ severity: "error", title: "Reconnect Failure", message: e });
@@ -458,6 +459,7 @@ function SqlQuery(props: {
         setLoading(false);
       });
   };
+
   const handleQuery = useCallback(
     async (text: string, append: boolean) => {
       console.log("handle query");

@@ -4,6 +4,8 @@ import { format as formatSql, SqlLanguage } from "sql-formatter";
 import { Channel } from "@tauri-apps/api/core";
 import { message } from "@tauri-apps/plugin-dialog";
 import * as keyring from "tauri-plugin-keyring-api";
+
+import { v4 as uuidv4 } from "uuid";
 import {
   backendCompletionItemToEditor,
   DataSourceKind,
@@ -239,7 +241,7 @@ monaco.languages.registerDocumentFormattingEditProvider("sql", {
       console.error("editor id map to backend name is nul,this is internal bug");
       return;
     }
-    const text = makeFormatFn(name.kind)(model.getValue(), {
+    const text = formatSqlFn(name.kind, model.getValue(), {
       insertSpaces: options.insertSpaces,
       tabSize: options.tabSize,
     });
@@ -255,55 +257,55 @@ monaco.languages.registerCompletionItemProvider("redis", {
     return autoCompletion(model, position);
   },
 });
-function makeFormatFn(
+function formatSqlFn(
   kind: DataSourceKind,
-): (sql: string, opts?: languages.FormattingOptions) => string | null {
-  return (sql: string, opts?: languages.FormattingOptions): string | null => {
-    if (!opts) {
-      opts = {
-        tabSize: 2,
-        insertSpaces: true,
-      };
+  sql: string,
+  opts?: languages.FormattingOptions,
+): string {
+  if (!opts) {
+    opts = {
+      tabSize: 2,
+      insertSpaces: true,
+    };
+  }
+  try {
+    // https://github.com/sql-formatter-org/sql-formatter/blob/master/docs/language.md
+    let language: SqlLanguage = "sql";
+    switch (kind) {
+      case DataSourceKind.DuckDB:
+        language = "duckdb";
+        break;
+      case DataSourceKind.Mysql:
+        language = "mysql";
+        break;
+      case DataSourceKind.MariaDB:
+        language = "mariadb";
+        break;
+      case DataSourceKind.TiDB:
+        language = "tidb";
+        break;
+      case DataSourceKind.Oracle:
+        language = "plsql";
+        break;
+      case DataSourceKind.Postgres:
+      case DataSourceKind.Cockroach:
+        language = "postgresql";
+        break;
+      case DataSourceKind.LibSql:
+      case DataSourceKind.Sqlite:
+        language = "sqlite";
+        break;
     }
-    try {
-      // https://github.com/sql-formatter-org/sql-formatter/blob/master/docs/language.md
-      let language: SqlLanguage = "sql";
-      switch (kind) {
-        case DataSourceKind.DuckDB:
-          language = "duckdb";
-          break;
-        case DataSourceKind.Mysql:
-          language = "mysql";
-          break;
-        case DataSourceKind.MariaDB:
-          language = "mariadb";
-          break;
-        case DataSourceKind.TiDB:
-          language = "tidb";
-          break;
-        case DataSourceKind.Oracle:
-          language = "plsql";
-          break;
-        case DataSourceKind.Postgres:
-        case DataSourceKind.Cockroach:
-          language = "postgresql";
-          break;
-        case DataSourceKind.LibSql:
-        case DataSourceKind.Sqlite:
-          language = "sqlite";
-          break;
-      }
-      return formatSql(sql, {
-        language,
-        tabWidth: opts.tabSize,
-        useTabs: !opts.insertSpaces,
-      });
-    } catch (e) {
-      message("format failed error:" + String(e), { kind: "error" });
-      console.error("format sql failed error:", e);
-      return sql;
-    }
-  };
+    return formatSql(sql, {
+      language,
+      tabWidth: opts.tabSize,
+      useTabs: !opts.insertSpaces,
+    });
+  } catch (e) {
+    message("format failed error:" + String(e), { kind: "error" });
+    console.error("format sql failed error:", e);
+    return sql;
+  }
 }
 
 class QueryConn {
@@ -553,6 +555,7 @@ export function isRedisCode(code: string): boolean {
   return false;
 }
 
+const providerQueryID = { id: "" };
 export {
   dbpalQuerykey,
   dropDatabase,
@@ -560,7 +563,7 @@ export {
   editorAppendContent,
   extractBaseName,
   keyNotInTable,
-  makeFormatFn,
+  formatSqlFn,
   modalHandleClose,
   modalStyle,
   NameAndQueryId,
@@ -569,5 +572,7 @@ export {
   reloadOK,
   convertPathToDataUrl,
   uint8ArrayToBase64,
+  providerQueryID,
+  uuidv4,
 };
 export type { EscDownEvent, FieldAndGridField };

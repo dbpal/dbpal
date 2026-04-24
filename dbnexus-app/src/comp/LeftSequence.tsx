@@ -20,7 +20,6 @@ import {
   textEllipsisStyle,
   UuidContext,
 } from "./helper.ts";
-import { v4 as uuidv4 } from "uuid";
 
 import { MenuRefresh } from "./CommonComp.tsx";
 import { GrSteps } from "react-icons/gr";
@@ -34,6 +33,7 @@ import {
   useOneShotDialogUI,
 } from "./store.tsx";
 import { commands, DefAndMetas, SequenceDetail } from "./bindings.ts";
+import { uuidv4 } from "./Common.ts";
 function SequenceTree() {
   const { uuid, kind } = useContext(UuidContext);
   const [seq, setSeq] = useState<SequenceDetail[]>([]);

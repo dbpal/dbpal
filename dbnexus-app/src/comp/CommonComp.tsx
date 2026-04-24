@@ -122,6 +122,21 @@ function MenuNewQuery(props: { handleNew: () => void }) {
   );
 }
 
+function MenuNewQueryNewWindow(props: { handleNew: () => void }) {
+  const { handleNew } = props;
+  return (
+    <MenuItem
+      onClick={() => {
+        handleNew();
+      }}>
+      <ListItemIcon>
+        <AddIcon />
+      </ListItemIcon>
+      <ListItemText>New Query(window) </ListItemText>
+    </MenuItem>
+  );
+}
+
 /**
  * Menu item for creating a database or bucket.
  */
@@ -948,6 +963,7 @@ export {
   LogLevelSelection,
   MetaValueView,
   MenuNewQuery,
+  MenuNewQueryNewWindow,
   MenuCreateDatabase,
   MenuRefresh,
   ConnPingTime,

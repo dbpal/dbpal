@@ -4,18 +4,16 @@ import {
   extractConfigNameFromUuid,
   QueryIDEditorChatCtx,
 } from "./helper.ts";
-import { v4 as uuidv4 } from "uuid";
 import CloseIcon from "@mui/icons-material/Close";
 import SaveIcon from "@mui/icons-material/Save";
 import { TbPrompt } from "react-icons/tb";
 import {
-  Box,
   Checkbox,
   CircularProgress,
+  Dialog,
   Divider,
   FormControlLabel,
   IconButton,
-  Modal,
   Pagination,
   Paper,
   Stack,
@@ -40,8 +38,9 @@ import {
   editorAppendContent,
   EscDownEvent,
   modalHandleClose,
-  modalStyle,
   NameAndQueryId,
+  providerQueryID,
+  uuidv4,
 } from "./Common.ts";
 import { ModalHeader } from "./CommonComp.tsx";
 import { AllKindQuery } from "./Left.tsx";
@@ -82,7 +81,7 @@ function AllKindChat(props: {
     setSwitch(showChatKey, show);
   }, [setSwitch, show, showChatKey]);
 
-  let queryId = useRef(uuidv4());
+  let queryId = useRef(providerQueryID.id ? providerQueryID.id : uuidv4());
   return (
     <QueryIDEditorChatCtx.Provider
       value={{ queryId: queryId.current, editor, setEditor }}>
@@ -125,13 +124,12 @@ function SqlChatTextInput(props: { uuid: string }) {
   const [cancelFN, setCancelFN] = useState<() => void>(null);
   const { show, setShow } = useContext(ChatShowContext);
   const { getSwitch, setSwitch } = useBoolSwitch();
-  const cleanEditor = getSwitch(cleanEditorKey);
   const [images, setImages] = useState<string[]>([]);
   const { getSize } = useSizeStore();
   const { messagesByNames, saveMessage } = useChatStore();
   const connName = extractConfigNameFromUuid(uuid);
   const { prompts: userDefinePrompts } = useUserSystemPromptStore();
-
+  const cleanEditor = getSwitch(cleanEditorKey);
   useEffect(() => {
     if (!show) {
       setShowChatHistory(false);
@@ -152,12 +150,12 @@ function SqlChatTextInput(props: { uuid: string }) {
       } else {
         editorAppendContent(editor, "\n");
       }
-      setInvokeStatus("making prompt");
       let wholeText = "";
       setInvokeStatus("trying getting stream response");
       let i = 0;
       let queryId = editor.getModel()[dbpalQuerykey] as NameAndQueryId;
       saveMessage(connName, "user", question);
+      // messagesByNames is because of `ChatHistory` will render and fetch ,and this tricky.
       const history = messagesByNames[connName];
       await llm.stream_prompt(
         queryId.name,
@@ -377,50 +375,50 @@ function ShowChatImages(props: { images: string[]; setImages }) {
         );
       })}
       {show && (
-        <Modal
+        <Dialog
+          fullWidth
+          maxWidth="md"
           open={show}
           onClose={modalHandleClose((e: EscDownEvent) => {
             e.preventDefault();
             setMsgShowIndex(null);
           })}>
-          <Box sx={{ ...modalStyle, width: "80vw", height: "60vh" }}>
-            <Stack direction="row" style={{ alignItems: "center" }}>
-              #{showMsgIndex + 1}
-              <IconButton
+          <Stack direction="row" style={{ alignItems: "center" }}>
+            #{showMsgIndex + 1}
+            <IconButton
+              onClick={() => {
+                setImages(images.filter((_e, idx) => idx != showMsgIndex));
+                setMsgShowIndex(null);
+              }}
+              color="warning">
+              <DeleteForeverIcon />
+            </IconButton>
+            <IconButton>
+              <NavigateBeforeIcon
                 onClick={() => {
-                  setImages(images.filter((_e, idx) => idx != showMsgIndex));
-                  setMsgShowIndex(null);
+                  if (showMsgIndex == 0) {
+                    setMsgShowIndex(images.length - 1);
+                  } else {
+                    setMsgShowIndex(showMsgIndex - 1);
+                  }
                 }}
-                color="warning">
-                <DeleteForeverIcon />
-              </IconButton>
-              <IconButton>
-                <NavigateBeforeIcon
-                  onClick={() => {
-                    if (showMsgIndex == 0) {
-                      setMsgShowIndex(images.length - 1);
-                    } else {
-                      setMsgShowIndex(showMsgIndex - 1);
-                    }
-                  }}
-                />
-              </IconButton>
-              <IconButton>
-                <NavigateNextIcon
-                  onClick={() => {
-                    if (showMsgIndex == images.length - 1) {
-                      setMsgShowIndex(0);
-                    } else {
-                      setMsgShowIndex(showMsgIndex + 1);
-                    }
-                  }}
-                />
-              </IconButton>
-            </Stack>
+              />
+            </IconButton>
+            <IconButton>
+              <NavigateNextIcon
+                onClick={() => {
+                  if (showMsgIndex == images.length - 1) {
+                    setMsgShowIndex(0);
+                  } else {
+                    setMsgShowIndex(showMsgIndex + 1);
+                  }
+                }}
+              />
+            </IconButton>
+          </Stack>
 
-            <img src={images[showMsgIndex]} style={{ width: "100%" }} />
-          </Box>
-        </Modal>
+          <img src={images[showMsgIndex]} style={{ width: "100%" }} />
+        </Dialog>
       )}
     </Stack>
   );
@@ -519,11 +517,13 @@ function ChatHistory(props: {
               label="search in history"
               style={{ width: "13rem" }}
             />
-            <Typography>
-              {!matchStr
-                ? `${history.length} history`
-                : `showing ${length} of ${history.length}`}
-            </Typography>
+            {history && history.length ? (
+              <Typography>
+                {!matchStr
+                  ? `${history.length} history`
+                  : `showing ${length} of ${history.length}`}
+              </Typography>
+            ) : undefined}
           </>
         }
         handleClose={handleClose}

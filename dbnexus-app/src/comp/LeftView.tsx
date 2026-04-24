@@ -40,7 +40,6 @@ import {
   UuidContext,
   ViewKind,
 } from "./helper";
-import { v4 as uuidv4 } from "uuid";
 import { MenuRefresh } from "./CommonComp";
 import { MongoTable } from "./MongoDB";
 import {
@@ -63,6 +62,7 @@ import {
 } from "./store";
 import { AllKindChat } from "./Chat";
 import { commands, Field, ListTable } from "./bindings";
+import { uuidv4 } from "./Common";
 function ViewsTree(props: { viewKind: ViewKind }) {
   const { viewKind } = props;
   const { uuid } = useContext(UuidContext);

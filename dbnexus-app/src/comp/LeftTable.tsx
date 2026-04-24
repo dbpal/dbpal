@@ -7,7 +7,7 @@ import {
   useRef,
   useState,
 } from "react";
-import { modalStyle, EscDownEvent, modalHandleClose } from "./Common.ts";
+import { modalStyle, EscDownEvent, modalHandleClose, uuidv4 } from "./Common.ts";
 import { TreeItem } from "@mui/x-tree-view/TreeItem";
 import ListIcon from "@mui/icons-material/List";
 import EditIcon from "@mui/icons-material/Edit";
@@ -65,7 +65,6 @@ import {
   TabContent,
   textEllipsisStyle,
 } from "./helper";
-import { v4 as uuidv4 } from "uuid";
 import { MenuRefresh, ModalHeader } from "./CommonComp";
 import { TableStructure } from "./TableStructure";
 import { cancelTask } from "./handlers";

@@ -9,6 +9,7 @@ import {
   KeyPressed,
   resizeHandlerSize,
   handleCopyToClipboard,
+  TabContext,
 } from "./helper.ts";
 import "../app.css";
 import {
@@ -38,6 +39,7 @@ import {
   useTabsManage,
 } from "./store.tsx";
 import { SnackbarProvider } from "notistack";
+import { WebviewWindow } from "@tauri-apps/api/webviewWindow";
 
 function ShowPanic() {
   const [panicInfo, setPanicInfo] = useState("");
@@ -288,6 +290,61 @@ function App() {
   );
 }
 
+function SeprateWindow({ children }) {
+  const diagUi = useOneShotDialogUI();
+  const tabId = "the one tab";
+  const { getConfirmMsg } = useConfirmMsg();
+
+  useEffect(() => {
+    const windows = WebviewWindow.getCurrent();
+    windows.onCloseRequested(async (event) => {
+      const msg = getConfirmMsg(tabId);
+      if (msg) {
+        const confirm = await secondConfirm({
+          content: msg,
+          title: "close the tab",
+          confirmText: "close",
+        });
+        if (!confirm) {
+          event.preventDefault();
+          return;
+        }
+      }
+    });
+  }, [getConfirmMsg]);
+
+  return (
+    <TabContext value={{ id: tabId }}>
+      <SnackbarProvider
+        maxSnack={6}
+        anchorOrigin={{
+          vertical: "top",
+          horizontal: "right",
+        }}
+        style={{ maxWidth: "55vw" }}
+        dense>
+        <SettingProvider>
+          <AppMenu />
+          {diagUi.ui && (
+            <Dialog
+              slotProps={{ paper: { style: { width: "fit-content" } } }}
+              open={true}
+              onClose={() => {
+                diagUi.setUi(null);
+              }}>
+              {diagUi.title && <DialogTitle>{diagUi.title}</DialogTitle>}
+              {diagUi.ui}
+            </Dialog>
+          )}
+          <div style={{ width: "100vw", height: "100vh", padding: "4px" }}>
+            {children}
+          </div>
+        </SettingProvider>
+      </SnackbarProvider>
+    </TabContext>
+  );
+}
+
 function AppMenu() {
   // 假设你的 store 返回的对象里包含 event 和 content
   const menu = useContextMenu((state) => state.state);
@@ -327,4 +384,4 @@ function AppMenu() {
   );
 }
 
-export { App };
+export { App, SeprateWindow };

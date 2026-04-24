@@ -15,7 +15,6 @@ import { DefAndMetasView } from "./DefAndMetaView";
 
 import { TbMathFunction } from "react-icons/tb";
 import { DataSourceKind, secondConfirm, TabContent, UuidContext } from "./helper.ts";
-import { v4 as uuidv4 } from "uuid";
 import { MenuRefresh, UdfNameAndParameters } from "./CommonComp";
 import { CopySql, ShowingCount } from "./CommonComp2";
 import {
@@ -26,6 +25,7 @@ import {
   useMatcherFn,
 } from "./store";
 import { commands, NamedStaff } from "./bindings.ts";
+import { uuidv4 } from "./Common.ts";
 
 function UdfsTree() {
   const { uuid, kind } = useContext(UuidContext);

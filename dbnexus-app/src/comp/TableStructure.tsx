@@ -1,5 +1,5 @@
 import { ReactNode, useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { EscDownEvent, modalHandleClose, modalStyle } from "./Common";
+import { EscDownEvent, modalHandleClose } from "./Common";
 import {
   dataGridStyle,
   DataSourceKind,
@@ -18,7 +18,6 @@ import {
 } from "@mui/x-data-grid";
 import {
   Autocomplete,
-  Box,
   Button,
   ButtonGroup,
   Checkbox,
@@ -30,7 +29,6 @@ import {
   ListItemText,
   MenuItem,
   MenuList,
-  Modal,
   Radio,
   RadioGroup,
   Stack,
@@ -52,7 +50,6 @@ import {
   ColumnNullness,
   CopySql,
   CreateIndexView,
-  ListenElementSize,
   SqlDefaultValue,
   StackRowCenter,
   TypeSelect,
@@ -1335,8 +1332,6 @@ function TriggersStructure(props: {
     setRow(row.row);
   }, []);
 
-  const [modalBox, setModalBox] = useState<HTMLDivElement | null>(null);
-
   const slots = useMemo(() => {
     return {
       pagination: () => {
@@ -1373,34 +1368,31 @@ function TriggersStructure(props: {
         slots={slots}
         loading={loading}
       />
-      <ListenElementSize dom={modalBox} set="both" name="trigger-detail" />
       {row && (
-        <Modal
+        <Dialog
           open={!!row}
           onClose={modalHandleClose((e: EscDownEvent) => {
             e.preventDefault();
             setRow(null);
           })}
+          fullScreen
+          maxWidth="lg"
           disableAutoFocus
           disableEnforceFocus>
-          <Box
-            sx={{ resize: "both", ...modalStyle, width: "80vw", height: "80vh" }}
-            ref={setModalBox}>
-            <ModalHeader
-              title={`Trigger Detail`}
-              handleClose={() => {
-                setRow(null);
-              }}
-            />
-            <TriggerDetailView
-              reloadOP={async () => {
-                return row;
-              }}
-              uuid={uuid}
-              kind={kind}
-            />
-          </Box>
-        </Modal>
+          <ModalHeader
+            title={`Trigger Detail`}
+            handleClose={() => {
+              setRow(null);
+            }}
+          />
+          <TriggerDetailView
+            reloadOP={async () => {
+              return row;
+            }}
+            uuid={uuid}
+            kind={kind}
+          />
+        </Dialog>
       )}
     </Stack>
   );
