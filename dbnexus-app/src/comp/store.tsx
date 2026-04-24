@@ -811,10 +811,8 @@ const initialSettings: UserSettings = {
 const userSettingKey = "dbpal-combined-settings";
 
 export function reloadSetting() {
-  getAppStore().onKeyChange(userSettingKey, async () => {
-    setTimeout(async () => {
-      await useUserSettings.persist.rehydrate();
-    }, 1000);
+  window.addEventListener("storage", async () => {
+    await useUserSettings.persist.rehydrate();
   });
 }
 
@@ -842,8 +840,6 @@ export const useUserSettings = create<UserSettingsState>()(
     }),
     {
       name: userSettingKey, // 建议合并成一个 key，方便管理
-      storage: new TauriStoreManger(), // 使用你之前的 Tauri 存储实现
-      // 如果需要处理旧版本的 key 迁移，可以在这里写 migrate
       version: 1,
     },
   ),
