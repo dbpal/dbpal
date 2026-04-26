@@ -810,7 +810,7 @@ const initialSettings: UserSettings = {
 
 const userSettingKey = "dbpal-combined-settings";
 
-export function reloadSetting() {
+export function reloadStore() {
   window.addEventListener("storage", async () => {
     await useUserSettings.persist.rehydrate();
   });
