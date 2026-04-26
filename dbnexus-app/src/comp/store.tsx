@@ -7,7 +7,6 @@ import Dexie, { type Table } from "dexie";
 import wcmatch from "wildcard-match";
 import { cloneDeep } from "lodash-es";
 import { useSnackbar } from "notistack";
-import { GridColumnVisibilityModel } from "@mui/x-data-grid";
 import { PassWordManager, uuidv4 } from "./Common";
 import { Channel } from "@tauri-apps/api/core";
 import { cancelTask } from "./handlers";
@@ -21,6 +20,7 @@ import {
 } from "./bindings";
 import { LazyStore } from "@tauri-apps/plugin-store";
 import { extractConfigNameFromUuid, TabContent } from "./helper";
+import { GridColumnVisibilityModel } from "./datagridExport";
 
 export function getAppStore() {
   return new LazyStore("store.json");

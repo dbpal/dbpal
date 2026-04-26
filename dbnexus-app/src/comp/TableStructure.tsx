@@ -10,12 +10,7 @@ import {
 import { ClearableTextField } from "./CommonComp2";
 import CancelIcon from "@mui/icons-material/Cancel";
 import CheckCircleIcon from "@mui/icons-material/CheckCircle";
-import {
-  DataGrid,
-  GridColDef,
-  GridSlotsComponent,
-  GridSlotsComponentsProps,
-} from "@mui/x-data-grid";
+
 import {
   Autocomplete,
   Button,
@@ -66,6 +61,12 @@ import {
   TriggerDetail,
   TriggerEnable,
 } from "./bindings";
+import {
+  DataGrid,
+  GridColDef,
+  GridSlotsComponent,
+  GridSlotsComponentsProps,
+} from "./datagridExport";
 
 /**
  * Context menu for a column row, supporting copy and optional drop actions.

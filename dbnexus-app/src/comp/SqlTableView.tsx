@@ -37,20 +37,7 @@ import { MdOutlineReply } from "react-icons/md";
 import VisibilityIcon from "@mui/icons-material/Visibility";
 import EditIcon from "@mui/icons-material/Edit";
 import ArrowCircleDownIcon from "@mui/icons-material/ArrowCircleDown";
-import {
-  DataGrid,
-  GridCallbackDetails,
-  GridPaginationModel,
-  GridSlotProps,
-  GridSlotsComponent,
-  GridSlotsComponentsProps,
-  GridSortModel,
-  useGridApiContext,
-  useGridApiRef,
-  useGridSelector,
-  gridRowsLoadingSelector,
-  GridRenderCellParams,
-} from "@mui/x-data-grid";
+
 import {
   EscDownEvent,
   FieldAndGridField,
@@ -126,6 +113,20 @@ import {
   ShowTableParameter,
 } from "./bindings";
 import { ExportTableOrView } from "./Export";
+import {
+  DataGrid,
+  GridCallbackDetails,
+  GridPaginationModel,
+  GridRenderCellParams,
+  gridRowsLoadingSelector,
+  GridSlotProps,
+  GridSlotsComponent,
+  GridSlotsComponentsProps,
+  GridSortModel,
+  useGridApiContext,
+  useGridApiRef,
+  useGridSelector,
+} from "./datagridExport";
 
 const confirmAboutPrimary = async (
   notWarnPri: boolean,

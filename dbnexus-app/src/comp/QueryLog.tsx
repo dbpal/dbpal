@@ -9,7 +9,6 @@ import {
   Stack,
   Tooltip,
 } from "@mui/material";
-import { DataGrid, GridColDef, GridSlotsComponent } from "@mui/x-data-grid";
 import { Dispatch, SetStateAction, useEffect, useMemo, useState } from "react";
 import {
   dbpalQuerykey,
@@ -42,6 +41,7 @@ import {
   useQueryLogStore,
 } from "./store.tsx";
 import { CustomToolbar } from "./CustomToolBar.tsx";
+import { DataGrid, GridColDef, GridSlotsComponent } from "./datagridExport.ts";
 
 const initialState: object = {
   sorting: { sortModel: [{ field: "create_at", sort: "desc" }] },

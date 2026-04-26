@@ -21,16 +21,6 @@ import {
 import RefreshIcon from "@mui/icons-material/Refresh";
 import { ReactNode, useCallback, useEffect, useMemo, useState } from "react";
 import DeleteForeverIcon from "@mui/icons-material/DeleteForever";
-import {
-  DataGrid,
-  GridColDef,
-  GridColumnMenu,
-  GridColumnMenuItemProps,
-  GridColumnMenuProps,
-  GridSlotsComponent,
-  GridSlotsComponentsProps,
-  GridSortModel,
-} from "@mui/x-data-grid";
 
 import { FaFolderOpen } from "react-icons/fa";
 import CheckIcon from "@mui/icons-material/Check";
@@ -80,6 +70,16 @@ import {
   useViewInModalMatchStrStore,
 } from "./store";
 import { commands, ErrAndLoc, Field, MetaValue, NamedStaff } from "./bindings";
+import {
+  DataGrid,
+  GridColDef,
+  GridColumnMenu,
+  GridColumnMenuItemProps,
+  GridColumnMenuProps,
+  GridSlotsComponent,
+  GridSlotsComponentsProps,
+  GridSortModel,
+} from "./datagridExport";
 
 /**
  * Logger level selection control.

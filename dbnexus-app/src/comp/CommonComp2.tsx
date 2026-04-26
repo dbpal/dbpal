@@ -87,13 +87,7 @@ import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { styled, useTheme } from "@mui/material/styles";
 import { openUrl } from "@tauri-apps/plugin-opener";
-import {
-  gridPageCountSelector,
-  gridPaginationModelSelector,
-  gridRowsLoadingSelector,
-  useGridApiContext,
-  useGridSelector,
-} from "@mui/x-data-grid";
+
 import { CustomToolbar } from "./CustomToolBar";
 import {
   useBoolSwitch,
@@ -954,6 +948,13 @@ import {
 } from "./bindings";
 import { IoTimerOutline } from "react-icons/io5";
 import { MdTimer } from "react-icons/md";
+import {
+  gridPageCountSelector,
+  gridPaginationModelSelector,
+  gridRowsLoadingSelector,
+  useGridApiContext,
+  useGridSelector,
+} from "./datagridExport";
 
 const rehypeHighlightWords = ({ highligth }) => {
   return (tree) => {

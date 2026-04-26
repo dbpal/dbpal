@@ -1,7 +1,7 @@
 import { Stack } from "@mui/material";
-import { DataGrid, GridColDef } from "@mui/x-data-grid";
 import { isMacOs } from "./helper";
 import { useColumnWidthStore } from "./store";
+import { DataGrid, GridColDef } from "./datagridExport";
 
 const shortCuts = getKeyShorts();
 

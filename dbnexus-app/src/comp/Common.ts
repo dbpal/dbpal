@@ -12,12 +12,12 @@ import {
   QueryRespData,
   secondConfirm,
 } from "./helper.ts";
-import { GridColDef } from "@mui/x-data-grid";
 import * as monaco from "monaco-editor";
 import { readFile, stat } from "@tauri-apps/plugin-fs";
 import { filesize } from "filesize";
 import { commands, ExportKind, Field, QueryEvent, redisCommands } from "./bindings.ts";
 import { NotificationParams } from "./store.tsx";
+import { GridColDef } from "./datagridExport.ts";
 
 /**
  * Converts a local file path to a Data URL (base64)

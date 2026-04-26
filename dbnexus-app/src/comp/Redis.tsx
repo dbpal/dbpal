@@ -32,15 +32,6 @@ import { modalStyle, reloadOK, EscDownEvent, modalHandleClose } from "./Common";
 import { openUrl } from "@tauri-apps/plugin-opener";
 import { ClearableTextField, FetchTimeDataGrid } from "./CommonComp2";
 import {
-  DataGrid,
-  GridCallbackDetails,
-  GridPaginationModel,
-  GridSlotProps,
-  GridSlotsComponent,
-  GridSlotsComponentsProps,
-  GridSortModel,
-} from "@mui/x-data-grid";
-import {
   handleCopyToClipboard,
   hexToString,
   hexTryToString,
@@ -77,6 +68,15 @@ import {
   useSizeStore,
   useTableColumnVisibleStore,
 } from "./store.tsx";
+import {
+  DataGrid,
+  GridCallbackDetails,
+  GridPaginationModel,
+  GridSlotProps,
+  GridSlotsComponent,
+  GridSlotsComponentsProps,
+  GridSortModel,
+} from "./datagridExport.ts";
 
 class RedisZsetHashModifyReq {
   constructor(

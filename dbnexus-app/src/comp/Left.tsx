@@ -83,13 +83,7 @@ import { RedisTables, TablesTree } from "./LeftTable.tsx";
 import { ViewKind, ViewsTree } from "./LeftView.tsx";
 import { CassandraAggregatesTree, UdfsTree } from "./LeftUdf.tsx";
 import { ProceduresTree } from "./LeftProcedure.tsx";
-import {
-  DataGrid,
-  GridColDef,
-  GridSlotsComponent,
-  GridSlotsComponentsProps,
-  GridSortModel,
-} from "@mui/x-data-grid";
+
 import { listen } from "@tauri-apps/api/event";
 import { FaBookmark } from "react-icons/fa";
 import { SequenceTree } from "./LeftSequence.tsx";
@@ -129,6 +123,13 @@ import {
 } from "./store.tsx";
 import { commands, DBConnectionConfig } from "./bindings.ts";
 import { WebviewWindow } from "@tauri-apps/api/webviewWindow";
+import {
+  DataGrid,
+  GridColDef,
+  GridSlotsComponent,
+  GridSlotsComponentsProps,
+  GridSortModel,
+} from "./datagridExport.ts";
 const settingId = uuidv4();
 const showTopKey = "left-top-show";
 function LeftTop() {

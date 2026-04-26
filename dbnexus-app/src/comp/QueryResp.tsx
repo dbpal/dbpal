@@ -18,12 +18,7 @@ import {
   dataGridStyle,
   QueryRespData,
 } from "./helper.ts";
-import {
-  DataGrid,
-  GridSlotsComponent,
-  GridSlotsComponentsProps,
-  GridSortModel,
-} from "@mui/x-data-grid";
+
 import React, { useCallback, useMemo, useState } from "react";
 import { keyNotInTable } from "./Common";
 import ArrowUpwardIcon from "@mui/icons-material/ArrowUpward";
@@ -44,6 +39,12 @@ import {
   usePageSize,
 } from "./store.tsx";
 import { Field, MuiDataGridData } from "./bindings.ts";
+import {
+  DataGrid,
+  GridSlotsComponent,
+  GridSlotsComponentsProps,
+  GridSortModel,
+} from "./datagridExport.ts";
 
 function RespContextMenu(props: { content; field; setSort; viewInModal }) {
   const { content, field, setSort, viewInModal } = props;

@@ -42,12 +42,7 @@ import {
 } from "./helper";
 import { MenuRefresh } from "./CommonComp";
 import { MongoTable } from "./MongoDB";
-import {
-  DataGrid,
-  GridColDef,
-  GridSlotsComponent,
-  GridSlotsComponentsProps,
-} from "@mui/x-data-grid";
+
 import { AppDataGridPagination, CopySql, ShowingCount } from "./CommonComp2";
 import { listView } from "./handlers";
 import { filesize } from "filesize";
@@ -63,6 +58,12 @@ import {
 import { AllKindChat } from "./Chat";
 import { commands, Field, ListTable } from "./bindings";
 import { uuidv4 } from "./Common";
+import {
+  DataGrid,
+  GridColDef,
+  GridSlotsComponent,
+  GridSlotsComponentsProps,
+} from "./datagridExport";
 function ViewsTree(props: { viewKind: ViewKind }) {
   const { viewKind } = props;
   const { uuid } = useContext(UuidContext);

@@ -34,13 +34,7 @@ import {
 import { ReactNode, useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { BSON, EJSON } from "bson";
-import {
-  DataGrid,
-  GridCallbackDetails,
-  GridPaginationModel,
-  GridSlotsComponent,
-  GridSlotsComponentsProps,
-} from "@mui/x-data-grid";
+
 import ContentCopyIcon from "@mui/icons-material/ContentCopy";
 import {
   modalStyle,
@@ -94,6 +88,13 @@ import {
 } from "./store";
 import { commands, ErrAndLoc, MuiDataGridData } from "./bindings";
 import { AddTableModal } from "./LeftTable";
+import {
+  DataGrid,
+  GridCallbackDetails,
+  GridPaginationModel,
+  GridSlotsComponent,
+  GridSlotsComponentsProps,
+} from "./datagridExport";
 enum MongoDataViewModel {
   TableList,
   Object,
