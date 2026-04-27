@@ -449,7 +449,6 @@ function TsCompilerMsg(props: {
         return (
           <Typography
             key={index}
-            color={out.code == 0 ? "success" : "error"}
             style={{ cursor: line.pos ? "pointer" : undefined }}
             onClick={() => {
               editor.setPosition(line.pos);
