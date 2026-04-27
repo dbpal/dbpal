@@ -8,6 +8,7 @@ import {
   Tooltip,
   Chip,
   useTheme,
+  Divider,
 } from "@mui/material";
 import CloseIcon from "@mui/icons-material/Close";
 import { secondConfirm, TabContext, TabActiveContext } from "./helper";
@@ -186,7 +187,7 @@ function TabsWithContent() {
             <div
               key={tab.id}
               style={{
-                paddingBottom: "4px",
+                paddingBottom: "0.7rem",
                 borderBottom:
                   index == currentTab
                     ? "2px solid " + theme.palette.primary.main
@@ -232,6 +233,8 @@ function TabsWithContent() {
           ))}
         </Stack>
       )}
+
+      {tabs.length > 0 && <Divider />}
 
       <div style={{ flex: 1 }}>
         {tabs.map((tab, index) => (
