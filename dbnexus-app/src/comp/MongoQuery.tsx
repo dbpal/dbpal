@@ -400,6 +400,15 @@ function TypeScript(props: {
       )}
       {showEditOption && (
         <Dialog
+          fullWidth
+          maxWidth="md"
+          slotProps={{
+            paper: {
+              style: {
+                height: "45vh",
+              },
+            },
+          }}
           disableAutoFocus
           disableEnforceFocus
           open={showEditOption}
