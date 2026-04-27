@@ -469,7 +469,7 @@ function MetaValueViewMenu(props: {
 /**
  * Table view for metadata values.
  */
-function MetaValueView({ values = [] as MetaValue[] }) {
+function MetaValueView({ values = [] as MetaValue[], showToolbar }) {
   const getColumnWidth = useColumnWidthStore((s) => s.getColumnWidth);
   const columns = [
     { field: "name", width: getColumnWidth("name"), flex: 1 },
@@ -520,6 +520,7 @@ function MetaValueView({ values = [] as MetaValue[] }) {
   }, []);
   return (
     <DataGrid
+      showToolbar={showToolbar}
       slots={slots}
       style={dataGridStyle}
       sortModel={sortModel}

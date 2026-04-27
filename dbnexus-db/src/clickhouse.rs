@@ -445,7 +445,7 @@ impl SchemaTrait for ClickHouseDB {
             if let Some(dv) = typ.default_value.as_ref() {
                 let sql = format!(
                     r#"ALTER TABLE {table} MODIFY COLUMN {new_name} DEFAULT {}"#,
-                    self.put_value_in_sql(&typ.typ, Some(dv.as_str()))?
+                    self.put_value_in_sql(&typ.typ, dv.as_str())?
                 );
                 log::info!("sql:{}", sql);
                 self.simple_execute_sql(&sql).await?;
@@ -464,11 +464,7 @@ impl SchemaTrait for ClickHouseDB {
         let mut sql = format!(r#"ALTER TABLE `{table}` ADD COLUMN `{name}` {} "#, col.typ);
         if let Some(dv) = col.default_value.as_ref() {
             sql.push_str(
-                format!(
-                    "DEFAULT {} ",
-                    self.put_value_in_sql(&col.typ, Some(dv.as_str()))?
-                )
-                .as_str(),
+                format!("DEFAULT {} ", self.put_value_in_sql(&col.typ, dv.as_str())?).as_str(),
             );
         }
         self.simple_execute_sql(&sql).await?;
@@ -519,13 +515,12 @@ impl ClickHouseDB {
     }
 }
 
-fn put_value_in_sql(typ: &sqlparser::ast::DataType, value: Option<&str>) -> String {
+fn put_value_in_sql(typ: &sqlparser::ast::DataType, value: &str) -> String {
     use sqlparser::ast::{DataType, ObjectName};
 
-    let default_str = value.map(|x| x.to_string()).unwrap_or("null".to_string());
-    let single_quote_str = value
-        .map(|x| format!("'{}'", escape_sql_str(x)))
-        .unwrap_or("null".to_string());
+    let default_str = value.to_string();
+
+    let single_quote_str = format!("'{}'", escape_sql_str(value));
 
     fn custom_need_quote(x: &ObjectName) -> bool {
         let x = x.to_string().to_lowercase();
@@ -1178,17 +1173,19 @@ impl SqlBuilder for ClickHouseDB {
                 if f.is_none() {
                     anyhow::bail!("field '{}' not found", k);
                 }
-                sql.push_str(
-                    format!(
-                        "{} = {}",
-                        self.quote(k),
-                        self.put_value_in_sql(
-                            &f.option_must_be_some()?.data_type,
-                            v.as_ref().map(|x| x.as_str())
-                        )?
-                    )
-                    .as_str(),
-                );
+
+                match v {
+                    Some(value) => sql.push_str(
+                        format!(
+                            "{} = {}",
+                            self.quote(k),
+                            self.put_value_in_sql(&f.option_must_be_some()?.data_type, value)?
+                        )
+                        .as_str(),
+                    ),
+                    None => sql.push_str(&format!("{} IS NULL", self.quote(k))),
+                }
+
                 if index != last {
                     sql.push(',')
                 }
@@ -1200,10 +1197,7 @@ impl SqlBuilder for ClickHouseDB {
         anyhow::Ok(sql)
     }
 
-    fn put_value_in_sql(&self, typ: &str, value: Option<&str>) -> anyhow::Result<String> {
-        if self.hit_current_value(value) {
-            return anyhow::Result::Ok(value.option_must_be_some()?.to_string());
-        }
+    fn put_value_in_sql(&self, typ: &str, value: &str) -> anyhow::Result<String> {
         anyhow::Ok(put_value_in_sql(&parse_type(typ)?, value))
     }
 

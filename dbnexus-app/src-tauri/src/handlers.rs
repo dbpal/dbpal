@@ -1161,6 +1161,7 @@ pub async fn simple_execute_sql(
         .as_query_sql()
         .simple_execute_sql(&sql)
         .await
+        .map_err(|err| anyhow::Error::msg(format!("sql:{} err:{}", sql, err)))
         .map_err(ErrorFrontend::from)?;
     Ok(result)
 }
@@ -3076,6 +3077,10 @@ pub async fn put_value_in_sql(
     value: Option<String>,
     app: tauri::State<'_, DBPal>,
 ) -> Result<String, ErrorFrontend> {
+    let value = match value {
+        Some(value) => value,
+        None => return Ok("NULL".to_string()),
+    };
     let schema = app
         .get_schema(db_name.as_str())
         .await
@@ -3087,20 +3092,15 @@ pub async fn put_value_in_sql(
     {
         let x = schema.backend_kind();
         if x.mysql_like() {
-            return Ok(match value {
-                Some(x) => {
-                    if x.starts_with("0x") {
-                        x
-                    } else {
-                        format!("'{}'", escape_sql_str(&x))
-                    }
-                }
-                None => "null".to_string(),
+            return Ok(if value.starts_with("0x") {
+                value
+            } else {
+                format!("'{}'", escape_sql_str(&value))
             });
         }
     }
     schema
-        .put_value_in_sql(&typ, value.as_deref())
+        .put_value_in_sql(&typ, &value)
         .map_err(ErrorFrontend::from)
 }
 

@@ -21,11 +21,13 @@ import {
 import { LazyStore } from "@tauri-apps/plugin-store";
 import { extractConfigNameFromUuid, TabContent } from "./helper";
 import { GridColumnVisibilityModel } from "./datagridExport";
+import { emit, listen } from "@tauri-apps/api/event";
 
 export function getAppStore() {
   return new LazyStore("store.json");
 }
 
+const eventNameReloadStore = "event-reload-store";
 class TauriStoreManger<S> implements PersistStorage<S> {
   appStore = getAppStore();
   constructor(
@@ -33,6 +35,8 @@ class TauriStoreManger<S> implements PersistStorage<S> {
     public afterFetch?: (_: S) => Promise<void>,
   ) {}
   async setItem(name: string, value: StorageValue<S>) {
+    emit(eventNameReloadStore);
+
     if (this.setBefore) {
       const new_value = cloneDeep(value);
       new_value.state = await this.setBefore(new_value.state);
@@ -811,8 +815,29 @@ const initialSettings: UserSettings = {
 const userSettingKey = "dbpal-combined-settings";
 
 export function reloadStore() {
+  async function reload() {
+    try {
+      await useUserSettings.persist.rehydrate();
+      await useColumnWidthStore.persist.rehydrate();
+      await useBoolSwitch.persist.rehydrate();
+      await useLLMConfig.persist.rehydrate();
+      await usePageSize.persist.rehydrate();
+      await useSizeStore.persist.rehydrate();
+      await useColumnWidthStore.persist.rehydrate();
+      await useElementSizeStore.persist.rehydrate();
+      await useUserSystemPromptStore.persist.rehydrate();
+      await useViewInModalMatchStrStore.persist.rehydrate();
+      await useExportConfigStore.persist.rehydrate();
+    } catch (error) {
+      console.error("Error reloading store:", error);
+    }
+  }
   window.addEventListener("storage", async () => {
-    await useUserSettings.persist.rehydrate();
+    await reload();
+  });
+
+  listen(eventNameReloadStore, () => {
+    reload();
   });
 }
 
@@ -909,7 +934,7 @@ export const useConnectionStore = create<ConnectionState>()(
             name,
           );
           if (false === conn[savePasswordKey] && !password) {
-            password = await window.prompt("please input password:");
+            password = window.prompt("please input password:");
           }
         }
         if (password) {

@@ -14,7 +14,7 @@ impl SqlBuilder for MongoDB {
         None
     }
 
-    fn put_value_in_sql(&self, _typ: &str, _value: Option<&str>) -> anyhow::Result<String> {
+    fn put_value_in_sql(&self, _typ: &str, _value: &str) -> anyhow::Result<String> {
         self.backend_kind().not_support_feature()
     }
 

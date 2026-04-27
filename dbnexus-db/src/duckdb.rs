@@ -213,8 +213,24 @@ fn encode_row_as_json<'stmt>(
 }
 
 impl SqlBuilder for DuckDB {
-    fn put_value_in_sql(&self, typ: &str, value: Option<&str>) -> anyhow::Result<String> {
-        put_value_in_sql(typ, value)
+    fn put_value_in_sql(&self, typ: &str, value: &str) -> anyhow::Result<String> {
+        let typ = typ.to_lowercase();
+        log::trace!("encode type:{} value:{:?}", typ, value);
+
+        match typ.as_str() {
+            "date" | "json" | "time" | "timestamp with time zone" | "timestamp" | "varchar" => {
+                anyhow::Ok(value.to_string())
+            }
+            _ if typ.ends_with("[]") => anyhow::Ok(value.to_string()),
+            _ if typ.starts_with("time")
+                || typ.starts_with("date")
+                || typ.starts_with("utf8")
+                || typ.starts_with("largeutf8") =>
+            {
+                anyhow::Ok(escape_sql_str(value))
+            }
+            _ => anyhow::Ok(value.to_string()),
+        }
     }
     fn get_schema(&self) -> Option<&str> {
         self.config.schema.as_deref()
@@ -872,10 +888,10 @@ impl SchemaTrait for DuckDB {
                     }
                 }
             }
-            if let Some(x) = typ.default_value.as_ref() {
+            if let Some(value) = typ.default_value.as_ref() {
                 let sql = format!(
                     r#"ALTER TABLE "{table}" ALTER COLUMN "{new_name}" SET DEFAULT {}"#,
-                    self.put_value_in_sql(&typ.typ, Some(x.as_str()))?
+                    self.put_value_in_sql(&typ.typ, value.as_str())?
                 );
                 self.simple_execute_sql(&sql).await?;
                 sc.collect(sql);
@@ -895,10 +911,7 @@ impl SchemaTrait for DuckDB {
             col.typ,
             col.nullable.unwrap_or_default(),
             if let Some(d) = col.default_value.as_ref() {
-                format!(
-                    "DEFAULT {}",
-                    self.put_value_in_sql(&col.typ, Some(d.as_str()))?
-                )
+                format!("DEFAULT {}", self.put_value_in_sql(&col.typ, d.as_str())?)
             } else {
                 "".to_owned()
             }
@@ -1219,36 +1232,6 @@ impl SchemaTrait for DuckDB {
         let sql = format!(r#"DROP SEQUENCE "{name}" "#);
         self.simple_execute_sql(&sql).await?;
         anyhow::Ok(sql)
-    }
-}
-
-fn put_value_in_sql(typ: &str, value: Option<&str>) -> anyhow::Result<String> {
-    let typ = typ.to_lowercase();
-    log::trace!("encode type:{} value:{:?}", typ, value);
-
-    match typ.as_str() {
-        "date" | "json" | "time" | "timestamp with time zone" | "timestamp" | "varchar" => {
-            anyhow::Ok(
-                value
-                    .map(|x| format!("'{}'", x))
-                    .unwrap_or("null".to_string()),
-            )
-        }
-        _ if typ.ends_with("[]") => {
-            anyhow::Ok(value.map(|x| x.to_string()).unwrap_or("null".to_string()))
-        }
-        _ if typ.starts_with("time")
-            || typ.starts_with("date")
-            || typ.starts_with("utf8")
-            || typ.starts_with("largeutf8") =>
-        {
-            anyhow::Ok(
-                value
-                    .map(|x| format!("'{}'", x))
-                    .unwrap_or("null".to_string()),
-            )
-        }
-        _ => anyhow::Ok(value.map(|x| x.to_string()).unwrap_or("null".to_string())),
     }
 }
 

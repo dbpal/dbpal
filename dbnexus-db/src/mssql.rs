@@ -514,10 +514,7 @@ impl SchemaTrait for SqlServerDB {
             col.typ,
             col.nullable.unwrap_or_default(),
             if let Some(d) = col.default_value.as_ref() {
-                format!(
-                    "DEFAULT {}",
-                    self.put_value_in_sql(&col.typ, Some(d.as_str()))?
-                )
+                format!("DEFAULT {}", self.put_value_in_sql(&col.typ, d.as_str())?)
             } else {
                 "".to_owned()
             }
@@ -1140,14 +1137,10 @@ impl SqlBuilder for SqlServerDB {
     }
     /// format a value make it suitable for insert into sql.
     /// this method current use in `insert_sql` etc.
-    fn put_value_in_sql(&self, typ: &str, value: Option<&str>) -> anyhow::Result<String> {
-        if self.hit_current_value(value) {
-            return anyhow::Result::Ok(value.option_must_be_some()?.to_string());
-        }
-        let default_value = value.map(|x| x.to_string()).unwrap_or("null".to_string());
-        let single_quote = value
-            .map(|x| format!("'{}'", escape_sql_str(x)))
-            .unwrap_or("null".to_string());
+    fn put_value_in_sql(&self, typ: &str, value: &str) -> anyhow::Result<String> {
+        let default_value = value.to_string();
+        let single_quote = format!("'{}'", escape_sql_str(value));
+
         let v = match typ.to_uppercase().as_str() {
             "TINYINT" | "SMALLINT" | "INT" | "BIGINT" | "FLOAT" | "REAL" | "INT4" | "INT2"
             | "INT1" | "INT8" | "FLOAT4" | "FLOAT8" | "INTN" | "DECIMALN" | "NUMERICN"

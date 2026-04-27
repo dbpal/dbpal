@@ -724,7 +724,7 @@ function ConnConfigInfo(props: { uuid: string }) {
         </Button>
       </Stack>
 
-      <MetaValueView values={metas} />
+      <MetaValueView values={metas} showToolbar />
     </Stack>
   );
 }

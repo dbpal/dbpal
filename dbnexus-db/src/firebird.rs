@@ -22,9 +22,9 @@ use crate::db::{
     create_html_table_data, create_html_table_header, create_markdown_data, create_markdown_header,
     escape_sql_str, export_query_as_xlsx_send_blocking_data, BackendKind, CheckConn, ColumnType,
     CreateIndexReq, ExportFrame, ExportKind, ExportQueryResult, Field, FirstTrue, GetBackendKind,
-    GetTestExportTableKinds, Index, IndexKind, ListTable, MetaValue, OptionMustBeSomeErr,
-    QueryEvent, QueryEventEmitter, QueryResp, QuerySql, SchemaTrait, ServerMetas,
-    ShowTableParameter, SqlBuilder, XlsxEdit, POOL_MAX_CONNECTIONS,
+    GetTestExportTableKinds, Index, IndexKind, ListTable, MetaValue, QueryEvent, QueryEventEmitter,
+    QueryResp, QuerySql, SchemaTrait, ServerMetas, ShowTableParameter, SqlBuilder, XlsxEdit,
+    POOL_MAX_CONNECTIONS,
 };
 
 use crate::helper::create_csv;
@@ -697,7 +697,7 @@ impl SchemaTrait for FireBirdDB {
             r#"ALTER TABLE "{table}" ADD "{name}" {} {} {}"#,
             col.typ,
             if let Some(dv) = col.default_value.as_ref() {
-                format!(" DEFAULT {}", self.put_value_in_sql(&col.typ, Some(dv))?)
+                format!(" DEFAULT {}", self.put_value_in_sql(&col.typ, dv)?)
             } else {
                 "".to_string()
             },
@@ -875,11 +875,16 @@ impl SqlBuilder for FireBirdDB {
         FB_CURRENT_LITERALS
     }
 
-    fn put_value_in_sql(&self, typ: &str, value: Option<&str>) -> anyhow::Result<String> {
-        if self.hit_current_value(value) {
-            return anyhow::Result::Ok(value.option_must_be_some()?.to_string());
-        }
-        put_value_in_sql(typ, value)
+    fn put_value_in_sql(&self, typ: &str, value: &str) -> anyhow::Result<String> {
+        let typ = typ.to_lowercase();
+        log::trace!("encode value '{:?}' on type '{}'", value, typ);
+        let r = match typ.as_str() {
+            "text" | "varying" => anyhow::Ok(format!("'{}'", escape_sql_str(value))),
+            "date" | "time" | "timestamp" => anyhow::Ok(format!("'{}'", escape_sql_str(value))),
+            "blob" => anyhow::Ok(value.to_string()),
+            _ => anyhow::Ok(value.to_string()),
+        };
+        r
     }
     fn get_schema(&self) -> Option<&str> {
         None
@@ -929,19 +934,6 @@ impl FireBirdDB {
         let row: Option<(i64,)> = conn.query_first(&s, ())?;
         anyhow::Ok(row.map(|x| x.0 as usize).unwrap_or_default())
     }
-}
-fn put_value_in_sql(typ: &str, value: Option<&str>) -> anyhow::Result<String> {
-    let typ = typ.to_lowercase();
-    log::trace!("encode value '{:?}' on type '{}'", value, typ);
-    let r = match typ.as_str() {
-        "text" | "varying" => anyhow::Ok(value.map(|x| format!("'{}'", escape_sql_str(x)))),
-        "date" | "time" | "timestamp" => {
-            anyhow::Ok(value.map(|x| format!("'{}'", escape_sql_str(x))))
-        }
-        "blob" => anyhow::Ok(value.map(|x| x.to_string())),
-        _ => anyhow::Ok(value.map(|x| x.to_string())),
-    };
-    r.map(|x| x.unwrap_or("null".to_string()))
 }
 
 #[async_trait::async_trait]

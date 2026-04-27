@@ -340,10 +340,7 @@ impl SchemaTrait for SqliteDB {
             col.typ,
             col.nullable.unwrap_or_default(),
             if let Some(d) = col.default_value.as_ref() {
-                format!(
-                    "DEFAULT {}",
-                    self.put_value_in_sql(&col.typ, Some(d.as_str()))?
-                )
+                format!("DEFAULT {}", self.put_value_in_sql(&col.typ, d.as_str())?)
             } else {
                 "".to_owned()
             }
@@ -705,15 +702,7 @@ impl SqlBuilder for SqliteDB {
     fn get_current_values(&self) -> &'static [&'static str] {
         SQLITE_CURRENT_LITERALS
     }
-    fn put_value_in_sql(&self, typ: &str, value: Option<&str>) -> anyhow::Result<String> {
-        if self.hit_current_value(value) {
-            return anyhow::Result::Ok(value.option_must_be_some()?.to_string());
-        }
-        let value = match value {
-            Some(x) => x,
-            None => return anyhow::Ok("null".to_string()),
-        };
-
+    fn put_value_in_sql(&self, typ: &str, value: &str) -> anyhow::Result<String> {
         let typ = typ.to_uppercase();
         let v = match typ.as_str() {
             "" | "NULL" => {

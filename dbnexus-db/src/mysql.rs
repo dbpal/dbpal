@@ -5,10 +5,9 @@ use crate::db::{
     BackendKindMysql, CheckConn, ColumnType, CreateIndexReq, CreateSchemaExtra,
     CreateTableAndIndexSql, DBTrait, DefAndMetas, ExportFrame, ExportKind, ExportQueryResult,
     Field, FirstTrue, GetBackendKind, GetTestExportTableKinds, Index, IndexKind, ListTable,
-    MetaValue, NamedStaff, OptionMustBeSomeErr, ProcedureDetail, QueryEvent, QueryEventEmitter,
-    QueryResp, QuerySql, SchemaTrait, SequenceDetail, ServerMetas, ShowTableParameter, SqlBuilder,
-    SqlCollect, SqlEvent, TriggerDetail, TriggerEvent, TriggerTiming, XlsxEdit,
-    POOL_MAX_CONNECTIONS,
+    MetaValue, NamedStaff, ProcedureDetail, QueryEvent, QueryEventEmitter, QueryResp, QuerySql,
+    SchemaTrait, SequenceDetail, ServerMetas, ShowTableParameter, SqlBuilder, SqlCollect, SqlEvent,
+    TriggerDetail, TriggerEvent, TriggerTiming, XlsxEdit, POOL_MAX_CONNECTIONS,
 };
 use crate::helper::create_csv;
 use crate::language_server::LexerCompletionTrait;
@@ -651,10 +650,7 @@ impl SchemaTrait for MysqlDB {
             col.typ,
             col.nullable.unwrap_or_default(),
             if let Some(d) = col.default_value.as_ref() {
-                format!(
-                    "DEFAULT {}",
-                    self.put_value_in_sql(&col.typ, Some(d.as_str()))?
-                )
+                format!("DEFAULT {}", self.put_value_in_sql(&col.typ, d.as_str())?)
             } else {
                 "".to_owned()
             }
@@ -692,7 +688,7 @@ impl SchemaTrait for MysqlDB {
                 &typ.typ,
                 typ.nullable.unwrap_or_default(),
                 if let Some(dv) = typ.default_value.as_ref() {
-                    format!("DEFAULT {}", self.put_value_in_sql(&typ.typ, Some(dv))?)
+                    format!("DEFAULT {}", self.put_value_in_sql(&typ.typ, dv)?)
                 } else {
                     "".to_string()
                 }
@@ -1759,14 +1755,9 @@ impl SqlBuilder for MysqlDB {
     fn get_current_values(&self) -> &'static [&'static str] {
         MYSQL_CURRENT_LITERALS
     }
-    fn put_value_in_sql(&self, f: &str, value: Option<&str>) -> anyhow::Result<String> {
-        if self.hit_current_value(value) {
-            return anyhow::Result::Ok(value.option_must_be_some()?.to_string());
-        }
-        let default_str = value.map(|x| x.to_string()).unwrap_or("null".to_string());
-        let single_quote_str = value
-            .map(|x| format!("'{}'", escape_sql_str(x)))
-            .unwrap_or("null".to_string());
+    fn put_value_in_sql(&self, f: &str, value: &str) -> anyhow::Result<String> {
+        let default_str = value.to_string();
+        let single_quote_str = format!("'{}'", escape_sql_str(value));
         let ty = f.to_uppercase();
 
         let v = match ty.as_str() {

@@ -6,6 +6,7 @@ use std::any::Any;
 use std::collections::HashMap;
 use std::fmt::{self, Debug};
 use std::ops::Deref;
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
 use tokio::io::AsyncWriteExt;
@@ -637,14 +638,10 @@ pub trait SqlBuilder: GetBackendKind {
         para: Option<&ShowTableParameter>,
     ) -> String;
 
-    fn hit_current_value(&self, value: Option<&str>) -> bool {
-        value
-            .map(|x| {
-                self.get_current_values()
-                    .iter()
-                    .any(|y| x.eq_ignore_ascii_case(y))
-            })
-            .unwrap_or(false)
+    fn hit_current_value(&self, value: &str) -> bool {
+        self.get_current_values()
+            .iter()
+            .any(|cur| cur.eq_ignore_ascii_case(value))
     }
 
     fn type_support_compare(&self, _typ: &str) -> bool {
@@ -663,7 +660,7 @@ pub trait SqlBuilder: GetBackendKind {
 
     /// format a value make it suitable for insert into sql.
     /// this method current use in `insert_sql` etc.
-    fn put_value_in_sql(&self, _typ: &str, _value: Option<&str>) -> anyhow::Result<String>;
+    fn put_value_in_sql(&self, _typ: &str, _value: &str) -> anyhow::Result<String>;
 
     fn make_where(
         &self,
@@ -695,15 +692,30 @@ pub trait SqlBuilder: GetBackendKind {
             if contains_pri && !f.is_primary {
                 continue;
             }
-            sql.push_str(
-                format!(
-                    "{} {} = {}",
-                    if !first.get() { " AND " } else { "" },
-                    self.quote(k),
-                    self.put_value_in_sql(&f.data_type, v.as_ref().map(|x| x.as_str()))?
-                )
-                .as_str(),
-            );
+
+            match v {
+                Some(value) => {
+                    sql.push_str(
+                        format!(
+                            "{} {} = {}",
+                            if !first.get() { " AND " } else { "" },
+                            self.quote(k),
+                            self.put_value_in_sql(&f.data_type, value)?
+                        )
+                        .as_str(),
+                    );
+                }
+                None => {
+                    sql.push_str(
+                        format!(
+                            "{} {} IS NULL",
+                            if !first.get() { " AND " } else { "" },
+                            self.quote(k)
+                        )
+                        .as_str(),
+                    );
+                }
+            }
         }
         anyhow::Ok(sql)
     }
@@ -765,14 +777,22 @@ pub trait SqlBuilder: GetBackendKind {
                     Some(f) => *f,
                     None => continue,
                 };
-                sql.push_str(
-                    format!(
-                        "{} = {}",
-                        self.quote(k),
-                        self.put_value_in_sql(&f.data_type, v.as_ref().map(|x| x.as_str()))?
-                    )
-                    .as_str(),
-                );
+                match v {
+                    Some(value) => {
+                        sql.push_str(
+                            format!(
+                                "{} = {}",
+                                self.quote(k),
+                                self.put_value_in_sql(&f.data_type, value)?
+                            )
+                            .as_str(),
+                        );
+                    }
+                    None => {
+                        sql.push_str(format!("{} = NULL", self.quote(k)).as_str());
+                    }
+                }
+
                 if index != last {
                     sql.push(',')
                 }
@@ -801,7 +821,7 @@ pub trait SqlBuilder: GetBackendKind {
             },
             format!("{}", self.quote(table_name))
         );
-        let skip_null_value = |f: &Field| {
+        let skip_null_default_value = |f: &Field| {
             values.get(&f.field).map(|x| x.is_none()).unwrap_or(true) && f.default_value.is_some()
         };
         //
@@ -813,7 +833,7 @@ pub trait SqlBuilder: GetBackendKind {
                 if f.is_auto_increment {
                     continue;
                 }
-                if skip_null_value(f) {
+                if skip_null_default_value(f) {
                     // value is null and has default value
                     continue;
                 }
@@ -833,7 +853,7 @@ pub trait SqlBuilder: GetBackendKind {
                 if f.is_auto_increment {
                     continue;
                 }
-                if skip_null_value(f) {
+                if skip_null_default_value(f) {
                     // value is null and has default value
                     continue;
                 }
@@ -841,7 +861,13 @@ pub trait SqlBuilder: GetBackendKind {
                     sql.push(',');
                 }
                 let value = values.get(&f.field).cloned().flatten();
-                sql.push_str(&self.put_value_in_sql(&f.data_type, value.as_deref())?);
+
+                match &value {
+                    Some(value) => {
+                        sql.push_str(self.put_value_in_sql(&f.data_type, &value)?.as_str())
+                    }
+                    None => sql.push_str("NULL"),
+                };
             }
             sql.push(')');
         }
@@ -898,15 +924,15 @@ pub trait SqlBuilder: GetBackendKind {
                 ""
             };
             let dv = match &col.default_value {
-                Some(x) => match self.backend_kind() {
+                Some(value) => match self.backend_kind() {
                     BackendKind::Cassandra => {
                         anyhow::bail!("cassandra not support default value")
                     }
                     BackendKind::Firebird => {
                         // silently differrent from other database
-                        format!("DEFAULT {}", self.put_value_in_sql(data_type, Some(x))?)
+                        format!("DEFAULT {}", self.put_value_in_sql(data_type, value)?)
                     }
-                    _ => format!("DEFAULT({})", self.put_value_in_sql(data_type, Some(x))?),
+                    _ => format!("DEFAULT({})", self.put_value_in_sql(data_type, value)?),
                 },
                 None => "".to_owned(),
             };
@@ -2464,7 +2490,6 @@ pub trait GetTestExportTableKinds: SchemaTrait {
                 include_table_schema: true,
             });
         }
-
         r
     }
 
@@ -2483,26 +2508,25 @@ pub trait GetTestExportTableKinds: SchemaTrait {
     }
 }
 
-#[derive(Clone)]
+#[derive()]
 pub struct FirstTrue {
-    value: Arc<Mutex<bool>>,
+    value: AtomicBool,
 }
 
 impl Default for FirstTrue {
     fn default() -> Self {
         Self {
-            value: Arc::new(Mutex::new(true)),
+            value: AtomicBool::new(true),
         }
     }
 }
 
 impl FirstTrue {
     pub fn get(&self) -> bool {
-        let mut value = self.value.lock().expect("lock failed");
-        let t = *value;
-        if t {
-            *value = false;
+        let value = self.value.load(Ordering::Relaxed);
+        if value {
+            self.value.store(false, Ordering::Relaxed);
         }
-        return t;
+        return value;
     }
 }

@@ -806,7 +806,7 @@ impl SqlBuilder for RedisDB {
         None
     }
 
-    fn put_value_in_sql(&self, _typ: &str, _value: Option<&str>) -> anyhow::Result<String> {
+    fn put_value_in_sql(&self, _typ: &str, _value: &str) -> anyhow::Result<String> {
         anyhow::bail!("redis can't put value in sql")
     }
 

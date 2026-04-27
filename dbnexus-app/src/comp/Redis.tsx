@@ -353,7 +353,7 @@ function RedisAddHash(props: { uuid: string; hashKey: string }) {
 function RedisAddZset(props: { uuid: string; zsetKey: string }) {
   const { uuid, zsetKey } = props;
 
-  const addOP = async (member, value) => {
+  const addOP = async (member: string, value: number) => {
     return await commands.redisZsetAdd(uuid, zsetKey, member, value);
   };
 
@@ -362,10 +362,20 @@ function RedisAddZset(props: { uuid: string; zsetKey: string }) {
   const valueRef = useRef(new EditorAndMode());
   const { showNotification } = useNotification();
 
+  const scoreRef = useRef<HTMLInputElement>(null);
+
   const handleAdd = () => {
-    // reset some state
+    const scoreValue = parseFloat(score);
+    if (isNaN(scoreValue)) {
+      showNotification({
+        severity: "warning",
+        title: "score is not a number",
+      });
+      scoreRef.current?.focus();
+      return;
+    }
     setLoading(true);
-    addOP(valueRef.current.getValue(), parseFloat(score))
+    addOP(valueRef.current.getValue(), scoreValue)
       .then(() => {
         showNotification({ severity: "success", title: "Add OK" });
       })
@@ -392,6 +402,7 @@ function RedisAddZset(props: { uuid: string; zsetKey: string }) {
           onChange={(event) => {
             setScore(event.target.value);
           }}
+          inputRef={scoreRef}
           onClear={() => setScore("")}
         />
       </Stack>
@@ -924,6 +935,7 @@ function RedisSetTable(props: { setKey: string; uuid: string }) {
         },
         style: { cursor: "context-menu" },
       },
+      pagination: { dbpal: { showLimit: true } },
       toolbar: {
         dbpal: (function (): SetToolBarParameterProps["dbpal"] {
           return { keyMatch, handleReload, setKey, loading, uuid, setKeyMatch };
@@ -937,7 +949,7 @@ function RedisSetTable(props: { setKey: string; uuid: string }) {
     return {
       columnMenu: AppColumnMenu,
       toolbar: SetToolBar,
-      pagination: CustomPagination,
+      pagination: RedisPagination,
     } as Partial<GridSlotsComponent>;
   }, []);
 
@@ -1293,7 +1305,7 @@ function RedisListTable(props: { listKey: string; uuid: string }) {
     return {
       columnMenu: AppColumnMenu,
       toolbar: ListToolBar,
-      pagination: CustomPagination,
+      pagination: RedisPagination,
     } as Partial<GridSlotsComponent>;
   }, []);
   const { getColumnVisibility, setColumnVisibility } = useTableColumnVisibleStore(
@@ -1623,6 +1635,7 @@ function RedisZsetTable(props: { uuid: string; zsetKey: string }) {
         },
         style: { cursor: "context-menu" },
       },
+      pagination: { dbpal: { showLimit: true } },
       toolbar: {
         dbpal: (function (): ZSetToolBarProps["dbpal"] {
           return {
@@ -1673,6 +1686,7 @@ function RedisZsetTable(props: { uuid: string; zsetKey: string }) {
     return {
       columnMenu: AppColumnMenu,
       toolbar: ZSetToolBar,
+      pagination: RedisPagination,
     };
   }, []);
 
@@ -1741,7 +1755,9 @@ function RedisZsetTable(props: { uuid: string; zsetKey: string }) {
   );
 }
 
-function CustomPagination() {
+function RedisPagination(props: { dbpal?: { showLimit: boolean } }) {
+  const showLimit = props.dbpal?.showLimit ?? false;
+
   return (
     <Stack
       direction="row"
@@ -1753,9 +1769,9 @@ function CustomPagination() {
       }}>
       <StackRowCenter>
         <FetchTimeDataGrid />
-        <SliderSize config={UseSizeConfig.queryLimit} />
-        <DoubleClickToModify />
+        {showLimit && <SliderSize config={UseSizeConfig.queryLimit} />}
         <ResetColumnWidth />
+        <DoubleClickToModify />
       </StackRowCenter>
 
       <Stack direction="row" sx={{ alignItems: "center" }}>
@@ -1959,7 +1975,7 @@ function RedisHashTable(props: { hashKey: string; uuid: string }) {
         },
         style: { cursor: "context-menu" },
       },
-
+      pagination: { dbpal: { showLimit: true } },
       toolbar: {
         dbpal: (function (): HashToolBarProps["dbpal"] {
           return { keyMatch, setKeyMatch, uuid, loading, handleReload, hashKey };
@@ -1985,7 +2001,7 @@ function RedisHashTable(props: { hashKey: string; uuid: string }) {
     return {
       columnMenu: AppColumnMenu,
       toolbar: HashToolBar,
-      pagination: CustomPagination,
+      pagination: RedisPagination,
     } as Partial<GridSlotsComponent>;
   }, []);
 

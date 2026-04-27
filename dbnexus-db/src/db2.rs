@@ -642,7 +642,7 @@ impl SchemaTrait for Db2Db {
 }
 
 impl SqlBuilder for Db2Db {
-    fn put_value_in_sql(&self, _typ: &str, _value: Option<&str>) -> anyhow::Result<String> {
+    fn put_value_in_sql(&self, _typ: &str, _value: &str) -> anyhow::Result<String> {
         todo!()
     }
 }

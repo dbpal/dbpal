@@ -483,97 +483,6 @@ fn encode_row(row: Row) -> anyhow::Result<Vec<Option<String>>> {
     anyhow::Ok(values)
 }
 
-fn put_value_in_sql(typ: &str, value: Option<&str>) -> anyhow::Result<String> {
-    let null_string = "NULL".to_string();
-    let typ = typ.to_string().to_uppercase();
-
-    match typ.as_str() {
-        "VARCHAR2" => anyhow::Ok(match value {
-            Some(x) => format!("'{}'", escape_sql_str(x)),
-            None => null_string,
-        }),
-        _ if typ.starts_with("VARCHAR2") => anyhow::Ok(match value {
-            Some(x) => format!("'{}'", escape_sql_str(x)),
-            None => null_string,
-        }),
-        "NVARCHAR2" => anyhow::Ok(match value {
-            Some(x) => format!("N'{}'", escape_sql_str(x)),
-            None => null_string,
-        }),
-        _ if typ.starts_with("NVARCHAR2") => anyhow::Ok(match value {
-            Some(x) => format!("N'{}'", escape_sql_str(x)),
-            None => null_string,
-        }),
-
-        "CHAR" => anyhow::Ok(match value {
-            Some(x) => format!("'{}'", x),
-            None => null_string,
-        }),
-        _ if typ.starts_with("CHAR") => anyhow::Ok(match value {
-            Some(x) => format!("'{}'", escape_sql_str(x)),
-            None => null_string,
-        }),
-        "NCHAR" => anyhow::Ok(match value {
-            Some(x) => format!("N'{}'", escape_sql_str(x)),
-            None => null_string,
-        }),
-        _ if typ.starts_with("NCHAR") => anyhow::Ok(match value {
-            Some(x) => format!("N'{}'", escape_sql_str(x)),
-            None => null_string,
-        }),
-        "RAW" => anyhow::Ok(match value {
-            Some(x) => format!("'{}'", x),
-            None => null_string,
-        }),
-        _ if typ.starts_with("RAW") => anyhow::Ok(match value {
-            Some(x) => format!("'{}'", x),
-            None => null_string,
-        }),
-
-        "BINARY_FLOAT" | "BINARY_DOUBLE" | "NUMBER" | "FLOAT" => anyhow::Ok(match value {
-            Some(x) => x.to_string(),
-            None => null_string,
-        }),
-
-        _ if typ.starts_with("FLOAT") || typ.starts_with("NUMBER") => anyhow::Ok(match value {
-            Some(x) => x.to_string(),
-            None => null_string,
-        }),
-
-        "CLOB" => anyhow::Ok(match value {
-            Some(x) => format!("'{}'", x),
-            None => null_string,
-        }),
-        "NCLOB" => anyhow::Ok(match value {
-            Some(x) => format!("N'{}'", x),
-            None => null_string,
-        }),
-        "BLOB" => anyhow::Ok(match value {
-            Some(x) => format!("'{}'", x),
-            None => null_string,
-        }),
-        "LONG" => anyhow::Ok(match value {
-            Some(x) => format!("'{}'", x),
-            None => null_string,
-        }),
-        "TIMESTAMP" => anyhow::Ok(match value {
-            Some(x) => format!("'{}'", x),
-            None => null_string,
-        }),
-        _ if typ.starts_with("TIMESTAMP") => anyhow::Ok(match value {
-            Some(x) => format!("'{}'", x),
-            None => null_string,
-        }),
-        // "BFILE" => {
-        //     anyhow::Ok(match value {
-        //         Some(x) => format!("'{}'", x),
-        //         None => null_string,
-        //     })
-        // }
-        _ => anyhow::bail!(format!("type '{}' not handled", typ)),
-    }
-}
-
 fn encode_row_as_json(r: &Row) -> anyhow::Result<serde_json::map::Map<String, serde_json::Value>> {
     let mut values = serde_json::map::Map::new();
     for c in 0..r.sql_values().len() {
@@ -1170,7 +1079,7 @@ impl SchemaTrait for OracleDB {
             if let Some(dv) = typ.default_value.as_ref() {
                 let sql = format!(
                     r#"ALTER TABLE "{table}" MODIFY "{new_name}" DEFAULT {}"#,
-                    self.put_value_in_sql(&typ.typ, Some(dv.as_str()))?
+                    self.put_value_in_sql(&typ.typ, dv.as_str())?
                 );
                 log::info!("sql:{}", sql);
                 self.simple_execute_sql(&sql).await?;
@@ -1191,10 +1100,7 @@ impl SchemaTrait for OracleDB {
             typ.typ,
             typ.nullable.unwrap_or_default(),
             if let Some(dv) = typ.default_value.as_ref() {
-                format!(
-                    "DEFAULT {}",
-                    self.put_value_in_sql(&typ.typ, Some(dv.as_str()))?
-                )
+                format!("DEFAULT {}", self.put_value_in_sql(&typ.typ, dv.as_str())?)
             } else {
                 "".to_owned()
             }
@@ -1530,11 +1436,44 @@ impl SqlBuilder for OracleDB {
 
     /// format a value make it suitable for insert into sql.
     /// this method current use in `insert_sql` etc.
-    fn put_value_in_sql(&self, typ: &str, value: Option<&str>) -> anyhow::Result<String> {
-        if self.hit_current_value(value) {
-            return anyhow::Result::Ok(value.option_must_be_some()?.to_string());
+    fn put_value_in_sql(&self, typ: &str, value: &str) -> anyhow::Result<String> {
+        let typ = typ.to_string().to_uppercase();
+
+        match typ.as_str() {
+            "VARCHAR2" => anyhow::Ok(format!("'{}'", escape_sql_str(value))),
+            _ if typ.starts_with("VARCHAR2") => anyhow::Ok(format!("'{}'", escape_sql_str(value))),
+            "NVARCHAR2" => anyhow::Ok(format!("N'{}'", escape_sql_str(value))),
+            _ if typ.starts_with("NVARCHAR2") => {
+                anyhow::Ok(format!("N'{}'", escape_sql_str(value)))
+            }
+
+            "CHAR" => anyhow::Ok(format!("'{}'", value)),
+            _ if typ.starts_with("CHAR") => anyhow::Ok(format!("'{}'", escape_sql_str(value))),
+            "NCHAR" => anyhow::Ok(format!("N'{}'", escape_sql_str(value))),
+            _ if typ.starts_with("NCHAR") => anyhow::Ok(format!("N'{}'", escape_sql_str(value))),
+            "RAW" => anyhow::Ok(format!("'{}'", value)),
+            _ if typ.starts_with("RAW") => anyhow::Ok(format!("'{}'", value)),
+
+            "BINARY_FLOAT" | "BINARY_DOUBLE" | "NUMBER" | "FLOAT" => anyhow::Ok(value.to_string()),
+
+            _ if typ.starts_with("FLOAT") || typ.starts_with("NUMBER") => {
+                anyhow::Ok(value.to_string())
+            }
+
+            "CLOB" => anyhow::Ok(format!("'{}'", value)),
+            "NCLOB" => anyhow::Ok(format!("N'{}'", value)),
+            "BLOB" => anyhow::Ok(format!("'{}'", value)),
+            "LONG" => anyhow::Ok(format!("'{}'", value)),
+            "TIMESTAMP" => anyhow::Ok(format!("'{}'", value)),
+            _ if typ.starts_with("TIMESTAMP") => anyhow::Ok(format!("'{}'", value)),
+            // "BFILE" => {
+            //     anyhow::Ok(match value {
+            //         Some(x) => format!("'{}'", x),
+            //         None => null_string,
+            //     })
+            // }
+            _ => anyhow::bail!(format!("type '{}' not handled", typ)),
         }
-        put_value_in_sql(typ, value)
     }
 
     fn type_support_compare(&self, _typ: &str) -> bool {
@@ -1664,7 +1603,7 @@ impl OracleDB {
     }
 }
 
-// docker container create    -it    --name oracle-test  -p 1521:1521   -e
+// docker container create    -it    --name oracle-test  -p 1521:1521 -e
 // ORACLE_PWD=welcome123   container-registry.oracle.com/database/express:latest
 
 // docker run -d   -p 1521:1521   -e ORACLE_PASSWORD=welcome123   --name oracle-free  gvenzl/oracle-free

@@ -929,11 +929,11 @@ pub(crate) fn encode_row(r: &PgRow) -> anyhow::Result<Vec<Option<String>>> {
     anyhow::Ok(values)
 }
 
-pub(crate) fn put_value_in_sql(typ: &str, value: Option<&str>) -> anyhow::Result<String> {
-    let default_str = value.map(|x| x.to_string()).unwrap_or("null".to_string());
-    let single_quote_str = value
-        .map(|x| format!("'{}'", escape_sql_str(x)))
-        .unwrap_or("null".to_string());
+pub(crate) fn put_value_in_sql(typ: &str, value: &str) -> anyhow::Result<String> {
+    let default_str = value.to_string();
+
+    let single_quote_str = format!("'{}'", escape_sql_str(value));
+
     let err =
         Err(anyhow::Error::msg(format!("type '{}' not supported", typ))) as anyhow::Result<String>;
     let typ = typ.to_uppercase();
@@ -1007,14 +1007,10 @@ pub(crate) fn put_value_in_sql(typ: &str, value: Option<&str>) -> anyhow::Result
         "NUMERIC[]" => single_quote_str,
         "TIMETZ" | "TIME WITH TIME ZONE" => single_quote_str,
         "TIMETZ[]" => single_quote_str,
-        "BIT" => value
-            .map(|x| format!("B'{x}'"))
-            .unwrap_or("null".to_string()),
+        "BIT" => format!("B'{value}'"),
 
         "BIT[]" => single_quote_str,
-        "VARBIT" | "BIT VARYING" => value
-            .map(|x| format!("B'{x}'"))
-            .unwrap_or("null".to_string()),
+        "VARBIT" | "BIT VARYING" => format!("B'{value}'"),
         "VARBIT[]" => single_quote_str,
         "NUMERIC" => default_str,
         "RECORD" => default_str,

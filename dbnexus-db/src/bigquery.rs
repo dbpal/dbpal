@@ -149,7 +149,7 @@ impl SqlBuilder for BigQueryDb {
         todo!()
     }
 
-    fn put_value_in_sql(&self, _typ: &str, _value: Option<&str>) -> anyhow::Result<String> {
+    fn put_value_in_sql(&self, _typ: &str, _value: &str) -> anyhow::Result<String> {
         todo!()
     }
 }
@@ -253,7 +253,7 @@ impl bb8::ManageConnection for ConnManager {
         conn: &mut Self::Connection,
     ) -> impl Future<Output = Result<(), Self::Error>> + Send {
         async {
-            // TOOD maybe more check???
+            // TODO maybe more check???
             Ok(())
         }
     }

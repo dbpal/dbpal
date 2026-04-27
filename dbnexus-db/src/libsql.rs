@@ -14,9 +14,9 @@ use crate::db::{
     escape_sql_str, export_query_as_xlsx_send_data, AutoCompletionQueryId, BackendKind, CheckConn,
     ColumnType, CreateIndexReq, CreateTableAndIndexSql, ExportFrame, ExportKind, ExportQueryResult,
     Field, FirstTrue, GetBackendKind, GetTestExportTableKinds, Index, IndexKind, ListTable,
-    MetaValue, NamedStaff, OptionMustBeSomeErr, QueryEvent, QueryEventEmitter, QueryResp, QuerySql,
-    ReadOnlyTrait, SchemaTrait, ServerMetas, ShowTableParameter, SqlBuilder, TriggerDetail,
-    XlsxEdit, POOL_MAX_CONNECTIONS,
+    MetaValue, NamedStaff, QueryEvent, QueryEventEmitter, QueryResp, QuerySql, ReadOnlyTrait,
+    SchemaTrait, ServerMetas, ShowTableParameter, SqlBuilder, TriggerDetail, XlsxEdit,
+    POOL_MAX_CONNECTIONS,
 };
 use crate::helper::create_csv;
 use crate::language_server::LexerCompletionTrait;
@@ -542,10 +542,7 @@ impl SchemaTrait for LibSqlDB {
             col.typ,
             col.nullable.unwrap_or_default(),
             if let Some(d) = col.default_value.as_ref() {
-                format!(
-                    "DEFAULT {}",
-                    self.put_value_in_sql(&col.typ, Some(d.as_str()))?
-                )
+                format!("DEFAULT {}", self.put_value_in_sql(&col.typ, d.as_str())?)
             } else {
                 "".to_owned()
             }
@@ -862,30 +859,18 @@ impl SqlBuilder for LibSqlDB {
     fn get_current_values(&self) -> &'static [&'static str] {
         crate::sqlite::SQLITE_CURRENT_LITERALS
     }
-    fn put_value_in_sql(&self, typ: &str, value: Option<&str>) -> anyhow::Result<String> {
-        if self.hit_current_value(value) {
-            return anyhow::Result::Ok(value.option_must_be_some()?.to_string());
-        }
+    fn put_value_in_sql(&self, typ: &str, value: &str) -> anyhow::Result<String> {
         let typ = typ.to_uppercase();
 
         let v = match typ.as_str() {
-            "" | "TEXT" | "NULL" => match value {
-                Some(x) => format!("'{}'", escape_sql_str(x)),
-                None => "null".to_string(),
-            },
-            "DATE" | "TIME" | "DATETIME" => match value {
-                Some(x) => format!("'{}'", x),
-                None => "null".to_string(),
-            },
-            _ if text_like(typ.as_str()) => match value {
-                Some(x) => format!("'{}'", escape_sql_str(x)),
-                None => "null".to_string(),
-            },
-            "REAL" | "INTEGER" | "NUMERIC" | "BOOLEAN" => value.unwrap_or("null").to_string(),
+            "" | "TEXT" | "NULL" => format!("'{}'", escape_sql_str(value)),
+            "DATE" | "TIME" | "DATETIME" => format!("'{}'", value),
+            _ if text_like(typ.as_str()) => format!("'{}'", escape_sql_str(value)),
+            "REAL" | "INTEGER" | "NUMERIC" | "BOOLEAN" => value.to_string(),
             _ if integer_like(typ.as_str()) || numeric_like(typ.as_str()) || real_like(&typ) => {
-                value.unwrap_or("null").to_string()
+                value.to_string()
             }
-            "BLOB" => value.unwrap_or("null").to_string(),
+            "BLOB" => value.to_string(),
             _ => {
                 let e = format!("type '{}' not handled", typ);
                 log::error!("{}", e);

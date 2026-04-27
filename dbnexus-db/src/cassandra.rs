@@ -32,9 +32,9 @@ use crate::db::{
     escape_sql_str, export_query_as_xlsx_send_data, AutoCompletionQueryId, BackendKind, CheckConn,
     ColumnType, CreateIndexReq, CreateSchemaExtra, CreateTableAndIndexSql, CreatedTypeDef, DBTrait,
     DefAndMetas, ExportFrame, ExportKind, ExportQueryResult, Field, GetBackendKind,
-    GetTestExportTableKinds, Index, IndexKind, ListTable, MetaValue, NamedStaff,
-    OptionMustBeSomeErr, QueryEventEmitter, QueryResp, QuerySql, ReadOnlyTrait, SchemaTrait,
-    ServerMetas, ShowTableParameter, SqlBuilder, XlsxEdit,
+    GetTestExportTableKinds, Index, IndexKind, ListTable, MetaValue, NamedStaff, QueryEventEmitter,
+    QueryResp, QuerySql, ReadOnlyTrait, SchemaTrait, ServerMetas, ShowTableParameter, SqlBuilder,
+    XlsxEdit,
 };
 
 use crate::helper::{create_csv, generate_random_string};
@@ -648,11 +648,14 @@ pub const CQL_CURRENT_LITERALS: &[&str] = &[
 ];
 
 impl SqlBuilder for CassandraDB {
-    fn put_value_in_sql(&self, typ: &str, value: Option<&str>) -> anyhow::Result<String> {
-        if self.hit_current_value(value) {
-            return anyhow::Result::Ok(value.option_must_be_some()?.to_string());
+    fn put_value_in_sql(&self, typ: &str, value: &str) -> anyhow::Result<String> {
+        let typ = typ.to_lowercase();
+        log::trace!("encode value '{:?}' on type '{}'", value, typ);
+        match typ.as_str() {
+            "ascii" | "varchar" | "text" => anyhow::Ok(format!("'{}'", escape_sql_str(value))),
+            "timestamp" | "date" | "time" | "inet" => anyhow::Ok(format!("'{}'", value)),
+            _ => anyhow::Ok(value.to_string()),
         }
-        put_value_in_sql(typ, value)
     }
 
     fn get_current_values(&self) -> &'static [&'static str] {
@@ -1103,24 +1106,6 @@ impl SchemaTrait for CassandraDB {
 
     async fn list_data_types(&self) -> anyhow::Result<Vec<String>> {
         LexerCompletionTrait::get_types(self).await
-    }
-}
-
-fn put_value_in_sql(typ: &str, value: Option<&str>) -> anyhow::Result<String> {
-    let typ = typ.to_lowercase();
-    log::trace!("encode value '{:?}' on type '{}'", value, typ);
-    match typ.as_str() {
-        "ascii" | "varchar" | "text" => anyhow::Ok(
-            value
-                .map(|x| format!("'{}'", escape_sql_str(x)))
-                .unwrap_or("null".to_string()),
-        ),
-        "timestamp" | "date" | "time" | "inet" => anyhow::Ok(
-            value
-                .map(|x| format!("'{}'", x))
-                .unwrap_or("null".to_string()),
-        ),
-        _ => anyhow::Ok(value.map(|x| x.to_string()).unwrap_or("null".to_string())),
     }
 }
 

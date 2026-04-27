@@ -401,10 +401,7 @@ impl SchemaTrait for PostGresDB {
             col.typ,
             col.nullable.unwrap_or_default(),
             if let Some(d) = col.default_value.as_ref() {
-                format!(
-                    "DEFAULT {}",
-                    self.put_value_in_sql(&col.typ, Some(d.as_str()))?
-                )
+                format!("DEFAULT {}", self.put_value_in_sql(&col.typ, d.as_str())?)
             } else {
                 "".to_owned()
             }
@@ -466,7 +463,7 @@ impl SchemaTrait for PostGresDB {
             if let Some(dv) = typ.default_value.as_ref() {
                 let sql = format!(
                     r#"ALTER TABLE "{table}" ALTER COLUMN "{new_name}" SET DEFAULT {}"#,
-                    self.put_value_in_sql(&typ.typ, Some(dv))?
+                    self.put_value_in_sql(&typ.typ, dv)?
                 );
                 self.simple_execute_sql(&sql).await?;
                 sc.collect(sql);
@@ -1864,10 +1861,7 @@ impl SqlBuilder for PostGresDB {
         PG_CURRENT_LITERALS
     }
 
-    fn put_value_in_sql(&self, typ: &str, value: Option<&str>) -> anyhow::Result<String> {
-        if self.hit_current_value(value) {
-            return anyhow::Result::Ok(value.option_must_be_some()?.to_string());
-        }
+    fn put_value_in_sql(&self, typ: &str, value: &str) -> anyhow::Result<String> {
         put_value_in_sql(typ, value)
     }
 
