@@ -13,18 +13,16 @@ import {
 } from "./helper.ts";
 import "../app.css";
 import {
-  Box,
+  AlertTitle,
   Button,
   Dialog,
   DialogTitle,
   IconButton,
   Menu,
-  Modal,
   Stack,
   useTheme,
 } from "@mui/material";
-import { EscDownEvent, modalHandleClose, modalStyle } from "./Common.ts";
-import { ModalHeader } from "./CommonComp.tsx";
+import { EscDownEvent, modalHandleClose } from "./Common.ts";
 import { appLogDir, join } from "@tauri-apps/api/path";
 import { readTextFile, remove } from "@tauri-apps/plugin-fs";
 import { openUrl } from "@tauri-apps/plugin-opener";
@@ -68,6 +66,8 @@ function ShowPanic() {
     <div>
       {panicInfo && (
         <Dialog
+          fullWidth
+          maxWidth="md"
           open={!!panicInfo}
           onClose={modalHandleClose((e: EscDownEvent) => {
             e.preventDefault();
@@ -139,22 +139,17 @@ function ShowShortCut() {
   return (
     <>
       {show && (
-        <Modal
+        <Dialog
+          fullWidth
+          maxWidth="md"
           open={show}
           onClose={modalHandleClose((e: EscDownEvent) => {
             e.preventDefault();
             setShow(false);
           })}>
-          <Box sx={{ ...modalStyle, width: "75%", height: "65vh" }}>
-            <ModalHeader
-              title="keyboard short cuts"
-              handleClose={() => {
-                setShow(false);
-              }}
-            />
-            <ShowCuts />
-          </Box>
-        </Modal>
+          <AlertTitle> shorts cuts </AlertTitle>
+          <ShowCuts />
+        </Dialog>
       )}
     </>
   );
@@ -227,14 +222,7 @@ function App() {
   }, [currentTab, setCurrentTab, tabs]);
 
   return (
-    <SnackbarProvider
-      maxSnack={6}
-      anchorOrigin={{
-        vertical: "top",
-        horizontal: "right",
-      }}
-      style={{ maxWidth: "55vw" }}
-      dense>
+    <AppSnackbarProvider>
       <SettingProvider>
         <AppMenu />
         {diagUi.ui && (
@@ -286,6 +274,21 @@ function App() {
           </PanelGroup>
         </div>
       </SettingProvider>
+    </AppSnackbarProvider>
+  );
+}
+
+function AppSnackbarProvider({ children }) {
+  return (
+    <SnackbarProvider
+      maxSnack={9}
+      anchorOrigin={{
+        vertical: "top",
+        horizontal: "right",
+      }}
+      style={{ maxWidth: "55vw" }}
+      dense>
+      {children}
     </SnackbarProvider>
   );
 }
@@ -315,14 +318,7 @@ function SeprateWindow({ children }) {
 
   return (
     <TabContext value={{ id: tabId }}>
-      <SnackbarProvider
-        maxSnack={6}
-        anchorOrigin={{
-          vertical: "top",
-          horizontal: "right",
-        }}
-        style={{ maxWidth: "55vw" }}
-        dense>
+      <AppSnackbarProvider>
         <SettingProvider>
           <AppMenu />
           {diagUi.ui && (
@@ -340,7 +336,7 @@ function SeprateWindow({ children }) {
             {children}
           </div>
         </SettingProvider>
-      </SnackbarProvider>
+      </AppSnackbarProvider>
     </TabContext>
   );
 }

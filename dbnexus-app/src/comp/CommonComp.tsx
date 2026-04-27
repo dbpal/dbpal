@@ -20,7 +20,15 @@ import {
 } from "@mui/material";
 
 import RefreshIcon from "@mui/icons-material/Refresh";
-import { ReactNode, useCallback, useEffect, useMemo, useState } from "react";
+import {
+  Dispatch,
+  ReactNode,
+  SetStateAction,
+  useCallback,
+  useEffect,
+  useMemo,
+  useState,
+} from "react";
 import DeleteForeverIcon from "@mui/icons-material/DeleteForever";
 
 import { FaFolderOpen } from "react-icons/fa";
@@ -428,7 +436,7 @@ function MenuDeleteConfig(props: { name: string }) {
  */
 function MetaValueViewMenu(props: {
   content: string;
-  setSort: (model: GridSortModel) => void;
+  setSort: Dispatch<SetStateAction<GridSortModel>>;
   field: string;
 }) {
   const { content, setSort, field } = props;
@@ -447,7 +455,7 @@ function MetaValueViewMenu(props: {
       <Divider />
       <MenuItem
         onClick={() => {
-          setSort([{ field, sort: "asc" }] as GridSortModel);
+          setSort([{ field, sort: "asc" }]);
         }}>
         <ListItemIcon>
           <ArrowUpwardIcon />
@@ -456,7 +464,7 @@ function MetaValueViewMenu(props: {
       </MenuItem>
       <MenuItem
         onClick={() => {
-          setSort([{ field, sort: "desc" }] as GridSortModel);
+          setSort([{ field, sort: "desc" }]);
         }}>
         <ListItemIcon>
           <ArrowDownwardIcon />
@@ -538,9 +546,7 @@ function MetaValueView({ values = [] as MetaValue[], showToolbar }) {
  */
 function ResetColumnWidth() {
   const { showNotification } = useNotification();
-
   const reset = useColumnWidthStore((s) => s.resetWidths);
-
   const handleReset = async () => {
     reset();
     showNotification({ severity: "success", title: "reset column width successfully" });
@@ -558,7 +564,7 @@ function ResetColumnWidth() {
 /**
  * Icon indicator for boolean values.
  */
-function TrueOrFalse(props: { value: boolean }) {
+function CheckedView(props: { value: boolean }) {
   const { value } = props;
   return value ? <CheckIcon> </CheckIcon> : <CloseIcon />;
 }
@@ -661,7 +667,13 @@ function ViewRowInModal(props: {
         handleClose();
       })}>
       <Box
-        sx={{ resize: "both", ...modalStyle, width: "80%", height: "30vh" }}
+        sx={{
+          resize: "both",
+          ...modalStyle,
+          width: "80%",
+          height: "30vh",
+          backgroundColor: theme.palette.background.paper,
+        }}
         ref={setViewInModalBox}>
         <ModalHeader
           title="View Row"
@@ -984,7 +996,7 @@ export {
   SelectPageSize,
   MenuDeleteConfig,
   ResetColumnWidth,
-  TrueOrFalse,
+  CheckedView,
   ModalHeader,
   ViewRowInModal,
   UdfNameAndParameters,

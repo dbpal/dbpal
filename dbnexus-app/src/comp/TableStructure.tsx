@@ -37,7 +37,7 @@ import DeleteForeverIcon from "@mui/icons-material/DeleteForever";
 import AddIcon from "@mui/icons-material/Add";
 import { BSON } from "bson";
 import { MongoValueEditor } from "./MongoDB";
-import { ModalHeader, TrueOrFalse } from "./CommonComp";
+import { ModalHeader, CheckedView } from "./CommonComp";
 import { DefAndMetasView, TriggerDetailView } from "./DefAndMetaView";
 import { formatCreateTableAndIndexSql } from "./handlers";
 import {
@@ -209,7 +209,7 @@ function ColumnsStructure(props: {
       {
         field: "nullable",
         renderCell: (row) => {
-          return <TrueOrFalse value={row.row["nullable"]} />;
+          return <CheckedView value={row.row["nullable"]} />;
         },
       },
       {
@@ -218,7 +218,7 @@ function ColumnsStructure(props: {
           return "primary key";
         },
         renderCell: (row) => {
-          return <TrueOrFalse value={row.row["is_primary"]} />;
+          return <CheckedView value={row.row["is_primary"]} />;
         },
       },
       {
@@ -227,7 +227,7 @@ function ColumnsStructure(props: {
           return "auto increment";
         },
         renderCell: (row) => {
-          return <TrueOrFalse value={row.row["is_auto_increment"]} />;
+          return <CheckedView value={row.row["is_auto_increment"]} />;
         },
       },
       {
@@ -239,7 +239,7 @@ function ColumnsStructure(props: {
       {
         field: "sortable",
         renderCell: (row) => {
-          return <TrueOrFalse value={row.row["sortable"]} />;
+          return <CheckedView value={row.row["sortable"]} />;
         },
       },
     ] as GridColDef[];
@@ -1289,7 +1289,7 @@ function TriggersStructure(props: {
             case "postgres":
               return enable.enable;
             case "bool":
-              return <TrueOrFalse value={enable.enable} />;
+              return <CheckedView value={enable.enable} />;
           }
         },
       },

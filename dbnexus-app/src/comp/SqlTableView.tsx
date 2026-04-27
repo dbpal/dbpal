@@ -420,7 +420,12 @@ function SqlTableCustomToolBarLeft({
           <IconButton
             color="warning"
             onClick={async () => {
-              if (!(await secondConfirm({ title: `discard ${ops.length} changes?` }))) {
+              if (
+                !(await secondConfirm({
+                  title: `discard ${ops.length} changes?`,
+                  confirmText: "discard",
+                }))
+              ) {
                 return;
               }
               setOps([]);

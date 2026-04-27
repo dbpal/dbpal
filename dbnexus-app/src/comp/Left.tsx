@@ -75,7 +75,7 @@ import {
   MenuOpenConn,
   MenuRefresh,
   ModalHeader,
-  TrueOrFalse,
+  CheckedView,
 } from "./CommonComp.tsx";
 import KeyboardArrowDownIcon from "@mui/icons-material/KeyboardArrowDown";
 import KeyboardArrowRightIcon from "@mui/icons-material/KeyboardArrowRight";
@@ -466,7 +466,7 @@ function CopyConnection() {
       {
         field: "read_only",
         renderCell: (row) => {
-          return <TrueOrFalse value={row.row["read_only"]} />;
+          return <CheckedView value={row.row["read_only"]} />;
         },
         renderHeader: () => {
           return "read only";
