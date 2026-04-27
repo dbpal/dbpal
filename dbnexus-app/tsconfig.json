@@ -2,7 +2,11 @@
   "compilerOptions": {
     "target": "esnext",
     "useDefineForClassFields": true,
-    "lib": ["esnext", "DOM", "DOM.Iterable"],
+    "lib": [
+      "esnext",
+      "DOM",
+      "DOM.Iterable"
+    ],
     "module": "esnext",
     "skipLibCheck": true,
     /* Bundler mode */
@@ -19,8 +23,12 @@
     "noFallthroughCasesInSwitch": true,
     "noEmitOnError": false
   },
-  "include": ["src"],
-  "exclude": [],
+  "include": [
+    "src"
+  ],
+  "exclude": [
+    "./src/comp/MongoVar.ts"
+  ],
   "references": [
     {
       "path": "./tsconfig.node.json"

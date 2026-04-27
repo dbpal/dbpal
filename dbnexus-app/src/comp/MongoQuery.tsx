@@ -18,7 +18,7 @@ import {
 import PlayArrowIcon from "@mui/icons-material/PlayArrow";
 import { editor, Position } from "monaco-editor";
 import { useCallback, useContext, useEffect, useRef, useState } from "react";
-import { initMongoQueryGlobals, MongoDBQuery } from "./MongoQueryBackend";
+import { globalVar, initMongoQueryGlobals, MongoDBQuery } from "./MongoQueryBackend";
 import EventNoteIcon from "@mui/icons-material/EventNote";
 import {
   DataSourceKind,
@@ -159,14 +159,7 @@ class TSCompiler {
     }
     const extraTypeFile = await join(typesPath, "extra.ts");
     if (!(await exists(extraTypeFile))) {
-      await writeTextFile(
-        extraTypeFile,
-        `
-      let db : any;
-      let cleanFns : (()=> void)[];
-      let bson : any;
-      `,
-      );
+      await writeTextFile(extraTypeFile, globalVar);
     }
     const start = new Date();
     const cmd = Command.create(TSCompiler.getCompilerCmd(), [], {
@@ -544,6 +537,8 @@ function MongoQuery(props: {
   const [cleanFns, setCleanFns] = useState<CleanFunction[]>([]);
   const { showNotification } = useNotification();
   const [BSON, setBSON] = useState(null);
+  const [FS, setFs] = useState(null);
+
   const [language, setLanguage] = useState<MongoLanguage>(
     valueLanguage ? (valueLanguage as MongoLanguage) : lastLanguage,
   );
@@ -584,6 +579,9 @@ function MongoQuery(props: {
   useEffect(() => {
     import("bson").then((e) => {
       setBSON(e);
+    });
+    import("@tauri-apps/plugin-fs").then((e) => {
+      setFs(e);
     });
   }, []);
 
@@ -727,7 +725,6 @@ function MongoQuery(props: {
           markdownModel={markdownModel}
         />
       </Stack>
-
       <AiMarkdownModel
         markdownModel={markdownModel}
         editor={editor}
@@ -765,8 +762,7 @@ function MongoQuery(props: {
       {/* // we must use db etc ...  */}
       {db && <span />}
       {cleanFns && <span />}
-
-      {BSON && <span />}
+      {BSON && <span />} {FS && <span />}
       {setUpClean && <span />}
     </Stack>
   );

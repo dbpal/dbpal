@@ -1175,11 +1175,7 @@ fn make_mongo_prompt() -> String {
         {}\n\
         ```",
         include_str!("../../src/comp/MongoQueryBackend.ts"),
-        r#"
-const db : IMongoDB; // db is a database handle can access the database
-const setUpClean : (name :string, f : ()=>void)=> void; // setup a clean function by name and callback
-const BSON : any; // bson will initialize by 'await import("bson")'
-        "#
+        include_str!("../../src/comp/MongoVar.ts"),
     )
 }
 

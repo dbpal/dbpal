@@ -7,10 +7,11 @@ export default [
   ...tseslint.configs.recommended,
   reactPlugin.configs.flat.recommended, // 自带 jsx-key: 'error'
   {
-    ignores: ["src/comp/ApiStruct.ts"],
+    ignores: ["src/comp/MongoVar.ts"],
   },
   {
     files: ["**/*.{ts,tsx}"],
+
     plugins: {
       react: reactPlugin,
       "react-hooks": reactHooks,

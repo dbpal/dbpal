@@ -20,8 +20,8 @@ async function testCol() {
         a: 100,
         y: 10000,
         c: "ssss",
-        intValue: new bson.BSON.Int32(123),
-        longValue: new bson.BSON.Long(456),
+        intValue: new BSON.BSON.Int32(123),
+        longValue: new BSON.BSON.Long(456),
     });
     console.info("insert ret is:", insertRet);
     const count = await collection.cuntDocuments();
@@ -122,3 +122,14 @@ testLimitOffsetPara();
 
 
 
+async function testFs() {
+
+    try {
+        await FS.writeTextFile("/home/yuyang/Desktop/xxx.json", "123", { create: true });
+        console.log("write file successfully");
+    } catch (e) {
+        console.error(e);
+    }
+}
+
+testFs();

@@ -1190,7 +1190,6 @@ impl SqlBuilder for ClickHouseDB {
                     Some(f) => f,
                     None => continue,
                 };
-
                 match v {
                     Some(value) => sql.push_str(
                         format!(

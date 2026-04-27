@@ -265,7 +265,7 @@ const TabActiveContext = createContext(true);
 const handleCopyToClipboard = (
   text,
   showNotification?: (_: NotificationParams) => void,
-  okCallBack?,
+  okCallBack?: () => void,
 ) => {
   writeText(text)
     .then(() => {

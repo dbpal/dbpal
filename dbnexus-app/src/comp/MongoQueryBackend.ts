@@ -9,6 +9,8 @@ import {
 } from "./MongoInterface";
 import interfaceRawText from "./MongoInterface.ts?raw";
 
+import globalVar from "./MongoVar.ts?raw";
+
 import * as monaco from "monaco-editor";
 import { commands } from "./bindings";
 
@@ -277,11 +279,6 @@ function trimInterfaceText(text: string) {
   if (lines.length <= 2) return ""; // 如果只有一两行，返回空
   return lines.slice(1, -2).join("\n"); // 去掉首尾行
 }
-const globalVar = `
-    const db : IMongoDB; // db is a database handle can access the database
-    const setUpClean : (name :string, f : ()=>void)=> void; // setup a clean function by name and callback
-    const bson : any; // bson will initialize by 'await import("bson")'
-`;
 
 const interfaceText = trimInterfaceText(interfaceRawText) + globalVar;
 
@@ -291,4 +288,4 @@ function initMongoQueryGlobals() {
   monaco.typescript.typescriptDefaults.addExtraLib(extraLib);
 }
 
-export { initMongoQueryGlobals, MongoDBQuery };
+export { initMongoQueryGlobals, MongoDBQuery, globalVar };
