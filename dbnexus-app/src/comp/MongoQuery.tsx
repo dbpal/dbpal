@@ -17,7 +17,7 @@ import {
 
 import PlayArrowIcon from "@mui/icons-material/PlayArrow";
 import { editor, Position } from "monaco-editor";
-import { useCallback, useContext, useEffect, useRef, useState } from "react";
+import { useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
 import { globalVar, initMongoQueryGlobals, MongoDBQuery } from "./MongoQueryBackend";
 import EventNoteIcon from "@mui/icons-material/EventNote";
 import {
@@ -427,21 +427,14 @@ function TsCompilerMsg(props: {
   out: ChildProcess<string>;
 }) {
   const { editor, out } = props;
-  const [lines, setLines] = useState<
-    {
-      msg: string;
-      pos: Position;
-    }[]
-  >([]);
 
-  useEffect(() => {
+  const lines = useMemo(() => {
     const lines = (out.stdout + out.stderr).split("\n");
-    setLines(
-      lines.map((x) => {
-        const pos = extractLineAndColumn(x);
-        return { msg: x, pos };
-      }),
-    );
+
+    return lines.map((x) => {
+      const pos = extractLineAndColumn(x);
+      return { msg: x, pos };
+    });
   }, [out]);
   return (
     <Stack>
