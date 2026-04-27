@@ -872,7 +872,7 @@ impl SchemaTrait for DuckDB {
             sc.collect(sql);
             if let Some(null) = typ.nullable.as_ref() {
                 match null {
-                    crate::db::SqlNullAble::None => {}
+                    crate::db::SqlNullAble::Unspecified => {}
                     crate::db::SqlNullAble::Null => {
                         let sql =
                             format!(r#"ALTER TABLE {table} ALTER COLUMN {new_name} DROP NOT NULL"#);
@@ -892,7 +892,11 @@ impl SchemaTrait for DuckDB {
             if let Some(value) = typ.default_value.as_ref() {
                 let sql = format!(
                     r#"ALTER TABLE "{table}" ALTER COLUMN "{new_name}" SET DEFAULT {}"#,
-                    self.put_value_in_sql(&typ.typ, value.as_str())?
+                    if self.hit_current_value(value) {
+                        value.clone()
+                    } else {
+                        self.put_value_in_sql(&typ.typ, value.as_str())?
+                    }
                 );
                 self.simple_execute_sql(&sql).await?;
                 sc.collect(sql);
@@ -911,8 +915,15 @@ impl SchemaTrait for DuckDB {
             r#"ALTER TABLE "{table}" ADD COLUMN "{name}" {} {} {}"#,
             col.typ,
             col.nullable.unwrap_or_default(),
-            if let Some(d) = col.default_value.as_ref() {
-                format!("DEFAULT {}", self.put_value_in_sql(&col.typ, d.as_str())?)
+            if let Some(dv) = col.default_value.as_ref() {
+                format!(
+                    "DEFAULT {}",
+                    if self.hit_current_value(dv) {
+                        dv.clone()
+                    } else {
+                        self.put_value_in_sql(&col.typ, dv.as_str())?
+                    }
+                )
             } else {
                 "".to_owned()
             }
@@ -1515,7 +1526,7 @@ mod tests {
                     auto_increment: false,
                     primary_key: true,
                     default_value: None,
-                    nullable: SqlNullAble::None,
+                    nullable: SqlNullAble::Unspecified,
                 },
                 CreateTableReqColumn {
                     name: "name".into(),
@@ -1523,7 +1534,7 @@ mod tests {
                     auto_increment: false,
                     primary_key: true,
                     default_value: None,
-                    nullable: SqlNullAble::None,
+                    nullable: SqlNullAble::Unspecified,
                 },
             ],
             indexes: vec![],

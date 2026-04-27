@@ -339,8 +339,15 @@ impl SchemaTrait for SqliteDB {
             r#"ALTER TABLE "{table}" ADD COLUMN "{name}" {} {} {}"#,
             col.typ,
             col.nullable.unwrap_or_default(),
-            if let Some(d) = col.default_value.as_ref() {
-                format!("DEFAULT {}", self.put_value_in_sql(&col.typ, d.as_str())?)
+            if let Some(dv) = col.default_value.as_ref() {
+                format!(
+                    "DEFAULT {}",
+                    if self.hit_current_value(dv) {
+                        dv.clone()
+                    } else {
+                        self.put_value_in_sql(&col.typ, dv.as_str())?
+                    }
+                )
             } else {
                 "".to_owned()
             }
@@ -1410,7 +1417,7 @@ mod tests {
                     auto_increment: false,
                     primary_key: true,
                     default_value: None,
-                    nullable: SqlNullAble::None,
+                    nullable: SqlNullAble::Unspecified,
                 },
                 CreateTableReqColumn {
                     name: "name".into(),
@@ -1418,7 +1425,7 @@ mod tests {
                     auto_increment: false,
                     primary_key: true,
                     default_value: None,
-                    nullable: SqlNullAble::None,
+                    nullable: SqlNullAble::Unspecified,
                 },
             ],
             indexes: vec![],

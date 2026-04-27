@@ -854,7 +854,7 @@ function TableAddColumn(props: {
 }) {
   const { table, uuid, handleClose, reload, kind, fields } = props;
   const [name, setName] = useState("");
-  const [nullable, setNullness] = useState<SqlNullAble>("none");
+  const [nullable, setNullness] = useState<SqlNullAble>("unspecified");
   const [typ, setTyp] = useState("");
   const { showNotification } = useNotification();
   const [after, setAfter] = useState("");

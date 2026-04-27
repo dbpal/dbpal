@@ -1098,7 +1098,7 @@ mod tests {
                     auto_increment: false,
                     primary_key: true,
                     default_value: None,
-                    nullable: SqlNullAble::None,
+                    nullable: SqlNullAble::Unspecified,
                 },
                 CreateTableReqColumn {
                     name: "name".into(),
@@ -1106,7 +1106,7 @@ mod tests {
                     auto_increment: false,
                     primary_key: true,
                     default_value: None,
-                    nullable: SqlNullAble::None,
+                    nullable: SqlNullAble::Unspecified,
                 },
             ],
             indexes: vec![],

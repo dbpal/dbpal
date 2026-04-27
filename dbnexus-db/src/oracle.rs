@@ -1081,7 +1081,11 @@ impl SchemaTrait for OracleDB {
             if let Some(dv) = typ.default_value.as_ref() {
                 let sql = format!(
                     r#"ALTER TABLE "{table}" MODIFY "{new_name}" DEFAULT {}"#,
-                    self.put_value_in_sql(&typ.typ, dv.as_str())?
+                    if self.hit_current_value(dv) {
+                        dv.clone()
+                    } else {
+                        self.put_value_in_sql(&typ.typ, dv.as_str())?
+                    }
                 );
                 log::info!("sql:{}", sql);
                 self.simple_execute_sql(&sql).await?;
@@ -1102,7 +1106,14 @@ impl SchemaTrait for OracleDB {
             typ.typ,
             typ.nullable.unwrap_or_default(),
             if let Some(dv) = typ.default_value.as_ref() {
-                format!("DEFAULT {}", self.put_value_in_sql(&typ.typ, dv.as_str())?)
+                format!(
+                    "DEFAULT {}",
+                    if self.hit_current_value(dv) {
+                        dv.clone()
+                    } else {
+                        self.put_value_in_sql(&typ.typ, dv.as_str())?
+                    }
+                )
             } else {
                 "".to_owned()
             }
@@ -1702,7 +1713,7 @@ mod tests {
                     auto_increment: false,
                     primary_key: true,
                     default_value: None,
-                    nullable: SqlNullAble::None,
+                    nullable: SqlNullAble::Unspecified,
                 },
                 CreateTableReqColumn {
                     name: "NAME".into(),
@@ -1710,7 +1721,7 @@ mod tests {
                     auto_increment: false,
                     primary_key: true,
                     default_value: None,
-                    nullable: SqlNullAble::None,
+                    nullable: SqlNullAble::Unspecified,
                 },
             ],
             indexes: vec![],

@@ -902,7 +902,7 @@ pub trait SqlBuilder: GetBackendKind {
             let data_type = &col.data_type;
             let nullable = match self.backend_kind() {
                 BackendKind::Cassandra => match col.nullable {
-                    SqlNullAble::None => "".to_owned(),
+                    SqlNullAble::Unspecified => "".to_owned(),
                     SqlNullAble::Null | SqlNullAble::NotNull => {
                         anyhow::bail!("cassandra not support null constraint")
                     }
@@ -930,9 +930,23 @@ pub trait SqlBuilder: GetBackendKind {
                     }
                     BackendKind::Firebird => {
                         // silently differrent from other database
-                        format!("DEFAULT {}", self.put_value_in_sql(data_type, value)?)
+                        format!(
+                            "DEFAULT {}",
+                            if self.hit_current_value(value) {
+                                value.clone()
+                            } else {
+                                self.put_value_in_sql(&col.data_type, value.as_str())?
+                            }
+                        )
                     }
-                    _ => format!("DEFAULT({})", self.put_value_in_sql(data_type, value)?),
+                    _ => format!(
+                        "DEFAULT({})",
+                        if self.hit_current_value(value) {
+                            value.clone()
+                        } else {
+                            self.put_value_in_sql(&col.data_type, value.as_str())?
+                        }
+                    ),
                 },
                 None => "".to_owned(),
             };
@@ -1357,7 +1371,7 @@ pub struct CreateTableReqColumn {
 #[serde(rename_all = "lowercase")]
 pub enum SqlNullAble {
     #[default]
-    None,
+    Unspecified,
     Null,
     NotNull,
 }
@@ -1368,7 +1382,7 @@ impl std::fmt::Display for SqlNullAble {
             f,
             "{}",
             match self {
-                SqlNullAble::None => "",
+                SqlNullAble::Unspecified => "",
                 SqlNullAble::Null => "NULL",
                 SqlNullAble::NotNull => "NOT NULL",
             }

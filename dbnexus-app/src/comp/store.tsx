@@ -814,7 +814,7 @@ const initialSettings: UserSettings = {
 
 const userSettingKey = "dbpal-combined-settings";
 
-export function reloadStore() {
+function reloadStore() {
   async function reload() {
     try {
       await useUserSettings.persist.rehydrate();
@@ -840,6 +840,7 @@ export function reloadStore() {
     reload();
   });
 }
+reloadStore();
 
 export const useUserSettings = create<UserSettingsState>()(
   persist(

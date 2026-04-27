@@ -3,9 +3,9 @@ use crate::db::{
     create_html_table_data, create_html_table_header, create_markdown_data, create_markdown_header,
     escape_sql_str, BackendKind, CheckConn, ColumnType, CreateSchemaExtra, CreateTableAndIndexSql,
     DBTrait, DefAndMetas, ExportFrame, ExportKind, ExportQueryResult, Field, GetBackendKind,
-    GetTestExportTableKinds, ListTable, MetaValue, NamedStaff, OptionMustBeSomeErr, QueryEvent,
-    QueryEventEmitter, QueryResp, QuerySql, SchemaTrait, ServerMetas, ShowTableParameter,
-    SqlBuilder, SqlCollect, XlsxEdit,
+    GetTestExportTableKinds, ListTable, MetaValue, NamedStaff, QueryEvent, QueryEventEmitter,
+    QueryResp, QuerySql, SchemaTrait, ServerMetas, ShowTableParameter, SqlBuilder, SqlCollect,
+    XlsxEdit,
 };
 
 use crate::helper::{ty_is_decimal, ty_is_float, ty_is_int};
@@ -445,7 +445,11 @@ impl SchemaTrait for ClickHouseDB {
             if let Some(dv) = typ.default_value.as_ref() {
                 let sql = format!(
                     r#"ALTER TABLE {table} MODIFY COLUMN {new_name} DEFAULT {}"#,
-                    self.put_value_in_sql(&typ.typ, dv.as_str())?
+                    if self.hit_current_value(dv) {
+                        dv.clone()
+                    } else {
+                        self.put_value_in_sql(&typ.typ, dv.as_str())?
+                    }
                 );
                 log::info!("sql:{}", sql);
                 self.simple_execute_sql(&sql).await?;
@@ -464,7 +468,15 @@ impl SchemaTrait for ClickHouseDB {
         let mut sql = format!(r#"ALTER TABLE `{table}` ADD COLUMN `{name}` {} "#, col.typ);
         if let Some(dv) = col.default_value.as_ref() {
             sql.push_str(
-                format!("DEFAULT {} ", self.put_value_in_sql(&col.typ, dv.as_str())?).as_str(),
+                format!(
+                    "DEFAULT {} ",
+                    if self.hit_current_value(dv) {
+                        dv.clone()
+                    } else {
+                        self.put_value_in_sql(&col.typ, dv.as_str())?
+                    }
+                )
+                .as_str(),
             );
         }
         self.simple_execute_sql(&sql).await?;
@@ -1174,16 +1186,17 @@ impl SqlBuilder for ClickHouseDB {
             let last = values.len() - 1;
             for (index, (k, v)) in values.iter().enumerate() {
                 let f = field_by_name.get(k);
-                if f.is_none() {
-                    anyhow::bail!("field '{}' not found", k);
-                }
+                let f = match f {
+                    Some(f) => f,
+                    None => continue,
+                };
 
                 match v {
                     Some(value) => sql.push_str(
                         format!(
                             "{} = {}",
                             self.quote(k),
-                            self.put_value_in_sql(&f.option_must_be_some()?.data_type, value)?
+                            self.put_value_in_sql(&f.data_type, value)?
                         )
                         .as_str(),
                     ),
@@ -1333,7 +1346,7 @@ mod tests {
                     auto_increment: false,
                     primary_key: true,
                     default_value: None,
-                    nullable: SqlNullAble::None,
+                    nullable: SqlNullAble::Unspecified,
                 },
                 CreateTableReqColumn {
                     name: "name".into(),
@@ -1341,7 +1354,7 @@ mod tests {
                     auto_increment: false,
                     primary_key: true,
                     default_value: None,
-                    nullable: SqlNullAble::None,
+                    nullable: SqlNullAble::Unspecified,
                 },
             ],
             indexes: vec![],

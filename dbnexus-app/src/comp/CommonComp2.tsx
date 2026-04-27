@@ -1487,12 +1487,12 @@ function ColumnNullness(props: {
   handleNullable: (_: SqlNullAble) => void;
 }) {
   const { nullable, handleNullable: handleNullness } = props;
-  const opts: SqlNullAble[] = ["null", "notnull", "none"];
+  const opts: SqlNullAble[] = ["null", "notnull", "unspecified"];
   return (
     <Autocomplete
       value={nullable}
       options={opts}
-      style={{ width: "7rem" }}
+      style={{ width: "16rem" }}
       renderInput={(params) => <TextField {...params} label="specify null" />}
       onChange={(_, value) => {
         handleNullness(value);
@@ -1811,7 +1811,7 @@ function CopySql(props: { sql: string; style?: CSSProperties }) {
     return <> </>;
   }
   return (
-    <Stack style={{ ...style }} direction="row">
+    <Stack style={{ ...style, alignItems: "center" }} direction="row">
       <IconButton
         onClick={() => {
           handleCopyToClipboard(sql, showNotification);

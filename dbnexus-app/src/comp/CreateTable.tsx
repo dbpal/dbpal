@@ -41,7 +41,7 @@ function CreateTable(props: { uuid: string; kind: DataSourceKind }) {
       auto_increment: false,
       primary_key: false,
       default_value: null,
-      nullable: "none",
+      nullable: "unspecified",
     },
     {
       name: "create_at",
@@ -49,7 +49,7 @@ function CreateTable(props: { uuid: string; kind: DataSourceKind }) {
       auto_increment: false,
       primary_key: false,
       default_value: null,
-      nullable: "none",
+      nullable: "unspecified",
     },
   ]);
   const [indexes, setIndexes] = useState<CreateIndexReq[]>([]);
@@ -218,7 +218,7 @@ function CreateTable(props: { uuid: string; kind: DataSourceKind }) {
                 auto_increment: false,
                 primary_key: false,
                 default_value: null,
-                nullable: "none",
+                nullable: "unspecified",
               },
             ]);
           }}>

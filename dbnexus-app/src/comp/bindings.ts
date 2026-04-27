@@ -609,7 +609,7 @@ export type SqlEvent = {
 	metas: MetaValue[],
 };
 
-export type SqlNullAble = "none" | "null" | "notnull";
+export type SqlNullAble = "unspecified" | "null" | "notnull";
 
 export type SqlServerDBConfig = {
 	host: string,
