@@ -354,7 +354,7 @@ function TypeScript(props: {
               if (result.out.code != 0) {
                 showNotification({
                   severity: "error",
-                  title: "typescript compile error,can safe change to javascript",
+                  title: "typescript compile error,can't safe change to javascript",
                   message: <TsCompilerMsg out={result.out} editor={editor} />,
                 });
                 return;
