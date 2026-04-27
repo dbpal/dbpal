@@ -1623,7 +1623,9 @@ impl QuerySql for SqlServerDB {
     async fn simple_execute_sql(&self, sql: &str) -> anyhow::Result<Option<usize>> {
         self.can_write()?;
         let mut conn = self.get_conn().await?;
-        conn.simple_query(sql.trim()).await?;
+        conn.simple_query(sql.trim())
+            .await
+            .map_err(|err| anyhow::Error::msg(format!("Sql:{} Err:{}", sql, err)))?;
         anyhow::Ok(None)
     }
 

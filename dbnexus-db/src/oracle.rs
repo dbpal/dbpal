@@ -273,7 +273,9 @@ impl QuerySql for OracleDB {
         let this = Clone::clone(self);
         spawn_blocking(move || {
             let conn = this.get_conn()?;
-            let r = conn.execute(&sql, &[])?;
+            let r = conn
+                .execute(&sql, &[])
+                .map_err(|err| anyhow::Error::msg(format!("Sql:{} Err:{}", sql, err)))?;
             anyhow::Ok(r.row_count().ok().map(|x| x as usize))
         })
         .await?

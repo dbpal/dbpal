@@ -1636,7 +1636,10 @@ impl QuerySql for PostGresDB {
     }
     async fn simple_execute_sql(&self, sql: &str) -> anyhow::Result<Option<usize>> {
         let mut conn = self.get_conn().await?;
-        let ret = conn.execute(sqlx::raw_sql(AssertSqlSafe(sql))).await?;
+        let ret = conn
+            .execute(sqlx::raw_sql(AssertSqlSafe(sql)))
+            .await
+            .map_err(|err| anyhow::Error::msg(format!("Sql:{} Err:{}", sql, err)))?;
         anyhow::Ok(Some(ret.rows_affected() as usize))
     }
 

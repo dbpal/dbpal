@@ -783,7 +783,11 @@ impl ClickHouseDB {
 impl QuerySql for ClickHouseDB {
     async fn simple_execute_sql(&self, sql: &str) -> anyhow::Result<Option<usize>> {
         self.not_allow_switch_db(sql)?;
-        self.client.query(sql).execute().await?;
+        self.client
+            .query(sql)
+            .execute()
+            .await
+            .map_err(|err| anyhow::Error::msg(format!("Sql:{} Err:{}", sql, err)))?;
         anyhow::Ok(None)
     }
     async fn execute_sql(

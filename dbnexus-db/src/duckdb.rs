@@ -507,7 +507,8 @@ impl QuerySql for DuckDB {
         let sql = sql.to_string();
         spawn_blocking(move || {
             let conn = this.get_conn()?;
-            conn.execute_batch(&sql)?;
+            conn.execute_batch(&sql)
+                .map_err(|err| anyhow::Error::msg(format!("Sql:{} Err:{}", sql, err)))?;
             anyhow::Ok(None)
         })
         .await?

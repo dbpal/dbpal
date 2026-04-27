@@ -500,7 +500,10 @@ impl ExportQueryResult for CassandraDB {
 #[async_trait::async_trait]
 impl QuerySql for CassandraDB {
     async fn simple_execute_sql(&self, sql: &str) -> anyhow::Result<Option<usize>> {
-        self.session.query_unpaged(sql, &[]).await?;
+        self.session
+            .query_unpaged(sql, &[])
+            .await
+            .map_err(|err| anyhow::Error::msg(format!("Sql:{} Err:{}", sql, err)))?;
         anyhow::Ok(None)
     }
 

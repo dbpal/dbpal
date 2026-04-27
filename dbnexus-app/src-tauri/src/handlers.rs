@@ -1161,7 +1161,6 @@ pub async fn simple_execute_sql(
         .as_query_sql()
         .simple_execute_sql(&sql)
         .await
-        .map_err(|err| anyhow::Error::msg(format!("sql:{} err:{}", sql, err)))
         .map_err(ErrorFrontend::from)?;
     Ok(result)
 }

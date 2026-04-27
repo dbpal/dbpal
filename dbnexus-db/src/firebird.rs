@@ -367,7 +367,9 @@ impl QuerySql for FireBirdDB {
         let this = Clone::clone(self);
         spawn_blocking(move || {
             let mut conn = this.get_conn()?;
-            let r = conn.execute(&sql, ())?;
+            let r = conn
+                .execute(&sql, ())
+                .map_err(|err| anyhow::Error::msg(format!("Sql:{} Err:{}", sql, err)))?;
             anyhow::Ok(Some(r))
         })
         .await?

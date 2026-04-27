@@ -617,6 +617,7 @@ function HighlightText({
   const matchStr = useViewInModalMatchStrStore((state) => state.matchStr);
 
   if (!matchStr) return normal(text);
+  if (!text) return normal(text);
 
   // 使用正则拆分字符串，'ig' 表示忽略大小写且全局匹配
   const parts = text.split(new RegExp(`(${matchStr})`, "gi"));
