@@ -323,7 +323,11 @@ function editorSetPositionAndReveal(
   editor.revealLines(pos.lineNumber, pos.lineNumber);
 }
 
-function getEditorText(editor: editor.IStandaloneCodeEditor, showNotification) {
+function getEditorText(
+  editor: editor.IStandaloneCodeEditor,
+  showNotification: (_: NotificationParams) => void,
+  trim: boolean,
+) {
   const range = editor.getSelection();
   let text: string;
   if (range) {
@@ -332,7 +336,9 @@ function getEditorText(editor: editor.IStandaloneCodeEditor, showNotification) {
   if (!text) {
     text = editor.getValue();
   }
-  text = text.trim();
+  if (trim) {
+    text = text.trim();
+  }
   if (!text) {
     showNotification({ severity: "warning", title: "empty statement" });
     return undefined;

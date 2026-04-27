@@ -740,7 +740,7 @@ function CouchBaseQuery(props: { uuid: string; value?: string }) {
             <ExecuteButton
               disabled={markdownModel}
               getText={() => {
-                return getEditorText(editor, showNotification);
+                return getEditorText(editor, showNotification, true);
               }}
               handleExecute={handleQuery}
               loading={loading}
@@ -774,7 +774,7 @@ function CouchBaseQuery(props: { uuid: string; value?: string }) {
                 loading={loading}
                 disabled={markdownModel}
                 onClick={() => {
-                  const value = getEditorText(editor, showNotification);
+                  const value = getEditorText(editor, showNotification, true);
                   if (!value) {
                     return;
                   }
@@ -783,7 +783,7 @@ function CouchBaseQuery(props: { uuid: string; value?: string }) {
                     <ExportView
                       supportKind={["json", "jsonline"]}
                       exportOP={(kind, file, taskId, sizeEmitter) => {
-                        const sql = getEditorText(editor, showNotification);
+                        const sql = getEditorText(editor, showNotification, true);
                         return commands.exportQueryResultToFile(
                           uuid,
                           taskId,

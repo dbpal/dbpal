@@ -565,7 +565,7 @@ function SqlQuery(props: {
                 <QueryButtons
                   disabled={markdownModel}
                   getText={() => {
-                    return getEditorText(editor, showNotification);
+                    return getEditorText(editor, showNotification, true);
                   }}
                   supportExplain={supportExplain}
                   handleQuery={handleQuery}
@@ -607,7 +607,7 @@ function SqlQuery(props: {
                   <IconButton
                     loading={loading}
                     onClick={() => {
-                      const value = getEditorText(editor, showNotification);
+                      const value = getEditorText(editor, showNotification, true);
                       if (!value) {
                         return;
                       }
@@ -622,7 +622,7 @@ function SqlQuery(props: {
                             "markdown",
                           ]}
                           exportOP={async (kind, file, taskId, sizeEmitter) => {
-                            const sql = getEditorText(editor, showNotification);
+                            const sql = getEditorText(editor, showNotification, true);
                             return conn.current.exportQueryResult(
                               queryId,
                               sql,

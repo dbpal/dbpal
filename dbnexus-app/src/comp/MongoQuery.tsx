@@ -630,7 +630,7 @@ function MongoQuery(props: {
         <ExecuteButton
           disabled={markdownModel}
           getText={() => {
-            let code = getEditorText(editor, showNotification);
+            let code = getEditorText(editor, showNotification, false);
             if (!code.trim()) {
               showNotification({
                 severity: "warning",
