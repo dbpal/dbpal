@@ -379,6 +379,14 @@ function ShowChatImages(props: { images: string[]; setImages }) {
           fullWidth
           maxWidth="md"
           open={show}
+          slotProps={{
+            paper: {
+              style: {
+                height: "55vh",
+                overflow: "auto",
+              },
+            },
+          }}
           onClose={modalHandleClose((e: EscDownEvent) => {
             e.preventDefault();
             setMsgShowIndex(null);

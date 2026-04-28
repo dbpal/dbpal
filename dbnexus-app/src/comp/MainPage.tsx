@@ -158,8 +158,6 @@ function ShowShortCut() {
 function App() {
   const { tabs, setCurrentTab, setTabs, currentTab } = useTabsManage();
   const cancelMsg = useConfirmMsg((state) => state.confirmMsgs);
-
-  const diagUi = useOneShotDialogUI();
   const closeTab = useCallback(
     (index: number) => {
       (async () => {
@@ -225,17 +223,7 @@ function App() {
     <AppSnackbarProvider>
       <SettingProvider>
         <AppMenu />
-        {diagUi.ui && (
-          <Dialog
-            slotProps={{ paper: { style: { width: "fit-content" } } }}
-            open={true}
-            onClose={() => {
-              diagUi.setUi(null);
-            }}>
-            {diagUi.title && <DialogTitle>{diagUi.title}</DialogTitle>}
-            {diagUi.ui}
-          </Dialog>
-        )}
+        <DialogExtraUI />
         <div>
           <ShowPanic />
           <ShowShortCut />
@@ -278,6 +266,26 @@ function App() {
   );
 }
 
+function DialogExtraUI() {
+  const diagUi = useOneShotDialogUI();
+
+  return (
+    <>
+      {diagUi.ui && (
+        <Dialog
+          slotProps={{ paper: { style: { width: "fit-content" } } }}
+          open={true}
+          onClose={() => {
+            diagUi.setUi(null);
+          }}>
+          {diagUi.title && <DialogTitle>{diagUi.title}</DialogTitle>}
+          {diagUi.ui}
+        </Dialog>
+      )}
+    </>
+  );
+}
+
 function AppSnackbarProvider({ children }) {
   return (
     <SnackbarProvider
@@ -294,7 +302,6 @@ function AppSnackbarProvider({ children }) {
 }
 
 function SeprateWindow({ children }) {
-  const diagUi = useOneShotDialogUI();
   const tabId = "the one tab";
   const { getConfirmMsg } = useConfirmMsg();
 
@@ -321,17 +328,7 @@ function SeprateWindow({ children }) {
       <AppSnackbarProvider>
         <SettingProvider>
           <AppMenu />
-          {diagUi.ui && (
-            <Dialog
-              slotProps={{ paper: { style: { width: "fit-content" } } }}
-              open={true}
-              onClose={() => {
-                diagUi.setUi(null);
-              }}>
-              {diagUi.title && <DialogTitle>{diagUi.title}</DialogTitle>}
-              {diagUi.ui}
-            </Dialog>
-          )}
+          <DialogExtraUI />
           <div style={{ width: "100vw", height: "100vh", padding: "4px" }}>
             {children}
           </div>
