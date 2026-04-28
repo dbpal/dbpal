@@ -268,6 +268,7 @@ function QueryLog(props: {
         <Dialog
           fullWidth
           maxWidth="md"
+          slotProps={{ paper: { style: { height: "50vh" } } }}
           open={!!selectSql}
           onClose={modalHandleClose((e: EscDownEvent) => {
             e.preventDefault();
