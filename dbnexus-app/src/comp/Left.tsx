@@ -260,7 +260,7 @@ function LeftTop() {
           </IconButton>
         </Tooltip>
       </Stack>
-      {show && <Divider color="info" />}
+      {show && <Divider />}
       {showEditFilter && (
         <Dialog
           fullWidth

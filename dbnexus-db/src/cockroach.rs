@@ -74,6 +74,55 @@ mod tests {
     use crate::db::{ExportKind, ShowTableParameter};
     use crate::enable_test_log;
     use std::collections::HashMap;
+
+    #[tokio::test]
+    async fn test_sequence() {
+        let db = make_test_object().await;
+        let query_id = "aaaa";
+        db.open_connection(query_id).await.unwrap();
+        let name = "test_seq";
+        let _ = db.drop_sequence(name, true).await;
+        db.execute_sql(
+            query_id,
+            r#"
+            CREATE SEQUENCE test_seq AS integer START 1;
+        "#,
+        )
+        .await
+        .unwrap()
+        .unwrap();
+        let name2 = format!("{}2", name);
+
+        let seq = db.list_sequence().await.unwrap();
+        for seq in seq.iter() {
+            if seq.name.eq(name) {
+                println!("seq:{:?}", seq);
+            }
+        }
+        db.rename_sequence(name, &name2).await.unwrap();
+        db.rename_sequence(&name2, name).await.unwrap();
+    }
+    #[tokio::test]
+    async fn test_list_created_types() {
+        let db = make_test_object().await;
+        let _ = db.drop_created_type("test_type").await;
+        let query_id = "aaaa";
+        db.open_connection(query_id).await.unwrap();
+
+        db.execute_sql(
+            query_id,
+            r#"
+            CREATE TYPE test_type AS ENUM ('value1', 'value2', 'value3');"#,
+        )
+        .await
+        .unwrap()
+        .unwrap();
+        let list = db.list_created_types().await.unwrap();
+        for l in list.iter() {
+            println!("create type:{:?}", l);
+        }
+    }
+
     #[tokio::test]
     async fn test_transaction() {
         let db = make_test_object().await;
@@ -466,7 +515,7 @@ mod tests {
     async fn test_udf() {
         let pg = make_test_object().await;
         let query_id = "aaaa";
-        pg.open_connection("").await.unwrap();
+        pg.open_connection(query_id).await.unwrap();
         let udf_name = "test_udf";
         let _ = pg
             .drop_udf(&NamedStaff {

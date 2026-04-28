@@ -1292,7 +1292,9 @@ impl PostGresDB {
             WHERE t.typtype IN ('c', 'd', 'e', 'r')
             AND n.nspname = '{}'  
             AND t.typisdefined
-            GROUP BY n.nspname, t.typname, t.oid, t.typowner, t.typtype
+            GROUP BY n.nspname, t.typname, t.oid, t.typowner, t.typtype,
+                t.typbasetype,  -- 添加这个
+                t.typnotnull    -- 建议连这个也加上，防止下一个报错
             ORDER BY type_name
         "#,
             schema
@@ -2383,10 +2385,10 @@ mod tests {
         db.execute_sql(
             query_id,
             r#"
-          CREATE TABLE test_create_trigger (
+        CREATE TABLE test_create_trigger (
             
             name VARCHAR(50)
-          );
+        );
         "#,
         )
         .await

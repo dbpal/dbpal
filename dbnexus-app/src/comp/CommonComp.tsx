@@ -604,12 +604,9 @@ function ModalHeader(props: {
         </Typography>
         {headerExtra}
       </Stack>
-
-      <Tooltip title={"esc can close this too"}>
-        <IconButton color="secondary" onClick={handleClose}>
-          <CloseIcon> </CloseIcon>
-        </IconButton>
-      </Tooltip>
+      <IconButton color="secondary" onClick={handleClose}>
+        <CloseIcon> </CloseIcon>
+      </IconButton>
     </Stack>
   );
 }
