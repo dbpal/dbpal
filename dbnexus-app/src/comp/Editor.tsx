@@ -109,21 +109,22 @@ function MonacoEditor({
       d.dispose();
     };
   }, [editorIns]);
-
   useEffect(() => {
-    if (!editorIns) {
-      return;
-    }
-    const d = editorIns.onDidChangeModelContent(() => {
+    if (!editorIns) return;
+
+    // 监听装饰器（波浪线等）的变化，这通常意味着校验完成了
+    const d = editorIns.onDidChangeModelDecorations(() => {
+      const model = editorIns.getModel();
+      if (!model) return;
+
       const markers = monaco.editor.getModelMarkers({
-        resource: editorIns.getModel().uri,
+        resource: model.uri,
       });
+
       setMarkers(markers);
     });
 
-    return () => {
-      d.dispose();
-    };
+    return () => d.dispose();
   }, [editorIns]);
 
   return (
