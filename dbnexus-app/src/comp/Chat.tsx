@@ -234,8 +234,9 @@ function SqlChatTextInput(props: { uuid: string }) {
         (event) => {
           setInvokeStatus("receiving stream response#" + i);
           if (event.content) {
-            editorAppendContent(editor, event.content.msg);
-            wholeText += event;
+            let msg = event.content.msg;
+            editorAppendContent(editor, msg);
+            wholeText += msg;
             i++;
           } else if (event.tokenusage) {
             showNotification({
