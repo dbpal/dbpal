@@ -383,7 +383,7 @@ fn main() {
                     }
                 }
                 _ => {
-                    log::error!("unhandle menu event:{:?}", event);
+                    log::error!("unhandled menu event:{:?}", event);
                 }
             }
         })
