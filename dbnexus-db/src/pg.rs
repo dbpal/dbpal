@@ -91,6 +91,11 @@ impl DBTrait for PostGresDB {
         let mut ret = Vec::with_capacity(rows.len());
         for r in rows.iter() {
             let name: String = r.try_get(0)?;
+            if self.kind == BackendKindPostGres::CockRoach {
+                if name == "crdb_internal" {
+                    continue;
+                }
+            }
             ret.push(name)
         }
         anyhow::Ok(ret)

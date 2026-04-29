@@ -263,7 +263,7 @@ function isTypeLargeText(s: string): boolean {
 const TabActiveContext = createContext(true);
 
 const handleCopyToClipboard = (
-  text,
+  text: string,
   showNotification?: (_: NotificationParams) => void,
   okCallBack?: () => void,
 ) => {
@@ -303,8 +303,9 @@ const UuidContext = createContext<{
   kind: DataSourceKind;
 }>(null);
 
-function validJson(s: string): Promise<ErrAndLoc | null> {
-  return commands.validJson(s).then((data) => data);
+async function validJson(s: string): Promise<ErrAndLoc | null> {
+  const data = await commands.validJson(s);
+  return data;
 }
 
 class DocsAndCount {

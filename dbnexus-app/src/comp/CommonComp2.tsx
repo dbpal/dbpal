@@ -90,6 +90,7 @@ import { openUrl } from "@tauri-apps/plugin-opener";
 
 import { CustomToolbar } from "./CustomToolBar";
 import {
+  passwordKey,
   useBoolSwitch,
   useConnectionStore,
   useElementSizeStore,
@@ -655,44 +656,15 @@ function ConnConfigInfo(props: { uuid: string }) {
         let metas: MetaValue[] = await commands.serverMetas(uuid);
         const config = await getConnection(uuid);
         let configMetas = [];
-        switch (config.conn_type) {
-          case DataSourceKind.Mysql:
-          case DataSourceKind.MariaDB:
-          case DataSourceKind.TiDB:
-          case DataSourceKind.Postgres:
-          case DataSourceKind.Cockroach:
-          case DataSourceKind.Redis:
-          case DataSourceKind.Mongo:
-          case DataSourceKind.Cassandra:
-          case DataSourceKind.Oracle:
-          case DataSourceKind.ClickHouse:
-          case DataSourceKind.FireBird:
-          case DataSourceKind.SqlServer:
-            configMetas = [
-              { name: "host", value: config.host },
-              { name: "port", value: config.port + "" },
-              { name: "user", value: config.username },
-            ];
-            break;
-          case DataSourceKind.LibSql:
-            if (config.source === "local") {
-              configMetas = [{ name: "host", value: config.path }];
-            } else if (config.source == "remote") {
-              configMetas = [
-                { name: "url", value: config.url },
-                { name: "path", value: config.path },
-              ];
-            }
-            break;
-          case DataSourceKind.Sqlite:
-            configMetas = [{ name: "path", value: config.path }];
-            break;
-          case DataSourceKind.CouchBase:
-            configMetas = [
-              { name: "username", value: config.username },
-              { name: "conn str", value: config.conn_str },
-            ];
-            break;
+
+        if (passwordKey in config) {
+          delete config[passwordKey];
+        }
+        for (const key in config) {
+          configMetas.push({
+            name: key,
+            value: config[key],
+          });
         }
         setMetas([...configMetas, ...metas]);
         if (showOK) {

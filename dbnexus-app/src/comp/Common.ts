@@ -191,14 +191,14 @@ const autoCompletion = async (
 };
 
 const aiTextAutoCompletion = async (
-  modal: editor.ITextModel,
+  model: editor.ITextModel,
   pos: Position,
 ): Promise<languages.CompletionList> => {
   try {
-    const text = modal.getValue();
+    const text = model.getValue();
     {
       // try if this is ai text completion
-      const name = modal[dbpalQuerykey];
+      const name = model[dbpalQuerykey];
       if (name) {
         const result = await commands.aiTextCompletion(
           name.name,
@@ -313,7 +313,7 @@ class QueryConn {
   uuid: string;
   kind: DataSourceKind;
 
-  constructor(uuid, queryId: string, kind: DataSourceKind) {
+  constructor(uuid: string, queryId: string, kind: DataSourceKind) {
     this.queryId = queryId;
     this.uuid = uuid;
     this.kind = kind;

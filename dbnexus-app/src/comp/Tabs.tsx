@@ -204,7 +204,7 @@ function TabsWithContent() {
                       onClick={() => {
                         closeTab(index);
                       }}
-                      style={{ fontSize: "0.6rem" }}
+                      style={{ fontSize: "0.9rem" }}
                       color="warning"
                     />
                   )

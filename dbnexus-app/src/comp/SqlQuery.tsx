@@ -36,7 +36,7 @@ import {
 } from "./helper.ts";
 import ArrowCircleDownRoundedIcon from "@mui/icons-material/ArrowCircleDownRounded";
 import { ExportView } from "./Export.tsx";
-import { PossibleParseError } from "./CommonComp.tsx";
+import { ErrorTryLocate } from "./CommonComp.tsx";
 import {
   AiMarkdownModel,
   AiMarkdownModelSwitch,
@@ -514,6 +514,7 @@ function SqlQuery(props: {
     DataSourceKind.Oracle,
     DataSourceKind.SqlServer,
     DataSourceKind.Postgres,
+    DataSourceKind.Cockroach,
     DataSourceKind.ClickHouse,
     DataSourceKind.FireBird,
     DataSourceKind.DuckDB,
@@ -736,7 +737,7 @@ function SqlQuery(props: {
                     flex: 1,
                   }}
                   direction="row">
-                  {sqlErr && <PossibleParseError parseErr={sqlErr} editor={editor} />}
+                  {sqlErr && <ErrorTryLocate parseErr={sqlErr} editor={editor} />}
                 </Stack>
               }
               pos={pos}

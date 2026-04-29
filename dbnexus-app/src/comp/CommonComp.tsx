@@ -141,7 +141,7 @@ function MenuNewQueryNewWindow(props: { handleNew: () => void }) {
       <ListItemIcon>
         <AddIcon />
       </ListItemIcon>
-      <ListItemText>New Query(window) </ListItemText>
+      <ListItemText>New Query(new window) </ListItemText>
     </MenuItem>
   );
 }
@@ -277,8 +277,8 @@ function MenuCreateSchema(props: { handleCreate: () => void; kind: DataSourceKin
   switch (kind) {
     case DataSourceKind.SqlServer:
     case DataSourceKind.Postgres:
-    case DataSourceKind.DuckDB:
     case DataSourceKind.Cockroach:
+    case DataSourceKind.DuckDB:
       name = "Schema";
       break;
     case DataSourceKind.Cassandra:
@@ -783,7 +783,7 @@ function UdfNameAndParameters(props: { udf: NamedStaff; kind: DataSourceKind }) 
       <span style={textEllipsisStyle}>{udf.name}</span>
       {parameter && (
         <Typography
-          color="success"
+          color="info"
           style={{
             ...textEllipsisStyle,
             fontStyle: "italic",
@@ -799,7 +799,7 @@ function UdfNameAndParameters(props: { udf: NamedStaff; kind: DataSourceKind }) 
 /**
  * Tooltip shown for a potential parse error in the editor.
  */
-function PossibleParseError(props: {
+function ErrorTryLocate(props: {
   parseErr: ErrAndLoc;
   editor: editor.IStandaloneCodeEditor;
 }) {
@@ -997,7 +997,7 @@ export {
   ModalHeader,
   ViewRowInModal,
   UdfNameAndParameters,
-  PossibleParseError,
+  ErrorTryLocate,
   AppColumnMenu,
   SelectColumns,
   OpenFileWithDefaultApp,
