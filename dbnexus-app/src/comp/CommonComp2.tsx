@@ -525,21 +525,11 @@ function SimpleFlexEditor(props: {
   barLeft?: ReactNode;
   readOnly?: boolean;
   errPos?: Position;
-  disableEditorBar?: boolean;
   handleEditor?: (editor: editor.IStandaloneCodeEditor) => void;
   handleValue?: (value: string) => void;
 }) {
-  const {
-    language,
-    value,
-    barLeft,
-    readOnly,
-    errPos,
-    handleEditor,
-    disableEditorBar,
-    handleValue,
-  } = props;
-  const [pos, setPos] = useState<Position>(null);
+  const { language, value, barLeft, readOnly, errPos, handleEditor, handleValue } =
+    props;
   const [editor, setEditor] = useState<editor.IStandaloneCodeEditor>(null);
   const handleDidMount = useCallback((ed: editor.IStandaloneCodeEditor) => {
     setEditor(ed);
@@ -551,13 +541,9 @@ function SimpleFlexEditor(props: {
     if (handleEditor) {
       handleEditor(editor);
     }
-    const d1 = editor.onDidChangeCursorPosition(() => {
-      setPos(editor.getPosition());
-    });
-    const d2 = editor.onDidChangeModelContent(() => {});
+    const d = editor.onDidChangeModelContent(() => {});
     return () => {
-      d1.dispose();
-      d2.dispose();
+      d.dispose();
     };
   }, [editor, handleEditor]);
   useEffect(() => {
@@ -593,9 +579,9 @@ function SimpleFlexEditor(props: {
           language={language}
           value={value}
           readOnly={readOnly}
+          barLeft={barLeft}
         />
       </div>
-      {!disableEditorBar && <EditorBar left={barLeft} pos={pos} />}
     </div>
   );
 }

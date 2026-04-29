@@ -70,7 +70,6 @@ import {
 import {
   AppDataGridPagination,
   AppDataGridToolBar,
-  EditorBar,
   ListenElementSize,
   SimpleFlexEditor,
   SliderSize,
@@ -255,7 +254,6 @@ function MongoBsonEditor(props: {
     setOPName = "set";
   }
   const editor = useRef<editor.IStandaloneCodeEditor>(null);
-  const [pos, setPos] = useState<Position>(null);
   const [err, setErr] = useState<MongoBsonError>(null);
   const [loading, setLoading] = useState(false);
   const newDoc = useRef(doc);
@@ -273,12 +271,8 @@ function MongoBsonEditor(props: {
         setErr(e);
       }
     });
-    const d2 = ce.onDidChangeCursorPosition((event) => {
-      setPos(event.position);
-    });
     return () => {
       d1.dispose();
-      d2.dispose();
     };
   }, []);
 
@@ -306,62 +300,59 @@ function MongoBsonEditor(props: {
           language={languageXXX}
           value={content}
           onMount={handleEditorDidMount}
+          barLeft={
+            <StackRowCenter>
+              {setOP && (
+                <Button
+                  loading={loading}
+                  onClick={() => {
+                    setLoading(true);
+                    setOP(newDoc.current).finally(() => {
+                      setLoading(false);
+                    });
+                  }}
+                  disabled={!!err}>
+                  {setOPName}
+                </Button>
+              )}
+              {delOP && (
+                <Button
+                  variant="outlined"
+                  loading={loading}
+                  onClick={() => {
+                    setLoading(true);
+                    delOP().finally(() => {
+                      setLoading(false);
+                    });
+                  }}
+                  color="error">
+                  delete
+                </Button>
+              )}
+
+              {err ? (
+                <Typography
+                  color="error"
+                  style={{ cursor: "pointer" }}
+                  onClick={() => {
+                    if (err.loc) {
+                      editor.current.setPosition({
+                        lineNumber: err.loc.start.line,
+                        column: err.loc.end.column,
+                      });
+                      editor.current.focus();
+                      editor.current.revealLines(err.loc.start.line, err.loc.end.line);
+                    }
+                  }}>
+                  {err.msgWithLoc}
+                </Typography>
+              ) : (
+                <></>
+              )}
+            </StackRowCenter>
+          }
         />
       </div>
-      <EditorBar
-        pos={pos}
-        left={
-          <StackRowCenter>
-            {setOP && (
-              <Button
-                loading={loading}
-                onClick={() => {
-                  setLoading(true);
-                  setOP(newDoc.current).finally(() => {
-                    setLoading(false);
-                  });
-                }}
-                disabled={!!err}>
-                {setOPName}
-              </Button>
-            )}
-            {delOP && (
-              <Button
-                variant="outlined"
-                loading={loading}
-                onClick={() => {
-                  setLoading(true);
-                  delOP().finally(() => {
-                    setLoading(false);
-                  });
-                }}
-                color="error">
-                delete
-              </Button>
-            )}
-
-            {err ? (
-              <Typography
-                color="error"
-                style={{ cursor: "pointer" }}
-                onClick={() => {
-                  if (err.loc) {
-                    editor.current.setPosition({
-                      lineNumber: err.loc.start.line,
-                      column: err.loc.end.column,
-                    });
-                    editor.current.focus();
-                    editor.current.revealLines(err.loc.start.line, err.loc.end.line);
-                  }
-                }}>
-                {err.msgWithLoc}
-              </Typography>
-            ) : (
-              <></>
-            )}
-          </StackRowCenter>
-        }
-      />
     </Stack>
   );
 }

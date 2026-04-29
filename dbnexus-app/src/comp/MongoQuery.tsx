@@ -46,7 +46,6 @@ import {
   AiMarkdownModelSwitch,
   AppCode,
   AppMarkDown,
-  EditorBar,
   LoadStoreFile,
   SaveFavoriteSqlView,
   SimpleFlexEditor,
@@ -533,7 +532,6 @@ function MongoQuery(props: {
   const { uuid, value, language: valueLanguage, favoriteName } = props;
   const [showQueryLog, setShowQueryLog] = useState(false);
   const [editor, setEditor] = useState<editor.IStandaloneCodeEditor>(null);
-  const [pos, setPos] = useState<Position>(null);
   const [db] = useState(new MongoDBQuery(uuid));
   const [cleanFns, setCleanFns] = useState<CleanFunction[]>([]);
   const { showNotification } = useNotification();
@@ -567,12 +565,6 @@ function MongoQuery(props: {
       setEditor(ed);
       ed.getModel()[dbpalQuerykey] = new NameAndQueryId(uuid, DataSourceKind.Mongo, ""); // mongo no need query id
       ed.focus();
-      let d1 = ed.onDidChangeCursorPosition(() => {
-        setPos(ed.getPosition());
-      });
-      return () => {
-        d1.dispose();
-      };
     },
     [uuid],
   );
@@ -758,7 +750,6 @@ function MongoQuery(props: {
           language={markdownModel ? "markdown" : language}
           value={value}
         />
-        <EditorBar pos={pos} />
       </div>
       {/* // we must use db etc ...  */}
       {db && <span />}

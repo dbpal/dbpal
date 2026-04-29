@@ -6,7 +6,7 @@ import PlayArrowIcon from "@mui/icons-material/PlayArrow";
 import { FaExclamation } from "react-icons/fa";
 import { ReactNode, useCallback, useContext, useEffect, useRef, useState } from "react";
 import FastForwardIcon from "@mui/icons-material/FastForward";
-import { editor, Position } from "monaco-editor";
+import { editor } from "monaco-editor";
 import {
   dbpalQuerykey,
   isRedisCode,
@@ -41,7 +41,6 @@ import {
   AiMarkdownModel,
   AiMarkdownModelSwitch,
   CancelButton,
-  EditorBar,
   EscPressedDo,
   FetchTimeAndXXX,
   LoadStoreFile,
@@ -306,7 +305,6 @@ function SqlQuery(props: {
   const [resp, setResp] = useState<QueryRespData[]>([]);
   const [sqlErr, setSqlErr] = useState<ErrAndLoc | null>(null);
   const [editor, setEditor] = useState<editor.IStandaloneCodeEditor>(null);
-  const [pos, setPos] = useState<Position | null>(null);
   const [loading, setLoading] = useState(false);
   const [makeConnLoading, setMakeConnLoading] = useState(false);
   const { showNotification } = useNotification();
@@ -334,13 +332,6 @@ function SqlQuery(props: {
 
   const handleEditorDidMount = useCallback((ed: editor.IStandaloneCodeEditor) => {
     setEditor(ed);
-    const d1 = ed.onDidChangeCursorPosition(() => {
-      const position = ed.getPosition();
-      setPos(position);
-    });
-    return () => {
-      d1.dispose();
-    };
   }, []);
 
   useEffect(() => {
@@ -725,22 +716,19 @@ function SqlQuery(props: {
               language={markdownModel ? "markdown" : getDefaultLanguage(kind)}
               value={value}
               onMount={handleEditorDidMount}
+              barLeft={
+                !markdownModel && (
+                  <Stack
+                    style={{
+                      flex: 1,
+                    }}
+                    direction="row">
+                    {sqlErr && <ErrorTryLocate parseErr={sqlErr} editor={editor} />}
+                  </Stack>
+                )
+              }
             />
           </div>
-          {!markdownModel && (
-            <EditorBar
-              left={
-                <Stack
-                  style={{
-                    flex: 1,
-                  }}
-                  direction="row">
-                  {sqlErr && <ErrorTryLocate parseErr={sqlErr} editor={editor} />}
-                </Stack>
-              }
-              pos={pos}
-            />
-          )}
         </Panel>
 
         {resp.length > 0 && (
