@@ -586,22 +586,6 @@ function SimpleFlexEditor(props: {
   );
 }
 
-function EditorBar(props: { left?: ReactNode; pos: Position }) {
-  const { left, pos } = props;
-  return (
-    <Stack
-      style={{ justifyContent: "space-between", alignItems: "center" }}
-      direction="row">
-      {left ? left : <span />}
-
-      <Stack direction="row" style={{ paddingLeft: "2rem", paddingRight: "3rem" }}>
-        <span>Ln {pos ? pos.lineNumber : ""}</span>
-        <span>Col {pos ? pos.column : ""}</span>
-      </Stack>
-    </Stack>
-  );
-}
-
 /**
  * Menu item for connection info tab.
  */
@@ -2090,7 +2074,6 @@ export {
   CreateDatabase,
   CreateSchema,
   SimpleFlexEditor,
-  EditorBar,
   MenuConnectionInfo,
   ConnConfigInfo,
   LoadStoreFile,

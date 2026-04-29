@@ -1,7 +1,7 @@
 import { ReactNode, useEffect, useMemo, useRef, useState } from "react";
 import * as monaco from "monaco-editor";
 import { useUserSettings } from "./store";
-import { EditorBar } from "./CommonComp2";
+import { Stack } from "@mui/material";
 
 interface MonacoEditorProps {
   value?: string;
@@ -112,7 +112,16 @@ function MonacoEditor({
       }}>
       <div ref={editorRef} style={{ height: "100px", flex: 1 }} />
 
-      <EditorBar left={barLeft} pos={pos} />
+      <Stack
+        style={{ justifyContent: "space-between", alignItems: "center" }}
+        direction="row">
+        {barLeft ? barLeft : <span />}
+
+        <Stack direction="row" style={{ paddingLeft: "2rem", paddingRight: "3rem" }}>
+          <span>Ln {pos ? pos.lineNumber : ""}</span>
+          <span>Col {pos ? pos.column : ""}</span>
+        </Stack>
+      </Stack>
     </div>
   );
 }
