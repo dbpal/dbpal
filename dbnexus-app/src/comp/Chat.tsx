@@ -231,11 +231,19 @@ function SqlChatTextInput(props: { uuid: string }) {
             });
         })(),
         userDefinePrompts[connName],
-        (msg) => {
+        (event) => {
           setInvokeStatus("receiving stream response#" + i);
-          editorAppendContent(editor, msg);
-          wholeText += msg;
-          i++;
+          if (event.content) {
+            editorAppendContent(editor, event.content.msg);
+            wholeText += event;
+            i++;
+          } else if (event.tokenusage) {
+            showNotification({
+              severity: "info",
+              title: "token usage",
+              message: `input token:${event.tokenusage.input_token}  output token:${event.tokenusage.output_token} total token:${event.tokenusage.total_token}`,
+            });
+          }
         },
         (f) => {
           setCancelFN(() => {

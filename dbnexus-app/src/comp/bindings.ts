@@ -160,7 +160,7 @@ export const commands = {
 	createTable: (dbName: string, req: CreateTableReq) => __TAURI_INVOKE<string>("create_table", { dbName, req }),
 	tableUpdate: (dbName: string, tableName: string, values: { [key in string]: string | null }, wheres: { [key in string]: string | null }) => __TAURI_INVOKE<number | null>("table_update", { dbName, tableName, values, wheres }),
 	tableDelete: (dbName: string, tableName: string, wheres: { [key in string]: string | null }) => __TAURI_INVOKE<number | null>("table_delete", { dbName, tableName, wheres }),
-	openaiStream: (req: OpenAIReq, name: string, queryId: string, emit: Channel<string>, taskId: string) => __TAURI_INVOKE<null>("openai_stream", { req, name, queryId, emit, taskId }),
+	openaiStream: (req: OpenAIReq, name: string, queryId: string, emit: Channel<AISteamResp>, taskId: string) => __TAURI_INVOKE<null>("openai_stream", { req, name, queryId, emit, taskId }),
 	openaiInvoke: (req: OpenAIReq) => __TAURI_INVOKE<string>("openai_invoke", { req }),
 	setEnv: (env: { [key in string]: string }) => __TAURI_INVOKE<void>("set_env", { env }),
 	tableInsertSql: (dbName: string, tableName: string, values: { [key in string]: string | null }) => __TAURI_INVOKE<string>("table_insert_sql", { dbName, tableName, values }),
@@ -170,6 +170,14 @@ export const commands = {
 export const redisCommands = ["ACL","APPEND","ASKING","AUTH","BGREWRITEAOF","BGSAVE","BITCOUNT","BITFIELD","BITFIELD_RO","BITOP","BITPOS","BLMOVE","BLMPOP","BLPOP","BRPOP","BRPOPLPUSH","BZMPOP","BZPOPMAX","BZPOPMIN","CLIENT","CLUSTER","COMMAND","CONFIG","COPY","DBSIZE","DEBUG","DECR","DECRBY","DEL","DISCARD","DUMP","ECHO","EVAL","EVAL_RO","EVALSHA","EVALSHA_RO","EXEC","EXISTS","EXPIRE","EXPIREAT","EXPIRETIME","FAILOVER","FCALL","FCALL_RO","FLUSHALL","FLUSHDB","FUNCTION","GEOADD","GEODIST","GEOHASH","GEOPOS","GEORADIUS","GEORADIUS_RO","GEORADIUSBYMEMBER","GEORADIUSBYMEMBER_RO","GEOSEARCH","GEOSEARCHSTORE","GET","GETBIT","GETDEL","GETEX","GETRANGE","GETSET","HDEL","HELLO","HEXISTS","HGET","HGETALL","HINCRBY","HINCRBYFLOAT","HKEYS","HLEN","HMGET","HMSET","HRANDFIELD","HSCAN","HSET","HSETNX","HSTRLEN","HVALS","INCR","INCRBY","INCRBYFLOAT","INFO","KEYS","LASTSAVE","LATENCY","LCS","LINDEX","LINSERT","LLEN","LMOVE","LMPOP","LOLWUT","LPOP","LPOS","LPUSH","LPUSHX","LRANGE","LREM","LSET","LTRIM","MEMORY","MGET","MIGRATE","MODULE","MONITOR","MOVE","MSET","MSETNX","MULTI","OBJECT","PERSIST","PEXPIRE","PEXPIREAT","PEXPIRETIME","PFADD","PFCOUNT","PFDEBUG","PFMERGE","PFSELFTEST","PING","PSETEX","PSUBSCRIBE","PSYNC","PTTL","PUBLISH","PUBSUB","PUNSUBSCRIBE","QUIT","RANDOMKEY","READONLY","READWRITE","RENAME","RENAMENX","REPLCONF","REPLICAOF","RESET","RESTORE","ROLE","RPOP","RPOPLPUSH","RPUSH","RPUSHX","SADD","SAVE","SCAN","SCARD","SCRIPT","SDIFF","SDIFFSTORE","SELECT","SET","SETBIT","SETEX","SETNX","SETRANGE","SHUTDOWN","SINTER","SINTERCARD","SINTERSTORE","SISMEMBER","SLAVEOF","SLOWLOG","SMEMBERS","SMISMEMBER","SMOVE","SORT","SORT_RO","SPOP","SPUBLISH","SRANDMEMBER","SREM","SSCAN","SSUBSCRIBE","STRLEN","SUBSCRIBE","SUBSTR","SUNION","SUNIONSTORE","SUNSUBSCRIBE","SWAPDB","SYNC","TIME","TOUCH","TTL","TYPE","UNLINK","UNSUBSCRIBE","UNWATCH","WAIT","WAITAOF","WATCH","XACK","XADD","XAUTOCLAIM","XCLAIM","XDEL","XGROUP","XINFO","XLEN","XPENDING","XRANGE","XREAD","XREADGROUP","XREVRANGE","XSETID","XTRIM","ZADD","ZCARD","ZCOUNT","ZDIFF","ZDIFFSTORE","ZINCRBY","ZINTER","ZINTERCARD","ZINTERSTORE","ZLEXCOUNT","ZMPOP","ZMSCORE","ZPOPMAX","ZPOPMIN","ZRANDMEMBER","ZRANGE","ZRANGEBYLEX","ZRANGEBYSCORE","ZRANGESTORE","ZRANK","ZREM","ZREMRANGEBYLEX","ZREMRANGEBYRANK","ZREMRANGEBYSCORE","ZREVRANGE","ZREVRANGEBYLEX","ZREVRANGEBYSCORE","ZREVRANK","ZSCAN","ZSCORE","ZUNION","ZUNIONSTORE"] as const;
 
 /* Types */
+export type AISteamResp = ({ content: {
+	msg: string,
+} }) & { tokenusage?: never } | ({ tokenusage: {
+	input_token: number,
+	output_token: number,
+	total_token: number,
+} }) & { content?: never };
+
 export type AiOnlineSearch = {
 	enable: boolean,
 	provider: string,

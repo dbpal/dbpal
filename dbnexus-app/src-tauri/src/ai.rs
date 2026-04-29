@@ -19,7 +19,8 @@ use std::sync::{Arc, Mutex};
 use std::time::Duration;
 
 use crate::app::{
-    self, AiOnlineSearch, DBPal, DatabaseBackend, ErrorFrontend, OpenAIReq, TaskManager,
+    self, AISteamResp, AiOnlineSearch, DBPal, DatabaseBackend, ErrorFrontend, OpenAIReq,
+    TaskManager,
 };
 use rig::completion::{CompletionModel, Message, Prompt, PromptError, ToolDefinition};
 use rig::message::{DocumentSourceKind, Image, ReasoningContent, ToolResultContent, UserContent};
@@ -94,7 +95,7 @@ impl From<EmptyListError> for ErrorFrontend {
 
 async fn call_openai_stream(
     agent: Agent<ResponsesCompletionModel>,
-    emit: Arc<dyn Fn(String) + Send + Sync + 'static>,
+    emit: Arc<dyn Fn(AISteamResp) + Send + Sync + 'static>,
     comment_fn: impl Fn(&str) -> String + Send + Sync + 'static,
     prompt: Message,
 ) -> Result<(), ErrorFrontend> {
@@ -104,7 +105,7 @@ async fn call_openai_stream(
         match chunk {
             MultiTurnStreamItem::StreamAssistantItem(item) => match item {
                 rig::streaming::StreamedAssistantContent::Text(text) => {
-                    emit(text.text().to_owned());
+                    emit(text.text().to_owned().into());
                 }
                 StreamedAssistantContent::ToolCall { .. } => {
                     // tool call have notice
@@ -113,25 +114,25 @@ async fn call_openai_stream(
                 StreamedAssistantContent::Reasoning(reasoning) => {
                     reasoning.content.iter().for_each(|x| match x {
                         ReasoningContent::Text { text, signature: _ } => {
-                            emit(text.clone());
+                            emit(text.clone().into());
                         }
                         ReasoningContent::Encrypted(_) => {}
                         ReasoningContent::Redacted { .. } => {}
-                        ReasoningContent::Summary(summary) => emit(summary.clone()),
+                        ReasoningContent::Summary(summary) => emit(summary.clone().into()),
                         _ => {
                             log::error!("maybe handle type:{:?}", x);
                         }
                     })
                 }
-                StreamedAssistantContent::ReasoningDelta { reasoning, .. } => emit(reasoning),
+                StreamedAssistantContent::ReasoningDelta { reasoning, .. } => {
+                    emit(reasoning.into())
+                }
                 StreamedAssistantContent::Final(x) => {
-                    emit(comment_fn(
-                        format!(
-                            "\ninput token:{} output token:{} total token:{}",
-                            x.usage.input_tokens, x.usage.output_tokens, x.usage.total_tokens,
-                        )
-                        .as_str(),
-                    ));
+                    emit(AISteamResp::TokenUsage {
+                        input_token: x.usage.input_tokens,
+                        output_token: x.usage.output_tokens,
+                        total_token: x.usage.total_tokens,
+                    });
                 }
             },
             MultiTurnStreamItem::StreamUserItem(x) => match x {
@@ -142,13 +143,14 @@ async fn call_openai_stream(
                     // those text in
                     for x in tool_result.content.iter() {
                         match x {
-                            ToolResultContent::Text(text) => {
-                                emit(comment_fn(if let Some(x) = text.text().get(0..20) {
+                            ToolResultContent::Text(text) => emit(
+                                comment_fn(if let Some(x) = text.text().get(0..20) {
                                     x
                                 } else {
                                     text.text()
-                                }))
-                            }
+                                })
+                                .into(),
+                            ),
                             ToolResultContent::Image(..) => {
                                 return Err(ErrorFrontend::from(
                                     "we should not support generate image???",
@@ -501,11 +503,11 @@ impl Tool for WebFetchTool {
 pub struct SteamCache {
     ret: String,
     time_elapsed: TimeElapsed,
-    emit: Channel<String>,
+    emit: Channel<AISteamResp>,
 }
 
 impl SteamCache {
-    fn new(emit: Channel<String>) -> Self {
+    fn new(emit: Channel<AISteamResp>) -> Self {
         Self {
             ret: String::new(),
             time_elapsed: TimeElapsed::new(Duration::from_millis(400)),
@@ -515,18 +517,27 @@ impl SteamCache {
 }
 
 impl SteamCache {
-    fn send(&mut self, x: String) {
-        self.ret.push_str(x.as_str());
-        if self.time_elapsed.elapsed() {
-            if let Err(err) = self.emit.send(std::mem::take(&mut self.ret)) {
-                log::error!("Error sending message: {:?}", err)
+    fn send(&mut self, x: AISteamResp) {
+        match x {
+            AISteamResp::Content { msg } => {
+                self.ret.push_str(msg.as_str());
+                if self.time_elapsed.elapsed() {
+                    if let Err(err) = self.emit.send(std::mem::take(&mut self.ret).into()) {
+                        log::error!("Error sending message: {:?}", err)
+                    }
+                }
+            }
+            AISteamResp::TokenUsage { .. } => {
+                if let Err(err) = self.emit.send(x) {
+                    log::error!("Error sending message: {:?}", err)
+                }
             }
         }
     }
 }
 impl Drop for SteamCache {
     fn drop(&mut self) {
-        if let Err(err) = self.emit.send(std::mem::take(&mut self.ret)) {
+        if let Err(err) = self.emit.send(std::mem::take(&mut self.ret).into()) {
             log::error!("Error sending message: {:?}", err)
         }
     }
@@ -537,7 +548,7 @@ pub async fn openai_stream(
     req: OpenAIReq,
     name: String,
     query_id: String,
-    emit: Channel<String>,
+    emit: Channel<AISteamResp>,
     task_id: String,
     task_manager: tauri::State<'_, TaskManager>,
     dbpal: tauri::State<'_, DBPal>,
@@ -552,7 +563,7 @@ pub async fn openai_stream(
     let tool_emitter = {
         let emit = emit.clone();
         Arc::new(move |status: String| {
-            if let Err(err) = emit.send(db_kind.comment(&status)) {
+            if let Err(err) = emit.send(db_kind.comment(&status).into()) {
                 log::error!("Error sending message: {:?}", err)
             }
         })
@@ -1487,7 +1498,9 @@ human: tell me Mike's age from TABLE Persons
             user_system_prompt: None,
         };
 
-        let print_steam = Arc::new(|x| print!("{}", x));
+        let print_steam = Arc::new(|x: AISteamResp| print!("{}", x));
+
+        let print_emit = Arc::new(|x: String| println!("{}", x));
 
         {
             println!("testing duckduckgo search tool...");
@@ -1495,7 +1508,7 @@ human: tell me Mike's age from TABLE Persons
                 req,
                 vec![Box::new(WebSearchTool {
                     engine: Box::new(websearch::providers::DuckDuckGoProvider::new()),
-                    emit: print_steam.clone(),
+                    emit: print_emit.clone(),
                 })],
                 None,
             )
@@ -1521,7 +1534,7 @@ human: tell me Mike's age from TABLE Persons
                         )
                         .unwrap(),
                     ),
-                    emit: print_steam.clone(),
+                    emit: print_emit.clone(),
                 })],
                 None,
             )
@@ -1545,7 +1558,7 @@ human: tell me Mike's age from TABLE Persons
                         )
                         .unwrap(),
                     ),
-                    emit: print_steam.clone(),
+                    emit: print_emit.clone(),
                 })],
                 None,
             )
@@ -1569,7 +1582,7 @@ human: tell me Mike's age from TABLE Persons
                         )
                         .unwrap(),
                     ),
-                    emit: print_steam.clone(),
+                    emit: print_emit.clone(),
                 })],
                 None,
             )

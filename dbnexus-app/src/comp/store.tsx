@@ -13,6 +13,7 @@ import { cancelTask } from "./handlers";
 import CloseIcon from "@mui/icons-material/Close";
 import {
   AiOnlineSearch,
+  AISteamResp,
   ChatHistory,
   commands,
   DBConnectionConfig,
@@ -328,12 +329,12 @@ export const makeLLMCallable = (config: LLMConfig) => {
       images: string[],
       history: ChatHistory[],
       user_system_prompt: string | null,
-      handleMessage: (event: string) => void,
+      handleMessage: (event: AISteamResp) => void,
       handleCancel: (cancel: () => void) => void,
     ) => {
       console.log(" history:{}", history);
       const taskId = uuidv4();
-      const emit = new Channel<string>((event: string) => {
+      const emit = new Channel<AISteamResp>((event) => {
         handleMessage(event);
       });
       handleCancel(() => {

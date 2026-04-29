@@ -40,6 +40,45 @@ pub struct OpenAIReq {
     pub search_engine: AiOnlineSearch,
     pub chat_history: Vec<ChatHistory>,
 }
+#[derive(serde::Serialize, serde::Deserialize, Debug, Clone, specta::Type)]
+#[serde(rename_all = "lowercase")]
+
+pub enum AISteamResp {
+    Content {
+        msg: String,
+    },
+    TokenUsage {
+        input_token: u64,
+        output_token: u64,
+        total_token: u64,
+    },
+}
+
+impl<T: Into<String>> From<T> for AISteamResp {
+    fn from(value: T) -> Self {
+        Self::Content { msg: value.into() }
+    }
+}
+
+impl std::fmt::Display for AISteamResp {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(
+            f,
+            "{}",
+            match &self {
+                AISteamResp::Content { msg } => msg.clone(),
+                AISteamResp::TokenUsage {
+                    input_token,
+                    output_token,
+                    total_token,
+                } => format!(
+                    "input_token: {}, output_token: {}, total_token: {}",
+                    input_token, output_token, total_token
+                ),
+            }
+        )
+    }
+}
 
 #[derive(serde::Serialize, serde::Deserialize, Debug, Clone, specta::Type)]
 #[serde(rename_all = "lowercase")]
