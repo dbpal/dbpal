@@ -642,7 +642,7 @@ function SqlQuery(props: {
 
             {extras}
             <ModifyLLMConfigModal />
-            <SliderSize config={UseSizeConfig.queryLimit} />
+
             <ToggleChatShow />
             <AiMarkdownModelSwitch
               setMarkdownModel={setMarkdownModel}
@@ -651,6 +651,7 @@ function SqlQuery(props: {
             {querySomeShow.get(tabCtx.id)}
 
             <FetchTimeAndXXX isLoading={loading} />
+            <SliderSize config={UseSizeConfig.queryLimit} />
           </Stack>
           <Divider />
 

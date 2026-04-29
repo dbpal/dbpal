@@ -345,7 +345,7 @@ function SqlTableCustomToolBarLeft({
           label="allow filtering"
         />
       )}
-      {clientModel && <SliderSize config={UseSizeConfig.queryLimit} />}
+
       {isTable && <AddTableModal kind={kind} tableName={tableName} uuid={uuid} />}
       {ops.length > 0 && (
         <>
@@ -404,6 +404,7 @@ function SqlTableCustomToolBarLeft({
           </IconButton>
         </>
       )}
+      {clientModel && <SliderSize config={UseSizeConfig.queryLimit} />}
     </StackRowCenter>
   );
 }

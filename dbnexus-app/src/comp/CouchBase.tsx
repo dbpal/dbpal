@@ -784,13 +784,14 @@ function CouchBaseQuery(props: { uuid: string; value?: string }) {
             {viewMode == CBQueryViewMode.Json && (
               <SliderSize config={UseSizeConfig.gridCol} />
             )}
-            <SliderSize config={UseSizeConfig.queryLimit} />
+
             <ToggleChatShow />
             <AiMarkdownModelSwitch
               setMarkdownModel={setMarkdownModel}
               markdownModel={markdownModel}
             />
             <FetchTimeAndXXX isLoading={loading} />
+            <SliderSize config={UseSizeConfig.queryLimit} />
           </Stack>
         </Stack>
 
