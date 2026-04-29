@@ -224,43 +224,42 @@ function App() {
       <SettingProvider>
         <AppMenu />
         <DialogExtraUI />
-        <div>
-          <ShowPanic />
-          <ShowShortCut />
-          <PanelGroup
-            direction="horizontal"
+
+        <ShowPanic />
+        <ShowShortCut />
+        <PanelGroup
+          direction="horizontal"
+          style={{
+            height: "100vh",
+            width: "100vw",
+            padding: "4px",
+          }}
+          autoSaveId="main">
+          <Panel
             style={{
-              height: "100vh",
-              width: "100vw",
+              overflow: "auto",
+              height: "100%",
               padding: "4px",
             }}
-            autoSaveId="main">
-            <Panel
-              style={{
-                overflow: "auto",
-                height: "100%",
-                padding: "4px",
-              }}
-              minSize={10}
-              maxSize={85}
-              collapsible
-              collapsedSize={0}>
-              <Left />
-            </Panel>
-            <PanelResizeHandle
-              style={{ width: resizeHandlerSize }}
-              className="resize-handle"
-            />
-            <Panel
-              style={{
-                overflow: "auto",
-                height: "100%",
-                paddingLeft: "2px",
-              }}>
-              <TabsWithContent />
-            </Panel>
-          </PanelGroup>
-        </div>
+            minSize={10}
+            maxSize={85}
+            collapsible
+            collapsedSize={0}>
+            <Left />
+          </Panel>
+          <PanelResizeHandle
+            style={{ width: resizeHandlerSize }}
+            className="resize-handle"
+          />
+          <Panel
+            style={{
+              overflow: "auto",
+              height: "100%",
+              paddingLeft: "2px",
+            }}>
+            <TabsWithContent />
+          </Panel>
+        </PanelGroup>
       </SettingProvider>
     </AppSnackbarProvider>
   );
@@ -327,6 +326,7 @@ function SeprateWindow({ children }) {
     <TabContext value={{ id: tabId }}>
       <AppSnackbarProvider>
         <SettingProvider>
+          <ShowShortCut />
           <AppMenu />
           <DialogExtraUI />
           <div style={{ width: "100vw", height: "100vh", padding: "4px" }}>

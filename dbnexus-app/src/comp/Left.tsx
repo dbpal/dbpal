@@ -19,15 +19,7 @@ import {
 } from "@mui/material";
 import { IoMdSettings } from "react-icons/io";
 import { IoIosCreate } from "react-icons/io";
-import {
-  ReactNode,
-  useCallback,
-  useContext,
-  useEffect,
-  useMemo,
-  useRef,
-  useState,
-} from "react";
+import { useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
 import ContentCopyIcon from "@mui/icons-material/ContentCopy";
 import { GrConnect } from "react-icons/gr";
 import {
@@ -60,9 +52,6 @@ import {
   UuidContext,
 } from "./helper";
 import { TbDatabaseSearch } from "react-icons/tb";
-import { SqlQuery } from "./SqlQuery";
-import { RedisQuery } from "./RedisQuery";
-import { MongoQuery } from "./MongoQuery.tsx";
 
 import {
   ConnPingTime,
@@ -103,7 +92,6 @@ import { AllKindChat } from "./Chat.tsx";
 import { CreateTable } from "./CreateTable.tsx";
 import { AddConnection } from "./AddConnection.tsx";
 import { ModifySetting } from "./Settings.tsx";
-import { CouchBaseQuery } from "./CouchBase.tsx";
 import FilterAltIcon from "@mui/icons-material/FilterAlt";
 import FilterAltOutlinedIcon from "@mui/icons-material/FilterAltOutlined";
 import {
@@ -138,7 +126,7 @@ function LeftTop() {
   const { showNotification } = useNotification();
   const { getSwitch, setSwitch } = useBoolSwitch();
   const show = getSwitch(showTopKey);
-  const { appendTab, setCurrentTab, tabs } = useTabsManage();
+  const { appendTab, tabs } = useTabsManage();
   const [showEditFilter, setShowEditFilter] = useState(false);
   const showAddConnection = useCallback(
     async (conn?: DBConnectionConfig) => {
@@ -175,14 +163,14 @@ function LeftTop() {
         callback();
       });
     };
-  }, [appendTab, setCurrentTab, tabs]);
+  }, [appendTab, tabs]);
 
   const toggleShow = () => {
     setSwitch(showTopKey, !show);
   };
   const theme = useTheme();
   return (
-    <Stack style={{ padding: "2px" }}>
+    <Stack>
       <Stack>
         {getSwitch(showTopKey) ? (
           <IconButton onClick={toggleShow}>
@@ -549,7 +537,7 @@ function Left() {
                 kind: connTypeToDataSourceKind(e.conn_type),
               }}
               key={e.name}>
-              <AConnection key={e.name} config={e} />
+              <ConnectionView key={e.name} config={e} />
             </UuidContext.Provider>
           );
         })}
@@ -846,7 +834,7 @@ function FavoriteSqlList() {
   );
 }
 
-function AConnection(props: { config: DBConnectionConfig }) {
+function ConnectionView(props: { config: DBConnectionConfig }) {
   const { config } = props;
   const makeTree = () => {
     switch (config.conn_type) {
@@ -1221,56 +1209,6 @@ function CatalogMenu(props: { uuid; reload; kind: DataSourceKind }) {
   );
 }
 
-function AllKindQuery(props: {
-  kind: DataSourceKind;
-  uuid: string;
-  value?: string;
-  favoriteName?: string;
-  language?: string;
-}) {
-  const { kind, uuid, value, favoriteName, language } = props;
-  let content: ReactNode;
-  switch (kind) {
-    case DataSourceKind.SqlServer:
-    case DataSourceKind.Sqlite:
-    case DataSourceKind.Mysql:
-    case DataSourceKind.MariaDB:
-    case DataSourceKind.Postgres:
-    case DataSourceKind.Oracle:
-    case DataSourceKind.TiDB:
-    case DataSourceKind.Cassandra:
-    case DataSourceKind.ClickHouse:
-    case DataSourceKind.LibSql:
-    case DataSourceKind.FireBird:
-    case DataSourceKind.DuckDB:
-    case DataSourceKind.Cockroach:
-    case DataSourceKind.Db2:
-      content = (
-        <SqlQuery uuid={uuid} value={value} kind={kind} favoriteName={favoriteName} />
-      );
-      break;
-    case DataSourceKind.Redis:
-      content = <RedisQuery uuid={uuid} value={value} favoriteName={favoriteName} />;
-      break;
-
-    case DataSourceKind.Mongo:
-      content = (
-        <MongoQuery
-          language={language}
-          uuid={uuid}
-          value={value}
-          favoriteName={favoriteName}
-        />
-      );
-      break;
-    case DataSourceKind.CouchBase:
-      return <CouchBaseQuery uuid={uuid} value={value} />;
-    default:
-      console.error(`impl this ${kind}`);
-  }
-  return <div style={{ height: "100%" }}> {content}</div>;
-}
-
 function openNewQuery(appendTab, uuid: string, kind: DataSourceKind) {
   console.log("open new query uuid:", uuid);
   const content = <AllKindChat kind={kind} uuid={uuid} />;
@@ -1525,4 +1463,4 @@ function DatabaseTree(props: { database?: string; reloadDatabase?: () => void })
   );
 }
 
-export { Left, AllKindQuery };
+export { Left };

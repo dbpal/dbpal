@@ -20,7 +20,7 @@ import {
   Tooltip,
   Typography,
 } from "@mui/material";
-import { useContext, useEffect, useMemo, useRef, useState } from "react";
+import { ReactNode, useContext, useEffect, useMemo, useRef, useState } from "react";
 import { editor } from "monaco-editor";
 import {
   SliderSize,
@@ -43,7 +43,6 @@ import {
   uuidv4,
 } from "./Common.ts";
 import { ModalHeader } from "./CommonComp.tsx";
-import { AllKindQuery } from "./Left.tsx";
 import DeleteForeverIcon from "@mui/icons-material/DeleteForever";
 import NavigateNextIcon from "@mui/icons-material/NavigateNext";
 import NavigateBeforeIcon from "@mui/icons-material/NavigateBefore";
@@ -62,6 +61,60 @@ import AddPhotoAlternateIcon from "@mui/icons-material/AddPhotoAlternate";
 import { open } from "@tauri-apps/plugin-dialog";
 
 import { useDebounce } from "use-debounce";
+import { SqlQuery } from "./SqlQuery.tsx";
+import { RedisQuery } from "./RedisQuery.tsx";
+import { MongoQuery } from "./MongoQuery.tsx";
+import { CouchBaseQuery } from "./CouchBase.tsx";
+
+function AllKindQuery(props: {
+  kind: DataSourceKind;
+  uuid: string;
+  value?: string;
+  favoriteName?: string;
+  language?: string;
+}) {
+  const { kind, uuid, value, favoriteName, language } = props;
+  let content: ReactNode;
+  switch (kind) {
+    case DataSourceKind.SqlServer:
+    case DataSourceKind.Sqlite:
+    case DataSourceKind.Mysql:
+    case DataSourceKind.MariaDB:
+    case DataSourceKind.Postgres:
+    case DataSourceKind.Oracle:
+    case DataSourceKind.TiDB:
+    case DataSourceKind.Cassandra:
+    case DataSourceKind.ClickHouse:
+    case DataSourceKind.LibSql:
+    case DataSourceKind.FireBird:
+    case DataSourceKind.DuckDB:
+    case DataSourceKind.Cockroach:
+    case DataSourceKind.Db2:
+      content = (
+        <SqlQuery uuid={uuid} value={value} kind={kind} favoriteName={favoriteName} />
+      );
+      break;
+    case DataSourceKind.Redis:
+      content = <RedisQuery uuid={uuid} value={value} favoriteName={favoriteName} />;
+      break;
+
+    case DataSourceKind.Mongo:
+      content = (
+        <MongoQuery
+          language={language}
+          uuid={uuid}
+          value={value}
+          favoriteName={favoriteName}
+        />
+      );
+      break;
+    case DataSourceKind.CouchBase:
+      return <CouchBaseQuery uuid={uuid} value={value} />;
+    default:
+      console.error(`impl this ${kind}`);
+  }
+  return <div style={{ height: "100%" }}> {content}</div>;
+}
 
 function AllKindChat(props: {
   uuid: string;
