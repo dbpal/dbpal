@@ -23,8 +23,9 @@ function MonacoEditor({
 }: MonacoEditorProps) {
   const editorRef = useRef<HTMLDivElement>(null);
 
-  const [monacoInstance, setInstance] =
-    useState<monaco.editor.IStandaloneCodeEditor | null>(null);
+  const [editorIns, setIns] = useState<monaco.editor.IStandaloneCodeEditor | null>(
+    null,
+  );
 
   const [pos, setPos] = useState(null);
   const settting = useUserSettings();
@@ -50,43 +51,43 @@ function MonacoEditor({
     );
 
   useEffect(() => {
-    if (!monacoInstance) {
+    if (!editorIns) {
       // 1. 初始化编辑器
       const ed = monaco.editor.create(editorRef.current, { automaticLayout: true });
-      setInstance(ed);
+      setIns(ed);
     }
     // 3. 组件卸载时销毁实例，防止内存泄漏
     return () => {
-      monacoInstance?.dispose();
+      editorIns?.dispose();
     };
-  }, [monacoInstance]);
+  }, [editorIns]);
 
   useEffect(() => {
-    if (!monacoInstance) {
+    if (!editorIns) {
       return;
     }
-    onMount(monacoInstance);
-  }, [monacoInstance, onMount]);
+    onMount(editorIns);
+  }, [editorIns, onMount]);
 
   useEffect(() => {
-    if (!monacoInstance) {
+    if (!editorIns) {
       return;
     }
-    if (typeof value == "string" && value != monacoInstance.getValue()) {
-      monacoInstance.setValue(value);
+    if (typeof value == "string" && value != editorIns.getValue()) {
+      editorIns.setValue(value);
     }
-  }, [monacoInstance, value]);
+  }, [editorIns, value]);
 
   useEffect(() => {
-    if (!monacoInstance) {
+    if (!editorIns) {
       return;
     }
-    monacoInstance.updateOptions(options);
-  }, [monacoInstance, options]);
-  const instanceModel = monacoInstance ? monacoInstance.getModel() : undefined;
+    editorIns.updateOptions(options);
+  }, [editorIns, options]);
+  const instanceModel = editorIns ? editorIns.getModel() : undefined;
 
   useEffect(() => {
-    if (!monacoInstance) {
+    if (!editorIns) {
       return;
     }
     if (!language) {
@@ -96,35 +97,34 @@ function MonacoEditor({
       return;
     }
     monaco.editor.setModelLanguage(instanceModel, language);
-  }, [monacoInstance, instanceModel, language]);
+  }, [editorIns, instanceModel, language]);
   useEffect(() => {
-    if (!monacoInstance) {
+    if (!editorIns) {
       return;
     }
-    let d = monacoInstance.onDidChangeCursorPosition(() => {
-      setPos(monacoInstance.getPosition());
+    let d = editorIns.onDidChangeCursorPosition(() => {
+      setPos(editorIns.getPosition());
     });
     return () => {
       d.dispose();
     };
-  }, [monacoInstance]);
+  }, [editorIns]);
 
   useEffect(() => {
-    if (!monacoInstance) {
+    if (!editorIns) {
       return;
     }
-    const d = monacoInstance.onDidChangeModelContent(() => {
+    const d = editorIns.onDidChangeModelContent(() => {
       const markers = monaco.editor.getModelMarkers({
-        resource: monacoInstance.getModel().uri,
+        resource: editorIns.getModel().uri,
       });
-
       setMarkers(markers);
     });
 
     return () => {
       d.dispose();
     };
-  }, [monacoInstance]);
+  }, [editorIns]);
 
   return (
     <div
@@ -166,11 +166,11 @@ function MonacoEditor({
                   cursor: "pointer",
                 }}
                 onClick={() => {
-                  monacoInstance.setPosition({
+                  editorIns.setPosition({
                     lineNumber: marker.startLineNumber,
                     column: marker.startColumn,
                   });
-                  monacoInstance.focus();
+                  editorIns.focus();
                 }}>
                 <Typography
                   color={(function () {
