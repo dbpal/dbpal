@@ -659,7 +659,6 @@ function FavoriteSqlList() {
             uuid={row.uuid}
             value={row.sql}
             favoriteName={row.name}
-            language={row.language}
           />
         );
         appendTab(new TabContent(`${row.uuid}`, content, <TbDatabaseSearch />));

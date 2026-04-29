@@ -1028,11 +1028,10 @@ function SaveFavoriteSqlViewOnTheFly(props: {
   uuid: string;
   kind: DataSourceKind;
   sql: string;
-  language?: string;
   onChangeFavName: (name: string) => void;
   handleClose: () => void;
 }) {
-  const { kind, sql, language, onChangeFavName, uuid, handleClose } = props;
+  const { kind, sql, onChangeFavName, uuid, handleClose } = props;
   const [favoriteName, setFavoriteName] = useState("");
   const { showNotification } = useNotification();
   const { save } = useFavoriteStore();
@@ -1062,7 +1061,7 @@ function SaveFavoriteSqlViewOnTheFly(props: {
 
               return;
             }
-            save({ uuid, name: favoriteName, kind, sql, language });
+            save({ uuid, name: favoriteName, kind, sql });
             showNotification({
               severity: "success",
               title: "save favorite sql success.",
@@ -1086,10 +1085,9 @@ function SaveFavoriteSqlView(props: {
   favoriteName?: string;
   editor: editor.IStandaloneCodeEditor;
   uuid: string;
-  language?: string;
   kind: DataSourceKind;
 }) {
-  const { favoriteName: oldName, editor, uuid, language, kind } = props;
+  const { favoriteName: oldName, editor, uuid, kind } = props;
   const [favoriteName, setFavoriteName] = useState(oldName);
   const { showNotification } = useNotification();
   const { setUi } = useOneShotDialogUI();
@@ -1110,7 +1108,7 @@ function SaveFavoriteSqlView(props: {
                 return;
               }
               if (favoriteName) {
-                save({ uuid, name: favoriteName, kind, sql, language });
+                save({ uuid, name: favoriteName, kind, sql });
                 showNotification({
                   severity: "success",
                   title: "save favorite sql success.",
@@ -1121,7 +1119,6 @@ function SaveFavoriteSqlView(props: {
                     uuid={uuid}
                     sql={sql}
                     kind={kind}
-                    language={language}
                     onChangeFavName={(name) => {
                       setFavoriteName(name);
                     }}

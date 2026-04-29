@@ -163,8 +163,6 @@ fn main() {
 
     tauri::async_runtime::set(runtime.handle().clone());
 
-    // https://github.com/tauri-apps/tauri/issues/4788
-    let _ = fix_path_env::fix();
     CryptoProvider::install_default(aws_lc_rs::default_provider())
         .expect("Failed to install default crypto provider");
     let dbpal = DBPal::new();
@@ -225,7 +223,6 @@ fn main() {
     }
 
     builder
-        .plugin(tauri_plugin_shell::init())
         .plugin(tauri_plugin_autostart::Builder::new().build())
         .plugin(tauri_plugin_process::init())
         .plugin(tauri_plugin_os::init())

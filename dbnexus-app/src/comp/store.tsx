@@ -366,7 +366,7 @@ export const useLLM = () => {
 
 export type NotificationParams = {
   severity: AlertColor;
-  title: string;
+  title?: string;
   message?: any;
 };
 
@@ -387,7 +387,7 @@ export const useNotification = () => {
       }
       enqueueSnackbar(
         <Stack>
-          <AlertTitle> {title} </AlertTitle>
+          {title && <AlertTitle> {title} </AlertTitle>}
           <div>{message}</div>
         </Stack>,
         {
@@ -1010,19 +1010,13 @@ export interface QueryLog {
   uuid: string;
   name: string; // connection name
   sql: string;
-  language?: string;
   create_at: number; // 存储时间戳
   success: number; // 1 或 0
 }
 
 interface QueryLogState {
   // 核心操作方法
-  save: (
-    uuid: string,
-    sql: string,
-    success: boolean,
-    language?: string,
-  ) => Promise<void>;
+  save: (uuid: string, sql: string, success: boolean) => Promise<void>;
   query: (uuid: string) => Promise<QueryLog[]>;
   deleteByUuid: (uuid: string) => Promise<number>;
   deleteByName: (name: string) => Promise<void>;
@@ -1032,14 +1026,13 @@ const maxQueryLogCount = 10000;
 
 export const useQueryLogStore = create<QueryLogState>(() => ({
   // 保存日志
-  save: async (uuid, sql, success, language) => {
+  save: async (uuid, sql, success) => {
     try {
       // 1. Save the new log
       await db.query_log.add({
         uuid,
         name: extractConfigNameFromUuid(uuid),
         sql,
-        language,
         success: success ? 1 : 0,
         create_at: Date.now(),
       });
@@ -1093,7 +1086,6 @@ export interface FavoriteSql {
   kind: string;
   sql: string;
   connection_name: string;
-  language?: string;
   last_modified: number;
 }
 

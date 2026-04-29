@@ -515,10 +515,6 @@ const shrinkAble = {
   minWidth: "3rem",
 } as CSSProperties;
 
-enum MongoLanguage {
-  js = "javascript",
-  ts = "typescript",
-}
 const resizeHandlerSize = 4;
 
 // this must be the same as the rust Result
@@ -601,7 +597,7 @@ export function jumpToEditorText(
 export function getDefaultLanguage(kind: DataSourceKind) {
   switch (kind) {
     case DataSourceKind.Mongo:
-      return "javascript";
+      return "typescript";
     case DataSourceKind.Redis:
       return "redis";
     default:
@@ -634,7 +630,6 @@ export {
   isTypeLargeText,
   isWindows,
   KeyPressed,
-  MongoLanguage,
   newEmptyResp,
   pageSizeOptions,
   prettyMs,

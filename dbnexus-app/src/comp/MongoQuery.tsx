@@ -1,438 +1,126 @@
 import {
-  Autocomplete,
   Button,
-  Chip,
   IconButton,
-  Link,
   Paper,
   Stack,
-  TextField,
   Tooltip,
   Typography,
   SxProps,
   Theme,
-  Dialog,
-  DialogTitle,
 } from "@mui/material";
 
 import PlayArrowIcon from "@mui/icons-material/PlayArrow";
-import { editor, Position } from "monaco-editor";
-import { useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
-import { globalVar, initMongoQueryGlobals, MongoDBQuery } from "./MongoQueryBackend";
+import { editor } from "monaco-editor";
+import { useCallback, useContext, useEffect, useState } from "react";
+import { initMongoQueryGlobals, MongoDBQuery } from "./MongoQueryBackend";
 import EventNoteIcon from "@mui/icons-material/EventNote";
+import * as monaco from "monaco-editor";
+
 import {
   DataSourceKind,
-  getEditorText,
   isMacOs,
-  isWindows,
   jumpToEditorText,
   MonacoEditor,
-  MongoLanguage,
   QueryIDEditorChatCtx,
   saveQueryKey,
-  secondConfirm,
 } from "./helper";
-import {
-  dbpalQuerykey,
-  EscDownEvent,
-  modalHandleClose,
-  NameAndQueryId,
-  uuidv4,
-} from "./Common";
+import { dbpalQuerykey, generateRandomId, NameAndQueryId } from "./Common";
 import { RiDeleteBack2Line } from "react-icons/ri";
 import {
   AiMarkdownModel,
   AiMarkdownModelSwitch,
   AppCode,
-  AppMarkDown,
   LoadStoreFile,
   SaveFavoriteSqlView,
-  SimpleFlexEditor,
-  StackRowCenter,
   ToggleChatShow,
 } from "./CommonComp2";
 import { QueryLog } from "./QueryLog";
 import InfoIcon from "@mui/icons-material/Info";
 import intervalCleanTest from "../../tests/interval_clean_test.js?raw";
-import { tempDir, join } from "@tauri-apps/api/path";
-import { exists, mkdir, readTextFile, writeTextFile } from "@tauri-apps/plugin-fs";
-import { ChildProcess, Command } from "@tauri-apps/plugin-shell";
-import { openPath, openUrl } from "@tauri-apps/plugin-opener";
-import { useBoolSwitch, useNotification, useQueryLogStore } from "./store";
+import {
+  NotificationParams,
+  useBoolSwitch,
+  useNotification,
+  useQueryLogStore,
+} from "./store";
 initMongoQueryGlobals();
 
-class CompilerOutput {
-  constructor(
-    public out: ChildProcess<string>,
-    public compileTime: number,
-    public jsCode?: string,
-  ) {}
-}
-
-function dropLastLine(str) {
+function dropLastLine(str: string) {
   return str.split(/\r?\n/).slice(0, -1).join("\n");
 }
 
-import { create } from "zustand";
-import { persist } from "zustand/middleware";
+monaco.typescript.typescriptDefaults.setCompilerOptions({
+  sourceMap: true,
+  // 注意：ScriptTarget 和 ModuleKind 也在 typescript 下
+  target: monaco.typescript.ScriptTarget.ESNext,
+  module: monaco.typescript.ModuleKind.ESNext,
+  noEmit: false,
+});
+async function transformTS(
+  editorIns: editor.IStandaloneCodeEditor,
+  showNotifacation: (_: NotificationParams) => void,
+) {
+  const model = editorIns.getModel();
+  const uri = model.uri;
+  const uriStr = uri.toString();
 
-// 定義初始的預設配置字串（轉為物件）
-const DEFAULT_COMPILER_OPTIONS = {
-  target: "esnext",
-  lib: ["esnext", "dom"],
-};
+  // 1. 获取 TS Worker
+  const workerGetter = await monaco.typescript.getTypeScriptWorker();
+  const worker = await workerGetter(uri);
 
-interface TsOptionState {
-  // 存放編譯選項物件
-  options: object;
+  const diagnostics = await Promise.all([
+    worker.getSyntacticDiagnostics(uriStr),
+    worker.getSemanticDiagnostics(uriStr),
+  ]);
 
-  // 更新選項
-  setOptions: (newOptions: object) => void;
+  let allDiagnostics = diagnostics.flat();
 
-  // 重置回預設值
-  resetOptions: () => void;
-}
-
-export const useTsOptionStore = create<TsOptionState>()(
-  persist(
-    (set) => ({
-      // 初始狀態
-      options: DEFAULT_COMPILER_OPTIONS,
-
-      setOptions: (newOptions) => set({ options: newOptions }),
-
-      resetOptions: () => set({ options: DEFAULT_COMPILER_OPTIONS }),
-    }),
-    {
-      name: "dbpal-ts-compiler-option",
-    },
-  ),
-);
-
-class TSCompiler {
-  constructor(public compileDir: string) {}
-  async getRootDir(): Promise<string> {
-    const data_dir = await tempDir();
-    const rootPath = await join(
-      data_dir,
-      "dbpal-mongo-query-ts-compile",
-      this.compileDir,
-    );
-    if (!(await exists(rootPath))) {
-      await mkdir(rootPath, { recursive: true });
-    }
-    return rootPath;
-  }
-
-  async compile(
-    value: string,
-    sourceMap: boolean,
-    compilerOP: object,
-  ): Promise<CompilerOutput> {
-    // dir
-    const rootPath = await this.getRootDir();
-
-    // write main.ts
-    const mainTsFilePath = await join(rootPath, "main.ts");
-    await writeTextFile(mainTsFilePath, value, {
-      create: true,
-      append: false,
-    });
-
-    // write config file
-    const optionFilePath = await join(rootPath, "tsconfig.json");
-    compilerOP["outDir"] = "./dist";
-    compilerOP["sourceMap"] = sourceMap;
-    compilerOP["typeRoots"] = ["./types"];
-    await writeTextFile(
-      optionFilePath,
-      JSON.stringify({ compilerOptions: compilerOP }, null, 2),
-      { create: true, append: false },
-    );
-    const typesPath = await join(rootPath, "types");
-
-    if (!(await exists(typesPath))) {
-      await mkdir(typesPath);
-    }
-    const extraTypeFile = await join(typesPath, "extra.ts");
-    if (!(await exists(extraTypeFile))) {
-      await writeTextFile(extraTypeFile, globalVar);
-    }
-    const start = new Date();
-    const cmd = Command.create(TSCompiler.getCompilerCmd(), [], {
-      cwd: rootPath,
-    });
-    const out = await cmd.execute();
-    const compileTime = new Date().getTime() - start.getTime();
-    if (out.code !== 0) {
-      return new CompilerOutput(out, compileTime);
-    }
-    const code = await readTextFile(await join(rootPath, "dist", "main.js"));
-    if (!sourceMap) {
-      return new CompilerOutput(out, compileTime, code);
-    }
-    const sourceMapText = await readTextFile(
-      await join(rootPath, "dist", "main.js.map"),
-    );
-    let codeWithMap = dropLastLine(code);
-    codeWithMap +=
-      "//# sourceMappingURL=data:application/json;charset=utf-8;base64," +
-      btoa(sourceMapText);
-    return new CompilerOutput(out, compileTime, codeWithMap);
-  }
-  static async getTscVersion(): Promise<string> {
-    const cmd = Command.create(TSCompiler.getCompilerCmd(), ["--version"]);
-    const out = await cmd.execute();
-    return out.stdout.substring(out.stdout.indexOf(" ") + 1);
-  }
-
-  static getCompilerCmd() {
-    return isWindows() ? "run-tsc-cmd" : "run-tsc";
-  }
-}
-
-function TsEditCompilerOptions(props: { handleClose: () => void }) {
-  const { handleClose } = props;
-  const { options, setOptions } = useTsOptionStore();
-  const { showNotification } = useNotification();
-
-  const [editor, setEditor] = useState<editor.IStandaloneCodeEditor>(null);
-  const handleSave = () => {
-    try {
-      let x = JSON.parse(editor.getValue());
-      setOptions(x);
-    } catch (e) {
-      showNotification({ severity: "error", title: "save option failed", message: e });
-      return;
-    }
-    showNotification({ severity: "success", title: "save option success" });
-    handleClose();
-  };
-
-  useEffect(() => {
-    if (!editor) {
-      return;
-    }
-  }, [editor]);
-
-  return (
-    <Stack sx={{ height: "100%" }}>
-      <SimpleFlexEditor
-        value={JSON.stringify(options, null, 2)}
-        language="json"
-        handleEditor={(ed) => {
-          setEditor(ed);
-        }}
-      />
-      <StackRowCenter>
-        <Button onClick={handleSave}> save </Button>
-        <Link
-          href="#"
-          underline="hover"
-          onClick={(e) => {
-            e.preventDefault();
-            openUrl("https://www.typescriptlang.org/tsconfig/#compilerOptions");
-          }}>
-          options
-        </Link>
-      </StackRowCenter>
-    </Stack>
+  allDiagnostics = allDiagnostics.filter(
+    (x) => x.category == 1,
+    // 1 means  error
   );
-}
 
-function CompilerNotice(props: { compileDir: string; sx?: SxProps<Theme> }) {
-  const { compileDir, sx } = props;
-
-  const [rootPath, setRootPath] = useState("");
-  useEffect(() => {
-    new TSCompiler(compileDir).getRootDir().then((path) => {
-      setRootPath(path);
-    });
-  }, [compileDir]);
-
-  return (
-    <Stack sx={sx}>
-      <AppMarkDown
-        handlePathUrl={(p) => {
-          openPath(p);
-        }}>
-        {`### typescript compile notice 
-  
-1. we use global installed typescript compiler.
-2. we copy the code to the [temp dir](${rootPath}).
-3. set up tsconfig.json.
-4. call command 'tsc'.
-5. retriver the compiled code from filesystem.
-
-          `}
-      </AppMarkDown>
-    </Stack>
-  );
-}
-
-function TypeScript(props: {
-  language: string;
-  setLanguage;
-  editor: editor.IStandaloneCodeEditor;
-  compileTime?: number;
-  compileDir: string;
-}) {
-  const { language, setLanguage, editor, compileTime, compileDir } = props;
-  const [showEditOption, setShowEditOption] = useState(false);
-  const { showNotification } = useNotification();
-  const [tscVersion, setTscVersion] = useState("");
-  useEffect(() => {
-    if (language == MongoLanguage.js) {
-      return;
-    }
-    TSCompiler.getTscVersion()
-      .then((v) => {
-        setTscVersion(v);
-      })
-      .catch((e) => {
-        showNotification({
-          severity: "error",
-          title: "is typescript  global installed?",
-          message: e,
-        });
-      });
-  }, [language, showNotification]);
-
-  const options = useTsOptionStore((s) => s.options);
-  return (
-    <>
-      <Autocomplete
-        options={[MongoLanguage.js, MongoLanguage.ts]}
-        value={language}
-        style={{ width: "12rem" }}
-        renderInput={(params) => <TextField {...params} label={"language"} />}
-        freeSolo={false}
-        onChange={(_, name) => {
-          (async () => {
-            if (name == MongoLanguage.js) {
-              const confirm = await secondConfirm({
-                title: "Warning",
-                content: "Switching to javascript may lose some type definitions",
-                kind: "warning",
-              });
-              if (!confirm) {
-                return;
-              }
-              const result = await new TSCompiler(compileDir).compile(
-                editor.getValue(),
-                false,
-                options,
-              );
-              if (result.out.code != 0) {
-                showNotification({
-                  severity: "error",
-                  title: "typescript compile error,can't safe change to javascript",
-                  message: <TsCompilerMsg out={result.out} editor={editor} />,
-                });
-                return;
-              }
-              editor.setValue(result.jsCode);
-            }
-            setLanguage(name);
-          })();
-        }}
-      />
-
-      {language == MongoLanguage.ts && tscVersion && (
-        <Tooltip title="typescript version">
-          <Chip color="success" label={tscVersion} />
-        </Tooltip>
-      )}
-      {language == MongoLanguage.ts && (
-        <Tooltip title="edit compiler option">
-          <Button
-            variant="outlined"
-            onClick={() => {
-              setShowEditOption(true);
-            }}>
-            option
-          </Button>
-        </Tooltip>
-      )}
-      {language == MongoLanguage.ts && compileTime && (
-        <Tooltip title="compile time">
-          <Chip label={`${compileTime}ms`} color="info" />
-        </Tooltip>
-      )}
-      {language == MongoLanguage.ts && (
-        <Tooltip
-          slotProps={{
-            tooltip: {
-              style: { maxWidth: "40vw" },
-            },
-          }}
-          title=<CompilerNotice sx={{ width: "40vw" }} compileDir={compileDir} />>
-          <Typography> compile </Typography>
-        </Tooltip>
-      )}
-      {showEditOption && (
-        <Dialog
-          fullWidth
-          maxWidth="md"
-          slotProps={{
-            paper: {
-              style: {
-                height: "45vh",
-              },
-            },
-          }}
-          disableAutoFocus
-          disableEnforceFocus
-          open={showEditOption}
-          onClose={modalHandleClose((e: EscDownEvent) => {
-            e.preventDefault();
-            setShowEditOption(false);
-          })}>
-          <DialogTitle> edit typescript compile option </DialogTitle>
-
-          <TsEditCompilerOptions
-            handleClose={() => {
-              setShowEditOption(false);
-            }}
-          />
-        </Dialog>
-      )}
-    </>
-  );
-}
-
-let lastLanguage = MongoLanguage.js;
-
-function TsCompilerMsg(props: {
-  editor: editor.IStandaloneCodeEditor;
-  out: ChildProcess<string>;
-}) {
-  const { editor, out } = props;
-
-  const lines = useMemo(() => {
-    const lines = (out.stdout + out.stderr).split("\n");
-
-    return lines.map((x) => {
-      const pos = extractLineAndColumn(x);
-      return { msg: x, pos };
-    });
-  }, [out]);
-  return (
-    <Stack>
-      {lines.map((line, index) => {
-        return (
+  if (allDiagnostics.length > 0) {
+    for (const x of allDiagnostics) {
+      showNotifacation({
+        severity: "error",
+        message: (
           <Typography
-            key={index}
-            style={{ cursor: line.pos ? "pointer" : undefined }}
+            style={{ cursor: "pointer" }}
             onClick={() => {
-              editor.setPosition(line.pos);
-              editor.focus();
+              const pos = model.getPositionAt(x.start);
+              editorIns.setPosition(pos);
+              editorIns.focus();
             }}>
-            {line.msg}
+            {(function () {
+              if (typeof x.messageText == "string") {
+                return x.messageText;
+              } else {
+                return x.messageText.messageText;
+              }
+            })()}
           </Typography>
-        );
-      })}
-    </Stack>
+        ),
+      });
+    }
+
+    return "";
+  }
+
+  // 2. 调用编译方法 (getEmitOutput 包含 js 和 map)
+  const emitOutput = await worker.getEmitOutput(uri.toString());
+
+  // 3. 提取结果
+  // outputFiles 通常包含两个文件：一个 .js，一个 .js.map
+  const jsCode = emitOutput.outputFiles.find((f) => f.name.endsWith(".js"))?.text;
+  const sourceMap = emitOutput.outputFiles.find((f) =>
+    f.name.endsWith(".js.map"),
+  )?.text;
+
+  return (
+    dropLastLine(jsCode) +
+    "//# sourceMappingURL=data:application/json;charset=utf-8;base64," +
+    btoa(sourceMap)
   );
 }
 
@@ -472,7 +160,7 @@ function CallCleanFunctions(props: {
 
 function ExecuteButton(props: {
   handleEexecute: (text: string) => void;
-  getText: () => string;
+  getText: () => Promise<string>;
   disabled: boolean;
 }) {
   const { handleEexecute, getText, disabled } = props;
@@ -481,8 +169,8 @@ function ExecuteButton(props: {
     <Tooltip title="execute">
       <span>
         <IconButton
-          onClick={() => {
-            const text = getText();
+          onClick={async () => {
+            const text = await getText();
             if (!text) {
               return;
             }
@@ -496,13 +184,8 @@ function ExecuteButton(props: {
     </Tooltip>
   );
 }
-function MongoQuery(props: {
-  uuid: string;
-  favoriteName?: string;
-  value?: string;
-  language?: string;
-}) {
-  const { uuid, value, language: valueLanguage, favoriteName } = props;
+function MongoQuery(props: { uuid: string; favoriteName?: string; value?: string }) {
+  const { uuid, value, favoriteName } = props;
   const [showQueryLog, setShowQueryLog] = useState(false);
   const [editor, setEditor] = useState<editor.IStandaloneCodeEditor>(null);
   const [db] = useState(new MongoDBQuery(uuid));
@@ -510,16 +193,8 @@ function MongoQuery(props: {
   const { showNotification } = useNotification();
   const [BSON, setBSON] = useState(null);
   const [FS, setFs] = useState(null);
-
-  const [language, setLanguage] = useState<MongoLanguage>(
-    valueLanguage ? (valueLanguage as MongoLanguage) : lastLanguage,
-  );
   const [markdownModel, setMarkdownModel] = useState(false);
-  const [compileTime, setCompileTime] = useState<number | null>(null);
-  const compileDir = useRef(uuidv4());
-  useEffect(() => {
-    lastLanguage = language;
-  }, [language]);
+
   const { save: saveQueryLog } = useQueryLogStore();
 
   const setEditorContext = useContext(QueryIDEditorChatCtx);
@@ -536,6 +211,12 @@ function MongoQuery(props: {
   const onMount = useCallback(
     (ed: editor.IStandaloneCodeEditor) => {
       setEditor(ed);
+      const model = monaco.editor.createModel(
+        "",
+        "typescript",
+        monaco.Uri.parse(`file:///${generateRandomId()}.ts`), // 显式指定路径
+      );
+      ed.setModel(model);
       ed.getModel()[dbpalQuerykey] = new NameAndQueryId(uuid, DataSourceKind.Mongo, ""); // mongo no need query id
       ed.focus();
     },
@@ -552,29 +233,10 @@ function MongoQuery(props: {
   }, []);
 
   const { getSwitch } = useBoolSwitch();
-  const compilerOp = useTsOptionStore((s) => s.options);
 
   const handleExecute = async (code: string) => {
     if (getSwitch(saveQueryKey)) {
-      saveQueryLog(uuid, editor.getValue(), true, language);
-    }
-    if (language == MongoLanguage.ts) {
-      let out: CompilerOutput;
-      try {
-        out = await new TSCompiler(compileDir.current).compile(code, true, compilerOp);
-      } catch (e) {
-        console.error("compile failed", e);
-      }
-      setCompileTime(out.compileTime);
-      if (out.out.code != 0) {
-        showNotification({
-          severity: "error",
-          title: "compile failed",
-          message: <TsCompilerMsg out={out.out} editor={editor} />,
-        });
-        return;
-      }
-      code = out.jsCode;
+      saveQueryLog(uuid, code, true);
     }
     eval(code);
     showNotification({
@@ -596,28 +258,14 @@ function MongoQuery(props: {
         sx={{ alignItems: "center", overflow: "auto", paddingBottom: "0.5rem" }}>
         <ExecuteButton
           disabled={markdownModel}
-          getText={() => {
-            let code = getEditorText(editor, showNotification, false);
-            if (!code.trim()) {
-              showNotification({
-                severity: "warning",
-                title: "can't execute empty statement",
-              });
-              return;
-            }
+          getText={async () => {
+            const code = await transformTS(editor, showNotification);
             return code;
           }}
           handleEexecute={handleExecute}
         />
-        <TypeScript
-          language={language}
-          setLanguage={setLanguage}
-          editor={editor}
-          compileTime={compileTime}
-          compileDir={compileDir.current}
-        />
+
         <SaveFavoriteSqlView
-          language={language}
           kind={DataSourceKind.Mongo}
           editor={editor}
           uuid={uuid}
@@ -628,10 +276,7 @@ function MongoQuery(props: {
             return editor.getValue();
           }}
           kind={DataSourceKind.Mongo}
-          handleLoadFile={(path, text) => {
-            if (path.endsWith(".ts")) {
-              setLanguage(MongoLanguage.ts);
-            }
+          handleLoadFile={(_path, text) => {
             editor.setValue(text);
           }}
         />
@@ -701,7 +346,7 @@ function MongoQuery(props: {
         appcodeExtra={({ code }) => {
           return (
             <ExecuteButton
-              getText={() => {
+              getText={async () => {
                 return code;
               }}
               handleEexecute={handleExecute}
@@ -720,7 +365,7 @@ function MongoQuery(props: {
         }}>
         <MonacoEditor
           onMount={onMount}
-          language={markdownModel ? "markdown" : language}
+          language={markdownModel ? "markdown" : "typescript"}
           value={value}
         />
       </div>
@@ -739,17 +384,6 @@ function CleanFunctionDoc() {
       <AppCode language={"javascript"} codeBlock={intervalCleanTest} />
     </Paper>
   );
-}
-
-// main.ts(2,1): error TS2364: The left-hand side of an assignment expression must be a variable or a property access.
-// extract line and column from error message
-function extractLineAndColumn(text: string): Position | undefined {
-  if (!text.startsWith("main.ts")) {
-    return undefined;
-  }
-  const sub = text.substring(text.indexOf("(") + 1, text.indexOf(")"));
-  const arr = sub.split(",");
-  return new Position(parseInt(arr[0]), parseInt(arr[1]));
 }
 
 export { MongoQuery };

@@ -62,23 +62,6 @@
     "core:window:allow-show",
     "keyring:default",
     "core:webview:deny-clear-all-browsing-data",
-    "shell:default",
-    "shell:allow-execute",
-    {
-      "identifier": "shell:allow-execute",
-      "allow": [
-        {
-          "name": "run-tsc",
-          "cmd": "tsc",
-          "args": true
-        },
-        {
-          "name": "run-tsc-cmd",
-          "cmd": "tsc.cmd",
-          "args": true
-        }
-      ]
-    },
     "log:default"
   ]
 }

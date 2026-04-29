@@ -555,6 +555,21 @@ export function isRedisCode(code: string): boolean {
   return false;
 }
 
+export function generateRandomId(length = 8) {
+  const letters = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ";
+  const allChars = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
+
+  // 1. 确保首位是字母
+  let result = letters.charAt(Math.floor(Math.random() * letters.length));
+
+  // 2. 生成剩余部分
+  for (let i = 1; i < length; i++) {
+    result += allChars.charAt(Math.floor(Math.random() * allChars.length));
+  }
+
+  return result;
+}
+
 const providerQueryID = { id: "" };
 export {
   dbpalQuerykey,

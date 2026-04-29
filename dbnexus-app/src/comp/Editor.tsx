@@ -186,7 +186,7 @@ function MonacoEditor({
                         return "";
                     }
                   })()}>
-                  {marker.startColumn}:{marker.startColumn}
+                  {marker.startLineNumber}:{marker.startColumn}
                   &nbsp;&nbsp;
                   {marker.message}
                 </Typography>

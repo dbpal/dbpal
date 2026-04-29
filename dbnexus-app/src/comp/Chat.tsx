@@ -71,9 +71,8 @@ function AllKindQuery(props: {
   uuid: string;
   value?: string;
   favoriteName?: string;
-  language?: string;
 }) {
-  const { kind, uuid, value, favoriteName, language } = props;
+  const { kind, uuid, value, favoriteName } = props;
   let content: ReactNode;
   switch (kind) {
     case DataSourceKind.SqlServer:
@@ -99,14 +98,7 @@ function AllKindQuery(props: {
       break;
 
     case DataSourceKind.Mongo:
-      content = (
-        <MongoQuery
-          language={language}
-          uuid={uuid}
-          value={value}
-          favoriteName={favoriteName}
-        />
-      );
+      content = <MongoQuery uuid={uuid} value={value} favoriteName={favoriteName} />;
       break;
     case DataSourceKind.CouchBase:
       return <CouchBaseQuery uuid={uuid} value={value} />;
@@ -121,9 +113,8 @@ function AllKindChat(props: {
   kind: DataSourceKind;
   value?: string;
   favoriteName?: string;
-  language?: string; // mongo used this as javascript or typescript
 }) {
-  const { uuid, kind, favoriteName, value, language } = props;
+  const { uuid, kind, favoriteName, value } = props;
   const llm = useLLM();
   const showChatKey = "chat-show-" + uuid;
   const { getSwitch, setSwitch } = useBoolSwitch();
@@ -154,7 +145,6 @@ function AllKindChat(props: {
             kind={kind}
             favoriteName={favoriteName}
             value={value}
-            language={language}
           />
           {llm && editor && <SqlChatTextInput uuid={uuid} />}
         </ChatShowContext.Provider>
