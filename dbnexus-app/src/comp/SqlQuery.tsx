@@ -1,6 +1,6 @@
 import { MultiQueryResp } from "./QueryResp";
 import EventNoteIcon from "@mui/icons-material/EventNote";
-import { Checkbox, Chip, Divider, IconButton, Stack, Tooltip } from "@mui/material";
+import { Chip, Divider, IconButton, Stack, Tooltip } from "@mui/material";
 import { Panel, PanelGroup, PanelResizeHandle } from "react-resizable-panels";
 import PlayArrowIcon from "@mui/icons-material/PlayArrow";
 import { FaExclamation } from "react-icons/fa";
@@ -36,7 +36,6 @@ import {
 } from "./helper.ts";
 import ArrowCircleDownRoundedIcon from "@mui/icons-material/ArrowCircleDownRounded";
 import { ExportView } from "./Export.tsx";
-import { ErrorTryLocate } from "./CommonComp.tsx";
 import {
   AiMarkdownModel,
   AiMarkdownModelSwitch,
@@ -63,7 +62,7 @@ import {
   UseSizeConfig,
   useSizeStore,
 } from "./store.tsx";
-import { commands, ErrAndLoc, MuiDataGridData, QueryEvent } from "./bindings.ts";
+import { MuiDataGridData, QueryEvent } from "./bindings.ts";
 
 function SqlTransaction(props: { conn: QueryConn; executeTimes: number }) {
   const { conn, executeTimes } = props;
@@ -187,7 +186,6 @@ function SqlTransaction(props: { conn: QueryConn; executeTimes: number }) {
     </>
   );
 }
-const tryCheckSqlSwitchKey = "try-check-sql";
 
 function QueryButtons(props: {
   handleQuery: (text: string, append: boolean) => void;
@@ -303,7 +301,6 @@ function SqlQuery(props: {
 }) {
   const { uuid, value, favoriteName, kind, extras } = props;
   const [resp, setResp] = useState<QueryRespData[]>([]);
-  const [sqlErr, setSqlErr] = useState<ErrAndLoc | null>(null);
   const [editor, setEditor] = useState<editor.IStandaloneCodeEditor>(null);
   const [loading, setLoading] = useState(false);
   const [makeConnLoading, setMakeConnLoading] = useState(false);
@@ -317,11 +314,10 @@ function SqlQuery(props: {
   const [queryStatus, setQueryStatus] = useState("");
   const tabCtx = useContext(TabContext);
   const querySomeShow = useQueryExtraUI((s) => s.extra);
-  const { getSwitch, setSwitch } = useBoolSwitch();
-  const tryCheckSql = getSwitch(tryCheckSqlSwitchKey);
   const { save: saveQueryLog } = useQueryLogStore();
   const [markdownModel, setMarkdownModel] = useState(false);
   const { setUi: setOneShotUI } = useOneShotDialogUI();
+  const { getSwitch } = useBoolSwitch();
   const setEditorContext = useContext(QueryIDEditorChatCtx);
   useEffect(() => {
     if (!editor) {
@@ -342,18 +338,11 @@ function SqlQuery(props: {
       if (markdownModel) {
         return;
       }
-      if (!tryCheckSql) {
-        setSqlErr(null);
-        return;
-      }
-      commands.checkSql(uuid, editor.getValue()).then((data) => {
-        setSqlErr(data);
-      });
     });
     return () => {
       x.dispose();
     };
-  }, [editor, markdownModel, tryCheckSql, uuid]);
+  }, [editor, markdownModel, uuid]);
 
   useEffect(() => {
     setMakeConnLoading(true);
@@ -566,17 +555,6 @@ function SqlQuery(props: {
                     cancelTask(queryId);
                   }}
                 />
-                <Tooltip title="try check sql,right now implemented it using parser">
-                  <Checkbox
-                    checked={tryCheckSql}
-                    onChange={(e) => {
-                      setSwitch(tryCheckSqlSwitchKey, e.target.checked);
-                    }}
-                    disabled={markdownModel}
-                    name="myCheckbox"
-                    color="primary"
-                  />
-                </Tooltip>
               </>
             )}
             {openOk && conn.current.supportTransaction() && (
@@ -716,17 +694,6 @@ function SqlQuery(props: {
               language={markdownModel ? "markdown" : getDefaultLanguage(kind)}
               value={value}
               onMount={handleEditorDidMount}
-              barLeft={
-                !markdownModel && (
-                  <Stack
-                    style={{
-                      flex: 1,
-                    }}
-                    direction="row">
-                    {sqlErr && <ErrorTryLocate parseErr={sqlErr} editor={editor} />}
-                  </Stack>
-                )
-              }
             />
           </div>
         </Panel>

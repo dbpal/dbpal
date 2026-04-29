@@ -1,7 +1,8 @@
 import { ReactNode, useEffect, useMemo, useRef, useState } from "react";
 import * as monaco from "monaco-editor";
 import { useUserSettings } from "./store";
-import { Stack } from "@mui/material";
+import { Paper, Stack, Typography } from "@mui/material";
+import { MarkerSeverity } from "monaco-editor";
 
 interface MonacoEditorProps {
   value?: string;
@@ -27,6 +28,8 @@ function MonacoEditor({
 
   const [pos, setPos] = useState(null);
   const settting = useUserSettings();
+
+  const [markers, setMarkers] = useState<monaco.editor.IMarker[]>([]);
 
   const options: monaco.editor.IEditorOptions & monaco.editor.IGlobalEditorOptions =
     useMemo(
@@ -80,6 +83,7 @@ function MonacoEditor({
     }
     monacoInstance.updateOptions(options);
   }, [monacoInstance, options]);
+  const instanceModel = monacoInstance ? monacoInstance.getModel() : undefined;
 
   useEffect(() => {
     if (!monacoInstance) {
@@ -88,8 +92,11 @@ function MonacoEditor({
     if (!language) {
       return;
     }
-    monaco.editor.setModelLanguage(monacoInstance.getModel(), language);
-  }, [monacoInstance, language]);
+    if (!instanceModel) {
+      return;
+    }
+    monaco.editor.setModelLanguage(instanceModel, language);
+  }, [monacoInstance, instanceModel, language]);
   useEffect(() => {
     if (!monacoInstance) {
       return;
@@ -101,6 +108,24 @@ function MonacoEditor({
       d.dispose();
     };
   }, [monacoInstance]);
+
+  useEffect(() => {
+    if (!monacoInstance) {
+      return;
+    }
+    const d = monacoInstance.onDidChangeModelContent(() => {
+      const markers = monaco.editor.getModelMarkers({
+        resource: monacoInstance.getModel().uri,
+      });
+
+      setMarkers(markers);
+    });
+
+    return () => {
+      d.dispose();
+    };
+  }, [monacoInstance]);
+
   return (
     <div
       style={{
@@ -109,8 +134,66 @@ function MonacoEditor({
         overflow: "auto",
         display: "flex",
         flexDirection: "column",
+        position: "relative",
       }}>
-      <div ref={editorRef} style={{ height: "100px", flex: 1 }} />
+      <div
+        ref={editorRef}
+        style={{
+          height: "100px",
+          flexGrow: 1,
+          flexBasis: 0,
+          // border: "11px solid red",
+        }}
+      />
+
+      {markers.length > 0 && (
+        <Paper
+          style={{
+            position: "absolute",
+            zIndex: 14,
+            left: 0,
+            bottom: 0,
+            width: "100%",
+            overflow: "auto",
+          }}>
+          {markers.map((marker, index) => {
+            return (
+              <Stack
+                direction="row"
+                key={index}
+                sx={{
+                  alignItems: "center",
+                  cursor: "pointer",
+                }}
+                onClick={() => {
+                  monacoInstance.setPosition({
+                    lineNumber: marker.startLineNumber,
+                    column: marker.startColumn,
+                  });
+                  monacoInstance.focus();
+                }}>
+                <Typography
+                  color={(function () {
+                    switch (marker.severity) {
+                      case MarkerSeverity.Error:
+                        return "error";
+                      case MarkerSeverity.Warning:
+                        return "warning";
+                      case MarkerSeverity.Info:
+                        return "info";
+                      default:
+                        return "";
+                    }
+                  })()}>
+                  {marker.startColumn}:{marker.startColumn}
+                  &nbsp;&nbsp;
+                  {marker.message}
+                </Typography>
+              </Stack>
+            );
+          })}
+        </Paper>
+      )}
 
       <Stack
         style={{ justifyContent: "space-between", alignItems: "center" }}

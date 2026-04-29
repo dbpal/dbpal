@@ -33,7 +33,6 @@ import {
   resizeHandlerSize,
   secondConfirm,
   shrinkAble,
-  validJson,
 } from "./helper.ts";
 
 import DeleteForeverIcon from "@mui/icons-material/DeleteForever";
@@ -43,7 +42,7 @@ import { FaArrowsAltV } from "react-icons/fa";
 import { SelectPageSize } from "./CommonComp.tsx";
 import { Channel } from "@tauri-apps/api/core";
 import { dbpalQuerykey, NameAndQueryId, uuidv4 } from "./Common.ts";
-import { editor, Position } from "monaco-editor";
+import { editor } from "monaco-editor";
 import { Panel, PanelGroup, PanelResizeHandle } from "react-resizable-panels";
 import { QueryLog } from "./QueryLog.tsx";
 import { ExportView } from "./Export.tsx";
@@ -60,7 +59,6 @@ import { persist } from "zustand/middleware";
 import { create } from "zustand";
 import {
   commands,
-  ErrAndLoc,
   Field,
   MuiDataGridData,
   QueryEvent,
@@ -383,9 +381,7 @@ function CouchBaseEditor(props: {
     warnModify,
     docid,
   } = props;
-  const [jsonErr, setJsonErr] = useState<ErrAndLoc | null>(null);
   const { showNotification } = useNotification();
-  const [jsonErrPos, setJsonErrPos] = useState<Position>(null);
   const [newValue, setNewValue] = useState(value);
   const [loading, setLoading] = useState(false);
   const [changed, setChanged] = useState(false);
@@ -442,43 +438,14 @@ function CouchBaseEditor(props: {
       <SimpleFlexEditor
         value={newValue}
         handleValue={async (newValue) => {
-          try {
-            const x = await validJson(newValue);
-            setJsonErr(x);
-          } catch (e) {
-            showNotification({
-              severity: "error",
-              title: "call valid json failed",
-              message: e,
-            });
-            return;
-          }
           setNewValue(newValue);
           setChanged(true);
         }}
         language="json"
-        errPos={jsonErrPos}
-        barLeft={
-          <Stack direction="row">
-            {jsonErr && (
-              <Typography
-                color="error"
-                style={{ cursor: "pointer" }}
-                onClick={() => {
-                  if (!jsonErr) {
-                    return;
-                  }
-                  setJsonErrPos(new Position(jsonErr.line, jsonErr.column));
-                }}>
-                {jsonErr.msg}
-              </Typography>
-            )}
-          </Stack>
-        }
       />
 
       <Stack direction="row" style={{ alignItems: "center" }}>
-        {doModify && !jsonErr && (
+        {doModify && (
           <>
             <Button
               onClick={() => {

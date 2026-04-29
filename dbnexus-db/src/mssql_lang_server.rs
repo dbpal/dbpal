@@ -5,7 +5,7 @@
 use crate::db::{CatalogTrait, CreatedTypeDef};
 use crate::language_server::{
     try_parser_dot_lexer, AstCompletionHelper, CompletionItem, CompletionKind, CompletionList,
-    DBExecutable, ErrAndLoc, GetKeyWords, LangServerCommon, LanguageServer, LexerCompletionTrait,
+    DBExecutable, GetKeyWords, LangServerCommon, LanguageServer, LexerCompletionTrait,
 };
 use crate::mssql::SqlServerDB;
 use crate::sqlparser_completion::TempTableColumn;
@@ -53,10 +53,6 @@ impl LanguageServer for SqlServerDB {
         use_lexer: bool,
     ) -> anyhow::Result<CompletionList> {
         try_parser_dot_lexer(self, sql, line, col, use_lexer).await
-    }
-
-    async fn check_sql(&self, sql: &str) -> anyhow::Result<Option<ErrAndLoc>> {
-        LangServerCommon::parse_err(self, sql)
     }
 
     fn is_dangerous_sql(&self, sql: &str) -> anyhow::Result<bool> {

@@ -55,7 +55,6 @@ import {
   ChatShowContext,
   DataSourceKind,
   editorPositionToEnd,
-  editorSetPositionAndReveal,
   handleCopyToClipboard,
   isMacOs,
   KeyPressed,
@@ -67,7 +66,7 @@ import {
   textEllipsisStyle,
 } from "./helper";
 
-import { editor, Position } from "monaco-editor";
+import { editor } from "monaco-editor";
 import {
   dbpalQuerykey,
   EscDownEvent,
@@ -524,12 +523,11 @@ function SimpleFlexEditor(props: {
   value?: string;
   barLeft?: ReactNode;
   readOnly?: boolean;
-  errPos?: Position;
+
   handleEditor?: (editor: editor.IStandaloneCodeEditor) => void;
   handleValue?: (value: string) => void;
 }) {
-  const { language, value, barLeft, readOnly, errPos, handleEditor, handleValue } =
-    props;
+  const { language, value, barLeft, readOnly, handleEditor, handleValue } = props;
   const [editor, setEditor] = useState<editor.IStandaloneCodeEditor>(null);
   const handleDidMount = useCallback((ed: editor.IStandaloneCodeEditor) => {
     setEditor(ed);
@@ -546,11 +544,6 @@ function SimpleFlexEditor(props: {
       d.dispose();
     };
   }, [editor, handleEditor]);
-  useEffect(() => {
-    if (editor && errPos) {
-      editorSetPositionAndReveal(editor, errPos);
-    }
-  }, [editor, errPos]);
 
   useEffect(() => {
     if (!editor) {

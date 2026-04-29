@@ -31,7 +31,6 @@ import {
   QueryIDEditorChatCtx,
   saveQueryKey,
   secondConfirm,
-  validJson,
 } from "./helper";
 import {
   dbpalQuerykey,
@@ -76,7 +75,6 @@ function dropLastLine(str) {
 
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
-import { ErrAndLoc } from "./bindings";
 
 // 定義初始的預設配置字串（轉為物件）
 const DEFAULT_COMPILER_OPTIONS = {
@@ -195,11 +193,8 @@ class TSCompiler {
 
 function TsEditCompilerOptions(props: { handleClose: () => void }) {
   const { handleClose } = props;
-  const [jsonErr, setJsonErr] = useState<ErrAndLoc | null>(null);
-
   const { options, setOptions } = useTsOptionStore();
   const { showNotification } = useNotification();
-  const [jsonErrPos, setJsonErrPos] = useState<Position>(null);
 
   const [editor, setEditor] = useState<editor.IStandaloneCodeEditor>(null);
   const handleSave = () => {
@@ -218,12 +213,6 @@ function TsEditCompilerOptions(props: { handleClose: () => void }) {
     if (!editor) {
       return;
     }
-
-    editor.onDidChangeModel(() => {
-      validJson(editor.getValue()).then((x) => {
-        setJsonErr(x);
-      });
-    });
   }, [editor]);
 
   return (
@@ -234,22 +223,6 @@ function TsEditCompilerOptions(props: { handleClose: () => void }) {
         handleEditor={(ed) => {
           setEditor(ed);
         }}
-        errPos={jsonErrPos}
-        barLeft={
-          jsonErr && (
-            <Typography
-              color="error"
-              style={{ cursor: "pointer" }}
-              onClick={() => {
-                if (!jsonErr) {
-                  return;
-                }
-                setJsonErrPos(new Position(jsonErr.line, jsonErr.column));
-              }}>
-              {jsonErr.msg}
-            </Typography>
-          )
-        }
       />
       <StackRowCenter>
         <Button onClick={handleSave}> save </Button>

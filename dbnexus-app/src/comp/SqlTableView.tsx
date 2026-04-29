@@ -57,7 +57,6 @@ import {
   handleCopyToClipboard,
   isTypeLargeText,
   secondConfirm,
-  validJson,
   textEllipsisStyle,
   quoteDatabaseIdentifier,
   extractFieldAndIDFromMouseEvent,
@@ -76,7 +75,7 @@ import {
   ViewRowInModal,
 } from "./CommonComp";
 
-import { editor, Position } from "monaco-editor";
+import { editor } from "monaco-editor";
 import wcmatch from "wildcard-match";
 import { MdEditNote } from "react-icons/md";
 import {
@@ -105,13 +104,7 @@ import {
   useSizeStore,
   useTableColumnVisibleStore,
 } from "./store";
-import {
-  commands,
-  ErrAndLoc,
-  Field,
-  MuiDataGridData,
-  ShowTableParameter,
-} from "./bindings";
+import { commands, Field, MuiDataGridData, ShowTableParameter } from "./bindings";
 import { ExportTableOrView } from "./Export";
 import {
   DataGrid,
@@ -164,8 +157,6 @@ function EditInModal(props: {
   handleClose: () => void;
 }) {
   const { content, handleModify, handleClose } = props;
-  const [jsonErr, setJsonErr] = useState<ErrAndLoc>(null);
-  const [jsonErrPos, setJsonErrPos] = useState<Position>(null);
   const [language, setLanguage] = useState(EditInModalLanguage);
   const [editor, setEditor] = useState<editor.IStandaloneCodeEditor>(null);
   const [editInModalBox, setEditInModalBox] = useState(null);
@@ -175,12 +166,8 @@ function EditInModal(props: {
     }
     let d = editor.getModel().onDidChangeContent(() => {
       if (language != "json") {
-        setJsonErr(null);
         return;
       }
-      validJson(editor.getValue()).then((e) => {
-        setJsonErr(e);
-      });
     });
     return () => {
       d.dispose();
@@ -225,23 +212,6 @@ function EditInModal(props: {
             handleEditor={(ed) => {
               setEditor(ed);
             }}
-            errPos={jsonErrPos}
-            barLeft={
-              jsonErr ? (
-                <Typography
-                  color="error"
-                  variant="body1"
-                  style={{ cursor: "pointer" }}
-                  onClick={() => {
-                    if (!jsonErr) {
-                      return;
-                    }
-                    setJsonErrPos(new Position(jsonErr.line, jsonErr.column));
-                  }}>
-                  {jsonErr.msg}
-                </Typography>
-              ) : undefined
-            }
           />
           <Divider />
           <Stack direction="row">

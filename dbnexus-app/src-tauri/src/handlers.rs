@@ -11,7 +11,7 @@ use dbnexus_db::db::{
     ListTable, MetaValue, NamedStaff, OptionMustBeSomeErr, ProcedureDetail, QueryEventEmit,
     QueryResp, SequenceDetail, ShowTableParameter, SqlEvent, TimeElapsed, TriggerDetail,
 };
-use dbnexus_db::language_server::{CompletionList, ErrAndLoc};
+use dbnexus_db::language_server::CompletionList;
 use dbnexus_db::mongo::MongoDB;
 
 use dbnexus_db::redis::{redis_tokenize, RedisDB, RedisListTableRet};
@@ -1517,24 +1517,6 @@ pub async fn ai_text_completion(
         return Ok(list);
     }
     Ok(list)
-}
-
-#[specta::specta]
-#[tauri::command]
-pub async fn check_sql(
-    db_name: String,
-    sql: String,
-    app: tauri::State<'_, DBPal>,
-) -> Result<Option<ErrAndLoc>, ErrorFrontend> {
-    random_sleep().await;
-    random_error()?;
-    let db = app.get_backend(db_name.as_str()).await?;
-    let ret = db
-        .as_language_server()
-        .check_sql(&sql)
-        .await
-        .map_err(ErrorFrontend::from)?;
-    Ok(ret)
 }
 
 #[specta::specta]
@@ -3201,20 +3183,6 @@ pub async fn drop_created_type(
 #[tauri::command]
 pub async fn command_panic() -> Result<(), ErrorFrontend> {
     panic!("this is a panic for testing.")
-}
-
-#[specta::specta]
-#[tauri::command]
-pub fn valid_json(json_str: String) -> Result<Option<ErrAndLoc>, ErrorFrontend> {
-    use serde_json::Value;
-    match serde_json::from_str::<Value>(&json_str) {
-        Ok(_) => Ok(None),
-        Err(e) => Ok(Some(ErrAndLoc {
-            msg: format!("{}", e),
-            line: Some(e.line() as u32),
-            column: Some(e.column() as u32),
-        })),
-    }
 }
 
 #[derive(serde::Serialize, specta::Type)]

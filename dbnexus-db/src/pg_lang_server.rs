@@ -4,7 +4,7 @@ use crate::db::{
 };
 use crate::language_server::{
     try_parser_dot_lexer, AstCompletionHelper, CompletionItem, CompletionKind, CompletionList,
-    DBExecutable, ErrAndLoc, GetKeyWords, LangServerCommon, LanguageServer, LexerCompletionTrait,
+    DBExecutable, GetKeyWords, LangServerCommon, LanguageServer, LexerCompletionTrait,
     PostGresExtension,
 };
 use crate::pg::PostGresDB;
@@ -631,10 +631,6 @@ impl LanguageServer for PostGresDB {
     ) -> anyhow::Result<CompletionList> {
         self.completion_id.set_optional(query_id);
         try_parser_dot_lexer(self, sql, line, col, use_lexer).await
-    }
-
-    async fn check_sql(&self, sql: &str) -> anyhow::Result<Option<ErrAndLoc>> {
-        LangServerCommon::parse_err(self, sql)
     }
 
     fn is_dangerous_sql(&self, sql: &str) -> anyhow::Result<bool> {

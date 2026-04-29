@@ -12,7 +12,7 @@ MySQL 只允许省略 sys. 前缀直接调用“函数”，对“存储过程�
 use crate::db::{name_start_ascii_alphabetic, BackendKindMysql, SqlEvent};
 use crate::language_server::{
     try_parser_dot_lexer, AstCompletionHelper, CompletionItem, CompletionKind, CompletionList,
-    DBExecutable, ErrAndLoc, GetKeyWords, LangServerCommon, LanguageServer, LexerCompletionTrait,
+    DBExecutable, GetKeyWords, LangServerCommon, LanguageServer, LexerCompletionTrait,
 };
 use crate::mariadb::MARIADB_FUNCTIONS;
 use crate::mysql::MysqlDB;
@@ -98,9 +98,6 @@ impl LanguageServer for MysqlDB {
         try_parser_dot_lexer(self, sql, line, col, use_lexer).await
     }
 
-    async fn check_sql(&self, sql: &str) -> anyhow::Result<Option<ErrAndLoc>> {
-        LangServerCommon::parse_err(self, sql)
-    }
     fn is_dangerous_sql(&self, sql: &str) -> anyhow::Result<bool> {
         LangServerCommon::is_dangerous_sql_by_parser(self, sql)
     }

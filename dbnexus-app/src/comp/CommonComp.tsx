@@ -43,7 +43,6 @@ import ArrowDownwardIcon from "@mui/icons-material/ArrowDownward";
 import {
   dataGridStyle,
   DataSourceKind,
-  editorSetPositionAndReveal,
   errToString,
   extractFieldAndIDFromMouseEvent,
   handleCopyToClipboard,
@@ -57,7 +56,6 @@ import {
 import { TbDatabasePlus } from "react-icons/tb";
 import LinkIcon from "@mui/icons-material/Link";
 import { EscDownEvent, modalHandleClose, modalStyle, PassWordManager } from "./Common";
-import { editor, Position } from "monaco-editor";
 import { openPath } from "@tauri-apps/plugin-opener";
 import {
   AppDataGridPagination,
@@ -78,7 +76,7 @@ import {
   useQueryLogStore,
   useViewInModalMatchStrStore,
 } from "./store";
-import { commands, ErrAndLoc, Field, MetaValue, NamedStaff } from "./bindings";
+import { commands, Field, MetaValue, NamedStaff } from "./bindings";
 import {
   DataGrid,
   GridColDef,
@@ -797,38 +795,6 @@ function UdfNameAndParameters(props: { udf: NamedStaff; kind: DataSourceKind }) 
 }
 
 /**
- * Tooltip shown for a potential parse error in the editor.
- */
-function ErrorTryLocate(props: {
-  parseErr: ErrAndLoc;
-  editor: editor.IStandaloneCodeEditor;
-}) {
-  const { parseErr, editor } = props;
-  return (
-    <Tooltip title="possible error" followCursor>
-      <Typography
-        style={{
-          cursor: parseErr.line && parseErr.column && "pointer",
-          ...textEllipsisStyle,
-        }}
-        onClick={() => {
-          if (!parseErr) {
-            return;
-          }
-          if (parseErr.line && parseErr.column) {
-            editorSetPositionAndReveal(
-              editor,
-              new Position(parseErr.line, parseErr.column),
-            );
-          }
-        }}>
-        {parseErr.msg}
-      </Typography>
-    </Tooltip>
-  );
-}
-
-/**
  * Menu item that copies a grid field name.
  */
 function CopyMenuItem(props: GridColumnMenuItemProps) {
@@ -997,7 +963,6 @@ export {
   ModalHeader,
   ViewRowInModal,
   UdfNameAndParameters,
-  ErrorTryLocate,
   AppColumnMenu,
   SelectColumns,
   OpenFileWithDefaultApp,

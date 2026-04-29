@@ -7,7 +7,7 @@ use crate::clickhouse::{ClickHouseDB, FieldsOrData};
 use crate::db::DBTrait;
 use crate::language_server::{
     try_parser_dot_lexer, AstCompletionHelper, CompletionItem, CompletionKind, CompletionList,
-    ErrAndLoc, GetKeyWords, LangServerCommon, LanguageServer, LexerCompletionTrait,
+    GetKeyWords, LangServerCommon, LanguageServer, LexerCompletionTrait,
 };
 use crate::sqlparser_completion::TempTableColumn;
 
@@ -56,9 +56,6 @@ impl LanguageServer for ClickHouseDB {
         try_parser_dot_lexer(self, sql, line, col, use_lexer).await
     }
 
-    async fn check_sql(&self, sql: &str) -> anyhow::Result<Option<ErrAndLoc>> {
-        LangServerCommon::parse_err(self, sql)
-    }
     fn is_dangerous_sql(&self, sql: &str) -> anyhow::Result<bool> {
         LangServerCommon::is_dangerous_sql_by_parser(self, sql)
     }

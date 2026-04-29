@@ -28,10 +28,6 @@ pub trait LanguageServer: GetBackendKind + Send + Sync + 'static {
         col: u32,
     ) -> anyhow::Result<CompletionList>;
 
-    async fn check_sql(&self, _sql: &str) -> anyhow::Result<Option<ErrAndLoc>> {
-        anyhow::Ok(None)
-    }
-
     fn is_dangerous_sql(&self, _sql: &str) -> anyhow::Result<bool>;
 
     // extract `a=`` from `select * from where a =1`
@@ -456,14 +452,7 @@ pub trait LangServerCommon: GetBackendKind + GetKeyWords + Send + Sync {
     async fn duckdb_extensions(&self) -> anyhow::Result<Vec<CompletionItem>> {
         anyhow::Ok(vec![])
     }
-    fn parse_err(&self, sql: &str) -> anyhow::Result<Option<ErrAndLoc>> {
-        let dialect = self.dialect();
-        let ss = sqlparser::parser::Parser::parse_sql(dialect.as_ref(), sql);
-        match ss {
-            Ok(_) => anyhow::Ok(None),
-            Err(err) => anyhow::Ok(Some(ErrAndLoc::from(err))),
-        }
-    }
+
     async fn list_cluster(&self) -> anyhow::Result<Vec<String>> {
         anyhow::Ok(vec![])
     }
@@ -1384,21 +1373,4 @@ select xxxx
         }
     }
     //
-}
-
-#[derive(Clone, Debug, serde::Serialize, specta::Type)]
-pub struct ErrAndLoc {
-    pub line: Option<u32>,
-    pub column: Option<u32>,
-    pub msg: String,
-}
-
-impl From<String> for ErrAndLoc {
-    fn from(value: String) -> Self {
-        ErrAndLoc {
-            line: None,
-            column: None,
-            msg: value,
-        }
-    }
 }

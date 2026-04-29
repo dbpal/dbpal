@@ -1,6 +1,6 @@
 use crate::db::BackendKind;
 use crate::helper::try_remove_one_at;
-use crate::language_server::{AstCompletionHelper, CompletionItem, CompletionKind, ErrAndLoc};
+use crate::language_server::{AstCompletionHelper, CompletionItem, CompletionKind};
 use sqlparser::ast::*;
 use sqlparser::tokenizer::{Location, Span};
 use std::collections::HashSet;
@@ -2383,14 +2383,6 @@ pub fn sqlparser_err_extract_line_col(error: impl Into<String>) -> (Option<u32>,
         (line, col)
     } else {
         (None, None)
-    }
-}
-
-impl From<sqlparser::parser::ParserError> for ErrAndLoc {
-    fn from(value: sqlparser::parser::ParserError) -> Self {
-        let msg = value.to_string();
-        let (line, column) = sqlparser_err_extract_line_col(&msg);
-        Self { line, column, msg }
     }
 }
 

@@ -20,7 +20,7 @@ import {
 import * as monaco from "monaco-editor";
 
 import ListIcon from "@mui/icons-material/List";
-import { editor, languages, Position } from "monaco-editor";
+import { editor, languages } from "monaco-editor";
 import DeleteForeverIcon from "@mui/icons-material/DeleteForever";
 import FilterAltIcon from "@mui/icons-material/FilterAlt";
 import { FaArrowsAltV } from "react-icons/fa";
@@ -57,7 +57,6 @@ import {
 import {
   DocsAndCount,
   handleCopyToClipboard,
-  validJson,
   dataGridStyle,
   pageSizeOptions,
   shrinkAble,
@@ -85,7 +84,7 @@ import {
   useSizeStore,
   useTableColumnVisibleStore,
 } from "./store";
-import { commands, ErrAndLoc, MuiDataGridData } from "./bindings";
+import { commands, MuiDataGridData } from "./bindings";
 import { AddTableModal } from "./LeftTable";
 import {
   DataGrid,
@@ -837,39 +836,19 @@ function JsonEditor(props: {
 }) {
   const { value, modifyOP, delOP, modifyOPName } = props;
   const [newValue, setNewValue] = useState(EJSON.stringify(value, null, 2));
-  const [jsonErr, setJsonErr] = useState<ErrAndLoc | null>(null);
   const [loading, setLoading] = useState(false);
-  const [jsonErrPos, setJsonErrPos] = useState<Position>(null);
-  const { showNotification } = useNotification();
-  useEffect(() => {
-    (async () => {
-      try {
-        const x = await validJson(newValue);
-        setJsonErr(x);
-      } catch (e) {
-        showNotification({
-          severity: "error",
-          title: "call valid json failed",
-          message: e,
-        });
-        return;
-      }
-    })();
-  }, [newValue, showNotification]);
 
   return (
     <SimpleFlexEditor
       readOnly={!modifyOP}
       value={newValue}
       language="json"
-      errPos={jsonErrPos}
       handleValue={(v) => {
         setNewValue(v);
       }}
       barLeft=<Stack direction="row" style={{ alignItems: "center" }}>
         {modifyOP && (
           <Button
-            disabled={!!jsonErr}
             onClick={() => {
               setLoading(true);
               modifyOP(EJSON.parse(newValue)).finally(() => {
@@ -893,20 +872,6 @@ function JsonEditor(props: {
             color="error">
             delete
           </Button>
-        )}
-
-        {jsonErr && (
-          <Typography
-            color="error"
-            style={{ cursor: "pointer" }}
-            onClick={() => {
-              if (!jsonErr) {
-                return;
-              }
-              setJsonErrPos(new Position(jsonErr.line, jsonErr.column));
-            }}>
-            {jsonErr.msg}
-          </Typography>
         )}
       </Stack>
     />

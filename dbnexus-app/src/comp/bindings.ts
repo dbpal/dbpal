@@ -129,22 +129,12 @@ export const commands = {
 	querySetAutocommit: (dbName: string, queryId: string, commit: boolean) => __TAURI_INVOKE<null>("query_set_autocommit", { dbName, queryId, commit }),
 	queryCommit: (dbName: string, queryId: string) => __TAURI_INVOKE<null>("query_commit", { dbName, queryId }),
 	queryRollback: (dbName: string, queryId: string) => __TAURI_INVOKE<null>("query_rollback", { dbName, queryId }),
-	validJson: (jsonStr: string) => __TAURI_INVOKE<{
-	line: number | null,
-	column: number | null,
-	msg: string,
-} | null>("valid_json", { jsonStr }),
 	listSequence: (dbName: string) => __TAURI_INVOKE<SequenceDetail[]>("list_sequence", { dbName }),
 	dropSequence: (dbName: string, seq: string, cascade: boolean) => __TAURI_INVOKE<string>("drop_sequence", { dbName, seq, cascade }),
 	renameSequence: (dbName: string, old: string, newName: string) => __TAURI_INVOKE<string>("rename_sequence", { dbName, old, newName }),
 	commandPanic: () => __TAURI_INVOKE<null>("command_panic"),
 	allFontFamily: () => __TAURI_INVOKE<string[]>("all_font_family"),
 	listSqlCurrentValues: (dbName: string) => __TAURI_INVOKE<string[]>("list_sql_current_values", { dbName }),
-	checkSql: (dbName: string, sql: string) => __TAURI_INVOKE<{
-	line: number | null,
-	column: number | null,
-	msg: string,
-} | null>("check_sql", { dbName, sql }),
 	simpleExecuteSql: (dbName: string, sql: string) => __TAURI_INVOKE<number | null>("simple_execute_sql", { dbName, sql }),
 	dropCreatedType: (dbName: string, typeName: string) => __TAURI_INVOKE<string>("drop_created_type", { dbName, typeName }),
 	listEvent: (dbName: string) => __TAURI_INVOKE<SqlEvent[]>("list_event", { dbName }),
@@ -327,12 +317,6 @@ export type DuckDBConfig = {
 	db: string | null,
 	schema: string | null,
 	conn_timeout: ConnTimeOut | null,
-};
-
-export type ErrAndLoc = {
-	line: number | null,
-	column: number | null,
-	msg: string,
 };
 
 export type ErrorFrontend = {

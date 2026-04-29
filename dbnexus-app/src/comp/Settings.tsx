@@ -30,7 +30,6 @@ import {
 import { HexColorPicker } from "react-colorful";
 import { openPath, openUrl } from "@tauri-apps/plugin-opener";
 import {
-  validJson,
   registeredThemes,
   dataGridheaderFontSize,
   shrinkAble,
@@ -899,7 +898,6 @@ function EditorThemeDemo(props: { theme: string }) {
   );
 }
 function EditorOptions(props: { handleClose; showEditOption }) {
-  const { showNotification } = useNotification();
   const { handleClose, showEditOption } = props;
   const { editor: editorOP, updateEditor: updateEditorOP } = useUserSettings();
   const [value, setValue] = useState<string>(editorOP.editorOption);
@@ -937,16 +935,6 @@ function EditorOptions(props: { handleClose; showEditOption }) {
       <Stack direction="row">
         <Button
           onClick={async () => {
-            try {
-              await validJson(value);
-            } catch (e) {
-              showNotification({
-                severity: "error",
-                title: "not a valid json",
-                message: e,
-              });
-              return;
-            }
             updateEditorOP({ ...editorOP, editorOption: value });
             handleClose();
           }}>

@@ -17,13 +17,7 @@ import { WebviewWindow } from "@tauri-apps/api/webviewWindow";
 import { platform } from "@tauri-apps/plugin-os";
 import themelist from "../../monaco-themes/themes/themelist.json";
 import prettyMilliseconds from "pretty-ms";
-import {
-  commands,
-  CompletionItem,
-  CompletionKind,
-  ErrAndLoc,
-  MuiDataGridData,
-} from "./bindings";
+import { commands, CompletionItem, CompletionKind, MuiDataGridData } from "./bindings";
 import { NotificationParams } from "./store";
 import { uuidv4 } from "./Common";
 
@@ -302,11 +296,6 @@ const UuidContext = createContext<{
   uuid: string;
   kind: DataSourceKind;
 }>(null);
-
-async function validJson(s: string): Promise<ErrAndLoc | null> {
-  const data = await commands.validJson(s);
-  return data;
-}
 
 class DocsAndCount {
   constructor(
@@ -662,7 +651,6 @@ export {
   TabContent,
   textEllipsisStyle,
   UuidContext,
-  validJson,
   ViewKind,
   MonacoEditor,
   QueryIDEditorChatCtx,

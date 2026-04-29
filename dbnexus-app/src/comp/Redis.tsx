@@ -36,7 +36,6 @@ import {
   hexToString,
   hexTryToString,
   stringToHex,
-  validJson,
   extractFieldAndIDFromMouseEvent,
   dataGridStyle,
   pageSizeOptions,
@@ -46,7 +45,7 @@ import {
   DataSourceKind,
 } from "./helper.ts";
 import { AppColumnMenu, ModalHeader, ResetColumnWidth } from "./CommonComp.tsx";
-import { editor, Position } from "monaco-editor";
+import { editor } from "monaco-editor";
 import {
   SliderSize,
   SimpleFlexEditor,
@@ -56,7 +55,7 @@ import {
   StackRowCenter,
   ListenElementSize,
 } from "./CommonComp2.tsx";
-import { commands, ErrAndLoc, MuiDataGridData } from "./bindings.ts";
+import { commands, MuiDataGridData } from "./bindings.ts";
 import { showTable } from "./handlers.ts";
 import { AddTableModal } from "./LeftTable.tsx";
 import {
@@ -565,10 +564,7 @@ function RedisValueEditor(props: {
   const { value, valueRef, header } = props;
   const [newValue, setNewValue] = useState<string>("");
   const [editModel, setEditModel] = useState<RedisEditorMode>(RedisEditorMode.Text);
-  const [jsonErr, setJsonErr] = useState<ErrAndLoc>(null);
-  const [jsonErrPos, setJsonErrPos] = useState<Position>(null);
   useEffect(() => {
-    console.log("!!!!!!!!!!!!!!!!!!!!!!!", value);
     const v = hexTryToString(value);
     if (typeof v === "string") {
       let isJson = false;
@@ -591,16 +587,6 @@ function RedisValueEditor(props: {
     }
   }, [value]);
 
-  // check if json ok
-  useEffect(() => {
-    if (editModel != RedisEditorMode.Json) {
-      setJsonErr(null);
-      return;
-    }
-    validJson(newValue).then((e) => {
-      setJsonErr(e);
-    });
-  }, [newValue, editModel]);
   useEffect(() => {
     valueRef.current.mode = editModel;
   }, [editModel, valueRef]);
@@ -651,23 +637,6 @@ function RedisValueEditor(props: {
         handleEditor={(ed) => {
           valueRef.current.editor = ed;
         }}
-        errPos={jsonErrPos}
-        barLeft={
-          jsonErr ? (
-            <Typography
-              color="error"
-              variant="body1"
-              style={{ cursor: "pointer" }}
-              onClick={() => {
-                if (!jsonErr) {
-                  return;
-                }
-                setJsonErrPos(new Position(jsonErr.line, jsonErr.column));
-              }}>
-              {jsonErr.msg}
-            </Typography>
-          ) : undefined
-        }
       />
       {editModel == RedisEditorMode.Hex && (
         <Stack>
