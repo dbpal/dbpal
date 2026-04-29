@@ -1,3 +1,7 @@
+// @ts-nocheck
+
+const { db, FS, BSON, HTTP } = mongoHandle;
+
 async function testDB() {
     console.debug("test  db start");
     const x = await db.listCollectionNames();
@@ -13,8 +17,8 @@ async function testCol() {
     const collection = db.collection("xxx");
     console.info("create collection ok");
     {
-        //
-        const collection = db.collection("yyy");
+
+        const _collection = db.collection("yyy");
     }
     const insertRet = await collection.insertOne({
         a: 100,
@@ -116,20 +120,36 @@ async function testLimitOffsetPara() {
     }
 }
 
-testDB();
-testCol();
-testLimitOffsetPara();
+
 
 
 
 async function testFs() {
 
     try {
-        await FS.writeTextFile("/home/yuyang/Desktop/xxx.json", "123", { create: true });
+        await FS.writeTextFile("/home/yuyang/xxx.json", "123", { create: true });
         console.log("write file successfully");
     } catch (e) {
         console.error(e);
     }
 }
 
-testFs();
+async function testHttp() {
+    try {
+        const resp = await HTTP.fetch("https://www.baidu.com/");
+        console.log("get http response ok", resp.statusText);
+    } catch (e) {
+        console.error(e);
+    }
+}
+
+
+(async () => {
+    await testDB();
+    await testCol();
+    await testLimitOffsetPara();
+    await testFs();
+    await testHttp()
+})();
+
+

@@ -58,7 +58,7 @@ monaco.typescript.typescriptDefaults.setCompilerOptions({
 });
 async function transformTS(
   editorIns: editor.IStandaloneCodeEditor,
-  showNotifacation: (_: NotificationParams) => void,
+  showNotification: (_: NotificationParams) => void,
 ) {
   const model = editorIns.getModel();
   const uri = model.uri;
@@ -79,10 +79,9 @@ async function transformTS(
     (x) => x.category == 1,
     // 1 means  error
   );
-
   if (allDiagnostics.length > 0) {
     for (const x of allDiagnostics) {
-      showNotifacation({
+      showNotification({
         severity: "error",
         message: (
           <Typography
@@ -188,11 +187,20 @@ function MongoQuery(props: { uuid: string; favoriteName?: string; value?: string
   const { uuid, value, favoriteName } = props;
   const [showQueryLog, setShowQueryLog] = useState(false);
   const [editor, setEditor] = useState<editor.IStandaloneCodeEditor>(null);
-  const [db] = useState(new MongoDBQuery(uuid));
+
   const [cleanFns, setCleanFns] = useState<CleanFunction[]>([]);
   const { showNotification } = useNotification();
-  const [BSON, setBSON] = useState(null);
-  const [FS, setFs] = useState(null);
+
+  const [mongoHandle, setMongoHandle] = useState<{ db; setUpClean; FS; BSON; HTTP }>({
+    db: new MongoDBQuery(uuid),
+    setUpClean: (name: string, fn: () => void) => {
+      setCleanFns((e) => [...e, { name, fn }]);
+    },
+    BSON: null,
+    FS: null,
+    HTTP: null,
+  });
+
   const [markdownModel, setMarkdownModel] = useState(false);
 
   const { save: saveQueryLog } = useQueryLogStore();
@@ -205,9 +213,6 @@ function MongoQuery(props: { uuid: string; favoriteName?: string; value?: string
     setEditorContext.setEditor(editor);
   }, [editor, setEditor, setEditorContext]);
 
-  const setUpClean = (name: string, fn: () => void) => {
-    setCleanFns((e) => [...e, { name, fn }]);
-  };
   const onMount = useCallback(
     (ed: editor.IStandaloneCodeEditor) => {
       setEditor(ed);
@@ -225,10 +230,13 @@ function MongoQuery(props: { uuid: string; favoriteName?: string; value?: string
 
   useEffect(() => {
     import("bson").then((e) => {
-      setBSON(e);
+      setMongoHandle((mongoHandle) => ({ ...mongoHandle, BSON: e }));
     });
     import("@tauri-apps/plugin-fs").then((e) => {
-      setFs(e);
+      setMongoHandle((mongoHandle) => ({ ...mongoHandle, FS: e }));
+    });
+    import("@tauri-apps/plugin-http").then((e) => {
+      setMongoHandle((mongoHandle) => ({ ...mongoHandle, HTTP: e }));
     });
   }, []);
 
@@ -370,10 +378,8 @@ function MongoQuery(props: { uuid: string; favoriteName?: string; value?: string
         />
       </div>
       {/* // we must use db etc ...  */}
-      {db && <span />}
-      {cleanFns && <span />}
-      {BSON && <span />} {FS && <span />}
-      {setUpClean && <span />}
+
+      {mongoHandle && <span />}
     </Stack>
   );
 }

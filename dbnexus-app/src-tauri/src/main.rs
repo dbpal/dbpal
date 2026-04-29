@@ -193,8 +193,9 @@ fn main() {
         ..AboutMetadata::default()
     };
     #[allow(unused_mut)]
-    let mut builder =
-        tauri::Builder::default().plugin(tauri_plugin_window_state::Builder::new().build());
+    let mut builder = tauri::Builder::default()
+        .plugin(tauri_plugin_http::init())
+        .plugin(tauri_plugin_window_state::Builder::new().build());
 
     #[cfg(feature = "devtools")]
     {
@@ -233,6 +234,7 @@ fn main() {
         .plugin(tauri_plugin_clipboard_manager::init())
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_keyring::init())
+        .plugin(tauri_plugin_http::init())
         .manage(dbpal)
         .manage(task_manager)
         .setup(setup)

@@ -13,6 +13,9 @@ import globalVar from "./MongoVar.ts?raw";
 
 import * as monaco from "monaco-editor";
 import { commands } from "./bindings";
+import bsonTypeStr from "../../node_modules/bson/bson.d.ts?raw";
+import fsTypeStr from "../../node_modules/@tauri-apps/plugin-fs/dist-js/index.d.ts?raw";
+import httpTypeStr from "../../node_modules/@tauri-apps/plugin-http/dist-js/index.d.ts?raw";
 
 class MongoDBQuery implements IMongoDB {
   uuid: string;
@@ -283,9 +286,27 @@ function trimInterfaceText(text: string) {
 const interfaceText = trimInterfaceText(interfaceRawText) + globalVar;
 
 function initMongoQueryGlobals() {
-  const extraLib = interfaceText;
-  monaco.typescript.javascriptDefaults.addExtraLib(extraLib);
-  monaco.typescript.typescriptDefaults.addExtraLib(extraLib);
+  monaco.typescript.typescriptDefaults.addExtraLib(
+    `declare namespace BSONNamespace {
+    ${bsonTypeStr}
+  }`,
+    "ts:bson.d.ts",
+  );
+  monaco.typescript.typescriptDefaults.addExtraLib(
+    `declare namespace TauriPluginFsNamespace {
+    ${fsTypeStr}
+  }`,
+    "ts:fs.d.ts",
+  );
+
+  monaco.typescript.typescriptDefaults.addExtraLib(
+    `declare namespace TauriPluginHttpNamespace {
+    ${httpTypeStr}
+  }`,
+    "ts:http.d.ts",
+  );
+
+  monaco.typescript.typescriptDefaults.addExtraLib(interfaceText, "ts:global.d.ts");
 }
 
 export { initMongoQueryGlobals, MongoDBQuery, globalVar };
