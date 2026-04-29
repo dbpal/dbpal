@@ -191,8 +191,8 @@ function SqlTransaction(props: { conn: QueryConn; executeTimes: number }) {
 const tryCheckSqlSwitchKey = "try-check-sql";
 
 function QueryButtons(props: {
-  handleQuery(text: string, append: boolean);
-  handleExecute(text: string);
+  handleQuery: (text: string, append: boolean) => void;
+  handleExecute: (text: string) => void;
   getText: () => string; // if is empty should yield a warning ,then I don't have to check it every time
   loading: boolean;
   disabled: boolean;
@@ -322,9 +322,8 @@ function SqlQuery(props: {
   const { getSwitch, setSwitch } = useBoolSwitch();
   const tryCheckSql = getSwitch(tryCheckSqlSwitchKey);
   const { save: saveQueryLog } = useQueryLogStore();
-  const editorDivDom = useRef<HTMLDivElement>(null);
   const [markdownModel, setMarkdownModel] = useState(false);
-  const { setUi } = useOneShotDialogUI();
+  const { setUi: setOneShotUI } = useOneShotDialogUI();
   const setEditorContext = useContext(QueryIDEditorChatCtx);
   useEffect(() => {
     if (!editor) {
@@ -336,8 +335,8 @@ function SqlQuery(props: {
   const handleEditorDidMount = useCallback((ed: editor.IStandaloneCodeEditor) => {
     setEditor(ed);
     const d1 = ed.onDidChangeCursorPosition(() => {
-      const p = ed.getPosition();
-      setPos(p);
+      const position = ed.getPosition();
+      setPos(position);
     });
     return () => {
       d1.dispose();
@@ -612,7 +611,7 @@ function SqlQuery(props: {
                       if (!value) {
                         return;
                       }
-                      setUi(
+                      setOneShotUI(
                         <ExportView
                           supportKind={[
                             "csv",
@@ -721,8 +720,7 @@ function SqlQuery(props: {
               minHeight: 0,
               height: "100px",
               display: markdownModel ? "none" : "block",
-            }}
-            ref={editorDivDom}>
+            }}>
             <MonacoEditor
               language={markdownModel ? "markdown" : getDefaultLanguage(kind)}
               value={value}

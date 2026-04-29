@@ -224,7 +224,6 @@ function App() {
       <SettingProvider>
         <AppMenu />
         <DialogExtraUI />
-
         <ShowPanic />
         <ShowShortCut />
         <PanelGroup
