@@ -305,8 +305,9 @@ function initMongoQueryGlobals() {
   }`,
     "ts:http.d.ts",
   );
-
   monaco.typescript.typescriptDefaults.addExtraLib(interfaceText, "ts:global.d.ts");
 }
 
-export { initMongoQueryGlobals, MongoDBQuery, globalVar };
+initMongoQueryGlobals();
+
+export { MongoDBQuery, globalVar };

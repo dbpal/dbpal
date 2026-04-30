@@ -12,7 +12,7 @@ import {
 import PlayArrowIcon from "@mui/icons-material/PlayArrow";
 import { editor } from "monaco-editor";
 import { useCallback, useContext, useEffect, useState } from "react";
-import { initMongoQueryGlobals, MongoDBQuery } from "./MongoQueryBackend";
+import { MongoDBQuery } from "./MongoQueryBackend";
 import EventNoteIcon from "@mui/icons-material/EventNote";
 import * as monaco from "monaco-editor";
 
@@ -21,6 +21,7 @@ import {
   isMacOs,
   jumpToEditorText,
   MonacoEditor,
+  prettyMs,
   QueryIDEditorChatCtx,
   saveQueryKey,
 } from "./helper";
@@ -43,7 +44,6 @@ import {
   useNotification,
   useQueryLogStore,
 } from "./store";
-initMongoQueryGlobals();
 
 function dropLastLine(str: string) {
   return str.split(/\r?\n/).slice(0, -1).join("\n");
@@ -60,67 +60,76 @@ async function transformTS(
   editorIns: editor.IStandaloneCodeEditor,
   showNotification: (_: NotificationParams) => void,
 ) {
-  const model = editorIns.getModel();
-  const uri = model.uri;
-  const uriStr = uri.toString();
+  try {
+    const model = editorIns.getModel();
+    const uri = model.uri;
+    const uriStr = uri.toString();
 
-  // 1. 获取 TS Worker
-  const workerGetter = await monaco.typescript.getTypeScriptWorker();
-  const worker = await workerGetter(uri);
+    // 1. 获取 TS Worker
+    const workerGetter = await monaco.typescript.getTypeScriptWorker();
+    const worker = await workerGetter(uri);
 
-  const diagnostics = await Promise.all([
-    worker.getSyntacticDiagnostics(uriStr),
-    worker.getSemanticDiagnostics(uriStr),
-  ]);
+    const diagnostics = await Promise.all([
+      worker.getSyntacticDiagnostics(uriStr),
+      worker.getSemanticDiagnostics(uriStr),
+    ]);
 
-  let allDiagnostics = diagnostics.flat();
+    let allDiagnostics = diagnostics.flat();
 
-  allDiagnostics = allDiagnostics.filter(
-    (x) => x.category == 1,
-    // 1 means  error
-  );
-  if (allDiagnostics.length > 0) {
-    for (const x of allDiagnostics) {
-      showNotification({
-        severity: "error",
-        message: (
-          <Typography
-            style={{ cursor: "pointer" }}
-            onClick={() => {
-              const pos = model.getPositionAt(x.start);
-              editorIns.setPosition(pos);
-              editorIns.focus();
-            }}>
-            {(function () {
-              if (typeof x.messageText == "string") {
-                return x.messageText;
-              } else {
-                return x.messageText.messageText;
-              }
-            })()}
-          </Typography>
-        ),
-      });
+    allDiagnostics = allDiagnostics.filter(
+      (x) => x.category == 1,
+      // 1 means  error
+    );
+    if (allDiagnostics.length > 0) {
+      for (const x of allDiagnostics) {
+        showNotification({
+          severity: "error",
+          message: (
+            <Typography
+              style={{ cursor: "pointer" }}
+              onClick={() => {
+                const pos = model.getPositionAt(x.start);
+                editorIns.setPosition(pos);
+                editorIns.focus();
+              }}>
+              {(function () {
+                if (typeof x.messageText == "string") {
+                  return x.messageText;
+                } else {
+                  return x.messageText.messageText;
+                }
+              })()}
+            </Typography>
+          ),
+        });
+      }
+
+      return "";
     }
 
+    // 2. 调用编译方法 (getEmitOutput 包含 js 和 map)
+    const emitOutput = await worker.getEmitOutput(uri.toString());
+
+    // 3. 提取结果
+    // outputFiles 通常包含两个文件：一个 .js，一个 .js.map
+    const jsCode = emitOutput.outputFiles.find((f) => f.name.endsWith(".js"))?.text;
+    const sourceMap = emitOutput.outputFiles.find((f) =>
+      f.name.endsWith(".js.map"),
+    )?.text;
+
+    return (
+      dropLastLine(jsCode) +
+      "//# sourceMappingURL=data:application/json;charset=utf-8;base64," +
+      btoa(sourceMap)
+    );
+  } catch (e) {
+    showNotification({
+      severity: "error",
+      title: "transpile typescript failed",
+      message: e,
+    });
     return "";
   }
-
-  // 2. 调用编译方法 (getEmitOutput 包含 js 和 map)
-  const emitOutput = await worker.getEmitOutput(uri.toString());
-
-  // 3. 提取结果
-  // outputFiles 通常包含两个文件：一个 .js，一个 .js.map
-  const jsCode = emitOutput.outputFiles.find((f) => f.name.endsWith(".js"))?.text;
-  const sourceMap = emitOutput.outputFiles.find((f) =>
-    f.name.endsWith(".js.map"),
-  )?.text;
-
-  return (
-    dropLastLine(jsCode) +
-    "//# sourceMappingURL=data:application/json;charset=utf-8;base64," +
-    btoa(sourceMap)
-  );
 }
 
 interface CleanFunction {
@@ -267,7 +276,12 @@ function MongoQuery(props: { uuid: string; favoriteName?: string; value?: string
         <ExecuteButton
           disabled={markdownModel}
           getText={async () => {
+            let now = new Date();
             const code = await transformTS(editor, showNotification);
+            showNotification({
+              severity: "info",
+              title: `transpile typescript used ${prettyMs(new Date().getTime() - now.getTime())}`,
+            });
             return code;
           }}
           handleEexecute={handleExecute}

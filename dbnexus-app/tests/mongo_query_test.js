@@ -1,5 +1,4 @@
 // @ts-nocheck
-
 const { db, FS, BSON, HTTP } = mongoHandle;
 
 async function testDB() {
@@ -9,8 +8,6 @@ async function testDB() {
     const pingResult = await db.runCommand({ ping: 1 });
     console.info("ping result:", pingResult);
 }
-
-
 
 
 async function testCol() {
@@ -119,9 +116,6 @@ async function testLimitOffsetPara() {
         console.error("test failed", e);
     }
 }
-
-
-
 
 
 async function testFs() {
