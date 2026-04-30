@@ -280,91 +280,101 @@ const { db, FS, HTTP, BSON } = mongoHandle;
       />
       <Stack
         direction="row"
-        sx={{ alignItems: "center", overflow: "auto", paddingBottom: "0.5rem" }}>
-        <ExecuteButton
-          disabled={markdownModel}
-          getText={async () => {
-            let now = new Date();
-            const code = await transformTS(editor, showNotification);
-            showNotification({
-              severity: "info",
-              title: `transpile typescript used ${prettyMs(new Date().getTime() - now.getTime())}`,
-            });
-            return code;
-          }}
-          handleEexecute={handleExecute}
-        />
-
-        <SaveFavoriteSqlView
-          kind={DataSourceKind.Mongo}
-          editor={editor}
-          uuid={uuid}
-          favoriteName={favoriteName}
-        />
-        <LoadStoreFile
-          getQuery={() => {
-            return editor.getValue();
-          }}
-          kind={DataSourceKind.Mongo}
-          handleLoadFile={(_path, text) => {
-            editor.setValue(text);
-          }}
-        />
-        <Tooltip title="query log">
-          <IconButton
-            onClick={() => {
-              setShowQueryLog((prev) => !prev);
+        sx={{
+          alignItems: "center",
+          overflow: "auto",
+          paddingBottom: "0.5rem",
+          justifyContent: "space-between",
+        }}>
+        <Stack direction="row" style={{ alignItems: "center" }}>
+          <ExecuteButton
+            disabled={markdownModel}
+            getText={async () => {
+              let now = new Date();
+              const code = await transformTS(editor, showNotification);
+              showNotification({
+                severity: "info",
+                title: `transpile typescript used ${prettyMs(new Date().getTime() - now.getTime())}`,
+              });
+              return code;
             }}
-            color="primary">
-            <EventNoteIcon />
-          </IconButton>
-        </Tooltip>
-        {cleanFns.length > 0 && (
+            handleEexecute={handleExecute}
+          />
+
+          <SaveFavoriteSqlView
+            kind={DataSourceKind.Mongo}
+            editor={editor}
+            uuid={uuid}
+            favoriteName={favoriteName}
+          />
+          <LoadStoreFile
+            getQuery={() => {
+              return editor.getValue();
+            }}
+            kind={DataSourceKind.Mongo}
+            handleLoadFile={(_path, text) => {
+              editor.setValue(text);
+            }}
+          />
+        </Stack>
+
+        <Stack direction="row" style={{ alignItems: "center" }}>
+          <ToggleChatShow />
+          <AiMarkdownModelSwitch
+            setMarkdownModel={setMarkdownModel}
+            markdownModel={markdownModel}
+          />
+          <Tooltip title="query log">
+            <IconButton
+              onClick={() => {
+                setShowQueryLog((prev) => !prev);
+              }}
+              color="primary">
+              <EventNoteIcon />
+            </IconButton>
+          </Tooltip>
+          {cleanFns.length > 0 && (
+            <Tooltip
+              title=<CallCleanFunctions
+                cleanFunctions={cleanFns}
+                setCleanFunction={setCleanFns}
+                sx={{ width: "45vw" }}
+              />
+              slotProps={{
+                tooltip: {
+                  style: { maxWidth: "45vw" },
+                },
+              }}>
+              <RiDeleteBack2Line fontSize="1.6rem" />
+            </Tooltip>
+          )}
           <Tooltip
-            title=<CallCleanFunctions
-              cleanFunctions={cleanFns}
-              setCleanFunction={setCleanFns}
-              sx={{ width: "45vw" }}
-            />
+            title=<CleanFunctionDoc />
             slotProps={{
               tooltip: {
-                style: { maxWidth: "45vw" },
+                style: { maxWidth: "60vw" },
               },
             }}>
-            <RiDeleteBack2Line fontSize="1.6rem" />
+            <InfoIcon> </InfoIcon>
           </Tooltip>
-        )}
-        <Tooltip
-          title=<CleanFunctionDoc />
-          slotProps={{
-            tooltip: {
-              style: { maxWidth: "60vw" },
-            },
-          }}>
-          <InfoIcon> </InfoIcon>
-        </Tooltip>
-        <Tooltip
-          title=<Stack sx={{ width: "40vw" }}>
-            <Typography color="info ">
-              we are still using `console` to debug.
-            </Typography>
-            <Typography>
-              open dev tools:
-              {isMacOs() ? "Command+Option+i" : "Ctrl+Shift+i"}
-            </Typography>
-          </Stack>
-          slotProps={{
-            tooltip: {
-              style: { maxWidth: "40vw" },
-            },
-          }}>
-          <span>debug???</span>
-        </Tooltip>
-        <ToggleChatShow />
-        <AiMarkdownModelSwitch
-          setMarkdownModel={setMarkdownModel}
-          markdownModel={markdownModel}
-        />
+          <Tooltip
+            title=<Stack sx={{ width: "40vw" }}>
+              <Typography color="info ">
+                we are still using `console` to debug.
+              </Typography>
+              <Typography>
+                open dev tools:
+                {isMacOs() ? "Command+Option+i" : "Ctrl+Shift+i"}
+              </Typography>
+            </Stack>
+            slotProps={{
+              tooltip: {
+                style: { maxWidth: "40vw" },
+              },
+            }}>
+            <span>debug???</span>
+          </Tooltip>
+        </Stack>
       </Stack>
       <AiMarkdownModel
         markdownModel={markdownModel}
