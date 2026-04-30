@@ -25,7 +25,7 @@ import {
   QueryIDEditorChatCtx,
   saveQueryKey,
 } from "./helper";
-import { dbpalQuerykey, generateRandomId, NameAndQueryId } from "./Common";
+import { dbpalQuerykey, NameAndQueryId } from "./Common";
 import { RiDeleteBack2Line } from "react-icons/ri";
 import {
   AiMarkdownModel,
@@ -192,6 +192,16 @@ function ExecuteButton(props: {
     </Tooltip>
   );
 }
+
+let modelCounter = 0;
+
+function createNewModel(code = "") {
+  modelCounter++;
+  const uri = monaco.Uri.parse(`file:///model_${modelCounter}.ts`);
+
+  return monaco.editor.createModel(code, "typescript", uri);
+}
+
 function MongoQuery(props: { uuid: string; favoriteName?: string; value?: string }) {
   const { uuid, value, favoriteName } = props;
   const [showQueryLog, setShowQueryLog] = useState(false);
@@ -225,11 +235,9 @@ function MongoQuery(props: { uuid: string; favoriteName?: string; value?: string
   const onMount = useCallback(
     (ed: editor.IStandaloneCodeEditor) => {
       setEditor(ed);
-      const model = monaco.editor.createModel(
-        "",
-        "typescript",
-        monaco.Uri.parse(`file:///${generateRandomId()}.ts`), // 显式指定路径
-      );
+      const model = createNewModel(`//@ts-ignore
+const { db, FS, HTTP, BSON } = mongoHandle;
+`);
       ed.setModel(model);
       ed.getModel()[dbpalQuerykey] = new NameAndQueryId(uuid, DataSourceKind.Mongo, ""); // mongo no need query id
       ed.focus();

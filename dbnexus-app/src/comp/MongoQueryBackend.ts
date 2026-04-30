@@ -8,6 +8,10 @@ import {
   IMongoDB,
 } from "./MongoInterface";
 import interfaceRawText from "./MongoInterface.ts?raw";
+import prettier from "prettier/standalone";
+// 必须引入这两个插件文件
+import parserTypeScript from "prettier/plugins/typescript";
+import parserEstree from "prettier/plugins/estree";
 
 import globalVar from "./MongoVar.ts?raw";
 
@@ -309,5 +313,36 @@ function initMongoQueryGlobals() {
 }
 
 initMongoQueryGlobals();
+
+monaco.languages.registerDocumentFormattingEditProvider("typescript", {
+  async provideDocumentFormattingEdits(model) {
+    const text = model.getValue();
+
+    try {
+      const formatted = await prettier.format(text, {
+        parser: "typescript",
+        // 关键：必须在这里显式传入插件数组
+        plugins: [parserTypeScript, parserEstree],
+
+        // 你的格式化配置
+        singleQuote: true,
+        tabWidth: 4,
+        printWidth: 80,
+        trailingComma: "all",
+        semi: true,
+      });
+
+      return [
+        {
+          range: model.getFullModelRange(),
+          text: formatted,
+        },
+      ];
+    } catch (error) {
+      console.error("Prettier 格式化失败:", error);
+      return []; // 如果出错，返回空数组表示不进行任何更改
+    }
+  },
+});
 
 export { MongoDBQuery, globalVar };
