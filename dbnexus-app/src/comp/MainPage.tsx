@@ -143,10 +143,9 @@ function ShowShortCut() {
           fullWidth
           maxWidth="md"
           open={show}
-          onClose={modalHandleClose((e: EscDownEvent) => {
-            e.preventDefault();
+          onClose={() => {
             setShow(false);
-          })}>
+          }}>
           <AlertTitle> shorts cuts </AlertTitle>
           <ShowCuts />
         </Dialog>
