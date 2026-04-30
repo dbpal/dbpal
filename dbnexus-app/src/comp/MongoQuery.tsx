@@ -7,6 +7,8 @@ import {
   Typography,
   SxProps,
   Theme,
+  FormControlLabel,
+  Checkbox,
 } from "@mui/material";
 
 import PlayArrowIcon from "@mui/icons-material/PlayArrow";
@@ -59,6 +61,7 @@ monaco.typescript.typescriptDefaults.setCompilerOptions({
 async function transformTS(
   editorIns: editor.IStandaloneCodeEditor,
   showNotification: (_: NotificationParams) => void,
+  ignoreErr: boolean,
 ) {
   try {
     const model = editorIns.getModel();
@@ -68,43 +71,44 @@ async function transformTS(
     // 1. 获取 TS Worker
     const workerGetter = await monaco.typescript.getTypeScriptWorker();
     const worker = await workerGetter(uri);
+    if (!ignoreErr) {
+      const diagnostics = await Promise.all([
+        worker.getSyntacticDiagnostics(uriStr),
+        worker.getSemanticDiagnostics(uriStr),
+      ]);
 
-    const diagnostics = await Promise.all([
-      worker.getSyntacticDiagnostics(uriStr),
-      worker.getSemanticDiagnostics(uriStr),
-    ]);
+      let allDiagnostics = diagnostics.flat();
 
-    let allDiagnostics = diagnostics.flat();
+      allDiagnostics = allDiagnostics.filter(
+        (x) => x.category == 1,
+        // 1 means  error
+      );
+      if (allDiagnostics.length > 0) {
+        for (const x of allDiagnostics) {
+          showNotification({
+            severity: "error",
+            message: (
+              <Typography
+                style={{ cursor: "pointer" }}
+                onClick={() => {
+                  const pos = model.getPositionAt(x.start);
+                  editorIns.setPosition(pos);
+                  editorIns.focus();
+                }}>
+                {(function () {
+                  if (typeof x.messageText == "string") {
+                    return x.messageText;
+                  } else {
+                    return x.messageText.messageText;
+                  }
+                })()}
+              </Typography>
+            ),
+          });
+        }
 
-    allDiagnostics = allDiagnostics.filter(
-      (x) => x.category == 1,
-      // 1 means  error
-    );
-    if (allDiagnostics.length > 0) {
-      for (const x of allDiagnostics) {
-        showNotification({
-          severity: "error",
-          message: (
-            <Typography
-              style={{ cursor: "pointer" }}
-              onClick={() => {
-                const pos = model.getPositionAt(x.start);
-                editorIns.setPosition(pos);
-                editorIns.focus();
-              }}>
-              {(function () {
-                if (typeof x.messageText == "string") {
-                  return x.messageText;
-                } else {
-                  return x.messageText.messageText;
-                }
-              })()}
-            </Typography>
-          ),
-        });
+        return "";
       }
-
-      return "";
     }
 
     // 2. 调用编译方法 (getEmitOutput 包含 js 和 map)
@@ -202,6 +206,8 @@ function createNewModel(code = "") {
   return monaco.editor.createModel(code, "typescript", uri);
 }
 
+const ignoreErrKey = "mongo-query-ignore-error";
+
 function MongoQuery(props: { uuid: string; favoriteName?: string; value?: string }) {
   const { uuid, value, favoriteName } = props;
   const [showQueryLog, setShowQueryLog] = useState(false);
@@ -209,7 +215,7 @@ function MongoQuery(props: { uuid: string; favoriteName?: string; value?: string
 
   const [cleanFns, setCleanFns] = useState<CleanFunction[]>([]);
   const { showNotification } = useNotification();
-
+  const { getSwitch, setSwitch } = useBoolSwitch();
   const [mongoHandle, setMongoHandle] = useState<{ db; setUpClean; FS; BSON; HTTP }>({
     db: new MongoDBQuery(uuid),
     setUpClean: (name: string, fn: () => void) => {
@@ -257,8 +263,6 @@ const { db, FS, HTTP, BSON } = mongoHandle;
     });
   }, []);
 
-  const { getSwitch } = useBoolSwitch();
-
   const handleExecute = async (code: string) => {
     if (getSwitch(saveQueryKey)) {
       saveQueryLog(uuid, code, true);
@@ -291,7 +295,11 @@ const { db, FS, HTTP, BSON } = mongoHandle;
             disabled={markdownModel}
             getText={async () => {
               let now = new Date();
-              const code = await transformTS(editor, showNotification);
+              const code = await transformTS(
+                editor,
+                showNotification,
+                getSwitch(ignoreErrKey),
+              );
               if (code) {
                 showNotification({
                   severity: "info",
@@ -318,6 +326,17 @@ const { db, FS, HTTP, BSON } = mongoHandle;
               editor.setValue(text);
             }}
           />
+          <Tooltip title="try transpile to javascript ignore the errors.">
+            <FormControlLabel
+              control={
+                <Checkbox
+                  checked={getSwitch(ignoreErrKey)}
+                  onChange={(e) => setSwitch(ignoreErrKey, e.target.checked)}
+                />
+              }
+              label="ignore error"
+            />
+          </Tooltip>
         </Stack>
 
         <Stack direction="row" style={{ alignItems: "center" }}>
