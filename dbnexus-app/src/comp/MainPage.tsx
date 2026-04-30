@@ -265,21 +265,18 @@ function App() {
 
 function DialogExtraUI() {
   const diagUi = useOneShotDialogUI();
-
   return (
-    <>
-      {diagUi.ui && (
-        <Dialog
-          slotProps={{ paper: { style: { width: "fit-content" } } }}
-          open={true}
-          onClose={() => {
-            diagUi.setUi(null);
-          }}>
-          {diagUi.title && <DialogTitle>{diagUi.title}</DialogTitle>}
-          {diagUi.ui}
-        </Dialog>
-      )}
-    </>
+    diagUi.ui && (
+      <Dialog
+        slotProps={{ paper: { style: { width: "fit-content" } } }}
+        open={true}
+        onClose={() => {
+          diagUi.setUi(null);
+        }}>
+        {diagUi.title && <DialogTitle>{diagUi.title}</DialogTitle>}
+        {diagUi.ui}
+      </Dialog>
+    )
   );
 }
 
