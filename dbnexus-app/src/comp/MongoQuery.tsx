@@ -292,10 +292,12 @@ const { db, FS, HTTP, BSON } = mongoHandle;
             getText={async () => {
               let now = new Date();
               const code = await transformTS(editor, showNotification);
-              showNotification({
-                severity: "info",
-                title: `transpile typescript used ${prettyMs(new Date().getTime() - now.getTime())}`,
-              });
+              if (code) {
+                showNotification({
+                  severity: "info",
+                  title: `transpile typescript used ${prettyMs(new Date().getTime() - now.getTime())}`,
+                });
+              }
               return code;
             }}
             handleEexecute={handleExecute}
