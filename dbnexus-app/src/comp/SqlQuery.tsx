@@ -740,14 +740,8 @@ function appendQueryResult(
       setQueryStatus(
         `backend send ${event.data.length} record,data:${data0.slice(0, 3).join("-")}`,
       );
-      let index = null;
-      for (let i = data.length - 1; i >= 0; --i) {
-        if (typeof data[i] == "object") {
-          index = i;
-          break;
-        }
-      }
-      if (index === null) {
+      const index = data.findLastIndex((x) => x.Ok);
+      if (index === -1) {
         setQueryStatus(
           "should be able to find the index the place data ,this is internal error",
         );
