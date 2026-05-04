@@ -803,24 +803,6 @@ function RedisOneTableKind(props: {
   uuid;
 }) {
   const { tables, typ, kind, handleReload, uuid } = props;
-  let name;
-  switch (typ) {
-    case RedisTableType.String:
-      name = "string";
-      break;
-    case RedisTableType.List:
-      name = "list";
-      break;
-    case RedisTableType.Set:
-      name = "set";
-      break;
-    case RedisTableType.Zset:
-      name = "zset";
-      break;
-    case RedisTableType.Hash:
-      name = "hash";
-      break;
-  }
   const tablesID = useRef(uuidv4());
   const setUpMenu = useContextMenu((state) => state.setUpMenu);
   return (
@@ -839,7 +821,7 @@ function RedisOneTableKind(props: {
             event: e,
           });
         }}>
-        <span>{name}</span>
+        <span>{typ}</span>
       </Stack>>
       {tables.map((table) => (
         <TreeItem
