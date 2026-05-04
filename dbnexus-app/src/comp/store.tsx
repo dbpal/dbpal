@@ -36,15 +36,14 @@ class TauriStoreManger<S> implements PersistStorage<S> {
     public afterFetch?: (_: S) => Promise<void>,
   ) {}
   async setItem(name: string, value: StorageValue<S>) {
-    emit(eventNameReloadStore);
-
     if (this.setBefore) {
       const new_value = cloneDeep(value);
       new_value.state = await this.setBefore(new_value.state);
-      return await this.appStore.set(name, new_value);
+      await this.appStore.set(name, new_value);
     } else {
-      return await this.appStore.set(name, value);
+      await this.appStore.set(name, value);
     }
+    emit(eventNameReloadStore);
   }
 
   async getItem(name: string) {
@@ -1421,3 +1420,23 @@ export const useOneShotDialogUI = create<OneShotUI>()((set) => ({
   setUi: (ui, title: string) => set({ ui, title }),
   title: "",
 }));
+
+interface EditInModalLanguage {
+  editingRowLanguage: string | null;
+  setEditingRowLanguage: (lang: string | null) => void;
+  clearEditingRowLanguage: () => void; // 记得在 interface 里加上这个方法
+}
+
+// 重点：不要在 create 后面加 <EditInModalLanguage>
+export const useEditInModalLanguageStore = create<EditInModalLanguage>()(
+  persist(
+    (set) => ({
+      editingRowLanguage: null,
+      setEditingRowLanguage: (lang) => set({ editingRowLanguage: lang }),
+      clearEditingRowLanguage: () => set({ editingRowLanguage: null }),
+    }),
+    {
+      name: "edit-in-modal-language",
+    },
+  ),
+);

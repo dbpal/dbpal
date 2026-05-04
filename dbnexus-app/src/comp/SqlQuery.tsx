@@ -95,12 +95,11 @@ function SqlTransaction(props: { conn: QueryConn; executeTimes: number }) {
         "In Transaction,better commit or rollback.uncommit transaction may lead database locks",
       );
     }
-  }, [commit, tabCtx.id, removeConfirmMsg, addConfirmMsg]);
-  useEffect(() => {
+
     return () => {
       removeConfirmMsg(tabCtx.id);
     };
-  }, [removeConfirmMsg, tabCtx.id]);
+  }, [commit, tabCtx.id, removeConfirmMsg, addConfirmMsg]);
 
   useEffect(() => {
     //这里的顺序很重要

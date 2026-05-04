@@ -97,6 +97,7 @@ import {
   useColumnWidthStore,
   useConfirmMsg,
   useContextMenu,
+  useEditInModalLanguageStore,
   useNotification,
   useOneShotDialogUI,
   usePageSize,
@@ -121,13 +122,7 @@ import {
   useGridSelector,
 } from "./datagridExport";
 
-const confirmAboutPrimary = async (
-  notWarnPri: boolean,
-  fields: Field[],
-): Promise<boolean> => {
-  if (notWarnPri) {
-    return true;
-  }
+const confirmAboutPrimary = async (fields: Field[]): Promise<boolean> => {
   const hasPri = !!fields.find((x) => x.is_primary);
   if (hasPri) {
     return true;
@@ -141,38 +136,25 @@ const confirmAboutPrimary = async (
 
 const getRowId = (e) => e[keyNotInTable];
 
-let EditInModalLanguage = "text";
-const editInModalLanguages = [
-  { language: "text" },
-  { language: "html" },
-  { language: "json" },
-  { language: "xml" },
-] as {
-  language: string;
-}[];
-
 function EditInModal(props: {
   content: string;
-  handleModify;
+  handleModify: (_: string) => void;
   handleClose: () => void;
 }) {
   const { content, handleModify, handleClose } = props;
-  const [language, setLanguage] = useState(EditInModalLanguage);
+
+  const langs = useMemo(() => {
+    return ["text", "html", "json", "xml"];
+  }, []);
+  const { editingRowLanguage, setEditingRowLanguage } = useEditInModalLanguageStore();
   const [editor, setEditor] = useState<editor.IStandaloneCodeEditor>(null);
   const [editInModalBox, setEditInModalBox] = useState(null);
+
   useEffect(() => {
-    if (!editor) {
-      return;
+    if (!editingRowLanguage) {
+      setEditingRowLanguage(langs[0]);
     }
-    let d = editor.getModel().onDidChangeContent(() => {
-      if (language != "json") {
-        return;
-      }
-    });
-    return () => {
-      d.dispose();
-    };
-  }, [editor, language]);
+  }, [editingRowLanguage, langs, setEditingRowLanguage]);
 
   return (
     <Modal
@@ -190,25 +172,23 @@ function EditInModal(props: {
             handleClose();
           }}
         />
-
         <ListenElementSize dom={editInModalBox} set="both" name="table-edit-in-modal" />
         <Stack style={{ flex: 1 }}>
           <Stack direction="row">
-            {editInModalLanguages.map((e) => (
+            {langs.map((lang) => (
               <Chip
-                key={e.language}
-                label={e.language}
-                color={language == e.language ? "success" : "default"}
+                key={lang}
+                label={lang}
+                color={lang == editingRowLanguage ? "success" : "default"}
                 onClick={() => {
-                  setLanguage(e.language);
-                  EditInModalLanguage = e.language;
+                  setEditingRowLanguage(lang);
                 }}
               />
             ))}
           </Stack>
           <SimpleFlexEditor
             value={content}
-            language={language}
+            language={editingRowLanguage}
             handleEditor={(ed) => {
               setEditor(ed);
             }}
@@ -246,7 +226,7 @@ class DatabaseOperation {
   public constructor(
     public op: DatabaseOpKind,
     public sql: string,
-    public tableId: string | null,
+    public tableId: string,
     public newValue: object | null,
   ) {}
 }
@@ -269,7 +249,6 @@ interface SqlTableCustomToolBarLeftProps {
   kind: DataSourceKind; // 假设你已经定义了这个 Enum 或 Type
   allowFiltering: boolean;
   setAllowFiltering: (val: boolean) => void;
-  clientModel: any; // 根据你实际的 model 类型修改
   isTable: boolean;
   uuid: string;
   tableName: string;
@@ -288,7 +267,6 @@ function SqlTableCustomToolBarLeft({
   kind,
   allowFiltering,
   setAllowFiltering,
-  clientModel,
   isTable,
   uuid,
   tableName,
@@ -304,7 +282,7 @@ function SqlTableCustomToolBarLeft({
   const isLoading: boolean = useGridSelector(apiRef, gridRowsLoadingSelector);
 
   return (
-    <StackRowCenter>
+    <Stack direction="row" style={{ alignItems: "center" }}>
       <Button loading={isLoading} color="primary" onClick={() => handleReload(true)}>
         reload
       </Button>
@@ -404,8 +382,7 @@ function SqlTableCustomToolBarLeft({
           </IconButton>
         </>
       )}
-      {clientModel && <SliderSize config={UseSizeConfig.queryLimit} />}
-    </StackRowCenter>
+    </Stack>
   );
 }
 
@@ -424,7 +401,6 @@ export function CustomPagination({
         justifyContent: "space-between",
         flex: 1,
         overflow: "auto",
-        px: 1, // 建议加一点间距
       }}>
       <Stack direction="row" spacing={2} sx={{ alignItems: "center", flex: 1 }}>
         <FetchTimeDataGrid />
@@ -439,6 +415,7 @@ export function CustomPagination({
             </Typography>
           </Tooltip>
         )}
+        {clientModel && <SliderSize config={UseSizeConfig.queryLimit} />}
       </Stack>
 
       <Stack direction="row" spacing={2} sx={{ alignItems: "center" }}>
@@ -447,6 +424,7 @@ export function CustomPagination({
             result {resp.data.length} of {resp.total}
           </Typography>
         )}
+
         <AppDataGridPagination showPageSelect />
       </Stack>
     </Stack>
@@ -488,7 +466,7 @@ function EditRowInModal(props: {
           fields={fields}
           isAdd={false}
           handleData={async (args) => {
-            await handleProcessRowUpdate(args, value);
+            handleProcessRowUpdate(args, value);
           }}
           handleClose={() => handleClose()}
         />
@@ -629,13 +607,12 @@ function CustomCell(props: GridRenderCellParams) {
   return <Typography {...dataField}>{row[field]}</Typography>;
 }
 function SqlTableView(props: {
-  notWarnPri?: boolean;
   kind: DataSourceKind;
   tableName: string;
   uuid: string;
   isTable: boolean;
 }) {
-  const { notWarnPri, kind, tableName, uuid, isTable } = props;
+  const { kind, tableName, uuid, isTable } = props;
   const getUpdateSql = useCallback(
     (x, y) => {
       return commands.tableUpdateSql(uuid, tableName, x, y);
@@ -688,12 +665,11 @@ function SqlTableView(props: {
     } else {
       addConfirmMsg(tabCtx.id, `sure to discard ${ops.length} changes?`);
     }
-  }, [ops, tabCtx.id, removeConfirmMsg, addConfirmMsg]);
-  useEffect(() => {
     return () => {
       removeConfirmMsg(tabCtx.id);
     };
-  }, [removeConfirmMsg, tabCtx.id]);
+  }, [ops, tabCtx.id, removeConfirmMsg, addConfirmMsg]);
+
   const { showNotification } = useNotification();
   const [allowFiltering, setAllowFiltering] = useState(false);
   const [editCellInModal, setEditCellInModal] = useState<EditInModalCellData>(null);
@@ -726,10 +702,13 @@ function SqlTableView(props: {
         field.renderCell = (e) => <CustomCell {...e} />;
         field.renderHeader = (e) => {
           const field = e.colDef as unknown as FieldAndGridField;
-
           const makeTitle = (): string => {
             let ret = field.field + " ";
             ret += field.data_type;
+
+            if (!isTable) {
+              return ret;
+            }
             if (field.nullable) {
               ret += " null";
             } else {
@@ -760,13 +739,11 @@ function SqlTableView(props: {
             </Stack>
           );
         };
-        if (!field.is_auto_increment) {
-          field.editable = true;
-        }
+        field.editable = !field.is_auto_increment;
       }
       setResp(resp);
     },
-    [getColumnWidth],
+    [getColumnWidth, isTable],
   );
 
   const makePara = useCallback(() => {
@@ -844,7 +821,7 @@ function SqlTableView(props: {
       if (updateRow.size == 0) {
         return newRow;
       }
-      if (!(await confirmAboutPrimary(notWarnPri, resp.fields))) {
+      if (!(await confirmAboutPrimary(resp.fields))) {
         return oldRow;
       }
       const data = await getUpdateSql(updateRow, old);
@@ -859,12 +836,12 @@ function SqlTableView(props: {
       ]);
       return oldRow;
     },
-    [rowHasOP, notWarnPri, resp, showNotification, getUpdateSql],
+    [rowHasOP, resp, showNotification, getUpdateSql],
   );
 
   const handleDelete = useCallback(
     async (id) => {
-      if (!(await confirmAboutPrimary(notWarnPri, resp.fields))) {
+      if (!(await confirmAboutPrimary(resp.fields))) {
         return;
       }
       let old;
@@ -896,7 +873,7 @@ function SqlTableView(props: {
         ),
       ]);
     },
-    [getDeleteSql, notWarnPri, resp.data, resp.fields, rowHasOP, showNotification],
+    [getDeleteSql, resp.data, resp.fields, rowHasOP, showNotification],
   );
   useEffect(() => {
     handleReload(false);
@@ -1033,7 +1010,6 @@ function SqlTableView(props: {
             kind,
             allowFiltering,
             setAllowFiltering,
-            clientModel,
             isTable,
             tableName,
             uuid,
@@ -1111,9 +1087,6 @@ function SqlTableView(props: {
           clickedField: clickedField,
         }}>
         <DataGrid
-          isCellEditable={() => {
-            return isTable;
-          }}
           slots={slots}
           apiRef={apiRef}
           onCellClick={() => {

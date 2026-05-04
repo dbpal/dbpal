@@ -328,14 +328,22 @@ impl SchemaTrait for CouchBaseDB {
     }
 
     async fn show_table_columns(&self, table_name: &str) -> anyhow::Result<Vec<Field>> {
-        let sql = format!("select * from `{table_name}`");
+        let sql = format!("select * from `{table_name}` limit 1");
         let s = self.get_scope()?;
         let mut resp = s.query(sql, None).await?;
         let mut rows = resp.rows::<'_, serde_json::Map<String, Value>>();
         #[allow(clippy::never_loop)]
         while let Some(row) = rows.next().await {
             let row = row?;
-            return anyhow::Ok(row.keys().map(|x| Field::from_name_type(x, "")).collect());
+            let row = row.get(table_name).unwrap_or_default();
+            match row {
+                Value::Object(value) => {
+                    return anyhow::Ok(
+                        value.keys().map(|x| Field::from_name_type(x, "")).collect(),
+                    );
+                }
+                _ => return anyhow::Ok(vec![]),
+            }
         }
         anyhow::Ok(vec![])
     }

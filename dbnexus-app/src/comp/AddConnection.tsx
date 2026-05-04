@@ -901,7 +901,7 @@ function TestConnAndSave(props: {
  * Safe field extractors for optional backend config objects.
  */
 function getHost(config?: Record<string, unknown>) {
-  return typeof config?.host === "string" ? config.host : "localhost";
+  return typeof config?.host === "string" ? config.host : "127.0.0.1";
 }
 
 function getUser(config?: Record<string, unknown>) {

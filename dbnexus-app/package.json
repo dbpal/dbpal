@@ -78,7 +78,7 @@
     "eslint-plugin-react": "^7.37.5",
     "eslint-plugin-react-hooks": "^7.0.1",
     "internal-ip": "^9",
-    "typescript": "^5.9.3",
+    "typescript": "^6",
     "typescript-eslint": "^8.56.1",
     "vite": "^8",
     "vite-plugin-monaco-editor": "^1.1.0"

@@ -478,13 +478,7 @@ function ViewMenu(props: {
       case DataSourceKind.DuckDB:
       case DataSourceKind.Cockroach:
         list = (
-          <SqlTableView
-            isTable={false}
-            tableName={view}
-            kind={kind}
-            uuid={uuid}
-            notWarnPri={true}
-          />
+          <SqlTableView isTable={false} tableName={view} kind={kind} uuid={uuid} />
         );
         break;
 

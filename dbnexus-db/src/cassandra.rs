@@ -50,10 +50,12 @@ use scylla::authentication::{AuthenticatorProvider, PlainTextAuthenticator};
 
 use scylla::client::session::Session;
 use scylla::client::session_builder::SessionBuilder;
+use scylla::policies::address_translator::{AddressTranslator, UntranslatedPeer};
 use scylla::value::{CqlDecimal, CqlValue, CqlVarint, Row};
 use sqlx::types::BigDecimal;
 use std::collections::HashMap;
 
+use std::net::SocketAddr;
 use std::sync::Arc;
 use std::time::Duration;
 #[cfg(test)]
@@ -66,7 +68,25 @@ pub struct CassandraDB {
     pub(crate) completion_id: AutoCompletionQueryId,
 }
 
+// 定义一个简单的转换器，把所有地址都转换成你手动指定的 IP
+#[derive(Debug)]
+struct LocalhostTranslator {
+    fixed_addr: SocketAddr,
+}
+
+#[async_trait::async_trait]
+impl AddressTranslator for LocalhostTranslator {
+    async fn translate_address(
+        &self,
+        _untranslated_peer: &UntranslatedPeer,
+    ) -> Result<SocketAddr, scylla::errors::TranslationError> {
+        Ok(self.fixed_addr.clone())
+    }
+}
+
 async fn make_session(config: &CassandraDBConfig) -> anyhow::Result<Session> {
+    let target_ip = format!("{}:{}", config.host, config.port.unwrap_or(9042));
+    let fixed_addr: SocketAddr = target_ip.parse()?;
     let mut builder = SessionBuilder::new().known_node(format!(
         "{}:{}",
         config.host,
@@ -78,6 +98,9 @@ async fn make_session(config: &CassandraDBConfig) -> anyhow::Result<Session> {
             pass.clone(),
         )) as Arc<dyn AuthenticatorProvider>);
     }
+
+    builder = builder.address_translator(Arc::new(LocalhostTranslator { fixed_addr }));
+
     let session = builder.build().await?;
     if let Some(key_space) = config.db.as_ref() {
         session.use_keyspace(key_space, false).await?;
@@ -91,7 +114,7 @@ impl CassandraDB {
             config
                 .conn_timeout
                 .map(|x| x.into())
-                .unwrap_or(Duration::from_secs(5)),
+                .unwrap_or(Duration::from_secs(15)),
             async { make_session(&config).await },
         )
         .await??;
@@ -1252,7 +1275,7 @@ pub(crate) async fn make_test_object(db: Option<String>) -> CassandraDB {
         password: Some("cassandra".to_string()),
         read_only: false,
         db,
-        conn_timeout: Some(5000.into()),
+        conn_timeout: None,
 
         ssl: CassandraSsl {
             ssl_files: SSLFiles {
@@ -1373,7 +1396,10 @@ impl GetTestExportTableKinds for CassandraDB {}
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::db::{CreateIndexColumn, CreateTableReq, CreateTableReqColumn};
+    use crate::{
+        db::{CreateIndexColumn, CreateTableReq, CreateTableReqColumn},
+        enable_test_log,
+    };
 
     #[tokio::test]
 
@@ -1479,6 +1505,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_check_conn() {
+        enable_test_log();
         let _guard = test_lock().lock().await;
 
         let db = make_test_object(None).await;
