@@ -28,6 +28,8 @@ export default defineConfig(async ({ command }) => {
         },
 
         output: {
+          // 关键配置：手动拦截并删除源代码内容
+          sourcemapExcludeSources: true,
           manualChunks: (id) => {
             if (id.includes("monaco-editor")) return "monaco";
           },
