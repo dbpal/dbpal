@@ -1398,7 +1398,7 @@ export function useTabSize() {
   return useMemo(() => {
     try {
       let x = JSON.parse(editor.editorOption);
-      const value = ["tabSize"];
+      const value = x["tabSize"];
 
       if (value && typeof x === "number") {
         return value;
