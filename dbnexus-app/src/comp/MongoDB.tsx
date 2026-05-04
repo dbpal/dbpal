@@ -92,6 +92,7 @@ import {
   UseSizeConfig,
   useSizeStore,
   useTableColumnVisibleStore,
+  useTabSize,
 } from "./store";
 import { commands, MuiDataGridData } from "./bindings";
 import { AddTableModal } from "./LeftTable";
@@ -266,6 +267,7 @@ function MongoBsonEditor(props: {
   const [loading, setLoading] = useState(false);
   const newDoc = useRef(doc);
 
+  const tabSize = useTabSize();
   const handleEditorDidMount = useCallback((ce: editor.IStandaloneCodeEditor) => {
     editor.current = ce;
     ce.focus();
@@ -288,7 +290,7 @@ function MongoBsonEditor(props: {
   const [content, setContent] = useState("{\n}");
   useEffect(() => {
     try {
-      const c = bsonValue2MongoBson(doc).format();
+      const c = bsonValue2MongoBson(doc).format(tabSize);
       setContent(c);
     } catch (e) {
       showNotification({
@@ -297,7 +299,7 @@ function MongoBsonEditor(props: {
         message: e,
       });
     }
-  }, [doc, showNotification]);
+  }, [doc, showNotification, tabSize]);
   return (
     <Stack style={{ flex: 1 }}>
       <div
@@ -485,7 +487,7 @@ function MongoTableToolBar(props: {
     handleViewModel(viewModel);
   }, [handleViewModel, viewModel]);
   const [modalBox, setModalBox] = useState(null);
-
+  const tabSize = useTabSize();
   return (
     <Stack
       direction="row"
@@ -497,11 +499,11 @@ function MongoTableToolBar(props: {
         <Button loading={loading} color="primary" onClick={handleReload}>
           reload
         </Button>
-        <Tooltip title={bsonValue2MongoBson(filter).format()}>
+        <Tooltip title={bsonValue2MongoBson(filter).format(tabSize)}>
           <Chip
             label={
               oldMongoValueEditorMode == MongoDataViewModel.Object
-                ? bsonValue2MongoBson(filter).format()
+                ? bsonValue2MongoBson(filter).format(tabSize)
                 : EJSON.stringify(filter)
             }
             onClick={() => {
@@ -520,11 +522,11 @@ function MongoTableToolBar(props: {
             }
           />
         </Tooltip>
-        <Tooltip title={bsonValue2MongoBson(sort).format()}>
+        <Tooltip title={bsonValue2MongoBson(sort).format(tabSize)}>
           <Chip
             label={
               oldMongoValueEditorMode == MongoDataViewModel.Object
-                ? bsonValue2MongoBson(sort).format()
+                ? bsonValue2MongoBson(sort).format(tabSize)
                 : EJSON.stringify(sort)
             }
             onClick={() => {
@@ -726,6 +728,7 @@ function MongoTableListMenuFilter(props: {
   const { showNotification } = useNotification();
   const [value, setValue] = useState(null);
   const [doc, setDoc] = useState({});
+  const tabSize = useTabSize();
   useEffect(() => {
     loadValue()
       .then((v) => {
@@ -824,7 +827,9 @@ function MongoTableListMenuFilter(props: {
           }}>
           set
         </Button>
-        <Typography color="success">{bsonValue2MongoBson(doc).format()}</Typography>
+        <Typography color="success">
+          {bsonValue2MongoBson(doc).format(tabSize)}
+        </Typography>
       </StackRowCenter>
     </Stack>
   );
@@ -963,24 +968,24 @@ function ModalObjectNotice() {
       <SimpleFlexEditor
         language={languageXXX}
         value={`{
-  _id: '69bb51276b7795c05d1a25b2' as ObjectID, 
-  string_field: 'Hello, world!',
-  int32_field: 123,
-  float_field: 123.45,
-  bool_field: true,
-  date_field: '2026-03-19T01:28:07.000Z' as date,
-  null_field: null,
-  regex_field: /haha/i,
-  binary_field: [1,2] as binary int8_array,
-  binary_field2: [1,2] as binary float32_array,
-  binary_field3: '68656c6c6f' as binary generic,
-  binary_field4: '68656c6c6f' as binary encrypted,
-  binary_field5: '68656c6c6f' as binary sensitive,
-  uuid_field: '0fe7263c138e480ea9e1d3869857dbca' as binary uuid,
-  array_field: [1,2,3],
-  object_field: {nested_key: 'nested_value'},
-  decimal_field: '1' as decimal,
-  timestamp_field: {t: 1773883687,i:1} as timestamp
+    _id: '69bb51276b7795c05d1a25b2' as ObjectID, 
+    string_field: 'Hello, world!',
+    int32_field: 123,
+    float_field: 123.45,
+    bool_field: true,
+    date_field: '2026-03-19T01:28:07.000Z' as date,
+    null_field: null,
+    regex_field: /haha/i,
+    binary_field: [1,2] as binary int8_array,
+    binary_field2: [1,2] as binary float32_array,
+    binary_field3: '68656c6c6f' as binary generic,
+    binary_field4: '68656c6c6f' as binary encrypted,
+    binary_field5: '68656c6c6f' as binary sensitive,
+    uuid_field: '0fe7263c138e480ea9e1d3869857dbca' as binary uuid,
+    array_field: [1,2,3],
+    object_field: {nested_key: 'nested_value'},
+    decimal_field: '1' as decimal,
+    timestamp_field: {t: 1773883687,i:1} as timestamp
 }`}
       />
     </Stack>

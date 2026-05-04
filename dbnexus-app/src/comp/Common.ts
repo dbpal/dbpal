@@ -241,10 +241,7 @@ monaco.languages.registerDocumentFormattingEditProvider("sql", {
       console.error("editor id map to backend name is nul,this is internal bug");
       return;
     }
-    const text = formatSqlFn(name.kind, model.getValue(), {
-      insertSpaces: options.insertSpaces,
-      tabSize: options.tabSize,
-    });
+    const text = formatSqlFn(name.kind, model.getValue(), options.tabSize);
     if (!text) {
       return null;
     }
@@ -257,17 +254,11 @@ monaco.languages.registerCompletionItemProvider("redis", {
     return autoCompletion(model, position);
   },
 });
-function formatSqlFn(
-  kind: DataSourceKind,
-  sql: string,
-  opts?: languages.FormattingOptions,
-): string {
-  if (!opts) {
-    opts = {
-      tabSize: 2,
-      insertSpaces: true,
-    };
-  }
+function formatSqlFn(kind: DataSourceKind, sql: string, tabSize: number): string {
+  const opts = {
+    tabSize,
+    insertSpaces: true,
+  };
   try {
     // https://github.com/sql-formatter-org/sql-formatter/blob/master/docs/language.md
     let language: SqlLanguage = "sql";

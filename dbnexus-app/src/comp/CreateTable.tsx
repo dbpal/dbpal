@@ -131,12 +131,7 @@ function CreateTable(props: { uuid: string; kind: DataSourceKind }) {
       .then((sql) => {
         setEditorValue("");
         setTimeout(() => {
-          setEditorValue(
-            formatSqlFn(kind, sql, {
-              insertSpaces: true,
-              tabSize,
-            }),
-          );
+          setEditorValue(formatSqlFn(kind, sql, tabSize));
         }, 200);
       })
       .catch((e) => {

@@ -18,7 +18,7 @@ class MongoBsonObject {
     public startLoc?: Location,
     public endLoc?: Location,
   ) {}
-  format(tableSize: number = 2): string {
+  format(tableSize: number): string {
     return new MongoBsonValue(MongoBsonValueKind.Object, this).format(
       1,
       true,

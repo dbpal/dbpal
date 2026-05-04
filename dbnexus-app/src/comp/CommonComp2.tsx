@@ -1594,12 +1594,6 @@ function SetFilterSort(props: {
   const { getFilter, addFilter, removeFilter } = useTableFilter();
   const filters = getFilter(uuid, tableName);
   const tabSize = useTabSize();
-
-  const formatarg = {
-    tabSize,
-    insertSpaces: true,
-  };
-
   const handleSet = async () => {
     try {
       let data = await extractFn(uuid, editor.getValue());
@@ -1634,7 +1628,7 @@ function SetFilterSort(props: {
               isFilter
                 ? `SELECT * FROM ${tableName} WHERE ${value}`
                 : `SELECT * FROM ${tableName} ORDER BY ${value}`,
-              formatarg,
+              tabSize,
             ) + " "
           }
           handleEditor={(e) => {
@@ -1697,7 +1691,7 @@ function SetFilterSort(props: {
                     formatSqlFn(
                       kind,
                       `SELECT * FROM ${tableName} WHERE ${value}`,
-                      formatarg,
+                      tabSize,
                     ),
                   );
                   setSelectFilter(value);
