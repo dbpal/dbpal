@@ -55,6 +55,7 @@ function MonacoEditor({
       // 1. 初始化编辑器
       const ed = monaco.editor.create(editorRef.current, { automaticLayout: true });
       setIns(ed);
+      ed.focus();
     }
     // 3. 组件卸载时销毁实例，防止内存泄漏
     return () => {

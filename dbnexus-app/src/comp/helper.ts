@@ -11,7 +11,7 @@ import {
   SetStateAction,
 } from "react";
 import { ask, message } from "@tauri-apps/plugin-dialog";
-import { writeText } from "@tauri-apps/plugin-clipboard-manager";
+import { readText, writeText } from "@tauri-apps/plugin-clipboard-manager";
 import { BSON } from "bson";
 import { WebviewWindow } from "@tauri-apps/api/webviewWindow";
 import { platform } from "@tauri-apps/plugin-os";
@@ -256,11 +256,15 @@ function isTypeLargeText(s: string): boolean {
 
 const TabActiveContext = createContext(true);
 
-const handleCopyToClipboard = (
+const handleCopyToClipboard = async (
   text: string,
-  showNotification?: (_: NotificationParams) => void,
+  showNotification: (_: NotificationParams) => void,
   okCallBack?: () => void,
 ) => {
+  if ((await readText()) == text) {
+    showNotification({ severity: "info", title: "Already copied to clipboard." });
+    return;
+  }
   writeText(text)
     .then(() => {
       if (showNotification) {

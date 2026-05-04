@@ -46,7 +46,12 @@ import {
   GridSortModel,
 } from "./datagridExport.ts";
 
-function RespContextMenu(props: { content; field; setSort; viewInModal }) {
+function RespContextMenu(props: {
+  content: string;
+  field: string;
+  setSort: (model: GridSortModel) => void;
+  viewInModal: () => void;
+}): React.ReactElement {
   const { content, field, setSort, viewInModal } = props;
   const { showNotification } = useNotification();
   return (
@@ -92,7 +97,10 @@ function RespContextMenu(props: { content; field; setSort; viewInModal }) {
   );
 }
 
-function queryRespFix(data: MuiDataGridData, getColumnWidth) {
+function queryRespFix(
+  data: MuiDataGridData,
+  getColumnWidth: (field: string) => number | undefined,
+): void {
   data.data.forEach((e, index) => {
     e[keyNotInTable] = index + "";
   });
@@ -112,15 +120,12 @@ function queryRespFix(data: MuiDataGridData, getColumnWidth) {
   });
 }
 
-function QueryResp(props: { data: MuiDataGridData }) {
+function QueryResp(props: { data: MuiDataGridData }): React.ReactElement {
   const { data } = props;
   const { setColumnWidth, getColumnWidth } = useColumnWidthStore();
   queryRespFix(data, getColumnWidth);
-
   const [page, setPage] = useState(0);
-
   const { setPageSize, sql: pageSize } = usePageSize();
-
   const [viewInModal, setViewInModal] = useState<object>(null);
   const onColumnResize = useCallback(
     ({ colDef, width }) => {
@@ -251,11 +256,11 @@ function QueryResp(props: { data: MuiDataGridData }) {
   );
 }
 
-function getRowId(row) {
+function getRowId(row: Record<string, any>): string {
   return row[keyNotInTable];
 }
 
-function MultiQueryResp(props: { data: QueryRespData[] }) {
+function MultiQueryResp(props: { data: QueryRespData[] }): React.ReactElement {
   const { data } = props;
   const [value, setValue] = React.useState(0);
 
@@ -278,7 +283,7 @@ function MultiQueryResp(props: { data: QueryRespData[] }) {
       <QueryResp data={data[0].Ok} />
     );
   }
-  const handleChange = (_event: React.SyntheticEvent, newValue: number) => {
+  const handleChange = (_event: React.SyntheticEvent, newValue: number): void => {
     setValue(newValue);
   };
   return (

@@ -43,10 +43,6 @@ import {
 import { CustomToolbar } from "./CustomToolBar.tsx";
 import { DataGrid, GridColDef, GridSlotsComponent } from "./datagridExport.ts";
 
-const initialState: object = {
-  sorting: { sortModel: [{ field: "create_at", sort: "desc" }] },
-};
-
 function QueryLog(props: {
   uuid: string;
   showQueryLog: boolean;
@@ -57,7 +53,6 @@ function QueryLog(props: {
   const { uuid, showQueryLog, setShowQueryLog, queryId, kind } = props;
   const [selectSql, setSelectSql] = useState<{ sql: string; language: string }>(null);
   const [logs, setLogs] = useState([]);
-
   const { getColumnWidth, setColumnWidth } = useColumnWidthStore();
   const { query, deleteByUuid } = useQueryLogStore();
 
@@ -246,12 +241,15 @@ function QueryLog(props: {
           onRowDoubleClick={(e) => {
             setSelectSql(e.row);
           }}
+          showToolbar={false}
           columns={columns}
           rows={logs}
           slots={slots}
           style={dataGridStyle}
           pageSizeOptions={pageSizeOptions}
-          initialState={initialState}
+          initialState={{
+            sorting: { sortModel: [{ field: "create_at", sort: "desc" }] },
+          }}
           onColumnResize={({ colDef, width }) => {
             const field = colDef.field;
             if (field == "create_at" || field == "success") {
