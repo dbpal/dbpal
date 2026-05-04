@@ -20,6 +20,7 @@ export default defineConfig(async ({ command }) => {
     ],
     build: {
       target: "esnext",
+      sourcemap: true,
       rollupOptions: {
         input: {
           main: resolve(__dirname, "index.html"),

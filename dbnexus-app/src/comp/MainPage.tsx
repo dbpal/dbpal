@@ -221,6 +221,15 @@ function App() {
   return (
     <AppSnackbarProvider>
       <SettingProvider>
+        {/* source map test  */}
+
+        {/* <button
+          onClick={() => {
+            const a = undefined;
+            a.map();
+          }}>
+          panic
+        </button> */}
         <AppMenu />
         <DialogExtraUI />
         <ShowPanic />
