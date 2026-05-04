@@ -1398,11 +1398,13 @@ export function useTabSize() {
   return useMemo(() => {
     try {
       let x = JSON.parse(editor.editorOption);
-      return x["tabSize"];
+      if (x["tabSize"]) {
+        return x["tabSize"];
+      }
     } catch (_e) {
       console.error("parse editor.editorOption failed", _e);
-      return 4;
     }
+    return 4;
   }, [editor]);
 }
 

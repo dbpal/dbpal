@@ -266,7 +266,6 @@ function MongoBsonEditor(props: {
   const [err, setErr] = useState<MongoBsonError>(null);
   const [loading, setLoading] = useState(false);
   const newDoc = useRef(doc);
-
   const tabSize = useTabSize();
   const handleEditorDidMount = useCallback((ce: editor.IStandaloneCodeEditor) => {
     editor.current = ce;
