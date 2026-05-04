@@ -437,6 +437,7 @@ export function CustomPagination({
       <Stack direction="row" spacing={2} sx={{ alignItems: "center", flex: 1 }}>
         <FetchTimeDataGrid />
         <ResetColumnWidth />
+        {clientModel && <SliderSize config={UseSizeConfig.queryLimit} />}
         {resp.sql && (
           <Tooltip title={resp.sql}>
             <Typography
@@ -447,7 +448,6 @@ export function CustomPagination({
             </Typography>
           </Tooltip>
         )}
-        {clientModel && <SliderSize config={UseSizeConfig.queryLimit} />}
       </Stack>
 
       <Stack direction="row" spacing={2} sx={{ alignItems: "center" }}>
