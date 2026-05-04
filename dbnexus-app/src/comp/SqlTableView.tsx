@@ -242,10 +242,8 @@ interface SqlTableCustomToolBarLeftProps {
   handleReload: (showOK: boolean) => void;
   where: string;
   setWhere: (val: string) => void;
-  setShowSetWhere: (show: boolean) => void;
   sort: string;
   setSort: (val: string) => void;
-  setShowSetSort: (show: boolean) => void;
   kind: DataSourceKind; // 假设你已经定义了这个 Enum 或 Type
   allowFiltering: boolean;
   setAllowFiltering: (val: boolean) => void;
@@ -260,10 +258,8 @@ function SqlTableCustomToolBarLeft({
   handleReload,
   where,
   setWhere,
-  setShowSetWhere,
   sort,
   setSort,
-  setShowSetSort,
   kind,
   allowFiltering,
   setAllowFiltering,
@@ -275,6 +271,8 @@ function SqlTableCustomToolBarLeft({
 }: SqlTableCustomToolBarLeftProps) {
   // 获取 DataGrid 内部的 api 实例
   const apiRef = useGridApiContext();
+  const [showSetWhere, setShowSetWhere] = useState(false);
+  const [showSetSort, setShowSetSort] = useState(false);
 
   const { showNotification } = useNotification();
 
@@ -286,6 +284,40 @@ function SqlTableCustomToolBarLeft({
       <Button loading={isLoading} color="primary" onClick={() => handleReload(true)}>
         reload
       </Button>
+
+      {showSetWhere && (
+        <SetFilterSort
+          tableName={tableName}
+          open={showSetWhere}
+          value={where}
+          setValue={(v) => {
+            setWhere(v);
+          }}
+          handleClose={() => {
+            setShowSetWhere(false);
+          }}
+          label="filter"
+          kind={kind}
+          uuid={uuid}
+        />
+      )}
+
+      {showSetSort && (
+        <SetFilterSort
+          tableName={tableName}
+          open={showSetSort}
+          value={sort}
+          setValue={(v) => {
+            setSort(v);
+          }}
+          kind={kind}
+          handleClose={() => {
+            setShowSetSort(false);
+          }}
+          label="sort"
+          uuid={uuid}
+        />
+      )}
 
       <Tooltip title={where ? where : "filter something like 'age=18'"}>
         <Chip
@@ -631,7 +663,6 @@ function SqlTableView(props: {
     },
     [uuid],
   );
-
   const addOP = useCallback(
     async (x) => {
       await commands.tableInsert(uuid, tableName, x);
@@ -641,9 +672,9 @@ function SqlTableView(props: {
 
   const [loading, setLoading] = useState(false);
   const [where, setWhere] = useState("");
-  const [showSetWhere, setShowSetWhere] = useState(false);
+
   const [sort, setSort] = useState("");
-  const [showSetSort, setShowSetSort] = useState(false);
+
   const [page, setPage] = useState(0);
   const { sql: pageSize, setPageSize } = usePageSize();
   const { setUi } = useOneShotDialogUI();
@@ -1003,10 +1034,8 @@ function SqlTableView(props: {
             handleReload,
             where,
             setWhere,
-            setShowSetWhere,
             sort,
             setSort,
-            setShowSetSort,
             kind,
             allowFiltering,
             setAllowFiltering,
@@ -1172,22 +1201,7 @@ function SqlTableView(props: {
           fields={resp.fields}
         />
       )}
-      {showSetWhere && (
-        <SetFilterSort
-          tableName={tableName}
-          open={showSetWhere}
-          value={where}
-          setValue={(v) => {
-            setWhere(v);
-          }}
-          handleClose={() => {
-            setShowSetWhere(false);
-          }}
-          label="filter"
-          kind={kind}
-          uuid={uuid}
-        />
-      )}
+
       {showClone && (
         <Modal
           open={!!showClone}
@@ -1212,23 +1226,6 @@ function SqlTableView(props: {
             />
           </Box>
         </Modal>
-      )}
-
-      {showSetSort && (
-        <SetFilterSort
-          tableName={tableName}
-          open={showSetSort}
-          value={sort}
-          setValue={(v) => {
-            setSort(v);
-          }}
-          kind={kind}
-          handleClose={() => {
-            setShowSetSort(false);
-          }}
-          label="sort"
-          uuid={uuid}
-        />
       )}
     </Stack>
   );
@@ -1529,7 +1526,7 @@ function FilterOnValue(props: {
   content: string;
   setWhere;
   field: string;
-  handleClose;
+  handleClose: () => void;
   kind: DataSourceKind;
   putValueInSql: (x: string) => Promise<string>;
 }) {
