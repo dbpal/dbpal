@@ -22,6 +22,8 @@ import ChatBubbleOutlineOutlinedIcon from "@mui/icons-material/ChatBubbleOutline
 import ContentCopyIcon from "@mui/icons-material/ContentCopy";
 import CircleIcon from "@mui/icons-material/Circle";
 import DeleteForeverIcon from "@mui/icons-material/DeleteForever";
+
+import EventNoteIcon from "@mui/icons-material/EventNote";
 import {
   Autocomplete,
   Box,
@@ -890,6 +892,7 @@ import {
   useGridApiContext,
   useGridSelector,
 } from "./datagridExport";
+import { QueryLog } from "./QueryLog";
 
 const rehypeHighlightWords = ({ highligth }) => {
   return (tree) => {
@@ -2057,7 +2060,33 @@ function DataGridPageKeyboardControl() {
   return <> </>;
 }
 
+function ShowQueryLog(props: { uuid: string; kind: DataSourceKind }) {
+  const { uuid, kind } = props;
+  const [showQueryLog, setShowQueryLog] = useState(false);
+
+  return (
+    <>
+      <Tooltip title="query log">
+        <IconButton
+          onClick={() => {
+            setShowQueryLog((prev) => !prev);
+          }}
+          color="primary">
+          <EventNoteIcon />
+        </IconButton>
+      </Tooltip>
+      <QueryLog
+        showQueryLog={showQueryLog}
+        setShowQueryLog={setShowQueryLog}
+        uuid={uuid}
+        kind={kind}
+      />
+    </>
+  );
+}
+
 export {
+  ShowQueryLog,
   FetchTimeDataGrid,
   FetchTimeAndXXX,
   ShowingCount,

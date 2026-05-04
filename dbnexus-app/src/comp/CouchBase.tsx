@@ -9,7 +9,6 @@ import {
   Typography,
 } from "@mui/material";
 import ArrowCircleDownRoundedIcon from "@mui/icons-material/ArrowCircleDownRounded";
-import EventNoteIcon from "@mui/icons-material/EventNote";
 import {
   AiMarkdownModel,
   AiMarkdownModelSwitch,
@@ -19,6 +18,7 @@ import {
   LoadStoreFile,
   QueryStatus,
   SetFilterSort,
+  ShowQueryLog,
   SimpleFlexEditor,
   SliderSize,
   ToggleChatShow,
@@ -44,7 +44,6 @@ import { Channel } from "@tauri-apps/api/core";
 import { dbpalQuerykey, NameAndQueryId, uuidv4 } from "./Common.ts";
 import { editor } from "monaco-editor";
 import { Panel, PanelGroup, PanelResizeHandle } from "react-resizable-panels";
-import { QueryLog } from "./QueryLog.tsx";
 import { ExportView } from "./Export.tsx";
 import { QueryResp } from "./QueryResp.tsx";
 import {
@@ -564,7 +563,6 @@ function CouchBaseQuery(props: { uuid: string; value?: string }) {
   const [editor, setEditor] = useState<editor.IStandaloneCodeEditor>(null);
   const [queryStatus, setQueryStatus] = useState("");
   const { showNotification } = useNotification();
-  const [showQueryLog, setShowQueryLog] = useState(false);
   const kind = DataSourceKind.CouchBase;
   const { viewMode, setViewMode } = useCBQueryViewStore();
   const [tableResp, setTableResp] = useState<MuiDataGridData>(null);
@@ -688,12 +686,6 @@ function CouchBaseQuery(props: { uuid: string; value?: string }) {
         minSize={10}
         defaultSize={35}
         style={{ display: "flex", flexDirection: "column" }}>
-        <QueryLog
-          showQueryLog={showQueryLog}
-          setShowQueryLog={setShowQueryLog}
-          uuid={uuid}
-          kind={kind}
-        />
         <QueryStatus status={queryStatus} />
         <Stack
           direction="row"
@@ -771,15 +763,7 @@ function CouchBaseQuery(props: { uuid: string; value?: string }) {
                 <ArrowCircleDownRoundedIcon />
               </IconButton>
             </Tooltip>
-            <Tooltip title="query log">
-              <IconButton
-                onClick={() => {
-                  setShowQueryLog((prev) => !prev);
-                }}
-                color="primary">
-                <EventNoteIcon />
-              </IconButton>
-            </Tooltip>
+            <ShowQueryLog uuid={uuid} kind={kind} />
 
             {viewMode == CBQueryViewMode.Json && (
               <SliderSize config={UseSizeConfig.gridCol} />

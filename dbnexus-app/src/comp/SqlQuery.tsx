@@ -1,5 +1,4 @@
 import { MultiQueryResp } from "./QueryResp";
-import EventNoteIcon from "@mui/icons-material/EventNote";
 import { Chip, Divider, IconButton, Stack, Tooltip } from "@mui/material";
 import { Panel, PanelGroup, PanelResizeHandle } from "react-resizable-panels";
 import PlayArrowIcon from "@mui/icons-material/PlayArrow";
@@ -17,7 +16,6 @@ import {
 import { BsFillLightbulbFill } from "react-icons/bs";
 import { FaUpload } from "react-icons/fa";
 import { MdOutlineReply } from "react-icons/md";
-import { QueryLog } from "./QueryLog.tsx";
 import RefreshIcon from "@mui/icons-material/Refresh";
 import {
   DataSourceKind,
@@ -45,6 +43,7 @@ import {
   LoadStoreFile,
   QueryStatus,
   SaveFavoriteSqlView,
+  ShowQueryLog,
   SliderSize,
   ToggleChatShow,
 } from "./CommonComp2.tsx";
@@ -304,7 +303,6 @@ function SqlQuery(props: {
   const [loading, setLoading] = useState(false);
   const [makeConnLoading, setMakeConnLoading] = useState(false);
   const { showNotification } = useNotification();
-  const [showQueryLog, setShowQueryLog] = useState(false);
   const [executeTimes, setExecuteTimes] = useState(0);
   const { queryId } = useContext(QueryIDEditorChatCtx);
   const conn = useRef<QueryConn>(new QueryConn(uuid, queryId, kind));
@@ -524,13 +522,6 @@ function SqlQuery(props: {
           }}
           collapsible
           collapsedSize={0}>
-          <QueryLog
-            showQueryLog={showQueryLog}
-            setShowQueryLog={setShowQueryLog}
-            uuid={uuid}
-            kind={kind}
-            queryId={queryId}
-          />
           <QueryStatus status={queryStatus} />
           <Stack
             direction="row"
@@ -629,15 +620,7 @@ function SqlQuery(props: {
                 kind={kind}
               />
             )}
-            <Tooltip title="query log">
-              <IconButton
-                onClick={() => {
-                  setShowQueryLog((prev) => !prev);
-                }}
-                color="primary">
-                <EventNoteIcon />
-              </IconButton>
-            </Tooltip>
+            <ShowQueryLog uuid={uuid} kind={kind} />
 
             {extras}
             <ModifyLLMConfigModal />

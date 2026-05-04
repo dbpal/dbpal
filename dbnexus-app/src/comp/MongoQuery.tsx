@@ -15,7 +15,6 @@ import PlayArrowIcon from "@mui/icons-material/PlayArrow";
 import { editor } from "monaco-editor";
 import { useCallback, useContext, useEffect, useState } from "react";
 import { MongoDBQuery } from "./MongoQueryBackend";
-import EventNoteIcon from "@mui/icons-material/EventNote";
 import * as monaco from "monaco-editor";
 
 import {
@@ -35,9 +34,9 @@ import {
   AppCode,
   LoadStoreFile,
   SaveFavoriteSqlView,
+  ShowQueryLog,
   ToggleChatShow,
 } from "./CommonComp2";
-import { QueryLog } from "./QueryLog";
 import InfoIcon from "@mui/icons-material/Info";
 import intervalCleanTest from "../../tests/interval_clean_test.js?raw";
 import {
@@ -210,7 +209,6 @@ const ignoreErrKey = "mongo-query-ignore-error";
 
 function MongoQuery(props: { uuid: string; favoriteName?: string; value?: string }) {
   const { uuid, value, favoriteName } = props;
-  const [showQueryLog, setShowQueryLog] = useState(false);
   const [editor, setEditor] = useState<editor.IStandaloneCodeEditor>(null);
 
   const [cleanFns, setCleanFns] = useState<CleanFunction[]>([]);
@@ -276,12 +274,6 @@ const { db, FS, HTTP, BSON } = mongoHandle;
   };
   return (
     <Stack style={{ height: "100%" }}>
-      <QueryLog
-        showQueryLog={showQueryLog}
-        setShowQueryLog={setShowQueryLog}
-        uuid={uuid}
-        kind={DataSourceKind.Mongo}
-      />
       <Stack
         direction="row"
         sx={{
@@ -345,15 +337,7 @@ const { db, FS, HTTP, BSON } = mongoHandle;
             setMarkdownModel={setMarkdownModel}
             markdownModel={markdownModel}
           />
-          <Tooltip title="query log">
-            <IconButton
-              onClick={() => {
-                setShowQueryLog((prev) => !prev);
-              }}
-              color="primary">
-              <EventNoteIcon />
-            </IconButton>
-          </Tooltip>
+          <ShowQueryLog uuid={uuid} kind={DataSourceKind.Mongo} />
           {cleanFns.length > 0 && (
             <Tooltip
               title=<CallCleanFunctions
