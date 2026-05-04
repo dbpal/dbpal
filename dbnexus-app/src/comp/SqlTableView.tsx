@@ -434,7 +434,7 @@ export function CustomPagination({
         flex: 1,
         overflow: "auto",
       }}>
-      <Stack direction="row" spacing={2} sx={{ alignItems: "center", flex: 1 }}>
+      <Stack direction="row" sx={{ alignItems: "center", flex: 1 }}>
         <FetchTimeDataGrid />
         <ResetColumnWidth />
         {clientModel && <SliderSize config={UseSizeConfig.queryLimit} />}
@@ -450,7 +450,7 @@ export function CustomPagination({
         )}
       </Stack>
 
-      <Stack direction="row" spacing={2} sx={{ alignItems: "center" }}>
+      <Stack direction="row" sx={{ alignItems: "center" }}>
         {!clientModel && (
           <Typography variant="body2" color="info.main" sx={textEllipsisStyle}>
             result {resp.data.length} of {resp.total}
