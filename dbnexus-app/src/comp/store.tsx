@@ -585,7 +585,7 @@ export class UseSizeConfig {
 
   static editorHeight: UseSizeConfig = {
     key: "editor-heigh",
-    min: 100,
+    min: 300,
     max: 1200,
     step: 10,
     default: 300,

@@ -31,7 +31,16 @@ import {
   MongoBsonError,
   parseMongoBson,
 } from "./MongoBsonCompiler";
-import { ReactNode, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import {
+  Dispatch,
+  ReactNode,
+  SetStateAction,
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 
 import { BSON, EJSON } from "bson";
 
@@ -1333,7 +1342,7 @@ function MongoTableObject(props: {
   modifyOP?: (doc: BSON.Document) => Promise<void>;
   deleteOP?: (ids: any[] | any) => Promise<number>;
   triggerReload;
-  setLoading;
+  setLoading: Dispatch<SetStateAction<boolean>>;
   editorHeight: number;
   gridColCount: number;
   viewModel: MongoDataViewModel;
@@ -1419,6 +1428,7 @@ function MongoTableObject(props: {
                 height: editorHeight + "px",
                 display: "flex",
                 position: "relative",
+                flexDirection: "column",
               }}>
               <Typography
                 color="info"
@@ -1613,7 +1623,7 @@ function MongoTable(props: { uuid: string; table: string; isTable: boolean }) {
         isTable={isTable}
         extra={
           viewModel != MongoDataViewModel.TableList && (
-            <Stack direction="row">
+            <Stack direction="row" style={{ alignItems: "center" }}>
               <SliderSize config={UseSizeConfig.gridCol} />
               <SliderSize config={UseSizeConfig.editorHeight} />
             </Stack>
