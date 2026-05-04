@@ -87,6 +87,7 @@ import {
   GridSlotsComponentsProps,
   GridSortModel,
 } from "./datagridExport";
+import { CustomToolbar } from "./CustomToolBar";
 
 /**
  * Logger level selection control.
@@ -522,6 +523,7 @@ function MetaValueView({ values = [] as MetaValue[], showToolbar }) {
 
   const slots = useMemo(() => {
     return {
+      toolbar: CustomToolbar,
       pagination: AppDataGridPagination,
     } as Partial<GridSlotsComponent>;
   }, []);
@@ -564,7 +566,7 @@ function ResetColumnWidth() {
  */
 function CheckedView(props: { value: boolean }) {
   const { value } = props;
-  return value ? <CheckIcon> </CheckIcon> : <CloseIcon />;
+  return value ? <CheckIcon /> : <CloseIcon />;
 }
 
 /**
@@ -584,7 +586,7 @@ function ModalHeader(props: {
       style={{
         justifyContent: "space-between",
         alignItems: "center",
-        borderBottom: "3px solid " + theme.palette.success.main,
+        // borderBottom: "3px solid",
         marginBottom: "0.4rem",
         position: "sticky",
         top: 0,

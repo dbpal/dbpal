@@ -22,7 +22,6 @@ import ChatBubbleOutlineOutlinedIcon from "@mui/icons-material/ChatBubbleOutline
 import ContentCopyIcon from "@mui/icons-material/ContentCopy";
 import CircleIcon from "@mui/icons-material/Circle";
 import DeleteForeverIcon from "@mui/icons-material/DeleteForever";
-
 import EventNoteIcon from "@mui/icons-material/EventNote";
 import {
   Autocomplete,
@@ -67,7 +66,6 @@ import {
   TabContent,
   textEllipsisStyle,
 } from "./helper";
-
 import { editor } from "monaco-editor";
 import {
   dbpalQuerykey,
@@ -108,6 +106,27 @@ import {
 import { MonacoEditor } from "./Editor";
 import EditIcon from "@mui/icons-material/Edit";
 import { Highlight, themes } from "prism-react-renderer";
+import { visit, SKIP } from "unist-util-visit";
+import {
+  commands,
+  CouchBaseBucketType,
+  CreateDatabaseExtra,
+  CreateIndexColumn,
+  CreateIndexReq,
+  IndexKind,
+  MetaValue,
+  SqlNullAble,
+} from "./bindings";
+import { IoTimerOutline } from "react-icons/io5";
+import { MdTimer } from "react-icons/md";
+import {
+  gridPageCountSelector,
+  gridPaginationModelSelector,
+  gridRowsLoadingSelector,
+  useGridApiContext,
+  useGridSelector,
+} from "./datagridExport";
+import { QueryLog } from "./QueryLog";
 
 interface ClearableTextFieldProps extends Omit<TextFieldProps, "variant"> {
   onClear: () => void;
@@ -668,7 +687,7 @@ function ConnConfigInfo(props: { uuid: string }) {
 
 function LoadStoreFile(props: {
   getQuery: () => string;
-  handleLoadFile: (path: string, content: string) => void;
+  handleLoadFile: (content: string) => void;
   kind: DataSourceKind;
 }) {
   const { getQuery, handleLoadFile, kind } = props;
@@ -720,7 +739,7 @@ function LoadStoreFile(props: {
       const file = await open({ title: "open file", filters });
       if (file) {
         const content = new TextDecoder().decode(await readFile(file));
-        handleLoadFile(file, content);
+        handleLoadFile(content);
         setFile(file);
       }
     } catch (e) {
@@ -741,7 +760,7 @@ function LoadStoreFile(props: {
           create: true,
         });
         setFile(ofile);
-        handleLoadFile(ofile, content);
+        handleLoadFile(content);
         showNotification({ severity: "success", title: "save file OK" });
       }
     } catch (e) {
@@ -762,7 +781,7 @@ function LoadStoreFile(props: {
         }
       }
       setFile("");
-      handleLoadFile("", "");
+      handleLoadFile("");
     } catch (e) {
       showNotification({ severity: "error", title: "close file failed", message: e });
     }
@@ -872,27 +891,6 @@ type AppMarkDownProps = {
   appCodeHandleEdit?: AppCodeHanleEdit;
   highlightStr?: string;
 };
-import { visit, SKIP } from "unist-util-visit";
-import {
-  commands,
-  CouchBaseBucketType,
-  CreateDatabaseExtra,
-  CreateIndexColumn,
-  CreateIndexReq,
-  IndexKind,
-  MetaValue,
-  SqlNullAble,
-} from "./bindings";
-import { IoTimerOutline } from "react-icons/io5";
-import { MdTimer } from "react-icons/md";
-import {
-  gridPageCountSelector,
-  gridPaginationModelSelector,
-  gridRowsLoadingSelector,
-  useGridApiContext,
-  useGridSelector,
-} from "./datagridExport";
-import { QueryLog } from "./QueryLog";
 
 const rehypeHighlightWords = ({ highligth }) => {
   return (tree) => {

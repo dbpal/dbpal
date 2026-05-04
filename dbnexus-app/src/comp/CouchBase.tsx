@@ -708,7 +708,7 @@ function CouchBaseQuery(props: { uuid: string; value?: string }) {
               getQuery={() => {
                 return editor.getValue();
               }}
-              handleLoadFile={(_, c) => {
+              handleLoadFile={(c) => {
                 editor.setValue(c);
               }}
               kind={DataSourceKind.CouchBase}

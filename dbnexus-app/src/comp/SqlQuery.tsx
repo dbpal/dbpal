@@ -614,7 +614,7 @@ function SqlQuery(props: {
                 getQuery={() => {
                   return editor.getValue();
                 }}
-                handleLoadFile={(_, content) => {
+                handleLoadFile={(content) => {
                   editor.setValue(content);
                 }}
                 kind={kind}

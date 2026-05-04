@@ -314,7 +314,7 @@ const { db, FS, HTTP, BSON } = mongoHandle;
               return editor.getValue();
             }}
             kind={DataSourceKind.Mongo}
-            handleLoadFile={(_path, text) => {
+            handleLoadFile={(text) => {
               editor.setValue(text);
             }}
           />
