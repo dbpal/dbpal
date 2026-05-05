@@ -69,11 +69,7 @@ impl From<Vec<CompletionItem>> for CompletionList {
         }
     }
 }
-impl From<CompletionItem> for String {
-    fn from(value: CompletionItem) -> Self {
-        value.item.into()
-    }
-}
+
 #[derive(Clone, Copy, Debug, PartialEq, Eq, serde::Serialize, Hash, specta::Type)]
 pub enum CompletionKind {
     Command, // command right now use by redis
