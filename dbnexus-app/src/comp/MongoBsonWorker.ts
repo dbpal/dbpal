@@ -18,9 +18,9 @@ self.onmessage = (event: MessageEvent) => {
         severity: 8,
         message: e.msg,
         startLineNumber: e?.loc.start.line,
-        startColumn: e?.loc.start.column,
+        startColumn: e?.loc.start.column + 1,
         endLineNumber: e?.loc.end.line,
-        endColumn: e?.loc.end.column,
+        endColumn: e?.loc.end.column + 1,
         resource,
       });
     } else {
