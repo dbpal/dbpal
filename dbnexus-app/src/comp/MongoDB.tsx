@@ -377,8 +377,9 @@ function MongoValueEditor(props: {
   setName?;
   delOP?: () => Promise<void>;
   needConfirm: boolean;
+  viewModel?: MongoDataViewModel;
 }) {
-  let { doc, setOP, setName, delOP, needConfirm } = props;
+  let { doc, setOP, setName, delOP, needConfirm, viewModel: viewModelPassed } = props;
   if (!setName) {
     setName = "set";
   }
@@ -404,28 +405,39 @@ function MongoValueEditor(props: {
         }
       }
     : undefined;
+
+  const getViewModel = useCallback(() => {
+    if (!viewModelPassed || viewModelPassed == MongoDataViewModel.TableList) {
+      return viewModel;
+    } else {
+      return viewModelPassed;
+    }
+  }, [viewModel, viewModelPassed]);
+
   return (
     <Stack style={{ flex: 1 }}>
-      <Stack direction="row">
-        <ButtonGroup>
-          <Button
-            disabled={viewModel == MongoDataViewModel.Object}
-            onClick={() => {
-              setViewModel(MongoDataViewModel.Object);
-            }}>
-            <DataObjectIcon />
-          </Button>
-          <Button
-            onClick={() => {
-              setViewModel(MongoDataViewModel.Json);
-            }}
-            disabled={viewModel == MongoDataViewModel.Json}>
-            ejson
-          </Button>
-        </ButtonGroup>
-      </Stack>
+      {!viewModelPassed && (
+        <Stack direction="row">
+          <ButtonGroup>
+            <Button
+              disabled={viewModel == MongoDataViewModel.Object}
+              onClick={() => {
+                setViewModel(MongoDataViewModel.Object);
+              }}>
+              <DataObjectIcon />
+            </Button>
+            <Button
+              onClick={() => {
+                setViewModel(MongoDataViewModel.Json);
+              }}
+              disabled={viewModel == MongoDataViewModel.Json}>
+              ejson
+            </Button>
+          </ButtonGroup>
+        </Stack>
+      )}
 
-      {viewModel == MongoDataViewModel.Json && (
+      {getViewModel() == MongoDataViewModel.Json && (
         <JsonEditor
           value={JSON.parse(EJSON.stringify(doc))}
           modifyOP={confirmAndSet}
@@ -433,7 +445,7 @@ function MongoValueEditor(props: {
           delOP={confirmAndDel}
         />
       )}
-      {viewModel == MongoDataViewModel.Object && (
+      {getViewModel() == MongoDataViewModel.Object && (
         <MongoBsonEditor
           doc={doc}
           setOP={confirmAndSet}
@@ -595,6 +607,7 @@ function MongoTableToolBar(props: {
                 handleFilter(doc);
                 setShowModifyFilter(false);
               }}
+              viewModel={viewModel}
               doc={filter}
               needConfirm={false}
             />
@@ -620,6 +633,7 @@ function MongoTableToolBar(props: {
               title="Modify Sort"
             />
             <MongoValueEditor
+              viewModel={viewModel}
               setOP={async (doc) => {
                 handleSort(doc);
                 setShowModifySort(false);
@@ -1439,6 +1453,7 @@ function MongoTableObject(props: {
               </Typography>
               <MongoValueEditor
                 doc={doc}
+                viewModel={viewModel}
                 setOP={
                   modifyOP
                     ? async (doc) => {
