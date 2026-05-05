@@ -26,12 +26,15 @@ bsonWorker.onmessage = (e: MessageEvent<{ id: string; markers: editor.IMarker[] 
   const { id, markers } = e.data;
   const model = monaco.editor.getModels().find((e) => e.id == id);
   if (model) {
+    markers.forEach((e) => {
+      e.resource = model.uri;
+    });
     monaco.editor.setModelMarkers(model, mongoBsonCompilerOwner, markers);
   }
 };
 
 import ListIcon from "@mui/icons-material/List";
-import { editor, languages } from "monaco-editor";
+import { editor, languages, Uri } from "monaco-editor";
 import DeleteForeverIcon from "@mui/icons-material/DeleteForever";
 import FilterAltIcon from "@mui/icons-material/FilterAlt";
 import { FaArrowsAltV } from "react-icons/fa";
@@ -121,6 +124,7 @@ enum MongoDataViewModel {
   Json,
 }
 
+console.log(Uri.parse("inmemory://model/1"));
 const mongoID = "_id";
 
 const mongoBsonKeywords =
@@ -285,7 +289,6 @@ function MongoBsonEditor(props: {
       bsonWorker.postMessage({
         code: ce.getValue(),
         id: ce.getModel().id,
-        resource: ce.getModel().uri,
       });
     });
   }, []);

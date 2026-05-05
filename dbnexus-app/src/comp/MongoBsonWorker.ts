@@ -1,4 +1,5 @@
 import { editor } from "monaco-editor";
+
 import {
   mongoBsonCompilerOwner,
   MongoBsonError,
@@ -7,8 +8,7 @@ import {
 
 self.onmessage = (event: MessageEvent) => {
   const markers: editor.IMarker[] = [];
-  const { code, id, resource } = event.data;
-
+  const { code, id } = event.data;
   try {
     parseMongoBson(code).compile();
   } catch (e) {
@@ -21,7 +21,7 @@ self.onmessage = (event: MessageEvent) => {
         startColumn: e?.loc.start.column + 1,
         endLineNumber: e?.loc.end.line,
         endColumn: e?.loc.end.column + 1,
-        resource,
+        resource: "" as any,
       });
     } else {
       console.error("compile should not throw other error", e);
