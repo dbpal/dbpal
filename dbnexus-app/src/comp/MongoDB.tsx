@@ -34,7 +34,7 @@ bsonWorker.onmessage = (e: MessageEvent<{ id: string; markers: editor.IMarker[] 
 };
 
 import ListIcon from "@mui/icons-material/List";
-import { editor, languages, Uri } from "monaco-editor";
+import { editor, languages } from "monaco-editor";
 import DeleteForeverIcon from "@mui/icons-material/DeleteForever";
 import FilterAltIcon from "@mui/icons-material/FilterAlt";
 import { FaArrowsAltV } from "react-icons/fa";
@@ -121,8 +121,8 @@ import {
   GridSlotsComponent,
   GridSlotsComponentsProps,
 } from "./datagridExport";
+import { useDebounce } from "use-debounce";
 
-console.log(Uri.parse("inmemory://model/1"));
 const mongoID = "_id";
 
 const mongoBsonKeywords =
@@ -280,16 +280,25 @@ function MongoBsonEditor(props: {
   const editor = useRef<editor.IStandaloneCodeEditor>(null);
   const [loading, setLoading] = useState(false);
   const tabSize = useTabSize();
-
+  const [editorvalue, setEditorValue] = useState("");
   const handleEditorDidMount = useCallback((ce: editor.IStandaloneCodeEditor) => {
     editor.current = ce;
     ce.onDidChangeModelContent(() => {
-      bsonWorker.postMessage({
-        code: ce.getValue(),
-        id: ce.getModel().id,
-      });
+      setEditorValue(ce.getValue());
     });
   }, []);
+
+  const [editorvalue_] = useDebounce(editorvalue, 1000);
+
+  useEffect(() => {
+    if (!editor.current) {
+      return;
+    }
+    bsonWorker.postMessage({
+      code: editor.current.getValue(),
+      id: editor.current.getModel().id,
+    });
+  }, [editorvalue_]);
 
   const { showNotification } = useNotification();
   const [content, setContent] = useState("{\n}");
