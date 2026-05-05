@@ -22,7 +22,7 @@ import MongoBsonWorker from "./MongoBsonWorker.ts?worker";
 
 const bsonWorker = new MongoBsonWorker();
 
-bsonWorker.onmessage = (e: MessageEvent<{ id: string; markers: editor.IMarker[] }>) => {
+bsonWorker.onmessage = (e: MessageEvent<{ id: string; markers: StupidIMarker[] }>) => {
   const { id, markers } = e.data;
   const model = monaco.editor.getModels().find((e) => e.id == id);
   if (model) {
@@ -89,6 +89,7 @@ import {
   MonacoEditor,
   extractFieldAndIDFromMouseEvent,
   DataSourceKind,
+  StupidIMarker,
 } from "./helper";
 import {
   AppDataGridPagination,

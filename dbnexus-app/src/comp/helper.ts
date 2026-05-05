@@ -608,6 +608,17 @@ export function getDefaultLanguage(kind: DataSourceKind) {
       return "sql";
   }
 }
+
+interface StupidIMarker {
+  owner: string;
+  severity: number;
+  message: string;
+  startLineNumber: number;
+  startColumn: number;
+  endLineNumber: number;
+  endColumn: number;
+  resource: any;
+}
 export {
   isDarkStr,
   saveQueryKey,
@@ -655,6 +666,7 @@ export {
   QueryIDEditorChatCtx,
 };
 
+export type { StupidIMarker };
 async function webviewWIndowInit() {
   const currentWebview = WebviewWindow.getCurrent();
   if (["windows", "linux"].includes(platform())) {

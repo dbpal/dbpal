@@ -1,5 +1,4 @@
-import { editor } from "monaco-editor";
-
+import { StupidIMarker } from "./helper";
 import {
   mongoBsonCompilerOwner,
   MongoBsonError,
@@ -7,7 +6,7 @@ import {
 } from "./MongoBsonCompiler";
 
 self.onmessage = (event: MessageEvent) => {
-  const markers: editor.IMarker[] = [];
+  const markers: StupidIMarker[] = [];
   const { code, id } = event.data;
   try {
     parseMongoBson(code).compile();
@@ -21,7 +20,7 @@ self.onmessage = (event: MessageEvent) => {
         startColumn: e?.loc.start.column + 1,
         endLineNumber: e?.loc.end.line,
         endColumn: e?.loc.end.column + 1,
-        resource: "" as any,
+        resource: "",
       });
     } else {
       console.error("compile should not throw other error", e);
