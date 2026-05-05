@@ -1174,7 +1174,9 @@ function SqlTableView(props: {
           onClose={modalHandleClose((e: EscDownEvent) => {
             e.preventDefault();
             setShowFilter(null);
-          })}>
+          })}
+          fullWidth
+          maxWidth="sm">
           <DialogTitle> Quick filter </DialogTitle>
           <FilterOnValue
             content={showFilter.content}

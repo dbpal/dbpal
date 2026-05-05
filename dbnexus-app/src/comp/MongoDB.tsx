@@ -826,7 +826,7 @@ function MongoTableListMenuFilter(props: {
           }}>
           set
         </Button>
-        <Typography color="success">
+        <Typography color="success" style={{ flexShrink: 1 }}>
           {bsonValue2MongoBson(doc).format(tabSize)}
         </Typography>
       </StackRowCenter>
@@ -1320,7 +1320,9 @@ function MongoTableList(props: {
           open={true}
           onClose={() => {
             setShowFilter(null);
-          }}>
+          }}
+          fullWidth
+          maxWidth="sm">
           <DialogTitle> quick filer </DialogTitle>
           <MongoTableListMenuFilter
             loadValue={async () => {
