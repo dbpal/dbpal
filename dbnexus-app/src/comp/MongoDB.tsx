@@ -18,6 +18,17 @@ import {
 } from "@mui/material";
 
 import * as monaco from "monaco-editor";
+import MongoBsonWorker from "./MongoBsonWorker.ts?worker";
+
+const bsonWorker = new MongoBsonWorker();
+
+bsonWorker.onmessage = (e: MessageEvent<{ id: string; markers: editor.IMarker[] }>) => {
+  const { id, markers } = e.data;
+  const model = monaco.editor.getModels().find((e) => e.id == id);
+  if (model) {
+    monaco.editor.setModelMarkers(model, mongoBsonCompilerOwner, markers);
+  }
+};
 
 import ListIcon from "@mui/icons-material/List";
 import { editor, languages } from "monaco-editor";
@@ -28,6 +39,7 @@ import {
   bsonValue2MongoBson,
   formatMongoBsonStr,
   MongoBsonBinaryAllSubType,
+  mongoBsonCompilerOwner,
   MongoBsonError,
   parseMongoBson,
 } from "./MongoBsonCompiler";
@@ -264,26 +276,18 @@ function MongoBsonEditor(props: {
     setOPName = "set";
   }
   const editor = useRef<editor.IStandaloneCodeEditor>(null);
-  const [err, setErr] = useState<MongoBsonError>(null);
   const [loading, setLoading] = useState(false);
-  const newDoc = useRef(doc);
   const tabSize = useTabSize();
+
   const handleEditorDidMount = useCallback((ce: editor.IStandaloneCodeEditor) => {
     editor.current = ce;
-    ce.focus();
-    const d1 = ce.onDidChangeModelContent(() => {
-      const text = ce.getValue();
-      try {
-        const doc = parseMongoBson(text).compile();
-        setErr(null);
-        newDoc.current = doc;
-      } catch (e) {
-        setErr(e);
-      }
+    ce.onDidChangeModelContent(() => {
+      bsonWorker.postMessage({
+        code: ce.getValue(),
+        id: ce.getModel().id,
+        resource: ce.getModel().uri,
+      });
     });
-    return () => {
-      d1.dispose();
-    };
   }, []);
 
   const { showNotification } = useNotification();
@@ -317,11 +321,21 @@ function MongoBsonEditor(props: {
                   loading={loading}
                   onClick={() => {
                     setLoading(true);
-                    setOP(newDoc.current).finally(() => {
+                    let doc = undefined;
+                    try {
+                      doc = parseMongoBson(editor.current.getValue()).compile();
+                    } catch (e) {
+                      showNotification({
+                        severity: "error",
+                        title: "compile value failed",
+                        message: e,
+                      });
+                      return;
+                    }
+                    setOP(doc).finally(() => {
                       setLoading(false);
                     });
-                  }}
-                  disabled={!!err}>
+                  }}>
                   {setOPName}
                 </Button>
               )}
@@ -338,26 +352,6 @@ function MongoBsonEditor(props: {
                   color="error">
                   delete
                 </Button>
-              )}
-
-              {err ? (
-                <Typography
-                  color="error"
-                  style={{ cursor: "pointer" }}
-                  onClick={() => {
-                    if (err.loc) {
-                      editor.current.setPosition({
-                        lineNumber: err.loc.start.line,
-                        column: err.loc.end.column,
-                      });
-                      editor.current.focus();
-                      editor.current.revealLines(err.loc.start.line, err.loc.end.line);
-                    }
-                  }}>
-                  {err.msgWithLoc}
-                </Typography>
-              ) : (
-                <></>
               )}
             </StackRowCenter>
           }

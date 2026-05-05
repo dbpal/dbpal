@@ -1003,3 +1003,5 @@ export {
   MongoBsonObject,
   parseMongoBson,
 };
+
+export const mongoBsonCompilerOwner = "mongo-bson-compiler";
