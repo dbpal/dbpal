@@ -207,11 +207,12 @@ function mongoBsonAutoCompletion(): languages.CompletionList {
     ],
   };
 }
-const languageXXX = "mongoBson";
+
+const mongoBsonLanguage = "mongoBson";
 
 function initMongoBsonLanguage() {
-  monaco.languages.register({ id: languageXXX });
-  monaco.languages.setMonarchTokensProvider(languageXXX, {
+  monaco.languages.register({ id: mongoBsonLanguage });
+  monaco.languages.setMonarchTokensProvider(mongoBsonLanguage, {
     ignoreCase: true,
     tokenizer: {
       root: [
@@ -227,7 +228,7 @@ function initMongoBsonLanguage() {
     ],
   });
 
-  monaco.languages.registerDocumentFormattingEditProvider(languageXXX, {
+  monaco.languages.registerDocumentFormattingEditProvider(mongoBsonLanguage, {
     provideDocumentFormattingEdits(model, options) {
       const text = model.getValue();
       try {
@@ -243,7 +244,7 @@ function initMongoBsonLanguage() {
     },
   });
 
-  monaco.languages.registerCompletionItemProvider(languageXXX, {
+  monaco.languages.registerCompletionItemProvider(mongoBsonLanguage, {
     provideCompletionItems: () => {
       return mongoBsonAutoCompletion();
     },
@@ -255,8 +256,8 @@ initMongoBsonLanguage();
 function MongoBsonEditor(props: {
   doc: BSON.Document;
   setOP?: (doc: any) => Promise<void>;
-  setOPName?;
-  delOP?;
+  setOPName?: string;
+  delOP?: () => Promise<void>;
 }) {
   let { doc, setOP, delOP, setOPName } = props;
   if (!setOPName) {
@@ -306,7 +307,7 @@ function MongoBsonEditor(props: {
           flex: 1,
         }}>
         <MonacoEditor
-          language={languageXXX}
+          language={mongoBsonLanguage}
           value={content}
           onMount={handleEditorDidMount}
           barLeft={
@@ -965,7 +966,7 @@ function ModalObjectNotice() {
   return (
     <Stack style={{ height: "100%" }}>
       <SimpleFlexEditor
-        language={languageXXX}
+        language={mongoBsonLanguage}
         value={`{
     _id: '69bb51276b7795c05d1a25b2' as ObjectID, 
     string_field: 'Hello, world!',
