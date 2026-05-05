@@ -127,8 +127,10 @@ function ShowPanic() {
 function ShowShortCut() {
   const [show, setShow] = useState(false);
   useEffect(() => {
-    const unlisten = listen("show_shortcut", () => {
-      setShow(true);
+    const unlisten = listen("show_shortcut", async () => {
+      if (await WebviewWindow.getCurrent().isFocused()) {
+        setShow(true);
+      }
     });
     return () => {
       unlisten.then((callback) => {

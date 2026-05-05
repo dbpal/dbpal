@@ -267,7 +267,7 @@ function QueryLog(props: {
           fullWidth
           maxWidth="md"
           slotProps={{ paper: { style: { height: "50vh" } } }}
-          open={!!selectSql}
+          open={true}
           onClose={modalHandleClose((e: EscDownEvent) => {
             e.preventDefault();
             setSelectSql(null);

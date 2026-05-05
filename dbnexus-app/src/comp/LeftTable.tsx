@@ -128,6 +128,7 @@ function TablesTree() {
 
   switch (kind) {
     case DataSourceKind.CouchBase:
+    case DataSourceKind.Mongo:
       tablesText = "collections";
       break;
     default: {
@@ -174,7 +175,7 @@ function TablesTree() {
 
 function TableTree(props: {
   table: string;
-  reloadTables;
+  reloadTables: () => void;
   size: number | null;
   id: string;
 }) {
@@ -203,7 +204,7 @@ function TableTree(props: {
             });
           }}>
           <Stack direction="row" sx={{ alignItems: "center", flex: 1, minWidth: 0 }}>
-            <TableViewIcon sx={{ flexShrink: 0 }} /> {/* 图标不收缩 */}
+            <TableViewIcon />
             <span style={textEllipsisStyle}>{table}</span>
           </Stack>{" "}
           {size && (
@@ -219,9 +220,9 @@ function TableTree(props: {
 
 function DropTable(props: {
   table: string;
-  reloadTables;
+  reloadTables: () => void;
   uuid: string;
-  handleClose;
+  handleClose: () => void;
   kind: DataSourceKind;
 }) {
   const { table, reloadTables, uuid, handleClose, kind } = props;
