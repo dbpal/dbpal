@@ -59,6 +59,7 @@ import { EscDownEvent, modalHandleClose, modalStyle, PassWordManager } from "./C
 import { openPath } from "@tauri-apps/plugin-opener";
 import {
   AppDataGridPagination,
+  AppDataGridToolBar,
   ClearableTextField,
   ListenElementSize,
 } from "./CommonComp2";
@@ -87,7 +88,6 @@ import {
   GridSlotsComponentsProps,
   GridSortModel,
 } from "./datagridExport";
-import { CustomToolbar } from "./CustomToolBar";
 
 /**
  * Logger level selection control.
@@ -523,7 +523,7 @@ function MetaValueView({ values = [] as MetaValue[], showToolbar }) {
 
   const slots = useMemo(() => {
     return {
-      toolbar: CustomToolbar,
+      toolbar: AppDataGridToolBar,
       pagination: AppDataGridPagination,
     } as Partial<GridSlotsComponent>;
   }, []);

@@ -670,7 +670,7 @@ function ConnConfigInfo(props: { uuid: string }) {
 
   return (
     <Stack style={{ height: "100%" }}>
-      <Stack direction="row">
+      {/* <Stack direction="row">
         <Button
           color="primary"
           onClick={() => {
@@ -678,8 +678,7 @@ function ConnConfigInfo(props: { uuid: string }) {
           }}>
           reload
         </Button>
-      </Stack>
-
+      </Stack> */}
       <MetaValueView values={metas} showToolbar />
     </Stack>
   );
@@ -1513,14 +1512,13 @@ function AppDataGridToolBar(props: {
   disableBorder?: boolean;
 }) {
   const { title, left, right, disableBorder } = props;
-  const theme = useTheme();
   return (
     <Stack
       direction="row"
       style={{
         alignItems: "center",
         justifyContent: "space-between",
-        border: disableBorder ? undefined : "2px solid " + theme.palette.secondary.main,
+        border: disableBorder ? undefined : "2px solid gray",
         borderRadius: "4px",
         padding: "2px 4px",
       }}>

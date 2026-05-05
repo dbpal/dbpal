@@ -80,6 +80,7 @@ import { openUrl } from "@tauri-apps/plugin-opener";
 import { TypesTree } from "./LeftType.tsx";
 import {
   AppDataGridPagination,
+  AppDataGridToolBar,
   ClearableTextField,
   CreateDatabase,
   CreateSchema,
@@ -485,6 +486,7 @@ function CopyConnection() {
 
   const slots = useMemo(() => {
     return {
+      toolbar: AppDataGridToolBar,
       pagination: () => {
         return (
           <Stack direction="row" style={{ justifyContent: "space-between", flex: 1 }}>
@@ -752,7 +754,7 @@ function FavoriteSqlList() {
     [handleRow],
   );
 
-  const handleDelete = async () => {
+  const handleDelete = useCallback(async () => {
     const confirm = await secondConfirm({
       title: "clean all favorite sql???",
       confirmText: "Clean",
@@ -763,12 +765,52 @@ function FavoriteSqlList() {
     }
     try {
       clearByUuid(uuidFilter);
+      handleReload(false);
     } catch (e) {
       showNotification({ severity: "error", title: "clean failed", message: e });
     }
-  };
+  }, [clearByUuid, handleReload, showNotification, uuidFilter]);
+
   const slots = useMemo(() => {
     return {
+      toolbar: () => {
+        return (
+          <AppDataGridToolBar
+            left=<>
+              <StackRowCenter>
+                <Autocomplete
+                  options={distinctUuid}
+                  style={{ width: "22rem" }}
+                  value={uuidFilter}
+                  renderInput={(params) => (
+                    <TextField {...params} label="filter connection name" />
+                  )}
+                  freeSolo={false}
+                  onChange={(_, uuid) => {
+                    setUuidFilter(uuid);
+                  }}
+                />
+                <Button
+                  onClick={() => {
+                    handleReload(true);
+                  }}>
+                  reload
+                </Button>
+                {fs.length > 0 && uuidFilter && (
+                  <Tooltip title={`delete all sql by uuid '${uuidFilter}'`}>
+                    <IconButton
+                      onClick={() => {
+                        handleDelete();
+                      }}>
+                      <DeleteForeverIcon color="error" />
+                    </IconButton>
+                  </Tooltip>
+                )}
+              </StackRowCenter>
+            </>
+          />
+        );
+      },
       pagination: () => {
         return (
           <Stack direction="row" style={{ justifyContent: "space-between", flex: 1 }}>
@@ -784,40 +826,10 @@ function FavoriteSqlList() {
         );
       },
     } as Partial<GridSlotsComponent>;
-  }, [fs.length]);
+  }, [distinctUuid, fs.length, handleDelete, handleReload, uuidFilter]);
 
   return (
     <Stack style={{ height: "100%" }}>
-      <StackRowCenter>
-        <Autocomplete
-          options={distinctUuid}
-          style={{ width: "22rem" }}
-          value={uuidFilter}
-          renderInput={(params) => (
-            <TextField {...params} label="filter connection name" />
-          )}
-          freeSolo={false}
-          onChange={(_, uuid) => {
-            setUuidFilter(uuid);
-          }}
-        />
-        <Button
-          onClick={() => {
-            handleReload(true);
-          }}>
-          reload
-        </Button>
-        {fs.length > 0 && uuidFilter && (
-          <Tooltip title={`delete all sql by uuid '${uuidFilter}'`}>
-            <IconButton
-              onClick={() => {
-                handleDelete();
-              }}>
-              <DeleteForeverIcon color="error" />
-            </IconButton>
-          </Tooltip>
-        )}
-      </StackRowCenter>
       <DataGrid
         sortModel={sortModel}
         slots={slots}

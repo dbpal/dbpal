@@ -2,7 +2,7 @@ import { Stack } from "@mui/material";
 import { isMacOs } from "./helper";
 import { useColumnWidthStore } from "./store";
 import { DataGrid, GridColDef } from "./datagridExport";
-import { AppDataGridPagination } from "./CommonComp2";
+import { AppDataGridPagination, AppDataGridToolBar } from "./CommonComp2";
 
 const shortCuts = getKeyShorts();
 
@@ -27,7 +27,7 @@ function ShowCuts() {
         getRowId={(e) => {
           return e.name;
         }}
-        slots={{ pagination: AppDataGridPagination }}
+        slots={{ pagination: AppDataGridPagination, toolbar: AppDataGridToolBar }}
         style={{ height: "100%" }}
         onColumnResize={(resize) => {
           setColumnWidth(resize.colDef.field, resize.width);

@@ -43,7 +43,12 @@ import {
 import { MenuRefresh } from "./CommonComp";
 import { MongoTable } from "./MongoDB";
 
-import { AppDataGridPagination, CopySql, ShowingCount } from "./CommonComp2";
+import {
+  AppDataGridPagination,
+  AppDataGridToolBar,
+  CopySql,
+  ShowingCount,
+} from "./CommonComp2";
 import { listView } from "./handlers";
 import { filesize } from "filesize";
 import {
@@ -347,6 +352,7 @@ function ColumnsContent(props: { uuid: string; view: string }) {
   }, []);
   const slots = useMemo(() => {
     return {
+      toolbar: AppDataGridToolBar,
       pagination: AppDataGridPagination,
     } as Partial<GridSlotsComponent>;
   }, []);

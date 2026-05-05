@@ -7,7 +7,7 @@ import {
   handleCopyToClipboard,
   secondConfirm,
 } from "./helper";
-import { ClearableTextField } from "./CommonComp2";
+import { AppDataGridToolBar, ClearableTextField } from "./CommonComp2";
 import CancelIcon from "@mui/icons-material/Cancel";
 import CheckCircleIcon from "@mui/icons-material/CheckCircle";
 
@@ -298,6 +298,7 @@ function ColumnsStructure(props: {
   }, [kind, row, showNotification]);
   const slots = useMemo(() => {
     return {
+      toolbar: AppDataGridToolBar,
       pagination: () => {
         return (
           <Stack direction="row" style={{ flex: 1, justifyContent: "space-between" }}>
@@ -612,6 +613,7 @@ function IndexesStructure(props: {
 
   const slots = useMemo(() => {
     return {
+      toolbar: AppDataGridToolBar,
       pagination: AppDataGridPagination,
     } as Partial<GridSlotsComponent>;
   }, []);
@@ -1335,6 +1337,7 @@ function TriggersStructure(props: {
 
   const slots = useMemo(() => {
     return {
+      toolbar: AppDataGridToolBar,
       pagination: () => {
         return (
           <Stack direction="row" style={{ flex: 1, justifyContent: "space-between" }}>
