@@ -1444,3 +1444,50 @@ export const useEditInModalLanguageStore = create<EditInModalLanguage>()(
     },
   ),
 );
+export enum MongoDataViewModel {
+  TableList = "table-list",
+  Object = "object",
+  Json = "json",
+}
+interface MongoViewModelState {
+  viewModel: MongoDataViewModel;
+  setViewModel: (
+    mode: MongoDataViewModel | ((prev: MongoDataViewModel) => MongoDataViewModel),
+  ) => void;
+}
+
+export const useMongoViewModelStore = create<MongoViewModelState>()(
+  persist(
+    (set) => ({
+      // 初始状态，例如默认为 TableList
+      viewModel: MongoDataViewModel.TableList,
+
+      // 支持直接传值或函数式更新
+      setViewModel: (input) =>
+        set((state) => ({
+          viewModel: typeof input === "function" ? input(state.viewModel) : input,
+        })),
+    }),
+    {
+      name: "mongo-view-settings", // 存储在 localStorage 的 key
+    },
+  ),
+);
+
+export const useMongoEditorStore = create<MongoViewModelState>()(
+  persist(
+    (set) => ({
+      // 初始状态，例如默认为 TableList
+      viewModel: MongoDataViewModel.Object,
+
+      // 支持直接传值或函数式更新
+      setViewModel: (input) =>
+        set((state) => ({
+          viewModel: typeof input === "function" ? input(state.viewModel) : input,
+        })),
+    }),
+    {
+      name: "mongo-editor-model", // 存储在 localStorage 的 key
+    },
+  ),
+);

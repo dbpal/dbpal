@@ -100,6 +100,7 @@ import {
 } from "./CommonComp2";
 import { message } from "@tauri-apps/plugin-dialog";
 import {
+  MongoDataViewModel,
   useColumnWidthStore,
   useContextMenu,
   useNotification,
@@ -108,6 +109,8 @@ import {
   useSizeStore,
   useTableColumnVisibleStore,
   useTabSize,
+  useMongoViewModelStore,
+  useMongoEditorStore,
 } from "./store";
 import { commands, MuiDataGridData } from "./bindings";
 import { AddTableModal } from "./LeftTable";
@@ -118,11 +121,6 @@ import {
   GridSlotsComponent,
   GridSlotsComponentsProps,
 } from "./datagridExport";
-enum MongoDataViewModel {
-  TableList,
-  Object,
-  Json,
-}
 
 console.log(Uri.parse("inmemory://model/1"));
 const mongoID = "_id";
@@ -364,27 +362,18 @@ function MongoBsonEditor(props: {
   );
 }
 
-let oldMongoValueEditorMode = MongoDataViewModel.Object;
-
 function MongoValueEditor(props: {
   doc: BSON.Document;
   setOP?: (doc: BSON.Document) => Promise<void>;
   setName?;
   delOP?: () => Promise<void>;
-  viewModel?: MongoDataViewModel;
   needConfirm: boolean;
 }) {
-  let { doc, setOP, setName, delOP, viewModel: viewmoDelSet, needConfirm } = props;
+  let { doc, setOP, setName, delOP, needConfirm } = props;
   if (!setName) {
     setName = "set";
   }
-  const [viewModel, setViewModel] = useState(viewmoDelSet || oldMongoValueEditorMode);
-  useEffect(() => {
-    oldMongoValueEditorMode = viewModel;
-  }, [viewModel]);
-  const getViewModel = () => {
-    return viewmoDelSet || viewModel;
-  };
+  const { viewModel, setViewModel } = useMongoEditorStore();
   const confirmAndSet = setOP
     ? async (doc) => {
         if (needConfirm) {
@@ -408,27 +397,26 @@ function MongoValueEditor(props: {
     : undefined;
   return (
     <Stack style={{ flex: 1 }}>
-      {!viewmoDelSet && (
-        <Stack direction="row">
-          <ButtonGroup>
-            <Button
-              disabled={viewModel == MongoDataViewModel.Object}
-              onClick={() => {
-                setViewModel(MongoDataViewModel.Object);
-              }}>
-              <DataObjectIcon />
-            </Button>
-            <Button
-              onClick={() => {
-                setViewModel(MongoDataViewModel.Json);
-              }}
-              disabled={viewModel == MongoDataViewModel.Json}>
-              ejson
-            </Button>
-          </ButtonGroup>
-        </Stack>
-      )}
-      {getViewModel() == MongoDataViewModel.Json && (
+      <Stack direction="row">
+        <ButtonGroup>
+          <Button
+            disabled={viewModel == MongoDataViewModel.Object}
+            onClick={() => {
+              setViewModel(MongoDataViewModel.Object);
+            }}>
+            <DataObjectIcon />
+          </Button>
+          <Button
+            onClick={() => {
+              setViewModel(MongoDataViewModel.Json);
+            }}
+            disabled={viewModel == MongoDataViewModel.Json}>
+            ejson
+          </Button>
+        </ButtonGroup>
+      </Stack>
+
+      {viewModel == MongoDataViewModel.Json && (
         <JsonEditor
           value={JSON.parse(EJSON.stringify(doc))}
           modifyOP={confirmAndSet}
@@ -436,7 +424,7 @@ function MongoValueEditor(props: {
           delOP={confirmAndDel}
         />
       )}
-      {getViewModel() == MongoDataViewModel.Object && (
+      {viewModel == MongoDataViewModel.Object && (
         <MongoBsonEditor
           doc={doc}
           setOP={confirmAndSet}
@@ -454,14 +442,11 @@ function MongoTableToolBar(props: {
   handleSort: (doc: BSON.Document) => void;
   sort: BSON.Document;
   filter: BSON.Document;
-  viewModel: MongoDataViewModel;
-  handleViewModel: (doc: MongoDataViewModel) => void;
   someNotice?: ReactNode;
   loading: boolean;
   uuid: string;
   table: string;
   isTable: boolean;
-  extra: ReactNode;
 }) {
   const {
     handleReload,
@@ -469,22 +454,18 @@ function MongoTableToolBar(props: {
     handleSort,
     sort,
     filter,
-    viewModel,
-    handleViewModel,
     someNotice,
     loading,
     uuid,
     table,
     isTable,
-    extra,
   } = props;
   const [showModifyFilter, setShowModifyFilter] = useState(false);
   const [showModifySort, setShowModifySort] = useState(false);
-  useEffect(() => {
-    handleViewModel(viewModel);
-  }, [handleViewModel, viewModel]);
+
   const [modalBox, setModalBox] = useState(null);
   const tabSize = useTabSize();
+  const { viewModel, setViewModel } = useMongoViewModelStore();
   return (
     <Stack
       direction="row"
@@ -499,7 +480,7 @@ function MongoTableToolBar(props: {
         <Tooltip title={bsonValue2MongoBson(filter).format(tabSize)}>
           <Chip
             label={
-              oldMongoValueEditorMode == MongoDataViewModel.Object
+              viewModel == MongoDataViewModel.Object
                 ? bsonValue2MongoBson(filter).format(tabSize)
                 : EJSON.stringify(filter)
             }
@@ -522,7 +503,7 @@ function MongoTableToolBar(props: {
         <Tooltip title={bsonValue2MongoBson(sort).format(tabSize)}>
           <Chip
             label={
-              oldMongoValueEditorMode == MongoDataViewModel.Object
+              viewModel == MongoDataViewModel.Object
                 ? bsonValue2MongoBson(sort).format(tabSize)
                 : EJSON.stringify(sort)
             }
@@ -549,36 +530,39 @@ function MongoTableToolBar(props: {
         )}
         {someNotice}
       </Stack>
-      {extra}
 
+      {viewModel != MongoDataViewModel.TableList && (
+        <Stack direction="row" style={{ alignItems: "center" }}>
+          <SliderSize config={UseSizeConfig.gridCol} />
+          <SliderSize config={UseSizeConfig.editorHeight} />
+        </Stack>
+      )}
       <StackRowCenter>
         <ButtonGroup>
           <Button
             disabled={viewModel == MongoDataViewModel.Object}
             onClick={() => {
-              handleViewModel(MongoDataViewModel.Object);
+              setViewModel(MongoDataViewModel.Object);
             }}>
             <DataObjectIcon />
           </Button>
           <Button
             onClick={() => {
-              handleViewModel(MongoDataViewModel.Json);
+              setViewModel(MongoDataViewModel.Json);
             }}
             disabled={viewModel == MongoDataViewModel.Json}>
             ejson
           </Button>
           <Button
             onClick={() => {
-              handleViewModel(MongoDataViewModel.TableList);
+              setViewModel(MongoDataViewModel.TableList);
             }}
             disabled={viewModel == MongoDataViewModel.TableList}>
             <ListIcon />
           </Button>
         </ButtonGroup>
       </StackRowCenter>
-
       <ListenElementSize dom={modalBox} name="mongo-filter" set="both" />
-
       {showModifyFilter && (
         <Modal
           disableAutoFocus
@@ -608,7 +592,6 @@ function MongoTableToolBar(props: {
           </Box>
         </Modal>
       )}
-
       {showModifySort && (
         <Modal
           disableAutoFocus
@@ -1447,7 +1430,6 @@ function MongoTableObject(props: {
               </Typography>
               <MongoValueEditor
                 doc={doc}
-                viewModel={viewModel}
                 setOP={
                   modifyOP
                     ? async (doc) => {
@@ -1565,7 +1547,6 @@ class MongoTableHandler {
     };
   }
 }
-let oldViewModel = MongoDataViewModel.Object;
 function MongoTable(props: { uuid: string; table: string; isTable: boolean }) {
   const { uuid, table, isTable } = props;
   const modifyOP = isTable ? MongoTableHandler.modifyOP(uuid, table) : undefined;
@@ -1573,12 +1554,10 @@ function MongoTable(props: { uuid: string; table: string; isTable: boolean }) {
   const deleteOP = isTable ? MongoTableHandler.deleteOP(uuid, table) : undefined;
   const [filter, setFilter] = useState<BSON.Document>({});
   const [sort, setSort] = useState<BSON.Document>({});
-  const [viewModel, setViewModel] = useState(oldViewModel);
+  const { viewModel } = useMongoViewModelStore();
+
   const [triggerReload, setTriggerReload] = useState(0);
   const [loading, setLoading] = useState(false);
-  useEffect(() => {
-    oldViewModel = viewModel;
-  }, [viewModel]);
 
   const { getSize } = useSizeStore();
 
@@ -1617,22 +1596,10 @@ function MongoTable(props: { uuid: string; table: string; isTable: boolean }) {
         handleReload={async () => {
           setTriggerReload((prev) => prev + 1);
         }}
-        handleViewModel={(e) => {
-          setViewModel(e);
-        }}
-        viewModel={viewModel}
         loading={loading}
         uuid={uuid}
         table={table}
         isTable={isTable}
-        extra={
-          viewModel != MongoDataViewModel.TableList && (
-            <Stack direction="row" style={{ alignItems: "center" }}>
-              <SliderSize config={UseSizeConfig.gridCol} />
-              <SliderSize config={UseSizeConfig.editorHeight} />
-            </Stack>
-          )
-        }
       />
       {viewModel == MongoDataViewModel.TableList && (
         <MongoTableList
