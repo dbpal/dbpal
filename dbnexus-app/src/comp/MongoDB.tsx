@@ -295,7 +295,7 @@ function MongoBsonEditor(props: {
       return;
     }
     bsonWorker.postMessage({
-      code: editor.current.getValue(),
+      code: editorvalue_,
       id: editor.current.getModel().id,
     });
   }, [editorvalue_]);
