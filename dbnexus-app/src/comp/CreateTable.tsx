@@ -203,7 +203,7 @@ function CreateTable(props: { uuid: string; kind: DataSourceKind }) {
             />
           );
         })}
-        <Button
+        <IconButton
           onClick={() => {
             setCols([
               ...cols,
@@ -218,13 +218,13 @@ function CreateTable(props: { uuid: string; kind: DataSourceKind }) {
             ]);
           }}>
           <AddIcon />
-        </Button>
+        </IconButton>
       </Stack>
       {cols.length > 0 && (
         <Stack style={{ ...containerStyle }}>
           <Stack direction="row">
             <Typography variant="h5"> index </Typography>
-            <Button
+            <IconButton
               onClick={() => {
                 setIndexes([
                   ...indexes,
@@ -236,7 +236,7 @@ function CreateTable(props: { uuid: string; kind: DataSourceKind }) {
                 ]);
               }}>
               <AddIcon />
-            </Button>
+            </IconButton>
           </Stack>
           <Stack direction="row" style={{ overflow: "scroll" }} spacing={1}>
             {indexes.map((_, index) => {

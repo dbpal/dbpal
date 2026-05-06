@@ -24,7 +24,6 @@ import {
   Chip,
   Tooltip,
   Divider,
-  IconButton,
 } from "@mui/material";
 
 import ContentCopyIcon from "@mui/icons-material/ContentCopy";
@@ -1088,14 +1087,13 @@ function ListToolBar({
   return (
     <AppDataGridToolBar
       left=<>
-        <Button
+        <RefreshButton
           color="primary"
           onClick={() => {
             handleReload(true);
           }}
-          loading={loading}>
-          reload
-        </Button>
+          loading={loading}
+        />
         <AddTableModal
           kind={DataSourceKind.Redis}
           uuid={uuid}
@@ -1411,14 +1409,13 @@ function ZSetToolBar({
   return (
     <AppDataGridToolBar
       left=<>
-        <IconButton
+        <RefreshButton
           color="primary"
           onClick={() => {
             handleReload(true);
           }}
-          loading={loading}>
-          reload
-        </IconButton>
+          loading={loading}
+        />
 
         <Tooltip title={keyMatcherHelpText}>
           <ClearableTextField
@@ -1800,14 +1797,13 @@ function HashToolBar({
   return (
     <AppDataGridToolBar
       left=<>
-        <Button
+        <RefreshButton
           color="primary"
           onClick={() => {
             handleReload(true);
           }} // 点击事件处理
-          loading={loading}>
-          reload
-        </Button>
+          loading={loading}
+        />
 
         <Tooltip title={keyMatcherHelpText}>
           <ClearableTextField

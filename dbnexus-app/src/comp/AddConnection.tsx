@@ -26,8 +26,8 @@ import {
   IconButton,
   Autocomplete,
 } from "@mui/material";
-import { ClearableTextField } from "./CommonComp2";
-import RefreshIcon from "@mui/icons-material/Refresh";
+import { ClearableTextField, RefreshButton } from "./CommonComp2";
+import SaveIcon from "@mui/icons-material/Save";
 import AttachFileIcon from "@mui/icons-material/AttachFile";
 import VisibilityIcon from "@mui/icons-material/Visibility";
 import { message, open } from "@tauri-apps/plugin-dialog";
@@ -463,9 +463,7 @@ function DbSchemaCadidates(props: {
           setName(value);
         }}
       />
-      <Button onClick={handleReload} loading={loading} variant="outlined">
-        <RefreshIcon />
-      </Button>
+      <RefreshButton onClick={handleReload} loading={loading} />
     </Stack>
   );
 }
@@ -874,14 +872,14 @@ function TestConnAndSave(props: {
     <Stack>
       <Divider />
       <StackRowCenter>
-        <Button
+        <IconButton
           color="primary"
           onClick={() => {
             handleSaveConnection();
           }}
           disabled={cnameDuplicated}>
-          save
-        </Button>
+          <SaveIcon />
+        </IconButton>
         <Button
           variant="outlined"
           sx={{ mr: 1 }}

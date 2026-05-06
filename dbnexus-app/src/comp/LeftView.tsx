@@ -47,6 +47,7 @@ import {
   AppDataGridPagination,
   AppDataGridToolBar,
   CopySql,
+  RefreshButton,
   ShowingCount,
 } from "./CommonComp2";
 import { listView } from "./handlers";
@@ -182,13 +183,12 @@ function StatementStructure(props: {
   return (
     <Stack style={{ height: "100%" }}>
       <Stack direction="row">
-        <Button
+        <RefreshButton
           loading={loading}
           onClick={() => {
             handleReload();
-          }}>
-          reload
-        </Button>
+          }}
+        />
       </Stack>
       {sql && <AllKindChat uuid={uuid} kind={kind} value={sql} />}
     </Stack>
@@ -352,17 +352,18 @@ function ColumnsContent(props: { uuid: string; view: string }) {
   }, []);
   const slots = useMemo(() => {
     return {
-      toolbar: AppDataGridToolBar,
+      toolbar: () => {
+        return (
+          <AppDataGridToolBar
+            left=<RefreshButton loading={loading} onClick={handleReload} />
+          />
+        );
+      },
       pagination: AppDataGridPagination,
     } as Partial<GridSlotsComponent>;
-  }, []);
+  }, [handleReload, loading]);
   return (
     <Stack style={{ height: "100%" }}>
-      <Stack direction="row">
-        <Button loading={loading} onClick={handleReload}>
-          reload
-        </Button>
-      </Stack>
       <DataGrid
         slots={slots}
         getRowId={getRowId}

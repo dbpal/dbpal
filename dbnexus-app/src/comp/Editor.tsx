@@ -144,7 +144,6 @@ function MonacoEditor({
           height: "100px",
           flexGrow: 1,
           flexBasis: 0,
-          // border: "11px solid red",
         }}
       />
 

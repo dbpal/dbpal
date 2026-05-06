@@ -13,7 +13,14 @@ import {
 
 import PlayArrowIcon from "@mui/icons-material/PlayArrow";
 import { editor } from "monaco-editor";
-import { useCallback, useContext, useEffect, useState } from "react";
+import {
+  Dispatch,
+  SetStateAction,
+  useCallback,
+  useContext,
+  useEffect,
+  useState,
+} from "react";
 import { MongoDBQuery } from "./MongoQueryBackend";
 import * as monaco from "monaco-editor";
 
@@ -142,7 +149,7 @@ interface CleanFunction {
 
 function CallCleanFunctions(props: {
   cleanFunctions: CleanFunction[];
-  setCleanFunction;
+  setCleanFunction: Dispatch<SetStateAction<CleanFunction[]>>;
   sx?: SxProps<Theme>;
 }) {
   const { cleanFunctions, setCleanFunction, sx } = props;
