@@ -1,26 +1,15 @@
 import {
-  Button,
   IconButton,
-  Paper,
   Stack,
   Tooltip,
   Typography,
-  SxProps,
-  Theme,
   FormControlLabel,
   Checkbox,
 } from "@mui/material";
 
 import PlayArrowIcon from "@mui/icons-material/PlayArrow";
 import { editor } from "monaco-editor";
-import {
-  Dispatch,
-  SetStateAction,
-  useCallback,
-  useContext,
-  useEffect,
-  useState,
-} from "react";
+import { useCallback, useContext, useEffect, useState } from "react";
 import { MongoDBQuery } from "./MongoQueryBackend";
 import * as monaco from "monaco-editor";
 
@@ -34,18 +23,14 @@ import {
   saveQueryKey,
 } from "./helper";
 import { dbpalQuerykey, NameAndQueryId } from "./Common";
-import { RiDeleteBack2Line } from "react-icons/ri";
 import {
   AiMarkdownModel,
   AiMarkdownModelSwitch,
-  AppCode,
   LoadStoreFile,
   SaveFavoriteSqlView,
   ShowQueryLog,
   ToggleChatShow,
 } from "./CommonComp2";
-import InfoIcon from "@mui/icons-material/Info";
-import intervalCleanTest from "../../tests/interval_clean_test.js?raw";
 import {
   NotificationParams,
   useBoolSwitch,
@@ -141,41 +126,6 @@ async function transformTS(
     return "";
   }
 }
-
-interface CleanFunction {
-  name: string;
-  fn: () => void;
-}
-
-function CallCleanFunctions(props: {
-  cleanFunctions: CleanFunction[];
-  setCleanFunction: Dispatch<SetStateAction<CleanFunction[]>>;
-  sx?: SxProps<Theme>;
-}) {
-  const { cleanFunctions, setCleanFunction, sx } = props;
-  const handleCall = (index: number) => {
-    cleanFunctions[index].fn();
-    setCleanFunction(cleanFunctions.filter((_x, i) => index != i));
-  };
-
-  return (
-    <Paper sx={sx}>
-      <Stack>
-        {cleanFunctions.map((x, index) => (
-          <Button
-            key={index}
-            variant="outlined"
-            onClick={() => {
-              handleCall(index);
-            }}>
-            {x.name}
-          </Button>
-        ))}
-      </Stack>
-    </Paper>
-  );
-}
-
 function ExecuteButton(props: {
   handleEexecute: (text: string) => void;
   getText: () => Promise<string>;
@@ -217,15 +167,10 @@ const ignoreErrKey = "mongo-query-ignore-error";
 function MongoQuery(props: { uuid: string; favoriteName?: string; value?: string }) {
   const { uuid, value, favoriteName } = props;
   const [editor, setEditor] = useState<editor.IStandaloneCodeEditor>(null);
-
-  const [cleanFns, setCleanFns] = useState<CleanFunction[]>([]);
   const { showNotification } = useNotification();
   const { getSwitch, setSwitch } = useBoolSwitch();
-  const [mongoHandle, setMongoHandle] = useState<{ db; setUpClean; FS; BSON; HTTP }>({
+  const [mongoHandle, setMongoHandle] = useState<{ db; FS; BSON; HTTP }>({
     db: new MongoDBQuery(uuid),
-    setUpClean: (name: string, fn: () => void) => {
-      setCleanFns((e) => [...e, { name, fn }]);
-    },
     BSON: null,
     FS: null,
     HTTP: null,
@@ -345,30 +290,6 @@ const { db, FS, HTTP, BSON } = mongoHandle;
             markdownModel={markdownModel}
           />
           <ShowQueryLog uuid={uuid} kind={DataSourceKind.Mongo} />
-          {cleanFns.length > 0 && (
-            <Tooltip
-              title=<CallCleanFunctions
-                cleanFunctions={cleanFns}
-                setCleanFunction={setCleanFns}
-                sx={{ width: "45vw" }}
-              />
-              slotProps={{
-                tooltip: {
-                  style: { maxWidth: "45vw" },
-                },
-              }}>
-              <RiDeleteBack2Line fontSize="1.6rem" />
-            </Tooltip>
-          )}
-          <Tooltip
-            title=<CleanFunctionDoc />
-            slotProps={{
-              tooltip: {
-                style: { maxWidth: "60vw" },
-              },
-            }}>
-            <InfoIcon> </InfoIcon>
-          </Tooltip>
           <Tooltip
             title=<Stack sx={{ width: "40vw" }}>
               <Typography color="info ">
@@ -425,14 +346,6 @@ const { db, FS, HTTP, BSON } = mongoHandle;
 
       {mongoHandle && <span />}
     </Stack>
-  );
-}
-
-function CleanFunctionDoc() {
-  return (
-    <Paper style={{ maxWidth: 900, overflow: "auto" }}>
-      <AppCode language={"javascript"} codeBlock={intervalCleanTest} />
-    </Paper>
   );
 }
 
