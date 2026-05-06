@@ -24,13 +24,14 @@ import {
   Chip,
   Tooltip,
   Divider,
+  IconButton,
 } from "@mui/material";
 
 import ContentCopyIcon from "@mui/icons-material/ContentCopy";
 import DeleteForeverIcon from "@mui/icons-material/DeleteForever";
 import { modalStyle, reloadOK, EscDownEvent, modalHandleClose } from "./Common";
 import { openUrl } from "@tauri-apps/plugin-opener";
-import { ClearableTextField, FetchTimeDataGrid } from "./CommonComp2";
+import { ClearableTextField, FetchTimeDataGrid, RefreshButton } from "./CommonComp2";
 import {
   handleCopyToClipboard,
   hexToString,
@@ -774,14 +775,13 @@ function SetToolBar({
   return (
     <AppDataGridToolBar
       left=<>
-        <Button
+        <RefreshButton
           color="primary"
           onClick={() => {
             handleReload(true);
           }}
-          loading={loading}>
-          reload
-        </Button>
+          loading={loading}
+        />
         <Tooltip title={keyMatcherHelpText}>
           <ClearableTextField
             label="key matcher"
@@ -1411,14 +1411,14 @@ function ZSetToolBar({
   return (
     <AppDataGridToolBar
       left=<>
-        <Button
+        <IconButton
           color="primary"
           onClick={() => {
             handleReload(true);
           }}
           loading={loading}>
           reload
-        </Button>
+        </IconButton>
 
         <Tooltip title={keyMatcherHelpText}>
           <ClearableTextField

@@ -7,10 +7,9 @@ import {
   handleCopyToClipboard,
   secondConfirm,
 } from "./helper";
-import { AppDataGridToolBar, ClearableTextField } from "./CommonComp2";
+import { AppDataGridToolBar, ClearableTextField, RefreshButton } from "./CommonComp2";
 import CancelIcon from "@mui/icons-material/Cancel";
 import CheckCircleIcon from "@mui/icons-material/CheckCircle";
-
 import {
   Autocomplete,
   Button,
@@ -20,6 +19,7 @@ import {
   DialogTitle,
   Divider,
   FormControlLabel,
+  IconButton,
   ListItemIcon,
   ListItemText,
   MenuItem,
@@ -191,9 +191,7 @@ function ColumnsStructure(props: {
     },
     [handleReload, showNotification, table, uuid],
   );
-
   const [showAdd, setShowAdd] = useState(false);
-
   useEffect(() => {
     handleReload();
   }, [handleReload]);
@@ -298,7 +296,23 @@ function ColumnsStructure(props: {
   }, [kind, row, showNotification]);
   const slots = useMemo(() => {
     return {
-      toolbar: AppDataGridToolBar,
+      toolbar: () => {
+        return (
+          <AppDataGridToolBar
+            left=<StackRowCenter>
+              <RefreshButton loading={loading} onClick={handleReload} />
+              {supportModifyColumn && (
+                <IconButton
+                  onClick={() => {
+                    setShowAdd(true);
+                  }}>
+                  <AddIcon />
+                </IconButton>
+              )}
+            </StackRowCenter>
+          />
+        );
+      },
       pagination: () => {
         return (
           <Stack direction="row" style={{ flex: 1, justifyContent: "space-between" }}>
@@ -314,25 +328,10 @@ function ColumnsStructure(props: {
         );
       },
     } as Partial<GridSlotsComponent>;
-  }, [supportModifyColumn]);
+  }, [handleReload, loading, supportModifyColumn]);
 
   return (
     <Stack style={{ height: "100%" }}>
-      <StackRowCenter>
-        <Button loading={loading} onClick={handleReload}>
-          reload
-        </Button>
-
-        {supportModifyColumn && (
-          <Button
-            onClick={() => {
-              setShowAdd(true);
-            }}>
-            <AddIcon />
-          </Button>
-        )}
-      </StackRowCenter>
-
       <DataGrid
         slots={slots}
         getRowId={getRowId}
@@ -613,25 +612,27 @@ function IndexesStructure(props: {
 
   const slots = useMemo(() => {
     return {
-      toolbar: AppDataGridToolBar,
+      toolbar: () => {
+        return (
+          <AppDataGridToolBar
+            left=<Stack direction="row">
+              <RefreshButton loading={loading} onClick={handleReload} />
+              <IconButton
+                onClick={() => {
+                  setShowAdd(true);
+                }}>
+                <AddIcon />
+              </IconButton>
+            </Stack>
+          />
+        );
+      },
       pagination: AppDataGridPagination,
     } as Partial<GridSlotsComponent>;
-  }, []);
+  }, [handleReload, loading]);
+
   return (
     <Stack style={{ height: "100%" }}>
-      <Stack direction="row">
-        <Button loading={loading} onClick={handleReload}>
-          reload
-        </Button>
-
-        <Button
-          onClick={() => {
-            setShowAdd(true);
-          }}>
-          <AddIcon />
-        </Button>
-      </Stack>
-
       <DataGrid
         slotProps={slotProps}
         onColumnResize={onColumnResize}
@@ -772,7 +773,6 @@ function MongoAddIndex(props: {
           handleAdd(doc);
         }}
         doc={{}}
-        setName="create index"
         needConfirm={false}
       />
     </Stack>
@@ -1337,7 +1337,15 @@ function TriggersStructure(props: {
 
   const slots = useMemo(() => {
     return {
-      toolbar: AppDataGridToolBar,
+      toolbar: () => {
+        return (
+          <AppDataGridToolBar
+            left=<StackRowCenter>
+              <RefreshButton loading={loading} onClick={handleReload} />
+            </StackRowCenter>
+          />
+        );
+      },
       pagination: () => {
         return (
           <Stack direction="row" style={{ flex: 1, justifyContent: "space-between" }}>
@@ -1353,15 +1361,10 @@ function TriggersStructure(props: {
         );
       },
     } as Partial<GridSlotsComponent>;
-  }, [triggers.length]);
+  }, [handleReload, loading, triggers.length]);
+
   return (
     <Stack style={{ height: "100%" }}>
-      <StackRowCenter>
-        <Button loading={loading} onClick={handleReload}>
-          reload
-        </Button>
-      </StackRowCenter>
-
       <DataGrid
         slotProps={slotProps}
         onColumnResize={onColumnResize}

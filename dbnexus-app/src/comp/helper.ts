@@ -617,7 +617,7 @@ interface StupidIMarker {
   startColumn: number;
   endLineNumber: number;
   endColumn: number;
-  resource: any;
+  resource?: any;
 }
 export {
   isDarkStr,

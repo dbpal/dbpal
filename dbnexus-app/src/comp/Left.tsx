@@ -85,6 +85,7 @@ import {
   CreateDatabase,
   CreateSchema,
   MenuConnectionInfo,
+  RefreshButton,
   ShowingCount,
   StackRowCenter,
 } from "./CommonComp2.tsx";
@@ -790,12 +791,11 @@ function FavoriteSqlList() {
                     setUuidFilter(uuid);
                   }}
                 />
-                <Button
+                <RefreshButton
                   onClick={() => {
                     handleReload(true);
-                  }}>
-                  reload
-                </Button>
+                  }}
+                />
                 {fs.length > 0 && uuidFilter && (
                   <Tooltip title={`delete all sql by uuid '${uuidFilter}'`}>
                     <IconButton
@@ -1074,7 +1074,7 @@ function SchemaTree(props: { schema?: string; reloadSchemas? }) {
 function DatabaseMenu(props: {
   database?: string;
   uuid: string;
-  reload;
+  reload: () => void;
   reloadDatabase;
   kind: DataSourceKind;
   schemas: string[];

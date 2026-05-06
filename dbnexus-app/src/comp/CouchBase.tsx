@@ -17,6 +17,7 @@ import {
   FetchTimeAndXXX,
   LoadStoreFile,
   QueryStatus,
+  RefreshButton,
   SetFilterSort,
   ShowQueryLog,
   SimpleFlexEditor,
@@ -38,7 +39,7 @@ import {
 import DeleteForeverIcon from "@mui/icons-material/DeleteForever";
 import PlayArrowIcon from "@mui/icons-material/PlayArrow";
 import FilterAltIcon from "@mui/icons-material/FilterAlt";
-import { FaArrowsAltV } from "react-icons/fa";
+import { FaArrowsAltV, FaUpload } from "react-icons/fa";
 import { SelectPageSize } from "./CommonComp.tsx";
 import { Channel } from "@tauri-apps/api/core";
 import { dbpalQuerykey, NameAndQueryId, uuidv4 } from "./Common.ts";
@@ -183,13 +184,12 @@ function CouchBaseTable(props: { uuid: string; table: string }) {
         direction="row"
         style={{ alignItems: "center", justifyContent: "space-between" }}>
         <Stack direction="row" style={{ alignItems: "center" }}>
-          <Button
+          <RefreshButton
             onClick={() => {
               handleReload();
             }}
-            loading={loading}>
-            reload
-          </Button>
+            loading={loading}
+          />
           <Tooltip title="filter something like 'age=18'">
             <Chip
               label={where}
@@ -261,8 +261,8 @@ function CouchBaseTable(props: { uuid: string; table: string }) {
             }}
             key={item.id}>
             <CouchBaseEditor
+              modifyName="modify"
               docid={item.id}
-              handleValueButton="modify"
               value={item.data}
               handleDelete={async () => {
                 await commands.tableDelete(uuid, table, { id: item.id });
@@ -366,20 +366,13 @@ function CouchBaseEditor(props: {
   value: string;
   handleValue: (v: string) => Promise<void>;
   handleDelete?: () => Promise<void>;
-  handleValueButton: string;
   barExtra?: ReactNode;
   warnModify: boolean;
   docid?: string;
+  modifyName: string;
 }) {
-  const {
-    value,
-    handleValue,
-    handleDelete,
-    handleValueButton,
-    barExtra,
-    warnModify,
-    docid,
-  } = props;
+  const { value, handleValue, handleDelete, barExtra, warnModify, docid, modifyName } =
+    props;
   const { showNotification } = useNotification();
   const [newValue, setNewValue] = useState(value);
   const [loading, setLoading] = useState(false);
@@ -394,13 +387,13 @@ function CouchBaseEditor(props: {
     setLoading(true);
     handleValue(newValue)
       .then(() => {
-        showNotification({ severity: "success", title: `${handleValueButton} OK` });
+        showNotification({ severity: "success", title: `${modifyName} OK` });
         setChanged(false);
       })
       .catch((e) => {
         showNotification({
           severity: "error",
-          title: `${handleValueButton} failure`,
+          title: `${modifyName} failure`,
           message: e,
         });
       })
@@ -446,23 +439,23 @@ function CouchBaseEditor(props: {
       <Stack direction="row" style={{ alignItems: "center" }}>
         {doModify && (
           <>
-            <Button
+            <IconButton
               onClick={() => {
                 doModify();
               }}
               loading={loading}>
-              {handleValueButton}
-            </Button>
+              <FaUpload />
+            </IconButton>
           </>
         )}
         {doDelete && (
-          <Button
+          <IconButton
             onClick={() => {
               doDelete();
             }}
             color="warning">
             <DeleteForeverIcon />
-          </Button>
+          </IconButton>
         )}
         {barExtra}
         {docid && (
@@ -509,7 +502,7 @@ function CouchBaseInsert({ uuid, table }) {
           required
         />
       </>
-      handleValueButton="insert"
+      modifyName="insert"
       handleValue={async (value) => {
         if (!id.trim()) {
           throw "id is empty";

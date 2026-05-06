@@ -20,7 +20,6 @@ self.onmessage = (event: MessageEvent) => {
         startColumn: e?.loc.start.column + 1,
         endLineNumber: e?.loc.end.line,
         endColumn: e?.loc.end.column + 1,
-        resource: "",
       });
     } else {
       console.error("compile should not throw other error", e);

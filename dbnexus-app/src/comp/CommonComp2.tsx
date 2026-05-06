@@ -23,6 +23,7 @@ import ContentCopyIcon from "@mui/icons-material/ContentCopy";
 import CircleIcon from "@mui/icons-material/Circle";
 import DeleteForeverIcon from "@mui/icons-material/DeleteForever";
 import EventNoteIcon from "@mui/icons-material/EventNote";
+import { LuRefreshCcw } from "react-icons/lu";
 import {
   Autocomplete,
   Box,
@@ -33,6 +34,7 @@ import {
   FormControlLabel,
   FormLabel,
   IconButton,
+  IconButtonProps,
   InputAdornment,
   ListItemIcon,
   ListItemText,
@@ -670,15 +672,6 @@ function ConnConfigInfo(props: { uuid: string }) {
 
   return (
     <Stack style={{ height: "100%" }}>
-      {/* <Stack direction="row">
-        <Button
-          color="primary"
-          onClick={() => {
-            handleInfo(true);
-          }}>
-          reload
-        </Button>
-      </Stack> */}
       <MetaValueView values={metas} showToolbar />
     </Stack>
   );
@@ -2075,6 +2068,14 @@ function ShowQueryLog(props: { uuid: string; kind: DataSourceKind }) {
   );
 }
 
+function RefreshButton(props: IconButtonProps) {
+  return (
+    <IconButton {...props}>
+      <LuRefreshCcw fontSize="1.3rem" />
+    </IconButton>
+  );
+}
+
 export {
   ShowQueryLog,
   FetchTimeDataGrid,
@@ -2111,4 +2112,5 @@ export {
   AiMarkdownModelSwitch,
   EscPressedDo,
   DataGridPageKeyboardControl,
+  RefreshButton,
 };

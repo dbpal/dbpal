@@ -6,6 +6,7 @@ import {
   Dialog,
   DialogTitle,
   Divider,
+  IconButton,
   ListItemIcon,
   ListItemText,
   MenuItem,
@@ -16,28 +17,14 @@ import {
   Tooltip,
   Typography,
 } from "@mui/material";
-
 import * as monaco from "monaco-editor";
 import MongoBsonWorker from "./MongoBsonWorker.ts?worker";
-
-const bsonWorker = new MongoBsonWorker();
-
-bsonWorker.onmessage = (e: MessageEvent<{ id: string; markers: StupidIMarker[] }>) => {
-  const { id, markers } = e.data;
-  const model = monaco.editor.getModels().find((e) => e.id == id);
-  if (model) {
-    markers.forEach((e) => {
-      e.resource = model.uri;
-    });
-    monaco.editor.setModelMarkers(model, mongoBsonCompilerOwner, markers);
-  }
-};
 
 import ListIcon from "@mui/icons-material/List";
 import { editor, languages } from "monaco-editor";
 import DeleteForeverIcon from "@mui/icons-material/DeleteForever";
 import FilterAltIcon from "@mui/icons-material/FilterAlt";
-import { FaArrowsAltV } from "react-icons/fa";
+import { FaArrowsAltV, FaUpload } from "react-icons/fa";
 import {
   bsonValue2MongoBson,
   formatMongoBsonStr,
@@ -95,6 +82,7 @@ import {
   AppDataGridPagination,
   AppDataGridToolBar,
   ListenElementSize,
+  RefreshButton,
   SimpleFlexEditor,
   SliderSize,
   StackRowCenter,
@@ -111,7 +99,7 @@ import {
   useTableColumnVisibleStore,
   useTabSize,
   useMongoViewModelStore,
-  useMongoEditorStore,
+  useMongoEditorViewModelStore,
 } from "./store";
 import { commands, MuiDataGridData } from "./bindings";
 import { AddTableModal } from "./LeftTable";
@@ -124,6 +112,18 @@ import {
 } from "./datagridExport";
 import { useDebounce } from "use-debounce";
 
+const bsonWorker = new MongoBsonWorker();
+
+bsonWorker.onmessage = (e: MessageEvent<{ id: string; markers: StupidIMarker[] }>) => {
+  const { id, markers } = e.data;
+  const model = monaco.editor.getModels().find((e) => e.id == id);
+  if (model) {
+    markers.forEach((e) => {
+      e.resource = model.uri;
+    });
+    monaco.editor.setModelMarkers(model, mongoBsonCompilerOwner, markers);
+  }
+};
 const mongoID = "_id";
 
 const mongoBsonKeywords =
@@ -253,7 +253,7 @@ function initMongoBsonLanguage() {
         if (e instanceof MongoBsonError) {
           message(e.msgWithLoc, { kind: "error" });
         } else {
-          message(e.toString(), { kind: "error" });
+          message(String(e), { kind: "error" });
         }
       }
     },
@@ -271,17 +271,27 @@ initMongoBsonLanguage();
 function MongoBsonEditor(props: {
   doc: BSON.Document;
   setOP?: (doc: any) => Promise<void>;
-  setOPName?: string;
   delOP?: () => Promise<void>;
 }) {
-  let { doc, setOP, delOP, setOPName } = props;
-  if (!setOPName) {
-    setOPName = "set";
-  }
+  let { doc, setOP, delOP } = props;
   const editor = useRef<editor.IStandaloneCodeEditor>(null);
   const [loading, setLoading] = useState(false);
   const tabSize = useTabSize();
-  const [editorvalue, setEditorValue] = useState("");
+  const { showNotification } = useNotification();
+  const [editorValue, setEditorValue] = useState(
+    (function () {
+      try {
+        const c = bsonValue2MongoBson(doc).format(tabSize);
+        return c;
+      } catch (e) {
+        showNotification({
+          severity: "error",
+          title: "format mongo value failed",
+          message: e,
+        });
+      }
+    })(),
+  );
   const handleEditorDidMount = useCallback((ce: editor.IStandaloneCodeEditor) => {
     editor.current = ce;
     ce.onDidChangeModelContent(() => {
@@ -289,32 +299,17 @@ function MongoBsonEditor(props: {
     });
   }, []);
 
-  const [editorvalue_] = useDebounce(editorvalue, 1000);
+  const [editorValueDebounced] = useDebounce(editorValue, 1000);
 
   useEffect(() => {
     if (!editor.current) {
       return;
     }
     bsonWorker.postMessage({
-      code: editorvalue_,
+      code: editorValueDebounced,
       id: editor.current.getModel().id,
     });
-  }, [editorvalue_]);
-
-  const { showNotification } = useNotification();
-  const [content, setContent] = useState("{\n}");
-  useEffect(() => {
-    try {
-      const c = bsonValue2MongoBson(doc).format(tabSize);
-      setContent(c);
-    } catch (e) {
-      showNotification({
-        severity: "error",
-        title: "format mongo value failed",
-        message: e,
-      });
-    }
-  }, [doc, showNotification, tabSize]);
+  }, [editorValueDebounced]);
   return (
     <Stack style={{ flex: 1 }}>
       <div
@@ -323,12 +318,12 @@ function MongoBsonEditor(props: {
         }}>
         <MonacoEditor
           language={mongoBsonLanguage}
-          value={content}
+          value={editorValue}
           onMount={handleEditorDidMount}
           barLeft={
             <StackRowCenter>
               {setOP && (
-                <Button
+                <IconButton
                   loading={loading}
                   onClick={() => {
                     setLoading(true);
@@ -347,12 +342,11 @@ function MongoBsonEditor(props: {
                       setLoading(false);
                     });
                   }}>
-                  {setOPName}
-                </Button>
+                  <FaUpload />
+                </IconButton>
               )}
               {delOP && (
-                <Button
-                  variant="outlined"
+                <IconButton
                   loading={loading}
                   onClick={() => {
                     setLoading(true);
@@ -361,8 +355,8 @@ function MongoBsonEditor(props: {
                     });
                   }}
                   color="error">
-                  delete
-                </Button>
+                  <DeleteForeverIcon />
+                </IconButton>
               )}
             </StackRowCenter>
           }
@@ -375,18 +369,15 @@ function MongoBsonEditor(props: {
 function MongoValueEditor(props: {
   doc: BSON.Document;
   setOP?: (doc: BSON.Document) => Promise<void>;
-  setName?;
   delOP?: () => Promise<void>;
   needConfirm: boolean;
   viewModel?: MongoDataViewModel;
 }) {
-  let { doc, setOP, setName, delOP, needConfirm, viewModel: viewModelPassed } = props;
-  if (!setName) {
-    setName = "set";
-  }
-  const { viewModel, setViewModel } = useMongoEditorStore();
+  const { doc, delOP, setOP, needConfirm, viewModel: viewModelPassed } = props;
+  const tabSize = useTabSize();
+  const { viewModel, setViewModel } = useMongoEditorViewModelStore();
   const confirmAndSet = setOP
-    ? async (doc) => {
+    ? async (doc: BSON.Document) => {
         if (needConfirm) {
           const confirm = await secondConfirm({ title: "are u sure to modify" });
           if (!confirm) {
@@ -440,19 +431,13 @@ function MongoValueEditor(props: {
 
       {getViewModel() == MongoDataViewModel.Json && (
         <JsonEditor
-          value={JSON.parse(EJSON.stringify(doc))}
+          value={EJSON.stringify(doc, null, tabSize)}
           modifyOP={confirmAndSet}
-          modifyOPName={setName}
           delOP={confirmAndDel}
         />
       )}
       {getViewModel() == MongoDataViewModel.Object && (
-        <MongoBsonEditor
-          doc={doc}
-          setOP={confirmAndSet}
-          setOPName={setName}
-          delOP={confirmAndDel}
-        />
+        <MongoBsonEditor doc={doc} setOP={confirmAndSet} delOP={confirmAndDel} />
       )}
     </Stack>
   );
@@ -484,7 +469,6 @@ function MongoTableToolBar(props: {
   } = props;
   const [showModifyFilter, setShowModifyFilter] = useState(false);
   const [showModifySort, setShowModifySort] = useState(false);
-
   const [modalBox, setModalBox] = useState(null);
   const tabSize = useTabSize();
   const { viewModel, setViewModel } = useMongoViewModelStore();
@@ -496,9 +480,7 @@ function MongoTableToolBar(props: {
         alignItems: "center",
       }}>
       <Stack direction="row" style={{ flexWrap: "wrap", alignItems: "center" }}>
-        <Button loading={loading} color="primary" onClick={handleReload}>
-          reload
-        </Button>
+        <RefreshButton loading={loading} color="primary" onClick={handleReload} />
         <Tooltip title={bsonValue2MongoBson(filter).format(tabSize)}>
           <Chip
             label={
@@ -653,7 +635,7 @@ function MongoTableListContextMenu(props: {
   delOP?: () => void;
   content;
   field: string;
-  setSort;
+  setSort: Dispatch<SetStateAction<object>>;
   setShowFilter;
 }) {
   const { delOP, content, field, setShowFilter, setSort } = props;
@@ -847,13 +829,12 @@ function DoubleClickToModify() {
   );
 }
 function JsonEditor(props: {
-  value: object;
+  value: string;
   modifyOP?: (x: object) => Promise<void>;
-  modifyOPName?: string;
   delOP?: () => Promise<void>;
 }) {
-  const { value, modifyOP, delOP, modifyOPName } = props;
-  const [newValue, setNewValue] = useState(EJSON.stringify(value, null, 2));
+  const { value, modifyOP, delOP } = props;
+  const [newValue, setNewValue] = useState(value);
   const [loading, setLoading] = useState(false);
 
   return (
@@ -866,7 +847,7 @@ function JsonEditor(props: {
       }}
       barLeft=<Stack direction="row" style={{ alignItems: "center" }}>
         {modifyOP && (
-          <Button
+          <IconButton
             onClick={() => {
               setLoading(true);
               modifyOP(EJSON.parse(newValue)).finally(() => {
@@ -874,11 +855,11 @@ function JsonEditor(props: {
               });
             }}
             loading={loading}>
-            {modifyOPName ? modifyOPName : "set"}
-          </Button>
+            <FaUpload />
+          </IconButton>
         )}
         {delOP && (
-          <Button
+          <IconButton
             onClick={async () => {
               setLoading(true);
               delOP().finally(() => {
@@ -886,10 +867,9 @@ function JsonEditor(props: {
               });
             }}
             loading={loading}
-            variant="outlined"
             color="error">
-            delete
-          </Button>
+            <DeleteForeverIcon />
+          </IconButton>
         )}
       </Stack>
     />
@@ -1675,7 +1655,7 @@ function MongoTableAdd(props: { addOP: (doc: BSON.Document) => Promise<string> }
       style={{
         height: "100%",
       }}>
-      <MongoValueEditor doc={{}} setName="add" setOP={handleAdd} needConfirm={false} />
+      <MongoValueEditor doc={{}} setOP={handleAdd} needConfirm={false} />
     </Stack>
   );
 }

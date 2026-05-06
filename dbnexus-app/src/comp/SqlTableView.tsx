@@ -86,6 +86,7 @@ import {
   FetchTimeDataGrid,
   ListenElementSize,
   QueryStatus,
+  RefreshButton,
   SetFilterSort,
   SimpleFlexEditor,
   SliderSize,
@@ -281,9 +282,11 @@ function SqlTableCustomToolBarLeft({
 
   return (
     <Stack direction="row" style={{ alignItems: "center" }}>
-      <Button loading={isLoading} color="primary" onClick={() => handleReload(true)}>
-        reload
-      </Button>
+      <RefreshButton
+        loading={isLoading}
+        color="primary"
+        onClick={() => handleReload(true)}
+      />
 
       {showSetWhere && (
         <SetFilterSort

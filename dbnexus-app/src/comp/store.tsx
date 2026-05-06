@@ -1403,8 +1403,8 @@ export function useTabSize() {
       if (value && typeof x === "number") {
         return value;
       }
-    } catch (_e) {
-      console.error("parse editor.editorOption failed", _e);
+    } catch (e) {
+      console.error("parse editor.editorOption failed", e);
     }
     return 4;
   }, [editor]);
@@ -1474,7 +1474,7 @@ export const useMongoViewModelStore = create<MongoViewModelState>()(
   ),
 );
 
-export const useMongoEditorStore = create<MongoViewModelState>()(
+export const useMongoEditorViewModelStore = create<MongoViewModelState>()(
   persist(
     (set) => ({
       // 初始状态，例如默认为 TableList
