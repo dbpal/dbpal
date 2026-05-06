@@ -8,6 +8,7 @@ use futures_util::StreamExt;
 use mongodb::bson::doc;
 use rig::agent::{Agent, MultiTurnStreamItem, PromptHook, StreamingError, Text};
 use rig::client::completion::CompletionClient;
+use rig::loaders::StripXmlProcessor;
 use rig::providers::openai::responses_api::ResponsesCompletionModel;
 use rig::streaming::{StreamedAssistantContent, StreamingPrompt};
 use rig::tool::ToolDyn;
@@ -583,6 +584,15 @@ pub async fn openai_stream(
     )
     .unwrap();
 
+    let documents = req.images.iter().map(|x| {
+        UserContent::Image(Image {
+            data: DocumentSourceKind::Url(x.clone()),
+            media_type: None,
+            detail: None,
+            additional_params: None,
+        })
+    });
+
     let msg = Message::User {
         content: {
             let mut content = vec![];
@@ -598,7 +608,7 @@ pub async fn openai_stream(
             )));
             if db.backend_kind() == BackendKind::Mongo {
                 content.push(UserContent::text(make_mongo_prompt()));
-                content.push( UserContent::text("when genarate code avoid top level await,I think my runtime env may not support it."));
+                content.push(UserContent::text("when genarate code avoid top level await,I think my runtime env may not support it."));
             }
             content.push(UserContent::text(format!(
                 "system local is :{}",
@@ -607,14 +617,13 @@ pub async fn openai_stream(
             content.push(UserContent::Text(Text {
                 text: req.prompt.clone(),
             }));
-            content.extend(req.images.iter().map(|x| {
-                UserContent::Image(Image {
-                    data: DocumentSourceKind::Url(x.clone()),
-                    media_type: None,
-                    detail: None,
-                    additional_params: None,
-                })
-            }));
+            content.extend(
+                req.read_documents()
+                    .await?
+                    .into_iter()
+                    .map(|doc| UserContent::Document(doc)),
+            );
+            content.extend(documents);
             #[cfg(debug_assertions)]
             {
                 for c in content.iter() {
@@ -710,6 +719,91 @@ impl AiOnlineSearch {
         } else {
             Ok(None)
         }
+    }
+}
+
+impl OpenAIReq {
+    async fn read_document(file: &str) -> anyhow::Result<rig::message::Document> {
+        let file = file.to_owned();
+
+        tokio::task::spawn_blocking(move || {
+            let d = match &file {
+                _ if file.to_lowercase().ends_with(".epub") => {
+                    let loader =
+                        rig::loaders::EpubFileLoader::<_, StripXmlProcessor>::with_glob(&file)
+                            .map_err(|err| anyhow::Error::msg(err.to_string()))?;
+
+                    // Load epub file contents by chapter, ignoring any errors
+                    let contents = loader
+                        .load_with_path()
+                        .ignore_errors()
+                        .by_chapter()
+                        .ignore_errors();
+                    let mut doc: String = String::new();
+                    for (path, chapters) in contents {
+                        doc.push_str(format!("file {:?} begins\n", path).as_str());
+                        for (idx, chapter) in chapters {
+                            doc.push_str(format!("Chapter {} begins\n", idx).as_str());
+                            doc.push_str(format!("{}\n", chapter).as_str());
+                            doc.push_str(format!("Chapter {} ends\n", idx).as_str());
+                        }
+                        doc.push_str(format!("file {:?} ends\n", path).as_str());
+                    }
+                    rig::message::Document {
+                        data: DocumentSourceKind::String(doc),
+                        media_type: None,
+                        additional_params: None,
+                    }
+                }
+                _ if file.to_lowercase().ends_with(".pdf") => {
+                    let loader = rig::loaders::PdfFileLoader::with_glob(&file)
+                        .map_err(|err| anyhow::Error::msg(err.to_string()))?;
+                    // Load pdf file contents by page, ignoring any errors
+                    let contents = loader
+                        .load_with_path()
+                        .ignore_errors()
+                        .by_page()
+                        .ignore_errors();
+                    let mut doc = String::new();
+                    for (path, chapters) in contents {
+                        doc.push_str(format!("file {:?} begins\n", path).as_str());
+                        for (idx, chapter) in chapters {
+                            doc.push_str(format!("Chapter {} begins\n", idx).as_str());
+                            doc.push_str(format!("{}\n", chapter).as_str());
+                            doc.push_str(format!("Chapter {} ends\n", idx).as_str());
+                        }
+                        doc.push_str(format!("file {:?} ends\n", path).as_str());
+                    }
+
+                    rig::message::Document {
+                        data: DocumentSourceKind::String(doc),
+                        media_type: None,
+                        additional_params: None,
+                    }
+                }
+                _ => {
+                    let doc = std::fs::read_to_string(&file)?;
+                    rig::message::Document {
+                        data: DocumentSourceKind::String(doc),
+                        media_type: None,
+                        additional_params: None,
+                    }
+                }
+            };
+            anyhow::Ok(d)
+        })
+        .await?
+    }
+    async fn read_documents(&self) -> anyhow::Result<Vec<rig::message::Document>> {
+        let mut documents = vec![];
+
+        for file in self.documents.iter() {
+            let file = file.to_lowercase();
+            println!("file:{}", file);
+            let d = Self::read_document(&file).await?;
+            documents.push(d);
+        }
+        anyhow::Ok(documents)
     }
 }
 
@@ -1225,6 +1319,7 @@ mod tests {
             search_engine: Default::default(),
             chat_history: vec![],
             user_system_prompt: None,
+            documents: vec![],
         };
         let agent = make_agent(req, vec![], None).unwrap();
         call_openai_stream(
@@ -1253,6 +1348,7 @@ mod tests {
             images: vec![],
             search_engine: Default::default(),
             chat_history: vec![],
+            documents: vec![],
             user_system_prompt: None,
         };
         let agent: Agent<ResponsesCompletionModel> = make_agent(req, vec![], None).unwrap();
@@ -1287,6 +1383,7 @@ human: tell me Mike's age from TABLE Persons
             top_p: None,
             images: vec![],
             search_engine: Default::default(),
+            documents: vec![],
         };
         let query_id = "aaaa";
 
@@ -1348,6 +1445,7 @@ human: tell me Mike's age from TABLE Persons
             images: vec![],
             search_engine: Default::default(),
             user_system_prompt: None,
+            documents: vec![],
         };
         let query_id = "aaaa";
 
@@ -1496,6 +1594,7 @@ human: tell me Mike's age from TABLE Persons
             images: vec![],
             search_engine: Default::default(),
             user_system_prompt: None,
+            documents: vec![],
         };
 
         let print_steam = Arc::new(|x: AISteamResp| print!("{}", x));
@@ -1634,6 +1733,7 @@ human: tell me Mike's age from TABLE Persons
             top_p: None,
             images: vec![],
             search_engine: Default::default(),
+            documents: vec![],
         };
 
         let emit = Arc::new(|x| print!("{}", x));
@@ -1676,6 +1776,51 @@ human: tell me Mike's age from TABLE Persons
             )
             .await
             .unwrap();
+        }
+    }
+
+    #[tokio::test]
+    async fn test_read_documents() {
+        // 1. 修正路径拼接：使用 PathBuf 更稳健，去掉多余引号
+        let mut path = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+        path.push("..");
+        path.push("tests");
+        let test_path = path.clone();
+        {
+            let mut test_path = test_path.clone();
+            test_path.push("minimal-v2.epub");
+            let d = OpenAIReq::read_document(test_path.to_str().unwrap())
+                .await
+                .unwrap();
+            match &d.data {
+                DocumentSourceKind::String(origin) => {
+                    println!("origin:{}", origin);
+                    let check = origin.to_lowercase();
+                    assert!(check.contains("section 1"));
+                    assert!(check.contains("this is "));
+                }
+                _ => {
+                    unreachable!()
+                }
+            }
+        }
+
+        {
+            let mut test_path = test_path.clone();
+            test_path.push("dummy.pdf");
+            let d = OpenAIReq::read_document(test_path.to_str().unwrap())
+                .await
+                .unwrap();
+            match &d.data {
+                DocumentSourceKind::String(origin) => {
+                    println!("origin:{}", origin);
+                    let check = origin.to_lowercase();
+                    assert!(check.contains("dummy"));
+                }
+                _ => {
+                    unreachable!()
+                }
+            }
         }
     }
 }

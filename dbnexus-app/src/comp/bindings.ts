@@ -482,6 +482,7 @@ export type OpenAIReq = {
 	max_tokens: number | null,
 	top_p: number | null,
 	images: string[],
+	documents: string[],
 	user_system_prompt: string | null,
 	search_engine: AiOnlineSearch,
 	chat_history: ChatHistory[],

@@ -25,7 +25,7 @@ use std::time::Duration;
 use tokio::sync::Mutex;
 use tokio_util::sync::CancellationToken;
 
-#[derive(serde::Serialize, serde::Deserialize, Debug, Clone, specta::Type)]
+#[derive(serde::Serialize, serde::Deserialize, Debug, Clone, specta::Type, Default)]
 pub struct OpenAIReq {
     pub url: String,
     pub api_key: String,
@@ -34,8 +34,12 @@ pub struct OpenAIReq {
     pub temperature: Option<f64>,
     pub max_tokens: Option<u64>,
     pub top_p: Option<f64>,
-    // data:image/jpeg;base64,
+    // data:image/jpeg;base64 data encoded in base64 image data
     pub images: Vec<String>,
+
+    // documents can be a text or sql
+    pub documents: Vec<String>,
+
     pub user_system_prompt: Option<String>,
     pub search_engine: AiOnlineSearch,
     pub chat_history: Vec<ChatHistory>,

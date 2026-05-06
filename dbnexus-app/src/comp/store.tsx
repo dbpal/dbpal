@@ -299,6 +299,7 @@ export const makeLLMCallable = (config: LLMConfig) => {
   const makeReq = (
     prompt: string,
     images,
+    documents: string[],
     history: ChatHistory[] = [],
     user_system_prompt: string | null,
   ): OpenAIReq => {
@@ -314,18 +315,20 @@ export const makeLLMCallable = (config: LLMConfig) => {
       search_engine: config.search_engin,
       chat_history: history,
       user_system_prompt,
+      documents,
     };
   };
 
   return {
     prompt: async (msg: string): Promise<string> => {
-      return await commands.openaiInvoke(makeReq(msg, [], [], ""));
+      return await commands.openaiInvoke(makeReq(msg, [], [], [], ""));
     },
     stream_prompt: async (
       uuid: string,
       queryId: string,
       prompt: string,
       images: string[],
+      documents: string[],
       history: ChatHistory[],
       user_system_prompt: string | null,
       handleMessage: (event: AISteamResp) => void,
@@ -340,7 +343,7 @@ export const makeLLMCallable = (config: LLMConfig) => {
         cancelTask(taskId);
       });
       await commands.openaiStream(
-        makeReq(prompt, images, history, user_system_prompt),
+        makeReq(prompt, images, documents, history, user_system_prompt),
         uuid,
         queryId,
         emit,

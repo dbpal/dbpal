@@ -3,11 +3,14 @@ import {
   DataSourceKind,
   extractConfigNameFromUuid,
   QueryIDEditorChatCtx,
+  secondConfirm,
 } from "./helper.ts";
 import CloseIcon from "@mui/icons-material/Close";
 import SaveIcon from "@mui/icons-material/Save";
 import { TbPrompt } from "react-icons/tb";
+import UploadFileIcon from "@mui/icons-material/UploadFile";
 import {
+  Chip,
   CircularProgress,
   Dialog,
   Divider,
@@ -18,7 +21,16 @@ import {
   Tooltip,
   Typography,
 } from "@mui/material";
-import { ReactNode, useContext, useEffect, useMemo, useRef, useState } from "react";
+import {
+  Dispatch,
+  ReactNode,
+  SetStateAction,
+  useContext,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import { editor } from "monaco-editor";
 import {
   SliderSize,
@@ -35,6 +47,7 @@ import {
   dbpalQuerykey,
   editorAppendContent,
   EscDownEvent,
+  extractBaseName,
   modalHandleClose,
   NameAndQueryId,
   providerQueryID,
@@ -64,6 +77,7 @@ import { RedisQuery } from "./RedisQuery.tsx";
 import { MongoQuery } from "./MongoQuery.tsx";
 import { CouchBaseQuery } from "./CouchBase.tsx";
 import { MdCleaningServices } from "react-icons/md";
+import { openPath } from "@tauri-apps/plugin-opener";
 
 function AllKindQuery(props: {
   kind: DataSourceKind;
@@ -167,6 +181,7 @@ function SqlChatTextInput(props: { uuid: string }) {
   const { show, setShow } = useContext(ChatShowContext);
   const { getSwitch, setSwitch } = useBoolSwitch();
   const [images, setImages] = useState<string[]>([]);
+  const [documents, setDocuments] = useState<string[]>([]);
   const { getSize } = useSizeStore();
   const { messagesByNames, saveMessage } = useChatStore();
   const connName = extractConfigNameFromUuid(uuid);
@@ -204,6 +219,7 @@ function SqlChatTextInput(props: { uuid: string }) {
         queryId.queryId,
         question,
         images,
+        documents,
         (function () {
           if (!history || history.length === 0) {
             return [];
@@ -353,7 +369,7 @@ function SqlChatTextInput(props: { uuid: string }) {
                       title: "image have already been add",
                     });
                   } else {
-                    setImages([...images, fileContent]);
+                    setImages((e) => [...e, fileContent]);
                   }
                 }
               } catch (e) {
@@ -366,9 +382,78 @@ function SqlChatTextInput(props: { uuid: string }) {
             }}>
             <AddPhotoAlternateIcon />
           </IconButton>
+
+          {images.length > 0 && (
+            <IconButton
+              color="error"
+              onClick={async () => {
+                if (
+                  !(await secondConfirm({
+                    confirmText: "remove",
+                    title: "remove all images ",
+                  }))
+                ) {
+                  return;
+                }
+                setImages([]);
+              }}>
+              <DeleteForeverIcon />
+            </IconButton>
+          )}
           <ShowChatImages images={images} setImages={setImages} />
         </Stack>
 
+        <Stack direction="row" style={{ alignItems: "flex-end" }}>
+          <IconButton
+            onClick={async () => {
+              let files = await open({ multiple: true, pickerMode: "document" });
+              if (!files) {
+                return;
+              }
+              if (typeof files == "string") {
+                files = [files];
+              }
+              try {
+                for (const file of files) {
+                  if (documents.find((e) => e == file)) {
+                    showNotification({
+                      severity: "error",
+                      title: "image have already been add",
+                    });
+                  } else {
+                    setDocuments((x) => [...x, file]);
+                  }
+                }
+              } catch (e) {
+                showNotification({
+                  severity: "error",
+                  title: "open image failed",
+                  message: e,
+                });
+              }
+            }}>
+            <UploadFileIcon />
+          </IconButton>
+          {documents.length > 0 && (
+            <IconButton
+              color="error"
+              onClick={async () => {
+                if (
+                  !(await secondConfirm({
+                    confirmText: "remove",
+                    title: "remove all documents",
+                  }))
+                ) {
+                  return;
+                }
+                setDocuments([]);
+              }}>
+              <DeleteForeverIcon />
+            </IconButton>
+          )}
+
+          <ShowChatDocuments documents={documents} setDocuments={setDocuments} />
+        </Stack>
         <Divider> </Divider>
         <SimpleFlexEditor
           language="text"
@@ -401,6 +486,30 @@ function SqlChatTextInput(props: { uuid: string }) {
   );
 }
 
+function ShowChatDocuments(props: {
+  documents: string[];
+  setDocuments: Dispatch<SetStateAction<string[]>>;
+}) {
+  const { documents, setDocuments } = props;
+
+  return (
+    <Stack direction="row" style={{ alignItems: "center" }}>
+      {documents.map((path, index) => (
+        <Chip
+          key={index}
+          label={extractBaseName(path)}
+          style={{ cursor: "pointer" }}
+          onClick={() => {
+            openPath(path);
+          }}
+          onDelete={() => {
+            setDocuments((x) => x.filter((e) => e != path));
+          }}
+        />
+      ))}
+    </Stack>
+  );
+}
 function ShowChatImages(props: { images: string[]; setImages }) {
   const { images, setImages } = props;
   const [showMsgIndex, setMsgShowIndex] = useState<number | null>(null);
