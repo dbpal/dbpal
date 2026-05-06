@@ -8,11 +8,9 @@ import CloseIcon from "@mui/icons-material/Close";
 import SaveIcon from "@mui/icons-material/Save";
 import { TbPrompt } from "react-icons/tb";
 import {
-  Checkbox,
   CircularProgress,
   Dialog,
   Divider,
-  FormControlLabel,
   IconButton,
   Pagination,
   Paper,
@@ -65,6 +63,7 @@ import { SqlQuery } from "./SqlQuery.tsx";
 import { RedisQuery } from "./RedisQuery.tsx";
 import { MongoQuery } from "./MongoQuery.tsx";
 import { CouchBaseQuery } from "./CouchBase.tsx";
+import { MdCleaningServices } from "react-icons/md";
 
 function AllKindQuery(props: {
   kind: DataSourceKind;
@@ -315,21 +314,16 @@ function SqlChatTextInput(props: { uuid: string }) {
                 <TbPrompt style={{ fontSize: "1.8rem" }} />
               </IconButton>
             </Tooltip>
-
             <SliderSize config={UseSizeConfig.chatMemoryKey} />
             <Tooltip title="delete all content from the editor before we receive the response">
-              <FormControlLabel
-                control={
-                  <Checkbox
-                    checked={cleanEditor}
-                    onChange={(e) => setSwitch(cleanEditorKey, e.target.checked)}
-                  />
-                }
-                label="clean editor"
-              />
+              <IconButton onClick={() => setSwitch(cleanEditorKey, !cleanEditor)}>
+                <MdCleaningServices
+                  color={cleanEditor ? "rgb(42, 59, 240)" : ""}
+                  fontSize="1.2rem"
+                />
+              </IconButton>
             </Tooltip>
           </Stack>
-
           <Stack direction="row">
             <IconButton
               onClick={() => {
