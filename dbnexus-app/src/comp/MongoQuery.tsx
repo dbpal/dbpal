@@ -37,9 +37,15 @@ import {
   useNotification,
   useQueryLogStore,
 } from "./store";
+function removeSourceMapComment(code: string) {
+  const target = "//# sourceMappingURL=";
+  const lastIndex = code.lastIndexOf(target);
 
-function dropLastLine(str: string) {
-  return str.split(/\r?\n/).slice(0, -1).join("\n");
+  if (lastIndex !== -1) {
+    // 截取到注释开始之前的位置，并 trimDown 掉尾部多余换行
+    return code.slice(0, lastIndex).trimEnd();
+  }
+  return code;
 }
 
 monaco.typescript.typescriptDefaults.setCompilerOptions({
@@ -107,13 +113,16 @@ async function transformTS(
 
     // 3. 提取结果
     // outputFiles 通常包含两个文件：一个 .js，一个 .js.map
-    const jsCode = emitOutput.outputFiles.find((f) => f.name.endsWith(".js"))?.text;
+    let jsCode = emitOutput.outputFiles.find((f) => f.name.endsWith(".js"))?.text;
     const sourceMap = emitOutput.outputFiles.find((f) =>
       f.name.endsWith(".js.map"),
     )?.text;
-
+    // 建议替代 dropLastLine 的方案
+    jsCode = removeSourceMapComment(jsCode);
     return (
-      dropLastLine(jsCode) +
+      jsCode +
+      "\n" +
+      `//# sourceURL=${uri.path}\n` +
       "//# sourceMappingURL=data:application/json;charset=utf-8;base64," +
       btoa(sourceMap)
     );
@@ -218,6 +227,7 @@ const { db, FS, HTTP, BSON } = mongoHandle;
       saveQueryLog(uuid, code, true);
     }
     eval(code);
+
     showNotification({
       severity: "success",
       title:
