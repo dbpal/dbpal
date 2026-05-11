@@ -1099,6 +1099,7 @@ function ModifyTableColumn(props: {
   );
 }
 
+// databaase kind support null specific
 function kindSupportNull(kind: DataSourceKind): boolean {
   return kind != DataSourceKind.Cassandra;
 }
@@ -1428,7 +1429,6 @@ function TableStructure(props: { table: string; uuid: string; kind: DataSourceKi
     DataSourceKind.TiDB,
     DataSourceKind.Mysql,
     DataSourceKind.SqlServer,
-    DataSourceKind.LibSql,
     DataSourceKind.Sqlite,
     DataSourceKind.Oracle,
     DataSourceKind.Postgres,

@@ -4,7 +4,7 @@ import { DataSourceKind, TabContext } from "./helper";
 
 import { AllKindChat } from "./Chat";
 import { MetaValueView } from "./CommonComp";
-import { CircularProgress, Stack, Tooltip, Typography } from "@mui/material";
+import { Chip, CircularProgress, Stack, Tooltip } from "@mui/material";
 import { useNotification, useQueryExtraUI } from "./store";
 import { DefAndMetas, MetaValue, TriggerDetail } from "./bindings";
 
@@ -60,7 +60,7 @@ function DefAndMetasView(props: {
               style: { width: "1550px" },
             },
           }}>
-          <Typography color="info"> some meta </Typography>
+          <Chip label="some meta " />
         </Tooltip>
       ) : null,
     );
