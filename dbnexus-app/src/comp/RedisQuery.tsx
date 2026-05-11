@@ -15,7 +15,7 @@ import { commands } from "./bindings.ts";
 const showRedisDocKey = "redis-show-doc";
 function RedisQuery(props: { favoriteName?: string; value?: string; uuid: string }) {
   const { favoriteName, value, uuid } = props;
-  const [doc, setDoc] = useState("");
+  const [docStr, setDocStr] = useState("");
   const { getSwitch, setSwitch } = useBoolSwitch();
   const prevLine = useRef("");
   const showDoc = getSwitch(showRedisDocKey);
@@ -46,7 +46,7 @@ function RedisQuery(props: { favoriteName?: string; value?: string; uuid: string
         .getRedisDoc(line)
         .then((e) => {
           prevLine.current = line;
-          setDoc(e);
+          setDocStr(e);
         })
         .catch(() => {
           // console.log('get redis doc failed', e);
@@ -113,7 +113,7 @@ function RedisQuery(props: { favoriteName?: string; value?: string; uuid: string
               overflow: "auto",
             }}>
             <AppMarkDown placeHolder="when typing markdown document will show atomically">
-              {doc}
+              {docStr}
             </AppMarkDown>
           </div>
         </Panel>
