@@ -22,7 +22,7 @@ import {
   QueryIDEditorChatCtx,
   saveQueryKey,
 } from "./helper";
-import { dbpalQuerykey, NameAndQueryId } from "./Common";
+import { NameAndQueryId } from "./Common";
 import {
   AiMarkdownModel,
   AiMarkdownModelSwitch,
@@ -204,7 +204,11 @@ function MongoQuery(props: { uuid: string; favoriteName?: string; value?: string
 const { db, FS, HTTP, BSON } = mongoHandle;
 `);
       ed.setModel(model);
-      ed.getModel()[dbpalQuerykey] = new NameAndQueryId(uuid, DataSourceKind.Mongo, ""); // mongo no need query id
+      ed.getModel()._dbpal_query_id_xxx_yyy_zzz = new NameAndQueryId(
+        uuid,
+        DataSourceKind.Mongo,
+        "",
+      ); // mongo no need query id
       ed.focus();
     },
     [uuid],

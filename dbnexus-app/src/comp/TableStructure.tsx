@@ -54,7 +54,6 @@ import {
   ColumnType,
   commands,
   CreateIndexReq,
-  DefAndMetas,
   Field,
   Index,
   SqlNullAble,
@@ -195,7 +194,7 @@ function ColumnsStructure(props: {
   useEffect(() => {
     handleReload();
   }, [handleReload]);
-  const cols = useMemo(() => {
+  const cols: GridColDef[] = useMemo(() => {
     return [
       { field: "field" },
       {
@@ -240,7 +239,7 @@ function ColumnsStructure(props: {
           return <CheckedView value={row.row["sortable"]} />;
         },
       },
-    ] as GridColDef[];
+    ];
   }, []);
   cols.forEach((e) => {
     const width = getColumnWidth(e.field);
@@ -250,7 +249,7 @@ function ColumnsStructure(props: {
   });
   const setUpMenu = useContextMenu((state) => state.setUpMenu);
 
-  const slotProps = useMemo(() => {
+  const slotProps = useMemo((): GridSlotsComponentsProps => {
     return {
       row: {
         onContextMenu: (e) => {
@@ -274,7 +273,7 @@ function ColumnsStructure(props: {
         },
         style: { cursor: "context-menu" },
       },
-    } as GridSlotsComponentsProps;
+    };
   }, [handleDrop, setUpMenu, supportModifyColumn]);
 
   const getRowId = useCallback((e: Record<string, any>) => {
@@ -294,7 +293,7 @@ function ColumnsStructure(props: {
       }
     }
   }, [kind, row, showNotification]);
-  const slots = useMemo(() => {
+  const slots = useMemo((): Partial<GridSlotsComponent> => {
     return {
       toolbar: () => {
         return (
@@ -327,7 +326,7 @@ function ColumnsStructure(props: {
           </Stack>
         );
       },
-    } as Partial<GridSlotsComponent>;
+    };
   }, [handleReload, loading, supportModifyColumn]);
 
   return (
@@ -571,8 +570,8 @@ function IndexesStructure(props: {
   useEffect(() => {
     handleReload();
   }, [handleReload]);
-  const cols = useMemo(() => {
-    return [{ field: "name" }, { field: "kind" }, { field: "columns" }] as GridColDef[];
+  const cols = useMemo((): GridColDef[] => {
+    return [{ field: "name" }, { field: "kind" }, { field: "columns" }];
   }, []);
   cols.forEach((e) => {
     const width = getColumnWidth(e.field);
@@ -583,7 +582,7 @@ function IndexesStructure(props: {
 
   const setUpMenu = useContextMenu((state) => state.setUpMenu);
 
-  const slotProps = useMemo(() => {
+  const slotProps = useMemo((): GridSlotsComponentsProps => {
     return {
       row: {
         onContextMenu: (e) => {
@@ -607,10 +606,10 @@ function IndexesStructure(props: {
         },
         style: { cursor: "context-menu" },
       },
-    } as GridSlotsComponentsProps;
+    };
   }, [handleDrop, indexes, setUpMenu]);
 
-  const slots = useMemo(() => {
+  const slots = useMemo((): Partial<GridSlotsComponent> => {
     return {
       toolbar: () => {
         return (
@@ -628,7 +627,7 @@ function IndexesStructure(props: {
         );
       },
       pagination: AppDataGridPagination,
-    } as Partial<GridSlotsComponent>;
+    };
   }, [handleReload, loading]);
 
   return (
@@ -887,7 +886,7 @@ function TableAddColumn(props: {
         nullable: nullable ? nullable : null,
         after: after ? after : null,
         default_value: defaultValue ? defaultValue : null,
-      } as ColumnType)
+      })
 
       .then((sql) => {
         showNotification({
@@ -1276,7 +1275,7 @@ function TriggersStructure(props: {
   useEffect(() => {
     handleReload();
   }, [handleReload]);
-  const cols = useMemo(() => {
+  const cols = useMemo((): GridColDef[] => {
     return [
       { field: "name" },
       { field: "event" },
@@ -1296,7 +1295,7 @@ function TriggersStructure(props: {
           }
         },
       },
-    ] as GridColDef[];
+    ];
   }, []);
   cols.forEach((e) => {
     const width = getColumnWidth(e.field);
@@ -1306,7 +1305,7 @@ function TriggersStructure(props: {
   });
   const setUpMenu = useContextMenu((state) => state.setUpMenu);
 
-  const slotProps = useMemo(() => {
+  const slotProps = useMemo((): GridSlotsComponentsProps => {
     return {
       row: {
         onContextMenu: (e) => {
@@ -1329,14 +1328,14 @@ function TriggersStructure(props: {
         },
         style: { cursor: "context-menu" },
       },
-    } as GridSlotsComponentsProps;
+    };
   }, [handleDrop, handleEnables, setUpMenu, triggers]);
 
   const onRowDoubleClick = useCallback((row: { row: TriggerDetail }) => {
     setRow(row.row);
   }, []);
 
-  const slots = useMemo(() => {
+  const slots = useMemo((): Partial<GridSlotsComponent> => {
     return {
       toolbar: () => {
         return (
@@ -1361,7 +1360,7 @@ function TriggersStructure(props: {
           </Stack>
         );
       },
-    } as Partial<GridSlotsComponent>;
+    };
   }, [handleReload, loading, triggers.length]);
 
   return (
@@ -1508,7 +1507,7 @@ function StatementStructure(props: {
               return {
                 def: formatCreateTableAndIndexSql(data),
                 metas: [],
-              } as DefAndMetas;
+              };
             })
             .catch((e) => {
               showNotification({
@@ -1519,7 +1518,7 @@ function StatementStructure(props: {
               return {
                 def: "",
                 metas: [],
-              } as DefAndMetas;
+              };
             });
         }}
         kind={kind}

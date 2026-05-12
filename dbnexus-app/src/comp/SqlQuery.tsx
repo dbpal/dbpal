@@ -6,13 +6,7 @@ import { FaExclamation } from "react-icons/fa";
 import { ReactNode, useCallback, useContext, useEffect, useRef, useState } from "react";
 import FastForwardIcon from "@mui/icons-material/FastForward";
 import { editor } from "monaco-editor";
-import {
-  dbpalQuerykey,
-  isRedisCode,
-  isSQLCode,
-  NameAndQueryId,
-  QueryConn,
-} from "./Common.ts";
+import { isRedisCode, isSQLCode, NameAndQueryId, QueryConn } from "./Common.ts";
 import { BsFillLightbulbFill } from "react-icons/bs";
 import { FaUpload } from "react-icons/fa";
 import { MdOutlineReply } from "react-icons/md";
@@ -477,7 +471,11 @@ function SqlQuery(props: {
 
   useEffect(() => {
     if (editor) {
-      editor.getModel()[dbpalQuerykey] = new NameAndQueryId(uuid, kind, queryId);
+      editor.getModel()._dbpal_query_id_xxx_yyy_zzz = new NameAndQueryId(
+        uuid,
+        kind,
+        queryId,
+      );
     }
   }, [editor, kind, queryId, uuid]);
 

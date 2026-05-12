@@ -477,12 +477,14 @@ function MetaValueViewMenu(props: {
 /**
  * Table view for metadata values.
  */
-function MetaValueView({ values = [] as MetaValue[], showToolbar }) {
+function MetaValueView(props: { values: MetaValue[]; showToolbar: boolean }) {
+  const { values, showToolbar } = props;
+
   const getColumnWidth = useColumnWidthStore((s) => s.getColumnWidth);
-  const columns = [
+  const columns: GridColDef[] = [
     { field: "name", width: getColumnWidth("name"), flex: 1 },
     { field: "value", width: getColumnWidth("value"), flex: 1 },
-  ] as GridColDef[];
+  ];
 
   const [sortModel, setSortModel] = useState<GridSortModel>([]);
   values.forEach((e, index) => {
@@ -491,7 +493,7 @@ function MetaValueView({ values = [] as MetaValue[], showToolbar }) {
     }
   });
   const setUpMenu = useContextMenu((state) => state.setUpMenu);
-  const slotProps = useMemo(() => {
+  const slotProps = useMemo((): GridSlotsComponentsProps => {
     return {
       row: {
         onContextMenu: (e) => {
@@ -514,18 +516,18 @@ function MetaValueView({ values = [] as MetaValue[], showToolbar }) {
         },
         style: { cursor: "context-menu" },
       },
-    } as GridSlotsComponentsProps;
+    };
   }, [setUpMenu]);
 
   const onSortModelChange = useCallback((e) => {
     setSortModel(e);
   }, []);
 
-  const slots = useMemo(() => {
+  const slots = useMemo((): Partial<GridSlotsComponent> => {
     return {
       toolbar: AppDataGridToolBar,
       pagination: AppDataGridPagination,
-    } as Partial<GridSlotsComponent>;
+    };
   }, []);
   return (
     <DataGrid

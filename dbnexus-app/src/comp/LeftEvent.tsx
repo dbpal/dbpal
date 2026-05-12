@@ -29,7 +29,7 @@ import {
   useTabsManage,
   useMatcherFn,
 } from "./store";
-import { commands, DefAndMetas, SqlEvent } from "./bindings";
+import { commands, SqlEvent } from "./bindings";
 import { uuidv4 } from "./Common";
 function EventsTree() {
   const { uuid, kind } = useContext(UuidContext);
@@ -126,7 +126,7 @@ function EventMenu(props: EventMenuProps) {
             return Promise.resolve({
               def: event.sql,
               metas: event.metas,
-            } as DefAndMetas);
+            });
           }}
           kind={kind}
           uuid={uuid}

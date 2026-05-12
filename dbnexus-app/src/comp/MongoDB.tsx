@@ -100,6 +100,7 @@ import {
   useTabSize,
   useMongoViewModelStore,
   useMongoEditorViewModelStore,
+  useMongoTableFilterOp,
 } from "./store";
 import { commands, MuiDataGridData } from "./bindings";
 import { AddTableModal } from "./LeftTable";
@@ -129,13 +130,16 @@ const mongoID = "_id";
 const mongoBsonKeywords =
   /\b(as|int|long|date|timestamp|decimal|binary|generic|function|byte_array|uuid|md5|encrypted|column|sensitive|int8_array|float32_array|user_define|true|false|null|undefined|code)\b/i;
 function mongoBsonAutoCompletion(): languages.CompletionList {
-  const generateSubTypes = MongoBsonBinaryAllSubType.allValues().map((e) => {
-    return {
-      label: e,
-      insertText: e,
-      kind: languages.CompletionItemKind.Operator,
-    } as languages.CompletionItem;
-  });
+  const generateSubTypes = MongoBsonBinaryAllSubType.allValues().map(
+    (e): languages.CompletionItem => {
+      return {
+        label: e,
+        insertText: e,
+        kind: languages.CompletionItemKind.Operator,
+        range: undefined,
+      };
+    },
+  );
 
   return {
     suggestions: [
@@ -701,7 +705,6 @@ function MongoTableListContextMenu(props: {
   );
 }
 
-let lastCompare = "$eq";
 function MongoTableListMenuFilter(props: {
   handleClose;
   loadValue: () => Promise<any>;
@@ -710,7 +713,7 @@ function MongoTableListMenuFilter(props: {
 }) {
   const { handleClose, loadValue, setFilter, field } = props;
   const compares = ["$eq", "$ne", "$gt", "$gte", "$lt", "$lte"];
-  const [compare, setCompare] = useState(lastCompare);
+  const { filter, setFilter: setCompare } = useMongoTableFilterOp();
   const { showNotification } = useNotification();
   const [value, setValue] = useState(null);
   const [doc, setDoc] = useState({});
@@ -728,42 +731,43 @@ function MongoTableListMenuFilter(props: {
         });
       });
   }, [loadValue, showNotification]);
-  useEffect(() => {
-    lastCompare = compare;
-  }, [compare]);
+
   useEffect(() => {
     const compareObj = {};
-    if (compare == "starts") {
+    if (filter == "starts") {
       compareObj[field] = { $regex: `^${value}`, $options: "i" };
       setDoc(compareObj);
       return;
     }
-    if (compare == "ends") {
+    if (filter == "ends") {
       compareObj[field] = { $regex: `${value}$`, $options: "i" };
       setDoc(compareObj);
       return;
     }
-    if (compare == "contains") {
+    if (filter == "contains") {
       compareObj[field] = { $regex: `${value}`, $options: "i" };
       setDoc(compareObj);
       return;
     }
-    if (compare == "null") {
+    if (filter == "null") {
       compareObj[field] = null;
       setDoc(compareObj);
       return;
     }
-    if (compare == "not null") {
+    if (filter == "not null") {
       compareObj[field] = { $ne: null };
       setDoc(compareObj);
       return;
     }
-    compareObj[compare] = value;
+    compareObj[filter] = value;
     const doc = {};
     doc[field] = compareObj;
     setDoc(doc);
-  }, [compare, field, value]);
+  }, [filter, field, value]);
 
+  const getColor = (condition) => {
+    return filter === condition ? "success" : "default";
+  };
   return (
     <Stack>
       <Stack direction="row">
@@ -774,7 +778,7 @@ function MongoTableListMenuFilter(props: {
               setCompare(x);
             }}
             label={x}
-            color={compare === x ? "success" : "default"}
+            color={getColor(x)}
           />
         ))}
       </Stack>
@@ -783,7 +787,7 @@ function MongoTableListMenuFilter(props: {
           <Chip
             key={condition}
             label={condition}
-            color={compare === condition ? "success" : "default"}
+            color={getColor(condition)}
             onClick={() => {
               setCompare(condition);
             }}
@@ -795,7 +799,7 @@ function MongoTableListMenuFilter(props: {
           {["starts", "contains", "ends"].map((e) => (
             <Chip
               label={e}
-              color={compare === e ? "success" : "default"}
+              color={getColor(e)}
               onClick={() => {
                 setCompare(e);
               }}

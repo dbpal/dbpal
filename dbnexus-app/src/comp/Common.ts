@@ -163,13 +163,21 @@ function reloadOK(showNotification: (params: NotificationParams) => void): void 
   showNotification({ severity: "success", title: "data loaded." });
 }
 
-const dbpalQuerykey: string = "_dbpal_query_id_xxx_yyy_zzz";
+declare module "monaco-editor" {
+  // eslint-disable-next-line @typescript-eslint/no-namespace
+  namespace editor {
+    interface ITextModel {
+      _dbpal_query_id_xxx_yyy_zzz?: NameAndQueryId;
+    }
+  }
+}
+
 const autoCompletion = async (
   model: editor.ITextModel,
   pos: Position,
 ): Promise<languages.CompletionList | undefined> => {
   const sql = model.getValue();
-  const name = model[dbpalQuerykey] as NameAndQueryId;
+  const name = model._dbpal_query_id_xxx_yyy_zzz;
   if (!name) {
     console.error("editor id map to backend name is nul,this is internal bug");
     return;
@@ -198,7 +206,7 @@ const aiTextAutoCompletion = async (
     const text = model.getValue();
     {
       // try if this is ai text completion
-      const name = model[dbpalQuerykey];
+      const name = model._dbpal_query_id_xxx_yyy_zzz;
       if (name) {
         const result = await commands.aiTextCompletion(
           name.name,
@@ -236,7 +244,7 @@ monaco.languages.registerCompletionItemProvider("text", {
 
 monaco.languages.registerDocumentFormattingEditProvider("sql", {
   provideDocumentFormattingEdits(model, options) {
-    const name = model[dbpalQuerykey];
+    const name = model._dbpal_query_id_xxx_yyy_zzz;
     if (!name) {
       console.error("editor id map to backend name is nul,this is internal bug");
       return;
@@ -563,7 +571,6 @@ export function generateRandomId(length = 8) {
 
 const providerQueryID = { id: "" };
 export {
-  dbpalQuerykey,
   dropDatabase,
   dropSchema,
   editorAppendContent,

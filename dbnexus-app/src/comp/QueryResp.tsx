@@ -77,7 +77,7 @@ function RespContextMenu(props: {
       <Divider />
       <MenuItem
         onClick={() => {
-          setSort([{ field, sort: "asc" }] as GridSortModel);
+          setSort([{ field, sort: "asc" }]);
         }}>
         <ListItemIcon>
           <ArrowUpwardIcon />
@@ -86,7 +86,7 @@ function RespContextMenu(props: {
       </MenuItem>
       <MenuItem
         onClick={() => {
-          setSort([{ field, sort: "desc" }] as GridSortModel);
+          setSort([{ field, sort: "desc" }]);
         }}>
         <ListItemIcon>
           <ArrowDownwardIcon />

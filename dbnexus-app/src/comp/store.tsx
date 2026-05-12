@@ -95,7 +95,7 @@ export const useTableColumnVisibleStore = create<TableColumnVisible>()(
       },
     }),
     {
-      name: "mui-datagrid-configs",
+      name: "mui-datagrid-columns-visible",
     },
   ),
 );
@@ -552,7 +552,7 @@ export const useSizeStore = create<SizeState>()(
       resetSizes: (sizes) => set({ sizes }),
     }),
     {
-      name: "couchbase-some-sizes",
+      name: "some-sizes",
     },
   ),
 );
@@ -1390,7 +1390,7 @@ export const useExportConfigStore = create<ExportConfigState>()(
     }),
     {
       // 存储在 localStorage 中的 key
-      name: "csv-config-storage",
+      name: "export-config-storage",
       // 默认即为 localStorage，createJSONStorage 确保数据以 JSON 格式正确存取
     },
   ),
@@ -1472,7 +1472,7 @@ export const useMongoViewModelStore = create<MongoViewModelState>()(
         })),
     }),
     {
-      name: "mongo-view-settings", // 存储在 localStorage 的 key
+      name: "mongo-view-model", // 存储在 localStorage 的 key
     },
   ),
 );
@@ -1491,6 +1491,80 @@ export const useMongoEditorViewModelStore = create<MongoViewModelState>()(
     }),
     {
       name: "mongo-editor-model", // 存储在 localStorage 的 key
+    },
+  ),
+);
+
+interface SqlTableDataFilterState {
+  filter: string;
+  setFilter: (filter: string) => void;
+}
+
+export const useSqlTableFilterOp = create<SqlTableDataFilterState>()(
+  persist(
+    (set) => ({
+      // 初始值设为 "="
+      filter: "=",
+
+      // 更新 filter 的方法
+      setFilter: (filter: string) => {
+        set({ filter });
+      },
+    }),
+    {
+      // 存储在 localStorage 中的 key 名称
+      name: "sql-table-filter-op",
+      // (可选) 默认就是 localStorage，也可以指定为 sessionStorage
+      // getStorage: () => localStorage,
+    },
+  ),
+);
+
+// 定义 MongoDB 表格过滤器的状态接口
+interface MongoTableFilterState {
+  filter: string; // 存储如 "$eq", "$ne", "$regex", "$gt" 等操作符
+  setFilter: (filter: string) => void;
+}
+
+export const useMongoTableFilterOp = create<MongoTableFilterState>()(
+  persist(
+    (set) => ({
+      // 默认操作符设为 "$eq" (等于)，这是 MongoDB 的标准等值查询
+      filter: "$eq",
+
+      // 更新操作符
+      setFilter: (filter: string) => {
+        set({ filter });
+      },
+    }),
+    {
+      // 存储在 localStorage 中的唯一标识符
+      name: "mongo-table-filter-op",
+    },
+  ),
+);
+
+interface SqlTableDataFilterState {
+  filter: string;
+  setFilter: (filter: string) => void;
+}
+
+export const useSqlDataFilter = create<SqlTableDataFilterState>()(
+  persist(
+    (set) => ({
+      // 初始值设为 "="
+      filter: "=",
+
+      // 更新 filter 的方法
+      setFilter: (filter: string) => {
+        set({ filter });
+      },
+    }),
+    {
+      // 存储在 localStorage 中的 key 名称
+      name: "sql-data-filter-str",
+      // (可选) 默认就是 localStorage，也可以指定为 sessionStorage
+      // getStorage: () => localStorage,
     },
   ),
 );

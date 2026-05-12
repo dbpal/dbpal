@@ -10,12 +10,7 @@ import {
   Tooltip,
 } from "@mui/material";
 import { Dispatch, SetStateAction, useEffect, useMemo, useState } from "react";
-import {
-  dbpalQuerykey,
-  EscDownEvent,
-  modalHandleClose,
-  NameAndQueryId,
-} from "./Common";
+import { EscDownEvent, modalHandleClose, NameAndQueryId } from "./Common";
 import DoneIcon from "@mui/icons-material/Done";
 import CloseIcon from "@mui/icons-material/Close";
 import {
@@ -67,7 +62,7 @@ function QueryLog(props: {
       break;
   }
   const { showNotification } = useNotification();
-  const columns = [
+  const columns: GridColDef[] = [
     {
       field: "create_at",
       width: getColumnWidth("create_at"),
@@ -99,7 +94,7 @@ function QueryLog(props: {
         return sqlDesc;
       },
     },
-  ] as GridColDef[];
+  ];
 
   useEffect(() => {
     const handleReload = async () => {
@@ -278,7 +273,11 @@ function QueryLog(props: {
           <SimpleFlexEditor
             value={selectSql.sql}
             handleEditor={(e) => {
-              e.getModel()[dbpalQuerykey] = new NameAndQueryId(uuid, kind, queryId);
+              e.getModel()._dbpal_query_id_xxx_yyy_zzz = new NameAndQueryId(
+                uuid,
+                kind,
+                queryId,
+              );
             }}
             language={
               selectSql.language ? selectSql.language : getDefaultLanguage(kind)

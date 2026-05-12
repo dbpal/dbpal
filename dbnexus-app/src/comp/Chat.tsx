@@ -44,12 +44,10 @@ import ArrowCircleUpIcon from "@mui/icons-material/ArrowCircleUp";
 import EventNoteIcon from "@mui/icons-material/EventNote";
 import {
   convertPathToDataUrl,
-  dbpalQuerykey,
   editorAppendContent,
   EscDownEvent,
   extractBaseName,
   modalHandleClose,
-  NameAndQueryId,
   providerQueryID,
   uuidv4,
 } from "./Common.ts";
@@ -210,7 +208,7 @@ function SqlChatTextInput(props: { uuid: string }) {
       let wholeText = "";
       setInvokeStatus("trying getting stream response");
       let i = 0;
-      let queryId = editor.getModel()[dbpalQuerykey] as NameAndQueryId;
+      let queryId = editor.getModel()._dbpal_query_id_xxx_yyy_zzz;
       saveMessage(connName, "user", question);
       // messagesByNames is because of `ChatHistory` will render and fetch ,and this tricky.
       const history = messagesByNames[connName];
@@ -238,17 +236,20 @@ function SqlChatTextInput(props: { uuid: string }) {
         userDefinePrompts[connName],
         (event) => {
           setInvokeStatus("receiving stream response#" + i);
-          if (event.content) {
-            let msg = event.content.msg;
-            editorAppendContent(editor, msg);
-            wholeText += msg;
-            i++;
-          } else if (event.tokenusage) {
-            showNotification({
-              severity: "info",
-              title: "token usage",
-              message: `input token:${event.tokenusage.input_token}  output token:${event.tokenusage.output_token} total token:${event.tokenusage.total_token}`,
-            });
+
+          switch (event.resp_type) {
+            case "content":
+              editorAppendContent(editor, event.msg);
+              wholeText += event.msg;
+              i++;
+              break;
+            case "tokenusage":
+              showNotification({
+                severity: "info",
+                title: "token usage",
+                message: `input token:${event.input_token}  output token:${event.output_token} total token:${event.total_token}`,
+              });
+              break;
           }
         },
         (f) => {
@@ -462,7 +463,9 @@ function SqlChatTextInput(props: { uuid: string }) {
             setQuestion(v);
           }}
           handleEditor={(e) => {
-            e.getModel()[dbpalQuerykey] = { ...editor.getModel()[dbpalQuerykey] };
+            e.getModel()._dbpal_query_id_xxx_yyy_zzz = {
+              ...editor.getModel()._dbpal_query_id_xxx_yyy_zzz,
+            };
           }}
         />
       </Paper>

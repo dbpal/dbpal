@@ -104,9 +104,11 @@ import {
   usePageSize,
   UseSizeConfig,
   useSizeStore,
+  useSqlDataFilter,
+  useSqlTableFilterOp,
   useTableColumnVisibleStore,
 } from "./store";
-import { commands, Field, MuiDataGridData, ShowTableParameter } from "./bindings";
+import { commands, Field, MuiDataGridData } from "./bindings";
 import { ExportTableOrView } from "./Export";
 import {
   DataGrid,
@@ -247,12 +249,10 @@ interface SqlTableCustomToolBarLeftProps {
   setSort: (val: string) => void;
   kind: DataSourceKind; // 假设你已经定义了这个 Enum 或 Type
   allowFiltering: boolean;
-  setAllowFiltering: (val: boolean) => void;
+  setAllowFiltering: Dispatch<SetStateAction<boolean>>;
   isTable: boolean;
   uuid: string;
   tableName: string;
-  ops: DatabaseOperation[];
-  setOps: Dispatch<SetStateAction<DatabaseOperation[]>>;
 }
 // 建议放在文件顶部，或者单独的文件中
 function SqlTableCustomToolBarLeft({
@@ -267,10 +267,10 @@ function SqlTableCustomToolBarLeft({
   isTable,
   uuid,
   tableName,
-  ops,
-  setOps,
 }: SqlTableCustomToolBarLeftProps) {
   // 获取 DataGrid 内部的 api 实例
+
+  const { ops, setOps } = useContext(OpsContext);
   const apiRef = useGridApiContext();
   const [showSetWhere, setShowSetWhere] = useState(false);
   const [showSetSort, setShowSetSort] = useState(false);
@@ -790,7 +790,7 @@ function SqlTableView(props: {
       page_size: pageSize,
       allow_filtering: allowFiltering,
       limit: getSize(UseSizeConfig.queryLimit),
-    } as ShowTableParameter;
+    };
   }, [allowFiltering, getSize, page, pageSize, sort, where]);
   const handleReload = useCallback(
     (showOK: boolean) => {
@@ -1045,8 +1045,6 @@ function SqlTableView(props: {
             isTable,
             tableName,
             uuid,
-            ops,
-            setOps,
           };
         })(),
       },
@@ -1065,10 +1063,9 @@ function SqlTableView(props: {
     where,
     sort,
     allowFiltering,
-    ops,
   ]);
 
-  const slots = useMemo(() => {
+  const slots = useMemo((): Partial<GridSlotsComponent> => {
     return {
       columnMenu: AppColumnMenu,
       toolbar: ({
@@ -1098,7 +1095,7 @@ function SqlTableView(props: {
         );
       },
       pagination: CustomPagination,
-    } as Partial<GridSlotsComponent>;
+    };
   }, [isTable, kind, makePara, setUi, tableName, uuid]);
   const sortModel = clientModel ? "client" : "server";
   const { getColumnVisibility, setColumnVisibility } = useTableColumnVisibleStore(
@@ -1236,8 +1233,6 @@ function SqlTableView(props: {
   );
 }
 
-let SqlTableViewDataMatch = "";
-
 function SqlTableViewData(props: {
   handleData: (args: any) => Promise<void>;
   fields: Field[];
@@ -1255,10 +1250,9 @@ function SqlTableViewData(props: {
       initValues[e.field] = "";
     }
   });
-  const [filter, setFilter] = useState(SqlTableViewDataMatch);
+  const { filter, setFilter } = useSqlDataFilter();
 
   const filterFn = useMemo(() => {
-    SqlTableViewDataMatch = filter;
     return filter
       ? wcmatch("*" + filter + "*", { flags: "i" })
       : () => {
@@ -1526,7 +1520,6 @@ function Menu(props: {
   );
 }
 
-let lastCompare = "=";
 function FilterOnValue(props: {
   content: string;
   setWhere;
@@ -1537,12 +1530,10 @@ function FilterOnValue(props: {
 }) {
   const { content, setWhere, field, handleClose, putValueInSql, kind } = props;
   const compares = ["=", "<>", ">", ">=", "<", "<="];
-  const [compare, setCompare] = useState(lastCompare);
   const { showNotification } = useNotification();
   const [formatValue, setFormatValue] = useState("");
-  useEffect(() => {
-    lastCompare = compare;
-  }, [compare]);
+
+  const { filter, setFilter } = useSqlTableFilterOp();
   useEffect(() => {
     putValueInSql(content)
       .then((value) => {
@@ -1559,22 +1550,22 @@ function FilterOnValue(props: {
 
   const where = () => {
     const quoteField = quoteDatabaseIdentifier(field, kind);
-    if (compare == "null") {
+    if (filter == "null") {
       return `${quoteField} IS NULL`;
     }
-    if (compare == "not null") {
+    if (filter == "not null") {
       return `${quoteField} IS NOT NULL`;
     }
-    if (compare == "starts") {
+    if (filter == "starts") {
       return `${quoteField} LIKE '${content}%'`;
     }
-    if (compare == "ends") {
+    if (filter == "ends") {
       return `${quoteField} LIKE '%${content}'`;
     }
-    if (compare == "contains") {
+    if (filter == "contains") {
       return `${quoteField} LIKE '%${content}%'`;
     }
-    return `${quoteField} ${compare} ${formatValue}`;
+    return `${quoteField} ${filter} ${formatValue}`;
   };
   return (
     <Stack spacing={1}>
@@ -1583,10 +1574,10 @@ function FilterOnValue(props: {
           <Chip
             key={x}
             onClick={() => {
-              setCompare(x);
+              setFilter(x);
             }}
             label={x}
-            color={compare == x ? "success" : "default"}
+            color={filter == x ? "success" : "default"}
             style={{ minWidth: "3rem" }}
           />
         ))}
@@ -1595,9 +1586,9 @@ function FilterOnValue(props: {
         {["null", "not null"].map((e) => (
           <Chip
             label={e}
-            color={compare == e ? "success" : "default"}
+            color={filter == e ? "success" : "default"}
             onClick={() => {
-              setCompare(e);
+              setFilter(e);
             }}
             key={e}
           />
@@ -1608,9 +1599,9 @@ function FilterOnValue(props: {
           {["starts", "ends", "contains"].map((e) => (
             <Chip
               label={e}
-              color={compare == e ? "success" : "default"}
+              color={filter == e ? "success" : "default"}
               onClick={() => {
-                setCompare(e);
+                setFilter(e);
               }}
               key={e}
             />

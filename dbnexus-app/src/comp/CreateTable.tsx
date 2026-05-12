@@ -232,7 +232,7 @@ function CreateTable(props: { uuid: string; kind: DataSourceKind }) {
                     name: "",
                     columns: [],
                     kind: "index",
-                  } as CreateIndexReq,
+                  },
                 ]);
               }}>
               <AddIcon />

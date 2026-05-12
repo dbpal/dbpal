@@ -390,13 +390,13 @@ function generateDefaultFilename(name: string, extension: string) {
   const filename = `${name}_${timestamp}.${extension}`;
   return filename;
 }
-const textEllipsisStyle = {
+const textEllipsisStyle: CSSProperties = {
   whiteSpace: "nowrap",
   overflow: "hidden",
   textOverflow: "ellipsis",
   flexShrink: 1,
   minWidth: "1rem",
-} as CSSProperties;
+};
 
 enum RedisTableType {
   String = "string",
@@ -476,13 +476,13 @@ function isWindows() {
   return platform() == "windows";
 }
 
-const dataGridStyle = {
+const dataGridStyle: CSSProperties = {
   flexGrow: 1,
   height: "100px",
   flexShrink: 1,
   // 这个值用 0% 在windows也有问题好像会把datagrid变得很高 用0 都可以 用0% 都不可以 然而flex为1 设置的值是0% 可能是兼容性的问题
   flexBasis: "0",
-} as CSSProperties;
+};
 
 enum ViewKind {
   View,
@@ -513,11 +513,11 @@ setUpEditorThemes();
 
 const dataGridheaderFontSize = "0.8rem";
 
-const shrinkAble = {
+const shrinkAble: CSSProperties = {
   flexShrink: 1,
   overflow: "hidden",
   minWidth: "3rem",
-} as CSSProperties;
+};
 
 const resizeHandlerSize = 4;
 

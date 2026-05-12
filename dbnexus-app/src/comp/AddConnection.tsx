@@ -252,7 +252,7 @@ function SqlServerCert(props: {
               setData({
                 ...data,
                 trust_cert: e.target.checked,
-              } as SqlServerCertData)
+              })
             }
           />
         }
@@ -341,14 +341,14 @@ function SslFiles(props: {
 
 function PGSSL(props: { ssl: PgSsl; setSsl: Dispatch<SetStateAction<PgSsl>> }) {
   const { ssl, setSsl } = props;
-  const modes = [
+  const modes: PgSslMode[] = [
     "disable",
     "allow",
     "prefer",
     "require",
     "verifyca",
     "verifyfull",
-  ] as PgSslMode[];
+  ];
 
   return (
     <Stack direction="row" style={{ alignItems: "center", flexWrap: "wrap" }}>
@@ -357,7 +357,7 @@ function PGSSL(props: { ssl: PgSsl; setSsl: Dispatch<SetStateAction<PgSsl>> }) {
         <Select
           value={ssl.ssl_mode}
           label="ssl mode"
-          onChange={(e) => setSsl({ ...ssl, ssl_mode: e.target.value } as PgSsl)}>
+          onChange={(e) => setSsl({ ...ssl, ssl_mode: e.target.value })}>
           {modes.map((mode) => (
             <MenuItem value={mode} key={mode}>
               {mode}
@@ -390,7 +390,7 @@ function MysqlSSl(props: {
         <Select
           value={ssl.ssl_mode}
           label="ssl mode"
-          onChange={(e) => setSsl({ ...ssl, ssl_mode: e.target.value } as MysqlSsl)}>
+          onChange={(e) => setSsl({ ...ssl, ssl_mode: e.target.value })}>
           {modes.map((e) => (
             <MenuItem value={e} key={e}>
               {e}

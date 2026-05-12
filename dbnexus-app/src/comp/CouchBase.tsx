@@ -42,7 +42,7 @@ import FilterAltIcon from "@mui/icons-material/FilterAlt";
 import { FaArrowsAltV, FaUpload } from "react-icons/fa";
 import { SelectPageSize } from "./CommonComp.tsx";
 import { Channel } from "@tauri-apps/api/core";
-import { dbpalQuerykey, NameAndQueryId, uuidv4 } from "./Common.ts";
+import { NameAndQueryId, uuidv4 } from "./Common.ts";
 import { editor } from "monaco-editor";
 import { Panel, PanelGroup, PanelResizeHandle } from "react-resizable-panels";
 import { ExportView } from "./Export.tsx";
@@ -57,13 +57,7 @@ import {
 } from "./store.tsx";
 import { persist } from "zustand/middleware";
 import { create } from "zustand";
-import {
-  commands,
-  Field,
-  MuiDataGridData,
-  QueryEvent,
-  ShowTableParameter,
-} from "./bindings.ts";
+import { commands, Field, MuiDataGridData, QueryEvent } from "./bindings.ts";
 import { AddTableModal } from "./LeftTable.tsx";
 export enum CBQueryViewMode {
   Table = "table",
@@ -160,10 +154,10 @@ function CouchBaseTable(props: { uuid: string; table: string }) {
         table,
         {
           where_str: where ? where : undefined,
-          sort_str: sort ? sort : undefined,
+          order_by: sort ? sort : undefined,
           page_size: pageSize,
           page: page,
-        } as ShowTableParameter,
+        },
         c,
       )
 
@@ -291,7 +285,7 @@ function CouchBaseTable(props: { uuid: string; table: string }) {
                     data: resp.data.map((e) =>
                       e.id == item.id ? { ...e, data: newV } : e,
                     ),
-                  } as Data;
+                  };
                 });
               }}
             />
@@ -804,7 +798,7 @@ function CouchBaseQuery(props: { uuid: string; value?: string }) {
             language={markdownModel ? "markdown" : "sql"}
             handleEditor={(e) => {
               setEditor(e);
-              e.getModel()[dbpalQuerykey] = new NameAndQueryId(
+              e.getModel()._dbpal_query_id_xxx_yyy_zzz = new NameAndQueryId(
                 uuid,
                 DataSourceKind.CouchBase,
                 "",

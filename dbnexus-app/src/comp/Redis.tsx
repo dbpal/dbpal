@@ -1219,7 +1219,7 @@ function RedisListTable(props: { listKey: string; uuid: string }) {
         total: respOrigin.total,
         fields: respOrigin.fields,
         data: respOrigin.data.slice().reverse(),
-      } as MuiDataGridData);
+      });
     },
     [respOrigin],
   );

@@ -413,7 +413,7 @@ function CopyConnection() {
     [appendTab],
   );
 
-  const slotProps = useMemo(() => {
+  const slotProps = useMemo((): GridSlotsComponentsProps => {
     return {
       row: {
         onContextMenu: (e) => {
@@ -430,11 +430,11 @@ function CopyConnection() {
         },
         style: { cursor: "context-menu" },
       },
-    } as GridSlotsComponentsProps;
+    };
   }, [setUpMenu]);
 
-  const cols = useMemo(() => {
-    const cols = [
+  const cols = useMemo((): GridColDef[] => {
+    const cols: GridColDef[] = [
       { field: "name" },
       { field: "username" },
 
@@ -462,7 +462,7 @@ function CopyConnection() {
           return "read only";
         },
       },
-    ] as GridColDef[];
+    ];
     cols.forEach((e) => {
       const width = getColumnWidth(e.field);
 
@@ -485,7 +485,7 @@ function CopyConnection() {
     [handleRow],
   );
 
-  const slots = useMemo(() => {
+  const slots = useMemo((): Partial<GridSlotsComponent> => {
     return {
       toolbar: AppDataGridToolBar,
       pagination: () => {
@@ -500,7 +500,7 @@ function CopyConnection() {
           </Stack>
         );
       },
-    } as Partial<GridSlotsComponent>;
+    };
   }, []);
 
   return (
@@ -680,7 +680,7 @@ function FavoriteSqlList() {
   }, [handleReload, uuidFilter]);
 
   const setUpMenu = useContextMenu((state) => state.setUpMenu);
-  const slotProps = useMemo(() => {
+  const slotProps = useMemo((): GridSlotsComponentsProps => {
     return {
       row: {
         onContextMenu: (e) => {
@@ -705,11 +705,11 @@ function FavoriteSqlList() {
         },
         style: { cursor: "context-menu" },
       },
-    } as GridSlotsComponentsProps;
+    };
   }, [handleReload, setUpMenu]);
 
-  const columns = useMemo(() => {
-    const cols = [
+  const columns = useMemo((): GridColDef[] => {
+    const cols: GridColDef[] = [
       {
         field: "uuid",
         renderHeader: () => {
@@ -734,7 +734,7 @@ function FavoriteSqlList() {
           return "last modified";
         },
       },
-    ] as GridColDef[];
+    ];
     cols.forEach((e) => {
       const width = getColumnWidth(e.field);
       e.width = width;

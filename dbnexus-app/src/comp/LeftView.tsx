@@ -305,7 +305,7 @@ function ColumnsContent(props: { uuid: string; view: string }) {
   useEffect(() => {
     handleReload();
   }, [handleReload]);
-  const cols = useMemo(() => {
+  const cols = useMemo((): GridColDef[] => {
     return [
       { field: "field" },
       {
@@ -314,7 +314,7 @@ function ColumnsContent(props: { uuid: string; view: string }) {
           return "data type";
         },
       },
-    ] as GridColDef[];
+    ];
   }, []);
   cols.forEach((e) => {
     const width = getColumnWidth(e.field);
@@ -325,7 +325,7 @@ function ColumnsContent(props: { uuid: string; view: string }) {
 
   const setUpMenu = useContextMenu((state) => state.setUpMenu);
 
-  const slotProps = useMemo(() => {
+  const slotProps = useMemo(() : GridSlotsComponentsProps => {
     return {
       row: {
         onContextMenu: (e) => {
@@ -344,7 +344,7 @@ function ColumnsContent(props: { uuid: string; view: string }) {
         },
         style: { cursor: "context-menu" },
       },
-    } as GridSlotsComponentsProps;
+    }   ;
   }, [setUpMenu]);
 
   const getRowId = useCallback((e) => {

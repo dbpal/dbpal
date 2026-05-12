@@ -45,7 +45,7 @@ pub struct OpenAIReq {
     pub chat_history: Vec<ChatHistory>,
 }
 #[derive(serde::Serialize, serde::Deserialize, Debug, Clone, specta::Type)]
-#[serde(rename_all = "lowercase")]
+#[serde(tag = "resp_type", rename_all = "lowercase")]
 
 pub enum AISteamResp {
     Content {

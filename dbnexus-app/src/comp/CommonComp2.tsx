@@ -70,7 +70,6 @@ import {
 } from "./helper";
 import { editor } from "monaco-editor";
 import {
-  dbpalQuerykey,
   EscDownEvent,
   extractBaseName,
   formatSqlFn,
@@ -1287,10 +1286,7 @@ function SelectColumnAsc(props: {
           if (value) {
             const index = includes.findIndex((e) => e.col == value);
             if (index == -1) {
-              setIncludes([
-                ...includes,
-                { col: value, asc: null } as CreateIndexColumn,
-              ]);
+              setIncludes([...includes, { col: value, asc: null }]);
             }
           }
         }}
@@ -1626,7 +1622,7 @@ function SetFilterSort(props: {
             setEditor(e);
             e.focus();
             editorPositionToEnd(e);
-            e.getModel()[dbpalQuerykey] = new NameAndQueryId(uuid, kind);
+            e.getModel()._dbpal_query_id_xxx_yyy_zzz = new NameAndQueryId(uuid, kind);
           }}
           language={"sql"}
         />
