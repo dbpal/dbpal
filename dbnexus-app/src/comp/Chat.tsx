@@ -208,7 +208,7 @@ function SqlChatTextInput(props: { uuid: string }) {
       let wholeText = "";
       setInvokeStatus("trying getting stream response");
       let i = 0;
-      let queryId = editor.getModel()._dbpal_query_id_xxx_yyy_zzz;
+      let queryId = editor.getModel()._dbpal_query_id;
       saveMessage(connName, "user", question);
       // messagesByNames is because of `ChatHistory` will render and fetch ,and this tricky.
       const history = messagesByNames[connName];
@@ -463,8 +463,8 @@ function SqlChatTextInput(props: { uuid: string }) {
             setQuestion(v);
           }}
           handleEditor={(e) => {
-            e.getModel()._dbpal_query_id_xxx_yyy_zzz = {
-              ...editor.getModel()._dbpal_query_id_xxx_yyy_zzz,
+            e.getModel()._dbpal_query_id = {
+              ...editor.getModel()._dbpal_query_id,
             };
           }}
         />

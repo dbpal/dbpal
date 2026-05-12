@@ -73,7 +73,7 @@ function RedisQuery(props: { favoriteName?: string; value?: string; uuid: string
           favoriteName={favoriteName}
           value={value}
           kind={DataSourceKind.Redis}
-          extras={
+          extraButtons={
             <>
               <Tooltip title="toggle show redis document">
                 <Chip

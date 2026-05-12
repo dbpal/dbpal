@@ -1622,7 +1622,7 @@ function SetFilterSort(props: {
             setEditor(e);
             e.focus();
             editorPositionToEnd(e);
-            e.getModel()._dbpal_query_id_xxx_yyy_zzz = new NameAndQueryId(uuid, kind);
+            e.getModel()._dbpal_query_id = new NameAndQueryId(uuid, kind);
           }}
           language={"sql"}
         />
@@ -1946,7 +1946,7 @@ function ShowingCount(props: { showing: number; total: number }) {
 /**
  * Shows fetch duration and completion time while loading.
  */
-function FetchTimeAndXXX(props: { isLoading: boolean }) {
+function FetchTimeAndLoadingStatus(props: { isLoading: boolean }) {
   const { isLoading } = props;
   const [fetchTime, setFetchTime] = useState<number | null>(null);
   const [date, setDate] = useState<Date>(null);
@@ -2000,7 +2000,7 @@ function FetchTimeDataGrid() {
   // 使用选择器获取当前的 loading 状态
   const isLoading: boolean = useGridSelector(apiRef, gridRowsLoadingSelector);
 
-  return <FetchTimeAndXXX isLoading={isLoading} />;
+  return <FetchTimeAndLoadingStatus isLoading={isLoading} />;
 }
 
 function DataGridPageKeyboardControl() {
@@ -2075,7 +2075,7 @@ function RefreshButton(props: IconButtonProps) {
 export {
   ShowQueryLog,
   FetchTimeDataGrid,
-  FetchTimeAndXXX,
+  FetchTimeAndLoadingStatus,
   ShowingCount,
   CreateDatabase,
   CreateSchema,

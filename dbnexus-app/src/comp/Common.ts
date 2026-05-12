@@ -167,7 +167,7 @@ declare module "monaco-editor" {
   // eslint-disable-next-line @typescript-eslint/no-namespace
   namespace editor {
     interface ITextModel {
-      _dbpal_query_id_xxx_yyy_zzz?: NameAndQueryId;
+      _dbpal_query_id?: NameAndQueryId;
     }
   }
 }
@@ -177,7 +177,7 @@ const autoCompletion = async (
   pos: Position,
 ): Promise<languages.CompletionList | undefined> => {
   const sql = model.getValue();
-  const name = model._dbpal_query_id_xxx_yyy_zzz;
+  const name = model._dbpal_query_id;
   if (!name) {
     console.error("editor id map to backend name is nul,this is internal bug");
     return;
@@ -206,7 +206,7 @@ const aiTextAutoCompletion = async (
     const text = model.getValue();
     {
       // try if this is ai text completion
-      const name = model._dbpal_query_id_xxx_yyy_zzz;
+      const name = model._dbpal_query_id;
       if (name) {
         const result = await commands.aiTextCompletion(
           name.name,
@@ -244,7 +244,7 @@ monaco.languages.registerCompletionItemProvider("text", {
 
 monaco.languages.registerDocumentFormattingEditProvider("sql", {
   provideDocumentFormattingEdits(model, options) {
-    const name = model._dbpal_query_id_xxx_yyy_zzz;
+    const name = model._dbpal_query_id;
     if (!name) {
       console.error("editor id map to backend name is nul,this is internal bug");
       return;

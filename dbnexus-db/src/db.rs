@@ -1998,7 +1998,9 @@ impl QueryResp {
 #[derive(Debug, Clone, serde::Serialize, PartialEq, Eq, specta::Type)]
 pub struct Field {
     pub field: String,
+
     pub data_type: String,
+
     pub nullable: bool,
     /// default value of this field
     pub default_value: Option<String>,

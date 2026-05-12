@@ -376,13 +376,13 @@ function MysqlSSl(props: {
   setSsl: Dispatch<SetStateAction<MysqlSsl>>;
 }) {
   const { ssl, setSsl } = props;
-  const modes = [
+  const models: MySqlSslMode[] = [
     "disabled",
     "preferred",
     "required",
     "verifyca",
     "verifyidentity",
-  ] as MySqlSslMode[];
+  ];
   return (
     <Stack direction="row" style={{ alignItems: "center", flexWrap: "wrap" }}>
       <FormControl style={{ width: "12rem" }}>
@@ -391,7 +391,7 @@ function MysqlSSl(props: {
           value={ssl.ssl_mode}
           label="ssl mode"
           onChange={(e) => setSsl({ ...ssl, ssl_mode: e.target.value })}>
-          {modes.map((e) => (
+          {models.map((e) => (
             <MenuItem value={e} key={e}>
               {e}
             </MenuItem>

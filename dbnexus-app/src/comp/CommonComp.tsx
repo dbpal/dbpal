@@ -861,7 +861,7 @@ function SelectColumns(props: {
         options={fields}
         value={includes}
         multiple
-        onChange={(_, v) => setIncludes(v as string[])}
+        onChange={(_, v) => setIncludes(v)}
         renderInput={(params) => <TextField {...params} label="select columns" />}
       />
     </Stack>

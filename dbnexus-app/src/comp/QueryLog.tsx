@@ -273,11 +273,7 @@ function QueryLog(props: {
           <SimpleFlexEditor
             value={selectSql.sql}
             handleEditor={(e) => {
-              e.getModel()._dbpal_query_id_xxx_yyy_zzz = new NameAndQueryId(
-                uuid,
-                kind,
-                queryId,
-              );
+              e.getModel()._dbpal_query_id = new NameAndQueryId(uuid, kind, queryId);
             }}
             language={
               selectSql.language ? selectSql.language : getDefaultLanguage(kind)

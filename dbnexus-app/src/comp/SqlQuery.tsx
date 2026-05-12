@@ -33,7 +33,7 @@ import {
   AiMarkdownModelSwitch,
   CancelButton,
   EscPressedDo,
-  FetchTimeAndXXX,
+  FetchTimeAndLoadingStatus,
   LoadStoreFile,
   QueryStatus,
   SaveFavoriteSqlView,
@@ -289,9 +289,9 @@ function SqlQuery(props: {
   value?: string;
   favoriteName?: string;
   kind: DataSourceKind;
-  extras?: ReactNode;
+  extraButtons?: ReactNode;
 }) {
-  const { uuid, value, favoriteName, kind, extras } = props;
+  const { uuid, value, favoriteName, kind, extraButtons } = props;
   const [resp, setResp] = useState<QueryRespData[]>([]);
   const [editor, setEditor] = useState<editor.IStandaloneCodeEditor>(null);
   const [loading, setLoading] = useState(false);
@@ -408,7 +408,6 @@ function SqlQuery(props: {
     if (!confirm) {
       return;
     }
-    setResp([]);
     setLoading(true);
     conn.current
       .executeOP(text)
@@ -417,7 +416,7 @@ function SqlQuery(props: {
           saveQueryLog(uuid, text, rustResultOk(e));
         }
         setTimeout(() => {
-          setResp([e]);
+          setResp([...resp, e]);
         }, 50);
         showNotification({ severity: "success", title: "execute ok" });
       })
@@ -471,11 +470,7 @@ function SqlQuery(props: {
 
   useEffect(() => {
     if (editor) {
-      editor.getModel()._dbpal_query_id_xxx_yyy_zzz = new NameAndQueryId(
-        uuid,
-        kind,
-        queryId,
-      );
+      editor.getModel()._dbpal_query_id = new NameAndQueryId(uuid, kind, queryId);
     }
   }, [editor, kind, queryId, uuid]);
 
@@ -620,7 +615,7 @@ function SqlQuery(props: {
             )}
             <ShowQueryLog uuid={uuid} kind={kind} />
 
-            {extras}
+            {extraButtons}
             <ModifyLLMConfigModal />
 
             <ToggleChatShow />
@@ -630,7 +625,7 @@ function SqlQuery(props: {
             />
             {querySomeShow.get(tabCtx.id)}
 
-            <FetchTimeAndXXX isLoading={loading} />
+            <FetchTimeAndLoadingStatus isLoading={loading} />
             <SliderSize config={UseSizeConfig.queryLimit} />
           </Stack>
           <Divider />
@@ -705,7 +700,7 @@ function SqlQuery(props: {
 function appendQueryResult(
   data: QueryRespData[],
   event: QueryEvent,
-  setQueryStatus: (string) => void,
+  setQueryStatus: (_: string) => void,
 ): QueryRespData[] {
   switch (event.kind) {
     case "structure":

@@ -19,7 +19,7 @@ import {
   QueryRespData,
 } from "./helper.ts";
 
-import React, { useCallback, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { keyNotInTable } from "./Common";
 import ArrowUpwardIcon from "@mui/icons-material/ArrowUpward";
 import ArrowDownwardIcon from "@mui/icons-material/ArrowDownward";
@@ -264,6 +264,12 @@ function MultiQueryResp(props: { data: QueryRespData[] }): React.ReactElement {
   const { data } = props;
   const [value, setValue] = React.useState(0);
 
+  useEffect(() => {
+    if (data.length > 0) {
+      setValue(data.length - 1);
+    }
+  }, [data]);
+
   const { showNotification } = useNotification();
   if (data.length == 0) {
     return <></>;
@@ -299,7 +305,12 @@ function MultiQueryResp(props: { data: QueryRespData[] }): React.ReactElement {
         variant="scrollable"
         scrollButtons="auto">
         {data.map((_, index) => (
-          <Tab label={`Result ${index + 1}`} key={index} />
+          <Tab
+            label={(function () {
+              return `Result ${index + 1}`;
+            })()}
+            key={index}
+          />
         ))}
         st
       </Tabs>

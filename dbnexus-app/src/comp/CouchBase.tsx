@@ -14,7 +14,7 @@ import {
   AiMarkdownModelSwitch,
   AppCode,
   ClearableTextField,
-  FetchTimeAndXXX,
+  FetchTimeAndLoadingStatus,
   LoadStoreFile,
   QueryStatus,
   RefreshButton,
@@ -761,7 +761,7 @@ function CouchBaseQuery(props: { uuid: string; value?: string }) {
               setMarkdownModel={setMarkdownModel}
               markdownModel={markdownModel}
             />
-            <FetchTimeAndXXX isLoading={loading} />
+            <FetchTimeAndLoadingStatus isLoading={loading} />
             <SliderSize config={UseSizeConfig.queryLimit} />
           </Stack>
         </Stack>
@@ -798,7 +798,7 @@ function CouchBaseQuery(props: { uuid: string; value?: string }) {
             language={markdownModel ? "markdown" : "sql"}
             handleEditor={(e) => {
               setEditor(e);
-              e.getModel()._dbpal_query_id_xxx_yyy_zzz = new NameAndQueryId(
+              e.getModel()._dbpal_query_id = new NameAndQueryId(
                 uuid,
                 DataSourceKind.CouchBase,
                 "",

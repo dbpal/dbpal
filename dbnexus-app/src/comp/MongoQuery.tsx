@@ -204,7 +204,7 @@ function MongoQuery(props: { uuid: string; favoriteName?: string; value?: string
 const { db, FS, HTTP, BSON } = mongoHandle;
 `);
       ed.setModel(model);
-      ed.getModel()._dbpal_query_id_xxx_yyy_zzz = new NameAndQueryId(
+      ed.getModel()._dbpal_query_id = new NameAndQueryId(
         uuid,
         DataSourceKind.Mongo,
         "",
