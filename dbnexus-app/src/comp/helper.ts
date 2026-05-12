@@ -507,7 +507,7 @@ async function setUpEditorThemes() {
       try {
         monaco.editor.defineTheme(themeName, themeData);
         registeredThemes.push(themeName);
-        if (import.meta.env.DEV) console.log(`define theme successfully: ${themeName}`);
+        // if (import.meta.env.DEV) console.log(`define theme successfully: ${themeName}`);
       } catch (e) {
         if (import.meta.env.DEV) {
           console.error(`define theme ${themeName} failed:`, e);
@@ -553,10 +553,6 @@ const ChatShowContext = createContext<{
 }>(null);
 
 const saveQueryKey = "query-4k9zF7m5p3T1H2";
-
-function isDarkStr(x: string) {
-  return x == "dark";
-}
 
 const QueryIDEditorChatCtx = createContext<{
   queryId: string;
@@ -631,7 +627,6 @@ interface StupidIMarker {
   resource?: any;
 }
 export {
-  isDarkStr,
   saveQueryKey,
   backendCompletionItemToEditor,
   ChatShowContext,

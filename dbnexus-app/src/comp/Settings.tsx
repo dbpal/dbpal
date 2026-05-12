@@ -34,7 +34,6 @@ import {
   dataGridheaderFontSize,
   shrinkAble,
   prettyMs,
-  isDarkStr,
   MonacoEditor,
 } from "./helper";
 
@@ -1197,7 +1196,7 @@ const makeTheme = (
 };
 
 const isDark = (setting: Partial<UserSettings["appearance"]>, osTheme) => {
-  return isDarkStr(setting.theme) || (setting.theme == "system" && isDarkStr(osTheme));
+  return setting.theme === "dark" || (setting.theme === "system" && osTheme === "dark");
 };
 function SettingProvider({ children }) {
   const { appearance, editor, misc, updateAppearance, proxy } = useUserSettings();
