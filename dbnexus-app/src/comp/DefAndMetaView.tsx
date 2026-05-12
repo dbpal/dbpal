@@ -21,7 +21,7 @@ function DefAndMetasView(props: {
   });
   const { showNotification } = useNotification();
   const handleReload = useCallback(
-    (showOk) => {
+    (showOk: boolean) => {
       setLoading(true);
       reloadOP()
         .then((detail) => {

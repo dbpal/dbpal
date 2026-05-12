@@ -880,15 +880,23 @@ function JsonEditor(props: {
   );
 }
 
+interface BsonJsonPaginationProps {
+  total: number;
+  setPage: (page: number) => void;
+  length: number;
+  page: number;
+  gridColCount: number;
+  viewModel: MongoDataViewModel;
+}
+
 function BsonJsonPagination({
   total,
   setPage,
   length,
   page,
-
   gridColCount,
   viewModel,
-}) {
+}: BsonJsonPaginationProps) {
   const [showObjectDoc, setShowObjectDoc] = useState(false);
   const { mongo: pageSize, setPageSize } = usePageSize();
   return (

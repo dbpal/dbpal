@@ -76,6 +76,7 @@ import {
   GridSlotsComponentsProps,
   GridSortModel,
 } from "./datagridExport.ts";
+import { useDebounce } from "use-debounce";
 
 class RedisZsetHashModifyReq {
   constructor(
@@ -816,6 +817,8 @@ function RedisSetTable(props: { setKey: string; uuid: string }) {
     [setKey, uuid],
   );
   const [keyMatch, setKeyMatch] = useState("");
+  const [keyMatchDelay] = useDebounce(keyMatch, 1000);
+
   const [resp, setResp] = useState<MuiDataGridData>(null);
   const { showNotification } = useNotification();
   const [selectRow, setSelectRow] = useState<{ id; value }>(null);
@@ -823,7 +826,7 @@ function RedisSetTable(props: { setKey: string; uuid: string }) {
   const { getSize } = useSizeStore();
   const [queryStatus, setQueryStatus] = useState("");
   const handleReload = useCallback(
-    (showOK) => {
+    (showOK: boolean) => {
       setLoading(true);
       showTable({
         uuid,
@@ -831,7 +834,7 @@ function RedisSetTable(props: { setKey: string; uuid: string }) {
         setLoading,
         para: {
           limit: getSize(UseSizeConfig.queryLimit),
-          where_str: keyMatch ? keyMatch : null,
+          where_str: keyMatchDelay ? keyMatchDelay : null,
         },
         showNotification,
         okCallBack: () => {
@@ -850,7 +853,7 @@ function RedisSetTable(props: { setKey: string; uuid: string }) {
         },
       });
     },
-    [getSize, keyMatch, setKey, showNotification, uuid],
+    [getSize, keyMatchDelay, setKey, showNotification, uuid],
   );
 
   useEffect(() => {
@@ -1484,10 +1487,14 @@ function RedisZsetTable(props: { uuid: string; zsetKey: string }) {
   );
   const { setColumnWidth, getColumnWidth } = useColumnWidthStore();
   const [keyMatch, setKeyMatch] = useState("");
+  const [keyMatchDelay] = useDebounce(keyMatch, 1000);
+
   const [resp, setResp] = useState<MuiDataGridData>(newEmptyResp());
   const [selectRow, setSelectRow] = useState<any>();
   const [min, setMin] = useState("");
   const [max, setMax] = useState("");
+  const [minDelay] = useDebounce(min, 1000);
+  const [maxDelay] = useDebounce(max, 1000);
   const [minErr, setMinErr] = useState(false);
   const [maxErr, setMaxErr] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -1501,8 +1508,8 @@ function RedisZsetTable(props: { uuid: string; zsetKey: string }) {
       if (minErr || maxErr) {
         return;
       }
-      const minValue = parseFloat(min);
-      const maxValue = parseFloat(max);
+      const minValue = parseFloat(minDelay);
+      const maxValue = parseFloat(maxDelay);
       setLoading(true);
       showTable({
         setStatus: setQueryStatus,
@@ -1512,7 +1519,7 @@ function RedisZsetTable(props: { uuid: string; zsetKey: string }) {
         para: {
           min: minValue,
           max: maxValue,
-          where_str: keyMatch ? keyMatch : null,
+          where_str: keyMatchDelay ? keyMatchDelay : null,
           limit: getSize(UseSizeConfig.queryLimit),
         },
 
@@ -1540,11 +1547,11 @@ function RedisZsetTable(props: { uuid: string; zsetKey: string }) {
     [
       minErr,
       maxErr,
-      min,
-      max,
+      minDelay,
+      maxDelay,
       uuid,
       zsetKey,
-      keyMatch,
+      keyMatchDelay,
       getSize,
       showNotification,
       getColumnWidth,
@@ -1849,6 +1856,7 @@ function RedisHashTable(props: { hashKey: string; uuid: string }) {
   const { getColumnWidth, setColumnWidth } = useColumnWidthStore();
 
   const [keyMatch, setKeyMatch] = useState("");
+  const [keyMatchDelay] = useDebounce(keyMatch, 1000);
   const [resp, setResp] = useState<MuiDataGridData>(newEmptyResp());
   const { showNotification } = useNotification();
   const [selectRow, setSelectRow] = useState<any>(null);
@@ -1870,7 +1878,7 @@ function RedisHashTable(props: { hashKey: string; uuid: string }) {
         setStatus: setQueryStatus,
         para: {
           limit: getSize(UseSizeConfig.queryLimit),
-          where_str: keyMatch ? keyMatch : null,
+          where_str: keyMatchDelay ? keyMatchDelay : null,
         },
         setLoading,
         showNotification,
@@ -1887,7 +1895,7 @@ function RedisHashTable(props: { hashKey: string; uuid: string }) {
         },
       });
     },
-    [getColumnWidth, getSize, hashKey, keyMatch, showNotification, uuid],
+    [getColumnWidth, getSize, hashKey, keyMatchDelay, showNotification, uuid],
   );
   useEffect(() => {
     handleReload(false);

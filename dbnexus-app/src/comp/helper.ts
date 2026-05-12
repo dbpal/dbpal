@@ -454,17 +454,11 @@ class KeyPressed {
   }
 
   static prevPage(e: KeyboardEvent) {
-    return (
-      (isMacOs() && e.metaKey && e.key === "ArrowUp") ||
-      (!isMacOs() && e.ctrlKey && e.key === "ArrowUp")
-    );
+    return KeyPressed.matchControl(e, "ArrowUp");
   }
 
   static nextPage(e: KeyboardEvent) {
-    return (
-      (isMacOs() && e.metaKey && e.key === "ArrowDown") ||
-      (!isMacOs() && e.ctrlKey && e.key === "ArrowDown")
-    );
+    return KeyPressed.matchControl(e, "ArrowDown");
   }
 }
 
