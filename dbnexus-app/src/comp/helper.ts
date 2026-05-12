@@ -15,11 +15,10 @@ import { readText, writeText } from "@tauri-apps/plugin-clipboard-manager";
 import { BSON } from "bson";
 import { WebviewWindow } from "@tauri-apps/api/webviewWindow";
 import { platform } from "@tauri-apps/plugin-os";
-import themelist from "../../monaco-themes/themes/themelist.json";
 import prettyMilliseconds from "pretty-ms";
-import { commands, CompletionItem, CompletionKind, MuiDataGridData } from "./bindings";
+import { CompletionItem, CompletionKind, MuiDataGridData } from "./bindings";
 import { NotificationParams } from "./store";
-import { uuidv4 } from "./Common";
+import { extractBaseName, uuidv4 } from "./Common";
 
 const pageSizeOptions = [10, 20, 50, 100];
 function prettyMs(x: number) {
@@ -487,16 +486,33 @@ const registeredThemes = [];
 
 async function setUpEditorThemes() {
   try {
-    const themes = await commands.monacoEditorThemes();
-    const themeObject = {};
-    for (const key in themes) {
-      themeObject[key] = JSON.parse(themes[key]);
-    }
-    for (const key in themelist) {
-      const v = themelist[key];
-      monaco.editor.defineTheme(key, themeObject[v]);
-      registeredThemes.push(key);
-    }
+    const modules = import.meta.glob("../../monaco-themes/themes/*.json", {
+      eager: true,
+    });
+
+    Object.entries(modules).forEach(([path, module]) => {
+      // 1. 提取文件名并清理非法字符（去掉空格）
+      const themeName = path
+        .split("/")
+        .pop()!
+        .replace(".json", "")
+        .replace(/\s+/g, "-"); // 把空格换成连字符，例如 "All-Hallows-Eve"
+
+      if (themeName == "themelist") {
+        return;
+      }
+      // 2. 确保传入的是对象内容，而不是整个 module
+      const themeData = (module as any).default;
+      try {
+        monaco.editor.defineTheme(themeName, themeData);
+        registeredThemes.push(themeName);
+        if (import.meta.env.DEV) console.log(`define theme successfully: ${themeName}`);
+      } catch (e) {
+        if (import.meta.env.DEV) {
+          console.error(`define theme ${themeName} failed:`, e);
+        }
+      }
+    });
   } catch (e) {
     message("set up editor themes failed,err:" + String(e), { kind: "error" });
     console.error("set up editor themes failed", e);

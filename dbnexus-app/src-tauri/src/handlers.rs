@@ -16,7 +16,6 @@ use dbnexus_db::mongo::MongoDB;
 
 use dbnexus_db::redis::{redis_tokenize, RedisDB, RedisListTableRet};
 use dbnexus_db::redis_lang_server::REDIS_COMMANDS_MD_FILES;
-use include_dir::{include_dir, Dir};
 use mongodb::bson::{self, doc, Document};
 use rand::RngExt;
 use std::collections::HashMap;
@@ -76,31 +75,6 @@ pub async fn cancel_task(
         )));
     }
     Ok(())
-}
-
-#[specta::specta]
-#[tauri::command]
-pub async fn monaco_editor_themes() -> Result<HashMap<&'static str, &'static str>, ErrorFrontend> {
-    let mut ret = HashMap::new();
-    static FILES: Dir = include_dir!("$CARGO_MANIFEST_DIR/../monaco-themes/themes");
-    for en in FILES.entries() {
-        match en {
-            include_dir::DirEntry::Dir(..) => {}
-            include_dir::DirEntry::File(file) => {
-                let name = file
-                    .path()
-                    .file_name()
-                    .and_then(|x| x.to_str())
-                    .expect("filename convert to str should be ok");
-                if name == "themelist.json" {
-                    continue;
-                }
-                let db_name = name.strip_suffix(".json").expect(" must end with .json");
-                ret.insert(db_name, file.contents_utf8().expect("must be utf8"));
-            }
-        }
-    }
-    Ok(ret)
 }
 
 #[specta::specta]
