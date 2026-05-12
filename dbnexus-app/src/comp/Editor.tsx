@@ -1,13 +1,12 @@
 import { ReactNode, useEffect, useMemo, useRef, useState } from "react";
-import * as monaco from "monaco-editor";
 import { useUserSettings } from "./store";
 import { Paper, Stack, Typography } from "@mui/material";
-import { MarkerSeverity } from "monaco-editor";
+import { editor, MarkerSeverity } from "monaco-editor";
 
 interface MonacoEditorProps {
   value?: string;
   language: string;
-  onMount: (_: monaco.editor.IStandaloneCodeEditor) => void;
+  onMount: (_: editor.IStandaloneCodeEditor) => void;
   readOnly?: boolean;
   barLeft?: ReactNode;
 }
@@ -23,37 +22,34 @@ function MonacoEditor({
 }: MonacoEditorProps) {
   const editorRef = useRef<HTMLDivElement>(null);
 
-  const [editorIns, setIns] = useState<monaco.editor.IStandaloneCodeEditor | null>(
-    null,
-  );
+  const [editorIns, setIns] = useState<editor.IStandaloneCodeEditor>(null);
 
   const [pos, setPos] = useState(null);
   const settting = useUserSettings();
 
-  const [markers, setMarkers] = useState<monaco.editor.IMarker[]>([]);
+  const [markers, setMarkers] = useState<editor.IMarker[]>([]);
 
-  const options: monaco.editor.IEditorOptions & monaco.editor.IGlobalEditorOptions =
-    useMemo(
-      () => ({
-        fontSize: settting.appearance.fontSize,
-        fontWeight: settting.appearance.fontWeight,
-        fontFamily: settting.appearance.fontFamily,
-        readOnly: readOnly,
-        ...JSON.parse(settting.editor.editorOption),
-      }),
-      [
-        readOnly,
-        settting.appearance.fontFamily,
-        settting.appearance.fontSize,
-        settting.appearance.fontWeight,
-        settting.editor.editorOption,
-      ],
-    );
+  const options: editor.IEditorOptions & editor.IGlobalEditorOptions = useMemo(
+    () => ({
+      fontSize: settting.appearance.fontSize,
+      fontWeight: settting.appearance.fontWeight,
+      fontFamily: settting.appearance.fontFamily,
+      readOnly: readOnly,
+      ...JSON.parse(settting.editor.editorOption),
+    }),
+    [
+      readOnly,
+      settting.appearance.fontFamily,
+      settting.appearance.fontSize,
+      settting.appearance.fontWeight,
+      settting.editor.editorOption,
+    ],
+  );
 
   useEffect(() => {
     if (!editorIns) {
       // 1. 初始化编辑器
-      const ed = monaco.editor.create(editorRef.current, { automaticLayout: true });
+      const ed = editor.create(editorRef.current, { automaticLayout: true });
       setIns(ed);
       ed.focus();
     }
@@ -97,7 +93,7 @@ function MonacoEditor({
     if (!instanceModel) {
       return;
     }
-    monaco.editor.setModelLanguage(instanceModel, language);
+    editor.setModelLanguage(instanceModel, language);
   }, [editorIns, instanceModel, language]);
   useEffect(() => {
     if (!editorIns) {
@@ -118,7 +114,7 @@ function MonacoEditor({
       const model = editorIns.getModel();
       if (!model) return;
 
-      const markers = monaco.editor.getModelMarkers({
+      const markers = editor.getModelMarkers({
         resource: model.uri,
       });
 

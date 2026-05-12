@@ -244,8 +244,8 @@ function quoteDatabaseIdentifier(identifier: string, kind: DataSourceKind): stri
   return q + identifier + q;
 }
 
-function connTypeToDataSourceKind(name: string): DataSourceKind {
-  return name as DataSourceKind;
+function connTypeToDataSourceKind(x: string): DataSourceKind {
+  return x as DataSourceKind;
 }
 function isTypeLargeText(s: string): boolean {
   const toUpper = s.toUpperCase();

@@ -494,7 +494,6 @@ function ShowChatDocuments(props: {
   setDocuments: Dispatch<SetStateAction<string[]>>;
 }) {
   const { documents, setDocuments } = props;
-
   return (
     <Stack direction="row" style={{ alignItems: "center" }}>
       {documents.map((path, index) => (

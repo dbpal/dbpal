@@ -11,7 +11,8 @@ use couchbase::{
     scope::Scope,
 };
 use futures_util::StreamExt;
-use serde_json::Value;
+use serde::Serialize;
+use serde_json::{ser::PrettyFormatter, Serializer, Value};
 
 use crate::{
     datasource_config::CouchBaseDBConfig,
@@ -377,8 +378,17 @@ impl SchemaTrait for CouchBaseDB {
                     row
                 )),
             };
-            let data = serde_json::to_string_pretty(row.get(table_name).unwrap_or(&Value::Null))?;
-            emit.send(vec![Some(id), Some(data)].into())?;
+
+            let indent = " ".repeat(para.tab_size); // 这里可以是 b"\t" 或任意字节序列
+            let formatter = PrettyFormatter::with_indent(indent.as_bytes());
+
+            let mut buf = Vec::new();
+            let mut serializer = Serializer::with_formatter(&mut buf, formatter);
+            row.get(table_name)
+                .unwrap_or(&Value::Null)
+                .serialize(&mut serializer)?;
+
+            emit.send(vec![Some(id), Some(String::from_utf8(buf)?)].into())?;
         }
         anyhow::Ok(())
     }

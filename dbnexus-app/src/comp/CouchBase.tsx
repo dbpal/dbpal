@@ -48,39 +48,18 @@ import { Panel, PanelGroup, PanelResizeHandle } from "react-resizable-panels";
 import { ExportView } from "./Export.tsx";
 import { QueryResp } from "./QueryResp.tsx";
 import {
+  CBQueryViewMode,
+  useCBQueryViewStore,
   useNotification,
   useOneShotDialogUI,
   usePageSize,
   useQueryLogStore,
   UseSizeConfig,
   useSizeStore,
+  useTabSize,
 } from "./store.tsx";
-import { persist } from "zustand/middleware";
-import { create } from "zustand";
 import { commands, Field, MuiDataGridData, QueryEvent } from "./bindings.ts";
 import { AddTableModal } from "./LeftTable.tsx";
-export enum CBQueryViewMode {
-  Table = "table",
-  Json = "json",
-}
-
-interface CBQueryViewState {
-  viewMode: CBQueryViewMode;
-  setViewMode: (mode: CBQueryViewMode) => void;
-}
-
-export const useCBQueryViewStore = create<CBQueryViewState>()(
-  persist(
-    (set) => ({
-      // 預設值為 Json (對應你 load 裡面的邏輯)
-      viewMode: CBQueryViewMode.Json,
-      setViewMode: (viewMode) => set({ viewMode }),
-    }),
-    {
-      name: "couchbase-query-view-mode",
-    },
-  ),
-);
 
 type Data = {
   data: { data: string; id: string }[];
@@ -106,6 +85,7 @@ function CouchBaseTable(props: { uuid: string; table: string }) {
   const [loading, setLoading] = useState(true);
   const [queryStatus, setQueryStatus] = useState("");
   const { showNotification } = useNotification();
+  const tabSize = useTabSize();
 
   const handleReload = useCallback(() => {
     const c = new Channel<QueryEvent>((event) => {
@@ -157,6 +137,7 @@ function CouchBaseTable(props: { uuid: string; table: string }) {
           order_by: sort ? sort : undefined,
           page_size: pageSize,
           page: page,
+          tab_size: tabSize,
         },
         c,
       )
@@ -167,7 +148,7 @@ function CouchBaseTable(props: { uuid: string; table: string }) {
       .finally(() => {
         setLoading(false);
       });
-  }, [page, pageSize, showNotification, sort, table, uuid, where]);
+  }, [page, pageSize, showNotification, sort, tabSize, table, uuid, where]);
   useEffect(() => {
     handleReload();
   }, [handleReload]);
@@ -832,9 +813,6 @@ function CouchBaseQuery(props: { uuid: string; value?: string }) {
             />
           ) : (
             <span> </span>
-          )}
-          {resp.length > 0 && (
-            <Typography color="info"> rows:{resp.length} </Typography>
           )}
         </Stack>
 

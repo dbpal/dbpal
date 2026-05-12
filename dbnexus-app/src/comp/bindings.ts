@@ -34,6 +34,7 @@ export const commands = {
 	min?: number | null,
 	max?: number | null,
 	allow_filtering?: boolean,
+	tab_size?: number,
 } | null, filepath: string, kind: ExportKind) => __TAURI_INVOKE<null>("export_table_or_view", { dbName, taskId, sizeEmitter, tableOrView, para, filepath, kind }),
 	showTrigger: (dbName: string, tableName: string) => __TAURI_INVOKE<TriggerDetail[]>("show_trigger", { dbName, tableName }),
 	testConnection: (config: DBConnectionConfig) => __TAURI_INVOKE<number>("test_connection", { config }),
@@ -588,6 +589,7 @@ export type ShowTableParameter = {
 	min?: number | null,
 	max?: number | null,
 	allow_filtering?: boolean,
+	tab_size?: number,
 };
 
 export type SqlEvent = {

@@ -55,7 +55,7 @@ import {
   UseSizeConfig,
   useSizeStore,
 } from "./store.tsx";
-import { MuiDataGridData, QueryEvent } from "./bindings.ts";
+import { QueryEvent } from "./bindings.ts";
 
 function SqlTransaction(props: { conn: QueryConn; executeTimes: number }) {
   const { conn, executeTimes } = props;
@@ -722,7 +722,7 @@ function appendQueryResult(
         );
         return data;
       }
-      let cop = { ...data[index].Ok } as MuiDataGridData;
+      let cop = { ...data[index].Ok };
       cop.data = [
         ...cop.data,
         ...event.data.map((d) => {

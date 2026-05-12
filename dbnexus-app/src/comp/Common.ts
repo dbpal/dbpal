@@ -568,7 +568,7 @@ export function generateRandomId(length = 8) {
 
   return result;
 }
-
+// seprate window provider query id to avoid conflict with editor content
 const providerQueryID = { id: "" };
 export {
   dropDatabase,

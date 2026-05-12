@@ -325,7 +325,7 @@ function ColumnsContent(props: { uuid: string; view: string }) {
 
   const setUpMenu = useContextMenu((state) => state.setUpMenu);
 
-  const slotProps = useMemo(() : GridSlotsComponentsProps => {
+  const slotProps = useMemo((): GridSlotsComponentsProps => {
     return {
       row: {
         onContextMenu: (e) => {
@@ -344,13 +344,13 @@ function ColumnsContent(props: { uuid: string; view: string }) {
         },
         style: { cursor: "context-menu" },
       },
-    }   ;
+    };
   }, [setUpMenu]);
 
   const getRowId = useCallback((e) => {
     return e["field"];
   }, []);
-  const slots = useMemo(() => {
+  const slots = useMemo((): Partial<GridSlotsComponent> => {
     return {
       toolbar: () => {
         return (
@@ -360,7 +360,7 @@ function ColumnsContent(props: { uuid: string; view: string }) {
         );
       },
       pagination: AppDataGridPagination,
-    } as Partial<GridSlotsComponent>;
+    };
   }, [handleReload, loading]);
   return (
     <Stack style={{ height: "100%" }}>

@@ -1568,3 +1568,25 @@ export const useSqlDataFilter = create<SqlTableDataFilterState>()(
     },
   ),
 );
+export enum CBQueryViewMode {
+  Table = "table",
+  Json = "json",
+}
+
+interface CBQueryViewState {
+  viewMode: CBQueryViewMode;
+  setViewMode: (mode: CBQueryViewMode) => void;
+}
+
+export const useCBQueryViewStore = create<CBQueryViewState>()(
+  persist(
+    (set) => ({
+      // 預設值為 Json (對應你 load 裡面的邏輯)
+      viewMode: CBQueryViewMode.Json,
+      setViewMode: (viewMode) => set({ viewMode }),
+    }),
+    {
+      name: "couchbase-query-view-mode",
+    },
+  ),
+);

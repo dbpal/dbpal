@@ -176,6 +176,10 @@ pub struct ShowTableParameter {
     pub max: Option<f64>,
     #[serde(default)]
     pub allow_filtering: bool,
+
+    // couchbase can use this parameter to format
+    #[serde(default)]
+    pub tab_size: usize,
 }
 
 impl ShowTableParameter {

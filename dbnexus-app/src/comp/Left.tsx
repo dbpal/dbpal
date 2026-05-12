@@ -15,7 +15,6 @@ import {
   TextField,
   Tooltip,
   Typography,
-  useTheme,
 } from "@mui/material";
 import { IoMdSettings } from "react-icons/io";
 import { IoIosCreate } from "react-icons/io";
@@ -121,17 +120,18 @@ import {
   GridSortModel,
 } from "./datagridExport.ts";
 const settingId = uuidv4();
-const showTopKey = "left-top-show";
+
 function LeftTop() {
+  const showTopShowKey = "left-top-show";
   const { matchPattern, setMatchPattern, setMaxTree, maxTree } = useMatcher();
   const [matchPatterInput, setMatchPatternInput] = useState("");
   const { showNotification } = useNotification();
   const { getSwitch, setSwitch } = useBoolSwitch();
-  const show = getSwitch(showTopKey);
+  const show = getSwitch(showTopShowKey);
   const { appendTab, tabs } = useTabsManage();
   const [showEditFilter, setShowEditFilter] = useState(false);
   const showAddConnection = useCallback(
-    async (conn?: DBConnectionConfig) => {
+    (conn?: DBConnectionConfig) => {
       appendTab(
         new TabContent(
           "add connection",
@@ -168,13 +168,12 @@ function LeftTop() {
   }, [appendTab, tabs]);
 
   const toggleShow = () => {
-    setSwitch(showTopKey, !show);
+    setSwitch(showTopShowKey, !show);
   };
-  const theme = useTheme();
   return (
     <Stack>
       <Stack>
-        {getSwitch(showTopKey) ? (
+        {getSwitch(showTopShowKey) ? (
           <IconButton onClick={toggleShow}>
             <KeyboardArrowDownIcon />
           </IconButton>
@@ -269,7 +268,6 @@ function LeftTop() {
           <Stack
             style={{
               display: show ? "flex" : "none",
-              border: "2px solid " + theme.palette.success.main,
               borderRadius: "0.5rem",
               padding: "2px 0.5rem",
             }}>
@@ -389,11 +387,8 @@ function CopyConnection() {
   const onSortModelChange = useCallback((e) => {
     setSortModel(e);
   }, []);
-
   const { getColumnWidth, setColumnWidth } = useColumnWidthStore();
-
   const setUpMenu = useContextMenu((state) => state.setUpMenu);
-
   const { appendTab } = useTabsManage();
 
   const handleRow = useCallback(
@@ -576,6 +571,14 @@ function FavoriteSqlMenu(props: {
 
       <MenuItem
         onClick={async () => {
+          if (
+            !(await secondConfirm({
+              confirmText: "Delete",
+              title: "delete this favorite sql???",
+            }))
+          ) {
+            return;
+          }
           try {
             await deleteById(id);
             handleReload();
@@ -1220,7 +1223,11 @@ function CatalogMenu(props: { uuid; reload; kind: DataSourceKind }) {
   );
 }
 
-function openNewQuery(appendTab, uuid: string, kind: DataSourceKind) {
+function openNewQuery(
+  appendTab: (_: TabContent) => void,
+  uuid: string,
+  kind: DataSourceKind,
+) {
   console.log("open new query uuid:", uuid);
   const content = <AllKindChat kind={kind} uuid={uuid} />;
   appendTab(new TabContent(`${uuid}`, content, <TbDatabaseSearch />));
@@ -1244,7 +1251,11 @@ function openNewQueryWindow(uuid: string, kind: DataSourceKind) {
   });
 }
 
-function openNewCreateTable(appendTab, uuid: string, kind: DataSourceKind) {
+function openNewCreateTable(
+  appendTab: (_: TabContent) => void,
+  uuid: string,
+  kind: DataSourceKind,
+) {
   const content = <CreateTable kind={kind} uuid={uuid} />;
   appendTab(new TabContent(`create table`, content, <IoIosCreate> </IoIosCreate>));
 }
