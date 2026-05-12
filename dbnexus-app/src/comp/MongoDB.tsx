@@ -990,16 +990,16 @@ function ModalObjectNotice() {
 
 function MongoTableList(props: {
   reloadOP: (page: number, pageSize: number) => Promise<MuiDataGridData>;
-  setSort;
-  setFilter;
+  setSort: Dispatch<SetStateAction<object>>;
+  setFilter: Dispatch<SetStateAction<object>>;
   loadOne: (id: any) => Promise<BSON.Document>;
   modifyOP?: (doc: BSON.Document) => Promise<void>;
   deleteOP?: (ids: any[] | any) => Promise<number>;
   triggerReload;
   loading: boolean;
-  setLoading;
+  setLoading: Dispatch<SetStateAction<boolean>>;
   tableName: string;
-  uuid;
+  uuid: string;
 }) {
   const {
     reloadOP,
