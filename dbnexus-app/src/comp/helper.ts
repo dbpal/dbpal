@@ -492,15 +492,16 @@ async function setUpEditorThemes() {
 
     Object.entries(modules).forEach(([path, module]) => {
       // 1. 提取文件名并清理非法字符（去掉空格）
-      const themeName = path
-        .split("/")
-        .pop()!
-        .replace(".json", "")
-        .replace(/\s+/g, "-"); // 把空格换成连字符，例如 "All-Hallows-Eve"
+      let themeName = extractBaseName(path).slice(0, -5);
 
       if (themeName == "themelist") {
         return;
       }
+      themeName = themeName
+        .replaceAll(" ", "-")
+        .replaceAll("(", "")
+        .replaceAll(")", "");
+
       // 2. 确保传入的是对象内容，而不是整个 module
       const themeData = (module as any).default;
       try {
