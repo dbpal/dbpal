@@ -182,16 +182,7 @@ fn main() {
         }
         Ok(())
     };
-    let about_meta = AboutMetadata {
-        website: Some("https://dbpal.site".to_string()),
-        name: Some("dbpal".to_string()),
-        authors: Some(vec![
-            "756445638@qq.com".to_string(),
-            "yuyangxxxmail@gmail.com".to_string(),
-        ]),
-        copyright: Some("Copyright © yuyang 2025 All rights reserved.".to_string()),
-        ..AboutMetadata::default()
-    };
+
     #[allow(unused_mut)]
     let mut builder = tauri::Builder::default()
         .plugin(tauri_plugin_http::init())
@@ -239,6 +230,18 @@ fn main() {
         .manage(task_manager)
         .setup(setup)
         .menu(|handle| {
+            let about_meta = AboutMetadata {
+                website: Some("https://dbpal.site".to_string()),
+                name: Some("dbpal".to_string()),
+                authors: Some(vec![
+                    "756445638@qq.com".to_string(),
+                    "yuyangxxxmail@gmail.com".to_string(),
+                ]),
+                version: Some(handle.package_info().version.to_string()),
+                copyright: Some("Copyright © yuyang 2025 All rights reserved.".to_string()),
+                ..AboutMetadata::default()
+            };
+
             Menu::with_items(
                 handle,
                 &[

@@ -249,6 +249,16 @@ function LeftTop() {
           </IconButton>
         </Tooltip>
       </Stack>
+      {show && (
+        <Button
+          variant="contained"
+          color="success"
+          onClick={() => {
+            openUrl("https://dbpal.site/#donation");
+          }}>
+          donate
+        </Button>
+      )}
       {show && <Divider />}
       {showEditFilter && (
         <Dialog
