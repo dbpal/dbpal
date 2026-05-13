@@ -1,8 +1,13 @@
-import { ReactNode, useCallback, useContext, useEffect, useRef, useState } from "react";
-import { modalStyle, tabsHasId, EscDownEvent, modalHandleClose } from "./Common.ts";
-import types from "./ApiStruct";
-import { NotificationContext } from "./Notification";
-import { invoke } from "@tauri-apps/api/core";
+import {
+  ReactNode,
+  useCallback,
+  useContext,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
+import { modalStyle, EscDownEvent, modalHandleClose, uuidv4 } from "./Common.ts";
 import { TreeItem } from "@mui/x-tree-view/TreeItem";
 import ListIcon from "@mui/icons-material/List";
 import EditIcon from "@mui/icons-material/Edit";
@@ -21,22 +26,19 @@ import {
   Checkbox,
   Chip,
   CircularProgress,
+  Dialog,
+  DialogTitle,
   Divider,
   FormControlLabel,
-  IconButton,
-  InputAdornment,
   ListItemIcon,
   ListItemText,
   MenuItem,
   MenuList,
-  Modal,
   Stack,
   TextField,
   Tooltip,
 } from "@mui/material";
-import ClearIcon from "@mui/icons-material/Clear";
 
-import { TabContent } from "./Tabs";
 import { SqlTableView, SqlTableViewData } from "./SqlTableView";
 import { ExportTableOrView } from "./Export";
 import AddIcon from "@mui/icons-material/Add";
@@ -54,86 +56,93 @@ import {
 import { MongoTable, MongoTableAdd } from "./MongoDB";
 import { BSON } from "bson";
 import {
-  ConnTypeContext,
-  ContextMenuContext,
   DataSourceKind,
-  generateRandomString,
   secondConfirm,
-  MatchPatternContext,
-  TabsSetContext,
   UuidContext,
   handleCopyToClipboard,
-  getSupportExportKind,
   RedisTableType,
-  TableType,
   shrinkAble,
-  MaxTreeContext,
+  TabContent,
+  textEllipsisStyle,
 } from "./helper";
-import { ExceedMaxTreeItem, MenuRefresh, ModalHeader } from "./CommonComp";
+import { MenuRefresh, ModalHeader } from "./CommonComp";
 import { TableStructure } from "./TableStructure";
-import { cancelTask, listTable, makeTableInsertFn, showTableColumn } from "./handlers";
+import { cancelTask } from "./handlers";
 import { filesize } from "filesize";
-import { CancelButton, StackRowCenter } from "./CommonComp2";
-import { CouchBaseTable } from "./CouchBase";
+import {
+  CancelButton,
+  ClearableTextField,
+  CopySql,
+  ListenElementSize,
+  ShowingCount,
+  TableAddButton,
+} from "./CommonComp2";
+import { CouchBaseInsert, CouchBaseTable } from "./CouchBase";
+import {
+  useMatcher,
+  useContextMenu,
+  useNotification,
+  useTabsManage,
+  useMatcherFn,
+  useOneShotDialogUI,
+} from "./store.tsx";
+import { commands, Field, ListTable, RedisListTableRet } from "./bindings.ts";
 
-function TablesTree(props: { typ: TableType }) {
-  const { typ } = props;
-  const { uuid } = useContext(UuidContext);
-  const { kind } = useContext(ConnTypeContext);
-  const [tables, setTables] = useState<types.ListTable[]>([]);
-  const { showNotification } = useContext(NotificationContext);
+function TablesTree() {
+  const { uuid, kind } = useContext(UuidContext);
+  const [tables, setTables] = useState<ListTable[]>([]);
+  const { showNotification } = useNotification();
   const [loading, setLoading] = useState(false);
-  const [exceed, setExceed] = useState(0);
-  const matchPattern = useContext(MatchPatternContext);
-  const maxsize = useContext(MaxTreeContext);
-  useEffect(() => {
-    setExceed(tables.filter(e => matchPattern(e.name)).length);
-  }, [tables, matchPattern]);
+
+  const { maxTree } = useMatcher();
+  const matchPattern = useMatcherFn();
+  const tablesId = useRef(uuidv4());
+  const showItems = useMemo(() => {
+    return tables.filter((e) => matchPattern(e.name)).slice(0, maxTree);
+  }, [tables, maxTree, matchPattern]);
   const handleReload = useCallback(() => {
     setLoading(true);
-    listTable(uuid, typ)
-      .then(ts => {
-        setTables(ts);
+    commands
+      .listTable(uuid)
+      .then((data) => {
+        setTables(data);
       })
-      .catch(e => {
-        showNotification("error", "list table failed", e);
+      .catch((e) => {
+        showNotification({
+          severity: "error",
+          title: "list table failed",
+          message: e,
+        });
       })
       .finally(() => {
         setLoading(false);
       });
-  }, [showNotification, typ, uuid]);
+  }, [showNotification, uuid]);
   useEffect(() => {
     handleReload();
   }, [handleReload]);
 
-  const { setUpMenu } = useContext(ContextMenuContext);
+  const setUpMenu = useContextMenu((state) => state.setUpMenu);
 
-  let tablesText;
+  let tablesText: string;
 
   switch (kind) {
     case DataSourceKind.CouchBase:
+    case DataSourceKind.Mongo:
       tablesText = "collections";
       break;
     default: {
-      switch (typ) {
-        case TableType.Normal:
-          tablesText = "tables";
-          break;
-        case TableType.MongoTimeSerial:
-          tablesText = "time serial";
-          break;
-      }
+      tablesText = "tables";
     }
   }
 
-  const tablesId = useRef(generateRandomString());
   return (
     <TreeItem
       itemId={tablesId.current}
       label=<Stack
         direction="row"
         sx={{ alignItems: "center" }}
-        onContextMenu={e => {
+        onContextMenu={(e) => {
           setUpMenu({
             content: (
               <MenuList>
@@ -142,46 +151,37 @@ function TablesTree(props: { typ: TableType }) {
             ),
             event: e,
           });
-        }}
-      >
+        }}>
         <TableViewIcon />
         <span> {tablesText} </span>
+        <ShowingCount showing={showItems.length} total={tables.length} />
         {loading && <CircularProgress />}
-      </Stack>
-    >
-      {tables
-        .filter(e => matchPattern(e.name))
-        .map((e, index) => {
-          if (index >= maxsize) {
-            return;
-          }
-          const id = `${uuid}-table-${typ}-${index}`;
-
-          return (
-            <TableTree
-              key={e.name}
-              size={e.size}
-              reloadTables={handleReload}
-              table={e.name}
-              id={id}
-            />
-          );
-        })}
-      <ExceedMaxTreeItem exceed={exceed} maxTreeSize={maxsize} />
+      </Stack>>
+      {showItems.map((e) => {
+        const id = `${uuid}-table-${e.name}-${e.rand}`;
+        return (
+          <TableTree
+            key={e.name}
+            size={e.size}
+            reloadTables={handleReload}
+            table={e.name}
+            id={id}
+          />
+        );
+      })}
     </TreeItem>
   );
 }
 
 function TableTree(props: {
   table: string;
-  reloadTables;
+  reloadTables: () => void;
   size: number | null;
   id: string;
 }) {
   const { table, reloadTables, size, id } = props;
-  const { uuid } = useContext(UuidContext);
-  const { kind } = useContext(ConnTypeContext);
-  const { setUpMenu } = useContext(ContextMenuContext);
+  const { uuid, kind } = useContext(UuidContext);
+  const setUpMenu = useContextMenu((state) => state.setUpMenu);
 
   return (
     <TreeItem
@@ -189,8 +189,8 @@ function TableTree(props: {
       label={
         <Stack
           direction="row"
-          justifyContent="space-between"
-          onContextMenu={e => {
+          sx={{ justifyContent: "space-between" }}
+          onContextMenu={(e) => {
             setUpMenu({
               content: (
                 <TableMenu
@@ -202,11 +202,11 @@ function TableTree(props: {
               ),
               event: e,
             });
-          }}
-        >
-          <StackRowCenter>
-            <TableViewIcon> </TableViewIcon> <span>{table}</span>
-          </StackRowCenter>
+          }}>
+          <Stack direction="row" sx={{ alignItems: "center", flex: 1, minWidth: 0 }}>
+            <TableViewIcon />
+            <span style={textEllipsisStyle}>{table}</span>
+          </Stack>{" "}
           {size && (
             <span style={{ ...shrinkAble, minWidth: 0 }}>
               {filesize(size, { round: 0 })}
@@ -220,14 +220,14 @@ function TableTree(props: {
 
 function DropTable(props: {
   table: string;
-  reloadTables;
+  reloadTables: () => void;
   uuid: string;
-  handleClose;
+  handleClose: () => void;
   kind: DataSourceKind;
 }) {
   const { table, reloadTables, uuid, handleClose, kind } = props;
   const [loading, setLoading] = useState(false);
-  const { showNotification } = useContext(NotificationContext);
+  const { showNotification } = useNotification();
   const [cascade, setCascade] = useState(false);
 
   const handleDrop = async () => {
@@ -240,14 +240,23 @@ function DropTable(props: {
       return;
     }
     setLoading(true);
-    invoke("drop_table", { name: uuid, tableName: table, cascade })
-      .then(() => {
-        showNotification("success", "Drop table OK");
+    commands
+      .dropTable(uuid, table, cascade)
+      .then((sql) => {
+        showNotification({
+          severity: "success",
+          title: "Drop table OK",
+          message: <CopySql sql={sql} />,
+        });
         reloadTables();
         handleClose();
       })
-      .catch(e => {
-        showNotification("error", "Drop table failure", e);
+      .catch((e) => {
+        showNotification({
+          severity: "error",
+          title: "Drop table failure",
+          message: e,
+        });
       })
       .finally(() => {
         setLoading(false);
@@ -273,7 +282,10 @@ function DropTable(props: {
       {supportCascade() && (
         <FormControlLabel
           control={
-            <Checkbox checked={cascade} onChange={e => setCascade(e.target.checked)} />
+            <Checkbox
+              checked={cascade}
+              onChange={(e) => setCascade(e.target.checked)}
+            />
           }
           label="CASCADE"
         />
@@ -286,28 +298,29 @@ function DropTable(props: {
     </Stack>
   );
 }
+interface RedisViewTableProps {
+  uuid: string;
+  table: string;
+  redisType: RedisTableType;
+}
 
-function makeRedisViewTable(uuid, table, redisType: RedisTableType) {
-  let tableList;
+// 1. Rename to start with an Uppercase letter
+function RedisViewTable({ uuid, table, redisType }: RedisViewTableProps) {
+  // 2. Using a mapping object is cleaner than a switch statement
   switch (redisType) {
     case RedisTableType.String:
-      tableList = <RedisStringTable uuid={uuid} stringKey={table} />;
-      break;
+      return <RedisStringTable uuid={uuid} stringKey={table} />;
     case RedisTableType.List:
-      tableList = <RedisListTable uuid={uuid} listKey={table} />;
-      break;
-
+      return <RedisListTable uuid={uuid} listKey={table} />;
     case RedisTableType.Set:
-      tableList = <RedisSetTable setKey={table} uuid={uuid} />;
-      break;
+      return <RedisSetTable uuid={uuid} setKey={table} />;
     case RedisTableType.Zset:
-      tableList = <RedisZsetTable zsetKey={table} uuid={uuid} />;
-      break;
+      return <RedisZsetTable uuid={uuid} zsetKey={table} />;
     case RedisTableType.Hash:
-      tableList = <RedisHashTable hashKey={table} uuid={uuid} />;
-      break;
+      return <RedisHashTable uuid={uuid} hashKey={table} />;
+    default:
+      return null; // Fallback for safety
   }
-  return tableList;
 }
 
 function makeViewTable(
@@ -334,7 +347,9 @@ function makeViewTable(
       tableList = <SqlTableView isTable tableName={table} uuid={uuid} kind={kind} />;
       break;
     case DataSourceKind.Redis:
-      tableList = makeRedisViewTable(uuid, table, redisTableType);
+      tableList = (
+        <RedisViewTable uuid={uuid} table={table} redisType={redisTableType} />
+      );
       break;
     case DataSourceKind.Mongo:
       tableList = <MongoTable uuid={uuid} table={table} isTable />;
@@ -352,8 +367,7 @@ function AddTableView(props: {
   redisTableType?: RedisTableType;
 }) {
   const { uuid, table, kind, redisTableType } = props;
-  const [fields, setFields] = useState<types.Field[]>([]);
-  const { showNotification } = useContext(NotificationContext);
+
   switch (kind) {
     case DataSourceKind.Redis:
       switch (redisTableType) {
@@ -373,33 +387,95 @@ function AddTableView(props: {
     case DataSourceKind.Mongo:
       return (
         <MongoTableAdd
-          addOP={async data => {
-            return invoke<void>("mongo_insert", {
-              name: uuid,
-              tableName: table,
-              doc: BSON.serialize(data),
-            });
+          addOP={async (data) => {
+            return commands.mongoInsert(uuid, table, BSON.serialize(data));
           }}
         />
       );
+    case DataSourceKind.CouchBase:
+      return <CouchBaseInsert uuid={uuid} table={table} />;
   }
 
-  // eslint-disable-next-line react-hooks/rules-of-hooks
+  return <SqlAddTableView uuid={uuid} table={table} />;
+}
+
+function AddTableModal(props: {
+  uuid: string;
+  tableName: string;
+  kind: DataSourceKind;
+  redisType?: RedisTableType;
+}) {
+  const { tableName, redisType, uuid, kind } = props;
+  const [showAdd, setShowAdd] = useState(false);
+  const [addModalBox, setAddModalBox] = useState<HTMLDivElement | null>(null);
+
+  return (
+    <>
+      <TableAddButton handleAdd={() => setShowAdd(true)} />
+
+      <ListenElementSize
+        dom={addModalBox}
+        set="both"
+        name={kind + "-add-" + redisType}
+      />
+
+      {showAdd && (
+        <Dialog
+          open={showAdd}
+          onClose={modalHandleClose((e: EscDownEvent) => {
+            e.preventDefault();
+            setShowAdd(false);
+          })}
+          disableAutoFocus
+          disableEnforceFocus>
+          <Box
+            sx={{ resize: "both", ...modalStyle, width: "80%", height: "70vh" }}
+            ref={setAddModalBox}>
+            <ModalHeader
+              noTextTransform
+              title={`add ${tableName} `}
+              handleClose={() => {
+                setShowAdd(false);
+              }}
+            />
+            <AddTableView
+              uuid={uuid}
+              table={tableName}
+              redisTableType={redisType}
+              kind={kind}
+            />
+          </Box>
+        </Dialog>
+      )}
+    </>
+  );
+}
+
+function SqlAddTableView(props: { uuid: string; table: string }) {
+  const { uuid, table } = props;
+  const [fields, setFields] = useState<Field[]>([]);
+  const { showNotification } = useNotification();
   useEffect(() => {
-    showTableColumn(uuid, table)
-      .then(e => {
-        setFields(e);
+    commands
+      .showTableColumns(uuid, table)
+      .then((data) => {
+        setFields(data);
       })
-      .catch(e => {
-        showNotification("error", "list fields failed", e);
+      .catch((e) => {
+        showNotification({
+          severity: "error",
+          title: "list fields failed",
+          message: e,
+        });
       });
   }, [showNotification, table, uuid]);
-
   return (
     <SqlTableViewData
       isAdd
       buttonName="add"
-      handleData={makeTableInsertFn(uuid, table)}
+      handleData={async (values) => {
+        await commands.tableInsert(uuid, table, values);
+      }}
       fields={fields}
     />
   );
@@ -413,13 +489,9 @@ function TableMenu(props: {
   redisTableType?: RedisTableType;
 }) {
   const { table, uuid, reload, kind, redisTableType } = props;
-  const [showDup, setShowDup] = useState(false);
-  const [showRename, setShowRename] = useState(false);
-  const [showDrop, setShowDrop] = useState(false);
-  const [showExport, setShowExport] = useState(false);
-
-  const { showNotification } = useContext(NotificationContext);
-  const { tabs, setTabs, setSelectTab } = useContext(TabsSetContext);
+  const { showNotification } = useNotification();
+  const { appendTab } = useTabsManage();
+  const { setUi } = useOneShotDialogUI();
 
   const handleTruncateTable = async () => {
     const confirm = await secondConfirm({
@@ -431,283 +503,177 @@ function TableMenu(props: {
     if (!confirm) {
       return;
     }
-    invoke("truncate_table", { tableName: table, name: uuid })
-      .then(() => {
-        showNotification("success", `Truncate table OK`);
+    commands
+      .truncateTable(uuid, table)
+      .then((sql) => {
+        showNotification({
+          severity: "success",
+          title: `Truncate table OK`,
+          message: <CopySql sql={sql} />,
+        });
       })
-      .catch(e => {
-        showNotification("error", `Truncate  table failure`, e);
+      .catch((e) => {
+        showNotification({
+          severity: "error",
+          title: `Truncate  table failure`,
+          message: e,
+        });
       });
   };
 
   const handleViewData = () => {
-    const id = uuid + "-table-" + generateRandomString(10);
     const tableList: ReactNode = makeViewTable(uuid, table, kind, redisTableType);
-    setTabs(e => {
-      setTimeout(() => {
-        setSelectTab(tabs.length);
-      }, 100);
-
-      return [
-        ...e,
-        new TabContent(
-          id,
-          table,
-          tableList,
-          <TableViewIcon className="tab-icon-size" />,
-        ),
-      ];
-    });
+    appendTab(new TabContent(table, tableList, <TableViewIcon />));
   };
   const handleAddData = async () => {
-    const id = generateRandomString(10);
-
-    setTabs(e => {
-      setTimeout(() => {
-        setSelectTab(tabs.length);
-      }, 100);
-      return [
-        ...e,
-        new TabContent(
-          id,
-          `${table}*`,
-          <AddTableView
-            uuid={uuid}
-            kind={kind}
-            table={table}
-            redisTableType={redisTableType}
-          />,
-          <TableViewIcon className="tab-icon-size" />,
-        ),
-      ];
-    });
+    appendTab(
+      new TabContent(
+        `${table}*`,
+        <AddTableView
+          uuid={uuid}
+          kind={kind}
+          table={table}
+          redisTableType={redisTableType}
+        />,
+        <TableViewIcon />,
+      ),
+    );
   };
 
   const handleStructure = () => {
-    const id = uuid + "-table-" + table + "-struct";
-    const index = tabsHasId(tabs, id);
-    if (typeof index == "number") {
-      setSelectTab(index);
-    } else {
-      setTabs(e => {
-        setTimeout(() => {
-          setSelectTab(tabs.length);
-        }, 100);
-
-        return [
-          ...e,
-          new TabContent(
-            id,
-            `${table}`,
-            <TableStructure kind={kind} table={table} uuid={uuid} />,
-            <IoConstructOutline className="tab-icon-size" />,
-          ),
-        ];
-      });
-    }
+    appendTab(
+      new TabContent(
+        `${table}`,
+        <TableStructure kind={kind} table={table} uuid={uuid} />,
+        <IoConstructOutline />,
+      ),
+    );
   };
 
   return (
-    <div>
-      <MenuList>
-        <MenuItem
-          onClick={() => {
-            handleViewData();
-          }}
-        >
-          <ListItemIcon>
-            <ListIcon />
-          </ListItemIcon>
-          <ListItemText> View Data</ListItemText>
-        </MenuItem>
+    <MenuList>
+      <MenuItem
+        onClick={() => {
+          handleViewData();
+        }}>
+        <ListItemIcon>
+          <ListIcon />
+        </ListItemIcon>
+        <ListItemText> View Data</ListItemText>
+      </MenuItem>
 
-        {redisTableType != RedisTableType.String && (
-          <MenuItem
-            onClick={() => {
-              handleAddData();
-            }}
-          >
-            <ListItemIcon>
-              <AddIcon />
-            </ListItemIcon>
-            <ListItemText> Add Data </ListItemText>
-          </MenuItem>
-        )}
-        <MenuItem onClick={handleStructure}>
+      {redisTableType != RedisTableType.String && (
+        <MenuItem
+          onClick={() => {
+            handleAddData();
+          }}>
           <ListItemIcon>
-            <IoConstructOutline style={{ fontSize: "1.2rem" }} />
+            <AddIcon />
           </ListItemIcon>
-          <ListItemText> Structure </ListItemText>
+          <ListItemText> Add Data </ListItemText>
         </MenuItem>
+      )}
+      <MenuItem onClick={handleStructure}>
+        <ListItemIcon>
+          <IoConstructOutline style={{ fontSize: "1.2rem" }} />
+        </ListItemIcon>
+        <ListItemText> Structure </ListItemText>
+      </MenuItem>
 
-        <MenuItem
-          onClick={() => {
-            handleCopyToClipboard(table, showNotification);
-          }}
-        >
-          <ListItemIcon>
-            <ContentCopyIcon />
-          </ListItemIcon>
-          <ListItemText> Copy Name </ListItemText>
-        </MenuItem>
+      <MenuItem
+        onClick={() => {
+          handleCopyToClipboard(table, showNotification);
+        }}>
+        <ListItemIcon>
+          <ContentCopyIcon />
+        </ListItemIcon>
+        <ListItemText> Copy Name </ListItemText>
+      </MenuItem>
+      <Divider />
 
-        <Divider />
-
-        <MenuItem
-          onClick={() => {
-            setShowDup(true);
-          }}
-        >
-          <ListItemIcon>
-            <HiOutlineDuplicate style={{ fontSize: "1.7rem" }} />
-          </ListItemIcon>
-          <ListItemText> Duplicate </ListItemText>
-        </MenuItem>
-        <MenuItem
-          onClick={() => {
-            setShowExport(true);
-          }}
-        >
-          <ListItemIcon>
-            <ArrowCircleDownIcon />
-          </ListItemIcon>
-          <ListItemText> Export </ListItemText>
-        </MenuItem>
-        <MenuItem
-          onClick={() => {
-            setShowRename(true);
-          }}
-        >
-          <ListItemIcon>
-            <EditIcon />
-          </ListItemIcon>
-          <ListItemText> Rename </ListItemText>
-        </MenuItem>
-        <Divider />
-        <MenuItem
-          sx={{ color: "error.main" }}
-          onClick={() => {
-            handleTruncateTable();
-          }}
-        >
-          <ListItemIcon>
-            <PlaylistRemoveIcon color="error" />
-          </ListItemIcon>
-          <ListItemText> Truncate </ListItemText>
-        </MenuItem>
-        <MenuItem
-          sx={{ color: "error.main" }}
-          onClick={() => {
-            setShowDrop(true);
-          }}
-        >
-          <ListItemIcon>
-            <DeleteForeverIcon color="error" />
-          </ListItemIcon>
-          <ListItemText>Drop</ListItemText>
-        </MenuItem>
-      </MenuList>
-      {showDup && (
-        <Modal
-          open={showDup}
-          onClose={modalHandleClose((e: EscDownEvent) => {
-            e.preventDefault();
-            setShowDup(false);
-          })}
-        >
-          <Box sx={modalStyle} width="45%">
-            <ModalHeader
-              title="Duplicate"
-              handleClose={() => {
-                setShowDup(false);
-              }}
-            />
+      <MenuItem
+        onClick={() => {
+          setUi(
             <DupTable
               table={table}
               uuid={uuid}
               handleClose={() => {
-                setShowDup(false);
+                setUi(null);
               }}
               reloadTables={reload}
-            />
-          </Box>
-        </Modal>
-      )}
-      {showRename && (
-        <Modal
-          open={showRename}
-          onClose={modalHandleClose((e: EscDownEvent) => {
-            e.preventDefault();
-            setShowRename(false);
-          })}
-        >
-          <Box sx={modalStyle} width="45%">
-            <ModalHeader
-              handleClose={() => {
-                setShowRename(false);
-              }}
-              title="Rename"
-            />
+            />,
+            "Duplicate table",
+          );
+        }}>
+        <ListItemIcon>
+          <HiOutlineDuplicate style={{ fontSize: "1.7rem" }} />
+        </ListItemIcon>
+        <ListItemText> Duplicate </ListItemText>
+      </MenuItem>
+      <MenuItem
+        onClick={() => {
+          setUi(
+            <ExportTableOrView uuid={uuid} name={table} kind={kind} isTable />,
+            `export table ${table}`,
+          );
+        }}>
+        <ListItemIcon>
+          <ArrowCircleDownIcon />
+        </ListItemIcon>
+        <ListItemText> Export </ListItemText>
+      </MenuItem>
+      <MenuItem
+        onClick={() => {
+          setUi(
             <RenameTable
-              uuid={uuid}
               table={table}
-              reloadTables={reload}
-              handleClose={() => {
-                setShowRename(false);
-              }}
-            />
-          </Box>
-        </Modal>
-      )}
-      {showExport && (
-        <Modal
-          open={showExport}
-          onClose={modalHandleClose((e: EscDownEvent) => {
-            e.preventDefault();
-            setShowExport(false);
-          })}
-        >
-          <Box sx={modalStyle} width="45%">
-            <ExportTableOrView
-              handleClose={() => {
-                setShowExport(false);
-              }}
               uuid={uuid}
-              name={table}
-              supportKind={getSupportExportKind(kind, true)}
-            />
-          </Box>
-        </Modal>
-      )}
-
-      {showDrop && (
-        <Modal
-          open={showDrop}
-          onClose={modalHandleClose((e: EscDownEvent) => {
-            e.preventDefault();
-            setShowDrop(false);
-          })}
-        >
-          <Box sx={modalStyle} width="45%">
-            <ModalHeader
               handleClose={() => {
-                setShowDrop(false);
+                setUi(null);
               }}
-              title="Drop Table"
-            />
+              reloadTables={reload}
+            />,
+            `rename table ${table}`,
+          );
+        }}>
+        <ListItemIcon>
+          <EditIcon />
+        </ListItemIcon>
+        <ListItemText> Rename </ListItemText>
+      </MenuItem>
+      <Divider />
+      <MenuItem
+        sx={{ color: "error.main" }}
+        onClick={() => {
+          handleTruncateTable();
+        }}>
+        <ListItemIcon>
+          <PlaylistRemoveIcon color="error" />
+        </ListItemIcon>
+        <ListItemText> Truncate </ListItemText>
+      </MenuItem>
+      <MenuItem
+        sx={{ color: "error.main" }}
+        onClick={() => {
+          setUi(
             <DropTable
-              uuid={uuid}
               table={table}
-              reloadTables={reload}
+              uuid={uuid}
               handleClose={() => {
-                setShowDrop(false);
+                setUi(null);
               }}
+              reloadTables={reload}
               kind={kind}
-            />
-          </Box>
-        </Modal>
-      )}
-    </div>
+            />,
+            `drop table ${table}`,
+          );
+        }}>
+        <ListItemIcon>
+          <DeleteForeverIcon color="error" />
+        </ListItemIcon>
+        <ListItemText>Drop</ListItemText>
+      </MenuItem>
+    </MenuList>
   );
 }
 
@@ -720,27 +686,23 @@ function DupTable(props: {
   const { table, handleClose, uuid, reloadTables } = props;
   const [loading, setLoading] = useState(false);
   const [name, setName] = useState(table);
-  const { showNotification } = useContext(NotificationContext);
-  const taskId = useRef(generateRandomString());
+  const { showNotification } = useNotification();
+  const taskId = useRef(uuidv4());
   const handleRename = () => {
     if (name == table) {
-      showNotification("error", "name not changed");
+      showNotification({ severity: "error", title: "name not changed" });
       return;
     }
     setLoading(true);
-    invoke("duplicate_table", {
-      name: uuid,
-      from: table,
-      to: name,
-      taskId: taskId.current,
-    })
+    commands
+      .duplicateTable(uuid, table, taskId.current, name)
       .then(() => {
-        showNotification("success", "duplicate OK");
+        showNotification({ severity: "success", title: "duplicate OK" });
         reloadTables();
         handleClose();
       })
-      .catch(e => {
-        showNotification("error", "duplicate failure", e);
+      .catch((e) => {
+        showNotification({ severity: "error", title: "duplicate failure", message: e });
       })
       .finally(() => {
         setLoading(false);
@@ -752,7 +714,7 @@ function DupTable(props: {
       <TextField
         value={name}
         label="duplicate name"
-        onChange={e => {
+        onChange={(e) => {
           setName(e.target.value);
         }}
       />
@@ -782,10 +744,10 @@ function RenameTable(props: {
   const { table, handleClose, uuid, reloadTables } = props;
   const [loading, setLoading] = useState(false);
   const [newName, setNewName] = useState(table);
-  const { showNotification } = useContext(NotificationContext);
+  const { showNotification } = useNotification();
   const handleRename = async () => {
     if (newName == table) {
-      showNotification("error", "name not changed");
+      showNotification({ severity: "error", title: "name not changed" });
       return;
     }
     const confirm = await secondConfirm({
@@ -797,14 +759,19 @@ function RenameTable(props: {
       return;
     }
     setLoading(true);
-    invoke("rename_table", { name: uuid, old: table, new: newName })
-      .then(() => {
-        showNotification("success", "rename OK");
+    commands
+      .renameTable(uuid, table, newName)
+      .then((sql) => {
+        showNotification({
+          severity: "success",
+          title: "rename OK",
+          message: <CopySql sql={sql} />,
+        });
         reloadTables();
         handleClose();
       })
-      .catch(e => {
-        showNotification("error", "rename failure", e);
+      .catch((e) => {
+        showNotification({ severity: "error", title: "rename failure", message: e });
       })
       .finally(() => {
         setLoading(false);
@@ -816,7 +783,7 @@ function RenameTable(props: {
       <TextField
         value={newName}
         label="New Name"
-        onChange={e => {
+        onChange={(e) => {
           setNewName(e.target.value);
         }}
       />
@@ -830,40 +797,22 @@ function RenameTable(props: {
 }
 
 function RedisOneTableKind(props: {
-  tables: string[];
+  tables: ListTable[];
   typ: RedisTableType;
   kind: DataSourceKind;
   handleReload;
   uuid;
 }) {
   const { tables, typ, kind, handleReload, uuid } = props;
-  let name;
-  switch (typ) {
-    case RedisTableType.String:
-      name = "string";
-      break;
-    case RedisTableType.List:
-      name = "list";
-      break;
-    case RedisTableType.Set:
-      name = "set";
-      break;
-    case RedisTableType.Zset:
-      name = "zset";
-      break;
-    case RedisTableType.Hash:
-      name = "hash";
-      break;
-  }
-  const tablesID = useRef(generateRandomString());
-  const { setUpMenu } = useContext(ContextMenuContext);
+  const tablesID = useRef(uuidv4());
+  const setUpMenu = useContextMenu((state) => state.setUpMenu);
   return (
     <TreeItem
       itemId={tablesID.current}
       label=<Stack
         direction="row"
         sx={{ alignItems: "center" }}
-        onContextMenu={e => {
+        onContextMenu={(e) => {
           setUpMenu({
             content: (
               <MenuList>
@@ -872,33 +821,57 @@ function RedisOneTableKind(props: {
             ),
             event: e,
           });
-        }}
-      >
-        <span>{name}</span>
-      </Stack>
-    >
-      {tables.map(table => (
+        }}>
+        <span>{typ}</span>
+      </Stack>>
+      {tables.map((table) => (
         <TreeItem
-          key={table}
-          itemId={uuid + "-key-" + name + "-" + table}
+          key={table.name}
+          itemId={uuid + "-key-" + name + "-" + table.name + table.rand}
           label=<Stack
+            style={{
+              justifyContent: "space-between",
+              alignItems: "center",
+            }}
             direction="row"
-            onContextMenu={e => {
+            onContextMenu={(e) => {
               setUpMenu({
                 content: (
                   <TableMenu
                     kind={kind}
                     reload={handleReload}
-                    table={table}
+                    table={table.name}
                     uuid={uuid}
                     redisTableType={typ}
                   />
                 ),
                 event: e,
               });
-            }}
-          >
-            <span> {table} </span>
+            }}>
+            <Stack style={{ flexShrink: 1 }} direction="row">
+              <span style={textEllipsisStyle}> {table.name} </span>
+              &nbsp;
+            </Stack>
+
+            {table.size && (
+              <Tooltip
+                title={(function () {
+                  switch (typ) {
+                    case RedisTableType.String:
+                      return "";
+                    case RedisTableType.List:
+                      return `a list of ${table.size}`;
+                    case RedisTableType.Set:
+                      return `set with ${table.size} elements`;
+                    case RedisTableType.Zset:
+                      return `zset with ${table.size} elements`;
+                    case RedisTableType.Hash:
+                      return `hash with ${table.size} elements`;
+                  }
+                })()}>
+                <span style={textEllipsisStyle}> {table.size} </span>
+              </Tooltip>
+            )}
           </Stack>
         />
       ))}
@@ -907,26 +880,28 @@ function RedisOneTableKind(props: {
 }
 
 function RedisTables() {
-  const { kind } = useContext(ConnTypeContext);
-  const { uuid } = useContext(UuidContext);
+  const { uuid, kind } = useContext(UuidContext);
   const [filter, setFilter] = useState("");
-  const [tables, setTables] = useState<types.RedisListTable>();
+  const [tables, setTables] = useState<RedisListTableRet>();
   const [loading, setLoading] = useState(false);
-  const { showNotification } = useContext(NotificationContext);
+  const { showNotification } = useNotification();
   const max = 50;
+
+  const [showEditFiler, setShowEditFiler] = useState(false);
 
   const handleReload = useCallback(() => {
     setLoading(true);
-    invoke<types.RedisListTable>("redis_list_table", {
-      name: uuid,
-      filter: filter ? filter : null,
-      max,
-    })
-      .then(e => {
+    commands
+      .redisListKey(uuid, filter ? filter : null, max)
+      .then((e) => {
         setTables(e);
       })
-      .catch(e => {
-        showNotification("error", "list redis table failed", e);
+      .catch((e) => {
+        showNotification({
+          severity: "error",
+          title: "list redis table failed",
+          message: e,
+        });
       })
       .finally(() => {
         setLoading(false);
@@ -939,8 +914,7 @@ function RedisTables() {
     handleReload();
   }, [filter, handleReload]);
 
-  const [showEditFilter, setShowEditFilter] = useState(false);
-  const filterTreeID = useRef(generateRandomString());
+  const filterTreeID = useRef(uuidv4());
   return (
     <>
       <TreeItem
@@ -949,9 +923,8 @@ function RedisTables() {
           direction="row"
           style={{ cursor: "pointer" }}
           onClick={() => {
-            setShowEditFilter(true);
-          }}
-        >
+            setShowEditFiler(true);
+          }}>
           {tables && tables.has_more ? (
             <Tooltip title={`result exceed ${max},some result are omitted`}>
               <Chip
@@ -967,6 +940,27 @@ function RedisTables() {
           {loading && <CircularProgress />}
         </Stack>
       />
+
+      {showEditFiler && (
+        <Dialog
+          open={true}
+          onClose={() => {
+            setShowEditFiler(false);
+          }}>
+          <DialogTitle>edit key filter</DialogTitle>
+          <ClearableTextField
+            value={filter}
+            onChange={(e) => {
+              setFilter(e.target.value);
+            }}
+            style={{ width: "17rem" }}
+            onClear={() => {
+              setFilter("");
+            }}
+            label="filter"
+          />
+        </Dialog>
+      )}
       {tables && (
         <>
           <RedisOneTableKind
@@ -1006,52 +1000,8 @@ function RedisTables() {
           />
         </>
       )}
-
-      {showEditFilter && (
-        <Modal
-          open={showEditFilter}
-          onClose={modalHandleClose((e: EscDownEvent) => {
-            e.preventDefault();
-            setShowEditFilter(false);
-          })}
-        >
-          <Box sx={modalStyle} width="45%">
-            <ModalHeader
-              handleClose={() => {
-                setShowEditFilter(false);
-              }}
-              title="Edit key match string"
-            />
-            <TextField
-              value={filter}
-              fullWidth
-              label="filer"
-              helperText="key filter"
-              onChange={e => {
-                setFilter(e.target.value);
-              }}
-              slotProps={{
-                input: {
-                  endAdornment: filter && (
-                    <InputAdornment position="end">
-                      <IconButton
-                        onClick={() => {
-                          setFilter("");
-                        }}
-                        edge="end"
-                      >
-                        <ClearIcon fontSize="small" />
-                      </IconButton>
-                    </InputAdornment>
-                  ),
-                },
-              }}
-            />
-          </Box>
-        </Modal>
-      )}
     </>
   );
 }
 
-export { TablesTree, RedisTables, makeRedisViewTable, AddTableView };
+export { TablesTree, RedisTables, RedisViewTable, AddTableView, AddTableModal };

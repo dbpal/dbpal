@@ -9,30 +9,28 @@ use futures_util::StreamExt;
 use sqlparser::ast::{ColumnOption, Statement};
 use sqlparser::tokenizer::Token;
 use sqlx::pool::{PoolConnection, PoolOptions};
-use sqlx::sqlite::SqliteRow;
+use sqlx::sqlite::{SqliteConnectOptions, SqliteRow};
 use sqlx::{AssertSqlSafe, Column, Executor, Row, SqlSafeStr, SqliteConnection, TypeInfo};
+use tokio::fs::File;
 
 use crate::datasource_config::SqliteDBConfig;
 use crate::db::{
     create_html_table_data, create_html_table_header, create_markdown_data, create_markdown_header,
     escape_sql_str, export_query_as_xlsx_send_data, AutoCompletionQueryId, BackendKind, CheckConn,
     ColumnType, CreateIndexReq, CreateTableAndIndexSql, ExportFrame, ExportKind, ExportQueryResult,
-    Field, GetBackendKind, Index, IndexKind, ListTable, MetaValue, NamedStaff, OptionMustBeSomeErr,
-    QueryEvent, QueryEventEmitter, QueryResp, QuerySql, ReadOnlyTrait, SchemaTrait, ServerMetas,
-    ShowTableParameter, SqlBuilder, TriggerDetail, TriggerEvent, TriggerTiming, XlsxEdit,
-    POOL_MAX_CONNECTIONS,
+    Field, FirstTrue, GetBackendKind, Index, IndexKind, ListTable, MetaValue, NamedStaff,
+    OptionMustBeSomeErr, QueryEvent, QueryEventEmitter, QueryResp, QuerySql, SchemaTrait,
+    ServerMetas, ShowTableParameter, SqlBuilder, TriggerDetail, TriggerEvent, TriggerTiming,
+    XlsxEdit, POOL_MAX_CONNECTIONS,
 };
 use crate::helper::create_csv;
-use crate::language_server::{CompletionItem, LexerCompletionTrait};
+use crate::language_server::LexerCompletionTrait;
 
 #[derive(Clone)]
 pub struct SqliteDB {
     pool: sqlx::SqlitePool,
     config: SqliteDBConfig,
-    pub(crate) query_connection: Arc<DashMap<String, Arc<Mutex<PoolConnection<sqlx::Sqlite>>>>>,
-    pub(crate) build_in_fn_completion: Arc<Mutex<Vec<CompletionItem>>>,
-    pub(crate) keywords_cache: Arc<Mutex<Vec<String>>>,
-    pub(crate) pragma_completion: Arc<Mutex<Vec<CompletionItem>>>,
+    pub(crate) query_connection: Arc<DashMap<String, Arc<Mutex<sqlx::SqliteConnection>>>>,
     pub(crate) completion_id: AutoCompletionQueryId,
 }
 
@@ -63,7 +61,6 @@ impl SqliteDB {
         let rows = sqlx::raw_sql(AssertSqlSafe(sql.as_str()))
             .fetch_all(conn.deref_mut())
             .await?;
-
         let mut ret = Vec::with_capacity(rows.len());
         for r in rows.iter() {
             let sql: String = r.try_get(0)?;
@@ -80,35 +77,12 @@ impl SqliteDB {
         sender: tokio::sync::mpsc::Sender<ExportFrame>,
     ) -> anyhow::Result<()> {
         if include_table_schema {
-            let ss = SchemaTrait::show_create_table_sql(self, table_name).await?;
-            sender.send(ss.create_table.clone().into()).await?;
-            sender.send(";\n".into()).await?;
-            for index in ss.indexes.into_iter() {
-                sender.send(index.into()).await?;
-                sender.send(";\n".into()).await?;
-            }
+            let create_table = SchemaTrait::show_create_table_sql(self, table_name).await?;
+            sender.send(create_table.to_string().into()).await?;
         }
         let mut conn = self.get_conn().await?;
         let cols = SchemaTrait::show_table_columns(self, table_name).await?;
-        let sql = if let Some(para) = para {
-            let ShowTableParameter {
-                where_str,
-                order_by,
-                page,
-                page_size,
-                ..
-            } = &para;
-            gen_show_sql(
-                table_name,
-                self.backend_name().format_fields(Some(&cols)).into(),
-                where_str.as_deref(),
-                order_by.as_deref(),
-                *page,
-                *page_size,
-            )
-        } else {
-            format!("SELECT * from {}", table_name)
-        };
+        let sql = self.gen_show_sql(table_name, Some(&cols), para.as_ref());
         log::info!("sql:{}", sql);
         let mut stream = sqlx::raw_sql(AssertSqlSafe(sql.as_str())).fetch(conn.deref_mut());
         while let Some(row) = stream.next().await {
@@ -195,13 +169,29 @@ impl CheckConn for SqliteDB {
     }
 }
 
+async fn is_sqlite_file(path: &str) -> bool {
+    let mut file = match File::open(path).await {
+        Ok(f) => f,
+        Err(_) => return false,
+    };
+    let mut header = [0u8; 16];
+    if tokio::io::AsyncReadExt::read_exact(&mut file, &mut header)
+        .await
+        .is_err()
+    {
+        return false;
+    }
+    // SQLite 标准头部：'SQLite format 3\0'
+    header == *b"SQLite format 3\0"
+}
+
 #[async_trait::async_trait]
 
 impl ServerMetas for SqliteDB {
     async fn show_metas(&self) -> anyhow::Result<Vec<MetaValue>> {
         let mut conn = self.get_conn().await?;
         let sql = r#"
-            SELECT sqlite_version(); -- 0 
+            SELECT sqlite_version()
         "#;
         let row = sqlx::raw_sql(AssertSqlSafe(sql))
             .fetch_one(conn.deref_mut())
@@ -220,7 +210,7 @@ impl std::fmt::Debug for SqliteDB {
 }
 
 impl GetBackendKind for SqliteDB {
-    fn backend_name(&self) -> BackendKind {
+    fn backend_kind(&self) -> BackendKind {
         BackendKind::Sqlite
     }
 }
@@ -300,7 +290,6 @@ impl SqliteDB {
             let delt_value: Option<String> = r.get(4);
             let pk: Option<i64> = r.get(5);
             let is_auto_increment = Some(name.as_str()) == increment_key;
-
             ret.push(Field::new(
                 name,
                 ty,
@@ -310,7 +299,6 @@ impl SqliteDB {
                 is_auto_increment,
             ));
         }
-
         anyhow::Ok(ret)
     }
 }
@@ -337,8 +325,8 @@ impl SchemaTrait for SqliteDB {
         _old_name: &str,
         _new_name: &str,
         _typ: Option<ColumnType>,
-    ) -> anyhow::Result<()> {
-        self.backend_name().not_support_feature()
+    ) -> anyhow::Result<String> {
+        self.backend_kind().not_support_feature()
     }
 
     async fn add_table_column(
@@ -346,70 +334,54 @@ impl SchemaTrait for SqliteDB {
         table: &str,
         name: &str,
         col: ColumnType,
-    ) -> anyhow::Result<()> {
+    ) -> anyhow::Result<String> {
         let sql = format!(
             r#"ALTER TABLE "{table}" ADD COLUMN "{name}" {} {} {}"#,
             col.typ,
             col.nullable.unwrap_or_default(),
-            if let Some(d) = col.default_value.as_ref() {
+            if let Some(dv) = col.default_value.as_ref() {
                 format!(
                     "DEFAULT {}",
-                    self.put_value_in_sql(&col.typ, Some(d.as_str()))?
+                    if self.hit_current_value(dv) {
+                        dv.clone()
+                    } else {
+                        self.put_value_in_sql(&col.typ, dv.as_str())?
+                    }
                 )
             } else {
                 "".to_owned()
             }
         );
         log::info!("sql:{}", sql);
-        let mut conn = self.get_conn().await?;
-        sqlx::raw_sql(AssertSqlSafe(sql.as_str()))
-            .execute(conn.deref_mut())
-            .await?;
-        anyhow::Ok(())
+        self.simple_execute_sql(&sql).await?;
+        anyhow::Ok(sql)
     }
 
-    async fn drop_table_column(&self, table: &str, col: &str) -> anyhow::Result<()> {
+    async fn drop_table_column(&self, table: &str, col: &str) -> anyhow::Result<String> {
         let sql = format!(r#"ALTER TABLE "{table}" DROP COLUMN "{col}";"#);
-        let mut conn = self.get_conn().await?;
-        conn.execute(AssertSqlSafe(sql.as_str())).await?;
-        anyhow::Ok(())
+        self.simple_execute_sql(&sql).await?;
+        anyhow::Ok(sql)
     }
 
-    async fn create_index(&self, table: &str, req: &CreateIndexReq) -> anyhow::Result<()> {
-        let sql = req.common_sql(table, true, self.backend_name().quote_style())?;
+    async fn create_index(&self, table: &str, req: &CreateIndexReq) -> anyhow::Result<String> {
+        let sql = req.common_sql(table, true, self.backend_kind().quote_style())?;
         log::info!("sql:{}", sql);
-        let mut conn = self.get_conn().await?;
-        sqlx::raw_sql(AssertSqlSafe(sql.as_str()))
-            .execute(conn.deref_mut())
-            .await?;
-        anyhow::Ok(())
+        self.simple_execute_sql(&sql).await?;
+        anyhow::Ok(sql)
     }
 
-    async fn drop_index(&self, _table_name: &str, index: &str) -> anyhow::Result<()> {
+    async fn drop_index(&self, _table_name: &str, index: &str) -> anyhow::Result<Option<String>> {
         let sql = format!(r#"DROP INDEX "{index}";"#);
         log::info!("sql:{}", sql);
-        let mut conn = self.get_conn().await?;
-        sqlx::raw_sql(AssertSqlSafe(sql.as_str()))
-            .execute(conn.deref_mut())
-            .await?;
-        anyhow::Ok(())
+        self.simple_execute_sql(&sql).await?;
+        anyhow::Ok(sql.into())
     }
 
     async fn show_view_columns(&self, view_name: &str) -> anyhow::Result<Vec<Field>> {
-        use sqlx::{Executor, Statement};
-        let mut conn = self.get_conn().await?;
         let sql = format!(r#"select * from "{view_name}" limit 1"#);
         log::info!("sql:{}", sql);
-        let s = conn
-            .deref_mut()
-            .prepare_with(AssertSqlSafe(sql.as_str()).into_sql_str(), &[])
-            .await?;
-        let ret = s
-            .columns()
-            .iter()
-            .map(|x| Field::from_name_type(x.name(), x.type_info().to_string()))
-            .collect::<Vec<_>>();
-        anyhow::Ok(ret)
+        let r = self.infer_fields_by_sql(&sql).await?;
+        anyhow::Ok(r)
     }
 
     async fn duplicate_table(&self, table: &str, dup: &str) -> anyhow::Result<()> {
@@ -418,22 +390,15 @@ impl SchemaTrait for SqliteDB {
         }
         let sql = format!(r#"CREATE TABLE "{dup}" AS SELECT * FROM "{table}""#);
         log::info!("sql:{}", sql);
-        let mut conn = self.get_conn().await?;
-        sqlx::raw_sql(AssertSqlSafe(sql.as_str()))
-            .execute(conn.deref_mut())
-            .await?;
-
+        self.simple_execute_sql(&sql).await?;
         anyhow::Ok(())
     }
 
-    async fn rename_table(&self, old: &str, new: &str) -> anyhow::Result<()> {
-        let mut conn = self.get_conn().await?;
+    async fn rename_table(&self, old: &str, new: &str) -> anyhow::Result<Option<String>> {
         let sql = format!(r#"ALTER TABLE "{old}" RENAME TO "{new}""#);
         log::info!("sql:{}", sql);
-        sqlx::raw_sql(AssertSqlSafe(sql.as_str()))
-            .execute(conn.deref_mut())
-            .await?;
-        anyhow::Ok(())
+        self.simple_execute_sql(&sql).await?;
+        anyhow::Ok(sql.into())
     }
 
     async fn list_trigger(&self, table_name: &str) -> anyhow::Result<Vec<NamedStaff>> {
@@ -462,18 +427,11 @@ impl SchemaTrait for SqliteDB {
         query_trigger_detail(conn.deref_mut(), name).await
     }
 
-    async fn drop_trigger(&self, _table: &str, name: &str) -> anyhow::Result<()> {
-        let sql = format!(
-            r#"
-        DROP TRIGGER "{name}"
-        "#
-        );
+    async fn drop_trigger(&self, _table: &str, name: &str) -> anyhow::Result<String> {
+        let sql = format!(r#"DROP TRIGGER "{name}""#);
         log::info!("sql:{}", sql);
-        let mut conn = self.get_conn().await?;
-        sqlx::raw_sql(AssertSqlSafe(sql.as_str()))
-            .execute(conn.deref_mut())
-            .await?;
-        anyhow::Ok(())
+        self.simple_execute_sql(&sql).await?;
+        anyhow::Ok(sql)
     }
 
     async fn show_create_table_sql(
@@ -482,7 +440,6 @@ impl SchemaTrait for SqliteDB {
     ) -> anyhow::Result<CreateTableAndIndexSql> {
         let table = self.create_table_or_view_sql(table_name, "table").await?;
         let indexes = self.get_table_indexes_sql(table_name).await?;
-
         anyhow::Ok(CreateTableAndIndexSql {
             create_table: table,
             indexes,
@@ -504,25 +461,7 @@ impl SchemaTrait for SqliteDB {
                     .await
             }
             _ => {
-                let sql = if let Some(para) = para {
-                    let ShowTableParameter {
-                        where_str,
-                        order_by,
-                        page,
-                        page_size,
-                        ..
-                    } = &para;
-                    gen_show_sql(
-                        name,
-                        None,
-                        where_str.as_deref(),
-                        order_by.as_deref(),
-                        *page,
-                        *page_size,
-                    )
-                } else {
-                    format!("SELECT * from {}", name)
-                };
+                let sql = self.gen_show_sql(name, None, para.as_ref());
                 self.export_query_result(None, &sql, kind, sender).await
             }
         }
@@ -533,7 +472,7 @@ impl SchemaTrait for SqliteDB {
     }
 
     fn clone(&self) -> Box<dyn SchemaTrait> {
-        Box::new(Clone::clone(self)) as Box<dyn SchemaTrait>
+        Box::new(Clone::clone(self))
     }
 
     fn as_any(&self) -> &dyn std::any::Any {
@@ -543,40 +482,27 @@ impl SchemaTrait for SqliteDB {
     async fn list_view(&self) -> anyhow::Result<Vec<ListTable>> {
         self.list_view_impl(Self::MAIN_DB).await
     }
-    async fn drop_view(&self, view_name: &str) -> anyhow::Result<()> {
-        self.can_write()?;
-
-        let s = format!(r#"DROP VIEW "{view_name}""#);
-        let mut conn = self.get_conn().await?;
-        sqlx::raw_sql(AssertSqlSafe(s.as_str()))
-            .execute(conn.deref_mut())
-            .await?;
-        anyhow::Ok(())
+    async fn drop_view(&self, view_name: &str) -> anyhow::Result<String> {
+        let sql = format!(r#"DROP VIEW "{view_name}""#);
+        self.simple_execute_sql(&sql).await?;
+        anyhow::Ok(sql)
     }
 
-    async fn drop_table(&self, table: &str, _cascade: bool) -> anyhow::Result<()> {
-        self.can_write()?;
-        let s = format!(r#"DROP TABLE "{table}" "#,);
-        let mut conn = self.get_conn().await?;
-        sqlx::raw_sql(AssertSqlSafe(s.as_str()))
-            .execute(conn.deref_mut())
-            .await?;
-        anyhow::Ok(())
+    async fn drop_table(&self, table: &str, _cascade: bool) -> anyhow::Result<Option<String>> {
+        let sql = format!(r#"DROP TABLE "{table}" "#,);
+        self.simple_execute_sql(&sql).await?;
+        anyhow::Ok(sql.into())
     }
 
-    async fn truncate_table(&self, table_name: &str) -> anyhow::Result<()> {
-        self.can_write()?;
-        let s = format!(
+    async fn truncate_table(&self, table_name: &str) -> anyhow::Result<Option<String>> {
+        let sql = format!(
             r#"
             DELETE FROM "{table_name}";
             DELETE FROM sqlite_sequence WHERE name = '{table_name}';
         "#
         );
-        let mut conn = self.get_conn().await?;
-        sqlx::raw_sql(AssertSqlSafe(s.as_str()))
-            .execute(conn.deref_mut())
-            .await?;
-        anyhow::Ok(())
+        self.simple_execute_sql(&sql).await?;
+        anyhow::Ok(sql.into())
     }
 
     async fn list_table(&self) -> anyhow::Result<Vec<ListTable>> {
@@ -622,26 +548,14 @@ impl SchemaTrait for SqliteDB {
         para: ShowTableParameter,
         emit: QueryEventEmitter,
     ) -> anyhow::Result<()> {
-        let ShowTableParameter {
-            where_str,
-            order_by,
-            page,
-            page_size,
-            ..
-        } = &para;
         emit.send("trying to query table columns.".into())?;
         let fields = self.show_table_columns(table_name).await?;
         emit.send("trying to get total amount.".into())?;
-        let total = self.query_count(table_name, where_str.as_deref()).await?;
+        let total = self
+            .query_count(table_name, para.where_str.as_deref())
+            .await?;
         log::trace!("query count ok");
-        let sql = gen_show_sql(
-            table_name,
-            Some(self.backend_name().format_fields(Some(&fields))),
-            where_str.as_deref(),
-            order_by.as_deref(),
-            *page,
-            *page_size,
-        );
+        let sql = self.gen_show_sql(table_name, Some(&fields), Some(&para));
         emit.send(
             QueryResp {
                 fields,
@@ -669,36 +583,24 @@ impl SchemaTrait for SqliteDB {
         para: ShowTableParameter,
         emit: QueryEventEmitter,
     ) -> anyhow::Result<()> {
-        let ShowTableParameter {
-            where_str,
-            order_by,
-            page,
-            page_size,
-            ..
-        } = &para;
         emit.send("trying to get connection.".into())?;
         let mut conn = self.get_conn().await?;
         emit.send("trying to query total amount.".into())?;
-        let total = self.query_count(view_name, where_str.as_deref()).await?;
-        let sql = gen_show_sql(
-            view_name,
-            None,
-            where_str.as_deref(),
-            order_by.as_deref(),
-            *page,
-            *page_size,
-        );
+        let total = self
+            .query_count(view_name, para.where_str.as_deref())
+            .await?;
+        let sql = self.gen_show_sql(view_name, None, Some(&para));
         log::info!("show table sql:{}", sql);
         emit.send("trying to query data.".into())?;
         let mut stream = sqlx::raw_sql(AssertSqlSafe(sql.as_str())).fetch(conn.deref_mut());
-        let mut first = true;
+        let first = FirstTrue::default();
+
         while let Some(row) = stream.next().await {
             let row = row?;
-            if first {
-                first = false;
+            if first.get() {
                 emit.send(
                     QueryResp {
-                        fields: get_row_types(&row),
+                        fields: get_row_type(&row),
                         total,
                         sql: Some(sql.clone()),
                         ..Default::default()
@@ -709,7 +611,7 @@ impl SchemaTrait for SqliteDB {
             let d = encode_row(&row)?;
             emit.send(d.into())?;
         }
-        if first {
+        if first.get() {
             let fields = self.infer_fields_by_sql(&sql).await?;
             emit.send(
                 QueryResp {
@@ -780,7 +682,7 @@ impl SqliteDB {
     }
 }
 
-fn get_row_types(row: &SqliteRow) -> Vec<Field> {
+fn get_row_type(row: &SqliteRow) -> Vec<Field> {
     let mut ret = Vec::with_capacity(row.columns().len());
     for c in row.columns().iter() {
         ret.push(Field::from_name_type(
@@ -807,15 +709,7 @@ impl SqlBuilder for SqliteDB {
     fn get_current_values(&self) -> &'static [&'static str] {
         SQLITE_CURRENT_LITERALS
     }
-    fn put_value_in_sql(&self, typ: &str, value: Option<&str>) -> anyhow::Result<String> {
-        if self.hit_current_value(value) {
-            return anyhow::Result::Ok(value.option_must_be_some()?.to_string());
-        }
-        let value = match value {
-            Some(x) => x,
-            None => return anyhow::Ok("null".to_string()),
-        };
-
+    fn put_value_in_sql(&self, typ: &str, value: &str) -> anyhow::Result<String> {
         let typ = typ.to_uppercase();
         let v = match typ.as_str() {
             "" | "NULL" => {
@@ -836,13 +730,72 @@ impl SqlBuilder for SqliteDB {
                 anyhow::bail!(e)
             }
         };
-
         anyhow::Ok(v)
+    }
+
+    fn gen_show_sql(
+        &self,
+        table_name: &str,
+        fields: Option<&[Field]>,
+        para: Option<&ShowTableParameter>,
+    ) -> String {
+        let mut sql = format!(
+            r#"SELECT {} FROM "{table_name}""#,
+            self.backend_kind().format_fields(fields)
+        );
+        if let Some(para) = para {
+            let ShowTableParameter {
+                where_str,
+                order_by,
+                page,
+                page_size,
+                ..
+            } = para;
+            if let Some(where_str) = where_str {
+                sql.push_str(format!(" WHERE {where_str} ").as_str());
+            }
+            if let Some(order_by) = order_by {
+                sql.push_str(format!(" ORDER BY {order_by} ").as_str());
+            }
+            let offset = (page - 1) * page_size;
+            sql.push_str(format!(" LIMIT {} OFFSET {} ", page_size, offset).as_str());
+        }
+
+        sql
     }
 }
 
 pub(crate) fn encode_bytes(bs: &[u8]) -> String {
     format!("X'{}'", hex::encode_upper(bs))
+}
+
+pub(crate) fn gen_show_sql(
+    table_name: &str,
+    fields: Option<&[Field]>,
+    para: Option<&ShowTableParameter>,
+) -> String {
+    let mut sql = format!(
+        r#"SELECT {} FROM "{table_name}""#,
+        BackendKind::Sqlite.format_fields(fields)
+    );
+    if let Some(para) = para {
+        let ShowTableParameter {
+            where_str,
+            order_by,
+            page,
+            page_size,
+            ..
+        } = para;
+        if let Some(where_str) = where_str {
+            sql.push_str(format!(" WHERE {where_str} ").as_str());
+        }
+        if let Some(order_by) = order_by {
+            sql.push_str(format!(" ORDER BY {order_by} ").as_str());
+        }
+        let offset = (page - 1) * page_size;
+        sql.push_str(format!(" LIMIT {} OFFSET {} ", page_size, offset).as_str());
+    }
+    sql
 }
 
 fn encode_row_as_json(r: &SqliteRow) -> anyhow::Result<serde_json::Value> {
@@ -868,7 +821,6 @@ fn encode_row_as_json(r: &SqliteRow) -> anyhow::Result<serde_json::Value> {
                     null_value.clone()
                 }
             }
-
             _ if text_like(&typ) => {
                 let v: Option<String> = r.try_get(c)?;
                 v.map(serde_json::Value::String)
@@ -1011,7 +963,6 @@ fn encode_row(row: &SqliteRow) -> anyhow::Result<Vec<Option<String>>> {
                 let v: Option<f64> = row.try_get(c)?;
                 v.map(|x| format!("{}", x))
             }
-
             "BOOLEAN" => {
                 let v: Option<bool> = row.try_get(c)?;
                 v.map(|x| format!("{}", x))
@@ -1038,36 +989,39 @@ fn encode_row(row: &SqliteRow) -> anyhow::Result<Vec<Option<String>>> {
 
 impl SqliteDB {
     pub async fn new(conn: SqliteDBConfig) -> anyhow::Result<Self> {
+        if !is_sqlite_file(&conn.path).await {
+            anyhow::bail!("this is not a sqlite file");
+        }
         let mut opts: PoolOptions<sqlx::sqlite::Sqlite> = PoolOptions::new();
         opts = opts.max_connections(POOL_MAX_CONNECTIONS);
         if let Some(timeout) = conn.conn_timeout {
             opts = opts.acquire_timeout(timeout.into());
         }
-        let pool = opts.connect(conn.path.as_str()).await?;
-
+        let mut sqlite_ops = <SqliteConnectOptions as std::str::FromStr>::from_str(
+            format!("sqlite://{}", conn.path).as_str(),
+        )?;
+        sqlite_ops = sqlite_ops.read_only(conn.read_only);
+        let pool = opts.connect_with(sqlite_ops).await?;
         if conn.read_only {
-            let r = sqlx::raw_sql("PRAGMA query_only = true;")
+            sqlx::raw_sql("PRAGMA query_only = true;")
                 .execute(pool.acquire().await?.deref_mut())
-                .await;
-            match r {
-                Ok(_) => {}
-                Err(err) => anyhow::bail!(format!("execute query only failed,err:{}", err)),
-            }
+                .await?;
         }
         anyhow::Ok(Self {
             pool,
             query_connection: Default::default(),
             config: conn,
-            build_in_fn_completion: Default::default(),
-            keywords_cache: Default::default(),
-            pragma_completion: Default::default(),
             completion_id: Default::default(),
         })
     }
 
-    async fn query_count(&self, name: &str, where_str: Option<&str>) -> anyhow::Result<usize> {
+    async fn query_count(
+        &self,
+        table_or_view: &str,
+        where_str: Option<&str>,
+    ) -> anyhow::Result<usize> {
         let mut conn = self.get_conn().await?;
-        let mut s = format!(r#"SELECT count(1) from "{name}" "#);
+        let mut s = format!(r#"SELECT count(1) from "{table_or_view}" "#);
         if let Some(where_str) = where_str {
             s.push_str(format!(" where {where_str}").as_str());
         }
@@ -1118,27 +1072,10 @@ pub(crate) fn extract_auto_increment_key(sql: &str) -> anyhow::Result<Option<Str
     anyhow::Ok(None)
 }
 
-impl SqliteDB {
-    async fn get_conn_by_query_id(
-        &self,
-        query_id: Option<&str>,
-    ) -> anyhow::Result<Arc<Mutex<PoolConnection<sqlx::Sqlite>>>> {
-        match query_id {
-            Some(id) => match self.query_connection.get(&id.to_string()) {
-                Some(x) => anyhow::Ok(x.clone()),
-                None => anyhow::bail!("should be able to get connection"),
-            },
-            None => {
-                let conn = self.get_conn().await?;
-                anyhow::Ok(Arc::new(Mutex::new(conn)))
-            }
-        }
-    }
-}
 #[async_trait::async_trait]
 impl ExportQueryResult for SqliteDB {
     fn clone(&self) -> Box<dyn ExportQueryResult> {
-        Box::new(Clone::clone(self)) as Box<dyn ExportQueryResult>
+        Box::new(Clone::clone(self))
     }
 
     async fn export_query_result(
@@ -1148,11 +1085,21 @@ impl ExportQueryResult for SqliteDB {
         kind: ExportKind,
         sender: tokio::sync::mpsc::Sender<ExportFrame>,
     ) -> anyhow::Result<()> {
-        let conn = self.get_conn_by_query_id(query_id).await?;
+        let conn = match query_id {
+            Some(id) => match self.query_connection.get(&id.to_string()) {
+                Some(x) => x.clone(),
+                None => anyhow::bail!("should be able to get connection"),
+            },
+            None => {
+                let conn = self.get_conn().await?;
+                let conn = conn.detach();
+                Arc::new(Mutex::new(conn))
+            }
+        };
         let mut conn = conn.lock().await;
-        let conn = conn.deref_mut();
         let mut stream = sqlx::raw_sql(AssertSqlSafe(sql)).fetch(conn.deref_mut());
-        let mut first = true;
+        let first = FirstTrue::default();
+
         let mut row_num = 0;
         while let Some(row) = stream.next().await {
             let row = row?;
@@ -1161,8 +1108,7 @@ impl ExportQueryResult for SqliteDB {
                     include_header,
                     delimiter,
                 } => {
-                    if first && include_header {
-                        first = false;
+                    if first.get() && include_header {
                         let fs: Vec<_> = row
                             .columns()
                             .iter()
@@ -1182,8 +1128,7 @@ impl ExportQueryResult for SqliteDB {
                     anyhow::bail!("can't export query result as sql")
                 }
                 ExportKind::Xlsx { include_header } => {
-                    if first && include_header {
-                        first = false;
+                    if first.get() && include_header {
                         for (index, col) in row.columns().iter().enumerate() {
                             sender
                                 .send(
@@ -1202,8 +1147,7 @@ impl ExportQueryResult for SqliteDB {
                     export_query_as_xlsx_send_data(&mut row_num, data, sender.clone()).await?;
                 }
                 ExportKind::Html { include_header } => {
-                    if first && include_header {
-                        first = false;
+                    if first.get() && include_header {
                         let cols: Vec<_> =
                             row.columns().iter().map(|x| x.name().to_string()).collect();
                         sender
@@ -1214,8 +1158,7 @@ impl ExportQueryResult for SqliteDB {
                     sender.send(create_html_table_data(&[data]).into()).await?;
                 }
                 ExportKind::MarkDown => {
-                    if first {
-                        first = false;
+                    if first.get() {
                         let cols: Vec<_> =
                             row.columns().iter().map(|x| x.name().to_string()).collect();
                         sender
@@ -1235,7 +1178,7 @@ impl SqliteDB {
     async fn infer_fields_by_sql(&self, sql: &str) -> anyhow::Result<Vec<Field>> {
         use sqlx::Statement;
         let mut conn = self.get_conn().await?;
-        let fields = conn
+        let r = conn
             .deref_mut()
             .prepare_with(AssertSqlSafe(sql).into_sql_str(), &[])
             .await
@@ -1244,9 +1187,8 @@ impl SqliteDB {
                     .iter()
                     .map(|x| Field::from_name_type(x.name(), x.type_info().to_string()))
                     .collect::<Vec<_>>()
-            })
-            .unwrap_or_default();
-        anyhow::Ok(fields)
+            })?;
+        anyhow::Ok(r)
     }
 }
 
@@ -1268,7 +1210,7 @@ impl QuerySql for SqliteDB {
 
     async fn set_auto_commit(&self, query_id: &str, commit: bool) -> anyhow::Result<()> {
         if commit {
-            anyhow::bail!("sqlite use  commit or rollback to end transaction");
+            anyhow::bail!("sqlite use commit or rollback to end transaction");
         }
         use sqlx_core::any::AnyConnectionBackend;
         let conn = self.query_connection.get(&query_id.to_string());
@@ -1314,9 +1256,12 @@ impl QuerySql for SqliteDB {
         anyhow::Ok(())
     }
 
-    async fn execute_sql_no_open_conn(&self, sql: &str) -> anyhow::Result<Option<usize>> {
+    async fn simple_execute_sql(&self, sql: &str) -> anyhow::Result<Option<usize>> {
         let mut conn = self.get_conn().await?;
-        let ret = conn.execute(sqlx::raw_sql(AssertSqlSafe(sql))).await?;
+        let ret = conn
+            .execute(sqlx::raw_sql(AssertSqlSafe(sql)))
+            .await
+            .map_err(|err| anyhow::Error::msg(format!("Sql:{} Err:{}", sql, err)))?;
         anyhow::Ok(Some(ret.rows_affected() as usize))
     }
 
@@ -1339,7 +1284,6 @@ impl QuerySql for SqliteDB {
             Ok(x) => Ok(QueryResp::row_affected(x.rows_affected(), sql.to_owned())),
             Err(err) => Err(err.to_string()),
         };
-
         anyhow::Ok(ret)
     }
 
@@ -1357,7 +1301,7 @@ impl QuerySql for SqliteDB {
             None => anyhow::bail!("connection closed???"),
         };
         let mut conn = conn.lock().await;
-        let conn = conn.deref_mut();
+        let mut conn = conn.deref_mut();
         emit.send(QueryEvent::Status("trying to get response stream".into()))?;
         let mut stream = sqlx::raw_sql(AssertSqlSafe(sql)).fetch_many(conn.deref_mut());
         emit.send(QueryEvent::Status("get response ok.".into()))?;
@@ -1377,7 +1321,7 @@ impl QuerySql for SqliteDB {
                 }
                 sqlx::Either::Right(row) => {
                     has_result = true;
-                    let fields = get_row_types(&row);
+                    let fields = get_row_type(&row);
                     if emit_fields.is_empty() || !fields.eq(&emit_fields) {
                         emit.send(
                             QueryResp {
@@ -1408,46 +1352,19 @@ impl QuerySql for SqliteDB {
 
     async fn open_connection(&self, id: &str) -> anyhow::Result<()> {
         let conn = self.get_conn().await?;
+        let conn = conn.detach();
         self.query_connection
             .insert(id.to_owned(), Arc::new(Mutex::new(conn)));
         anyhow::Ok(())
     }
 
     async fn close_connection(&self, id: &str) -> anyhow::Result<()> {
-        if let Some((_, _x)) = self.query_connection.remove(&id.to_string()) {}
+        self.query_connection.remove(&id.to_owned());
         anyhow::Ok(())
     }
 }
 
-pub(crate) fn gen_show_sql(
-    table_name: &str,
-    fields: Option<String>,
-    where_str: Option<&str>,
-    order_by: Option<&str>,
-    page: usize,
-    page_size: usize,
-) -> String {
-    let mut sql = format!(
-        r#"SELECT {} FROM "{table_name}""#,
-        if let Some(fields) = fields {
-            fields
-        } else {
-            "*".to_owned()
-        }
-    );
-    if let Some(where_str) = where_str {
-        sql.push_str(format!(" WHERE {where_str} ").as_str());
-    }
-    if let Some(order_by) = order_by {
-        sql.push_str(format!(" ORDER BY {order_by} ").as_str());
-    }
-    let offset = (page - 1) * page_size;
-    sql.push_str(format!(" LIMIT {} OFFSET {} ", page_size, offset).as_str());
-    sql
-}
-
-#[cfg(test)]
-pub(crate) fn sqlite_test_file_path() -> String {
+pub fn sqlite_test_file_path() -> String {
     std::env::var("DBPAL_SQLITE_TEST_FILE").unwrap()
 }
 
@@ -1464,26 +1381,71 @@ pub(crate) async fn make_test_object() -> SqliteDB {
     db
 }
 
-impl ReadOnlyTrait for SqliteDB {
-    fn read_only(&self) -> bool {
-        self.config.read_only
-    }
-}
+impl crate::db::GetTestExportTableKinds for SqliteDB {}
 
 #[cfg(test)]
 mod tests {
 
     use super::*;
     use crate::db::{
-        CreateIndexColumn, CreateTableReq, CreateTableReqColumn, ShowTableParameter, SqlNullAble,
-        TestQueryEventEmit,
+        CreateIndexColumn, CreateTableReq, CreateTableReqColumn, GetTestExportTableKinds,
+        ShowTableParameter, SqlNullAble, TestQueryEventEmit,
     };
+
+    #[tokio::test]
+    async fn test_open_lots_conn() {
+        // test sqlx `detach`
+        let db = make_test_object().await;
+        for i in 0..400 {
+            let query_id = format!("q{}", i);
+            db.open_connection(&query_id).await.unwrap();
+            db.close_connection(&query_id).await.unwrap();
+        }
+    }
+
+    #[tokio::test]
+    async fn test_table_pagination() {
+        let db = make_test_object().await;
+        let table_name = "test_table_pagination";
+        let _ = db.drop_table(table_name, false).await;
+        db.create_table(&CreateTableReq {
+            name: table_name.into(),
+            columns: vec![
+                CreateTableReqColumn {
+                    name: "id".into(),
+                    data_type: "SMALLINT".into(),
+                    auto_increment: false,
+                    primary_key: true,
+                    default_value: None,
+                    nullable: SqlNullAble::Unspecified,
+                },
+                CreateTableReqColumn {
+                    name: "name".into(),
+                    data_type: "varchar(255)".into(),
+                    auto_increment: false,
+                    primary_key: true,
+                    default_value: None,
+                    nullable: SqlNullAble::Unspecified,
+                },
+            ],
+            indexes: vec![],
+        })
+        .await
+        .unwrap();
+
+        for i in 0..155 {
+            let mut values = HashMap::new();
+            values.insert("id".to_owned(), Some((i + 1).to_string()));
+            values.insert("name".to_owned(), Some(format!("name{}", i + 1)));
+            db.table_insert(table_name, values).await.unwrap();
+        }
+    }
 
     #[ignore = "this test run by hand"]
     #[tokio::test]
     async fn test_do_has_data_query() {
         let db = make_test_object().await;
-        let query_id = "";
+        let query_id = "aaaa";
         db.open_connection(query_id).await.unwrap();
         let now = std::time::Instant::now();
         db.execute_sql(query_id, "SELECT * from has_data_0")
@@ -1501,7 +1463,7 @@ mod tests {
         let table_name = "test_column";
         let _ = db.drop_table(table_name, false).await;
 
-        let query_id = "";
+        let query_id = "aaaa";
         db.open_connection(query_id).await.unwrap();
         db
             .execute_sql (
@@ -1522,13 +1484,12 @@ mod tests {
             ColumnType {
                 typ: "VARCHAR(255)".to_string(),
                 nullable: SqlNullAble::Null.into(),
-                after: Some("id".to_string()),
+                after: None,
                 default_value: Some("abc".to_string()),
             },
         )
         .await
         .unwrap();
-
         db.drop_table_column(table_name, "name").await.unwrap();
     }
 
@@ -1640,7 +1601,7 @@ mod tests {
         let table_name = "test_commit";
         let _ = db.drop_table(table_name, false).await;
 
-        let query_id = "";
+        let query_id = "aaaa";
         db.open_connection(query_id).await.unwrap();
         db.execute_sql(
             query_id,
@@ -1702,11 +1663,11 @@ mod tests {
     #[tokio::test]
     async fn test_do_has_data() {
         let db = make_test_object().await;
-        let query_id = "";
+        let query_id = "aaaa";
         db.open_connection(query_id).await.unwrap();
         let mut conn = db.get_conn().await.unwrap();
 
-        for i in 0..2 {
+        for i in 0..10 {
             let table_name = format!("has_data_{}", i);
             let err = db.drop_table(&table_name, false).await;
             if let Err(err) = err {
@@ -1721,13 +1682,16 @@ mod tests {
                 col5 real,
                 col6 real,
                 col7 real
-        )
+            )
             "#
             );
 
-            let result = db.execute_sql(query_id, &create_table).await;
-            println!("create table result:{:?}", result);
-            for _ in 0..1550 {
+            let _ = db
+                .execute_sql(query_id, &create_table)
+                .await
+                .unwrap()
+                .unwrap();
+            for _ in 0..155 {
                 let sql = format!(
                     "insert into {table_name} values({} , {} , {} , {} ,{} ,{} ,{});",
                     rand::random::<f64>() * 100000f64,
@@ -1764,7 +1728,7 @@ mod tests {
 
         let _ = db.drop_table("test_rename", false).await;
         let _ = db.drop_table("test_rename2", false).await;
-        let query_id = "";
+        let query_id = "aaaa";
         db.open_connection(query_id).await.unwrap();
         db.execute_sql(
             query_id,
@@ -1791,12 +1755,42 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn test_read_only() {
+        let path = sqlite_test_file_path();
+        let x = SqliteDB::new(SqliteDBConfig {
+            path,
+            read_only: true,
+            conn_timeout: Some(5000.into()),
+        })
+        .await
+        .unwrap();
+        let mut conn = x.get_conn().await.unwrap();
+        let err = conn
+            .execute(
+                r#"
+        CREATE TABLE IF NOT EXISTS users (
+            id INTEGER PRIMARY KEY AUTOINCREMENT, -- Best practice for unique IDs
+            username TEXT NOT NULL UNIQUE,         -- String, cannot be empty, must be unique
+            email TEXT,                            -- String
+            age INTEGER DEFAULT 18,                -- Number with a default value
+            created_at DATETIME DEFAULT CURRENT_TIMESTAMP -- Automatic timestamp
+        );
+        "#,
+            )
+            .await;
+        assert!(err.is_err());
+        if let Err(err) = err {
+            let x = format!("{:?}", err);
+            assert!(x.contains("readonly database"));
+        }
+    }
+
+    #[tokio::test]
     async fn test_duplicate() {
         let db = make_test_object().await;
-
         let _ = db.drop_table("test_duplicate", false).await;
         let _ = db.drop_table("test_duplicate2", false).await;
-        let query_id = "";
+        let query_id = "aaaa";
         db.open_connection(query_id).await.unwrap();
         let _ = db
             .execute_sql(
@@ -1958,7 +1952,7 @@ mod tests {
         let db = make_test_object().await;
         let table_name = "Persons";
         let _ = db.drop_table(table_name, false).await;
-        let query_id = "";
+        let query_id = "aaaa";
         db.open_connection(query_id).await.unwrap();
         db.execute_sql(
             query_id,
@@ -1980,137 +1974,7 @@ mod tests {
         .unwrap()
         .unwrap();
 
-        let db = db;
-        {
-            let s = db
-                .export_table_to_string(
-                    table_name,
-                    ExportKind::Sql {
-                        include_table_schema: true,
-                    },
-                )
-                .await
-                .unwrap();
-            println!("sql:{}", s);
-        }
-
-        {
-            let s = db
-                .export_table_to_string(table_name, ExportKind::Json { pretty: true })
-                .await
-                .unwrap();
-            println!("json:{}", s);
-            let _: serde_json::Value = serde_json::from_str(s.as_str()).unwrap();
-        }
-        {
-            let s = db
-                .export_table_to_string(
-                    table_name,
-                    ExportKind::Csv {
-                        include_header: true,
-                        delimiter: ',',
-                    },
-                )
-                .await
-                .unwrap();
-            println!("csv:{}", s);
-        }
-        {
-            let s = db
-                .export_table_to_string(table_name, ExportKind::JsonLine)
-                .await
-                .unwrap();
-            println!("json_line:{}", s);
-        }
-        println!("########################################");
-
-        {
-            let s = db
-                .export_query_result_to_string(
-                    query_id,
-                    "select * from persons",
-                    ExportKind::Json { pretty: true },
-                )
-                .await
-                .unwrap();
-            println!("json:{}", s);
-            let _: serde_json::Value = serde_json::from_str(s.as_str()).unwrap();
-        }
-        {
-            let s = db
-                .export_query_result_to_string(
-                    query_id,
-                    "select * from persons",
-                    ExportKind::Csv {
-                        include_header: true,
-                        delimiter: ',',
-                    },
-                )
-                .await
-                .unwrap();
-            println!("csv:{}", s);
-        }
-        {
-            let s = db
-                .export_query_result_to_string(
-                    query_id,
-                    "select * from persons",
-                    ExportKind::JsonLine,
-                )
-                .await
-                .unwrap();
-            println!("json_line:{}", s);
-        }
-
-        {
-            let html = db
-                .export_table_to_string(
-                    table_name,
-                    ExportKind::Html {
-                        include_header: true,
-                    },
-                )
-                .await
-                .unwrap();
-            println!("html:{}", html);
-        }
-        {
-            let md = db
-                .export_table_to_string(table_name, ExportKind::MarkDown)
-                .await
-                .unwrap();
-            println!("html:{}", md);
-        }
-        {
-            let filepath = db.backend_name().make_test_xlsx_file(table_name);
-            db.export_table_or_view_to_file(
-                table_name,
-                None,
-                &filepath,
-                ExportKind::Xlsx {
-                    include_header: true,
-                },
-                Arc::new(|_| {}),
-            )
-            .await
-            .unwrap();
-            opener::open(&filepath).unwrap();
-        }
-    }
-
-    #[tokio::test]
-    async fn test_show_documents() {
-        let db = make_test_object().await;
-
-        let r = db
-            .show_table_collect(
-                "documents",
-                ShowTableParameter::new_stupid_test("title asc"),
-            )
-            .await
-            .unwrap();
-
-        dbg!(r);
+        GetTestExportTableKinds::test_export(&db, table_name).await;
     }
 
     #[tokio::test]

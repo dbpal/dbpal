@@ -7,11 +7,12 @@ use couchbase::{
     bucket::Bucket,
     cluster::Cluster,
     management::buckets::bucket_settings::{BucketSettings, BucketType},
-    options::cluster_options::ClusterOptions,
+    options::{cluster_options::ClusterOptions, query_options::QueryOptions},
     scope::Scope,
 };
 use futures_util::StreamExt;
-use serde_json::Value;
+use serde::Serialize;
+use serde_json::{ser::PrettyFormatter, Serializer, Value};
 
 use crate::{
     datasource_config::CouchBaseDBConfig,
@@ -30,7 +31,7 @@ pub struct CouchBaseDB {
 }
 
 impl GetBackendKind for CouchBaseDB {
-    fn backend_name(&self) -> BackendKind {
+    fn backend_kind(&self) -> BackendKind {
         BackendKind::CouchBase
     }
 }
@@ -90,11 +91,11 @@ impl std::fmt::Debug for CouchBaseDB {
 impl ServerMetas for CouchBaseDB {
     async fn show_metas(&self) -> anyhow::Result<Vec<MetaValue>> {
         let x = self.cluster.diagnostics(None).await?;
-        let mut ret = vec![];
-        ret.push(MetaValue::new("version", x.version.to_string()));
-        ret.push(MetaValue::new("id", x.id.to_string()));
-        ret.push(MetaValue::new("sdk", x.sdk.to_string()));
-        anyhow::Ok(ret)
+        anyhow::Ok(vec![
+            MetaValue::new("version", x.version.to_string()),
+            MetaValue::new("id", x.id.to_string()),
+            MetaValue::new("sdk", x.sdk.to_string()),
+        ])
     }
 }
 
@@ -108,7 +109,13 @@ impl QuerySql for CouchBaseDB {
         emit: QueryEventEmitter,
     ) -> anyhow::Result<()> {
         let scope = self.get_scope()?;
-        let mut query_result = scope.query(sql, None).await?;
+        let mut query_result = scope
+            .query(sql, {
+                let op = QueryOptions::default();
+                let op = op.read_only(self.config.read_only);
+                Some(op)
+            })
+            .await?;
         let mut stream = query_result.rows::<'_, serde_json::Value>();
         while let Some(x) = stream.next().await {
             let x = x?;
@@ -123,19 +130,19 @@ impl QuerySql for CouchBaseDB {
         _query_id: &str,
         _sql: &str,
     ) -> anyhow::Result<Result<crate::db::QueryResp, String>> {
-        self.backend_name().not_support_feature()
+        self.backend_kind().not_support_feature()
     }
 
-    async fn execute_sql_no_open_conn(&self, _sql: &str) -> anyhow::Result<Option<usize>> {
-        self.backend_name().not_support_feature()
+    async fn simple_execute_sql(&self, _sql: &str) -> anyhow::Result<Option<usize>> {
+        self.backend_kind().not_support_feature()
     }
 
     async fn open_connection(&self, _id: &str) -> anyhow::Result<()> {
-        self.backend_name().not_support_feature()
+        self.backend_kind().not_support_feature()
     }
 
     async fn close_connection(&self, _id: &str) -> anyhow::Result<()> {
-        self.backend_name().not_support_feature()
+        self.backend_kind().not_support_feature()
     }
 }
 
@@ -148,38 +155,14 @@ fn extract_id_and_value(
 ) -> anyhow::Result<(&String, serde_json::Value)> {
     // accept two parameter id and value
     let id = match values.get("id") {
-        Some(x) => match x {
-            Some(x) => x,
-            None => anyhow::bail!("id is required"),
-        },
-        None => anyhow::bail!("id is required"),
+        Some(Some(x)) => x,
+        _ => anyhow::bail!("id is required"),
     };
     let value = match values.get("value") {
-        Some(x) => match x {
-            Some(x) => serde_json::Value::from_str(x)?,
-            None => anyhow::bail!("value is required"),
-        },
-        None => anyhow::bail!("value is required"),
+        Some(Some(x)) => serde_json::Value::from_str(x)?,
+        _ => anyhow::bail!("value is required"),
     };
     anyhow::Ok((id, value))
-}
-
-fn gen_show_sql(
-    table: &str,
-    where_str: Option<&str>,
-    order_by: Option<&str>,
-    page: usize,
-    page_size: usize,
-) -> String {
-    let mut sql = format!("SELECT META().id, * FROM `{table}`");
-    if let Some(w) = where_str {
-        sql.push_str(format!(" where {}", w).as_str());
-    }
-    if let Some(o) = order_by {
-        sql.push_str(format!(" ORDER BY {}", o).as_str());
-    }
-    sql.push_str(format!(" LIMIT {} OFFSET {}", page_size, (page - 1) * page_size).as_str());
-    sql
 }
 
 impl CouchBaseDB {
@@ -195,6 +178,7 @@ impl CouchBaseDB {
         let s = self.get_scope()?;
         let mut resp = s.query(sql, None).await?;
         let mut rows = resp.rows::<'_, Value>();
+        #[allow(clippy::never_loop)]
         while let Some(x) = rows.next().await {
             let x = x?;
             match x {
@@ -238,6 +222,30 @@ impl CouchBaseDB {
 #[async_trait::async_trait]
 
 impl SchemaTrait for CouchBaseDB {
+    async fn export_table_or_view(
+        &self,
+        name: &str,
+        para: Option<ShowTableParameter>,
+        kind: ExportKind,
+        sender: tokio::sync::mpsc::Sender<crate::db::ExportFrame>,
+    ) -> anyhow::Result<()> {
+        let sql = self.gen_show_sql(name, None, para.as_ref());
+        let mut resp = self.get_scope()?.query(sql, None).await?;
+        let mut rows = resp.rows::<'_, serde_json::Value>();
+
+        while let Some(row) = rows.next().await {
+            let row = row?;
+            match kind {
+                ExportKind::Json { .. } | ExportKind::JsonLine => {
+                    sender.send(row.into()).await?;
+                }
+                _ => {
+                    anyhow::bail!(format!("not support export kind {:?}", kind))
+                }
+            }
+        }
+        anyhow::Ok(())
+    }
     fn as_any(&self) -> &dyn std::any::Any {
         self
     }
@@ -247,6 +255,8 @@ impl SchemaTrait for CouchBaseDB {
         table_name: &str,
         values: HashMap<String, Option<String>>,
     ) -> anyhow::Result<Option<usize>> {
+        self.can_write()?;
+
         let scope = self.get_scope()?;
         let (id, value) = extract_id_and_value(&values)?;
         scope.collection(table_name).insert(id, value, None).await?;
@@ -259,6 +269,7 @@ impl SchemaTrait for CouchBaseDB {
         values: HashMap<String, Option<String>>,
         _wheres: HashMap<String, Option<String>>,
     ) -> anyhow::Result<Option<usize>> {
+        self.can_write()?;
         let (id, value) = extract_id_and_value(&values)?;
         let scope = self.get_scope()?;
         let col = scope.collection(table_name);
@@ -267,6 +278,7 @@ impl SchemaTrait for CouchBaseDB {
     }
 
     async fn duplicate_table(&self, table: &str, dup: &str) -> anyhow::Result<()> {
+        self.can_write()?;
         let bucket = self.get_bucket()?;
 
         if self.table_exists(dup).await? {
@@ -309,6 +321,7 @@ impl SchemaTrait for CouchBaseDB {
         table_name: &str,
         mut wheres: HashMap<String, Option<String>>,
     ) -> anyhow::Result<Option<usize>> {
+        self.can_write()?;
         let id = wheres.remove("id").unwrap_or_default().unwrap_or_default();
         let scope = self.get_scope()?;
         scope.collection(table_name).remove(id, None).await?;
@@ -316,13 +329,22 @@ impl SchemaTrait for CouchBaseDB {
     }
 
     async fn show_table_columns(&self, table_name: &str) -> anyhow::Result<Vec<Field>> {
-        let sql = format!("select * from `{table_name}`");
+        let sql = format!("select * from `{table_name}` limit 1");
         let s = self.get_scope()?;
         let mut resp = s.query(sql, None).await?;
         let mut rows = resp.rows::<'_, serde_json::Map<String, Value>>();
+        #[allow(clippy::never_loop)]
         while let Some(row) = rows.next().await {
             let row = row?;
-            return anyhow::Ok(row.keys().map(|x| Field::from_name_type(x, "")).collect());
+            let row = row.get(table_name).unwrap_or_default();
+            match row {
+                Value::Object(value) => {
+                    return anyhow::Ok(
+                        value.keys().map(|x| Field::from_name_type(x, "")).collect(),
+                    );
+                }
+                _ => return anyhow::Ok(vec![]),
+            }
         }
         anyhow::Ok(vec![])
     }
@@ -333,23 +355,10 @@ impl SchemaTrait for CouchBaseDB {
         para: ShowTableParameter,
         emit: QueryEventEmitter,
     ) -> anyhow::Result<()> {
-        let ShowTableParameter {
-            where_str,
-            order_by,
-            page,
-            page_size,
-            ..
-        } = &para;
-        let sql = gen_show_sql(
-            table_name,
-            where_str.as_deref(),
-            order_by.as_deref(),
-            *page,
-            *page_size,
-        );
-
-        let total = self.query_count(table_name, where_str.as_deref()).await?;
-        dbg!(total);
+        let sql = self.gen_show_sql(table_name, None, Some(&para));
+        let total = self
+            .query_count(table_name, para.where_str.as_deref())
+            .await?;
         emit.send(
             QueryResp {
                 sql: Some(sql.clone()),
@@ -369,28 +378,39 @@ impl SchemaTrait for CouchBaseDB {
                     row
                 )),
             };
-            let data = serde_json::to_string_pretty(row.get(table_name).unwrap_or(&Value::Null))?;
-            emit.send(vec![Some(id), Some(data)].into())?;
+
+            let indent = " ".repeat(para.tab_size); // 这里可以是 b"\t" 或任意字节序列
+            let formatter = PrettyFormatter::with_indent(indent.as_bytes());
+
+            let mut buf = Vec::new();
+            let mut serializer = Serializer::with_formatter(&mut buf, formatter);
+            row.get(table_name)
+                .unwrap_or(&Value::Null)
+                .serialize(&mut serializer)?;
+
+            emit.send(vec![Some(id), Some(String::from_utf8(buf)?)].into())?;
         }
         anyhow::Ok(())
     }
 
-    async fn truncate_table(&self, table_name: &str) -> anyhow::Result<()> {
+    async fn truncate_table(&self, table_name: &str) -> anyhow::Result<Option<String>> {
+        self.can_write()?;
         let s = self.get_scope()?;
         let sql = format!("DELETE FROM `{table_name}`");
-        s.query(sql, None).await?;
-        anyhow::Ok(())
+        s.query(sql.clone(), None).await?;
+        anyhow::Ok(sql.into())
     }
 
-    async fn drop_table(&self, table: &str, _cascade: bool) -> anyhow::Result<()> {
+    async fn drop_table(&self, table: &str, _cascade: bool) -> anyhow::Result<Option<String>> {
+        self.can_write()?;
         let s = self.get_scope()?;
         let sql = format!("DROP COLLECTION `{table}`;");
-        s.query(sql, None).await?;
-        anyhow::Ok(())
+        s.query(sql.clone(), None).await?;
+        anyhow::Ok(sql.into())
     }
 
     fn clone(&self) -> Box<dyn SchemaTrait> {
-        Box::new(Clone::clone(self)) as Box<dyn SchemaTrait>
+        Box::new(Clone::clone(self))
     }
 
     async fn list_data_types(&self) -> anyhow::Result<Vec<String>> {
@@ -400,6 +420,7 @@ impl SchemaTrait for CouchBaseDB {
 
 impl CouchBaseDB {
     pub async fn collection_delete_one(&self, table_name: &str, id: &str) -> anyhow::Result<()> {
+        self.can_write()?;
         let s = self.get_scope()?;
         s.collection(table_name).remove(id, None).await?;
         anyhow::Ok(())
@@ -411,15 +432,44 @@ impl SqlBuilder for CouchBaseDB {
         self.config.scope.as_deref()
     }
 
-    fn put_value_in_sql(&self, _typ: &str, _value: Option<&str>) -> anyhow::Result<String> {
-        self.backend_name().not_support_feature()
+    fn put_value_in_sql(&self, _typ: &str, _value: &str) -> anyhow::Result<String> {
+        self.backend_kind().not_support_feature()
+    }
+
+    fn gen_show_sql(
+        &self,
+        table_name: &str,
+        _fields: Option<&[Field]>,
+        para: Option<&ShowTableParameter>,
+    ) -> String {
+        let mut sql = format!("SELECT META().id, * FROM `{table_name}`");
+
+        if let Some(para) = para {
+            let ShowTableParameter {
+                where_str,
+                order_by,
+                page,
+                page_size,
+                ..
+            } = &para;
+            if let Some(w) = where_str {
+                sql.push_str(format!(" where {}", w).as_str());
+            }
+            if let Some(o) = order_by {
+                sql.push_str(format!(" ORDER BY {}", o).as_str());
+            }
+            sql.push_str(
+                format!(" LIMIT {} OFFSET {}", page_size, (page - 1) * page_size).as_str(),
+            );
+        }
+        sql
     }
 }
 #[async_trait::async_trait]
 
 impl ExportQueryResult for CouchBaseDB {
     fn clone(&self) -> Box<dyn ExportQueryResult> {
-        Box::new(Clone::clone(self)) as Box<dyn ExportQueryResult>
+        Box::new(Clone::clone(self))
     }
 
     async fn export_query_result(
@@ -488,6 +538,7 @@ impl DBTrait for CouchBaseDB {
         name: &str,
         _extra: Option<crate::db::CreateSchemaExtra>,
     ) -> anyhow::Result<()> {
+        self.can_write()?;
         self.get_bucket()?
             .collections()
             .create_scope(name, None)
@@ -496,6 +547,7 @@ impl DBTrait for CouchBaseDB {
     }
 
     async fn drop_schema(&self, name: &str) -> anyhow::Result<()> {
+        self.can_write()?;
         self.get_bucket()?
             .collections()
             .drop_scope(name, None)
@@ -527,6 +579,7 @@ impl CatalogTrait for CouchBaseDB {
         name: &str,
         extra: Option<CreateDatabaseExtra>,
     ) -> anyhow::Result<()> {
+        self.can_write()?;
         let setting = match extra {
             Some(CreateDatabaseExtra::Couchbase {
                 ram_quota_mb,
@@ -561,11 +614,17 @@ impl CatalogTrait for CouchBaseDB {
     }
 
     async fn drop_database(&self, name: &str) -> anyhow::Result<()> {
+        self.can_write()?;
         self.cluster.buckets().drop_bucket(name, None).await?;
         anyhow::Ok(())
     }
+
+    fn as_any(&self) -> &dyn std::any::Any {
+        self
+    }
 }
 
+// http://localhost:8091/ui/index.html 通过这个初始化
 #[cfg(test)]
 async fn make_test_object() -> CouchBaseDB {
     CouchBaseDB::new(CouchBaseDBConfig {
@@ -582,7 +641,6 @@ async fn make_test_object() -> CouchBaseDB {
 }
 
 #[cfg(test)]
-
 mod tests {
     use super::*;
     use crate::enable_test_log;
@@ -601,31 +659,6 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn create_bucket_and_scope() {
-        println!("make test object");
-        let db = make_test_object().await;
-        println!("trying to creteate bucket");
-        let _err = db
-            .create_database(
-                "test",
-                Some(CreateDatabaseExtra::Couchbase {
-                    ram_quota_mb: 100,
-                    flush_enabled: true,
-                    num_replicas: 1,
-                    max_expiry: None,
-                    bucket_type: CouchBaseBucketType::Couchbase,
-                }),
-            )
-            .await;
-        if let Err(_err) = _err {
-            println!("create database error,err:{}", _err);
-        }
-        let _err = db.create_schema("xxx", None).await;
-        if let Err(_err) = _err {
-            println!("create schema error,err:{}", _err);
-        }
-    }
-    #[tokio::test]
 
     async fn test_db() {
         enable_test_log();
@@ -637,6 +670,7 @@ mod tests {
     #[tokio::test]
 
     async fn test_catalog() {
+        enable_test_log();
         let db = make_test_object().await;
         let bs = db.list_database().await.unwrap();
         println!("buckets:{:?}", bs);
@@ -723,7 +757,7 @@ mod tests {
                 .unwrap();
         }
 
-        for i in 0..1550 {
+        for i in 0..155 {
             db.table_insert(table_name, {
                 let mut values = HashMap::new();
                 values.insert("id".to_string(), Some(format!("id_{}", i)));

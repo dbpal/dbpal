@@ -1,50 +1,29 @@
+import { ReactNode, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { EscDownEvent, modalHandleClose } from "./Common";
 import {
-  ReactNode,
-  useCallback,
-  useContext,
-  useEffect,
-  useMemo,
-  useRef,
-  useState,
-} from "react";
-import types from "./ApiStruct";
-import { DefAndMetas, EscDownEvent, modalHandleClose, modalStyle } from "./Common";
-import {
-  ColumnWidth,
-  ContextMenuContext,
   dataGridStyle,
   DataSourceKind,
   extractFieldAndIDFromMouseEvent,
   handleCopyToClipboard,
-  saveAndSetSize,
   secondConfirm,
-  SettingContext,
 } from "./helper";
+import { AppDataGridToolBar, ClearableTextField, RefreshButton } from "./CommonComp2";
 import CancelIcon from "@mui/icons-material/Cancel";
-import { NotificationContext } from "./Notification";
-import { invoke } from "@tauri-apps/api/core";
 import CheckCircleIcon from "@mui/icons-material/CheckCircle";
 import {
-  DataGrid,
-  GridColDef,
-  GridSlotsComponent,
-  GridSlotsComponentsProps,
-} from "@mui/x-data-grid";
-import {
   Autocomplete,
-  Box,
   Button,
   ButtonGroup,
   Checkbox,
+  Dialog,
+  DialogTitle,
   Divider,
   FormControlLabel,
   IconButton,
-  InputAdornment,
   ListItemIcon,
   ListItemText,
   MenuItem,
   MenuList,
-  Modal,
   Radio,
   RadioGroup,
   Stack,
@@ -58,32 +37,46 @@ import DeleteForeverIcon from "@mui/icons-material/DeleteForever";
 import AddIcon from "@mui/icons-material/Add";
 import { BSON } from "bson";
 import { MongoValueEditor } from "./MongoDB";
-import { ModalHeader, TrueOrFalse } from "./CommonComp";
-import ClearIcon from "@mui/icons-material/Clear";
-import { DefAndMetasView, TriggerDetail } from "./UdfAndMetaView";
-import {
-  createTableAndIndexSql,
-  formatCreateTableAndIndexSql,
-  showIndexes,
-  showTableColumn,
-  showTrigger,
-} from "./handlers";
+import { ModalHeader, CheckedView } from "./CommonComp";
+import { DefAndMetasView, TriggerDetailView } from "./DefAndMetaView";
+import { formatCreateTableAndIndexSql } from "./handlers";
 import {
   AppDataGridPagination,
   ColumnNullness,
-  CreateIndexReq,
+  CopySql,
+  CreateIndexView,
   SqlDefaultValue,
   StackRowCenter,
   TypeSelect,
 } from "./CommonComp2";
+import { useColumnWidthStore, useContextMenu, useNotification } from "./store";
+import {
+  ColumnType,
+  commands,
+  CreateIndexReq,
+  Field,
+  Index,
+  SqlNullAble,
+  TriggerDetail,
+  TriggerEnable,
+} from "./bindings";
+import {
+  DataGrid,
+  GridColDef,
+  GridSlotsComponent,
+  GridSlotsComponentsProps,
+} from "./datagridExport";
 
+/**
+ * Context menu for a column row, supporting copy and optional drop actions.
+ */
 function ColumnMenu(props: {
   col: string;
   content: string;
-  supportModifyColumn;
-  handleDrop;
+  supportModifyColumn: boolean;
+  handleDrop: (col: string) => void;
 }) {
-  const { showNotification } = useContext(NotificationContext);
+  const { showNotification } = useNotification();
   const { col, content, supportModifyColumn, handleDrop } = props;
   return (
     <MenuList>
@@ -91,8 +84,7 @@ function ColumnMenu(props: {
         <MenuItem
           onClick={() => {
             handleCopyToClipboard(content, showNotification);
-          }}
-        >
+          }}>
           <ListItemIcon>
             <ContentCopyIcon />
           </ListItemIcon>
@@ -103,8 +95,7 @@ function ColumnMenu(props: {
         <MenuItem
           onClick={() => {
             handleDrop(col);
-          }}
-        >
+          }}>
           <ListItemIcon>
             <DeleteForeverIcon />
           </ListItemIcon>
@@ -121,11 +112,11 @@ function ColumnsStructure(props: {
   table: string;
 }) {
   const { uuid, kind, table } = props;
-  const setting = useContext(SettingContext);
   const [loading, setLoading] = useState(false);
-  const [fields, setFields] = useState<types.Field[]>([]);
-  const { showNotification } = useContext(NotificationContext);
-  const [row, setRow] = useState<types.Field>(null);
+  const [fields, setFields] = useState<Field[]>([]);
+  const { showNotification } = useNotification();
+  const [row, setRow] = useState<Field>(null);
+  const { getColumnWidth, setColumnWidth } = useColumnWidthStore();
   const supportModifyColumn = new Set([
     DataSourceKind.MariaDB,
     DataSourceKind.SqlServer,
@@ -141,18 +132,27 @@ function ColumnsStructure(props: {
     DataSourceKind.LibSql,
   ]).has(kind);
 
-  const onColumnResize = useCallback(({ colDef, width }) => {
-    ColumnWidth.instance.save(colDef.field, width);
-  }, []);
+  const onColumnResize = useCallback(
+    ({ colDef, width }: { colDef: { field: string }; width: number }) => {
+      setColumnWidth(colDef.field, width);
+    },
+    [setColumnWidth],
+  );
 
   const handleReload = useCallback(() => {
     setLoading(true);
-    showTableColumn(uuid, table)
-      .then(fs => {
-        setFields(fs);
+
+    commands
+      .showTableColumns(uuid, table)
+      .then((data) => {
+        setFields(data);
       })
-      .catch(e => {
-        showNotification("error", "list column failed", e);
+      .catch((e) => {
+        showNotification({
+          severity: "error",
+          title: "list column failed",
+          message: e,
+        });
       })
       .finally(() => {
         setLoading(false);
@@ -170,28 +170,31 @@ function ColumnsStructure(props: {
       if (!confirm) {
         return;
       }
-      invoke("drop_table_column", {
-        name: uuid,
-        tableName: table,
-        columnName: col,
-      })
-        .then(() => {
-          showNotification("success", "Drop column OK");
+      commands
+        .dropTableColumn(uuid, table, col)
+        .then((sql) => {
+          showNotification({
+            severity: "success",
+            title: "Drop column OK",
+            message: <CopySql sql={sql} />,
+          });
           handleReload();
         })
-        .catch(e => {
-          showNotification("error", "Drop column Failure", e);
+        .catch((e) => {
+          showNotification({
+            severity: "error",
+            title: "Drop column Failure",
+            message: e,
+          });
         });
     },
     [handleReload, showNotification, table, uuid],
   );
-
   const [showAdd, setShowAdd] = useState(false);
-
   useEffect(() => {
     handleReload();
   }, [handleReload]);
-  const cols = useMemo(() => {
+  const cols: GridColDef[] = useMemo(() => {
     return [
       { field: "field" },
       {
@@ -202,8 +205,8 @@ function ColumnsStructure(props: {
       },
       {
         field: "nullable",
-        renderCell: row => {
-          return <TrueOrFalse value={row.row["nullable"]} />;
+        renderCell: (row) => {
+          return <CheckedView value={row.row["nullable"]} />;
         },
       },
       {
@@ -211,8 +214,8 @@ function ColumnsStructure(props: {
         renderHeader: () => {
           return "primary key";
         },
-        renderCell: row => {
-          return <TrueOrFalse value={row.row["is_primary"]} />;
+        renderCell: (row) => {
+          return <CheckedView value={row.row["is_primary"]} />;
         },
       },
       {
@@ -220,8 +223,8 @@ function ColumnsStructure(props: {
         renderHeader: () => {
           return "auto increment";
         },
-        renderCell: row => {
-          return <TrueOrFalse value={row.row["is_auto_increment"]} />;
+        renderCell: (row) => {
+          return <CheckedView value={row.row["is_auto_increment"]} />;
         },
       },
       {
@@ -232,24 +235,24 @@ function ColumnsStructure(props: {
       },
       {
         field: "sortable",
-        renderCell: row => {
-          return <TrueOrFalse value={row.row["sortable"]} />;
+        renderCell: (row) => {
+          return <CheckedView value={row.row["sortable"]} />;
         },
       },
-    ] as GridColDef[];
+    ];
   }, []);
-  cols.forEach(e => {
-    const width = ColumnWidth.instance.get(e.field);
+  cols.forEach((e) => {
+    const width = getColumnWidth(e.field);
     if (width) {
       e.width = width;
     }
   });
-  const { setUpMenu } = useContext(ContextMenuContext);
+  const setUpMenu = useContextMenu((state) => state.setUpMenu);
 
-  const slotProps = useMemo(() => {
+  const slotProps = useMemo((): GridSlotsComponentsProps => {
     return {
       row: {
-        onContextMenu: e => {
+        onContextMenu: (e) => {
           const { target } = e;
           const { id, field } = extractFieldAndIDFromMouseEvent(e);
           if (!field) {
@@ -270,72 +273,64 @@ function ColumnsStructure(props: {
         },
         style: { cursor: "context-menu" },
       },
-      toolbar: {
-        csvOptions: {
-          delimiter: setting.export.csvDelimiter,
-          includeHeaders: setting.export.includeHeader,
-        },
-      },
-    } as GridSlotsComponentsProps;
-  }, [
-    handleDrop,
-    setUpMenu,
-    setting.export.csvDelimiter,
-    setting.export.includeHeader,
-    supportModifyColumn,
-  ]);
+    };
+  }, [handleDrop, setUpMenu, supportModifyColumn]);
 
-  const getRowId = useCallback(e => {
+  const getRowId = useCallback((e: Record<string, any>) => {
     return e["field"];
   }, []);
 
-  const onRowDoubleClick = useCallback(row => {
+  const onRowDoubleClick = useCallback((row: { row: Field }) => {
     setRow(row.row);
   }, []);
-
-  const [modalBox, setModalBox] = useState(null);
-
-  useEffect(() => {
-    if (modalBox) {
-      const clean = saveAndSetSize(modalBox, "table-column", "width");
-      return clean;
-    }
-  }, [modalBox]);
   useEffect(() => {
     if (row) {
       if ([DataSourceKind.Sqlite, DataSourceKind.LibSql].includes(kind)) {
-        showNotification("warning", `${kind} not support modify column`);
+        showNotification({
+          severity: "warning",
+          title: `${kind} not support modify column`,
+        });
       }
     }
   }, [kind, row, showNotification]);
-  const slots = useMemo(() => {
+  const slots = useMemo((): Partial<GridSlotsComponent> => {
     return {
-      pagination: AppDataGridPagination,
-    } as Partial<GridSlotsComponent>;
-  }, []);
+      toolbar: () => {
+        return (
+          <AppDataGridToolBar
+            left=<StackRowCenter>
+              <RefreshButton loading={loading} onClick={handleReload} />
+              {supportModifyColumn && (
+                <IconButton
+                  onClick={() => {
+                    setShowAdd(true);
+                  }}>
+                  <AddIcon />
+                </IconButton>
+              )}
+            </StackRowCenter>
+          />
+        );
+      },
+      pagination: () => {
+        return (
+          <Stack direction="row" style={{ flex: 1, justifyContent: "space-between" }}>
+            <Stack direction="row">
+              {supportModifyColumn && (
+                <Tooltip title="double click a row to modify.">
+                  <Typography color="info"> modify </Typography>
+                </Tooltip>
+              )}
+            </Stack>
+            <AppDataGridPagination />
+          </Stack>
+        );
+      },
+    };
+  }, [handleReload, loading, supportModifyColumn]);
+
   return (
     <Stack style={{ height: "100%" }}>
-      <StackRowCenter>
-        <Button loading={loading} onClick={handleReload}>
-          reload
-        </Button>
-
-        {supportModifyColumn && (
-          <Button
-            onClick={() => {
-              setShowAdd(true);
-            }}
-          >
-            <AddIcon />
-          </Button>
-        )}
-        {supportModifyColumn && (
-          <Tooltip title="double click a row to modify.">
-            <Typography color="info">modify </Typography>
-          </Tooltip>
-        )}
-      </StackRowCenter>
-
       <DataGrid
         slots={slots}
         getRowId={getRowId}
@@ -349,71 +344,52 @@ function ColumnsStructure(props: {
       />
 
       {showAdd && (
-        <Modal
+        <Dialog
+          fullWidth
+          maxWidth="md"
           open={showAdd}
           onClose={modalHandleClose((e: EscDownEvent) => {
             e.preventDefault();
             setShowAdd(false);
-          })}
-        >
-          <Box
-            sx={{ resize: "horizontal", ...modalStyle }}
-            width="60%"
-            ref={setModalBox}
-          >
-            <ModalHeader
-              handleClose={() => {
-                setShowAdd(false);
-              }}
-              title="Add Column"
-            />
-            <TableAddColumn
-              table={table}
-              uuid={uuid}
-              handleClose={() => {
-                setShowAdd(false);
-              }}
-              reload={handleReload}
-              kind={kind}
-              fields={fields}
-            />
-          </Box>
-        </Modal>
+          })}>
+          <DialogTitle> add table column </DialogTitle>
+          <TableAddColumn
+            table={table}
+            uuid={uuid}
+            handleClose={() => {
+              setShowAdd(false);
+            }}
+            reload={handleReload}
+            kind={kind}
+            fields={fields}
+          />
+        </Dialog>
       )}
       {supportModifyColumn &&
         row &&
         ![DataSourceKind.Sqlite, DataSourceKind.LibSql].includes(kind) && (
-          <Modal
+          <Dialog
             open={!!row}
+            fullWidth
+            maxWidth="md"
             onClose={modalHandleClose((e: EscDownEvent) => {
               e.preventDefault();
               setRow(null);
-            })}
-          >
-            <Box
-              sx={{ resize: "horizontal", ...modalStyle }}
-              width="60%"
-              ref={setModalBox}
-            >
-              <ModalHeader
-                title="Modify Column"
-                handleClose={() => {
-                  setRow(null);
-                }}
-              />
-              <ModifyTableColumn
-                table={table}
-                uuid={uuid}
-                handleClose={() => {
-                  setRow(null);
-                }}
-                col={row.field}
-                typ={row.data_type}
-                reload={handleReload}
-                kind={kind}
-              />
-            </Box>
-          </Modal>
+            })}>
+            <DialogTitle> modify table column </DialogTitle>
+            <ModifyTableColumn
+              table={table}
+              uuid={uuid}
+              handleClose={() => {
+                setRow(null);
+              }}
+              col={row.field}
+              typ={row.data_type}
+              reload={handleReload}
+              kind={kind}
+              defaultValue={row.default_value}
+            />
+          </Dialog>
         )}
     </Stack>
   );
@@ -422,34 +398,34 @@ function ColumnsStructure(props: {
 function RenameIndex(props: {
   uuid: string;
   table: string;
-  reload;
-  handleClose;
-  indexName;
+  reload: () => void;
+  handleClose: () => void;
+  indexName: string;
 }) {
   const { uuid, table, reload, handleClose, indexName } = props;
   const [loading, setLoading] = useState(false);
   const [newName, setNewname] = useState(indexName);
-  const { showNotification } = useContext(NotificationContext);
+  const { showNotification } = useNotification();
   const handleRename = () => {
     if (newName == indexName) {
-      showNotification("warning", "name not change");
+      showNotification({ severity: "warning", title: "name not change" });
       return;
     }
     setLoading(true);
 
-    invoke("rename_index", {
-      name: uuid,
-      tableName: table,
-      oldName: indexName,
-      newName: newName,
-    })
-      .then(() => {
-        showNotification("success", "Rename OK");
+    commands
+      .renameIndex(uuid, table, indexName, newName)
+      .then((sql) => {
+        showNotification({
+          severity: "success",
+          title: "Rename OK",
+          message: <CopySql sql={sql} />,
+        });
         reload();
         handleClose();
       })
-      .catch(e => {
-        showNotification("error", "Rename Failure", e);
+      .catch((e) => {
+        showNotification({ severity: "error", title: "Rename Failure", message: e });
       })
       .finally(() => {
         setLoading(false);
@@ -460,7 +436,7 @@ function RenameIndex(props: {
       <TextField
         label="new name"
         value={newName}
-        onChange={e => {
+        onChange={(e) => {
           setNewname(e.target.value);
         }}
       />
@@ -476,11 +452,11 @@ function RenameIndex(props: {
 function IndexMenu(props: {
   content: string;
   indexName: string;
-  setRenameIndexName;
-  handleDrop;
+  setRenameIndexName: (indexName: string) => void;
+  handleDrop: (indexName: string) => void;
 }) {
   const { content, indexName, setRenameIndexName, handleDrop } = props;
-  const { showNotification } = useContext(NotificationContext);
+  const { showNotification } = useNotification();
 
   return (
     <MenuList>
@@ -488,8 +464,7 @@ function IndexMenu(props: {
         <MenuItem
           onClick={() => {
             handleCopyToClipboard(content, showNotification);
-          }}
-        >
+          }}>
           <ListItemIcon>
             <ContentCopyIcon />
           </ListItemIcon>
@@ -499,8 +474,7 @@ function IndexMenu(props: {
       <MenuItem
         onClick={() => {
           setRenameIndexName(indexName);
-        }}
-      >
+        }}>
         <ListItemIcon>
           <EditIcon />
         </ListItemIcon>
@@ -509,8 +483,7 @@ function IndexMenu(props: {
       <MenuItem
         onClick={() => {
           handleDrop(indexName);
-        }}
-      >
+        }}>
         <ListItemIcon>
           <DeleteForeverIcon />
         </ListItemIcon>
@@ -526,25 +499,38 @@ function IndexesStructure(props: {
   table: string;
 }) {
   const { uuid, kind, table } = props;
-  const setting = useContext(SettingContext);
   const [loading, setLoading] = useState(false);
-  const [indexes, setIndexes] = useState<types.Index[]>([]);
-  const { showNotification } = useContext(NotificationContext);
+  const [indexes, setIndexes] = useState<Index[]>([]);
+  const { showNotification } = useNotification();
   const [renameIndexName, setRenameIndexName] = useState("");
   const [showAdd, setShowAdd] = useState(false);
 
-  const onColumnResize = useCallback(({ colDef, width }) => {
-    ColumnWidth.instance.save(colDef.field, width);
-  }, []);
+  const { getColumnWidth, setColumnWidth } = useColumnWidthStore();
+
+  const onColumnResize = useCallback(
+    ({ colDef, width }: { colDef: { field: string }; width: number }) => {
+      setColumnWidth(colDef.field, width);
+    },
+    [setColumnWidth],
+  );
 
   const handleReload = useCallback(() => {
     setLoading(true);
-    showIndexes(uuid, table)
-      .then(indexes => {
-        setIndexes(indexes);
+
+    commands
+      .showIndexes(uuid, table)
+      .then((data) => {
+        data.forEach((x, index) => {
+          x["id"] = index;
+        });
+        setIndexes(data);
       })
-      .catch(e => {
-        showNotification("error", "list indexes failed", e);
+      .catch((e) => {
+        showNotification({
+          severity: "error",
+          title: "show indexes failed",
+          message: e,
+        });
       })
       .finally(() => {
         setLoading(false);
@@ -552,7 +538,7 @@ function IndexesStructure(props: {
   }, [showNotification, table, uuid]);
 
   const handleDrop = useCallback(
-    async indexName => {
+    async (indexName: string) => {
       const confirm = await secondConfirm({
         title: `drop index '${indexName}'`,
         content: "Are u sure to drop the index",
@@ -561,17 +547,22 @@ function IndexesStructure(props: {
       if (!confirm) {
         return;
       }
-      invoke("drop_index", {
-        name: uuid,
-        tableName: table,
-        index: indexName,
-      })
-        .then(() => {
-          showNotification("success", "Drop OK");
+      commands
+        .dropIndex(uuid, table, indexName)
+        .then((sql) => {
+          showNotification({
+            severity: "success",
+            title: "Drop OK",
+            message: <CopySql sql={sql} />,
+          });
           handleReload();
         })
-        .catch(e => {
-          showNotification("error", "Drop index failure", e);
+        .catch((e) => {
+          showNotification({
+            severity: "error",
+            title: "Drop index failure",
+            message: e,
+          });
         });
     },
     [handleReload, showNotification, table, uuid],
@@ -579,38 +570,35 @@ function IndexesStructure(props: {
   useEffect(() => {
     handleReload();
   }, [handleReload]);
-  const cols = useMemo(() => {
-    return [{ field: "name" }, { field: "kind" }, { field: "columns" }] as GridColDef[];
+  const cols = useMemo((): GridColDef[] => {
+    return [{ field: "name" }, { field: "kind" }, { field: "columns" }];
   }, []);
-  cols.forEach(e => {
-    const width = ColumnWidth.instance.get(e.field);
+  cols.forEach((e) => {
+    const width = getColumnWidth(e.field);
     if (width) {
       e.width = width;
     }
   });
 
-  const { setUpMenu } = useContext(ContextMenuContext);
+  const setUpMenu = useContextMenu((state) => state.setUpMenu);
 
-  const slotProps = useMemo(() => {
+  const slotProps = useMemo((): GridSlotsComponentsProps => {
     return {
       row: {
-        onContextMenu: e => {
-          const { currentTarget, target } = e;
-          {
-            const { field } = extractFieldAndIDFromMouseEvent(e);
-            if (!field) {
-              return;
-            }
+        onContextMenu: (e) => {
+          const { field, id } = extractFieldAndIDFromMouseEvent(e);
+          if (!field) {
+            return;
           }
-          const content = (target as HTMLDivElement).innerHTML;
-          const indexName = (currentTarget as HTMLDivElement).getAttribute("data-id");
+          let row = indexes.find((e) => e["id"] == id);
+
           setUpMenu({
             content: (
               <IndexMenu
-                indexName={indexName}
+                indexName={row.name}
                 setRenameIndexName={setRenameIndexName}
                 handleDrop={handleDrop}
-                content={content}
+                content={(e.target as HTMLDivElement).innerHTML}
               />
             ),
             event: e,
@@ -618,58 +606,33 @@ function IndexesStructure(props: {
         },
         style: { cursor: "context-menu" },
       },
-      toolbar: {
-        csvOptions: {
-          delimiter: setting.export.csvDelimiter,
-          includeHeaders: setting.export.includeHeader,
-        },
-      },
-    } as GridSlotsComponentsProps;
-  }, [
-    handleDrop,
-    setUpMenu,
-    setting.export.csvDelimiter,
-    setting.export.includeHeader,
-  ]);
+    };
+  }, [handleDrop, indexes, setUpMenu]);
 
-  const getRowId = useCallback(e => {
-    return e["name"];
-  }, []);
-
-  const [modalBox, setModalBox] = useState(null);
-  useEffect(() => {
-    if (modalBox) {
-      const c = saveAndSetSize(
-        modalBox,
-        "create-index" + (kind == DataSourceKind.Mongo ? "-mongo" : "-other"),
-        kind == DataSourceKind.Mongo ? "both" : "width",
-      );
-      return c;
-    }
-  }, [kind, modalBox]);
-  const slots = useMemo(() => {
+  const slots = useMemo((): Partial<GridSlotsComponent> => {
     return {
+      toolbar: () => {
+        return (
+          <AppDataGridToolBar
+            left=<Stack direction="row">
+              <RefreshButton loading={loading} onClick={handleReload} />
+              <IconButton
+                onClick={() => {
+                  setShowAdd(true);
+                }}>
+                <AddIcon />
+              </IconButton>
+            </Stack>
+          />
+        );
+      },
       pagination: AppDataGridPagination,
-    } as Partial<GridSlotsComponent>;
-  }, []);
+    };
+  }, [handleReload, loading]);
+
   return (
     <Stack style={{ height: "100%" }}>
-      <Stack direction="row">
-        <Button loading={loading} onClick={handleReload}>
-          reload
-        </Button>
-
-        <Button
-          onClick={() => {
-            setShowAdd(true);
-          }}
-        >
-          <AddIcon />
-        </Button>
-      </Stack>
-
       <DataGrid
-        getRowId={getRowId}
         slotProps={slotProps}
         onColumnResize={onColumnResize}
         columns={cols}
@@ -680,28 +643,16 @@ function IndexesStructure(props: {
       />
 
       {showAdd && kind == DataSourceKind.Mongo && (
-        <Modal
+        <Dialog
           open={showAdd}
+          fullWidth
+          maxWidth="md"
           onClose={modalHandleClose((e: EscDownEvent) => {
             e.preventDefault();
             setShowAdd(false);
-          })}
-        >
-          <Box
-            sx={{
-              resize: "both",
-              ...modalStyle,
-            }}
-            width="60%"
-            ref={setModalBox}
-            height={kind == DataSourceKind.Mongo ? "40vh" : "auto"}
-          >
-            <ModalHeader
-              title="create index"
-              handleClose={() => {
-                setShowAdd(false);
-              }}
-            />
+          })}>
+          <DialogTitle> mongo create index </DialogTitle>
+          <div style={{ height: "40vh" }}>
             <MongoAddIndex
               uuid={uuid}
               table={table}
@@ -710,112 +661,95 @@ function IndexesStructure(props: {
               }}
               reload={handleReload}
             />
-          </Box>
-        </Modal>
+          </div>
+        </Dialog>
       )}
-
       {showAdd && kind != DataSourceKind.Mongo && (
-        <Modal
+        <Dialog
           open={showAdd}
           onClose={modalHandleClose((e: EscDownEvent) => {
             e.preventDefault();
             setShowAdd(false);
           })}
-        >
-          <Box
-            sx={{
-              resize: "horizontal",
-              ...modalStyle,
+          fullWidth
+          maxWidth="md">
+          <DialogTitle> create index </DialogTitle>
+          <AddIndex
+            uuid={uuid}
+            table={table}
+            handleClose={() => {
+              setShowAdd(false);
             }}
-            width="60%"
-            ref={setModalBox}
-          >
-            <ModalHeader
-              title="create index"
-              handleClose={() => {
-                setShowAdd(false);
-              }}
-            />
-            <AddIndex
-              uuid={uuid}
-              table={table}
-              handleClose={() => {
-                setShowAdd(false);
-              }}
-              kind={kind}
-              reload={handleReload}
-            />
-          </Box>
-        </Modal>
+            kind={kind}
+            reload={handleReload}
+          />
+        </Dialog>
       )}
 
       {renameIndexName && (
-        <Modal
+        <Dialog
           open={!!renameIndexName}
-          onClose={modalHandleClose((e: EscDownEvent) => {
+          onClose={(e: EscDownEvent) => {
             e.preventDefault();
             setRenameIndexName("");
-          })}
-        >
-          <Box sx={modalStyle} width="40%">
-            <ModalHeader
-              title={`Rename Index`}
-              handleClose={() => {
-                setRenameIndexName("");
-              }}
-            />
-            <RenameIndex
-              uuid={uuid}
-              table={table}
-              indexName={renameIndexName}
-              handleClose={() => {
-                setRenameIndexName("");
-              }}
-              reload={handleReload}
-            />
-          </Box>
-        </Modal>
+          }}>
+          <DialogTitle> rename index </DialogTitle>
+          <RenameIndex
+            uuid={uuid}
+            table={table}
+            indexName={renameIndexName}
+            handleClose={() => {
+              setRenameIndexName("");
+            }}
+            reload={handleReload}
+          />
+        </Dialog>
       )}
     </Stack>
   );
 }
 
-function MongoAddIndex(props: { uuid; table; handleClose; reload }) {
+function MongoAddIndex(props: {
+  uuid: string;
+  table: string;
+  handleClose: () => void;
+  reload: () => void;
+}) {
   const { uuid, table, handleClose, reload } = props;
 
   const indexTypes = ["normal", "unique"];
   const [indexType, setIndexType] = useState(indexTypes[0]);
   const [indexName, setIndexName] = useState("");
   const indexNameDom = useRef<HTMLInputElement>(null);
-  const { showNotification } = useContext(NotificationContext);
+  const { showNotification } = useNotification();
 
-  const handleAdd = async keys => {
+  const handleAdd = async (keys: Record<string, any>) => {
     try {
       if (!indexName) {
-        showNotification("warning", "index name can't be none");
-        indexNameDom.current.focus();
+        showNotification({ severity: "warning", title: "index name can't be none" });
+        indexNameDom.current?.focus();
         return;
       }
-      await invoke("mongo_create_index", {
-        name: uuid,
-        tableName: table,
-        keys: BSON.serialize(keys),
-        unique: indexType == "unique",
-        indexName: indexName ? indexName : null,
-      });
-      showNotification("success", "create index ok");
+      await commands.mongoCreateIndex(
+        uuid,
+        table,
+        indexName ? indexName : null,
+        BSON.serialize(keys),
+        indexType == "unique",
+      );
+      showNotification({ severity: "success", title: "create index ok" });
       handleClose();
       reload();
     } catch (e) {
-      showNotification("error", "create index failed", e);
+      showNotification({ severity: "error", title: "create index failed", message: e });
     }
   };
 
   return (
-    <Stack flex={1}>
+    <Stack style={{ flex: 1, height: "100%" }}>
       <TextField
         value={indexName}
-        onChange={e => {
+        onChange={(e) => {
           setIndexName(e.target.value);
         }}
         inputRef={indexNameDom}
@@ -825,21 +759,19 @@ function MongoAddIndex(props: { uuid; table; handleClose; reload }) {
 
       <RadioGroup
         row
-        onChange={e => {
+        onChange={(e) => {
           setIndexType(e.target.value);
         }}
-        value={indexType}
-      >
-        {indexTypes.map(e => (
+        value={indexType}>
+        {indexTypes.map((e) => (
           <FormControlLabel key={e} value={e} control={<Radio />} label={e} />
         ))}
       </RadioGroup>
       <MongoValueEditor
-        setOP={async doc => {
+        setOP={async (doc) => {
           handleAdd(doc);
         }}
         doc={{}}
-        setName="create index"
         needConfirm={false}
       />
     </Stack>
@@ -854,48 +786,53 @@ function AddIndex(props: {
   kind: DataSourceKind;
 }) {
   const { uuid, table, handleClose, reload, kind } = props;
-  const [fields, setFields] = useState<types.Field[]>([]);
-  const { showNotification } = useContext(NotificationContext);
-  const [req, setReq] = useState<types.CreateIndexReq>(null);
+  const [fields, setFields] = useState<Field[]>([]);
+  const { showNotification } = useNotification();
+  const [req, setReq] = useState<CreateIndexReq>(null);
   useEffect(() => {
-    showTableColumn(uuid, table)
-      .then(e => {
-        setFields(e);
+    commands
+      .showTableColumns(uuid, table)
+      .then((data) => {
+        setFields(data);
       })
-      .catch(e => {
-        showNotification("error", "list fields failed", e);
+      .catch((e) => {
+        showNotification({
+          severity: "error",
+          title: "list fields failed",
+          message: e,
+        });
       });
   }, [showNotification, table, uuid]);
   const handleAdd = async () => {
     if (!req.name) {
-      showNotification("warning", "index name can't be none");
+      showNotification({ severity: "warning", title: "index name can't be none" });
       return;
     }
     if (req.columns.length == 0) {
-      showNotification("warning", "select at least one column");
+      showNotification({ severity: "warning", title: "select at least one column" });
       return;
     }
     try {
-      await invoke("create_index", {
-        name: uuid,
-        tableName: table,
-        req,
+      const sql = await commands.createIndex(uuid, table, req);
+      showNotification({
+        severity: "success",
+        title: "create index ok",
+        message: <CopySql sql={sql} />,
       });
-      showNotification("success", "create index ok");
       handleClose();
       reload();
     } catch (e) {
-      showNotification("error", "create index failed", e);
+      showNotification({ severity: "error", title: "create index failed", message: e });
     }
   };
 
   return (
-    <Stack>
-      <CreateIndexReq
-        handleReq={s => {
+    <Stack style={{ height: "100%" }}>
+      <CreateIndexView
+        handleReq={(s) => {
           setReq(s);
         }}
-        fields={fields.map(e => e.field)}
+        fields={fields.map((e) => e.field)}
         kind={kind}
       />
       <Divider />
@@ -910,55 +847,62 @@ function AddIndex(props: {
 
 function TableAddColumn(props: {
   table: string;
-  uuid;
-  handleClose;
-  reload;
+  uuid: string;
+  handleClose: () => void;
+  reload: () => void;
   kind: DataSourceKind;
-  fields: types.Field[];
+  fields: Field[];
 }) {
   const { table, uuid, handleClose, reload, kind, fields } = props;
   const [name, setName] = useState("");
-  const [nullable, setNullness] = useState<types.SqlNullAble>("none");
+  const [nullable, setNullness] = useState<SqlNullAble>("unspecified");
   const [typ, setTyp] = useState("");
-  const { showNotification } = useContext(NotificationContext);
+  const { showNotification } = useNotification();
   const [after, setAfter] = useState("");
   const [defaultValue, setDefaultValue] = useState("");
-  const supportAfter =
-    kind == DataSourceKind.Mysql ||
-    kind == DataSourceKind.MariaDB ||
-    kind == DataSourceKind.TiDB;
+  const supportAfter = [
+    DataSourceKind.Mysql,
+    kind == DataSourceKind.MariaDB,
+    kind == DataSourceKind.TiDB,
+  ].includes(kind);
   const nameDom = useRef(null);
   const [loading, setLoading] = useState(false);
 
   const handleAdd = () => {
     if (!name) {
-      showNotification("error", "column name is empty");
+      showNotification({ severity: "error", title: "column name is empty" });
       nameDom.current.focus();
       return;
     }
     if (!typ) {
-      showNotification("warning", "type is empty");
+      showNotification({ severity: "warning", title: "type is empty" });
       return;
     }
     setLoading(true);
-    invoke("add_table_column", {
-      name: uuid,
-      tableName: table,
-      colName: name,
-      typ: {
+
+    commands
+      .addTableColumn(uuid, table, name, {
         typ: typ,
         nullable: nullable ? nullable : null,
         after: after ? after : null,
         default_value: defaultValue ? defaultValue : null,
-      } as types.ColumnType,
-    })
-      .then(() => {
-        showNotification("success", "Add Column OK");
+      })
+
+      .then((sql) => {
+        showNotification({
+          severity: "success",
+          title: "Add Column OK",
+          message: <CopySql sql={sql} />,
+        });
         handleClose();
         reload();
       })
-      .catch(e => {
-        showNotification("error", "Add Column failure", e);
+      .catch((e) => {
+        showNotification({
+          severity: "error",
+          title: "Add Column failure",
+          message: e,
+        });
       })
       .finally(() => {
         setLoading(false);
@@ -969,35 +913,20 @@ function TableAddColumn(props: {
   const supportDefault = kindSupportDefault(kind);
   return (
     <Stack>
-      <TextField
+      <ClearableTextField
         value={name}
         required
         inputRef={nameDom}
-        onChange={e => {
+        onChange={(e) => {
           setName(e.target.value.trim());
         }}
-        slotProps={{
-          input: {
-            endAdornment: name && (
-              <InputAdornment position="end">
-                <IconButton
-                  onClick={() => {
-                    setName("");
-                  }}
-                  edge="end"
-                >
-                  <ClearIcon fontSize="small" />
-                </IconButton>
-              </InputAdornment>
-            ),
-          },
-        }}
+        onClear={() => setName("")}
         label="column name"
       />
       <StackRowCenter>
         <TypeSelect
           uuid={uuid}
-          handleChange={e => {
+          handleChange={(e) => {
             setTyp(e);
           }}
           style={{ flex: 1 }}
@@ -1006,7 +935,7 @@ function TableAddColumn(props: {
         {supportNull && (
           <ColumnNullness
             nullable={nullable}
-            handleNullable={e => {
+            handleNullable={(e) => {
               setNullness(e);
             }}
           />
@@ -1023,10 +952,10 @@ function TableAddColumn(props: {
       {supportAfter && (
         <Autocomplete
           freeSolo={false}
-          options={fields.map(e => e.field)}
+          options={fields.map((e) => e.field)}
           style={{ width: "22rem" }}
           value={after}
-          renderInput={params => <TextField {...params} label="after column" />}
+          renderInput={(params) => <TextField {...params} label="after column" />}
           onChange={(_, field) => {
             setAfter(field);
           }}
@@ -1046,82 +975,76 @@ function ModifyTableColumn(props: {
   uuid: string;
   table: string;
   col: string;
-  handleClose;
-  reload;
+  handleClose: () => void;
+  reload: () => void;
   typ: string;
   kind: DataSourceKind;
+  defaultValue: string;
 }) {
-  const { uuid, table, col, handleClose, reload, typ, kind } = props;
+  const { uuid, table, col, handleClose, reload, typ, kind, defaultValue } = props;
   const [loading, setLoading] = useState(false);
   const [newName, setNewName] = useState(col);
   const [newTyp, setNewTyp] = useState(typ);
-  const { showNotification } = useContext(NotificationContext);
+  const { showNotification } = useNotification();
   const [modifyType, setModifyType] = useState(false);
-  const [nullable, setNullness] = useState<null | types.SqlNullAble>(null);
+  const supportModifyType = ![DataSourceKind.Cassandra].includes(kind);
+  const supportModifyDefault = ![DataSourceKind.SqlServer].includes(kind);
+  const [nullable, setNullness] = useState<null | SqlNullAble>(null);
+  const [newDv, setNewDv] = useState(supportModifyDefault ? defaultValue : null);
   const handleModify = () => {
     if (newName == col && !newTyp) {
-      showNotification("warning", "nothing is changed");
+      showNotification({ severity: "warning", title: "nothing is changed" });
       return;
     }
     if (!newName) {
-      showNotification("error", "name can't empty");
+      showNotification({ severity: "error", title: "name can't empty" });
       return;
     }
     setLoading(true);
-    let typePara: types.ColumnType = null;
-    if (typ != newTyp) {
+    let typePara: ColumnType = null;
+    if (modifyType) {
       typePara = {
         typ: newTyp,
         nullable: nullable ? nullable : nullable,
-        default_value: null,
+        default_value: newDv ? newDv : null,
         after: null,
       };
     }
-    invoke("modify_table_column", {
-      name: uuid,
-      tableName: table,
-      oldName: col,
-      newName: newName,
-      typ: typePara,
-    })
-      .then(() => {
-        showNotification("success", "Modify column OK");
+    commands
+      .modifyTableColumn(uuid, table, col, newName, typePara)
+      .then((sql) => {
+        showNotification({
+          severity: "success",
+          title: "Modify column OK",
+          message: <CopySql sql={sql} />,
+        });
         reload();
         handleClose();
       })
-      .catch(e => {
-        showNotification("error", "Modify column Failure", e);
+      .catch((e) => {
+        showNotification({
+          severity: "error",
+          title: "Modify column Failure",
+          message: e,
+        });
       })
       .finally(() => {
         setLoading(false);
       });
   };
-  const supportModifyType = kind != DataSourceKind.Cassandra;
+
   return (
     <Stack>
-      <TextField
+      <ClearableTextField
         fullWidth
         label="New Name"
         value={newName}
-        onChange={e => {
+        onChange={(e) => {
           setNewName(e.target.value);
         }}
         required
-        slotProps={{
-          input: {
-            endAdornment: newName && (
-              <InputAdornment position="end">
-                <IconButton
-                  onClick={() => {
-                    setNewName("");
-                  }}
-                  edge="end"
-                >
-                  <ClearIcon fontSize="small" />
-                </IconButton>
-              </InputAdornment>
-            ),
-          },
+        onClear={() => {
+          setNewName("");
         }}
         error={!newName}
       />
@@ -1130,7 +1053,7 @@ function ModifyTableColumn(props: {
           control={
             <Checkbox
               checked={modifyType}
-              onChange={e => {
+              onChange={(e) => {
                 setModifyType(e.target.checked);
               }}
               name="myCheckbox"
@@ -1145,7 +1068,7 @@ function ModifyTableColumn(props: {
         <StackRowCenter>
           <TypeSelect
             uuid={uuid}
-            handleChange={e => {
+            handleChange={(e) => {
               setNewTyp(e);
             }}
             style={{ flex: 1 }}
@@ -1153,6 +1076,16 @@ function ModifyTableColumn(props: {
           />
           {kindSupportNull(kind) && (
             <ColumnNullness nullable={nullable} handleNullable={setNullness} />
+          )}
+
+          {supportModifyDefault && (
+            <SqlDefaultValue
+              defaultValue={newDv}
+              uuid={uuid}
+              setDefaultValue={(v) => {
+                setNewDv(v);
+              }}
+            />
           )}
         </StackRowCenter>
       )}
@@ -1165,6 +1098,7 @@ function ModifyTableColumn(props: {
   );
 }
 
+// databaase kind support null specific
 function kindSupportNull(kind: DataSourceKind): boolean {
   return kind != DataSourceKind.Cassandra;
 }
@@ -1172,7 +1106,7 @@ function kindSupportDefault(kind: DataSourceKind): boolean {
   return kind != DataSourceKind.Cassandra;
 }
 
-function triggerIsEnable(enable: types.TriggerEnable): boolean {
+function triggerIsEnable(enable: TriggerEnable): boolean {
   if (enable.kind == "postgres") {
     return enable.enable.toUpperCase() != "D";
   }
@@ -1183,21 +1117,20 @@ function triggerIsEnable(enable: types.TriggerEnable): boolean {
 
 function TriggerMenu(props: {
   content: string;
-  detail: types.TriggerDetail;
-  handleEnables;
-  handleDrop;
+  detail: TriggerDetail;
+  handleEnables: (triggerName: string, enable: boolean) => void;
+  handleDrop: (trigger: string) => void;
 }) {
   const { content, detail, handleEnables, handleDrop } = props;
-  const { showNotification } = useContext(NotificationContext);
+  const { showNotification } = useNotification();
   let enable: ReactNode;
   if (detail.enable) {
     enable = triggerIsEnable(detail.enable) ? (
       <MenuItem
         sx={{ color: "error.main" }}
         onClick={() => {
-          handleEnables("disable_trigger", detail.name, "Disable trigger");
-        }}
-      >
+          handleEnables(detail.name, false);
+        }}>
         <ListItemIcon>
           <CancelIcon />
         </ListItemIcon>
@@ -1206,9 +1139,8 @@ function TriggerMenu(props: {
     ) : (
       <MenuItem
         onClick={() => {
-          handleEnables("enable_trigger", detail.name, "Enable trigger");
-        }}
-      >
+          handleEnables(detail.name, true);
+        }}>
         <ListItemIcon>
           <CheckCircleIcon />
         </ListItemIcon>
@@ -1223,8 +1155,7 @@ function TriggerMenu(props: {
         <MenuItem
           onClick={() => {
             handleCopyToClipboard(content, showNotification);
-          }}
-        >
+          }}>
           <ListItemIcon>
             <ContentCopyIcon />
           </ListItemIcon>
@@ -1236,8 +1167,7 @@ function TriggerMenu(props: {
       <MenuItem
         onClick={() => {
           handleDrop(detail.name);
-        }}
-      >
+        }}>
         <ListItemIcon>
           <DeleteForeverIcon />
         </ListItemIcon>
@@ -1253,35 +1183,42 @@ function TriggersStructure(props: {
   table: string;
 }) {
   const { uuid, kind, table } = props;
-  const setting = useContext(SettingContext);
   const [loading, setLoading] = useState(false);
-  const [triggers, setTriggers] = useState<types.TriggerDetail[]>([]);
-  const [row, setRow] = useState<types.TriggerDetail>(null);
-  const { showNotification } = useContext(NotificationContext);
+  const [triggers, setTriggers] = useState<TriggerDetail[]>([]);
+  const [row, setRow] = useState<TriggerDetail>(null);
+  const { showNotification } = useNotification();
 
-  const onColumnResize = useCallback(({ colDef, width }) => {
-    ColumnWidth.instance.save(colDef.field, width);
-  }, []);
+  const { getColumnWidth, setColumnWidth } = useColumnWidthStore();
+  const onColumnResize = useCallback(
+    ({ colDef, width }: { colDef: { field: string }; width: number }) => {
+      setColumnWidth(colDef.field, width);
+    },
+    [setColumnWidth],
+  );
 
   const handleReload = useCallback(() => {
     setLoading(true);
-    showTrigger(uuid, table)
-      .then(ts => {
-        setTriggers(ts);
+    commands
+      .showTrigger(uuid, table)
+      .then((data) => {
+        data.forEach((e, index) => {
+          e["id"] = index;
+        });
+        setTriggers(data);
       })
-      .catch(e => {
-        showNotification("error", "list indexes failed", e);
+      .catch((e) => {
+        showNotification({
+          severity: "error",
+          title: "list indexes failed",
+          message: e,
+        });
       })
       .finally(() => {
         setLoading(false);
       });
   }, [showNotification, table, uuid]);
-  const callPara = useMemo(() => {
-    return { name: uuid, tableName: table };
-  }, [table, uuid]);
-
   const handleDrop = useCallback(
-    async trigger => {
+    async (trigger: string) => {
       const confirm = await secondConfirm({
         title: `Drop trigger '${trigger}'`,
         confirmText: "Drop",
@@ -1290,44 +1227,63 @@ function TriggersStructure(props: {
       if (!confirm) {
         return;
       }
-      invoke("drop_trigger", { trigger, ...callPara })
-        .then(() => {
-          showNotification("success", "Drop Trigger OK");
+      commands
+        .dropTrigger(undefined, undefined, trigger)
+        .then((sql) => {
+          showNotification({
+            severity: "success",
+            title: "Drop Trigger OK",
+            message: <CopySql sql={sql} />,
+          });
           handleReload();
         })
-        .catch(e => {
-          showNotification("error", "Drop trigger failure", e);
+        .catch((e) => {
+          showNotification({
+            severity: "error",
+            title: "Drop trigger failure",
+            message: e,
+          });
         });
     },
-    [callPara, handleReload, showNotification],
+    [handleReload, showNotification],
   );
 
   const handleEnables = useCallback(
-    (invoke_name: string, trigger, operation: string) => {
-      invoke(invoke_name, { trigger, ...callPara })
-        .then(() => {
-          showNotification("error", `${operation}  OK`);
+    (triggerName: string, enable: boolean) => {
+      let title = enable ? "Enable" : "Disable";
+      commands
+        .enableTrigger(uuid, table, triggerName, enable)
+        .then((sql) => {
+          showNotification({
+            severity: "success",
+            title: `${title} OK`,
+            message: <CopySql sql={sql} />,
+          });
           handleReload();
         })
-        .catch(e => {
-          showNotification("error", `${operation}  Failure`, e);
+        .catch((e) => {
+          showNotification({
+            severity: "error",
+            title: `${title} Failure`,
+            message: e,
+          });
         });
     },
-    [callPara, handleReload, showNotification],
+    [handleReload, showNotification, table, uuid],
   );
 
   useEffect(() => {
     handleReload();
   }, [handleReload]);
-  const cols = useMemo(() => {
+  const cols = useMemo((): GridColDef[] => {
     return [
       { field: "name" },
       { field: "event" },
       { field: "sql" },
       {
         field: "enable",
-        renderCell: r => {
-          const enable = r.row.enable as types.TriggerEnable;
+        renderCell: (r) => {
+          const enable = r.row.enable as TriggerEnable;
           if (!enable) {
             return;
           }
@@ -1335,39 +1291,34 @@ function TriggersStructure(props: {
             case "postgres":
               return enable.enable;
             case "bool":
-              return <TrueOrFalse value={enable.enable} />;
+              return <CheckedView value={enable.enable} />;
           }
         },
       },
-    ] as GridColDef[];
+    ];
   }, []);
-  cols.forEach(e => {
-    const width = ColumnWidth.instance.get(e.field);
+  cols.forEach((e) => {
+    const width = getColumnWidth(e.field);
     if (width) {
       e.width = width;
     }
   });
-  const { setUpMenu } = useContext(ContextMenuContext);
+  const setUpMenu = useContextMenu((state) => state.setUpMenu);
 
-  const slotProps = useMemo(() => {
+  const slotProps = useMemo((): GridSlotsComponentsProps => {
     return {
       row: {
-        onContextMenu: e => {
-          const { currentTarget, target } = e;
-          {
-            const { field } = extractFieldAndIDFromMouseEvent(e);
-            if (!field) {
-              return;
-            }
+        onContextMenu: (e) => {
+          const { field, id } = extractFieldAndIDFromMouseEvent(e);
+          if (!field) {
+            return;
           }
-          const content = (target as HTMLDivElement).innerHTML;
-          const name = (currentTarget as HTMLDivElement).getAttribute("data-id");
-          const detail = triggers.find(e => e.name == name);
+          const detail = triggers.find((e) => e["id"] == id);
           setUpMenu({
             content: (
               <TriggerMenu
                 detail={detail}
-                content={content}
+                content={(e.target as HTMLDivElement).innerHTML}
                 handleDrop={handleDrop}
                 handleEnables={handleEnables}
               />
@@ -1377,56 +1328,44 @@ function TriggersStructure(props: {
         },
         style: { cursor: "context-menu" },
       },
-      toolbar: {
-        csvOptions: {
-          delimiter: setting.export.csvDelimiter,
-          includeHeaders: setting.export.includeHeader,
-        },
-      },
-    } as GridSlotsComponentsProps;
-  }, [
-    handleDrop,
-    handleEnables,
-    setUpMenu,
-    setting.export.csvDelimiter,
-    setting.export.includeHeader,
-    triggers,
-  ]);
+    };
+  }, [handleDrop, handleEnables, setUpMenu, triggers]);
 
-  const getRowId = useCallback(e => {
-    return e["name"];
-  }, []);
-  const onRowDoubleClick = useCallback(row => {
+  const onRowDoubleClick = useCallback((row: { row: TriggerDetail }) => {
     setRow(row.row);
   }, []);
 
-  const [modalBox, setModalBox] = useState<HTMLDivElement | null>(null);
-  useEffect(() => {
-    if (modalBox) {
-      const c = saveAndSetSize(modalBox, "redis-edit");
-      return c;
-    }
-  }, [modalBox]);
-  const slots = useMemo(() => {
+  const slots = useMemo((): Partial<GridSlotsComponent> => {
     return {
-      pagination: AppDataGridPagination,
-    } as Partial<GridSlotsComponent>;
-  }, []);
+      toolbar: () => {
+        return (
+          <AppDataGridToolBar
+            left=<StackRowCenter>
+              <RefreshButton loading={loading} onClick={handleReload} />
+            </StackRowCenter>
+          />
+        );
+      },
+      pagination: () => {
+        return (
+          <Stack direction="row" style={{ flex: 1, justifyContent: "space-between" }}>
+            <Stack direction="row">
+              {triggers.length > 0 && (
+                <Tooltip title="double click a row to see detail">
+                  <Typography color="info">detail</Typography>
+                </Tooltip>
+              )}
+            </Stack>
+            <AppDataGridPagination />
+          </Stack>
+        );
+      },
+    };
+  }, [handleReload, loading, triggers.length]);
+
   return (
     <Stack style={{ height: "100%" }}>
-      <StackRowCenter>
-        <Button loading={loading} onClick={handleReload}>
-          reload
-        </Button>
-        {triggers.length > 0 && (
-          <Tooltip title="double click a row to see detail">
-            <Typography color="info">detail?</Typography>
-          </Tooltip>
-        )}
-      </StackRowCenter>
-
       <DataGrid
-        getRowId={getRowId}
         slotProps={slotProps}
         onColumnResize={onColumnResize}
         columns={cols}
@@ -1437,36 +1376,30 @@ function TriggersStructure(props: {
         loading={loading}
       />
       {row && (
-        <Modal
+        <Dialog
           open={!!row}
           onClose={modalHandleClose((e: EscDownEvent) => {
             e.preventDefault();
             setRow(null);
           })}
+          fullScreen
+          maxWidth="lg"
           disableAutoFocus
-          disableEnforceFocus
-        >
-          <Box
-            sx={{ resize: "both", ...modalStyle }}
-            width="80vw"
-            height="80vh"
-            ref={setModalBox}
-          >
-            <ModalHeader
-              title={`Trigger Detail`}
-              handleClose={() => {
-                setRow(null);
-              }}
-            />
-            <TriggerDetail
-              reloadOP={async () => {
-                return row;
-              }}
-              uuid={uuid}
-              kind={kind}
-            />
-          </Box>
-        </Modal>
+          disableEnforceFocus>
+          <ModalHeader
+            title={`Trigger Detail`}
+            handleClose={() => {
+              setRow(null);
+            }}
+          />
+          <TriggerDetailView
+            reloadOP={async () => {
+              return row;
+            }}
+            uuid={uuid}
+            kind={kind}
+          />
+        </Dialog>
       )}
     </Stack>
   );
@@ -1495,7 +1428,6 @@ function TableStructure(props: { table: string; uuid: string; kind: DataSourceKi
     DataSourceKind.TiDB,
     DataSourceKind.Mysql,
     DataSourceKind.SqlServer,
-    DataSourceKind.LibSql,
     DataSourceKind.Sqlite,
     DataSourceKind.Oracle,
     DataSourceKind.Postgres,
@@ -1525,17 +1457,16 @@ function TableStructure(props: { table: string; uuid: string; kind: DataSourceKi
 
   return (
     <Stack style={{ height: "100%" }}>
-      <Stack direction="row" justifyContent="center">
+      <Stack direction="row" sx={{ justifyContent: "center" }}>
         <ButtonGroup>
-          {structures.map(e => {
+          {structures.map((e) => {
             return (
               <Button
                 disabled={structure == e}
                 onClick={() => {
                   setStructure(e);
                 }}
-                key={e}
-              >
+                key={e}>
                 {e}
               </Button>
             );
@@ -1564,17 +1495,31 @@ function StatementStructure(props: {
   table: string;
 }) {
   const { uuid, kind, table } = props;
+  const { showNotification } = useNotification();
 
   return (
     <Stack style={{ height: "100%" }}>
       <DefAndMetasView
         reloadOP={async () => {
-          return createTableAndIndexSql(uuid, table).then(e => {
-            return {
-              def: formatCreateTableAndIndexSql(e),
-              metas: [],
-            } as DefAndMetas;
-          });
+          return commands
+            .showCreateTableSql(uuid, table)
+            .then((data) => {
+              return {
+                def: formatCreateTableAndIndexSql(data),
+                metas: [],
+              };
+            })
+            .catch((e) => {
+              showNotification({
+                severity: "error",
+                title: "show create table sql failed",
+                message: e,
+              });
+              return {
+                def: "",
+                metas: [],
+              };
+            });
         }}
         kind={kind}
         uuid={uuid}

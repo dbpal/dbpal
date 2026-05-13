@@ -6,18 +6,28 @@ use mongodb::results::{
 };
 use mongodb::{IndexModel, SearchIndexModel};
 
-use crate::db::{GetBackendKind, SchemaTrait, SqlBuilder};
+use crate::db::{GetBackendKind, ReadOnlyTrait, SchemaTrait, SqlBuilder};
 use crate::language_server::{CompletionItem, CompletionKind, CompletionList, LanguageServer};
-use crate::mongo::MongoDB;
+use crate::mongo::{MongoDB, MongoFindParameter};
 impl SqlBuilder for MongoDB {
     fn get_schema(&self) -> Option<&str> {
         None
     }
 
-    fn put_value_in_sql(&self, _typ: &str, _value: Option<&str>) -> anyhow::Result<String> {
-        self.backend_name().not_support_feature()
+    fn put_value_in_sql(&self, _typ: &str, _value: &str) -> anyhow::Result<String> {
+        self.backend_kind().not_support_feature()
+    }
+
+    fn gen_show_sql(
+        &self,
+        _table_name: &str,
+        _fields: Option<&[crate::db::Field]>,
+        _para: Option<&crate::db::ShowTableParameter>,
+    ) -> String {
+        "".into()
     }
 }
+
 #[async_trait::async_trait]
 impl LanguageServer for MongoDB {
     async fn ai_text_completion(
@@ -47,11 +57,11 @@ impl LanguageServer for MongoDB {
     }
 
     fn extract_table_select_selection(&self, _sql: &str) -> anyhow::Result<Option<String>> {
-        self.backend_name().not_support_feature()
+        self.backend_kind().not_support_feature()
     }
 
     fn extract_table_select_sort(&self, _sql: &str) -> anyhow::Result<Option<String>> {
-        self.backend_name().not_support_feature()
+        self.backend_kind().not_support_feature()
     }
 
     async fn auto_completion(
@@ -62,24 +72,25 @@ impl LanguageServer for MongoDB {
         _col: u32,
         _use_lexer: bool,
     ) -> anyhow::Result<crate::language_server::CompletionList> {
-        self.backend_name().not_support_feature()
+        self.backend_kind().not_support_feature()
     }
 
     fn is_dangerous_sql(&self, _sql: &str) -> anyhow::Result<bool> {
-        self.backend_name().not_support_feature()
+        self.backend_kind().not_support_feature()
     }
 }
 
 // database api
 impl MongoDB {
     pub async fn query_db_drop(&self) -> anyhow::Result<()> {
+        self.can_write()?;
         let db = self.get_db().await?;
         db.drop().await?;
         anyhow::Ok(())
     }
 
     pub async fn query_db_list_collection_names(&self) -> anyhow::Result<Vec<String>> {
-        let x = self.list_collection_name_by_type(None).await?;
+        let x = self.list_collection_name_by_type(|_| true).await?;
         anyhow::Ok(x)
     }
 
@@ -105,6 +116,7 @@ impl MongoDB {
         col: &str,
         keys: Document,
     ) -> anyhow::Result<CreateIndexResult> {
+        self.can_write()?;
         let mut index_model = IndexModel::default();
         index_model.keys = keys;
 
@@ -122,6 +134,7 @@ impl MongoDB {
         keys: Document,
         name: Option<String>,
     ) -> anyhow::Result<String> {
+        self.can_write()?;
         let mut index_model = SearchIndexModel::default();
         index_model.definition = keys;
         index_model.name = name;
@@ -138,6 +151,7 @@ impl MongoDB {
         col: &str,
         query: Document,
     ) -> anyhow::Result<DeleteResult> {
+        self.can_write()?;
         let db = self.get_db().await?;
         let c = db.collection::<Document>(col).delete_many(query).await?;
         anyhow::Ok(c)
@@ -148,6 +162,7 @@ impl MongoDB {
         col: &str,
         query: Document,
     ) -> anyhow::Result<DeleteResult> {
+        self.can_write()?;
         let db = self.get_db().await?;
         let c = db.collection::<Document>(col).delete_one(query).await?;
         anyhow::Ok(c)
@@ -168,18 +183,21 @@ impl MongoDB {
     }
 
     pub async fn query_collection_drop(&self, col: &str) -> anyhow::Result<()> {
+        self.can_write()?;
         let db = self.get_db().await?;
         db.collection::<Document>(col).drop().await?;
         anyhow::Ok(())
     }
 
     pub async fn query_collection_drop_index(&self, col: &str, index: &str) -> anyhow::Result<()> {
+        self.can_write()?;
         let db = self.get_db().await?;
         db.collection::<Document>(col).drop_index(index).await?;
         anyhow::Ok(())
     }
 
     pub async fn query_collection_drop_indexes(&self, col: &str) -> anyhow::Result<()> {
+        self.can_write()?;
         let db = self.get_db().await?;
         db.collection::<Document>(col).drop_indexes().await?;
         anyhow::Ok(())
@@ -200,15 +218,19 @@ impl MongoDB {
     pub async fn query_collection_find(
         &self,
         col: &str,
-        projection: Option<Document>,
-        filter: Document,
-        sort: Option<Document>,
-        max: Option<Document>,
-        min: Option<Document>,
-        hint: Option<Document>,
-        limit: Option<i64>,
-        skip: Option<u64>,
+        para: MongoFindParameter,
     ) -> anyhow::Result<Vec<Document>> {
+        let MongoFindParameter {
+            filter,
+            hint,
+            projection,
+            sort,
+            min,
+            max,
+            limit,
+            skip,
+        } = para;
+        #[cfg(debug_assertions)]
         log::info!(
             "find parameter project:{:?} filter:{:?} sort:{:?} max:{:?} min:{:?} limit:{:?} skip:{:?}",
             projection,
@@ -219,6 +241,7 @@ impl MongoDB {
             limit,
             skip
         );
+
         let db = self.get_db().await?;
         let col = db.collection::<Document>(col);
         let mut f = col.find(filter);
@@ -255,14 +278,19 @@ impl MongoDB {
     pub async fn query_collection_find_one(
         &self,
         col: &str,
-        projection: Option<Document>,
-        filter: Document,
-        sort: Option<Document>,
-        max: Option<Document>,
-        min: Option<Document>,
-        hint: Option<Document>,
-        skip: Option<u64>,
+        para: MongoFindParameter,
     ) -> anyhow::Result<Option<Document>> {
+        let MongoFindParameter {
+            filter,
+            hint,
+            projection,
+            sort,
+            min,
+            max,
+            skip,
+            limit: _,
+        } = para;
+        #[cfg(debug_assertions)]
         log::info!(
             "find parameter project:{:?} filter:{:?} sort:{:?} max:{:?} min:{:?} skip:{:?}",
             projection,
@@ -303,6 +331,7 @@ impl MongoDB {
         col: &str,
         filter: Document,
     ) -> anyhow::Result<Option<Document>> {
+        self.can_write()?;
         let db = self.get_db().await?;
         let col = db.collection::<Document>(col);
         let f = col.find_one_and_delete(filter);
@@ -316,6 +345,7 @@ impl MongoDB {
         filter: Document,
         replacement: Document,
     ) -> anyhow::Result<Option<Document>> {
+        self.can_write()?;
         let db = self.get_db().await?;
         let col = db.collection::<Document>(col);
         let f = col.find_one_and_replace(filter, replacement);
@@ -328,6 +358,7 @@ impl MongoDB {
         col: &str,
         docs: Vec<Document>,
     ) -> anyhow::Result<InsertManyResult> {
+        self.can_write()?;
         let db = self.get_db().await?;
         let col = db.collection::<Document>(col);
         let f = col.insert_many(docs.into_iter());
@@ -340,6 +371,7 @@ impl MongoDB {
         col: &str,
         doc: Document,
     ) -> anyhow::Result<InsertOneResult> {
+        self.can_write()?;
         let db = self.get_db().await?;
         let col = db.collection::<Document>(col);
         let f = col.insert_one(doc);
@@ -396,6 +428,7 @@ impl MongoDB {
         query: Document,
         replacement: Document,
     ) -> anyhow::Result<UpdateResult> {
+        self.can_write()?;
         let db = self.get_db().await?;
         let col = db.collection::<Document>(col);
         let f = col.replace_one(query, replacement);
@@ -409,6 +442,7 @@ impl MongoDB {
         query: Document,
         replacement: Document,
     ) -> anyhow::Result<UpdateResult> {
+        self.can_write()?;
         let db = self.get_db().await?;
         let col = db.collection::<Document>(col);
         let f = col.update_many(query, replacement);
@@ -422,6 +456,7 @@ impl MongoDB {
         query: Document,
         replacement: Document,
     ) -> anyhow::Result<UpdateResult> {
+        self.can_write()?;
         let db = self.get_db().await?;
         let col = db.collection::<Document>(col);
         let f = col.update_one(query, replacement);

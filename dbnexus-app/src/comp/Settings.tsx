@@ -1,15 +1,10 @@
-import {
-  CSSProperties,
-  ReactNode,
-  useContext,
-  useEffect,
-  useRef,
-  useState,
-} from "react";
+import { ReactNode, useCallback, useEffect, useMemo, useState } from "react";
 import { FaFolderOpen } from "react-icons/fa";
+import { isEqual } from "lodash-es";
+import * as monaco from "monaco-editor";
+import type {} from "@mui/x-data-grid/themeAugmentation";
 import {
   Autocomplete,
-  Box,
   Button,
   Checkbox,
   Chip,
@@ -18,11 +13,9 @@ import {
   createTheme,
   CssBaseline,
   CssVarsTheme,
+  Dialog,
   Divider,
-  FormControlLabel,
   IconButton,
-  InputAdornment,
-  Modal,
   Slider,
   Stack,
   Tab,
@@ -35,147 +28,127 @@ import {
   useTheme,
 } from "@mui/material";
 import { HexColorPicker } from "react-colorful";
-import { NotificationContext } from "./Notification";
 import { openPath, openUrl } from "@tauri-apps/plugin-opener";
 import {
-  ErrAndLoc,
-  ColorFn,
-  SettingContext,
-  UserSetting,
-  validJson,
   registeredThemes,
-  UserSettingAppearance,
-  UserSettingExport,
-  UserSettingEditor,
-  settingChangeEvent,
-  UserSettingMisc,
   dataGridheaderFontSize,
-  isDarkTheme,
-  appTheme,
-  appStore,
-  LLMConfig,
-  LLMConfigContext,
   shrinkAble,
-  LoggerLevel,
   prettyMs,
+  MonacoEditor,
 } from "./helper";
-import { Position } from "monaco-editor";
-import { invoke } from "@tauri-apps/api/core";
+
 import EditIcon from "@mui/icons-material/Edit";
-import ClearIcon from "@mui/icons-material/Clear";
-import { SimpleFlexEditor, StackRowCenter } from "./CommonComp2";
+import { IconModifed, SimpleFlexEditor, StackRowCenter } from "./CommonComp2";
+import { ClearableTextField } from "./CommonComp2";
 import {
   enable as enableApp,
   isEnabled as isEnabledApp,
   disable as disableApp,
 } from "@tauri-apps/plugin-autostart";
 import { message } from "@tauri-apps/plugin-dialog";
-import { Editor } from "@monaco-editor/react";
-import { listen } from "@tauri-apps/api/event";
-import { EscDownEvent, modalHandleClose, modalStyle } from "./Common";
-import { LogLevelSelection, ModalHeader } from "./CommonComp";
+import { EscDownEvent, modalHandleClose } from "./Common";
+import { LogLevelSelection } from "./CommonComp";
 import { appLogDir } from "@tauri-apps/api/path";
+import {
+  makeLLMCallable,
+  useDatagridHeight,
+  useLLM,
+  useLLMConfig,
+  useNotification,
+  UserSettings,
+  useUserSettings,
+} from "./store";
+import { WebviewWindow } from "@tauri-apps/api/webviewWindow";
+import { listen } from "@tauri-apps/api/event";
+import "@mui/material/Chip";
+import { AiOnlineSearch, commands } from "./bindings";
+
+declare module "@mui/material/Chip" {
+  interface ChipPropsSizeOverrides {
+    largeSmall: true; //
+  }
+}
 
 function AppearanceSetting() {
-  const { showNotification } = useContext(NotificationContext);
+  const { appearance, updateAppearance } = useUserSettings();
+  const { showNotification } = useNotification();
   const [allFonts, setAllFonts] = useState<string[]>([]);
-  const [showEditBgColor, setShowEditBgColor] = useState(false);
-  const [fontWeight, setFontWeight] = useState("");
-  const [fontSize, setFontSize] = useState(15);
-  const [bgColor, setBgColor] = useState("");
-  const [bgColorErr, setBgColorErr] = useState("");
-  const [fontFamily, setFontFamily] = useState("");
-  const [datagridRowHeightFactor, setDatagridRowHeightFactor] = useState("");
-  const [intputVariant, setInputVariant] = useState("standard");
-
-  const oldSetting = useRef<UserSettingAppearance>(null);
-
-  useEffect(() => {
-    UserSettingAppearance.get().then(setting => {
-      setFontWeight(setting.fontWeight);
-      setFontSize(setting.fontSize);
-      setBgColor(isDarkTheme() ? setting.darkBgColor : setting.lightBgColor);
-      setFontFamily(setting.fontFamily);
-      setDatagridRowHeightFactor(setting.datagridRowHeightFactor + "");
-      setInputVariant(setting.intputVariant);
-      oldSetting.current = setting;
-    });
-  }, []);
-
-  const [zoom, setZoom] = useState(1);
-  useEffect(() => {
-    if (!bgColor) {
-      setBgColorErr("");
-      return;
-    }
-    if (!ColorFn.isColor(bgColor)) {
-      setBgColorErr("not a valid color");
-      return;
-    }
-    if (
-      (isDarkTheme() && ColorFn.isLightHex(bgColor)) ||
-      (!isDarkTheme() && !ColorFn.isLightHex(bgColor))
-    ) {
-      setBgColorErr(`please set a '${appTheme}' background color`);
-      return;
-    }
-
-    setBgColorErr("");
-  }, [bgColor]);
+  const [fontWeight, setFontWeight] = useState(appearance.fontWeight);
+  const [fontSize, setFontSize] = useState(appearance.fontSize);
+  const [darkBgColor, setDarkBgColor] = useState(appearance.darkBgColor);
+  const [lightBgColor, setLightBgColor] = useState(appearance.lightBgColor);
+  const [fontFamily, setFontFamily] = useState(appearance.fontFamily);
+  const [datagridRowHeightFactor, setDatagridRowHeightFactor] = useState(
+    appearance.datagridRowHeightFactor,
+  );
+  const [theme, setTheme] = useState(appearance.theme);
+  const [zoom, setZoom] = useState(appearance.zoom);
 
   useEffect(() => {
-    const key = "zoom";
-    appStore.get<number>(key).then(z => {
-      setZoom(z);
-    });
-    const unlisten = appStore.onKeyChange<number>(key, z => {
-      setZoom(z);
-    });
-    return () => {
-      unlisten.then(f => {
-        f();
-      });
-    };
-  }, []);
-
-  useEffect(() => {
-    invoke<string[]>("all_font_family", {})
-      .then(fonts => {
-        setAllFonts(fonts);
+    commands
+      .allFontFamily()
+      .then((data) => {
+        setAllFonts(data);
       })
-      .catch(e => {
-        showNotification("error", "list all fonts failed", e);
+      .catch((e) => {
+        showNotification({
+          severity: "error",
+          title: "list all fonts failed",
+          message: e,
+        });
       });
   }, [showNotification]);
 
+  const makeConfig = useCallback(() => {
+    const x = {
+      fontFamily,
+      fontSize,
+      fontWeight,
+      darkBgColor: darkBgColor,
+      lightBgColor: lightBgColor,
+      datagridRowHeightFactor,
+
+      theme,
+      zoom,
+    };
+
+    return x;
+  }, [
+    darkBgColor,
+    datagridRowHeightFactor,
+    fontFamily,
+    fontSize,
+    fontWeight,
+    lightBgColor,
+    theme,
+    zoom,
+  ]);
+
+  const modified = useMemo(() => {
+    return !isEqual(appearance, makeConfig());
+  }, [makeConfig, appearance]);
+
   const handleSave = () => {
     try {
-      const x = {
-        fontFamily,
-        fontSize,
-        fontWeight,
-        darkBgColor: isDarkTheme() ? bgColor : oldSetting.current.darkBgColor,
-        lightBgColor: !isDarkTheme() ? bgColor : oldSetting.current.lightBgColor,
-        datagridRowHeightFactor: parseFloat(datagridRowHeightFactor),
-        intputVariant,
-      } as unknown as UserSettingAppearance;
-      Object.setPrototypeOf(x, UserSettingAppearance.prototype);
-      x.save();
+      updateAppearance(makeConfig());
     } catch (e) {
-      showNotification("error", "save setting failed", e);
+      showNotification({
+        severity: "error",
+        title: "save appearance setting failed",
+        message: e,
+      });
       return;
     }
-    showNotification("success", "save setting success");
   };
   return (
-    <Stack style={{ height: "100%", textAlign: "right" }}>
+    <Stack style={{ height: "100%" }}>
       <Stack direction="row" sx={{ alignItems: "center" }}>
-        <Typography width={headerSize} style={{ fontSize }}>
+        <Typography sx={{ width: headerSize }} style={{ fontSize }}>
           font size
         </Typography>
         <Chip label={fontSize} style={{ fontSize }} />
         <Slider
-          style={{ width: "30%" }}
+          style={{ width: "12rem" }}
           value={fontSize}
           onChange={(_, value) => {
             setFontSize(value as number);
@@ -185,39 +158,24 @@ function AppearanceSetting() {
         />
       </Stack>
       <Stack direction="row" sx={{ alignItems: "center" }}>
-        <Typography width={headerSize} style={{ fontWeight }}>
+        <Typography sx={{ width: headerSize }} style={{ fontWeight }}>
           font weight
         </Typography>
-        <TextField
+        <ClearableTextField
           value={fontWeight}
-          onChange={e => {
+          onChange={(e) => {
             setFontWeight(e.target.value);
           }}
-          slotProps={{
-            input: {
-              endAdornment: fontWeight && (
-                <InputAdornment position="end">
-                  <IconButton
-                    onClick={() => {
-                      setFontWeight("");
-                    }}
-                    edge="end"
-                  >
-                    <ClearIcon fontSize="small" />
-                  </IconButton>
-                </InputAdornment>
-              ),
-            },
-          }}
+          onClear={() => setFontWeight("")}
         />
       </Stack>
       <Stack direction="row" sx={{ alignItems: "flex-end" }}>
-        <Typography width={headerSize} style={{ fontFamily }}>
+        <Typography sx={{ width: headerSize }} style={{ fontFamily }}>
           font
         </Typography>
         <TextField
           value={fontFamily}
-          onChange={e => {
+          onChange={(e) => {
             setFontFamily(e.target.value);
           }}
           slotProps={{
@@ -227,206 +185,187 @@ function AppearanceSetting() {
           }}
         />
         <datalist id="fonts_list">
-          {allFonts.map(e => (
+          {allFonts.map((e) => (
             <option key={e} value={e} />
           ))}
         </datalist>
 
-        <Typography color="info" fontFamily={fontFamily}>
+        <Typography color="info" sx={{ fontFamily }}>
           SELECT * FROM employees WHERE gender = &apos;M&apos; LIMIT 100
         </Typography>
       </Stack>
       <Stack direction="row" sx={{ alignItems: "center" }}>
-        <Typography width={headerSize}>table row height factor </Typography>
-        <TextField
+        <Typography sx={{ width: headerSize }}>table row height factor </Typography>
+        <Typography> {datagridRowHeightFactor} </Typography>
+        <Slider
+          min={2}
+          max={5}
+          step={0.1}
           value={datagridRowHeightFactor}
-          onChange={e => {
-            setDatagridRowHeightFactor(e.target.value);
+          onChange={(_e, value) => {
+            setDatagridRowHeightFactor(value);
           }}
-          error={isNaN(parseFloat(datagridRowHeightFactor))}
-          helperText=""
+          style={{ width: "12rem" }}
         />
         <Tooltip title="a float value,this parameter multiply font size as the table row height">
           <Typography> ?? </Typography>
         </Tooltip>
       </Stack>
-      <Stack direction="row" sx={{ alignItems: "center" }}>
-        <Typography width={headerSize}>background color </Typography>
-        <div style={{ position: "relative" }}>
-          <IconButton
-            color={showEditBgColor ? "success" : "primary"}
-            onClick={() => {
-              setShowEditBgColor(e => !e);
-            }}
-          >
-            <EditIcon> </EditIcon>
-          </IconButton>
-          {showEditBgColor && (
-            <HexColorPicker
-              color={bgColor}
-              onChange={newValue => {
-                setBgColor(newValue);
-              }}
-              style={{ position: "absolute", zIndex: 10, top: "3rem" }}
-            />
-          )}
-        </div>
-
-        <TextField
-          value={bgColor}
-          onChange={e => {
-            setBgColor(e.target.value);
-          }}
-          style={{ width: "10rem" }}
-          error={!!bgColorErr}
-          slotProps={{
-            input: {
-              endAdornment: bgColor && (
-                <InputAdornment position="end">
-                  <IconButton
-                    onClick={() => {
-                      setBgColor("");
-                    }}
-                    edge="end"
-                  >
-                    <ClearIcon fontSize="small" />
-                  </IconButton>
-                </InputAdornment>
-              ),
-            },
-          }}
-        />
-        {bgColorErr && <Typography color="error"> {bgColorErr} </Typography>}
-      </Stack>
 
       <Stack direction="row" sx={{ alignItems: "center" }}>
-        <Typography width={headerSize}>input variant</Typography>
+        <Typography sx={{ width: headerSize }}>theme </Typography>
         <Autocomplete
-          options={["standard", "filled", "outlined"]}
-          style={{ width: "22rem" }}
-          value={intputVariant}
-          renderInput={params => <TextField {...params} label="input variant" />}
+          options={["light", "dark", "system"]}
+          style={{ width: "12rem" }}
+          value={theme}
+          renderInput={(params) => <TextField {...params} label={`theme`} />}
           freeSolo={false}
-          onChange={(_, variant) => {
-            if (!variant) {
-              return;
-            }
-            setInputVariant(variant);
+          onChange={(_, name) => {
+            setTheme(name);
           }}
         />
-        <TextField value={"this is demo"} variant={intputVariant as "filled"} />
       </Stack>
-
+      <SetBgColor theme="dark" bgColor={darkBgColor} setBgColor={setDarkBgColor} />
+      <SetBgColor theme="light" bgColor={lightBgColor} setBgColor={setLightBgColor} />
       <Stack direction="row" sx={{ alignItems: "center" }}>
-        <Typography width={headerSize}>zoom</Typography>
-        <Tooltip title="current zoom level">
-          <Typography color="info"> {zoom}</Typography>
-        </Tooltip>
+        <Typography sx={{ width: headerSize }}>zoom</Typography>
+
+        {zoom != 1 && (
+          <Button
+            variant="text"
+            onClick={() => {
+              setZoom(1);
+            }}>
+            reset
+          </Button>
+        )}
+        <Typography color="info"> {zoom} </Typography>
+        <Slider
+          color="info"
+          value={zoom}
+          min={0.5}
+          max={3}
+          onChange={(_e, value) => {
+            setZoom(value);
+          }}
+          step={0.01}
+          style={{ width: "18rem" }}
+        />
       </Stack>
       <Divider />
       <Stack direction="row" sx={{ alignItems: "center" }}>
-        <Button onClick={handleSave}> save </Button>
+        <Button onClick={handleSave} disabled={!modified}>
+          {modified ? <IconModifed /> : undefined} save
+        </Button>
       </Stack>
     </Stack>
   );
 }
 
-function EditorSetting() {
-  const [editorOptions, setEditorOptions] = useState("");
-  const [showEditOption, setShowEditOption] = useState(false);
-  const [tabSize, setTabSize] = useState(4);
-  const [customEditorTheme, setCustomEditorTheme] = useState("");
-  const [highLightTheme, setHighlightTheme] = useState("");
-  const muiTheme = useTheme();
-  const { showNotification } = useContext(NotificationContext);
+function SetBgColor({ bgColor, setBgColor, theme }) {
+  const [showEditBgColor, setShowEditBgColor] = useState(false);
+  return (
+    <Stack direction="row" sx={{ alignItems: "center" }}>
+      <Typography sx={{ width: headerSize }}> {theme} background color </Typography>
+      <div style={{ position: "relative" }}>
+        <IconButton
+          color={showEditBgColor ? "success" : "primary"}
+          onClick={() => {
+            setShowEditBgColor((e) => !e);
+          }}>
+          <EditIcon> </EditIcon>
+        </IconButton>
+        {showEditBgColor && (
+          <HexColorPicker
+            color={bgColor}
+            onChange={(newValue) => {
+              setBgColor(newValue);
+            }}
+            style={{ position: "absolute", zIndex: 10, top: "3rem" }}
+          />
+        )}
+      </div>
 
-  useEffect(() => {
-    UserSettingEditor.get().then(setting => {
-      setEditorOptions(
-        setting.editorOption ? JSON.stringify(setting.editorOption) : "{}",
-      );
-      setTabSize(setting.tabSize);
-      setCustomEditorTheme(setting.theme);
-    });
-  }, []);
+      <ClearableTextField
+        value={bgColor}
+        onChange={(e) => {
+          setBgColor(e.target.value);
+        }}
+        onClear={() => setBgColor("")}
+        style={{ width: "10rem" }}
+      />
+    </Stack>
+  );
+}
+
+function EditorSetting() {
+  const { editor, updateEditor } = useUserSettings();
+  const [showEditOption, setShowEditOption] = useState(false);
+  const [customEditorTheme, setCustomEditorTheme] = useState(editor.theme);
+  const [highLightTheme, setHighlightTheme] = useState("");
+  const { showNotification } = useNotification();
+
+  const makeConfig = useCallback(() => {
+    const obj = {
+      theme: customEditorTheme,
+      editorOption: editor.editorOption,
+    };
+    return obj;
+  }, [customEditorTheme, editor.editorOption]);
+
   const handleSave = () => {
     try {
-      const obj = {
-        tabSize,
-        theme: customEditorTheme,
-        editorOption: editorOptions ? JSON.parse(editorOptions) : null,
-      } as UserSettingEditor;
-      Object.setPrototypeOf(obj, UserSettingEditor.prototype);
-      obj.save();
+      updateEditor(makeConfig());
     } catch (e) {
-      showNotification("error", "save setting  failed", e);
+      showNotification({
+        severity: "error",
+        title: "save  editor setting failed",
+        message: e,
+      });
       return;
     }
-    showNotification("success", "save setting ok");
   };
-  return (
-    <Stack style={{ textAlign: "right" }}>
-      <Stack direction="row" sx={{ alignItems: "center" }}>
-        <Typography width={headerSize}>tab size </Typography>
 
-        {[2, 4, 8].map(e => (
-          <Chip
-            label={e}
-            color={e == tabSize ? "success" : "default"}
-            onClick={() => {
-              setTabSize(e);
-            }}
-            key={e}
-          />
-        ))}
-      </Stack>
+  const modified = useMemo(() => {
+    return !isEqual(editor, makeConfig());
+  }, [makeConfig, editor]);
+
+  return (
+    <Stack>
       <Stack>
         <Stack direction="row" style={{ alignItems: "flex-start" }}>
           <Tooltip title="dbpal use monaco editor as build in editor" placement="top">
-            <Typography width={headerSize}>monaco editor options</Typography>
+            <Typography sx={{ width: headerSize }}>monaco editor options</Typography>
           </Tooltip>
           <Stack style={{ flex: 1 }}>
             <StackRowCenter>
               <IconButton
                 onClick={() => {
-                  setShowEditOption(e => !e);
+                  setShowEditOption((e) => !e);
                 }}
-                color={showEditOption ? "success" : "primary"}
-              >
+                color={showEditOption ? "success" : "primary"}>
                 <EditIcon> </EditIcon>
               </IconButton>
-              <Typography color="info">{editorOptions}</Typography>
             </StackRowCenter>
-
-            {editorOptions && (
+            {showEditOption && (
               <EditorOptions
                 handleClose={() => {
                   setShowEditOption(false);
                 }}
-                style={{
-                  height: "40vh",
-                  border: "2px solid" + muiTheme.palette.success.main,
-                  borderRadius: "8px",
-                  padding: "8px",
-                  display: showEditOption ? "flex" : "none",
-                  transform: "all 0.7s ease",
-                }}
-                editorOptions={editorOptions}
-                setEditorOptions={setEditorOptions}
+                showEditOption={showEditOption}
               />
             )}
           </Stack>
         </Stack>
       </Stack>
-
       <Stack direction="row" sx={{ alignItems: "flex-start" }}>
-        <Typography width={headerSize}>editor theme </Typography>
+        <Typography sx={{ width: headerSize }}> editor theme </Typography>
         <Stack direction="row" style={{ flex: 1, alignItems: "flex-start" }}>
           <Autocomplete
             options={registeredThemes}
             style={{ width: "22rem" }}
             value={customEditorTheme}
-            renderInput={params => <TextField {...params} label="editor theme" />}
+            renderInput={(params) => <TextField {...params} label="editor theme" />}
             freeSolo={false}
             onChange={(_, theme) => {
               setCustomEditorTheme(theme);
@@ -436,80 +375,21 @@ function EditorSetting() {
             }}
           />
           <EditorThemeDemo
-            style={{
-              flexGrow: 1,
-              flexShrink: 1,
-              width: "100px",
-              height: "15vh",
-            }}
             theme={highLightTheme ? highLightTheme : customEditorTheme}
           />
         </Stack>
       </Stack>
       <Divider />
       <Stack direction="row">
-        <Button onClick={handleSave}> save </Button>
+        <Button onClick={handleSave} disabled={!modified}>
+          {modified ? <IconModifed /> : undefined} save
+        </Button>
       </Stack>
     </Stack>
   );
 }
 
 const headerSize = "16rem";
-
-function ExportSetting() {
-  const [csvDelimiter, setCsvDelimiter] = useState(",");
-  const [includeHeader, setIncludeHeader] = useState(true);
-  const { showNotification } = useContext(NotificationContext);
-  useEffect(() => {
-    UserSettingExport.get().then(setting => {
-      setCsvDelimiter(setting.csvDelimiter);
-      setIncludeHeader(setting.includeHeader);
-    });
-  }, []);
-
-  const handleSave = () => {
-    try {
-      const x = { csvDelimiter, includeHeader } as UserSettingExport;
-      Object.setPrototypeOf(x, UserSettingExport.prototype);
-      x.save();
-    } catch (e) {
-      showNotification("error", "save setting  failed", e);
-      return;
-    }
-    showNotification("success", "save setting ok");
-  };
-
-  return (
-    <Stack style={{ textAlign: "right" }}>
-      <Stack direction="row" sx={{ alignItems: "center" }}>
-        <Typography width={headerSize}>csv delimiter</Typography>
-        <TextField
-          value={csvDelimiter}
-          onChange={e => setCsvDelimiter(e.target.value)}
-          error={csvDelimiter.length > 1}
-          helperText="only accept one character"
-        />
-      </Stack>
-      <Stack direction="row" sx={{ alignItems: "center" }}>
-        <Typography width={headerSize}>include header</Typography>
-        <FormControlLabel
-          control={
-            <Checkbox
-              checked={includeHeader}
-              onChange={e => setIncludeHeader(e.target.checked)}
-            />
-          }
-          label="include header"
-        />
-      </Stack>
-
-      <Divider />
-      <Stack direction="row">
-        <Button onClick={handleSave}>save</Button>
-      </Stack>
-    </Stack>
-  );
-}
 
 interface ModelDef {
   id: string;
@@ -535,56 +415,58 @@ async function listLLMModels(baseURl: string, apiKey: string): Promise<ModelDef[
 }
 
 function LLMSetting(props: { handleClose?: () => void }) {
+  const { config: oldSetting, setConfig } = useLLMConfig();
   const { handleClose } = props;
-  const [baseUrl, setBaseUrl] = useState("");
-  const [temperature, setTemperature] = useState("0");
-  const [model, setModel] = useState("");
-  const [apiKey, setApiKey] = useState("");
-  const { showNotification } = useContext(NotificationContext);
-  const [maxToken, setMaxToken] = useState("");
-  const [topP, setTopP] = useState("");
+  const [baseUrl, setBaseUrl] = useState(oldSetting.baseUrl);
+  const [temperature, setTemperature] = useState(
+    oldSetting.temperature ? oldSetting.temperature + "" : "",
+  );
+  const [model, setModel] = useState(oldSetting.model);
+  const [apiKey, setApiKey] = useState(oldSetting.apiKey);
+  const { showNotification } = useNotification();
+  const [maxToken, setMaxToken] = useState(
+    oldSetting.maxToken ? oldSetting.maxToken + "" : "",
+  );
+  const [topP, setTopP] = useState(oldSetting.topP ? oldSetting.topP + "" : "");
   const [moddelCan, setModdelCan] = useState<ModelDef[]>([]);
   const [helloTime, setHelloTime] = useState(0);
-  useEffect(() => {
-    LLMConfig.get().then(e => {
-      if (e) {
-        setBaseUrl(e.baseUrl);
-        setTemperature(e.temperature + "");
-        setModel(e.model);
-        setApiKey(e.apiKey);
-        if (e.maxToken) {
-          setMaxToken(e.maxToken + "");
-        }
 
-        if (e.topP) {
-          setTopP(e.topP + "");
-        }
-      }
-    });
-  }, []);
-  const makeConfig = () => {
+  const [searchEngine, setSearchEngine] = useState<AiOnlineSearch>(
+    oldSetting.search_engin,
+  );
+
+  const makeConfig = useCallback(() => {
     const config = {
       baseUrl,
       apiKey,
-      temperature: parseFloat(temperature),
+      temperature: temperature ? parseFloat(temperature) : null,
       model,
       maxToken: maxToken ? parseInt(maxToken) : null,
-    } as LLMConfig;
-    Object.setPrototypeOf(config, LLMConfig.prototype);
+      topP: topP ? parseFloat(topP) : 0,
+      search_engin: searchEngine,
+    };
+
     return config;
-  };
+  }, [apiKey, baseUrl, maxToken, model, searchEngine, temperature, topP]);
+
+  const modified = useMemo(() => {
+    return !isEqual(oldSetting, makeConfig());
+  }, [makeConfig, oldSetting]);
+
   const handleSave = async () => {
     try {
-      const config = makeConfig();
-      await config.save();
+      setConfig(makeConfig());
       if (handleClose) {
         handleClose();
       }
     } catch (e) {
-      showNotification("error", "save llm config  failed", e);
+      showNotification({
+        severity: "error",
+        title: "save llm config  failed",
+        message: e,
+      });
       return;
     }
-    showNotification("success", "save llm config ok");
   };
 
   const handleHello = async () => {
@@ -594,14 +476,18 @@ function LLMSetting(props: { handleClose?: () => void }) {
     }, 400);
     try {
       const config = makeConfig();
-      const resp = await config.invoke("hello!");
-      showNotification(
-        "success",
-        "config setting is ok,llm response:",
-        <Typography color="info"> {resp} </Typography>,
-      );
+      const resp = await makeLLMCallable(config).prompt("hello!");
+      showNotification({
+        severity: "success",
+        title: "config setting is ok,llm response:",
+        message: <Typography color="info"> {resp} </Typography>,
+      });
     } catch (e) {
-      showNotification("error", "test llm config  failed", e);
+      showNotification({
+        severity: "error",
+        title: "test llm config  failed",
+        message: e,
+      });
       console.error("hello error", e);
     } finally {
       clearInterval(int);
@@ -613,79 +499,55 @@ function LLMSetting(props: { handleClose?: () => void }) {
 
   const loadModelCan = async () => {
     if (!baseUrl) {
-      showNotification("warning", "base url is empty");
+      showNotification({ severity: "warning", title: "base url is empty" });
       return;
     }
     if (!apiKey) {
-      showNotification("warning", "api key is empty");
+      showNotification({ severity: "warning", title: "api key is empty" });
       return;
     }
     try {
       const ms = await listLLMModels(baseUrl, apiKey);
       setModdelCan(ms);
-      showNotification("success", "load model candidates ok");
+      showNotification({ severity: "success", title: "load model candidates ok" });
     } catch (e) {
-      showNotification("error", "load model can failed", e);
+      showNotification({
+        severity: "error",
+        title: "load model can failed",
+        message: e,
+      });
     }
   };
 
   return (
-    <Stack style={{ textAlign: "right" }}>
+    <Stack>
       <Stack direction="row" sx={{ alignItems: "center" }}>
-        <Typography width={headerSize}>base url</Typography>
-        <TextField
+        <Typography sx={{ width: headerSize }}>base url</Typography>
+        <ClearableTextField
           style={{ width: "25rem" }}
           value={baseUrl}
-          onChange={e => setBaseUrl(e.target.value)}
+          onChange={(e) => setBaseUrl(e.target.value)}
+          onClear={() => setBaseUrl("")}
           slotProps={{
             htmlInput: {
               type: "url",
-            },
-            input: {
-              endAdornment: baseUrl && (
-                <InputAdornment position="end">
-                  <IconButton
-                    onClick={() => {
-                      setBaseUrl("");
-                    }}
-                    edge="end"
-                  >
-                    <ClearIcon fontSize="small" />
-                  </IconButton>
-                </InputAdornment>
-              ),
             },
           }}
         />
       </Stack>
 
       <Stack direction="row" sx={{ alignItems: "center" }}>
-        <Typography width={headerSize}>api key</Typography>
-        <TextField
+        <Typography sx={{ width: headerSize }}>api key</Typography>
+        <ClearableTextField
           value={apiKey}
           style={{ width: "40rem" }}
-          onChange={e => setApiKey(e.target.value)}
-          type="password"
-          slotProps={{
-            input: {
-              endAdornment: apiKey && (
-                <InputAdornment position="end">
-                  <IconButton
-                    onClick={() => {
-                      setApiKey("");
-                    }}
-                    edge="end"
-                  >
-                    <ClearIcon fontSize="small" />
-                  </IconButton>
-                </InputAdornment>
-              ),
-            },
-          }}
+          onChange={(e) => setApiKey(e.target.value)}
+          onClear={() => setApiKey("")}
+          type={import.meta.env.DEV ? undefined : "password"}
         />
       </Stack>
       <Stack direction="row" sx={{ alignItems: "center" }}>
-        <Typography width={headerSize}>model </Typography>
+        <Typography sx={{ width: headerSize }}>model </Typography>
         <Button variant="outlined" onClick={loadModelCan}>
           load candidates
         </Button>
@@ -693,17 +555,17 @@ function LLMSetting(props: { handleClose?: () => void }) {
           style={{ flex: 1, maxWidth: "32rem" }}
           options={moddelCan}
           value={model as any}
-          renderInput={params => (
+          renderInput={(params) => (
             <TextField
               {...params}
               label={`model`}
-              value={Modal}
-              onChange={e => {
+              value={model}
+              onChange={(e) => {
                 setModel(e.target.validationMessage);
               }}
             />
           )}
-          getOptionLabel={e => {
+          getOptionLabel={(e) => {
             return typeof e == "string" ? e : e.id;
           }}
           renderOption={(props, def) => (
@@ -714,8 +576,7 @@ function LLMSetting(props: { handleClose?: () => void }) {
                   justifyContent: "space-between",
                   alignItems: "center",
                   width: "100%",
-                }}
-              >
+                }}>
                 <span> {def.id} </span>
                 {def.context_length && (
                   <Stack direction="row" divider=<Divider />>
@@ -727,7 +588,7 @@ function LLMSetting(props: { handleClose?: () => void }) {
               </Stack>
             </li>
           )}
-          freeSolo={false}
+          freeSolo={true}
           onChange={(_, name) => {
             setModel(typeof name == "string" ? name : name.id);
           }}
@@ -735,68 +596,71 @@ function LLMSetting(props: { handleClose?: () => void }) {
       </Stack>
 
       <Stack direction="row" sx={{ alignItems: "center" }}>
-        <Typography width={headerSize}>temperature</Typography>
+        <Typography sx={{ width: headerSize }}>temperature</Typography>
         <TextField
           helperText="only accept number"
           value={temperature}
           error={temperature ? isNaN(parseFloat(temperature)) : false}
-          onChange={e => setTemperature(e.target.value)}
+          onChange={(e) => setTemperature(e.target.value)}
         />
       </Stack>
 
       <Stack direction="row" sx={{ alignItems: "center" }}>
-        <Typography width={headerSize}> max token </Typography>
-        <TextField
+        <Typography sx={{ width: headerSize }}> max token </Typography>
+        <ClearableTextField
           error={maxToken ? isNaN(parseInt(maxToken)) : false}
           value={maxToken}
-          onChange={e => setMaxToken(e.target.value)}
-          slotProps={{
-            input: {
-              endAdornment: maxToken && (
-                <InputAdornment position="end">
-                  <IconButton
-                    onClick={() => {
-                      setMaxToken("");
-                    }}
-                    edge="end"
-                  >
-                    <ClearIcon fontSize="small" />
-                  </IconButton>
-                </InputAdornment>
-              ),
-            },
-          }}
+          onChange={(e) => setMaxToken(e.target.value)}
+          onClear={() => setMaxToken("")}
         />
       </Stack>
 
       <Stack direction="row" sx={{ alignItems: "center" }}>
-        <Typography width={headerSize}> topP </Typography>
-        <TextField
+        <Typography sx={{ width: headerSize }}> topP </Typography>
+        <ClearableTextField
           error={topP ? isNaN(parseFloat(topP)) : false}
           value={topP}
-          onChange={e => setTopP(e.target.value)}
-          slotProps={{
-            input: {
-              endAdornment: topP && (
-                <InputAdornment position="end">
-                  <IconButton
-                    onClick={() => {
-                      setTopP("");
-                    }}
-                    edge="end"
-                  >
-                    <ClearIcon fontSize="small" />
-                  </IconButton>
-                </InputAdornment>
-              ),
-            },
-          }}
+          onChange={(e) => setTopP(e.target.value)}
+          onClear={() => setTopP("")}
         />
       </Stack>
 
+      <Stack direction="row" sx={{ alignItems: "center" }}>
+        <Typography sx={{ width: headerSize }}> search engine </Typography>
+        <Checkbox
+          checked={searchEngine.enable}
+          onChange={(e) => {
+            setSearchEngine({ ...searchEngine, enable: e.target.checked });
+          }}
+        />
+        <Autocomplete
+          options={["duckduckgo", "serpapi", "tavily", "google"]}
+          style={{ width: "19rem" }}
+          value={searchEngine.provider}
+          renderInput={(params) => <TextField {...params} label={"search engine"} />}
+          freeSolo={false}
+          onChange={(_, value) => {
+            setSearchEngine({ ...searchEngine, provider: value });
+          }}
+        />
+
+        {["serpapi", "tavily", "google"].includes(searchEngine.provider) && (
+          <ClearableTextField
+            value={searchEngine.api_key}
+            onChange={(e) => {
+              setSearchEngine({ ...searchEngine, api_key: e.target.value });
+            }}
+            label="api key"
+            fullWidth
+            onClear={() => setSearchEngine({ ...searchEngine, api_key: "" })}
+          />
+        )}
+      </Stack>
       <Divider />
       <Stack direction="row">
-        <Button onClick={handleSave}>save</Button>
+        <Button onClick={handleSave} disabled={!modified}>
+          {modified ? <IconModifed /> : undefined} save
+        </Button>
 
         <Button onClick={handleHello} variant="outlined" color="secondary">
           {helloTime ? (
@@ -813,85 +677,162 @@ function LLMSetting(props: { handleClose?: () => void }) {
 }
 
 function MiscSetting() {
-  const [autoStart, setAutoStart] = useState(false);
-  const { showNotification } = useContext(NotificationContext);
+  const { misc, updateMisc } = useUserSettings();
+  const [autoStart, setAutoStart] = useState(misc.autoStart);
+  const [logLevel, setLogLevel] = useState(misc.logLevel);
+  const { showNotification } = useNotification();
 
   useEffect(() => {
-    UserSettingMisc.get().then(setting => {
-      setAutoStart(setting.autoStart);
-    });
-  }, []);
-  const handleSave = () => {
-    try {
-      const x = { autoStart } as UserSettingMisc;
-      Object.setPrototypeOf(x, UserSettingMisc.prototype);
-      x.save();
-    } catch (e) {
-      showNotification("error", "save setting  failed", e);
-      return;
+    const x = { autoStart, logLevel };
+    if (!isEqual(x, misc)) {
+      console.log("save auto start", autoStart);
+      try {
+        updateMisc(x);
+        showNotification({ severity: "success", title: "save setting ok" });
+      } catch (e) {
+        showNotification({
+          severity: "error",
+          title: "save setting  failed",
+          message: e,
+        });
+      }
     }
-    showNotification("success", "save setting ok");
-  };
-  const [loglevel, setLogLevel] = useState(LoggerLevel.level);
-  return (
-    <Stack style={{ textAlign: "right" }}>
-      <Stack direction="row" sx={{ alignItems: "center" }}>
-        <Typography width={headerSize}>auto start</Typography>
+  }, [autoStart, logLevel, misc, showNotification, updateMisc]);
 
+  return (
+    <Stack>
+      <Stack direction="row" sx={{ alignItems: "center" }}>
+        <Typography sx={{ width: headerSize }}>auto start</Typography>
         <Checkbox
           checked={autoStart}
-          onChange={e => {
+          onChange={(e) => {
             setAutoStart(e.target.checked);
           }}
         />
       </Stack>
       <Stack direction="row" sx={{ alignItems: "center" }}>
-        <Typography width={headerSize}>logger level</Typography>
+        <Typography sx={{ width: headerSize }}>logger level</Typography>
         <LogLevelSelection
-          level={loglevel}
-          handleChange={level => {
+          level={logLevel}
+          handleChange={(level) => {
             setLogLevel(level);
-            LoggerLevel.set(level);
+            console.log("log level:", level);
           }}
         />
-        {loglevel !== "none" && (
+        {logLevel !== "none" && (
           <Tooltip title="open log directory">
             <IconButton
               onClick={async () => {
-                openPath(await appLogDir());
-              }}
-            >
+                openPath(await appLogDir())
+                  .then(() => {
+                    showNotification({
+                      severity: "success",
+                      title: "open log directory successfully",
+                    });
+                  })
+                  .catch((e) => {
+                    showNotification({
+                      severity: "error",
+                      title: "open log directory failed",
+                      message: e,
+                    });
+                  });
+              }}>
               <FaFolderOpen fontSize="1.5rem" />
             </IconButton>
           </Tooltip>
         )}
       </Stack>
+    </Stack>
+  );
+}
 
+function ProxySetting() {
+  const { updateProxy, proxy } = useUserSettings();
+
+  const [http, setHttp] = useState(proxy.http);
+  const [https, setHttps] = useState(proxy.https);
+  const [all, setAll] = useState(proxy.all);
+
+  const [no, setNo] = useState(proxy.no);
+  const { showNotification } = useNotification();
+  const makeConfig = useCallback(() => {
+    return { http, all, https, no } as Partial<UserSettings["proxy"]>;
+  }, [all, http, https, no]);
+
+  const modified = useMemo(() => {
+    return !isEqual(proxy, makeConfig());
+  }, [makeConfig, proxy]);
+
+  const handleSave = async () => {
+    try {
+      updateProxy(makeConfig());
+    } catch (e) {
+      console.log(e);
+      return;
+    }
+    showNotification({ severity: "success", title: "save proxy ok" });
+  };
+
+  return (
+    <Stack>
+      <Stack direction="row" sx={{ alignItems: "flex-start" }}>
+        <Typography sx={{ width: headerSize }}> http proxy</Typography>
+        <ProxyValue value={http} setValue={setHttp} />
+      </Stack>
+      <Stack direction="row" sx={{ alignItems: "flex-start" }}>
+        <Typography sx={{ width: headerSize }}> https proxy</Typography>
+        <ProxyValue value={https} setValue={setHttps} />
+      </Stack>
+
+      <Stack direction="row" sx={{ alignItems: "flex-start" }}>
+        <Typography sx={{ width: headerSize }}> all proxy</Typography>
+        <ProxyValue value={all} setValue={setAll} />
+      </Stack>
+
+      <Stack direction="row" sx={{ alignItems: "flex-start" }}>
+        <Typography sx={{ width: headerSize }}> no proxy </Typography>
+        <ProxyValue value={no} setValue={setNo} />
+      </Stack>
       <Divider />
       <Stack direction="row">
-        <Button onClick={handleSave}>save</Button>
+        <Button onClick={handleSave} disabled={!modified}>
+          {modified ? <IconModifed /> : undefined} save
+        </Button>
       </Stack>
     </Stack>
   );
 }
 
+function ProxyValue({ value, setValue }) {
+  return (
+    <ClearableTextField
+      value={value}
+      onChange={(e) => {
+        setValue(e.target.value);
+      }}
+      fullWidth
+      onClear={() => setValue("")}
+    />
+  );
+}
+
 function ModifySetting() {
-  const ss = ["appearance", "editor", "export", "llm", "misc"];
-  const [tab, setTab] = useState(ss[0]);
+  const ss = ["appearance", "editor", "llm", "misc", "proxy"];
+  const [tab, setCurrentTab] = useState(ss[0]);
   return (
     <Stack>
       <Tabs
         value={tab}
         onChange={(_, value) => {
-          setTab(value);
-        }}
-      >
-        {ss.map(e => (
+          setCurrentTab(value);
+        }}>
+        {ss.map((e) => (
           <Tab value={e} label={e} key={e} />
         ))}
       </Tabs>
       <div style={{ flex: 1 }}>
-        {ss.map(setting => {
+        {ss.map((setting) => {
           let content: ReactNode;
           switch (setting) {
             case "appearance":
@@ -900,14 +841,15 @@ function ModifySetting() {
             case "editor":
               content = <EditorSetting />;
               break;
-            case "export":
-              content = <ExportSetting />;
-              break;
+
             case "misc":
               content = <MiscSetting />;
               break;
             case "llm":
               content = <LLMSetting />;
+              break;
+            case "proxy":
+              content = <ProxySetting />;
               break;
           }
           return (
@@ -921,41 +863,54 @@ function ModifySetting() {
   );
 }
 
-function EditorThemeDemo(props: { style: CSSProperties; theme: string }) {
-  const setting = useContext(SettingContext);
-  const { fontWeight, fontSize, fontFamily } = setting.appearance;
-  const { theme, style } = props;
+function EditorThemeDemo(props: { theme: string }) {
+  const { theme } = props;
+  const [editor, setEditor] = useState<monaco.editor.IStandaloneCodeEditor>(null);
+
+  useEffect(() => {
+    if (!editor) {
+      return;
+    }
+    if (!theme) {
+      return;
+    }
+    editor.updateOptions({ theme });
+  }, [editor, theme]);
+
   return (
-    <Stack style={style}>
-      <Editor
+    <Stack
+      style={{
+        flexGrow: 1,
+        flexShrink: 1,
+        width: "100px",
+        height: "15vh",
+      }}>
+      <MonacoEditor
         value={`select * from employees where id is not null limit 10;`}
-        width="99%"
-        height="99%"
         language="sql"
-        options={{ fontSize, fontFamily, fontWeight, readOnly: true }}
-        theme={theme}
+        readOnly={true}
+        onMount={(ed) => {
+          setEditor(ed);
+        }}
       />
     </Stack>
   );
 }
-function EditorOptions(props: {
-  editorOptions;
-  setEditorOptions;
-  handleClose;
-  style: CSSProperties;
-}) {
-  const { showNotification } = useContext(NotificationContext);
-  const { editorOptions, setEditorOptions, handleClose, style } = props;
-  const [value, setValue] = useState(editorOptions);
-  const [jsonErrPos, setJsonErrPos] = useState<Position>(null);
-  const [jsonErr, setJsonErr] = useState<ErrAndLoc>(null);
-  useEffect(() => {
-    validJson(value).then(e => {
-      setJsonErr(e);
-    });
-  }, [value]);
+function EditorOptions(props: { handleClose; showEditOption }) {
+  const { handleClose, showEditOption } = props;
+  const { editor: editorOP, updateEditor: updateEditorOP } = useUserSettings();
+  const [value, setValue] = useState<string>(editorOP.editorOption);
+  const muiTheme = useTheme();
   return (
-    <Stack style={style}>
+    <Stack
+      style={{
+        height: "40vh",
+        border: "2px solid" + muiTheme.palette.success.main,
+        borderRadius: "8px",
+        padding: "8px",
+        display: showEditOption ? "flex" : "none",
+        transform: "all 0.7s ease",
+      }}>
       <Stack direction="row">
         <Chip
           color="info"
@@ -969,43 +924,19 @@ function EditorOptions(props: {
         />
       </Stack>
       <SimpleFlexEditor
-        errPos={jsonErrPos}
         language="json"
-        value={value}
-        handleValue={v => {
-          setValue(v);
+        value={editorOP.editorOption}
+        handleValue={(newValue) => {
+          setValue(newValue);
         }}
-        barLeft={
-          jsonErr ? (
-            <Typography
-              color="error"
-              style={{ cursor: "pointer" }}
-              onClick={() => {
-                if (!jsonErrPos) {
-                  return;
-                }
-                setJsonErrPos(new Position(jsonErr.line, jsonErr.column));
-              }}
-            >
-              {jsonErr.msg}
-            </Typography>
-          ) : null
-        }
       />
       <Divider />
       <Stack direction="row">
         <Button
           onClick={async () => {
-            try {
-              await validJson(value);
-            } catch (e) {
-              showNotification("error", "not a valid json", e);
-              return;
-            }
-            setEditorOptions(value);
+            updateEditorOP({ ...editorOP, editorOption: value });
             handleClose();
-          }}
-        >
+          }}>
           set
         </Button>
       </Stack>
@@ -1013,11 +944,7 @@ function EditorOptions(props: {
   );
 }
 
-function makeComponents(
-  fontWeight: string | number,
-  intputVariant: string,
-  dataGridRowHeight: number,
-) {
+function makeComponents(fontWeight: string | number, dataGridRowHeight: number) {
   const components: Components<Omit<Theme, "components" | "palette"> & CssVarsTheme> = {
     MuiCircularProgress: {
       defaultProps: { size: "1.2rem" },
@@ -1085,16 +1012,49 @@ function makeComponents(
         },
       },
     },
-    //@ts-ignore
+    MuiDialog: {
+      styleOverrides: {
+        paper: {
+          padding: "6px", // 增加内边距
+          margin: 0,
+        },
+      },
+    },
+    MuiModal: {
+      defaultProps: {
+        // 让 Modal 里的 Backdrop 默认就有动画时长
+        slotProps: {
+          backdrop: {
+            timeout: 500,
+          },
+        },
+      },
+    },
+    MuiDialogTitle: {
+      styleOverrides: {
+        root: {
+          padding: "4px",
+        },
+      },
+    },
     MuiDataGrid: {
       styleOverrides: {
         root: {
           "& .MuiDataGrid-columnHeaderTitle": {
             fontWeight,
           },
+          "& .MuiDataGrid-cell": {
+            padding: "0 2px",
+          },
+          // 如果你也想去掉表头的内边距
+          "& .MuiDataGrid-columnHeader": {
+            padding: "0 2px",
+            border: "1.5px solid #b7b3b3",
+          },
         },
         cell: {
           fontSize: "1rem",
+          border: "1.5px solid #7c7c7c",
         },
         columnHeaders: {
           fontSize: dataGridheaderFontSize,
@@ -1107,7 +1067,7 @@ function makeComponents(
         showCellVerticalBorder: true,
         showColumnVerticalBorder: true,
         rowHeight: dataGridRowHeight,
-        columnHeaderHeight: dataGridRowHeight,
+        columnHeaderHeight: dataGridRowHeight * 0.9,
         showToolbar: true,
       },
     },
@@ -1119,6 +1079,17 @@ function makeComponents(
         size: "small",
         showFirstButton: true,
         showLastButton: true,
+      },
+    },
+    MuiMenu: {
+      styleOverrides: {
+        paper: {
+          padding: 0,
+        },
+        list: {
+          paddingTop: "2px", // 原生默认通常是 8px
+          paddingBottom: "2px",
+        },
       },
     },
     MuiMenuList: {
@@ -1149,13 +1120,13 @@ function makeComponents(
       },
       defaultProps: {
         size: "small",
-        variant: intputVariant as "filled",
+        variant: "outlined",
       },
     },
     MuiSelect: {
       defaultProps: {
         size: "small",
-        variant: intputVariant as "filled",
+        variant: "outlined",
       },
     },
 
@@ -1169,6 +1140,16 @@ function makeComponents(
       defaultProps: {
         size: "small",
       },
+      variants: [
+        {
+          props: { size: "largeSmall" },
+          style: {
+            height: "1.75rem",
+            fontSize: "1rem",
+            // 可以根据需要调整圆角或边距
+          },
+        },
+      ],
     },
     MuiTab: {
       styleOverrides: {
@@ -1184,10 +1165,13 @@ function makeComponents(
   return components;
 }
 
-const makeTheme = (s: UserSetting) => {
-  const { appearance } = s;
+const makeTheme = (
+  appearance: Partial<UserSettings["appearance"]>,
+  isDarkTheme: boolean,
+  datagridRowHeightXXX: number,
+) => {
   let color: string;
-  if (isDarkTheme()) {
+  if (isDarkTheme) {
     color = appearance.darkBgColor ? appearance.darkBgColor : "#000";
   } else {
     color = appearance.lightBgColor ? appearance.lightBgColor : "#fff";
@@ -1201,66 +1185,132 @@ const makeTheme = (s: UserSetting) => {
       fontFamily,
     },
     palette: {
-      mode: isDarkTheme() ? "dark" : "light",
+      mode: isDarkTheme ? "dark" : "light",
       background: {
         default: color,
         paper: color,
       },
     },
-    components: makeComponents(
-      fontWeight,
-      appearance.intputVariant,
-      s.datagridRowHeightXXX(),
-    ),
+    components: makeComponents(fontWeight, datagridRowHeightXXX),
   });
 };
 
-function SettingComp(props: { children: ReactNode }) {
-  const { children } = props;
-  const [setting, setSetting] = useState<UserSetting>(null);
-  const reload = async () => {
-    const setting = await UserSetting.load();
-    setSetting(setting);
-    document.documentElement.style.fontSize = setting.appearance.fontSize + "px";
-    document.documentElement.style.fontFamily = setting.appearance.fontFamily;
-    document.documentElement.style.fontWeight = setting.appearance.fontWeight;
-    if (setting.misc.autoStart) {
-      if (!(await isEnabledApp())) {
-        enableApp().catch(e => {
-          console.error("enable app autostart failed", e);
-          message(`enable app autostart failed ${e.toString()}`, {
-            kind: "error",
+const isDark = (setting: Partial<UserSettings["appearance"]>, osTheme) => {
+  return setting.theme === "dark" || (setting.theme === "system" && osTheme === "dark");
+};
+function SettingProvider({ children }) {
+  const { appearance, editor, misc, updateAppearance, proxy } = useUserSettings();
+  const [osTheme, setOsTheme] = useState("light");
+
+  const { showNotification } = useNotification();
+
+  useEffect(() => {
+    document.documentElement.style.fontSize = appearance.fontSize + "px";
+    document.documentElement.style.fontFamily = appearance.fontFamily;
+    document.documentElement.style.fontWeight = appearance.fontWeight;
+    if (editor.theme) {
+      monaco.editor.setTheme(editor.theme);
+    } else {
+      monaco.editor.setTheme(isDark(appearance, osTheme) ? "vs-dark" : "vs");
+    }
+    let webview = WebviewWindow.getCurrent();
+
+    (async () => {
+      if (misc.autoStart) {
+        if (!(await isEnabledApp())) {
+          enableApp().catch((e) => {
+            console.error("enable app autostart failed", e);
+            message(`enable app autostart failed ${e.toString()}`, {
+              kind: "error",
+            });
+          });
+        }
+      } else {
+        if (await isEnabledApp()) {
+          disableApp().catch((e) => {
+            console.error("disable app autostart failed", e);
+          });
+        }
+      }
+      commands
+        .setEnv({
+          http_proxy: proxy.http,
+          https_proxy: proxy.https,
+          all_proxy: proxy.all,
+          no_proxy: proxy.no,
+        })
+        .then(() => {
+          console.log("set proxy success");
+        })
+        .catch((e) => {
+          showNotification({
+            severity: "error",
+            title: "set proxy failed",
+            message: e,
           });
         });
-      }
-    } else {
-      if (await isEnabledApp()) {
-        disableApp().catch(e => {
-          console.error("disable app autostart failed", e);
+      commands.setLogLevel(misc.logLevel).catch((e) => {
+        showNotification({
+          severity: "error",
+          title: "set log level failed",
+          message: e,
         });
-      }
-    }
-  };
+      });
+    })();
+    webview.setZoom(appearance.zoom);
+  }, [
+    osTheme,
+    appearance,
+    showNotification,
+    editor.theme,
+    misc.autoStart,
+    misc.logLevel,
+    proxy,
+  ]);
+
   useEffect(() => {
-    reload();
+    const currentWebview = WebviewWindow.getCurrent();
+    currentWebview.theme().then(async (theme) => {
+      if (!theme) {
+        return;
+      }
+      setOsTheme(theme);
+    });
+    currentWebview.onThemeChanged(async (event) => {
+      setOsTheme(event.payload);
+    });
   }, []);
 
   useEffect(() => {
-    const unlisten = listen(settingChangeEvent, () => {
-      reload();
+    const unlisten = listen("set_zoom", (e) => {
+      let zoom = appearance.zoom;
+      switch (e.payload) {
+        case "in":
+          zoom = zoom + 0.1;
+          break;
+        case "out":
+          zoom = zoom - 0.1;
+          break;
+        case "reset":
+          zoom = 1;
+          break;
+      }
+      updateAppearance({ ...appearance, zoom });
     });
     return () => {
-      unlisten.then(callback => {
-        callback();
+      unlisten.then((e) => {
+        e();
       });
     };
-  }, []);
+  }, [appearance, updateAppearance]);
+  const datagridHeightXXX = useDatagridHeight();
 
   return (
-    setting && (
-      <ThemeProvider theme={makeTheme(setting)}>
+    appearance && (
+      <ThemeProvider
+        theme={makeTheme(appearance, isDark(appearance, osTheme), datagridHeightXXX)}>
         <CssBaseline />
-        <SettingContext.Provider value={setting}>{children}</SettingContext.Provider>
+        {children}
       </ThemeProvider>
     )
   );
@@ -1268,48 +1318,38 @@ function SettingComp(props: { children: ReactNode }) {
 
 function ModifyLLMConfigModal() {
   const [showEdit, setShowEdit] = useState(false);
-  const config = useContext(LLMConfigContext);
+  const llm = useLLM();
   return (
     <>
-      {!config && (
-        <Tooltip title="enable ai powered chat,need set up LLM server.">
+      {!llm && (
+        <Tooltip title="enable AI powered chat,need set up LLM server.">
           <Button
             onClick={() => {
               setShowEdit(true);
             }}
             style={shrinkAble}
-            variant="outlined"
-          >
+            variant="outlined">
             ai chat?
           </Button>
         </Tooltip>
       )}
 
       {showEdit && (
-        <Modal
+        <Dialog
           open={showEdit}
           onClose={modalHandleClose((e: EscDownEvent) => {
             e.preventDefault();
             setShowEdit(false);
-          })}
-        >
-          <Box sx={modalStyle} width="65vw">
-            <ModalHeader
-              title="edit llm config"
-              handleClose={() => {
-                setShowEdit(false);
-              }}
-            />
-            <LLMSetting
-              handleClose={() => {
-                setShowEdit(false);
-              }}
-            />
-          </Box>
-        </Modal>
+          })}>
+          <LLMSetting
+            handleClose={() => {
+              setShowEdit(false);
+            }}
+          />
+        </Dialog>
       )}
     </>
   );
 }
 
-export { ModifySetting, SettingComp, ModifyLLMConfigModal };
+export { ModifySetting, SettingProvider, ModifyLLMConfigModal };

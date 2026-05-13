@@ -1,63 +1,70 @@
 import { ListItemIcon, ListItemText, MenuItem, MenuList, Stack } from "@mui/material";
 import { TreeItem } from "@mui/x-tree-view/TreeItem";
-import { useCallback, useContext, useEffect, useRef, useState } from "react";
+import {
+  MouseEvent,
+  useCallback,
+  useContext,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import DeleteForeverIcon from "@mui/icons-material/DeleteForever";
 import InfoIcon from "@mui/icons-material/Info";
-import { DefAndMetas, tabsHasId } from "./Common";
-import types from "./ApiStruct";
-import { invoke } from "@tauri-apps/api/core";
-import { NotificationContext } from "./Notification";
-import { TabContent } from "./Tabs";
-import { DefAndMetasView } from "./UdfAndMetaView";
+import { DefAndMetasView } from "./DefAndMetaView";
 import { MdOutlineEventRepeat } from "react-icons/md";
 import {
-  ConnTypeContext,
-  ContextMenuContext,
   DataSourceKind,
-  generateRandomString,
-  MatchPatternContext,
-  MaxTreeContext,
   secondConfirm,
-  TabsSetContext,
+  TabContent,
+  textEllipsisStyle,
   UuidContext,
 } from "./helper";
-import { ExceedMaxTreeItem, MenuRefresh } from "./CommonComp";
-import { listEvent } from "./handlers";
+import { MenuRefresh } from "./CommonComp";
+import { CopySql, ShowingCount } from "./CommonComp2";
+import {
+  useMatcher,
+  useContextMenu,
+  useNotification,
+  useTabsManage,
+  useMatcherFn,
+} from "./store";
+import { commands, SqlEvent } from "./bindings";
+import { uuidv4 } from "./Common";
 function EventsTree() {
-  const { uuid } = useContext(UuidContext);
-  const { kind } = useContext(ConnTypeContext);
-  const [evens, setEvents] = useState<types.SqlEvent[]>([]);
-  const { showNotification } = useContext(NotificationContext);
-  const maxsize = useContext(MaxTreeContext);
+  const { uuid, kind } = useContext(UuidContext);
+  const [events, setEvents] = useState<SqlEvent[]>([]);
+  const { showNotification } = useNotification();
+  const { maxTree } = useMatcher();
+  const matchPattern = useMatcherFn();
   const reload = useCallback(() => {
-    listEvent(uuid)
-      .then(ts => {
+    commands
+      .listEvent(uuid)
+      .then((ts) => {
         setEvents(ts);
       })
-      .catch(e => {
-        showNotification("error", "list event failed", e);
+      .catch((e) => {
+        showNotification({ severity: "error", title: "list event failed", message: e });
       });
   }, [showNotification, uuid]);
-  const [exceed, setExceed] = useState(0);
-  const matchPattern = useContext(MatchPatternContext);
-  useEffect(() => {
-    setExceed(evens.filter(e => matchPattern(e.name)).length);
-  }, [evens, matchPattern]);
+  const showItems = useMemo(() => {
+    return events.filter((e: SqlEvent) => matchPattern(e.name)).slice(0, maxTree);
+  }, [events, matchPattern, maxTree]);
 
-  const { setUpMenu } = useContext(ContextMenuContext);
+  const setUpMenu = useContextMenu((state) => state.setUpMenu);
 
   useEffect(() => {
     reload();
   }, [reload]);
 
-  const idForTrees = useRef(generateRandomString());
+  const idForTrees = useRef(uuidv4());
   return (
     <TreeItem
       itemId={idForTrees.current}
       label=<Stack
         direction="row"
         sx={{ alignItems: "center" }}
-        onContextMenu={e => {
+        onContextMenu={(e: MouseEvent<HTMLDivElement>) => {
           setUpMenu({
             content: (
               <MenuList>
@@ -66,96 +73,67 @@ function EventsTree() {
             ),
             event: e,
           });
-        }}
-      >
+        }}>
         <MdOutlineEventRepeat />
         <span> events </span>
-      </Stack>
-    >
-      {evens
-        .filter(event => matchPattern(event.name))
-        .map((event, index) => {
-          if (index >= maxsize) {
-            return;
-          }
-
-          const id = `${uuid}-event-${index}`;
-          return (
-            <TreeItem
-              key={event.name}
-              itemId={id}
-              style={{ alignItems: "center" }}
-              label=<Stack
-                direction="row"
-                onContextMenu={e => {
-                  setUpMenu({
-                    content: (
-                      <EventMenu
-                        reload={reload}
-                        uuid={uuid}
-                        kind={kind}
-                        event={event}
-                        id={id}
-                      />
-                    ),
-                    event: e,
-                  });
-                }}
-                sx={{ alignItems: "center" }}
-              >
-                <MdOutlineEventRepeat />
-                <span> {event.name} </span>
-              </Stack>
-            />
-          );
-        })}
-      <ExceedMaxTreeItem exceed={exceed} maxTreeSize={maxsize} />
+        <ShowingCount showing={showItems.length} total={events.length} />
+      </Stack>>
+      {showItems.map((event) => {
+        const id = `${uuid}-event-${event.name}`;
+        return (
+          <TreeItem
+            key={event.name}
+            itemId={id}
+            style={{ alignItems: "center" }}
+            label=<Stack
+              direction="row"
+              onContextMenu={(e: MouseEvent<HTMLDivElement>) => {
+                setUpMenu({
+                  content: (
+                    <EventMenu reload={reload} uuid={uuid} kind={kind} event={event} />
+                  ),
+                  event: e,
+                });
+              }}
+              sx={{ alignItems: "center" }}>
+              <MdOutlineEventRepeat />
+              <span style={textEllipsisStyle}> {event.name} </span>
+            </Stack>
+          />
+        );
+      })}
     </TreeItem>
   );
 }
 
-function EventMenu(props: {
-  uuid;
-  event: types.SqlEvent;
-  reload;
+type EventMenuProps = {
+  uuid: string;
+  event: SqlEvent;
+  reload: () => void;
   kind: DataSourceKind;
-  id: string;
-}) {
-  const { uuid, event, reload, kind, id } = props;
-  const { setSelectTab, setTabs, tabs } = useContext(TabsSetContext);
-  const { showNotification } = useContext(NotificationContext);
-  const handleOpenDetails = () => {
-    const index = tabsHasId(tabs, id);
-    if (typeof index == "number") {
-      setSelectTab(index);
-    } else {
-      setTabs(e => {
-        setTimeout(() => {
-          setSelectTab(tabs.length);
-        }, 100);
+};
 
-        return [
-          ...e,
-          new TabContent(
-            id,
-            event.name,
-            (
-              <DefAndMetasView
-                reloadOP={async () => {
-                  return Promise.resolve({
-                    def: event.sql,
-                    metas: event.metas,
-                  } as DefAndMetas);
-                }}
-                kind={kind}
-                uuid={uuid}
-              />
-            ),
-            <MdOutlineEventRepeat className="tab-icon-size" />,
-          ),
-        ];
-      });
-    }
+function EventMenu(props: EventMenuProps) {
+  const { uuid, event, reload, kind } = props;
+  const { appendTab } = useTabsManage();
+  const { showNotification } = useNotification();
+  const handleOpenDetails = () => {
+    appendTab(
+      new TabContent(
+        event.name,
+        <DefAndMetasView
+          reloadOP={async () => {
+            return Promise.resolve({
+              def: event.sql,
+              metas: event.metas,
+            });
+          }}
+          kind={kind}
+          uuid={uuid}
+        />,
+        <MdOutlineEventRepeat />,
+      ),
+    );
   };
   const handleDrop = async () => {
     const confirm = await secondConfirm({
@@ -166,13 +144,18 @@ function EventMenu(props: {
     if (!confirm) {
       return;
     }
-    invoke("drop_event", { name: uuid, eventName: event.name })
-      .then(() => {
-        showNotification("success", "Drop event OK");
+    commands
+      .dropEvent(uuid, event.name)
+      .then((sql) => {
+        showNotification({
+          severity: "success",
+          title: "Drop event OK",
+          message: <CopySql sql={sql} />,
+        });
         reload();
       })
-      .catch(e => {
-        showNotification("error", "Drop event failed", e);
+      .catch((e) => {
+        showNotification({ severity: "error", title: "Drop event failed", message: e });
       });
   };
   return (
@@ -180,8 +163,7 @@ function EventMenu(props: {
       <MenuItem
         onClick={() => {
           handleOpenDetails();
-        }}
-      >
+        }}>
         <ListItemIcon>
           <InfoIcon />
         </ListItemIcon>
@@ -192,8 +174,7 @@ function EventMenu(props: {
         sx={{ color: "error.main" }}
         onClick={() => {
           handleDrop();
-        }}
-      >
+        }}>
         <ListItemIcon>
           <DeleteForeverIcon color="error" />
         </ListItemIcon>

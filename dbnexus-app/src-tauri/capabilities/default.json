@@ -31,6 +31,10 @@
         }
       ]
     },
+    {
+      "identifier": "http:default",
+      "allow": [{ "url": "http://*/*" }, { "url": "https://*/*" }]
+    },
     "fs:default",
     "fs:read-all",
     "fs:write-all",
@@ -40,6 +44,7 @@
     "fs:allow-watch",
     "fs:read-dirs",
     "fs:allow-read-text-file",
+    "fs:allow-write-text-file",
     {
       "identifier": "fs:scope",
       "allow": [
@@ -52,8 +57,6 @@
     "opener:default",
     "os:default",
     "process:default",
-    "sql:default",
-    "sql:allow-execute",
     "core:webview:allow-create-webview-window",
     "core:window:allow-set-focus",
     "core:window:allow-close",
@@ -63,23 +66,6 @@
     "core:window:allow-show",
     "keyring:default",
     "core:webview:deny-clear-all-browsing-data",
-    "shell:default",
-    "shell:allow-execute",
-    {
-      "identifier": "shell:allow-execute",
-      "allow": [
-        {
-          "name": "run-tsc",
-          "cmd": "tsc",
-          "args": true
-        },
-        {
-          "name": "run-tsc-cmd",
-          "cmd": "tsc.cmd",
-          "args": true
-        }
-      ]
-    },
     "log:default"
   ]
 }

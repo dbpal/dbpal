@@ -4,41 +4,44 @@ import {
   Divider,
   FormControlLabel,
   IconButton,
-  InputAdornment,
   Stack,
-  TextField,
   Tooltip,
   Typography,
 } from "@mui/material";
 import ClearIcon from "@mui/icons-material/Clear";
-import { DataSourceKind, SettingContext } from "./helper";
-import { CSSProperties, useCallback, useContext, useRef, useState } from "react";
-import types from "./ApiStruct";
+import { DataSourceKind } from "./helper";
+import { CSSProperties, useCallback, useRef, useState } from "react";
 import AddIcon from "@mui/icons-material/Add";
 import {
+  ClearableTextField,
   ColumnNullness,
-  CreateIndexReq,
+  CreateIndexView,
   SqlDefaultValue,
   StackRowCenter,
   TypeSelect,
 } from "./CommonComp2";
 import CloseIcon from "@mui/icons-material/Close";
 import KeyIcon from "@mui/icons-material/Key";
-import { NotificationContext } from "./Notification";
-import { invoke } from "@tauri-apps/api/core";
 import { AllKindChat } from "./Chat";
-import { makeFormatFn } from "./Common";
+import { formatSqlFn } from "./Common";
+import { useNotification, useTabSize } from "./store";
+import {
+  commands,
+  CreateIndexReq,
+  CreateTableReq,
+  CreateTableReqColumn,
+} from "./bindings";
 
 function CreateTable(props: { uuid: string; kind: DataSourceKind }) {
   const { uuid, kind } = props;
-  const [cols, setCols] = useState<types.CreateTableReqColumn[]>([
+  const [cols, setCols] = useState<CreateTableReqColumn[]>([
     {
       name: "id",
       data_type: "",
       auto_increment: false,
       primary_key: false,
       default_value: null,
-      nullable: "none",
+      nullable: "unspecified",
     },
     {
       name: "create_at",
@@ -46,10 +49,10 @@ function CreateTable(props: { uuid: string; kind: DataSourceKind }) {
       auto_increment: false,
       primary_key: false,
       default_value: null,
-      nullable: "none",
+      nullable: "unspecified",
     },
   ]);
-  const [indexes, setIndexes] = useState<types.CreateIndexReq[]>([]);
+  const [indexes, setIndexes] = useState<CreateIndexReq[]>([]);
   const [table, setTable] = useState("");
   const containerStyle: CSSProperties = {
     border: "2px solid grey",
@@ -59,30 +62,37 @@ function CreateTable(props: { uuid: string; kind: DataSourceKind }) {
   const [loading, setLoading] = useState(false);
   const [showQuery, setShowQuery] = useState(false);
   const [editorValue, setEditorValue] = useState("");
-  const setting = useContext(SettingContext);
   const tableNameRef = useRef<HTMLInputElement>(null);
-  const { showNotification } = useContext(NotificationContext);
+  const { showNotification } = useNotification();
+  const tabSize = useTabSize();
+
   const makeReq = useCallback(() => {
     {
       // check
       if (!table) {
-        showNotification("warning", "table is none");
+        showNotification({ severity: "warning", title: "table is none" });
         tableNameRef.current.focus();
         return;
       }
       if (cols.length == 0) {
-        showNotification("error", "need at least one column ");
+        showNotification({ severity: "error", title: "need at least one column " });
         return;
       }
       // check all colum
       for (let index = 0; index < cols.length; index++) {
         const col = cols[index];
         if (!col.name) {
-          showNotification("warning", `#${index} column name is none`);
+          showNotification({
+            severity: "warning",
+            title: `#${index} column name is none`,
+          });
           return;
         }
         if (!col.data_type) {
-          showNotification("warning", `#${index} column data type is none`);
+          showNotification({
+            severity: "warning",
+            title: `#${index} column data type is none`,
+          });
           return;
         }
       }
@@ -90,17 +100,23 @@ function CreateTable(props: { uuid: string; kind: DataSourceKind }) {
       for (let index = 0; index < indexes.length; index++) {
         const i = indexes[index];
         if (!i.name) {
-          showNotification("warning", `#${index} index name is none`);
+          showNotification({
+            severity: "warning",
+            title: `#${index} index name is none`,
+          });
           return;
         }
         if (i.columns.length == 0) {
-          showNotification("warning", `#${index} index need select columns`);
+          showNotification({
+            severity: "warning",
+            title: `#${index} index need select columns`,
+          });
           return;
         }
       }
     }
     // ok to create
-    let req: types.CreateTableReq = {
+    let req: CreateTableReq = {
       name: table,
       columns: cols,
       indexes: indexes,
@@ -109,25 +125,23 @@ function CreateTable(props: { uuid: string; kind: DataSourceKind }) {
   }, [cols, indexes, showNotification, table]);
   const setCreateSql = useCallback(() => {
     const req = makeReq();
-    if (!req) {
-      return;
-    }
-    invoke<string>("create_table_req_sql", { name: uuid, req })
-      .then(sql => {
+
+    commands
+      .createTableReqSql(uuid, req)
+      .then((sql) => {
         setEditorValue("");
         setTimeout(() => {
-          setEditorValue(
-            makeFormatFn(kind)(sql, {
-              insertSpaces: true,
-              tabSize: setting.editor.tabSize,
-            }),
-          );
+          setEditorValue(formatSqlFn(kind, sql, tabSize));
         }, 200);
       })
-      .catch(e => {
-        showNotification("error", "try generate sql failed", e);
+      .catch((e) => {
+        showNotification({
+          severity: "error",
+          title: "create sql failed",
+          message: e,
+        });
       });
-  }, [kind, makeReq, setting.editor.tabSize, showNotification, uuid]);
+  }, [kind, makeReq, showNotification, tabSize, uuid]);
 
   const handleCreate = async () => {
     const req = makeReq();
@@ -135,12 +149,17 @@ function CreateTable(props: { uuid: string; kind: DataSourceKind }) {
       return;
     }
     setLoading(true);
-    invoke("create_table", { name: uuid, req })
+    commands
+      .createTable(uuid, req)
       .then(() => {
-        showNotification("success", "create table ok");
+        showNotification({ severity: "success", title: "create table ok" });
       })
-      .catch(e => {
-        showNotification("error", "create table failed", e);
+      .catch((e) => {
+        showNotification({
+          severity: "error",
+          title: "create table failed",
+          message: e,
+        });
       })
       .finally(() => {
         setLoading(false);
@@ -160,21 +179,21 @@ function CreateTable(props: { uuid: string; kind: DataSourceKind }) {
               index={index}
               kind={kind}
               handleClose={() => {
-                setCols(cols => {
+                setCols((cols) => {
                   return cols.filter((_, idx) => index != idx);
                 });
               }}
               uuid={uuid}
               key={index}
               col={col}
-              handleCol={newCol => {
-                setCols(cols => {
+              handleCol={(newCol) => {
+                setCols((cols) => {
                   cols[index] = newCol;
                   return [...cols];
                 });
               }}
               resetAutoInc={() => {
-                cols.forEach(col => {
+                cols.forEach((col) => {
                   if (col.auto_increment) {
                     col.auto_increment = false;
                     col.primary_key = false;
@@ -184,7 +203,7 @@ function CreateTable(props: { uuid: string; kind: DataSourceKind }) {
             />
           );
         })}
-        <Button
+        <IconButton
           onClick={() => {
             setCols([
               ...cols,
@@ -194,19 +213,18 @@ function CreateTable(props: { uuid: string; kind: DataSourceKind }) {
                 auto_increment: false,
                 primary_key: false,
                 default_value: null,
-                nullable: "none",
+                nullable: "unspecified",
               },
             ]);
-          }}
-        >
+          }}>
           <AddIcon />
-        </Button>
+        </IconButton>
       </Stack>
       {cols.length > 0 && (
         <Stack style={{ ...containerStyle }}>
           <Stack direction="row">
             <Typography variant="h5"> index </Typography>
-            <Button
+            <IconButton
               onClick={() => {
                 setIndexes([
                   ...indexes,
@@ -214,21 +232,20 @@ function CreateTable(props: { uuid: string; kind: DataSourceKind }) {
                     name: "",
                     columns: [],
                     kind: "index",
-                  } as types.CreateIndexReq,
+                  },
                 ]);
-              }}
-            >
+              }}>
               <AddIcon />
-            </Button>
+            </IconButton>
           </Stack>
           <Stack direction="row" style={{ overflow: "scroll" }} spacing={1}>
             {indexes.map((_, index) => {
               return (
                 <Stack key={index} direction="row" style={{}}>
-                  <CreateIndexReq
+                  <CreateIndexView
                     style={{ width: "28rem" }}
-                    fields={cols.filter(e => !!e.name).map(f => f.name)}
-                    handleReq={ret => {
+                    fields={cols.filter((e) => !!e.name).map((f) => f.name)}
+                    handleReq={(ret) => {
                       indexes[index] = ret;
                       setIndexes([...indexes]);
                     }}
@@ -237,8 +254,7 @@ function CreateTable(props: { uuid: string; kind: DataSourceKind }) {
                   <Button
                     onClick={() => {
                       setIndexes(indexes.filter((_, idx) => idx != index));
-                    }}
-                  >
+                    }}>
                     <ClearIcon />
                   </Button>
                 </Stack>
@@ -251,34 +267,17 @@ function CreateTable(props: { uuid: string; kind: DataSourceKind }) {
         <Button onClick={handleCreate} loading={loading}>
           create
         </Button>
-        <TextField
+        <ClearableTextField
           value={table}
-          onChange={e => {
+          onChange={(e) => {
             setTable(e.target.value);
           }}
           inputRef={tableNameRef}
           style={{ flex: 1, maxWidth: "22rem" }}
           label="table name"
           required
-          slotProps={{
-            input: {
-              endAdornment: (
-                <>
-                  {table && (
-                    <InputAdornment position="end">
-                      <IconButton
-                        onClick={() => {
-                          setTable("");
-                        }}
-                        edge="end"
-                      >
-                        <ClearIcon fontSize="small" />
-                      </IconButton>
-                    </InputAdornment>
-                  )}
-                </>
-              ),
-            },
+          onClear={() => {
+            setTable("");
           }}
         />
         <Button
@@ -286,16 +285,21 @@ function CreateTable(props: { uuid: string; kind: DataSourceKind }) {
             if (!showQuery) {
               setCreateSql();
             }
-            setShowQuery(e => !e);
+            setShowQuery((e) => !e);
           }}
-          variant={showQuery ? "outlined" : "contained"}
-        >
-          {showQuery ? "close query" : "show query"}
+          variant={showQuery ? "outlined" : "contained"}>
+          {showQuery ? "close editor" : "show editor"}
         </Button>
         {showQuery && <Button onClick={setCreateSql}> gen sql </Button>}
       </StackRowCenter>
       {showQuery && (
-        <div style={{ minHeight: "45vh", flex: 1 }}>
+        <div
+          style={{
+            minHeight: "65vh",
+            flex: 1,
+            border: "2px solid grey",
+            borderRadius: "0.8rem",
+          }}>
           <AllKindChat value={editorValue} kind={kind} uuid={uuid} />
         </div>
       )}
@@ -304,8 +308,8 @@ function CreateTable(props: { uuid: string; kind: DataSourceKind }) {
 }
 
 function TableColumn(props: {
-  col: types.CreateTableReqColumn;
-  handleCol: (x: types.CreateTableReqColumn) => void;
+  col: CreateTableReqColumn;
+  handleCol: (x: CreateTableReqColumn) => void;
   uuid: string;
   handleClose: () => void;
   kind: DataSourceKind;
@@ -331,8 +335,7 @@ function TableColumn(props: {
       direction="row"
       style={{
         alignItems: "center",
-      }}
-    >
+      }}>
       <IconButton onClick={handleClose}>
         <CloseIcon />
       </IconButton>
@@ -342,7 +345,7 @@ function TableColumn(props: {
           label="auto increment"
           control=<Checkbox
             checked={col.auto_increment}
-            onChange={e => {
+            onChange={(e) => {
               const auto_inc = e.target.checked;
               if (auto_inc) {
                 resetAutoInc();
@@ -357,48 +360,33 @@ function TableColumn(props: {
         />
       )}
       <Tooltip title="primary key">
-        <FormControlLabel
-          label=<KeyIcon />
-          control=<Checkbox
-            disabled={col.auto_increment}
-            checked={col.primary_key}
-            onChange={e => {
-              handleCol({ ...col, primary_key: e.target.checked });
-            }}
+        <span>
+          <FormControlLabel
+            label=<KeyIcon />
+            control=<Checkbox
+              disabled={col.auto_increment}
+              checked={col.primary_key}
+              onChange={(e) => {
+                handleCol({ ...col, primary_key: e.target.checked });
+              }}
+            />
           />
-        />
+        </span>
       </Tooltip>
-      <TextField
+      <ClearableTextField
         value={col.name}
-        onChange={e => {
+        onChange={(e) => {
           handleCol({ ...col, name: e.target.value });
         }}
         style={{ flex: 1 }}
         label="column name"
         required
-        slotProps={{
-          input: {
-            endAdornment: (
-              <>
-                {col.name && (
-                  <InputAdornment position="end">
-                    <IconButton
-                      onClick={() => {
-                        handleCol({ ...col, name: "" });
-                      }}
-                      edge="end"
-                    >
-                      <ClearIcon fontSize="small" />
-                    </IconButton>
-                  </InputAdornment>
-                )}
-              </>
-            ),
-          },
+        onClear={() => {
+          handleCol({ ...col, name: "" });
         }}
       />
       <TypeSelect
-        handleChange={dt => {
+        handleChange={(dt) => {
           handleCol({ ...col, data_type: dt });
         }}
         uuid={uuid}
@@ -408,7 +396,7 @@ function TableColumn(props: {
       {supportNull && (
         <ColumnNullness
           nullable={col.nullable}
-          handleNullable={e => {
+          handleNullable={(e) => {
             handleCol({ ...col, nullable: e ? e : null });
           }}
         />
@@ -417,7 +405,7 @@ function TableColumn(props: {
         <SqlDefaultValue
           uuid={uuid}
           defaultValue={col.default_value}
-          setDefaultValue={dv => {
+          setDefaultValue={(dv) => {
             handleCol({ ...col, default_value: dv ? dv : null });
           }}
         />

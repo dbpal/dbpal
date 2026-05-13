@@ -226,9 +226,7 @@ impl<'a> CompletionStatement<'a> {
                 }
             }
 
-            DataType::Custom(_object_name, ..) => {
-                // TODO list type???
-            }
+            DataType::Custom(..) => {}
             DataType::Array(array_elem_type_def) => match array_elem_type_def {
                 ArrayElemTypeDef::None => {}
                 ArrayElemTypeDef::AngleBracket(data_type)
@@ -420,7 +418,7 @@ impl<'a> CompletionStatement<'a> {
                     match name.0.first().expect("we have checked the name length") {
                         ObjectNamePart::Identifier(ident) => ident,
                         ObjectNamePart::Function(object_name_part_function) => {
-                            // TODO
+                            // TODO snowflack not support
                             &object_name_part_function.name
                         }
                     },
@@ -619,9 +617,7 @@ impl<'a> CompletionStatement<'a> {
                     }
                 }
             }
-            ObjectType::Stream => {
-                // TODO
-            }
+            ObjectType::Stream => {}
         }
     }
     pub(crate) async fn c_on_sequence(&mut self, name: &ObjectName) {
@@ -1257,9 +1253,7 @@ impl<'a> CompletionStatement<'a> {
             AlterTableOperation::ResumeRecluster => {}
             AlterTableOperation::Algorithm { .. } => {}
             AlterTableOperation::AutoIncrement { .. } => {}
-            AlterTableOperation::DropForeignKey { .. } => {
-                //  TODO support this.
-            }
+            AlterTableOperation::DropForeignKey { .. } => {}
             AlterTableOperation::DropIndex { name } => {
                 // 这里没有限定表 不过列出一个数据库下所有的index应该也是没有问题的
                 self.c_on_index(&ObjectName(vec![ObjectNamePart::Identifier(name.clone())]))
@@ -1282,9 +1276,11 @@ impl<'a> CompletionStatement<'a> {
                     }
                 }
             }
-            AlterTableOperation::Refresh => {}
+            AlterTableOperation::Refresh { .. } => {}
             AlterTableOperation::Suspend => {}
             AlterTableOperation::Resume => {}
+            AlterTableOperation::ForceRowLevelSecurity => {}
+            AlterTableOperation::NoForceRowLevelSecurity => {}
         }
     }
 
@@ -1414,7 +1410,7 @@ impl<'a> CompletionStatement<'a> {
             .map(|x| match x {
                 ObjectNamePart::Identifier(ident) => ident.clone(),
                 ObjectNamePart::Function(object_name_part_function) => {
-                    // TODO
+                    // TODO  snowflack not support
                     object_name_part_function.name.clone()
                 }
             })
@@ -1503,7 +1499,7 @@ impl<'a> CompletionStatement<'a> {
             return;
         }
         log::info!("hit identifier:{:?}", ident);
-        if ident.value.starts_with("@@") && self.helper.backend_name().support_at()
+        if ident.value.starts_with("@@") && self.helper.backend_kind().support_at()
         // sql server的情况和mysql差不多
         {
             /*
@@ -1515,7 +1511,7 @@ impl<'a> CompletionStatement<'a> {
             self.result = Some(self.helper.list_variable_completion().await);
             return;
         }
-        if ident.value.starts_with("@") && self.helper.backend_name().support_at()
+        if ident.value.starts_with("@") && self.helper.backend_kind().support_at()
         // sql server的情况和mysql差不多
         {
             /*
@@ -2535,6 +2531,7 @@ impl<'a> CompletionStatement<'a> {
                     self.c_on_expr(e).await;
                 }
             }
+            Distinct::All => {}
         }
     }
     pub(crate) async fn c_on_top(&mut self, top: &Top) {
@@ -2570,15 +2567,18 @@ impl<'a> CompletionStatement<'a> {
             }
         }
     }
-    pub(crate) async fn c_on_connect_by(&mut self, cb: &ConnectBy) {
-        self.c_on_expr(&cb.condition).await;
-        if self.finished() {
-            return;
-        }
-        for e in cb.relationships.iter() {
-            self.c_on_expr(e).await;
-            if self.finished() {
-                return;
+    pub(crate) async fn c_on_connect_by(&mut self, cb: &ConnectByKind) {
+        match cb {
+            ConnectByKind::ConnectBy { relationships, .. } => {
+                for r in relationships.iter() {
+                    self.c_on_expr(r).await;
+                    if self.finished() {
+                        return;
+                    }
+                }
+            }
+            ConnectByKind::StartWith { condition, .. } => {
+                self.c_on_expr(condition.as_ref()).await;
             }
         }
     }
@@ -2637,9 +2637,14 @@ impl<'a> CompletionStatement<'a> {
                 return ret;
             }
         }
-        if let Some(cb) = &select.connect_by {
+
+        for cb in select.connect_by.iter() {
             self.c_on_connect_by(cb).await;
+            if self.finished() {
+                return ret;
+            }
         }
+
         for w in select.named_window.iter() {
             self.c_on_named_window_definition(w).await;
             if self.finished() {
@@ -3335,6 +3340,10 @@ impl<'a> CompletionStatement<'a> {
         match ast {
             TableVersion::ForSystemTimeAsOf(expr) => self.c_on_expr(expr).await,
             TableVersion::Function(expr) => self.c_on_expr(expr).await,
+            TableVersion::TimestampAsOf(expr) => self.c_on_expr(expr).await,
+            TableVersion::VersionAsOf(expr) => {
+                self.c_on_expr(expr).await;
+            }
         }
     }
     pub(crate) async fn c_on_table_factor(&mut self, ast: &TableFactor) {
@@ -3413,6 +3422,7 @@ impl<'a> CompletionStatement<'a> {
                 subquery,
                 alias,
                 lateral: _,
+                sample: _,
             } => {
                 if let Some(alias) = alias {
                     self.c_on_table_alias(alias).await;
@@ -3806,19 +3816,23 @@ impl<'a> CompletionStatement<'a> {
                     }
                     MergeInsertKind::Row => {}
                 }
-                for col in merge_insert_expr.columns.iter() {
-                    self.c_on_expr_ident(col).await;
-                    if self.finished() {
-                        return;
-                    }
-                }
+                // nothing to do here we can fallback to the lexer
+                // for col in merge_insert_expr.columns.iter() {
+                //
+                // }
             }
-            MergeAction::Update { assignments, .. } => {
-                for ass in assignments.iter() {
+            MergeAction::Update(assignments) => {
+                for ass in assignments.assignments.iter() {
                     self.c_on_assignment(ass).await;
                     if self.finished() {
                         return;
                     }
+                }
+                if let Some(e) = assignments.update_predicate.as_ref() {
+                    self.c_on_expr(e).await;
+                }
+                if let Some(e) = assignments.delete_predicate.as_ref() {
+                    self.c_on_expr(e).await;
                 }
             }
             MergeAction::Delete { .. } => {}

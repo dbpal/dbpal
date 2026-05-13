@@ -12,7 +12,6 @@ pub mod cassandra_lang_server;
 pub mod clickhouse;
 pub mod clickhouse_lang_server;
 pub mod cockroach;
-pub mod cockroach_lang_server;
 pub mod couchbase;
 pub mod couchbase_lang_server;
 
@@ -32,17 +31,12 @@ pub mod language_server;
 pub mod libsql;
 pub mod libsql_lang_server;
 pub mod mariadb;
-pub mod mariadb_lang_server;
 pub mod mongo;
 pub mod mongo_lang_server;
 pub mod mssql;
 pub mod mssql_lang_server;
 pub mod mysql;
 pub mod mysql_lang_server;
-#[cfg(feature = "neo4j")]
-pub mod neo4j;
-#[cfg(feature = "neo4j")]
-pub mod neo4j_lang_server;
 
 #[cfg(feature = "odbc")]
 pub mod odbc;
@@ -55,16 +49,13 @@ pub mod redis;
 pub mod redis_lang_server;
 #[cfg(feature = "snowflake")]
 pub mod snowflake;
+#[cfg(feature = "snowflake")]
 pub mod snowflake_lang_server;
 pub mod sqlite;
 pub mod sqlite_lang_server;
 pub mod sqlparser_completing;
 pub mod sqlparser_completion;
-pub mod sub;
-pub mod sub_lang_server;
 pub mod tidb;
-pub mod tidb_lang_server;
-pub mod typedef;
 
 lazy_static! {
     static ref TEST_HOST: String =

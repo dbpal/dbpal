@@ -1,649 +1,196 @@
 import {
-  appStore,
   ChatShowContext,
   DataSourceKind,
-  extractLastNameFromUuid,
-  handleCopyToClipboard,
-  LLMConfig,
-  LLMConfigContext,
-  SaveBoolToLocalStorage,
-  TabActiveContext,
-  TableType,
-  ViewKind,
+  extractConfigNameFromUuid,
+  QueryIDEditorChatCtx,
+  secondConfirm,
 } from "./helper.ts";
 import CloseIcon from "@mui/icons-material/Close";
+import SaveIcon from "@mui/icons-material/Save";
+import { TbPrompt } from "react-icons/tb";
+import UploadFileIcon from "@mui/icons-material/UploadFile";
 import {
-  Autocomplete,
-  Button,
-  Checkbox,
+  Chip,
+  CircularProgress,
+  Dialog,
   Divider,
-  FormControlLabel,
   IconButton,
+  Pagination,
   Paper,
   Stack,
-  Switch,
-  TextField,
   Tooltip,
   Typography,
 } from "@mui/material";
-import { useCallback, useContext, useEffect, useRef, useState } from "react";
+import {
+  Dispatch,
+  ReactNode,
+  SetStateAction,
+  useContext,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import { editor } from "monaco-editor";
 import {
-  AppMarkDown,
   SliderSize,
   SimpleFlexEditor,
-  StackRowCenter,
   CancelButton,
+  EscPressedDo,
+  ClearableTextField,
+  AppMarkDown,
 } from "./CommonComp2.tsx";
 import ArrowCircleUpIcon from "@mui/icons-material/ArrowCircleUp";
 import EventNoteIcon from "@mui/icons-material/EventNote";
-import EditIcon from "@mui/icons-material/Edit";
-import { NotificationContext } from "./Notification.tsx";
-import { PromptTemplate } from "@langchain/core/prompts";
 import {
-  AITextCompletionName,
+  convertPathToDataUrl,
   editorAppendContent,
-  SetAutoCompletionName,
+  EscDownEvent,
+  extractBaseName,
+  modalHandleClose,
+  providerQueryID,
+  uuidv4,
 } from "./Common.ts";
 import { ModalHeader } from "./CommonComp.tsx";
-import { AllKindQuery } from "./Left.tsx";
-import { invoke } from "@tauri-apps/api/core";
-import types from "./ApiStruct.ts";
 import DeleteForeverIcon from "@mui/icons-material/DeleteForever";
-import { HumanMessage, AIMessage, BaseMessage } from "@langchain/core/messages";
+import NavigateNextIcon from "@mui/icons-material/NavigateNext";
+import NavigateBeforeIcon from "@mui/icons-material/NavigateBefore";
+
 import {
-  callErrorable,
-  createTableAndIndexSql,
-  createViewSql,
-  formatCreateTableAndIndexSql,
-  getLocale,
-  listCassandraAgg,
-  listCreatedTypes,
-  listEvent,
-  listProcedure,
-  listSequence,
-  listTable,
-  listUdf,
-  listView,
-  showCassandraAgg,
-  showProcedure,
-  showTableColumn,
-  showUdf,
-  tryGetMaxID,
-  showViewColumns,
-} from "./handlers.ts";
+  useBoolSwitch,
+  useChatStore,
+  useLLM,
+  useNotification,
+  useUserSystemPromptStore,
+  UseSizeConfig,
+  useSizeStore,
+} from "./store.tsx";
 
-import * as mongoQueryBackend from "./MongoQueryBackend.ts";
+import AddPhotoAlternateIcon from "@mui/icons-material/AddPhotoAlternate";
+import { open } from "@tauri-apps/plugin-dialog";
 
-class SimpleArrayMemory {
-  history: BaseMessage[];
-  k: number;
-  constructor(k = 4) {
-    this.history = [];
-    this.k = k;
+import { useDebounce } from "use-debounce";
+import { SqlQuery } from "./SqlQuery.tsx";
+import { RedisQuery } from "./RedisQuery.tsx";
+import { MongoQuery } from "./MongoQuery.tsx";
+import { CouchBaseQuery } from "./CouchBase.tsx";
+import { MdCleaningServices } from "react-icons/md";
+import { openPath } from "@tauri-apps/plugin-opener";
+
+function AllKindQuery(props: {
+  kind: DataSourceKind;
+  uuid: string;
+  value?: string;
+  favoriteName?: string;
+}) {
+  const { kind, uuid, value, favoriteName } = props;
+  let content: ReactNode;
+  switch (kind) {
+    case DataSourceKind.SqlServer:
+    case DataSourceKind.Sqlite:
+    case DataSourceKind.Mysql:
+    case DataSourceKind.MariaDB:
+    case DataSourceKind.Postgres:
+    case DataSourceKind.Oracle:
+    case DataSourceKind.TiDB:
+    case DataSourceKind.Cassandra:
+    case DataSourceKind.ClickHouse:
+    case DataSourceKind.LibSql:
+    case DataSourceKind.FireBird:
+    case DataSourceKind.DuckDB:
+    case DataSourceKind.Cockroach:
+    case DataSourceKind.Db2:
+      content = (
+        <SqlQuery uuid={uuid} value={value} kind={kind} favoriteName={favoriteName} />
+      );
+      break;
+    case DataSourceKind.Redis:
+      content = <RedisQuery uuid={uuid} value={value} favoriteName={favoriteName} />;
+      break;
+
+    case DataSourceKind.Mongo:
+      content = <MongoQuery uuid={uuid} value={value} favoriteName={favoriteName} />;
+      break;
+    case DataSourceKind.CouchBase:
+      return <CouchBaseQuery uuid={uuid} value={value} />;
+    default:
+      console.error(`impl this ${kind}`);
   }
-
-  addUserMessage(message: string) {
-    this.history.push(new HumanMessage(message));
-    this._trimHistory(); // 添加后立即修剪
-  }
-
-  addAIMessage(message: string) {
-    this.history.push(new AIMessage(message));
-    this._trimHistory(); // 添加后立即修剪
-  }
-
-  // 内部修剪：删除最旧的消息，保留最近 k 条
-  _trimHistory() {
-    if (this.history.length > this.k) {
-      // 从头部删除多余的消息
-      this.history.splice(0, this.history.length - this.k);
-    }
-  }
-
-  setK(k: number) {
-    this.k = k;
-    this._trimHistory();
-  }
-
-  // 直接返回数组（已确保最多只有 k 条）
-  getMessages() {
-    return this.history;
-  }
-
-  // 清空历史
-  clear() {
-    this.history = [];
-  }
+  return <div style={{ height: "100%" }}> {content}</div>;
 }
 
-function Chat(props: {
+function AllKindChat(props: {
   uuid: string;
   kind: DataSourceKind;
   value?: string;
   favoriteName?: string;
-  language?: string; // mongo used this as javascript or typescript
 }) {
-  const { uuid, kind, favoriteName, value, language } = props;
+  const { uuid, kind, favoriteName, value } = props;
+  const llm = useLLM();
+  const showChatKey = "chat-show-" + uuid;
+  const { getSwitch, setSwitch } = useBoolSwitch();
+  const [show, setShow] = useState(getSwitch(showChatKey));
+
   const [editor, setEditor] = useState<editor.IStandaloneCodeEditor>(null);
-  const llmconfig = useContext(LLMConfigContext);
-  const saveChatShow = useRef(new SaveBoolToLocalStorage("chat-show-" + uuid));
-  const [show, setShow] = useState(saveChatShow.current.get());
   useEffect(() => {
-    saveChatShow.current.save(show);
-  }, [show]);
-  const doQuery = useRef<() => void>(null);
+    setSwitch(showChatKey, show);
+  }, [setSwitch, show, showChatKey]);
 
+  let queryId = useRef(providerQueryID.id ? providerQueryID.id : uuidv4());
   return (
-    <Stack
-      style={{
-        height: "100%",
-        width: "100%",
-        position: "relative",
-      }}
-    >
-      <ChatShowContext.Provider
-        value={{
-          show,
-          setShow,
-          doQuery,
-        }}
-      >
-        <AllKindQuery
-          uuid={uuid}
-          kind={kind}
-          handleEditor={e => {
-            setEditor(e);
-          }}
-          favoriteName={favoriteName}
-          value={value}
-          language={language}
-        />
-        {llmconfig && editor && (
-          <SqlChatTextInput uuid={uuid} kind={kind} editor={editor} />
-        )}
-      </ChatShowContext.Provider>
-    </Stack>
+    <QueryIDEditorChatCtx.Provider
+      value={{ queryId: queryId.current, editor, setEditor }}>
+      <Stack
+        style={{
+          height: "100%",
+          width: "100%",
+          position: "relative",
+        }}>
+        <ChatShowContext.Provider
+          value={{
+            show,
+            setShow,
+          }}>
+          <AllKindQuery
+            uuid={uuid}
+            kind={kind}
+            favoriteName={favoriteName}
+            value={value}
+          />
+          {llm && editor && <SqlChatTextInput uuid={uuid} />}
+        </ChatShowContext.Provider>
+      </Stack>
+    </QueryIDEditorChatCtx.Provider>
   );
 }
 
-type DatabaseElements = {
-  tables: types.ListTable[];
-  views: types.ListTable[];
-  materializedViews: types.ListTable[];
-  udfs: types.NamedStaff[];
-  types: types.CreatedTypeDef[];
-  events: types.SqlEvent[];
-  sequences: types.SequenceDetail[];
-  cassandraAggs: types.NamedStaff[];
-  procedures: types.NamedStaff[];
-  uuid: string;
-};
+const cleanEditorKey = "clean-editor-key";
 
-class MakePrompt {
-  static getDefaultTemplatePredefineVariables(kind: DataSourceKind) {
-    switch (kind) {
-      case DataSourceKind.Redis:
-        return MakePrompt.redisTemplate.inputVariables;
-      case DataSourceKind.Mongo:
-        return MakePrompt.mongoTemplate.inputVariables;
-      default:
-        return MakePrompt.sqlTemplate.inputVariables;
-    }
-  }
-
-  static getDefaultTemplate(kind: DataSourceKind): string {
-    switch (kind) {
-      case DataSourceKind.Redis:
-        return MakePrompt.redisTemplate.template as string;
-      case DataSourceKind.Mongo:
-        return MakePrompt.mongoTemplate.template as string;
-      default:
-        return MakePrompt.sqlTemplate.template as string;
-    }
-  }
-
-  static sqlTemplate = PromptTemplate.fromTemplate(
-    `system:You are a {dialect} database expert.
-Your answer must follow ALL of these rules:
-1. Return SQL only.
-2. Don't generate markdown.
-3. Comments must use "--" syntax.
-4. If you break any rule, you will be penalized.
-5. system locale is {locale} 
-
-
-human: here are some information about the database
-{database_information}
-
-Chat History:
-{chat_history}
-
-human: {question}`,
-  );
-
-  static redisTemplate = PromptTemplate.fromTemplate(
-    `system:You are a Redis expert.
-Your answer must follow ALL of these rules:
-1. Return Command only.
-2. Don't generate markdown.
-3. Comments must use "#" syntax.
-4. If you break any rule, you will be penalized.
-5. system locale is {locale}
-
-human: here are some information about the database
-{database_information}
-
-
-Chat History:
-{chat_history}
-
-human:{question}
-`,
-  );
-
-  static mongoTemplate = PromptTemplate.fromTemplate(
-    `system:You are a mongo database expert.
-Your answer must follow ALL of these rules:
-1. generate {language} only.
-2. Don't generate markdown
-3. Comments must use "//" syntax.
-4. If you break any rule, you will be penalized.
-5. system locale is {locale}
-
-human: here are some information about the database
-{database_information}
-
-
-Chat History:
-{chat_history}
-
-human:{question}
-`,
-  );
-
-  constructor(
-    public uuid: string,
-    public config: LLMConfig,
-    public kind: DataSourceKind,
-    public question: string,
-    public memory: SimpleArrayMemory,
-    public editor: editor.IStandaloneCodeEditor,
-    public language?: string,
-  ) {}
-
-  kind2CommonName(): string {
-    switch (this.kind) {
-      case DataSourceKind.SqlServer:
-        return "sql server(microsoft)";
-      default:
-        return this.kind as string;
-    }
-  }
-
-  async redisDatabaseInformation() {
-    const name = SetAutoCompletionName.get(this.editor.getModel().id);
-    const typeHints = await invoke<object>("get_redis_type_hint", {
-      name: this.uuid,
-      text: this.question.trim(),
-      queryId: name?.queryId,
-    });
-
-    let ret = "";
-    for (const key in typeHints) {
-      ret += `  ${key} has type '${typeHints[key]}'\n`;
-    }
-    return ret;
-  }
-
-  async createRedisPrompt(): Promise<string> {
-    const inputs = {
-      question: this.question.trim(),
-      database_information: await this.redisDatabaseInformation(),
-      chat_history: this.memory
-        .getMessages()
-        .map(x => x.toFormattedString())
-        .join("\n"),
-      locale: await getLocale(),
-    };
-    const userDefine = this.config.aiTextTemplates[this.kind];
-    if (userDefine) {
-      return PromptTemplate.fromTemplate(userDefine).format(inputs);
-    }
-    // default template
-    return MakePrompt.redisTemplate.format(inputs);
-  }
-
-  mongoDatabaseInformation() {
-    let ret = "we have some predefine some variable u can use.\n";
-    ret += "```typescript";
-    ret += mongoQueryBackend.interfaceRawText;
-    ret += mongoQueryBackend.globalVar;
-    ret += "```";
-    return ret;
-  }
-
-  async createMongoPrompt(): Promise<string> {
-    const inputs = {
-      question: this.question.trim(),
-      database_information: await this.mongoDatabaseInformation(),
-      chat_history: this.memory
-        .getMessages()
-        .map(x => x.toFormattedString())
-        .join("\n"),
-      locale: await getLocale(),
-      language: this.language,
-    };
-    const userDefine = this.config.aiTextTemplates[this.kind];
-    if (userDefine) {
-      return PromptTemplate.fromTemplate(userDefine).format(inputs);
-    }
-    // default template
-    return MakePrompt.mongoTemplate.format(inputs);
-  }
-
-  async createSqlPrompt(): Promise<string> {
-    const inputs = {
-      dialect: this.kind2CommonName(),
-      question: this.question,
-      database_information: await this.sqlDatabaseInformation(),
-      chat_history:
-        this.memory
-          .getMessages()
-          .map(x => x.toFormattedString())
-          .join("\n") + "\n",
-      locale: await getLocale(),
-    };
-    const userDefine = this.config.aiTextTemplates[this.kind];
-
-    if (userDefine) {
-      return PromptTemplate.fromTemplate(userDefine).format(inputs);
-    }
-    // default template
-    return MakePrompt.sqlTemplate.format(inputs);
-  }
-
-  async sqlDatabaseInformation() {
-    let ret = "";
-    const databases = await this.allSqlElements();
-    for (const elements of databases) {
-      ret += `==============================database ${extractLastNameFromUuid(
-        elements.uuid,
-      )}==============================\n`;
-
-      for (const table of elements.tables) {
-        if (!this.question.includes(table.name)) {
-          continue;
-        }
-        const cols = await showTableColumn(elements.uuid, table.name);
-        ret += `${table.name} is table
-        Columns:${cols.map(x => x.field).join(",")}
-        Primary key: ${cols
-          .filter(x => x.is_primary)
-          .map(x => (x.is_auto_increment ? `${x.field}(auto increment)` : x.field))
-          .join(",")}\n`;
-        {
-          const maxID = await tryGetMaxID(elements.uuid, table.name);
-          if (maxID) {
-            ret += `${table.name} max id is ${maxID}\n`;
-          }
-        }
-        {
-          const def = await callErrorable(() => {
-            return createTableAndIndexSql(elements.uuid, table.name);
-          }, null);
-          if (def) {
-            ret += `${table.name} create table sql is:\n${formatCreateTableAndIndexSql(
-              def,
-            )}\n`;
-          }
-        }
-      }
-      for (const view of elements.views) {
-        if (!this.question.includes(view.name)) {
-          continue;
-        }
-        const cols = await showViewColumns(elements.uuid, view.name);
-        ret += `${view.name} is view 
-        Columns:${cols.map(x => x.field).join(",")}\n`;
-        {
-          const maxID = await tryGetMaxID(elements.uuid, view.name);
-          if (maxID) {
-            ret += `${view.name} max id is ${maxID}\n`;
-          }
-        }
-        {
-          const def = await callErrorable(() => {
-            return createViewSql(elements.uuid, view.name, ViewKind.View);
-          }, null);
-          if (def) {
-            ret += `${view.name} create view sql is:\n${def}\n`;
-          }
-        }
-      }
-      for (const view of elements.materializedViews) {
-        if (!this.question.includes(view.name)) {
-          continue;
-        }
-        const cols = await showViewColumns(elements.uuid, view.name);
-        ret += `${view.name} is materalized view 
-        Columns:${cols.map(x => x.field).join(",")}\n`;
-        {
-          const maxID = await tryGetMaxID(elements.uuid, view.name);
-          if (maxID) {
-            ret += `${view.name} max id is ${maxID}\n`;
-          }
-        }
-        {
-          const def = await callErrorable(() => {
-            return createViewSql(elements.uuid, view.name, ViewKind.MaterializedView);
-          }, null);
-          if (def) {
-            ret += `${view.name} create view sql is:\n${def}\n`;
-          }
-        }
-      }
-
-      // udf
-      for (const udf of elements.udfs) {
-        if (!this.question.includes(udf.name)) {
-          continue;
-        }
-        ret += `${udf.name} is user define function \n`;
-        const detail = await showUdf(elements.uuid, udf, this.kind);
-        ret += `define sql is:\n${detail.def}\n`;
-      }
-      // cassandra agg
-      for (const udf of elements.cassandraAggs) {
-        if (!this.question.includes(udf.name)) {
-          continue;
-        }
-        ret += `${udf.name} is user cassandra aggregate function \n`;
-        const detail = await showCassandraAgg(
-          elements.uuid,
-          udf.name,
-          udf.cassandra_parameters,
-        );
-        ret += `define sql is:\n${detail.def}\n`;
-      }
-
-      for (const udf of elements.procedures) {
-        if (!this.question.includes(udf.name)) {
-          continue;
-        }
-        ret += `${udf.name} is procedure \n`;
-        const detail = await showProcedure(elements.uuid, udf, this.kind);
-        ret += `define sql is:\n${detail.def}\n`;
-      }
-
-      // types
-      for (const ty of elements.types) {
-        if (!this.question.includes(ty.name)) {
-          continue;
-        }
-        ret += `${ty.name} is user created type \n`;
-        ret += `define sql is:\n${ty.sql}\n`;
-      }
-      // sequence
-      for (const ty of elements.sequences) {
-        if (!this.question.includes(ty.name)) {
-          continue;
-        }
-        ret += `${ty.name} is user created sequence \n`;
-        ret += `define sql is:\n${ty.sql}\n`;
-      }
-      // events
-      for (const event of elements.events) {
-        if (!this.question.includes(event.name)) {
-          continue;
-        }
-        ret += `${event.name} is user created event \n`;
-        ret += `define sql is:\n${event.sql}\n`;
-      }
-    }
-
-    return ret;
-  }
-
-  async allSqlElements(): Promise<DatabaseElements[]> {
-    let fixed = [this.uuid];
-    try {
-      const name = SetAutoCompletionName.get(this.editor.getModel().id);
-      fixed = await invoke<string[]>("ai_get_search_path", {
-        name: this.uuid,
-        queryId: name?.queryId,
-        text: this.question,
-      });
-      console.log("ai search path", fixed);
-    } catch (e) {
-      console.log("get ai search path failed", e);
-    }
-    const ret: DatabaseElements[] = [];
-    for (const uuid of fixed) {
-      const tables = await callErrorable(async () => {
-        return await listTable(uuid, TableType.Normal);
-      });
-      const views = await callErrorable(async () => {
-        return await listView(uuid, ViewKind.View);
-      });
-      const materializedViews = await callErrorable(() => {
-        return listView(uuid, ViewKind.MaterializedView);
-      });
-      const udfs = await callErrorable(async () => {
-        return await listUdf(uuid);
-      });
-
-      const events = await callErrorable(async () => {
-        return await listEvent(uuid);
-      });
-      const sequences = await callErrorable(async () => {
-        return await listSequence(uuid);
-      });
-
-      const procedures = await callErrorable(async () => {
-        return await listProcedure(uuid);
-      });
-
-      const types = await callErrorable(async () => {
-        return await listCreatedTypes(uuid);
-      });
-      const cassandraAggs =
-        this.kind == DataSourceKind.Cassandra
-          ? await callErrorable(async () => {
-              return await listCassandraAgg(uuid);
-            })
-          : [];
-      ret.push({
-        tables,
-        views,
-        materializedViews,
-        udfs,
-        events,
-        sequences,
-        types,
-        procedures,
-        cassandraAggs,
-        uuid,
-      });
-    }
-    return ret;
-  }
-  createPrompt(): Promise<string> {
-    switch (this.kind) {
-      case DataSourceKind.Mongo:
-        return this.createMongoPrompt();
-      case DataSourceKind.Redis:
-        return this.createRedisPrompt();
-      default:
-        return this.createSqlPrompt();
-    }
-  }
-}
-
-function SqlChatTextInput(props: {
-  uuid: string;
-  kind: DataSourceKind;
-  editor: editor.IStandaloneCodeEditor;
-}) {
-  const { uuid, kind, editor } = props;
-  const config = useContext(LLMConfigContext);
-  const [prevQuestion, setPrevQuestion] = useState("");
-  const [newQuestion, setNewQuestion] = useState("");
-  const { showNotification } = useContext(NotificationContext);
-  const [showPrompt, setShowPrompt] = useState(false);
-  const [chatHistory, setChatHistory] = useState<string[]>([]);
+function SqlChatTextInput(props: { uuid: string }) {
+  const { uuid } = props;
+  const { editor } = useContext(QueryIDEditorChatCtx);
+  const llm = useLLM();
+  const [question, setQuestion] = useState("");
+  const { showNotification } = useNotification();
   const [showChatHistory, setShowChatHistory] = useState(false);
-  const chatMemory = useRef(new SimpleArrayMemory());
-  const [showEditPromptTemplate, setShowEditPromptTemplate] = useState(false);
+  const [showEditPrompt, setShowEditPrompt] = useState(false);
   const [invokeStatus, setInvokeStatus] = useState("");
-  const chatMemoryK = useRef<number>(4);
   const [cancelFN, setCancelFN] = useState<() => void>(null);
-  const saveCleanEditor = useRef(new SaveBoolToLocalStorage("ai-chat-clean-editor"));
-  const { show, setShow, doQuery } = useContext(ChatShowContext);
-  const [cleanEditor, setCleanEditor] = useState(saveCleanEditor.current.get());
-  const saveQueryAfter = useRef(new SaveBoolToLocalStorage("ai-chat-query-after"));
-  const [queryAfter, setQueryAfter] = useState(saveQueryAfter.current.get());
-
-  const vis = useContext(TabActiveContext);
+  const { show, setShow } = useContext(ChatShowContext);
+  const { getSwitch, setSwitch } = useBoolSwitch();
+  const [images, setImages] = useState<string[]>([]);
+  const [documents, setDocuments] = useState<string[]>([]);
+  const { getSize } = useSizeStore();
+  const { messagesByNames, saveMessage } = useChatStore();
+  const connName = extractConfigNameFromUuid(uuid);
+  const { prompts: userDefinePrompts } = useUserSystemPromptStore();
+  const cleanEditor = getSwitch(cleanEditorKey);
   useEffect(() => {
-    const closeThis = (e: KeyboardEvent) => {
-      if (e.key === "Escape" && vis) {
-        e.preventDefault();
-        setShow(false);
-      }
-    };
-    document.addEventListener("keydown", closeThis);
-    return () => {
-      document.removeEventListener("keydown", closeThis);
-    };
-  }, [vis, setShow]);
-
-  useEffect(() => {
-    saveCleanEditor.current.save(cleanEditor);
-  }, [cleanEditor]);
-
-  useEffect(() => {
-    saveQueryAfter.current.save(queryAfter);
-  }, [queryAfter]);
-
-  const makePrompt = async () => {
-    chatMemory.current.setK(chatMemoryK.current);
-    try {
-      const prompt = await new MakePrompt(
-        uuid,
-        config,
-        kind,
-        newQuestion,
-        chatMemory.current,
-        editor,
-        editor.getModel().getLanguageId(),
-      ).createPrompt();
-      return prompt;
-    } catch (e) {
-      showNotification("error", "make prompt failed", e);
-      return null;
+    if (!show) {
+      setShowChatHistory(false);
+      setShowEditPrompt(false);
     }
-  };
+  }, [show]);
 
   const handleChat = async () => {
     try {
@@ -658,47 +205,68 @@ function SqlChatTextInput(props: {
       } else {
         editorAppendContent(editor, "\n");
       }
-      setPrevQuestion(newQuestion);
-      setInvokeStatus("making prompt");
-      chatMemory.current.addUserMessage(newQuestion);
-      setChatHistory(e => [...e, newQuestion]);
       let wholeText = "";
       setInvokeStatus("trying getting stream response");
-      const prompt = await makePrompt();
-      if (!prompt) {
-        return;
-      }
       let i = 0;
-      await config.stream(
-        prompt,
-        msg => {
+      let queryId = editor.getModel()._dbpal_query_id;
+      saveMessage(connName, "user", question);
+      // messagesByNames is because of `ChatHistory` will render and fetch ,and this tricky.
+      const history = messagesByNames[connName];
+      await llm.stream_prompt(
+        queryId.name,
+        queryId.queryId,
+        question,
+        images,
+        documents,
+        (function () {
+          if (!history || history.length === 0) {
+            return [];
+          }
+          // Use a negative index in slice to get the last N elements
+          const size = getSize(UseSizeConfig.chatMemoryKey);
+          return history
+            .slice(-size) // This takes the last 'size' elements
+            .map((h) => {
+              return {
+                role: h.role,
+                msg: h.content,
+              };
+            });
+        })(),
+        userDefinePrompts[connName],
+        (event) => {
           setInvokeStatus("receiving stream response#" + i);
-          editorAppendContent(editor, msg);
-          wholeText += msg;
-          i++;
+
+          switch (event.resp_type) {
+            case "content":
+              editorAppendContent(editor, event.msg);
+              wholeText += event.msg;
+              i++;
+              break;
+            case "tokenusage":
+              showNotification({
+                severity: "info",
+                title: "token usage",
+                message: `input token:${event.input_token}  output token:${event.output_token} total token:${event.total_token}`,
+              });
+              break;
+          }
         },
-        f => {
+        (f) => {
           setCancelFN(() => {
             // 这里必须写一个callback不然会被直接执行
             return f;
           });
         },
       );
+      showNotification({ severity: "success", title: "call llm success" });
       setInvokeStatus("done");
       setTimeout(() => {
         setInvokeStatus("");
       }, 5000);
-      setChatHistory(e => [...e, wholeText]);
-      chatMemory.current.addAIMessage(wholeText);
-      if (queryAfter) {
-        if (!doQuery.current) {
-          showNotification("error", "do query is null ,this is a internal error");
-        } else {
-          doQuery.current();
-        }
-      }
+      saveMessage(connName, "assistant", wholeText);
     } catch (e) {
-      showNotification("error", "call llm failed", e);
+      showNotification({ severity: "error", title: "call llm failed", message: e });
     } finally {
       setCancelFN(null);
     }
@@ -706,9 +274,17 @@ function SqlChatTextInput(props: {
 
   return (
     <>
+      <EscPressedDo
+        doingIt={() => {
+          return show;
+        }}
+        setUndo={() => {
+          setShow(false);
+        }}
+      />
       <Paper
         style={{
-          height: "30vh",
+          height: "40vh",
           width: "80%",
           display: show ? "flex" : "none",
           position: "absolute",
@@ -718,17 +294,14 @@ function SqlChatTextInput(props: {
           border: "2px solid gray",
           borderRadius: "1rem",
           zIndex: 14,
-          opacity: 0.9,
-        }}
-      >
+          overflow: "hidden",
+        }}>
         <Stack
           direction="row"
-          style={{ alignItems: "center", justifyContent: "space-between" }}
-        >
+          style={{ alignItems: "center", justifyContent: "space-between" }}>
           <Stack
             direction="row"
-            style={{ alignItems: "center", overflow: "auto", paddingBottom: "0.5rem" }}
-          >
+            style={{ alignItems: "center", overflow: "auto", paddingBottom: "0.5rem" }}>
             {cancelFN ? (
               <CancelButton
                 handleCancel={() => {
@@ -737,264 +310,341 @@ function SqlChatTextInput(props: {
                 }}
               />
             ) : (
-              <IconButton onClick={handleChat} disabled={newQuestion == prevQuestion}>
-                <ArrowCircleUpIcon
-                  style={{ fontSize: "1.8rem" }}
-                  color={newQuestion == prevQuestion ? "disabled" : "primary"}
-                />
+              <IconButton onClick={handleChat} disabled={!question}>
+                <ArrowCircleUpIcon style={{ fontSize: "1.8rem" }} />
               </IconButton>
             )}
             <Tooltip title="history">
               <IconButton
                 onClick={() => {
-                  setShowChatHistory(e => !e);
-                }}
-                disabled={chatHistory.length == 0}
-              >
-                <EventNoteIcon
-                  color={chatHistory.length == 0 ? "disabled" : "primary"}
+                  setShowChatHistory((e) => !e);
+                }}>
+                <EventNoteIcon />
+              </IconButton>
+            </Tooltip>
+
+            <Tooltip title="edit user prompt,this send to LLM every time">
+              <IconButton
+                onClick={() => {
+                  setShowEditPrompt((e) => !e);
+                }}>
+                <TbPrompt style={{ fontSize: "1.8rem" }} />
+              </IconButton>
+            </Tooltip>
+            <SliderSize config={UseSizeConfig.chatMemoryKey} />
+            <Tooltip title="delete all content from the editor before we receive the response">
+              <IconButton onClick={() => setSwitch(cleanEditorKey, !cleanEditor)}>
+                <MdCleaningServices
+                  color={cleanEditor ? "rgb(42, 59, 240)" : ""}
+                  fontSize="1.2rem"
                 />
               </IconButton>
             </Tooltip>
-            <Tooltip title="show prompt">
-              <Button
-                disabled={newQuestion.trim() == ""}
-                onClick={() => {
-                  setShowPrompt(e => !e);
-                }}
-                variant={showPrompt ? "contained" : "text"}
-              >
-                prompt
-              </Button>
-            </Tooltip>
-            <Tooltip title="edit prompt template">
-              <IconButton
-                onClick={() => {
-                  setShowEditPromptTemplate(e => !e);
-                }}
-              >
-                <EditIcon color="secondary" />
-              </IconButton>
-            </Tooltip>
-            <SliderSize
-              storeKey="chat-memory-buffer-size"
-              max={20}
-              min={0}
-              step={2}
-              handleValue={value => {
-                chatMemoryK.current = value;
-              }}
-              notice="chat memory buffer size"
-            />
-            <Tooltip title="delete all content from the editor before we receive the response">
-              <FormControlLabel
-                control={
-                  <Checkbox
-                    checked={cleanEditor}
-                    onChange={e => setCleanEditor(e.target.checked)}
-                  />
-                }
-                label="clean editor"
-              />
-            </Tooltip>
-            <Tooltip title="do query after we receive the response">
-              <FormControlLabel
-                control={
-                  <Switch
-                    checked={queryAfter}
-                    onChange={e => setQueryAfter(e.target.checked)}
-                  />
-                }
-                label="auto query"
-              />
-            </Tooltip>
           </Stack>
-
           <Stack direction="row">
             <IconButton
               onClick={() => {
                 setShow(false);
-              }}
-            >
+              }}>
               <CloseIcon />
             </IconButton>
           </Stack>
         </Stack>
 
+        <Stack direction="row" style={{ alignItems: "flex-end" }}>
+          <IconButton
+            onClick={async () => {
+              let files = await open({ multiple: true, pickerMode: "image" });
+              if (!files) {
+                return;
+              }
+              if (typeof files == "string") {
+                files = [files];
+              }
+              try {
+                for (const file of files) {
+                  const fileContent = await convertPathToDataUrl(file);
+                  if (images.find((x) => x == fileContent)) {
+                    showNotification({
+                      severity: "error",
+                      title: "image have already been add",
+                    });
+                  } else {
+                    setImages((e) => [...e, fileContent]);
+                  }
+                }
+              } catch (e) {
+                showNotification({
+                  severity: "error",
+                  title: "open image failed",
+                  message: e,
+                });
+              }
+            }}>
+            <AddPhotoAlternateIcon />
+          </IconButton>
+
+          {images.length > 0 && (
+            <IconButton
+              color="error"
+              onClick={async () => {
+                if (
+                  !(await secondConfirm({
+                    confirmText: "remove",
+                    title: "remove all images ",
+                  }))
+                ) {
+                  return;
+                }
+                setImages([]);
+              }}>
+              <DeleteForeverIcon />
+            </IconButton>
+          )}
+          <ShowChatImages images={images} setImages={setImages} />
+        </Stack>
+
+        <Stack direction="row" style={{ alignItems: "flex-end" }}>
+          <IconButton
+            onClick={async () => {
+              let files = await open({ multiple: true, pickerMode: "document" });
+              if (!files) {
+                return;
+              }
+              if (typeof files == "string") {
+                files = [files];
+              }
+              try {
+                for (const file of files) {
+                  if (documents.find((e) => e == file)) {
+                    showNotification({
+                      severity: "error",
+                      title: "image have already been add",
+                    });
+                  } else {
+                    setDocuments((x) => [...x, file]);
+                  }
+                }
+              } catch (e) {
+                showNotification({
+                  severity: "error",
+                  title: "open image failed",
+                  message: e,
+                });
+              }
+            }}>
+            <UploadFileIcon />
+          </IconButton>
+          {documents.length > 0 && (
+            <IconButton
+              color="error"
+              onClick={async () => {
+                if (
+                  !(await secondConfirm({
+                    confirmText: "remove",
+                    title: "remove all documents",
+                  }))
+                ) {
+                  return;
+                }
+                setDocuments([]);
+              }}>
+              <DeleteForeverIcon />
+            </IconButton>
+          )}
+
+          <ShowChatDocuments documents={documents} setDocuments={setDocuments} />
+        </Stack>
         <Divider> </Divider>
         <SimpleFlexEditor
           language="text"
-          handleValue={v => {
-            setNewQuestion(v);
-          }}
           barLeft={invokeStatus && <Typography color="info">{invokeStatus}</Typography>}
-          handleEditor={e => {
-            AITextCompletionName.set(e.getModel().id, editor.getModel().id);
+          handleValue={(v) => {
+            setQuestion(v);
           }}
-          dontFocus
+          handleEditor={(e) => {
+            e.getModel()._dbpal_query_id = {
+              ...editor.getModel()._dbpal_query_id,
+            };
+          }}
         />
       </Paper>
-      {showChatHistory && (
-        <ChatHistory
-          history={chatHistory}
-          handleClose={() => {
-            setShowChatHistory(false);
-          }}
-          handleClean={() => {
-            setChatHistory([]);
-          }}
-        />
-      )}
-      {showEditPromptTemplate && (
-        <EditPromptTemplate
-          config={config}
-          handleClose={() => {
-            setShowEditPromptTemplate(false);
-          }}
-          kind={kind}
-        />
-      )}
-      {showPrompt && (
-        <ShowPrompt
-          handleClose={() => {
-            setShowPrompt(false);
-          }}
-          makePrompt={makePrompt}
-        />
-      )}
+
+      <ChatHistory
+        connName={connName}
+        handleClose={() => {
+          setShowChatHistory(false);
+        }}
+        showChatHistory={showChatHistory}
+      />
+
+      <EditPrompt
+        connName={connName}
+        showEdit={showEditPrompt}
+        handleClose={() => {
+          setShowEditPrompt(false);
+        }}
+      />
     </>
   );
 }
 
-function EditPromptTemplate(props: {
-  kind: DataSourceKind;
-  config: LLMConfig;
-  handleClose: () => void;
+function ShowChatDocuments(props: {
+  documents: string[];
+  setDocuments: Dispatch<SetStateAction<string[]>>;
 }) {
-  const { kind, handleClose, config } = props;
-  const userDefine = config.aiTextTemplates[kind];
-  const [newTemplate, setNewTemplate] = useState(
-    userDefine ? userDefine : MakePrompt.getDefaultTemplate(kind),
-  );
-  const [editor, setEditor] = useState<editor.IStandaloneCodeEditor>(null);
-  const { showNotification } = useContext(NotificationContext);
-  const [templateVar, setTemplateVar] = useState("");
-  const handleSave = async () => {
-    try {
-      const config = await LLMConfig.get();
-      if (!config.aiTextTemplates) {
-        config.aiTextTemplates = {};
-      }
-      config.aiTextTemplates[kind] = newTemplate;
-      await config.save();
-      showNotification("success", "save template ok");
-      handleClose();
-    } catch (e) {
-      showNotification("error", "save template failed", e);
-      return;
-    }
-  };
-  const handleDelete = async () => {
-    try {
-      const config = await LLMConfig.get();
-      config.aiTextTemplates[kind] = "";
-      await config.save();
-    } catch (e) {
-      showNotification("error", "reset template failed", e);
-      return;
-    }
-    showNotification("success", "reset template ok");
-    handleClose();
-  };
-  const vis = useContext(TabActiveContext);
-  useEffect(() => {
-    const closeThis = (e: KeyboardEvent) => {
-      if (e.key === "Escape" && vis) {
-        e.preventDefault();
-        handleClose();
-      }
-    };
-    document.addEventListener("keydown", closeThis);
-    return () => {
-      document.removeEventListener("keydown", closeThis);
-    };
-  }, [vis, handleClose]);
-
+  const { documents, setDocuments } = props;
   return (
-    <Paper
-      style={{
-        position: "absolute",
-        width: "80%",
-        height: "80%",
-        bottom: 0,
-        right: 0,
-        zIndex: 14,
-        display: "flex",
-        flexDirection: "column",
-      }}
-    >
-      <Stack style={{ height: "100%" }}>
-        <ModalHeader title="edit template" handleClose={handleClose} />
-        <SimpleFlexEditor
-          value={newTemplate}
-          handleValue={v => {
-            setNewTemplate(v);
+    <Stack direction="row" style={{ alignItems: "center" }}>
+      {documents.map((path, index) => (
+        <Chip
+          key={index}
+          label={extractBaseName(path)}
+          style={{ cursor: "pointer" }}
+          onClick={() => {
+            openPath(path);
           }}
-          handleEditor={e => {
-            setEditor(e);
+          onDelete={() => {
+            setDocuments((x) => x.filter((e) => e != path));
           }}
-          language="text"
         />
-        <Divider />
-        <StackRowCenter>
-          <Button onClick={handleSave}> save </Button>
-          <Autocomplete
-            options={MakePrompt.getDefaultTemplatePredefineVariables(kind)}
-            style={{ width: "22rem" }}
-            value={templateVar}
-            renderInput={params => (
-              <TextField {...params} label="variable can be use in template" />
-            )}
-            freeSolo={false}
-            onChange={(_, templateVar) => {
-              editor
-                .getModel()
-                .pushEditOperations(
-                  null,
-                  [{ range: editor.getSelection(), text: `{${templateVar}}` }],
-                  null,
-                );
-              editor.focus();
-              setTemplateVar(templateVar);
+      ))}
+    </Stack>
+  );
+}
+function ShowChatImages(props: { images: string[]; setImages }) {
+  const { images, setImages } = props;
+  const [showMsgIndex, setMsgShowIndex] = useState<number | null>(null);
+  const maxSize = "4vw";
+  const show = typeof showMsgIndex == "number";
+  return (
+    <Stack direction="row">
+      {images.map((e, index) => {
+        return (
+          <img
+            key={index}
+            src={e}
+            style={{ maxWidth: maxSize, maxHeight: maxSize, cursor: "pointer" }}
+            onClick={() => {
+              setMsgShowIndex(index);
             }}
           />
-
-          <Tooltip title="delete template,after we will use system default template">
-            <IconButton onClick={handleDelete}>
-              <DeleteForeverIcon> </DeleteForeverIcon>
+        );
+      })}
+      {show && (
+        <Dialog
+          fullWidth
+          maxWidth="md"
+          open={show}
+          slotProps={{
+            paper: {
+              style: {
+                height: "55vh",
+                overflow: "auto",
+              },
+            },
+          }}
+          onClose={modalHandleClose((e: EscDownEvent) => {
+            e.preventDefault();
+            setMsgShowIndex(null);
+          })}>
+          <Stack direction="row" style={{ alignItems: "center" }}>
+            #{showMsgIndex + 1}
+            <IconButton
+              onClick={() => {
+                setImages(images.filter((_e, idx) => idx != showMsgIndex));
+                setMsgShowIndex(null);
+              }}
+              color="warning">
+              <DeleteForeverIcon />
             </IconButton>
-          </Tooltip>
-        </StackRowCenter>
-      </Stack>
-    </Paper>
+            <IconButton>
+              <NavigateBeforeIcon
+                onClick={() => {
+                  if (showMsgIndex == 0) {
+                    setMsgShowIndex(images.length - 1);
+                  } else {
+                    setMsgShowIndex(showMsgIndex - 1);
+                  }
+                }}
+              />
+            </IconButton>
+            <IconButton>
+              <NavigateNextIcon
+                onClick={() => {
+                  if (showMsgIndex == images.length - 1) {
+                    setMsgShowIndex(0);
+                  } else {
+                    setMsgShowIndex(showMsgIndex + 1);
+                  }
+                }}
+              />
+            </IconButton>
+          </Stack>
+
+          <img src={images[showMsgIndex]} style={{ width: "100%" }} />
+        </Dialog>
+      )}
+    </Stack>
   );
 }
 
 function ChatHistory(props: {
-  history: string[];
+  connName: string;
   handleClose: () => void;
-  handleClean;
+  showChatHistory;
 }) {
-  const { history, handleClose, handleClean } = props;
+  const { handleClose, connName, showChatHistory } = props;
+  const { messagesByNames, clearHistory, fetchHistory, isLoading } = useChatStore();
   const wrapperRef = useRef(null);
+  const [matchStr, setMatchStr] = useState("");
+
+  const [deBouncedMatch] = useDebounce(matchStr, 500);
+
+  const history = messagesByNames[connName];
+  const [page, setPage] = useState(1);
+  const pageSize = 6;
+
+  const { showingHis, length } = useMemo(() => {
+    if (history) {
+      let his = history.filter((his) =>
+        deBouncedMatch
+          ? his.content.toLocaleLowerCase().includes(deBouncedMatch.toLocaleLowerCase())
+          : true,
+      );
+      return {
+        showingHis: his.slice((page - 1) * pageSize, page * pageSize),
+        length: his.length,
+      };
+    } else {
+      return {
+        showingHis: [],
+        length: 0,
+      };
+    }
+  }, [history, deBouncedMatch, page]);
+
+  useEffect(() => {
+    if (length > 0) {
+      setPage(Math.ceil(length / pageSize));
+    }
+  }, [length]);
+
   useEffect(() => {
     const el = wrapperRef.current;
     if (el) el.scrollTop = el.scrollHeight;
   }, []);
+
+  useEffect(() => {
+    fetchHistory(connName);
+  }, [connName, fetchHistory]);
   const handleClear = () => {
-    handleClean();
+    clearHistory(connName);
     handleClose();
   };
+  if (!showChatHistory) {
+    return <> </>;
+  }
 
   return (
     <Paper
@@ -1007,135 +657,173 @@ function ChatHistory(props: {
         zIndex: 14,
         overflow: "auto",
         padding: "0.4rem",
+        display: "flex",
+        flexDirection: "column",
       }}
-      ref={wrapperRef}
-    >
+      ref={wrapperRef}>
       <ModalHeader
         title="chat history"
         headerExtra={
-          <Tooltip title="delete history">
-            <IconButton onClick={handleClear}>
-              <DeleteForeverIcon> </DeleteForeverIcon>
-            </IconButton>
-          </Tooltip>
+          <>
+            {isLoading && <CircularProgress />}
+            <Tooltip title="delete history">
+              <IconButton onClick={handleClear}>
+                <DeleteForeverIcon />
+              </IconButton>
+            </Tooltip>
+            <ClearableTextField
+              value={matchStr}
+              onChange={(e) => {
+                setMatchStr(e.target.value);
+              }}
+              onClear={() => {
+                setMatchStr("");
+              }}
+              label="search in history"
+              style={{ width: "13rem" }}
+            />
+            {history && history.length ? (
+              <Typography>
+                {!matchStr
+                  ? `${history.length} history`
+                  : `showing ${length} of ${history.length}`}
+              </Typography>
+            ) : undefined}
+          </>
         }
         handleClose={handleClose}
       />
-      <Stack>
-        {history.map((his, index) => {
-          return (
-            <div key={index}>
-              <Stack
-                direction="row"
-                style={{
-                  justifyContent: index % 2 == 0 ? "flex-start" : "flex-end",
-                }}
-              >
-                <div
-                  style={{
-                    width: "85%",
-                  }}
-                >
-                  <AppMarkDown>{his}</AppMarkDown>
+      <div
+        style={{
+          flex: 1,
+          height: "100px",
+          minHeight: 0,
+          overflow: "auto",
+          paddingRight: "5px",
+        }}>
+        {showingHis && (
+          <Stack>
+            {showingHis.map((his, index) => {
+              return (
+                <div key={index}>
+                  <Stack
+                    direction="row"
+                    style={{
+                      justifyContent: his.role == "user" ? "flex-start" : "flex-end",
+                      maxHeight: "37vh",
+                      overflow: "auto",
+                    }}>
+                    <div
+                      style={{
+                        width: "85%",
+                        overflow: "auto",
+                      }}>
+                      <Typography color="info">
+                        {his.role}:{new Date(his.timestamp).toLocaleString()}
+                      </Typography>
+                      <AppMarkDown highlightStr={matchStr}>{his.content}</AppMarkDown>
+                    </div>
+                  </Stack>
+                  {/* If have match string , I don't know the message is paired up */}
+                  {his.role == "assistant" && <Divider />}
                 </div>
-              </Stack>
-              {index > 0 && (index + 1) % 2 == 0 && <Divider />}
-            </div>
-          );
-        })}
+              );
+            })}
+          </Stack>
+        )}
+      </div>
+      <Stack direction="row" style={{ justifyContent: "right" }}>
+        <Pagination
+          page={page}
+          onChange={(_, page) => {
+            setPage(page);
+          }}
+          count={Math.ceil(length / pageSize)}
+        />
       </Stack>
     </Paper>
   );
 }
 
-function ShowPrompt(props: {
-  makePrompt: () => Promise<string>;
+function EditPrompt(props: {
+  connName: string;
   handleClose: () => void;
+  showEdit: boolean;
 }) {
-  const { handleClose, makePrompt } = props;
-  const [prompt, setPrompt] = useState("");
-  const { showNotification } = useContext(NotificationContext);
+  const { handleClose, connName, showEdit } = props;
+  const { removePrompt, savePrompt, prompts } = useUserSystemPromptStore();
+  const [value, setValue] = useState(prompts[connName] || "");
+  const { showNotification } = useNotification();
+  const handleDelete = () => {
+    try {
+      removePrompt(connName);
+      showNotification({ severity: "success", title: "delete prompt success" });
+      handleClose();
+    } catch (e) {
+      showNotification({
+        severity: "error",
+        title: "delete prompt failed",
+        message: e,
+      });
+    }
+  };
+
   useEffect(() => {
-    makePrompt().then(e => {
-      setPrompt(e);
-    });
-  }, [makePrompt]);
+    setValue(prompts[connName] || "");
+  }, [connName, prompts]);
+
+  const handleSave = () => {
+    try {
+      savePrompt(connName, value);
+      showNotification({ severity: "success", title: "save prompt success" });
+    } catch (e) {
+      showNotification({ severity: "error", title: "save prompt failed", message: e });
+    }
+  };
+  if (!showEdit) {
+    return <> </>;
+  }
   return (
     <Paper
       style={{
         position: "absolute",
-        right: 0,
         bottom: 0,
+        right: 0,
+        width: "87%",
+        height: "87%",
         zIndex: 14,
-        padding: "0.5rem",
-        width: "75%",
-        height: "75%",
         overflow: "auto",
-      }}
-    >
-      <Stack height="100%">
-        <ModalHeader
-          headerExtra=<>
-            <Button
-              variant="text"
-              onClick={() => {
-                handleCopyToClipboard(prompt, showNotification);
-              }}
-            >
-              copy
-            </Button>
+        padding: "0.4rem",
+        display: showEdit ? "flex" : "none",
+        flexDirection: "column",
+      }}>
+      <ModalHeader
+        title="edit prompt"
+        headerExtra={
+          <>
+            <Tooltip title="save this prompt">
+              <IconButton onClick={handleSave}>
+                <SaveIcon />
+              </IconButton>
+            </Tooltip>
+            <Tooltip title="delete this prompt ">
+              <IconButton onClick={handleDelete}>
+                <DeleteForeverIcon />
+              </IconButton>
+            </Tooltip>
           </>
-          title="show prompt"
-          handleClose={handleClose}
-        />
-        <div style={{ flex: 1 }}>
-          <pre style={{ height: "100%", overflow: "auto" }}>{prompt}</pre>
-        </div>
-      </Stack>
-    </Paper>
-  );
-}
-
-function AllKindChat(props: {
-  uuid: string;
-  kind: DataSourceKind;
-  value?: string;
-  favoriteName?: string;
-  language?: string;
-}) {
-  const [config, setConfig] = useState<LLMConfig>(null);
-  const { showNotification } = useContext(NotificationContext);
-
-  const handleReload = useCallback(() => {
-    LLMConfig.get()
-      .then(config => {
-        if (config && config.enable()) {
-          setConfig(config);
         }
-      })
-      .catch(e => {
-        showNotification("error", "get llm config failed", e);
-      });
-  }, [showNotification]);
-  useEffect(() => {
-    const unlisten = appStore.onKeyChange(LLMConfig.key, () => {
-      handleReload();
-    });
-    return () => {
-      unlisten.then(x => {
-        x();
-      });
-    };
-  }, [handleReload]);
+        handleClose={handleClose}
+      />
 
-  useEffect(() => {
-    handleReload();
-  }, [handleReload]);
-
-  return (
-    <LLMConfigContext.Provider value={config}>
-      <Chat {...props} />
-    </LLMConfigContext.Provider>
+      <SimpleFlexEditor
+        language="text"
+        value={value}
+        handleValue={(v) => {
+          setValue(v);
+        }}
+      />
+    </Paper>
   );
 }
 

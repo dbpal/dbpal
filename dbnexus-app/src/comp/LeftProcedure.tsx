@@ -1,64 +1,70 @@
 import { ListItemIcon, ListItemText, MenuItem, MenuList, Stack } from "@mui/material";
 import { TreeItem } from "@mui/x-tree-view/TreeItem";
-import { useCallback, useContext, useEffect, useRef, useState } from "react";
+import {
+  MouseEvent,
+  useCallback,
+  useContext,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import DeleteForeverIcon from "@mui/icons-material/DeleteForever";
 import InfoIcon from "@mui/icons-material/Info";
-import { tabsHasId } from "./Common";
-import types from "./ApiStruct";
-import { invoke } from "@tauri-apps/api/core";
-import { NotificationContext } from "./Notification";
-import { TabContent } from "./Tabs";
-import { DefAndMetasView } from "./UdfAndMetaView";
+import { DefAndMetasView } from "./DefAndMetaView";
 
 import { SiProcessingfoundation } from "react-icons/si";
+import { DataSourceKind, secondConfirm, TabContent, UuidContext } from "./helper.ts";
+import { MenuRefresh, UdfNameAndParameters } from "./CommonComp";
+
+import { CopySql, ShowingCount } from "./CommonComp2";
 import {
-  ConnTypeContext,
-  ContextMenuContext,
-  DataSourceKind,
-  generateRandomString,
-  MatchPatternContext,
-  MaxTreeContext,
-  secondConfirm,
-  TabsSetContext,
-  UuidContext,
-} from "./helper";
-import { ExceedMaxTreeItem, MenuRefresh, UdfNameAndParameters } from "./CommonComp";
-import { listProcedure, makeShowProcedureExtraArg, showProcedure } from "./handlers";
+  useMatcher,
+  useContextMenu,
+  useNotification,
+  useTabsManage,
+  useMatcherFn,
+} from "./store";
+import { commands, NamedStaff } from "./bindings.ts";
+import { uuidv4 } from "./Common.ts";
 function ProceduresTree() {
-  const { uuid } = useContext(UuidContext);
-  const { kind } = useContext(ConnTypeContext);
-  const [ps, setPos] = useState<types.NamedStaff[]>([]);
-  const { showNotification } = useContext(NotificationContext);
-  const maxsize = useContext(MaxTreeContext);
-  const reload = useCallback(() => {
-    listProcedure(uuid)
-      .then(ts => {
-        setPos(ts);
+  const { uuid, kind } = useContext(UuidContext);
+  const [ps, setPos] = useState<NamedStaff[]>([]);
+  const { showNotification } = useNotification();
+  const { maxTree } = useMatcher();
+  const matchPattern = useMatcherFn();
+  const reload = useCallback((): void => {
+    commands
+      .listProcedure(uuid)
+      .then((data) => {
+        setPos(data);
       })
-      .catch(e => {
-        showNotification("error", "list procedure failed", e);
+      .catch((e) => {
+        showNotification({
+          severity: "error",
+          title: "list procedure failed",
+          message: e,
+        });
       });
   }, [showNotification, uuid]);
 
-  const [exceed, setExceed] = useState(0);
-  const matchPattern = useContext(MatchPatternContext);
-  useEffect(() => {
-    setExceed(ps.filter(e => matchPattern(e.name)).length);
-  }, [ps, matchPattern]);
+  const showItems = useMemo(() => {
+    return ps.filter((e) => matchPattern(e.name)).slice(0, maxTree);
+  }, [ps, maxTree, matchPattern]);
 
-  const { setUpMenu } = useContext(ContextMenuContext);
+  const setUpMenu = useContextMenu((state) => state.setUpMenu);
   useEffect(() => {
     reload();
   }, [reload]);
 
-  const idForTrees = useRef(generateRandomString());
+  const idForTrees = useRef(uuidv4());
   return (
     <TreeItem
       itemId={idForTrees.current}
       label=<Stack
         direction="row"
         sx={{ alignItems: "center" }}
-        onContextMenu={e => {
+        onContextMenu={(e: MouseEvent<HTMLDivElement>) => {
           setUpMenu({
             content: (
               <MenuList>
@@ -67,96 +73,86 @@ function ProceduresTree() {
             ),
             event: e,
           });
-        }}
-      >
+        }}>
         <SiProcessingfoundation />
         <span> procedures </span>
-      </Stack>
-    >
-      {ps
-        .filter(e => matchPattern(e.name))
-        .map((p, index) => {
-          if (index >= maxsize) {
-            return;
-          }
-          const id = `${uuid}-procedure-${index}`;
-          return (
-            <TreeItem
-              key={p.name + "-" + p.parameters}
-              itemId={id}
-              style={{ alignItems: "center" }}
-              label=<Stack
-                direction="row"
-                onContextMenu={e => {
-                  setUpMenu({
-                    content: (
-                      <ProcedureMenu
-                        reload={reload}
-                        uuid={uuid}
-                        kind={kind}
-                        procedure={p}
-                        id={id}
-                      />
-                    ),
-                    event: e,
-                  });
-                }}
-                sx={{ alignItems: "center" }}
-              >
-                <SiProcessingfoundation />
-                <UdfNameAndParameters udf={p} kind={kind} />
-              </Stack>
-            />
-          );
-        })}
-      <ExceedMaxTreeItem maxTreeSize={maxsize} exceed={exceed} />
+        <ShowingCount showing={showItems.length} total={ps.length} />
+      </Stack>>
+      {showItems.map((p) => {
+        const id = `${uuid}-${p.name}-${p.rand}`;
+        return (
+          <TreeItem
+            key={p.name + "-" + p.parameters}
+            itemId={id}
+            style={{ alignItems: "center" }}
+            label=<Stack
+              direction="row"
+              onContextMenu={(e: MouseEvent<HTMLDivElement>) => {
+                setUpMenu({
+                  content: (
+                    <ProcedureMenu
+                      reload={reload}
+                      uuid={uuid}
+                      kind={kind}
+                      procedure={p}
+                    />
+                  ),
+                  event: e,
+                });
+              }}
+              sx={{ alignItems: "center" }}>
+              <SiProcessingfoundation />
+              <UdfNameAndParameters udf={p} kind={kind} />
+            </Stack>
+          />
+        );
+      })}
     </TreeItem>
   );
 }
 
 function ProcedureMenu(props: {
   uuid: string;
-  procedure: types.NamedStaff;
+  procedure: NamedStaff;
   reload: () => void;
   kind: DataSourceKind;
-  id: string;
 }) {
-  const { uuid, procedure, reload, kind, id } = props;
-  const { setSelectTab, setTabs, tabs } = useContext(TabsSetContext);
-  const { showNotification } = useContext(NotificationContext);
+  const { uuid, procedure, reload, kind } = props;
+  const { appendTab } = useTabsManage();
+  const { showNotification } = useNotification();
 
-  const handleOpenDetails = () => {
-    const index = tabsHasId(tabs, id);
-    if (typeof index == "number") {
-      setSelectTab(index);
-    } else {
-      setTabs(e => {
-        setTimeout(() => {
-          setSelectTab(tabs.length);
-        }, 100);
-
-        return [
-          ...e,
-          new TabContent(
-            id,
-            procedure.name,
-            (
-              <DefAndMetasView
-                reloadOP={async () => {
-                  return showProcedure(uuid, procedure, kind);
-                }}
-                kind={kind}
-                uuid={uuid}
-              />
-            ),
-            <SiProcessingfoundation className="tab-icon-size" />,
-          ),
-        ];
-      });
-    }
+  const handleOpenDetails = (): void => {
+    appendTab(
+      new TabContent(
+        procedure.name,
+        <DefAndMetasView
+          reloadOP={async () => {
+            return commands
+              .showProcedure(uuid, procedure)
+              .then((data) => {
+                return {
+                  def: data.def,
+                  metas: data.metas,
+                };
+              })
+              .catch((e) => {
+                showNotification({
+                  severity: "error",
+                  title: "Show procedure failed",
+                  message: e,
+                });
+                return { def: "", metas: [] };
+              });
+          }}
+          kind={kind}
+          uuid={uuid}
+        />,
+        <SiProcessingfoundation />,
+      ),
+    );
   };
 
-  const handleDrop = async () => {
+  const handleDrop = async (): Promise<void> => {
     const confirm = await secondConfirm({
       title: `Drop Procedure '${procedure}'`,
       confirmText: "Drop",
@@ -165,14 +161,23 @@ function ProcedureMenu(props: {
     if (!confirm) {
       return;
     }
-    const arg = makeShowProcedureExtraArg(procedure, kind);
-    invoke("drop_procedure", { name: uuid, procedure, arg })
-      .then(() => {
-        showNotification("success", "Drop procedure OK");
+
+    commands
+      .dropProcedure(uuid, procedure)
+      .then((sql) => {
+        showNotification({
+          severity: "success",
+          title: "Drop procedure OK",
+          message: <CopySql sql={sql} />,
+        });
         reload();
       })
-      .catch(e => {
-        showNotification("error", "Drop procedure Failure", e);
+      .catch((e) => {
+        showNotification({
+          severity: "error",
+          title: "Drop procedure Failure",
+          message: e,
+        });
       });
   };
   return (
@@ -180,8 +185,7 @@ function ProcedureMenu(props: {
       <MenuItem
         onClick={() => {
           handleOpenDetails();
-        }}
-      >
+        }}>
         <ListItemIcon>
           <InfoIcon />
         </ListItemIcon>
@@ -192,8 +196,7 @@ function ProcedureMenu(props: {
         sx={{ color: "error.main" }}
         onClick={() => {
           handleDrop();
-        }}
-      >
+        }}>
         <ListItemIcon>
           <DeleteForeverIcon color="error" />
         </ListItemIcon>

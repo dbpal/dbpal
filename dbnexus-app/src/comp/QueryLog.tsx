@@ -1,88 +1,56 @@
 import {
-  Box,
+  AlertTitle,
   Button,
   Checkbox,
+  Dialog,
   FormControlLabel,
   IconButton,
-  Modal,
   Paper,
   Stack,
-  TextField,
   Tooltip,
 } from "@mui/material";
-import {
-  DataGrid,
-  GridColDef,
-  GridPaginationModel,
-  GridSlotsComponent,
-  GridSortModel,
-} from "@mui/x-data-grid";
-import { useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
-import {
-  EscDownEvent,
-  modalHandleClose,
-  modalStyle,
-  NameAndQueryId,
-  SetAutoCompletionName,
-} from "./Common";
+import { Dispatch, SetStateAction, useEffect, useMemo, useState } from "react";
+import { EscDownEvent, modalHandleClose, NameAndQueryId } from "./Common";
 import DoneIcon from "@mui/icons-material/Done";
 import CloseIcon from "@mui/icons-material/Close";
 import {
-  ColumnWidth,
   dataGridStyle,
   DataSourceKind,
-  getLanguageFromDataSourceKind,
+  getDefaultLanguage,
   pageSizeOptions,
-  QueryLogHandler,
-  saveAndSetSize,
-  SavePageSize,
-  saveQueryLog,
+  saveQueryKey,
   secondConfirm,
-  TabActiveContext,
 } from "./helper.ts";
-import { ModalHeader, ResizeParentHeight } from "./CommonComp.tsx";
+import { ResizeParentHeight } from "./CommonComp.tsx";
 import { BsFillLightbulbFill } from "react-icons/bs";
-import { NotificationContext } from "./Notification.tsx";
 import {
   AppDataGridPagination,
+  EscPressedDo,
   SimpleFlexEditor,
   StackRowCenter,
 } from "./CommonComp2.tsx";
-
-const initialState: object = {
-  sorting: { sortModel: [{ field: "create_at", sort: "desc" }] },
-};
+import {
+  useBoolSwitch,
+  useColumnWidthStore,
+  useNotification,
+  useQueryLogStore,
+} from "./store.tsx";
+import { CustomToolbar } from "./CustomToolBar.tsx";
+import { DataGrid, GridColDef, GridSlotsComponent } from "./datagridExport.ts";
 
 function QueryLog(props: {
   uuid: string;
   showQueryLog: boolean;
-  setShowQueryLog: (x: boolean) => void;
-  executeTimes: number;
+  setShowQueryLog: Dispatch<SetStateAction<boolean>>;
   queryId?: string;
   kind: DataSourceKind;
 }) {
-  const { uuid, showQueryLog, setShowQueryLog, executeTimes, queryId, kind } = props;
+  const { uuid, showQueryLog, setShowQueryLog, queryId, kind } = props;
   const [selectSql, setSelectSql] = useState<{ sql: string; language: string }>(null);
-  const [page, setPage] = useState(0); // datagrid start with 0
-  const [pageSize, setPagesize] = useState(SavePageSize.instance.get());
   const [logs, setLogs] = useState([]);
-  const [matchSql, setMatchSql] = useState("");
-  const [orderBy, setOrderBy] = useState("");
-  const [total, setTotal] = useState(0);
-  const onRowDoubleClick = useCallback(e => {
-    setSelectSql(e.row);
-  }, []);
-  const handler = useRef(new QueryLogHandler(uuid));
-  const paginationModel = useMemo(() => {
-    return { page: page, pageSize: pageSize };
-  }, [page, pageSize]);
-  const onPaginationModelChange = useCallback((e: GridPaginationModel, reason) => {
-    setPage(e.page);
-    setPagesize(e.pageSize);
-    if (reason.reason == "setPaginationModel") {
-      SavePageSize.instance.save(e.pageSize);
-    }
-  }, []);
+  const { getColumnWidth, setColumnWidth } = useColumnWidthStore();
+  const { query, deleteByUuid } = useQueryLogStore();
+
   const [loading, setLoading] = useState(false);
   let sqlDesc = "sql";
   switch (kind) {
@@ -93,23 +61,23 @@ function QueryLog(props: {
       sqlDesc = "code";
       break;
   }
-  const { showNotification } = useContext(NotificationContext);
-  const columns = [
+  const { showNotification } = useNotification();
+  const columns: GridColDef[] = [
     {
       field: "create_at",
-      width: ColumnWidth.instance.get("create_at"),
+      width: getColumnWidth("create_at"),
       renderHeader: () => {
         return "time";
       },
-      renderCell: params => {
+      renderCell: (params) => {
         // 加z是utc时间
-        return <div>{new Date(params.value + "Z").toLocaleString()}</div>;
+        return <div>{new Date(params.value).toLocaleString()}</div>;
       },
     },
     {
-      width: ColumnWidth.instance.get("success"),
+      width: getColumnWidth("success"),
       field: "success",
-      renderCell: p => {
+      renderCell: (p) => {
         const success = p.row.success;
         if (success) {
           return <DoneIcon color="success" />;
@@ -126,18 +94,20 @@ function QueryLog(props: {
         return sqlDesc;
       },
     },
-  ] as GridColDef[];
+  ];
 
   useEffect(() => {
     const handleReload = async () => {
       setLoading(true);
       try {
-        const total = await handler.current.queryCount(matchSql);
-        setTotal(total);
-        const logs = await handler.current.query(matchSql, page + 1, pageSize, orderBy);
+        const logs = await query(uuid);
         setLogs(logs);
       } catch (e) {
-        showNotification("error", "get query log error", e);
+        showNotification({
+          severity: "error",
+          title: "get query log error",
+          message: e,
+        });
         return;
       } finally {
         setLoading(false);
@@ -146,49 +116,27 @@ function QueryLog(props: {
     if (showQueryLog) {
       handleReload();
     }
-  }, [page, pageSize, matchSql, orderBy, executeTimes, showQueryLog, showNotification]);
-
-  const onColumnResize = useCallback(({ colDef, width }) => {
-    const field = colDef.field;
-    if (field == "create_at" || field == "success") {
-      ColumnWidth.instance.save(field, width);
-    }
-  }, []);
-  const onSortModelChange = useCallback((modal: GridSortModel) => {
-    modal = modal.filter(x => x.sort);
-    const orderBy = modal.map(e => `${e.field} ${e.sort}`).join(" ");
-    setOrderBy(orderBy);
-  }, []);
-  const [modalBox, setModalBox] = useState(null);
-  useEffect(() => {
-    if (modalBox) {
-      const clean = saveAndSetSize(modalBox, "query-sql");
-      return clean;
-    }
-  }, [modalBox]);
-  const vis = useContext(TabActiveContext);
-
-  useEffect(() => {
-    const call = e => {
-      if (e.key === "Escape" && vis && showQueryLog) {
-        setShowQueryLog(false);
-        e.preventDefault();
-      }
-    };
-    document.addEventListener("keydown", call);
-    return () => {
-      document.removeEventListener("keydown", call);
-    };
-  }, [vis, showQueryLog, setShowQueryLog]);
+  }, [query, showNotification, showQueryLog, uuid]);
 
   const [dom, setDom] = useState<HTMLDivElement>(null);
-  const [sq, setSq] = useState(saveQueryLog.get());
+  const { getSwitch, setSwitch } = useBoolSwitch();
+
   const slots = useMemo(() => {
     return {
       pagination: () => {
         return (
-          <Stack direction="row" style={{ flex: 1, justifyContent: "flex-end" }}>
-            <AppDataGridPagination showPageSelect />
+          <Stack
+            direction="row"
+            style={{
+              flex: 1,
+              justifyContent: "space-between",
+              overflow: "auto",
+              alignItems: "center",
+            }}>
+            <CustomToolbar />
+            <Stack direction="row" style={{ alignContent: "center" }}>
+              <AppDataGridPagination showPageSelect />
+            </Stack>
           </Stack>
         );
       },
@@ -208,22 +156,27 @@ function QueryLog(props: {
         maxHeight: "80vh",
       }}
       ref={setDom}
-      elevation={16}
-    >
+      elevation={16}>
+      <EscPressedDo
+        doingIt={() => {
+          return showQueryLog;
+        }}
+        setUndo={() => {
+          setShowQueryLog(false);
+        }}
+      />
       <Stack
         direction="row"
         style={{
           alignItems: "center",
           padding: "0px 4px",
           justifyContent: "space-between",
-        }}
-      >
+        }}>
         <StackRowCenter>
           <IconButton
             onClick={() => {
               setShowQueryLog(false);
-            }}
-          >
+            }}>
             <CloseIcon />
           </IconButton>
           <Tooltip title="double click to open code editor">
@@ -234,15 +187,7 @@ function QueryLog(props: {
           </Tooltip>
         </StackRowCenter>
         <StackRowCenter>
-          filter {sqlDesc}:
-          <TextField
-            value={matchSql}
-            onChange={e => {
-              setMatchSql(e.target.value);
-            }}
-            style={{ flex: 1, maxWidth: "20rem" }}
-          />
-          {total > 0 && (
+          {logs.length > 0 && (
             <Button
               onClick={async () => {
                 try {
@@ -253,15 +198,21 @@ function QueryLog(props: {
                   if (!confirm) {
                     return;
                   }
-                  const r = await handler.current.delete();
-                  showNotification("success", `deleted ${r.rowsAffected} query log`);
+                  const rowsAffected = await deleteByUuid(uuid);
+                  showNotification({
+                    severity: "success",
+                    title: `deleted ${rowsAffected} query log`,
+                  });
                   setShowQueryLog(false);
                 } catch (e) {
-                  showNotification("error", "delete failed", e);
+                  showNotification({
+                    severity: "error",
+                    title: "delete failed",
+                    message: e,
+                  });
                   return;
                 }
-              }}
-            >
+              }}>
               delete
             </Button>
           )}
@@ -269,11 +220,9 @@ function QueryLog(props: {
             <FormControlLabel
               control={
                 <Checkbox
-                  checked={sq}
+                  checked={getSwitch(saveQueryKey)}
                   onChange={() => {
-                    const newValue = !sq;
-                    saveQueryLog.save(newValue);
-                    setSq(newValue);
+                    setSwitch(saveQueryKey, !getSwitch(saveQueryKey));
                   }}
                 />
               }
@@ -284,63 +233,53 @@ function QueryLog(props: {
       </Stack>
       {showQueryLog && logs.length > 0 && (
         <DataGrid
-          onRowDoubleClick={onRowDoubleClick}
+          onRowDoubleClick={(e) => {
+            setSelectSql(e.row);
+          }}
+          showToolbar={false}
           columns={columns}
           rows={logs}
           slots={slots}
           style={dataGridStyle}
           pageSizeOptions={pageSizeOptions}
-          paginationModel={paginationModel}
-          onPaginationModelChange={onPaginationModelChange}
-          initialState={initialState}
-          onColumnResize={onColumnResize}
-          onSortModelChange={onSortModelChange}
-          rowCount={total}
-          paginationMode="server"
+          initialState={{
+            sorting: { sortModel: [{ field: "create_at", sort: "desc" }] },
+          }}
+          onColumnResize={({ colDef, width }) => {
+            const field = colDef.field;
+            if (field == "create_at" || field == "success") {
+              setColumnWidth(field, width);
+            }
+          }}
           loading={loading}
         />
       )}
-
       {dom && (
         <ResizeParentHeight box={dom} min={200} saveHeightName="query-log-height" />
       )}
-
       {selectSql && (
-        <Modal
-          open={!!selectSql}
+        <Dialog
+          fullWidth
+          maxWidth="md"
+          slotProps={{ paper: { style: { height: "50vh" } } }}
+          open={true}
           onClose={modalHandleClose((e: EscDownEvent) => {
             e.preventDefault();
             setSelectSql(null);
           })}
-        >
-          <Box
-            sx={{ resize: "both", ...modalStyle }}
-            ref={setModalBox}
-            width="60%"
-            height="40vh"
-          >
-            <ModalHeader
-              title="View SQL"
-              handleClose={() => {
-                setSelectSql(null);
-              }}
-            />
-            <SimpleFlexEditor
-              value={selectSql.sql}
-              handleEditor={e => {
-                SetAutoCompletionName.set(
-                  e.getModel().id,
-                  new NameAndQueryId(uuid, kind, queryId),
-                );
-              }}
-              language={
-                selectSql.language
-                  ? selectSql.language
-                  : getLanguageFromDataSourceKind(kind)
-              }
-            />
-          </Box>
-        </Modal>
+          disableEnforceFocus
+          disableAutoFocus>
+          <AlertTitle> view sql </AlertTitle>
+          <SimpleFlexEditor
+            value={selectSql.sql}
+            handleEditor={(e) => {
+              e.getModel()._dbpal_query_id = new NameAndQueryId(uuid, kind, queryId);
+            }}
+            language={
+              selectSql.language ? selectSql.language : getDefaultLanguage(kind)
+            }
+          />
+        </Dialog>
       )}
     </Paper>
   );

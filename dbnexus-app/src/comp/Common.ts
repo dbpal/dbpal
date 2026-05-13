@@ -1,23 +1,87 @@
 import { SxProps } from "@mui/material";
 import { editor, languages, Position } from "monaco-editor";
-import { types } from "./ApiStruct.ts";
 import { format as formatSql, SqlLanguage } from "sql-formatter";
-import { createContext } from "react";
-import { TabContent } from "./Tabs.tsx";
-import { Channel, invoke } from "@tauri-apps/api/core";
+import { Channel } from "@tauri-apps/api/core";
 import { message } from "@tauri-apps/plugin-dialog";
 import * as keyring from "tauri-plugin-keyring-api";
+
+import { v4 as uuidv4 } from "uuid";
 import {
-  appDatabase,
   backendCompletionItemToEditor,
   DataSourceKind,
-  extractConfigNameFromUuid,
-  MuiDataGridData,
   QueryRespData,
   secondConfirm,
 } from "./helper.ts";
-import { GridColDef } from "@mui/x-data-grid";
-import { loader } from "@monaco-editor/react";
+import * as monaco from "monaco-editor";
+import { readFile, stat } from "@tauri-apps/plugin-fs";
+import { filesize } from "filesize";
+import { commands, ExportKind, Field, QueryEvent, redisCommands } from "./bindings.ts";
+import { NotificationParams } from "./store.tsx";
+import { GridColDef } from "./datagridExport.ts";
+
+/**
+ * Converts a local file path to a Data URL (base64)
+ * @param filePath - Absolute path to the image (e.g., from dialog.open)
+ * @returns Promise<string> - The formatted data:image/...;base64 string
+ */
+const convertPathToDataUrl = async (filePath: string): Promise<string> => {
+  try {
+    const fileInfo = await stat(filePath);
+
+    if (fileInfo.size > 10 * 1024 * 1024) {
+      message(`file is too large ${filesize(fileInfo.size)} exceed 10M`);
+      return;
+    }
+
+    // 1. Read file as Uint8Array
+    const contents: Uint8Array = await readFile(filePath);
+
+    // 2. Map extension to MIME type
+    const extension = filePath.split(".").pop()?.toLowerCase() || "";
+    let mimeType: string;
+
+    switch (extension) {
+      case "jpg":
+      case "jpeg":
+        mimeType = "image/jpeg";
+        break;
+      case "png":
+        mimeType = "image/png";
+        break;
+      case "gif":
+        mimeType = "image/gif";
+        break;
+      case "webp":
+        mimeType = "image/webp";
+        break;
+      case "svg":
+        mimeType = "image/svg+xml";
+        break;
+      default:
+        mimeType = "image/png"; // Default fallback
+    }
+
+    // 3. Efficient Base64 conversion (Handles large files better than .reduce)
+    const base64 = uint8ArrayToBase64(contents);
+
+    return `data:${mimeType};base64,${base64}`;
+  } catch (error) {
+    console.error("Tauri FS Error:", error);
+    throw new Error(`Failed to convert image: ${error}`);
+  }
+};
+
+/**
+ * Helper to convert Uint8Array to Base64 string efficiently
+ */
+function uint8ArrayToBase64(buffer: Uint8Array): string {
+  let binary = "";
+  const len = buffer.byteLength;
+  for (let i = 0; i < len; i++) {
+    binary += String.fromCharCode(buffer[i]);
+  }
+  return window.btoa(binary);
+}
 
 const modalStyle: SxProps = {
   position: "fixed",
@@ -36,66 +100,14 @@ const modalStyle: SxProps = {
   display: "flex",
   overflow: "auto",
   flexDirection: "column",
-  animation: "modalAnimation 0.6s ease-out",
 };
-
-class Connection {
-  id: number;
-  name: string;
-  config: string;
-}
-
-class ConnectionHandler {
-  static async getByName(name: string): Promise<types.DBConnectionConfig> {
-    try {
-      const x = await appDatabase.select<Connection[]>(
-        "select * from connection where name=?",
-        [name],
-      );
-      if (x.length != 1) {
-        message("database should return one result", { kind: "error" });
-        return null;
-      }
-      const c = JSON.parse(x[0].config);
-      return c as types.DBConnectionConfig;
-    } catch (e) {
-      message(`get connection failed`, { kind: "error" });
-      console.error("get connection failed,err:", e);
-    }
-    return null;
-  }
-  static async deleteConn(name: string) {
-    return appDatabase.execute("delete from connection where name = ?", [name]);
-  }
-  static async getAll(): Promise<types.DBConnectionConfig[]> {
-    const c = await appDatabase.select<Connection[]>(
-      "select * from connection order by id desc",
-    );
-    return c.map((x) => JSON.parse(x.config));
-  }
-  static async save(config: types.DBConnectionConfig) {
-    return appDatabase.execute(
-      "insert into connection(name,config) values(?,?)",
-      [
-        config.name,
-        JSON.stringify(config),
-      ],
-    );
-  }
-
-  static nameDuplicated(name: string): Promise<boolean> {
-    return appDatabase
-      .select("select count(*) as count from connection where name=?", [name])
-      .then((x) => x[0].count != 0);
-  }
-}
 
 async function dropDatabase(props: {
   uuid: string;
-  database;
-  showNotification;
-  okCallback?;
-}) {
+  database: string;
+  showNotification: (params: NotificationParams) => void;
+  okCallback?: () => void;
+}): Promise<void> {
   const { uuid, database, showNotification, okCallback } = props;
 
   const confirm = await secondConfirm({
@@ -105,19 +117,30 @@ async function dropDatabase(props: {
   if (!confirm) {
     return;
   }
-  invoke("drop_database", { name: uuid, database })
+  commands
+    .dropDatabase(uuid, database)
     .then(() => {
-      showNotification("success", "drop ok");
+      showNotification({ severity: "success", title: "drop ok" });
       if (okCallback) {
         okCallback();
       }
     })
     .catch((e) => {
-      showNotification("error", "drop failed", e);
+      showNotification({ severity: "error", title: "drop failed", message: e });
     });
 }
 
-async function dropSchema({ uuid, schema, showNotification, okCallback }) {
+async function dropSchema({
+  uuid,
+  schema,
+  showNotification,
+  okCallback,
+}: {
+  uuid: string;
+  schema: string;
+  showNotification: (params: NotificationParams) => void;
+  okCallback: () => void;
+}): Promise<void> {
   const confirm = await secondConfirm({
     title: `drop '${schema}'`,
     confirmText: "Drop",
@@ -125,217 +148,178 @@ async function dropSchema({ uuid, schema, showNotification, okCallback }) {
   if (!confirm) {
     return;
   }
-  invoke("drop_schema", { name: uuid, schema })
+  commands
+    .dropSchema(uuid, schema)
     .then(() => {
-      showNotification("success", "Drop OK");
+      showNotification({ severity: "success", title: "Drop OK" });
       okCallback();
     })
     .catch((e) => {
-      showNotification("error", "Drop failure", e);
+      showNotification({ severity: "error", title: "Drop failure", message: e });
     });
 }
 
-function tabsHasId(tabs: TabContent[], id: string): number | null {
-  for (let i = 0; i < tabs.length; i++) {
-    const tab = tabs[i];
-    if (tab.id === id) {
-      return i;
+function reloadOK(showNotification: (params: NotificationParams) => void): void {
+  showNotification({ severity: "success", title: "data loaded." });
+}
+
+declare module "monaco-editor" {
+  // eslint-disable-next-line @typescript-eslint/no-namespace
+  namespace editor {
+    interface ITextModel {
+      _dbpal_query_id?: NameAndQueryId;
     }
   }
-  return null;
-}
-
-interface DefAndMetas {
-  def: string;
-  metas?: types.MetaValue[];
-}
-
-const OpenedContext = createContext<{ opened: boolean; setOpened: any }>(null);
-
-function reloadOK(showNotification) {
-  showNotification("success", "data loaded.");
 }
 
 const autoCompletion = async (
-  modal: editor.ITextModel,
+  model: editor.ITextModel,
   pos: Position,
-): Promise<languages.CompletionList> => {
+): Promise<languages.CompletionList | undefined> => {
+  const sql = model.getValue();
+  const name = model._dbpal_query_id;
+  if (!name) {
+    console.error("editor id map to backend name is nul,this is internal bug");
+    return;
+  }
   try {
-    const sql = modal.getValue();
-    const name = SetAutoCompletionName.get(modal.id);
-    if (!name) {
-      console.error(
-        "editor id map to backend name is nul,this is internal bug",
-      );
-      return;
-    }
-    const completionItem = await invoke<types.CompletionList>(
-      "auto_completion",
-      {
-        sql,
-        line: pos.lineNumber,
-        col: pos.column,
-        name: name.name,
-        queryId: name.queryId,
-      },
+    const result = await commands.autoCompletion(
+      name.name,
+      name.queryId,
+      sql,
+      pos.lineNumber,
+      pos.column,
     );
-    const suggestions = backendCompletionItemToEditor(completionItem.items);
-    suggestions.incomplete = completionItem.incomplete;
+    const suggestions = backendCompletionItemToEditor(result.items);
+    suggestions.incomplete = result.incomplete;
     return suggestions;
   } catch (e) {
-    console.error("completion server error:", e);
-    return { suggestions: [] };
+    console.error("completion error", e);
   }
 };
 
 const aiTextAutoCompletion = async (
-  modal: editor.ITextModel,
+  model: editor.ITextModel,
   pos: Position,
 ): Promise<languages.CompletionList> => {
   try {
-    const text = modal.getValue();
+    const text = model.getValue();
     {
       // try if this is ai text completion
-      const name = AITextCompletionName.get(modal.id);
+      const name = model._dbpal_query_id;
       if (name) {
-        const completionItem = await invoke<types.CompletionList>(
-          "ai_text_completion",
-          {
-            text,
-            line: pos.lineNumber,
-            col: pos.column,
-            name: name.name,
-            queryId: name.queryId,
-          },
+        const result = await commands.aiTextCompletion(
+          name.name,
+          text,
+          pos.lineNumber,
+          pos.column,
         );
-        const suggestions = backendCompletionItemToEditor(completionItem.items);
-        suggestions.incomplete = completionItem.incomplete;
+        const suggestions = backendCompletionItemToEditor(result.items);
+        suggestions.incomplete = result.incomplete;
         return suggestions;
       }
     }
     console.info("nothing to complete");
     return { suggestions: [] };
   } catch (e) {
-    console.error("completion server error:", e);
+    console.error("AI text completion error", e);
     return { suggestions: [] };
   }
 };
 
-loader.init().then((monaco) => {
-  monaco.languages.registerCompletionItemProvider("sql", {
-    triggerCharacters: ["."],
-    provideCompletionItems(model, position: Position) {
-      return autoCompletion(model, position);
-    },
-  });
-  monaco.languages.register({ id: "text" });
+monaco.languages.registerCompletionItemProvider("sql", {
+  triggerCharacters: ["."],
+  provideCompletionItems(model, position: Position) {
+    return autoCompletion(model, position);
+  },
+});
+monaco.languages.register({ id: "text" });
 
-  monaco.languages.registerCompletionItemProvider("text", {
-    triggerCharacters: ["."],
-    provideCompletionItems(model, position: Position) {
-      return aiTextAutoCompletion(model, position);
-    },
-  });
-
-  monaco.languages.registerDocumentFormattingEditProvider("sql", {
-    provideDocumentFormattingEdits(model, options) {
-      const name = SetAutoCompletionName.get(model.id);
-      if (!name) {
-        console.error(
-          "editor id map to backend name is nul,this is internal bug",
-        );
-        return;
-      }
-      const text = makeFormatFn(name.kind)(model.getValue(), {
-        insertSpaces: options.insertSpaces,
-        tabSize: options.tabSize,
-      });
-      if (!text) {
-        return null;
-      }
-      return [{ range: model.getFullModelRange(), text }];
-    },
-  });
-
-  monaco.languages.registerCompletionItemProvider("redis", {
-    provideCompletionItems(model, position: Position) {
-      return autoCompletion(model, position);
-    },
-  });
+monaco.languages.registerCompletionItemProvider("text", {
+  triggerCharacters: ["."],
+  provideCompletionItems(model, position: Position) {
+    return aiTextAutoCompletion(model, position);
+  },
 });
 
-function makeFormatFn(kind: DataSourceKind) {
-  return (sql: string, opts?: languages.FormattingOptions) => {
-    if (!opts) {
-      opts = {
-        tabSize: 2,
-        insertSpaces: true,
-      };
+monaco.languages.registerDocumentFormattingEditProvider("sql", {
+  provideDocumentFormattingEdits(model, options) {
+    const name = model._dbpal_query_id;
+    if (!name) {
+      console.error("editor id map to backend name is nul,this is internal bug");
+      return;
     }
-    try {
-      // https://github.com/sql-formatter-org/sql-formatter/blob/master/docs/language.md
-      let language: SqlLanguage = "sql";
-      switch (kind) {
-        case DataSourceKind.DuckDB:
-          language = "duckdb";
-          break;
-        case DataSourceKind.Mysql:
-          language = "mysql";
-          break;
-        case DataSourceKind.MariaDB:
-          language = "mariadb";
-          break;
-        case DataSourceKind.TiDB:
-          language = "tidb";
-          break;
-        case DataSourceKind.Oracle:
-          language = "plsql";
-          break;
-        case DataSourceKind.Postgres:
-        case DataSourceKind.Cockroach:
-          language = "postgresql";
-          break;
-        case DataSourceKind.LibSql:
-        case DataSourceKind.Sqlite:
-          language = "sqlite";
-          break;
-      }
-      return formatSql(sql, {
-        language,
-        tabWidth: opts.tabSize,
-        useTabs: !opts.insertSpaces,
-      });
-    } catch (e) {
-      message("format failed error:" + String(e), { kind: "error" });
-      console.error("format sql failed error:", e);
-      return sql;
+    const text = formatSqlFn(name.kind, model.getValue(), options.tabSize);
+    if (!text) {
+      return null;
     }
-  };
-}
+    return [{ range: model.getFullModelRange(), text }];
+  },
+});
 
-type QueryEvent =
-  | ({ kind: "structure" } & { resp: MuiDataGridData })
-  | ({ kind: "err" } & { err: string })
-  | ({ kind: "data" } & { data: string[][] })
-  | ({ kind: "status" } & { status: string })
-  | { kind: "end" };
+monaco.languages.registerCompletionItemProvider("redis", {
+  provideCompletionItems(model, position: Position) {
+    return autoCompletion(model, position);
+  },
+});
+function formatSqlFn(kind: DataSourceKind, sql: string, tabSize: number): string {
+  const opts = {
+    tabSize,
+    insertSpaces: true,
+  };
+  try {
+    // https://github.com/sql-formatter-org/sql-formatter/blob/master/docs/language.md
+    let language: SqlLanguage = "sql";
+    switch (kind) {
+      case DataSourceKind.DuckDB:
+        language = "duckdb";
+        break;
+      case DataSourceKind.Mysql:
+        language = "mysql";
+        break;
+      case DataSourceKind.MariaDB:
+        language = "mariadb";
+        break;
+      case DataSourceKind.TiDB:
+        language = "tidb";
+        break;
+      case DataSourceKind.Oracle:
+        language = "plsql";
+        break;
+      case DataSourceKind.Postgres:
+      case DataSourceKind.Cockroach:
+        language = "postgresql";
+        break;
+      case DataSourceKind.LibSql:
+      case DataSourceKind.Sqlite:
+        language = "sqlite";
+        break;
+    }
+    return formatSql(sql, {
+      language,
+      tabWidth: opts.tabSize,
+      useTabs: !opts.insertSpaces,
+    });
+  } catch (e) {
+    message("format failed error:" + String(e), { kind: "error" });
+    console.error("format sql failed error:", e);
+    return sql;
+  }
+}
 
 class QueryConn {
   queryId: string;
   uuid: string;
   kind: DataSourceKind;
 
-  constructor(uuid, queryId: string, kind: DataSourceKind) {
+  constructor(uuid: string, queryId: string, kind: DataSourceKind) {
     this.queryId = queryId;
     this.uuid = uuid;
     this.kind = kind;
   }
-  open(): Promise<void> {
+  async open(): Promise<void> {
     console.log("open connection", this.uuid, this.queryId);
-    return invoke("query_sql_open_connection", {
-      name: this.uuid,
-      id: this.queryId,
-    });
+    return commands.querySqlOpenConnection(this.uuid, this.queryId);
   }
 
   supportTransaction(): boolean {
@@ -350,84 +334,57 @@ class QueryConn {
       DataSourceKind.Postgres,
       DataSourceKind.Cockroach,
       DataSourceKind.SqlServer,
+      DataSourceKind.DuckDB,
     ].includes(this.kind);
   }
 
   exportQueryResult(
     queryId: string,
     sql: string,
-    kind: types.ExportKind,
+    kind: ExportKind,
     file: string,
     taskId: string,
     sizeEmitter: Channel<number>,
   ): Promise<void> {
-    return invoke<void>("export_query_result_to_file", {
-      name: this.uuid,
+    return commands.exportQueryResultToFile(
+      this.uuid,
+      taskId,
       sql,
+      queryId,
       kind,
       file,
-      taskId,
       sizeEmitter,
-      queryId,
-    });
+    );
   }
 
   setAutoCommit(commit: boolean): Promise<void> {
-    return invoke<void>("query_set_autocommit", {
-      name: this.uuid,
-      queryId: this.queryId,
-      commit,
-    });
+    return commands.querySetAutocommit(this.uuid, this.queryId, commit);
   }
   getAutoCommit(): Promise<boolean> {
-    return invoke<boolean>("query_get_commit", {
-      name: this.uuid,
-      queryId: this.queryId,
-    });
+    return commands.queryGetCommit(this.uuid, this.queryId);
   }
   commit(): Promise<void> {
-    return invoke<void>("query_commit", {
-      name: this.uuid,
-      queryId: this.queryId,
-    });
+    return commands.queryCommit(this.uuid, this.queryId);
   }
   rollback(): Promise<void> {
-    return invoke<void>("query_rollback", {
-      name: this.uuid,
-      queryId: this.queryId,
-    });
+    return commands.queryRollback(this.uuid, this.queryId);
   }
-  queryOP(
-    sql: string,
-    emit: Channel<QueryEvent>,
-    maxRow: number,
-  ): Promise<void> {
-    return invoke<void>("query_sql", {
-      name: this.uuid,
-      queryId: this.queryId,
-      sql,
-      emit,
-      maxRow,
-    });
+  queryOP(sql: string, emit: Channel<QueryEvent>, maxRow: number): Promise<void> {
+    return commands.querySql(this.uuid, this.queryId, maxRow, sql, emit);
   }
   executeOP(sql: string): Promise<QueryRespData> {
-    return invoke<QueryRespData>("execute_sql", {
-      name: this.uuid,
-      queryId: this.queryId,
-      sql,
-    });
+    return commands.executeSql(this.uuid, this.queryId, sql);
   }
 
   isDangerSql(sql: string): Promise<boolean> {
-    return invoke("is_dangerous_sql", { name: this.uuid, sql });
+    return commands.isDangerousSql(this.uuid, sql);
   }
   destroy() {
-    console.log("destroy connection of:", this.queryId);
-    invoke("query_sql_close_connection", {
-      name: this.uuid,
-      queryId: this.queryId,
-    })
-      .then(() => {})
+    commands
+      .querySqlCloseConnection(this.uuid, this.queryId)
+      .then(() => {
+        console.log("destroy connection of:", this.queryId);
+      })
       .catch((e) => {
         console.error("close connection failed,err", e);
       });
@@ -435,10 +392,7 @@ class QueryConn {
 }
 
 function modalHandleClose(
-  callback: (
-    e: EscDownEvent,
-    reason: "backdropClick" | "escapeKeyDown",
-  ) => void,
+  callback: (e: EscDownEvent, reason: "backdropClick" | "escapeKeyDown") => void,
 ) {
   return (e: EscDownEvent, reason: "backdropClick" | "escapeKeyDown") => {
     if (reason === "backdropClick") {
@@ -448,12 +402,12 @@ function modalHandleClose(
   };
 }
 
-function extractBaseName(file: string) {
-  const fileName = file.match(/[^\\/]+$/)[0];
+function extractBaseName(file: string): string {
+  const fileName = file.match(/[^\\/]+$/)?.[0] ?? "";
   return fileName;
 }
 
-const keyNotInTable = "KWfCwJ62hRf6TKuvMcsQ3eXGtD1tdg2J";
+const keyNotInTable: string = "dbpal-KWfCwJ62hRf6TKuvMcsQ3eXGtD1tdg2J";
 
 type EscDownEvent = { preventDefault: () => void };
 
@@ -464,50 +418,34 @@ class NameAndQueryId {
     public queryId?: string,
   ) {}
 }
-class SetAutoCompletionName {
-  static id2Name = new Map<string, NameAndQueryId>();
-  static set(editorId: string, x: NameAndQueryId) {
-    SetAutoCompletionName.id2Name.set(editorId, x);
-  }
 
-  static get(editorId: string): NameAndQueryId | null {
-    return SetAutoCompletionName.id2Name.get(editorId);
-  }
-}
-
-class AITextCompletionName {
-  static id2Name = new Map<string, string>();
-  static set(editorID: string, queryEditorID: string) {
-    AITextCompletionName.id2Name.set(editorID, queryEditorID);
-  }
-
-  static get(editorId: string): NameAndQueryId | null {
-    let id = AITextCompletionName.id2Name.get(editorId);
-    if (!id) {
-      return null;
-    }
-    return SetAutoCompletionName.get(id);
-  }
-}
-
-type FieldAndGridField = types.Field & GridColDef;
+type FieldAndGridField = Field & GridColDef;
 
 class PassWordManager {
-  static service = "site.dbpal.dev";
+  static serviceConnection = "connetion.site.dbpal.dev";
+  static serviceLLM = "llm.site.dbpal.dev";
+
   static password = new Map<string, string>();
-  static async savePassword(name: string, pass: string, save2KeyRing: boolean) {
-    PassWordManager.password.set(name, pass);
+
+  static async savePassword(
+    service: string,
+    name: string,
+    pass: string,
+    save2KeyRing: boolean,
+  ) {
+    PassWordManager.password.set(PassWordManager.formatKey(service, name), pass);
     if (save2KeyRing) {
       console.info("save password to keyring", name, pass);
-      await keyring.setPassword(PassWordManager.service, name, pass);
+      await keyring.setPassword(service, name, pass);
     }
   }
-  static async getPassword(name: string) {
-    if (PassWordManager.password.has(name)) {
-      return PassWordManager.password.get(name);
+  static async getPassword(service: string, name: string) {
+    const key = PassWordManager.formatKey(service, name);
+    if (PassWordManager.password.has(key)) {
+      return PassWordManager.password.get(key);
     }
     try {
-      return await keyring.getPassword(PassWordManager.service, name);
+      return await keyring.getPassword(service, name);
     } catch (e) {
       console.log(
         "get password failed,this is fine maybe this connection don't have password",
@@ -516,18 +454,23 @@ class PassWordManager {
     }
     return null;
   }
-  static async deletePassword(name: string) {
+  static formatKey(service: string, name: string) {
+    return `${service}-${name}`;
+  }
+  static async deletePassword(service: string, name: string) {
     try {
-      PassWordManager.password.delete(name);
-      return await keyring.deletePassword(PassWordManager.service, name);
+      PassWordManager.password.delete(PassWordManager.formatKey(service, name));
+      return await keyring.deletePassword(service, name);
     } catch (e) {
       console.log("delete password failure", e);
     }
   }
 }
 
-const connectionChangeEvent = "connection-has-changged";
-async function editorAppendContent(editor: editor.IStandaloneCodeEditor, text) {
+async function editorAppendContent(
+  editor: editor.IStandaloneCodeEditor,
+  text: string,
+): Promise<void> {
   const model = editor.getModel();
   const lastLine = model.getLineCount();
   const lastCol = model.getLineMaxColumn(lastLine);
@@ -546,77 +489,103 @@ async function editorAppendContent(editor: editor.IStandaloneCodeEditor, text) {
   editor.revealLine(lastLine + 1);
 }
 
-interface TableFilter {
-  filter: string;
+export function isSQLCode(codeContent: string, langTag: string = ""): boolean {
+  // 1. Check Language Identifier (Highest Priority)
+  const sqlTags = new Set([
+    "sql",
+    "mysql",
+    "postgresql",
+    "postgres",
+    "psql",
+    "tsql",
+    "plsql",
+    "sqlite",
+    "mariadb",
+    "oracle",
+    "hive",
+    "presto",
+  ]);
+
+  const normalizedTag = langTag.toLowerCase().trim();
+  if (sqlTags.has(normalizedTag)) {
+    return true;
+  }
+
+  // 2. Keyword Pattern Matching (Fall-back for untagged blocks)
+  // We use word boundaries (\b) and case-insensitive flags
+  const sqlPatterns = [
+    /\bSELECT\b.*\bFROM\b/is,
+    /\bINSERT\s+INTO\b/is,
+    /\bUPDATE\b.*\bSET\b/is,
+    /\bDELETE\s+FROM\b/is,
+    /\bCREATE\s+(TABLE|VIEW|INDEX|DATABASE|SCHEMA)\b/is,
+    /\bALTER\s+TABLE\b/is,
+    /\bDROP\s+(TABLE|VIEW)\b/is,
+    /\bGROUP\s+BY\b/is,
+    /\bORDER\s+BY\b/is,
+    /\bLEFT|RIGHT|INNER\s+JOIN\b/is,
+  ];
+
+  const isKeywordMatch = sqlPatterns.some((regex) => regex.test(codeContent));
+  if (isKeywordMatch) return true;
+
+  // 3. Structural Clues (Comments or Semicolons)
+  // Only confirm if a basic SQL verb is also present to avoid false positives with Shell scripts
+  const hasSemicolon = /;\s*$/.test(codeContent);
+  const hasSqlComments = /--\s+|(\/\*[\s\S]*?\*\/)/.test(codeContent);
+  const hasBasicVerb = /\b(SELECT|INSERT|UPDATE|DELETE|CREATE|DROP|GRANT)\b/i.test(
+    codeContent,
+  );
+
+  if ((hasSemicolon || hasSqlComments) && hasBasicVerb) {
+    return true;
+  }
+
+  return false;
 }
 
-class TableFilterHandler {
-  static async get(uuid: string, name: string) {
-    return appDatabase.select<TableFilter[]>(
-      "select filter from table_filter where uuid=? and name=?",
-      [uuid, name],
-    );
-  }
-
-  static async add(uuid: string, name: string, filter: string) {
-    await appDatabase.execute(
-      "replace into table_filter (uuid,connection_name,name,filter,last_modified) values (?,?,?,?,?)",
-      [uuid, extractConfigNameFromUuid(uuid), name, filter, new Date()],
-    );
-    let count = (
-      await appDatabase.select(
-        "select count(*) as count  from table_filter where uuid=? and name=?",
-        [uuid, name],
-      )
-    )[0].count;
-    if (count > 5) {
-      await appDatabase.execute(
-        "delete from table_filter where uuid =? and name=? order by last_modified limit 1",
-        [uuid, name],
-      );
+export function isRedisCode(code: string): boolean {
+  let codeUpper: string = code.toUpperCase();
+  for (const cmd of redisCommands) {
+    if (codeUpper.includes(cmd)) {
+      return true;
     }
   }
-  static async deleteByConnectionName(name: string) {
-    try {
-      await appDatabase.execute(
-        "delete from table_filter where connection_name=?",
-        [
-          name,
-        ],
-      );
-    } catch (e) {
-      console.error("delete table filter failed,err:", e);
-      message("delete table filter failed,err:" + String(e), { kind: "error" });
-    }
-  }
+  return false;
 }
 
+export function generateRandomId(length = 8) {
+  const letters = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ";
+  const allChars = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
+
+  // 1. 确保首位是字母
+  let result = letters.charAt(Math.floor(Math.random() * letters.length));
+
+  // 2. 生成剩余部分
+  for (let i = 1; i < length; i++) {
+    result += allChars.charAt(Math.floor(Math.random() * allChars.length));
+  }
+
+  return result;
+}
+// seprate window provider query id to avoid conflict with editor content
+const providerQueryID = { id: "" };
 export {
-  AITextCompletionName,
-  connectionChangeEvent,
-  ConnectionHandler,
   dropDatabase,
   dropSchema,
   editorAppendContent,
   extractBaseName,
   keyNotInTable,
-  makeFormatFn,
+  formatSqlFn,
   modalHandleClose,
   modalStyle,
   NameAndQueryId,
-  OpenedContext,
   PassWordManager,
   QueryConn,
   reloadOK,
-  SetAutoCompletionName,
-  TableFilterHandler,
-  tabsHasId,
+  convertPathToDataUrl,
+  uint8ArrayToBase64,
+  providerQueryID,
+  uuidv4,
 };
-
-export type {
-  DefAndMetas,
-  EscDownEvent,
-  FieldAndGridField,
-  QueryEvent,
-  TableFilter,
-};
+export type { EscDownEvent, FieldAndGridField };

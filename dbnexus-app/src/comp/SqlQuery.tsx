@@ -1,107 +1,104 @@
-import { Editor } from "@monaco-editor/react";
-import { MultiQueryResp, QueryRespData } from "./QueryResp";
-import EventNoteIcon from "@mui/icons-material/EventNote";
-import {
-  Box,
-  Checkbox,
-  Chip,
-  IconButton,
-  Modal,
-  Stack,
-  Tooltip,
-  Typography,
-} from "@mui/material";
+import { MultiQueryResp } from "./QueryResp";
+import { Chip, Divider, IconButton, Stack, Tooltip } from "@mui/material";
 import { Panel, PanelGroup, PanelResizeHandle } from "react-resizable-panels";
 import PlayArrowIcon from "@mui/icons-material/PlayArrow";
 import { FaExclamation } from "react-icons/fa";
-import {
-  ReactNode,
-  useCallback,
-  useContext,
-  useEffect,
-  useMemo,
-  useRef,
-  useState,
-} from "react";
+import { ReactNode, useCallback, useContext, useEffect, useRef, useState } from "react";
 import FastForwardIcon from "@mui/icons-material/FastForward";
-import { editor, Position } from "monaco-editor";
-import {
-  EscDownEvent,
-  modalHandleClose,
-  modalStyle,
-  NameAndQueryId,
-  QueryConn,
-  QueryEvent,
-  SetAutoCompletionName,
-} from "./Common.ts";
+import { editor } from "monaco-editor";
+import { isRedisCode, isSQLCode, NameAndQueryId, QueryConn } from "./Common.ts";
 import { BsFillLightbulbFill } from "react-icons/bs";
 import { FaUpload } from "react-icons/fa";
 import { MdOutlineReply } from "react-icons/md";
-import { NotificationContext } from "./Notification.tsx";
-import { QueryLog } from "./QueryLog.tsx";
 import RefreshIcon from "@mui/icons-material/Refresh";
 import {
   DataSourceKind,
-  ErrAndLoc,
   getEditorText,
-  getLanguageFromDataSourceKind,
-  MuiDataGridData,
-  QueryLogHandler,
   resizeHandlerSize,
   rustResultOk,
-  saveQueryLog,
   secondConfirm,
-  SetCloseConfirmTextContext,
-  SettingContext,
+  TabContext,
   shrinkAble,
-  TabActiveContext,
+  saveQueryKey,
+  MonacoEditor,
+  QueryIDEditorChatCtx,
+  getDefaultLanguage,
+  jumpToEditorText,
+  QueryRespData,
 } from "./helper.ts";
 import ArrowCircleDownRoundedIcon from "@mui/icons-material/ArrowCircleDownRounded";
 import { ExportView } from "./Export.tsx";
-import { ExecutingTime, PossibleParseError } from "./CommonComp.tsx";
 import {
+  AiMarkdownModel,
+  AiMarkdownModelSwitch,
   CancelButton,
-  EditorBar,
+  EscPressedDo,
+  FetchTimeAndLoadingStatus,
   LoadStoreFile,
   QueryStatus,
   SaveFavoriteSqlView,
+  ShowQueryLog,
   SliderSize,
   ToggleChatShow,
 } from "./CommonComp2.tsx";
 import { ModifyLLMConfigModal } from "./Settings.tsx";
-import { cancelTask, checkSql } from "./handlers.ts";
+import { cancelTask } from "./handlers.ts";
 import { Channel } from "@tauri-apps/api/core";
-import { v4 as uuidv4 } from "uuid";
+
+import {
+  useBoolSwitch,
+  useConfirmMsg,
+  useNotification,
+  useOneShotDialogUI,
+  useQueryExtraUI,
+  useQueryLogStore,
+  UseSizeConfig,
+  useSizeStore,
+} from "./store.tsx";
+import { QueryEvent } from "./bindings.ts";
+
 function SqlTransaction(props: { conn: QueryConn; executeTimes: number }) {
   const { conn, executeTimes } = props;
   const [commit, setCommit] = useState(true);
-  const { showNotification } = useContext(NotificationContext);
+  const { showNotification } = useNotification();
   const [txCount, setTxCount] = useState(0);
-  const setCloseConfirm = useContext(SetCloseConfirmTextContext);
-  const handleQueryCommit = useCallback(async () => {
+  const tabCtx = useContext(TabContext);
+  const { removeConfirmMsg, addConfirmMsg } = useConfirmMsg();
+
+  const queryCommit = useCallback(async () => {
     try {
       const c = await conn.getAutoCommit();
       setCommit(c);
     } catch (e) {
-      showNotification("error", "get commit model failed", e);
+      showNotification({
+        severity: "error",
+        title: "get commit model failed",
+        message: e,
+      });
     }
   }, [conn, showNotification]);
+
   useEffect(() => {
     setTxCount(0);
     if (commit) {
-      setCloseConfirm("");
+      removeConfirmMsg(tabCtx.id);
     } else {
-      setCloseConfirm(
+      addConfirmMsg(
+        tabCtx.id,
         "In Transaction,better commit or rollback.uncommit transaction may lead database locks",
       );
     }
-  }, [commit, setCloseConfirm]);
+
+    return () => {
+      removeConfirmMsg(tabCtx.id);
+    };
+  }, [commit, tabCtx.id, removeConfirmMsg, addConfirmMsg]);
 
   useEffect(() => {
     //这里的顺序很重要
-    setTxCount(e => e + 1);
-    handleQueryCommit();
-  }, [executeTimes, handleQueryCommit]);
+    setTxCount((e) => e + 1);
+    queryCommit();
+  }, [executeTimes, queryCommit]);
 
   const commitTx = async () => {
     try {
@@ -114,10 +111,10 @@ function SqlTransaction(props: { conn: QueryConn; executeTimes: number }) {
         return;
       }
       await conn.commit();
-      showNotification("success", "commit ok");
-      handleQueryCommit();
+      showNotification({ severity: "success", title: "commit ok" });
+      queryCommit();
     } catch (e) {
-      showNotification("error", "commit failed", e);
+      showNotification({ severity: "error", title: "commit failed", message: e });
     }
   };
 
@@ -132,19 +129,19 @@ function SqlTransaction(props: { conn: QueryConn; executeTimes: number }) {
     }
     try {
       await conn.rollback();
-      showNotification("success", "rollback ok");
-      handleQueryCommit();
+      showNotification({ severity: "success", title: "rollback ok" });
+      queryCommit();
     } catch (e) {
-      showNotification("error", "rollback failed", e);
+      showNotification({ severity: "error", title: "rollback failed", message: e });
     }
   };
   const reverseCommitMode = async () => {
     try {
       await conn.setAutoCommit(!commit);
-      setCommit(e => !e);
-      showNotification("success", "set commit mode ok");
+      setCommit((e) => !e);
+      showNotification({ severity: "success", title: "set commit mode ok" });
     } catch (e) {
-      showNotification("error", "set commit failed", e);
+      showNotification({ severity: "error", title: "set commit failed", message: e });
     }
   };
 
@@ -182,14 +179,109 @@ function SqlTransaction(props: { conn: QueryConn; executeTimes: number }) {
   );
 }
 
-class SaveCheckSql {
-  static key = "dbpal-save-check-sql";
-  static get(): boolean {
-    return localStorage.getItem(SaveCheckSql.key) == "1";
-  }
-  static save(x: boolean) {
-    localStorage.setItem(SaveCheckSql.key, x ? "1" : "0");
-  }
+function QueryButtons(props: {
+  handleQuery: (text: string, append: boolean) => void;
+  handleExecute: (text: string) => void;
+  getText: () => string; // if is empty should yield a warning ,then I don't have to check it every time
+  loading: boolean;
+  disabled: boolean;
+  handleCancel: () => void;
+  supportExplain: boolean;
+}) {
+  const {
+    getText,
+    handleQuery,
+    handleExecute,
+    loading,
+    disabled,
+    handleCancel,
+    supportExplain,
+  } = props;
+
+  return (
+    <>
+      {loading && (
+        <CancelButton
+          handleCancel={() => {
+            handleCancel();
+          }}
+        />
+      )}
+      <Tooltip title="query">
+        <span>
+          <IconButton
+            loading={loading}
+            onClick={() => {
+              const text = getText();
+              if (!text) {
+                return;
+              }
+              handleQuery(text, false);
+            }}
+            disabled={disabled}
+            color="primary">
+            <PlayArrowIcon />
+          </IconButton>
+        </span>
+      </Tooltip>
+
+      <Tooltip title="execute query and append the result to tabs">
+        <span>
+          <IconButton
+            loading={loading}
+            onClick={() => {
+              const text = getText();
+              if (!text) {
+                return;
+              }
+              handleQuery(text, true);
+            }}
+            disabled={disabled}
+            color="primary">
+            <FastForwardIcon />
+          </IconButton>
+        </span>
+      </Tooltip>
+
+      <Tooltip title="execute sql not expecting result">
+        <span>
+          <IconButton
+            disabled={disabled}
+            loading={loading}
+            onClick={() => {
+              const text = getText();
+              if (!text) {
+                return;
+              }
+              handleExecute(text);
+            }}
+            color="primary">
+            <FaExclamation />
+          </IconButton>
+        </span>
+      </Tooltip>
+
+      {supportExplain && (
+        <Tooltip title="explain sql">
+          <span>
+            <IconButton
+              loading={loading}
+              disabled={disabled}
+              onClick={() => {
+                const text = getText();
+                if (!text) {
+                  return;
+                }
+                handleQuery(`EXPLAIN ${text}`, true);
+              }}
+              color="primary">
+              <BsFillLightbulbFill />
+            </IconButton>
+          </span>
+        </Tooltip>
+      )}
+    </>
+  );
 }
 
 function SqlQuery(props: {
@@ -197,216 +289,190 @@ function SqlQuery(props: {
   value?: string;
   favoriteName?: string;
   kind: DataSourceKind;
-  extras?: ReactNode;
-  handleEditor: (ed: editor.IStandaloneCodeEditor) => void;
+  extraButtons?: ReactNode;
 }) {
-  const { uuid, value, favoriteName, kind, extras, handleEditor } = props;
+  const { uuid, value, favoriteName, kind, extraButtons } = props;
   const [resp, setResp] = useState<QueryRespData[]>([]);
-  const [sqlErr, setSqlErr] = useState<ErrAndLoc | null>(null);
   const [editor, setEditor] = useState<editor.IStandaloneCodeEditor>(null);
-  const [pos, setPos] = useState<Position | null>(null);
   const [loading, setLoading] = useState(false);
   const [makeConnLoading, setMakeConnLoading] = useState(false);
-  const { showNotification } = useContext(NotificationContext);
-  const [showQueryLog, setShowQueryLog] = useState(false);
-  const setting = useContext(SettingContext);
-  const queryLogHandler = useRef(new QueryLogHandler(uuid));
+  const { showNotification } = useNotification();
   const [executeTimes, setExecuteTimes] = useState(0);
-  const [conn] = useState<QueryConn>(new QueryConn(uuid, uuidv4(), kind));
-  const maxRow = useRef(2000);
-  const [showExport, setShowExport] = useState(false);
+  const { queryId } = useContext(QueryIDEditorChatCtx);
+  const conn = useRef<QueryConn>(new QueryConn(uuid, queryId, kind));
+  const getSize = useSizeStore((s) => s.getSize);
   const [openOk, setOpenOk] = useState(false);
-  const [tryCheckSql, setTryCheckSql] = useState(SaveCheckSql.get());
   const [queryStatus, setQueryStatus] = useState("");
-
-  useEffect(() => {
-    SaveCheckSql.save(tryCheckSql);
-  }, [tryCheckSql]);
-
-  const handleEditorDidMount = useCallback((ed: editor.IStandaloneCodeEditor) => {
-    setEditor(ed);
-    const d1 = ed.onDidChangeCursorPosition(() => {
-      const p = ed.getPosition();
-      setPos(p);
-    });
-    return () => {
-      d1.dispose();
-    };
-  }, []);
+  const tabCtx = useContext(TabContext);
+  const querySomeShow = useQueryExtraUI((s) => s.extra);
+  const { save: saveQueryLog } = useQueryLogStore();
+  const [markdownModel, setMarkdownModel] = useState(false);
+  const { setUi: setOneShotUI } = useOneShotDialogUI();
+  const { getSwitch } = useBoolSwitch();
+  const setEditorContext = useContext(QueryIDEditorChatCtx);
   useEffect(() => {
     if (!editor) {
       return;
     }
-    if (handleEditor) {
-      handleEditor(editor);
+    setEditorContext.setEditor(editor);
+  }, [editor, setEditorContext]);
+
+  const handleEditorDidMount = useCallback((ed: editor.IStandaloneCodeEditor) => {
+    setEditor(ed);
+  }, []);
+
+  useEffect(() => {
+    if (!editor) {
+      return;
     }
     let x = editor.getModel().onDidChangeContent(() => {
-      if (!tryCheckSql) {
-        setSqlErr(null);
+      if (markdownModel) {
         return;
       }
-      checkSql(uuid, editor.getValue()).then(e => {
-        setSqlErr(e);
-      });
     });
     return () => {
       x.dispose();
     };
-  }, [editor, handleEditor, tryCheckSql, uuid]);
+  }, [editor, markdownModel, uuid]);
 
   useEffect(() => {
     setMakeConnLoading(true);
-    conn
+    conn.current
       .open()
       .then(() => {
         setOpenOk(true);
       })
-      .catch(e => {
-        showNotification("error", "establish connection failed", e);
+      .catch((e) => {
+        showNotification({
+          severity: "error",
+          title: "establish connection failed",
+          message: e,
+        });
       })
       .finally(() => {
         setMakeConnLoading(false);
       });
-  }, [conn, showNotification]);
+  }, [showNotification]);
 
   useEffect(() => {
+    // 1. Capture the current ref value into a local variable
+    const currentConn = conn.current;
+
     return () => {
-      conn.destroy();
+      // 2. Use the local variable, which is safely held in the closure
+      if (currentConn) {
+        currentConn.destroy();
+      }
     };
-  }, [conn]);
+  }, []);
+
   const handleReconnect = async () => {
     setMakeConnLoading(true);
-    conn
+    conn.current
       .open()
       .then(() => {
-        showNotification("success", "Reconnect OK");
+        showNotification({ severity: "success", title: "Reconnect OK" });
+        setOpenOk(true);
       })
-      .catch(e => {
-        showNotification("error", "Reconnect Failure", e);
+      .catch((e) => {
+        showNotification({ severity: "error", title: "Reconnect Failure", message: e });
       })
       .finally(() => {
         // trigger some reload like sqltransaction
-        setExecuteTimes(e => e + 1);
+        setExecuteTimes((e) => e + 1);
         setMakeConnLoading(false);
       });
   };
-  const warnDangerousSql = useCallback(
-    async (text: string): Promise<boolean> => {
-      try {
-        if (await conn.isDangerSql(text)) {
-          return await secondConfirm({
-            confirmText: "Execute",
-            title: "This is a dangerous sql",
-            content: `Are u sure going to execute!!!!'`,
-          });
-        } else {
-          return true;
-        }
-      } catch (e) {
-        if (import.meta.env.DEV) {
-          console.log("warnDangerousSql error", e);
-        }
-
+  const warnDangerousSql = useCallback(async (text: string): Promise<boolean> => {
+    try {
+      if (await conn.current.isDangerSql(text)) {
+        return await secondConfirm({
+          confirmText: "Execute",
+          title: "This is a dangerous sql",
+          content: `Are u sure going to execute!!!!'`,
+        });
+      } else {
         return true;
       }
-    },
-    [conn],
-  );
+    } catch (e) {
+      if (import.meta.env.DEV) {
+        console.log("warnDangerousSql error", e);
+      }
 
-  const handleExecute = async () => {
-    const text = getEditorText(editor, showNotification);
-    if (!text) {
-      return;
+      return true;
     }
+  }, []);
+
+  const handleExecute = async (text: string) => {
     const confirm = await warnDangerousSql(text);
     if (!confirm) {
       return;
     }
-    setResp([]);
     setLoading(true);
-    conn
+    conn.current
       .executeOP(text)
-      .then(e => {
-        if (saveQueryLog.get()) {
-          queryLogHandler.current.save(text, rustResultOk(e));
+      .then((e) => {
+        if (getSwitch(saveQueryKey)) {
+          saveQueryLog(uuid, text, rustResultOk(e));
         }
         setTimeout(() => {
-          setResp([e]);
+          setResp([...resp, e]);
         }, 50);
-        showNotification("success", "execute ok");
+        showNotification({ severity: "success", title: "execute ok" });
       })
-      .catch(e => {
-        showNotification("error", "query failed", e);
-      })
-      .finally(() => {
-        setExecuteTimes(e => e + 1);
-        setLoading(false);
-      });
-  };
-  const handleQuery = async (append: boolean, explain: boolean = false) => {
-    let text = getEditorText(editor, showNotification);
-    if (!text) {
-      return;
-    }
-    if (explain) {
-      text = `EXPLAIN ${text}`;
-    }
-    console.log("handle query");
-    if (!append) {
-      setResp([]);
-    }
-    const confirm = await warnDangerousSql(text);
-    if (!confirm) {
-      return;
-    }
-    setLoading(true);
-    let emit = new Channel<QueryEvent>(e => {
-      // In Strict Mode, React will call your initializer function twice in order to help you find accidental impurities. This is development-only behavior and does not affect production. If your initializer function is pure (as it should be), this should not affect the behavior. The result from one of the calls will be ignored.
-      setResp(resp => {
-        return appendQueryResult(resp, e, setQueryStatus);
-      });
-    });
-
-    conn
-      .queryOP(text, emit, maxRow.current)
-      .then(() => {
-        if (saveQueryLog.get()) {
-          queryLogHandler.current.save(text, true);
-        }
-        showNotification("success", "query OK");
-      })
-      .catch(e => {
-        if (saveQueryLog.get()) {
-          queryLogHandler.current.save(text, false);
-        }
-        showNotification("error", "query failed", e);
+      .catch((e) => {
+        showNotification({ severity: "error", title: "query failed", message: e });
       })
       .finally(() => {
-        setExecuteTimes(e => e + 1);
+        setExecuteTimes((e) => e + 1);
         setLoading(false);
       });
   };
 
-  const editorOptions = useMemo((): editor.IStandaloneEditorConstructionOptions => {
-    return {
-      fontSize: setting.appearance.fontSize,
-      fontWeight: setting.appearance.fontWeight,
-      fontFamily: setting.appearance.fontFamily,
-      tabSize: setting.editor.tabSize,
-      ...setting.editor.editorOption,
-    };
-  }, [setting]);
-
-  const editorDivDom = useRef(null);
+  const handleQuery = useCallback(
+    async (text: string, append: boolean) => {
+      console.log("handle query");
+      if (!append) {
+        setResp([]);
+      }
+      const confirm = await warnDangerousSql(text);
+      if (!confirm) {
+        return;
+      }
+      setLoading(true);
+      let emit = new Channel<QueryEvent>((e) => {
+        // In Strict Mode, React will call your initializer function twice in order to help you find accidental impurities. This is development-only behavior and does not affect production. If your initializer function is pure (as it should be), this should not affect the behavior. The result from one of the calls will be ignored.
+        setResp((resp) => {
+          return appendQueryResult(resp, e, setQueryStatus);
+        });
+      });
+      conn.current
+        .queryOP(text, emit, getSize(UseSizeConfig.queryLimit))
+        .then(() => {
+          if (getSwitch(saveQueryKey)) {
+            saveQueryLog(uuid, text, true);
+          }
+          showNotification({ severity: "success", title: "query OK" });
+        })
+        .catch((e) => {
+          if (getSwitch(saveQueryKey)) {
+            saveQueryLog(uuid, text, false);
+          }
+          showNotification({ severity: "error", title: "query failed", message: e });
+        })
+        .finally(() => {
+          setExecuteTimes((e) => e + 1);
+          setLoading(false);
+        });
+    },
+    [getSize, getSwitch, saveQueryLog, showNotification, uuid, warnDangerousSql],
+  );
 
   useEffect(() => {
-    if (conn && editor) {
-      SetAutoCompletionName.set(
-        editor.getModel().id,
-        new NameAndQueryId(uuid, kind, conn.queryId),
-      );
+    if (editor) {
+      editor.getModel()._dbpal_query_id = new NameAndQueryId(uuid, kind, queryId);
     }
-  }, [conn, editor, kind, uuid]);
+  }, [editor, kind, queryId, uuid]);
 
   const supportExplain = [
     DataSourceKind.Sqlite,
@@ -417,23 +483,12 @@ function SqlQuery(props: {
     DataSourceKind.Oracle,
     DataSourceKind.SqlServer,
     DataSourceKind.Postgres,
+    DataSourceKind.Cockroach,
     DataSourceKind.ClickHouse,
     DataSourceKind.FireBird,
+    DataSourceKind.DuckDB,
   ].includes(kind);
 
-  const vis = useContext(TabActiveContext);
-  useEffect(() => {
-    const cancel = (e: KeyboardEvent) => {
-      if (e.key == "Escape" && loading && vis) {
-        e.preventDefault();
-        cancelTask(conn.queryId);
-      }
-    };
-    document.addEventListener("keydown", cancel);
-    return () => {
-      document.removeEventListener("keydown", cancel);
-    };
-  }, [conn.queryId, loading, showNotification, vis]);
   return (
     <div
       style={{
@@ -442,8 +497,13 @@ function SqlQuery(props: {
         display: "flex",
         flexDirection: "column",
         marginBottom: "300px",
-      }}
-    >
+      }}>
+      <EscPressedDo
+        doingIt={() => loading}
+        setUndo={() => {
+          cancelTask(queryId);
+        }}
+      />
       <PanelGroup direction="vertical" style={{ flex: 1 }} autoSaveId="sql-query">
         <Panel
           minSize={10}
@@ -454,16 +514,7 @@ function SqlQuery(props: {
             flexDirection: "column",
           }}
           collapsible
-          collapsedSize={0}
-        >
-          <QueryLog
-            showQueryLog={showQueryLog}
-            setShowQueryLog={setShowQueryLog}
-            uuid={uuid}
-            executeTimes={executeTimes}
-            kind={kind}
-            queryId={conn.queryId}
-          />
+          collapsedSize={0}>
           <QueryStatus status={queryStatus} />
           <Stack
             direction="row"
@@ -471,99 +522,78 @@ function SqlQuery(props: {
               alignItems: "center",
               overflow: "auto",
               paddingBottom: "0.7rem",
-            }}
-          >
+            }}>
             {openOk && (
               <>
-                <Tooltip title="query">
-                  <IconButton
-                    loading={loading}
-                    onClick={() => {
-                      handleQuery(false);
-                    }}
-                    color="primary"
-                  >
-                    <PlayArrowIcon />
-                  </IconButton>
-                </Tooltip>
-
-                <Tooltip title="execute query in new tab">
-                  <IconButton
-                    loading={loading}
-                    onClick={() => {
-                      handleQuery(true);
-                    }}
-                    color="primary"
-                  >
-                    <FastForwardIcon />
-                  </IconButton>
-                </Tooltip>
-
-                <Tooltip title="execute sql not expecting result">
-                  <IconButton loading={loading} onClick={handleExecute} color="primary">
-                    <FaExclamation />
-                  </IconButton>
-                </Tooltip>
-                {loading && (
-                  <CancelButton
-                    handleCancel={() => {
-                      cancelTask(conn.queryId);
-                    }}
-                  />
-                )}
-                {supportExplain && (
-                  <Tooltip title="explain sql">
-                    <IconButton
-                      loading={loading}
-                      onClick={() => {
-                        handleQuery(false, true);
-                      }}
-                      color="primary"
-                    >
-                      <BsFillLightbulbFill />
-                    </IconButton>
-                  </Tooltip>
-                )}
-                <Tooltip title="try check sql,right now implemented it using parser">
-                  <Checkbox
-                    checked={tryCheckSql}
-                    onChange={e => {
-                      setTryCheckSql(e.target.checked);
-                    }}
-                    name="myCheckbox"
-                    color="primary"
-                  />
-                </Tooltip>
+                <QueryButtons
+                  disabled={markdownModel}
+                  getText={() => {
+                    return getEditorText(editor, showNotification, true);
+                  }}
+                  supportExplain={supportExplain}
+                  handleQuery={handleQuery}
+                  handleExecute={handleExecute}
+                  loading={loading}
+                  handleCancel={() => {
+                    cancelTask(queryId);
+                  }}
+                />
               </>
             )}
-            {openOk && conn.supportTransaction() && (
-              <SqlTransaction executeTimes={executeTimes} conn={conn} />
+            {openOk && conn.current.supportTransaction() && (
+              <SqlTransaction executeTimes={executeTimes} conn={conn.current} />
             )}
             <Tooltip title={"reconnect"}>
-              <IconButton
-                loading={makeConnLoading}
-                onClick={handleReconnect}
-                color="primary"
-              >
-                <RefreshIcon />
-              </IconButton>
+              <span>
+                <IconButton
+                  loading={makeConnLoading}
+                  onClick={handleReconnect}
+                  color="primary">
+                  <RefreshIcon />
+                </IconButton>
+              </span>
             </Tooltip>
-
             {openOk && (
               <Tooltip title="export query result to a file">
-                <IconButton
-                  loading={loading}
-                  onClick={() => {
-                    const value = getEditorText(editor, showNotification);
-                    if (!value) {
-                      return;
-                    }
-                    setShowExport(true);
-                  }}
-                  color="primary"
-                >
-                  <ArrowCircleDownRoundedIcon />
-                </IconButton>
+                <span>
+                  <IconButton
+                    loading={loading}
+                    onClick={() => {
+                      const value = getEditorText(editor, showNotification, true);
+                      if (!value) {
+                        return;
+                      }
+                      setOneShotUI(
+                        <ExportView
+                          supportKind={[
+                            "csv",
+                            "json",
+                            "jsonline",
+                            "xlsx",
+                            "html",
+                            "markdown",
+                          ]}
+                          exportOP={async (kind, file, taskId, sizeEmitter) => {
+                            const sql = getEditorText(editor, showNotification, true);
+                            return conn.current.exportQueryResult(
+                              queryId,
+                              sql,
+                              kind,
+                              file,
+                              taskId,
+                              sizeEmitter,
+                            );
+                          }}
+                          name="export_query_result"
+                        />,
+                        `export query result to a file`,
+                      );
+                    }}
+                    disabled={markdownModel}
+                    color="primary">
+                    <ArrowCircleDownRoundedIcon />
+                  </IconButton>
+                </span>
               </Tooltip>
             )}
             <SaveFavoriteSqlView
@@ -572,132 +602,97 @@ function SqlQuery(props: {
               kind={kind}
               editor={editor}
             />
-
             {editor && (
               <LoadStoreFile
                 getQuery={() => {
                   return editor.getValue();
                 }}
-                handleLoadFile={(_, content) => {
+                handleLoadFile={(content) => {
                   editor.setValue(content);
                 }}
                 kind={kind}
               />
             )}
-            <Tooltip title="query log">
-              <IconButton
-                onClick={() => {
-                  setShowQueryLog(prev => !prev);
-                }}
-                color="primary"
-              >
-                <EventNoteIcon />
-              </IconButton>
-            </Tooltip>
+            <ShowQueryLog uuid={uuid} kind={kind} />
 
-            <ToggleChatShow
-              do_query={() => {
-                handleQuery(false);
-              }}
-            />
-
-            {extras}
+            {extraButtons}
             <ModifyLLMConfigModal />
-            <ExecutingTime loading={loading} />
-            <SliderSize
-              storeKey="sql-query"
-              min={1000}
-              max={100000}
-              step={1000}
-              handleValue={v => {
-                maxRow.current = v;
-              }}
-              notice=<Typography>
-                limit max rows can be query.we don&apos;t want OOM!!!😀
-                <br />
-                dbpal use Stream technology to query data,so we can query large data
-              </Typography>
+
+            <ToggleChatShow />
+            <AiMarkdownModelSwitch
+              setMarkdownModel={setMarkdownModel}
+              markdownModel={markdownModel}
             />
+            {querySomeShow.get(tabCtx.id)}
+
+            <FetchTimeAndLoadingStatus isLoading={loading} />
+            <SliderSize config={UseSizeConfig.queryLimit} />
           </Stack>
+          <Divider />
+
+          <AiMarkdownModel
+            markdownModel={markdownModel}
+            editor={editor}
+            appCodeHandleEdit={({ code }) => {
+              setMarkdownModel(false);
+              jumpToEditorText(editor, code);
+            }}
+            appcodeExtra={({ code, language }) => {
+              if (isSQLCode(code, language) || isRedisCode(code)) {
+                return (
+                  <QueryButtons
+                    disabled={false}
+                    getText={() => {
+                      return code;
+                    }}
+                    supportExplain={supportExplain}
+                    loading={loading}
+                    handleQuery={handleQuery}
+                    handleExecute={handleExecute}
+                    handleCancel={() => {
+                      cancelTask(queryId);
+                    }}
+                  />
+                );
+              } else {
+                return <> </>;
+              }
+            }}
+          />
           <div
             style={{
               flex: 1,
               minHeight: 0,
               height: "100px",
-            }}
-            ref={editorDivDom}
-          >
-            <Editor
-              language={getLanguageFromDataSourceKind(kind)}
-              onMount={handleEditorDidMount}
-              width="99%"
-              height="99%"
+              display: markdownModel ? "none" : "block",
+            }}>
+            <MonacoEditor
+              language={markdownModel ? "markdown" : getDefaultLanguage(kind)}
               value={value}
-              options={editorOptions}
-              theme={setting.editorTheme()}
+              onMount={handleEditorDidMount}
             />
           </div>
-          <EditorBar
-            left={
-              <Stack
-                style={{
-                  flex: 1,
-                }}
-                direction="row"
-              >
-                {sqlErr && <PossibleParseError parseErr={sqlErr} editor={editor} />}
-              </Stack>
-            }
-            pos={pos}
-          />
         </Panel>
-        <PanelResizeHandle
-          style={{ height: resizeHandlerSize }}
-          className="resize-handle"
-        />
-        <Panel
-          style={{ overflow: "auto" }}
-          collapsible
-          collapsedSize={0}
-          maxSize={100}
-          minSize={10}
-        >
-          <div style={{ height: "100%" }}>
-            <MultiQueryResp data={resp} />
-          </div>
-        </Panel>
-      </PanelGroup>
 
-      {showExport && (
-        <Modal
-          open={showExport}
-          onClose={modalHandleClose((e: EscDownEvent) => {
-            e.preventDefault();
-            setShowExport(false);
-          })}
-        >
-          <Box sx={modalStyle} width="45%">
-            <ExportView
-              supportKind={["csv", "json", "jsonline", "xlsx", "html", "markdown"]}
-              exportOP={async (kind, file, taskId, sizeEmitter) => {
-                const sql = getEditorText(editor, showNotification);
-                return conn.exportQueryResult(
-                  conn.queryId,
-                  sql,
-                  kind,
-                  file,
-                  taskId,
-                  sizeEmitter,
-                );
-              }}
-              handleClose={() => {
-                setShowExport(false);
-              }}
-              name="export_query_result"
+        {resp.length > 0 && (
+          <>
+            <PanelResizeHandle
+              style={{ height: resizeHandlerSize }}
+              className="resize-handle"
             />
-          </Box>
-        </Modal>
-      )}
+            <Panel
+              style={{ overflow: "auto" }}
+              collapsible
+              collapsedSize={0}
+              maxSize={100}
+              minSize={10}>
+              <div style={{ height: "100%" }}>
+                <MultiQueryResp data={resp} />
+              </div>
+            </Panel>
+          </>
+        )}
+      </PanelGroup>
     </div>
   );
 }
@@ -705,7 +700,7 @@ function SqlQuery(props: {
 function appendQueryResult(
   data: QueryRespData[],
   event: QueryEvent,
-  setQueryStatus: (string) => void,
+  setQueryStatus: (_: string) => void,
 ): QueryRespData[] {
   switch (event.kind) {
     case "structure":
@@ -720,23 +715,17 @@ function appendQueryResult(
       setQueryStatus(
         `backend send ${event.data.length} record,data:${data0.slice(0, 3).join("-")}`,
       );
-      let index = null;
-      for (let i = data.length - 1; i >= 0; --i) {
-        if (typeof data[i] == "object") {
-          index = i;
-          break;
-        }
-      }
-      if (index === null) {
+      const index = data.findLastIndex((x) => x.Ok);
+      if (index === -1) {
         setQueryStatus(
           "should be able to find the index the place data ,this is internal error",
         );
         return data;
       }
-      let cop = { ...data[index].Ok } as MuiDataGridData;
+      let cop = { ...data[index].Ok };
       cop.data = [
         ...cop.data,
-        ...event.data.map(d => {
+        ...event.data.map((d) => {
           let obj = {};
           d.forEach((e, index) => {
             obj[cop.fields[index].field] = e;

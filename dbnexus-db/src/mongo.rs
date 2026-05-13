@@ -8,8 +8,10 @@ use dashmap::DashSet;
 use futures_util::StreamExt;
 use mongodb::bson::{doc, Document};
 use mongodb::options::{IndexOptions, ServerAddress, Tls, TlsOptions};
-use mongodb::results::{CollectionType, DeleteResult, InsertOneResult, UpdateResult};
-use mongodb::{bson, IndexModel};
+use mongodb::results::{
+    CollectionSpecification, CollectionType, DeleteResult, InsertOneResult, UpdateResult,
+};
+use mongodb::{bson, Cursor, IndexModel};
 
 use crate::datasource_config::MongoDBConfig;
 use crate::db::{
@@ -18,8 +20,6 @@ use crate::db::{
     QueryEventEmitter, QueryResp, QuerySql, ReadOnlyTrait, SchemaTrait, ServerMetas,
     ShowTableParameter,
 };
-#[cfg(test)]
-use crate::TEST_HOST;
 
 #[derive(Clone)]
 pub struct MongoDB {
@@ -31,7 +31,7 @@ pub struct MongoDB {
 
 impl std::fmt::Debug for MongoDB {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "mssql on:{:?}", self.db_name)
+        write!(f, "mongo on:{:?}", self.db_name)
     }
 }
 
@@ -43,7 +43,6 @@ impl MongoDB {
             host: config.host.to_string(),
             port: Some(config.port),
         }];
-
         opts.connect_timeout = config.conn_timeout.map(Duration::from);
         if let Some(user) = &config.username {
             let b = mongodb::options::Credential::builder();
@@ -63,7 +62,6 @@ impl MongoDB {
             opts.tls = Some(Tls::Enabled(tls_option));
         }
         let client = mongodb::Client::with_options(opts)?;
-
         anyhow::Ok(Self {
             client,
             db_name: config.db.clone(),
@@ -74,7 +72,7 @@ impl MongoDB {
 }
 
 impl GetBackendKind for MongoDB {
-    fn backend_name(&self) -> BackendKind {
+    fn backend_kind(&self) -> BackendKind {
         BackendKind::Mongo
     }
 }
@@ -94,11 +92,11 @@ impl ExportQueryResult for MongoDB {
         _kind: ExportKind,
         _sender: tokio::sync::mpsc::Sender<ExportFrame>,
     ) -> anyhow::Result<()> {
-        self.backend_name().not_support_feature()
+        self.backend_kind().not_support_feature()
     }
 
     fn clone(&self) -> Box<dyn ExportQueryResult> {
-        Box::new(Clone::clone(self)) as Box<dyn ExportQueryResult>
+        Box::new(Clone::clone(self))
     }
 }
 #[async_trait::async_trait]
@@ -150,8 +148,6 @@ impl DBTrait for MongoDB {
 fn bson_value_to_string(b: &bson::Bson) -> anyhow::Result<Option<String>> {
     match b {
         Bson::Null | Bson::Undefined | Bson::MaxKey | Bson::MinKey => return anyhow::Ok(None),
-
-        // Bson::String(x) => return anyhow::Ok(Some(x.to_owned())),
         _ => {}
     }
     let x = serde_json::to_string_pretty(b)?;
@@ -172,7 +168,6 @@ fn collect_table_resp(fs: &[Field], docs: &[Document]) -> anyhow::Result<Vec<Vec
         }
         ret.push(values);
     }
-
     anyhow::Ok(ret)
 }
 
@@ -204,7 +199,6 @@ fn infer_multi_value_column_names(docs: &[Document]) -> anyhow::Result<Vec<Field
                 bson::Bson::Undefined => "undefined",
                 bson::Bson::MaxKey => "max_key",
                 bson::Bson::MinKey => "min_key",
-                // Deprecated
                 bson::Bson::DbPointer(_) => "db_pointer",
             };
             ret.insert(k.clone(), Field::from_name_type(k.as_str(), ty));
@@ -243,6 +237,7 @@ impl MongoDB {
         collection_name: &str,
         doc: Document,
     ) -> anyhow::Result<InsertOneResult> {
+        self.can_write()?;
         let db = self.get_db().await?;
         let ret = db
             .collection::<Document>(collection_name)
@@ -258,6 +253,7 @@ impl MongoDB {
         unique: bool,
         keys: Document,
     ) -> anyhow::Result<()> {
+        self.can_write()?;
         let db = self.get_db().await?;
         let mut options = IndexOptions::default();
         options.unique = Some(unique);
@@ -323,11 +319,14 @@ impl MongoDB {
     pub async fn show_collection_table_list(
         &self,
         collection_name: &str,
-        filter: Document,
-        sort: Document,
-        page: u64,
-        page_size: u64,
+        para: MongoShowTablePara,
     ) -> anyhow::Result<QueryResp> {
+        let MongoShowTablePara {
+            filter,
+            page,
+            page_size,
+            sort,
+        } = para;
         let db = self.get_db().await?;
         let count: u64 = db
             .collection::<Document>(collection_name)
@@ -354,11 +353,14 @@ impl MongoDB {
     pub async fn show_collection_json(
         &self,
         collection_name: &str,
-        filter: Document,
-        sort: Document,
-        page: u64,
-        page_size: u64,
+        para: MongoShowTablePara,
     ) -> anyhow::Result<DocsAndCount> {
+        let MongoShowTablePara {
+            filter,
+            page,
+            page_size,
+            sort,
+        } = para;
         let db = self.get_db().await?;
         let count = db
             .collection::<u64>(collection_name)
@@ -383,11 +385,14 @@ impl MongoDB {
     pub async fn show_collection_docs(
         &self,
         collection_name: &str,
-        filter: Document,
-        sort: Document,
-        page: u64,
-        page_size: u64,
+        para: MongoShowTablePara,
     ) -> anyhow::Result<DocsAndCount> {
+        let MongoShowTablePara {
+            filter,
+            page,
+            page_size,
+            sort,
+        } = para;
         let db = self.get_db().await?;
         let count = db
             .collection::<u64>(collection_name)
@@ -415,13 +420,13 @@ impl MongoDB {
     }
 }
 
-#[derive(Debug, Clone, serde::Serialize)]
+#[derive(Debug, Clone)]
 pub struct DocsAndCount {
     pub docs: Vec<Document>,
     pub count: u64,
 }
 
-#[derive(Debug, Clone, serde::Serialize)]
+#[derive(Debug, Clone)]
 pub struct JsonAndCount {
     pub docs: Vec<serde_json::Value>,
     pub count: u64,
@@ -444,6 +449,7 @@ impl MongoDB {
     }
 
     async fn delete_collection(&self, collection_name: &str) -> anyhow::Result<()> {
+        self.can_write()?;
         let db = self.get_db().await?;
         db.collection::<bson::Document>(collection_name)
             .drop()
@@ -459,7 +465,6 @@ impl ServerMetas for MongoDB {
         let server_status = admin_db.run_command(doc! {"serverStatus": 1}).await?;
         // write_bson_s_json_to_file(&server_status, "./test.json");
         let mut ret = Vec::new();
-
         {
             let version = server_status.get_str("version")?.to_string();
             ret.push(MetaValue::new("version", version));
@@ -475,10 +480,7 @@ impl ServerMetas for MongoDB {
         }
         {
             let up_time = server_status.get_i64("uptimeMillis")?;
-            ret.push(MetaValue::new(
-                "up_time",
-                humantime::format_duration(Duration::from_millis(up_time as u64)).to_string(),
-            ));
+            ret.push(MetaValue::new("up_time", up_time.to_string()));
         }
         let to_string_keys = &["catalogStats", "connections", "storageEngine"];
         for k in to_string_keys.iter() {
@@ -493,10 +495,10 @@ impl ServerMetas for MongoDB {
 impl MongoDB {
     pub(crate) async fn list_collection_name_by_type(
         &self,
-        ty: Option<CollectionType>,
+        filter_ty: impl Fn(&CollectionType) -> bool,
     ) -> anyhow::Result<Vec<String>> {
         let conn = self.get_db().await?;
-        let mut cols = conn.list_collections().await?;
+        let mut cols: Cursor<CollectionSpecification> = conn.list_collections().await?;
         let mut ret = Vec::new();
 
         while let Some(col) = cols.next().await {
@@ -504,29 +506,12 @@ impl MongoDB {
             if col.name.starts_with("system.") {
                 continue;
             }
-            if ty
-                .as_ref()
-                .map(|x| x == &col.collection_type)
-                .unwrap_or(true)
-            {
+            if filter_ty(&col.collection_type) {
                 ret.push(col.name);
             }
         }
         ret.sort();
         anyhow::Ok(ret)
-    }
-}
-
-impl MongoDB {
-    pub async fn list_time_serial_collection(&self) -> anyhow::Result<Vec<ListTable>> {
-        let ts = self
-            .list_collection_name_by_type(Some(CollectionType::Timeseries))
-            .await?;
-        anyhow::Ok(ts.into_iter().map(ListTable::from).collect())
-    }
-
-    pub async fn drop_mongo_time_serial_collection(&self, name: &str) -> anyhow::Result<()> {
-        self.drop_table(name, false).await
     }
 }
 
@@ -554,6 +539,7 @@ impl SchemaTrait for MongoDB {
         anyhow::Ok(vec![])
     }
     async fn duplicate_table(&self, old_collection: &str, dup: &str) -> anyhow::Result<()> {
+        self.can_write()?;
         if self.table_exists(dup).await? {
             anyhow::bail!(format!("table '{}' already exists", dup));
         }
@@ -569,19 +555,19 @@ impl SchemaTrait for MongoDB {
         anyhow::Ok(())
     }
 
-    async fn rename_table(&self, old: &str, new: &str) -> anyhow::Result<()> {
+    async fn rename_table(&self, old: &str, new: &str) -> anyhow::Result<Option<String>> {
+        self.can_write()?;
         let old = format!("{}.{}", self.db_name.as_ref().option_must_be_some()?, old);
         let new = format!("{}.{}", self.db_name.as_ref().option_must_be_some()?, new);
         let cmd = bson::doc! { "renameCollection":  old , "to": new};
         let client = self.get_conn().await?;
         let db = client.database("admin");
-
         db.run_command(cmd).await?;
-        anyhow::Ok(())
+        anyhow::Ok(None)
     }
 
     fn clone(&self) -> Box<dyn SchemaTrait> {
-        Box::new(Clone::clone(self)) as Box<dyn SchemaTrait>
+        Box::new(Clone::clone(self))
     }
 
     async fn export_table_or_view(
@@ -621,20 +607,30 @@ impl SchemaTrait for MongoDB {
         self
     }
 
-    async fn drop_view(&self, view_name: &str) -> anyhow::Result<()> {
-        self.drop_table(view_name, false).await
+    async fn drop_view(&self, view_name: &str) -> anyhow::Result<String> {
+        self.can_write()?;
+        self.drop_table(view_name, false).await?;
+        anyhow::Ok("".into())
     }
 
-    async fn drop_table(&self, collect_name: &str, _cascade: bool) -> anyhow::Result<()> {
+    async fn drop_table(
+        &self,
+        collect_name: &str,
+        _cascade: bool,
+    ) -> anyhow::Result<Option<String>> {
         self.can_write()?;
         let conn = self.get_db().await?;
         conn.collection::<Document>(collect_name).drop().await?;
-        anyhow::Ok(())
+        anyhow::Ok(None)
     }
 
     async fn list_view(&self) -> anyhow::Result<Vec<ListTable>> {
         let views = self
-            .list_collection_name_by_type(Some(CollectionType::View))
+            .list_collection_name_by_type(|t| match t {
+                CollectionType::View => true,
+
+                _ => false,
+            })
             .await?;
 
         anyhow::Ok(views.into_iter().map(ListTable::from).collect())
@@ -642,7 +638,10 @@ impl SchemaTrait for MongoDB {
 
     async fn list_table(&self) -> anyhow::Result<Vec<ListTable>> {
         let tables = self
-            .list_collection_name_by_type(Some(CollectionType::Collection))
+            .list_collection_name_by_type(|t| match t {
+                CollectionType::View => false,
+                _ => true,
+            })
             .await?;
         anyhow::Ok(tables.into_iter().map(ListTable::from).collect())
     }
@@ -651,7 +650,8 @@ impl SchemaTrait for MongoDB {
         self.show_columns_impl(table_name).await
     }
 
-    async fn drop_index(&self, table_name: &str, index: &str) -> anyhow::Result<()> {
+    async fn drop_index(&self, table_name: &str, index: &str) -> anyhow::Result<Option<String>> {
+        self.can_write()?;
         if index == "_id_" {
             anyhow::bail!("can't drop this index");
         }
@@ -659,7 +659,7 @@ impl SchemaTrait for MongoDB {
         db.collection::<Document>(table_name)
             .drop_index(index)
             .await?;
-        anyhow::Ok(())
+        anyhow::Ok(None)
     }
 
     async fn rename_index(
@@ -667,13 +667,13 @@ impl SchemaTrait for MongoDB {
         table_name: &str,
         oldname: &str,
         newname: &str,
-    ) -> anyhow::Result<()> {
+    ) -> anyhow::Result<Option<String>> {
+        self.can_write()?;
         if oldname == "_id_" {
             anyhow::bail!("can't rename this index");
         }
         let db = self.get_db().await?;
         let mut indexes = db.collection::<Document>(table_name).list_indexes().await?;
-
         while let Some(index_model) = indexes.next().await {
             let mut index_model = index_model?;
             if index_model
@@ -695,7 +695,7 @@ impl SchemaTrait for MongoDB {
                 db.collection::<Document>(table_name)
                     .create_index(index_model)
                     .await?;
-                return anyhow::Ok(());
+                return anyhow::Ok(None);
             }
         }
         anyhow::bail!(format!("index '{}' not found", oldname))
@@ -739,15 +739,13 @@ impl SchemaTrait for MongoDB {
         anyhow::Ok(ret)
     }
 
-    async fn truncate_table(&self, table_name: &str) -> anyhow::Result<()> {
+    async fn truncate_table(&self, table_name: &str) -> anyhow::Result<Option<String>> {
         self.can_write()?;
-
         let db = self.get_db().await?;
         db.collection::<Document>(table_name)
             .delete_many(doc! {})
             .await?;
-
-        anyhow::Ok(())
+        anyhow::Ok(None)
     }
 
     async fn show_view_columns(&self, view_name: &str) -> anyhow::Result<Vec<Field>> {
@@ -763,7 +761,7 @@ impl QuerySql for MongoDB {
         _sql: &str,
         _emit: QueryEventEmitter,
     ) -> anyhow::Result<()> {
-        self.backend_name().not_support_feature()
+        self.backend_kind().not_support_feature()
     }
 
     async fn execute_sql(
@@ -771,23 +769,23 @@ impl QuerySql for MongoDB {
         _query_id: &str,
         _sql: &str,
     ) -> anyhow::Result<Result<QueryResp, String>> {
-        self.backend_name().not_support_feature()
+        self.backend_kind().not_support_feature()
     }
 
-    async fn execute_sql_no_open_conn(&self, _sql: &str) -> anyhow::Result<Option<usize>> {
-        self.backend_name().not_support_feature()
+    async fn simple_execute_sql(&self, _sql: &str) -> anyhow::Result<Option<usize>> {
+        self.backend_kind().not_support_feature()
     }
 
     async fn open_connection(&self, _id: &str) -> anyhow::Result<()> {
-        self.backend_name().not_support_feature()
+        self.backend_kind().not_support_feature()
     }
     async fn close_connection(&self, _id: &str) -> anyhow::Result<()> {
-        self.backend_name().not_support_feature()
+        self.backend_kind().not_support_feature()
     }
 }
 
 impl MongoDB {
-    pub(crate) async fn get_db(&self) -> anyhow::Result<mongodb::Database> {
+    pub async fn get_db(&self) -> anyhow::Result<mongodb::Database> {
         let client = self.get_conn().await?;
         Ok(client.database(self.db_name.as_ref().option_must_be_some()?))
     }
@@ -797,13 +795,30 @@ impl MongoDB {
     }
 }
 
-// this used in test
-#[allow(unused)]
-#[cfg(test)]
-pub(crate) fn make_test_object() -> MongoDB {
+#[derive(Debug, Clone)]
+pub struct MongoFindParameter {
+    pub filter: Document,
+    pub hint: Option<Document>,
+    pub projection: Option<Document>,
+    pub sort: Option<Document>,
+    pub min: Option<Document>,
+    pub max: Option<Document>,
+    pub limit: Option<i64>,
+    pub skip: Option<u64>,
+}
+
+#[derive(Debug, Clone)]
+pub struct MongoShowTablePara {
+    pub sort: Document,
+    pub filter: Document,
+    pub page: u64,
+    pub page_size: u64,
+}
+
+pub fn make_test_object() -> MongoDB {
     let x = MongoDB::new(MongoDBConfig {
         conn_timeout: Some(5000.into()),
-        host: TEST_HOST.to_string(),
+        host: crate::TEST_HOST.to_string(),
         port: 27017,
         username: None,
         password: None,
@@ -818,18 +833,17 @@ pub(crate) fn make_test_object() -> MongoDB {
 #[cfg(test)]
 mod tests {
 
-    use std::str::FromStr;
-    use std::time::SystemTime;
-    use std::vec;
-
+    use super::make_test_object;
+    use crate::db::{DBTrait, SchemaTrait, ServerMetas};
+    use crate::mongo::MongoShowTablePara;
     use bson::oid::ObjectId;
     use bson::spec::BinarySubtype;
     use bson::{doc, Binary, Bson, DateTime, Decimal128, Document, Regex, Timestamp, Uuid};
     use mongodb::bson;
     use mongodb::options::TimeseriesOptions;
-
-    use super::make_test_object;
-    use crate::db::{DBTrait, SchemaTrait, ServerMetas};
+    use std::str::FromStr;
+    use std::time::SystemTime;
+    use std::vec;
 
     #[tokio::test]
     async fn test_multi_db() {
@@ -1075,7 +1089,15 @@ mod tests {
         db.duplicate_table(table_name, table_name2).await.unwrap();
 
         let docs = db
-            .show_collection_docs(table_name2, bson::doc! {}, bson::doc! {}, 1, 100)
+            .show_collection_docs(
+                table_name2,
+                MongoShowTablePara {
+                    filter: bson::doc! {},
+                    page: 1,
+                    page_size: 100,
+                    sort: bson::doc! {},
+                },
+            )
             .await
             .unwrap();
         println!("{:?}", docs);
@@ -1157,18 +1179,10 @@ mod tests {
         let view_names = db.list_view().await.unwrap();
         println!("view names:{:?}", view_names)
     }
-    #[tokio::test]
-    async fn test_xxx() {
-        let db = make_test_object();
-        let view_name = "test_mongo";
-        let docs = db
-            .show_collection_docs(view_name, doc! {}, doc! {}, 1, 100)
-            .await
-            .unwrap();
 
-        for d in docs.docs.iter() {
-            println!("{:?}", d);
-        }
+    #[tokio::test]
+    async fn test_command_find() {
+        let _db = make_test_object();
     }
 
     #[tokio::test]
@@ -1218,17 +1232,20 @@ mod tests {
             "timestamp_field": Timestamp {time: now as u32, increment: 1 },
         };
         db.insert(table, data).await.unwrap();
+
+        let para = MongoShowTablePara {
+            filter: doc! {},
+            page: 1,
+            page_size: 100,
+            sort: doc! {},
+        };
         let resp = db
-            .show_collection_table_list(table, doc! {}, doc! {}, 1, 100)
+            .show_collection_table_list(table, para.clone())
             .await
             .unwrap();
 
         println!("resp:{:?}", resp);
-
-        let resp = db
-            .show_collection_docs(table, doc! {}, doc! {}, 1, 100)
-            .await
-            .unwrap();
+        let resp = db.show_collection_docs(table, para.clone()).await.unwrap();
         for d in resp.docs {
             println!("{:?}", d);
             let json_str = serde_json::to_string_pretty(&d).unwrap();

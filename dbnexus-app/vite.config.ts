@@ -3,6 +3,7 @@ import react from "@vitejs/plugin-react";
 import { internalIpV4 } from "internal-ip";
 import { resolve } from "path";
 import { ViteEjsPlugin } from "vite-plugin-ejs";
+import monacoEditorPlugin from "vite-plugin-monaco-editor";
 const mobile = !!/android|ios/.exec(process.env.TAURI_ENV_PLATFORM);
 
 // https://vitejs.dev/config/
@@ -15,15 +16,21 @@ export default defineConfig(async ({ command }) => {
           plugins: ["babel-plugin-react-compiler"],
         },
       }),
+      (monacoEditorPlugin as any).default({}),
     ],
     build: {
       target: "esnext",
+      sourcemap: true,
       rollupOptions: {
         input: {
           main: resolve(__dirname, "index.html"),
+          query: resolve(__dirname, "query.html"),
         },
+
         output: {
-          manualChunks: id => {
+          // 关键配置：手动拦截并删除源代码内容
+          sourcemapExcludeSources: true,
+          manualChunks: (id) => {
             if (id.includes("monaco-editor")) return "monaco";
           },
         },
@@ -47,7 +54,7 @@ export default defineConfig(async ({ command }) => {
         : undefined,
       watch: {
         // 3. tell vite to ignore watching `src-tauri`
-        ignored: ["**/src-tauri/**"],
+        ignored: ["**/src-tauri/**", "**/node_modules/**", "**/dist/**"],
       },
     },
   };

@@ -5,9 +5,9 @@
 use crate::db::{CatalogTrait, CreatedTypeDef};
 use crate::language_server::{
     try_parser_dot_lexer, AstCompletionHelper, CompletionItem, CompletionKind, CompletionList,
-    DBExecutable, ErrAndLoc, GetKeyWords, LangServerCommon, LanguageServer, LexerCompletionTrait,
+    DBExecutable, GetKeyWords, LangServerCommon, LanguageServer, LexerCompletionTrait,
 };
-use crate::mssql::{ConvertColumnDataToString, SqlServerDB};
+use crate::mssql::SqlServerDB;
 use crate::sqlparser_completion::TempTableColumn;
 use futures_util::StreamExt;
 use std::ops::DerefMut;
@@ -29,25 +29,6 @@ impl GetKeyWords for SqlServerDB {
 
 #[async_trait::async_trait]
 impl LanguageServer for SqlServerDB {
-    async fn try_get_max_id(&self, name: &str) -> anyhow::Result<String> {
-        let sql = format!("SELECT MAX(id) FROM \"{name}\"");
-        let mut conn = self.get_conn().await?;
-        let mut stream = conn.simple_query(&sql).await?;
-        while let Some(item) = stream.next().await {
-            let item = item?;
-            match item {
-                QueryItem::Row(row) => {
-                    let x: Option<ConvertColumnDataToString> = row.try_get(0)?;
-                    if let Some(x) = x {
-                        return anyhow::Ok(x.value);
-                    }
-                }
-                QueryItem::Metadata(..) => {}
-            }
-        }
-        anyhow::bail!("no max id found.")
-    }
-
     async fn ai_text_completion(
         &self,
         text: &str,
@@ -72,10 +53,6 @@ impl LanguageServer for SqlServerDB {
         use_lexer: bool,
     ) -> anyhow::Result<CompletionList> {
         try_parser_dot_lexer(self, sql, line, col, use_lexer).await
-    }
-
-    async fn check_sql(&self, sql: &str) -> anyhow::Result<Option<ErrAndLoc>> {
-        LangServerCommon::parse_err(self, sql)
     }
 
     fn is_dangerous_sql(&self, sql: &str) -> anyhow::Result<bool> {
@@ -878,7 +855,7 @@ mod tests {
     use crate::db::QuerySql;
     use crate::enable_test_log;
     use crate::language_server::completion_test::test_file_auto_completion;
-    use crate::language_server::{LangServerCommon, LanguageServer};
+    use crate::language_server::LangServerCommon;
     use crate::mssql::{make_test_object, test_lock};
 
     #[tokio::test]
@@ -886,7 +863,7 @@ mod tests {
         let _guard = test_lock().lock().await;
         let db = make_test_object().await;
         enable_test_log();
-        let query_id = "";
+        let query_id = "aaaa";
         db.open_connection(query_id).await.unwrap();
         let _ = db
             .execute_sql(
@@ -944,13 +921,5 @@ mod tests {
         let db = make_test_object().await;
         let x = db.list_execute(None).await;
         println!("###########:{:?}", x);
-    }
-
-    #[tokio::test]
-
-    async fn test_try_get_max_id() {
-        let db = make_test_object().await;
-        let max_id = db.try_get_max_id("departments").await.unwrap();
-        println!("max id is:{}", max_id);
     }
 }

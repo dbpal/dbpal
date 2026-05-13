@@ -1,53 +1,33 @@
+// /home/yuyang/projects/dbpal/target/debug/build/libduckdb-sys-c1b3e1ba55c29beb/out/duckdb/src/storage/single_file_block_manager.cpp:806
+
 use crate::datasource_config::DuckDBConfig;
 use crate::db::{
     create_html_table_data, create_html_table_header, create_markdown_data, create_markdown_header,
     escape_sql_str, export_query_as_xlsx_send_blocking_data, AutoCompletionQueryId, BackendKind,
     CatalogTrait, CheckConn, ColumnType, CreateDatabaseExtra, CreateIndexReq, CreateSchemaExtra,
-    CreateTableAndIndexSql, DBTrait, ExportFrame, ExportKind, ExportQueryResult, Field,
-    GetBackendKind, Index, IndexKind, ListTable, MetaValue, QueryEventEmitter, QueryResp, QuerySql,
-    ReadOnlyTrait, SchemaTrait, SequenceDetail, ServerMetas, ShowTableParameter, SqlBuilder,
-    POOL_MAX_CONNECTIONS,
+    CreateTableAndIndexSql, DBTrait, ExportFrame, ExportKind, ExportQueryResult, Field, FirstTrue,
+    GetBackendKind, GetTestExportTableKinds, Index, IndexKind, ListTable, MetaValue,
+    QueryEventEmitter, QueryResp, QuerySql, SchemaTrait, SequenceDetail, ServerMetas,
+    ShowTableParameter, SqlBuilder, SqlCollect, POOL_MAX_CONNECTIONS,
 };
-use crate::helper::{create_csv, separate_sql_by_sqlparser_tokenizer};
+use crate::helper::create_csv;
 use chrono::NaiveDate;
-use dashmap::DashMap;
+use dashmap::{DashMap, DashSet};
 use duckdb::types::{TimeUnit, Value};
 use duckdb::{AccessMode, Connection, DuckdbConnectionManager};
 use r2d2::{Pool, PooledConnection};
 use std::collections::{HashMap, HashSet};
-use std::ops::DerefMut;
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
 use tokio::task::spawn_blocking;
-
-fn gen_show_sql(
-    schema: &str,
-    table_name: &str,
-    fields: &str,
-    where_str: Option<&str>,
-    order_by: Option<&str>,
-    page: usize,
-    page_size: usize,
-) -> String {
-    let mut sql = format!("SELECT {fields} from \"{schema}\".\"{table_name}\"");
-    if let Some(where_str) = where_str {
-        sql.push_str(format!(" where {where_str} ").as_str());
-    }
-    if let Some(order_by) = order_by {
-        sql.push_str(format!(" ORDER BY {order_by} ").as_str());
-    }
-    let offset = (page - 1) * page_size;
-    sql.push_str(format!(" OFFSET {} LIMIT {}", offset, page_size).as_str());
-    sql
-}
 
 impl DuckDB {
     pub(crate) fn use_database(&self, conn: &Connection) -> anyhow::Result<()> {
         if let Some(db) = self.config.db.as_ref() {
             conn.execute(&format!("use {}", db), [])?;
         }
-        if let Some(s) = self.config.schema.as_ref() {
-            conn.execute(&format!("SET SCHEMA '{s}';"), [])?;
+        if let Some(schema) = self.config.schema.as_ref() {
+            conn.execute(&format!("SET SCHEMA '{schema}';"), [])?;
         }
         anyhow::Ok(())
     }
@@ -57,8 +37,9 @@ impl DuckDB {
 pub struct DuckDB {
     pub(crate) config: DuckDBConfig,
     pool: Pool<DuckdbConnectionManager>,
-    pub(crate) query_connection: Arc<DashMap<String, DuckDbPooledConn>>,
+    pub(crate) query_connection: Arc<DashMap<String, DuckDbConn>>,
     pub(crate) completion_id: AutoCompletionQueryId,
+    pub(crate) query_tx: Arc<DashSet<String>>,
 }
 
 #[async_trait::async_trait]
@@ -66,13 +47,8 @@ impl ServerMetas for DuckDB {
     async fn show_metas(&self) -> anyhow::Result<Vec<MetaValue>> {
         let this = Clone::clone(self);
         spawn_blocking(move || {
-            let sql = "PRAGMA version;";
             let conn = this.get_conn()?;
-            let version = conn.query_row(sql, [], |row| {
-                let version: String = row.get(0)?;
-                Ok(version)
-            })?;
-            anyhow::Ok(vec![MetaValue::new("version", version)])
+            anyhow::Ok(vec![MetaValue::new("version", conn.version()?)])
         })
         .await?
     }
@@ -92,21 +68,25 @@ impl TryFrom<&DuckDBConfig> for DuckdbConnectionManager {
 }
 
 impl DuckDB {
-    pub fn new(config: DuckDBConfig) -> anyhow::Result<Self> {
-        let mut builder = r2d2::Builder::<DuckdbConnectionManager>::new();
-        builder = builder.max_size(POOL_MAX_CONNECTIONS);
-        builder = builder.min_idle(Some(3));
+    pub async fn new(config: DuckDBConfig) -> anyhow::Result<Self> {
+        spawn_blocking(move || {
+            let mut builder = r2d2::Builder::<DuckdbConnectionManager>::new();
+            builder = builder.max_size(POOL_MAX_CONNECTIONS);
+            builder = builder.min_idle(Some(3));
 
-        if let Some(timeout) = config.conn_timeout {
-            builder = builder.connection_timeout(timeout.into());
-        }
-        let pool = builder.build(DuckdbConnectionManager::try_from(&config)?)?;
-        anyhow::Ok(Self {
-            config,
-            pool,
-            query_connection: Default::default(),
-            completion_id: Default::default(),
+            if let Some(timeout) = config.conn_timeout {
+                builder = builder.connection_timeout(timeout.into());
+            }
+            let pool = builder.build(DuckdbConnectionManager::try_from(&config)?)?;
+            anyhow::Ok(Self {
+                config,
+                pool,
+                query_connection: Default::default(),
+                completion_id: Default::default(),
+                query_tx: Default::default(),
+            })
         })
+        .await?
     }
 
     pub(crate) fn get_conn(&self) -> anyhow::Result<PooledConnection<DuckdbConnectionManager>> {
@@ -118,7 +98,7 @@ impl DuckDB {
 
 impl std::fmt::Debug for DuckDB {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "duckdb@{}", self.config.path)
+        write!(f, "duckdb@{:?}", self.config)
     }
 }
 
@@ -137,27 +117,12 @@ impl CheckConn for DuckDB {
 }
 
 impl GetBackendKind for DuckDB {
-    fn backend_name(&self) -> BackendKind {
+    fn backend_kind(&self) -> BackendKind {
         BackendKind::DuckDB
     }
 }
 
-pub(crate) type DuckDbPooledConn = Arc<Mutex<PooledConnection<DuckdbConnectionManager>>>;
-
-impl DuckDB {
-    fn get_conn_by_query_id(&self, query_id: Option<&str>) -> anyhow::Result<DuckDbPooledConn> {
-        match query_id {
-            Some(id) => match self.query_connection.get(&id.to_string()) {
-                Some(x) => anyhow::Ok(x.clone()),
-                None => anyhow::bail!("should be able to get connection"),
-            },
-            None => {
-                let conn = self.get_conn()?;
-                anyhow::Ok(Arc::new(Mutex::new(conn)))
-            }
-        }
-    }
-}
+pub(crate) type DuckDbConn = Arc<Mutex<Connection>>;
 
 fn encode_row_as_json<'stmt>(
     row: &duckdb::Row<'stmt>,
@@ -248,11 +213,59 @@ fn encode_row_as_json<'stmt>(
 }
 
 impl SqlBuilder for DuckDB {
-    fn put_value_in_sql(&self, typ: &str, value: Option<&str>) -> anyhow::Result<String> {
-        put_value_in_sql(typ, value)
+    fn put_value_in_sql(&self, typ: &str, value: &str) -> anyhow::Result<String> {
+        let typ = typ.to_lowercase();
+        log::trace!("encode type:{} value:{:?}", typ, value);
+
+        match typ.as_str() {
+            "date" | "json" | "time" | "timestamp with time zone" | "timestamp" | "varchar" => {
+                anyhow::Ok(value.to_string())
+            }
+            _ if typ.ends_with("[]") => anyhow::Ok(value.to_string()),
+            _ if typ.starts_with("time")
+                || typ.starts_with("date")
+                || typ.starts_with("utf8")
+                || typ.starts_with("largeutf8") =>
+            {
+                anyhow::Ok(escape_sql_str(value))
+            }
+            _ => anyhow::Ok(value.to_string()),
+        }
     }
     fn get_schema(&self) -> Option<&str> {
         self.config.schema.as_deref()
+    }
+
+    fn gen_show_sql(
+        &self,
+        table_name: &str,
+        fields: Option<&[Field]>,
+        para: Option<&ShowTableParameter>,
+    ) -> String {
+        let schema = self.config.schema_str();
+        let mut sql = format!(
+            "SELECT {} from \"{schema}\".\"{table_name}\"",
+            self.backend_kind().format_fields(fields)
+        );
+        if let Some(para) = para {
+            let ShowTableParameter {
+                where_str,
+                order_by,
+                page,
+                page_size,
+                ..
+            } = para;
+            if let Some(where_str) = where_str {
+                sql.push_str(format!(" where {where_str} ").as_str());
+            }
+            if let Some(order_by) = order_by {
+                sql.push_str(format!(" ORDER BY {order_by} ").as_str());
+            }
+            let offset = (page - 1) * page_size;
+            sql.push_str(format!(" OFFSET {} LIMIT {}", offset, page_size).as_str());
+        }
+
+        sql
     }
 }
 
@@ -260,7 +273,7 @@ impl SqlBuilder for DuckDB {
 
 impl ExportQueryResult for DuckDB {
     fn clone(&self) -> Box<dyn ExportQueryResult> {
-        Box::new(Clone::clone(self)) as Box<dyn ExportQueryResult>
+        Box::new(Clone::clone(self))
     }
 
     async fn export_query_result(
@@ -274,11 +287,21 @@ impl ExportQueryResult for DuckDB {
         let sql = sql.to_owned();
         let query_id = query_id.map(|s| s.to_owned());
         spawn_blocking(move || {
-            let conn = this.get_conn_by_query_id(query_id.as_deref())?;
+            let conn = match &query_id {
+                Some(id) => match this.query_connection.get(&id.to_string()) {
+                    Some(x) => x.clone(),
+                    None => anyhow::bail!("should be able to get connection"),
+                },
+                None => {
+                    let conn = this.get_conn()?.try_clone()?;
+                    Arc::new(Mutex::new(conn))
+                }
+            };
             let conn = conn.lock().expect("lock failed");
             let mut stmt = conn.prepare(&sql)?;
             let mut stream = stmt.query([])?;
-            let mut first = true;
+            let first = FirstTrue::default();
+
             let mut row_num = 0;
             while let Some(row) = stream.next()? {
                 match kind {
@@ -286,8 +309,7 @@ impl ExportQueryResult for DuckDB {
                         include_header,
                         delimiter,
                     } => {
-                        if first {
-                            first = false;
+                        if first.get() {
                             if include_header {
                                 let fs =
                                     row.as_ref().column_names().into_iter().map(Some).collect();
@@ -306,8 +328,7 @@ impl ExportQueryResult for DuckDB {
                         anyhow::bail!("query as sql not supported.");
                     }
                     ExportKind::Xlsx { include_header } => {
-                        if first {
-                            first = false;
+                        if first.get() {
                             if include_header {
                                 let names: Vec<_> =
                                     row.as_ref().column_names().into_iter().map(Some).collect();
@@ -322,8 +343,7 @@ impl ExportQueryResult for DuckDB {
                         export_query_as_xlsx_send_blocking_data(&mut row_num, d, sender.clone())?;
                     }
                     ExportKind::Html { include_header } => {
-                        if first {
-                            first = false;
+                        if first.get() {
                             if include_header {
                                 let names = row.as_ref().column_names();
                                 sender.blocking_send(create_html_table_header(&names).into())?;
@@ -334,8 +354,7 @@ impl ExportQueryResult for DuckDB {
                         sender.blocking_send(r.into())?;
                     }
                     ExportKind::MarkDown => {
-                        if first {
-                            first = false;
+                        if first.get() {
                             let names = row.as_ref().column_names();
                             sender.blocking_send(create_markdown_header(&names).into())?;
                         }
@@ -351,12 +370,54 @@ impl ExportQueryResult for DuckDB {
     }
 }
 
+impl DuckDB {
+    async fn execute_on_query_id(
+        &self,
+        query_id: &str,
+        sql: impl Into<String>,
+    ) -> anyhow::Result<()> {
+        let this = Clone::clone(self);
+        let query_id = query_id.to_string();
+        let sql = sql.into();
+        spawn_blocking(move || {
+            let conn = match this.query_connection.get(&query_id) {
+                Some(conn) => conn.clone(),
+                None => anyhow::bail!("connection closed???"),
+            };
+            let conn = conn.lock().expect("lock failed");
+            conn.execute(&sql, [])?;
+            anyhow::Ok(())
+        })
+        .await?
+    }
+}
+
 #[async_trait::async_trait]
 impl QuerySql for DuckDB {
-    async fn set_auto_commit(&self, _query_id: &str, _commit: bool) -> anyhow::Result<()> {
-        anyhow::bail!(
-            "async rust not allow refcell and self reference,so this can't be implemented,we can't prove this is safe to rust compiler."
-        )
+    async fn get_auto_commit(&self, query_id: &str) -> anyhow::Result<bool> {
+        anyhow::Ok(!self.query_tx.contains(&query_id.to_string()))
+    }
+
+    async fn set_auto_commit(&self, query_id: &str, commit: bool) -> anyhow::Result<()> {
+        if commit {
+            anyhow::bail!("duckdb use commit or rollback to end transaction");
+        }
+        self.execute_on_query_id(query_id, "BEGIN TRANSACTION")
+            .await?;
+        self.query_tx.insert(query_id.to_string());
+        anyhow::Ok(())
+    }
+
+    async fn commit(&self, query_id: &str) -> anyhow::Result<()> {
+        self.execute_on_query_id(query_id, "COMMIT").await?;
+        self.query_tx.remove(&query_id.to_string());
+        anyhow::Ok(())
+    }
+
+    async fn rollback(&self, query_id: &str) -> anyhow::Result<()> {
+        self.execute_on_query_id(query_id, "ROLLBACK").await?;
+        self.query_tx.remove(&query_id.to_string());
+        anyhow::Ok(())
     }
 
     async fn query_sql(
@@ -365,47 +426,44 @@ impl QuerySql for DuckDB {
         sql: &str,
         emit: QueryEventEmitter,
     ) -> anyhow::Result<()> {
-        let sql = separate_sql_by_sqlparser_tokenizer(
-            sql,
-            crate::language_server::LangServerCommon::dialect(self).as_ref(),
-        )?;
+        crate::language_server::LangServerCommon::contains_tx_operation_error(self, sql)?;
         let this = Clone::clone(self);
         let query_id = query_id.to_string();
+        let sql = sql.to_string();
+
         spawn_blocking(move || {
             let conn = match this.query_connection.get(&query_id) {
                 Some(conn) => conn.clone(),
                 None => anyhow::bail!("connection closed???"),
             };
             let conn = conn.lock().expect("lock failed");
-            for sql in sql.iter() {
-                let mut stmt = conn.prepare(sql)?;
-                let mut stream = stmt.query([])?;
-                let mut first = true;
-                while let Some(row) = stream.next()? {
-                    if first {
-                        first = false;
-                        let stmt = row.as_ref();
-                        emit.send(
-                            QueryResp {
-                                fields: (0..stmt.column_count())
-                                    .map(|index| {
-                                        Field::from_name_type(
-                                            stmt.column_name(index)
-                                                .expect("column name must be Some")
-                                                .to_string(),
-                                            format!("{:?}", stmt.column_type(index)),
-                                        )
-                                    })
-                                    .collect(),
-                                sql: Some(sql.clone()),
-                                ..Default::default()
-                            }
-                            .into(),
-                        )?;
-                    }
-                    let d = encode_row(row)?;
-                    emit.send(d.into())?;
+            let mut stmt = conn.prepare(&sql)?;
+            let mut stream = stmt.query([])?;
+            let first = FirstTrue::default();
+
+            while let Some(row) = stream.next()? {
+                if first.get() {
+                    let stmt = row.as_ref();
+                    emit.send(
+                        QueryResp {
+                            fields: (0..stmt.column_count())
+                                .map(|index| {
+                                    Field::from_name_type(
+                                        stmt.column_name(index)
+                                            .expect("column name must be Some")
+                                            .to_string(),
+                                        format!("{:?}", stmt.column_type(index)),
+                                    )
+                                })
+                                .collect(),
+                            sql: Some(sql.clone()),
+                            ..Default::default()
+                        }
+                        .into(),
+                    )?;
                 }
+                let d = encode_row(row)?;
+                emit.send(d.into())?;
             }
             anyhow::Ok(())
         })
@@ -417,23 +475,12 @@ impl QuerySql for DuckDB {
         query_id: &str,
         sql: &str,
     ) -> anyhow::Result<Result<QueryResp, String>> {
-        let this = Clone::clone(self);
-        let query_id = query_id.to_string();
-        let sql = sql.to_string();
-        spawn_blocking(move || {
-            let conn = match this.query_connection.get(&query_id) {
-                Some(x) => x.clone(),
-                None => anyhow::bail!("connection closed???"),
-            };
-            let mut conn = conn.lock().expect("lock failed");
-            let conn = conn.deref_mut();
-            let resp = match conn.execute_batch(&sql) {
-                Ok(_) => Ok(QueryResp::execute_ok(sql.to_string())),
-                Err(err) => Err(err.to_string()),
-            };
-            anyhow::Ok(resp)
-        })
-        .await?
+        crate::language_server::LangServerCommon::contains_tx_operation_error(self, sql)?;
+        let r = match self.execute_on_query_id(query_id, sql).await {
+            Ok(_) => Ok(QueryResp::execute_ok(sql.to_string())),
+            Err(err) => Err(err.to_string()),
+        };
+        anyhow::Ok(r)
     }
 
     async fn open_connection(&self, id: &str) -> anyhow::Result<()> {
@@ -441,32 +488,30 @@ impl QuerySql for DuckDB {
         let id = id.to_string();
         spawn_blocking(move || {
             let conn = this.get_conn()?;
-            this.query_connection.insert(id, Arc::new(Mutex::new(conn)));
+            this.query_connection
+                .insert(id, Arc::new(Mutex::new(conn.try_clone()?)));
             anyhow::Ok(())
         })
         .await?
     }
 
     async fn close_connection(&self, id: &str) -> anyhow::Result<()> {
-        self.query_connection.remove(&id.to_string());
+        let query_id = id.to_string();
+        self.query_connection.remove(&query_id);
+        self.query_tx.remove(&query_id);
         anyhow::Ok(())
     }
 
-    async fn execute_sql_no_open_conn(&self, sql: &str) -> anyhow::Result<Option<usize>> {
+    async fn simple_execute_sql(&self, sql: &str) -> anyhow::Result<Option<usize>> {
         let this = Clone::clone(self);
         let sql = sql.to_string();
         spawn_blocking(move || {
             let conn = this.get_conn()?;
-            conn.execute_batch(&sql)?;
+            conn.execute_batch(&sql)
+                .map_err(|err| anyhow::Error::msg(format!("Sql:{} Err:{}", sql, err)))?;
             anyhow::Ok(None)
         })
         .await?
-    }
-}
-
-impl ReadOnlyTrait for DuckDB {
-    fn read_only(&self) -> bool {
-        self.config.read_only
     }
 }
 
@@ -655,45 +700,15 @@ impl DuckDB {
         sender: tokio::sync::mpsc::Sender<ExportFrame>,
     ) -> anyhow::Result<()> {
         if include_table_schema {
-            let ss = SchemaTrait::show_create_table_sql(self, table_name).await?;
-            sender.send(ss.create_table.clone().into()).await?;
-            sender.send(";\n".into()).await?;
-
-            for index in ss.indexes.into_iter() {
-                sender.send(index.into()).await?;
-                sender.send(";\n".into()).await?;
-            }
+            let create_table = SchemaTrait::show_create_table_sql(self, table_name).await?;
+            sender.send(create_table.to_string().into()).await?;
         }
         let this = Clone::clone(self);
         let table_name = table_name.to_owned();
         let fs = self.show_table_columns(&table_name).await?;
         spawn_blocking(move || {
             let conn = this.get_conn()?;
-            let sql = if let Some(para) = para {
-                let ShowTableParameter {
-                    where_str,
-                    order_by,
-                    page,
-                    page_size,
-                    ..
-                } = &para;
-                gen_show_sql(
-                    this.config.schema_str(),
-                    &table_name,
-                    this.backend_name().format_fields(Some(&fs)).as_str(),
-                    where_str.as_deref(),
-                    order_by.as_deref(),
-                    *page,
-                    *page_size,
-                )
-            } else {
-                format!(
-                    r#"SELECT {} from "{}"."{}""#,
-                    this.backend_name().format_fields(Some(&fs)),
-                    this.config.schema_str(),
-                    table_name
-                )
-            };
+            let sql = this.gen_show_sql(&table_name, Some(&fs), para.as_ref());
             let mut stmt = conn.prepare(&sql)?;
             let mut stream = stmt.query([])?;
             while let Some(row) = stream.next()? {
@@ -764,19 +779,6 @@ impl DuckDB {
     }
 }
 
-impl DuckDB {
-    async fn execute(&self, sql: impl Into<String>) -> anyhow::Result<usize> {
-        let sql = sql.into();
-        let this = Clone::clone(self);
-        spawn_blocking(move || {
-            let conn = this.get_conn()?;
-            let aff = conn.execute(&sql, [])?;
-            anyhow::Ok(aff)
-        })
-        .await?
-    }
-}
-
 #[async_trait::async_trait]
 impl SchemaTrait for DuckDB {
     async fn rename_index(
@@ -784,13 +786,14 @@ impl SchemaTrait for DuckDB {
         _table: &str,
         _old_name: &str,
         _new_name: &str,
-    ) -> anyhow::Result<()> {
-        self.backend_name().not_support_feature()
+    ) -> anyhow::Result<Option<String>> {
+        self.backend_kind().not_support_feature()
     }
 
-    async fn drop_index(&self, _table_name: &str, index: &str) -> anyhow::Result<()> {
+    async fn drop_index(&self, _table_name: &str, index: &str) -> anyhow::Result<Option<String>> {
         let sql = format!(r#"DROP INDEX "{index}";"#);
-        self.execute(sql).await.map(|_| ())
+        self.simple_execute_sql(&sql).await?;
+        anyhow::Ok(sql.into())
     }
 
     async fn show_indexes(&self, table_name: &str) -> anyhow::Result<Vec<Index>> {
@@ -830,21 +833,17 @@ impl SchemaTrait for DuckDB {
         .await?
     }
 
-    async fn create_index(&self, table: &str, req: &CreateIndexReq) -> anyhow::Result<()> {
-        let sql = req.common_sql(table, true, self.backend_name().quote_style())?;
+    async fn create_index(&self, table: &str, req: &CreateIndexReq) -> anyhow::Result<String> {
+        let sql = req.common_sql(table, true, self.backend_kind().quote_style())?;
         log::info!("sql:{}", sql);
-        self.execute(sql).await?;
-        anyhow::Ok(())
+        self.simple_execute_sql(&sql).await?;
+        anyhow::Ok(sql)
     }
 
-    async fn drop_table_column(&self, table: &str, col: &str) -> anyhow::Result<()> {
-        let sql = format!(
-            r#"
-            ALTER TABLE "{table}" DROP COLUMN "{col}";
-        "#
-        );
-        self.execute(sql).await?;
-        anyhow::Ok(())
+    async fn drop_table_column(&self, table: &str, col: &str) -> anyhow::Result<String> {
+        let sql = format!(r#"ALTER TABLE "{table}" DROP COLUMN "{col}""#);
+        self.simple_execute_sql(&sql).await?;
+        anyhow::Ok(sql)
     }
 
     async fn modify_table_column(
@@ -853,66 +852,57 @@ impl SchemaTrait for DuckDB {
         old_name: &str,
         new_name: &str,
         typ: Option<ColumnType>,
-    ) -> anyhow::Result<()> {
+    ) -> anyhow::Result<String> {
+        let mut sc = SqlCollect::default();
+
         if old_name != new_name {
-            let sql = format!(
-                r#"
-            ALTER TABLE "{table}" RENAME COLUMN "{old_name}" TO "{new_name}";
-            "#
-            );
+            let sql =
+                format!(r#"ALTER TABLE "{table}" RENAME COLUMN "{old_name}" TO "{new_name}""#);
             log::info!("sql:{}", sql);
-            self.execute(sql).await?;
+            self.simple_execute_sql(&sql).await?;
+            sc.collect(sql);
         }
         if let Some(typ) = typ.as_ref() {
             let sql = format!(
-                r#"
-            ALTER TABLE {table} 
-                    ALTER COLUMN "{new_name}" SET DATA TYPE {};
-            "#,
+                r#"ALTER TABLE {table} ALTER COLUMN "{new_name}" SET DATA TYPE {}"#,
                 typ.typ
             );
             log::info!("sql:{}", sql);
-
-            self.execute(sql).await?;
-
+            self.simple_execute_sql(&sql).await?;
+            sc.collect(sql);
             if let Some(null) = typ.nullable.as_ref() {
                 match null {
-                    crate::db::SqlNullAble::None => {}
+                    crate::db::SqlNullAble::Unspecified => {}
                     crate::db::SqlNullAble::Null => {
-                        let sql = format!(
-                            r#"
-                        ALTER TABLE {table} 
-                            ALTER COLUMN {new_name} DROP NOT NULL;
-                    "#
-                        );
+                        let sql =
+                            format!(r#"ALTER TABLE {table} ALTER COLUMN {new_name} DROP NOT NULL"#);
                         log::info!("sql:{}", sql);
-                        self.execute(sql).await?;
+                        self.simple_execute_sql(&sql).await?;
+                        sc.collect(sql);
                     }
                     crate::db::SqlNullAble::NotNull => {
-                        let sql = format!(
-                            r#"
-                        ALTER TABLE {table} 
-                            ALTER COLUMN {new_name} SET NOT NULL;
-                    "#
-                        );
+                        let sql =
+                            format!(r#"ALTER TABLE {table}  ALTER COLUMN {new_name} SET NOT NULL"#);
                         log::info!("sql:{}", sql);
-                        self.execute(sql).await?;
+                        self.simple_execute_sql(&sql).await?;
+                        sc.collect(sql);
                     }
                 }
             }
-
-            if let Some(x) = typ.default_value.as_ref() {
+            if let Some(value) = typ.default_value.as_ref() {
                 let sql = format!(
-                    r#"
-                    ALTER TABLE "{table}" ALTER COLUMN "{new_name}" SET DEFAULT {};
-                    "#,
-                    self.put_value_in_sql(&typ.typ, Some(x.as_str()))?
+                    r#"ALTER TABLE "{table}" ALTER COLUMN "{new_name}" SET DEFAULT {}"#,
+                    if self.hit_current_value(value) {
+                        value.clone()
+                    } else {
+                        self.put_value_in_sql(&typ.typ, value.as_str())?
+                    }
                 );
-
-                self.execute(sql).await?;
+                self.simple_execute_sql(&sql).await?;
+                sc.collect(sql);
             }
         }
-        anyhow::Ok(())
+        anyhow::Ok(sc.into())
     }
 
     async fn add_table_column(
@@ -920,23 +910,27 @@ impl SchemaTrait for DuckDB {
         table: &str,
         name: &str,
         col: ColumnType,
-    ) -> anyhow::Result<()> {
+    ) -> anyhow::Result<String> {
         let sql = format!(
             r#"ALTER TABLE "{table}" ADD COLUMN "{name}" {} {} {}"#,
             col.typ,
             col.nullable.unwrap_or_default(),
-            if let Some(d) = col.default_value.as_ref() {
+            if let Some(dv) = col.default_value.as_ref() {
                 format!(
                     "DEFAULT {}",
-                    self.put_value_in_sql(&col.typ, Some(d.as_str()))?
+                    if self.hit_current_value(dv) {
+                        dv.clone()
+                    } else {
+                        self.put_value_in_sql(&col.typ, dv.as_str())?
+                    }
                 )
             } else {
                 "".to_owned()
             }
         );
 
-        self.execute(sql).await?;
-        anyhow::Ok(())
+        self.simple_execute_sql(&sql).await?;
+        anyhow::Ok(sql)
     }
 
     async fn export_table_or_view(
@@ -954,26 +948,7 @@ impl SchemaTrait for DuckDB {
                     .await
             }
             _ => {
-                let sql = if let Some(para) = para {
-                    let ShowTableParameter {
-                        where_str,
-                        order_by,
-                        page,
-                        page_size,
-                        ..
-                    } = &para;
-                    gen_show_sql(
-                        self.config.schema_str(),
-                        name,
-                        "*",
-                        where_str.as_deref(),
-                        order_by.as_deref(),
-                        *page,
-                        *page_size,
-                    )
-                } else {
-                    format!(r#"SELECT * from "{}"."{}""#, self.config.schema_str(), name)
-                };
+                let sql = self.gen_show_sql(name, None, para.as_ref());
                 self.export_query_result(None, &sql, kind, sender).await
             }
         }
@@ -1029,10 +1004,10 @@ impl SchemaTrait for DuckDB {
             .await
     }
 
-    async fn drop_view(&self, view_name: &str) -> anyhow::Result<()> {
-        let sql = format!(r#"DROP VIEW "{view_name}";"#);
-        self.execute(sql).await?;
-        anyhow::Ok(())
+    async fn drop_view(&self, view_name: &str) -> anyhow::Result<String> {
+        let sql = format!(r#"DROP VIEW "{view_name}""#);
+        self.simple_execute_sql(&sql).await?;
+        anyhow::Ok(sql)
     }
 
     async fn show_view(
@@ -1045,24 +1020,8 @@ impl SchemaTrait for DuckDB {
         let cols = self.show_view_columns(view_name).await?;
         let view_name = view_name.to_owned();
         spawn_blocking(move || {
-            let ShowTableParameter {
-                where_str,
-                order_by,
-                page,
-                page_size,
-                ..
-            } = &para;
-            let total = this.query_count(&view_name, where_str.as_deref())?;
-
-            let sql = gen_show_sql(
-                this.config.schema_str(),
-                &view_name,
-                &this.backend_name().format_fields(Some(&cols)),
-                where_str.as_deref(),
-                order_by.as_deref(),
-                *page,
-                *page_size,
-            );
+            let total = this.query_count(&view_name, para.where_str.as_deref())?;
+            let sql = this.gen_show_sql(&view_name, None, Some(&para));
             log::info!("sql:{}", sql);
             emit.send(
                 QueryResp {
@@ -1107,7 +1066,6 @@ impl SchemaTrait for DuckDB {
                     this.config.db_str(),
                     this.config.schema_str()
                 );
-
                 log::info!("sql:{}", sql);
                 let mut primary_keys = HashSet::new();
                 let mut stmt = conn.prepare(&sql)?;
@@ -1159,16 +1117,15 @@ impl SchemaTrait for DuckDB {
         self
     }
 
-    async fn rename_table(&self, old: &str, new: &str) -> anyhow::Result<()> {
+    async fn rename_table(&self, old: &str, new: &str) -> anyhow::Result<Option<String>> {
         let sql = format!(r#"ALTER TABLE "{old}"  RENAME TO "{new}";"#);
-        self.execute(sql).await?;
-
-        anyhow::Ok(())
+        self.simple_execute_sql(&sql).await?;
+        anyhow::Ok(sql.into())
     }
 
     async fn duplicate_table(&self, table: &str, dup: &str) -> anyhow::Result<()> {
         let sql = format!(r#"CREATE TABLE "{dup}" AS SELECT * FROM "{table}";"#);
-        self.execute(sql).await?;
+        self.simple_execute_sql(&sql).await?;
         anyhow::Ok(())
     }
 
@@ -1183,7 +1140,7 @@ impl SchemaTrait for DuckDB {
         SELECT column_name, data_type
         FROM information_schema.columns
         WHERE table_name = '{name}'  and table_catalog = '{}' and table_schema='{}' ;
-",
+        ",
             self.config.db_str(),
             self.config.schema_str()
         );
@@ -1230,23 +1187,8 @@ impl SchemaTrait for DuckDB {
         let this = Clone::clone(self);
         let table_name = table_name.to_string();
         spawn_blocking(move || {
-            let ShowTableParameter {
-                where_str,
-                order_by,
-                page,
-                page_size,
-                ..
-            } = &para;
-            let total = this.query_count(&table_name, where_str.as_deref())?;
-            let sql = gen_show_sql(
-                this.config.schema_str(),
-                &table_name,
-                &this.backend_name().format_fields(Some(&cols)),
-                where_str.as_deref(),
-                order_by.as_deref(),
-                *page,
-                *page_size,
-            );
+            let total = this.query_count(&table_name, para.where_str.as_deref())?;
+            let sql = this.gen_show_sql(&table_name, Some(&cols), Some(&para));
             log::info!("sql:{}", sql);
             emit.send(
                 QueryResp {
@@ -1269,20 +1211,20 @@ impl SchemaTrait for DuckDB {
         .await?
     }
 
-    async fn truncate_table(&self, table_name: &str) -> anyhow::Result<()> {
-        let sql = format!(r#"DELETE FROM "{}";"#, table_name);
-        self.execute(sql).await?;
-        anyhow::Ok(())
+    async fn truncate_table(&self, table_name: &str) -> anyhow::Result<Option<String>> {
+        let sql = format!(r#"DELETE FROM "{}" "#, table_name);
+        self.simple_execute_sql(&sql).await?;
+        anyhow::Ok(sql.into())
     }
 
-    async fn drop_table(&self, table: &str, _cascade: bool) -> anyhow::Result<()> {
-        let sql = format!(r#"DROP TABLE "{}";"#, table);
-        self.execute(sql).await?;
-        anyhow::Ok(())
+    async fn drop_table(&self, table: &str, _cascade: bool) -> anyhow::Result<Option<String>> {
+        let sql = format!(r#"DROP TABLE "{}" "#, table);
+        self.simple_execute_sql(&sql).await?;
+        anyhow::Ok(sql.into())
     }
 
     fn clone(&self) -> Box<dyn SchemaTrait> {
-        Box::new(Clone::clone(self)) as Box<dyn SchemaTrait>
+        Box::new(Clone::clone(self))
     }
 
     async fn list_data_types(&self) -> anyhow::Result<Vec<String>> {
@@ -1293,44 +1235,15 @@ impl SchemaTrait for DuckDB {
         self.list_sequence_impl(self.config.db_str(), self.config.schema_str())
             .await
     }
-    async fn rename_sequence(&self, _old: &str, _new: &str) -> anyhow::Result<()> {
-        self.backend_name().not_support_feature()
+    async fn rename_sequence(&self, _old: &str, _new: &str) -> anyhow::Result<String> {
+        // duckdb
+        self.backend_kind().not_support_feature()
     }
 
-    async fn drop_sequence(&self, name: &str, _cascade: bool) -> anyhow::Result<()> {
-        let sql = format!("DROP SEQUENCE {name};");
-        self.execute(sql).await?;
-        anyhow::Ok(())
-    }
-}
-
-fn put_value_in_sql(typ: &str, value: Option<&str>) -> anyhow::Result<String> {
-    let typ = typ.to_lowercase();
-    log::trace!("encode type:{} value:{:?}", typ, value);
-
-    match typ.as_str() {
-        "date" | "json" | "time" | "timestamp with time zone" | "timestamp" | "varchar" => {
-            anyhow::Ok(
-                value
-                    .map(|x| format!("'{}'", x))
-                    .unwrap_or("null".to_string()),
-            )
-        }
-        _ if typ.ends_with("[]") => {
-            anyhow::Ok(value.map(|x| x.to_string()).unwrap_or("null".to_string()))
-        }
-        _ if typ.starts_with("time")
-            || typ.starts_with("date")
-            || typ.starts_with("utf8")
-            || typ.starts_with("largeutf8") =>
-        {
-            anyhow::Ok(
-                value
-                    .map(|x| format!("'{}'", x))
-                    .unwrap_or("null".to_string()),
-            )
-        }
-        _ => anyhow::Ok(value.map(|x| x.to_string()).unwrap_or("null".to_string())),
+    async fn drop_sequence(&self, name: &str, _cascade: bool) -> anyhow::Result<String> {
+        let sql = format!(r#"DROP SEQUENCE "{name}" "#);
+        self.simple_execute_sql(&sql).await?;
+        anyhow::Ok(sql)
     }
 }
 
@@ -1379,18 +1292,16 @@ impl DBTrait for DuckDB {
         name: &str,
         _extra: Option<CreateSchemaExtra>,
     ) -> anyhow::Result<()> {
-        self.can_write()?;
         let sql = format!("CREATE SCHEMA {};", name);
         log::info!("sql:{}", sql);
-        self.execute(sql).await?;
+        self.simple_execute_sql(&sql).await?;
         anyhow::Ok(())
     }
 
     async fn drop_schema(&self, name: &str) -> anyhow::Result<()> {
-        self.can_write()?;
         let sql = format!("DROP SCHEMA {} CASCADE;", name);
         log::info!("sql:{}", sql);
-        self.execute(sql).await?;
+        self.simple_execute_sql(&sql).await?;
         anyhow::Ok(())
     }
 }
@@ -1434,6 +1345,10 @@ impl CatalogTrait for DuckDB {
 
     async fn drop_database(&self, _name: &str) -> anyhow::Result<()> {
         anyhow::bail!("duckdb can't drop database")
+    }
+
+    fn as_any(&self) -> &dyn std::any::Any {
+        self
     }
 }
 
@@ -1499,7 +1414,7 @@ pub(crate) fn duckdb_test_file_path() -> String {
 }
 
 #[cfg(test)]
-pub(crate) fn make_test_object(schema: Option<String>) -> DuckDB {
+pub(crate) async fn make_test_object(schema: Option<String>) -> DuckDB {
     let path = duckdb_test_file_path();
     DuckDB::new(DuckDBConfig {
         conn_timeout: None,
@@ -1508,6 +1423,7 @@ pub(crate) fn make_test_object(schema: Option<String>) -> DuckDB {
         db: Some("test".to_string()),
         schema,
     })
+    .await
     .unwrap()
 }
 
@@ -1545,9 +1461,10 @@ pub(crate) fn test_lock() -> &'static tokio::sync::Mutex<()> {
     &MUTEX
 }
 
+impl GetTestExportTableKinds for DuckDB {}
+
 #[cfg(test)]
 mod tests {
-
     use super::*;
     use crate::{
         db::{
@@ -1556,6 +1473,150 @@ mod tests {
         },
         enable_test_log,
     };
+
+    #[tokio::test]
+    async fn test_read_only() {
+        let _gurad = test_lock().lock().await;
+        let path = duckdb_test_file_path();
+        let db = DuckDB::new(DuckDBConfig {
+            conn_timeout: None,
+            path,
+            read_only: true,
+            db: Some("test".to_string()),
+            schema: Some("main".into()),
+        })
+        .await
+        .unwrap();
+
+        let err = db
+            .simple_execute_sql(
+                r#"
+            CREATE TABLE IF NOT EXISTS sales_data (
+                order_id    INTEGER PRIMARY KEY,
+                product     VARCHAR,
+                category    ENUM('Electronics', 'Clothing', 'Home'), -- Enums are very fast in DuckDB
+                price       DOUBLE,
+                quantity    INTEGER,
+                order_date  DATE DEFAULT CURRENT_DATE,
+                tags        VARCHAR[] -- Native support for Arrays/Lists
+            );
+        "#,
+            )
+            .await;
+        assert!(err.is_err());
+        if let Err(err) = err {
+            let x = format!("{:?}", err);
+            println!("{:?}", x);
+            assert!(x.contains("read-only"));
+        }
+    }
+    #[tokio::test]
+    async fn test_table_pagination() {
+        let _gurad = test_lock().lock().await;
+
+        let db = make_test_object(Some("main".to_string())).await;
+        let table_name = "test_table_pagination";
+        let _ = db.drop_table(table_name, false).await;
+        db.create_table(&CreateTableReq {
+            name: table_name.into(),
+            columns: vec![
+                CreateTableReqColumn {
+                    name: "id".into(),
+                    data_type: "SMALLINT".into(),
+                    auto_increment: false,
+                    primary_key: true,
+                    default_value: None,
+                    nullable: SqlNullAble::Unspecified,
+                },
+                CreateTableReqColumn {
+                    name: "name".into(),
+                    data_type: "varchar(255)".into(),
+                    auto_increment: false,
+                    primary_key: true,
+                    default_value: None,
+                    nullable: SqlNullAble::Unspecified,
+                },
+            ],
+            indexes: vec![],
+        })
+        .await
+        .unwrap();
+
+        for i in 0..155 {
+            let mut values = HashMap::new();
+            values.insert("id".to_owned(), Some((i + 1).to_string()));
+            values.insert("name".to_owned(), Some(format!("name{}", i + 1)));
+            db.table_insert(table_name, values).await.unwrap();
+        }
+    }
+
+    #[tokio::test]
+    async fn test_transaction() {
+        let _gurad = test_lock().lock().await;
+        let db = make_test_object(Some("main".to_string())).await;
+
+        let table_name = "test_commit";
+        let _ = db.drop_table(table_name, false).await;
+
+        let query_id = "aaaa";
+        db.open_connection(query_id).await.unwrap();
+        db.execute_sql(
+            query_id,
+            r#"
+            CREATE TABLE test_commit (
+                ID INTEGER PRIMARY KEY,
+                NAME VARCHAR(50)
+            );
+        "#,
+        )
+        .await
+        .unwrap()
+        .unwrap();
+        db.set_auto_commit(query_id, false).await.unwrap();
+
+        db.execute_sql(
+            query_id,
+            r#"
+            INSERT INTO test_commit (ID, NAME) VALUES (1, 'Test');
+        "#,
+        )
+        .await
+        .unwrap()
+        .unwrap();
+        db.rollback(query_id).await.unwrap();
+
+        assert!(
+            db.show_table_collect(table_name, ShowTableParameter::new_stupid_test("id asc"),)
+                .await
+                .unwrap()
+                .total
+                == 0
+        );
+        db.set_auto_commit(query_id, false).await.unwrap();
+
+        db.execute_sql(
+            query_id,
+            r#"
+            INSERT INTO test_commit (ID, NAME) VALUES (1, 'Test');
+        "#,
+        )
+        .await
+        .unwrap()
+        .unwrap();
+
+        println!("!!!!!!!!!!!!:{:?}", db.query_tx);
+
+        assert!(!db.get_auto_commit(query_id).await.unwrap());
+
+        db.commit(query_id).await.unwrap();
+        assert!(
+            db.show_table_collect(table_name, ShowTableParameter::new_stupid_test("id asc"),)
+                .await
+                .unwrap()
+                .total
+                == 1
+        );
+    }
 
     #[test]
     fn test_extract_index_columns() {
@@ -1567,10 +1628,10 @@ mod tests {
     #[tokio::test]
 
     async fn test_seq() {
-        let _guard = test_lock().lock().await;
+        let _gurad = test_lock().lock().await;
         enable_test_log();
-        let db = make_test_object(Some("main".to_string()));
-        let query_id = "";
+        let db = make_test_object(Some("main".to_string())).await;
+        let query_id = "aaaa";
         db.open_connection(query_id).await.unwrap();
         let name = "test_seq";
         let _ = db.drop_sequence(name, false).await;
@@ -1589,10 +1650,10 @@ mod tests {
 
     #[tokio::test]
     async fn test_view() {
-        let _guard = test_lock().lock().await;
+        let _gurad = test_lock().lock().await;
         enable_test_log();
-        let db = make_test_object(Some("main".to_string()));
-        let query_id = "";
+        let db = make_test_object(Some("main".to_string())).await;
+        let query_id = "aaaa";
         db.open_connection(query_id).await.unwrap();
         let _ = db.drop_table("test_table_view", false).await;
         let _ = db
@@ -1660,25 +1721,26 @@ mod tests {
 
     #[tokio::test]
     async fn test_database() {
-        let _guard = test_lock().lock().await;
+        let _gurad = test_lock().lock().await;
         enable_test_log();
-        let db = make_test_object(None);
+        let db = make_test_object(Some("main".to_string())).await;
+
         let x = db.list_database().await.unwrap();
         println!("database:{:?}", x);
     }
 
     #[tokio::test]
     async fn test_server_metas() {
-        let _guard = test_lock().lock().await;
-        let db = make_test_object(None);
+        let _gurad = test_lock().lock().await;
+        let db = make_test_object(Some("main".to_string())).await;
         let metas = ServerMetas::show_metas(&db).await.unwrap();
         println!("{:?}", metas);
     }
 
     #[tokio::test]
     async fn test_schema() {
-        let _guard = test_lock().lock().await;
-        let db = make_test_object(None);
+        let _gurad = test_lock().lock().await;
+        let db = make_test_object(Some("main".to_string())).await;
         let schema_name = "abc";
         let _err = db.drop_schema(schema_name).await;
         if let Err(err) = _err {
@@ -1693,14 +1755,14 @@ mod tests {
 
     #[tokio::test]
     async fn test_list_table() {
-        let _guard = test_lock().lock().await;
-        let db = make_test_object(Some("main".to_string()));
+        let _gurad = test_lock().lock().await;
+        let db = make_test_object(Some("main".to_string())).await;
         let tables = db.list_table().await.unwrap();
         for t in tables.iter() {
             println!("table:{:?}", t.name);
         }
 
-        let db = make_test_object(Some("main".to_string()));
+        let db = make_test_object(Some("main".to_string())).await;
         let views = db.list_view().await.unwrap();
         for t in views.iter() {
             println!("table:{:?}", t.name);
@@ -1709,8 +1771,8 @@ mod tests {
 
     #[tokio::test]
     async fn test_show_table_columns() {
-        let _guard = test_lock().lock().await;
-        let db = make_test_object(Some("main".to_string()));
+        let _gurad = test_lock().lock().await;
+        let db = make_test_object(Some("main".to_string())).await;
         let x = db.show_table_columns("employees").await.unwrap();
         for f in x.iter() {
             println!("coldef:{:?}", f);
@@ -1719,16 +1781,16 @@ mod tests {
 
     #[tokio::test]
     async fn test_check_conn() {
-        let _guard = test_lock().lock().await;
-        let db = make_test_object(None);
+        let _gurad = test_lock().lock().await;
+        let db = make_test_object(None).await;
         let d = crate::db::CheckConn::check_conn(&db).await.unwrap();
         println!("ping time is:{:?}", d);
     }
 
     #[tokio::test]
     async fn test_index() {
-        let _guard = test_lock().lock().await;
-        let db = make_test_object(Some("main".to_string()));
+        let _gurad = test_lock().lock().await;
+        let db = make_test_object(Some("main".to_string())).await;
         let table_name = "test_index";
         let _ = db.drop_index(table_name, "test_index_name").await;
         let _ = db.drop_table(table_name, false).await;
@@ -1792,12 +1854,11 @@ mod tests {
     }
     #[tokio::test]
     async fn test_column() {
-        let _guard = test_lock().lock().await;
+        let _gurad = test_lock().lock().await;
         enable_test_log();
-        let db = make_test_object(Some("main".to_string()));
+        let db = make_test_object(Some("main".to_string())).await;
         let table_name = "test_column";
-
-        let query_id = "";
+        let query_id = "aaaa";
         db.open_connection(query_id).await.unwrap();
         let _ = db
             .execute_sql(
@@ -1814,56 +1875,64 @@ mod tests {
             .await
             .unwrap();
 
-        db.add_table_column(
-            table_name,
-            "email",
-            ColumnType {
-                typ: "BIGINT".to_string(),
-                nullable: SqlNullAble::Null.into(),
-                after: None,
-                default_value: Some(1.to_string()),
-            },
-        )
-        .await
-        .unwrap();
+        let sql = db
+            .add_table_column(
+                table_name,
+                "email",
+                ColumnType {
+                    typ: "BIGINT".to_string(),
+                    nullable: SqlNullAble::Null.into(),
+                    after: None,
+                    default_value: Some(1.to_string()),
+                },
+            )
+            .await
+            .unwrap();
 
-        db.modify_table_column(
-            table_name,
-            "email",
-            "email2",
-            Some(ColumnType {
-                typ: "INT4".to_string(),
-                nullable: SqlNullAble::NotNull.into(),
-                after: None,
-                default_value: Some(2.to_string()),
-            }),
-        )
-        .await
-        .unwrap();
+        println!("add table column sql:{}", sql);
 
-        db.modify_table_column(
-            table_name,
-            "email2",
-            "email2",
-            Some(ColumnType {
-                typ: "INT4".to_string(),
-                nullable: SqlNullAble::Null.into(),
-                after: None,
-                default_value: Some(2.to_string()),
-            }),
-        )
-        .await
-        .unwrap();
-        db.drop_table_column(table_name, "email2").await.unwrap();
+        let sql = db
+            .modify_table_column(
+                table_name,
+                "email",
+                "email2",
+                Some(ColumnType {
+                    typ: "INT4".to_string(),
+                    nullable: SqlNullAble::NotNull.into(),
+                    after: None,
+                    default_value: Some(2.to_string()),
+                }),
+            )
+            .await
+            .unwrap();
+        println!("modify table column sql:{}", sql);
+
+        let sql = db
+            .modify_table_column(
+                table_name,
+                "email2",
+                "email2",
+                Some(ColumnType {
+                    typ: "INT4".to_string(),
+                    nullable: SqlNullAble::Null.into(),
+                    after: None,
+                    default_value: Some(2.to_string()),
+                }),
+            )
+            .await
+            .unwrap();
+        println!("modify table column sql:{}", sql);
+        let sql = db.drop_table_column(table_name, "email2").await.unwrap();
+        println!("drop table column sql:{}", sql);
     }
 
     #[tokio::test]
     async fn test_types1() {
-        let _guard = test_lock().lock().await;
-        let db = make_test_object(Some("main".to_string()));
+        let _gurad = test_lock().lock().await;
+        let db = make_test_object(Some("main".to_string())).await;
         let table_name = "test_types1";
         let _ = db.drop_table(table_name, false).await;
-        let query_id = "";
+        let query_id = "aaaa";
         db.open_connection(query_id).await.unwrap();
         let _ = db
             .execute_sql(
@@ -1899,81 +1968,23 @@ mod tests {
             .unwrap();
         println!("resp:{:?}", resp);
 
-        {
-            // export test
-            let db = db;
-            let ret = db
-                .export_table_to_string(
-                    table_name,
-                    ExportKind::Csv {
-                        include_header: true,
-                        delimiter: ',',
-                    },
-                )
-                .await
-                .unwrap();
-            println!("csv:{}", ret);
-            // export json
-
-            let ret = db
-                .export_table_to_string(table_name, ExportKind::Json { pretty: true })
-                .await
-                .unwrap();
-            println!("json:{}", ret);
-            // export jsonline
-            let ret = db
-                .export_table_to_string(table_name, ExportKind::JsonLine)
-                .await
-                .unwrap();
-            println!("jsonline:{}", ret);
-
-            // export jsonline
-            let ret = db
-                .export_table_to_string(
-                    table_name,
-                    ExportKind::Sql {
-                        include_table_schema: true,
-                    },
-                )
-                .await
-                .unwrap();
-            println!("sql:{}", ret);
-
-            // export jsonline
-            let ret = db
-                .export_table_to_string(
-                    table_name,
-                    ExportKind::Html {
-                        include_header: true,
-                    },
-                )
-                .await
-                .unwrap();
-            println!("html:{}", ret);
-
-            // export jsonline
-            let ret = db
-                .export_table_to_string(table_name, ExportKind::MarkDown)
-                .await
-                .unwrap();
-            println!("html:{}", ret);
-        }
+        GetTestExportTableKinds::test_export(&db, table_name).await;
     }
 
     #[tokio::test]
     async fn test_types1_array() {
-        let _guard = test_lock().lock().await;
+        let _gurad = test_lock().lock().await;
         enable_test_log();
-        let db = make_test_object(Some("main".to_string()));
+        let db = make_test_object(Some("main".to_string())).await;
         let table_name: &str = "test_types1_array";
         let _ = db.drop_table(table_name, false).await;
-        let query_id = "";
+        let query_id = "aaaa";
         db.open_connection(query_id).await.unwrap();
         let _ = db
             .execute_sql(
                 query_id,
                 r#"
-             CREATE TABLE test_types1_array (
+            CREATE TABLE test_types1_array (
                 bigint_column BIGINT[],
                 blob_column BLOB[],
                 boolean_column BOOLEAN[],
@@ -2015,56 +2026,17 @@ mod tests {
             .unwrap();
         println!("resp:{:?}", resp);
 
-        {
-            // export test
-            let db = db;
-            let ret = db
-                .export_table_to_string(
-                    table_name,
-                    ExportKind::Csv {
-                        include_header: true,
-                        delimiter: ',',
-                    },
-                )
-                .await
-                .unwrap();
-            println!("csv:{}", ret);
-            // export json
-
-            let ret = db
-                .export_table_to_string(table_name, ExportKind::Json { pretty: true })
-                .await
-                .unwrap();
-            println!("json:{}", ret);
-            // export jsonline
-            let ret = db
-                .export_table_to_string(table_name, ExportKind::JsonLine)
-                .await
-                .unwrap();
-            println!("jsonline:{}", ret);
-
-            // export jsonline
-            let ret = db
-                .export_table_to_string(
-                    table_name,
-                    ExportKind::Sql {
-                        include_table_schema: true,
-                    },
-                )
-                .await
-                .unwrap();
-            println!("sql:{}", ret);
-        }
+        GetTestExportTableKinds::test_export(&db, table_name).await;
     }
 
     #[tokio::test]
     async fn test_types2() {
-        let _guard = test_lock().lock().await;
+        let _gurad = test_lock().lock().await;
         enable_test_log();
-        let db = make_test_object(Some("main".to_string()));
+        let db = make_test_object(Some("main".to_string())).await;
         let table_name = "test_types2";
         let _ = db.drop_table(table_name, false).await;
-        let query_id = "";
+        let query_id = "aaaa";
         db.open_connection(query_id).await.unwrap();
         let _ = db
             .execute_sql(
@@ -2111,57 +2083,18 @@ mod tests {
             .await
             .unwrap();
         println!("resp:{:?}", resp);
-
-        {
-            // export test
-            let db = db;
-            let ret = db
-                .export_table_to_string(
-                    table_name,
-                    ExportKind::Csv {
-                        include_header: true,
-                        delimiter: ',',
-                    },
-                )
-                .await
-                .unwrap();
-            println!("csv:{}", ret);
-            // export json
-
-            let ret = db
-                .export_table_to_string(table_name, ExportKind::Json { pretty: true })
-                .await
-                .unwrap();
-            println!("json:{}", ret);
-            // export jsonline
-            let ret = db
-                .export_table_to_string(table_name, ExportKind::JsonLine)
-                .await
-                .unwrap();
-            println!("jsonline:{}", ret);
-
-            // export jsonline
-            let ret = db
-                .export_table_to_string(
-                    table_name,
-                    ExportKind::Sql {
-                        include_table_schema: true,
-                    },
-                )
-                .await
-                .unwrap();
-            println!("sql:{}", ret);
-        }
+        GetTestExportTableKinds::test_export(&db, table_name).await;
     }
 
     #[tokio::test]
     async fn test_types2_array() {
-        let _guard = test_lock().lock().await;
+        let _gurad = test_lock().lock().await;
         enable_test_log();
-        let db = make_test_object(Some("main".to_string()));
+        let db = make_test_object(Some("main".to_string())).await;
+
         let table_name = "test_types2_array";
         let _ = db.drop_table(table_name, false).await;
-        let query_id = "";
+        let query_id = "aaaa";
         db.open_connection(query_id).await.unwrap();
         let _ = db
             .execute_sql(
@@ -2204,62 +2137,24 @@ mod tests {
             .unwrap();
         println!("resp:{:?}", resp);
 
-        {
-            // export test
-            let db = db;
-            let ret = db
-                .export_table_to_string(
-                    table_name,
-                    ExportKind::Csv {
-                        include_header: true,
-                        delimiter: ',',
-                    },
-                )
-                .await
-                .unwrap();
-            println!("csv:{}", ret);
-            // export json
-
-            let ret = db
-                .export_table_to_string(table_name, ExportKind::Json { pretty: true })
-                .await
-                .unwrap();
-            println!("json:{}", ret);
-            // export jsonline
-            let ret = db
-                .export_table_to_string(table_name, ExportKind::JsonLine)
-                .await
-                .unwrap();
-            println!("jsonline:{}", ret);
-
-            // export jsonline
-            let ret = db
-                .export_table_to_string(
-                    table_name,
-                    ExportKind::Sql {
-                        include_table_schema: true,
-                    },
-                )
-                .await
-                .unwrap();
-            println!("sql:{}", ret);
-        }
+        GetTestExportTableKinds::test_export(&db, table_name).await;
     }
 
     #[tokio::test]
     async fn test_types3() {
-        let _guard = test_lock().lock().await;
+        let _gurad = test_lock().lock().await;
         enable_test_log();
-        let db = make_test_object(Some("main".to_string()));
+        let db = make_test_object(Some("main".to_string())).await;
+
         let table_name = "test_types3";
         let _ = db.drop_table(table_name, false).await;
-        let query_id = "";
+        let query_id = "aaaa";
         db.open_connection(query_id).await.unwrap();
         let _ = db
             .execute_sql(
                 query_id,
                 r#"
-           CREATE TABLE test_types3 (
+            CREATE TABLE test_types3 (
                 col_smallint SMALLINT,
                 col_time TIME,
                 col_timestamptz TIMESTAMPTZ,
@@ -2297,62 +2192,24 @@ mod tests {
             .unwrap();
         println!("resp:{:?}", resp);
 
-        {
-            // export test
-            let db = db;
-            let ret = db
-                .export_table_to_string(
-                    table_name,
-                    ExportKind::Csv {
-                        include_header: true,
-                        delimiter: ',',
-                    },
-                )
-                .await
-                .unwrap();
-            println!("csv:{}", ret);
-            // export json
-
-            let ret = db
-                .export_table_to_string(table_name, ExportKind::Json { pretty: true })
-                .await
-                .unwrap();
-            println!("json:{}", ret);
-            // export jsonline
-            let ret = db
-                .export_table_to_string(table_name, ExportKind::JsonLine)
-                .await
-                .unwrap();
-            println!("jsonline:{}", ret);
-
-            // export jsonline
-            let ret = db
-                .export_table_to_string(
-                    table_name,
-                    ExportKind::Sql {
-                        include_table_schema: true,
-                    },
-                )
-                .await
-                .unwrap();
-            println!("sql:{}", ret);
-        }
+        GetTestExportTableKinds::test_export(&db, table_name).await;
     }
 
     #[tokio::test]
     async fn test_types3_array() {
-        let _guard = test_lock().lock().await;
+        let _gurad = test_lock().lock().await;
         enable_test_log();
-        let db = make_test_object(Some("main".to_string()));
+        let db = make_test_object(Some("main".to_string())).await;
+
         let table_name = "test_types3_array";
         let _ = db.drop_table(table_name, false).await;
-        let query_id = "";
+        let query_id = "aaaa";
         db.open_connection(query_id).await.unwrap();
         let _ = db
             .execute_sql(
                 query_id,
                 r#"
-           CREATE TABLE test_types3_array (
+            CREATE TABLE test_types3_array (
                 col_smallint SMALLINT[],
                 col_time TIME[],
                 col_timestamptz TIMESTAMPTZ[],
@@ -2387,62 +2244,24 @@ mod tests {
             .unwrap();
         println!("resp:{:?}", resp);
 
-        {
-            // export test
-            let db = db;
-            let ret = db
-                .export_table_to_string(
-                    table_name,
-                    ExportKind::Csv {
-                        include_header: true,
-                        delimiter: ',',
-                    },
-                )
-                .await
-                .unwrap();
-            println!("csv:{}", ret);
-            // export json
-
-            let ret = db
-                .export_table_to_string(table_name, ExportKind::Json { pretty: true })
-                .await
-                .unwrap();
-            println!("json:{}", ret);
-            // export jsonline
-            let ret = db
-                .export_table_to_string(table_name, ExportKind::JsonLine)
-                .await
-                .unwrap();
-            println!("jsonline:{}", ret);
-
-            // export jsonline
-            let ret = db
-                .export_table_to_string(
-                    table_name,
-                    ExportKind::Sql {
-                        include_table_schema: true,
-                    },
-                )
-                .await
-                .unwrap();
-            println!("sql:{}", ret);
-        }
+        GetTestExportTableKinds::test_export(&db, table_name).await;
     }
 
     #[ignore = "https://github.com/duckdb/duckdb-rs/issues/478"]
     #[tokio::test]
     async fn test_types4() {
-        let _guard = test_lock().lock().await;
+        let _gurad = test_lock().lock().await;
         enable_test_log();
-        let db = make_test_object(Some("main".to_string()));
+        let db = make_test_object(Some("main".to_string())).await;
+
         let table_name = "test_types4";
         let _ = db.drop_table(table_name, false).await;
-        let query_id = "";
+        let query_id = "aaaa";
         db.open_connection(query_id).await.unwrap();
         db.execute_sql(
             query_id,
             r#"
-           CREATE TABLE test_types4 (
+            CREATE TABLE test_types4 (
                 -- my_uhugeint UHUGEINT,
                 my_uinteger UINTEGER,
                 my_usmallint USMALLINT,
@@ -2473,54 +2292,15 @@ mod tests {
             .unwrap();
         println!("resp:{:?}", resp);
 
-        {
-            // export test
-            let db = db;
-            let ret = db
-                .export_table_to_string(
-                    table_name,
-                    ExportKind::Csv {
-                        include_header: true,
-                        delimiter: ',',
-                    },
-                )
-                .await
-                .unwrap();
-            println!("csv:{}", ret);
-            // export json
-
-            let ret = db
-                .export_table_to_string(table_name, ExportKind::Json { pretty: true })
-                .await
-                .unwrap();
-            println!("json:{}", ret);
-            // export jsonline
-            let ret = db
-                .export_table_to_string(table_name, ExportKind::JsonLine)
-                .await
-                .unwrap();
-            println!("jsonline:{}", ret);
-
-            // export jsonline
-            let ret = db
-                .export_table_to_string(
-                    table_name,
-                    ExportKind::Sql {
-                        include_table_schema: true,
-                    },
-                )
-                .await
-                .unwrap();
-            println!("sql:{}", ret);
-        }
+        GetTestExportTableKinds::test_export(&db, table_name).await;
     }
 
     #[tokio::test]
 
     async fn test_query_sequence_xxx() {
-        let _guard = test_lock().lock().await;
-        let db = make_test_object(Some("main".to_string()));
-        let query_id = "";
+        let _gurad = test_lock().lock().await;
+        let db = make_test_object(Some("main".to_string())).await;
+        let query_id = "aaaa";
         db.open_connection(query_id).await.unwrap();
         db.query_sql(
             query_id,
@@ -2533,12 +2313,12 @@ mod tests {
 
     #[tokio::test]
     async fn test_types5() {
-        let _guard = test_lock().lock().await;
+        let _gurad = test_lock().lock().await;
         enable_test_log();
-        let db = make_test_object(Some("main".to_string()));
+        let db = make_test_object(Some("main".to_string())).await;
         let table_name = "test_types5";
         let _ = db.drop_table(table_name, false).await;
-        let query_id = "";
+        let query_id = "aaaa";
         db.open_connection(query_id).await.unwrap();
         let _ = db
             .execute_sql(
@@ -2577,45 +2357,6 @@ mod tests {
             .unwrap();
         println!("resp:{:?}", resp);
 
-        {
-            // export test
-            let db = db;
-            let ret = db
-                .export_table_to_string(
-                    table_name,
-                    ExportKind::Csv {
-                        include_header: true,
-                        delimiter: ',',
-                    },
-                )
-                .await
-                .unwrap();
-            println!("csv:{}", ret);
-            // export json
-
-            let ret = db
-                .export_table_to_string(table_name, ExportKind::Json { pretty: true })
-                .await
-                .unwrap();
-            println!("json:{}", ret);
-            // export jsonline
-            let ret = db
-                .export_table_to_string(table_name, ExportKind::JsonLine)
-                .await
-                .unwrap();
-            println!("jsonline:{}", ret);
-
-            // export jsonline
-            let ret = db
-                .export_table_to_string(
-                    table_name,
-                    ExportKind::Sql {
-                        include_table_schema: true,
-                    },
-                )
-                .await
-                .unwrap();
-            println!("sql:{}", ret);
-        }
+        GetTestExportTableKinds::test_export(&db, table_name).await;
     }
 }

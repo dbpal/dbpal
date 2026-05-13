@@ -1,41 +1,94 @@
+use core::str;
+use dashmap::DashMap;
 use dbnexus_db::datasource_config::{
     CassandraDBConfig, ClickHouseConfig, CouchBaseDBConfig, Db2Config, DuckDBConfig,
     FireBirdConfig, LibSqlDBConfig, MongoDBConfig, MysqlDBConfig, OracleDBConfig, PGDBConfig,
     RedisDBConfig, SqlServerDBConfig, SqliteDBConfig,
 };
 use dbnexus_db::db::{
-    CatalogTrait, CheckConn, DBTrait, ExportQueryResult, QuerySql, SchemaTrait, ServerMetas,
+    BackendKind, BackendKindMysql, BackendKindPostGres, CatalogTrait, CheckConn, DBTrait,
+    ExportQueryResult, QuerySql, SchemaTrait, ServerMetas,
 };
 use dbnexus_db::language_server::LanguageServer;
 use dbnexus_db::mongo::MongoDB;
-use dbnexus_db::sub::SubDB;
+use dbnexus_db::mysql::MysqlDB;
+use dbnexus_db::pg::PostGresDB;
 use font_kit::error::SelectionError;
-use langchain_rust::language_models::LLMError;
-use mongodb::bson;
+use specta::datatype::DataType;
+use std::any::Any;
+use std::ops::Deref;
+
+use mongodb::bson::{self, Document};
 use std::collections::HashMap;
 use std::sync::Arc;
 use std::time::Duration;
 use tokio::sync::Mutex;
 use tokio_util::sync::CancellationToken;
-use typescript_type_def::TypeDef;
 
-#[derive(serde::Serialize, serde::Deserialize, typescript_type_def::TypeDef, Debug, Clone)]
+#[derive(serde::Serialize, serde::Deserialize, Debug, Clone, specta::Type, Default)]
 pub struct OpenAIReq {
     pub url: String,
     pub api_key: String,
     pub model: String,
-    pub msg: String,
-    pub temperature: Option<f32>,
-    pub max_tokens: Option<u32>,
-    pub top_p: Option<f32>,
+    pub prompt: String,
+    pub temperature: Option<f64>,
+    pub max_tokens: Option<u64>,
+    pub top_p: Option<f64>,
+    // data:image/jpeg;base64 data encoded in base64 image data
+    pub images: Vec<String>,
+
+    // documents can be a text or sql
+    pub documents: Vec<String>,
+
+    pub user_system_prompt: Option<String>,
+    pub search_engine: AiOnlineSearch,
+    pub chat_history: Vec<ChatHistory>,
+}
+#[derive(serde::Serialize, serde::Deserialize, Debug, Clone, specta::Type)]
+#[serde(tag = "resp_type", rename_all = "lowercase")]
+
+pub enum AISteamResp {
+    Content {
+        msg: String,
+    },
+    TokenUsage {
+        input_token: u64,
+        output_token: u64,
+        total_token: u64,
+    },
 }
 
-#[allow(unused)]
-#[derive(serde::Serialize, serde::Deserialize, typescript_type_def::TypeDef, Debug, Clone)]
+impl<T: Into<String>> From<T> for AISteamResp {
+    fn from(value: T) -> Self {
+        Self::Content { msg: value.into() }
+    }
+}
 
-pub struct OpenAIReqInput {
-    pub prompt: String,
-    // pub inputs: serde_json::Map<String, serde_json::Value>,
+impl std::fmt::Display for AISteamResp {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(
+            f,
+            "{}",
+            match &self {
+                AISteamResp::Content { msg } => msg.clone(),
+                AISteamResp::TokenUsage {
+                    input_token,
+                    output_token,
+                    total_token,
+                } => format!(
+                    "input_token: {}, output_token: {}, total_token: {}",
+                    input_token, output_token, total_token
+                ),
+            }
+        )
+    }
+}
+
+#[derive(serde::Serialize, serde::Deserialize, Debug, Clone, specta::Type)]
+#[serde(rename_all = "lowercase")]
+pub struct ChatHistory {
+    pub role: String,
+    pub msg: String,
 }
 
 impl DBConnectionConfig {
@@ -62,7 +115,7 @@ impl DBConnectionConfig {
     }
 }
 
-#[derive(Clone, Debug, serde::Serialize, serde::Deserialize, TypeDef)]
+#[derive(Clone, Debug, serde::Serialize, serde::Deserialize, specta::Type)]
 #[serde(tag = "conn_type", rename_all = "lowercase")]
 pub enum DBConnectionConfig {
     Sqlite {
@@ -178,44 +231,53 @@ impl DBConnectionConfig {
             }
             DBConnectionConfig::Mysql { conn, .. } => match &conn.db {
                 Some(_) => {
-                    let db: Arc<dyn SchemaTrait> =
-                        Arc::new(dbnexus_db::mysql::MysqlDB::new(conn.clone()).await?)
-                            as Arc<dyn SchemaTrait>;
+                    let db: Arc<dyn SchemaTrait> = Arc::new(
+                        dbnexus_db::mysql::MysqlDB::new(conn.clone(), BackendKindMysql::Mysql)
+                            .await?,
+                    ) as Arc<dyn SchemaTrait>;
                     anyhow::Ok(DatabaseBackend::Schema(db))
                 }
                 None => {
-                    let db: Arc<dyn DBTrait> =
-                        Arc::new(dbnexus_db::mysql::MysqlDB::new(conn.clone()).await?)
-                            as Arc<dyn DBTrait>;
+                    let db: Arc<dyn DBTrait> = Arc::new(
+                        dbnexus_db::mysql::MysqlDB::new(conn.clone(), BackendKindMysql::Mysql)
+                            .await?,
+                    ) as Arc<dyn DBTrait>;
                     anyhow::Ok(DatabaseBackend::DataBase(db))
                 }
             },
             DBConnectionConfig::MariaDB { conn, .. } => match &conn.db {
                 Some(_) => {
                     let db: Arc<dyn SchemaTrait> =
-                        Arc::new(SubDB::new_mariadb(conn.clone()).await?) as Arc<dyn SchemaTrait>;
+                        Arc::new(MysqlDB::new(conn.clone(), BackendKindMysql::Mariadb).await?)
+                            as Arc<dyn SchemaTrait>;
                     anyhow::Ok(DatabaseBackend::Schema(db))
                 }
                 None => {
                     let db: Arc<dyn DBTrait> =
-                        Arc::new(SubDB::new_mariadb(conn.clone()).await?) as Arc<dyn DBTrait>;
+                        Arc::new(MysqlDB::new(conn.clone(), BackendKindMysql::Mariadb).await?)
+                            as Arc<dyn DBTrait>;
                     anyhow::Ok(DatabaseBackend::DataBase(db))
                 }
             },
             DBConnectionConfig::Tidb { conn, .. } => match &conn.db {
                 Some(_) => {
                     let db: Arc<dyn SchemaTrait> =
-                        Arc::new(SubDB::new_tidb(conn.clone()).await?) as Arc<dyn SchemaTrait>;
+                        Arc::new(MysqlDB::new(conn.clone(), BackendKindMysql::Tidb).await?)
+                            as Arc<dyn SchemaTrait>;
                     anyhow::Ok(DatabaseBackend::Schema(db))
                 }
                 None => {
                     let db: Arc<dyn DBTrait> =
-                        Arc::new(SubDB::new_tidb(conn.clone()).await?) as Arc<dyn DBTrait>;
+                        Arc::new(MysqlDB::new(conn.clone(), BackendKindMysql::Tidb).await?)
+                            as Arc<dyn DBTrait>;
                     anyhow::Ok(DatabaseBackend::DataBase(db))
                 }
             },
             DBConnectionConfig::Postgres { conn, .. } => {
-                let o = Arc::new(dbnexus_db::pg::PostGresDB::new(conn.clone()).await?);
+                let o = Arc::new(
+                    dbnexus_db::pg::PostGresDB::new(conn.clone(), BackendKindPostGres::PostGres)
+                        .await?,
+                );
                 if conn.db.is_none() {
                     return anyhow::Ok(DatabaseBackend::Catalog(o as Arc<dyn CatalogTrait>));
                 }
@@ -226,7 +288,8 @@ impl DBConnectionConfig {
                 }
             }
             DBConnectionConfig::CockRoach { conn, .. } => {
-                let o = Arc::new(SubDB::new_cockroach(conn.clone()).await?);
+                let o =
+                    Arc::new(PostGresDB::new(conn.clone(), BackendKindPostGres::CockRoach).await?);
                 if conn.db.is_none() {
                     return anyhow::Ok(DatabaseBackend::Catalog(o as Arc<dyn CatalogTrait>));
                 }
@@ -254,24 +317,22 @@ impl DBConnectionConfig {
             }
             DBConnectionConfig::Redis { conn, .. } => {
                 let redis = dbnexus_db::redis::RedisDB::new(conn.clone()).await?;
-
                 let db = match &conn.db {
                     Some(_) => DatabaseBackend::Schema(Arc::new(redis) as Arc<dyn SchemaTrait>),
                     None => DatabaseBackend::DataBase(Arc::new(redis) as Arc<dyn DBTrait>),
                 };
-
                 anyhow::Ok(db)
             }
             DBConnectionConfig::Oracle { conn, .. } => match conn.schema.as_ref() {
                 Some(_) => {
                     let db: Arc<dyn SchemaTrait> =
-                        Arc::new(dbnexus_db::oracle::OracleDB::new(conn.clone(), None)?)
+                        Arc::new(dbnexus_db::oracle::OracleDB::new(conn.clone(), None).await?)
                             as Arc<dyn SchemaTrait>;
                     anyhow::Ok(DatabaseBackend::Schema(db))
                 }
                 None => {
                     let db: Arc<dyn DBTrait> =
-                        Arc::new(dbnexus_db::oracle::OracleDB::new(conn.clone(), None)?)
+                        Arc::new(dbnexus_db::oracle::OracleDB::new(conn.clone(), None).await?)
                             as Arc<dyn DBTrait>;
                     anyhow::Ok(DatabaseBackend::DataBase(db))
                 }
@@ -287,7 +348,7 @@ impl DBConnectionConfig {
             DBConnectionConfig::DuckDB { conn: _conn, .. } => {
                 #[cfg(feature = "duckdb")]
                 {
-                    let db = dbnexus_db::duckdb::DuckDB::new(_conn.clone())?;
+                    let db = dbnexus_db::duckdb::DuckDB::new(_conn.clone()).await?;
                     match &_conn.db {
                         Some(_) => match &_conn.schema {
                             Some(_) => anyhow::Ok(DatabaseBackend::from(
@@ -356,8 +417,24 @@ pub enum DatabaseBackend {
 }
 
 impl DatabaseBackend {
+    pub fn as_any(&self) -> &dyn Any {
+        match self {
+            DatabaseBackend::Catalog(x) => x.as_any(),
+            DatabaseBackend::DataBase(x) => x.as_any(),
+            DatabaseBackend::Schema(x) => x.as_any(),
+        }
+    }
     pub(crate) async fn check_conn(&self) -> anyhow::Result<Duration> {
         self.as_check_conn().check_conn().await
+    }
+
+    #[allow(unused)]
+    pub(crate) fn backend_kind(&self) -> BackendKind {
+        match self {
+            DatabaseBackend::Catalog(catalog_trait) => catalog_trait.backend_kind(),
+            DatabaseBackend::DataBase(dbtrait) => dbtrait.backend_kind(),
+            DatabaseBackend::Schema(schema_trait) => schema_trait.backend_kind(),
+        }
     }
     pub(crate) fn as_query_sql(&self) -> &dyn QuerySql {
         match self {
@@ -535,7 +612,7 @@ impl DBPal {
                 }
             }
             3 => {
-                let db_name = format!("{}/{}", &name_parts[0], &name_parts[1]);
+                let db_name = append_handle_name(name_parts[0], name_parts[1]);
                 let open = self.backend.lock().await.get(&db_name).cloned();
                 let db_trait = match open {
                     Some(x) => match x {
@@ -584,32 +661,9 @@ impl DBPal {
             }
         }
     }
-
-    pub async fn conn_opened(&self, name: &str) -> bool {
-        let x = name_to_parts(name);
-        self.backend.lock().await.contains_key(&x[0].to_string())
-    }
 }
 
-#[allow(dead_code)]
-pub(crate) fn generate_random_string(len: usize) -> String {
-    use rand::prelude::*;
-    // 定义只包含字母和数字的字符集
-    const CHARSET: &[u8] = b"ABCDEFGHIJKLMNOPQRSTUVWXYZ\
-                              abcdefghijklmnopqrstuvwxyz\
-                              0123456789";
-
-    let mut rng = rand::rng();
-    let rand_string: String = (0..len)
-        .map(|_| {
-            let idx = rng.random_range(0usize..CHARSET.len());
-            CHARSET[idx] as char
-        })
-        .collect();
-    rand_string
-}
-
-#[derive(serde::Serialize, Debug, Clone)]
+#[derive(serde::Serialize, Debug, Clone, specta::Type)]
 pub struct ErrorFrontend {
     // short message on why
     pub reason: String,
@@ -618,31 +672,25 @@ pub struct ErrorFrontend {
     pub cancelled: bool,
 }
 
+impl ErrorFrontend {
+    pub(crate) fn cancelled(msg: Option<String>) -> Self {
+        Self {
+            reason: msg.unwrap_or("this task is cancelled".to_string()),
+            detail: "".to_string(),
+            cancelled: true,
+        }
+    }
+}
+
+pub fn append_handle_name(name: &str, name2: &str) -> String {
+    format!("{}/{}", name, name2)
+}
+
 // 管理所有任务的取消令牌
 
 #[derive(Clone, Default)]
 pub struct TaskManager {
-    pub tokens: Arc<std::sync::Mutex<HashMap<String, CancellationToken>>>,
-}
-
-impl From<langchain_rust::chain::ChainError> for ErrorFrontend {
-    fn from(value: langchain_rust::chain::ChainError) -> Self {
-        ErrorFrontend {
-            reason: value.to_string(),
-            detail: format!("{:?}", value),
-            cancelled: false,
-        }
-    }
-}
-
-impl From<LLMError> for ErrorFrontend {
-    fn from(value: LLMError) -> Self {
-        ErrorFrontend {
-            reason: value.to_string(),
-            detail: format!("{:?}", value),
-            cancelled: false,
-        }
-    }
+    pub tokens: Arc<DashMap<String, CancellationToken>>,
 }
 
 impl From<SelectionError> for ErrorFrontend {
@@ -770,17 +818,10 @@ impl TaskManager {
         }
         impl Drop for XDrop {
             fn drop(&mut self) {
-                self.manager
-                    .tokens
-                    .lock()
-                    .expect("lock should be ok")
-                    .remove(&self.task_id);
+                self.manager.tokens.remove(&self.task_id);
             }
         }
-        self.tokens
-            .lock()
-            .expect("must be lock ok")
-            .insert(task_id.clone(), token.clone());
+        self.tokens.insert(task_id.clone(), token.clone());
         (
             token,
             XDrop {
@@ -789,6 +830,151 @@ impl TaskManager {
             },
         )
     }
+}
+
+#[derive(serde::Serialize, serde::Deserialize, Debug, Clone)]
+#[serde(transparent)]
+
+pub struct JsUint8Array(Vec<u8>);
+
+impl specta::Type for JsUint8Array {
+    fn definition(_: &mut specta::Types) -> DataType {
+        DataType::Reference(specta_typescript::define("Uint8Array"))
+    }
+}
+
+impl Deref for JsUint8Array {
+    type Target = Vec<u8>;
+
+    fn deref(&self) -> &Self::Target {
+        &self.0
+    }
+}
+
+#[derive(serde::Serialize, serde::Deserialize, Debug, Clone, specta::Type)]
+pub struct MongoFindParameter {
+    pub(crate) filter: JsUint8Array,
+    pub(crate) hint: Option<JsUint8Array>,
+    pub(crate) projection: Option<JsUint8Array>,
+    pub(crate) sort: Option<JsUint8Array>,
+    pub(crate) min: Option<JsUint8Array>,
+    pub(crate) max: Option<JsUint8Array>,
+    pub(crate) limit: Option<i64>,
+    pub(crate) skip: Option<u64>,
+}
+
+pub fn parse_bson_doc(bs: &[u8]) -> Result<Document, ErrorFrontend> {
+    bson::Document::from_reader(std::io::Cursor::new(bs)).map_err(ErrorFrontend::from)
+}
+
+impl From<mongodb::bson::de::Error> for ErrorFrontend {
+    fn from(value: mongodb::bson::de::Error) -> Self {
+        Self {
+            reason: value.to_string(),
+            detail: format!("{:?}", value),
+            cancelled: false,
+        }
+    }
+}
+
+impl TryFrom<MongoFindParameter> for dbnexus_db::mongo::MongoFindParameter {
+    type Error = ErrorFrontend;
+    fn try_from(value: MongoFindParameter) -> Result<Self, Self::Error> {
+        let MongoFindParameter {
+            filter,
+            hint,
+            projection,
+            sort,
+            min,
+            max,
+            limit,
+            skip,
+        } = value;
+        let r = dbnexus_db::mongo::MongoFindParameter {
+            filter: parse_bson_doc(&filter.0)?,
+            hint: if let Some(doc) = hint.as_ref() {
+                Some(parse_bson_doc(&doc.0)?)
+            } else {
+                None
+            },
+            projection: if let Some(doc) = projection.as_ref() {
+                Some(parse_bson_doc(&doc.0)?)
+            } else {
+                None
+            },
+            sort: if let Some(doc) = sort.as_ref() {
+                Some(parse_bson_doc(&doc.0)?)
+            } else {
+                None
+            },
+            min: if let Some(doc) = min.as_ref() {
+                Some(parse_bson_doc(&doc.0)?)
+            } else {
+                None
+            },
+            max: if let Some(doc) = max.as_ref() {
+                Some(parse_bson_doc(&doc.0)?)
+            } else {
+                None
+            },
+            limit,
+            skip,
+        };
+        Ok(r)
+    }
+}
+
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize, specta::Type)]
+pub struct MongoShowTablePara {
+    pub(crate) sort: JsUint8Array,
+    pub(crate) filter: JsUint8Array,
+    pub(crate) page: u64,
+    pub(crate) page_size: u64,
+}
+
+impl TryFrom<MongoShowTablePara> for dbnexus_db::mongo::MongoShowTablePara {
+    type Error = ErrorFrontend;
+
+    fn try_from(value: MongoShowTablePara) -> Result<Self, Self::Error> {
+        let MongoShowTablePara {
+            filter,
+            page,
+            page_size,
+            sort,
+        } = value;
+        Ok(dbnexus_db::mongo::MongoShowTablePara {
+            filter: parse_bson_doc(&filter.0)?,
+            sort: parse_bson_doc(&sort.0)?,
+            page,
+            page_size,
+        })
+    }
+}
+
+#[derive(Debug, Clone, serde::Serialize)]
+#[serde(rename_all = "lowercase")]
+#[allow(unused)]
+pub enum SetZoom {
+    In,
+    Out,
+    Reset,
+}
+
+#[derive(Debug, Clone, serde::Serialize)]
+#[serde(rename_all = "lowercase")]
+#[allow(unused)]
+pub enum AiStreamMsg {
+    Notice { msg: String },
+    Resp { msg: String },
+}
+
+#[derive(Debug, Clone, serde::Serialize, Default, serde::Deserialize, specta::Type)]
+#[serde(rename_all = "lowercase")]
+#[allow(unused)]
+pub struct AiOnlineSearch {
+    pub enable: bool,
+    pub provider: String, // duckduckgo
+    pub api_key: Option<String>,
 }
 
 #[cfg(test)]

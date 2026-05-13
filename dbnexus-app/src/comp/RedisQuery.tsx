@@ -1,51 +1,36 @@
-import { useState, useRef, useEffect } from "react";
-import { editor } from "monaco-editor";
+import { useState, useEffect, useContext, useRef } from "react";
 import { Panel, PanelGroup, PanelResizeHandle } from "react-resizable-panels";
 
 import { SqlQuery } from "./SqlQuery.tsx";
-import { DataSourceKind, resizeHandlerSize, shrinkAble } from "./helper.ts";
+import {
+  DataSourceKind,
+  QueryIDEditorChatCtx,
+  resizeHandlerSize,
+  shrinkAble,
+} from "./helper.ts";
 import { Chip, Tooltip } from "@mui/material";
-import { invoke } from "@tauri-apps/api/core";
 import { AppMarkDown } from "./CommonComp2.tsx";
+import { useBoolSwitch } from "./store.tsx";
+import { commands } from "./bindings.ts";
+const showRedisDocKey = "redis-show-doc";
+function RedisQuery(props: { favoriteName?: string; value?: string; uuid: string }) {
+  const { favoriteName, value, uuid } = props;
+  const [docStr, setDocStr] = useState("");
+  const { getSwitch, setSwitch } = useBoolSwitch();
+  const prevLine = useRef("");
+  const showDoc = getSwitch(showRedisDocKey);
 
-class SaveShowDoc {
-  key = "dbpal-redis-show-doc";
-
-  save(x: boolean) {
-    localStorage.setItem(this.key, x ? "1" : "0");
-  }
-
-  get(): boolean {
-    return localStorage.getItem(this.key) == "1";
-  }
-  static instance = new SaveShowDoc();
-}
-
-function RedisQuery(props: {
-  favoriteName?: string;
-  value?: string;
-  uuid: string;
-  handleEditor: (x: editor.IStandaloneCodeEditor) => void;
-}) {
-  const { favoriteName, value, uuid, handleEditor } = props;
-  const [doc, setDoc] = useState("");
-  const editorRef = useRef<editor.IStandaloneCodeEditor>(null);
-  const [showDoc, setShowDoc] = useState(SaveShowDoc.instance.get());
-  const [prevLine, setPrevLine] = useState("");
-  useEffect(() => {
-    SaveShowDoc.instance.save(showDoc);
-  }, [showDoc]);
-
+  const { editor } = useContext(QueryIDEditorChatCtx);
   useEffect(() => {
     const tryUpdateCommand = () => {
       if (!showDoc) {
         return;
       }
-      if (!editorRef.current) {
+      if (!editor) {
         return;
       }
-      const model = editorRef.current.getModel();
-      const pos = editorRef.current.getPosition();
+      const model = editor.getModel();
+      const pos = editor.getPosition();
       if (!pos) {
         return;
       }
@@ -53,14 +38,15 @@ function RedisQuery(props: {
       if (!line) {
         return;
       }
-      if (line === prevLine) {
+      if (line === prevLine.current) {
         // line not change no need to update
         return;
       }
-      invoke<string>("get_redis_doc", { line })
-        .then(e => {
-          setPrevLine(line);
-          setDoc(e);
+      commands
+        .getRedisDoc(line)
+        .then((e) => {
+          prevLine.current = line;
+          setDocStr(e);
         })
         .catch(() => {
           // console.log('get redis doc failed', e);
@@ -72,7 +58,7 @@ function RedisQuery(props: {
     return () => {
       clearInterval(int);
     };
-  }, [showDoc, prevLine]);
+  }, [showDoc, editor]);
 
   return (
     <PanelGroup
@@ -80,24 +66,19 @@ function RedisQuery(props: {
       autoSaveId="redis-query"
       style={{
         height: "100%",
-      }}
-    >
+      }}>
       <Panel defaultSize={40} minSize={4}>
         <SqlQuery
-          handleEditor={e => {
-            handleEditor(e);
-            editorRef.current = e;
-          }}
           uuid={uuid}
           favoriteName={favoriteName}
           value={value}
           kind={DataSourceKind.Redis}
-          extras={
+          extraButtons={
             <>
               <Tooltip title="toggle show redis document">
                 <Chip
                   onClick={() => {
-                    setShowDoc(e => !e);
+                    setSwitch(showRedisDocKey, !showDoc);
                   }}
                   style={shrinkAble}
                   color={showDoc ? "success" : "primary"}
@@ -123,19 +104,16 @@ function RedisQuery(props: {
           style={{
             display: "flex",
             flexDirection: "column",
-          }}
-        >
+          }}>
           <div
             style={{
               height: "100px",
               flexGrow: 1,
               flexShrink: 1,
               overflow: "auto",
-              padding: "0.4rem",
-            }}
-          >
+            }}>
             <AppMarkDown placeHolder="when typing markdown document will show atomically">
-              {doc}
+              {docStr}
             </AppMarkDown>
           </div>
         </Panel>

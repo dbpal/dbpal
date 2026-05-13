@@ -1,5 +1,5 @@
 use crate::db::{CatalogTrait, SequenceDetail};
-use crate::duckdb::{DuckDB, DuckDbPooledConn};
+use crate::duckdb::{DuckDB, DuckDbConn};
 use crate::language_server::{
     try_parser_dot_lexer, AstCompletionHelper, CompletionItem, CompletionKind, CompletionList,
     GetKeyWords, LangServerCommon, LanguageServer, LexerCompletionTrait,
@@ -11,20 +11,6 @@ use tokio::task::spawn_blocking;
 
 #[async_trait::async_trait]
 impl LanguageServer for DuckDB {
-    async fn try_get_max_id(&self, name: &str) -> anyhow::Result<String> {
-        let sql = format!(r#"select max(id) from   "{name}" "#,);
-        let this = Clone::clone(self);
-        spawn_blocking(move || {
-            let conn = this.get_conn()?;
-            let r = conn.query_row(&sql, [], |row| {
-                let r: i128 = row.get(0)?;
-                Ok(r)
-            })?;
-            anyhow::Ok(r.to_string())
-        })
-        .await?
-    }
-
     async fn auto_completion(
         &self,
         query_id: Option<String>,
@@ -301,7 +287,7 @@ impl DuckDB {
         .await?
     }
 
-    fn get_query_conn(&self) -> anyhow::Result<DuckDbPooledConn> {
+    fn get_query_conn(&self) -> anyhow::Result<DuckDbConn> {
         match self.query_connection.get(&self.completion_id.get()) {
             Some(x) => anyhow::Ok(x.clone()),
             None => anyhow::bail!(format!("query id '{}' not found", self.completion_id.get())),
@@ -396,18 +382,19 @@ pub(crate) const DUCKDB_TYPES: &[&str] = &[
 #[cfg(test)]
 mod tests {
     use crate::db::{QuerySql, SchemaTrait};
-    use crate::duckdb::make_test_object;
+    use crate::duckdb::{make_test_object, test_lock};
     use crate::enable_test_log;
     use crate::language_server::completion_test::test_file_auto_completion;
-    use crate::language_server::LanguageServer;
     use std::path::Path;
 
-    // partition test failed , sqlparser can't parse a valid partition statement.
     #[tokio::test]
     async fn test_auto_completion() {
-        let db = make_test_object(Some("main".to_string()));
+        let _gurad = test_lock().lock().await;
+
+        let db = make_test_object(Some("main".to_string())).await;
+
         enable_test_log();
-        let query_id = "";
+        let query_id = "aaaa";
         db.open_connection(query_id).await.unwrap();
         let _ = db.drop_table("employees", false).await;
         db.execute_sql(
@@ -420,8 +407,7 @@ mod tests {
                         job_title TEXT NOT NULL,         
                         hire_date DATE NOT NULL,          
                         salary DECIMAL(10, 2) NOT NULL  
-                    );
-                 "#,
+                    ) "#,
         )
         .await
         .unwrap()
@@ -449,22 +435,15 @@ mod tests {
         file_path.push("tests");
         file_path.push("duckdb_auto_completion_test.sql");
         let content = std::fs::read_to_string(file_path.as_path()).unwrap();
-        test_file_auto_completion(&content, &db, None, false).await;
+        test_file_auto_completion(&content, &db, Some(query_id), false).await;
     }
 
     #[ignore = "手动跑跑的测试"]
     #[tokio::test]
     async fn test_completion_xxx() {
+        let _gurad = test_lock().lock().await;
         enable_test_log();
-        let db = make_test_object("main".to_owned().into());
+        let db = make_test_object(Some("main".to_string())).await;
         test_file_auto_completion(include_str!("./xxx.sql"), &db, None, true).await;
-    }
-
-    #[tokio::test]
-
-    async fn test_try_get_max_id() {
-        let db = make_test_object(Some("main".to_string()));
-        let max_id = db.try_get_max_id("employees").await.unwrap();
-        println!("max id is:{}", max_id);
     }
 }

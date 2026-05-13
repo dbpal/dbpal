@@ -1,70 +1,65 @@
 import {
-  Autocomplete,
-  Box,
   Button,
   ButtonGroup,
   Chip,
-  Divider,
   IconButton,
-  InputAdornment,
-  Modal,
   Pagination,
   Stack,
-  TextField,
   Tooltip,
   Typography,
 } from "@mui/material";
 import ArrowCircleDownRoundedIcon from "@mui/icons-material/ArrowCircleDownRounded";
-import EventNoteIcon from "@mui/icons-material/EventNote";
 import {
+  AiMarkdownModel,
+  AiMarkdownModelSwitch,
+  AppCode,
+  ClearableTextField,
+  FetchTimeAndLoadingStatus,
   LoadStoreFile,
   QueryStatus,
+  RefreshButton,
   SetFilterSort,
+  ShowQueryLog,
   SimpleFlexEditor,
   SliderSize,
-  TableAddButton,
   ToggleChatShow,
 } from "./CommonComp2.tsx";
-import { ReactNode, useCallback, useContext, useEffect, useRef, useState } from "react";
+import { ReactNode, useCallback, useContext, useEffect, useState } from "react";
 import {
   DataSourceKind,
-  ErrAndLoc,
-  generateRandomString,
   getEditorText,
   handleCopyToClipboard,
-  MuiDataGridData,
-  QueryLogHandler,
+  jumpToEditorText,
+  QueryIDEditorChatCtx,
   resizeHandlerSize,
-  saveAndSetSize,
-  SavePageSize,
   secondConfirm,
-  SettingContext,
   shrinkAble,
-  validJson,
 } from "./helper.ts";
-import ReactJsonView, { InteractionProps, ThemeKeys } from "@microlink/react-json-view";
+
 import DeleteForeverIcon from "@mui/icons-material/DeleteForever";
 import PlayArrowIcon from "@mui/icons-material/PlayArrow";
 import FilterAltIcon from "@mui/icons-material/FilterAlt";
-import { FaArrowsAltV } from "react-icons/fa";
-import { ExecutingTime, ModalHeader, SelectPageSize } from "./CommonComp.tsx";
-import { Channel, invoke } from "@tauri-apps/api/core";
-import types from "./ApiStruct.ts";
-import {
-  EscDownEvent,
-  modalHandleClose,
-  modalStyle,
-  NameAndQueryId,
-  QueryEvent,
-  SetAutoCompletionName,
-} from "./Common.ts";
-import { NotificationContext } from "./Notification.tsx";
-import { editor, Position } from "monaco-editor";
-import ClearIcon from "@mui/icons-material/Clear";
+import { FaArrowsAltV, FaUpload } from "react-icons/fa";
+import { SelectPageSize } from "./CommonComp.tsx";
+import { Channel } from "@tauri-apps/api/core";
+import { NameAndQueryId, uuidv4 } from "./Common.ts";
+import { editor } from "monaco-editor";
 import { Panel, PanelGroup, PanelResizeHandle } from "react-resizable-panels";
-import { QueryLog } from "./QueryLog.tsx";
 import { ExportView } from "./Export.tsx";
 import { QueryResp } from "./QueryResp.tsx";
+import {
+  CBQueryViewMode,
+  useCBQueryViewStore,
+  useNotification,
+  useOneShotDialogUI,
+  usePageSize,
+  useQueryLogStore,
+  UseSizeConfig,
+  useSizeStore,
+  useTabSize,
+} from "./store.tsx";
+import { commands, Field, MuiDataGridData, QueryEvent } from "./bindings.ts";
+import { AddTableModal } from "./LeftTable.tsx";
 
 type Data = {
   data: { data: string; id: string }[];
@@ -75,104 +70,37 @@ function newDataDefault(): Data {
   return { count: 0, data: [] };
 }
 
-enum TableViewMode {
-  Editor = "editor",
-  Json = "json",
-}
-
-class TableViewModeSaver {
-  static key = "couchbase-table-view-mode";
-  static load(): TableViewMode {
-    return (
-      (localStorage.getItem(TableViewModeSaver.key) as TableViewMode) ||
-      TableViewMode.Editor
-    );
-  }
-
-  static save(x: TableViewMode) {
-    localStorage.setItem(TableViewModeSaver.key, x);
-  }
-}
-
-class JsonEditorThemeSaver {
-  static key = "couchbase-json-editor-theme";
-  static load(): ThemeKeys {
-    return (
-      (localStorage.getItem(JsonEditorThemeSaver.key) as ThemeKeys) || "rjv-default"
-    );
-  }
-  static save(x: ThemeKeys) {
-    localStorage.setItem(JsonEditorThemeSaver.key, x);
-  }
-}
-
-function ViewModeSwitcher({ setViewMode, viewMode }) {
-  return (
-    <ButtonGroup>
-      {[TableViewMode.Editor, TableViewMode.Json].map(m => (
-        <Button
-          onClick={() => {
-            setViewMode(m);
-          }}
-          key={m}
-          disabled={viewMode == m}
-        >
-          {m}
-        </Button>
-      ))}
-    </ButtonGroup>
-  );
-}
-
 function CouchBaseTable(props: { uuid: string; table: string }) {
   const { uuid, table } = props;
   const [page, setPage] = useState(1);
-  const [pageSize, setPageSize] = useState(SavePageSize.instance.get());
+  const { couchbase: pageSize, setPageSize } = usePageSize();
+
   const [where, setWhere] = useState("");
   const [sort, setSort] = useState("");
   const [showSetSort, setShowSetSort] = useState(false);
   const [showSetWhere, setShowSetWhere] = useState(false);
   const kind = DataSourceKind.CouchBase;
   const [resp, setResp] = useState<Data>(newDataDefault());
-  const [gridColCount, setGridColCount] = useState(3);
-  const [editorHeight, setEditorHeight] = useState(500);
+  const { getSize } = useSizeStore();
   const [loading, setLoading] = useState(true);
   const [queryStatus, setQueryStatus] = useState("");
-  const { showNotification } = useContext(NotificationContext);
-  const [showAdd, setShowAdd] = useState(false);
-  const [addModalBox, setAddModalBox] = useState(null);
-  const [viewMode, setViewMode] = useState(TableViewModeSaver.load());
-  useEffect(() => {
-    TableViewModeSaver.save(viewMode);
-  }, [viewMode]);
-  const [jsonEditorTheme, setJsonEditorTheme] = useState(JsonEditorThemeSaver.load());
-  useEffect(() => {
-    JsonEditorThemeSaver.save(jsonEditorTheme);
-  }, [jsonEditorTheme]);
-
-  useEffect(() => {
-    if (addModalBox) {
-      const clean = saveAndSetSize(addModalBox, "couchbase-table-insert");
-      return () => {
-        clean();
-      };
-    }
-  }, [addModalBox]);
+  const { showNotification } = useNotification();
+  const tabSize = useTabSize();
 
   const handleReload = useCallback(() => {
-    const c = new Channel<QueryEvent>(event => {
+    const c = new Channel<QueryEvent>((event) => {
       switch (event.kind) {
         case "structure": {
-          setResp(resp => {
+          setResp((resp) => {
             return { ...resp, count: event.resp.total };
           });
           break;
         }
         case "data": {
-          const news = event.data.map(x => {
+          const news = event.data.map((x) => {
             return { data: x[1], id: x[0] };
           });
-          setResp(resp => {
+          setResp((resp) => {
             return { ...resp, data: [...resp.data, ...news] };
           });
           setQueryStatus(`received ${news.length} rows`);
@@ -183,7 +111,11 @@ function CouchBaseTable(props: { uuid: string; table: string }) {
           break;
         }
         case "err": {
-          showNotification("error", "load data failed", event.err);
+          showNotification({
+            severity: "error",
+            title: "load data failed",
+            message: event.err,
+          });
           break;
         }
         case "end": {
@@ -194,25 +126,29 @@ function CouchBaseTable(props: { uuid: string; table: string }) {
     });
     setResp(newDataDefault());
     setLoading(true);
-    invoke("show_table", {
-      name: uuid,
-      tableName: table,
-      isView: false,
-      para: {
-        where_str: where ? where : undefined,
-        sort_str: sort ? sort : undefined,
-        page_size: pageSize,
-        page: page,
-      } as types.ShowTableParameter,
-      emit: c,
-    })
-      .catch(e => {
-        showNotification("error", "load data failed", e);
+
+    commands
+      .showTable(
+        uuid,
+        false,
+        table,
+        {
+          where_str: where ? where : undefined,
+          order_by: sort ? sort : undefined,
+          page_size: pageSize,
+          page: page,
+          tab_size: tabSize,
+        },
+        c,
+      )
+
+      .catch((e) => {
+        showNotification({ severity: "error", title: "load data failed", message: e });
       })
       .finally(() => {
         setLoading(false);
       });
-  }, [page, pageSize, showNotification, sort, table, uuid, where]);
+  }, [page, pageSize, showNotification, sort, tabSize, table, uuid, where]);
   useEffect(() => {
     handleReload();
   }, [handleReload]);
@@ -221,18 +157,14 @@ function CouchBaseTable(props: { uuid: string; table: string }) {
       <QueryStatus status={queryStatus} />
       <Stack
         direction="row"
-        style={{ alignItems: "center", justifyContent: "space-between" }}
-      >
+        style={{ alignItems: "center", justifyContent: "space-between" }}>
         <Stack direction="row" style={{ alignItems: "center" }}>
-          <Button
+          <RefreshButton
             onClick={() => {
               handleReload();
             }}
             loading={loading}
-          >
-            reload
-          </Button>
-          <ViewModeSwitcher viewMode={viewMode} setViewMode={setViewMode} />
+          />
           <Tooltip title="filter something like 'age=18'">
             <Chip
               label={where}
@@ -243,6 +175,13 @@ function CouchBaseTable(props: { uuid: string; table: string }) {
               size="medium"
               color="primary"
               icon={<FilterAltIcon />}
+              onDelete={
+                where
+                  ? () => {
+                      setWhere("");
+                    }
+                  : undefined
+              }
             />
           </Tooltip>
           <Tooltip title="sort something like 'age asc'">
@@ -256,40 +195,26 @@ function CouchBaseTable(props: { uuid: string; table: string }) {
               color="secondary"
               variant="outlined"
               icon={<FaArrowsAltV />}
+              onDelete={
+                sort
+                  ? () => {
+                      setSort("");
+                    }
+                  : undefined
+              }
             />
           </Tooltip>
-          <TableAddButton
-            handleAdd={() => {
-              setShowAdd(true);
-            }}
+
+          <AddTableModal
+            uuid={uuid}
+            kind={DataSourceKind.CouchBase}
+            tableName={table}
           />
         </Stack>
         <Typography variant="h5"> {table} </Typography>
         <Stack direction="row">
-          <SliderSize
-            min={1}
-            max={5}
-            notice="column count"
-            step={1}
-            handleValue={v => {
-              setGridColCount(v);
-            }}
-            storeKey="couchbase-table-view-column-count"
-            name="column"
-          />
-          {viewMode == TableViewMode.Editor && (
-            <SliderSize
-              name="height"
-              min={100}
-              max={1000}
-              notice="mongodb editor height"
-              step={10}
-              handleValue={v => {
-                setEditorHeight(v);
-              }}
-              storeKey="couchbase-table-editor-height"
-            />
-          )}
+          <SliderSize config={UseSizeConfig.gridCol} />
+          <SliderSize config={UseSizeConfig.editorHeight} />
         </Stack>
       </Stack>
       <div
@@ -300,55 +225,48 @@ function CouchBaseTable(props: { uuid: string; table: string }) {
           height: "100px",
           overflow: "auto",
           display: "grid",
-          gridTemplateColumns: `repeat(${gridColCount}, 1fr)`,
+          gridTemplateColumns: `repeat(${getSize(UseSizeConfig.gridCol)}, 1fr)`,
           paddingRight: "1.2rem",
-        }}
-      >
-        {resp.data.map(item => (
+        }}>
+        {resp.data.map((item) => (
           <div
             style={{
-              height: viewMode == TableViewMode.Editor && editorHeight + "px",
+              height: getSize(UseSizeConfig.editorHeight) + "px",
               position: "relative",
             }}
-            key={item.id}
-          >
+            key={item.id}>
             <CouchBaseEditor
+              modifyName="modify"
               docid={item.id}
-              jsonTheme={jsonEditorTheme ? jsonEditorTheme : ""}
-              viewMode={viewMode}
-              handleValueButton="modify"
               value={item.data}
               handleDelete={async () => {
-                await invoke("table_delete", {
-                  name: uuid,
-                  tableName: table,
-                  wheres: { id: item.id },
-                });
-                setResp(resp => {
+                await commands.tableDelete(uuid, table, { id: item.id });
+                setResp((resp) => {
                   return {
                     count: resp.count - 1,
-                    data: resp.data.filter(y => y.id != item.id),
+                    data: resp.data.filter((y) => y.id != item.id),
                   };
                 });
               }}
               warnModify
-              handleValue={async newV => {
-                await invoke("table_update", {
-                  name: uuid,
-                  tableName: table,
-                  values: {
+              handleValue={async (newV) => {
+                await commands.tableUpdate(
+                  uuid,
+                  table,
+                  {
                     id: item.id,
                     value: newV,
                   },
-                  wheres: {},
-                });
-                setResp(resp => {
+                  {},
+                );
+
+                setResp((resp) => {
                   return {
                     count: resp.count,
-                    data: resp.data.map(e =>
+                    data: resp.data.map((e) =>
                       e.id == item.id ? { ...e, data: newV } : e,
                     ),
-                  } as Data;
+                  };
                 });
               }}
             />
@@ -357,13 +275,8 @@ function CouchBaseTable(props: { uuid: string; table: string }) {
       </div>
       <Stack
         direction="row"
-        style={{ alignItems: "center", justifyContent: "space-between" }}
-      >
+        style={{ alignItems: "center", justifyContent: "space-between" }}>
         <Stack direction="row" style={{ alignItems: "center" }}>
-          {viewMode == TableViewMode.Json && (
-            <SetTheme theme={jsonEditorTheme} setTheme={setJsonEditorTheme} />
-          )}
-
           <Typography color="info">
             result {resp.data.length} of {resp.count}
           </Typography>
@@ -372,10 +285,10 @@ function CouchBaseTable(props: { uuid: string; table: string }) {
         <Stack direction="row" style={{ alignItems: "center" }}>
           <SelectPageSize
             pageSize={pageSize}
-            handleChange={s => {
-              setPageSize(s);
+            handleChange={(s) => {
+              setPageSize("couchbase", s);
             }}
-            options={[2, 3, 10].map(x => x * gridColCount)}
+            options={[2, 3, 10].map((x) => x * getSize(UseSizeConfig.gridCol))}
           />
 
           <Pagination
@@ -393,7 +306,7 @@ function CouchBaseTable(props: { uuid: string; table: string }) {
           tableName={table}
           open={showSetWhere}
           value={where}
-          setValue={v => {
+          setValue={(v) => {
             setWhere(v);
           }}
           handleClose={() => {
@@ -409,7 +322,7 @@ function CouchBaseTable(props: { uuid: string; table: string }) {
           tableName={table}
           open={showSetSort}
           value={sort}
-          setValue={v => {
+          setValue={(v) => {
             setSort(v);
           }}
           kind={kind}
@@ -420,31 +333,6 @@ function CouchBaseTable(props: { uuid: string; table: string }) {
           uuid={uuid}
         />
       )}
-
-      {showAdd && (
-        <Modal
-          open={showAdd}
-          onClose={modalHandleClose((e: EscDownEvent) => {
-            e.preventDefault();
-            setShowAdd(false);
-          })}
-        >
-          <Box
-            sx={{ resize: "both", ...modalStyle }}
-            ref={setAddModalBox}
-            width="80%"
-            height="30vh"
-          >
-            <ModalHeader
-              title="insert data"
-              handleClose={() => {
-                setShowAdd(false);
-              }}
-            />
-            <CouchBaseInsert uuid={uuid} table={table} />
-          </Box>
-        </Modal>
-      )}
     </Stack>
   );
 }
@@ -453,28 +341,14 @@ function CouchBaseEditor(props: {
   value: string;
   handleValue: (v: string) => Promise<void>;
   handleDelete?: () => Promise<void>;
-  handleValueButton: string;
   barExtra?: ReactNode;
   warnModify: boolean;
-  viewMode: TableViewMode;
-  jsonTheme: string;
   docid?: string;
+  modifyName: string;
 }) {
-  const {
-    value,
-    handleValue,
-    handleDelete,
-    handleValueButton,
-    barExtra,
-    warnModify,
-    viewMode,
-    jsonTheme,
-    docid,
-  } = props;
-  const setting = useContext(SettingContext);
-  const [jsonErr, setJsonErr] = useState<ErrAndLoc | null>(null);
-  const { showNotification } = useContext(NotificationContext);
-  const [jsonErrPos, setJsonErrPos] = useState<Position>(null);
+  const { value, handleValue, handleDelete, barExtra, warnModify, docid, modifyName } =
+    props;
+  const { showNotification } = useNotification();
   const [newValue, setNewValue] = useState(value);
   const [loading, setLoading] = useState(false);
   const [changed, setChanged] = useState(false);
@@ -488,11 +362,15 @@ function CouchBaseEditor(props: {
     setLoading(true);
     handleValue(newValue)
       .then(() => {
-        showNotification("success", `${handleValueButton} OK`);
+        showNotification({ severity: "success", title: `${modifyName} OK` });
         setChanged(false);
       })
-      .catch(e => {
-        showNotification("error", `${handleValueButton} failure`, e);
+      .catch((e) => {
+        showNotification({
+          severity: "error",
+          title: `${modifyName} failure`,
+          message: e,
+        });
       })
       .finally(() => {
         setLoading(false);
@@ -507,10 +385,14 @@ function CouchBaseEditor(props: {
         setLoading(true);
         handleDelete()
           .then(() => {
-            showNotification("success", "delete OK");
+            showNotification({ severity: "success", title: "delete OK" });
           })
-          .catch(e => {
-            showNotification("error", "delete failure", e);
+          .catch((e) => {
+            showNotification({
+              severity: "error",
+              title: "delete failure",
+              message: e,
+            });
           })
           .finally(() => {
             setLoading(false);
@@ -518,105 +400,37 @@ function CouchBaseEditor(props: {
       }
     : undefined;
 
-  const stringify = (v: InteractionProps) => {
-    // TODO number auto convert to string
-    // how to fix this.
-
-    console.log("!!!!!!!!!!!!!!", v.updated_src);
-    return JSON.stringify(v.updated_src, null, setting.editor.tabSize);
-  };
   return (
     <Stack style={{ height: "100%", flex: 1 }}>
-      {viewMode == TableViewMode.Editor && (
-        <SimpleFlexEditor
-          value={newValue}
-          handleValue={async newValue => {
-            try {
-              const x = await validJson(newValue);
-              setJsonErr(x);
-            } catch (e) {
-              showNotification("error", "call valid json failed", e);
-              return;
-            }
-            setNewValue(newValue);
-            setChanged(true);
-          }}
-          language="json"
-          errPos={jsonErrPos}
-          barLeft={
-            <Stack direction="row">
-              {jsonErr && (
-                <Typography
-                  color="error"
-                  style={{ cursor: "pointer" }}
-                  onClick={() => {
-                    if (!jsonErr) {
-                      return;
-                    }
-                    setJsonErrPos(new Position(jsonErr.line, jsonErr.column));
-                  }}
-                >
-                  {jsonErr.msg}
-                </Typography>
-              )}
-            </Stack>
-          }
-        />
-      )}
-      {viewMode == TableViewMode.Json && (
-        <ReactJsonView
-          onEdit={
-            doModify
-              ? x => {
-                  setNewValue(stringify(x));
-                  setChanged(true);
-                }
-              : undefined
-          }
-          onAdd={
-            doModify
-              ? x => {
-                  setNewValue(stringify(x));
-                  setChanged(true);
-                }
-              : undefined
-          }
-          onDelete={
-            doModify
-              ? x => {
-                  setNewValue(stringify(x));
-                  setChanged(true);
-                }
-              : undefined
-          }
-          theme={jsonTheme as ThemeKeys}
-          src={JSON.parse(newValue)}
-          style={{ minHeight: "11rem" }}
-        />
-      )}
+      <SimpleFlexEditor
+        value={newValue}
+        handleValue={async (newValue) => {
+          setNewValue(newValue);
+          setChanged(true);
+        }}
+        language="json"
+      />
 
       <Stack direction="row" style={{ alignItems: "center" }}>
-        {doModify && !jsonErr && (
+        {doModify && (
           <>
-            <Button
+            <IconButton
               onClick={() => {
                 doModify();
               }}
-              loading={loading}
-            >
-              {handleValueButton}
-            </Button>
+              loading={loading}>
+              <FaUpload />
+            </IconButton>
           </>
         )}
         {doDelete && (
-          <Button
+          <IconButton
             onClick={() => {
               doDelete();
             }}
-            color="warning"
-          >
+            color="warning">
             <DeleteForeverIcon />
-          </Button>
+          </IconButton>
         )}
         {barExtra}
         {docid && (
@@ -626,8 +440,7 @@ function CouchBaseEditor(props: {
               style={{ cursor: "pointer", alignContent: "center" }}
               onClick={() => {
                 handleCopyToClipboard(docid, showNotification);
-              }}
-            >
+              }}>
               #{docid}
             </Typography>
           </Tooltip>
@@ -640,118 +453,104 @@ function CouchBaseEditor(props: {
 
 function CouchBaseInsert({ uuid, table }) {
   const [id, setId] = useState("");
-  const [viewMode, setViewMode] = useState(TableViewModeSaver.load());
   return (
     <CouchBaseEditor
-      jsonTheme={JsonEditorThemeSaver.load()}
-      viewMode={viewMode}
       warnModify={false}
-      // deno-lint-ignore jsx-curly-braces
       value={"{\n}"}
       barExtra=<>
         <Button
           onClick={() => {
-            setId(generateRandomString());
+            setId(uuidv4());
           }}
-          variant="text"
-        >
+          variant="text">
           gen
         </Button>
-        <TextField
+        <ClearableTextField
           label="id"
           value={id}
-          onChange={e => {
+          onChange={(e) => {
             setId(e.target.value);
           }}
-          slotProps={{
-            input: {
-              endAdornment: id && (
-                <InputAdornment position="end">
-                  <IconButton
-                    onClick={() => {
-                      setId("");
-                    }}
-                    edge="end"
-                  >
-                    <ClearIcon fontSize="small" />
-                  </IconButton>
-                </InputAdornment>
-              ),
-            },
+          onClear={() => {
+            setId("");
           }}
           required
         />
-        <ViewModeSwitcher viewMode={viewMode} setViewMode={setViewMode} />
       </>
-      handleValueButton="insert"
-      handleValue={value => {
+      modifyName="insert"
+      handleValue={async (value) => {
         if (!id.trim()) {
           throw "id is empty";
         }
-        return invoke("table_insert", {
-          name: uuid,
-          tableName: table,
-          values: {
-            id: id.trim(),
-            value,
-          },
+        await commands.tableInsert(uuid, table, {
+          id: id.trim(),
+          value,
         });
       }}
     />
   );
 }
 
-enum QueryViewMode {
-  Table = "table",
-  Json = "json",
+interface ExecuteButtonProps {
+  handleExecute: (text: string) => void; // 修正了拼写
+  getText: () => string;
+  disabled: boolean;
+  loading?: boolean; // 保留原有的 loading 属性支持
 }
 
-class QueryViewModeSaver {
-  static key = "couchbase-query-view-mode";
-  static load(): QueryViewMode {
-    return (
-      (localStorage.getItem(QueryViewModeSaver.key) as QueryViewMode) ||
-      QueryViewMode.Json
-    );
-  }
+export function ExecuteButton(props: ExecuteButtonProps) {
+  const { handleExecute, getText, disabled, loading } = props;
 
-  static save(x: QueryViewMode) {
-    localStorage.setItem(QueryViewModeSaver.key, x);
-  }
+  return (
+    <Tooltip title="execute">
+      <span>
+        {/* 当 IconButton 禁用时，Tooltip 需要一个 span 包裹才能正常触发 */}
+        <IconButton
+          loading={loading}
+          onClick={() => {
+            const text = getText();
+            if (!text || text.trim() === "") {
+              return;
+            }
+            handleExecute(text);
+          }}
+          disabled={disabled}
+          color="primary">
+          <PlayArrowIcon />
+        </IconButton>
+      </span>
+    </Tooltip>
+  );
 }
 
-function CouchBaseQuery(props: {
-  uuid: string;
-  value?: string;
-  handleEditor: (ed: editor.IStandaloneCodeEditor) => void;
-}) {
-  const { uuid, value, handleEditor } = props;
-  const [resp, setResp] = useState<object[]>([]);
+function CouchBaseQuery(props: { uuid: string; value?: string }) {
+  const { uuid, value } = props;
+  const [resp, setResp] = useState<string[]>([]);
   const [loading, setLoading] = useState(false);
-  const [gridColCount, setGridColCount] = useState(3);
+  const { getSize } = useSizeStore();
   const [editor, setEditor] = useState<editor.IStandaloneCodeEditor>(null);
-  const maxRow = useRef(2000);
   const [queryStatus, setQueryStatus] = useState("");
-  const { showNotification } = useContext(NotificationContext);
-  const [showQueryLog, setShowQueryLog] = useState(false);
+  const { showNotification } = useNotification();
   const kind = DataSourceKind.CouchBase;
-  const [executeTimes, setExecuteTimes] = useState(0);
-  const [showExport, setShowExport] = useState(false);
-  const [viewMode, setViewMode] = useState(QueryViewModeSaver.load());
+  const { viewMode, setViewMode } = useCBQueryViewStore();
   const [tableResp, setTableResp] = useState<MuiDataGridData>(null);
-
+  const setEditorContext = useContext(QueryIDEditorChatCtx);
+  const [markdownModel, setMarkdownModel] = useState(false);
+  const [hightlightStr, setHighlightStr] = useState("");
+  const { setUi } = useOneShotDialogUI();
   useEffect(() => {
-    QueryViewModeSaver.save(viewMode);
-  }, [viewMode]);
+    setEditorContext.setEditor(editor);
+  }, [editor, setEditor, setEditorContext]);
 
+  const { save: saveQueryLog } = useQueryLogStore();
   useEffect(() => {
-    if (viewMode != QueryViewMode.Table) {
+    if (viewMode != CBQueryViewMode.Table) {
       return;
     }
     if (resp.length == 0) {
       return;
     }
-    const fields: types.Field[] = [];
+    const fields: Field[] = [];
     const data: object[] = [];
 
     function encodeValue(x) {
@@ -762,8 +561,8 @@ function CouchBaseQuery(props: {
           return String(x);
       }
     }
-    for (const row of resp) {
-      let obj = row;
+
+    for (let obj of resp.map((x) => JSON.parse(x))) {
       {
         const keys = Object.keys(obj);
         if (keys.length == 1 && typeof obj[keys[0]] == "object") {
@@ -776,56 +575,50 @@ function CouchBaseQuery(props: {
           for (const k in obj[key]) {
             const fKey = `${key}.${k}`;
 
-            if (-1 == fields.findIndex(x => x.field == fKey)) {
+            if (-1 == fields.findIndex((x) => x.field == fKey)) {
               fields.push({
                 field: fKey,
-              } as types.Field);
+              } as Field);
             }
             d[fKey] = encodeValue(obj[key][k]);
           }
         } else {
           d[key] = encodeValue(obj[key]);
-          if (-1 == fields.findIndex(x => x.field == key)) {
+          if (-1 == fields.findIndex((x) => x.field == key)) {
             fields.push({
               field: key,
-            } as types.Field);
+            } as Field);
           }
         }
       }
       data.push(d);
     }
-    setTableResp({ fields, data, sql: "", total: null });
+    setTableResp({ fields, data: data as any, sql: "", total: null });
   }, [resp, uuid, viewMode]);
 
-  const [jsonEditorTheme, setJsonEditorTheme] = useState<ThemeKeys>(
-    JsonEditorThemeSaver.load(),
-  );
-  useEffect(() => {
-    JsonEditorThemeSaver.save(jsonEditorTheme);
-  }, [jsonEditorTheme]);
-  const handleQuery = () => {
-    const text = getEditorText(editor, showNotification);
-    if (!text) {
-      return;
-    }
+  const handleQuery = (text: string) => {
     setLoading(true);
     setResp([]);
-    const channel = new Channel<QueryEvent>(event => {
+    const channel = new Channel<QueryEvent>((event) => {
       switch (event.kind) {
         case "structure": {
           console.error("server should not emit this.", event);
           break;
         }
         case "data": {
-          const xs = event.data.map(x => JSON.parse(x[0]));
-          setResp(resp => {
+          const xs = event.data.map((x) => x[0]);
+          setResp((resp) => {
             return [...resp, ...xs];
           });
           setQueryStatus(`receive ${xs.length} rows`);
           break;
         }
         case "err":
-          showNotification("error", "query failed", event.err);
+          showNotification({
+            severity: "error",
+            title: "query failed",
+            message: event.err,
+          });
           break;
         case "end":
           setQueryStatus("");
@@ -835,45 +628,32 @@ function CouchBaseQuery(props: {
           break;
       }
     });
-    invoke("query_sql", {
-      name: uuid,
-      queryId: "",
-      maxRow: maxRow.current,
-      sql: text,
-      emit: channel,
-    })
-      .catch(e => {
-        showNotification("error", "query failed", e);
-        new QueryLogHandler(uuid).save(text, false);
+
+    commands
+      .querySql(uuid, "", getSize(UseSizeConfig.queryLimit), text, channel)
+
+      .catch((e) => {
+        showNotification({ severity: "error", title: "query failed", message: e });
+        saveQueryLog(uuid, text, false);
       })
       .then(() => {
-        new QueryLogHandler(uuid).save(text, true);
+        saveQueryLog(uuid, text, true);
       })
       .finally(() => {
         setLoading(false);
-        setExecuteTimes(e => e + 1);
       });
   };
   return (
     <PanelGroup
       style={{ height: "100%" }}
       direction="vertical"
-      autoSaveId="couchbase-query"
-    >
+      autoSaveId="couchbase-query">
       <Panel
         collapsible
         collapsedSize={0}
         minSize={10}
         defaultSize={35}
-        style={{ display: "flex", flexDirection: "column" }}
-      >
-        <QueryLog
-          showQueryLog={showQueryLog}
-          setShowQueryLog={setShowQueryLog}
-          uuid={uuid}
-          executeTimes={executeTimes}
-          kind={kind}
-        />
+        style={{ display: "flex", flexDirection: "column" }}>
         <QueryStatus status={queryStatus} />
         <Stack
           direction="row"
@@ -882,122 +662,131 @@ function CouchBaseQuery(props: {
             justifyContent: "space-between",
             paddingBottom: "0.5rem",
             overflow: "auto",
-          }}
-        >
+          }}>
           <Stack direction="row" style={{ alignItems: "center" }}>
-            <Tooltip title="query">
-              <IconButton
-                loading={loading}
-                onClick={() => {
-                  handleQuery();
-                }}
-                color="primary"
-              >
-                <PlayArrowIcon />
-              </IconButton>
-            </Tooltip>
+            <ExecuteButton
+              disabled={markdownModel}
+              getText={() => {
+                return getEditorText(editor, showNotification, true);
+              }}
+              handleExecute={handleQuery}
+              loading={loading}
+            />
             <LoadStoreFile
               getQuery={() => {
                 return editor.getValue();
               }}
-              handleLoadFile={(_, c) => {
+              handleLoadFile={(c) => {
                 editor.setValue(c);
               }}
               kind={DataSourceKind.CouchBase}
             />
 
             <ButtonGroup>
-              {[QueryViewMode.Json, QueryViewMode.Table].map(e => (
+              {[CBQueryViewMode.Json, CBQueryViewMode.Table].map((e) => (
                 <Button
                   key={e}
                   disabled={e == viewMode}
                   onClick={() => {
                     setViewMode(e);
-                  }}
-                >
+                  }}>
                   {e}
                 </Button>
               ))}
             </ButtonGroup>
           </Stack>
           <Stack direction="row" style={{ alignItems: "center" }}>
-            <Typography color="info"> rows:{resp.length} </Typography>
             <Tooltip title="export query result to a file">
               <IconButton
                 loading={loading}
+                disabled={markdownModel}
                 onClick={() => {
-                  const value = getEditorText(editor, showNotification);
+                  const value = getEditorText(editor, showNotification, true);
                   if (!value) {
                     return;
                   }
-                  setShowExport(true);
+
+                  setUi(
+                    <ExportView
+                      supportKind={["json", "jsonline"]}
+                      exportOP={(kind, file, taskId, sizeEmitter) => {
+                        const sql = getEditorText(editor, showNotification, true);
+                        return commands.exportQueryResultToFile(
+                          uuid,
+                          taskId,
+                          sql,
+                          "",
+                          kind,
+                          file,
+                          sizeEmitter,
+                        );
+                      }}
+                      name="export_query_result"
+                    />,
+
+                    "export query to file",
+                  );
                 }}
-                color="primary"
-              >
+                color="primary">
                 <ArrowCircleDownRoundedIcon />
               </IconButton>
             </Tooltip>
-            <Tooltip title="query log">
-              <IconButton
-                onClick={() => {
-                  setShowQueryLog(prev => !prev);
-                }}
-                color="primary"
-              >
-                <EventNoteIcon />
-              </IconButton>
-            </Tooltip>
+            <ShowQueryLog uuid={uuid} kind={kind} />
 
-            {viewMode == QueryViewMode.Json && (
-              <SliderSize
-                min={1}
-                max={5}
-                notice="column count"
-                step={1}
-                handleValue={v => {
-                  setGridColCount(v);
-                }}
-                storeKey="couchbase-query-column-size"
-                name="column"
-              />
-            )}
-            {viewMode == QueryViewMode.Json && (
-              <SetTheme theme={jsonEditorTheme} setTheme={setJsonEditorTheme} />
+            {viewMode == CBQueryViewMode.Json && (
+              <SliderSize config={UseSizeConfig.gridCol} />
             )}
 
-            <ToggleChatShow do_query={handleQuery} />
-
-            <SliderSize
-              storeKey="couchbase-sql-query"
-              min={1000}
-              max={100000}
-              step={1000}
-              handleValue={v => {
-                maxRow.current = v;
-              }}
-              notice={
-                <Typography>
-                  limit max rows can be query.we don&apos;t want OOM!!!😀
-                  <br />
-                  dbpal use Stream technology to query data,so we can query large data
-                </Typography>
-              }
+            <ToggleChatShow />
+            <AiMarkdownModelSwitch
+              setMarkdownModel={setMarkdownModel}
+              markdownModel={markdownModel}
             />
-            <ExecutingTime loading={loading} />
+            <FetchTimeAndLoadingStatus isLoading={loading} />
+            <SliderSize config={UseSizeConfig.queryLimit} />
           </Stack>
         </Stack>
-        <SimpleFlexEditor
-          value={value}
-          language="sql"
-          handleEditor={e => {
-            setEditor(e);
-            handleEditor(e);
-            SetAutoCompletionName.set(
-              e.getModel().id,
-              new NameAndQueryId(uuid, DataSourceKind.CouchBase),
+
+        <AiMarkdownModel
+          markdownModel={markdownModel}
+          editor={editor}
+          appCodeHandleEdit={({ code }) => {
+            setMarkdownModel(false);
+            jumpToEditorText(editor, code);
+          }}
+          appcodeExtra={({ code }) => {
+            return (
+              <ExecuteButton
+                disabled={false}
+                getText={() => {
+                  return code;
+                }}
+                handleExecute={handleQuery}
+                loading={loading}
+              />
             );
           }}
         />
+
+        <div
+          style={{
+            flex: 1,
+            display: !markdownModel ? "flex" : "none",
+            flexDirection: "column",
+          }}>
+          <SimpleFlexEditor
+            value={value}
+            language={markdownModel ? "markdown" : "sql"}
+            handleEditor={(e) => {
+              setEditor(e);
+              e.getModel()._dbpal_query_id = new NameAndQueryId(
+                uuid,
+                DataSourceKind.CouchBase,
+                "",
+              );
+            }}
+          />
+        </div>
       </Panel>
       <PanelResizeHandle
         style={{
@@ -1006,125 +795,53 @@ function CouchBaseQuery(props: {
         id="chat-resize-bar"
         className="resize-handle"
       />
-
       <Panel collapsible collapsedSize={0} minSize={10} style={{ overflow: "auto" }}>
-        {viewMode == QueryViewMode.Json && (
+        <Stack
+          direction="row"
+          style={{ justifyContent: "space-between", marginTop: "0.6rem" }}>
+          {viewMode == CBQueryViewMode.Json ? (
+            <ClearableTextField
+              value={hightlightStr}
+              onChange={(e) => {
+                setHighlightStr(e.target.value);
+              }}
+              onClear={() => {
+                setHighlightStr("");
+              }}
+              label="hight light string"
+              style={{ width: "13rem" }}
+            />
+          ) : (
+            <span> </span>
+          )}
+        </Stack>
+
+        {viewMode == CBQueryViewMode.Json && (
           <div
             style={{
               overflow: "auto",
               display: "grid",
-              gridTemplateColumns: `repeat(${gridColCount}, 1fr)`,
+              gridTemplateColumns: `repeat(${getSize(UseSizeConfig.gridCol)}, 1fr)`,
               paddingRight: "1.2rem",
-            }}
-          >
-            {resp.map((obj, index) => {
+            }}>
+            {resp.map((value, index) => {
               return (
-                <div key={index}>
-                  <ReactJsonView
-                    src={obj}
-                    key={index}
-                    theme={jsonEditorTheme as ThemeKeys}
-                  />
-                  <Divider />
-                </div>
+                <AppCode
+                  key={index}
+                  language="json"
+                  codeBlock={value}
+                  highlightStr={hightlightStr}
+                />
               );
             })}
           </div>
         )}
-        {viewMode == QueryViewMode.Table && tableResp && <QueryResp data={tableResp} />}
+        {viewMode == CBQueryViewMode.Table && tableResp && (
+          <QueryResp data={tableResp} />
+        )}
       </Panel>
-      {showExport && (
-        <Modal
-          open={showExport}
-          onClose={modalHandleClose((e: EscDownEvent) => {
-            e.preventDefault();
-            setShowExport(false);
-          })}
-        >
-          <Box sx={modalStyle} width="45%">
-            <ExportView
-              supportKind={["json", "jsonline"]}
-              exportOP={(kind, file, taskId, sizeEmitter) => {
-                const sql = getEditorText(editor, showNotification);
-                return invoke<void>("export_query_result_to_file", {
-                  name: uuid,
-                  taskId,
-                  file,
-                  kind,
-                  sizeEmitter,
-                  sql,
-                  queryId: "",
-                });
-              }}
-              handleClose={() => {
-                setShowExport(false);
-              }}
-              name="export_query_result"
-            />
-          </Box>
-        </Modal>
-      )}
     </PanelGroup>
   );
 }
 
-// 帮我 https://github.com/microlinkhq/react-json-view 内置主题整理成js数组
-
-function SetTheme({ theme, setTheme }) {
-  return (
-    <Autocomplete
-      options={themes}
-      style={{ width: "16rem" }}
-      value={theme}
-      renderInput={params => <TextField {...params} label={`json editor theme`} />}
-      freeSolo={false}
-      onChange={(_, v) => {
-        if (v) {
-          setTheme(v);
-        }
-      }}
-    />
-  );
-}
-
-const themes = [
-  "rjv-default",
-  "apathy",
-  "ashes",
-  "atelierDune",
-  "atelierForest",
-  "atelierHeath",
-  "atelierLakeside",
-  "atelierSeaside",
-  "bespin",
-  "brewer",
-  "bright",
-  "chalk",
-  "codeschool",
-  "colors",
-  "eighties",
-  "embers",
-  "flat",
-  "google",
-  "grayscale",
-  "greenscreen",
-  "harmonic",
-  "hopscotch",
-  "isotope",
-  "marrakesh",
-  "mocha",
-  "monokai",
-  "ocean",
-  "paraiso",
-  "pop",
-  "railscasts",
-  "shapeshifter",
-  "solarized",
-  "summerfruit",
-  "threezerotwofour",
-  "tomorrow",
-  "tube",
-  "twilight",
-];
-
-export { CouchBaseTable, CouchBaseQuery };
+export { CouchBaseTable, CouchBaseQuery, CouchBaseInsert };

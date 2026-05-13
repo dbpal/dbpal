@@ -1,6 +1,6 @@
 use crate::db::BackendKind;
 use crate::helper::try_remove_one_at;
-use crate::language_server::{AstCompletionHelper, CompletionItem, CompletionKind, ErrAndLoc};
+use crate::language_server::{AstCompletionHelper, CompletionItem, CompletionKind};
 use sqlparser::ast::*;
 use sqlparser::tokenizer::{Location, Span};
 use std::collections::HashSet;
@@ -200,7 +200,7 @@ impl TableEntered {
                     match table.0.last().expect("table have at least one part") {
                         ObjectNamePart::Identifier(ident) => Some(ident),
                         ObjectNamePart::Function(object_name_part_function) => {
-                            // TODO
+                            // TODO  snowflack not support
                             Some(&object_name_part_function.name)
                         }
                     }
@@ -313,21 +313,23 @@ impl<'a> CompletionStatement<'a> {
                 partitions,
                 ..
             }) => {
-                self.c_on_table(table_name).await;
-                if self.finished() {
-                    return;
-                }
-                for c in columns.iter() {
-                    self.c_on_column(table_name, c, false).await;
+                if let Some(table_name) = table_name {
+                    self.c_on_table(table_name).await;
                     if self.finished() {
                         return;
                     }
-                }
-                if let Some(partitions) = partitions {
-                    for p in partitions.iter() {
-                        self.c_on_partition_expr(table_name, p).await;
+                    for c in columns.iter() {
+                        self.c_on_column(table_name, c, false).await;
                         if self.finished() {
                             return;
+                        }
+                    }
+                    if let Some(partitions) = partitions {
+                        for p in partitions.iter() {
+                            self.c_on_partition_expr(table_name, p).await;
+                            if self.finished() {
+                                return;
+                            }
                         }
                     }
                 }
@@ -727,7 +729,7 @@ impl<'a> CompletionStatement<'a> {
                         1 => match auth.0.last().expect("we have checked the length") {
                             ObjectNamePart::Identifier(ident) => self.c_on_role(ident).await,
                             ObjectNamePart::Function(..) => {
-                                // TODO
+                                // TODO  snowflack not support
                             }
                         },
                         _ => {
@@ -739,14 +741,14 @@ impl<'a> CompletionStatement<'a> {
             Statement::CreateSecret { .. } => {
                 // duckdb syntax
             }
-            Statement::CreatePolicy {
+            Statement::CreatePolicy(CreatePolicy {
                 table_name,
                 name,
                 using,
                 with_check,
                 to,
                 ..
-            } => {
+            }) => {
                 if self.in_pos(&name.span) {
                     self.set_on_def();
                     return;
@@ -882,9 +884,9 @@ impl<'a> CompletionStatement<'a> {
                     }
                 }
             }
-            Statement::AlterPolicy {
+            Statement::AlterPolicy(AlterPolicy {
                 table_name, name, ..
-            } => {
+            }) => {
                 self.c_on_table_or_view(table_name).await;
                 if self.finished() {
                     return;
@@ -945,9 +947,9 @@ impl<'a> CompletionStatement<'a> {
                 // DROP SECRET 并不是 SQL 标准语句，而是部分现代数据库为管理“外部访问密钥”引入的扩展命令，
                 // 用于删除事先通过 CREATE SECRET 注册的凭证对象。目前可见于以下系统
             }
-            Statement::DropPolicy {
+            Statement::DropPolicy(DropPolicy {
                 table_name, name, ..
-            } => {
+            }) => {
                 self.c_on_table(table_name).await;
                 if self.finished() {
                     return;
@@ -1007,7 +1009,7 @@ impl<'a> CompletionStatement<'a> {
                 }
             }
             Statement::ShowVariable { variable } => {
-                let kind = self.helper.backend_name();
+                let kind = self.helper.backend_kind();
                 if kind.postgres_like() {
                     for var in variable {
                         self.c_on_variable(var).await;
@@ -1066,9 +1068,7 @@ impl<'a> CompletionStatement<'a> {
                             self.result = Some(results)
                         }
                     }
-                    Use::Warehouse(..) => {
-                        // TODO
-                    }
+                    Use::Warehouse(..) => {}
                     Use::Role(object_name) => self.c_on_role_objectname(object_name).await,
                     Use::SecondaryRoles(..) => {
                         // USE SECONDARY ROLES ALL 是 Snowflake 数据库的 SQL 语句
@@ -1285,7 +1285,7 @@ impl<'a> CompletionStatement<'a> {
                 /*
                     AI提示词 没有 NEW/OLD，而是使用 inserted.col 和 deleted.col 两张“伪表”
                 */
-                if self.helper.backend_name() == BackendKind::SqlServer {
+                if self.helper.backend_kind() == BackendKind::SqlServer {
                     // 	没有 NEW/OLD，而是使用 inserted.col 和 deleted.col 两张“伪表”
                     scope.enter_table(
                         Some(Ident::new("inserted")),
@@ -1393,20 +1393,20 @@ impl<'a> CompletionStatement<'a> {
                     self.c_on_expr(msg).await;
                 }
             }
-            Statement::Grant {
+            Statement::Grant(Grant {
                 grantees,
                 granted_by,
                 objects,
                 privileges,
                 ..
-            }
-            | Statement::Revoke {
+            })
+            | Statement::Revoke(Revoke {
                 privileges,
                 objects,
                 grantees,
                 granted_by,
                 ..
-            } => {
+            }) => {
                 for g in grantees.iter() {
                     if let Some(g) = &g.name {
                         match g {
@@ -1508,7 +1508,7 @@ impl<'a> CompletionStatement<'a> {
             }
             Statement::Kill { .. } => {}
             Statement::ExplainTable { table_name, .. } => {
-                if self.helper.backend_name().mysql_like() {
+                if self.helper.backend_kind().mysql_like() {
                     //
                     self.c_on_table(table_name).await;
                     if self.last_name_in_pos(table_name) && table_name.0.len() == 1 {
@@ -1547,14 +1547,14 @@ impl<'a> CompletionStatement<'a> {
                 // 我在postgres和mysql都没找到可以查询savepoint的语句
                 // 所以这里不能做
             }
-            Statement::Merge {
+            Statement::Merge(Merge {
                 table,
                 source,
                 on,
                 output,
                 clauses,
                 ..
-            } => {
+            }) => {
                 self.c_on_table_factor(table).await;
                 if self.finished() {
                     return;
@@ -1828,6 +1828,9 @@ impl<'a> CompletionStatement<'a> {
             Statement::DropOperatorClass(..) => {}
             Statement::AlterUser(..) => {}
             Statement::Reset(..) => {}
+            Statement::AlterOperator(..) => {}
+            Statement::AlterOperatorFamily(..) => {}
+            Statement::AlterOperatorClass(..) => {}
         }
     }
 
@@ -2098,9 +2101,7 @@ impl<'a> CompletionStatement<'a> {
                 }
                 *tables_or_views = Some(views.clone());
             }
-            GrantObjects::Warehouses(..) => {
-                // TODO
-            }
+            GrantObjects::Warehouses(..) => {}
             GrantObjects::Integrations(..) => {
                 // I don't know what is it
             }
@@ -2143,7 +2144,7 @@ impl<'a> CompletionStatement<'a> {
     }
 
     fn try_remove_one_at(&self, value: String) -> String {
-        if self.helper.backend_name().support_at() {
+        if self.helper.backend_kind().support_at() {
             try_remove_one_at(value)
         } else {
             value
@@ -2382,14 +2383,6 @@ pub fn sqlparser_err_extract_line_col(error: impl Into<String>) -> (Option<u32>,
         (line, col)
     } else {
         (None, None)
-    }
-}
-
-impl From<sqlparser::parser::ParserError> for ErrAndLoc {
-    fn from(value: sqlparser::parser::ParserError) -> Self {
-        let msg = value.to_string();
-        let (line, column) = sqlparser_err_extract_line_col(&msg);
-        Self { line, column, msg }
     }
 }
 

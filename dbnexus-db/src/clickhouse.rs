@@ -1,28 +1,29 @@
 use crate::datasource_config::ClickHouseConfig;
 use crate::db::{
     create_html_table_data, create_html_table_header, create_markdown_data, create_markdown_header,
-    escape_sql_str, ty_is_float, ty_is_int, BackendKind, CheckConn, ColumnType, CreateSchemaExtra,
-    CreateTableAndIndexSql, DBTrait, DefAndMetas, ExportFrame, ExportKind, ExportQueryResult,
-    Field, GetBackendKind, ListTable, MetaValue, NamedStaff, OptionMustBeSomeErr, QueryEvent,
-    QueryEventEmitter, QueryResp, QuerySql, ReadOnlyTrait, SchemaTrait, ServerMetas,
-    ShowTableParameter, SqlBuilder, UdfOrProcedureExtraParameter, XlsxEdit,
+    escape_sql_str, BackendKind, CheckConn, ColumnType, CreateSchemaExtra, CreateTableAndIndexSql,
+    DBTrait, DefAndMetas, ExportFrame, ExportKind, ExportQueryResult, Field, GetBackendKind,
+    GetTestExportTableKinds, ListTable, MetaValue, NamedStaff, QueryEvent, QueryEventEmitter,
+    QueryResp, QuerySql, SchemaTrait, ServerMetas, ShowTableParameter, SqlBuilder, SqlCollect,
+    XlsxEdit,
 };
 
-use crate::helper::separate_sql_by_sqlparser_tokenizer;
+use crate::helper::{ty_is_decimal, ty_is_float, ty_is_int};
 use crate::language_server::LexerCompletionTrait;
 use futures_core::stream::BoxStream;
 use futures_util::StreamExt;
 use reqwest::Response;
 use sqlparser::ast::{ArrayElemTypeDef, DataType};
-use sqlparser::tokenizer::Token;
 use std::collections::{HashMap, HashSet};
 use std::sync::Arc;
 use std::time::Duration;
 use tokio::io::{AsyncBufReadExt, BufReader};
+#[cfg(test)]
+use tokio::sync::Mutex;
 use tokio_util::io::StreamReader;
 
 impl GetBackendKind for ClickHouseDB {
-    fn backend_name(&self) -> BackendKind {
+    fn backend_kind(&self) -> BackendKind {
         BackendKind::ClickHouse
     }
 }
@@ -37,33 +38,9 @@ impl ClickHouseDB {
     ) -> anyhow::Result<()> {
         if include_table_schema {
             let x = self.show_create_table_sql(table_name).await?;
-            sender.send(x.create_table.into()).await?;
+            sender.send(x.create_table.to_string().into()).await?;
         }
-
-        let sql = if let Some(para) = para {
-            let ShowTableParameter {
-                where_str,
-                order_by,
-                page,
-                page_size,
-                ..
-            } = &para;
-            gen_show_sql(
-                self.config.db_str(),
-                table_name,
-                None,
-                where_str.as_deref(),
-                order_by.as_deref(),
-                *page,
-                *page_size,
-            )
-        } else {
-            format!(
-                r#"select * from `{}`.`{}`"#,
-                self.config.db_str(),
-                table_name
-            )
-        };
+        let sql = self.gen_show_sql(table_name, None, para.as_ref());
         let mut stream = self.query_row(&sql).await?;
         let mut fs = vec![];
         while let Some(row) = stream.next().await {
@@ -80,44 +57,15 @@ impl ClickHouseDB {
                         });
                         m
                     };
-                    let s = self.insert_sql(table_name, &fs, &values)?;
-                    let s = format!("{};\n", s);
-                    sender.send(s.into()).await?;
+                    let sql = self.insert_sql(table_name, &fs, &values)?;
+                    let sql = format!("{};\n", sql);
+                    sender.send(sql.into()).await?;
                 }
                 FieldsOrData::ReadingColumns => {}
             }
         }
         anyhow::Ok(())
     }
-}
-
-fn gen_show_sql(
-    schema: &str,
-    table_name: &str,
-    fields: Option<String>,
-    where_str: Option<&str>,
-    order_by: Option<&str>,
-    page: usize,
-    page_size: usize,
-) -> String {
-    let mut sql = format!(
-        "SELECT {} from `{schema}`.`{table_name}`",
-        if let Some(x) = fields {
-            x
-        } else {
-            "*".to_owned()
-        }
-    );
-    if let Some(where_str) = where_str {
-        sql.push_str(format!(" where {where_str} ").as_str());
-    }
-    if let Some(order_by) = order_by {
-        sql.push_str(format!(" ORDER BY {order_by} ").as_str());
-    }
-    let offset = (page - 1) * page_size;
-    sql.push_str(format!(" LIMIT {} , {}", offset, page_size).as_str());
-
-    sql
 }
 
 impl ClickHouseDB {
@@ -191,16 +139,15 @@ impl SchemaTrait for ClickHouseDB {
         self.list_materialized_view_impl(self.config.db_str()).await
     }
 
-    async fn drop_materialized_view(&self, name: &str) -> anyhow::Result<()> {
+    async fn drop_materialized_view(&self, name: &str) -> anyhow::Result<Option<String>> {
         self.drop_table(name, false).await
     }
 
-    async fn drop_view(&self, view_name: &str) -> anyhow::Result<()> {
+    async fn drop_view(&self, view_name: &str) -> anyhow::Result<String> {
         let sql = format!(r#"DROP VIEW `{view_name}`"#);
         log::info!("sql:{}", sql);
-
-        self.client.query(&sql).execute().await?;
-        anyhow::Ok(())
+        self.simple_execute_sql(&sql).await?;
+        anyhow::Ok(sql)
     }
 
     async fn show_create_table_sql(
@@ -232,26 +179,7 @@ impl SchemaTrait for ClickHouseDB {
                     .await
             }
             _ => {
-                let sql = if let Some(para) = para {
-                    let ShowTableParameter {
-                        where_str,
-                        order_by,
-                        page,
-                        page_size,
-                        ..
-                    } = &para;
-                    gen_show_sql(
-                        self.config.db_str(),
-                        name,
-                        None,
-                        where_str.as_deref(),
-                        order_by.as_deref(),
-                        *page,
-                        *page_size,
-                    )
-                } else {
-                    format!(r#"SELECT * from `{}`.`{}`"#, self.config.db_str(), name)
-                };
+                let sql = self.gen_show_sql(name, None, para.as_ref());
                 log::info!("sql:{}", sql);
                 self.export_query_result(None, &sql, kind, sender).await
             }
@@ -259,25 +187,22 @@ impl SchemaTrait for ClickHouseDB {
     }
 
     fn clone(&self) -> Box<dyn SchemaTrait> {
-        Box::new(Clone::clone(self)) as Box<dyn SchemaTrait>
+        Box::new(Clone::clone(self))
     }
 
-    async fn rename_table(&self, old: &str, new: &str) -> anyhow::Result<()> {
-        self.can_write()?;
+    async fn rename_table(&self, old: &str, new: &str) -> anyhow::Result<Option<String>> {
         let sql = format!(r#"RENAME TABLE `{old}` TO `{new}`"#);
         log::info!("sql:{}", sql);
-
-        self.client.query(&sql).execute().await?;
-        anyhow::Ok(())
+        self.simple_execute_sql(&sql).await?;
+        anyhow::Ok(sql.into())
     }
 
     async fn duplicate_table(&self, table: &str, dup: &str) -> anyhow::Result<()> {
-        self.can_write()?;
         let sql = format!(r#"CREATE TABLE `{dup}` AS `{table}`"#);
         log::info!("sql:{}", sql);
         log::info!("sql:{}", sql);
 
-        self.client.query(&sql).execute().await?;
+        self.simple_execute_sql(&sql).await?;
         // select data and insert.
 
         let (sender, mut receiver) = tokio::sync::mpsc::channel(10);
@@ -315,12 +240,11 @@ impl SchemaTrait for ClickHouseDB {
         anyhow::Ok(())
     }
 
-    async fn truncate_table(&self, table_name: &str) -> anyhow::Result<()> {
-        self.can_write()?;
+    async fn truncate_table(&self, table_name: &str) -> anyhow::Result<Option<String>> {
         let sql = format!(r#"TRUNCATE TABLE `{table_name}`"#);
         log::info!("sql:{}", sql);
-        self.client.query(&sql).execute().await?;
-        anyhow::Ok(())
+        self.simple_execute_sql(&sql).await?;
+        anyhow::Ok(sql.into())
     }
 
     fn as_any(&self) -> &dyn std::any::Any {
@@ -410,30 +334,14 @@ impl SchemaTrait for ClickHouseDB {
         para: ShowTableParameter,
         emit: QueryEventEmitter,
     ) -> anyhow::Result<()> {
-        let ShowTableParameter {
-            where_str,
-            order_by,
-            page,
-            page_size,
-            ..
-        } = &para;
         emit.send("trying to query total count.".into())?;
         let total = self
-            .query_count(self.config.db_str(), table_name, where_str.as_deref())
+            .query_count(self.config.db_str(), table_name, para.where_str.as_deref())
             .await?;
         emit.send("trying to query columns.".into())?;
         let fs = self.show_table_columns(table_name).await?;
-        let sql = gen_show_sql(
-            self.config.db_str(),
-            table_name,
-            Some(self.backend_name().format_fields(Some(&fs))),
-            where_str.as_deref(),
-            order_by.as_deref(),
-            *page,
-            *page_size,
-        );
+        let sql = self.gen_show_sql(table_name, Some(&fs), Some(&para));
         log::info!("sql:{}", sql);
-
         emit.send(
             QueryResp {
                 fields: fs,
@@ -463,26 +371,11 @@ impl SchemaTrait for ClickHouseDB {
         para: ShowTableParameter,
         emit: QueryEventEmitter,
     ) -> anyhow::Result<()> {
-        let ShowTableParameter {
-            where_str,
-            order_by,
-            page,
-            page_size,
-            ..
-        } = &para;
         emit.send("trying to query total count.".into())?;
         let total = self
-            .query_count(self.config.db_str(), view_name, where_str.as_deref())
+            .query_count(self.config.db_str(), view_name, para.where_str.as_deref())
             .await?;
-        let sql = gen_show_sql(
-            self.config.db_str(),
-            view_name,
-            None,
-            where_str.as_deref(),
-            order_by.as_deref(),
-            *page,
-            *page_size,
-        );
+        let sql = self.gen_show_sql(view_name, None, Some(&para));
         log::info!("sql:{}", sql);
         emit.send("trying to query data.".into())?;
         let mut stream = self.query_row(&sql).await?;
@@ -508,26 +401,20 @@ impl SchemaTrait for ClickHouseDB {
         anyhow::Ok(())
     }
 
-    async fn drop_table(&self, table: &str, _cascade: bool) -> anyhow::Result<()> {
-        self.can_write()?;
+    async fn drop_table(&self, table: &str, _cascade: bool) -> anyhow::Result<Option<String>> {
         let sql = format!(r#"DROP TABLE `{table}`"#);
         log::info!("sql:{}", sql);
 
-        self.client.query(&sql).execute().await?;
-        anyhow::Ok(())
+        self.simple_execute_sql(&sql).await?;
+        anyhow::Ok(sql.into())
     }
 
-    async fn drop_table_column(&self, table: &str, col: &str) -> anyhow::Result<()> {
-        let sql = format!(
-            r#"
-        ALTER TABLE `{}` DROP COLUMN `{}`;
-        "#,
-            table, col,
-        );
+    async fn drop_table_column(&self, table: &str, col: &str) -> anyhow::Result<String> {
+        let sql = format!(r#"ALTER TABLE `{}` DROP COLUMN `{}`;"#, table, col,);
         log::info!("sql:{}", sql);
 
-        self.client.query(&sql).execute().await?;
-        anyhow::Ok(())
+        self.simple_execute_sql(&sql).await?;
+        anyhow::Ok(sql)
     }
 
     async fn modify_table_column(
@@ -536,41 +423,40 @@ impl SchemaTrait for ClickHouseDB {
         old_name: &str,
         new_name: &str,
         typ: Option<ColumnType>,
-    ) -> anyhow::Result<()> {
+    ) -> anyhow::Result<String> {
+        let mut sc = SqlCollect::default();
         if old_name != new_name {
             let sql = format!(
-                r#"ALTER TABLE `{}`
-                    RENAME COLUMN `{}` TO `{}`"#,
+                r#"ALTER TABLE `{}` RENAME COLUMN `{}` TO `{}`"#,
                 table, old_name, new_name
             );
             log::info!("sql:{}", sql);
-            self.client.query(&sql).execute().await?;
+            self.simple_execute_sql(&sql).await?;
+            sc.collect(sql);
         }
-
         if let Some(typ) = typ.as_ref() {
             let sql = format!(
-                r#"
-                ALTER TABLE `{}`
-                MODIFY COLUMN `{}` {}
-            "#,
+                r#"ALTER TABLE `{}` MODIFY COLUMN `{}` {}"#,
                 table, new_name, &typ.typ
             );
             log::info!("sql:{}", sql);
-            self.client.query(&sql).execute().await?;
-
+            self.simple_execute_sql(&sql).await?;
+            sc.collect(sql);
             if let Some(dv) = typ.default_value.as_ref() {
                 let sql = format!(
-                    r#"
-                    ALTER TABLE {table}
-                    MODIFY COLUMN {new_name} DEFAULT {}
-                "#,
-                    self.put_value_in_sql(&typ.typ, Some(dv.as_str()))?
+                    r#"ALTER TABLE {table} MODIFY COLUMN {new_name} DEFAULT {}"#,
+                    if self.hit_current_value(dv) {
+                        dv.clone()
+                    } else {
+                        self.put_value_in_sql(&typ.typ, dv.as_str())?
+                    }
                 );
                 log::info!("sql:{}", sql);
-                self.client.query(&sql).execute().await?;
+                self.simple_execute_sql(&sql).await?;
+                sc.collect(sql);
             }
         }
-        anyhow::Ok(())
+        anyhow::Ok(sc.into())
     }
 
     async fn add_table_column(
@@ -578,24 +464,23 @@ impl SchemaTrait for ClickHouseDB {
         table: &str,
         name: &str,
         col: ColumnType,
-    ) -> anyhow::Result<()> {
-        let mut sql = format!(
-            r#"ALTER TABLE `{table}`
-                ADD COLUMN `{name}` {} "#,
-            col.typ
-        );
+    ) -> anyhow::Result<String> {
+        let mut sql = format!(r#"ALTER TABLE `{table}` ADD COLUMN `{name}` {} "#, col.typ);
         if let Some(dv) = col.default_value.as_ref() {
             sql.push_str(
                 format!(
                     "DEFAULT {} ",
-                    self.put_value_in_sql(&col.typ, Some(dv.as_str()))?
+                    if self.hit_current_value(dv) {
+                        dv.clone()
+                    } else {
+                        self.put_value_in_sql(&col.typ, dv.as_str())?
+                    }
                 )
                 .as_str(),
             );
         }
-
-        self.client.query(&sql).execute().await?;
-        anyhow::Ok(())
+        self.simple_execute_sql(&sql).await?;
+        anyhow::Ok(sql)
     }
 
     async fn list_udf(&self) -> anyhow::Result<Vec<NamedStaff>> {
@@ -605,13 +490,10 @@ impl SchemaTrait for ClickHouseDB {
         anyhow::Ok(rows.into_iter().map(NamedStaff::from).collect())
     }
 
-    async fn show_udf(
-        &self,
-        name: &str,
-        _arg: Option<UdfOrProcedureExtraParameter>,
-    ) -> anyhow::Result<DefAndMetas> {
+    async fn show_udf(&self, name: &NamedStaff) -> anyhow::Result<DefAndMetas> {
         let sql = format!(
-            r#"SELECT create_query from system.functions where origin = 'SQLUserDefined' and  name='{name}'"#
+            r#"SELECT create_query from system.functions where origin = 'SQLUserDefined' and  name='{}'"#,
+            name.name,
         );
 
         let create_query: String = self.client.query(&sql).fetch_one().await?;
@@ -621,15 +503,10 @@ impl SchemaTrait for ClickHouseDB {
         })
     }
 
-    async fn drop_udf(
-        &self,
-        name: &str,
-        _extra: Option<UdfOrProcedureExtraParameter>,
-    ) -> anyhow::Result<()> {
-        let sql = format!("DROP FUNCTION `{name}`",);
-
-        self.client.query(&sql).execute().await?;
-        anyhow::Ok(())
+    async fn drop_udf(&self, name: &NamedStaff) -> anyhow::Result<String> {
+        let sql = format!("DROP FUNCTION `{}`", name.name);
+        self.simple_execute_sql(&sql).await?;
+        anyhow::Ok(sql)
     }
 }
 
@@ -650,13 +527,12 @@ impl ClickHouseDB {
     }
 }
 
-fn put_value_in_sql(typ: &sqlparser::ast::DataType, value: Option<&str>) -> String {
+fn put_value_in_sql(typ: &sqlparser::ast::DataType, value: &str) -> String {
     use sqlparser::ast::{DataType, ObjectName};
 
-    let default_str = value.map(|x| x.to_string()).unwrap_or("null".to_string());
-    let single_quote_str = value
-        .map(|x| format!("'{}'", escape_sql_str(x)))
-        .unwrap_or("null".to_string());
+    let default_str = value.to_string();
+
+    let single_quote_str = format!("'{}'", escape_sql_str(value));
 
     fn custom_need_quote(x: &ObjectName) -> bool {
         let x = x.to_string().to_lowercase();
@@ -712,7 +588,7 @@ impl ClickHouseDB {
                 } else {
                     "CSV"
                 },
-                Some(format!("format_csv_delimiter={}", delimiter)),
+                Some(vec![("format_csv_delimiter".into(), delimiter.to_string())]),
             )
             .await?;
         let mut stream = resp.bytes_stream();
@@ -865,7 +741,7 @@ impl ClickHouseDB {
 #[async_trait::async_trait]
 impl ExportQueryResult for ClickHouseDB {
     fn clone(&self) -> Box<dyn ExportQueryResult> {
-        Box::new(Clone::clone(self)) as Box<dyn ExportQueryResult>
+        Box::new(Clone::clone(self))
     }
 
     async fn export_query_result(
@@ -917,9 +793,13 @@ impl ClickHouseDB {
 
 #[async_trait::async_trait]
 impl QuerySql for ClickHouseDB {
-    async fn execute_sql_no_open_conn(&self, sql: &str) -> anyhow::Result<Option<usize>> {
+    async fn simple_execute_sql(&self, sql: &str) -> anyhow::Result<Option<usize>> {
         self.not_allow_switch_db(sql)?;
-        self.client.query(sql).execute().await?;
+        self.client
+            .query(sql)
+            .execute()
+            .await
+            .map_err(|err| anyhow::Error::msg(format!("Sql:{} Err:{}", sql, err)))?;
         anyhow::Ok(None)
     }
     async fn execute_sql(
@@ -928,7 +808,6 @@ impl QuerySql for ClickHouseDB {
         sql: &str,
     ) -> anyhow::Result<Result<QueryResp, String>> {
         self.not_allow_switch_db(sql)?;
-
         let ret = match self.client.query(sql).execute().await {
             Ok(_) => Ok(QueryResp::execute_ok(sql.to_string())),
             Err(err) => Err(err.to_string()),
@@ -943,29 +822,25 @@ impl QuerySql for ClickHouseDB {
         emit: QueryEventEmitter,
     ) -> anyhow::Result<()> {
         self.not_allow_switch_db(sql)?;
-        let dialect = sqlparser::dialect::ClickHouseDialect {};
-        let sqls = separate_sql_by_sqlparser_tokenizer(sql, &dialect)?;
-        for sql in sqls.iter() {
-            emit.send(QueryEvent::new_status(format!(
-                "try to execute sql: {}",
-                sql
-            )))?;
-            let mut stream = self.query_row(sql).await?;
-            while let Some(row) = stream.next().await {
-                let row = row?;
-                match row {
-                    FieldsOrData::Fields(fields) => emit.send(
-                        QueryResp {
-                            fields,
-                            ..Default::default()
-                        }
-                        .into(),
-                    )?,
-                    FieldsOrData::Data(items) => {
-                        emit.send(vec![items].into())?;
+        emit.send(QueryEvent::new_status(format!(
+            "try to execute sql: {}",
+            sql
+        )))?;
+        let mut stream = self.query_row(sql).await?;
+        while let Some(row) = stream.next().await {
+            let row = row?;
+            match row {
+                FieldsOrData::Fields(fields) => emit.send(
+                    QueryResp {
+                        fields,
+                        ..Default::default()
                     }
-                    FieldsOrData::ReadingColumns => {}
+                    .into(),
+                )?,
+                FieldsOrData::Data(items) => {
+                    emit.send(vec![items].into())?;
                 }
+                FieldsOrData::ReadingColumns => {}
             }
         }
         anyhow::Ok(())
@@ -993,14 +868,8 @@ pub struct ClickHouseDB {
     pub(crate) config: ClickHouseConfig,
     pub(crate) client: Arc<clickhouse::Client>,
     pub(crate) http_client: Arc<reqwest::Client>,
-    pub(crate) key_words_cache: Arc<tokio::sync::Mutex<Vec<String>>>,
 }
 
-impl ReadOnlyTrait for ClickHouseDB {
-    fn read_only(&self) -> bool {
-        self.config.read_only
-    }
-}
 #[async_trait::async_trait]
 
 impl CheckConn for ClickHouseDB {
@@ -1028,6 +897,10 @@ impl ClickHouseDB {
             client = client.with_database(db);
         }
 
+        if config.read_only {
+            client = client.with_setting("readonly", "1");
+        }
+
         let http_client = {
             let mut b = reqwest::Client::builder();
             if let Some(x) = config.conn_timeout {
@@ -1040,7 +913,6 @@ impl ClickHouseDB {
             config,
             http_client: Arc::new(http_client),
             client: Arc::new(client),
-            key_words_cache: Default::default(),
         })
     }
 }
@@ -1068,30 +940,33 @@ impl DBTrait for ClickHouseDB {
         name: &str,
         _extra: Option<CreateSchemaExtra>,
     ) -> anyhow::Result<()> {
-        self.can_write()?;
         let sql = format!("CREATE DATABASE IF NOT EXISTS {name};");
         log::info!("sql:{}", sql);
-
-        self.client.query(&sql).execute().await?;
+        self.simple_execute_sql(&sql).await?;
         anyhow::Ok(())
     }
 
     async fn drop_schema(&self, name: &str) -> anyhow::Result<()> {
-        self.can_write()?;
         let sql = format!("DROP DATABASE IF EXISTS {name};");
         log::info!("sql:{}", sql);
-
-        self.client.query(&sql).execute().await?;
+        self.simple_execute_sql(&sql).await?;
         anyhow::Ok(())
     }
 }
 
 fn encode_nested(value: &serde_json::Value, typ: &DataType) -> anyhow::Result<String> {
+    let need_quote = |typ: &DataType| !(ty_is_int(typ) || ty_is_float(typ) || ty_is_decimal(typ));
     let x = match value {
         serde_json::Value::Null => "null".to_string(),
         serde_json::Value::Bool(x) => x.to_string(),
         serde_json::Value::Number(number) => number.to_string(),
-        serde_json::Value::String(x) => format!("'{}'", escape_sql_str(x)),
+        serde_json::Value::String(x) => {
+            if need_quote(typ) {
+                format!("'{}'", escape_sql_str(x))
+            } else {
+                x.clone()
+            }
+        }
         serde_json::Value::Array(values) => {
             match typ {
                 DataType::Tuple(tys) => {
@@ -1110,19 +985,16 @@ fn encode_nested(value: &serde_json::Value, typ: &DataType) -> anyhow::Result<St
                     }
                     format!("({})", xs.join(","))
                 }
-
                 DataType::Array(ty) => {
                     let mut xs = Vec::with_capacity(values.len());
+                    let ety = match ty {
+                        ArrayElemTypeDef::Parenthesis(x) => x.as_ref(),
+                        _ => {
+                            anyhow::bail!("clickhouse accept Parenthesis type parameter.")
+                        }
+                    };
                     for e in values.iter() {
-                        xs.push(encode_nested(
-                            e,
-                            match ty {
-                                ArrayElemTypeDef::Parenthesis(x) => x.as_ref(),
-                                _ => {
-                                    anyhow::bail!("clickhouse accept Parenthesis type parameter.")
-                                }
-                            },
-                        )?);
+                        xs.push(encode_nested(e, ety)?);
                     }
                     format!("[{}]", xs.join(","))
                 }
@@ -1138,13 +1010,12 @@ fn encode_nested(value: &serde_json::Value, typ: &DataType) -> anyhow::Result<St
             };
             let mut xs = Vec::with_capacity(map.len());
             for (k, v) in map.iter() {
-                let no_need_quote = ty_is_int(kty) || ty_is_float(kty);
                 xs.push(format!(
                     "{}:{}",
-                    if no_need_quote {
-                        k.to_string()
+                    if need_quote(kty) {
+                        format!("'{}'", escape_sql_str(k))
                     } else {
-                        format!("'{}'", k)
+                        k.clone()
                     },
                     encode_nested(v, vty)?
                 ));
@@ -1225,7 +1096,7 @@ impl ClickHouseDB {
         &'_ self,
         query: &str,
         format: &str,
-        http_extra: Option<String>,
+        http_extra: Option<Vec<(String, String)>>,
     ) -> anyhow::Result<BoxStream<'_, Result<String, std::io::Error>>> {
         use tokio_stream::wrappers::LinesStream;
         let res = self.query_as_response(query, format, http_extra).await?;
@@ -1239,32 +1110,27 @@ impl ClickHouseDB {
     pub(crate) async fn query_as_response(
         &self,
         query: &str,
-        format: &str,
-        http_extra: Option<String>,
+        format_: &str,
+        http_extra: Option<Vec<(String, String)>>,
     ) -> anyhow::Result<Response> {
-        let host = format!(
-            "http{}://{}:{}",
-            if self.config.https { "s" } else { "" },
-            self.config.host,
-            self.config.port
-        );
-        let mut uri = format!(
-            "{}/?query={} format {format}{}",
-            host,
-            replace_new_line_to_whitespace(query)?,
-            match &self.config.db {
-                Some(x) => format!("&database={}", x),
-                None => "".to_string(),
-            }
-        );
+        let mut url = reqwest::Url::parse(
+            format!(
+                "http{}://{}:{}",
+                if self.config.https { "s" } else { "" },
+                self.config.host,
+                self.config.port
+            )
+            .as_str(),
+        )?;
+        let query_pairs = vec![("query", format!("{} FORMAT {}", query, format_))];
+        url.query_pairs_mut().extend_pairs(&query_pairs);
         if let Some(extra) = http_extra {
-            uri.push('&');
-            uri.push_str(&extra);
+            url.query_pairs_mut().extend_pairs(&extra);
         }
-        log::info!("url:{}", uri);
+        log::info!("url:{}", url);
         let response = self
             .http_client
-            .get(uri)
+            .get(url)
             .basic_auth(&self.config.username, self.config.password.as_ref())
             .send()
             .await?;
@@ -1320,21 +1186,22 @@ impl SqlBuilder for ClickHouseDB {
             let last = values.len() - 1;
             for (index, (k, v)) in values.iter().enumerate() {
                 let f = field_by_name.get(k);
-                if f.is_none() {
-                    anyhow::bail!("field '{}' not found", k);
+                let f = match f {
+                    Some(f) => f,
+                    None => continue,
+                };
+                match v {
+                    Some(value) => sql.push_str(
+                        format!(
+                            "{} = {}",
+                            self.quote(k),
+                            self.put_value_in_sql(&f.data_type, value)?
+                        )
+                        .as_str(),
+                    ),
+                    None => sql.push_str(&format!("{} IS NULL", self.quote(k))),
                 }
 
-                sql.push_str(
-                    format!(
-                        "{} = {}",
-                        self.quote(k),
-                        self.put_value_in_sql(
-                            &f.option_must_be_some()?.data_type,
-                            v.as_ref().map(|x| x.as_str())
-                        )?
-                    )
-                    .as_str(),
-                );
                 if index != last {
                     sql.push(',')
                 }
@@ -1346,15 +1213,43 @@ impl SqlBuilder for ClickHouseDB {
         anyhow::Ok(sql)
     }
 
-    fn put_value_in_sql(&self, typ: &str, value: Option<&str>) -> anyhow::Result<String> {
-        if self.hit_current_value(value) {
-            return anyhow::Result::Ok(value.option_must_be_some()?.to_string());
-        }
+    fn put_value_in_sql(&self, typ: &str, value: &str) -> anyhow::Result<String> {
         anyhow::Ok(put_value_in_sql(&parse_type(typ)?, value))
     }
 
     fn get_schema(&self) -> Option<&str> {
         self.config.db.as_deref()
+    }
+
+    fn gen_show_sql(
+        &self,
+        table_name: &str,
+        fields: Option<&[Field]>,
+        para: Option<&ShowTableParameter>,
+    ) -> String {
+        let schema = self.config.db_str();
+        let mut sql = format!(
+            "SELECT {} from `{schema}`.`{table_name}`",
+            self.backend_kind().format_fields(fields)
+        );
+        if let Some(para) = para {
+            let ShowTableParameter {
+                where_str,
+                order_by,
+                page,
+                page_size,
+                ..
+            } = para;
+            if let Some(where_str) = where_str {
+                sql.push_str(format!(" where {where_str} ").as_str());
+            }
+            if let Some(order_by) = order_by {
+                sql.push_str(format!(" ORDER BY {order_by} ").as_str());
+            }
+            let offset = (page - 1) * page_size;
+            sql.push_str(format!(" LIMIT {} , {}", offset, page_size).as_str());
+        }
+        sql
     }
 }
 
@@ -1373,56 +1268,115 @@ pub(crate) fn make_test_object() -> ClickHouseDB {
     .unwrap()
 }
 
-/// clickhouse 换行转成空格 不然用url查询会有问题
-/// 原因不详
-fn replace_new_line_to_whitespace(sql: &str) -> anyhow::Result<String> {
-    let dialect = sqlparser::dialect::ClickHouseDialect {};
-    let tokens = sqlparser::tokenizer::Tokenizer::new(&dialect, sql)
-        .tokenize()?
-        .iter()
-        .filter(|x| !matches!(x, Token::Whitespace(_)))
-        .map(|x| x.to_string())
-        .collect::<Vec<_>>();
-
-    anyhow::Ok(tokens.join(" "))
+#[cfg(test)]
+pub(crate) fn test_lock() -> &'static Mutex<()> {
+    static LOCK: Mutex<()> = Mutex::const_new(());
+    &LOCK
 }
 
+impl GetTestExportTableKinds for ClickHouseDB {}
 #[cfg(test)]
 mod tests {
     use super::*;
     use super::{make_test_object, parse_type};
     use crate::db::{
         ColumnType, CreateTableReq, CreateTableReqColumn, DBTrait, ExportKind, QuerySql,
-        SchemaTrait, ServerMetas, SqlNullAble, TestQueryEventEmit,
+        SchemaTrait, ServerMetas, SqlNullAble,
     };
     use crate::enable_test_log;
     use std::collections::HashMap;
 
-    #[test]
-    fn test_replace_new_line_to_whitespace() {
-        {
-            let sql = r#"select *
-from test"#;
-            let x = replace_new_line_to_whitespace(sql).unwrap();
-            assert_eq!(x, "select * from test");
-        }
-        {
-            let sql = r#"select *
-from test
-;"#;
-            let x = replace_new_line_to_whitespace(sql).unwrap();
-            assert_eq!(x, "select * from test ;");
+    #[tokio::test]
+    async fn test_read_only() {
+        let _guard = test_lock().lock().await;
+
+        let db = ClickHouseDB::new(ClickHouseConfig {
+            conn_timeout: Some(5000.into()),
+            host: "127.0.0.1".to_string(),
+            port: 8123,
+            read_only: true,
+            db: Some("default".to_string()),
+            username: "default".to_string(),
+            password: Some("root".to_string()),
+            https: false,
+        })
+        .unwrap();
+
+        let err = db
+            .simple_execute_sql(
+                r#"
+        CREATE TABLE IF NOT EXISTS events (
+            event_id UInt64,                -- Unsigned 64-bit integer
+            event_type String,              -- Optimized string type
+            user_id FixedString(16),        -- Fixed length for UUIDs/Hashes
+            price Decimal(18, 2),           -- Precise decimal for finance
+            description LowCardinality(String), -- Optimization for strings with few unique values
+            event_date Date,
+            created_at DateTime('Asia/Shanghai') -- Timestamp with timezone
+        ) 
+        ENGINE = MergeTree()
+        PARTITION BY toYYYYMM(event_date)   -- Data is grouped into monthly folders
+        ORDER BY (event_type, event_date)   -- Primary key for fast filtering and sorting
+        PRIMARY KEY (event_type);           -- Must be a prefix of ORDER BY
+
+        "#,
+            )
+            .await;
+        assert!(err.is_err());
+        if let Err(err) = err {
+            let x = format!("{:?}", err);
+
+            assert!(x.contains("readonly"));
         }
     }
 
     #[tokio::test]
-    async fn test_udf() {
+    async fn test_table_pagination() {
+        let _guard = test_lock().lock().await;
         let db = make_test_object();
-        let query_id = "";
+        let table_name = "test_table_pagination";
+        let _ = db.drop_table(table_name, false).await;
+        db.create_table(&CreateTableReq {
+            name: table_name.into(),
+            columns: vec![
+                CreateTableReqColumn {
+                    name: "id".into(),
+                    data_type: "SMALLINT".into(),
+                    auto_increment: false,
+                    primary_key: true,
+                    default_value: None,
+                    nullable: SqlNullAble::Unspecified,
+                },
+                CreateTableReqColumn {
+                    name: "name".into(),
+                    data_type: "varchar(255)".into(),
+                    auto_increment: false,
+                    primary_key: true,
+                    default_value: None,
+                    nullable: SqlNullAble::Unspecified,
+                },
+            ],
+            indexes: vec![],
+        })
+        .await
+        .unwrap();
+
+        for i in 0..155 {
+            let mut values = HashMap::new();
+            values.insert("id".to_owned(), Some((i + 1).to_string()));
+            values.insert("name".to_owned(), Some(format!("name{}", i + 1)));
+            db.table_insert(table_name, values).await.unwrap();
+        }
+    }
+    #[tokio::test]
+    async fn test_udf() {
+        let _guard = test_lock().lock().await;
+        let db = make_test_object();
+        let query_id = "aaaa";
         db.open_connection(query_id).await.unwrap();
         let name = "test_udf_add";
 
-        let _ = db.drop_udf(name, None).await;
+        let _ = db.drop_udf(&NamedStaff::from(name.to_string())).await;
 
         db.execute_sql(
             query_id,
@@ -1433,13 +1387,14 @@ from test
         .unwrap();
 
         for l in db.list_udf().await.unwrap() {
-            let detail = db.show_udf(&l.name, None).await.unwrap();
+            let detail = db.show_udf(&l).await.unwrap();
             println!("detail:{:?}", detail);
         }
     }
 
     #[tokio::test]
     async fn test_show_tables() {
+        let _guard = test_lock().lock().await;
         enable_test_log();
         let db = make_test_object();
         let mut stream = db.query_row("show TABLES from default").await.unwrap();
@@ -1451,12 +1406,15 @@ from test
 
     #[tokio::test]
     async fn test_check_conn() {
+        let _guard = test_lock().lock().await;
         let db = make_test_object();
         let ping_time = db.check_conn().await.unwrap();
         println!("{:?}", ping_time);
     }
+
     #[tokio::test]
     async fn test_show_metas() {
+        let _guard = test_lock().lock().await;
         let db = make_test_object();
         let metas = db.show_metas().await.unwrap();
         for meta in metas.iter() {
@@ -1465,11 +1423,12 @@ from test
     }
     #[tokio::test]
     async fn test_table_column() {
+        let _guard = test_lock().lock().await;
         let db = make_test_object();
         let table_name = "test_column";
         let _ = db.drop_table(table_name, false).await;
 
-        let query_id = "";
+        let query_id = "aaaa";
         db.open_connection(query_id).await.unwrap();
         db.execute_sql(
             query_id,
@@ -1486,37 +1445,44 @@ from test
         .unwrap()
         .unwrap();
 
-        db.add_table_column(
-            table_name,
-            "name",
-            ColumnType {
-                typ: "String".to_string(),
-                nullable: Default::default(),
-                after: None,
-                default_value: Some("abc".to_string()),
-            },
-        )
-        .await
-        .unwrap();
+        let sql = db
+            .add_table_column(
+                table_name,
+                "name",
+                ColumnType {
+                    typ: "String".to_string(),
+                    nullable: Default::default(),
+                    after: None,
+                    default_value: Some("abc".to_string()),
+                },
+            )
+            .await
+            .unwrap();
 
-        db.modify_table_column(
-            table_name,
-            "name",
-            "name2",
-            Some(ColumnType {
-                typ: "Nullable(String)".to_string(),
-                nullable: Default::default(),
-                after: None,
-                default_value: Some("abc111".to_string()),
-            }),
-        )
-        .await
-        .unwrap();
+        println!("add table column sql:{}", sql);
 
-        db.drop_table_column(table_name, "name2").await.unwrap();
+        let sql = db
+            .modify_table_column(
+                table_name,
+                "name",
+                "name2",
+                Some(ColumnType {
+                    typ: "Nullable(String)".to_string(),
+                    nullable: Default::default(),
+                    after: None,
+                    default_value: Some("abc111".to_string()),
+                }),
+            )
+            .await
+            .unwrap();
+        println!("modify table column sql:{}", sql);
+
+        let sql = db.drop_table_column(table_name, "name2").await.unwrap();
+        println!("drop table column sql:{}", sql);
     }
     #[tokio::test]
     async fn test_list_databases() {
+        let _guard = test_lock().lock().await;
         let db = make_test_object();
         let name = "abc";
         let _ = db.drop_schema(name).await;
@@ -1527,6 +1493,7 @@ from test
     }
     #[tokio::test]
     async fn test_materialized_view() {
+        let _guard = test_lock().lock().await;
         let table_name = "test_materialized_view_table";
         let view_name = "test_materialized_view";
 
@@ -1534,7 +1501,7 @@ from test
         let _ = db.drop_materialized_view(view_name).await;
         let _ = db.drop_table(table_name, false).await;
 
-        let query_id = "";
+        let query_id = "aaaa";
         db.open_connection(query_id).await.unwrap();
 
         let req = CreateTableReq {
@@ -1615,6 +1582,7 @@ from test
     }
     #[tokio::test]
     async fn test_view() {
+        let _guard = test_lock().lock().await;
         let table_name = "test_view_table";
         let view_name = "test_view";
 
@@ -1622,7 +1590,7 @@ from test
         let _ = db.drop_view(view_name).await;
         let _ = db.drop_table(table_name, false).await;
 
-        let query_id = "";
+        let query_id = "aaaa";
         db.open_connection(query_id).await.unwrap();
 
         db.execute_sql(
@@ -1691,11 +1659,12 @@ from test
 
     #[tokio::test]
     async fn test_rename_truncate() {
+        let _guard = test_lock().lock().await;
         let db = make_test_object();
         let name = "test_rename";
         let _ = db.drop_table(name, false).await;
 
-        let query_id = "";
+        let query_id = "aaaa";
         db.open_connection(query_id).await.unwrap();
         db.execute_sql(
             query_id,
@@ -1721,14 +1690,15 @@ from test
 
     #[tokio::test]
     async fn test_dup() {
-        // enable_test_log();
+        let _guard = test_lock().lock().await;
+
         let db = make_test_object();
         let name = "test_dup";
         let name2 = format!("{}2", name);
         let _ = db.drop_table(name, false).await;
         let _ = db.drop_table(&name2, false).await;
 
-        let query_id = "";
+        let query_id = "aaaa";
         db.open_connection(query_id).await.unwrap();
         db.execute_sql(
             query_id,
@@ -1772,6 +1742,7 @@ from test
 
     #[tokio::test]
     async fn test_list_tables() {
+        let _guard = test_lock().lock().await;
         let db = make_test_object();
 
         let ret = db.list_table().await.unwrap();
@@ -1784,11 +1755,12 @@ from test
 
     #[tokio::test]
     async fn test_types1() {
+        let _guard = test_lock().lock().await;
         enable_test_log();
         let db = make_test_object();
         let table_name = "test_types1";
         let _ = db.drop_table(table_name, false).await;
-        let query_id = "";
+        let query_id = "aaaa";
         db.open_connection(query_id).await.unwrap();
         let _resp = db
             .execute_sql(
@@ -1828,69 +1800,17 @@ from test
             println!("resp:{:?}", resp);
         }
 
-        {
-            let sql = db
-                .export_table_to_string(
-                    table_name,
-                    ExportKind::Sql {
-                        include_table_schema: true,
-                    },
-                )
-                .await
-                .unwrap();
-
-            println!("sql:{}", sql);
-            let csv = db
-                .export_table_to_string(
-                    table_name,
-                    ExportKind::Csv {
-                        include_header: true,
-                        delimiter: ',',
-                    },
-                )
-                .await
-                .unwrap();
-
-            println!("csv:{}", csv);
-            let jsonline = db
-                .export_table_to_string(table_name, ExportKind::JsonLine)
-                .await
-                .unwrap();
-
-            println!("jsonline:{}", jsonline);
-            let json = db
-                .export_table_to_string(table_name, ExportKind::Json { pretty: true })
-                .await
-                .unwrap();
-
-            println!("json:{}", json);
-            let html = db
-                .export_table_to_string(
-                    table_name,
-                    ExportKind::Html {
-                        include_header: true,
-                    },
-                )
-                .await
-                .unwrap();
-
-            println!("html:{}", html);
-            let md = db
-                .export_table_to_string(table_name, ExportKind::MarkDown)
-                .await
-                .unwrap();
-
-            println!("markdown:{}", md);
-        }
+        GetTestExportTableKinds::test_export(&db, table_name).await;
     }
 
     #[tokio::test]
     async fn test_types2() {
+        let _guard = test_lock().lock().await;
         enable_test_log();
         let db = make_test_object();
         let table_name = "test_types2";
         let _ = db.drop_table(table_name, false).await;
-        let query_id = "";
+        let query_id = "aaaa";
         db.open_connection(query_id).await.unwrap();
         db.execute_sql(
             query_id,
@@ -1928,52 +1848,17 @@ from test
 
             println!("resp:{:?}", resp);
         }
-        {
-            let sql = db
-                .export_table_to_string(
-                    table_name,
-                    ExportKind::Sql {
-                        include_table_schema: true,
-                    },
-                )
-                .await
-                .unwrap();
-
-            println!("sql:{}", sql);
-            let csv = db
-                .export_table_to_string(
-                    table_name,
-                    ExportKind::Csv {
-                        include_header: true,
-                        delimiter: ',',
-                    },
-                )
-                .await
-                .unwrap();
-
-            println!("csv:{}", csv);
-            let jsonline = db
-                .export_table_to_string(table_name, ExportKind::JsonLine)
-                .await
-                .unwrap();
-
-            println!("jsonline:{}", jsonline);
-            let json = db
-                .export_table_to_string(table_name, ExportKind::Json { pretty: true })
-                .await
-                .unwrap();
-
-            println!("json:{}", json);
-        }
+        GetTestExportTableKinds::test_export(&db, table_name).await;
     }
 
     #[tokio::test]
     async fn test_types3() {
+        let _guard = test_lock().lock().await;
         enable_test_log();
         let db = make_test_object();
         let table_name = "test_types3";
         let _ = db.drop_table(table_name, false).await;
-        let query_id = "";
+        let query_id = "aaaa";
         db.open_connection(query_id).await.unwrap();
         db
             .execute_sql (
@@ -2015,52 +1900,17 @@ from test
 
             println!("resp:{:?}", resp);
         }
-        {
-            let sql = db
-                .export_table_to_string(
-                    table_name,
-                    ExportKind::Sql {
-                        include_table_schema: true,
-                    },
-                )
-                .await
-                .unwrap();
-
-            println!("sql:{}", sql);
-            let csv = db
-                .export_table_to_string(
-                    table_name,
-                    ExportKind::Csv {
-                        include_header: true,
-                        delimiter: ',',
-                    },
-                )
-                .await
-                .unwrap();
-
-            println!("csv:{}", csv);
-            let jsonline = db
-                .export_table_to_string(table_name, ExportKind::JsonLine)
-                .await
-                .unwrap();
-
-            println!("jsonline:{}", jsonline);
-            let json = db
-                .export_table_to_string(table_name, ExportKind::Json { pretty: true })
-                .await
-                .unwrap();
-
-            println!("json:{}", json);
-        }
+        GetTestExportTableKinds::test_export(&db, table_name).await;
     }
 
     #[tokio::test]
     async fn test_types4() {
+        let _guard = test_lock().lock().await;
         enable_test_log();
         let db = make_test_object();
         let table_name = "test_types4";
         let _ = db.drop_table(table_name, false).await;
-        let query_id = "";
+        let query_id = "aaaa";
         db.open_connection(query_id).await.unwrap();
         db.execute_sql(
             query_id,
@@ -2116,52 +1966,16 @@ from test
 
             println!("resp:{:?}", resp);
         }
-        {
-            let sql = db
-                .export_table_to_string(
-                    table_name,
-                    ExportKind::Sql {
-                        include_table_schema: true,
-                    },
-                )
-                .await
-                .unwrap();
-
-            println!("sql:{}", sql);
-            let csv = db
-                .export_table_to_string(
-                    table_name,
-                    ExportKind::Csv {
-                        include_header: true,
-                        delimiter: ',',
-                    },
-                )
-                .await
-                .unwrap();
-
-            println!("csv:{}", csv);
-            let jsonline = db
-                .export_table_to_string(table_name, ExportKind::JsonLine)
-                .await
-                .unwrap();
-
-            println!("jsonline:{}", jsonline);
-            let json = db
-                .export_table_to_string(table_name, ExportKind::Json { pretty: true })
-                .await
-                .unwrap();
-
-            println!("json:{}", json);
-        }
+        GetTestExportTableKinds::test_export(&db, table_name).await;
     }
 
     #[tokio::test]
     async fn test_types5() {
-        enable_test_log();
+        let _guard = test_lock().lock().await;
         let db = make_test_object();
         let table_name = "test_types5";
         let _ = db.drop_table(table_name, false).await;
-        let query_id = "";
+        let query_id = "aaaa";
         db.open_connection(query_id).await.unwrap();
         db
             .execute_sql (
@@ -2220,52 +2034,77 @@ from test
 
             println!("resp:{:?}", resp);
         }
+        GetTestExportTableKinds::test_export(&db, table_name).await;
+    }
+
+    #[tokio::test]
+    async fn test_some_map() {
+        let _guard = test_lock().lock().await;
+        enable_test_log();
+        let db = make_test_object();
+        let table_name = "test_some_map";
+        let _ = db.drop_table(table_name, false).await;
+        let query_id = "aaaa";
+        db.open_connection(query_id).await.unwrap();
+        db.execute_sql(
+            query_id,
+            r#"
+            CREATE TABLE test_some_map
+            (
+                
+                map_field1 Map(Int32, Int32),
+                map_field2 Map(Date , Int32),
+                map_field3 Map(String , Int32),
+                map_field4 Map(IPv4 , Int32),
+            )
+            ENGINE = MergeTree()
+            ORDER BY map_field1;  
+        "#,
+        )
+        .await
+        .unwrap()
+        .unwrap();
+
         {
-            let sql = db
-                .export_table_to_string(
-                    table_name,
-                    ExportKind::Sql {
-                        include_table_schema: true,
-                    },
-                )
-                .await
-                .unwrap();
+            let mut values = HashMap::new();
 
-            println!("sql:{}", sql);
-            let csv = db
-                .export_table_to_string(
-                    table_name,
-                    ExportKind::Csv {
-                        include_header: true,
-                        delimiter: ',',
-                    },
-                )
-                .await
-                .unwrap();
+            //  insert values
+            values.insert("map_field1".to_string(), Some("{1 : 2}".to_string()));
+            values.insert(
+                "map_field2".to_string(),
+                Some("{'2025-03-06' : 1}".to_string()),
+            );
+            values.insert("map_field3".to_string(), Some("{'aaaa' : 1}".to_string()));
+            values.insert(
+                "map_field4".to_string(),
+                Some("{'192.168.1.1' : 1}".to_string()),
+            );
+            println!("values:{:?}", values);
 
-            println!("csv:{}", csv);
-            let jsonline = db
-                .export_table_to_string(table_name, ExportKind::JsonLine)
-                .await
-                .unwrap();
-
-            println!("jsonline:{}", jsonline);
-            let json = db
-                .export_table_to_string(table_name, ExportKind::Json { pretty: true })
-                .await
-                .unwrap();
-
-            println!("json:{}", json);
+            db.table_insert(table_name, values).await.unwrap();
         }
+        {
+            let resp = db
+                .show_table_collect(
+                    table_name,
+                    ShowTableParameter::new_stupid_test("map_field1 asc"),
+                )
+                .await
+                .unwrap();
+
+            println!("resp:{:?}", resp);
+        }
+        GetTestExportTableKinds::test_export(&db, table_name).await;
     }
 
     #[tokio::test]
     async fn test_types6() {
+        let _guard = test_lock().lock().await;
         enable_test_log();
         let db = make_test_object();
         let table_name = "test_types6";
         let _ = db.drop_table(table_name, false).await;
-        let query_id = "";
+        let query_id = "aaaa";
         db.open_connection(query_id).await.unwrap();
         db
             .execute_sql (
@@ -2310,59 +2149,7 @@ from test
             println!("resp:{:?}", resp);
         }
 
-        {
-            let sql = db
-                .export_table_to_string(
-                    table_name,
-                    ExportKind::Sql {
-                        include_table_schema: true,
-                    },
-                )
-                .await
-                .unwrap();
-
-            println!("sql:{}", sql);
-            let csv = db
-                .export_table_to_string(
-                    table_name,
-                    ExportKind::Csv {
-                        include_header: true,
-                        delimiter: ',',
-                    },
-                )
-                .await
-                .unwrap();
-
-            println!("csv:{}", csv);
-            let jsonline = db
-                .export_table_to_string(table_name, ExportKind::JsonLine)
-                .await
-                .unwrap();
-
-            println!("jsonline:{}", jsonline);
-            let json = db
-                .export_table_to_string(table_name, ExportKind::Json { pretty: true })
-                .await
-                .unwrap();
-
-            println!("json:{}", json);
-        }
-    }
-
-    #[tokio::test]
-    async fn test_error_query() {
-        // enable_test_log();
-        let db = make_test_object();
-        let query_id = "";
-        db.open_connection(query_id).await.unwrap();
-
-        db.query_sql(
-            query_id,
-            "SELECT * fro test_types4",
-            Arc::new(TestQueryEventEmit::default()),
-        )
-        .await
-        .unwrap();
+        GetTestExportTableKinds::test_export(&db, table_name).await;
     }
 
     #[test]
@@ -2371,15 +2158,15 @@ from test
         println!("{:?}", x);
         let x = parse_type("FixedString(10) ").unwrap();
         println!("{:?}", x);
-        let x = parse_type("IPv4 ").unwrap();
+        let x = parse_type("IPv4").unwrap();
         println!("{:?}", x);
-        let x = parse_type("IPv6 ").unwrap();
+        let x = parse_type("IPv6").unwrap();
         println!("{:?}", x);
-        let x = parse_type("Date ").unwrap();
+        let x = parse_type("Date").unwrap();
         println!("{:?}", x);
-        let x = parse_type("Date32 ").unwrap();
+        let x = parse_type("Date32").unwrap();
         println!("{:?}", x);
-        let x = parse_type("DateTime ").unwrap();
+        let x = parse_type("DateTime").unwrap();
         println!("{:?}", x);
         let x = parse_type("DateTime64(1) ").unwrap();
         println!("{:?}", x);

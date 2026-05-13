@@ -1,10 +1,12 @@
 use sqlx::{AssertSqlSafe, Column, Executor, Row, SqlSafeStr, Statement};
+
 use std::ops::DerefMut;
+use tokio::sync::Mutex;
 
 use crate::db::name_start_ascii_alphabetic;
 use crate::language_server::{
     try_parser_dot_lexer, AstCompletionHelper, CompletionItem, CompletionKind, CompletionList,
-    ErrAndLoc, GetKeyWords, LangServerCommon, LanguageServer, LexerCompletionTrait,
+    GetKeyWords, LangServerCommon, LanguageServer, LexerCompletionTrait,
 };
 use crate::sqlite::SqliteDB;
 use crate::sqlparser_completion::TempTableColumn;
@@ -12,25 +14,25 @@ use crate::sqlparser_completion::TempTableColumn;
 impl GetKeyWords for SqliteDB {
     // some backend can use a query to query this.
     async fn key_words(&self) -> anyhow::Result<Vec<String>> {
-        let mut lock = self.keywords_cache.lock().await;
-        if !lock.is_empty() {
-            return anyhow::Ok(lock.clone());
-        }
         let ret: Vec<_> = SQLITE_KEY_WORDS.iter().map(|x| x.to_string()).collect();
-        *lock = ret.clone();
         anyhow::Ok(ret)
     }
 }
 
 #[async_trait::async_trait]
 impl LangServerCommon for SqliteDB {
-    async fn list_index(&self, _schema: Option<&str>) -> anyhow::Result<Vec<String>> {
-        let schema = Self::merge_schema(_schema);
+    async fn list_index(&self, schema: Option<&str>) -> anyhow::Result<Vec<String>> {
+        let schema = Self::merge_schema(schema);
         self.list_index_name_impl(schema).await
     }
 
     // issue https://github.com/launchbadge/sqlx/issues/4010
     async fn sqlite_module_name(&self) -> anyhow::Result<Vec<String>> {
+        static MODULE_NAME: Mutex<Vec<String>> = Mutex::const_new(Vec::new());
+        let mut lock = MODULE_NAME.lock().await;
+        if !lock.is_empty() {
+            return anyhow::Ok(lock.clone());
+        }
         let sql = "SELECT name  FROM pragma_module_list";
         let mut conn = self.get_conn().await?;
         let rows = sqlx::raw_sql(AssertSqlSafe(sql))
@@ -41,17 +43,19 @@ impl LangServerCommon for SqliteDB {
             let name: String = row.try_get(0)?;
             ret.push(name);
         }
+        *lock = ret.clone();
         anyhow::Ok(ret)
     }
     async fn sqlite_pragma(&self) -> anyhow::Result<Vec<CompletionItem>> {
-        let mut lock = self.pragma_completion.lock().await;
+        static PRAGMA_COMPLETION: Mutex<Vec<CompletionItem>> = Mutex::const_new(Vec::new());
+        let mut lock = PRAGMA_COMPLETION.lock().await;
         if !lock.is_empty() {
             return anyhow::Ok(lock.clone());
         }
         let sql = "PRAGMA pragma_list";
         let mut conn = self.get_conn().await?;
         let rows = sqlx::raw_sql(sql).fetch_all(conn.deref_mut()).await?;
-        let mut ret = Vec::with_capacity(rows.len());
+        let mut ret = Vec::new();
         for row in rows.iter() {
             let name: String = row.try_get(0)?;
             ret.push(CompletionItem {
@@ -88,12 +92,12 @@ impl LangServerCommon for SqliteDB {
         _schema: Option<&str>,
         include_build_in: bool,
     ) -> anyhow::Result<Vec<CompletionItem>> {
-        // sqlite function are all build in functions
         if !include_build_in {
             return anyhow::Ok(vec![]);
         }
-
-        let mut lock = self.build_in_fn_completion.lock().await;
+        // sqlite function are all build in functions
+        static BUILD_IN_FN_COMPLETION: Mutex<Vec<CompletionItem>> = Mutex::const_new(Vec::new());
+        let mut lock = BUILD_IN_FN_COMPLETION.lock().await;
         if !lock.is_empty() {
             return anyhow::Ok(lock.clone());
         }
@@ -103,10 +107,8 @@ impl LangServerCommon for SqliteDB {
             ORDER BY name;
         "#;
         let mut conn = self.get_conn().await?;
-
         let rows = sqlx::raw_sql(sql).fetch_all(conn.deref_mut()).await?;
         let mut ret = vec![];
-
         for row in rows.iter() {
             let name: String = row.try_get(0)?;
             if !name_start_ascii_alphabetic(&name) {
@@ -143,11 +145,9 @@ impl LangServerCommon for SqliteDB {
     async fn list_schema(&self) -> anyhow::Result<Vec<String>> {
         let sql = "PRAGMA database_list";
         log::info!("sql:{}", sql);
-
         let rows = match self.query_connection.get(&self.completion_id.get()) {
             Some(conn) => {
                 let mut conn = conn.lock().await;
-                let conn = conn.deref_mut();
                 sqlx::raw_sql(AssertSqlSafe(sql))
                     .fetch_all(conn.deref_mut())
                     .await?
@@ -183,15 +183,6 @@ impl crate::language_server::LexerCompletionTrait for SqliteDB {
 
 #[async_trait::async_trait]
 impl LanguageServer for SqliteDB {
-    async fn try_get_max_id(&self, name: &str) -> anyhow::Result<String> {
-        let sql = format!("SELECT MAX(id) FROM \"{name}\"");
-        let mut conn = self.get_conn().await?;
-        let row = sqlx::query(AssertSqlSafe(sql.as_str()))
-            .fetch_one(conn.deref_mut())
-            .await?;
-        let id: i64 = row.try_get_unchecked(0)?;
-        anyhow::Ok(id.to_string())
-    }
     async fn ai_text_completion(
         &self,
         text: &str,
@@ -220,9 +211,6 @@ impl LanguageServer for SqliteDB {
         try_parser_dot_lexer(self, sql, line, col, use_lexer).await
     }
 
-    async fn check_sql(&self, sql: &str) -> anyhow::Result<Option<ErrAndLoc>> {
-        LangServerCommon::parse_err(self, sql)
-    }
     fn is_dangerous_sql(&self, sql: &str) -> anyhow::Result<bool> {
         LangServerCommon::is_dangerous_sql_by_parser(self, sql)
     }
@@ -277,7 +265,6 @@ impl AstCompletionHelper for SqliteDB {
         let s = match self.query_connection.get(&self.completion_id.get()) {
             Some(conn) => {
                 let mut conn = conn.lock().await;
-                let conn = conn.deref_mut();
                 conn.deref_mut()
                     .prepare_with(AssertSqlSafe(sql).into_sql_str(), &[])
                     .await?
@@ -486,7 +473,6 @@ mod tests {
     use crate::db::{QuerySql, SchemaTrait};
     use crate::enable_test_log;
     use crate::language_server::completion_test::test_file_auto_completion;
-    use crate::language_server::LanguageServer;
     use crate::sqlite::make_test_object;
     use std::path::Path;
 
@@ -494,7 +480,7 @@ mod tests {
     async fn test_auto_completion() {
         enable_test_log();
         let db = make_test_object().await;
-        let query_id = "";
+        let query_id = "aaaa";
         db.open_connection(query_id).await.unwrap();
         let _ = db.drop_table("departments", false).await;
         let _ = db.drop_table("employees", false).await;
@@ -557,13 +543,5 @@ mod tests {
         enable_test_log();
         let db = make_test_object().await;
         test_file_auto_completion(include_str!("./xxx.sql"), &db, None, true).await;
-    }
-
-    #[tokio::test]
-
-    async fn test_try_get_max_id() {
-        let db = make_test_object().await;
-        let max_id = db.try_get_max_id("departments").await.unwrap();
-        println!("max id is:{}", max_id);
     }
 }

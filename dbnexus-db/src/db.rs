@@ -1,23 +1,22 @@
+use crate::helper::generate_random_string;
 use crate::language_server::LanguageServer;
 use chrono::{DateTime, FixedOffset};
 use core::str;
+use std::any::Any;
 use std::collections::HashMap;
-use std::fmt::Debug;
+use std::fmt::{self, Debug};
 use std::ops::Deref;
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
 use tokio::io::AsyncWriteExt;
 use tokio::task::spawn_blocking;
-use typescript_type_def::TypeDef;
 
-#[derive(Clone, Copy, PartialEq, Eq, Debug, TypeDef)]
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub enum BackendKind {
-    Mysql,
-    Tidb,
-    Mariadb,
+    Mysql(BackendKindMysql),
     LibSql,
-    PostGres,
-    CockRoach,
+    PostGres(BackendKindPostGres),
     SqlServer,
     Mongo,
     Redis,
@@ -30,12 +29,81 @@ pub enum BackendKind {
     BigQuery,
     Db2,
     CouchBase,
-    Neo4j,
+}
+impl fmt::Display for BackendKindMysql {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            BackendKindMysql::Mysql => write!(f, "MySQL"),
+            BackendKindMysql::Mariadb => write!(f, "MariaDB"),
+            BackendKindMysql::Tidb => write!(f, "TiDB"),
+        }
+    }
+}
+
+impl fmt::Display for BackendKindPostGres {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            BackendKindPostGres::PostGres => write!(f, "PostgreSQL"),
+            BackendKindPostGres::CockRoach => write!(f, "CockroachDB"),
+        }
+    }
+}
+
+impl fmt::Display for BackendKind {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            BackendKind::Mysql(mysql) => fmt::Display::fmt(&mysql, f),
+            BackendKind::LibSql => write!(f, "LibSql"),
+            BackendKind::PostGres(pg) => fmt::Display::fmt(&pg, f),
+            BackendKind::SqlServer => write!(f, "SqlServer"),
+            BackendKind::Mongo => write!(f, "Mongo"),
+            BackendKind::Redis => write!(f, "Redis"),
+            BackendKind::Sqlite => write!(f, "Sqlite"),
+            BackendKind::Cassandra => write!(f, "Cassandra"),
+            BackendKind::ClickHouse => write!(f, "ClickHouse"),
+            BackendKind::Firebird => write!(f, "Firebird"),
+            BackendKind::Oracle => write!(f, "Oracle"),
+            BackendKind::DuckDB => write!(f, "DuckDB"),
+            BackendKind::BigQuery => write!(f, "BigQuery"),
+            BackendKind::Db2 => write!(f, "Db2"),
+            BackendKind::CouchBase => write!(f, "CouchBase"),
+        }
+    }
+}
+
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+pub enum BackendKindMysql {
+    Mysql,
+    Mariadb,
+    Tidb,
+}
+
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+pub enum BackendKindPostGres {
+    PostGres,
+    CockRoach,
 }
 
 impl BackendKind {
+    pub fn comment(self, comment: &str) -> String {
+        let syntax = match self {
+            Self::Mongo => "//",
+            Self::Redis => "#",
+            _ => "--",
+        };
+        comment
+            .lines()
+            .map(|x| {
+                if x.starts_with(syntax) {
+                    format!("{}\n", x)
+                } else {
+                    format!("{} {}\n", syntax, x)
+                }
+            })
+            .collect()
+    }
     pub fn mysql_like(self) -> bool {
-        matches!(self, Self::Mariadb | Self::Tidb | Self::Mysql)
+        matches!(self, Self::Mysql(..))
     }
 
     // 支持这样的语法 @@或者@访问一些全局或者局部的变量
@@ -43,7 +111,7 @@ impl BackendKind {
         self.mysql_like() || self == Self::SqlServer
     }
     pub(crate) fn postgres_like(self) -> bool {
-        matches!(self, Self::PostGres | Self::CockRoach)
+        matches!(self, Self::PostGres(..))
     }
 
     pub(crate) fn sqlite_like(&self) -> bool {
@@ -56,14 +124,6 @@ impl BackendKind {
         } else {
             "\""
         }
-    }
-
-    #[cfg(test)]
-    pub(crate) fn make_test_xlsx_file(self, name: &str) -> String {
-        let env = std::env::temp_dir();
-        let filepath = env.join(format!("{}_{}_export.xlsx", self, name));
-        let filepath = filepath.as_path().to_str().unwrap();
-        filepath.to_string()
     }
 
     pub fn format_fields(&self, fields: Option<&[Field]>) -> String {
@@ -79,15 +139,11 @@ impl BackendKind {
     }
 }
 
-impl std::fmt::Display for BackendKind {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{:?}", self)
-    }
+pub trait GetBackendKind {
+    fn backend_kind(&self) -> BackendKind;
 }
 
-pub trait GetBackendKind {
-    fn backend_name(&self) -> BackendKind;
-}
+// those backend 不支持连接支持设置用这个trait辅助实现呢
 pub trait ReadOnlyTrait {
     fn read_only(&self) -> bool;
     fn can_write(&self) -> anyhow::Result<()> {
@@ -100,7 +156,7 @@ pub trait ReadOnlyTrait {
 
 pub type ExportedSizeEmitter = Arc<dyn Fn(usize) + Send + Sync>;
 
-#[derive(serde::Deserialize, Clone, Debug, Default, TypeDef)]
+#[derive(serde::Deserialize, Clone, Debug, Default, specta::Type)]
 pub struct ShowTableParameter {
     #[serde(default)]
     pub where_str: Option<String>,
@@ -120,6 +176,10 @@ pub struct ShowTableParameter {
     pub max: Option<f64>,
     #[serde(default)]
     pub allow_filtering: bool,
+
+    // couchbase can use this parameter to format
+    #[serde(default)]
+    pub tab_size: usize,
 }
 
 impl ShowTableParameter {
@@ -192,16 +252,18 @@ pub trait SchemaTrait:
     + std::fmt::Debug
     + ServerMetas
     + 'static
-    + ReadOnlyTrait
     + ExportQueryResult
     + SqlBuilder
 {
-    async fn create_table(&self, req: &CreateTableReq) -> anyhow::Result<()> {
+    async fn create_table(&self, req: &CreateTableReq) -> anyhow::Result<String> {
         let ss = SchemaTrait::create_table_sql(self, req)?;
+        let mut sc = SqlCollect::default();
+
         for sql in ss.iter() {
-            self.execute_sql_no_open_conn(sql).await?;
+            self.simple_execute_sql(sql).await?;
+            sc.collect(sql);
         }
-        anyhow::Ok(())
+        anyhow::Ok(sc.into())
     }
     fn create_table_sql(&self, req: &CreateTableReq) -> anyhow::Result<Vec<String>> {
         SqlBuilder::create_table_sql(self, req)
@@ -213,10 +275,10 @@ pub trait SchemaTrait:
 
     fn as_any(&self) -> &dyn std::any::Any;
 
-    async fn rename_table(&self, old: &str, new: &str) -> anyhow::Result<()> {
+    async fn rename_table(&self, old: &str, new: &str) -> anyhow::Result<Option<String>> {
         self.duplicate_table(old, new).await?;
         self.drop_table(old, false).await?;
-        anyhow::Ok(())
+        anyhow::Ok(None)
     }
 
     async fn duplicate_table(&self, table: &str, dup: &str) -> anyhow::Result<()>;
@@ -271,7 +333,7 @@ pub trait SchemaTrait:
         values: HashMap<String, Option<String>>,
     ) -> anyhow::Result<Option<usize>> {
         let sql = self.table_insert_sql(table_name, values).await?;
-        let r = self.execute_sql_no_open_conn(&sql).await?;
+        let r = self.simple_execute_sql(&sql).await?;
         anyhow::Ok(r)
     }
 
@@ -293,10 +355,10 @@ pub trait SchemaTrait:
         wheres: HashMap<String, Option<String>>,
     ) -> anyhow::Result<Option<usize>> {
         let sql = self.table_update_sql(table_name, values, wheres).await?;
-        self.execute_sql_no_open_conn(&sql).await
+        self.simple_execute_sql(&sql).await
     }
 
-    async fn truncate_table(&self, table_name: &str) -> anyhow::Result<()>;
+    async fn truncate_table(&self, table_name: &str) -> anyhow::Result<Option<String>>;
 
     async fn table_delete_sql(
         &self,
@@ -314,24 +376,24 @@ pub trait SchemaTrait:
     ) -> anyhow::Result<Option<usize>> {
         let fs = self.show_table_columns(table_name).await?;
         let sql = SqlBuilder::delete_sql(self, table_name, &fs, &wheres)?;
-        let ret = self.execute_sql_no_open_conn(&sql).await?;
+        let ret = self.simple_execute_sql(&sql).await?;
         anyhow::Ok(ret)
     }
 
     async fn list_view(&self) -> anyhow::Result<Vec<ListTable>> {
-        self.backend_name().not_support_feature()
+        self.backend_kind().not_support_feature()
     }
-    async fn drop_view(&self, _view_name: &str) -> anyhow::Result<()> {
-        self.backend_name().not_support_feature()
+    async fn drop_view(&self, _view_name: &str) -> anyhow::Result<String> {
+        self.backend_kind().not_support_feature()
     }
-    async fn drop_table(&self, table: &str, cascade: bool) -> anyhow::Result<()>;
+    async fn drop_table(&self, table: &str, cascade: bool) -> anyhow::Result<Option<String>>;
 
     fn clone(&self) -> Box<dyn SchemaTrait>;
 
     async fn list_data_types(&self) -> anyhow::Result<Vec<String>>;
 
-    async fn drop_table_column(&self, _table: &str, _col: &str) -> anyhow::Result<()> {
-        self.backend_name().not_support_feature()
+    async fn drop_table_column(&self, _table: &str, _col: &str) -> anyhow::Result<String> {
+        self.backend_kind().not_support_feature()
     }
     async fn modify_table_column(
         &self,
@@ -339,16 +401,16 @@ pub trait SchemaTrait:
         _old_name: &str,
         _new_name: &str,
         _typ: Option<ColumnType>,
-    ) -> anyhow::Result<()> {
-        self.backend_name().not_support_feature()
+    ) -> anyhow::Result<String> {
+        self.backend_kind().not_support_feature()
     }
     async fn add_table_column(
         &self,
         _table: &str,
         _name: &str,
         _col: ColumnType,
-    ) -> anyhow::Result<()> {
-        self.backend_name().not_support_feature()
+    ) -> anyhow::Result<String> {
+        self.backend_kind().not_support_feature()
     }
 
     async fn rename_index(
@@ -356,28 +418,28 @@ pub trait SchemaTrait:
         _table_name: &str,
         _oldname: &str,
         _newname: &str,
-    ) -> anyhow::Result<()> {
-        self.backend_name().not_support_feature()
+    ) -> anyhow::Result<Option<String>> {
+        self.backend_kind().not_support_feature()
     }
 
     async fn show_indexes(&self, _table_name: &str) -> anyhow::Result<Vec<Index>> {
-        self.backend_name().not_support_feature()
+        self.backend_kind().not_support_feature()
     }
 
-    async fn create_index(&self, _table: &str, _: &CreateIndexReq) -> anyhow::Result<()> {
-        self.backend_name().not_support_feature()
+    async fn create_index(&self, _table: &str, _: &CreateIndexReq) -> anyhow::Result<String> {
+        self.backend_kind().not_support_feature()
     }
 
-    async fn drop_index(&self, _table_name: &str, _index: &str) -> anyhow::Result<()> {
-        self.backend_name().not_support_feature()
+    async fn drop_index(&self, _table_name: &str, _index: &str) -> anyhow::Result<Option<String>> {
+        self.backend_kind().not_support_feature()
     }
 
     async fn list_materialized_view(&self) -> anyhow::Result<Vec<ListTable>> {
-        self.backend_name().not_support_feature()
+        self.backend_kind().not_support_feature()
     }
 
-    async fn drop_materialized_view(&self, _name: &str) -> anyhow::Result<()> {
-        self.backend_name().not_support_feature()
+    async fn drop_materialized_view(&self, _name: &str) -> anyhow::Result<Option<String>> {
+        self.backend_kind().not_support_feature()
     }
 
     async fn export_table_or_view(
@@ -387,7 +449,7 @@ pub trait SchemaTrait:
         _kind: ExportKind,
         _sender: tokio::sync::mpsc::Sender<ExportFrame>,
     ) -> anyhow::Result<()> {
-        self.backend_name().not_support_feature()
+        self.backend_kind().not_support_feature()
     }
 
     async fn show_view(
@@ -396,7 +458,7 @@ pub trait SchemaTrait:
         _para: ShowTableParameter,
         _: QueryEventEmitter,
     ) -> anyhow::Result<()> {
-        self.backend_name().not_support_feature()
+        self.backend_kind().not_support_feature()
     }
 
     async fn show_view_columns(&self, view_name: &str) -> anyhow::Result<Vec<Field>> {
@@ -457,66 +519,52 @@ pub trait SchemaTrait:
         &self,
         _table_name: &str,
     ) -> anyhow::Result<CreateTableAndIndexSql> {
-        self.backend_name().not_support_feature()
+        self.backend_kind().not_support_feature()
     }
 
     async fn show_view_sql(&self, _view_name: &str, _materialized: bool) -> anyhow::Result<String> {
-        self.backend_name().not_support_feature()
+        self.backend_kind().not_support_feature()
     }
 
     async fn list_trigger(&self, _table_name: &str) -> anyhow::Result<Vec<NamedStaff>> {
-        self.backend_name().not_support_feature()
+        self.backend_kind().not_support_feature()
     }
     async fn show_trigger(&self, _table: &str, _name: &str) -> anyhow::Result<TriggerDetail> {
-        self.backend_name().not_support_feature()
+        self.backend_kind().not_support_feature()
     }
-    async fn drop_trigger(&self, _table: &str, _name: &str) -> anyhow::Result<()> {
-        self.backend_name().not_support_feature()
+    async fn drop_trigger(&self, _table: &str, _name: &str) -> anyhow::Result<String> {
+        self.backend_kind().not_support_feature()
     }
 
-    async fn disable_trigger(&self, _table: &str, _name: &str) -> anyhow::Result<()> {
-        self.backend_name().not_support_feature()
-    }
-    async fn enable_trigger(&self, _table: &str, _name: &str) -> anyhow::Result<()> {
-        self.backend_name().not_support_feature()
+    async fn enable_trigger(
+        &self,
+        _table: &str,
+        _name: &str,
+        _enable: bool,
+    ) -> anyhow::Result<String> {
+        self.backend_kind().not_support_feature()
     }
 
     async fn list_udf(&self) -> anyhow::Result<Vec<NamedStaff>> {
-        self.backend_name().not_support_feature()
+        self.backend_kind().not_support_feature()
     }
 
-    async fn show_udf(
-        &self,
-        _name: &str,
-        _arg: Option<UdfOrProcedureExtraParameter>,
-    ) -> anyhow::Result<DefAndMetas> {
-        self.backend_name().not_support_feature()
+    async fn show_udf(&self, _name: &NamedStaff) -> anyhow::Result<DefAndMetas> {
+        self.backend_kind().not_support_feature()
     }
 
-    async fn drop_udf(
-        &self,
-        _name: &str,
-        _extra: Option<UdfOrProcedureExtraParameter>,
-    ) -> anyhow::Result<()> {
-        self.backend_name().not_support_feature()
+    async fn drop_udf(&self, _name: &NamedStaff) -> anyhow::Result<String> {
+        self.backend_kind().not_support_feature()
     }
 
     async fn list_procedure(&self) -> anyhow::Result<Vec<NamedStaff>> {
-        self.backend_name().not_support_feature()
+        self.backend_kind().not_support_feature()
     }
-    async fn show_procedure(
-        &self,
-        _name: &str,
-        _arg: Option<UdfOrProcedureExtraParameter>,
-    ) -> anyhow::Result<ProcedureDetail> {
-        self.backend_name().not_support_feature()
+    async fn show_procedure(&self, _name: &NamedStaff) -> anyhow::Result<ProcedureDetail> {
+        self.backend_kind().not_support_feature()
     }
-    async fn drop_procedure(
-        &self,
-        _name: &str,
-        _arg: Option<UdfOrProcedureExtraParameter>,
-    ) -> anyhow::Result<()> {
-        self.backend_name().not_support_feature()
+    async fn drop_procedure(&self, _name: &NamedStaff) -> anyhow::Result<String> {
+        self.backend_kind().not_support_feature()
     }
 
     async fn table_exists(&self, table: &str) -> anyhow::Result<bool> {
@@ -528,14 +576,13 @@ pub trait SchemaTrait:
         anyhow::Ok(e)
     }
     async fn list_created_types(&self) -> anyhow::Result<Vec<CreatedTypeDef>> {
-        self.backend_name().not_support_feature()
+        self.backend_kind().not_support_feature()
     }
 
-    async fn drop_created_type(&self, _name: &str) -> anyhow::Result<()> {
-        self.backend_name().not_support_feature()
+    async fn drop_created_type(&self, _name: &str) -> anyhow::Result<String> {
+        self.backend_kind().not_support_feature()
     }
 
-    #[cfg(test)]
     async fn export_table_to_string(
         &self,
         table_name: &str,
@@ -557,14 +604,14 @@ pub trait SchemaTrait:
     }
 
     async fn list_sequence(&self) -> anyhow::Result<Vec<SequenceDetail>> {
-        self.backend_name().not_support_feature()
+        self.backend_kind().not_support_feature()
     }
-    async fn rename_sequence(&self, _old: &str, _new: &str) -> anyhow::Result<()> {
-        self.backend_name().not_support_feature()
+    async fn rename_sequence(&self, _old: &str, _new: &str) -> anyhow::Result<String> {
+        self.backend_kind().not_support_feature()
     }
 
-    async fn drop_sequence(&self, _name: &str, _cascade: bool) -> anyhow::Result<()> {
-        self.backend_name().not_support_feature()
+    async fn drop_sequence(&self, _name: &str, _cascade: bool) -> anyhow::Result<String> {
+        self.backend_kind().not_support_feature()
     }
     fn list_sql_current_values(&self) -> &'static [&'static str] {
         &[]
@@ -572,12 +619,12 @@ pub trait SchemaTrait:
     async fn list_event(&self) -> anyhow::Result<Vec<SqlEvent>> {
         anyhow::Ok(vec![])
     }
-    async fn drop_event(&self, _name: &str) -> anyhow::Result<()> {
-        self.backend_name().not_support_feature()
+    async fn drop_event(&self, _name: &str) -> anyhow::Result<String> {
+        self.backend_kind().not_support_feature()
     }
 }
 
-#[derive(Debug, typescript_type_def::TypeDef, serde::Serialize)]
+#[derive(Debug, serde::Serialize, specta::Type)]
 pub struct SqlEvent {
     pub name: String,
     pub sql: String,
@@ -588,14 +635,17 @@ pub trait SqlBuilder: GetBackendKind {
         &[]
     }
 
-    fn hit_current_value(&self, value: Option<&str>) -> bool {
-        value
-            .map(|x| {
-                self.get_current_values()
-                    .iter()
-                    .any(|y| x.eq_ignore_ascii_case(y))
-            })
-            .unwrap_or(false)
+    fn gen_show_sql(
+        &self,
+        table_name: &str,
+        fields: Option<&[Field]>,
+        para: Option<&ShowTableParameter>,
+    ) -> String;
+
+    fn hit_current_value(&self, value: &str) -> bool {
+        self.get_current_values()
+            .iter()
+            .any(|cur| cur.eq_ignore_ascii_case(value))
     }
 
     fn type_support_compare(&self, _typ: &str) -> bool {
@@ -606,15 +656,15 @@ pub trait SqlBuilder: GetBackendKind {
     fn quote(&self, name: &str) -> String {
         format!(
             "{}{}{}",
-            self.backend_name().quote_style(),
+            self.backend_kind().quote_style(),
             name,
-            self.backend_name().quote_style()
+            self.backend_kind().quote_style()
         )
     }
 
     /// format a value make it suitable for insert into sql.
     /// this method current use in `insert_sql` etc.
-    fn put_value_in_sql(&self, _typ: &str, _value: Option<&str>) -> anyhow::Result<String>;
+    fn put_value_in_sql(&self, _typ: &str, _value: &str) -> anyhow::Result<String>;
 
     fn make_where(
         &self,
@@ -628,7 +678,8 @@ pub trait SqlBuilder: GetBackendKind {
         let contains_pri = fs.iter().any(|x| x.is_primary);
         let mut sql = String::new();
 
-        let mut first = true;
+        let first = FirstTrue::default();
+
         for (k, v) in wheres.iter() {
             let f = field_by_name.get(k);
             let f = f.copied();
@@ -645,16 +696,30 @@ pub trait SqlBuilder: GetBackendKind {
             if contains_pri && !f.is_primary {
                 continue;
             }
-            sql.push_str(
-                format!(
-                    "{} {} = {}",
-                    if !first { " AND " } else { "" },
-                    self.quote(k),
-                    self.put_value_in_sql(&f.data_type, v.as_ref().map(|x| x.as_str()))?
-                )
-                .as_str(),
-            );
-            first = false;
+
+            match v {
+                Some(value) => {
+                    sql.push_str(
+                        format!(
+                            "{} {} = {}",
+                            if !first.get() { " AND " } else { "" },
+                            self.quote(k),
+                            self.put_value_in_sql(&f.data_type, value)?
+                        )
+                        .as_str(),
+                    );
+                }
+                None => {
+                    sql.push_str(
+                        format!(
+                            "{} {} IS NULL",
+                            if !first.get() { " AND " } else { "" },
+                            self.quote(k)
+                        )
+                        .as_str(),
+                    );
+                }
+            }
         }
         anyhow::Ok(sql)
     }
@@ -712,20 +777,26 @@ pub trait SqlBuilder: GetBackendKind {
             let last = values.len() - 1;
             for (index, (k, v)) in values.iter().enumerate() {
                 let f = field_by_name.get(k);
-                if f.is_none() {
-                    anyhow::bail!("field '{}' not found", k);
+                let f = match f {
+                    Some(f) => *f,
+                    None => continue,
+                };
+                match v {
+                    Some(value) => {
+                        sql.push_str(
+                            format!(
+                                "{} = {}",
+                                self.quote(k),
+                                self.put_value_in_sql(&f.data_type, value)?
+                            )
+                            .as_str(),
+                        );
+                    }
+                    None => {
+                        sql.push_str(format!("{} = NULL", self.quote(k)).as_str());
+                    }
                 }
-                sql.push_str(
-                    format!(
-                        "{} = {}",
-                        self.quote(k),
-                        self.put_value_in_sql(
-                            &f.option_must_be_some()?.data_type,
-                            v.as_ref().map(|x| x.as_str())
-                        )?
-                    )
-                    .as_str(),
-                );
+
                 if index != last {
                     sql.push(',')
                 }
@@ -754,47 +825,53 @@ pub trait SqlBuilder: GetBackendKind {
             },
             format!("{}", self.quote(table_name))
         );
-        let skip_null_value = |f: &Field| {
+        let skip_null_default_value = |f: &Field| {
             values.get(&f.field).map(|x| x.is_none()).unwrap_or(true) && f.default_value.is_some()
         };
         //
 
         {
-            let mut first = true;
+            let first = FirstTrue::default();
+
             for f in fs.iter() {
                 if f.is_auto_increment {
                     continue;
                 }
-                if skip_null_value(f) {
+                if skip_null_default_value(f) {
                     // value is null and has default value
                     continue;
                 }
-                if !first {
+                if !first.get() {
                     sql.push(',');
                 }
                 sql.push_str(self.quote(f.field.as_str()).to_string().as_str());
-                first = false;
             }
             sql.push(')');
         }
         // values
         sql.push_str(" VALUES (");
         {
-            let mut first = true;
+            let first = FirstTrue::default();
+
             for f in fs.iter() {
                 if f.is_auto_increment {
                     continue;
                 }
-                if skip_null_value(f) {
+                if skip_null_default_value(f) {
                     // value is null and has default value
                     continue;
                 }
-                if !first {
+                if !first.get() {
                     sql.push(',');
                 }
                 let value = values.get(&f.field).cloned().flatten();
-                sql.push_str(&self.put_value_in_sql(&f.data_type, value.as_deref())?);
-                first = false;
+
+                match &value {
+                    Some(value) => {
+                        sql.push_str(self.put_value_in_sql(&f.data_type, &value)?.as_str())
+                    }
+                    None => sql.push_str("NULL"),
+                };
             }
             sql.push(')');
         }
@@ -805,10 +882,13 @@ pub trait SqlBuilder: GetBackendKind {
     // and  not primary key must can be in `PRIMARY KEY(aaa , bbb )` syntax
     // this method should be able used most cases
     fn create_table_sql(&self, req: &CreateTableReq) -> anyhow::Result<Vec<String>> {
-        let schema = self.get_schema();
         let mut sql = format!(
             "CREATE TABLE {}{}(\n",
-            schema.map(|x| self.quote(x)).unwrap_or_default(),
+            if let Some(s) = self.get_schema() {
+                format!("{}.", self.quote(s))
+            } else {
+                "".to_owned()
+            },
             self.quote(&req.name)
         );
         let last = req.columns.len() - 1;
@@ -816,7 +896,7 @@ pub trait SqlBuilder: GetBackendKind {
         let pks = if has_auto_increment {
             None
         } else {
-            req.format_primary_keys(self.backend_name().quote_style())
+            req.format_primary_keys(self.backend_kind().quote_style())
         };
         for (index, col) in req.columns.iter().enumerate() {
             if col.auto_increment && col.default_value.is_some() {
@@ -824,24 +904,23 @@ pub trait SqlBuilder: GetBackendKind {
             }
             let name = self.quote(&col.name);
             let data_type = &col.data_type;
-            let nullable = match self.backend_name() {
+            let nullable = match self.backend_kind() {
                 BackendKind::Cassandra => match col.nullable {
-                    SqlNullAble::None => "".to_owned(),
+                    SqlNullAble::Unspecified => "".to_owned(),
                     SqlNullAble::Null | SqlNullAble::NotNull => {
                         anyhow::bail!("cassandra not support null constraint")
                     }
                 },
-
                 _ => col.nullable.to_string(),
             };
             let auto_increment: &str = if col.auto_increment {
-                match self.backend_name() {
-                    _ if self.backend_name().sqlite_like() => " PRIMARY KEY AUTOINCREMENT ",
-                    _ if self.backend_name().mysql_like() => " PRIMARY KEY AUTO_INCREMENT ",
+                match self.backend_kind() {
+                    _ if self.backend_kind().sqlite_like() => " PRIMARY KEY AUTOINCREMENT ",
+                    _ if self.backend_kind().mysql_like() => " PRIMARY KEY AUTO_INCREMENT ",
                     _ => {
                         anyhow::bail!(format!(
                             "auto increment not handled for {}",
-                            self.backend_name()
+                            self.backend_kind()
                         ))
                     }
                 }
@@ -849,20 +928,34 @@ pub trait SqlBuilder: GetBackendKind {
                 ""
             };
             let dv = match &col.default_value {
-                Some(x) => match self.backend_name() {
+                Some(value) => match self.backend_kind() {
                     BackendKind::Cassandra => {
                         anyhow::bail!("cassandra not support default value")
                     }
                     BackendKind::Firebird => {
                         // silently differrent from other database
-                        format!("DEFAULT {}", self.put_value_in_sql(data_type, Some(x))?)
+                        format!(
+                            "DEFAULT {}",
+                            if self.hit_current_value(value) {
+                                value.clone()
+                            } else {
+                                self.put_value_in_sql(&col.data_type, value.as_str())?
+                            }
+                        )
                     }
-                    _ => format!("DEFAULT({})", self.put_value_in_sql(data_type, Some(x))?),
+                    _ => format!(
+                        "DEFAULT({})",
+                        if self.hit_current_value(value) {
+                            value.clone()
+                        } else {
+                            self.put_value_in_sql(&col.data_type, value.as_str())?
+                        }
+                    ),
                 },
                 None => "".to_owned(),
             };
 
-            match self.backend_name() {
+            match self.backend_kind() {
                 BackendKind::Firebird => {
                     // somehow firebird need put nullable after default value
                     sql.push_str(
@@ -888,19 +981,30 @@ pub trait SqlBuilder: GetBackendKind {
         sql.push(')');
         let mut ret = vec![sql];
         for index in req.indexes.iter() {
-            ret.push(index.common_sql(&req.name, true, self.backend_name().quote_style())?);
+            ret.push(index.common_sql(&req.name, true, self.backend_kind().quote_style())?);
         }
         anyhow::Ok(ret)
     }
 }
 
-#[derive(Clone, Debug, serde::Serialize, serde::Deserialize, typescript_type_def::TypeDef)]
+#[derive(Clone, Debug, serde::Serialize, serde::Deserialize, specta::Type)]
 pub struct CreatedTypeDef {
     pub name: String,
     pub sql: Option<String>,
 }
 
-#[derive(Clone, Debug, serde::Serialize, serde::Deserialize, TypeDef)]
+impl std::fmt::Display for CreatedTypeDef {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(
+            f,
+            "type:{} def:{}",
+            self.name,
+            self.sql.as_ref().unwrap_or(&"".to_string())
+        )
+    }
+}
+
+#[derive(Clone, Debug, serde::Serialize, serde::Deserialize, specta::Type)]
 pub struct ColumnType {
     // type string like `varchar`
     pub(crate) typ: String,
@@ -910,30 +1014,13 @@ pub struct ColumnType {
     pub(crate) default_value: Option<String>,
 }
 
-#[derive(Clone, Debug, serde::Serialize, serde::Deserialize, TypeDef)]
-#[serde(tag = "extra", rename_all = "lowercase")]
-pub enum UdfOrProcedureExtraParameter {
-    PostGres {
-        parameters: String, // a integer , b integer
-    },
-    Cassandra {
-        parameters: Vec<String>, //
-    },
-}
-
-impl UdfOrProcedureExtraParameter {
-    pub(crate) fn wrong_type(&self) -> anyhow::Error {
-        anyhow::Error::msg(format!("wrong type of parameter passed:{:?}", self))
-    }
-}
-
 impl BackendKind {
     pub fn not_support_feature<T>(&self) -> anyhow::Result<T> {
         anyhow::bail!(format!("'{}' don't support this feature", self))
     }
 }
 
-#[derive(Debug, serde::Serialize, TypeDef)]
+#[derive(Debug, serde::Serialize, specta::Type)]
 pub struct ProcedureDetail {
     // definition of the sql.
     pub def: String,
@@ -945,7 +1032,7 @@ impl ProcedureDetail {
     }
 }
 
-#[derive(Debug, serde::Serialize, TypeDef)]
+#[derive(Debug, serde::Serialize, specta::Type)]
 pub struct DefAndMetas {
     // definition of the sql.
     pub def: String,
@@ -968,7 +1055,6 @@ pub trait CatalogTrait:
     + LanguageServer
     + Debug
     + ServerMetas
-    + ReadOnlyTrait
     + ExportQueryResult
 {
     async fn list_database(&self) -> anyhow::Result<Vec<String>>;
@@ -979,9 +1065,11 @@ pub trait CatalogTrait:
         extra: Option<CreateDatabaseExtra>,
     ) -> anyhow::Result<()>;
     async fn drop_database(&self, name: &str) -> anyhow::Result<()>;
+
+    fn as_any(&self) -> &dyn Any;
 }
 
-#[derive(Debug, serde::Serialize, serde::Deserialize, Clone, TypeDef)]
+#[derive(Debug, serde::Serialize, serde::Deserialize, Clone, specta::Type)]
 #[serde(tag = "extra", rename_all = "lowercase")]
 pub enum CreateDatabaseExtra {
     Couchbase {
@@ -997,7 +1085,7 @@ pub enum CreateDatabaseExtra {
     },
 }
 
-#[derive(Debug, serde::Serialize, serde::Deserialize, Clone, TypeDef)]
+#[derive(Debug, serde::Serialize, serde::Deserialize, Clone, specta::Type)]
 #[serde(rename_all = "lowercase")]
 pub enum CouchBaseBucketType {
     Couchbase,
@@ -1005,7 +1093,7 @@ pub enum CouchBaseBucketType {
 }
 
 /// named staff maybe used for view udf etc...
-#[derive(Debug, serde::Serialize, TypeDef)]
+#[derive(Debug, serde::Serialize, specta::Type, serde::Deserialize, Default)]
 pub struct NamedStaff {
     // some backend support reload function like postgres
     pub parameters: Option<String>,
@@ -1013,6 +1101,7 @@ pub struct NamedStaff {
     pub cassandra_parameters: Option<Vec<String>>,
     pub name: String,
     pub metas: Vec<MetaValue>,
+    pub rand: String,
 }
 
 impl From<String> for NamedStaff {
@@ -1022,6 +1111,7 @@ impl From<String> for NamedStaff {
             metas: vec![],
             parameters: None,
             cassandra_parameters: None,
+            rand: generate_random_string(10),
         }
     }
 }
@@ -1031,26 +1121,28 @@ pub trait CheckConn: Send + Sync + 'static {
     async fn check_conn(&self) -> anyhow::Result<Duration>;
 }
 /// create table and all index sql.
-#[derive(Clone, serde::Serialize, TypeDef, serde::Deserialize)]
+#[derive(Clone, serde::Serialize, serde::Deserialize, specta::Type)]
 pub struct CreateTableAndIndexSql {
     pub create_table: String,
-
     /// some backend can query create table and index in one sql
     /// this can be empty
     pub indexes: Vec<String>,
 }
 
+impl std::fmt::Display for CreateTableAndIndexSql {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let mut sc = SqlCollect::default();
+        sc.collect(&self.create_table);
+        for index in self.indexes.iter() {
+            sc.collect(index);
+        }
+        write!(f, "{}", String::from(sc))
+    }
+}
+
 #[async_trait::async_trait]
 pub trait DBTrait:
-    Sync
-    + Send
-    + QuerySql
-    + 'static
-    + CheckConn
-    + Debug
-    + ServerMetas
-    + ReadOnlyTrait
-    + ExportQueryResult
+    Sync + Send + QuerySql + 'static + CheckConn + Debug + ServerMetas + ExportQueryResult
 {
     async fn list_schema(&self) -> anyhow::Result<Vec<String>>;
     async fn open_schema(&self, name: &str) -> anyhow::Result<Arc<dyn SchemaTrait>>;
@@ -1063,7 +1155,7 @@ pub trait DBTrait:
     fn as_any(&self) -> &dyn std::any::Any;
 }
 
-#[derive(Clone, Debug, serde::Serialize, serde::Deserialize)]
+#[derive(Clone, Debug, serde::Serialize, serde::Deserialize, specta::Type)]
 #[serde(tag = "extra", rename_all = "lowercase")]
 pub enum CreateSchemaExtra {
     Cassandra {
@@ -1078,7 +1170,7 @@ pub enum CreateSchemaExtra {
     },
 }
 
-#[derive(Clone, Debug, TypeDef, serde::Serialize)]
+#[derive(Clone, Debug, serde::Serialize, serde::Deserialize, specta::Type)]
 pub struct SequenceDetail {
     pub start_value: String,
     pub min_value: String,
@@ -1095,6 +1187,12 @@ pub struct XlsxEdit {
     pub row: rust_xlsxwriter::RowNum,
     pub column: rust_xlsxwriter::ColNum,
     pub content: String,
+}
+
+impl std::fmt::Display for XlsxEdit {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}-{}-{}", self.row, self.column, self.content)
+    }
 }
 
 pub(crate) async fn export_query_as_xlsx_send_data(
@@ -1173,7 +1271,7 @@ impl std::fmt::Display for ExportFrame {
         match self {
             ExportFrame::Str(x) => write!(f, "{}", x),
             ExportFrame::String(s) => write!(f, "{}", s),
-            ExportFrame::Xlsx(xlsx_edit) => write!(f, "{:?}", xlsx_edit),
+            ExportFrame::Xlsx(xlsx_edit) => write!(f, "{}", xlsx_edit),
             ExportFrame::Bytes(bytes) => {
                 write!(f, "{}", String::from_utf8_lossy(bytes.deref()))
             }
@@ -1234,7 +1332,7 @@ impl From<XlsxEdit> for ExportFrame {
     }
 }
 
-#[derive(Debug, Clone, TypeDef, serde::Deserialize, serde::Serialize)]
+#[derive(Debug, Clone, serde::Deserialize, serde::Serialize, specta::Type)]
 
 pub struct CreateTableReq {
     pub name: String,
@@ -1263,7 +1361,7 @@ impl CreateTableReq {
     }
 }
 
-#[derive(Debug, Clone, TypeDef, serde::Deserialize, serde::Serialize, Default)]
+#[derive(Debug, Clone, serde::Deserialize, serde::Serialize, Default, specta::Type)]
 pub struct CreateTableReqColumn {
     pub name: String,
     pub data_type: String,
@@ -1273,11 +1371,11 @@ pub struct CreateTableReqColumn {
     pub nullable: SqlNullAble,
 }
 
-#[derive(Debug, Clone, TypeDef, serde::Deserialize, serde::Serialize, Default, Copy)]
+#[derive(Debug, Clone, serde::Deserialize, serde::Serialize, Default, Copy, specta::Type)]
 #[serde(rename_all = "lowercase")]
 pub enum SqlNullAble {
     #[default]
-    None,
+    Unspecified,
     Null,
     NotNull,
 }
@@ -1288,7 +1386,7 @@ impl std::fmt::Display for SqlNullAble {
             f,
             "{}",
             match self {
-                SqlNullAble::None => "",
+                SqlNullAble::Unspecified => "",
                 SqlNullAble::Null => "NULL",
                 SqlNullAble::NotNull => "NOT NULL",
             }
@@ -1296,7 +1394,7 @@ impl std::fmt::Display for SqlNullAble {
     }
 }
 
-#[derive(Debug, Clone, TypeDef, serde::Deserialize, serde::Serialize)]
+#[derive(Debug, Clone, serde::Deserialize, serde::Serialize, specta::Type)]
 pub struct CreateIndexReq {
     pub name: String,
     pub columns: Vec<CreateIndexColumn>,
@@ -1304,10 +1402,10 @@ pub struct CreateIndexReq {
 }
 
 impl CreateIndexReq {
-    pub(crate) fn format_cols(&self, has_order: bool, quote_str: &str) -> String {
+    pub(crate) fn format_cols(&self, can_have_order: bool, quote_str: &str) -> String {
         self.columns
             .iter()
-            .map(|col| match (has_order, col.asc) {
+            .map(|col| match (can_have_order, col.asc) {
                 (true, Some(order)) => {
                     format!(
                         "{} {}",
@@ -1324,7 +1422,7 @@ impl CreateIndexReq {
     pub(crate) fn common_sql(
         &self,
         table: &str,
-        has_order: bool,
+        can_have_order: bool,
         quote_str: &str,
     ) -> anyhow::Result<String> {
         let sql = format!(
@@ -1335,20 +1433,19 @@ impl CreateIndexReq {
                 IndexKind::Unique => "Unique",
             },
             self.name,
-            self.format_cols(has_order, quote_str)
+            self.format_cols(can_have_order, quote_str)
         );
         anyhow::Ok(sql)
     }
 }
 
-#[derive(Debug, Clone, TypeDef, serde::Deserialize, serde::Serialize)]
+#[derive(Debug, Clone, serde::Deserialize, serde::Serialize, specta::Type)]
 
 pub struct CreateIndexColumn {
     pub col: String,
     pub asc: Option<bool>,
 }
 
-#[cfg(test)]
 async fn collect_export_str(
     kind: ExportKind,
     mut receiver: tokio::sync::mpsc::Receiver<ExportFrame>,
@@ -1356,7 +1453,8 @@ async fn collect_export_str(
     match kind {
         ExportKind::Json { pretty } => {
             let mut ret = "[".to_string();
-            let mut first = true;
+            let first = FirstTrue::default();
+
             while let Some(r) = receiver.recv().await {
                 let value = match r {
                     ExportFrame::JsonValue(x) => x,
@@ -1364,7 +1462,7 @@ async fn collect_export_str(
                         unreachable!()
                     }
                 };
-                if !first {
+                if !first.get() {
                     ret.push(',');
                 }
                 if pretty {
@@ -1378,7 +1476,6 @@ async fn collect_export_str(
                     }?
                     .as_str(),
                 );
-                first = false;
             }
             if pretty {
                 ret.push('\n');
@@ -1398,15 +1495,47 @@ async fn collect_export_str(
                         ret.push_str(&x);
                     }
                     _ => unreachable!("kind:{:?} data:{:?}", kind, x),
-                }
+                };
+
+                ret.push('\n');
             }
 
+            anyhow::Ok(ret)
+        }
+        ExportKind::Xlsx { .. } => {
+            let mut ret = String::new();
+            let mut last: Option<XlsxEdit> = None;
+            while let Some(r) = receiver.recv().await {
+                // check something
+
+                match &r {
+                    ExportFrame::Xlsx(data) => {
+                        if let Some(last) = &last {
+                            assert!(
+                                (last.row < data.row) || (last.column < data.column),
+                                "lat{:?} this:{}",
+                                last,
+                                data
+                            );
+                        }
+                        last = Some(data.clone());
+                    }
+
+                    _ => {
+                        unreachable!()
+                    }
+                }
+
+                ret.push_str(r.to_string().as_str());
+                ret.push('\n');
+            }
             anyhow::Ok(ret)
         }
         _ => {
             let mut ret = String::new();
             while let Some(r) = receiver.recv().await {
                 ret.push_str(r.to_string().as_str());
+                ret.push('\n');
             }
             anyhow::Ok(ret)
         }
@@ -1424,7 +1553,47 @@ pub trait ExportQueryResult: GetBackendKind + Send + Sync + 'static {
         _sender: tokio::sync::mpsc::Sender<ExportFrame>,
     ) -> anyhow::Result<()>;
 
-    #[cfg(test)]
+    async fn export_query_result_collect(
+        &self,
+        query_id: Option<&str>,
+        sql: &str,
+        kind: ExportKind,
+        max: usize,
+    ) -> anyhow::Result<(bool, Vec<ExportFrame>)> {
+        let (sender, mut receiver) = tokio::sync::mpsc::channel(10);
+        let j1 = {
+            let x = self.clone();
+            let sql = sql.to_string();
+            let query_id = query_id.map(|x| x.to_owned());
+            tokio::spawn(async move {
+                x.export_query_result(query_id.as_deref(), &sql, kind, sender)
+                    .await
+            })
+        };
+        let j2 = {
+            let mut exceed = false;
+            tokio::spawn(async move {
+                let mut ret = vec![];
+                while let Some(x) = receiver.recv().await {
+                    ret.push(x);
+                    if ret.len() > max {
+                        exceed = true;
+                        break;
+                    }
+                }
+
+                anyhow::Ok((exceed, ret))
+            })
+        };
+        if let Err(err) = j1.await? {
+            log::error!(
+                "query failed. if channel is close this should be fine:{}",
+                err
+            );
+        }
+        j2.await?
+    }
+
     async fn export_query_result_to_string(
         &self,
         query_id: &str,
@@ -1478,20 +1647,21 @@ pub trait ExportQueryResult: GetBackendKind + Send + Sync + 'static {
     }
 }
 
-async fn write_export_file(
+pub(crate) async fn write_export_file(
     kind: ExportKind,
     filepath: &str,
     mut receiver: tokio::sync::mpsc::Receiver<ExportFrame>,
     title: &str,
     emit: ExportedSizeEmitter,
 ) -> anyhow::Result<()> {
-    let mut time_elapsed = TimeElapsed::new();
+    let mut time_elapsed = TimeElapsed::default();
     let mut total = 0;
     let r = match kind {
         ExportKind::Json { pretty } => {
             let mut file = tokio::fs::File::create(&filepath).await?;
             file.write_all("[".as_bytes()).await?;
-            let mut first = true;
+            let first = FirstTrue::default();
+
             while let Some(e) = receiver.recv().await {
                 let value = match e {
                     ExportFrame::JsonValue(x) => x,
@@ -1499,7 +1669,7 @@ async fn write_export_file(
                         anyhow::bail!("not json value but:{:?}", e);
                     }
                 };
-                if !first {
+                if !first.get() {
                     file.write_all(",".as_bytes()).await?;
                 }
                 if pretty {
@@ -1515,7 +1685,6 @@ async fn write_export_file(
                     emit(total);
                 }
                 file.write_all(value.as_bytes()).await?;
-                first = false;
             }
             if pretty {
                 file.write_all("\n".as_bytes()).await?;
@@ -1621,17 +1790,17 @@ async fn write_export_file(
 #[async_trait::async_trait]
 pub trait QuerySql: GetBackendKind + Send + Sync + 'static + LanguageServer {
     async fn get_auto_commit(&self, _query_id: &str) -> anyhow::Result<bool> {
-        self.backend_name().not_support_feature()
+        self.backend_kind().not_support_feature()
     }
 
     async fn set_auto_commit(&self, _query_id: &str, _commit: bool) -> anyhow::Result<()> {
-        self.backend_name().not_support_feature()
+        self.backend_kind().not_support_feature()
     }
     async fn commit(&self, _query_id: &str) -> anyhow::Result<()> {
-        self.backend_name().not_support_feature()
+        self.backend_kind().not_support_feature()
     }
     async fn rollback(&self, _query_id: &str) -> anyhow::Result<()> {
-        self.backend_name().not_support_feature()
+        self.backend_kind().not_support_feature()
     }
 
     async fn query_sql(
@@ -1646,17 +1815,19 @@ pub trait QuerySql: GetBackendKind + Send + Sync + 'static + LanguageServer {
         query_id: &str,
         _sql: &str,
     ) -> anyhow::Result<Result<QueryResp, String>>;
-    async fn execute_sql_no_open_conn(&self, sql: &str) -> anyhow::Result<Option<usize>>;
+    async fn simple_execute_sql(&self, sql: &str) -> anyhow::Result<Option<usize>>;
 
     async fn open_connection(&self, id: &str) -> anyhow::Result<()>;
 
     async fn close_connection(&self, id: &str) -> anyhow::Result<()>;
 }
 
-#[derive(Debug, serde::Serialize, TypeDef)]
+#[derive(Debug, serde::Serialize, Clone, specta::Type)]
 pub struct ListTable {
     pub name: String,
     pub size: Option<u64>,
+    // for frontend tree item id
+    pub rand: String,
 }
 
 impl From<String> for ListTable {
@@ -1664,6 +1835,7 @@ impl From<String> for ListTable {
         Self {
             name: value,
             size: None,
+            rand: generate_random_string(10),
         }
     }
 }
@@ -1673,6 +1845,7 @@ impl ListTable {
         Self {
             name: name.into(),
             size,
+            rand: generate_random_string(10),
         }
     }
 }
@@ -1682,6 +1855,7 @@ impl From<&str> for ListTable {
         Self {
             name: value.to_string(),
             size: None,
+            rand: generate_random_string(10),
         }
     }
 }
@@ -1692,7 +1866,7 @@ pub trait ServerMetas: Sync + Send + 'static {
     async fn show_metas(&self) -> anyhow::Result<Vec<MetaValue>>;
 }
 
-#[derive(Debug, Clone, serde::Serialize, TypeDef)]
+#[derive(Debug, Clone, serde::Serialize, specta::Type)]
 pub struct Index {
     pub name: Option<String>,
     pub kind: IndexKind,
@@ -1710,7 +1884,7 @@ impl Index {
     }
 }
 
-#[derive(Clone, serde::Serialize, Copy, Debug, TypeDef, serde::Deserialize)]
+#[derive(Clone, serde::Serialize, Copy, Debug, serde::Deserialize, specta::Type)]
 pub enum IndexKind {
     #[serde(rename = "index")]
     Index,
@@ -1825,10 +1999,12 @@ impl QueryResp {
     }
 }
 
-#[derive(Debug, Clone, serde::Serialize, TypeDef, PartialEq, Eq)]
+#[derive(Debug, Clone, serde::Serialize, PartialEq, Eq, specta::Type)]
 pub struct Field {
     pub field: String,
+
     pub data_type: String,
+
     pub nullable: bool,
     /// default value of this field
     pub default_value: Option<String>,
@@ -1838,6 +2014,31 @@ pub struct Field {
     pub is_auto_increment: bool,
     // right now all of implementation are sortable
     pub sortable: bool,
+}
+
+impl fmt::Display for Field {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        // 基础列定义: field_name data_type [NOT NULL] [DEFAULT xxx] [PRIMARY KEY] [AUTO_INCREMENT]
+        write!(f, "{} {}", self.field, self.data_type)?;
+
+        if !self.nullable {
+            write!(f, " NOT NULL")?;
+        }
+
+        if let Some(ref default) = self.default_value {
+            write!(f, " DEFAULT {}", default)?;
+        }
+
+        if self.is_primary {
+            write!(f, " PRIMARY KEY")?;
+        }
+
+        if self.is_auto_increment {
+            write!(f, " AUTO_INCREMENT")?;
+        }
+
+        Ok(())
+    }
 }
 
 impl Default for Field {
@@ -1894,7 +2095,7 @@ pub fn format_data_time_fix_offset(x: &DateTime<FixedOffset>) -> String {
     format!("{} {}", x.naive_local(), x.offset())
 }
 
-#[derive(Clone, Debug, Copy, serde::Deserialize, serde::Serialize, TypeDef)]
+#[derive(Clone, Debug, Copy, serde::Deserialize, serde::Serialize, specta::Type)]
 #[serde(tag = "export_kind", rename_all = "lowercase")]
 pub enum ExportKind {
     Csv {
@@ -1923,7 +2124,7 @@ impl ExportKind {
     }
 }
 
-#[derive(Debug, serde::Serialize, TypeDef)]
+#[derive(Debug, serde::Serialize, specta::Type)]
 pub struct TriggerDetail {
     pub timing: TriggerTiming,
     pub event: TriggerEvent,
@@ -1944,7 +2145,7 @@ impl PartialEq for TriggerDetail {
 
 impl Eq for TriggerDetail {}
 
-#[derive(Debug, Clone, serde::Serialize, PartialEq, Eq, TypeDef)]
+#[derive(Debug, Clone, serde::Serialize, PartialEq, Eq, specta::Type)]
 #[serde(tag = "kind", rename_all = "lowercase")]
 pub enum TriggerEnable {
     // https://www.postgresql.org/docs/current/catalog-pg-trigger.html
@@ -1978,7 +2179,7 @@ impl TriggerDetail {
     }
 }
 
-#[derive(Debug, Clone, TypeDef, PartialEq, Eq, serde::Serialize)]
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, specta::Type)]
 pub enum TriggerEvent {
     Insert,
     Update,
@@ -2003,7 +2204,7 @@ impl TryFrom<&str> for TriggerEvent {
     }
 }
 
-#[derive(Debug, Clone, serde::Serialize, TypeDef, PartialEq, Eq)]
+#[derive(Debug, Clone, serde::Serialize, PartialEq, Eq, specta::Type)]
 pub enum TriggerTiming {
     Before,
     After,
@@ -2011,48 +2212,11 @@ pub enum TriggerTiming {
     String(String),
 }
 
-pub(crate) fn ty_is_int(x: &sqlparser::ast::DataType) -> bool {
-    use sqlparser::ast::DataType;
-    matches!(
-        x,
-        DataType::TinyInt(_)
-            | DataType::TinyIntUnsigned(_)
-            | DataType::Int2(_)
-            | DataType::Int2Unsigned(_)
-            | DataType::SmallInt(_)
-            | DataType::SmallIntUnsigned(_)
-            | DataType::MediumInt(_)
-            | DataType::MediumIntUnsigned(_)
-            | DataType::Int(_)
-            | DataType::Int4(_)
-            | DataType::Int8(_)
-            | DataType::Int16
-            | DataType::Int32
-            | DataType::Int64
-            | DataType::Int128
-            | DataType::Int256
-            | DataType::Integer(_)
-            | DataType::IntUnsigned(_)
-            | DataType::Int4Unsigned(_)
-            | DataType::UnsignedInteger
-            | DataType::UInt8
-            | DataType::UInt16
-            | DataType::UInt32
-            | DataType::UInt64
-            | DataType::UInt128
-            | DataType::UInt256
-            | DataType::BigInt(_)
-            | DataType::BigIntUnsigned(_)
-            | DataType::Int8Unsigned(_)
-    )
-}
-
 /// meta value can used in various place.
-#[derive(Debug, serde::Serialize, TypeDef)]
+#[derive(Debug, serde::Serialize, specta::Type, serde::Deserialize)]
 pub struct MetaValue {
     pub name: String,
     pub value: Option<String>,
-    pub desc: Option<String>,
 }
 
 impl MetaValue {
@@ -2060,35 +2224,8 @@ impl MetaValue {
         Self {
             name: name.into(),
             value: value.into(),
-            desc: None,
         }
     }
-
-    pub(crate) fn with_desc(&mut self, desc: impl Into<String>) {
-        self.desc = Some(desc.into());
-    }
-}
-
-// float decimal all consider as float number
-pub(crate) fn ty_is_float(x: &sqlparser::ast::DataType) -> bool {
-    use sqlparser::ast::DataType;
-
-    matches!(
-        x,
-        DataType::Numeric(_)
-            | DataType::Decimal(_)
-            | DataType::BigNumeric(_)
-            | DataType::BigDecimal(_)
-            | DataType::Dec(_)
-            | DataType::Float(_)
-            | DataType::Float4
-            | DataType::Float32
-            | DataType::Float64
-            | DataType::Real
-            | DataType::Float8
-            | DataType::Double(_)
-            | DataType::DoublePrecision
-    )
 }
 
 pub fn escape_sql_str(s: &str) -> String {
@@ -2137,8 +2274,11 @@ impl Default for TimeElapsed {
 }
 
 impl TimeElapsed {
-    pub fn new() -> Self {
-        Self::default()
+    pub fn new(dur: Duration) -> Self {
+        Self {
+            d: dur,
+            ins: std::time::Instant::now(),
+        }
     }
     pub fn elapsed(&mut self) -> bool {
         let e = self.ins.elapsed() > self.d;
@@ -2312,24 +2452,101 @@ pub fn need_paid() -> anyhow::Result<()> {
         anyhow::bail!("this feature is paid")
     }
 }
+
+#[derive(Clone, Debug, Default)]
+pub struct SqlCollect {
+    sql: String,
+}
+
+impl SqlCollect {
+    pub fn collect(&mut self, sql: impl Into<String>) {
+        let sql = sql.into();
+        self.sql.push_str(format!("{};\n", sql).as_str());
+    }
+}
+
+impl From<SqlCollect> for String {
+    fn from(value: SqlCollect) -> Self {
+        value.sql
+    }
+}
+
 pub(crate) const POOL_MAX_CONNECTIONS: u32 = 200;
 
-#[cfg(test)]
-mod tests {
-    use super::UdfOrProcedureExtraParameter;
-    #[test]
-    fn test_serde_udf_or_procedure_extra_parameter() {
-        let x = Some(UdfOrProcedureExtraParameter::PostGres {
-            parameters: "int".to_string(),
-        });
-        let s = serde_json::to_string_pretty(&x).unwrap();
-        println!("{}", s);
+#[async_trait::async_trait]
+
+pub trait GetTestExportTableKinds: SchemaTrait {
+    fn get_kinds(&self) -> Vec<ExportKind> {
+        let mut r = vec![
+            ExportKind::Sql {
+                include_table_schema: false,
+            },
+            ExportKind::JsonLine,
+            ExportKind::Json { pretty: true },
+            ExportKind::Csv {
+                include_header: true,
+                delimiter: ',',
+            },
+            ExportKind::Csv {
+                include_header: false,
+                delimiter: ',',
+            },
+            ExportKind::MarkDown,
+            ExportKind::Html {
+                include_header: true,
+            },
+            ExportKind::Html {
+                include_header: false,
+            },
+            ExportKind::Xlsx {
+                include_header: true,
+            },
+            ExportKind::Xlsx {
+                include_header: false,
+            },
+        ];
+        if self.support_table_schema() {
+            r.push(ExportKind::Sql {
+                include_table_schema: true,
+            });
+        }
+        r
     }
 
-    #[test]
-    fn xxx() {
-        let d = anyhow::Error::msg("haha ");
+    fn support_table_schema(&self) -> bool {
+        true
+    }
 
-        println!("{}", d.backtrace());
+    async fn test_export(&self, table_name: &str) {
+        for kind in self.get_kinds() {
+            let str = self
+                .export_table_to_string(table_name, kind)
+                .await
+                .expect("should export ok");
+            println!("export:{:?}\n{}", kind, str)
+        }
+    }
+}
+
+#[derive()]
+pub struct FirstTrue {
+    value: AtomicBool,
+}
+
+impl Default for FirstTrue {
+    fn default() -> Self {
+        Self {
+            value: AtomicBool::new(true),
+        }
+    }
+}
+
+impl FirstTrue {
+    pub fn get(&self) -> bool {
+        let value = self.value.load(Ordering::Relaxed);
+        if value {
+            self.value.store(false, Ordering::Relaxed);
+        }
+        return value;
     }
 }

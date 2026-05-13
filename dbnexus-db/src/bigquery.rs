@@ -79,12 +79,6 @@ impl GetBackendKind for BigQueryDb {
     }
 }
 
-impl ReadOnlyTrait for BigQueryDb {
-    fn read_only(&self) -> bool {
-        self.config.read_only
-    }
-}
-
 #[async_trait::async_trait]
 
 impl QuerySql for BigQueryDb {
@@ -105,7 +99,7 @@ impl QuerySql for BigQueryDb {
         todo!()
     }
 
-    async fn execute_sql_no_open_conn(&self, sql: &str) -> anyhow::Result<Option<usize>> {
+    async fn simple_execute_sql(&self, sql: &str) -> anyhow::Result<Option<usize>> {
         todo!()
     }
 
@@ -155,7 +149,7 @@ impl SqlBuilder for BigQueryDb {
         todo!()
     }
 
-    fn put_value_in_sql(&self, _typ: &str, _value: Option<&str>) -> anyhow::Result<String> {
+    fn put_value_in_sql(&self, _typ: &str, _value: &str) -> anyhow::Result<String> {
         todo!()
     }
 }
@@ -188,11 +182,11 @@ impl SchemaTrait for BigQueryDb {
         todo!()
     }
 
-    async fn truncate_table(&self, table_name: &str) -> anyhow::Result<()> {
+    async fn truncate_table(&self, table_name: &str) -> anyhow::Result<String> {
         todo!()
     }
 
-    async fn drop_table(&self, table: &str, cascade: bool) -> anyhow::Result<()> {
+    async fn drop_table(&self, table: &str, cascade: bool) -> anyhow::Result<String> {
         todo!()
     }
 
@@ -259,7 +253,7 @@ impl bb8::ManageConnection for ConnManager {
         conn: &mut Self::Connection,
     ) -> impl Future<Output = Result<(), Self::Error>> + Send {
         async {
-            // TOOD maybe more check???
+            // TODO maybe more check???
             Ok(())
         }
     }

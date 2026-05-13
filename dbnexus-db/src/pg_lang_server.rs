@@ -1,7 +1,10 @@
-use crate::db::{CatalogTrait, CreatedTypeDef, OptionMustBeSomeErr, SequenceDetail};
+use crate::cockroach::COCKROACH_TYPES;
+use crate::db::{
+    BackendKindPostGres, CatalogTrait, CreatedTypeDef, OptionMustBeSomeErr, SequenceDetail,
+};
 use crate::language_server::{
     try_parser_dot_lexer, AstCompletionHelper, CompletionItem, CompletionKind, CompletionList,
-    DBExecutable, ErrAndLoc, GetKeyWords, LangServerCommon, LanguageServer, LexerCompletionTrait,
+    DBExecutable, GetKeyWords, LangServerCommon, LanguageServer, LexerCompletionTrait,
     PostGresExtension,
 };
 use crate::pg::PostGresDB;
@@ -9,13 +12,16 @@ use crate::sqlparser_completion::TempTableColumn;
 use sqlx::{AssertSqlSafe, Column, Executor, Row, SqlSafeStr, Statement};
 use std::collections::HashSet;
 use std::ops::DerefMut;
+use tokio::sync::Mutex;
 #[async_trait::async_trait]
 impl LexerCompletionTrait for PostGresDB {
     async fn get_types(&self) -> anyhow::Result<Vec<String>> {
-        let r = POSTGRES_TYPES
-            .iter()
-            .map(|x| x.to_string())
-            .collect::<Vec<_>>();
+        let ts = match self.kind {
+            BackendKindPostGres::CockRoach => COCKROACH_TYPES,
+            _ => POSTGRES_TYPES,
+        };
+
+        let r = ts.iter().map(|x| x.to_string()).collect::<Vec<_>>();
         return anyhow::Ok(r);
     }
 }
@@ -23,7 +29,8 @@ impl LexerCompletionTrait for PostGresDB {
 #[async_trait::async_trait]
 impl GetKeyWords for PostGresDB {
     async fn key_words(&self) -> anyhow::Result<Vec<String>> {
-        let mut lock = self.key_words_cache.lock().await;
+        static KEY_WORDS_CACHE: Mutex<Vec<String>> = Mutex::const_new(Vec::new());
+        let mut lock = KEY_WORDS_CACHE.lock().await;
         if !lock.is_empty() {
             return anyhow::Ok(lock.clone());
         }
@@ -44,10 +51,10 @@ impl GetKeyWords for PostGresDB {
 impl PostGresDB {
     pub(crate) async fn query_search_path(
         &self,
-        conn: &mut sqlx::pool::PoolConnection<sqlx::Postgres>,
+        conn: &mut sqlx::PgConnection,
     ) -> anyhow::Result<Option<HashSet<String>>> {
         let row = sqlx::raw_sql("SHOW search_path;")
-            .fetch_one(conn.deref_mut())
+            .fetch_one(conn)
             .await
             .map_err(|e| log::error!("query search path failed,err:{}", e))
             .ok();
@@ -80,9 +87,8 @@ impl PostGresDB {
         let ret = match self.query_connection.get(&self.completion_id.get()) {
             Some(conn) => {
                 let mut conn = conn.lock().await;
-                let conn: &mut sqlx::pool::PoolConnection<sqlx::Postgres> = conn.deref_mut();
                 let r = self
-                    .query_search_path(conn)
+                    .query_search_path(conn.deref_mut())
                     .await
                     .map_err(|e| log::error!("get search path failed,err:{}", e))
                     .unwrap_or_default();
@@ -189,7 +195,7 @@ impl AstCompletionHelper for PostGresDB {
         for schema in schemas.iter() {
             let mut sql =
                 "SELECT constraint_name FROM information_schema.table_constraints".to_string();
-            let db = self.config.db_str()?;
+            let db = self.config.db_str();
             sql.push_str(format!(" WHERE table_catalog='{}'", db).as_str());
             sql.push_str(" AND ");
             sql.push_str(format!("table_schema='{}'", schema).as_str());
@@ -527,7 +533,7 @@ impl LangServerCommon for PostGresDB {
     }
 
     async fn list_table(&self, schema: Option<&str>) -> anyhow::Result<Vec<String>> {
-        let db = self.config.db_str()?;
+        let db = self.config.db_str();
         let schemas = self.get_search_path(schema, true).await;
         let mut conn = self.get_conn().await?;
         let mut ret = Vec::new();
@@ -550,7 +556,7 @@ impl LangServerCommon for PostGresDB {
     }
     async fn list_schema(&self) -> anyhow::Result<Vec<String>> {
         let mut conn = self.get_conn().await?;
-        let db = self.config.db_str()?;
+        let db = self.config.db_str();
         let sql = format!(
             r#"
         SELECT schema_name 
@@ -600,29 +606,6 @@ impl LangServerCommon for PostGresDB {
 
 #[async_trait::async_trait]
 impl LanguageServer for PostGresDB {
-    async fn get_search_path(&self, query_id: &str) -> anyhow::Result<HashSet<String>> {
-        match self.query_connection.get(&query_id.to_string()) {
-            Some(conn) => {
-                let conn = conn.clone();
-                let mut conn = conn.lock().await;
-                self.query_search_path(conn.deref_mut())
-                    .await
-                    .map(|x| x.unwrap_or_default())
-            }
-            None => anyhow::bail!("query_id should be able get connection"),
-        }
-    }
-
-    async fn try_get_max_id(&self, name: &str) -> anyhow::Result<String> {
-        let sql = format!("SELECT MAX(id) FROM \"{name}\"");
-        let mut conn = self.get_conn().await?;
-        let row = sqlx::query(AssertSqlSafe(sql.as_str()))
-            .fetch_one(conn.deref_mut())
-            .await?;
-        let id: Option<i64> = row.try_get_unchecked(0)?;
-        anyhow::Ok(id.unwrap_or_default().to_string())
-    }
-
     async fn ai_text_completion(
         &self,
         text: &str,
@@ -648,10 +631,6 @@ impl LanguageServer for PostGresDB {
     ) -> anyhow::Result<CompletionList> {
         self.completion_id.set_optional(query_id);
         try_parser_dot_lexer(self, sql, line, col, use_lexer).await
-    }
-
-    async fn check_sql(&self, sql: &str) -> anyhow::Result<Option<ErrAndLoc>> {
-        LangServerCommon::parse_err(self, sql)
     }
 
     fn is_dangerous_sql(&self, sql: &str) -> anyhow::Result<bool> {
@@ -759,7 +738,7 @@ mod tests {
     use crate::db::QuerySql;
     use crate::enable_test_log;
     use crate::language_server::completion_test::test_file_auto_completion;
-    use crate::language_server::{LangServerCommon, LanguageServer};
+    use crate::language_server::LangServerCommon;
     use crate::pg::make_test_object;
     use std::path::Path;
 
@@ -767,7 +746,7 @@ mod tests {
     async fn test_auto_completion() {
         enable_test_log();
         let db = make_test_object().await;
-        let query_id = "";
+        let query_id = "aaaa";
         db.open_connection(query_id).await.unwrap();
 
         let sql = [
@@ -870,7 +849,7 @@ mod tests {
     #[tokio::test]
     async fn test_prepare() {
         let db = make_test_object().await;
-        let query_id = "";
+        let query_id = "aaaa";
         db.open_connection(query_id).await.unwrap();
         db.execute_sql(
             query_id,
@@ -881,19 +860,13 @@ mod tests {
         .await
         .unwrap()
         .unwrap();
+
+        db.completion_id.set(query_id.to_owned());
         assert!(db
             .list_execute(None)
             .await
             .unwrap()
             .iter()
             .any(|x| x.name.eq("select_one")));
-    }
-
-    #[tokio::test]
-
-    async fn test_try_get_max_id() {
-        let db = make_test_object().await;
-        let max_id = db.try_get_max_id("departments").await.unwrap();
-        println!("max id is:{}", max_id);
     }
 }

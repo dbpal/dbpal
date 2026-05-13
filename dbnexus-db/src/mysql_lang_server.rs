@@ -9,16 +9,19 @@ MySQL 只允许省略 sys. 前缀直接调用“函数”，对“存储过程�
 过程（procedure）、表（table）、视图（view）：一律没有特权，想跨库访问就老老实实加前缀或切换默认库。
 */
 
-use crate::db::{name_start_ascii_alphabetic, SqlEvent};
+use crate::db::{name_start_ascii_alphabetic, BackendKindMysql, SqlEvent};
 use crate::language_server::{
     try_parser_dot_lexer, AstCompletionHelper, CompletionItem, CompletionKind, CompletionList,
-    DBExecutable, ErrAndLoc, GetKeyWords, LangServerCommon, LanguageServer, LexerCompletionTrait,
+    DBExecutable, GetKeyWords, LangServerCommon, LanguageServer, LexerCompletionTrait,
 };
+use crate::mariadb::MARIADB_FUNCTIONS;
 use crate::mysql::MysqlDB;
 use crate::sqlparser_completion::TempTableColumn;
+use crate::tidb::TIDB_KEYWORDS;
 use sqlx::{AssertSqlSafe, Row, SqlSafeStr};
 use std::collections::HashSet;
 use std::ops::DerefMut;
+use tokio::sync::Mutex;
 
 use sqlx::{Column, Executor, Statement};
 #[async_trait::async_trait]
@@ -31,54 +34,43 @@ impl LexerCompletionTrait for MysqlDB {
 #[async_trait::async_trait]
 impl GetKeyWords for MysqlDB {
     async fn key_words(&self) -> anyhow::Result<Vec<String>> {
-        let mut lock = self.key_words_cache.lock().await;
-        if !lock.is_empty() {
-            return anyhow::Ok(lock.clone());
-        }
-        let mut conn = self.get_conn().await?;
-        let rows = sqlx::raw_sql("SELECT  * from information_schema.KEYWORDS")
-            .fetch_all(conn.deref_mut())
-            .await?;
-        let mut ret = vec![];
-        for row in rows.iter() {
-            let name: Option<String> = row.try_get(0)?;
-            if let Some(name) = name {
-                if !name_start_ascii_alphabetic(&name) {
-                    continue;
+        static KEY_WORDS_CACHE: Mutex<Vec<String>> = Mutex::const_new(Vec::new());
+        match self.kind {
+            BackendKindMysql::Tidb => {
+                let result = TIDB_KEYWORDS
+                    .iter()
+                    .map(|x| x.to_string())
+                    .collect::<Vec<_>>();
+                anyhow::Ok(result)
+            }
+            _ => {
+                let mut lock = KEY_WORDS_CACHE.lock().await;
+                if !lock.is_empty() {
+                    return anyhow::Ok(lock.clone());
                 }
-                ret.push(name);
+                let mut conn = self.get_conn().await?;
+                let rows = sqlx::raw_sql("SELECT  * from information_schema.KEYWORDS")
+                    .fetch_all(conn.deref_mut())
+                    .await?;
+                let mut ret = vec![];
+                for row in rows.iter() {
+                    let name: Option<String> = row.try_get(0)?;
+                    if let Some(name) = name {
+                        if !name_start_ascii_alphabetic(&name) {
+                            continue;
+                        }
+                        ret.push(name);
+                    }
+                }
+                *lock = ret;
+                return anyhow::Ok(lock.clone());
             }
         }
-        *lock = ret;
-        return anyhow::Ok(lock.clone());
     }
 }
 
 #[async_trait::async_trait]
 impl LanguageServer for MysqlDB {
-    async fn get_search_path(&self, query_id: &str) -> anyhow::Result<HashSet<String>> {
-        match self.query_connection.get(&query_id.to_string()) {
-            Some(x) => {
-                let mut conn = x.lock().await;
-                let mut r = HashSet::new();
-                if let Some(x) = self.query_select_database(conn.deref_mut()).await? {
-                    r.insert(x.to_string());
-                }
-                anyhow::Ok(r)
-            }
-            None => anyhow::bail!(format!("query_connection not found , id :{}", query_id)),
-        }
-    }
-
-    async fn try_get_max_id(&self, name: &str) -> anyhow::Result<String> {
-        let sql = format!("SELECT MAX(id) FROM `{name}`");
-        let mut conn = self.get_conn().await?;
-        let row = sqlx::query(AssertSqlSafe(sql.as_str()))
-            .fetch_one(conn.deref_mut())
-            .await?;
-        let id: Option<i64> = row.try_get_unchecked(0)?;
-        anyhow::Ok(id.unwrap_or_default().to_string())
-    }
     async fn ai_text_completion(
         &self,
         text: &str,
@@ -106,9 +98,6 @@ impl LanguageServer for MysqlDB {
         try_parser_dot_lexer(self, sql, line, col, use_lexer).await
     }
 
-    async fn check_sql(&self, sql: &str) -> anyhow::Result<Option<ErrAndLoc>> {
-        LangServerCommon::parse_err(self, sql)
-    }
     fn is_dangerous_sql(&self, sql: &str) -> anyhow::Result<bool> {
         LangServerCommon::is_dangerous_sql_by_parser(self, sql)
     }
@@ -119,21 +108,6 @@ impl MysqlDB {
 }
 
 impl MysqlDB {
-    pub(crate) async fn query_select_database(
-        &self,
-        mut conn: &mut sqlx::MySqlConnection,
-    ) -> anyhow::Result<Option<String>> {
-        let sql = Self::SELECT_DB_SQL;
-        let row = sqlx::raw_sql(sql).fetch_one(conn.deref_mut()).await.ok();
-        let r = match row {
-            Some(row) => {
-                let name: Option<String> = row.try_get(0).ok().flatten();
-                name
-            }
-            None => None,
-        };
-        anyhow::Ok(r)
-    }
     pub(crate) async fn merge_schema(&self, schema: Option<&str>) -> Option<String> {
         if schema.is_some() {
             return schema.map(|x| x.to_string());
@@ -142,7 +116,6 @@ impl MysqlDB {
         let used_db = match self.query_connection.get(&self.completion_id.get()) {
             Some(x) => {
                 let mut conn = x.lock().await;
-                let conn = conn.deref_mut();
                 let sql = Self::SELECT_DB_SQL;
                 let row = sqlx::raw_sql(sql).fetch_one(conn.deref_mut()).await.ok();
                 match row {
@@ -206,7 +179,6 @@ impl LangServerCommon for MysqlDB {
             None => anyhow::bail!("should be able to get query connection"),
         };
         let mut conn = conn.lock().await;
-        let conn = conn.deref_mut();
         let mut ret = HashSet::new();
 
         {
@@ -285,36 +257,68 @@ impl LangServerCommon for MysqlDB {
         schema: Option<&str>,
         include_build_in: bool,
     ) -> anyhow::Result<Vec<CompletionItem>> {
-        let schema = self.merge_schema(schema).await;
-        let mut conn = self.get_conn().await?;
-        let mut ret = if let Some(schema) = &schema {
-            crate::mysql::FunctionOrProcedure::query_list(
-                crate::mysql::FunctionOrProcedure::Function,
-                conn.deref_mut(),
-                schema,
-            )
-            .await
-            .map(|x| {
-                x.into_iter()
-                    .map(|x| CompletionItem {
-                        item: x.into(),
-                        kind: CompletionKind::Function,
-                        desc: None,
-                    })
-                    .collect::<Vec<_>>()
-            })?
-        } else {
-            Default::default()
-        };
-
-        if include_build_in {
-            ret.extend(MYSQL_FUNCTIONS.iter().map(|x| CompletionItem {
-                item: (*x).into(),
-                kind: CompletionKind::Function,
-                desc: None,
-            }));
+        match self.kind {
+            BackendKindMysql::Tidb => {
+                if !include_build_in {
+                    return anyhow::Ok(vec![]);
+                }
+                let mut ret = vec![];
+                let mut conn = self.get_conn().await?;
+                let rows = sqlx::raw_sql("SHOW BUILTINS;")
+                    .fetch_all(conn.deref_mut())
+                    .await?;
+                for row in rows.iter() {
+                    let name: Option<String> = row.try_get(0)?;
+                    if let Some(name) = name {
+                        ret.push(CompletionItem {
+                            item: name.into(),
+                            kind: CompletionKind::Function,
+                            desc: None,
+                        });
+                    }
+                }
+                anyhow::Ok(ret)
+            }
+            _ => {
+                let schema = self.merge_schema(schema).await;
+                let mut conn = self.get_conn().await?;
+                let mut ret = if let Some(schema) = &schema {
+                    crate::mysql::FunctionOrProcedure::query_list(
+                        crate::mysql::FunctionOrProcedure::Function,
+                        conn.deref_mut(),
+                        schema,
+                    )
+                    .await
+                    .map(|x| {
+                        x.into_iter()
+                            .map(|x| CompletionItem {
+                                item: x.into(),
+                                kind: CompletionKind::Function,
+                                desc: None,
+                            })
+                            .collect::<Vec<_>>()
+                    })?
+                } else {
+                    Default::default()
+                };
+                if include_build_in {
+                    ret.extend(
+                        if self.kind == BackendKindMysql::Mysql {
+                            MYSQL_FUNCTIONS
+                        } else {
+                            MARIADB_FUNCTIONS
+                        }
+                        .iter()
+                        .map(|x| CompletionItem {
+                            item: (*x).into(),
+                            kind: CompletionKind::Function,
+                            desc: None,
+                        }),
+                    );
+                }
+                anyhow::Ok(ret)
+            }
         }
-        anyhow::Ok(ret)
     }
 
     async fn list_procedure(&self, schema: Option<&str>) -> anyhow::Result<Vec<String>> {
@@ -337,9 +341,24 @@ impl LangServerCommon for MysqlDB {
     }
     async fn list_table(&self, schema: Option<&str>) -> anyhow::Result<Vec<String>> {
         let schema = self.not_allow_empty_schema(schema).await?;
-        self.list_table_impl(&schema)
+        let mut ret: Vec<String> = self
+            .list_table_impl(&schema)
             .await
-            .map(|x| x.into_iter().map(|x| x.name).collect())
+            .map(|x| x.into_iter().map(|x| x.name).collect())?;
+
+        if self.kind == BackendKindMysql::Mariadb {
+            let sql = format!(
+        "select SEQUENCE_NAME  from information_schema.SEQUENCES where SEQUENCE_SCHEMA = '{}'",schema );
+            let mut conn = self.get_conn().await?;
+            let rows = sqlx::raw_sql(AssertSqlSafe(sql.as_str()))
+                .fetch_all(conn.deref_mut())
+                .await?;
+            for row in rows.iter() {
+                let name: String = row.try_get(0)?;
+                ret.push(name);
+            }
+        }
+        anyhow::Ok(ret)
     }
 
     async fn list_view(&self, schema: Option<&str>) -> anyhow::Result<Vec<String>> {
@@ -359,7 +378,8 @@ impl LangServerCommon for MysqlDB {
         /*
             TODO should execute this sql but somehow owner_thread_id = connection_id()  match not working
             why????
-            SELECT statement_id, sql_text ,statement_name   FROM performance_schema.prepared_statements_instances WHERE owner_thread_id = connection_id() and  statement_name is not null;
+            SELECT statement_id, sql_text ,statement_name
+            FROM performance_schema.prepared_statements_instances WHERE owner_thread_id = connection_id() and  statement_name is not null;
         */
 
         let conn = self.query_connection.get(&self.completion_id.get());
@@ -368,7 +388,6 @@ impl LangServerCommon for MysqlDB {
             None => anyhow::bail!("connection not found"),
         };
         let mut conn = conn.lock().await;
-        let conn = conn.deref_mut();
         let sql = r#"
             SELECT  sql_text ,statement_name   
                 FROM performance_schema.prepared_statements_instances WHERE 
@@ -873,14 +892,14 @@ mod tests {
     use std::path::Path;
 
     use crate::datasource_config::MysqlDBConfig;
-    use crate::db::{QuerySql, SchemaTrait};
+    use crate::db::{BackendKindMysql, QuerySql, SchemaTrait};
     use crate::language_server::completion_test::test_file_auto_completion;
-    use crate::language_server::{LangServerCommon, LanguageServer};
+    use crate::language_server::LanguageServer;
     use crate::mysql::MysqlDB;
     use crate::{enable_test_log, TEST_HOST};
 
     async fn make_test_object(config: MysqlDBConfig) -> MysqlDB {
-        let db = MysqlDB::new(config).await.unwrap();
+        let db = MysqlDB::new(config, BackendKindMysql::Mysql).await.unwrap();
         db
     }
     fn make_config() -> MysqlDBConfig {
@@ -902,7 +921,7 @@ mod tests {
     async fn test_auto_completion() {
         let db = make_test_object(make_config()).await;
         enable_test_log();
-        let query_id = "";
+        let query_id = "aaaa";
         db.open_connection(query_id).await.unwrap();
         let _ = db.drop_table("departments", true).await;
         let _ = db.drop_table("employees", true).await;
@@ -991,27 +1010,6 @@ mod tests {
         let db = make_test_object(config).await;
         test_file_auto_completion(include_str!("./xxx.sql"), &db, None, false).await;
     }
-    #[tokio::test]
-    async fn test_prepare() {
-        let db = make_test_object(make_config()).await;
-        let query_id = "";
-        db.open_connection(query_id).await.unwrap();
-        db.execute_sql(
-            query_id,
-            r#"
-            PREPARE stmtxxx FROM 'SELECT 1';
-        "#,
-        )
-        .await
-        .unwrap()
-        .unwrap();
-        assert!(db
-            .list_execute(None)
-            .await
-            .unwrap()
-            .iter()
-            .any(|x| x.name.eq("stmtxxx")));
-    }
 
     #[tokio::test]
 
@@ -1029,13 +1027,5 @@ mod tests {
         });
 
         assert!(list.items.iter().any(|x| x.item == "my_var"));
-    }
-
-    #[tokio::test]
-
-    async fn test_try_get_max_id() {
-        let db = make_test_object(make_config()).await;
-        let max_id = db.try_get_max_id("departments").await.unwrap();
-        println!("max id is:{}", max_id);
     }
 }

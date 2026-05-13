@@ -1,17 +1,290 @@
+#[cfg(test)]
+use crate::datasource_config::MysqlDBConfig;
+#[cfg(test)]
+use crate::db::BackendKindMysql;
+use crate::db::SequenceDetail;
+use crate::mysql::MysqlDB;
 use sqlx::types::BigDecimal;
 use sqlx::{AssertSqlSafe, Row};
 use std::ops::DerefMut;
-use std::sync::Arc;
 
-#[cfg(test)]
-use crate::datasource_config::MysqlDBConfig;
-use crate::db::SequenceDetail;
-use crate::mysql::MysqlDB;
-#[cfg(test)]
-use crate::sub::SubDB;
+// AI generate this cool.
+/// MariaDB 11.x 全部内置函数名称
+pub const MARIADB_FUNCTIONS: &[&str] = &[
+    // 数值
+    "ABS",
+    "ACOS",
+    "ADDDATE",
+    "ADDTIME",
+    "AES_DECRYPT",
+    "AES_ENCRYPT",
+    "ASIN",
+    "ATAN",
+    "ATAN2",
+    "AVG",
+    "BENCHMARK",
+    "BIN",
+    "BIN_TO_UUID",
+    "BIT_AND",
+    "BIT_COUNT",
+    "BIT_LENGTH",
+    "BIT_OR",
+    "BIT_XOR",
+    "CEIL",
+    "CEILING",
+    "CONV",
+    "COS",
+    "COT",
+    "CRC32",
+    "DEGREES",
+    "DIV",
+    "EXP",
+    "FLOOR",
+    "FORMAT",
+    "FOUND_ROWS",
+    "FROM_BASE64",
+    "HEX",
+    "LN",
+    "LOG",
+    "LOG10",
+    "LOG2",
+    "MOD",
+    "OCT",
+    "OCTET_LENGTH",
+    "PI",
+    "POW",
+    "POWER",
+    "RADIANS",
+    "RAND",
+    "ROUND",
+    "SIGN",
+    "SIN",
+    "SQRT",
+    "STD",
+    "STDDEV",
+    "STDDEV_POP",
+    "STDDEV_SAMP",
+    "TAN",
+    "TRUNCATE",
+    "UNCOMPRESS",
+    "UNCOMPRESSED_LENGTH",
+    "UNHEX",
+    "VAR_POP",
+    "VAR_SAMP",
+    "VARIANCE",
+    // 字符串
+    "ASCII",
+    "CHAR",
+    "CHARACTER_LENGTH",
+    "CHAR_LENGTH",
+    "CHARSET",
+    "COERCIBILITY",
+    "COLLATION",
+    "COMPRESS",
+    "CONCAT",
+    "CONCAT_WS",
+    "ELT",
+    "FIELD",
+    "FIND_IN_SET",
+    "FORMAT",
+    "HEX",
+    "INSERT",
+    "INSTR",
+    "LCASE",
+    "LEFT",
+    "LENGTH",
+    "LOCATE",
+    "LOWER",
+    "LPAD",
+    "LTRIM",
+    "MAKE_SET",
+    "MID",
+    "OCTET_LENGTH",
+    "ORD",
+    "POSITION",
+    "QUOTE",
+    "REPEAT",
+    "REPLACE",
+    "REVERSE",
+    "RIGHT",
+    "RPAD",
+    "RTRIM",
+    "SOUNDEX",
+    "SPACE",
+    "STRCMP",
+    "SUBSTR",
+    "SUBSTRING",
+    "SUBSTRING_INDEX",
+    "TRIM",
+    "UCASE",
+    "UNHEX",
+    "UPPER",
+    "UUID_SHORT",
+    // 日期时间
+    "ADDDATE",
+    "ADDTIME",
+    "CONVERT_TZ",
+    "CURDATE",
+    "CURRENT_DATE",
+    "CURRENT_TIME",
+    "CURRENT_TIMESTAMP",
+    "CURTIME",
+    "DATE",
+    "DATEDIFF",
+    "DATE_ADD",
+    "DATE_FORMAT",
+    "DATE_SUB",
+    "DAY",
+    "DAYNAME",
+    "DAYOFMONTH",
+    "DAYOFWEEK",
+    "DAYOFYEAR",
+    "EXTRACT",
+    "FROM_DAYS",
+    "FROM_UNIXTIME",
+    "GET_FORMAT",
+    "HOUR",
+    "LAST_DAY",
+    "LOCALTIME",
+    "LOCALTIMESTAMP",
+    "MAKEDATE",
+    "MAKETIME",
+    "MICROSECOND",
+    "MINUTE",
+    "MONTH",
+    "MONTHNAME",
+    "NOW",
+    "PERIOD_ADD",
+    "PERIOD_DIFF",
+    "QUARTER",
+    "SEC_TO_TIME",
+    "SECOND",
+    "STR_TO_DATE",
+    "SUBDATE",
+    "SUBTIME",
+    "SYSDATE",
+    "TIME",
+    "TIME_FORMAT",
+    "TIME_TO_SEC",
+    "TIMEDIFF",
+    "TIMESTAMP",
+    "TIMESTAMPADD",
+    "TIMESTAMPDIFF",
+    "TO_DAYS",
+    "TO_SECONDS",
+    "UNIX_TIMESTAMP",
+    "UTC_DATE",
+    "UTC_TIME",
+    "UTC_TIMESTAMP",
+    "WEEK",
+    "WEEKDAY",
+    "WEEKOFYEAR",
+    "YEAR",
+    "YEARWEEK",
+    // JSON
+    "JSON_ARRAY",
+    "JSON_ARRAY_APPEND",
+    "JSON_ARRAY_INSERT",
+    "JSON_ARRAYAGG",
+    "JSON_CONTAINS",
+    "JSON_CONTAINS_PATH",
+    "JSON_DEPTH",
+    "JSON_EXTRACT",
+    "JSON_INSERT",
+    "JSON_KEYS",
+    "JSON_LENGTH",
+    "JSON_MERGE",
+    "JSON_MERGE_PATCH",
+    "JSON_MERGE_PRESERVE",
+    "JSON_OBJECT",
+    "JSON_OBJECTAGG",
+    "JSON_OVERLAPS",
+    "JSON_PRETTY",
+    "JSON_QUOTE",
+    "JSON_REMOVE",
+    "JSON_REPLACE",
+    "JSON_SCHEMA_VALID",
+    "JSON_SCHEMA_VALIDATION_REPORT",
+    "JSON_SEARCH",
+    "JSON_SET",
+    "JSON_STORAGE_FREE",
+    "JSON_STORAGE_SIZE",
+    "JSON_TABLE",
+    "JSON_TYPE",
+    "JSON_UNQUOTE",
+    "JSON_VALID",
+    "JSON_VALUE",
+    // 聚合/窗口
+    "ANY_VALUE",
+    "AVG",
+    "BIT_AND",
+    "BIT_OR",
+    "BIT_XOR",
+    "COUNT",
+    "COUNT(DISTINCT)",
+    "CUME_DIST",
+    "DENSE_RANK",
+    "FIRST_VALUE",
+    "GROUP_CONCAT",
+    "LAG",
+    "LAST_VALUE",
+    "LEAD",
+    "MAX",
+    "MIN",
+    "NTH_VALUE",
+    "NTILE",
+    "PERCENT_RANK",
+    "RANK",
+    "ROW_NUMBER",
+    "STD",
+    "STDDEV",
+    "STDDEV_POP",
+    "STDDEV_SAMP",
+    "SUM",
+    "VAR_POP",
+    "VAR_SAMP",
+    "VARIANCE",
+    // 加密/哈希
+    "AES_DECRYPT",
+    "AES_ENCRYPT",
+    "COMPRESS",
+    "DECODE",
+    "ENCODE",
+    "MD5",
+    "PASSWORD",
+    "RANDOM_BYTES",
+    "SHA1",
+    "SHA2",
+    "UNCOMPRESS",
+    "VALIDATE_PASSWORD_STRENGTH",
+    // 锁
+    "GET_LOCK",
+    "IS_FREE_LOCK",
+    "IS_USED_LOCK",
+    "RELEASE_ALL_LOCKS",
+    "RELEASE_LOCK",
+    // 系统信息
+    "BENCHMARK",
+    "BINLOG_GTID_POS",
+    "COERCIBILITY",
+    "COLLATION",
+    "CONNECTION_ID",
+    "CURRENT_ROLE",
+    "CURRENT_USER",
+    "DATABASE",
+    "FOUND_ROWS",
+    "ICU_VERSION",
+    "LAST_INSERT_ID",
+    "ROW_COUNT",
+    "SCHEMA",
+    "SESSION_USER",
+    "SYSTEM_USER",
+    "USER",
+    "VERSION",
+];
 
-impl MariaDB {
-    pub(crate) async fn list_sequences_impl(
+impl MysqlDB {
+    pub(crate) async fn mariadb_list_sequences(
         &self,
         schema: &str,
     ) -> anyhow::Result<Vec<SequenceDetail>> {
@@ -24,7 +297,7 @@ impl MariaDB {
             ",
             schema
         );
-        let mut conn = self.db.get_conn().await?;
+        let mut conn = self.get_conn().await?;
         let rows = sqlx::raw_sql(AssertSqlSafe(sql.as_str()))
             .fetch_all(conn.deref_mut())
             .await?;
@@ -44,7 +317,6 @@ impl MariaDB {
                 let create_sql: String = row.try_get(1)?;
                 create_sql
             };
-
             ret.push(SequenceDetail {
                 name,
                 data_type,
@@ -57,34 +329,6 @@ impl MariaDB {
             });
         }
         anyhow::Ok(ret)
-    }
-}
-
-pub struct MariaDB {
-    pub(crate) db: Arc<MysqlDB>,
-}
-
-impl MariaDB {
-    pub(crate) async fn list_sequence(&self) -> anyhow::Result<Vec<SequenceDetail>> {
-        self.list_sequences_impl(self.db.config.schema_str()?).await
-    }
-
-    pub(crate) async fn rename_sequence(&self, old: &str, new: &str) -> anyhow::Result<()> {
-        let sql = format!("RENAME TABLE {old}  TO {new}");
-        let mut conn = self.db.get_conn().await?;
-        sqlx::raw_sql(AssertSqlSafe(sql.as_str()))
-            .execute(conn.deref_mut())
-            .await?;
-        anyhow::Ok(())
-    }
-
-    pub(crate) async fn drop_sequence(&self, name: &str, _cascade: bool) -> anyhow::Result<()> {
-        let sql = format!("DROP SEQUENCE IF EXISTS {name};");
-        let mut conn = self.db.get_conn().await?;
-        sqlx::raw_sql(AssertSqlSafe(sql.as_str()))
-            .execute(conn.deref_mut())
-            .await?;
-        anyhow::Ok(())
     }
 }
 
@@ -104,9 +348,11 @@ pub(crate) fn make_config() -> MysqlDBConfig {
 }
 
 #[cfg(test)]
-pub(crate) async fn make_test_object_mariadb(config: MysqlDBConfig) -> SubDB {
-    use crate::{mysql::MysqlDB, sub::SubDB};
-    let db = SubDB::MariaDb(MysqlDB::new(config).await.unwrap().into());
+pub(crate) async fn make_test_object_mariadb(config: MysqlDBConfig) -> MysqlDB {
+    use crate::mysql::MysqlDB;
+    let db = MysqlDB::new(config, BackendKindMysql::Mariadb)
+        .await
+        .unwrap();
     db
 }
 
@@ -118,10 +364,14 @@ mod tests {
     use crate::mariadb::make_config;
     use crate::mysql::test_fns::{self, make_test_object};
 
+    /*
+        need set /etc/mysql/mariadb.conf.d/50-server.cnf
+        /etc/mysql/mariadb.conf.d/50-server.cnf
+    */
     #[tokio::test]
     async fn test_prepare() {
         let db = make_test_object_mariadb(make_config()).await;
-        let query_id = "";
+        let query_id = "aaaa";
         db.open_connection(query_id).await.unwrap();
         db.execute_sql(
             query_id,
@@ -132,8 +382,8 @@ mod tests {
         .await
         .unwrap()
         .unwrap();
+        db.completion_id.set(query_id.to_owned());
         let ts = db.list_execute(None).await.unwrap();
-
         assert!(ts.iter().any(|x| x.name.eq("stmtxxx")), "stmtxxx{:?}", ts);
     }
 
@@ -141,7 +391,7 @@ mod tests {
     async fn test_sequence() {
         let db = make_test_object_mariadb(make_config()).await;
         let name = "test_seq";
-        let query_id = "";
+        let query_id = "aaaa";
         db.open_connection(query_id).await.unwrap();
         let _ = db.drop_sequence(name, false).await;
 

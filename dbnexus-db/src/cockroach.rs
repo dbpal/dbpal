@@ -1,17 +1,8 @@
-use crate::{db::ListTable, pg::PostGresDB};
+#[cfg(test)]
+use crate::{datasource_config::PGDBConfig, db::BackendKindPostGres, pg::PostGresDB};
 
 #[cfg(test)]
-use crate::sub::SubDB;
-
-use sqlx::{AssertSqlSafe, Row};
-use std::ops::DerefMut;
-
-#[cfg(test)]
-pub(crate) async fn make_test_object() -> SubDB {
-    use std::sync::Arc;
-
-    use crate::datasource_config::PGDBConfig;
-
+pub(crate) async fn make_test_object() -> PostGresDB {
     let r = PGDBConfig {
         host: crate::TEST_HOST.to_string(),
         port: 26257,
@@ -20,12 +11,12 @@ pub(crate) async fn make_test_object() -> SubDB {
         db: Some("test".into()),
         schema: Some("xxx".to_string()),
         read_only: false,
-
         ssl: Default::default(),
         conn_timeout: Some(5000.into()),
     };
-
-    let pg = SubDB::CocoRoach(Arc::new(PostGresDB::new(r).await.unwrap()));
+    let pg = PostGresDB::new(r, BackendKindPostGres::CockRoach)
+        .await
+        .unwrap();
     pg
 }
 
@@ -73,45 +64,65 @@ pub(crate) const COCKROACH_TYPES: &[&str] = &[
     "VECTOR",
 ];
 
-impl PostGresDB {
-    pub(crate) async fn cock_roach_list_view(&self) -> anyhow::Result<Vec<ListTable>> {
-        let sql = format!(
-            r#"
-            SELECT  table_name 
-            FROM information_schema.tables
-            WHERE table_type = 'VIEW'
-                AND table_schema = '{}' and table_name not in (SELECT 
-                    matviewname
-            FROM 
-                pg_matviews where schemaname = '{}' ) 
-        "#,
-            self.config.schema_str()?,
-            self.config.schema_str()?,
-        );
-        let mut conn = self.get_conn().await?;
-        let rows = sqlx::raw_sql(AssertSqlSafe(sql.as_str()))
-            .fetch_all(conn.deref_mut())
-            .await?;
-        let mut ret = Vec::new();
-        for row in rows.iter() {
-            let name: String = row.try_get(0)?;
-            ret.push(ListTable::from(name));
-        }
-
-        anyhow::Ok(ret)
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
     use crate::db::{
         CatalogTrait, CheckConn, ColumnType, CreateIndexColumn, CreateIndexReq, IndexKind,
-        QuerySql, SchemaTrait, ServerMetas, SqlNullAble, UdfOrProcedureExtraParameter,
+        NamedStaff, QuerySql, SchemaTrait, ServerMetas, SqlNullAble,
     };
     use crate::db::{ExportKind, ShowTableParameter};
     use crate::enable_test_log;
     use std::collections::HashMap;
+
+    #[tokio::test]
+    async fn test_sequence() {
+        let db = make_test_object().await;
+        let query_id = "aaaa";
+        db.open_connection(query_id).await.unwrap();
+        let name = "test_seq";
+        let _ = db.drop_sequence(name, true).await;
+        db.execute_sql(
+            query_id,
+            r#"
+            CREATE SEQUENCE test_seq AS integer START 1;
+        "#,
+        )
+        .await
+        .unwrap()
+        .unwrap();
+        let name2 = format!("{}2", name);
+
+        let seq = db.list_sequence().await.unwrap();
+        for seq in seq.iter() {
+            if seq.name.eq(name) {
+                println!("seq:{:?}", seq);
+            }
+        }
+        db.rename_sequence(name, &name2).await.unwrap();
+        db.rename_sequence(&name2, name).await.unwrap();
+    }
+    #[tokio::test]
+    async fn test_list_created_types() {
+        let db = make_test_object().await;
+        let _ = db.drop_created_type("test_type").await;
+        let query_id = "aaaa";
+        db.open_connection(query_id).await.unwrap();
+
+        db.execute_sql(
+            query_id,
+            r#"
+            CREATE TYPE test_type AS ENUM ('value1', 'value2', 'value3');"#,
+        )
+        .await
+        .unwrap()
+        .unwrap();
+        let list = db.list_created_types().await.unwrap();
+        for l in list.iter() {
+            println!("create type:{:?}", l);
+        }
+    }
+
     #[tokio::test]
     async fn test_transaction() {
         let db = make_test_object().await;
@@ -119,7 +130,7 @@ mod tests {
         let table_name = "test_commit";
         let _ = db.drop_table(table_name, false).await;
 
-        let query_id = "";
+        let query_id = "aaaa";
         db.open_connection(query_id).await.unwrap();
         db.execute_sql(
             query_id,
@@ -180,7 +191,7 @@ mod tests {
         let db = make_test_object().await;
         let table_name = "test_column";
         let _ = db.drop_table(table_name, false).await;
-        let query_id = "";
+        let query_id = "aaaa";
         db.open_connection(query_id).await.unwrap();
         db.execute_sql(
             query_id,
@@ -233,7 +244,7 @@ mod tests {
 
         let _ = db.drop_index(table_name, index_name).await;
         let _ = db.drop_table(table_name, false).await;
-        let query_id = "";
+        let query_id = "aaaa";
         db.open_connection(query_id).await.unwrap();
 
         db.execute_sql(query_id, format!(
@@ -306,7 +317,7 @@ mod tests {
     async fn test_rename() {
         let db = make_test_object().await;
 
-        let query_id = "";
+        let query_id = "aaaa";
         db.open_connection(query_id).await.unwrap();
         let _ = db.drop_table("test_rename", false).await;
         let _ = db.drop_table("test_rename2", false).await;
@@ -338,7 +349,7 @@ mod tests {
         let db = make_test_object().await;
         let _ = db.drop_table("test_duplicate", false).await;
         let _ = db.drop_table("test_duplicate2", false).await;
-        let query_id = "";
+        let query_id = "aaaa";
         db.open_connection(query_id).await.unwrap();
         db.execute_sql(
             query_id,
@@ -376,15 +387,14 @@ mod tests {
     #[tokio::test]
     async fn test_procedure() {
         let db = make_test_object().await;
-        let query_id = "";
+        let query_id = "aaaa";
         db.open_connection(query_id).await.unwrap();
         let _ = db
-            .drop_procedure(
-                "test_procedure",
-                Some(UdfOrProcedureExtraParameter::PostGres {
-                    parameters: "".to_string(),
-                }),
-            )
+            .drop_procedure(&NamedStaff {
+                name: "test_procedure".to_string(),
+                parameters: Some("".to_string()),
+                ..Default::default()
+            })
             .await;
         db.execute_sql(
             query_id,
@@ -403,15 +413,7 @@ mod tests {
         .unwrap();
         let list = db.list_procedure().await.unwrap();
         for l in list.iter() {
-            let details = db
-                .show_procedure(
-                    &l.name,
-                    Some(UdfOrProcedureExtraParameter::PostGres {
-                        parameters: "".to_string(),
-                    }),
-                )
-                .await
-                .unwrap();
+            let details = db.show_procedure(l).await.unwrap();
             println!("udf:{},details:{:?}", l.name, details);
         }
     }
@@ -422,7 +424,7 @@ mod tests {
         let _ = db.drop_view("test_view").await;
         let _ = db.drop_table("test_view_table", true).await;
 
-        let query_id = "";
+        let query_id = "aaaa";
         db.open_connection(query_id).await.unwrap();
         db.execute_sql(
             query_id,
@@ -462,7 +464,7 @@ mod tests {
         let _ = db.drop_materialized_view("test_material_view").await;
         let _ = db.drop_table("test_material_view_table", true).await;
 
-        let query_id = "";
+        let query_id = "aaaa";
         db.open_connection(query_id).await.unwrap();
         db.execute_sql(
             query_id,
@@ -512,16 +514,15 @@ mod tests {
     #[tokio::test]
     async fn test_udf() {
         let pg = make_test_object().await;
-        let query_id = "";
-        pg.open_connection("").await.unwrap();
+        let query_id = "aaaa";
+        pg.open_connection(query_id).await.unwrap();
         let udf_name = "test_udf";
         let _ = pg
-            .drop_udf(
-                udf_name,
-                Some(UdfOrProcedureExtraParameter::PostGres {
-                    parameters: "a integer, b integer".to_string(),
-                }),
-            )
+            .drop_udf(&NamedStaff {
+                name: udf_name.to_string(),
+                parameters: Some("a integer, b integer".to_string()),
+                ..Default::default()
+            })
             .await;
 
         pg.execute_sql(
@@ -546,15 +547,7 @@ mod tests {
                 continue;
             }
             println!("udf:{:?}", l);
-            let details = pg
-                .show_udf(
-                    &l.name,
-                    Some(UdfOrProcedureExtraParameter::PostGres {
-                        parameters: "int8, int8".to_string(),
-                    }),
-                )
-                .await
-                .unwrap();
+            let details = pg.show_udf(l).await.unwrap();
             println!("name:{} , udf:{:?}", l.name, details);
         }
     }
@@ -565,7 +558,7 @@ mod tests {
         let table_name = "test_types1";
         let db = make_test_object().await;
         let _ = db.drop_table(table_name, false).await;
-        let query_id = "";
+        let query_id = "aaaa";
         db.open_connection(query_id).await.unwrap();
         db.execute_sql(
             query_id,

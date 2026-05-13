@@ -1,15 +1,15 @@
 import { tokenize } from "esprima";
 import {
+  Binary,
   BSON,
+  Code,
+  Decimal128,
+  Document,
+  Double,
   Int32,
   Long,
   ObjectId,
   Timestamp,
-  Code,
-  Decimal128,
-  Binary,
-  Double,
-  Document,
 } from "bson";
 
 class MongoBsonObject {
@@ -18,7 +18,7 @@ class MongoBsonObject {
     public startLoc?: Location,
     public endLoc?: Location,
   ) {}
-  format(tableSize: number = 2): string {
+  format(tableSize: number): string {
     return new MongoBsonValue(MongoBsonValueKind.Object, this).format(
       1,
       true,
@@ -49,7 +49,10 @@ function trimQuoteMark(str: string): string {
 }
 
 class MongoBsonKV {
-  constructor(public key: Token, public value: MongoBsonValue) {}
+  constructor(
+    public key: Token,
+    public value: MongoBsonValue,
+  ) {}
 }
 
 class MongoBsonAs {
@@ -148,7 +151,6 @@ class MongoBsonAs {
       return new ObjectId(v as string);
     }
     if (ty === "object" && v instanceof Array) {
-      // TODO maybe more check
       return new ObjectId(new Uint8Array(v as number[]));
     }
     this.cannotConvert(ty, "ObjectID");
@@ -556,7 +558,7 @@ class MongoBsonArray {
   ) {}
 
   compile(): any {
-    return this.elements.map(e => e.compile());
+    return this.elements.map((e) => e.compile());
   }
 }
 
@@ -585,7 +587,10 @@ interface Token {
 
 class MongoBsonError extends Error {
   msgWithLoc: string;
-  constructor(public msg: string, public loc?: Location) {
+  constructor(
+    public msg: string,
+    public loc?: Location,
+  ) {
     const msgWithLoc = MongoBsonError.makeMsg(msg, loc);
     super(msgWithLoc);
     this.msgWithLoc = msgWithLoc;
@@ -678,7 +683,7 @@ class Parser {
   parseBinaryTypeAnnotation(): MongoBsonBinaryAllSubType | null {
     const token = this.peek();
     const valueLow = token.value.toLowerCase();
-    const t = MongoBsonBinaryAllSubType.allValues().find(e => valueLow == e);
+    const t = MongoBsonBinaryAllSubType.allValues().find((e) => valueLow == e);
     if (t) {
       this.next();
       return new MongoBsonBinaryAllSubType(token);
@@ -928,7 +933,7 @@ function toMongoBson(a: any): MongoBsonValue {
         return new MongoBsonValue(MongoBsonValueKind.Binary, a as Binary);
       }
       if (a instanceof Array) {
-        const elements = a.map(e => {
+        const elements = a.map((e) => {
           return toMongoBson(e);
         });
         return new MongoBsonValue(
@@ -991,10 +996,12 @@ interface Location {
 }
 
 export {
-  parseMongoBson,
-  formatMongoBsonStr,
   bsonValue2MongoBson,
+  formatMongoBsonStr,
   MongoBsonBinaryAllSubType,
   MongoBsonError,
   MongoBsonObject,
+  parseMongoBson,
 };
+
+export const mongoBsonCompilerOwner = "mongo-bson-compiler";

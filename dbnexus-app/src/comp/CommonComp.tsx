@@ -7,7 +7,6 @@ import {
   MenuList,
   Stack,
   Divider,
-  Chip,
   useTheme,
   Button,
   TextField,
@@ -16,19 +15,69 @@ import {
   Select,
   FormControl,
   InputLabel,
+  Modal,
+  Box,
 } from "@mui/material";
+
 import RefreshIcon from "@mui/icons-material/Refresh";
 import {
+  Dispatch,
   ReactNode,
+  SetStateAction,
   useCallback,
-  useContext,
   useEffect,
   useMemo,
-  useRef,
   useState,
 } from "react";
-import { types } from "./ApiStruct";
 import DeleteForeverIcon from "@mui/icons-material/DeleteForever";
+
+import { FaFolderOpen } from "react-icons/fa";
+import CheckIcon from "@mui/icons-material/Check";
+import CloseIcon from "@mui/icons-material/Close";
+import AddIcon from "@mui/icons-material/Add";
+import { BsDatabaseAdd } from "react-icons/bs";
+import LinkOffIcon from "@mui/icons-material/LinkOff";
+import ContentCopyIcon from "@mui/icons-material/ContentCopy";
+import ArrowUpwardIcon from "@mui/icons-material/ArrowUpward";
+import ArrowDownwardIcon from "@mui/icons-material/ArrowDownward";
+import {
+  dataGridStyle,
+  DataSourceKind,
+  errToString,
+  extractFieldAndIDFromMouseEvent,
+  handleCopyToClipboard,
+  pageSizeOptions,
+  prettyMs,
+  resizeHandlerSize,
+  secondConfirm,
+  textEllipsisStyle,
+} from "./helper";
+
+import { TbDatabasePlus } from "react-icons/tb";
+import LinkIcon from "@mui/icons-material/Link";
+import { EscDownEvent, modalHandleClose, modalStyle, PassWordManager } from "./Common";
+import { openPath } from "@tauri-apps/plugin-opener";
+import {
+  AppDataGridPagination,
+  AppDataGridToolBar,
+  ClearableTextField,
+  ListenElementSize,
+} from "./CommonComp2";
+import {
+  passwordKey,
+  savePasswordKey,
+  useColumnWidthStore,
+  useConnLoading,
+  useConnected,
+  useConnectionStore,
+  useContextMenu,
+  useElementSizeStore,
+  useFavoriteStore,
+  useNotification,
+  useQueryLogStore,
+  useViewInModalMatchStrStore,
+} from "./store";
+import { commands, Field, MetaValue, NamedStaff } from "./bindings";
 import {
   DataGrid,
   GridColDef,
@@ -38,92 +87,16 @@ import {
   GridSlotsComponent,
   GridSlotsComponentsProps,
   GridSortModel,
-} from "@mui/x-data-grid";
+} from "./datagridExport";
 
-import { FaFolderOpen } from "react-icons/fa";
-import CheckIcon from "@mui/icons-material/Check";
-import CloseIcon from "@mui/icons-material/Close";
-import AddIcon from "@mui/icons-material/Add";
-import { BsDatabaseAdd } from "react-icons/bs";
-import LinkOffIcon from "@mui/icons-material/LinkOff";
-import { NotificationContext } from "./Notification";
-import { invoke } from "@tauri-apps/api/core";
-import ContentCopyIcon from "@mui/icons-material/ContentCopy";
-import ArrowUpwardIcon from "@mui/icons-material/ArrowUpward";
-import ArrowDownwardIcon from "@mui/icons-material/ArrowDownward";
-import { IoTimerOutline } from "react-icons/io5";
-import {
-  ColumnWidth,
-  ContextMenuContext,
-  dataGridStyle,
-  DataSourceKind,
-  editorSetPositionAndReveal,
-  ErrAndLoc,
-  errToString,
-  extractFieldAndIDFromMouseEvent,
-  FavoriteSql,
-  generateDefaultFilename,
-  generateRandomString,
-  handleCopyToClipboard,
-  pageSizeOptions,
-  prettyMs,
-  QueryLogHandler,
-  resizeHandlerSize,
-  SaveAlign,
-  SaveDomSizes,
-  secondConfirm,
-  SettingContext,
-  shrinkAble,
-  textEllipsisStyle,
-} from "./helper";
-
-import { TbDatabasePlus } from "react-icons/tb";
-import LinkIcon from "@mui/icons-material/Link";
-import {
-  ConnectionHandler,
-  connectionChangeEvent,
-  PassWordManager,
-  TableFilterHandler,
-} from "./Common";
-import { TreeItem } from "@mui/x-tree-view/TreeItem";
-import { editor, Position } from "monaco-editor";
-import { openPath } from "@tauri-apps/plugin-opener";
-import { save } from "@tauri-apps/plugin-dialog";
-import { writeTextFile } from "@tauri-apps/plugin-fs";
-import { FaMarkdown } from "react-icons/fa";
-import { emit } from "@tauri-apps/api/event";
-import { AppDataGridPagination, StackRowCenter } from "./CommonComp2";
-
-function MenuExportMarkDownTable({ showExportMarkDown }) {
-  return (
-    <MenuItem onClick={showExportMarkDown}>
-      <ListItemIcon>
-        <FaMarkdown fontSize="1.5rem" />
-      </ListItemIcon>
-      <ListItemText>Export MarkDown Table</ListItemText>
-    </MenuItem>
-  );
-}
-
-function SelectAlign(props: { align: "left" | "right" | "center"; handleChange }) {
-  const { align, handleChange } = props;
-
-  return (
-    <Autocomplete
-      options={["left", "center", "right"]}
-      style={{ width: "8rem" }}
-      value={align}
-      freeSolo={false}
-      renderInput={params => <TextField {...params} label="align" />}
-      onChange={(_, align) => {
-        SaveAlign.instance.save(align);
-        handleChange(align);
-      }}
-    />
-  );
-}
-
-function LogLevelSelection({ handleChange, level }) {
+/**
+ * Logger level selection control.
+ */
+function LogLevelSelection(props: {
+  handleChange: (level: string | null) => void;
+  level: string | null;
+}) {
+  const { handleChange, level } = props;
   const levels = ["off", "trace", "debug", "info", "warn", "error"];
   return (
     <Autocomplete
@@ -131,7 +104,7 @@ function LogLevelSelection({ handleChange, level }) {
       style={{ width: "14rem" }}
       value={level}
       freeSolo={false}
-      renderInput={params => <TextField {...params} label="logger level" />}
+      renderInput={(params) => <TextField {...params} label="logger level" />}
       onChange={(_, level) => {
         handleChange(level);
       }}
@@ -139,13 +112,16 @@ function LogLevelSelection({ handleChange, level }) {
   );
 }
 
-function MenuNewQuery({ handleNew }) {
+/**
+ * Menu item for creating a new query.
+ */
+function MenuNewQuery(props: { handleNew: () => void }) {
+  const { handleNew } = props;
   return (
     <MenuItem
       onClick={() => {
         handleNew();
-      }}
-    >
+      }}>
       <ListItemIcon>
         <AddIcon />
       </ListItemIcon>
@@ -154,13 +130,31 @@ function MenuNewQuery({ handleNew }) {
   );
 }
 
-function MenuCreateDatabase({ handleCreate, kind }) {
+function MenuNewQueryNewWindow(props: { handleNew: () => void }) {
+  const { handleNew } = props;
+  return (
+    <MenuItem
+      onClick={() => {
+        handleNew();
+      }}>
+      <ListItemIcon>
+        <AddIcon />
+      </ListItemIcon>
+      <ListItemText>New Query(new window) </ListItemText>
+    </MenuItem>
+  );
+}
+
+/**
+ * Menu item for creating a database or bucket.
+ */
+function MenuCreateDatabase(props: { handleCreate: () => void; kind: DataSourceKind }) {
+  const { handleCreate, kind } = props;
   return (
     <MenuItem
       onClick={() => {
         handleCreate();
-      }}
-    >
+      }}>
       <ListItemIcon>
         <BsDatabaseAdd />
       </ListItemIcon>
@@ -178,13 +172,17 @@ function MenuCreateDatabase({ handleCreate, kind }) {
     </MenuItem>
   );
 }
-function MenuRefresh({ reload }) {
+
+/**
+ * Menu item for refreshing current data.
+ */
+function MenuRefresh(props: { reload: () => void }) {
+  const { reload } = props;
   return (
     <MenuItem
       onClick={() => {
         reload();
-      }}
-    >
+      }}>
       <ListItemIcon>
         <RefreshIcon />
       </ListItemIcon>
@@ -193,20 +191,29 @@ function MenuRefresh({ reload }) {
   );
 }
 
-function MenuCloseConn({ handleClose, name }) {
-  const { showNotification } = useContext(NotificationContext);
+/**
+ * Menu item for closing a named connection.
+ */
+function MenuCloseConn(props: { name: string }) {
+  const { name } = props;
+  const { showNotification } = useNotification();
+  const { removeConnected } = useConnected();
   return (
     <MenuItem
       onClick={() => {
-        invoke("close_conn", { name })
+        commands
+          .closeConn(name)
           .then(() => {
-            handleClose();
+            removeConnected(name);
           })
-          .catch(e => {
-            showNotification("error", "close connection failed", e);
+          .catch((e) => {
+            showNotification({
+              severity: "error",
+              title: "close connection failed",
+              message: e,
+            });
           });
-      }}
-    >
+      }}>
       <ListItemIcon>
         <LinkOffIcon />
       </ListItemIcon>
@@ -215,20 +222,25 @@ function MenuCloseConn({ handleClose, name }) {
   );
 }
 
-function ConnPingTime({ uuid }) {
-  const [pingTime, setStatus] = useState("");
+/**
+ * Displays ping statistics for a connection UUID.
+ */
+function ConnPingTime(props: { uuid: string }) {
+  const { uuid } = props;
+  const [pingTime, setStatus] = useState<number | null>(null);
   const [err, setErr] = useState("");
 
   useEffect(() => {
     const reloadStatus = () => {
-      invoke<string>("check_conn", { name: uuid })
-        .then(ping => {
-          setStatus(ping);
+      commands
+        .checkConn(uuid)
+        .then((data) => {
+          setStatus(data);
           setErr("");
         })
-        .catch(e => {
+        .catch((e) => {
           setErr(errToString(e));
-          setStatus("");
+          setStatus(null);
         });
     };
     const interval = setInterval(() => {
@@ -240,27 +252,32 @@ function ConnPingTime({ uuid }) {
   }, [uuid]);
 
   return (
-    (pingTime || err) &&
-    (pingTime ? (
-      <Tooltip title="ping time">
-        <Typography color="green"> {pingTime} </Typography>
-      </Tooltip>
-    ) : (
-      <Tooltip title={err}>
-        <Typography color="error"> err </Typography>
-      </Tooltip>
-    ))
+    <>
+      {typeof pingTime == "number" && (
+        <Tooltip title="ping time">
+          <Typography color="green"> {prettyMs(pingTime)} </Typography>
+        </Tooltip>
+      )}
+      {err && (
+        <Tooltip title={err}>
+          <Typography color="error"> err </Typography>
+        </Tooltip>
+      )}
+    </>
   );
 }
 
-function MenuCreateSchema(props: { handleCreate; kind: DataSourceKind }) {
+/**
+ * Menu item for creating a schema or equivalent namespace object.
+ */
+function MenuCreateSchema(props: { handleCreate: () => void; kind: DataSourceKind }) {
   const { handleCreate, kind } = props;
-  let name;
+  let name = "";
   switch (kind) {
     case DataSourceKind.SqlServer:
     case DataSourceKind.Postgres:
-    case DataSourceKind.DuckDB:
     case DataSourceKind.Cockroach:
+    case DataSourceKind.DuckDB:
       name = "Schema";
       break;
     case DataSourceKind.Cassandra:
@@ -277,8 +294,7 @@ function MenuCreateSchema(props: { handleCreate; kind: DataSourceKind }) {
     <MenuItem
       onClick={() => {
         handleCreate();
-      }}
-    >
+      }}>
       <ListItemIcon>
         <TbDatabasePlus />
       </ListItemIcon>
@@ -287,56 +303,51 @@ function MenuCreateSchema(props: { handleCreate; kind: DataSourceKind }) {
   );
 }
 
-function MenuOpenConn({ handleOpened, name, setLoading }) {
-  const { showNotification } = useContext(NotificationContext);
+/**
+ * Menu item that opens an existing connection and handles credential persistence.
+ */
+function MenuOpenConn(props: { name: string }) {
+  const { name } = props;
+  const { showNotification } = useNotification();
+  const setConnected = useConnected((s) => s.setConnected);
+  const setLoading = useConnLoading((s) => s.setLoading);
+
+  const { getConnection } = useConnectionStore();
 
   const handleOpenXXX = async () => {
     // try promote use to enter a password.
-    const config = await ConnectionHandler.getByName(name);
+    const config = await getConnection(name);
     if (!config) {
       return;
     }
-    const key = "save_password";
-    let inputPass = "";
-    if (false === config[key]) {
-      const pass = PassWordManager.getPassword(name);
-      if (!pass) {
-        inputPass = window.prompt(`enter password for '${name}'`);
-        // macos will return null directly
-        if (inputPass == null) {
-          return;
-        }
-        config["password"] = inputPass;
-      } else {
-        config["password"] = pass;
-      }
-    } else {
-      // get password from keyring
-      const pass = await PassWordManager.getPassword(name);
-      if (pass) {
-        config["password"] = pass;
-      }
-    }
     try {
-      await invoke("establish_conn", { config });
+      await commands.establishConn(config);
     } catch (e) {
-      showNotification("error", "establish connection failed", e);
+      showNotification({
+        severity: "error",
+        title: "establish connection failed",
+        message: e,
+      });
       return;
     }
-    if (inputPass) {
-      PassWordManager.savePassword(name, inputPass, false);
+    if (false === config[savePasswordKey]) {
+      PassWordManager.savePassword(
+        PassWordManager.serviceConnection,
+        name,
+        config[passwordKey],
+        false,
+      );
     }
-    handleOpened();
+    setConnected(name);
   };
   return (
     <MenuItem
       onClick={() => {
-        setLoading(true);
+        setLoading(name, true);
         handleOpenXXX().finally(() => {
-          setLoading(false);
+          setLoading(name, false);
         });
-      }}
-    >
+      }}>
       <ListItemIcon>
         <LinkIcon />
       </ListItemIcon>
@@ -345,18 +356,25 @@ function MenuOpenConn({ handleOpened, name, setLoading }) {
   );
 }
 
-function SelectPageSize({ pageSize, handleChange, options = pageSizeOptions }) {
+/**
+ * Page size selector for table pagination.
+ */
+function SelectPageSize(props: {
+  pageSize: number;
+  handleChange: (value: number) => void;
+  options?: number[];
+}) {
+  const { pageSize, handleChange, options = pageSizeOptions } = props;
   return (
     <FormControl style={{ width: "10rem" }}>
       <InputLabel>page size </InputLabel>
       <Select
         value={pageSize}
-        onChange={e => {
-          handleChange(e.target.value);
+        onChange={(e) => {
+          handleChange(e.target.value as number);
         }}
-        label="page size"
-      >
-        {options.map(e => (
+        label="page size">
+        {options.map((e) => (
           <MenuItem value={e} key={e}>
             {e}
           </MenuItem>
@@ -366,8 +384,17 @@ function SelectPageSize({ pageSize, handleChange, options = pageSizeOptions }) {
   );
 }
 
-function MenuDeleteConfig({ name }) {
-  const { showNotification } = useContext(NotificationContext);
+/**
+ * Menu item to show available actions for a metadata value column.
+ */
+function MenuDeleteConfig(props: { name: string }) {
+  const { name } = props;
+  const { showNotification } = useNotification();
+
+  const { removeConnection } = useConnectionStore();
+  const { deleteByConnectionName: delFav } = useFavoriteStore();
+
+  const { deleteByName: delQueryLog } = useQueryLogStore();
   const handleDelete = async () => {
     const confirm = await secondConfirm({
       title: `drop connection '${name}'`,
@@ -377,15 +404,16 @@ function MenuDeleteConfig({ name }) {
       return;
     }
     try {
-      await invoke("close_conn", { name });
-      await FavoriteSql.deleteByConnectionName(name);
-      await QueryLogHandler.deleteByConnectionName(name);
-      await ConnectionHandler.deleteConn(name);
-      await PassWordManager.deletePassword(name);
-      await TableFilterHandler.deleteByConnectionName(name);
-      emit(connectionChangeEvent, "");
+      await commands.closeConn(name);
+      await delFav(name);
+      await delQueryLog(name);
+      await removeConnection(name);
     } catch (e) {
-      showNotification("error", "drop connection failed", e);
+      showNotification({
+        severity: "error",
+        title: "drop connection failed",
+        message: e,
+      });
     }
   };
   return (
@@ -393,8 +421,7 @@ function MenuDeleteConfig({ name }) {
       onClick={() => {
         handleDelete();
       }}
-      sx={{ color: "error.main" }}
-    >
+      sx={{ color: "error.main" }}>
       <ListItemIcon>
         <DeleteForeverIcon color="error" />
       </ListItemIcon>
@@ -403,16 +430,22 @@ function MenuDeleteConfig({ name }) {
   );
 }
 
-function MetaValueViewMenu(props: { content: string; setSort; field: string }) {
+/**
+ * Menu actions for sorting or copying metadata values.
+ */
+function MetaValueViewMenu(props: {
+  content: string;
+  setSort: Dispatch<SetStateAction<GridSortModel>>;
+  field: string;
+}) {
   const { content, setSort, field } = props;
-  const { showNotification } = useContext(NotificationContext);
+  const { showNotification } = useNotification();
   return (
     <MenuList>
       <MenuItem
         onClick={() => {
           handleCopyToClipboard(content, showNotification);
-        }}
-      >
+        }}>
         <ListItemIcon>
           <ContentCopyIcon />
         </ListItemIcon>
@@ -421,9 +454,8 @@ function MetaValueViewMenu(props: { content: string; setSort; field: string }) {
       <Divider />
       <MenuItem
         onClick={() => {
-          setSort([{ field, sort: "asc" }] as GridSortModel);
-        }}
-      >
+          setSort([{ field, sort: "asc" }]);
+        }}>
         <ListItemIcon>
           <ArrowUpwardIcon />
         </ListItemIcon>
@@ -431,9 +463,8 @@ function MetaValueViewMenu(props: { content: string; setSort; field: string }) {
       </MenuItem>
       <MenuItem
         onClick={() => {
-          setSort([{ field, sort: "desc" }] as GridSortModel);
-        }}
-      >
+          setSort([{ field, sort: "desc" }]);
+        }}>
         <ListItemIcon>
           <ArrowDownwardIcon />
         </ListItemIcon>
@@ -443,13 +474,17 @@ function MetaValueViewMenu(props: { content: string; setSort; field: string }) {
   );
 }
 
-function MetaValueView({ values = [] as types.MetaValue[] }) {
-  const setting = useContext(SettingContext);
-  const columns = [
-    { field: "name", width: ColumnWidth.instance.get("name") },
-    { field: "value", width: ColumnWidth.instance.get("value") },
-    { field: "desc", flex: 1 },
-  ] as GridColDef[];
+/**
+ * Table view for metadata values.
+ */
+function MetaValueView(props: { values: MetaValue[]; showToolbar: boolean }) {
+  const { values, showToolbar } = props;
+
+  const getColumnWidth = useColumnWidthStore((s) => s.getColumnWidth);
+  const columns: GridColDef[] = [
+    { field: "name", width: getColumnWidth("name"), flex: 1 },
+    { field: "value", width: getColumnWidth("value"), flex: 1 },
+  ];
 
   const [sortModel, setSortModel] = useState<GridSortModel>([]);
   values.forEach((e, index) => {
@@ -457,11 +492,11 @@ function MetaValueView({ values = [] as types.MetaValue[] }) {
       e["id"] = index;
     }
   });
-  const { setUpMenu } = useContext(ContextMenuContext);
-  const slotProps = useMemo(() => {
+  const setUpMenu = useContextMenu((state) => state.setUpMenu);
+  const slotProps = useMemo((): GridSlotsComponentsProps => {
     return {
       row: {
-        onContextMenu: e => {
+        onContextMenu: (e) => {
           const { target } = e;
           const content = (target as HTMLDivElement).innerHTML;
           const field = extractFieldAndIDFromMouseEvent(e).field;
@@ -481,32 +516,22 @@ function MetaValueView({ values = [] as types.MetaValue[] }) {
         },
         style: { cursor: "context-menu" },
       },
-      toolbar: {
-        csvOptions: {
-          delimiter: setting.export.csvDelimiter,
-          includeHeaders: setting.export.includeHeader,
-        },
-      },
-    } as GridSlotsComponentsProps;
-  }, [setUpMenu, setting]);
+    };
+  }, [setUpMenu]);
 
-  const onSortModelChange = useCallback(e => {
+  const onSortModelChange = useCallback((e) => {
     setSortModel(e);
   }, []);
 
-  const onColumnResize = useCallback(({ colDef, width }) => {
-    const f = colDef.field;
-    if (f == "name" || f == "value") {
-      ColumnWidth.instance.save(f, width);
-    }
-  }, []);
-  const slots = useMemo(() => {
+  const slots = useMemo((): Partial<GridSlotsComponent> => {
     return {
+      toolbar: AppDataGridToolBar,
       pagination: AppDataGridPagination,
-    } as Partial<GridSlotsComponent>;
+    };
   }, []);
   return (
     <DataGrid
+      showToolbar={showToolbar}
       slots={slots}
       style={dataGridStyle}
       sortModel={sortModel}
@@ -514,16 +539,19 @@ function MetaValueView({ values = [] as types.MetaValue[] }) {
       slotProps={slotProps}
       columns={columns}
       rows={values}
-      onColumnResize={onColumnResize}
     />
   );
 }
 
+/**
+ * Button to reset saved column widths.
+ */
 function ResetColumnWidth() {
-  const { showNotification } = useContext(NotificationContext);
+  const { showNotification } = useNotification();
+  const reset = useColumnWidthStore((s) => s.resetWidths);
   const handleReset = async () => {
-    ColumnWidth.instance.reset();
-    showNotification("success", "reset column width successfully");
+    reset();
+    showNotification({ severity: "success", title: "reset column width successfully" });
   };
   return (
     <Tooltip title="reset column width">
@@ -535,11 +563,17 @@ function ResetColumnWidth() {
   );
 }
 
-function TrueOrFalse(props: { value: boolean }) {
+/**
+ * Icon indicator for boolean values.
+ */
+function CheckedView(props: { value: boolean }) {
   const { value } = props;
-  return value ? <CheckIcon> </CheckIcon> : <CloseIcon />;
+  return value ? <CheckIcon /> : <CloseIcon />;
 }
 
+/**
+ * Header used inside modal dialogs.
+ */
 function ModalHeader(props: {
   title: string;
   handleClose: () => void;
@@ -554,105 +588,186 @@ function ModalHeader(props: {
       style={{
         justifyContent: "space-between",
         alignItems: "center",
-        borderBottom: "3px solid " + theme.palette.success.main,
+        // borderBottom: "3px solid",
         marginBottom: "0.4rem",
         position: "sticky",
         top: 0,
-      }}
-    >
-      <StackRowCenter>
+        backgroundColor: theme.palette.background.paper,
+      }}>
+      <Stack direction="row" style={{ alignItems: "flex-end" }}>
         <Typography
           variant="h6"
           style={{
             paddingBottom: "0.3rem",
             fontWeight: "bold",
             textTransform: noTextTransform ? undefined : "capitalize",
-          }}
-        >
+          }}>
           {title}
         </Typography>
         {headerExtra}
-      </StackRowCenter>
-
-      <Tooltip title={"esc can close this too"}>
-        <IconButton color="secondary" onClick={handleClose}>
-          <CloseIcon> </CloseIcon>
-        </IconButton>
-      </Tooltip>
+      </Stack>
+      <IconButton color="secondary" onClick={handleClose}>
+        <CloseIcon> </CloseIcon>
+      </IconButton>
     </Stack>
   );
 }
 
-function ViewRowInModal(props: { fields: types.Field[]; data: object; isTable? }) {
-  const { fields, data, isTable } = props;
+function HighlightText({
+  text,
+  normal,
+}: {
+  text: string;
+  normal: (text: string) => ReactNode;
+}) {
+  const matchStr = useViewInModalMatchStrStore((state) => state.matchStr);
+
+  if (!matchStr || !text) return normal(text);
+
+  // 使用正则拆分字符串，'ig' 表示忽略大小写且全局匹配
+  const parts = text.split(new RegExp(`(${matchStr})`, "gi"));
+
+  return (
+    <span>
+      {parts.map((part, i) =>
+        part.toLowerCase() === matchStr.toLowerCase() ? (
+          <mark key={i}>{part}</mark>
+        ) : (
+          part
+        ),
+      )}
+    </span>
+  );
+}
+
+/**
+ * Modal view for inspecting a single row of query results.
+ */
+function ViewRowInModal(props: {
+  fields: Field[];
+  data: Record<string, any>;
+  isTable?: boolean;
+  handleClose: () => void;
+}) {
+  const { fields, data, isTable, handleClose } = props;
   const theme = useTheme();
-  return (
-    <Stack>
-      {fields.map(f => {
-        return (
-          <Stack
-            style={{
-              borderRadius: "10px",
-              padding: "8px",
-              border: "2px solid " + theme.palette.success.main,
-            }}
-            key={f.field}
-          >
-            <Stack
-              direction="row"
-              style={{ alignItems: "center" }}
-              divider={<span>|</span>}
-            >
-              <Typography variant="subtitle1">{f.field}</Typography>
-              <Typography variant="body1">{f.data_type}</Typography>
-              {isTable && f.is_primary && (
-                <Typography variant="body1"> Primary Key </Typography>
-              )}
-              {isTable && f.nullable && (
-                <Typography variant="body1"> nullable </Typography>
-              )}
-              {isTable && f.is_auto_increment && (
-                <Typography variant="body1"> auto increment </Typography>
-              )}
-              {isTable && f.default_value && (
-                <Typography variant="body1" style={textEllipsisStyle}>
-                  default value({f.default_value})
-                </Typography>
-              )}
-            </Stack>
+  const { matchStr, setMatchStr } = useViewInModalMatchStrStore();
+  const { showNotification } = useNotification();
+  const [viewInModalBox, setViewInModalBox] = useState<HTMLDivElement | null>(null);
+  if (!data) {
+    return <> </>;
+  }
 
-            <Divider />
-            <pre
-              style={{
-                overflow: "auto",
-                opacity: 0.9,
-                color: theme.palette.success.main,
+  return (
+    <Modal
+      open={true}
+      onClose={modalHandleClose((e: EscDownEvent) => {
+        e.preventDefault();
+        handleClose();
+      })}>
+      <Box
+        sx={{
+          resize: "both",
+          ...modalStyle,
+          width: "80%",
+          height: "30vh",
+          backgroundColor: theme.palette.background.paper,
+        }}
+        ref={setViewInModalBox}>
+        <ModalHeader
+          title="View Row"
+          handleClose={() => {
+            handleClose();
+          }}
+          headerExtra=<>
+            <ClearableTextField
+              value={matchStr}
+              onClear={() => {
+                setMatchStr("");
               }}
-            >
-              {data[f.field]}
-            </pre>
-          </Stack>
-        );
-      })}
-    </Stack>
+              onChange={(e) => {
+                setMatchStr(e.target.value);
+              }}
+              style={{ width: "16rem" }}
+              label="match string,only for value"
+            />
+          </>
+        />
+        <ListenElementSize
+          dom={viewInModalBox}
+          set="both"
+          name="query-resp-view-in-modals"
+        />
+
+        <Stack>
+          {fields.map((f) => {
+            return (
+              <Stack
+                style={{
+                  borderRadius: "10px",
+                  padding: "8px",
+                  border: "2px solid " + theme.palette.success.main,
+                }}
+                key={f.field}>
+                <Stack
+                  direction="row"
+                  style={{ alignItems: "center" }}
+                  divider={<span>|</span>}>
+                  {data[f.field] && (
+                    <IconButton
+                      onClick={() => {
+                        handleCopyToClipboard(data[f.field], showNotification);
+                      }}>
+                      <ContentCopyIcon />
+                    </IconButton>
+                  )}
+
+                  <Typography variant="subtitle1">{f.field}</Typography>
+                  <Typography variant="body1">{f.data_type}</Typography>
+                  {isTable && f.is_primary && (
+                    <Typography variant="body1"> Primary Key </Typography>
+                  )}
+                  {isTable && f.nullable && (
+                    <Typography variant="body1"> nullable </Typography>
+                  )}
+                  {isTable && f.is_auto_increment && (
+                    <Typography variant="body1"> auto increment </Typography>
+                  )}
+                  {isTable && f.default_value && (
+                    <Typography variant="body1" style={textEllipsisStyle}>
+                      default value({f.default_value})
+                    </Typography>
+                  )}
+                </Stack>
+                <Divider />
+                <HighlightText
+                  text={data[f.field]}
+                  normal={(text) => {
+                    return (
+                      <pre
+                        style={{
+                          overflow: "auto",
+                          opacity: 0.9,
+                          color: theme.palette.success.main,
+                        }}>
+                        {text}
+                      </pre>
+                    );
+                  }}
+                />
+              </Stack>
+            );
+          })}
+        </Stack>
+      </Box>
+    </Modal>
   );
 }
 
-function ExceedMaxTreeItem(props: { exceed: number; maxTreeSize: number }) {
-  const { exceed, maxTreeSize } = props;
-  const id = useRef(generateRandomString());
-  return (
-    <TreeItem
-      itemId={id.current}
-      style={{ display: exceed > maxTreeSize ? "block" : "none" }}
-      label=<Typography color="error" style={{ fontSize: "0.8rem" }}>
-        ({exceed}) exceed max tree items({maxTreeSize}),some item not showing
-      </Typography>
-    />
-  );
-}
-
-function UdfNameAndParameters(props: { udf: types.NamedStaff; kind: DataSourceKind }) {
+/**
+ * Display UDF name and parameters in metadata lists.
+ */
+function UdfNameAndParameters(props: { udf: NamedStaff; kind: DataSourceKind }) {
   const { udf, kind } = props;
   let parameter = "";
   switch (kind) {
@@ -667,16 +782,15 @@ function UdfNameAndParameters(props: { udf: types.NamedStaff; kind: DataSourceKi
 
   return (
     <>
-      <Typography>{udf.name}</Typography>
+      <span style={textEllipsisStyle}>{udf.name}</span>
       {parameter && (
         <Typography
-          color="success"
+          color="info"
           style={{
+            ...textEllipsisStyle,
             fontStyle: "italic",
             fontSize: "0.8rem",
-            ...textEllipsisStyle,
-          }}
-        >
+          }}>
           ({parameter})
         </Typography>
       )}
@@ -684,130 +798,26 @@ function UdfNameAndParameters(props: { udf: types.NamedStaff; kind: DataSourceKi
   );
 }
 
-function PossibleParseError(props: {
-  parseErr: ErrAndLoc;
-  editor: editor.IStandaloneCodeEditor;
-}) {
-  const { parseErr, editor } = props;
-  return (
-    <Tooltip title="possible error" followCursor>
-      <Typography
-        style={{
-          cursor: parseErr.line && parseErr.column && "pointer",
-          ...textEllipsisStyle,
-        }}
-        onClick={() => {
-          if (!parseErr) {
-            return;
-          }
-          if (parseErr.line && parseErr.column) {
-            editorSetPositionAndReveal(
-              editor,
-              new Position(parseErr.line, parseErr.column),
-            );
-          }
-        }}
-      >
-        {parseErr.msg}
-      </Typography>
-    </Tooltip>
-  );
-}
-
-function TimeDuration(props: { dur: number }) {
-  const { dur } = props;
-  return (
-    !!dur && (
-      <Chip
-        label={prettyMs(dur)}
-        color={dur > 4000 ? "warning" : "info"}
-        icon={<IoTimerOutline fontSize="1.2rem" />}
-      />
-    )
-  );
-}
-
-function ExecutingTime(props: {
-  loading: boolean;
-  disableTime?: boolean;
-  title?: string;
-}) {
-  let { loading, disableTime, title } = props;
-  if (!title) {
-    title = "executing time";
-  }
-  const executeTimeRef = useRef(null);
-  const timeExecuteClean = useRef<() => void>(null);
-  const [lastLoadTime, setLastLoadTime] = useState(new Date());
-  const tryExecuteTimeClean = () => {
-    if (timeExecuteClean.current) {
-      timeExecuteClean.current();
-      timeExecuteClean.current = null;
-    }
-  };
-  useEffect(() => {
-    return () => {
-      tryExecuteTimeClean();
-    };
-  }, []);
-  const timeExecute = () => {
-    const now = new Date();
-    const setUp = () => {
-      const ms = new Date().getTime() - now.getTime();
-      (executeTimeRef.current as HTMLDivElement).innerHTML = prettyMs(ms);
-    };
-    const int = setInterval(() => {
-      setUp();
-    }, 100);
-    timeExecuteClean.current = () => {
-      clearInterval(int);
-      setUp();
-    };
-  };
-  useEffect(() => {
-    tryExecuteTimeClean();
-    if (!loading) {
-      setLastLoadTime(new Date());
-    } else {
-      timeExecute();
-    }
-  }, [loading]);
-  return (
-    <>
-      <Tooltip title={title}>
-        <Chip
-          color="success"
-          label={<span ref={executeTimeRef}> </span>}
-          style={shrinkAble}
-          icon={<IoTimerOutline fontSize="1.2rem" />}
-        />
-      </Tooltip>
-      {!disableTime && (
-        <Tooltip title="loaded at">
-          <Typography style={shrinkAble}>
-            {lastLoadTime.toLocaleTimeString()}
-          </Typography>
-        </Tooltip>
-      )}
-    </>
-  );
-}
-
+/**
+ * Menu item that copies a grid field name.
+ */
 function CopyMenuItem(props: GridColumnMenuItemProps) {
   const { colDef } = props;
-  const { showNotification } = useContext(NotificationContext);
+  const { showNotification } = useNotification();
   return (
     <MenuItem
       onClick={() => {
         handleCopyToClipboard(colDef.field, showNotification);
-      }}
-    >
+      }}>
       <ListItemIcon> </ListItemIcon>
       <ListItemText> Copy Field </ListItemText>
     </MenuItem>
   );
 }
 
+/**
+ * Grid column menu with custom copy field action.
+ */
 function AppColumnMenu(props: GridColumnMenuProps) {
   return (
     <GridColumnMenu
@@ -825,10 +835,13 @@ function AppColumnMenu(props: GridColumnMenuProps) {
   );
 }
 
+/**
+ * Multi-select column chooser.
+ */
 function SelectColumns(props: {
   fields: string[];
   includes: string[];
-  setIncludes;
+  setIncludes: (includes: string[]) => void;
   includeAll: boolean;
 }) {
   const { fields, includes, setIncludes, includeAll } = props;
@@ -839,8 +852,7 @@ function SelectColumns(props: {
           onClick={() => {
             setIncludes(fields);
           }}
-          variant="text"
-        >
+          variant="text">
           all
         </Button>
       )}
@@ -850,14 +862,18 @@ function SelectColumns(props: {
         value={includes}
         multiple
         onChange={(_, v) => setIncludes(v)}
-        renderInput={params => <TextField {...params} label="select columns" />}
+        renderInput={(params) => <TextField {...params} label="select columns" />}
       />
     </Stack>
   );
 }
 
-function OpenFileWithDefaultApp({ file }) {
-  const { showNotification } = useContext(NotificationContext);
+/**
+ * Button to open a file path with the system default application.
+ */
+function OpenFileWithDefaultApp(props: { file?: string }) {
+  const { file } = props;
+  const { showNotification } = useNotification();
   return (
     <>
       {file && (
@@ -866,11 +882,14 @@ function OpenFileWithDefaultApp({ file }) {
             onClick={() => {
               openPath(file)
                 .then(() => {})
-                .catch(e => {
-                  showNotification("warning", "open export file failed", e);
+                .catch((e) => {
+                  showNotification({
+                    severity: "warning",
+                    title: "open export file failed",
+                    message: e,
+                  });
                 });
-            }}
-          >
+            }}>
             <FaFolderOpen fontSize="1.5rem" />
           </IconButton>
         </Tooltip>
@@ -879,132 +898,24 @@ function OpenFileWithDefaultApp({ file }) {
   );
 }
 
-function ExportMarkDownTable(props: {
-  fields: types.Field[];
-  data: any[];
-  name?: string;
-}) {
-  const { fields, data } = props;
-  let { name } = props;
-  if (!name) {
-    name = "export";
-  }
-  const [includes, setIncludes] = useState<string[]>([]);
-  const [align, setAlign] = useState("center");
-  const { showNotification } = useContext(NotificationContext);
-  const [file, setFile] = useState("");
-  const makeMarkDownStr = () => {
-    let ret = "";
-    includes.forEach(x => {
-      ret += `| ${x} `;
-    });
-    ret += "|\n";
-    includes.forEach(() => {
-      let alignText: string;
-      switch (align) {
-        case "left":
-          alignText = ":----";
-          break;
-        case "right":
-          alignText = "-----:";
-          break;
-        case "center":
-          alignText = ":---:";
-          break;
-      }
-      ret += "|" + alignText;
-    });
-    ret += "|\n";
-
-    data.forEach(data => {
-      includes.forEach(x => {
-        ret += `| ${data[x]} `;
-      });
-      ret += "|\n";
-    });
-    return ret;
-  };
-  const handleExport = async (toClipBoard: boolean) => {
-    if (includes.length == 0) {
-      showNotification("warning", "Please select column");
-      return;
-    }
-    const markdown = makeMarkDownStr();
-    if (toClipBoard) {
-      handleCopyToClipboard(markdown, undefined, () => {
-        showNotification("success", "export OK");
-      });
-      return;
-    }
-    const f = await save({
-      defaultPath: generateDefaultFilename(name, "md"),
-      filters: [{ name: "markdown", extensions: ["md"] }],
-    });
-    if (!f) {
-      return;
-    }
-    try {
-      await writeTextFile(f, markdown);
-    } catch (e) {
-      showNotification("error", "write markdown failed", e);
-      return;
-    }
-    showNotification("success", "export OK");
-    setFile(f);
-  };
-
-  return (
-    <Stack>
-      <SelectColumns
-        fields={fields.map(x => x.field)}
-        includes={includes}
-        setIncludes={setIncludes}
-        includeAll
-      />
-      <OpenFileWithDefaultApp file={file} />
-      <Divider />
-      <StackRowCenter>
-        <Button
-          onClick={() => {
-            handleExport(false);
-          }}
-          variant="outlined"
-        >
-          save file
-        </Button>
-        <Button
-          onClick={() => {
-            handleExport(true);
-          }}
-          variant="outlined"
-        >
-          copy to clipboard
-        </Button>
-        <SelectAlign
-          align={SaveAlign.instance.get() as "center"}
-          handleChange={e => {
-            setAlign(e);
-          }}
-        />
-      </StackRowCenter>
-    </Stack>
-  );
-}
-
+/**
+ * Resize handle that persists parent height in the element size store.
+ */
 function ResizeParentHeight(props: {
   box: HTMLDivElement;
   min: number;
-  saveHeightName;
+  saveHeightName: string;
 }) {
   const { box, min, saveHeightName } = props;
-
+  const { elements, setElement } = useElementSizeStore();
   useEffect(() => {
-    SaveDomSizes.getSize(saveHeightName).then(e => {
-      if (e && e.height) {
-        box.style.height = e.height + "px";
-      }
-    });
+    const size = elements[saveHeightName];
+    if (size && size.height) {
+      box.style.height = size.height + "px";
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [box.style, saveHeightName]);
+
   useEffect(() => {}, []);
   const handleDown = useCallback(
     (e: React.MouseEvent<HTMLDivElement>) => {
@@ -1016,7 +927,7 @@ function ResizeParentHeight(props: {
         if (newH < min) {
           newH = min;
         }
-        SaveDomSizes.saveSize(saveHeightName, { height: newH });
+        setElement(saveHeightName, { height: newH, width: null });
         box.style.height = newH + "px";
       };
       const onUp = () => {
@@ -1026,7 +937,7 @@ function ResizeParentHeight(props: {
       document.addEventListener("mousemove", onMove);
       document.addEventListener("mouseup", onUp);
     },
-    [box.offsetHeight, box.style, min, saveHeightName],
+    [box.offsetHeight, box.style, min, saveHeightName, setElement],
   );
 
   return (
@@ -1042,6 +953,7 @@ export {
   LogLevelSelection,
   MetaValueView,
   MenuNewQuery,
+  MenuNewQueryNewWindow,
   MenuCreateDatabase,
   MenuRefresh,
   ConnPingTime,
@@ -1051,18 +963,13 @@ export {
   SelectPageSize,
   MenuDeleteConfig,
   ResetColumnWidth,
-  TrueOrFalse,
+  CheckedView,
   ModalHeader,
   ViewRowInModal,
-  ExceedMaxTreeItem,
   UdfNameAndParameters,
-  PossibleParseError,
-  ExecutingTime,
   AppColumnMenu,
-  ExportMarkDownTable,
   SelectColumns,
   OpenFileWithDefaultApp,
-  MenuExportMarkDownTable,
   ResizeParentHeight,
-  TimeDuration,
+  HighlightText,
 };

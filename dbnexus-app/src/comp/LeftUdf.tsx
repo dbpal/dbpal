@@ -7,69 +7,64 @@ import {
   Stack,
 } from "@mui/material";
 import { TreeItem } from "@mui/x-tree-view/TreeItem";
-import { useCallback, useContext, useEffect, useRef, useState } from "react";
+import { useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
 import DeleteForeverIcon from "@mui/icons-material/DeleteForever";
 import InfoIcon from "@mui/icons-material/Info";
 import { MdFunctions } from "react-icons/md";
-import { tabsHasId } from "./Common";
-import types from "./ApiStruct";
-import { invoke } from "@tauri-apps/api/core";
-import { NotificationContext } from "./Notification";
-import { TabContent } from "./Tabs";
-import { DefAndMetasView } from "./UdfAndMetaView";
+import { DefAndMetasView } from "./DefAndMetaView";
 
 import { TbMathFunction } from "react-icons/tb";
+import { DataSourceKind, secondConfirm, TabContent, UuidContext } from "./helper.ts";
+import { MenuRefresh, UdfNameAndParameters } from "./CommonComp";
+import { CopySql, ShowingCount } from "./CommonComp2";
 import {
-  ConnTypeContext,
-  ContextMenuContext,
-  DataSourceKind,
-  generateRandomString,
-  MatchPatternContext,
-  MaxTreeContext,
-  secondConfirm,
-  TabsSetContext,
-  UuidContext,
-} from "./helper";
-
-import { ExceedMaxTreeItem, MenuRefresh, UdfNameAndParameters } from "./CommonComp";
-import { listCassandraAgg, listUdf, makeUdfExtraArg, showUdf } from "./handlers";
-import { showCassandraAgg } from "./handlers";
+  useMatcher,
+  useContextMenu,
+  useNotification,
+  useTabsManage,
+  useMatcherFn,
+} from "./store";
+import { commands, NamedStaff } from "./bindings.ts";
+import { uuidv4 } from "./Common.ts";
 
 function UdfsTree() {
-  const { uuid } = useContext(UuidContext);
-  const { kind } = useContext(ConnTypeContext);
+  const { uuid, kind } = useContext(UuidContext);
 
-  const [udfs, setUdfs] = useState<types.NamedStaff[]>([]);
-  const { showNotification } = useContext(NotificationContext);
-  const [exceed, setExceed] = useState(0);
-  const matchPattern = useContext(MatchPatternContext);
-  const maxsize = useContext(MaxTreeContext);
-  useEffect(() => {
-    setExceed(udfs.filter(e => matchPattern(e.name)).length);
-  }, [udfs, matchPattern]);
+  const [udfs, setUdfs] = useState<NamedStaff[]>([]);
+  const { showNotification } = useNotification();
+  const { maxTree } = useMatcher();
+  const matchPattern = useMatcherFn();
+  const showItems = useMemo(() => {
+    return udfs.filter((e) => matchPattern(e.name)).slice(0, maxTree);
+  }, [udfs, maxTree, matchPattern]);
 
   const reload = useCallback(() => {
-    listUdf(uuid)
-      .then(e => {
-        setUdfs(e);
+    commands
+      .listUdf(uuid)
+      .then((data) => {
+        setUdfs(data);
       })
-      .catch(e => {
-        showNotification("error", "list udf failed", e);
+      .catch((e) => {
+        showNotification({
+          severity: "error",
+          title: "list udf failed",
+          message: e,
+        });
       });
   }, [showNotification, uuid]);
   useEffect(() => {
     reload();
   }, [reload]);
 
-  const { setUpMenu } = useContext(ContextMenuContext);
-  const treeID = useRef(generateRandomString());
+  const setUpMenu = useContextMenu((state) => state.setUpMenu);
+  const treeID = useRef(uuidv4());
   return (
     <TreeItem
       itemId={treeID.current}
       label=<Stack
         direction="row"
         sx={{ alignItems: "center" }}
-        onContextMenu={e => {
+        onContextMenu={(e) => {
           setUpMenu({
             content: (
               <MenuList>
@@ -78,91 +73,56 @@ function UdfsTree() {
             ),
             event: e,
           });
-        }}
-      >
+        }}>
         <TbMathFunction />
         <span> udfs </span>
-      </Stack>
-    >
-      {udfs
-        .filter(e => matchPattern(e.name))
-        .map((udf, index) => {
-          if (index >= maxsize) {
-            return;
-          }
-          const id = `${uuid}-udf-${index}`;
-          return (
-            <TreeItem
-              key={index}
-              itemId={id}
-              label=<Stack
-                direction="row"
-                sx={{ alignItems: "center" }}
-                onContextMenu={e => {
-                  setUpMenu({
-                    content: (
-                      <UdfMenu
-                        id={id}
-                        reload={reload}
-                        uuid={uuid}
-                        kind={kind}
-                        udf={udf}
-                      />
-                    ),
-                    event: e,
-                  });
-                }}
-              >
-                <TbMathFunction />
-                <UdfNameAndParameters udf={udf} kind={kind} />
-              </Stack>
-            />
-          );
-        })}
-      <ExceedMaxTreeItem exceed={exceed} maxTreeSize={maxsize} />
+        <ShowingCount showing={showItems.length} total={udfs.length} />
+      </Stack>>
+      {showItems.map((udf) => {
+        const id = `${uuid}-udf-${udf.name} -${udf.rand}`;
+        return (
+          <TreeItem
+            key={id}
+            itemId={id}
+            label=<Stack
+              direction="row"
+              sx={{ alignItems: "center" }}
+              onContextMenu={(e) => {
+                setUpMenu({
+                  content: (
+                    <UdfMenu reload={reload} uuid={uuid} kind={kind} udf={udf} />
+                  ),
+                  event: e,
+                });
+              }}>
+              <TbMathFunction />
+              <UdfNameAndParameters udf={udf} kind={kind} />
+            </Stack>
+          />
+        );
+      })}
     </TreeItem>
   );
 }
 
-function UdfMenu(props: {
-  uuid;
-  udf: types.NamedStaff;
-  reload;
-  kind: DataSourceKind;
-  id: string;
-}) {
-  const { uuid, udf, reload, kind, id } = props;
-  const { setSelectTab, setTabs, tabs } = useContext(TabsSetContext);
-  const { showNotification } = useContext(NotificationContext);
+function UdfMenu(props: { uuid; udf: NamedStaff; reload; kind: DataSourceKind }) {
+  const { uuid, udf, reload, kind } = props;
+  const { appendTab } = useTabsManage();
+  const { showNotification } = useNotification();
   const handleOpenDetails = () => {
-    const index = tabsHasId(tabs, id);
-    if (typeof index == "number") {
-      setSelectTab(index);
-    } else {
-      setTabs(e => {
-        setTimeout(() => {
-          setSelectTab(tabs.length);
-        }, 100);
-
-        return [
-          ...e,
-          new TabContent(
-            id,
-            udf.name,
-            (
-              <DefAndMetasView
-                reloadOP={async () => {
-                  return showUdf(uuid, udf, kind);
-                }}
-                kind={kind}
-                uuid={uuid}
-              />
-            ),
-            <TbMathFunction className="tab-icon-size" />,
-          ),
-        ];
-      });
-    }
+    appendTab(
+      new TabContent(
+        udf.name,
+        <DefAndMetasView
+          reloadOP={async () => {
+            return commands.showUdf(uuid, udf);
+          }}
+          kind={kind}
+          uuid={uuid}
+        />,
+        <TbMathFunction />,
+      ),
+    );
   };
 
   const handleDrop = async () => {
@@ -174,13 +134,18 @@ function UdfMenu(props: {
     if (!confirm) {
       return;
     }
-    invoke("drop_udf", { name: uuid, udf: udf.name, arg: makeUdfExtraArg(udf, kind) })
-      .then(() => {
-        showNotification("success", "Drop udf OK");
+    commands
+      .dropUdf(uuid, udf)
+      .then((sql) => {
+        showNotification({
+          severity: "success",
+          title: "Drop udf OK",
+          message: <CopySql sql={sql} />,
+        });
         reload();
       })
-      .catch(e => {
-        showNotification("error", "Drop udf failure", e);
+      .catch((e) => {
+        showNotification({ severity: "error", title: "Drop udf failure", message: e });
       });
   };
 
@@ -189,8 +154,7 @@ function UdfMenu(props: {
       <MenuItem
         onClick={() => {
           handleOpenDetails();
-        }}
-      >
+        }}>
         <ListItemIcon>
           <InfoIcon />
         </ListItemIcon>
@@ -201,8 +165,7 @@ function UdfMenu(props: {
         sx={{ color: "error.main" }}
         onClick={() => {
           handleDrop();
-        }}
-      >
+        }}>
         <ListItemIcon>
           <DeleteForeverIcon color="error" />
         </ListItemIcon>
@@ -219,39 +182,23 @@ function CassandraAggregateMenu(props: {
   reload;
 }) {
   const { uuid, agg, reload, parameters } = props;
-  const { setSelectTab, setTabs, tabs } = useContext(TabsSetContext);
-  const { showNotification } = useContext(NotificationContext);
+  const { appendTab } = useTabsManage();
+  const { showNotification } = useNotification();
 
   const handleOpenDetails = () => {
-    const id = uuid + "-" + "-cassandra-aggregate-" + agg;
-    const index = tabsHasId(tabs, id);
-    if (typeof index == "number") {
-      setSelectTab(index);
-    } else {
-      setTabs(e => {
-        setTimeout(() => {
-          setSelectTab(tabs.length);
-        }, 100);
-
-        return [
-          ...e,
-          new TabContent(
-            id,
-            agg,
-            (
-              <DefAndMetasView
-                reloadOP={async () => {
-                  return showCassandraAgg(uuid, agg, parameters);
-                }}
-                uuid={uuid}
-                kind={DataSourceKind.Cassandra}
-              />
-            ),
-            <MdFunctions className="tab-icon-size" />,
-          ),
-        ];
-      });
-    }
+    appendTab(
+      new TabContent(
+        agg,
+        <DefAndMetasView
+          reloadOP={async () => {
+            return await commands.cassandraShowAggregate(uuid, agg, parameters);
+          }}
+          uuid={uuid}
+          kind={DataSourceKind.Cassandra}
+        />,
+        <MdFunctions />,
+      ),
+    );
   };
 
   const handleDrop = async () => {
@@ -264,82 +211,88 @@ function CassandraAggregateMenu(props: {
       return;
     }
 
-    invoke("cassandra_drop_aggregate", {
-      name: uuid,
-      aggName: agg,
-      parameters,
-    })
-      .then(() => {
-        showNotification("success", "Drop aggregate OK");
+    commands
+      .cassandraDropAggregate(uuid, agg, parameters)
+      .then((sql) => {
+        showNotification({
+          severity: "success",
+          title: "Drop aggregate OK",
+          message: <CopySql sql={sql} />,
+        });
         reload();
       })
-      .catch(e => {
-        showNotification("error", "Drop aggregate Failure", e);
+      .catch((e) => {
+        showNotification({
+          severity: "error",
+          title: "Drop aggregate Failure",
+          message: e,
+        });
       });
   };
 
   return (
-    <div>
-      <MenuList>
-        <MenuItem
-          onClick={() => {
-            handleOpenDetails();
-          }}
-        >
-          <ListItemIcon>
-            <InfoIcon />
-          </ListItemIcon>
-          <ListItemText> Detail </ListItemText>
-        </MenuItem>
+    <MenuList>
+      <MenuItem
+        onClick={() => {
+          handleOpenDetails();
+        }}>
+        <ListItemIcon>
+          <InfoIcon />
+        </ListItemIcon>
+        <ListItemText> Detail </ListItemText>
+      </MenuItem>
 
-        <Divider />
-        <MenuItem
-          sx={{ color: "error.main" }}
-          onClick={() => {
-            handleDrop();
-          }}
-        >
-          <ListItemIcon>
-            <DeleteForeverIcon color="error" />
-          </ListItemIcon>
-          <ListItemText>Drop</ListItemText>
-        </MenuItem>
-      </MenuList>
-    </div>
+      <Divider />
+      <MenuItem
+        sx={{ color: "error.main" }}
+        onClick={() => {
+          handleDrop();
+        }}>
+        <ListItemIcon>
+          <DeleteForeverIcon color="error" />
+        </ListItemIcon>
+        <ListItemText>Drop</ListItemText>
+      </MenuItem>
+    </MenuList>
   );
 }
 
 function CassandraAggregatesTree() {
   const { uuid } = useContext(UuidContext);
-  const [aggs, setAggs] = useState<types.NamedStaff[]>([]);
-  const { showNotification } = useContext(NotificationContext);
-  const maxsize = useContext(MaxTreeContext);
+  const [aggs, setAggs] = useState<NamedStaff[]>([]);
+  const { showNotification } = useNotification();
   const reload = useCallback(() => {
-    listCassandraAgg(uuid)
-      .then(ts => {
+    commands
+      .cassandraListAggregate(uuid)
+      .then((ts) => {
         setAggs(ts);
       })
-      .catch(e => {
-        showNotification("error", "list aggregate failed", e);
+      .catch((e) => {
+        showNotification({
+          severity: "error",
+          title: "list aggregate failed",
+          message: e,
+        });
       });
   }, [showNotification, uuid]);
-  const [exceed, setExceed] = useState(0);
-  const matchPattern = useContext(MatchPatternContext);
-  useEffect(() => {
-    setExceed(aggs.filter(e => matchPattern(e.name)).length);
-  }, [aggs, matchPattern]);
+  const { maxTree } = useMatcher();
+  const matchPattern = useMatcherFn();
+  const showItems = useMemo(() => {
+    return aggs.filter((e) => matchPattern(e.name)).slice(0, maxTree);
+  }, [aggs, matchPattern, maxTree]);
+
   useEffect(() => {
     reload();
   }, [reload]);
-  const { setUpMenu } = useContext(ContextMenuContext);
-  const tressId = useRef(generateRandomString());
+  const setUpMenu = useContextMenu((state) => state.setUpMenu);
+  const tressId = useRef(uuidv4());
   return (
     <TreeItem
       itemId={tressId.current}
       label=<Stack
         direction="row"
         sx={{ alignItems: "center" }}
-        onContextMenu={e => {
+        onContextMenu={(e) => {
           setUpMenu({
             content: (
               <MenuList>
@@ -348,51 +301,43 @@ function CassandraAggregatesTree() {
             ),
             event: e,
           });
-        }}
-      >
+        }}>
         <MdFunctions />
         <span> aggregates </span>
-      </Stack>
-    >
-      {aggs
-        .filter(e => matchPattern(e.name))
-        .map((agg, index) => {
-          if (index >= maxsize) {
-            return;
-          }
-          const id = `${uuid}-agg-${index}`;
-          return (
-            <TreeItem
-              key={
-                agg.name +
-                "-" +
-                (agg.cassandra_parameters ? agg.cassandra_parameters.join("-") : "")
-              }
-              itemId={id}
-              label=<Stack
-                direction="row"
-                sx={{ alignItems: "center" }}
-                onContextMenu={e => {
-                  setUpMenu({
-                    content: (
-                      <CassandraAggregateMenu
-                        reload={reload}
-                        uuid={uuid}
-                        agg={agg.name}
-                        parameters={agg.cassandra_parameters}
-                      />
-                    ),
-                    event: e,
-                  });
-                }}
-              >
-                <MdFunctions />
-                <UdfNameAndParameters udf={agg} kind={DataSourceKind.Cassandra} />
-              </Stack>
-            />
-          );
-        })}
-      <ExceedMaxTreeItem exceed={exceed} maxTreeSize={maxsize} />
+        <ShowingCount showing={showItems.length} total={aggs.length} />
+      </Stack>>
+      {showItems.map((agg) => {
+        const id = `${uuid}-agg-${agg.name}-${agg.rand}`;
+        return (
+          <TreeItem
+            key={
+              agg.name +
+              "-" +
+              (agg.cassandra_parameters ? agg.cassandra_parameters.join("-") : "")
+            }
+            itemId={id}
+            label=<Stack
+              direction="row"
+              sx={{ alignItems: "center" }}
+              onContextMenu={(e) => {
+                setUpMenu({
+                  content: (
+                    <CassandraAggregateMenu
+                      reload={reload}
+                      uuid={uuid}
+                      agg={agg.name}
+                      parameters={agg.cassandra_parameters}
+                    />
+                  ),
+                  event: e,
+                });
+              }}>
+              <MdFunctions />
+              <UdfNameAndParameters udf={agg} kind={DataSourceKind.Cassandra} />
+            </Stack>
+          />
+        );
+      })}
     </TreeItem>
   );
 }

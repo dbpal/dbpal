@@ -5,7 +5,6 @@ use std::time::Duration;
 use sqlparser::ast::{SetExpr, Statement, Update};
 use sqlparser::keywords::Keyword;
 use sqlparser::tokenizer::{Location, Token, TokenWithSpan};
-use typescript_type_def::TypeDef;
 
 use crate::db::{CreatedTypeDef, Field, GetBackendKind, SequenceDetail, SqlEvent};
 use crate::helper::try_remove_one_at;
@@ -29,18 +28,6 @@ pub trait LanguageServer: GetBackendKind + Send + Sync + 'static {
         col: u32,
     ) -> anyhow::Result<CompletionList>;
 
-    async fn try_get_max_id(&self, _name: &str) -> anyhow::Result<String> {
-        self.backend_name().not_support_feature()
-    }
-
-    async fn get_search_path(&self, _query_id: &str) -> anyhow::Result<HashSet<String>> {
-        anyhow::Ok(HashSet::new())
-    }
-
-    async fn check_sql(&self, _sql: &str) -> anyhow::Result<Option<ErrAndLoc>> {
-        anyhow::Ok(None)
-    }
-
     fn is_dangerous_sql(&self, _sql: &str) -> anyhow::Result<bool>;
 
     // extract `a=`` from `select * from where a =1`
@@ -49,7 +36,7 @@ pub trait LanguageServer: GetBackendKind + Send + Sync + 'static {
     fn extract_table_select_sort(&self, sql: &str) -> anyhow::Result<Option<String>>;
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, Hash)]
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, Hash, specta::Type)]
 pub struct CompletionItem {
     pub item: Cow<'static, str>,
     pub kind: CompletionKind,
@@ -66,9 +53,7 @@ impl From<Field> for CompletionItem {
     }
 }
 
-#[derive(
-    Debug, Clone, PartialEq, Eq, serde::Serialize, Hash, Default, typescript_type_def::TypeDef,
-)]
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, Hash, Default, specta::Type)]
 pub struct CompletionList {
     pub items: Vec<CompletionItem>,
     pub incomplete: bool,
@@ -84,12 +69,8 @@ impl From<Vec<CompletionItem>> for CompletionList {
         }
     }
 }
-impl From<CompletionItem> for String {
-    fn from(value: CompletionItem) -> Self {
-        value.item.into()
-    }
-}
-#[derive(Clone, Copy, Debug, PartialEq, Eq, serde::Serialize, TypeDef, Hash)]
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq, serde::Serialize, Hash, specta::Type)]
 pub enum CompletionKind {
     Command, // command right now use by redis
     KeyWord,
@@ -184,7 +165,7 @@ pub trait LexerCompletionTrait: LangServerCommon {
         let tokens = sqlparser::tokenizer::Tokenizer::new(self.dialect().as_ref(), sql)
             .tokenize_with_location()
             .unwrap_or_default();
-        if self.backend_name().support_at() {
+        if self.backend_kind().support_at() {
             // 试图去匹配 @@
             for t in tokens.iter() {
                 if let Token::Word(x) = &t.token {
@@ -198,10 +179,11 @@ pub trait LexerCompletionTrait: LangServerCommon {
         }
         let mut all_item = self.all_completion_items().await;
         all_item.extend(self.get_table_columns_if_possible(&tokens[..]).await);
-        if !self.backend_name().support_at() {
+        if !self.backend_kind().support_at() {
             // this is not access var via @@ we better completion all variable
             all_item.extend(self.list_variable_completion().await);
         }
+
         // 推送词法部分
         for t in tokens.iter() {
             if let Token::Word(x) = &t.token {
@@ -210,7 +192,7 @@ pub trait LexerCompletionTrait: LangServerCommon {
                 {
                     let mut value = x.value.clone();
                     //@my_var 会被sqlparser解析成一个标识符
-                    if self.backend_name().support_at() {
+                    if self.backend_kind().support_at() {
                         value = try_remove_one_at(value);
                     }
                     all_item.push(CompletionItem {
@@ -397,7 +379,6 @@ pub trait LexerCompletionTrait: LangServerCommon {
                 .unwrap_or_default();
             ret.extend(columns.into_iter().map(CompletionItem::from));
         }
-
         remove_duplicate(ret)
     }
 }
@@ -443,7 +424,7 @@ impl From<SqlEvent> for CompletionItem {
 #[async_trait::async_trait]
 pub trait GetKeyWords: GetBackendKind {
     async fn key_words(&self) -> anyhow::Result<Vec<String>> {
-        self.backend_name().not_support_feature()
+        self.backend_kind().not_support_feature()
     }
 }
 
@@ -467,14 +448,7 @@ pub trait LangServerCommon: GetBackendKind + GetKeyWords + Send + Sync {
     async fn duckdb_extensions(&self) -> anyhow::Result<Vec<CompletionItem>> {
         anyhow::Ok(vec![])
     }
-    fn parse_err(&self, sql: &str) -> anyhow::Result<Option<ErrAndLoc>> {
-        let dialect = self.dialect();
-        let ss = sqlparser::parser::Parser::parse_sql(dialect.as_ref(), sql);
-        match ss {
-            Ok(_) => anyhow::Ok(None),
-            Err(err) => anyhow::Ok(Some(ErrAndLoc::from(err))),
-        }
-    }
+
     async fn list_cluster(&self) -> anyhow::Result<Vec<String>> {
         anyhow::Ok(vec![])
     }
@@ -488,13 +462,13 @@ pub trait LangServerCommon: GetBackendKind + GetKeyWords + Send + Sync {
     // mysql use `show variables`
     // to query all variables
     async fn list_variable(&self) -> anyhow::Result<Vec<String>> {
-        self.backend_name().not_support_feature()
+        self.backend_kind().not_support_feature()
     }
     async fn list_event(&self, _schema: Option<&str>) -> anyhow::Result<Vec<SqlEvent>> {
         anyhow::Ok(vec![])
     }
     async fn sqlite_module_name(&self) -> anyhow::Result<Vec<String>> {
-        self.backend_name().not_support_feature()
+        self.backend_kind().not_support_feature()
     }
     async fn sqlite_pragma(&self) -> anyhow::Result<Vec<CompletionItem>> {
         anyhow::Ok(vec![])
@@ -529,10 +503,10 @@ pub trait LangServerCommon: GetBackendKind + GetKeyWords + Send + Sync {
         remove_duplicate(ret)
     }
     async fn list_role(&self) -> anyhow::Result<Vec<String>> {
-        self.backend_name().not_support_feature()
+        self.backend_kind().not_support_feature()
     }
     async fn list_user(&self) -> anyhow::Result<Vec<String>> {
-        self.backend_name().not_support_feature()
+        self.backend_kind().not_support_feature()
     }
     // -- 标准 SQL（PostgreSQL、Oracle、DB2 支持；MySQL 没有）
     // CREATE DOMAIN us_postal_code AS CHAR(5)
@@ -581,7 +555,7 @@ pub trait LangServerCommon: GetBackendKind + GetKeyWords + Send + Sync {
         anyhow::Ok(ss)
     }
 
-    // list user created types.
+    // list user created
     async fn list_created_type(
         &self,
         _schema: Option<&str>,
@@ -648,7 +622,7 @@ pub trait LangServerCommon: GetBackendKind + GetKeyWords + Send + Sync {
         include_build_in: bool,
     ) -> anyhow::Result<Vec<CompletionItem>>;
     async fn list_procedure(&self, _schema: Option<&str>) -> anyhow::Result<Vec<String>> {
-        self.backend_name().not_support_feature()
+        self.backend_kind().not_support_feature()
     }
     async fn list_procedure_completion(&self, schema: Option<&str>) -> Vec<CompletionItem> {
         self.list_procedure(schema)
@@ -1094,7 +1068,7 @@ pub trait AstCompletionHelper: Send + Sync + 'static + GetBackendKind + LangServ
         _schema: Option<&str>,
         _table: &str,
     ) -> anyhow::Result<Vec<String>> {
-        self.backend_name().not_support_feature()
+        self.backend_kind().not_support_feature()
     }
 
     async fn mysql_show_create_trigger(
@@ -1109,14 +1083,14 @@ pub trait AstCompletionHelper: Send + Sync + 'static + GetBackendKind + LangServ
         _schema: Option<&str>,
         _table: &str,
     ) -> anyhow::Result<Vec<String>> {
-        self.backend_name().not_support_feature()
+        self.backend_kind().not_support_feature()
     }
     async fn table_policy(
         &self,
         _schema: Option<&str>,
         _table: &str,
     ) -> anyhow::Result<Vec<String>> {
-        self.backend_name().not_support_feature()
+        self.backend_kind().not_support_feature()
     }
     async fn table_policy_completion(
         &self,
@@ -1141,21 +1115,21 @@ pub trait AstCompletionHelper: Send + Sync + 'static + GetBackendKind + LangServ
         _schema: Option<&str>,
         _table: &str,
     ) -> anyhow::Result<Vec<String>> {
-        self.backend_name().not_support_feature()
+        self.backend_kind().not_support_feature()
     }
     async fn list_constraint(
         &self,
         _schema: Option<&str>,
         _table_name: &str,
     ) -> anyhow::Result<Vec<String>> {
-        self.backend_name().not_support_feature()
+        self.backend_kind().not_support_feature()
     }
     async fn list_table_trigger(
         &self,
         _schema: Option<&str>,
         _table: &str,
     ) -> anyhow::Result<Vec<String>> {
-        self.backend_name().not_support_feature()
+        self.backend_kind().not_support_feature()
     }
 }
 
@@ -1176,7 +1150,7 @@ pub(crate) async fn try_parser_dot_lexer<T: LexerCompletionTrait + AstCompletion
     .await
     .inspect_err(|_| {
         log::error!("ast completion not finished in reasonable time this maybe a bug,sql:{} line:{} col:{} backend:{}" ,
-        sql,line,col,backend.backend_name());
+        sql,line,col,backend.backend_kind());
     })?;
     match r {
         Ok(mut xs) => {
@@ -1395,21 +1369,4 @@ select xxxx
         }
     }
     //
-}
-
-#[derive(Clone, Debug, typescript_type_def ::TypeDef, serde::Serialize)]
-pub struct ErrAndLoc {
-    pub line: Option<u32>,
-    pub column: Option<u32>,
-    pub msg: String,
-}
-
-impl From<String> for ErrAndLoc {
-    fn from(value: String) -> Self {
-        ErrAndLoc {
-            line: None,
-            column: None,
-            msg: value,
-        }
-    }
 }

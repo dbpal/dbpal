@@ -3,8 +3,8 @@ use std::{
     collections::HashMap,
     ffi::CStr,
     sync::{
-        Arc, Mutex,
         atomic::{AtomicBool, Ordering},
+        Arc, Mutex,
     },
     time::Duration,
 };
@@ -12,18 +12,18 @@ use std::{
 use crate::{
     datasource_config::{Db2Config, OdbcCommon},
     db::{
-        BackendKind, CatalogTrait, CheckConn, CreateSchemaExtra, DBTrait, ExportFrame, ExportKind,
-        ExportQueryResult, Field, GetBackendKind, ListTable, MetaValue, POOL_MAX_CONNECTIONS,
+        not_support_feature, BackendKind, CatalogTrait, CheckConn, CreateSchemaExtra, DBTrait,
+        ExportFrame, ExportKind, ExportQueryResult, Field, GetBackendKind, ListTable, MetaValue,
         QueryEventEmitter, QueryResp, QuerySql, ReadOnlyTrait, SchemaTrait, ServerMetas,
-        ShowTableParameter, SqlBuilder, SqlExecuteRet, not_support_feature,
+        ShowTableParameter, SqlBuilder, SqlExecuteRet, POOL_MAX_CONNECTIONS,
     },
 };
 use dashmap::DashMap;
 use futures_util::{io::Close, stream::Cycle};
 use gcp_bigquery_client::google::cloud::bigquery::storage::v1::read_rows_response::Schema;
 use ibm_db::{
-    Allocated, ColumnDescriptor, Cursor, ODBCConnectionManager, ResultSetState, SSHORT,
-    SqlDataType, Statement, safe::AutocommitOn,
+    safe::AutocommitOn, Allocated, ColumnDescriptor, Cursor, ODBCConnectionManager, ResultSetState,
+    SqlDataType, Statement, SSHORT,
 };
 use r2d2::{Pool, PooledConnection};
 use std::ops::Deref;
@@ -44,12 +44,6 @@ pub struct Db2Db {
 
 pub type Db2QueryConn = Arc<Mutex<PooledConnection<ODBCConnectionManager>>>;
 
-impl ReadOnlyTrait for Db2Db {
-    fn read_only(&self) -> bool {
-        self.config.read_only
-    }
-}
-
 impl Db2Db {
     pub(crate) fn get_query_conn(&self, query_id: &str) -> anyhow::Result<Db2QueryConn> {
         match self.query_connection.get(&query_id.to_string()) {
@@ -61,7 +55,8 @@ impl Db2Db {
 
 // https://www.ibm.com/docs/en/db2-for-zos/13.0.0?topic=attributes-length-sql-data-types
 fn encode_row(
-    cols: &[ColumnDescriptor], batch: &mut Cursor<'_, '_, '_, Allocated, AutocommitOn>,
+    cols: &[ColumnDescriptor],
+    batch: &mut Cursor<'_, '_, '_, Allocated, AutocommitOn>,
 ) -> anyhow::Result<Vec<Option<String>>> {
     let mut ret = Vec::with_capacity(cols.len());
     for i in 0..cols.len() {
@@ -137,7 +132,10 @@ fn encode_row(
 
 impl QuerySql for Db2Db {
     async fn query_sql(
-        &self, query_id: &str, sql: &str, emit: QueryEventEmitter,
+        &self,
+        query_id: &str,
+        sql: &str,
+        emit: QueryEventEmitter,
     ) -> anyhow::Result<()> {
         let sql = sql.to_owned();
         let this = Clone::clone(self);
@@ -188,7 +186,9 @@ impl QuerySql for Db2Db {
     }
 
     async fn execute_sql(
-        &self, query_id: &str, sql: &str,
+        &self,
+        query_id: &str,
+        sql: &str,
     ) -> anyhow::Result<Result<QueryResp, String>> {
         let sql = sql.to_owned();
         let this = Clone::clone(self);
@@ -206,9 +206,7 @@ impl QuerySql for Db2Db {
         .await?
     }
 
-    async fn execute_sql_no_open_conn(
-        &self, sql: &str,
-    ) -> anyhow::Result<Result<QueryResp, String>> {
+    async fn simple_execute_sql(&self, sql: &str) -> anyhow::Result<Result<QueryResp, String>> {
         match self.execute(sql).await {
             Ok(x) => anyhow::Ok(Ok(QueryResp::execute_ok(sql.to_string()))),
             Err(err) => anyhow::Ok(Err(err.to_string())),
@@ -317,7 +315,9 @@ impl DBTrait for Db2Db {
     }
 
     async fn create_schema(
-        &self, name: &str, extra: Option<CreateSchemaExtra>,
+        &self,
+        name: &str,
+        extra: Option<CreateSchemaExtra>,
     ) -> anyhow::Result<()> {
         let sql = format!("CREATE SCHEMA {}", name);
         self.execute(sql).await?;
@@ -397,7 +397,10 @@ impl ExportQueryResult for Db2Db {
     }
 
     async fn export_query_result(
-        &self, query_id: Option<&str>, _sql: &str, _kind: ExportKind,
+        &self,
+        query_id: Option<&str>,
+        _sql: &str,
+        _kind: ExportKind,
         _sender: tokio::sync::mpsc::Sender<ExportFrame>,
     ) -> anyhow::Result<()> {
         todo!()
@@ -420,13 +423,12 @@ impl std::fmt::Debug for Db2Db {
 
 impl Db2Db {
     pub(crate) async fn query_something<R: Default + Send + Sync + 'static>(
-        &self, sql: impl Into<String>,
-        mut extract_value: impl FnMut(
-            &mut Cursor<'_, '_, '_, Allocated, AutocommitOn>,
-        ) -> anyhow::Result<R>
-        + Send
-        + Sync
-        + 'static,
+        &self,
+        sql: impl Into<String>,
+        mut extract_value: impl FnMut(&mut Cursor<'_, '_, '_, Allocated, AutocommitOn>) -> anyhow::Result<R>
+            + Send
+            + Sync
+            + 'static,
     ) -> anyhow::Result<Vec<R>> {
         let this = Clone::clone(self);
         let sql = sql.into();
@@ -565,13 +567,18 @@ impl SchemaTrait for Db2Db {
     }
 
     async fn show_table(
-        &self, table_name: &str, _: ShowTableParameter, _: QueryEventEmitter,
+        &self,
+        table_name: &str,
+        _: ShowTableParameter,
+        _: QueryEventEmitter,
     ) -> anyhow::Result<()> {
         todo!()
     }
 
     async fn table_insert(
-        &self, table_name: &str, values: HashMap<String, Option<String>>,
+        &self,
+        table_name: &str,
+        values: HashMap<String, Option<String>>,
     ) -> anyhow::Result<SqlExecuteRet> {
         let fs = self.show_table_columns(table_name).await?;
         let sql = self.insert_sql(self.config.schema.as_deref(), table_name, &fs, &values)?;
@@ -580,7 +587,9 @@ impl SchemaTrait for Db2Db {
     }
 
     async fn table_update(
-        &self, table_name: &str, values: HashMap<String, Option<String>>,
+        &self,
+        table_name: &str,
+        values: HashMap<String, Option<String>>,
         wheres: HashMap<String, Option<String>>,
     ) -> anyhow::Result<SqlExecuteRet> {
         let fs = self.show_table_columns(table_name).await?;
@@ -595,13 +604,15 @@ impl SchemaTrait for Db2Db {
         anyhow::Ok(SqlExecuteRet { sql, changes: None })
     }
 
-    async fn truncate_table(&self, table_name: &str) -> anyhow::Result<()> {
+    async fn truncate_table(&self, table_name: &str) -> anyhow::Result<String> {
         let sql = format!(r#"TRUNCATE TABLE  "{table_name}" "#);
         self.execute(sql).await
     }
 
     async fn table_delete(
-        &self, table_name: &str, wheres: HashMap<String, Option<String>>,
+        &self,
+        table_name: &str,
+        wheres: HashMap<String, Option<String>>,
     ) -> anyhow::Result<SqlExecuteRet> {
         let fs = self.show_table_columns(table_name).await?;
         let sql = self.delete_sql(self.config.schema.as_deref(), table_name, &fs, &wheres)?;
@@ -609,7 +620,7 @@ impl SchemaTrait for Db2Db {
         anyhow::Ok(SqlExecuteRet { sql, changes: None })
     }
 
-    async fn drop_table(&self, table: &str, cascade: bool) -> anyhow::Result<()> {
+    async fn drop_table(&self, table: &str, cascade: bool) -> anyhow::Result<Option<String>> {
         let sql = format!(
             r#"DROP TABLE "{}"."{}" {}"#,
             self.config.schema_str(),
@@ -631,7 +642,7 @@ impl SchemaTrait for Db2Db {
 }
 
 impl SqlBuilder for Db2Db {
-    fn put_value_in_sql(&self, _typ: &str, _value: Option<&str>) -> anyhow::Result<String> {
+    fn put_value_in_sql(&self, _typ: &str, _value: &str) -> anyhow::Result<String> {
         todo!()
     }
 }
@@ -656,7 +667,7 @@ mod tests {
     #[tokio::test]
     async fn test_query() {
         let db = make_test_object().await;
-        let query_id = "";
+        let query_id = "aaaa";
         db.open_connection(query_id).await.unwrap();
         db.query_sql(
             query_id,
@@ -684,7 +695,7 @@ mod tests {
 
     async fn test_types1() {
         let table_name = "TEST_TYPES1";
-        let query_id = "";
+        let query_id = "aaaa";
         let db = make_test_object().await;
         db.open_connection(query_id).await.unwrap();
         {

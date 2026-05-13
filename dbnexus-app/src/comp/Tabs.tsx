@@ -1,4 +1,4 @@
-import React, { useContext, useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
   Stack,
   MenuItem,
@@ -6,74 +6,57 @@ import {
   Tabs,
   Tab,
   Tooltip,
-  Typography,
+  Chip,
+  useTheme,
+  Divider,
 } from "@mui/material";
 import CloseIcon from "@mui/icons-material/Close";
-import {
-  ContextMenuContext,
-  secondConfirm,
-  SetCloseConfirmTextContext,
-  TabContent,
-  TabActiveContext,
-  WindowFocusContext,
-} from "./helper";
+import { secondConfirm, TabContext, TabActiveContext } from "./helper";
 
-function TabsMenu(props: {
-  index;
-  handleClose;
-  setTabs;
-  changeTab;
-  tabsLength;
-  selectIndex;
-}) {
-  const { index, handleClose, setTabs, changeTab, tabsLength, selectIndex } = props;
+import { useBoolSwitch, useConfirmMsg, useContextMenu, useTabsManage } from "./store";
+import { IconModifed } from "./CommonComp2";
+
+const tabsWrapKey = "tabs-wrap-key";
+function TabsMenu(props: { index: number }) {
+  const { index } = props;
+  const { closeTab, setTabs, setCurrentTab, tabs } = useTabsManage();
+  const tabsLength = tabs.length;
+
+  const { switches, setSwitch } = useBoolSwitch();
+
+  const wrap = switches[tabsWrapKey];
 
   return (
     <MenuList>
       <MenuItem
         onClick={() => {
-          handleClose(index);
-        }}
-      >
+          closeTab(index);
+        }}>
         close
       </MenuItem>
       {index != 0 && (
         <MenuItem
           onClick={() => {
-            setTabs(e => {
-              changeTab(0);
-              return e.slice(index);
-            });
-          }}
-        >
+            setCurrentTab(0);
+            setTabs(tabs.slice(index));
+          }}>
           close to left
         </MenuItem>
       )}
       {index != tabsLength - 1 && (
         <MenuItem
           onClick={() => {
-            setTabs(e => {
-              const x = e.slice(0, index + 1);
-              if (selectIndex > index) {
-                changeTab(index);
-              }
-              return x;
-            });
-          }}
-        >
+            setTabs(tabs.slice(0, index + 1));
+          }}>
           close to right
         </MenuItem>
       )}
       {tabsLength > 1 && (
         <MenuItem
           onClick={() => {
-            setTabs(e => {
-              const x = [e[selectIndex]];
-              changeTab(0);
-              return x;
-            });
-          }}
-        >
+            setCurrentTab(0);
+            setTabs([tabs[index]]);
+          }}>
           close others
         </MenuItem>
       )}
@@ -89,40 +72,35 @@ function TabsMenu(props: {
               return;
             }
             setTabs([]);
-            changeTab(0);
-          }}
-        >
+            setCurrentTab(0);
+          }}>
           close all
         </MenuItem>
       )}
+
+      <MenuItem
+        onClick={() => {
+          setSwitch(tabsWrapKey, !wrap);
+        }}>
+        {wrap ? "nowrap" : "wrap"}
+      </MenuItem>
     </MenuList>
   );
 }
 
-function getLength(header: string, width: number, tabs: TabContent[]) {
-  let total: number = tabs.reduce((acc, cur) => {
-    return acc + cur.header.length;
-  }, 0);
-  return (width * header.length * 1.5) / total;
-}
-
-function TabsWithContent_(props: {
-  tabs: TabContent[];
-  handleClose: (index: number) => void;
-  changeTab: (index: number) => void;
-  selectIndex: number;
-  setTabs;
-}) {
-  const { tabs, handleClose, selectIndex, changeTab, setTabs } = props;
-  const { setUpMenu } = useContext(ContextMenuContext);
-  const windowFocus = useContext(WindowFocusContext);
+function TabsWithContent() {
+  const { tabs, setCurrentTab, currentTab, closeTab } = useTabsManage();
+  const setUpMenu = useContextMenu((state) => state.setUpMenu);
   const rootStack = useRef<HTMLDivElement>(null);
   const [tabWidth, setTabWidth] = useState(100);
+
+  const tabConfirmMsg = useConfirmMsg((state) => state.confirmMsgs);
+
   useEffect(() => {
     if (tabs.length == 0) {
       return;
     }
-    const e = new ResizeObserver(en => {
+    const e = new ResizeObserver((en) => {
       const width = en[0].target.clientWidth;
       if (width) {
         setTabWidth(width);
@@ -133,100 +111,146 @@ function TabsWithContent_(props: {
       e.disconnect();
     };
   }, [tabs]);
+  const { switches } = useBoolSwitch();
+  const wrap = switches[tabsWrapKey];
+  const theme = useTheme();
+
   return (
     <Stack style={{ width: "100%", height: "100%" }} ref={rootStack}>
-      <Tabs
-        value={selectIndex}
-        variant="scrollable"
-        scrollButtons="auto"
-        allowScrollButtonsMobile
-        onChange={(_, newValue) => {
-          changeTab(newValue);
-        }}
-        sx={{
-          // 1. Tab 之间缝隙
-          "& .MuiTabs-flexContainer": { columnGap: 0 }, // 4px
-          // 2. Tab 内边距
-          "& .MuiTab-root": { minHeight: 36, px: 0.4 }, // 高度36px，左右12px
-          opacity: windowFocus ? 1 : 0.6,
-        }}
-      >
-        {tabs.map((tab, index) => {
-          const max = getLength(tab.header, tabWidth, tabs);
-          return (
-            <Tab
-              style={{ maxWidth: max + "px" }}
-              key={tab.id}
-              label=<Tooltip title={tab.header}>
-                <Stack
-                  direction="row"
-                  style={{
-                    textTransform: "none",
-                    alignItems: "center",
-                  }}
-                  onContextMenu={e => {
-                    setUpMenu({
-                      content: (
-                        <TabsMenu
-                          index={index}
-                          handleClose={handleClose}
-                          setTabs={setTabs}
-                          tabsLength={tabs.length}
-                          changeTab={changeTab}
-                          selectIndex={selectIndex}
-                        />
-                      ),
-                      event: e,
-                    });
-                  }}
-                >
-                  {tabs.length <= 8 && max > 100 ? tab.icon : undefined}
-                  <Typography
+      {!wrap && (
+        <Tabs
+          value={currentTab}
+          variant="scrollable"
+          scrollButtons="auto"
+          allowScrollButtonsMobile
+          onChange={(_, newValue) => {
+            setCurrentTab(newValue);
+          }}
+          sx={{
+            // 1. Tab 之间缝隙
+            "& .MuiTabs-flexContainer": { columnGap: 0 }, // 4px
+            // 2. Tab 内边距
+            "& .MuiTab-root": { minHeight: 36, px: 0.4 }, // 高度36px，左右12px
+          }}>
+          {tabs.map((tab, index) => {
+            const max = (tabWidth * 2.2) / tabs.length;
+            return (
+              <Tab
+                style={{ maxWidth: max + "px" }}
+                key={tab.id}
+                label=<Tooltip title={tab.header}>
+                  <Chip
+                    color={currentTab == index ? "success" : "default"}
+                    icon={max < 100 ? undefined : tab.icon}
                     style={{
-                      fontWeight: index == selectIndex ? "bolder" : "normal",
-                      minWidth: "2rem",
-                      whiteSpace: "nowrap",
-                      overflow: "hidden",
-                      textOverflow: "clip",
-                      flex: 1,
-                      // fontSize: index == selectIndex ? "1.1rem" : "1rem",
+                      textTransform: "none",
+                      alignItems: "center",
+                      fontWeight: currentTab == index ? "bolder" : undefined,
                     }}
-                  >
-                    {tab.header}
-                  </Typography>
-                  <CloseIcon
-                    onClick={() => {
-                      handleClose(index);
+                    size="largeSmall"
+                    deleteIcon={
+                      tabConfirmMsg.get(tab.id) ? (
+                        <IconModifed />
+                      ) : (
+                        <CloseIcon
+                          onClick={() => {
+                            closeTab(index);
+                          }}
+                          style={{ fontSize: "0.9rem" }}
+                          color="warning"
+                        />
+                      )
+                    }
+                    onDelete={() => {
+                      closeTab(index);
                     }}
-                    style={{ fontSize: "0.9rem" }}
-                    color="warning"
+                    label={tab.header}
+                    onContextMenu={(e) => {
+                      setUpMenu({
+                        content: <TabsMenu index={index} />,
+                        event: e,
+                      });
+                    }}
                   />
-                </Stack>
-              </Tooltip>
-            />
-          );
-        })}
-      </Tabs>
+                </Tooltip>
+              />
+            );
+          })}
+        </Tabs>
+      )}
+      {wrap && (
+        <Stack
+          direction="row"
+          style={{ alignItems: "center", flexWrap: "wrap" }}
+          spacing={0}>
+          {tabs.map((tab, index) => (
+            <div
+              key={tab.id}
+              style={{
+                paddingBottom: "0.7rem",
+                borderBottom:
+                  index == currentTab
+                    ? "2px solid " + theme.palette.primary.main
+                    : undefined,
+              }}>
+              <Chip
+                color={currentTab == index ? "success" : "default"}
+                size="largeSmall"
+                deleteIcon={
+                  tabConfirmMsg.get(tab.id) ? (
+                    <IconModifed />
+                  ) : (
+                    <CloseIcon
+                      onClick={() => {
+                        closeTab(index);
+                      }}
+                      style={{ fontSize: "0.9rem" }}
+                      color="warning"
+                    />
+                  )
+                }
+                icon={tab.icon}
+                sx={{
+                  marginLeft: "4px",
+                  marginTop: "2px",
+                  cursor: "pointer",
+                }}
+                onDelete={() => {
+                  closeTab(index);
+                }}
+                onClick={() => {
+                  setCurrentTab(index);
+                }}
+                label={tab.header}
+                onContextMenu={(e) => {
+                  setUpMenu({
+                    content: <TabsMenu index={index} />,
+                    event: e,
+                  });
+                }}
+              />
+            </div>
+          ))}
+        </Stack>
+      )}
+
+      {tabs.length > 0 && <Divider />}
+
       <div style={{ flex: 1 }}>
         {tabs.map((tab, index) => (
-          <TabActiveContext.Provider key={tab.id} value={selectIndex == index}>
-            <SetCloseConfirmTextContext
-              value={e => {
-                tabs[index].closeConfirmText = e;
-              }}
-            >
+          <TabActiveContext.Provider key={tab.id} value={currentTab == index}>
+            <TabContext value={{ id: tab.id }}>
               <div
-                hidden={selectIndex !== index}
-                style={{ height: "100%", position: "relative" }}
-              >
+                hidden={currentTab !== index}
+                style={{ height: "100%", position: "relative" }}>
                 {tab.content}
               </div>
-            </SetCloseConfirmTextContext>
+            </TabContext>
           </TabActiveContext.Provider>
         ))}
       </div>
     </Stack>
   );
 }
-const TabsWithContent = React.memo(TabsWithContent_);
-export { TabsWithContent, TabContent };
+
+export { TabsWithContent };

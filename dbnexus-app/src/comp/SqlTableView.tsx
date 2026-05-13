@@ -1,15 +1,27 @@
-import { useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
+import {
+  createContext,
+  Dispatch,
+  SetStateAction,
+  useCallback,
+  useContext,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
+
+import { FaUpload } from "react-icons/fa";
 import CancelIcon from "@mui/icons-material/Cancel";
-import types from "./ApiStruct";
 import {
   Box,
   Button,
   Checkbox,
   Chip,
+  Dialog,
+  DialogTitle,
   Divider,
   FormControlLabel,
   IconButton,
-  InputAdornment,
   ListItemIcon,
   ListItemText,
   MenuItem,
@@ -20,24 +32,12 @@ import {
   Tooltip,
   Typography,
 } from "@mui/material";
-import { IoLocation } from "react-icons/io5";
-import ContentCopyIcon from "@mui/icons-material/ContentCopy";
-import CloseIcon from "@mui/icons-material/Close";
-import CheckIcon from "@mui/icons-material/Check";
+
+import { MdOutlineReply } from "react-icons/md";
 import VisibilityIcon from "@mui/icons-material/Visibility";
 import EditIcon from "@mui/icons-material/Edit";
-import { NotificationContext } from "./Notification";
 import ArrowCircleDownIcon from "@mui/icons-material/ArrowCircleDown";
-import {
-  DataGrid,
-  GridCallbackDetails,
-  GridPaginationModel,
-  GridSlotsComponent,
-  GridSlotsComponentsProps,
-  GridSortModel,
-  useGridApiRef,
-} from "@mui/x-data-grid";
-import ClearIcon from "@mui/icons-material/Clear";
+
 import {
   EscDownEvent,
   FieldAndGridField,
@@ -53,28 +53,18 @@ import ArrowDownwardIcon from "@mui/icons-material/ArrowDownward";
 import FilterAltIcon from "@mui/icons-material/FilterAlt";
 import { FaArrowsAltV } from "react-icons/fa";
 import {
-  ColumnWidth,
-  ContextMenuContext,
   DataSourceKind,
   handleCopyToClipboard,
   isTypeLargeText,
-  ErrAndLoc,
-  saveAndSetSize,
   secondConfirm,
-  SettingContext,
-  validJson,
-  SavePageSize,
   textEllipsisStyle,
   quoteDatabaseIdentifier,
-  MuiDataGridData,
   extractFieldAndIDFromMouseEvent,
   dataGridStyle,
   pageSizeOptions,
   dataGridheaderFontSize,
   shrinkAble,
-  executeSqlWithoutConn,
-  SetCloseConfirmTextContext,
-  getSupportExportKind,
+  TabContext,
 } from "./helper";
 import { FaCopy } from "react-icons/fa6";
 import FileCopyIcon from "@mui/icons-material/FileCopy";
@@ -82,130 +72,142 @@ import {
   AppColumnMenu,
   ModalHeader,
   ResetColumnWidth,
-  TimeDuration,
   ViewRowInModal,
 } from "./CommonComp";
-import { Position } from "monaco-editor";
+
+import { editor } from "monaco-editor";
 import wcmatch from "wildcard-match";
 import { MdEditNote } from "react-icons/md";
 import {
   AppDataGridPagination,
   AppDataGridToolBar,
-  LastFetchTime,
+  ClearableTextField,
+  CopySql,
+  FetchTimeDataGrid,
+  ListenElementSize,
   QueryStatus,
+  RefreshButton,
   SetFilterSort,
   SimpleFlexEditor,
   SliderSize,
   StackRowCenter,
-  TableAddButton,
 } from "./CommonComp2";
+import { showTable } from "./handlers";
+import { AddTableModal } from "./LeftTable";
 import {
-  makePutValueInSql,
-  makeTableDelete,
-  makeTableInsertFn,
-  makeTableUpdate,
-  showTable,
-} from "./handlers";
-import { AddTableView } from "./LeftTable";
+  useColumnWidthStore,
+  useConfirmMsg,
+  useContextMenu,
+  useEditInModalLanguageStore,
+  useNotification,
+  useOneShotDialogUI,
+  usePageSize,
+  UseSizeConfig,
+  useSizeStore,
+  useSqlDataFilter,
+  useSqlTableFilterOp,
+  useTableColumnVisibleStore,
+} from "./store";
+import { commands, Field, MuiDataGridData } from "./bindings";
 import { ExportTableOrView } from "./Export";
+import {
+  DataGrid,
+  GridCallbackDetails,
+  GridPaginationModel,
+  GridRenderCellParams,
+  gridRowsLoadingSelector,
+  GridSlotProps,
+  GridSlotsComponent,
+  GridSlotsComponentsProps,
+  GridSortModel,
+  useGridApiContext,
+  useGridApiRef,
+  useGridSelector,
+} from "./datagridExport";
 
-const confirmAboutPrimary = async (
-  notWarnPri: boolean,
-  fields: types.Field[],
-): Promise<boolean> => {
-  if (notWarnPri) {
-    return true;
-  }
-  const hasPri = !!fields.find(x => x.is_primary);
+const confirmAboutPrimary = async (fields: Field[]): Promise<boolean> => {
+  const hasPri = !!fields.find((x) => x.is_primary);
   if (hasPri) {
     return true;
   }
   return secondConfirm({
     title: "No Primary key found.",
     content: "No Primary key found,maybe multi row affected.",
-    kind: "error",
+    kind: "warning",
   });
 };
 
-const getRowId = e => e[keyNotInTable];
+const getRowId = (e) => e[keyNotInTable];
 
-let EditInModalLanguage = "text";
-const editInModalLanguages = [
-  { language: "text" },
-  { language: "html" },
-  { language: "json" },
-  { language: "xml" },
-] as {
-  language: string;
-}[];
+function EditInModal(props: {
+  content: string;
+  handleModify: (_: string) => void;
+  handleClose: () => void;
+}) {
+  const { content, handleModify, handleClose } = props;
 
-function EditInModal(props: { content: string; handleModify }) {
-  const { content, handleModify } = props;
-  const [jsonErr, setJsonErr] = useState<ErrAndLoc>(null);
-  const [jsonErrPos, setJsonErrPos] = useState<Position>(null);
-  const [language, setLanguage] = useState(EditInModalLanguage);
-  const [value, setValue] = useState(content);
+  const langs = useMemo(() => {
+    return ["text", "html", "json", "xml"];
+  }, []);
+  const { editingRowLanguage, setEditingRowLanguage } = useEditInModalLanguageStore();
+  const [editor, setEditor] = useState<editor.IStandaloneCodeEditor>(null);
+  const [editInModalBox, setEditInModalBox] = useState(null);
+
   useEffect(() => {
-    if (language != "json") {
-      setJsonErr(null);
-      return;
+    if (!editingRowLanguage) {
+      setEditingRowLanguage(langs[0]);
     }
-    validJson(value).then(e => {
-      setJsonErr(e);
-    });
-  }, [value, language]);
+  }, [editingRowLanguage, langs, setEditingRowLanguage]);
 
   return (
-    <Stack flex={1}>
-      <Stack direction="row">
-        {editInModalLanguages.map(e => (
-          <Chip
-            key={e.language}
-            label={e.language}
-            color={language == e.language ? "success" : "default"}
-            onClick={() => {
-              setLanguage(e.language);
-              EditInModalLanguage = e.language;
+    <Modal
+      open={true}
+      onClose={modalHandleClose((e: EscDownEvent) => {
+        e.preventDefault();
+        handleClose();
+      })}>
+      <Box
+        sx={{ resize: "both", ...modalStyle, width: "80%", height: "30vh" }}
+        ref={setEditInModalBox}>
+        <ModalHeader
+          title="edit cell"
+          handleClose={() => {
+            handleClose();
+          }}
+        />
+        <ListenElementSize dom={editInModalBox} set="both" name="table-edit-in-modal" />
+        <Stack style={{ flex: 1 }}>
+          <Stack direction="row">
+            {langs.map((lang) => (
+              <Chip
+                key={lang}
+                label={lang}
+                color={lang == editingRowLanguage ? "success" : "default"}
+                onClick={() => {
+                  setEditingRowLanguage(lang);
+                }}
+              />
+            ))}
+          </Stack>
+          <SimpleFlexEditor
+            value={content}
+            language={editingRowLanguage}
+            handleEditor={(ed) => {
+              setEditor(ed);
             }}
           />
-        ))}
-      </Stack>
-      <SimpleFlexEditor
-        value={content}
-        language={language}
-        handleValue={v => {
-          setValue(v);
-        }}
-        errPos={jsonErrPos}
-        barLeft={
-          jsonErr ? (
-            <Typography
-              color="error"
-              variant="body1"
-              style={{ cursor: "pointer" }}
+          <Divider />
+          <Stack direction="row">
+            <Button
               onClick={() => {
-                if (!jsonErr) {
-                  return;
-                }
-                setJsonErrPos(new Position(jsonErr.line, jsonErr.column));
-              }}
-            >
-              {jsonErr.msg}
-            </Typography>
-          ) : undefined
-        }
-      />
-      <Divider />
-      <Stack direction="row">
-        <Button
-          onClick={() => {
-            handleModify(value);
-          }}
-        >
-          modify
-        </Button>
-      </Stack>
-    </Stack>
+                handleModify(editor.getValue());
+              }}>
+              modify
+            </Button>
+          </Stack>
+        </Stack>
+      </Box>
+    </Modal>
   );
 }
 
@@ -227,96 +229,458 @@ class DatabaseOperation {
   public constructor(
     public op: DatabaseOpKind,
     public sql: string,
-    public old: object,
+    public tableId: string,
+    public newValue: object | null,
   ) {}
 }
+function tryGetId(data: object, fields: Field[]) {
+  let pf = fields.filter((e) => e.is_primary);
+  if (pf.length == 0) {
+    pf = fields;
+  }
+  return pf.map((x) => data[x.field]).join("-");
+}
 
-function DatabaseOperationView(props: {
-  op: DatabaseOperation;
-  handleDelete: (applied: boolean) => void;
+interface SqlTableCustomToolBarLeftProps {
+  handleReload: (showOK: boolean) => void;
+  where: string;
+  setWhere: (val: string) => void;
+  sort: string;
+  setSort: (val: string) => void;
+  kind: DataSourceKind; // 假设你已经定义了这个 Enum 或 Type
+  allowFiltering: boolean;
+  setAllowFiltering: Dispatch<SetStateAction<boolean>>;
+  isTable: boolean;
   uuid: string;
-  handleHighLight: () => void;
-}) {
-  const { handleDelete, uuid, handleHighLight } = props;
-  const { sql } = props.op;
-  const [loading, setLoading] = useState(false);
-  const handleApply = () => {
-    setLoading(true);
-    executeSqlWithoutConn(uuid, sql)
-      .then(row_aff => {
-        showNotification("success", "database operation ok", `row affected:${row_aff}`);
-        handleDelete(true);
-      })
-      .catch(e => {
-        showNotification("error", "update failed", e);
-      })
-      .finally(() => {
-        setLoading(false);
-      });
-  };
+  tableName: string;
+}
+// 建议放在文件顶部，或者单独的文件中
+function SqlTableCustomToolBarLeft({
+  handleReload,
+  where,
+  setWhere,
+  sort,
+  setSort,
+  kind,
+  allowFiltering,
+  setAllowFiltering,
+  isTable,
+  uuid,
+  tableName,
+}: SqlTableCustomToolBarLeftProps) {
+  // 获取 DataGrid 内部的 api 实例
 
-  const { showNotification } = useContext(NotificationContext);
+  const { ops, setOps } = useContext(OpsContext);
+  const apiRef = useGridApiContext();
+  const [showSetWhere, setShowSetWhere] = useState(false);
+  const [showSetSort, setShowSetSort] = useState(false);
+
+  const { showNotification } = useNotification();
+
+  // 使用选择器获取当前的 loading 状态
+  const isLoading: boolean = useGridSelector(apiRef, gridRowsLoadingSelector);
 
   return (
     <Stack direction="row" style={{ alignItems: "center" }}>
-      <Tooltip title="cancel this not apply anything">
-        <IconButton
-          onClick={() => {
-            handleDelete(false);
+      <RefreshButton
+        loading={isLoading}
+        color="primary"
+        onClick={() => handleReload(true)}
+      />
+
+      {showSetWhere && (
+        <SetFilterSort
+          tableName={tableName}
+          open={showSetWhere}
+          value={where}
+          setValue={(v) => {
+            setWhere(v);
           }}
-        >
-          <CloseIcon color="warning" />
-        </IconButton>
-      </Tooltip>
-
-      <Tooltip title="apply">
-        <IconButton loading={loading} onClick={handleApply}>
-          <CheckIcon color="primary" />
-        </IconButton>
-      </Tooltip>
-
-      <Tooltip title="copy sql">
-        <IconButton
-          onClick={() => {
-            handleCopyToClipboard(sql, showNotification);
+          handleClose={() => {
+            setShowSetWhere(false);
           }}
-        >
-          <ContentCopyIcon />
-        </IconButton>
+          label="filter"
+          kind={kind}
+          uuid={uuid}
+        />
+      )}
+
+      {showSetSort && (
+        <SetFilterSort
+          tableName={tableName}
+          open={showSetSort}
+          value={sort}
+          setValue={(v) => {
+            setSort(v);
+          }}
+          kind={kind}
+          handleClose={() => {
+            setShowSetSort(false);
+          }}
+          label="sort"
+          uuid={uuid}
+        />
+      )}
+
+      <Tooltip title={where ? where : "filter something like 'age=18'"}>
+        <Chip
+          label={where}
+          onClick={() => setShowSetWhere(true)}
+          style={{ ...shrinkAble, maxWidth: "14vw", textOverflow: "clip" }}
+          size="medium"
+          color="primary"
+          icon={<FilterAltIcon />}
+          onDelete={where ? () => setWhere("") : undefined}
+        />
       </Tooltip>
 
-      <Tooltip title="locate the row we are editing">
-        <IconButton onClick={handleHighLight}>
-          <IoLocation fontSize="1.4em" />
-        </IconButton>
+      <Tooltip title={sort ? sort : "sort something like 'age asc'"}>
+        <Chip
+          label={sort}
+          onClick={() => setShowSetSort(true)}
+          style={{ ...shrinkAble, maxWidth: "12vw", textOverflow: "clip" }}
+          size="medium"
+          color="secondary"
+          variant="outlined"
+          onDelete={sort ? () => setSort("") : undefined}
+          icon={<FaArrowsAltV />}
+        />
       </Tooltip>
-      <Typography color="info" style={textEllipsisStyle}>
-        {sql}
-      </Typography>
+
+      {kind === DataSourceKind.Cassandra && (
+        <FormControlLabel
+          control={
+            <Checkbox
+              checked={allowFiltering}
+              onChange={(e) => setAllowFiltering(e.target.checked)}
+            />
+          }
+          label="allow filtering"
+        />
+      )}
+
+      {isTable && <AddTableModal kind={kind} tableName={tableName} uuid={uuid} />}
+      {ops.length > 0 && (
+        <>
+          <Tooltip
+            slotProps={{
+              tooltip: {
+                style: {
+                  maxWidth: "33vw",
+                },
+              },
+            }}
+            title=<>
+              {ops.map((x, index) => (
+                <CopySql sql={x.sql} key={index} />
+              ))}
+              <Typography style={{ fontWeight: "bold" }}> apply all </Typography>
+            </>>
+            <IconButton
+              onClick={async () => {
+                for (const op of ops) {
+                  try {
+                    await commands.simpleExecuteSql(uuid, op.sql);
+                    showNotification({
+                      severity: "success",
+                      message: <CopySql sql={op.sql} />,
+                      title: "apply success",
+                    });
+                  } catch (e) {
+                    showNotification({
+                      severity: "error",
+                      message: e,
+                      title: "apply failed",
+                    });
+                  }
+                }
+                setOps([]);
+                handleReload(false);
+              }}>
+              <FaUpload />
+            </IconButton>
+          </Tooltip>
+          <IconButton
+            color="warning"
+            onClick={async () => {
+              if (
+                !(await secondConfirm({
+                  title: `discard ${ops.length} changes?`,
+                  confirmText: "discard",
+                }))
+              ) {
+                return;
+              }
+              setOps([]);
+            }}>
+            <MdOutlineReply style={{ fontSize: "1.4rem" }} />
+          </IconButton>
+        </>
+      )}
     </Stack>
   );
 }
 
+type CustomPaginationProps = { resp: MuiDataGridData; clientModel: boolean };
+export function CustomPagination({
+  dbpal: { resp, clientModel },
+}: {
+  dbpal: CustomPaginationProps;
+}) {
+  const { showNotification } = useNotification();
+  return (
+    <Stack
+      direction="row"
+      sx={{
+        alignItems: "center",
+        justifyContent: "space-between",
+        flex: 1,
+        overflow: "auto",
+      }}>
+      <Stack direction="row" sx={{ alignItems: "center", flex: 1 }}>
+        <FetchTimeDataGrid />
+        <ResetColumnWidth />
+        {clientModel && <SliderSize config={UseSizeConfig.queryLimit} />}
+        {resp.sql && (
+          <Tooltip title={resp.sql}>
+            <Typography
+              variant="body2"
+              sx={{ cursor: "pointer", color: "info.main" }}
+              onClick={() => handleCopyToClipboard(resp.sql!, showNotification)}>
+              SQL
+            </Typography>
+          </Tooltip>
+        )}
+      </Stack>
+
+      <Stack direction="row" sx={{ alignItems: "center" }}>
+        {!clientModel && (
+          <Typography variant="body2" color="info.main" sx={textEllipsisStyle}>
+            result {resp.data.length} of {resp.total}
+          </Typography>
+        )}
+
+        <AppDataGridPagination showPageSelect />
+      </Stack>
+    </Stack>
+  );
+}
+
+function EditRowInModal(props: {
+  handleClose: () => void;
+  fields: Field[];
+  handleProcessRowUpdate: (value: object, newValue: object) => void;
+  value: object;
+}) {
+  const { handleClose, value, fields, handleProcessRowUpdate } = props;
+  const [editRowInModalBox, setEditRowInModalBox] = useState(null);
+  return (
+    <Modal
+      open={true}
+      onClose={modalHandleClose((e: EscDownEvent) => {
+        e.preventDefault();
+        handleClose();
+      })}>
+      <Box
+        sx={{ resize: "horizontal", ...modalStyle, width: "80%" }}
+        ref={setEditRowInModalBox}>
+        <ModalHeader
+          title="edit row"
+          handleClose={() => {
+            handleClose();
+          }}
+        />
+        <ListenElementSize
+          dom={editRowInModalBox}
+          set="both"
+          name="table-edit-row-in-modal"
+        />
+        <SqlTableViewData
+          initValues={value}
+          buttonName="modify"
+          fields={fields}
+          isAdd={false}
+          handleData={async (args) => {
+            handleProcessRowUpdate(args, value);
+          }}
+          handleClose={() => handleClose()}
+        />
+      </Box>
+    </Modal>
+  );
+}
+
+const OpsContext = createContext<{
+  ops: DatabaseOperation[];
+  setOps: Dispatch<SetStateAction<DatabaseOperation[]>>;
+  fields: Field[];
+  uuid: string;
+  handleReload: () => void;
+  clickedField: string;
+}>(null);
+
+function CellButtons(props: {
+  op: DatabaseOperation;
+  setOps: Dispatch<SetStateAction<DatabaseOperation[]>>;
+  uuid: string;
+  firstField: boolean;
+  handleReload: () => void;
+}) {
+  const { op, setOps, uuid, firstField, handleReload } = props;
+  const { showNotification } = useNotification();
+  return (
+    firstField && (
+      <>
+        <Tooltip
+          title=<>
+            <CopySql sql={op.sql} />
+          </>>
+          <IconButton
+            onClick={async () => {
+              try {
+                await commands.simpleExecuteSql(uuid, op.sql);
+                setOps((ops) => ops.filter((x) => x != op));
+                showNotification({
+                  severity: "success",
+                  title: "execute sql success",
+                  message: <CopySql sql={op.sql} />,
+                });
+                handleReload();
+              } catch (e) {
+                showNotification({
+                  severity: "error",
+                  title: "try execute sql failed",
+                  message: e,
+                });
+              }
+            }}>
+            <FaUpload />
+          </IconButton>
+        </Tooltip>
+        <IconButton
+          onClick={() => {
+            setOps((ops) => ops.filter((x) => x != op));
+          }}>
+          <MdOutlineReply style={{ fontSize: "1.2rem" }} />
+        </IconButton>
+      </>
+    )
+  );
+}
+
+function CustomCell(props: GridRenderCellParams) {
+  const { row, field } = props;
+  const { ops, setOps, fields, uuid, handleReload, clickedField } =
+    useContext(OpsContext);
+  let dbId = tryGetId(row, fields);
+  const modified = ops.find((x) => x.tableId == dbId && x.op == DatabaseOpKind.Update);
+  const deleted = ops.find((x) => x.tableId == dbId && x.op == DatabaseOpKind.Delete);
+  const firstField = fields[0].field == field;
+  let dataField = { "data-field": field };
+  if (deleted) {
+    return (
+      <Stack
+        direction="row"
+        spacing={0}
+        {...dataField}
+        style={{ alignItems: "center" }}>
+        <CellButtons
+          uuid={uuid}
+          setOps={setOps}
+          op={deleted}
+          handleReload={handleReload}
+          firstField={firstField}
+        />
+        <Typography style={{ textDecoration: "line-through", color: "red" }}>
+          {row[field]}
+        </Typography>
+      </Stack>
+    );
+  }
+
+  if (modified) {
+    return (
+      <Stack
+        spacing={0}
+        direction="row"
+        style={{ alignItems: "center" }}
+        {...dataField}>
+        <CellButtons
+          uuid={uuid}
+          setOps={setOps}
+          op={modified}
+          handleReload={handleReload}
+          firstField={firstField}
+        />
+        {modified.newValue[field] != row[field] ? (
+          <Tooltip
+            title=<Stack>
+              <CopySql sql={modified.sql} />
+              <Typography> old value:{row[field]} </Typography>
+            </Stack>>
+            <Typography
+              sx={{
+                color: "red",
+                fontWeight: "bolder",
+              }}>
+              {modified.newValue[field]}
+            </Typography>
+          </Tooltip>
+        ) : (
+          <Typography>{row[field]}</Typography>
+        )}
+      </Stack>
+    );
+  }
+  if (field == clickedField) {
+    return (
+      <Typography {...dataField} style={{ background: " #c8e6c9", color: "black" }}>
+        {row[field]}
+      </Typography>
+    );
+  }
+  return <Typography {...dataField}>{row[field]}</Typography>;
+}
 function SqlTableView(props: {
-  notWarnPri?: boolean;
   kind: DataSourceKind;
   tableName: string;
-  uuid;
+  uuid: string;
   isTable: boolean;
 }) {
-  const { notWarnPri, kind, tableName, uuid, isTable } = props;
-  const getUpdateSql = makeTableUpdate(uuid, tableName);
-  const getDeleteSql = makeTableDelete(uuid, tableName);
-  const put_value_in_sql = makePutValueInSql(uuid);
-  const addOP = makeTableInsertFn(uuid, tableName);
+  const { kind, tableName, uuid, isTable } = props;
+  const getUpdateSql = useCallback(
+    (x, y) => {
+      return commands.tableUpdateSql(uuid, tableName, x, y);
+    },
+    [tableName, uuid],
+  );
+  const getDeleteSql = useCallback(
+    (x) => {
+      return commands.tableDeleteSql(uuid, tableName, x);
+    },
+    [tableName, uuid],
+  );
+  const putValueInSql = useCallback(
+    (typ, x) => {
+      return commands.putValueInSql(uuid, typ, x);
+    },
+    [uuid],
+  );
+  const addOP = useCallback(
+    async (x) => {
+      await commands.tableInsert(uuid, tableName, x);
+    },
+    [uuid, tableName],
+  );
+
   const [loading, setLoading] = useState(false);
   const [where, setWhere] = useState("");
-  const [showSetWhere, setShowSetWhere] = useState(false);
+
   const [sort, setSort] = useState("");
-  const [showSetSort, setShowSetSort] = useState(false);
-  const setting = useContext(SettingContext);
+
   const [page, setPage] = useState(0);
-  const [pageSize, setPageSize] = useState(SavePageSize.instance.get());
+  const { sql: pageSize, setPageSize } = usePageSize();
+  const { setUi } = useOneShotDialogUI();
   const [resp, setResp] = useState<MuiDataGridData>({
     sql: "",
     fields: [],
@@ -324,107 +688,97 @@ function SqlTableView(props: {
     total: 0,
   });
   const apiRef = useGridApiRef();
-  const [lastFetchTime, setLastFetchTime] = useState(new Date());
-  useEffect(() => {
-    setLastFetchTime(new Date());
-  }, [resp]);
-
   const [ops, setOps] = useState<DatabaseOperation[]>([]);
-  const [opsIds, setOpsIds] = useState<Set<string>>(new Set());
-  const setCloseConfirm = useContext(SetCloseConfirmTextContext);
+
+  const tabCtx = useContext(TabContext);
+  const { removeConfirmMsg, addConfirmMsg } = useConfirmMsg();
+
   useEffect(() => {
-    const s = new Set<string>();
-    for (const op of ops) {
-      s.add(op.old[keyNotInTable]);
-    }
-    setOpsIds(s);
-    if (s.size == 0) {
-      setCloseConfirm("");
+    if (ops.length == 0) {
+      removeConfirmMsg(tabCtx.id);
     } else {
-      setCloseConfirm(`sure to discard ${s.size} changes?`);
+      addConfirmMsg(tabCtx.id, `sure to discard ${ops.length} changes?`);
     }
-  }, [ops, setCloseConfirm]);
+    return () => {
+      removeConfirmMsg(tabCtx.id);
+    };
+  }, [ops, tabCtx.id, removeConfirmMsg, addConfirmMsg]);
 
-  const rowInOps = id => {
-    return opsIds.has(id);
-  };
-  const [highLightRow, setHighLightRow] = useState("");
-
-  useEffect(() => {
-    if (!highLightRow) {
-      return;
-    }
-    // get index
-    const index = resp.data.findIndex(e => e[keyNotInTable] === highLightRow);
-    if (index != -1) {
-      apiRef.current.scrollToIndexes({ rowIndex: index });
-    }
-  }, [apiRef, highLightRow, resp.data]);
-
-  const [fetchDur, setFetchDur] = useState(0);
-  const clientModelLimit = useRef<number>(1000);
-  const { showNotification } = useContext(NotificationContext);
+  const { showNotification } = useNotification();
   const [allowFiltering, setAllowFiltering] = useState(false);
   const [editCellInModal, setEditCellInModal] = useState<EditInModalCellData>(null);
   const [editRowInModal, setRowEditInModal] = useState<object>(null);
   const clientModel = [DataSourceKind.Cassandra].includes(kind);
   const [viewInModal, setViewInModal] = useState<object>(null);
-  const [showExport, setShowExport] = useState(false);
-  const [showAdd, setShowAdd] = useState(false);
   const [queryStatus, setQueryStatus] = useState("");
   const [clickedField, setClickedField] = useState("");
-  const handleResp = (resp: MuiDataGridData) => {
-    resp.data.forEach((data, index) => {
-      data[keyNotInTable] = index + "";
-    });
-    resp.fields.forEach(field => {
-      const width = ColumnWidth.instance.get(field.field);
-      if (width) {
-        field["width"] = width;
-      }
-    });
-    for (let i = 0; i < resp.fields.length; i++) {
-      const field = resp.fields[i] as FieldAndGridField;
-      field.renderHeader = e => {
-        const field = e.colDef as unknown as FieldAndGridField;
-        const makeTitle = (): string => {
-          let ret = field.field + " ";
-          ret += field.data_type;
-          if (field.nullable) {
-            ret += " null";
-          } else {
-            ret += " not null";
-          }
-          if (field.is_auto_increment) {
-            ret += " auto increment";
-          }
-          if (field.default_value) {
-            ret += " " + field.default_value;
-          }
-          return ret;
+  const { getColumnWidth, setColumnWidth } = useColumnWidthStore();
+  const [showClone, setShowClone] = useState<object>(null);
+  const getSize = useSizeStore((s) => s.getSize);
+  const [showFilter, setShowFilter] = useState<{
+    field: string;
+    content: string;
+    typ: string;
+  }>(null);
+  const handleResp = useCallback(
+    (resp: MuiDataGridData) => {
+      resp.data.forEach((data, index) => {
+        data[keyNotInTable] = index + "";
+      });
+      resp.fields.forEach((field) => {
+        const width = getColumnWidth(field.field);
+        if (width) {
+          field["width"] = width;
+        }
+      });
+      for (let i = 0; i < resp.fields.length; i++) {
+        const field = resp.fields[i] as FieldAndGridField;
+        field.renderCell = (e) => <CustomCell {...e} />;
+        field.renderHeader = (e) => {
+          const field = e.colDef as unknown as FieldAndGridField;
+          const makeTitle = (): string => {
+            let ret = field.field + " ";
+            ret += field.data_type;
+
+            if (!isTable) {
+              return ret;
+            }
+            if (field.nullable) {
+              ret += " null";
+            } else {
+              ret += " not null";
+            }
+            if (field.is_auto_increment) {
+              ret += " auto increment";
+            }
+            if (field.default_value) {
+              ret += " " + field.default_value;
+            }
+            return ret;
+          };
+          return (
+            <Stack
+              onClick={(e) => {
+                e.stopPropagation();
+                setClickedField(field.field);
+              }}
+              style={{ alignItems: "center" }}
+              direction="row">
+              <Tooltip title={makeTitle()}>
+                <Typography style={{ fontSize: dataGridheaderFontSize }}>
+                  {field.field}
+                </Typography>
+              </Tooltip>
+              {field.is_primary && <KeyIcon style={{ fontSize: "16px" }} />}
+            </Stack>
+          );
         };
-        return (
-          <Stack
-            onClick={e => {
-              e.stopPropagation();
-              setClickedField(field.field);
-            }}
-            style={{ alignItems: "center", cursor: "default" }}
-            direction="row"
-          >
-            <Tooltip title={makeTitle()}>
-              <Typography fontSize={dataGridheaderFontSize}>{field.field}</Typography>
-            </Tooltip>
-            {field.is_primary && <KeyIcon style={{ fontSize: "16px" }} />}
-          </Stack>
-        );
-      };
-      if (!field.is_auto_increment) {
-        field.editable = true;
+        field.editable = !field.is_auto_increment;
       }
-    }
-    setResp(resp);
-  };
+      setResp(resp);
+    },
+    [getColumnWidth, isTable],
+  );
 
   const makePara = useCallback(() => {
     const where_str = where.trim();
@@ -435,9 +789,9 @@ function SqlTableView(props: {
       page: page + 1,
       page_size: pageSize,
       allow_filtering: allowFiltering,
-      limit: clientModelLimit.current,
-    } as types.ShowTableParameter;
-  }, [allowFiltering, page, pageSize, sort, where]);
+      limit: getSize(UseSizeConfig.queryLimit),
+    };
+  }, [allowFiltering, getSize, page, pageSize, sort, where]);
   const handleReload = useCallback(
     (showOK: boolean) => {
       switch (kind) {
@@ -451,9 +805,6 @@ function SqlTableView(props: {
         isView: !isTable,
         uuid,
         setLoading,
-        handleExecuteTime: dur => {
-          setFetchDur(dur);
-        },
         okCallBack: showOK
           ? () => {
               if (showOK) {
@@ -462,16 +813,29 @@ function SqlTableView(props: {
             }
           : undefined,
         showNotification,
-        handleResult: resp => {
+        handleResult: (resp) => {
           handleResp(resp);
         },
       });
     },
-    [isTable, kind, makePara, showNotification, tableName, uuid],
+    [handleResp, isTable, kind, makePara, showNotification, tableName, uuid],
+  );
+
+  const rowHasOP = useCallback(
+    (row: object) => {
+      let id = tryGetId(row, resp.fields);
+
+      return ops.find((e) => e.tableId == id);
+    },
+    [ops, resp.fields],
   );
 
   const handleProcessRowUpdate = useCallback(
     async (newRow: object, oldRow: object) => {
+      if (rowHasOP(oldRow)) {
+        showNotification({ severity: "warning", title: "row is modifying" });
+        return oldRow;
+      }
       for (const key in newRow) {
         if (!newRow[key]) {
           newRow[key] = null;
@@ -491,30 +855,27 @@ function SqlTableView(props: {
       if (updateRow.size == 0) {
         return newRow;
       }
-      if (!(await confirmAboutPrimary(notWarnPri, resp.fields))) {
+      if (!(await confirmAboutPrimary(resp.fields))) {
         return oldRow;
       }
-      try {
-        const sql = await getUpdateSql(old, updateRow);
-        setOps(e => [...e, new DatabaseOperation(DatabaseOpKind.Update, sql, oldRow)]);
-        handleResp({
-          ...resp,
-          data: resp.data.map(e =>
-            e[keyNotInTable] == newRow[keyNotInTable] ? newRow : e,
-          ),
-        });
-      } catch (e) {
-        showNotification("error", "generate update sql failed", e);
-        throw e;
-      }
-      return newRow;
+      const data = await getUpdateSql(updateRow, old);
+      setOps((e) => [
+        ...e,
+        new DatabaseOperation(
+          DatabaseOpKind.Update,
+          data,
+          tryGetId(oldRow, resp.fields),
+          newRow,
+        ),
+      ]);
+      return oldRow;
     },
-    [notWarnPri, resp, showNotification, getUpdateSql],
+    [rowHasOP, resp, showNotification, getUpdateSql],
   );
 
   const handleDelete = useCallback(
-    async id => {
-      if (!(await confirmAboutPrimary(notWarnPri, resp.fields))) {
+    async (id) => {
+      if (!(await confirmAboutPrimary(resp.fields))) {
         return;
       }
       let old;
@@ -525,21 +886,28 @@ function SqlTableView(props: {
         }
       }
       if (!old) {
-        showNotification(
-          "error",
-          "not found the record to delete this is a internal bug",
-        );
+        showNotification({
+          severity: "error",
+          title: "not found the record to delete this is a internal bug",
+        });
         return;
       }
-      try {
-        let old2 = { ...old };
-        const sql = await getDeleteSql(old2);
-        setOps(e => [...e, new DatabaseOperation(DatabaseOpKind.Delete, sql, old)]);
-      } catch (e) {
-        showNotification("error", "generate delete sql failed", e);
+      if (rowHasOP(old)) {
+        showNotification({ severity: "warning", title: "row is modifying" });
+        return;
       }
+      const data = await getDeleteSql(old);
+      setOps((e) => [
+        ...e,
+        new DatabaseOperation(
+          DatabaseOpKind.Delete,
+          data,
+          tryGetId(old, resp.fields),
+          null,
+        ),
+      ]);
     },
-    [getDeleteSql, notWarnPri, resp.data, resp.fields, showNotification],
+    [getDeleteSql, resp.data, resp.fields, rowHasOP, showNotification],
   );
   useEffect(() => {
     handleReload(false);
@@ -551,14 +919,13 @@ function SqlTableView(props: {
   const onPaginationModelChange = useCallback(
     (e: GridPaginationModel, reason: GridCallbackDetails<"pagination">) => {
       setPage(e.page);
-      setPageSize(e.pageSize);
       if (reason.reason == "setPaginationModel") {
-        SavePageSize.instance.save(e.pageSize);
+        setPageSize("sql", e.pageSize);
       }
     },
-    [],
+    [setPageSize],
   );
-  const { setUpMenu } = useContext(ContextMenuContext);
+  const setUpMenu = useContextMenu((state) => state.setUpMenu);
   const onSortModelChange = useCallback(
     (sorts: GridSortModel) => {
       if (sorts.length == 0) {
@@ -571,33 +938,39 @@ function SqlTableView(props: {
         return;
       }
       setSort(
-        `${quoteDatabaseIdentifier(kind)(sort.field)} ${sort.sort.toUpperCase()}`,
+        `${quoteDatabaseIdentifier(sort.field, kind)} ${sort.sort.toUpperCase()}`,
       );
     },
     [kind],
   );
 
   const onProcessRowUpdateError = useCallback(
-    e => {
-      showNotification("error", "update failed", e);
+    (e) => {
+      showNotification({ severity: "error", title: "update failed", message: e });
     },
     [showNotification],
   );
 
-  const onColumnResize = useCallback(({ colDef, width }) => {
-    ColumnWidth.instance.save(colDef.field, width);
-  }, []);
+  const onColumnResize = useCallback(
+    ({ colDef, width }) => {
+      setColumnWidth(colDef.field, width);
+    },
+    [setColumnWidth],
+  );
+
   const slotProps = useMemo(() => {
     return {
       row: {
-        onContextMenu: e => {
+        onContextMenu: (e) => {
           const { id, field } = extractFieldAndIDFromMouseEvent(e);
+          console.log("xxxxx", field);
           if (!field) {
             return;
           }
-          const row = { ...resp.data.find(e => e[keyNotInTable] == id) };
+          const row = { ...resp.data.find((e) => e[keyNotInTable] == id) };
           const content = row[field];
-          const nullable = resp.fields.find(e => e.field == field).nullable;
+          const nullable =
+            resp.fields.find((e) => e.field == field).nullable && !!content;
           setUpMenu({
             content: (
               <Menu
@@ -612,7 +985,6 @@ function SqlTableView(props: {
                 }}
                 isTable={isTable}
                 nullable={nullable}
-                fields={resp.fields}
                 field={field}
                 content={content}
                 handleDelete={
@@ -622,20 +994,14 @@ function SqlTableView(props: {
                       }
                     : undefined
                 }
-                row={row}
-                addOP={isTable && addOP}
-                setSort={setSort}
-                setWhere={setWhere}
-                put_value_in_sql={value => {
-                  return put_value_in_sql(
-                    resp.fields.find(e => e.field == field).data_type,
-                    value,
-                  );
+                setShowClone={() => {
+                  setShowClone(row);
                 }}
+                setSort={setSort}
                 setNull={
                   isTable
                     ? async () => {
-                        const row = resp.data.find(e => e[keyNotInTable] == id);
+                        const row = resp.data.find((e) => e[keyNotInTable] == id);
                         let newRow = { ...row };
                         newRow[field] = null;
                         await handleProcessRowUpdate(newRow, row);
@@ -645,6 +1011,13 @@ function SqlTableView(props: {
                 viewInModal={() => {
                   setViewInModal(row);
                 }}
+                setShowFilter={() => {
+                  setShowFilter({
+                    field,
+                    content,
+                    typ: resp.fields.find((e) => e.field == field).data_type,
+                  });
+                }}
               />
             ),
             event: e,
@@ -652,472 +1025,217 @@ function SqlTableView(props: {
         },
         style: { cursor: "context-menu" },
       },
+
+      pagination: {
+        dbpal: (function (): CustomPaginationProps {
+          return { resp, clientModel };
+        })(),
+      },
       toolbar: {
-        csvOptions: {
-          delimiter: setting.export.csvDelimiter,
-          includeHeaders: setting.export.includeHeader,
-        },
+        dbpal: (function (): SqlTableCustomToolBarLeftProps {
+          return {
+            handleReload,
+            where,
+            setWhere,
+            sort,
+            setSort,
+            kind,
+            allowFiltering,
+            setAllowFiltering,
+            isTable,
+            tableName,
+            uuid,
+          };
+        })(),
       },
     } as GridSlotsComponentsProps;
   }, [
-    setting.export.csvDelimiter,
-    setting.export.includeHeader,
-    resp.data,
-    resp.fields,
+    resp,
     setUpMenu,
     kind,
     isTable,
-    addOP,
+    uuid,
+    tableName,
     handleDelete,
-    put_value_in_sql,
     handleProcessRowUpdate,
+    clientModel,
+    handleReload,
+    where,
+    sort,
+    allowFiltering,
   ]);
 
-  const [editInModalBox, setEditInModalBox] = useState(null);
-  useEffect(() => {
-    if (editInModalBox) {
-      const x1 = saveAndSetSize(editInModalBox, "edit-cell");
-      return () => {
-        x1();
-      };
-    }
-  }, [editInModalBox]);
-  const [editRowInModalBox, setEditRowInModalBox] = useState(null);
-  useEffect(() => {
-    if (editRowInModalBox) {
-      const x1 = saveAndSetSize(editRowInModalBox, "edit-row", "width");
-      return () => {
-        x1();
-      };
-    }
-  }, [editRowInModalBox]);
-  const [viewInModalBox, setViewInModalBox] = useState(null);
-  useEffect(() => {
-    if (viewInModalBox) {
-      const x1 = saveAndSetSize(viewInModalBox, "view-row-in-modal");
-      return () => {
-        x1();
-      };
-    }
-  }, [viewInModalBox]);
-
-  const [addModalBox, setAddModalBox] = useState(null);
-  useEffect(() => {
-    if (addModalBox) {
-      const x1 = saveAndSetSize(addModalBox, "table-insert");
-      return () => {
-        x1();
-      };
-    }
-  }, [addModalBox]);
-  const slots = useMemo(() => {
+  const slots = useMemo((): Partial<GridSlotsComponent> => {
     return {
       columnMenu: AppColumnMenu,
-      toolbar: () => {
+      toolbar: ({
+        dbpal,
+      }: GridSlotProps["toolbar"] & { dbpal: SqlTableCustomToolBarLeftProps }) => {
         return (
           <AppDataGridToolBar
             title={tableName}
             right=<>
               <IconButton
                 onClick={() => {
-                  setShowExport(true);
-                }}
-              >
+                  setUi(
+                    <ExportTableOrView
+                      uuid={uuid}
+                      name={tableName}
+                      kind={kind}
+                      isTable={isTable}
+                      para={makePara()}
+                    />,
+                  );
+                }}>
                 <ArrowCircleDownIcon />
               </IconButton>
             </>
-            left=<StackRowCenter>
-              <Button
-                loading={loading}
-                color="primary"
-                onClick={() => {
-                  handleReload(true);
-                }}
-                disabled={opsIds.size > 0}
-              >
-                reload
-              </Button>
-              <Tooltip title="filter something like 'age=18'">
-                <Chip
-                  label={where}
-                  onClick={() => {
-                    setShowSetWhere(true);
-                  }}
-                  style={shrinkAble}
-                  size="medium"
-                  color="primary"
-                  icon={<FilterAltIcon />}
-                />
-              </Tooltip>
-              {/* <Typography color="info"> order by </Typography> */}
-              <Tooltip title="sort something like 'age asc'">
-                <Chip
-                  label={sort}
-                  onClick={() => {
-                    setShowSetSort(true);
-                  }}
-                  style={shrinkAble}
-                  size="medium"
-                  color="secondary"
-                  variant="outlined"
-                  icon={<FaArrowsAltV />}
-                />
-              </Tooltip>
-              {kind == DataSourceKind.Cassandra && (
-                <>
-                  <FormControlLabel
-                    control={
-                      <Checkbox
-                        checked={allowFiltering}
-                        onChange={e => setAllowFiltering(e.target.checked)}
-                      />
-                    }
-                    label="allow filtering"
-                  />
-                </>
-              )}
-              {clientModel && (
-                <SliderSize
-                  notice=<Typography>
-                    some backend not support pagination like sql,cassandra etc,we use
-                    client model.
-                  </Typography>
-                  min={1000}
-                  max={100000}
-                  storeKey="sqltable-limit"
-                  step={1000}
-                  handleValue={v => {
-                    clientModelLimit.current = v;
-                  }}
-                />
-              )}
-              {isTable && (
-                <TableAddButton
-                  handleAdd={() => {
-                    setShowAdd(true);
-                  }}
-                />
-              )}
-            </StackRowCenter>
+            left=<SqlTableCustomToolBarLeft {...dbpal} />
           />
         );
       },
-      pagination: () => {
-        return (
-          <Stack
-            direction="row"
-            style={{
-              alignItems: "center",
-              justifyContent: "space-between",
-              flex: 1,
-            }}
-          >
-            <Stack direction="row" flex={1} style={{ alignItems: "center" }}>
-              <LastFetchTime date={lastFetchTime} />
-              <TimeDuration dur={fetchDur} />
-              <ResetColumnWidth />
-            </Stack>
-            <Stack direction="row" alignItems="center">
-              {!clientModel && (
-                <Typography color="info">
-                  result {resp.data.length} of {resp.total}
-                </Typography>
-              )}
-              <AppDataGridPagination showPageSelect />
-            </Stack>
-          </Stack>
-        );
-      },
-    } as Partial<GridSlotsComponent>;
-  }, [
-    allowFiltering,
-    clientModel,
-    fetchDur,
-    handleReload,
-    isTable,
-    kind,
-    lastFetchTime,
-    loading,
-    opsIds.size,
-    resp.data.length,
-    resp.total,
-    sort,
-    tableName,
-    where,
-  ]);
-
-  const someModel = clientModel ? "client" : "server";
+      pagination: CustomPagination,
+    };
+  }, [isTable, kind, makePara, setUi, tableName, uuid]);
+  const sortModel = clientModel ? "client" : "server";
+  const { getColumnVisibility, setColumnVisibility } = useTableColumnVisibleStore(
+    (s) => s,
+  );
   return (
     <Stack style={{ height: "100%" }}>
       <QueryStatus status={queryStatus} />
-      {ops.map((operation, idx) => (
-        <DatabaseOperationView
-          op={operation}
-          handleDelete={applied => {
-            setOps(ops => ops.filter((_, index) => idx != index));
-
-            switch (operation.op) {
-              case DatabaseOpKind.Update:
-                if (applied) {
-                  // the value have been updated.
-                } else {
-                  if (!applied) {
-                    setResp(resp => {
-                      return {
-                        ...resp,
-                        data: resp.data.map(data =>
-                          data[keyNotInTable] == operation.old[keyNotInTable]
-                            ? operation.old
-                            : data,
-                        ),
-                      };
-                    });
-                  }
-                }
-                break;
-              case DatabaseOpKind.Delete: {
-                if (applied) {
-                  setResp(resp => {
-                    return {
-                      ...resp,
-                      data: resp.data.filter(
-                        data => data[keyNotInTable] != operation.old[keyNotInTable],
-                      ),
-                    };
-                  });
-                } else {
-                  // delete one line not change the data
-                  // no need use
-                }
-                break;
-              }
-            }
+      <OpsContext
+        value={{
+          ops,
+          setOps,
+          fields: resp.fields,
+          uuid,
+          handleReload: () => {
+            handleReload(false);
+          },
+          clickedField: clickedField,
+        }}>
+        <DataGrid
+          slots={slots}
+          apiRef={apiRef}
+          onCellClick={() => {
+            setClickedField("");
           }}
-          uuid={uuid}
-          key={idx}
-          handleHighLight={() => {
-            setHighLightRow("");
-            setTimeout(() => {
-              setHighLightRow(operation.old[keyNotInTable]);
-            }, 200);
-            setTimeout(() => {
-              setHighLightRow("");
-            }, 10000);
+          columnVisibilityModel={getColumnVisibility(uuid, tableName)}
+          onColumnVisibilityModelChange={(e) => {
+            setColumnVisibility(uuid, tableName, e);
+          }}
+          slotProps={slotProps}
+          style={dataGridStyle}
+          getRowId={getRowId}
+          paginationModel={clientModel ? undefined : paginationModel}
+          pageSizeOptions={pageSizeOptions}
+          paginationMode={sortModel}
+          onPaginationModelChange={clientModel ? undefined : onPaginationModelChange}
+          checkboxSelection={false}
+          rowCount={clientModel ? resp.data.length : resp.total}
+          sortingMode={clientModel ? "client" : "server"}
+          onSortModelChange={clientModel ? undefined : onSortModelChange}
+          columns={resp.fields}
+          rows={resp.data}
+          onColumnResize={onColumnResize}
+          processRowUpdate={isTable ? handleProcessRowUpdate : undefined}
+          onProcessRowUpdateError={onProcessRowUpdateError}
+          loading={loading}
+        />
+      </OpsContext>
+
+      <ViewRowInModal
+        data={viewInModal}
+        handleClose={() => {
+          setViewInModal(null);
+        }}
+        isTable={isTable}
+        fields={resp.fields}
+      />
+
+      {editCellInModal && (
+        <EditInModal
+          content={editCellInModal.content}
+          handleModify={async (value) => {
+            const newRow = { ...editCellInModal.row };
+            newRow[editCellInModal.field] = value;
+            await handleProcessRowUpdate(newRow, editCellInModal.row);
+            setEditCellInModal(null);
+          }}
+          handleClose={() => {
+            setEditCellInModal(null);
           }}
         />
-      ))}
+      )}
+      {showFilter && (
+        <Dialog
+          open={!!showFilter}
+          onClose={modalHandleClose((e: EscDownEvent) => {
+            e.preventDefault();
+            setShowFilter(null);
+          })}
+          fullWidth
+          maxWidth="sm">
+          <DialogTitle> Quick filter </DialogTitle>
+          <FilterOnValue
+            content={showFilter.content}
+            setWhere={setWhere}
+            field={showFilter.field}
+            kind={kind}
+            handleClose={() => {
+              setShowFilter(null);
+            }}
+            putValueInSql={(value) => {
+              return putValueInSql(showFilter.typ, value);
+            }}
+          />
+        </Dialog>
+      )}
 
-      <DataGrid
-        slots={slots}
-        getCellClassName={e => {
-          if (e.id == highLightRow) {
-            return "datagrid-field-row-highligth";
-          }
-          if (rowInOps(e.id)) {
-            return "datagrid-field-been-modify";
-          }
-          if (e.field == clickedField) {
-            return "datagrid-field-clicked";
-          } else {
-            return "";
-          }
-        }}
-        apiRef={apiRef}
-        onCellClick={() => {
-          setClickedField("");
-        }}
-        slotProps={slotProps}
-        style={dataGridStyle}
-        getRowId={getRowId}
-        paginationModel={clientModel ? undefined : paginationModel}
-        pageSizeOptions={pageSizeOptions}
-        paginationMode={someModel}
-        onPaginationModelChange={clientModel ? undefined : onPaginationModelChange}
-        checkboxSelection={false}
-        rowCount={clientModel ? resp.data.length : resp.total}
-        sortingMode={clientModel ? "client" : "server"}
-        onSortModelChange={clientModel ? undefined : onSortModelChange}
-        columns={resp.fields}
-        rows={resp.data}
-        onColumnResize={onColumnResize}
-        processRowUpdate={isTable ? handleProcessRowUpdate : undefined}
-        onProcessRowUpdateError={onProcessRowUpdateError}
-        loading={loading}
-      />
-      {viewInModal && (
-        <Modal
-          open={!!viewInModal}
-          onClose={modalHandleClose((e: EscDownEvent) => {
-            e.preventDefault();
-            setViewInModal(null);
-          })}
-        >
-          <Box
-            sx={{ resize: "both", ...modalStyle }}
-            ref={setViewInModalBox}
-            width="80%"
-            height="30vh"
-          >
-            <ModalHeader
-              title="View Row"
-              handleClose={() => {
-                setViewInModal(null);
-              }}
-            />
-            <ViewRowInModal fields={resp.fields} data={viewInModal} isTable={isTable} />
-          </Box>
-        </Modal>
-      )}
-      {showAdd && (
-        <Modal
-          open={showAdd}
-          onClose={modalHandleClose((e: EscDownEvent) => {
-            e.preventDefault();
-            setShowAdd(false);
-          })}
-        >
-          <Box
-            sx={{ resize: "both", ...modalStyle }}
-            ref={setAddModalBox}
-            width="80%"
-            height="30vh"
-          >
-            <ModalHeader
-              title="insert data"
-              handleClose={() => {
-                setShowAdd(false);
-              }}
-            />
-            <AddTableView uuid={uuid} table={tableName} kind={kind} />
-          </Box>
-        </Modal>
-      )}
-      {editCellInModal && (
-        <Modal
-          open={!!editCellInModal}
-          onClose={modalHandleClose((e: EscDownEvent) => {
-            e.preventDefault();
-            setEditCellInModal(null);
-          })}
-        >
-          <Box
-            sx={{ resize: "both", ...modalStyle }}
-            ref={setEditInModalBox}
-            width="80%"
-            height="30vh"
-          >
-            <ModalHeader
-              title="edit cell"
-              handleClose={() => {
-                setEditCellInModal(null);
-              }}
-            />
-            <EditInModal
-              content={editCellInModal.content}
-              handleModify={async value => {
-                const newRow = { ...editCellInModal.row };
-                newRow[editCellInModal.field] = value;
-                await handleProcessRowUpdate(newRow, editCellInModal.row);
-                setEditCellInModal(null);
-              }}
-            />
-          </Box>
-        </Modal>
-      )}
       {editRowInModal && (
+        <EditRowInModal
+          handleProcessRowUpdate={handleProcessRowUpdate}
+          value={editRowInModal}
+          handleClose={() => {
+            setRowEditInModal(null);
+          }}
+          fields={resp.fields}
+        />
+      )}
+
+      {showClone && (
         <Modal
-          open={!!editRowInModal}
+          open={!!showClone}
           onClose={modalHandleClose((e: EscDownEvent) => {
             e.preventDefault();
-            setRowEditInModal(null);
-          })}
-        >
-          <Box
-            sx={{ resize: "horizontal", ...modalStyle }}
-            ref={setEditRowInModalBox}
-            width="80%"
-          >
+            setShowClone(null);
+          })}>
+          <Box sx={{ resize: "horizontal", ...modalStyle, width: "50%" }}>
             <ModalHeader
-              title="edit row"
+              title="Clone Data"
               handleClose={() => {
-                setRowEditInModal(null);
+                setShowClone(null);
               }}
             />
             <SqlTableViewData
-              initValues={editRowInModal}
-              buttonName="modify"
+              buttonName="add"
+              handleData={addOP}
               fields={resp.fields}
-              isAdd={false}
-              handleData={async args => {
-                await handleProcessRowUpdate(args, editRowInModal);
-              }}
-              handleClose={() => setRowEditInModal(null)}
+              handleClose={() => setShowClone(null)}
+              initValues={showClone}
+              isAdd
             />
           </Box>
         </Modal>
-      )}
-      {showExport && (
-        <Modal
-          open={showExport}
-          onClose={modalHandleClose((e: EscDownEvent) => {
-            e.preventDefault();
-            setShowExport(false);
-          })}
-        >
-          <Box sx={modalStyle} width="60%">
-            <ExportTableOrView
-              uuid={uuid}
-              name={tableName}
-              supportKind={getSupportExportKind(kind, isTable)}
-              handleClose={() => {
-                setShowExport(false);
-              }}
-              para={makePara()}
-            />
-          </Box>
-        </Modal>
-      )}
-      {showSetWhere && (
-        <SetFilterSort
-          tableName={tableName}
-          open={showSetWhere}
-          value={where}
-          setValue={v => {
-            setWhere(v);
-          }}
-          handleClose={() => {
-            setShowSetWhere(false);
-          }}
-          label="filter"
-          kind={kind}
-          uuid={uuid}
-        />
-      )}
-      {showSetSort && (
-        <SetFilterSort
-          tableName={tableName}
-          open={showSetSort}
-          value={sort}
-          setValue={v => {
-            setSort(v);
-          }}
-          kind={kind}
-          handleClose={() => {
-            setShowSetSort(false);
-          }}
-          label="sort"
-          uuid={uuid}
-        />
       )}
     </Stack>
   );
 }
 
-let SqlTableViewDataMatch = "";
-
 function SqlTableViewData(props: {
   handleData: (args: any) => Promise<void>;
-  fields: types.Field[];
+  fields: Field[];
   initValues?: object;
   buttonName;
   isAdd: boolean;
@@ -1127,15 +1245,14 @@ function SqlTableViewData(props: {
   if (!initValues) {
     initValues = {};
   }
-  fields.forEach(e => {
+  fields.forEach((e) => {
     if (e.is_auto_increment && isAdd) {
       initValues[e.field] = "";
     }
   });
-  const [filter, setFilter] = useState(SqlTableViewDataMatch);
+  const { filter, setFilter } = useSqlDataFilter();
 
   const filterFn = useMemo(() => {
-    SqlTableViewDataMatch = filter;
     return filter
       ? wcmatch("*" + filter + "*", { flags: "i" })
       : () => {
@@ -1145,7 +1262,7 @@ function SqlTableViewData(props: {
 
   const [loading, setLoading] = useState(false);
   const [args, setArgs] = useState(initValues);
-  const { showNotification } = useContext(NotificationContext);
+  const { showNotification } = useNotification();
   const inputDoms = useRef({});
 
   const handleModify = () => {
@@ -1157,7 +1274,10 @@ function SqlTableViewData(props: {
       }
       if (!argsclone[f.field] && !f.nullable && !f.default_value) {
         inputDoms.current[f.field].focus();
-        showNotification("error", `filed '${f.field}' need be filled`);
+        showNotification({
+          severity: "error",
+          title: `filed '${f.field}' need be filled`,
+        });
         return;
       }
     }
@@ -1171,14 +1291,18 @@ function SqlTableViewData(props: {
     handleData(argsclone)
       .then(() => {
         console.log("handle value success");
-        showNotification("success", `${buttonName} OK`);
+        showNotification({ severity: "success", title: `${buttonName} OK` });
         if (handleClose) {
           handleClose();
         }
       })
-      .catch(e => {
+      .catch((e) => {
         console.error("handle value failure", e);
-        showNotification("error", `${buttonName} failure`, e);
+        showNotification({
+          severity: "error",
+          title: `${buttonName} failure`,
+          message: e,
+        });
       })
       .finally(() => {
         setLoading(false);
@@ -1189,17 +1313,17 @@ function SqlTableViewData(props: {
     <Stack>
       {fields
         .filter(
-          f => filterFn(f.field) || (args[f.field] ? filterFn(args[f.field]) : !filter),
+          (f) =>
+            filterFn(f.field) || (args[f.field] ? filterFn(args[f.field]) : !filter),
         )
-        .map(f => {
+        .map((f) => {
           return (
             <Stack
               key={f.field}
               direction="row"
-              sx={{ alignContent: "center", justifyContent: "center" }}
-            >
+              sx={{ alignContent: "center", justifyContent: "center" }}>
               <TextField
-                inputRef={x => {
+                inputRef={(x) => {
                   inputDoms.current[f.field] = x;
                 }}
                 disabled={f.is_auto_increment}
@@ -1218,7 +1342,7 @@ function SqlTableViewData(props: {
                 multiline={isTypeLargeText(f.data_type)}
                 rows={4}
                 fullWidth
-                onChange={e => {
+                onChange={(e) => {
                   const value = e.target.value;
                   const newArgs = { ...args };
                   newArgs[f.field] = value;
@@ -1233,29 +1357,16 @@ function SqlTableViewData(props: {
         <Button loading={loading} onClick={handleModify}>
           {buttonName}
         </Button>
-        <TextField
+        <ClearableTextField
           value={filter}
-          onChange={e => {
+          onChange={(e) => {
             setFilter(e.target.value);
           }}
           label="filter"
           fullWidth
           helperText="can match field name and content"
-          slotProps={{
-            input: {
-              endAdornment: filter && (
-                <InputAdornment position="end">
-                  <IconButton
-                    onClick={() => {
-                      setFilter("");
-                    }}
-                    edge="end"
-                  >
-                    <ClearIcon fontSize="small" />
-                  </IconButton>
-                </InputAdornment>
-              ),
-            },
+          onClear={() => {
+            setFilter("");
           }}
         />
       </Stack>
@@ -1267,304 +1378,217 @@ function Menu(props: {
   field: string;
   content: string;
   handleDelete?: () => void;
-  setSort;
-  setWhere;
-  put_value_in_sql: (value?: string) => Promise<string>;
+  setSort: Dispatch<SetStateAction<string>>;
   setNull?: () => void;
-  addOP?: (x: object) => Promise<void>;
-  row: object;
-  fields: types.Field[];
   nullable: boolean;
   editCellInModal: () => void;
   editRowInModal: () => void;
   kind: DataSourceKind;
   viewInModal: () => void;
   isTable: boolean;
+  setShowFilter: () => void;
+  setShowClone: () => void;
 }) {
   const {
     field,
     content,
     handleDelete,
     setSort,
-    setWhere,
-    put_value_in_sql,
     setNull,
-    addOP,
-    row,
-    fields,
     nullable,
     editCellInModal,
     editRowInModal,
     kind,
     viewInModal,
     isTable,
+    setShowFilter,
+    setShowClone,
   } = props;
-  const { showNotification } = useContext(NotificationContext);
-  const [showFilter, setShowFilter] = useState(false);
-  const quoteFn = quoteDatabaseIdentifier(kind);
-  const [showClone, setShowClone] = useState(false);
-  const quoteField = quoteFn(field);
-  const [cloneModalBox, setCloneModalBox] = useState(null);
-  useEffect(() => {
-    if (cloneModalBox) {
-      const clean = saveAndSetSize(cloneModalBox, "clone-data", "width");
-      return () => {
-        clean();
-      };
-    }
-  }, [cloneModalBox]);
+
+  const { showNotification } = useNotification();
+  const quoteField = quoteDatabaseIdentifier(field, kind);
+
   return (
-    <div>
-      <MenuList>
-        {isTable && (
-          <MenuItem
-            onClick={() => {
-              editCellInModal();
-            }}
-          >
-            <ListItemIcon>
-              <EditIcon />
-            </ListItemIcon>
-            <ListItemText> Edit Cell in Modal </ListItemText>
-          </MenuItem>
-        )}
-
-        {isTable && (
-          <MenuItem
-            onClick={() => {
-              editRowInModal();
-            }}
-          >
-            <ListItemIcon>
-              <MdEditNote fontSize="1.7rem" />
-            </ListItemIcon>
-            <ListItemText> Edit Row in Modal </ListItemText>
-          </MenuItem>
-        )}
-
-        {nullable && isTable && setNull && (
-          <MenuItem
-            onClick={() => {
-              setNull();
-            }}
-          >
-            <ListItemIcon>
-              <CancelIcon />
-            </ListItemIcon>
-            <ListItemText> Set As Null </ListItemText>
-          </MenuItem>
-        )}
-
-        <MenuItem onClick={viewInModal}>
-          <ListItemIcon>
-            <VisibilityIcon style={{ fontSize: "1.4rem" }} />
-          </ListItemIcon>
-          <ListItemText> View in Modal </ListItemText>
-        </MenuItem>
-
-        {content && (
-          <MenuItem
-            onClick={() => {
-              handleCopyToClipboard(content, showNotification);
-            }}
-          >
-            <ListItemIcon>
-              <FaCopy fontSize="1.4rem" />
-            </ListItemIcon>
-            <ListItemText> Copy </ListItemText>
-          </MenuItem>
-        )}
-
-        <Divider />
+    <MenuList>
+      {isTable && (
         <MenuItem
           onClick={() => {
-            setSort(`${quoteField} ASC`);
-          }}
-        >
+            editCellInModal();
+          }}>
           <ListItemIcon>
-            <ArrowUpwardIcon />
+            <EditIcon />
           </ListItemIcon>
-          <ListItemText> {field} ASC </ListItemText>
+          <ListItemText> Edit Cell in Modal </ListItemText>
         </MenuItem>
+      )}
+
+      {isTable && (
         <MenuItem
           onClick={() => {
-            setSort(`${quoteField} DESC`);
-          }}
-        >
+            editRowInModal();
+          }}>
           <ListItemIcon>
-            <ArrowDownwardIcon />
+            <MdEditNote fontSize="1.7rem" />
           </ListItemIcon>
-          <ListItemText> {field} DESC </ListItemText>
+          <ListItemText> Edit Row in Modal </ListItemText>
         </MenuItem>
-
-        {content && (
-          <MenuItem
-            onClick={() => {
-              setShowFilter(true);
-            }}
-          >
-            <ListItemIcon>
-              <FilterAltIcon />
-            </ListItemIcon>
-            <ListItemText> Quick Filter </ListItemText>
-          </MenuItem>
-        )}
-        {isTable && <Divider />}
-        {isTable && (
-          <MenuItem
-            onClick={() => {
-              setShowClone(true);
-            }}
-          >
-            <ListItemIcon>
-              <FileCopyIcon />
-            </ListItemIcon>
-            <ListItemText> Clone Row </ListItemText>
-          </MenuItem>
-        )}
-        {isTable && (
-          <MenuItem onClick={handleDelete}>
-            <ListItemIcon>
-              <DeleteForeverIcon />
-            </ListItemIcon>
-            <ListItemText> Delete Row</ListItemText>
-          </MenuItem>
-        )}
-      </MenuList>
-
-      {showClone && (
-        <Modal
-          open={showClone}
-          onClose={modalHandleClose((e: EscDownEvent) => {
-            e.preventDefault();
-            setShowClone(false);
-          })}
-        >
-          <Box
-            sx={{ resize: "horizontal", ...modalStyle }}
-            width="50%"
-            ref={setCloneModalBox}
-          >
-            <ModalHeader
-              title="Clone Data"
-              handleClose={() => {
-                setShowClone(false);
-              }}
-            />
-            <SqlTableViewData
-              buttonName="add"
-              handleData={addOP}
-              fields={fields}
-              handleClose={() => setShowClone(false)}
-              initValues={row}
-              isAdd
-            />
-          </Box>
-        </Modal>
       )}
 
-      {showFilter && (
-        <Modal
-          open={showFilter}
-          onClose={modalHandleClose((e: EscDownEvent) => {
-            e.preventDefault();
-            setShowFilter(false);
-          })}
-        >
-          <Box sx={modalStyle} width="45vw">
-            <ModalHeader
-              title="Quick Filter"
-              handleClose={() => {
-                setShowFilter(false);
-              }}
-            />
-            <FilterOnValue
-              content={content}
-              setWhere={setWhere}
-              field={field}
-              kind={kind}
-              handleClose={() => {
-                setShowFilter(false);
-              }}
-              put_value_in_sql={value => {
-                return put_value_in_sql(value);
-              }}
-            />
-          </Box>
-        </Modal>
+      {nullable && isTable && setNull && (
+        <MenuItem
+          onClick={() => {
+            setNull();
+          }}>
+          <ListItemIcon>
+            <CancelIcon />
+          </ListItemIcon>
+          <ListItemText> Set As Null </ListItemText>
+        </MenuItem>
       )}
-    </div>
+
+      <MenuItem onClick={viewInModal}>
+        <ListItemIcon>
+          <VisibilityIcon style={{ fontSize: "1.4rem" }} />
+        </ListItemIcon>
+        <ListItemText> View in Modal </ListItemText>
+      </MenuItem>
+
+      {content && (
+        <MenuItem
+          onClick={() => {
+            handleCopyToClipboard(content, showNotification);
+          }}>
+          <ListItemIcon>
+            <FaCopy fontSize="1.4rem" />
+          </ListItemIcon>
+          <ListItemText> Copy </ListItemText>
+        </MenuItem>
+      )}
+
+      <Divider />
+      <MenuItem
+        onClick={() => {
+          setSort(`${quoteField} ASC`);
+        }}>
+        <ListItemIcon>
+          <ArrowUpwardIcon />
+        </ListItemIcon>
+        <ListItemText> {field} ASC </ListItemText>
+      </MenuItem>
+      <MenuItem
+        onClick={() => {
+          setSort(`${quoteField} DESC`);
+        }}>
+        <ListItemIcon>
+          <ArrowDownwardIcon />
+        </ListItemIcon>
+        <ListItemText> {field} DESC </ListItemText>
+      </MenuItem>
+
+      {content && (
+        <MenuItem
+          onClick={() => {
+            setShowFilter();
+          }}>
+          <ListItemIcon>
+            <FilterAltIcon />
+          </ListItemIcon>
+          <ListItemText> Quick Filter </ListItemText>
+        </MenuItem>
+      )}
+      {isTable && <Divider />}
+      {isTable && (
+        <MenuItem
+          onClick={() => {
+            setShowClone();
+          }}>
+          <ListItemIcon>
+            <FileCopyIcon />
+          </ListItemIcon>
+          <ListItemText> Clone Row </ListItemText>
+        </MenuItem>
+      )}
+      {isTable && (
+        <MenuItem onClick={handleDelete}>
+          <ListItemIcon>
+            <DeleteForeverIcon />
+          </ListItemIcon>
+          <ListItemText> Delete Row</ListItemText>
+        </MenuItem>
+      )}
+    </MenuList>
   );
 }
 
-let lastCompare = "=";
 function FilterOnValue(props: {
   content: string;
   setWhere;
   field: string;
-  handleClose;
+  handleClose: () => void;
   kind: DataSourceKind;
-  put_value_in_sql: (x: string) => Promise<string>;
+  putValueInSql: (x: string) => Promise<string>;
 }) {
-  const { content, setWhere, field, handleClose, put_value_in_sql, kind } = props;
+  const { content, setWhere, field, handleClose, putValueInSql, kind } = props;
   const compares = ["=", "<>", ">", ">=", "<", "<="];
-  const [compare, setCompare] = useState(lastCompare);
-  const { showNotification } = useContext(NotificationContext);
+  const { showNotification } = useNotification();
   const [formatValue, setFormatValue] = useState("");
+
+  const { filter, setFilter } = useSqlTableFilterOp();
   useEffect(() => {
-    lastCompare = compare;
-  }, [compare]);
-  useEffect(() => {
-    put_value_in_sql(content)
-      .then(value => {
+    putValueInSql(content)
+      .then((value) => {
         setFormatValue(value);
       })
-      .catch(e => {
-        showNotification("error", "put value in sql failed", e);
+      .catch((e) => {
+        showNotification({
+          severity: "error",
+          title: "put value in sql failed",
+          message: e,
+        });
       });
-  }, [content, put_value_in_sql, showNotification]);
+  }, [content, putValueInSql, showNotification]);
 
   const where = () => {
-    const quoteField = quoteDatabaseIdentifier(kind)(field);
-    if (compare == "null") {
+    const quoteField = quoteDatabaseIdentifier(field, kind);
+    if (filter == "null") {
       return `${quoteField} IS NULL`;
     }
-    if (compare == "not null") {
+    if (filter == "not null") {
       return `${quoteField} IS NOT NULL`;
     }
-    if (compare == "starts") {
+    if (filter == "starts") {
       return `${quoteField} LIKE '${content}%'`;
     }
-    if (compare == "ends") {
+    if (filter == "ends") {
       return `${quoteField} LIKE '%${content}'`;
     }
-    if (compare == "contains") {
+    if (filter == "contains") {
       return `${quoteField} LIKE '%${content}%'`;
     }
-    return `${quoteField} ${compare} ${formatValue}`;
+    return `${quoteField} ${filter} ${formatValue}`;
   };
   return (
     <Stack spacing={1}>
       <Stack direction="row">
-        {compares.map(x => (
+        {compares.map((x) => (
           <Chip
             key={x}
             onClick={() => {
-              setCompare(x);
+              setFilter(x);
             }}
             label={x}
-            color={compare == x ? "success" : "default"}
+            color={filter == x ? "success" : "default"}
             style={{ minWidth: "3rem" }}
           />
         ))}
       </Stack>
       <Stack direction="row">
-        {["null", "not null"].map(e => (
+        {["null", "not null"].map((e) => (
           <Chip
             label={e}
-            color={compare == e ? "success" : "default"}
+            color={filter == e ? "success" : "default"}
             onClick={() => {
-              setCompare(e);
+              setFilter(e);
             }}
             key={e}
           />
@@ -1572,12 +1596,12 @@ function FilterOnValue(props: {
       </Stack>
       {formatValue.endsWith("'") && (
         <Stack direction="row">
-          {["starts", "ends", "contains"].map(e => (
+          {["starts", "ends", "contains"].map((e) => (
             <Chip
               label={e}
-              color={compare == e ? "success" : "default"}
+              color={filter == e ? "success" : "default"}
               onClick={() => {
-                setCompare(e);
+                setFilter(e);
               }}
               key={e}
             />
@@ -1591,8 +1615,7 @@ function FilterOnValue(props: {
           onClick={() => {
             setWhere(where());
             handleClose();
-          }}
-        >
+          }}>
           set
         </Button>
         <Typography color="success" style={textEllipsisStyle}>

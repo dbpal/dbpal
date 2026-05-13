@@ -1,3 +1,5 @@
+use tokio::sync::Mutex;
+
 use crate::db::{name_start_ascii_alphabetic, DBTrait};
 use crate::language_server::{
     try_parser_dot_lexer, AstCompletionHelper, CompletionItem, CompletionKind, CompletionList,
@@ -18,7 +20,8 @@ impl LexerCompletionTrait for OracleDB {
 
 impl GetKeyWords for OracleDB {
     async fn key_words(&self) -> anyhow::Result<Vec<String>> {
-        let mut lock = self.key_words_cache.lock().await;
+        static KEY_WORDS_CACHE: Mutex<Vec<String>> = Mutex::const_new(Vec::new());
+        let mut lock = KEY_WORDS_CACHE.lock().await;
         if !lock.is_empty() {
             return anyhow::Ok(lock.clone());
         }
@@ -218,15 +221,6 @@ impl LangServerCommon for OracleDB {
 
 #[async_trait::async_trait]
 impl LanguageServer for OracleDB {
-    async fn try_get_max_id(&self, name: &str) -> anyhow::Result<String> {
-        let sql = format!("SELECT MAX(id) FROM \"{name}\"");
-        let row = self.query_row(sql).await?;
-        if !row.sql_values().is_empty() {
-            return anyhow::Ok("".to_string());
-        }
-        anyhow::Ok(row.sql_values()[0].to_string())
-    }
-
     async fn ai_text_completion(
         &self,
         text: &str,

@@ -1,7 +1,5 @@
 // mongodb query interfaces and implementation.
 
-import { loader } from "@monaco-editor/react";
-import { invoke } from "@tauri-apps/api/core";
 import { BSON } from "bson";
 import {
   IFindBuilder,
@@ -10,6 +8,18 @@ import {
   IMongoDB,
 } from "./MongoInterface";
 import interfaceRawText from "./MongoInterface.ts?raw";
+import prettier from "prettier/standalone";
+// 必须引入这两个插件文件
+import parserTypeScript from "prettier/plugins/typescript";
+import parserEstree from "prettier/plugins/estree";
+
+import globalVar from "./MongoVar.ts?raw";
+
+import * as monaco from "monaco-editor";
+import { commands } from "./bindings";
+import bsonTypeStr from "../../node_modules/bson/bson.d.ts?raw";
+import fsTypeStr from "../../node_modules/@tauri-apps/plugin-fs/dist-js/index.d.ts?raw";
+import httpTypeStr from "../../node_modules/@tauri-apps/plugin-http/dist-js/index.d.ts?raw";
 
 class MongoDBQuery implements IMongoDB {
   uuid: string;
@@ -29,18 +39,13 @@ class MongoDBQuery implements IMongoDB {
     return new MongoDBQueryCollection(this.uuid, name);
   }
   drop() {
-    return invoke<void>("mongo_query_db_drop", { name: this.uuid });
+    return commands.mongoQueryDbDrop(this.uuid);
   }
   listCollectionNames() {
-    return invoke<string[]>("mongo_query_db_list_collection_names", {
-      name: this.uuid,
-    });
+    return commands.mongoQueryDbListCollectionNames(this.uuid);
   }
   runCommand(doc: BSON.Document) {
-    return invoke<number[]>("mongo_query_db_run_command", {
-      name: this.uuid,
-      command: BSON.serialize(doc),
-    }).then(e => {
+    return commands.mongoQueryDbRunCommand(this.uuid, BSON.serialize(doc)).then((e) => {
       return BSON.deserialize(new Uint8Array(e));
     });
   }
@@ -89,11 +94,9 @@ class MongoDBQueryFindCommon {
     return this;
   }
 
-  makeCommonArg(): Record<string, unknown> {
+  makeCommonArg() {
     return {
-      name: this.uuid,
-      col: this.col,
-      query: BSON.serialize(this.filter),
+      filter: BSON.serialize(this.filter),
       projection: BSON.serialize(this._projection),
       sort: BSON.serialize(this._sort),
       min: BSON.serialize(this._min),
@@ -110,12 +113,13 @@ class MongoDBQueryFind extends MongoDBQueryFindCommon implements IFindBuilder {
     if (!this._limit) {
       throw `limit can't be null`;
     }
-    const x = this.makeCommonArg();
-    x.limit = this._limit;
-    return invoke<number[][]>("mongo_query_collection_find", x).then(e => {
-      const x = e.map(x => new Uint8Array(x)).map(e => BSON.deserialize(e));
-      return x;
-    });
+    const para = this.makeCommonArg();
+    return commands
+      .mongoQueryCollectionFind(this.uuid, this.col, { ...para, limit: this._limit })
+      .then((e) => {
+        const x = e.map((x) => new Uint8Array(x)).map((e) => BSON.deserialize(e));
+        return x;
+      });
   }
 
   limit(limit: number): IFindBuilder {
@@ -130,11 +134,13 @@ class MongoDBQueryFind extends MongoDBQueryFindCommon implements IFindBuilder {
 
 class MongoDBQueryFindOne extends MongoDBQueryFindCommon implements IFindOneBuilder {
   find() {
-    const x = this.makeCommonArg();
-    return invoke<number[]>("mongo_query_collection_find_one", x).then(e => {
-      const x = BSON.deserialize(new Uint8Array(e));
-      return x;
-    });
+    const para = this.makeCommonArg();
+    return commands
+      .mongoQueryCollectionFindOne(this.uuid, this.col, { ...para, limit: null })
+      .then((e) => {
+        const x = BSON.deserialize(new Uint8Array(e));
+        return x;
+      });
   }
 }
 class MongoDBQueryCollection implements IMongoCollection {
@@ -145,73 +151,49 @@ class MongoDBQueryCollection implements IMongoCollection {
     this.col = col;
   }
   cuntDocuments() {
-    return invoke<number>("mongo_query_collection_count_docs", {
-      name: this.uuid,
-      col: this.col,
-    });
+    return commands.mongoQueryCollectionCountDocs(this.uuid, this.col);
   }
   createIndex(index: BSON.Document) {
-    return invoke<string>("mongo_query_collection_create_index", {
-      name: this.uuid,
-      col: this.col,
-      index: BSON.serialize(index),
-    });
+    return commands.mongoQueryCollectionCreateIndex(
+      this.uuid,
+      this.col,
+      BSON.serialize(index),
+    );
   }
   createSearchIndex(index: BSON.Document, name: string | null) {
-    return invoke<string>("mongo_query_collection_create_search_index", {
-      name: this.uuid,
-      col: this.col,
-      index: BSON.serialize(index),
-      indexName: name,
-    });
+    return commands.mongoQueryCollectionCreateSearchIndex(
+      this.uuid,
+      this.col,
+      BSON.serialize(index),
+      name,
+    );
   }
   deleteMany(filter: BSON.Document) {
-    return invoke<string>("mongo_query_collection_delete_many", {
-      name: this.uuid,
-      col: this.col,
-      query: BSON.serialize(filter),
-    }).then(e => JSON.parse(e));
+    return commands
+      .mongoQueryCollectionDeleteMany(this.uuid, this.col, BSON.serialize(filter))
+      .then((e) => JSON.parse(e));
   }
   deleteOne(filter: BSON.Document) {
-    return invoke<string>("mongo_query_collection_delete_one", {
-      name: this.uuid,
-      col: this.col,
-      query: BSON.serialize(filter),
-    }).then(e => JSON.parse(e));
+    return commands
+      .mongoQueryCollectionDeleteOne(this.uuid, this.col, BSON.serialize(filter))
+      .then((e) => JSON.parse(e));
   }
   distinct(field: string, filter: BSON.Document) {
-    return invoke<string>("mongo_query_collection_distinct", {
-      name: this.uuid,
-      col: this.col,
-      query: BSON.serialize(filter),
-      field,
-    }).then(e => JSON.parse(e));
+    return commands
+      .mongoQueryCollectionDistinct(this.uuid, this.col, BSON.serialize(filter), field)
+      .then((e) => JSON.parse(e));
   }
   drop() {
-    return invoke<void>("mongo_query_collection_drop", {
-      name: this.uuid,
-      col: this.col,
-    });
+    return commands.mongoQueryCollectionDrop(this.uuid, this.col);
   }
   dropIndex(index: string) {
-    return invoke<void>("mongo_query_collection_drop_index", {
-      name: this.uuid,
-      col: this.col,
-      index,
-    });
+    return commands.mongoQueryCollectionDropIndex(this.uuid, this.col, index);
   }
   dropIndexes() {
-    return invoke<void>("mongo_query_collection_drop_indexes", {
-      name: this.uuid,
-      col: this.col,
-    });
+    return commands.mongoQueryCollectionDropIndexes(this.uuid, this.col);
   }
   dropSearchIndex(index: string) {
-    return invoke<void>("mongo_query_collection_drop_search_index", {
-      name: this.uuid,
-      col: this.col,
-      index,
-    });
+    return commands.mongoQueryCollectionDropSearchIndex(this.uuid, this.col, index);
   }
   find(filter: BSON.Document) {
     return new MongoDBQueryFind(this.uuid, this.col, filter);
@@ -220,81 +202,82 @@ class MongoDBQueryCollection implements IMongoCollection {
     return new MongoDBQueryFindOne(this.uuid, this.col, filter);
   }
   findOneAndDelete(filter: BSON.Document) {
-    return invoke<number[] | null>("mongo_query_collection_find_one_and_delete", {
-      name: this.uuid,
-      col: this.col,
-      query: BSON.serialize(filter),
-    }).then(e => (e ? BSON.deserialize(new Uint8Array(e)) : null));
+    return commands
+      .mongoQueryCollectionFindOneAndDelete(this.uuid, this.col, BSON.serialize(filter))
+      .then((e) => (e ? BSON.deserialize(new Uint8Array(e)) : null));
   }
   findAndReplace(filter: BSON.Document, replacement: BSON.Document) {
-    return invoke<number[] | null>("mongo_query_collection_find_one_and_replace", {
-      name: this.uuid,
-      col: this.col,
-      query: BSON.serialize(filter),
-      replacement: BSON.serialize(replacement),
-    }).then(e => (e ? BSON.serialize(new Uint8Array(e)) : null));
+    return commands
+      .mongoQueryCollectionFindOneAndReplace(
+        this.uuid,
+        this.col,
+        BSON.serialize(filter),
+        BSON.serialize(replacement),
+      )
+      .then((e) => (e ? BSON.serialize(new Uint8Array(e)) : null));
   }
   insertMany(docs: BSON.Document[] | BSON.Document) {
     if (!(docs instanceof Array)) {
       docs = [docs];
     }
-    return invoke<string>("mongo_query_collection_insert_many", {
-      name: this.uuid,
-      col: this.col,
-      data: docs.map(e => BSON.serialize(e)),
-    }).then(e => JSON.parse(e));
+    return commands
+      .mongoQueryCollectionInsertMany(
+        this.uuid,
+        this.col,
+        docs.map((e) => BSON.serialize(e)),
+      )
+      .then((e) => JSON.parse(e));
   }
   insertOne(doc: BSON.Document) {
-    return invoke<string>("mongo_query_collection_insert_one", {
-      name: this.uuid,
-      col: this.col,
-      doc: BSON.serialize(doc),
-    }).then(e => JSON.parse(e));
+    return commands
+      .mongoQueryCollectionInsertOne(this.uuid, this.col, BSON.serialize(doc))
+      .then((e) => JSON.parse(e));
   }
   listIndexNames() {
-    return invoke<string[]>("mongo_query_collection_list_index_names", {
-      name: this.uuid,
-      col: this.col,
-    });
+    return commands.mongoQueryCollectionListIndexNames(this.uuid, this.col);
   }
   listIndexes() {
-    return invoke<string>("mongo_query_collection_list_indexes", {
-      name: this.uuid,
-      col: this.col,
-    }).then(e => JSON.parse(e));
+    return commands
+      .mongoQueryCollectionListIndexes(this.uuid, this.col)
+      .then((e) => JSON.parse(e));
   }
   listSearchIndexes() {
-    return invoke<number[][]>("mongo_query_collection_list_search_indexes", {
-      name: this.uuid,
-      col: this.col,
-    }).then(e => e.map(e => BSON.deserialize(new Uint8Array(e))));
+    return commands
+      .mongoQueryCollectionListSearchIndexes(this.uuid, this.col)
+      .then((e) => e.map((e) => BSON.deserialize(new Uint8Array(e))));
   }
   name() {
     return this.col;
   }
   replaceOne(query: BSON.Document, replacement: BSON.Document) {
-    return invoke<string>("mongo_query_collection_replace_one", {
-      name: this.uuid,
-      col: this.col,
-      query: BSON.serialize(query),
-      replacement: BSON.serialize(replacement),
-    }).then(e => JSON.parse(e));
+    return commands
+      .mongoQueryCollectionReplaceOne(
+        this.uuid,
+        this.col,
+        BSON.serialize(query),
+        BSON.serialize(replacement),
+      )
+      .then((e) => JSON.parse(e));
   }
   updateMany(query: BSON.Document, replacement: BSON.Document) {
-    return invoke<string>("mongo_query_collection_update_many", {
-      name: this.uuid,
-      col: this.col,
-      query: BSON.serialize(query),
-      replacement: BSON.serialize(replacement),
-    }).then(e => JSON.parse(e));
+    return commands
+      .mongoQueryCollectionUpdateMany(
+        this.uuid,
+        this.col,
+        BSON.serialize(query),
+        BSON.serialize(replacement),
+      )
+      .then((e) => JSON.parse(e));
   }
   updateOne(query: BSON.Document, replacement: BSON.Document) {
-    return invoke<string>("mongo_query_collection_update_one", {
-      name: this.uuid,
-      col: this.col,
-      query: BSON.serialize(query),
-      replacement: BSON.serialize(replacement),
-    }).then(e => JSON.parse(e));
+    return commands
+      .mongoQueryCollectionUpdateOne(
+        this.uuid,
+        this.col,
+        BSON.serialize(query),
+        BSON.serialize(replacement),
+      )
+      .then((e) => JSON.parse(e));
   }
 }
 
@@ -303,31 +286,63 @@ function trimInterfaceText(text: string) {
   if (lines.length <= 2) return ""; // 如果只有一两行，返回空
   return lines.slice(1, -2).join("\n"); // 去掉首尾行
 }
-const globalVar = `
-    const db : IMongoDB; // db is a database handle can access the database
-    const setUpClean : (name :string, f : ()=>void)=> void; // setup a clean function by name and callback
-    const bson : any; // bson will initialize by 'await import("bson")'
-  `;
 
 const interfaceText = trimInterfaceText(interfaceRawText) + globalVar;
 
 function initMongoQueryGlobals() {
-  loader
-    .init()
-    .then(monaco => {
-      const extraLib = interfaceText;
-      monaco.languages.typescript.javascriptDefaults.addExtraLib(extraLib);
-      monaco.languages.typescript.typescriptDefaults.addExtraLib(extraLib);
-    })
-    .catch(e => {
-      console.log("init monaco language error:", e);
-    });
+  monaco.typescript.typescriptDefaults.addExtraLib(
+    `declare namespace BSONNamespace {
+    ${bsonTypeStr}
+  }`,
+    "ts:bson.d.ts",
+  );
+  monaco.typescript.typescriptDefaults.addExtraLib(
+    `declare namespace TauriPluginFsNamespace {
+    ${fsTypeStr}
+  }`,
+    "ts:fs.d.ts",
+  );
+
+  monaco.typescript.typescriptDefaults.addExtraLib(
+    `declare namespace TauriPluginHttpNamespace {
+    ${httpTypeStr}
+  }`,
+    "ts:http.d.ts",
+  );
+  monaco.typescript.typescriptDefaults.addExtraLib(interfaceText, "ts:global.d.ts");
 }
 
-export {
-  initMongoQueryGlobals,
-  MongoDBQuery,
-  interfaceText,
-  interfaceRawText,
-  globalVar,
-};
+initMongoQueryGlobals();
+
+monaco.languages.registerDocumentFormattingEditProvider("typescript", {
+  async provideDocumentFormattingEdits(model) {
+    const text = model.getValue();
+
+    try {
+      const formatted = await prettier.format(text, {
+        parser: "typescript",
+        // 关键：必须在这里显式传入插件数组
+        plugins: [parserTypeScript, parserEstree],
+
+        // 你的格式化配置
+        singleQuote: true,
+        tabWidth: 4,
+        printWidth: 80,
+        trailingComma: "all",
+        semi: true,
+      });
+
+      return [
+        {
+          range: model.getFullModelRange(),
+          text: formatted,
+        },
+      ];
+    } catch (error) {
+      console.error("Prettier 格式化失败:", error);
+      return []; // 如果出错，返回空数组表示不进行任何更改
+    }
+  },
+});
+
+export { MongoDBQuery, globalVar };
