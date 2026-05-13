@@ -227,9 +227,6 @@ const { db, FS, HTTP, BSON } = mongoHandle;
   }, []);
 
   const handleExecute = async (code: string) => {
-    if (getSwitch(saveQueryKey)) {
-      saveQueryLog(uuid, code, true);
-    }
     eval(code);
 
     showNotification({
@@ -253,6 +250,9 @@ const { db, FS, HTTP, BSON } = mongoHandle;
             disabled={markdownModel}
             getText={async () => {
               let now = new Date();
+              if (getSwitch(saveQueryKey)) {
+                saveQueryLog(uuid, editor.getValue(), true);
+              }
               const code = await transformTS(
                 editor,
                 showNotification,
@@ -336,7 +336,12 @@ const { db, FS, HTTP, BSON } = mongoHandle;
               getText={async () => {
                 return code;
               }}
-              handleEexecute={handleExecute}
+              handleEexecute={() => {
+                if (getSwitch(saveQueryKey)) {
+                  saveQueryLog(uuid, code, true);
+                }
+                return handleExecute(code);
+              }}
               disabled={false}
             />
           );
