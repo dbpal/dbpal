@@ -28,20 +28,6 @@
     "targets": ["deb", "dmg", "msi", "rpm", "appimage"]
   },
   "identifier": "site.dbpal.dev",
-  "plugins": {
-    "typegen": {
-      "excludePatterns": null,
-      "force": false,
-      "includePatterns": null,
-      "includePrivate": false,
-      "outputPath": "./src/generated",
-      "projectPath": ["../../dbnexus-db/src/data_source.rs", "./src-tauri"],
-      "typeMappings": null,
-      "validationLibrary": "none",
-      "verbose": true,
-      "visualizeDeps": true
-    }
-  },
   "productName": "dbpal",
   "version": "1.3.1"
 }
