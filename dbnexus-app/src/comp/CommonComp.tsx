@@ -255,7 +255,9 @@ function ConnPingTime(props: { uuid: string }) {
     <>
       {typeof pingTime == "number" && (
         <Tooltip title="ping time">
-          <Typography color="green"> {prettyMs(pingTime)} </Typography>
+          <Typography color={pingTime < 4000 ? "success" : "warning"}>
+            {prettyMs(pingTime)}
+          </Typography>
         </Tooltip>
       )}
       {err && (
