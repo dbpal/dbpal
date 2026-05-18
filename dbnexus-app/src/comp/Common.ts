@@ -85,9 +85,9 @@ function uint8ArrayToBase64(buffer: Uint8Array): string {
 
 const modalStyle: SxProps = {
   position: "fixed",
-  transform: "translate(50%, 50%)",
-  bottom: "50%",
-  right: "50%",
+  transform: "translate(-50%, -50%)",
+  left: "50%",
+  top: "50%",
   bgcolor: "background.paper",
   border: "2px solid skyblue",
   boxShadow: 24,
