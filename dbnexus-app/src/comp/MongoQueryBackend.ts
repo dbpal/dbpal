@@ -150,8 +150,12 @@ class MongoDBQueryCollection implements IMongoCollection {
     this.uuid = uuid;
     this.col = col;
   }
-  cuntDocuments() {
-    return commands.mongoQueryCollectionCountDocs(this.uuid, this.col);
+  cuntDocuments(filter?: BSON.Document) {
+    return commands.mongoQueryCollectionCountDocs(
+      this.uuid,
+      this.col,
+      filter ? BSON.serialize(filter) : null,
+    );
   }
   createIndex(index: BSON.Document) {
     return commands.mongoQueryCollectionCreateIndex(

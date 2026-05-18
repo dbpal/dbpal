@@ -1988,16 +1988,22 @@ pub async fn mongo_query_db_run_command(
 pub async fn mongo_query_collection_count_docs(
     db_name: String,
     col: String,
+    filter: Option<JsUint8Array>,
     app: tauri::State<'_, DBPal>,
 ) -> Result<u64, ErrorFrontend> {
     random_sleep().await;
     random_error()?;
+    let filter = if let Some(filter) = filter {
+        Some(parse_bson_doc(&filter)?)
+    } else {
+        None
+    };
     let db = app
         .get_schema(db_name.as_str())
         .await
         .map_err(|e| e.to_string())?;
     let ret = match db.as_any().downcast_ref::<MongoDB>() {
-        Some(x) => x.query_collection_count_docs(&col).await,
+        Some(x) => x.query_collection_count_docs(&col, filter).await,
         None => return Err(format!("db '{}' not mongo", db_name).into()),
     }
     .map_err(ErrorFrontend::from)?;

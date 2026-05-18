@@ -102,11 +102,15 @@ impl MongoDB {
 }
 // collection apis
 impl MongoDB {
-    pub async fn query_collection_count_docs(&self, col: &str) -> anyhow::Result<u64> {
+    pub async fn query_collection_count_docs(
+        &self,
+        col: &str,
+        filter: Option<Document>,
+    ) -> anyhow::Result<u64> {
         let db = self.get_db().await?;
         let c = db
             .collection::<Document>(col)
-            .count_documents(doc! {})
+            .count_documents(filter.unwrap_or_else(|| doc! {}))
             .await?;
         anyhow::Ok(c)
     }

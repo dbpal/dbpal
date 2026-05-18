@@ -9,7 +9,7 @@ interface IMongoDB {
 }
 
 interface IMongoCollection {
-  cuntDocuments: () => Promise<number>;
+  cuntDocuments: (_?: Document) => Promise<number>;
   createIndex: (index: BSON.Document) => Promise<string>;
   createSearchIndex: (index: BSON.Document, name: string | null) => Promise<string>;
   deleteMany: (filter: BSON.Document) => Promise<BSON.Document>;

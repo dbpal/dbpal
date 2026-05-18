@@ -23,8 +23,12 @@ async function testCol() {
         longValue: new BSON.BSON.Long(456),
     });
     console.info('insert ret is:', insertRet);
-    const count = await collection.cuntDocuments();
+    let  count = await collection.cuntDocuments();
     console.info('count document is :', count);
+
+      count = await collection.cuntDocuments({ a: 100 });
+    console.info('count document is with condition :', count);
+
     const createIndexRet = await collection.createIndex({ a: 1 });
     console.info('create index ret:', createIndexRet);
     const deleteManyResult = await collection.deleteMany({ c: 2 });
