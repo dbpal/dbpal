@@ -163,7 +163,7 @@ class MongoDBQueryCollection implements IMongoCollection {
     this.uuid = uuid;
     this.col = col;
   }
-  cuntDocuments(filter?: BSON.Document) {
+  countDocuments(filter?: BSON.Document) {
     return commands.mongoQueryCollectionCountDocs(
       this.uuid,
       this.col,
