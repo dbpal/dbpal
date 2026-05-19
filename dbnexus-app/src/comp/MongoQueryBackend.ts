@@ -20,6 +20,7 @@ import { commands } from "./bindings";
 import bsonTypeStr from "../../node_modules/bson/bson.d.ts?raw";
 import fsTypeStr from "../../node_modules/@tauri-apps/plugin-fs/dist-js/index.d.ts?raw";
 import httpTypeStr from "../../node_modules/@tauri-apps/plugin-http/dist-js/index.d.ts?raw";
+import { Channel } from "@tauri-apps/api/core";
 
 class MongoDBQuery implements IMongoDB {
   uuid: string;
@@ -109,17 +110,29 @@ class MongoDBQueryFindCommon {
 
 class MongoDBQueryFind extends MongoDBQueryFindCommon implements IFindBuilder {
   _limit: number;
-  async find() {
+  async find(handle_data: (_: BSON.Document) => void) {
     if (!this._limit) {
       throw `limit can't be null`;
     }
+    const emit = new Channel<number[]>((e) => {
+      const doc = BSON.deserialize(new Uint8Array(e));
+      handle_data(doc);
+    });
     const para = this.makeCommonArg();
-    return commands
-      .mongoQueryCollectionFind(this.uuid, this.col, { ...para, limit: this._limit })
-      .then((e) => {
-        const x = e.map((x) => new Uint8Array(x)).map((e) => BSON.deserialize(e));
-        return x;
-      });
+    return commands.mongoQueryCollectionFind(
+      this.uuid,
+      this.col,
+      { ...para, limit: this._limit },
+      emit,
+    );
+  }
+
+  async findCollect(): Promise<BSON.Document[]> {
+    const r = [];
+    await this.find((doc) => {
+      r.push(doc);
+    });
+    return r;
   }
 
   limit(limit: number): IFindBuilder {

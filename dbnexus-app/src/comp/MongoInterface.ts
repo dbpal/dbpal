@@ -52,7 +52,9 @@ interface IFindOneBuilder extends IFindCommon {
 }
 
 interface IFindBuilder extends IFindCommon {
-  find: () => Promise<BSON.Document[]>;
+  find: (handle_data: (_: BSON.Document) => void) => Promise<void>;
+  findCollect: () => Promise<BSON.Document[]>;
+
   limit(limit: number): IFindBuilder;
 }
 

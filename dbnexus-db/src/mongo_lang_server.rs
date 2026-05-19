@@ -1,3 +1,5 @@
+use std::sync::Arc;
+
 use futures_util::StreamExt;
 use mongodb::bson::{doc, Bson, Document};
 use mongodb::options::Hint;
@@ -223,7 +225,8 @@ impl MongoDB {
         &self,
         col: &str,
         para: MongoFindParameter,
-    ) -> anyhow::Result<Vec<Document>> {
+        handle_data: Arc<dyn Fn(Document) -> anyhow::Result<()> + Send + Sync>,
+    ) -> anyhow::Result<()> {
         let MongoFindParameter {
             filter,
             hint,
@@ -271,12 +274,11 @@ impl MongoDB {
             f = f.skip(skip);
         }
         let mut cursor = f.await?;
-        let mut ret = Vec::new();
         while let Some(doc) = cursor.next().await {
             let doc = doc?;
-            ret.push(doc);
+            handle_data(doc)?;
         }
-        anyhow::Ok(ret)
+        anyhow::Ok(())
     }
 
     pub async fn query_collection_find_one(

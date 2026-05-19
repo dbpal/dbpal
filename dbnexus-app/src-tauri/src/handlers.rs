@@ -2220,24 +2220,29 @@ pub async fn mongo_query_collection_find(
     db_name: String,
     col: String,
     para: app::MongoFindParameter,
+    emit: Channel<Vec<u8>>,
     app: tauri::State<'_, DBPal>,
-) -> Result<Vec<Vec<u8>>, ErrorFrontend> {
+) -> Result<(), ErrorFrontend> {
     random_sleep().await;
     random_error()?;
     let db = app
         .get_schema(db_name.as_str())
         .await
         .map_err(|e| e.to_string())?;
-    let docs = match db.as_any().downcast_ref::<MongoDB>() {
-        Some(x) => x.query_collection_find(&col, para.try_into()?).await,
+
+    let f = Arc::new(move |x| -> anyhow::Result<()> {
+        let d = encode_bson_doc(&x).map_err(|e| anyhow::Error::msg(e.to_string()))?;
+        emit.send(d)?;
+        anyhow::Ok(())
+    });
+
+    match db.as_any().downcast_ref::<MongoDB>() {
+        Some(x) => x.query_collection_find(&col, para.try_into()?, f).await,
         None => return Err(format!("db '{}' not mongo", db_name).into()),
     }
     .map_err(ErrorFrontend::from)?;
-    let mut ret = Vec::with_capacity(docs.len());
-    for d in docs.iter() {
-        ret.push(encode_bson_doc(d)?);
-    }
-    Ok(ret)
+
+    Ok(())
 }
 
 #[specta::specta]
