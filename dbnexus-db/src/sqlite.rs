@@ -1365,7 +1365,7 @@ impl QuerySql for SqliteDB {
 }
 
 pub fn sqlite_test_file_path() -> String {
-    std::env::var("DBPAL_SQLITE_TEST_FILE").unwrap()
+    std::env::var("DBPAL_SQLITE_TEST_FILE").expect("dbpal sqlite test file path not set")
 }
 
 #[cfg(test)]

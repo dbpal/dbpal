@@ -309,12 +309,9 @@ impl ExportQueryResult for DuckDB {
                         include_header,
                         delimiter,
                     } => {
-                        if first.get() {
-                            if include_header {
-                                let fs =
-                                    row.as_ref().column_names().into_iter().map(Some).collect();
-                                sender.blocking_send(create_csv(&[fs], delimiter)?.into())?;
-                            }
+                        if first.get() && include_header {
+                            let fs = row.as_ref().column_names().into_iter().map(Some).collect();
+                            sender.blocking_send(create_csv(&[fs], delimiter)?.into())?;
                         }
                         let d = encode_row(row)?;
                         let r = create_csv(&d, delimiter)?;
@@ -328,26 +325,22 @@ impl ExportQueryResult for DuckDB {
                         anyhow::bail!("query as sql not supported.");
                     }
                     ExportKind::Xlsx { include_header } => {
-                        if first.get() {
-                            if include_header {
-                                let names: Vec<_> =
-                                    row.as_ref().column_names().into_iter().map(Some).collect();
-                                export_query_as_xlsx_send_blocking_data(
-                                    &mut row_num,
-                                    names,
-                                    sender.clone(),
-                                )?;
-                            }
+                        if first.get() && include_header {
+                            let names: Vec<_> =
+                                row.as_ref().column_names().into_iter().map(Some).collect();
+                            export_query_as_xlsx_send_blocking_data(
+                                &mut row_num,
+                                names,
+                                sender.clone(),
+                            )?;
                         }
                         let d = encode_row(row)?;
                         export_query_as_xlsx_send_blocking_data(&mut row_num, d, sender.clone())?;
                     }
                     ExportKind::Html { include_header } => {
-                        if first.get() {
-                            if include_header {
-                                let names = row.as_ref().column_names();
-                                sender.blocking_send(create_html_table_header(&names).into())?;
-                            }
+                        if first.get() && include_header {
+                            let names = row.as_ref().column_names();
+                            sender.blocking_send(create_html_table_header(&names).into())?;
                         }
                         let d = encode_row(row)?;
                         let r = create_html_table_data(&[d]);

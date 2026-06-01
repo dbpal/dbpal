@@ -1742,7 +1742,7 @@ function IconModifed() {
 }
 
 function ListenElementSize(props: {
-  dom: Element;
+  dom?: Element;
   name: string;
   set: "height" | "width" | "both";
 }) {

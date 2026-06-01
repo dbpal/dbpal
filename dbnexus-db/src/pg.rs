@@ -91,10 +91,8 @@ impl DBTrait for PostGresDB {
         let mut ret = Vec::with_capacity(rows.len());
         for r in rows.iter() {
             let name: String = r.try_get(0)?;
-            if self.kind == BackendKindPostGres::CockRoach {
-                if name == "crdb_internal" {
-                    continue;
-                }
+            if self.kind == BackendKindPostGres::CockRoach && name == "crdb_internal" {
+                continue;
             }
             ret.push(name)
         }
@@ -1932,7 +1930,6 @@ impl GetTestExportTableKinds for PostGresDB {
     }
 }
 #[cfg(test)]
-
 mod tests {
     use super::make_test_object;
     #[allow(unused_imports)]

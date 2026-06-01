@@ -581,8 +581,7 @@ pub async fn openai_stream(
         &req,
         tools,
         Some(format!("U a are {} expert", db.backend_kind()).as_str()),
-    )
-    .unwrap();
+    )?;
 
     let documents = req.images.iter().map(|x| {
         UserContent::Image(Image {
@@ -621,7 +620,7 @@ pub async fn openai_stream(
                 req.read_documents()
                     .await?
                     .into_iter()
-                    .map(|doc| UserContent::Document(doc)),
+                    .map(UserContent::Document),
             );
             content.extend(documents);
             #[cfg(debug_assertions)]
@@ -974,7 +973,7 @@ mod mongo_tool {
         type Output = Vec<Document>;
 
         async fn call(&self, args: Self::Args) -> Result<Self::Output, CallToolErr> {
-            let db = self.client.get_db().await.unwrap();
+            let db = self.client.get_db().await?;
 
             let MongoQueryRequest {
                 collection: collection_name,
@@ -1022,7 +1021,7 @@ mod mongo_tool {
                         cursor.await.map_err(|e| CallToolErr::from(e.to_string()))?;
                     let mut docs = vec![];
                     while let Some(x) = cursor.next().await {
-                        let x = x.unwrap();
+                        let x = x.map_err(|e| CallToolErr::from(e.to_string()))?;
                         docs.push(x);
                     }
                     docs
@@ -1031,8 +1030,7 @@ mod mongo_tool {
                 "count" => {
                     let count = collection
                         .count_documents(filter.unwrap_or_default())
-                        .await
-                        .unwrap();
+                        .await?;
                     vec![doc! { "count": count as i64 }]
                 }
                 "distinct" => {

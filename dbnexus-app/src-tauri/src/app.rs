@@ -46,7 +46,6 @@ pub struct OpenAIReq {
 }
 #[derive(serde::Serialize, serde::Deserialize, Debug, Clone, specta::Type)]
 #[serde(tag = "resp_type", rename_all = "lowercase")]
-
 pub enum AISteamResp {
     Content {
         msg: String,
@@ -834,7 +833,6 @@ impl TaskManager {
 
 #[derive(serde::Serialize, serde::Deserialize, Debug, Clone)]
 #[serde(transparent)]
-
 pub struct JsUint8Array(Vec<u8>);
 
 impl specta::Type for JsUint8Array {

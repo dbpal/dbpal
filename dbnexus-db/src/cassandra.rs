@@ -80,7 +80,7 @@ impl AddressTranslator for LocalhostTranslator {
         &self,
         _untranslated_peer: &UntranslatedPeer,
     ) -> Result<SocketAddr, scylla::errors::TranslationError> {
-        Ok(self.fixed_addr.clone())
+        Ok(self.fixed_addr)
     }
 }
 

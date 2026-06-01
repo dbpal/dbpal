@@ -626,11 +626,7 @@ impl SchemaTrait for MongoDB {
 
     async fn list_view(&self) -> anyhow::Result<Vec<ListTable>> {
         let views = self
-            .list_collection_name_by_type(|t| match t {
-                CollectionType::View => true,
-
-                _ => false,
-            })
+            .list_collection_name_by_type(|t| matches!(t, CollectionType::View))
             .await?;
 
         anyhow::Ok(views.into_iter().map(ListTable::from).collect())
@@ -638,10 +634,7 @@ impl SchemaTrait for MongoDB {
 
     async fn list_table(&self) -> anyhow::Result<Vec<ListTable>> {
         let tables = self
-            .list_collection_name_by_type(|t| match t {
-                CollectionType::View => false,
-                _ => true,
-            })
+            .list_collection_name_by_type(|t| !matches!(t, CollectionType::View))
             .await?;
         anyhow::Ok(tables.into_iter().map(ListTable::from).collect())
     }
@@ -827,7 +820,7 @@ pub fn make_test_object() -> MongoDB {
 
         ssl: Default::default(),
     });
-    x.unwrap()
+    x.expect("shoud make test object ok")
 }
 
 #[cfg(test)]

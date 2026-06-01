@@ -868,7 +868,7 @@ pub trait SqlBuilder: GetBackendKind {
 
                 match &value {
                     Some(value) => {
-                        sql.push_str(self.put_value_in_sql(&f.data_type, &value)?.as_str())
+                        sql.push_str(self.put_value_in_sql(&f.data_type, value)?.as_str())
                     }
                     None => sql.push_str("NULL"),
                 };
@@ -2547,6 +2547,6 @@ impl FirstTrue {
         if value {
             self.value.store(false, Ordering::Relaxed);
         }
-        return value;
+        value
     }
 }
