@@ -22,9 +22,9 @@ currentWebview.onCloseRequested(async (event) => {
     event.preventDefault();
     return;
   }
-  for (const x of await WebviewWindow.getAll()) {
-    if (x.label != currentWebview.label) {
-      await x.close();
+  for (const view of await WebviewWindow.getAll()) {
+    if (view.label != currentWebview.label) {
+      await view.close();
     }
   }
 });
@@ -34,5 +34,3 @@ if (import.meta.env.DEV) {
 }
 
 ReactDOM.createRoot(document.getElementById("root") as HTMLElement).render(<App />);
-
-// commands.commandPanic();
