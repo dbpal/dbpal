@@ -159,8 +159,8 @@ impl QuerySql for LibSqlDB {
         anyhow::Ok(!self.query_tx.contains_key(&query_id.to_string()))
     }
 
-    async fn set_auto_commit(&self, query_id: &str, c: bool) -> anyhow::Result<()> {
-        if c {
+    async fn set_auto_commit(&self, query_id: &str, commit: bool) -> anyhow::Result<()> {
+        if commit {
             anyhow::bail!("libsql use commit or rollback to end transaction");
         }
         let conn = self.query_connection.get(&query_id.to_string());

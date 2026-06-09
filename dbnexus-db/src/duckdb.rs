@@ -1598,8 +1598,6 @@ mod tests {
         .unwrap()
         .unwrap();
 
-        println!("!!!!!!!!!!!!:{:?}", db.query_tx);
-
         assert!(!db.get_auto_commit(query_id).await.unwrap());
 
         db.commit(query_id).await.unwrap();
