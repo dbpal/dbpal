@@ -72,7 +72,7 @@ impl Scopes {
         let mut ret = vec![];
         let lock = self.scopes.lock().expect("lock failed");
         for s in lock.iter().rev() {
-            ret.extend(s.tables.clone().into_iter());
+            ret.extend(s.tables.clone());
         }
         ret
     }
@@ -519,13 +519,10 @@ impl<'a> CompletionStatement<'a> {
             }) => {
                 let mut joins = vec![table.clone()];
                 if let Some(kind) = from.as_ref() {
-                    joins.extend(
-                        match kind {
-                            UpdateTableFromKind::BeforeSet(items) => items.clone(),
-                            UpdateTableFromKind::AfterSet(items) => items.clone(),
-                        }
-                        .into_iter(),
-                    );
+                    joins.extend(match kind {
+                        UpdateTableFromKind::BeforeSet(items) => items.clone(),
+                        UpdateTableFromKind::AfterSet(items) => items.clone(),
+                    });
                 }
                 self.c_on_table_with_joins(&joins[..]).await;
                 if let Some(selection) = selection {
@@ -1515,7 +1512,7 @@ impl<'a> CompletionStatement<'a> {
                         let mut results = self.result.take().unwrap_or_default();
                         let kw = self.helper.key_words_completion().await;
                         // possible
-                        results.extend(kw.into_iter());
+                        results.extend(kw);
                         self.result = Some(results);
                     }
                 }

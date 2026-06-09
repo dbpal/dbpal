@@ -629,7 +629,7 @@ pub async fn openai_stream(
                     println!("user content:{:?}", c);
                 }
             }
-            OneOrMany::many(content.into_iter())?
+            OneOrMany::many(content)?
         },
     };
 

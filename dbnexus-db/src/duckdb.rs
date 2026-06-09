@@ -482,7 +482,8 @@ impl QuerySql for DuckDB {
         spawn_blocking(move || {
             let conn = this.get_conn()?;
             this.query_connection
-                .insert(id, Arc::new(Mutex::new(conn.try_clone()?)));
+                .insert(id.clone(), Arc::new(Mutex::new(conn.try_clone()?)));
+            this.query_tx.remove(&id);
             anyhow::Ok(())
         })
         .await?
@@ -707,7 +708,7 @@ impl DuckDB {
             while let Some(row) = stream.next()? {
                 let data = encode_row(row)?;
                 let mut values = HashMap::new();
-                for (f, value) in fs.iter().zip(data.into_iter()) {
+                for (f, value) in fs.iter().zip(data) {
                     values.insert(f.field.clone(), value);
                 }
                 let sql = this.insert_sql(&table_name, &fs, &values)?;

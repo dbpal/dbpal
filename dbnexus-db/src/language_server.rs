@@ -720,8 +720,7 @@ pub trait LangServerCommon: GetBackendKind + GetKeyWords + Send + Sync {
                         self.list_function(Some(schema), false)
                             .await
                             .map_err(|e| log::error!("list function failed,err:{}", e))
-                            .unwrap_or_default()
-                            .into_iter(),
+                            .unwrap_or_default(),
                     );
                     ret.extend(
                         self.list_procedure(Some(schema))

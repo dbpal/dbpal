@@ -1569,7 +1569,7 @@ impl<'a> CompletionStatement<'a> {
         self.c_on_select_target(&ObjectName(vec![ObjectNamePart::Identifier(ident.clone())]))
             .await;
 
-        results.extend(self.result.take().unwrap_or_default().into_iter());
+        results.extend(self.result.take().unwrap_or_default());
 
         if ident.quote_style.is_none() {
             // 我们也要函数
@@ -1582,7 +1582,7 @@ impl<'a> CompletionStatement<'a> {
         }
         //也要schema
         let schemas = self.helper.list_database_completion().await;
-        results.extend(schemas.into_iter());
+        results.extend(schemas);
         /*
             ai提示词 sql查询里面 有哪些关键字 可以放在select的列的前面 给我完成的列表
         */
@@ -2281,7 +2281,7 @@ impl<'a> CompletionStatement<'a> {
             .into_iter()
             .map(CompletionItem::from)
             .collect::<Vec<_>>();
-        result.extend(items.into_iter());
+        result.extend(items);
         self.result = Some(result);
     }
 
@@ -2343,7 +2343,7 @@ impl<'a> CompletionStatement<'a> {
         self.c_on_view(name).await;
         let mut items = self.result.take().unwrap_or_default();
         self.c_on_table(name).await;
-        items.extend(self.result.take().unwrap_or_default().into_iter());
+        items.extend(self.result.take().unwrap_or_default());
         self.result = Some(items);
     }
 
@@ -2361,7 +2361,7 @@ impl<'a> CompletionStatement<'a> {
             .await
             .map_err(|e| log::error!("list function failed , e:{}", e))
             .unwrap_or_default();
-        items.extend(f.into_iter());
+        items.extend(f);
         self.result = Some(items);
     }
 

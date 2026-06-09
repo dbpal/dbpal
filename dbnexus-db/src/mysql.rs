@@ -1641,7 +1641,6 @@ impl QuerySql for MysqlDB {
 
     async fn open_connection(&self, id: &str) -> anyhow::Result<()> {
         let conn = self.get_conn().await?.detach();
-
         self.query_connection
             .insert(id.to_string(), Arc::new(Mutex::new(conn)));
         anyhow::Ok(())

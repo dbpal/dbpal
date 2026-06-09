@@ -380,12 +380,7 @@ impl LangServerCommon for PostGresDB {
         let schema = self.get_search_path(schema, true).await;
         let mut ret = Vec::new();
         for schema in schema.iter() {
-            ret.extend(
-                self.list_sequences_impl(schema)
-                    .await
-                    .unwrap_or_default()
-                    .into_iter(),
-            );
+            ret.extend(self.list_sequences_impl(schema).await.unwrap_or_default());
         }
         anyhow::Ok(ret)
     }
@@ -398,7 +393,7 @@ impl LangServerCommon for PostGresDB {
                 .list_created_types_impl(schema, false)
                 .await
                 .unwrap_or_default();
-            ret.extend(x.into_iter());
+            ret.extend(x);
         }
         anyhow::Ok(ret)
     }

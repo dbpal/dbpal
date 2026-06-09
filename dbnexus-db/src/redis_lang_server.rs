@@ -408,14 +408,11 @@ impl RedisDB {
                 })
                 .collect::<Vec<_>>(),
 
-            "GEOADD" | "GEORADIUS" => {
+            "GEOADD" | "GEORADIUS"
                 // geo data use zset to store.
-                if !patterns.is_empty() {
+                if !patterns.is_empty() => {
                     vec![async move { self.completion_keys(&patterns[0]).await }.boxed()]
-                } else {
-                    vec![]
                 }
-            }
             "GEODIST" | "GEOHASH" | "GEOPOS" | "GEORADIUSBYMEMBER" => patterns
                 .iter()
                 .enumerate()
@@ -424,13 +421,10 @@ impl RedisDB {
                     _ => async move { self.completion_zset_member(&patterns[0], p).await }.boxed(),
                 })
                 .collect(),
-            "GET" | "GETBIT" | "GETRANGE" | "GETSET" => {
-                if !patterns.is_empty() {
+            "GET" | "GETBIT" | "GETRANGE" | "GETSET"
+                if !patterns.is_empty() => {
                     vec![async move { self.completion_keys(&patterns[0]).await }.boxed()]
-                } else {
-                    vec![]
                 }
-            }
             "HDEL" | "HEXISTS" | "HGET" => {
                 patterns
                     .iter()
@@ -451,12 +445,8 @@ impl RedisDB {
                     })
                     .collect()
             }
-            "HGETALL" => {
-                if !patterns.is_empty() {
-                    vec![async move { self.completion_keys(&patterns[0]).await }.boxed()]
-                } else {
-                    vec![]
-                }
+            "HGETALL" if !patterns.is_empty() => {
+                vec![async move { self.completion_keys(&patterns[0]).await }.boxed()]
             }
             "HINCRBY" | "HINCRBYFLOAT" => {
                 patterns
@@ -481,13 +471,10 @@ impl RedisDB {
                     })
                     .collect()
             }
-            "HKEYS" | "HLEN" => {
-                if !patterns.is_empty() {
+            "HKEYS" | "HLEN"
+                if !patterns.is_empty() => {
                     vec![async move { self.completion_keys(&patterns[0]).await }.boxed()]
-                } else {
-                    vec![]
                 }
-            }
             "HMGET" => {
                 patterns
                     .iter()
@@ -518,14 +505,11 @@ impl RedisDB {
                     _ => async move { self.completion_hash_keys(&patterns[0], p).await }.boxed(),
                 })
                 .collect(),
-            "HSCAN" => {
-                if !patterns.is_empty() {
+            "HSCAN"
+                if !patterns.is_empty() => {
                     let ret = vec![async move { self.completion_keys(&patterns[0]).await }.boxed()];
                     ret
-                } else {
-                    vec![]
                 }
-            }
             "HSETNX" => {
                 let mut ret = Vec::with_capacity(2);
                 if !patterns.is_empty() {
@@ -1050,7 +1034,7 @@ impl LanguageServer for RedisDB {
                             desc: None,
                         });
                     }
-                    ret.extend(static_redis_command_completion_items().items.into_iter());
+                    ret.extend(static_redis_command_completion_items().items);
                     return anyhow::Ok(CompletionList {
                         items: ret,
                         incomplete,
@@ -1132,10 +1116,7 @@ impl LanguageServer for RedisDB {
                 .skip(
                     1, // skip command
                 )
-                .zip(
-                    self.make_auto_completion_fn_by_command(&command, &patterns)?
-                        .into_iter(),
-                )
+                .zip(self.make_auto_completion_fn_by_command(&command, &patterns)?)
             {
                 if in_pos(
                     pos,

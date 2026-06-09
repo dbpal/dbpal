@@ -31,7 +31,7 @@ pub struct LibSqlDB {
     config: LibSqlDBConfig,
     pool: bb8::Pool<PoolManager>,
     pub(crate) query_connection: Arc<DashMap<String, Connection>>,
-    query_connection_transaction: Arc<DashMap<String, libsql::Transaction>>,
+    query_tx: Arc<DashMap<String, libsql::Transaction>>,
     pub(crate) completion_id: AutoCompletionQueryId,
 }
 
@@ -156,11 +156,7 @@ impl ExportQueryResult for LibSqlDB {
 
 impl QuerySql for LibSqlDB {
     async fn get_auto_commit(&self, query_id: &str) -> anyhow::Result<bool> {
-        anyhow::Ok(
-            !self
-                .query_connection_transaction
-                .contains_key(&query_id.to_string()),
-        )
+        anyhow::Ok(!self.query_tx.contains_key(&query_id.to_string()))
     }
 
     async fn set_auto_commit(&self, query_id: &str, c: bool) -> anyhow::Result<()> {
@@ -173,15 +169,12 @@ impl QuerySql for LibSqlDB {
             None => anyhow::bail!("collection closed????"),
         };
         let t = conn.transaction().await?;
-        self.query_connection_transaction
-            .insert(query_id.to_owned(), t);
+        self.query_tx.insert(query_id.to_owned(), t);
         anyhow::Ok(())
     }
 
     async fn commit(&self, query_id: &str) -> anyhow::Result<()> {
-        let t = self
-            .query_connection_transaction
-            .remove(&query_id.to_string());
+        let t = self.query_tx.remove(&query_id.to_string());
         match t {
             Some(x) => {
                 x.1.commit().await?;
@@ -194,9 +187,7 @@ impl QuerySql for LibSqlDB {
     }
 
     async fn rollback(&self, query_id: &str) -> anyhow::Result<()> {
-        let t = self
-            .query_connection_transaction
-            .remove(&query_id.to_string());
+        let t = self.query_tx.remove(&query_id.to_string());
         match t {
             Some(x) => {
                 x.1.rollback().await?;
@@ -220,7 +211,7 @@ impl QuerySql for LibSqlDB {
         query_id: &str,
         sql: &str,
     ) -> anyhow::Result<Result<QueryResp, String>> {
-        let tr = self.query_connection_transaction.get(&query_id.to_owned());
+        let tr = self.query_tx.get(&query_id.to_owned());
         let conn = self.query_connection.get(&query_id.to_string());
         let conn = conn.as_deref();
         let r = match &tr {
@@ -243,7 +234,7 @@ impl QuerySql for LibSqlDB {
         sql: &str,
         emit: QueryEventEmitter,
     ) -> anyhow::Result<()> {
-        let tr = self.query_connection_transaction.get(&query_id.to_owned());
+        let tr = self.query_tx.get(&query_id.to_owned());
         let conn = self.query_connection.get(&query_id.to_string());
         let conn = conn.as_deref();
         let conn = match &tr {
@@ -288,11 +279,12 @@ impl QuerySql for LibSqlDB {
     async fn open_connection(&self, id: &str) -> anyhow::Result<()> {
         let conn = self.connect().await?;
         self.query_connection.insert(id.to_owned(), conn);
+        self.query_tx.remove(&id.to_string());
         anyhow::Ok(())
     }
     async fn close_connection(&self, id: &str) -> anyhow::Result<()> {
         let id = id.to_string();
-        self.query_connection_transaction.remove(&id);
+        self.query_tx.remove(&id);
         self.query_connection.remove(&id);
         anyhow::Ok(())
     }
@@ -401,7 +393,7 @@ impl LibSqlDB {
             config,
             pool,
             query_connection: Default::default(),
-            query_connection_transaction: Default::default(),
+            query_tx: Default::default(),
             completion_id: Default::default(),
         })
     }

@@ -1579,7 +1579,7 @@ fn encode_response_value(value: &Value) -> anyhow::Result<Vec<String>> {
             // a set
             let mut result = vec![];
             for v in vs.iter() {
-                result.extend(encode_response_value(v)?.into_iter());
+                result.extend(encode_response_value(v)?);
             }
             result
         }
@@ -1590,8 +1590,8 @@ fn encode_response_value(value: &Value) -> anyhow::Result<Vec<String>> {
         Value::Map(map) => {
             let mut result = vec![];
             for (k, v) in map.iter() {
-                result.extend(encode_response_value(k)?.into_iter());
-                result.extend(encode_response_value(v)?.into_iter());
+                result.extend(encode_response_value(k)?);
+                result.extend(encode_response_value(v)?);
             }
             result
         }
@@ -1611,7 +1611,7 @@ fn encode_response_value(value: &Value) -> anyhow::Result<Vec<String>> {
         Value::Push { data, .. } => {
             let mut result = vec![];
             for v in data.iter() {
-                result.extend(encode_response_value(v)?.into_iter());
+                result.extend(encode_response_value(v)?);
             }
             result
         }

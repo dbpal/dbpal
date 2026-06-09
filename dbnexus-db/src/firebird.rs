@@ -263,7 +263,7 @@ impl ExportQueryResult for FireBirdDB {
 #[async_trait::async_trait]
 impl QuerySql for FireBirdDB {
     async fn get_auto_commit(&self, query_id: &str) -> anyhow::Result<bool> {
-        let tx = self.query_connection_tx.contains(&query_id.to_string());
+        let tx = self.query_tx.contains(&query_id.to_string());
         anyhow::Ok(!tx)
     }
 
@@ -281,7 +281,7 @@ impl QuerySql for FireBirdDB {
             let mut conn = conn.lock().expect("lock failed");
             let conn = conn.deref_mut();
             conn.begin_transaction()?;
-            this.query_connection_tx.insert(query_id.to_string());
+            this.query_tx.insert(query_id.to_string());
             anyhow::Ok(())
         })
         .await?
@@ -298,7 +298,7 @@ impl QuerySql for FireBirdDB {
             let mut conn = conn.lock().expect("lock failed");
             let conn = conn.deref_mut();
             conn.commit()?;
-            this.query_connection_tx.remove(&query_id.to_string());
+            this.query_tx.remove(&query_id.to_string());
             anyhow::Ok(())
         })
         .await?
@@ -315,7 +315,7 @@ impl QuerySql for FireBirdDB {
             let mut conn = conn.lock().expect("lock failed");
             let conn = conn.deref_mut();
             conn.rollback()?;
-            this.query_connection_tx.remove(&query_id.to_string());
+            this.query_tx.remove(&query_id.to_string());
             anyhow::Ok(())
         })
         .await?
@@ -407,6 +407,7 @@ impl QuerySql for FireBirdDB {
                 config: this.config.clone(),
             };
             let conn = conn.connect()?;
+            this.query_tx.remove(&id);
             this.query_connection.insert(id, Arc::new(Mutex::new(conn)));
             anyhow::Ok(())
         })
@@ -423,7 +424,7 @@ pub struct FireBirdDB {
     config: Arc<FireBirdConfig>,
     pool: Pool<PoolManager>,
     query_connection: Arc<DashMap<String, Arc<Mutex<Connection>>>>,
-    query_connection_tx: Arc<DashSet<String>>,
+    query_tx: Arc<DashSet<String>>,
 }
 
 impl std::fmt::Debug for FireBirdDB {
@@ -975,7 +976,7 @@ impl FireBirdDB {
                 config: Arc::new(config),
                 pool,
                 query_connection: Default::default(),
-                query_connection_tx: Default::default(),
+                query_tx: Default::default(),
             })
         })
         .await?

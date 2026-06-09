@@ -367,7 +367,7 @@ impl MongoDB {
         self.can_write()?;
         let db = self.get_db().await?;
         let col = db.collection::<Document>(col);
-        let f = col.insert_many(docs.into_iter());
+        let f = col.insert_many(docs);
         let ret = f.await?;
         anyhow::Ok(ret)
     }
