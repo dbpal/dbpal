@@ -227,6 +227,7 @@ impl ExportQueryResult for FireBirdDB {
                                     }
                                     .into(),
                                 )?;
+                                row_num += 1;
                             }
                         }
                         let data = encode_row(&row, None)?;
