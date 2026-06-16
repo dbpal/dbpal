@@ -168,11 +168,7 @@ async fn call_openai_stream(
             }
             MultiTurnStreamItem::CompletionCall(..) => {}
             _ => {
-                return Err(ErrorFrontend {
-                    reason: format!("unhandled stream item: {:?}", chunk),
-                    detail: "".into(),
-                    cancelled: false,
-                })
+                log::error!("unhandled stream item: {:?}", chunk)
             }
         }
     }
