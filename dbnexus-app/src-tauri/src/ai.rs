@@ -166,6 +166,7 @@ async fn call_openai_stream(
             MultiTurnStreamItem::FinalResponse(..) => {
                 // emit(final_response.response().to_owned())
             }
+            MultiTurnStreamItem::CompletionCall(..) => {}
             _ => {
                 return Err(ErrorFrontend {
                     reason: format!("unhandled stream item: {:?}", chunk),
