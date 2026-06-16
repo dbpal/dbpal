@@ -2297,7 +2297,7 @@ pub(crate) fn create_html_table_header(x: &[String]) -> String {
         </tr>
     "#,
         x.iter()
-            .map(|x| format!("<th>{}</th>", v_htmlescape::escape(x)))
+            .map(|x| format!("<th>{}</th>", html_escape::encode_text(x)))
             .collect::<Vec<_>>()
             .join("")
     )
@@ -2329,7 +2329,9 @@ pub(crate) fn create_html_table_data(data: &[Vec<Option<String>>]) -> String {
                 .map(|x| {
                     format!(
                         "<td>{}</td>",
-                        v_htmlescape::escape(x.as_ref().map(|x| x.as_str()).unwrap_or_default())
+                        html_escape::encode_text(
+                            x.as_ref().map(|x| x.as_str()).unwrap_or_default()
+                        )
                     )
                 })
                 .collect::<Vec<_>>()

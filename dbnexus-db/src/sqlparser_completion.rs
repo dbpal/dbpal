@@ -376,6 +376,9 @@ impl<'a> CompletionStatement<'a> {
                         if self.finished() {
                             return;
                         }
+                        self.scopes
+                            .current_scope(|s| s.enter_table(None, table_name.clone()));
+
                         for c in insert.columns.iter() {
                             let idents = self.object_name_to_idents(c).await;
                             self.c_on_expr_compound_identifier(&idents).await;

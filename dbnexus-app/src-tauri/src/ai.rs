@@ -6,14 +6,14 @@ use dbnexus_db::mongo::MongoDB;
 use dbnexus_db::redis::RedisDB;
 use futures_util::StreamExt;
 use mongodb::bson::doc;
-use rig::agent::{Agent, MultiTurnStreamItem, PromptHook, StreamingError, Text};
-use rig::client::completion::CompletionClient;
-use rig::loaders::StripXmlProcessor;
-use rig::providers::openai::responses_api::ResponsesCompletionModel;
-use rig::streaming::{StreamedAssistantContent, StreamingPrompt};
-use rig::tool::ToolDyn;
-use rig::wasm_compat::{WasmCompatSend, WasmCompatSync};
-use rig::EmptyListError;
+use rig_core::agent::{Agent, MultiTurnStreamItem, PromptHook, StreamingError, Text};
+use rig_core::client::completion::CompletionClient;
+use rig_core::loaders::StripXmlProcessor;
+use rig_core::providers::openai::responses_api::ResponsesCompletionModel;
+use rig_core::streaming::{StreamedAssistantContent, StreamingPrompt};
+use rig_core::tool::ToolDyn;
+use rig_core::wasm_compat::{WasmCompatSend, WasmCompatSync};
+use rig_core::EmptyListError;
 use serde::{Deserialize, Serialize};
 use std::future::Future;
 use std::sync::{Arc, Mutex};
@@ -23,10 +23,12 @@ use crate::app::{
     self, AISteamResp, AiOnlineSearch, DBPal, DatabaseBackend, ErrorFrontend, OpenAIReq,
     TaskManager,
 };
-use rig::completion::{CompletionModel, Message, Prompt, PromptError, ToolDefinition};
-use rig::message::{DocumentSourceKind, Image, ReasoningContent, ToolResultContent, UserContent};
-use rig::one_or_many::OneOrMany;
-use rig::{client::Client, providers::openai};
+use rig_core::completion::{CompletionModel, Message, Prompt, PromptError, ToolDefinition};
+use rig_core::message::{
+    DocumentSourceKind, Image, ReasoningContent, ToolResultContent, UserContent,
+};
+use rig_core::one_or_many::OneOrMany;
+use rig_core::{client::Client, providers::openai};
 use tauri::ipc::Channel;
 
 impl From<PromptError> for ErrorFrontend {
@@ -105,7 +107,7 @@ async fn call_openai_stream(
         let chunk = chunk?;
         match chunk {
             MultiTurnStreamItem::StreamAssistantItem(item) => match item {
-                rig::streaming::StreamedAssistantContent::Text(text) => {
+                rig_core::streaming::StreamedAssistantContent::Text(text) => {
                     emit(text.text().to_owned().into());
                 }
                 StreamedAssistantContent::ToolCall { .. } => {
@@ -137,7 +139,7 @@ async fn call_openai_stream(
                 }
             },
             MultiTurnStreamItem::StreamUserItem(x) => match x {
-                rig::streaming::StreamedUserContent::ToolResult {
+                rig_core::streaming::StreamedUserContent::ToolResult {
                     tool_result,
                     internal_call_id: _,
                 } => {
@@ -282,7 +284,7 @@ impl From<anyhow::Error> for CallToolErr {
 
 impl std::error::Error for CallToolErr {}
 
-use rig::tool::Tool;
+use rig_core::tool::Tool;
 
 #[derive(serde::Deserialize, Debug)]
 
@@ -615,6 +617,7 @@ pub async fn openai_stream(
             )));
             content.push(UserContent::Text(Text {
                 text: req.prompt.clone(),
+                additional_params: None,
             }));
             content.extend(
                 req.read_documents()
@@ -722,14 +725,14 @@ impl AiOnlineSearch {
 }
 
 impl OpenAIReq {
-    async fn read_document(file: &str) -> anyhow::Result<rig::message::Document> {
+    async fn read_document(file: &str) -> anyhow::Result<rig_core::message::Document> {
         let file = file.to_owned();
 
         tokio::task::spawn_blocking(move || {
             let d = match &file {
                 _ if file.to_lowercase().ends_with(".epub") => {
                     let loader =
-                        rig::loaders::EpubFileLoader::<_, StripXmlProcessor>::with_glob(&file)
+                        rig_core::loaders::EpubFileLoader::<_, StripXmlProcessor>::with_glob(&file)
                             .map_err(|err| anyhow::Error::msg(err.to_string()))?;
 
                     // Load epub file contents by chapter, ignoring any errors
@@ -748,14 +751,14 @@ impl OpenAIReq {
                         }
                         doc.push_str(format!("file {:?} ends\n", path).as_str());
                     }
-                    rig::message::Document {
+                    rig_core::message::Document {
                         data: DocumentSourceKind::String(doc),
                         media_type: None,
                         additional_params: None,
                     }
                 }
                 _ if file.to_lowercase().ends_with(".pdf") => {
-                    let loader = rig::loaders::PdfFileLoader::with_glob(&file)
+                    let loader = rig_core::loaders::PdfFileLoader::with_glob(&file)
                         .map_err(|err| anyhow::Error::msg(err.to_string()))?;
                     // Load pdf file contents by page, ignoring any errors
                     let contents = loader
@@ -774,7 +777,7 @@ impl OpenAIReq {
                         doc.push_str(format!("file {:?} ends\n", path).as_str());
                     }
 
-                    rig::message::Document {
+                    rig_core::message::Document {
                         data: DocumentSourceKind::String(doc),
                         media_type: None,
                         additional_params: None,
@@ -782,7 +785,7 @@ impl OpenAIReq {
                 }
                 _ => {
                     let doc = std::fs::read_to_string(&file)?;
-                    rig::message::Document {
+                    rig_core::message::Document {
                         data: DocumentSourceKind::String(doc),
                         media_type: None,
                         additional_params: None,
@@ -793,7 +796,7 @@ impl OpenAIReq {
         })
         .await?
     }
-    async fn read_documents(&self) -> anyhow::Result<Vec<rig::message::Document>> {
+    async fn read_documents(&self) -> anyhow::Result<Vec<rig_core::message::Document>> {
         let mut documents = vec![];
 
         for file in self.documents.iter() {
@@ -920,7 +923,7 @@ mod mongo_tool {
         bson::{doc, Document},
         Cursor,
     };
-    use rig::{completion::ToolDefinition, tool::Tool};
+    use rig_core::{completion::ToolDefinition, tool::Tool};
     use serde::{Deserialize, Serialize};
 
     use crate::ai::CallToolErr;
@@ -1159,7 +1162,7 @@ mod redis {
 
     use dbnexus_db::redis::{command_return_multi_value, RedisDB};
     use futures_util::StreamExt;
-    use rig::tool::Tool;
+    use rig_core::tool::Tool;
     use serde::{Deserialize, Deserializer, Serialize};
     use serde_json::json;
 
@@ -1216,8 +1219,8 @@ mod redis {
         type Args = RedisCommandArgs;
         type Output = Vec<String>;
 
-        async fn definition(&self, _: String) -> rig::completion::ToolDefinition {
-            rig::completion::ToolDefinition {
+        async fn definition(&self, _: String) -> rig_core::completion::ToolDefinition {
+            rig_core::completion::ToolDefinition {
                 name: Self::NAME.to_string(),
                 description: "执行 Redis 命令。例如: command='GET', args=['key']".to_string(),
                 parameters: json!({
@@ -1291,7 +1294,7 @@ mod tests {
         sqlite::{sqlite_test_file_path, SqliteDB},
     };
     use futures_util::StreamExt;
-    use rig::{
+    use rig_core::{
         agent::MultiTurnStreamItem,
         streaming::{StreamedAssistantContent, StreamedUserContent, StreamingChat},
     };

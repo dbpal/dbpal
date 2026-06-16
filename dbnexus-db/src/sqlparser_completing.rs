@@ -1559,6 +1559,7 @@ impl<'a> CompletionStatement<'a> {
         let mut results = vec![];
         let tables = self.scopes.tables_cloned();
         for t in tables.iter() {
+            println!("!!!!!!!!!:{:?}", t);
             match t {
                 TableEntered::ObjectName { table, .. } => {
                     let (schema, table) = self.extract_schema_and_item(table);
@@ -2627,9 +2628,9 @@ impl<'a> CompletionStatement<'a> {
                 .map_err(|e| log::error!("get query columns error: {}", e))
                 .unwrap_or_default()
         };
+
         self.scopes
             .current_scope(|s| s.enter_temp_cols(cols.clone()));
-        // self.scopes.debug();
 
         let ret = anyhow::Ok(cols);
         if let Some(d) = &select.distinct {
@@ -2746,6 +2747,7 @@ impl<'a> CompletionStatement<'a> {
     }
     pub(crate) async fn c_on_select_items(&mut self, projection: &[SelectItem]) {
         self.select_item_columns.clear();
+        log::trace!("projection:{:?}", projection);
         for p in projection.iter() {
             match p {
                 SelectItem::UnnamedExpr(expr) => {
@@ -2861,7 +2863,7 @@ impl<'a> CompletionStatement<'a> {
                     }
                 }
                 SelectItem::ExprWithAliases { .. } => {
-                    // spark sql not suppported
+                    // spack not support
                 }
             }
         }

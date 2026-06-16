@@ -1,2 +1,2 @@
-select id from employees
-10 id  ; 25  employees
+insert into employees (id) values (1)
+26 name
