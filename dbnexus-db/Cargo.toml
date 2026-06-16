@@ -13,7 +13,7 @@ shlex = { version = "*" }
 couchbase = { version = "1", features = [] }
 snowflake-connector-rs = { version = "0.9", optional = true }
 gcp-bigquery-client = { version = "0.28", optional = true }
-sqlx = { version = "0.9.0-alpha.1", features = [
+sqlx = { version = "0.9.0", features = [
     "runtime-tokio",
     "postgres",
     "sqlite",
@@ -27,9 +27,9 @@ sqlx = { version = "0.9.0-alpha.1", features = [
     "json",
     "tls-rustls",
 ] }
-sqlx-core = { version = "0.9.0-alpha.1", features = ["any"] }
+sqlx-core = { version = "0.9.0", features = ["any"] }
 
-odbc-api = { version = "24", optional = true, features = [
+odbc-api = { version = "28", optional = true, features = [
     "vendored-unix-odbc",
 ] }
 
@@ -39,16 +39,15 @@ serde.workspace = true
 async-trait.workspace = true
 redis.workspace = true
 tokio-stream = { version = "0.1.17", features = ["io-util"] }
-rust_xlsxwriter = { version = "0.94", features = ["constant_memory"] }
+rust_xlsxwriter = { version = "0.95", features = ["constant_memory"] }
 dashmap.workspace = true
 hex.workspace = true
 mac_address = "1.1.5"
 ipnetwork = "0.21"
 chrono = "0.4.34"
-sqlx-bit-vec = { package = "bit-vec", version = "=0.6.3" }
 uuid.workspace = true
 serde_json.workspace = true
-sqlparser = { version = "0.61", features = ["serde"] }
+sqlparser = { version = "0.62", features = ["serde"] }
 lazy_static.workspace = true
 log.workspace = true
 duckdb = { version = "=1.4.4", features = [
@@ -72,7 +71,7 @@ tokio.workspace = true
 tokio-util.workspace = true
 rust_decimal = "*"
 regex = "*"
-v_htmlescape = "0.15.8"
+v_htmlescape = "*"
 oracle = { version = "0.6.3", features = ["chrono"] }
 pg_interval = "*"
 memory-stats = "1.2.0"

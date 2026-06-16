@@ -376,7 +376,14 @@ impl<'a> CompletionStatement<'a> {
                         if self.finished() {
                             return;
                         }
-                        for c in insert.columns.iter().chain(insert.after_columns.iter()) {
+                        for c in insert.columns.iter() {
+                            let idents = self.object_name_to_idents(c).await;
+                            self.c_on_expr_compound_identifier(&idents).await;
+                            if self.finished() {
+                                return;
+                            }
+                        }
+                        for c in insert.after_columns.iter() {
                             self.c_on_column(table_name, c, false).await;
                             if self.finished() {
                                 return;
@@ -389,6 +396,9 @@ impl<'a> CompletionStatement<'a> {
                     TableObject::TableFunction(f) => {
                         self.c_on_function_call(f).await;
                     }
+                    TableObject::TableQuery(query) => {
+                        let _ = self.c_on_query(query).await;
+                    }
                 }
                 //
                 if let Some(query) = &insert.source {
@@ -399,7 +409,7 @@ impl<'a> CompletionStatement<'a> {
                 }
 
                 if let Some(alias) = &insert.table_alias {
-                    if self.in_pos(&alias.span) {
+                    if self.in_pos(&alias.alias.span) {
                         self.set_on_def();
                         return;
                     }
@@ -1208,9 +1218,13 @@ impl<'a> CompletionStatement<'a> {
                     }
                 }
                 if let Some(r) = create_f.return_type.as_ref() {
-                    self.c_on_data_type(r).await;
-                    if self.finished() {
-                        return;
+                    match r {
+                        FunctionReturnType::DataType(data_type) => {
+                            self.c_on_data_type(data_type).await
+                        }
+                        FunctionReturnType::SetOf(data_type) => {
+                            self.c_on_data_type(data_type).await
+                        }
                     }
                 }
                 if let Some(x) = create_f.options.as_ref() {
@@ -1828,6 +1842,30 @@ impl<'a> CompletionStatement<'a> {
             Statement::AlterOperator(..) => {}
             Statement::AlterOperatorFamily(..) => {}
             Statement::AlterOperatorClass(..) => {}
+            Statement::AlterFunction(..) => {}
+            Statement::AlterCollation(..) => {}
+            Statement::CreateCollation(..) => {}
+            Statement::ShowCatalogs { .. } => {}
+            Statement::ShowProcessList { .. } => {}
+            Statement::Lock(..) => {}
+            Statement::Throw(ThrowStatement {
+                error_number,
+                message,
+                state,
+            }) => {
+                if let Some(e) = error_number {
+                    self.c_on_expr(e).await
+                }
+                if let Some(e) = state {
+                    self.c_on_expr(e).await
+                }
+                if let Some(e) = message {
+                    self.c_on_expr(e).await
+                }
+            }
+            Statement::WaitFor(wait_for_statement) => {
+                self.c_on_expr(&wait_for_statement.expr).await;
+            }
         }
     }
 

@@ -19,6 +19,7 @@ impl From<ObjectType> for CompletionKind {
             ObjectType::MaterializedView => CompletionKind::View,
             ObjectType::User => CompletionKind::Role,
             ObjectType::Stream => CompletionKind::Stream,
+            ObjectType::Collation => CompletionKind::Text,
         }
     }
 }
@@ -46,6 +47,15 @@ impl From<CommentObject> for CompletionKind {
             CommentObject::Database => CompletionKind::Database,
             CommentObject::User => CompletionKind::User,
             CommentObject::Role => CompletionKind::Role,
+            CommentObject::Collation => CompletionKind::Text,
+            CommentObject::Domain => CompletionKind::Domain,
+            CommentObject::Function => CompletionKind::Function,
+            CommentObject::Index => CompletionKind::Index,
+            CommentObject::MaterializedView => CompletionKind::View,
+            CommentObject::Procedure => CompletionKind::Procedure,
+            CommentObject::Sequence => CompletionKind::Sequence,
+            CommentObject::Type => CompletionKind::Type,
+            CommentObject::View => CompletionKind::View,
         }
     }
 }
@@ -618,6 +628,7 @@ impl<'a> CompletionStatement<'a> {
                 }
             }
             ObjectType::Stream => {}
+            ObjectType::Collation => todo!(),
         }
     }
     pub(crate) async fn c_on_sequence(&mut self, name: &ObjectName) {
@@ -739,6 +750,15 @@ impl<'a> CompletionStatement<'a> {
                     log::error!("name not right:{:?}", name)
                 }
             },
+            CommentObject::Collation => {}
+            CommentObject::Domain => {}
+            CommentObject::Function => {}
+            CommentObject::Index => todo!(),
+            CommentObject::MaterializedView => {}
+            CommentObject::Procedure => {}
+            CommentObject::Sequence => {}
+            CommentObject::Type => {}
+            CommentObject::View => {}
         }
     }
     pub(crate) async fn c_on_column_mysql_position(
@@ -1004,6 +1024,8 @@ impl<'a> CompletionStatement<'a> {
                     }
                 }
             }
+            TableConstraint::PrimaryKeyUsingIndex(..) => {}
+            TableConstraint::UniqueUsingIndex(..) => {}
         }
     }
 
@@ -1281,6 +1303,7 @@ impl<'a> CompletionStatement<'a> {
             AlterTableOperation::Resume => {}
             AlterTableOperation::ForceRowLevelSecurity => {}
             AlterTableOperation::NoForceRowLevelSecurity => {}
+            AlterTableOperation::AlterSortKey { .. } => {}
         }
     }
 
@@ -2213,13 +2236,13 @@ impl<'a> CompletionStatement<'a> {
         // lambda consider a function
         let _guard = self.scopes.enter(Scope::default());
         for name in lambda.params.iter() {
-            if self.in_pos(&name.span) {
+            if self.in_pos(&name.name.span) {
                 self.set_on_def();
                 return;
             }
             self.scopes.current_scope(|scope| {
                 scope.enter_var(Var {
-                    name: name.clone(),
+                    name: name.name.clone(),
                     data_type: None,
                 })
             });
@@ -2475,6 +2498,9 @@ impl<'a> CompletionStatement<'a> {
             JoinOperator::StraightJoin(join_constraint) => {
                 self.c_on_join_constraint(join_constraint).await
             }
+            JoinOperator::ArrayJoin => {}
+            JoinOperator::LeftArrayJoin => {}
+            JoinOperator::InnerArrayJoin => {}
         }
     }
     pub(crate) async fn c_on_table_with_join(&mut self, t: &TableWithJoins) {
@@ -2834,6 +2860,9 @@ impl<'a> CompletionStatement<'a> {
                         }
                     }
                 }
+                SelectItem::ExprWithAliases { .. } => {
+                    // spark sql not suppported
+                }
             }
         }
     }
@@ -2867,20 +2896,6 @@ impl<'a> CompletionStatement<'a> {
                 }
             }
         }
-        if let Some(x) = ast.opt_exclude.as_ref() {
-            match x {
-                ExcludeSelectItem::Single(ident) => self.c_on_expr_ident(ident).await,
-                ExcludeSelectItem::Multiple(idents) => {
-                    for ident in idents.iter() {
-                        self.c_on_expr_ident(ident).await;
-                        if self.finished() {
-                            return;
-                        }
-                    }
-                }
-            }
-        }
-
         if let Some(x) = ast.opt_replace.as_ref() {
             for item in x.items.iter() {
                 self.c_on_expr_ident(&item.column_name).await;
@@ -3228,6 +3243,7 @@ impl<'a> CompletionStatement<'a> {
                 self.c_on_expr_compound_identifier(&idents[..]).await;
             }
             FunctionArgExpr::Wildcard => {}
+            FunctionArgExpr::WildcardWithOptions(..) => {}
         }
     }
 
@@ -3343,6 +3359,19 @@ impl<'a> CompletionStatement<'a> {
             TableVersion::TimestampAsOf(expr) => self.c_on_expr(expr).await,
             TableVersion::VersionAsOf(expr) => {
                 self.c_on_expr(expr).await;
+            }
+            TableVersion::Changes { changes, at, end } => {
+                self.c_on_expr(changes).await;
+                if self.finished() {
+                    return;
+                }
+                self.c_on_expr(at).await;
+                if self.finished() {
+                    return;
+                }
+                if let Some(end) = end {
+                    self.c_on_expr(end).await;
+                }
             }
         }
     }

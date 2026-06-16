@@ -14,7 +14,7 @@ tauri-typegen = "*"
 
 [dependencies]
 tauri-plugin-fs = { version = "2.4" }
-rig-core = { version = "0.36", features = ["pdf", "epub"] }
+rig-core = { version = "0.38", features = ["pdf", "epub"] }
 mimalloc = { version = "*", features = ["v3"] }
 tauri = { version = "2", features = ["devtools"] }
 tauri-plugin-dialog = "2.4"
