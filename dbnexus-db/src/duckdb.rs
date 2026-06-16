@@ -606,7 +606,7 @@ fn encode_value(value: &Value, nested: bool) -> anyhow::Result<Option<String>> {
                 .map(|x| format!("\\x{}", hex::encode([*x])))
                 .collect::<Vec<_>>()
                 .join("");
-            Some(format!("'{}'", x))
+            Some(x)
         }
         Value::Date32(x) => {
             let mut x = format_date(*x)?;
@@ -2268,7 +2268,6 @@ mod tests {
         GetTestExportTableKinds::test_export(&db, table_name).await;
     }
 
-    #[ignore = "https://github.com/duckdb/duckdb-rs/issues/478"]
     #[tokio::test]
     async fn test_types4() {
         let _gurad = test_lock().lock().await;
