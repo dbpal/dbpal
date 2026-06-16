@@ -1046,6 +1046,7 @@ fn encode_row_as_json(r: &Row) -> anyhow::Result<serde_json::Value> {
     anyhow::Ok(serde_json::Value::Object(values))
 }
 
+// docker run --name libsql-server -d   -p 8111:8080    -e SQLD_NODE=primary ghcr.io/tursodatabase/libsql-server:latest
 #[cfg(test)]
 // this test no need clean up, we use memory sqlite db.
 pub(crate) async fn make_test_object() -> &'static Mutex<LibSqlDB> {
@@ -1055,7 +1056,7 @@ pub(crate) async fn make_test_object() -> &'static Mutex<LibSqlDB> {
             conn_timeout: Some(5000.into()),
             replica: false,
             source: LibSqlDBConfigSource::Remote {
-                url: "http://localhost:8080".to_string(),
+                url: "http://localhost:8111".to_string(),
                 auth_token: "".to_string(),
                 path: None,
             },

@@ -218,20 +218,49 @@ impl SqlBuilder for DuckDB {
         log::trace!("encode type:{} value:{:?}", typ, value);
 
         match typ.as_str() {
-            "date" | "json" | "time" | "timestamp with time zone" | "timestamp" | "varchar" => {
-                anyhow::Ok(value.to_string())
-            }
-            _ if typ.ends_with("[]") => anyhow::Ok(value.to_string()),
-            _ if typ.starts_with("time")
+            // 1. 精确匹配：需要加单引号并转义的文本、日期、时间、JSON、UUID 等类型
+            "date"
+            | "time"
+            | "time with time zone"
+            | "timestamp"
+            | "timestamp with time zone"
+            | "timestamptz"
+            | "varchar"
+            | "text"
+            | "string"
+            | "json"
+            | "uuid"
+            | "blob" => anyhow::Ok(format!("'{}'", escape_sql_str(value))),
+
+            // 2. 前缀匹配：处理带参数或变体的类型 (例如 varchar(255), timestamp_ms, utf8, largeutf8 等)
+            _ if typ.starts_with("varchar")
+                || typ.starts_with("text")
+                || typ.starts_with("time")
                 || typ.starts_with("date")
                 || typ.starts_with("utf8")
-                || typ.starts_with("largeutf8") =>
+                || typ.starts_with("largeutf8")
+                || typ.starts_with("enum") =>
             {
-                anyhow::Ok(escape_sql_str(value))
+                anyhow::Ok(format!("'{}'", escape_sql_str(value)))
             }
+
+            // 3. 嵌套/复杂类型：DuckDB 的 LIST (如 int[]), ARRAY, STRUCT, MAP
+            // 它们的字面量（如 [1, 2, 3] 或 {'a': 1}）直接作为表达式插入，不需要在外层加单引号
+            _ if typ.ends_with("[]")
+                || typ.starts_with("array")
+                || typ.starts_with("struct")
+                || typ.starts_with("map")
+                || typ.starts_with("union") =>
+            {
+                anyhow::Ok(value.to_string())
+            }
+
+            // 4. 兜底分支：数字类型 (int, bigint, float, decimal)、布尔值 (boolean) 等
+            // 直接返回其原始字符串字面量（例如 42, 3.14, true）
             _ => anyhow::Ok(value.to_string()),
         }
     }
+
     fn get_schema(&self) -> Option<&str> {
         self.config.schema.as_deref()
     }
