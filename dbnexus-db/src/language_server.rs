@@ -30,7 +30,7 @@ pub trait LanguageServer: GetBackendKind + Send + Sync + 'static {
 
     fn is_dangerous_sql(&self, _sql: &str) -> anyhow::Result<bool>;
 
-    // extract `a=`` from `select * from where a =1`
+    // extract `a=` from `select * from where a =1`
     fn extract_table_select_selection(&self, sql: &str) -> anyhow::Result<Option<String>>;
     // extrat name asc from a select statement.
     fn extract_table_select_sort(&self, sql: &str) -> anyhow::Result<Option<String>>;
