@@ -29,7 +29,7 @@ import { commands, NamedStaff } from "./bindings.ts";
 import { uuidv4 } from "./Common.ts";
 function ProceduresTree() {
   const { uuid, kind } = useContext(UuidContext);
-  const [ps, setPos] = useState<NamedStaff[]>([]);
+  const [ps, setPs] = useState<NamedStaff[]>([]);
   const { showNotification } = useNotification();
   const { maxTree } = useMatcher();
   const matchPattern = useMatcherFn();
@@ -37,7 +37,7 @@ function ProceduresTree() {
     commands
       .listProcedure(uuid)
       .then((data) => {
-        setPos(data);
+        setPs(data);
       })
       .catch((e) => {
         showNotification({
