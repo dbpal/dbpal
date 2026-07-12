@@ -397,7 +397,7 @@ function EditorSetting() {
 }
 
 const settingTextStyle: CSSProperties = {
-  width: "12rem",
+  width: "19rem",
   textAlign: "right",
 };
 
