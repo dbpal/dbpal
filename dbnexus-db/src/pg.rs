@@ -995,7 +995,7 @@ impl SchemaTrait for PostGresDB {
                 WHERE table_type = 'BASE TABLE' AND table_schema = '{}' and table_catalog='{}' ORDER BY table_name
             "#,
             self.config.schema_str(),
-            &self.config.db_str()
+            self.config.db_str()
         );
         log::info!("sql:{}", sql);
         let mut conn = self.get_conn().await?;
@@ -1056,7 +1056,7 @@ impl SchemaTrait for PostGresDB {
             SELECT  column_name , data_type,is_nullable,column_default,udt_name
             FROM information_schema.columns where table_catalog='{}' and table_schema='{}' and table_name = '{}' ORDER BY ordinal_position
         "#,
-            &self.config.db_str(),
+            self.config.db_str(),
             self.config.schema_str(),
             table_name
         );

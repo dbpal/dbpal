@@ -1,4 +1,11 @@
-import { ReactNode, useCallback, useEffect, useMemo, useState } from "react";
+import {
+  CSSProperties,
+  ReactNode,
+  useCallback,
+  useEffect,
+  useMemo,
+  useState,
+} from "react";
 import { FaFolderOpen } from "react-icons/fa";
 import { isEqual } from "lodash-es";
 import * as monaco from "monaco-editor";
@@ -143,7 +150,7 @@ function AppearanceSetting() {
   return (
     <Stack style={{ height: "100%" }}>
       <Stack direction="row" sx={{ alignItems: "center" }}>
-        <Typography sx={{ width: headerSize }} style={{ fontSize }}>
+        <Typography sx={{ ...settingTextStyle }} style={{ fontSize }}>
           font size
         </Typography>
         <Chip label={fontSize} style={{ fontSize }} />
@@ -158,7 +165,7 @@ function AppearanceSetting() {
         />
       </Stack>
       <Stack direction="row" sx={{ alignItems: "center" }}>
-        <Typography sx={{ width: headerSize }} style={{ fontWeight }}>
+        <Typography sx={{ ...settingTextStyle }} style={{ fontWeight }}>
           font weight
         </Typography>
         <ClearableTextField
@@ -170,7 +177,7 @@ function AppearanceSetting() {
         />
       </Stack>
       <Stack direction="row" sx={{ alignItems: "flex-end" }}>
-        <Typography sx={{ width: headerSize }} style={{ fontFamily }}>
+        <Typography sx={{ ...settingTextStyle }} style={{ fontFamily }}>
           font
         </Typography>
         <TextField
@@ -195,7 +202,7 @@ function AppearanceSetting() {
         </Typography>
       </Stack>
       <Stack direction="row" sx={{ alignItems: "center" }}>
-        <Typography sx={{ width: headerSize }}>table row height factor </Typography>
+        <Typography sx={{ ...settingTextStyle }}>table row height factor </Typography>
         <Typography> {datagridRowHeightFactor} </Typography>
         <Slider
           min={2}
@@ -213,7 +220,7 @@ function AppearanceSetting() {
       </Stack>
 
       <Stack direction="row" sx={{ alignItems: "center" }}>
-        <Typography sx={{ width: headerSize }}>theme </Typography>
+        <Typography sx={{ ...settingTextStyle }}>theme </Typography>
         <Autocomplete
           options={["light", "dark", "system"]}
           style={{ width: "12rem" }}
@@ -228,7 +235,7 @@ function AppearanceSetting() {
       <SetBgColor theme="dark" bgColor={darkBgColor} setBgColor={setDarkBgColor} />
       <SetBgColor theme="light" bgColor={lightBgColor} setBgColor={setLightBgColor} />
       <Stack direction="row" sx={{ alignItems: "center" }}>
-        <Typography sx={{ width: headerSize }}>zoom</Typography>
+        <Typography sx={{ ...settingTextStyle }}>zoom</Typography>
 
         {zoom != 1 && (
           <Button
@@ -266,7 +273,7 @@ function SetBgColor({ bgColor, setBgColor, theme }) {
   const [showEditBgColor, setShowEditBgColor] = useState(false);
   return (
     <Stack direction="row" sx={{ alignItems: "center" }}>
-      <Typography sx={{ width: headerSize }}> {theme} background color </Typography>
+      <Typography sx={{ ...settingTextStyle }}> {theme} background color </Typography>
       <div style={{ position: "relative" }}>
         <IconButton
           color={showEditBgColor ? "success" : "primary"}
@@ -335,7 +342,7 @@ function EditorSetting() {
       <Stack>
         <Stack direction="row" style={{ alignItems: "flex-start" }}>
           <Tooltip title="dbpal use monaco editor as build in editor" placement="top">
-            <Typography sx={{ width: headerSize }}>monaco editor options</Typography>
+            <Typography sx={{ ...settingTextStyle }}>monaco editor options</Typography>
           </Tooltip>
           <Stack style={{ flex: 1 }}>
             <StackRowCenter>
@@ -359,7 +366,7 @@ function EditorSetting() {
         </Stack>
       </Stack>
       <Stack direction="row" sx={{ alignItems: "flex-start" }}>
-        <Typography sx={{ width: headerSize }}> editor theme </Typography>
+        <Typography sx={{ ...settingTextStyle }}> editor theme </Typography>
         <Stack direction="row" style={{ flex: 1, alignItems: "flex-start" }}>
           <Autocomplete
             options={registeredThemes}
@@ -389,7 +396,10 @@ function EditorSetting() {
   );
 }
 
-const headerSize = "16rem";
+const settingTextStyle: CSSProperties = {
+  width: "12rem",
+  textAlign: "right",
+};
 
 interface ModelDef {
   id: string;
@@ -522,7 +532,7 @@ function LLMSetting(props: { handleClose?: () => void }) {
   return (
     <Stack>
       <Stack direction="row" sx={{ alignItems: "center" }}>
-        <Typography sx={{ width: headerSize }}>base url</Typography>
+        <Typography sx={{ ...settingTextStyle }}>base url</Typography>
         <ClearableTextField
           style={{ width: "25rem" }}
           value={baseUrl}
@@ -537,7 +547,7 @@ function LLMSetting(props: { handleClose?: () => void }) {
       </Stack>
 
       <Stack direction="row" sx={{ alignItems: "center" }}>
-        <Typography sx={{ width: headerSize }}>api key</Typography>
+        <Typography sx={{ ...settingTextStyle }}>api key</Typography>
         <ClearableTextField
           value={apiKey}
           style={{ width: "40rem" }}
@@ -547,7 +557,7 @@ function LLMSetting(props: { handleClose?: () => void }) {
         />
       </Stack>
       <Stack direction="row" sx={{ alignItems: "center" }}>
-        <Typography sx={{ width: headerSize }}>model </Typography>
+        <Typography sx={{ ...settingTextStyle }}>model </Typography>
         <Button variant="outlined" onClick={loadModelCan}>
           load candidates
         </Button>
@@ -596,7 +606,7 @@ function LLMSetting(props: { handleClose?: () => void }) {
       </Stack>
 
       <Stack direction="row" sx={{ alignItems: "center" }}>
-        <Typography sx={{ width: headerSize }}>temperature</Typography>
+        <Typography sx={{ ...settingTextStyle }}>temperature</Typography>
         <TextField
           helperText="only accept number"
           value={temperature}
@@ -606,7 +616,7 @@ function LLMSetting(props: { handleClose?: () => void }) {
       </Stack>
 
       <Stack direction="row" sx={{ alignItems: "center" }}>
-        <Typography sx={{ width: headerSize }}> max token </Typography>
+        <Typography sx={{ ...settingTextStyle }}> max token </Typography>
         <ClearableTextField
           error={maxToken ? isNaN(parseInt(maxToken)) : false}
           value={maxToken}
@@ -616,7 +626,7 @@ function LLMSetting(props: { handleClose?: () => void }) {
       </Stack>
 
       <Stack direction="row" sx={{ alignItems: "center" }}>
-        <Typography sx={{ width: headerSize }}> topP </Typography>
+        <Typography sx={{ ...settingTextStyle }}> topP </Typography>
         <ClearableTextField
           error={topP ? isNaN(parseFloat(topP)) : false}
           value={topP}
@@ -626,7 +636,7 @@ function LLMSetting(props: { handleClose?: () => void }) {
       </Stack>
 
       <Stack direction="row" sx={{ alignItems: "center" }}>
-        <Typography sx={{ width: headerSize }}> search engine </Typography>
+        <Typography sx={{ ...settingTextStyle }}> search engine </Typography>
         <Checkbox
           checked={searchEngine.enable}
           onChange={(e) => {
@@ -702,7 +712,7 @@ function MiscSetting() {
   return (
     <Stack>
       <Stack direction="row" sx={{ alignItems: "center" }}>
-        <Typography sx={{ width: headerSize }}>auto start</Typography>
+        <Typography sx={{ ...settingTextStyle }}>auto start</Typography>
         <Checkbox
           checked={autoStart}
           onChange={(e) => {
@@ -711,7 +721,7 @@ function MiscSetting() {
         />
       </Stack>
       <Stack direction="row" sx={{ alignItems: "center" }}>
-        <Typography sx={{ width: headerSize }}>logger level</Typography>
+        <Typography sx={{ ...settingTextStyle }}>logger level</Typography>
         <LogLevelSelection
           level={logLevel}
           handleChange={(level) => {
@@ -777,21 +787,21 @@ function ProxySetting() {
   return (
     <Stack>
       <Stack direction="row" sx={{ alignItems: "flex-start" }}>
-        <Typography sx={{ width: headerSize }}> http proxy</Typography>
+        <Typography sx={{ ...settingTextStyle }}> http proxy</Typography>
         <ProxyValue value={http} setValue={setHttp} />
       </Stack>
       <Stack direction="row" sx={{ alignItems: "flex-start" }}>
-        <Typography sx={{ width: headerSize }}> https proxy</Typography>
+        <Typography sx={{ ...settingTextStyle }}> https proxy</Typography>
         <ProxyValue value={https} setValue={setHttps} />
       </Stack>
 
       <Stack direction="row" sx={{ alignItems: "flex-start" }}>
-        <Typography sx={{ width: headerSize }}> all proxy</Typography>
+        <Typography sx={{ ...settingTextStyle }}> all proxy</Typography>
         <ProxyValue value={all} setValue={setAll} />
       </Stack>
 
       <Stack direction="row" sx={{ alignItems: "flex-start" }}>
-        <Typography sx={{ width: headerSize }}> no proxy </Typography>
+        <Typography sx={{ ...settingTextStyle }}> no proxy </Typography>
         <ProxyValue value={no} setValue={setNo} />
       </Stack>
       <Divider />

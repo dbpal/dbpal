@@ -1368,7 +1368,7 @@ pub(crate) fn output_bytes_array(array: &[Vec<u8>]) -> String {
     let last = array.len() - 1;
     let mut ret = "{".to_string();
     for (index, v) in array.iter().enumerate() {
-        ret.push_str(format!("\"\\{}\"", &output_bytes(v)).as_str());
+        ret.push_str(format!("\"\\{}\"", output_bytes(v)).as_str());
         if index != last {
             ret.push(',')
         }

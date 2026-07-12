@@ -437,7 +437,7 @@ impl SchemaTrait for ClickHouseDB {
         if let Some(typ) = typ.as_ref() {
             let sql = format!(
                 r#"ALTER TABLE `{}` MODIFY COLUMN `{}` {}"#,
-                table, new_name, &typ.typ
+                table, new_name, typ.typ
             );
             log::info!("sql:{}", sql);
             self.simple_execute_sql(&sql).await?;

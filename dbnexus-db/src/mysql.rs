@@ -692,7 +692,7 @@ impl SchemaTrait for MysqlDB {
         if let Some(typ) = typ.as_ref() {
             let sql = format!(
                 r#"ALTER TABLE `{table}` MODIFY COLUMN `{new_name}` {} {} {}"#,
-                &typ.typ,
+                typ.typ,
                 typ.nullable.unwrap_or_default(),
                 if let Some(dv) = typ.default_value.as_ref() {
                     format!(
