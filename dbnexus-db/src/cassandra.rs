@@ -55,6 +55,7 @@ use scylla::value::{CqlDecimal, CqlValue, CqlVarint, Row};
 use sqlx::types::BigDecimal;
 use std::collections::HashMap;
 
+use std::fmt::Debug;
 use std::net::SocketAddr;
 use std::sync::Arc;
 use std::time::Duration;

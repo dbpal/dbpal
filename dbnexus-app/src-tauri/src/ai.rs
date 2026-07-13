@@ -6,16 +6,14 @@ use dbnexus_db::mongo::MongoDB;
 use dbnexus_db::redis::RedisDB;
 use futures_util::StreamExt;
 use mongodb::bson::doc;
-use rig_core::agent::{Agent, MultiTurnStreamItem, PromptHook, StreamingError, Text};
+use rig_core::agent::{Agent, MultiTurnStreamItem, StreamingError, Text};
 use rig_core::client::completion::CompletionClient;
 use rig_core::loaders::StripXmlProcessor;
 use rig_core::providers::openai::responses_api::ResponsesCompletionModel;
-use rig_core::streaming::{StreamedAssistantContent, StreamingPrompt};
+use rig_core::streaming::{StreamedAssistantContent, StreamedUserContent, StreamingPrompt};
 use rig_core::tool::ToolDyn;
-use rig_core::wasm_compat::{WasmCompatSend, WasmCompatSync};
 use rig_core::EmptyListError;
 use serde::{Deserialize, Serialize};
-use std::future::Future;
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
 
@@ -23,7 +21,7 @@ use crate::app::{
     self, AISteamResp, AiOnlineSearch, DBPal, DatabaseBackend, ErrorFrontend, OpenAIReq,
     TaskManager,
 };
-use rig_core::completion::{CompletionModel, Message, Prompt, PromptError, ToolDefinition};
+use rig_core::completion::{Message, Prompt, PromptError};
 use rig_core::message::{
     DocumentSourceKind, Image, ReasoningContent, ToolResultContent, UserContent,
 };
@@ -107,7 +105,7 @@ async fn call_openai_stream(
         let chunk = chunk?;
         match chunk {
             MultiTurnStreamItem::StreamAssistantItem(item) => match item {
-                rig_core::streaming::StreamedAssistantContent::Text(text) => {
+                StreamedAssistantContent::Text(text) => {
                     emit(text.text().to_owned().into());
                 }
                 StreamedAssistantContent::ToolCall { .. } => {
@@ -137,9 +135,10 @@ async fn call_openai_stream(
                         total_token: x.usage.total_tokens,
                     });
                 }
+                StreamedAssistantContent::Unknown(..) => {}
             },
             MultiTurnStreamItem::StreamUserItem(x) => match x {
-                rig_core::streaming::StreamedUserContent::ToolResult {
+                StreamedUserContent::ToolResult {
                     tool_result,
                     internal_call_id: _,
                 } => {
@@ -181,7 +180,8 @@ async fn call_openai_stream(
 pub struct EmitSomeStatus {
     emit: ToolEmitter,
 }
-impl<M> PromptHook<M> for EmitSomeStatus where M: CompletionModel + 'static {}
+
+// impl<M> PromptHook<M> for EmitSomeStatus where M: CompletionModel + 'static {}
 
 impl DBPal {
     async fn make_tools(
@@ -305,29 +305,6 @@ impl Tool for SqlQueryTool {
     type Output = SqlQueryOutput;
     type Error = CallToolErr;
 
-    #[allow(clippy::manual_async_fn)]
-    fn definition(
-        &self,
-        _prompt: String,
-    ) -> impl Future<Output = ToolDefinition> + WasmCompatSend + WasmCompatSync {
-        async move {
-            ToolDefinition {
-                name: Self::NAME.to_string(),
-                description: "执行 SQL 查询并返回结果。只支持 SELECT 只读查询。".to_string(),
-                parameters: serde_json::json!({
-                    "type": "object",
-                    "properties": {
-                        "query": {
-                            "type": "string",
-                            "description": "要执行的 SQL SELECT 查询语句"
-                        }
-                    },
-                    "required": ["query"]
-                }),
-            }
-        }
-    }
-
     async fn call(&self, args: Self::Args) -> Result<Self::Output, Self::Error> {
         (self.emit)(format!("\ncall tool sql query {}", args.query));
         let (exceed, ret) = self
@@ -348,6 +325,23 @@ impl Tool for SqlQueryTool {
         Ok(SqlQueryOutput {
             result: serde_json::json!({"data": r}),
             query: args.query,
+        })
+    }
+
+    fn description(&self) -> String {
+        "执行 SQL 查询并返回结果。只支持 SELECT 只读查询。".to_string()
+    }
+
+    fn parameters(&self) -> serde_json::Value {
+        serde_json::json!({
+            "type": "object",
+            "properties": {
+                "query": {
+                    "type": "string",
+                    "description": "要执行的 SQL SELECT 查询语句"
+                }
+            },
+            "required": ["query"]
         })
     }
 }
@@ -429,31 +423,6 @@ impl Tool for WebFetchTool {
     type Args = WebFetchArgs;
     type Output = WebFetchOutput;
 
-    /// Returns the tool definition that describes the function to the LLM
-    async fn definition(&self, _prompt: String) -> ToolDefinition {
-        ToolDefinition {
-            name: Self::NAME.to_string(),
-            description: concat!(
-                "Fetches and retrieves the content of a web page or API endpoint from a given URL. ",
-                "Use this tool when you need to access external web content, retrieve data from APIs, ",
-                "or read the content of a specific webpage. ",
-                "The tool returns the raw HTML, JSON, or text content along with HTTP status information. ",
-                "Supports standard HTTP/HTTPS URLs."
-            ).to_string(),
-            parameters: serde_json::json!({
-                "type": "object",
-                "properties": {
-                    "url": {
-                        "type": "string",
-                        "description": "The complete URL to fetch (e.g., https://api.example.com/data or https://example.com/page). Must include protocol (http:// or https://).",
-                        "format": "uri"
-                    }
-                },
-                "required": ["url"]
-            }),
-        }
-    }
-
     /// Executes the web fetch operation
     async fn call(&self, args: Self::Args) -> Result<Self::Output, Self::Error> {
         if !args.url.starts_with("http://") && !args.url.starts_with("https://") {
@@ -496,6 +465,30 @@ impl Tool for WebFetchTool {
             content_type,
             content,
             status,
+        })
+    }
+
+    fn description(&self) -> String {
+        concat!(
+                "Fetches and retrieves the content of a web page or API endpoint from a given URL. ",
+                "Use this tool when you need to access external web content, retrieve data from APIs, ",
+                "or read the content of a specific webpage. ",
+                "The tool returns the raw HTML, JSON, or text content along with HTTP status information. ",
+                "Supports standard HTTP/HTTPS URLs."
+            ).to_string()
+    }
+
+    fn parameters(&self) -> serde_json::Value {
+        serde_json::json!({
+            "type": "object",
+            "properties": {
+                "url": {
+                    "type": "string",
+                    "description": "The complete URL to fetch (e.g., https://api.example.com/data or https://example.com/page). Must include protocol (http:// or https://).",
+                    "format": "uri"
+                }
+            },
+            "required": ["url"]
         })
     }
 }
@@ -839,34 +832,6 @@ impl Tool for WebSearchTool {
 
     type Output = SearchOutput;
 
-    async fn definition(&self, _prompt: String) -> ToolDefinition {
-        ToolDefinition {
-                name: Self::NAME.to_string(),
-                description: "Search the web for information and use the results to answer the user's question. \
-                    Use this tool when you need to find current information, facts, news, or specific resources \
-                    that may not be in your training data. The tool returns relevant web pages with titles, \
-                    URLs, and snippets."
-                    .to_string(),
-                parameters :serde_json::json!({
-                        "type": "object",
-                        "properties": {
-                            "query": {
-                                "type": "string",
-                                "description": "The search query string - what to search for"
-                            },
-                            "max_results": {
-                                "type": "integer",
-                                "description": "Maximum number of results to return (default: 10, max: 20)",
-                                "minimum": 10,
-                                "maximum": 20,
-                                "nullable": true
-                            }
-                        },
-                        "required": ["query"]
-                    })
-            }
-    }
-
     async fn call(&self, args: Self::Args) -> Result<Self::Output, Self::Error> {
         (self.emit)(format!("search internet for answer,query:{}\n", args.query));
 
@@ -910,6 +875,34 @@ impl Tool for WebSearchTool {
             results,
         })
     }
+
+    fn description(&self) -> String {
+        "Search the web for information and use the results to answer the user's question. \
+                    Use this tool when you need to find current information, facts, news, or specific resources \
+                    that may not be in your training data. The tool returns relevant web pages with titles, \
+                    URLs, and snippets."
+                    .to_string()
+    }
+
+    fn parameters(&self) -> serde_json::Value {
+        serde_json::json!({
+            "type": "object",
+            "properties": {
+                "query": {
+                    "type": "string",
+                    "description": "The search query string - what to search for"
+                },
+                "max_results": {
+                    "type": "integer",
+                    "description": "Maximum number of results to return (default: 10, max: 20)",
+                    "minimum": 10,
+                    "maximum": 20,
+                    "nullable": true
+                }
+            },
+            "required": ["query"]
+        })
+    }
 }
 
 mod mongo_tool {
@@ -920,7 +913,7 @@ mod mongo_tool {
         bson::{doc, Document},
         Cursor,
     };
-    use rig_core::{completion::ToolDefinition, tool::Tool};
+    use rig_core::tool::Tool;
     use serde::{Deserialize, Serialize};
 
     use crate::ai::CallToolErr;
@@ -1057,46 +1050,47 @@ mod mongo_tool {
             Ok(result) as Result<Self::Output, Self::Error>
         }
 
-        async fn definition(&self, _: String) -> ToolDefinition {
-            ToolDefinition {
-                name: Self::NAME.to_string(),
-                description: "Execute MongoDB queries. Supports find/aggregate/count operations. \
+        type Error = CallToolErr;
+
+        fn description(&self) -> String {
+            "Execute MongoDB queries. Supports find/aggregate/count operations. \
                 Example: {\"collection\":\"users\",\"operation\":\"find\",\
                 \"filter\":{\"age\":{\"$gt\":18}},\"limit\":10}"
-                    .to_string(),
-                parameters: serde_json::json!({
-                    "type": "object",
-                    "properties": {
-                        "collection": { "type": "string", "description": "Collection name" },
-                        "operation": {
-                            "type": "string",
-                            "enum": ["find", "aggregate", "count", "distinct"],
-                            "description": "Query operation type"
-                        },
-                        "filter": {
-                            "type": "object",
-                            "description": "Query filter in MongoDB syntax"
-                        },
-                        "pipeline": {
-                            "type": "array",
-                            "description": "Aggregation pipeline (for aggregate operation)"
-                        },
-                        "projection": {
-                            "type": "object",
-                            "description": "Field projection, e.g. {\"name\": 1, \"_id\": 0}"
-                        },
-                        "sort": {
-                            "type": "object",
-                            "description": "Sort order, e.g. {\"created_at\": -1}"
-                        },
-                        "limit": { "type": "integer", "description": "Maximum records to return" },
-                        "skip": { "type": "integer", "description": "Records to skip" }
-                    },
-                    "required": ["collection", "operation"]
-                }),
-            }
+                .to_string()
         }
-        type Error = CallToolErr;
+
+        fn parameters(&self) -> serde_json::Value {
+            serde_json::json!({
+                "type": "object",
+                "properties": {
+                    "collection": { "type": "string", "description": "Collection name" },
+                    "operation": {
+                        "type": "string",
+                        "enum": ["find", "aggregate", "count", "distinct"],
+                        "description": "Query operation type"
+                    },
+                    "filter": {
+                        "type": "object",
+                        "description": "Query filter in MongoDB syntax"
+                    },
+                    "pipeline": {
+                        "type": "array",
+                        "description": "Aggregation pipeline (for aggregate operation)"
+                    },
+                    "projection": {
+                        "type": "object",
+                        "description": "Field projection, e.g. {\"name\": 1, \"_id\": 0}"
+                    },
+                    "sort": {
+                        "type": "object",
+                        "description": "Sort order, e.g. {\"created_at\": -1}"
+                    },
+                    "limit": { "type": "integer", "description": "Maximum records to return" },
+                    "skip": { "type": "integer", "description": "Records to skip" }
+                },
+                "required": ["collection", "operation"]
+            })
+        }
     }
 
     #[derive(Debug, Serialize, Deserialize)]
@@ -1123,25 +1117,6 @@ mod mongo_tool {
         type Output = RunCommandOutput;
         type Error = CallToolErr;
 
-        async fn definition(&self, _prompt: String) -> ToolDefinition {
-            ToolDefinition {
-                name: "mongodb_run_command".to_string(),
-                description:
-                    "Execute a raw MongoDB database command and return the server response."
-                        .to_string(),
-                parameters: serde_json::json!({
-                    "type": "object",
-                    "properties": {
-                        "command": {
-                            "type": "object",
-                            "description": "MongoDB command document to execute. First key must be the command name. Examples: {\"serverStatus\": 1}, {\"dbStats\": 1}, {\"createIndexes\": \"users\", \"indexes\": [{\"key\": {\"email\": 1}, \"unique\": true}]}, {\"aggregate\": \"orders\", \"pipeline\": [{\"$group\": {\"_id\": \"$status\"}}], \"cursor\": {}}"
-                        }
-                    },
-                    "required": ["command"]
-                }),
-            }
-        }
-
         async fn call(&self, args: Self::Args) -> Result<Self::Output, Self::Error> {
             let result = self
                 .client
@@ -1150,6 +1125,23 @@ mod mongo_tool {
                 .run_command(args.command)
                 .await?;
             Ok(RunCommandOutput { result })
+        }
+
+        fn description(&self) -> String {
+            "Execute a raw MongoDB database command and return the server response.".to_string()
+        }
+
+        fn parameters(&self) -> serde_json::Value {
+            serde_json::json!({
+                "type": "object",
+                "properties": {
+                    "command": {
+                        "type": "object",
+                        "description": "MongoDB command document to execute. First key must be the command name. Examples: {\"serverStatus\": 1}, {\"dbStats\": 1}, {\"createIndexes\": \"users\", \"indexes\": [{\"key\": {\"email\": 1}, \"unique\": true}]}, {\"aggregate\": \"orders\", \"pipeline\": [{\"$group\": {\"_id\": \"$status\"}}], \"cursor\": {}}"
+                    }
+                },
+                "required": ["command"]
+            })
         }
     }
 }
@@ -1216,31 +1208,6 @@ mod redis {
         type Args = RedisCommandArgs;
         type Output = Vec<String>;
 
-        async fn definition(&self, _: String) -> rig_core::completion::ToolDefinition {
-            rig_core::completion::ToolDefinition {
-                name: Self::NAME.to_string(),
-                description: "执行 Redis 命令。例如: command='GET', args=['key']".to_string(),
-                parameters: json!({
-                    "type": "object",
-                    "properties": {
-                        "command": {
-                            "type": "string",
-                            "description": "Redis 命令名称 (如: GET, SET, INFO, FLUSHDB)"
-                        },
-                        "args": {
-                            "type": "array",
-                            "items": { "type": "string" },
-                            "description": "命令参数列表。注意：必须是真实的 JSON 数组格式，例如 [\"key1\", \"value1\"]，不要传字符串形式的数组 ,如果参数
-                                            是int或者float请转化成string
-                                            "
-                        }
-                    },
-                    // 关键改动：这里只保留 command 为必填
-                    "required": ["command"]
-                }),
-            }
-        }
-
         async fn call(&self, args: Self::Args) -> Result<Self::Output, Self::Error> {
             let RedisCommandArgs { command, args } = args;
             let conn = self.client.get_query_conn_by_id(&self.query_id)?;
@@ -1258,6 +1225,31 @@ mod redis {
                 ret.push(value);
             }
             Ok(ret)
+        }
+
+        fn description(&self) -> String {
+            "执行 Redis 命令。例如: command='GET', args=['key']".to_string()
+        }
+
+        fn parameters(&self) -> serde_json::Value {
+            json!({
+                "type": "object",
+                "properties": {
+                    "command": {
+                        "type": "string",
+                        "description": "Redis 命令名称 (如: GET, SET, INFO, FLUSHDB)"
+                    },
+                    "args": {
+                        "type": "array",
+                        "items": { "type": "string" },
+                        "description": "命令参数列表。注意：必须是真实的 JSON 数组格式，例如 [\"key1\", \"value1\"]，不要传字符串形式的数组 ,如果参数
+                                            是int或者float请转化成string
+                                            "
+                    }
+                },
+                // 关键改动：这里只保留 command 为必填
+                "required": ["command"]
+            })
         }
     }
 
@@ -1495,6 +1487,7 @@ human: tell me Mike's age from TABLE Persons
                         StreamedAssistantContent::Reasoning(..) => {}
                         StreamedAssistantContent::ReasoningDelta { .. } => {}
                         StreamedAssistantContent::Final(..) => {}
+                        StreamedAssistantContent::Unknown(..) => {}
                     }
                 }
                 MultiTurnStreamItem::StreamUserItem(streamed_user_content) => {
@@ -1503,7 +1496,7 @@ human: tell me Mike's age from TABLE Persons
                     }
                 }
                 MultiTurnStreamItem::FinalResponse(final_response) => {
-                    print!("{}", final_response.response().to_owned())
+                    println!("{:?}", final_response)
                 }
                 _ => unreachable!(),
             }
@@ -1583,7 +1576,7 @@ human: tell me Mike's age from TABLE Persons
             api_key: "sk-6c19c965d3234c8fae49c19e4f0301f0".into(),
             model: "qwen3.6-plus".into(),
             prompt: r#"
-                tell me what time and date is in new york
+                who is 周星驰
                 "#
             .into(),
             temperature: None,
@@ -1599,50 +1592,48 @@ human: tell me Mike's age from TABLE Persons
 
         let print_emit = Arc::new(|x: String| println!("{}", x));
 
-        {
-            println!("testing duckduckgo search tool...");
-            let agent = make_agent(
-                req,
-                vec![Box::new(WebSearchTool {
-                    engine: Box::new(websearch::providers::DuckDuckGoProvider::new()),
-                    emit: print_emit.clone(),
-                })],
-                None,
-            )
-            .unwrap();
+        // {
+        //     println!("testing duckduckgo search tool...");
+        //     let agent = make_agent(
+        //         req,
+        //         vec![Box::new(WebSearchTool {
+        //             engine: Box::new(websearch::providers::DuckDuckGoProvider::new()),
+        //             emit: print_emit.clone(),
+        //         })],
+        //         None,
+        //     )
+        //     .unwrap();
 
-            let msg = Message::user(&req.prompt);
+        //     let msg = Message::user(&req.prompt);
 
-            call_openai_stream(agent, print_steam.clone(), |x| x.to_owned(), msg)
-                .await
-                .unwrap();
-        }
+        //     call_openai_stream(agent, print_steam.clone(), |x| x.to_owned(), msg)
+        //         .await
+        //         .unwrap();
+        // }
 
-        //
+        // {
+        //     println!("testing search tool...");
+        //     let agent = make_agent(
+        //         req,
+        //         vec![Box::new(WebSearchTool {
+        //             engine: Box::new(
+        //                 websearch::providers::TavilyProvider::new(
+        //                     "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",
+        //                 )
+        //                 .unwrap(),
+        //             ),
+        //             emit: print_emit.clone(),
+        //         })],
+        //         None,
+        //     )
+        //     .unwrap();
 
-        {
-            println!("testing search tool...");
-            let agent = make_agent(
-                req,
-                vec![Box::new(WebSearchTool {
-                    engine: Box::new(
-                        websearch::providers::TavilyProvider::new(
-                            "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",
-                        )
-                        .unwrap(),
-                    ),
-                    emit: print_emit.clone(),
-                })],
-                None,
-            )
-            .unwrap();
+        //     let msg = Message::user(&req.prompt);
 
-            let msg = Message::user(&req.prompt);
-
-            call_openai_stream(agent, print_steam.clone(), |x| x.to_owned(), msg)
-                .await
-                .unwrap();
-        }
+        //     call_openai_stream(agent, print_steam.clone(), |x| x.to_owned(), msg)
+        //         .await
+        //         .unwrap();
+        // }
 
         {
             println!("testing tavily serpapi tool...");
