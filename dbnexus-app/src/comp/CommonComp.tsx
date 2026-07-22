@@ -18,7 +18,7 @@ import {
   Modal,
   Box,
 } from "@mui/material";
-
+import { BsHighlights } from "react-icons/bs";
 import RefreshIcon from "@mui/icons-material/Refresh";
 import {
   Dispatch,
@@ -804,7 +804,7 @@ function UdfNameAndParameters(props: { udf: NamedStaff; kind: DataSourceKind }) 
 /**
  * Menu item that copies a grid field name.
  */
-function CopyMenuItem(props: GridColumnMenuItemProps) {
+function DataGridCopyMenuItem(props: GridColumnMenuItemProps) {
   const { colDef, onClick } = props;
   const { showNotification } = useNotification();
   return (
@@ -816,12 +816,12 @@ function CopyMenuItem(props: GridColumnMenuItemProps) {
       <ListItemIcon>
         <ContentCopyIcon />
       </ListItemIcon>
-      <ListItemText> Copy Field </ListItemText>
+      <ListItemText> Copy Column Name </ListItemText>
     </MenuItem>
   );
 }
 
-function ColumnHighlightMenuItem(props: GridColumnMenuItemProps) {
+function DataGridColumnHighlightMenuItem(props: GridColumnMenuItemProps) {
   const { addHightlight, removeHighlight, highlights } = useColumnHighlightStore();
   const { colDef, onClick } = props;
   return (
@@ -834,7 +834,9 @@ function ColumnHighlightMenuItem(props: GridColumnMenuItemProps) {
         }
         if (onClick) onClick(event);
       }}>
-      <ListItemIcon> </ListItemIcon>
+      <ListItemIcon>
+        <BsHighlights />
+      </ListItemIcon>
       <ListItemText>
         <Typography className={highlights[colDef.field] ? "column-highlight" : ""}>
           high light
@@ -853,8 +855,8 @@ function AppColumnMenu(props: GridColumnMenuProps) {
       {...props}
       slots={{
         // Add new item
-        closeColumnMenuCopyField: CopyMenuItem,
-        HighlightMenu: ColumnHighlightMenuItem,
+        closeColumnMenuCopyField: DataGridCopyMenuItem,
+        HighlightMenu: DataGridColumnHighlightMenuItem,
       }}
       slotProps={{
         closeColumnMenuCopyField: {

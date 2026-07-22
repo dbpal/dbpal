@@ -101,6 +101,7 @@ import {
   useMongoViewModelStore,
   useMongoEditorViewModelStore,
   useMongoTableFilterOp,
+  useColumnHighlightStore,
 } from "./store";
 import { commands, MuiDataGridData } from "./bindings";
 import { AddTableModal } from "./LeftTable";
@@ -1019,7 +1020,6 @@ function MongoTableList(props: {
   const { showNotification } = useNotification();
   const [resp, setResp] = useState<MuiDataGridData | null>(null);
   const [selectModifyDoc, setSelectModifyDoc] = useState<BSON.Document | null>(null);
-  const [clickedField, setClickedField] = useState("");
   const { getColumnWidth, setColumnWidth } = useColumnWidthStore();
   const [showFilter, setShowFilter] = useState<{ field: string; id: any }>(null);
   const handleReload = useCallback(
@@ -1039,10 +1039,6 @@ function MongoTableList(props: {
               const field = e.colDef as unknown as FieldAndGridField;
               return (
                 <Stack
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    setClickedField(field.field);
-                  }}
                   style={{
                     alignItems: "center",
                     cursor: "default",
@@ -1231,19 +1227,18 @@ function MongoTableList(props: {
   const { getColumnVisibility, setColumnVisibility } = useTableColumnVisibleStore(
     (s) => s,
   );
+
+  const { highlights: highLightColumn } = useColumnHighlightStore();
   return (
     <Stack style={{ height: "100%" }}>
       {resp && (
         <DataGrid
           getCellClassName={(e) => {
-            if (e.field == clickedField) {
-              return "datagrid-field-clicked";
+            if (highLightColumn[e.field]) {
+              return "column-highlight";
             } else {
               return "";
             }
-          }}
-          onCellClick={() => {
-            setClickedField("");
           }}
           columnVisibilityModel={getColumnVisibility(uuid, tableName)}
           onColumnVisibilityModelChange={(e) => {
