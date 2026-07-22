@@ -66,6 +66,7 @@ import {
 import {
   passwordKey,
   savePasswordKey,
+  useColumnHighlightStore,
   useColumnWidthStore,
   useConnLoading,
   useConnected,
@@ -804,15 +805,41 @@ function UdfNameAndParameters(props: { udf: NamedStaff; kind: DataSourceKind }) 
  * Menu item that copies a grid field name.
  */
 function CopyMenuItem(props: GridColumnMenuItemProps) {
-  const { colDef } = props;
+  const { colDef, onClick } = props;
   const { showNotification } = useNotification();
   return (
     <MenuItem
-      onClick={() => {
+      onClick={(event) => {
         handleCopyToClipboard(colDef.field, showNotification);
+        if (onClick) onClick(event);
+      }}>
+      <ListItemIcon>
+        <ContentCopyIcon />
+      </ListItemIcon>
+      <ListItemText> Copy Field </ListItemText>
+    </MenuItem>
+  );
+}
+
+function ColumnHighlightMenuItem(props: GridColumnMenuItemProps) {
+  const { addHightlight, removeHighlight, highlights } = useColumnHighlightStore();
+  const { colDef, onClick } = props;
+  return (
+    <MenuItem
+      onClick={(event) => {
+        if (highlights[colDef.field]) {
+          removeHighlight(colDef.field);
+        } else {
+          addHightlight(colDef.field);
+        }
+        if (onClick) onClick(event);
       }}>
       <ListItemIcon> </ListItemIcon>
-      <ListItemText> Copy Field </ListItemText>
+      <ListItemText>
+        <Typography className={highlights[colDef.field] ? "column-highlight" : ""}>
+          high light
+        </Typography>
+      </ListItemText>
     </MenuItem>
   );
 }
@@ -827,10 +854,14 @@ function AppColumnMenu(props: GridColumnMenuProps) {
       slots={{
         // Add new item
         closeColumnMenuCopyField: CopyMenuItem,
+        HighlightMenu: ColumnHighlightMenuItem,
       }}
       slotProps={{
         closeColumnMenuCopyField: {
           displayOrder: 15,
+        },
+        HighlightMenu: {
+          displayOrder: 16,
         },
       }}
     />

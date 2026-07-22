@@ -14,3 +14,8 @@
   background-color: rgb(107, 165, 251);
   box-shadow: 0 0 4px;
 }
+
+.column-highlight {
+  background-color: #c8e6c9;
+  color: black;
+}

@@ -95,6 +95,7 @@ import {
 import { showTable } from "./handlers";
 import { AddTableModal } from "./LeftTable";
 import {
+  useColumnHighlightStore,
   useColumnWidthStore,
   useConfirmMsg,
   useContextMenu,
@@ -516,7 +517,6 @@ const OpsContext = createContext<{
   fields: Field[];
   uuid: string;
   handleReload: () => void;
-  clickedField: string;
 }>(null);
 
 function CellButtons(props: {
@@ -569,9 +569,9 @@ function CellButtons(props: {
 }
 
 function CustomCell(props: GridRenderCellParams) {
+  const { highlights } = useColumnHighlightStore();
   const { row, field } = props;
-  const { ops, setOps, fields, uuid, handleReload, clickedField } =
-    useContext(OpsContext);
+  const { ops, setOps, fields, uuid, handleReload } = useContext(OpsContext);
   let dbId = tryGetId(row, fields);
   const modified = ops.find((x) => x.tableId == dbId && x.op == DatabaseOpKind.Update);
   const deleted = ops.find((x) => x.tableId == dbId && x.op == DatabaseOpKind.Delete);
@@ -632,9 +632,10 @@ function CustomCell(props: GridRenderCellParams) {
       </Stack>
     );
   }
-  if (field == clickedField) {
+
+  if (highlights[field]) {
     return (
-      <Typography {...dataField} style={{ background: " #c8e6c9", color: "black" }}>
+      <Typography {...dataField} className="column-highlight">
         {row[field]}
       </Typography>
     );
@@ -711,7 +712,6 @@ function SqlTableView(props: {
   const clientModel = [DataSourceKind.Cassandra].includes(kind);
   const [viewInModal, setViewInModal] = useState<object>(null);
   const [queryStatus, setQueryStatus] = useState("");
-  const [clickedField, setClickedField] = useState("");
   const { getColumnWidth, setColumnWidth } = useColumnWidthStore();
   const [showClone, setShowClone] = useState<object>(null);
   const getSize = useSizeStore((s) => s.getSize);
@@ -757,13 +757,7 @@ function SqlTableView(props: {
             return ret;
           };
           return (
-            <Stack
-              onClick={(e) => {
-                e.stopPropagation();
-                setClickedField(field.field);
-              }}
-              style={{ alignItems: "center" }}
-              direction="row">
+            <Stack style={{ alignItems: "center" }} direction="row">
               <Tooltip title={makeTitle()}>
                 <Typography style={{ fontSize: dataGridheaderFontSize }}>
                   {field.field}
@@ -1113,14 +1107,10 @@ function SqlTableView(props: {
           handleReload: () => {
             handleReload(false);
           },
-          clickedField: clickedField,
         }}>
         <DataGrid
           slots={slots}
           apiRef={apiRef}
-          onCellClick={() => {
-            setClickedField("");
-          }}
           columnVisibilityModel={getColumnVisibility(uuid, tableName)}
           onColumnVisibilityModelChange={(e) => {
             setColumnVisibility(uuid, tableName, e);
