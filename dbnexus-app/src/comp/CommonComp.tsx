@@ -18,13 +18,13 @@ import {
   Modal,
   Box,
 } from "@mui/material";
-import { BsHighlights } from "react-icons/bs";
 import RefreshIcon from "@mui/icons-material/Refresh";
 import {
   Dispatch,
   ReactNode,
   SetStateAction,
   useCallback,
+  useContext,
   useEffect,
   useMemo,
   useState,
@@ -50,6 +50,7 @@ import {
   prettyMs,
   resizeHandlerSize,
   secondConfirm,
+  SqlTableContext,
   textEllipsisStyle,
 } from "./helper";
 
@@ -66,7 +67,6 @@ import {
 import {
   passwordKey,
   savePasswordKey,
-  useColumnHighlightStore,
   useColumnWidthStore,
   useConnLoading,
   useConnected,
@@ -803,10 +803,20 @@ function UdfNameAndParameters(props: { udf: NamedStaff; kind: DataSourceKind }) 
 }
 
 function DataGridExtraMeneList(props: GridColumnMenuItemProps) {
-  const { addHightlight, removeHighlight, highlights } = useColumnHighlightStore();
   const { colDef, onClick } = props;
   const { showNotification } = useNotification();
   const api = useGridApiContext();
+
+  let { selectColumns } = useContext(SqlTableContext);
+
+  const getSelectFileds = (): string[] => {
+    if (selectColumns.length) {
+      return selectColumns;
+    } else {
+      return [colDef.field];
+    }
+  };
+
   return (
     <MenuList>
       <MenuItem
@@ -814,7 +824,11 @@ function DataGridExtraMeneList(props: GridColumnMenuItemProps) {
           handleCopyToClipboard(
             api.current
               .getSortedRows()
-              .map((e) => e[colDef.field])
+              .map((data) =>
+                getSelectFileds()
+                  .map((f) => data[f])
+                  .join("\t"),
+              )
               .join("\n"),
             showNotification,
           );
@@ -831,24 +845,6 @@ function DataGridExtraMeneList(props: GridColumnMenuItemProps) {
         }}>
         <ListItemIcon>{/* <ContentCopyIcon /> */}</ListItemIcon>
         <ListItemText> Copy Column Name </ListItemText>
-      </MenuItem>
-      <MenuItem
-        onClick={(event) => {
-          if (highlights[colDef.field]) {
-            removeHighlight(colDef.field);
-          } else {
-            addHightlight(colDef.field);
-          }
-          if (onClick) onClick(event);
-        }}>
-        <ListItemIcon>
-          <BsHighlights />
-        </ListItemIcon>
-        <ListItemText>
-          <Typography className={highlights[colDef.field] ? "column-highlight" : ""}>
-            high light
-          </Typography>
-        </ListItemText>
       </MenuItem>
     </MenuList>
   );
@@ -884,6 +880,7 @@ function SelectColumns(props: {
   includeAll: boolean;
 }) {
   const { fields, includes, setIncludes, includeAll } = props;
+
   return (
     <Stack direction="row" style={{ alignItems: "flex-end" }}>
       {includeAll && fields.length > includes.length && (

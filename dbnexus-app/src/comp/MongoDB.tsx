@@ -101,7 +101,6 @@ import {
   useMongoViewModelStore,
   useMongoEditorViewModelStore,
   useMongoTableFilterOp,
-  useColumnHighlightStore,
 } from "./store";
 import { commands, MuiDataGridData } from "./bindings";
 import { AddTableModal } from "./LeftTable";
@@ -1228,18 +1227,10 @@ function MongoTableList(props: {
     (s) => s,
   );
 
-  const { highlights: highLightColumn } = useColumnHighlightStore();
   return (
     <Stack style={{ height: "100%" }}>
       {resp && (
         <DataGrid
-          getCellClassName={(e) => {
-            if (highLightColumn[e.field]) {
-              return "column-highlight";
-            } else {
-              return "";
-            }
-          }}
           columnVisibilityModel={getColumnVisibility(uuid, tableName)}
           onColumnVisibilityModelChange={(e) => {
             setColumnVisibility(uuid, tableName, e);

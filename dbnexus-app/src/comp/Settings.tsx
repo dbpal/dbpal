@@ -1076,7 +1076,7 @@ function makeComponents(fontWeight: string | number, dataGridRowHeight: number) 
         showCellVerticalBorder: true,
         showColumnVerticalBorder: true,
         rowHeight: dataGridRowHeight,
-        columnHeaderHeight: dataGridRowHeight * 0.9,
+        columnHeaderHeight: dataGridRowHeight * 1.3,
         showToolbar: true,
         slotProps: {},
       },

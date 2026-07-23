@@ -1,5 +1,4 @@
 import {
-  createContext,
   Dispatch,
   SetStateAction,
   useCallback,
@@ -65,6 +64,10 @@ import {
   dataGridheaderFontSize,
   shrinkAble,
   TabContext,
+  clickColumn,
+  SqlTableContext,
+  DatabaseOperation,
+  DatabaseOpKind,
 } from "./helper";
 import { FaCopy } from "react-icons/fa6";
 import FileCopyIcon from "@mui/icons-material/FileCopy";
@@ -95,7 +98,6 @@ import {
 import { showTable } from "./handlers";
 import { AddTableModal } from "./LeftTable";
 import {
-  useColumnHighlightStore,
   useColumnWidthStore,
   useConfirmMsg,
   useContextMenu,
@@ -221,19 +223,6 @@ class EditInModalCellData {
   ) {}
 }
 
-enum DatabaseOpKind {
-  Update,
-  Delete,
-}
-
-class DatabaseOperation {
-  public constructor(
-    public op: DatabaseOpKind,
-    public sql: string,
-    public tableId: string,
-    public newValue: object | null,
-  ) {}
-}
 function tryGetId(data: object, fields: Field[]) {
   let pf = fields.filter((e) => e.is_primary);
   if (pf.length == 0) {
@@ -271,7 +260,7 @@ function SqlTableCustomToolBarLeft({
 }: SqlTableCustomToolBarLeftProps) {
   // 获取 DataGrid 内部的 api 实例
 
-  const { ops, setOps } = useContext(OpsContext);
+  const { ops, setOps } = useContext(SqlTableContext);
   const apiRef = useGridApiContext();
   const [showSetWhere, setShowSetWhere] = useState(false);
   const [showSetSort, setShowSetSort] = useState(false);
@@ -511,14 +500,6 @@ function EditRowInModal(props: {
   );
 }
 
-const OpsContext = createContext<{
-  ops: DatabaseOperation[];
-  setOps: Dispatch<SetStateAction<DatabaseOperation[]>>;
-  fields: Field[];
-  uuid: string;
-  handleReload: () => void;
-}>(null);
-
 function CellButtons(props: {
   op: DatabaseOperation;
   setOps: Dispatch<SetStateAction<DatabaseOperation[]>>;
@@ -569,9 +550,8 @@ function CellButtons(props: {
 }
 
 function CustomCell(props: GridRenderCellParams) {
-  const { highlights } = useColumnHighlightStore();
   const { row, field } = props;
-  const { ops, setOps, fields, uuid, handleReload } = useContext(OpsContext);
+  const { ops, setOps, fields, uuid, handleReload } = useContext(SqlTableContext);
   let dbId = tryGetId(row, fields);
   const modified = ops.find((x) => x.tableId == dbId && x.op == DatabaseOpKind.Update);
   const deleted = ops.find((x) => x.tableId == dbId && x.op == DatabaseOpKind.Delete);
@@ -630,14 +610,6 @@ function CustomCell(props: GridRenderCellParams) {
           <Typography>{row[field]}</Typography>
         )}
       </Stack>
-    );
-  }
-
-  if (highlights[field]) {
-    return (
-      <Typography {...dataField} className="column-highlight">
-        {row[field]}
-      </Typography>
     );
   }
   return <Typography {...dataField}>{row[field]}</Typography>;
@@ -715,6 +687,8 @@ function SqlTableView(props: {
   const { getColumnWidth, setColumnWidth } = useColumnWidthStore();
   const [showClone, setShowClone] = useState<object>(null);
   const getSize = useSizeStore((s) => s.getSize);
+  const [selectedColumns, setSelectColumns] = useState<Set<string>>(new Set());
+
   const [showFilter, setShowFilter] = useState<{
     field: string;
     content: string;
@@ -739,7 +713,6 @@ function SqlTableView(props: {
           const makeTitle = (): string => {
             let ret = field.field + " ";
             ret += field.data_type;
-
             if (!isTable) {
               return ret;
             }
@@ -757,13 +730,26 @@ function SqlTableView(props: {
             return ret;
           };
           return (
-            <Stack style={{ alignItems: "center" }} direction="row">
+            <Stack
+              style={{
+                alignItems: "center",
+                minWidth: "5rem",
+                border: "1px dashed gray",
+                borderRadius: "4px",
+                cursor: "pointer",
+                padding: "4px",
+              }}
+              direction="row"
+              onClick={(e) => {
+                e.stopPropagation();
+                clickColumn(e, field.field, setSelectColumns);
+              }}>
+              {field.is_primary && <KeyIcon style={{ fontSize: "16px" }} />}
               <Tooltip title={makeTitle()}>
                 <Typography style={{ fontSize: dataGridheaderFontSize }}>
                   {field.field}
                 </Typography>
               </Tooltip>
-              {field.is_primary && <KeyIcon style={{ fontSize: "16px" }} />}
             </Stack>
           );
         };
@@ -1096,7 +1082,7 @@ function SqlTableView(props: {
   return (
     <Stack style={{ height: "100%" }}>
       <QueryStatus status={queryStatus} />
-      <OpsContext
+      <SqlTableContext
         value={{
           ops,
           setOps,
@@ -1105,8 +1091,18 @@ function SqlTableView(props: {
           handleReload: () => {
             handleReload(false);
           },
+          selectColumns: (function () {
+            return resp.fields
+              .filter((f) => selectedColumns.has(f.field))
+              .map((f) => f.field);
+          })(),
         }}>
         <DataGrid
+          getCellClassName={({ field }) => {
+            if (selectedColumns.has(field)) {
+              return "grid-column-cell-select ";
+            }
+          }}
           slots={slots}
           apiRef={apiRef}
           columnVisibilityModel={getColumnVisibility(uuid, tableName)}
@@ -1131,7 +1127,7 @@ function SqlTableView(props: {
           onProcessRowUpdateError={onProcessRowUpdateError}
           loading={loading}
         />
-      </OpsContext>
+      </SqlTableContext>
 
       <ViewRowInModal
         data={viewInModal}

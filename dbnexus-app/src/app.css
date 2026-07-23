@@ -15,7 +15,11 @@
   box-shadow: 0 0 4px;
 }
 
-.column-highlight {
-  background-color: #c8e6c9;
+.grid-column-header-select {
+  background-color: yellow;
   color: black;
+}
+
+.grid-column-cell-select {
+  color: yellow;
 }

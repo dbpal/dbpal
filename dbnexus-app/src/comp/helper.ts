@@ -16,7 +16,7 @@ import { BSON } from "bson";
 import { WebviewWindow } from "@tauri-apps/api/webviewWindow";
 import { platform } from "@tauri-apps/plugin-os";
 import prettyMilliseconds from "pretty-ms";
-import { CompletionItem, CompletionKind, MuiDataGridData } from "./bindings";
+import { CompletionItem, CompletionKind, Field, MuiDataGridData } from "./bindings";
 import { NotificationParams } from "./store";
 import { extractBaseName, uuidv4 } from "./Common";
 
@@ -626,7 +626,49 @@ interface StupidIMarker {
   endColumn: number;
   resource?: any;
 }
+
+function clickColumn(
+  e: MouseEvent,
+  field: string,
+  set: Dispatch<SetStateAction<Set<string>>>,
+) {
+  const isControl = isMacOs() ? e.metaKey : e.ctrlKey;
+  set((old) => {
+    if (isControl) {
+      let c = new Set(old);
+      c.add(field);
+      return c;
+    } else {
+      return new Set([field]);
+    }
+  });
+}
+
+class DatabaseOperation {
+  public constructor(
+    public op: DatabaseOpKind,
+    public sql: string,
+    public tableId: string,
+    public newValue: object | null,
+  ) {}
+}
+
+export enum DatabaseOpKind {
+  Update,
+  Delete,
+}
+
+const SqlTableContext = createContext<{
+  ops: DatabaseOperation[];
+  setOps: Dispatch<SetStateAction<DatabaseOperation[]>>;
+  fields: Field[];
+  uuid: string;
+  handleReload: () => void;
+  selectColumns: string[];
+}>(null);
+
 export {
+  clickColumn,
   saveQueryKey,
   backendCompletionItemToEditor,
   ChatShowContext,
@@ -670,6 +712,8 @@ export {
   ViewKind,
   MonacoEditor,
   QueryIDEditorChatCtx,
+  SqlTableContext,
+  DatabaseOperation,
 };
 
 export type { StupidIMarker };
