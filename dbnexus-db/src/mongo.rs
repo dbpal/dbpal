@@ -335,7 +335,7 @@ impl MongoDB {
         let mut stream = db
             .collection::<Document>(collection_name)
             .find(filter)
-            .skip((page - 1) * page_size)
+            .skip(((page - 1) * page_size).into())
             .limit(page_size as i64)
             .sort(sort)
             .await?;
@@ -347,7 +347,7 @@ impl MongoDB {
         }
         let cols = infer_multi_value_column_names(&docs[..])?;
         let data = collect_table_resp(&cols, docs.as_slice())?;
-        anyhow::Ok(QueryResp::new(cols, count as usize, data, None)?)
+        anyhow::Ok(QueryResp::new(cols, count as f64, data, None)?)
     }
 
     pub async fn show_collection_json(
@@ -369,7 +369,7 @@ impl MongoDB {
         let mut stream = db
             .collection::<bson::Document>(collection_name)
             .find(filter)
-            .skip((page - 1) * page_size)
+            .skip(((page - 1) * page_size).into())
             .limit(page_size as i64)
             .sort(sort)
             .await?;
@@ -401,7 +401,7 @@ impl MongoDB {
         let mut stream = db
             .collection::<Document>(collection_name)
             .find(filter)
-            .skip((page - 1) * page_size)
+            .skip(((page - 1) * page_size).into())
             .limit(page_size as i64)
             .sort(sort)
             .await?;
@@ -804,8 +804,8 @@ pub struct MongoFindParameter {
 pub struct MongoShowTablePara {
     pub sort: Document,
     pub filter: Document,
-    pub page: u64,
-    pub page_size: u64,
+    pub page: u32,
+    pub page_size: u32,
 }
 
 pub fn make_test_object() -> MongoDB {

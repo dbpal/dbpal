@@ -473,7 +473,7 @@ impl MysqlDB {
                     }
                 },
             };
-            ret.push(ListTable::new(table_name, size));
+            ret.push(ListTable::new(table_name, size.map(|x| x as f64)));
         }
         anyhow::Ok(ret)
     }
@@ -955,7 +955,7 @@ impl SchemaTrait for MysqlDB {
             if first.get() {
                 emit.send(
                     QueryResp {
-                        total,
+                        total: total as f64,
                         fields: get_row_type(&row),
                         sql: sql.clone().into(),
                         ..Default::default()
@@ -1086,7 +1086,7 @@ impl SchemaTrait for MysqlDB {
         emit.send(
             QueryResp {
                 fields,
-                total,
+                total: total as f64,
                 sql: sql.clone().into(),
                 ..Default::default()
             }
@@ -1940,7 +1940,7 @@ pub(crate) mod test_fns {
                 .await
                 .unwrap()
                 .total
-                == 0
+                == 0f64
         );
         db.set_auto_commit(query_id, false).await.unwrap();
         db.execute_sql(
@@ -1959,7 +1959,7 @@ pub(crate) mod test_fns {
                 .await
                 .unwrap()
                 .total
-                == 1
+                == 1f64
         );
     }
 

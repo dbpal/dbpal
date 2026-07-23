@@ -770,7 +770,7 @@ impl SchemaTrait for SqlServerDB {
                         QueryResp {
                             fields: get_fields_from_meta(&m),
                             sql: sql.clone().into(),
-                            total: total as usize,
+                            total: total as f64,
                             ..Default::default()
                         }
                         .into(),
@@ -886,7 +886,7 @@ impl SchemaTrait for SqlServerDB {
         emit.send(
             QueryResp {
                 fields,
-                total: total as usize,
+                total: total as f64,
                 sql: sql.clone().into(),
                 ..Default::default()
             }
@@ -2388,7 +2388,7 @@ END;
                 .await
                 .unwrap()
                 .total
-                == 0
+                == 0f64
         );
 
         db.set_auto_commit(query_id, false).await.unwrap();
@@ -2409,7 +2409,7 @@ END;
                 .await
                 .unwrap()
                 .total
-                == 1
+                == 1f64
         );
     }
 

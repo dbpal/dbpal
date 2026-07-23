@@ -162,7 +162,7 @@ mod tests {
                 .await
                 .unwrap()
                 .total
-                == 0
+                == 0f64
         );
         db.set_auto_commit(query_id, false).await.unwrap();
 
@@ -182,7 +182,7 @@ mod tests {
                 .await
                 .unwrap()
                 .total
-                == 1
+                == 1f64
         );
     }
 

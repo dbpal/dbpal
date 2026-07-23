@@ -68,6 +68,8 @@ import {
   SqlTableContext,
   DatabaseOperation,
   DatabaseOpKind,
+  gridColumnHeaderSelectClassName,
+  allGridHeaderTitle,
 } from "./helper";
 import { FaCopy } from "react-icons/fa6";
 import FileCopyIcon from "@mui/icons-material/FileCopy";
@@ -734,15 +736,15 @@ function SqlTableView(props: {
               style={{
                 alignItems: "center",
                 minWidth: "5rem",
-                border: "1px dashed gray",
+                border: "2px dashed gray",
                 borderRadius: "4px",
-                cursor: "pointer",
                 padding: "4px",
+                cursor: "default",
               }}
               direction="row"
-              onClick={(e) => {
-                e.stopPropagation();
-                clickColumn(e, field.field, setSelectColumns);
+              onClick={(event) => {
+                event.stopPropagation();
+                clickColumn(apiRef, event, field.field, setSelectColumns);
               }}>
               {field.is_primary && <KeyIcon style={{ fontSize: "16px" }} />}
               <Tooltip title={makeTitle()}>
@@ -757,7 +759,7 @@ function SqlTableView(props: {
       }
       setResp(resp);
     },
-    [getColumnWidth, isTable],
+    [apiRef, getColumnWidth, isTable],
   );
 
   const makePara = useCallback(() => {
@@ -804,7 +806,6 @@ function SqlTableView(props: {
   const rowHasOP = useCallback(
     (row: object) => {
       let id = tryGetId(row, resp.fields);
-
       return ops.find((e) => e.tableId == id);
     },
     [ops, resp.fields],
@@ -1102,6 +1103,12 @@ function SqlTableView(props: {
             if (selectedColumns.has(field)) {
               return "grid-column-cell-select ";
             }
+          }}
+          onCellClick={() => {
+            setSelectColumns(new Set());
+            allGridHeaderTitle(apiRef, (x) => {
+              x.classList.remove(gridColumnHeaderSelectClassName);
+            });
           }}
           slots={slots}
           apiRef={apiRef}

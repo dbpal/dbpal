@@ -649,7 +649,7 @@ impl SchemaTrait for FireBirdDB {
             emit.send(
                 QueryResp {
                     fields: fs.clone(),
-                    total,
+                    total: total as f64,
                     ..Default::default()
                 }
                 .into(),
@@ -854,7 +854,7 @@ impl SchemaTrait for FireBirdDB {
             emit.send(
                 QueryResp {
                     fields,
-                    total,
+                    total: total as f64,
                     sql: sql.clone().into(),
                     ..Default::default()
                 }
@@ -1168,7 +1168,7 @@ mod tests {
                 .await
                 .unwrap()
                 .total
-                == 0
+                == 0f64
         );
 
         db.execute_sql(
@@ -1186,7 +1186,7 @@ mod tests {
                 .await
                 .unwrap()
                 .total
-                == 1
+                == 1f64
         );
     }
 
@@ -1453,7 +1453,7 @@ mod tests {
                 .await
                 .unwrap()
                 .total
-                == 0
+                == 0f64
         );
     }
 

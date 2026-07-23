@@ -32,7 +32,7 @@ pub struct OpenAIReq {
     pub model: String,
     pub prompt: String,
     pub temperature: Option<f64>,
-    pub max_tokens: Option<u64>,
+    pub max_tokens: Option<u32>,
     pub top_p: Option<f64>,
     // data:image/jpeg;base64 data encoded in base64 image data
     pub images: Vec<String>,
@@ -51,9 +51,9 @@ pub enum AISteamResp {
         msg: String,
     },
     TokenUsage {
-        input_token: u64,
-        output_token: u64,
-        total_token: u64,
+        input_token: u32,
+        output_token: u32,
+        total_token: u32,
     },
 }
 
@@ -857,8 +857,8 @@ pub struct MongoFindParameter {
     pub(crate) sort: Option<JsUint8Array>,
     pub(crate) min: Option<JsUint8Array>,
     pub(crate) max: Option<JsUint8Array>,
-    pub(crate) limit: Option<i64>,
-    pub(crate) skip: Option<u64>,
+    pub(crate) limit: Option<f64>,
+    pub(crate) skip: Option<f64>,
 }
 
 pub fn parse_bson_doc(bs: &[u8]) -> Result<Document, ErrorFrontend> {
@@ -915,8 +915,8 @@ impl TryFrom<MongoFindParameter> for dbnexus_db::mongo::MongoFindParameter {
             } else {
                 None
             },
-            limit,
-            skip,
+            limit: limit.map(|x| x as i64),
+            skip: skip.map(|x| x as u64),
         };
         Ok(r)
     }
@@ -926,8 +926,8 @@ impl TryFrom<MongoFindParameter> for dbnexus_db::mongo::MongoFindParameter {
 pub struct MongoShowTablePara {
     pub(crate) sort: JsUint8Array,
     pub(crate) filter: JsUint8Array,
-    pub(crate) page: u64,
-    pub(crate) page_size: u64,
+    pub(crate) page: u32,
+    pub(crate) page_size: u32,
 }
 
 impl TryFrom<MongoShowTablePara> for dbnexus_db::mongo::MongoShowTablePara {

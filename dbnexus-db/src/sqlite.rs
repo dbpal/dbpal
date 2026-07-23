@@ -559,7 +559,7 @@ impl SchemaTrait for SqliteDB {
         emit.send(
             QueryResp {
                 fields,
-                total,
+                total: total as f64,
                 sql: Some(sql.clone()),
                 ..Default::default()
             }
@@ -601,7 +601,7 @@ impl SchemaTrait for SqliteDB {
                 emit.send(
                     QueryResp {
                         fields: get_row_type(&row),
-                        total,
+                        total: total as f64,
                         sql: Some(sql.clone()),
                         ..Default::default()
                     }
@@ -1633,7 +1633,7 @@ mod tests {
                 .await
                 .unwrap()
                 .total
-                == 0
+                == 0f64
         );
         db.set_auto_commit(query_id, false).await.unwrap();
 
@@ -1655,7 +1655,7 @@ mod tests {
                 .await
                 .unwrap()
                 .total
-                == 1
+                == 1f64
         );
     }
 

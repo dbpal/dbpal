@@ -52,7 +52,7 @@ fn make_agent(
     let api: Client<openai::OpenAIResponsesExt> = builder.build()?;
     let mut agent_builder = api.agent(&req.model);
     if let Some(t) = req.max_tokens {
-        agent_builder = agent_builder.max_tokens(t);
+        agent_builder = agent_builder.max_tokens(t as u64);
     }
     if let Some(t) = preamble {
         agent_builder = agent_builder.preamble(t);
@@ -130,9 +130,9 @@ async fn call_openai_stream(
                 }
                 StreamedAssistantContent::Final(x) => {
                     emit(AISteamResp::TokenUsage {
-                        input_token: x.usage.input_tokens,
-                        output_token: x.usage.output_tokens,
-                        total_token: x.usage.total_tokens,
+                        input_token: x.usage.input_tokens as u32,
+                        output_token: x.usage.output_tokens as u32,
+                        total_token: x.usage.total_tokens as u32,
                     });
                 }
                 StreamedAssistantContent::Unknown(..) => {}
@@ -1389,7 +1389,7 @@ human: tell me Mike's age from TABLE Persons
         let mut agent_builder = api.agent(&req.model).preamble("U are helpful assistant.");
 
         if let Some(t) = req.max_tokens {
-            agent_builder = agent_builder.max_tokens(t);
+            agent_builder = agent_builder.max_tokens(t.into());
         }
 
         if let Some(t) = req.temperature {
@@ -1452,7 +1452,7 @@ human: tell me Mike's age from TABLE Persons
         let mut agent_builder = api.agent(&req.model).preamble("U are helpful assistant.");
 
         if let Some(t) = req.max_tokens {
-            agent_builder = agent_builder.max_tokens(t);
+            agent_builder = agent_builder.max_tokens(t.into());
         }
 
         if let Some(t) = req.temperature {

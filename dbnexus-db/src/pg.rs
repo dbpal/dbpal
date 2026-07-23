@@ -891,7 +891,7 @@ impl SchemaTrait for PostGresDB {
                 emit.send(
                     QueryResp {
                         fields: get_rows_types(&row),
-                        total,
+                        total: total as f64,
                         ..Default::default()
                     }
                     .into(),
@@ -1018,7 +1018,7 @@ impl SchemaTrait for PostGresDB {
                 Ok(row) => row.get(0),
                 Err(_) => None,
             };
-            let t = ListTable::new(table, size.map(|x| x as u64));
+            let t = ListTable::new(table, size.map(|x| x as f64));
             ret.push(t);
         }
 
@@ -1140,7 +1140,7 @@ impl SchemaTrait for PostGresDB {
         emit.send(
             QueryResp {
                 fields,
-                total,
+                total: total as f64,
                 sql: sql.clone().into(),
                 ..Default::default()
             }
@@ -1732,7 +1732,7 @@ impl QuerySql for PostGresDB {
         drop(stream);
         if !has_result {
             let fields = self.infer_fields_by_sql(sql).await?;
-            emit.send(QueryResp::new(fields, 0, vec![], sql.to_owned())?.into())?;
+            emit.send(QueryResp::new(fields, 0f64, vec![], sql.to_owned())?.into())?;
         }
         anyhow::Ok(())
     }
@@ -2508,7 +2508,7 @@ mod tests {
                 .await
                 .unwrap()
                 .total
-                == 0
+                == 0f64
         );
         db.set_auto_commit(query_id, false).await.unwrap();
 
@@ -2528,7 +2528,7 @@ mod tests {
                 .await
                 .unwrap()
                 .total
-                == 1
+                == 1f64
         );
     }
 

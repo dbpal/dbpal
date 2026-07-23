@@ -25,7 +25,7 @@ export const commands = {
 	redisListKey: (dbName: string, filter: string | null, max: number) => __TAURI_INVOKE<RedisListTableRet>("redis_list_key", { dbName, filter, max }),
 	querySqlCloseConnection: (dbName: string, queryId: string) => __TAURI_INVOKE<null>("query_sql_close_connection", { dbName, queryId }),
 	querySqlOpenConnection: (dbName: string, id: string) => __TAURI_INVOKE<null>("query_sql_open_connection", { dbName, id }),
-	exportTableOrView: (dbName: string, taskId: string, sizeEmitter: Channel<number>, tableOrView: string, para: {
+	exportTableOrView: (dbName: string, taskId: string, sizeEmitter: Channel<number | null>, tableOrView: string, para: {
 	where_str?: string | null,
 	order_by?: string | null,
 	page?: number,
@@ -40,7 +40,7 @@ export const commands = {
 	testConnection: (config: DBConnectionConfig) => __TAURI_INVOKE<number>("test_connection", { config }),
 	renameTable: (dbName: string, old: string, newTable: string) => __TAURI_INVOKE<string | null>("rename_table", { dbName, old, newTable }),
 	duplicateTable: (dbName: string, from: string, taskId: string, to: string) => __TAURI_INVOKE<null>("duplicate_table", { dbName, from, taskId, to }),
-	mongoDeleteIds: (dbName: string, tableName: string, ids: string) => __TAURI_INVOKE<number>("mongo_delete_ids", { dbName, tableName, ids }),
+	mongoDeleteIds: (dbName: string, tableName: string, ids: string) => __TAURI_INVOKE<number | null>("mongo_delete_ids", { dbName, tableName, ids }),
 	mongoInsert: (dbName: string, tableName: string, doc: Uint8Array) => __TAURI_INVOKE<string>("mongo_insert", { dbName, tableName, doc }),
 	mongoUpdateOne: (dbName: string, tableName: string, doc: Uint8Array) => __TAURI_INVOKE<null>("mongo_update_one", { dbName, tableName, doc }),
 	mongoShowCollectionDocs: (dbName: string, tableName: string, para: MongoShowTablePara) => __TAURI_INVOKE<DocsAndCount>("mongo_show_collection_docs", { dbName, tableName, para }),
@@ -49,15 +49,15 @@ export const commands = {
 	redisHashDel: (dbName: string, key: string, member: string) => __TAURI_INVOKE<null>("redis_hash_del", { dbName, key, member }),
 	redisHashReplace: (dbName: string, key: string, oldMember: string, newMember: string, newValue: string) => __TAURI_INVOKE<null>("redis_hash_replace", { dbName, key, oldMember, newMember, newValue }),
 	redisListLpush: (dbName: string, key: string, value: string) => __TAURI_INVOKE<null>("redis_list_lpush", { dbName, key, value }),
-	redisListRemove: (dbName: string, key: string, value: string, count: number) => __TAURI_INVOKE<null>("redis_list_remove", { dbName, key, value, count }),
+	redisListRemove: (dbName: string, key: string, value: string, count: number | null) => __TAURI_INVOKE<null>("redis_list_remove", { dbName, key, value, count }),
 	redisListRpush: (dbName: string, key: string, value: string) => __TAURI_INVOKE<null>("redis_list_rpush", { dbName, key, value }),
-	redisListSet: (dbName: string, key: string, value: string, index: number) => __TAURI_INVOKE<null>("redis_list_set", { dbName, key, value, index }),
+	redisListSet: (dbName: string, key: string, value: string, index: number | null) => __TAURI_INVOKE<null>("redis_list_set", { dbName, key, value, index }),
 	redisSetReplace: (dbName: string, key: string, old: string, newValue: string) => __TAURI_INVOKE<null>("redis_set_replace", { dbName, key, old, newValue }),
 	redisSetDel: (dbName: string, key: string, member: string) => __TAURI_INVOKE<null>("redis_set_del", { dbName, key, member }),
 	redisSetAdd: (dbName: string, key: string, member: string) => __TAURI_INVOKE<null>("redis_set_add", { dbName, key, member }),
-	redisZsetAdd: (dbName: string, key: string, member: string, value: number) => __TAURI_INVOKE<null>("redis_zset_add", { dbName, key, member, value }),
+	redisZsetAdd: (dbName: string, key: string, member: string, value: number | null) => __TAURI_INVOKE<null>("redis_zset_add", { dbName, key, member, value }),
 	redisZsetDel: (dbName: string, key: string, member: string) => __TAURI_INVOKE<null>("redis_zset_del", { dbName, key, member }),
-	redisZsetReplace: (dbName: string, key: string, oldMember: string, newMember: string, newValue: number) => __TAURI_INVOKE<null>("redis_zset_replace", { dbName, key, oldMember, newMember, newValue }),
+	redisZsetReplace: (dbName: string, key: string, oldMember: string, newMember: string, newValue: number | null) => __TAURI_INVOKE<null>("redis_zset_replace", { dbName, key, oldMember, newMember, newValue }),
 	redisStringSet: (dbName: string, key: string, value: string) => __TAURI_INVOKE<null>("redis_string_set", { dbName, key, value }),
 	mongoGetOneDocumentById: (dbName: string, tableName: string, id: string) => __TAURI_INVOKE<number[]>("mongo_get_one_document_by_id", { dbName, tableName, id }),
 	tryListDatabaseSchemaCandidates: (conn: DBConnectionConfig) => __TAURI_INVOKE<string[]>("try_list_database_schema_candidates", { conn }),
@@ -80,7 +80,7 @@ export const commands = {
 	showUdf: (dbName: string, udf: NamedStaff) => __TAURI_INVOKE<DefAndMetas>("show_udf", { dbName, udf }),
 	dropUdf: (dbName: string, udf: NamedStaff) => __TAURI_INVOKE<string>("drop_udf", { dbName, udf }),
 	addTableColumn: (dbName: string, tableName: string, colName: string, typ: ColumnType) => __TAURI_INVOKE<string>("add_table_column", { dbName, tableName, colName, typ }),
-	checkConn: (dbName: string) => __TAURI_INVOKE<number>("check_conn", { dbName }),
+	checkConn: (dbName: string) => __TAURI_INVOKE<number | null>("check_conn", { dbName }),
 	closeConn: (dbName: string) => __TAURI_INVOKE<null>("close_conn", { dbName }),
 	showIndexes: (dbName: string, tableName: string) => __TAURI_INVOKE<Index[]>("show_indexes", { dbName, tableName }),
 	dropIndex: (dbName: string, tableName: string, index: string) => __TAURI_INVOKE<string | null>("drop_index", { dbName, tableName, index }),
@@ -90,9 +90,9 @@ export const commands = {
 	serverMetas: (dbName: string) => __TAURI_INVOKE<MetaValue[]>("server_metas", { dbName }),
 	autoCompletion: (dbName: string, queryId: string | null, sql: string, line: number, col: number) => __TAURI_INVOKE<CompletionList>("auto_completion", { dbName, queryId, sql, line, col }),
 	isDangerousSql: (dbName: string, sql: string) => __TAURI_INVOKE<boolean>("is_dangerous_sql", { dbName, sql }),
-	exportQueryResultToFile: (dbName: string, taskId: string, sql: string, queryId: string, kind: ExportKind, file: string, sizeEmitter: Channel<number>) => __TAURI_INVOKE<null>("export_query_result_to_file", { dbName, taskId, sql, queryId, kind, file, sizeEmitter }),
+	exportQueryResultToFile: (dbName: string, taskId: string, sql: string, queryId: string, kind: ExportKind, file: string, sizeEmitter: Channel<number | null>) => __TAURI_INVOKE<null>("export_query_result_to_file", { dbName, taskId, sql, queryId, kind, file, sizeEmitter }),
 	pageInitCallback: () => __TAURI_INVOKE<null>("page_init_callback"),
-	mongoQueryCollectionCountDocs: (dbName: string, col: string, filter: Uint8Array | null) => __TAURI_INVOKE<number>("mongo_query_collection_count_docs", { dbName, col, filter }),
+	mongoQueryCollectionCountDocs: (dbName: string, col: string, filter: Uint8Array | null) => __TAURI_INVOKE<string>("mongo_query_collection_count_docs", { dbName, col, filter }),
 	mongoQueryCollectionCreateIndex: (dbName: string, col: string, index: Uint8Array) => __TAURI_INVOKE<string>("mongo_query_collection_create_index", { dbName, col, index }),
 	mongoQueryCollectionCreateSearchIndex: (dbName: string, col: string, index: Uint8Array, indexName: string | null) => __TAURI_INVOKE<string>("mongo_query_collection_create_search_index", { dbName, col, index, indexName }),
 	mongoQueryCollectionDeleteMany: (dbName: string, col: string, query: Uint8Array) => __TAURI_INVOKE<string>("mongo_query_collection_delete_many", { dbName, col, query }),
@@ -125,7 +125,7 @@ export const commands = {
 	cassandraShowAggregate: (dbName: string, aggName: string, parameters: string[]) => __TAURI_INVOKE<DefAndMetas>("cassandra_show_aggregate", { dbName, aggName, parameters }),
 	listCreatedTypes: (dbName: string) => __TAURI_INVOKE<CreatedTypeDef[]>("list_created_types", { dbName }),
 	showCreateTableSql: (dbName: string, tableName: string) => __TAURI_INVOKE<CreateTableAndIndexSql>("show_create_table_sql", { dbName, tableName }),
-	executeSql: (dbName: string, queryId: string, sql: string) => __TAURI_INVOKE<({ Ok: MuiDataGridData }) & { Err?: never } | ({ Err: string }) & { Ok?: never }>("execute_sql", { dbName, queryId, sql }),
+	executeSql: (dbName: string, queryId: string, sql: string) => __TAURI_INVOKE<Result<MuiDataGridData, string>>("execute_sql", { dbName, queryId, sql }),
 	queryGetCommit: (dbName: string, queryId: string) => __TAURI_INVOKE<boolean>("query_get_commit", { dbName, queryId }),
 	querySetAutocommit: (dbName: string, queryId: string, commit: boolean) => __TAURI_INVOKE<null>("query_set_autocommit", { dbName, queryId, commit }),
 	queryCommit: (dbName: string, queryId: string) => __TAURI_INVOKE<null>("query_commit", { dbName, queryId }),
@@ -154,6 +154,7 @@ export const commands = {
 	openaiInvoke: (req: OpenAIReq) => __TAURI_INVOKE<string>("openai_invoke", { req }),
 	setEnv: (env: { [key in string]: string }) => __TAURI_INVOKE<void>("set_env", { env }),
 	tableInsertSql: (dbName: string, tableName: string, values: { [key in string]: string | null }) => __TAURI_INVOKE<string>("table_insert_sql", { dbName, tableName, values }),
+	putValuesInSql: (dbName: string, typ: string, values: (string | null)[]) => __TAURI_INVOKE<string[]>("put_values_in_sql", { dbName, typ, values }),
 };
 
 /* Constants */
@@ -179,7 +180,7 @@ export type CassandraDBConfig = {
 	conn_timeout: ConnTimeOut | null,
 };
 
-export type CassandraSsl = (SSLFiles);
+export type CassandraSsl = SSLFiles;
 
 export type ChatHistory = {
 	role: string,
@@ -247,7 +248,7 @@ export type CreateIndexReq = {
 
 export type CreateSchemaExtra = { extra: "cassandra"; replication_strategy: string; replication_factor: number };
 
-// create table and all index sql.
+/**  create table and all index sql. */
 export type CreateTableAndIndexSql = {
 	create_table: string,
 	/**
@@ -277,7 +278,7 @@ export type CreatedTypeDef = {
 	sql: string | null,
 };
 
-export type DBConnectionConfig = { conn_type: "sqlite"; name: string } & (SqliteDBConfig) | { conn_type: "mysql"; name: string; save_password: boolean } & (MysqlDBConfig) | { conn_type: "mariadb"; name: string; save_password: boolean } & (MysqlDBConfig) | { conn_type: "tidb"; name: string; save_password: boolean } & (MysqlDBConfig) | { conn_type: "postgres"; name: string; save_password: boolean } & (PGDBConfig) | { conn_type: "cockroach"; name: string; save_password: boolean } & (PGDBConfig) | { conn_type: "sqlserver"; name: string; save_password: boolean } & (SqlServerDBConfig) | { conn_type: "mongo"; name: string; save_password: boolean } & (MongoDBConfig) | { conn_type: "redis"; name: string; save_password: boolean } & (RedisDBConfig) | { conn_type: "oracle"; name: string; save_password: boolean } & (OracleDBConfig) | { conn_type: "cassandra"; name: string; save_password: boolean } & (CassandraDBConfig) | { conn_type: "clickhouse"; name: string; save_password: boolean } & (ClickHouseConfig) | { conn_type: "libsql"; name: string } & (LibSqlDBConfig) | { conn_type: "firebird"; name: string; save_password: boolean } & (FireBirdConfig) | { conn_type: "duckdb"; name: string } & (DuckDBConfig) | { conn_type: "db2"; name: string; save_password: boolean } & (Db2Config) | { conn_type: "couchbase"; name: string; save_password: boolean } & (CouchBaseDBConfig);
+export type DBConnectionConfig = { conn_type: "sqlite"; conn: SqliteDBConfig; name: string } | { conn_type: "mysql"; conn: MysqlDBConfig; name: string; save_password: boolean } | { conn_type: "mariadb"; conn: MysqlDBConfig; name: string; save_password: boolean } | { conn_type: "tidb"; conn: MysqlDBConfig; name: string; save_password: boolean } | { conn_type: "postgres"; conn: PGDBConfig; name: string; save_password: boolean } | { conn_type: "cockroach"; conn: PGDBConfig; name: string; save_password: boolean } | { conn_type: "sqlserver"; conn: SqlServerDBConfig; name: string; save_password: boolean } | { conn_type: "mongo"; conn: MongoDBConfig; name: string; save_password: boolean } | { conn_type: "redis"; conn: RedisDBConfig; name: string; save_password: boolean } | { conn_type: "oracle"; conn: OracleDBConfig; name: string; save_password: boolean } | { conn_type: "cassandra"; conn: CassandraDBConfig; name: string; save_password: boolean } | { conn_type: "clickhouse"; conn: ClickHouseConfig; name: string; save_password: boolean } | { conn_type: "libsql"; conn: LibSqlDBConfig; name: string } | { conn_type: "firebird"; conn: FireBirdConfig; name: string; save_password: boolean } | { conn_type: "duckdb"; conn: DuckDBConfig; name: string } | { conn_type: "db2"; conn: Db2Config; name: string; save_password: boolean } | { conn_type: "couchbase"; conn: CouchBaseDBConfig; name: string; save_password: boolean };
 
 export type Db2Config = {
 	host: string,
@@ -288,7 +289,7 @@ export type Db2Config = {
 	read_only: boolean,
 	conn_timeout: ConnTimeOut | null,
 	schema: string | null,
-} & (OdbcCommon);
+} & OdbcCommon;
 
 export type DefAndMetas = {
 	def: string,
@@ -325,9 +326,9 @@ export type Field = {
 	field: string,
 	data_type: string,
 	nullable: boolean,
-	// default value of this field
+	/**  default value of this field */
 	default_value: string | null,
-	// is primary key??
+	/**  is primary key?? */
 	is_primary: boolean,
 	is_auto_increment: boolean,
 	sortable: boolean,
@@ -355,7 +356,7 @@ export type LibSqlDBConfig = {
 	replica: boolean,
 	read_only: boolean,
 	conn_timeout: ConnTimeOut | null,
-} & (LibSqlDBConfigSource);
+} & LibSqlDBConfigSource;
 
 export type LibSqlDBConfigSource = { source: "local"; path: string } | { source: "remote"; url: string; auth_token: string; path: string | null };
 
@@ -365,7 +366,7 @@ export type ListTable = {
 	rand: string,
 };
 
-// meta value can used in various place.
+/**  meta value can used in various place. */
 export type MetaValue = {
 	name: string,
 	value: string | null,
@@ -379,7 +380,7 @@ export type MongoDBConfig = {
 	conn_timeout: ConnTimeOut | null,
 	db: string | null,
 	read_only: boolean,
-} & (MongoSsl);
+} & MongoSsl;
 
 export type MongoFindParameter = {
 	filter: Uint8Array,
@@ -401,17 +402,17 @@ export type MongoShowTablePara = {
 
 export type MongoSsl = {
 	enable_ssl: boolean,
-} & (SSLFiles);
+} & SSLFiles;
 
 export type MuiDataGridData = {
 	fields: Field[],
 	data: { [key in string]: string }[],
 	sql: string | null,
-	total: number,
+	total: number | null,
 };
 
 export type MySqlSslMode = 
-// Establish an unencrypted connection.
+/**  Establish an unencrypted connection. */
 "disabled" | 
 /**
  *  Establish an encrypted connection if the server supports encrypted connections, falling
@@ -446,13 +447,13 @@ export type MysqlDBConfig = {
 	db: string | null,
 	read_only: boolean,
 	conn_timeout: ConnTimeOut | null,
-} & (MysqlSsl);
+} & MysqlSsl;
 
 export type MysqlSsl = {
 	ssl_mode: MySqlSslMode,
-} & (SSLFiles);
+} & SSLFiles;
 
-// named staff maybe used for view udf etc...
+/**  named staff maybe used for view udf etc... */
 export type NamedStaff = {
 	parameters: string | null,
 	cassandra_parameters: string[] | null,
@@ -502,16 +503,16 @@ export type PGDBConfig = {
 	schema: string | null,
 	read_only: boolean,
 	conn_timeout: ConnTimeOut | null,
-} & (PgSsl);
+} & PgSsl;
 
 export type PgSsl = {
 	ssl_mode: PgSslMode,
-} & (SSLFiles);
+} & SSLFiles;
 
 export type PgSslMode = 
-// Only try a non-SSL connection.
+/**  Only try a non-SSL connection. */
 "disable" | 
-// First try a non-SSL connection; if that fails, try an SSL connection.
+/**  First try a non-SSL connection; if that fails, try an SSL connection. */
 "allow" | 
 /**
  *  First try an SSL connection; if that fails, try a non-SSL connection.
@@ -560,6 +561,11 @@ export type RedisListTableRet = {
 	hash_tables: ListTable[],
 	zset_tables: ListTable[],
 	has_more: boolean,
+};
+
+export type Result<T, E> = {
+	ok: T,
+	err: E,
 };
 
 export type SSLFiles = {

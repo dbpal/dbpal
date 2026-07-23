@@ -40,16 +40,17 @@ mod tests {
             mongo_query_collection_update_one, mongo_query_db_drop,
             mongo_query_db_list_collection_names, mongo_query_db_run_command,
             mongo_show_collection_docs, mongo_show_collection_table_list, mongo_update_one,
-            page_init_callback, put_value_in_sql, query_commit, query_get_commit, query_rollback,
-            query_set_autocommit, query_sql, query_sql_close_connection, query_sql_open_connection,
-            redis_hash_add, redis_hash_del, redis_hash_replace, redis_list_key, redis_list_lpush,
-            redis_list_remove, redis_list_rpush, redis_list_set, redis_set_add, redis_set_del,
-            redis_set_replace, redis_string_set, redis_zset_add, redis_zset_del,
-            redis_zset_replace, rename_index, rename_sequence, rename_table, server_metas, set_env,
-            set_log_level, show_create_table_sql, show_indexes, show_procedure, show_table,
-            show_table_columns, show_trigger, show_udf, show_view_columns, simple_execute_sql,
-            table_delete, table_delete_sql, table_insert, table_insert_sql, table_update,
-            table_update_sql, test_connection, truncate_table, try_list_database_schema_candidates,
+            page_init_callback, put_value_in_sql, put_values_in_sql, query_commit,
+            query_get_commit, query_rollback, query_set_autocommit, query_sql,
+            query_sql_close_connection, query_sql_open_connection, redis_hash_add, redis_hash_del,
+            redis_hash_replace, redis_list_key, redis_list_lpush, redis_list_remove,
+            redis_list_rpush, redis_list_set, redis_set_add, redis_set_del, redis_set_replace,
+            redis_string_set, redis_zset_add, redis_zset_del, redis_zset_replace, rename_index,
+            rename_sequence, rename_table, server_metas, set_env, set_log_level,
+            show_create_table_sql, show_indexes, show_procedure, show_table, show_table_columns,
+            show_trigger, show_udf, show_view_columns, simple_execute_sql, table_delete,
+            table_delete_sql, table_insert, table_insert_sql, table_update, table_update_sql,
+            test_connection, truncate_table, try_list_database_schema_candidates,
         };
 
         use ai::openai_invoke;
@@ -191,8 +192,10 @@ mod tests {
                 openai_stream,
                 openai_invoke,
                 set_env,
-                table_insert_sql
+                table_insert_sql,
+                put_values_in_sql
             ])
+            // .dangerously_cast_bigints_to_number()
             .error_handling(ErrorHandlingMode::Throw)
             .constant("redisCommands", get_commands_from_docs())
             // 导出到前端目录

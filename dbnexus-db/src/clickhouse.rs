@@ -345,7 +345,7 @@ impl SchemaTrait for ClickHouseDB {
         emit.send(
             QueryResp {
                 fields: fs,
-                total,
+                total: total as f64,
                 ..Default::default()
             }
             .into(),
@@ -386,7 +386,7 @@ impl SchemaTrait for ClickHouseDB {
                     emit.send(
                         QueryResp {
                             fields: fs,
-                            total,
+                            total: total as f64,
                             ..Default::default()
                         }
                         .into(),

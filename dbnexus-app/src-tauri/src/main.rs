@@ -34,8 +34,8 @@ use handlers::{
     mongo_query_collection_replace_one, mongo_query_collection_update_many,
     mongo_query_collection_update_one, mongo_query_db_drop, mongo_query_db_list_collection_names,
     mongo_query_db_run_command, mongo_show_collection_docs, mongo_show_collection_table_list,
-    mongo_update_one, page_init_callback, put_value_in_sql, query_commit, query_get_commit,
-    query_rollback, query_set_autocommit, query_sql, query_sql_close_connection,
+    mongo_update_one, page_init_callback, put_value_in_sql, put_values_in_sql, query_commit,
+    query_get_commit, query_rollback, query_set_autocommit, query_sql, query_sql_close_connection,
     query_sql_open_connection, redis_hash_add, redis_hash_del, redis_hash_replace, redis_list_key,
     redis_list_lpush, redis_list_remove, redis_list_rpush, redis_list_set, redis_set_add,
     redis_set_del, redis_set_replace, redis_string_set, redis_zset_add, redis_zset_del,
@@ -528,7 +528,8 @@ fn main() {
             openai_stream,
             openai_invoke,
             set_env,
-            table_insert_sql
+            table_insert_sql,
+            put_values_in_sql,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

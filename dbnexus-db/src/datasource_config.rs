@@ -481,8 +481,8 @@ impl Db2Config {
 #[derive(Debug, Clone, serde::Deserialize, serde::Serialize, specta::Type)]
 pub struct OdbcCommon {
     pub driver_name: String,
-    pub max_str_len: usize,
-    pub max_bin_len: usize,
+    pub max_str_len: u32,
+    pub max_bin_len: u32,
 }
 
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize, specta::Type)]

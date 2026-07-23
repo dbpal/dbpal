@@ -16,7 +16,7 @@
 }
 
 .grid-column-header-select {
-  background-color: yellow;
+  background-color: yellow !important ;
   color: black;
 }
 

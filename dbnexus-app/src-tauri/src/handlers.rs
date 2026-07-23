@@ -338,7 +338,7 @@ pub async fn list_table(
 pub async fn redis_list_key(
     db_name: String,
     filter: Option<String>,
-    max: usize,
+    max: u32,
     app: tauri::State<'_, DBPal>,
 ) -> Result<RedisListTableRet, ErrorFrontend> {
     random_sleep().await;
@@ -348,7 +348,7 @@ pub async fn redis_list_key(
         .await
         .map_err(ErrorFrontend::from)?;
     match db.as_any().downcast_ref::<RedisDB>() {
-        Some(x) => x.redis_list_key(filter.as_deref(), max).await,
+        Some(x) => x.redis_list_key(filter.as_deref(), max as usize).await,
         None => return Err(ErrorFrontend::from(format!("'{}' not a redis", db_name))),
     }
     .map_err(ErrorFrontend::from)
@@ -519,13 +519,15 @@ pub async fn table_insert(
     table_name: String,
     values: HashMap<String, Option<String>>,
     app: tauri::State<'_, DBPal>,
-) -> Result<Option<usize>, ErrorFrontend> {
+) -> Result<Option<f64>, ErrorFrontend> {
     random_sleep().await;
     random_error()?;
     let db = app.get_schema(&db_name).await?;
-    db.table_insert(&table_name, values)
+    let r = db
+        .table_insert(&table_name, values)
         .await
-        .map_err(ErrorFrontend::from)
+        .map_err(ErrorFrontend::from)?;
+    Ok(r.map(|x| x as f64))
 }
 
 #[specta::specta]
@@ -551,13 +553,16 @@ pub async fn table_update(
     values: HashMap<String, Option<String>>,
     wheres: HashMap<String, Option<String>>,
     app: tauri::State<'_, DBPal>,
-) -> Result<Option<usize>, ErrorFrontend> {
+) -> Result<Option<f64>, ErrorFrontend> {
     random_sleep().await;
     random_error()?;
     let db = app.get_schema(&db_name).await?;
-    db.table_update(&table_name, values, wheres)
+    let r = db
+        .table_update(&table_name, values, wheres)
         .await
-        .map_err(ErrorFrontend::from)
+        .map_err(ErrorFrontend::from)?;
+
+    Ok(r.map(|x| x as f64))
 }
 
 #[specta::specta]
@@ -712,13 +717,15 @@ pub async fn table_delete(
     table_name: String,
     wheres: HashMap<String, Option<String>>,
     app: tauri::State<'_, DBPal>,
-) -> Result<Option<usize>, ErrorFrontend> {
+) -> Result<Option<f64>, ErrorFrontend> {
     random_sleep().await;
     random_error()?;
     let db = app.get_schema(&db_name).await?;
-    db.table_delete(&table_name, wheres)
+    let r = db
+        .table_delete(&table_name, wheres)
         .await
-        .map_err(ErrorFrontend::from)
+        .map_err(ErrorFrontend::from)?;
+    Ok(r.map(|x| x as f64))
 }
 
 #[specta::specta]
@@ -896,7 +903,7 @@ pub async fn export_query_result_to_file(
     query_id: String,
     kind: ExportKind,
     file: String,
-    size_emitter: Channel<usize>,
+    size_emitter: Channel<f64>,
     task_manager: tauri::State<'_, TaskManager>,
     app: tauri::State<'_, DBPal>,
 ) -> Result<(), ErrorFrontend> {
@@ -912,8 +919,8 @@ pub async fn export_query_result_to_file(
         .get_backend(db_name.as_str())
         .await
         .map_err(ErrorFrontend::from)?;
-    let size_emitter = Arc::new(move |size| {
-        if let Err(err) = size_emitter.send(size) {
+    let size_emitter = Arc::new(move |size: usize| {
+        if let Err(err) = size_emitter.send(size as f64) {
             log::error!("Error sending size to frontend: {}", err);
         }
     });
@@ -967,7 +974,7 @@ pub async fn is_dangerous_sql(
 struct QueryEventChannelEmit {
     channel: Channel<QueryEvent>,
     cancel_msg: CancelTokenMsg,
-    limit: Option<usize>,
+    limit: Option<u32>,
     emitted_size: AtomicUsize,
     cache: Arc<Mutex<Vec<Vec<Option<String>>>>>,
     time_elapsed: Arc<Mutex<TimeElapsed>>,
@@ -980,7 +987,7 @@ impl QueryEventChannelEmit {
 }
 
 impl QueryEventChannelEmit {
-    fn new(channel: Channel<QueryEvent>, cancel_msg: CancelTokenMsg, limit: Option<usize>) -> Self {
+    fn new(channel: Channel<QueryEvent>, cancel_msg: CancelTokenMsg, limit: Option<u32>) -> Self {
         Self {
             channel,
             cancel_msg,
@@ -990,8 +997,8 @@ impl QueryEventChannelEmit {
             time_elapsed: Arc::new(Mutex::new(TimeElapsed::new(Duration::from_secs(1)))),
         }
     }
-    fn get_limit(&self) -> usize {
-        self.limit.unwrap_or(usize::MAX)
+    fn get_limit(&self) -> u32 {
+        self.limit.unwrap_or(u32::MAX)
     }
 }
 
@@ -1023,7 +1030,7 @@ impl QueryEventEmit for QueryEventChannelEmit {
         let total = self
             .emitted_size
             .fetch_add(event.data_len(), Ordering::Relaxed);
-        if total > self.get_limit() {
+        if total > (self.get_limit() as usize) {
             let err_msg = format!(
                 "Query result is too large({}), limit:{}",
                 total,
@@ -1073,7 +1080,7 @@ impl QueryEventEmit for QueryEventChannelEmit {
 pub async fn query_sql(
     db_name: String,
     query_id: &str,
-    max_row: usize,
+    max_row: u32,
     sql: String,
     app: tauri::State<'_, DBPal>,
     emit: Channel<QueryEvent>,
@@ -1122,7 +1129,7 @@ pub async fn simple_execute_sql(
     db_name: String,
     sql: String,
     app: tauri::State<'_, DBPal>,
-) -> Result<Option<usize>, ErrorFrontend> {
+) -> Result<Option<f64>, ErrorFrontend> {
     random_sleep().await;
     random_error()?;
 
@@ -1136,7 +1143,7 @@ pub async fn simple_execute_sql(
         .simple_execute_sql(&sql)
         .await
         .map_err(ErrorFrontend::from)?;
-    Ok(result)
+    Ok(result.map(|x| x as f64))
 }
 
 #[specta::specta]
@@ -1220,7 +1227,7 @@ pub async fn export_table_or_view(
     db_name: String,
     task_id: String,
     task_manager: tauri::State<'_, TaskManager>,
-    size_emitter: Channel<usize>,
+    size_emitter: Channel<f64>,
     table_or_view: String,
     para: Option<ShowTableParameter>,
     filepath: String,
@@ -1244,7 +1251,7 @@ pub async fn export_table_or_view(
             &filepath2,
             kind,
             Arc::new(move |size| {
-                if let Err(err) = size_emitter.send(size) {
+                if let Err(err) = size_emitter.send(size as f64) {
                     log::error!("Error sending size: {}", err);
                 }
             }),
@@ -1275,7 +1282,7 @@ pub async fn check_conn(
     db_name: String,
     app: tauri::State<'_, DBPal>,
 ) -> Result<
-    u128, // human readable time
+    f64, // human readable time
     ErrorFrontend,
 > {
     random_sleep().await;
@@ -1286,7 +1293,7 @@ pub async fn check_conn(
         db.check_conn()
             .await
             .map_err(ErrorFrontend::from)
-            .map(|d| d.as_millis())
+            .map(|d| d.as_millis() as f64)
     })
     .await
     .map_err(|_| {
@@ -1302,7 +1309,7 @@ pub async fn check_conn(
 pub async fn test_connection(
     config: DBConnectionConfig,
 ) -> Result<
-    u64, // milliseconds
+    u32, // milliseconds
     ErrorFrontend,
 > {
     random_error()?;
@@ -1312,7 +1319,7 @@ pub async fn test_connection(
         db.check_conn()
             .await
             .map_err(ErrorFrontend::from)
-            .map(|d| d.as_millis() as u64)
+            .map(|d| d.as_millis() as u32)
     })
     .await
     .map_err(|_| ErrorFrontend::from(format!("test connection not finished in {}s", timeout)))?
@@ -1835,7 +1842,7 @@ pub async fn mongo_delete_ids(
     table_name: String,
     ids: String,
     app: tauri::State<'_, DBPal>,
-) -> Result<u64, ErrorFrontend> {
+) -> Result<f64, ErrorFrontend> {
     random_sleep().await;
     random_error()?;
     let ids: Vec<bson::Bson> = serde_json::from_str(&ids)?;
@@ -1848,7 +1855,7 @@ pub async fn mongo_delete_ids(
         None => return Err(format!("db '{}' not mongo", db_name).into()),
     }
     .map_err(ErrorFrontend::from)
-    .map(|x| x.deleted_count)
+    .map(|x| x.deleted_count as f64)
 }
 
 #[specta::specta]
@@ -1990,7 +1997,7 @@ pub async fn mongo_query_collection_count_docs(
     col: String,
     filter: Option<JsUint8Array>,
     app: tauri::State<'_, DBPal>,
-) -> Result<u64, ErrorFrontend> {
+) -> Result<String, ErrorFrontend> {
     random_sleep().await;
     random_error()?;
     let filter = if let Some(filter) = filter {
@@ -2007,7 +2014,7 @@ pub async fn mongo_query_collection_count_docs(
         None => return Err(format!("db '{}' not mongo", db_name).into()),
     }
     .map_err(ErrorFrontend::from)?;
-    Ok(ret)
+    Ok(ret.to_string())
 }
 
 #[specta::specta]
@@ -2587,7 +2594,7 @@ pub async fn redis_list_remove(
     db_name: String,
     key: String,
     value: String,
-    count: isize,
+    count: f64,
     app: tauri::State<'_, DBPal>,
 ) -> Result<(), ErrorFrontend> {
     let value = hex::decode(value.as_bytes()).map_err(ErrorFrontend::from)?;
@@ -2598,7 +2605,7 @@ pub async fn redis_list_remove(
         .map_err(ErrorFrontend::from)?;
     match schema.as_any().downcast_ref::<RedisDB>() {
         Some(x) => {
-            x.list_remove(key.as_str(), count, value.as_slice())
+            x.list_remove(key.as_str(), count as isize, value.as_slice())
                 .await
                 .map_err(ErrorFrontend::from)?;
         }
@@ -2613,7 +2620,7 @@ pub async fn redis_list_set(
     db_name: String,
     key: String,
     value: String,
-    index: isize,
+    index: f64,
     app: tauri::State<'_, DBPal>,
 ) -> Result<(), ErrorFrontend> {
     let value = hex::decode(value.as_bytes()).map_err(ErrorFrontend::from)?;
@@ -2624,7 +2631,7 @@ pub async fn redis_list_set(
         .map_err(ErrorFrontend::from)?;
     match schema.as_any().downcast_ref::<RedisDB>() {
         Some(x) => {
-            x.list_set(key.as_str(), index, value.as_slice())
+            x.list_set(key.as_str(), index as isize, value.as_slice())
                 .await
                 .map_err(ErrorFrontend::from)?;
         }
@@ -3072,6 +3079,33 @@ pub async fn put_value_in_sql(
 
 #[specta::specta]
 #[tauri::command]
+pub async fn put_values_in_sql(
+    db_name: String,
+    typ: String,
+    values: Vec<Option<String>>,
+    app: tauri::State<'_, DBPal>,
+) -> Result<Vec<String>, ErrorFrontend> {
+    let schema = app
+        .get_schema(db_name.as_str())
+        .await
+        .map_err(ErrorFrontend::from)?;
+
+    let mut ret = vec![];
+
+    for value in values {
+        let r = match value {
+            Some(value) => schema
+                .put_value_in_sql(&typ, &value)
+                .map_err(ErrorFrontend::from)?,
+            None => "null".to_string(),
+        };
+        ret.push(r);
+    }
+    Ok(ret)
+}
+
+#[specta::specta]
+#[tauri::command]
 pub async fn cassandra_list_aggregate(
     db_name: String,
     app: tauri::State<'_, DBPal>,
@@ -3172,7 +3206,7 @@ pub async fn command_panic() -> Result<(), ErrorFrontend> {
 
 #[derive(serde::Serialize, specta::Type)]
 pub struct DocsAndCount {
-    count: u64,
+    count: u32,
     /// list of docs in bson format.
     /// use this library to parse.
     /// https://github.com/mongodb/js-bson
@@ -3189,7 +3223,7 @@ impl TryFrom<dbnexus_db::mongo::DocsAndCount> for DocsAndCount {
             vec.push(bs);
         }
         Ok(Self {
-            count: value.count,
+            count: value.count as u32,
             docs: vec,
         })
     }
@@ -3246,7 +3280,7 @@ pub struct MuiDataGridData {
     fields: Vec<Field>,
     data: Vec<HashMap<String, String>>,
     sql: Option<String>,
-    total: usize,
+    total: f64,
 }
 
 impl From<QueryResp> for MuiDataGridData {

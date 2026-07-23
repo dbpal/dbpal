@@ -163,12 +163,12 @@ pub struct ShowTableParameter {
     #[serde(default)]
     pub order_by: Option<String>,
     #[serde(default)]
-    pub page: usize,
+    pub page: u32,
     #[serde(default)]
-    pub page_size: usize,
+    pub page_size: u32,
     // for backend don't support page like cassandra
     #[serde(default)]
-    pub limit: Option<usize>,
+    pub limit: Option<u32>,
     // right now only used for redis zset
     #[serde(default)]
     pub min: Option<f64>,
@@ -179,7 +179,7 @@ pub struct ShowTableParameter {
 
     // couchbase can use this parameter to format
     #[serde(default)]
-    pub tab_size: usize,
+    pub tab_size: u32,
 }
 
 impl ShowTableParameter {
@@ -1074,13 +1074,13 @@ pub trait CatalogTrait:
 pub enum CreateDatabaseExtra {
     Couchbase {
         // 在 Couchbase 中，ram_quota_mb 是一个重要的配置参数，用于指定一个桶（bucket）分配的内存大小。这个参数的单位是兆字节（MB），它决定了该桶可以使用的内存量。
-        ram_quota_mb: u64,
+        ram_quota_mb: u32,
         // 是否启用 flush 操作。启用 flush 操作可以清空桶中的所有数据。
         flush_enabled: bool,
         // 副本数量，即每个文档的副本数。副本数量必须小于或等于集群中的节点数。
         num_replicas: u32,
         // in seconds
-        max_expiry: Option<u64>,
+        max_expiry: Option<u32>,
         bucket_type: CouchBaseBucketType,
     },
 }
@@ -1825,7 +1825,7 @@ pub trait QuerySql: GetBackendKind + Send + Sync + 'static + LanguageServer {
 #[derive(Debug, serde::Serialize, Clone, specta::Type)]
 pub struct ListTable {
     pub name: String,
-    pub size: Option<u64>,
+    pub size: Option<f64>,
     // for frontend tree item id
     pub rand: String,
 }
@@ -1841,7 +1841,7 @@ impl From<String> for ListTable {
 }
 
 impl ListTable {
-    pub(crate) fn new(name: impl Into<String>, size: Option<u64>) -> Self {
+    pub(crate) fn new(name: impl Into<String>, size: Option<f64>) -> Self {
         Self {
             name: name.into(),
             size,
@@ -1919,7 +1919,7 @@ impl QueryResp {
                 ..Default::default()
             }],
             sql: sql.into(),
-            total: 0,
+            total: 0f64,
         }
     }
 
@@ -1940,7 +1940,7 @@ impl QueryResp {
 pub struct QueryResp {
     pub fields: Vec<Field>,
     // only pagination need this parameter.
-    pub total: usize,
+    pub total: f64,
     pub data: Vec<Vec<Option<String>>>,
     pub sql: Option<String>,
 }
@@ -1970,7 +1970,7 @@ impl QueryResp {
 impl QueryResp {
     pub fn new(
         fields: Vec<Field>,
-        total: usize,
+        total: f64,
         data: Vec<Vec<Option<String>>>,
         sql: impl Into<Option<String>>,
     ) -> anyhow::Result<Self> {
@@ -1988,7 +1988,7 @@ impl QueryResp {
     pub fn result(sql: impl Into<Option<String>>, result: Vec<Option<String>>) -> Self {
         let sql = sql.into();
         Self {
-            total: result.len(),
+            total: result.len() as f64,
             sql,
             data: vec![result],
             fields: vec![Field {

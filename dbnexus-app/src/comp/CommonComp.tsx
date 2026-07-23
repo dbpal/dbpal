@@ -41,12 +41,15 @@ import ContentCopyIcon from "@mui/icons-material/ContentCopy";
 import ArrowUpwardIcon from "@mui/icons-material/ArrowUpward";
 import ArrowDownwardIcon from "@mui/icons-material/ArrowDownward";
 import {
+  arrayToMarkdownTable,
   dataGridStyle,
   DataSourceKind,
   errToString,
+  escapeTSV,
   extractFieldAndIDFromMouseEvent,
   handleCopyToClipboard,
   pageSizeOptions,
+  parseCellType,
   prettyMs,
   resizeHandlerSize,
   secondConfirm,
@@ -802,14 +805,14 @@ function UdfNameAndParameters(props: { udf: NamedStaff; kind: DataSourceKind }) 
   );
 }
 
-function DataGridExtraMeneList(props: GridColumnMenuItemProps) {
+function DataGridExtraMenuList(props: GridColumnMenuItemProps) {
   const { colDef, onClick } = props;
   const { showNotification } = useNotification();
   const api = useGridApiContext();
 
-  let { selectColumns } = useContext(SqlTableContext);
+  let { selectColumns, uuid } = useContext(SqlTableContext);
 
-  const getSelectFileds = (): string[] => {
+  const getSelectFields = (): string[] => {
     if (selectColumns.length) {
       return selectColumns;
     } else {
@@ -825,8 +828,8 @@ function DataGridExtraMeneList(props: GridColumnMenuItemProps) {
             api.current
               .getSortedRows()
               .map((data) =>
-                getSelectFileds()
-                  .map((f) => data[f])
+                getSelectFields()
+                  .map((f) => data[f] + "")
                   .join("\t"),
               )
               .join("\n"),
@@ -837,6 +840,81 @@ function DataGridExtraMeneList(props: GridColumnMenuItemProps) {
         }}>
         <ListItemIcon>{/* <ContentCopyIcon /> */}</ListItemIcon>
         <ListItemText> Copy </ListItemText>
+      </MenuItem>
+
+      <MenuItem
+        onClick={(event) => {
+          const fs = getSelectFields();
+          handleCopyToClipboard(
+            api.current
+              .getSortedRows()
+              .map((data) => fs.map((f) => escapeTSV(data[f])).join("\t"))
+              .join("\n"),
+            showNotification,
+          );
+
+          if (onClick) onClick(event);
+        }}>
+        <ListItemIcon>{/* <ContentCopyIcon /> */}</ListItemIcon>
+        <ListItemText> Copy as TSV for Excel </ListItemText>
+      </MenuItem>
+
+      <MenuItem
+        onClick={(event) => {
+          let r = [];
+          let fs = getSelectFields();
+          r.push(fs);
+
+          api.current.getSortedRows().forEach((data) => {
+            const obj = [];
+            for (const f of fs) {
+              obj.push(data[f] ? data[f] : "");
+            }
+            r.push(obj);
+          });
+          handleCopyToClipboard(arrayToMarkdownTable(r), showNotification);
+          if (onClick) onClick(event);
+        }}>
+        <ListItemIcon>{/* <ContentCopyIcon /> */}</ListItemIcon>
+        <ListItemText> Copy as MarkDown </ListItemText>
+      </MenuItem>
+
+      <MenuItem
+        onClick={async (event) => {
+          try {
+            let values = api.current.getSortedRows().map((x) => x[colDef.field]);
+            values = await commands.putValuesInSql(uuid, colDef["data_type"], values);
+
+            handleCopyToClipboard(`(\n${values.join(",\n")}\n)\n`, showNotification);
+            if (onClick) onClick(event);
+          } catch (e) {
+            showNotification({
+              severity: "error",
+              title: "put value in sql failed",
+              message: e,
+            });
+          }
+        }}>
+        <ListItemIcon>{/* <ContentCopyIcon /> */}</ListItemIcon>
+        <ListItemText> Copy For in Statament </ListItemText>
+      </MenuItem>
+
+      <MenuItem
+        onClick={(event) => {
+          let r = [];
+          let fs = getSelectFields();
+          api.current.getSortedRows().forEach((data) => {
+            let o = {};
+            for (const f of fs) {
+              o[f] = parseCellType(data[f]);
+            }
+            r.push(o);
+          });
+          handleCopyToClipboard(JSON.stringify(r), showNotification);
+          if (onClick) onClick(event);
+        }}>
+        <ListItemIcon>{/* <ContentCopyIcon /> */}</ListItemIcon>
+        <ListItemText> Copy as JSON </ListItemText>
       </MenuItem>
       <MenuItem
         onClick={(event) => {
@@ -859,7 +937,7 @@ function AppColumnMenu(props: GridColumnMenuProps) {
       {...props}
       slots={{
         // Add new item
-        extraMenu: DataGridExtraMeneList,
+        extraMenu: DataGridExtraMenuList,
       }}
       slotProps={{
         extraMenu: {

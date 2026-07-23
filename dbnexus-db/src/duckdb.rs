@@ -1049,7 +1049,7 @@ impl SchemaTrait for DuckDB {
             emit.send(
                 QueryResp {
                     fields: cols.clone(),
-                    total,
+                    total: total as f64,
                     sql: Some(sql.clone()),
                     ..Default::default()
                 }
@@ -1217,7 +1217,7 @@ impl SchemaTrait for DuckDB {
                 QueryResp {
                     fields: cols.clone(),
                     sql: Some(sql.to_string()),
-                    total,
+                    total: total as f64,
                     ..Default::default()
                 }
                 .into(),
@@ -1613,7 +1613,7 @@ mod tests {
                 .await
                 .unwrap()
                 .total
-                == 0
+                == 0f64
         );
         db.set_auto_commit(query_id, false).await.unwrap();
 
@@ -1635,7 +1635,7 @@ mod tests {
                 .await
                 .unwrap()
                 .total
-                == 1
+                == 1f64
         );
     }
 

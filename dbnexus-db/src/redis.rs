@@ -1001,7 +1001,7 @@ impl SchemaTrait for RedisDB {
                             Field::from_name_type("seq", "int"),
                             Field::from_name_type("value", "string"),
                         ],
-                        total: r.len(),
+                        total: r.len() as f64,
                         data: r
                             .into_iter()
                             .enumerate()
@@ -1074,7 +1074,7 @@ impl SchemaTrait for RedisDB {
                             Field::from_name_type("score", "f64"),
                             Field::from_name_type("key", "string"),
                         ],
-                        total,
+                        total: total as f64,
                         ..Default::default()
                     }
                     .into(),
@@ -1169,6 +1169,7 @@ impl RedisDB {
                     Some(size)
                 }
             };
+            let size = size.map(|x| x as f64);
             match typ {
                 RedisType::String => ret.string_tables.push(ListTable::new(table, size)),
                 RedisType::List => ret.list_tables.push(ListTable::new(table, size)),

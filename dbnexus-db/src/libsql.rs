@@ -740,7 +740,7 @@ impl SchemaTrait for LibSqlDB {
         emit.send(
             QueryResp {
                 fields,
-                total,
+                total: total as f64,
                 sql: sql.clone().into(),
                 ..Default::default()
             }
@@ -782,7 +782,7 @@ impl SchemaTrait for LibSqlDB {
             emit.send(
                 QueryResp {
                     fields,
-                    total,
+                    total: total as f64,
                     sql: sql.clone().into(),
                     ..Default::default()
                 }
@@ -800,7 +800,7 @@ impl SchemaTrait for LibSqlDB {
                 emit.send(
                     QueryResp {
                         fields: get_row_type(&row),
-                        total,
+                        total: total as f64,
                         sql: sql.clone().into(),
                         ..Default::default()
                     }
@@ -1219,7 +1219,7 @@ mod tests {
                 .await
                 .unwrap()
                 .total
-                == 1
+                == 1f64
         );
     }
 

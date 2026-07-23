@@ -778,7 +778,7 @@ impl OracleDB {
         anyhow::Ok(
             ret.into_iter()
                 .map(|x| ListTable {
-                    size: sizes.get(&x).and_then(|x| (*x).map(|x| x as u64)),
+                    size: sizes.get(&x).and_then(|x| (*x).map(|x| x as f64)),
                     name: x,
                     rand: generate_random_string(10),
                 })
@@ -854,7 +854,7 @@ impl SchemaTrait for OracleDB {
         anyhow::Ok(
             ret.into_iter()
                 .map(|x| ListTable {
-                    size: sizes.get(&x).and_then(|x| (*x).map(|x| x as u64)),
+                    size: sizes.get(&x).and_then(|x| (*x).map(|x| x as f64)),
                     name: x,
                     rand: generate_random_string(10),
                 })
@@ -1138,7 +1138,7 @@ impl SchemaTrait for OracleDB {
             .await?;
         emit.send(
             QueryResp {
-                total: total as usize,
+                total: total as f64,
                 sql: sql.clone().into(),
                 fields: cols,
                 ..Default::default()
@@ -1260,7 +1260,7 @@ impl SchemaTrait for OracleDB {
                     emit.send(
                         QueryResp {
                             fields: infer_schema_by_row(&row),
-                            total: total as usize,
+                            total: total as f64,
                             sql: sql.clone().into(),
                             ..Default::default()
                         }

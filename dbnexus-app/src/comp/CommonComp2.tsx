@@ -1508,7 +1508,7 @@ function AppDataGridToolBar(props: {
         alignItems: "center",
         justifyContent: "space-between",
         border: disableBorder ? undefined : "2px solid gray",
-        borderBottom: "4px solid gray",
+        borderBottom: disableBorder ? undefined : "0.5rem solid gray",
         borderRadius: "4px",
         padding: "2px 4px",
       }}>
@@ -1516,12 +1516,7 @@ function AppDataGridToolBar(props: {
       <StackRowCenter>{left}</StackRowCenter>
       {title && <Typography variant="h5">{title}</Typography>}
       <Stack direction="row" style={{ alignItems: "center" }}>
-        {right}
-        {/* {right ? (
-          <Divider orientation="vertical" variant="middle" sx={{ mx: 0.5 }} flexItem />
-        ) : undefined} */}
-
-        <CustomToolbar />
+        {right} <CustomToolbar />
       </Stack>
     </Stack>
   );

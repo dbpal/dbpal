@@ -8,6 +8,7 @@ import {
   MouseEvent,
   ReactElement,
   ReactNode,
+  RefObject,
   SetStateAction,
 } from "react";
 import { ask, message } from "@tauri-apps/plugin-dialog";
@@ -19,6 +20,7 @@ import prettyMilliseconds from "pretty-ms";
 import { CompletionItem, CompletionKind, Field, MuiDataGridData } from "./bindings";
 import { NotificationParams } from "./store";
 import { extractBaseName, uuidv4 } from "./Common";
+import { GridApi } from "@mui/x-data-grid";
 
 const pageSizeOptions = [10, 20, 50, 100];
 function prettyMs(x: number) {
@@ -628,14 +630,27 @@ interface StupidIMarker {
 }
 
 function clickColumn(
-  e: MouseEvent,
+  api: RefObject<GridApi>,
+  event: MouseEvent,
   field: string,
   set: Dispatch<SetStateAction<Set<string>>>,
 ) {
-  const isControl = isMacOs() ? e.metaKey : e.ctrlKey;
+  const isControl = isMacOs() ? event.metaKey : event.ctrlKey;
+
+  if (!isControl) {
+    allGridHeaderTitle(api, (dom) => {
+      console.log("xxxx", dom);
+      dom.classList.remove(gridColumnHeaderSelectClassName);
+    });
+  }
+
+  api.current
+    .getColumnHeaderElement(field)
+    .children[0].children[0].children[0].classList.add(gridColumnHeaderSelectClassName);
+
   set((old) => {
     if (isControl) {
-      let c = new Set(old);
+      const c = new Set(old);
       c.add(field);
       return c;
     } else {
@@ -667,7 +682,112 @@ const SqlTableContext = createContext<{
   selectColumns: string[];
 }>(null);
 
+export const gridColumnHeaderSelectClassName = "grid-column-header-select";
+
+// 有些地方不好用状态变量来做
+// 这里的是命令式的写法 目前就是
+// 用来管理一些css呢
+function allGridHeaderTitle(
+  api: RefObject<GridApi>,
+  callback: (_: HTMLDivElement) => void,
+) {
+  api.current.getAllColumns().forEach((x) => {
+    let title = api.current.getColumnHeaderElement(x.field).children[0].children[0]
+      .children[0] as HTMLDivElement;
+    if (title) {
+      callback(title);
+    } else {
+      console.error("should beable to find title,but null");
+    }
+  });
+}
+
+function escapeTSV(x: string): string {
+  if (!x) {
+    return;
+  }
+  // If the string contains quotes, tabs, or newlines, it must be escaped and wrapped
+  if (x.includes('"') || x.includes("\t") || x.includes("\n") || x.includes("\r")) {
+    return `"${x.replaceAll('"', '""')}"`;
+  }
+  return x;
+}
+
+function parseCellType(cell: string): string | number | null {
+  if (!cell) {
+    return null;
+  }
+  // 1. 去除首尾空格
+  let value = cell.trim();
+
+  // 2. 如果是空字段，直接转为 null
+  if (value === "") {
+    return null;
+  }
+
+  // 3. 处理 TSV 的双引号包裹和内部双引号转义
+  // 例如: "Jane""" -> Jane"  /  "35" -> 35
+  if (value.startsWith('"') && value.endsWith('"')) {
+    // 移除最外层的双引号，并将内部的 "" 还原为 "
+    value = value.slice(1, -1).replaceAll('""', '"');
+
+    // 如果剥离外层引号后变为空，说明原本就是个空值
+    if (value === "") return null;
+  }
+
+  // 4. 尝试转换为数字 (Int / Float)
+  // 排除掉不合法的数字格式（如空字符、多余的符号等）
+  const num = Number(value);
+  if (!isNaN(num) && value !== "") {
+    return num;
+  }
+
+  // 5. 其余情况一律作为原始字符串返回（包括 "true", "false", "00123" 等）
+  // 注意：如果你不想让类似 "00123" 这种带前导零的工号/编码变成数字，
+  // 可以加上判断：if (!isNaN(num) && !value.startsWith('0')) { return num; }
+  return value;
+}
+
+function arrayToMarkdownTable(data: string[][]): string {
+  if (!data || data.length === 0) return "";
+
+  // 1. 数据清洗辅助函数：处理 TSV 外层引号、转义引号，并安全处理换行符
+  const cleanCell = (cell: string): string => {
+    let val = (cell || "").trim();
+
+    // 脱掉 TSV 的外层双引号，还原内部的 "" 为 "
+    if (val.startsWith('"') && val.endsWith('"')) {
+      val = val.slice(1, -1).replaceAll('""', '"');
+    }
+
+    // Markdown 表格单行内不能有换行符，否则会错位。将换行转为 HTML 换行
+    return val.replace(/\r?\n/g, "<br>");
+  };
+
+  // 2. 提取并处理第一行作为表头 (Title)
+  const headers = data[0].map(cleanCell);
+
+  // 3. 生成 Markdown 的对齐分隔线 (---|---|---)
+  const separator = headers.map(() => "---");
+
+  // 4. 处理剩余的数据行
+  const rows = data.slice(1).map((row) => row.map(cleanCell));
+
+  // 5. 组装成标准的 Markdown 格式
+  const markdownLines = [
+    `| ${headers.join(" | ")} |`,
+    `| ${separator.join(" | ")} |`,
+    ...rows.map((row) => `| ${row.join(" | ")} |`),
+  ];
+
+  return markdownLines.join("\n");
+}
+
 export {
+  parseCellType,
+  arrayToMarkdownTable,
+  escapeTSV,
+  allGridHeaderTitle,
   clickColumn,
   saveQueryKey,
   backendCompletionItemToEditor,

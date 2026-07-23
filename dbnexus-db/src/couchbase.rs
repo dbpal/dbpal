@@ -362,7 +362,7 @@ impl SchemaTrait for CouchBaseDB {
         emit.send(
             QueryResp {
                 sql: Some(sql.clone()),
-                total,
+                total: total as f64,
                 ..Default::default()
             }
             .into(),
@@ -379,7 +379,7 @@ impl SchemaTrait for CouchBaseDB {
                 )),
             };
 
-            let indent = " ".repeat(para.tab_size); // 这里可以是 b"\t" 或任意字节序列
+            let indent = " ".repeat(para.tab_size as usize); // 这里可以是 b"\t" 或任意字节序列
             let formatter = PrettyFormatter::with_indent(indent.as_bytes());
 
             let mut buf = Vec::new();
@@ -589,11 +589,11 @@ impl CatalogTrait for CouchBaseDB {
                 bucket_type,
             }) => {
                 let mut setting = BucketSettings::new(name);
-                setting = setting.ram_quota_mb(ram_quota_mb);
+                setting = setting.ram_quota_mb(ram_quota_mb as u64);
                 setting = setting.flush_enabled(flush_enabled);
                 setting = setting.num_replicas(num_replicas);
                 if let Some(max_expiry) = max_expiry {
-                    setting = setting.max_expiry(Duration::from_secs(max_expiry));
+                    setting = setting.max_expiry(Duration::from_secs(max_expiry as u64));
                 }
                 let ty = match bucket_type {
                     CouchBaseBucketType::Couchbase => BucketType::COUCHBASE,
