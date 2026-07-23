@@ -88,6 +88,7 @@ import {
   GridSlotsComponent,
   GridSlotsComponentsProps,
   GridSortModel,
+  useGridApiContext,
 } from "./datagridExport";
 
 /**
@@ -801,48 +802,55 @@ function UdfNameAndParameters(props: { udf: NamedStaff; kind: DataSourceKind }) 
   );
 }
 
-/**
- * Menu item that copies a grid field name.
- */
-function DataGridCopyMenuItem(props: GridColumnMenuItemProps) {
-  const { colDef, onClick } = props;
-  const { showNotification } = useNotification();
-  return (
-    <MenuItem
-      onClick={(event) => {
-        handleCopyToClipboard(colDef.field, showNotification);
-        if (onClick) onClick(event);
-      }}>
-      <ListItemIcon>
-        <ContentCopyIcon />
-      </ListItemIcon>
-      <ListItemText> Copy Column Name </ListItemText>
-    </MenuItem>
-  );
-}
-
-function DataGridColumnHighlightMenuItem(props: GridColumnMenuItemProps) {
+function DataGridExtraMeneList(props: GridColumnMenuItemProps) {
   const { addHightlight, removeHighlight, highlights } = useColumnHighlightStore();
   const { colDef, onClick } = props;
+  const { showNotification } = useNotification();
+  const api = useGridApiContext();
   return (
-    <MenuItem
-      onClick={(event) => {
-        if (highlights[colDef.field]) {
-          removeHighlight(colDef.field);
-        } else {
-          addHightlight(colDef.field);
-        }
-        if (onClick) onClick(event);
-      }}>
-      <ListItemIcon>
-        <BsHighlights />
-      </ListItemIcon>
-      <ListItemText>
-        <Typography className={highlights[colDef.field] ? "column-highlight" : ""}>
-          high light
-        </Typography>
-      </ListItemText>
-    </MenuItem>
+    <MenuList>
+      <MenuItem
+        onClick={(event) => {
+          handleCopyToClipboard(
+            api.current
+              .getSortedRows()
+              .map((e) => e[colDef.field])
+              .join("\n"),
+            showNotification,
+          );
+
+          if (onClick) onClick(event);
+        }}>
+        <ListItemIcon>{/* <ContentCopyIcon /> */}</ListItemIcon>
+        <ListItemText> Copy </ListItemText>
+      </MenuItem>
+      <MenuItem
+        onClick={(event) => {
+          handleCopyToClipboard(colDef.field, showNotification);
+          if (onClick) onClick(event);
+        }}>
+        <ListItemIcon>{/* <ContentCopyIcon /> */}</ListItemIcon>
+        <ListItemText> Copy Column Name </ListItemText>
+      </MenuItem>
+      <MenuItem
+        onClick={(event) => {
+          if (highlights[colDef.field]) {
+            removeHighlight(colDef.field);
+          } else {
+            addHightlight(colDef.field);
+          }
+          if (onClick) onClick(event);
+        }}>
+        <ListItemIcon>
+          <BsHighlights />
+        </ListItemIcon>
+        <ListItemText>
+          <Typography className={highlights[colDef.field] ? "column-highlight" : ""}>
+            high light
+          </Typography>
+        </ListItemText>
+      </MenuItem>
+    </MenuList>
   );
 }
 
@@ -855,15 +863,11 @@ function AppColumnMenu(props: GridColumnMenuProps) {
       {...props}
       slots={{
         // Add new item
-        closeColumnMenuCopyField: DataGridCopyMenuItem,
-        HighlightMenu: DataGridColumnHighlightMenuItem,
+        extraMenu: DataGridExtraMeneList,
       }}
       slotProps={{
-        closeColumnMenuCopyField: {
-          displayOrder: 15,
-        },
-        HighlightMenu: {
-          displayOrder: 16,
+        extraMenu: {
+          displayOrder: 1,
         },
       }}
     />

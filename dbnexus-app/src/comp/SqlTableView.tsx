@@ -329,7 +329,7 @@ function SqlTableCustomToolBarLeft({
           onClick={() => setShowSetWhere(true)}
           style={{ ...shrinkAble, maxWidth: "14vw", textOverflow: "clip" }}
           size="medium"
-          color="primary"
+          color="success"
           icon={<FilterAltIcon />}
           onDelete={where ? () => setWhere("") : undefined}
         />
@@ -957,7 +957,6 @@ function SqlTableView(props: {
       row: {
         onContextMenu: (e) => {
           const { id, field } = extractFieldAndIDFromMouseEvent(e);
-          console.log("xxxxx", field);
           if (!field) {
             return;
           }
@@ -1019,7 +1018,6 @@ function SqlTableView(props: {
         },
         style: { cursor: "context-menu" },
       },
-
       pagination: {
         dbpal: (function (): CustomPaginationProps {
           return { resp, clientModel };
@@ -1048,8 +1046,6 @@ function SqlTableView(props: {
     setUpMenu,
     kind,
     isTable,
-    uuid,
-    tableName,
     handleDelete,
     handleProcessRowUpdate,
     clientModel,
@@ -1057,6 +1053,8 @@ function SqlTableView(props: {
     where,
     sort,
     allowFiltering,
+    tableName,
+    uuid,
   ]);
 
   const slots = useMemo((): Partial<GridSlotsComponent> => {

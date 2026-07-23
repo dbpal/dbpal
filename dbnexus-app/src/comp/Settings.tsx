@@ -36,13 +36,7 @@ import {
 } from "@mui/material";
 import { HexColorPicker } from "react-colorful";
 import { openPath, openUrl } from "@tauri-apps/plugin-opener";
-import {
-  registeredThemes,
-  dataGridheaderFontSize,
-  shrinkAble,
-  prettyMs,
-  MonacoEditor,
-} from "./helper";
+import { registeredThemes, shrinkAble, prettyMs, MonacoEditor } from "./helper";
 
 import EditIcon from "@mui/icons-material/Edit";
 import { IconModifed, SimpleFlexEditor, StackRowCenter } from "./CommonComp2";
@@ -72,7 +66,7 @@ import { AiOnlineSearch, commands } from "./bindings";
 
 declare module "@mui/material/Chip" {
   interface ChipPropsSizeOverrides {
-    largeSmall: true; //
+    largeSmall: true;
   }
 }
 
@@ -1050,27 +1044,32 @@ function makeComponents(fontWeight: string | number, dataGridRowHeight: number) 
     MuiDataGrid: {
       styleOverrides: {
         root: {
-          "& .MuiDataGrid-columnHeaderTitle": {
-            fontWeight,
+          "& .MuiDataGrid-menu": {
+            "& .MuiPaper-root": {
+              padding: "4px 0",
+              minWidth: 160,
+            },
+            "& .MuiList-root": {
+              padding: 0,
+              display: "flex",
+              flexDirection: "column",
+              gap: "2px",
+            },
+            "& .MuiMenuItem-root": {
+              minHeight: "32px",
+              padding: "4px 12px",
+              fontSize: "0.875rem",
+            },
+            "& .MuiListItemIcon-root": {
+              minWidth: "24px",
+            },
           },
-          "& .MuiDataGrid-cell": {
-            padding: "0 2px",
-          },
-          // 如果你也想去掉表头的内边距
-          "& .MuiDataGrid-columnHeader": {
-            padding: "0 2px",
-            border: "1.5px solid #b7b3b3",
-          },
-        },
-        cell: {
-          fontSize: "1rem",
-          border: "1.5px solid #7c7c7c",
         },
         columnHeaders: {
-          fontSize: dataGridheaderFontSize,
           boxShadow: "0 1px 3px",
         },
       },
+
       defaultProps: {
         density: "compact",
         disableRowSelectionOnClick: true,
@@ -1079,6 +1078,7 @@ function makeComponents(fontWeight: string | number, dataGridRowHeight: number) 
         rowHeight: dataGridRowHeight,
         columnHeaderHeight: dataGridRowHeight * 0.9,
         showToolbar: true,
+        slotProps: {},
       },
     },
     MuiStack: {

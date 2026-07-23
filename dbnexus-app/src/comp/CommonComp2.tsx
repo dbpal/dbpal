@@ -1508,6 +1508,7 @@ function AppDataGridToolBar(props: {
         alignItems: "center",
         justifyContent: "space-between",
         border: disableBorder ? undefined : "2px solid gray",
+        borderBottom: "4px solid gray",
         borderRadius: "4px",
         padding: "2px 4px",
       }}>
