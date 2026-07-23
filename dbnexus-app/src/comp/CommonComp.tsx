@@ -814,7 +814,11 @@ function DataGridExtraMenuList(props: GridColumnMenuItemProps) {
 
   const getSelectFields = (): string[] => {
     if (selectColumns.length) {
-      return selectColumns;
+      if (selectColumns.includes(colDef.field)) {
+        return selectColumns;
+      } else {
+        return [...selectColumns, colDef.field];
+      }
     } else {
       return [colDef.field];
     }

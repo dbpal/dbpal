@@ -195,7 +195,6 @@ mod tests {
                 table_insert_sql,
                 put_values_in_sql
             ])
-            // .dangerously_cast_bigints_to_number()
             .error_handling(ErrorHandlingMode::Throw)
             .constant("redisCommands", get_commands_from_docs())
             // 导出到前端目录

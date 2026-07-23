@@ -1997,7 +1997,7 @@ pub async fn mongo_query_collection_count_docs(
     col: String,
     filter: Option<JsUint8Array>,
     app: tauri::State<'_, DBPal>,
-) -> Result<String, ErrorFrontend> {
+) -> Result<f64, ErrorFrontend> {
     random_sleep().await;
     random_error()?;
     let filter = if let Some(filter) = filter {
@@ -2014,7 +2014,7 @@ pub async fn mongo_query_collection_count_docs(
         None => return Err(format!("db '{}' not mongo", db_name).into()),
     }
     .map_err(ErrorFrontend::from)?;
-    Ok(ret.to_string())
+    Ok(ret as f64)
 }
 
 #[specta::specta]
