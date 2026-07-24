@@ -63,6 +63,7 @@ import { WebviewWindow } from "@tauri-apps/api/webviewWindow";
 import { listen } from "@tauri-apps/api/event";
 import "@mui/material/Chip";
 import { AiOnlineSearch, commands } from "./bindings";
+import { isNumber } from "@mui/x-data-grid/internals";
 
 declare module "@mui/material/Chip" {
   interface ChipPropsSizeOverrides {
@@ -948,7 +949,11 @@ function EditorOptions(props: { handleClose; showEditOption }) {
   );
 }
 
-function makeComponents(fontWeight: string | number, dataGridRowHeight: number) {
+function makeComponents(
+  isDarkTheme: boolean,
+  fontWeight: string | number,
+  dataGridRowHeight: number,
+) {
   const components: Components<Omit<Theme, "components" | "palette"> & CssVarsTheme> = {
     MuiCircularProgress: {
       defaultProps: { size: "1.2rem" },
@@ -1044,6 +1049,11 @@ function makeComponents(fontWeight: string | number, dataGridRowHeight: number) 
     MuiDataGrid: {
       styleOverrides: {
         root: {
+          // 1. Alternating Row Colors Config
+          "& .MuiDataGrid-row--even": {
+            backgroundColor: isDarkTheme ? "rgb(20, 20, 20)" : "rgb(230, 230, 230)", // Adjust your background color here
+          },
+
           "& .MuiDataGrid-menu": {
             "& .MuiPaper-root": {
               padding: "4px 0",
@@ -1065,6 +1075,7 @@ function makeComponents(fontWeight: string | number, dataGridRowHeight: number) 
             },
           },
         },
+
         columnHeaders: {
           boxShadow: "0 1px 3px",
         },
@@ -1079,6 +1090,13 @@ function makeComponents(fontWeight: string | number, dataGridRowHeight: number) 
         columnHeaderHeight: dataGridRowHeight * 1.8,
         showToolbar: true,
         slotProps: {},
+        getRowClassName: ({ id }) => {
+          const x = typeof id == "number" ? id : parseInt(id);
+          if (isNumber(x) && x % 2 == 0) {
+            return "MuiDataGrid-row--even";
+          }
+          return "";
+        },
       },
     },
     MuiStack: {
@@ -1201,7 +1219,7 @@ const makeTheme = (
         paper: color,
       },
     },
-    components: makeComponents(fontWeight, datagridRowHeightXXX),
+    components: makeComponents(isDarkTheme, fontWeight, datagridRowHeightXXX),
   });
 };
 

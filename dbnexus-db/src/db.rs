@@ -2342,7 +2342,25 @@ pub(crate) fn create_html_table_data(data: &[Vec<Option<String>>]) -> String {
     ret
 }
 
+fn escape_markdown(text: &str) -> String {
+    let mut escaped = String::with_capacity(text.len());
+    for c in text.chars() {
+        match c {
+            // Escape structural Markdown characters with a backslash
+            '\\' | '`' | '*' | '_' | '{' | '}' | '[' | ']' | '(' | ')' | '#' | '+' | '-' | '.'
+            | '!' => {
+                escaped.push('\\');
+                escaped.push(c);
+            }
+            _ => escaped.push(c),
+        }
+    }
+    escaped
+}
+
 pub(crate) fn create_markdown_header(header: &[String]) -> String {
+    let header: Vec<_> = header.iter().map(|x| escape_markdown(x)).collect();
+
     let mut ret = format!("|{}|\n", header.join("|"));
     ret.push_str(
         format!(
@@ -2363,8 +2381,8 @@ pub(crate) fn create_markdown_data(header: &[Option<String>]) -> String {
         header
             .iter()
             .map(|x| match x {
-                Some(x) => x.as_str(),
-                None => "",
+                Some(x) => escape_markdown(x.as_str()),
+                None => "".to_owned(),
             })
             .collect::<Vec<_>>()
             .join("|")

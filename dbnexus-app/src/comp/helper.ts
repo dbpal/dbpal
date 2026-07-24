@@ -803,7 +803,40 @@ const columnHeaderStyle: CSSProperties = {
   cursor: "default",
 };
 
+/**
+ * Converts a string array into a standard CSV format (one column).
+ * @param data - Array of strings or primitive values to format.
+ * @returns The formatted CSV string.
+ */
+function createCSV(data: string[]): string {
+  if (!data || data.length === 0) {
+    return "";
+  }
+
+  return (
+    data
+      .map((item) => {
+        // Convert to string (handles numbers, booleans, etc.)
+        let cell = String(item ?? "");
+
+        // RFC 4180: If the field contains a comma, quote, or newline,
+        // it must be enclosed in double quotes
+        const needsQuotes = /[",\n\r]/.test(cell);
+
+        if (needsQuotes) {
+          // Escape existing double quotes by doubling them
+          cell = cell.replace(/"/g, '""');
+          cell = `"${cell}"`;
+        }
+
+        return cell;
+      })
+      .join(",") + "\n"
+  );
+}
+
 export {
+  createCSV,
   AppColumnMenuKind,
   SqlOpContext,
   columnHeaderStyle,

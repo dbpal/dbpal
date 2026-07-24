@@ -24,6 +24,7 @@ import CircleIcon from "@mui/icons-material/Circle";
 import DeleteForeverIcon from "@mui/icons-material/DeleteForever";
 import EventNoteIcon from "@mui/icons-material/EventNote";
 import { LuRefreshCcw } from "react-icons/lu";
+import DownloadIcon from "@mui/icons-material/Download";
 import {
   Autocomplete,
   Box,
@@ -38,7 +39,9 @@ import {
   InputAdornment,
   ListItemIcon,
   ListItemText,
+  Menu,
   MenuItem,
+  MenuList,
   Modal,
   Pagination,
   Paper,
@@ -56,11 +59,14 @@ import {
   AppCodeExtraButtons,
   AppCodeHanleEdit,
   ChatShowContext,
+  createCSV,
   DataSourceKind,
   editorPositionToEnd,
+  generateDefaultFilename,
   handleCopyToClipboard,
   isMacOs,
   KeyPressed,
+  parseCellType,
   prettyMs,
   quoteDatabaseIdentifier,
   secondConfirm,
@@ -80,8 +86,18 @@ import {
 } from "./Common";
 import AddIcon from "@mui/icons-material/Add";
 import ChatBubbleIcon from "@mui/icons-material/ChatBubble";
-import { MetaValueView, ModalHeader, SelectPageSize } from "./CommonComp";
-import { readFile, writeTextFile } from "@tauri-apps/plugin-fs";
+import {
+  MetaValueView,
+  ModalHeader,
+  OpenFileWithDefaultApp,
+  SelectPageSize,
+} from "./CommonComp";
+import {
+  FileHandle,
+  readFile,
+  writeTextFile,
+  open as openFile,
+} from "@tauri-apps/plugin-fs";
 import { save, open, DialogFilter, message } from "@tauri-apps/plugin-dialog";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
@@ -1772,6 +1788,7 @@ function ListenElementSize(props: {
       const div = dom as HTMLDivElement;
       if (set == "height" || set == "both") {
         if (size.height) {
+          // eslint-disable-next-line react-hooks/immutability
           div.style.height = size.height + "px";
         }
       }
@@ -2068,7 +2085,117 @@ function RefreshButton(props: IconButtonProps) {
   );
 }
 
+function ExportQueryResultToFile() {
+  // Store the clicked HTML element instead of a boolean
+  const [anchorEl, setAnchorEl] = useState(null);
+  const openMenu = Boolean(anchorEl);
+  const api = useGridApiContext();
+
+  const { showNotification } = useNotification();
+
+  const handleFile = async (
+    extension: string,
+    exportFn: (_: FileHandle) => Promise<void>,
+  ) => {
+    let fileHandle: FileHandle;
+    try {
+      const path = await save({
+        defaultPath: generateDefaultFilename("query_resp", extension),
+      });
+      if (!path) {
+        return;
+      }
+      fileHandle = await openFile(path, { write: true, truncate: true, create: true });
+      await exportFn(fileHandle);
+      showNotification({
+        severity: "success",
+        title: "download ok",
+        message: <OpenFileWithDefaultApp file={path} />,
+      });
+    } catch (e) {
+      showNotification({ severity: "error", message: e, title: "export failed" });
+    } finally {
+      if (fileHandle) {
+        fileHandle.close();
+      }
+    }
+  };
+
+  return (
+    <>
+      <Tooltip title="download this result to a file">
+        <IconButton
+          onClick={(event) => {
+            setAnchorEl(event.currentTarget);
+          }}
+          color="primary">
+          <DownloadIcon />
+        </IconButton>
+      </Tooltip>
+
+      {anchorEl && (
+        <Menu
+          open={openMenu}
+          anchorEl={anchorEl} // 🚀 Tells Menu exactly where to position itself
+          anchorReference="anchorEl"
+          onClose={() => {
+            setAnchorEl(null);
+          }}
+          onClick={() => {
+            setAnchorEl(null);
+          }}>
+          <MenuList>
+            <MenuItem
+              onClick={() => {
+                handleFile("csv", async (fileHandle) => {
+                  let fs = api.current.getAllColumns().map((x) => x.field);
+                  await fileHandle.write(new TextEncoder().encode(createCSV(fs)));
+                  await api.current.getSortedRowIds().forEach(async (id) => {
+                    let values = api.current
+                      .getAllColumns()
+                      .map((f) => api.current.getCellValue(id, f.field));
+                    await fileHandle.write(new TextEncoder().encode(createCSV(values)));
+                  });
+                });
+              }}>
+              <ListItemText> Download as CSV </ListItemText>
+            </MenuItem>
+
+            <MenuItem
+              onClick={() => {
+                handleFile("json", async (fileHandle) => {
+                  let first = true;
+                  fileHandle.write(new TextEncoder().encode("[\n"));
+                  api.current.getSortedRowIds().forEach((id) => {
+                    let o = {};
+                    for (const f of api.current.getAllColumns()) {
+                      o[f.field] = parseCellType(api.current.getCellValue(id, f.field));
+                    }
+                    if (!first) {
+                      fileHandle.write(new TextEncoder().encode(",\n"));
+                    }
+                    if (first) {
+                      first = false;
+                    }
+
+                    fileHandle.write(
+                      new TextEncoder().encode(JSON.stringify(o, null, 2)),
+                    );
+                  });
+                  fileHandle.write(new TextEncoder().encode("\n]"));
+                });
+              }}>
+              <ListItemText> Download as JSON </ListItemText>
+            </MenuItem>
+          </MenuList>
+        </Menu>
+      )}
+    </>
+  );
+}
+
 export {
+  ExportQueryResultToFile,
   ShowQueryLog,
   FetchTimeDataGrid,
   FetchTimeAndLoadingStatus,

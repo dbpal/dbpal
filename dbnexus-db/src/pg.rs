@@ -1940,11 +1940,12 @@ mod tests {
             BackendKindPostGres, CheckConn, ColumnType, CreateIndexColumn, CreateIndexReq,
             CreateTableReq, CreateTableReqColumn, DBTrait, GetTestExportTableKinds, IndexKind,
             NamedStaff, QuerySql, SchemaTrait, ServerMetas, ShowTableParameter, SqlNullAble,
+            TestQueryEventEmit,
         },
         pg::PostGresDB,
     };
     use sqlx::Executor;
-    use std::{collections::HashMap, ops::DerefMut};
+    use std::{collections::HashMap, ops::DerefMut, sync::Arc};
 
     #[test]
     fn test_output_bytes() {
@@ -2172,6 +2173,24 @@ mod tests {
     async fn test_check_conn() {
         let db = make_test_object().await;
         CheckConn::check_conn(&db).await.unwrap();
+    }
+
+    // right now we only support receive data from the database
+    #[tokio::test]
+    async fn test_regproc() {
+        let db = make_test_object().await;
+        let query_id = "aaaa";
+        db.open_connection(query_id).await.unwrap();
+        db.query_sql(
+            query_id,
+            r#"
+        select  aggfnoid , aggtransfn  from pg_catalog.pg_aggregate limit 4
+
+        "#,
+            Arc::new(TestQueryEventEmit::default()),
+        )
+        .await
+        .unwrap();
     }
 
     #[tokio::test]

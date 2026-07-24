@@ -938,6 +938,14 @@ function DataGridExtraMenuList(props: GridColumnMenuItemProps) {
         <ListItemIcon>{/* <ContentCopyIcon /> */}</ListItemIcon>
         <ListItemText> Copy Column Name </ListItemText>
       </MenuItem>
+      <MenuItem
+        onClick={(event) => {
+          handleCopyToClipboard(colDef["data_type"], showNotification);
+          if (onClick) onClick(event);
+        }}>
+        <ListItemIcon>{/* <ContentCopyIcon /> */}</ListItemIcon>
+        <ListItemText> Copy Column Type </ListItemText>
+      </MenuItem>
     </MenuList>
   );
 }
@@ -1039,6 +1047,7 @@ function ResizeParentHeight(props: {
   useEffect(() => {
     const size = elements[saveHeightName];
     if (size && size.height) {
+      // eslint-disable-next-line react-hooks/immutability
       box.style.height = size.height + "px";
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps

@@ -580,7 +580,7 @@ export class UseSizeConfig {
   static gridCol: UseSizeConfig = {
     key: "grid-col",
     min: 1,
-    max: 6,
+    max: 3,
     default: 1,
     notice: "grid column count",
     name: "column",
@@ -795,7 +795,7 @@ const initialSettings: UserSettings = {
     fontFamily: "PT Mono",
     lightBgColor: "",
     darkBgColor: "",
-    datagridRowHeightFactor: 2.5,
+    datagridRowHeightFactor: 3,
     theme: "light",
     zoom: 1,
   },

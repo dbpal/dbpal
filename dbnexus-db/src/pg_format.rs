@@ -1,10 +1,38 @@
 use chrono::FixedOffset;
 use sqlx::postgres::types::{PgInterval, PgMoney, PgRange, PgTimeTz};
-use sqlx::postgres::{PgRow, PgValueRef};
+use sqlx::postgres::{PgHasArrayType, PgRow, PgTypeInfo, PgValueRef};
 use sqlx::types::BigDecimal;
-use sqlx::{Column, Row, ValueRef};
+use sqlx::{Column, Decode, Postgres, Row, Type, ValueRef};
 
 use crate::db::{escape_sql_str, format_data_time_fix_offset};
+
+// 1. 创建一个全新的包装类型
+#[derive(Debug, Clone)]
+pub struct RegProcString(pub String);
+
+// 2. 告诉 sqlx 这个类型对应 Postgres 的 regproc
+impl Type<Postgres> for RegProcString {
+    fn type_info() -> PgTypeInfo {
+        // 核心：绑定 Postgres 的 regproc 类型
+        PgTypeInfo::with_name("regproc")
+    }
+}
+
+// 3. 实现解码逻辑：当从数据库读取数据时，将 OID 的数字标识符自动转换为函数名字符串
+impl<'r> Decode<'r, Postgres> for RegProcString {
+    fn decode(value: PgValueRef<'r>) -> Result<Self, sqlx::error::BoxDynError> {
+        // 尝试将其作为文本提取（Postgres 驱动会自动转换）
+        let s = <String as Decode<Postgres>>::decode(value)?;
+        Ok(RegProcString(s))
+    }
+}
+
+// 如果你后面需要支持这个类型的数组（比如 regproc[]），可以顺便加上这行：
+impl PgHasArrayType for RegProcString {
+    fn array_type_info() -> PgTypeInfo {
+        PgTypeInfo::with_name("_regproc")
+    }
+}
 
 /// right now sqlx not implement macaddr8
 /// impl it myself.
@@ -60,6 +88,21 @@ pub(crate) fn encode_row_as_json(
         ))) as anyhow::Result<serde_json::Map<String, serde_json::Value>>;
 
         let v = match col_info.type_info().to_string().to_uppercase().as_str() {
+            "REGPROC" => {
+                let value: Option<RegProcString> = r.try_get(c)?;
+                value.map(|x| serde_json::Value::from(x.0))
+            }
+            "REGPROC[]" => {
+                let value: Option<Vec<RegProcString>> = r.try_get(c)?;
+                value.map(|x| {
+                    serde_json::Value::Array(
+                        x.into_iter()
+                            .map(|x| serde_json::Value::from(x.0))
+                            .collect(),
+                    )
+                })
+            }
+
             "BOOL" => {
                 let value: Option<bool> = r.try_get(c)?;
                 value.map(serde_json::Value::from)
@@ -617,6 +660,24 @@ pub(crate) fn encode_row(r: &PgRow) -> anyhow::Result<Vec<Option<String>>> {
         };
 
         let v = match ty.as_str() {
+            "REGPROC" => {
+                let value: Option<RegProcString> = r.try_get(c)?;
+                value.map(|x| x.0)
+            }
+            "REGPROC[]" => {
+                let value: Option<Vec<RegProcString>> = r.try_get(c)?;
+                if let Some(value) = value {
+                    let x = value
+                        .into_iter()
+                        .map(|x| format!("\"{}\"", x.0))
+                        .collect::<Vec<String>>();
+
+                    Some(format!("{{{}}}", x.join(",")))
+                } else {
+                    None
+                }
+            }
+
             "BOOL" => {
                 let value: Option<bool> = r.try_get(c)?;
                 value.map(|x| x.to_string())

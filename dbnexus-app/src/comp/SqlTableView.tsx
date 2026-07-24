@@ -423,14 +423,14 @@ type CustomPaginationProps = {
   uuid: string;
   kind: DataSourceKind;
   table: string;
+  isTable: boolean;
 };
 export function CustomPagination({
-  dbpal: { resp, clientModel, uuid, kind, table },
+  dbpal: { resp, clientModel, uuid, kind, table, isTable },
 }: {
   dbpal: CustomPaginationProps;
 }) {
   const { showNotification } = useNotification();
-
   const { appendTab } = useTabsManage();
   return (
     <Stack
@@ -442,14 +442,16 @@ export function CustomPagination({
         overflow: "auto",
       }}>
       <Stack direction="row" sx={{ alignItems: "center", flex: 1 }}>
-        <Button
-          onClick={() => {
-            openNewTableStructure(appendTab, uuid, kind, table);
-          }}
-          variant="outlined">
-          structure
-          <ArrowOutwardIcon />
-        </Button>
+        {isTable && (
+          <Button
+            onClick={() => {
+              openNewTableStructure(appendTab, uuid, kind, table);
+            }}
+            variant="outlined">
+            structure
+            <ArrowOutwardIcon />
+          </Button>
+        )}
         <FetchTimeDataGrid />
         <ResetColumnWidth />
         {clientModel && <SliderSize config={UseSizeConfig.queryLimit} />}
@@ -916,7 +918,10 @@ function SqlTableView(props: {
   const onPaginationModelChange = useCallback(
     (e: GridPaginationModel, reason: GridCallbackDetails<"pagination">) => {
       setPage(e.page);
-      if (reason.reason == "setPaginationModel") {
+      if (e.pageSize > 100) {
+        console.error("should not have page size greater than 100");
+      }
+      if (reason.reason == "setPaginationModel" && e.pageSize <= 100) {
         setPageSize("sql", e.pageSize);
       }
     },
@@ -1023,7 +1028,7 @@ function SqlTableView(props: {
       },
       pagination: {
         dbpal: (function (): CustomPaginationProps {
-          return { resp, clientModel, uuid, kind, table: tableName };
+          return { resp, clientModel, uuid, kind, table: tableName, isTable };
         })(),
       },
       toolbar: {

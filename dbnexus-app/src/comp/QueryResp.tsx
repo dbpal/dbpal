@@ -36,6 +36,7 @@ import VisibilityIcon from "@mui/icons-material/Visibility";
 import {
   AppDataGridPagination,
   AppDataGridToolBar,
+  ExportQueryResultToFile,
   StackRowCenter,
 } from "./CommonComp2.tsx";
 import {
@@ -205,6 +206,7 @@ function QueryResp(props: { data: MuiDataGridData; uuid: string }): React.ReactE
             <Stack style={{ flex: 1, alignItems: "center" }} direction="row">
               <AppDataGridToolBar disableBorder />
               <ResetColumnWidth />
+              <ExportQueryResultToFile />
               <Typography color="info">rows: {data.data.length} </Typography>
             </Stack>
             <AppDataGridPagination showPageSelect />
