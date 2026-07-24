@@ -8,7 +8,7 @@ import {
   useRef,
   useState,
 } from "react";
-
+import ArrowOutwardIcon from "@mui/icons-material/ArrowOutward";
 import { FaUpload } from "react-icons/fa";
 import CancelIcon from "@mui/icons-material/Cancel";
 import {
@@ -101,7 +101,7 @@ import {
   StackRowCenter,
 } from "./CommonComp2";
 import { showTable } from "./handlers";
-import { AddTableModal } from "./LeftTable";
+import { AddTableModal, openNewTableStructure } from "./LeftTable";
 import {
   useColumnWidthStore,
   useConfirmMsg,
@@ -115,6 +115,7 @@ import {
   useSqlDataFilter,
   useSqlTableFilterOp,
   useTableColumnVisibleStore,
+  useTabsManage,
 } from "./store";
 import { commands, Field, MuiDataGridData } from "./bindings";
 import { ExportTableOrView } from "./Export";
@@ -416,13 +417,21 @@ function SqlTableCustomToolBarLeft({
   );
 }
 
-type CustomPaginationProps = { resp: MuiDataGridData; clientModel: boolean };
+type CustomPaginationProps = {
+  resp: MuiDataGridData;
+  clientModel: boolean;
+  uuid: string;
+  kind: DataSourceKind;
+  table: string;
+};
 export function CustomPagination({
-  dbpal: { resp, clientModel },
+  dbpal: { resp, clientModel, uuid, kind, table },
 }: {
   dbpal: CustomPaginationProps;
 }) {
   const { showNotification } = useNotification();
+
+  const { appendTab } = useTabsManage();
   return (
     <Stack
       direction="row"
@@ -433,6 +442,14 @@ export function CustomPagination({
         overflow: "auto",
       }}>
       <Stack direction="row" sx={{ alignItems: "center", flex: 1 }}>
+        <Button
+          onClick={() => {
+            openNewTableStructure(appendTab, uuid, kind, table);
+          }}
+          variant="outlined">
+          structure
+          <ArrowOutwardIcon />
+        </Button>
         <FetchTimeDataGrid />
         <ResetColumnWidth />
         {clientModel && <SliderSize config={UseSizeConfig.queryLimit} />}
@@ -1006,7 +1023,7 @@ function SqlTableView(props: {
       },
       pagination: {
         dbpal: (function (): CustomPaginationProps {
-          return { resp, clientModel };
+          return { resp, clientModel, uuid, kind, table: tableName };
         })(),
       },
       toolbar: {

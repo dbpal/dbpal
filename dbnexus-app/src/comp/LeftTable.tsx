@@ -481,6 +481,16 @@ function SqlAddTableView(props: { uuid: string; table: string }) {
   );
 }
 
+export const openNewTableStructure = (appendTab, uuid, kind, table) => {
+  appendTab(
+    new TabContent(
+      `${table}`,
+      <TableStructure kind={kind} table={table} uuid={uuid} />,
+      <IoConstructOutline />,
+    ),
+  );
+};
+
 function TableMenu(props: {
   table: string;
   uuid: string;
@@ -541,13 +551,7 @@ function TableMenu(props: {
   };
 
   const handleStructure = () => {
-    appendTab(
-      new TabContent(
-        `${table}`,
-        <TableStructure kind={kind} table={table} uuid={uuid} />,
-        <IoConstructOutline />,
-      ),
-    );
+    openNewTableStructure(appendTab, uuid, kind, table);
   };
 
   return (

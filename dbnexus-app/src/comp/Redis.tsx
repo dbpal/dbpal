@@ -2128,9 +2128,7 @@ function RedisHashTable(props: { hashKey: string; uuid: string }) {
   return (
     <Stack style={{ height: "100%" }}>
       <QueryStatus status={queryStatus} />
-
       <ListenElementSize dom={modifyModalBox} name="redis-modify-hash" set="both" />
-
       {resp && (
         <AppColumnMenuCtx
           value={{
