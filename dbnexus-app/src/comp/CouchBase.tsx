@@ -837,7 +837,7 @@ function CouchBaseQuery(props: { uuid: string; value?: string }) {
           </div>
         )}
         {viewMode == CBQueryViewMode.Table && tableResp && (
-          <QueryResp data={tableResp} />
+          <QueryResp data={tableResp} uuid={uuid} />
         )}
       </Panel>
     </PanelGroup>

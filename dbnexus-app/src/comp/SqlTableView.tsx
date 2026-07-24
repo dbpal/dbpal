@@ -64,12 +64,15 @@ import {
   dataGridheaderFontSize,
   shrinkAble,
   TabContext,
-  clickColumn,
-  SqlTableContext,
+  clickDataGridColumn,
+  AppColumnMenuCtx,
   DatabaseOperation,
   DatabaseOpKind,
   gridColumnHeaderSelectClassName,
   allGridHeaderTitle,
+  columnHeaderStyle,
+  SqlOpContext,
+  AppColumnMenuKind,
 } from "./helper";
 import { FaCopy } from "react-icons/fa6";
 import FileCopyIcon from "@mui/icons-material/FileCopy";
@@ -262,7 +265,7 @@ function SqlTableCustomToolBarLeft({
 }: SqlTableCustomToolBarLeftProps) {
   // 获取 DataGrid 内部的 api 实例
 
-  const { ops, setOps } = useContext(SqlTableContext);
+  const { ops, setOps } = useContext(SqlOpContext);
   const apiRef = useGridApiContext();
   const [showSetWhere, setShowSetWhere] = useState(false);
   const [showSetSort, setShowSetSort] = useState(false);
@@ -553,7 +556,7 @@ function CellButtons(props: {
 
 function CustomCell(props: GridRenderCellParams) {
   const { row, field } = props;
-  const { ops, setOps, fields, uuid, handleReload } = useContext(SqlTableContext);
+  const { ops, setOps, fields, uuid, handleReload } = useContext(SqlOpContext);
   let dbId = tryGetId(row, fields);
   const modified = ops.find((x) => x.tableId == dbId && x.op == DatabaseOpKind.Update);
   const deleted = ops.find((x) => x.tableId == dbId && x.op == DatabaseOpKind.Delete);
@@ -735,16 +738,12 @@ function SqlTableView(props: {
             <Stack
               style={{
                 alignItems: "center",
-                minWidth: "5rem",
-                border: "2px dashed gray",
-                borderRadius: "4px",
-                padding: "4px",
-                cursor: "default",
+                ...columnHeaderStyle,
               }}
               direction="row"
               onClick={(event) => {
                 event.stopPropagation();
-                clickColumn(apiRef, event, field.field, setSelectColumns);
+                clickDataGridColumn(apiRef, event, field.field, setSelectColumns);
               }}>
               {field.is_primary && <KeyIcon style={{ fontSize: "16px" }} />}
               <Tooltip title={makeTitle()}>
@@ -1083,58 +1082,65 @@ function SqlTableView(props: {
   return (
     <Stack style={{ height: "100%" }}>
       <QueryStatus status={queryStatus} />
-      <SqlTableContext
+
+      <SqlOpContext
         value={{
           ops,
           setOps,
-          fields: resp.fields,
           uuid,
           handleReload: () => {
             handleReload(false);
           },
-          selectColumns: (function () {
-            return resp.fields
-              .filter((f) => selectedColumns.has(f.field))
-              .map((f) => f.field);
-          })(),
+          fields: resp.fields,
         }}>
-        <DataGrid
-          getCellClassName={({ field }) => {
-            if (selectedColumns.has(field)) {
-              return "grid-column-cell-select ";
-            }
-          }}
-          onCellClick={() => {
-            setSelectColumns(new Set());
-            allGridHeaderTitle(apiRef, (x) => {
-              x.classList.remove(gridColumnHeaderSelectClassName);
-            });
-          }}
-          slots={slots}
-          apiRef={apiRef}
-          columnVisibilityModel={getColumnVisibility(uuid, tableName)}
-          onColumnVisibilityModelChange={(e) => {
-            setColumnVisibility(uuid, tableName, e);
-          }}
-          slotProps={slotProps}
-          style={dataGridStyle}
-          getRowId={getRowId}
-          paginationModel={clientModel ? undefined : paginationModel}
-          pageSizeOptions={pageSizeOptions}
-          paginationMode={sortModel}
-          onPaginationModelChange={clientModel ? undefined : onPaginationModelChange}
-          checkboxSelection={false}
-          rowCount={clientModel ? resp.data.length : resp.total}
-          sortingMode={clientModel ? "client" : "server"}
-          onSortModelChange={clientModel ? undefined : onSortModelChange}
-          columns={resp.fields}
-          rows={resp.data}
-          onColumnResize={onColumnResize}
-          processRowUpdate={isTable ? handleProcessRowUpdate : undefined}
-          onProcessRowUpdateError={onProcessRowUpdateError}
-          loading={loading}
-        />
-      </SqlTableContext>
+        <AppColumnMenuCtx
+          value={{
+            uuid,
+            selectColumns: (function () {
+              return resp.fields
+                .filter((f) => selectedColumns.has(f.field))
+                .map((f) => f.field);
+            })(),
+            kind: AppColumnMenuKind.SqlTable,
+          }}>
+          <DataGrid
+            getCellClassName={({ field }) => {
+              if (selectedColumns.has(field)) {
+                return "grid-column-cell-select ";
+              }
+            }}
+            onCellClick={() => {
+              setSelectColumns(new Set());
+              allGridHeaderTitle(apiRef, (x) => {
+                x.classList.remove(gridColumnHeaderSelectClassName);
+              });
+            }}
+            slots={slots}
+            apiRef={apiRef}
+            columnVisibilityModel={getColumnVisibility(uuid, tableName)}
+            onColumnVisibilityModelChange={(e) => {
+              setColumnVisibility(uuid, tableName, e);
+            }}
+            slotProps={slotProps}
+            style={dataGridStyle}
+            getRowId={getRowId}
+            paginationModel={clientModel ? undefined : paginationModel}
+            pageSizeOptions={pageSizeOptions}
+            paginationMode={sortModel}
+            onPaginationModelChange={clientModel ? undefined : onPaginationModelChange}
+            checkboxSelection={false}
+            rowCount={clientModel ? resp.data.length : resp.total}
+            sortingMode={clientModel ? "client" : "server"}
+            onSortModelChange={clientModel ? undefined : onSortModelChange}
+            columns={resp.fields}
+            rows={resp.data}
+            onColumnResize={onColumnResize}
+            processRowUpdate={isTable ? handleProcessRowUpdate : undefined}
+            onProcessRowUpdateError={onProcessRowUpdateError}
+            loading={loading}
+          />
+        </AppColumnMenuCtx>
+      </SqlOpContext>
 
       <ViewRowInModal
         data={viewInModal}

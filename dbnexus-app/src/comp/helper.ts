@@ -629,7 +629,7 @@ interface StupidIMarker {
   resource?: any;
 }
 
-function clickColumn(
+function clickDataGridColumn(
   api: RefObject<GridApi>,
   event: MouseEvent,
   field: string,
@@ -673,13 +673,25 @@ export enum DatabaseOpKind {
   Delete,
 }
 
-const SqlTableContext = createContext<{
+enum AppColumnMenuKind {
+  SqlTable,
+  QueryResp,
+  Mongo,
+  Redis,
+}
+
+const SqlOpContext = createContext<{
   ops: DatabaseOperation[];
   setOps: Dispatch<SetStateAction<DatabaseOperation[]>>;
   fields: Field[];
   uuid: string;
   handleReload: () => void;
+}>(null);
+
+const AppColumnMenuCtx = createContext<{
+  uuid?: string;
   selectColumns: string[];
+  kind: AppColumnMenuKind;
 }>(null);
 
 export const gridColumnHeaderSelectClassName = "grid-column-header-select";
@@ -783,12 +795,23 @@ function arrayToMarkdownTable(data: string[][]): string {
   return markdownLines.join("\n");
 }
 
+const columnHeaderStyle: CSSProperties = {
+  minWidth: "5rem",
+  border: "2px dashed gray",
+  borderRadius: "4px",
+  padding: "4px",
+  cursor: "default",
+};
+
 export {
+  AppColumnMenuKind,
+  SqlOpContext,
+  columnHeaderStyle,
   parseCellType,
   arrayToMarkdownTable,
   escapeTSV,
   allGridHeaderTitle,
-  clickColumn,
+  clickDataGridColumn,
   saveQueryKey,
   backendCompletionItemToEditor,
   ChatShowContext,
@@ -832,7 +855,7 @@ export {
   ViewKind,
   MonacoEditor,
   QueryIDEditorChatCtx,
-  SqlTableContext,
+  AppColumnMenuCtx,
   DatabaseOperation,
 };
 

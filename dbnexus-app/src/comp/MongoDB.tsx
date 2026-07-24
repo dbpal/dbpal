@@ -77,6 +77,12 @@ import {
   extractFieldAndIDFromMouseEvent,
   DataSourceKind,
   StupidIMarker,
+  AppColumnMenuCtx,
+  AppColumnMenuKind,
+  columnHeaderStyle,
+  gridColumnHeaderSelectClassName,
+  allGridHeaderTitle,
+  clickDataGridColumn,
 } from "./helper";
 import {
   AppDataGridPagination,
@@ -110,6 +116,7 @@ import {
   GridPaginationModel,
   GridSlotsComponent,
   GridSlotsComponentsProps,
+  useGridApiRef,
 } from "./datagridExport";
 import { useDebounce } from "use-debounce";
 
@@ -1021,6 +1028,9 @@ function MongoTableList(props: {
   const [selectModifyDoc, setSelectModifyDoc] = useState<BSON.Document | null>(null);
   const { getColumnWidth, setColumnWidth } = useColumnWidthStore();
   const [showFilter, setShowFilter] = useState<{ field: string; id: any }>(null);
+  const [selectedColumns, setSelectColumns] = useState<Set<string>>(new Set());
+  const apiRef = useGridApiRef();
+
   const handleReload = useCallback(
     async (showOK) => {
       setLoading(true);
@@ -1038,9 +1048,14 @@ function MongoTableList(props: {
               const field = e.colDef as unknown as FieldAndGridField;
               return (
                 <Stack
+                  onClick={(event) => {
+                    event.stopPropagation();
+                    clickDataGridColumn(apiRef, event, field.field, setSelectColumns);
+                  }}
                   style={{
                     alignItems: "center",
                     cursor: "default",
+                    ...columnHeaderStyle,
                   }}
                   direction="row">
                   <Typography sx={{ fontSize: dataGridheaderFontSize }}>
@@ -1066,7 +1081,7 @@ function MongoTableList(props: {
           setLoading(false);
         });
     },
-    [getColumnWidth, page, pageSize, reloadOP, setLoading, showNotification],
+    [apiRef, getColumnWidth, page, pageSize, reloadOP, setLoading, showNotification],
   );
 
   useEffect(() => {
@@ -1230,28 +1245,51 @@ function MongoTableList(props: {
   return (
     <Stack style={{ height: "100%" }}>
       {resp && (
-        <DataGrid
-          columnVisibilityModel={getColumnVisibility(uuid, tableName)}
-          onColumnVisibilityModelChange={(e) => {
-            setColumnVisibility(uuid, tableName, e);
-          }}
-          loading={loading}
-          slots={slots}
-          style={dataGridStyle}
-          slotProps={slotProps}
-          getRowId={getRowId}
-          rowCount={resp.total}
-          columns={resp.fields}
-          rows={resp.data}
-          pageSizeOptions={pageSizeOptions}
-          paginationMode="server"
-          paginationModel={paginationModel}
-          onPaginationModelChange={onPaginationModelChange}
-          onRowDoubleClick={onRowDoubleClick}
-          sortingMode="server"
-          onSortModelChange={onSortModelChange}
-          onColumnResize={onColumnResize}
-        />
+        <AppColumnMenuCtx
+          value={{
+            selectColumns: (function () {
+              return resp.fields
+                .filter((f) => selectedColumns.has(f.field))
+                .map((f) => f.field);
+            })(),
+            kind: AppColumnMenuKind.QueryResp,
+            uuid,
+          }}>
+          <DataGrid
+            columnVisibilityModel={getColumnVisibility(uuid, tableName)}
+            onColumnVisibilityModelChange={(e) => {
+              setColumnVisibility(uuid, tableName, e);
+            }}
+            getCellClassName={({ field }) => {
+              if (selectedColumns.has(field)) {
+                return "grid-column-cell-select ";
+              }
+            }}
+            onCellClick={() => {
+              setSelectColumns(new Set());
+              allGridHeaderTitle(apiRef, (x) => {
+                x.classList.remove(gridColumnHeaderSelectClassName);
+              });
+            }}
+            apiRef={apiRef}
+            loading={loading}
+            slots={slots}
+            style={dataGridStyle}
+            slotProps={slotProps}
+            getRowId={getRowId}
+            rowCount={resp.total}
+            columns={resp.fields}
+            rows={resp.data}
+            pageSizeOptions={pageSizeOptions}
+            paginationMode="server"
+            paginationModel={paginationModel}
+            onPaginationModelChange={onPaginationModelChange}
+            onRowDoubleClick={onRowDoubleClick}
+            sortingMode="server"
+            onSortModelChange={onSortModelChange}
+            onColumnResize={onColumnResize}
+          />
+        </AppColumnMenuCtx>
       )}
       <ListenElementSize dom={modalBox} set="both" name="mongo-table-modify-doc" />
       {selectModifyDoc && (

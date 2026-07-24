@@ -43,6 +43,12 @@ import {
   newEmptyResp,
   secondConfirm,
   DataSourceKind,
+  AppColumnMenuCtx,
+  AppColumnMenuKind,
+  columnHeaderStyle,
+  clickDataGridColumn,
+  allGridHeaderTitle,
+  gridColumnHeaderSelectClassName,
 } from "./helper.ts";
 import { AppColumnMenu, ModalHeader, ResetColumnWidth } from "./CommonComp.tsx";
 import { editor } from "monaco-editor";
@@ -75,6 +81,7 @@ import {
   GridSlotsComponent,
   GridSlotsComponentsProps,
   GridSortModel,
+  useGridApiRef,
 } from "./datagridExport.ts";
 import { useDebounce } from "use-debounce";
 
@@ -810,6 +817,10 @@ function RedisSetTable(props: { setKey: string; uuid: string }) {
   const modifyOP = async (old, newValue) => {
     return await commands.redisSetReplace(uuid, setKey, old, newValue);
   };
+  const apiRef = useGridApiRef();
+
+  const [selectedColumns, setSelectColumns] = useState<Set<string>>(new Set());
+
   const delOP = useCallback(
     async (member: string) => {
       return await commands.redisSetDel(uuid, setKey, member);
@@ -849,11 +860,26 @@ function RedisSetTable(props: { setKey: string; uuid: string }) {
           });
           resp.fields[0]["flex"] = 1;
           resp.fields[0]["valueGetter"] = valueGetter;
+
+          resp.fields.forEach((f) => {
+            f["renderHeader"] = () => {
+              return (
+                <Stack
+                  onClick={(event) => {
+                    event.stopPropagation();
+                    clickDataGridColumn(apiRef, event, f.field, setSelectColumns);
+                  }}
+                  style={{ ...columnHeaderStyle }}>
+                  {f.field}
+                </Stack>
+              );
+            };
+          });
           setResp(resp);
         },
       });
     },
-    [getSize, keyMatchDelay, setKey, showNotification, uuid],
+    [apiRef, getSize, keyMatchDelay, setKey, showNotification, uuid],
   );
 
   useEffect(() => {
@@ -932,23 +958,46 @@ function RedisSetTable(props: { setKey: string; uuid: string }) {
       <QueryStatus status={queryStatus} />
 
       {resp && (
-        <DataGrid
-          columnVisibilityModel={getColumnVisibility(uuid, setKey)}
-          onColumnVisibilityModelChange={(e) => {
-            setColumnVisibility(uuid, setKey, e);
-          }}
-          slots={slots}
-          slotProps={slotProps}
-          rows={resp.data}
-          editMode="row"
-          checkboxSelection={false}
-          onRowDoubleClick={onRowDoubleClick}
-          columns={resp.fields}
-          paginationMode="client"
-          disableColumnFilter
-          style={dataGridStyle}
-          loading={loading}
-        />
+        <AppColumnMenuCtx
+          value={{
+            selectColumns: (function () {
+              return resp.fields
+                .filter((f) => selectedColumns.has(f.field))
+                .map((f) => f.field);
+            })(),
+            kind: AppColumnMenuKind.Redis,
+            uuid,
+          }}>
+          <DataGrid
+            columnVisibilityModel={getColumnVisibility(uuid, setKey)}
+            onColumnVisibilityModelChange={(e) => {
+              setColumnVisibility(uuid, setKey, e);
+            }}
+            getCellClassName={({ field }) => {
+              if (selectedColumns.has(field)) {
+                return "grid-column-cell-select ";
+              }
+            }}
+            onCellClick={() => {
+              setSelectColumns(new Set());
+              allGridHeaderTitle(apiRef, (x) => {
+                x.classList.remove(gridColumnHeaderSelectClassName);
+              });
+            }}
+            apiRef={apiRef}
+            slots={slots}
+            slotProps={slotProps}
+            rows={resp.data}
+            editMode="row"
+            checkboxSelection={false}
+            onRowDoubleClick={onRowDoubleClick}
+            columns={resp.fields}
+            paginationMode="client"
+            disableColumnFilter
+            style={dataGridStyle}
+            loading={loading}
+          />
+        </AppColumnMenuCtx>
       )}
 
       <ListenElementSize dom={modifyModalBox} set="both" name="modify-set-table" />
@@ -1119,6 +1168,8 @@ function RedisListTable(props: { listKey: string; uuid: string }) {
     },
     [listKey, uuid],
   );
+  const apiRef = useGridApiRef();
+  const [selectedColumns, setSelectColumns] = useState<Set<string>>(new Set());
   const [resp, setResp] = useState<MuiDataGridData>(newEmptyResp());
   const [respOrigin, setRespOrigin] = useState<MuiDataGridData>(newEmptyResp());
   const [selectRow, setSelectRow] = useState<any>(null);
@@ -1153,13 +1204,27 @@ function RedisListTable(props: { listKey: string; uuid: string }) {
           resp.fields[1]["sortable"] = false;
           resp.fields[1]["flex"] = 1;
           resp.fields[1]["valueGetter"] = valueGetter;
+          resp.fields.forEach((f) => {
+            f["renderHeader"] = () => {
+              return (
+                <Stack
+                  onClick={(event) => {
+                    event.stopPropagation();
+                    clickDataGridColumn(apiRef, event, f.field, setSelectColumns);
+                  }}
+                  style={{ ...columnHeaderStyle }}>
+                  {f.field}
+                </Stack>
+              );
+            };
+          });
           setResp(resp);
           setRespOrigin(resp);
         },
         setStatus: setQueryStatus,
       });
     },
-    [uuid, listKey, showNotification, getColumnWidth],
+    [uuid, listKey, showNotification, getColumnWidth, apiRef],
   );
 
   useEffect(() => {
@@ -1285,29 +1350,52 @@ function RedisListTable(props: { listKey: string; uuid: string }) {
     <Stack style={{ height: "100%" }}>
       <QueryStatus status={queryStatus} />
       {resp && (
-        <DataGrid
-          slots={slots}
-          loading={loading}
-          slotProps={slotProps}
-          checkboxSelection={false}
-          disableMultipleRowSelection
-          disableColumnFilter
-          rows={resp.data}
-          onColumnResize={onColumnResize}
-          columns={resp.fields}
-          paginationModel={paginationModel}
-          onRowDoubleClick={onRowDoubleClick}
-          pageSizeOptions={pageSizeOptions}
-          onPaginationModelChange={onPaginationModelChange}
-          sortingMode="server"
-          paginationMode="client"
-          style={dataGridStyle}
-          columnVisibilityModel={getColumnVisibility(uuid, listKey)}
-          onColumnVisibilityModelChange={(e) => {
-            setColumnVisibility(uuid, listKey, e);
-          }}
-          onSortModelChange={onSortModelChange}
-        />
+        <AppColumnMenuCtx
+          value={{
+            selectColumns: (function () {
+              return resp.fields
+                .filter((f) => selectedColumns.has(f.field))
+                .map((f) => f.field);
+            })(),
+            kind: AppColumnMenuKind.Redis,
+            uuid,
+          }}>
+          <DataGrid
+            getCellClassName={({ field }) => {
+              if (selectedColumns.has(field)) {
+                return "grid-column-cell-select ";
+              }
+            }}
+            onCellClick={() => {
+              setSelectColumns(new Set());
+              allGridHeaderTitle(apiRef, (x) => {
+                x.classList.remove(gridColumnHeaderSelectClassName);
+              });
+            }}
+            apiRef={apiRef}
+            slots={slots}
+            loading={loading}
+            slotProps={slotProps}
+            checkboxSelection={false}
+            disableMultipleRowSelection
+            disableColumnFilter
+            rows={resp.data}
+            onColumnResize={onColumnResize}
+            columns={resp.fields}
+            paginationModel={paginationModel}
+            onRowDoubleClick={onRowDoubleClick}
+            pageSizeOptions={pageSizeOptions}
+            onPaginationModelChange={onPaginationModelChange}
+            sortingMode="server"
+            paginationMode="client"
+            style={dataGridStyle}
+            columnVisibilityModel={getColumnVisibility(uuid, listKey)}
+            onColumnVisibilityModelChange={(e) => {
+              setColumnVisibility(uuid, listKey, e);
+            }}
+            onSortModelChange={onSortModelChange}
+          />
+        </AppColumnMenuCtx>
       )}
 
       <ListenElementSize dom={modifyModalBox} name="redis-modify-list" set="both" />
@@ -1479,6 +1567,9 @@ function RedisZsetTable(props: { uuid: string; zsetKey: string }) {
   const modifyOP = async (oldMember: string, newKey: string, newValue: number) => {
     return await commands.redisZsetReplace(uuid, zsetKey, oldMember, newKey, newValue);
   };
+
+  const apiRef = useGridApiRef();
+  const [selectedColumns, setSelectColumns] = useState<Set<string>>(new Set());
   const delOP = useCallback(
     async (member) => {
       return await commands.redisZsetDel(uuid, zsetKey, member);
@@ -1540,6 +1631,20 @@ function RedisZsetTable(props: { uuid: string; zsetKey: string }) {
           }
 
           resp.fields[1]["valueGetter"] = valueGetter;
+          resp.fields.forEach((f) => {
+            f["renderHeader"] = () => {
+              return (
+                <Stack
+                  onClick={(event) => {
+                    event.stopPropagation();
+                    clickDataGridColumn(apiRef, event, f.field, setSelectColumns);
+                  }}
+                  style={{ ...columnHeaderStyle }}>
+                  {f.field}
+                </Stack>
+              );
+            };
+          });
           setResp(resp);
         },
       });
@@ -1555,6 +1660,7 @@ function RedisZsetTable(props: { uuid: string; zsetKey: string }) {
       getSize,
       showNotification,
       getColumnWidth,
+      apiRef,
     ],
   );
 
@@ -1673,24 +1779,47 @@ function RedisZsetTable(props: { uuid: string; zsetKey: string }) {
       <ListenElementSize dom={modifyModalBox} name="redis-modify-zset" set="both" />
 
       {resp && (
-        <DataGrid
-          columnVisibilityModel={getColumnVisibility(uuid, zsetKey)}
-          onColumnVisibilityModelChange={(e) => {
-            setColumnVisibility(uuid, zsetKey, e);
-          }}
-          slots={slots}
-          onColumnResize={onColumnResize}
-          loading={loading}
-          slotProps={slotProps}
-          rows={resp.data}
-          checkboxSelection={false}
-          editMode="row"
-          onRowDoubleClick={onRowDoubleClick}
-          columns={resp.fields}
-          disableColumnFilter
-          style={dataGridStyle}
-          paginationMode="client"
-        />
+        <AppColumnMenuCtx
+          value={{
+            selectColumns: (function () {
+              return resp.fields
+                .filter((f) => selectedColumns.has(f.field))
+                .map((f) => f.field);
+            })(),
+            kind: AppColumnMenuKind.Redis,
+            uuid,
+          }}>
+          <DataGrid
+            columnVisibilityModel={getColumnVisibility(uuid, zsetKey)}
+            onColumnVisibilityModelChange={(e) => {
+              setColumnVisibility(uuid, zsetKey, e);
+            }}
+            getCellClassName={({ field }) => {
+              if (selectedColumns.has(field)) {
+                return "grid-column-cell-select ";
+              }
+            }}
+            onCellClick={() => {
+              setSelectColumns(new Set());
+              allGridHeaderTitle(apiRef, (x) => {
+                x.classList.remove(gridColumnHeaderSelectClassName);
+              });
+            }}
+            apiRef={apiRef}
+            slots={slots}
+            onColumnResize={onColumnResize}
+            loading={loading}
+            slotProps={slotProps}
+            rows={resp.data}
+            checkboxSelection={false}
+            editMode="row"
+            onRowDoubleClick={onRowDoubleClick}
+            columns={resp.fields}
+            disableColumnFilter
+            style={dataGridStyle}
+            paginationMode="client"
+          />
+        </AppColumnMenuCtx>
       )}
       {selectRow && (
         <Modal
@@ -1837,12 +1966,15 @@ function HashToolBar({
 
 function RedisHashTable(props: { hashKey: string; uuid: string }) {
   const { uuid, hashKey } = props;
+  const apiRef = useGridApiRef();
+
   const delOP = useCallback(
     async (member) => {
       return await commands.redisHashDel(uuid, hashKey, member);
     },
     [hashKey, uuid],
   );
+  const [selectedColumns, setSelectColumns] = useState<Set<string>>(new Set());
 
   const modifyOP = async (oldMember, newMember, newValue) => {
     return await commands.redisHashReplace(
@@ -1891,11 +2023,26 @@ function RedisHashTable(props: { hashKey: string; uuid: string }) {
           resp.fields[1]["flex"] = 1;
           resp.fields[0]["valueGetter"] = valueGetter;
           resp.fields[1]["valueGetter"] = valueGetter;
+
+          resp.fields.forEach((f) => {
+            f["renderHeader"] = () => {
+              return (
+                <Stack
+                  onClick={(event) => {
+                    event.stopPropagation();
+                    clickDataGridColumn(apiRef, event, f.field, setSelectColumns);
+                  }}
+                  style={{ ...columnHeaderStyle }}>
+                  {f.field}
+                </Stack>
+              );
+            };
+          });
           setResp(resp);
         },
       });
     },
-    [getColumnWidth, getSize, hashKey, keyMatchDelay, showNotification, uuid],
+    [apiRef, getColumnWidth, getSize, hashKey, keyMatchDelay, showNotification, uuid],
   );
   useEffect(() => {
     handleReload(false);
@@ -1985,24 +2132,47 @@ function RedisHashTable(props: { hashKey: string; uuid: string }) {
       <ListenElementSize dom={modifyModalBox} name="redis-modify-hash" set="both" />
 
       {resp && (
-        <DataGrid
-          columnVisibilityModel={getColumnVisibility(uuid, hashKey)}
-          onColumnVisibilityModelChange={(e) => {
-            setColumnVisibility(uuid, hashKey, e);
-          }}
-          slots={slots}
-          onColumnResize={onColumnResize}
-          loading={loading}
-          slotProps={slotProps}
-          rows={resp.data}
-          checkboxSelection={false}
-          editMode="row"
-          onRowDoubleClick={onRowDoubleClick}
-          columns={resp.fields}
-          paginationMode="client"
-          disableColumnFilter
-          style={dataGridStyle}
-        />
+        <AppColumnMenuCtx
+          value={{
+            selectColumns: (function () {
+              return resp.fields
+                .filter((f) => selectedColumns.has(f.field))
+                .map((f) => f.field);
+            })(),
+            kind: AppColumnMenuKind.Redis,
+            uuid,
+          }}>
+          <DataGrid
+            columnVisibilityModel={getColumnVisibility(uuid, hashKey)}
+            onColumnVisibilityModelChange={(e) => {
+              setColumnVisibility(uuid, hashKey, e);
+            }}
+            getCellClassName={({ field }) => {
+              if (selectedColumns.has(field)) {
+                return "grid-column-cell-select ";
+              }
+            }}
+            onCellClick={() => {
+              setSelectColumns(new Set());
+              allGridHeaderTitle(apiRef, (x) => {
+                x.classList.remove(gridColumnHeaderSelectClassName);
+              });
+            }}
+            apiRef={apiRef}
+            slots={slots}
+            onColumnResize={onColumnResize}
+            loading={loading}
+            slotProps={slotProps}
+            rows={resp.data}
+            checkboxSelection={false}
+            editMode="row"
+            onRowDoubleClick={onRowDoubleClick}
+            columns={resp.fields}
+            paginationMode="client"
+            disableColumnFilter
+            style={dataGridStyle}
+          />
+        </AppColumnMenuCtx>
       )}
 
       {selectRow && (

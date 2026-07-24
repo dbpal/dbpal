@@ -53,8 +53,9 @@ import {
   prettyMs,
   resizeHandlerSize,
   secondConfirm,
-  SqlTableContext,
+  AppColumnMenuCtx,
   textEllipsisStyle,
+  AppColumnMenuKind,
 } from "./helper";
 
 import { TbDatabasePlus } from "react-icons/tb";
@@ -810,7 +811,9 @@ function DataGridExtraMenuList(props: GridColumnMenuItemProps) {
   const { showNotification } = useNotification();
   const api = useGridApiContext();
 
-  let { selectColumns, uuid } = useContext(SqlTableContext);
+  console.log("value getter:", colDef.valueGetter);
+
+  let { selectColumns, uuid, kind } = useContext(AppColumnMenuCtx);
 
   const getSelectFields = (): string[] => {
     if (selectColumns.length) {
@@ -830,10 +833,10 @@ function DataGridExtraMenuList(props: GridColumnMenuItemProps) {
         onClick={(event) => {
           handleCopyToClipboard(
             api.current
-              .getSortedRows()
-              .map((data) =>
+              .getSortedRowIds()
+              .map((id) =>
                 getSelectFields()
-                  .map((f) => data[f] + "")
+                  .map((f) => api.current.getCellValue(id, f) + "")
                   .join("\t"),
               )
               .join("\n"),
@@ -851,8 +854,10 @@ function DataGridExtraMenuList(props: GridColumnMenuItemProps) {
           const fs = getSelectFields();
           handleCopyToClipboard(
             api.current
-              .getSortedRows()
-              .map((data) => fs.map((f) => escapeTSV(data[f])).join("\t"))
+              .getSortedRowIds()
+              .map((id) =>
+                fs.map((f) => escapeTSV(api.current.getCellValue(id, f))).join("\t"),
+              )
               .join("\n"),
             showNotification,
           );
@@ -869,10 +874,12 @@ function DataGridExtraMenuList(props: GridColumnMenuItemProps) {
           let fs = getSelectFields();
           r.push(fs);
 
-          api.current.getSortedRows().forEach((data) => {
+          api.current.getSortedRowIds().forEach((id) => {
             const obj = [];
+
             for (const f of fs) {
-              obj.push(data[f] ? data[f] : "");
+              let value = api.current.getCellValue(id, f);
+              obj.push(value ? value : "");
             }
             r.push(obj);
           });
@@ -883,34 +890,37 @@ function DataGridExtraMenuList(props: GridColumnMenuItemProps) {
         <ListItemText> Copy as MarkDown </ListItemText>
       </MenuItem>
 
-      <MenuItem
-        onClick={async (event) => {
-          try {
-            let values = api.current.getSortedRows().map((x) => x[colDef.field]);
-            values = await commands.putValuesInSql(uuid, colDef["data_type"], values);
-
-            handleCopyToClipboard(`(\n${values.join(",\n")}\n)\n`, showNotification);
-            if (onClick) onClick(event);
-          } catch (e) {
-            showNotification({
-              severity: "error",
-              title: "put value in sql failed",
-              message: e,
-            });
-          }
-        }}>
-        <ListItemIcon>{/* <ContentCopyIcon /> */}</ListItemIcon>
-        <ListItemText> Copy For in Statament </ListItemText>
-      </MenuItem>
+      {[AppColumnMenuKind.SqlTable, AppColumnMenuKind.QueryResp].includes(kind) && (
+        <MenuItem
+          onClick={async (event) => {
+            try {
+              let values = api.current
+                .getSortedRowIds()
+                .map((id) => api.current.getCellValue(id, colDef.field));
+              values = await commands.putValuesInSql(uuid, colDef["data_type"], values);
+              handleCopyToClipboard(`(\n${values.join(",\n")}\n)\n`, showNotification);
+              if (onClick) onClick(event);
+            } catch (e) {
+              showNotification({
+                severity: "error",
+                title: "format value in sql failed",
+                message: e,
+              });
+            }
+          }}>
+          <ListItemIcon>{/* <ContentCopyIcon /> */}</ListItemIcon>
+          <ListItemText> Copy For in Statament </ListItemText>
+        </MenuItem>
+      )}
 
       <MenuItem
         onClick={(event) => {
           let r = [];
           let fs = getSelectFields();
-          api.current.getSortedRows().forEach((data) => {
+          api.current.getSortedRowIds().forEach((id) => {
             let o = {};
             for (const f of fs) {
-              o[f] = parseCellType(data[f]);
+              o[f] = parseCellType(api.current.getCellValue(id, f));
             }
             r.push(o);
           });

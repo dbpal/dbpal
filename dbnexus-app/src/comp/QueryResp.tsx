@@ -17,6 +17,12 @@ import {
   extractFieldAndIDFromMouseEvent,
   dataGridStyle,
   QueryRespData,
+  AppColumnMenuCtx,
+  AppColumnMenuKind,
+  columnHeaderStyle,
+  clickDataGridColumn,
+  allGridHeaderTitle,
+  gridColumnHeaderSelectClassName,
 } from "./helper.ts";
 
 import React, { useCallback, useEffect, useMemo, useState } from "react";
@@ -44,6 +50,7 @@ import {
   GridSlotsComponent,
   GridSlotsComponentsProps,
   GridSortModel,
+  useGridApiRef,
 } from "./datagridExport.ts";
 
 function RespContextMenu(props: {
@@ -97,10 +104,15 @@ function RespContextMenu(props: {
   );
 }
 
-function queryRespFix(
-  data: MuiDataGridData,
-  getColumnWidth: (field: string) => number | undefined,
-): void {
+function QueryResp(props: { data: MuiDataGridData; uuid: string }): React.ReactElement {
+  const { data, uuid } = props;
+  const { setColumnWidth, getColumnWidth } = useColumnWidthStore();
+  const [selectedColumns, setSelectColumns] = useState<Set<string>>(new Set());
+  const apiRef = useGridApiRef();
+  const [page, setPage] = useState(0);
+  const { setPageSize, sql: pageSize } = usePageSize();
+  const [viewInModal, setViewInModal] = useState<object>(null);
+
   data.data.forEach((e, index) => {
     e[keyNotInTable] = index + "";
   });
@@ -112,21 +124,20 @@ function queryRespFix(
     field["renderHeader"] = (e) => {
       const def = e.colDef as Field;
       return (
-        <Tooltip title={`${def.field} ${def.data_type}`}>
-          <span> {def.field}</span>
-        </Tooltip>
+        <Stack
+          style={{ ...columnHeaderStyle }}
+          onClick={(event) => {
+            event.stopPropagation();
+            clickDataGridColumn(apiRef, event, field.field, setSelectColumns);
+          }}>
+          <Tooltip title={`${def.field} ${def.data_type}`}>
+            <span> {def.field}</span>
+          </Tooltip>
+        </Stack>
       );
     };
   });
-}
 
-function QueryResp(props: { data: MuiDataGridData }): React.ReactElement {
-  const { data } = props;
-  const { setColumnWidth, getColumnWidth } = useColumnWidthStore();
-  queryRespFix(data, getColumnWidth);
-  const [page, setPage] = useState(0);
-  const { setPageSize, sql: pageSize } = usePageSize();
-  const [viewInModal, setViewInModal] = useState<object>(null);
   const onColumnResize = useCallback(
     ({ colDef, width }) => {
       if (!data) {
@@ -223,25 +234,47 @@ function QueryResp(props: { data: MuiDataGridData }): React.ReactElement {
               sql: {data.sql}
             </Typography>
           )}
-
-          <DataGrid
-            getRowId={getRowId}
-            slots={slots}
-            sortModel={sortModel}
-            onSortModelChange={onSortModelChange}
-            slotProps={slotProps}
-            style={dataGridStyle}
-            columns={data.fields}
-            rows={data.data}
-            showToolbar={false}
-            filterMode="client" // 使用客户端过滤
-            onColumnResize={onColumnResize}
-            paginationModel={{ page, pageSize }}
-            onPaginationModelChange={(e) => {
-              setPage(e.page);
-              setPageSize("sql", e.pageSize);
-            }}
-          />
+          <AppColumnMenuCtx
+            value={{
+              selectColumns: (function () {
+                return data.fields
+                  .filter((f) => selectedColumns.has(f.field))
+                  .map((f) => f.field);
+              })(),
+              kind: AppColumnMenuKind.QueryResp,
+              uuid,
+            }}>
+            <DataGrid
+              getCellClassName={({ field }) => {
+                if (selectedColumns.has(field)) {
+                  return "grid-column-cell-select ";
+                }
+              }}
+              onCellClick={() => {
+                setSelectColumns(new Set());
+                allGridHeaderTitle(apiRef, (x) => {
+                  x.classList.remove(gridColumnHeaderSelectClassName);
+                });
+              }}
+              apiRef={apiRef}
+              getRowId={getRowId}
+              slots={slots}
+              sortModel={sortModel}
+              onSortModelChange={onSortModelChange}
+              slotProps={slotProps}
+              style={dataGridStyle}
+              columns={data.fields}
+              rows={data.data}
+              showToolbar={false}
+              filterMode="client" // 使用客户端过滤
+              onColumnResize={onColumnResize}
+              paginationModel={{ page, pageSize }}
+              onPaginationModelChange={(e) => {
+                setPage(e.page);
+                setPageSize("sql", e.pageSize);
+              }}
+            />
+          </AppColumnMenuCtx>
         </Stack>
       )}
 
@@ -260,8 +293,11 @@ function getRowId(row: Record<string, any>): string {
   return row[keyNotInTable];
 }
 
-function MultiQueryResp(props: { data: QueryRespData[] }): React.ReactElement {
-  const { data } = props;
+function MultiQueryResp(props: {
+  data: QueryRespData[];
+  uuid: string;
+}): React.ReactElement {
+  const { data, uuid } = props;
   const [value, setValue] = React.useState(0);
 
   useEffect(() => {
@@ -286,7 +322,7 @@ function MultiQueryResp(props: { data: QueryRespData[] }): React.ReactElement {
         <Alert severity="error">{data[0].Err}</Alert>
       </StackRowCenter>
     ) : (
-      <QueryResp data={data[0].Ok} />
+      <QueryResp data={data[0].Ok} uuid={uuid} />
     );
   }
   const handleChange = (_event: React.SyntheticEvent, newValue: number): void => {
@@ -322,7 +358,7 @@ function MultiQueryResp(props: { data: QueryRespData[] }): React.ReactElement {
               {e.Err ? (
                 <Alert severity="error">{e.Err}</Alert>
               ) : (
-                <QueryResp data={e.Ok} />
+                <QueryResp data={e.Ok} uuid={uuid} />
               )}
             </div>
           );
