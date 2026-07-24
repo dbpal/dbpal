@@ -9,7 +9,7 @@ use dbnexus_db::db::{
     escape_sql_str, ColumnType, CreateDatabaseExtra, CreateIndexReq, CreateSchemaExtra,
     CreateTableAndIndexSql, CreateTableReq, CreatedTypeDef, DefAndMetas, ExportKind, Field, Index,
     ListTable, MetaValue, NamedStaff, OptionMustBeSomeErr, ProcedureDetail, QueryEventEmit,
-    QueryResp, SequenceDetail, ShowTableParameter, SqlEvent, TimeElapsed, TriggerDetail,
+    QueryResp, SequenceDetail, ShowTableParameter, SqlEvent, TimeElapsed, TriggerDetail, XlsxEdit,
 };
 use dbnexus_db::language_server::CompletionList;
 use dbnexus_db::mongo::MongoDB;
@@ -25,6 +25,7 @@ use std::str::FromStr;
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::{Arc, LazyLock, Mutex, RwLock};
 use std::time::Duration;
+use tauri::async_runtime::spawn_blocking;
 use tauri::ipc::Channel;
 use tauri::State;
 use tokio_util::sync::CancellationToken;
@@ -3040,6 +3041,24 @@ pub async fn redis_string_set(
         None => return Err(format!("uuid {} is not redis", db_name).into()),
     }
     Ok(())
+}
+
+#[specta::specta]
+#[tauri::command]
+
+pub async fn write_xlsx(path: String, data: Vec<XlsxEdit>) -> Result<(), ErrorFrontend> {
+    spawn_blocking(move || {
+        let mut workbook = rust_xlsxwriter::workbook::Workbook::new();
+        // Add a worksheet to the workbook.
+        let worksheet = workbook.add_worksheet_with_constant_memory();
+
+        for d in data {
+            worksheet.write_string(d.row, d.column, d.content)?;
+        }
+        workbook.save(path)?;
+        Ok(())
+    })
+    .await?
 }
 
 #[specta::specta]

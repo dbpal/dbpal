@@ -975,6 +975,15 @@ pub struct AiOnlineSearch {
     pub api_key: Option<String>,
 }
 
+impl From<rust_xlsxwriter::XlsxError> for ErrorFrontend {
+    fn from(value: rust_xlsxwriter::XlsxError) -> Self {
+        Self {
+            reason: format!("{}", value),
+            detail: format!("{:?}", value),
+            cancelled: false,
+        }
+    }
+}
 #[cfg(test)]
 mod tests {
     use super::*;

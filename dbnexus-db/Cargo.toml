@@ -39,7 +39,7 @@ serde.workspace = true
 async-trait.workspace = true
 redis.workspace = true
 tokio-stream = { version = "0.1.17", features = ["io-util"] }
-rust_xlsxwriter = { version = "0.96", features = ["constant_memory"] }
+rust_xlsxwriter.workspace = true
 dashmap.workspace = true
 hex.workspace = true
 mac_address = "1.1.5"

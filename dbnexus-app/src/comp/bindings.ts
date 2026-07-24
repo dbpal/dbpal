@@ -155,6 +155,7 @@ export const commands = {
 	setEnv: (env: { [key in string]: string }) => __TAURI_INVOKE<void>("set_env", { env }),
 	tableInsertSql: (dbName: string, tableName: string, values: { [key in string]: string | null }) => __TAURI_INVOKE<string>("table_insert_sql", { dbName, tableName, values }),
 	putValuesInSql: (dbName: string, typ: string, values: (string | null)[]) => __TAURI_INVOKE<string[]>("put_values_in_sql", { dbName, typ, values }),
+	writeXlsx: (path: string, data: XlsxEdit[]) => __TAURI_INVOKE<null>("write_xlsx", { path, data }),
 };
 
 /* Constants */
@@ -633,4 +634,10 @@ export type TriggerEnable = { kind: "postgres"; enable: string | null } | { kind
 export type TriggerEvent = "Insert" | "Update" | "Delete" | "InsteadOf";
 
 export type TriggerTiming = "Before" | "After" | "InsteadOf" | { String: string };
+
+export type XlsxEdit = {
+	row: number,
+	column: number,
+	content: string,
+};
 

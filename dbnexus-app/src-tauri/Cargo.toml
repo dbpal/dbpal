@@ -35,6 +35,7 @@ lazy_static.workspace = true
 log.workspace = true
 uuid.workspace = true
 thiserror = "*"
+rust_xlsxwriter.workspace = true
 hex.workspace = true
 mongodb.workspace = true
 rand.workspace = true

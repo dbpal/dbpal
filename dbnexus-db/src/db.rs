@@ -1182,7 +1182,7 @@ pub struct SequenceDetail {
     pub data_type: String,
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, serde::Serialize, serde::Deserialize, specta::Type)]
 pub struct XlsxEdit {
     pub row: rust_xlsxwriter::RowNum,
     pub column: rust_xlsxwriter::ColNum,
