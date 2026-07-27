@@ -262,10 +262,15 @@ const handleCopyToClipboard = async (
   showNotification: (_: NotificationParams) => void,
   okCallBack?: () => void,
 ) => {
-  if ((await readText()) == text) {
-    showNotification({ severity: "info", title: "Already copied to clipboard." });
-    return;
+  try {
+    if ((await readText()) == text) {
+      showNotification({ severity: "info", title: "Already copied to clipboard." });
+      return;
+    }
+  } catch (e) {
+    console.error("read clipboard failed", e);
   }
+
   writeText(text)
     .then(() => {
       if (showNotification) {

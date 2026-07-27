@@ -59,6 +59,7 @@ import AttachFileIcon from "@mui/icons-material/AttachFile";
 import {
   AppCodeExtraButtons,
   AppCodeHanleEdit,
+  arrayToMarkdownTable,
   ChatShowContext,
   createCSV,
   DataSourceKind,
@@ -2095,9 +2096,9 @@ function ExportQueryResultToFile() {
 
   const { showNotification } = useNotification();
 
-  const handleFile = async (
+  const handleWriteFile = async (
     extension: string,
-    exportFn: (_: FileHandle) => Promise<void>,
+    exportFn: (_: (_: string) => Promise<void>) => void,
   ) => {
     let fileHandle: FileHandle;
     try {
@@ -2108,7 +2109,9 @@ function ExportQueryResultToFile() {
         return;
       }
       fileHandle = await openFile(path, { write: true, truncate: true, create: true });
-      await exportFn(fileHandle);
+      await exportFn(async (x: string) => {
+        await fileHandle.write(new TextEncoder().encode(x));
+      });
       showNotification({
         severity: "success",
         title: "download ok",
@@ -2149,15 +2152,15 @@ function ExportQueryResultToFile() {
           <MenuList>
             <MenuItem
               onClick={() => {
-                handleFile("csv", async (fileHandle) => {
+                handleWriteFile("csv", async (fileHandle) => {
                   let fs = api.current.getAllColumns().map((x) => x.field);
-                  await fileHandle.write(new TextEncoder().encode(createCSV(fs)));
-                  await api.current.getSortedRowIds().forEach(async (id) => {
+                  await fileHandle(createCSV(fs));
+                  for (const id of api.current.getSortedRowIds()) {
                     let values = api.current
                       .getAllColumns()
                       .map((f) => api.current.getCellValue(id, f.field));
-                    await fileHandle.write(new TextEncoder().encode(createCSV(values)));
-                  });
+                    await fileHandle(createCSV(values));
+                  }
                 });
               }}>
               <ListItemText> Download as CSV </ListItemText>
@@ -2165,26 +2168,23 @@ function ExportQueryResultToFile() {
 
             <MenuItem
               onClick={() => {
-                handleFile("json", async (fileHandle) => {
+                handleWriteFile("json", async (fileHandle) => {
                   let first = true;
-                  fileHandle.write(new TextEncoder().encode("[\n"));
-                  api.current.getSortedRowIds().forEach((id) => {
+                  await fileHandle("[\n");
+                  for (const id of api.current.getSortedRowIds()) {
                     let o = {};
                     for (const f of api.current.getAllColumns()) {
                       o[f.field] = parseCellType(api.current.getCellValue(id, f.field));
                     }
                     if (!first) {
-                      fileHandle.write(new TextEncoder().encode(",\n"));
+                      await fileHandle(",\n");
                     }
                     if (first) {
                       first = false;
                     }
-
-                    fileHandle.write(
-                      new TextEncoder().encode(JSON.stringify(o, null, 2)),
-                    );
-                  });
-                  fileHandle.write(new TextEncoder().encode("\n]"));
+                    await fileHandle(JSON.stringify(o, null, 2));
+                  }
+                  await fileHandle("\n]");
                 });
               }}>
               <ListItemText> Download as JSON </ListItemText>
@@ -2234,15 +2234,51 @@ function ExportQueryResultToFile() {
                 let result = "";
                 const fs = api.current.getAllColumns().map((f) => f.field);
                 result += createCSV(fs);
-                api.current.getSortedRowIds().forEach((id) => {
-                  let values = api.current
+                for (const id of api.current.getSortedRowIds()) {
+                  const values = api.current
                     .getAllColumns()
                     .map((f) => api.current.getCellValue(id, f.field));
                   result += createCSV(values);
-                });
+                }
                 handleCopyToClipboard(result, showNotification);
               }}>
               <ListItemText> Copy as CSV </ListItemText>
+            </MenuItem>
+
+            <MenuItem
+              onClick={async () => {
+                const result: string[][] = [];
+                result.push(api.current.getAllColumns().map((f) => f.field));
+                for (const id of api.current.getSortedRowIds()) {
+                  const values = api.current
+                    .getAllColumns()
+                    .map((x) => api.current.getCellValue(id, x.field));
+
+                  result.push(values);
+                }
+                handleCopyToClipboard(arrayToMarkdownTable(result), showNotification);
+              }}>
+              <ListItemText> Copy as Markdown </ListItemText>
+            </MenuItem>
+
+            <MenuItem
+              onClick={async () => {
+                const result = [];
+
+                for (const id of api.current.getSortedRowIds()) {
+                  let o = {};
+                  for (const f of api.current.getAllColumns()) {
+                    o[f.field] = parseCellType(api.current.getCellValue(id, f.field));
+                  }
+                  result.push(o);
+                }
+
+                handleCopyToClipboard(
+                  JSON.stringify(result, null, 2),
+                  showNotification,
+                );
+              }}>
+              <ListItemText> Copy as JSON </ListItemText>
             </MenuItem>
           </MenuList>
         </Menu>
