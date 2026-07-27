@@ -91,6 +91,7 @@ import {
   AppDataGridToolBar,
   ClearableTextField,
   CopySql,
+  ExportQueryResultToFile,
   FetchTimeDataGrid,
   ListenElementSize,
   QueryStatus,
@@ -425,7 +426,8 @@ type CustomPaginationProps = {
   table: string;
   isTable: boolean;
 };
-export function CustomPagination({
+
+export function SqlTablePagination({
   dbpal: { resp, clientModel, uuid, kind, table, isTable },
 }: {
   dbpal: CustomPaginationProps;
@@ -455,6 +457,7 @@ export function CustomPagination({
         <FetchTimeDataGrid />
         <ResetColumnWidth />
         {clientModel && <SliderSize config={UseSizeConfig.queryLimit} />}
+        <ExportQueryResultToFile />
         {resp.sql && (
           <Tooltip title={resp.sql}>
             <Typography
@@ -1094,7 +1097,7 @@ function SqlTableView(props: {
           />
         );
       },
-      pagination: CustomPagination,
+      pagination: SqlTablePagination,
     };
   }, [isTable, kind, makePara, setUi, tableName, uuid]);
   const sortModel = clientModel ? "client" : "server";

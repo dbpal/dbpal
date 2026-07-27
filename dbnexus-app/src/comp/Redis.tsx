@@ -30,7 +30,12 @@ import ContentCopyIcon from "@mui/icons-material/ContentCopy";
 import DeleteForeverIcon from "@mui/icons-material/DeleteForever";
 import { modalStyle, reloadOK, EscDownEvent, modalHandleClose } from "./Common";
 import { openUrl } from "@tauri-apps/plugin-opener";
-import { ClearableTextField, FetchTimeDataGrid, RefreshButton } from "./CommonComp2";
+import {
+  ClearableTextField,
+  ExportQueryResultToFile,
+  FetchTimeDataGrid,
+  RefreshButton,
+} from "./CommonComp2";
 import {
   handleCopyToClipboard,
   hexToString,
@@ -1873,6 +1878,7 @@ function RedisPagination(props: { dbpal?: { showLimit: boolean } }) {
         <FetchTimeDataGrid />
         {showLimit && <SliderSize config={UseSizeConfig.queryLimit} />}
         <ResetColumnWidth />
+        <ExportQueryResultToFile />
         <DoubleClickToModify />
       </StackRowCenter>
 

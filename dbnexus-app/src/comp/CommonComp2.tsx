@@ -32,6 +32,7 @@ import {
   Checkbox,
   Chip,
   CircularProgress,
+  Divider,
   FormControlLabel,
   FormLabel,
   IconButton,
@@ -2192,7 +2193,6 @@ function ExportQueryResultToFile() {
             <MenuItem
               onClick={async () => {
                 const all: XlsxEdit[] = [];
-
                 api.current.getAllColumns().forEach((f, index) => {
                   all.push({ row: 0, column: index, content: f.field });
                 });
@@ -2206,14 +2206,13 @@ function ExportQueryResultToFile() {
                 }
                 try {
                   const path = await save({
-                    filters: [{ extensions: ["xlsx"], name: "Execel file" }],
+                    filters: [{ extensions: ["xlsx"], name: "Excel file" }],
                     defaultPath: generateDefaultFilename("export-xlsx", "xlsx"),
                   });
                   if (!path) {
                     return;
                   }
                   await commands.writeXlsx(path, all);
-
                   showNotification({
                     severity: "success",
                     message: <OpenFileWithDefaultApp file={path} />,
@@ -2228,6 +2227,22 @@ function ExportQueryResultToFile() {
                 }
               }}>
               <ListItemText> Download as Excel </ListItemText>
+            </MenuItem>
+            <Divider />
+            <MenuItem
+              onClick={async () => {
+                let result = "";
+                const fs = api.current.getAllColumns().map((f) => f.field);
+                result += createCSV(fs);
+                api.current.getSortedRowIds().forEach((id) => {
+                  let values = api.current
+                    .getAllColumns()
+                    .map((f) => api.current.getCellValue(id, f.field));
+                  result += createCSV(values);
+                });
+                handleCopyToClipboard(result, showNotification);
+              }}>
+              <ListItemText> Copy as CSV </ListItemText>
             </MenuItem>
           </MenuList>
         </Menu>

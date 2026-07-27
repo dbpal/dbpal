@@ -87,6 +87,7 @@ import {
 import {
   AppDataGridPagination,
   AppDataGridToolBar,
+  ExportQueryResultToFile,
   ListenElementSize,
   RefreshButton,
   SimpleFlexEditor,
@@ -1222,6 +1223,7 @@ function MongoTableList(props: {
             }}>
             <Stack style={{ flex: 1, alignItems: "center" }} direction="row">
               <ResetColumnWidth />
+              <ExportQueryResultToFile />
               <DoubleClickToModify />
             </Stack>
             <AppDataGridPagination showPageSelect />
