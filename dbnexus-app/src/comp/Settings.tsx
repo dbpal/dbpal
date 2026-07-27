@@ -1083,9 +1083,6 @@ function makeComponents(
 
       defaultProps: {
         density: "compact",
-        disableRowSelectionOnClick: true,
-        // showCellVerticalBorder: true,
-        // showColumnVerticalBorder: true,
         rowHeight: dataGridRowHeight,
         columnHeaderHeight: dataGridRowHeight * 1.8,
         showToolbar: true,

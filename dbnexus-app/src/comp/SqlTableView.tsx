@@ -247,7 +247,6 @@ interface SqlTableCustomToolBarLeftProps {
   kind: DataSourceKind; // 假设你已经定义了这个 Enum 或 Type
   allowFiltering: boolean;
   setAllowFiltering: Dispatch<SetStateAction<boolean>>;
-  isTable: boolean;
   uuid: string;
   tableName: string;
 }
@@ -261,7 +260,6 @@ function SqlTableCustomToolBarLeft({
   kind,
   allowFiltering,
   setAllowFiltering,
-  isTable,
   uuid,
   tableName,
 }: SqlTableCustomToolBarLeftProps) {
@@ -285,43 +283,9 @@ function SqlTableCustomToolBarLeft({
         onClick={() => handleReload(true)}
       />
 
-      {showSetWhere && (
-        <SetFilterSort
-          tableName={tableName}
-          open={showSetWhere}
-          value={where}
-          setValue={(v) => {
-            setWhere(v);
-          }}
-          handleClose={() => {
-            setShowSetWhere(false);
-          }}
-          label="filter"
-          kind={kind}
-          uuid={uuid}
-        />
-      )}
-
-      {showSetSort && (
-        <SetFilterSort
-          tableName={tableName}
-          open={showSetSort}
-          value={sort}
-          setValue={(v) => {
-            setSort(v);
-          }}
-          kind={kind}
-          handleClose={() => {
-            setShowSetSort(false);
-          }}
-          label="sort"
-          uuid={uuid}
-        />
-      )}
-
       <Tooltip title={where ? where : "filter something like 'age=18'"}>
         <Chip
-          label={where}
+          label={where ? where : "..."}
           onClick={() => setShowSetWhere(true)}
           style={{ ...shrinkAble, maxWidth: "14vw", textOverflow: "clip" }}
           size="medium"
@@ -333,7 +297,7 @@ function SqlTableCustomToolBarLeft({
 
       <Tooltip title={sort ? sort : "sort something like 'age asc'"}>
         <Chip
-          label={sort}
+          label={sort ? sort : "..."}
           onClick={() => setShowSetSort(true)}
           style={{ ...shrinkAble, maxWidth: "12vw", textOverflow: "clip" }}
           size="medium"
@@ -356,7 +320,6 @@ function SqlTableCustomToolBarLeft({
         />
       )}
 
-      {isTable && <AddTableModal kind={kind} tableName={tableName} uuid={uuid} />}
       {ops.length > 0 && (
         <>
           <Tooltip
@@ -414,6 +377,39 @@ function SqlTableCustomToolBarLeft({
           </IconButton>
         </>
       )}
+      {showSetWhere && (
+        <SetFilterSort
+          tableName={tableName}
+          open={showSetWhere}
+          value={where}
+          setValue={(v) => {
+            setWhere(v);
+          }}
+          handleClose={() => {
+            setShowSetWhere(false);
+          }}
+          label="filter"
+          kind={kind}
+          uuid={uuid}
+        />
+      )}
+
+      {showSetSort && (
+        <SetFilterSort
+          tableName={tableName}
+          open={showSetSort}
+          value={sort}
+          setValue={(v) => {
+            setSort(v);
+          }}
+          kind={kind}
+          handleClose={() => {
+            setShowSetSort(false);
+          }}
+          label="sort"
+          uuid={uuid}
+        />
+      )}
     </Stack>
   );
 }
@@ -458,6 +454,7 @@ export function SqlTablePagination({
         <ResetColumnWidth />
         {clientModel && <SliderSize config={UseSizeConfig.queryLimit} />}
         <ExportQueryResultToFile />
+        {isTable && <AddTableModal kind={kind} tableName={table} uuid={uuid} />}
         {resp.sql && (
           <Tooltip title={resp.sql}>
             <Typography
@@ -1045,7 +1042,7 @@ function SqlTableView(props: {
             kind,
             allowFiltering,
             setAllowFiltering,
-            isTable,
+
             tableName,
             uuid,
           };
@@ -1060,12 +1057,12 @@ function SqlTableView(props: {
     handleDelete,
     handleProcessRowUpdate,
     clientModel,
+    uuid,
+    tableName,
     handleReload,
     where,
     sort,
     allowFiltering,
-    tableName,
-    uuid,
   ]);
 
   const slots = useMemo((): Partial<GridSlotsComponent> => {
