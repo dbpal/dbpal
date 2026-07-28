@@ -556,14 +556,17 @@ function MetaValueView(props: { values: MetaValue[]; showToolbar: boolean }) {
  */
 function ResetColumnWidth() {
   const { showNotification } = useNotification();
-  const reset = useColumnWidthStore((s) => s.resetWidths);
+  const { resetWidths, columnWidths } = useColumnWidthStore();
   const handleReset = async () => {
-    reset();
+    resetWidths();
     showNotification({ severity: "success", title: "reset column width successfully" });
   };
   return (
     <Tooltip title="reset column width">
-      <Button onClick={handleReset} variant="outlined">
+      <Button
+        onClick={handleReset}
+        variant="outlined"
+        disabled={Object.keys(columnWidths).length == 0}>
         <RefreshIcon />
         width
       </Button>
