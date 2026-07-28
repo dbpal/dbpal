@@ -1183,10 +1183,9 @@ impl SqlBuilder for SqlServerDB {
             let ShowTableParameter {
                 where_str,
                 order_by,
-                page,
                 page_size,
                 ..
-            } = para;
+            } = &para;
             if let Some(where_str) = where_str {
                 sql.push_str(format!(" WHERE {where_str} ").as_str());
             }
@@ -1196,7 +1195,7 @@ impl SqlBuilder for SqlServerDB {
                 // sql server 的offset子句只能和order by一起使用
                 sql.push_str(" ORDER  BY (SELECT NULL) ")
             }
-            let offset = (page - 1) * page_size;
+            let offset = para.offset();
             sql.push_str(
                 format!(" OFFSET {} ROWS FETCH NEXT {} ROWS ONLY", offset, page_size).as_str(),
             );

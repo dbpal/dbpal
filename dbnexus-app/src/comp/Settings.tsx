@@ -148,7 +148,6 @@ function AppearanceSetting() {
         <Typography sx={{ ...settingTextStyle }} style={{ fontSize }}>
           font size
         </Typography>
-        <Chip label={fontSize} style={{ fontSize }} />
         <Slider
           style={{ width: "12rem" }}
           value={fontSize}
@@ -198,7 +197,6 @@ function AppearanceSetting() {
       </Stack>
       <Stack direction="row" sx={{ alignItems: "center" }}>
         <Typography sx={{ ...settingTextStyle }}>table row height factor </Typography>
-        <Typography> {datagridRowHeightFactor} </Typography>
         <Slider
           min={2}
           max={5}
@@ -241,7 +239,6 @@ function AppearanceSetting() {
             reset
           </Button>
         )}
-        <Typography color="info"> {zoom} </Typography>
         <Slider
           color="info"
           value={zoom}
@@ -250,7 +247,7 @@ function AppearanceSetting() {
           onChange={(_e, value) => {
             setZoom(value);
           }}
-          step={0.01}
+          step={0.02}
           style={{ width: "18rem" }}
         />
       </Stack>
@@ -423,9 +420,7 @@ function LLMSetting(props: { handleClose?: () => void }) {
   const { config: oldSetting, setConfig } = useLLMConfig();
   const { handleClose } = props;
   const [baseUrl, setBaseUrl] = useState(oldSetting.baseUrl);
-  const [temperature, setTemperature] = useState(
-    oldSetting.temperature ? oldSetting.temperature + "" : "",
-  );
+  const [temperature, setTemperature] = useState(oldSetting.temperature);
   const [model, setModel] = useState(oldSetting.model);
   const [apiKey, setApiKey] = useState(oldSetting.apiKey);
   const { showNotification } = useNotification();
@@ -444,7 +439,7 @@ function LLMSetting(props: { handleClose?: () => void }) {
     const config = {
       baseUrl,
       apiKey,
-      temperature: temperature ? parseFloat(temperature) : null,
+      temperature: temperature,
       model,
       maxToken: maxToken ? parseInt(maxToken) : null,
       topP: topP ? parseFloat(topP) : 0,
@@ -602,11 +597,14 @@ function LLMSetting(props: { handleClose?: () => void }) {
 
       <Stack direction="row" sx={{ alignItems: "center" }}>
         <Typography sx={{ ...settingTextStyle }}>temperature</Typography>
-        <TextField
-          helperText="only accept number"
+        <Slider
+          min={0}
+          max={2}
+          valueLabelDisplay="auto"
+          style={{ width: "12rem" }}
+          step={0.1}
           value={temperature}
-          error={temperature ? isNaN(parseFloat(temperature)) : false}
-          onChange={(e) => setTemperature(e.target.value)}
+          onChange={(_e, value) => setTemperature(value)}
         />
       </Stack>
 
@@ -647,10 +645,12 @@ function LLMSetting(props: { handleClose?: () => void }) {
           onChange={(_, value) => {
             setSearchEngine({ ...searchEngine, provider: value });
           }}
+          disabled={!searchEngine.enable}
         />
 
         {["serpapi", "tavily", "google"].includes(searchEngine.provider) && (
           <ClearableTextField
+            disabled={!searchEngine.enable}
             value={searchEngine.api_key}
             onChange={(e) => {
               setSearchEngine({ ...searchEngine, api_key: e.target.value });
@@ -1009,7 +1009,7 @@ function makeComponents(
       defaultProps: { variant: "dense" },
     },
     MuiSlider: {
-      defaultProps: { size: "small" },
+      defaultProps: { size: "small", valueLabelDisplay: "auto" },
     },
     MuiDivider: {
       styleOverrides: {
@@ -1084,7 +1084,7 @@ function makeComponents(
       defaultProps: {
         density: "compact",
         rowHeight: dataGridRowHeight,
-        columnHeaderHeight: dataGridRowHeight * 1.8,
+        columnHeaderHeight: dataGridRowHeight * 1.5,
         showToolbar: true,
         slotProps: {},
         getRowClassName: ({ id }) => {

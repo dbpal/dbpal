@@ -321,11 +321,12 @@ impl MongoDB {
         collection_name: &str,
         para: MongoShowTablePara,
     ) -> anyhow::Result<QueryResp> {
+        let offset = para.offset();
         let MongoShowTablePara {
             filter,
-            page,
             page_size,
             sort,
+            ..
         } = para;
         let db = self.get_db().await?;
         let count: u64 = db
@@ -335,7 +336,7 @@ impl MongoDB {
         let mut stream = db
             .collection::<Document>(collection_name)
             .find(filter)
-            .skip(((page - 1) * page_size).into())
+            .skip(offset.into())
             .limit(page_size as i64)
             .sort(sort)
             .await?;
@@ -355,11 +356,13 @@ impl MongoDB {
         collection_name: &str,
         para: MongoShowTablePara,
     ) -> anyhow::Result<DocsAndCount> {
+        let offset = para.offset();
+
         let MongoShowTablePara {
             filter,
-            page,
             page_size,
             sort,
+            ..
         } = para;
         let db = self.get_db().await?;
         let count = db
@@ -369,7 +372,7 @@ impl MongoDB {
         let mut stream = db
             .collection::<bson::Document>(collection_name)
             .find(filter)
-            .skip(((page - 1) * page_size).into())
+            .skip(offset.into())
             .limit(page_size as i64)
             .sort(sort)
             .await?;
@@ -387,11 +390,13 @@ impl MongoDB {
         collection_name: &str,
         para: MongoShowTablePara,
     ) -> anyhow::Result<DocsAndCount> {
+        let offset = para.offset();
+
         let MongoShowTablePara {
             filter,
-            page,
             page_size,
             sort,
+            ..
         } = para;
         let db = self.get_db().await?;
         let count = db
@@ -401,7 +406,7 @@ impl MongoDB {
         let mut stream = db
             .collection::<Document>(collection_name)
             .find(filter)
-            .skip(((page - 1) * page_size).into())
+            .skip(offset.into())
             .limit(page_size as i64)
             .sort(sort)
             .await?;
@@ -806,6 +811,12 @@ pub struct MongoShowTablePara {
     pub filter: Document,
     pub page: u32,
     pub page_size: u32,
+}
+
+impl MongoShowTablePara {
+    pub(crate) fn offset(&self) -> u32 {
+        (self.page - 1) * self.page_size
+    }
 }
 
 pub fn make_test_object() -> MongoDB {

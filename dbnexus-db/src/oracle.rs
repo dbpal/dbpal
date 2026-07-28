@@ -1507,7 +1507,6 @@ impl SqlBuilder for OracleDB {
             let ShowTableParameter {
                 where_str,
                 order_by,
-                page,
                 page_size,
                 ..
             } = &para;
@@ -1520,7 +1519,7 @@ impl SqlBuilder for OracleDB {
             format!(
                 "{} OFFSET {} ROWS FETCH NEXT {} ROWS ONLY",
                 sql,
-                (page - 1) * page_size,
+                para.offset(),
                 page_size
             )
         } else {

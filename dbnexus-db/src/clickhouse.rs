@@ -1232,11 +1232,12 @@ impl SqlBuilder for ClickHouseDB {
             "SELECT {} from `{schema}`.`{table_name}`",
             self.backend_kind().format_fields(fields)
         );
+
         if let Some(para) = para {
+            let offset = para.offset();
             let ShowTableParameter {
                 where_str,
                 order_by,
-                page,
                 page_size,
                 ..
             } = para;
@@ -1246,7 +1247,7 @@ impl SqlBuilder for ClickHouseDB {
             if let Some(order_by) = order_by {
                 sql.push_str(format!(" ORDER BY {order_by} ").as_str());
             }
-            let offset = (page - 1) * page_size;
+
             sql.push_str(format!(" LIMIT {} , {}", offset, page_size).as_str());
         }
         sql

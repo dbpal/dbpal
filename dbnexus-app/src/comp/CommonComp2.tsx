@@ -564,7 +564,6 @@ function SimpleFlexEditor(props: {
   value?: string;
   barLeft?: ReactNode;
   readOnly?: boolean;
-
   handleEditor?: (editor: editor.IStandaloneCodeEditor) => void;
   handleValue?: (value: string) => void;
 }) {

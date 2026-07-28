@@ -448,7 +448,6 @@ impl SqlBuilder for CouchBaseDB {
             let ShowTableParameter {
                 where_str,
                 order_by,
-                page,
                 page_size,
                 ..
             } = &para;
@@ -458,9 +457,7 @@ impl SqlBuilder for CouchBaseDB {
             if let Some(o) = order_by {
                 sql.push_str(format!(" ORDER BY {}", o).as_str());
             }
-            sql.push_str(
-                format!(" LIMIT {} OFFSET {}", page_size, (page - 1) * page_size).as_str(),
-            );
+            sql.push_str(format!(" LIMIT {} OFFSET {}", page_size, para.offset()).as_str());
         }
         sql
     }

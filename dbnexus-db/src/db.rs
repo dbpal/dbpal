@@ -183,6 +183,12 @@ pub struct ShowTableParameter {
 }
 
 impl ShowTableParameter {
+    pub(crate) fn offset(&self) -> u32 {
+        (self.page - 1) * self.page_size
+    }
+}
+
+impl ShowTableParameter {
     #[cfg(test)]
     pub fn new_stupid_test<'a>(order: impl Into<Option<&'a str>>) -> Self {
         let order = order.into();
