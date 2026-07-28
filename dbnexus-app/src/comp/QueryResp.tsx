@@ -35,7 +35,6 @@ import { AppColumnMenu, ResetColumnWidth, ViewRowInModal } from "./CommonComp.ts
 import VisibilityIcon from "@mui/icons-material/Visibility";
 import {
   AppDataGridPagination,
-  AppDataGridToolBar,
   ExportQueryResultToFile,
   StackRowCenter,
 } from "./CommonComp2.tsx";
@@ -53,6 +52,7 @@ import {
   GridSortModel,
   useGridApiRef,
 } from "./datagridExport.ts";
+import { CustomToolbar } from "./CustomToolBar.tsx";
 
 function RespContextMenu(props: {
   content: string;
@@ -204,7 +204,7 @@ function QueryResp(props: { data: MuiDataGridData; uuid: string }): React.ReactE
               overflow: "auto",
             }}>
             <Stack style={{ flex: 1, alignItems: "center" }} direction="row">
-              <AppDataGridToolBar disableBorder />
+              <CustomToolbar />
               <ResetColumnWidth />
               <ExportQueryResultToFile />
               <Typography color="info">rows: {data.data.length} </Typography>

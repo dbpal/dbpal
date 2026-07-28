@@ -73,6 +73,8 @@ import {
   columnHeaderStyle,
   SqlOpContext,
   AppColumnMenuKind,
+  parseCellType,
+  escapeMarkdown,
 } from "./helper";
 import { FaCopy } from "react-icons/fa6";
 import FileCopyIcon from "@mui/icons-material/FileCopy";
@@ -972,15 +974,19 @@ function SqlTableView(props: {
           const content = row[field];
           const nullable =
             resp.fields.find((e) => e.field == field).nullable && !!content;
+          const fieldDef = resp.fields.find((x) => x.field == field);
+
           setUpMenu({
             content: (
-              <Menu
+              <CellMenu
                 kind={kind}
                 editCellInModal={() => {
                   setEditCellInModal(
                     new EditInModalCellData(row, field, row[field], parseInt(id)),
                   );
                 }}
+                uuid={uuid}
+                fieldType={fieldDef.data_type}
                 editRowInModal={() => {
                   setRowEditInModal(row);
                 }}
@@ -1073,7 +1079,7 @@ function SqlTableView(props: {
       }: GridSlotProps["toolbar"] & { dbpal: SqlTableCustomToolBarLeftProps }) => {
         return (
           <AppDataGridToolBar
-            title={tableName}
+            titleName={tableName}
             right=<>
               <IconButton
                 onClick={() => {
@@ -1393,8 +1399,9 @@ function SqlTableViewData(props: {
   );
 }
 
-function Menu(props: {
+function CellMenu(props: {
   field: string;
+  fieldType: string;
   content: string;
   handleDelete?: () => void;
   setSort: Dispatch<SetStateAction<string>>;
@@ -1407,6 +1414,7 @@ function Menu(props: {
   isTable: boolean;
   setShowFilter: () => void;
   setShowClone: () => void;
+  uuid: string;
 }) {
   const {
     field,
@@ -1422,6 +1430,8 @@ function Menu(props: {
     isTable,
     setShowFilter,
     setShowClone,
+    uuid,
+    fieldType,
   } = props;
 
   const { showNotification } = useNotification();
@@ -1481,6 +1491,61 @@ function Menu(props: {
             <FaCopy fontSize="1.4rem" />
           </ListItemIcon>
           <ListItemText> Copy </ListItemText>
+        </MenuItem>
+      )}
+
+      <MenuItem
+        onClick={() => {
+          handleCopyToClipboard(field, showNotification);
+        }}>
+        <ListItemIcon>{/* <FaCopy fontSize="1.4rem" /> */}</ListItemIcon>
+        <ListItemText> Copy Column Name </ListItemText>
+      </MenuItem>
+
+      {content && (
+        <MenuItem
+          onClick={() => {
+            handleCopyToClipboard(
+              JSON.stringify({ [field]: parseCellType(content) }, null, 2),
+              showNotification,
+            );
+          }}>
+          <ListItemIcon>{/* <FaCopy fontSize="1.4rem" /> */}</ListItemIcon>
+          <ListItemText> Copy as JSON </ListItemText>
+        </MenuItem>
+      )}
+
+      {content && (
+        <MenuItem
+          onClick={() => {
+            handleCopyToClipboard(
+              `| Name |
+| ---- |
+|  ${escapeMarkdown(content)}  |`,
+              showNotification,
+            );
+          }}>
+          <ListItemIcon>{/* <FaCopy fontSize="1.4rem" /> */}</ListItemIcon>
+          <ListItemText> Copy as Markdown </ListItemText>
+        </MenuItem>
+      )}
+
+      {content && (
+        <MenuItem
+          onClick={async () => {
+            try {
+              const value = await commands.putValueInSql(uuid, fieldType, content);
+              handleCopyToClipboard(`(${value})`, showNotification);
+            } catch (e) {
+              showNotification({
+                severity: "error",
+                message: e,
+                title: "format for in failed",
+              });
+            }
+          }}>
+          <ListItemIcon>{/* <FaCopy fontSize="1.4rem" /> */}</ListItemIcon>
+          <ListItemText> Copy as For in </ListItemText>
         </MenuItem>
       )}
 

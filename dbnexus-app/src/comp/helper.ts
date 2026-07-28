@@ -800,6 +800,33 @@ function arrayToMarkdownTable(data: string[][]): string {
   return markdownLines.join("\n");
 }
 
+interface EscapeOptions {
+  /** Use strict escaping for platforms like Telegram MarkdownV2 */
+  strict?: boolean;
+}
+
+/**
+ * Escapes special characters to prevent Markdown formatting.
+ * @param text The raw input string to escape.
+ * @param options Configuration for escaping behavior.
+ * @returns The escaped safe string.
+ */
+function escapeMarkdown(text: string, options: EscapeOptions = {}): string {
+  if (!text) return "";
+
+  // Standard Markdown characters
+  // eslint-disable-next-line no-useless-escape
+  let pattern = /([\\*_`\[\](){}#\+\-\.!\|>])/g;
+
+  // Strict mode: includes extra characters like symbols, equals, and tilde (~=+=^|等)
+  if (options.strict) {
+    // eslint-disable-next-line no-useless-escape
+    pattern = /([\\*_`\[\](){}#\+\-\.!\|>#=~^])/g;
+  }
+
+  return text.replace(pattern, "\\$1");
+}
+
 const columnHeaderStyle: CSSProperties = {
   minWidth: "5rem",
   border: "2px dashed gray",
@@ -841,6 +868,7 @@ function createCSV(data: string[]): string {
 }
 
 export {
+  escapeMarkdown,
   createCSV,
   AppColumnMenuKind,
   SqlOpContext,

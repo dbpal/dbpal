@@ -298,6 +298,7 @@ function ColumnsStructure(props: {
       toolbar: () => {
         return (
           <AppDataGridToolBar
+            titleName={table}
             left=<StackRowCenter>
               <RefreshButton loading={loading} onClick={handleReload} />
               {supportModifyColumn && (
@@ -327,7 +328,7 @@ function ColumnsStructure(props: {
         );
       },
     };
-  }, [handleReload, loading, supportModifyColumn]);
+  }, [handleReload, loading, supportModifyColumn, table]);
 
   return (
     <Stack style={{ height: "100%" }}>
@@ -614,6 +615,7 @@ function IndexesStructure(props: {
       toolbar: () => {
         return (
           <AppDataGridToolBar
+            titleName={table}
             left=<Stack direction="row">
               <RefreshButton loading={loading} onClick={handleReload} />
               <IconButton
@@ -628,7 +630,7 @@ function IndexesStructure(props: {
       },
       pagination: AppDataGridPagination,
     };
-  }, [handleReload, loading]);
+  }, [handleReload, loading, table]);
 
   return (
     <Stack style={{ height: "100%" }}>
@@ -1340,6 +1342,7 @@ function TriggersStructure(props: {
       toolbar: () => {
         return (
           <AppDataGridToolBar
+            titleName={table}
             left=<StackRowCenter>
               <RefreshButton loading={loading} onClick={handleReload} />
             </StackRowCenter>
@@ -1361,7 +1364,7 @@ function TriggersStructure(props: {
         );
       },
     };
-  }, [handleReload, loading, triggers.length]);
+  }, [handleReload, loading, table, triggers.length]);
 
   return (
     <Stack style={{ height: "100%" }}>

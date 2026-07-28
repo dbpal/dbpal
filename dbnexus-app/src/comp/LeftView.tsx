@@ -182,14 +182,7 @@ function StatementStructure(props: {
 
   return (
     <Stack style={{ height: "100%" }}>
-      <Stack direction="row">
-        <RefreshButton
-          loading={loading}
-          onClick={() => {
-            handleReload();
-          }}
-        />
-      </Stack>
+      {loading && <CircularProgress />}
       {sql && <AllKindChat uuid={uuid} kind={kind} value={sql} />}
     </Stack>
   );
@@ -355,13 +348,14 @@ function ColumnsContent(props: { uuid: string; view: string }) {
       toolbar: () => {
         return (
           <AppDataGridToolBar
+            titleName={view}
             left=<RefreshButton loading={loading} onClick={handleReload} />
           />
         );
       },
       pagination: AppDataGridPagination,
     };
-  }, [handleReload, loading]);
+  }, [handleReload, loading, view]);
   return (
     <Stack style={{ height: "100%" }}>
       <DataGrid

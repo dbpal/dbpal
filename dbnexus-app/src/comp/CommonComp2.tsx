@@ -1514,26 +1514,25 @@ function AppDataGridPagination(props: {
 }
 
 function AppDataGridToolBar(props: {
-  title?: string;
+  titleName: string;
   left?: ReactNode;
   right?: ReactNode;
-  disableBorder?: boolean;
 }) {
-  const { title, left, right, disableBorder } = props;
+  const { titleName, left, right } = props;
   return (
     <Stack
       direction="row"
       style={{
         alignItems: "center",
         justifyContent: "space-between",
-        border: disableBorder ? undefined : "2px solid gray",
-        borderBottom: disableBorder ? undefined : "0.5rem solid gray",
+        border: "2px solid gray",
+        borderBottom: "0.5rem solid gray",
         borderRadius: "4px",
         padding: "2px 4px",
       }}>
       <DataGridPageKeyboardControl />
       <StackRowCenter>{left}</StackRowCenter>
-      {title && <Typography variant="h5">{title}</Typography>}
+      {titleName && <Typography variant="h5">{titleName}</Typography>}
       <Stack direction="row" style={{ alignItems: "center" }}>
         {right} <CustomToolbar />
       </Stack>

@@ -812,7 +812,7 @@ function SetToolBar({
           redisType={RedisTableType.Set}
         />
       </>
-      title={setKey}
+      titleName={setKey}
     />
   );
 }
@@ -1158,7 +1158,7 @@ function ListToolBar({
           redisType={RedisTableType.List}
         />
       </>
-      title={listKey}
+      titleName={listKey}
     />
   );
 }
@@ -1562,7 +1562,7 @@ function ZSetToolBar({
           redisType={RedisTableType.Zset}
         />
       </>
-      title={zsetKey}
+      titleName={zsetKey}
     />
   );
 }
@@ -1965,7 +1965,7 @@ function HashToolBar({
           redisType={RedisTableType.Hash}
         />
       </>
-      title={hashKey}
+      titleName={hashKey}
     />
   );
 }

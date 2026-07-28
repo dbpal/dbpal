@@ -790,6 +790,7 @@ function FavoriteSqlList() {
       toolbar: () => {
         return (
           <AppDataGridToolBar
+            titleName="favoraite sql"
             left=<>
               <StackRowCenter>
                 <Autocomplete

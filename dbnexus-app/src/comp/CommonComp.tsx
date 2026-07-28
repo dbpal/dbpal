@@ -810,11 +810,7 @@ function DataGridExtraMenuList(props: GridColumnMenuItemProps) {
   const { colDef, onClick } = props;
   const { showNotification } = useNotification();
   const api = useGridApiContext();
-
-  console.log("value getter:", colDef.valueGetter);
-
   let { selectColumns, uuid, kind } = useContext(AppColumnMenuCtx);
-
   const getSelectFields = (): string[] => {
     if (selectColumns.length) {
       if (selectColumns.includes(colDef.field)) {

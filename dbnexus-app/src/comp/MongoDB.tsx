@@ -1209,7 +1209,7 @@ function MongoTableList(props: {
     return {
       columnMenu: AppColumnMenu,
       toolbar: () => {
-        return <AppDataGridToolBar title={tableName} />;
+        return <AppDataGridToolBar titleName={tableName} />;
       },
       pagination: () => {
         return (
