@@ -2405,25 +2405,6 @@ impl<'a> CompletionStatement<'a> {
     }
 }
 
-use regex::Regex;
-
-/// 从错误字符串中提取 `Line: X, Column: Y`
-pub fn sqlparser_err_extract_line_col(error: impl Into<String>) -> (Option<u32>, Option<u32>) {
-    // 匹配两种常见格式：
-    // 1. Line: 2, Column: 14
-    // 2. line 2, column 14
-    let error = error.into();
-    let re = Regex::new(r"(?i)line\s*[:]?\s*(\d+).*column\s*[:]?\s*(\d+)")
-        .expect("this regexp must compile");
-    if let Some(caps) = re.captures(&error) {
-        let line = caps.get(1).and_then(|s| s.as_str().parse().ok());
-        let col = caps.get(2).and_then(|s| s.as_str().parse().ok());
-        (line, col)
-    } else {
-        (None, None)
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -2447,21 +2428,6 @@ mod tests {
         .equal_name(&Ident::new("ABC")));
     }
 
-    #[test]
-    fn test_extract_line_col() {
-        {
-            let err = "Expected: SELECT, VALUES, or a subquery in the query body, found: from at Line: 2, Column: 14";
-            let (line, col) = sqlparser_err_extract_line_col(err);
-            assert_eq!(line, Some(2));
-            assert_eq!(col, Some(14));
-        }
-        {
-            let err = "Expected: an SQL statement, found: 3.14 at Line: 3, Column: 22";
-            let (line, col) = sqlparser_err_extract_line_col(err);
-            assert_eq!(line, Some(3));
-            assert_eq!(col, Some(22));
-        }
-    }
     #[ignore = "this is just a test for me"]
     #[test]
     fn test_sql_statement() {

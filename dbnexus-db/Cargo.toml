@@ -71,7 +71,6 @@ bb8-tiberius = "0.16"
 tokio.workspace = true
 tokio-util.workspace = true
 rust_decimal = "*"
-regex = "*"
 oracle = { version = "0.6.3", features = ["chrono"] }
 pg_interval = "*"
 memory-stats = "1.2.0"

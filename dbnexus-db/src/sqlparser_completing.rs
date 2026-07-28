@@ -4084,32 +4084,36 @@ impl<'a> CompletionStatement<'a> {
         &self,
         item_name: &ObjectName,
     ) -> (Option<String>, String) {
-        let mut schema = None;
-        let mut item = "".to_string();
-        match item_name.0.len() {
-            1 => {
-                item = match &item_name.0[0] {
-                    ObjectNamePart::Identifier(ident) => ident.value.to_string(),
-                    ObjectNamePart::Function(..) => {
-                        // TODO support
-                        "".to_string()
-                    }
-                };
-            }
-            2 => {
-                schema = Some(match &item_name.0[0] {
-                    ObjectNamePart::Identifier(ident) => ident.value.to_string(),
-                    ObjectNamePart::Function(..) => "".to_string(),
-                });
-                item = match &item_name.0[1] {
-                    ObjectNamePart::Identifier(ident) => ident.value.to_string(),
-                    ObjectNamePart::Function(..) => "".to_string(),
-                };
-            }
-            _ => {
-                log::error!("wrong ObjectName:{:?},size not right", item_name);
-            }
-        };
-        (schema, item)
+        extract_schema_and_item(item_name)
     }
+}
+
+pub(crate) fn extract_schema_and_item(item_name: &ObjectName) -> (Option<String>, String) {
+    let mut schema = None;
+    let mut item = "".to_string();
+    match item_name.0.len() {
+        1 => {
+            item = match &item_name.0[0] {
+                ObjectNamePart::Identifier(ident) => ident.value.to_string(),
+                ObjectNamePart::Function(..) => {
+                    // TODO support
+                    "".to_string()
+                }
+            };
+        }
+        2 => {
+            schema = Some(match &item_name.0[0] {
+                ObjectNamePart::Identifier(ident) => ident.value.to_string(),
+                ObjectNamePart::Function(..) => "".to_string(),
+            });
+            item = match &item_name.0[1] {
+                ObjectNamePart::Identifier(ident) => ident.value.to_string(),
+                ObjectNamePart::Function(..) => "".to_string(),
+            };
+        }
+        _ => {
+            log::error!("wrong ObjectName:{:?},size not right", item_name);
+        }
+    };
+    (schema, item)
 }

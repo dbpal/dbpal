@@ -74,7 +74,7 @@ import {
   SqlOpContext,
   AppColumnMenuKind,
   parseCellType,
-  escapeMarkdown,
+  arrayToMarkdownTable,
 } from "./helper";
 import { FaCopy } from "react-icons/fa6";
 import FileCopyIcon from "@mui/icons-material/FileCopy";
@@ -979,6 +979,13 @@ function SqlTableView(props: {
           setUpMenu({
             content: (
               <CellMenu
+                getRow={() => {
+                  const ret = {};
+                  for (const f of apiRef.current.getAllColumns()) {
+                    ret[f.field] = apiRef.current.getCellValue(id, f.field);
+                  }
+                  return ret;
+                }}
                 kind={kind}
                 editCellInModal={() => {
                   setEditCellInModal(
@@ -1059,11 +1066,12 @@ function SqlTableView(props: {
     resp,
     setUpMenu,
     kind,
+    uuid,
     isTable,
+    apiRef,
     handleDelete,
     handleProcessRowUpdate,
     clientModel,
-    uuid,
     tableName,
     handleReload,
     where,
@@ -1415,6 +1423,7 @@ function CellMenu(props: {
   setShowFilter: () => void;
   setShowClone: () => void;
   uuid: string;
+  getRow: () => object;
 }) {
   const {
     field,
@@ -1432,6 +1441,7 @@ function CellMenu(props: {
     setShowClone,
     uuid,
     fieldType,
+    getRow,
   } = props;
 
   const { showNotification } = useNotification();
@@ -1505,10 +1515,11 @@ function CellMenu(props: {
       {content && (
         <MenuItem
           onClick={() => {
-            handleCopyToClipboard(
-              JSON.stringify({ [field]: parseCellType(content) }, null, 2),
-              showNotification,
-            );
+            const row = getRow();
+            for (const x in row) {
+              row[x] = parseCellType(row[x]);
+            }
+            handleCopyToClipboard(JSON.stringify(row, null, 2), showNotification);
           }}>
           <ListItemIcon>{/* <FaCopy fontSize="1.4rem" /> */}</ListItemIcon>
           <ListItemText> Copy as JSON </ListItemText>
@@ -1518,12 +1529,11 @@ function CellMenu(props: {
       {content && (
         <MenuItem
           onClick={() => {
-            handleCopyToClipboard(
-              `| Name |
-| ---- |
-|  ${escapeMarkdown(content)}  |`,
-              showNotification,
-            );
+            const row = getRow();
+            const result: string[][] = [];
+            result.push(Object.keys(row));
+            result.push(Object.keys(row).map((x) => row[x]));
+            handleCopyToClipboard(arrayToMarkdownTable(result), showNotification);
           }}>
           <ListItemIcon>{/* <FaCopy fontSize="1.4rem" /> */}</ListItemIcon>
           <ListItemText> Copy as Markdown </ListItemText>
