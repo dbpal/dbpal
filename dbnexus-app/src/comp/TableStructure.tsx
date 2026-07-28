@@ -145,6 +145,9 @@ function ColumnsStructure(props: {
     commands
       .showTableColumns(uuid, table)
       .then((data) => {
+        data.forEach((e, index) => {
+          e["id"] = index;
+        });
         setFields(data);
       })
       .catch((e) => {
@@ -276,10 +279,6 @@ function ColumnsStructure(props: {
     };
   }, [handleDrop, setUpMenu, supportModifyColumn]);
 
-  const getRowId = useCallback((e: Record<string, any>) => {
-    return e["field"];
-  }, []);
-
   const onRowDoubleClick = useCallback((row: { row: Field }) => {
     setRow(row.row);
   }, []);
@@ -334,7 +333,6 @@ function ColumnsStructure(props: {
     <Stack style={{ height: "100%" }}>
       <DataGrid
         slots={slots}
-        getRowId={getRowId}
         slotProps={slotProps}
         onColumnResize={onColumnResize}
         columns={cols}

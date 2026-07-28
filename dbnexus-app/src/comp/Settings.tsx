@@ -1089,7 +1089,7 @@ function makeComponents(
         slotProps: {},
         getRowClassName: ({ id }) => {
           const x = typeof id == "number" ? id : parseInt(id);
-          if (isNumber(x) && x % 2 == 0) {
+          if (isNumber(x) && x % 2 == 1) {
             return "MuiDataGrid-row--even";
           }
           return "";
