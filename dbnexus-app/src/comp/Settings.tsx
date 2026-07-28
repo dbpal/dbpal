@@ -197,18 +197,17 @@ function AppearanceSetting() {
       </Stack>
       <Stack direction="row" sx={{ alignItems: "center" }}>
         <Typography sx={{ ...settingTextStyle }}>table row height factor </Typography>
-        <Slider
-          min={2}
-          max={5}
-          step={0.1}
-          value={datagridRowHeightFactor}
-          onChange={(_e, value) => {
-            setDatagridRowHeightFactor(value);
-          }}
-          style={{ width: "12rem" }}
-        />
         <Tooltip title="a float value,this parameter multiply font size as the table row height">
-          <Typography> ?? </Typography>
+          <Slider
+            min={2}
+            max={5}
+            step={0.1}
+            value={datagridRowHeightFactor}
+            onChange={(_e, value) => {
+              setDatagridRowHeightFactor(value);
+            }}
+            style={{ width: "12rem" }}
+          />
         </Tooltip>
       </Stack>
 
@@ -229,7 +228,6 @@ function AppearanceSetting() {
       <SetBgColor theme="light" bgColor={lightBgColor} setBgColor={setLightBgColor} />
       <Stack direction="row" sx={{ alignItems: "center" }}>
         <Typography sx={{ ...settingTextStyle }}>zoom</Typography>
-
         {zoom != 1 && (
           <Button
             variant="text"
@@ -247,7 +245,7 @@ function AppearanceSetting() {
           onChange={(_e, value) => {
             setZoom(value);
           }}
-          step={0.02}
+          step={0.05}
           style={{ width: "18rem" }}
         />
       </Stack>

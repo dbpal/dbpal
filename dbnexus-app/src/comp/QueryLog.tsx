@@ -1,6 +1,5 @@
 import {
   AlertTitle,
-  Button,
   Checkbox,
   Dialog,
   FormControlLabel,
@@ -21,6 +20,7 @@ import {
   saveQueryKey,
   secondConfirm,
 } from "./helper.ts";
+import DeleteForeverIcon from "@mui/icons-material/DeleteForever";
 import { ResizeParentHeight } from "./CommonComp.tsx";
 import { BsFillLightbulbFill } from "react-icons/bs";
 import {
@@ -188,7 +188,7 @@ function QueryLog(props: {
         </StackRowCenter>
         <StackRowCenter>
           {logs.length > 0 && (
-            <Button
+            <IconButton
               onClick={async () => {
                 try {
                   const confirm = await secondConfirm({
@@ -213,8 +213,8 @@ function QueryLog(props: {
                   return;
                 }
               }}>
-              delete
-            </Button>
+              <DeleteForeverIcon color="warning" />
+            </IconButton>
           )}
           <Tooltip title={`auto save query log to local database maybe danger.`}>
             <FormControlLabel
