@@ -8,8 +8,6 @@ use crate::sqlparser_completion::TempTableColumn;
 use cql3_parser::cassandra_ast::CassandraAST;
 use cql3_parser::cassandra_statement::CassandraStatement;
 use futures_util::StreamExt;
-use scylla::client::session::Session;
-use std::sync::Arc;
 #[async_trait::async_trait]
 impl GetKeyWords for CassandraDB {
     async fn key_words(&self) -> anyhow::Result<Vec<String>> {
@@ -48,7 +46,7 @@ impl LanguageServer for CassandraDB {
         match dot {
             Ok(x) => return anyhow::Ok(x),
             Err(err) => {
-                log::error!("try dot failed: {:?}", err);
+                log::error!("try dot failed: {}", err);
             }
         }
         return LexerCompletionTrait::do_auto_completion(self, sql, line, col).await;
@@ -116,15 +114,6 @@ impl LexerCompletionTrait for CassandraDB {
     }
 }
 
-impl CassandraDB {
-    fn get_query_session(&self) -> anyhow::Result<Arc<Session>> {
-        match self.query_connection.get(&self.completion_id.get()) {
-            Some(x) => anyhow::Ok(x.clone()),
-            None => anyhow::bail!("connection closed???"),
-        }
-    }
-}
-
 #[async_trait::async_trait]
 impl LangServerCommon for CassandraDB {
     async fn list_index(&self, key_space: Option<&str>) -> anyhow::Result<Vec<String>> {
@@ -162,13 +151,12 @@ impl LangServerCommon for CassandraDB {
             key_space, table_name,
         );
         log::info!("sql:{}", sql);
-        let session = self.get_query_session()?;
-        let pager = session.query_iter(sql, &[]).await?;
-        let mut stram = pager.rows_stream::<(String, String)>()?;
-        let mut result = Vec::new();
-        while let Some(x) = stram.next().await {
-            let (name, data_type) = x?;
 
+        let pager = self.session.query_iter(sql, &[]).await?;
+        let mut stream = pager.rows_stream::<(String, String)>()?;
+        let mut result = Vec::new();
+        while let Some(x) = stream.next().await {
+            let (name, data_type) = x?;
             result.push(TempTableColumn {
                 name,
                 data_type: Some(data_type), // Cassandra does not provide data type in this query
@@ -217,7 +205,7 @@ impl LangServerCommon for CassandraDB {
     }
     async fn list_table(&self, key_space: Option<&str>) -> anyhow::Result<Vec<String>> {
         let key_space = self.need_key_space(key_space).await?;
-        // log::trace!("cassandra list table by space name:{}", key_space);
+        println!("cassandra list table by space name:{}", key_space);
         CassandraDB::list_table_impl(self, &key_space)
             .await
             .map(|x| x.into_iter().map(|x| x.name).collect())
@@ -253,8 +241,7 @@ impl CassandraDB {
         "#
         );
         log::info!("sql:{}", sql);
-        let session = self.get_query_session()?;
-        let rows = session.query_iter(sql, &[]).await?;
+        let rows = self.session.query_iter(sql, &[]).await?;
         let mut stream = rows.rows_stream::<(String,)>()?;
         let mut ret = Vec::new();
         while let Some(row) = stream.next().await {
@@ -271,12 +258,16 @@ impl CassandraDB {
         if let Some(key_space) = key_space {
             return anyhow::Ok(key_space.to_string());
         }
-        let session = self.get_query_session()?;
-        if let Some(x) = session.get_keyspace() {
-            return anyhow::Ok(x.as_str().to_string());
+        match self.query_connection.get(&self.completion_id.get()) {
+            Some(session) => {
+                if let Some(key_space) = session.get_keyspace() {
+                    return anyhow::Ok(key_space.as_str().to_string());
+                }
+            }
+            _ => {}
         }
         match &self.config.db {
-            Some(x) => anyhow::Ok(x.clone()),
+            Some(key_space) => anyhow::Ok(key_space.clone()),
             None => Err(anyhow::Error::msg("need provide key space")),
         }
     }
@@ -546,5 +537,30 @@ mod tests {
             println!("{}", name.item)
         }
         assert!(x.from_dot);
+    }
+
+    #[ignore = "run manually"]
+    #[tokio::test]
+    async fn xxx_2() {
+        enable_test_log();
+        let db = make_test_object(Some("test".to_string())).await;
+
+        let x = LanguageServer::auto_completion(
+            &db,
+            Some("".to_string()),
+            include_str!("./xxx.sql"),
+            1,
+            40,
+            true,
+        )
+        .await
+        .unwrap();
+        for name in x.items.iter() {
+            if name.item.contains("int_value") {
+                println!("{:?}", name);
+                return;
+            }
+        }
+        println!("no int value found...");
     }
 }
