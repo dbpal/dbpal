@@ -472,6 +472,7 @@ export const useConnLoading = create<{
   loading: Set<string>;
   setLoading: (name: string, loading: boolean) => void;
   isLoading: (name: string) => boolean;
+  removeLoading: (name: string) => void;
 }>((set, get) => ({
   loading: new Set(),
 
@@ -488,6 +489,13 @@ export const useConnLoading = create<{
       }
       return { loading: nextSet };
     }),
+  removeLoading: (name) => {
+    set((state) => {
+      const nextSet = new Set(state.loading);
+      nextSet.delete(name);
+      return { loading: nextSet };
+    });
+  },
 }));
 
 interface PageSizeState {

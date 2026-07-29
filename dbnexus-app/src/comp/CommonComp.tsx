@@ -401,7 +401,8 @@ function MenuDeleteConfig(props: { name: string }) {
 
   const { removeConnection } = useConnectionStore();
   const { deleteByConnectionName: delFav } = useFavoriteStore();
-
+  const { removeConnected } = useConnected();
+  const { removeLoading } = useConnLoading();
   const { deleteByName: delQueryLog } = useQueryLogStore();
   const handleDelete = async () => {
     const confirm = await secondConfirm({
@@ -415,7 +416,9 @@ function MenuDeleteConfig(props: { name: string }) {
       await commands.closeConn(name);
       await delFav(name);
       await delQueryLog(name);
-      await removeConnection(name);
+      removeConnection(name);
+      removeConnected(name);
+      removeLoading(name);
     } catch (e) {
       showNotification({
         severity: "error",
