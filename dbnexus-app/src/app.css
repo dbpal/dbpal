@@ -16,10 +16,5 @@
 }
 
 .grid-column-header-select {
-  background-color: yellow !important ;
-  color: black;
-}
-
-.grid-column-cell-select {
-  color: yellow;
+  border: 2px solid rgb(224, 117, 17);
 }

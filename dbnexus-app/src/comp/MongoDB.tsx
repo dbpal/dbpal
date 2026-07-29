@@ -1264,7 +1264,7 @@ function MongoTableList(props: {
             }}
             getCellClassName={({ field }) => {
               if (selectedColumns.has(field)) {
-                return "grid-column-cell-select ";
+                return gridColumnHeaderSelectClassName;
               }
             }}
             onCellClick={() => {

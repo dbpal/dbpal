@@ -980,7 +980,7 @@ function RedisSetTable(props: { setKey: string; uuid: string }) {
             }}
             getCellClassName={({ field }) => {
               if (selectedColumns.has(field)) {
-                return "grid-column-cell-select ";
+                return gridColumnHeaderSelectClassName;
               }
             }}
             onCellClick={() => {
@@ -1368,7 +1368,7 @@ function RedisListTable(props: { listKey: string; uuid: string }) {
           <DataGrid
             getCellClassName={({ field }) => {
               if (selectedColumns.has(field)) {
-                return "grid-column-cell-select ";
+                return gridColumnHeaderSelectClassName;
               }
             }}
             onCellClick={() => {
@@ -1801,7 +1801,7 @@ function RedisZsetTable(props: { uuid: string; zsetKey: string }) {
             }}
             getCellClassName={({ field }) => {
               if (selectedColumns.has(field)) {
-                return "grid-column-cell-select ";
+                return gridColumnHeaderSelectClassName;
               }
             }}
             onCellClick={() => {
@@ -2153,7 +2153,7 @@ function RedisHashTable(props: { hashKey: string; uuid: string }) {
             }}
             getCellClassName={({ field }) => {
               if (selectedColumns.has(field)) {
-                return "grid-column-cell-select ";
+                return gridColumnHeaderSelectClassName;
               }
             }}
             onCellClick={() => {
