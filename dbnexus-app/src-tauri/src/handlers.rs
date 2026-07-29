@@ -9,7 +9,8 @@ use dbnexus_db::db::{
     escape_sql_str, ColumnType, CreateDatabaseExtra, CreateIndexReq, CreateSchemaExtra,
     CreateTableAndIndexSql, CreateTableReq, CreatedTypeDef, DefAndMetas, ExportKind, Field, Index,
     ListTable, MetaValue, NamedStaff, OptionMustBeSomeErr, ProcedureDetail, QueryEventEmit,
-    QueryResp, SequenceDetail, ShowTableParameter, SqlEvent, TimeElapsed, TriggerDetail, XlsxEdit,
+    QueryResp, SequenceDetail, ShowTableParameter, SqlEvent, TableImportPara, TimeElapsed,
+    TriggerDetail, XlsxEdit,
 };
 use dbnexus_db::language_server::CompletionList;
 use dbnexus_db::mongo::MongoDB;
@@ -3221,6 +3222,23 @@ pub async fn drop_created_type(
 #[tauri::command]
 pub async fn command_panic() -> Result<(), ErrorFrontend> {
     panic!("this is a panic for testing.")
+}
+
+#[specta::specta]
+#[tauri::command]
+pub async fn table_import_from_file(
+    db_name: String,
+    table_name: String,
+    kind: TableImportPara,
+    dbpal: tauri::State<'_, DBPal>,
+) -> Result<(), ErrorFrontend> {
+    random_sleep().await;
+    random_error()?;
+    let schema = dbpal.get_schema(&db_name).await?;
+    schema
+        .table_import_data_from_file(&table_name, kind)
+        .await
+        .map_err(ErrorFrontend::from)
 }
 
 #[derive(serde::Serialize, specta::Type)]

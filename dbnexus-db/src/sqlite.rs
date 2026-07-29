@@ -1387,7 +1387,7 @@ mod tests {
     use super::*;
     use crate::db::{
         CreateIndexColumn, CreateTableReq, CreateTableReqColumn, GetTestExportTableKinds,
-        ShowTableParameter, SqlNullAble, TestQueryEventEmit,
+        ShowTableParameter, SqlNullAble, TableImportPara, TestQueryEventEmit,
     };
 
     #[tokio::test]
@@ -2067,5 +2067,24 @@ mod tests {
             .await
             .unwrap();
         println!("view value:{:?}", list);
+    }
+
+    #[tokio::test]
+
+    async fn test_import_file() {
+        let table = "Persons";
+
+        let db = make_test_object().await;
+
+        let _ = db.truncate_table(table).await;
+
+        db.table_import_data_from_file(
+            table,
+            TableImportPara::Csv {
+                path: "/home/yuyang/Downloads/Persons.csv".to_owned(),
+            },
+        )
+        .await
+        .unwrap();
     }
 }

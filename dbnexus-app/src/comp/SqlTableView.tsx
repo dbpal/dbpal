@@ -120,8 +120,9 @@ import {
   useTableColumnVisibleStore,
   useTabsManage,
 } from "./store";
-import { commands, Field, MuiDataGridData } from "./bindings";
+import { commands, Field, MuiDataGridData, TableImportPara } from "./bindings";
 import { ExportTableOrView } from "./Export";
+import UploadIcon from "@mui/icons-material/Upload";
 import {
   DataGrid,
   GridCallbackDetails,
@@ -136,6 +137,7 @@ import {
   useGridApiRef,
   useGridSelector,
 } from "./datagridExport";
+import { open } from "@tauri-apps/plugin-dialog";
 
 const confirmAboutPrimary = async (fields: Field[]): Promise<boolean> => {
   const hasPri = !!fields.find((x) => x.is_primary);
@@ -424,6 +426,55 @@ type CustomPaginationProps = {
   table: string;
   isTable: boolean;
 };
+function ImportDataFromFile(props: { uuid: string; table: string }) {
+  const { uuid, table } = props;
+  const { showNotification } = useNotification();
+
+  const [loading, setLoading] = useState(false);
+  return (
+    <Tooltip title="insert data from a file">
+      <IconButton
+        loading={loading}
+        onClick={async () => {
+          try {
+            const path = await open({
+              title: "import file",
+              filters: [
+                { extensions: ["csv"], name: "csv" },
+                { extensions: ["json"], name: "json" },
+              ],
+            });
+            if (!path) {
+              return;
+            }
+            let para: TableImportPara = null;
+            const pathLower = path.toLowerCase();
+
+            if (pathLower.endsWith(".csv")) {
+              para = { import_type: "csv", path };
+            } else if (pathLower.endsWith(".json")) {
+              para = { import_type: "json", path };
+            } else {
+              showNotification({ severity: "error", title: "unsupport file type" });
+              return;
+            }
+            setLoading(true);
+            await commands.tableImportFromFile(uuid, table, para);
+          } catch (e) {
+            showNotification({
+              severity: "error",
+              message: e,
+              title: "import data from file failed",
+            });
+          } finally {
+            setLoading(false);
+          }
+        }}>
+        <UploadIcon />
+      </IconButton>
+    </Tooltip>
+  );
+}
 
 export function SqlTablePagination({
   dbpal: { resp, clientModel, uuid, kind, table, isTable },
@@ -455,7 +506,10 @@ export function SqlTablePagination({
         <FetchTimeDataGrid />
         <ResetColumnWidth />
         {clientModel && <SliderSize config={UseSizeConfig.queryLimit} />}
+        {isTable && <ImportDataFromFile uuid={uuid} table={table} />}
+
         <ExportQueryResultToFile />
+
         {isTable && <AddTableModal kind={kind} tableName={table} uuid={uuid} />}
         {resp.sql && (
           <Tooltip title={resp.sql}>

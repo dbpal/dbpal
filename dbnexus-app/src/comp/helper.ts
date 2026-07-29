@@ -699,7 +699,7 @@ const AppColumnMenuCtx = createContext<{
   kind: AppColumnMenuKind;
 }>(null);
 
-export const gridColumnHeaderSelectClassName = "grid-column-header-select";
+export const gridColumnHeaderSelectClassName = "grid-cell-select-highlight";
 
 // 有些地方不好用状态变量来做
 // 这里的是命令式的写法 目前就是

@@ -15,6 +15,6 @@
   box-shadow: 0 0 4px;
 }
 
-.grid-column-header-select {
-  border: 2px solid rgb(224, 117, 17);
+.grid-cell-select-highlight {
+  border: 2px solid rgb(204, 235, 3);
 }

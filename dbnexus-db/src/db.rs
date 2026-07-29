@@ -182,6 +182,14 @@ pub struct ShowTableParameter {
     pub tab_size: u32,
 }
 
+#[derive(serde::Deserialize, Clone, Debug, specta::Type)]
+#[serde(tag = "import_type", rename_all = "lowercase")]
+pub enum TableImportPara {
+    Csv { path: String },
+    JSON { path: String },
+    // JSONLINE { path: String },
+}
+
 impl ShowTableParameter {
     pub(crate) fn offset(&self) -> u32 {
         (self.page - 1) * self.page_size
@@ -410,6 +418,73 @@ pub trait SchemaTrait:
     ) -> anyhow::Result<String> {
         self.backend_kind().not_support_feature()
     }
+
+    async fn table_import_data_from_file(
+        &self,
+        table: &str,
+        data: TableImportPara,
+    ) -> anyhow::Result<()> {
+        let (sender, mut receiver) =
+            tokio::sync::mpsc::channel::<HashMap<String, Option<String>>>(10);
+
+        let cols = self.show_table_columns(table).await?;
+        let mut cols_map = HashMap::new();
+        cols.into_iter().for_each(|x| {
+            cols_map.insert(x.field.clone(), x);
+        });
+        // read data from the file
+        let task_read = spawn_blocking(move || -> anyhow::Result<()> {
+            match data {
+                TableImportPara::Csv { path } => {
+                    let mut reader = csv::Reader::from_path(path)?;
+                    let headers: Vec<_> = reader.headers()?.iter().map(|x| x.to_string()).collect();
+                    for csv_line in reader.records() {
+                        let csv_line = csv_line?;
+
+                        let mut values = HashMap::new();
+                        for (index, h) in headers.iter().enumerate() {
+                            values.insert(
+                                h.clone(),
+                                csv_line
+                                    .get(index)
+                                    .map(|x| {
+                                        if x.is_empty() {
+                                            None
+                                        } else {
+                                            Some(x.to_owned())
+                                        }
+                                    })
+                                    .flatten(),
+                            );
+                        }
+                        println!("!!!!!!!!!!!!!!values:{:?} {:?}", values, headers);
+
+                        sender.blocking_send(values)?;
+                    }
+                }
+                TableImportPara::JSON { path: _ } => todo!(),
+                // TableImportPara::JSONLINE { path } => todo!(),
+            }
+            anyhow::Ok(())
+        });
+
+        let this = SchemaTrait::clone(self);
+        let table = table.to_owned();
+
+        let task_write = tokio::spawn(async move {
+            // get the  value
+            while let Some(record) = receiver.recv().await {
+                this.table_insert(&table, record).await?;
+            }
+            anyhow::Ok(())
+        });
+        let (res1, res2) = tokio::join!(task_read, task_write);
+
+        res1??;
+
+        res2?
+    }
+
     async fn add_table_column(
         &self,
         _table: &str,

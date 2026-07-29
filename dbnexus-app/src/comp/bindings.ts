@@ -156,6 +156,7 @@ export const commands = {
 	tableInsertSql: (dbName: string, tableName: string, values: { [key in string]: string | null }) => __TAURI_INVOKE<string>("table_insert_sql", { dbName, tableName, values }),
 	putValuesInSql: (dbName: string, typ: string, values: (string | null)[]) => __TAURI_INVOKE<string[]>("put_values_in_sql", { dbName, typ, values }),
 	writeXlsx: (path: string, data: XlsxEdit[]) => __TAURI_INVOKE<null>("write_xlsx", { path, data }),
+	tableImportFromFile: (dbName: string, tableName: string, kind: TableImportPara) => __TAURI_INVOKE<null>("table_import_from_file", { dbName, tableName, kind }),
 };
 
 /* Constants */
@@ -622,6 +623,8 @@ export type SqliteDBConfig = {
 	read_only: boolean,
 	conn_timeout: ConnTimeOut | null,
 };
+
+export type TableImportPara = { import_type: "csv"; path: string } | { import_type: "json"; path: string };
 
 export type TriggerDetail = {
 	timing: TriggerTiming,
