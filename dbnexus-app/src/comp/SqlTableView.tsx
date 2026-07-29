@@ -1676,18 +1676,23 @@ function FilterOnValue(props: {
           />
         ))}
       </Stack>
-      <Stack direction="row">
-        {["null", "not null"].map((e) => (
-          <Chip
-            label={e}
-            color={filter == e ? "success" : "default"}
-            onClick={() => {
-              setFilter(e);
-            }}
-            key={e}
-          />
-        ))}
-      </Stack>
+
+      {/* cassandra not support this syntax  */}
+      {kind != DataSourceKind.Cassandra && (
+        <Stack direction="row">
+          {["null", "not null"].map((e) => (
+            <Chip
+              label={e}
+              color={filter == e ? "success" : "default"}
+              onClick={() => {
+                setFilter(e);
+              }}
+              key={e}
+            />
+          ))}
+        </Stack>
+      )}
+
       {formatValue.endsWith("'") && (
         <Stack direction="row">
           {["starts", "ends", "contains"].map((e) => (

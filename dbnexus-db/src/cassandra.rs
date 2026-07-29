@@ -110,7 +110,7 @@ async fn make_session(config: &CassandraDBConfig) -> anyhow::Result<Session> {
 
     let session = builder.build().await?;
     if let Some(key_space) = config.db.as_ref() {
-        session.use_keyspace(key_space, false).await?;
+        session.use_keyspace(key_space, true).await?;
     }
     anyhow::Ok(session)
 }
