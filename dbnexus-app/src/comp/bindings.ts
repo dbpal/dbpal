@@ -172,15 +172,17 @@ export type AiOnlineSearch = {
 
 export type CassandraDBConfig = {
 	host: string,
-	port: number | null,
+	port: number,
 	username: string | null,
 	password: string | null,
 	db: string | null,
 	read_only: boolean,
 	ssl: CassandraSsl,
 	conn_timeout: ConnTimeOut | null,
-	is_scylla?: boolean,
+	dialect: CassandraDialect,
 };
+
+export type CassandraDialect = "Cassandra" | "Scylla";
 
 export type CassandraSsl = (SSLFiles);
 

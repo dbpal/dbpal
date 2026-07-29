@@ -60,6 +60,7 @@ import {
   LibSqlDBConfig,
   Db2Config,
   CouchBaseDBConfig,
+  CassandraDialect,
 } from "./bindings.ts";
 
 /**
@@ -1094,8 +1095,9 @@ function MongoDb(props: { config?: MongoDBConfig; context: AddConnectionContext 
 function Cassandra(props: {
   config?: CassandraDBConfig;
   context: AddConnectionContext;
+  dialect: CassandraDialect;
 }) {
-  const { config, context } = props;
+  const { config, context, dialect } = props;
   const [host, setHost] = useState(getHost(config));
   const [port, setPort] = useState((config?.port || 9042) + "");
   const [user, setUser] = useState(getUser(config));
@@ -1116,6 +1118,7 @@ function Cassandra(props: {
       read_only: readOnly,
       conn_timeout: connTimeOut,
       port: parseInt(port),
+      dialect,
       ssl: { ssl_ca: null, ssl_cert: null, ssl_key: null },
     };
   }
@@ -1344,10 +1347,14 @@ function AddConnection(props: { config?: DBConnectionConfig }) {
         )}
 
         {connectionType === DataSourceKind.Cassandra && (
-          <Cassandra context={context} config={config as CassandraDBConfig} />
+          <Cassandra
+            context={context}
+            config={config as CassandraDBConfig}
+            dialect={"Cassandra"}
+          />
         )}
         {connectionType == "scylla" && (
-          <Cassandra context={context} config={config as CassandraDBConfig} />
+          <Cassandra context={context} config={config as CassandraDBConfig}  dialect="Scylla" />
         )}
         {connectionType === DataSourceKind.Redis && (
           <Redis context={context} config={config as RedisDBConfig} />

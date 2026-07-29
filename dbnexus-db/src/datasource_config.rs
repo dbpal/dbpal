@@ -349,6 +349,13 @@ pub struct CassandraDBConfig {
     pub read_only: bool,
     pub ssl: CassandraSsl,
     pub conn_timeout: Option<ConnTimeOut>,
+    pub dialect: CassandraDialect,
+}
+
+#[derive(Debug, Clone, serde::Deserialize, serde::Serialize, specta::Type)]
+pub enum CassandraDialect {
+    Cassandra,
+    Scylla,
 }
 
 #[derive(Debug, Clone, serde::Deserialize, serde::Serialize, specta::Type)]

@@ -27,6 +27,8 @@
 //
 
 use crate::datasource_config::CassandraDBConfig;
+#[cfg(test)]
+use crate::datasource_config::CassandraDialect;
 use crate::db::{
     create_html_table_data, create_html_table_header, create_markdown_data, create_markdown_header,
     escape_sql_str, export_query_as_xlsx_send_data, AutoCompletionQueryId, BackendKind, CheckConn,
@@ -1285,6 +1287,7 @@ pub(crate) async fn make_test_object(db: Option<String>) -> CassandraDB {
         password: Some("cassandra".to_string()),
         read_only: false,
         db,
+        dialect: CassandraDialect::Cassandra,
         conn_timeout: None,
 
         ssl: CassandraSsl {
