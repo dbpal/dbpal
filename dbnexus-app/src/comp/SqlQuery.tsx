@@ -322,20 +322,6 @@ function SqlQuery(props: {
   }, []);
 
   useEffect(() => {
-    if (!editor) {
-      return;
-    }
-    let x = editor.getModel().onDidChangeContent(() => {
-      if (markdownModel) {
-        return;
-      }
-    });
-    return () => {
-      x.dispose();
-    };
-  }, [editor, markdownModel, uuid]);
-
-  useEffect(() => {
     setMakeConnLoading(true);
     conn.current
       .open()
@@ -622,6 +608,7 @@ function SqlQuery(props: {
             <AiMarkdownModelSwitch
               setMarkdownModel={setMarkdownModel}
               markdownModel={markdownModel}
+              uuid={uuid}
             />
             {querySomeShow.get(tabCtx.id)}
 

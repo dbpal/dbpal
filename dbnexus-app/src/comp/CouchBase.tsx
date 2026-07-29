@@ -741,6 +741,7 @@ function CouchBaseQuery(props: { uuid: string; value?: string }) {
             <AiMarkdownModelSwitch
               setMarkdownModel={setMarkdownModel}
               markdownModel={markdownModel}
+              uuid={uuid}
             />
             <FetchTimeAndLoadingStatus isLoading={loading} />
             <SliderSize config={UseSizeConfig.queryLimit} />

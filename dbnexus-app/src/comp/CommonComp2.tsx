@@ -1867,10 +1867,11 @@ function AiMarkdownModel(props: {
 function AiMarkdownModelSwitch(props: {
   setMarkdownModel: Dispatch<SetStateAction<boolean>>;
   markdownModel: boolean;
+  uuid: string;
 }) {
-  const { setMarkdownModel, markdownModel } = props;
+  const { setMarkdownModel, markdownModel, uuid } = props;
   const { getSwitch, setSwitch } = useBoolSwitch();
-  const switchKey = "ai-markdown-model";
+  const switchKey = "ai-markdown-model" + "-" + uuid;
   const llm = useLLM();
   const vis = useContext(TabActiveContext);
   useEffect(() => {
@@ -1879,14 +1880,14 @@ function AiMarkdownModelSwitch(props: {
     }
     const v = getSwitch(switchKey);
     setMarkdownModel(v);
-  }, [getSwitch, llm, setMarkdownModel]);
+  }, [getSwitch, llm, setMarkdownModel, switchKey]);
 
   useEffect(() => {
     if (!llm) {
       return;
     }
     setSwitch(switchKey, markdownModel);
-  }, [llm, markdownModel, setSwitch]);
+  }, [llm, markdownModel, setSwitch, switchKey]);
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
