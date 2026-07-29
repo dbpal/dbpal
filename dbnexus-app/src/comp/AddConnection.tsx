@@ -1134,7 +1134,7 @@ function Cassandra(props: {
       <DbSchemaCadidates
         name={database}
         setName={setDatabase}
-        label="database"
+        label="key space"
         makeConfig={makeConfig}
       />
     </Stack>
@@ -1211,7 +1211,7 @@ function SqlServer(props: {
 
 function AddConnection(props: { config?: DBConnectionConfig }) {
   const { config } = props;
-  const [connectionType, setConnectionType] = useState<DataSourceKind>(
+  const [connectionType, setConnectionType] = useState<DataSourceKind | "scylla">(
     (config?.conn_type as DataSourceKind) || DataSourceKind.Mysql,
   );
   const [connectionName, setConnectionName] = useState(config?.name || "");
@@ -1259,6 +1259,7 @@ function AddConnection(props: { config?: DBConnectionConfig }) {
           <MenuItem value={DataSourceKind.Oracle}>Oracle</MenuItem>
           <MenuItem value={DataSourceKind.SqlServer}>Sql Server(microsoft)</MenuItem>
           <MenuItem value={DataSourceKind.Cassandra}>Cassandra</MenuItem>
+          <MenuItem value="scylla">Scylla</MenuItem>
           <MenuItem value={DataSourceKind.ClickHouse}>Clickhouse</MenuItem>
           <MenuItem value={DataSourceKind.LibSql}> LibSql </MenuItem>
           <MenuItem value={DataSourceKind.FireBird}> FireBird </MenuItem>
@@ -1345,7 +1346,9 @@ function AddConnection(props: { config?: DBConnectionConfig }) {
         {connectionType === DataSourceKind.Cassandra && (
           <Cassandra context={context} config={config as CassandraDBConfig} />
         )}
-
+        {connectionType == "scylla" && (
+          <Cassandra context={context} config={config as CassandraDBConfig} />
+        )}
         {connectionType === DataSourceKind.Redis && (
           <Redis context={context} config={config as RedisDBConfig} />
         )}

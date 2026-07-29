@@ -679,15 +679,33 @@ pub trait LangServerCommon: GetBackendKind + GetKeyWords + Send + Sync {
             if index == 0 {
                 continue;
             }
-            if let (Token::Period, Some(Token::Word(x))) =
-                (&t.token, tokens.get(index - 1).map(|x| &x.token))
+
+            let mut schema_name = None;
+
+            //  try matched a `aaa.`
+            if let (Some(Token::Word(x)), Token::Period) =
+                (tokens.get(index - 1).map(|x| &x.token), &t.token)
             {
-                if !in_pos(loc, t.span.start, 1u64) {
-                    continue;
-                }
                 // hit position
-                // matched a `aaa.`
-                let schema = &x.value;
+                if in_pos(loc, t.span.start, 1u64) {
+                    schema_name = Some(x.value.as_str());
+                }
+            }
+            // try match aaa.bb  right now we can trying to match `bb`
+            if index >= 2 {
+                if let (Some(Token::Word(schema)), Some(Token::Period), Token::Word(x)) = (
+                    tokens.get(index - 2).map(|x| &x.token),
+                    tokens.get(index - 1).map(|x| &x.token),
+                    &t.token,
+                ) {
+                    // hit position
+                    if in_pos(loc, t.span.start, x.value.len() as u64) {
+                        schema_name = Some(schema.value.as_str());
+                    }
+                }
+            }
+
+            if let Some(schema) = schema_name {
                 let mut ret = vec![];
 
                 if self.hit_schema(schema).await {

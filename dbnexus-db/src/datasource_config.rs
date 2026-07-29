@@ -342,10 +342,9 @@ pub struct OracleDBConfig {
 #[derive(Debug, Clone, serde::Deserialize, serde::Serialize, specta::Type)]
 pub struct CassandraDBConfig {
     pub host: String,
-    pub port: Option<u16>,
+    pub port: u16,
     pub username: Option<String>,
     pub password: Option<String>,
-
     pub db: Option<String>,
     pub read_only: bool,
     pub ssl: CassandraSsl,

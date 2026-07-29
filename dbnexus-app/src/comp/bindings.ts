@@ -179,6 +179,7 @@ export type CassandraDBConfig = {
 	read_only: boolean,
 	ssl: CassandraSsl,
 	conn_timeout: ConnTimeOut | null,
+	is_scylla?: boolean,
 };
 
 export type CassandraSsl = (SSLFiles);

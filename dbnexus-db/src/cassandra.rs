@@ -48,6 +48,7 @@ use futures_util::StreamExt;
 use num_bigint::BigInt;
 use scylla::authentication::{AuthenticatorProvider, PlainTextAuthenticator};
 
+use scylla::client::execution_profile::ExecutionProfile;
 use scylla::client::session::Session;
 use scylla::client::session_builder::SessionBuilder;
 use scylla::policies::address_translator::{AddressTranslator, UntranslatedPeer};
@@ -86,13 +87,16 @@ impl AddressTranslator for LocalhostTranslator {
 }
 
 async fn make_session(config: &CassandraDBConfig) -> anyhow::Result<Session> {
-    let target_ip = format!("{}:{}", config.host, config.port.unwrap_or(9042));
+    let target_ip = format!("{}:{}", config.host, config.port);
     let fixed_addr: SocketAddr = target_ip.parse()?;
-    let mut builder = SessionBuilder::new().known_node(format!(
-        "{}:{}",
-        config.host,
-        config.port.unwrap_or(9042)
-    ));
+
+    let profile: ExecutionProfile = ExecutionProfile::builder()
+        .consistency(scylla::statement::Consistency::One)
+        .build();
+
+    let mut builder = SessionBuilder::new()
+        .known_node(format!("{}:{}", config.host, config.port))
+        .default_execution_profile_handle(profile.into_handle());
     if let (Some(user), Some(pass)) = (&config.username, &config.password) {
         builder = builder.authenticator_provider(Arc::new(PlainTextAuthenticator::new(
             user.clone(),
@@ -700,8 +704,13 @@ impl SqlBuilder for CassandraDB {
         para: Option<&ShowTableParameter>,
     ) -> String {
         let mut sql = format!(
-            r#"SELECT {} FROM "{table_name}" "#,
-            self.backend_kind().format_fields(fields)
+            r#"SELECT {} FROM {}"{table_name}" "#,
+            self.backend_kind().format_fields(fields),
+            self.config
+                .db
+                .as_ref()
+                .map(|x| format!("{}.", x))
+                .unwrap_or_default(),
         );
         if let Some(para) = para {
             let ShowTableParameter {
@@ -1271,7 +1280,7 @@ pub(crate) async fn make_test_object(db: Option<String>) -> CassandraDB {
     };
     let ss = CassandraDB::new(CassandraDBConfig {
         host: TEST_HOST.to_string(),
-        port: Some(9042),
+        port: 9042,
         username: Some("cassandra".to_string()),
         password: Some("cassandra".to_string()),
         read_only: false,
@@ -1394,19 +1403,23 @@ impl CassandraDB {
 }
 
 impl GetTestExportTableKinds for CassandraDB {}
+
 #[cfg(test)]
-mod tests {
+pub(crate) mod test_impls {
     use super::*;
     use crate::{
         db::{CreateIndexColumn, CreateTableReq, CreateTableReqColumn},
         enable_test_log,
     };
 
-    #[tokio::test]
+    pub fn new_test_show_parameter() -> ShowTableParameter {
+        ShowTableParameter {
+            ..Default::default()
+        }
+    }
 
-    async fn test_list_schema() {
+    pub async fn test_list_schema_inner(db: CassandraDB) {
         let _guard = test_lock().lock().await;
-        let db = make_test_object(None).await;
         let _ = db
             .create_schema(
                 "test",
@@ -1421,12 +1434,9 @@ mod tests {
         println!("list schema:{:?}", schemas)
     }
 
-    #[tokio::test]
-    async fn test_aggregate() {
+    pub async fn test_aggregate_inner(db: CassandraDB) {
         let _guard = test_lock().lock().await;
-        let db = make_test_object(Some("test".to_string())).await;
         {
-            // drop some function.
             let _ = db
                 .drop_aggregate("test_aggregate", vec!["int".to_string()])
                 .await;
@@ -1470,7 +1480,7 @@ mod tests {
                 RETURNS int
                 LANGUAGE java
                 AS $$
-                    return state; // 直接返回累加结果
+                    return state;
                 $$;
     "#,
             )
@@ -1493,7 +1503,6 @@ mod tests {
             .unwrap();
 
         let list = db.list_aggregate().await.unwrap();
-
         list.iter().for_each(|x| println!("aggregate:{:?}", x));
 
         let details = db
@@ -1504,27 +1513,16 @@ mod tests {
         println!("details:{:?}", details);
     }
 
-    #[tokio::test]
-    async fn test_check_conn() {
+    pub async fn test_check_conn_inner(db: CassandraDB) {
         enable_test_log();
         let _guard = test_lock().lock().await;
-
-        let db = make_test_object(None).await;
         let d = crate::db::CheckConn::check_conn(&db).await.unwrap();
         println!("d:{:?}", d);
     }
-    fn new_test_show_parameter() -> ShowTableParameter {
-        ShowTableParameter {
-            ..Default::default()
-        }
-    }
 
-    #[ignore]
-    #[tokio::test]
-    async fn test_a_lot_data() {
+    pub async fn test_a_lot_data_inner(db: CassandraDB) {
         let _guard = test_lock().lock().await;
         let table_name = "test_a_lot_data";
-        let db = make_test_object(Some("test".to_string())).await;
         let _ = db.drop_table(table_name, false).await;
         let query_id = "aaaa";
         db.open_connection(query_id).await.unwrap();
@@ -1555,13 +1553,9 @@ mod tests {
         }
     }
 
-    #[tokio::test]
-    async fn test_sort() {
+    pub async fn test_sort_inner(db: CassandraDB) {
         let _guard = test_lock().lock().await;
-
         let table_name = "test_sort";
-
-        let db = make_test_object(Some("test".to_string())).await;
         let _ = db.drop_table(table_name, false).await;
         let query_id = "aaaa";
         db.open_connection(query_id).await.unwrap();
@@ -1575,7 +1569,6 @@ mod tests {
                 value INT,
                 PRIMARY KEY (id , sort_key )
             ) ;
-
         "#,
         )
         .await
@@ -1599,23 +1592,18 @@ mod tests {
         println!("resp:{:?}", resp);
     }
 
-    #[tokio::test]
-    async fn test_show_table_column() {
+    pub async fn test_show_table_column_inner(db: CassandraDB) {
         let _guard = test_lock().lock().await;
-
-        let db = make_test_object(Some("test".to_string())).await;
         let fields = db.show_table_columns("example_table").await.unwrap();
         for field in fields {
             println!("field:{:?}", field);
         }
     }
 
-    #[tokio::test]
-    async fn test_duplicate() {
+    pub async fn test_duplicate_inner(db: CassandraDB) {
         let _guard = test_lock().lock().await;
         let table_name = "test_duplicate_table";
         let table_dup = "test_duplicate";
-        let db = make_test_object(Some("test".to_string())).await;
         let _ = db.drop_table(table_name, false).await;
         let _ = db.drop_table(table_dup, false).await;
 
@@ -1629,7 +1617,6 @@ mod tests {
                 name TEXT,
                 value INT
             );
-
         "#,
         )
         .await
@@ -1653,11 +1640,8 @@ mod tests {
         println!("resp:{:?}", resp);
     }
 
-    #[tokio::test]
-    async fn test_list_created_types() {
+    pub async fn test_list_created_types_inner(db: CassandraDB) {
         let _guard = test_lock().lock().await;
-
-        let db = make_test_object(Some("test".to_string())).await;
         let _ = db.drop_created_type("test_type").await;
 
         let query_id = "aaaa";
@@ -1681,12 +1665,11 @@ mod tests {
             println!("create type:{:?}", l);
         }
     }
-    #[tokio::test]
-    async fn test_types1() {
+
+    pub async fn test_types1_inner(db: CassandraDB) {
         let now = std::time::Instant::now();
         let _guard = test_lock().lock().await;
         let table_name = "test_types1";
-        let db = make_test_object(Some("test".to_string())).await;
         let _ = db.drop_table(table_name, false).await;
 
         println!("drop table:{:?}", now.elapsed());
@@ -1723,7 +1706,6 @@ mod tests {
         );
         values.insert("blob_column".to_string(), Some("0x48656c6c6f".to_string()));
         values.insert("boolean_column".to_string(), Some("true".to_string()));
-
         values.insert("decimal_column".to_string(), Some("123.45".to_string()));
         values.insert("double_column".to_string(), Some("3.14159".to_string()));
         db.table_insert(table_name, values).await.unwrap();
@@ -1736,12 +1718,10 @@ mod tests {
         }
         GetTestExportTableKinds::test_export(&db, table_name).await;
     }
-    #[tokio::test]
-    async fn test_types1_list() {
-        let _guard = test_lock().lock().await;
 
+    pub async fn test_types1_list_inner(db: CassandraDB) {
+        let _guard = test_lock().lock().await;
         let table_name = "test_types_list1";
-        let db = make_test_object(Some("test".to_string())).await;
         let _ = db.drop_table(table_name, false).await;
         let query_id = "aaaa";
         db.open_connection(query_id).await.unwrap();
@@ -1764,7 +1744,6 @@ mod tests {
         .unwrap();
 
         let mut values = HashMap::new();
-
         values.insert("id".to_string(), Some("uuid()".to_string()));
         values.insert(
             "ascii_column".to_string(),
@@ -1779,7 +1758,6 @@ mod tests {
             Some("[0x48656c6c6f]".to_string()),
         );
         values.insert("boolean_column".to_string(), Some("[true]".to_string()));
-
         values.insert("decimal_column".to_string(), Some("[123.45]".to_string()));
         values.insert("double_column".to_string(), Some("[3.14159]".to_string()));
 
@@ -1789,17 +1767,14 @@ mod tests {
             let resp = db
                 .show_table_collect(table_name, new_test_show_parameter())
                 .await;
-
             println!("resp:{:?}", resp);
         }
         GetTestExportTableKinds::test_export(&db, table_name).await;
     }
 
-    #[tokio::test]
-    async fn test_types2() {
+    pub async fn test_types2_inner(db: CassandraDB) {
         let _guard = test_lock().lock().await;
         let table_name = "test_types2";
-        let db = make_test_object(Some("test".to_string())).await;
         let _ = db.drop_table(table_name, false).await;
         let query_id = "aaaa";
         db.open_connection(query_id).await.unwrap();
@@ -1821,7 +1796,6 @@ mod tests {
         .unwrap();
 
         let mut values = HashMap::new();
-
         values.insert("id".to_string(), Some("uuid()".to_string()));
         values.insert("float_value".to_string(), Some("3.14".to_string()));
         values.insert("int_value".to_string(), Some("42".to_string()));
@@ -1830,7 +1804,6 @@ mod tests {
             Some("2023-01-01 10:00:00".to_string()),
         );
         values.insert("varchar_value".to_string(), Some("Sample Text".to_string()));
-
         values.insert(
             "varint_value".to_string(),
             Some("123456789012345678901234567890".to_string()),
@@ -1842,17 +1815,14 @@ mod tests {
             let resp = db
                 .show_table_collect(table_name, new_test_show_parameter())
                 .await;
-
             println!("resp:{:?}", resp);
         }
         GetTestExportTableKinds::test_export(&db, table_name).await;
     }
 
-    #[tokio::test]
-    async fn test_types2_list() {
+    pub async fn test_types2_list_inner(db: CassandraDB) {
         let _guard = test_lock().lock().await;
         let table_name = "test_types_list2";
-        let db = make_test_object(Some("test".to_string())).await;
         let _ = db.drop_table(table_name, false).await;
         let query_id = "aaaa";
         db.open_connection(query_id).await.unwrap();
@@ -1874,7 +1844,6 @@ mod tests {
         .unwrap();
 
         let mut values = HashMap::new();
-
         values.insert("id".to_string(), Some("uuid()".to_string()));
         values.insert("float_value".to_string(), Some("[3.14]".to_string()));
         values.insert("int_value".to_string(), Some("[42]".to_string()));
@@ -1886,7 +1855,6 @@ mod tests {
             "varchar_value".to_string(),
             Some("['Sample Text']".to_string()),
         );
-
         values.insert(
             "varint_value".to_string(),
             Some("[123456789012345678901234567890]".to_string()),
@@ -1898,17 +1866,14 @@ mod tests {
             let resp = db
                 .show_table_collect(table_name, new_test_show_parameter())
                 .await;
-
             println!("resp:{:?}", resp);
         }
         GetTestExportTableKinds::test_export(&db, table_name).await;
     }
 
-    #[tokio::test]
-    async fn test_types3() {
+    pub async fn test_types3_inner(db: CassandraDB) {
         let _guard = test_lock().lock().await;
         let table_name = "test_types3";
-        let db = make_test_object(Some("test".to_string())).await;
         let _ = db.drop_table(table_name, false).await;
         let query_id = "aaaa";
         db.open_connection(query_id).await.unwrap();
@@ -1924,7 +1889,6 @@ mod tests {
                     smallint_value SMALLINT,
                     tinyint_value TINYINT
                 );
-
         "#,
         )
         .await
@@ -1932,13 +1896,11 @@ mod tests {
         .unwrap();
 
         let mut values = HashMap::new();
-
         values.insert("id".to_string(), Some("uuid()".to_string()));
         values.insert("timeuuid_value".to_string(), Some("now()".to_string()));
         values.insert("inet_value".to_string(), Some("192.168.1.1".to_string()));
         values.insert("date_value".to_string(), Some("2023-01-01".to_string()));
         values.insert("time_value".to_string(), Some("10:30:00".to_string()));
-
         values.insert("smallint_value".to_string(), Some("123".to_string()));
         values.insert("tinyint_value".to_string(), Some("5".to_string()));
 
@@ -1948,17 +1910,14 @@ mod tests {
             let resp = db
                 .show_table_collect(table_name, new_test_show_parameter())
                 .await;
-
             println!("resp:{:?}", resp);
         }
         GetTestExportTableKinds::test_export(&db, table_name).await;
     }
 
-    #[tokio::test]
-    async fn test_types_list3() {
+    pub async fn test_types_list3_inner(db: CassandraDB) {
         let _guard = test_lock().lock().await;
         let table_name = "test_types_list3";
-        let db = make_test_object(Some("test".to_string())).await;
         let _ = db.drop_table(table_name, false).await;
         let query_id = "aaaa";
         db.open_connection(query_id).await.unwrap();
@@ -1974,7 +1933,6 @@ mod tests {
                     smallint_value list<SMALLINT>,
                     tinyint_value list<TINYINT>
                 );
-
         "#,
         )
         .await
@@ -1982,7 +1940,6 @@ mod tests {
         .unwrap();
 
         let mut values = HashMap::new();
-
         values.insert("id".to_string(), Some("uuid()".to_string()));
         values.insert("timeuuid_value".to_string(), Some("[now()]".to_string()));
         values.insert(
@@ -1991,7 +1948,6 @@ mod tests {
         );
         values.insert("date_value".to_string(), Some("['2023-01-01']".to_string()));
         values.insert("time_value".to_string(), Some("['10:30:00']".to_string()));
-
         values.insert("smallint_value".to_string(), Some("[123]".to_string()));
         values.insert("tinyint_value".to_string(), Some("[5]".to_string()));
 
@@ -2001,17 +1957,14 @@ mod tests {
             let resp = db
                 .show_table_collect(table_name, new_test_show_parameter())
                 .await;
-
             println!("resp:{:?}", resp);
         }
         GetTestExportTableKinds::test_export(&db, table_name).await;
     }
 
-    #[tokio::test]
-    async fn test_types4() {
+    pub async fn test_types4_inner(db: CassandraDB) {
         let _guard = test_lock().lock().await;
         let table_name = "test_types4";
-        let db = make_test_object(Some("test".to_string())).await;
         let _ = db.drop_table(table_name, false).await;
         let query_id = "aaaa";
         db.open_connection(query_id).await.unwrap();
@@ -2022,7 +1975,7 @@ mod tests {
                     id UUID PRIMARY KEY,
                     map_field map<int, int>,
                     set_field set<int>,
-                    person TypePerson,  -- 确保 TypePerson 已经定义
+                    person TypePerson,
                     tuple_field tuple<int, int>
                 );
         "#,
@@ -2032,7 +1985,6 @@ mod tests {
         .unwrap();
 
         let mut values = HashMap::new();
-
         values.insert("id".to_string(), Some("uuid()".to_string()));
         values.insert("map_field".to_string(), Some("{1 :2}".to_string()));
         values.insert("set_field".to_string(), Some("{1,2}".to_string()));
@@ -2047,16 +1999,13 @@ mod tests {
             let resp = db
                 .show_table_collect(table_name, new_test_show_parameter())
                 .await;
-
             println!("resp:{:?}", resp);
         }
         GetTestExportTableKinds::test_export(&db, table_name).await;
     }
 
-    #[tokio::test]
-    async fn test_table_column() {
+    pub async fn test_table_column_inner(db: CassandraDB) {
         let _guard = test_lock().lock().await;
-        let db = make_test_object(Some("test".to_string())).await;
         let table_name = "test_column";
         let _ = db.drop_table(table_name, false).await;
         let query_id = "aaaa";
@@ -2111,12 +2060,10 @@ mod tests {
         let sql = db.drop_table_column(table_name, "value").await.unwrap();
         println!("drop table column sql :{}", sql);
     }
-    #[tokio::test]
-    async fn test_counter() {
-        let _guard = test_lock().lock().await;
 
+    pub async fn test_counter_inner(db: CassandraDB) {
+        let _guard = test_lock().lock().await;
         let table_name = "test_counter";
-        let db = make_test_object(Some("test".to_string())).await;
         let _ = db.drop_table(table_name, false).await;
         let query_id = "aaaa";
         db.open_connection(query_id).await.unwrap();
@@ -2127,7 +2074,6 @@ mod tests {
                 page_id UUID PRIMARY KEY,
                 view_count COUNTER
             );
-            
                 "#,
         )
         .await
@@ -2147,11 +2093,8 @@ mod tests {
         println!("xxxx:{:?}", resp);
     }
 
-    #[tokio::test]
-    async fn test_udf() {
+    pub async fn test_udf_inner(db: CassandraDB) {
         let _guard = test_lock().lock().await;
-
-        let db = make_test_object(Some("test".to_string())).await;
         let name = "test_udf";
         {
             let err = db
@@ -2217,11 +2160,8 @@ mod tests {
         println!("detail:{:?}", detail);
     }
 
-    #[tokio::test]
-    async fn test_create_type() {
+    pub async fn test_create_type_inner(db: CassandraDB) {
         let _guard = test_lock().lock().await;
-
-        let db = make_test_object(Some("test".to_string())).await;
         db.session
             .query_unpaged(
                 r#"
@@ -2238,11 +2178,8 @@ mod tests {
             .unwrap();
     }
 
-    #[tokio::test]
-    async fn test_rename() {
+    pub async fn test_rename_inner(db: CassandraDB) {
         let _guard = test_lock().lock().await;
-
-        let db = make_test_object(Some("test".to_string())).await;
         let table_name = "test_rename";
         let table_name2 = format!("{}2", table_name);
         let _ = db.drop_table(table_name, false).await;
@@ -2266,10 +2203,8 @@ mod tests {
         db.rename_table(&table_name2, table_name).await.unwrap();
     }
 
-    #[tokio::test]
-    async fn test_index() {
+    pub async fn test_index_inner(db: CassandraDB) {
         let _guard = test_lock().lock().await;
-        let db = make_test_object(Some("test".to_string())).await;
         let table_name = "test_index";
         let _ = db.drop_index(table_name, "test_index_email_index").await;
         let _ = db.drop_table(table_name, false).await;
@@ -2323,11 +2258,8 @@ mod tests {
         }
     }
 
-    #[tokio::test]
-    async fn test_view() {
+    pub async fn test_view_inner(db: CassandraDB) {
         let _guard = test_lock().lock().await;
-
-        let db = make_test_object(Some("test".to_string())).await;
         let table_name = "test_view_table";
         let view_name = "test_view";
         let _ = db.drop_materialized_view(view_name).await;
@@ -2379,6 +2311,145 @@ mod tests {
                 .unwrap();
             println!("resp:{:?}", resp);
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::test_impls;
+    use super::*;
+
+    #[tokio::test]
+    async fn test_list_schema() {
+        let db = make_test_object(None).await;
+        test_impls::test_list_schema_inner(db).await;
+    }
+
+    #[tokio::test]
+    async fn test_aggregate() {
+        let db = make_test_object(Some("test".to_string())).await;
+        test_impls::test_aggregate_inner(db).await;
+    }
+
+    #[tokio::test]
+    async fn test_check_conn() {
+        let db = make_test_object(None).await;
+        test_impls::test_check_conn_inner(db).await;
+    }
+
+    #[ignore]
+    #[tokio::test]
+    async fn test_a_lot_data() {
+        let db = make_test_object(Some("test".to_string())).await;
+        test_impls::test_a_lot_data_inner(db).await;
+    }
+
+    #[tokio::test]
+    async fn test_sort() {
+        let db = make_test_object(Some("test".to_string())).await;
+        test_impls::test_sort_inner(db).await;
+    }
+
+    #[tokio::test]
+    async fn test_show_table_column() {
+        let db = make_test_object(Some("test".to_string())).await;
+        test_impls::test_show_table_column_inner(db).await;
+    }
+
+    #[tokio::test]
+    async fn test_duplicate() {
+        let db = make_test_object(Some("test".to_string())).await;
+        test_impls::test_duplicate_inner(db).await;
+    }
+
+    #[tokio::test]
+    async fn test_list_created_types() {
+        let db = make_test_object(Some("test".to_string())).await;
+        test_impls::test_list_created_types_inner(db).await;
+    }
+
+    #[tokio::test]
+    async fn test_types1() {
+        let db = make_test_object(Some("test".to_string())).await;
+        test_impls::test_types1_inner(db).await;
+    }
+
+    #[tokio::test]
+    async fn test_types1_list() {
+        let db = make_test_object(Some("test".to_string())).await;
+        test_impls::test_types1_list_inner(db).await;
+    }
+
+    #[tokio::test]
+    async fn test_types2() {
+        let db = make_test_object(Some("test".to_string())).await;
+        test_impls::test_types2_inner(db).await;
+    }
+
+    #[tokio::test]
+    async fn test_types2_list() {
+        let db = make_test_object(Some("test".to_string())).await;
+        test_impls::test_types2_list_inner(db).await;
+    }
+
+    #[tokio::test]
+    async fn test_types3() {
+        let db = make_test_object(Some("test".to_string())).await;
+        test_impls::test_types3_inner(db).await;
+    }
+
+    #[tokio::test]
+    async fn test_types_list3() {
+        let db = make_test_object(Some("test".to_string())).await;
+        test_impls::test_types_list3_inner(db).await;
+    }
+
+    #[tokio::test]
+    async fn test_types4() {
+        let db = make_test_object(Some("test".to_string())).await;
+        test_impls::test_types4_inner(db).await;
+    }
+
+    #[tokio::test]
+    async fn test_table_column() {
+        let db = make_test_object(Some("test".to_string())).await;
+        test_impls::test_table_column_inner(db).await;
+    }
+
+    #[tokio::test]
+    async fn test_counter() {
+        let db = make_test_object(Some("test".to_string())).await;
+        test_impls::test_counter_inner(db).await;
+    }
+
+    #[tokio::test]
+    async fn test_udf() {
+        let db = make_test_object(Some("test".to_string())).await;
+        test_impls::test_udf_inner(db).await;
+    }
+
+    #[tokio::test]
+    async fn test_create_type() {
+        let db = make_test_object(Some("test".to_string())).await;
+        test_impls::test_create_type_inner(db).await;
+    }
+
+    #[tokio::test]
+    async fn test_rename() {
+        let db = make_test_object(Some("test".to_string())).await;
+        test_impls::test_rename_inner(db).await;
+    }
+
+    #[tokio::test]
+    async fn test_index() {
+        let db = make_test_object(Some("test".to_string())).await;
+        test_impls::test_index_inner(db).await;
+    }
+
+    #[tokio::test]
+    async fn test_view() {
+        let db = make_test_object(Some("test".to_string())).await;
+        test_impls::test_view_inner(db).await;
     }
 
     #[test]

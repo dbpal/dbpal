@@ -66,7 +66,7 @@ tiberius = { version = "0.12.3", default-features = false, features = [
     "rustls",
 ] }
 html-escape = "0.2.13"
-scylla = { version = "1.4.1", features = [] }
+scylla = { version = "1.7", features = [] }
 bb8-tiberius = "0.16"
 tokio.workspace = true
 tokio-util.workspace = true

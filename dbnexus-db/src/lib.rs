@@ -47,6 +47,7 @@ pub mod pg_format;
 pub mod pg_lang_server;
 pub mod redis;
 pub mod redis_lang_server;
+pub mod scylla;
 #[cfg(feature = "snowflake")]
 pub mod snowflake;
 #[cfg(feature = "snowflake")]
