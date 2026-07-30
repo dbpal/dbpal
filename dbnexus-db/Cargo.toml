@@ -91,6 +91,7 @@ csv = "*"
 rsfbclient-rust = "*"
 include_dir.workspace = true
 specta.workspace = true
+tempfile.workspace = true
 [dev-dependencies]
 
 

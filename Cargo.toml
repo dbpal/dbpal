@@ -48,3 +48,4 @@ rust_xlsxwriter = { version = "0.96", features = ["constant_memory"] }
 specta = { version = "=2.0.0-rc.24", features = ["derive", "serde_json"] }
 
 reqwest = { version = "0.13", features = ["json", "rustls", "stream"] }
+tempfile = "3.27.0"

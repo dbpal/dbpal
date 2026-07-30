@@ -13,17 +13,18 @@ use crate::db::{
     create_html_table_data, create_html_table_header, create_markdown_data, create_markdown_header,
     escape_sql_str, export_query_as_xlsx_send_data, AutoCompletionQueryId, BackendKind, CheckConn,
     ColumnType, CreateIndexReq, CreateTableAndIndexSql, ExportFrame, ExportKind, ExportQueryResult,
-    Field, FirstTrue, GetBackendKind, GetTestExportTableKinds, Index, IndexKind, ListTable,
-    MetaValue, NamedStaff, QueryEvent, QueryEventEmitter, QueryResp, QuerySql, ReadOnlyTrait,
-    SchemaTrait, ServerMetas, ShowTableParameter, SqlBuilder, TriggerDetail, XlsxEdit,
-    POOL_MAX_CONNECTIONS,
+    ExtractSqlValeFromJsonValue, Field, FirstTrue, GetBackendKind, GetTestExportTableKinds, Index,
+    IndexKind, ListTable, MetaValue, NamedStaff, QueryEvent, QueryEventEmitter, QueryResp,
+    QuerySql, ReadOnlyTrait, SchemaTrait, ServerMetas, ShowTableParameter, SqlBuilder,
+    TriggerDetail, XlsxEdit, POOL_MAX_CONNECTIONS,
 };
 use crate::helper::create_csv;
 use crate::language_server::LexerCompletionTrait;
 
 use crate::sqlite::{
     encode_bytes, extract_auto_increment_key, extract_trigger_detail_from_sql, gen_show_sql,
-    integer_like, numeric_like, real_like, text_like, SqliteDB,
+    integer_like, numeric_like, real_like, sqlite_extract_sql_value_from_json_value, text_like,
+    SqliteDB,
 };
 
 #[derive(Clone)]
@@ -1069,6 +1070,16 @@ pub(crate) async fn make_test_object() -> &'static Mutex<LibSqlDB> {
     .await
 }
 
+impl ExtractSqlValeFromJsonValue for LibSqlDB {
+    fn extrat_sql_value_from_json_value(
+        &self,
+        value: &serde_json::Value,
+        _ty: &str,
+    ) -> anyhow::Result<Option<String>> {
+        sqlite_extract_sql_value_from_json_value(value)
+    }
+}
+
 impl GetTestExportTableKinds for LibSqlDB {}
 
 #[cfg(test)]
@@ -1575,6 +1586,7 @@ mod tests {
         .unwrap();
 
         println!("\n after here are view test.\n");
+        db.test_export_json_and_import_json(table_name).await;
 
         let views = db.list_view().await.unwrap();
         for v in views.iter() {

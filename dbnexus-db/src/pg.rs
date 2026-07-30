@@ -16,11 +16,11 @@ use crate::db::{
     export_query_as_xlsx_send_data, AutoCompletionQueryId, BackendKind, BackendKindPostGres,
     CatalogTrait, CheckConn, ColumnType, CreateDatabaseExtra, CreateIndexReq, CreateSchemaExtra,
     CreateTableAndIndexSql, CreatedTypeDef, DBTrait, DefAndMetas, ExportFrame, ExportKind,
-    ExportQueryResult, Field, FirstTrue, GetBackendKind, GetTestExportTableKinds, Index, IndexKind,
-    ListTable, MetaValue, NamedStaff, OptionMustBeSomeErr, ProcedureDetail, QueryEvent,
-    QueryEventEmitter, QueryResp, QuerySql, SchemaTrait, SequenceDetail, ServerMetas,
-    ShowTableParameter, SqlBuilder, SqlCollect, TriggerDetail, TriggerEvent, TriggerTiming,
-    XlsxEdit, POOL_MAX_CONNECTIONS,
+    ExportQueryResult, ExtractSqlValeFromJsonValue, Field, FirstTrue, GetBackendKind,
+    GetTestExportTableKinds, Index, IndexKind, ListTable, MetaValue, NamedStaff,
+    OptionMustBeSomeErr, ProcedureDetail, QueryEvent, QueryEventEmitter, QueryResp, QuerySql,
+    SchemaTrait, SequenceDetail, ServerMetas, ShowTableParameter, SqlBuilder, SqlCollect,
+    TriggerDetail, TriggerEvent, TriggerTiming, XlsxEdit, POOL_MAX_CONNECTIONS,
 };
 
 use crate::helper::{create_csv, generate_random_string};
@@ -1871,6 +1871,75 @@ pub const PG_CURRENT_LITERALS: &[&str] = &[
     "CURRENT_USER",      //  alice
     "CURRENT_ROLE",      //  alice（或 SET ROLE 后的角色）
 ];
+
+impl ExtractSqlValeFromJsonValue for PostGresDB {
+    fn extrat_sql_value_from_json_value(
+        &self,
+        value: &serde_json::Value,
+        ty: &str,
+    ) -> anyhow::Result<Option<String>> {
+        if ty.eq_ignore_ascii_case("json") {
+            match value {
+                serde_json::Value::Null => return anyhow::Ok(None),
+                _ => return anyhow::Ok(Some(serde_json::to_string(value)?)),
+            }
+        }
+
+        let err = anyhow::Error::msg(format!(
+            "not valid value,type '{}' , value:{}",
+            ty,
+            serde_json::to_string(value)?
+        ));
+
+        if ty.eq_ignore_ascii_case("json[]") {
+            anyhow::bail!("json[] not suppporteds")
+        }
+        if ty.eq_ignore_ascii_case("INT4RANGE[]")
+            || ty.eq_ignore_ascii_case("TSRANGE[]")
+            || ty.eq_ignore_ascii_case("TSTZRANGE[]")
+            || ty.eq_ignore_ascii_case("DATERANGE[]")
+            || ty.eq_ignore_ascii_case("INT8RANGE[]")
+        {
+            match value {
+                serde_json::Value::Null => return anyhow::Ok(None),
+                serde_json::Value::Array(values) => {
+                    let mut results = Vec::with_capacity(values.len());
+                    for value in values.iter() {
+                        let value = match value {
+                            serde_json::Value::String(x) => x,
+                            _ => return Err(err),
+                        };
+                        results.push(format!("\"{}\"", value));
+                    }
+
+                    return anyhow::Ok(Some(format!("{{{}}}", results.join(","))));
+                }
+                _ => return Err(err),
+            }
+        }
+
+        fn encode_value(v: &serde_json::Value) -> Option<String> {
+            match v {
+                serde_json::Value::Null => None,
+                serde_json::Value::Bool(x) => Some(x.to_string()),
+                serde_json::Value::Number(number) => Some(number.to_string()),
+                serde_json::Value::String(x) => Some(x.clone()),
+                serde_json::Value::Array(values) => {
+                    let mut result = Vec::with_capacity(values.len());
+                    for v in values.iter() {
+                        result.push(encode_value(v).unwrap_or("null".to_owned()));
+                    }
+                    Some(format!("{{{}}}", result.join(",")))
+                }
+                serde_json::Value::Object(map) => {
+                    Some(serde_json::to_string(map).expect("should be fine"))
+                }
+            }
+        }
+        anyhow::Ok(encode_value(value))
+    }
+}
+
 impl SqlBuilder for PostGresDB {
     fn get_schema(&self) -> Option<&str> {
         self.config.schema.as_deref()
@@ -2660,6 +2729,8 @@ mod tests {
         println!("{:?}", x);
 
         GetTestExportTableKinds::test_export(&pg, table_name).await;
+
+        pg.test_export_json_and_import_json(table_name).await;
     }
 
     #[tokio::test]
@@ -2719,6 +2790,7 @@ mod tests {
         println!("{:?}", x);
 
         GetTestExportTableKinds::test_export(&pg, table_name).await;
+        pg.test_export_json_and_import_json(table_name).await;
     }
 
     #[tokio::test]
@@ -2848,6 +2920,7 @@ mod tests {
         println!("{:?}", x);
 
         GetTestExportTableKinds::test_export(&pg, table_name).await;
+        pg.test_export_json_and_import_json(table_name).await;
     }
 
     #[tokio::test]
@@ -2899,6 +2972,7 @@ mod tests {
         println!("{:?}", x);
 
         GetTestExportTableKinds::test_export(&pg, table_name).await;
+        pg.test_export_json_and_import_json(table_name).await;
     }
 
     #[tokio::test]
@@ -2963,6 +3037,7 @@ mod tests {
         println!("{:?}", x);
 
         GetTestExportTableKinds::test_export(&pg, table_name).await;
+        pg.test_export_json_and_import_json(table_name).await;
     }
 
     #[tokio::test]
@@ -3038,6 +3113,7 @@ mod tests {
         println!("{:?}", x);
 
         GetTestExportTableKinds::test_export(&pg, table_name).await;
+        pg.test_export_json_and_import_json(table_name).await;
     }
 
     #[tokio::test]
@@ -3097,6 +3173,7 @@ mod tests {
         println!("{:?}", x);
 
         GetTestExportTableKinds::test_export(&pg, table_name).await;
+        pg.test_export_json_and_import_json(table_name).await;
     }
 
     #[tokio::test]
@@ -3118,7 +3195,7 @@ mod tests {
             varbit_column VARBIT,
             varbit_array_column VARBIT[],
             numeric_column NUMERIC
-          );
+        );
 "#,
             )
             .as_str(),
@@ -3145,6 +3222,7 @@ mod tests {
         println!("{:?}", x);
 
         GetTestExportTableKinds::test_export(&pg, table_name).await;
+        pg.test_export_json_and_import_json(table_name).await;
     }
 
     #[tokio::test]
@@ -3163,10 +3241,9 @@ mod tests {
                 uuid_column UUID,
                 uuid_array_column UUID[],
                 jsonb_column JSONB,
-                jsonb_array_column JSONB[],
                 int4range_column INT4RANGE,
                 int4range_array_column INT4RANGE[]
-              );
+            );
     "#,
             )
             .as_str(),
@@ -3191,13 +3268,6 @@ mod tests {
             "jsonb_column".to_string(),
             Some(r#"{"key1": "value1", "key2": "value2"}"#.to_string()),
         );
-        values.insert(
-            "jsonb_array_column".to_string(),
-            Some(
-                "{\"{\\\"key3\\\": \\\"value3\\\"}\",\"{\\\"key4\\\": \\\"value4\\\"}\"}"
-                    .to_string(),
-            ),
-        );
         values.insert("int4range_column".to_string(), Some("[10,20)".to_string()));
         values.insert(
             "int4range_array_column".to_string(),
@@ -3215,6 +3285,7 @@ mod tests {
         println!("{:?}", x);
 
         GetTestExportTableKinds::test_export(&pg, table_name).await;
+        pg.test_export_json_and_import_json(table_name).await;
     }
 
     #[tokio::test]
@@ -3277,6 +3348,7 @@ mod tests {
         println!("{:?}", x);
 
         GetTestExportTableKinds::test_export(&pg, table_name).await;
+        pg.test_export_json_and_import_json(table_name).await;
     }
 
     #[tokio::test]
@@ -3346,5 +3418,6 @@ mod tests {
         println!("{:?}", x);
 
         GetTestExportTableKinds::test_export(&pg, table_name).await;
+        pg.test_export_json_and_import_json(table_name).await;
     }
 }

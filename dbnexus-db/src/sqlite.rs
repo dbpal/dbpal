@@ -18,12 +18,12 @@ use crate::db::{
     create_html_table_data, create_html_table_header, create_markdown_data, create_markdown_header,
     escape_sql_str, export_query_as_xlsx_send_data, AutoCompletionQueryId, BackendKind, CheckConn,
     ColumnType, CreateIndexReq, CreateTableAndIndexSql, ExportFrame, ExportKind, ExportQueryResult,
-    Field, FirstTrue, GetBackendKind, Index, IndexKind, ListTable, MetaValue, NamedStaff,
-    OptionMustBeSomeErr, QueryEvent, QueryEventEmitter, QueryResp, QuerySql, SchemaTrait,
-    ServerMetas, ShowTableParameter, SqlBuilder, TriggerDetail, TriggerEvent, TriggerTiming,
-    XlsxEdit, POOL_MAX_CONNECTIONS,
+    ExtractSqlValeFromJsonValue, Field, FirstTrue, GetBackendKind, Index, IndexKind, ListTable,
+    MetaValue, NamedStaff, OptionMustBeSomeErr, QueryEvent, QueryEventEmitter, QueryResp, QuerySql,
+    SchemaTrait, ServerMetas, ShowTableParameter, SqlBuilder, TriggerDetail, TriggerEvent,
+    TriggerTiming, XlsxEdit, POOL_MAX_CONNECTIONS,
 };
-use crate::helper::create_csv;
+use crate::helper::{create_csv, extract_bytes_from_serde_values};
 use crate::language_server::LexerCompletionTrait;
 
 #[derive(Clone)]
@@ -1380,6 +1380,35 @@ pub(crate) async fn make_test_object() -> SqliteDB {
 }
 
 impl crate::db::GetTestExportTableKinds for SqliteDB {}
+impl ExtractSqlValeFromJsonValue for SqliteDB {
+    fn extrat_sql_value_from_json_value(
+        &self,
+        value: &serde_json::Value,
+        _: &str,
+    ) -> anyhow::Result<Option<String>> {
+        sqlite_extract_sql_value_from_json_value(value)
+    }
+}
+
+pub(crate) fn sqlite_extract_sql_value_from_json_value(
+    value: &serde_json::Value,
+) -> anyhow::Result<Option<String>> {
+    let r = match value {
+        serde_json::Value::Null => return anyhow::Ok(None),
+        serde_json::Value::Bool(..) => anyhow::bail!("sqlite don't have bool value"),
+        serde_json::Value::Number(number) => number.to_string(),
+        serde_json::Value::String(x) => x.clone(),
+        serde_json::Value::Array(values) => {
+            let bytes = extract_bytes_from_serde_values(&values)?;
+            encode_bytes(&bytes)
+        }
+        serde_json::Value::Object(..) => {
+            anyhow::bail!("sqlite don't have map or struct value")
+        }
+    };
+
+    anyhow::Ok(Some(r))
+}
 
 #[cfg(test)]
 mod tests {
@@ -2060,12 +2089,17 @@ mod tests {
         .await
         .unwrap();
         println!("\n after here are view test.\n");
+
+        GetTestExportTableKinds::test_export(&db, table_name).await;
+
         let views = db.list_view().await.unwrap();
         println!("{:?}", views);
         let list = db
             .show_view_collect("test_view", ShowTableParameter::new_stupid_test("id asc"))
             .await
             .unwrap();
+
+        db.test_export_json_and_import_json(table_name).await;
         println!("view value:{:?}", list);
     }
 

@@ -18,9 +18,9 @@ use crate::{
     datasource_config::CouchBaseDBConfig,
     db::{
         BackendKind, CatalogTrait, CheckConn, CouchBaseBucketType, CreateDatabaseExtra, DBTrait,
-        ExportKind, ExportQueryResult, Field, GetBackendKind, ListTable, MetaValue,
-        QueryEventEmitter, QueryResp, QuerySql, ReadOnlyTrait, SchemaTrait, ServerMetas,
-        ShowTableParameter, SqlBuilder,
+        ExportKind, ExportQueryResult, ExtractSqlValeFromJsonValue, Field, GetBackendKind,
+        ListTable, MetaValue, QueryEventEmitter, QueryResp, QuerySql, ReadOnlyTrait, SchemaTrait,
+        ServerMetas, ShowTableParameter, SqlBuilder,
     },
 };
 
@@ -216,6 +216,16 @@ impl CouchBaseDB {
             "scope specs for '{:?}' not found",
             self.config.scope
         ))
+    }
+}
+
+impl ExtractSqlValeFromJsonValue for CouchBaseDB {
+    fn extrat_sql_value_from_json_value(
+        &self,
+        _value: &serde_json::Value,
+        _ty: &str,
+    ) -> anyhow::Result<Option<String>> {
+        anyhow::bail!("couchbase don't need impl this")
     }
 }
 

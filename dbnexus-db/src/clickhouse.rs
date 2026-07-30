@@ -2,10 +2,10 @@ use crate::datasource_config::ClickHouseConfig;
 use crate::db::{
     create_html_table_data, create_html_table_header, create_markdown_data, create_markdown_header,
     escape_sql_str, BackendKind, CheckConn, ColumnType, CreateSchemaExtra, CreateTableAndIndexSql,
-    DBTrait, DefAndMetas, ExportFrame, ExportKind, ExportQueryResult, Field, GetBackendKind,
-    GetTestExportTableKinds, ListTable, MetaValue, NamedStaff, QueryEvent, QueryEventEmitter,
-    QueryResp, QuerySql, SchemaTrait, ServerMetas, ShowTableParameter, SqlBuilder, SqlCollect,
-    XlsxEdit,
+    DBTrait, DefAndMetas, ExportFrame, ExportKind, ExportQueryResult, ExtractSqlValeFromJsonValue,
+    Field, GetBackendKind, GetTestExportTableKinds, ListTable, MetaValue, NamedStaff, QueryEvent,
+    QueryEventEmitter, QueryResp, QuerySql, SchemaTrait, ServerMetas, ShowTableParameter,
+    SqlBuilder, SqlCollect, XlsxEdit,
 };
 
 use crate::helper::{ty_is_decimal, ty_is_float, ty_is_int};
@@ -120,6 +120,16 @@ impl ClickHouseDB {
         let mut ret = ret.into_iter().collect::<Vec<_>>();
         ret.sort();
         anyhow::Ok(ret.into_iter().map(ListTable::from).collect())
+    }
+}
+
+impl ExtractSqlValeFromJsonValue for ClickHouseDB {
+    fn extrat_sql_value_from_json_value(
+        &self,
+        _value: &serde_json::Value,
+        _: &str,
+    ) -> anyhow::Result<Option<String>> {
+        todo!()
     }
 }
 

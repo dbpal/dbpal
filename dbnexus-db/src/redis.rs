@@ -15,12 +15,21 @@ use crate::datasource_config::RedisDBConfig;
 use crate::db::{
     create_html_table_data, create_markdown_data, create_markdown_header, AutoCompletionQueryId,
     BackendKind, CheckConn, CreateSchemaExtra, DBTrait, ExportFrame, ExportKind, ExportQueryResult,
-    Field, GetBackendKind, GetTestExportTableKinds, ListTable, MetaValue, QueryEvent,
-    QueryEventEmitter, QueryResp, QuerySql, ReadOnlyTrait, SchemaTrait, ServerMetas,
-    ShowTableParameter, SqlBuilder, XlsxEdit,
+    ExtractSqlValeFromJsonValue, Field, GetBackendKind, GetTestExportTableKinds, ListTable,
+    MetaValue, QueryEvent, QueryEventEmitter, QueryResp, QuerySql, ReadOnlyTrait, SchemaTrait,
+    ServerMetas, ShowTableParameter, SqlBuilder, XlsxEdit,
 };
 use crate::helper::{create_csv, OffsetLimitIter};
 
+impl ExtractSqlValeFromJsonValue for RedisDB {
+    fn extrat_sql_value_from_json_value(
+        &self,
+        _value: &serde_json::Value,
+        _ty: &str,
+    ) -> anyhow::Result<Option<String>> {
+        anyhow::bail!("redis don't need impl this")
+    }
+}
 #[derive(Clone)]
 pub struct RedisDB {
     config: RedisDBConfig,

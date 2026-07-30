@@ -33,10 +33,10 @@ use crate::db::{
     create_html_table_data, create_html_table_header, create_markdown_data, create_markdown_header,
     escape_sql_str, export_query_as_xlsx_send_data, AutoCompletionQueryId, BackendKind, CheckConn,
     ColumnType, CreateIndexReq, CreateSchemaExtra, CreateTableAndIndexSql, CreatedTypeDef, DBTrait,
-    DefAndMetas, ExportFrame, ExportKind, ExportQueryResult, Field, GetBackendKind,
-    GetTestExportTableKinds, Index, IndexKind, ListTable, MetaValue, NamedStaff, QueryEventEmitter,
-    QueryResp, QuerySql, ReadOnlyTrait, SchemaTrait, ServerMetas, ShowTableParameter, SqlBuilder,
-    XlsxEdit,
+    DefAndMetas, ExportFrame, ExportKind, ExportQueryResult, ExtractSqlValeFromJsonValue, Field,
+    GetBackendKind, GetTestExportTableKinds, Index, IndexKind, ListTable, MetaValue, NamedStaff,
+    QueryEventEmitter, QueryResp, QuerySql, ReadOnlyTrait, SchemaTrait, ServerMetas,
+    ShowTableParameter, SqlBuilder, XlsxEdit,
 };
 
 use crate::helper::{create_csv, generate_random_string};
@@ -169,6 +169,8 @@ impl GetBackendKind for CassandraDB {
     }
 }
 
+const JSON_TYPE_FIELD: &str = "dbpal-export-json-type";
+
 fn encode_row_as_json(cols: &[String], rows: Row) -> anyhow::Result<serde_json::Value> {
     debug_assert_eq!(cols.len(), rows.columns.len());
 
@@ -185,13 +187,19 @@ fn encode_row_as_json(cols: &[String], rows: Row) -> anyhow::Result<serde_json::
             CqlValue::Ascii(x) => serde_json::Value::from(x),
             CqlValue::Boolean(x) => serde_json::Value::from(x),
             CqlValue::Blob(items) => {
-                let values: Vec<_> = items.into_iter().map(serde_json::Value::from).collect();
-                serde_json::Value::Array(values)
+                let value = encode_bytes(&items);
+                let mut map = serde_json::Map::new();
+                map.insert(JSON_TYPE_FIELD.to_string(), "blob".into());
+                map.insert("value".to_string(), value.into());
+                serde_json::Value::from(map)
             }
             CqlValue::Counter(counter) => serde_json::Value::from(counter.0),
             CqlValue::Decimal(c) => {
-                let x = cql_decimal_to_bigdecimal(&c).to_string();
-                serde_json::Value::String(x)
+                let value = cql_decimal_to_bigdecimal(&c).to_string();
+                let mut map = serde_json::Map::new();
+                map.insert(JSON_TYPE_FIELD.to_string(), "decimal".into());
+                map.insert("value".to_string(), value.into());
+                serde_json::Value::Object(map)
             }
             CqlValue::Date(cql_date) => serde_json::Value::from(cql_date.0),
             CqlValue::Double(x) => serde_json::Value::from(x),
@@ -251,12 +259,25 @@ fn encode_row_as_json(cols: &[String], rows: Row) -> anyhow::Result<serde_json::
             CqlValue::SmallInt(x) => serde_json::Value::from(x),
             CqlValue::TinyInt(x) => serde_json::Value::from(x),
             CqlValue::Time(cql_time) => serde_json::Value::from(cql_time.0),
-            CqlValue::Timeuuid(cql_timeuuid) => serde_json::Value::from(cql_timeuuid.to_string()),
+            CqlValue::Timeuuid(cql_timeuuid) => {
+                let mut map = serde_json::Map::new();
+                map.insert(JSON_TYPE_FIELD.to_string(), "timeuuid".into());
+                map.insert("value".to_string(), cql_timeuuid.to_string().into());
+                serde_json::Value::Object(map)
+            }
 
-            CqlValue::Uuid(uuid) => serde_json::Value::from(uuid.to_string()),
+            CqlValue::Uuid(uuid) => {
+                let mut map = serde_json::Map::new();
+                map.insert(JSON_TYPE_FIELD.to_string(), "uuid".into());
+                map.insert("value".to_string(), uuid.to_string().into());
+                serde_json::Value::Object(map)
+            }
             CqlValue::Varint(cql_varint) => {
                 let v = varint_2_bigint(&cql_varint);
-                serde_json::Value::from(v.to_string())
+                let mut map = serde_json::Map::new();
+                map.insert(JSON_TYPE_FIELD.to_string(), "varint".into());
+                map.insert("value".to_string(), v.to_string().into());
+                serde_json::Value::Object(map)
             }
             CqlValue::Tuple(cql_values) => {
                 let mut values = vec![];
@@ -330,6 +351,10 @@ fn cql_decimal_to_bigdecimal(cql_decimal: &CqlDecimal) -> BigDecimal {
     BigDecimal::new(big_int, scale as i64)
 }
 
+fn encode_bytes(bs: &[u8]) -> String {
+    format!("0x{}", hex::encode(bs))
+}
+
 fn encode_value_as_string(value: CqlValue, is_nested: bool) -> anyhow::Result<String> {
     let v = match value {
         CqlValue::Ascii(x) | CqlValue::Text(x) => {
@@ -340,7 +365,7 @@ fn encode_value_as_string(value: CqlValue, is_nested: bool) -> anyhow::Result<St
             }
         }
         CqlValue::Boolean(x) => x.to_string(),
-        CqlValue::Blob(x) => format!("0x{}", hex::encode(&x)),
+        CqlValue::Blob(x) => encode_bytes(&x),
         CqlValue::Counter(counter) => counter.0.to_string(),
         CqlValue::Decimal(c) => cql_decimal_to_bigdecimal(&c).to_string(),
         CqlValue::Date(cql_date) => format_date(cql_date.0)?,
@@ -793,6 +818,60 @@ impl CassandraDB {
             req.format_cols(false, self.backend_kind().quote_style())
         );
         sql
+    }
+}
+
+impl ExtractSqlValeFromJsonValue for CassandraDB {
+    fn extrat_sql_value_from_json_value(
+        &self,
+        value: &serde_json::Value,
+        _ty: &str,
+    ) -> anyhow::Result<Option<String>> {
+        fn encode_value(v: &serde_json::Value, is_nested: bool) -> anyhow::Result<Option<String>> {
+            let r = match v {
+                serde_json::Value::Null => None,
+                serde_json::Value::Bool(x) => Some(x.to_string()),
+                serde_json::Value::Number(number) => Some(number.to_string()),
+                serde_json::Value::String(x) => Some(if is_nested {
+                    format!("'{}'", escape_sql_str(x))
+                } else {
+                    x.clone()
+                }),
+                serde_json::Value::Array(values) => {
+                    let mut results = Vec::with_capacity(values.len());
+                    for v in values.iter() {
+                        results.push(encode_value(v, true)?.unwrap_or("null".to_string()));
+                    }
+                    Some(format!("[{}]", results.join(",")))
+                }
+                serde_json::Value::Object(map) => {
+                    if let Some(..) = map.get(JSON_TYPE_FIELD) {
+                        match map.get("value") {
+                            Some(x) => match x {
+                                serde_json::Value::Null => return anyhow::Ok(None),
+                                serde_json::Value::String(x) => {
+                                    return anyhow::Ok(x.clone().into())
+                                }
+                                _ => {
+                                    anyhow::bail!("not a valid value for field value")
+                                }
+                            },
+                            None => anyhow::bail!("should contains value field"),
+                        }
+                    }
+
+                    let mut results = Vec::with_capacity(map.len());
+                    for (k, v) in map.iter() {
+                        let v = encode_value(v, true)?.unwrap_or("null".to_string());
+                        results.push(format!("{}:{}", k, v));
+                    }
+                    Some(format!("{{{}}}", results.join(",")))
+                }
+            };
+            anyhow::Ok(r)
+        }
+
+        anyhow::Ok(encode_value(value, false)?)
     }
 }
 
@@ -1720,6 +1799,7 @@ pub(crate) mod test_impls {
             println!("resp:{:?}", resp);
         }
         GetTestExportTableKinds::test_export(&db, table_name).await;
+        db.test_export_json_and_import_json(table_name).await;
     }
 
     pub async fn test_types1_list_inner(db: CassandraDB) {
@@ -1773,6 +1853,7 @@ pub(crate) mod test_impls {
             println!("resp:{:?}", resp);
         }
         GetTestExportTableKinds::test_export(&db, table_name).await;
+        db.test_export_json_and_import_json(table_name).await;
     }
 
     pub async fn test_types2_inner(db: CassandraDB) {
@@ -1821,6 +1902,7 @@ pub(crate) mod test_impls {
             println!("resp:{:?}", resp);
         }
         GetTestExportTableKinds::test_export(&db, table_name).await;
+        db.test_export_json_and_import_json(table_name).await;
     }
 
     pub async fn test_types2_list_inner(db: CassandraDB) {
@@ -1872,6 +1954,7 @@ pub(crate) mod test_impls {
             println!("resp:{:?}", resp);
         }
         GetTestExportTableKinds::test_export(&db, table_name).await;
+        db.test_export_json_and_import_json(table_name).await;
     }
 
     pub async fn test_types3_inner(db: CassandraDB) {
@@ -1916,6 +1999,7 @@ pub(crate) mod test_impls {
             println!("resp:{:?}", resp);
         }
         GetTestExportTableKinds::test_export(&db, table_name).await;
+        db.test_export_json_and_import_json(table_name).await;
     }
 
     pub async fn test_types_list3_inner(db: CassandraDB) {
@@ -1963,6 +2047,7 @@ pub(crate) mod test_impls {
             println!("resp:{:?}", resp);
         }
         GetTestExportTableKinds::test_export(&db, table_name).await;
+        db.test_export_json_and_import_json(table_name).await;
     }
 
     pub async fn test_types4_inner(db: CassandraDB) {

@@ -2220,6 +2220,7 @@ dependencies = [
  "sqlparser",
  "sqlx",
  "sqlx-core",
+ "tempfile",
  "tiberius",
  "tokio",
  "tokio-stream",

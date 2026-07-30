@@ -21,13 +21,13 @@ use crate::datasource_config::FireBirdConfig;
 use crate::db::{
     create_html_table_data, create_html_table_header, create_markdown_data, create_markdown_header,
     escape_sql_str, export_query_as_xlsx_send_blocking_data, BackendKind, CheckConn, ColumnType,
-    CreateIndexReq, ExportFrame, ExportKind, ExportQueryResult, Field, FirstTrue, GetBackendKind,
-    GetTestExportTableKinds, Index, IndexKind, ListTable, MetaValue, QueryEvent, QueryEventEmitter,
-    QueryResp, QuerySql, SchemaTrait, ServerMetas, ShowTableParameter, SqlBuilder, XlsxEdit,
-    POOL_MAX_CONNECTIONS,
+    CreateIndexReq, ExportFrame, ExportKind, ExportQueryResult, ExtractSqlValeFromJsonValue, Field,
+    FirstTrue, GetBackendKind, GetTestExportTableKinds, Index, IndexKind, ListTable, MetaValue,
+    QueryEvent, QueryEventEmitter, QueryResp, QuerySql, SchemaTrait, ServerMetas,
+    ShowTableParameter, SqlBuilder, XlsxEdit, POOL_MAX_CONNECTIONS,
 };
 
-use crate::helper::create_csv;
+use crate::helper::{create_csv, extract_bytes_from_serde_values};
 use crate::language_server::LexerCompletionTrait;
 use dashmap::{DashMap, DashSet};
 use r2d2::{ManageConnection, Pool, PooledConnection};
@@ -140,13 +140,17 @@ fn encode_row(
                     Some(naive_date_time.to_string())
                 }
             }
-            SqlType::Binary(items) => Some(format!("x'{}'", hex::encode(items.as_slice()))),
+            SqlType::Binary(items) => Some(encode_bytes(items)),
             SqlType::Boolean(x) => Some(x.to_string()),
             SqlType::Null => None,
         };
         data.push(value);
     }
     anyhow::Ok(data)
+}
+
+fn encode_bytes(bs: &[u8]) -> String {
+    format!("x'{}'", hex::encode(bs))
 }
 
 fn encode_row_as_json(row: &Row) -> anyhow::Result<serde_json::Value> {
@@ -559,6 +563,29 @@ impl FireBirdDB {
     }
 }
 
+impl ExtractSqlValeFromJsonValue for FireBirdDB {
+    fn extrat_sql_value_from_json_value(
+        &self,
+        value: &serde_json::Value,
+        _ty: &str,
+    ) -> anyhow::Result<Option<String>> {
+        let r = match value {
+            serde_json::Value::Null => return anyhow::Ok(None),
+            serde_json::Value::Bool(x) => x.to_string(),
+            serde_json::Value::Number(number) => number.to_string(),
+            serde_json::Value::String(x) => x.clone(),
+            serde_json::Value::Array(values) => {
+                let r = extract_bytes_from_serde_values(values)?;
+                encode_bytes(&r)
+            }
+            serde_json::Value::Object(..) => {
+                anyhow::bail!("firebird should not have Object values")
+            }
+        };
+
+        anyhow::Ok(Some(r))
+    }
+}
 #[async_trait::async_trait]
 impl SchemaTrait for FireBirdDB {
     async fn list_data_types(&self) -> anyhow::Result<Vec<String>> {
@@ -1509,6 +1536,7 @@ mod tests {
             println!("resp:{:?}", resp);
         }
         GetTestExportTableKinds::test_export(&db, table_name).await;
+        db.test_export_json_and_import_json(table_name).await;
     }
 
     #[tokio::test]
@@ -1571,5 +1599,6 @@ mod tests {
             println!("resp:{:?}", resp);
         }
         GetTestExportTableKinds::test_export(&db, table_name).await;
+        db.test_export_json_and_import_json(table_name).await;
     }
 }

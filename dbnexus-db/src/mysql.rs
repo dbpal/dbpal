@@ -4,12 +4,13 @@ use crate::db::{
     escape_sql_str, export_query_as_xlsx_send_data, AutoCompletionQueryId, BackendKind,
     BackendKindMysql, CheckConn, ColumnType, CreateIndexReq, CreateSchemaExtra,
     CreateTableAndIndexSql, DBTrait, DefAndMetas, ExportFrame, ExportKind, ExportQueryResult,
-    Field, FirstTrue, GetBackendKind, GetTestExportTableKinds, Index, IndexKind, ListTable,
-    MetaValue, NamedStaff, ProcedureDetail, QueryEvent, QueryEventEmitter, QueryResp, QuerySql,
-    SchemaTrait, SequenceDetail, ServerMetas, ShowTableParameter, SqlBuilder, SqlCollect, SqlEvent,
-    TriggerDetail, TriggerEvent, TriggerTiming, XlsxEdit, POOL_MAX_CONNECTIONS,
+    ExtractSqlValeFromJsonValue, Field, FirstTrue, GetBackendKind, GetTestExportTableKinds, Index,
+    IndexKind, ListTable, MetaValue, NamedStaff, ProcedureDetail, QueryEvent, QueryEventEmitter,
+    QueryResp, QuerySql, SchemaTrait, SequenceDetail, ServerMetas, ShowTableParameter, SqlBuilder,
+    SqlCollect, SqlEvent, TriggerDetail, TriggerEvent, TriggerTiming, XlsxEdit,
+    POOL_MAX_CONNECTIONS,
 };
-use crate::helper::create_csv;
+use crate::helper::{create_csv, extract_bytes_from_serde_values};
 use crate::language_server::LexerCompletionTrait;
 use chrono::Utc;
 use dashmap::DashMap;
@@ -153,7 +154,6 @@ fn encode_row_as_json(row: &MySqlRow, try_blob_to_str: bool) -> anyhow::Result<s
 
             _ if type_is_blob(&ty) => {
                 let string_value = row.try_get::<String, _>(c);
-
                 match (string_value, try_blob_to_str) {
                     (Ok(v), true) => serde_json::Value::from(v),
                     _ => {
@@ -1243,6 +1243,10 @@ impl SchemaTrait for MysqlDB {
     }
 }
 
+fn encode_bytes(bs: &[u8]) -> String {
+    format!("0x{}", hex::encode_upper(bs))
+}
+
 fn encode_row(r: &MySqlRow, try_blob_to_str: bool) -> anyhow::Result<Vec<Option<String>>> {
     let mut values = Vec::with_capacity(r.len());
     for c in 0..r.len() {
@@ -1309,9 +1313,7 @@ fn encode_row(r: &MySqlRow, try_blob_to_str: bool) -> anyhow::Result<Vec<Option<
                 let str_value = str_value.ok().flatten();
                 x.map(|x| match (str_value, try_blob_to_str) {
                     (Some(value), true) => value,
-                    _ => {
-                        format!("0x{}", hex::encode_upper(x.as_slice()))
-                    }
+                    _ => encode_bytes(&x),
                 })
             }
             "TIMESTAMP" => {
@@ -1801,6 +1803,7 @@ impl SqlBuilder for MysqlDB {
             "DATE" => single_quote_str,
             "TIME" => single_quote_str,
             "JSON" => single_quote_str,
+            "INET4" | "INET6" => single_quote_str,
             _ if ty.starts_with("ENUM") => single_quote_str,
             _ => {
                 log::error!("mysql type '{}' not handled", ty);
@@ -1844,6 +1847,27 @@ impl SqlBuilder for MysqlDB {
 }
 
 impl GetTestExportTableKinds for MysqlDB {}
+impl ExtractSqlValeFromJsonValue for MysqlDB {
+    fn extrat_sql_value_from_json_value(
+        &self,
+        value: &serde_json::Value,
+        _ty: &str,
+    ) -> anyhow::Result<Option<String>> {
+        let r = match value {
+            serde_json::Value::Null => return anyhow::Ok(None),
+            serde_json::Value::Bool(x) => x.to_string(),
+            serde_json::Value::Number(number) => number.to_string(),
+            serde_json::Value::String(x) => x.clone(),
+            serde_json::Value::Array(values) => {
+                encode_bytes(&extract_bytes_from_serde_values(&values)?)
+            }
+            serde_json::Value::Object(..) => {
+                anyhow::bail!(format!("should not have json value object,:{:?}", value))
+            }
+        };
+        anyhow::Ok(Some(r))
+    }
+}
 
 #[cfg(test)]
 pub(crate) mod test_fns {

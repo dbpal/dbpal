@@ -487,6 +487,25 @@ pub fn generate_random_string(len: usize) -> String {
     rand_string
 }
 
+pub(crate) fn extract_bytes_from_serde_values(
+    values: &[serde_json::Value],
+) -> anyhow::Result<Vec<u8>> {
+    let mut bytes = Vec::with_capacity(values.len());
+    for v in values.iter() {
+        match v {
+            serde_json::Value::Number(number) => match number.as_u64() {
+                Some(x) => bytes.push(x as u8),
+                None => anyhow::bail!(""),
+            },
+            _ => {
+                anyhow::bail!(format!(
+                    "inside a array,not a number,can't convert this array to bytes"
+                ))
+            }
+        }
+    }
+    anyhow::Ok(bytes)
+}
 #[cfg(test)]
 mod tests {
     use super::*;

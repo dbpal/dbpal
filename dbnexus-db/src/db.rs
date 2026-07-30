@@ -268,6 +268,7 @@ pub trait SchemaTrait:
     + 'static
     + ExportQueryResult
     + SqlBuilder
+    + ExtractSqlValeFromJsonValue
 {
     async fn create_table(&self, req: &CreateTableReq) -> anyhow::Result<String> {
         let ss = SchemaTrait::create_table_sql(self, req)?;
@@ -433,40 +434,72 @@ pub trait SchemaTrait:
             cols_map.insert(x.field.clone(), x);
         });
         // read data from the file
-        let task_read = spawn_blocking(move || -> anyhow::Result<()> {
-            match data {
-                TableImportPara::Csv { path } => {
-                    let mut reader = csv::Reader::from_path(path)?;
-                    let headers: Vec<_> = reader.headers()?.iter().map(|x| x.to_string()).collect();
-                    for csv_line in reader.records() {
-                        let csv_line = csv_line?;
+        let task_read = {
+            let this = SchemaTrait::clone(self);
 
-                        let mut values = HashMap::new();
-                        for (index, h) in headers.iter().enumerate() {
-                            values.insert(
-                                h.clone(),
-                                csv_line
-                                    .get(index)
-                                    .map(|x| {
-                                        if x.is_empty() {
-                                            None
-                                        } else {
-                                            Some(x.to_owned())
-                                        }
-                                    })
-                                    .flatten(),
-                            );
+            spawn_blocking(move || -> anyhow::Result<()> {
+                match data {
+                    TableImportPara::Csv { path } => {
+                        let mut reader = csv::Reader::from_path(path)?;
+                        let headers: Vec<_> =
+                            reader.headers()?.iter().map(|x| x.to_string()).collect();
+                        for csv_line in reader.records() {
+                            let csv_line = csv_line?;
+
+                            let mut values = HashMap::new();
+                            for (index, h) in headers.iter().enumerate() {
+                                values.insert(
+                                    h.clone(),
+                                    csv_line
+                                        .get(index)
+                                        .map(|x| {
+                                            if x.is_empty() {
+                                                None
+                                            } else {
+                                                Some(x.to_owned())
+                                            }
+                                        })
+                                        .flatten(),
+                                );
+                            }
+                            sender.blocking_send(values)?;
                         }
-                        println!("!!!!!!!!!!!!!!values:{:?} {:?}", values, headers);
+                    }
+                    TableImportPara::JSON { path } => {
+                        let f = std::fs::File::open(path)?;
+                        let values: Vec<serde_json::Value> = serde_json::from_reader(f)?;
+                        for value in values.iter() {
+                            match value {
+                                serde_json::Value::Object(map) => {
+                                    let mut values = HashMap::new();
 
-                        sender.blocking_send(values)?;
+                                    for (k, v) in map.iter() {
+                                        let field = match cols_map.get(k) {
+                                            Some(x) => x,
+                                            None => {
+                                                anyhow::bail!(format!("field '{}' not found", k))
+                                            }
+                                        };
+                                        values.insert(
+                                            k.clone(),
+                                            this.extrat_sql_value_from_json_value(
+                                                v,
+                                                &field.data_type,
+                                            )?,
+                                        );
+                                    }
+                                    sender.blocking_send(values)?;
+                                }
+                                _ => {
+                                    anyhow::bail!("the value nested in array,should be object")
+                                }
+                            }
+                        }
                     }
                 }
-                TableImportPara::JSON { path: _ } => todo!(),
-                // TableImportPara::JSONLINE { path } => todo!(),
-            }
-            anyhow::Ok(())
-        });
+                anyhow::Ok(())
+            })
+        };
 
         let this = SchemaTrait::clone(self);
         let table = table.to_owned();
@@ -702,6 +735,39 @@ pub trait SchemaTrait:
     }
     async fn drop_event(&self, _name: &str) -> anyhow::Result<String> {
         self.backend_kind().not_support_feature()
+    }
+
+    #[cfg(test)]
+    async fn test_export_json_and_import_json(&self, table: &str) {
+        use std::io::Write;
+        let json_str = self
+            .export_table_to_string(table, ExportKind::Json { pretty: true })
+            .await
+            .unwrap();
+        let mut file = tempfile::NamedTempFile::new().unwrap();
+
+        file.write_all(json_str.as_bytes()).unwrap();
+
+        self.truncate_table(table).await.unwrap();
+        self.table_import_data_from_file(
+            table,
+            TableImportPara::JSON {
+                path: file.path().to_str().unwrap().to_string(),
+            },
+        )
+        .await
+        .unwrap();
+
+        let json_str2 = self
+            .export_table_to_string(table, ExportKind::Json { pretty: true })
+            .await
+            .unwrap();
+        {
+            println!("json1:{}", json_str);
+            println!("json2:{}", json_str2);
+        }
+
+        println!("test export and import json OK.")
     }
 }
 
@@ -2650,4 +2716,12 @@ impl FirstTrue {
         }
         value
     }
+}
+
+pub trait ExtractSqlValeFromJsonValue {
+    fn extrat_sql_value_from_json_value(
+        &self,
+        value: &serde_json::Value,
+        ty: &str,
+    ) -> anyhow::Result<Option<String>>;
 }

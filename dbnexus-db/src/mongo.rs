@@ -16,9 +16,9 @@ use mongodb::{bson, Cursor, IndexModel};
 use crate::datasource_config::MongoDBConfig;
 use crate::db::{
     BackendKind, CheckConn, CreateSchemaExtra, DBTrait, ExportFrame, ExportKind, ExportQueryResult,
-    Field, GetBackendKind, Index, IndexKind, ListTable, MetaValue, OptionMustBeSomeErr,
-    QueryEventEmitter, QueryResp, QuerySql, ReadOnlyTrait, SchemaTrait, ServerMetas,
-    ShowTableParameter,
+    ExtractSqlValeFromJsonValue, Field, GetBackendKind, Index, IndexKind, ListTable, MetaValue,
+    OptionMustBeSomeErr, QueryEventEmitter, QueryResp, QuerySql, ReadOnlyTrait, SchemaTrait,
+    ServerMetas, ShowTableParameter,
 };
 
 #[derive(Clone)]
@@ -535,6 +535,16 @@ impl MongoDB {
             }
         });
         anyhow::Ok(cols)
+    }
+}
+
+impl ExtractSqlValeFromJsonValue for MongoDB {
+    fn extrat_sql_value_from_json_value(
+        &self,
+        _value: &serde_json::Value,
+        _ty: &str,
+    ) -> anyhow::Result<Option<String>> {
+        anyhow::bail!("mongo dont't need impl this")
     }
 }
 

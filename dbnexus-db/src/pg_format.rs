@@ -508,7 +508,6 @@ pub(crate) fn encode_row_as_json(
             }
             "JSONB[]" => {
                 let value: Option<Vec<serde_json::Value>> = r.try_get(c)?;
-
                 value.map(serde_json::Value::Array)
             }
             "INT4RANGE" => {
@@ -910,10 +909,6 @@ pub(crate) fn encode_row(r: &PgRow) -> anyhow::Result<Vec<Option<String>>> {
                 let value: Option<serde_json::Value> = r.try_get(c)?;
                 value.map(|x| x.to_string())
             }
-            "JSONB[]" => {
-                let value: Option<Vec<serde_json::Value>> = r.try_get(c)?;
-                value.map(|x| output_jsonb_array(&x))
-            }
             "INT4RANGE" => {
                 let value: Option<PgRange<i32>> = r.try_get(c)?;
                 value.map(|x| output_range(&x))
@@ -1157,13 +1152,15 @@ pub(crate) fn output_range_data_time_fixoffset(
     use std::ops::Bound::*;
     let mut ret = "".to_string();
     match &r.start {
-        Included(x) => ret.push_str(format!(r#"["{}","#, format_data_time_fix_offset(x)).as_str()),
-        Excluded(x) => ret.push_str(format!(r#"("{}","#, format_data_time_fix_offset(x)).as_str()),
+        // 去掉了时间前后的双引号
+        Included(x) => ret.push_str(format!("[{},", format_data_time_fix_offset(x)).as_str()),
+        Excluded(x) => ret.push_str(format!("({},", format_data_time_fix_offset(x)).as_str()),
         Unbounded => ret.push_str("(,"),
     };
     match &r.end {
-        Included(x) => ret.push_str(format!(r#""{}"]"#, format_data_time_fix_offset(x)).as_str()),
-        Excluded(x) => ret.push_str(format!(r#""{}")"#, format_data_time_fix_offset(x)).as_str()),
+        // 去掉了时间前后的双引号
+        Included(x) => ret.push_str(format!("{}]", format_data_time_fix_offset(x)).as_str()),
+        Excluded(x) => ret.push_str(format!("{})", format_data_time_fix_offset(x)).as_str()),
         Unbounded => ret.push(')'),
     }
     ret
@@ -1377,21 +1374,6 @@ pub(crate) fn output_naive_datetime_array(array: &[chrono::NaiveDateTime]) -> St
     ret
 }
 
-pub(crate) fn output_jsonb_array(array: &[serde_json::Value]) -> String {
-    if array.is_empty() {
-        return "{}".to_string();
-    }
-    let last = array.len() - 1;
-    let mut ret = "{".to_string();
-    for (index, v) in array.iter().enumerate() {
-        ret.push_str(format!("\"{}\"", v.to_string().replace("\"", "\\\"")).as_str());
-        if index != last {
-            ret.push(',')
-        }
-    }
-    ret.push('}');
-    ret
-}
 pub(crate) fn output_bool_array(array: &[bool]) -> String {
     if array.is_empty() {
         return "{}".to_string();

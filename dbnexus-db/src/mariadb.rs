@@ -342,7 +342,6 @@ pub(crate) fn make_config() -> MysqlDBConfig {
         port: 3307,
         db: Some("test".to_string()),
         read_only: false,
-
         ssl: Default::default(),
     }
 }
@@ -358,11 +357,13 @@ pub(crate) async fn make_test_object_mariadb(config: MysqlDBConfig) -> MysqlDB {
 
 #[cfg(test)]
 mod tests {
+    use std::collections::HashMap;
+
     use super::*;
-    use crate::db::{QuerySql, SchemaTrait};
+    use crate::db::{GetTestExportTableKinds, QuerySql, SchemaTrait, ShowTableParameter};
     use crate::language_server::LangServerCommon;
     use crate::mariadb::make_config;
-    use crate::mysql::test_fns::{self, make_test_object};
+    use crate::mysql::test_fns::{self};
 
     /*
         need set /etc/mysql/mariadb.conf.d/50-server.cnf
@@ -416,76 +417,129 @@ mod tests {
     }
 
     #[tokio::test]
+
+    async fn test_inet() {
+        let db = make_test_object_mariadb(make_config()).await;
+
+        let table_name = "test_inet";
+
+        let _ = db.drop_table(table_name, false).await;
+        let query_id = "aaaa";
+        db.open_connection(query_id).await.unwrap();
+
+        // 1. 使用 MariaDB 原生的 INET4 和 INET6 类型
+        db.execute_sql(
+            query_id,
+            format!(
+                r#"
+            CREATE TABLE {table_name} (
+                id INT AUTO_INCREMENT PRIMARY KEY,
+                ipv4_col INET4,
+                ipv6_col INET6
+            );
+            "#
+            )
+            .as_str(),
+        )
+        .await
+        .unwrap()
+        .unwrap();
+
+        // 2. 准备 Rust 标准库的 Ipv4Addr 和 Ipv6Addr 测试数据
+        use std::net::{Ipv4Addr, Ipv6Addr};
+
+        let ip4: Ipv4Addr = "192.168.1.1".parse().unwrap();
+        let ip6: Ipv6Addr = "2001:db8::1".parse().unwrap();
+
+        // MariaDB 在接收 INET 字段时支持直接传入文本表示
+        let mut values: HashMap<String, Option<String>> = HashMap::new();
+        values.insert("ipv4_col".to_string(), Some(ip4.to_string()));
+        values.insert("ipv6_col".to_string(), Some(ip6.to_string()));
+
+        // 3. 执行插入
+        db.table_insert(table_name, values).await.unwrap();
+
+        // 4. 查询并打印结果（MariaDB 会自动将内部的二进制转换回标准字符串返回给客户端）
+        let cols = db
+            .show_table_collect(table_name, ShowTableParameter::new_stupid_test("id asc"))
+            .await
+            .unwrap();
+        println!("{:?}", cols);
+
+        GetTestExportTableKinds::test_export(&db, table_name).await;
+    }
+
+    #[tokio::test]
     async fn test_duplicate() {
-        test_fns::test_duplicate(make_test_object(make_config()).await).await;
+        test_fns::test_duplicate(make_test_object_mariadb(make_config()).await).await;
     }
     #[tokio::test]
     async fn test_transaction() {
-        test_fns::test_transaction(make_test_object(make_config()).await).await;
+        test_fns::test_transaction(make_test_object_mariadb(make_config()).await).await;
     }
 
     #[tokio::test]
     async fn test_server_metas() {
-        test_fns::test_server_metas(make_test_object(make_config()).await).await;
+        test_fns::test_server_metas(make_test_object_mariadb(make_config()).await).await;
     }
     #[tokio::test]
     async fn test_procedure() {
-        test_fns::test_procedure(make_test_object(make_config()).await).await;
+        test_fns::test_procedure(make_test_object_mariadb(make_config()).await).await;
     }
     #[tokio::test]
     async fn test_index() {
-        test_fns::test_index(make_test_object(make_config()).await).await;
+        test_fns::test_index(make_test_object_mariadb(make_config()).await).await;
     }
     #[tokio::test]
     async fn test_check_conn() {
-        test_fns::test_check_conn(make_test_object(make_config()).await).await;
+        test_fns::test_check_conn(make_test_object_mariadb(make_config()).await).await;
     }
     #[tokio::test]
     async fn test_export() {
-        test_fns::test_export(make_test_object(make_config()).await).await;
+        test_fns::test_export(make_test_object_mariadb(make_config()).await).await;
     }
     #[tokio::test]
     async fn test_rename() {
-        test_fns::test_rename(make_test_object(make_config()).await).await;
+        test_fns::test_rename(make_test_object_mariadb(make_config()).await).await;
     }
     #[tokio::test]
     async fn test_udf() {
-        test_fns::test_udf(make_test_object(make_config()).await).await;
+        test_fns::test_udf(make_test_object_mariadb(make_config()).await).await;
     }
     #[tokio::test]
     async fn test_types1() {
-        test_fns::test_types1(make_test_object(make_config()).await).await;
+        test_fns::test_types1(make_test_object_mariadb(make_config()).await).await;
     }
     #[tokio::test]
     async fn test_types2() {
-        test_fns::test_types2(make_test_object(make_config()).await).await;
+        test_fns::test_types2(make_test_object_mariadb(make_config()).await).await;
     }
     #[tokio::test]
     async fn test_types3() {
-        test_fns::test_types3(make_test_object(make_config()).await).await;
+        test_fns::test_types3(make_test_object_mariadb(make_config()).await).await;
     }
     #[tokio::test]
     async fn test_types4() {
-        test_fns::test_types4(make_test_object(make_config()).await).await;
+        test_fns::test_types4(make_test_object_mariadb(make_config()).await).await;
     }
     #[tokio::test]
     async fn test_triggers() {
-        test_fns::test_triggers(make_test_object(make_config()).await).await;
+        test_fns::test_triggers(make_test_object_mariadb(make_config()).await).await;
     }
     #[tokio::test]
     async fn test_list_database() {
-        test_fns::test_list_database(make_test_object(make_config()).await).await;
+        test_fns::test_list_database(make_test_object_mariadb(make_config()).await).await;
     }
     #[tokio::test]
     async fn test_table_column() {
-        test_fns::test_table_column(make_test_object(make_config()).await).await;
+        test_fns::test_table_column(make_test_object_mariadb(make_config()).await).await;
     }
     #[tokio::test]
     async fn test_view() {
-        test_fns::test_view(make_test_object(make_config()).await).await;
+        test_fns::test_view(make_test_object_mariadb(make_config()).await).await;
     }
     #[tokio::test]
     async fn test_event() {
-        test_fns::test_event(make_test_object(make_config()).await).await;
+        test_fns::test_event(make_test_object_mariadb(make_config()).await).await;
     }
 }

@@ -3,14 +3,14 @@ use crate::db::{
     create_html_table_data, create_html_table_header, create_markdown_data, create_markdown_header,
     escape_sql_str, export_query_as_xlsx_send_data, format_data_time_fix_offset, BackendKind,
     CatalogTrait, CheckConn, ColumnType, CreateDatabaseExtra, CreateIndexReq, CreateSchemaExtra,
-    DBTrait, DefAndMetas, ExportFrame, ExportKind, ExportQueryResult, Field, FirstTrue,
-    GetBackendKind, GetTestExportTableKinds, Index, IndexKind, ListTable, MetaValue, NamedStaff,
-    ProcedureDetail, QueryEvent, QueryResp, QuerySql, ReadOnlyTrait, SchemaTrait, ServerMetas,
-    ShowTableParameter, SqlBuilder, SqlCollect, TriggerDetail, TriggerEnable, TriggerEvent,
-    TriggerTiming, XlsxEdit, POOL_MAX_CONNECTIONS,
+    DBTrait, DefAndMetas, ExportFrame, ExportKind, ExportQueryResult, ExtractSqlValeFromJsonValue,
+    Field, FirstTrue, GetBackendKind, GetTestExportTableKinds, Index, IndexKind, ListTable,
+    MetaValue, NamedStaff, ProcedureDetail, QueryEvent, QueryResp, QuerySql, ReadOnlyTrait,
+    SchemaTrait, ServerMetas, ShowTableParameter, SqlBuilder, SqlCollect, TriggerDetail,
+    TriggerEnable, TriggerEvent, TriggerTiming, XlsxEdit, POOL_MAX_CONNECTIONS,
 };
 use crate::db::{OptionMustBeSomeErr, QueryEventEmitter};
-use crate::helper::create_csv;
+use crate::helper::{create_csv, extract_bytes_from_serde_values};
 use crate::language_server::LexerCompletionTrait;
 use chrono::FixedOffset;
 use dashmap::DashMap;
@@ -220,6 +220,9 @@ pub struct ConvertColumnDataToString {
     pub(crate) value: String,
 }
 
+fn encode_bytes(x: &[u8]) -> String {
+    format!("0X{}", hex::encode_upper(x))
+}
 impl<'a> tiberius::FromSql<'a> for ConvertColumnDataToString {
     fn from_sql(value: &'a tiberius::ColumnData<'static>) -> tiberius::Result<Option<Self>> {
         let value = match value {
@@ -232,9 +235,7 @@ impl<'a> tiberius::FromSql<'a> for ConvertColumnDataToString {
             tiberius::ColumnData::Bit(x) => x.as_ref().map(|x| if *x { 1 } else { 0 }.to_string()),
             tiberius::ColumnData::String(x) => x.as_ref().map(|x| x.to_string()),
             tiberius::ColumnData::Guid(x) => x.as_ref().map(|x| x.to_string()),
-            tiberius::ColumnData::Binary(x) => {
-                x.as_ref().map(|x| format!("0X{}", hex::encode_upper(x)))
-            }
+            tiberius::ColumnData::Binary(x) => x.as_ref().map(|x| encode_bytes(x)),
             tiberius::ColumnData::Numeric(x) => x.as_ref().map(|x| x.to_string()),
 
             tiberius::ColumnData::Xml(x) => x.as_ref().map(|x| x.to_string()),
@@ -1155,7 +1156,7 @@ impl SqlBuilder for SqlServerDB {
             "BIT" | "BITN" | "BIGVARBIN" => default_value,
             "NVARCHAR" | "VARCHAR" | "NCHAR" | "CHAR" | "NTEXT" | "TEXT" | "BIGVARCHAR"
             | "BIGCHAR" => single_quote,
-            "UNIQUEIDENTIFIER" => default_value,
+            "UNIQUEIDENTIFIER" => single_quote,
             "BINARY" | "VARBINARY" | "IMAGE" | "BIGBINARY" => default_value,
             "XML" | "DATETIME" | "DATETIME2" | "SMALLDATETIME" | "DATE" | "TIME" | "DATETIME4"
             | "DATEN" | "DATETIMEN" | "DATETIMEOFFSET" | "TIMEN" | "DATETIMEOFFSETN" => {
@@ -1202,6 +1203,27 @@ impl SqlBuilder for SqlServerDB {
         }
 
         sql
+    }
+}
+
+impl ExtractSqlValeFromJsonValue for SqlServerDB {
+    fn extrat_sql_value_from_json_value(
+        &self,
+        value: &serde_json::Value,
+        _ty: &str,
+    ) -> anyhow::Result<Option<String>> {
+        let r = match value {
+            serde_json::Value::Null => return anyhow::Ok(None),
+            serde_json::Value::Bool(x) => if *x { "1" } else { "0" }.to_string(),
+            serde_json::Value::Number(number) => number.to_string(),
+            serde_json::Value::String(x) => x.clone(),
+            serde_json::Value::Array(values) => {
+                let r = extract_bytes_from_serde_values(&values)?;
+                encode_bytes(&r)
+            }
+            serde_json::Value::Object(..) => todo!(),
+        };
+        anyhow::Ok(Some(r))
     }
 }
 
@@ -2898,6 +2920,7 @@ END;
         println!("ret:{:?}", list);
 
         GetTestExportTableKinds::test_export(&db, table_name).await;
+        db.test_export_json_and_import_json(table_name).await;
     }
 
     #[tokio::test]
@@ -2922,7 +2945,7 @@ END;
                     char_column char(50),
                     ntext_column ntext,
                     text_column text
-                  );
+                );
             "#
             ),
             &[],
@@ -2954,6 +2977,7 @@ END;
             .unwrap();
         println!("ret:{:?}", list);
         GetTestExportTableKinds::test_export(&db, table_name).await;
+        db.test_export_json_and_import_json(table_name).await;
     }
 
     #[tokio::test]
@@ -2994,7 +3018,7 @@ END;
 
         values.insert(
             "UniqueIdentifierColumn".to_string(),
-            Some("NEWID()".to_string()),
+            Some("228e0edb-8941-4062-ab0b-0c9c25e23eb9".to_string()),
         );
         values.insert("NumericColumn".to_string(), Some("123.45".to_string()));
         values.insert("DecimalColumn".to_string(), Some("12.3456".to_string()));
@@ -3012,6 +3036,7 @@ END;
             .unwrap();
         println!("ret:{:?}", list);
         GetTestExportTableKinds::test_export(&db, table_name).await;
+        db.test_export_json_and_import_json(table_name).await;
     }
 
     #[tokio::test]
@@ -3082,5 +3107,6 @@ END;
             .unwrap();
         println!("ret:{:?}", list);
         GetTestExportTableKinds::test_export(&db, table_name).await;
+        db.test_export_json_and_import_json(table_name).await;
     }
 }

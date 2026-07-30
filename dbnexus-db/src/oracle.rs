@@ -14,11 +14,11 @@ use crate::db::{
     create_html_table_data, create_html_table_header, create_markdown_data, create_markdown_header,
     escape_sql_str, export_query_as_xlsx_send_blocking_data, BackendKind, CheckConn, ColumnType,
     CreateIndexReq, CreateSchemaExtra, CreateTableAndIndexSql, DBTrait, DefAndMetas, ExportFrame,
-    ExportKind, ExportQueryResult, Field, FirstTrue, GetBackendKind, GetTestExportTableKinds,
-    Index, IndexKind, ListTable, MetaValue, NamedStaff, OptionMustBeSomeErr, ProcedureDetail,
-    QueryEvent, QueryEventEmitter, QueryResp, QuerySql, SchemaTrait, ServerMetas,
-    ShowTableParameter, SqlBuilder, SqlCollect, TriggerDetail, TriggerEnable, TriggerEvent,
-    TriggerTiming, XlsxEdit, POOL_MAX_CONNECTIONS,
+    ExportKind, ExportQueryResult, ExtractSqlValeFromJsonValue, Field, FirstTrue, GetBackendKind,
+    GetTestExportTableKinds, Index, IndexKind, ListTable, MetaValue, NamedStaff,
+    OptionMustBeSomeErr, ProcedureDetail, QueryEvent, QueryEventEmitter, QueryResp, QuerySql,
+    SchemaTrait, ServerMetas, ShowTableParameter, SqlBuilder, SqlCollect, TriggerDetail,
+    TriggerEnable, TriggerEvent, TriggerTiming, XlsxEdit, POOL_MAX_CONNECTIONS,
 };
 
 use crate::helper::{create_csv, generate_random_string};
@@ -1640,6 +1640,29 @@ pub(crate) async fn make_test_object(schema: Option<String>) -> OracleDB {
 
 impl GetTestExportTableKinds for OracleDB {}
 
+impl ExtractSqlValeFromJsonValue for OracleDB {
+    fn extrat_sql_value_from_json_value(
+        &self,
+        value: &serde_json::Value,
+        _: &str,
+    ) -> anyhow::Result<Option<String>> {
+        let r = match value {
+            serde_json::Value::Null => return anyhow::Ok(None),
+            serde_json::Value::Bool(x) => x.to_string(),
+            serde_json::Value::Number(number) => number.to_string(),
+            serde_json::Value::String(x) => x.clone(),
+            serde_json::Value::Array(..) => {
+                anyhow::bail!("oracle should not have nested array")
+            }
+            serde_json::Value::Object(..) => {
+                anyhow::bail!("oralce should not have nested map")
+            }
+        };
+
+        anyhow::Ok(Some(r))
+    }
+}
+
 #[cfg(test)]
 mod tests {
 
@@ -2311,6 +2334,7 @@ TEST_MATERIALIZED_VIEW_TABLE (product_name, category, price) VALUES ('Samsung Ga
         println!("resp:{:?}", resp);
 
         GetTestExportTableKinds::test_export(&db, table_name).await;
+        db.test_export_json_and_import_json(table_name).await;
     }
 
     #[tokio::test]
@@ -2359,6 +2383,7 @@ TEST_MATERIALIZED_VIEW_TABLE (product_name, category, price) VALUES ('Samsung Ga
             .unwrap();
         println!("resp:{:?}", resp);
         GetTestExportTableKinds::test_export(&db, table_name).await;
+        db.test_export_json_and_import_json(table_name).await;
     }
 
     #[tokio::test]
@@ -2406,6 +2431,7 @@ TEST_MATERIALIZED_VIEW_TABLE (product_name, category, price) VALUES ('Samsung Ga
             .unwrap();
         println!("resp:{:?}", resp);
         GetTestExportTableKinds::test_export(&db, table_name).await;
+        db.test_export_json_and_import_json(table_name).await;
     }
 
     // TODO create table sql not passed
@@ -2450,5 +2476,6 @@ TEST_MATERIALIZED_VIEW_TABLE (product_name, category, price) VALUES ('Samsung Ga
         println!("resp:{:?}", resp);
 
         GetTestExportTableKinds::test_export(&db, table_name).await;
+        db.test_export_json_and_import_json(table_name).await;
     }
 }

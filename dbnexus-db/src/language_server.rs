@@ -707,7 +707,6 @@ pub trait LangServerCommon: GetBackendKind + GetKeyWords + Send + Sync {
 
             if let Some(schema) = schema_name {
                 let mut ret = vec![];
-
                 if self.hit_schema(schema).await {
                     // try completion on schema.xxx syntax
                     ret.extend(
