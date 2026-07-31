@@ -1,11 +1,11 @@
 use crate::datasource_config::ClickHouseConfig;
 use crate::db::{
     create_html_table_data, create_html_table_header, create_markdown_data, create_markdown_header,
-    escape_sql_str, quote_sql_str, BackendKind, CheckConn, ColumnType, CreateSchemaExtra,
-    CreateTableAndIndexSql, DBTrait, DefAndMetas, ExportFrame, ExportKind, ExportQueryResult,
-    ExtractSqlValeFromJsonValue, Field, GetBackendKind, GetTestExportTableKinds, ListTable,
-    MetaValue, NamedStaff, QueryEvent, QueryEventEmitter, QueryResp, QuerySql, SchemaTrait,
-    ServerMetas, ShowTableParameter, SqlBuilder, SqlCollect, XlsxEdit,
+    quote_sql_str, BackendKind, CheckConn, ColumnType, CreateSchemaExtra, CreateTableAndIndexSql,
+    DBTrait, DefAndMetas, ExportFrame, ExportKind, ExportQueryResult, ExtractSqlValeFromJsonValue,
+    Field, GetBackendKind, GetTestExportTableKinds, ListTable, MetaValue, NamedStaff, QueryEvent,
+    QueryEventEmitter, QueryResp, QuerySql, SchemaTrait, ServerMetas, ShowTableParameter,
+    SqlBuilder, SqlCollect, XlsxEdit,
 };
 
 use crate::helper::{
@@ -183,7 +183,7 @@ impl ExtractSqlValeFromJsonValue for ClickHouseDB {
                             if is_int_etc {
                                 k.to_owned()
                             } else {
-                                format!("'{}'", escape_sql_str(k))
+                                quote_sql_str(k)
                             },
                             encode_nested(v, vty, true)?.unwrap_or("null".to_string())
                         ));
@@ -1084,7 +1084,7 @@ fn encode_nested(value: &serde_json::Value, typ: &DataType) -> anyhow::Result<St
                 xs.push(format!(
                     "{}:{}",
                     if need_quote(kty) {
-                        format!("'{}'", escape_sql_str(k))
+                        quote_sql_str(k)
                     } else {
                         k.clone()
                     },
