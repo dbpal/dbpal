@@ -5,6 +5,7 @@ use core::str;
 use std::any::Any;
 use std::collections::HashMap;
 use std::fmt::{self, Debug};
+use std::io::BufRead;
 use std::ops::Deref;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex};
@@ -186,8 +187,8 @@ pub struct ShowTableParameter {
 #[serde(tag = "import_type", rename_all = "lowercase")]
 pub enum TableImportPara {
     Csv { path: String },
-    JSON { path: String },
-    // JSONLINE { path: String },
+    Json { path: String },
+    JsonLine { path: String },
 }
 
 impl ShowTableParameter {
@@ -465,14 +466,13 @@ pub trait SchemaTrait:
                             sender.blocking_send(values)?;
                         }
                     }
-                    TableImportPara::JSON { path } => {
+                    TableImportPara::Json { path } => {
                         let f = std::fs::File::open(path)?;
                         let values: Vec<serde_json::Value> = serde_json::from_reader(f)?;
                         for value in values.iter() {
                             match value {
                                 serde_json::Value::Object(map) => {
                                     let mut values = HashMap::new();
-
                                     for (k, v) in map.iter() {
                                         let field = match cols_map.get(k) {
                                             Some(x) => x,
@@ -494,6 +494,34 @@ pub trait SchemaTrait:
                                     anyhow::bail!("the value nested in array,should be object")
                                 }
                             }
+                        }
+                    }
+                    TableImportPara::JsonLine { path } => {
+                        //
+                        let f = std::fs::File::open(path)?;
+                        let reader = std::io::BufReader::new(f);
+                        for line in reader.lines() {
+                            let line = line?;
+                            if line.trim().is_empty() {
+                                // skip empty line
+                                continue;
+                            }
+                            let map: serde_json::Map<String, serde_json::Value> =
+                                serde_json::from_str(&line)?;
+                            let mut values = HashMap::new();
+                            for (k, v) in map.iter() {
+                                let field = match cols_map.get(k) {
+                                    Some(x) => x,
+                                    None => {
+                                        anyhow::bail!(format!("field '{}' not found", k))
+                                    }
+                                };
+                                values.insert(
+                                    k.clone(),
+                                    this.extrat_sql_value_from_json_value(v, &field.data_type)?,
+                                );
+                            }
+                            sender.blocking_send(values)?;
                         }
                     }
                 }
@@ -738,33 +766,100 @@ pub trait SchemaTrait:
     }
 
     #[cfg(test)]
-    async fn test_export_json_and_import_json(&self, table: &str) {
+    async fn test_table_export_and_import(&self, table: &str) {
         use std::io::Write;
-        let json_str = self
-            .export_table_to_string(table, ExportKind::Json { pretty: true })
-            .await
-            .unwrap();
-        let mut file = tempfile::NamedTempFile::new().unwrap();
 
-        file.write_all(json_str.as_bytes()).unwrap();
-
-        self.truncate_table(table).await.unwrap();
-        self.table_import_data_from_file(
-            table,
-            TableImportPara::JSON {
-                path: file.path().to_str().unwrap().to_string(),
-            },
-        )
-        .await
-        .unwrap();
-
-        let json_str2 = self
-            .export_table_to_string(table, ExportKind::Json { pretty: true })
-            .await
-            .unwrap();
         {
-            println!("json1:{}", json_str);
-            println!("json2:{}", json_str2);
+            let mut file = tempfile::NamedTempFile::new().unwrap();
+            // test csv
+            let export_kind = ExportKind::Csv {
+                include_header: true,
+                delimiter: ',',
+            };
+
+            let csv_str = self
+                .export_table_to_string(table, export_kind.clone())
+                .await
+                .unwrap();
+            file.write_all(csv_str.as_bytes()).unwrap();
+
+            println!("csv str:{}", csv_str);
+            self.truncate_table(table).await.unwrap();
+            self.table_import_data_from_file(
+                table,
+                TableImportPara::Csv {
+                    path: file.path().to_str().unwrap().to_string(),
+                },
+            )
+            .await
+            .unwrap();
+            let csv_str2 = self
+                .export_table_to_string(table, export_kind.clone())
+                .await
+                .unwrap();
+            {
+                println!("csv1:{}", csv_str);
+                println!("csv2:{}", csv_str2);
+            }
+        }
+
+        {
+            let mut file = tempfile::NamedTempFile::new().unwrap();
+            // test json
+            let json_str = self
+                .export_table_to_string(table, ExportKind::Json { pretty: true })
+                .await
+                .unwrap();
+
+            file.write_all(json_str.as_bytes()).unwrap();
+
+            self.truncate_table(table).await.unwrap();
+            self.table_import_data_from_file(
+                table,
+                TableImportPara::Json {
+                    path: file.path().to_str().unwrap().to_string(),
+                },
+            )
+            .await
+            .unwrap();
+
+            let json_str2 = self
+                .export_table_to_string(table, ExportKind::Json { pretty: true })
+                .await
+                .unwrap();
+            {
+                println!("json1:{}", json_str);
+                println!("json2:{}", json_str2);
+            }
+        }
+
+        {
+            let mut file = tempfile::NamedTempFile::new().unwrap();
+            let export_kind = ExportKind::JsonLine;
+
+            let jsonline_str = self
+                .export_table_to_string(table, export_kind.clone())
+                .await
+                .unwrap();
+            file.write_all(jsonline_str.as_bytes()).unwrap();
+
+            self.truncate_table(table).await.unwrap();
+            self.table_import_data_from_file(
+                table,
+                TableImportPara::JsonLine {
+                    path: file.path().to_str().unwrap().to_string(),
+                },
+            )
+            .await
+            .unwrap();
+            let jsonline_str2 = self
+                .export_table_to_string(table, export_kind.clone())
+                .await
+                .unwrap();
+            {
+                println!("jsonline1:{}", jsonline_str);
+                println!("jsonline2:{}", jsonline_str2);
+            }
         }
 
         println!("test export and import json OK.")

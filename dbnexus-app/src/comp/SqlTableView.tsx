@@ -12,6 +12,7 @@ import ArrowOutwardIcon from "@mui/icons-material/ArrowOutward";
 import { FaUpload } from "react-icons/fa";
 import CancelIcon from "@mui/icons-material/Cancel";
 import {
+  Alert,
   Box,
   Button,
   Checkbox,
@@ -73,10 +74,7 @@ import {
   columnHeaderStyle,
   SqlOpContext,
   AppColumnMenuKind,
-  parseCellType,
-  arrayToMarkdownTable,
 } from "./helper";
-import { FaCopy } from "react-icons/fa6";
 import FileCopyIcon from "@mui/icons-material/FileCopy";
 import {
   AppColumnMenu,
@@ -92,6 +90,7 @@ import {
   AppDataGridPagination,
   AppDataGridToolBar,
   ClearableTextField,
+  CopyAsXXX,
   CopySql,
   ExportQueryResultToFile,
   FetchTimeDataGrid,
@@ -425,16 +424,22 @@ type CustomPaginationProps = {
   kind: DataSourceKind;
   table: string;
   isTable: boolean;
+  handleReload: () => void;
 };
-function ImportDataFromFile(props: { uuid: string; table: string }) {
-  const { uuid, table } = props;
+function ImportDataFromFile(props: {
+  uuid: string;
+  table: string;
+  handleReload: () => void;
+}) {
+  const { uuid, table, handleReload } = props;
   const { showNotification } = useNotification();
 
   const [loading, setLoading] = useState(false);
   return (
-    <Tooltip title="insert data from a file">
+    <Tooltip title="insert data from a file,current support csv,json,jsonline">
       <IconButton
         loading={loading}
+        color="success"
         onClick={async () => {
           try {
             const path = await open({
@@ -442,6 +447,10 @@ function ImportDataFromFile(props: { uuid: string; table: string }) {
               filters: [
                 { extensions: ["csv"], name: "csv" },
                 { extensions: ["json"], name: "json" },
+                {
+                  extensions: ["jsonl"],
+                  name: "jsonl",
+                },
               ],
             });
             if (!path) {
@@ -449,17 +458,26 @@ function ImportDataFromFile(props: { uuid: string; table: string }) {
             }
             let para: TableImportPara = null;
             const pathLower = path.toLowerCase();
-
             if (pathLower.endsWith(".csv")) {
               para = { import_type: "csv", path };
             } else if (pathLower.endsWith(".json")) {
               para = { import_type: "json", path };
+            } else if (pathLower.endsWith(".jsonl")) {
+              para = { import_type: "jsonline", path };
             } else {
-              showNotification({ severity: "error", title: "unsupport file type" });
+              showNotification({
+                severity: "error",
+                title: "unsupported file type",
+                message: (
+                  <Alert> file extension must end with csv,json or jsonl </Alert>
+                ),
+              });
               return;
             }
             setLoading(true);
             await commands.tableImportFromFile(uuid, table, para);
+            showNotification({ severity: "success", title: "import data ok" });
+            handleReload();
           } catch (e) {
             showNotification({
               severity: "error",
@@ -477,7 +495,7 @@ function ImportDataFromFile(props: { uuid: string; table: string }) {
 }
 
 export function SqlTablePagination({
-  dbpal: { resp, clientModel, uuid, kind, table, isTable },
+  dbpal: { resp, clientModel, uuid, kind, table, isTable, handleReload },
 }: {
   dbpal: CustomPaginationProps;
 }) {
@@ -506,7 +524,9 @@ export function SqlTablePagination({
         <FetchTimeDataGrid />
         <ResetColumnWidth />
         {clientModel && <SliderSize config={UseSizeConfig.queryLimit} />}
-        {isTable && <ImportDataFromFile uuid={uuid} table={table} />}
+        {isTable && (
+          <ImportDataFromFile uuid={uuid} table={table} handleReload={handleReload} />
+        )}
 
         <ExportQueryResultToFile />
 
@@ -1095,7 +1115,17 @@ function SqlTableView(props: {
       },
       pagination: {
         dbpal: (function (): CustomPaginationProps {
-          return { resp, clientModel, uuid, kind, table: tableName, isTable };
+          return {
+            resp,
+            clientModel,
+            uuid,
+            kind,
+            table: tableName,
+            isTable,
+            handleReload: () => {
+              handleReload(false);
+            },
+          };
         })(),
       },
       toolbar: {
@@ -1498,7 +1528,6 @@ function CellMenu(props: {
     getRow,
   } = props;
 
-  const { showNotification } = useNotification();
   const quoteField = quoteDatabaseIdentifier(field, kind);
 
   return (
@@ -1545,74 +1574,13 @@ function CellMenu(props: {
         </ListItemIcon>
         <ListItemText> View in Modal </ListItemText>
       </MenuItem>
-
-      {content && (
-        <MenuItem
-          onClick={() => {
-            handleCopyToClipboard(content, showNotification);
-          }}>
-          <ListItemIcon>
-            <FaCopy fontSize="1.4rem" />
-          </ListItemIcon>
-          <ListItemText> Copy </ListItemText>
-        </MenuItem>
-      )}
-
-      <MenuItem
-        onClick={() => {
-          handleCopyToClipboard(field, showNotification);
-        }}>
-        <ListItemIcon>{/* <FaCopy fontSize="1.4rem" /> */}</ListItemIcon>
-        <ListItemText> Copy Column Name </ListItemText>
-      </MenuItem>
-
-      {content && (
-        <MenuItem
-          onClick={() => {
-            const row = getRow();
-            for (const x in row) {
-              row[x] = parseCellType(row[x]);
-            }
-            handleCopyToClipboard(JSON.stringify(row, null, 2), showNotification);
-          }}>
-          <ListItemIcon>{/* <FaCopy fontSize="1.4rem" /> */}</ListItemIcon>
-          <ListItemText> Copy as JSON </ListItemText>
-        </MenuItem>
-      )}
-
-      {content && (
-        <MenuItem
-          onClick={() => {
-            const row = getRow();
-            const result: string[][] = [];
-            result.push(Object.keys(row));
-            result.push(Object.keys(row).map((x) => row[x]));
-            handleCopyToClipboard(arrayToMarkdownTable(result), showNotification);
-          }}>
-          <ListItemIcon>{/* <FaCopy fontSize="1.4rem" /> */}</ListItemIcon>
-          <ListItemText> Copy as Markdown </ListItemText>
-        </MenuItem>
-      )}
-
-      {content && (
-        <MenuItem
-          onClick={async () => {
-            try {
-              const value = await commands.putValueInSql(uuid, fieldType, content);
-              handleCopyToClipboard(`(${value})`, showNotification);
-            } catch (e) {
-              showNotification({
-                severity: "error",
-                message: e,
-                title: "format for in failed",
-              });
-            }
-          }}>
-          <ListItemIcon>{/* <FaCopy fontSize="1.4rem" /> */}</ListItemIcon>
-          <ListItemText> Copy as For in </ListItemText>
-        </MenuItem>
-      )}
-
+      <CopyAsXXX
+        uuid={uuid}
+        field={field}
+        fieldType={fieldType}
+        getRow={getRow}
+        content={content}
+      />
       <Divider />
       <MenuItem
         onClick={() => {

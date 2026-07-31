@@ -225,12 +225,12 @@ impl AstCompletionHelper for ClickHouseDB {
 #[async_trait::async_trait]
 impl LexerCompletionTrait for ClickHouseDB {
     async fn get_types(&self) -> anyhow::Result<Vec<String>> {
-        let r = ["true", "false"].iter().map(|x| x.to_string()).collect();
-        anyhow::Ok(r)
+        anyhow::Ok(CLICKHOUSE_TYPES.iter().map(|x| x.to_string()).collect())
     }
 
     async fn get_text(&self) -> anyhow::Result<Vec<String>> {
-        anyhow::Ok(CLICKHOUSE_TYPES.iter().map(|x| x.to_string()).collect())
+        let r = ["true", "false"].iter().map(|x| x.to_string()).collect();
+        anyhow::Ok(r)
     }
 }
 

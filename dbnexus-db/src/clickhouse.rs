@@ -37,8 +37,8 @@ impl ClickHouseDB {
         sender: tokio::sync::mpsc::Sender<ExportFrame>,
     ) -> anyhow::Result<()> {
         if include_table_schema {
-            let x = self.show_create_table_sql(table_name).await?;
-            sender.send(x.create_table.to_string().into()).await?;
+            let sql = self.show_create_table_sql(table_name).await?;
+            sender.send(sql.create_table.to_string().into()).await?;
         }
         let sql = self.gen_show_sql(table_name, None, para.as_ref());
         let mut stream = self.query_row(&sql).await?;
@@ -117,19 +117,107 @@ impl ClickHouseDB {
         for name in m.iter() {
             ret.remove(name);
         }
+
         let mut ret = ret.into_iter().collect::<Vec<_>>();
         ret.sort();
         anyhow::Ok(ret.into_iter().map(ListTable::from).collect())
     }
 }
 
+fn extract_null_able(x: &DataType) -> &DataType {
+    match x {
+        DataType::Nullable(x) => x.as_ref(),
+        _ => x,
+    }
+}
 impl ExtractSqlValeFromJsonValue for ClickHouseDB {
     fn extrat_sql_value_from_json_value(
         &self,
-        _value: &serde_json::Value,
-        _: &str,
+        value: &serde_json::Value,
+        ty: &str,
     ) -> anyhow::Result<Option<String>> {
-        todo!()
+        let ty = parse_type(ty)?;
+
+        fn encode_nested(
+            value: &serde_json::Value,
+            ty: &DataType,
+            is_nested: bool,
+        ) -> anyhow::Result<Option<String>> {
+            let r = match value {
+                serde_json::Value::Null => None,
+                serde_json::Value::Bool(x) => Some(x.to_string()),
+                serde_json::Value::Number(number) => Some(number.to_string()),
+                serde_json::Value::String(x) => {
+                    if is_nested {
+                        Some(format!("'{}'", escape_sql_str(x)))
+                    } else {
+                        Some(x.clone())
+                    }
+                }
+                serde_json::Value::Array(values) => {
+                    let mut results: Vec<String> = Vec::with_capacity(values.len());
+
+                    for (index, value) in values.iter().enumerate() {
+                        let ty = match extract_null_able(ty) {
+                            DataType::Array(x) => match x {
+                                ArrayElemTypeDef::None => anyhow::bail!(
+                                    "ArrayElemTypeDef::None can't retrive a valid type"
+                                ),
+                                ArrayElemTypeDef::AngleBracket(data_type) => data_type.as_ref(),
+                                ArrayElemTypeDef::SquareBracket(data_type, _) => data_type.as_ref(),
+                                ArrayElemTypeDef::Parenthesis(data_type) => data_type.as_ref(),
+                            },
+                            DataType::Tuple(x) => &mut match x.get(index) {
+                                Some(x) => &x.field_type,
+                                None => anyhow::bail!(format!("not found type on tupe#{}", index)),
+                            },
+                            _ => {
+                                anyhow::bail!(format!(
+                                    "type not is not ok,should be array,but:{:?}",
+                                    ty
+                                ))
+                            }
+                        };
+                        let r = encode_nested(value, ty, true)?.unwrap_or("null".to_string());
+                        results.push(r);
+                    }
+                    let results = results.join(",");
+                    Some(if matches!(ty, DataType::Array(..)) {
+                        format!("[{}]", results)
+                    } else {
+                        format!("({})", results)
+                    })
+                }
+                serde_json::Value::Object(values) => {
+                    let (kty, vty) = match extract_null_able(ty) {
+                        DataType::Map(kty, vty) => (kty.as_ref(), vty.as_ref()),
+                        _ => {
+                            anyhow::bail!("should be map type but:{:?}", ty);
+                        }
+                    };
+                    let mut results = Vec::with_capacity(values.len());
+                    let is_int_etc = {
+                        let ty = extract_null_able(kty);
+                        ty_is_decimal(ty) || ty_is_int(ty) || ty_is_float(ty)
+                    };
+                    for (k, v) in values.iter() {
+                        results.push(format!(
+                            "{}:{}",
+                            if is_int_etc {
+                                k.to_owned()
+                            } else {
+                                format!("'{}'", escape_sql_str(k))
+                            },
+                            encode_nested(v, vty, true)?.unwrap_or("null".to_string())
+                        ));
+                    }
+                    Some(format!("{{{}}}", results.join(",")))
+                }
+            };
+            anyhow::Ok(r)
+        }
+
+        encode_nested(value, &ty, false)
     }
 }
 
@@ -150,6 +238,7 @@ impl SchemaTrait for ClickHouseDB {
     }
 
     async fn drop_materialized_view(&self, name: &str) -> anyhow::Result<Option<String>> {
+        // 在 ClickHouse 中，DROP MATERIALIZED VIEW 在底层实现上本质就是调用了 DROP TABLE 的核心逻辑函数
         self.drop_table(name, false).await
     }
 
@@ -210,11 +299,7 @@ impl SchemaTrait for ClickHouseDB {
     async fn duplicate_table(&self, table: &str, dup: &str) -> anyhow::Result<()> {
         let sql = format!(r#"CREATE TABLE `{dup}` AS `{table}`"#);
         log::info!("sql:{}", sql);
-        log::info!("sql:{}", sql);
-
         self.simple_execute_sql(&sql).await?;
-        // select data and insert.
-
         let (sender, mut receiver) = tokio::sync::mpsc::channel(10);
 
         let jh1 = {
@@ -605,7 +690,6 @@ impl ClickHouseDB {
         while let Some(data) = stream.next().await {
             let data = data?;
             sender.send(data.into()).await?;
-            sender.send("\n".into()).await?;
         }
         anyhow::Ok(())
     }
@@ -912,12 +996,12 @@ impl ClickHouseDB {
         }
 
         let http_client = {
-            let mut b = reqwest::Client::builder();
+            let mut builder = reqwest::Client::builder();
             if let Some(x) = config.conn_timeout {
-                b = b.connect_timeout(x.into());
+                builder = builder.connect_timeout(x.into());
             }
-            b = b.pool_max_idle_per_host(10);
-            b.build()?
+            builder = builder.pool_max_idle_per_host(10);
+            builder.build()?
         };
         anyhow::Ok(Self {
             config,
@@ -1767,7 +1851,6 @@ mod tests {
     #[tokio::test]
     async fn test_types1() {
         let _guard = test_lock().lock().await;
-        enable_test_log();
         let db = make_test_object();
         let table_name = "test_types1";
         let _ = db.drop_table(table_name, false).await;
@@ -1812,12 +1895,13 @@ mod tests {
         }
 
         GetTestExportTableKinds::test_export(&db, table_name).await;
+
+        db.test_table_export_and_import(table_name).await;
     }
 
     #[tokio::test]
     async fn test_types2() {
         let _guard = test_lock().lock().await;
-        enable_test_log();
         let db = make_test_object();
         let table_name = "test_types2";
         let _ = db.drop_table(table_name, false).await;
@@ -1847,7 +1931,10 @@ mod tests {
             values.insert("value_int8".to_string(), Some(1.to_string()));
             values.insert("value_int16".to_string(), Some(2.to_string()));
             values.insert("value_int32".to_string(), Some(3.to_string()));
-            values.insert("value_int64".to_string(), Some(4.to_string()));
+            values.insert(
+                "value_int64".to_string(),
+                Some("9007199254740993".to_string()),
+            );
             values.insert("value_int128".to_string(), Some(5.to_string()));
             db.table_insert(table_name, values).await.unwrap();
         }
@@ -1860,12 +1947,13 @@ mod tests {
             println!("resp:{:?}", resp);
         }
         GetTestExportTableKinds::test_export(&db, table_name).await;
+        db.test_table_export_and_import(table_name).await;
     }
 
     #[tokio::test]
     async fn test_types3() {
         let _guard = test_lock().lock().await;
-        enable_test_log();
+
         let db = make_test_object();
         let table_name = "test_types3";
         let _ = db.drop_table(table_name, false).await;
@@ -1899,7 +1987,10 @@ mod tests {
             values.insert("float64_field".to_string(), Some(2.to_string()));
             values.insert("decimal32_field".to_string(), Some(3.to_string()));
             values.insert("decimal64_field".to_string(), Some(4.to_string()));
-            values.insert("decimal128_field".to_string(), Some(5.to_string()));
+            values.insert(
+                "decimal128_field".to_string(),
+                Some("1234567890123456.789".to_string()),
+            );
             values.insert("boolean_field".to_string(), Some(true.to_string()));
             db.table_insert(table_name, values).await.unwrap();
         }
@@ -1912,12 +2003,12 @@ mod tests {
             println!("resp:{:?}", resp);
         }
         GetTestExportTableKinds::test_export(&db, table_name).await;
+        db.test_table_export_and_import(table_name).await;
     }
 
     #[tokio::test]
     async fn test_types4() {
         let _guard = test_lock().lock().await;
-        enable_test_log();
         let db = make_test_object();
         let table_name = "test_types4";
         let _ = db.drop_table(table_name, false).await;
@@ -1978,10 +2069,13 @@ mod tests {
             println!("resp:{:?}", resp);
         }
         GetTestExportTableKinds::test_export(&db, table_name).await;
+        db.test_table_export_and_import(table_name).await;
     }
 
     #[tokio::test]
     async fn test_types5() {
+        enable_test_log();
+
         let _guard = test_lock().lock().await;
         let db = make_test_object();
         let table_name = "test_types5";
@@ -2046,6 +2140,11 @@ mod tests {
             println!("resp:{:?}", resp);
         }
         GetTestExportTableKinds::test_export(&db, table_name).await;
+
+        /*
+        这是 ClickHouse CSV / CSVWithNames 格式的默认原生特性。在 ClickHouse 的 官方 CSV 格式规范 中明确规定：元组（Tuples）在 CSV 格式下会被序列化为独立的列，即它的嵌套结构会丢失（Tuples in CSV format are serialized as separate columns）。例如，一个名为 user 且包含 (id, name) 的 Tuple 列，在 CSVWithNames 的表头中会被直接展开成 "user.id","user.name" 两列。
+         */
+        // db.test_table_export_and_import(table_name).await;
     }
 
     #[tokio::test]
@@ -2106,6 +2205,7 @@ mod tests {
             println!("resp:{:?}", resp);
         }
         GetTestExportTableKinds::test_export(&db, table_name).await;
+        db.test_table_export_and_import(table_name).await;
     }
 
     #[tokio::test]
@@ -2161,6 +2261,7 @@ mod tests {
         }
 
         GetTestExportTableKinds::test_export(&db, table_name).await;
+        db.test_table_export_and_import(table_name).await;
     }
 
     #[test]

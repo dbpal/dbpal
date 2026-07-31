@@ -2334,7 +2334,7 @@ TEST_MATERIALIZED_VIEW_TABLE (product_name, category, price) VALUES ('Samsung Ga
         println!("resp:{:?}", resp);
 
         GetTestExportTableKinds::test_export(&db, table_name).await;
-        db.test_export_json_and_import_json(table_name).await;
+        db.test_table_export_and_import(table_name).await;
     }
 
     #[tokio::test]
@@ -2383,7 +2383,7 @@ TEST_MATERIALIZED_VIEW_TABLE (product_name, category, price) VALUES ('Samsung Ga
             .unwrap();
         println!("resp:{:?}", resp);
         GetTestExportTableKinds::test_export(&db, table_name).await;
-        db.test_export_json_and_import_json(table_name).await;
+        db.test_table_export_and_import(table_name).await;
     }
 
     #[tokio::test]
@@ -2431,7 +2431,7 @@ TEST_MATERIALIZED_VIEW_TABLE (product_name, category, price) VALUES ('Samsung Ga
             .unwrap();
         println!("resp:{:?}", resp);
         GetTestExportTableKinds::test_export(&db, table_name).await;
-        db.test_export_json_and_import_json(table_name).await;
+        db.test_table_export_and_import(table_name).await;
     }
 
     // TODO create table sql not passed
@@ -2476,6 +2476,6 @@ TEST_MATERIALIZED_VIEW_TABLE (product_name, category, price) VALUES ('Samsung Ga
         println!("resp:{:?}", resp);
 
         GetTestExportTableKinds::test_export(&db, table_name).await;
-        db.test_export_json_and_import_json(table_name).await;
+        db.test_table_export_and_import(table_name).await;
     }
 }

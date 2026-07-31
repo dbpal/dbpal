@@ -15,7 +15,7 @@ import Stack from "@mui/material/Stack";
 import InfoIcon from "@mui/icons-material/Info";
 import CloseIcon from "@mui/icons-material/Close";
 import SaveIcon from "@mui/icons-material/Save";
-import { FaBookmark } from "react-icons/fa";
+import { FaBookmark, FaCopy } from "react-icons/fa";
 import { IoMdInformationCircleOutline } from "react-icons/io";
 import CancelIcon from "@mui/icons-material/Cancel";
 import ChatBubbleOutlineOutlinedIcon from "@mui/icons-material/ChatBubbleOutlineOutlined";
@@ -2286,7 +2286,86 @@ function ExportQueryResultToFile() {
   );
 }
 
+function CopyAsXXX(props: {
+  content: string;
+  getRow: () => object;
+  field: string;
+  uuid: string;
+  fieldType: string;
+}) {
+  const { content, getRow, field, uuid, fieldType } = props;
+
+  const { showNotification } = useNotification();
+
+  return (
+    <>
+      {content && (
+        <MenuItem
+          onClick={() => {
+            handleCopyToClipboard(content, showNotification);
+          }}>
+          <ListItemIcon>
+            <FaCopy fontSize="1.4rem" />
+          </ListItemIcon>
+          <ListItemText> Copy </ListItemText>
+        </MenuItem>
+      )}
+
+      <MenuItem
+        onClick={() => {
+          handleCopyToClipboard(field, showNotification);
+        }}>
+        <ListItemIcon>{/* <FaCopy fontSize="1.4rem" /> */}</ListItemIcon>
+        <ListItemText> Copy Column Name </ListItemText>
+      </MenuItem>
+
+      <MenuItem
+        onClick={() => {
+          const row = getRow();
+          for (const x in row) {
+            row[x] = parseCellType(row[x]);
+          }
+          handleCopyToClipboard(JSON.stringify(row, null, 2), showNotification);
+        }}>
+        <ListItemIcon>{/* <FaCopy fontSize="1.4rem" /> */}</ListItemIcon>
+        <ListItemText> Copy as JSON </ListItemText>
+      </MenuItem>
+
+      <MenuItem
+        onClick={() => {
+          const row = getRow();
+          const result: string[][] = [];
+          result.push(Object.keys(row));
+          result.push(Object.keys(row).map((x) => row[x]));
+          handleCopyToClipboard(arrayToMarkdownTable(result), showNotification);
+        }}>
+        <ListItemIcon>{/* <FaCopy fontSize="1.4rem" /> */}</ListItemIcon>
+        <ListItemText> Copy as Markdown </ListItemText>
+      </MenuItem>
+
+      {content && (
+        <MenuItem
+          onClick={async () => {
+            try {
+              const value = await commands.putValueInSql(uuid, fieldType, content);
+              handleCopyToClipboard(`(${value})`, showNotification);
+            } catch (e) {
+              showNotification({
+                severity: "error",
+                message: e,
+                title: "format for in failed",
+              });
+            }
+          }}>
+          <ListItemIcon>{/* <FaCopy fontSize="1.4rem" /> */}</ListItemIcon>
+          <ListItemText> Copy as For in </ListItemText>
+        </MenuItem>
+      )}
+    </>
+  );
+}
 export {
+  CopyAsXXX,
   ExportQueryResultToFile,
   ShowQueryLog,
   FetchTimeDataGrid,

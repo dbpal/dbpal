@@ -30,11 +30,11 @@ import { keyNotInTable } from "./Common";
 import ArrowUpwardIcon from "@mui/icons-material/ArrowUpward";
 import ArrowDownwardIcon from "@mui/icons-material/ArrowDownward";
 
-import ContentCopyIcon from "@mui/icons-material/ContentCopy";
 import { AppColumnMenu, ResetColumnWidth, ViewRowInModal } from "./CommonComp.tsx";
 import VisibilityIcon from "@mui/icons-material/Visibility";
 import {
   AppDataGridPagination,
+  CopyAsXXX,
   ExportQueryResultToFile,
   StackRowCenter,
 } from "./CommonComp2.tsx";
@@ -59,23 +59,20 @@ function RespContextMenu(props: {
   field: string;
   setSort: (model: GridSortModel) => void;
   viewInModal: () => void;
+  uuid: string;
+  fieldType: string;
+  getRow: () => object;
 }): React.ReactElement {
-  const { content, field, setSort, viewInModal } = props;
-  const { showNotification } = useNotification();
+  const { content, field, setSort, viewInModal, uuid, getRow, fieldType } = props;
   return (
     <MenuList>
-      {content && (
-        <MenuItem
-          onClick={() => {
-            handleCopyToClipboard(content, showNotification);
-          }}>
-          <ListItemIcon>
-            <ContentCopyIcon />
-          </ListItemIcon>
-          <ListItemText> Copy </ListItemText>
-        </MenuItem>
-      )}
-
+      <CopyAsXXX
+        content={content}
+        field={field}
+        uuid={uuid}
+        getRow={getRow}
+        fieldType={fieldType}
+      />
       <MenuItem onClick={viewInModal}>
         <ListItemIcon>
           <VisibilityIcon style={{ fontSize: "1.4rem" }} />
@@ -173,6 +170,11 @@ function QueryResp(props: { data: MuiDataGridData; uuid: string }): React.ReactE
                 viewInModal={() => {
                   setViewInModal(row);
                 }}
+                getRow={() => {
+                  return row;
+                }}
+                fieldType={data.fields.find((e) => e.field == field).data_type}
+                uuid={uuid}
                 content={content}
                 field={field}
                 setSort={setSortModel}
@@ -184,7 +186,7 @@ function QueryResp(props: { data: MuiDataGridData; uuid: string }): React.ReactE
         style: { cursor: "context-menu" },
       },
     } as GridSlotsComponentsProps;
-  }, [data, setUpMenu]);
+  }, [data, setUpMenu, uuid]);
 
   const onSortModelChange = useCallback((e) => {
     setSortModel(e);

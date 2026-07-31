@@ -2920,7 +2920,7 @@ END;
         println!("ret:{:?}", list);
 
         GetTestExportTableKinds::test_export(&db, table_name).await;
-        db.test_export_json_and_import_json(table_name).await;
+        db.test_table_export_and_import(table_name).await;
     }
 
     #[tokio::test]
@@ -2977,7 +2977,7 @@ END;
             .unwrap();
         println!("ret:{:?}", list);
         GetTestExportTableKinds::test_export(&db, table_name).await;
-        db.test_export_json_and_import_json(table_name).await;
+        db.test_table_export_and_import(table_name).await;
     }
 
     #[tokio::test]
@@ -3036,7 +3036,7 @@ END;
             .unwrap();
         println!("ret:{:?}", list);
         GetTestExportTableKinds::test_export(&db, table_name).await;
-        db.test_export_json_and_import_json(table_name).await;
+        db.test_table_export_and_import(table_name).await;
     }
 
     #[tokio::test]
@@ -3107,6 +3107,6 @@ END;
             .unwrap();
         println!("ret:{:?}", list);
         GetTestExportTableKinds::test_export(&db, table_name).await;
-        db.test_export_json_and_import_json(table_name).await;
+        db.test_table_export_and_import(table_name).await;
     }
 }

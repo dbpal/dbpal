@@ -1395,7 +1395,7 @@ pub(crate) fn sqlite_extract_sql_value_from_json_value(
 ) -> anyhow::Result<Option<String>> {
     let r = match value {
         serde_json::Value::Null => return anyhow::Ok(None),
-        serde_json::Value::Bool(..) => anyhow::bail!("sqlite don't have bool value"),
+        serde_json::Value::Bool(x) => x.to_string(),
         serde_json::Value::Number(number) => number.to_string(),
         serde_json::Value::String(x) => x.clone(),
         serde_json::Value::Array(values) => {
@@ -1406,7 +1406,6 @@ pub(crate) fn sqlite_extract_sql_value_from_json_value(
             anyhow::bail!("sqlite don't have map or struct value")
         }
     };
-
     anyhow::Ok(Some(r))
 }
 
@@ -1416,7 +1415,7 @@ mod tests {
     use super::*;
     use crate::db::{
         CreateIndexColumn, CreateTableReq, CreateTableReqColumn, GetTestExportTableKinds,
-        ShowTableParameter, SqlNullAble, TableImportPara, TestQueryEventEmit,
+        ShowTableParameter, SqlNullAble, TestQueryEventEmit,
     };
 
     #[tokio::test]
@@ -2099,26 +2098,7 @@ mod tests {
             .await
             .unwrap();
 
-        db.test_export_json_and_import_json(table_name).await;
+        db.test_table_export_and_import(table_name).await;
         println!("view value:{:?}", list);
-    }
-
-    #[tokio::test]
-
-    async fn test_import_file() {
-        let table = "Persons";
-
-        let db = make_test_object().await;
-
-        let _ = db.truncate_table(table).await;
-
-        db.table_import_data_from_file(
-            table,
-            TableImportPara::Csv {
-                path: "/home/yuyang/Downloads/Persons.csv".to_owned(),
-            },
-        )
-        .await
-        .unwrap();
     }
 }

@@ -1586,7 +1586,7 @@ mod tests {
         .unwrap();
 
         println!("\n after here are view test.\n");
-        db.test_export_json_and_import_json(table_name).await;
+        db.test_table_export_and_import(table_name).await;
 
         let views = db.list_view().await.unwrap();
         for v in views.iter() {

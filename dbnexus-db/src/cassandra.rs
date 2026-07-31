@@ -1799,7 +1799,7 @@ pub(crate) mod test_impls {
             println!("resp:{:?}", resp);
         }
         GetTestExportTableKinds::test_export(&db, table_name).await;
-        db.test_export_json_and_import_json(table_name).await;
+        db.test_table_export_and_import(table_name).await;
     }
 
     pub async fn test_types1_list_inner(db: CassandraDB) {
@@ -1853,7 +1853,7 @@ pub(crate) mod test_impls {
             println!("resp:{:?}", resp);
         }
         GetTestExportTableKinds::test_export(&db, table_name).await;
-        db.test_export_json_and_import_json(table_name).await;
+        db.test_table_export_and_import(table_name).await;
     }
 
     pub async fn test_types2_inner(db: CassandraDB) {
@@ -1902,7 +1902,7 @@ pub(crate) mod test_impls {
             println!("resp:{:?}", resp);
         }
         GetTestExportTableKinds::test_export(&db, table_name).await;
-        db.test_export_json_and_import_json(table_name).await;
+        db.test_table_export_and_import(table_name).await;
     }
 
     pub async fn test_types2_list_inner(db: CassandraDB) {
@@ -1954,7 +1954,7 @@ pub(crate) mod test_impls {
             println!("resp:{:?}", resp);
         }
         GetTestExportTableKinds::test_export(&db, table_name).await;
-        db.test_export_json_and_import_json(table_name).await;
+        db.test_table_export_and_import(table_name).await;
     }
 
     pub async fn test_types3_inner(db: CassandraDB) {
@@ -1999,7 +1999,7 @@ pub(crate) mod test_impls {
             println!("resp:{:?}", resp);
         }
         GetTestExportTableKinds::test_export(&db, table_name).await;
-        db.test_export_json_and_import_json(table_name).await;
+        db.test_table_export_and_import(table_name).await;
     }
 
     pub async fn test_types_list3_inner(db: CassandraDB) {
@@ -2047,7 +2047,7 @@ pub(crate) mod test_impls {
             println!("resp:{:?}", resp);
         }
         GetTestExportTableKinds::test_export(&db, table_name).await;
-        db.test_export_json_and_import_json(table_name).await;
+        db.test_table_export_and_import(table_name).await;
     }
 
     pub async fn test_types4_inner(db: CassandraDB) {

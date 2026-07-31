@@ -1884,16 +1884,14 @@ impl ExtractSqlValeFromJsonValue for PostGresDB {
                 _ => return anyhow::Ok(Some(serde_json::to_string(value)?)),
             }
         }
-
-        let err = anyhow::Error::msg(format!(
-            "not valid value,type '{}' , value:{}",
-            ty,
-            serde_json::to_string(value)?
-        ));
-
         if ty.eq_ignore_ascii_case("json[]") {
             anyhow::bail!("json[] not suppporteds")
         }
+        let err = anyhow::Error::msg(format!(
+            "not valid value,type '{}',value:{}",
+            ty,
+            serde_json::to_string(value)?
+        ));
         if ty.eq_ignore_ascii_case("INT4RANGE[]")
             || ty.eq_ignore_ascii_case("TSRANGE[]")
             || ty.eq_ignore_ascii_case("TSTZRANGE[]")
@@ -1918,8 +1916,8 @@ impl ExtractSqlValeFromJsonValue for PostGresDB {
             }
         }
 
-        fn encode_value(v: &serde_json::Value) -> Option<String> {
-            match v {
+        fn encode_value(v: &serde_json::Value) -> anyhow::Result<Option<String>> {
+            let r = match v {
                 serde_json::Value::Null => None,
                 serde_json::Value::Bool(x) => Some(x.to_string()),
                 serde_json::Value::Number(number) => Some(number.to_string()),
@@ -1927,16 +1925,15 @@ impl ExtractSqlValeFromJsonValue for PostGresDB {
                 serde_json::Value::Array(values) => {
                     let mut result = Vec::with_capacity(values.len());
                     for v in values.iter() {
-                        result.push(encode_value(v).unwrap_or("null".to_owned()));
+                        result.push(encode_value(v)?.unwrap_or("null".to_owned()));
                     }
                     Some(format!("{{{}}}", result.join(",")))
                 }
-                serde_json::Value::Object(map) => {
-                    Some(serde_json::to_string(map).expect("should be fine"))
-                }
-            }
+                serde_json::Value::Object(map) => Some(serde_json::to_string(map)?),
+            };
+            anyhow::Ok(r)
         }
-        anyhow::Ok(encode_value(value))
+        anyhow::Ok(encode_value(value)?)
     }
 }
 
@@ -2730,7 +2727,7 @@ mod tests {
 
         GetTestExportTableKinds::test_export(&pg, table_name).await;
 
-        pg.test_export_json_and_import_json(table_name).await;
+        pg.test_table_export_and_import(table_name).await;
     }
 
     #[tokio::test]
@@ -2790,7 +2787,7 @@ mod tests {
         println!("{:?}", x);
 
         GetTestExportTableKinds::test_export(&pg, table_name).await;
-        pg.test_export_json_and_import_json(table_name).await;
+        pg.test_table_export_and_import(table_name).await;
     }
 
     #[tokio::test]
@@ -2920,7 +2917,7 @@ mod tests {
         println!("{:?}", x);
 
         GetTestExportTableKinds::test_export(&pg, table_name).await;
-        pg.test_export_json_and_import_json(table_name).await;
+        pg.test_table_export_and_import(table_name).await;
     }
 
     #[tokio::test]
@@ -2972,7 +2969,7 @@ mod tests {
         println!("{:?}", x);
 
         GetTestExportTableKinds::test_export(&pg, table_name).await;
-        pg.test_export_json_and_import_json(table_name).await;
+        pg.test_table_export_and_import(table_name).await;
     }
 
     #[tokio::test]
@@ -3037,7 +3034,7 @@ mod tests {
         println!("{:?}", x);
 
         GetTestExportTableKinds::test_export(&pg, table_name).await;
-        pg.test_export_json_and_import_json(table_name).await;
+        pg.test_table_export_and_import(table_name).await;
     }
 
     #[tokio::test]
@@ -3113,7 +3110,7 @@ mod tests {
         println!("{:?}", x);
 
         GetTestExportTableKinds::test_export(&pg, table_name).await;
-        pg.test_export_json_and_import_json(table_name).await;
+        pg.test_table_export_and_import(table_name).await;
     }
 
     #[tokio::test]
@@ -3173,7 +3170,7 @@ mod tests {
         println!("{:?}", x);
 
         GetTestExportTableKinds::test_export(&pg, table_name).await;
-        pg.test_export_json_and_import_json(table_name).await;
+        pg.test_table_export_and_import(table_name).await;
     }
 
     #[tokio::test]
@@ -3222,7 +3219,7 @@ mod tests {
         println!("{:?}", x);
 
         GetTestExportTableKinds::test_export(&pg, table_name).await;
-        pg.test_export_json_and_import_json(table_name).await;
+        pg.test_table_export_and_import(table_name).await;
     }
 
     #[tokio::test]
@@ -3285,7 +3282,7 @@ mod tests {
         println!("{:?}", x);
 
         GetTestExportTableKinds::test_export(&pg, table_name).await;
-        pg.test_export_json_and_import_json(table_name).await;
+        pg.test_table_export_and_import(table_name).await;
     }
 
     #[tokio::test]
@@ -3348,7 +3345,7 @@ mod tests {
         println!("{:?}", x);
 
         GetTestExportTableKinds::test_export(&pg, table_name).await;
-        pg.test_export_json_and_import_json(table_name).await;
+        pg.test_table_export_and_import(table_name).await;
     }
 
     #[tokio::test]
@@ -3418,6 +3415,6 @@ mod tests {
         println!("{:?}", x);
 
         GetTestExportTableKinds::test_export(&pg, table_name).await;
-        pg.test_export_json_and_import_json(table_name).await;
+        pg.test_table_export_and_import(table_name).await;
     }
 }
