@@ -995,7 +995,11 @@ impl DBTrait for ClickHouseDB {
     }
 
     async fn list_schema(&self) -> anyhow::Result<Vec<String>> {
-        let databases: Vec<String> = self.client.query("show databases").fetch_all().await?;
+        let databases: Vec<String> = self
+            .client
+            .query("SELECT name FROM system.databases WHERE name != 'INFORMATION_SCHEMA';")
+            .fetch_all()
+            .await?;
         anyhow::Ok(databases)
     }
 

@@ -85,7 +85,6 @@ impl LangServerCommon for ClickHouseDB {
             cluster 
         FROM
             system.clusters
-
         "#;
 
         let ret: Vec<String> = self.client.query(sql).fetch_all().await?;
@@ -104,25 +103,12 @@ impl LangServerCommon for ClickHouseDB {
         name: &str,
         is_call: Option<Vec<String>>,
     ) -> anyhow::Result<Vec<TempTableColumn>> {
+        let schema = self.not_allow_none_schema(schema)?;
+        let schema_dot = format!("\"{}\".", schema);
         let sql = if let Some(is_call) = is_call {
-            format!(
-                r#"select {}{}({})"#,
-                match schema {
-                    Some(x) => format!("\"{}\".", x),
-                    None => "".to_string(),
-                },
-                name,
-                is_call.join(",")
-            )
+            format!(r#"select {}{}({})"#, schema_dot, name, is_call.join(","))
         } else {
-            format!(
-                r#"select * from {}"{}""#,
-                match schema {
-                    Some(x) => format!("\"{}\".", x),
-                    None => "".to_string(),
-                },
-                name
-            )
+            format!(r#"select * from {}"{}""#, schema_dot, name)
         };
         self.get_query_columns(&sql).await
     }
@@ -199,6 +185,7 @@ impl AstCompletionHelper for ClickHouseDB {
     async fn get_query_columns(&self, sql: &str) -> anyhow::Result<Vec<TempTableColumn>> {
         let sql = format!("select * from({}) limit 1", sql);
         let mut stream = self.query_row(&sql).await?;
+        log::info!("get query columns:{}", sql);
 
         while let Some(x) = stream.next().await {
             match x? {
@@ -346,7 +333,8 @@ pub const CLICKHOUSE_FORMATS: &[&str] = &[
 mod tests {
     use std::path::Path;
 
-    use crate::clickhouse::{make_test_object, test_lock};
+    use crate::clickhouse::{make_test_object, test_lock, ClickHouseDB};
+    use crate::datasource_config::ClickHouseConfig;
     use crate::db::{QuerySql, SchemaTrait};
     use crate::enable_test_log;
     use crate::language_server::completion_test::test_file_auto_completion;
@@ -410,7 +398,18 @@ mod tests {
     #[tokio::test]
     async fn test_completion_xxx() {
         enable_test_log();
-        let db = make_test_object();
+        let db = ClickHouseDB::new(ClickHouseConfig {
+            conn_timeout: Some(5000.into()),
+            host: "127.0.0.1".to_string(),
+            port: 8123,
+            read_only: false,
+            db: Some("information_schema".to_string()),
+            username: "default".to_string(),
+            password: Some("root".to_string()),
+            https: false,
+        })
+        .unwrap();
+
         test_file_auto_completion(include_str!("./xxx.sql"), &db, None, false).await;
     }
 }

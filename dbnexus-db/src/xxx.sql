@@ -1,2 +1,2 @@
-SELECT * FROM "test_types2" WHERE  floa
-40 float_value
+SELECT * FROM `VIEWS` WHERE  tabl
+33 table_catalog

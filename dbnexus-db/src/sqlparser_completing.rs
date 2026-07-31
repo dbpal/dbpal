@@ -1543,7 +1543,7 @@ impl<'a> CompletionStatement<'a> {
             查看用户自定义变量的方法
             虽然没有直接的方法列出所有用户自定义变量，但你可以通过以下方式管理和查看它们：
 
-            手动记录：
+            手动记录：p
 
             在使用用户变量时，最好手动记录它们的名称和用途，以便在需要时查找。
             查询特定变量：
@@ -1559,7 +1559,6 @@ impl<'a> CompletionStatement<'a> {
         let mut results = vec![];
         let tables = self.scopes.tables_cloned();
         for t in tables.iter() {
-            println!("!!!!!!!!!:{:?}", t);
             match t {
                 TableEntered::ObjectName { table, .. } => {
                     let (schema, table) = self.extract_schema_and_item(table);

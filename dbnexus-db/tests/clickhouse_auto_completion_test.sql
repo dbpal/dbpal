@@ -18,3 +18,5 @@ SELECT * from (SELECT abs(-1) as abs) where abs
 48 abs
 INSERT INTO employees FORMAT CSV "value1,value2,value3"
 22 employees ; 33 CSV
+SELECT * FROM information_schema.`VIEWS` WHERE  tabl
+53 table_catalog
