@@ -12,10 +12,10 @@ use tokio::task::spawn_blocking;
 use crate::datasource_config::OracleDBConfig;
 use crate::db::{
     create_html_table_data, create_html_table_header, create_markdown_data, create_markdown_header,
-    escape_sql_str, export_query_as_xlsx_send_blocking_data, BackendKind, CheckConn, ColumnType,
-    CreateIndexReq, CreateSchemaExtra, CreateTableAndIndexSql, DBTrait, DefAndMetas, ExportFrame,
-    ExportKind, ExportQueryResult, ExtractSqlValeFromJsonValue, Field, FirstTrue, GetBackendKind,
-    GetTestExportTableKinds, Index, IndexKind, ListTable, MetaValue, NamedStaff,
+    escape_sql_str, export_query_as_xlsx_send_blocking_data, quote_sql_str, BackendKind, CheckConn,
+    ColumnType, CreateIndexReq, CreateSchemaExtra, CreateTableAndIndexSql, DBTrait, DefAndMetas,
+    ExportFrame, ExportKind, ExportQueryResult, ExtractSqlValeFromJsonValue, Field, FirstTrue,
+    GetBackendKind, GetTestExportTableKinds, Index, IndexKind, ListTable, MetaValue, NamedStaff,
     OptionMustBeSomeErr, ProcedureDetail, QueryEvent, QueryEventEmitter, QueryResp, QuerySql,
     SchemaTrait, ServerMetas, ShowTableParameter, SqlBuilder, SqlCollect, TriggerDetail,
     TriggerEnable, TriggerEvent, TriggerTiming, XlsxEdit, POOL_MAX_CONNECTIONS,
@@ -1453,15 +1453,15 @@ impl SqlBuilder for OracleDB {
         let typ = typ.to_string().to_uppercase();
 
         match typ.as_str() {
-            "VARCHAR2" => anyhow::Ok(format!("'{}'", escape_sql_str(value))),
-            _ if typ.starts_with("VARCHAR2") => anyhow::Ok(format!("'{}'", escape_sql_str(value))),
+            "VARCHAR2" => anyhow::Ok(quote_sql_str(value)),
+            _ if typ.starts_with("VARCHAR2") => anyhow::Ok(quote_sql_str(value)),
             "NVARCHAR2" => anyhow::Ok(format!("N'{}'", escape_sql_str(value))),
             _ if typ.starts_with("NVARCHAR2") => {
                 anyhow::Ok(format!("N'{}'", escape_sql_str(value)))
             }
 
             "CHAR" => anyhow::Ok(format!("'{}'", value)),
-            _ if typ.starts_with("CHAR") => anyhow::Ok(format!("'{}'", escape_sql_str(value))),
+            _ if typ.starts_with("CHAR") => anyhow::Ok(quote_sql_str(value)),
             "NCHAR" => anyhow::Ok(format!("N'{}'", escape_sql_str(value))),
             _ if typ.starts_with("NCHAR") => anyhow::Ok(format!("N'{}'", escape_sql_str(value))),
             "RAW" => anyhow::Ok(format!("'{}'", value)),

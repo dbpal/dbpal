@@ -1,14 +1,16 @@
 use crate::datasource_config::ClickHouseConfig;
 use crate::db::{
     create_html_table_data, create_html_table_header, create_markdown_data, create_markdown_header,
-    escape_sql_str, BackendKind, CheckConn, ColumnType, CreateSchemaExtra, CreateTableAndIndexSql,
-    DBTrait, DefAndMetas, ExportFrame, ExportKind, ExportQueryResult, ExtractSqlValeFromJsonValue,
-    Field, GetBackendKind, GetTestExportTableKinds, ListTable, MetaValue, NamedStaff, QueryEvent,
-    QueryEventEmitter, QueryResp, QuerySql, SchemaTrait, ServerMetas, ShowTableParameter,
-    SqlBuilder, SqlCollect, XlsxEdit,
+    escape_sql_str, quote_sql_str, BackendKind, CheckConn, ColumnType, CreateSchemaExtra,
+    CreateTableAndIndexSql, DBTrait, DefAndMetas, ExportFrame, ExportKind, ExportQueryResult,
+    ExtractSqlValeFromJsonValue, Field, GetBackendKind, GetTestExportTableKinds, ListTable,
+    MetaValue, NamedStaff, QueryEvent, QueryEventEmitter, QueryResp, QuerySql, SchemaTrait,
+    ServerMetas, ShowTableParameter, SqlBuilder, SqlCollect, XlsxEdit,
 };
 
-use crate::helper::{ty_is_decimal, ty_is_float, ty_is_int};
+use crate::helper::{
+    extract_null_able, get_array_tuple_element_type, ty_is_decimal, ty_is_float, ty_is_int,
+};
 use crate::language_server::LexerCompletionTrait;
 use futures_core::stream::BoxStream;
 use futures_util::StreamExt;
@@ -124,19 +126,13 @@ impl ClickHouseDB {
     }
 }
 
-fn extract_null_able(x: &DataType) -> &DataType {
-    match x {
-        DataType::Nullable(x) => x.as_ref(),
-        _ => x,
-    }
-}
 impl ExtractSqlValeFromJsonValue for ClickHouseDB {
     fn extrat_sql_value_from_json_value(
         &self,
         value: &serde_json::Value,
         ty: &str,
     ) -> anyhow::Result<Option<String>> {
-        let ty = parse_type(ty)?;
+        let ty = crate::language_server::LangServerCommon::parse_type(self, ty)?;
 
         fn encode_nested(
             value: &serde_json::Value,
@@ -149,7 +145,7 @@ impl ExtractSqlValeFromJsonValue for ClickHouseDB {
                 serde_json::Value::Number(number) => Some(number.to_string()),
                 serde_json::Value::String(x) => {
                     if is_nested {
-                        Some(format!("'{}'", escape_sql_str(x)))
+                        Some(quote_sql_str(x))
                     } else {
                         Some(x.clone())
                     }
@@ -158,26 +154,7 @@ impl ExtractSqlValeFromJsonValue for ClickHouseDB {
                     let mut results: Vec<String> = Vec::with_capacity(values.len());
 
                     for (index, value) in values.iter().enumerate() {
-                        let ty = match extract_null_able(ty) {
-                            DataType::Array(x) => match x {
-                                ArrayElemTypeDef::None => anyhow::bail!(
-                                    "ArrayElemTypeDef::None can't retrive a valid type"
-                                ),
-                                ArrayElemTypeDef::AngleBracket(data_type) => data_type.as_ref(),
-                                ArrayElemTypeDef::SquareBracket(data_type, _) => data_type.as_ref(),
-                                ArrayElemTypeDef::Parenthesis(data_type) => data_type.as_ref(),
-                            },
-                            DataType::Tuple(x) => &mut match x.get(index) {
-                                Some(x) => &x.field_type,
-                                None => anyhow::bail!(format!("not found type on tupe#{}", index)),
-                            },
-                            _ => {
-                                anyhow::bail!(format!(
-                                    "type not is not ok,should be array,but:{:?}",
-                                    ty
-                                ))
-                            }
-                        };
+                        let ty = get_array_tuple_element_type(ty, index)?;
                         let r = encode_nested(value, ty, true)?.unwrap_or("null".to_string());
                         results.push(r);
                     }
@@ -405,7 +382,7 @@ impl SchemaTrait for ClickHouseDB {
                 ..
             } = r;
             let is_primary = primary_keys.contains(&column_name);
-            let ty = parse_type(&column_type)?;
+            let ty = crate::language_server::LangServerCommon::parse_type(self, &column_type)?;
             let nullable = matches!(ty, DataType::Nullable(_));
             ret.push(Field {
                 field: column_name,
@@ -627,7 +604,7 @@ fn put_value_in_sql(typ: &sqlparser::ast::DataType, value: &str) -> String {
 
     let default_str = value.to_string();
 
-    let single_quote_str = format!("'{}'", escape_sql_str(value));
+    let single_quote_str = quote_sql_str(value);
 
     fn custom_need_quote(x: &ObjectName) -> bool {
         let x = x.to_string().to_lowercase();
@@ -1056,7 +1033,7 @@ fn encode_nested(value: &serde_json::Value, typ: &DataType) -> anyhow::Result<St
         serde_json::Value::Number(number) => number.to_string(),
         serde_json::Value::String(x) => {
             if need_quote(typ) {
-                format!("'{}'", escape_sql_str(x))
+                quote_sql_str(x)
             } else {
                 x.clone()
             }
@@ -1167,7 +1144,7 @@ impl ClickHouseDB {
                     count += 1;
                     let ts_str: Vec<String> = serde_json::from_str(&line)?;
                     for x in ts_str.iter() {
-                        let t = parse_type(x)?;
+                        let t = crate::language_server::LangServerCommon::parse_type(self, x)?;
                         ts.push(t);
                     }
                     return anyhow::Ok(FieldsOrData::Fields(
@@ -1235,14 +1212,6 @@ impl ClickHouseDB {
     }
 }
 
-fn parse_type(typ: &str) -> anyhow::Result<DataType> {
-    let d = sqlparser::dialect::ClickHouseDialect {};
-    let mut p = sqlparser::parser::Parser::new(&d);
-    p = p.try_with_sql(typ)?;
-    let ret = p.parse_data_type()?;
-    anyhow::Ok(ret)
-}
-
 /// ClickHouse 里可直接写在 SQL 语句中的零参常量字面量
 pub const CH_CURRENT_LITERALS: &[&str] = &[
     "CURRENT_TIMESTAMP", //  2025-08-25 14:36:07
@@ -1308,7 +1277,10 @@ impl SqlBuilder for ClickHouseDB {
     }
 
     fn put_value_in_sql(&self, typ: &str, value: &str) -> anyhow::Result<String> {
-        anyhow::Ok(put_value_in_sql(&parse_type(typ)?, value))
+        anyhow::Ok(put_value_in_sql(
+            &crate::language_server::LangServerCommon::parse_type(self, typ)?,
+            value,
+        ))
     }
 
     fn get_schema(&self) -> Option<&str> {
@@ -1372,8 +1344,8 @@ pub(crate) fn test_lock() -> &'static Mutex<()> {
 impl GetTestExportTableKinds for ClickHouseDB {}
 #[cfg(test)]
 mod tests {
+    use super::make_test_object;
     use super::*;
-    use super::{make_test_object, parse_type};
     use crate::db::{
         ColumnType, CreateTableReq, CreateTableReqColumn, DBTrait, ExportKind, QuerySql,
         SchemaTrait, ServerMetas, SqlNullAble,
@@ -2144,7 +2116,8 @@ mod tests {
         /*
         这是 ClickHouse CSV / CSVWithNames 格式的默认原生特性。在 ClickHouse 的 官方 CSV 格式规范 中明确规定：元组（Tuples）在 CSV 格式下会被序列化为独立的列，即它的嵌套结构会丢失（Tuples in CSV format are serialized as separate columns）。例如，一个名为 user 且包含 (id, name) 的 Tuple 列，在 CSVWithNames 的表头中会被直接展开成 "user.id","user.name" 两列。
          */
-        // db.test_table_export_and_import(table_name).await;
+        db.test_table_export_and_import_json(table_name).await;
+        db.test_table_export_and_import_jsonline(table_name).await;
     }
 
     #[tokio::test]
@@ -2264,31 +2237,36 @@ mod tests {
         db.test_table_export_and_import(table_name).await;
     }
 
-    #[test]
-    fn test_parse_type() {
-        let x = parse_type("Nullable(String) ").unwrap();
+    #[tokio::test]
+    async fn test_parse_type() {
+        use crate::language_server::LangServerCommon;
+
+        let _guard = test_lock().lock().await;
+        let db = make_test_object();
+
+        let x = db.parse_type("Nullable(String) ").unwrap();
         println!("{:?}", x);
-        let x = parse_type("FixedString(10) ").unwrap();
+        let x = db.parse_type("FixedString(10) ").unwrap();
         println!("{:?}", x);
-        let x = parse_type("IPv4").unwrap();
+        let x = db.parse_type("IPv4").unwrap();
         println!("{:?}", x);
-        let x = parse_type("IPv6").unwrap();
+        let x = db.parse_type("IPv6").unwrap();
         println!("{:?}", x);
-        let x = parse_type("Date").unwrap();
+        let x = db.parse_type("Date").unwrap();
         println!("{:?}", x);
-        let x = parse_type("Date32").unwrap();
+        let x = db.parse_type("Date32").unwrap();
         println!("{:?}", x);
-        let x = parse_type("DateTime").unwrap();
+        let x = db.parse_type("DateTime").unwrap();
         println!("{:?}", x);
-        let x = parse_type("DateTime64(1) ").unwrap();
+        let x = db.parse_type("DateTime64(1) ").unwrap();
         println!("{:?}", x);
-        let x = parse_type("Tuple(Int32, String)").unwrap();
+        let x = db.parse_type("Tuple(Int32, String)").unwrap();
         println!("{:?}", x);
-        let x = parse_type("Map(String, Int32)").unwrap();
+        let x = db.parse_type("Map(String, Int32)").unwrap();
         println!("{:?}", x);
-        let x = parse_type("LowCardinality(String)").unwrap();
+        let x = db.parse_type("LowCardinality(String)").unwrap();
         println!("{:?}", x);
-        let x = parse_type("Array(Tuple(Int32, String))").unwrap();
+        let x = db.parse_type("Array(Tuple(Int32, String))").unwrap();
         println!("{:?}", x);
     }
 }

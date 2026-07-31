@@ -1,7 +1,7 @@
 use crate::datasource_config::MysqlDBConfig;
 use crate::db::{
     create_html_table_data, create_html_table_header, create_markdown_data, create_markdown_header,
-    escape_sql_str, export_query_as_xlsx_send_data, AutoCompletionQueryId, BackendKind,
+    export_query_as_xlsx_send_data, quote_sql_str, AutoCompletionQueryId, BackendKind,
     BackendKindMysql, CheckConn, ColumnType, CreateIndexReq, CreateSchemaExtra,
     CreateTableAndIndexSql, DBTrait, DefAndMetas, ExportFrame, ExportKind, ExportQueryResult,
     ExtractSqlValeFromJsonValue, Field, FirstTrue, GetBackendKind, GetTestExportTableKinds, Index,
@@ -1775,7 +1775,7 @@ impl SqlBuilder for MysqlDB {
     }
     fn put_value_in_sql(&self, f: &str, value: &str) -> anyhow::Result<String> {
         let default_str = value.to_string();
-        let single_quote_str = format!("'{}'", escape_sql_str(value));
+        let single_quote_str = quote_sql_str(value);
         let ty = f.to_uppercase();
 
         let v = match ty.as_str() {

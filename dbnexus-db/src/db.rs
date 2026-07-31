@@ -5,7 +5,7 @@ use core::str;
 use std::any::Any;
 use std::collections::HashMap;
 use std::fmt::{self, Debug};
-use std::io::BufRead;
+use std::io::{BufRead, Write};
 use std::ops::Deref;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex};
@@ -446,7 +446,6 @@ pub trait SchemaTrait:
                             reader.headers()?.iter().map(|x| x.to_string()).collect();
                         for csv_line in reader.records() {
                             let csv_line = csv_line?;
-
                             let mut values = HashMap::new();
                             for (index, h) in headers.iter().enumerate() {
                                 values.insert(
@@ -766,102 +765,105 @@ pub trait SchemaTrait:
     }
 
     #[cfg(test)]
-    async fn test_table_export_and_import(&self, table: &str) {
+    async fn test_table_export_and_import_csv(&self, table: &str) {
         use std::io::Write;
 
-        {
-            let mut file = tempfile::NamedTempFile::new().unwrap();
-            // test csv
-            let export_kind = ExportKind::Csv {
-                include_header: true,
-                delimiter: ',',
-            };
+        let mut file = tempfile::NamedTempFile::new().unwrap();
+        // test csv
+        let export_kind = ExportKind::Csv {
+            include_header: true,
+            delimiter: ',',
+        };
 
-            let csv_str = self
-                .export_table_to_string(table, export_kind.clone())
-                .await
-                .unwrap();
-            file.write_all(csv_str.as_bytes()).unwrap();
-
-            println!("csv str:{}", csv_str);
-            self.truncate_table(table).await.unwrap();
-            self.table_import_data_from_file(
-                table,
-                TableImportPara::Csv {
-                    path: file.path().to_str().unwrap().to_string(),
-                },
-            )
+        let csv_str = self
+            .export_table_to_string(table, export_kind.clone())
             .await
             .unwrap();
-            let csv_str2 = self
-                .export_table_to_string(table, export_kind.clone())
-                .await
-                .unwrap();
-            {
-                println!("csv1:{}", csv_str);
-                println!("csv2:{}", csv_str2);
-            }
-        }
+        file.write_all(csv_str.as_bytes()).unwrap();
 
+        println!("csv str:{}", csv_str);
+        self.truncate_table(table).await.unwrap();
+        self.table_import_data_from_file(
+            table,
+            TableImportPara::Csv {
+                path: file.path().to_str().unwrap().to_string(),
+            },
+        )
+        .await
+        .unwrap();
+        let csv_str2 = self
+            .export_table_to_string(table, export_kind.clone())
+            .await
+            .unwrap();
         {
-            let mut file = tempfile::NamedTempFile::new().unwrap();
-            // test json
-            let json_str = self
-                .export_table_to_string(table, ExportKind::Json { pretty: true })
-                .await
-                .unwrap();
+            println!("csv1:{}", csv_str);
+            println!("csv2:{}", csv_str2);
+        }
+    }
 
-            file.write_all(json_str.as_bytes()).unwrap();
-
-            self.truncate_table(table).await.unwrap();
-            self.table_import_data_from_file(
-                table,
-                TableImportPara::Json {
-                    path: file.path().to_str().unwrap().to_string(),
-                },
-            )
+    async fn test_table_export_and_import_json(&self, table: &str) {
+        let mut file = tempfile::NamedTempFile::new().unwrap();
+        // test json
+        let json_str = self
+            .export_table_to_string(table, ExportKind::Json { pretty: true })
             .await
             .unwrap();
 
-            let json_str2 = self
-                .export_table_to_string(table, ExportKind::Json { pretty: true })
-                .await
-                .unwrap();
-            {
-                println!("json1:{}", json_str);
-                println!("json2:{}", json_str2);
-            }
-        }
+        file.write_all(json_str.as_bytes()).unwrap();
 
-        {
-            let mut file = tempfile::NamedTempFile::new().unwrap();
-            let export_kind = ExportKind::JsonLine;
+        self.truncate_table(table).await.unwrap();
+        self.table_import_data_from_file(
+            table,
+            TableImportPara::Json {
+                path: file.path().to_str().unwrap().to_string(),
+            },
+        )
+        .await
+        .unwrap();
 
-            let jsonline_str = self
-                .export_table_to_string(table, export_kind.clone())
-                .await
-                .unwrap();
-            file.write_all(jsonline_str.as_bytes()).unwrap();
-
-            self.truncate_table(table).await.unwrap();
-            self.table_import_data_from_file(
-                table,
-                TableImportPara::JsonLine {
-                    path: file.path().to_str().unwrap().to_string(),
-                },
-            )
+        let json_str2 = self
+            .export_table_to_string(table, ExportKind::Json { pretty: true })
             .await
             .unwrap();
-            let jsonline_str2 = self
-                .export_table_to_string(table, export_kind.clone())
-                .await
-                .unwrap();
-            {
-                println!("jsonline1:{}", jsonline_str);
-                println!("jsonline2:{}", jsonline_str2);
-            }
+        {
+            println!("json1:{}", json_str);
+            println!("json2:{}", json_str2);
         }
+    }
 
+    async fn test_table_export_and_import_jsonline(&self, table: &str) {
+        let mut file = tempfile::NamedTempFile::new().unwrap();
+        let export_kind = ExportKind::JsonLine;
+
+        let jsonline_str = self
+            .export_table_to_string(table, export_kind.clone())
+            .await
+            .unwrap();
+        file.write_all(jsonline_str.as_bytes()).unwrap();
+
+        self.truncate_table(table).await.unwrap();
+        self.table_import_data_from_file(
+            table,
+            TableImportPara::JsonLine {
+                path: file.path().to_str().unwrap().to_string(),
+            },
+        )
+        .await
+        .unwrap();
+        let jsonline_str2 = self
+            .export_table_to_string(table, export_kind.clone())
+            .await
+            .unwrap();
+        {
+            println!("jsonline1:{}", jsonline_str);
+            println!("jsonline2:{}", jsonline_str2);
+        }
+    }
+    #[cfg(test)]
+    async fn test_table_export_and_import(&self, table: &str) {
+        self.test_table_export_and_import_csv(table).await;
+        self.test_table_export_and_import_json(table).await;
+        self.test_table_export_and_import_jsonline(table).await;
         println!("test export and import json OK.")
     }
 }
@@ -2472,6 +2474,10 @@ impl MetaValue {
 
 pub fn escape_sql_str(s: &str) -> String {
     s.replace("'", "''")
+}
+
+pub fn quote_sql_str(s: &str) -> String {
+    format!("'{}'", escape_sql_str(s))
 }
 
 pub(crate) fn name_start_ascii_alphabetic(name: &str) -> bool {

@@ -16,7 +16,7 @@ use tokio::fs::File;
 use crate::datasource_config::SqliteDBConfig;
 use crate::db::{
     create_html_table_data, create_html_table_header, create_markdown_data, create_markdown_header,
-    escape_sql_str, export_query_as_xlsx_send_data, AutoCompletionQueryId, BackendKind, CheckConn,
+    export_query_as_xlsx_send_data, quote_sql_str, AutoCompletionQueryId, BackendKind, CheckConn,
     ColumnType, CreateIndexReq, CreateTableAndIndexSql, ExportFrame, ExportKind, ExportQueryResult,
     ExtractSqlValeFromJsonValue, Field, FirstTrue, GetBackendKind, Index, IndexKind, ListTable,
     MetaValue, NamedStaff, OptionMustBeSomeErr, QueryEvent, QueryEventEmitter, QueryResp, QuerySql,
@@ -716,11 +716,11 @@ impl SqlBuilder for SqliteDB {
                 if value.parse::<f64>().is_ok() {
                     value.to_string()
                 } else {
-                    format!("'{}'", escape_sql_str(value))
+                    quote_sql_str(value)
                 }
             }
-            "TEXT" | "DATE" | "TIME" | "DATETIME" => format!("'{}'", escape_sql_str(value)),
-            _ if text_like(typ.as_str()) => format!("'{}'", escape_sql_str(value)),
+            "TEXT" | "DATE" | "TIME" | "DATETIME" => quote_sql_str(value),
+            _ if text_like(typ.as_str()) => quote_sql_str(value),
             "REAL" | "INTEGER" | "NUMERIC" | "BOOLEAN" => value.to_string(),
             _ if integer_like(typ.as_str()) || numeric_like(typ.as_str()) => value.to_string(),
             "BLOB" => value.to_string(),

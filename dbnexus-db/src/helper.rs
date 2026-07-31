@@ -1,4 +1,4 @@
-use sqlparser::ast::DataType;
+use sqlparser::ast::{ArrayElemTypeDef, DataType};
 
 /// create csv file list of string
 /// each line of line separator
@@ -506,6 +506,38 @@ pub(crate) fn extract_bytes_from_serde_values(
     }
     anyhow::Ok(bytes)
 }
+
+pub(crate) fn get_array_tuple_element_type(
+    ty: &DataType,
+    index: usize,
+) -> anyhow::Result<&DataType> {
+    let r = match extract_null_able(ty) {
+        DataType::Array(x) => match x {
+            ArrayElemTypeDef::None => {
+                anyhow::bail!("ArrayElemTypeDef::None can't retrive a valid type")
+            }
+            ArrayElemTypeDef::AngleBracket(data_type) => data_type.as_ref(),
+            ArrayElemTypeDef::SquareBracket(data_type, _) => data_type.as_ref(),
+            ArrayElemTypeDef::Parenthesis(data_type) => data_type.as_ref(),
+        },
+        DataType::Tuple(x) => &mut match x.get(index) {
+            Some(x) => &x.field_type,
+            None => anyhow::bail!(format!("not found type on tupe#{}", index)),
+        },
+        _ => {
+            anyhow::bail!(format!("type not is not ok,should be array,but:{:?}", ty))
+        }
+    };
+    anyhow::Ok(r)
+}
+
+pub(crate) fn extract_null_able(x: &DataType) -> &DataType {
+    match x {
+        DataType::Nullable(x) => x.as_ref(),
+        _ => x,
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

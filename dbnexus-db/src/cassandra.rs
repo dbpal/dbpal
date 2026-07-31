@@ -31,7 +31,7 @@ use crate::datasource_config::CassandraDBConfig;
 use crate::datasource_config::CassandraDialect;
 use crate::db::{
     create_html_table_data, create_html_table_header, create_markdown_data, create_markdown_header,
-    escape_sql_str, export_query_as_xlsx_send_data, AutoCompletionQueryId, BackendKind, CheckConn,
+    export_query_as_xlsx_send_data, quote_sql_str, AutoCompletionQueryId, BackendKind, CheckConn,
     ColumnType, CreateIndexReq, CreateSchemaExtra, CreateTableAndIndexSql, CreatedTypeDef, DBTrait,
     DefAndMetas, ExportFrame, ExportKind, ExportQueryResult, ExtractSqlValeFromJsonValue, Field,
     GetBackendKind, GetTestExportTableKinds, Index, IndexKind, ListTable, MetaValue, NamedStaff,
@@ -359,7 +359,7 @@ fn encode_value_as_string(value: CqlValue, is_nested: bool) -> anyhow::Result<St
     let v = match value {
         CqlValue::Ascii(x) | CqlValue::Text(x) => {
             if is_nested {
-                format!("'{}'", escape_sql_str(&x))
+                quote_sql_str(&x)
             } else {
                 x
             }
@@ -710,7 +710,7 @@ impl SqlBuilder for CassandraDB {
         let typ = typ.to_lowercase();
         log::trace!("encode value '{:?}' on type '{}'", value, typ);
         match typ.as_str() {
-            "ascii" | "varchar" | "text" => anyhow::Ok(format!("'{}'", escape_sql_str(value))),
+            "ascii" | "varchar" | "text" => anyhow::Ok(quote_sql_str(value)),
             "timestamp" | "date" | "time" | "inet" => anyhow::Ok(format!("'{}'", value)),
             _ => anyhow::Ok(value.to_string()),
         }
@@ -833,7 +833,7 @@ impl ExtractSqlValeFromJsonValue for CassandraDB {
                 serde_json::Value::Bool(x) => Some(x.to_string()),
                 serde_json::Value::Number(number) => Some(number.to_string()),
                 serde_json::Value::String(x) => Some(if is_nested {
-                    format!("'{}'", escape_sql_str(x))
+                    quote_sql_str(x)
                 } else {
                     x.clone()
                 }),

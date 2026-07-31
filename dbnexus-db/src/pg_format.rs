@@ -4,7 +4,7 @@ use sqlx::postgres::{PgHasArrayType, PgRow, PgTypeInfo, PgValueRef};
 use sqlx::types::BigDecimal;
 use sqlx::{Column, Decode, Postgres, Row, Type, ValueRef};
 
-use crate::db::{escape_sql_str, format_data_time_fix_offset};
+use crate::db::{format_data_time_fix_offset, quote_sql_str};
 
 // 1. 创建一个全新的包装类型
 #[derive(Debug, Clone)]
@@ -988,7 +988,7 @@ pub(crate) fn encode_row(r: &PgRow) -> anyhow::Result<Vec<Option<String>>> {
 pub(crate) fn put_value_in_sql(typ: &str, value: &str) -> anyhow::Result<String> {
     let default_str = value.to_string();
 
-    let single_quote_str = format!("'{}'", escape_sql_str(value));
+    let single_quote_str = quote_sql_str(value);
 
     let err =
         Err(anyhow::Error::msg(format!("type '{}' not supported", typ))) as anyhow::Result<String>;

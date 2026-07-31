@@ -20,7 +20,7 @@ RDB$RELATION_NAME 的数据类型是 CHAR(31)，定长字符，不足 31 字节�
 use crate::datasource_config::FireBirdConfig;
 use crate::db::{
     create_html_table_data, create_html_table_header, create_markdown_data, create_markdown_header,
-    escape_sql_str, export_query_as_xlsx_send_blocking_data, BackendKind, CheckConn, ColumnType,
+    export_query_as_xlsx_send_blocking_data, quote_sql_str, BackendKind, CheckConn, ColumnType,
     CreateIndexReq, ExportFrame, ExportKind, ExportQueryResult, ExtractSqlValeFromJsonValue, Field,
     FirstTrue, GetBackendKind, GetTestExportTableKinds, Index, IndexKind, ListTable, MetaValue,
     QueryEvent, QueryEventEmitter, QueryResp, QuerySql, SchemaTrait, ServerMetas,
@@ -917,8 +917,8 @@ impl SqlBuilder for FireBirdDB {
         let typ = typ.to_lowercase();
         log::trace!("encode value '{:?}' on type '{}'", value, typ);
         let r = match typ.as_str() {
-            "text" | "varying" => anyhow::Ok(format!("'{}'", escape_sql_str(value))),
-            "date" | "time" | "timestamp" => anyhow::Ok(format!("'{}'", escape_sql_str(value))),
+            "text" | "varying" => anyhow::Ok(quote_sql_str(value)),
+            "date" | "time" | "timestamp" => anyhow::Ok(quote_sql_str(value)),
             "blob" => anyhow::Ok(value.to_string()),
             _ => anyhow::Ok(value.to_string()),
         };

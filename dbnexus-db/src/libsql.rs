@@ -11,7 +11,7 @@ use tokio::sync::{Mutex, OnceCell};
 use crate::datasource_config::{LibSqlDBConfig, LibSqlDBConfigSource};
 use crate::db::{
     create_html_table_data, create_html_table_header, create_markdown_data, create_markdown_header,
-    escape_sql_str, export_query_as_xlsx_send_data, AutoCompletionQueryId, BackendKind, CheckConn,
+    export_query_as_xlsx_send_data, quote_sql_str, AutoCompletionQueryId, BackendKind, CheckConn,
     ColumnType, CreateIndexReq, CreateTableAndIndexSql, ExportFrame, ExportKind, ExportQueryResult,
     ExtractSqlValeFromJsonValue, Field, FirstTrue, GetBackendKind, GetTestExportTableKinds, Index,
     IndexKind, ListTable, MetaValue, NamedStaff, QueryEvent, QueryEventEmitter, QueryResp,
@@ -858,9 +858,9 @@ impl SqlBuilder for LibSqlDB {
         let typ = typ.to_uppercase();
 
         let v = match typ.as_str() {
-            "" | "TEXT" | "NULL" => format!("'{}'", escape_sql_str(value)),
+            "" | "TEXT" | "NULL" => quote_sql_str(value),
             "DATE" | "TIME" | "DATETIME" => format!("'{}'", value),
-            _ if text_like(typ.as_str()) => format!("'{}'", escape_sql_str(value)),
+            _ if text_like(typ.as_str()) => quote_sql_str(value),
             "REAL" | "INTEGER" | "NUMERIC" | "BOOLEAN" => value.to_string(),
             _ if integer_like(typ.as_str()) || numeric_like(typ.as_str()) || real_like(&typ) => {
                 value.to_string()

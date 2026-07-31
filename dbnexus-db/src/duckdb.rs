@@ -3,19 +3,20 @@
 use crate::datasource_config::DuckDBConfig;
 use crate::db::{
     create_html_table_data, create_html_table_header, create_markdown_data, create_markdown_header,
-    escape_sql_str, export_query_as_xlsx_send_blocking_data, AutoCompletionQueryId, BackendKind,
+    export_query_as_xlsx_send_blocking_data, quote_sql_str, AutoCompletionQueryId, BackendKind,
     CatalogTrait, CheckConn, ColumnType, CreateDatabaseExtra, CreateIndexReq, CreateSchemaExtra,
-    CreateTableAndIndexSql, DBTrait, ExportFrame, ExportKind, ExportQueryResult, Field, FirstTrue,
-    GetBackendKind, GetTestExportTableKinds, Index, IndexKind, ListTable, MetaValue,
-    QueryEventEmitter, QueryResp, QuerySql, SchemaTrait, SequenceDetail, ServerMetas,
-    ShowTableParameter, SqlBuilder, SqlCollect, POOL_MAX_CONNECTIONS,
+    CreateTableAndIndexSql, DBTrait, ExportFrame, ExportKind, ExportQueryResult,
+    ExtractSqlValeFromJsonValue, Field, FirstTrue, GetBackendKind, GetTestExportTableKinds, Index,
+    IndexKind, ListTable, MetaValue, QueryEventEmitter, QueryResp, QuerySql, SchemaTrait,
+    SequenceDetail, ServerMetas, ShowTableParameter, SqlBuilder, SqlCollect, POOL_MAX_CONNECTIONS,
 };
-use crate::helper::create_csv;
+use crate::helper::{create_csv, get_array_tuple_element_type};
 use chrono::NaiveDate;
 use dashmap::{DashMap, DashSet};
 use duckdb::types::{TimeUnit, Value};
 use duckdb::{AccessMode, Connection, DuckdbConnectionManager};
 use r2d2::{Pool, PooledConnection};
+use sqlparser::ast::DataType;
 use std::collections::{HashMap, HashSet};
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
@@ -155,11 +156,8 @@ fn encode_row_as_json<'stmt>(
             }
             Value::Text(x) => serde_json::Value::from(x.clone()),
             Value::Blob(items) => {
-                let items = items
-                    .iter()
-                    .map(|x| serde_json::Value::from(*x))
-                    .collect::<Vec<_>>();
-                serde_json::Value::Array(items)
+                let value = encode_bytes(&items);
+                serde_json::Value::from(value)
             }
             Value::Date32(days) => {
                 let d = format_date(*days)?;
@@ -202,7 +200,10 @@ fn encode_row_as_json<'stmt>(
             Value::Map(ordered_map) => {
                 let mut m = serde_json::Map::new();
                 for (k, v) in ordered_map.iter() {
-                    m.insert(serde_json::to_string(&value_2_json(k)?)?, value_2_json(v)?);
+                    m.insert(
+                        encode_value(k, false)?.expect("key must not empty"),
+                        value_2_json(v)?,
+                    );
                 }
                 serde_json::Value::Object(m)
             }
@@ -216,7 +217,6 @@ impl SqlBuilder for DuckDB {
     fn put_value_in_sql(&self, typ: &str, value: &str) -> anyhow::Result<String> {
         let typ = typ.to_lowercase();
         log::trace!("encode type:{} value:{:?}", typ, value);
-
         match typ.as_str() {
             // 1. 精确匹配：需要加单引号并转义的文本、日期、时间、JSON、UUID 等类型
             "date"
@@ -227,10 +227,17 @@ impl SqlBuilder for DuckDB {
             | "timestamptz"
             | "varchar"
             | "text"
-            | "string"
             | "json"
+            | "string"
             | "uuid"
-            | "blob" => anyhow::Ok(format!("'{}'", escape_sql_str(value))),
+            | "blob" => anyhow::Ok(quote_sql_str(value)),
+
+            // 3. 嵌套/复杂类型：DuckDB 的 LIST (如 int[]), ARRAY, STRUCT, MAP
+            // 它们的字面量（如 [1, 2, 3] 或 {'a': 1}）直接作为表达式插入，不需要在外层加单引号
+            _ if typ.ends_with("]") || typ.starts_with("struct") || typ.starts_with("map") => {
+                anyhow::Ok(value.to_string())
+            }
+            _ if typ.starts_with("union") => anyhow::bail!("don't know how to handle union value"),
 
             // 2. 前缀匹配：处理带参数或变体的类型 (例如 varchar(255), timestamp_ms, utf8, largeutf8 等)
             _ if typ.starts_with("varchar")
@@ -241,18 +248,7 @@ impl SqlBuilder for DuckDB {
                 || typ.starts_with("largeutf8")
                 || typ.starts_with("enum") =>
             {
-                anyhow::Ok(format!("'{}'", escape_sql_str(value)))
-            }
-
-            // 3. 嵌套/复杂类型：DuckDB 的 LIST (如 int[]), ARRAY, STRUCT, MAP
-            // 它们的字面量（如 [1, 2, 3] 或 {'a': 1}）直接作为表达式插入，不需要在外层加单引号
-            _ if typ.ends_with("[]")
-                || typ.starts_with("array")
-                || typ.starts_with("struct")
-                || typ.starts_with("map")
-                || typ.starts_with("union") =>
-            {
-                anyhow::Ok(value.to_string())
+                anyhow::Ok(quote_sql_str(value))
             }
 
             // 4. 兜底分支：数字类型 (int, bigint, float, decimal)、布尔值 (boolean) 等
@@ -338,8 +334,9 @@ impl ExportQueryResult for DuckDB {
                         delimiter,
                     } => {
                         if first.get() && include_header {
-                            let fs = row.as_ref().column_names().into_iter().map(Some).collect();
-                            sender.blocking_send(create_csv(&[fs], delimiter)?.into())?;
+                            let fs: Vec<_> =
+                                row.as_ref().column_names().into_iter().map(Some).collect();
+                            sender.blocking_send(create_csv(&fs, delimiter)?.into())?;
                         }
                         let d = encode_row(row)?;
                         let r = create_csv(&d, delimiter)?;
@@ -572,6 +569,13 @@ fn format_timestamp(time_uint: TimeUnit, value: i64, is_time: bool) -> anyhow::R
     })
 }
 
+fn encode_bytes(bs: &[u8]) -> String {
+    bs.iter()
+        .map(|x| format!("\\x{}", hex::encode([*x])))
+        .collect::<Vec<_>>()
+        .join("")
+}
+
 fn encode_value(value: &Value, nested: bool) -> anyhow::Result<Option<String>> {
     let r = match value {
         Value::Null => None,
@@ -589,23 +593,22 @@ fn encode_value(value: &Value, nested: bool) -> anyhow::Result<Option<String>> {
         Value::Double(x) => Some(x.to_string()),
         Value::Decimal(decimal) => Some(decimal.to_string()),
         Value::Timestamp(time_unit, value) => {
-            let v = format_timestamp(*time_unit, *value, false)?;
+            let mut v = format_timestamp(*time_unit, *value, false)?;
+            if nested {
+                v = quote_sql_str(&v);
+            }
             Some(v)
         }
         Value::Text(x) => {
             let mut x = Some(x.to_string());
             if nested {
-                x = x.map(|x| format!("'{}'", escape_sql_str(&x)))
+                x = x.map(|x| quote_sql_str(&x))
             }
             x
         }
         Value::Blob(items) => {
-            let x = items
-                .iter()
-                .map(|x| format!("\\x{}", hex::encode([*x])))
-                .collect::<Vec<_>>()
-                .join("");
-            Some(x)
+            let x = encode_bytes(&items);
+            Some(if nested { format!("'{}'", x) } else { x })
         }
         Value::Date32(x) => {
             let mut x = format_date(*x)?;
@@ -1485,6 +1488,101 @@ pub(crate) fn test_lock() -> &'static tokio::sync::Mutex<()> {
 
 impl GetTestExportTableKinds for DuckDB {}
 
+impl ExtractSqlValeFromJsonValue for DuckDB {
+    fn extrat_sql_value_from_json_value(
+        &self,
+        value: &serde_json::Value,
+        ty: &str,
+    ) -> anyhow::Result<Option<String>> {
+        let ty = crate::language_server::LangServerCommon::parse_type(self, &ty)?;
+        fn encode_value<T: Fn(&str) -> anyhow::Result<DataType>>(
+            v: &serde_json::Value,
+            ty: &DataType,
+            is_nested: bool,
+            parse_type: &T,
+        ) -> anyhow::Result<Option<String>> {
+            let r = match v {
+                serde_json::Value::Null => None,
+                serde_json::Value::Bool(x) => Some(x.to_string()),
+                serde_json::Value::Number(number) => Some(number.to_string()),
+                serde_json::Value::String(x) => {
+                    if matches!(ty, DataType::Interval { .. }) {
+                        Some(x.clone())
+                    } else if is_nested {
+                        Some(quote_sql_str(x))
+                    } else {
+                        Some(x.clone())
+                    }
+                }
+                serde_json::Value::Array(values) => {
+                    let mut results: Vec<String> = Vec::with_capacity(values.len());
+                    for (index, value) in values.iter().enumerate() {
+                        let ty = get_array_tuple_element_type(ty, index)?;
+                        let value = encode_value(value, ty, true, parse_type)?
+                            .unwrap_or("null".to_string());
+                        results.push(value);
+                    }
+                    Some(format!("[{}]", results.join(",")))
+                }
+                serde_json::Value::Object(map) => match ty {
+                    DataType::Struct(fs, _) => {
+                        let mut results: Vec<String> = Vec::with_capacity(map.len());
+                        for (index, (k, v)) in map.iter().enumerate() {
+                            let ty = match fs.get(index) {
+                                Some(x) => &x.field_type,
+                                None => {
+                                    anyhow::bail!(format!("not found field#{} ty:{:?}", index, ty))
+                                }
+                            };
+                            let v = encode_value(v, ty, true, parse_type)?
+                                .unwrap_or("null".to_string());
+                            results.push(format!("'{}':{}", k, v));
+                        }
+                        Some(format!("{{{}}}", results.join(",")))
+                    }
+                    DataType::Map(.., vty) => {
+                        let mut results: Vec<String> = Vec::with_capacity(map.len());
+                        let mut keys: Vec<&str> = Vec::with_capacity(map.len());
+                        for (k, v) in map.iter() {
+                            let v = encode_value(v, vty, true, parse_type)?
+                                .unwrap_or("null".to_string());
+                            results.push(v);
+                            keys.push(k);
+                        }
+                        Some(format!("map({},{})", keys.join(","), results.join(",")))
+                    }
+                    DataType::Custom(x, kvtypes) if x.to_string().to_lowercase() == "map" => {
+                        // find map
+
+                        let vty = match kvtypes.get(1) {
+                            None => {
+                                anyhow::bail!(format!("map type should be #1 extra types"))
+                            }
+                            Some(x) => parse_type(x)?,
+                        };
+                        let mut results: Vec<String> = Vec::with_capacity(map.len());
+                        let mut keys: Vec<_> = Vec::with_capacity(map.len());
+                        for (k, v) in map.iter() {
+                            let v = encode_value(v, &vty, true, parse_type)?
+                                .unwrap_or("null".to_string());
+                            results.push(v);
+                            keys.push(quote_sql_str(k.as_str()));
+                        }
+                        Some(format!("map([{}],[{}])", keys.join(","), results.join(",")))
+                    }
+                    _ => {
+                        anyhow::bail!(format!("not valid type for json object value,ty:{:?}", ty))
+                    }
+                },
+            };
+
+            anyhow::Ok(r)
+        }
+        encode_value(value, &ty, false, &|x| {
+            crate::language_server::LangServerCommon::parse_type(self, x)
+        })
+    }
+}
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -1971,10 +2069,7 @@ mod tests {
             .unwrap();
         let mut values = HashMap::new();
         values.insert("bigint_column".to_string(), Some("123".to_string()));
-        values.insert(
-            "blob_column".to_string(),
-            Some("'\x01\x02\x03'".to_string()),
-        );
+        values.insert("blob_column".to_string(), Some("\x01\x02\x03".to_string()));
         values.insert("boolean_column".to_string(), Some("TRUE".to_string()));
         values.insert("date_column".to_string(), Some("2025-03-25".to_string()));
         values.insert("decimal_column".to_string(), Some("12345.67".to_string()));
@@ -1989,12 +2084,13 @@ mod tests {
         println!("resp:{:?}", resp);
 
         GetTestExportTableKinds::test_export(&db, table_name).await;
+        db.test_table_export_and_import(table_name).await;
     }
 
     #[tokio::test]
     async fn test_types1_array() {
         let _gurad = test_lock().lock().await;
-        enable_test_log();
+
         let db = make_test_object(Some("main".to_string())).await;
         let table_name: &str = "test_types1_array";
         let _ = db.drop_table(table_name, false).await;
@@ -2022,7 +2118,7 @@ mod tests {
         );
         values.insert(
             "blob_column".to_string(),
-            Some("[X'12345678', X'87654321']".to_string()),
+            Some("['\x01\x02\x03']".to_string()),
         );
         values.insert(
             "boolean_column".to_string(),
@@ -2047,6 +2143,7 @@ mod tests {
         println!("resp:{:?}", resp);
 
         GetTestExportTableKinds::test_export(&db, table_name).await;
+        db.test_table_export_and_import(table_name).await;
     }
 
     #[tokio::test]
@@ -2104,6 +2201,7 @@ mod tests {
             .unwrap();
         println!("resp:{:?}", resp);
         GetTestExportTableKinds::test_export(&db, table_name).await;
+        db.test_table_export_and_import(table_name).await;
     }
 
     #[tokio::test]
@@ -2126,7 +2224,7 @@ mod tests {
                 col_hugeint HUGEINT[],
                 col_integer INTEGER[],
                 col_interval INTERVAL[],
-                col_json JSON
+                col_json JSON[]
             );
 
         "#,
@@ -2147,7 +2245,7 @@ mod tests {
         );
         values.insert(
             "col_json".to_string(),
-            Some(r#"{"key1": "value1", "key2": 123, "key3": [1, 2, 3]}"#.to_string()),
+            Some(r#"['{"key1": "value1", "key2": 123, "key3": [1, 2, 3]}']"#.to_string()),
         );
 
         db.table_insert(table_name, values).await.unwrap();
@@ -2158,6 +2256,7 @@ mod tests {
         println!("resp:{:?}", resp);
 
         GetTestExportTableKinds::test_export(&db, table_name).await;
+        db.test_table_export_and_import(table_name).await;
     }
 
     #[tokio::test]
@@ -2213,6 +2312,7 @@ mod tests {
         println!("resp:{:?}", resp);
 
         GetTestExportTableKinds::test_export(&db, table_name).await;
+        db.test_table_export_and_import(table_name).await;
     }
 
     #[tokio::test]
@@ -2265,6 +2365,7 @@ mod tests {
         println!("resp:{:?}", resp);
 
         GetTestExportTableKinds::test_export(&db, table_name).await;
+        db.test_table_export_and_import(table_name).await;
     }
 
     #[tokio::test]
@@ -2312,22 +2413,7 @@ mod tests {
         println!("resp:{:?}", resp);
 
         GetTestExportTableKinds::test_export(&db, table_name).await;
-    }
-
-    #[tokio::test]
-
-    async fn test_query_sequence_xxx() {
-        let _gurad = test_lock().lock().await;
-        let db = make_test_object(Some("main".to_string())).await;
-        let query_id = "aaaa";
-        db.open_connection(query_id).await.unwrap();
-        db.query_sql(
-            query_id,
-            "select  * from  duckdb_sequences ();",
-            Arc::new(TestQueryEventEmit::default()),
-        )
-        .await
-        .unwrap();
+        db.test_table_export_and_import(table_name).await;
     }
 
     #[tokio::test]
@@ -2348,7 +2434,7 @@ mod tests {
                 my_list VARCHAR[],
                 my_map MAP(VARCHAR, INTEGER),
                 my_struct STRUCT(name VARCHAR, age INTEGER),
-                my_union UNION(num INTEGER, text VARCHAR)
+                -- my_union UNION(num INTEGER, text VARCHAR)
             );
         "#,
             )
@@ -2368,7 +2454,7 @@ mod tests {
             "my_struct".to_string(),
             Some("{'name' : 'xxx' , 'age' : 100}".to_string()),
         );
-        values.insert("my_union".to_string(), Some("'hello'".to_string()));
+        // values.insert("my_union".to_string(), Some("'hello'".to_string()));
         db.table_insert(table_name, values).await.unwrap();
         let resp = db
             .show_table_collect(table_name, ShowTableParameter::new_stupid_test(None))
@@ -2377,5 +2463,23 @@ mod tests {
         println!("resp:{:?}", resp);
 
         GetTestExportTableKinds::test_export(&db, table_name).await;
+
+        db.test_table_export_and_import(table_name).await;
+    }
+
+    #[tokio::test]
+
+    async fn test_query_sequence_xxx() {
+        let _gurad = test_lock().lock().await;
+        let db = make_test_object(Some("main".to_string())).await;
+        let query_id = "aaaa";
+        db.open_connection(query_id).await.unwrap();
+        db.query_sql(
+            query_id,
+            "select  * from  duckdb_sequences ();",
+            Arc::new(TestQueryEventEmit::default()),
+        )
+        .await
+        .unwrap();
     }
 }

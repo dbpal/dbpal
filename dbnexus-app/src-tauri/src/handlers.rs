@@ -6,7 +6,7 @@ use dashmap::DashMap;
 use dbnexus_db::cassandra::CassandraDB;
 
 use dbnexus_db::db::{
-    escape_sql_str, ColumnType, CreateDatabaseExtra, CreateIndexReq, CreateSchemaExtra,
+    quote_sql_str, ColumnType, CreateDatabaseExtra, CreateIndexReq, CreateSchemaExtra,
     CreateTableAndIndexSql, CreateTableReq, CreatedTypeDef, DefAndMetas, ExportKind, Field, Index,
     ListTable, MetaValue, NamedStaff, OptionMustBeSomeErr, ProcedureDetail, QueryEventEmit,
     QueryResp, SequenceDetail, ShowTableParameter, SqlEvent, TableImportPara, TimeElapsed,
@@ -3088,7 +3088,7 @@ pub async fn put_value_in_sql(
             return Ok(if value.starts_with("0x") {
                 value
             } else {
-                format!("'{}'", escape_sql_str(&value))
+                quote_sql_str(&value)
             });
         }
     }

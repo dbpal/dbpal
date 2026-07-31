@@ -2,7 +2,7 @@ use std::borrow::Cow;
 use std::collections::HashSet;
 use std::time::Duration;
 
-use sqlparser::ast::{SetExpr, Statement, Update};
+use sqlparser::ast::{DataType, SetExpr, Statement, Update};
 use sqlparser::keywords::Keyword;
 use sqlparser::tokenizer::{Location, Token, TokenWithSpan};
 
@@ -435,6 +435,14 @@ pub trait LangServerCommon: GetBackendKind + GetKeyWords + Send + Sync {
         _installed: bool,
     ) -> anyhow::Result<Vec<PostGresExtension>> {
         anyhow::Ok(vec![])
+    }
+
+    fn parse_type(&self, typ: &str) -> anyhow::Result<DataType> {
+        let d = self.dialect();
+        let mut p = sqlparser::parser::Parser::new(d.as_ref());
+        p = p.try_with_sql(typ)?;
+        let ret = p.parse_data_type()?;
+        anyhow::Ok(ret)
     }
 
     async fn postgres_list_extension_completion(

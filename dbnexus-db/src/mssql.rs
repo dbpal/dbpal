@@ -1,7 +1,7 @@
 use crate::datasource_config::SqlServerDBConfig;
 use crate::db::{
     create_html_table_data, create_html_table_header, create_markdown_data, create_markdown_header,
-    escape_sql_str, export_query_as_xlsx_send_data, format_data_time_fix_offset, BackendKind,
+    export_query_as_xlsx_send_data, format_data_time_fix_offset, quote_sql_str, BackendKind,
     CatalogTrait, CheckConn, ColumnType, CreateDatabaseExtra, CreateIndexReq, CreateSchemaExtra,
     DBTrait, DefAndMetas, ExportFrame, ExportKind, ExportQueryResult, ExtractSqlValeFromJsonValue,
     Field, FirstTrue, GetBackendKind, GetTestExportTableKinds, Index, IndexKind, ListTable,
@@ -1147,7 +1147,7 @@ impl SqlBuilder for SqlServerDB {
     /// this method current use in `insert_sql` etc.
     fn put_value_in_sql(&self, typ: &str, value: &str) -> anyhow::Result<String> {
         let default_value = value.to_string();
-        let single_quote = format!("'{}'", escape_sql_str(value));
+        let single_quote = quote_sql_str(value);
 
         let v = match typ.to_uppercase().as_str() {
             "TINYINT" | "SMALLINT" | "INT" | "BIGINT" | "FLOAT" | "REAL" | "INT4" | "INT2"
