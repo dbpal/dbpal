@@ -565,7 +565,7 @@ pub trait SchemaTrait:
                 // build the sql
                 let sql = SqlBuilder::insert_sql(this.as_ref(), &table, &cols, &record)?;
                 log::info!("insert sql:{}", sql);
-                match this.execute_sql(&query_id, &sql).await {
+                match this.execute_sql(&query_id, &sql).await? {
                     Ok(_) => {}
                     Err(insert_err) => {
                         this.rollback(&query_id).await.map_err(|err| {
@@ -573,7 +573,9 @@ pub trait SchemaTrait:
                                 "execute sql failed,sql{sql} err:{insert_err} rollback:{err} "
                             ))
                         })?;
-                        return Err(insert_err);
+                        return Err(anyhow::Error::msg(format!(
+                            "execute sql failed,sql{sql} err:{insert_err},rollback success"
+                        )));
                     }
                 }
             }

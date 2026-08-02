@@ -1488,9 +1488,11 @@ impl GetTestExportTableKinds for CassandraDB {}
 
 #[cfg(test)]
 pub(crate) mod test_impls {
+    use std::io::Write;
+
     use super::*;
     use crate::{
-        db::{CreateIndexColumn, CreateTableReq, CreateTableReqColumn},
+        db::{CreateIndexColumn, CreateTableReq, CreateTableReqColumn, TableImportPara},
         enable_test_log,
     };
 
@@ -2400,6 +2402,58 @@ pub(crate) mod test_impls {
             println!("resp:{:?}", resp);
         }
     }
+
+    pub async fn test_import_failed(db: CassandraDB) {
+        enable_test_log();
+
+        use csv::Writer;
+        let table_name = "test_import_err";
+        let query_id = "aaaa";
+
+        let _err = db.drop_table(table_name, false).await;
+        db.open_connection(query_id).await.unwrap();
+        db.execute_sql(
+            query_id,
+            r#"
+            CREATE TABLE test_import_err (
+                id uuid,
+                int_value int,
+                PRIMARY KEY (id)
+            );
+        "#,
+        )
+        .await
+        .unwrap()
+        .unwrap();
+
+        let mut file = tempfile::NamedTempFile::new().unwrap();
+
+        let mut wtr = Writer::from_writer(vec![]);
+        wtr.write_record(&["int_value"]).unwrap();
+        wtr.write_record(&["eeee"]).unwrap();
+
+        file.write_all(&wtr.into_inner().unwrap()).unwrap();
+        let x = std::fs::read_to_string(&file.path()).unwrap();
+        println!("csv content:{}", x);
+
+        let err = db
+            .table_import_data_from_file(
+                table_name,
+                TableImportPara::Csv {
+                    path: file.path().to_str().unwrap().to_owned(),
+                },
+            )
+            .await;
+
+        match err {
+            Ok(_) => unreachable!(),
+            Err(x) => {
+                let err_msg = x.to_string();
+                println!("import error:{}", err_msg);
+                assert!(err_msg.contains("rollback"));
+            }
+        }
+    }
 }
 
 #[cfg(test)]
@@ -2538,6 +2592,11 @@ mod tests {
     async fn test_view() {
         let db = make_test_object(Some("test".to_string())).await;
         test_impls::test_view_inner(db).await;
+    }
+    #[tokio::test]
+    async fn test_import_failed() {
+        let db = make_test_object(Some("test".to_string())).await;
+        test_impls::test_import_failed(db).await;
     }
 
     #[test]

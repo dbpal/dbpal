@@ -2048,7 +2048,15 @@ mod tests {
                 },
             )
             .await;
-        println!("table import error:{:?}", err);
+
+        match err {
+            Ok(_) => unreachable!(),
+            Err(x) => {
+                let err_msg = x.to_string();
+                println!("import error:{}", err_msg);
+                assert!(err_msg.contains("rollback"));
+            }
+        }
     }
 
     #[tokio::test]
