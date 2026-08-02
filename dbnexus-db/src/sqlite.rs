@@ -1412,10 +1412,15 @@ pub(crate) fn sqlite_extract_sql_value_from_json_value(
 #[cfg(test)]
 mod tests {
 
+    use std::io::Write;
+
     use super::*;
-    use crate::db::{
-        CreateIndexColumn, CreateTableReq, CreateTableReqColumn, GetTestExportTableKinds,
-        ShowTableParameter, SqlNullAble, TestQueryEventEmit,
+    use crate::{
+        db::{
+            CreateIndexColumn, CreateTableReq, CreateTableReqColumn, GetTestExportTableKinds,
+            ShowTableParameter, SqlNullAble, TableImportPara, TestQueryEventEmit,
+        },
+        enable_test_log,
     };
 
     #[tokio::test]
@@ -2001,6 +2006,49 @@ mod tests {
         .unwrap();
 
         GetTestExportTableKinds::test_export(&db, table_name).await;
+    }
+
+    #[tokio::test]
+    async fn test_import_failed() {
+        enable_test_log();
+
+        use csv::Writer;
+        let table_name = "test_import_err";
+        let query_id = "aaaa";
+        let db = make_test_object().await;
+        let _err = db.drop_table(table_name, false).await;
+        db.open_connection(query_id).await.unwrap();
+        db.execute_sql(
+            query_id,
+            r#"
+        CREATE table test_import_err(
+            int_value INTEGER 
+        )
+        "#,
+        )
+        .await
+        .unwrap()
+        .unwrap();
+
+        let mut file = tempfile::NamedTempFile::new().unwrap();
+
+        let mut wtr = Writer::from_writer(vec![]);
+        wtr.write_record(&["int_value"]).unwrap();
+        wtr.write_record(&["eeee"]).unwrap();
+
+        file.write_all(&wtr.into_inner().unwrap()).unwrap();
+        let x = std::fs::read_to_string(&file.path()).unwrap();
+        println!("csv content:{}", x);
+
+        let err = db
+            .table_import_data_from_file(
+                table_name,
+                TableImportPara::Csv {
+                    path: file.path().to_str().unwrap().to_owned(),
+                },
+            )
+            .await;
+        println!("table import error:{:?}", err);
     }
 
     #[tokio::test]

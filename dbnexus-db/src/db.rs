@@ -431,13 +431,12 @@ pub trait SchemaTrait:
 
         let cols = self.show_table_columns(table).await?;
         let mut cols_map = HashMap::new();
-        cols.into_iter().for_each(|x| {
-            cols_map.insert(x.field.clone(), x);
+        cols.iter().for_each(|x| {
+            cols_map.insert(x.field.clone(), x.clone());
         });
         // read data from the file
         let task_read = {
             let this = SchemaTrait::clone(self);
-
             spawn_blocking(move || -> anyhow::Result<()> {
                 match data {
                     TableImportPara::Csv { path } => {
@@ -527,15 +526,60 @@ pub trait SchemaTrait:
                 anyhow::Ok(())
             })
         };
-
         let this = SchemaTrait::clone(self);
         let table = table.to_owned();
 
         let task_write = tokio::spawn(async move {
-            // get the  value
-            while let Some(record) = receiver.recv().await {
-                this.table_insert(&table, record).await?;
+            // use tx to commit the data
+
+            struct DropConn {
+                db: Option<Box<dyn SchemaTrait>>,
+                query_id: String,
             }
+
+            impl Drop for DropConn {
+                fn drop(&mut self) {
+                    let db = self.db.take();
+                    if let Some(db) = db {
+                        let query_id = self.query_id.clone();
+                        tokio::spawn(async move {
+                            if let Err(err) = db.close_connection(&query_id).await {
+                                log::error!("close connection failed:{}", err);
+                            }
+                        });
+                    }
+                }
+            }
+            let query_id = generate_random_string(10);
+            this.open_connection(&query_id).await?;
+
+            let _gurad = DropConn {
+                db: Some(SchemaTrait::clone(this.as_ref())),
+                query_id: query_id.clone(),
+            };
+            let _err_set_commit = this.set_auto_commit(&query_id, false).await;
+            if let Err(err) = _err_set_commit {
+                log::error!("set auto commit false failed:{}", err);
+            }
+            while let Some(record) = receiver.recv().await {
+                // build the sql
+                let sql = SqlBuilder::insert_sql(this.as_ref(), &table, &cols, &record)?;
+                log::info!("insert sql:{}", sql);
+                match this.execute_sql(&query_id, &sql).await {
+                    Ok(_) => {}
+                    Err(insert_err) => {
+                        this.rollback(&query_id).await.map_err(|err| {
+                            anyhow::Error::msg(format!(
+                                "execute sql failed,sql{sql} err:{insert_err} rollback:{err} "
+                            ))
+                        })?;
+                        return Err(insert_err);
+                    }
+                }
+            }
+            // then commit
+            this.commit(&query_id).await?;
+
             anyhow::Ok(())
         });
         let (res1, res2) = tokio::join!(task_read, task_write);
