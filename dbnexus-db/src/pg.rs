@@ -2922,7 +2922,6 @@ mod tests {
 
     #[tokio::test]
     async fn test_types4() {
-        //
         let table_name = "test_types4";
         let pg = make_test_object().await;
         let _ = pg.drop_table(table_name, false).await;
@@ -2953,7 +2952,7 @@ mod tests {
         values.insert("text_array_column".to_string(), Some("{a,b}".to_string()));
         values.insert(
             "varchar_array_column".to_string(),
-            Some("{c,d}".to_string()),
+            Some(r#"{"\\c","d"}"#.to_string()),
         );
         values.insert("int8_array_column".to_string(), Some("{1,100}".to_string()));
 

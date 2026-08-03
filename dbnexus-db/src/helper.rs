@@ -1,5 +1,7 @@
 use sqlparser::ast::{ArrayElemTypeDef, DataType};
 
+use crate::db::{BackendKind, Field};
+
 /// create csv file list of string
 /// each line of line separator
 pub(crate) fn create_csv(
@@ -535,6 +537,163 @@ pub(crate) fn extract_null_able(x: &DataType) -> &DataType {
     match x {
         DataType::Nullable(x) => x.as_ref(),
         _ => x,
+    }
+}
+
+impl BackendKind {
+    pub fn infer_fields(self, path: &str) -> anyhow::Result<Vec<Field>> {
+        let path_lower = path.to_lowercase();
+
+        if path_lower.ends_with(".csv") {
+            self.infer_csv(path)
+        } else if path_lower.ends_with(".json") {
+            self.infer_json(path)
+        } else if path_lower.ends_with(".jsonl") {
+            self.infer_jsonline(path)
+        } else {
+            anyhow::bail!(format!("unsupported file type:{}", path))
+        }
+    }
+    fn infer_csv(self, _path: &str) -> anyhow::Result<Vec<Field>> {
+        let df = csv_processor::DataFrame::from_csv("data.csv")?;
+        let report = csv_processor::reporter::generate_info_report(&df);
+        let mut ret = vec![];
+        for (index, col) in report.columns().iter().enumerate() {
+            let name = report.headers().get(index).map(|x| x.clone()).unwrap();
+            let data_type = self.map_csv_dtype(&col.dtype());
+
+            ret.push(Field {
+                field: name,
+                data_type,
+                ..Default::default()
+            });
+        }
+
+        anyhow::Ok(ret)
+    }
+
+    fn infer_json(self, _path: &str) -> anyhow::Result<Vec<Field>> {
+        todo!()
+    }
+    fn infer_jsonline(self, _path: &str) -> anyhow::Result<Vec<Field>> {
+        todo!()
+    }
+}
+
+impl BackendKind {
+    /// 核心職責分離：根據當前資料庫與 CSV 推導出的型態，返回該資料庫最適合的欄位型態名稱
+    pub fn map_csv_dtype(&self, csv_dtype: &csv_processor::Dtype) -> String {
+        use csv_processor::Dtype;
+
+        match self {
+            BackendKind::Mysql(_) => match csv_dtype {
+                Dtype::Integer => "INT".to_string(),
+                Dtype::Float => "DOUBLE".to_string(),
+                Dtype::Boolean => "TINYINT(1)".to_string(),
+                Dtype::Date => "DATE".to_string(),
+                Dtype::DateTime => "DATETIME".to_string(),
+                Dtype::Str => "VARCHAR(255)".to_string(),
+                Dtype::Null => "VARCHAR(255)".to_string(), // 預設降級為文字
+            },
+            BackendKind::PostGres(_) => match csv_dtype {
+                Dtype::Integer => "BIGINT".to_string(),
+                Dtype::Float => "DOUBLE PRECISION".to_string(),
+                Dtype::Boolean => "BOOLEAN".to_string(),
+                Dtype::Date => "DATE".to_string(),
+                Dtype::DateTime => "TIMESTAMP".to_string(),
+                Dtype::Str => "TEXT".to_string(),
+                Dtype::Null => "TEXT".to_string(),
+            },
+            BackendKind::Sqlite | BackendKind::LibSql => match csv_dtype {
+                Dtype::Integer => "INTEGER".to_string(),
+                Dtype::Float => "REAL".to_string(),
+                Dtype::Boolean => "INTEGER".to_string(), // SQLite 底層無布林，習慣宣告為 INTEGER (存 0 或 1)
+                Dtype::Date => "DATE".to_string(), // 修正：直接使用 DATE 宣告，方便 ORM/驅動對齊型態
+                Dtype::DateTime => "DATETIME".to_string(), // 修正：直接使用 DATETIME 宣告
+                Dtype::Str | Dtype::Null => "TEXT".to_string(),
+            },
+            BackendKind::ClickHouse => match csv_dtype {
+                Dtype::Integer => "Int64".to_string(),
+                Dtype::Float => "Float64".to_string(),
+                Dtype::Boolean => "Bool".to_string(),
+                Dtype::Date => "Date32".to_string(),
+                Dtype::DateTime => "DateTime64(3)".to_string(),
+                Dtype::Str | Dtype::Null => "String".to_string(),
+            },
+            BackendKind::DuckDB => match csv_dtype {
+                Dtype::Integer => "BIGINT".to_string(),
+                Dtype::Float => "DOUBLE".to_string(),
+                Dtype::Boolean => "BOOLEAN".to_string(),
+                Dtype::Date => "DATE".to_string(),
+                Dtype::DateTime => "TIMESTAMP".to_string(),
+                Dtype::Str | Dtype::Null => "VARCHAR".to_string(),
+            },
+            BackendKind::BigQuery => match csv_dtype {
+                Dtype::Integer => "INT64".to_string(),
+                Dtype::Float => "FLOAT64".to_string(),
+                Dtype::Boolean => "BOOL".to_string(),
+                Dtype::Date => "DATE".to_string(),
+                Dtype::DateTime => "DATETIME".to_string(),
+                Dtype::Str | Dtype::Null => "STRING".to_string(),
+            },
+            BackendKind::SqlServer => match csv_dtype {
+                Dtype::Integer => "INT".to_string(),
+                Dtype::Float => "FLOAT".to_string(),
+                Dtype::Boolean => "BIT".to_string(), // SQL Server 的布林是 BIT
+                Dtype::Date => "DATE".to_string(),
+                Dtype::DateTime => "DATETIME2".to_string(),
+                Dtype::Str | Dtype::Null => "NVARCHAR(MAX)".to_string(),
+            },
+            BackendKind::Oracle => match csv_dtype {
+                Dtype::Integer => "NUMBER(19)".to_string(),
+                Dtype::Float => "NUMBER".to_string(),
+                Dtype::Boolean => "NUMBER(1)".to_string(), // Oracle 傳統上沒有專門的布林型態
+                Dtype::Date => "DATE".to_string(),
+                Dtype::DateTime => "TIMESTAMP".to_string(),
+                Dtype::Str | Dtype::Null => "VARCHAR2(4000)".to_string(),
+            },
+            BackendKind::Db2 => match csv_dtype {
+                Dtype::Integer => "BIGINT".to_string(),
+                Dtype::Float => "DOUBLE".to_string(),
+                Dtype::Boolean => "BOOLEAN".to_string(),
+                Dtype::Date => "DATE".to_string(),
+                Dtype::DateTime => "TIMESTAMP".to_string(),
+                Dtype::Str | Dtype::Null => "VARCHAR(32700)".to_string(),
+            },
+            BackendKind::Firebird => match csv_dtype {
+                Dtype::Integer => "BIGINT".to_string(),
+                Dtype::Float => "DOUBLE PRECISION".to_string(),
+                Dtype::Boolean => "BOOLEAN".to_string(),
+                Dtype::Date => "DATE".to_string(),
+                Dtype::DateTime => "TIMESTAMP".to_string(),
+                Dtype::Str | Dtype::Null => "VARCHAR(8191)".to_string(),
+            },
+            BackendKind::Cassandra => match csv_dtype {
+                Dtype::Integer => "bigint".to_string(),
+                Dtype::Float => "double".to_string(),
+                Dtype::Boolean => "boolean".to_string(),
+                Dtype::Date => "date".to_string(),
+                Dtype::DateTime => "timestamp".to_string(),
+                Dtype::Str | Dtype::Null => "text".to_string(),
+            },
+            // NoSQL 或 鍵值資料庫 通常全部對齊到基礎文字或其特定 BSON 型態
+            BackendKind::Mongo => match csv_dtype {
+                Dtype::Integer => "int64".to_string(),
+                Dtype::Float => "double".to_string(),
+                Dtype::Boolean => "bool".to_string(),
+                Dtype::Date | Dtype::DateTime => "date".to_string(),
+                Dtype::Str | Dtype::Null => "string".to_string(),
+            },
+            BackendKind::CouchBase => match csv_dtype {
+                Dtype::Integer | Dtype::Float => "number".to_string(), // JSON 基礎型態
+                Dtype::Boolean => "boolean".to_string(),
+                Dtype::Str | Dtype::Date | Dtype::DateTime | Dtype::Null => "string".to_string(),
+            },
+            BackendKind::Redis => {
+                // Redis 主要是 Key-Value 或 Hash，資料基本都是 String 儲存
+                "string".to_string()
+            }
+        }
     }
 }
 

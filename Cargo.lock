@@ -2010,6 +2010,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "csv_processor"
+version = "0.1.10"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "52316ffbdfa57ac8916f56e4d696c0da96d758e920cafa79bac134ed6b32ac84"
+dependencies = [
+ "csv",
+ "serde_json",
+]
+
+[[package]]
 name = "ctor"
 version = "0.8.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2184,6 +2194,7 @@ dependencies = [
  "couchbase",
  "cql3-parser",
  "csv",
+ "csv_processor",
  "dashmap",
  "duckdb",
  "futures-core",

@@ -87,7 +87,8 @@ pub(crate) fn encode_row_as_json(
             col_info.type_info(),
         ))) as anyhow::Result<serde_json::Map<String, serde_json::Value>>;
 
-        let v = match col_info.type_info().to_string().to_uppercase().as_str() {
+        let ty = col_info.type_info().to_string().to_uppercase();
+        let v = match ty.as_str() {
             "REGPROC" => {
                 let value: Option<RegProcString> = r.try_get(c)?;
                 value.map(|x| serde_json::Value::from(x.0))
@@ -228,7 +229,7 @@ pub(crate) fn encode_row_as_json(
                 });
                 value.map(serde_json::Value::Array)
             }
-            "TEXT[]" | "CHAR[]" | "BPCHAR[]" | "VARCHAR[]" => {
+            _ if is_text_array_ty(&ty) => {
                 let value: Option<Vec<String>> = r.try_get(c)?;
                 let value = value.map(|x| {
                     x.into_iter()
@@ -637,6 +638,12 @@ pub(crate) fn encode_row_as_json(
     anyhow::Ok(values)
 }
 
+fn is_text_array_ty(ty: &str) -> bool {
+    match ty {
+        "TEXT[]" | "CHAR[]" | "BPCHAR[]" | "VARCHAR[]" => true,
+        _ => false,
+    }
+}
 /// encode rows to `Vec<Vec<String>>`
 pub(crate) fn encode_row(r: &PgRow) -> anyhow::Result<Vec<Option<String>>> {
     let mut values = Vec::with_capacity(r.columns().len());
@@ -757,17 +764,9 @@ pub(crate) fn encode_row(r: &PgRow) -> anyhow::Result<Vec<Option<String>>> {
                 let value: Option<Vec<i32>> = r.try_get(c)?;
                 value.map(|x| output_array(&x))
             }
-            "TEXT[]" => {
+            _ if is_text_array_ty(&ty) => {
                 let value: Option<Vec<String>> = r.try_get(c)?;
-                value.map(|x| output_array(&x))
-            }
-            "CHAR[]" | "BPCHAR[]" => {
-                let value: Option<Vec<String>> = r.try_get(c)?;
-                value.map(|x| output_array(&x))
-            }
-            "VARCHAR[]" => {
-                let value: Option<Vec<String>> = r.try_get(c)?;
-                value.map(|x| output_array(&x))
+                value.map(|x| output_text_array(&x))
             }
             "INT8[]" => {
                 let value: Option<Vec<i64>> = r.try_get(c)?;
@@ -1389,6 +1388,23 @@ pub(crate) fn output_bool_array(array: &[bool]) -> String {
     ret.push('}');
     ret
 }
+
+pub(crate) fn output_text_array(array: &[String]) -> String {
+    if array.is_empty() {
+        return "{}".to_string();
+    }
+    let last = array.len() - 1;
+    let mut ret = "{".to_string();
+    for (index, v) in array.iter().enumerate() {
+        ret.push_str(format!("\"{}\"", v.replace('"', "\\\"")).as_str());
+        if index != last {
+            ret.push(',')
+        }
+    }
+    ret.push('}');
+    ret
+}
+
 pub(crate) fn output_array<T: std::fmt::Display>(array: &[T]) -> String {
     if array.is_empty() {
         return "{}".to_string();

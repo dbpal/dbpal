@@ -87,7 +87,8 @@ libsql = { version = "0.9.7", default-features = false, features = [
 rsfbclient = { version = "0.27", default-features = false, features = [
     "pure_rust",
 ] }
-csv = "*"
+csv.workspace = true
+csv_processor.workspace = true
 rsfbclient-rust = "*"
 include_dir.workspace = true
 specta.workspace = true

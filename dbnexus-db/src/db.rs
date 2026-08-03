@@ -3,7 +3,7 @@ use crate::language_server::LanguageServer;
 use chrono::{DateTime, FixedOffset};
 use core::str;
 use std::any::Any;
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::fmt::{self, Debug};
 use std::io::{BufRead, Write};
 use std::ops::Deref;
@@ -434,15 +434,55 @@ pub trait SchemaTrait:
         cols.iter().for_each(|x| {
             cols_map.insert(x.field.clone(), x.clone());
         });
+        let cols_name_set: HashSet<String> = cols.iter().map(|x| x.field.clone()).collect();
+
         // read data from the file
         let task_read = {
             let this = SchemaTrait::clone(self);
             spawn_blocking(move || -> anyhow::Result<()> {
+                let check_columns_name = |x: &HashSet<String>| -> anyhow::Result<()> {
+                    if cols_name_set.eq(x) {
+                        anyhow::Ok(())
+                    } else {
+                        anyhow::bail!(format!(
+                            "the columns in the file not match the table,table columns:{:?},file columns:{:?}",
+                            cols_name_set, x
+                        ) )
+                    }
+                };
+
+                let handle_json_map = |map: &serde_json::Map<String, serde_json::Value>| {
+                    let mut values = HashMap::new();
+                    for (k, v) in map.iter() {
+                        let field = match cols_map.get(k) {
+                            Some(x) => x,
+                            None => {
+                                anyhow::bail!(format!("field '{}' not found", k))
+                            }
+                        };
+                        values.insert(
+                            k.clone(),
+                            this.extrat_sql_value_from_json_value(v, &field.data_type)?,
+                        );
+                    }
+                    sender.blocking_send(values)?;
+
+                    anyhow::Ok(())
+                };
+
                 match data {
                     TableImportPara::Csv { path } => {
                         let mut reader = csv::Reader::from_path(path)?;
                         let headers: Vec<_> =
                             reader.headers()?.iter().map(|x| x.to_string()).collect();
+
+                        check_columns_name(
+                            &headers
+                                .iter()
+                                .map(|x| x.clone())
+                                .collect::<HashSet<String>>(),
+                        )?;
+
                         for csv_line in reader.records() {
                             let csv_line = csv_line?;
                             let mut values = HashMap::new();
@@ -470,23 +510,7 @@ pub trait SchemaTrait:
                         for value in values.iter() {
                             match value {
                                 serde_json::Value::Object(map) => {
-                                    let mut values = HashMap::new();
-                                    for (k, v) in map.iter() {
-                                        let field = match cols_map.get(k) {
-                                            Some(x) => x,
-                                            None => {
-                                                anyhow::bail!(format!("field '{}' not found", k))
-                                            }
-                                        };
-                                        values.insert(
-                                            k.clone(),
-                                            this.extrat_sql_value_from_json_value(
-                                                v,
-                                                &field.data_type,
-                                            )?,
-                                        );
-                                    }
-                                    sender.blocking_send(values)?;
+                                    handle_json_map(map)?;
                                 }
                                 _ => {
                                     anyhow::bail!("the value nested in array,should be object")
@@ -506,20 +530,7 @@ pub trait SchemaTrait:
                             }
                             let map: serde_json::Map<String, serde_json::Value> =
                                 serde_json::from_str(&line)?;
-                            let mut values = HashMap::new();
-                            for (k, v) in map.iter() {
-                                let field = match cols_map.get(k) {
-                                    Some(x) => x,
-                                    None => {
-                                        anyhow::bail!(format!("field '{}' not found", k))
-                                    }
-                                };
-                                values.insert(
-                                    k.clone(),
-                                    this.extrat_sql_value_from_json_value(v, &field.data_type)?,
-                                );
-                            }
-                            sender.blocking_send(values)?;
+                            handle_json_map(&map)?;
                         }
                     }
                 }

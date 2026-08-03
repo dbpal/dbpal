@@ -44,6 +44,8 @@ redis = { version = "1", features = [
     "tokio-rustls-comp",
 
 ] }
+csv_processor = "0.1.10"
+csv = "*"
 rust_xlsxwriter = { version = "0.96", features = ["constant_memory"] }
 specta = { version = "=2.0.0-rc.24", features = ["derive", "serde_json"] }
 
