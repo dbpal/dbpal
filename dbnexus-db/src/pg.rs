@@ -3476,7 +3476,6 @@ mod tests {
                 table_name,
                 TableImportPara {
                     path: file.path().to_str().unwrap().to_owned(),
-                    create_sql: None,
                 },
             )
             .await;

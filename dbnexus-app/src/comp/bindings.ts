@@ -627,7 +627,6 @@ export type SqliteDBConfig = {
 
 export type TableImportPara = {
 	path: string,
-	create_sql: string | null,
 };
 
 export type TriggerDetail = {

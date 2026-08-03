@@ -2441,7 +2441,6 @@ pub(crate) mod test_impls {
                 table_name,
                 TableImportPara {
                     path: file.path().to_str().unwrap().to_owned(),
-                    create_sql: None,
                 },
             )
             .await;

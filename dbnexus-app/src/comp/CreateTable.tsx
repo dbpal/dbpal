@@ -5,7 +5,6 @@ import {
   FormControlLabel,
   IconButton,
   Stack,
-  Switch,
   Tooltip,
   Typography,
 } from "@mui/material";
@@ -13,9 +12,9 @@ import ClearIcon from "@mui/icons-material/Clear";
 import { DataSourceKind, resizeHandlerSize } from "./helper";
 import {
   CSSProperties,
+  RefObject,
   useCallback,
   useEffect,
-  useMemo,
   useRef,
   useState,
 } from "react";
@@ -29,8 +28,8 @@ import {
   StackRowCenter,
   TypeSelect,
 } from "./CommonComp2";
+import UploadIcon from "@mui/icons-material/Upload";
 import CloseIcon from "@mui/icons-material/Close";
-import KeyIcon from "@mui/icons-material/Key";
 import { AllKindChat } from "./Chat";
 import { formatSqlFn, keyNotInTable } from "./Common";
 import { useNotification, useTabSize } from "./store";
@@ -47,26 +46,42 @@ import Papa from "papaparse";
 import { DataGrid } from "@mui/x-data-grid";
 import { readTextFile } from "@tauri-apps/plugin-fs";
 
-function SqlCreateTable(props: { uuid: string; kind: DataSourceKind }) {
-  const { uuid, kind } = props;
-  const [cols, setCols] = useState<CreateTableReqColumn[]>([
-    {
-      name: "id",
-      data_type: "",
-      auto_increment: false,
-      primary_key: false,
-      default_value: null,
-      nullable: "unspecified",
-    },
-    {
-      name: "create_at",
-      data_type: "",
-      auto_increment: false,
-      primary_key: false,
-      default_value: null,
-      nullable: "unspecified",
-    },
-  ]);
+function SqlCreateTable(props: {
+  uuid: string;
+  kind: DataSourceKind;
+  fields?: CreateTableReqColumn[];
+  tableName?: RefObject<string>;
+}) {
+  const { uuid, kind, fields: fieldsProvide, tableName: tableNameRef } = props;
+  const [cols, setCols] = useState<CreateTableReqColumn[]>(
+    fieldsProvide
+      ? fieldsProvide
+      : [
+          {
+            name: "id",
+            data_type: "",
+            auto_increment: false,
+            primary_key: false,
+            default_value: null,
+            nullable: "unspecified",
+          },
+          {
+            name: "create_at",
+            data_type: "",
+            auto_increment: false,
+            primary_key: false,
+            default_value: null,
+            nullable: "unspecified",
+          },
+        ],
+  );
+
+  useEffect(() => {
+    if (fieldsProvide) {
+      setCols(fieldsProvide);
+    }
+  }, [fieldsProvide]);
+
   const [indexes, setIndexes] = useState<CreateIndexReq[]>([]);
   const [table, setTable] = useState("");
   const containerStyle: CSSProperties = {
@@ -74,10 +89,17 @@ function SqlCreateTable(props: { uuid: string; kind: DataSourceKind }) {
     padding: "4px",
     borderRadius: "10px",
   };
+
+  useEffect(() => {
+    if (tableNameRef) {
+      tableNameRef.current = table;
+    }
+  }, [table, tableNameRef]);
+
   const [loading, setLoading] = useState(false);
   const [showQuery, setShowQuery] = useState(false);
   const [editorValue, setEditorValue] = useState("");
-  const tableNameRef = useRef<HTMLInputElement>(null);
+  const tableNameDom = useRef<HTMLInputElement>(null);
   const { showNotification } = useNotification();
   const tabSize = useTabSize();
 
@@ -86,7 +108,7 @@ function SqlCreateTable(props: { uuid: string; kind: DataSourceKind }) {
       // check
       if (!table) {
         showNotification({ severity: "warning", title: "table is none" });
-        tableNameRef.current.focus();
+        tableNameDom.current.focus();
         return;
       }
       if (cols.length == 0) {
@@ -334,18 +356,6 @@ function supportAutoIncrement(kind) {
   return supportAutoInc;
 }
 
-function autoIncrementFieldType(kind) {
-  const typeMap = {
-    [DataSourceKind.Sqlite]: "INTEGER", // SQLite 自增主键
-    [DataSourceKind.LibSql]: "INTEGER", // LibSQL 兼容 SQLite
-    [DataSourceKind.Mysql]: "INT", // MySQL 自增主键（或 BIGINT）
-    [DataSourceKind.TiDB]: "INT", // TiDB 兼容 MySQL
-    [DataSourceKind.MariaDB]: "INT", // MariaDB 兼容 MySQL
-  };
-
-  return typeMap[kind] || "INT"; // 默认返回 INT
-}
-
 function TableColumn(props: {
   col: CreateTableReqColumn;
   handleCol: (x: CreateTableReqColumn) => void;
@@ -376,28 +386,30 @@ function TableColumn(props: {
       )}
       #{index}
       {supportAutoInc && (
-        <FormControlLabel
-          label="auto increment"
-          control=<Checkbox
-            checked={col.auto_increment}
-            onChange={(e) => {
-              const auto_inc = e.target.checked;
-              if (auto_inc) {
-                resetAutoInc();
-              }
-              handleCol({
-                ...col,
-                auto_increment: auto_inc,
-                primary_key: auto_inc,
-              });
-            }}
+        <Tooltip title="auto increment">
+          <FormControlLabel
+            label="AI"
+            control=<Checkbox
+              checked={col.auto_increment}
+              onChange={(e) => {
+                const auto_inc = e.target.checked;
+                if (auto_inc) {
+                  resetAutoInc();
+                }
+                handleCol({
+                  ...col,
+                  auto_increment: auto_inc,
+                  primary_key: auto_inc,
+                });
+              }}
+            />
           />
-        />
+        </Tooltip>
       )}
       <Tooltip title="primary key">
         <span>
           <FormControlLabel
-            label=<KeyIcon />
+            label="PK"
             control=<Checkbox
               disabled={col.auto_increment}
               checked={col.primary_key}
@@ -452,13 +464,11 @@ function TableColumn(props: {
 function SqlCreateTableImportFile(props: { kind: DataSourceKind; uuid: string }) {
   const { uuid, kind } = props;
   const [file, setFile] = useState("");
-  const [autoIncId, setAutoIncId] = useState(false);
-  const [tableName, setTableName] = useState("");
   const { showNotification } = useNotification();
   const [fields, setFields] = useState<Field[]>([]);
-  const [sql, setSql] = useState("");
   const [data, setData] = useState<Record<string, string>[]>();
-
+  const tableName = useRef("");
+  const [loading, setLoading] = useState(false);
   useEffect(() => {
     (async () => {
       try {
@@ -477,61 +487,6 @@ function SqlCreateTableImportFile(props: { kind: DataSourceKind; uuid: string })
     })();
   }, [file, showNotification, uuid]);
 
-  const containsId = useMemo((): boolean => {
-    for (const f of fields) {
-      if (f.field.toLowerCase() == "id") {
-        return true;
-      }
-      return false;
-    }
-  }, [fields]);
-  useEffect(() => {
-    (async () => {
-      if (!fields.length) {
-        return "";
-      }
-      if (!tableName) {
-        return;
-      }
-      let req: CreateTableReqColumn[] = [];
-      if (autoIncId && !containsId) {
-        req.push({
-          name: "id",
-          auto_increment: true,
-          primary_key: true,
-          nullable: "notnull",
-          data_type: autoIncrementFieldType(kind),
-          default_value: null,
-        });
-      }
-      fields.forEach((f) => {
-        req.push({
-          name: f.field,
-          data_type: f.data_type,
-          auto_increment: false,
-          primary_key: false,
-          default_value: null,
-          nullable: "unspecified",
-        });
-      });
-
-      try {
-        let sql = await commands.createTableReqSql(uuid, {
-          name: tableName,
-          indexes: [],
-          columns: req,
-        });
-        setSql(sql);
-      } catch (e) {
-        showNotification({
-          severity: "error",
-          title: "generate sql failed",
-          message: e,
-        });
-      }
-    })();
-  }, [autoIncId, containsId, fields, kind, showNotification, tableName, uuid]);
-
   useEffect(() => {
     (async () => {
       try {
@@ -539,7 +494,7 @@ function SqlCreateTableImportFile(props: { kind: DataSourceKind; uuid: string })
           return;
         }
         let fileLower = file.toLowerCase();
-        if (fileLower.endsWith("csv")) {
+        if (fileLower.endsWith(".csv")) {
           const x = Papa.parse<Record<string, any>>(await readTextFile(file), {
             header: true,
             skipEmptyLines: true,
@@ -563,8 +518,6 @@ function SqlCreateTableImportFile(props: { kind: DataSourceKind; uuid: string })
     })();
   }, [file, showNotification]);
 
-  const tabSize = useTabSize();
-
   return (
     <PanelGroup
       direction="horizontal"
@@ -581,58 +534,85 @@ function SqlCreateTableImportFile(props: { kind: DataSourceKind; uuid: string })
         style={{ padding: "2px" }}>
         <Stack style={{ height: "100%" }}>
           <SelectPath path={file} setPath={setFile} required label="import file" />
-          <ClearableTextField
-            value={tableName}
-            onChange={(e) => {
-              setTableName(e.target.value);
-            }}
-            label="table name"
-            onClear={() => {
-              setTableName("");
-            }}
-            fullWidth
-          />
-          {supportAutoIncrement(kind) && !containsId && (
-            <FormControlLabel
-              control={
-                <Switch
-                  onChange={(_e, checked) => {
-                    setAutoIncId(checked);
-                  }}
-                  checked={autoIncId}
-                />
-              }
-              label="markdown model"
-            />
-          )}
-          <div style={{ height: "100px", flex: 1 }}>
-            <AllKindChat
+          {file && (
+            <SqlCreateTable
               uuid={uuid}
               kind={kind}
-              value={formatSqlFn(kind, sql, tabSize)}
+              fields={fields.map((e): CreateTableReqColumn => {
+                return {
+                  name: e.field,
+                  data_type: e.data_type,
+                  nullable: "unspecified",
+                  primary_key: false,
+                  auto_increment: false,
+                  default_value: null,
+                };
+              })}
+              tableName={tableName}
             />
-          </div>
+          )}
         </Stack>
       </Panel>
       <PanelResizeHandle
         style={{ width: resizeHandlerSize }}
         className="resize-handle"
       />
-      <Panel
-        style={{
-          overflow: "auto",
-          height: "100%",
-          padding: "2px",
-        }}>
-        <DataGrid
-          columns={fields}
-          rows={data}
-          getRowId={(e) => {
-            return e[keyNotInTable];
-          }}
-          slots={{ toolbar: AppDataGridToolBar }}
-        />
-      </Panel>
+      {file && (
+        <Panel
+          style={{
+            overflow: "auto",
+            height: "100%",
+            padding: "2px",
+          }}>
+          <Stack style={{ height: "100%" }}>
+            <Stack direction="row">
+              {file && (
+                <IconButton
+                  loading={loading}
+                  color="success"
+                  onClick={async () => {
+                    if (!tableName.current) {
+                      showNotification({
+                        severity: "error",
+                        title: "table name is null,do u have create the table",
+                      });
+                      return;
+                    }
+                    setLoading(true);
+                    try {
+                      await commands.tableImportFromFile(uuid, tableName.current, {
+                        path: file,
+                      });
+                      showNotification({
+                        severity: "success",
+                        title: "insert data into data success",
+                      });
+                    } catch (e) {
+                      showNotification({
+                        severity: "error",
+                        title: "update data failed",
+                        message: e,
+                      });
+                    } finally {
+                      setLoading(false);
+                    }
+                  }}>
+                  <UploadIcon />
+                </IconButton>
+              )}
+            </Stack>
+            <DataGrid
+              style={{ flex: 1, height: "100px" }}
+              columns={fields}
+              rows={data}
+              getRowId={(e) => {
+                return e[keyNotInTable];
+              }}
+              slots={{ toolbar: AppDataGridToolBar }}
+            />
+          </Stack>
+        </Panel>
+      )}
     </PanelGroup>
   );
 }

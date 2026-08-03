@@ -3,7 +3,7 @@ use crate::language_server::LanguageServer;
 use chrono::{DateTime, FixedOffset};
 use core::str;
 use std::any::Any;
-use std::collections::{HashMap, HashSet};
+use std::collections::HashMap;
 use std::fmt::{self, Debug};
 use std::io::{BufRead, Write};
 use std::ops::Deref;
@@ -186,7 +186,6 @@ pub struct ShowTableParameter {
 #[derive(serde::Deserialize, Clone, Debug, specta::Type)]
 pub struct TableImportPara {
     pub path: String,
-    pub create_sql: Option<String>,
 }
 
 impl ShowTableParameter {
@@ -427,39 +426,23 @@ pub trait SchemaTrait:
         let (sender, mut receiver) =
             tokio::sync::mpsc::channel::<HashMap<String, Option<String>>>(10);
 
-        // run the create sql
-        if let Some(sql) = para.create_sql.as_ref() {
-            self.simple_execute_sql(sql).await?;
-        }
         let cols = self.show_table_columns(table).await?;
         let mut cols_map = HashMap::new();
         cols.iter().for_each(|x| {
             cols_map.insert(x.field.clone(), x.clone());
         });
-        let cols_name_set: HashSet<String> = cols.iter().map(|x| x.field.clone()).collect();
 
         // read data from the file
         let task_read = {
             let this = SchemaTrait::clone(self);
             spawn_blocking(move || -> anyhow::Result<()> {
-                let check_columns_name = |x: &HashSet<String>| -> anyhow::Result<()> {
-                    if cols_name_set.eq(x) {
-                        anyhow::Ok(())
-                    } else {
-                        anyhow::bail!(format!(
-                            "the columns in the file not match the table,table columns:{:?},file columns:{:?}",
-                            cols_name_set, x
-                        ) )
-                    }
-                };
-
                 let handle_json_map = |map: &serde_json::Map<String, serde_json::Value>| {
                     let mut values = HashMap::new();
                     for (k, v) in map.iter() {
                         let field = match cols_map.get(k) {
                             Some(x) => x,
                             None => {
-                                anyhow::bail!(format!("field '{}' not found", k))
+                                continue;
                             }
                         };
                         values.insert(
@@ -479,13 +462,6 @@ pub trait SchemaTrait:
                         let mut reader = csv::Reader::from_path(&para.path)?;
                         let headers: Vec<_> =
                             reader.headers()?.iter().map(|x| x.to_string()).collect();
-
-                        check_columns_name(
-                            &headers
-                                .iter()
-                                .map(|x| x.clone())
-                                .collect::<HashSet<String>>(),
-                        )?;
 
                         for csv_line in reader.records() {
                             let csv_line = csv_line?;
@@ -852,7 +828,6 @@ pub trait SchemaTrait:
             table,
             TableImportPara {
                 path: file.path().to_str().unwrap().to_string(),
-                create_sql: None,
             },
         )
         .await
@@ -882,7 +857,6 @@ pub trait SchemaTrait:
             table,
             TableImportPara {
                 path: file.path().to_str().unwrap().to_string(),
-                create_sql: None,
             },
         )
         .await
@@ -913,7 +887,6 @@ pub trait SchemaTrait:
             table,
             TableImportPara {
                 path: file.path().to_str().unwrap().to_string(),
-                create_sql: None,
             },
         )
         .await

@@ -1431,7 +1431,7 @@ function ColumnNullness(props: {
     <Autocomplete
       value={nullable}
       options={opts}
-      style={{ width: "16rem" }}
+      style={{ flexGrow: 1, flexShrink: 2, minWidth: "3rem" }}
       renderInput={(params) => <TextField {...params} label="specify null" />}
       onChange={(_, value) => {
         handleNullness(value);
@@ -1465,21 +1465,19 @@ function SqlDefaultValue(props: {
   }, [showNotification, uuid]);
 
   return (
-    <Stack direction="row">
-      <Autocomplete
-        freeSolo
-        options={currentValue}
-        style={{ width: "14rem" }}
-        value={defaultValue}
-        renderInput={(params) => <TextField {...params} label="default value" />}
-        onChange={(_, value) => {
-          setDefaultValue(value);
-        }}
-        onInputChange={(_, value) => {
-          setDefaultValue(value);
-        }}
-      />
-    </Stack>
+    <Autocomplete
+      freeSolo
+      options={currentValue}
+      style={{ flexGrow: 1, flexShrink: 2, minWidth: "3rem" }}
+      value={defaultValue}
+      renderInput={(params) => <TextField {...params} label="default value" />}
+      onChange={(_, value) => {
+        setDefaultValue(value);
+      }}
+      onInputChange={(_, value) => {
+        setDefaultValue(value);
+      }}
+    />
   );
 }
 
