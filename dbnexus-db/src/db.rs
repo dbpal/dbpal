@@ -427,6 +427,10 @@ pub trait SchemaTrait:
         let (sender, mut receiver) =
             tokio::sync::mpsc::channel::<HashMap<String, Option<String>>>(10);
 
+        // run the create sql
+        if let Some(sql) = para.create_sql.as_ref() {
+            self.simple_execute_sql(sql).await?;
+        }
         let cols = self.show_table_columns(table).await?;
         let mut cols_map = HashMap::new();
         cols.iter().for_each(|x| {
@@ -576,12 +580,6 @@ pub trait SchemaTrait:
                 log::error!("set auto commit false failed:{}", err);
             }
 
-            // run the create sql
-            if let Some(sql) = para.create_sql.as_ref() {
-                this.execute_sql(&query_id, sql)
-                    .await?
-                    .map_err(|err| anyhow::Error::msg(err))?;
-            }
             while let Some(record) = receiver.recv().await {
                 // build the sql
                 let sql = SqlBuilder::insert_sql(this.as_ref(), &table, &cols, &record)?;

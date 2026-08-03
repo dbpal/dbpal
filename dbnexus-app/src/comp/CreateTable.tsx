@@ -46,7 +46,6 @@ import { SelectPath } from "./CommonComp";
 import Papa from "papaparse";
 import { DataGrid } from "@mui/x-data-grid";
 import { readTextFile } from "@tauri-apps/plugin-fs";
-import { createColumnsState } from "@mui/x-data-grid/internals";
 
 function SqlCreateTable(props: { uuid: string; kind: DataSourceKind }) {
   const { uuid, kind } = props;
@@ -564,6 +563,8 @@ function SqlCreateTableImportFile(props: { kind: DataSourceKind; uuid: string })
     })();
   }, [file, showNotification]);
 
+  const tabSize = useTabSize();
+
   return (
     <PanelGroup
       direction="horizontal"
@@ -605,7 +606,11 @@ function SqlCreateTableImportFile(props: { kind: DataSourceKind; uuid: string })
             />
           )}
           <div style={{ height: "100px", flex: 1 }}>
-            <AllKindChat uuid={uuid} kind={kind} value={sql} />
+            <AllKindChat
+              uuid={uuid}
+              kind={kind}
+              value={formatSqlFn(kind, sql, tabSize)}
+            />
           </div>
         </Stack>
       </Panel>
