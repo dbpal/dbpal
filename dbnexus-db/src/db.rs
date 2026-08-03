@@ -484,7 +484,7 @@ pub trait SchemaTrait:
                             sender.blocking_send(values)?;
                         }
                     }
-                    _ if path_lower.contains(".json") => {
+                    _ if path_lower.ends_with(".json") => {
                         let f = std::fs::File::open(para.path)?;
                         let values: Vec<serde_json::Value> = serde_json::from_reader(f)?;
                         for value in values.iter() {
@@ -498,7 +498,7 @@ pub trait SchemaTrait:
                             }
                         }
                     }
-                    _ if path_lower.contains(".jsonl") => {
+                    _ if path_lower.ends_with(".jsonl") => {
                         //
                         let f = std::fs::File::open(&para.path)?;
                         let reader = std::io::BufReader::new(f);

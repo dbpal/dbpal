@@ -543,7 +543,6 @@ pub(crate) fn extract_null_able(x: &DataType) -> &DataType {
 impl BackendKind {
     pub async fn infer_fields(self, path: &str) -> anyhow::Result<Vec<Field>> {
         let path = path.to_owned();
-
         tokio::task::spawn_blocking(move || {
             let path_lower = path.to_lowercase();
 
@@ -580,7 +579,6 @@ impl BackendKind {
                 ..Default::default()
             });
         }
-
         anyhow::Ok(ret)
     }
 
