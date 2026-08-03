@@ -21,6 +21,7 @@ import {
 } from "react";
 import AddIcon from "@mui/icons-material/Add";
 import {
+  AppDataGridToolBar,
   ClearableTextField,
   ColumnNullness,
   CreateIndexView,
@@ -31,7 +32,7 @@ import {
 import CloseIcon from "@mui/icons-material/Close";
 import KeyIcon from "@mui/icons-material/Key";
 import { AllKindChat } from "./Chat";
-import { formatSqlFn } from "./Common";
+import { formatSqlFn, keyNotInTable } from "./Common";
 import { useNotification, useTabSize } from "./store";
 import {
   commands,
@@ -42,6 +43,10 @@ import {
 } from "./bindings";
 import { Panel, PanelGroup, PanelResizeHandle } from "react-resizable-panels";
 import { SelectPath } from "./CommonComp";
+import Papa from "papaparse";
+import { DataGrid } from "@mui/x-data-grid";
+import { readTextFile } from "@tauri-apps/plugin-fs";
+import { createColumnsState } from "@mui/x-data-grid/internals";
 
 function SqlCreateTable(props: { uuid: string; kind: DataSourceKind }) {
   const { uuid, kind } = props;
@@ -134,6 +139,7 @@ function SqlCreateTable(props: { uuid: string; kind: DataSourceKind }) {
     };
     return req;
   }, [cols, indexes, showNotification, table]);
+
   const setCreateSql = useCallback(() => {
     const req = makeReq();
 
@@ -452,6 +458,8 @@ function SqlCreateTableImportFile(props: { kind: DataSourceKind; uuid: string })
   const { showNotification } = useNotification();
   const [fields, setFields] = useState<Field[]>([]);
   const [sql, setSql] = useState("");
+  const [data, setData] = useState<Record<string, string>[]>();
+
   useEffect(() => {
     (async () => {
       try {
@@ -460,8 +468,6 @@ function SqlCreateTableImportFile(props: { kind: DataSourceKind; uuid: string })
         }
         const fs = await commands.sqlInferFieldsFromFile(uuid, file);
         setFields(fs);
-
-        console.log("!!!!!!!!!!!!!!!!!!!!", fs);
       } catch (e) {
         showNotification({
           severity: "error",
@@ -527,6 +533,37 @@ function SqlCreateTableImportFile(props: { kind: DataSourceKind; uuid: string })
     })();
   }, [autoIncId, containsId, fields, kind, showNotification, tableName, uuid]);
 
+  useEffect(() => {
+    (async () => {
+      try {
+        if (!file) {
+          return;
+        }
+        let fileLower = file.toLowerCase();
+        if (fileLower.endsWith("csv")) {
+          const x = Papa.parse<Record<string, any>>(await readTextFile(file), {
+            header: true,
+            skipEmptyLines: true,
+          });
+
+          x.data.forEach((e, index) => {
+            e[keyNotInTable] = index;
+          });
+          setData(x.data);
+        } else {
+          showNotification({ severity: "error", title: "unsupported file type" });
+          return [];
+        }
+      } catch (e) {
+        showNotification({
+          severity: "error",
+          title: "handle data failed",
+          message: e,
+        });
+      }
+    })();
+  }, [file, showNotification]);
+
   return (
     <PanelGroup
       direction="horizontal"
@@ -535,7 +572,12 @@ function SqlCreateTableImportFile(props: { kind: DataSourceKind; uuid: string })
         width: "100%",
       }}
       autoSaveId="sql-crete-table-import-from-file">
-      <Panel minSize={10} maxSize={85} collapsible collapsedSize={0}>
+      <Panel
+        minSize={10}
+        maxSize={85}
+        collapsible
+        collapsedSize={0}
+        style={{ padding: "2px" }}>
         <Stack style={{ height: "100%" }}>
           <SelectPath path={file} setPath={setFile} required label="import file" />
           <ClearableTextField
@@ -575,9 +617,16 @@ function SqlCreateTableImportFile(props: { kind: DataSourceKind; uuid: string })
         style={{
           overflow: "auto",
           height: "100%",
-          paddingLeft: "2px",
+          padding: "2px",
         }}>
-        2222
+        <DataGrid
+          columns={fields}
+          rows={data}
+          getRowId={(e) => {
+            return e[keyNotInTable];
+          }}
+          slots={{ toolbar: AppDataGridToolBar }}
+        />
       </Panel>
     </PanelGroup>
   );
