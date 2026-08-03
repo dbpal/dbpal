@@ -638,7 +638,7 @@ pub(crate) fn encode_row_as_json(
     anyhow::Ok(values)
 }
 
-fn is_text_array_ty(ty: &str) -> bool {
+pub(crate) fn is_text_array_ty(ty: &str) -> bool {
     match ty {
         "TEXT[]" | "CHAR[]" | "BPCHAR[]" | "VARCHAR[]" => true,
         _ => false,
@@ -1389,6 +1389,10 @@ pub(crate) fn output_bool_array(array: &[bool]) -> String {
     ret
 }
 
+pub(crate) fn escape_double_quote(v: &str) -> String {
+    format!("\"{}\"", v.replace('"', "\\\""))
+}
+
 pub(crate) fn output_text_array(array: &[String]) -> String {
     if array.is_empty() {
         return "{}".to_string();
@@ -1396,7 +1400,7 @@ pub(crate) fn output_text_array(array: &[String]) -> String {
     let last = array.len() - 1;
     let mut ret = "{".to_string();
     for (index, v) in array.iter().enumerate() {
-        ret.push_str(format!("\"{}\"", v.replace('"', "\\\"")).as_str());
+        ret.push_str(escape_double_quote(v).as_str());
         if index != last {
             ret.push(',')
         }

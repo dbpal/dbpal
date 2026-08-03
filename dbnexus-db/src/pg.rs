@@ -1878,20 +1878,40 @@ impl ExtractSqlValeFromJsonValue for PostGresDB {
         value: &serde_json::Value,
         ty: &str,
     ) -> anyhow::Result<Option<String>> {
+        let err = anyhow::Error::msg(format!(
+            "not valid value,type '{}',value:{}",
+            ty,
+            serde_json::to_string(value)?
+        ));
+
         if ty.eq_ignore_ascii_case("json") {
             match value {
                 serde_json::Value::Null => return anyhow::Ok(None),
                 _ => return anyhow::Ok(Some(serde_json::to_string(value)?)),
             }
         }
+        if is_text_array_ty(ty) {
+            match value {
+                serde_json::Value::Null => return anyhow::Ok(None),
+                serde_json::Value::Array(values) => {
+                    let mut results = Vec::with_capacity(values.len());
+                    for value in values.iter() {
+                        let value = match value {
+                            serde_json::Value::String(x) => x,
+                            _ => return Err(err),
+                        };
+                        results.push(escape_double_quote(value));
+                    }
+
+                    return anyhow::Ok(Some(format!("{{{}}}", results.join(","))));
+                }
+                _ => return Err(err),
+            }
+        }
         if ty.eq_ignore_ascii_case("json[]") {
             anyhow::bail!("json[] not suppporteds")
         }
-        let err = anyhow::Error::msg(format!(
-            "not valid value,type '{}',value:{}",
-            ty,
-            serde_json::to_string(value)?
-        ));
+
         if ty.eq_ignore_ascii_case("INT4RANGE[]")
             || ty.eq_ignore_ascii_case("TSRANGE[]")
             || ty.eq_ignore_ascii_case("TSTZRANGE[]")
@@ -2952,7 +2972,7 @@ mod tests {
         values.insert("text_array_column".to_string(), Some("{a,b}".to_string()));
         values.insert(
             "varchar_array_column".to_string(),
-            Some(r#"{"\\c","d"}"#.to_string()),
+            Some(r#"{"c\"","d"}"#.to_string()),
         );
         values.insert("int8_array_column".to_string(), Some("{1,100}".to_string()));
 
