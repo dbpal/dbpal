@@ -560,7 +560,7 @@ impl BackendKind {
         let mut ret = vec![];
         for (index, col) in report.columns().iter().enumerate() {
             let name = report.headers().get(index).map(|x| x.clone()).unwrap();
-            let data_type = self.map_csv_dtype(&col.dtype());
+            let data_type = self.map_csv_dtype(&col.dtype())?;
 
             ret.push(Field {
                 field: name,
@@ -575,17 +575,37 @@ impl BackendKind {
     fn infer_json(self, _path: &str) -> anyhow::Result<Vec<Field>> {
         todo!()
     }
-    fn infer_jsonline(self, _path: &str) -> anyhow::Result<Vec<Field>> {
-        todo!()
+    fn infer_jsonline(self, path: &str) -> anyhow::Result<Vec<Field>> {
+        // let file = std::fs::File::open(path)?;
+        // let reader = std::io::BufReader::new(file);
+        // let samples: Vec<String> = Vec::new();
+
+        // for line in reader.lines() {
+        //     let line = line?;
+        //     if line.trim().is_empty() {
+        //         continue;
+        //     }
+        //     samples.push(line);
+        //     if samples.len() >= 100 {
+        //         break;
+        //     }
+        // }
+
+        // let schema = genson_core::infer_json_schema(&samples, None).unwrap();
+
+        // self.infer_json_from_samples(&schema)
+
+        unimplemented!()
     }
 }
 
 impl BackendKind {
     /// 核心職責分離：根據當前資料庫與 CSV 推導出的型態，返回該資料庫最適合的欄位型態名稱
-    pub fn map_csv_dtype(&self, csv_dtype: &csv_processor::Dtype) -> String {
+    pub fn map_csv_dtype(&self, csv_dtype: &csv_processor::Dtype) -> anyhow::Result<String> {
         use csv_processor::Dtype;
+        let err = anyhow::Error::msg(format!("'{} not support infer type from csv", self));
 
-        match self {
+        let r = match self {
             BackendKind::Mysql(_) => match csv_dtype {
                 Dtype::Integer => "INT".to_string(),
                 Dtype::Float => "DOUBLE".to_string(),
@@ -677,23 +697,11 @@ impl BackendKind {
                 Dtype::Str | Dtype::Null => "text".to_string(),
             },
             // NoSQL 或 鍵值資料庫 通常全部對齊到基礎文字或其特定 BSON 型態
-            BackendKind::Mongo => match csv_dtype {
-                Dtype::Integer => "int64".to_string(),
-                Dtype::Float => "double".to_string(),
-                Dtype::Boolean => "bool".to_string(),
-                Dtype::Date | Dtype::DateTime => "date".to_string(),
-                Dtype::Str | Dtype::Null => "string".to_string(),
-            },
-            BackendKind::CouchBase => match csv_dtype {
-                Dtype::Integer | Dtype::Float => "number".to_string(), // JSON 基礎型態
-                Dtype::Boolean => "boolean".to_string(),
-                Dtype::Str | Dtype::Date | Dtype::DateTime | Dtype::Null => "string".to_string(),
-            },
-            BackendKind::Redis => {
-                // Redis 主要是 Key-Value 或 Hash，資料基本都是 String 儲存
-                "string".to_string()
-            }
-        }
+            BackendKind::Mongo => return Err(err),
+            BackendKind::CouchBase => return Err(err),
+            BackendKind::Redis => return Err(err),
+        };
+        anyhow::Ok(r)
     }
 }
 

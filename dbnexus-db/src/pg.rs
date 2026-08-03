@@ -1878,13 +1878,15 @@ impl ExtractSqlValeFromJsonValue for PostGresDB {
         value: &serde_json::Value,
         ty: &str,
     ) -> anyhow::Result<Option<String>> {
+        let ty = ty.trim().to_uppercase();
+        let ty = ty.as_str();
         let err = anyhow::Error::msg(format!(
             "not valid value,type '{}',value:{}",
             ty,
             serde_json::to_string(value)?
         ));
 
-        if ty.eq_ignore_ascii_case("json") {
+        if ty.eq_ignore_ascii_case("JSON") {
             match value {
                 serde_json::Value::Null => return anyhow::Ok(None),
                 _ => return anyhow::Ok(Some(serde_json::to_string(value)?)),
@@ -1908,8 +1910,8 @@ impl ExtractSqlValeFromJsonValue for PostGresDB {
                 _ => return Err(err),
             }
         }
-        if ty.eq_ignore_ascii_case("json[]") {
-            anyhow::bail!("json[] not suppporteds")
+        if ty.eq_ignore_ascii_case("JSON[]") {
+            anyhow::bail!("JSON[] not supported")
         }
 
         if ty.eq_ignore_ascii_case("INT4RANGE[]")
@@ -3459,7 +3461,7 @@ mod tests {
         .unwrap()
         .unwrap();
 
-        let mut file = tempfile::NamedTempFile::new().unwrap();
+        let mut file = tempfile::NamedTempFile::with_suffix(".csv").unwrap();
 
         let mut wtr = Writer::from_writer(vec![]);
         wtr.write_record(&["int_value"]).unwrap();
@@ -3472,7 +3474,7 @@ mod tests {
         let err = db
             .table_import_data_from_file(
                 table_name,
-                TableImportPara::Csv {
+                TableImportPara {
                     path: file.path().to_str().unwrap().to_owned(),
                 },
             )

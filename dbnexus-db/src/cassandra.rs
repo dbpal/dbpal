@@ -2426,7 +2426,7 @@ pub(crate) mod test_impls {
         .unwrap()
         .unwrap();
 
-        let mut file = tempfile::NamedTempFile::new().unwrap();
+        let mut file = tempfile::NamedTempFile::with_suffix(".csv").unwrap();
 
         let mut wtr = Writer::from_writer(vec![]);
         wtr.write_record(&["int_value"]).unwrap();
@@ -2439,7 +2439,7 @@ pub(crate) mod test_impls {
         let err = db
             .table_import_data_from_file(
                 table_name,
-                TableImportPara::Csv {
+                TableImportPara {
                     path: file.path().to_str().unwrap().to_owned(),
                 },
             )

@@ -200,16 +200,6 @@ pub(crate) fn encode_row_as_json(
                     })
                     .map(serde_json::Value::Array)
             }
-            "NAME[]" => {
-                let value: Option<Vec<String>> = r.try_get(c)?;
-                value
-                    .map(|x| {
-                        x.into_iter()
-                            .map(serde_json::Value::from)
-                            .collect::<Vec<_>>()
-                    })
-                    .map(serde_json::Value::Array)
-            }
             "INT2[]" => {
                 let value: Option<Vec<i16>> = r.try_get(c)?;
                 let value = value.map(|x| {
@@ -640,7 +630,7 @@ pub(crate) fn encode_row_as_json(
 
 pub(crate) fn is_text_array_ty(ty: &str) -> bool {
     match ty {
-        "TEXT[]" | "CHAR[]" | "BPCHAR[]" | "VARCHAR[]" => true,
+        "TEXT[]" | "CHAR[]" | "BPCHAR[]" | "VARCHAR[]" | "NAME[]" => true,
         _ => false,
     }
 }
@@ -655,7 +645,7 @@ pub(crate) fn encode_row(r: &PgRow) -> anyhow::Result<Vec<Option<String>>> {
             None
         } else {
             Some(format!(
-                "pg object[ty:{} data:{}]",
+                "pg value[ty:{} data:{}]",
                 ty,
                 output_bytes(
                     value
@@ -683,7 +673,6 @@ pub(crate) fn encode_row(r: &PgRow) -> anyhow::Result<Vec<Option<String>>> {
                     None
                 }
             }
-
             "BOOL" => {
                 let value: Option<bool> = r.try_get(c)?;
                 value.map(|x| x.to_string())
@@ -752,10 +741,7 @@ pub(crate) fn encode_row(r: &PgRow) -> anyhow::Result<Vec<Option<String>>> {
                 let value: Option<Vec<Vec<u8>>> = r.try_get(c)?;
                 value.map(|x| output_bytes_array(&x))
             }
-            "NAME[]" => {
-                let value: Option<Vec<String>> = r.try_get(c)?;
-                value.map(|x| output_array(&x))
-            }
+
             "INT2[]" => {
                 let value: Option<Vec<i16>> = r.try_get(c)?;
                 value.map(|x| output_array(&x))

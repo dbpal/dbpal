@@ -184,11 +184,8 @@ pub struct ShowTableParameter {
 }
 
 #[derive(serde::Deserialize, Clone, Debug, specta::Type)]
-#[serde(tag = "import_type", rename_all = "lowercase")]
-pub enum TableImportPara {
-    Csv { path: String },
-    Json { path: String },
-    JsonLine { path: String },
+pub struct TableImportPara {
+    pub path: String,
 }
 
 impl ShowTableParameter {
@@ -470,9 +467,11 @@ pub trait SchemaTrait:
                     anyhow::Ok(())
                 };
 
+                let path_lower = data.path.to_lowercase();
+
                 match data {
-                    TableImportPara::Csv { path } => {
-                        let mut reader = csv::Reader::from_path(path)?;
+                    _ if path_lower.ends_with(".csv") => {
+                        let mut reader = csv::Reader::from_path(&data.path)?;
                         let headers: Vec<_> =
                             reader.headers()?.iter().map(|x| x.to_string()).collect();
 
@@ -504,8 +503,8 @@ pub trait SchemaTrait:
                             sender.blocking_send(values)?;
                         }
                     }
-                    TableImportPara::Json { path } => {
-                        let f = std::fs::File::open(path)?;
+                    _ if path_lower.contains(".json") => {
+                        let f = std::fs::File::open(data.path)?;
                         let values: Vec<serde_json::Value> = serde_json::from_reader(f)?;
                         for value in values.iter() {
                             match value {
@@ -518,9 +517,9 @@ pub trait SchemaTrait:
                             }
                         }
                     }
-                    TableImportPara::JsonLine { path } => {
+                    _ if path_lower.contains(".jsonl") => {
                         //
-                        let f = std::fs::File::open(path)?;
+                        let f = std::fs::File::open(&data.path)?;
                         let reader = std::io::BufReader::new(f);
                         for line in reader.lines() {
                             let line = line?;
@@ -532,6 +531,9 @@ pub trait SchemaTrait:
                                 serde_json::from_str(&line)?;
                             handle_json_map(&map)?;
                         }
+                    }
+                    _ => {
+                        anyhow::bail!("unsupported file type,only support csv,json,jsonl")
                     }
                 }
                 anyhow::Ok(())
@@ -825,7 +827,7 @@ pub trait SchemaTrait:
     async fn test_table_export_and_import_csv(&self, table: &str) {
         use std::io::Write;
 
-        let mut file = tempfile::NamedTempFile::new().unwrap();
+        let mut file = tempfile::NamedTempFile::with_suffix(".csv").unwrap();
         // test csv
         let export_kind = ExportKind::Csv {
             include_header: true,
@@ -842,7 +844,7 @@ pub trait SchemaTrait:
         self.truncate_table(table).await.unwrap();
         self.table_import_data_from_file(
             table,
-            TableImportPara::Csv {
+            TableImportPara {
                 path: file.path().to_str().unwrap().to_string(),
             },
         )
@@ -859,7 +861,7 @@ pub trait SchemaTrait:
     }
 
     async fn test_table_export_and_import_json(&self, table: &str) {
-        let mut file = tempfile::NamedTempFile::new().unwrap();
+        let mut file = tempfile::NamedTempFile::with_suffix(".json").unwrap();
         // test json
         let json_str = self
             .export_table_to_string(table, ExportKind::Json { pretty: true })
@@ -871,7 +873,7 @@ pub trait SchemaTrait:
         self.truncate_table(table).await.unwrap();
         self.table_import_data_from_file(
             table,
-            TableImportPara::Json {
+            TableImportPara {
                 path: file.path().to_str().unwrap().to_string(),
             },
         )
@@ -889,7 +891,7 @@ pub trait SchemaTrait:
     }
 
     async fn test_table_export_and_import_jsonline(&self, table: &str) {
-        let mut file = tempfile::NamedTempFile::new().unwrap();
+        let mut file = tempfile::NamedTempFile::with_suffix(".jsonl").unwrap();
         let export_kind = ExportKind::JsonLine;
 
         let jsonline_str = self
@@ -901,7 +903,7 @@ pub trait SchemaTrait:
         self.truncate_table(table).await.unwrap();
         self.table_import_data_from_file(
             table,
-            TableImportPara::JsonLine {
+            TableImportPara {
                 path: file.path().to_str().unwrap().to_string(),
             },
         )

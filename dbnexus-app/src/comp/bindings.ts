@@ -624,7 +624,9 @@ export type SqliteDBConfig = {
 	conn_timeout: ConnTimeOut | null,
 };
 
-export type TableImportPara = { import_type: "csv"; path: string } | { import_type: "json"; path: string } | { import_type: "jsonline"; path: string };
+export type TableImportPara = {
+	path: string,
+};
 
 export type TriggerDetail = {
 	timing: TriggerTiming,

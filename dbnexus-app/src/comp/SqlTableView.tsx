@@ -12,7 +12,6 @@ import ArrowOutwardIcon from "@mui/icons-material/ArrowOutward";
 import { FaUpload } from "react-icons/fa";
 import CancelIcon from "@mui/icons-material/Cancel";
 import {
-  Alert,
   Box,
   Button,
   Checkbox,
@@ -456,24 +455,7 @@ function ImportDataFromFile(props: {
             if (!path) {
               return;
             }
-            let para: TableImportPara = null;
-            const pathLower = path.toLowerCase();
-            if (pathLower.endsWith(".csv")) {
-              para = { import_type: "csv", path };
-            } else if (pathLower.endsWith(".json")) {
-              para = { import_type: "json", path };
-            } else if (pathLower.endsWith(".jsonl")) {
-              para = { import_type: "jsonline", path };
-            } else {
-              showNotification({
-                severity: "error",
-                title: "unsupported file type",
-                message: (
-                  <Alert> file extension must end with csv,json or jsonl </Alert>
-                ),
-              });
-              return;
-            }
+            const para: TableImportPara = { path };
             setLoading(true);
             await commands.tableImportFromFile(uuid, table, para);
             showNotification({ severity: "success", title: "import data ok" });
