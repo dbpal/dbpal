@@ -455,7 +455,7 @@ function ImportDataFromFile(props: {
             if (!path) {
               return;
             }
-            const para: TableImportPara = { path };
+            const para: TableImportPara = { path, create_sql: null };
             setLoading(true);
             await commands.tableImportFromFile(uuid, table, para);
             showNotification({ severity: "success", title: "import data ok" });

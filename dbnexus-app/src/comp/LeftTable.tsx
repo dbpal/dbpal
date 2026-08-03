@@ -87,13 +87,15 @@ import {
   useOneShotDialogUI,
 } from "./store.tsx";
 import { commands, Field, ListTable, RedisListTableRet } from "./bindings.ts";
+import { SqlCreateTable, SqlCreateTableImportFile } from "./CreateTable.tsx";
+import { IoIosCreate } from "react-icons/io";
 
 function TablesTree() {
   const { uuid, kind } = useContext(UuidContext);
   const [tables, setTables] = useState<ListTable[]>([]);
   const { showNotification } = useNotification();
   const [loading, setLoading] = useState(false);
-
+  const { appendTab } = useTabsManage();
   const { maxTree } = useMatcher();
   const matchPattern = useMatcherFn();
   const tablesId = useRef(uuidv4());
@@ -147,6 +149,46 @@ function TablesTree() {
             content: (
               <MenuList>
                 <MenuRefresh reload={handleReload} />
+
+                {kind != DataSourceKind.Redis &&
+                  kind != DataSourceKind.Mongo &&
+                  kind != DataSourceKind.CouchBase && (
+                    <>
+                      <MenuItem
+                        onClick={() => {
+                          const content = <SqlCreateTable kind={kind} uuid={uuid} />;
+                          appendTab(
+                            new TabContent(
+                              `create table`,
+                              content,
+                              <IoIosCreate> </IoIosCreate>,
+                            ),
+                          );
+                        }}>
+                        <ListItemIcon>
+                          <IoIosCreate />
+                        </ListItemIcon>
+                        <ListItemText>create table </ListItemText>
+                      </MenuItem>
+
+                      <MenuItem
+                        onClick={() => {
+                          const content = (
+                            <SqlCreateTableImportFile kind={kind} uuid={uuid} />
+                          );
+                          appendTab(
+                            new TabContent(
+                              `create table`,
+                              content,
+                              <IoIosCreate> </IoIosCreate>,
+                            ),
+                          );
+                        }}>
+                        <ListItemIcon>{/* <IoIosCreate /> */}</ListItemIcon>
+                        <ListItemText>create table import file</ListItemText>
+                      </MenuItem>
+                    </>
+                  )}
               </MenuList>
             ),
             event: e,

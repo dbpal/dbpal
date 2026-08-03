@@ -157,6 +157,7 @@ export const commands = {
 	putValuesInSql: (dbName: string, typ: string, values: (string | null)[]) => __TAURI_INVOKE<string[]>("put_values_in_sql", { dbName, typ, values }),
 	writeXlsx: (path: string, data: XlsxEdit[]) => __TAURI_INVOKE<null>("write_xlsx", { path, data }),
 	tableImportFromFile: (dbName: string, tableName: string, kind: TableImportPara) => __TAURI_INVOKE<null>("table_import_from_file", { dbName, tableName, kind }),
+	sqlInferFieldsFromFile: (dbName: string, path: string) => __TAURI_INVOKE<Field[]>("sql_infer_fields_from_file", { dbName, path }),
 };
 
 /* Constants */
@@ -626,6 +627,7 @@ export type SqliteDBConfig = {
 
 export type TableImportPara = {
 	path: string,
+	create_sql: string | null,
 };
 
 export type TriggerDetail = {

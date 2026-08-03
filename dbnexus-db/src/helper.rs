@@ -541,25 +541,37 @@ pub(crate) fn extract_null_able(x: &DataType) -> &DataType {
 }
 
 impl BackendKind {
-    pub fn infer_fields(self, path: &str) -> anyhow::Result<Vec<Field>> {
-        let path_lower = path.to_lowercase();
+    pub async fn infer_fields(self, path: &str) -> anyhow::Result<Vec<Field>> {
+        let path = path.to_owned();
 
-        if path_lower.ends_with(".csv") {
-            self.infer_csv(path)
-        } else if path_lower.ends_with(".json") {
-            self.infer_json(path)
-        } else if path_lower.ends_with(".jsonl") {
-            self.infer_jsonline(path)
-        } else {
-            anyhow::bail!(format!("unsupported file type:{}", path))
-        }
+        tokio::task::spawn_blocking(move || {
+            let path_lower = path.to_lowercase();
+
+            if path_lower.ends_with(".csv") {
+                self.infer_csv(&path)
+            } else if path_lower.ends_with(".json") {
+                self.infer_json(&path)
+            } else if path_lower.ends_with(".jsonl") {
+                self.infer_jsonline(&path)
+            } else {
+                anyhow::bail!(format!("unsupported file type:{}", path))
+            }
+        })
+        .await?
     }
-    fn infer_csv(self, _path: &str) -> anyhow::Result<Vec<Field>> {
-        let df = csv_processor::DataFrame::from_csv("data.csv")?;
-        let report = csv_processor::reporter::generate_info_report(&df);
+
+    pub fn infer_csv(self, path: &str) -> anyhow::Result<Vec<Field>> {
+        let df = csv_processor::DataFrame::from_csv(path)?;
         let mut ret = vec![];
-        for (index, col) in report.columns().iter().enumerate() {
-            let name = report.headers().get(index).map(|x| x.clone()).unwrap();
+
+        // 直接从 df 获取列信息
+        for (index, col) in df.columns().iter().enumerate() {
+            let name = df
+                .headers()
+                .get(index)
+                .map(|x| x.clone())
+                .unwrap_or_default();
+            // 根据列的数据类型映射
             let data_type = self.map_csv_dtype(&col.dtype())?;
 
             ret.push(Field {
@@ -572,10 +584,10 @@ impl BackendKind {
         anyhow::Ok(ret)
     }
 
-    fn infer_json(self, _path: &str) -> anyhow::Result<Vec<Field>> {
+    pub fn infer_json(self, _path: &str) -> anyhow::Result<Vec<Field>> {
         todo!()
     }
-    fn infer_jsonline(self, path: &str) -> anyhow::Result<Vec<Field>> {
+    pub fn infer_jsonline(self, _path: &str) -> anyhow::Result<Vec<Field>> {
         // let file = std::fs::File::open(path)?;
         // let reader = std::io::BufReader::new(file);
         // let samples: Vec<String> = Vec::new();
@@ -718,6 +730,17 @@ mod tests {
             OffsetLimitIter::new(9, 4).collect::<Vec<_>>(),
             vec![0, 4, 8]
         );
+    }
+
+    #[test]
+
+    fn test_infer_csv() {
+        let x = BackendKind::Sqlite
+            .infer_csv("/home/yuyang/Downloads/Persons.csv")
+            .unwrap();
+        for y in x.iter() {
+            println!("{:?}", y);
+        }
     }
 
     #[test]

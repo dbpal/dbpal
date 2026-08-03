@@ -17,7 +17,9 @@ import {
   InputLabel,
   Modal,
   Box,
+  InputAdornment,
 } from "@mui/material";
+import AttachFileIcon from "@mui/icons-material/AttachFile";
 import RefreshIcon from "@mui/icons-material/Refresh";
 import {
   Dispatch,
@@ -29,6 +31,7 @@ import {
   useMemo,
   useState,
 } from "react";
+import ClearIcon from "@mui/icons-material/Clear";
 import DeleteForeverIcon from "@mui/icons-material/DeleteForever";
 
 import { FaFolderOpen } from "react-icons/fa";
@@ -83,6 +86,8 @@ import {
   useViewInModalMatchStrStore,
 } from "./store";
 import { commands, Field, MetaValue, NamedStaff } from "./bindings";
+
+import { open } from "@tauri-apps/plugin-dialog";
 import {
   DataGrid,
   GridColDef,
@@ -1088,7 +1093,61 @@ function ResizeParentHeight(props: {
   );
 }
 
+/**
+ * Path selector input with a file chooser button.
+ */
+function SelectPath(props: {
+  path: string;
+  setPath: Dispatch<SetStateAction<string>>;
+  label: string;
+  required: boolean;
+}) {
+  const { path, setPath, label, required } = props;
+  return (
+    <Stack direction="row" sx={{ alignItems: "center" }}>
+      <TextField
+        value={path}
+        onChange={(event) => {
+          setPath(event.target.value);
+        }}
+        style={{ flex: 1 }}
+        label={label}
+        required={required}
+        slotProps={{
+          input: {
+            endAdornment: (
+              <>
+                {path && (
+                  <InputAdornment position="end">
+                    <IconButton
+                      onClick={() => {
+                        setPath("");
+                      }}
+                      edge="end">
+                      <ClearIcon fontSize="small" />
+                    </IconButton>
+                  </InputAdornment>
+                )}
+                <IconButton
+                  onClick={() => {
+                    open({ multiple: false }).then((openOk) => {
+                      setPath(openOk);
+                    });
+                  }}
+                  color="primary">
+                  <AttachFileIcon />
+                </IconButton>
+              </>
+            ),
+          },
+        }}
+      />
+    </Stack>
+  );
+}
+
 export {
+  SelectPath,
   LogLevelSelection,
   MetaValueView,
   MenuNewQuery,

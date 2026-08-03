@@ -169,6 +169,31 @@ pub async fn page_init_callback(app: tauri::State<'_, DBPal>) -> Result<(), ()> 
 
 #[specta::specta]
 #[tauri::command]
+
+pub async fn sql_infer_fields_from_file(
+    db_name: String,
+    app: tauri::State<'_, DBPal>,
+    path: String,
+) -> Result<Vec<Field>, ErrorFrontend> {
+    let backend = app
+        .get_backend(db_name.as_str())
+        .await
+        .map_err(ErrorFrontend::from)?;
+
+    let kind = match backend {
+        DatabaseBackend::Catalog(catalog_trait) => catalog_trait.backend_kind(),
+        DatabaseBackend::DataBase(dbtrait) => dbtrait.backend_kind(),
+        DatabaseBackend::Schema(schema_trait) => schema_trait.backend_kind(),
+    };
+    let fs = kind
+        .infer_fields(&path)
+        .await
+        .map_err(ErrorFrontend::from)?;
+    Ok(fs)
+}
+
+#[specta::specta]
+#[tauri::command]
 pub async fn drop_database(
     db_name: String,
     database: String,

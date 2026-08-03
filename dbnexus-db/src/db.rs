@@ -186,6 +186,7 @@ pub struct ShowTableParameter {
 #[derive(serde::Deserialize, Clone, Debug, specta::Type)]
 pub struct TableImportPara {
     pub path: String,
+    pub create_sql: Option<String>,
 }
 
 impl ShowTableParameter {
@@ -421,7 +422,7 @@ pub trait SchemaTrait:
     async fn table_import_data_from_file(
         &self,
         table: &str,
-        data: TableImportPara,
+        para: TableImportPara,
     ) -> anyhow::Result<()> {
         let (sender, mut receiver) =
             tokio::sync::mpsc::channel::<HashMap<String, Option<String>>>(10);
@@ -467,11 +468,11 @@ pub trait SchemaTrait:
                     anyhow::Ok(())
                 };
 
-                let path_lower = data.path.to_lowercase();
+                let path_lower = para.path.to_lowercase();
 
-                match data {
+                match para {
                     _ if path_lower.ends_with(".csv") => {
-                        let mut reader = csv::Reader::from_path(&data.path)?;
+                        let mut reader = csv::Reader::from_path(&para.path)?;
                         let headers: Vec<_> =
                             reader.headers()?.iter().map(|x| x.to_string()).collect();
 
@@ -504,7 +505,7 @@ pub trait SchemaTrait:
                         }
                     }
                     _ if path_lower.contains(".json") => {
-                        let f = std::fs::File::open(data.path)?;
+                        let f = std::fs::File::open(para.path)?;
                         let values: Vec<serde_json::Value> = serde_json::from_reader(f)?;
                         for value in values.iter() {
                             match value {
@@ -519,7 +520,7 @@ pub trait SchemaTrait:
                     }
                     _ if path_lower.contains(".jsonl") => {
                         //
-                        let f = std::fs::File::open(&data.path)?;
+                        let f = std::fs::File::open(&para.path)?;
                         let reader = std::io::BufReader::new(f);
                         for line in reader.lines() {
                             let line = line?;
@@ -573,6 +574,13 @@ pub trait SchemaTrait:
             let _err_set_commit = this.set_auto_commit(&query_id, false).await;
             if let Err(err) = _err_set_commit {
                 log::error!("set auto commit false failed:{}", err);
+            }
+
+            // run the create sql
+            if let Some(sql) = para.create_sql.as_ref() {
+                this.execute_sql(&query_id, sql)
+                    .await?
+                    .map_err(|err| anyhow::Error::msg(err))?;
             }
             while let Some(record) = receiver.recv().await {
                 // build the sql
@@ -846,6 +854,7 @@ pub trait SchemaTrait:
             table,
             TableImportPara {
                 path: file.path().to_str().unwrap().to_string(),
+                create_sql: None,
             },
         )
         .await
@@ -875,6 +884,7 @@ pub trait SchemaTrait:
             table,
             TableImportPara {
                 path: file.path().to_str().unwrap().to_string(),
+                create_sql: None,
             },
         )
         .await
@@ -905,6 +915,7 @@ pub trait SchemaTrait:
             table,
             TableImportPara {
                 path: file.path().to_str().unwrap().to_string(),
+                create_sql: None,
             },
         )
         .await

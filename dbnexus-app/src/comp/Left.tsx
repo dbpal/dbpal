@@ -17,7 +17,6 @@ import {
   Typography,
 } from "@mui/material";
 import { IoMdSettings } from "react-icons/io";
-import { IoIosCreate } from "react-icons/io";
 import { useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
 import ContentCopyIcon from "@mui/icons-material/ContentCopy";
 import { GrConnect } from "react-icons/gr";
@@ -90,7 +89,6 @@ import {
 } from "./CommonComp2.tsx";
 import { EventsTree } from "./LeftEvent.tsx";
 import { AllKindChat } from "./Chat.tsx";
-import { CreateTable } from "./CreateTable.tsx";
 import { AddConnection } from "./AddConnection.tsx";
 import { ModifySetting } from "./Settings.tsx";
 import FilterAltIcon from "@mui/icons-material/FilterAlt";
@@ -1262,15 +1260,6 @@ function openNewQueryWindow(uuid: string, kind: DataSourceKind) {
   });
 }
 
-function openNewCreateTable(
-  appendTab: (_: TabContent) => void,
-  uuid: string,
-  kind: DataSourceKind,
-) {
-  const content = <CreateTable kind={kind} uuid={uuid} />;
-  appendTab(new TabContent(`create table`, content, <IoIosCreate> </IoIosCreate>));
-}
-
 function SchemaMenu(props: {
   schema?: string;
   uuid: string;
@@ -1300,21 +1289,6 @@ function SchemaMenu(props: {
           }}
         />
       )}
-
-      {conn_established &&
-        kind != DataSourceKind.Redis &&
-        kind != DataSourceKind.Mongo &&
-        kind != DataSourceKind.CouchBase && (
-          <MenuItem
-            onClick={() => {
-              openNewCreateTable(appendTab, uuid, kind);
-            }}>
-            <ListItemIcon>
-              <IoIosCreate />
-            </ListItemIcon>
-            <ListItemText>create table </ListItemText>
-          </MenuItem>
-        )}
 
       {conn_established && !schema && <MenuConnectionInfo uuid={uuid} />}
 

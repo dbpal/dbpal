@@ -5,12 +5,20 @@ import {
   FormControlLabel,
   IconButton,
   Stack,
+  Switch,
   Tooltip,
   Typography,
 } from "@mui/material";
 import ClearIcon from "@mui/icons-material/Clear";
-import { DataSourceKind } from "./helper";
-import { CSSProperties, useCallback, useRef, useState } from "react";
+import { DataSourceKind, resizeHandlerSize } from "./helper";
+import {
+  CSSProperties,
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import AddIcon from "@mui/icons-material/Add";
 import {
   ClearableTextField,
@@ -30,9 +38,12 @@ import {
   CreateIndexReq,
   CreateTableReq,
   CreateTableReqColumn,
+  Field,
 } from "./bindings";
+import { Panel, PanelGroup, PanelResizeHandle } from "react-resizable-panels";
+import { SelectPath } from "./CommonComp";
 
-function CreateTable(props: { uuid: string; kind: DataSourceKind }) {
+function SqlCreateTable(props: { uuid: string; kind: DataSourceKind }) {
   const { uuid, kind } = props;
   const [cols, setCols] = useState<CreateTableReqColumn[]>([
     {
@@ -178,7 +189,7 @@ function CreateTable(props: { uuid: string; kind: DataSourceKind }) {
             <TableColumn
               index={index}
               kind={kind}
-              handleClose={() => {
+              handleDelete={() => {
                 setCols((cols) => {
                   return cols.filter((_, idx) => index != idx);
                 });
@@ -307,18 +318,7 @@ function CreateTable(props: { uuid: string; kind: DataSourceKind }) {
   );
 }
 
-function TableColumn(props: {
-  col: CreateTableReqColumn;
-  handleCol: (x: CreateTableReqColumn) => void;
-  uuid: string;
-  handleClose: () => void;
-  kind: DataSourceKind;
-  index: number;
-  // only should have one column that is auto increment
-  // impl don't need make make rerender
-  resetAutoInc: () => void;
-}) {
-  const { col, handleCol, uuid, handleClose, kind, index, resetAutoInc } = props;
+function supportAutoIncrement(kind) {
   const supportAutoInc = [
     DataSourceKind.Sqlite,
     DataSourceKind.LibSql,
@@ -326,6 +326,34 @@ function TableColumn(props: {
     DataSourceKind.TiDB,
     DataSourceKind.MariaDB,
   ].includes(kind);
+  return supportAutoInc;
+}
+
+function autoIncrementFieldType(kind) {
+  const typeMap = {
+    [DataSourceKind.Sqlite]: "INTEGER", // SQLite 自增主键
+    [DataSourceKind.LibSql]: "INTEGER", // LibSQL 兼容 SQLite
+    [DataSourceKind.Mysql]: "INT", // MySQL 自增主键（或 BIGINT）
+    [DataSourceKind.TiDB]: "INT", // TiDB 兼容 MySQL
+    [DataSourceKind.MariaDB]: "INT", // MariaDB 兼容 MySQL
+  };
+
+  return typeMap[kind] || "INT"; // 默认返回 INT
+}
+
+function TableColumn(props: {
+  col: CreateTableReqColumn;
+  handleCol: (x: CreateTableReqColumn) => void;
+  uuid: string;
+  handleDelete?: () => void;
+  kind: DataSourceKind;
+  index: number;
+  // only should have one column that is auto increment
+  // impl don't need make make rerender
+  resetAutoInc: () => void;
+}) {
+  const { col, handleCol, uuid, handleDelete, kind, index, resetAutoInc } = props;
+  const supportAutoInc = supportAutoIncrement(kind);
 
   const supportNull = ![DataSourceKind.Cassandra].includes(kind);
   const supportDefault = ![DataSourceKind.Cassandra].includes(kind);
@@ -336,9 +364,11 @@ function TableColumn(props: {
       style={{
         alignItems: "center",
       }}>
-      <IconButton onClick={handleClose}>
-        <CloseIcon />
-      </IconButton>
+      {handleDelete && (
+        <IconButton onClick={handleDelete}>
+          <CloseIcon />
+        </IconButton>
+      )}
       #{index}
       {supportAutoInc && (
         <FormControlLabel
@@ -414,4 +444,143 @@ function TableColumn(props: {
   );
 }
 
-export { CreateTable };
+function SqlCreateTableImportFile(props: { kind: DataSourceKind; uuid: string }) {
+  const { uuid, kind } = props;
+  const [file, setFile] = useState("");
+  const [autoIncId, setAutoIncId] = useState(false);
+  const [tableName, setTableName] = useState("");
+  const { showNotification } = useNotification();
+  const [fields, setFields] = useState<Field[]>([]);
+  const [sql, setSql] = useState("");
+  useEffect(() => {
+    (async () => {
+      try {
+        if (!file) {
+          return;
+        }
+        const fs = await commands.sqlInferFieldsFromFile(uuid, file);
+        setFields(fs);
+
+        console.log("!!!!!!!!!!!!!!!!!!!!", fs);
+      } catch (e) {
+        showNotification({
+          severity: "error",
+          title: "can't infer fields from file",
+          message: e,
+        });
+      }
+    })();
+  }, [file, showNotification, uuid]);
+
+  const containsId = useMemo((): boolean => {
+    for (const f of fields) {
+      if (f.field.toLowerCase() == "id") {
+        return true;
+      }
+      return false;
+    }
+  }, [fields]);
+  useEffect(() => {
+    (async () => {
+      if (!fields.length) {
+        return "";
+      }
+      if (!tableName) {
+        return;
+      }
+      let req: CreateTableReqColumn[] = [];
+      if (autoIncId && !containsId) {
+        req.push({
+          name: "id",
+          auto_increment: true,
+          primary_key: true,
+          nullable: "notnull",
+          data_type: autoIncrementFieldType(kind),
+          default_value: null,
+        });
+      }
+      fields.forEach((f) => {
+        req.push({
+          name: f.field,
+          data_type: f.data_type,
+          auto_increment: false,
+          primary_key: false,
+          default_value: null,
+          nullable: "unspecified",
+        });
+      });
+
+      try {
+        let sql = await commands.createTableReqSql(uuid, {
+          name: tableName,
+          indexes: [],
+          columns: req,
+        });
+        setSql(sql);
+      } catch (e) {
+        showNotification({
+          severity: "error",
+          title: "generate sql failed",
+          message: e,
+        });
+      }
+    })();
+  }, [autoIncId, containsId, fields, kind, showNotification, tableName, uuid]);
+
+  return (
+    <PanelGroup
+      direction="horizontal"
+      style={{
+        height: "100%",
+        width: "100%",
+      }}
+      autoSaveId="sql-crete-table-import-from-file">
+      <Panel minSize={10} maxSize={85} collapsible collapsedSize={0}>
+        <Stack style={{ height: "100%" }}>
+          <SelectPath path={file} setPath={setFile} required label="import file" />
+          <ClearableTextField
+            value={tableName}
+            onChange={(e) => {
+              setTableName(e.target.value);
+            }}
+            label="table name"
+            onClear={() => {
+              setTableName("");
+            }}
+            fullWidth
+          />
+          {supportAutoIncrement(kind) && !containsId && (
+            <FormControlLabel
+              control={
+                <Switch
+                  onChange={(_e, checked) => {
+                    setAutoIncId(checked);
+                  }}
+                  checked={autoIncId}
+                />
+              }
+              label="markdown model"
+            />
+          )}
+          <div style={{ height: "100px", flex: 1 }}>
+            <AllKindChat uuid={uuid} kind={kind} value={sql} />
+          </div>
+        </Stack>
+      </Panel>
+      <PanelResizeHandle
+        style={{ width: resizeHandlerSize }}
+        className="resize-handle"
+      />
+      <Panel
+        style={{
+          overflow: "auto",
+          height: "100%",
+          paddingLeft: "2px",
+        }}>
+        2222
+      </Panel>
+    </PanelGroup>
+  );
+}
+
+export { SqlCreateTable, SqlCreateTableImportFile };

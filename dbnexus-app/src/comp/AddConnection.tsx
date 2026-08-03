@@ -7,7 +7,6 @@ import {
   useRef,
   useState,
 } from "react";
-import ClearIcon from "@mui/icons-material/Clear";
 import {
   TextField,
   Button,
@@ -28,7 +27,6 @@ import {
 } from "@mui/material";
 import { ClearableTextField, RefreshButton } from "./CommonComp2";
 import SaveIcon from "@mui/icons-material/Save";
-import AttachFileIcon from "@mui/icons-material/AttachFile";
 import VisibilityIcon from "@mui/icons-material/Visibility";
 import { message, open } from "@tauri-apps/plugin-dialog";
 import { extractBaseName } from "./Common.ts";
@@ -62,6 +60,7 @@ import {
   CouchBaseDBConfig,
   CassandraDialect,
 } from "./bindings.ts";
+import { SelectPath } from "./CommonComp.tsx";
 
 /**
  * Host and port input pair used by several connection forms.
@@ -92,59 +91,6 @@ function HostAndPort(props: {
         error={isNaN(parseInt(port))}
         value={port}
         onChange={(event) => setPort(event.target.value)}
-      />
-    </Stack>
-  );
-}
-
-/**
- * Path selector input with a file chooser button.
- */
-function SelectPath(props: {
-  path: string;
-  setPath: Dispatch<SetStateAction<string>>;
-  label: string;
-  required: boolean;
-}) {
-  const { path, setPath, label, required } = props;
-  return (
-    <Stack direction="row" sx={{ alignItems: "center" }}>
-      <TextField
-        value={path}
-        onChange={(event) => {
-          setPath(event.target.value);
-        }}
-        style={{ flex: 1 }}
-        label={label}
-        required={required}
-        slotProps={{
-          input: {
-            endAdornment: (
-              <>
-                {path && (
-                  <InputAdornment position="end">
-                    <IconButton
-                      onClick={() => {
-                        setPath("");
-                      }}
-                      edge="end">
-                      <ClearIcon fontSize="small" />
-                    </IconButton>
-                  </InputAdornment>
-                )}
-                <IconButton
-                  onClick={() => {
-                    open({ multiple: false }).then((openOk) => {
-                      setPath(openOk);
-                    });
-                  }}
-                  color="primary">
-                  <AttachFileIcon />
-                </IconButton>
-              </>
-            ),
-          },
-        }}
       />
     </Stack>
   );
@@ -1354,7 +1300,11 @@ function AddConnection(props: { config?: DBConnectionConfig }) {
           />
         )}
         {connectionType == "scylla" && (
-          <Cassandra context={context} config={config as CassandraDBConfig}  dialect="Scylla" />
+          <Cassandra
+            context={context}
+            config={config as CassandraDBConfig}
+            dialect="Scylla"
+          />
         )}
         {connectionType === DataSourceKind.Redis && (
           <Redis context={context} config={config as RedisDBConfig} />
