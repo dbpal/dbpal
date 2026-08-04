@@ -1,3 +1,5 @@
+use std::{io::BufRead, vec};
+
 use sqlparser::ast::{ArrayElemTypeDef, DataType};
 
 use crate::db::{BackendKind, Field};
@@ -582,30 +584,375 @@ impl BackendKind {
         anyhow::Ok(ret)
     }
 
-    pub fn infer_json(self, _path: &str) -> anyhow::Result<Vec<Field>> {
-        todo!()
+    pub fn infer_json(self, path: &str) -> anyhow::Result<Vec<Field>> {
+        let file = std::fs::File::open(path)?;
+        let vs: Vec<serde_json::Map<String, serde_json::Value>> = serde_json::from_reader(file)?;
+
+        let samples = if vs.len() >= 10 { &vs[0..10] } else { &vs };
+
+        self.infer_from_json_maps(samples)
     }
-    pub fn infer_jsonline(self, _path: &str) -> anyhow::Result<Vec<Field>> {
-        // let file = std::fs::File::open(path)?;
-        // let reader = std::io::BufReader::new(file);
-        // let samples: Vec<String> = Vec::new();
 
-        // for line in reader.lines() {
-        //     let line = line?;
-        //     if line.trim().is_empty() {
-        //         continue;
-        //     }
-        //     samples.push(line);
-        //     if samples.len() >= 100 {
-        //         break;
-        //     }
-        // }
+    pub fn infer_jsonline(self, path: &str) -> anyhow::Result<Vec<Field>> {
+        let file = std::fs::File::open(path)?;
+        let reader = std::io::BufReader::new(file);
+        let mut samples: Vec<serde_json::Map<String, serde_json::Value>> = Vec::new();
 
-        // let schema = genson_core::infer_json_schema(&samples, None).unwrap();
+        for line in reader.lines() {
+            let line = line?;
+            if line.trim().is_empty() {
+                continue;
+            }
+            samples.push(serde_json::from_str::<
+                serde_json::Map<String, serde_json::Value>,
+            >(&line)?);
+            if samples.len() >= 100 {
+                break;
+            }
+        }
+        self.infer_from_json_maps(&samples)
+    }
 
-        // self.infer_json_from_samples(&schema)
+    pub fn infer_from_json_maps(
+        &self,
+        values: &[serde_json::Map<String, serde_json::Value>],
+    ) -> anyhow::Result<Vec<Field>> {
+        let mut merged_value = serde_json::Map::new();
+        for value in values.iter() {
+            for (k, v) in value {
+                match v {
+                    serde_json::Value::Null => {
+                        if !merged_value.contains_key(k) {
+                            merged_value.insert(k.clone(), v.clone());
+                        }
+                    }
+                    _ => {
+                        merged_value.insert(k.clone(), v.clone());
+                    }
+                }
+            }
+        }
 
-        unimplemented!()
+        self.infer_from_json_map(&merged_value)
+    }
+
+    pub fn infer_from_json_map(
+        &self,
+        map: &serde_json::Map<String, serde_json::Value>,
+    ) -> anyhow::Result<Vec<Field>> {
+        let mut ret = vec![];
+
+        for (k, v) in map.iter() {
+            let ty = self.infer_type_from_json_value(v)?;
+            ret.push(Field::from_name_type(k, ty));
+        }
+        anyhow::Ok(ret)
+    }
+
+    pub fn infer_type_from_json_value(&self, value: &serde_json::Value) -> anyhow::Result<String> {
+        let r = match self {
+            BackendKind::Mysql(..) => match value {
+                serde_json::Value::Null => "VARCHAR(255)".to_string(),
+                serde_json::Value::Bool(_) => "TINYINT(1)".to_string(),
+                serde_json::Value::Number(number) => {
+                    if number.is_i64() || number.is_u64() {
+                        if let Some(..) = number.as_i64() {
+                            "BIGINT".to_string()
+                        } else if let Some(..) = number.as_u64() {
+                            "BIGINT UNSIGNED".to_string()
+                        } else {
+                            "DECIMAL(65,30)".to_string()
+                        }
+                    } else if number.is_f64() {
+                        "DOUBLE".to_string()
+                    } else {
+                        "DECIMAL(65,30)".to_string()
+                    }
+                }
+                serde_json::Value::String(..) => "TEXT".to_string(),
+                serde_json::Value::Array(_) => "JSON".to_string(), // MySQL 5.7+ 支持 JSON
+                serde_json::Value::Object(_) => "JSON".to_string(),
+            },
+
+            BackendKind::PostGres(_) => match value {
+                serde_json::Value::Null => "VARCHAR(255)".to_string(),
+                serde_json::Value::Bool(_) => "BOOLEAN".to_string(),
+                serde_json::Value::Number(number) => {
+                    if number.is_i64() || number.is_u64() {
+                        if let Some(..) = number.as_i64() {
+                            "BIGINT".to_string()
+                        } else if let Some(..) = number.as_u64() {
+                            "BIGINT".to_string()
+                        } else {
+                            "NUMERIC".to_string()
+                        }
+                    } else if number.is_f64() {
+                        "DOUBLE PRECISION".to_string()
+                    } else {
+                        "NUMERIC".to_string()
+                    }
+                }
+                serde_json::Value::String(..) => "TEXT".to_string(),
+                serde_json::Value::Array(_) => "JSONB".to_string(),
+                serde_json::Value::Object(_) => "JSONB".to_string(),
+            },
+
+            BackendKind::SqlServer => match value {
+                serde_json::Value::Null => "NVARCHAR(255)".to_string(),
+                serde_json::Value::Bool(_) => "BIT".to_string(),
+                serde_json::Value::Number(number) => {
+                    if number.is_i64() || number.is_u64() {
+                        if let Some(..) = number.as_i64() {
+                            "BIGINT".to_string()
+                        } else if let Some(..) = number.as_u64() {
+                            "BIGINT".to_string()
+                        } else {
+                            "DECIMAL(38,10)".to_string()
+                        }
+                    } else if number.is_f64() {
+                        "FLOAT".to_string()
+                    } else {
+                        "DECIMAL(38,10)".to_string()
+                    }
+                }
+                serde_json::Value::String(..) => "NVARCHAR(?)".to_string(),
+                serde_json::Value::Array(_) => "BINARY(?)".to_string(),
+                serde_json::Value::Object(_) => "NVARCHAR(?)".to_string(),
+            },
+
+            BackendKind::Sqlite | BackendKind::LibSql => match value {
+                serde_json::Value::Null => "TEXT".to_string(),
+                serde_json::Value::Bool(_) => "INTEGER".to_string(),
+                serde_json::Value::Number(number) => {
+                    if number.is_i64() || number.is_u64() {
+                        "INTEGER".to_string()
+                    } else if number.is_f64() {
+                        "REAL".to_string()
+                    } else {
+                        "REAL".to_string()
+                    }
+                }
+                serde_json::Value::String(_) => "TEXT".to_string(),
+                serde_json::Value::Array(_) => "BLOB".to_string(),
+                serde_json::Value::Object(_) => "TEXT".to_string(),
+            },
+
+            BackendKind::Cassandra => {
+                fn handle_value(v: &serde_json::Value) -> String {
+                    match v {
+                        serde_json::Value::Null => "text".to_string(),
+                        serde_json::Value::Bool(_) => "boolean".to_string(),
+                        serde_json::Value::Number(number) => {
+                            if number.is_i64() || number.is_u64() {
+                                "bigint".to_string()
+                            } else if number.is_f64() {
+                                "double".to_string()
+                            } else {
+                                "decimal".to_string()
+                            }
+                        }
+                        serde_json::Value::String(_) => "text".to_string(),
+                        serde_json::Value::Array(x) => {
+                            if let Some(v) = x.get(0) {
+                                return format!("list<{}>", handle_value(v));
+                            } else {
+                                return "list<text>".into();
+                            }
+                        }
+                        serde_json::Value::Object(x) => {
+                            if let Some((k, v)) = x.iter().next() {
+                                format!(
+                                    "map<{}, {}>",
+                                    if let Ok(..) = k.parse::<u64>() {
+                                        "bigint"
+                                    } else if let Ok(..) = k.parse::<f64>() {
+                                        "double"
+                                    } else {
+                                        "String"
+                                    },
+                                    handle_value(&v)
+                                )
+                            } else {
+                                "map<text, text>".to_string()
+                            }
+                        }
+                    }
+                }
+
+                handle_value(value)
+            }
+            BackendKind::ClickHouse => {
+                fn handle_value(value: &serde_json::Value) -> String {
+                    match value {
+                        serde_json::Value::Null => "String".to_string(),
+                        serde_json::Value::Bool(_) => "UInt8".to_string(),
+                        serde_json::Value::Number(number) => {
+                            if let Some(..) = number.as_i64() {
+                                "Int64".to_string()
+                            } else if let Some(..) = number.as_u64() {
+                                "UInt64".to_string()
+                            } else {
+                                "Float64".to_string()
+                            }
+                        }
+                        serde_json::Value::String(..) => "String".to_string(),
+                        serde_json::Value::Array(x) => {
+                            if let Some(x) = x.get(0) {
+                                format!("Array({})", handle_value(x))
+                            } else {
+                                return "Array(String)".into();
+                            }
+                        }
+                        serde_json::Value::Object(x) => {
+                            if let Some((k, v)) = x.iter().next() {
+                                format!(
+                                    "Map({},{})",
+                                    if let Ok(..) = k.parse::<u64>() {
+                                        "UInt64"
+                                    } else if let Ok(..) = k.parse::<i64>() {
+                                        "UInt64"
+                                    } else if let Ok(..) = k.parse::<f64>() {
+                                        "Float64"
+                                    } else {
+                                        "String"
+                                    },
+                                    handle_value(v)
+                                )
+                            } else {
+                                return "Map(Int32,Int32)".into();
+                            }
+                        }
+                    }
+                }
+
+                handle_value(value)
+            }
+
+            BackendKind::Firebird => match value {
+                serde_json::Value::Null => "VARCHAR(255)".to_string(),
+                serde_json::Value::Bool(_) => "SMALLINT".to_string(),
+                serde_json::Value::Number(number) => {
+                    if number.is_i64() || number.is_u64() {
+                        if let Some(..) = number.as_i64() {
+                            "BIGINT".to_string()
+                        } else if let Some(..) = number.as_u64() {
+                            "BIGINT".to_string()
+                        } else {
+                            "DOUBLE PRECISION".to_string()
+                        }
+                    } else if number.is_f64() {
+                        "DOUBLE PRECISION".to_string()
+                    } else {
+                        "DOUBLE PRECISION".to_string()
+                    }
+                }
+                serde_json::Value::String(s) => {
+                    let len = s.len();
+                    if len <= 255 {
+                        "VARCHAR(255)".to_string()
+                    } else {
+                        "BLOB SUB_TYPE TEXT".to_string()
+                    }
+                }
+                serde_json::Value::Array(_) => "BLOB SUB_TYPE TEXT".to_string(),
+                serde_json::Value::Object(_) => "BLOB SUB_TYPE TEXT".to_string(),
+            },
+
+            BackendKind::Oracle => match value {
+                serde_json::Value::Null => "VARCHAR2(255)".to_string(),
+                serde_json::Value::Bool(_) => "NUMBER(1)".to_string(),
+                serde_json::Value::Number(number) => {
+                    if number.is_i64() || number.is_u64() {
+                        if let Some(..) = number.as_i64() {
+                            "NUMBER".to_string()
+                        } else {
+                            "NUMBER".to_string()
+                        }
+                    } else if number.is_f64() {
+                        "FLOAT".to_string()
+                    } else {
+                        "NUMBER".to_string()
+                    }
+                }
+                serde_json::Value::String(..) => "VARCHAR2(4000)".to_string(),
+                serde_json::Value::Array(_) => "CLOB".to_string(),
+                serde_json::Value::Object(_) => "CLOB".to_string(),
+            },
+
+            BackendKind::DuckDB => match value {
+                serde_json::Value::Null => "VARCHAR".to_string(),
+                serde_json::Value::Bool(_) => "BOOLEAN".to_string(),
+                serde_json::Value::Number(number) => {
+                    if number.is_i64() || number.is_u64() {
+                        "BIGINT".to_string()
+                    } else if number.is_f64() {
+                        "DOUBLE".to_string()
+                    } else {
+                        "DOUBLE".to_string()
+                    }
+                }
+                serde_json::Value::String(_) => "VARCHAR".to_string(),
+                serde_json::Value::Array(_) => "JSON".to_string(),
+                serde_json::Value::Object(_) => "JSON".to_string(),
+            },
+
+            BackendKind::BigQuery => match value {
+                serde_json::Value::Null => "STRING".to_string(),
+                serde_json::Value::Bool(_) => "BOOL".to_string(),
+                serde_json::Value::Number(number) => {
+                    if number.is_i64() || number.is_u64() {
+                        "INT64".to_string()
+                    } else if number.is_f64() {
+                        "FLOAT64".to_string()
+                    } else {
+                        "NUMERIC".to_string()
+                    }
+                }
+                serde_json::Value::String(_) => "STRING".to_string(),
+                serde_json::Value::Array(_) => "ARRAY".to_string(),
+                serde_json::Value::Object(_) => "JSON".to_string(),
+            },
+
+            BackendKind::Db2 => match value {
+                serde_json::Value::Null => "VARCHAR(255)".to_string(),
+                serde_json::Value::Bool(_) => "SMALLINT".to_string(),
+                serde_json::Value::Number(number) => {
+                    if number.is_i64() || number.is_u64() {
+                        "BIGINT".to_string()
+                    } else if number.is_f64() {
+                        "DOUBLE".to_string()
+                    } else {
+                        "DECIMAL".to_string()
+                    }
+                }
+                serde_json::Value::String(..) => "VARCHAR(32672)".to_string(),
+                serde_json::Value::Array(_) => "CLOB".to_string(),
+                serde_json::Value::Object(_) => "CLOB".to_string(),
+            },
+
+            BackendKind::CouchBase => match value {
+                serde_json::Value::Null => "null".to_string(),
+                serde_json::Value::Bool(_) => "boolean".to_string(),
+                serde_json::Value::Number(number) => {
+                    if number.is_i64() || number.is_u64() {
+                        "number".to_string()
+                    } else if number.is_f64() {
+                        "number".to_string()
+                    } else {
+                        "number".to_string()
+                    }
+                }
+                serde_json::Value::String(_) => "string".to_string(),
+                serde_json::Value::Array(_) => "array".to_string(),
+                serde_json::Value::Object(_) => "object".to_string(),
+            },
+
+            BackendKind::Mongo => anyhow::bail!("mongo ne need impl this"),
+
+            BackendKind::Redis => anyhow::bail!("mongo ne need impl this"),
+        };
+
+        Ok(r)
     }
 }
 
@@ -717,6 +1064,8 @@ impl BackendKind {
 
 #[cfg(test)]
 mod tests {
+    use crate::db::{BackendKindMysql, BackendKindPostGres};
+
     use super::*;
     #[test]
     fn test_off_iter() {
@@ -732,12 +1081,50 @@ mod tests {
 
     #[test]
 
-    fn test_infer_csv() {
+    fn test_infer_schema_csv() {
         let x = BackendKind::Sqlite
             .infer_csv("/home/yuyang/Downloads/Persons.csv")
             .unwrap();
         for y in x.iter() {
             println!("{:?}", y);
+        }
+    }
+
+    #[test]
+
+    fn test_infer_json_type() {
+        let backends = vec![
+            BackendKind::Sqlite,
+            BackendKind::Mysql(BackendKindMysql::Mysql),
+            BackendKind::PostGres(BackendKindPostGres::PostGres),
+            BackendKind::Cassandra,
+            BackendKind::ClickHouse,
+            BackendKind::SqlServer,
+            BackendKind::Firebird,
+            BackendKind::Oracle,
+            BackendKind::DuckDB,
+        ];
+
+        for kind in backends.iter() {
+            for value in &[
+                serde_json::Value::Bool(true),
+                serde_json::Value::from(1),
+                serde_json::Value::from(1f64),
+                serde_json::Value::from("haha"),
+                serde_json::Value::Array(
+                    [1, 2, 3, 4]
+                        .iter()
+                        .map(|x| serde_json::Value::from(*x))
+                        .collect(),
+                ),
+                serde_json::json!({"name":"John Doe"}),
+                serde_json::json!({"1":"John Doe"}),
+                serde_json::json!({"1.1":"John Doe"}),
+                serde_json::json!({"-111":"John Doe"}),
+            ] {
+                let ty = kind.infer_type_from_json_value(value).unwrap();
+                println!("kind:{} value:{} ty:{}", kind, value, ty);
+            }
         }
     }
 

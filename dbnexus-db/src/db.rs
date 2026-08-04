@@ -486,16 +486,10 @@ pub trait SchemaTrait:
                     }
                     _ if path_lower.ends_with(".json") => {
                         let f = std::fs::File::open(para.path)?;
-                        let values: Vec<serde_json::Value> = serde_json::from_reader(f)?;
+                        let values: Vec<serde_json::Map<String, serde_json::Value>> =
+                            serde_json::from_reader(f)?;
                         for value in values.iter() {
-                            match value {
-                                serde_json::Value::Object(map) => {
-                                    handle_json_map(map)?;
-                                }
-                                _ => {
-                                    anyhow::bail!("the value nested in array,should be object")
-                                }
-                            }
+                            handle_json_map(value)?;
                         }
                     }
                     _ if path_lower.ends_with(".jsonl") => {
@@ -538,7 +532,7 @@ pub trait SchemaTrait:
                         let query_id = self.query_id.clone();
                         tokio::spawn(async move {
                             if let Err(err) = db.close_connection(&query_id).await {
-                                log::error!("close connection failed:{}", err);
+                                log::error!("close connection ailed:{}", err);
                             }
                         });
                     }

@@ -2418,6 +2418,8 @@ pub(crate) mod test_fns {
         println!("{:?}", cols);
 
         GetTestExportTableKinds::test_export(&db, table_name).await;
+
+        db.test_table_export_and_import(table_name).await;
     }
 
     pub(crate) async fn test_types2(db: MysqlDB) {
@@ -2466,6 +2468,7 @@ pub(crate) mod test_fns {
         println!("{:?}", cols);
 
         GetTestExportTableKinds::test_export(&db, table_name).await;
+        db.test_table_export_and_import(table_name).await;
     }
 
     pub(crate) async fn test_types3(db: MysqlDB) {
@@ -2514,6 +2517,7 @@ pub(crate) mod test_fns {
             .unwrap();
         println!("{:?}", cols);
         GetTestExportTableKinds::test_export(&db, table_name).await;
+        db.test_table_export_and_import(table_name).await;
     }
 
     pub(crate) async fn test_types4(db: MysqlDB) {
@@ -2570,6 +2574,7 @@ pub(crate) mod test_fns {
             .unwrap();
         println!("{:?}", cols);
         GetTestExportTableKinds::test_export(&db, table_name).await;
+        db.test_table_export_and_import(table_name).await;
     }
 
     pub(crate) async fn test_list_database(db: MysqlDB) {

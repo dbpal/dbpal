@@ -44,7 +44,7 @@ import { Panel, PanelGroup, PanelResizeHandle } from "react-resizable-panels";
 import { SelectPath } from "./CommonComp";
 import Papa from "papaparse";
 import { DataGrid } from "@mui/x-data-grid";
-import { readTextFile } from "@tauri-apps/plugin-fs";
+import { readTextFile, readTextFileLines } from "@tauri-apps/plugin-fs";
 
 function SqlCreateTable(props: {
   uuid: string;
@@ -487,23 +487,82 @@ function SqlCreateTableImportFile(props: { kind: DataSourceKind; uuid: string })
     })();
   }, [file, showNotification, uuid]);
 
+  const maxRow = 100;
+
   useEffect(() => {
     (async () => {
       try {
         if (!file) {
           return;
         }
+
         let fileLower = file.toLowerCase();
         if (fileLower.endsWith(".csv")) {
           const x = Papa.parse<Record<string, any>>(await readTextFile(file), {
             header: true,
             skipEmptyLines: true,
+            preview: maxRow,
           });
-
           x.data.forEach((e, index) => {
             e[keyNotInTable] = index;
           });
           setData(x.data);
+        } else if (fileLower.endsWith(".json")) {
+          // json
+          const data: any[] = JSON.parse(await readTextFile(file));
+          if (!Array.isArray(data)) {
+            showNotification({
+              severity: "error",
+              title: "json file should contains array.",
+            });
+          }
+          const dataX = [];
+
+          for (let index = 0; index < data.length; index++) {
+            const d = data[index];
+            if (!d) {
+              continue;
+            }
+            if (typeof d != "object") {
+              showNotification({
+                severity: "error",
+                title: "data is not a object",
+                message: `${JSON.stringify(d)} is not object`,
+              });
+              continue;
+            }
+            d[keyNotInTable] = dataX.push(d);
+            if (dataX.length >= maxRow) {
+              break;
+            }
+          }
+          setData(dataX);
+        } else if (fileLower.endsWith(".jsonl")) {
+          const data = [];
+          let line_num = 0;
+          for await (const line of await readTextFileLines(file)) {
+            line_num++;
+            if (!line.trim()) {
+              continue;
+            }
+            let x = JSON.parse(line);
+            if (x && typeof x == "object") {
+              x[keyNotInTable] = line_num;
+              data.push(x);
+
+              if (data.length >= maxRow) {
+                break;
+              }
+            } else {
+              showNotification({
+                severity: "error",
+                title: `line ${line_num} is not object`,
+
+                message: `line content:${line} `,
+              });
+            }
+          }
+          setData(data);
         } else {
           showNotification({ severity: "error", title: "unsupported file type" });
           return [];
@@ -526,30 +585,27 @@ function SqlCreateTableImportFile(props: { kind: DataSourceKind; uuid: string })
         width: "100%",
       }}
       autoSaveId="sql-crete-table-import-from-file">
-      <Panel
-        minSize={10}
-        maxSize={85}
-        collapsible
-        collapsedSize={0}
-        style={{ padding: "2px" }}>
-        <Stack style={{ height: "100%" }}>
+      <Panel minSize={10} collapsible collapsedSize={0} style={{ padding: "2px" }}>
+        <Stack style={{ height: "100%", overflow: "auto" }}>
           <SelectPath path={file} setPath={setFile} required label="import file" />
           {file && (
-            <SqlCreateTable
-              uuid={uuid}
-              kind={kind}
-              fields={fields.map((e): CreateTableReqColumn => {
-                return {
-                  name: e.field,
-                  data_type: e.data_type,
-                  nullable: "unspecified",
-                  primary_key: false,
-                  auto_increment: false,
-                  default_value: null,
-                };
-              })}
-              tableName={tableName}
-            />
+            <div style={{ flex: 1, height: "100px" }}>
+              <SqlCreateTable
+                uuid={uuid}
+                fields={fields.map((e): CreateTableReqColumn => {
+                  return {
+                    name: e.field,
+                    data_type: e.data_type,
+                    nullable: "unspecified",
+                    primary_key: false,
+                    auto_increment: false,
+                    default_value: null,
+                  };
+                })}
+                tableName={tableName}
+                kind={kind}
+              />
+            </div>
           )}
         </Stack>
       </Panel>
@@ -559,6 +615,7 @@ function SqlCreateTableImportFile(props: { kind: DataSourceKind; uuid: string })
       />
       {file && (
         <Panel
+          minSize={10}
           style={{
             overflow: "auto",
             height: "100%",
