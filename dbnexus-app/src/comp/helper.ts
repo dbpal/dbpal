@@ -867,7 +867,32 @@ function createCSV(data: string[]): string {
   );
 }
 
+/**
+ * 判断文件后缀名是否为Excel格式
+ * @param fileName - 文件名或文件路径
+ * @returns 是否为Excel文件
+ */
+function isExcelFile(fileName: string): boolean {
+  // 定义所有Excel支持的后缀名
+  const excelExtensions = [
+    ".xls", // Excel 97-2003
+    ".xlsx", // Excel 2007+
+    ".xlsm", // Excel 启用宏的工作簿
+    ".xlsb", // Excel 二进制工作簿
+    ".xlam", // Excel 加载项
+    ".xltx", // Excel 模板
+    ".xltm", // Excel 启用宏的模板
+  ];
+
+  // 获取文件后缀名（转为小写以支持大小写不敏感）
+  const extension = fileName.substring(fileName.lastIndexOf(".")).toLowerCase();
+
+  // 判断后缀名是否在列表中
+  return excelExtensions.includes(extension);
+}
+
 export {
+  isExcelFile,
   escapeMarkdown,
   createCSV,
   AppColumnMenuKind,

@@ -9,7 +9,7 @@ import {
   Typography,
 } from "@mui/material";
 import ClearIcon from "@mui/icons-material/Clear";
-import { DataSourceKind, resizeHandlerSize } from "./helper";
+import { DataSourceKind, isExcelFile, resizeHandlerSize } from "./helper";
 import {
   CSSProperties,
   RefObject,
@@ -563,6 +563,15 @@ function SqlCreateTableImportFile(props: { kind: DataSourceKind; uuid: string })
             }
           }
           setData(data);
+        } else if (isExcelFile(fileLower)) {
+          const data = await commands.readExcelFilePreview(file, maxRow);
+          setFields(data.fields);
+          data.data.forEach((e, index) => {
+            //@ts-ignore
+            e[keyNotInTable] = index;
+          });
+
+          setData(data.data);
         } else {
           showNotification({ severity: "error", title: "unsupported file type" });
           return [];

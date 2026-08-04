@@ -671,6 +671,15 @@ pub struct ErrorFrontend {
     pub cancelled: bool,
 }
 
+impl From<calamine::Error> for ErrorFrontend {
+    fn from(value: calamine::Error) -> Self {
+        Self {
+            reason: format!("{}", value),
+            detail: format!("{:?}", value),
+            cancelled: false,
+        }
+    }
+}
 impl ErrorFrontend {
     pub(crate) fn cancelled(msg: Option<String>) -> Self {
         Self {

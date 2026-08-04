@@ -1,5 +1,6 @@
 use crate::helper::generate_random_string;
 use crate::language_server::LanguageServer;
+use calamine::Reader;
 use chrono::{DateTime, FixedOffset};
 use core::str;
 use std::any::Any;
@@ -507,6 +508,30 @@ pub trait SchemaTrait:
                             handle_json_map(&map)?;
                         }
                     }
+                    _ if crate::helper::is_excel_file(&path_lower) => {
+                        let mut wb: calamine::Xlsx<std::io::BufReader<std::fs::File>> =
+                            calamine::open_workbook(&para.path)?;
+                        if wb.sheet_names().len() == 0 {
+                            anyhow::bail!("this contains no sheets")
+                        }
+                        let range = wb.worksheet_range(&wb.sheet_names()[0])?;
+                        let mut headers = vec![];
+
+                        for (row_idx, row) in range.rows().enumerate() {
+                            if row_idx == 0 {
+                                headers = row.iter().map(|x| x.to_string()).collect();
+                                continue;
+                            }
+                            let mut values = HashMap::new();
+                            for (index, data) in row.iter().enumerate() {
+                                let f = headers.get(index).map(|name| cols_map.get(name)).flatten();
+                                if f.is_some() {
+                                    values.insert(headers[index].clone(), Some(data.to_string()));
+                                }
+                            }
+                            sender.blocking_send(values)?;
+                        }
+                    }
                     _ => {
                         anyhow::bail!("unsupported file type,only support csv,json,jsonl")
                     }
@@ -800,6 +825,37 @@ pub trait SchemaTrait:
     }
 
     #[cfg(test)]
+    async fn test_table_export_and_import_excel(&self, table: &str) {
+        let file = tempfile::NamedTempFile::with_suffix(".xlsx").unwrap();
+        // test csv
+        let export_kind = ExportKind::Csv {
+            include_header: true,
+            delimiter: ',',
+        };
+        let filepath = file.path().to_str().unwrap().to_owned();
+
+        self.export_table_or_view_to_file(
+            table,
+            None,
+            &filepath,
+            export_kind.clone(),
+            Arc::new(|_| {}),
+        )
+        .await
+        .unwrap();
+
+        self.truncate_table(table).await.unwrap();
+        self.table_import_data_from_file(
+            table,
+            TableImportPara {
+                path: file.path().to_str().unwrap().to_string(),
+            },
+        )
+        .await
+        .unwrap();
+    }
+
+    #[cfg(test)]
     async fn test_table_export_and_import_csv(&self, table: &str) {
         use std::io::Write;
 
@@ -899,7 +955,9 @@ pub trait SchemaTrait:
         self.test_table_export_and_import_csv(table).await;
         self.test_table_export_and_import_json(table).await;
         self.test_table_export_and_import_jsonline(table).await;
-        println!("test export and import json OK.")
+        self.test_table_export_and_import_excel(table).await;
+
+        println!("test export and import OK.")
     }
 }
 

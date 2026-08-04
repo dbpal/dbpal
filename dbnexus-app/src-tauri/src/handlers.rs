@@ -2,6 +2,7 @@ use crate::app::{
     self, name_to_parts, parse_bson_doc, CancelTokenMsg, DBConnectionConfig, DBPal,
     DatabaseBackend, ErrorFrontend, JsUint8Array, MongoShowTablePara, TaskManager,
 };
+use calamine::Reader;
 use dashmap::DashMap;
 use dbnexus_db::cassandra::CassandraDB;
 
@@ -149,6 +150,18 @@ pub async fn get_redis_doc(line: &str) -> Result<String, ErrorFrontend> {
             tokens[0].token
         ))),
     }
+}
+
+#[specta::specta]
+#[tauri::command]
+
+pub async fn read_excel_file_preview(
+    path: String,
+    max_row: u32,
+) -> Result<MuiDataGridData, ErrorFrontend> {
+    MuiDataGridData::preview_excel(&path, max_row)
+        .await
+        .map_err(ErrorFrontend::from)
 }
 
 #[specta::specta]
@@ -3343,6 +3356,53 @@ pub struct MuiDataGridData {
     data: Vec<HashMap<String, String>>,
     sql: Option<String>,
     total: f64,
+}
+
+impl MuiDataGridData {
+    pub async fn preview_excel(path: &str, max_row: u32) -> anyhow::Result<Self> {
+        let max_row = max_row as usize;
+        let path = path.to_owned();
+        tokio::task::spawn_blocking(move || {
+            let mut wb: calamine::Xlsx<std::io::BufReader<std::fs::File>> =
+                calamine::open_workbook(path)?;
+            if wb.sheet_names().len() == 0 {
+                anyhow::bail!("this excel file don't contains any sheet")
+            }
+            let sheet_name = &wb.sheet_names()[0];
+
+            let range = wb.worksheet_range(sheet_name).unwrap();
+
+            let mut headers = vec![];
+            let mut data = vec![];
+
+            for (row_idx, row) in range.rows().enumerate() {
+                if row_idx == 0 {
+                    headers = row
+                        .iter()
+                        .map(|x| Field::from_name_type(x.to_string(), ""))
+                        .collect();
+                    continue;
+                }
+
+                let mut values = HashMap::new();
+
+                for (h, v) in headers.iter().zip(row.iter().map(|x| x.to_string())) {
+                    values.insert(h.field.clone(), v);
+                }
+                data.push(values);
+                if data.len() >= max_row {
+                    break;
+                }
+            }
+            anyhow::Ok(Self {
+                fields: headers,
+                data,
+                sql: None,
+                total: 0f64,
+            })
+        })
+        .await?
+    }
 }
 
 impl From<QueryResp> for MuiDataGridData {

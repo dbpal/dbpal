@@ -1,5 +1,6 @@
 use std::{io::BufRead, vec};
 
+use calamine::Reader;
 use sqlparser::ast::{ArrayElemTypeDef, DataType};
 
 use crate::db::{BackendKind, Field};
@@ -543,6 +544,54 @@ pub(crate) fn extract_null_able(x: &DataType) -> &DataType {
 }
 
 impl BackendKind {
+    pub fn infer_excel(&self, path: &str) -> anyhow::Result<Vec<Field>> {
+        let mut wb: calamine::Xlsx<std::io::BufReader<std::fs::File>> =
+            calamine::open_workbook(path)?;
+        let sheet_name = &wb.sheet_names()[0];
+        let range = wb.worksheet_range(sheet_name)?;
+        // collect headers
+
+        let mut headers = vec![];
+        for (row_idx, row) in range.rows().enumerate() {
+            if row_idx == 0 {
+                headers = row.iter().map(|x| x.to_string()).collect();
+                continue;
+            }
+            if row_idx == 1 {
+                // infer data from data
+                let mut tys = Vec::new();
+                for r in row.iter() {
+                    let ty = self.infer_excel_data(r)?;
+                    tys.push(ty);
+                }
+
+                return anyhow::Ok(
+                    headers
+                        .into_iter()
+                        .zip(tys.into_iter())
+                        .map(|(field, ty)| Field::from_name_type(field, ty))
+                        .collect(),
+                );
+            }
+        }
+        anyhow::Ok(Default::default())
+    }
+
+    pub fn infer_excel_data(&self, data: &calamine::Data) -> anyhow::Result<String> {
+        //csv impl somehow we delegate the csv implementation
+        self.map_csv_dtype(&match data {
+            calamine::Data::Int(_) => csv_processor::Dtype::Integer,
+            calamine::Data::Float(_) => csv_processor::Dtype::Float,
+            calamine::Data::String(_) => csv_processor::Dtype::Str,
+            calamine::Data::Bool(_) => csv_processor::Dtype::Boolean,
+            calamine::Data::DateTime(..)
+            | calamine::Data::DateTimeIso(_)
+            | calamine::Data::DurationIso(_) => csv_processor::Dtype::DateTime,
+            calamine::Data::Error(..) => csv_processor::Dtype::Str,
+            calamine::Data::Empty => csv_processor::Dtype::Str,
+        })
+    }
+
     pub async fn infer_fields(self, path: &str) -> anyhow::Result<Vec<Field>> {
         let path = path.to_owned();
         tokio::task::spawn_blocking(move || {
@@ -554,6 +603,8 @@ impl BackendKind {
                 self.infer_json(&path)
             } else if path_lower.ends_with(".jsonl") {
                 self.infer_jsonline(&path)
+            } else if is_excel_file(&path_lower) {
+                self.infer_excel(&path)
             } else {
                 anyhow::bail!(format!("unsupported file type:{}", path))
             }
@@ -956,6 +1007,18 @@ impl BackendKind {
     }
 }
 
+/// 判断文件后缀名是否为 Excel 文件
+/// 支持: .xlsx, .xls, .xlsb, .xlsm, .ods
+pub(crate) fn is_excel_file(filename: &str) -> bool {
+    let excel_extensions = ["xlsx", "xls", "xlsb", "xlsm", "ods"];
+
+    filename
+        .rsplit('.')
+        .next()
+        .map(|ext| excel_extensions.contains(&ext.to_lowercase().as_str()))
+        .unwrap_or(false)
+}
+
 impl BackendKind {
     /// 核心職責分離：根據當前資料庫與 CSV 推導出的型態，返回該資料庫最適合的欄位型態名稱
     pub fn map_csv_dtype(&self, csv_dtype: &csv_processor::Dtype) -> anyhow::Result<String> {
@@ -1064,6 +1127,8 @@ impl BackendKind {
 
 #[cfg(test)]
 mod tests {
+    use calamine::{open_workbook, Reader};
+
     use crate::db::{BackendKindMysql, BackendKindPostGres};
 
     use super::*;
@@ -1132,5 +1197,39 @@ mod tests {
     fn test_current_timestamp() {
         let x = current_timestamp();
         println!("{}", x);
+    }
+
+    #[ignore = "this file may not exist"]
+    #[test]
+
+    fn test_read_xlsx() {
+        let mut wb: calamine::Xlsx<std::io::BufReader<std::fs::File>> =
+            open_workbook("/home/yuyang/Downloads/Persons_20260804T220634.xlsx").unwrap();
+
+        let sheet_name = &wb.sheet_names()[0];
+
+        let range = wb.worksheet_range(sheet_name).unwrap();
+
+        for (row_idx, row) in range.rows().enumerate() {
+            // 跳过表头（假设第一行是表头）
+            if row_idx == 0 {
+                // 打印表头
+                let headers: Vec<String> = row.iter().map(|cell| cell.to_string()).collect();
+                println!("表头: {:?}", headers);
+                continue;
+            }
+
+            // 处理数据行
+            let row_data: Vec<String> = row.iter().map(|cell| cell.to_string()).collect();
+            println!("第 {} 行: {:?}", row_idx, row_data);
+
+            // 或者按列索引获取具体值
+            if let Some(name) = row.get(0) {
+                println!("姓名: {}", name);
+            }
+            if let Some(age) = row.get(1) {
+                println!("年龄: {}", age);
+            }
+        }
     }
 }
