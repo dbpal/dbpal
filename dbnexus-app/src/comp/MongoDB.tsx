@@ -341,6 +341,7 @@ function MongoBsonEditor(props: {
 
                       return true;
                     }
+
                     return isEqual(x, doc);
                   })()}
                   onClick={() => {

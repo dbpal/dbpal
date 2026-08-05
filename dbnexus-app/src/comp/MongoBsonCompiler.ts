@@ -816,8 +816,7 @@ function quoteString(quote: string): string {
     const s = d + quote + d;
     try {
       return [s, (tokenize(s) as Token[]).length == 1];
-    } catch (e) {
-      console.log("quote string error", e);
+    } catch {
       return [s, false];
     }
   };
