@@ -533,7 +533,7 @@ pub trait SchemaTrait:
                         }
                     }
                     _ => {
-                        anyhow::bail!("unsupported file type,only support csv,json,jsonl")
+                        anyhow::bail!("unsupported file type,only support csv,json,jsonl,xlsx etc.")
                     }
                 }
                 anyhow::Ok(())
@@ -826,29 +826,23 @@ pub trait SchemaTrait:
 
     #[cfg(test)]
     async fn test_table_export_and_import_excel(&self, table: &str) {
-        let file = tempfile::NamedTempFile::with_suffix(".xlsx").unwrap();
-        // test csv
-        let export_kind = ExportKind::Csv {
-            include_header: true,
-            delimiter: ',',
-        };
-        let filepath = file.path().to_str().unwrap().to_owned();
+        let mut file = tempfile::NamedTempFile::with_suffix(".xlsx").unwrap();
+        let file = file.path().to_str().unwrap();
 
-        self.export_table_or_view_to_file(
-            table,
-            None,
-            &filepath,
-            export_kind.clone(),
-            Arc::new(|_| {}),
-        )
-        .await
-        .unwrap();
+        // test csv
+        let export_kind = ExportKind::Xlsx {
+            include_header: true,
+        };
+
+        self.export_table_or_view_to_file(table, None, file, export_kind.clone(), Arc::new(|_| {}))
+            .await
+            .unwrap();
 
         self.truncate_table(table).await.unwrap();
         self.table_import_data_from_file(
             table,
             TableImportPara {
-                path: file.path().to_str().unwrap().to_string(),
+                path: file.to_string(),
             },
         )
         .await
@@ -2095,7 +2089,6 @@ pub(crate) async fn write_export_file(
                             anyhow::bail!(format!("this should be xlsx edit,but:{:?}", edit))
                         }
                     };
-
                     total += edit.content.len();
                     if time_elapsed.elapsed() {
                         emit(total)

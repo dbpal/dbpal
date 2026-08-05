@@ -1204,7 +1204,7 @@ mod tests {
 
     fn test_read_xlsx() {
         let mut wb: calamine::Xlsx<std::io::BufReader<std::fs::File>> =
-            open_workbook("/home/yuyang/Downloads/Persons_20260804T220634.xlsx").unwrap();
+            open_workbook("/home/yuyang/Downloads/test.xlsx").unwrap();
 
         let sheet_name = &wb.sheet_names()[0];
 
