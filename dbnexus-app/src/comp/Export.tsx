@@ -88,6 +88,8 @@ function ExportView(props: {
           include_header: includeHeader,
           delimiter: delimiter,
         };
+      case "tsv":
+        return { export_kind: "csv", include_header: includeHeader, delimiter: "\t" };
       case "sql":
         return { export_kind: "sql", include_table_schema: includeTableSchema };
       case "json":
@@ -152,25 +154,28 @@ function ExportView(props: {
           />
         ))}
       </Stack>
-      {exportKind == "csv" && (
+      {["csv", "tsv"].includes(exportKind) && (
         <Stack>
           <IncludeHeader
             includeHeader={includeHeader}
             setIncludeHeader={setIncludeHeader}
           />
-          <Stack direction="row">
-            <TextField
-              value={delimiter}
-              onChange={(e) => {
-                setDelimiter(e.target.value);
-              }}
-              label="delimiter"
-              error={delimiter.length > 1}
-              helperText="only accept one character"
-            />
-          </Stack>
+          {exportKind == "csv" && (
+            <Stack direction="row">
+              <TextField
+                value={delimiter}
+                onChange={(e) => {
+                  setDelimiter(e.target.value);
+                }}
+                label="delimiter"
+                error={delimiter.length > 1}
+                helperText="only accept one character"
+              />
+            </Stack>
+          )}
         </Stack>
       )}
+
       {exportKind == "xlsx" && (
         <Stack>
           <IncludeHeader

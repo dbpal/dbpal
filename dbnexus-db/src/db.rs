@@ -826,7 +826,7 @@ pub trait SchemaTrait:
 
     #[cfg(test)]
     async fn test_table_export_and_import_excel(&self, table: &str) {
-        let mut file = tempfile::NamedTempFile::with_suffix(".xlsx").unwrap();
+        let file = tempfile::NamedTempFile::with_suffix(".xlsx").unwrap();
         let file = file.path().to_str().unwrap();
 
         // test csv
@@ -2075,7 +2075,7 @@ pub(crate) async fn write_export_file(
             emit(total);
             anyhow::Ok(())
         }
-        ExportKind::Xlsx { .. } => {
+        ExportKind::Xlsx { include_header } => {
             let filepath = filepath.to_string();
             let emit = emit.clone();
             spawn_blocking(move || {
@@ -2093,7 +2093,17 @@ pub(crate) async fn write_export_file(
                     if time_elapsed.elapsed() {
                         emit(total)
                     }
-                    worksheet.write_string(edit.row, edit.column, edit.content)?;
+                    let header_format = rust_xlsxwriter::Format::new().set_bold();
+                    if include_header && edit.row == 0 {
+                        worksheet.write_string_with_format(
+                            edit.row,
+                            edit.column,
+                            edit.content,
+                            &header_format,
+                        )?;
+                    } else {
+                        worksheet.write_string(edit.row, edit.column, edit.content)?;
+                    }
                 }
                 workbook.save(filepath)?;
                 emit(total);

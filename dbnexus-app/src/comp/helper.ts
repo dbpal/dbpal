@@ -366,15 +366,22 @@ class ColorFn {
 }
 
 function getSupportExportKind(kind: DataSourceKind, isTable: boolean) {
+  let r = [];
   switch (kind) {
     case DataSourceKind.Mongo:
     case DataSourceKind.CouchBase:
-      return ["json", "jsonline"];
+      r = ["json", "jsonline"];
+      break;
     default:
-      return isTable
+      r = isTable
         ? ["csv", "sql", "json", "jsonline", "xlsx", "html", "markdown"]
         : ["csv", "json", "jsonline", "xlsx", "html", "markdown"];
+      break;
   }
+  if (-1 != r.indexOf("csv")) {
+    r = ["tsv", ...r];
+  }
+  return r;
 }
 
 function generateDefaultFilename(name: string, extension: string) {
