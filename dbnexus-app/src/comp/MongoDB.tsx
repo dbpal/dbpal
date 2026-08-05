@@ -18,7 +18,6 @@ import {
   Typography,
 } from "@mui/material";
 import * as monaco from "monaco-editor";
-import MongoBsonWorker from "./MongoBsonWorker.ts?worker";
 
 import ListIcon from "@mui/icons-material/List";
 import { editor, languages } from "monaco-editor";
@@ -76,7 +75,6 @@ import {
   MonacoEditor,
   extractFieldAndIDFromMouseEvent,
   DataSourceKind,
-  StupidIMarker,
   AppColumnMenuCtx,
   AppColumnMenuKind,
   columnHeaderStyle,
@@ -122,18 +120,6 @@ import {
 import { useDebounce } from "use-debounce";
 import { isEqual } from "lodash-es";
 
-const bsonWorker = new MongoBsonWorker();
-
-bsonWorker.onmessage = (e: MessageEvent<{ id: string; markers: StupidIMarker[] }>) => {
-  const { id, markers } = e.data;
-  const model = monaco.editor.getModels().find((e) => e.id == id);
-  if (model) {
-    markers.forEach((e) => {
-      e.resource = model.uri;
-    });
-    monaco.editor.setModelMarkers(model, mongoBsonCompilerOwner, markers);
-  }
-};
 const mongoID = "_id";
 
 const mongoBsonKeywords =
@@ -314,16 +300,6 @@ function MongoBsonEditor(props: {
 
   const [editorValueDebounced] = useDebounce(editorValue, 1000);
 
-  useEffect(() => {
-    if (!editor.current) {
-      return;
-    }
-    bsonWorker.postMessage({
-      code: editorValueDebounced,
-      id: editor.current.getModel().id,
-    });
-  }, [editorValueDebounced]);
-
   return (
     <Stack style={{ flex: 1 }}>
       <div
@@ -343,7 +319,26 @@ function MongoBsonEditor(props: {
                     let x = undefined;
                     try {
                       x = parseMongoBson(editorValueDebounced).compile();
-                    } catch {
+                    } catch (e) {
+                      if (e instanceof MongoBsonError) {
+                        monaco.editor.setModelMarkers(
+                          editor.current.getModel(),
+                          mongoBsonCompilerOwner,
+                          [
+                            {
+                              severity: 8,
+                              message: e.msg,
+                              startLineNumber: e?.loc.start.line,
+                              startColumn: e?.loc.start.column + 1,
+                              endLineNumber: e?.loc.end.line,
+                              endColumn: e?.loc.end.column + 1,
+                            },
+                          ],
+                        );
+                      } else {
+                        console.error("compile should not throw other error", e);
+                      }
+
                       return true;
                     }
                     return isEqual(x, doc);
