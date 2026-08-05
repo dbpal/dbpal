@@ -19,7 +19,8 @@ import ArrowCircleDownIcon from "@mui/icons-material/ArrowCircleDown";
 import { IoConstructOutline } from "react-icons/io5";
 import { HiOutlineDuplicate } from "react-icons/hi";
 import FilterAltIcon from "@mui/icons-material/FilterAlt";
-
+import UploadIcon from "@mui/icons-material/Upload";
+import CreateIcon from "@mui/icons-material/Create";
 import {
   Box,
   Button,
@@ -88,7 +89,6 @@ import {
 } from "./store.tsx";
 import { commands, Field, ListTable, RedisListTableRet } from "./bindings.ts";
 import { SqlCreateTable, SqlCreateTableImportFile } from "./CreateTable.tsx";
-import { IoIosCreate } from "react-icons/io";
 
 function TablesTree() {
   const { uuid, kind } = useContext(UuidContext);
@@ -158,15 +158,11 @@ function TablesTree() {
                         onClick={() => {
                           const content = <SqlCreateTable kind={kind} uuid={uuid} />;
                           appendTab(
-                            new TabContent(
-                              `create table`,
-                              content,
-                              <IoIosCreate> </IoIosCreate>,
-                            ),
+                            new TabContent(`create table`, content, <CreateIcon />),
                           );
                         }}>
                         <ListItemIcon>
-                          <IoIosCreate />
+                          <CreateIcon />
                         </ListItemIcon>
                         <ListItemText>create table </ListItemText>
                       </MenuItem>
@@ -177,14 +173,12 @@ function TablesTree() {
                             <SqlCreateTableImportFile kind={kind} uuid={uuid} />
                           );
                           appendTab(
-                            new TabContent(
-                              `create table`,
-                              content,
-                              <IoIosCreate> </IoIosCreate>,
-                            ),
+                            new TabContent(`create table`, content, <UploadIcon />),
                           );
                         }}>
-                        <ListItemIcon>{/* <IoIosCreate /> */}</ListItemIcon>
+                        <ListItemIcon>
+                          <UploadIcon />
+                        </ListItemIcon>
                         <ListItemText>create table import file</ListItemText>
                       </MenuItem>
                     </>

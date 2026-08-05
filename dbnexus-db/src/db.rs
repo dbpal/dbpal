@@ -424,6 +424,9 @@ pub trait SchemaTrait:
         table: &str,
         para: TableImportPara,
     ) -> anyhow::Result<()> {
+        if !self.table_exists(table).await? {
+            anyhow::bail!(format!("table '{}' not exists", table))
+        }
         let (sender, mut receiver) =
             tokio::sync::mpsc::channel::<HashMap<String, Option<String>>>(10);
 
