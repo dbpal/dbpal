@@ -24,7 +24,14 @@ import {
   SliderSize,
   ToggleChatShow,
 } from "./CommonComp2.tsx";
-import { ReactNode, useCallback, useContext, useEffect, useState } from "react";
+import {
+  ReactNode,
+  useCallback,
+  useContext,
+  useEffect,
+  useMemo,
+  useState,
+} from "react";
 import {
   DataSourceKind,
   getEditorText,
@@ -60,6 +67,8 @@ import {
 } from "./store.tsx";
 import { commands, Field, MuiDataGridData, QueryEvent } from "./bindings.ts";
 import { AddTableModal } from "./LeftTable.tsx";
+import { useDebounce } from "use-debounce";
+import { isEqual } from "lodash-es";
 
 type Data = {
   data: { data: string; id: string }[];
@@ -351,7 +360,7 @@ function CouchBaseEditor(props: {
   const { showNotification } = useNotification();
   const [newValue, setNewValue] = useState(value);
   const [loading, setLoading] = useState(false);
-  const [changed, setChanged] = useState(false);
+  const [newValueD] = useDebounce(newValue, 1000);
   const doModify = async () => {
     if (warnModify) {
       const confirm = await secondConfirm({ title: "sure to modify?" });
@@ -363,7 +372,6 @@ function CouchBaseEditor(props: {
     handleValue(newValue)
       .then(() => {
         showNotification({ severity: "success", title: `${modifyName} OK` });
-        setChanged(false);
       })
       .catch((e) => {
         showNotification({
@@ -376,6 +384,9 @@ function CouchBaseEditor(props: {
         setLoading(false);
       });
   };
+  const oldObject = useMemo(() => {
+    return JSON.parse(value);
+  }, [value]);
   const doDelete = handleDelete
     ? async () => {
         const confirm = await secondConfirm({ title: "sure to delete?" });
@@ -406,7 +417,6 @@ function CouchBaseEditor(props: {
         value={newValue}
         handleValue={async (newValue) => {
           setNewValue(newValue);
-          setChanged(true);
         }}
         language="json"
       />
@@ -415,6 +425,15 @@ function CouchBaseEditor(props: {
         {doModify && (
           <>
             <IconButton
+              disabled={(function () {
+                let x;
+                try {
+                  x = JSON.parse(newValueD);
+                } catch {
+                  return true;
+                }
+                return isEqual(oldObject, x);
+              })()}
               onClick={() => {
                 doModify();
               }}
@@ -445,7 +464,6 @@ function CouchBaseEditor(props: {
             </Typography>
           </Tooltip>
         )}
-        {changed && <Typography color="warning"> modified </Typography>}
       </Stack>
     </Stack>
   );

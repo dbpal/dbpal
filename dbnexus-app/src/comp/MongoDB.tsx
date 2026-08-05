@@ -120,6 +120,7 @@ import {
   useGridApiRef,
 } from "./datagridExport";
 import { useDebounce } from "use-debounce";
+import { isEqual } from "lodash-es";
 
 const bsonWorker = new MongoBsonWorker();
 
@@ -322,6 +323,7 @@ function MongoBsonEditor(props: {
       id: editor.current.getModel().id,
     });
   }, [editorValueDebounced]);
+
   return (
     <Stack style={{ flex: 1 }}>
       <div
@@ -337,6 +339,15 @@ function MongoBsonEditor(props: {
               {setOP && (
                 <IconButton
                   loading={loading}
+                  disabled={(function () {
+                    let x = undefined;
+                    try {
+                      x = parseMongoBson(editorValueDebounced).compile();
+                    } catch {
+                      return true;
+                    }
+                    return isEqual(x, doc);
+                  })()}
                   onClick={() => {
                     setLoading(true);
                     let doc = undefined;
@@ -848,6 +859,11 @@ function JsonEditor(props: {
   const { value, modifyOP, delOP } = props;
   const [newValue, setNewValue] = useState(value);
   const [loading, setLoading] = useState(false);
+  const [newValueD] = useDebounce(newValue, 2000);
+
+  let oldObject = useMemo(() => {
+    return EJSON.parse(value);
+  }, [value]);
 
   return (
     <SimpleFlexEditor
@@ -866,6 +882,15 @@ function JsonEditor(props: {
                 setLoading(false);
               });
             }}
+            disabled={(function (): boolean {
+              let x: object = null;
+              try {
+                x = EJSON.parse(newValueD);
+              } catch {
+                return true;
+              }
+              return isEqual(x, oldObject);
+            })()}
             loading={loading}>
             <FaUpload />
           </IconButton>
