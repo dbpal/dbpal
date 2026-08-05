@@ -187,6 +187,8 @@ pub struct ShowTableParameter {
 #[derive(serde::Deserialize, Clone, Debug, specta::Type)]
 pub struct TableImportPara {
     pub path: String,
+    #[serde(default)]
+    pub mongo_data: Option<Vec<JsUint8Array>>,
 }
 
 impl ShowTableParameter {
@@ -846,6 +848,7 @@ pub trait SchemaTrait:
             table,
             TableImportPara {
                 path: file.to_string(),
+                mongo_data: None,
             },
         )
         .await
@@ -875,6 +878,7 @@ pub trait SchemaTrait:
             table,
             TableImportPara {
                 path: file.path().to_str().unwrap().to_string(),
+                mongo_data: None,
             },
         )
         .await
@@ -897,6 +901,8 @@ pub trait SchemaTrait:
             .await
             .unwrap();
 
+        println!("json str:{}", json_str);
+
         file.write_all(json_str.as_bytes()).unwrap();
 
         self.truncate_table(table).await.unwrap();
@@ -904,6 +910,7 @@ pub trait SchemaTrait:
             table,
             TableImportPara {
                 path: file.path().to_str().unwrap().to_string(),
+                mongo_data: None,
             },
         )
         .await
@@ -934,6 +941,7 @@ pub trait SchemaTrait:
             table,
             TableImportPara {
                 path: file.path().to_str().unwrap().to_string(),
+                mongo_data: None,
             },
         )
         .await
@@ -2924,4 +2932,22 @@ pub trait ExtractSqlValeFromJsonValue {
         value: &serde_json::Value,
         ty: &str,
     ) -> anyhow::Result<Option<String>>;
+}
+
+#[derive(serde::Serialize, serde::Deserialize, Debug, Clone)]
+#[serde(transparent)]
+pub struct JsUint8Array(pub Vec<u8>);
+
+impl specta::Type for JsUint8Array {
+    fn definition(_: &mut specta::Types) -> specta::datatype::DataType {
+        specta::datatype::DataType::Reference(specta_typescript::define("Uint8Array"))
+    }
+}
+
+impl Deref for JsUint8Array {
+    type Target = Vec<u8>;
+
+    fn deref(&self) -> &Self::Target {
+        &self.0
+    }
 }

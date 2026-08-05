@@ -7,16 +7,14 @@ use dbnexus_db::datasource_config::{
 };
 use dbnexus_db::db::{
     BackendKind, BackendKindMysql, BackendKindPostGres, CatalogTrait, CheckConn, DBTrait,
-    ExportQueryResult, QuerySql, SchemaTrait, ServerMetas,
+    ExportQueryResult, JsUint8Array, QuerySql, SchemaTrait, ServerMetas,
 };
 use dbnexus_db::language_server::LanguageServer;
 use dbnexus_db::mongo::MongoDB;
 use dbnexus_db::mysql::MysqlDB;
 use dbnexus_db::pg::PostGresDB;
 use font_kit::error::SelectionError;
-use specta::datatype::DataType;
 use std::any::Any;
-use std::ops::Deref;
 
 use mongodb::bson::{self, Document};
 use std::collections::HashMap;
@@ -837,24 +835,6 @@ impl TaskManager {
                 manager: self.clone(),
             },
         )
-    }
-}
-
-#[derive(serde::Serialize, serde::Deserialize, Debug, Clone)]
-#[serde(transparent)]
-pub struct JsUint8Array(Vec<u8>);
-
-impl specta::Type for JsUint8Array {
-    fn definition(_: &mut specta::Types) -> DataType {
-        DataType::Reference(specta_typescript::define("Uint8Array"))
-    }
-}
-
-impl Deref for JsUint8Array {
-    type Target = Vec<u8>;
-
-    fn deref(&self) -> &Self::Target {
-        &self.0
     }
 }
 

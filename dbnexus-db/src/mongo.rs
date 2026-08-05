@@ -550,6 +550,18 @@ impl ExtractSqlValeFromJsonValue for MongoDB {
 
 #[async_trait::async_trait]
 impl SchemaTrait for MongoDB {
+    async fn table_import_data_from_file(
+        &self,
+        table: &str,
+        para: crate::db::TableImportPara,
+    ) -> anyhow::Result<()> {
+        let db = self.get_db().await?;
+        for d in para.mongo_data.as_ref().map(|x| &x[..]).unwrap_or(&[]) {
+            let values: bson::Document = bson::from_slice(&d)?;
+            db.collection(table).insert_one(values).await?;
+        }
+        anyhow::Ok(())
+    }
     async fn list_data_types(&self) -> anyhow::Result<Vec<String>> {
         anyhow::Ok(vec![])
     }

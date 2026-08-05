@@ -628,6 +628,7 @@ export type SqliteDBConfig = {
 
 export type TableImportPara = {
 	path: string,
+	mongo_data?: Uint8Array[] | null,
 };
 
 export type TriggerDetail = {

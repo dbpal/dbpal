@@ -42,6 +42,7 @@ tokio-stream = { version = "0.1.17", features = ["io-util"] }
 rust_xlsxwriter.workspace = true
 dashmap.workspace = true
 hex.workspace = true
+specta-typescript.workspace = true
 mac_address = "1.1.5"
 ipnetwork = "0.21"
 chrono = "0.4.34"

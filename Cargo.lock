@@ -2229,6 +2229,7 @@ dependencies = [
  "shlex",
  "snowflake-connector-rs",
  "specta",
+ "specta-typescript",
  "sqlparser",
  "sqlx",
  "sqlx-core",

@@ -1,6 +1,6 @@
 use crate::app::{
     self, name_to_parts, parse_bson_doc, CancelTokenMsg, DBConnectionConfig, DBPal,
-    DatabaseBackend, ErrorFrontend, JsUint8Array, MongoShowTablePara, TaskManager,
+    DatabaseBackend, ErrorFrontend, MongoShowTablePara, TaskManager,
 };
 use calamine::Reader;
 use dashmap::DashMap;
@@ -9,9 +9,9 @@ use dbnexus_db::cassandra::CassandraDB;
 use dbnexus_db::db::{
     quote_sql_str, ColumnType, CreateDatabaseExtra, CreateIndexReq, CreateSchemaExtra,
     CreateTableAndIndexSql, CreateTableReq, CreatedTypeDef, DefAndMetas, ExportKind, Field, Index,
-    ListTable, MetaValue, NamedStaff, OptionMustBeSomeErr, ProcedureDetail, QueryEventEmit,
-    QueryResp, SequenceDetail, ShowTableParameter, SqlEvent, TableImportPara, TimeElapsed,
-    TriggerDetail, XlsxEdit,
+    JsUint8Array, ListTable, MetaValue, NamedStaff, OptionMustBeSomeErr, ProcedureDetail,
+    QueryEventEmit, QueryResp, SequenceDetail, ShowTableParameter, SqlEvent, TableImportPara,
+    TimeElapsed, TriggerDetail, XlsxEdit,
 };
 use dbnexus_db::language_server::CompletionList;
 use dbnexus_db::mongo::MongoDB;

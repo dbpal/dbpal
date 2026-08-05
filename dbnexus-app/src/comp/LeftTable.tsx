@@ -88,7 +88,11 @@ import {
   useOneShotDialogUI,
 } from "./store.tsx";
 import { commands, Field, ListTable, RedisListTableRet } from "./bindings.ts";
-import { SqlCreateTable, SqlCreateTableImportFile } from "./CreateTable.tsx";
+import {
+  MongoCreateTableImportFile,
+  SqlCreateTable,
+  SqlCreateTableImportFile,
+} from "./CreateTable.tsx";
 
 function TablesTree() {
   const { uuid, kind } = useContext(UuidContext);
@@ -150,39 +154,40 @@ function TablesTree() {
               <MenuList>
                 <MenuRefresh reload={handleReload} />
 
-                {kind != DataSourceKind.Redis &&
-                  kind != DataSourceKind.Mongo &&
-                  kind != DataSourceKind.CouchBase && (
-                    <>
-                      <MenuItem
-                        onClick={() => {
-                          const content = <SqlCreateTable kind={kind} uuid={uuid} />;
-                          appendTab(
-                            new TabContent(`create table`, content, <CreateIcon />),
-                          );
-                        }}>
-                        <ListItemIcon>
-                          <CreateIcon />
-                        </ListItemIcon>
-                        <ListItemText>create table </ListItemText>
-                      </MenuItem>
+                {kind != DataSourceKind.Redis && kind != DataSourceKind.CouchBase && (
+                  <>
+                    <MenuItem
+                      onClick={() => {
+                        const content = <SqlCreateTable kind={kind} uuid={uuid} />;
+                        appendTab(
+                          new TabContent(`create table`, content, <CreateIcon />),
+                        );
+                      }}>
+                      <ListItemIcon>
+                        <CreateIcon />
+                      </ListItemIcon>
+                      <ListItemText>create table </ListItemText>
+                    </MenuItem>
 
-                      <MenuItem
-                        onClick={() => {
-                          const content = (
-                            <SqlCreateTableImportFile kind={kind} uuid={uuid} />
-                          );
-                          appendTab(
-                            new TabContent(`create table`, content, <UploadIcon />),
-                          );
-                        }}>
-                        <ListItemIcon>
-                          <UploadIcon />
-                        </ListItemIcon>
-                        <ListItemText>create table import file</ListItemText>
-                      </MenuItem>
-                    </>
-                  )}
+                    <MenuItem
+                      onClick={() => {
+                        let content = (
+                          <SqlCreateTableImportFile kind={kind} uuid={uuid} />
+                        );
+                        if (kind == DataSourceKind.Mongo) {
+                          content = <MongoCreateTableImportFile uuid={uuid} />;
+                        }
+                        appendTab(
+                          new TabContent(`create table`, content, <UploadIcon />),
+                        );
+                      }}>
+                      <ListItemIcon>
+                        <UploadIcon />
+                      </ListItemIcon>
+                      <ListItemText>create table import file</ListItemText>
+                    </MenuItem>
+                  </>
+                )}
               </MenuList>
             ),
             event: e,

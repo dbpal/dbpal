@@ -48,6 +48,7 @@ import { SelectPath } from "./CommonComp";
 import Papa from "papaparse";
 import { DataGrid } from "@mui/x-data-grid";
 import { readTextFile, readTextFileLines } from "@tauri-apps/plugin-fs";
+import { BSON, EJSON } from "bson";
 
 function SqlCreateTable(props: {
   uuid: string;
@@ -708,6 +709,7 @@ function SqlCreateTableImportFile(props: { kind: DataSourceKind; uuid: string })
                     try {
                       await commands.tableImportFromFile(uuid, tableName.current, {
                         path: file,
+                        mongo_data: null,
                       });
                       showNotification({
                         severity: "success",
@@ -743,4 +745,135 @@ function SqlCreateTableImportFile(props: { kind: DataSourceKind; uuid: string })
   );
 }
 
-export { SqlCreateTable, SqlCreateTableImportFile };
+function MongoCreateTableImportFile(props: { uuid: string }) {
+  const { uuid } = props;
+  const [file, setFile] = useState("");
+  const { showNotification } = useNotification();
+  const [data, setData] = useState<string[]>([]);
+  const [tableName, setTableName] = useState("");
+  const [loading, setLoading] = useState(false);
+
+  const maxRow = 10;
+
+  useEffect(() => {
+    (async () => {
+      try {
+        if (!file) {
+          return;
+        }
+
+        let fileLower = file.toLowerCase();
+        if (fileLower.endsWith(".jsonl")) {
+          const data = [];
+          let line_num = 0;
+          for await (const line of await readTextFileLines(file)) {
+            line_num++;
+            if (!line.trim()) {
+              continue;
+            }
+            let obj = EJSON.parse(line);
+            if (obj && typeof obj == "object") {
+              data.push(EJSON.stringify(obj, null, 2));
+              if (data.length >= maxRow) {
+                break;
+              }
+            } else {
+              showNotification({
+                severity: "error",
+                title: `line ${line_num} is not object`,
+                message: `line content:${line} `,
+              });
+            }
+          }
+          setData(data);
+        } else {
+          showNotification({ severity: "error", title: "unsupported file type" });
+          return [];
+        }
+      } catch (e) {
+        showNotification({
+          severity: "error",
+          title: "handle data failed",
+          message: e,
+        });
+      }
+    })();
+  }, [file, showNotification]);
+
+  const makeData = useCallback(async (): Promise<Uint8Array<ArrayBufferLike>[]> => {
+    const pathLower = file.toLocaleLowerCase();
+
+    if (pathLower.endsWith(".jsonl")) {
+      let ret = [];
+      for await (const line of await readTextFileLines(file)) {
+        ret.push(BSON.serialize(EJSON.parse(line)));
+      }
+      return ret;
+    } else {
+      showNotification({ severity: "error", title: "unsupported file type" });
+    }
+  }, [file, showNotification]);
+
+  return (
+    <Stack
+      style={{
+        height: "100%",
+        width: "100%",
+        overflow: "auto",
+      }}>
+      <Stack direction="row">
+        <IconButton
+          loading={loading}
+          onClick={async () => {
+            try {
+              if (!tableName) {
+                showNotification({
+                  severity: "error",
+                  message: "table name is not set",
+                });
+                return;
+              }
+              let data = await makeData();
+              if (!data) {
+                return;
+              }
+              setLoading(true);
+              await commands.tableImportFromFile(uuid, tableName, {
+                path: file,
+                mongo_data: data,
+              });
+              showNotification({ severity: "success", title: "upload data ok" });
+            } catch (e) {
+              showNotification({
+                severity: "error",
+                title: "upload data failed",
+                message: e,
+              });
+            } finally {
+              setLoading(false);
+            }
+          }}>
+          <UploadIcon />
+        </IconButton>
+        <ClearableTextField
+          value={tableName}
+          onChange={(e) => {
+            setTableName(e.target.value);
+          }}
+          onClear={() => {
+            setTableName("");
+          }}
+          style={{ flex: 1 }}
+          label="table name"
+        />
+        <SelectPath path={file} setPath={setFile} required label="import file" />
+      </Stack>
+
+      {data.map((x, index) => (
+        <AppCode codeBlock={x} language="json" key={index} />
+      ))}
+    </Stack>
+  );
+}
+
+export { SqlCreateTable, SqlCreateTableImportFile, MongoCreateTableImportFile };

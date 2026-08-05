@@ -2441,6 +2441,7 @@ pub(crate) mod test_impls {
                 table_name,
                 TableImportPara {
                     path: file.path().to_str().unwrap().to_owned(),
+                    mongo_data: None,
                 },
             )
             .await;
