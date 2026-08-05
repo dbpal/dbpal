@@ -156,18 +156,20 @@ function TablesTree() {
 
                 {kind != DataSourceKind.Redis && kind != DataSourceKind.CouchBase && (
                   <>
-                    <MenuItem
-                      onClick={() => {
-                        const content = <SqlCreateTable kind={kind} uuid={uuid} />;
-                        appendTab(
-                          new TabContent(`create table`, content, <CreateIcon />),
-                        );
-                      }}>
-                      <ListItemIcon>
-                        <CreateIcon />
-                      </ListItemIcon>
-                      <ListItemText>create table </ListItemText>
-                    </MenuItem>
+                    {kind != DataSourceKind.Mongo && (
+                      <MenuItem
+                        onClick={() => {
+                          const content = <SqlCreateTable kind={kind} uuid={uuid} />;
+                          appendTab(
+                            new TabContent(`create table`, content, <CreateIcon />),
+                          );
+                        }}>
+                        <ListItemIcon>
+                          <CreateIcon />
+                        </ListItemIcon>
+                        <ListItemText>create table </ListItemText>
+                      </MenuItem>
+                    )}
 
                     <MenuItem
                       onClick={() => {
