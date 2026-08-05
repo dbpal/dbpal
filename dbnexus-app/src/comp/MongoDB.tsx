@@ -20,7 +20,7 @@ import {
 import * as monaco from "monaco-editor";
 
 import ListIcon from "@mui/icons-material/List";
-import { editor, languages } from "monaco-editor";
+import { editor, languages, MarkerSeverity } from "monaco-editor";
 import DeleteForeverIcon from "@mui/icons-material/DeleteForever";
 import FilterAltIcon from "@mui/icons-material/FilterAlt";
 import { FaArrowsAltV, FaUpload } from "react-icons/fa";
@@ -326,7 +326,7 @@ function MongoBsonEditor(props: {
                           mongoBsonCompilerOwner,
                           [
                             {
-                              severity: 8,
+                              severity: MarkerSeverity.Error,
                               message: e.msg,
                               startLineNumber: e?.loc.start.line,
                               startColumn: e?.loc.start.column + 1,
