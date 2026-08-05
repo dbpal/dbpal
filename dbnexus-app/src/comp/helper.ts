@@ -574,7 +574,7 @@ const QueryIDEditorChatCtx = createContext<{
   setEditor: Dispatch<SetStateAction<editor.IStandaloneCodeEditor>>;
 }>(null);
 
-export type AppCodeExtraButtons = (_: { code: string; language: string }) => ReactNode;
+export type AppCodeExtraUI = (_: { code: string; language: string }) => ReactNode;
 export type AppCodeHanleEdit = (_: { code: string }) => void;
 
 /**

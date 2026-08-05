@@ -10,6 +10,7 @@ import {
 } from "@mui/material";
 import ClearIcon from "@mui/icons-material/Clear";
 import { DataSourceKind, isExcelFile, resizeHandlerSize } from "./helper";
+import InfoIcon from "@mui/icons-material/Info";
 import {
   CSSProperties,
   RefObject,
@@ -19,7 +20,9 @@ import {
   useState,
 } from "react";
 import AddIcon from "@mui/icons-material/Add";
+import xlsxWithHeaderImg from "../../public/xlsx_with_header.png";
 import {
+  AppCode,
   AppDataGridToolBar,
   ClearableTextField,
   ColumnNullness,
@@ -461,6 +464,59 @@ function TableColumn(props: {
   );
 }
 
+function SqlCreateTableImportFileNotice() {
+  return (
+    <Tooltip
+      slotProps={{
+        tooltip: {
+          style: { maxWidth: "40vw" },
+        },
+      }}
+      title=<Stack style={{ width: "40vw" }}>
+        <Typography>support file type:json,jsonline,csv,excel file types.</Typography>
+        <Typography> 1. u need select a file </Typography>
+        <Typography> 2. u need create table from the left panel</Typography>
+        <Typography>
+          3. then upload data from the right panel,notice that the table name will be
+          used for import data from input of the left panel
+        </Typography>
+        <AppCode
+          language="csv"
+          extra={() => {
+            return <> csv examples</>;
+          }}
+          codeBlock={`name,age
+john,123`}
+        />
+        <AppCode
+          language="json"
+          extra={() => {
+            return <> json examples</>;
+          }}
+          codeBlock={`[
+  {
+      "name":"john",
+      "age" :112
+  },
+  ...
+]`}
+        />
+        <AppCode
+          language="jsonline"
+          extra={() => {
+            return <> json examples</>;
+          }}
+          codeBlock={`{"name":"john","age" :112}
+...`}
+        />
+        <Typography> xlsx file must have headers </Typography>
+        <img src={xlsxWithHeaderImg} />
+      </Stack>>
+      <InfoIcon color="info" />
+    </Tooltip>
+  );
+}
+
 function SqlCreateTableImportFile(props: { kind: DataSourceKind; uuid: string }) {
   const { uuid, kind } = props;
   const [file, setFile] = useState("");
@@ -596,7 +652,11 @@ function SqlCreateTableImportFile(props: { kind: DataSourceKind; uuid: string })
       autoSaveId="sql-crete-table-import-from-file">
       <Panel minSize={10} collapsible collapsedSize={0} style={{ padding: "2px" }}>
         <Stack style={{ height: "100%", overflow: "auto" }}>
-          <SelectPath path={file} setPath={setFile} required label="import file" />
+          <Stack direction="row" style={{ alignItems: "center" }}>
+            <SqlCreateTableImportFileNotice />
+            <SelectPath path={file} setPath={setFile} required label="import file" />
+          </Stack>
+
           {file && (
             <div style={{ flex: 1, height: "100px" }}>
               <SqlCreateTable

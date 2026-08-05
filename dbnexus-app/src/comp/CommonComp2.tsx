@@ -57,7 +57,7 @@ import {
 } from "@mui/material";
 import AttachFileIcon from "@mui/icons-material/AttachFile";
 import {
-  AppCodeExtraButtons,
+  AppCodeExtraUI,
   AppCodeHanleEdit,
   arrayToMarkdownTable,
   ChatShowContext,
@@ -182,7 +182,7 @@ export function ClearableTextField({
 function AppCode(props: {
   codeBlock: string;
   language: string;
-  extra?: AppCodeExtraButtons;
+  extra?: AppCodeExtraUI;
   handleEdit?: AppCodeHanleEdit;
   highlightStr?: string;
 }) {
@@ -896,7 +896,7 @@ type AppMarkDownProps = {
   children: string;
   handlePathUrl?: (href: string) => void;
   placeHolder?: string;
-  appcodeExtra?: AppCodeExtraButtons;
+  appcodeExtra?: AppCodeExtraUI;
   appCodeHandleEdit?: AppCodeHanleEdit;
   highlightStr?: string;
 };
@@ -1807,7 +1807,7 @@ function ListenElementSize(props: {
 function AiMarkdownModel(props: {
   editor: editor.IStandaloneCodeEditor;
   markdownModel: boolean;
-  appcodeExtra?: AppCodeExtraButtons;
+  appcodeExtra?: AppCodeExtraUI;
   appCodeHandleEdit?: AppCodeHanleEdit;
 }) {
   const { editor, markdownModel, appcodeExtra, appCodeHandleEdit } = props;

@@ -22,6 +22,7 @@ import {
 import AttachFileIcon from "@mui/icons-material/AttachFile";
 import RefreshIcon from "@mui/icons-material/Refresh";
 import {
+  CSSProperties,
   Dispatch,
   ReactNode,
   SetStateAction,
@@ -1101,48 +1102,47 @@ function SelectPath(props: {
   setPath: Dispatch<SetStateAction<string>>;
   label: string;
   required: boolean;
+  style?: CSSProperties;
 }) {
-  const { path, setPath, label, required } = props;
+  const { path, setPath, label, required, style } = props;
   return (
-    <Stack direction="row" sx={{ alignItems: "center" }}>
-      <TextField
-        value={path}
-        onChange={(event) => {
-          setPath(event.target.value);
-        }}
-        style={{ flex: 1 }}
-        label={label}
-        required={required}
-        slotProps={{
-          input: {
-            endAdornment: (
-              <>
-                {path && (
-                  <InputAdornment position="end">
-                    <IconButton
-                      onClick={() => {
-                        setPath("");
-                      }}
-                      edge="end">
-                      <ClearIcon fontSize="small" />
-                    </IconButton>
-                  </InputAdornment>
-                )}
-                <IconButton
-                  onClick={() => {
-                    open({ multiple: false }).then((openOk) => {
-                      setPath(openOk);
-                    });
-                  }}
-                  color="primary">
-                  <AttachFileIcon />
-                </IconButton>
-              </>
-            ),
-          },
-        }}
-      />
-    </Stack>
+    <TextField
+      value={path}
+      onChange={(event) => {
+        setPath(event.target.value);
+      }}
+      style={{ flex: 1, ...style }}
+      label={label}
+      required={required}
+      slotProps={{
+        input: {
+          endAdornment: (
+            <>
+              {path && (
+                <InputAdornment position="end">
+                  <IconButton
+                    onClick={() => {
+                      setPath("");
+                    }}
+                    edge="end">
+                    <ClearIcon fontSize="small" />
+                  </IconButton>
+                </InputAdornment>
+              )}
+              <IconButton
+                onClick={() => {
+                  open({ multiple: false }).then((openOk) => {
+                    setPath(openOk);
+                  });
+                }}
+                color="primary">
+                <AttachFileIcon />
+              </IconButton>
+            </>
+          ),
+        },
+      }}
+    />
   );
 }
 
