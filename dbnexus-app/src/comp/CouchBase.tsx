@@ -8,6 +8,7 @@ import {
   Tooltip,
   Typography,
 } from "@mui/material";
+import UploadIcon from "@mui/icons-material/Upload";
 import ArrowCircleDownRoundedIcon from "@mui/icons-material/ArrowCircleDownRounded";
 import {
   AiMarkdownModel,
@@ -41,6 +42,7 @@ import {
   resizeHandlerSize,
   secondConfirm,
   shrinkAble,
+  TabContent,
 } from "./helper.ts";
 
 import DeleteForeverIcon from "@mui/icons-material/DeleteForever";
@@ -64,11 +66,13 @@ import {
   UseSizeConfig,
   useSizeStore,
   useTabSize,
+  useTabsManage,
 } from "./store.tsx";
 import { commands, Field, MuiDataGridData, QueryEvent } from "./bindings.ts";
 import { AddTableModal } from "./LeftTable.tsx";
 import { useDebounce } from "use-debounce";
 import { isEqual } from "lodash-es";
+import { CouchbaseCreateTableImportFile } from "./CreateTable.tsx";
 
 type Data = {
   data: { data: string; id: string }[];
@@ -95,6 +99,7 @@ function CouchBaseTable(props: { uuid: string; table: string }) {
   const [queryStatus, setQueryStatus] = useState("");
   const { showNotification } = useNotification();
   const tabSize = useTabSize();
+  const { appendTab } = useTabsManage();
 
   const handleReload = useCallback(() => {
     const c = new Channel<QueryEvent>((event) => {
@@ -219,6 +224,19 @@ function CouchBaseTable(props: { uuid: string; table: string }) {
             kind={DataSourceKind.CouchBase}
             tableName={table}
           />
+          <IconButton
+            color="success"
+            onClick={() => {
+              appendTab(
+                new TabContent(
+                  table,
+                  <CouchbaseCreateTableImportFile uuid={uuid} hasTableName={table} />,
+                  <UploadIcon />,
+                ),
+              );
+            }}>
+            <UploadIcon />
+          </IconButton>
         </Stack>
         <Typography variant="h5"> {table} </Typography>
         <Stack direction="row">

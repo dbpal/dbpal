@@ -89,6 +89,7 @@ import {
 } from "./store.tsx";
 import { commands, Field, ListTable, RedisListTableRet } from "./bindings.ts";
 import {
+  CouchbaseCreateTableImportFile,
   MongoCreateTableImportFile,
   SqlCreateTable,
   SqlCreateTableImportFile,
@@ -154,22 +155,23 @@ function TablesTree() {
               <MenuList>
                 <MenuRefresh reload={handleReload} />
 
-                {kind != DataSourceKind.Redis && kind != DataSourceKind.CouchBase && (
+                {kind != DataSourceKind.Redis && (
                   <>
-                    {kind != DataSourceKind.Mongo && (
-                      <MenuItem
-                        onClick={() => {
-                          const content = <SqlCreateTable kind={kind} uuid={uuid} />;
-                          appendTab(
-                            new TabContent(`create table`, content, <CreateIcon />),
-                          );
-                        }}>
-                        <ListItemIcon>
-                          <CreateIcon />
-                        </ListItemIcon>
-                        <ListItemText>create table </ListItemText>
-                      </MenuItem>
-                    )}
+                    {kind != DataSourceKind.Mongo &&
+                      kind != DataSourceKind.CouchBase && (
+                        <MenuItem
+                          onClick={() => {
+                            const content = <SqlCreateTable kind={kind} uuid={uuid} />;
+                            appendTab(
+                              new TabContent(`create table`, content, <CreateIcon />),
+                            );
+                          }}>
+                          <ListItemIcon>
+                            <CreateIcon />
+                          </ListItemIcon>
+                          <ListItemText>create table </ListItemText>
+                        </MenuItem>
+                      )}
 
                     <MenuItem
                       onClick={() => {
@@ -178,6 +180,9 @@ function TablesTree() {
                         );
                         if (kind == DataSourceKind.Mongo) {
                           content = <MongoCreateTableImportFile uuid={uuid} />;
+                        }
+                        if (kind == DataSourceKind.CouchBase) {
+                          content = <CouchbaseCreateTableImportFile uuid={uuid} />;
                         }
                         appendTab(
                           new TabContent(`create table`, content, <UploadIcon />),

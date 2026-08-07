@@ -1,6 +1,11 @@
 // couchbase only allow use query on schema so we can get scope.
 // docker run -d --name some-couchbase -p 8091-8094:8091-8094 -p 11210:11210 couchbase
-use std::{collections::HashMap, str::FromStr, sync::Arc, time::Duration};
+use std::{
+    collections::{HashMap, HashSet},
+    str::FromStr,
+    sync::Arc,
+    time::Duration,
+};
 
 use couchbase::{
     authenticator::{Authenticator, PasswordAuthenticator},
@@ -13,6 +18,7 @@ use couchbase::{
 use futures_util::StreamExt;
 use serde::Serialize;
 use serde_json::{ser::PrettyFormatter, Serializer, Value};
+use tokio::io::AsyncBufReadExt;
 
 use crate::{
     datasource_config::CouchBaseDBConfig,
@@ -20,7 +26,7 @@ use crate::{
         BackendKind, CatalogTrait, CheckConn, CouchBaseBucketType, CreateDatabaseExtra, DBTrait,
         ExportKind, ExportQueryResult, ExtractSqlValeFromJsonValue, Field, GetBackendKind,
         ListTable, MetaValue, QueryEventEmitter, QueryResp, QuerySql, ReadOnlyTrait, SchemaTrait,
-        ServerMetas, ShowTableParameter, SqlBuilder,
+        ServerMetas, ShowTableParameter, SqlBuilder, TableImportPara,
     },
 };
 
@@ -150,21 +156,6 @@ pub trait CouchBaseDBQueryEmit {
     fn emit(&self, _: serde_json::Value) -> anyhow::Result<()>;
 }
 
-fn extract_id_and_value(
-    values: &HashMap<String, Option<String>>,
-) -> anyhow::Result<(&String, serde_json::Value)> {
-    // accept two parameter id and value
-    let id = match values.get("id") {
-        Some(Some(x)) => x,
-        _ => anyhow::bail!("id is required"),
-    };
-    let value = match values.get("value") {
-        Some(Some(x)) => serde_json::Value::from_str(x)?,
-        _ => anyhow::bail!("value is required"),
-    };
-    anyhow::Ok((id, value))
-}
-
 impl CouchBaseDB {
     pub(crate) async fn query_count(
         &self,
@@ -229,9 +220,114 @@ impl ExtractSqlValeFromJsonValue for CouchBaseDB {
     }
 }
 
+fn extract_id_and_value(
+    values: &HashMap<String, Option<String>>,
+) -> anyhow::Result<(&String, serde_json::Value)> {
+    // accept two parameter id and value
+    let id = match values.get("id") {
+        Some(Some(x)) => x,
+        _ => anyhow::bail!("id is required"),
+    };
+    let value = match values.get("value") {
+        Some(Some(x)) => serde_json::Value::from_str(x)?,
+        _ => anyhow::bail!("value is required"),
+    };
+    anyhow::Ok((id, value))
+}
+
 #[async_trait::async_trait]
 
 impl SchemaTrait for CouchBaseDB {
+    async fn table_import_data_from_file(
+        &self,
+        table: &str,
+        para: TableImportPara,
+    ) -> anyhow::Result<()> {
+        /*
+        {
+            "id": "aaaa",
+            "test_show_table": {
+                "data": "hello world.",
+                "id": "abc",
+                "b": 1
+            }
+        }
+        extrat a value like this.
+        */
+        fn extract_id_and_table_value(
+            map: &serde_json::Map<String, serde_json::Value>,
+        ) -> anyhow::Result<(&String, &serde_json::Value)> {
+            if map.len() != 2 {
+                anyhow::bail!("this json value should contains 2 keys")
+            }
+            let id = "id";
+            let id_value = match map.get(id) {
+                Some(value) => match value {
+                    serde_json::Value::String(x) => x,
+                    _ => {
+                        anyhow::bail!("the id should have value string.")
+                    }
+                },
+                None => anyhow::bail!("this value should contains id"),
+            };
+
+            let value_key = {
+                let mut keys = map.keys().collect::<HashSet<_>>();
+                keys.remove(&id.to_string());
+                let keys = keys.into_iter().collect::<Vec<_>>();
+                keys[0]
+            };
+            let table_value = match map.get(value_key) {
+                Some(x) => x,
+                None => unreachable!(),
+            };
+            anyhow::Ok((id_value, table_value))
+        }
+
+        let scope = self.get_scope()?;
+
+        // try create table is not exists.
+
+        if !self.table_exists(table).await? {
+            let sql = format!("CREATE COLLECTION `{}`", table);
+            scope.query(sql, None).await?;
+        }
+
+        let path_lower = para.path.to_lowercase();
+        if path_lower.ends_with(".json") {
+            let path = para.path.clone();
+
+            let values = tokio::task::spawn_blocking(move || {
+                let f = std::fs::File::open(&path)?;
+                let buf = std::io::BufReader::new(f);
+                let ret: Vec<serde_json::Map<String, serde_json::Value>> =
+                    serde_json::from_reader(buf)?;
+                anyhow::Ok(ret)
+            })
+            .await??;
+
+            for v in values.iter() {
+                let (id, value) = extract_id_and_table_value(v)?;
+                scope.collection(table).insert(id, value, None).await?;
+            }
+            anyhow::Ok(())
+        } else if path_lower.contains(".jsonl") {
+            let f = tokio::fs::File::open(&para.path).await?;
+            let reader = tokio::io::BufReader::new(f);
+            let mut lines = reader.lines();
+            while let Some(line) = lines.next_line().await? {
+                if line.trim().is_empty() {
+                    continue;
+                }
+                let value = serde_json::from_str(&line)?;
+                let (id, value) = extract_id_and_table_value(&value)?;
+                scope.collection(table).insert(id, value, None).await?;
+            }
+            anyhow::Ok(())
+        } else {
+            anyhow::bail!(format!("unsupported file type:{}", &para.path))
+        }
+    }
     async fn export_table_or_view(
         &self,
         name: &str,
@@ -810,6 +906,16 @@ mod tests {
         })
         .await
         .unwrap();
+        let resp = db
+            .show_table_collect(table_name, ShowTableParameter::new_stupid_test("id asc"))
+            .await
+            .unwrap();
+        println!("resp:{:?}", resp);
+
+        db.test_table_export_and_import_json(table_name).await;
+
+        db.test_table_export_and_import_jsonline(table_name).await;
+
         let resp = db
             .show_table_collect(table_name, ShowTableParameter::new_stupid_test("id asc"))
             .await

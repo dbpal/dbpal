@@ -745,12 +745,12 @@ function SqlCreateTableImportFile(props: { kind: DataSourceKind; uuid: string })
   );
 }
 
-function MongoCreateTableImportFile(props: { uuid: string }) {
-  const { uuid } = props;
+function MongoCreateTableImportFile(props: { uuid: string; hasTableName?: string }) {
+  const { uuid, hasTableName } = props;
   const [file, setFile] = useState("");
   const { showNotification } = useNotification();
   const [data, setData] = useState<string[]>([]);
-  const [tableName, setTableName] = useState("");
+  const [tableName, setTableName] = useState(hasTableName);
   const [loading, setLoading] = useState(false);
 
   const maxRow = 10;
@@ -786,6 +786,32 @@ function MongoCreateTableImportFile(props: { uuid: string }) {
             }
           }
           setData(data);
+        } else if (fileLower.endsWith(".json")) {
+          const data = [];
+          const parsed: any[] = EJSON.parse(await readTextFile(file));
+          if (!Array.isArray(parsed)) {
+            showNotification({
+              severity: "error",
+              title: "this file should contains a array",
+            });
+            return;
+          }
+
+          for (let index = 0; index < parsed.length; index++) {
+            let x = parsed[index];
+            if (x && typeof x == "object") {
+              data.push(EJSON.stringify(x, null, 2));
+            } else {
+              showNotification({
+                severity: "error",
+                title: `#${index} is not a object`,
+              });
+            }
+            if (data.length >= maxRow) {
+              break;
+            }
+          }
+          setData(data);
         } else {
           showNotification({ severity: "error", title: "unsupported file type" });
           return [];
@@ -804,9 +830,29 @@ function MongoCreateTableImportFile(props: { uuid: string }) {
     const pathLower = file.toLocaleLowerCase();
 
     if (pathLower.endsWith(".jsonl")) {
-      let ret = [];
+      const ret = [];
       for await (const line of await readTextFileLines(file)) {
         ret.push(BSON.serialize(EJSON.parse(line)));
+      }
+      return ret;
+    } else if (pathLower.endsWith(".json")) {
+      // xxx
+      const ret = [];
+      const data: any[] = EJSON.parse(await readTextFile(file));
+      if (!Array.isArray(data)) {
+        showNotification({
+          severity: "error",
+          title: "this file should contains a array",
+        });
+        return;
+      }
+      for (let index = 0; index < data.length; index++) {
+        let x = data[index];
+        if (x && typeof x == "object") {
+          ret.push(BSON.serialize(x));
+        } else {
+          showNotification({ severity: "error", title: `#${index} is not a object` });
+        }
       }
       return ret;
     } else {
@@ -833,7 +879,17 @@ function MongoCreateTableImportFile(props: { uuid: string }) {
                 });
                 return;
               }
-              let data = await makeData();
+              let data = null;
+              try {
+                data = await makeData();
+              } catch (e) {
+                showNotification({
+                  severity: "error",
+                  title: "make data for mongodb failed",
+                  message: e,
+                });
+                return;
+              }
               if (!data) {
                 return;
               }
@@ -855,17 +911,23 @@ function MongoCreateTableImportFile(props: { uuid: string }) {
           }}>
           <UploadIcon />
         </IconButton>
+
         <ClearableTextField
+          disabled={!!hasTableName}
           value={tableName}
           onChange={(e) => {
             setTableName(e.target.value);
           }}
           onClear={() => {
+            if (hasTableName) {
+              return;
+            }
             setTableName("");
           }}
           style={{ flex: 1 }}
           label="table name"
         />
+
         <SelectPath path={file} setPath={setFile} required label="import file" />
       </Stack>
 
@@ -876,4 +938,156 @@ function MongoCreateTableImportFile(props: { uuid: string }) {
   );
 }
 
-export { SqlCreateTable, SqlCreateTableImportFile, MongoCreateTableImportFile };
+function CouchbaseCreateTableImportFile(props: {
+  uuid: string;
+  hasTableName?: string;
+}) {
+  const { uuid, hasTableName } = props;
+  const [file, setFile] = useState("");
+  const { showNotification } = useNotification();
+  const [data, setData] = useState<string[]>([]);
+  const [tableName, setTableName] = useState(hasTableName);
+  const [loading, setLoading] = useState(false);
+
+  const maxRow = 10;
+
+  useEffect(() => {
+    (async () => {
+      try {
+        if (!file) {
+          return;
+        }
+
+        let fileLower = file.toLowerCase();
+        if (fileLower.endsWith(".jsonl")) {
+          const data = [];
+          let line_num = 0;
+          for await (const line of await readTextFileLines(file)) {
+            line_num++;
+            if (!line.trim()) {
+              continue;
+            }
+            let obj = JSON.parse(line);
+            if (obj && typeof obj == "object") {
+              data.push(EJSON.stringify(obj, null, 2));
+              if (data.length >= maxRow) {
+                break;
+              }
+            } else {
+              showNotification({
+                severity: "error",
+                title: `line ${line_num} is not object`,
+                message: `line content:${line} `,
+              });
+            }
+          }
+          setData(data);
+        } else if (fileLower.endsWith(".json")) {
+          const data = [];
+          const parsed: any[] = JSON.parse(await readTextFile(file));
+          if (!Array.isArray(parsed)) {
+            showNotification({
+              severity: "error",
+              title: "this file should contains a array",
+            });
+            return;
+          }
+
+          for (let index = 0; index < parsed.length; index++) {
+            let x = parsed[index];
+            if (x && typeof x == "object") {
+              data.push(EJSON.stringify(x, null, 2));
+            } else {
+              showNotification({
+                severity: "error",
+                title: `#${index} is not a object`,
+              });
+            }
+            if (data.length >= maxRow) {
+              break;
+            }
+          }
+          setData(data);
+        } else {
+          showNotification({ severity: "error", title: "unsupported file type" });
+          return [];
+        }
+      } catch (e) {
+        showNotification({
+          severity: "error",
+          title: "handle data failed",
+          message: e,
+        });
+      }
+    })();
+  }, [file, showNotification]);
+
+  return (
+    <Stack
+      style={{
+        height: "100%",
+        width: "100%",
+        overflow: "auto",
+      }}>
+      <Stack direction="row">
+        <IconButton
+          loading={loading}
+          onClick={async () => {
+            try {
+              if (!tableName) {
+                showNotification({
+                  severity: "error",
+                  message: "table name is not set",
+                });
+                return;
+              }
+              setLoading(true);
+              await commands.tableImportFromFile(uuid, tableName, {
+                path: file,
+              });
+              showNotification({ severity: "success", title: "upload data ok" });
+            } catch (e) {
+              showNotification({
+                severity: "error",
+                title: "upload data failed",
+                message: e,
+              });
+            } finally {
+              setLoading(false);
+            }
+          }}>
+          <UploadIcon />
+        </IconButton>
+
+        <ClearableTextField
+          disabled={!!hasTableName}
+          value={tableName}
+          onChange={(e) => {
+            setTableName(e.target.value);
+          }}
+          onClear={() => {
+            if (hasTableName) {
+              return;
+            }
+            setTableName("");
+          }}
+          style={{ flex: 1 }}
+          label="table name"
+        />
+
+        <SelectPath path={file} setPath={setFile} required label="import file" />
+      </Stack>
+
+      {data.map((x, index) => (
+        <AppCode codeBlock={x} language="json" key={index} />
+      ))}
+    </Stack>
+  );
+}
+
+export {
+  SqlCreateTable,
+  SqlCreateTableImportFile,
+  MongoCreateTableImportFile,
+  CouchbaseCreateTableImportFile,
+};

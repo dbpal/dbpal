@@ -18,7 +18,7 @@ import {
   Typography,
 } from "@mui/material";
 import * as monaco from "monaco-editor";
-
+import UploadIcon from "@mui/icons-material/Upload";
 import ListIcon from "@mui/icons-material/List";
 import { editor, languages, MarkerSeverity } from "monaco-editor";
 import DeleteForeverIcon from "@mui/icons-material/DeleteForever";
@@ -81,6 +81,7 @@ import {
   gridColumnHeaderSelectClassName,
   allGridHeaderTitle,
   clickDataGridColumn,
+  TabContent,
 } from "./helper";
 import {
   AppDataGridPagination,
@@ -106,6 +107,7 @@ import {
   useMongoViewModelStore,
   useMongoEditorViewModelStore,
   useMongoTableFilterOp,
+  useTabsManage,
 } from "./store";
 import { commands, MuiDataGridData } from "./bindings";
 import { AddTableModal } from "./LeftTable";
@@ -119,6 +121,7 @@ import {
 } from "./datagridExport";
 import { useDebounce } from "use-debounce";
 import { isEqual } from "lodash-es";
+import { MongoCreateTableImportFile } from "./CreateTable";
 
 const mongoID = "_id";
 
@@ -491,6 +494,7 @@ function MongoTableToolBar(props: {
   const [modalBox, setModalBox] = useState(null);
   const tabSize = useTabSize();
   const { viewModel, setViewModel } = useMongoViewModelStore();
+  const { appendTab } = useTabsManage();
   return (
     <Stack
       direction="row"
@@ -551,6 +555,22 @@ function MongoTableToolBar(props: {
         {isTable && (
           <AddTableModal uuid={uuid} kind={DataSourceKind.Mongo} tableName={table} />
         )}
+        {isTable && (
+          <IconButton
+            color="success"
+            onClick={() => {
+              appendTab(
+                new TabContent(
+                  table,
+                  <MongoCreateTableImportFile uuid={uuid} hasTableName={table} />,
+                  <UploadIcon />,
+                ),
+              );
+            }}>
+            <UploadIcon />
+          </IconButton>
+        )}
+
         {someNotice}
       </Stack>
 
