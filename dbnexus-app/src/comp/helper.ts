@@ -630,17 +630,6 @@ export function getDefaultLanguage(kind: DataSourceKind) {
   }
 }
 
-interface StupidIMarker {
-  owner: string;
-  severity: number;
-  message: string;
-  startLineNumber: number;
-  startColumn: number;
-  endLineNumber: number;
-  endColumn: number;
-  resource?: any;
-}
-
 function clickDataGridColumn(
   api: RefObject<GridApi>,
   event: MouseEvent,
@@ -957,7 +946,6 @@ export {
   DatabaseOperation,
 };
 
-export type { StupidIMarker };
 async function webviewWIndowInit() {
   const currentWebview = WebviewWindow.getCurrent();
   if (["windows", "linux"].includes(platform())) {
