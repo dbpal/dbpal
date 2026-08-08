@@ -1295,7 +1295,7 @@ function MongoTableList(props: {
                 .filter((f) => selectedColumns.has(f.field))
                 .map((f) => f.field);
             })(),
-            kind: AppColumnMenuKind.QueryResp,
+            kind: AppColumnMenuKind.Mongo,
             uuid,
           }}>
           <DataGrid
