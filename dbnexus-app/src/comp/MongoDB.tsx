@@ -322,6 +322,11 @@ function MongoBsonEditor(props: {
                     let x = undefined;
                     try {
                       x = parseMongoBson(editorValueDebounced).compile();
+                      monaco.editor.setModelMarkers(
+                        editor.current.getModel(),
+                        mongoBsonCompilerOwner,
+                        [],
+                      );
                     } catch (e) {
                       if (e instanceof MongoBsonError) {
                         monaco.editor.setModelMarkers(
