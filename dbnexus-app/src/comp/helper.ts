@@ -674,13 +674,6 @@ export enum DatabaseOpKind {
   Delete,
 }
 
-enum AppColumnMenuKind {
-  SqlTable,
-  QueryResp,
-  Mongo,
-  Redis,
-}
-
 const SqlOpContext = createContext<{
   ops: DatabaseOperation[];
   setOps: Dispatch<SetStateAction<DatabaseOperation[]>>;
@@ -692,7 +685,7 @@ const SqlOpContext = createContext<{
 const AppColumnMenuCtx = createContext<{
   uuid?: string;
   selectColumns: string[];
-  kind: AppColumnMenuKind;
+  kind: DataSourceKind;
 }>(null);
 
 export const gridColumnHeaderSelectClassName = "grid-cell-select-highlight";
@@ -891,7 +884,6 @@ export {
   isExcelFile,
   escapeMarkdown,
   createCSV,
-  AppColumnMenuKind,
   SqlOpContext,
   columnHeaderStyle,
   parseCellType,

@@ -76,7 +76,6 @@ import {
   extractFieldAndIDFromMouseEvent,
   DataSourceKind,
   AppColumnMenuCtx,
-  AppColumnMenuKind,
   columnHeaderStyle,
   gridColumnHeaderSelectClassName,
   allGridHeaderTitle,
@@ -1300,7 +1299,7 @@ function MongoTableList(props: {
                 .filter((f) => selectedColumns.has(f.field))
                 .map((f) => f.field);
             })(),
-            kind: AppColumnMenuKind.Mongo,
+            kind: DataSourceKind.Mongo,
             uuid,
           }}>
           <DataGrid

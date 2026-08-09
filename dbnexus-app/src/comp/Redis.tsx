@@ -49,7 +49,6 @@ import {
   secondConfirm,
   DataSourceKind,
   AppColumnMenuCtx,
-  AppColumnMenuKind,
   columnHeaderStyle,
   clickDataGridColumn,
   allGridHeaderTitle,
@@ -970,7 +969,7 @@ function RedisSetTable(props: { setKey: string; uuid: string }) {
                 .filter((f) => selectedColumns.has(f.field))
                 .map((f) => f.field);
             })(),
-            kind: AppColumnMenuKind.Redis,
+            kind: DataSourceKind.Redis,
             uuid,
           }}>
           <DataGrid
@@ -1362,7 +1361,7 @@ function RedisListTable(props: { listKey: string; uuid: string }) {
                 .filter((f) => selectedColumns.has(f.field))
                 .map((f) => f.field);
             })(),
-            kind: AppColumnMenuKind.Redis,
+            kind: DataSourceKind.Redis,
             uuid,
           }}>
           <DataGrid
@@ -1791,7 +1790,7 @@ function RedisZsetTable(props: { uuid: string; zsetKey: string }) {
                 .filter((f) => selectedColumns.has(f.field))
                 .map((f) => f.field);
             })(),
-            kind: AppColumnMenuKind.Redis,
+            kind: DataSourceKind.Redis,
             uuid,
           }}>
           <DataGrid
@@ -2143,7 +2142,7 @@ function RedisHashTable(props: { hashKey: string; uuid: string }) {
                 .filter((f) => selectedColumns.has(f.field))
                 .map((f) => f.field);
             })(),
-            kind: AppColumnMenuKind.Redis,
+            kind: DataSourceKind.Redis,
             uuid,
           }}>
           <DataGrid

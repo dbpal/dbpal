@@ -674,7 +674,7 @@ function SqlQuery(props: {
               maxSize={100}
               minSize={10}>
               <div style={{ height: "100%" }}>
-                <MultiQueryResp data={resp} uuid={uuid} />
+                <MultiQueryResp data={resp} uuid={uuid} kind={kind} />
               </div>
             </Panel>
           </>

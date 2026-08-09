@@ -18,11 +18,11 @@ import {
   dataGridStyle,
   QueryRespData,
   AppColumnMenuCtx,
-  AppColumnMenuKind,
   columnHeaderStyle,
   clickDataGridColumn,
   allGridHeaderTitle,
   gridColumnHeaderSelectClassName,
+  DataSourceKind,
 } from "./helper.ts";
 
 import React, { useCallback, useEffect, useMemo, useState } from "react";
@@ -102,8 +102,12 @@ function RespContextMenu(props: {
   );
 }
 
-function QueryResp(props: { data: MuiDataGridData; uuid: string }): React.ReactElement {
-  const { data, uuid } = props;
+function QueryResp(props: {
+  data: MuiDataGridData;
+  uuid: string;
+  kind: DataSourceKind;
+}): React.ReactElement {
+  const { data, uuid, kind } = props;
   const { setColumnWidth, getColumnWidth } = useColumnWidthStore();
   const [selectedColumns, setSelectColumns] = useState<Set<string>>(new Set());
   const apiRef = useGridApiRef();
@@ -245,7 +249,7 @@ function QueryResp(props: { data: MuiDataGridData; uuid: string }): React.ReactE
                   .filter((f) => selectedColumns.has(f.field))
                   .map((f) => f.field);
               })(),
-              kind: AppColumnMenuKind.QueryResp,
+              kind: kind,
               uuid,
             }}>
             <DataGrid
@@ -300,8 +304,9 @@ function getRowId(row: Record<string, any>): string {
 function MultiQueryResp(props: {
   data: QueryRespData[];
   uuid: string;
+  kind: DataSourceKind;
 }): React.ReactElement {
-  const { data, uuid } = props;
+  const { data, uuid, kind } = props;
   const [value, setValue] = React.useState(0);
 
   useEffect(() => {
@@ -326,7 +331,7 @@ function MultiQueryResp(props: {
         <Alert severity="error">{data[0].Err}</Alert>
       </StackRowCenter>
     ) : (
-      <QueryResp data={data[0].Ok} uuid={uuid} />
+      <QueryResp data={data[0].Ok} uuid={uuid} kind={kind} />
     );
   }
   const handleChange = (_event: React.SyntheticEvent, newValue: number): void => {
@@ -362,7 +367,7 @@ function MultiQueryResp(props: {
               {e.Err ? (
                 <Alert severity="error">{e.Err}</Alert>
               ) : (
-                <QueryResp data={e.Ok} uuid={uuid} />
+                <QueryResp data={e.Ok} uuid={uuid} kind={kind} />
               )}
             </div>
           );

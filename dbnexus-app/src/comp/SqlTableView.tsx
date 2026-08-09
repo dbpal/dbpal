@@ -72,7 +72,6 @@ import {
   allGridHeaderTitle,
   columnHeaderStyle,
   SqlOpContext,
-  AppColumnMenuKind,
 } from "./helper";
 import FileCopyIcon from "@mui/icons-material/FileCopy";
 import {
@@ -1203,7 +1202,7 @@ function SqlTableView(props: {
                 .filter((f) => selectedColumns.has(f.field))
                 .map((f) => f.field);
             })(),
-            kind: AppColumnMenuKind.SqlTable,
+            kind: kind,
           }}>
           <DataGrid
             getCellClassName={({ field }) => {

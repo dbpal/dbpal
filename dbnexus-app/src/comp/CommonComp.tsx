@@ -59,7 +59,6 @@ import {
   secondConfirm,
   AppColumnMenuCtx,
   textEllipsisStyle,
-  AppColumnMenuKind,
 } from "./helper";
 
 import { TbDatabasePlus } from "react-icons/tb";
@@ -898,28 +897,37 @@ function DataGridExtraMenuList(props: GridColumnMenuItemProps) {
         <ListItemText> Copy as MarkDown </ListItemText>
       </MenuItem>
 
-      {[AppColumnMenuKind.SqlTable, AppColumnMenuKind.QueryResp].includes(kind) && (
-        <MenuItem
-          onClick={async (event) => {
-            try {
-              let values = api.current
-                .getSortedRowIds()
-                .map((id) => api.current.getCellValue(id, colDef.field));
-              values = await commands.putValuesInSql(uuid, colDef["data_type"], values);
-              handleCopyToClipboard(`(\n${values.join(",\n")}\n)\n`, showNotification);
-              if (onClick) onClick(event);
-            } catch (e) {
-              showNotification({
-                severity: "error",
-                title: "format value in sql failed",
-                message: e,
-              });
-            }
-          }}>
-          <ListItemIcon>{/* <ContentCopyIcon /> */}</ListItemIcon>
-          <ListItemText> Copy For in Statament </ListItemText>
-        </MenuItem>
-      )}
+      {kind != DataSourceKind.Mongo &&
+        kind != DataSourceKind.Redis &&
+        kind != DataSourceKind.CouchBase && (
+          <MenuItem
+            onClick={async (event) => {
+              try {
+                let values = api.current
+                  .getSortedRowIds()
+                  .map((id) => api.current.getCellValue(id, colDef.field));
+                values = await commands.putValuesInSql(
+                  uuid,
+                  colDef["data_type"],
+                  values,
+                );
+                handleCopyToClipboard(
+                  `(\n${values.join(",\n")}\n)\n`,
+                  showNotification,
+                );
+                if (onClick) onClick(event);
+              } catch (e) {
+                showNotification({
+                  severity: "error",
+                  title: "format value in sql failed",
+                  message: e,
+                });
+              }
+            }}>
+            <ListItemIcon>{/* <ContentCopyIcon /> */}</ListItemIcon>
+            <ListItemText> Copy For in Statament </ListItemText>
+          </MenuItem>
+        )}
 
       <MenuItem
         onClick={(event) => {
