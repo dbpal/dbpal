@@ -490,7 +490,6 @@ function CopyConnection() {
 
   const slots = useMemo((): Partial<GridSlotsComponent> => {
     return {
-      toolbar: AppDataGridToolBar,
       pagination: () => {
         return (
           <Stack direction="row" style={{ justifyContent: "space-between", flex: 1 }}>

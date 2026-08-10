@@ -24,7 +24,6 @@ import AddIcon from "@mui/icons-material/Add";
 import xlsxWithHeaderImg from "../../public/xlsx_with_header.png";
 import {
   AppCode,
-  AppDataGridToolBar,
   ClearableTextField,
   ColumnNullness,
   CreateIndexView,
@@ -731,7 +730,6 @@ function SqlCreateTableImportFile() {
               getRowId={(e) => {
                 return e[keyNotInTable];
               }}
-              slots={{ toolbar: AppDataGridToolBar }}
             />
           </Stack>
         </Panel>

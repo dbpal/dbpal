@@ -68,7 +68,6 @@ import { EscDownEvent, modalHandleClose, modalStyle, PassWordManager } from "./C
 import { openPath } from "@tauri-apps/plugin-opener";
 import {
   AppDataGridPagination,
-  AppDataGridToolBar,
   ClearableTextField,
   ListenElementSize,
 } from "./CommonComp2";
@@ -542,7 +541,6 @@ function MetaValueView(props: { values: MetaValue[]; showToolbar: boolean }) {
 
   const slots = useMemo((): Partial<GridSlotsComponent> => {
     return {
-      toolbar: AppDataGridToolBar,
       pagination: AppDataGridPagination,
     };
   }, []);

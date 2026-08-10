@@ -39,7 +39,12 @@ import { openPath, openUrl } from "@tauri-apps/plugin-opener";
 import { registeredThemes, shrinkAble, prettyMs, MonacoEditor } from "./helper";
 
 import EditIcon from "@mui/icons-material/Edit";
-import { IconModifed, SimpleFlexEditor, StackRowCenter } from "./CommonComp2";
+import {
+  AppDataGridToolBar,
+  IconModifed,
+  SimpleFlexEditor,
+  StackRowCenter,
+} from "./CommonComp2";
 import { ClearableTextField } from "./CommonComp2";
 import {
   enable as enableApp,
@@ -1085,6 +1090,7 @@ function makeComponents(
         columnHeaderHeight: dataGridRowHeight * 1.5,
         showToolbar: true,
         slotProps: {},
+        slots: { toolbar: AppDataGridToolBar },
         getRowClassName: ({ id }) => {
           const x = typeof id == "number" ? id : parseInt(id);
           if (isNumber(x) && x % 2 == 1) {

@@ -1097,7 +1097,7 @@ function ModifyTableColumn(props: {
   );
 }
 
-// databaase kind support null specific
+// database kind support null specific
 function kindSupportNull(kind: DataSourceKind): boolean {
   return kind != DataSourceKind.Cassandra;
 }
