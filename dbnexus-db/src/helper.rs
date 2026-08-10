@@ -564,6 +564,9 @@ pub(crate) fn convert_csv_delimiter(
         Some(c) if c.is_ascii() => c as u8,
         _ => b',',
     };
+    if old_delim_byte == new_delim_byte {
+        return anyhow::Ok(input_content.into());
+    }
 
     // 4. Configure ReaderBuilder with the custom old delimiter
     let mut rdr = ReaderBuilder::new()
