@@ -657,7 +657,7 @@ impl BackendKind {
         tokio::task::spawn_blocking(move || {
             let path_lower = path.to_lowercase();
 
-            if path_lower.ends_with(".csv") || path_lower.ends_with(".tsv") {
+            if is_csv_file(&path_lower) {
                 self.infer_csv(&path, csv_delimiter)
             } else if path_lower.ends_with(".json") {
                 self.infer_json(&path)

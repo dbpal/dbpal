@@ -743,14 +743,14 @@ function SqlCreateTableImportFile() {
                       if (!csvDelimiter) {
                         showNotification({
                           severity: "error",
-                          title: "csv deimiter is not set",
+                          title: "csv deimiter not set",
                         });
                         return;
                       }
                       if (csvDelimiter.length != 1) {
                         showNotification({
                           severity: "error",
-                          title: "csv delimiter should contains one char",
+                          title: "csv delimiter should have one char",
                         });
                         return;
                       }
