@@ -32,21 +32,21 @@ import {
 import { commands, SqlEvent } from "./bindings";
 import { uuidv4 } from "./Common";
 function EventsTree() {
-  const { uuid, kind } = useContext(UuidContext);
+  const { dbName, kind } = useContext(UuidContext);
   const [events, setEvents] = useState<SqlEvent[]>([]);
   const { showNotification } = useNotification();
   const { maxTree } = useMatcher();
   const matchPattern = useMatcherFn();
   const reload = useCallback(() => {
     commands
-      .listEvent(uuid)
+      .listEvent(dbName)
       .then((ts) => {
         setEvents(ts);
       })
       .catch((e) => {
         showNotification({ severity: "error", title: "list event failed", message: e });
       });
-  }, [showNotification, uuid]);
+  }, [showNotification, dbName]);
   const showItems = useMemo(() => {
     return events.filter((e: SqlEvent) => matchPattern(e.name)).slice(0, maxTree);
   }, [events, matchPattern, maxTree]);
@@ -79,7 +79,7 @@ function EventsTree() {
         <ShowingCount showing={showItems.length} total={events.length} />
       </Stack>>
       {showItems.map((event) => {
-        const id = `${uuid}-event-${event.name}`;
+        const id = `${dbName}-event-${event.name}`;
         return (
           <TreeItem
             key={event.name}
@@ -90,7 +90,12 @@ function EventsTree() {
               onContextMenu={(e: MouseEvent<HTMLDivElement>) => {
                 setUpMenu({
                   content: (
-                    <EventMenu reload={reload} uuid={uuid} kind={kind} event={event} />
+                    <EventMenu
+                      reload={reload}
+                      dbName={dbName}
+                      kind={kind}
+                      event={event}
+                    />
                   ),
                   event: e,
                 });
@@ -107,14 +112,14 @@ function EventsTree() {
 }
 
 type EventMenuProps = {
-  uuid: string;
+  dbName: string;
   event: SqlEvent;
   reload: () => void;
   kind: DataSourceKind;
 };
 
 function EventMenu(props: EventMenuProps) {
-  const { uuid, event, reload, kind } = props;
+  const { dbName, event, reload, kind } = props;
   const { appendTab } = useTabsManage();
   const { showNotification } = useNotification();
   const handleOpenDetails = () => {
@@ -131,7 +136,7 @@ function EventMenu(props: EventMenuProps) {
         />,
 
         <MdOutlineEventRepeat />,
-        uuid,
+        dbName,
         kind,
       ),
     );
@@ -146,7 +151,7 @@ function EventMenu(props: EventMenuProps) {
       return;
     }
     commands
-      .dropEvent(uuid, event.name)
+      .dropEvent(dbName, event.name)
       .then((sql) => {
         showNotification({
           severity: "success",

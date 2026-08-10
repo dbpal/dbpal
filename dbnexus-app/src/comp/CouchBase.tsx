@@ -85,7 +85,7 @@ function newDataDefault(): Data {
 }
 
 function CouchBaseTable(props: { table: string }) {
-  const { uuid } = useContext(UuidContext);
+  const { dbName } = useContext(UuidContext);
   const { table } = props;
   const [page, setPage] = useState(1);
   const { couchbase: pageSize, setPageSize } = usePageSize();
@@ -145,7 +145,7 @@ function CouchBaseTable(props: { table: string }) {
 
     commands
       .showTable(
-        uuid,
+        dbName,
         false,
         table,
         {
@@ -164,7 +164,7 @@ function CouchBaseTable(props: { table: string }) {
       .finally(() => {
         setLoading(false);
       });
-  }, [page, pageSize, showNotification, sort, tabSize, table, uuid, where]);
+  }, [page, pageSize, showNotification, sort, tabSize, table, dbName, where]);
   useEffect(() => {
     handleReload();
   }, [handleReload]);
@@ -222,7 +222,7 @@ function CouchBaseTable(props: { table: string }) {
           </Tooltip>
 
           <AddTableModal
-            uuid={uuid}
+            dbName={dbName}
             kind={DataSourceKind.CouchBase}
             tableName={table}
           />
@@ -234,7 +234,7 @@ function CouchBaseTable(props: { table: string }) {
                   table,
                   <CouchbaseCreateTableImportFile hasTableName={table} />,
                   <UploadIcon />,
-                  uuid,
+                  dbName,
                   kind,
                 ),
               );
@@ -271,7 +271,7 @@ function CouchBaseTable(props: { table: string }) {
               docid={item.id}
               value={item.data}
               handleDelete={async () => {
-                await commands.tableDelete(uuid, table, { id: item.id });
+                await commands.tableDelete(dbName, table, { id: item.id });
                 setResp((resp) => {
                   return {
                     count: resp.count - 1,
@@ -282,7 +282,7 @@ function CouchBaseTable(props: { table: string }) {
               warnModify
               handleValue={async (newV) => {
                 await commands.tableUpdate(
-                  uuid,
+                  dbName,
                   table,
                   {
                     id: item.id,
@@ -345,7 +345,7 @@ function CouchBaseTable(props: { table: string }) {
           }}
           label="filter"
           kind={kind}
-          uuid={uuid}
+          dbName={dbName}
         />
       )}
       {showSetSort && (
@@ -361,7 +361,7 @@ function CouchBaseTable(props: { table: string }) {
             setShowSetSort(false);
           }}
           label="sort"
-          uuid={uuid}
+          dbName={dbName}
         />
       )}
     </Stack>
@@ -491,7 +491,7 @@ function CouchBaseEditor(props: {
   );
 }
 
-function CouchBaseInsert({ uuid, table }) {
+function CouchBaseInsert({ dbName, table }) {
   const [id, setId] = useState("");
   return (
     <CouchBaseEditor
@@ -522,7 +522,7 @@ function CouchBaseInsert({ uuid, table }) {
         if (!id.trim()) {
           throw "id is empty";
         }
-        await commands.tableInsert(uuid, table, {
+        await commands.tableInsert(dbName, table, {
           id: id.trim(),
           value,
         });
@@ -565,7 +565,7 @@ export function ExecuteButton(props: ExecuteButtonProps) {
 
 function CouchBaseQuery(props: { value?: string }) {
   const { value } = props;
-  const { uuid } = useContext(UuidContext);
+  const { dbName } = useContext(UuidContext);
   const [resp, setResp] = useState<string[]>([]);
   const [loading, setLoading] = useState(false);
   const { getSize } = useSizeStore();
@@ -634,7 +634,7 @@ function CouchBaseQuery(props: { value?: string }) {
       data.push(d);
     }
     setTableResp({ fields, data: data as any, sql: "", total: null });
-  }, [resp, uuid, viewMode]);
+  }, [resp, dbName, viewMode]);
 
   const handleQuery = (text: string) => {
     setLoading(true);
@@ -670,14 +670,14 @@ function CouchBaseQuery(props: { value?: string }) {
     });
 
     commands
-      .querySql(uuid, "", getSize(UseSizeConfig.queryLimit), text, channel)
+      .querySql(dbName, "", getSize(UseSizeConfig.queryLimit), text, channel)
 
       .catch((e) => {
         showNotification({ severity: "error", title: "query failed", message: e });
-        saveQueryLog(uuid, text, false);
+        saveQueryLog(dbName, text, false);
       })
       .then(() => {
-        saveQueryLog(uuid, text, true);
+        saveQueryLog(dbName, text, true);
       })
       .finally(() => {
         setLoading(false);
@@ -752,7 +752,7 @@ function CouchBaseQuery(props: { value?: string }) {
                       exportOP={(kind, file, taskId, sizeEmitter) => {
                         const sql = getEditorText(editor, showNotification, true);
                         return commands.exportQueryResultToFile(
-                          uuid,
+                          dbName,
                           taskId,
                           sql,
                           "",
@@ -781,7 +781,7 @@ function CouchBaseQuery(props: { value?: string }) {
             <AiMarkdownModelSwitch
               setMarkdownModel={setMarkdownModel}
               markdownModel={markdownModel}
-              uuid={uuid}
+              dbName={dbName}
             />
             <FetchTimeAndLoadingStatus isLoading={loading} />
             <SliderSize config={UseSizeConfig.queryLimit} />
@@ -821,7 +821,7 @@ function CouchBaseQuery(props: { value?: string }) {
             handleEditor={(e) => {
               setEditor(e);
               e.getModel()._dbpal_query_id = new NameAndQueryId(
-                uuid,
+                dbName,
                 DataSourceKind.CouchBase,
                 "",
               );

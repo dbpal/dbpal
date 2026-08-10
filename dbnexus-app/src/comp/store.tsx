@@ -60,18 +60,18 @@ class TauriStoreManger<S> implements PersistStorage<S> {
 }
 
 interface TableColumnVisible {
-  // Key format: "tableName:uuid" -> Visibility Model
+  // Key format: "tableName:dbName" -> Visibility Model
   configs: Record<string, GridColumnVisibilityModel>;
 
   // Action to update visibility for a specific table instance
   setColumnVisibility: (
     tableName: string,
-    uuid: string,
+    dbName: string,
     model: GridColumnVisibilityModel,
   ) => void;
 
   // Helper to get visibility (returns empty object if not found)
-  getColumnVisibility: (tableName: string, uuid: string) => GridColumnVisibilityModel;
+  getColumnVisibility: (tableName: string, dbName: string) => GridColumnVisibilityModel;
 }
 
 export const useTableColumnVisibleStore = create<TableColumnVisible>()(
@@ -79,8 +79,8 @@ export const useTableColumnVisibleStore = create<TableColumnVisible>()(
     (set, get) => ({
       configs: {},
 
-      setColumnVisibility: (tableName, uuid, model) => {
-        const key = `${tableName}:${uuid}`;
+      setColumnVisibility: (tableName, dbName, model) => {
+        const key = `${tableName}:${dbName}`;
         set((state) => ({
           configs: {
             ...state.configs,
@@ -89,8 +89,8 @@ export const useTableColumnVisibleStore = create<TableColumnVisible>()(
         }));
       },
 
-      getColumnVisibility: (tableName, uuid) => {
-        const key = `${tableName}:${uuid}`;
+      getColumnVisibility: (tableName, dbName) => {
+        const key = `${tableName}:${dbName}`;
         return get().configs[key] || {};
       },
     }),
@@ -324,7 +324,7 @@ export const makeLLMCallable = (config: LLMConfig) => {
       return await commands.openaiInvoke(makeReq(msg, [], [], [], ""));
     },
     stream_prompt: async (
-      uuid: string,
+      dbName: string,
       queryId: string,
       prompt: string,
       images: string[],
@@ -344,7 +344,7 @@ export const makeLLMCallable = (config: LLMConfig) => {
       });
       await commands.openaiStream(
         makeReq(prompt, images, documents, history, user_system_prompt),
-        uuid,
+        dbName,
         queryId,
         emit,
         taskId,
@@ -663,14 +663,14 @@ export const useColumnWidthStore = create<ColumnWidthsState>()(
 );
 
 interface TableFilterState {
-  // Key: "uuid-name" | Value: Unique array of strings
+  // Key: "dbName-name" | Value: Unique array of strings
   filters: Record<string, string[]>;
 
   // Actions
-  addFilter: (uuid: string, name: string, filterValue: string) => void;
-  removeFilter: (uuid: string, name: string) => void;
+  addFilter: (dbName: string, name: string, filterValue: string) => void;
+  removeFilter: (dbName: string, name: string) => void;
   // Add the definition here
-  getFilter: (uuid: string, name: string) => string[];
+  getFilter: (dbName: string, name: string) => string[];
 }
 
 // Defining the creator separately helps TS resolve the 'Partial' conflict
@@ -680,8 +680,8 @@ const storeApi: StateCreator<TableFilterState, [["zustand/persist", unknown]]> =
 ) => ({
   filters: {},
 
-  addFilter: (uuid, name, filterValue) => {
-    const key = `${uuid}-${name}`;
+  addFilter: (dbName, name, filterValue) => {
+    const key = `${dbName}-${name}`;
     set((state) => {
       const currentList = state.filters[key] || [];
       if (currentList.includes(filterValue)) return state;
@@ -695,14 +695,14 @@ const storeApi: StateCreator<TableFilterState, [["zustand/persist", unknown]]> =
     });
   },
 
-  getFilter: (uuid, name) => {
-    const key = `${uuid}-${name}`;
+  getFilter: (dbName, name) => {
+    const key = `${dbName}-${name}`;
     // get() now correctly recognizes the state structure
     return get().filters[key] || [];
   },
 
-  removeFilter: (uuid, name) => {
-    const key = `${uuid}-${name}`;
+  removeFilter: (dbName, name) => {
+    const key = `${dbName}-${name}`;
     set((state) => {
       const newFilters = { ...state.filters };
       delete newFilters[key];
@@ -1017,7 +1017,7 @@ export const useConnectionStore = create<ConnectionState>()(
 
 export interface QueryLog {
   id?: number;
-  uuid: string;
+  dbName: string;
   name: string; // connection name
   sql: string;
   create_at: number; // 存储时间戳
@@ -1026,9 +1026,9 @@ export interface QueryLog {
 
 interface QueryLogState {
   // 核心操作方法
-  save: (uuid: string, sql: string, success: boolean) => Promise<void>;
-  query: (uuid: string) => Promise<QueryLog[]>;
-  deleteByUuid: (uuid: string) => Promise<number>;
+  save: (dbName: string, sql: string, success: boolean) => Promise<void>;
+  query: (dbName: string) => Promise<QueryLog[]>;
+  deleteByUuid: (dbName: string) => Promise<number>;
   deleteByName: (name: string) => Promise<void>;
 }
 
@@ -1036,52 +1036,52 @@ const maxQueryLogCount = 10000;
 
 export const useQueryLogStore = create<QueryLogState>(() => ({
   // 保存日志
-  save: async (uuid, sql, success) => {
+  save: async (dbName, sql, success) => {
     try {
       // 1. Save the new log
       await db.query_log.add({
-        uuid,
-        name: extractConfigNameFromUuid(uuid),
+        dbName,
+        name: extractConfigNameFromUuid(dbName),
         sql,
         success: success ? 1 : 0,
         create_at: Date.now(),
       });
 
-      // 2. Check the count for this specific uuid
-      const count = await db.query_log.where("uuid").equals(uuid).count();
+      // 2. Check the count for this specific dbName
+      const count = await db.query_log.where("dbName").equals(dbName).count();
 
       // 3. If over limit, delete the oldest ones
       const LIMIT = maxQueryLogCount;
       if (count > LIMIT) {
         const extraCount = count - LIMIT;
 
-        // Find the IDs of the oldest records for this uuid
+        // Find the IDs of the oldest records for this dbName
         const oldestLogs = await db.query_log
-          .where("uuid")
-          .equals(uuid)
+          .where("dbName")
+          .equals(dbName)
           .limit(extraCount) // Pick the first 'n' records (oldest)
           .primaryKeys(); // Get just the IDs to speed up deletion
 
         await db.query_log.bulkDelete(oldestLogs);
-        console.info(`Trimmed ${extraCount} old logs for uuid: ${uuid}`);
+        console.info(`Trimmed ${extraCount} old logs for dbName: ${dbName}`);
       }
     } catch (e) {
       console.error("save query log failed:", e);
     }
   },
 
-  query: async (uuid) => {
+  query: async (dbName) => {
     let collection = db.query_log
-      .where("uuid")
-      .equals(uuid)
+      .where("dbName")
+      .equals(dbName)
       .reverse()
       .sortBy("create_at");
     return collection;
   },
 
   // 删除
-  deleteByUuid: async (uuid) => {
-    return await db.query_log.where("uuid").equals(uuid).delete();
+  deleteByUuid: async (dbName) => {
+    return await db.query_log.where("dbName").equals(dbName).delete();
   },
 
   deleteByName: async (name) => {
@@ -1091,7 +1091,7 @@ export const useQueryLogStore = create<QueryLogState>(() => ({
 
 export interface FavoriteSql {
   id?: number;
-  uuid: string;
+  dbName: string;
   name: string;
   kind: string;
   sql: string;
@@ -1108,8 +1108,8 @@ export class MyDatabase extends Dexie {
     super("AppDatabase");
     this.version(2).stores({
       // 版本号记得加 1
-      query_log: "++id,id,uuid,name,[uuid+create_at]",
-      favorite_sql: "++id, uuid, name, connection_name, &[uuid+name]",
+      query_log: "++id,id,dbName,name,[dbName+create_at]",
+      favorite_sql: "++id, dbName, name, connection_name, &[dbName+name]",
       // 新增：给 name 和 timestamp 加索引，方便排序和清理
       chat_history: "++id, name, timestamp",
     });
@@ -1123,10 +1123,10 @@ interface FavoriteStore {
   save: (
     data: Omit<FavoriteSql, "id" | "last_modified" | "connection_name">,
   ) => Promise<void>;
-  getByUuid: (uuid?: string) => Promise<FavoriteSql[]>;
+  getByUuid: (dbName?: string) => Promise<FavoriteSql[]>;
   getDistinctUuids: () => Promise<string[]>;
   deleteById: (id: number) => Promise<void>;
-  clearByUuid: (uuid: string) => Promise<void>;
+  clearByUuid: (dbName: string) => Promise<void>;
   deleteByConnectionName: (name: string) => Promise<void>;
 }
 
@@ -1135,15 +1135,15 @@ export const useFavoriteStore = create<FavoriteStore>(() => ({
 
   save: async (data) => {
     const LIMIT_PER_UUID = 500; // Favorites usually have a smaller limit than logs
-    const connection_name = extractConfigNameFromUuid(data.uuid);
+    const connection_name = extractConfigNameFromUuid(data.dbName);
 
     try {
       // Use a Read/Write transaction for atomicity
       await db.transaction("rw", db.favorite_sql, async () => {
         // 1. Check for existing record (to simulate REPLACE)
         const existing = await db.favorite_sql
-          .where("[uuid+name]")
-          .equals([data.uuid, data.name])
+          .where("[dbName+name]")
+          .equals([data.dbName, data.name])
           .first();
 
         // 2. Perform the Put (Update if ID exists, otherwise Insert)
@@ -1156,22 +1156,25 @@ export const useFavoriteStore = create<FavoriteStore>(() => ({
 
         // 3. Only check limit if it's a NEW record (existing was undefined)
         if (!existing) {
-          const count = await db.favorite_sql.where("uuid").equals(data.uuid).count();
+          const count = await db.favorite_sql
+            .where("dbName")
+            .equals(data.dbName)
+            .count();
 
           if (count > LIMIT_PER_UUID) {
             const extraCount = count - LIMIT_PER_UUID;
 
-            // Find the oldest favorites for this uuid
+            // Find the oldest favorites for this dbName
             // We use 'last_modified' or 'id' to determine "oldest"
             const toDelete = await db.favorite_sql
-              .where("uuid")
-              .equals(data.uuid)
+              .where("dbName")
+              .equals(data.dbName)
               .limit(extraCount)
               .primaryKeys();
 
             await db.favorite_sql.bulkDelete(toDelete);
             console.info(
-              `Limit reached. Trimmed ${extraCount} favorites for ${data.uuid}`,
+              `Limit reached. Trimmed ${extraCount} favorites for ${data.dbName}`,
             );
           }
         }
@@ -1182,9 +1185,9 @@ export const useFavoriteStore = create<FavoriteStore>(() => ({
     }
   },
 
-  getByUuid: async (uuid) => {
-    if (!uuid) return await db.favorite_sql.toArray();
-    return await db.favorite_sql.where("uuid").equals(uuid).toArray();
+  getByUuid: async (dbName) => {
+    if (!dbName) return await db.favorite_sql.toArray();
+    return await db.favorite_sql.where("dbName").equals(dbName).toArray();
   },
   getDistinctUuids: async () => {
     // 先检查总数
@@ -1192,7 +1195,7 @@ export const useFavoriteStore = create<FavoriteStore>(() => ({
     if (count === 0) return [];
 
     // 只有有数据时才执行索引排序
-    const uuids = await db.favorite_sql.orderBy("uuid").uniqueKeys();
+    const uuids = await db.favorite_sql.orderBy("dbName").uniqueKeys();
     return uuids as string[];
   },
 
@@ -1200,8 +1203,8 @@ export const useFavoriteStore = create<FavoriteStore>(() => ({
     await db.favorite_sql.delete(id);
   },
 
-  clearByUuid: async (uuid) => {
-    await db.favorite_sql.where("uuid").equals(uuid).delete();
+  clearByUuid: async (dbName) => {
+    await db.favorite_sql.where("dbName").equals(dbName).delete();
   },
 
   deleteByConnectionName: async (name) => {

@@ -265,7 +265,7 @@ function SqlTableCustomToolBarLeft({
   tableName,
 }: SqlTableCustomToolBarLeftProps) {
   // 获取 DataGrid 内部的 api 实例
-  const { uuid } = useContext(UuidContext);
+  const { dbName } = useContext(UuidContext);
   const { ops, setOps } = useContext(SqlOpContext);
   const apiRef = useGridApiContext();
   const [showSetWhere, setShowSetWhere] = useState(false);
@@ -341,7 +341,7 @@ function SqlTableCustomToolBarLeft({
               onClick={async () => {
                 for (const op of ops) {
                   try {
-                    await commands.simpleExecuteSql(uuid, op.sql);
+                    await commands.simpleExecuteSql(dbName, op.sql);
                     showNotification({
                       severity: "success",
                       message: <CopySql sql={op.sql} />,
@@ -391,7 +391,7 @@ function SqlTableCustomToolBarLeft({
           }}
           label="filter"
           kind={kind}
-          uuid={uuid}
+          dbName={dbName}
         />
       )}
 
@@ -408,7 +408,7 @@ function SqlTableCustomToolBarLeft({
             setShowSetSort(false);
           }}
           label="sort"
-          uuid={uuid}
+          dbName={dbName}
         />
       )}
     </Stack>
@@ -426,7 +426,7 @@ type CustomPaginationProps = {
 function ImportDataFromFile(props: { table: string; handleReload: () => void }) {
   const { table, handleReload } = props;
   const { showNotification } = useNotification();
-  const { uuid } = useContext(UuidContext);
+  const { dbName } = useContext(UuidContext);
   const [loading, setLoading] = useState(false);
   return (
     <Tooltip title="insert data from a file,current support csv,json,jsonline">
@@ -451,7 +451,7 @@ function ImportDataFromFile(props: { table: string; handleReload: () => void }) 
             }
             const para: TableImportPara = { path };
             setLoading(true);
-            await commands.tableImportFromFile(uuid, table, para);
+            await commands.tableImportFromFile(dbName, table, para);
             showNotification({ severity: "success", title: "import data ok" });
             handleReload();
           } catch (e) {
@@ -475,7 +475,7 @@ export function SqlTablePagination({
 }: {
   dbpal: CustomPaginationProps;
 }) {
-  const { uuid } = useContext(UuidContext);
+  const { dbName } = useContext(UuidContext);
   const { showNotification } = useNotification();
   const { appendTab } = useTabsManage();
   return (
@@ -491,7 +491,7 @@ export function SqlTablePagination({
         {isTable && (
           <Button
             onClick={() => {
-              openNewTableStructure(appendTab, uuid, kind, table);
+              openNewTableStructure(appendTab, dbName, kind, table);
             }}
             variant="outlined">
             structure
@@ -505,7 +505,7 @@ export function SqlTablePagination({
 
         <ExportQueryResultToFile />
 
-        {isTable && <AddTableModal kind={kind} tableName={table} uuid={uuid} />}
+        {isTable && <AddTableModal kind={kind} tableName={table} dbName={dbName} />}
         {resp.sql && (
           <Tooltip title={resp.sql}>
             <Typography
@@ -582,7 +582,7 @@ function CellButtons(props: {
   handleReload: () => void;
 }) {
   const { op, setOps, firstField, handleReload } = props;
-  const { uuid } = useContext(UuidContext);
+  const { dbName } = useContext(UuidContext);
   const { showNotification } = useNotification();
   return (
     firstField && (
@@ -594,7 +594,7 @@ function CellButtons(props: {
           <IconButton
             onClick={async () => {
               try {
-                await commands.simpleExecuteSql(uuid, op.sql);
+                await commands.simpleExecuteSql(dbName, op.sql);
                 setOps((ops) => ops.filter((x) => x != op));
                 showNotification({
                   severity: "success",
@@ -693,30 +693,30 @@ function SqlTableView(props: {
   isTable: boolean;
 }) {
   const { tableName, isTable } = props;
-  const { uuid, kind } = useContext(UuidContext);
+  const { dbName, kind } = useContext(UuidContext);
   const getUpdateSql = useCallback(
     (x, y) => {
-      return commands.tableUpdateSql(uuid, tableName, x, y);
+      return commands.tableUpdateSql(dbName, tableName, x, y);
     },
-    [tableName, uuid],
+    [tableName, dbName],
   );
   const getDeleteSql = useCallback(
     (x) => {
-      return commands.tableDeleteSql(uuid, tableName, x);
+      return commands.tableDeleteSql(dbName, tableName, x);
     },
-    [tableName, uuid],
+    [tableName, dbName],
   );
   const putValueInSql = useCallback(
     (typ, x) => {
-      return commands.putValueInSql(uuid, typ, x);
+      return commands.putValueInSql(dbName, typ, x);
     },
-    [uuid],
+    [dbName],
   );
   const addOP = useCallback(
     async (x) => {
-      await commands.tableInsert(uuid, tableName, x);
+      await commands.tableInsert(dbName, tableName, x);
     },
-    [uuid, tableName],
+    [dbName, tableName],
   );
 
   const [loading, setLoading] = useState(false);
@@ -852,7 +852,7 @@ function SqlTableView(props: {
         setStatus: setQueryStatus,
         name: tableName,
         isView: !isTable,
-        uuid,
+        dbName,
         setLoading,
         okCallBack: showOK
           ? () => {
@@ -867,7 +867,7 @@ function SqlTableView(props: {
         },
       });
     },
-    [handleResp, isTable, kind, makePara, showNotification, tableName, uuid],
+    [handleResp, isTable, kind, makePara, showNotification, tableName, dbName],
   );
 
   const rowHasOP = useCallback(
@@ -1039,7 +1039,7 @@ function SqlTableView(props: {
                     new EditInModalCellData(row, field, row[field], parseInt(id)),
                   );
                 }}
-                uuid={uuid}
+                dbName={dbName}
                 fieldType={fieldDef.data_type}
                 editRowInModal={() => {
                   setRowEditInModal(row);
@@ -1120,7 +1120,7 @@ function SqlTableView(props: {
     resp,
     setUpMenu,
     kind,
-    uuid,
+    dbName,
     isTable,
     apiRef,
     handleDelete,
@@ -1147,7 +1147,7 @@ function SqlTableView(props: {
                 onClick={() => {
                   setUi(
                     <ExportTableOrView
-                      uuid={uuid}
+                      dbName={dbName}
                       name={tableName}
                       kind={kind}
                       isTable={isTable}
@@ -1164,7 +1164,7 @@ function SqlTableView(props: {
       },
       pagination: SqlTablePagination,
     };
-  }, [isTable, kind, makePara, setUi, tableName, uuid]);
+  }, [isTable, kind, makePara, setUi, tableName, dbName]);
   const sortModel = clientModel ? "client" : "server";
   const { getColumnVisibility, setColumnVisibility } = useTableColumnVisibleStore(
     (s) => s,
@@ -1177,7 +1177,7 @@ function SqlTableView(props: {
         value={{
           ops,
           setOps,
-          uuid,
+          dbName,
           handleReload: () => {
             handleReload(false);
           },
@@ -1205,9 +1205,9 @@ function SqlTableView(props: {
             }}
             slots={slots}
             apiRef={apiRef}
-            columnVisibilityModel={getColumnVisibility(uuid, tableName)}
+            columnVisibilityModel={getColumnVisibility(dbName, tableName)}
             onColumnVisibilityModelChange={(e) => {
-              setColumnVisibility(uuid, tableName, e);
+              setColumnVisibility(dbName, tableName, e);
             }}
             slotProps={slotProps}
             style={dataGridStyle}
@@ -1460,7 +1460,7 @@ function SqlTableViewData(props: {
 }
 
 function CellMenu(props: {
-  uuid: string;
+  dbName: string;
   field: string;
   fieldType: string;
   content: string;
@@ -1491,7 +1491,7 @@ function CellMenu(props: {
     isTable,
     setShowFilter,
     setShowClone,
-    uuid,
+    dbName,
     fieldType,
     getRow,
   } = props;
@@ -1543,7 +1543,7 @@ function CellMenu(props: {
         <ListItemText> View in Modal </ListItemText>
       </MenuItem>
       <CopyAsXXX
-        uuid={uuid}
+        dbName={dbName}
         field={field}
         fieldType={fieldType}
         getRow={getRow}

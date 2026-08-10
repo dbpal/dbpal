@@ -72,7 +72,7 @@ import {
 } from "./datagridExport";
 function ViewsTree(props: { viewKind: ViewKind }) {
   const { viewKind } = props;
-  const { uuid } = useContext(UuidContext);
+  const { dbName } = useContext(UuidContext);
   const [views, setViews] = useState<ListTable[]>([]);
   const { showNotification } = useNotification();
   const [loading, setLoading] = useState(false);
@@ -85,7 +85,7 @@ function ViewsTree(props: { viewKind: ViewKind }) {
 
   const handleReload = useCallback(() => {
     setLoading(true);
-    listView(uuid, viewKind)
+    listView(dbName, viewKind)
       .then((ts) => {
         setViews(ts);
       })
@@ -95,7 +95,7 @@ function ViewsTree(props: { viewKind: ViewKind }) {
       .finally(() => {
         setLoading(false);
       });
-  }, [showNotification, uuid, viewKind]);
+  }, [showNotification, dbName, viewKind]);
   useEffect(() => {
     handleReload();
   }, [handleReload]);
@@ -149,7 +149,7 @@ function ViewsTree(props: { viewKind: ViewKind }) {
 }
 
 function StatementStructure(props: { view: string; viewKind: ViewKind }) {
-  const { uuid } = useContext(UuidContext);
+  const { dbName } = useContext(UuidContext);
   const { view, viewKind } = props;
   const [sql, setSql] = useState("");
   const [loading, setLoading] = useState(false);
@@ -157,7 +157,7 @@ function StatementStructure(props: { view: string; viewKind: ViewKind }) {
   const handleReload = useCallback(() => {
     setLoading(true);
     commands
-      .createViewSql(uuid, view, viewKind == ViewKind.MaterializedView)
+      .createViewSql(dbName, view, viewKind == ViewKind.MaterializedView)
       .then((e) => {
         setSql(e);
       })
@@ -171,7 +171,7 @@ function StatementStructure(props: { view: string; viewKind: ViewKind }) {
       .finally(() => {
         setLoading(false);
       });
-  }, [showNotification, uuid, view, viewKind]);
+  }, [showNotification, dbName, view, viewKind]);
   useEffect(() => {
     handleReload();
   }, [handleReload]);
@@ -255,7 +255,7 @@ function ColumnsMenu(props: { content: string }) {
 
 function ColumnsContent(props: { view: string }) {
   const { view } = props;
-  const { uuid } = useContext(UuidContext);
+  const { dbName } = useContext(UuidContext);
 
   const [fields, setFields] = useState<Field[]>([]);
   const { showNotification } = useNotification();
@@ -272,7 +272,7 @@ function ColumnsContent(props: { view: string }) {
   const handleReload = useCallback(() => {
     setLoading(true);
     commands
-      .showViewColumns(uuid, view)
+      .showViewColumns(dbName, view)
       .then((fs) => {
         setFields(fs);
       })
@@ -286,7 +286,7 @@ function ColumnsContent(props: { view: string }) {
       .finally(() => {
         setLoading(false);
       });
-  }, [showNotification, uuid, view]);
+  }, [showNotification, dbName, view]);
 
   useEffect(() => {
     handleReload();
@@ -380,13 +380,13 @@ function ViewTree(props: {
   size?: number;
 }) {
   const { view, reload, viewKind, size } = props;
-  const { uuid, kind } = useContext(UuidContext);
+  const { dbName, kind } = useContext(UuidContext);
   const setUpMenu = useContextMenu((state) => state.setUpMenu);
   const icon = getIcon(viewKind);
 
   return (
     <TreeItem
-      itemId={uuid + "-view-" + viewKind + "-" + view}
+      itemId={dbName + "-view-" + viewKind + "-" + view}
       label={
         <Stack
           direction="row"
@@ -398,7 +398,7 @@ function ViewTree(props: {
                   kind={kind}
                   reload={reload}
                   view={view}
-                  uuid={uuid}
+                  dbName={dbName}
                   viewKind={viewKind}
                 />
               ),
@@ -421,10 +421,10 @@ function ViewMenu(props: {
   view: string;
   reload: () => void;
   viewKind: ViewKind;
-  uuid;
+  dbName;
   kind;
 }) {
-  const { view, reload, viewKind, uuid, kind } = props;
+  const { view, reload, viewKind, dbName, kind } = props;
   const { showNotification } = useNotification();
 
   const { setUi } = useOneShotDialogUI();
@@ -439,8 +439,8 @@ function ViewMenu(props: {
     }
 
     (viewKind == ViewKind.MaterializedView
-      ? commands.dropMaterializedView(uuid, view)
-      : commands.dropView(uuid, view)
+      ? commands.dropMaterializedView(dbName, view)
+      : commands.dropView(dbName, view)
     )
       .then((sql) => {
         showNotification({
@@ -484,7 +484,7 @@ function ViewMenu(props: {
         });
     }
 
-    appendTab(new TabContent(view, list, <VisibilityIcon />, uuid, kind));
+    appendTab(new TabContent(view, list, <VisibilityIcon />, dbName, kind));
   };
 
   const handleStructure = () => {
@@ -493,7 +493,7 @@ function ViewMenu(props: {
         `${view}`,
         <ViewStructure view={view} viewKind={viewKind} />,
         <IoConstructOutline />,
-        uuid,
+        dbName,
         kind,
       ),
     );
@@ -529,7 +529,12 @@ function ViewMenu(props: {
       <MenuItem
         onClick={() => {
           setUi(
-            <ExportTableOrView uuid={uuid} name={view} isTable={false} kind={kind} />,
+            <ExportTableOrView
+              dbName={dbName}
+              name={view}
+              isTable={false}
+              kind={kind}
+            />,
             `export view ${view}`,
           );
         }}>

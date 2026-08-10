@@ -59,17 +59,17 @@ function RespContextMenu(props: {
   field: string;
   setSort: (model: GridSortModel) => void;
   viewInModal: () => void;
-  uuid: string;
+  dbName: string;
   fieldType: string;
   getRow: () => object;
 }): React.ReactElement {
-  const { content, field, setSort, viewInModal, uuid, getRow, fieldType } = props;
+  const { content, field, setSort, viewInModal, dbName, getRow, fieldType } = props;
   return (
     <MenuList>
       <CopyAsXXX
         content={content}
         field={field}
-        uuid={uuid}
+        dbName={dbName}
         getRow={getRow}
         fieldType={fieldType}
       />
@@ -104,7 +104,7 @@ function RespContextMenu(props: {
 
 function QueryResp(props: { data: MuiDataGridData }): React.ReactElement {
   const { data } = props;
-  const { uuid } = useContext(UuidContext);
+  const { dbName } = useContext(UuidContext);
   const { setColumnWidth, getColumnWidth } = useColumnWidthStore();
   const [selectedColumns, setSelectColumns] = useState<Set<string>>(new Set());
   const apiRef = useGridApiRef();
@@ -175,7 +175,7 @@ function QueryResp(props: { data: MuiDataGridData }): React.ReactElement {
                   return row;
                 }}
                 fieldType={data.fields.find((e) => e.field == field).data_type}
-                uuid={uuid}
+                dbName={dbName}
                 content={content}
                 field={field}
                 setSort={setSortModel}
@@ -187,7 +187,7 @@ function QueryResp(props: { data: MuiDataGridData }): React.ReactElement {
         style: { cursor: "context-menu" },
       },
     } as GridSlotsComponentsProps;
-  }, [data, setUpMenu, uuid]);
+  }, [data, setUpMenu, dbName]);
 
   const onSortModelChange = useCallback((e) => {
     setSortModel(e);

@@ -176,12 +176,12 @@ const ignoreErrKey = "mongo-query-ignore-error";
 
 function MongoQuery(props: { favoriteName?: string; value?: string }) {
   const { value, favoriteName } = props;
-  const { uuid } = useContext(UuidContext);
+  const { dbName } = useContext(UuidContext);
   const [editor, setEditor] = useState<editor.IStandaloneCodeEditor>(null);
   const { showNotification } = useNotification();
   const { getSwitch, setSwitch } = useBoolSwitch();
   const [mongoHandle, setMongoHandle] = useState<{ db; FS; BSON; HTTP }>({
-    db: new MongoDBQuery(uuid),
+    db: new MongoDBQuery(dbName),
     BSON: null,
     FS: null,
     HTTP: null,
@@ -207,13 +207,13 @@ const { db, FS, HTTP, BSON } = mongoHandle;
 `);
       ed.setModel(model);
       ed.getModel()._dbpal_query_id = new NameAndQueryId(
-        uuid,
+        dbName,
         DataSourceKind.Mongo,
         "",
       ); // mongo no need query id
       ed.focus();
     },
-    [uuid],
+    [dbName],
   );
 
   useEffect(() => {
@@ -253,7 +253,7 @@ const { db, FS, HTTP, BSON } = mongoHandle;
             getText={async () => {
               let now = new Date();
               if (getSwitch(saveQueryKey)) {
-                saveQueryLog(uuid, editor.getValue(), true);
+                saveQueryLog(dbName, editor.getValue(), true);
               }
               const code = await transformTS(
                 editor,
@@ -299,7 +299,7 @@ const { db, FS, HTTP, BSON } = mongoHandle;
           <AiMarkdownModelSwitch
             setMarkdownModel={setMarkdownModel}
             markdownModel={markdownModel}
-            uuid={uuid}
+            dbName={dbName}
           />
           <ShowQueryLog />
           <Tooltip
@@ -336,7 +336,7 @@ const { db, FS, HTTP, BSON } = mongoHandle;
               }}
               handleEexecute={() => {
                 if (getSwitch(saveQueryKey)) {
-                  saveQueryLog(uuid, code, true);
+                  saveQueryLog(dbName, code, true);
                 }
                 return handleExecute(code);
               }}

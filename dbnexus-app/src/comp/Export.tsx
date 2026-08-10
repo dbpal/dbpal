@@ -256,19 +256,19 @@ function ExportView(props: {
 }
 
 function ExportTableOrView(props: {
-  uuid: string;
+  dbName: string;
   name: string;
   isTable: boolean;
   para?: ShowTableParameter;
   kind: DataSourceKind;
 }) {
-  const { uuid, name, kind, isTable, para } = props;
+  const { dbName, name, kind, isTable, para } = props;
 
   return (
     <ExportView
       exportOP={async (kind, filepath, taskId, sizeEmitter) => {
         return await commands.exportTableOrView(
-          uuid,
+          dbName,
           taskId,
           sizeEmitter,
           name,

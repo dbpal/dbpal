@@ -116,7 +116,7 @@ function ColumnMenu(props: {
 }
 
 function ColumnsStructure(props: { table: string }) {
-  const { uuid, kind } = useContext(UuidContext);
+  const { dbName, kind } = useContext(UuidContext);
   const { table } = props;
   const [loading, setLoading] = useState(false);
   const [fields, setFields] = useState<Field[]>([]);
@@ -149,7 +149,7 @@ function ColumnsStructure(props: { table: string }) {
     setLoading(true);
 
     commands
-      .showTableColumns(uuid, table)
+      .showTableColumns(dbName, table)
       .then((data) => {
         data.forEach((e, index) => {
           e["id"] = index;
@@ -166,7 +166,7 @@ function ColumnsStructure(props: { table: string }) {
       .finally(() => {
         setLoading(false);
       });
-  }, [showNotification, table, uuid]);
+  }, [showNotification, table, dbName]);
 
   const handleDrop = useCallback(
     async (col: string) => {
@@ -180,7 +180,7 @@ function ColumnsStructure(props: { table: string }) {
         return;
       }
       commands
-        .dropTableColumn(uuid, table, col)
+        .dropTableColumn(dbName, table, col)
         .then((sql) => {
           showNotification({
             severity: "success",
@@ -197,7 +197,7 @@ function ColumnsStructure(props: { table: string }) {
           });
         });
     },
-    [handleReload, showNotification, table, uuid],
+    [handleReload, showNotification, table, dbName],
   );
   const [showAdd, setShowAdd] = useState(false);
   useEffect(() => {
@@ -360,7 +360,7 @@ function ColumnsStructure(props: { table: string }) {
           <DialogTitle> add table column </DialogTitle>
           <TableAddColumn
             table={table}
-            uuid={uuid}
+            dbName={dbName}
             handleClose={() => {
               setShowAdd(false);
             }}
@@ -384,7 +384,7 @@ function ColumnsStructure(props: { table: string }) {
             <DialogTitle> modify table column </DialogTitle>
             <ModifyTableColumn
               table={table}
-              uuid={uuid}
+              dbName={dbName}
               handleClose={() => {
                 setRow(null);
               }}
@@ -401,13 +401,13 @@ function ColumnsStructure(props: { table: string }) {
 }
 
 function RenameIndex(props: {
-  uuid: string;
+  dbName: string;
   table: string;
   reload: () => void;
   handleClose: () => void;
   indexName: string;
 }) {
-  const { uuid, table, reload, handleClose, indexName } = props;
+  const { dbName, table, reload, handleClose, indexName } = props;
   const [loading, setLoading] = useState(false);
   const [newName, setNewname] = useState(indexName);
   const { showNotification } = useNotification();
@@ -419,7 +419,7 @@ function RenameIndex(props: {
     setLoading(true);
 
     commands
-      .renameIndex(uuid, table, indexName, newName)
+      .renameIndex(dbName, table, indexName, newName)
       .then((sql) => {
         showNotification({
           severity: "success",
@@ -499,7 +499,7 @@ function IndexMenu(props: {
 }
 
 function IndexesStructure(props: { table: string }) {
-  const { uuid, kind } = useContext(UuidContext);
+  const { dbName, kind } = useContext(UuidContext);
   const { table } = props;
   const [loading, setLoading] = useState(false);
   const [indexes, setIndexes] = useState<Index[]>([]);
@@ -520,7 +520,7 @@ function IndexesStructure(props: { table: string }) {
     setLoading(true);
 
     commands
-      .showIndexes(uuid, table)
+      .showIndexes(dbName, table)
       .then((data) => {
         data.forEach((x, index) => {
           x["id"] = index;
@@ -537,7 +537,7 @@ function IndexesStructure(props: { table: string }) {
       .finally(() => {
         setLoading(false);
       });
-  }, [showNotification, table, uuid]);
+  }, [showNotification, table, dbName]);
 
   const handleDrop = useCallback(
     async (indexName: string) => {
@@ -550,7 +550,7 @@ function IndexesStructure(props: { table: string }) {
         return;
       }
       commands
-        .dropIndex(uuid, table, indexName)
+        .dropIndex(dbName, table, indexName)
         .then((sql) => {
           showNotification({
             severity: "success",
@@ -567,7 +567,7 @@ function IndexesStructure(props: { table: string }) {
           });
         });
     },
-    [handleReload, showNotification, table, uuid],
+    [handleReload, showNotification, table, dbName],
   );
   useEffect(() => {
     handleReload();
@@ -657,7 +657,7 @@ function IndexesStructure(props: { table: string }) {
           <DialogTitle> mongo create index </DialogTitle>
           <div style={{ height: "40vh" }}>
             <MongoAddIndex
-              uuid={uuid}
+              dbName={dbName}
               table={table}
               handleClose={() => {
                 setShowAdd(false);
@@ -678,7 +678,7 @@ function IndexesStructure(props: { table: string }) {
           maxWidth="md">
           <DialogTitle> create index </DialogTitle>
           <AddIndex
-            uuid={uuid}
+            dbName={dbName}
             table={table}
             handleClose={() => {
               setShowAdd(false);
@@ -698,7 +698,7 @@ function IndexesStructure(props: { table: string }) {
           }}>
           <DialogTitle> rename index </DialogTitle>
           <RenameIndex
-            uuid={uuid}
+            dbName={dbName}
             table={table}
             indexName={renameIndexName}
             handleClose={() => {
@@ -713,12 +713,12 @@ function IndexesStructure(props: { table: string }) {
 }
 
 function MongoAddIndex(props: {
-  uuid: string;
+  dbName: string;
   table: string;
   handleClose: () => void;
   reload: () => void;
 }) {
-  const { uuid, table, handleClose, reload } = props;
+  const { dbName, table, handleClose, reload } = props;
 
   const indexTypes = ["normal", "unique"];
   const [indexType, setIndexType] = useState(indexTypes[0]);
@@ -734,7 +734,7 @@ function MongoAddIndex(props: {
         return;
       }
       await commands.mongoCreateIndex(
-        uuid,
+        dbName,
         table,
         indexName ? indexName : null,
         BSON.serialize(keys),
@@ -782,19 +782,19 @@ function MongoAddIndex(props: {
 }
 
 function AddIndex(props: {
-  uuid: string;
+  dbName: string;
   table: string;
   handleClose: () => void;
   reload: () => void;
   kind: DataSourceKind;
 }) {
-  const { uuid, table, handleClose, reload, kind } = props;
+  const { dbName, table, handleClose, reload, kind } = props;
   const [fields, setFields] = useState<Field[]>([]);
   const { showNotification } = useNotification();
   const [req, setReq] = useState<CreateIndexReq>(null);
   useEffect(() => {
     commands
-      .showTableColumns(uuid, table)
+      .showTableColumns(dbName, table)
       .then((data) => {
         setFields(data);
       })
@@ -805,7 +805,7 @@ function AddIndex(props: {
           message: e,
         });
       });
-  }, [showNotification, table, uuid]);
+  }, [showNotification, table, dbName]);
   const handleAdd = async () => {
     if (!req.name) {
       showNotification({ severity: "warning", title: "index name can't be none" });
@@ -816,7 +816,7 @@ function AddIndex(props: {
       return;
     }
     try {
-      const sql = await commands.createIndex(uuid, table, req);
+      const sql = await commands.createIndex(dbName, table, req);
       showNotification({
         severity: "success",
         title: "create index ok",
@@ -850,13 +850,13 @@ function AddIndex(props: {
 
 function TableAddColumn(props: {
   table: string;
-  uuid: string;
+  dbName: string;
   handleClose: () => void;
   reload: () => void;
   kind: DataSourceKind;
   fields: Field[];
 }) {
-  const { table, uuid, handleClose, reload, kind, fields } = props;
+  const { table, dbName, handleClose, reload, kind, fields } = props;
   const [name, setName] = useState("");
   const [nullable, setNullness] = useState<SqlNullAble>("unspecified");
   const [typ, setTyp] = useState("");
@@ -884,7 +884,7 @@ function TableAddColumn(props: {
     setLoading(true);
 
     commands
-      .addTableColumn(uuid, table, name, {
+      .addTableColumn(dbName, table, name, {
         typ: typ,
         nullable: nullable ? nullable : null,
         after: after ? after : null,
@@ -973,7 +973,7 @@ function TableAddColumn(props: {
 }
 
 function ModifyTableColumn(props: {
-  uuid: string;
+  dbName: string;
   table: string;
   col: string;
   handleClose: () => void;
@@ -982,7 +982,7 @@ function ModifyTableColumn(props: {
   kind: DataSourceKind;
   defaultValue: string;
 }) {
-  const { uuid, table, col, handleClose, reload, typ, kind, defaultValue } = props;
+  const { dbName, table, col, handleClose, reload, typ, kind, defaultValue } = props;
   const [loading, setLoading] = useState(false);
   const [newName, setNewName] = useState(col);
   const [newTyp, setNewTyp] = useState(typ);
@@ -1012,7 +1012,7 @@ function ModifyTableColumn(props: {
       };
     }
     commands
-      .modifyTableColumn(uuid, table, col, newName, typePara)
+      .modifyTableColumn(dbName, table, col, newName, typePara)
       .then((sql) => {
         showNotification({
           severity: "success",
@@ -1178,7 +1178,7 @@ function TriggerMenu(props: {
 
 function TriggersStructure(props: { table: string }) {
   const { table } = props;
-  const { uuid } = useContext(UuidContext);
+  const { dbName } = useContext(UuidContext);
   const [loading, setLoading] = useState(false);
   const [triggers, setTriggers] = useState<TriggerDetail[]>([]);
   const [row, setRow] = useState<TriggerDetail>(null);
@@ -1195,7 +1195,7 @@ function TriggersStructure(props: { table: string }) {
   const handleReload = useCallback(() => {
     setLoading(true);
     commands
-      .showTrigger(uuid, table)
+      .showTrigger(dbName, table)
       .then((data) => {
         data.forEach((e, index) => {
           e["id"] = index;
@@ -1212,7 +1212,7 @@ function TriggersStructure(props: { table: string }) {
       .finally(() => {
         setLoading(false);
       });
-  }, [showNotification, table, uuid]);
+  }, [showNotification, table, dbName]);
   const handleDrop = useCallback(
     async (trigger: string) => {
       const confirm = await secondConfirm({
@@ -1248,7 +1248,7 @@ function TriggersStructure(props: { table: string }) {
     (triggerName: string, enable: boolean) => {
       let title = enable ? "Enable" : "Disable";
       commands
-        .enableTrigger(uuid, table, triggerName, enable)
+        .enableTrigger(dbName, table, triggerName, enable)
         .then((sql) => {
           showNotification({
             severity: "success",
@@ -1265,7 +1265,7 @@ function TriggersStructure(props: { table: string }) {
           });
         });
     },
-    [handleReload, showNotification, table, uuid],
+    [handleReload, showNotification, table, dbName],
   );
 
   useEffect(() => {
@@ -1478,7 +1478,7 @@ function TableStructure(props: { table: string }) {
   );
 }
 function StatementStructure(props: { table: string }) {
-  const { uuid } = useContext(UuidContext);
+  const { dbName } = useContext(UuidContext);
   const { table } = props;
   const { showNotification } = useNotification();
 
@@ -1487,7 +1487,7 @@ function StatementStructure(props: { table: string }) {
       <DefAndMetasView
         reloadOP={async () => {
           return commands
-            .showCreateTableSql(uuid, table)
+            .showCreateTableSql(dbName, table)
             .then((data) => {
               return {
                 def: formatCreateTableAndIndexSql(data),

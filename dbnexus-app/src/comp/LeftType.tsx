@@ -24,7 +24,7 @@ import {
 import { commands, CreatedTypeDef } from "./bindings";
 import { uuidv4 } from "./Common";
 function TypesTree() {
-  const { uuid, kind } = useContext(UuidContext);
+  const { dbName, kind } = useContext(UuidContext);
   const [types, setTypes] = useState<CreatedTypeDef[]>([]);
   const { showNotification } = useNotification();
   const { maxTree } = useMatcher();
@@ -32,14 +32,14 @@ function TypesTree() {
 
   const reload = useCallback(() => {
     commands
-      .listCreatedTypes(uuid)
+      .listCreatedTypes(dbName)
       .then((ts) => {
         setTypes(ts);
       })
       .catch((e) => {
         showNotification({ severity: "error", title: "list types failed", message: e });
       });
-  }, [showNotification, uuid]);
+  }, [showNotification, dbName]);
 
   const showItems = useMemo(() => {
     return types.filter((e) => matchPattern(e.name)).slice(0, maxTree);
@@ -72,7 +72,7 @@ function TypesTree() {
         <ShowingCount showing={showItems.length} total={types.length} />
       </Stack>>
       {showItems.map((typ) => {
-        const id = `${uuid}-type-${typ.name}`;
+        const id = `${dbName}-type-${typ.name}`;
         return (
           <TreeItem
             key={typ.name}
@@ -85,7 +85,7 @@ function TypesTree() {
                   content: (
                     <TypeMenu
                       reload={reload}
-                      uuid={uuid}
+                      dbName={dbName}
                       kind={kind}
                       createdType={typ}
                     />
@@ -105,12 +105,12 @@ function TypesTree() {
 }
 
 function TypeMenu(props: {
-  uuid: string;
+  dbName: string;
   createdType: CreatedTypeDef;
   reload: () => void;
   kind: DataSourceKind;
 }) {
-  const { uuid, createdType, reload, kind } = props;
+  const { dbName, createdType, reload, kind } = props;
   const { appendTab } = useTabsManage();
   const { showNotification } = useNotification();
   const handleOpenDetails = () => {
@@ -126,7 +126,7 @@ function TypeMenu(props: {
           }}
         />,
         <PiTreeStructureFill />,
-        uuid,
+        dbName,
         kind,
       ),
     );
@@ -142,7 +142,7 @@ function TypeMenu(props: {
     }
 
     commands
-      .dropCreatedType(uuid, createdType.name)
+      .dropCreatedType(dbName, createdType.name)
       .then((sql) => {
         showNotification({
           severity: "success",

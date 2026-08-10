@@ -240,7 +240,7 @@ function TabsWithContent() {
         {tabs.map((tab, index) => (
           <TabActiveContext.Provider key={tab.id} value={currentTab == index}>
             <TabContext value={{ id: tab.id }}>
-              <UuidContext value={{ uuid: tab.uuid, kind: tab.kind }}>
+              <UuidContext value={{ dbName: tab.dbName, kind: tab.kind }}>
                 <div
                   hidden={currentTab !== index}
                   style={{ height: "100%", position: "relative" }}>

@@ -264,11 +264,11 @@ function AppCode(props: {
 }
 
 function CreateDatabase(props: {
-  uuid: string;
+  dbName: string;
   handleClose: () => void;
   kind: DataSourceKind;
 }) {
-  const { uuid, handleClose, kind } = props;
+  const { dbName, handleClose, kind } = props;
   const { showNotification } = useNotification();
   const [database, setDatabase] = useState("");
   const databaseDom = useRef(null);
@@ -307,7 +307,7 @@ function CreateDatabase(props: {
         };
     }
     commands
-      .createDatabase(uuid, database, extra)
+      .createDatabase(dbName, database, extra)
       .then(() => {
         showNotification({ severity: "success", title: "Create OK" });
         handleClose();
@@ -412,13 +412,13 @@ function CreateDatabase(props: {
  * Modal used to create a new schema / keyspace / database object.
  */
 function CreateSchema(props: {
-  uuid: string;
+  dbName: string;
   handleClose: () => void;
   handleReload: () => void;
   kind: DataSourceKind;
   schemas: string[];
 }) {
-  const { uuid, handleClose, kind, schemas, handleReload } = props;
+  const { dbName, handleClose, kind, schemas, handleReload } = props;
   const schemaSet = new Set(schemas);
   const { showNotification } = useNotification();
   const [schema, setSchema] = useState("");
@@ -449,7 +449,7 @@ function CreateSchema(props: {
         break;
     }
     commands
-      .createSchema(uuid, schema, extra)
+      .createSchema(dbName, schema, extra)
       .then(() => {
         showNotification({ severity: "success", title: "create  ok" });
         handleClose();
@@ -623,12 +623,17 @@ function SimpleFlexEditor(props: {
 /**
  * Menu item for connection info tab.
  */
-function MenuConnectionInfo(props: { uuid: string }) {
-  const { uuid } = props;
+function MenuConnectionInfo(props: { dbName: string }) {
+  const { dbName } = props;
   const appendTab = useTabsManage((state) => state.appendTab);
   const handleInfo = async () => {
     appendTab(
-      new TabContent(uuid, <ConnConfigInfo />, <IoMdInformationCircleOutline />, uuid),
+      new TabContent(
+        dbName,
+        <ConnConfigInfo />,
+        <IoMdInformationCircleOutline />,
+        dbName,
+      ),
     );
   };
   return (
@@ -645,7 +650,7 @@ function MenuConnectionInfo(props: { uuid: string }) {
  * Displays backend connection metadata values.
  */
 function ConnConfigInfo() {
-  const { uuid } = useContext(UuidContext);
+  const { dbName } = useContext(UuidContext);
   const { showNotification } = useNotification();
   const [metas, setMetas] = useState<MetaValue[]>([]);
   const { getConnection } = useConnectionStore();
@@ -653,8 +658,8 @@ function ConnConfigInfo() {
   const handleInfo = useCallback(
     async (showOK: boolean) => {
       try {
-        let metas: MetaValue[] = await commands.serverMetas(uuid);
-        const config = await getConnection(uuid);
+        let metas: MetaValue[] = await commands.serverMetas(dbName);
+        const config = await getConnection(dbName);
         let configMetas = [];
 
         if (passwordKey in config) {
@@ -678,7 +683,7 @@ function ConnConfigInfo() {
         });
       }
     },
-    [getConnection, showNotification, uuid],
+    [getConnection, showNotification, dbName],
   );
   useEffect(() => {
     handleInfo(false);
@@ -1032,13 +1037,13 @@ function UrlDocument(props: { url: string }) {
 }
 
 function SaveFavoriteSqlViewOnTheFly(props: {
-  uuid: string;
+  dbName: string;
   kind: DataSourceKind;
   sql: string;
   onChangeFavName: (name: string) => void;
   handleClose: () => void;
 }) {
-  const { kind, sql, onChangeFavName, uuid, handleClose } = props;
+  const { kind, sql, onChangeFavName, dbName, handleClose } = props;
   const [favoriteName, setFavoriteName] = useState("");
   const { showNotification } = useNotification();
   const { save } = useFavoriteStore();
@@ -1068,7 +1073,7 @@ function SaveFavoriteSqlViewOnTheFly(props: {
 
               return;
             }
-            save({ uuid, name: favoriteName, kind, sql });
+            save({ dbName, name: favoriteName, kind, sql });
             showNotification({
               severity: "success",
               title: "save favorite sql success.",
@@ -1092,7 +1097,7 @@ function SaveFavoriteSqlView(props: {
   favoriteName?: string;
   editor: editor.IStandaloneCodeEditor;
 }) {
-  const { uuid, kind } = useContext(UuidContext);
+  const { dbName, kind } = useContext(UuidContext);
 
   const { favoriteName: oldName, editor } = props;
   const [favoriteName, setFavoriteName] = useState(oldName);
@@ -1115,7 +1120,7 @@ function SaveFavoriteSqlView(props: {
                 return;
               }
               if (favoriteName) {
-                save({ uuid, name: favoriteName, kind, sql });
+                save({ dbName, name: favoriteName, kind, sql });
                 showNotification({
                   severity: "success",
                   title: "save favorite sql success.",
@@ -1123,7 +1128,7 @@ function SaveFavoriteSqlView(props: {
               } else {
                 setUi(
                   <SaveFavoriteSqlViewOnTheFly
-                    uuid={uuid}
+                    dbName={dbName}
                     sql={sql}
                     kind={kind}
                     onChangeFavName={(name) => {
@@ -1382,13 +1387,13 @@ function TypeSelect(props: {
   type: string | null;
   style?: CSSProperties;
 }) {
-  const { uuid } = useContext(UuidContext);
+  const { dbName } = useContext(UuidContext);
   const { handleChange, type, style } = props;
   const [types, setTypes] = useState<string[]>([]);
   const { showNotification } = useNotification();
   useEffect(() => {
     commands
-      .listDataTypes(uuid)
+      .listDataTypes(dbName)
       .then((data) => {
         setTypes(data);
       })
@@ -1399,7 +1404,7 @@ function TypeSelect(props: {
           message: e,
         });
       });
-  }, [showNotification, uuid]);
+  }, [showNotification, dbName]);
   return (
     <Autocomplete
       freeSolo
@@ -1443,13 +1448,13 @@ function SqlDefaultValue(props: {
   defaultValue: string | null;
   setDefaultValue: (value: string | null) => void;
 }) {
-  const { uuid } = useContext(UuidContext);
+  const { dbName } = useContext(UuidContext);
   const { defaultValue, setDefaultValue } = props;
   const [currentValue, setCurrentValue] = useState<string[]>([]);
   const { showNotification } = useNotification();
   useEffect(() => {
     commands
-      .listSqlCurrentValues(uuid)
+      .listSqlCurrentValues(dbName)
       .then((data) => {
         setCurrentValue(data);
       })
@@ -1460,7 +1465,7 @@ function SqlDefaultValue(props: {
           message: e,
         });
       });
-  }, [showNotification, uuid]);
+  }, [showNotification, dbName]);
 
   return (
     <Autocomplete
@@ -1570,16 +1575,16 @@ function SetFilterSort(props: {
   label: "filter" | "sort";
   tableName: string;
   kind: DataSourceKind;
-  uuid: string;
+  dbName: string;
 }) {
-  let { open, handleClose, value, setValue, label, tableName, kind, uuid } = props;
+  let { open, handleClose, value, setValue, label, tableName, kind, dbName } = props;
   const isFilter = label == "filter";
   const extractFn = isFilter
     ? function (sql: string) {
-        return commands.extractTableSelectSelection(uuid, sql);
+        return commands.extractTableSelectSelection(dbName, sql);
       }
     : function (sql: string) {
-        return commands.extractTableSelectSort(uuid, sql);
+        return commands.extractTableSelectSort(dbName, sql);
       };
   tableName = quoteDatabaseIdentifier(tableName, kind);
   const [editor, setEditor] = useState<editor.IStandaloneCodeEditor>(null);
@@ -1588,7 +1593,7 @@ function SetFilterSort(props: {
 
   const [selectFilter, setSelectFilter] = useState("");
   const { getFilter, addFilter, removeFilter } = useTableFilter();
-  const filters = getFilter(uuid, tableName);
+  const filters = getFilter(dbName, tableName);
   const tabSize = useTabSize();
   const handleSet = async () => {
     try {
@@ -1631,7 +1636,7 @@ function SetFilterSort(props: {
             setEditor(e);
             e.focus();
             editorPositionToEnd(e);
-            e.getModel()._dbpal_query_id = new NameAndQueryId(uuid, kind);
+            e.getModel()._dbpal_query_id = new NameAndQueryId(dbName, kind);
           }}
           language={"sql"}
         />
@@ -1655,7 +1660,7 @@ function SetFilterSort(props: {
                     }
                     try {
                       const data = await extractFn(value);
-                      addFilter(uuid, tableName, data);
+                      addFilter(dbName, tableName, data);
                     } catch (e) {
                       showNotification({
                         severity: "error",
@@ -1669,7 +1674,7 @@ function SetFilterSort(props: {
               </Tooltip>
               <IconButton
                 onClick={() => {
-                  removeFilter(uuid, tableName);
+                  removeFilter(dbName, tableName);
                   showNotification({
                     severity: "success",
                     title: "delete filter success",
@@ -1863,11 +1868,11 @@ function AiMarkdownModel(props: {
 function AiMarkdownModelSwitch(props: {
   setMarkdownModel: Dispatch<SetStateAction<boolean>>;
   markdownModel: boolean;
-  uuid: string;
+  dbName: string;
 }) {
-  const { setMarkdownModel, markdownModel, uuid } = props;
+  const { setMarkdownModel, markdownModel, dbName } = props;
   const { getSwitch, setSwitch } = useBoolSwitch();
-  const switchKey = "ai-markdown-model" + "-" + uuid;
+  const switchKey = "ai-markdown-model" + "-" + dbName;
   const llm = useLLM();
   const vis = useContext(TabActiveContext);
   useEffect(() => {
@@ -2280,10 +2285,10 @@ function CopyAsXXX(props: {
   content: string;
   getRow: () => object;
   field: string;
-  uuid: string;
+  dbName: string;
   fieldType: string;
 }) {
-  const { content, getRow, field, uuid, fieldType } = props;
+  const { content, getRow, field, dbName, fieldType } = props;
 
   const { showNotification } = useNotification();
 
@@ -2337,7 +2342,7 @@ function CopyAsXXX(props: {
         <MenuItem
           onClick={async () => {
             try {
-              const value = await commands.putValueInSql(uuid, fieldType, content);
+              const value = await commands.putValueInSql(dbName, fieldType, content);
               handleCopyToClipboard(`(${value})`, showNotification);
             } catch (e) {
               showNotification({

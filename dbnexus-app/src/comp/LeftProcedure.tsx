@@ -28,14 +28,14 @@ import {
 import { commands, NamedStaff } from "./bindings.ts";
 import { uuidv4 } from "./Common.ts";
 function ProceduresTree() {
-  const { uuid, kind } = useContext(UuidContext);
+  const { dbName, kind } = useContext(UuidContext);
   const [ps, setPs] = useState<NamedStaff[]>([]);
   const { showNotification } = useNotification();
   const { maxTree } = useMatcher();
   const matchPattern = useMatcherFn();
   const reload = useCallback((): void => {
     commands
-      .listProcedure(uuid)
+      .listProcedure(dbName)
       .then((data) => {
         setPs(data);
       })
@@ -46,7 +46,7 @@ function ProceduresTree() {
           message: e,
         });
       });
-  }, [showNotification, uuid]);
+  }, [showNotification, dbName]);
 
   const showItems = useMemo(() => {
     return ps.filter((e) => matchPattern(e.name)).slice(0, maxTree);
@@ -79,7 +79,7 @@ function ProceduresTree() {
         <ShowingCount showing={showItems.length} total={ps.length} />
       </Stack>>
       {showItems.map((p) => {
-        const id = `${uuid}-${p.name}-${p.rand}`;
+        const id = `${dbName}-${p.name}-${p.rand}`;
         return (
           <TreeItem
             key={p.name + "-" + p.parameters}
@@ -92,7 +92,7 @@ function ProceduresTree() {
                   content: (
                     <ProcedureMenu
                       reload={reload}
-                      uuid={uuid}
+                      dbName={dbName}
                       kind={kind}
                       procedure={p}
                     />
@@ -112,12 +112,12 @@ function ProceduresTree() {
 }
 
 function ProcedureMenu(props: {
-  uuid: string;
+  dbName: string;
   procedure: NamedStaff;
   reload: () => void;
   kind: DataSourceKind;
 }) {
-  const { uuid, procedure, reload, kind } = props;
+  const { dbName, procedure, reload, kind } = props;
   const { appendTab } = useTabsManage();
   const { showNotification } = useNotification();
 
@@ -128,7 +128,7 @@ function ProcedureMenu(props: {
         <DefAndMetasView
           reloadOP={async () => {
             return commands
-              .showProcedure(uuid, procedure)
+              .showProcedure(dbName, procedure)
               .then((data) => {
                 return {
                   def: data.def,
@@ -146,7 +146,7 @@ function ProcedureMenu(props: {
           }}
         />,
         <SiProcessingfoundation />,
-        uuid,
+        dbName,
         kind,
       ),
     );
@@ -163,7 +163,7 @@ function ProcedureMenu(props: {
     }
 
     commands
-      .dropProcedure(uuid, procedure)
+      .dropProcedure(dbName, procedure)
       .then((sql) => {
         showNotification({
           severity: "success",

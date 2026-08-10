@@ -539,7 +539,7 @@ function Left() {
           return (
             <UuidContext.Provider
               value={{
-                uuid: e.name,
+                dbName: e.name,
                 kind: connTypeToDataSourceKind(e.conn_type),
               }}
               key={e.name}>
@@ -646,12 +646,12 @@ function FavoriteSqlList() {
   const { appendTab } = useTabsManage();
   const is_connected = useConnected((s) => s.is_connected);
   const checkConnOpened = useCallback(
-    async (uuid: string) => {
-      const connOpened = is_connected(uuid);
+    async (dbName: string) => {
+      const connOpened = is_connected(dbName);
       if (!connOpened) {
         showNotification({
           severity: "error",
-          title: `connection '${extractConfigNameFromUuid(uuid)}' not opened????`,
+          title: `connection '${extractConfigNameFromUuid(dbName)}' not opened????`,
         });
         return false;
       } else {
@@ -664,16 +664,16 @@ function FavoriteSqlList() {
   const handleRow = useCallback(
     async (row: FavoriteSql) => {
       try {
-        if (!(await checkConnOpened(row.uuid))) {
+        if (!(await checkConnOpened(row.dbName))) {
           return;
         }
         const content = <AllKindChat value={row.sql} favoriteName={row.name} />;
         appendTab(
           new TabContent(
-            `${row.uuid}`,
+            `${row.dbName}`,
             content,
             <TbDatabaseSearch />,
-            row.uuid,
+            row.dbName,
             row.kind as DataSourceKind,
           ),
         );
@@ -723,7 +723,7 @@ function FavoriteSqlList() {
   const columns = useMemo((): GridColDef[] => {
     const cols: GridColDef[] = [
       {
-        field: "uuid",
+        field: "dbName",
         renderHeader: () => {
           return "connection name";
         },
@@ -800,8 +800,8 @@ function FavoriteSqlList() {
                     <TextField {...params} label="filter connection name" />
                   )}
                   freeSolo={false}
-                  onChange={(_, uuid) => {
-                    setUuidFilter(uuid);
+                  onChange={(_, dbName) => {
+                    setUuidFilter(dbName);
                   }}
                 />
                 <RefreshButton
@@ -810,7 +810,7 @@ function FavoriteSqlList() {
                   }}
                 />
                 {fs.length > 0 && uuidFilter && (
-                  <Tooltip title={`delete all sql by uuid '${uuidFilter}'`}>
+                  <Tooltip title={`delete all sql by dbName '${uuidFilter}'`}>
                     <IconButton
                       onClick={() => {
                         handleDelete();
@@ -913,7 +913,7 @@ function ConnectionView(props: { config: DBConnectionConfig }) {
 }
 
 function SchemaTree(props: { schema?: string; reloadSchemas? }) {
-  const { uuid, kind } = useContext(UuidContext);
+  const { dbName, kind } = useContext(UuidContext);
   const { schema, reloadSchemas } = props;
   const { is_connected } = useConnected();
   const SUPPORTED_PROCEDURE_KINDS = new Set([
@@ -925,7 +925,7 @@ function SchemaTree(props: { schema?: string; reloadSchemas? }) {
     DataSourceKind.Cockroach,
   ]);
 
-  const conn_established = is_connected(uuid);
+  const conn_established = is_connected(dbName);
   const loadingConn = useConnLoading();
 
   const supportProcedure = SUPPORTED_PROCEDURE_KINDS.has(kind);
@@ -964,7 +964,7 @@ function SchemaTree(props: { schema?: string; reloadSchemas? }) {
             content: (
               <SchemaMenu
                 schema={schema}
-                uuid={uuid}
+                dbName={dbName}
                 reloadSchemas={reloadSchemas}
                 kind={kind}
               />
@@ -977,9 +977,9 @@ function SchemaTree(props: { schema?: string; reloadSchemas? }) {
           alignItems: "center",
         }}>
         {schema && <LuDatabase />}
-        <span> {schema ? schema : uuid}</span>
-        {!schema && conn_established && <ConnPingTime uuid={uuid} />}
-        {loadingConn.isLoading(uuid) && <CircularProgress />}
+        <span> {schema ? schema : dbName}</span>
+        {!schema && conn_established && <ConnPingTime dbName={dbName} />}
+        {loadingConn.isLoading(dbName) && <CircularProgress />}
       </Stack>>
       {conn_established && kind == DataSourceKind.Sqlite && (
         <>
@@ -1086,18 +1086,18 @@ function SchemaTree(props: { schema?: string; reloadSchemas? }) {
 
 function DatabaseMenu(props: {
   database?: string;
-  uuid: string;
+  dbName: string;
   reload: () => void;
   reloadDatabase;
   kind: DataSourceKind;
   schemas: string[];
 }) {
-  const { database, uuid, reload, reloadDatabase, kind, schemas } = props;
+  const { database, dbName, reload, reloadDatabase, kind, schemas } = props;
   const { showNotification } = useNotification();
   const { appendTab } = useTabsManage();
   const { is_connected } = useConnected();
 
-  const conn_established = is_connected(uuid);
+  const conn_established = is_connected(dbName);
 
   const { setUi } = useOneShotDialogUI();
 
@@ -1109,7 +1109,7 @@ function DatabaseMenu(props: {
         kind != DataSourceKind.CouchBase && (
           <MenuNewQuery
             handleNew={() => {
-              openNewQuery(appendTab, uuid, kind);
+              openNewQuery(appendTab, dbName, kind);
             }}
           />
         )}
@@ -1119,7 +1119,7 @@ function DatabaseMenu(props: {
         kind != DataSourceKind.CouchBase && (
           <MenuNewQueryNewWindow
             handleNew={() => {
-              openNewQueryWindow(uuid, kind);
+              openNewQueryWindow(dbName, kind);
             }}
           />
         )}
@@ -1128,7 +1128,7 @@ function DatabaseMenu(props: {
           handleCreate={() => {
             setUi(
               <CreateSchema
-                uuid={uuid}
+                dbName={dbName}
                 handleClose={() => {
                   reload();
                   setUi(null);
@@ -1155,20 +1155,20 @@ function DatabaseMenu(props: {
         />
       )}
 
-      {!conn_established && !database && <MenuOpenConn name={uuid} />}
+      {!conn_established && !database && <MenuOpenConn name={dbName} />}
 
       {conn_established && <MenuRefresh reload={reload} />}
-      {conn_established && !database && <MenuConnectionInfo uuid={uuid} />}
+      {conn_established && !database && <MenuConnectionInfo dbName={dbName} />}
 
-      {conn_established && !database && <MenuCloseConn name={uuid} />}
+      {conn_established && !database && <MenuCloseConn name={dbName} />}
       {database && kind != DataSourceKind.DuckDB && (
         <MenuItem
           onClick={() => {
-            // we are in database context uuid contains the database name
+            // we are in database context dbName contains the database name
             // we need remove that
-            const index = uuid.indexOf("/");
+            const index = dbName.indexOf("/");
             dropDatabase({
-              uuid: uuid.substring(0, index),
+              dbName: dbName.substring(0, index),
               database,
               showNotification,
               okCallback: () => {
@@ -1183,26 +1183,26 @@ function DatabaseMenu(props: {
         </MenuItem>
       )}
 
-      {!database && <MenuDeleteConfig name={uuid} />}
+      {!database && <MenuDeleteConfig name={dbName} />}
     </MenuList>
   );
 }
 
-function CatalogMenu(props: { uuid; reload; kind: DataSourceKind }) {
-  const { uuid, reload, kind } = props;
+function CatalogMenu(props: { dbName; reload; kind: DataSourceKind }) {
+  const { dbName, reload, kind } = props;
   const { is_connected } = useConnected();
-  const conn_established = is_connected(uuid);
+  const conn_established = is_connected(dbName);
   const { setUi } = useOneShotDialogUI();
   return (
     <div>
       <MenuList>
-        {!conn_established && <MenuOpenConn name={uuid} />}
+        {!conn_established && <MenuOpenConn name={dbName} />}
         {conn_established && kind != DataSourceKind.DuckDB && (
           <MenuCreateDatabase
             handleCreate={() => {
               setUi(
                 <CreateDatabase
-                  uuid={uuid}
+                  dbName={dbName}
                   handleClose={() => {
                     reload();
                     setUi(null);
@@ -1224,10 +1224,10 @@ function CatalogMenu(props: { uuid; reload; kind: DataSourceKind }) {
         )}
 
         {conn_established && <MenuRefresh reload={reload} />}
-        {conn_established && <MenuConnectionInfo uuid={uuid} />}
-        {conn_established && <MenuCloseConn name={uuid} />}
+        {conn_established && <MenuConnectionInfo dbName={dbName} />}
+        {conn_established && <MenuCloseConn name={dbName} />}
         <Divider />
-        <MenuDeleteConfig name={uuid} />
+        <MenuDeleteConfig name={dbName} />
       </MenuList>
     </div>
   );
@@ -1235,73 +1235,73 @@ function CatalogMenu(props: { uuid; reload; kind: DataSourceKind }) {
 
 function openNewQuery(
   appendTab: (_: TabContent) => void,
-  uuid: string,
+  dbName: string,
   kind: DataSourceKind,
 ) {
-  console.log("open new query uuid:", uuid);
+  console.log("open new query dbName:", dbName);
   const content = <AllKindChat />;
-  appendTab(new TabContent(`${uuid}`, content, <TbDatabaseSearch />, uuid, kind));
+  appendTab(new TabContent(`${dbName}`, content, <TbDatabaseSearch />, dbName, kind));
 }
 
-function openNewQueryWindow(uuid: string, kind: DataSourceKind) {
-  console.log("open new query uuid:", uuid);
+function openNewQueryWindow(dbName: string, kind: DataSourceKind) {
+  console.log("open new query dbName:", dbName);
 
   let queryId = uuidv4();
 
   const webview = new WebviewWindow(uuidv4(), {
-    url: `query.html?uuid=${uuid}&kind=${kind}&queryId=${queryId}`,
-    title: `query windows of ${uuid}`,
+    url: `query.html?dbName=${dbName}&kind=${kind}&queryId=${queryId}`,
+    title: `query windows of ${dbName}`,
     maximized: true,
   });
   webview.once("tauri://window-created", () => {
     console.log("create query window succeeded");
   });
   webview.once("tauri://destroyed", () => {
-    new QueryConn(uuid, queryId, kind).destroy();
+    new QueryConn(dbName, queryId, kind).destroy();
   });
 }
 
 function SchemaMenu(props: {
   schema?: string;
-  uuid: string;
+  dbName: string;
   kind: DataSourceKind;
   reloadSchemas?;
 }) {
-  const { schema, uuid, kind, reloadSchemas } = props;
+  const { schema, dbName, kind, reloadSchemas } = props;
   const { appendTab } = useTabsManage();
   const { showNotification } = useNotification();
   const { is_connected } = useConnected();
-  const conn_established = is_connected(uuid);
+  const conn_established = is_connected(dbName);
 
   return (
     <MenuList>
-      {!schema && !conn_established && <MenuOpenConn name={uuid} />}
+      {!schema && !conn_established && <MenuOpenConn name={dbName} />}
       {conn_established && (
         <MenuNewQuery
           handleNew={() => {
-            openNewQuery(appendTab, uuid, kind);
+            openNewQuery(appendTab, dbName, kind);
           }}
         />
       )}
       {conn_established && (
         <MenuNewQueryNewWindow
           handleNew={() => {
-            openNewQueryWindow(uuid, kind);
+            openNewQueryWindow(dbName, kind);
           }}
         />
       )}
 
-      {conn_established && !schema && <MenuConnectionInfo uuid={uuid} />}
+      {conn_established && !schema && <MenuConnectionInfo dbName={dbName} />}
 
-      {!schema && conn_established && <MenuCloseConn name={uuid} />}
+      {!schema && conn_established && <MenuCloseConn name={dbName} />}
       {schema && kind != DataSourceKind.Oracle && (
         <MenuItem
           onClick={() => {
-            // we are in database context uuid contains the database name
+            // we are in database context dbName contains the database name
             // we need remove that
-            const index = uuid.lastIndexOf("/");
+            const index = dbName.lastIndexOf("/");
             dropSchema({
-              uuid: uuid.substring(0, index),
+              dbName: dbName.substring(0, index),
               schema,
               showNotification,
               okCallback: () => {
@@ -1315,13 +1315,13 @@ function SchemaMenu(props: {
           <ListItemText color="error">drop</ListItemText>
         </MenuItem>
       )}
-      {!schema && <MenuDeleteConfig name={uuid} />}
+      {!schema && <MenuDeleteConfig name={dbName} />}
     </MenuList>
   );
 }
 
 function CatalogTree() {
-  const { uuid: name, kind } = useContext(UuidContext);
+  const { dbName: name, kind } = useContext(UuidContext);
   const { showNotification } = useNotification();
   const [databases, setDatabases] = useState<string[]>([]);
   const { isLoading, setLoading } = useConnLoading();
@@ -1367,19 +1367,19 @@ function CatalogTree() {
         direction="row"
         onContextMenu={(e) => {
           setUpMenu({
-            content: <CatalogMenu uuid={name} reload={handleReload} kind={kind} />,
+            content: <CatalogMenu dbName={name} reload={handleReload} kind={kind} />,
             event: e,
           });
         }}>
         <span>{name} </span>
         {isLoading(name) && <CircularProgress />}
-        {conn_established && <ConnPingTime uuid={name} />}
+        {conn_established && <ConnPingTime dbName={name} />}
         <ShowingCount total={databases.length} showing={showingDatabases.length} />
       </Stack>
       key={name}>
       {showingDatabases.map((db) => {
         return (
-          <UuidContext.Provider key={db} value={{ uuid: name + "/" + db, kind }}>
+          <UuidContext.Provider key={db} value={{ dbName: name + "/" + db, kind }}>
             <DatabaseTree key={db} database={db} reloadDatabase={handleReload} />
           </UuidContext.Provider>
         );
@@ -1389,7 +1389,7 @@ function CatalogTree() {
 }
 
 function DatabaseTree(props: { database?: string; reloadDatabase?: () => void }) {
-  const { uuid: name, kind } = useContext(UuidContext);
+  const { dbName: name, kind } = useContext(UuidContext);
   const { showNotification } = useNotification();
   const [schemas, setSchemas] = useState<string[]>([]);
   const { database, reloadDatabase } = props;
@@ -1441,7 +1441,7 @@ function DatabaseTree(props: { database?: string; reloadDatabase?: () => void })
             content: (
               <DatabaseMenu
                 database={database}
-                uuid={name}
+                dbName={name}
                 reload={handleReload}
                 reloadDatabase={reloadDatabase}
                 kind={kind}
@@ -1454,7 +1454,7 @@ function DatabaseTree(props: { database?: string; reloadDatabase?: () => void })
         {database && <FaDatabase />}
         <span>{database ? database : name}</span>
         {isLoading(name) && <CircularProgress />}
-        {!database && is_connected(name) && <ConnPingTime uuid={name} />}
+        {!database && is_connected(name) && <ConnPingTime dbName={name} />}
         <ShowingCount total={schemas.length} showing={showingSchemas.length} />
       </Stack>
       key={name + database}>
@@ -1462,7 +1462,7 @@ function DatabaseTree(props: { database?: string; reloadDatabase?: () => void })
         return (
           <UuidContext.Provider
             key={schema}
-            value={{ uuid: name + "/" + schema, kind }}>
+            value={{ dbName: name + "/" + schema, kind }}>
             <SchemaTree key={schema} schema={schema} reloadSchemas={handleReload} />
           </UuidContext.Provider>
         );

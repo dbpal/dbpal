@@ -103,12 +103,12 @@ const modalStyle: SxProps = {
 };
 
 async function dropDatabase(props: {
-  uuid: string;
+  dbName: string;
   database: string;
   showNotification: (params: NotificationParams) => void;
   okCallback?: () => void;
 }): Promise<void> {
-  const { uuid, database, showNotification, okCallback } = props;
+  const { dbName, database, showNotification, okCallback } = props;
 
   const confirm = await secondConfirm({
     title: `drop database '${database}'`,
@@ -118,7 +118,7 @@ async function dropDatabase(props: {
     return;
   }
   commands
-    .dropDatabase(uuid, database)
+    .dropDatabase(dbName, database)
     .then(() => {
       showNotification({ severity: "success", title: "drop ok" });
       if (okCallback) {
@@ -131,12 +131,12 @@ async function dropDatabase(props: {
 }
 
 async function dropSchema({
-  uuid,
+  dbName,
   schema,
   showNotification,
   okCallback,
 }: {
-  uuid: string;
+  dbName: string;
   schema: string;
   showNotification: (params: NotificationParams) => void;
   okCallback: () => void;
@@ -149,7 +149,7 @@ async function dropSchema({
     return;
   }
   commands
-    .dropSchema(uuid, schema)
+    .dropSchema(dbName, schema)
     .then(() => {
       showNotification({ severity: "success", title: "Drop OK" });
       okCallback();
@@ -309,17 +309,17 @@ function formatSqlFn(kind: DataSourceKind, sql: string, tabSize: number): string
 
 class QueryConn {
   queryId: string;
-  uuid: string;
+  dbName: string;
   kind: DataSourceKind;
 
-  constructor(uuid: string, queryId: string, kind: DataSourceKind) {
+  constructor(dbName: string, queryId: string, kind: DataSourceKind) {
     this.queryId = queryId;
-    this.uuid = uuid;
+    this.dbName = dbName;
     this.kind = kind;
   }
   async open(): Promise<void> {
-    console.log("open connection", this.uuid, this.queryId);
-    return commands.querySqlOpenConnection(this.uuid, this.queryId);
+    console.log("open connection", this.dbName, this.queryId);
+    return commands.querySqlOpenConnection(this.dbName, this.queryId);
   }
 
   supportTransaction(): boolean {
@@ -347,7 +347,7 @@ class QueryConn {
     sizeEmitter: Channel<number>,
   ): Promise<void> {
     return commands.exportQueryResultToFile(
-      this.uuid,
+      this.dbName,
       taskId,
       sql,
       queryId,
@@ -358,30 +358,30 @@ class QueryConn {
   }
 
   setAutoCommit(commit: boolean): Promise<void> {
-    return commands.querySetAutocommit(this.uuid, this.queryId, commit);
+    return commands.querySetAutocommit(this.dbName, this.queryId, commit);
   }
   getAutoCommit(): Promise<boolean> {
-    return commands.queryGetCommit(this.uuid, this.queryId);
+    return commands.queryGetCommit(this.dbName, this.queryId);
   }
   commit(): Promise<void> {
-    return commands.queryCommit(this.uuid, this.queryId);
+    return commands.queryCommit(this.dbName, this.queryId);
   }
   rollback(): Promise<void> {
-    return commands.queryRollback(this.uuid, this.queryId);
+    return commands.queryRollback(this.dbName, this.queryId);
   }
   queryOP(sql: string, emit: Channel<QueryEvent>, maxRow: number): Promise<void> {
-    return commands.querySql(this.uuid, this.queryId, maxRow, sql, emit);
+    return commands.querySql(this.dbName, this.queryId, maxRow, sql, emit);
   }
   executeOP(sql: string): Promise<QueryRespData> {
-    return commands.executeSql(this.uuid, this.queryId, sql);
+    return commands.executeSql(this.dbName, this.queryId, sql);
   }
 
   isDangerSql(sql: string): Promise<boolean> {
-    return commands.isDangerousSql(this.uuid, sql);
+    return commands.isDangerousSql(this.dbName, sql);
   }
   destroy() {
     commands
-      .querySqlCloseConnection(this.uuid, this.queryId)
+      .querySqlCloseConnection(this.dbName, this.queryId)
       .then(() => {
         console.log("destroy connection of:", this.queryId);
       })

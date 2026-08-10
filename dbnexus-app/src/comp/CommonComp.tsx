@@ -237,15 +237,15 @@ function MenuCloseConn(props: { name: string }) {
 /**
  * Displays ping statistics for a connection UUID.
  */
-function ConnPingTime(props: { uuid: string }) {
-  const { uuid } = props;
+function ConnPingTime(props: { dbName: string }) {
+  const { dbName } = props;
   const [pingTime, setStatus] = useState<number | null>(null);
   const [err, setErr] = useState("");
 
   useEffect(() => {
     const reloadStatus = () => {
       commands
-        .checkConn(uuid)
+        .checkConn(dbName)
         .then((data) => {
           setStatus(data);
           setErr("");
@@ -261,7 +261,7 @@ function ConnPingTime(props: { uuid: string }) {
     return () => {
       clearInterval(interval);
     };
-  }, [uuid]);
+  }, [dbName]);
 
   return (
     <>
@@ -821,7 +821,7 @@ function UdfNameAndParameters(props: { udf: NamedStaff; kind: DataSourceKind }) 
 function DataGridExtraMenuList(props: GridColumnMenuItemProps) {
   const { colDef, onClick } = props;
   const { showNotification } = useNotification();
-  const { uuid, kind } = useContext(UuidContext);
+  const { dbName, kind } = useContext(UuidContext);
   const api = useGridApiContext();
   let { selectColumns } = useContext(AppColumnMenuCtx);
   const getSelectFields = (): string[] => {
@@ -909,7 +909,7 @@ function DataGridExtraMenuList(props: GridColumnMenuItemProps) {
                   .getSortedRowIds()
                   .map((id) => api.current.getCellValue(id, colDef.field));
                 values = await commands.putValuesInSql(
-                  uuid,
+                  dbName,
                   colDef["data_type"],
                   values,
                 );

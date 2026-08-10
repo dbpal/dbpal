@@ -231,7 +231,7 @@ class MongoBsonBinaryAllSubType {
   static Generic = "generic";
   static Function = "function";
   static ByteArray = "byte_array";
-  static Uuid = "uuid";
+  static Uuid = "dbName";
   static Md5 = "md5";
   static Encrypted = "encrypted";
   static Column = "column";

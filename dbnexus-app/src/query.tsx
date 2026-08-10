@@ -11,7 +11,7 @@ const queryString = window.location.search;
 
 // 2. 实例化 URLSearchParams
 const urlParams = new URLSearchParams(queryString);
-const uuid = urlParams.get("uuid");
+const dbName = urlParams.get("dbName");
 const kind = urlParams.get("kind");
 const queryId = urlParams.get("queryId");
 
@@ -19,7 +19,7 @@ providerQueryID.id = queryId || "";
 
 ReactDOM.createRoot(document.getElementById("root") as HTMLElement).render(
   <SeprateWindow>
-    <UuidContext value={{ uuid, kind: kind as DataSourceKind }}>
+    <UuidContext value={{ dbName, kind: kind as DataSourceKind }}>
       <AllKindChat />
     </UuidContext>
   </SeprateWindow>,

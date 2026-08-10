@@ -51,7 +51,7 @@ function QueryLog(props: {
   setShowQueryLog: Dispatch<SetStateAction<boolean>>;
   queryId?: string;
 }) {
-  const { uuid, kind } = useContext(UuidContext);
+  const { dbName, kind } = useContext(UuidContext);
   const { showQueryLog, setShowQueryLog, queryId } = props;
   const [selectSql, setSelectSql] = useState<{ sql: string; language: string }>(null);
   const [logs, setLogs] = useState([]);
@@ -107,7 +107,7 @@ function QueryLog(props: {
     const handleReload = async () => {
       setLoading(true);
       try {
-        const logs = await query(uuid);
+        const logs = await query(dbName);
         setLogs(logs);
       } catch (e) {
         showNotification({
@@ -123,7 +123,7 @@ function QueryLog(props: {
     if (showQueryLog) {
       handleReload();
     }
-  }, [query, showNotification, showQueryLog, uuid]);
+  }, [query, showNotification, showQueryLog, dbName]);
 
   const [dom, setDom] = useState<HTMLDivElement>(null);
   const { getSwitch, setSwitch } = useBoolSwitch();
@@ -205,7 +205,7 @@ function QueryLog(props: {
                   if (!confirm) {
                     return;
                   }
-                  const rowsAffected = await deleteByUuid(uuid);
+                  const rowsAffected = await deleteByUuid(dbName);
                   showNotification({
                     severity: "success",
                     title: `deleted ${rowsAffected} query log`,
@@ -280,7 +280,7 @@ function QueryLog(props: {
           <SimpleFlexEditor
             value={selectSql.sql}
             handleEditor={(e) => {
-              e.getModel()._dbpal_query_id = new NameAndQueryId(uuid, kind, queryId);
+              e.getModel()._dbpal_query_id = new NameAndQueryId(dbName, kind, queryId);
             }}
             language={
               selectSql.language ? selectSql.language : getDefaultLanguage(kind)

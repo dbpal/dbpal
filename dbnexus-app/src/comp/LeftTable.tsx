@@ -96,7 +96,7 @@ import {
 } from "./CreateTable.tsx";
 
 function TablesTree() {
-  const { uuid, kind } = useContext(UuidContext);
+  const { dbName, kind } = useContext(UuidContext);
   const [tables, setTables] = useState<ListTable[]>([]);
   const { showNotification } = useNotification();
   const [loading, setLoading] = useState(false);
@@ -110,7 +110,7 @@ function TablesTree() {
   const handleReload = useCallback(() => {
     setLoading(true);
     commands
-      .listTable(uuid)
+      .listTable(dbName)
       .then((data) => {
         setTables(data);
       })
@@ -124,7 +124,7 @@ function TablesTree() {
       .finally(() => {
         setLoading(false);
       });
-  }, [showNotification, uuid]);
+  }, [showNotification, dbName]);
   useEffect(() => {
     handleReload();
   }, [handleReload]);
@@ -167,7 +167,7 @@ function TablesTree() {
                                 `create table`,
                                 content,
                                 <CreateIcon />,
-                                uuid,
+                                dbName,
                                 kind,
                               ),
                             );
@@ -193,7 +193,7 @@ function TablesTree() {
                             `create table`,
                             content,
                             <UploadIcon />,
-                            uuid,
+                            dbName,
                             kind,
                           ),
                         );
@@ -216,7 +216,7 @@ function TablesTree() {
         {loading && <CircularProgress />}
       </Stack>>
       {showItems.map((e) => {
-        const id = `${uuid}-table-${e.name}-${e.rand}`;
+        const id = `${dbName}-table-${e.name}-${e.rand}`;
         return (
           <TableTree
             key={e.name}
@@ -238,7 +238,7 @@ function TableTree(props: {
   id: string;
 }) {
   const { table, reloadTables, size, id } = props;
-  const { uuid, kind } = useContext(UuidContext);
+  const { dbName, kind } = useContext(UuidContext);
   const setUpMenu = useContextMenu((state) => state.setUpMenu);
 
   return (
@@ -255,7 +255,7 @@ function TableTree(props: {
                   kind={kind}
                   reload={reloadTables}
                   table={table}
-                  uuid={uuid}
+                  dbName={dbName}
                 />
               ),
               event: e,
@@ -279,11 +279,11 @@ function TableTree(props: {
 function DropTable(props: {
   table: string;
   reloadTables: () => void;
-  uuid: string;
+  dbName: string;
   handleClose: () => void;
   kind: DataSourceKind;
 }) {
-  const { table, reloadTables, uuid, handleClose, kind } = props;
+  const { table, reloadTables, dbName, handleClose, kind } = props;
   const [loading, setLoading] = useState(false);
   const { showNotification } = useNotification();
   const [cascade, setCascade] = useState(false);
@@ -299,7 +299,7 @@ function DropTable(props: {
     }
     setLoading(true);
     commands
-      .dropTable(uuid, table, cascade)
+      .dropTable(dbName, table, cascade)
       .then((sql) => {
         showNotification({
           severity: "success",
@@ -357,7 +357,7 @@ function DropTable(props: {
   );
 }
 interface RedisViewTableProps {
-  uuid: string;
+  dbName: string;
   table: string;
   redisType: RedisTableType;
 }
@@ -382,7 +382,7 @@ function RedisViewTable({ table, redisType }: RedisViewTableProps) {
 }
 
 function makeViewTable(
-  uuid,
+  dbName,
   table: string,
   kind: DataSourceKind,
   redisTableType: RedisTableType,
@@ -406,7 +406,7 @@ function makeViewTable(
       break;
     case DataSourceKind.Redis:
       tableList = (
-        <RedisViewTable uuid={uuid} table={table} redisType={redisTableType} />
+        <RedisViewTable dbName={dbName} table={table} redisType={redisTableType} />
       );
       break;
     case DataSourceKind.Mongo:
@@ -419,12 +419,12 @@ function makeViewTable(
 }
 
 function AddTableView(props: {
-  uuid: string;
+  dbName: string;
   table: string;
   kind: DataSourceKind;
   redisTableType?: RedisTableType;
 }) {
-  const { uuid, table, kind, redisTableType } = props;
+  const { dbName, table, kind, redisTableType } = props;
 
   switch (kind) {
     case DataSourceKind.Redis:
@@ -446,24 +446,24 @@ function AddTableView(props: {
       return (
         <MongoTableAdd
           addOP={async (data) => {
-            return commands.mongoInsert(uuid, table, BSON.serialize(data));
+            return commands.mongoInsert(dbName, table, BSON.serialize(data));
           }}
         />
       );
     case DataSourceKind.CouchBase:
-      return <CouchBaseInsert uuid={uuid} table={table} />;
+      return <CouchBaseInsert dbName={dbName} table={table} />;
   }
 
-  return <SqlAddTableView uuid={uuid} table={table} />;
+  return <SqlAddTableView dbName={dbName} table={table} />;
 }
 
 function AddTableModal(props: {
-  uuid: string;
+  dbName: string;
   tableName: string;
   kind: DataSourceKind;
   redisType?: RedisTableType;
 }) {
-  const { tableName, redisType, uuid, kind } = props;
+  const { tableName, redisType, dbName, kind } = props;
   const [showAdd, setShowAdd] = useState(false);
   const [addModalBox, setAddModalBox] = useState<HTMLDivElement | null>(null);
 
@@ -497,7 +497,7 @@ function AddTableModal(props: {
               }}
             />
             <AddTableView
-              uuid={uuid}
+              dbName={dbName}
               table={tableName}
               redisTableType={redisType}
               kind={kind}
@@ -509,13 +509,13 @@ function AddTableModal(props: {
   );
 }
 
-function SqlAddTableView(props: { uuid: string; table: string }) {
-  const { uuid, table } = props;
+function SqlAddTableView(props: { dbName: string; table: string }) {
+  const { dbName, table } = props;
   const [fields, setFields] = useState<Field[]>([]);
   const { showNotification } = useNotification();
   useEffect(() => {
     commands
-      .showTableColumns(uuid, table)
+      .showTableColumns(dbName, table)
       .then((data) => {
         setFields(data);
       })
@@ -526,26 +526,26 @@ function SqlAddTableView(props: { uuid: string; table: string }) {
           message: e,
         });
       });
-  }, [showNotification, table, uuid]);
+  }, [showNotification, table, dbName]);
   return (
     <SqlTableViewData
       isAdd
       buttonName="add"
       handleData={async (values) => {
-        await commands.tableInsert(uuid, table, values);
+        await commands.tableInsert(dbName, table, values);
       }}
       fields={fields}
     />
   );
 }
 
-export const openNewTableStructure = (appendTab, uuid, kind, table) => {
+export const openNewTableStructure = (appendTab, dbName, kind, table) => {
   appendTab(
     new TabContent(
       `${table}`,
       <TableStructure table={table} />,
       <IoConstructOutline />,
-      uuid,
+      dbName,
       kind,
     ),
   );
@@ -553,12 +553,12 @@ export const openNewTableStructure = (appendTab, uuid, kind, table) => {
 
 function TableMenu(props: {
   table: string;
-  uuid: string;
+  dbName: string;
   reload;
   kind: DataSourceKind;
   redisTableType?: RedisTableType;
 }) {
-  const { table, uuid, reload, kind, redisTableType } = props;
+  const { table, dbName, reload, kind, redisTableType } = props;
   const { showNotification } = useNotification();
   const { appendTab } = useTabsManage();
   const { setUi } = useOneShotDialogUI();
@@ -574,7 +574,7 @@ function TableMenu(props: {
       return;
     }
     commands
-      .truncateTable(uuid, table)
+      .truncateTable(dbName, table)
       .then((sql) => {
         showNotification({
           severity: "success",
@@ -592,28 +592,28 @@ function TableMenu(props: {
   };
 
   const handleViewData = () => {
-    const tableList: ReactNode = makeViewTable(uuid, table, kind, redisTableType);
-    appendTab(new TabContent(table, tableList, <TableViewIcon />, uuid, kind));
+    const tableList: ReactNode = makeViewTable(dbName, table, kind, redisTableType);
+    appendTab(new TabContent(table, tableList, <TableViewIcon />, dbName, kind));
   };
   const handleAddData = async () => {
     appendTab(
       new TabContent(
         `${table}*`,
         <AddTableView
-          uuid={uuid}
+          dbName={dbName}
           kind={kind}
           table={table}
           redisTableType={redisTableType}
         />,
         <TableViewIcon />,
-        uuid,
+        dbName,
         kind,
       ),
     );
   };
 
   const handleStructure = () => {
-    openNewTableStructure(appendTab, uuid, kind, table);
+    openNewTableStructure(appendTab, dbName, kind, table);
   };
 
   return (
@@ -662,7 +662,7 @@ function TableMenu(props: {
           setUi(
             <DupTable
               table={table}
-              uuid={uuid}
+              dbName={dbName}
               handleClose={() => {
                 setUi(null);
               }}
@@ -679,7 +679,7 @@ function TableMenu(props: {
       <MenuItem
         onClick={() => {
           setUi(
-            <ExportTableOrView uuid={uuid} name={table} kind={kind} isTable />,
+            <ExportTableOrView dbName={dbName} name={table} kind={kind} isTable />,
             `export table ${table}`,
           );
         }}>
@@ -693,7 +693,7 @@ function TableMenu(props: {
           setUi(
             <RenameTable
               table={table}
-              uuid={uuid}
+              dbName={dbName}
               handleClose={() => {
                 setUi(null);
               }}
@@ -724,7 +724,7 @@ function TableMenu(props: {
           setUi(
             <DropTable
               table={table}
-              uuid={uuid}
+              dbName={dbName}
               handleClose={() => {
                 setUi(null);
               }}
@@ -746,10 +746,10 @@ function TableMenu(props: {
 function DupTable(props: {
   table: string;
   handleClose;
-  uuid: string;
+  dbName: string;
   reloadTables: () => void;
 }) {
-  const { table, handleClose, uuid, reloadTables } = props;
+  const { table, handleClose, dbName, reloadTables } = props;
   const [loading, setLoading] = useState(false);
   const [name, setName] = useState(table);
   const { showNotification } = useNotification();
@@ -761,7 +761,7 @@ function DupTable(props: {
     }
     setLoading(true);
     commands
-      .duplicateTable(uuid, table, taskId.current, name)
+      .duplicateTable(dbName, table, taskId.current, name)
       .then(() => {
         showNotification({ severity: "success", title: "duplicate OK" });
         reloadTables();
@@ -804,10 +804,10 @@ function DupTable(props: {
 function RenameTable(props: {
   table: string;
   handleClose;
-  uuid: string;
+  dbName: string;
   reloadTables: () => void;
 }) {
-  const { table, handleClose, uuid, reloadTables } = props;
+  const { table, handleClose, dbName, reloadTables } = props;
   const [loading, setLoading] = useState(false);
   const [newName, setNewName] = useState(table);
   const { showNotification } = useNotification();
@@ -826,7 +826,7 @@ function RenameTable(props: {
     }
     setLoading(true);
     commands
-      .renameTable(uuid, table, newName)
+      .renameTable(dbName, table, newName)
       .then((sql) => {
         showNotification({
           severity: "success",
@@ -867,9 +867,9 @@ function RedisOneTableKind(props: {
   typ: RedisTableType;
   kind: DataSourceKind;
   handleReload;
-  uuid;
+  dbName;
 }) {
-  const { tables, typ, kind, handleReload, uuid } = props;
+  const { tables, typ, kind, handleReload, dbName } = props;
   const tablesID = useRef(uuidv4());
   const setUpMenu = useContextMenu((state) => state.setUpMenu);
   return (
@@ -893,7 +893,7 @@ function RedisOneTableKind(props: {
       {tables.map((table) => (
         <TreeItem
           key={table.name}
-          itemId={uuid + "-key-" + name + "-" + table.name + table.rand}
+          itemId={dbName + "-key-" + name + "-" + table.name + table.rand}
           label=<Stack
             style={{
               justifyContent: "space-between",
@@ -907,7 +907,7 @@ function RedisOneTableKind(props: {
                     kind={kind}
                     reload={handleReload}
                     table={table.name}
-                    uuid={uuid}
+                    dbName={dbName}
                     redisTableType={typ}
                   />
                 ),
@@ -946,7 +946,7 @@ function RedisOneTableKind(props: {
 }
 
 function RedisTables() {
-  const { uuid, kind } = useContext(UuidContext);
+  const { dbName, kind } = useContext(UuidContext);
   const [filter, setFilter] = useState("");
   const [tables, setTables] = useState<RedisListTableRet>();
   const [loading, setLoading] = useState(false);
@@ -958,7 +958,7 @@ function RedisTables() {
   const handleReload = useCallback(() => {
     setLoading(true);
     commands
-      .redisListKey(uuid, filter ? filter : null, max)
+      .redisListKey(dbName, filter ? filter : null, max)
       .then((e) => {
         setTables(e);
       })
@@ -972,7 +972,7 @@ function RedisTables() {
       .finally(() => {
         setLoading(false);
       });
-  }, [filter, showNotification, uuid]);
+  }, [filter, showNotification, dbName]);
   useEffect(() => {
     handleReload();
   }, [handleReload]);
@@ -1034,35 +1034,35 @@ function RedisTables() {
             typ={RedisTableType.String}
             tables={tables.string_tables}
             handleReload={handleReload}
-            uuid={uuid}
+            dbName={dbName}
           />
           <RedisOneTableKind
             kind={kind}
             typ={RedisTableType.List}
             tables={tables.list_tables}
             handleReload={handleReload}
-            uuid={uuid}
+            dbName={dbName}
           />
           <RedisOneTableKind
             kind={kind}
             typ={RedisTableType.Set}
             tables={tables.set_tables}
             handleReload={handleReload}
-            uuid={uuid}
+            dbName={dbName}
           />
           <RedisOneTableKind
             kind={kind}
             typ={RedisTableType.Zset}
             tables={tables.zset_tables}
             handleReload={handleReload}
-            uuid={uuid}
+            dbName={dbName}
           />
           <RedisOneTableKind
             kind={kind}
             typ={RedisTableType.Hash}
             tables={tables.hash_tables}
             handleReload={handleReload}
-            uuid={uuid}
+            dbName={dbName}
           />
         </>
       )}

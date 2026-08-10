@@ -290,7 +290,7 @@ function SqlQuery(props: {
   favoriteName?: string;
   extraButtons?: ReactNode;
 }) {
-  const { uuid, kind } = useContext(UuidContext);
+  const { dbName, kind } = useContext(UuidContext);
   const { value, favoriteName, extraButtons } = props;
   const [resp, setResp] = useState<QueryRespData[]>([]);
   const [editor, setEditor] = useState<editor.IStandaloneCodeEditor>(null);
@@ -299,7 +299,7 @@ function SqlQuery(props: {
   const { showNotification } = useNotification();
   const [executeTimes, setExecuteTimes] = useState(0);
   const { queryId } = useContext(QueryIDEditorChatCtx);
-  const conn = useRef<QueryConn>(new QueryConn(uuid, queryId, kind));
+  const conn = useRef<QueryConn>(new QueryConn(dbName, queryId, kind));
   const getSize = useSizeStore((s) => s.getSize);
   const [openOk, setOpenOk] = useState(false);
   const [queryStatus, setQueryStatus] = useState("");
@@ -399,7 +399,7 @@ function SqlQuery(props: {
       .executeOP(text)
       .then((e) => {
         if (getSwitch(saveQueryKey)) {
-          saveQueryLog(uuid, text, rustResultOk(e));
+          saveQueryLog(dbName, text, rustResultOk(e));
         }
         setTimeout(() => {
           setResp([...resp, e]);
@@ -436,13 +436,13 @@ function SqlQuery(props: {
         .queryOP(text, emit, getSize(UseSizeConfig.queryLimit))
         .then(() => {
           if (getSwitch(saveQueryKey)) {
-            saveQueryLog(uuid, text, true);
+            saveQueryLog(dbName, text, true);
           }
           showNotification({ severity: "success", title: "query OK" });
         })
         .catch((e) => {
           if (getSwitch(saveQueryKey)) {
-            saveQueryLog(uuid, text, false);
+            saveQueryLog(dbName, text, false);
           }
           showNotification({ severity: "error", title: "query failed", message: e });
         })
@@ -451,14 +451,14 @@ function SqlQuery(props: {
           setLoading(false);
         });
     },
-    [getSize, getSwitch, saveQueryLog, showNotification, uuid, warnDangerousSql],
+    [getSize, getSwitch, saveQueryLog, showNotification, dbName, warnDangerousSql],
   );
 
   useEffect(() => {
     if (editor) {
-      editor.getModel()._dbpal_query_id = new NameAndQueryId(uuid, kind, queryId);
+      editor.getModel()._dbpal_query_id = new NameAndQueryId(dbName, kind, queryId);
     }
-  }, [editor, kind, queryId, uuid]);
+  }, [editor, kind, queryId, dbName]);
 
   const supportExplain = [
     DataSourceKind.Sqlite,
@@ -603,7 +603,7 @@ function SqlQuery(props: {
             <AiMarkdownModelSwitch
               setMarkdownModel={setMarkdownModel}
               markdownModel={markdownModel}
-              uuid={uuid}
+              dbName={dbName}
             />
             {querySomeShow.get(tabCtx.id)}
 

@@ -28,7 +28,7 @@ import { commands, NamedStaff } from "./bindings.ts";
 import { uuidv4 } from "./Common.ts";
 
 function UdfsTree() {
-  const { uuid, kind } = useContext(UuidContext);
+  const { dbName, kind } = useContext(UuidContext);
 
   const [udfs, setUdfs] = useState<NamedStaff[]>([]);
   const { showNotification } = useNotification();
@@ -40,7 +40,7 @@ function UdfsTree() {
 
   const reload = useCallback(() => {
     commands
-      .listUdf(uuid)
+      .listUdf(dbName)
       .then((data) => {
         setUdfs(data);
       })
@@ -51,7 +51,7 @@ function UdfsTree() {
           message: e,
         });
       });
-  }, [showNotification, uuid]);
+  }, [showNotification, dbName]);
   useEffect(() => {
     reload();
   }, [reload]);
@@ -79,7 +79,7 @@ function UdfsTree() {
         <ShowingCount showing={showItems.length} total={udfs.length} />
       </Stack>>
       {showItems.map((udf) => {
-        const id = `${uuid}-udf-${udf.name} -${udf.rand}`;
+        const id = `${dbName}-udf-${udf.name} -${udf.rand}`;
         return (
           <TreeItem
             key={id}
@@ -90,7 +90,7 @@ function UdfsTree() {
               onContextMenu={(e) => {
                 setUpMenu({
                   content: (
-                    <UdfMenu reload={reload} uuid={uuid} kind={kind} udf={udf} />
+                    <UdfMenu reload={reload} dbName={dbName} kind={kind} udf={udf} />
                   ),
                   event: e,
                 });
@@ -105,8 +105,8 @@ function UdfsTree() {
   );
 }
 
-function UdfMenu(props: { uuid; udf: NamedStaff; reload; kind: DataSourceKind }) {
-  const { uuid, udf, reload, kind } = props;
+function UdfMenu(props: { dbName; udf: NamedStaff; reload; kind: DataSourceKind }) {
+  const { dbName, udf, reload, kind } = props;
   const { appendTab } = useTabsManage();
   const { showNotification } = useNotification();
   const handleOpenDetails = () => {
@@ -115,11 +115,11 @@ function UdfMenu(props: { uuid; udf: NamedStaff; reload; kind: DataSourceKind })
         udf.name,
         <DefAndMetasView
           reloadOP={async () => {
-            return commands.showUdf(uuid, udf);
+            return commands.showUdf(dbName, udf);
           }}
         />,
         <TbMathFunction />,
-        uuid,
+        dbName,
         kind,
       ),
     );
@@ -135,7 +135,7 @@ function UdfMenu(props: { uuid; udf: NamedStaff; reload; kind: DataSourceKind })
       return;
     }
     commands
-      .dropUdf(uuid, udf)
+      .dropUdf(dbName, udf)
       .then((sql) => {
         showNotification({
           severity: "success",
@@ -176,12 +176,12 @@ function UdfMenu(props: { uuid; udf: NamedStaff; reload; kind: DataSourceKind })
 }
 
 function CassandraAggregateMenu(props: {
-  uuid: string;
+  dbName: string;
   agg: string;
   parameters: string[] | null;
   reload;
 }) {
-  const { uuid, agg, reload, parameters } = props;
+  const { dbName, agg, reload, parameters } = props;
   const { appendTab } = useTabsManage();
   const { showNotification } = useNotification();
 
@@ -191,11 +191,11 @@ function CassandraAggregateMenu(props: {
         agg,
         <DefAndMetasView
           reloadOP={async () => {
-            return await commands.cassandraShowAggregate(uuid, agg, parameters);
+            return await commands.cassandraShowAggregate(dbName, agg, parameters);
           }}
         />,
         <MdFunctions />,
-        uuid,
+        dbName,
         DataSourceKind.Cassandra,
       ),
     );
@@ -212,7 +212,7 @@ function CassandraAggregateMenu(props: {
     }
 
     commands
-      .cassandraDropAggregate(uuid, agg, parameters)
+      .cassandraDropAggregate(dbName, agg, parameters)
       .then((sql) => {
         showNotification({
           severity: "success",
@@ -258,12 +258,12 @@ function CassandraAggregateMenu(props: {
 }
 
 function CassandraAggregatesTree() {
-  const { uuid } = useContext(UuidContext);
+  const { dbName } = useContext(UuidContext);
   const [aggs, setAggs] = useState<NamedStaff[]>([]);
   const { showNotification } = useNotification();
   const reload = useCallback(() => {
     commands
-      .cassandraListAggregate(uuid)
+      .cassandraListAggregate(dbName)
       .then((ts) => {
         setAggs(ts);
       })
@@ -274,7 +274,7 @@ function CassandraAggregatesTree() {
           message: e,
         });
       });
-  }, [showNotification, uuid]);
+  }, [showNotification, dbName]);
   const { maxTree } = useMatcher();
   const matchPattern = useMatcherFn();
   const showItems = useMemo(() => {
@@ -307,7 +307,7 @@ function CassandraAggregatesTree() {
         <ShowingCount showing={showItems.length} total={aggs.length} />
       </Stack>>
       {showItems.map((agg) => {
-        const id = `${uuid}-agg-${agg.name}-${agg.rand}`;
+        const id = `${dbName}-agg-${agg.name}-${agg.rand}`;
         return (
           <TreeItem
             key={
@@ -324,7 +324,7 @@ function CassandraAggregatesTree() {
                   content: (
                     <CassandraAggregateMenu
                       reload={reload}
-                      uuid={uuid}
+                      dbName={dbName}
                       agg={agg.name}
                       parameters={agg.cassandra_parameters}
                     />

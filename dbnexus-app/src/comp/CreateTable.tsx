@@ -55,7 +55,7 @@ function SqlCreateTable(props: {
   fields?: CreateTableReqColumn[];
   tableName?: RefObject<string>;
 }) {
-  const { uuid, kind } = useContext(UuidContext);
+  const { dbName, kind } = useContext(UuidContext);
   const { fields: fieldsProvide, tableName: tableNameRef } = props;
   const [cols, setCols] = useState<CreateTableReqColumn[]>(
     fieldsProvide
@@ -169,7 +169,7 @@ function SqlCreateTable(props: {
     const req = makeReq();
 
     commands
-      .createTableReqSql(uuid, req)
+      .createTableReqSql(dbName, req)
       .then((sql) => {
         setEditorValue("");
         setTimeout(() => {
@@ -183,7 +183,7 @@ function SqlCreateTable(props: {
           message: e,
         });
       });
-  }, [kind, makeReq, showNotification, tabSize, uuid]);
+  }, [kind, makeReq, showNotification, tabSize, dbName]);
 
   const handleCreate = async () => {
     const req = makeReq();
@@ -192,7 +192,7 @@ function SqlCreateTable(props: {
     }
     setLoading(true);
     commands
-      .createTable(uuid, req)
+      .createTable(dbName, req)
       .then(() => {
         showNotification({ severity: "success", title: "create table ok" });
       })
@@ -515,7 +515,7 @@ john,123`}
 }
 
 function SqlCreateTableImportFile() {
-  const { uuid } = useContext(UuidContext);
+  const { dbName } = useContext(UuidContext);
   const [file, setFile] = useState("");
   const { showNotification } = useNotification();
   const [fields, setFields] = useState<Field[]>([]);
@@ -528,7 +528,7 @@ function SqlCreateTableImportFile() {
         if (!file) {
           return;
         }
-        const fs = await commands.sqlInferFieldsFromFile(uuid, file);
+        const fs = await commands.sqlInferFieldsFromFile(dbName, file);
         setFields(fs);
       } catch (e) {
         showNotification({
@@ -538,7 +538,7 @@ function SqlCreateTableImportFile() {
         });
       }
     })();
-  }, [file, showNotification, uuid]);
+  }, [file, showNotification, dbName]);
 
   const maxRow = 100;
 
@@ -702,7 +702,7 @@ function SqlCreateTableImportFile() {
                     }
                     setLoading(true);
                     try {
-                      await commands.tableImportFromFile(uuid, tableName.current, {
+                      await commands.tableImportFromFile(dbName, tableName.current, {
                         path: file,
                         mongo_data: null,
                       });
@@ -741,7 +741,7 @@ function SqlCreateTableImportFile() {
 }
 
 function MongoCreateTableImportFile(props: { hasTableName?: string }) {
-  const { uuid } = useContext(UuidContext);
+  const { dbName } = useContext(UuidContext);
   const { hasTableName } = props;
   const [file, setFile] = useState("");
   const { showNotification } = useNotification();
@@ -891,7 +891,7 @@ function MongoCreateTableImportFile(props: { hasTableName?: string }) {
                 return;
               }
               setLoading(true);
-              await commands.tableImportFromFile(uuid, tableName, {
+              await commands.tableImportFromFile(dbName, tableName, {
                 path: file,
                 mongo_data: data,
               });
@@ -936,7 +936,7 @@ function MongoCreateTableImportFile(props: { hasTableName?: string }) {
 }
 
 function CouchbaseCreateTableImportFile(props: { hasTableName?: string }) {
-  const { uuid } = useContext(UuidContext);
+  const { dbName } = useContext(UuidContext);
   const { hasTableName } = props;
   const [file, setFile] = useState("");
   const { showNotification } = useNotification();
@@ -1038,7 +1038,7 @@ function CouchbaseCreateTableImportFile(props: { hasTableName?: string }) {
                 return;
               }
               setLoading(true);
-              await commands.tableImportFromFile(uuid, tableName, {
+              await commands.tableImportFromFile(dbName, tableName, {
                 path: file,
               });
               showNotification({ severity: "success", title: "upload data ok" });

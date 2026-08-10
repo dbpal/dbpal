@@ -35,14 +35,14 @@ import {
 import { commands, DefAndMetas, SequenceDetail } from "./bindings.ts";
 import { uuidv4 } from "./Common.ts";
 function SequenceTree() {
-  const { uuid, kind } = useContext(UuidContext);
+  const { dbName, kind } = useContext(UuidContext);
   const [seq, setSeq] = useState<SequenceDetail[]>([]);
   const { showNotification } = useNotification();
   const { maxTree } = useMatcher();
   const matchPattern = useMatcherFn();
   const reload = useCallback(() => {
     commands
-      .listSequence(uuid)
+      .listSequence(dbName)
       .then((ts) => {
         setSeq(ts);
       })
@@ -53,7 +53,7 @@ function SequenceTree() {
           message: e,
         });
       });
-  }, [showNotification, uuid]);
+  }, [showNotification, dbName]);
 
   const showItems = useMemo(() => {
     return seq.filter((e) => matchPattern(e.name)).slice(0, maxTree);
@@ -89,7 +89,7 @@ function SequenceTree() {
         if (index >= maxTree) {
           return;
         }
-        const id = `${uuid}-sequence-${seq.name}`;
+        const id = `${dbName}-sequence-${seq.name}`;
         return (
           <TreeItem
             key={seq.name}
@@ -101,7 +101,12 @@ function SequenceTree() {
                 onContextMenu={(e) => {
                   setUpMenu({
                     content: (
-                      <SequenceMenu reload={reload} uuid={uuid} kind={kind} seq={seq} />
+                      <SequenceMenu
+                        reload={reload}
+                        dbName={dbName}
+                        kind={kind}
+                        seq={seq}
+                      />
                     ),
                     event: e,
                   });
@@ -133,12 +138,12 @@ function details2DefMetas(d: SequenceDetail): DefAndMetas {
 }
 
 function SequenceMenu(props: {
-  uuid: string;
+  dbName: string;
   seq: SequenceDetail;
   reload: () => void;
   kind: DataSourceKind;
 }) {
-  const { uuid, seq, reload, kind } = props;
+  const { dbName, seq, reload, kind } = props;
   const { appendTab } = useTabsManage();
   const { setUi } = useOneShotDialogUI();
 
@@ -152,7 +157,7 @@ function SequenceMenu(props: {
           }}
         />,
         <GrSteps />,
-        uuid,
+        dbName,
         kind,
       ),
     );
@@ -181,7 +186,7 @@ function SequenceMenu(props: {
                 setUi(null);
               }}
               reload={reload}
-              uuid={uuid}
+              dbName={dbName}
             />,
             `drop sequence ${seq.name}`,
           );
@@ -200,9 +205,9 @@ function DropSeq(props: {
   seq: SequenceDetail;
   reload: () => void;
   handleClose: () => void;
-  uuid;
+  dbName;
 }) {
-  const { kind, seq, reload, handleClose, uuid } = props;
+  const { kind, seq, reload, handleClose, dbName } = props;
 
   const [cascade, setCascade] = useState(false);
   const supportCascade = [DataSourceKind.Postgres, DataSourceKind.Cockroach].includes(
@@ -220,7 +225,7 @@ function DropSeq(props: {
       return;
     }
     commands
-      .dropSequence(uuid, seq.name, cascade)
+      .dropSequence(dbName, seq.name, cascade)
       .then((sql) => {
         showNotification({
           severity: "success",

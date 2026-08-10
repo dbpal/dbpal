@@ -191,11 +191,11 @@ function backendCompletionItemToEditor(xs: CompletionItem[]): languages.Completi
   };
 }
 
-function extractConfigNameFromUuid(uuid: string): string {
-  if (uuid.includes("/")) {
-    return uuid.substring(0, uuid.indexOf("/"));
+function extractConfigNameFromUuid(dbName: string): string {
+  if (dbName.includes("/")) {
+    return dbName.substring(0, dbName.indexOf("/"));
   } else {
-    return uuid;
+    return dbName;
   }
 }
 
@@ -296,7 +296,7 @@ class TabContent {
     public header: string,
     public content: ReactNode,
     public icon: ReactElement,
-    public uuid?: string,
+    public dbName?: string,
     public kind?: DataSourceKind,
     public id: string = uuidv4(),
   ) {}
@@ -305,7 +305,7 @@ class TabContent {
 const TabContext = createContext<{ id: string }>(null);
 
 const UuidContext = createContext<{
-  uuid: string;
+  dbName: string;
   kind: DataSourceKind;
 }>(null);
 
@@ -680,7 +680,7 @@ const SqlOpContext = createContext<{
   ops: DatabaseOperation[];
   setOps: Dispatch<SetStateAction<DatabaseOperation[]>>;
   fields: Field[];
-  uuid: string;
+  dbName: string;
   handleReload: () => void;
 }>(null);
 

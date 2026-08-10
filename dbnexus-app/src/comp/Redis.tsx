@@ -159,13 +159,13 @@ interface HashToolBarDbpalProps {
 
 function RedisAddList(props: { listKey: string }) {
   const { listKey } = props;
-  const { uuid } = useContext(UuidContext);
+  const { dbName } = useContext(UuidContext);
 
   const lpushOP = async (value) => {
-    return await commands.redisListLpush(uuid, listKey, value);
+    return await commands.redisListLpush(dbName, listKey, value);
   };
   const rpushOP = async (value) => {
-    return await commands.redisListRpush(uuid, listKey, value);
+    return await commands.redisListRpush(dbName, listKey, value);
   };
   const [loading, setLoading] = useState(false);
   const [direction, setDirection] = useState<ListPushDirection>("left");
@@ -217,9 +217,9 @@ function RedisAddList(props: { listKey: string }) {
 
 function RedisStringTable(props: { stringKey: string }) {
   const { stringKey } = props;
-  const { uuid } = useContext(UuidContext);
+  const { dbName } = useContext(UuidContext);
   const modifyOP = async (value) => {
-    return await commands.redisStringSet(uuid, stringKey, value);
+    return await commands.redisStringSet(dbName, stringKey, value);
   };
   const [content, setContent] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
@@ -228,7 +228,7 @@ function RedisStringTable(props: { stringKey: string }) {
   const [queryStatus, setQueryStatus] = useState("");
   useEffect(() => {
     showTable({
-      uuid,
+      dbName,
       name: stringKey,
       showNotification,
       handleResult: (resp) => {
@@ -237,7 +237,7 @@ function RedisStringTable(props: { stringKey: string }) {
       setStatus: setQueryStatus,
       setLoading,
     });
-  }, [showNotification, stringKey, uuid]);
+  }, [showNotification, stringKey, dbName]);
 
   const handleModify = async () => {
     const confirm = await secondConfirm({ title: "sure to modify?" });
@@ -282,10 +282,10 @@ function RedisStringTable(props: { stringKey: string }) {
 
 function RedisAddSet(props: { setKey: string }) {
   const { setKey } = props;
-  const { uuid } = useContext(UuidContext);
+  const { dbName } = useContext(UuidContext);
 
   const addOP = async (member) => {
-    return await commands.redisSetAdd(uuid, setKey, member);
+    return await commands.redisSetAdd(dbName, setKey, member);
   };
   const [loading, setLoading] = useState(false);
   const valueRef = useRef(new EditorAndMode());
@@ -323,9 +323,9 @@ function RedisAddSet(props: { setKey: string }) {
 
 function RedisAddHash(props: { hashKey: string }) {
   const { hashKey } = props;
-  const { uuid } = useContext(UuidContext);
+  const { dbName } = useContext(UuidContext);
   const addOP = async (member, value) => {
-    return await commands.redisHashAdd(uuid, hashKey, member, value);
+    return await commands.redisHashAdd(dbName, hashKey, member, value);
   };
   const [loading, setLoading] = useState(false);
   const key = useRef(new EditorAndMode());
@@ -364,9 +364,9 @@ function RedisAddHash(props: { hashKey: string }) {
 }
 function RedisAddZset(props: { zsetKey: string }) {
   const { zsetKey } = props;
-  const { uuid } = useContext(UuidContext);
+  const { dbName } = useContext(UuidContext);
   const addOP = async (member: string, value: number) => {
-    return await commands.redisZsetAdd(uuid, zsetKey, member, value);
+    return await commands.redisZsetAdd(dbName, zsetKey, member, value);
   };
 
   const [loading, setLoading] = useState(false);
@@ -784,7 +784,7 @@ type SetToolBarParameterProps = GridSlotProps["toolbar"] & {
 function SetToolBar({
   dbpal: { keyMatch, setKey, handleReload, loading, setKeyMatch },
 }: SetToolBarParameterProps) {
-  const { uuid } = useContext(UuidContext);
+  const { dbName } = useContext(UuidContext);
 
   return (
     <AppDataGridToolBar
@@ -809,7 +809,7 @@ function SetToolBar({
         </Tooltip>
         <AddTableModal
           kind={DataSourceKind.Redis}
-          uuid={uuid}
+          dbName={dbName}
           tableName={setKey}
           redisType={RedisTableType.Set}
         />
@@ -821,9 +821,9 @@ function SetToolBar({
 
 function RedisSetTable(props: { setKey: string }) {
   const { setKey } = props;
-  const { uuid } = useContext(UuidContext);
+  const { dbName } = useContext(UuidContext);
   const modifyOP = async (old, newValue) => {
-    return await commands.redisSetReplace(uuid, setKey, old, newValue);
+    return await commands.redisSetReplace(dbName, setKey, old, newValue);
   };
   const apiRef = useGridApiRef();
 
@@ -831,9 +831,9 @@ function RedisSetTable(props: { setKey: string }) {
 
   const delOP = useCallback(
     async (member: string) => {
-      return await commands.redisSetDel(uuid, setKey, member);
+      return await commands.redisSetDel(dbName, setKey, member);
     },
-    [setKey, uuid],
+    [setKey, dbName],
   );
   const [keyMatch, setKeyMatch] = useState("");
   const [keyMatchDelay] = useDebounce(keyMatch, 1000);
@@ -848,7 +848,7 @@ function RedisSetTable(props: { setKey: string }) {
     (showOK: boolean) => {
       setLoading(true);
       showTable({
-        uuid,
+        dbName,
         name: setKey,
         setLoading,
         para: {
@@ -887,7 +887,7 @@ function RedisSetTable(props: { setKey: string }) {
         },
       });
     },
-    [apiRef, getSize, keyMatchDelay, setKey, showNotification, uuid],
+    [apiRef, getSize, keyMatchDelay, setKey, showNotification, dbName],
   );
 
   useEffect(() => {
@@ -975,9 +975,9 @@ function RedisSetTable(props: { setKey: string }) {
             })(),
           }}>
           <DataGrid
-            columnVisibilityModel={getColumnVisibility(uuid, setKey)}
+            columnVisibilityModel={getColumnVisibility(dbName, setKey)}
             onColumnVisibilityModelChange={(e) => {
-              setColumnVisibility(uuid, setKey, e);
+              setColumnVisibility(dbName, setKey, e);
             }}
             getCellClassName={({ field }) => {
               if (selectedColumns.has(field)) {
@@ -1140,7 +1140,7 @@ type ListToolBarProps = {
 } & GridSlotProps["toolbar"];
 
 function ListToolBar({ dbpal: { handleReload, listKey, loading } }: ListToolBarProps) {
-  const { uuid } = useContext(UuidContext);
+  const { dbName } = useContext(UuidContext);
   return (
     <AppDataGridToolBar
       left=<>
@@ -1153,7 +1153,7 @@ function ListToolBar({ dbpal: { handleReload, listKey, loading } }: ListToolBarP
         />
         <AddTableModal
           kind={DataSourceKind.Redis}
-          uuid={uuid}
+          dbName={dbName}
           tableName={listKey}
           redisType={RedisTableType.List}
         />
@@ -1164,15 +1164,15 @@ function ListToolBar({ dbpal: { handleReload, listKey, loading } }: ListToolBarP
 }
 function RedisListTable(props: { listKey: string }) {
   const { listKey } = props;
-  const { uuid } = useContext(UuidContext);
+  const { dbName } = useContext(UuidContext);
   const modifyOP = async (index, value) => {
-    return await commands.redisListSet(uuid, listKey, value, index);
+    return await commands.redisListSet(dbName, listKey, value, index);
   };
   const delOP = useCallback(
     async (count, value) => {
-      return await commands.redisListRemove(uuid, listKey, value, count);
+      return await commands.redisListRemove(dbName, listKey, value, count);
     },
-    [listKey, uuid],
+    [listKey, dbName],
   );
   const apiRef = useGridApiRef();
   const [selectedColumns, setSelectColumns] = useState<Set<string>>(new Set());
@@ -1189,7 +1189,7 @@ function RedisListTable(props: { listKey: string }) {
   const handleReload = useCallback(
     (showOk: boolean) => {
       showTable({
-        uuid,
+        dbName,
         name: listKey,
         setLoading,
         showNotification,
@@ -1230,7 +1230,7 @@ function RedisListTable(props: { listKey: string }) {
         setStatus: setQueryStatus,
       });
     },
-    [uuid, listKey, showNotification, getColumnWidth, apiRef],
+    [dbName, listKey, showNotification, getColumnWidth, apiRef],
   );
 
   useEffect(() => {
@@ -1393,9 +1393,9 @@ function RedisListTable(props: { listKey: string }) {
             sortingMode="server"
             paginationMode="client"
             style={dataGridStyle}
-            columnVisibilityModel={getColumnVisibility(uuid, listKey)}
+            columnVisibilityModel={getColumnVisibility(dbName, listKey)}
             onColumnVisibilityModelChange={(e) => {
-              setColumnVisibility(uuid, listKey, e);
+              setColumnVisibility(dbName, listKey, e);
             }}
             onSortModelChange={onSortModelChange}
           />
@@ -1500,7 +1500,7 @@ function ZSetToolBar({
     zsetKey,
   },
 }: ZSetToolBarProps) {
-  const { uuid } = useContext(UuidContext);
+  const { dbName } = useContext(UuidContext);
   return (
     <AppDataGridToolBar
       left=<>
@@ -1556,7 +1556,7 @@ function ZSetToolBar({
         />
         <AddTableModal
           kind={DataSourceKind.Redis}
-          uuid={uuid}
+          dbName={dbName}
           tableName={zsetKey}
           redisType={RedisTableType.Zset}
         />
@@ -1568,18 +1568,24 @@ function ZSetToolBar({
 
 function RedisZsetTable(props: { zsetKey: string }) {
   const { zsetKey } = props;
-  const { uuid } = useContext(UuidContext);
+  const { dbName } = useContext(UuidContext);
   const modifyOP = async (oldMember: string, newKey: string, newValue: number) => {
-    return await commands.redisZsetReplace(uuid, zsetKey, oldMember, newKey, newValue);
+    return await commands.redisZsetReplace(
+      dbName,
+      zsetKey,
+      oldMember,
+      newKey,
+      newValue,
+    );
   };
 
   const apiRef = useGridApiRef();
   const [selectedColumns, setSelectColumns] = useState<Set<string>>(new Set());
   const delOP = useCallback(
     async (member) => {
-      return await commands.redisZsetDel(uuid, zsetKey, member);
+      return await commands.redisZsetDel(dbName, zsetKey, member);
     },
-    [uuid, zsetKey],
+    [dbName, zsetKey],
   );
   const { setColumnWidth, getColumnWidth } = useColumnWidthStore();
   const [keyMatch, setKeyMatch] = useState("");
@@ -1609,7 +1615,7 @@ function RedisZsetTable(props: { zsetKey: string }) {
       setLoading(true);
       showTable({
         setStatus: setQueryStatus,
-        uuid,
+        dbName,
         name: zsetKey,
         setLoading,
         para: {
@@ -1659,7 +1665,7 @@ function RedisZsetTable(props: { zsetKey: string }) {
       maxErr,
       minDelay,
       maxDelay,
-      uuid,
+      dbName,
       zsetKey,
       keyMatchDelay,
       getSize,
@@ -1791,9 +1797,9 @@ function RedisZsetTable(props: { zsetKey: string }) {
             })(),
           }}>
           <DataGrid
-            columnVisibilityModel={getColumnVisibility(uuid, zsetKey)}
+            columnVisibilityModel={getColumnVisibility(dbName, zsetKey)}
             onColumnVisibilityModelChange={(e) => {
-              setColumnVisibility(uuid, zsetKey, e);
+              setColumnVisibility(dbName, zsetKey, e);
             }}
             getCellClassName={({ field }) => {
               if (selectedColumns.has(field)) {
@@ -1932,7 +1938,7 @@ type HashToolBarProps = {
 function HashToolBar({
   dbpal: { keyMatch, setKeyMatch, hashKey, loading, handleReload },
 }: HashToolBarProps) {
-  const { uuid } = useContext(UuidContext);
+  const { dbName } = useContext(UuidContext);
   return (
     <AppDataGridToolBar
       left=<>
@@ -1957,7 +1963,7 @@ function HashToolBar({
         </Tooltip>
         <AddTableModal
           kind={DataSourceKind.Redis}
-          uuid={uuid}
+          dbName={dbName}
           tableName={hashKey}
           redisType={RedisTableType.Hash}
         />
@@ -1969,20 +1975,20 @@ function HashToolBar({
 
 function RedisHashTable(props: { hashKey: string }) {
   const { hashKey } = props;
-  const { uuid } = useContext(UuidContext);
+  const { dbName } = useContext(UuidContext);
   const apiRef = useGridApiRef();
 
   const delOP = useCallback(
     async (member) => {
-      return await commands.redisHashDel(uuid, hashKey, member);
+      return await commands.redisHashDel(dbName, hashKey, member);
     },
-    [hashKey, uuid],
+    [hashKey, dbName],
   );
   const [selectedColumns, setSelectColumns] = useState<Set<string>>(new Set());
 
   const modifyOP = async (oldMember, newMember, newValue) => {
     return await commands.redisHashReplace(
-      uuid,
+      dbName,
       hashKey,
       oldMember,
       newMember,
@@ -2003,7 +2009,7 @@ function RedisHashTable(props: { hashKey: string }) {
   const handleReload = useCallback(
     (showOK) => {
       showTable({
-        uuid,
+        dbName,
         name: hashKey,
         okCallBack: showOK
           ? () => {
@@ -2046,7 +2052,7 @@ function RedisHashTable(props: { hashKey: string }) {
         },
       });
     },
-    [apiRef, getColumnWidth, getSize, hashKey, keyMatchDelay, showNotification, uuid],
+    [apiRef, getColumnWidth, getSize, hashKey, keyMatchDelay, showNotification, dbName],
   );
   useEffect(() => {
     handleReload(false);
@@ -2143,9 +2149,9 @@ function RedisHashTable(props: { hashKey: string }) {
             })(),
           }}>
           <DataGrid
-            columnVisibilityModel={getColumnVisibility(uuid, hashKey)}
+            columnVisibilityModel={getColumnVisibility(dbName, hashKey)}
             onColumnVisibilityModelChange={(e) => {
-              setColumnVisibility(uuid, hashKey, e);
+              setColumnVisibility(dbName, hashKey, e);
             }}
             getCellClassName={({ field }) => {
               if (selectedColumns.has(field)) {

@@ -26,12 +26,12 @@ function formatCreateTableAndIndexSql(sql: CreateTableAndIndexSql) {
   return ret;
 }
 
-function listView(uuid: string, viewKind: ViewKind) {
+function listView(dbName: string, viewKind: ViewKind) {
   switch (viewKind) {
     case ViewKind.View:
-      return commands.listView(uuid);
+      return commands.listView(dbName);
     case ViewKind.MaterializedView:
-      return commands.listMaterializedView(uuid);
+      return commands.listMaterializedView(dbName);
   }
 }
 
@@ -51,7 +51,7 @@ interface ShowTableCallBack {
 
 async function showTable(
   props: {
-    uuid: string;
+    dbName: string;
     para?: ShowTableParameter;
     name: string;
     isView?: boolean;
@@ -60,7 +60,7 @@ async function showTable(
   } & ShowTableCallBack,
 ) {
   let {
-    uuid,
+    dbName,
     para,
     name,
     isView,
@@ -124,7 +124,7 @@ async function showTable(
           console.error("server send wrong kind of data:", event);
       }
     });
-    await commands.showTable(uuid, isView, name, para, emit);
+    await commands.showTable(dbName, isView, name, para, emit);
     if (okCallBack) {
       okCallBack();
     }

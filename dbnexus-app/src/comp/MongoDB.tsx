@@ -127,7 +127,7 @@ import { MongoCreateTableImportFile } from "./CreateTable";
 const mongoID = "_id";
 
 const mongoBsonKeywords =
-  /\b(as|int|long|date|timestamp|decimal|binary|generic|function|byte_array|uuid|md5|encrypted|column|sensitive|int8_array|float32_array|user_define|true|false|null|undefined|code)\b/i;
+  /\b(as|int|long|date|timestamp|decimal|binary|generic|function|byte_array|dbName|md5|encrypted|column|sensitive|int8_array|float32_array|user_define|true|false|null|undefined|code)\b/i;
 function mongoBsonAutoCompletion(): languages.CompletionList {
   const generateSubTypes = MongoBsonBinaryAllSubType.allValues().map(
     (e): languages.CompletionItem => {
@@ -493,7 +493,7 @@ function MongoTableToolBar(props: {
     table,
     isTable,
   } = props;
-  const { uuid } = useContext(UuidContext);
+  const { dbName } = useContext(UuidContext);
   const [showModifyFilter, setShowModifyFilter] = useState(false);
   const [showModifySort, setShowModifySort] = useState(false);
   const [modalBox, setModalBox] = useState(null);
@@ -558,7 +558,11 @@ function MongoTableToolBar(props: {
         </Tooltip>
 
         {isTable && (
-          <AddTableModal uuid={uuid} kind={DataSourceKind.Mongo} tableName={table} />
+          <AddTableModal
+            dbName={dbName}
+            kind={DataSourceKind.Mongo}
+            tableName={table}
+          />
         )}
         {isTable && (
           <IconButton
@@ -569,7 +573,7 @@ function MongoTableToolBar(props: {
                   table,
                   <MongoCreateTableImportFile hasTableName={table} />,
                   <UploadIcon />,
-                  uuid,
+                  dbName,
                   DataSourceKind.Mongo,
                 ),
               );
@@ -1033,7 +1037,7 @@ function ModalObjectNotice() {
     binary_field3: '68656c6c6f' as binary generic,
     binary_field4: '68656c6c6f' as binary encrypted,
     binary_field5: '68656c6c6f' as binary sensitive,
-    uuid_field: '0fe7263c138e480ea9e1d3869857dbca' as binary uuid,
+    uuid_field: '0fe7263c138e480ea9e1d3869857dbca' as binary dbName,
     array_field: [1,2,3],
     object_field: {nested_key: 'nested_value'},
     decimal_field: '1' as decimal,
@@ -1068,7 +1072,7 @@ function MongoTableList(props: {
     tableName,
     setLoading,
   } = props;
-  const { uuid } = useContext(UuidContext);
+  const { dbName } = useContext(UuidContext);
   const [page, setPage] = useState(0);
   const { mongo: pageSize, setPageSize } = usePageSize();
   const { showNotification } = useNotification();
@@ -1303,9 +1307,9 @@ function MongoTableList(props: {
             })(),
           }}>
           <DataGrid
-            columnVisibilityModel={getColumnVisibility(uuid, tableName)}
+            columnVisibilityModel={getColumnVisibility(dbName, tableName)}
             onColumnVisibilityModelChange={(e) => {
-              setColumnVisibility(uuid, tableName, e);
+              setColumnVisibility(dbName, tableName, e);
             }}
             getCellClassName={({ field }) => {
               if (selectedColumns.has(field)) {
@@ -1581,7 +1585,7 @@ class MongoTableHandler {
   }
 
   static async reloadTableList(
-    uuid: string,
+    dbName: string,
     table: string,
     filter,
     sort,
@@ -1594,53 +1598,57 @@ class MongoTableHandler {
       page,
       pageSize,
     );
-    return await commands.mongoShowCollectionTableList(uuid, table, para);
+    return await commands.mongoShowCollectionTableList(dbName, table, para);
   }
 
-  static reloadDocs(uuid: string, table: string, filter, sort, page, pageSize) {
+  static reloadDocs(dbName: string, table: string, filter, sort, page, pageSize) {
     let para: MongoShowTablePara = MongoTableHandler.makeShowTablePara(
       filter,
       sort,
       page,
       pageSize,
     );
-    return commands.mongoShowCollectionDocs(uuid, table, para).then((x) => {
+    return commands.mongoShowCollectionDocs(dbName, table, para).then((x) => {
       const docs = x.docs.map((e) => BSON.deserialize(new Uint8Array(e)));
       const count = x.count;
       return new DocsAndCount(docs, count);
     });
   }
 
-  static loadOne(uuid: string, table: string) {
+  static loadOne(dbName: string, table: string) {
     return async (id): Promise<BSON.Document> => {
       return commands
-        .mongoGetOneDocumentById(uuid, table, JSON.stringify(EJSON.serialize(id)))
+        .mongoGetOneDocumentById(dbName, table, JSON.stringify(EJSON.serialize(id)))
         .then((x) => {
           return BSON.deserialize(new Uint8Array(x));
         });
     };
   }
 
-  static modifyOP(uuid: string, table: string) {
+  static modifyOP(dbName: string, table: string) {
     return async (doc) => {
-      return commands.mongoUpdateOne(uuid, table, BSON.serialize(doc));
+      return commands.mongoUpdateOne(dbName, table, BSON.serialize(doc));
     };
   }
-  static deleteOP(uuid, table) {
+  static deleteOP(dbName, table) {
     return async (ids) => {
       if (!Array.isArray(ids)) {
         ids = [ids];
       }
-      return commands.mongoDeleteIds(uuid, table, JSON.stringify(EJSON.serialize(ids)));
+      return commands.mongoDeleteIds(
+        dbName,
+        table,
+        JSON.stringify(EJSON.serialize(ids)),
+      );
     };
   }
 }
 function MongoTable(props: { table: string; isTable: boolean }) {
-  const { uuid } = useContext(UuidContext);
+  const { dbName } = useContext(UuidContext);
   const { table, isTable } = props;
-  const modifyOP = isTable ? MongoTableHandler.modifyOP(uuid, table) : undefined;
-  const loadOne = MongoTableHandler.loadOne(uuid, table);
-  const deleteOP = isTable ? MongoTableHandler.deleteOP(uuid, table) : undefined;
+  const modifyOP = isTable ? MongoTableHandler.modifyOP(dbName, table) : undefined;
+  const loadOne = MongoTableHandler.loadOne(dbName, table);
+  const deleteOP = isTable ? MongoTableHandler.deleteOP(dbName, table) : undefined;
   const [filter, setFilter] = useState<BSON.Document>({});
   const [sort, setSort] = useState<BSON.Document>({});
   const { viewModel } = useMongoViewModelStore();
@@ -1653,7 +1661,7 @@ function MongoTable(props: { table: string; isTable: boolean }) {
   const reloadTable = useCallback(
     (page: number, pageSize: number) => {
       return MongoTableHandler.reloadTableList(
-        uuid,
+        dbName,
         table,
         filter,
         sort,
@@ -1661,14 +1669,14 @@ function MongoTable(props: { table: string; isTable: boolean }) {
         pageSize,
       );
     },
-    [filter, sort, table, uuid],
+    [filter, sort, table, dbName],
   );
   useEffect(() => {}, [reloadTable]);
   const reloadDocs = useCallback(
     (page: number, pageSize: number) => {
-      return MongoTableHandler.reloadDocs(uuid, table, filter, sort, page, pageSize);
+      return MongoTableHandler.reloadDocs(dbName, table, filter, sort, page, pageSize);
     },
-    [filter, sort, table, uuid],
+    [filter, sort, table, dbName],
   );
 
   return (

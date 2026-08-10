@@ -115,10 +115,10 @@ function AllKindQuery(props: { value?: string; favoriteName?: string }) {
 }
 
 function AllKindChat(props: { value?: string; favoriteName?: string }) {
-  const { uuid } = useContext(UuidContext);
+  const { dbName } = useContext(UuidContext);
   const { favoriteName, value } = props;
   const llm = useLLM();
-  const showChatKey = "chat-show-" + uuid;
+  const showChatKey = "chat-show-" + dbName;
   const { getSwitch, setSwitch } = useBoolSwitch();
   const [show, setShow] = useState(getSwitch(showChatKey));
 
@@ -153,7 +153,7 @@ function AllKindChat(props: { value?: string; favoriteName?: string }) {
 const cleanEditorKey = "clean-editor-key";
 
 function SqlChatTextInput() {
-  const { uuid } = useContext(UuidContext);
+  const { dbName } = useContext(UuidContext);
   const { editor } = useContext(QueryIDEditorChatCtx);
   const llm = useLLM();
   const [question, setQuestion] = useState("");
@@ -168,7 +168,7 @@ function SqlChatTextInput() {
   const [documents, setDocuments] = useState<string[]>([]);
   const { getSize } = useSizeStore();
   const { messagesByNames, saveMessage } = useChatStore();
-  const connName = extractConfigNameFromUuid(uuid);
+  const connName = extractConfigNameFromUuid(dbName);
   const { prompts: userDefinePrompts } = useUserSystemPromptStore();
   const cleanEditor = getSwitch(cleanEditorKey);
   useEffect(() => {
