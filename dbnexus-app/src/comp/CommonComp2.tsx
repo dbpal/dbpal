@@ -1679,7 +1679,8 @@ function SetFilterSort(props: {
                     severity: "success",
                     title: "delete filter success",
                   });
-                }}>
+                }}
+                disabled={filters.length == 0}>
                 <DeleteForeverIcon />
               </IconButton>
               <Autocomplete
