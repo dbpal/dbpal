@@ -680,7 +680,6 @@ const SqlOpContext = createContext<{
   ops: DatabaseOperation[];
   setOps: Dispatch<SetStateAction<DatabaseOperation[]>>;
   fields: Field[];
-  dbName: string;
   handleReload: () => void;
 }>(null);
 
@@ -880,7 +879,13 @@ function isExcelFile(fileName: string): boolean {
   return excelExtensions.includes(extension);
 }
 
+function isCsvFile(file: string, includeTsv: boolean) {
+  let f = file.toLowerCase();
+  return f.endsWith(".csv") || (includeTsv && f.endsWith(".tsv"));
+}
+
 export {
+  isCsvFile,
   isExcelFile,
   escapeMarkdown,
   createCSV,

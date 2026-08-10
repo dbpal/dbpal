@@ -89,8 +89,8 @@ import {
 } from "./store.tsx";
 import { commands, Field, ListTable, RedisListTableRet } from "./bindings.ts";
 import {
-  CouchbaseCreateTableImportFile,
-  MongoCreateTableImportFile,
+  CouchbaseTableImportFile,
+  MongoTableImportFile,
   SqlCreateTable,
   SqlCreateTableImportFile,
 } from "./CreateTable.tsx";
@@ -183,10 +183,10 @@ function TablesTree() {
                       onClick={() => {
                         let content = <SqlCreateTableImportFile />;
                         if (kind == DataSourceKind.Mongo) {
-                          content = <MongoCreateTableImportFile />;
+                          content = <MongoTableImportFile />;
                         }
                         if (kind == DataSourceKind.CouchBase) {
-                          content = <CouchbaseCreateTableImportFile />;
+                          content = <CouchbaseTableImportFile />;
                         }
                         appendTab(
                           new TabContent(

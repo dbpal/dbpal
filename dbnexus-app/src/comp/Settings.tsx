@@ -1141,11 +1141,7 @@ function makeComponents(
     },
     MuiTextField: {
       styleOverrides: {
-        root: {
-          "& .MuiInputBase-input": {
-            fontWeight,
-          },
-        },
+        root: {},
       },
       defaultProps: {
         size: "small",

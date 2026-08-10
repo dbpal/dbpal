@@ -5,18 +5,25 @@ import {
   FormControlLabel,
   IconButton,
   Stack,
+  TextField,
   Tooltip,
   Typography,
 } from "@mui/material";
 import ClearIcon from "@mui/icons-material/Clear";
-import { DataSourceKind, isExcelFile, resizeHandlerSize, UuidContext } from "./helper";
-import InfoIcon from "@mui/icons-material/Info";
+import {
+  DataSourceKind,
+  isCsvFile,
+  isExcelFile,
+  resizeHandlerSize,
+  UuidContext,
+} from "./helper";
 import {
   CSSProperties,
   RefObject,
   useCallback,
   useContext,
   useEffect,
+  useMemo,
   useRef,
   useState,
 } from "react";
@@ -44,11 +51,12 @@ import {
   Field,
 } from "./bindings";
 import { Panel, PanelGroup, PanelResizeHandle } from "react-resizable-panels";
-import { SelectPath } from "./CommonComp";
+import { LongNotice, SelectPath } from "./CommonComp";
 import Papa from "papaparse";
 import { DataGrid } from "@mui/x-data-grid";
 import { readTextFile, readTextFileLines } from "@tauri-apps/plugin-fs";
 import { BSON, EJSON } from "bson";
+import { openUrl } from "@tauri-apps/plugin-opener";
 
 function SqlCreateTable(props: {
   fields?: CreateTableReqColumn[];
@@ -460,56 +468,56 @@ function TableColumn(props: {
   );
 }
 
-function SqlCreateTableImportFileNotice() {
+function SqlTableImportFileNotice() {
   return (
-    <Tooltip
-      slotProps={{
-        tooltip: {
-          style: { maxWidth: "40vw" },
-        },
-      }}
-      title=<Stack style={{ width: "40vw" }}>
-        <Typography>support file type:json,jsonline,csv,excel file types.</Typography>
-        <Typography> 1. u need select a file </Typography>
-        <Typography> 2. u need create table from the left panel</Typography>
-        <Typography>
-          3. then upload data from the right panel,notice that the table name will be
-          used for import data from input of the left panel
-        </Typography>
-        <AppCode
-          language="csv"
-          extra={() => {
-            return <> csv examples</>;
-          }}
-          codeBlock={`name,age
+    <LongNotice>
+      <Typography>support file type:json,jsonline,csv,tsv,excel file types.</Typography>
+      <Typography> 1. u need select a file </Typography>
+      <Typography> 2. u need create table from the left panel</Typography>
+      <Typography>
+        3. then upload data from the right panel,notice that the table name comes from
+        the <mark> input</mark> of the left panel
+      </Typography>
+      <AppCode
+        language="csv"
+        extra={() => {
+          return <> csv examples(need headers)</>;
+        }}
+        codeBlock={`name,age
 john,123`}
-        />
-        <AppCode
-          language="json"
-          extra={() => {
-            return <> json examples</>;
-          }}
-          codeBlock={`[
+      />
+      <AppCode
+        language="tsv"
+        extra={() => {
+          return <> tsv examples(need headers)</>;
+        }}
+        codeBlock={`name	age
+john	123`}
+      />
+      <AppCode
+        language="json"
+        extra={() => {
+          return <> json examples</>;
+        }}
+        codeBlock={`[
   {
       "name":"john",
       "age" :112
   },
   ...
 ]`}
-        />
-        <AppCode
-          language="jsonline"
-          extra={() => {
-            return <> json examples</>;
-          }}
-          codeBlock={`{"name":"john","age" :112}
+      />
+      <AppCode
+        language="jsonline"
+        extra={() => {
+          return <> jsonline examples</>;
+        }}
+        codeBlock={`{"name":"john","age" :112}
 ...`}
-        />
-        <Typography> xlsx file must have headers </Typography>
-        <img src={xlsxWithHeaderImg} />
-      </Stack>>
-      <InfoIcon color="info" />
-    </Tooltip>
+      />
+      <Typography> xlsx file must have headers </Typography>
+      <img src={xlsxWithHeaderImg} />{" "}
+    </LongNotice>
   );
 }
 
@@ -521,13 +529,31 @@ function SqlCreateTableImportFile() {
   const [data, setData] = useState<Record<string, string>[]>();
   const tableName = useRef("");
   const [loading, setLoading] = useState(false);
+  const [csvDelimiter, setCsvDelimiter] = useState(",");
+
+  const fileLower = useMemo(() => {
+    return file.toLocaleLowerCase();
+  }, [file]);
+
+  const realCsvDelimiter = useMemo(() => {
+    return fileLower.endsWith(".tsv") ? "\t" : csvDelimiter;
+  }, [csvDelimiter, fileLower]);
   useEffect(() => {
     (async () => {
       try {
         if (!file) {
           return;
         }
-        const fs = await commands.sqlInferFieldsFromFile(dbName, file);
+        if (isCsvFile(file, false)) {
+          if (!csvDelimiter) {
+            return;
+          }
+        }
+        const fs = await commands.sqlInferFieldsFromFile(
+          dbName,
+          file,
+          realCsvDelimiter,
+        );
         setFields(fs);
       } catch (e) {
         showNotification({
@@ -537,7 +563,7 @@ function SqlCreateTableImportFile() {
         });
       }
     })();
-  }, [file, showNotification, dbName]);
+  }, [file, showNotification, dbName, csvDelimiter, fileLower, realCsvDelimiter]);
 
   const maxRow = 100;
 
@@ -547,14 +573,18 @@ function SqlCreateTableImportFile() {
         if (!file) {
           return;
         }
-
         let fileLower = file.toLowerCase();
-        if (fileLower.endsWith(".csv") || fileLower.endsWith(".tsv")) {
+        if (isCsvFile(file, true)) {
+          if (!csvDelimiter && isCsvFile(file, false)) {
+            return;
+          }
           const x = Papa.parse<Record<string, any>>(await readTextFile(file), {
             header: true,
             skipEmptyLines: true,
             preview: maxRow,
+            delimiter: realCsvDelimiter,
           });
+
           x.data.forEach((e, index) => {
             e[keyNotInTable] = index;
           });
@@ -609,7 +639,6 @@ function SqlCreateTableImportFile() {
               showNotification({
                 severity: "error",
                 title: `line ${line_num} is not object`,
-
                 message: `line content:${line} `,
               });
             }
@@ -636,7 +665,7 @@ function SqlCreateTableImportFile() {
         });
       }
     })();
-  }, [file, showNotification]);
+  }, [csvDelimiter, file, realCsvDelimiter, showNotification]);
 
   return (
     <PanelGroup
@@ -649,8 +678,17 @@ function SqlCreateTableImportFile() {
       <Panel minSize={10} collapsible collapsedSize={0} style={{ padding: "2px" }}>
         <Stack style={{ height: "100%", overflow: "auto" }}>
           <Stack direction="row" style={{ alignItems: "center" }}>
-            <SqlCreateTableImportFileNotice />
+            <SqlTableImportFileNotice />
             <SelectPath path={file} setPath={setFile} required label="import file" />
+            {file && fileLower.endsWith(".csv") && (
+              <TextField
+                value={csvDelimiter}
+                onChange={(e) => {
+                  setCsvDelimiter(e.target.value);
+                }}
+                label="csv delimiter"
+              />
+            )}
           </Stack>
 
           {file && (
@@ -699,11 +737,28 @@ function SqlCreateTableImportFile() {
                       });
                       return;
                     }
+                    if (fileLower.endsWith(".csv")) {
+                      if (!csvDelimiter) {
+                        showNotification({
+                          severity: "error",
+                          title: "csv deimiter is not set",
+                        });
+                        return;
+                      }
+                      if (csvDelimiter.length != 1) {
+                        showNotification({
+                          severity: "error",
+                          title: "csv delimiter should contains one char",
+                        });
+                        return;
+                      }
+                    }
                     setLoading(true);
                     try {
                       await commands.tableImportFromFile(dbName, tableName.current, {
                         path: file,
                         mongo_data: null,
+                        csv_delimiter: realCsvDelimiter,
                       });
                       showNotification({
                         severity: "success",
@@ -738,7 +793,50 @@ function SqlCreateTableImportFile() {
   );
 }
 
-function MongoCreateTableImportFile(props: { hasTableName?: string }) {
+function MongoImportFileNotice() {
+  return (
+    <LongNotice>
+      <Typography>
+        all data are treated as{" "}
+        <mark
+          onClick={() => {
+            openUrl(
+              "https://www.mongodb.com/ko-kr/docs/mongodb-shell/reference/ejson/",
+            );
+          }}
+          style={{ cursor: "pointer" }}>
+          EJSON
+        </mark>
+      </Typography>
+      <AppCode
+        language="json"
+        extra={() => {
+          return <> json examples</>;
+        }}
+        codeBlock={`[
+{
+  "_id": {
+    "$oid": "69f2b6a5001ee3db63dccd30"
+  },
+  "name": "Alice",
+  "age": 121
+},
+  ...
+]`}
+      />
+      <AppCode
+        language="jsonline"
+        extra={() => {
+          return <> jsonline examples</>;
+        }}
+        codeBlock={`{"_id": {"$oid": "69f2b6a5001ee3db63dccd30"},"name": "Alice","age": 121}
+...`}
+      />
+    </LongNotice>
+  );
+}
+
+function MongoTableImportFile(props: { hasTableName?: string }) {
   const { dbName } = useContext(UuidContext);
   const { hasTableName } = props;
   const [file, setFile] = useState("");
@@ -746,7 +844,9 @@ function MongoCreateTableImportFile(props: { hasTableName?: string }) {
   const [data, setData] = useState<string[]>([]);
   const [tableName, setTableName] = useState(hasTableName);
   const [loading, setLoading] = useState(false);
-
+  const fileLower = useMemo(() => {
+    return file.toLowerCase();
+  }, [file]);
   const maxRow = 10;
 
   useEffect(() => {
@@ -756,7 +856,6 @@ function MongoCreateTableImportFile(props: { hasTableName?: string }) {
           return;
         }
 
-        let fileLower = file.toLowerCase();
         if (fileLower.endsWith(".jsonl")) {
           const data = [];
           let line_num = 0;
@@ -818,18 +917,16 @@ function MongoCreateTableImportFile(props: { hasTableName?: string }) {
         });
       }
     })();
-  }, [file, showNotification]);
+  }, [file, fileLower, showNotification]);
 
   const makeData = useCallback(async (): Promise<Uint8Array<ArrayBufferLike>[]> => {
-    const pathLower = file.toLocaleLowerCase();
-
-    if (pathLower.endsWith(".jsonl")) {
+    if (fileLower.endsWith(".jsonl")) {
       const ret = [];
       for await (const line of await readTextFileLines(file)) {
         ret.push(BSON.serialize(EJSON.parse(line)));
       }
       return ret;
-    } else if (pathLower.endsWith(".json")) {
+    } else if (fileLower.endsWith(".json")) {
       // xxx
       const ret = [];
       const data: any[] = EJSON.parse(await readTextFile(file));
@@ -852,7 +949,7 @@ function MongoCreateTableImportFile(props: { hasTableName?: string }) {
     } else {
       showNotification({ severity: "error", title: "unsupported file type" });
     }
-  }, [file, showNotification]);
+  }, [file, fileLower, showNotification]);
 
   return (
     <Stack
@@ -861,7 +958,8 @@ function MongoCreateTableImportFile(props: { hasTableName?: string }) {
         width: "100%",
         overflow: "auto",
       }}>
-      <Stack direction="row">
+      <Stack direction="row" style={{ alignItems: "center" }}>
+        <MongoImportFileNotice />
         <IconButton
           loading={loading}
           disabled={!file}
@@ -933,7 +1031,49 @@ function MongoCreateTableImportFile(props: { hasTableName?: string }) {
   );
 }
 
-function CouchbaseCreateTableImportFile(props: { hasTableName?: string }) {
+function CouchbaseImportFileNotice() {
+  return (
+    <LongNotice>
+      <Typography>
+        <Typography>
+          # the value nested in value must have be a object and have 2 field
+        </Typography>
+        <Typography>
+          # one of the field must be &apos;id&apos; and the value is string
+        </Typography>
+        <Typography>
+          # the field is not &apos;id&apos; treat as value,and must have object value
+        </Typography>
+        <Typography>
+          # the value in this example will insert data to the collection.
+        </Typography>
+        <Typography>
+          # id=&apos;aaaa&apos; data will be a object and data is
+          &quot;name=&quot;john&quot;,age=18&quot;
+        </Typography>
+      </Typography>
+      <AppCode
+        language="json"
+        extra={() => {
+          return <> json examples</>;
+        }}
+        codeBlock={`[
+
+{
+  "id": "aaaa",
+  "test_show_table": {
+    "name": "john",
+    "age": 18
+  }
+},
+...
+]`}
+      />
+    </LongNotice>
+  );
+}
+
+function CouchbaseTableImportFile(props: { hasTableName?: string }) {
   const { dbName } = useContext(UuidContext);
   const { hasTableName } = props;
   const [file, setFile] = useState("");
@@ -941,7 +1081,9 @@ function CouchbaseCreateTableImportFile(props: { hasTableName?: string }) {
   const [data, setData] = useState<string[]>([]);
   const [tableName, setTableName] = useState(hasTableName);
   const [loading, setLoading] = useState(false);
-
+  const fileLower = useMemo(() => {
+    return file.toLowerCase();
+  }, [file]);
   const maxRow = 10;
 
   useEffect(() => {
@@ -951,7 +1093,6 @@ function CouchbaseCreateTableImportFile(props: { hasTableName?: string }) {
           return;
         }
 
-        let fileLower = file.toLowerCase();
         if (fileLower.endsWith(".jsonl")) {
           const data = [];
           let line_num = 0;
@@ -1013,7 +1154,7 @@ function CouchbaseCreateTableImportFile(props: { hasTableName?: string }) {
         });
       }
     })();
-  }, [file, showNotification]);
+  }, [file, fileLower, showNotification]);
 
   return (
     <Stack
@@ -1022,7 +1163,8 @@ function CouchbaseCreateTableImportFile(props: { hasTableName?: string }) {
         width: "100%",
         overflow: "auto",
       }}>
-      <Stack direction="row">
+      <Stack direction="row" style={{ alignItems: "center" }}>
+        <CouchbaseImportFileNotice />
         <IconButton
           loading={loading}
           disabled={!file}
@@ -1082,6 +1224,6 @@ function CouchbaseCreateTableImportFile(props: { hasTableName?: string }) {
 export {
   SqlCreateTable,
   SqlCreateTableImportFile,
-  MongoCreateTableImportFile,
-  CouchbaseCreateTableImportFile,
+  MongoTableImportFile,
+  CouchbaseTableImportFile,
 };

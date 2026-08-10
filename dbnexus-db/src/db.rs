@@ -1,4 +1,4 @@
-use crate::helper::generate_random_string;
+use crate::helper::{generate_random_string, is_csv_file};
 use crate::language_server::LanguageServer;
 use calamine::Reader;
 use chrono::{DateTime, FixedOffset};
@@ -189,6 +189,8 @@ pub struct TableImportPara {
     pub path: String,
     #[serde(default)]
     pub mongo_data: Option<Vec<JsUint8Array>>,
+    #[serde(default)]
+    pub csv_delimiter: Option<char>,
 }
 
 impl ShowTableParameter {
@@ -464,10 +466,12 @@ pub trait SchemaTrait:
                 let path_lower = para.path.to_lowercase();
 
                 match para {
-                    _ if path_lower.ends_with(".csv") || path_lower.ends_with(".tsv") => {
+                    _ if is_csv_file(&path_lower) => {
                         let mut rb = csv::ReaderBuilder::new();
                         if path_lower.ends_with(".tsv") {
                             rb.delimiter(b'\t');
+                        } else if let Some(x) = para.csv_delimiter {
+                            rb.delimiter(x as u8);
                         }
                         let mut reader: csv::Reader<std::fs::File> = rb.from_path(&para.path)?;
                         let headers: Vec<_> =
@@ -853,6 +857,7 @@ pub trait SchemaTrait:
             TableImportPara {
                 path: file.to_string(),
                 mongo_data: None,
+                csv_delimiter: None,
             },
         )
         .await
@@ -864,10 +869,12 @@ pub trait SchemaTrait:
         use std::io::Write;
 
         let mut file = tempfile::NamedTempFile::with_suffix(".csv").unwrap();
+        let d = ';';
+
         // test csv
         let export_kind = ExportKind::Csv {
             include_header: true,
-            delimiter: ',',
+            delimiter: d,
         };
 
         let csv_str = self
@@ -883,6 +890,7 @@ pub trait SchemaTrait:
             TableImportPara {
                 path: file.path().to_str().unwrap().to_string(),
                 mongo_data: None,
+                csv_delimiter: Some(d),
             },
         )
         .await
@@ -915,6 +923,7 @@ pub trait SchemaTrait:
             TableImportPara {
                 path: file.path().to_str().unwrap().to_string(),
                 mongo_data: None,
+                csv_delimiter: None,
             },
         )
         .await
@@ -946,6 +955,7 @@ pub trait SchemaTrait:
             TableImportPara {
                 path: file.path().to_str().unwrap().to_string(),
                 mongo_data: None,
+                csv_delimiter: None,
             },
         )
         .await

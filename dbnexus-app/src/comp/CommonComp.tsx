@@ -19,6 +19,7 @@ import {
   Box,
   InputAdornment,
 } from "@mui/material";
+import InfoIcon from "@mui/icons-material/Info";
 import AttachFileIcon from "@mui/icons-material/AttachFile";
 import RefreshIcon from "@mui/icons-material/Refresh";
 import {
@@ -1154,7 +1155,22 @@ function SelectPath(props: {
   );
 }
 
+function LongNotice({ children }) {
+  return (
+    <Tooltip
+      slotProps={{
+        tooltip: {
+          style: { maxWidth: "40vw" },
+        },
+      }}
+      title=<Stack style={{ width: "38vw" }}>{children}</Stack>>
+      <InfoIcon color="info" />
+    </Tooltip>
+  );
+}
+
 export {
+  LongNotice,
   SelectPath,
   LogLevelSelection,
   MetaValueView,

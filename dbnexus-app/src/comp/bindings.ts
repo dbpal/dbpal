@@ -157,7 +157,7 @@ export const commands = {
 	putValuesInSql: (dbName: string, typ: string, values: (string | null)[]) => __TAURI_INVOKE<string[]>("put_values_in_sql", { dbName, typ, values }),
 	writeXlsx: (path: string, data: XlsxEdit[]) => __TAURI_INVOKE<null>("write_xlsx", { path, data }),
 	tableImportFromFile: (dbName: string, tableName: string, kind: TableImportPara) => __TAURI_INVOKE<null>("table_import_from_file", { dbName, tableName, kind }),
-	sqlInferFieldsFromFile: (dbName: string, path: string) => __TAURI_INVOKE<Field[]>("sql_infer_fields_from_file", { dbName, path }),
+	sqlInferFieldsFromFile: (dbName: string, path: string, csvDelimiter: string | null) => __TAURI_INVOKE<Field[]>("sql_infer_fields_from_file", { dbName, path, csvDelimiter }),
 	readExcelFilePreview: (path: string, maxRow: number) => __TAURI_INVOKE<MuiDataGridData>("read_excel_file_preview", { path, maxRow }),
 };
 
@@ -413,7 +413,7 @@ export type MongoSsl = {
 
 export type MuiDataGridData = {
 	fields: Field[],
-	data: { [key in string]: string }[],
+	data: ({ [key in string]: string | null })[],
 	sql: string | null,
 	total: number,
 };
@@ -629,6 +629,7 @@ export type SqliteDBConfig = {
 export type TableImportPara = {
 	path: string,
 	mongo_data?: Uint8Array[] | null,
+	csv_delimiter?: string | null,
 };
 
 export type TriggerDetail = {

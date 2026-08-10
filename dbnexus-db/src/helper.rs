@@ -1,4 +1,7 @@
-use std::{io::BufRead, vec};
+use std::{
+    io::{BufRead, BufReader},
+    vec,
+};
 
 use calamine::Reader;
 use sqlparser::ast::{ArrayElemTypeDef, DataType};
@@ -543,6 +546,56 @@ pub(crate) fn extract_null_able(x: &DataType) -> &DataType {
     }
 }
 
+pub(crate) fn convert_csv_delimiter(
+    input_content: &str,
+    old_delimiter: Option<char>,
+    new_delimiter: Option<char>, // 1. Added the new delimiter parameter
+) -> anyhow::Result<String> {
+    use csv::{ReaderBuilder, WriterBuilder};
+
+    // 2. Safely convert old_delimiter to a single u8 byte (defaults to b',')
+    let old_delim_byte = match old_delimiter {
+        Some(c) if c.is_ascii() => c as u8,
+        _ => b',',
+    };
+
+    // 3. Safely convert new_delimiter to a single u8 byte (defaults to b',')
+    let new_delim_byte = match new_delimiter {
+        Some(c) if c.is_ascii() => c as u8,
+        _ => b',',
+    };
+
+    // 4. Configure ReaderBuilder with the custom old delimiter
+    let mut rdr = ReaderBuilder::new()
+        .delimiter(old_delim_byte)
+        .from_reader(input_content.as_bytes());
+
+    // 5. Configure WriterBuilder with the custom new delimiter
+    let mut wtr = WriterBuilder::new()
+        .delimiter(new_delim_byte) // Dynamically passed here
+        .from_writer(Vec::new());
+
+    wtr.write_record(rdr.headers()?)?;
+
+    // 6. Iterate through records and write them out
+    for result in rdr.records() {
+        let record = result?;
+        wtr.write_record(&record)?;
+    }
+
+    // 7. Extract the underlying Vec<u8> buffer
+    let inner_bytes = wtr.into_inner()?;
+
+    // 8. Convert the byte stream safely back into a standard String
+    let output_string = String::from_utf8(inner_bytes)?;
+    Ok(output_string)
+}
+
+pub fn is_csv_file(f: &str) -> bool {
+    let f = f.to_lowercase();
+    f.ends_with(".csv") || f.ends_with(".tsv")
+}
+
 impl BackendKind {
     pub fn infer_excel(&self, path: &str) -> anyhow::Result<Vec<Field>> {
         let mut wb: calamine::Xlsx<std::io::BufReader<std::fs::File>> =
@@ -592,13 +645,17 @@ impl BackendKind {
         })
     }
 
-    pub async fn infer_fields(self, path: &str) -> anyhow::Result<Vec<Field>> {
+    pub async fn infer_fields(
+        self,
+        path: &str,
+        csv_delimiter: Option<char>,
+    ) -> anyhow::Result<Vec<Field>> {
         let path = path.to_owned();
         tokio::task::spawn_blocking(move || {
             let path_lower = path.to_lowercase();
 
             if path_lower.ends_with(".csv") || path_lower.ends_with(".tsv") {
-                self.infer_csv(&path)
+                self.infer_csv(&path, csv_delimiter)
             } else if path_lower.ends_with(".json") {
                 self.infer_json(&path)
             } else if path_lower.ends_with(".jsonl") {
@@ -612,8 +669,20 @@ impl BackendKind {
         .await?
     }
 
-    pub fn infer_csv(self, path: &str) -> anyhow::Result<Vec<Field>> {
-        let df = csv_processor::DataFrame::from_csv(path)?;
+    pub fn infer_csv(self, path: &str, csv_delimiter: Option<char>) -> anyhow::Result<Vec<Field>> {
+        // convert the , to
+        let f = std::fs::File::open(path)?;
+        let reader = BufReader::new(f);
+        let mut input_content = String::new();
+        for line in reader.lines().take(100) {
+            let line = line?;
+            input_content.push_str(&line);
+            input_content.push('\n');
+        }
+        let csv_str = convert_csv_delimiter(&input_content, csv_delimiter, Some(','))
+            .map_err(|e| anyhow::Error::msg(e))?;
+
+        let df = csv_processor::DataFrame::from_strings(&csv_str)?;
         let mut ret = vec![];
 
         // 直接从 df 获取列信息
@@ -1144,11 +1213,15 @@ mod tests {
         );
     }
 
+    #[ignore = "the file may not exists"]
     #[test]
 
     fn test_infer_schema_csv() {
         let x = BackendKind::Sqlite
-            .infer_csv("/home/yuyang/Downloads/Persons.csv")
+            .infer_csv(
+                "/home/yuyang/Downloads/Persons_20260810T032730.csv",
+                Some(';'),
+            )
             .unwrap();
         for y in x.iter() {
             println!("{:?}", y);

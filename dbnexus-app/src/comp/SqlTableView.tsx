@@ -892,6 +892,10 @@ function SqlTableView(props: {
       const findDiff = (): Map<string, string | null> => {
         const m = new Map();
         for (const key in newRow) {
+          // check if they are both null 防御性这个地方是
+          if (!newRow[key] && !oldRow[key]) {
+            continue;
+          }
           if (newRow[key] != oldRow[key]) {
             m.set(key, newRow[key]);
           }
@@ -1177,7 +1181,6 @@ function SqlTableView(props: {
         value={{
           ops,
           setOps,
-          dbName,
           handleReload: () => {
             handleReload(false);
           },

@@ -3477,6 +3477,7 @@ mod tests {
                 TableImportPara {
                     path: file.path().to_str().unwrap().to_owned(),
                     mongo_data: None,
+                    csv_delimiter: None,
                 },
             )
             .await;

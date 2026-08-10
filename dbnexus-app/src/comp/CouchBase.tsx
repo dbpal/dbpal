@@ -73,7 +73,7 @@ import { commands, Field, MuiDataGridData, QueryEvent } from "./bindings.ts";
 import { AddTableModal } from "./LeftTable.tsx";
 import { useDebounce } from "use-debounce";
 import { isEqual } from "lodash-es";
-import { CouchbaseCreateTableImportFile } from "./CreateTable.tsx";
+import { CouchbaseTableImportFile } from "./CreateTable.tsx";
 
 type Data = {
   data: { data: string; id: string }[];
@@ -232,7 +232,7 @@ function CouchBaseTable(props: { table: string }) {
               appendTab(
                 new TabContent(
                   table,
-                  <CouchbaseCreateTableImportFile hasTableName={table} />,
+                  <CouchbaseTableImportFile hasTableName={table} />,
                   <UploadIcon />,
                   dbName,
                   kind,

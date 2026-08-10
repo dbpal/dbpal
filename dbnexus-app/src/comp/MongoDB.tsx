@@ -122,7 +122,7 @@ import {
 } from "./datagridExport";
 import { useDebounce } from "use-debounce";
 import { isEqual } from "lodash-es";
-import { MongoCreateTableImportFile } from "./CreateTable";
+import { MongoTableImportFile } from "./CreateTable";
 
 const mongoID = "_id";
 
@@ -571,7 +571,7 @@ function MongoTableToolBar(props: {
               appendTab(
                 new TabContent(
                   table,
-                  <MongoCreateTableImportFile hasTableName={table} />,
+                  <MongoTableImportFile hasTableName={table} />,
                   <UploadIcon />,
                   dbName,
                   DataSourceKind.Mongo,

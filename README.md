@@ -139,3 +139,17 @@ https://api.openai-proxy.org/v1
 
 // api key sk-2zegNGK2WhxZ9jToc17JBp260Z5vD5Cdd4zXG4s4WISRyczO
 // https://api.moonshot.cn/v1
+
+
+
+
+
+
+
+UPDATE "information_schema"."sql_features" SET "sub_feature_name" = NULL,"sub_feature_id" = NULL,"comments" = NULL WHERE  "comments" = '' AND  "sub_feature_id" = '' AND  "feature_name" = 'Embedded PL/I' AND  "sub_feature_name" = '' AND  "is_supported" = 'NO' AND  "is_verified_by" IS NULL AND  "feature_id" = 'B017' 这个语句做了啥啊
+
+
+这个 SQL UPDATE 语句是在更新 information_schema.sql_features 表中的一条记录，但看起来是在将字段值清空为 NULL。
+
+
+pg好像会返回Opiton为null但是返回了Some("") 导致pg的一个前端页面没有修改的东西 也出现了提示用户修改

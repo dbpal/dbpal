@@ -187,6 +187,7 @@ pub async fn sql_infer_fields_from_file(
     db_name: String,
     app: tauri::State<'_, DBPal>,
     path: String,
+    csv_delimiter: Option<char>,
 ) -> Result<Vec<Field>, ErrorFrontend> {
     let backend = app
         .get_backend(db_name.as_str())
@@ -199,7 +200,7 @@ pub async fn sql_infer_fields_from_file(
         DatabaseBackend::Schema(schema_trait) => schema_trait.backend_kind(),
     };
     let fs = kind
-        .infer_fields(&path)
+        .infer_fields(&path, csv_delimiter)
         .await
         .map_err(ErrorFrontend::from)?;
     Ok(fs)
@@ -3353,7 +3354,7 @@ fn random_error() -> Result<(), ErrorFrontend> {
 #[derive(Clone, Debug, serde::Serialize, specta::Type)]
 pub struct MuiDataGridData {
     fields: Vec<Field>,
-    data: Vec<HashMap<String, String>>,
+    data: Vec<HashMap<String, Option<String>>>,
     sql: Option<String>,
     total: f64,
 }
@@ -3387,7 +3388,7 @@ impl MuiDataGridData {
                 let mut values = HashMap::new();
 
                 for (h, v) in headers.iter().zip(row.iter().map(|x| x.to_string())) {
-                    values.insert(h.field.clone(), v);
+                    values.insert(h.field.clone(), Some(v));
                 }
                 data.push(values);
                 if data.len() >= max_row {
@@ -3451,9 +3452,7 @@ impl From<QueryResp> for MuiDataGridData {
             .map(|x| {
                 let mut values = HashMap::new();
                 fields_renamed.iter().zip(x).for_each(|(f, value)| {
-                    if let Some(value) = value {
-                        values.insert(f.field.clone(), value);
-                    }
+                    values.insert(f.field.clone(), value);
                 });
                 values
             })
