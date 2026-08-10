@@ -1141,7 +1141,9 @@ function SelectPath(props: {
               <IconButton
                 onClick={() => {
                   open({ multiple: false }).then((openOk) => {
-                    setPath(openOk);
+                    if (openOk) {
+                      setPath(openOk);
+                    }
                   });
                 }}
                 color="primary">

@@ -471,12 +471,14 @@ function TableColumn(props: {
 function SqlTableImportFileNotice() {
   return (
     <LongNotice>
-      <Typography>support file type:json,jsonline,csv,tsv,excel file types.</Typography>
-      <Typography> 1. u need select a file </Typography>
-      <Typography> 2. u need create table from the left panel</Typography>
       <Typography>
-        3. then upload data from the right panel,notice that the table name comes from
-        the <mark> input</mark> of the left panel
+        Supported file types: JSON, JSONL, CSV, TSV, and Excel formats.
+      </Typography>
+      <Typography>1. Select a file to upload.</Typography>
+      <Typography>2. Create a table using the left panel.</Typography>
+      <Typography>
+        3. Upload your data via the right panel. Note that the table name must match the
+        <mark>input</mark> value provided in the left panel.
       </Typography>
       <AppCode
         language="csv"
@@ -1035,23 +1037,23 @@ function CouchbaseImportFileNotice() {
   return (
     <LongNotice>
       <Typography>
-        <Typography>
-          # the value nested in value must have be a object and have 2 field
-        </Typography>
-        <Typography>
-          # one of the field must be &apos;id&apos; and the value is string
-        </Typography>
-        <Typography>
-          # the field is not &apos;id&apos; treat as value,and must have object value
-        </Typography>
-        <Typography>
-          # the value in this example will insert data to the collection.
-        </Typography>
-        <Typography>
-          # id=&apos;aaaa&apos; data will be a object and data is
-          &quot;name=&quot;john&quot;,age=18&quot;
-        </Typography>
+        # The value nested inside &quot;value&quot; must be an object containing exactly
+        2 fields
       </Typography>
+      <Typography>
+        # One of the fields must be &apos;id&apos;, and its value must be a string
+      </Typography>
+      <Typography>
+        # The other field (non-&apos;id&apos;) is treated as the data value and must
+        also be an object
+      </Typography>
+      <Typography>
+        # The data from this example will be inserted into the collection
+      </Typography>
+      <Typography>
+        # Example: id = &apos;aaaa&apos;, data = name: &apos;john&apos;, age: 18
+      </Typography>
+
       <AppCode
         language="json"
         extra={() => {
