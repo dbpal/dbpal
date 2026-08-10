@@ -37,6 +37,7 @@ import {
   ReactNode,
   SetStateAction,
   useCallback,
+  useContext,
   useEffect,
   useMemo,
   useRef,
@@ -81,6 +82,7 @@ import {
   allGridHeaderTitle,
   clickDataGridColumn,
   TabContent,
+  UuidContext,
 } from "./helper";
 import {
   AppDataGridPagination,
@@ -477,7 +479,6 @@ function MongoTableToolBar(props: {
   filter: BSON.Document;
   someNotice?: ReactNode;
   loading: boolean;
-  uuid: string;
   table: string;
   isTable: boolean;
 }) {
@@ -489,10 +490,10 @@ function MongoTableToolBar(props: {
     filter,
     someNotice,
     loading,
-    uuid,
     table,
     isTable,
   } = props;
+  const { uuid } = useContext(UuidContext);
   const [showModifyFilter, setShowModifyFilter] = useState(false);
   const [showModifySort, setShowModifySort] = useState(false);
   const [modalBox, setModalBox] = useState(null);
@@ -566,8 +567,10 @@ function MongoTableToolBar(props: {
               appendTab(
                 new TabContent(
                   table,
-                  <MongoCreateTableImportFile uuid={uuid} hasTableName={table} />,
+                  <MongoCreateTableImportFile hasTableName={table} />,
                   <UploadIcon />,
+                  uuid,
+                  DataSourceKind.Mongo,
                 ),
               );
             }}>
@@ -1052,7 +1055,6 @@ function MongoTableList(props: {
   loading: boolean;
   setLoading: Dispatch<SetStateAction<boolean>>;
   tableName: string;
-  uuid: string;
 }) {
   const {
     reloadOP,
@@ -1065,8 +1067,8 @@ function MongoTableList(props: {
     loading,
     tableName,
     setLoading,
-    uuid,
   } = props;
+  const { uuid } = useContext(UuidContext);
   const [page, setPage] = useState(0);
   const { mongo: pageSize, setPageSize } = usePageSize();
   const { showNotification } = useNotification();
@@ -1299,8 +1301,6 @@ function MongoTableList(props: {
                 .filter((f) => selectedColumns.has(f.field))
                 .map((f) => f.field);
             })(),
-            kind: DataSourceKind.Mongo,
-            uuid,
           }}>
           <DataGrid
             columnVisibilityModel={getColumnVisibility(uuid, tableName)}
@@ -1635,8 +1635,9 @@ class MongoTableHandler {
     };
   }
 }
-function MongoTable(props: { uuid: string; table: string; isTable: boolean }) {
-  const { uuid, table, isTable } = props;
+function MongoTable(props: { table: string; isTable: boolean }) {
+  const { uuid } = useContext(UuidContext);
+  const { table, isTable } = props;
   const modifyOP = isTable ? MongoTableHandler.modifyOP(uuid, table) : undefined;
   const loadOne = MongoTableHandler.loadOne(uuid, table);
   const deleteOP = isTable ? MongoTableHandler.deleteOP(uuid, table) : undefined;
@@ -1685,7 +1686,6 @@ function MongoTable(props: { uuid: string; table: string; isTable: boolean }) {
           setTriggerReload((prev) => prev + 1);
         }}
         loading={loading}
-        uuid={uuid}
         table={table}
         isTable={isTable}
       />
@@ -1701,7 +1701,6 @@ function MongoTable(props: { uuid: string; table: string; isTable: boolean }) {
           loading={loading}
           setLoading={setLoading}
           tableName={table}
-          uuid={uuid}
         />
       )}
       {viewModel != MongoDataViewModel.TableList && (

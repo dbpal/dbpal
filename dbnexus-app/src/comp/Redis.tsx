@@ -3,6 +3,7 @@ import {
   RefObject,
   SetStateAction,
   useCallback,
+  useContext,
   useEffect,
   useMemo,
   useRef,
@@ -53,6 +54,7 @@ import {
   clickDataGridColumn,
   allGridHeaderTitle,
   gridColumnHeaderSelectClassName,
+  UuidContext,
 } from "./helper.ts";
 import { AppColumnMenu, ModalHeader, ResetColumnWidth } from "./CommonComp.tsx";
 import { editor } from "monaco-editor";
@@ -123,14 +125,12 @@ interface SetToolBarDbpalProps {
   setKey: string;
   loading: boolean;
   setKeyMatch: Dispatch<SetStateAction<string>>;
-  uuid: string;
 }
 
 interface ListToolBarDbpalProps {
   handleReload: (showOk: boolean) => void;
   listKey: string;
   loading: boolean;
-  uuid: string;
 }
 
 interface ZSetToolBarDbpalProps {
@@ -146,21 +146,20 @@ interface ZSetToolBarDbpalProps {
   setMin: Dispatch<SetStateAction<string>>;
   setMaxErr: Dispatch<SetStateAction<boolean>>;
   setMax: Dispatch<SetStateAction<string>>;
-  uuid: string;
   zsetKey: string;
 }
 
 interface HashToolBarDbpalProps {
   keyMatch: string;
   setKeyMatch: Dispatch<SetStateAction<string>>;
-  uuid: string;
   hashKey: string;
   loading: boolean;
   handleReload: (showOk: boolean) => void;
 }
 
-function RedisAddList(props: { uuid: string; listKey: string }) {
-  const { uuid, listKey } = props;
+function RedisAddList(props: { listKey: string }) {
+  const { listKey } = props;
+  const { uuid } = useContext(UuidContext);
 
   const lpushOP = async (value) => {
     return await commands.redisListLpush(uuid, listKey, value);
@@ -216,8 +215,9 @@ function RedisAddList(props: { uuid: string; listKey: string }) {
   );
 }
 
-function RedisStringTable(props: { uuid: string; stringKey: string }) {
-  const { uuid, stringKey } = props;
+function RedisStringTable(props: { stringKey: string }) {
+  const { stringKey } = props;
+  const { uuid } = useContext(UuidContext);
   const modifyOP = async (value) => {
     return await commands.redisStringSet(uuid, stringKey, value);
   };
@@ -280,8 +280,9 @@ function RedisStringTable(props: { uuid: string; stringKey: string }) {
   );
 }
 
-function RedisAddSet(props: { uuid: string; setKey: string }) {
-  const { uuid, setKey } = props;
+function RedisAddSet(props: { setKey: string }) {
+  const { setKey } = props;
+  const { uuid } = useContext(UuidContext);
 
   const addOP = async (member) => {
     return await commands.redisSetAdd(uuid, setKey, member);
@@ -320,9 +321,9 @@ function RedisAddSet(props: { uuid: string; setKey: string }) {
   );
 }
 
-function RedisAddHash(props: { uuid: string; hashKey: string }) {
-  const { uuid, hashKey } = props;
-
+function RedisAddHash(props: { hashKey: string }) {
+  const { hashKey } = props;
+  const { uuid } = useContext(UuidContext);
   const addOP = async (member, value) => {
     return await commands.redisHashAdd(uuid, hashKey, member, value);
   };
@@ -361,9 +362,9 @@ function RedisAddHash(props: { uuid: string; hashKey: string }) {
     </Stack>
   );
 }
-function RedisAddZset(props: { uuid: string; zsetKey: string }) {
-  const { uuid, zsetKey } = props;
-
+function RedisAddZset(props: { zsetKey: string }) {
+  const { zsetKey } = props;
+  const { uuid } = useContext(UuidContext);
   const addOP = async (member: string, value: number) => {
     return await commands.redisZsetAdd(uuid, zsetKey, member, value);
   };
@@ -781,8 +782,10 @@ type SetToolBarParameterProps = GridSlotProps["toolbar"] & {
 };
 
 function SetToolBar({
-  dbpal: { keyMatch, setKey, handleReload, loading, setKeyMatch, uuid },
+  dbpal: { keyMatch, setKey, handleReload, loading, setKeyMatch },
 }: SetToolBarParameterProps) {
+  const { uuid } = useContext(UuidContext);
+
   return (
     <AppDataGridToolBar
       left=<>
@@ -816,8 +819,9 @@ function SetToolBar({
   );
 }
 
-function RedisSetTable(props: { setKey: string; uuid: string }) {
-  const { setKey, uuid } = props;
+function RedisSetTable(props: { setKey: string }) {
+  const { setKey } = props;
+  const { uuid } = useContext(UuidContext);
   const modifyOP = async (old, newValue) => {
     return await commands.redisSetReplace(uuid, setKey, old, newValue);
   };
@@ -939,11 +943,11 @@ function RedisSetTable(props: { setKey: string; uuid: string }) {
       pagination: { dbpal: { showLimit: true } },
       toolbar: {
         dbpal: (function (): SetToolBarParameterProps["dbpal"] {
-          return { keyMatch, handleReload, setKey, loading, uuid, setKeyMatch };
+          return { keyMatch, handleReload, setKey, loading, setKeyMatch };
         })(),
       },
     } as GridSlotsComponentsProps;
-  }, [setUpMenu, handleDel, keyMatch, handleReload, setKey, loading, uuid]);
+  }, [setUpMenu, handleDel, keyMatch, handleReload, setKey, loading]);
 
   const [modifyModalBox, setModifyModalBox] = useState<HTMLDivElement | null>(null);
   const slots = useMemo(() => {
@@ -969,8 +973,6 @@ function RedisSetTable(props: { setKey: string; uuid: string }) {
                 .filter((f) => selectedColumns.has(f.field))
                 .map((f) => f.field);
             })(),
-            kind: DataSourceKind.Redis,
-            uuid,
           }}>
           <DataGrid
             columnVisibilityModel={getColumnVisibility(uuid, setKey)}
@@ -1137,9 +1139,8 @@ type ListToolBarProps = {
   dbpal: ListToolBarDbpalProps;
 } & GridSlotProps["toolbar"];
 
-function ListToolBar({
-  dbpal: { handleReload, listKey, loading, uuid },
-}: ListToolBarProps) {
+function ListToolBar({ dbpal: { handleReload, listKey, loading } }: ListToolBarProps) {
+  const { uuid } = useContext(UuidContext);
   return (
     <AppDataGridToolBar
       left=<>
@@ -1161,8 +1162,9 @@ function ListToolBar({
     />
   );
 }
-function RedisListTable(props: { listKey: string; uuid: string }) {
-  const { listKey, uuid } = props;
+function RedisListTable(props: { listKey: string }) {
+  const { listKey } = props;
+  const { uuid } = useContext(UuidContext);
   const modifyOP = async (index, value) => {
     return await commands.redisListSet(uuid, listKey, value, index);
   };
@@ -1323,11 +1325,11 @@ function RedisListTable(props: { listKey: string; uuid: string }) {
       },
       toolbar: {
         dbpal: (function (): ListToolBarProps["dbpal"] {
-          return { handleReload, listKey, loading, uuid };
+          return { handleReload, listKey, loading };
         })(),
       },
     } as GridSlotsComponentsProps;
-  }, [handleDel, handleReload, listKey, loading, setUpMenu, uuid]);
+  }, [handleDel, handleReload, listKey, loading, setUpMenu]);
 
   const onColumnResize = useCallback(
     ({ colDef, width }) => {
@@ -1361,8 +1363,6 @@ function RedisListTable(props: { listKey: string; uuid: string }) {
                 .filter((f) => selectedColumns.has(f.field))
                 .map((f) => f.field);
             })(),
-            kind: DataSourceKind.Redis,
-            uuid,
           }}>
           <DataGrid
             getCellClassName={({ field }) => {
@@ -1497,10 +1497,10 @@ function ZSetToolBar({
     setMin,
     setMaxErr,
     setMax,
-    uuid,
     zsetKey,
   },
 }: ZSetToolBarProps) {
+  const { uuid } = useContext(UuidContext);
   return (
     <AppDataGridToolBar
       left=<>
@@ -1566,8 +1566,9 @@ function ZSetToolBar({
   );
 }
 
-function RedisZsetTable(props: { uuid: string; zsetKey: string }) {
-  const { uuid, zsetKey } = props;
+function RedisZsetTable(props: { zsetKey: string }) {
+  const { zsetKey } = props;
+  const { uuid } = useContext(UuidContext);
   const modifyOP = async (oldMember: string, newKey: string, newValue: number) => {
     return await commands.redisZsetReplace(uuid, zsetKey, oldMember, newKey, newValue);
   };
@@ -1731,7 +1732,6 @@ function RedisZsetTable(props: { uuid: string; zsetKey: string }) {
             setMinErr,
             setMaxErr,
             setKeyMatch,
-            uuid,
             zsetKey,
             keyMatch,
             loading,
@@ -1750,7 +1750,6 @@ function RedisZsetTable(props: { uuid: string; zsetKey: string }) {
     min,
     minErr,
     setUpMenu,
-    uuid,
     zsetKey,
   ]);
 
@@ -1790,8 +1789,6 @@ function RedisZsetTable(props: { uuid: string; zsetKey: string }) {
                 .filter((f) => selectedColumns.has(f.field))
                 .map((f) => f.field);
             })(),
-            kind: DataSourceKind.Redis,
-            uuid,
           }}>
           <DataGrid
             columnVisibilityModel={getColumnVisibility(uuid, zsetKey)}
@@ -1933,8 +1930,9 @@ type HashToolBarProps = {
 } & GridSlotProps["toolbar"];
 
 function HashToolBar({
-  dbpal: { keyMatch, setKeyMatch, uuid, hashKey, loading, handleReload },
+  dbpal: { keyMatch, setKeyMatch, hashKey, loading, handleReload },
 }: HashToolBarProps) {
+  const { uuid } = useContext(UuidContext);
   return (
     <AppDataGridToolBar
       left=<>
@@ -1969,8 +1967,9 @@ function HashToolBar({
   );
 }
 
-function RedisHashTable(props: { hashKey: string; uuid: string }) {
-  const { uuid, hashKey } = props;
+function RedisHashTable(props: { hashKey: string }) {
+  const { hashKey } = props;
+  const { uuid } = useContext(UuidContext);
   const apiRef = useGridApiRef();
 
   const delOP = useCallback(
@@ -2103,11 +2102,11 @@ function RedisHashTable(props: { hashKey: string; uuid: string }) {
       pagination: { dbpal: { showLimit: true } },
       toolbar: {
         dbpal: (function (): HashToolBarProps["dbpal"] {
-          return { keyMatch, setKeyMatch, uuid, loading, handleReload, hashKey };
+          return { keyMatch, setKeyMatch, loading, handleReload, hashKey };
         })(),
       },
     } as GridSlotsComponentsProps;
-  }, [handleDel, handleReload, hashKey, keyMatch, loading, setUpMenu, uuid]);
+  }, [handleDel, handleReload, hashKey, keyMatch, loading, setUpMenu]);
 
   const [modifyModalBox, setModifyModalBox] = useState<HTMLDivElement | null>(null);
 
@@ -2142,8 +2141,6 @@ function RedisHashTable(props: { hashKey: string; uuid: string }) {
                 .filter((f) => selectedColumns.has(f.field))
                 .map((f) => f.field);
             })(),
-            kind: DataSourceKind.Redis,
-            uuid,
           }}>
           <DataGrid
             columnVisibilityModel={getColumnVisibility(uuid, hashKey)}

@@ -22,10 +22,10 @@ import {
   clickDataGridColumn,
   allGridHeaderTitle,
   gridColumnHeaderSelectClassName,
-  DataSourceKind,
+  UuidContext,
 } from "./helper.ts";
 
-import React, { useCallback, useEffect, useMemo, useState } from "react";
+import React, { useCallback, useContext, useEffect, useMemo, useState } from "react";
 import { keyNotInTable } from "./Common";
 import ArrowUpwardIcon from "@mui/icons-material/ArrowUpward";
 import ArrowDownwardIcon from "@mui/icons-material/ArrowDownward";
@@ -102,12 +102,9 @@ function RespContextMenu(props: {
   );
 }
 
-function QueryResp(props: {
-  data: MuiDataGridData;
-  uuid: string;
-  kind: DataSourceKind;
-}): React.ReactElement {
-  const { data, uuid, kind } = props;
+function QueryResp(props: { data: MuiDataGridData }): React.ReactElement {
+  const { data } = props;
+  const { uuid } = useContext(UuidContext);
   const { setColumnWidth, getColumnWidth } = useColumnWidthStore();
   const [selectedColumns, setSelectColumns] = useState<Set<string>>(new Set());
   const apiRef = useGridApiRef();
@@ -249,8 +246,6 @@ function QueryResp(props: {
                   .filter((f) => selectedColumns.has(f.field))
                   .map((f) => f.field);
               })(),
-              kind: kind,
-              uuid,
             }}>
             <DataGrid
               getCellClassName={({ field }) => {
@@ -301,12 +296,8 @@ function getRowId(row: Record<string, any>): string {
   return row[keyNotInTable];
 }
 
-function MultiQueryResp(props: {
-  data: QueryRespData[];
-  uuid: string;
-  kind: DataSourceKind;
-}): React.ReactElement {
-  const { data, uuid, kind } = props;
+function MultiQueryResp(props: { data: QueryRespData[] }): React.ReactElement {
+  const { data } = props;
   const [value, setValue] = React.useState(0);
 
   useEffect(() => {
@@ -331,7 +322,7 @@ function MultiQueryResp(props: {
         <Alert severity="error">{data[0].Err}</Alert>
       </StackRowCenter>
     ) : (
-      <QueryResp data={data[0].Ok} uuid={uuid} kind={kind} />
+      <QueryResp data={data[0].Ok} />
     );
   }
   const handleChange = (_event: React.SyntheticEvent, newValue: number): void => {
@@ -367,7 +358,7 @@ function MultiQueryResp(props: {
               {e.Err ? (
                 <Alert severity="error">{e.Err}</Alert>
               ) : (
-                <QueryResp data={e.Ok} uuid={uuid} kind={kind} />
+                <QueryResp data={e.Ok} />
               )}
             </div>
           );

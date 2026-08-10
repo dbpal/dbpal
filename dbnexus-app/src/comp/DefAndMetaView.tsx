@@ -1,6 +1,6 @@
 import { useCallback, useContext, useEffect, useState } from "react";
 
-import { DataSourceKind, TabContext } from "./helper";
+import { TabContext } from "./helper";
 
 import { AllKindChat } from "./Chat";
 import { MetaValueView } from "./CommonComp";
@@ -8,12 +8,8 @@ import { Chip, CircularProgress, Stack, Tooltip } from "@mui/material";
 import { useNotification, useQueryExtraUI } from "./store";
 import { DefAndMetas, MetaValue, TriggerDetail } from "./bindings";
 
-function DefAndMetasView(props: {
-  reloadOP: () => Promise<DefAndMetas>;
-  uuid: string;
-  kind: DataSourceKind;
-}) {
-  const { reloadOP, kind, uuid } = props;
+function DefAndMetasView(props: { reloadOP: () => Promise<DefAndMetas> }) {
+  const { reloadOP } = props;
   const [loading, setLoading] = useState(false);
   const [detail, setDetail] = useState<DefAndMetas>({
     def: "",
@@ -79,7 +75,7 @@ function DefAndMetasView(props: {
     <>
       <Stack sx={{ height: "100%" }}>
         {loading && <CircularProgress />}
-        <AllKindChat uuid={uuid} kind={kind} value={detail.def} />
+        <AllKindChat value={detail.def} />
       </Stack>
     </>
   );
@@ -112,15 +108,10 @@ function triggerDetailsToMetas(x: TriggerDetail): MetaValue[] {
   return ret;
 }
 
-function TriggerDetailView(props: {
-  reloadOP: () => Promise<TriggerDetail>;
-  uuid: string;
-  kind: DataSourceKind;
-}) {
-  const { reloadOP, uuid, kind } = props;
+function TriggerDetailView(props: { reloadOP: () => Promise<TriggerDetail> }) {
+  const { reloadOP } = props;
   return (
     <DefAndMetasView
-      kind={kind}
       reloadOP={async () => {
         return reloadOP().then((detail) => {
           return {
@@ -130,7 +121,6 @@ function TriggerDetailView(props: {
           };
         });
       }}
-      uuid={uuid}
     />
   );
 }

@@ -128,10 +128,11 @@ function EventMenu(props: EventMenuProps) {
               metas: event.metas,
             });
           }}
-          kind={kind}
-          uuid={uuid}
         />,
+
         <MdOutlineEventRepeat />,
+        uuid,
+        kind,
       ),
     );
   };

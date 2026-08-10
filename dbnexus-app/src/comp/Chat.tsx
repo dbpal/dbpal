@@ -4,6 +4,7 @@ import {
   extractConfigNameFromUuid,
   QueryIDEditorChatCtx,
   secondConfirm,
+  UuidContext,
 } from "./helper.ts";
 import CloseIcon from "@mui/icons-material/Close";
 import SaveIcon from "@mui/icons-material/Save";
@@ -77,13 +78,9 @@ import { CouchBaseQuery } from "./CouchBase.tsx";
 import { MdCleaningServices } from "react-icons/md";
 import { openPath } from "@tauri-apps/plugin-opener";
 
-function AllKindQuery(props: {
-  kind: DataSourceKind;
-  uuid: string;
-  value?: string;
-  favoriteName?: string;
-}) {
-  const { kind, uuid, value, favoriteName } = props;
+function AllKindQuery(props: { value?: string; favoriteName?: string }) {
+  const { value, favoriteName } = props;
+  const { kind } = useContext(UuidContext);
   let content: ReactNode;
   switch (kind) {
     case DataSourceKind.SqlServer:
@@ -100,32 +97,26 @@ function AllKindQuery(props: {
     case DataSourceKind.DuckDB:
     case DataSourceKind.Cockroach:
     case DataSourceKind.Db2:
-      content = (
-        <SqlQuery uuid={uuid} value={value} kind={kind} favoriteName={favoriteName} />
-      );
+      content = <SqlQuery value={value} favoriteName={favoriteName} />;
       break;
     case DataSourceKind.Redis:
-      content = <RedisQuery uuid={uuid} value={value} favoriteName={favoriteName} />;
+      content = <RedisQuery value={value} favoriteName={favoriteName} />;
       break;
 
     case DataSourceKind.Mongo:
-      content = <MongoQuery uuid={uuid} value={value} favoriteName={favoriteName} />;
+      content = <MongoQuery value={value} favoriteName={favoriteName} />;
       break;
     case DataSourceKind.CouchBase:
-      return <CouchBaseQuery uuid={uuid} value={value} />;
+      return <CouchBaseQuery value={value} />;
     default:
       console.error(`impl this ${kind}`);
   }
   return <div style={{ height: "100%" }}> {content}</div>;
 }
 
-function AllKindChat(props: {
-  uuid: string;
-  kind: DataSourceKind;
-  value?: string;
-  favoriteName?: string;
-}) {
-  const { uuid, kind, favoriteName, value } = props;
+function AllKindChat(props: { value?: string; favoriteName?: string }) {
+  const { uuid } = useContext(UuidContext);
+  const { favoriteName, value } = props;
   const llm = useLLM();
   const showChatKey = "chat-show-" + uuid;
   const { getSwitch, setSwitch } = useBoolSwitch();
@@ -151,13 +142,8 @@ function AllKindChat(props: {
             show,
             setShow,
           }}>
-          <AllKindQuery
-            uuid={uuid}
-            kind={kind}
-            favoriteName={favoriteName}
-            value={value}
-          />
-          {llm && editor && <SqlChatTextInput uuid={uuid} />}
+          <AllKindQuery favoriteName={favoriteName} value={value} />
+          {llm && editor && <SqlChatTextInput />}
         </ChatShowContext.Provider>
       </Stack>
     </QueryIDEditorChatCtx.Provider>
@@ -166,8 +152,8 @@ function AllKindChat(props: {
 
 const cleanEditorKey = "clean-editor-key";
 
-function SqlChatTextInput(props: { uuid: string }) {
-  const { uuid } = props;
+function SqlChatTextInput() {
+  const { uuid } = useContext(UuidContext);
   const { editor } = useContext(QueryIDEditorChatCtx);
   const llm = useLLM();
   const [question, setQuestion] = useState("");

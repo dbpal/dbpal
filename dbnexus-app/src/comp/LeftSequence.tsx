@@ -150,10 +150,10 @@ function SequenceMenu(props: {
           reloadOP={() => {
             return Promise.resolve(details2DefMetas(seq));
           }}
-          kind={kind}
-          uuid={uuid}
         />,
         <GrSteps />,
+        uuid,
+        kind,
       ),
     );
   };

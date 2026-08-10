@@ -1,4 +1,12 @@
-import { ReactNode, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import {
+  ReactNode,
+  useCallback,
+  useContext,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import { EscDownEvent, modalHandleClose } from "./Common";
 import {
   dataGridStyle,
@@ -6,6 +14,7 @@ import {
   extractFieldAndIDFromMouseEvent,
   handleCopyToClipboard,
   secondConfirm,
+  UuidContext,
 } from "./helper";
 import { AppDataGridToolBar, ClearableTextField, RefreshButton } from "./CommonComp2";
 import CancelIcon from "@mui/icons-material/Cancel";
@@ -106,12 +115,9 @@ function ColumnMenu(props: {
   );
 }
 
-function ColumnsStructure(props: {
-  uuid: string;
-  kind: DataSourceKind;
-  table: string;
-}) {
-  const { uuid, kind, table } = props;
+function ColumnsStructure(props: { table: string }) {
+  const { uuid, kind } = useContext(UuidContext);
+  const { table } = props;
   const [loading, setLoading] = useState(false);
   const [fields, setFields] = useState<Field[]>([]);
   const { showNotification } = useNotification();
@@ -492,12 +498,9 @@ function IndexMenu(props: {
   );
 }
 
-function IndexesStructure(props: {
-  uuid: string;
-  kind: DataSourceKind;
-  table: string;
-}) {
-  const { uuid, kind, table } = props;
+function IndexesStructure(props: { table: string }) {
+  const { uuid, kind } = useContext(UuidContext);
+  const { table } = props;
   const [loading, setLoading] = useState(false);
   const [indexes, setIndexes] = useState<Index[]>([]);
   const { showNotification } = useNotification();
@@ -925,7 +928,6 @@ function TableAddColumn(props: {
       />
       <StackRowCenter>
         <TypeSelect
-          uuid={uuid}
           handleChange={(e) => {
             setTyp(e);
           }}
@@ -944,7 +946,6 @@ function TableAddColumn(props: {
 
       {supportDefault && (
         <SqlDefaultValue
-          uuid={uuid}
           defaultValue={defaultValue}
           setDefaultValue={setDefaultValue}
         />
@@ -1067,7 +1068,6 @@ function ModifyTableColumn(props: {
       {modifyType && (
         <StackRowCenter>
           <TypeSelect
-            uuid={uuid}
             handleChange={(e) => {
               setNewTyp(e);
             }}
@@ -1081,7 +1081,6 @@ function ModifyTableColumn(props: {
           {supportModifyDefault && (
             <SqlDefaultValue
               defaultValue={newDv}
-              uuid={uuid}
               setDefaultValue={(v) => {
                 setNewDv(v);
               }}
@@ -1177,12 +1176,9 @@ function TriggerMenu(props: {
   );
 }
 
-function TriggersStructure(props: {
-  uuid: string;
-  kind: DataSourceKind;
-  table: string;
-}) {
-  const { uuid, kind, table } = props;
+function TriggersStructure(props: { table: string }) {
+  const { table } = props;
+  const { uuid } = useContext(UuidContext);
   const [loading, setLoading] = useState(false);
   const [triggers, setTriggers] = useState<TriggerDetail[]>([]);
   const [row, setRow] = useState<TriggerDetail>(null);
@@ -1397,8 +1393,6 @@ function TriggersStructure(props: {
             reloadOP={async () => {
               return row;
             }}
-            uuid={uuid}
-            kind={kind}
           />
         </Dialog>
       )}
@@ -1406,8 +1400,9 @@ function TriggersStructure(props: {
   );
 }
 
-function TableStructure(props: { table: string; uuid: string; kind: DataSourceKind }) {
-  const { table, uuid, kind } = props;
+function TableStructure(props: { table: string }) {
+  const { kind } = useContext(UuidContext);
+  const { table } = props;
   const [structure, setStructure] = useState("column");
   const structures = ["column"];
 
@@ -1475,27 +1470,16 @@ function TableStructure(props: { table: string; uuid: string; kind: DataSourceKi
         </ButtonGroup>
       </Stack>
 
-      {structure == "column" && (
-        <ColumnsStructure table={table} kind={kind} uuid={uuid} />
-      )}
-      {structure == "index" && (
-        <IndexesStructure table={table} kind={kind} uuid={uuid} />
-      )}
-      {structure == "trigger" && (
-        <TriggersStructure table={table} kind={kind} uuid={uuid} />
-      )}
-      {structure == "statement" && (
-        <StatementStructure table={table} kind={kind} uuid={uuid} />
-      )}
+      {structure == "column" && <ColumnsStructure table={table} />}
+      {structure == "index" && <IndexesStructure table={table} />}
+      {structure == "trigger" && <TriggersStructure table={table} />}
+      {structure == "statement" && <StatementStructure table={table} />}
     </Stack>
   );
 }
-function StatementStructure(props: {
-  uuid: string;
-  kind: DataSourceKind;
-  table: string;
-}) {
-  const { uuid, kind, table } = props;
+function StatementStructure(props: { table: string }) {
+  const { uuid } = useContext(UuidContext);
+  const { table } = props;
   const { showNotification } = useNotification();
 
   return (
@@ -1522,8 +1506,6 @@ function StatementStructure(props: {
               };
             });
         }}
-        kind={kind}
-        uuid={uuid}
       />
     </Stack>
   );

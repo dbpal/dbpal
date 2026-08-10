@@ -75,6 +75,7 @@ import {
   TabActiveContext,
   TabContent,
   textEllipsisStyle,
+  UuidContext,
 } from "./helper";
 import { editor } from "monaco-editor";
 import {
@@ -166,13 +167,13 @@ export function ClearableTextField({
         ...props.slotProps,
         input: {
           ...props.slotProps?.input,
-          endAdornment: value ? (
+          endAdornment: !props.disabled && value && (
             <InputAdornment position="end">
               <IconButton onClick={onClear} edge="end">
                 <ClearIcon fontSize="small" />
               </IconButton>
             </InputAdornment>
-          ) : null,
+          ),
         },
       }}
     />
@@ -627,11 +628,7 @@ function MenuConnectionInfo(props: { uuid: string }) {
   const appendTab = useTabsManage((state) => state.appendTab);
   const handleInfo = async () => {
     appendTab(
-      new TabContent(
-        uuid,
-        <ConnConfigInfo uuid={uuid} />,
-        <IoMdInformationCircleOutline />,
-      ),
+      new TabContent(uuid, <ConnConfigInfo />, <IoMdInformationCircleOutline />, uuid),
     );
   };
   return (
@@ -647,8 +644,8 @@ function MenuConnectionInfo(props: { uuid: string }) {
 /**
  * Displays backend connection metadata values.
  */
-function ConnConfigInfo(props: { uuid: string }) {
-  const { uuid } = props;
+function ConnConfigInfo() {
+  const { uuid } = useContext(UuidContext);
   const { showNotification } = useNotification();
   const [metas, setMetas] = useState<MetaValue[]>([]);
   const { getConnection } = useConnectionStore();
@@ -1094,10 +1091,10 @@ function SaveFavoriteSqlViewOnTheFly(props: {
 function SaveFavoriteSqlView(props: {
   favoriteName?: string;
   editor: editor.IStandaloneCodeEditor;
-  uuid: string;
-  kind: DataSourceKind;
 }) {
-  const { favoriteName: oldName, editor, uuid, kind } = props;
+  const { uuid, kind } = useContext(UuidContext);
+
+  const { favoriteName: oldName, editor } = props;
   const [favoriteName, setFavoriteName] = useState(oldName);
   const { showNotification } = useNotification();
   const { setUi } = useOneShotDialogUI();
@@ -1381,11 +1378,12 @@ function CreateIndexView(props: {
  */
 function TypeSelect(props: {
   handleChange: (value: string | null) => void;
-  uuid: string;
+
   type: string | null;
   style?: CSSProperties;
 }) {
-  const { handleChange, uuid, type, style } = props;
+  const { uuid } = useContext(UuidContext);
+  const { handleChange, type, style } = props;
   const [types, setTypes] = useState<string[]>([]);
   const { showNotification } = useNotification();
   useEffect(() => {
@@ -1442,11 +1440,11 @@ function ColumnNullness(props: {
 }
 
 function SqlDefaultValue(props: {
-  uuid: string;
   defaultValue: string | null;
   setDefaultValue: (value: string | null) => void;
 }) {
-  const { uuid, defaultValue, setDefaultValue } = props;
+  const { uuid } = useContext(UuidContext);
+  const { defaultValue, setDefaultValue } = props;
   const [currentValue, setCurrentValue] = useState<string[]>([]);
   const { showNotification } = useNotification();
   useEffect(() => {
@@ -1577,10 +1575,10 @@ function SetFilterSort(props: {
   let { open, handleClose, value, setValue, label, tableName, kind, uuid } = props;
   const isFilter = label == "filter";
   const extractFn = isFilter
-    ? function (uuid: string, sql: string) {
+    ? function (sql: string) {
         return commands.extractTableSelectSelection(uuid, sql);
       }
-    : function (uuid: string, sql: string) {
+    : function (sql: string) {
         return commands.extractTableSelectSort(uuid, sql);
       };
   tableName = quoteDatabaseIdentifier(tableName, kind);
@@ -1594,7 +1592,7 @@ function SetFilterSort(props: {
   const tabSize = useTabSize();
   const handleSet = async () => {
     try {
-      let data = await extractFn(uuid, editor.getValue());
+      let data = await extractFn(editor.getValue());
       setValue(data == null ? "" : data);
       handleClose();
     } catch (e) {
@@ -1656,7 +1654,7 @@ function SetFilterSort(props: {
                       return;
                     }
                     try {
-                      const data = await extractFn(uuid, value);
+                      const data = await extractFn(value);
                       addFilter(uuid, tableName, data);
                     } catch (e) {
                       showNotification({
@@ -2052,8 +2050,7 @@ function DataGridPageKeyboardControl() {
   return <> </>;
 }
 
-function ShowQueryLog(props: { uuid: string; kind: DataSourceKind }) {
-  const { uuid, kind } = props;
+function ShowQueryLog() {
   const [showQueryLog, setShowQueryLog] = useState(false);
 
   return (
@@ -2067,12 +2064,7 @@ function ShowQueryLog(props: { uuid: string; kind: DataSourceKind }) {
           <EventNoteIcon />
         </IconButton>
       </Tooltip>
-      <QueryLog
-        showQueryLog={showQueryLog}
-        setShowQueryLog={setShowQueryLog}
-        uuid={uuid}
-        kind={kind}
-      />
+      <QueryLog showQueryLog={showQueryLog} setShowQueryLog={setShowQueryLog} />
     </>
   );
 }

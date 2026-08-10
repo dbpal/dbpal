@@ -464,8 +464,12 @@ pub trait SchemaTrait:
                 let path_lower = para.path.to_lowercase();
 
                 match para {
-                    _ if path_lower.ends_with(".csv") => {
-                        let mut reader = csv::Reader::from_path(&para.path)?;
+                    _ if path_lower.ends_with(".csv") || path_lower.ends_with(".tsv") => {
+                        let mut rb = csv::ReaderBuilder::new();
+                        if path_lower.ends_with(".tsv") {
+                            rb.delimiter(b'\t');
+                        }
+                        let mut reader: csv::Reader<std::fs::File> = rb.from_path(&para.path)?;
                         let headers: Vec<_> =
                             reader.headers()?.iter().map(|x| x.to_string()).collect();
 

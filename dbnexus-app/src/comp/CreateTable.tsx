@@ -9,12 +9,13 @@ import {
   Typography,
 } from "@mui/material";
 import ClearIcon from "@mui/icons-material/Clear";
-import { DataSourceKind, isExcelFile, resizeHandlerSize } from "./helper";
+import { DataSourceKind, isExcelFile, resizeHandlerSize, UuidContext } from "./helper";
 import InfoIcon from "@mui/icons-material/Info";
 import {
   CSSProperties,
   RefObject,
   useCallback,
+  useContext,
   useEffect,
   useRef,
   useState,
@@ -51,12 +52,11 @@ import { readTextFile, readTextFileLines } from "@tauri-apps/plugin-fs";
 import { BSON, EJSON } from "bson";
 
 function SqlCreateTable(props: {
-  uuid: string;
-  kind: DataSourceKind;
   fields?: CreateTableReqColumn[];
   tableName?: RefObject<string>;
 }) {
-  const { uuid, kind, fields: fieldsProvide, tableName: tableNameRef } = props;
+  const { uuid, kind } = useContext(UuidContext);
+  const { fields: fieldsProvide, tableName: tableNameRef } = props;
   const [cols, setCols] = useState<CreateTableReqColumn[]>(
     fieldsProvide
       ? fieldsProvide
@@ -225,7 +225,6 @@ function SqlCreateTable(props: {
                   return cols.filter((_, idx) => index != idx);
                 });
               }}
-              uuid={uuid}
               key={index}
               col={col}
               handleCol={(newCol) => {
@@ -342,7 +341,7 @@ function SqlCreateTable(props: {
             border: "2px solid grey",
             borderRadius: "0.8rem",
           }}>
-          <AllKindChat value={editorValue} kind={kind} uuid={uuid} />
+          <AllKindChat value={editorValue} />
         </div>
       )}
     </Stack>
@@ -363,7 +362,6 @@ function supportAutoIncrement(kind) {
 function TableColumn(props: {
   col: CreateTableReqColumn;
   handleCol: (x: CreateTableReqColumn) => void;
-  uuid: string;
   handleDelete?: () => void;
   kind: DataSourceKind;
   index: number;
@@ -371,7 +369,7 @@ function TableColumn(props: {
   // impl don't need make make rerender
   resetAutoInc: () => void;
 }) {
-  const { col, handleCol, uuid, handleDelete, kind, index, resetAutoInc } = props;
+  const { col, handleCol, handleDelete, kind, index, resetAutoInc } = props;
   const supportAutoInc = supportAutoIncrement(kind);
 
   const supportNull = ![DataSourceKind.Cassandra].includes(kind);
@@ -440,7 +438,6 @@ function TableColumn(props: {
         handleChange={(dt) => {
           handleCol({ ...col, data_type: dt });
         }}
-        uuid={uuid}
         type={col.data_type}
         style={{ flex: 1 }}
       />
@@ -454,7 +451,6 @@ function TableColumn(props: {
       )}
       {!col.auto_increment && supportDefault && (
         <SqlDefaultValue
-          uuid={uuid}
           defaultValue={col.default_value}
           setDefaultValue={(dv) => {
             handleCol({ ...col, default_value: dv ? dv : null });
@@ -518,8 +514,8 @@ john,123`}
   );
 }
 
-function SqlCreateTableImportFile(props: { kind: DataSourceKind; uuid: string }) {
-  const { uuid, kind } = props;
+function SqlCreateTableImportFile() {
+  const { uuid } = useContext(UuidContext);
   const [file, setFile] = useState("");
   const { showNotification } = useNotification();
   const [fields, setFields] = useState<Field[]>([]);
@@ -554,7 +550,7 @@ function SqlCreateTableImportFile(props: { kind: DataSourceKind; uuid: string })
         }
 
         let fileLower = file.toLowerCase();
-        if (fileLower.endsWith(".csv")) {
+        if (fileLower.endsWith(".csv") || fileLower.endsWith(".tsv")) {
           const x = Papa.parse<Record<string, any>>(await readTextFile(file), {
             header: true,
             skipEmptyLines: true,
@@ -661,7 +657,6 @@ function SqlCreateTableImportFile(props: { kind: DataSourceKind; uuid: string })
           {file && (
             <div style={{ flex: 1, height: "100px" }}>
               <SqlCreateTable
-                uuid={uuid}
                 fields={fields.map((e): CreateTableReqColumn => {
                   return {
                     name: e.field,
@@ -673,7 +668,6 @@ function SqlCreateTableImportFile(props: { kind: DataSourceKind; uuid: string })
                   };
                 })}
                 tableName={tableName}
-                kind={kind}
               />
             </div>
           )}
@@ -697,6 +691,7 @@ function SqlCreateTableImportFile(props: { kind: DataSourceKind; uuid: string })
                 <IconButton
                   loading={loading}
                   color="success"
+                  disabled={!file}
                   onClick={async () => {
                     if (!tableName.current) {
                       showNotification({
@@ -745,8 +740,9 @@ function SqlCreateTableImportFile(props: { kind: DataSourceKind; uuid: string })
   );
 }
 
-function MongoCreateTableImportFile(props: { uuid: string; hasTableName?: string }) {
-  const { uuid, hasTableName } = props;
+function MongoCreateTableImportFile(props: { hasTableName?: string }) {
+  const { uuid } = useContext(UuidContext);
+  const { hasTableName } = props;
   const [file, setFile] = useState("");
   const { showNotification } = useNotification();
   const [data, setData] = useState<string[]>([]);
@@ -870,6 +866,7 @@ function MongoCreateTableImportFile(props: { uuid: string; hasTableName?: string
       <Stack direction="row">
         <IconButton
           loading={loading}
+          disabled={!file}
           onClick={async () => {
             try {
               if (!tableName) {
@@ -938,11 +935,9 @@ function MongoCreateTableImportFile(props: { uuid: string; hasTableName?: string
   );
 }
 
-function CouchbaseCreateTableImportFile(props: {
-  uuid: string;
-  hasTableName?: string;
-}) {
-  const { uuid, hasTableName } = props;
+function CouchbaseCreateTableImportFile(props: { hasTableName?: string }) {
+  const { uuid } = useContext(UuidContext);
+  const { hasTableName } = props;
   const [file, setFile] = useState("");
   const { showNotification } = useNotification();
   const [data, setData] = useState<string[]>([]);
@@ -1032,6 +1027,7 @@ function CouchbaseCreateTableImportFile(props: {
       <Stack direction="row">
         <IconButton
           loading={loading}
+          disabled={!file}
           onClick={async () => {
             try {
               if (!tableName) {

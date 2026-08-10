@@ -72,6 +72,7 @@ import {
   allGridHeaderTitle,
   columnHeaderStyle,
   SqlOpContext,
+  UuidContext,
 } from "./helper";
 import FileCopyIcon from "@mui/icons-material/FileCopy";
 import {
@@ -248,7 +249,6 @@ interface SqlTableCustomToolBarLeftProps {
   kind: DataSourceKind; // 假设你已经定义了这个 Enum 或 Type
   allowFiltering: boolean;
   setAllowFiltering: Dispatch<SetStateAction<boolean>>;
-  uuid: string;
   tableName: string;
 }
 // 建议放在文件顶部，或者单独的文件中
@@ -261,11 +261,11 @@ function SqlTableCustomToolBarLeft({
   kind,
   allowFiltering,
   setAllowFiltering,
-  uuid,
+
   tableName,
 }: SqlTableCustomToolBarLeftProps) {
   // 获取 DataGrid 内部的 api 实例
-
+  const { uuid } = useContext(UuidContext);
   const { ops, setOps } = useContext(SqlOpContext);
   const apiRef = useGridApiContext();
   const [showSetWhere, setShowSetWhere] = useState(false);
@@ -418,20 +418,15 @@ function SqlTableCustomToolBarLeft({
 type CustomPaginationProps = {
   resp: MuiDataGridData;
   clientModel: boolean;
-  uuid: string;
   kind: DataSourceKind;
   table: string;
   isTable: boolean;
   handleReload: () => void;
 };
-function ImportDataFromFile(props: {
-  uuid: string;
-  table: string;
-  handleReload: () => void;
-}) {
-  const { uuid, table, handleReload } = props;
+function ImportDataFromFile(props: { table: string; handleReload: () => void }) {
+  const { table, handleReload } = props;
   const { showNotification } = useNotification();
-
+  const { uuid } = useContext(UuidContext);
   const [loading, setLoading] = useState(false);
   return (
     <Tooltip title="insert data from a file,current support csv,json,jsonline">
@@ -443,7 +438,7 @@ function ImportDataFromFile(props: {
             const path = await open({
               title: "import file",
               filters: [
-                { extensions: ["csv"], name: "csv" },
+                { extensions: ["csv", "tsv"], name: "csv" },
                 { extensions: ["json"], name: "json" },
                 {
                   extensions: ["jsonl"],
@@ -476,10 +471,11 @@ function ImportDataFromFile(props: {
 }
 
 export function SqlTablePagination({
-  dbpal: { resp, clientModel, uuid, kind, table, isTable, handleReload },
+  dbpal: { resp, clientModel, kind, table, isTable, handleReload },
 }: {
   dbpal: CustomPaginationProps;
 }) {
+  const { uuid } = useContext(UuidContext);
   const { showNotification } = useNotification();
   const { appendTab } = useTabsManage();
   return (
@@ -505,9 +501,7 @@ export function SqlTablePagination({
         <FetchTimeDataGrid />
         <ResetColumnWidth />
         {clientModel && <SliderSize config={UseSizeConfig.queryLimit} />}
-        {isTable && (
-          <ImportDataFromFile uuid={uuid} table={table} handleReload={handleReload} />
-        )}
+        {isTable && <ImportDataFromFile table={table} handleReload={handleReload} />}
 
         <ExportQueryResultToFile />
 
@@ -584,11 +578,11 @@ function EditRowInModal(props: {
 function CellButtons(props: {
   op: DatabaseOperation;
   setOps: Dispatch<SetStateAction<DatabaseOperation[]>>;
-  uuid: string;
   firstField: boolean;
   handleReload: () => void;
 }) {
-  const { op, setOps, uuid, firstField, handleReload } = props;
+  const { op, setOps, firstField, handleReload } = props;
+  const { uuid } = useContext(UuidContext);
   const { showNotification } = useNotification();
   return (
     firstField && (
@@ -632,7 +626,7 @@ function CellButtons(props: {
 
 function CustomCell(props: GridRenderCellParams) {
   const { row, field } = props;
-  const { ops, setOps, fields, uuid, handleReload } = useContext(SqlOpContext);
+  const { ops, setOps, fields, handleReload } = useContext(SqlOpContext);
   let dbId = tryGetId(row, fields);
   const modified = ops.find((x) => x.tableId == dbId && x.op == DatabaseOpKind.Update);
   const deleted = ops.find((x) => x.tableId == dbId && x.op == DatabaseOpKind.Delete);
@@ -646,7 +640,6 @@ function CustomCell(props: GridRenderCellParams) {
         {...dataField}
         style={{ alignItems: "center" }}>
         <CellButtons
-          uuid={uuid}
           setOps={setOps}
           op={deleted}
           handleReload={handleReload}
@@ -667,7 +660,6 @@ function CustomCell(props: GridRenderCellParams) {
         style={{ alignItems: "center" }}
         {...dataField}>
         <CellButtons
-          uuid={uuid}
           setOps={setOps}
           op={modified}
           handleReload={handleReload}
@@ -696,12 +688,12 @@ function CustomCell(props: GridRenderCellParams) {
   return <Typography {...dataField}>{row[field]}</Typography>;
 }
 function SqlTableView(props: {
-  kind: DataSourceKind;
   tableName: string;
-  uuid: string;
+
   isTable: boolean;
 }) {
-  const { kind, tableName, uuid, isTable } = props;
+  const { tableName, isTable } = props;
+  const { uuid, kind } = useContext(UuidContext);
   const getUpdateSql = useCallback(
     (x, y) => {
       return commands.tableUpdateSql(uuid, tableName, x, y);
@@ -1099,7 +1091,6 @@ function SqlTableView(props: {
           return {
             resp,
             clientModel,
-            uuid,
             kind,
             table: tableName,
             isTable,
@@ -1120,9 +1111,7 @@ function SqlTableView(props: {
             kind,
             allowFiltering,
             setAllowFiltering,
-
             tableName,
-            uuid,
           };
         })(),
       },
@@ -1196,13 +1185,11 @@ function SqlTableView(props: {
         }}>
         <AppColumnMenuCtx
           value={{
-            uuid,
             selectColumns: (function () {
               return resp.fields
                 .filter((f) => selectedColumns.has(f.field))
                 .map((f) => f.field);
             })(),
-            kind: kind,
           }}>
           <DataGrid
             getCellClassName={({ field }) => {
@@ -1473,6 +1460,7 @@ function SqlTableViewData(props: {
 }
 
 function CellMenu(props: {
+  uuid: string;
   field: string;
   fieldType: string;
   content: string;
@@ -1487,7 +1475,6 @@ function CellMenu(props: {
   isTable: boolean;
   setShowFilter: () => void;
   setShowClone: () => void;
-  uuid: string;
   getRow: () => object;
 }) {
   const {

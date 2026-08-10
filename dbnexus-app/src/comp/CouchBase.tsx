@@ -43,6 +43,7 @@ import {
   secondConfirm,
   shrinkAble,
   TabContent,
+  UuidContext,
 } from "./helper.ts";
 
 import DeleteForeverIcon from "@mui/icons-material/DeleteForever";
@@ -83,8 +84,9 @@ function newDataDefault(): Data {
   return { count: 0, data: [] };
 }
 
-function CouchBaseTable(props: { uuid: string; table: string }) {
-  const { uuid, table } = props;
+function CouchBaseTable(props: { table: string }) {
+  const { uuid } = useContext(UuidContext);
+  const { table } = props;
   const [page, setPage] = useState(1);
   const { couchbase: pageSize, setPageSize } = usePageSize();
 
@@ -230,8 +232,10 @@ function CouchBaseTable(props: { uuid: string; table: string }) {
               appendTab(
                 new TabContent(
                   table,
-                  <CouchbaseCreateTableImportFile uuid={uuid} hasTableName={table} />,
+                  <CouchbaseCreateTableImportFile hasTableName={table} />,
                   <UploadIcon />,
+                  uuid,
+                  kind,
                 ),
               );
             }}>
@@ -559,15 +563,15 @@ export function ExecuteButton(props: ExecuteButtonProps) {
   );
 }
 
-function CouchBaseQuery(props: { uuid: string; value?: string }) {
-  const { uuid, value } = props;
+function CouchBaseQuery(props: { value?: string }) {
+  const { value } = props;
+  const { uuid } = useContext(UuidContext);
   const [resp, setResp] = useState<string[]>([]);
   const [loading, setLoading] = useState(false);
   const { getSize } = useSizeStore();
   const [editor, setEditor] = useState<editor.IStandaloneCodeEditor>(null);
   const [queryStatus, setQueryStatus] = useState("");
   const { showNotification } = useNotification();
-  const kind = DataSourceKind.CouchBase;
   const { viewMode, setViewMode } = useCBQueryViewStore();
   const [tableResp, setTableResp] = useState<MuiDataGridData>(null);
   const setEditorContext = useContext(QueryIDEditorChatCtx);
@@ -767,7 +771,7 @@ function CouchBaseQuery(props: { uuid: string; value?: string }) {
                 <ArrowCircleDownRoundedIcon />
               </IconButton>
             </Tooltip>
-            <ShowQueryLog uuid={uuid} kind={kind} />
+            <ShowQueryLog />
 
             {viewMode == CBQueryViewMode.Json && (
               <SliderSize config={UseSizeConfig.gridCol} />
@@ -874,7 +878,7 @@ function CouchBaseQuery(props: { uuid: string; value?: string }) {
           </div>
         )}
         {viewMode == CBQueryViewMode.Table && tableResp && (
-          <QueryResp data={tableResp} uuid={uuid} kind={DataSourceKind.CouchBase} />
+          <QueryResp data={tableResp} />
         )}
       </Panel>
     </PanelGroup>

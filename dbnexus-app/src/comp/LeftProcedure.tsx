@@ -144,10 +144,10 @@ function ProcedureMenu(props: {
                 return { def: "", metas: [] };
               });
           }}
-          kind={kind}
-          uuid={uuid}
         />,
         <SiProcessingfoundation />,
+        uuid,
+        kind,
       ),
     );
   };

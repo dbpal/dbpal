@@ -21,6 +21,7 @@ import {
   prettyMs,
   QueryIDEditorChatCtx,
   saveQueryKey,
+  UuidContext,
 } from "./helper";
 import { NameAndQueryId } from "./Common";
 import {
@@ -173,8 +174,9 @@ function createNewModel(code = "") {
 
 const ignoreErrKey = "mongo-query-ignore-error";
 
-function MongoQuery(props: { uuid: string; favoriteName?: string; value?: string }) {
-  const { uuid, value, favoriteName } = props;
+function MongoQuery(props: { favoriteName?: string; value?: string }) {
+  const { value, favoriteName } = props;
+  const { uuid } = useContext(UuidContext);
   const [editor, setEditor] = useState<editor.IStandaloneCodeEditor>(null);
   const { showNotification } = useNotification();
   const { getSwitch, setSwitch } = useBoolSwitch();
@@ -269,12 +271,7 @@ const { db, FS, HTTP, BSON } = mongoHandle;
             handleEexecute={handleExecute}
           />
 
-          <SaveFavoriteSqlView
-            kind={DataSourceKind.Mongo}
-            editor={editor}
-            uuid={uuid}
-            favoriteName={favoriteName}
-          />
+          <SaveFavoriteSqlView editor={editor} favoriteName={favoriteName} />
           <LoadStoreFile
             getQuery={() => {
               return editor.getValue();
@@ -304,7 +301,7 @@ const { db, FS, HTTP, BSON } = mongoHandle;
             markdownModel={markdownModel}
             uuid={uuid}
           />
-          <ShowQueryLog uuid={uuid} kind={DataSourceKind.Mongo} />
+          <ShowQueryLog />
           <Tooltip
             title=<Stack sx={{ width: "40vw" }}>
               <Typography color="info ">

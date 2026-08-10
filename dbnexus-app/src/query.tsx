@@ -5,7 +5,7 @@ import ReactDOM from "react-dom/client";
 import { AllKindChat } from "./comp/Chat.tsx";
 import { SeprateWindow } from "./comp/MainPage.tsx";
 import { providerQueryID } from "./comp/Common.ts";
-import { DataSourceKind } from "./comp/helper.ts";
+import { DataSourceKind, UuidContext } from "./comp/helper.ts";
 
 const queryString = window.location.search;
 
@@ -19,6 +19,8 @@ providerQueryID.id = queryId || "";
 
 ReactDOM.createRoot(document.getElementById("root") as HTMLElement).render(
   <SeprateWindow>
-    <AllKindChat uuid={uuid} kind={kind as DataSourceKind} />
+    <UuidContext value={{ uuid, kind: kind as DataSourceKind }}>
+      <AllKindChat />
+    </UuidContext>
   </SeprateWindow>,
 );

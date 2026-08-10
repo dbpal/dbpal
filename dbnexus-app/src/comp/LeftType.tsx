@@ -124,10 +124,10 @@ function TypeMenu(props: {
               metas: [],
             });
           }}
-          kind={kind}
-          uuid={uuid}
         />,
         <PiTreeStructureFill />,
+        uuid,
+        kind,
       ),
     );
   };

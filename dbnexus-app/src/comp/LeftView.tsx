@@ -148,13 +148,9 @@ function ViewsTree(props: { viewKind: ViewKind }) {
   );
 }
 
-function StatementStructure(props: {
-  uuid: string;
-  kind: DataSourceKind;
-  view: string;
-  viewKind: ViewKind;
-}) {
-  const { uuid, kind, view, viewKind } = props;
+function StatementStructure(props: { view: string; viewKind: ViewKind }) {
+  const { uuid } = useContext(UuidContext);
+  const { view, viewKind } = props;
   const [sql, setSql] = useState("");
   const [loading, setLoading] = useState(false);
   const { showNotification } = useNotification();
@@ -183,18 +179,14 @@ function StatementStructure(props: {
   return (
     <Stack style={{ height: "100%" }}>
       {loading && <CircularProgress />}
-      {sql && <AllKindChat uuid={uuid} kind={kind} value={sql} />}
+      {sql && <AllKindChat value={sql} />}
     </Stack>
   );
 }
 
-function ViewStructure(props: {
-  uuid: string;
-  view: string;
-  viewKind: ViewKind;
-  kind: DataSourceKind;
-}) {
-  const { uuid, view, viewKind, kind } = props;
+function ViewStructure(props: { view: string; viewKind: ViewKind }) {
+  const { kind } = useContext(UuidContext);
+  const { view, viewKind } = props;
 
   const [structure, setStructure] = useState("column");
   const structures = ["column"];
@@ -233,9 +225,9 @@ function ViewStructure(props: {
           </ButtonGroup>
         </Stack>
       </Stack>
-      {structure == "column" && <ColumnsContent uuid={uuid} view={view} />}
+      {structure == "column" && <ColumnsContent view={view} />}
       {structure == "statement" && (
-        <StatementStructure uuid={uuid} kind={kind} viewKind={viewKind} view={view} />
+        <StatementStructure viewKind={viewKind} view={view} />
       )}
     </Stack>
   );
@@ -261,8 +253,9 @@ function ColumnsMenu(props: { content: string }) {
   );
 }
 
-function ColumnsContent(props: { uuid: string; view: string }) {
-  const { uuid, view } = props;
+function ColumnsContent(props: { view: string }) {
+  const { view } = props;
+  const { uuid } = useContext(UuidContext);
 
   const [fields, setFields] = useState<Field[]>([]);
   const { showNotification } = useNotification();
@@ -426,12 +419,12 @@ function ViewTree(props: {
 
 function ViewMenu(props: {
   view: string;
-  uuid: string;
   reload: () => void;
-  kind: DataSourceKind;
   viewKind: ViewKind;
+  uuid;
+  kind;
 }) {
-  const { view, uuid, reload, kind, viewKind } = props;
+  const { view, reload, viewKind, uuid, kind } = props;
   const { showNotification } = useNotification();
 
   const { setUi } = useOneShotDialogUI();
@@ -478,13 +471,11 @@ function ViewMenu(props: {
       case DataSourceKind.FireBird:
       case DataSourceKind.DuckDB:
       case DataSourceKind.Cockroach:
-        list = (
-          <SqlTableView isTable={false} tableName={view} kind={kind} uuid={uuid} />
-        );
+        list = <SqlTableView isTable={false} tableName={view} />;
         break;
 
       case DataSourceKind.Mongo:
-        list = <MongoTable isTable={false} uuid={uuid} table={view} />;
+        list = <MongoTable isTable={false} table={view} />;
         break;
       default:
         showNotification({
@@ -493,15 +484,17 @@ function ViewMenu(props: {
         });
     }
 
-    appendTab(new TabContent(view, list, <VisibilityIcon />));
+    appendTab(new TabContent(view, list, <VisibilityIcon />, uuid, kind));
   };
 
   const handleStructure = () => {
     appendTab(
       new TabContent(
         `${view}`,
-        <ViewStructure view={view} uuid={uuid} kind={kind} viewKind={viewKind} />,
+        <ViewStructure view={view} viewKind={viewKind} />,
         <IoConstructOutline />,
+        uuid,
+        kind,
       ),
     );
   };

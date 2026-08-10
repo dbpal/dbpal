@@ -667,15 +667,16 @@ function FavoriteSqlList() {
         if (!(await checkConnOpened(row.uuid))) {
           return;
         }
-        const content = (
-          <AllKindChat
-            kind={row.kind as DataSourceKind}
-            uuid={row.uuid}
-            value={row.sql}
-            favoriteName={row.name}
-          />
+        const content = <AllKindChat value={row.sql} favoriteName={row.name} />;
+        appendTab(
+          new TabContent(
+            `${row.uuid}`,
+            content,
+            <TbDatabaseSearch />,
+            row.uuid,
+            row.kind as DataSourceKind,
+          ),
         );
-        appendTab(new TabContent(`${row.uuid}`, content, <TbDatabaseSearch />));
       } catch (e) {
         showNotification({ severity: "error", title: "use sql failure", message: e });
       }
@@ -1238,8 +1239,8 @@ function openNewQuery(
   kind: DataSourceKind,
 ) {
   console.log("open new query uuid:", uuid);
-  const content = <AllKindChat kind={kind} uuid={uuid} />;
-  appendTab(new TabContent(`${uuid}`, content, <TbDatabaseSearch />));
+  const content = <AllKindChat />;
+  appendTab(new TabContent(`${uuid}`, content, <TbDatabaseSearch />, uuid, kind));
 }
 
 function openNewQueryWindow(uuid: string, kind: DataSourceKind) {

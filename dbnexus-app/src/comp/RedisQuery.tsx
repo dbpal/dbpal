@@ -2,19 +2,14 @@ import { useState, useEffect, useContext, useRef } from "react";
 import { Panel, PanelGroup, PanelResizeHandle } from "react-resizable-panels";
 
 import { SqlQuery } from "./SqlQuery.tsx";
-import {
-  DataSourceKind,
-  QueryIDEditorChatCtx,
-  resizeHandlerSize,
-  shrinkAble,
-} from "./helper.ts";
+import { QueryIDEditorChatCtx, resizeHandlerSize, shrinkAble } from "./helper.ts";
 import { Chip, Tooltip } from "@mui/material";
 import { AppMarkDown } from "./CommonComp2.tsx";
 import { useBoolSwitch } from "./store.tsx";
 import { commands } from "./bindings.ts";
 const showRedisDocKey = "redis-show-doc";
-function RedisQuery(props: { favoriteName?: string; value?: string; uuid: string }) {
-  const { favoriteName, value, uuid } = props;
+function RedisQuery(props: { favoriteName?: string; value?: string }) {
+  const { favoriteName, value } = props;
   const [docStr, setDocStr] = useState("");
   const { getSwitch, setSwitch } = useBoolSwitch();
   const prevLine = useRef("");
@@ -69,10 +64,8 @@ function RedisQuery(props: { favoriteName?: string; value?: string; uuid: string
       }}>
       <Panel defaultSize={40} minSize={4}>
         <SqlQuery
-          uuid={uuid}
           favoriteName={favoriteName}
           value={value}
-          kind={DataSourceKind.Redis}
           extraButtons={
             <>
               <Tooltip title="toggle show redis document">

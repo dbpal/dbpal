@@ -296,6 +296,8 @@ class TabContent {
     public header: string,
     public content: ReactNode,
     public icon: ReactElement,
+    public uuid?: string,
+    public kind?: DataSourceKind,
     public id: string = uuidv4(),
   ) {}
 }
@@ -683,9 +685,7 @@ const SqlOpContext = createContext<{
 }>(null);
 
 const AppColumnMenuCtx = createContext<{
-  uuid?: string;
   selectColumns: string[];
-  kind: DataSourceKind;
 }>(null);
 
 export const gridColumnHeaderSelectClassName = "grid-cell-select-highlight";

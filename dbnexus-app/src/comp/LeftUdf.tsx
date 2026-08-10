@@ -117,10 +117,10 @@ function UdfMenu(props: { uuid; udf: NamedStaff; reload; kind: DataSourceKind })
           reloadOP={async () => {
             return commands.showUdf(uuid, udf);
           }}
-          kind={kind}
-          uuid={uuid}
         />,
         <TbMathFunction />,
+        uuid,
+        kind,
       ),
     );
   };
@@ -193,10 +193,10 @@ function CassandraAggregateMenu(props: {
           reloadOP={async () => {
             return await commands.cassandraShowAggregate(uuid, agg, parameters);
           }}
-          uuid={uuid}
-          kind={DataSourceKind.Cassandra}
         />,
         <MdFunctions />,
+        uuid,
+        DataSourceKind.Cassandra,
       ),
     );
   };

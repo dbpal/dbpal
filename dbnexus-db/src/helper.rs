@@ -597,7 +597,7 @@ impl BackendKind {
         tokio::task::spawn_blocking(move || {
             let path_lower = path.to_lowercase();
 
-            if path_lower.ends_with(".csv") {
+            if path_lower.ends_with(".csv") || path_lower.ends_with(".tsv") {
                 self.infer_csv(&path)
             } else if path_lower.ends_with(".json") {
                 self.infer_json(&path)
@@ -1230,6 +1230,27 @@ mod tests {
             if let Some(age) = row.get(1) {
                 println!("年龄: {}", age);
             }
+        }
+    }
+
+    #[test]
+
+    fn test_read_tsv() {
+        let mut reader = csv::ReaderBuilder::new()
+            .delimiter(b'\t')
+            .from_path("/home/yuyang/Downloads/Persons_20260810T002914.tsv")
+            .unwrap();
+        let headers: Vec<_> = reader
+            .headers()
+            .unwrap()
+            .iter()
+            .map(|x| x.to_string())
+            .collect();
+        println!("!!!!!!!!!!!!!:{:?}", headers);
+        for csv_line in reader.records() {
+            let csv_line = csv_line.unwrap();
+
+            println!("!!!!!!!!{:?}", csv_line);
         }
     }
 }

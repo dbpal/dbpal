@@ -11,7 +11,7 @@ import {
   Divider,
 } from "@mui/material";
 import CloseIcon from "@mui/icons-material/Close";
-import { secondConfirm, TabContext, TabActiveContext } from "./helper";
+import { secondConfirm, TabContext, TabActiveContext, UuidContext } from "./helper";
 
 import { useBoolSwitch, useConfirmMsg, useContextMenu, useTabsManage } from "./store";
 import { IconModifed } from "./CommonComp2";
@@ -240,11 +240,13 @@ function TabsWithContent() {
         {tabs.map((tab, index) => (
           <TabActiveContext.Provider key={tab.id} value={currentTab == index}>
             <TabContext value={{ id: tab.id }}>
-              <div
-                hidden={currentTab !== index}
-                style={{ height: "100%", position: "relative" }}>
-                {tab.content}
-              </div>
+              <UuidContext value={{ uuid: tab.uuid, kind: tab.kind }}>
+                <div
+                  hidden={currentTab !== index}
+                  style={{ height: "100%", position: "relative" }}>
+                  {tab.content}
+                </div>
+              </UuidContext>
             </TabContext>
           </TabActiveContext.Provider>
         ))}

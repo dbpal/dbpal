@@ -161,9 +161,15 @@ function TablesTree() {
                       kind != DataSourceKind.CouchBase && (
                         <MenuItem
                           onClick={() => {
-                            const content = <SqlCreateTable kind={kind} uuid={uuid} />;
+                            const content = <SqlCreateTable />;
                             appendTab(
-                              new TabContent(`create table`, content, <CreateIcon />),
+                              new TabContent(
+                                `create table`,
+                                content,
+                                <CreateIcon />,
+                                uuid,
+                                kind,
+                              ),
                             );
                           }}>
                           <ListItemIcon>
@@ -175,17 +181,21 @@ function TablesTree() {
 
                     <MenuItem
                       onClick={() => {
-                        let content = (
-                          <SqlCreateTableImportFile kind={kind} uuid={uuid} />
-                        );
+                        let content = <SqlCreateTableImportFile />;
                         if (kind == DataSourceKind.Mongo) {
-                          content = <MongoCreateTableImportFile uuid={uuid} />;
+                          content = <MongoCreateTableImportFile />;
                         }
                         if (kind == DataSourceKind.CouchBase) {
-                          content = <CouchbaseCreateTableImportFile uuid={uuid} />;
+                          content = <CouchbaseCreateTableImportFile />;
                         }
                         appendTab(
-                          new TabContent(`create table`, content, <UploadIcon />),
+                          new TabContent(
+                            `create table`,
+                            content,
+                            <UploadIcon />,
+                            uuid,
+                            kind,
+                          ),
                         );
                       }}>
                       <ListItemIcon>
@@ -353,19 +363,19 @@ interface RedisViewTableProps {
 }
 
 // 1. Rename to start with an Uppercase letter
-function RedisViewTable({ uuid, table, redisType }: RedisViewTableProps) {
+function RedisViewTable({ table, redisType }: RedisViewTableProps) {
   // 2. Using a mapping object is cleaner than a switch statement
   switch (redisType) {
     case RedisTableType.String:
-      return <RedisStringTable uuid={uuid} stringKey={table} />;
+      return <RedisStringTable stringKey={table} />;
     case RedisTableType.List:
-      return <RedisListTable uuid={uuid} listKey={table} />;
+      return <RedisListTable listKey={table} />;
     case RedisTableType.Set:
-      return <RedisSetTable uuid={uuid} setKey={table} />;
+      return <RedisSetTable setKey={table} />;
     case RedisTableType.Zset:
-      return <RedisZsetTable uuid={uuid} zsetKey={table} />;
+      return <RedisZsetTable zsetKey={table} />;
     case RedisTableType.Hash:
-      return <RedisHashTable uuid={uuid} hashKey={table} />;
+      return <RedisHashTable hashKey={table} />;
     default:
       return null; // Fallback for safety
   }
@@ -392,7 +402,7 @@ function makeViewTable(
     case DataSourceKind.FireBird:
     case DataSourceKind.DuckDB:
     case DataSourceKind.Cockroach:
-      tableList = <SqlTableView isTable tableName={table} uuid={uuid} kind={kind} />;
+      tableList = <SqlTableView isTable tableName={table} />;
       break;
     case DataSourceKind.Redis:
       tableList = (
@@ -400,10 +410,10 @@ function makeViewTable(
       );
       break;
     case DataSourceKind.Mongo:
-      tableList = <MongoTable uuid={uuid} table={table} isTable />;
+      tableList = <MongoTable table={table} isTable />;
       break;
     case DataSourceKind.CouchBase:
-      tableList = <CouchBaseTable uuid={uuid} table={table} />;
+      tableList = <CouchBaseTable table={table} />;
   }
   return tableList;
 }
@@ -420,15 +430,15 @@ function AddTableView(props: {
     case DataSourceKind.Redis:
       switch (redisTableType) {
         case RedisTableType.String:
-          return <RedisStringTable uuid={uuid} stringKey={table} />;
+          return <RedisStringTable stringKey={table} />;
         case RedisTableType.List:
-          return <RedisAddList uuid={uuid} listKey={table} />;
+          return <RedisAddList listKey={table} />;
         case RedisTableType.Set:
-          return <RedisAddSet uuid={uuid} setKey={table} />;
+          return <RedisAddSet setKey={table} />;
         case RedisTableType.Zset:
-          return <RedisAddZset uuid={uuid} zsetKey={table} />;
+          return <RedisAddZset zsetKey={table} />;
         case RedisTableType.Hash:
-          return <RedisAddHash uuid={uuid} hashKey={table} />;
+          return <RedisAddHash hashKey={table} />;
       }
       break;
 
@@ -533,8 +543,10 @@ export const openNewTableStructure = (appendTab, uuid, kind, table) => {
   appendTab(
     new TabContent(
       `${table}`,
-      <TableStructure kind={kind} table={table} uuid={uuid} />,
+      <TableStructure table={table} />,
       <IoConstructOutline />,
+      uuid,
+      kind,
     ),
   );
 };
@@ -581,7 +593,7 @@ function TableMenu(props: {
 
   const handleViewData = () => {
     const tableList: ReactNode = makeViewTable(uuid, table, kind, redisTableType);
-    appendTab(new TabContent(table, tableList, <TableViewIcon />));
+    appendTab(new TabContent(table, tableList, <TableViewIcon />, uuid, kind));
   };
   const handleAddData = async () => {
     appendTab(
@@ -594,6 +606,8 @@ function TableMenu(props: {
           redisTableType={redisTableType}
         />,
         <TableViewIcon />,
+        uuid,
+        kind,
       ),
     );
   };

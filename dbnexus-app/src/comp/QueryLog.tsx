@@ -8,7 +8,14 @@ import {
   Stack,
   Tooltip,
 } from "@mui/material";
-import { Dispatch, SetStateAction, useEffect, useMemo, useState } from "react";
+import {
+  Dispatch,
+  SetStateAction,
+  useContext,
+  useEffect,
+  useMemo,
+  useState,
+} from "react";
 import { EscDownEvent, modalHandleClose, NameAndQueryId } from "./Common";
 import DoneIcon from "@mui/icons-material/Done";
 import CloseIcon from "@mui/icons-material/Close";
@@ -19,6 +26,7 @@ import {
   pageSizeOptions,
   saveQueryKey,
   secondConfirm,
+  UuidContext,
 } from "./helper.ts";
 import DeleteForeverIcon from "@mui/icons-material/DeleteForever";
 import { ResizeParentHeight } from "./CommonComp.tsx";
@@ -39,13 +47,12 @@ import { CustomToolbar } from "./CustomToolBar.tsx";
 import { DataGrid, GridColDef, GridSlotsComponent } from "./datagridExport.ts";
 
 function QueryLog(props: {
-  uuid: string;
   showQueryLog: boolean;
   setShowQueryLog: Dispatch<SetStateAction<boolean>>;
   queryId?: string;
-  kind: DataSourceKind;
 }) {
-  const { uuid, showQueryLog, setShowQueryLog, queryId, kind } = props;
+  const { uuid, kind } = useContext(UuidContext);
+  const { showQueryLog, setShowQueryLog, queryId } = props;
   const [selectSql, setSelectSql] = useState<{ sql: string; language: string }>(null);
   const [logs, setLogs] = useState([]);
   const { getColumnWidth, setColumnWidth } = useColumnWidthStore();

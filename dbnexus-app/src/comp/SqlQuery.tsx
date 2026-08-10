@@ -25,6 +25,7 @@ import {
   getDefaultLanguage,
   jumpToEditorText,
   QueryRespData,
+  UuidContext,
 } from "./helper.ts";
 import ArrowCircleDownRoundedIcon from "@mui/icons-material/ArrowCircleDownRounded";
 import { ExportView } from "./Export.tsx";
@@ -285,13 +286,12 @@ function QueryButtons(props: {
 }
 
 function SqlQuery(props: {
-  uuid: string;
   value?: string;
   favoriteName?: string;
-  kind: DataSourceKind;
   extraButtons?: ReactNode;
 }) {
-  const { uuid, value, favoriteName, kind, extraButtons } = props;
+  const { uuid, kind } = useContext(UuidContext);
+  const { value, favoriteName, extraButtons } = props;
   const [resp, setResp] = useState<QueryRespData[]>([]);
   const [editor, setEditor] = useState<editor.IStandaloneCodeEditor>(null);
   const [loading, setLoading] = useState(false);
@@ -582,12 +582,7 @@ function SqlQuery(props: {
                 </span>
               </Tooltip>
             )}
-            <SaveFavoriteSqlView
-              favoriteName={favoriteName}
-              uuid={uuid}
-              kind={kind}
-              editor={editor}
-            />
+            <SaveFavoriteSqlView favoriteName={favoriteName} editor={editor} />
             {editor && (
               <LoadStoreFile
                 getQuery={() => {
@@ -599,7 +594,7 @@ function SqlQuery(props: {
                 kind={kind}
               />
             )}
-            <ShowQueryLog uuid={uuid} kind={kind} />
+            <ShowQueryLog />
 
             {extraButtons}
             <ModifyLLMConfigModal />
@@ -674,7 +669,7 @@ function SqlQuery(props: {
               maxSize={100}
               minSize={10}>
               <div style={{ height: "100%" }}>
-                <MultiQueryResp data={resp} uuid={uuid} kind={kind} />
+                <MultiQueryResp data={resp} />
               </div>
             </Panel>
           </>
