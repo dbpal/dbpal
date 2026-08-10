@@ -2001,7 +2001,7 @@ function FetchTimeAndLoadingStatus(props: { isLoading: boolean }) {
         <Tooltip title="fetch used duration">
           <Chip
             label={prettyMs(fetchTime)}
-            color={fetchTime > 5000 ? "error" : "info"}
+            color={fetchTime > 5000 ? "error" : "success"}
             icon={<MdTimer />}
           />
         </Tooltip>

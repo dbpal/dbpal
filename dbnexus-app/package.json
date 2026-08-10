@@ -24,7 +24,7 @@
     "@tauri-apps/plugin-dialog": "^2.7.1",
     "@tauri-apps/plugin-fs": "^2.5.1",
     "@tauri-apps/plugin-http": "~2.5.9",
-    "@tauri-apps/plugin-log": "~2.8.0",
+    "@tauri-apps/plugin-log": "~2.9.0",
     "@tauri-apps/plugin-opener": "^2.5.4",
     "@tauri-apps/plugin-os": "^2.3.2",
     "@tauri-apps/plugin-process": "^2.3.1",
@@ -36,7 +36,7 @@
     "esprima": "^4.0.1",
     "filesize": "^11.0.17",
     "lodash-es": "^4.18.1",
-    "monaco-editor": "0.55.1",
+    "monaco-editor": "0.56",
     "notistack": "^3.0.2",
     "papaparse": "^5.5.4",
     "prettier": "^3.8.4",
@@ -56,7 +56,6 @@
     "unist-util-visit": "^5.1.0",
     "use-debounce": "^10.1.1",
     "uuid": "^14.0.0",
-    "vite-plugin-ejs": "^1.7.0",
     "wildcard-match": "^5.1.4",
     "zod": "^4.4.3",
     "zustand": "^5.0.14"
@@ -83,6 +82,7 @@
     "typescript": "^6.0.3",
     "typescript-eslint": "^8.61.1",
     "vite": "^8.0.16",
-    "vite-plugin-monaco-editor": "^1.1.0"
+    "vite-plugin-monaco-editor": "^1.1.0",
+    "vite-plugin-ejs": "^1.7.0"
   }
 }

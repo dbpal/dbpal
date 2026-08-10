@@ -51,8 +51,8 @@ importers:
         specifier: ~2.5.9
         version: 2.5.9
       '@tauri-apps/plugin-log':
-        specifier: ~2.8.0
-        version: 2.8.0
+        specifier: ~2.9.0
+        version: 2.9.0
       '@tauri-apps/plugin-opener':
         specifier: ^2.5.4
         version: 2.5.4
@@ -87,8 +87,8 @@ importers:
         specifier: ^4.18.1
         version: 4.18.1
       monaco-editor:
-        specifier: 0.55.1
-        version: 0.55.1
+        specifier: '0.56'
+        version: 0.56.0
       notistack:
         specifier: ^3.0.2
         version: 3.0.2(csstype@3.2.3)(react-dom@19.2.7(react@19.2.7))(react@19.2.7)
@@ -146,9 +146,6 @@ importers:
       uuid:
         specifier: ^14.0.0
         version: 14.0.0
-      vite-plugin-ejs:
-        specifier: ^1.7.0
-        version: 1.7.0(vite@8.0.16(@types/node@22.19.21)(esbuild@0.27.3)(yaml@2.8.1))
       wildcard-match:
         specifier: ^5.1.4
         version: 5.1.4
@@ -222,9 +219,12 @@ importers:
       vite:
         specifier: ^8.0.16
         version: 8.0.16(@types/node@22.19.21)(esbuild@0.27.3)(yaml@2.8.1)
+      vite-plugin-ejs:
+        specifier: ^1.7.0
+        version: 1.7.0(vite@8.0.16(@types/node@22.19.21)(esbuild@0.27.3)(yaml@2.8.1))
       vite-plugin-monaco-editor:
         specifier: ^1.1.0
-        version: 1.1.0(monaco-editor@0.55.1)
+        version: 1.1.0(monaco-editor@0.56.0)
 
 packages:
 
@@ -974,8 +974,8 @@ packages:
   '@tauri-apps/plugin-http@2.5.9':
     resolution: {integrity: sha512-lCiY0+vs4HvIUSvZrBs8TC3TiCB0MOPRmiUjTq4prW7SlcJE2jdLeT6KBsJrT9Tlplufl7W1pY6SFAO3gCWxDA==}
 
-  '@tauri-apps/plugin-log@2.8.0':
-    resolution: {integrity: sha512-a+7rOq3MJwpTOLLKbL8d0qGZ85hgHw5pNOWusA9o3cf7cEgtYHiGY/+O8fj8MvywQIGqFv0da2bYQDlrqLE7rw==}
+  '@tauri-apps/plugin-log@2.9.0':
+    resolution: {integrity: sha512-Ql8okrnsguk0eDq1GvRfttFV5KaeW/7vcao6bdbkXCRJ1+2sWE15ZJvJVEKVANrOKy1mRngqC3IFIAP+wP5qSw==}
 
   '@tauri-apps/plugin-opener@2.5.4':
     resolution: {integrity: sha512-1HnPkb+AmgO29HBazm4uPLKB+r7zzcTBW1d0fyYp1uP+jwtpoiNDGKMMzz58SFp49nOIrxdE3aUJtT57lfO9CQ==}
@@ -1405,8 +1405,8 @@ packages:
   dom-helpers@5.2.1:
     resolution: {integrity: sha512-nRCa7CK3VTrM2NmGkIy4cbK7IZlgBE/PYMn55rrXefr5xXDP0LdtfPnblFDoVdcAfslJ7or6iqAUnx0CCGIWQA==}
 
-  dompurify@3.2.7:
-    resolution: {integrity: sha512-WhL/YuveyGXJaerVlMYGWhvQswa7myDG17P7Vu65EWC05o8vfeNbvNf4d/BOvH99+ZW+LlQsc1GDKMa1vNK6dw==}
+  dompurify@3.4.8:
+    resolution: {integrity: sha512-yb1cEmaOum7wFvOCSQxyfgVlv5D47Rc30iZWoMpbDIWTnJ6grDDQyu2KFJzB2k7u0pMuJcQ1zphH//fFnw2tjQ==}
 
   dunder-proto@1.0.1:
     resolution: {integrity: sha512-KIN/nDJBQRcXw0MLVhZE9iQHmG68qAVIBg9CqmUYjmQIhgij9U5MFvrqkUL5FbtyyzZuOeOt0zdeRe4UY7ct+A==}
@@ -2155,8 +2155,8 @@ packages:
     resolution: {integrity: sha512-7o1wEA2RyMP7Iu7GNba9vc0RWWGACJOCZBJX2GJWip0ikV+wcOsgVuY9uE8CPiyQhkGFSlhuSkZPavN7u1c2Fw==}
     engines: {node: '>=10'}
 
-  monaco-editor@0.55.1:
-    resolution: {integrity: sha512-jz4x+TJNFHwHtwuV9vA9rMujcZRb0CEilTEwG2rRSpe/A7Jdkuj8xPKttCgOh+v/lkHy7HsZ64oj+q3xoAFl9A==}
+  monaco-editor@0.56.0:
+    resolution: {integrity: sha512-sXboRm3BeBeLm938eaiyLMe0OxzfXIlZvbv4ir/jVgQy1zDhWjgmny0WoN45fuDKhCCQsYMbBJrv/A6jd8aCUg==}
 
   moo@0.5.3:
     resolution: {integrity: sha512-m2fmM2dDm7GZQsY7KK2cme8agi+AAljILjQnof7p1ZMDe6dQ4bdnSMx0cPppudoeNv5hEFQirN6u+O4fDE0IWA==}
@@ -3513,7 +3513,7 @@ snapshots:
     dependencies:
       '@tauri-apps/api': 2.11.0
 
-  '@tauri-apps/plugin-log@2.8.0':
+  '@tauri-apps/plugin-log@2.9.0':
     dependencies:
       '@tauri-apps/api': 2.11.0
 
@@ -3995,7 +3995,7 @@ snapshots:
       '@babel/runtime': 7.29.7
       csstype: 3.2.3
 
-  dompurify@3.2.7:
+  dompurify@3.4.8:
     optionalDependencies:
       '@types/trusted-types': 2.0.7
 
@@ -5063,9 +5063,9 @@ snapshots:
     dependencies:
       brace-expansion: 2.1.1
 
-  monaco-editor@0.55.1:
+  monaco-editor@0.56.0:
     dependencies:
-      dompurify: 3.2.7
+      dompurify: 3.4.8
       marked: 14.0.0
 
   moo@0.5.3: {}
@@ -5744,9 +5744,9 @@ snapshots:
       ejs: 3.1.10
       vite: 8.0.16(@types/node@22.19.21)(esbuild@0.27.3)(yaml@2.8.1)
 
-  vite-plugin-monaco-editor@1.1.0(monaco-editor@0.55.1):
+  vite-plugin-monaco-editor@1.1.0(monaco-editor@0.56.0):
     dependencies:
-      monaco-editor: 0.55.1
+      monaco-editor: 0.56.0
 
   vite@8.0.16(@types/node@22.19.21)(esbuild@0.27.3)(yaml@2.8.1):
     dependencies:
