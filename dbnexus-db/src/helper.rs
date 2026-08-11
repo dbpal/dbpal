@@ -3,10 +3,10 @@ use std::{
     vec,
 };
 
+use crate::db::{BackendKind, Field};
 use calamine::Reader;
 use sqlparser::ast::{ArrayElemTypeDef, DataType};
-
-use crate::db::{BackendKind, Field};
+use std::process::Command;
 
 /// create csv file list of string
 /// each line of line separator
@@ -1194,6 +1194,65 @@ impl BackendKind {
             BackendKind::Redis => return Err(err),
         };
         anyhow::Ok(r)
+    }
+}
+
+pub struct DockerContainerDropper {
+    pub(crate) id: String,
+}
+
+impl Drop for DockerContainerDropper {
+    fn drop(&mut self) {
+        // Use -f (force) to remove the container even if it is currently running
+        let output = Command::new("docker").args(["rm", "-f", &self.id]).output();
+
+        match output {
+            Ok(out) => {
+                if out.status.success() {
+                    println!("Successfully removed Docker container: {}", self.id);
+                } else {
+                    let stderr = String::from_utf8_lossy(&out.stderr);
+                    eprintln!("Failed to remove Docker container {}: {}", self.id, stderr);
+                }
+            }
+            Err(e) => {
+                eprintln!("Failed to execute docker command for {}: {}", self.id, e);
+            }
+        }
+    }
+}
+
+impl<T: Into<String>> From<T> for DockerContainerDropper {
+    fn from(value: T) -> Self {
+        Self { id: value.into() }
+    }
+}
+
+#[cfg(test)]
+pub(crate) fn cert_files_dir() -> String {
+    let mut cert_dir = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+
+    cert_dir.push("test");
+    cert_dir.push("cert");
+
+    cert_dir.to_str().unwrap().to_owned()
+}
+
+/// 启动一个现有的、处于停止状态的 Docker 容器
+#[cfg(test)]
+
+pub(crate) fn start_docker_container(id: &str) -> anyhow::Result<()> {
+    // 执行 docker start <id> 命令
+    let output = Command::new("docker").args(["start", id]).output()?;
+
+    // 检查命令是否执行成功
+    if output.status.success() {
+        println!("Successfully started Docker container: {}", id);
+        Ok(())
+    } else {
+        // 如果失败，捕获 stderr 错误信息并将其封装为 anyhow 错误返回
+        let stderr = String::from_utf8(output.stderr.clone())?;
+        Err(anyhow::Error::msg(stderr))
     }
 }
 

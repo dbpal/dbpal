@@ -39,12 +39,8 @@ import {
   commands,
   DBConnectionConfig,
   MysqlDBConfig,
-  MysqlSsl,
-  MySqlSslMode,
   OdbcCommon,
   PGDBConfig,
-  PgSsl,
-  PgSslMode,
   SSLFiles,
   OracleDBConfig,
   ClickHouseConfig,
@@ -59,6 +55,7 @@ import {
   Db2Config,
   CouchBaseDBConfig,
   CassandraDialect,
+  SslFilesWithStrModel,
 } from "./bindings.ts";
 import { SelectPath } from "./CommonComp.tsx";
 
@@ -286,15 +283,18 @@ function SslFiles(props: {
   );
 }
 
-function PGSSL(props: { ssl: PgSsl; setSsl: Dispatch<SetStateAction<PgSsl>> }) {
+function PGSSL(props: {
+  ssl: SslFilesWithStrModel;
+  setSsl: Dispatch<SetStateAction<SslFilesWithStrModel>>;
+}) {
   const { ssl, setSsl } = props;
-  const modes: PgSslMode[] = [
+  const modes: string[] = [
     "disable",
     "allow",
     "prefer",
     "require",
-    "verifyca",
-    "verifyfull",
+    "verify-ca",
+    "verify-full",
   ];
 
   return (
@@ -319,16 +319,16 @@ function PGSSL(props: { ssl: PgSsl; setSsl: Dispatch<SetStateAction<PgSsl>> }) {
   );
 }
 function MysqlSSl(props: {
-  ssl: MysqlSsl;
-  setSsl: Dispatch<SetStateAction<MysqlSsl>>;
+  ssl: SslFilesWithStrModel;
+  setSsl: Dispatch<SetStateAction<SslFilesWithStrModel>>;
 }) {
   const { ssl, setSsl } = props;
-  const models: MySqlSslMode[] = [
+  const models: string[] = [
     "disabled",
     "preferred",
     "required",
-    "verifyca",
-    "verifyidentity",
+    "verify_ca",
+    "verify_identity",
   ];
   return (
     <Stack direction="row" style={{ alignItems: "center", flexWrap: "wrap" }}>
@@ -437,7 +437,7 @@ function Mysql(props: {
   const [user, setUser] = useState(getUser(config));
   const [password, setPassword] = useState(getPassword(config));
   const [database, setDatabase] = useState(getDB(config));
-  const [ssl, setSsl] = useState<MysqlSsl>({
+  const [ssl, setSsl] = useState<SslFilesWithStrModel>({
     ssl_mode: config?.ssl_mode || "preferred",
     ssl_ca: config?.ssl_ca,
     ssl_cert: config?.ssl_cert,
@@ -631,7 +631,7 @@ function PostGres(props: {
   const [user, setUser] = useState(getUser(config));
   const [password, setPassword] = useState(getPassword(config));
   const [database, setDatabase] = useState(getDB(config));
-  const [ssl, setSSl] = useState<PgSsl>({
+  const [ssl, setSSl] = useState<SslFilesWithStrModel>({
     ssl_mode: config?.ssl_mode || "prefer",
     ssl_ca: config?.ssl_ca,
     ssl_cert: config?.ssl_cert,
@@ -982,11 +982,6 @@ function MongoDb(props: { config?: MongoDBConfig; context: AddConnectionContext 
   const [enableSSL, setEnableSSL] = useState(false);
   const { connTimeOut, connectionName, readOnly, makeConfigRef } = context;
 
-  const [sslFiles, setSslFile] = useState<SSLFiles>({
-    ssl_ca: null,
-    ssl_cert: null,
-    ssl_key: null,
-  });
   function makeConfig(): DBConnectionConfig {
     return {
       conn_type: "mongo",
@@ -998,9 +993,8 @@ function MongoDb(props: { config?: MongoDBConfig; context: AddConnectionContext 
       conn_timeout: connTimeOut,
       port: parseInt(port),
       save_password: savePassword,
-      enable_ssl: enableSSL,
+      ssl_enable: enableSSL,
       db: database ? database : null,
-      ...sslFiles,
     };
   }
   makeConfigRef.current = makeConfig;
@@ -1032,7 +1026,6 @@ function MongoDb(props: { config?: MongoDBConfig; context: AddConnectionContext 
           }
           label="Enable SSL"
         />
-        <SslFiles enabled={enableSSL} files={sslFiles} setFiles={setSslFile} />
       </Stack>
     </Stack>
   );

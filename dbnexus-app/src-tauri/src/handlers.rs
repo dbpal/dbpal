@@ -1354,8 +1354,8 @@ pub async fn test_connection(
     ErrorFrontend,
 > {
     random_error()?;
-    let timeout = 5;
-    tokio::time::timeout(Duration::from_secs(5), async {
+    let timeout = 10;
+    tokio::time::timeout(Duration::from_secs(timeout), async {
         let db = config.open().await.map_err(|e| e.to_string())?;
         db.check_conn()
             .await

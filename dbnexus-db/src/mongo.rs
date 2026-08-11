@@ -1,5 +1,4 @@
 use std::collections::{HashMap, HashSet};
-use std::path::Path;
 use std::sync::Arc;
 use std::time::Duration;
 
@@ -51,14 +50,8 @@ impl MongoDB {
             let x = b.build();
             opts.credential = Some(x);
         }
-        if config.ssl.enable_ssl {
-            let mut tls_option = TlsOptions::default();
-            if let Some(ca) = config.ssl.ssl_files.ssl_ca.as_ref() {
-                tls_option.ca_file_path = Some(Path::new(ca).to_path_buf());
-            }
-            if let Some(key) = config.ssl.ssl_files.ssl_key.as_ref() {
-                tls_option.cert_key_file_path = Some(Path::new(key).to_path_buf());
-            }
+        if config.ssl_enable {
+            let tls_option = TlsOptions::default();
             opts.tls = Some(Tls::Enabled(tls_option));
         }
         let client = mongodb::Client::with_options(opts)?;
@@ -851,7 +844,7 @@ pub fn make_test_object() -> MongoDB {
         db: Some("test".to_string()),
         read_only: false,
 
-        ssl: Default::default(),
+        ssl_enable: Default::default(),
     });
     x.expect("shoud make test object ok")
 }
@@ -860,15 +853,19 @@ pub fn make_test_object() -> MongoDB {
 mod tests {
 
     use super::make_test_object;
-    use crate::db::{DBTrait, SchemaTrait, ServerMetas};
-    use crate::mongo::MongoShowTablePara;
+    use crate::datasource_config::MongoDBConfig;
+    use crate::db::{CheckConn, DBTrait, SchemaTrait, ServerMetas};
+    use crate::helper::{cert_files_dir, DockerContainerDropper};
+    use crate::mongo::{MongoDB, MongoShowTablePara};
+    use crate::TEST_HOST;
     use bson::oid::ObjectId;
     use bson::spec::BinarySubtype;
     use bson::{doc, Binary, Bson, DateTime, Decimal128, Document, Regex, Timestamp, Uuid};
     use mongodb::bson;
     use mongodb::options::TimeseriesOptions;
+    use std::process::Command;
     use std::str::FromStr;
-    use std::time::SystemTime;
+    use std::time::{Duration, SystemTime};
     use std::vec;
 
     #[tokio::test]
@@ -1279,5 +1276,85 @@ mod tests {
         }
         let table_list = db.list_table().await.unwrap();
         println!("{:?}", table_list);
+    }
+
+    #[tokio::test]
+    async fn test_mongodb_auth() {
+        let port = portpicker::pick_unused_port().unwrap();
+        println!("test port:{}", port);
+        let cert_dir = cert_files_dir();
+
+        // 1. 创建 MongoDB 初始化脚本（创建用户和数据库）
+        let init_script_content = r#"
+// 切换到 admin 数据库并创建管理员用户
+db = db.getSiblingDB('admin');
+db.createUser({
+    user: "testuser",
+    pwd: "testpass",
+    roles: [
+        { role: "root", db: "admin" }
+    ]
+});
+
+// 切换到 testdb 数据库并创建用户
+db = db.getSiblingDB('testdb');
+db.createUser({
+    user: "testuser",
+    pwd: "testpass",
+    roles: [
+        { role: "readWrite", db: "testdb" }
+    ]
+});
+"#;
+
+        let init_script_path = format!("{}/init-mongo.js", cert_dir);
+        std::fs::write(&init_script_path, init_script_content).unwrap();
+        let init_volume = format!("{}:/docker-entrypoint-initdb.d/init.js", init_script_path);
+
+        // 2. 启动 MongoDB 容器（不启用 SSL/TLS）
+        let output = Command::new("docker")
+            .arg("run")
+            .arg("-d")
+            .args(["--name", "mongodb-auth-test"])
+            .args(["-p", format!("{}:27017", port).as_str()])
+            .args(["-v", &init_volume])
+            .arg("mongo")
+            // 启用认证，但不启用 TLS
+            .args(["--auth"])
+            // 绑定到所有接口
+            .args(["--bind_ip_all"])
+            .output()
+            .unwrap();
+
+        let container_id = if output.status.success() {
+            let container_id = String::from_utf8_lossy(&output.stdout).trim().to_string();
+            println!("MongoDB 容器启动成功，ID 为: {}", container_id);
+            container_id
+        } else {
+            let stderr = String::from_utf8_lossy(&output.stderr);
+            eprintln!("启动 Docker 容器失败: {}", stderr);
+            return;
+        };
+        let _guard = DockerContainerDropper::from(&container_id);
+
+        // MongoDB 启动需要时间等待初始化完成
+        tokio::time::sleep(Duration::from_secs(10)).await;
+
+        {
+            println!("try to connect this db");
+
+            let db = MongoDB::new(MongoDBConfig {
+                host: TEST_HOST.to_string(),
+                port,
+                username: Some("testuser".to_string()),
+                password: Some("testpass".to_string()),
+                conn_timeout: Some(4000.into()),
+                db: Some("testdb".to_string()),
+                read_only: false,
+                ssl_enable: false,
+            })
+            .unwrap();
+            db.check_conn().await.unwrap();
+        }
     }
 }

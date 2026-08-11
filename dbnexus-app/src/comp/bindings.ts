@@ -387,7 +387,8 @@ export type MongoDBConfig = {
 	conn_timeout: ConnTimeOut | null,
 	db: string | null,
 	read_only: boolean,
-} & (MongoSsl);
+	ssl_enable: boolean,
+};
 
 export type MongoFindParameter = {
 	filter: Uint8Array,
@@ -407,44 +408,12 @@ export type MongoShowTablePara = {
 	page_size: number,
 };
 
-export type MongoSsl = {
-	enable_ssl: boolean,
-} & (SSLFiles);
-
 export type MuiDataGridData = {
 	fields: Field[],
 	data: ({ [key in string]: string | null })[],
 	sql: string | null,
 	total: number,
 };
-
-export type MySqlSslMode = 
-// Establish an unencrypted connection.
-"disabled" | 
-/**
- *  Establish an encrypted connection if the server supports encrypted connections, falling
- *  back to an unencrypted connection if an encrypted connection cannot be established.
- * 
- *  This is the default if `ssl_mode` is not specified.
- */
-"preferred" | 
-/**
- *  Establish an encrypted connection if the server supports encrypted connections.
- *  The connection attempt fails if an encrypted connection cannot be established.
- */
-"required" | 
-/**
- *  Like `Required`, but additionally verify the server Certificate Authority (CA)
- *  certificate against the configured CA certificates. The connection attempt fails
- *  if no valid matching CA certificates are found.
- */
-"verifyca" | 
-/**
- *  Like `VerifyCa`, but additionally perform host name identity verification by
- *  checking the host name the client uses for connecting to the server against the
- *  identity in the certificate that the server sends to the client.
- */
-"verifyidentity";
 
 export type MysqlDBConfig = {
 	host: string,
@@ -454,11 +423,7 @@ export type MysqlDBConfig = {
 	db: string | null,
 	read_only: boolean,
 	conn_timeout: ConnTimeOut | null,
-} & (MysqlSsl);
-
-export type MysqlSsl = {
-	ssl_mode: MySqlSslMode,
-} & (SSLFiles);
+} & (SslFilesWithStrModel);
 
 // named staff maybe used for view udf etc...
 export type NamedStaff = {
@@ -510,38 +475,7 @@ export type PGDBConfig = {
 	schema: string | null,
 	read_only: boolean,
 	conn_timeout: ConnTimeOut | null,
-} & (PgSsl);
-
-export type PgSsl = {
-	ssl_mode: PgSslMode,
-} & (SSLFiles);
-
-export type PgSslMode = 
-// Only try a non-SSL connection.
-"disable" | 
-// First try a non-SSL connection; if that fails, try an SSL connection.
-"allow" | 
-/**
- *  First try an SSL connection; if that fails, try a non-SSL connection.
- * 
- *  This is the default if no other mode is specified
- */
-"prefer" | 
-/**
- *  Only try an SSL connection. If a root CA file is present, verify the connection
- *  in the same way as if `VerifyCa` was specified.
- */
-"require" | 
-/**
- *  Only try an SSL connection, and verify that the server certificate is issued by a
- *  trusted certificate authority (CA).
- */
-"verifyca" | 
-/**
- *  Only try an SSL connection; verify that the server certificate is issued by a trusted
- *  CA and that the requested server host name matches that in the certificate.
- */
-"verifyfull";
+} & (SslFilesWithStrModel);
 
 export type ProcedureDetail = {
 	def: string,
@@ -625,6 +559,10 @@ export type SqliteDBConfig = {
 	read_only: boolean,
 	conn_timeout: ConnTimeOut | null,
 };
+
+export type SslFilesWithStrModel = {
+	ssl_mode: string,
+} & (SSLFiles);
 
 export type TableImportPara = {
 	path: string,

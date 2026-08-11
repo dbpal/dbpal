@@ -6,6 +6,7 @@ use sqlx::{AssertSqlSafe, Column, Executor, PgConnection, Postgres, Row, SqlSafe
 
 use std::collections::{HashMap, HashSet};
 use std::ops::DerefMut;
+use std::str::FromStr;
 use std::sync::Arc;
 use std::time::Duration;
 use tokio::sync::Mutex;
@@ -1363,7 +1364,7 @@ impl PostGresDB {
             opts = opts.database(db);
         }
         println!("ssl:{:?}", config.ssl);
-        opts = opts.ssl_mode(config.ssl.ssl_mode.into());
+        opts = opts.ssl_mode(FromStr::from_str(&config.ssl.ssl_mode)?);
         if let Some(ca) = config.ssl.ssl_files.ssl_ca.as_ref() {
             opts = opts.ssl_root_cert(ca);
         }
@@ -2022,17 +2023,18 @@ mod tests {
     #[allow(unused_imports)]
     use crate::enable_test_log;
     use crate::{
-        datasource_config::PGDBConfig,
+        datasource_config::{PGDBConfig, SSLFiles, SslFilesWithStrModel},
         db::{
             BackendKindPostGres, CheckConn, ColumnType, CreateIndexColumn, CreateIndexReq,
             CreateTableReq, CreateTableReqColumn, DBTrait, GetTestExportTableKinds, IndexKind,
             NamedStaff, QuerySql, SchemaTrait, ServerMetas, ShowTableParameter, SqlNullAble,
             TableImportPara, TestQueryEventEmit,
         },
+        helper::{cert_files_dir, start_docker_container, DockerContainerDropper},
         pg::PostGresDB,
     };
     use sqlx::Executor;
-    use std::{collections::HashMap, ops::DerefMut, sync::Arc};
+    use std::{collections::HashMap, ops::DerefMut, process::Command, sync::Arc, time::Duration};
 
     #[test]
     fn test_output_bytes() {
@@ -3489,6 +3491,98 @@ mod tests {
                 println!("import error:{}", err_msg);
                 assert!(err_msg.contains("rollback"));
             }
+        }
+    }
+
+    #[tokio::test]
+
+    async fn test_ssl() {
+        let port = portpicker::pick_unused_port().unwrap();
+        println!("test port:{}", port);
+        let cert_dir = cert_files_dir();
+        // 2. 动态拼接数据卷挂载参数路径
+        let ca_volume = format!("{}/ca.crt:/etc/postgresql/ca.crt", cert_dir);
+        let cert_volume = format!("{}/server.crt:/etc/postgresql/server.crt", cert_dir);
+        let key_volume = format!("{}/server.key:/etc/postgresql/server.key", cert_dir);
+
+        // 3. 使用 std::process::Command 按顺序构建并执行命令
+        let output = Command::new("docker")
+            .arg("run")
+            .arg("-d")
+            .args(["--name", "postgres-ssl-test"])
+            .args(["-p", format!("{}:5432", port).as_str()])
+            .args(["-e", "POSTGRES_USER=testuser"])
+            .args(["-e", "POSTGRES_PASSWORD=testpass"])
+            .args(["-e", "POSTGRES_DB=testdb"])
+            .args(["-v", &ca_volume])
+            .args(["-v", &cert_volume])
+            .args(["-v", &key_volume])
+            .arg("postgres")
+            .args(["-c", "ssl=on"])
+            .args(["-c", "ssl_cert_file=/etc/postgresql/server.crt"])
+            .args(["-c", "ssl_key_file=/etc/postgresql/server.key"])
+            .args(["-c", "ssl_ca_file=/etc/postgresql/ca.crt"])
+            .args(["-c", "log_connections=on"])
+            .output()
+            .unwrap(); // 捕获标准输出和错误输出
+
+        // 4. 检查命令执行结果
+        let container_id = if output.status.success() {
+            let container_id = String::from_utf8_lossy(&output.stdout).trim().to_string();
+            println!("PostgreSQL 容器启动成功，ID 为: {}", container_id);
+            container_id
+        } else {
+            let stderr = String::from_utf8_lossy(&output.stderr);
+            eprintln!("启动 Docker 容器失败: {}", stderr);
+            return;
+        };
+        let _guard = DockerContainerDropper::from(&container_id);
+
+        tokio::time::sleep(Duration::from_secs(2)).await;
+
+        start_docker_container(&container_id).unwrap();
+
+        tokio::time::sleep(Duration::from_secs(2)).await;
+        //  test ssl
+        let config = PGDBConfig {
+            host: "127.0.0.1".to_string(),
+            port,
+            username: "testuser".to_string(),
+            password: "testpass".to_string().into(),
+            db: Some("postgres".to_string()),
+            schema: None,
+            read_only: true,
+            ssl: SslFilesWithStrModel {
+                ssl_mode: "disable".to_string(),
+                ssl_files: SSLFiles {
+                    ssl_ca: None,
+                    ssl_cert: None,
+                    ssl_key: None,
+                },
+            },
+            conn_timeout: Some(5000.into()),
+        };
+        let kind = BackendKindPostGres::PostGres;
+        {
+            let db = PostGresDB::new(config.clone(), kind).await.unwrap();
+            db.check_conn().await.unwrap();
+        }
+
+        {
+            let mut config = config.clone();
+            config.ssl.ssl_mode = "require".to_string();
+            let db = PostGresDB::new(config.clone(), kind).await.unwrap();
+            db.check_conn().await.unwrap();
+        }
+
+        {
+            let mut config = config.clone();
+            config.ssl.ssl_mode = "verify-ca".to_string();
+            config.ssl.ssl_files = SSLFiles::test_cert();
+            println!("config:{:?}", config);
+
+            let db = PostGresDB::new(config.clone(), kind).await.unwrap();
+            db.check_conn().await.unwrap();
         }
     }
 }

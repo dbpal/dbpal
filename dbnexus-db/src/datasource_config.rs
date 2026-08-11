@@ -9,16 +9,9 @@ pub struct MongoDBConfig {
     pub conn_timeout: Option<ConnTimeOut>,
     pub db: Option<String>,
     pub read_only: bool,
-    #[serde(flatten)]
-    pub ssl: MongoSsl,
+    pub ssl_enable: bool,
 }
 
-#[derive(Debug, Clone, serde::Deserialize, serde::Serialize, Default, specta::Type)]
-pub struct MongoSsl {
-    pub enable_ssl: bool,
-    #[serde(flatten)]
-    pub ssl_files: SSLFiles,
-}
 #[derive(Debug, Clone, serde::Deserialize, serde::Serialize, specta::Type)]
 pub struct MysqlDBConfig {
     pub host: String,
@@ -29,7 +22,7 @@ pub struct MysqlDBConfig {
     pub db: Option<String>,
     pub read_only: bool,
     #[serde(flatten)]
-    pub ssl: MysqlSsl,
+    pub ssl: SslFilesWithStrModel,
     pub conn_timeout: Option<ConnTimeOut>,
 }
 
@@ -47,13 +40,6 @@ impl From<ConnTimeOut> for std::time::Duration {
     fn from(value: ConnTimeOut) -> Self {
         std::time::Duration::from_millis(value.0 as u64)
     }
-}
-
-#[derive(Debug, Clone, serde::Deserialize, serde::Serialize, Default, specta::Type)]
-pub struct MysqlSsl {
-    pub ssl_mode: MySqlSslMode,
-    #[serde(flatten)]
-    pub ssl_files: SSLFiles,
 }
 
 impl MysqlDBConfig {
@@ -273,13 +259,13 @@ pub struct PGDBConfig {
     pub schema: Option<String>,
     pub read_only: bool,
     #[serde(flatten)]
-    pub ssl: PgSsl,
+    pub ssl: SslFilesWithStrModel,
     pub conn_timeout: Option<ConnTimeOut>,
 }
 
 #[derive(Debug, Clone, serde::Deserialize, serde::Serialize, Default, specta::Type)]
-pub struct PgSsl {
-    pub ssl_mode: PgSslMode,
+pub struct SslFilesWithStrModel {
+    pub ssl_mode: String,
     #[serde(flatten)]
     pub ssl_files: SSLFiles,
 }
@@ -371,89 +357,6 @@ impl CassandraDBConfig {
     }
 }
 
-// this struct copied from sqlx postgres
-#[derive(Clone, Copy, Default, Debug, serde::Deserialize, serde::Serialize, specta::Type)]
-#[serde(rename_all = "lowercase")]
-pub enum PgSslMode {
-    /// Only try a non-SSL connection.
-    ///
-    Disable,
-
-    /// First try a non-SSL connection; if that fails, try an SSL connection.
-    Allow,
-
-    /// First try an SSL connection; if that fails, try a non-SSL connection.
-    ///
-    /// This is the default if no other mode is specified
-    #[default]
-    Prefer,
-
-    /// Only try an SSL connection. If a root CA file is present, verify the connection
-    /// in the same way as if `VerifyCa` was specified.
-    Require,
-
-    /// Only try an SSL connection, and verify that the server certificate is issued by a
-    /// trusted certificate authority (CA).
-    VerifyCa,
-
-    /// Only try an SSL connection; verify that the server certificate is issued by a trusted
-    /// CA and that the requested server host name matches that in the certificate.
-    VerifyFull,
-}
-
-impl From<PgSslMode> for sqlx::postgres::PgSslMode {
-    fn from(x: PgSslMode) -> Self {
-        match x {
-            PgSslMode::Disable => sqlx::postgres::PgSslMode::Disable,
-            PgSslMode::Allow => sqlx::postgres::PgSslMode::Allow,
-            PgSslMode::Prefer => sqlx::postgres::PgSslMode::Prefer,
-            PgSslMode::Require => sqlx::postgres::PgSslMode::Require,
-            PgSslMode::VerifyCa => sqlx::postgres::PgSslMode::VerifyCa,
-            PgSslMode::VerifyFull => sqlx::postgres::PgSslMode::VerifyFull,
-        }
-    }
-}
-
-#[derive(Debug, Clone, Copy, Default, serde::Serialize, serde ::Deserialize, specta::Type)]
-#[serde(rename_all = "lowercase")]
-pub enum MySqlSslMode {
-    /// Establish an unencrypted connection.
-    Disabled,
-
-    /// Establish an encrypted connection if the server supports encrypted connections, falling
-    /// back to an unencrypted connection if an encrypted connection cannot be established.
-    ///
-    /// This is the default if `ssl_mode` is not specified.
-    #[default]
-    Preferred,
-
-    /// Establish an encrypted connection if the server supports encrypted connections.
-    /// The connection attempt fails if an encrypted connection cannot be established.
-    Required,
-
-    /// Like `Required`, but additionally verify the server Certificate Authority (CA)
-    /// certificate against the configured CA certificates. The connection attempt fails
-    /// if no valid matching CA certificates are found.
-    VerifyCa,
-
-    /// Like `VerifyCa`, but additionally perform host name identity verification by
-    /// checking the host name the client uses for connecting to the server against the
-    /// identity in the certificate that the server sends to the client.
-    VerifyIdentity,
-}
-
-impl From<MySqlSslMode> for sqlx::mysql::MySqlSslMode {
-    fn from(value: MySqlSslMode) -> Self {
-        match value {
-            MySqlSslMode::Disabled => sqlx::mysql::MySqlSslMode::Disabled,
-            MySqlSslMode::Preferred => sqlx::mysql::MySqlSslMode::Preferred,
-            MySqlSslMode::Required => sqlx::mysql::MySqlSslMode::Required,
-            MySqlSslMode::VerifyCa => sqlx::mysql::MySqlSslMode::VerifyCa,
-            MySqlSslMode::VerifyIdentity => sqlx::mysql::MySqlSslMode::VerifyIdentity,
-        }
-    }
-}
-
 #[derive(Debug, Clone, serde::Deserialize, serde::Serialize, specta::Type)]
 pub struct BigQueryDbConfig {
     pub dataset_id: Option<String>,
@@ -517,4 +420,25 @@ pub struct Neo4JDbConfig {
     pub read_only: bool,
     pub db: Option<String>,
     pub client_certificate: Option<String>,
+}
+
+#[cfg(test)]
+
+impl SSLFiles {
+    pub fn test_cert() -> Self {
+        Self {
+            ssl_ca: Some(Self::test_cert_append_path("ca.crt")),
+            ssl_cert: Some(Self::test_cert_append_path("client.crt")),
+            ssl_key: Some(Self::test_cert_append_path("client.key")),
+        }
+    }
+
+    pub(crate) fn test_cert_append_path(x: &str) -> String {
+        let path = cert_files_dir();
+        use crate::helper::cert_files_dir;
+        use std::path::PathBuf;
+        let mut p = PathBuf::from(&path);
+        p.push(x);
+        p.to_str().unwrap().to_owned()
+    }
 }

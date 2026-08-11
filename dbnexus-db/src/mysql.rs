@@ -21,6 +21,7 @@ use sqlx::types::BigDecimal;
 use sqlx::{AssertSqlSafe, Column, Executor, MySqlConnection, Row, SqlSafeStr, TypeInfo};
 use std::collections::HashMap;
 use std::ops::DerefMut;
+use std::str::FromStr;
 use std::sync::Arc;
 use std::time::Duration;
 use tokio::sync::Mutex;
@@ -1357,11 +1358,11 @@ impl MysqlDB {
             .port(config.port)
             .username(&config.username);
         println!("ssl:{:?}", config.ssl);
-
-        match config.ssl.ssl_mode {
-            crate::datasource_config::MySqlSslMode::Disabled => {}
+        let ssl_model: sqlx::mysql::MySqlSslMode = FromStr::from_str(&config.ssl.ssl_mode)?;
+        match ssl_model {
+            sqlx::mysql::MySqlSslMode::Disabled => {}
             _ => {
-                opts = opts.ssl_mode(config.ssl.ssl_mode.into());
+                opts = opts.ssl_mode(ssl_model);
                 if let Some(ca) = config.ssl.ssl_files.ssl_ca.as_ref() {
                     opts = opts.ssl_ca(ca);
                 }
@@ -2676,10 +2677,15 @@ pub(crate) mod test_fns {
 #[cfg(test)]
 mod tests {
     use super::test_fns::{self, make_test_object};
-    use crate::datasource_config::MysqlDBConfig;
+    use crate::datasource_config::{MysqlDBConfig, SSLFiles, SslFilesWithStrModel};
+    use crate::db::{BackendKindMysql, CheckConn};
+    use crate::helper::{cert_files_dir, start_docker_container, DockerContainerDropper};
+    use crate::mysql::MysqlDB;
     use crate::TEST_HOST;
     use sqlx::Executor;
     use std::ops::DerefMut;
+    use std::process::Command;
+    use std::time::Duration;
 
     pub(crate) fn make_config() -> MysqlDBConfig {
         MysqlDBConfig {
@@ -2800,5 +2806,131 @@ mod tests {
     #[tokio::test]
     async fn test_event() {
         test_fns::test_event(make_test_object(make_config()).await).await;
+    }
+
+    #[tokio::test]
+    async fn test_ssl_mysql() {
+        let port = portpicker::pick_unused_port().unwrap();
+        println!("test port:{}", port);
+        let cert_dir = cert_files_dir();
+
+        // 创建初始化脚本，用于创建SSL用户
+        let init_script_content = r#"
+CREATE USER IF NOT EXISTS 'testuser'@'%' IDENTIFIED BY 'testpass';
+GRANT ALL PRIVILEGES ON *.* TO 'testuser'@'%' WITH GRANT OPTION;
+ALTER USER 'testuser'@'%' REQUIRE SSL;
+FLUSH PRIVILEGES;
+"#;
+
+        // 创建临时初始化脚本文件
+        let init_script_path = format!("{}/init-mysql.sql", cert_dir);
+        std::fs::write(&init_script_path, init_script_content).unwrap();
+
+        let ca_volume = format!("{}/ca.crt:/etc/mysql/ssl/ca.crt", cert_dir);
+        let cert_volume = format!("{}/server.crt:/etc/mysql/ssl/server.crt", cert_dir);
+        let key_volume = format!("{}/server.key:/etc/mysql/ssl/server.key", cert_dir);
+        let init_volume = format!("{}:/docker-entrypoint-initdb.d/init.sql", init_script_path);
+
+        // 启动MySQL容器，开启SSL并强制要求SSL
+        let output = Command::new("docker")
+            .arg("run")
+            .arg("-d")
+            .args(["--name", "mysql-ssl-test"])
+            .args(["-p", format!("{}:3306", port).as_str()])
+            .args(["-e", "MYSQL_ROOT_PASSWORD=rootpass"])
+            .args(["-v", &ca_volume])
+            .args(["-v", &cert_volume])
+            .args(["-v", &key_volume])
+            .args(["-v", &init_volume])
+            .arg("mysql")
+            // MySQL SSL 配置参数
+            .args(["--ssl-ca=/etc/mysql/ssl/ca.crt"])
+            .args(["--ssl-cert=/etc/mysql/ssl/server.crt"])
+            .args(["--ssl-key=/etc/mysql/ssl/server.key"])
+            .args(["--require_secure_transport=ON"]) // 强制SSL
+            .args(["--log-error-verbosity=3"])
+            .args(["--performance-schema=OFF"]) // 减少启动时间
+            .output()
+            .unwrap();
+
+        let container_id = if output.status.success() {
+            let container_id = String::from_utf8_lossy(&output.stdout).trim().to_string();
+            println!("MySQL 容器启动成功，ID 为: {}", container_id);
+            container_id
+        } else {
+            let stderr = String::from_utf8_lossy(&output.stderr);
+            eprintln!("启动 Docker 容器失败: {}", stderr);
+            return;
+        };
+        let _guard = DockerContainerDropper::from(&container_id);
+
+        // MySQL启动需要更长时间等待初始化完成
+        tokio::time::sleep(Duration::from_secs(10)).await;
+
+        // 检查容器是否正常运行
+        let check_output = Command::new("docker")
+            .args(["logs", &container_id, "--tail", "20"])
+            .output()
+            .unwrap();
+        println!(
+            "MySQL logs: {}",
+            String::from_utf8_lossy(&check_output.stdout)
+        );
+
+        start_docker_container(&container_id).unwrap();
+
+        tokio::time::sleep(Duration::from_secs(3)).await;
+
+        // 测试1: 不使用SSL连接
+        let config = MysqlDBConfig {
+            host: "127.0.0.1".to_string(),
+            port,
+            username: "root".to_string(),
+            password: "rootpass".to_string().into(),
+            db: None,
+            read_only: true,
+            ssl: SslFilesWithStrModel {
+                ssl_mode: "disabled".to_string(),
+                ssl_files: SSLFiles {
+                    ssl_ca: None,
+                    ssl_cert: None,
+                    ssl_key: None,
+                },
+            },
+            conn_timeout: Some(8000.into()),
+        };
+        let kind = BackendKindMysql::Mysql;
+
+        // 不使用SSL应该能连接
+        {
+            let db = MysqlDB::new(config.clone(), kind).await.unwrap();
+            db.check_conn().await.unwrap();
+            println!("✅ 非SSL连接成功");
+        }
+
+        // 测试2: 使用SSL但mode为required
+        {
+            let mut config = config.clone();
+            config.ssl.ssl_mode = "required".to_string();
+            let db = MysqlDB::new(config.clone(), kind).await.unwrap();
+            db.check_conn().await.unwrap();
+            println!("✅ required SSL连接成功");
+        }
+
+        // 测试3: 使用SSL verify_ca
+        {
+            let mut config = config.clone();
+            config.ssl.ssl_mode = "verify_ca".to_string();
+            config.ssl.ssl_files = SSLFiles {
+                ssl_ca: Some(format!("{}/ca.crt", cert_dir)),
+                ssl_cert: Some(format!("{}/client.crt", cert_dir)),
+                ssl_key: Some(format!("{}/client.key", cert_dir)),
+            };
+            println!("config:{:?}", config);
+
+            let db = MysqlDB::new(config.clone(), kind).await.unwrap();
+            db.check_conn().await.unwrap();
+            println!("✅ verify_ca SSL连接成功");
+        }
     }
 }

@@ -25,7 +25,7 @@ sqlx = { version = "0.9.0", features = [
     "bit-vec",
     "uuid",
     "json",
-    "tls-rustls",
+    "tls-native-tls",
 ] }
 sqlx-core = { version = "0.9.0", features = ["any"] }
 
@@ -64,7 +64,7 @@ tiberius = { version = "0.12.3", default-features = false, features = [
     "chrono",
     "rust_decimal",
     "tds73",
-    "rustls",
+    "native-tls",
 ] }
 html-escape = "0.2.13"
 scylla = { version = "1.7", features = [] }
@@ -80,7 +80,7 @@ num-bigint = "=0.4.8" # I am trying to match the version from sqlx
 r2d2 = "*"
 base64 = "*"
 reqwest.workspace = true
-clickhouse = { version = "0.15", features = ["rustls-tls", "time", "uuid"] }
+clickhouse = { version = "0.15", features = ["native-tls", "time", "uuid"] }
 libsql = { version = "0.9.7", default-features = false, features = [
     "remote",
     "tls",
@@ -96,7 +96,7 @@ specta.workspace = true
 tempfile.workspace = true
 calamine.workspace = true
 [dev-dependencies]
-
+portpicker = "0.1.1"
 
 [features]
 duckdb = ["dep:duckdb"]

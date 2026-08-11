@@ -30,7 +30,7 @@ lazy_static = "1.5.0"
 log = { version = "0.4.22", features = ["std"] }
 futures-util = "*"
 futures-core = "*"
-mongodb = { version = "3.3", features = ["rustls-tls"] }
+mongodb = { version = "3.3", features = ["openssl-tls"] }
 rand = "0.10"
 tokio-util = "*"
 uuid = { version = "*", features = ["v4"] }
@@ -39,9 +39,8 @@ base64 = "*"
 redis = { version = "1", features = [
     "tokio-comp",
     "aio",
-    "tls-rustls",
     "connection-manager",
-    "tokio-rustls-comp",
+    "tokio-native-tls-comp",
 
 ] }
 specta-typescript = "0.0.11"
@@ -50,5 +49,5 @@ csv = "*"
 rust_xlsxwriter = { version = "0.97", features = ["constant_memory"] }
 specta = { version = "=2.0.0-rc.24", features = ["derive", "serde_json"] }
 calamine = "*"
-reqwest = { version = "0.13", features = ["json", "rustls", "stream"] }
+reqwest = { version = "0.13", features = ["json", "native-tls", "stream"] }
 tempfile = "3.27.0"

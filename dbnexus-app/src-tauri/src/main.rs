@@ -51,7 +51,6 @@ use ai::openai_invoke;
 use ai::openai_stream;
 
 use mimalloc::MiMalloc;
-use rustls::crypto::{aws_lc_rs, CryptoProvider};
 use std::fs::OpenOptions;
 use std::io::Write;
 use std::panic;
@@ -164,8 +163,6 @@ fn main() {
 
     tauri::async_runtime::set(runtime.handle().clone());
 
-    CryptoProvider::install_default(aws_lc_rs::default_provider())
-        .expect("Failed to install default crypto provider");
     let dbpal = DBPal::new();
     let task_manager = TaskManager::default();
     let setup = move |app: &mut tauri::App| {

@@ -20,7 +20,7 @@ use std::collections::HashMap;
 use std::ops::DerefMut;
 use std::sync::Arc;
 use std::time::Duration;
-use tiberius::{Client, ColumnData, FromSql, Row};
+use tiberius::{Client, ColumnData, EncryptionLevel, FromSql, Row};
 use tokio::net::TcpStream;
 use tokio::sync::Mutex;
 use tokio_util::compat::{Compat, TokioAsyncWriteCompatExt};
@@ -197,6 +197,7 @@ fn make_config(c: &SqlServerDBConfig) -> anyhow::Result<tiberius::Config> {
     }
     if let Some(x) = &c.cert_ca {
         config.trust_cert_ca(x);
+        config.encryption(EncryptionLevel::Required);
     }
     anyhow::Ok(config)
 }
@@ -2170,10 +2171,16 @@ impl GetTestExportTableKinds for SqlServerDB {
 }
 #[cfg(test)]
 mod tests {
+    use std::process::Command;
+
     use super::*;
-    use crate::db::{
-        CatalogTrait, CreateIndexColumn, CreateTableReq, CreateTableReqColumn, ShowTableParameter,
-        SqlNullAble, TestQueryEventEmit,
+    use crate::{
+        datasource_config::SSLFiles,
+        db::{
+            CatalogTrait, CreateIndexColumn, CreateTableReq, CreateTableReqColumn,
+            ShowTableParameter, SqlNullAble, TestQueryEventEmit,
+        },
+        helper::{cert_files_dir, start_docker_container, DockerContainerDropper},
     };
 
     #[allow(unused_imports)]
@@ -3108,5 +3115,119 @@ END;
         println!("ret:{:?}", list);
         GetTestExportTableKinds::test_export(&db, table_name).await;
         db.test_table_export_and_import(table_name).await;
+    }
+
+    #[tokio::test]
+    async fn test_ssl_sqlserver() {
+        let port = portpicker::pick_unused_port().unwrap();
+        println!("test port:{}", port);
+        let cert_dir = cert_files_dir();
+
+        // 1. 准备 SQL Server 需要的证书和配置
+        // SQL Server 要求证书和私钥在同一个 .pem 文件中，或者分别指定
+        // 这里我们假设使用 server.crt 和 server.key，并通过 mssql.conf 配置
+        let ca_volume = format!("{}/ca.crt:/etc/ssl/certs/ca.crt", cert_dir);
+        let cert_volume = format!("{}/server.crt:/etc/ssl/certs/server.crt", cert_dir);
+        let key_volume = format!("{}/server.key:/etc/ssl/certs/server.key", cert_dir);
+
+        // 2. 创建 SQL Server 配置文件 mssql.conf 来启用 SSL
+        let mssql_conf_content = r#"
+[network]
+tlscert = /etc/ssl/certs/server.crt
+tlskey = /etc/ssl/certs/server.key
+tlsprotocols = 1.2
+forceencryption = 1
+"#;
+        let conf_path = format!("{}/mssql.conf", cert_dir);
+        std::fs::write(&conf_path, mssql_conf_content).unwrap();
+
+        // 3. 创建初始化脚本 (创建测试数据库和用户)
+        let init_script_content = r#"
+CREATE DATABASE testdb;
+GO
+USE testdb;
+GO
+CREATE LOGIN testuser WITH PASSWORD = 'testpass';
+GO
+CREATE USER testuser FOR LOGIN testuser;
+GO
+ALTER ROLE db_owner ADD MEMBER testuser;
+GO
+"#;
+        let init_script_path = format!("{}/init-sqlserver.sql", cert_dir);
+        std::fs::write(&init_script_path, init_script_content).unwrap();
+
+        // 4. 启动 SQL Server 容器，正确配置 SSL
+        let output = Command::new("docker")
+            .arg("run")
+            .arg("-d")
+            .args(["--name", "sqlserver-ssl-test"])
+            .args(["-p", format!("{}:1433", port).as_str()])
+            .args(["-e", "ACCEPT_EULA=Y"])
+            .args(["-e", "MSSQL_PID=Express"])
+            .args(["-e", "SA_PASSWORD=YourStrong!Password"])
+            .args(["-e", "MSSQL_AGENT_ENABLED=true"])
+            // 挂载证书和配置文件
+            .args(["-v", &ca_volume])
+            .args(["-v", &cert_volume])
+            .args(["-v", &key_volume])
+            .args([
+                "-v",
+                format!("{}:/var/opt/mssql/mssql.conf", conf_path).as_str(),
+            ])
+            .args([
+                "-v",
+                format!("{}:/docker-entrypoint-initdb.d/init.sql", init_script_path).as_str(),
+            ])
+            .arg("mcr.microsoft.com/mssql/server")
+            .output()
+            .unwrap();
+
+        let container_id = if output.status.success() {
+            let container_id = String::from_utf8_lossy(&output.stdout).trim().to_string();
+            println!("SQL Server 容器启动成功，ID 为: {}", container_id);
+            container_id
+        } else {
+            let stderr = String::from_utf8_lossy(&output.stderr);
+            eprintln!("启动 Docker 容器失败: {}", stderr);
+            return;
+        };
+        let _guard = DockerContainerDropper::from(&container_id);
+
+        // SQL Server 启动较慢，等待更长时间
+        tokio::time::sleep(Duration::from_secs(10)).await;
+
+        // 检查容器日志，确认 SSL 配置
+        let check_output = Command::new("docker")
+            .args(["logs", &container_id, "--tail", "30"])
+            .output()
+            .unwrap();
+        println!(
+            "SQL Server logs: {}",
+            String::from_utf8_lossy(&check_output.stdout)
+        );
+
+        start_docker_container(&container_id).unwrap();
+        tokio::time::sleep(Duration::from_secs(5)).await;
+
+        {
+            let db = SqlServerDB::new(SqlServerDBConfig {
+                host: "localhost".to_string(),
+                port,
+                username: Some("sa".to_string()),
+                password: "YourStrong!Password".to_owned().into(),
+                db: None,
+                trust_cert: false,
+                schema: None,
+                read_only: false,
+                conn_timeout: Some(5000.into()),
+                cert_ca: SSLFiles::test_cert().ssl_ca,
+            })
+            .await
+            .unwrap();
+
+            let d = db.check_conn().await.unwrap();
+            println!("check conn:{:?}", d);
+        }
     }
 }

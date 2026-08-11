@@ -51,7 +51,6 @@ specta-typescript.workspace = true
 reqwest.workspace = true
 tauri-plugin-process = "2"
 include_dir.workspace = true
-rustls = { version = "0.23", features = ["aws-lc-rs"] }
 sys-locale = "0.3.2"
 tokio-util.workspace = true
 tauri-plugin-devtools = "2.0.1"
@@ -59,6 +58,9 @@ tauri-plugin-log = "2"
 base64.workspace = true
 tauri-plugin-http = "2"
 calamine.workspace = true
+
+[dev-dependencies]
+
 
 [features]
 # This feature is used for production builds or when a dev server is not specified, DO NOT REMOVE!!
