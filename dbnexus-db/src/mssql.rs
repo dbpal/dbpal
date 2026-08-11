@@ -3117,6 +3117,7 @@ END;
         db.test_table_export_and_import(table_name).await;
     }
 
+    #[cfg(target_os = "linux")]
     #[tokio::test]
     async fn test_ssl_sqlserver() {
         let port = portpicker::pick_unused_port().unwrap();

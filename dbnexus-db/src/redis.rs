@@ -1712,7 +1712,9 @@ mod tests {
     use super::{extract_db_from_info_key_space, split_info_colon, RedisDB};
     use crate::db::{DBTrait, QuerySql, SchemaTrait, ServerMetas, ShowTableParameter};
     use crate::enable_test_log;
+    use crate::helper::{cert_files_dir, DockerContainerDropper};
 
+    use std::process::Command;
     use std::time::Duration;
 
     #[test]
@@ -2091,5 +2093,121 @@ db1:keys=1,expires=0,avg_ttl=0"#,
             .await
             .unwrap();
         assert_eq!(resp, resp2);
+    }
+
+    #[tokio::test]
+
+    async fn test_ssl() {
+        let port = portpicker::pick_unused_port().unwrap();
+        println!("test port:{}", port);
+        let cert_dir = cert_files_dir();
+
+        // Redis SSL/TLS 配置
+        let ca_volume = format!("{}/ca.crt:/etc/redis/ssl/ca.crt", cert_dir);
+        let cert_volume = format!("{}/server.crt:/etc/redis/ssl/server.crt", cert_dir);
+        let key_volume = format!("{}/server.key:/etc/redis/ssl/server.key", cert_dir);
+
+        // 创建 Redis 配置文件
+        let redis_config_content = format!(
+            r#"
+port 0
+tls-port 6379
+tls-cert-file /etc/redis/ssl/server.crt
+tls-key-file /etc/redis/ssl/server.key
+tls-ca-cert-file /etc/redis/ssl/ca.crt
+tls-auth-clients yes
+tls-replication yes
+requirepass testpass
+# 强制使用 TLS
+tls-protocols "TLSv1.2 TLSv1.3"
+"#
+        );
+
+        let redis_config_path = format!("{}/redis.conf", cert_dir);
+        std::fs::write(&redis_config_path, redis_config_content).unwrap();
+        let config_volume = format!("{}:/usr/local/etc/redis/redis.conf", redis_config_path);
+
+        // 启动 Redis 容器，开启 SSL/TLS
+        let output = Command::new("docker")
+            .arg("run")
+            .arg("-d")
+            .args(["--name", "redis-ssl-test"])
+            .args(["-p", format!("{}:6379", port).as_str()])
+            .args(["-v", &ca_volume])
+            .args(["-v", &cert_volume])
+            .args(["-v", &key_volume])
+            .args(["-v", &config_volume])
+            .arg("redis")
+            .args(["redis-server", "/usr/local/etc/redis/redis.conf"])
+            .output()
+            .unwrap();
+
+        let container_id = if output.status.success() {
+            let container_id = String::from_utf8_lossy(&output.stdout).trim().to_string();
+            println!("Redis 容器启动成功，ID 为: {}", container_id);
+            container_id
+        } else {
+            let stderr = String::from_utf8_lossy(&output.stderr);
+            eprintln!("启动 Docker 容器失败: {}", stderr);
+            return;
+        };
+        let port = portpicker::pick_unused_port().unwrap();
+        println!("test port:{}", port);
+        let cert_dir = cert_files_dir();
+
+        // Redis SSL/TLS 配置
+        let ca_volume = format!("{}/ca.crt:/etc/redis/ssl/ca.crt", cert_dir);
+        let cert_volume = format!("{}/server.crt:/etc/redis/ssl/server.crt", cert_dir);
+        let key_volume = format!("{}/server.key:/etc/redis/ssl/server.key", cert_dir);
+
+        // 创建 Redis 配置文件
+        let redis_config_content = format!(
+            r#"
+port 0
+tls-port 6379
+tls-cert-file /etc/redis/ssl/server.crt
+tls-key-file /etc/redis/ssl/server.key
+tls-ca-cert-file /etc/redis/ssl/ca.crt
+tls-auth-clients yes
+tls-replication yes
+requirepass testpass
+# 强制使用 TLS
+tls-protocols "TLSv1.2 TLSv1.3"
+"#
+        );
+
+        let redis_config_path = format!("{}/redis.conf", cert_dir);
+        std::fs::write(&redis_config_path, redis_config_content).unwrap();
+        let config_volume = format!("{}:/usr/local/etc/redis/redis.conf", redis_config_path);
+
+        // 启动 Redis 容器，开启 SSL/TLS
+        let output = Command::new("docker")
+            .arg("run")
+            .arg("-d")
+            .args(["--name", "redis-ssl-test"])
+            .args(["-p", format!("{}:6379", port).as_str()])
+            .args(["-v", &ca_volume])
+            .args(["-v", &cert_volume])
+            .args(["-v", &key_volume])
+            .args(["-v", &config_volume])
+            .arg("redis:alpine")
+            .args(["redis-server", "/usr/local/etc/redis/redis.conf"])
+            .output()
+            .unwrap();
+
+        let container_id = if output.status.success() {
+            let container_id = String::from_utf8_lossy(&output.stdout).trim().to_string();
+            println!("Redis 容器启动成功，ID 为: {}", container_id);
+            container_id
+        } else {
+            let stderr = String::from_utf8_lossy(&output.stderr);
+            eprintln!("启动 Docker 容器失败: {}", stderr);
+            return;
+        };
+
+        let _guard = DockerContainerDropper::from(&container_id);
+        // no test here I don't want to work with rustls
+        // rustls 的兼容性不如native-tls
+        // https://docs.rs/redis/1.5.0/redis/struct.Client.html#method.build_with_tls
     }
 }

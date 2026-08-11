@@ -2867,16 +2867,6 @@ FLUSH PRIVILEGES;
         // MySQL启动需要更长时间等待初始化完成
         tokio::time::sleep(Duration::from_secs(10)).await;
 
-        // 检查容器是否正常运行
-        let check_output = Command::new("docker")
-            .args(["logs", &container_id, "--tail", "20"])
-            .output()
-            .unwrap();
-        println!(
-            "MySQL logs: {}",
-            String::from_utf8_lossy(&check_output.stdout)
-        );
-
         start_docker_container(&container_id).unwrap();
 
         tokio::time::sleep(Duration::from_secs(3)).await;
