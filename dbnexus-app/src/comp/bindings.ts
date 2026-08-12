@@ -231,13 +231,18 @@ export type ConnTimeOut = number;
 export type CouchBaseBucketType = "couchbase" | "ephemeral";
 
 export type CouchBaseDBConfig = {
-	conn_str: string,
+	host: string,
+	port: number,
 	username: string,
 	password: string,
 	read_only: boolean,
 	bucket: string | null,
 	scope: string | null,
 	conn_timeout: ConnTimeOut | null,
+	ssl_enable: boolean,
+	danger_accept_invalid_hostnames: boolean | null,
+	danger_accept_invalid_certificates: boolean | null,
+	ca_certificates: string[],
 };
 
 export type CreateDatabaseExtra = { extra: "couchbase"; ram_quota_mb: number; flush_enabled: boolean; num_replicas: number; max_expiry: number | null; bucket_type: CouchBaseBucketType };

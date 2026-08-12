@@ -1607,21 +1607,31 @@ function CouchBase(props: {
   context: AddConnectionContext;
 }) {
   const { config, context } = props;
-  const [connStr, setConnStr] = useState(
-    (config && config["conn_str"]) || "couchbase://127.0.0.1",
+  const [host, setHost] = useState(getHost(config));
+  const [port, setPort] = useState(
+    (function () {
+      if (!config) {
+        return "11210";
+      }
+      return config.port + "";
+    })(),
   );
   const [user, setUser] = useState(getUser(config) || "Administrator");
   const [password, setPassword] = useState(getPassword(config));
   const [bucket, setBucket] = useState(getDB(config));
   const [scope, setScope] = useState(getSchema(config));
   const { connTimeOut, connectionName, readOnly, makeConfigRef } = context;
-
   const [savePassword, setSavePassword] = useState(getSavePassword(config));
+  const [sslEnable, setSslEnable] = useState(false);
+  const [accInvalidHosts, setAccINvalidHosts] = useState(false);
+  const [accInvalidCerts, setAccInvalidCerts] = useState(false);
+  const [certFile, setCertFile] = useState("");
 
   function makeConfig(): DBConnectionConfig {
     return {
       conn_type: "couchbase",
-      conn_str: connStr,
+      host: host,
+      port: parseInt(port),
       username: user,
       password: password,
       save_password: savePassword,
@@ -1630,21 +1640,25 @@ function CouchBase(props: {
       conn_timeout: connTimeOut,
       read_only: readOnly,
       name: connectionName,
+      ssl_enable: sslEnable,
+      danger_accept_invalid_certificates: accInvalidCerts,
+      danger_accept_invalid_hostnames: accInvalidHosts,
+      ca_certificates: certFile ? [certFile] : [],
     };
   }
+
+  useEffect(() => {
+    if (sslEnable) {
+      setPort("11207");
+    } else {
+      setPort("11210");
+    }
+  }, [sslEnable]);
 
   makeConfigRef.current = makeConfig;
   return (
     <Stack>
-      <ClearableTextField
-        fullWidth
-        label="connection string"
-        value={connStr}
-        sx={{ mr: 1 }}
-        onChange={(e) => setConnStr(e.target.value)}
-        onClear={() => setConnStr("")}
-        required
-      />
+      <HostAndPort host={host} setHost={setHost} port={port} setPort={setPort} />
       <UserAndPassword
         user={user}
         password={password}
@@ -1659,6 +1673,49 @@ function CouchBase(props: {
         label="bucket"
         makeConfig={makeConfig}
       />
+      <Stack direction="row" style={{ alignItems: "center" }}>
+        <FormControlLabel
+          control={
+            <Checkbox
+              checked={sslEnable}
+              onChange={(event) => setSslEnable(event.target.checked)}
+            />
+          }
+          label="SSL"
+        />
+        {sslEnable && (
+          <>
+            <FormControlLabel
+              control={
+                <Checkbox
+                  checked={accInvalidCerts}
+                  onChange={(event) => setAccInvalidCerts(event.target.checked)}
+                />
+              }
+              label="accpet invalid certs"
+            />
+            <FormControlLabel
+              control={
+                <Checkbox
+                  checked={accInvalidHosts}
+                  onChange={(event) => setAccINvalidHosts(event.target.checked)}
+                />
+              }
+              label="accpet invalid host names"
+            />
+          </>
+        )}
+      </Stack>
+      {sslEnable && (
+        <Stack direction="row" style={{ alignItems: "center" }}>
+          <SelectPath
+            path={certFile}
+            setPath={setCertFile}
+            label="certificate file"
+            required={false}
+          />
+        </Stack>
+      )}
       {bucket && (
         <DbSchemaCadidates
           name={scope}

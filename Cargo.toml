@@ -43,6 +43,7 @@ redis = { version = "1", features = [
     "tokio-native-tls-comp",
 
 ] }
+tokio-native-tls = "*"
 specta-typescript = "0.0.11"
 csv_processor = "0.1.10"
 csv = "*"

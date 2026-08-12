@@ -396,13 +396,33 @@ pub struct OdbcCommon {
 
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize, specta::Type)]
 pub struct CouchBaseDBConfig {
-    pub conn_str: String,
+    pub host: String,
+    pub port: u16,
     pub username: String,
     pub password: String,
     pub read_only: bool,
     pub bucket: Option<String>,
     pub scope: Option<String>,
     pub conn_timeout: Option<ConnTimeOut>,
+
+    pub ssl_enable: bool,
+    pub danger_accept_invalid_hostnames: Option<bool>,
+    pub danger_accept_invalid_certificates: Option<bool>,
+    pub ca_certificates: Vec<String>,
+}
+
+impl CouchBaseDBConfig {
+    pub(crate) fn conn_str(&self) -> String {
+        // 根据是否启用 SSL 选择协议前缀
+        let protocol = if self.ssl_enable {
+            "couchbases://"
+        } else {
+            "couchbase://"
+        };
+
+        // 构建连接地址: host:port
+        format!("{}{}:{}", protocol, self.host, self.port)
+    }
 }
 
 impl CouchBaseDBConfig {

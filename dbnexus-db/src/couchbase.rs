@@ -1,23 +1,25 @@
 // couchbase only allow use query on schema so we can get scope.
 // docker run -d --name some-couchbase -p 8091-8094:8091-8094 -p 11210:11210 couchbase
+use couchbase::{
+    authenticator::{Authenticator, PasswordAuthenticator},
+    bucket::Bucket,
+    cluster::Cluster,
+    management::buckets::bucket_settings::{BucketSettings, BucketType},
+    options::{
+        cluster_options::{ClusterOptions, TlsOptions},
+        query_options::QueryOptions,
+    },
+    scope::Scope,
+};
+use futures_util::StreamExt;
+use serde::Serialize;
+use serde_json::{ser::PrettyFormatter, Serializer, Value};
 use std::{
     collections::{HashMap, HashSet},
     str::FromStr,
     sync::Arc,
     time::Duration,
 };
-
-use couchbase::{
-    authenticator::{Authenticator, PasswordAuthenticator},
-    bucket::Bucket,
-    cluster::Cluster,
-    management::buckets::bucket_settings::{BucketSettings, BucketType},
-    options::{cluster_options::ClusterOptions, query_options::QueryOptions},
-    scope::Scope,
-};
-use futures_util::StreamExt;
-use serde::Serialize;
-use serde_json::{ser::PrettyFormatter, Serializer, Value};
 use tokio::io::AsyncBufReadExt;
 
 use crate::{
@@ -54,25 +56,32 @@ impl CheckConn for CouchBaseDB {
 
 impl CouchBaseDB {
     pub async fn new(config: CouchBaseDBConfig) -> anyhow::Result<Self> {
-        let cluster = tokio::time::timeout(
-            config
-                .conn_timeout
-                .map(Duration::from)
-                .unwrap_or(Duration::from_secs(60)),
-            async {
-                Cluster::connect(
-                    &config.conn_str,
-                    ClusterOptions::new(Authenticator::PasswordAuthenticator(
-                        PasswordAuthenticator {
-                            username: config.username.clone(),
-                            password: config.password.clone(),
-                        },
-                    )),
-                )
-                .await
+        let mut op = ClusterOptions::new(Authenticator::PasswordAuthenticator(
+            PasswordAuthenticator {
+                username: config.username.clone(),
+                password: config.password.clone(),
             },
-        )
-        .await??;
+        ));
+        if config.ssl_enable {
+            let mut tls = TlsOptions::new();
+            tls.danger_accept_invalid_certs = config.danger_accept_invalid_certificates;
+            tls.danger_accept_invalid_hostnames = config.danger_accept_invalid_hostnames;
+            for file in config.ca_certificates.iter() {
+                tls = tls.add_ca_certificate(
+                    tokio_native_tls::native_tls::Certificate::from_pem(
+                        tokio::fs::read(file).await?.as_slice(),
+                    )
+                    .map_err(|e| {
+                        anyhow::Error::msg(format!(
+                            "'{}' not valid certificate file,err:{}",
+                            file, e
+                        ))
+                    })?,
+                );
+            }
+            op = op.tls_options(tls);
+        }
+        let cluster = Cluster::connect(&config.conn_str(), op).await?;
         anyhow::Ok(Self {
             cluster: Arc::new(cluster),
             config,
@@ -731,13 +740,18 @@ impl CatalogTrait for CouchBaseDB {
 #[cfg(test)]
 async fn make_test_object() -> CouchBaseDB {
     CouchBaseDB::new(CouchBaseDBConfig {
-        conn_str: "couchbase://127.0.0.1".into(),
+        host: "127.0.0.1".into(),
+        port: 11210,
         username: "Administrator".into(),
         password: "test1234".into(),
         read_only: false,
         bucket: Some("test".to_string()),
         scope: Some("xxx".to_string()),
         conn_timeout: Some(4000.into()),
+        ssl_enable: false,
+        danger_accept_invalid_hostnames: None,
+        danger_accept_invalid_certificates: None,
+        ca_certificates: vec![],
     })
     .await
     .unwrap()
@@ -745,8 +759,14 @@ async fn make_test_object() -> CouchBaseDB {
 
 #[cfg(test)]
 mod tests {
+    use std::process::Command;
+
     use super::*;
-    use crate::enable_test_log;
+    use crate::{
+        datasource_config::SSLFiles,
+        enable_test_log,
+        helper::{cert_files_dir, DockerContainerDropper},
+    };
     use couchbase::{
         authenticator::{Authenticator, PasswordAuthenticator},
         cluster::Cluster,
@@ -921,5 +941,131 @@ mod tests {
             .await
             .unwrap();
         println!("resp:{:?}", resp);
+    }
+
+    #[tokio::test]
+    async fn test_ssl_couchbase() {
+        enable_test_log();
+        let port = portpicker::pick_unused_port().unwrap();
+        let port2 = portpicker::pick_unused_port().unwrap();
+        println!("test port:{} port2:{}", port, port2);
+        let cert_dir = cert_files_dir();
+
+        let ca_volume = format!(
+            "{}/ca.crt:/opt/couchbase/var/lib/couchbase/ca.pem",
+            cert_dir
+        );
+        let cert_volume = format!(
+            "{}/server.crt:/opt/couchbase/var/lib/couchbase/chain.pem",
+            cert_dir
+        );
+        let key_volume = format!(
+            "{}/server.key:/opt/couchbase/var/lib/couchbase/pkey.key",
+            cert_dir
+        );
+
+        // 启动容器（不设置环境变量）
+        let output = Command::new("docker")
+            .arg("run")
+            .arg("-d")
+            .args(["--name", "couchbase-ssl-test"])
+            .args(["-p", format!("{}:8091", port).as_str()])
+            .args(["-p", format!("{}:11207", port2).as_str()])
+            .args(["-v", &ca_volume])
+            .args(["-v", &cert_volume])
+            .args(["-v", &key_volume])
+            .arg("couchbase/server")
+            .output()
+            .unwrap();
+
+        let container_id = if output.status.success() {
+            let container_id = String::from_utf8_lossy(&output.stdout).trim().to_string();
+            println!("Couchbase 容器启动成功，ID 为: {}", container_id);
+            container_id
+        } else {
+            let stderr = String::from_utf8_lossy(&output.stderr);
+            eprintln!("启动 Docker 容器失败: {}", stderr);
+            return;
+        };
+        let _guard = DockerContainerDropper::from(&container_id);
+
+        // ===== 等待 Couchbase 启动 =====
+        println!("等待 Couchbase 启动...");
+        tokio::time::sleep(std::time::Duration::from_secs(20)).await;
+
+        // ===== 手动初始化集群（设置密码） =====
+        let init_output = Command::new("docker")
+            .arg("exec")
+            .arg(&container_id)
+            .arg("couchbase-cli")
+            .arg("cluster-init")
+            .arg("-c")
+            .arg("localhost:8091")
+            .arg("--cluster-username=Administrator")
+            .arg("--cluster-password=test1234") // ← 设置密码
+            .arg("--cluster-port=8091")
+            .arg("--services=data,index,query,fts")
+            .output()
+            .unwrap();
+
+        if !init_output.status.success() {
+            eprintln!(
+                "集群初始化失败: {}",
+                String::from_utf8_lossy(&init_output.stderr)
+            );
+            return;
+        }
+        println!("✅ 集群初始化成功，密码已设置为: test1234");
+
+        // ===== 创建 bucket =====
+        let bucket_output = Command::new("docker")
+            .arg("exec")
+            .arg(&container_id)
+            .arg("couchbase-cli")
+            .arg("bucket-create")
+            .arg("-c")
+            .arg(format!("localhost:{}", port))
+            .arg("-u")
+            .arg("Administrator")
+            .arg("-p")
+            .arg("test1234")
+            .arg("--bucket=test")
+            .arg("--bucket-type=couchbase")
+            .arg("--bucket-ramsize=256")
+            .output()
+            .unwrap();
+
+        if !bucket_output.status.success() {
+            eprintln!(
+                "Bucket 创建失败: {}",
+                String::from_utf8_lossy(&bucket_output.stderr)
+            );
+            return;
+        }
+        println!("✅ Bucket 'test' 创建成功");
+
+        tokio::time::sleep(std::time::Duration::from_secs(5)).await;
+
+        println!("trying to connect to server.",);
+
+        let db = CouchBaseDB::new(CouchBaseDBConfig {
+            host: "127.0.0.1".into(),
+            port: port2,
+            username: "Administrator".to_string(),
+            password: "test1234".to_string(), // ← 使用设置好的密码
+            read_only: false,
+            bucket: "test".to_string().into(),
+            scope: None,
+            conn_timeout: Some(8000.into()),
+            ssl_enable: true,
+            danger_accept_invalid_hostnames: Some(true),
+            danger_accept_invalid_certificates: Some(true),
+            ca_certificates: vec![SSLFiles::test_cert().ssl_ca.unwrap()],
+        })
+        .await
+        .unwrap();
+
+        db.check_conn().await.unwrap();
+        println!("✅ 连接测试成功！");
     }
 }

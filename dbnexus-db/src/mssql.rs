@@ -3117,7 +3117,8 @@ END;
         db.test_table_export_and_import(table_name).await;
     }
 
-    #[cfg(target_os = "linux")]
+    // but macos not passed `A host name mismatch has occurred.`
+    // linux可以通过 可能是macos校验 更加严格
     #[tokio::test]
     async fn test_ssl_sqlserver() {
         let port = portpicker::pick_unused_port().unwrap();
