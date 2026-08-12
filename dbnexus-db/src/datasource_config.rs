@@ -335,7 +335,8 @@ pub struct CassandraDBConfig {
     pub password: Option<String>,
     pub db: Option<String>,
     pub read_only: bool,
-    pub ssl: CassandraSsl,
+    pub ssl_enable: bool,
+    pub ssl_ca_file: Option<String>,
     pub conn_timeout: Option<ConnTimeOut>,
     pub dialect: CassandraDialect,
 }
@@ -344,12 +345,6 @@ pub struct CassandraDBConfig {
 pub enum CassandraDialect {
     Cassandra,
     Scylla,
-}
-
-#[derive(Debug, Clone, serde::Deserialize, serde::Serialize, specta::Type)]
-pub struct CassandraSsl {
-    #[serde(flatten)]
-    pub ssl_files: SSLFiles,
 }
 
 impl CassandraDBConfig {

@@ -2273,4 +2273,20 @@ mod tests {
         let x = db.parse_type("Array(Tuple(Int32, String))").unwrap();
         println!("{:?}", x);
     }
+
+    #[tokio::test]
+    async fn test_ssl() {
+        let db = ClickHouseDB::new(ClickHouseConfig {
+            conn_timeout: Some(5000.into()),
+            host: "127.0.0.1".to_string(),
+            port: 8123,
+            read_only: false,
+            db: Some("default".to_string()),
+            username: "default".to_string(),
+            password: Some("root".to_string()),
+            https: true,
+        })
+        .unwrap();
+        db.check_conn().await.unwrap();
+    }
 }

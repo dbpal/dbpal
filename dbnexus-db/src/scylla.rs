@@ -19,10 +19,7 @@ drop udf error:Sql:DROP FUNCTION "test_udf"(list<int>)  Err:Database returned an
 
 #[cfg(test)]
 pub(crate) async fn make_test_object(db: Option<String>) -> CassandraDB {
-    use crate::{
-        datasource_config::{CassandraSsl, SSLFiles},
-        TEST_HOST,
-    };
+    use crate::TEST_HOST;
     let ss = CassandraDB::new(CassandraDBConfig {
         host: TEST_HOST.to_string(),
         port: 9043,
@@ -32,13 +29,8 @@ pub(crate) async fn make_test_object(db: Option<String>) -> CassandraDB {
         dialect: CassandraDialect::Scylla,
         db,
         conn_timeout: None,
-        ssl: CassandraSsl {
-            ssl_files: SSLFiles {
-                ssl_ca: None,
-                ssl_cert: None,
-                ssl_key: None,
-            },
-        },
+        ssl_ca_file: None,
+        ssl_enable: false,
     })
     .await
     .unwrap();

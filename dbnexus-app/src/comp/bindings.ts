@@ -180,14 +180,13 @@ export type CassandraDBConfig = {
 	password: string | null,
 	db: string | null,
 	read_only: boolean,
-	ssl: CassandraSsl,
+	ssl_enable: boolean,
+	ssl_ca_file: string | null,
 	conn_timeout: ConnTimeOut | null,
 	dialect: CassandraDialect,
 };
 
 export type CassandraDialect = "Cassandra" | "Scylla";
-
-export type CassandraSsl = (SSLFiles);
 
 export type ChatHistory = {
 	role: string,

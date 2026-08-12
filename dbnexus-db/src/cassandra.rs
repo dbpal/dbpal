@@ -55,6 +55,7 @@ use scylla::client::session::Session;
 use scylla::client::session_builder::SessionBuilder;
 use scylla::policies::address_translator::{AddressTranslator, UntranslatedPeer};
 use scylla::value::{CqlDecimal, CqlValue, CqlVarint, Row};
+use scylla_openssl::ssl::SslMethod;
 use sqlx::types::BigDecimal;
 use std::collections::HashMap;
 
@@ -104,6 +105,14 @@ async fn make_session(config: &CassandraDBConfig) -> anyhow::Result<Session> {
             user.clone(),
             pass.clone(),
         )) as Arc<dyn AuthenticatorProvider>);
+    }
+
+    if config.ssl_enable {
+        let mut tls_builder = scylla_openssl::ssl::SslContextBuilder::new(SslMethod::tls_client())?;
+        if let Some(f) = &config.ssl_ca_file {
+            tls_builder.set_ca_file(f)?;
+        }
+        builder = builder.tls_context(tls_builder.build().into());
     }
 
     builder = builder.address_translator(Arc::new(LocalhostTranslator { fixed_addr }));
@@ -1355,10 +1364,7 @@ impl CassandraDB {
 // cqlsh -u cassandra -p  cassandra
 #[cfg(test)]
 pub(crate) async fn make_test_object(db: Option<String>) -> CassandraDB {
-    use crate::{
-        datasource_config::{CassandraSsl, SSLFiles},
-        TEST_HOST,
-    };
+    use crate::TEST_HOST;
     let ss = CassandraDB::new(CassandraDBConfig {
         host: TEST_HOST.to_string(),
         port: 9042,
@@ -1368,14 +1374,8 @@ pub(crate) async fn make_test_object(db: Option<String>) -> CassandraDB {
         db,
         dialect: CassandraDialect::Cassandra,
         conn_timeout: None,
-
-        ssl: CassandraSsl {
-            ssl_files: SSLFiles {
-                ssl_ca: None,
-                ssl_cert: None,
-                ssl_key: None,
-            },
-        },
+        ssl_ca_file: None,
+        ssl_enable: false,
     })
     .await
     .unwrap();
@@ -2460,6 +2460,7 @@ pub(crate) mod test_impls {
 
 #[cfg(test)]
 mod tests {
+
     use super::test_impls;
     use super::*;
 

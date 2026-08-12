@@ -1056,7 +1056,8 @@ function Cassandra(props: {
   const [savePassword, setSavePassword] = useState(getSavePassword(config));
   const [database, setDatabase] = useState("");
   const { connTimeOut, connectionName, readOnly, makeConfigRef } = context;
-
+  const [enableSSL, setEnableSSL] = useState(!!config?.ssl_enable);
+  const [caFile, setCaFile] = useState("");
   function makeConfig(): DBConnectionConfig {
     return {
       conn_type: "cassandra",
@@ -1070,7 +1071,8 @@ function Cassandra(props: {
       conn_timeout: connTimeOut,
       port: parseInt(port),
       dialect,
-      ssl: { ssl_ca: null, ssl_cert: null, ssl_key: null },
+      ssl_enable: enableSSL,
+      ssl_ca_file: caFile ? caFile : null,
     };
   }
   makeConfigRef.current = makeConfig;
@@ -1085,6 +1087,26 @@ function Cassandra(props: {
         savePassword={savePassword}
         setSavePassword={setSavePassword}
       />
+      <Stack direction="row" style={{ alignItems: "center" }}>
+        <FormControlLabel
+          style={{ width: "180px" }}
+          control={
+            <Checkbox
+              checked={enableSSL}
+              onChange={(e) => setEnableSSL(e.target.checked)}
+            />
+          }
+          label="Enable SSL"
+        />
+        {enableSSL && (
+          <SelectPath
+            path={caFile}
+            setPath={setCaFile}
+            required={false}
+            label="ca file "
+          />
+        )}
+      </Stack>
       <DbSchemaCadidates
         name={database}
         setName={setDatabase}
