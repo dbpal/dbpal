@@ -981,6 +981,8 @@ function MongoDb(props: { config?: MongoDBConfig; context: AddConnectionContext 
   const [database, setDatabase] = useState(getDB(config));
   const [enableSSL, setEnableSSL] = useState(false);
   const { connTimeOut, connectionName, readOnly, makeConfigRef } = context;
+  const [accInvalidHosts, setAccInvalidHosts] = useState(false);
+  const [accInvalidCerts, setAccInvalidCerts] = useState(false);
 
   function makeConfig(): DBConnectionConfig {
     return {
@@ -995,6 +997,8 @@ function MongoDb(props: { config?: MongoDBConfig; context: AddConnectionContext 
       save_password: savePassword,
       ssl_enable: enableSSL,
       db: database ? database : null,
+      allow_invalid_certificates: accInvalidCerts,
+      allow_invalid_hostnames: accInvalidHosts,
     };
   }
   makeConfigRef.current = makeConfig;
@@ -1026,6 +1030,14 @@ function MongoDb(props: { config?: MongoDBConfig; context: AddConnectionContext 
           }
           label="Enable SSL"
         />
+        {enableSSL && (
+          <AccInvalidHostNameAndCerts
+            accInvalidCerts={accInvalidCerts}
+            setAccInvalidHosts={setAccInvalidHosts}
+            accInvalidHosts={accInvalidHosts}
+            setAccInvalidCerts={setAccInvalidCerts}
+          />
+        )}
       </Stack>
     </Stack>
   );
@@ -1602,6 +1614,36 @@ function Db2(props: { config?: Db2Config; context: AddConnectionContext }) {
   );
 }
 
+function AccInvalidHostNameAndCerts({
+  accInvalidCerts,
+  setAccInvalidCerts,
+  accInvalidHosts,
+  setAccInvalidHosts,
+}) {
+  return (
+    <>
+      <FormControlLabel
+        control={
+          <Checkbox
+            checked={accInvalidCerts}
+            onChange={(event) => setAccInvalidCerts(event.target.checked)}
+          />
+        }
+        label="accpet invalid certs"
+      />
+      <FormControlLabel
+        control={
+          <Checkbox
+            checked={accInvalidHosts}
+            onChange={(event) => setAccInvalidHosts(event.target.checked)}
+          />
+        }
+        label="accpet invalid host names"
+      />
+    </>
+  );
+}
+
 function CouchBase(props: {
   config?: CouchBaseDBConfig;
   context: AddConnectionContext;
@@ -1623,7 +1665,7 @@ function CouchBase(props: {
   const { connTimeOut, connectionName, readOnly, makeConfigRef } = context;
   const [savePassword, setSavePassword] = useState(getSavePassword(config));
   const [sslEnable, setSslEnable] = useState(false);
-  const [accInvalidHosts, setAccINvalidHosts] = useState(false);
+  const [accInvalidHosts, setAccInvalidHosts] = useState(false);
   const [accInvalidCerts, setAccInvalidCerts] = useState(false);
   const [certFile, setCertFile] = useState("");
 
@@ -1684,26 +1726,12 @@ function CouchBase(props: {
           label="SSL"
         />
         {sslEnable && (
-          <>
-            <FormControlLabel
-              control={
-                <Checkbox
-                  checked={accInvalidCerts}
-                  onChange={(event) => setAccInvalidCerts(event.target.checked)}
-                />
-              }
-              label="accpet invalid certs"
-            />
-            <FormControlLabel
-              control={
-                <Checkbox
-                  checked={accInvalidHosts}
-                  onChange={(event) => setAccINvalidHosts(event.target.checked)}
-                />
-              }
-              label="accpet invalid host names"
-            />
-          </>
+          <AccInvalidHostNameAndCerts
+            accInvalidCerts={accInvalidCerts}
+            setAccInvalidHosts={setAccInvalidHosts}
+            accInvalidHosts={accInvalidHosts}
+            setAccInvalidCerts={setAccInvalidCerts}
+          />
         )}
       </Stack>
       {sslEnable && (

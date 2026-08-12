@@ -393,6 +393,8 @@ export type MongoDBConfig = {
 	db: string | null,
 	read_only: boolean,
 	ssl_enable: boolean,
+	allow_invalid_hostnames: boolean | null,
+	allow_invalid_certificates: boolean | null,
 };
 
 export type MongoFindParameter = {

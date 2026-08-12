@@ -10,6 +10,8 @@ pub struct MongoDBConfig {
     pub db: Option<String>,
     pub read_only: bool,
     pub ssl_enable: bool,
+    pub allow_invalid_hostnames: Option<bool>,
+    pub allow_invalid_certificates: Option<bool>,
 }
 
 #[derive(Debug, Clone, serde::Deserialize, serde::Serialize, specta::Type)]

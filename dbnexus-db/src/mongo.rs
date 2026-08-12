@@ -51,7 +51,9 @@ impl MongoDB {
             opts.credential = Some(x);
         }
         if config.ssl_enable {
-            let tls_option = TlsOptions::default();
+            let mut tls_option = TlsOptions::default();
+            tls_option.allow_invalid_certificates = config.allow_invalid_certificates;
+            tls_option.allow_invalid_hostnames = config.allow_invalid_hostnames;
             opts.tls = Some(Tls::Enabled(tls_option));
         }
         let client = mongodb::Client::with_options(opts)?;
@@ -843,10 +845,11 @@ pub fn make_test_object() -> MongoDB {
         password: None,
         db: Some("test".to_string()),
         read_only: false,
-
+        allow_invalid_certificates: None,
+        allow_invalid_hostnames: None,
         ssl_enable: Default::default(),
     });
-    x.expect("shoud make test object ok")
+    x.expect("should make test object ok")
 }
 
 #[cfg(test)]
@@ -857,7 +860,7 @@ mod tests {
     use crate::db::{CheckConn, DBTrait, SchemaTrait, ServerMetas};
     use crate::helper::{cert_files_dir, DockerContainerDropper};
     use crate::mongo::{MongoDB, MongoShowTablePara};
-    use crate::TEST_HOST;
+    use crate::{enable_test_log, TEST_HOST};
     use bson::oid::ObjectId;
     use bson::spec::BinarySubtype;
     use bson::{doc, Binary, Bson, DateTime, Decimal128, Document, Regex, Timestamp, Uuid};
@@ -1280,6 +1283,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_mongodb_auth() {
+        enable_test_log();
         let port = portpicker::pick_unused_port().unwrap();
         println!("test port:{}", port);
         let cert_dir = cert_files_dir();
@@ -1352,9 +1356,139 @@ db.createUser({
                 db: Some("testdb".to_string()),
                 read_only: false,
                 ssl_enable: false,
+                allow_invalid_hostnames: None,
+                allow_invalid_certificates: None,
             })
             .unwrap();
             db.check_conn().await.unwrap();
+        }
+    }
+
+    #[tokio::test]
+
+    async fn test_ssl() {
+        let port = portpicker::pick_unused_port().unwrap();
+        println!("test port:{}", port);
+        let cert_dir = cert_files_dir();
+
+        // 1. 创建 MongoDB 初始化脚本（创建用户和数据库）
+        let init_script_content = r#"
+// 切换到 admin 数据库并创建管理员用户
+db = db.getSiblingDB('admin');
+db.createUser({
+    user: "testuser",
+    pwd: "testpass",
+    roles: [
+        { role: "root", db: "admin" }
+    ]
+});
+
+// 切换到 testdb 数据库并创建用户
+db = db.getSiblingDB('testdb');
+db.createUser({
+    user: "testuser",
+    pwd: "testpass",
+    roles: [
+        { role: "readWrite", db: "testdb" }
+    ]
+});
+"#;
+
+        let init_script_path = format!("{}/init-mongo.js", cert_dir);
+        std::fs::write(&init_script_path, init_script_content).unwrap();
+        let init_volume = format!("{}:/docker-entrypoint-initdb.d/init.js", init_script_path);
+
+        // 2. 证书文件路径（假设证书已经在 cert_dir 中）
+        let ca_cert_path = format!("{}/ca.crt", cert_dir);
+        let server_cert_path = format!("{}/server.crt", cert_dir);
+        let server_key_path = format!("{}/server.key", cert_dir);
+
+        // 检查证书文件是否存在
+        if !std::path::Path::new(&ca_cert_path).exists() {
+            eprintln!("错误: CA 证书文件不存在: {}", ca_cert_path);
+            return;
+        }
+        if !std::path::Path::new(&server_cert_path).exists() {
+            eprintln!("错误: 服务器证书文件不存在: {}", server_cert_path);
+            return;
+        }
+        if !std::path::Path::new(&server_key_path).exists() {
+            eprintln!("错误: 服务器私钥文件不存在: {}", server_key_path);
+            return;
+        }
+
+        // 3. 合并证书和私钥为 PEM 格式（MongoDB 需要）
+        let mongodb_pem_path = format!("{}/mongodb.pem", cert_dir);
+
+        // 如果 mongodb.pem 已经存在，可以选择跳过生成或覆盖
+        if !std::path::Path::new(&mongodb_pem_path).exists() {
+            let cert_content =
+                std::fs::read_to_string(&server_cert_path).expect("读取服务器证书失败");
+            let key_content =
+                std::fs::read_to_string(&server_key_path).expect("读取服务器私钥失败");
+            let pem_content = format!("{}{}", cert_content, key_content);
+            std::fs::write(&mongodb_pem_path, pem_content).expect("写入 mongodb.pem 失败");
+            println!("已生成 mongodb.pem 文件");
+        } else {
+            println!("mongodb.pem 已存在，使用现有文件");
+        }
+
+        // 4. 启动 MongoDB 容器（启用 TLS）
+        // 使用卷挂载证书文件
+        let cert_volume = format!("{}:/etc/ssl/mongodb.pem", mongodb_pem_path);
+        let ca_volume = format!("{}:/etc/ssl/ca.crt", ca_cert_path);
+
+        let output = Command::new("docker")
+            .arg("run")
+            .arg("-d")
+            .args(["--name", "mongodb-auth-test"])
+            .args(["-p", format!("{}:27017", port).as_str()])
+            .args(["-v", &init_volume])
+            .args(["-v", &cert_volume])
+            .args(["-v", &ca_volume])
+            .arg("mongo")
+            // 启用认证
+            .args(["--auth"])
+            // 绑定到所有接口
+            .args(["--bind_ip_all"])
+            // 启用 TLS 相关配置
+            .args(["--tlsMode", "requireTLS"])
+            .args(["--tlsCertificateKeyFile", "/etc/ssl/mongodb.pem"])
+            .args(["--tlsCAFile", "/etc/ssl/ca.crt"])
+            .args(["--tlsAllowConnectionsWithoutCertificates"]) // 允许客户端不提供证书（仅服务器认证）
+            .output()
+            .unwrap();
+
+        let container_id = if output.status.success() {
+            let container_id = String::from_utf8_lossy(&output.stdout).trim().to_string();
+            println!("MongoDB 容器启动成功，ID 为: {}", container_id);
+            container_id
+        } else {
+            let stderr = String::from_utf8_lossy(&output.stderr);
+            eprintln!("启动 Docker 容器失败: {}", stderr);
+            return;
+        };
+        let _gurad = DockerContainerDropper::from(&container_id);
+        // 5. 等待 MongoDB 完全启动
+        std::thread::sleep(std::time::Duration::from_secs(5));
+
+        let config = MongoDBConfig {
+            host: "localhost".to_owned(),
+            port,
+            username: "testuser".to_string().into(),
+            password: "testpass".to_string().into(),
+            conn_timeout: Some(4000.into()),
+            db: Some("testdb".to_string()),
+            read_only: false,
+            ssl_enable: true,
+            allow_invalid_hostnames: Some(true),
+            allow_invalid_certificates: Some(true),
+        };
+
+        {
+            let db = MongoDB::new(config.clone()).unwrap();
+            db.check_conn().await.unwrap();
+            println!("test without cert file success.");
         }
     }
 }
