@@ -55,7 +55,7 @@ use scylla::client::session::Session;
 use scylla::client::session_builder::SessionBuilder;
 use scylla::policies::address_translator::{AddressTranslator, UntranslatedPeer};
 use scylla::value::{CqlDecimal, CqlValue, CqlVarint, Row};
-use scylla_openssl::ssl::SslMethod;
+use scylla_openssl::ssl::{SslContextBuilder, SslMethod};
 use sqlx::types::BigDecimal;
 use std::collections::HashMap;
 
@@ -108,7 +108,7 @@ async fn make_session(config: &CassandraDBConfig) -> anyhow::Result<Session> {
     }
 
     if config.ssl_enable {
-        let mut tls_builder = scylla_openssl::ssl::SslContextBuilder::new(SslMethod::tls_client())?;
+        let mut tls_builder = SslContextBuilder::new(SslMethod::tls_client())?;
         if let Some(f) = &config.ssl_ca_file {
             tls_builder.set_ca_file(f)?;
         }
