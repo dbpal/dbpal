@@ -1422,6 +1422,13 @@ db.createUser({
 
         // 如果 mongodb.pem 已经存在，可以选择跳过生成或覆盖
         if !std::path::Path::new(&mongodb_pem_path).exists() {
+            /*
+            MongoDB 要求合并文件是因为 MongoDB 的 TLS/SSL 配置只接受单个 PEM 文件，而不是分开的证书和私钥文件。
+
+            为什么需要合并？
+            MongoDB 的设计
+            MongoDB 的 tlsCertificateKeyFile 配置项（对应 Rust 驱动的 cert_key_file_path）期望一个单一的 PEM 文件，同时包含：
+                         */
             let cert_content =
                 std::fs::read_to_string(&server_cert_path).expect("读取服务器证书失败");
             let key_content =
