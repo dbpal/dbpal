@@ -117,6 +117,9 @@ impl ServerMetas for CouchBaseDB {
 #[async_trait::async_trait]
 
 impl QuerySql for CouchBaseDB {
+    fn support_tx(&self) -> bool {
+        false
+    }
     async fn query_sql(
         &self,
         _query_id: &str,
@@ -145,19 +148,20 @@ impl QuerySql for CouchBaseDB {
         _query_id: &str,
         _sql: &str,
     ) -> anyhow::Result<Result<crate::db::QueryResp, String>> {
-        self.backend_kind().not_support_feature()
+        self.backend_kind().not_support_feature("execute sql")
     }
 
     async fn simple_execute_sql(&self, _sql: &str) -> anyhow::Result<Option<usize>> {
-        self.backend_kind().not_support_feature()
+        self.backend_kind()
+            .not_support_feature("simple execute sql")
     }
 
     async fn open_connection(&self, _id: &str) -> anyhow::Result<()> {
-        self.backend_kind().not_support_feature()
+        self.backend_kind().not_support_feature("open connetion")
     }
 
     async fn close_connection(&self, _id: &str) -> anyhow::Result<()> {
-        self.backend_kind().not_support_feature()
+        self.backend_kind().not_support_feature("close connection")
     }
 }
 
@@ -548,7 +552,7 @@ impl SqlBuilder for CouchBaseDB {
     }
 
     fn put_value_in_sql(&self, _typ: &str, _value: &str) -> anyhow::Result<String> {
-        self.backend_kind().not_support_feature()
+        self.backend_kind().not_support_feature("put value in sql")
     }
 
     fn gen_show_sql(

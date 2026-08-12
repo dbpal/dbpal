@@ -589,7 +589,7 @@ impl SchemaTrait for MysqlDB {
             BackendKindMysql::Mariadb => {
                 self.mariadb_list_sequences(self.config.schema_str()).await
             }
-            _ => self.backend_kind().not_support_feature(),
+            _ => self.backend_kind().not_support_feature("list sequence"),
         }
     }
     async fn rename_sequence(&self, old: &str, new: &str) -> anyhow::Result<String> {
@@ -599,7 +599,7 @@ impl SchemaTrait for MysqlDB {
                 self.simple_execute_sql(&sql).await?;
                 anyhow::Ok(sql)
             }
-            _ => self.backend_kind().not_support_feature(),
+            _ => self.backend_kind().not_support_feature("rename sequence"),
         }
     }
 
@@ -610,7 +610,7 @@ impl SchemaTrait for MysqlDB {
                 self.simple_execute_sql(&sql).await?;
                 anyhow::Ok(sql)
             }
-            _ => self.backend_kind().not_support_feature(),
+            _ => self.backend_kind().not_support_feature("drop sequence"),
         }
     }
 
@@ -1219,11 +1219,13 @@ impl SchemaTrait for MysqlDB {
     }
 
     async fn list_materialized_view(&self) -> anyhow::Result<Vec<ListTable>> {
-        self.backend_kind().not_support_feature()
+        self.backend_kind()
+            .not_support_feature("list materialized view")
     }
 
     async fn drop_materialized_view(&self, _name: &str) -> anyhow::Result<Option<String>> {
-        self.backend_kind().not_support_feature()
+        self.backend_kind()
+            .not_support_feature("drop materialized view")
     }
 
     async fn table_exists(&self, table: &str) -> anyhow::Result<bool> {
@@ -1236,11 +1238,11 @@ impl SchemaTrait for MysqlDB {
     }
 
     async fn list_created_types(&self) -> anyhow::Result<Vec<crate::db::CreatedTypeDef>> {
-        self.backend_kind().not_support_feature()
+        self.backend_kind().not_support_feature("list created type")
     }
 
     async fn drop_created_type(&self, _name: &str) -> anyhow::Result<String> {
-        self.backend_kind().not_support_feature()
+        self.backend_kind().not_support_feature("drop create type")
     }
 }
 
@@ -1585,6 +1587,9 @@ impl ExportQueryResult for MysqlDB {
 
 #[async_trait::async_trait]
 impl QuerySql for MysqlDB {
+    fn support_tx(&self) -> bool {
+        true
+    }
     async fn get_auto_commit(&self, query_id: &str) -> anyhow::Result<bool> {
         use sqlx_core::any::AnyConnectionBackend;
         let conn = self.query_connection.get(&query_id.to_string());
@@ -2696,7 +2701,7 @@ mod tests {
             port: 3306,
             db: Some("test".to_string()),
             read_only: false,
-            ssl: Default::default(),
+            ssl: SslFilesWithStrModel::mysql_default(),
         }
     }
 

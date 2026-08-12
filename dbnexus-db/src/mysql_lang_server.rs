@@ -891,7 +891,7 @@ pub const MYSQL_FUNCTIONS: &[&str] = &[
 mod tests {
     use std::path::Path;
 
-    use crate::datasource_config::MysqlDBConfig;
+    use crate::datasource_config::{MysqlDBConfig, SslFilesWithStrModel};
     use crate::db::{BackendKindMysql, QuerySql, SchemaTrait};
     use crate::language_server::completion_test::test_file_auto_completion;
     use crate::language_server::LanguageServer;
@@ -911,8 +911,7 @@ mod tests {
             port: 3306,
             db: Some("test".to_string()),
             read_only: false,
-
-            ssl: Default::default(),
+            ssl: SslFilesWithStrModel::mysql_default(),
         }
     }
 

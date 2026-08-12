@@ -700,7 +700,7 @@ pub const TIDB_KEYWORDS: &[&str] = &[
 
 #[cfg(test)]
 mod tests {
-    use crate::datasource_config::MysqlDBConfig;
+    use crate::datasource_config::{MysqlDBConfig, SslFilesWithStrModel};
     use crate::mysql::test_fns::{self, make_test_object};
     use crate::TEST_HOST;
 
@@ -714,7 +714,7 @@ mod tests {
             port: 4000,
             db: Some("test".to_string()),
             read_only: false,
-            ssl: Default::default(),
+            ssl: SslFilesWithStrModel::mysql_default(),
         }
     }
 

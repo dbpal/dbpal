@@ -1,5 +1,6 @@
 #[cfg(test)]
 use crate::datasource_config::MysqlDBConfig;
+use crate::datasource_config::SslFilesWithStrModel;
 #[cfg(test)]
 use crate::db::BackendKindMysql;
 use crate::db::SequenceDetail;
@@ -342,7 +343,17 @@ pub(crate) fn make_config() -> MysqlDBConfig {
         port: 3307,
         db: Some("test".to_string()),
         read_only: false,
-        ssl: Default::default(),
+        ssl: SslFilesWithStrModel::mysql_default(),
+    }
+}
+
+impl SslFilesWithStrModel {
+    #[cfg(test)]
+    pub(crate) fn mysql_default() -> Self {
+        Self {
+            ssl_mode: "disabled".to_owned(),
+            ssl_files: Default::default(),
+        }
     }
 }
 

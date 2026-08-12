@@ -156,6 +156,9 @@ impl ExportQueryResult for LibSqlDB {
 #[async_trait::async_trait]
 
 impl QuerySql for LibSqlDB {
+    fn support_tx(&self) -> bool {
+        true
+    }
     async fn get_auto_commit(&self, query_id: &str) -> anyhow::Result<bool> {
         anyhow::Ok(!self.query_tx.contains_key(&query_id.to_string()))
     }

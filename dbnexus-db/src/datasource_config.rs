@@ -265,7 +265,7 @@ pub struct PGDBConfig {
     pub conn_timeout: Option<ConnTimeOut>,
 }
 
-#[derive(Debug, Clone, serde::Deserialize, serde::Serialize, Default, specta::Type)]
+#[derive(Debug, Clone, serde::Deserialize, serde::Serialize, specta::Type)]
 pub struct SslFilesWithStrModel {
     pub ssl_mode: String,
     #[serde(flatten)]

@@ -326,7 +326,8 @@ impl SchemaTrait for SqliteDB {
         _new_name: &str,
         _typ: Option<ColumnType>,
     ) -> anyhow::Result<String> {
-        self.backend_kind().not_support_feature()
+        self.backend_kind()
+            .not_support_feature("modify table column")
     }
 
     async fn add_table_column(
@@ -1192,6 +1193,9 @@ impl SqliteDB {
 
 #[async_trait::async_trait]
 impl QuerySql for SqliteDB {
+    fn support_tx(&self) -> bool {
+        true
+    }
     async fn get_auto_commit(&self, query_id: &str) -> anyhow::Result<bool> {
         use sqlx_core::any::AnyConnectionBackend;
 

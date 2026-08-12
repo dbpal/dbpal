@@ -11,7 +11,7 @@ use std::sync::Arc;
 use std::time::Duration;
 use tokio::sync::Mutex;
 
-use crate::datasource_config::PGDBConfig;
+use crate::datasource_config::{PGDBConfig, SslFilesWithStrModel};
 use crate::db::{
     create_html_table_data, create_html_table_header, create_markdown_data, create_markdown_header,
     export_query_as_xlsx_send_data, AutoCompletionQueryId, BackendKind, BackendKindPostGres,
@@ -1582,6 +1582,9 @@ impl ExportQueryResult for PostGresDB {
 
 #[async_trait::async_trait]
 impl QuerySql for PostGresDB {
+    fn support_tx(&self) -> bool {
+        true
+    }
     async fn get_auto_commit(&self, query_id: &str) -> anyhow::Result<bool> {
         use sqlx_core::any::AnyConnectionBackend;
 
@@ -1842,8 +1845,19 @@ impl CatalogTrait for PostGresDB {
     }
 }
 
+impl SslFilesWithStrModel {
+    #[cfg(test)]
+    pub(crate) fn pg_default() -> Self {
+        SslFilesWithStrModel {
+            ssl_mode: "disable".into(),
+            ssl_files: crate::datasource_config::SSLFiles::default(),
+        }
+    }
+}
+
 #[cfg(test)]
 pub(crate) async fn make_test_object() -> PostGresDB {
+    use crate::datasource_config::SslFilesWithStrModel;
     let pg = PostGresDB::new(
         PGDBConfig {
             host: crate::TEST_HOST.to_string(),
@@ -1853,7 +1867,7 @@ pub(crate) async fn make_test_object() -> PostGresDB {
             db: Some("test".into()),
             schema: Some("xxx".to_string()),
             read_only: false,
-            ssl: Default::default(),
+            ssl: SslFilesWithStrModel::pg_default(),
             conn_timeout: Some(5000.into()),
         },
         BackendKindPostGres::PostGres,
@@ -2053,7 +2067,7 @@ mod tests {
                 db: Some("test".into()),
                 schema: Some("xxx".to_string()),
                 read_only: true,
-                ssl: Default::default(),
+                ssl: SslFilesWithStrModel::pg_default(),
                 conn_timeout: Some(5000.into()),
             },
             BackendKindPostGres::PostGres,

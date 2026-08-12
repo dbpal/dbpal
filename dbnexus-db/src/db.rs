@@ -399,10 +399,10 @@ pub trait SchemaTrait:
     }
 
     async fn list_view(&self) -> anyhow::Result<Vec<ListTable>> {
-        self.backend_kind().not_support_feature()
+        self.backend_kind().not_support_feature("list view")
     }
     async fn drop_view(&self, _view_name: &str) -> anyhow::Result<String> {
-        self.backend_kind().not_support_feature()
+        self.backend_kind().not_support_feature("drop view")
     }
     async fn drop_table(&self, table: &str, cascade: bool) -> anyhow::Result<Option<String>>;
 
@@ -411,7 +411,7 @@ pub trait SchemaTrait:
     async fn list_data_types(&self) -> anyhow::Result<Vec<String>>;
 
     async fn drop_table_column(&self, _table: &str, _col: &str) -> anyhow::Result<String> {
-        self.backend_kind().not_support_feature()
+        self.backend_kind().not_support_feature("drop table column")
     }
     async fn modify_table_column(
         &self,
@@ -420,7 +420,8 @@ pub trait SchemaTrait:
         _new_name: &str,
         _typ: Option<ColumnType>,
     ) -> anyhow::Result<String> {
-        self.backend_kind().not_support_feature()
+        self.backend_kind()
+            .not_support_feature("modify table column")
     }
 
     async fn table_import_data_from_file(
@@ -583,11 +584,9 @@ pub trait SchemaTrait:
                 db: Some(SchemaTrait::clone(this.as_ref())),
                 query_id: query_id.clone(),
             };
-            let _err_set_commit = this.set_auto_commit(&query_id, false).await;
-            if let Err(err) = _err_set_commit {
-                log::error!("set auto commit false failed:{}", err);
+            if this.support_tx() {
+                this.set_auto_commit(&query_id, false).await?;
             }
-
             while let Some(record) = receiver.recv().await {
                 // build the sql
                 let sql = SqlBuilder::insert_sql(this.as_ref(), &table, &cols, &record)?;
@@ -595,11 +594,13 @@ pub trait SchemaTrait:
                 match this.execute_sql(&query_id, &sql).await? {
                     Ok(_) => {}
                     Err(insert_err) => {
-                        this.rollback(&query_id).await.map_err(|err| {
-                            anyhow::Error::msg(format!(
-                                "execute sql failed,sql{sql} err:{insert_err} rollback:{err} "
-                            ))
-                        })?;
+                        if this.support_tx() {
+                            this.rollback(&query_id).await.map_err(|err| {
+                                anyhow::Error::msg(format!(
+                                    "execute sql failed,sql{sql} err:{insert_err} rollback:{err} "
+                                ))
+                            })?;
+                        }
                         return Err(anyhow::Error::msg(format!(
                             "execute sql failed,sql{sql} err:{insert_err},rollback success"
                         )));
@@ -607,8 +608,10 @@ pub trait SchemaTrait:
                 }
             }
             // then commit
-            this.commit(&query_id).await?;
 
+            if this.support_tx() {
+                this.commit(&query_id).await?;
+            }
             anyhow::Ok(())
         });
         let (res1, res2) = tokio::join!(task_read, task_write);
@@ -624,7 +627,7 @@ pub trait SchemaTrait:
         _name: &str,
         _col: ColumnType,
     ) -> anyhow::Result<String> {
-        self.backend_kind().not_support_feature()
+        self.backend_kind().not_support_feature("add table column")
     }
 
     async fn rename_index(
@@ -633,27 +636,29 @@ pub trait SchemaTrait:
         _oldname: &str,
         _newname: &str,
     ) -> anyhow::Result<Option<String>> {
-        self.backend_kind().not_support_feature()
+        self.backend_kind().not_support_feature("rename index")
     }
 
     async fn show_indexes(&self, _table_name: &str) -> anyhow::Result<Vec<Index>> {
-        self.backend_kind().not_support_feature()
+        self.backend_kind().not_support_feature("show indexes")
     }
 
     async fn create_index(&self, _table: &str, _: &CreateIndexReq) -> anyhow::Result<String> {
-        self.backend_kind().not_support_feature()
+        self.backend_kind().not_support_feature("create index")
     }
 
     async fn drop_index(&self, _table_name: &str, _index: &str) -> anyhow::Result<Option<String>> {
-        self.backend_kind().not_support_feature()
+        self.backend_kind().not_support_feature("drop index")
     }
 
     async fn list_materialized_view(&self) -> anyhow::Result<Vec<ListTable>> {
-        self.backend_kind().not_support_feature()
+        self.backend_kind()
+            .not_support_feature("list materialized view")
     }
 
     async fn drop_materialized_view(&self, _name: &str) -> anyhow::Result<Option<String>> {
-        self.backend_kind().not_support_feature()
+        self.backend_kind()
+            .not_support_feature("drop materialized view")
     }
 
     async fn export_table_or_view(
@@ -663,7 +668,8 @@ pub trait SchemaTrait:
         _kind: ExportKind,
         _sender: tokio::sync::mpsc::Sender<ExportFrame>,
     ) -> anyhow::Result<()> {
-        self.backend_kind().not_support_feature()
+        self.backend_kind()
+            .not_support_feature("export table or view")
     }
 
     async fn show_view(
@@ -672,7 +678,7 @@ pub trait SchemaTrait:
         _para: ShowTableParameter,
         _: QueryEventEmitter,
     ) -> anyhow::Result<()> {
-        self.backend_kind().not_support_feature()
+        self.backend_kind().not_support_feature("show view")
     }
 
     async fn show_view_columns(&self, view_name: &str) -> anyhow::Result<Vec<Field>> {
@@ -733,21 +739,21 @@ pub trait SchemaTrait:
         &self,
         _table_name: &str,
     ) -> anyhow::Result<CreateTableAndIndexSql> {
-        self.backend_kind().not_support_feature()
+        self.backend_kind().not_support_feature("show create sql")
     }
 
     async fn show_view_sql(&self, _view_name: &str, _materialized: bool) -> anyhow::Result<String> {
-        self.backend_kind().not_support_feature()
+        self.backend_kind().not_support_feature("show view sql")
     }
 
     async fn list_trigger(&self, _table_name: &str) -> anyhow::Result<Vec<NamedStaff>> {
-        self.backend_kind().not_support_feature()
+        self.backend_kind().not_support_feature("list trigger")
     }
     async fn show_trigger(&self, _table: &str, _name: &str) -> anyhow::Result<TriggerDetail> {
-        self.backend_kind().not_support_feature()
+        self.backend_kind().not_support_feature("show trigger")
     }
     async fn drop_trigger(&self, _table: &str, _name: &str) -> anyhow::Result<String> {
-        self.backend_kind().not_support_feature()
+        self.backend_kind().not_support_feature("drop trigger")
     }
 
     async fn enable_trigger(
@@ -756,29 +762,29 @@ pub trait SchemaTrait:
         _name: &str,
         _enable: bool,
     ) -> anyhow::Result<String> {
-        self.backend_kind().not_support_feature()
+        self.backend_kind().not_support_feature("enable trigger")
     }
 
     async fn list_udf(&self) -> anyhow::Result<Vec<NamedStaff>> {
-        self.backend_kind().not_support_feature()
+        self.backend_kind().not_support_feature("list udf")
     }
 
     async fn show_udf(&self, _name: &NamedStaff) -> anyhow::Result<DefAndMetas> {
-        self.backend_kind().not_support_feature()
+        self.backend_kind().not_support_feature("show udf")
     }
 
     async fn drop_udf(&self, _name: &NamedStaff) -> anyhow::Result<String> {
-        self.backend_kind().not_support_feature()
+        self.backend_kind().not_support_feature("drop udf")
     }
 
     async fn list_procedure(&self) -> anyhow::Result<Vec<NamedStaff>> {
-        self.backend_kind().not_support_feature()
+        self.backend_kind().not_support_feature("list procedure")
     }
     async fn show_procedure(&self, _name: &NamedStaff) -> anyhow::Result<ProcedureDetail> {
-        self.backend_kind().not_support_feature()
+        self.backend_kind().not_support_feature("show procedure")
     }
     async fn drop_procedure(&self, _name: &NamedStaff) -> anyhow::Result<String> {
-        self.backend_kind().not_support_feature()
+        self.backend_kind().not_support_feature("drop procedure")
     }
 
     async fn table_exists(&self, table: &str) -> anyhow::Result<bool> {
@@ -790,11 +796,11 @@ pub trait SchemaTrait:
         anyhow::Ok(e)
     }
     async fn list_created_types(&self) -> anyhow::Result<Vec<CreatedTypeDef>> {
-        self.backend_kind().not_support_feature()
+        self.backend_kind().not_support_feature("list created type")
     }
 
     async fn drop_created_type(&self, _name: &str) -> anyhow::Result<String> {
-        self.backend_kind().not_support_feature()
+        self.backend_kind().not_support_feature("drop created type")
     }
 
     async fn export_table_to_string(
@@ -818,14 +824,14 @@ pub trait SchemaTrait:
     }
 
     async fn list_sequence(&self) -> anyhow::Result<Vec<SequenceDetail>> {
-        self.backend_kind().not_support_feature()
+        self.backend_kind().not_support_feature("list sequence")
     }
     async fn rename_sequence(&self, _old: &str, _new: &str) -> anyhow::Result<String> {
-        self.backend_kind().not_support_feature()
+        self.backend_kind().not_support_feature("rename sequence")
     }
 
     async fn drop_sequence(&self, _name: &str, _cascade: bool) -> anyhow::Result<String> {
-        self.backend_kind().not_support_feature()
+        self.backend_kind().not_support_feature("drop sequence")
     }
     fn list_sql_current_values(&self) -> &'static [&'static str] {
         &[]
@@ -834,7 +840,7 @@ pub trait SchemaTrait:
         anyhow::Ok(vec![])
     }
     async fn drop_event(&self, _name: &str) -> anyhow::Result<String> {
-        self.backend_kind().not_support_feature()
+        self.backend_kind().not_support_feature("drop event")
     }
 
     #[cfg(test)]
@@ -1371,8 +1377,8 @@ pub struct ColumnType {
 }
 
 impl BackendKind {
-    pub fn not_support_feature<T>(&self) -> anyhow::Result<T> {
-        anyhow::bail!(format!("'{}' don't support this feature", self))
+    pub fn not_support_feature<T>(&self, kind: &str) -> anyhow::Result<T> {
+        anyhow::bail!(format!("'{}' don't support this '{}' feature", self, kind))
     }
 }
 
@@ -2155,18 +2161,20 @@ pub(crate) async fn write_export_file(
 #[async_trait::async_trait]
 pub trait QuerySql: GetBackendKind + Send + Sync + 'static + LanguageServer {
     async fn get_auto_commit(&self, _query_id: &str) -> anyhow::Result<bool> {
-        self.backend_kind().not_support_feature()
+        self.backend_kind().not_support_feature("transaction")
     }
 
     async fn set_auto_commit(&self, _query_id: &str, _commit: bool) -> anyhow::Result<()> {
-        self.backend_kind().not_support_feature()
+        self.backend_kind().not_support_feature("transaction")
     }
     async fn commit(&self, _query_id: &str) -> anyhow::Result<()> {
-        self.backend_kind().not_support_feature()
+        self.backend_kind().not_support_feature("transaction")
     }
     async fn rollback(&self, _query_id: &str) -> anyhow::Result<()> {
-        self.backend_kind().not_support_feature()
+        self.backend_kind().not_support_feature("transaction")
     }
+
+    fn support_tx(&self) -> bool;
 
     async fn query_sql(
         &self,

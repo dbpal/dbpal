@@ -1282,6 +1282,9 @@ impl RedisDB {
 
 #[async_trait::async_trait]
 impl QuerySql for RedisDB {
+    fn support_tx(&self) -> bool {
+        false
+    }
     /// redis have no transaction any connection is fine
     /// so connection management for redis is dummy
     async fn open_connection(&self, id: &str) -> anyhow::Result<()> {

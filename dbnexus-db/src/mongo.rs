@@ -87,7 +87,8 @@ impl ExportQueryResult for MongoDB {
         _kind: ExportKind,
         _sender: tokio::sync::mpsc::Sender<ExportFrame>,
     ) -> anyhow::Result<()> {
-        self.backend_kind().not_support_feature()
+        self.backend_kind()
+            .not_support_feature("export query result")
     }
 
     fn clone(&self) -> Box<dyn ExportQueryResult> {
@@ -770,13 +771,16 @@ impl SchemaTrait for MongoDB {
 
 #[async_trait::async_trait]
 impl QuerySql for MongoDB {
+    fn support_tx(&self) -> bool {
+        false
+    }
     async fn query_sql(
         &self,
         _id: &str,
         _sql: &str,
         _emit: QueryEventEmitter,
     ) -> anyhow::Result<()> {
-        self.backend_kind().not_support_feature()
+        self.backend_kind().not_support_feature("query sql")
     }
 
     async fn execute_sql(
@@ -784,18 +788,19 @@ impl QuerySql for MongoDB {
         _query_id: &str,
         _sql: &str,
     ) -> anyhow::Result<Result<QueryResp, String>> {
-        self.backend_kind().not_support_feature()
+        self.backend_kind().not_support_feature("execute sql")
     }
 
     async fn simple_execute_sql(&self, _sql: &str) -> anyhow::Result<Option<usize>> {
-        self.backend_kind().not_support_feature()
+        self.backend_kind()
+            .not_support_feature("simple execute sql")
     }
 
     async fn open_connection(&self, _id: &str) -> anyhow::Result<()> {
-        self.backend_kind().not_support_feature()
+        self.backend_kind().not_support_feature("open connection")
     }
     async fn close_connection(&self, _id: &str) -> anyhow::Result<()> {
-        self.backend_kind().not_support_feature()
+        self.backend_kind().not_support_feature("close connection")
     }
 }
 

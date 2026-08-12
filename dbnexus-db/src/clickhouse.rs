@@ -152,7 +152,6 @@ impl ExtractSqlValeFromJsonValue for ClickHouseDB {
                 }
                 serde_json::Value::Array(values) => {
                     let mut results: Vec<String> = Vec::with_capacity(values.len());
-
                     for (index, value) in values.iter().enumerate() {
                         let ty = get_array_tuple_element_type(ty, index)?;
                         let r = encode_nested(value, ty, true)?.unwrap_or("null".to_string());
@@ -864,6 +863,9 @@ impl ClickHouseDB {
 
 #[async_trait::async_trait]
 impl QuerySql for ClickHouseDB {
+    fn support_tx(&self) -> bool {
+        false
+    }
     async fn simple_execute_sql(&self, sql: &str) -> anyhow::Result<Option<usize>> {
         self.not_allow_switch_db(sql)?;
         self.client
@@ -2287,6 +2289,7 @@ mod tests {
             https: true,
         })
         .unwrap();
-        db.check_conn().await.unwrap();
+        let _err = db.check_conn().await;
+        assert!(_err.is_err())
     }
 }

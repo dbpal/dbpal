@@ -1048,10 +1048,12 @@ impl LanguageServer for RedisDB {
     }
 
     fn extract_table_select_selection(&self, _sql: &str) -> anyhow::Result<Option<String>> {
-        self.backend_kind().not_support_feature()
+        self.backend_kind()
+            .not_support_feature("extrat table select")
     }
     fn extract_table_select_sort(&self, _sql: &str) -> anyhow::Result<Option<String>> {
-        self.backend_kind().not_support_feature()
+        self.backend_kind()
+            .not_support_feature("extract table select sort")
     }
 
     fn is_dangerous_sql(&self, sql: &str) -> anyhow::Result<bool> {

@@ -267,6 +267,9 @@ impl ExportQueryResult for FireBirdDB {
 
 #[async_trait::async_trait]
 impl QuerySql for FireBirdDB {
+    fn support_tx(&self) -> bool {
+        true
+    }
     async fn get_auto_commit(&self, query_id: &str) -> anyhow::Result<bool> {
         let tx = self.query_tx.contains(&query_id.to_string());
         anyhow::Ok(!tx)
@@ -623,7 +626,7 @@ impl SchemaTrait for FireBirdDB {
     }
 
     async fn duplicate_table(&self, _table: &str, _dup: &str) -> anyhow::Result<()> {
-        self.backend_kind().not_support_feature()
+        self.backend_kind().not_support_feature("duplicate table")
     }
     async fn list_table(&self) -> anyhow::Result<Vec<ListTable>> {
         let this = Clone::clone(self);
@@ -714,7 +717,8 @@ impl SchemaTrait for FireBirdDB {
         _new_name: &str,
         _typ: Option<ColumnType>,
     ) -> anyhow::Result<String> {
-        self.backend_kind().not_support_feature()
+        self.backend_kind()
+            .not_support_feature("modify table column")
     }
 
     // not tested...

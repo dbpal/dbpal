@@ -186,6 +186,9 @@ impl ExportQueryResult for OracleDB {
 
 #[async_trait::async_trait]
 impl QuerySql for OracleDB {
+    fn support_tx(&self) -> bool {
+        true
+    }
     async fn get_auto_commit(&self, query_id: &str) -> anyhow::Result<bool> {
         let this = Clone::clone(self);
         let query_id = query_id.to_owned();
@@ -1591,11 +1594,11 @@ impl DBTrait for OracleDB {
         _name: &str,
         _extra: Option<CreateSchemaExtra>,
     ) -> anyhow::Result<()> {
-        self.backend_kind().not_support_feature()
+        self.backend_kind().not_support_feature("create schema")
     }
 
     async fn drop_schema(&self, _name: &str) -> anyhow::Result<()> {
-        self.backend_kind().not_support_feature()
+        self.backend_kind().not_support_feature("drop schema")
     }
 }
 

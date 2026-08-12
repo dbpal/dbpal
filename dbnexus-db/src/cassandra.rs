@@ -588,6 +588,9 @@ impl QuerySql for CassandraDB {
         anyhow::Ok(resp)
     }
 
+    fn support_tx(&self) -> bool {
+        false
+    }
     async fn query_sql(
         &self,
         query_id: &str,

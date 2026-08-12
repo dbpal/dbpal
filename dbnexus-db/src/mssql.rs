@@ -1574,6 +1574,9 @@ impl ExportQueryResult for SqlServerDB {
 
 #[async_trait::async_trait]
 impl QuerySql for SqlServerDB {
+    fn support_tx(&self) -> bool {
+        true
+    }
     async fn get_auto_commit(&self, query_id: &str) -> anyhow::Result<bool> {
         let conn = match self.query_connection.get(&query_id.to_string()) {
             Some(x) => x.clone(),
@@ -1766,12 +1769,12 @@ impl crate::db::DBTrait for SqlServerDB {
 
     async fn create_schema(&self, _name: &str, _: Option<CreateSchemaExtra>) -> anyhow::Result<()> {
         self.can_write()?;
-        self.backend_kind().not_support_feature()
+        self.backend_kind().not_support_feature("create schema")
     }
 
     async fn drop_schema(&self, _name: &str) -> anyhow::Result<()> {
         self.can_write()?;
-        self.backend_kind().not_support_feature()
+        self.backend_kind().not_support_feature("drop schema")
     }
 }
 
