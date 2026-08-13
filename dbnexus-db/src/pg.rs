@@ -891,7 +891,7 @@ impl SchemaTrait for PostGresDB {
             if first.get() {
                 emit.send(
                     QueryResp {
-                        fields: get_rows_types(&row),
+                        fields: get_row_fields(&row),
                         total: total as f64,
                         ..Default::default()
                     }
@@ -1402,7 +1402,7 @@ impl PostGresDB {
     }
 }
 
-fn get_rows_types(row: &PgRow) -> Vec<Field> {
+fn get_row_fields(row: &PgRow) -> Vec<Field> {
     log::trace!("infer type by:{:?}", row.columns());
     let mut ret = Vec::with_capacity(row.columns().len());
     for c in row.columns().iter() {
@@ -1455,6 +1455,7 @@ fn get_pg_type_base_on_data_type_and_udtname(
             "_int8range" => "INT8RANGE[]".to_string(),
             "_jsonpath" => "JSONPATH[]".to_string(),
             "_money" => "MONEY[]".to_string(),
+            "_oid" => "OID[]".to_string(),
             _ => {
                 log::error!("udtname '{}' not handled", udt_name);
                 anyhow::bail!(format!("udtname '{}' not handled", udt_name));
@@ -1716,7 +1717,7 @@ impl QuerySql for PostGresDB {
                 }
                 sqlx::Either::Right(row) => {
                     has_result = true;
-                    let fields = get_rows_types(&row);
+                    let fields = get_row_fields(&row);
                     if emit_fields.is_empty() || !emit_fields.eq(&fields) {
                         emit.send(
                             QueryResp {
@@ -2047,7 +2048,7 @@ mod tests {
         helper::{cert_files_dir, start_docker_container, DockerContainerDropper},
         pg::PostGresDB,
     };
-    use sqlx::Executor;
+    use sqlx::{Column, Executor, Row, SqlSafeStr, Statement};
     use std::{collections::HashMap, ops::DerefMut, process::Command, sync::Arc, time::Duration};
 
     #[test]
@@ -3598,6 +3599,34 @@ mod tests {
 
             let db = PostGresDB::new(config.clone(), kind).await.unwrap();
             db.check_conn().await.unwrap();
+        }
+    }
+
+    #[tokio::test]
+    async fn test_type_regproc() {
+        let db = make_test_object().await;
+
+        let sql = r#"
+                SELECT "oid","amname","amhandler","amtype" from "pg_catalog"."pg_am" ORDER BY "amhandler" ASC  OFFSET 0 LIMIT 5
+"#;
+
+        let mut conn: sqlx::pool::PoolConnection<sqlx::Postgres> = db.get_conn().await.unwrap();
+
+        let stmt: sqlx::postgres::PgStatement = conn.prepare(sql.into_sql_str()).await.unwrap();
+
+        for col in stmt.columns() {
+            println!("!!!:{} {}", col.name(), col.type_info());
+        }
+
+        let rows = sqlx::query(sql.into_sql_str())
+            .fetch_all(conn.deref_mut())
+            .await
+            .unwrap();
+
+        for row in rows.iter() {
+            for col in row.columns().iter() {
+                println!("!!!:{} {}", col.name(), col.type_info());
+            }
         }
     }
 }

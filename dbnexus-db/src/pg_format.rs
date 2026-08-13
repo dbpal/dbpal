@@ -639,7 +639,7 @@ pub(crate) fn encode_row(r: &PgRow) -> anyhow::Result<Vec<Option<String>>> {
     let mut values = Vec::with_capacity(r.columns().len());
     for c in 0..r.len() {
         let col = r.column(c);
-        let ty = col.type_info().to_string();
+        let ty = col.type_info().to_string().to_uppercase();
         let value = r.try_get_raw(c)?;
         let default_str = if value.is_null() {
             None

@@ -26,7 +26,6 @@ import {
   Autocomplete,
 } from "@mui/material";
 import { ClearableTextField, RefreshButton } from "./CommonComp2";
-import SaveIcon from "@mui/icons-material/Save";
 import VisibilityIcon from "@mui/icons-material/Visibility";
 import { message, open } from "@tauri-apps/plugin-dialog";
 import { extractBaseName } from "./Common.ts";
@@ -819,14 +818,14 @@ function TestConnAndSave(props: {
     <Stack>
       <Divider />
       <StackRowCenter>
-        <IconButton
-          color="primary"
+        <Button
+          color="success"
           onClick={() => {
             handleSaveConnection();
           }}
           disabled={cnameDuplicated}>
-          <SaveIcon />
-        </IconButton>
+          save
+        </Button>
         <Button
           variant="outlined"
           sx={{ mr: 1 }}
