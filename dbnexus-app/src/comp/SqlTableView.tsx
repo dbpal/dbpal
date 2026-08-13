@@ -335,7 +335,6 @@ function SqlTableCustomToolBarLeft({
               {ops.map((x, index) => (
                 <CopySql sql={x.sql} key={index} />
               ))}
-              <Button style={{ fontWeight: "bold" }}> apply all </Button>
             </>>
             <IconButton
               onClick={async () => {
