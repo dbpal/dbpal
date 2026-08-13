@@ -15,7 +15,7 @@ import {
   isCsvFile,
   isExcelFile,
   resizeHandlerSize,
-  UuidContext,
+  DbnameContext,
 } from "./helper";
 import {
   CSSProperties,
@@ -62,7 +62,7 @@ function SqlCreateTable(props: {
   fields?: CreateTableReqColumn[];
   tableName?: RefObject<string>;
 }) {
-  const { dbName, kind } = useContext(UuidContext);
+  const { dbName, kind } = useContext(DbnameContext);
   const { fields: fieldsProvide, tableName: tableNameRef } = props;
   const [cols, setCols] = useState<CreateTableReqColumn[]>(
     fieldsProvide
@@ -524,7 +524,7 @@ john	123`}
 }
 
 function SqlCreateTableImportFile() {
-  const { dbName } = useContext(UuidContext);
+  const { dbName } = useContext(DbnameContext);
   const [file, setFile] = useState("");
   const { showNotification } = useNotification();
   const [fields, setFields] = useState<Field[]>([]);
@@ -839,7 +839,7 @@ function MongoImportFileNotice() {
 }
 
 function MongoTableImportFile(props: { hasTableName?: string }) {
-  const { dbName } = useContext(UuidContext);
+  const { dbName } = useContext(DbnameContext);
   const { hasTableName } = props;
   const [file, setFile] = useState("");
   const { showNotification } = useNotification();
@@ -1076,7 +1076,7 @@ function CouchbaseImportFileNotice() {
 }
 
 function CouchbaseTableImportFile(props: { hasTableName?: string }) {
-  const { dbName } = useContext(UuidContext);
+  const { dbName } = useContext(DbnameContext);
   const { hasTableName } = props;
   const [file, setFile] = useState("");
   const { showNotification } = useNotification();

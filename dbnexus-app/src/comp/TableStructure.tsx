@@ -14,7 +14,7 @@ import {
   extractFieldAndIDFromMouseEvent,
   handleCopyToClipboard,
   secondConfirm,
-  UuidContext,
+  DbnameContext,
 } from "./helper";
 import { AppDataGridToolBar, ClearableTextField, RefreshButton } from "./CommonComp2";
 import CancelIcon from "@mui/icons-material/Cancel";
@@ -116,7 +116,7 @@ function ColumnMenu(props: {
 }
 
 function ColumnsStructure(props: { table: string }) {
-  const { dbName, kind } = useContext(UuidContext);
+  const { dbName, kind } = useContext(DbnameContext);
   const { table } = props;
   const [loading, setLoading] = useState(false);
   const [fields, setFields] = useState<Field[]>([]);
@@ -499,7 +499,7 @@ function IndexMenu(props: {
 }
 
 function IndexesStructure(props: { table: string }) {
-  const { dbName, kind } = useContext(UuidContext);
+  const { dbName, kind } = useContext(DbnameContext);
   const { table } = props;
   const [loading, setLoading] = useState(false);
   const [indexes, setIndexes] = useState<Index[]>([]);
@@ -1178,7 +1178,7 @@ function TriggerMenu(props: {
 
 function TriggersStructure(props: { table: string }) {
   const { table } = props;
-  const { dbName } = useContext(UuidContext);
+  const { dbName } = useContext(DbnameContext);
   const [loading, setLoading] = useState(false);
   const [triggers, setTriggers] = useState<TriggerDetail[]>([]);
   const [row, setRow] = useState<TriggerDetail>(null);
@@ -1401,7 +1401,7 @@ function TriggersStructure(props: { table: string }) {
 }
 
 function TableStructure(props: { table: string }) {
-  const { kind } = useContext(UuidContext);
+  const { kind } = useContext(DbnameContext);
   const { table } = props;
   const [structure, setStructure] = useState("column");
   const structures = ["column"];
@@ -1478,7 +1478,7 @@ function TableStructure(props: { table: string }) {
   );
 }
 function StatementStructure(props: { table: string }) {
-  const { dbName } = useContext(UuidContext);
+  const { dbName } = useContext(DbnameContext);
   const { table } = props;
   const { showNotification } = useNotification();
 

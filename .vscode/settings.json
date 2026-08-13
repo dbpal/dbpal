@@ -98,6 +98,7 @@
     "DAYOFYEAR",
     "DBCC",
     "DBID",
+    "Dbname",
     "dbnexus",
     "dbpal",
     "DBSIZE",

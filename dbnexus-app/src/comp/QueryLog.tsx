@@ -20,13 +20,14 @@ import { EscDownEvent, modalHandleClose, NameAndQueryId } from "./Common";
 import DoneIcon from "@mui/icons-material/Done";
 import CloseIcon from "@mui/icons-material/Close";
 import {
+  createMongoModel,
   dataGridStyle,
   DataSourceKind,
-  getDefaultLanguage,
+  getDatabaseKindLanguage,
   pageSizeOptions,
   saveQueryKey,
   secondConfirm,
-  UuidContext,
+  DbnameContext,
 } from "./helper.ts";
 import DeleteForeverIcon from "@mui/icons-material/DeleteForever";
 import { ResizeParentHeight } from "./CommonComp.tsx";
@@ -51,9 +52,9 @@ function QueryLog(props: {
   setShowQueryLog: Dispatch<SetStateAction<boolean>>;
   queryId?: string;
 }) {
-  const { dbName, kind } = useContext(UuidContext);
+  const { dbName, kind } = useContext(DbnameContext);
   const { showQueryLog, setShowQueryLog, queryId } = props;
-  const [selectSql, setSelectSql] = useState<{ sql: string; language: string }>(null);
+  const [selectSql, setSelectSql] = useState<string>("");
   const [logs, setLogs] = useState([]);
   const { getColumnWidth, setColumnWidth } = useColumnWidthStore();
   const { query, deleteByUuid } = useQueryLogStore();
@@ -149,6 +150,7 @@ function QueryLog(props: {
       },
     } as Partial<GridSlotsComponent>;
   }, []);
+
   return (
     <Paper
       style={{
@@ -241,7 +243,7 @@ function QueryLog(props: {
       {showQueryLog && logs.length > 0 && (
         <DataGrid
           onRowDoubleClick={(e) => {
-            setSelectSql(e.row);
+            setSelectSql(e.row.sql);
           }}
           showToolbar={false}
           columns={columns}
@@ -278,13 +280,18 @@ function QueryLog(props: {
           disableAutoFocus>
           <AlertTitle> view sql </AlertTitle>
           <SimpleFlexEditor
-            value={selectSql.sql}
-            handleEditor={(e) => {
-              e.getModel()._dbpal_query_id = new NameAndQueryId(dbName, kind, queryId);
+            value={selectSql}
+            handleEditor={(ed) => {
+              if (kind == DataSourceKind.Mongo) {
+                const model = createMongoModel(`//@ts-ignore
+const { db, FS, HTTP, BSON } = mongoHandle;
+`);
+                ed.setModel(model);
+              }
+              ed.focus();
+              ed.getModel()._dbpal_query_id = new NameAndQueryId(dbName, kind, queryId);
             }}
-            language={
-              selectSql.language ? selectSql.language : getDefaultLanguage(kind)
-            }
+            language={getDatabaseKindLanguage(kind)}
           />
         </Dialog>
       )}

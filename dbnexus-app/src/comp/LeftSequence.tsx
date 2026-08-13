@@ -18,7 +18,7 @@ import {
   secondConfirm,
   TabContent,
   textEllipsisStyle,
-  UuidContext,
+  DbnameContext,
 } from "./helper.ts";
 
 import { MenuRefresh } from "./CommonComp.tsx";
@@ -35,7 +35,7 @@ import {
 import { commands, DefAndMetas, SequenceDetail } from "./bindings.ts";
 import { uuidv4 } from "./Common.ts";
 function SequenceTree() {
-  const { dbName, kind } = useContext(UuidContext);
+  const { dbName, kind } = useContext(DbnameContext);
   const [seq, setSeq] = useState<SequenceDetail[]>([]);
   const { showNotification } = useNotification();
   const { maxTree } = useMatcher();

@@ -304,7 +304,7 @@ class TabContent {
 
 const TabContext = createContext<{ id: string }>(null);
 
-const UuidContext = createContext<{
+const DbnameContext = createContext<{
   dbName: string;
   kind: DataSourceKind;
 }>(null);
@@ -621,7 +621,7 @@ export function jumpToEditorText(
   }
 }
 
-export function getDefaultLanguage(kind: DataSourceKind) {
+export function getDatabaseKindLanguage(kind: DataSourceKind) {
   switch (kind) {
     case DataSourceKind.Mongo:
       return "typescript";
@@ -884,7 +884,17 @@ function isCsvFile(file: string, includeTsv: boolean) {
   return f.endsWith(".csv") || (includeTsv && f.endsWith(".tsv"));
 }
 
+let modelCounter = 0;
+
+function createMongoModel(code = "") {
+  modelCounter++;
+  const uri = monaco.Uri.parse(`file:///model_${modelCounter}.ts`);
+
+  return monaco.editor.createModel(code, "typescript", uri);
+}
+
 export {
+  createMongoModel,
   isCsvFile,
   isExcelFile,
   escapeMarkdown,
@@ -935,7 +945,7 @@ export {
   TabActiveContext,
   TabContent,
   textEllipsisStyle,
-  UuidContext,
+  DbnameContext,
   ViewKind,
   MonacoEditor,
   QueryIDEditorChatCtx,

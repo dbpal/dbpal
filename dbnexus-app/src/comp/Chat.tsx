@@ -4,7 +4,7 @@ import {
   extractConfigNameFromUuid,
   QueryIDEditorChatCtx,
   secondConfirm,
-  UuidContext,
+  DbnameContext,
 } from "./helper.ts";
 import CloseIcon from "@mui/icons-material/Close";
 import SaveIcon from "@mui/icons-material/Save";
@@ -80,7 +80,7 @@ import { openPath } from "@tauri-apps/plugin-opener";
 
 function AllKindQuery(props: { value?: string; favoriteName?: string }) {
   const { value, favoriteName } = props;
-  const { kind } = useContext(UuidContext);
+  const { kind } = useContext(DbnameContext);
   let content: ReactNode;
   switch (kind) {
     case DataSourceKind.SqlServer:
@@ -115,7 +115,7 @@ function AllKindQuery(props: { value?: string; favoriteName?: string }) {
 }
 
 function AllKindChat(props: { value?: string; favoriteName?: string }) {
-  const { dbName } = useContext(UuidContext);
+  const { dbName } = useContext(DbnameContext);
   const { favoriteName, value } = props;
   const llm = useLLM();
   const showChatKey = "chat-show-" + dbName;
@@ -153,7 +153,7 @@ function AllKindChat(props: { value?: string; favoriteName?: string }) {
 const cleanEditorKey = "clean-editor-key";
 
 function SqlChatTextInput() {
-  const { dbName } = useContext(UuidContext);
+  const { dbName } = useContext(DbnameContext);
   const { editor } = useContext(QueryIDEditorChatCtx);
   const llm = useLLM();
   const [question, setQuestion] = useState("");

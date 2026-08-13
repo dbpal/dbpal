@@ -14,6 +14,7 @@ import { MongoDBQuery } from "./MongoQueryBackend";
 import * as monaco from "monaco-editor";
 
 import {
+  createMongoModel,
   DataSourceKind,
   isMacOs,
   jumpToEditorText,
@@ -21,7 +22,7 @@ import {
   prettyMs,
   QueryIDEditorChatCtx,
   saveQueryKey,
-  UuidContext,
+  DbnameContext,
 } from "./helper";
 import { NameAndQueryId } from "./Common";
 import {
@@ -163,20 +164,11 @@ function ExecuteButton(props: {
   );
 }
 
-let modelCounter = 0;
-
-function createNewModel(code = "") {
-  modelCounter++;
-  const uri = monaco.Uri.parse(`file:///model_${modelCounter}.ts`);
-
-  return monaco.editor.createModel(code, "typescript", uri);
-}
-
 const ignoreErrKey = "mongo-query-ignore-error";
 
 function MongoQuery(props: { favoriteName?: string; value?: string }) {
   const { value, favoriteName } = props;
-  const { dbName } = useContext(UuidContext);
+  const { dbName } = useContext(DbnameContext);
   const [editor, setEditor] = useState<editor.IStandaloneCodeEditor>(null);
   const { showNotification } = useNotification();
   const { getSwitch, setSwitch } = useBoolSwitch();
@@ -202,7 +194,7 @@ function MongoQuery(props: { favoriteName?: string; value?: string }) {
   const onMount = useCallback(
     (ed: editor.IStandaloneCodeEditor) => {
       setEditor(ed);
-      const model = createNewModel(`//@ts-ignore
+      const model = createMongoModel(`//@ts-ignore
 const { db, FS, HTTP, BSON } = mongoHandle;
 `);
       ed.setModel(model);

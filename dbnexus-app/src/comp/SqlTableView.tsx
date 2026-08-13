@@ -72,7 +72,7 @@ import {
   allGridHeaderTitle,
   columnHeaderStyle,
   SqlOpContext,
-  UuidContext,
+  DbnameContext,
 } from "./helper";
 import FileCopyIcon from "@mui/icons-material/FileCopy";
 import {
@@ -265,7 +265,7 @@ function SqlTableCustomToolBarLeft({
   tableName,
 }: SqlTableCustomToolBarLeftProps) {
   // 获取 DataGrid 内部的 api 实例
-  const { dbName } = useContext(UuidContext);
+  const { dbName } = useContext(DbnameContext);
   const { ops, setOps } = useContext(SqlOpContext);
   const apiRef = useGridApiContext();
   const [showSetWhere, setShowSetWhere] = useState(false);
@@ -425,7 +425,7 @@ type CustomPaginationProps = {
 function ImportDataFromFile(props: { table: string; handleReload: () => void }) {
   const { table, handleReload } = props;
   const { showNotification } = useNotification();
-  const { dbName } = useContext(UuidContext);
+  const { dbName } = useContext(DbnameContext);
   const [loading, setLoading] = useState(false);
   return (
     <Tooltip title="insert data from a file,current support csv,json,jsonline">
@@ -474,7 +474,7 @@ export function SqlTablePagination({
 }: {
   dbpal: CustomPaginationProps;
 }) {
-  const { dbName } = useContext(UuidContext);
+  const { dbName } = useContext(DbnameContext);
   const { showNotification } = useNotification();
   const { appendTab } = useTabsManage();
   return (
@@ -581,7 +581,7 @@ function CellButtons(props: {
   handleReload: () => void;
 }) {
   const { op, setOps, firstField, handleReload } = props;
-  const { dbName } = useContext(UuidContext);
+  const { dbName } = useContext(DbnameContext);
   const { showNotification } = useNotification();
   return (
     firstField && (
@@ -692,7 +692,7 @@ function SqlTableView(props: {
   isTable: boolean;
 }) {
   const { tableName, isTable } = props;
-  const { dbName, kind } = useContext(UuidContext);
+  const { dbName, kind } = useContext(DbnameContext);
   const getUpdateSql = useCallback(
     (x, y) => {
       return commands.tableUpdateSql(dbName, tableName, x, y);

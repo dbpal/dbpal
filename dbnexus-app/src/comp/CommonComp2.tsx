@@ -75,7 +75,7 @@ import {
   TabActiveContext,
   TabContent,
   textEllipsisStyle,
-  UuidContext,
+  DbnameContext,
 } from "./helper";
 import { editor } from "monaco-editor";
 import {
@@ -650,7 +650,7 @@ function MenuConnectionInfo(props: { dbName: string }) {
  * Displays backend connection metadata values.
  */
 function ConnConfigInfo() {
-  const { dbName } = useContext(UuidContext);
+  const { dbName } = useContext(DbnameContext);
   const { showNotification } = useNotification();
   const [metas, setMetas] = useState<MetaValue[]>([]);
   const { getConnection } = useConnectionStore();
@@ -1097,7 +1097,7 @@ function SaveFavoriteSqlView(props: {
   favoriteName?: string;
   editor: editor.IStandaloneCodeEditor;
 }) {
-  const { dbName, kind } = useContext(UuidContext);
+  const { dbName, kind } = useContext(DbnameContext);
 
   const { favoriteName: oldName, editor } = props;
   const [favoriteName, setFavoriteName] = useState(oldName);
@@ -1387,7 +1387,7 @@ function TypeSelect(props: {
   type: string | null;
   style?: CSSProperties;
 }) {
-  const { dbName } = useContext(UuidContext);
+  const { dbName } = useContext(DbnameContext);
   const { handleChange, type, style } = props;
   const [types, setTypes] = useState<string[]>([]);
   const { showNotification } = useNotification();
@@ -1448,7 +1448,7 @@ function SqlDefaultValue(props: {
   defaultValue: string | null;
   setDefaultValue: (value: string | null) => void;
 }) {
-  const { dbName } = useContext(UuidContext);
+  const { dbName } = useContext(DbnameContext);
   const { defaultValue, setDefaultValue } = props;
   const [currentValue, setCurrentValue] = useState<string[]>([]);
   const { showNotification } = useNotification();

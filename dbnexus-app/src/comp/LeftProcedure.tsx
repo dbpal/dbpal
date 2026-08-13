@@ -14,7 +14,7 @@ import InfoIcon from "@mui/icons-material/Info";
 import { DefAndMetasView } from "./DefAndMetaView";
 
 import { SiProcessingfoundation } from "react-icons/si";
-import { DataSourceKind, secondConfirm, TabContent, UuidContext } from "./helper.ts";
+import { DataSourceKind, secondConfirm, TabContent, DbnameContext } from "./helper.ts";
 import { MenuRefresh, UdfNameAndParameters } from "./CommonComp";
 
 import { CopySql, ShowingCount } from "./CommonComp2";
@@ -28,7 +28,7 @@ import {
 import { commands, NamedStaff } from "./bindings.ts";
 import { uuidv4 } from "./Common.ts";
 function ProceduresTree() {
-  const { dbName, kind } = useContext(UuidContext);
+  const { dbName, kind } = useContext(DbnameContext);
   const [ps, setPs] = useState<NamedStaff[]>([]);
   const { showNotification } = useNotification();
   const { maxTree } = useMatcher();

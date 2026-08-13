@@ -18,7 +18,7 @@ import {
   secondConfirm,
   TabContent,
   textEllipsisStyle,
-  UuidContext,
+  DbnameContext,
 } from "./helper";
 import { MenuRefresh } from "./CommonComp";
 import { CopySql, ShowingCount } from "./CommonComp2";
@@ -32,7 +32,7 @@ import {
 import { commands, SqlEvent } from "./bindings";
 import { uuidv4 } from "./Common";
 function EventsTree() {
-  const { dbName, kind } = useContext(UuidContext);
+  const { dbName, kind } = useContext(DbnameContext);
   const [events, setEvents] = useState<SqlEvent[]>([]);
   const { showNotification } = useNotification();
   const { maxTree } = useMatcher();

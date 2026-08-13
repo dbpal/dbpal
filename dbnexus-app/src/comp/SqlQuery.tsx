@@ -22,10 +22,10 @@ import {
   saveQueryKey,
   MonacoEditor,
   QueryIDEditorChatCtx,
-  getDefaultLanguage,
+  getDatabaseKindLanguage,
   jumpToEditorText,
   QueryRespData,
-  UuidContext,
+  DbnameContext,
 } from "./helper.ts";
 import ArrowCircleDownRoundedIcon from "@mui/icons-material/ArrowCircleDownRounded";
 import { ExportView } from "./Export.tsx";
@@ -290,7 +290,7 @@ function SqlQuery(props: {
   favoriteName?: string;
   extraButtons?: ReactNode;
 }) {
-  const { dbName, kind } = useContext(UuidContext);
+  const { dbName, kind } = useContext(DbnameContext);
   const { value, favoriteName, extraButtons } = props;
   const [resp, setResp] = useState<QueryRespData[]>([]);
   const [editor, setEditor] = useState<editor.IStandaloneCodeEditor>(null);
@@ -649,7 +649,7 @@ function SqlQuery(props: {
               display: markdownModel ? "none" : "block",
             }}>
             <MonacoEditor
-              language={markdownModel ? "markdown" : getDefaultLanguage(kind)}
+              language={markdownModel ? "markdown" : getDatabaseKindLanguage(kind)}
               value={value}
               onMount={handleEditorDidMount}
             />

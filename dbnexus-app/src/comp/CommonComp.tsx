@@ -60,7 +60,7 @@ import {
   secondConfirm,
   AppColumnMenuCtx,
   textEllipsisStyle,
-  UuidContext,
+  DbnameContext,
 } from "./helper";
 
 import { TbDatabasePlus } from "react-icons/tb";
@@ -820,7 +820,7 @@ function UdfNameAndParameters(props: { udf: NamedStaff; kind: DataSourceKind }) 
 function DataGridExtraMenuList(props: GridColumnMenuItemProps) {
   const { colDef, onClick } = props;
   const { showNotification } = useNotification();
-  const { dbName, kind } = useContext(UuidContext);
+  const { dbName, kind } = useContext(DbnameContext);
   const api = useGridApiContext();
   let { selectColumns } = useContext(AppColumnMenuCtx);
   const getSelectFields = (): string[] => {

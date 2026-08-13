@@ -37,7 +37,7 @@ import {
   secondConfirm,
   TabContent,
   textEllipsisStyle,
-  UuidContext,
+  DbnameContext,
   ViewKind,
 } from "./helper";
 import { MenuRefresh } from "./CommonComp";
@@ -72,7 +72,7 @@ import {
 } from "./datagridExport";
 function ViewsTree(props: { viewKind: ViewKind }) {
   const { viewKind } = props;
-  const { dbName } = useContext(UuidContext);
+  const { dbName } = useContext(DbnameContext);
   const [views, setViews] = useState<ListTable[]>([]);
   const { showNotification } = useNotification();
   const [loading, setLoading] = useState(false);
@@ -149,7 +149,7 @@ function ViewsTree(props: { viewKind: ViewKind }) {
 }
 
 function StatementStructure(props: { view: string; viewKind: ViewKind }) {
-  const { dbName } = useContext(UuidContext);
+  const { dbName } = useContext(DbnameContext);
   const { view, viewKind } = props;
   const [sql, setSql] = useState("");
   const [loading, setLoading] = useState(false);
@@ -185,7 +185,7 @@ function StatementStructure(props: { view: string; viewKind: ViewKind }) {
 }
 
 function ViewStructure(props: { view: string; viewKind: ViewKind }) {
-  const { kind } = useContext(UuidContext);
+  const { kind } = useContext(DbnameContext);
   const { view, viewKind } = props;
 
   const [structure, setStructure] = useState("column");
@@ -255,7 +255,7 @@ function ColumnsMenu(props: { content: string }) {
 
 function ColumnsContent(props: { view: string }) {
   const { view } = props;
-  const { dbName } = useContext(UuidContext);
+  const { dbName } = useContext(DbnameContext);
 
   const [fields, setFields] = useState<Field[]>([]);
   const { showNotification } = useNotification();
@@ -380,7 +380,7 @@ function ViewTree(props: {
   size?: number;
 }) {
   const { view, reload, viewKind, size } = props;
-  const { dbName, kind } = useContext(UuidContext);
+  const { dbName, kind } = useContext(DbnameContext);
   const setUpMenu = useContextMenu((state) => state.setUpMenu);
   const icon = getIcon(viewKind);
 

@@ -59,7 +59,7 @@ import { BSON } from "bson";
 import {
   DataSourceKind,
   secondConfirm,
-  UuidContext,
+  DbnameContext,
   handleCopyToClipboard,
   RedisTableType,
   shrinkAble,
@@ -96,7 +96,7 @@ import {
 } from "./CreateTable.tsx";
 
 function TablesTree() {
-  const { dbName, kind } = useContext(UuidContext);
+  const { dbName, kind } = useContext(DbnameContext);
   const [tables, setTables] = useState<ListTable[]>([]);
   const { showNotification } = useNotification();
   const [loading, setLoading] = useState(false);
@@ -238,7 +238,7 @@ function TableTree(props: {
   id: string;
 }) {
   const { table, reloadTables, size, id } = props;
-  const { dbName, kind } = useContext(UuidContext);
+  const { dbName, kind } = useContext(DbnameContext);
   const setUpMenu = useContextMenu((state) => state.setUpMenu);
 
   return (
@@ -946,7 +946,7 @@ function RedisOneTableKind(props: {
 }
 
 function RedisTables() {
-  const { dbName, kind } = useContext(UuidContext);
+  const { dbName, kind } = useContext(DbnameContext);
   const [filter, setFilter] = useState("");
   const [tables, setTables] = useState<RedisListTableRet>();
   const [loading, setLoading] = useState(false);

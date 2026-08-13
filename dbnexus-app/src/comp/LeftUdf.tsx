@@ -14,7 +14,7 @@ import { MdFunctions } from "react-icons/md";
 import { DefAndMetasView } from "./DefAndMetaView";
 
 import { TbMathFunction } from "react-icons/tb";
-import { DataSourceKind, secondConfirm, TabContent, UuidContext } from "./helper.ts";
+import { DataSourceKind, secondConfirm, TabContent, DbnameContext } from "./helper.ts";
 import { MenuRefresh, UdfNameAndParameters } from "./CommonComp";
 import { CopySql, ShowingCount } from "./CommonComp2";
 import {
@@ -28,7 +28,7 @@ import { commands, NamedStaff } from "./bindings.ts";
 import { uuidv4 } from "./Common.ts";
 
 function UdfsTree() {
-  const { dbName, kind } = useContext(UuidContext);
+  const { dbName, kind } = useContext(DbnameContext);
 
   const [udfs, setUdfs] = useState<NamedStaff[]>([]);
   const { showNotification } = useNotification();
@@ -258,7 +258,7 @@ function CassandraAggregateMenu(props: {
 }
 
 function CassandraAggregatesTree() {
-  const { dbName } = useContext(UuidContext);
+  const { dbName } = useContext(DbnameContext);
   const [aggs, setAggs] = useState<NamedStaff[]>([]);
   const { showNotification } = useNotification();
   const reload = useCallback(() => {

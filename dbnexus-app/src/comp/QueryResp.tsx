@@ -22,7 +22,7 @@ import {
   clickDataGridColumn,
   allGridHeaderTitle,
   gridColumnHeaderSelectClassName,
-  UuidContext,
+  DbnameContext,
 } from "./helper.ts";
 
 import React, { useCallback, useContext, useEffect, useMemo, useState } from "react";
@@ -104,7 +104,7 @@ function RespContextMenu(props: {
 
 function QueryResp(props: { data: MuiDataGridData }): React.ReactElement {
   const { data } = props;
-  const { dbName } = useContext(UuidContext);
+  const { dbName } = useContext(DbnameContext);
   const { setColumnWidth, getColumnWidth } = useColumnWidthStore();
   const [selectedColumns, setSelectColumns] = useState<Set<string>>(new Set());
   const apiRef = useGridApiRef();

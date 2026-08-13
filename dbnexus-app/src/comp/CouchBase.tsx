@@ -43,7 +43,7 @@ import {
   secondConfirm,
   shrinkAble,
   TabContent,
-  UuidContext,
+  DbnameContext,
 } from "./helper.ts";
 
 import DeleteForeverIcon from "@mui/icons-material/DeleteForever";
@@ -85,7 +85,7 @@ function newDataDefault(): Data {
 }
 
 function CouchBaseTable(props: { table: string }) {
-  const { dbName } = useContext(UuidContext);
+  const { dbName } = useContext(DbnameContext);
   const { table } = props;
   const [page, setPage] = useState(1);
   const { couchbase: pageSize, setPageSize } = usePageSize();
@@ -565,7 +565,7 @@ export function ExecuteButton(props: ExecuteButtonProps) {
 
 function CouchBaseQuery(props: { value?: string }) {
   const { value } = props;
-  const { dbName } = useContext(UuidContext);
+  const { dbName } = useContext(DbnameContext);
   const [resp, setResp] = useState<string[]>([]);
   const [loading, setLoading] = useState(false);
   const { getSize } = useSizeStore();

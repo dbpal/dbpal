@@ -54,7 +54,7 @@ import {
   clickDataGridColumn,
   allGridHeaderTitle,
   gridColumnHeaderSelectClassName,
-  UuidContext,
+  DbnameContext,
 } from "./helper.ts";
 import { AppColumnMenu, ModalHeader, ResetColumnWidth } from "./CommonComp.tsx";
 import { editor } from "monaco-editor";
@@ -159,7 +159,7 @@ interface HashToolBarDbpalProps {
 
 function RedisAddList(props: { listKey: string }) {
   const { listKey } = props;
-  const { dbName } = useContext(UuidContext);
+  const { dbName } = useContext(DbnameContext);
 
   const lpushOP = async (value) => {
     return await commands.redisListLpush(dbName, listKey, value);
@@ -217,7 +217,7 @@ function RedisAddList(props: { listKey: string }) {
 
 function RedisStringTable(props: { stringKey: string }) {
   const { stringKey } = props;
-  const { dbName } = useContext(UuidContext);
+  const { dbName } = useContext(DbnameContext);
   const modifyOP = async (value) => {
     return await commands.redisStringSet(dbName, stringKey, value);
   };
@@ -282,7 +282,7 @@ function RedisStringTable(props: { stringKey: string }) {
 
 function RedisAddSet(props: { setKey: string }) {
   const { setKey } = props;
-  const { dbName } = useContext(UuidContext);
+  const { dbName } = useContext(DbnameContext);
 
   const addOP = async (member) => {
     return await commands.redisSetAdd(dbName, setKey, member);
@@ -323,7 +323,7 @@ function RedisAddSet(props: { setKey: string }) {
 
 function RedisAddHash(props: { hashKey: string }) {
   const { hashKey } = props;
-  const { dbName } = useContext(UuidContext);
+  const { dbName } = useContext(DbnameContext);
   const addOP = async (member, value) => {
     return await commands.redisHashAdd(dbName, hashKey, member, value);
   };
@@ -364,7 +364,7 @@ function RedisAddHash(props: { hashKey: string }) {
 }
 function RedisAddZset(props: { zsetKey: string }) {
   const { zsetKey } = props;
-  const { dbName } = useContext(UuidContext);
+  const { dbName } = useContext(DbnameContext);
   const addOP = async (member: string, value: number) => {
     return await commands.redisZsetAdd(dbName, zsetKey, member, value);
   };
@@ -784,7 +784,7 @@ type SetToolBarParameterProps = GridSlotProps["toolbar"] & {
 function SetToolBar({
   dbpal: { keyMatch, setKey, handleReload, loading, setKeyMatch },
 }: SetToolBarParameterProps) {
-  const { dbName } = useContext(UuidContext);
+  const { dbName } = useContext(DbnameContext);
 
   return (
     <AppDataGridToolBar
@@ -821,7 +821,7 @@ function SetToolBar({
 
 function RedisSetTable(props: { setKey: string }) {
   const { setKey } = props;
-  const { dbName } = useContext(UuidContext);
+  const { dbName } = useContext(DbnameContext);
   const modifyOP = async (old, newValue) => {
     return await commands.redisSetReplace(dbName, setKey, old, newValue);
   };
@@ -1140,7 +1140,7 @@ type ListToolBarProps = {
 } & GridSlotProps["toolbar"];
 
 function ListToolBar({ dbpal: { handleReload, listKey, loading } }: ListToolBarProps) {
-  const { dbName } = useContext(UuidContext);
+  const { dbName } = useContext(DbnameContext);
   return (
     <AppDataGridToolBar
       left=<>
@@ -1164,7 +1164,7 @@ function ListToolBar({ dbpal: { handleReload, listKey, loading } }: ListToolBarP
 }
 function RedisListTable(props: { listKey: string }) {
   const { listKey } = props;
-  const { dbName } = useContext(UuidContext);
+  const { dbName } = useContext(DbnameContext);
   const modifyOP = async (index, value) => {
     return await commands.redisListSet(dbName, listKey, value, index);
   };
@@ -1500,7 +1500,7 @@ function ZSetToolBar({
     zsetKey,
   },
 }: ZSetToolBarProps) {
-  const { dbName } = useContext(UuidContext);
+  const { dbName } = useContext(DbnameContext);
   return (
     <AppDataGridToolBar
       left=<>
@@ -1568,7 +1568,7 @@ function ZSetToolBar({
 
 function RedisZsetTable(props: { zsetKey: string }) {
   const { zsetKey } = props;
-  const { dbName } = useContext(UuidContext);
+  const { dbName } = useContext(DbnameContext);
   const modifyOP = async (oldMember: string, newKey: string, newValue: number) => {
     return await commands.redisZsetReplace(
       dbName,
@@ -1938,7 +1938,7 @@ type HashToolBarProps = {
 function HashToolBar({
   dbpal: { keyMatch, setKeyMatch, hashKey, loading, handleReload },
 }: HashToolBarProps) {
-  const { dbName } = useContext(UuidContext);
+  const { dbName } = useContext(DbnameContext);
   return (
     <AppDataGridToolBar
       left=<>
@@ -1975,7 +1975,7 @@ function HashToolBar({
 
 function RedisHashTable(props: { hashKey: string }) {
   const { hashKey } = props;
-  const { dbName } = useContext(UuidContext);
+  const { dbName } = useContext(DbnameContext);
   const apiRef = useGridApiRef();
 
   const delOP = useCallback(

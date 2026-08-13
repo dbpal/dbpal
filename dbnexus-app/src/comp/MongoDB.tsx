@@ -82,7 +82,7 @@ import {
   allGridHeaderTitle,
   clickDataGridColumn,
   TabContent,
-  UuidContext,
+  DbnameContext,
 } from "./helper";
 import {
   AppDataGridPagination,
@@ -493,7 +493,7 @@ function MongoTableToolBar(props: {
     table,
     isTable,
   } = props;
-  const { dbName } = useContext(UuidContext);
+  const { dbName } = useContext(DbnameContext);
   const [showModifyFilter, setShowModifyFilter] = useState(false);
   const [showModifySort, setShowModifySort] = useState(false);
   const [modalBox, setModalBox] = useState(null);
@@ -1072,7 +1072,7 @@ function MongoTableList(props: {
     tableName,
     setLoading,
   } = props;
-  const { dbName } = useContext(UuidContext);
+  const { dbName } = useContext(DbnameContext);
   const [page, setPage] = useState(0);
   const { mongo: pageSize, setPageSize } = usePageSize();
   const { showNotification } = useNotification();
@@ -1644,7 +1644,7 @@ class MongoTableHandler {
   }
 }
 function MongoTable(props: { table: string; isTable: boolean }) {
-  const { dbName } = useContext(UuidContext);
+  const { dbName } = useContext(DbnameContext);
   const { table, isTable } = props;
   const modifyOP = isTable ? MongoTableHandler.modifyOP(dbName, table) : undefined;
   const loadOne = MongoTableHandler.loadOne(dbName, table);

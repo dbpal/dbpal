@@ -47,7 +47,7 @@ import {
   handleCopyToClipboard,
   secondConfirm,
   TabContent,
-  UuidContext,
+  DbnameContext,
 } from "./helper";
 import { TbDatabaseSearch } from "react-icons/tb";
 
@@ -536,14 +536,14 @@ function Left() {
       <Stack spacing={0.3}>
         {connections.map((e) => {
           return (
-            <UuidContext.Provider
+            <DbnameContext.Provider
               value={{
                 dbName: e.name,
                 kind: connTypeToDataSourceKind(e.conn_type),
               }}
               key={e.name}>
               <ConnectionView key={e.name} config={e} />
-            </UuidContext.Provider>
+            </DbnameContext.Provider>
           );
         })}
         {connections.length == 0 && (
@@ -912,7 +912,7 @@ function ConnectionView(props: { config: DBConnectionConfig }) {
 }
 
 function SchemaTree(props: { schema?: string; reloadSchemas? }) {
-  const { dbName, kind } = useContext(UuidContext);
+  const { dbName, kind } = useContext(DbnameContext);
   const { schema, reloadSchemas } = props;
   const { is_connected } = useConnected();
   const SUPPORTED_PROCEDURE_KINDS = new Set([
@@ -1320,7 +1320,7 @@ function SchemaMenu(props: {
 }
 
 function CatalogTree() {
-  const { dbName: name, kind } = useContext(UuidContext);
+  const { dbName: name, kind } = useContext(DbnameContext);
   const { showNotification } = useNotification();
   const [databases, setDatabases] = useState<string[]>([]);
   const { isLoading, setLoading } = useConnLoading();
@@ -1378,9 +1378,9 @@ function CatalogTree() {
       key={name}>
       {showingDatabases.map((db) => {
         return (
-          <UuidContext.Provider key={db} value={{ dbName: name + "/" + db, kind }}>
+          <DbnameContext.Provider key={db} value={{ dbName: name + "/" + db, kind }}>
             <DatabaseTree key={db} database={db} reloadDatabase={handleReload} />
-          </UuidContext.Provider>
+          </DbnameContext.Provider>
         );
       })}
     </TreeItem>
@@ -1388,7 +1388,7 @@ function CatalogTree() {
 }
 
 function DatabaseTree(props: { database?: string; reloadDatabase?: () => void }) {
-  const { dbName: name, kind } = useContext(UuidContext);
+  const { dbName: name, kind } = useContext(DbnameContext);
   const { showNotification } = useNotification();
   const [schemas, setSchemas] = useState<string[]>([]);
   const { database, reloadDatabase } = props;
@@ -1459,11 +1459,11 @@ function DatabaseTree(props: { database?: string; reloadDatabase?: () => void })
       key={name + database}>
       {showingSchemas.map((schema) => {
         return (
-          <UuidContext.Provider
+          <DbnameContext.Provider
             key={schema}
             value={{ dbName: name + "/" + schema, kind }}>
             <SchemaTree key={schema} schema={schema} reloadSchemas={handleReload} />
-          </UuidContext.Provider>
+          </DbnameContext.Provider>
         );
       })}
     </TreeItem>
