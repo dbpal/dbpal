@@ -412,6 +412,9 @@ impl DuckDB {
 
 #[async_trait::async_trait]
 impl QuerySql for DuckDB {
+    fn support_tx(&self) -> bool {
+        true
+    }
     async fn get_auto_commit(&self, query_id: &str) -> anyhow::Result<bool> {
         anyhow::Ok(!self.query_tx.contains(&query_id.to_string()))
     }
@@ -812,7 +815,7 @@ impl SchemaTrait for DuckDB {
         _old_name: &str,
         _new_name: &str,
     ) -> anyhow::Result<Option<String>> {
-        self.backend_kind().not_support_feature()
+        self.backend_kind().not_support_feature("raname index")
     }
 
     async fn drop_index(&self, _table_name: &str, index: &str) -> anyhow::Result<Option<String>> {
@@ -1262,7 +1265,7 @@ impl SchemaTrait for DuckDB {
     }
     async fn rename_sequence(&self, _old: &str, _new: &str) -> anyhow::Result<String> {
         // duckdb
-        self.backend_kind().not_support_feature()
+        self.backend_kind().not_support_feature("rename sequence")
     }
 
     async fn drop_sequence(&self, name: &str, _cascade: bool) -> anyhow::Result<String> {
