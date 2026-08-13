@@ -600,11 +600,8 @@ impl ClickHouseDB {
 
 fn put_value_in_sql(typ: &sqlparser::ast::DataType, value: &str) -> String {
     use sqlparser::ast::{DataType, ObjectName};
-
     let default_str = value.to_string();
-
     let single_quote_str = quote_sql_str(value);
-
     fn custom_need_quote(x: &ObjectName) -> bool {
         let x = x.to_string().to_lowercase();
         x == "ipv4" || x == "ipv6"
@@ -1017,7 +1014,7 @@ impl DBTrait for ClickHouseDB {
         name: &str,
         _extra: Option<CreateSchemaExtra>,
     ) -> anyhow::Result<()> {
-        let sql = format!("CREATE DATABASE IF NOT EXISTS {name};");
+        let sql = format!("CREATE DATABASE IF NOT EXISTS `{name}`;");
         log::info!("sql:{}", sql);
         self.simple_execute_sql(&sql).await?;
         anyhow::Ok(())

@@ -1329,7 +1329,7 @@ impl DBTrait for CassandraDB {
 
     async fn drop_schema(&self, name: &str) -> anyhow::Result<()> {
         self.can_write()?;
-        let sql = format!("DROP KEYSPACE {name}");
+        let sql = format!("DROP KEYSPACE `{name}`");
         log::info!("sql:{}", sql);
         self.simple_execute_sql(&sql).await?;
         anyhow::Ok(())
@@ -2617,4 +2617,8 @@ mod tests {
             .iter()
             .for_each(|x| println!("{:?}", x.statement));
     }
+
+    #[tokio::test]
+
+    async fn test_ssl() {}
 }

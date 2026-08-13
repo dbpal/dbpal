@@ -1,3 +1,13 @@
+/*
+你这个类比非常精准，确实说到了点子上！Firebird 和 SQLite 在“数据库即文件”这个核心理念上，确实很像。
+
+不过，虽然它俩都用一个文件来存数据，但在实际的架构和使用方式上，还是有本质区别的。用一个比喻来说就是：
+
+SQLite 像一个 “嵌入式”的笔记本，应用自己直接读写这个文件，轻量便携，但只能一个人用。
+
+Firebird 更像一个 “有前台”的图书馆，虽然馆藏（数据）也在一本本书（文件）里，但所有借阅都必须通过前台管理员（服务器进程）来统一处理
+*/
+
 // docker run -d   --name some-firebird  -e FIREBIRD_DATABASE=test.fdb   -e
 // FIREBIRD_ROOT_PASSWORD=root  -e FIREBIRD_USER=alice -e
 // FIREBIRD_PASSWORD=root  -e   -e   -p 3050:3050    firebirdsql/firebird
@@ -1604,5 +1614,12 @@ mod tests {
         }
         GetTestExportTableKinds::test_export(&db, table_name).await;
         db.test_table_export_and_import(table_name).await;
+    }
+
+    #[tokio::test]
+
+    async fn test_ssl() {
+
+        // not found any ssl connection methods
     }
 }

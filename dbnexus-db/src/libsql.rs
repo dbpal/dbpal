@@ -1087,6 +1087,7 @@ impl GetTestExportTableKinds for LibSqlDB {}
 
 #[cfg(test)]
 mod tests {
+
     use super::*;
     use crate::db::{
         CreateIndexColumn, CreateTableReq, CreateTableReqColumn, SqlNullAble, TestQueryEventEmit,
@@ -1603,5 +1604,11 @@ mod tests {
                 .unwrap();
             println!("view value:{:?}", list);
         }
+    }
+
+    #[tokio::test]
+
+    async fn test_ssl() {
+        // I don't know if libsql support https
     }
 }
