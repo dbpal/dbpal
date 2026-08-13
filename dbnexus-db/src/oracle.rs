@@ -328,20 +328,29 @@ impl QuerySql for OracleDB {
             emit.send(QueryEvent::new_status("locked connection."))?;
             match conn.query(&sql, &[]) {
                 Ok(rows) => {
-                    let first = FirstTrue::default();
-
+                    let fields = rows
+                        .column_info()
+                        .iter()
+                        .map(|x| Field {
+                            field: x.name().to_string(),
+                            data_type: x.oracle_type().to_string(),
+                            nullable: x.nullable(),
+                            default_value: None,
+                            is_primary: false,
+                            is_auto_increment: false,
+                            sortable: true,
+                        })
+                        .collect();
+                    emit.send(
+                        QueryResp {
+                            fields,
+                            ..Default::default()
+                        }
+                        .into(),
+                    )?;
                     for row in rows {
                         let row = row?;
-                        if first.get() {
-                            let fields = infer_schema_by_row(&row);
-                            emit.send(
-                                QueryResp {
-                                    fields,
-                                    ..Default::default()
-                                }
-                                .into(),
-                            )?;
-                        }
+
                         let r = encode_row(row)?;
                         emit.send(r.into())?;
                     }
@@ -369,17 +378,6 @@ impl OracleDB {
         let value: i64 = row.get(0)?;
         anyhow::Ok(value)
     }
-}
-
-fn infer_schema_by_row(x: &oracle::Row) -> Vec<Field> {
-    let mut ret = Vec::with_capacity(x.column_info().len());
-    for c in x.column_info().iter() {
-        ret.push(Field::from_name_type(
-            c.name().to_string(),
-            c.oracle_type().to_string(),
-        ))
-    }
-    ret
 }
 
 fn encode_row(row: Row) -> anyhow::Result<Vec<Option<String>>> {
@@ -1255,21 +1253,22 @@ impl SchemaTrait for OracleDB {
         spawn_blocking(move || {
             let conn = this.get_conn()?;
             let stream = conn.query(&sql, &[])?;
-            let first = FirstTrue::default();
-
+            emit.send(
+                QueryResp {
+                    fields: stream
+                        .column_info()
+                        .iter()
+                        .map(|x| Field::from_name_type(x.name(), x.oracle_type().to_string()))
+                        .collect(),
+                    total: total as f64,
+                    sql: sql.clone().into(),
+                    ..Default::default()
+                }
+                .into(),
+            )?;
             for row in stream {
                 let row = row?;
-                if first.get() {
-                    emit.send(
-                        QueryResp {
-                            fields: infer_schema_by_row(&row),
-                            total: total as f64,
-                            sql: sql.clone().into(),
-                            ..Default::default()
-                        }
-                        .into(),
-                    )?;
-                }
+
                 let d = encode_row(row)?;
                 emit.send(d.into())?;
             }
@@ -2477,7 +2476,6 @@ TEST_MATERIALIZED_VIEW_TABLE (product_name, category, price) VALUES ('Samsung Ga
             .await
             .unwrap();
         println!("resp:{:?}", resp);
-
         GetTestExportTableKinds::test_export(&db, table_name).await;
         db.test_table_export_and_import(table_name).await;
     }
