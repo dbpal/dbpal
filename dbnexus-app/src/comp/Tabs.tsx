@@ -11,10 +11,17 @@ import {
   Divider,
 } from "@mui/material";
 import CloseIcon from "@mui/icons-material/Close";
-import { secondConfirm, TabContext, TabActiveContext, DbnameContext } from "./helper";
+import {
+  secondConfirm,
+  TabContext,
+  TabActiveContext,
+  DbnameContext,
+  TabContent,
+} from "./helper";
 
 import { useBoolSwitch, useConfirmMsg, useContextMenu, useTabsManage } from "./store";
 import { IconModifed } from "./CommonComp2";
+import React from "react";
 
 const tabsWrapKey = "tabs-wrap-key";
 function TabsMenu(props: { index: number }) {
@@ -238,21 +245,38 @@ function TabsWithContent() {
 
       <div style={{ flex: 1 }}>
         {tabs.map((tab, index) => (
-          <TabActiveContext.Provider key={tab.id} value={currentTab == index}>
-            <TabContext value={{ id: tab.id }}>
-              <DbnameContext value={{ dbName: tab.dbName, kind: tab.kind }}>
-                <div
-                  style={{ height: "100%", position: "relative" }}
-                  hidden={currentTab != index}>
-                  {tab.content}
-                </div>
-              </DbnameContext>
-            </TabContext>
-          </TabActiveContext.Provider>
+          <TabItem key={tab.id} tab={tab} isActive={currentTab === index} />
         ))}
       </div>
     </Stack>
   );
 }
+
+// 提取为独立组件
+// eslint-disable-next-line react/display-name
+const TabItem = React.memo(
+  ({ tab, isActive }: { tab: TabContent; isActive: boolean }) => {
+    return (
+      <TabActiveContext.Provider value={isActive}>
+        <TabContext value={{ id: tab.id }}>
+          <DbnameContext value={{ dbName: tab.dbName, kind: tab.kind }}>
+            <div
+              style={{
+                height: "100%",
+                position: "relative",
+                display: isActive ? "block" : "none", // 用 display 替代 hidden
+              }}>
+              {tab.content}
+            </div>
+          </DbnameContext>
+        </TabContext>
+      </TabActiveContext.Provider>
+    );
+  },
+  (prevProps, nextProps) => {
+    // 只有 isActive 变化时才重新渲染
+    return prevProps.isActive === nextProps.isActive;
+  },
+);
 
 export { TabsWithContent };
