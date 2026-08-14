@@ -29,7 +29,7 @@ function ShowCuts() {
         }}
         slots={{ pagination: AppDataGridPagination }}
         style={{ height: "100%" }}
-        onColumnResize={(resize) => {
+        onColumnWidthChange={(resize) => {
           setColumnWidth(resize.colDef.field, resize.width);
         }}
       />

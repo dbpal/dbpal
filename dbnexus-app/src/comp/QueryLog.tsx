@@ -254,7 +254,7 @@ function QueryLog(props: {
           initialState={{
             sorting: { sortModel: [{ field: "create_at", sort: "desc" }] },
           }}
-          onColumnResize={({ colDef, width }) => {
+          onColumnWidthChange={({ colDef, width }) => {
             const field = colDef.field;
             if (field == "create_at" || field == "success") {
               setColumnWidth(field, width);

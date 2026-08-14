@@ -1331,7 +1331,7 @@ function RedisListTable(props: { listKey: string }) {
     } as GridSlotsComponentsProps;
   }, [handleDel, handleReload, listKey, loading, setUpMenu]);
 
-  const onColumnResize = useCallback(
+  const onColumnWidthChange = useCallback(
     ({ colDef, width }) => {
       if (colDef.field == "seq") {
         setColumnWidth(colDef.field, width);
@@ -1384,7 +1384,7 @@ function RedisListTable(props: { listKey: string }) {
             disableMultipleRowSelection
             disableColumnFilter
             rows={resp.data}
-            onColumnResize={onColumnResize}
+            onColumnWidthChange={onColumnWidthChange}
             columns={resp.fields}
             paginationModel={paginationModel}
             onRowDoubleClick={onRowDoubleClick}
@@ -1761,7 +1761,7 @@ function RedisZsetTable(props: { zsetKey: string }) {
 
   const [modifyModalBox, setModifyModalBox] = useState<HTMLDivElement | null>(null);
 
-  const onColumnResize = useCallback(
+  const onColumnWidthChange = useCallback(
     ({ colDef, width }) => {
       if (colDef.field == "score") {
         setColumnWidth(colDef.field, width);
@@ -1814,7 +1814,7 @@ function RedisZsetTable(props: { zsetKey: string }) {
             }}
             apiRef={apiRef}
             slots={slots}
-            onColumnResize={onColumnResize}
+            onColumnWidthChange={onColumnWidthChange}
             loading={loading}
             slotProps={slotProps}
             rows={resp.data}
@@ -2116,7 +2116,7 @@ function RedisHashTable(props: { hashKey: string }) {
 
   const [modifyModalBox, setModifyModalBox] = useState<HTMLDivElement | null>(null);
 
-  const onColumnResize = useCallback(
+  const onColumnWidthChange = useCallback(
     ({ colDef, width }) => {
       if (colDef.field == "key") {
         setColumnWidth(colDef.field, width);
@@ -2166,7 +2166,7 @@ function RedisHashTable(props: { hashKey: string }) {
             }}
             apiRef={apiRef}
             slots={slots}
-            onColumnResize={onColumnResize}
+            onColumnWidthChange={onColumnWidthChange}
             loading={loading}
             slotProps={slotProps}
             rows={resp.data}

@@ -474,7 +474,7 @@ function CopyConnection() {
     return cols;
   }, [getColumnWidth]);
 
-  const onColumnResize = useCallback(
+  const onColumnWidthChange = useCallback(
     ({ colDef, width }) => {
       setColumnWidth(colDef.field, width);
     },
@@ -516,7 +516,7 @@ function CopyConnection() {
         slotProps={slotProps}
         columns={cols}
         rows={connections}
-        onColumnResize={onColumnResize}
+        onColumnWidthChange={onColumnWidthChange}
         onRowDoubleClick={onRowDoubleClick}
       />
     </Stack>
@@ -752,7 +752,7 @@ function FavoriteSqlList() {
     });
     return cols;
   }, [getColumnWidth]);
-  const onColumnResize = useCallback(
+  const onColumnWidthChange = useCallback(
     ({ colDef, width }) => {
       setColumnWidth(colDef.field, width);
     },
@@ -850,7 +850,7 @@ function FavoriteSqlList() {
         columns={columns}
         rows={fs}
         style={dataGridStyle}
-        onColumnResize={onColumnResize}
+        onColumnWidthChange={onColumnWidthChange}
         onRowDoubleClick={onRowDoubleClick}
       />
     </Stack>

@@ -137,7 +137,7 @@ function QueryResp(props: { data: MuiDataGridData }): React.ReactElement {
     };
   });
 
-  const onColumnResize = useCallback(
+  const onColumnWidthChange = useCallback(
     ({ colDef, width }) => {
       if (!data) {
         return;
@@ -270,7 +270,7 @@ function QueryResp(props: { data: MuiDataGridData }): React.ReactElement {
               rows={data.data}
               showToolbar={false}
               filterMode="client" // 使用客户端过滤
-              onColumnResize={onColumnResize}
+              onColumnWidthChange={onColumnWidthChange}
               paginationModel={{ page, pageSize }}
               onPaginationModelChange={(e) => {
                 setPage(e.page);

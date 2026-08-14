@@ -1005,7 +1005,7 @@ function SqlTableView(props: {
     [showNotification],
   );
 
-  const onColumnResize = useCallback(
+  const onColumnWidthChange = useCallback(
     ({ colDef, width }) => {
       setColumnWidth(colDef.field, width);
     },
@@ -1224,7 +1224,7 @@ function SqlTableView(props: {
             onSortModelChange={clientModel ? undefined : onSortModelChange}
             columns={resp.fields}
             rows={resp.data}
-            onColumnResize={onColumnResize}
+            onColumnWidthChange={onColumnWidthChange}
             processRowUpdate={isTable ? handleProcessRowUpdate : undefined}
             onProcessRowUpdateError={onProcessRowUpdateError}
             loading={loading}

@@ -1284,7 +1284,7 @@ function MongoTableList(props: {
     } as Partial<GridSlotsComponent>;
   }, [tableName]);
 
-  const onColumnResize = useCallback(
+  const onColumnWidthChange = useCallback(
     ({ colDef, width }) => {
       setColumnWidth(colDef.field, width);
     },
@@ -1338,7 +1338,7 @@ function MongoTableList(props: {
             onRowDoubleClick={onRowDoubleClick}
             sortingMode="server"
             onSortModelChange={onSortModelChange}
-            onColumnResize={onColumnResize}
+            onColumnWidthChange={onColumnWidthChange}
           />
         </AppColumnMenuCtx>
       )}

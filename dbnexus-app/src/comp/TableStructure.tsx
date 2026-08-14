@@ -138,7 +138,7 @@ function ColumnsStructure(props: { table: string }) {
     DataSourceKind.LibSql,
   ]).has(kind);
 
-  const onColumnResize = useCallback(
+  const onColumnWidthChange = useCallback(
     ({ colDef, width }: { colDef: { field: string }; width: number }) => {
       setColumnWidth(colDef.field, width);
     },
@@ -340,7 +340,7 @@ function ColumnsStructure(props: { table: string }) {
       <DataGrid
         slots={slots}
         slotProps={slotProps}
-        onColumnResize={onColumnResize}
+        onColumnWidthChange={onColumnWidthChange}
         columns={cols}
         rows={fields}
         onRowDoubleClick={onRowDoubleClick}
@@ -509,7 +509,7 @@ function IndexesStructure(props: { table: string }) {
 
   const { getColumnWidth, setColumnWidth } = useColumnWidthStore();
 
-  const onColumnResize = useCallback(
+  const onColumnWidthChange = useCallback(
     ({ colDef, width }: { colDef: { field: string }; width: number }) => {
       setColumnWidth(colDef.field, width);
     },
@@ -637,7 +637,7 @@ function IndexesStructure(props: { table: string }) {
     <Stack style={{ height: "100%" }}>
       <DataGrid
         slotProps={slotProps}
-        onColumnResize={onColumnResize}
+        onColumnWidthChange={onColumnWidthChange}
         columns={cols}
         rows={indexes}
         style={dataGridStyle}
@@ -1185,7 +1185,7 @@ function TriggersStructure(props: { table: string }) {
   const { showNotification } = useNotification();
 
   const { getColumnWidth, setColumnWidth } = useColumnWidthStore();
-  const onColumnResize = useCallback(
+  const onColumnWidthChange = useCallback(
     ({ colDef, width }: { colDef: { field: string }; width: number }) => {
       setColumnWidth(colDef.field, width);
     },
@@ -1364,7 +1364,7 @@ function TriggersStructure(props: { table: string }) {
     <Stack style={{ height: "100%" }}>
       <DataGrid
         slotProps={slotProps}
-        onColumnResize={onColumnResize}
+        onColumnWidthChange={onColumnWidthChange}
         columns={cols}
         rows={triggers}
         onRowDoubleClick={onRowDoubleClick}

@@ -262,7 +262,7 @@ function ColumnsContent(props: { view: string }) {
   const [loading, setLoading] = useState(false);
 
   const { getColumnWidth, setColumnWidth } = useColumnWidthStore();
-  const onColumnResize = useCallback(
+  const onColumnWidthChange = useCallback(
     ({ colDef, width }) => {
       setColumnWidth(colDef.field, width);
     },
@@ -355,7 +355,7 @@ function ColumnsContent(props: { view: string }) {
         slots={slots}
         getRowId={getRowId}
         slotProps={slotProps}
-        onColumnResize={onColumnResize}
+        onColumnWidthChange={onColumnWidthChange}
         columns={cols}
         rows={fields}
         style={dataGridStyle}
