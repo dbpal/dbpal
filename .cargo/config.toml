@@ -2,9 +2,6 @@
 [env]
 OPENSSL_STATIC = "1"
 
-[target.'cfg(windows)'.env]
-OPENSSL_DIR = "C:/Program Files/OpenSSL-Win64"
-
 
 [target.x86_64-unknown-linux-gnu]
 linker = "clang"

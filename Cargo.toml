@@ -43,7 +43,6 @@ redis = { version = "1", features = [
     "tokio-native-tls-comp",
 
 ] }
-tokio-native-tls = "*"
 specta-typescript = "0.0.11"
 csv_processor = "0.1.10"
 csv = "*"
@@ -52,3 +51,4 @@ specta = { version = "=2.0.0-rc.24", features = ["derive", "serde_json"] }
 calamine = "*"
 reqwest = { version = "0.13", features = ["json", "native-tls", "stream"] }
 tempfile = "3.27.0"
+tokio-native-tls = { version = "0.3.1", features = ["vendored"] }
