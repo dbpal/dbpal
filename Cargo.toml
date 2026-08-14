@@ -52,3 +52,4 @@ specta = { version = "=2.0.0-rc.24", features = ["derive", "serde_json"] }
 calamine = "*"
 reqwest = { version = "0.13", features = ["json", "native-tls", "stream"] }
 tempfile = "3.27.0"
+openssl = { version = "0.10", features = ["vendored"] }
