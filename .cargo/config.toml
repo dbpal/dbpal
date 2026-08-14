@@ -1,4 +1,7 @@
 
+[env]
+OPENSSL_DIR = { value = "C:/Program Files/OpenSSL-Win64", cfg = "windows" }
+OPENSSL_STATIC = { value = "1" }
 
 
 [target.x86_64-unknown-linux-gnu]
