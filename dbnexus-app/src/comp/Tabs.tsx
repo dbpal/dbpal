@@ -242,9 +242,7 @@ function TabsWithContent() {
             <TabActiveContext.Provider key={tab.id} value={currentTab == index}>
               <TabContext value={{ id: tab.id }}>
                 <DbnameContext value={{ dbName: tab.dbName, kind: tab.kind }}>
-                  <div
-                    hidden={currentTab !== index}
-                    style={{ height: "100%", position: "relative" }}>
+                  <div style={{ height: "100%", position: "relative" }}>
                     {tab.content}
                   </div>
                 </DbnameContext>
