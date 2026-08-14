@@ -1,4 +1,4 @@
-import { Activity, useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
   Stack,
   MenuItem,
@@ -238,17 +238,17 @@ function TabsWithContent() {
 
       <div style={{ flex: 1 }}>
         {tabs.map((tab, index) => (
-          <Activity key={tab.id} mode={currentTab === index ? "visible" : "hidden"}>
-            <TabActiveContext.Provider key={tab.id} value={currentTab == index}>
-              <TabContext value={{ id: tab.id }}>
-                <DbnameContext value={{ dbName: tab.dbName, kind: tab.kind }}>
-                  <div style={{ height: "100%", position: "relative" }}>
-                    {tab.content}
-                  </div>
-                </DbnameContext>
-              </TabContext>
-            </TabActiveContext.Provider>
-          </Activity>
+          <TabActiveContext.Provider key={tab.id} value={currentTab == index}>
+            <TabContext value={{ id: tab.id }}>
+              <DbnameContext value={{ dbName: tab.dbName, kind: tab.kind }}>
+                <div
+                  style={{ height: "100%", position: "relative" }}
+                  hidden={currentTab != index}>
+                  {tab.content}
+                </div>
+              </DbnameContext>
+            </TabContext>
+          </TabActiveContext.Provider>
         ))}
       </div>
     </Stack>
