@@ -1551,6 +1551,44 @@ pub struct XlsxEdit {
     pub content: String,
 }
 
+pub enum XlsxEditContent {
+    Time(chrono::NaiveTime),
+    Date(chrono::NaiveDate),
+    DateTime(chrono::NaiveDateTime),
+    String(String),
+    Number(f64),
+}
+
+impl From<String> for XlsxEditContent {
+    fn from(value: T) -> Self {
+        Self::String(value.into())
+    }
+}
+
+impl From<chrono::NaiveTime> for XlsxEditContent {
+    fn from(value: chrono::NaiveTime) -> Self {
+        Self::Time(value)
+    }
+}
+
+impl From<chrono::NaiveDate> for XlsxEditContent {
+    fn from(value: chrono::NaiveDate) -> Self {
+        Self::Date(value)
+    }
+}
+
+impl From<chrono::DateTime> for XlsxEditContent {
+    fn from(value: chrono::DateTime) -> Self {
+        Self::DateTime(value)
+    }
+}
+
+impl<T: Into<f64>> From<T> for XlsxEditContent {
+    fn from(value: T) -> Self {
+        Self::Number(value.into())
+    }
+}
+
 impl std::fmt::Display for XlsxEdit {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "{}-{}-{}", self.row, self.column, self.content)

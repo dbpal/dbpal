@@ -8291,6 +8291,7 @@ version = "0.97.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "210c9bee5c2d1df2c3a4fa1fccf3647a37bea205a35d5775491731b271bff19b"
 dependencies = [
+ "chrono",
  "tempfile",
  "zip 8.6.0",
 ]

@@ -21,7 +21,7 @@ use crate::db::{
     ExtractSqlValeFromJsonValue, Field, FirstTrue, GetBackendKind, Index, IndexKind, ListTable,
     MetaValue, NamedStaff, OptionMustBeSomeErr, QueryEvent, QueryEventEmitter, QueryResp, QuerySql,
     SchemaTrait, ServerMetas, ShowTableParameter, SqlBuilder, TriggerDetail, TriggerEvent,
-    TriggerTiming, XlsxEdit, POOL_MAX_CONNECTIONS,
+    TriggerTiming, XlsxEdit, XlsxEditContent, POOL_MAX_CONNECTIONS,
 };
 use crate::helper::{create_csv, extract_bytes_from_serde_values};
 use crate::language_server::LexerCompletionTrait;
@@ -909,6 +909,82 @@ pub(crate) fn text_like(typ: &str) -> bool {
 pub(crate) fn real_like(typ: &str) -> bool {
     typ == "REAL" || typ == "DOUBLE" || typ == "DOUBLE PRECISION" || typ == "FLOAT"
 }
+
+// fn encode_row_xlsx(row: &SqliteRow) -> anyhow::Result<Vec<Option<XlsxEditContent>>> {
+//     let mut values = Vec::with_capacity(row.len());
+//     for c in 0..row.len() {
+//         let ty = row.column(c).type_info().name();
+//         let v = match ty {
+//             "NULL" | "" => {
+//                 // null table is not always null. I quote 'suitable for
+//                 // representing missing or unknown data'
+//                 // try get possible values
+//                 if let Result::Ok(s) = row.try_get::<'_, f64, _>(c) {
+//                     Some(s.into())
+//                 } else if let Result::Ok(s) = row.try_get::<'_, i64, _>(c) {
+//                     Some(s.into())
+//                 } else if let Result::Ok(s) = row.try_get::<'_, String, _>(c) {
+//                     Some(s.into)
+//                 } else if let Result::Ok(s) = row.try_get::<'_, bool, _>(c) {
+//                     Some(if s { 1 } else { 0 }.into())
+//                 } else if let Result::Ok(s) = row.try_get::<'_, Vec<u8>, _>(c) {
+//                     Some(encode_bytes(s.as_slice()).into())
+//                 } else {
+//                     None
+//                 }
+//             }
+
+//             "TEXT" => {
+//                 let v: Option<String> = row.try_get(c)?;
+//                 v
+//             }
+//             "REAL" => {
+//                 let v: Option<f64> = row.try_get(c)?;
+//                 v.map(|x| format!("{}", x))
+//             }
+//             "BLOB" => {
+//                 let v: Option<Vec<u8>> = row.try_get(c)?;
+//                 v.map(|x| encode_bytes(x.as_slice()))
+//             }
+
+//             _ if integer_like(ty) => {
+//                 let v: Result<Option<i64>, _> = row.try_get(c);
+//                 match v {
+//                     Ok(x) => x.map(|x| x.to_string()),
+//                     Err(_) => {
+//                         // sometimes can save a float in here
+//                         let v: Option<f64> = row.try_get(c)?;
+//                         v.map(|x| format!("{}", x))
+//                     }
+//                 }
+//             }
+//             _ if numeric_like(ty) => {
+//                 let v: Option<f64> = row.try_get(c)?;
+//                 v.map(|x| format!("{}", x))
+//             }
+//             "BOOLEAN" => {
+//                 let v: Option<bool> = row.try_get(c)?;
+//                 v.map(|x| format!("{}", x))
+//             }
+//             "DATE" => {
+//                 let v: Option<chrono::NaiveDate> = row.try_get(c)?;
+//                 v.map(|x| format!("{}", x))
+//             }
+//             "TIME" => {
+//                 let v: Option<chrono::NaiveTime> = row.try_get(c)?;
+//                 v.map(|x| format!("{}", x))
+//             }
+//             "DATETIME" => {
+//                 let v: Option<chrono::NaiveDateTime> = row.try_get(c)?;
+//                 v.map(|x| format!("{}", x))
+//             }
+//             _ => anyhow::bail!(format!("type '{ty}' not supported")),
+//         };
+
+//         values.push(v);
+//     }
+//     anyhow::Ok(values)
+// }
 
 fn encode_row(row: &SqliteRow) -> anyhow::Result<Vec<Option<String>>> {
     let mut values = Vec::with_capacity(row.len());
