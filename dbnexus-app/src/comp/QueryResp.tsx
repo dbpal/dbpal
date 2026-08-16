@@ -105,7 +105,7 @@ function RespContextMenu(props: {
 function QueryResp(props: { data: MuiDataGridData }): React.ReactElement {
   const { data } = props;
   const { dbName } = useContext(DbnameContext);
-  const { setColumnWidth, getColumnWidth } = useColumnWidthStore();
+  const { getColumnWidth } = useColumnWidthStore();
   const [selectedColumns, setSelectColumns] = useState<Set<string>>(new Set());
   const apiRef = useGridApiRef();
   const [page, setPage] = useState(0);
@@ -136,16 +136,6 @@ function QueryResp(props: { data: MuiDataGridData }): React.ReactElement {
       );
     };
   });
-
-  const onColumnWidthChange = useCallback(
-    ({ colDef, width }) => {
-      if (!data) {
-        return;
-      }
-      setColumnWidth(colDef.field, width);
-    },
-    [data, setColumnWidth],
-  );
 
   const [sortModel, setSortModel] = useState<GridSortModel>([]);
   const setUpMenu = useContextMenu((state) => state.setUpMenu);
@@ -270,7 +260,6 @@ function QueryResp(props: { data: MuiDataGridData }): React.ReactElement {
               rows={data.data}
               showToolbar={false}
               filterMode="client" // 使用客户端过滤
-              onColumnWidthChange={onColumnWidthChange}
               paginationModel={{ page, pageSize }}
               onPaginationModelChange={(e) => {
                 setPage(e.page);

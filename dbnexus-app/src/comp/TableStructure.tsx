@@ -7,7 +7,7 @@ import {
   useRef,
   useState,
 } from "react";
-import { EscDownEvent, modalHandleClose } from "./Common";
+import { EscDownEvent, keyNotInTable, modalHandleClose } from "./Common";
 import {
   dataGridStyle,
   DataSourceKind,
@@ -122,7 +122,7 @@ function ColumnsStructure(props: { table: string }) {
   const [fields, setFields] = useState<Field[]>([]);
   const { showNotification } = useNotification();
   const [row, setRow] = useState<Field>(null);
-  const { getColumnWidth, setColumnWidth } = useColumnWidthStore();
+  const { getColumnWidth } = useColumnWidthStore();
   const supportModifyColumn = new Set([
     DataSourceKind.MariaDB,
     DataSourceKind.SqlServer,
@@ -137,13 +137,6 @@ function ColumnsStructure(props: { table: string }) {
     DataSourceKind.Sqlite,
     DataSourceKind.LibSql,
   ]).has(kind);
-
-  const onColumnWidthChange = useCallback(
-    ({ colDef, width }: { colDef: { field: string }; width: number }) => {
-      setColumnWidth(colDef.field, width);
-    },
-    [setColumnWidth],
-  );
 
   const handleReload = useCallback(() => {
     setLoading(true);
@@ -267,12 +260,14 @@ function ColumnsStructure(props: { table: string }) {
           if (!field) {
             return;
           }
+          const row = fields.find((e) => e["id"] == id);
+
           const content = (target as HTMLDivElement).innerHTML;
           setUpMenu({
             content: (
               <ColumnMenu
                 supportModifyColumn={supportModifyColumn}
-                col={id}
+                col={row.field}
                 content={content}
                 handleDrop={handleDrop}
               />
@@ -283,7 +278,7 @@ function ColumnsStructure(props: { table: string }) {
         style: { cursor: "context-menu" },
       },
     };
-  }, [handleDrop, setUpMenu, supportModifyColumn]);
+  }, [fields, handleDrop, setUpMenu, supportModifyColumn]);
 
   const onRowDoubleClick = useCallback((row: { row: Field }) => {
     setRow(row.row);
@@ -340,7 +335,6 @@ function ColumnsStructure(props: { table: string }) {
       <DataGrid
         slots={slots}
         slotProps={slotProps}
-        onColumnWidthChange={onColumnWidthChange}
         columns={cols}
         rows={fields}
         onRowDoubleClick={onRowDoubleClick}
@@ -507,14 +501,7 @@ function IndexesStructure(props: { table: string }) {
   const [renameIndexName, setRenameIndexName] = useState("");
   const [showAdd, setShowAdd] = useState(false);
 
-  const { getColumnWidth, setColumnWidth } = useColumnWidthStore();
-
-  const onColumnWidthChange = useCallback(
-    ({ colDef, width }: { colDef: { field: string }; width: number }) => {
-      setColumnWidth(colDef.field, width);
-    },
-    [setColumnWidth],
-  );
+  const { getColumnWidth } = useColumnWidthStore();
 
   const handleReload = useCallback(() => {
     setLoading(true);
@@ -637,7 +624,6 @@ function IndexesStructure(props: { table: string }) {
     <Stack style={{ height: "100%" }}>
       <DataGrid
         slotProps={slotProps}
-        onColumnWidthChange={onColumnWidthChange}
         columns={cols}
         rows={indexes}
         style={dataGridStyle}
@@ -1184,13 +1170,7 @@ function TriggersStructure(props: { table: string }) {
   const [row, setRow] = useState<TriggerDetail>(null);
   const { showNotification } = useNotification();
 
-  const { getColumnWidth, setColumnWidth } = useColumnWidthStore();
-  const onColumnWidthChange = useCallback(
-    ({ colDef, width }: { colDef: { field: string }; width: number }) => {
-      setColumnWidth(colDef.field, width);
-    },
-    [setColumnWidth],
-  );
+  const { getColumnWidth } = useColumnWidthStore();
 
   const handleReload = useCallback(() => {
     setLoading(true);
@@ -1364,7 +1344,6 @@ function TriggersStructure(props: { table: string }) {
     <Stack style={{ height: "100%" }}>
       <DataGrid
         slotProps={slotProps}
-        onColumnWidthChange={onColumnWidthChange}
         columns={cols}
         rows={triggers}
         onRowDoubleClick={onRowDoubleClick}

@@ -1180,7 +1180,7 @@ function RedisListTable(props: { listKey: string }) {
   const [respOrigin, setRespOrigin] = useState<MuiDataGridData>(newEmptyResp());
   const [selectRow, setSelectRow] = useState<any>(null);
   const { showNotification } = useNotification();
-  const { setColumnWidth, getColumnWidth } = useColumnWidthStore();
+  const { getColumnWidth } = useColumnWidthStore();
   const { sql: sqlPageSize, setPageSize } = usePageSize();
 
   const [page, setPage] = useState(0);
@@ -1331,15 +1331,6 @@ function RedisListTable(props: { listKey: string }) {
     } as GridSlotsComponentsProps;
   }, [handleDel, handleReload, listKey, loading, setUpMenu]);
 
-  const onColumnWidthChange = useCallback(
-    ({ colDef, width }) => {
-      if (colDef.field == "seq") {
-        setColumnWidth(colDef.field, width);
-      }
-    },
-    [setColumnWidth],
-  );
-
   const [modifyModalBox, setModifyModalBox] = useState<HTMLDivElement | null>(null);
 
   const slots = useMemo(() => {
@@ -1384,7 +1375,6 @@ function RedisListTable(props: { listKey: string }) {
             disableMultipleRowSelection
             disableColumnFilter
             rows={resp.data}
-            onColumnWidthChange={onColumnWidthChange}
             columns={resp.fields}
             paginationModel={paginationModel}
             onRowDoubleClick={onRowDoubleClick}
@@ -1587,7 +1577,7 @@ function RedisZsetTable(props: { zsetKey: string }) {
     },
     [dbName, zsetKey],
   );
-  const { setColumnWidth, getColumnWidth } = useColumnWidthStore();
+  const { getColumnWidth } = useColumnWidthStore();
   const [keyMatch, setKeyMatch] = useState("");
   const [keyMatchDelay] = useDebounce(keyMatch, 1000);
 
@@ -1761,15 +1751,6 @@ function RedisZsetTable(props: { zsetKey: string }) {
 
   const [modifyModalBox, setModifyModalBox] = useState<HTMLDivElement | null>(null);
 
-  const onColumnWidthChange = useCallback(
-    ({ colDef, width }) => {
-      if (colDef.field == "score") {
-        setColumnWidth(colDef.field, width);
-      }
-    },
-    [setColumnWidth],
-  );
-
   const slots = useMemo((): Partial<GridSlotsComponent> => {
     return {
       columnMenu: AppColumnMenu,
@@ -1814,7 +1795,6 @@ function RedisZsetTable(props: { zsetKey: string }) {
             }}
             apiRef={apiRef}
             slots={slots}
-            onColumnWidthChange={onColumnWidthChange}
             loading={loading}
             slotProps={slotProps}
             rows={resp.data}
@@ -1995,7 +1975,7 @@ function RedisHashTable(props: { hashKey: string }) {
       newValue,
     );
   };
-  const { getColumnWidth, setColumnWidth } = useColumnWidthStore();
+  const { getColumnWidth } = useColumnWidthStore();
 
   const [keyMatch, setKeyMatch] = useState("");
   const [keyMatchDelay] = useDebounce(keyMatch, 1000);
@@ -2116,14 +2096,6 @@ function RedisHashTable(props: { hashKey: string }) {
 
   const [modifyModalBox, setModifyModalBox] = useState<HTMLDivElement | null>(null);
 
-  const onColumnWidthChange = useCallback(
-    ({ colDef, width }) => {
-      if (colDef.field == "key") {
-        setColumnWidth(colDef.field, width);
-      }
-    },
-    [setColumnWidth],
-  );
   const { getColumnVisibility, setColumnVisibility } = useTableColumnVisibleStore(
     (s) => s,
   );
@@ -2166,7 +2138,6 @@ function RedisHashTable(props: { hashKey: string }) {
             }}
             apiRef={apiRef}
             slots={slots}
-            onColumnWidthChange={onColumnWidthChange}
             loading={loading}
             slotProps={slotProps}
             rows={resp.data}

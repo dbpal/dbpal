@@ -756,7 +756,7 @@ function SqlTableView(props: {
   const clientModel = [DataSourceKind.Cassandra].includes(kind);
   const [viewInModal, setViewInModal] = useState<object>(null);
   const [queryStatus, setQueryStatus] = useState("");
-  const { getColumnWidth, setColumnWidth } = useColumnWidthStore();
+  const { getColumnWidth } = useColumnWidthStore();
   const [showClone, setShowClone] = useState<object>(null);
   const getSize = useSizeStore((s) => s.getSize);
   const [selectedColumns, setSelectColumns] = useState<Set<string>>(new Set());
@@ -1005,13 +1005,6 @@ function SqlTableView(props: {
     [showNotification],
   );
 
-  const onColumnWidthChange = useCallback(
-    ({ colDef, width }) => {
-      setColumnWidth(colDef.field, width);
-    },
-    [setColumnWidth],
-  );
-
   const slotProps = useMemo(() => {
     return {
       row: {
@@ -1224,7 +1217,6 @@ function SqlTableView(props: {
             onSortModelChange={clientModel ? undefined : onSortModelChange}
             columns={resp.fields}
             rows={resp.data}
-            onColumnWidthChange={onColumnWidthChange}
             processRowUpdate={isTable ? handleProcessRowUpdate : undefined}
             onProcessRowUpdateError={onProcessRowUpdateError}
             loading={loading}

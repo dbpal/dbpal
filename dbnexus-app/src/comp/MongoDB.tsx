@@ -1078,7 +1078,7 @@ function MongoTableList(props: {
   const { showNotification } = useNotification();
   const [resp, setResp] = useState<MuiDataGridData | null>(null);
   const [selectModifyDoc, setSelectModifyDoc] = useState<BSON.Document | null>(null);
-  const { getColumnWidth, setColumnWidth } = useColumnWidthStore();
+  const { getColumnWidth } = useColumnWidthStore();
   const [showFilter, setShowFilter] = useState<{ field: string; id: any }>(null);
   const [selectedColumns, setSelectColumns] = useState<Set<string>>(new Set());
   const apiRef = useGridApiRef();
@@ -1284,12 +1284,6 @@ function MongoTableList(props: {
     } as Partial<GridSlotsComponent>;
   }, [tableName]);
 
-  const onColumnWidthChange = useCallback(
-    ({ colDef, width }) => {
-      setColumnWidth(colDef.field, width);
-    },
-    [setColumnWidth],
-  );
   const [modalBox, setModalBox] = useState(null);
   const { getColumnVisibility, setColumnVisibility } = useTableColumnVisibleStore(
     (s) => s,
@@ -1338,7 +1332,6 @@ function MongoTableList(props: {
             onRowDoubleClick={onRowDoubleClick}
             sortingMode="server"
             onSortModelChange={onSortModelChange}
-            onColumnWidthChange={onColumnWidthChange}
           />
         </AppColumnMenuCtx>
       )}

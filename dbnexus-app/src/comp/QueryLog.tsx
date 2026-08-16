@@ -56,7 +56,7 @@ function QueryLog(props: {
   const { showQueryLog, setShowQueryLog, queryId } = props;
   const [selectSql, setSelectSql] = useState<string>("");
   const [logs, setLogs] = useState([]);
-  const { getColumnWidth, setColumnWidth } = useColumnWidthStore();
+  const { getColumnWidth } = useColumnWidthStore();
   const { query, deleteByUuid } = useQueryLogStore();
 
   const [loading, setLoading] = useState(false);
@@ -253,12 +253,6 @@ function QueryLog(props: {
           pageSizeOptions={pageSizeOptions}
           initialState={{
             sorting: { sortModel: [{ field: "create_at", sort: "desc" }] },
-          }}
-          onColumnWidthChange={({ colDef, width }) => {
-            const field = colDef.field;
-            if (field == "create_at" || field == "success") {
-              setColumnWidth(field, width);
-            }
           }}
           loading={loading}
         />

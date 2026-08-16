@@ -8,7 +8,7 @@ const shortCuts = getKeyShorts();
 
 function ShowCuts() {
   const shortCutsColumns: GridColDef[] = [{ field: "name" }, { field: "shorts" }];
-  const { getColumnWidth, setColumnWidth } = useColumnWidthStore();
+  const { getColumnWidth } = useColumnWidthStore();
 
   shortCutsColumns.forEach((col) => {
     let width = getColumnWidth(col.field);
@@ -29,9 +29,6 @@ function ShowCuts() {
         }}
         slots={{ pagination: AppDataGridPagination }}
         style={{ height: "100%" }}
-        onColumnWidthChange={(resize) => {
-          setColumnWidth(resize.colDef.field, resize.width);
-        }}
       />
     </Stack>
   );

@@ -57,6 +57,7 @@ import { LogLevelSelection } from "./CommonComp";
 import { appLogDir } from "@tauri-apps/api/path";
 import {
   makeLLMCallable,
+  useColumnWidthStore,
   useDatagridHeight,
   useLLM,
   useLLMConfig,
@@ -956,6 +957,7 @@ function makeComponents(
   isDarkTheme: boolean,
   fontWeight: string | number,
   dataGridRowHeight: number,
+  setColumnWidth,
 ) {
   const components: Components<Omit<Theme, "components" | "palette"> & CssVarsTheme> = {
     MuiCircularProgress: {
@@ -1098,6 +1100,9 @@ function makeComponents(
           }
           return "";
         },
+        onColumnWidthChange: ({ colDef, width }) => {
+          setColumnWidth(colDef.field, width);
+        },
       },
     },
     MuiStack: {
@@ -1194,6 +1199,7 @@ const makeTheme = (
   appearance: Partial<UserSettings["appearance"]>,
   isDarkTheme: boolean,
   datagridRowHeightXXX: number,
+  setColumnWidth: (string, number) => void,
 ) => {
   let color: string;
   if (isDarkTheme) {
@@ -1216,7 +1222,12 @@ const makeTheme = (
         paper: color,
       },
     },
-    components: makeComponents(isDarkTheme, fontWeight, datagridRowHeightXXX),
+    components: makeComponents(
+      isDarkTheme,
+      fontWeight,
+      datagridRowHeightXXX,
+      setColumnWidth,
+    ),
   });
 };
 
@@ -1226,8 +1237,8 @@ const isDark = (setting: Partial<UserSettings["appearance"]>, osTheme) => {
 function SettingProvider({ children }) {
   const { appearance, editor, misc, updateAppearance, proxy } = useUserSettings();
   const [osTheme, setOsTheme] = useState("light");
-
   const { showNotification } = useNotification();
+  const { setColumnWidth } = useColumnWidthStore();
 
   useEffect(() => {
     document.documentElement.style.fontSize = appearance.fontSize + "px";
@@ -1333,7 +1344,12 @@ function SettingProvider({ children }) {
   return (
     appearance && (
       <ThemeProvider
-        theme={makeTheme(appearance, isDark(appearance, osTheme), datagridHeightXXX)}>
+        theme={makeTheme(
+          appearance,
+          isDark(appearance, osTheme),
+          datagridHeightXXX,
+          setColumnWidth,
+        )}>
         <CssBaseline />
         {children}
       </ThemeProvider>

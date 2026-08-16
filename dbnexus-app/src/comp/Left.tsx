@@ -395,7 +395,7 @@ function CopyConnection() {
   const onSortModelChange = useCallback((e) => {
     setSortModel(e);
   }, []);
-  const { getColumnWidth, setColumnWidth } = useColumnWidthStore();
+  const { getColumnWidth } = useColumnWidthStore();
   const setUpMenu = useContextMenu((state) => state.setUpMenu);
   const { appendTab } = useTabsManage();
 
@@ -474,13 +474,6 @@ function CopyConnection() {
     return cols;
   }, [getColumnWidth]);
 
-  const onColumnWidthChange = useCallback(
-    ({ colDef, width }) => {
-      setColumnWidth(colDef.field, width);
-    },
-    [setColumnWidth],
-  );
-
   const onRowDoubleClick = useCallback(
     (row) => {
       handleRow(row.row);
@@ -516,7 +509,6 @@ function CopyConnection() {
         slotProps={slotProps}
         columns={cols}
         rows={connections}
-        onColumnWidthChange={onColumnWidthChange}
         onRowDoubleClick={onRowDoubleClick}
       />
     </Stack>
@@ -616,7 +608,7 @@ function FavoriteSqlList() {
 
   const [uuidFilter, setUuidFilter] = useState("");
   const [distinctUuid, setDistinctUuid] = useState<string[]>([]);
-  const { getColumnWidth, setColumnWidth } = useColumnWidthStore();
+  const { getColumnWidth } = useColumnWidthStore();
 
   const { getDistinctUuids, getByUuid, clearByUuid } = useFavoriteStore();
 
@@ -752,12 +744,6 @@ function FavoriteSqlList() {
     });
     return cols;
   }, [getColumnWidth]);
-  const onColumnWidthChange = useCallback(
-    ({ colDef, width }) => {
-      setColumnWidth(colDef.field, width);
-    },
-    [setColumnWidth],
-  );
 
   const onRowDoubleClick = useCallback(
     (row) => {
@@ -850,7 +836,6 @@ function FavoriteSqlList() {
         columns={columns}
         rows={fs}
         style={dataGridStyle}
-        onColumnWidthChange={onColumnWidthChange}
         onRowDoubleClick={onRowDoubleClick}
       />
     </Stack>
