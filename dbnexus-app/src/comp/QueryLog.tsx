@@ -230,8 +230,8 @@ function QueryLog(props: {
               control={
                 <Checkbox
                   checked={getSwitch(saveQueryKey)}
-                  onChange={() => {
-                    setSwitch(saveQueryKey, !getSwitch(saveQueryKey));
+                  onChange={(e) => {
+                    setSwitch(saveQueryKey, e.target.checked);
                   }}
                 />
               }
@@ -245,7 +245,6 @@ function QueryLog(props: {
           onRowDoubleClick={(e) => {
             setSelectSql(e.row.sql);
           }}
-          showToolbar={false}
           columns={columns}
           rows={logs}
           slots={slots}
