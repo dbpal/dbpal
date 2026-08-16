@@ -1560,7 +1560,7 @@ pub enum XlsxEditContent {
 }
 
 impl From<String> for XlsxEditContent {
-    fn from(value: T) -> Self {
+    fn from(value: String) -> Self {
         Self::String(value.into())
     }
 }
@@ -1577,8 +1577,8 @@ impl From<chrono::NaiveDate> for XlsxEditContent {
     }
 }
 
-impl From<chrono::DateTime> for XlsxEditContent {
-    fn from(value: chrono::DateTime) -> Self {
+impl From<chrono::NaiveDateTime> for XlsxEditContent {
+    fn from(value: chrono::NaiveDateTime) -> Self {
         Self::DateTime(value)
     }
 }
