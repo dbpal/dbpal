@@ -136,7 +136,7 @@ import {
   IndexKind,
   MetaValue,
   SqlNullAble,
-  XlsxEdit,
+  XlsxCellData,
 } from "./bindings";
 import { IoTimerOutline } from "react-icons/io5";
 import { MdTimer } from "react-icons/md";
@@ -2187,7 +2187,7 @@ function ExportQueryResultToFile() {
 
             <MenuItem
               onClick={async () => {
-                const all: XlsxEdit[] = [];
+                const all: XlsxCellData[] = [];
                 api.current.getAllColumns().forEach((f, index) => {
                   all.push({ row: 0, column: index, content: f.field });
                 });

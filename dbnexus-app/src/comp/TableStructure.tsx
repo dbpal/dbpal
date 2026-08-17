@@ -7,7 +7,7 @@ import {
   useRef,
   useState,
 } from "react";
-import { EscDownEvent, keyNotInTable, modalHandleClose } from "./Common";
+import { EscDownEvent, modalHandleClose } from "./Common";
 import {
   dataGridStyle,
   DataSourceKind,

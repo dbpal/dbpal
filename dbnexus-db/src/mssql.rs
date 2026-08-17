@@ -3,11 +3,12 @@ use crate::db::{
     create_html_table_data, create_html_table_header, create_markdown_data, create_markdown_header,
     export_query_as_xlsx_send_data, format_data_time_fix_offset, quote_sql_str, BackendKind,
     CatalogTrait, CheckConn, ColumnType, CreateDatabaseExtra, CreateIndexReq, CreateSchemaExtra,
-    DBTrait, DefAndMetas, ExportFrame, ExportKind, ExportQueryResult, ExtractSqlValeFromJsonValue,
-    Field, FirstTrue, GetBackendKind, GetTestExportTableKinds, Index, IndexKind, ListTable,
-    MetaValue, NamedStaff, ProcedureDetail, QueryEvent, QueryResp, QuerySql, ReadOnlyTrait,
-    SchemaTrait, ServerMetas, ShowTableParameter, SqlBuilder, SqlCollect, TriggerDetail,
-    TriggerEnable, TriggerEvent, TriggerTiming, XlsxEdit, POOL_MAX_CONNECTIONS,
+    DBTrait, DefAndMetas, EncodeXlsxDatetime, ExportFrame, ExportKind, ExportQueryResult,
+    ExtractSqlValeFromJsonValue, Field, FirstTrue, GetBackendKind, GetTestExportTableKinds, Index,
+    IndexKind, ListTable, MetaValue, NamedStaff, ProcedureDetail, QueryEvent, QueryResp, QuerySql,
+    ReadOnlyTrait, SchemaTrait, ServerMetas, ShowTableParameter, SqlBuilder, SqlCollect,
+    TriggerDetail, TriggerEnable, TriggerEvent, TriggerTiming, XlsxEdit, XlsxEditContent,
+    POOL_MAX_CONNECTIONS,
 };
 use crate::db::{OptionMustBeSomeErr, QueryEventEmitter};
 use crate::helper::{create_csv, extract_bytes_from_serde_values};
@@ -268,10 +269,92 @@ impl<'a> tiberius::FromSql<'a> for ConvertColumnDataToString {
     }
 }
 
+pub struct ConvertColumnDataToXlsxContent {
+    pub(crate) value: XlsxEditContent,
+}
+impl<'a> tiberius::FromSql<'a> for ConvertColumnDataToXlsxContent {
+    fn from_sql(value: &'a ColumnData<'static>) -> tiberius::Result<Option<Self>> {
+        let value = match value {
+            tiberius::ColumnData::U8(x) => x.as_ref().map(|x| XlsxEditContent::number(*x)),
+            tiberius::ColumnData::I16(x) => x.as_ref().map(|x| XlsxEditContent::number(*x)),
+            tiberius::ColumnData::I32(x) => x.as_ref().map(|x| XlsxEditContent::number(*x)),
+            tiberius::ColumnData::I64(x) => x.as_ref().map(|x| (*x).into()),
+            tiberius::ColumnData::F32(x) => x.as_ref().map(|x| XlsxEditContent::number(*x)),
+            tiberius::ColumnData::F64(x) => x.as_ref().map(|x| XlsxEditContent::Number(*x)),
+            tiberius::ColumnData::Bit(x) => x.as_ref().map(|x| (*x).into()),
+            tiberius::ColumnData::String(x) => x.as_ref().map(|x| x.to_string().into()),
+            tiberius::ColumnData::Guid(x) => x.as_ref().map(|x| x.to_string().into()),
+            tiberius::ColumnData::Binary(x) => x.as_ref().map(|x| encode_bytes(x).into()),
+            tiberius::ColumnData::Numeric(x) => x.as_ref().map(|x| x.to_string().into()),
+
+            tiberius::ColumnData::Xml(x) => x.as_ref().map(|x| x.to_string().into()),
+            tiberius::ColumnData::DateTime(_)
+            | tiberius::ColumnData::DateTime2(_)
+            | tiberius::ColumnData::SmallDateTime(_) => chrono::NaiveDateTime::from_sql(value)
+                .ok()
+                .flatten()
+                .map(|x| x.into()),
+
+            tiberius::ColumnData::Date(_) => chrono::NaiveTime::from_sql(value)
+                .ok()
+                .flatten()
+                .map(|x| x.into()),
+
+            tiberius::ColumnData::Time(_x) => chrono::NaiveTime::from_sql(value)
+                .ok()
+                .flatten()
+                .map(|x| x.into()),
+
+            tiberius::ColumnData::DateTimeOffset(_) => {
+                chrono::DateTime::<FixedOffset>::from_sql(value)
+                    .ok()
+                    .flatten()
+                    .map(|x| x.naive_utc().into())
+            }
+        };
+        Ok(value.map(|x| Self { value: x }))
+    }
+}
 fn encode_row(row: &tiberius::Row) -> anyhow::Result<Vec<Option<String>>> {
     let mut values: Vec<Option<String>> = Vec::new();
     for index in 0..row.columns().len() {
         let v: Option<ConvertColumnDataToString> = row.try_get(index)?;
+        values.push(v.map(|x| x.value));
+    }
+    anyhow::Ok(values)
+}
+
+impl EncodeXlsxDatetime for SqlServerDB {
+    /*
+         all date time types
+          DateTimeData DATETIME,
+               DateTime2Data DATETIME2,
+               SmallDateTimeData SMALLDATETIME,
+               DateData DATE,
+               TimeData TIME,
+               DateTimeOffsetData DATETIMEOFFSET
+    */
+    fn is_datatime(&self, ty: &str) -> anyhow::Result<bool> {
+        anyhow::Ok(
+            ["DATETIME", "DATETIME2", "SMALLDATETIME", "DATETIMEOFFSET"]
+                .iter()
+                .any(|x| x.eq_ignore_ascii_case(ty)),
+        )
+    }
+
+    fn is_date(&self, ty: &str) -> anyhow::Result<bool> {
+        anyhow::Ok(ty.eq_ignore_ascii_case("DATE"))
+    }
+
+    fn is_time(&self, ty: &str) -> anyhow::Result<bool> {
+        anyhow::Ok(ty.eq_ignore_ascii_case("TIME"))
+    }
+}
+
+fn encode_row_as_xlsx(row: &tiberius::Row) -> anyhow::Result<Vec<Option<XlsxEditContent>>> {
+    let mut values = Vec::new();
+    for index in 0..row.columns().len() {
+        let v: Option<ConvertColumnDataToXlsxContent> = row.try_get(index)?;
         values.push(v.map(|x| x.value));
     }
     anyhow::Ok(values)
@@ -1222,7 +1305,9 @@ impl ExtractSqlValeFromJsonValue for SqlServerDB {
                 let r = extract_bytes_from_serde_values(&values)?;
                 encode_bytes(&r)
             }
-            serde_json::Value::Object(..) => todo!(),
+            serde_json::Value::Object(..) => {
+                anyhow::bail!("sql server should not have object value in json")
+            }
         };
         anyhow::Ok(Some(r))
     }
@@ -1497,7 +1582,7 @@ impl ExportQueryResult for SqlServerDB {
                     }
                     ExportKind::Sql { .. } => anyhow::bail!("can't export query result to sql"),
                     ExportKind::Xlsx { .. } => {
-                        let d = encode_row(&row)?;
+                        let d = encode_row_as_xlsx(&row)?;
                         export_query_as_xlsx_send_data(&mut row_num, d, sender.clone()).await?;
                     }
                     ExportKind::Html { .. } => {
@@ -1528,7 +1613,7 @@ impl ExportQueryResult for SqlServerDB {
                     ExportKind::Sql { .. } => {
                         anyhow::bail!("can't export query result to sql")
                     }
-                    ExportKind::Xlsx { include_header } => {
+                    ExportKind::Xlsx { include_header, .. } => {
                         if first.get() && include_header {
                             for (index, col) in meta.columns().iter().enumerate() {
                                 sender
@@ -1536,7 +1621,7 @@ impl ExportQueryResult for SqlServerDB {
                                         XlsxEdit {
                                             row: row_num,
                                             column: index as rust_xlsxwriter::ColNum,
-                                            content: col.name().to_owned(),
+                                            content: col.name().to_owned().into(),
                                         }
                                         .into(),
                                     )

@@ -31,10 +31,11 @@ use crate::datasource_config::FireBirdConfig;
 use crate::db::{
     create_html_table_data, create_html_table_header, create_markdown_data, create_markdown_header,
     export_query_as_xlsx_send_blocking_data, quote_sql_str, BackendKind, CheckConn, ColumnType,
-    CreateIndexReq, ExportFrame, ExportKind, ExportQueryResult, ExtractSqlValeFromJsonValue, Field,
-    FirstTrue, GetBackendKind, GetTestExportTableKinds, Index, IndexKind, ListTable, MetaValue,
-    QueryEvent, QueryEventEmitter, QueryResp, QuerySql, SchemaTrait, ServerMetas,
-    ShowTableParameter, SqlBuilder, XlsxEdit, POOL_MAX_CONNECTIONS,
+    CreateIndexReq, EncodeXlsxDatetime, ExportFrame, ExportKind, ExportQueryResult,
+    ExtractSqlValeFromJsonValue, Field, FirstTrue, GetBackendKind, GetTestExportTableKinds, Index,
+    IndexKind, ListTable, MetaValue, QueryEvent, QueryEventEmitter, QueryResp, QuerySql,
+    SchemaTrait, ServerMetas, ShowTableParameter, SqlBuilder, XlsxEdit, XlsxEditContent,
+    POOL_MAX_CONNECTIONS,
 };
 
 use crate::helper::{create_csv, extract_bytes_from_serde_values};
@@ -121,6 +122,61 @@ fn is_date(x: &Option<&String>) -> bool {
 fn is_time(x: &Option<&String>) -> bool {
     x.map(|x| x.eq_ignore_ascii_case("time"))
         .unwrap_or_default()
+}
+
+impl EncodeXlsxDatetime for FireBirdDB {
+    /*
+        COL_DATE DATE,
+        COL_TIME TIME,
+        COL_TIMESTAMP TIMESTAMP,
+    */
+
+    fn is_datatime(&self, ty: &str) -> anyhow::Result<bool> {
+        anyhow::Ok(ty.eq_ignore_ascii_case("TIMESTAMP"))
+    }
+
+    fn is_date(&self, ty: &str) -> anyhow::Result<bool> {
+        anyhow::Ok(ty.eq_ignore_ascii_case("DATE"))
+    }
+
+    fn is_time(&self, ty: &str) -> anyhow::Result<bool> {
+        anyhow::Ok(ty.eq_ignore_ascii_case("TIME"))
+    }
+}
+fn encode_row_as_xlsx(
+    row: &Row,
+    types: Option<HashMap<&String, &Field>>,
+) -> anyhow::Result<Vec<Option<XlsxEditContent>>> {
+    let get_type = |name: &String| {
+        types
+            .as_ref()
+            .and_then(|x| x.get(name).map(|x| &x.data_type))
+            .map(|x| x.to_uppercase())
+    };
+    let mut data = Vec::with_capacity(row.cols.len());
+    for v in row.cols.iter() {
+        let value: Option<XlsxEditContent> = match &v.value {
+            SqlType::Text(x) => Some(x.clone().into()),
+            SqlType::Integer(x) => Some((*x).into()),
+            SqlType::Floating(x) => Some(XlsxEditContent::number(*x)),
+            SqlType::Timestamp(naive_date_time) => {
+                let typ = get_type(&v.name);
+                let typ = typ.as_ref();
+                if is_date(&typ) {
+                    Some(naive_date_time.date().into())
+                } else if is_time(&typ) {
+                    Some(naive_date_time.time().into())
+                } else {
+                    Some((*naive_date_time).into())
+                }
+            }
+            SqlType::Binary(items) => Some(encode_bytes(items).into()),
+            SqlType::Boolean(x) => Some((*x).into()),
+            SqlType::Null => None,
+        };
+        data.push(value);
+    }
+    anyhow::Ok(data)
 }
 
 fn encode_row(
@@ -230,21 +286,21 @@ impl ExportQueryResult for FireBirdDB {
                         sender.blocking_send(value.into())?;
                     }
                     ExportKind::Sql { .. } => anyhow::bail!("can't export query result as sql"),
-                    ExportKind::Xlsx { include_header } => {
+                    ExportKind::Xlsx { include_header, .. } => {
                         if first.get() && include_header {
                             for (index, col) in row.cols.iter().enumerate() {
                                 sender.blocking_send(
                                     XlsxEdit {
                                         row: row_num,
                                         column: index as rust_xlsxwriter::ColNum,
-                                        content: col.name.clone(),
+                                        content: col.name.clone().into(),
                                     }
                                     .into(),
                                 )?;
                                 row_num += 1;
                             }
                         }
-                        let data = encode_row(&row, None)?;
+                        let data = encode_row_as_xlsx(&row, None)?;
                         export_query_as_xlsx_send_blocking_data(
                             &mut row_num,
                             data,

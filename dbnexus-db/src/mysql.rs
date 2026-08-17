@@ -3,12 +3,12 @@ use crate::db::{
     create_html_table_data, create_html_table_header, create_markdown_data, create_markdown_header,
     export_query_as_xlsx_send_data, quote_sql_str, AutoCompletionQueryId, BackendKind,
     BackendKindMysql, CheckConn, ColumnType, CreateIndexReq, CreateSchemaExtra,
-    CreateTableAndIndexSql, DBTrait, DefAndMetas, ExportFrame, ExportKind, ExportQueryResult,
-    ExtractSqlValeFromJsonValue, Field, FirstTrue, GetBackendKind, GetTestExportTableKinds, Index,
-    IndexKind, ListTable, MetaValue, NamedStaff, ProcedureDetail, QueryEvent, QueryEventEmitter,
-    QueryResp, QuerySql, SchemaTrait, SequenceDetail, ServerMetas, ShowTableParameter, SqlBuilder,
-    SqlCollect, SqlEvent, TriggerDetail, TriggerEvent, TriggerTiming, XlsxEdit,
-    POOL_MAX_CONNECTIONS,
+    CreateTableAndIndexSql, DBTrait, DefAndMetas, EncodeXlsxDatetime, ExportFrame, ExportKind,
+    ExportQueryResult, ExtractSqlValeFromJsonValue, Field, FirstTrue, GetBackendKind,
+    GetTestExportTableKinds, Index, IndexKind, ListTable, MetaValue, NamedStaff, ProcedureDetail,
+    QueryEvent, QueryEventEmitter, QueryResp, QuerySql, SchemaTrait, SequenceDetail, ServerMetas,
+    ShowTableParameter, SqlBuilder, SqlCollect, SqlEvent, TriggerDetail, TriggerEvent,
+    TriggerTiming, XlsxEdit, XlsxEditContent, POOL_MAX_CONNECTIONS,
 };
 use crate::helper::{create_csv, extract_bytes_from_serde_values};
 use crate::language_server::LexerCompletionTrait;
@@ -1250,6 +1250,136 @@ fn encode_bytes(bs: &[u8]) -> String {
     format!("0x{}", hex::encode_upper(bs))
 }
 
+impl EncodeXlsxDatetime for MysqlDB {
+    /*
+    timestamp_column TIMESTAMP,
+    datetime_column DATETIME,
+    date_column DATE,
+    time_column TIME,
+    */
+
+    fn is_datatime(&self, ty: &str) -> anyhow::Result<bool> {
+        anyhow::Ok(
+            ["TIMESTAMP", "DATETIME"]
+                .iter()
+                .any(|x| x.eq_ignore_ascii_case(ty)),
+        )
+    }
+
+    fn is_date(&self, ty: &str) -> anyhow::Result<bool> {
+        anyhow::Ok(ty.eq_ignore_ascii_case("DATE"))
+    }
+
+    fn is_time(&self, ty: &str) -> anyhow::Result<bool> {
+        anyhow::Ok(ty.eq_ignore_ascii_case("TIME"))
+    }
+}
+
+fn encode_row_as_xlsx(
+    r: &MySqlRow,
+    try_blob_to_str: bool,
+) -> anyhow::Result<Vec<Option<XlsxEditContent>>> {
+    let mut values = Vec::with_capacity(r.len());
+    for c in 0..r.len() {
+        let col = r.column(c);
+        let ty = col.type_info().name();
+        let ty = ty.to_uppercase();
+        let v: Option<XlsxEditContent> = match ty.as_str() {
+            "BOOLEAN" | "BOOL" => {
+                let value: Option<bool> = r.try_get(c)?;
+                value.map(|x| x.into())
+            }
+            "TINYINT" => {
+                let value: Option<i8> = r.try_get(c)?;
+                value.map(|x| XlsxEditContent::number(x))
+            }
+            "SMALLINT" => {
+                let value: Option<i16> = r.try_get(c)?;
+                value.map(|x| XlsxEditContent::number(x))
+            }
+            "INT" => {
+                let value: Option<i32> = r.try_get(c)?;
+                value.map(|x| XlsxEditContent::number(x))
+            }
+            "BIGINT" => {
+                let value: Option<i64> = r.try_get(c)?;
+                value.map(|x| x.into())
+            }
+            "TINYINT UNSIGNED" => {
+                let value: Option<u8> = r.try_get(c)?;
+                value.map(|x| XlsxEditContent::number(x))
+            }
+            "SMALLINT UNSIGNED" => {
+                let value: Option<u16> = r.try_get(c)?;
+                value.map(|x| XlsxEditContent::number(x))
+            }
+            "INT UNSIGNED" => {
+                let value: Option<u32> = r.try_get(c)?;
+                value.map(|x| XlsxEditContent::number(x))
+            }
+            "BIGINT UNSIGNED" => {
+                let value: Option<u64> = r.try_get(c)?;
+                value.map(|x| x.into())
+            }
+            "FLOAT" => {
+                let value: Option<f32> = r.try_get(c)?;
+                value.map(|x| XlsxEditContent::number(x))
+            }
+            "DOUBLE" => {
+                let value: Option<f64> = r.try_get(c)?;
+                value.map(|x| XlsxEditContent::number(x))
+            }
+
+            _ if type_is_string(&ty) => {
+                let value: Option<String> = r.try_get(c)?;
+                value.map(|x| x.into())
+            }
+            "ENUM" => {
+                let value: Option<String> = r.try_get(c)?;
+                value.map(|x| x.into())
+            }
+            _ if type_is_blob(&ty) => {
+                let x: Option<Vec<u8>> = r.try_get(c)?;
+                let str_value: sqlx::Result<Option<String>> = r.try_get(c);
+                let str_value = str_value.ok().flatten();
+                x.map(|x| match (str_value, try_blob_to_str) {
+                    (Some(value), true) => value.into(),
+                    _ => encode_bytes(&x).into(),
+                })
+            }
+            "TIMESTAMP" => {
+                let value: Option<chrono::DateTime<Utc>> = r.try_get(c)?;
+                value.map(|x| x.naive_utc().into())
+            }
+            "DATETIME" => {
+                let value: Option<chrono::NaiveDateTime> = r.try_get(c)?;
+                value.map(|x| x.into())
+            }
+            "DATE" => {
+                let value: Option<chrono::NaiveDate> = r.try_get(c)?;
+                value.map(|x| x.into())
+            }
+            "TIME" => {
+                let value: Option<chrono::NaiveTime> = r.try_get(c)?;
+                value.map(|x| x.into())
+            }
+            "DECIMAL" => {
+                let value: Option<BigDecimal> = r.try_get(c)?;
+                value.map(|x| x.to_string().into())
+            }
+            "JSON" => {
+                let value: Option<serde_json::Value> = r.try_get(c)?;
+                value.map(|x| x.to_string().into())
+            }
+            "NULL" => None,
+
+            _ => anyhow::bail!(format!("type '{ty}' not supported")),
+        };
+        values.push(v);
+    }
+    anyhow::Ok(values)
+}
+
 fn encode_row(r: &MySqlRow, try_blob_to_str: bool) -> anyhow::Result<Vec<Option<String>>> {
     let mut values = Vec::with_capacity(r.len());
     for c in 0..r.len() {
@@ -1534,7 +1664,7 @@ impl ExportQueryResult for MysqlDB {
                 ExportKind::Sql { .. } => {
                     anyhow::bail!("can't export query result as sql")
                 }
-                ExportKind::Xlsx { include_header } => {
+                ExportKind::Xlsx { include_header, .. } => {
                     if first.get() && include_header {
                         for (index, col) in row.columns().iter().enumerate() {
                             let col = col.name();
@@ -1543,7 +1673,7 @@ impl ExportQueryResult for MysqlDB {
                                     XlsxEdit {
                                         row: row_num,
                                         column: index as rust_xlsxwriter::ColNum,
-                                        content: col.to_owned(),
+                                        content: col.to_owned().into(),
                                     }
                                     .into(),
                                 )
@@ -1552,7 +1682,7 @@ impl ExportQueryResult for MysqlDB {
                         row_num += 1;
                     }
 
-                    let data = encode_row(&row, true)?;
+                    let data = encode_row_as_xlsx(&row, true)?;
                     export_query_as_xlsx_send_data(&mut row_num, data, sender.clone()).await?;
                 }
                 ExportKind::Html { include_header } => {

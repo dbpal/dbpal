@@ -17,6 +17,7 @@ import {
   ChatHistory,
   commands,
   DBConnectionConfig,
+  ExportKindXlsDatetimeformat,
   OpenAIReq,
 } from "./bindings";
 import { LazyStore } from "@tauri-apps/plugin-store";
@@ -1371,6 +1372,10 @@ interface ExportConfigState {
 
   exportKind: string;
   setExportKind: (_: string) => void;
+
+  xlsxDateTimeFormat: ExportKindXlsDatetimeformat;
+
+  setXlsxDatetimeFormat: (_: ExportKindXlsDatetimeformat) => void;
 }
 
 export const useExportConfigStore = create<ExportConfigState>()(
@@ -1382,6 +1387,14 @@ export const useExportConfigStore = create<ExportConfigState>()(
       jsonPretty: true,
       includeTableSchema: true,
       exportKind: "csv",
+      xlsxDateTimeFormat: {
+        datatime: "yyyy-mm-dd hh:mm:ss",
+        date: "yyyy-mm-dd",
+        time: "hh:mm:ss",
+      },
+      setXlsxDatetimeFormat: (x) => {
+        set({ xlsxDateTimeFormat: x });
+      },
 
       setExportKind(exportKind) {
         set({ exportKind });

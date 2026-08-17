@@ -2,14 +2,15 @@ use crate::datasource_config::ClickHouseConfig;
 use crate::db::{
     create_html_table_data, create_html_table_header, create_markdown_data, create_markdown_header,
     quote_sql_str, BackendKind, CheckConn, ColumnType, CreateSchemaExtra, CreateTableAndIndexSql,
-    DBTrait, DefAndMetas, ExportFrame, ExportKind, ExportQueryResult, ExtractSqlValeFromJsonValue,
-    Field, GetBackendKind, GetTestExportTableKinds, ListTable, MetaValue, NamedStaff, QueryEvent,
-    QueryEventEmitter, QueryResp, QuerySql, SchemaTrait, ServerMetas, ShowTableParameter,
-    SqlBuilder, SqlCollect, XlsxEdit,
+    DBTrait, DefAndMetas, EncodeXlsxDatetime, ExportFrame, ExportKind, ExportQueryResult,
+    ExtractSqlValeFromJsonValue, Field, GetBackendKind, GetTestExportTableKinds, ListTable,
+    MetaValue, NamedStaff, QueryEvent, QueryEventEmitter, QueryResp, QuerySql, SchemaTrait,
+    ServerMetas, ShowTableParameter, SqlBuilder, SqlCollect, XlsxEditContent,
 };
 
 use crate::helper::{
-    extract_null_able, get_array_tuple_element_type, ty_is_decimal, ty_is_float, ty_is_int,
+    extract_null_able, get_array_tuple_element_type, ty_is_date, ty_is_datetime, ty_is_decimal,
+    ty_is_float, ty_is_int, ty_is_time,
 };
 use crate::language_server::LexerCompletionTrait;
 use futures_core::stream::BoxStream;
@@ -755,53 +756,11 @@ impl ClickHouseDB {
 impl ClickHouseDB {
     async fn export_query_result_as_xlsx(
         &self,
-        sql: &str,
-        include_header: bool,
-        sender: tokio::sync::mpsc::Sender<ExportFrame>,
+        _sql: &str,
+        _include_header: bool,
+        _sender: tokio::sync::mpsc::Sender<ExportFrame>,
     ) -> anyhow::Result<()> {
-        let mut stream = self.query_row(sql).await?;
-        let mut row_number = 0;
-        while let Some(row) = stream.next().await {
-            let row = row?;
-            match row {
-                FieldsOrData::Fields(fields) => {
-                    if include_header {
-                        for (index, c) in fields.iter().enumerate() {
-                            sender
-                                .send(
-                                    XlsxEdit {
-                                        row: row_number,
-                                        column: index as rust_xlsxwriter::ColNum,
-                                        content: c.field.clone(),
-                                    }
-                                    .into(),
-                                )
-                                .await?;
-                        }
-                        row_number += 1;
-                    }
-                }
-                FieldsOrData::Data(data) => {
-                    for (col, d) in data.into_iter().enumerate() {
-                        if let Some(d) = d {
-                            sender
-                                .send(
-                                    XlsxEdit {
-                                        row: row_number,
-                                        column: col as rust_xlsxwriter::ColNum,
-                                        content: d,
-                                    }
-                                    .into(),
-                                )
-                                .await?;
-                        }
-                    }
-                    row_number += 1;
-                }
-                FieldsOrData::ReadingColumns => {}
-            }
-        }
-        anyhow::Ok(())
+        todo!()
     }
 }
 
@@ -831,7 +790,7 @@ impl ExportQueryResult for ClickHouseDB {
             ExportKind::Sql {
                 include_table_schema: _,
             } => ExportKind::cannot_query_result_export_as_sql(),
-            ExportKind::Xlsx { include_header } => {
+            ExportKind::Xlsx { include_header, .. } => {
                 self.export_query_result_as_xlsx(sql, include_header, sender)
                     .await
             }
@@ -1111,6 +1070,42 @@ fn encode_json_result(tys: &[DataType], line: &str) -> anyhow::Result<Vec<Option
             serde_json::Value::String(x) => Some(x.clone()),
             serde_json::Value::Array(_) => Some(encode_nested(value, ty)?),
             serde_json::Value::Object(_) => Some(encode_nested(value, ty)?),
+        };
+        data.push(value);
+    }
+    anyhow::Ok(data)
+}
+
+impl EncodeXlsxDatetime for ClickHouseDB {
+    fn is_datatime(&self, ty: &str) -> anyhow::Result<bool> {
+        let ty = crate::language_server::LangServerCommon::parse_type(self, ty)?;
+        anyhow::Ok(ty_is_datetime(&ty))
+    }
+
+    fn is_date(&self, ty: &str) -> anyhow::Result<bool> {
+        let ty = crate::language_server::LangServerCommon::parse_type(self, ty)?;
+        anyhow::Ok(ty_is_date(&ty))
+    }
+
+    fn is_time(&self, ty: &str) -> anyhow::Result<bool> {
+        let ty = crate::language_server::LangServerCommon::parse_type(self, ty)?;
+        anyhow::Ok(ty_is_time(&ty))
+    }
+}
+fn encode_json_result_as_xlsx(
+    tys: &[DataType],
+    line: &str,
+) -> anyhow::Result<Vec<Option<XlsxEditContent>>> {
+    let mut data = Vec::with_capacity(tys.len());
+    let values: Vec<serde_json::Value> = serde_json::from_str(line)?;
+    for (ty, value) in tys.iter().zip(values.iter()) {
+        let value: Option<XlsxEditContent> = match value {
+            serde_json::Value::Null => None,
+            serde_json::Value::Bool(x) => Some(x.to_string().into()),
+            serde_json::Value::Number(number) => Some(number.to_string().into()),
+            serde_json::Value::String(x) => Some(x.clone().into()),
+            serde_json::Value::Array(_) => Some(encode_nested(value, ty)?.into()),
+            serde_json::Value::Object(_) => Some(encode_nested(value, ty)?.into()),
         };
         data.push(value);
     }

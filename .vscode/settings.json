@@ -6,6 +6,7 @@
   "rust-analyzer.cargo.features": [
     "random-error",
     "random-sleep",
+    "duckdb"
   ],
   "search.exclude": {
     "**/node_modules": true,
@@ -417,6 +418,7 @@
     "splitn",
     "SPOP",
     "SQLCODE",
+    "SQLD",
     "sqlparser",
     "sqls",
     "SQLSTATE",
@@ -483,6 +485,7 @@
     "tstzrange",
     "TSVECTOR",
     "TTL",
+    "tursodatabase",
     "TYPE",
     "typisdefined",
     "typrelid",

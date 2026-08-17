@@ -14,11 +14,12 @@ use crate::db::{
     create_html_table_data, create_html_table_header, create_markdown_data, create_markdown_header,
     escape_sql_str, export_query_as_xlsx_send_blocking_data, quote_sql_str, BackendKind, CheckConn,
     ColumnType, CreateIndexReq, CreateSchemaExtra, CreateTableAndIndexSql, DBTrait, DefAndMetas,
-    ExportFrame, ExportKind, ExportQueryResult, ExtractSqlValeFromJsonValue, Field, FirstTrue,
-    GetBackendKind, GetTestExportTableKinds, Index, IndexKind, ListTable, MetaValue, NamedStaff,
-    OptionMustBeSomeErr, ProcedureDetail, QueryEvent, QueryEventEmitter, QueryResp, QuerySql,
-    SchemaTrait, ServerMetas, ShowTableParameter, SqlBuilder, SqlCollect, TriggerDetail,
-    TriggerEnable, TriggerEvent, TriggerTiming, XlsxEdit, POOL_MAX_CONNECTIONS,
+    EncodeXlsxDatetime, ExportFrame, ExportKind, ExportQueryResult, ExtractSqlValeFromJsonValue,
+    Field, FirstTrue, GetBackendKind, GetTestExportTableKinds, Index, IndexKind, ListTable,
+    MetaValue, NamedStaff, OptionMustBeSomeErr, ProcedureDetail, QueryEvent, QueryEventEmitter,
+    QueryResp, QuerySql, SchemaTrait, ServerMetas, ShowTableParameter, SqlBuilder, SqlCollect,
+    TriggerDetail, TriggerEnable, TriggerEvent, TriggerTiming, XlsxEdit, XlsxEditContent,
+    POOL_MAX_CONNECTIONS,
 };
 
 use crate::helper::{create_csv, generate_random_string};
@@ -130,14 +131,14 @@ impl ExportQueryResult for OracleDB {
                     ExportKind::Sql { .. } => {
                         anyhow::bail!("can't export query result to sql")
                     }
-                    ExportKind::Xlsx { include_header } => {
+                    ExportKind::Xlsx { include_header, .. } => {
                         if include_header && first.get() {
                             for (index, col) in row.column_info().iter().enumerate() {
                                 sender.blocking_send(
                                     XlsxEdit {
                                         row: row_num,
                                         column: index as rust_xlsxwriter::ColNum,
-                                        content: col.name().to_owned(),
+                                        content: col.name().to_owned().into(),
                                     }
                                     .into(),
                                 )?;
@@ -145,7 +146,7 @@ impl ExportQueryResult for OracleDB {
 
                             row_num += 1;
                         }
-                        let data = encode_row(row)?;
+                        let data = encode_row_as_xlsx(row)?;
                         export_query_as_xlsx_send_blocking_data(
                             &mut row_num,
                             data,
@@ -380,6 +381,125 @@ impl OracleDB {
     }
 }
 
+impl EncodeXlsxDatetime for OracleDB {
+    fn is_datatime(&self, ty: &str) -> anyhow::Result<bool> {
+        anyhow::Ok(ty.eq_ignore_ascii_case("TIMESTAMP"))
+    }
+
+    fn is_date(&self, ty: &str) -> anyhow::Result<bool> {
+        anyhow::Ok(ty.eq_ignore_ascii_case("DATE"))
+    }
+
+    fn is_time(&self, _ty: &str) -> anyhow::Result<bool> {
+        anyhow::Ok(false)
+    }
+}
+
+fn encode_row_as_xlsx(row: Row) -> anyhow::Result<Vec<Option<XlsxEditContent>>> {
+    let mut values = vec![];
+    for c in 0..row.sql_values().len() {
+        let col_info = &row.column_info()[c];
+        let type_not_support = Err(anyhow::Error::msg(format!(
+            "type '{}' not supported",
+            col_info.oracle_type()
+        )));
+
+        let v: Option<XlsxEditContent> = match col_info.oracle_type() {
+            oracle::sql_type::OracleType::Varchar2(_) => {
+                let x: Option<String> = row.get(c)?;
+                x.map(|x| x.into())
+            }
+            oracle::sql_type::OracleType::NVarchar2(_) => {
+                let x: Option<String> = row.get(c)?;
+                x.map(|x| x.into())
+            }
+            oracle::sql_type::OracleType::Char(_) => {
+                let x: Option<String> = row.get(c)?;
+                x.map(|x| x.into())
+            }
+            oracle::sql_type::OracleType::NChar(_) => {
+                let x: Option<String> = row.get(c)?;
+                x.map(|x| x.into())
+            }
+            oracle::sql_type::OracleType::Rowid => {
+                let x: Option<String> = row.get(c)?;
+                x.map(|x| x.into())
+            }
+            oracle::sql_type::OracleType::Raw(_) => {
+                let x: Option<String> = row.get(c)?;
+                x.map(|x| x.into())
+            }
+            oracle::sql_type::OracleType::BinaryFloat => {
+                let x: Option<f32> = row.get(c)?;
+                x.map(|x| XlsxEditContent::number(x))
+            }
+
+            oracle::sql_type::OracleType::BinaryDouble => {
+                let x: Option<f64> = row.get(c)?;
+                x.map(|x| XlsxEditContent::number(x))
+            }
+            oracle::sql_type::OracleType::Number(..) => {
+                let x: Option<f64> = row.get(c)?;
+                x.map(|x| x.to_string().into())
+            }
+            oracle::sql_type::OracleType::Float(_) => {
+                let x: Option<f64> = row.get(c)?;
+                x.map(|x| XlsxEditContent::number(x))
+            }
+            oracle::sql_type::OracleType::Date => {
+                let x: Option<chrono::NaiveDate> = row.get(c)?;
+                x.map(|x| x.into())
+            }
+            oracle::sql_type::OracleType::Timestamp(_) => {
+                let x: Option<chrono::NaiveDateTime> = row.get(c)?;
+                x.map(|x| x.into())
+            }
+            oracle::sql_type::OracleType::TimestampTZ(_) => return type_not_support,
+            oracle::sql_type::OracleType::TimestampLTZ(_) => return type_not_support,
+            oracle::sql_type::OracleType::IntervalDS(..) => return type_not_support,
+            oracle::sql_type::OracleType::IntervalYM(_) => return type_not_support,
+            oracle::sql_type::OracleType::CLOB => {
+                let x: Option<String> = row.get(c)?;
+                x.map(|x| x.into())
+            }
+            oracle::sql_type::OracleType::NCLOB => {
+                let x: Option<String> = row.get(c)?;
+                x.map(|x| x.into())
+            }
+            oracle::sql_type::OracleType::BLOB => {
+                let x: Option<String> = row.get(c)?;
+                x.map(|x| x.into())
+            }
+            oracle::sql_type::OracleType::BFILE => return type_not_support,
+            oracle::sql_type::OracleType::Boolean => {
+                let x: Option<bool> = row.get(c)?;
+                x.map(|x| x.to_string().into())
+            }
+            oracle::sql_type::OracleType::RefCursor => return type_not_support,
+            oracle::sql_type::OracleType::Object(_) => return type_not_support,
+            oracle::sql_type::OracleType::Long => {
+                let x: Option<String> = row.get(c)?;
+                x.map(|x| x.into())
+            }
+            oracle::sql_type::OracleType::LongRaw => {
+                let x: Option<String> = row.get(c)?;
+                x.map(|x| x.into())
+            }
+            oracle::sql_type::OracleType::Json => return type_not_support,
+            oracle::sql_type::OracleType::Xml => return type_not_support,
+            oracle::sql_type::OracleType::Int64 => {
+                let x: Option<i64> = row.get(c)?;
+                x.map(|x| x.into())
+            }
+            oracle::sql_type::OracleType::UInt64 => {
+                let x: Option<u64> = row.get(c)?;
+                x.map(|x| x.into())
+            }
+        };
+        values.push(v);
+    }
+    anyhow::Ok(values)
+}
 fn encode_row(row: Row) -> anyhow::Result<Vec<Option<String>>> {
     let mut values = vec![];
     for c in 0..row.sql_values().len() {
@@ -387,7 +507,7 @@ fn encode_row(row: Row) -> anyhow::Result<Vec<Option<String>>> {
         let type_not_support = Err(anyhow::Error::msg(format!(
             "type '{}' not supported",
             col_info.oracle_type()
-        ))) as anyhow::Result<Vec<Option<String>>>;
+        )));
 
         let v = match col_info.oracle_type() {
             oracle::sql_type::OracleType::Varchar2(_) => {

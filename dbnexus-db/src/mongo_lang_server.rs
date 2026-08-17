@@ -8,7 +8,7 @@ use mongodb::results::{
 };
 use mongodb::{IndexModel, SearchIndexModel};
 
-use crate::db::{GetBackendKind, ReadOnlyTrait, SchemaTrait, SqlBuilder};
+use crate::db::{EncodeXlsxDatetime, GetBackendKind, ReadOnlyTrait, SchemaTrait, SqlBuilder};
 use crate::language_server::{CompletionItem, CompletionKind, CompletionList, LanguageServer};
 use crate::mongo::{MongoDB, MongoFindParameter};
 impl SqlBuilder for MongoDB {
@@ -29,6 +29,8 @@ impl SqlBuilder for MongoDB {
         "".into()
     }
 }
+
+impl EncodeXlsxDatetime for MongoDB {}
 
 #[async_trait::async_trait]
 impl LanguageServer for MongoDB {

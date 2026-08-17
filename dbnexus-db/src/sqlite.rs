@@ -17,11 +17,12 @@ use crate::datasource_config::SqliteDBConfig;
 use crate::db::{
     create_html_table_data, create_html_table_header, create_markdown_data, create_markdown_header,
     export_query_as_xlsx_send_data, quote_sql_str, AutoCompletionQueryId, BackendKind, CheckConn,
-    ColumnType, CreateIndexReq, CreateTableAndIndexSql, ExportFrame, ExportKind, ExportQueryResult,
-    ExtractSqlValeFromJsonValue, Field, FirstTrue, GetBackendKind, Index, IndexKind, ListTable,
-    MetaValue, NamedStaff, OptionMustBeSomeErr, QueryEvent, QueryEventEmitter, QueryResp, QuerySql,
-    SchemaTrait, ServerMetas, ShowTableParameter, SqlBuilder, TriggerDetail, TriggerEvent,
-    TriggerTiming, XlsxEdit, XlsxEditContent, POOL_MAX_CONNECTIONS,
+    ColumnType, CreateIndexReq, CreateTableAndIndexSql, EncodeXlsxDatetime, ExportFrame,
+    ExportKind, ExportQueryResult, ExtractSqlValeFromJsonValue, Field, FirstTrue, GetBackendKind,
+    Index, IndexKind, ListTable, MetaValue, NamedStaff, OptionMustBeSomeErr, QueryEvent,
+    QueryEventEmitter, QueryResp, QuerySql, SchemaTrait, ServerMetas, ShowTableParameter,
+    SqlBuilder, TriggerDetail, TriggerEvent, TriggerTiming, XlsxEdit, XlsxEditContent,
+    POOL_MAX_CONNECTIONS,
 };
 use crate::helper::{create_csv, extract_bytes_from_serde_values};
 use crate::language_server::LexerCompletionTrait;
@@ -910,81 +911,111 @@ pub(crate) fn real_like(typ: &str) -> bool {
     typ == "REAL" || typ == "DOUBLE" || typ == "DOUBLE PRECISION" || typ == "FLOAT"
 }
 
-// fn encode_row_xlsx(row: &SqliteRow) -> anyhow::Result<Vec<Option<XlsxEditContent>>> {
-//     let mut values = Vec::with_capacity(row.len());
-//     for c in 0..row.len() {
-//         let ty = row.column(c).type_info().name();
-//         let v = match ty {
-//             "NULL" | "" => {
-//                 // null table is not always null. I quote 'suitable for
-//                 // representing missing or unknown data'
-//                 // try get possible values
-//                 if let Result::Ok(s) = row.try_get::<'_, f64, _>(c) {
-//                     Some(s.into())
-//                 } else if let Result::Ok(s) = row.try_get::<'_, i64, _>(c) {
-//                     Some(s.into())
-//                 } else if let Result::Ok(s) = row.try_get::<'_, String, _>(c) {
-//                     Some(s.into)
-//                 } else if let Result::Ok(s) = row.try_get::<'_, bool, _>(c) {
-//                     Some(if s { 1 } else { 0 }.into())
-//                 } else if let Result::Ok(s) = row.try_get::<'_, Vec<u8>, _>(c) {
-//                     Some(encode_bytes(s.as_slice()).into())
-//                 } else {
-//                     None
-//                 }
-//             }
+pub(crate) fn sqlite_encode_xlsx_datetime(
+    ty: &str,
+    data: &calamine::ExcelDateTime,
+) -> anyhow::Result<Option<String>> {
+    let ty = ty.to_uppercase();
+    let x = data.as_datetime();
+    let r = match ty.as_str() {
+        "DATE" => x.map(|x| x.time().to_string()),
+        "TIME" => x.map(|x| x.date().to_string()),
+        "DATETIME" => x.map(|x| x.to_string()),
+        _ => {
+            anyhow::bail!(format!("convert the datatime to '{}' not supported", ty))
+        }
+    };
+    anyhow::Ok(r)
+}
+impl EncodeXlsxDatetime for SqliteDB {
+    fn is_datatime(&self, ty: &str) -> anyhow::Result<bool> {
+        anyhow::Ok(ty.eq_ignore_ascii_case("DATETIME"))
+    }
 
-//             "TEXT" => {
-//                 let v: Option<String> = row.try_get(c)?;
-//                 v
-//             }
-//             "REAL" => {
-//                 let v: Option<f64> = row.try_get(c)?;
-//                 v.map(|x| format!("{}", x))
-//             }
-//             "BLOB" => {
-//                 let v: Option<Vec<u8>> = row.try_get(c)?;
-//                 v.map(|x| encode_bytes(x.as_slice()))
-//             }
+    fn is_date(&self, ty: &str) -> anyhow::Result<bool> {
+        anyhow::Ok(ty.eq_ignore_ascii_case("DATE"))
+    }
 
-//             _ if integer_like(ty) => {
-//                 let v: Result<Option<i64>, _> = row.try_get(c);
-//                 match v {
-//                     Ok(x) => x.map(|x| x.to_string()),
-//                     Err(_) => {
-//                         // sometimes can save a float in here
-//                         let v: Option<f64> = row.try_get(c)?;
-//                         v.map(|x| format!("{}", x))
-//                     }
-//                 }
-//             }
-//             _ if numeric_like(ty) => {
-//                 let v: Option<f64> = row.try_get(c)?;
-//                 v.map(|x| format!("{}", x))
-//             }
-//             "BOOLEAN" => {
-//                 let v: Option<bool> = row.try_get(c)?;
-//                 v.map(|x| format!("{}", x))
-//             }
-//             "DATE" => {
-//                 let v: Option<chrono::NaiveDate> = row.try_get(c)?;
-//                 v.map(|x| format!("{}", x))
-//             }
-//             "TIME" => {
-//                 let v: Option<chrono::NaiveTime> = row.try_get(c)?;
-//                 v.map(|x| format!("{}", x))
-//             }
-//             "DATETIME" => {
-//                 let v: Option<chrono::NaiveDateTime> = row.try_get(c)?;
-//                 v.map(|x| format!("{}", x))
-//             }
-//             _ => anyhow::bail!(format!("type '{ty}' not supported")),
-//         };
+    fn is_time(&self, ty: &str) -> anyhow::Result<bool> {
+        anyhow::Ok(ty.eq_ignore_ascii_case("TIME"))
+    }
+}
 
-//         values.push(v);
-//     }
-//     anyhow::Ok(values)
-// }
+fn encode_row_as_xlsx(row: &SqliteRow) -> anyhow::Result<Vec<Option<XlsxEditContent>>> {
+    let mut values = Vec::with_capacity(row.len());
+    for c in 0..row.len() {
+        let ty = row.column(c).type_info().name();
+        let v = match ty {
+            "NULL" | "" => {
+                // null table is not always null. I quote 'suitable for
+                // representing missing or unknown data'
+                // try get possible values
+                if let Result::Ok(s) = row.try_get::<'_, f64, _>(c) {
+                    Some(XlsxEditContent::number(s))
+                } else if let Result::Ok(s) = row.try_get::<'_, i64, _>(c) {
+                    Some(s.into())
+                } else if let Result::Ok(s) = row.try_get::<'_, String, _>(c) {
+                    Some(s.into())
+                } else if let Result::Ok(s) = row.try_get::<'_, bool, _>(c) {
+                    Some(s.into())
+                } else if let Result::Ok(s) = row.try_get::<'_, Vec<u8>, _>(c) {
+                    Some(encode_bytes(s.as_slice()).into())
+                } else {
+                    None
+                }
+            }
+
+            "TEXT" => {
+                let v: Option<String> = row.try_get(c)?;
+                v.map(|x| x.into())
+            }
+            "REAL" => {
+                let v: Option<f64> = row.try_get(c)?;
+                v.map(|x| XlsxEditContent::number(x))
+            }
+            "BLOB" => {
+                let v: Option<Vec<u8>> = row.try_get(c)?;
+                v.map(|x| encode_bytes(x.as_slice()).into())
+            }
+
+            _ if integer_like(ty) => {
+                let v: Result<Option<i64>, _> = row.try_get(c);
+                match v {
+                    Ok(x) => x.map(|x| x.into()),
+                    Err(_) => {
+                        // sometimes can save a float in here
+                        let v: Option<f64> = row.try_get(c)?;
+                        v.map(|x| XlsxEditContent::number(x))
+                    }
+                }
+            }
+            _ if numeric_like(ty) => {
+                let v: Option<f64> = row.try_get(c)?;
+                v.map(|x| XlsxEditContent::number(x))
+            }
+            "BOOLEAN" => {
+                let v: Option<bool> = row.try_get(c)?;
+                v.map(|x| x.into())
+            }
+            "DATE" => {
+                let v: Option<chrono::NaiveDate> = row.try_get(c)?;
+                v.map(|x| x.into())
+            }
+            "TIME" => {
+                let v: Option<chrono::NaiveTime> = row.try_get(c)?;
+                v.map(|x| x.into())
+            }
+            "DATETIME" => {
+                let v: Option<chrono::NaiveDateTime> = row.try_get(c)?;
+                v.map(|x| x.into())
+            }
+            _ => anyhow::bail!(format!("type '{ty}' not supported")),
+        };
+
+        values.push(v);
+    }
+    anyhow::Ok(values)
+}
 
 fn encode_row(row: &SqliteRow) -> anyhow::Result<Vec<Option<String>>> {
     let mut values = Vec::with_capacity(row.len());
@@ -1009,7 +1040,6 @@ fn encode_row(row: &SqliteRow) -> anyhow::Result<Vec<Option<String>>> {
                     None
                 }
             }
-
             "TEXT" => {
                 let v: Option<String> = row.try_get(c)?;
                 v
@@ -1202,7 +1232,7 @@ impl ExportQueryResult for SqliteDB {
                 ExportKind::Sql { .. } => {
                     anyhow::bail!("can't export query result as sql")
                 }
-                ExportKind::Xlsx { include_header } => {
+                ExportKind::Xlsx { include_header, .. } => {
                     if first.get() && include_header {
                         for (index, col) in row.columns().iter().enumerate() {
                             sender
@@ -1210,7 +1240,7 @@ impl ExportQueryResult for SqliteDB {
                                     XlsxEdit {
                                         row: row_num,
                                         column: index as rust_xlsxwriter::ColNum,
-                                        content: col.name().to_string(),
+                                        content: col.name().to_string().into(),
                                     }
                                     .into(),
                                 )
@@ -1218,7 +1248,7 @@ impl ExportQueryResult for SqliteDB {
                         }
                         row_num += 1;
                     }
-                    let data = encode_row(&row)?;
+                    let data = encode_row_as_xlsx(&row)?;
                     export_query_as_xlsx_send_data(&mut row_num, data, sender.clone()).await?;
                 }
                 ExportKind::Html { include_header } => {
@@ -2143,6 +2173,8 @@ mod tests {
 
     #[tokio::test]
     async fn test_all_types() {
+        enable_test_log();
+
         let db = make_test_object().await;
         let table_name = "test_table";
         let _ = db.drop_table(table_name, false).await;

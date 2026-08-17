@@ -155,7 +155,7 @@ export const commands = {
 	setEnv: (env: { [key in string]: string }) => __TAURI_INVOKE<void>("set_env", { env }),
 	tableInsertSql: (dbName: string, tableName: string, values: { [key in string]: string | null }) => __TAURI_INVOKE<string>("table_insert_sql", { dbName, tableName, values }),
 	putValuesInSql: (dbName: string, typ: string, values: (string | null)[]) => __TAURI_INVOKE<string[]>("put_values_in_sql", { dbName, typ, values }),
-	writeXlsx: (path: string, data: XlsxEdit[]) => __TAURI_INVOKE<null>("write_xlsx", { path, data }),
+	writeXlsx: (path: string, data: XlsxCellData[]) => __TAURI_INVOKE<null>("write_xlsx", { path, data }),
 	tableImportFromFile: (dbName: string, tableName: string, kind: TableImportPara) => __TAURI_INVOKE<null>("table_import_from_file", { dbName, tableName, kind }),
 	sqlInferFieldsFromFile: (dbName: string, path: string, csvDelimiter: string | null) => __TAURI_INVOKE<Field[]>("sql_infer_fields_from_file", { dbName, path, csvDelimiter }),
 	readExcelFilePreview: (path: string, maxRow: number) => __TAURI_INVOKE<MuiDataGridData>("read_excel_file_preview", { path, maxRow }),
@@ -331,7 +331,13 @@ export type ErrorFrontend = {
 	cancelled: boolean,
 };
 
-export type ExportKind = { export_kind: "csv"; include_header: boolean; delimiter: string } | { export_kind: "json"; pretty: boolean } | { export_kind: "jsonline" } | { export_kind: "sql"; include_table_schema: boolean } | { export_kind: "xlsx"; include_header: boolean } | { export_kind: "html"; include_header: boolean } | { export_kind: "markdown" };
+export type ExportKind = { export_kind: "csv"; include_header: boolean; delimiter: string } | { export_kind: "json"; pretty: boolean } | { export_kind: "jsonline" } | { export_kind: "sql"; include_table_schema: boolean } | { export_kind: "xlsx"; include_header: boolean } & (ExportKindXlsDatetimeformat) | { export_kind: "html"; include_header: boolean } | { export_kind: "markdown" };
+
+export type ExportKindXlsDatetimeformat = {
+	datatime: string,
+	date: string,
+	time: string,
+};
 
 export type Field = {
 	field: string,
@@ -591,7 +597,7 @@ export type TriggerEvent = "Insert" | "Update" | "Delete" | "InsteadOf";
 
 export type TriggerTiming = "Before" | "After" | "InsteadOf" | { String: string };
 
-export type XlsxEdit = {
+export type XlsxCellData = {
 	row: number,
 	column: number,
 	content: string,

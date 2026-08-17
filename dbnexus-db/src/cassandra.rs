@@ -33,10 +33,10 @@ use crate::db::{
     create_html_table_data, create_html_table_header, create_markdown_data, create_markdown_header,
     export_query_as_xlsx_send_data, quote_sql_str, AutoCompletionQueryId, BackendKind, CheckConn,
     ColumnType, CreateIndexReq, CreateSchemaExtra, CreateTableAndIndexSql, CreatedTypeDef, DBTrait,
-    DefAndMetas, ExportFrame, ExportKind, ExportQueryResult, ExtractSqlValeFromJsonValue, Field,
-    GetBackendKind, GetTestExportTableKinds, Index, IndexKind, ListTable, MetaValue, NamedStaff,
-    QueryEventEmitter, QueryResp, QuerySql, ReadOnlyTrait, SchemaTrait, ServerMetas,
-    ShowTableParameter, SqlBuilder, XlsxEdit,
+    DefAndMetas, EncodeXlsxDatetime, ExportFrame, ExportKind, ExportQueryResult,
+    ExtractSqlValeFromJsonValue, Field, GetBackendKind, GetTestExportTableKinds, Index, IndexKind,
+    ListTable, MetaValue, NamedStaff, QueryEventEmitter, QueryResp, QuerySql, ReadOnlyTrait,
+    SchemaTrait, ServerMetas, ShowTableParameter, SqlBuilder, XlsxEdit, XlsxEditContent,
 };
 
 use crate::helper::{create_csv, generate_random_string};
@@ -328,6 +328,114 @@ fn format_timestamp(x: i64) -> anyhow::Result<String> {
     }
 }
 
+impl EncodeXlsxDatetime for CassandraDB {
+    fn is_datatime(&self, ty: &str) -> anyhow::Result<bool> {
+        anyhow::Ok(ty.eq_ignore_ascii_case("timestamp"))
+    }
+
+    fn is_date(&self, ty: &str) -> anyhow::Result<bool> {
+        anyhow::Ok(ty.eq_ignore_ascii_case("date"))
+    }
+
+    fn is_time(&self, ty: &str) -> anyhow::Result<bool> {
+        anyhow::Ok(ty.eq_ignore_ascii_case("time"))
+    }
+}
+fn encode_row_as_xlsx(row: Row) -> anyhow::Result<Vec<Option<XlsxEditContent>>> {
+    let mut values = vec![];
+    for v in row.columns {
+        let value = match v {
+            Some(x) => Some(encode_value_as_xlsx(x)?),
+            None => None,
+        };
+        values.push(value);
+    }
+
+    anyhow::Ok(values)
+}
+
+fn encode_value_as_xlsx(value: CqlValue) -> anyhow::Result<XlsxEditContent> {
+    let v: XlsxEditContent = match value {
+        CqlValue::Ascii(x) | CqlValue::Text(x) => XlsxEditContent::String(x),
+        CqlValue::Boolean(x) => x.into(),
+        CqlValue::Blob(x) => encode_bytes(&x).into(),
+        CqlValue::Counter(counter) => counter.0.into(),
+        CqlValue::Decimal(c) => cql_decimal_to_bigdecimal(&c).to_string().into(),
+        CqlValue::Date(cql_date) => format_date(cql_date.0)?.into(),
+        CqlValue::Double(x) => XlsxEditContent::number(x),
+        CqlValue::Duration(..) => anyhow::bail!("duration not support"),
+        CqlValue::Empty => XlsxEditContent::String("".to_string()),
+        CqlValue::Float(x) => XlsxEditContent::number(x),
+        CqlValue::Int(x) => XlsxEditContent::number(x),
+        CqlValue::BigInt(x) => x.into(),
+        CqlValue::Timestamp(cql_timestamp) => format_timestamp(cql_timestamp.0)?.into(),
+        CqlValue::Inet(ip_addr) => ip_addr.to_string().into(),
+        CqlValue::List(cql_values) => {
+            let mut values = vec![];
+            for v in cql_values {
+                let v = encode_value_as_string(v, true)?;
+                values.push(v);
+            }
+            format!("[{}]", values.join(",")).into()
+        }
+        CqlValue::Map(m) => {
+            let mut values = vec![];
+            for (k, v) in m {
+                let v = encode_value_as_string(v, true)?;
+                let k = encode_value_as_string(k, true)?;
+                values.push(format!("{}:{}", k, v));
+            }
+            format!("{{{}}}", values.join(",")).into()
+        }
+        CqlValue::Set(cql_values) => {
+            let mut values = vec![];
+            for v in cql_values {
+                let v = encode_value_as_string(v, true)?;
+                values.push(v);
+            }
+            format!("{{{}}}", values.join(",")).into()
+        }
+        CqlValue::UserDefinedType { fields, .. } => {
+            let mut values = vec![];
+            for (k, v) in fields {
+                let v = match v {
+                    Some(x) => encode_value_as_string(x, true)?,
+                    None => "null".to_string(),
+                };
+                values.push(format!("{}:{}", k, v));
+            }
+            format!("{{{}}}", values.join(",")).into()
+        }
+        CqlValue::SmallInt(x) => XlsxEditContent::number(x),
+        CqlValue::TinyInt(x) => XlsxEditContent::number(x),
+        CqlValue::Time(cql_time) => format_time(cql_time.0).into(),
+        CqlValue::Timeuuid(cql_timeuuid) => cql_timeuuid.to_string().into(),
+        CqlValue::Tuple(cql_values) => {
+            let mut values = vec![];
+            for v in cql_values {
+                let v = match v {
+                    Some(v) => encode_value_as_string(v, true)?,
+                    None => "null".to_string(),
+                };
+                values.push(v);
+            }
+            format!("({})", values.join(",")).into()
+        }
+        CqlValue::Uuid(uuid) => uuid.to_string().into(),
+        CqlValue::Varint(x) => varint_2_bigint(&x).to_string().into(),
+        CqlValue::Vector(cql_values) => {
+            let mut values = vec![];
+            for v in cql_values {
+                let v = encode_value_as_string(v, true)?;
+                values.push(v);
+            }
+            format!("[{}]", values.join(",")).into()
+        }
+        _ => anyhow::bail!(format!("unsupported type:{:?}", value)),
+    };
+    anyhow::Ok(v)
+}
+
 fn encode_row(row: Row) -> anyhow::Result<Vec<Option<String>>> {
     let mut values = vec![];
     for v in row.columns {
@@ -498,7 +606,7 @@ impl ExportQueryResult for CassandraDB {
             ExportKind::Sql { .. } => {
                 anyhow::bail!("can't export query result to sql")
             }
-            ExportKind::Xlsx { include_header } => {
+            ExportKind::Xlsx { include_header, .. } => {
                 if include_header {
                     for (index, col) in pager.column_specs().iter().enumerate() {
                         sender
@@ -506,7 +614,7 @@ impl ExportQueryResult for CassandraDB {
                                 XlsxEdit {
                                     row: row_num,
                                     column: index as rust_xlsxwriter::ColNum,
-                                    content: col.name().to_string(),
+                                    content: col.name().to_string().into(),
                                 }
                                 .into(),
                             )
@@ -544,7 +652,7 @@ impl ExportQueryResult for CassandraDB {
                 }
                 ExportKind::Sql { .. } => anyhow::bail!("can't export query result as sql"),
                 ExportKind::Xlsx { .. } => {
-                    let data = encode_row(row)?;
+                    let data = encode_row_as_xlsx(row)?;
                     export_query_as_xlsx_send_data(&mut row_num, data, sender.clone()).await?;
                 }
                 ExportKind::Html { .. } => {

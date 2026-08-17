@@ -26,9 +26,9 @@ use crate::{
     datasource_config::CouchBaseDBConfig,
     db::{
         BackendKind, CatalogTrait, CheckConn, CouchBaseBucketType, CreateDatabaseExtra, DBTrait,
-        ExportKind, ExportQueryResult, ExtractSqlValeFromJsonValue, Field, GetBackendKind,
-        ListTable, MetaValue, QueryEventEmitter, QueryResp, QuerySql, ReadOnlyTrait, SchemaTrait,
-        ServerMetas, ShowTableParameter, SqlBuilder, TableImportPara,
+        EncodeXlsxDatetime, ExportKind, ExportQueryResult, ExtractSqlValeFromJsonValue, Field,
+        GetBackendKind, ListTable, MetaValue, QueryEventEmitter, QueryResp, QuerySql,
+        ReadOnlyTrait, SchemaTrait, ServerMetas, ShowTableParameter, SqlBuilder, TableImportPara,
     },
 };
 
@@ -247,6 +247,8 @@ fn extract_id_and_value(
     };
     anyhow::Ok((id, value))
 }
+
+impl EncodeXlsxDatetime for CouchBaseDB {}
 
 #[async_trait::async_trait]
 

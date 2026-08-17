@@ -1,6 +1,6 @@
 use crate::app::{
     self, name_to_parts, parse_bson_doc, CancelTokenMsg, DBConnectionConfig, DBPal,
-    DatabaseBackend, ErrorFrontend, MongoShowTablePara, TaskManager,
+    DatabaseBackend, ErrorFrontend, MongoShowTablePara, TaskManager, XlsxCellData,
 };
 use calamine::Reader;
 use dashmap::DashMap;
@@ -11,7 +11,7 @@ use dbnexus_db::db::{
     CreateTableAndIndexSql, CreateTableReq, CreatedTypeDef, DefAndMetas, ExportKind, Field, Index,
     JsUint8Array, ListTable, MetaValue, NamedStaff, OptionMustBeSomeErr, ProcedureDetail,
     QueryEventEmit, QueryResp, SequenceDetail, ShowTableParameter, SqlEvent, TableImportPara,
-    TimeElapsed, TriggerDetail, XlsxEdit,
+    TimeElapsed, TriggerDetail,
 };
 use dbnexus_db::language_server::CompletionList;
 use dbnexus_db::mongo::MongoDB;
@@ -3086,7 +3086,7 @@ pub async fn redis_string_set(
 #[specta::specta]
 #[tauri::command]
 
-pub async fn write_xlsx(path: String, data: Vec<XlsxEdit>) -> Result<(), ErrorFrontend> {
+pub async fn write_xlsx(path: String, data: Vec<XlsxCellData>) -> Result<(), ErrorFrontend> {
     spawn_blocking(move || {
         let mut workbook = rust_xlsxwriter::workbook::Workbook::new();
         // Add a worksheet to the workbook.

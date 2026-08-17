@@ -12,19 +12,19 @@ use crate::datasource_config::{LibSqlDBConfig, LibSqlDBConfigSource};
 use crate::db::{
     create_html_table_data, create_html_table_header, create_markdown_data, create_markdown_header,
     export_query_as_xlsx_send_data, quote_sql_str, AutoCompletionQueryId, BackendKind, CheckConn,
-    ColumnType, CreateIndexReq, CreateTableAndIndexSql, ExportFrame, ExportKind, ExportQueryResult,
-    ExtractSqlValeFromJsonValue, Field, FirstTrue, GetBackendKind, GetTestExportTableKinds, Index,
-    IndexKind, ListTable, MetaValue, NamedStaff, QueryEvent, QueryEventEmitter, QueryResp,
-    QuerySql, ReadOnlyTrait, SchemaTrait, ServerMetas, ShowTableParameter, SqlBuilder,
-    TriggerDetail, XlsxEdit, POOL_MAX_CONNECTIONS,
+    ColumnType, CreateIndexReq, CreateTableAndIndexSql, EncodeXlsxDatetime, ExportFrame,
+    ExportKind, ExportQueryResult, ExtractSqlValeFromJsonValue, Field, FirstTrue, GetBackendKind,
+    GetTestExportTableKinds, Index, IndexKind, ListTable, MetaValue, NamedStaff, QueryEvent,
+    QueryEventEmitter, QueryResp, QuerySql, ReadOnlyTrait, SchemaTrait, ServerMetas,
+    ShowTableParameter, SqlBuilder, TriggerDetail, XlsxEdit, XlsxEditContent, POOL_MAX_CONNECTIONS,
 };
 use crate::helper::create_csv;
 use crate::language_server::LexerCompletionTrait;
 
 use crate::sqlite::{
     encode_bytes, extract_auto_increment_key, extract_trigger_detail_from_sql, gen_show_sql,
-    integer_like, numeric_like, real_like, sqlite_extract_sql_value_from_json_value, text_like,
-    SqliteDB,
+    integer_like, numeric_like, real_like, sqlite_encode_xlsx_datetime,
+    sqlite_extract_sql_value_from_json_value, text_like, SqliteDB,
 };
 
 #[derive(Clone)]
@@ -107,7 +107,7 @@ impl ExportQueryResult for LibSqlDB {
                     sender.send(value.into()).await?;
                 }
                 ExportKind::Sql { .. } => anyhow::bail!("can't export query result to sql"),
-                ExportKind::Xlsx { include_header } => {
+                ExportKind::Xlsx { include_header, .. } => {
                     if first.get() && include_header {
                         for index in 0..row.column_count() {
                             sender
@@ -118,7 +118,8 @@ impl ExportQueryResult for LibSqlDB {
                                         content: row
                                             .column_name(index)
                                             .unwrap_or_default()
-                                            .to_owned(),
+                                            .to_owned()
+                                            .into(),
                                     }
                                     .into(),
                                 )
@@ -126,7 +127,7 @@ impl ExportQueryResult for LibSqlDB {
                         }
                         row_num += 1;
                     }
-                    let data = encode_row(&row)?;
+                    let data = encode_row_as_xlsx(&row)?;
                     export_query_as_xlsx_send_data(&mut row_num, data, sender.clone()).await?;
                 }
                 ExportKind::Html { include_header } => {
@@ -960,6 +961,68 @@ async fn query_trigger_detail(conn: &mut Connection, name: &str) -> anyhow::Resu
     let row = conn.prepare(&sql).await?.query_row(params!()).await?;
     let sql: String = row.get(0)?;
     extract_trigger_detail_from_sql(name, sql)
+}
+
+impl EncodeXlsxDatetime for LibSqlDB {
+    fn encode(&self, ty: &str, data: &calamine::ExcelDateTime) -> anyhow::Result<Option<String>> {
+        sqlite_encode_xlsx_datetime(ty, data)
+    }
+
+    fn is_datatime(&self, ty: &str) -> anyhow::Result<bool> {
+        anyhow::Ok(ty.eq_ignore_ascii_case("DATETIME"))
+    }
+
+    fn is_date(&self, ty: &str) -> anyhow::Result<bool> {
+        anyhow::Ok(ty.eq_ignore_ascii_case("DATE"))
+    }
+
+    fn is_time(&self, ty: &str) -> anyhow::Result<bool> {
+        anyhow::Ok(ty.eq_ignore_ascii_case("TIME"))
+    }
+}
+
+fn encode_row_as_xlsx(row: &Row) -> anyhow::Result<Vec<Option<XlsxEditContent>>> {
+    let mut values = Vec::with_capacity(row.column_count() as usize);
+    for c in 0..row.column_count() {
+        let ty = row.column_type(c).unwrap_or(ValueType::Null);
+        let v: Option<XlsxEditContent> = match ty {
+            ValueType::Null => {
+                if let Result::Ok(s) = row.get::<f64>(c) {
+                    Some(XlsxEditContent::number(s))
+                } else if let Result::Ok(s) = row.get::<i64>(c) {
+                    Some(s.into())
+                } else if let Result::Ok(s) = row.get::<String>(c) {
+                    Some(s.into())
+                } else if let Result::Ok(s) = row.get::<bool>(c) {
+                    Some(s.into())
+                } else if let Result::Ok(s) = row.get::<Vec<u8>>(c) {
+                    Some(encode_bytes(s.as_slice()).into())
+                } else {
+                    None
+                }
+            }
+            ValueType::Text => {
+                let v: Option<String> = row.get(c)?;
+                v.map(|x| x.into())
+            }
+            ValueType::Integer => {
+                let v: Option<i64> = row.get(c)?;
+                v.map(|x| x.into())
+            }
+            ValueType::Real => {
+                let v: Option<f64> = row.get(c)?;
+                v.map(|x| format!("{}", x).into())
+            }
+            ValueType::Blob => {
+                let v: Option<Vec<u8>> = row.get(c)?;
+                v.map(|x| encode_bytes(x.as_slice()).into())
+            }
+        };
+
+        values.push(v);
+    }
+
+    anyhow::Ok(values)
 }
 
 fn encode_row(row: &Row) -> anyhow::Result<Vec<Option<String>>> {

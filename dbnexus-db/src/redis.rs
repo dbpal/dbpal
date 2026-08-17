@@ -14,10 +14,10 @@ use tokio::sync::Mutex;
 use crate::datasource_config::RedisDBConfig;
 use crate::db::{
     create_html_table_data, create_markdown_data, create_markdown_header, AutoCompletionQueryId,
-    BackendKind, CheckConn, CreateSchemaExtra, DBTrait, ExportFrame, ExportKind, ExportQueryResult,
-    ExtractSqlValeFromJsonValue, Field, GetBackendKind, GetTestExportTableKinds, ListTable,
-    MetaValue, QueryEvent, QueryEventEmitter, QueryResp, QuerySql, ReadOnlyTrait, SchemaTrait,
-    ServerMetas, ShowTableParameter, SqlBuilder, XlsxEdit,
+    BackendKind, CheckConn, CreateSchemaExtra, DBTrait, EncodeXlsxDatetime, ExportFrame,
+    ExportKind, ExportQueryResult, ExtractSqlValeFromJsonValue, Field, GetBackendKind,
+    GetTestExportTableKinds, ListTable, MetaValue, QueryEvent, QueryEventEmitter, QueryResp,
+    QuerySql, ReadOnlyTrait, SchemaTrait, ServerMetas, ShowTableParameter, SqlBuilder, XlsxEdit,
 };
 use crate::helper::{create_csv, OffsetLimitIter};
 
@@ -681,7 +681,7 @@ impl ExportQueryResult for RedisDB {
                             XlsxEdit {
                                 row,
                                 column: 0,
-                                content: value,
+                                content: value.into(),
                             }
                             .into(),
                         )
@@ -728,7 +728,7 @@ impl RedisDB {
                         XlsxEdit {
                             row: 0,
                             column: 0,
-                            content: value,
+                            content: value.into(),
                         }
                         .into(),
                     )
@@ -744,7 +744,7 @@ impl RedisDB {
                             XlsxEdit {
                                 row: i as u32,
                                 column: 0,
-                                content: value,
+                                content: value.into(),
                             }
                             .into(),
                         )
@@ -761,7 +761,7 @@ impl RedisDB {
                             XlsxEdit {
                                 row: row_num,
                                 column: 0,
-                                content: set,
+                                content: set.into(),
                             }
                             .into(),
                         )
@@ -779,7 +779,7 @@ impl RedisDB {
                             XlsxEdit {
                                 row: offset / 2,
                                 column: (offset % 2) as rust_xlsxwriter::ColNum,
-                                content: value,
+                                content: value.into(),
                             }
                             .into(),
                         )
@@ -797,7 +797,7 @@ impl RedisDB {
                             XlsxEdit {
                                 row: offset / 2,
                                 column: (offset % 2) as rust_xlsxwriter::ColNum,
-                                content: value,
+                                content: value.into(),
                             }
                             .into(),
                         )
@@ -828,6 +828,8 @@ impl SqlBuilder for RedisDB {
         "".to_string()
     }
 }
+
+impl EncodeXlsxDatetime for RedisDB {}
 
 #[async_trait::async_trait]
 impl SchemaTrait for RedisDB {
@@ -937,7 +939,7 @@ impl SchemaTrait for RedisDB {
             ExportKind::Sql {
                 include_table_schema: _,
             } => self.export_table_to_command(key, sender).await,
-            ExportKind::Xlsx { include_header } => {
+            ExportKind::Xlsx { include_header, .. } => {
                 self.export_table_as_xlsx(key, include_header, sender).await
             }
             ExportKind::Html { include_header } => {
@@ -1704,6 +1706,7 @@ impl GetTestExportTableKinds for RedisDB {
             },
             ExportKind::Xlsx {
                 include_header: false,
+                datetime_format: Default::default(),
             },
         ]
     }

@@ -5,13 +5,14 @@ use crate::db::{
     create_html_table_data, create_html_table_header, create_markdown_data, create_markdown_header,
     export_query_as_xlsx_send_blocking_data, quote_sql_str, AutoCompletionQueryId, BackendKind,
     CatalogTrait, CheckConn, ColumnType, CreateDatabaseExtra, CreateIndexReq, CreateSchemaExtra,
-    CreateTableAndIndexSql, DBTrait, ExportFrame, ExportKind, ExportQueryResult,
-    ExtractSqlValeFromJsonValue, Field, FirstTrue, GetBackendKind, GetTestExportTableKinds, Index,
-    IndexKind, ListTable, MetaValue, QueryEventEmitter, QueryResp, QuerySql, SchemaTrait,
-    SequenceDetail, ServerMetas, ShowTableParameter, SqlBuilder, SqlCollect, POOL_MAX_CONNECTIONS,
+    CreateTableAndIndexSql, DBTrait, EncodeXlsxDatetime, ExportFrame, ExportKind,
+    ExportQueryResult, ExtractSqlValeFromJsonValue, Field, FirstTrue, GetBackendKind,
+    GetTestExportTableKinds, Index, IndexKind, ListTable, MetaValue, QueryEventEmitter, QueryResp,
+    QuerySql, SchemaTrait, SequenceDetail, ServerMetas, ShowTableParameter, SqlBuilder, SqlCollect,
+    XlsxEditContent, POOL_MAX_CONNECTIONS,
 };
 use crate::helper::{create_csv, get_array_tuple_element_type};
-use chrono::NaiveDate;
+use chrono::{NaiveDate, Utc};
 use dashmap::{DashMap, DashSet};
 use duckdb::types::{TimeUnit, Value};
 use duckdb::{AccessMode, Connection, DuckdbConnectionManager};
@@ -237,7 +238,7 @@ impl SqlBuilder for DuckDB {
             _ if typ.ends_with("]") || typ.starts_with("struct") || typ.starts_with("map") => {
                 anyhow::Ok(value.to_string())
             }
-            _ if typ.starts_with("union") => anyhow::bail!("don't know how to handle union value"),
+            _ if typ.starts_with("union") => anyhow::Ok(value.to_string()),
 
             // 2. 前缀匹配：处理带参数或变体的类型 (例如 varchar(255), timestamp_ms, utf8, largeutf8 等)
             _ if typ.starts_with("varchar")
@@ -349,17 +350,22 @@ impl ExportQueryResult for DuckDB {
                     ExportKind::Sql { .. } => {
                         anyhow::bail!("query as sql not supported.");
                     }
-                    ExportKind::Xlsx { include_header } => {
+                    ExportKind::Xlsx { include_header, .. } => {
                         if first.get() && include_header {
-                            let names: Vec<_> =
-                                row.as_ref().column_names().into_iter().map(Some).collect();
+                            let names: Vec<_> = row
+                                .as_ref()
+                                .column_names()
+                                .into_iter()
+                                .map(|x| XlsxEditContent::String(x))
+                                .map(Some)
+                                .collect();
                             export_query_as_xlsx_send_blocking_data(
                                 &mut row_num,
                                 names,
                                 sender.clone(),
                             )?;
                         }
-                        let d = encode_row(row)?;
+                        let d = encode_row_as_xlsx(row)?;
                         export_query_as_xlsx_send_blocking_data(&mut row_num, d, sender.clone())?;
                     }
                     ExportKind::Html { include_header } => {
@@ -553,14 +559,19 @@ impl DuckDB {
     }
 }
 
-fn format_timestamp(time_uint: TimeUnit, value: i64, is_time: bool) -> anyhow::Result<String> {
+fn make_datetime(time_uint: TimeUnit, value: i64) -> Option<chrono::DateTime<Utc>> {
     use chrono::DateTime;
-    let d = match time_uint {
+    let r = match time_uint {
         TimeUnit::Second => DateTime::from_timestamp(value, 0),
         TimeUnit::Millisecond => DateTime::from_timestamp_millis(value),
         TimeUnit::Microsecond => DateTime::from_timestamp_micros(value),
         TimeUnit::Nanosecond => Some(DateTime::from_timestamp_nanos(value)),
     };
+    r
+}
+
+fn format_timestamp(time_uint: TimeUnit, value: i64, is_time: bool) -> anyhow::Result<String> {
+    let d = make_datetime(time_uint, value);
     let d = match d {
         Some(x) => x,
         None => anyhow::bail!("empty datetime"),
@@ -710,6 +721,107 @@ fn format_interval(months: i32, days: i32, nanos: i64) -> String {
     format!("INTERVAL '{}'", interval_string)
 }
 
+fn encode_row_as_xlsx<'stmt>(
+    row: &duckdb::Row<'stmt>,
+) -> anyhow::Result<Vec<Option<XlsxEditContent>>> {
+    fn encode_value_as_xlsx(value: &Value) -> anyhow::Result<Option<XlsxEditContent>> {
+        let r = match value {
+            Value::Null => None,
+            Value::Boolean(x) => Some((*x).into()),
+            Value::TinyInt(x) => Some(XlsxEditContent::number(*x)),
+            Value::SmallInt(x) => Some(XlsxEditContent::number(*x)),
+            Value::Int(x) => Some(XlsxEditContent::number(*x)),
+            Value::BigInt(x) => Some((*x).into()),
+            Value::HugeInt(x) => Some(x.to_string().into()),
+            Value::UTinyInt(x) => Some(XlsxEditContent::number(*x)),
+            Value::USmallInt(x) => Some(XlsxEditContent::number(*x)),
+            Value::UInt(x) => Some(XlsxEditContent::number(*x)),
+            Value::UBigInt(x) => Some((*x).into()),
+            Value::Float(x) => Some(XlsxEditContent::number(*x)),
+            Value::Double(x) => Some(XlsxEditContent::number(*x)),
+            Value::Decimal(decimal) => Some(decimal.to_string().into()),
+            Value::Timestamp(time_unit, value) => {
+                let v = make_datetime(*time_unit, *value);
+                v.map(|x| x.into())
+            }
+            Value::Text(x) => {
+                let x = Some(x.clone().into());
+                x
+            }
+            Value::Blob(items) => {
+                let x = encode_bytes(&items);
+                Some(x.into())
+            }
+            Value::Date32(x) => {
+                let x = make_date(*x);
+                x.map(|x| x.into())
+            }
+            Value::Time64(time_unit, value) => {
+                let v = make_datetime(*time_unit, *value);
+                v.map(|x| x.naive_utc().into())
+            }
+            Value::Interval {
+                months,
+                days,
+                nanos,
+            } => {
+                let x = format_interval(*months, *days, *nanos);
+                Some(x.into())
+            }
+            Value::List(values) | Value::Array(values) => {
+                let mut eles = Vec::with_capacity(values.len());
+                for value in values.iter() {
+                    let v = encode_value(value, true)?;
+                    eles.push(v);
+                }
+                let eles = eles
+                    .into_iter()
+                    .map(|x| x.unwrap_or("null".to_string()))
+                    .collect::<Vec<_>>();
+                Some(format!("[{}]", eles.join(",")).into())
+            }
+            Value::Enum(x) => Some(format!("'{}'", x).into()),
+            Value::Struct(ordered_map) => {
+                let mut values = Vec::new();
+                for (k, v) in ordered_map.iter() {
+                    values.push(format!(
+                        "{}:{}",
+                        k,
+                        encode_value(v, true)?.unwrap_or("null".to_string())
+                    ));
+                }
+                Some(format!("{{{}}}", values.join(",")).into())
+            }
+            Value::Map(ordered_map) => {
+                let mut keys = Vec::new();
+                let mut values = Vec::new();
+                for (k, v) in ordered_map.iter() {
+                    keys.push(encode_value(k, true)?);
+                    values.push(encode_value(v, true)?);
+                }
+                let keys = keys
+                    .into_iter()
+                    .map(|x| x.unwrap_or("null".to_string()))
+                    .collect::<Vec<_>>();
+                let values = values
+                    .into_iter()
+                    .map(|x| x.unwrap_or("null".to_string()))
+                    .collect::<Vec<_>>();
+                Some(format!("map([{}] , [{}])", keys.join(","), values.join(",")).into())
+            }
+            Value::Union(value) => encode_value_as_xlsx(value)?,
+        };
+        anyhow::Ok(r)
+    }
+
+    let mut values = Vec::with_capacity(row.as_ref().column_count());
+    for index in 0..row.as_ref().column_count() {
+        let x: Value = row.get(index)?;
+        values.push(encode_value_as_xlsx(&x)?);
+    }
+    anyhow::Ok(values)
+}
+
 fn encode_row<'stmt>(row: &duckdb::Row<'stmt>) -> anyhow::Result<Vec<Option<String>>> {
     let mut values = Vec::with_capacity(row.as_ref().column_count());
     for index in 0..row.as_ref().column_count() {
@@ -717,6 +829,20 @@ fn encode_row<'stmt>(row: &duckdb::Row<'stmt>) -> anyhow::Result<Vec<Option<Stri
         values.push(encode_value(&x, false)?);
     }
     anyhow::Ok(values)
+}
+
+impl EncodeXlsxDatetime for DuckDB {
+    fn is_datatime(&self, ty: &str) -> anyhow::Result<bool> {
+        todo!()
+    }
+
+    fn is_date(&self, ty: &str) -> anyhow::Result<bool> {
+        todo!()
+    }
+
+    fn is_time(&self, ty: &str) -> anyhow::Result<bool> {
+        todo!()
+    }
 }
 
 impl DuckDB {
@@ -1427,10 +1553,14 @@ impl DuckDB {
     }
 }
 
-fn format_date(days_since_epoch: i32) -> anyhow::Result<String> {
+fn make_date(days_since_epoch: i32) -> Option<NaiveDate> {
     let date = NaiveDate::from_ymd_opt(1970, 1, 1)
         .expect("must ba valid date")
         .checked_add_days(chrono::Days::new(days_since_epoch as i64 as u64));
+    date
+}
+fn format_date(days_since_epoch: i32) -> anyhow::Result<String> {
+    let date = make_date(days_since_epoch);
     match date {
         Some(x) => anyhow::Ok(x.to_string()),
         None => anyhow::bail!("days is none"),

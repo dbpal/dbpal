@@ -158,7 +158,7 @@ pub trait ReadOnlyTrait {
 
 pub type ExportedSizeEmitter = Arc<dyn Fn(usize) + Send + Sync>;
 
-#[derive(serde::Deserialize, Clone, Debug, Default, specta::Type)]
+#[derive(serde::Deserialize, Clone, Debug, specta::Type)]
 pub struct ShowTableParameter {
     #[serde(default)]
     pub where_str: Option<String>,
@@ -182,6 +182,22 @@ pub struct ShowTableParameter {
     // couchbase can use this parameter to format
     #[serde(default)]
     pub tab_size: u32,
+}
+
+impl Default for ShowTableParameter {
+    fn default() -> Self {
+        Self {
+            where_str: None,
+            order_by: None,
+            page: 1,
+            page_size: 100,
+            limit: None,
+            min: None,
+            max: None,
+            allow_filtering: true,
+            tab_size: 4,
+        }
+    }
 }
 
 #[derive(serde::Deserialize, Clone, Debug, specta::Type)]
@@ -272,6 +288,7 @@ pub trait SchemaTrait:
     + ExportQueryResult
     + SqlBuilder
     + ExtractSqlValeFromJsonValue
+    + EncodeXlsxDatetime
 {
     async fn create_table(&self, req: &CreateTableReq) -> anyhow::Result<String> {
         let ss = SchemaTrait::create_table_sql(self, req)?;
@@ -539,8 +556,29 @@ pub trait SchemaTrait:
                             let mut values = HashMap::new();
                             for (index, data) in row.iter().enumerate() {
                                 let f = headers.get(index).map(|name| cols_map.get(name)).flatten();
-                                if f.is_some() {
-                                    values.insert(headers[index].clone(), Some(data.to_string()));
+                                if let Some(f) = f {
+                                    // trying to format date , datetime
+
+                                    let value = match data {
+                                        calamine::Data::DateTime(x) => {
+                                            let x = EncodeXlsxDatetime::encode(
+                                                this.as_ref(),
+                                                &f.data_type,
+                                                x,
+                                            )?;
+                                            x
+                                        }
+                                        _ => {
+                                            let v = data.to_string();
+                                            if v.is_empty() {
+                                                None
+                                            } else {
+                                                Some(v)
+                                            }
+                                        }
+                                    };
+
+                                    values.insert(f.field.clone(), value);
                                 }
                             }
                             sender.blocking_send(values)?;
@@ -580,7 +618,7 @@ pub trait SchemaTrait:
             let query_id = generate_random_string(10);
             this.open_connection(&query_id).await?;
 
-            let _gurad = DropConn {
+            let _guard = DropConn {
                 db: Some(SchemaTrait::clone(this.as_ref())),
                 query_id: query_id.clone(),
             };
@@ -716,6 +754,7 @@ pub trait SchemaTrait:
         let (sender, receiver) = tokio::sync::mpsc::channel(10);
         let h1 = {
             let x = SchemaTrait::clone(self);
+            let kind = kind.clone();
             let table_name = table_name.to_string();
             let h1 = tokio::spawn(async move {
                 x.export_table_or_view(&table_name, para, kind, sender)
@@ -810,6 +849,7 @@ pub trait SchemaTrait:
     ) -> anyhow::Result<String> {
         let (sender, receiver) = tokio::sync::mpsc::channel(10);
         let h1 = {
+            let kind = kind.clone();
             let x = SchemaTrait::clone(self);
             let table_name = table_name.to_string();
             let h1 = tokio::spawn(async move {
@@ -851,6 +891,7 @@ pub trait SchemaTrait:
         // test csv
         let export_kind = ExportKind::Xlsx {
             include_header: true,
+            datetime_format: Default::default(),
         };
 
         self.export_table_or_view_to_file(table, None, file, export_kind.clone(), Arc::new(|_| {}))
@@ -978,11 +1019,21 @@ pub trait SchemaTrait:
     #[cfg(test)]
     async fn test_table_export_and_import(&self, table: &str) {
         self.test_table_export_and_import_csv(table).await;
-        self.test_table_export_and_import_json(table).await;
-        self.test_table_export_and_import_jsonline(table).await;
-        self.test_table_export_and_import_excel(table).await;
+        let para = ShowTableParameter::default();
 
-        println!("test export and import OK.")
+        let x = self.show_table_collect(table, para.clone()).await.unwrap();
+        log::info!("after csv import:{:?}", x.data);
+
+        self.test_table_export_and_import_json(table).await;
+        let x = self.show_table_collect(table, para.clone()).await.unwrap();
+        log::info!("after json import:{:?}", x.data);
+        self.test_table_export_and_import_jsonline(table).await;
+        let x = self.show_table_collect(table, para.clone()).await.unwrap();
+        log::info!("after jsonline import:{:?}", x.data);
+        self.test_table_export_and_import_excel(table).await;
+        let x = self.show_table_collect(table, para.clone()).await.unwrap();
+        log::info!("after excel import:{:?}", x.data);
+        log::info!("test export and import OK.")
     }
 }
 
@@ -1544,19 +1595,88 @@ pub struct SequenceDetail {
     pub data_type: String,
 }
 
-#[derive(Clone, Debug, serde::Serialize, serde::Deserialize, specta::Type)]
+#[derive(Clone, Debug)]
 pub struct XlsxEdit {
     pub row: rust_xlsxwriter::RowNum,
     pub column: rust_xlsxwriter::ColNum,
-    pub content: String,
+    pub content: XlsxEditContent,
+}
+pub trait EncodeXlsxDatetime: GetBackendKind {
+    // return a option data is because of https://docs.rs/calamine/latest/src/calamine/datatype.rs.html#791-806
+    //  returns a option datetime
+    fn encode(&self, ty: &str, data: &calamine::ExcelDateTime) -> anyhow::Result<Option<String>> {
+        let data = data.as_datetime();
+
+        if self.is_datatime(ty)? {
+            return anyhow::Ok(if let Some(x) = data {
+                self.format_datetime(x).into()
+            } else {
+                None
+            });
+        }
+        if self.is_time(ty)? {
+            return anyhow::Ok(if let Some(x) = data {
+                self.format_time(x.time()).into()
+            } else {
+                None
+            });
+        }
+        if self.is_date(ty)? {
+            return anyhow::Ok(if let Some(x) = data {
+                self.format_date(x.date()).into()
+            } else {
+                None
+            });
+        }
+        anyhow::bail!(format!("can't convert datetime to '{}'", ty))
+    }
+
+    fn is_datatime(&self, _ty: &str) -> anyhow::Result<bool> {
+        self.backend_kind()
+            .not_support_feature("check if a type is datetime")
+    }
+
+    fn is_date(&self, _ty: &str) -> anyhow::Result<bool> {
+        self.backend_kind()
+            .not_support_feature("check if a type is date")
+    }
+    fn is_time(&self, _ty: &str) -> anyhow::Result<bool> {
+        self.backend_kind()
+            .not_support_feature("check if a type is time")
+    }
+
+    fn format_datetime(&self, x: chrono::NaiveDateTime) -> String {
+        x.to_string()
+    }
+
+    fn format_time(&self, x: chrono::NaiveTime) -> String {
+        x.to_string()
+    }
+
+    fn format_date(&self, x: chrono::NaiveDate) -> String {
+        x.to_string()
+    }
 }
 
+#[derive(Clone, Debug)]
 pub enum XlsxEditContent {
     Time(chrono::NaiveTime),
     Date(chrono::NaiveDate),
     DateTime(chrono::NaiveDateTime),
     String(String),
     Number(f64),
+    Bool(bool),
+}
+
+impl From<i64> for XlsxEditContent {
+    fn from(value: i64) -> Self {
+        Self::number(value as f64)
+    }
+}
+impl From<u64> for XlsxEditContent {
+    fn from(value: u64) -> Self {
+        Self::number(value as f64)
+    }
 }
 
 impl From<String> for XlsxEditContent {
@@ -1576,6 +1696,11 @@ impl From<chrono::NaiveDate> for XlsxEditContent {
         Self::Date(value)
     }
 }
+impl From<chrono::DateTime<chrono::Utc>> for XlsxEditContent {
+    fn from(value: chrono::DateTime<chrono::Utc>) -> Self {
+        Self::DateTime(value.naive_utc())
+    }
+}
 
 impl From<chrono::NaiveDateTime> for XlsxEditContent {
     fn from(value: chrono::NaiveDateTime) -> Self {
@@ -1583,9 +1708,15 @@ impl From<chrono::NaiveDateTime> for XlsxEditContent {
     }
 }
 
-impl<T: Into<f64>> From<T> for XlsxEditContent {
-    fn from(value: T) -> Self {
+impl XlsxEditContent {
+    pub(crate) fn number<T: Into<f64>>(value: T) -> Self {
         Self::Number(value.into())
+    }
+}
+
+impl From<bool> for XlsxEditContent {
+    fn from(value: bool) -> Self {
+        Self::Bool(value)
     }
 }
 
@@ -1595,9 +1726,24 @@ impl std::fmt::Display for XlsxEdit {
     }
 }
 
+impl std::fmt::Display for XlsxEditContent {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            XlsxEditContent::Time(naive_time) => write!(f, "time:{}", naive_time.to_string()),
+            XlsxEditContent::Date(naive_date) => write!(f, "date:{}", naive_date.to_string()),
+            XlsxEditContent::DateTime(naive_date_time) => {
+                write!(f, "datetime:{}", naive_date_time.to_string())
+            }
+            XlsxEditContent::String(x) => write!(f, "str:{}", x),
+            XlsxEditContent::Number(x) => write!(f, "num:{}", x),
+            XlsxEditContent::Bool(x) => write!(f, "bool:{}", x),
+        }
+    }
+}
+
 pub(crate) async fn export_query_as_xlsx_send_data(
     row_num: &mut u32,
-    data: Vec<Option<String>>,
+    data: Vec<Option<XlsxEditContent>>,
     sender: tokio::sync::mpsc::Sender<ExportFrame>,
 ) -> anyhow::Result<()> {
     for (col, d) in data.into_iter().enumerate() {
@@ -1620,7 +1766,7 @@ pub(crate) async fn export_query_as_xlsx_send_data(
 
 pub(crate) fn export_query_as_xlsx_send_blocking_data(
     row_num: &mut u32,
-    data: Vec<Option<String>>,
+    data: Vec<Option<XlsxEditContent>>,
     sender: tokio::sync::mpsc::Sender<ExportFrame>,
 ) -> anyhow::Result<()> {
     for (col, d) in data.into_iter().enumerate() {
@@ -2004,6 +2150,8 @@ pub trait ExportQueryResult: GetBackendKind + Send + Sync + 'static {
         let j1 = {
             let x = ExportQueryResult::clone(self);
             let sql = sql.to_string();
+            let kind = kind.clone();
+
             let query_id = query_id.to_string();
             let h1 = tokio::spawn(async move {
                 x.export_query_result(Some(&query_id), &sql, kind, sender)
@@ -2028,6 +2176,7 @@ pub trait ExportQueryResult: GetBackendKind + Send + Sync + 'static {
         let j1 = {
             let x = self.clone();
             let sql = sql.to_string();
+            let kind = kind.clone();
             let query_id = query_id.to_string();
             tokio::spawn(async move {
                 x.export_query_result(Some(&query_id), &sql, kind, sender)
@@ -2144,7 +2293,10 @@ pub(crate) async fn write_export_file(
             emit(total);
             anyhow::Ok(())
         }
-        ExportKind::Xlsx { include_header } => {
+        ExportKind::Xlsx {
+            include_header,
+            datetime_format,
+        } => {
             let filepath = filepath.to_string();
             let emit = emit.clone();
             spawn_blocking(move || {
@@ -2158,7 +2310,7 @@ pub(crate) async fn write_export_file(
                             anyhow::bail!(format!("this should be xlsx edit,but:{:?}", edit))
                         }
                     };
-                    total += edit.content.len();
+                    total += 1;
                     if time_elapsed.elapsed() {
                         emit(total)
                     }
@@ -2167,11 +2319,61 @@ pub(crate) async fn write_export_file(
                         worksheet.write_string_with_format(
                             edit.row,
                             edit.column,
-                            edit.content,
+                            match edit.content {
+                                XlsxEditContent::String(x) => x,
+                                _ => {
+                                    anyhow::bail!(format!(
+                                        "this is internal error,should be string value but:{:?}",
+                                        edit.content
+                                    ))
+                                }
+                            }, // header must  be  a string data
                             &header_format,
                         )?;
                     } else {
-                        worksheet.write_string(edit.row, edit.column, edit.content)?;
+                        match edit.content {
+                            XlsxEditContent::Time(naive_time) => {
+                                let mut f = rust_xlsxwriter::Format::new();
+                                f = f.set_num_format(&datetime_format.time);
+                                worksheet.write_datetime_with_format(
+                                    edit.row,
+                                    edit.column,
+                                    naive_time,
+                                    &f,
+                                )?;
+                            }
+                            XlsxEditContent::Date(naive_date) => {
+                                let mut f = rust_xlsxwriter::Format::new();
+
+                                f = f.set_num_format(&datetime_format.date);
+                                worksheet.write_date_with_format(
+                                    edit.row,
+                                    edit.column,
+                                    naive_date,
+                                    &f,
+                                )?;
+                            }
+                            XlsxEditContent::DateTime(naive_date_time) => {
+                                let mut f = rust_xlsxwriter::Format::new();
+
+                                f = f.set_num_format(&datetime_format.datatime);
+                                worksheet.write_datetime_with_format(
+                                    edit.row,
+                                    edit.column,
+                                    naive_date_time,
+                                    &f,
+                                )?;
+                            }
+                            XlsxEditContent::String(x) => {
+                                worksheet.write_string(edit.row, edit.column, x)?;
+                            }
+                            XlsxEditContent::Number(f) => {
+                                worksheet.write_number(edit.row, edit.column, f)?;
+                            }
+                            XlsxEditContent::Bool(x) => {
+                                worksheet.write_boolean(edit.row, edit.column, x)?;
+                            }
+                        }
                     }
                 }
                 workbook.save(filepath)?;
@@ -2506,7 +2708,7 @@ pub fn format_data_time_fix_offset(x: &DateTime<FixedOffset>) -> String {
     format!("{} {}", x.naive_local(), x.offset())
 }
 
-#[derive(Clone, Debug, Copy, serde::Deserialize, serde::Serialize, specta::Type)]
+#[derive(Clone, Debug, serde::Deserialize, serde::Serialize, specta::Type)]
 #[serde(tag = "export_kind", rename_all = "lowercase")]
 pub enum ExportKind {
     Csv {
@@ -2522,11 +2724,30 @@ pub enum ExportKind {
     },
     Xlsx {
         include_header: bool,
+        #[serde(flatten)]
+        datetime_format: ExportKindXlsDatetimeformat,
     },
     Html {
         include_header: bool,
     },
     MarkDown,
+}
+#[derive(Clone, Debug, serde::Deserialize, serde::Serialize, specta::Type)]
+
+pub struct ExportKindXlsDatetimeformat {
+    datatime: String,
+    date: String,
+    time: String,
+}
+
+impl Default for ExportKindXlsDatetimeformat {
+    fn default() -> Self {
+        Self {
+            datatime: "yyyy-mm-dd hh:mm:ss".into(),
+            date: "yyyy-mm-dd".into(),
+            time: "hh:mm:ss".into(),
+        }
+    }
 }
 
 impl ExportKind {
@@ -2935,9 +3156,11 @@ pub trait GetTestExportTableKinds: SchemaTrait {
             },
             ExportKind::Xlsx {
                 include_header: true,
+                datetime_format: Default::default(),
             },
             ExportKind::Xlsx {
                 include_header: false,
+                datetime_format: Default::default(),
             },
         ];
         if self.support_table_schema() {
@@ -2955,7 +3178,7 @@ pub trait GetTestExportTableKinds: SchemaTrait {
     async fn test_export(&self, table_name: &str) {
         for kind in self.get_kinds() {
             let str = self
-                .export_table_to_string(table_name, kind)
+                .export_table_to_string(table_name, kind.clone())
                 .await
                 .expect("should export ok");
             println!("export:{:?}\n{}", kind, str)

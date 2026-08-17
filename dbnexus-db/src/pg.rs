@@ -1532,7 +1532,7 @@ impl ExportQueryResult for PostGresDB {
                 ExportKind::Sql { .. } => {
                     anyhow::bail!("can't export query result as sql")
                 }
-                ExportKind::Xlsx { include_header } => {
+                ExportKind::Xlsx { include_header, .. } => {
                     if first.get() && include_header {
                         for (index, col) in row.columns().iter().enumerate() {
                             sender
@@ -1540,7 +1540,7 @@ impl ExportQueryResult for PostGresDB {
                                     XlsxEdit {
                                         row: row_num,
                                         column: index as rust_xlsxwriter::ColNum,
-                                        content: col.name().to_string(),
+                                        content: col.name().to_string().into(),
                                     }
                                     .into(),
                                 )
@@ -1548,7 +1548,7 @@ impl ExportQueryResult for PostGresDB {
                         }
                         row_num += 1;
                     }
-                    let data = encode_row(&row)?;
+                    let data = encode_row_as_xlsx(&row)?;
                     export_query_as_xlsx_send_data(&mut row_num, data, sender.clone()).await?;
                 }
                 ExportKind::Html { include_header } => {

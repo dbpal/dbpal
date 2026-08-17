@@ -42,6 +42,14 @@ pub struct OpenAIReq {
     pub search_engine: AiOnlineSearch,
     pub chat_history: Vec<ChatHistory>,
 }
+
+#[derive(Clone, Debug, specta::Type, serde::Serialize, serde::Deserialize)]
+pub struct XlsxCellData {
+    pub row: rust_xlsxwriter::RowNum,
+    pub column: rust_xlsxwriter::ColNum,
+    pub content: String,
+}
+
 #[derive(serde::Serialize, serde::Deserialize, Debug, Clone, specta::Type)]
 #[serde(tag = "resp_type", rename_all = "lowercase")]
 pub enum AISteamResp {

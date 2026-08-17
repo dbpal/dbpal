@@ -110,6 +110,28 @@ pub(crate) fn try_remove_one_at(value: String) -> String {
     }
 }
 
+pub(crate) fn ty_is_datetime(ty: &DataType) -> bool {
+    let ty = extract_null_able(ty);
+    match ty {
+        DataType::Datetime(..) | DataType::Datetime64(..) => true,
+        _ => false,
+    }
+}
+pub(crate) fn ty_is_time(ty: &DataType) -> bool {
+    let ty = extract_null_able(ty);
+    match ty {
+        DataType::Time(..) => true,
+        _ => false,
+    }
+}
+pub(crate) fn ty_is_date(ty: &DataType) -> bool {
+    let ty = extract_null_able(ty);
+    match ty {
+        DataType::Date | DataType::Date32 => true,
+        _ => false,
+    }
+}
+
 // check if ty is plain integer
 pub(crate) fn ty_is_int(ty: &DataType) -> bool {
     match ty {

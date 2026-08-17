@@ -66,6 +66,8 @@ function ExportView(props: {
     setIncludeTableSchema,
     exportKind,
     setExportKind,
+    xlsxDateTimeFormat,
+    setXlsxDatetimeFormat,
   } = useExportConfigStore();
 
   const { showNotification } = useNotification();
@@ -97,7 +99,11 @@ function ExportView(props: {
       case "jsonline":
         return { export_kind: "jsonline" };
       case "xlsx":
-        return { export_kind: "xlsx", include_header: includeHeader };
+        return {
+          export_kind: "xlsx",
+          include_header: includeHeader,
+          ...xlsxDateTimeFormat,
+        };
       case "html":
         return { export_kind: "html", include_header: includeHeader };
       case "markdown":
@@ -181,6 +187,36 @@ function ExportView(props: {
           <IncludeHeader
             includeHeader={includeHeader}
             setIncludeHeader={setIncludeHeader}
+          />
+          <TextField
+            value={xlsxDateTimeFormat.datatime}
+            onChange={(e) => {
+              setXlsxDatetimeFormat({
+                ...xlsxDateTimeFormat,
+                datatime: e.target.value,
+              });
+            }}
+            label="date time"
+          />
+          <TextField
+            value={xlsxDateTimeFormat.time}
+            onChange={(e) => {
+              setXlsxDatetimeFormat({
+                ...xlsxDateTimeFormat,
+                time: e.target.value,
+              });
+            }}
+            label="time"
+          />{" "}
+          <TextField
+            value={xlsxDateTimeFormat.date}
+            onChange={(e) => {
+              setXlsxDatetimeFormat({
+                ...xlsxDateTimeFormat,
+                date: e.target.value,
+              });
+            }}
+            label="date"
           />
         </Stack>
       )}
