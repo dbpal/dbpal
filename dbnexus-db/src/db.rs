@@ -1729,14 +1729,14 @@ impl std::fmt::Display for XlsxEdit {
 impl std::fmt::Display for XlsxEditContent {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            XlsxEditContent::Time(naive_time) => write!(f, "{}", naive_time.to_string()),
-            XlsxEditContent::Date(naive_date) => write!(f, "{}", naive_date.to_string()),
+            XlsxEditContent::Time(naive_time) => write!(f, "time:{}", naive_time.to_string()),
+            XlsxEditContent::Date(naive_date) => write!(f, "date:{}", naive_date.to_string()),
             XlsxEditContent::DateTime(naive_date_time) => {
-                write!(f, "{}", naive_date_time.to_string())
+                write!(f, "datetime:{}", naive_date_time.to_string())
             }
-            XlsxEditContent::String(x) => write!(f, "{}", x),
-            XlsxEditContent::Number(x) => write!(f, "{}", x),
-            XlsxEditContent::Bool(x) => write!(f, "{}", x),
+            XlsxEditContent::String(x) => write!(f, "str:{}", x),
+            XlsxEditContent::Number(x) => write!(f, "num:{}", x),
+            XlsxEditContent::Bool(x) => write!(f, "bool:{}", x),
         }
     }
 }
