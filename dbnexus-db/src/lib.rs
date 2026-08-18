@@ -67,7 +67,7 @@ lazy_static! {
 struct SimpleLogger;
 impl log::Log for SimpleLogger {
     fn enabled(&self, metadata: &Metadata) -> bool {
-        metadata.level() <= Level::Info
+        metadata.level() <= Level::Trace
     }
 
     fn log(&self, record: &Record) {
@@ -90,7 +90,7 @@ pub fn enable_test_log() {
     static INIT: Once = Once::new();
     INIT.call_once(|| {
         log::set_logger(&LOGGER)
-            .map(|()| log::set_max_level(LevelFilter::Info))
+            .map(|()| log::set_max_level(LevelFilter::Trace))
             .expect("should set ok")
     })
 }

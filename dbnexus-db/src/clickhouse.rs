@@ -1,11 +1,12 @@
 use crate::datasource_config::ClickHouseConfig;
 use crate::db::{
     create_html_table_data, create_html_table_header, create_markdown_data, create_markdown_header,
-    quote_sql_str, BackendKind, CheckConn, ColumnType, CreateSchemaExtra, CreateTableAndIndexSql,
-    DBTrait, DefAndMetas, EncodeXlsxDatetime, ExportFrame, ExportKind, ExportQueryResult,
-    ExtractSqlValeFromJsonValue, Field, GetBackendKind, GetTestExportTableKinds, ListTable,
-    MetaValue, NamedStaff, QueryEvent, QueryEventEmitter, QueryResp, QuerySql, SchemaTrait,
-    ServerMetas, ShowTableParameter, SqlBuilder, SqlCollect, XlsxEditContent,
+    export_query_as_xlsx_send_data, quote_sql_str, BackendKind, CheckConn, ColumnType,
+    CreateSchemaExtra, CreateTableAndIndexSql, DBTrait, DefAndMetas, EncodeXlsxDatetime,
+    ExportFrame, ExportKind, ExportQueryResult, ExtractSqlValeFromJsonValue, Field, GetBackendKind,
+    GetTestExportTableKinds, ListTable, MetaValue, NamedStaff, QueryEvent, QueryEventEmitter,
+    QueryResp, QuerySql, SchemaTrait, ServerMetas, ShowTableParameter, SqlBuilder, SqlCollect,
+    XlsxEdit, XlsxEditContent,
 };
 
 use crate::helper::{
@@ -668,6 +669,22 @@ impl ClickHouseDB {
         anyhow::Ok(())
     }
 
+    async fn export_query_result_as_json_line(
+        &self,
+        sql: &str,
+        sender: tokio::sync::mpsc::Sender<ExportFrame>,
+    ) -> anyhow::Result<()> {
+        let mut stream = self
+            .query_as_response(sql, "JSONEachRow", None)
+            .await?
+            .bytes_stream();
+        while let Some(data) = stream.next().await {
+            let data = data?;
+            sender.send(data.into()).await?;
+        }
+        anyhow::Ok(())
+    }
+
     async fn export_query_result_as_html(
         &self,
         sql: &str,
@@ -735,32 +752,69 @@ impl ClickHouseDB {
         }
         anyhow::Ok(())
     }
-
-    async fn export_query_result_as_json_line(
-        &self,
-        sql: &str,
-        sender: tokio::sync::mpsc::Sender<ExportFrame>,
-    ) -> anyhow::Result<()> {
-        let mut stream = self
-            .query_as_response(sql, "JSONEachRow", None)
-            .await?
-            .bytes_stream();
-        while let Some(data) = stream.next().await {
-            let data = data?;
-            sender.send(data.into()).await?;
-        }
-        anyhow::Ok(())
-    }
 }
 
 impl ClickHouseDB {
     async fn export_query_result_as_xlsx(
         &self,
-        _sql: &str,
-        _include_header: bool,
-        _sender: tokio::sync::mpsc::Sender<ExportFrame>,
+        sql: &str,
+        include_header: bool,
+        sender: tokio::sync::mpsc::Sender<ExportFrame>,
     ) -> anyhow::Result<()> {
-        todo!()
+        let mut read_columns = self.query_row(sql).await?;
+
+        let mut columns = vec![];
+
+        while let Some(x) = read_columns.next().await {
+            let x = x?;
+            match x {
+                FieldsOrData::Fields(fields) => {
+                    columns = fields;
+                }
+                FieldsOrData::Data(..) => {
+                    break;
+                }
+                FieldsOrData::ReadingColumns => {}
+            }
+        }
+        drop(read_columns);
+
+        let mut row_num = 0;
+
+        if include_header {
+            for (index, f) in columns.iter().enumerate() {
+                sender
+                    .send(
+                        XlsxEdit {
+                            row: row_num,
+                            column: index as rust_xlsxwriter::ColNum,
+                            content: f.field.clone().into(),
+                        }
+                        .into(),
+                    )
+                    .await?;
+            }
+
+            row_num += 1;
+        }
+        let mut tys = Vec::with_capacity(columns.len());
+        for c in columns.iter() {
+            let ty = crate::language_server::LangServerCommon::parse_type(self, &c.data_type)?;
+            tys.push(ty);
+        }
+
+        let cols_names = columns.iter().map(|x| &x.field).collect::<Vec<_>>();
+
+        let mut stream = self.query_as_text_line(sql, "JSONEachRow", None).await?;
+        while let Some(line) = stream.next().await {
+            let line = line?;
+            if line.trim().is_empty() {
+                continue;
+            }
+            let r = encode_json_result_as_xlsx(&tys, &cols_names, &line)?;
+            export_query_as_xlsx_send_data(&mut row_num, r, sender.clone()).await?;
+        }
+        anyhow::Ok(())
     }
 }
 
@@ -1094,20 +1148,25 @@ impl EncodeXlsxDatetime for ClickHouseDB {
 }
 fn encode_json_result_as_xlsx(
     tys: &[DataType],
+    cols: &[&String],
     line: &str,
 ) -> anyhow::Result<Vec<Option<XlsxEditContent>>> {
     let mut data = Vec::with_capacity(tys.len());
-    let values: Vec<serde_json::Value> = serde_json::from_str(line)?;
-    for (ty, value) in tys.iter().zip(values.iter()) {
-        let value: Option<XlsxEditContent> = match value {
-            serde_json::Value::Null => None,
-            serde_json::Value::Bool(x) => Some(x.to_string().into()),
-            serde_json::Value::Number(number) => Some(number.to_string().into()),
-            serde_json::Value::String(x) => Some(x.clone().into()),
-            serde_json::Value::Array(_) => Some(encode_nested(value, ty)?.into()),
-            serde_json::Value::Object(_) => Some(encode_nested(value, ty)?.into()),
+    let values: serde_json::Map<String, serde_json::Value> = serde_json::from_str(line)?;
+    for (name, ty) in cols.iter().zip(tys.iter()) {
+        let value = values.get(*name);
+        let v = match value {
+            Some(value) => match value {
+                serde_json::Value::Null => None,
+                serde_json::Value::Bool(x) => Some(x.to_string().into()),
+                serde_json::Value::Number(number) => Some(number.to_string().into()),
+                serde_json::Value::String(x) => Some(x.clone().into()),
+                serde_json::Value::Array(_) => Some(encode_nested(value, ty)?.into()),
+                serde_json::Value::Object(_) => Some(encode_nested(value, ty)?.into()),
+            },
+            None => None,
         };
-        data.push(value);
+        data.push(v);
     }
     anyhow::Ok(data)
 }

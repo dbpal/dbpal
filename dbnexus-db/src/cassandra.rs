@@ -445,7 +445,6 @@ fn encode_row(row: Row) -> anyhow::Result<Vec<Option<String>>> {
         };
         values.push(value);
     }
-
     anyhow::Ok(values)
 }
 
@@ -485,15 +484,38 @@ fn encode_value_as_string(value: CqlValue, is_nested: bool) -> anyhow::Result<St
         CqlValue::Blob(x) => encode_bytes(&x),
         CqlValue::Counter(counter) => counter.0.to_string(),
         CqlValue::Decimal(c) => cql_decimal_to_bigdecimal(&c).to_string(),
-        CqlValue::Date(cql_date) => format_date(cql_date.0)?,
+        CqlValue::Date(cql_date) => {
+            let r = format_date(cql_date.0)?;
+            if is_nested {
+                quote_sql_str(&r)
+            } else {
+                r
+            }
+        }
         CqlValue::Double(x) => x.to_string(),
         CqlValue::Duration(..) => anyhow::bail!("duration not support"),
         CqlValue::Empty => "null".to_string(),
         CqlValue::Float(x) => x.to_string(),
         CqlValue::Int(x) => x.to_string(),
         CqlValue::BigInt(x) => x.to_string(),
-        CqlValue::Timestamp(cql_timestamp) => format_timestamp(cql_timestamp.0)?,
-        CqlValue::Inet(ip_addr) => ip_addr.to_string(),
+        CqlValue::Timestamp(cql_timestamp) => {
+            let r = format_timestamp(cql_timestamp.0)?;
+
+            if is_nested {
+                quote_sql_str(&r)
+            } else {
+                r
+            }
+        }
+        CqlValue::Inet(ip_addr) => {
+            let r = ip_addr.to_string();
+            if is_nested {
+                quote_sql_str(&r)
+            } else {
+                r
+            }
+        }
+
         CqlValue::List(cql_values) => {
             let mut values = vec![];
             for v in cql_values {
@@ -532,8 +554,18 @@ fn encode_value_as_string(value: CqlValue, is_nested: bool) -> anyhow::Result<St
         }
         CqlValue::SmallInt(x) => x.to_string(),
         CqlValue::TinyInt(x) => x.to_string(),
-        CqlValue::Time(cql_time) => format_time(cql_time.0),
-        CqlValue::Timeuuid(cql_timeuuid) => cql_timeuuid.to_string(),
+        CqlValue::Time(cql_time) => {
+            let r = format_time(cql_time.0);
+            if is_nested {
+                quote_sql_str(&r)
+            } else {
+                r
+            }
+        }
+        CqlValue::Timeuuid(cql_timeuuid) => {
+            let r = cql_timeuuid.to_string();
+            r
+        }
         CqlValue::Tuple(cql_values) => {
             let mut values = vec![];
             for v in cql_values {

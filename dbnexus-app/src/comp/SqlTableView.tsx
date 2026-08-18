@@ -27,6 +27,7 @@ import {
   MenuList,
   Modal,
   Stack,
+  Tab,
   TextField,
   Tooltip,
   Typography,
@@ -73,6 +74,7 @@ import {
   columnHeaderStyle,
   SqlOpContext,
   DbnameContext,
+  TabContent,
 } from "./helper";
 import FileCopyIcon from "@mui/icons-material/FileCopy";
 import {
@@ -136,6 +138,7 @@ import {
   useGridSelector,
 } from "./datagridExport";
 import { open } from "@tauri-apps/plugin-dialog";
+import { SqlCreateTableImportFile } from "./CreateTable";
 
 const confirmAboutPrimary = async (fields: Field[]): Promise<boolean> => {
   const hasPri = !!fields.find((x) => x.is_primary);
@@ -423,45 +426,13 @@ type CustomPaginationProps = {
   handleReload: () => void;
 };
 function ImportDataFromFile(props: { table: string; handleReload: () => void }) {
-  const { table, handleReload } = props;
-  const { showNotification } = useNotification();
-  const { dbName } = useContext(DbnameContext);
-  const [loading, setLoading] = useState(false);
+  const { appendTab } = useTabsManage();
   return (
     <Tooltip title="insert data from a file,current support csv,json,jsonline">
       <IconButton
-        loading={loading}
         color="success"
         onClick={async () => {
-          try {
-            const path = await open({
-              title: "import file",
-              filters: [
-                { extensions: ["csv", "tsv"], name: "csv" },
-                { extensions: ["json"], name: "json" },
-                {
-                  extensions: ["jsonl"],
-                  name: "jsonl",
-                },
-              ],
-            });
-            if (!path) {
-              return;
-            }
-            const para: TableImportPara = { path };
-            setLoading(true);
-            await commands.tableImportFromFile(dbName, table, para);
-            showNotification({ severity: "success", title: "import data ok" });
-            handleReload();
-          } catch (e) {
-            showNotification({
-              severity: "error",
-              message: e,
-              title: "import data from file failed",
-            });
-          } finally {
-            setLoading(false);
-          }
+          appendTab(new TabContent(table, <SqlCreateTableImportFile />));
         }}>
         <UploadIcon />
       </IconButton>

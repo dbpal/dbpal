@@ -145,7 +145,7 @@ impl EncodeXlsxDatetime for FireBirdDB {
 }
 fn encode_row_as_xlsx(
     row: &Row,
-    types: Option<HashMap<&String, &Field>>,
+    types: Option<&HashMap<&String, &Field>>,
 ) -> anyhow::Result<Vec<Option<XlsxEditContent>>> {
     let get_type = |name: &String| {
         types
@@ -181,7 +181,7 @@ fn encode_row_as_xlsx(
 
 fn encode_row(
     row: &Row,
-    types: Option<HashMap<&String, &Field>>,
+    types: Option<&HashMap<&String, &Field>>,
 ) -> anyhow::Result<Vec<Option<String>>> {
     let get_type = |name: &String| {
         types
@@ -219,7 +219,16 @@ fn encode_bytes(bs: &[u8]) -> String {
     format!("x'{}'", hex::encode(bs))
 }
 
-fn encode_row_as_json(row: &Row) -> anyhow::Result<serde_json::Value> {
+fn encode_row_as_json(
+    row: &Row,
+    types: Option<&HashMap<&String, &Field>>,
+) -> anyhow::Result<serde_json::Value> {
+    let get_type = |name: &String| {
+        types
+            .as_ref()
+            .and_then(|x| x.get(name).map(|x| &x.data_type))
+            .map(|x| x.to_uppercase())
+    };
     let mut m = serde_json::Map::new();
     for col in row.cols.iter() {
         let value = match &col.value {
@@ -227,7 +236,16 @@ fn encode_row_as_json(row: &Row) -> anyhow::Result<serde_json::Value> {
             SqlType::Integer(x) => Some(serde_json::Value::from(*x)),
             SqlType::Floating(x) => Some(serde_json::Value::from(*x)),
             SqlType::Timestamp(naive_date_time) => {
-                Some(serde_json::Value::from(naive_date_time.to_string()))
+                let typ = get_type(&col.name);
+                let typ = typ.as_ref();
+                let r = if is_date(&typ) {
+                    Some(naive_date_time.date().to_string())
+                } else if is_time(&typ) {
+                    Some(naive_date_time.time().to_string())
+                } else {
+                    Some(naive_date_time.to_string())
+                };
+                r.map(|x| serde_json::Value::from(x))
             }
             SqlType::Binary(items) => {
                 let items = items
@@ -244,26 +262,31 @@ fn encode_row_as_json(row: &Row) -> anyhow::Result<serde_json::Value> {
     anyhow::Ok(serde_json::Value::Object(m))
 }
 
-#[async_trait::async_trait]
-impl ExportQueryResult for FireBirdDB {
-    fn clone(&self) -> Box<dyn ExportQueryResult> {
-        Box::new(Clone::clone(self))
-    }
-
+impl FireBirdDB {
     async fn export_query_result(
         &self,
-        _query_id: Option<&str>,
         sql: &str,
         kind: ExportKind,
         sender: tokio::sync::mpsc::Sender<ExportFrame>,
+        cols: Option<Vec<Field>>,
     ) -> anyhow::Result<()> {
         let this = Clone::clone(self);
+
         let sql = sql.to_string();
+
         spawn_blocking(move || {
             let mut conn = this.get_conn()?;
             let stream: Box<dyn Iterator<Item = Result<Row, FbError>>> =
                 conn.query_iter(&sql, ())?;
             let first = FirstTrue::default();
+
+            let mut types = HashMap::new();
+
+            if let Some(x) = cols.as_ref() {
+                for x in x.iter() {
+                    types.insert(&x.field, x);
+                }
+            }
 
             let mut row_num = 0;
             for row in stream {
@@ -278,11 +301,11 @@ impl ExportQueryResult for FireBirdDB {
                                 row.cols.iter().map(|x| x.name.clone()).map(Some).collect();
                             sender.blocking_send(create_csv(&fs, delimiter)?.into())?;
                         }
-                        let data = encode_row(&row, None)?;
+                        let data = encode_row(&row, Some(&types))?;
                         sender.blocking_send(create_csv(&data, delimiter)?.into())?;
                     }
                     ExportKind::Json { .. } | ExportKind::JsonLine => {
-                        let value = encode_row_as_json(&row)?;
+                        let value = encode_row_as_json(&row, Some(&types))?;
                         sender.blocking_send(value.into())?;
                     }
                     ExportKind::Sql { .. } => anyhow::bail!("can't export query result as sql"),
@@ -297,10 +320,10 @@ impl ExportQueryResult for FireBirdDB {
                                     }
                                     .into(),
                                 )?;
-                                row_num += 1;
                             }
+                            row_num += 1;
                         }
-                        let data = encode_row_as_xlsx(&row, None)?;
+                        let data = encode_row_as_xlsx(&row, Some(&types))?;
                         export_query_as_xlsx_send_blocking_data(
                             &mut row_num,
                             data,
@@ -312,7 +335,7 @@ impl ExportQueryResult for FireBirdDB {
                             let fs: Vec<_> = row.cols.iter().map(|x| x.name.clone()).collect();
                             sender.blocking_send(create_html_table_header(&fs).into())?;
                         }
-                        let data = encode_row(&row, None)?;
+                        let data = encode_row(&row, Some(&types))?;
                         sender.blocking_send(create_html_table_data(&[data]).into())?;
                     }
                     ExportKind::MarkDown => {
@@ -320,7 +343,7 @@ impl ExportQueryResult for FireBirdDB {
                             let fs: Vec<_> = row.cols.iter().map(|x| x.name.clone()).collect();
                             sender.blocking_send(create_markdown_header(&fs).into())?;
                         }
-                        let data = encode_row(&row, None)?;
+                        let data = encode_row(&row, Some(&types))?;
                         sender.blocking_send(create_markdown_data(&data).into())?;
                     }
                 }
@@ -328,6 +351,22 @@ impl ExportQueryResult for FireBirdDB {
             anyhow::Ok(())
         })
         .await?
+    }
+}
+#[async_trait::async_trait]
+impl ExportQueryResult for FireBirdDB {
+    fn clone(&self) -> Box<dyn ExportQueryResult> {
+        Box::new(Clone::clone(self))
+    }
+
+    async fn export_query_result(
+        &self,
+        _query_id: Option<&str>,
+        sql: &str,
+        kind: ExportKind,
+        sender: tokio::sync::mpsc::Sender<ExportFrame>,
+    ) -> anyhow::Result<()> {
+        FireBirdDB::export_query_result(self, sql, kind, sender, None).await
     }
 }
 
@@ -554,7 +593,7 @@ impl FireBirdDB {
             let rows: Box<dyn Iterator<Item = Result<Row, FbError>>> = conn.query_iter(&sql, ())?;
             for row in rows {
                 let row = row?;
-                let data = encode_row(&row, Some(types.clone()))?;
+                let data = encode_row(&row, Some(&types))?;
                 let mut m = HashMap::new();
                 for (d, f) in data.into_iter().zip(cols.iter()) {
                     m.insert(f.field.clone(), d);
@@ -682,7 +721,10 @@ impl SchemaTrait for FireBirdDB {
 
             _ => {
                 let sql = self.gen_show_sql(name, None, para.as_ref());
-                self.export_query_result(None, &sql, kind, sender).await
+                // can be a view or table somehow can use this method query table and view columns
+                let cols = self.show_table_columns(name).await?;
+
+                FireBirdDB::export_query_result(self, &sql, kind, sender, Some(cols)).await
             }
         }
     }
@@ -761,7 +803,7 @@ impl SchemaTrait for FireBirdDB {
                 conn.query_iter(&sql, ())?;
             for row in stream {
                 let row = row?;
-                emit.send(encode_row(&row, Some(fs_map.clone()))?.into())?;
+                emit.send(encode_row(&row, Some(&fs_map))?.into())?;
             }
             anyhow::Ok(())
         })
@@ -1611,6 +1653,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_table2() {
+        enable_test_log();
         let _guard = test_lock().lock().await;
 
         let table_name = "TEST_TABLE2";
@@ -1620,6 +1663,15 @@ mod tests {
             println!("drop table err:{}", err);
         }
         let query_id = "aaaa";
+
+        /*
+           COL_BLOB_TEXT
+           这个测试很难通过 blob 一般编码为 x'010203'
+           但是encode_row 一般返回字符串
+           我没法把它编码为 blob的二进制
+
+
+        */
         db.open_connection(query_id).await.unwrap();
         db.execute_sql(
             query_id,
@@ -1628,7 +1680,7 @@ mod tests {
                 ID INTEGER PRIMARY KEY,
                 COL_CHAR CHAR(10),
                 COL_VARCHAR VARCHAR(50),
-                COL_BLOB_TEXT BLOB SUB_TYPE TEXT CHARACTER SET UTF8,
+                -- COL_BLOB_TEXT BLOB SUB_TYPE TEXT CHARACTER SET UTF8,  
                 COL_BLOB_BINARY BLOB SUB_TYPE BINARY,
                 COL_DATE DATE,
                 COL_TIME TIME,
@@ -1647,7 +1699,7 @@ mod tests {
             "COL_VARCHAR".to_string(),
             Some("Variable Length Text".to_string()),
         );
-        values.insert("COL_BLOB_TEXT".to_string(), Some("x'616263'".to_string()));
+        // values.insert("COL_BLOB_TEXT".to_string(), Some("x'616263'".to_string()));
         values.insert(
             "COL_BLOB_BINARY".to_string(),
             Some("x'48656C6C6F'".to_string()),

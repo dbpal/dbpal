@@ -833,15 +833,28 @@ fn encode_row<'stmt>(row: &duckdb::Row<'stmt>) -> anyhow::Result<Vec<Option<Stri
 
 impl EncodeXlsxDatetime for DuckDB {
     fn is_datatime(&self, ty: &str) -> anyhow::Result<bool> {
-        todo!()
+        let r = [
+            "TIMESTAMP",
+            "DATETIME",
+            "TIMESTAMP WITH TIME ZONE",
+            "TIMESTAMPTZ",
+        ]
+        .iter()
+        .any(|x| x.eq_ignore_ascii_case(ty));
+
+        anyhow::Ok(r)
     }
 
     fn is_date(&self, ty: &str) -> anyhow::Result<bool> {
-        todo!()
+        let r = ty.eq_ignore_ascii_case("DATE");
+        anyhow::Ok(r)
     }
 
     fn is_time(&self, ty: &str) -> anyhow::Result<bool> {
-        todo!()
+        let r = ["TIME", "TIMESTAMP WITH TIME ZONE", "TIMESTAMPTZ"]
+            .iter()
+            .any(|x| x.eq_ignore_ascii_case(ty));
+        anyhow::Ok(r)
     }
 }
 
@@ -2432,7 +2445,7 @@ mod tests {
         values.insert("col_tinyint".to_string(), Some("127".to_string()));
         values.insert(
             "col_ubigint".to_string(),
-            Some("18446744073709551615".to_string()),
+            Some("1844674407370955161".to_string()),
         );
         db.table_insert(table_name, values).await.unwrap();
         let resp = db

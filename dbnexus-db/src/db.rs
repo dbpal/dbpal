@@ -748,9 +748,6 @@ pub trait SchemaTrait:
         kind: ExportKind,
         emit: ExportedSizeEmitter,
     ) -> anyhow::Result<()> {
-        if !self.table_exists(table_name).await? {
-            anyhow::bail!("table not exists")
-        }
         let (sender, receiver) = tokio::sync::mpsc::channel(10);
         let h1 = {
             let x = SchemaTrait::clone(self);
@@ -897,6 +894,8 @@ pub trait SchemaTrait:
         self.export_table_or_view_to_file(table, None, file, export_kind.clone(), Arc::new(|_| {}))
             .await
             .unwrap();
+
+        log::info!("test csv file path:{}", file);
 
         self.truncate_table(table).await.unwrap();
         self.table_import_data_from_file(
@@ -1604,25 +1603,26 @@ pub struct XlsxEdit {
 pub trait EncodeXlsxDatetime: GetBackendKind {
     // return a option data is because of https://docs.rs/calamine/latest/src/calamine/datatype.rs.html#791-806
     //  returns a option datetime
-    fn encode(&self, ty: &str, data: &calamine::ExcelDateTime) -> anyhow::Result<Option<String>> {
-        let data = data.as_datetime();
+    fn encode(&self, ty: &str, date: &calamine::ExcelDateTime) -> anyhow::Result<Option<String>> {
+        let date = date.as_datetime();
+        log::trace!("encode excel datetime type ty:{} date:{:?}", ty, date);
 
         if self.is_datatime(ty)? {
-            return anyhow::Ok(if let Some(x) = data {
+            return anyhow::Ok(if let Some(x) = date {
                 self.format_datetime(x).into()
             } else {
                 None
             });
         }
         if self.is_time(ty)? {
-            return anyhow::Ok(if let Some(x) = data {
+            return anyhow::Ok(if let Some(x) = date {
                 self.format_time(x.time()).into()
             } else {
                 None
             });
         }
         if self.is_date(ty)? {
-            return anyhow::Ok(if let Some(x) = data {
+            return anyhow::Ok(if let Some(x) = date {
                 self.format_date(x.date()).into()
             } else {
                 None
@@ -3180,7 +3180,7 @@ pub trait GetTestExportTableKinds: SchemaTrait {
             let str = self
                 .export_table_to_string(table_name, kind.clone())
                 .await
-                .expect("should export ok");
+                .expect(format!("should export failed:{:?}", kind).as_str());
             println!("export:{:?}\n{}", kind, str)
         }
     }

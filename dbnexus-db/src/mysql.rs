@@ -1997,9 +1997,7 @@ impl ExtractSqlValeFromJsonValue for MysqlDB {
             serde_json::Value::Array(values) => {
                 encode_bytes(&extract_bytes_from_serde_values(&values)?)
             }
-            serde_json::Value::Object(..) => {
-                anyhow::bail!(format!("should not have json value object,:{:?}", value))
-            }
+            serde_json::Value::Object(x) => serde_json::to_string(x)?,
         };
         anyhow::Ok(Some(r))
     }
