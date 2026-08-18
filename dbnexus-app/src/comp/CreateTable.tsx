@@ -481,8 +481,8 @@ function SqlTableImportFileNotice() {
       <Typography>1. Select a file to upload.</Typography>
       <Typography>2. Create a table using the left panel(if need).</Typography>
       <Typography>
-        3. Upload your data via the right panel. Note that the table name must match the
-        <mark>input</mark> value provided in the left panel.
+        3. Upload your data via the right panel. Note that the table name must match the{" "}
+        <mark>input</mark> value provided in the left panel(if we need create table).
       </Typography>
       <AppCode
         language="csv"
