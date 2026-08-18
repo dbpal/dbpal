@@ -552,7 +552,7 @@ pub(crate) fn get_array_tuple_element_type(
         },
         DataType::Tuple(x) => &mut match x.get(index) {
             Some(x) => &x.field_type,
-            None => anyhow::bail!(format!("not found type on tupe#{}", index)),
+            None => anyhow::bail!(format!("not found type on tuple #{}", index)),
         },
         _ => {
             anyhow::bail!(format!("type not is not ok,should be array,but:{:?}", ty))
@@ -751,7 +751,7 @@ impl BackendKind {
             samples.push(serde_json::from_str::<
                 serde_json::Map<String, serde_json::Value>,
             >(&line)?);
-            if samples.len() >= 100 {
+            if samples.len() >= 10 {
                 break;
             }
         }
