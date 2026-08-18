@@ -479,7 +479,7 @@ function SqlTableImportFileNotice() {
         Supported file types: JSON, JSONL, CSV, TSV, and Excel formats.
       </Typography>
       <Typography>1. Select a file to upload.</Typography>
-      <Typography>2. Create a table using the left panel.</Typography>
+      <Typography>2. Create a table using the left panel(if need).</Typography>
       <Typography>
         3. Upload your data via the right panel. Note that the table name must match the
         <mark>input</mark> value provided in the left panel.
@@ -717,7 +717,11 @@ function SqlCreateTableImportFile(props: { hasTableName?: string }) {
     let x = new Set(hasTableResp.fields.map((x) => x.field));
     let y = new Set(previewFields.map((x) => x.field));
 
-    return { missing: [...setDifference(x, y)], unused: [...setDifference(y, x)] };
+    let r = { missing: [...setDifference(x, y)], unused: [...setDifference(y, x)] };
+    if (r.missing.length == 0 && r.unused.length == 0) {
+      return null;
+    }
+    return r;
   }, [file, hasTableName, hasTableResp.fields, previewFields]);
 
   return (
@@ -870,22 +874,36 @@ function SqlCreateTableImportFile(props: { hasTableName?: string }) {
               </Stack>
             )}
 
-            {diffColumns && diffColumns.missing.length ? (
-              <Stack direction="row" style={{ alignItems: "center", flexWrap: "wrap" }}>
-                <Typography color="waning"> missing columns:</Typography>
-                {diffColumns.missing.map((e) => (
-                  <mark key={e}> {e} </mark>
-                ))}
-              </Stack>
-            ) : undefined}
-            {diffColumns && diffColumns.unused.length ? (
-              <Stack direction="row" style={{ alignItems: "center", flexWrap: "wrap" }}>
-                <Typography color="waning"> unused columns:</Typography>
-                {diffColumns.unused.map((e) => (
-                  <mark key={e}> {e} </mark>
-                ))}
-              </Stack>
-            ) : undefined}
+            {diffColumns && (
+              <>
+                {diffColumns.missing.length > 0 ? (
+                  <Typography color="warning">
+                    Case conversion will not be attempted to match field names.
+                  </Typography>
+                ) : undefined}
+                {diffColumns.missing.length ? (
+                  <Stack
+                    direction="row"
+                    style={{ alignItems: "center", flexWrap: "wrap" }}>
+                    <Typography color="waning"> missing columns:</Typography>
+                    {diffColumns.missing.map((e) => (
+                      <mark key={e}> {e} </mark>
+                    ))}
+                  </Stack>
+                ) : undefined}
+
+                {diffColumns.unused.length ? (
+                  <Stack
+                    direction="row"
+                    style={{ alignItems: "center", flexWrap: "wrap" }}>
+                    <Typography color="waning"> unused columns:</Typography>
+                    {diffColumns.unused.map((e) => (
+                      <mark key={e}> {e} </mark>
+                    ))}
+                  </Stack>
+                ) : undefined}
+              </>
+            )}
             <DataGrid
               style={{ flex: 1, height: "100px" }}
               columns={previewFields}
