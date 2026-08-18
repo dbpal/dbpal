@@ -46,7 +46,7 @@ async function cancelTask(taskId: string): Promise<void> {
 interface ShowTableCallBack {
   handleResult: (_: MuiDataGridData) => void;
   okCallBack?: () => void;
-  setLoading: Dispatch<SetStateAction<boolean>>;
+  setLoading?: Dispatch<SetStateAction<boolean>>;
 }
 
 async function showTable(
@@ -75,7 +75,7 @@ async function showTable(
     para = {};
   }
   try {
-    setLoading(true);
+    if (setLoading) setLoading(true);
     let resp: MuiDataGridData = null;
     if (!para.where_str) {
       para.where_str = null;
@@ -131,7 +131,7 @@ async function showTable(
   } catch (e) {
     showNotification({ severity: "error", title: "fetch data failed", message: e });
   } finally {
-    setLoading(false);
+    if (setLoading) setLoading(false);
     setStatus("");
   }
 }

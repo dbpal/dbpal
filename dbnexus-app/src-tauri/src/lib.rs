@@ -50,9 +50,10 @@ mod tests {
             redis_zset_replace, rename_index, rename_sequence, rename_table, server_metas, set_env,
             set_log_level, show_create_table_sql, show_indexes, show_procedure, show_table,
             show_table_columns, show_trigger, show_udf, show_view_columns, simple_execute_sql,
-            sql_infer_fields_from_file, table_delete, table_delete_sql, table_import_from_file,
-            table_insert, table_insert_sql, table_update, table_update_sql, test_connection,
-            truncate_table, try_list_database_schema_candidates, write_xlsx,
+            sql_infer_fields_from_file, table_delete, table_delete_sql,
+            table_import_data_from_file_insert_samples, table_import_from_file, table_insert,
+            table_insert_sql, table_update, table_update_sql, test_connection, truncate_table,
+            try_list_database_schema_candidates, write_xlsx,
         };
 
         use ai::openai_invoke;
@@ -199,7 +200,8 @@ mod tests {
                 write_xlsx,
                 table_import_from_file,
                 sql_infer_fields_from_file,
-                read_excel_file_preview
+                read_excel_file_preview,
+                table_import_data_from_file_insert_samples
             ])
             .error_handling(ErrorHandlingMode::Throw)
             .constant("redisCommands", get_commands_from_docs())

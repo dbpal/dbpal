@@ -1,6 +1,7 @@
 import {
   Button,
   Checkbox,
+  Dialog,
   Divider,
   FormControlLabel,
   IconButton,
@@ -16,6 +17,7 @@ import {
   isExcelFile,
   resizeHandlerSize,
   DbnameContext,
+  setDifference,
 } from "./helper";
 import {
   CSSProperties,
@@ -49,6 +51,7 @@ import {
   CreateTableReq,
   CreateTableReqColumn,
   Field,
+  MuiDataGridData,
 } from "./bindings";
 import { Panel, PanelGroup, PanelResizeHandle } from "react-resizable-panels";
 import { LongNotice, SelectPath } from "./CommonComp";
@@ -57,6 +60,7 @@ import { DataGrid } from "@mui/x-data-grid";
 import { readTextFile, readTextFileLines } from "@tauri-apps/plugin-fs";
 import { BSON, EJSON } from "bson";
 import { openUrl } from "@tauri-apps/plugin-opener";
+import { showTable } from "./handlers";
 
 function SqlCreateTable(props: {
   fields?: CreateTableReqColumn[];
@@ -523,15 +527,24 @@ john	123`}
   );
 }
 
-function SqlCreateTableImportFile() {
+function SqlCreateTableImportFile(props: { hasTableName?: string }) {
+  const { hasTableName } = props;
+
   const { dbName } = useContext(DbnameContext);
   const [file, setFile] = useState("");
   const { showNotification } = useNotification();
-  const [fields, setFields] = useState<Field[]>([]);
-  const [data, setData] = useState<Record<string, string>[]>();
-  const tableName = useRef("");
+  const [previewFields, setPreviewFields] = useState<Field[]>([]);
+  const [previewData, setPreViewData] = useState<Record<string, string>[]>();
+  const tableName = useRef(hasTableName ? hasTableName : "");
   const [loading, setLoading] = useState(false);
   const [csvDelimiter, setCsvDelimiter] = useState(",");
+  const [hasTableResp, setHasTableResp] = useState<MuiDataGridData>({
+    total: 0,
+    fields: [],
+    data: [],
+    sql: null,
+  });
+  const [insertSqlSamples, setInsertSqlSamples] = useState<string[]>(null);
 
   const fileLower = useMemo(() => {
     return file.toLocaleLowerCase();
@@ -556,7 +569,7 @@ function SqlCreateTableImportFile() {
           file,
           realCsvDelimiter,
         );
-        setFields(fs);
+        setPreviewFields(fs);
       } catch (e) {
         showNotification({
           severity: "error",
@@ -568,6 +581,31 @@ function SqlCreateTableImportFile() {
   }, [file, showNotification, dbName, csvDelimiter, fileLower, realCsvDelimiter]);
 
   const maxRow = 100;
+
+  useEffect(() => {
+    if (!hasTableName) {
+      return;
+    }
+    showTable({
+      dbName,
+      para: {
+        where_str: null,
+        order_by: null,
+        page: 1,
+        page_size: 100,
+      },
+      name: hasTableName,
+      isView: false,
+      setStatus: () => {},
+      showNotification: undefined,
+      handleResult: function (x): void {
+        x.data.forEach((e, index) => {
+          e[keyNotInTable] = index + "";
+        });
+        setHasTableResp(x);
+      },
+    });
+  }, [dbName, hasTableName]);
 
   useEffect(() => {
     (async () => {
@@ -590,7 +628,7 @@ function SqlCreateTableImportFile() {
           x.data.forEach((e, index) => {
             e[keyNotInTable] = index;
           });
-          setData(x.data);
+          setPreViewData(x.data);
         } else if (fileLower.endsWith(".json")) {
           // json
           const data: any[] = JSON.parse(await readTextFile(file));
@@ -620,7 +658,7 @@ function SqlCreateTableImportFile() {
               break;
             }
           }
-          setData(dataX);
+          setPreViewData(dataX);
         } else if (fileLower.endsWith(".jsonl")) {
           const data = [];
           let line_num = 0;
@@ -633,7 +671,6 @@ function SqlCreateTableImportFile() {
             if (x && typeof x == "object") {
               x[keyNotInTable] = line_num;
               data.push(x);
-
               if (data.length >= maxRow) {
                 break;
               }
@@ -645,16 +682,16 @@ function SqlCreateTableImportFile() {
               });
             }
           }
-          setData(data);
+          setPreViewData(data);
         } else if (isExcelFile(fileLower)) {
           const data = await commands.readExcelFilePreview(file, maxRow);
-          setFields(data.fields);
+          setPreviewFields(data.fields);
           data.data.forEach((e, index) => {
             //@ts-ignore
             e[keyNotInTable] = index;
           });
 
-          setData(data.data);
+          setPreViewData(data.data);
         } else {
           showNotification({ severity: "error", title: "unsupported file type" });
           return [];
@@ -668,6 +705,20 @@ function SqlCreateTableImportFile() {
       }
     })();
   }, [csvDelimiter, file, realCsvDelimiter, showNotification]);
+
+  const diffColumns = useMemo(() => {
+    if (!hasTableName) {
+      return;
+    }
+    if (!file) {
+      return;
+    }
+
+    let x = new Set(hasTableResp.fields.map((x) => x.field));
+    let y = new Set(previewFields.map((x) => x.field));
+
+    return { missing: [...setDifference(x, y)], unused: [...setDifference(y, x)] };
+  }, [file, hasTableName, hasTableResp.fields, previewFields]);
 
   return (
     <PanelGroup
@@ -693,10 +744,10 @@ function SqlCreateTableImportFile() {
             )}
           </Stack>
 
-          {file && (
+          {file && !hasTableName && (
             <div style={{ flex: 1, height: "100px" }}>
               <SqlCreateTable
-                fields={fields.map((e): CreateTableReqColumn => {
+                fields={previewFields.map((e): CreateTableReqColumn => {
                   return {
                     name: e.field,
                     data_type: e.data_type,
@@ -709,6 +760,20 @@ function SqlCreateTableImportFile() {
                 tableName={tableName}
               />
             </div>
+          )}
+
+          {hasTableName && (
+            <Stack style={{ flex: 1 }}>
+              <Typography color="info">
+                <mark> {hasTableName}</mark> table data examples
+              </Typography>
+
+              <DataGrid
+                columns={hasTableResp.fields}
+                rows={hasTableResp.data}
+                getRowId={(e) => e[keyNotInTable]}
+              />
+            </Stack>
           )}
         </Stack>
       </Panel>
@@ -725,8 +790,8 @@ function SqlCreateTableImportFile() {
             padding: "2px",
           }}>
           <Stack style={{ height: "100%" }}>
-            <Stack direction="row">
-              {file && (
+            {file && (
+              <Stack direction="row">
                 <IconButton
                   loading={loading}
                   color="success"
@@ -778,16 +843,72 @@ function SqlCreateTableImportFile() {
                   }}>
                   <UploadIcon />
                 </IconButton>
-              )}
-            </Stack>
+                <Button
+                  color="info"
+                  onClick={async () => {
+                    try {
+                      let samples = await commands.tableImportDataFromFileInsertSamples(
+                        dbName,
+                        tableName.current,
+                        {
+                          path: file,
+                          mongo_data: null,
+                          csv_delimiter: realCsvDelimiter,
+                        },
+                      );
+                      setInsertSqlSamples(samples);
+                    } catch (e) {
+                      showNotification({
+                        severity: "error",
+                        title: "try generate sql samples failed",
+                        message: e,
+                      });
+                    }
+                  }}>
+                  sql samples
+                </Button>
+              </Stack>
+            )}
+
+            {diffColumns.missing.length ? (
+              <Stack direction="row" style={{ alignItems: "center", flexWrap: "wrap" }}>
+                <Typography color="waning"> missing columns:</Typography>
+                {diffColumns.missing.map((e) => (
+                  <mark key={e}> {e} </mark>
+                ))}
+              </Stack>
+            ) : undefined}
+            {diffColumns.unused.length ? (
+              <Stack direction="row" style={{ alignItems: "center", flexWrap: "wrap" }}>
+                <Typography color="waning"> unused columns:</Typography>
+                {diffColumns.unused.map((e) => (
+                  <mark key={e}> {e} </mark>
+                ))}
+              </Stack>
+            ) : undefined}
             <DataGrid
               style={{ flex: 1, height: "100px" }}
-              columns={fields}
-              rows={data}
+              columns={previewFields}
+              rows={previewData}
               getRowId={(e) => {
                 return e[keyNotInTable];
               }}
             />
+
+            {insertSqlSamples && (
+              <Dialog
+                open={true}
+                onClose={() => {
+                  setInsertSqlSamples(null);
+                }}>
+                <AppCode
+                  language="sql"
+                  codeBlock={(function () {
+                    return insertSqlSamples.join(";\n");
+                  })()}
+                />
+              </Dialog>
+            )}
           </Stack>
         </Panel>
       )}

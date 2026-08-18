@@ -159,6 +159,7 @@ export const commands = {
 	tableImportFromFile: (dbName: string, tableName: string, kind: TableImportPara) => __TAURI_INVOKE<null>("table_import_from_file", { dbName, tableName, kind }),
 	sqlInferFieldsFromFile: (dbName: string, path: string, csvDelimiter: string | null) => __TAURI_INVOKE<Field[]>("sql_infer_fields_from_file", { dbName, path, csvDelimiter }),
 	readExcelFilePreview: (path: string, maxRow: number) => __TAURI_INVOKE<MuiDataGridData>("read_excel_file_preview", { path, maxRow }),
+	tableImportDataFromFileInsertSamples: (dbName: string, tableName: string, kind: TableImportPara) => __TAURI_INVOKE<string[]>("table_import_data_from_file_insert_samples", { dbName, tableName, kind }),
 };
 
 /* Constants */

@@ -27,7 +27,6 @@ import {
   MenuList,
   Modal,
   Stack,
-  Tab,
   TextField,
   Tooltip,
   Typography,
@@ -120,7 +119,7 @@ import {
   useTableColumnVisibleStore,
   useTabsManage,
 } from "./store";
-import { commands, Field, MuiDataGridData, TableImportPara } from "./bindings";
+import { commands, Field, MuiDataGridData } from "./bindings";
 import { ExportTableOrView } from "./Export";
 import UploadIcon from "@mui/icons-material/Upload";
 import {
@@ -137,7 +136,6 @@ import {
   useGridApiRef,
   useGridSelector,
 } from "./datagridExport";
-import { open } from "@tauri-apps/plugin-dialog";
 import { SqlCreateTableImportFile } from "./CreateTable";
 
 const confirmAboutPrimary = async (fields: Field[]): Promise<boolean> => {
@@ -423,16 +421,29 @@ type CustomPaginationProps = {
   kind: DataSourceKind;
   table: string;
   isTable: boolean;
-  handleReload: () => void;
 };
-function ImportDataFromFile(props: { table: string; handleReload: () => void }) {
+function ImportDataFromFile(props: {
+  table: string;
+  dbname: string;
+  kind: DataSourceKind;
+}) {
   const { appendTab } = useTabsManage();
+  const { dbname, table, kind } = props;
+
   return (
     <Tooltip title="insert data from a file,current support csv,json,jsonline">
       <IconButton
         color="success"
         onClick={async () => {
-          appendTab(new TabContent(table, <SqlCreateTableImportFile />));
+          appendTab(
+            new TabContent(
+              table,
+              <SqlCreateTableImportFile hasTableName={table} />,
+              <UploadIcon />,
+              dbname,
+              kind,
+            ),
+          );
         }}>
         <UploadIcon />
       </IconButton>
@@ -441,7 +452,7 @@ function ImportDataFromFile(props: { table: string; handleReload: () => void }) 
 }
 
 export function SqlTablePagination({
-  dbpal: { resp, clientModel, kind, table, isTable, handleReload },
+  dbpal: { resp, clientModel, kind, table, isTable },
 }: {
   dbpal: CustomPaginationProps;
 }) {
@@ -471,7 +482,7 @@ export function SqlTablePagination({
         <FetchTimeDataGrid />
         <ResetColumnWidth />
         {clientModel && <SliderSize config={UseSizeConfig.queryLimit} />}
-        {isTable && <ImportDataFromFile table={table} handleReload={handleReload} />}
+        {isTable && <ImportDataFromFile table={table} dbname={dbName} kind={kind} />}
 
         <ExportQueryResultToFile />
 
@@ -1061,9 +1072,6 @@ function SqlTableView(props: {
             kind,
             table: tableName,
             isTable,
-            handleReload: () => {
-              handleReload(false);
-            },
           };
         })(),
       },
@@ -1136,6 +1144,7 @@ function SqlTableView(props: {
   const { getColumnVisibility, setColumnVisibility } = useTableColumnVisibleStore(
     (s) => s,
   );
+
   return (
     <Stack style={{ height: "100%" }}>
       <QueryStatus status={queryStatus} />

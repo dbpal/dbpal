@@ -3280,6 +3280,23 @@ pub async fn table_import_from_file(
         .map_err(ErrorFrontend::from)
 }
 
+#[specta::specta]
+#[tauri::command]
+pub async fn table_import_data_from_file_insert_samples(
+    db_name: String,
+    table_name: String,
+    kind: TableImportPara,
+    dbpal: tauri::State<'_, DBPal>,
+) -> Result<Vec<String>, ErrorFrontend> {
+    random_sleep().await;
+    random_error()?;
+    let schema = dbpal.get_schema(&db_name).await?;
+    schema
+        .table_import_data_from_file_insert_samples(&table_name, kind, 10)
+        .await
+        .map_err(ErrorFrontend::from)
+}
+
 #[derive(serde::Serialize, specta::Type)]
 pub struct DocsAndCount {
     count: u32,

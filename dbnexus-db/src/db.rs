@@ -441,6 +441,149 @@ pub trait SchemaTrait:
             .not_support_feature("modify table column")
     }
 
+    async fn table_import_data_from_file_make_data(
+        &self,
+        table: &str,
+        para: TableImportPara,
+        sender: tokio::sync::mpsc::Sender<HashMap<String, Option<String>>>,
+    ) -> anyhow::Result<()> {
+        let cols = self.show_table_columns(table).await?;
+        let mut cols_map = HashMap::new();
+        cols.iter().for_each(|x| {
+            cols_map.insert(x.field.clone(), x.clone());
+        });
+        let this = SchemaTrait::clone(self);
+        spawn_blocking(move || -> anyhow::Result<()> {
+            let handle_json_map = |map: &serde_json::Map<String, serde_json::Value>| {
+                let mut values = HashMap::new();
+                for (k, v) in map.iter() {
+                    let field = match cols_map.get(k) {
+                        Some(x) => x,
+                        None => {
+                            continue;
+                        }
+                    };
+                    values.insert(
+                        k.clone(),
+                        this.extrat_sql_value_from_json_value(v, &field.data_type)?,
+                    );
+                }
+                sender.blocking_send(values)?;
+
+                anyhow::Ok(())
+            };
+
+            let path_lower = para.path.to_lowercase();
+
+            match para {
+                _ if is_csv_file(&path_lower) => {
+                    let mut rb = csv::ReaderBuilder::new();
+                    if path_lower.ends_with(".tsv") {
+                        rb.delimiter(b'\t');
+                    } else if let Some(x) = para.csv_delimiter {
+                        rb.delimiter(x as u8);
+                    }
+                    let mut reader: csv::Reader<std::fs::File> = rb.from_path(&para.path)?;
+                    let headers: Vec<_> = reader.headers()?.iter().map(|x| x.to_string()).collect();
+
+                    for csv_line in reader.records() {
+                        let csv_line = csv_line?;
+                        let mut values = HashMap::new();
+                        for (index, h) in headers.iter().enumerate() {
+                            values.insert(
+                                h.clone(),
+                                csv_line
+                                    .get(index)
+                                    .map(|x| {
+                                        if x.is_empty() {
+                                            None
+                                        } else {
+                                            Some(x.to_owned())
+                                        }
+                                    })
+                                    .flatten(),
+                            );
+                        }
+                        sender.blocking_send(values)?;
+                    }
+                }
+                _ if path_lower.ends_with(".json") => {
+                    let f = std::fs::File::open(para.path)?;
+                    let values: Vec<serde_json::Map<String, serde_json::Value>> =
+                        serde_json::from_reader(f)?;
+                    for value in values.iter() {
+                        handle_json_map(value)?;
+                    }
+                }
+                _ if path_lower.ends_with(".jsonl") => {
+                    //
+                    let f = std::fs::File::open(&para.path)?;
+                    let reader = std::io::BufReader::new(f);
+                    for line in reader.lines() {
+                        let line = line?;
+                        if line.trim().is_empty() {
+                            // skip empty line
+                            continue;
+                        }
+                        let map: serde_json::Map<String, serde_json::Value> =
+                            serde_json::from_str(&line)?;
+                        handle_json_map(&map)?;
+                    }
+                }
+                _ if crate::helper::is_excel_file(&path_lower) => {
+                    let mut wb: calamine::Xlsx<std::io::BufReader<std::fs::File>> =
+                        calamine::open_workbook(&para.path)?;
+                    if wb.sheet_names().len() == 0 {
+                        anyhow::bail!("this contains no sheets")
+                    }
+                    let range = wb.worksheet_range(&wb.sheet_names()[0])?;
+                    let mut headers = vec![];
+
+                    for (row_idx, row) in range.rows().enumerate() {
+                        if row_idx == 0 {
+                            headers = row.iter().map(|x| x.to_string()).collect();
+                            continue;
+                        }
+                        let mut values = HashMap::new();
+                        for (index, data) in row.iter().enumerate() {
+                            let f = headers.get(index).map(|name| cols_map.get(name)).flatten();
+                            if let Some(f) = f {
+                                // trying to format date , datetime
+
+                                let value = match data {
+                                    calamine::Data::DateTime(x) => {
+                                        let x = EncodeXlsxDatetime::encode(
+                                            this.as_ref(),
+                                            &f.data_type,
+                                            x,
+                                        )?;
+                                        x
+                                    }
+                                    _ => {
+                                        let v = data.to_string();
+                                        if v.is_empty() {
+                                            None
+                                        } else {
+                                            Some(v)
+                                        }
+                                    }
+                                };
+
+                                values.insert(f.field.clone(), value);
+                            }
+                        }
+                        sender.blocking_send(values)?;
+                    }
+                }
+                _ => {
+                    anyhow::bail!("unsupported file type,only support csv,json,jsonl,xlsx etc.")
+                }
+            }
+            anyhow::Ok(())
+        })
+        .await?
+    }
+
     async fn table_import_data_from_file(
         &self,
         table: &str,
@@ -453,144 +596,9 @@ pub trait SchemaTrait:
             tokio::sync::mpsc::channel::<HashMap<String, Option<String>>>(10);
 
         let cols = self.show_table_columns(table).await?;
-        let mut cols_map = HashMap::new();
-        cols.iter().for_each(|x| {
-            cols_map.insert(x.field.clone(), x.clone());
-        });
-
+        let this_make = SchemaTrait::clone(self);
         // read data from the file
-        let task_read = {
-            let this = SchemaTrait::clone(self);
-            spawn_blocking(move || -> anyhow::Result<()> {
-                let handle_json_map = |map: &serde_json::Map<String, serde_json::Value>| {
-                    let mut values = HashMap::new();
-                    for (k, v) in map.iter() {
-                        let field = match cols_map.get(k) {
-                            Some(x) => x,
-                            None => {
-                                continue;
-                            }
-                        };
-                        values.insert(
-                            k.clone(),
-                            this.extrat_sql_value_from_json_value(v, &field.data_type)?,
-                        );
-                    }
-                    sender.blocking_send(values)?;
-
-                    anyhow::Ok(())
-                };
-
-                let path_lower = para.path.to_lowercase();
-
-                match para {
-                    _ if is_csv_file(&path_lower) => {
-                        let mut rb = csv::ReaderBuilder::new();
-                        if path_lower.ends_with(".tsv") {
-                            rb.delimiter(b'\t');
-                        } else if let Some(x) = para.csv_delimiter {
-                            rb.delimiter(x as u8);
-                        }
-                        let mut reader: csv::Reader<std::fs::File> = rb.from_path(&para.path)?;
-                        let headers: Vec<_> =
-                            reader.headers()?.iter().map(|x| x.to_string()).collect();
-
-                        for csv_line in reader.records() {
-                            let csv_line = csv_line?;
-                            let mut values = HashMap::new();
-                            for (index, h) in headers.iter().enumerate() {
-                                values.insert(
-                                    h.clone(),
-                                    csv_line
-                                        .get(index)
-                                        .map(|x| {
-                                            if x.is_empty() {
-                                                None
-                                            } else {
-                                                Some(x.to_owned())
-                                            }
-                                        })
-                                        .flatten(),
-                                );
-                            }
-                            sender.blocking_send(values)?;
-                        }
-                    }
-                    _ if path_lower.ends_with(".json") => {
-                        let f = std::fs::File::open(para.path)?;
-                        let values: Vec<serde_json::Map<String, serde_json::Value>> =
-                            serde_json::from_reader(f)?;
-                        for value in values.iter() {
-                            handle_json_map(value)?;
-                        }
-                    }
-                    _ if path_lower.ends_with(".jsonl") => {
-                        //
-                        let f = std::fs::File::open(&para.path)?;
-                        let reader = std::io::BufReader::new(f);
-                        for line in reader.lines() {
-                            let line = line?;
-                            if line.trim().is_empty() {
-                                // skip empty line
-                                continue;
-                            }
-                            let map: serde_json::Map<String, serde_json::Value> =
-                                serde_json::from_str(&line)?;
-                            handle_json_map(&map)?;
-                        }
-                    }
-                    _ if crate::helper::is_excel_file(&path_lower) => {
-                        let mut wb: calamine::Xlsx<std::io::BufReader<std::fs::File>> =
-                            calamine::open_workbook(&para.path)?;
-                        if wb.sheet_names().len() == 0 {
-                            anyhow::bail!("this contains no sheets")
-                        }
-                        let range = wb.worksheet_range(&wb.sheet_names()[0])?;
-                        let mut headers = vec![];
-
-                        for (row_idx, row) in range.rows().enumerate() {
-                            if row_idx == 0 {
-                                headers = row.iter().map(|x| x.to_string()).collect();
-                                continue;
-                            }
-                            let mut values = HashMap::new();
-                            for (index, data) in row.iter().enumerate() {
-                                let f = headers.get(index).map(|name| cols_map.get(name)).flatten();
-                                if let Some(f) = f {
-                                    // trying to format date , datetime
-
-                                    let value = match data {
-                                        calamine::Data::DateTime(x) => {
-                                            let x = EncodeXlsxDatetime::encode(
-                                                this.as_ref(),
-                                                &f.data_type,
-                                                x,
-                                            )?;
-                                            x
-                                        }
-                                        _ => {
-                                            let v = data.to_string();
-                                            if v.is_empty() {
-                                                None
-                                            } else {
-                                                Some(v)
-                                            }
-                                        }
-                                    };
-
-                                    values.insert(f.field.clone(), value);
-                                }
-                            }
-                            sender.blocking_send(values)?;
-                        }
-                    }
-                    _ => {
-                        anyhow::bail!("unsupported file type,only support csv,json,jsonl,xlsx etc.")
-                    }
-                }
-                anyhow::Ok(())
-            })
-        };
+        let task_read = this_make.table_import_data_from_file_make_data(table, para, sender);
         let this = SchemaTrait::clone(self);
         let table = table.to_owned();
 
@@ -654,7 +662,44 @@ pub trait SchemaTrait:
         });
         let (res1, res2) = tokio::join!(task_read, task_write);
 
-        res1??;
+        res1?;
+
+        res2?
+    }
+
+    async fn table_import_data_from_file_insert_samples(
+        &self,
+        table: &str,
+        para: TableImportPara,
+        sample_count: usize,
+    ) -> anyhow::Result<Vec<String>> {
+        if !self.table_exists(table).await? {
+            anyhow::bail!(format!("table '{}' not exists", table))
+        }
+        let (sender, mut receiver) =
+            tokio::sync::mpsc::channel::<HashMap<String, Option<String>>>(10);
+
+        let cols = self.show_table_columns(table).await?;
+        let this_make = SchemaTrait::clone(self);
+        // read data from the file
+        let task_read = this_make.table_import_data_from_file_make_data(table, para, sender);
+        let this = SchemaTrait::clone(self);
+        let table = table.to_owned();
+
+        let task_write = tokio::spawn(async move {
+            let mut ret = Vec::with_capacity(sample_count);
+            while let Some(record) = receiver.recv().await {
+                let sql = SqlBuilder::insert_sql(this.as_ref(), &table, &cols, &record)?;
+                ret.push(sql);
+                if ret.len() >= sample_count {
+                    break;
+                }
+            }
+            anyhow::Ok(ret)
+        });
+        let (res1, res2) = tokio::join!(task_read, task_write);
+
+        res1?;
 
         res2?
     }
