@@ -661,7 +661,6 @@ pub trait SchemaTrait:
             anyhow::Ok(())
         });
         let (res1, res2) = tokio::join!(task_read, task_write);
-
         res1?;
 
         res2?
@@ -698,8 +697,10 @@ pub trait SchemaTrait:
             anyhow::Ok(ret)
         });
         let (res1, res2) = tokio::join!(task_read, task_write);
-
-        res1?;
+        let _err = res1;
+        if let Err(_err) = _err {
+            log::error!("this channel may closed this is fine to me,err:{}", _err);
+        }
 
         res2?
     }

@@ -767,12 +767,13 @@ function SqlCreateTableImportFile(props: { hasTableName?: string }) {
           )}
 
           {hasTableName && (
-            <Stack style={{ flex: 1 }}>
+            <Stack style={{ flex: 1, height: "100px" }}>
               <Typography color="info">
                 <mark> {hasTableName}</mark> table data examples
               </Typography>
 
               <DataGrid
+                style={{ flex: 1, height: "100px" }}
                 columns={hasTableResp.fields}
                 rows={hasTableResp.data}
                 getRowId={(e) => e[keyNotInTable]}
@@ -916,6 +917,8 @@ function SqlCreateTableImportFile(props: { hasTableName?: string }) {
             {insertSqlSamples && (
               <Dialog
                 open={true}
+                maxWidth="md"
+                style={{ overflow: "auto" }}
                 onClose={() => {
                   setInsertSqlSamples(null);
                 }}>
