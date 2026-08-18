@@ -870,7 +870,7 @@ function SqlCreateTableImportFile(props: { hasTableName?: string }) {
               </Stack>
             )}
 
-            {diffColumns.missing.length ? (
+            {diffColumns && diffColumns.missing.length ? (
               <Stack direction="row" style={{ alignItems: "center", flexWrap: "wrap" }}>
                 <Typography color="waning"> missing columns:</Typography>
                 {diffColumns.missing.map((e) => (
@@ -878,7 +878,7 @@ function SqlCreateTableImportFile(props: { hasTableName?: string }) {
                 ))}
               </Stack>
             ) : undefined}
-            {diffColumns.unused.length ? (
+            {diffColumns && diffColumns.unused.length ? (
               <Stack direction="row" style={{ alignItems: "center", flexWrap: "wrap" }}>
                 <Typography color="waning"> unused columns:</Typography>
                 {diffColumns.unused.map((e) => (
