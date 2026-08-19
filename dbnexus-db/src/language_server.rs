@@ -1,15 +1,16 @@
 use std::borrow::Cow;
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 use std::time::Duration;
 
 use sqlparser::ast::{DataType, SetExpr, Statement, Update};
 use sqlparser::keywords::Keyword;
 use sqlparser::tokenizer::{Location, Token, TokenWithSpan};
 
-use crate::db::{CreatedTypeDef, Field, GetBackendKind, SequenceDetail, SqlEvent};
+use crate::db::{
+    CreatedTypeDef, DBTrait, Field, GetBackendKind, SchemaTrait, SequenceDetail, SqlEvent,
+};
 use crate::helper::try_remove_one_at;
 use crate::sqlparser_completion::{CompletionStatement, Scopes, TempTableColumn};
-use crate::update_on_resultset::{GetTableUpdateOnSqlParser, UpdateTableColumn};
 
 #[async_trait::async_trait]
 pub trait LanguageServer: GetBackendKind + Send + Sync + 'static {
@@ -429,20 +430,41 @@ pub trait GetKeyWords: GetBackendKind {
     }
 }
 
-pub(crate) async fn get_update_table_columns_impl(
-    helper: &dyn LangServerCommon,
+pub(crate) async fn get_update_table_columns_impl<T: SchemaTrait + LangServerCommon + DBTrait>(
+    backend: &T,
     sql: &str,
-) -> anyhow::Result<Vec<UpdateTableColumn>> {
-    let haha = GetTableUpdateOnSqlParser::new(helper);
-    let ss = helper.parse_statements(sql)?;
-    if ss.len() != 1 {
-        anyhow::bail!(format!(
-            "sql:{} should contains one statement,but:{}",
-            sql,
-            ss.len()
-        ))
+    old_values: Vec<Option<String>>,
+    new_values: Vec<Option<String>>,
+) -> anyhow::Result<Vec<String>> {
+    let d = backend.dialect();
+    let extract_tables = sql_insight::extractor::extract_table_operations(d.as_ref(), sql)?;
+    let mut cols: HashMap<sql_insight::TableReference, Vec<Field>> = HashMap::new();
+    let catalog = sql_insight::catalog::Catalog::new();
+
+    {
+        let mut table_entered: HashSet<sql_insight::TableReference> = HashSet::new();
+        for e in extract_tables {
+            let e = e?;
+            for r in e.reads.iter() {
+                if table_entered.contains(&r.reference) {
+                    continue;
+                }
+                table_entered.insert(r.reference.clone());
+                let fs = backend.show_table_columns(&r.reference.name.value).await?;
+                if !fs.iter().any(|x| x.is_primary) {
+                    anyhow::bail!(format!(
+                        "table '{}' have no primary key",
+                        r.reference.name.value
+                    ))
+                }
+                cols.insert(r.reference.clone(), fs);
+            }
+        }
     }
-    haha.extract_from_statement(&ss[0]).await
+    // make ret
+    let op = sql_insight::extractor::ExtractorOptions::new();
+
+    todo!()
 }
 
 #[async_trait::async_trait]

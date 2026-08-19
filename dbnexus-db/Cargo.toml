@@ -50,6 +50,7 @@ chrono = "0.4.34"
 uuid.workspace = true
 serde_json.workspace = true
 sqlparser = { version = "0.62", features = ["serde"] }
+sql-insight = "0.5.0"
 lazy_static.workspace = true
 log.workspace = true
 duckdb = { version = "=1.4.4", features = [

@@ -11,8 +11,7 @@ use crate::db::{
     TriggerTiming, XlsxEdit, XlsxEditContent, POOL_MAX_CONNECTIONS,
 };
 use crate::helper::{create_csv, extract_bytes_from_serde_values};
-use crate::language_server::{get_update_table_columns_impl, LexerCompletionTrait};
-use crate::update_on_resultset::UpdateTableColumn;
+use crate::language_server::LexerCompletionTrait;
 use chrono::Utc;
 use dashmap::DashMap;
 use futures_util::StreamExt;
@@ -585,9 +584,6 @@ impl MysqlDB {
 #[async_trait::async_trait]
 
 impl SchemaTrait for MysqlDB {
-    async fn get_update_table_columns(&self, sql: &str) -> anyhow::Result<Vec<UpdateTableColumn>> {
-        get_update_table_columns_impl(self, sql).await
-    }
     async fn list_sequence(&self) -> anyhow::Result<Vec<SequenceDetail>> {
         match self.kind {
             BackendKindMysql::Mariadb => {

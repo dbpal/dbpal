@@ -39,8 +39,7 @@ use crate::db::{
 };
 
 use crate::helper::{create_csv, extract_bytes_from_serde_values};
-use crate::language_server::{get_update_table_columns_impl, LexerCompletionTrait};
-use crate::update_on_resultset::UpdateTableColumn;
+use crate::language_server::LexerCompletionTrait;
 use dashmap::{DashMap, DashSet};
 use r2d2::{ManageConnection, Pool, PooledConnection};
 use rsfbclient::prelude::{TrDataAccessMode, TransactionConfiguration};
@@ -697,9 +696,6 @@ impl ExtractSqlValeFromJsonValue for FireBirdDB {
 }
 #[async_trait::async_trait]
 impl SchemaTrait for FireBirdDB {
-    async fn get_update_table_columns(&self, sql: &str) -> anyhow::Result<Vec<UpdateTableColumn>> {
-        get_update_table_columns_impl(self, sql).await
-    }
     async fn list_data_types(&self) -> anyhow::Result<Vec<String>> {
         LexerCompletionTrait::get_types(self).await
     }

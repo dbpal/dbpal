@@ -13,8 +13,7 @@ use crate::helper::{
     extract_null_able, get_array_tuple_element_type, ty_is_date, ty_is_datetime, ty_is_decimal,
     ty_is_float, ty_is_int, ty_is_time,
 };
-use crate::language_server::{get_update_table_columns_impl, LexerCompletionTrait};
-use crate::update_on_resultset::UpdateTableColumn;
+use crate::language_server::LexerCompletionTrait;
 use futures_core::stream::BoxStream;
 use futures_util::StreamExt;
 use reqwest::Response;
@@ -202,9 +201,6 @@ impl ExtractSqlValeFromJsonValue for ClickHouseDB {
 
 #[async_trait::async_trait]
 impl SchemaTrait for ClickHouseDB {
-    async fn get_update_table_columns(&self, sql: &str) -> anyhow::Result<Vec<UpdateTableColumn>> {
-        get_update_table_columns_impl(self, sql).await
-    }
     async fn list_data_types(&self) -> anyhow::Result<Vec<String>> {
         LexerCompletionTrait::get_types(self).await
     }

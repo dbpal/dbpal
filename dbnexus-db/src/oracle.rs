@@ -23,8 +23,7 @@ use crate::db::{
 };
 
 use crate::helper::{create_csv, generate_random_string};
-use crate::language_server::{get_update_table_columns_impl, LexerCompletionTrait};
-use crate::update_on_resultset::UpdateTableColumn;
+use crate::language_server::LexerCompletionTrait;
 
 #[derive(Clone)]
 pub struct OracleDB {
@@ -956,9 +955,6 @@ impl OracleDB {
 
 #[async_trait::async_trait]
 impl SchemaTrait for OracleDB {
-    async fn get_update_table_columns(&self, sql: &str) -> anyhow::Result<Vec<UpdateTableColumn>> {
-        get_update_table_columns_impl(self, sql).await
-    }
     fn list_sql_current_values(&self) -> &'static [&'static str] {
         <Self as SqlBuilder>::get_current_values(self)
     }

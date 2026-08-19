@@ -41,7 +41,6 @@ use crate::db::{
 
 use crate::helper::{create_csv, generate_random_string};
 use crate::language_server::LexerCompletionTrait;
-use crate::update_on_resultset::UpdateTableColumn;
 use chrono::{DateTime, NaiveDate, NaiveTime};
 use cql3_parser::cassandra_ast::CassandraAST;
 use cql3_parser::cassandra_statement::CassandraStatement;
@@ -1028,54 +1027,7 @@ impl ExtractSqlValeFromJsonValue for CassandraDB {
     }
 }
 
-impl CassandraDB {
-    async fn get_update_table_columns_from_stmt(
-        &self,
-        select: &cql3_parser::select::Select,
-    ) -> anyhow::Result<Vec<UpdateTableColumn>> {
-        let mut ret: Vec<UpdateTableColumn> = Vec::new();
-
-        let cols = {
-            let schema_name = select.table_name.keyspace.as_ref().map(|x| x.to_string());
-            let schema_name = self.need_key_space(schema_name.as_deref()).await?;
-            let sql = format!(
-                r#"select * from "{}".{}  limit 1"#,
-                schema_name,
-                select.table_name.name.to_string()
-            );
-            let r = self.session.query_unpaged(sql, &[]).await?;
-            let r = r.into_rows_result()?;
-            r.column_specs()
-                .iter()
-                .map(|x| x.name().to_owned())
-                .collect::<Vec<_>>()
-        };
-
-        for c in select.columns.iter() {
-            match c {
-                cql3_parser::select::SelectElement::Star => {
-                    // get all
-                    ret.extend(cols.iter().map(|x| UpdateTableColumn {
-                        table: extract_cql3_parser_ident(&select.table_name.name).to_owned(),
-                        col: x.clone(),
-                    }));
-                }
-                cql3_parser::select::SelectElement::Column(named) => {
-                    ret.push(UpdateTableColumn {
-                        table: extract_cql3_parser_ident(&select.table_name.name).to_owned(),
-                        col: extract_cql3_parser_ident(&named.name).to_owned(),
-                    });
-                }
-                cql3_parser::select::SelectElement::Function(_named) => {
-                    anyhow::bail!("can't handle a functio with select.")
-                }
-            }
-        }
-
-        anyhow::Ok(ret)
-    }
-}
-
+#[allow(unused)]
 pub(crate) fn extract_cql3_parser_ident(x: &cql3_parser::common::Identifier) -> &str {
     match x {
         cql3_parser::common::Identifier::Quoted(x) => x.as_str(),
@@ -1084,23 +1036,6 @@ pub(crate) fn extract_cql3_parser_ident(x: &cql3_parser::common::Identifier) -> 
 }
 #[async_trait::async_trait]
 impl SchemaTrait for CassandraDB {
-    async fn get_update_table_columns(&self, sql: &str) -> anyhow::Result<Vec<UpdateTableColumn>> {
-        let ast = CassandraAST::new(sql);
-        if ast.statements.len() != 1 {
-            anyhow::bail!("should contains one statement,but:{}", ast.statements.len());
-        }
-        let s = &ast.statements[0];
-
-        match &s.statement {
-            CassandraStatement::Select(x) => self.get_update_table_columns_from_stmt(x).await,
-            _ => {
-                anyhow::bail!(format!(
-                    "should be a select statement,but:{:?}",
-                    s.statement
-                ))
-            }
-        }
-    }
     fn list_sql_current_values(&self) -> &'static [&'static str] {
         <Self as SqlBuilder>::get_current_values(self)
     }

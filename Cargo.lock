@@ -2267,6 +2267,7 @@ dependencies = [
  "snowflake-connector-rs",
  "specta",
  "specta-typescript",
+ "sql-insight",
  "sqlparser",
  "sqlx",
  "sqlx-core",
@@ -9410,6 +9411,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "sql-insight"
+version = "0.5.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "38fad79a424af2934e493aadc3c6a51e796fc99f5ba4260995b5c36013dcb9ac"
+dependencies = [
+ "sqlparser",
+ "thiserror 1.0.69",
+]
+
+[[package]]
 name = "sqlparser"
 version = "0.62.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -9418,6 +9429,18 @@ dependencies = [
  "log",
  "recursive",
  "serde",
+ "sqlparser_derive",
+]
+
+[[package]]
+name = "sqlparser_derive"
+version = "0.5.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "a6dd45d8fc1c79299bfbb7190e42ccbbdf6a5f52e4a6ad98d92357ea965bd289"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "syn 2.0.119",
 ]
 
 [[package]]
