@@ -120,7 +120,7 @@ impl Scopes {
     }
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, specta::Type, serde::Serialize, serde::Deserialize)]
 pub struct TempTableColumn {
     pub(crate) name: String,
     pub(crate) data_type: Option<String>,

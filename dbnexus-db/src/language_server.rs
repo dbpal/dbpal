@@ -9,6 +9,7 @@ use sqlparser::tokenizer::{Location, Token, TokenWithSpan};
 use crate::db::{CreatedTypeDef, Field, GetBackendKind, SequenceDetail, SqlEvent};
 use crate::helper::try_remove_one_at;
 use crate::sqlparser_completion::{CompletionStatement, Scopes, TempTableColumn};
+use crate::update_on_resultset::{GetTableUpdateOnSqlParser, UpdateTableColumn};
 
 #[async_trait::async_trait]
 pub trait LanguageServer: GetBackendKind + Send + Sync + 'static {
@@ -426,6 +427,22 @@ pub trait GetKeyWords: GetBackendKind {
     async fn key_words(&self) -> anyhow::Result<Vec<String>> {
         self.backend_kind().not_support_feature("get key words")
     }
+}
+
+pub(crate) async fn get_update_table_columns_impl(
+    helper: &dyn LangServerCommon,
+    sql: &str,
+) -> anyhow::Result<Vec<UpdateTableColumn>> {
+    let haha = GetTableUpdateOnSqlParser::new(helper);
+    let ss = helper.parse_statements(sql)?;
+    if ss.len() != 1 {
+        anyhow::bail!(format!(
+            "sql:{} should contains one statement,but:{}",
+            sql,
+            ss.len()
+        ))
+    }
+    haha.extract_from_statement(&ss[0]).await
 }
 
 #[async_trait::async_trait]

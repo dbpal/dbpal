@@ -25,8 +25,11 @@ use crate::db::{
 };
 
 use crate::helper::{create_csv, generate_random_string};
-use crate::language_server::{LangServerCommon, LexerCompletionTrait};
+use crate::language_server::{
+    get_update_table_columns_impl, LangServerCommon, LexerCompletionTrait,
+};
 use crate::pg_format::*;
+use crate::update_on_resultset::UpdateTableColumn;
 
 /// postgres version of pg.
 #[derive(Clone)]
@@ -334,6 +337,9 @@ impl PostGresDB {
 }
 #[async_trait::async_trait]
 impl SchemaTrait for PostGresDB {
+    async fn get_update_table_columns(&self, sql: &str) -> anyhow::Result<Vec<UpdateTableColumn>> {
+        get_update_table_columns_impl(self, sql).await
+    }
     fn list_sql_current_values(&self) -> &'static [&'static str] {
         <Self as SqlBuilder>::get_current_values(self)
     }

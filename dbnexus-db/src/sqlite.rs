@@ -25,7 +25,8 @@ use crate::db::{
     POOL_MAX_CONNECTIONS,
 };
 use crate::helper::{create_csv, extract_bytes_from_serde_values};
-use crate::language_server::LexerCompletionTrait;
+use crate::language_server::{get_update_table_columns_impl, LexerCompletionTrait};
+use crate::update_on_resultset::UpdateTableColumn;
 
 #[derive(Clone)]
 pub struct SqliteDB {
@@ -309,6 +310,9 @@ impl SqliteDB {
 }
 #[async_trait::async_trait]
 impl SchemaTrait for SqliteDB {
+    async fn get_update_table_columns(&self, sql: &str) -> anyhow::Result<Vec<UpdateTableColumn>> {
+        get_update_table_columns_impl(self, sql).await
+    }
     fn list_sql_current_values(&self) -> &'static [&'static str] {
         <Self as SqlBuilder>::get_current_values(self)
     }

@@ -12,7 +12,8 @@ use crate::db::{
 };
 use crate::db::{OptionMustBeSomeErr, QueryEventEmitter};
 use crate::helper::{create_csv, extract_bytes_from_serde_values};
-use crate::language_server::LexerCompletionTrait;
+use crate::language_server::{get_update_table_columns_impl, LexerCompletionTrait};
+use crate::update_on_resultset::UpdateTableColumn;
 use chrono::FixedOffset;
 use dashmap::DashMap;
 use futures_util::StreamExt;
@@ -555,6 +556,9 @@ impl SqlServerDB {
 }
 #[async_trait::async_trait]
 impl SchemaTrait for SqlServerDB {
+    async fn get_update_table_columns(&self, sql: &str) -> anyhow::Result<Vec<UpdateTableColumn>> {
+        get_update_table_columns_impl(self, sql).await
+    }
     fn list_sql_current_values(&self) -> &'static [&'static str] {
         <Self as SqlBuilder>::get_current_values(self)
     }

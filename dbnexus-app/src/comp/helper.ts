@@ -702,7 +702,7 @@ function allGridHeaderTitle(
     if (title) {
       callback(title);
     } else {
-      console.error("should beable to find title,but null");
+      console.error("should be able to find title,but null");
     }
   });
 }

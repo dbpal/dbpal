@@ -55,7 +55,7 @@ impl LanguageServer for CassandraDB {
     fn is_dangerous_sql(&self, sql: &str) -> anyhow::Result<bool> {
         let ast = CassandraAST::new(sql);
         for stmt in ast.statements.iter() {
-            let x = match &stmt.statement {
+            let danger = match &stmt.statement {
                 CassandraStatement::AlterKeyspace(..) => true,
                 CassandraStatement::AlterMaterializedView(..) => true,
                 CassandraStatement::AlterRole(..) => true,
@@ -95,8 +95,8 @@ impl LanguageServer for CassandraDB {
                 CassandraStatement::Use(..) => false,
                 CassandraStatement::Unknown(_) => false,
             };
-            if x {
-                return anyhow::Ok(x);
+            if danger {
+                return anyhow::Ok(danger);
             }
         }
         anyhow::Ok(false)
@@ -254,7 +254,7 @@ impl CassandraDB {
 }
 
 impl CassandraDB {
-    async fn need_key_space(&self, key_space: Option<&str>) -> anyhow::Result<String> {
+    pub(crate) async fn need_key_space(&self, key_space: Option<&str>) -> anyhow::Result<String> {
         if let Some(key_space) = key_space {
             return anyhow::Ok(key_space.to_string());
         }

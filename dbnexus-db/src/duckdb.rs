@@ -12,6 +12,8 @@ use crate::db::{
     XlsxEditContent, POOL_MAX_CONNECTIONS,
 };
 use crate::helper::{create_csv, get_array_tuple_element_type};
+use crate::language_server::get_update_table_columns_impl;
+use crate::update_on_resultset::UpdateTableColumn;
 use chrono::{NaiveDate, Utc};
 use dashmap::{DashMap, DashSet};
 use duckdb::types::{TimeUnit, Value};
@@ -948,6 +950,9 @@ impl DuckDB {
 
 #[async_trait::async_trait]
 impl SchemaTrait for DuckDB {
+    async fn get_update_table_columns(&self, sql: &str) -> anyhow::Result<Vec<UpdateTableColumn>> {
+        get_update_table_columns_impl(self, sql).await
+    }
     async fn rename_index(
         &self,
         _table: &str,

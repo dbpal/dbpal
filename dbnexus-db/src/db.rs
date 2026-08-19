@@ -1,5 +1,6 @@
 use crate::helper::{generate_random_string, is_csv_file};
 use crate::language_server::LanguageServer;
+use crate::update_on_resultset::UpdateTableColumn;
 use calamine::Reader;
 use chrono::{DateTime, FixedOffset};
 use core::str;
@@ -290,6 +291,11 @@ pub trait SchemaTrait:
     + ExtractSqlValeFromJsonValue
     + EncodeXlsxDatetime
 {
+    async fn get_update_table_columns(&self, _sql: &str) -> anyhow::Result<Vec<UpdateTableColumn>> {
+        self.backend_kind()
+            .not_support_feature("get update table column")
+    }
+
     async fn create_table(&self, req: &CreateTableReq) -> anyhow::Result<String> {
         let ss = SchemaTrait::create_table_sql(self, req)?;
         let mut sc = SqlCollect::default();

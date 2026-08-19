@@ -19,13 +19,14 @@ use crate::db::{
     ShowTableParameter, SqlBuilder, TriggerDetail, XlsxEdit, XlsxEditContent, POOL_MAX_CONNECTIONS,
 };
 use crate::helper::create_csv;
-use crate::language_server::LexerCompletionTrait;
+use crate::language_server::{get_update_table_columns_impl, LexerCompletionTrait};
 
 use crate::sqlite::{
     encode_bytes, extract_auto_increment_key, extract_trigger_detail_from_sql, gen_show_sql,
     integer_like, numeric_like, real_like, sqlite_encode_xlsx_datetime,
     sqlite_extract_sql_value_from_json_value, text_like, SqliteDB,
 };
+use crate::update_on_resultset::UpdateTableColumn;
 
 #[derive(Clone)]
 pub struct LibSqlDB {
@@ -503,6 +504,9 @@ impl ServerMetas for LibSqlDB {
 
 #[async_trait::async_trait]
 impl SchemaTrait for LibSqlDB {
+    async fn get_update_table_columns(&self, sql: &str) -> anyhow::Result<Vec<UpdateTableColumn>> {
+        get_update_table_columns_impl(self, sql).await
+    }
     fn list_sql_current_values(&self) -> &'static [&'static str] {
         <Self as SqlBuilder>::get_current_values(self)
     }
