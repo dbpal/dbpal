@@ -12,14 +12,15 @@ use crate::datasource_config::{LibSqlDBConfig, LibSqlDBConfigSource};
 use crate::db::{
     create_html_table_data, create_html_table_header, create_markdown_data, create_markdown_header,
     export_query_as_xlsx_send_data, quote_sql_str, AutoCompletionQueryId, BackendKind, CheckConn,
-    ColumnType, CreateIndexReq, CreateTableAndIndexSql, EncodeXlsxDatetime, ExportFrame,
-    ExportKind, ExportQueryResult, ExtractSqlValeFromJsonValue, Field, FirstTrue, GetBackendKind,
-    GetTestExportTableKinds, Index, IndexKind, ListTable, MetaValue, NamedStaff, QueryEvent,
-    QueryEventEmitter, QueryResp, QuerySql, ReadOnlyTrait, SchemaTrait, ServerMetas,
-    ShowTableParameter, SqlBuilder, TriggerDetail, XlsxEdit, XlsxEditContent, POOL_MAX_CONNECTIONS,
+    ColumnType, CreateIndexReq, CreateSchemaExtra, CreateTableAndIndexSql, DBTrait,
+    EncodeXlsxDatetime, ExportFrame, ExportKind, ExportQueryResult, ExtractSqlValeFromJsonValue,
+    Field, FirstTrue, GetBackendKind, GetTestExportTableKinds, Index, IndexKind, ListTable,
+    MetaValue, NamedStaff, QueryEvent, QueryEventEmitter, QueryResp, QuerySql, ReadOnlyTrait,
+    SchemaTrait, ServerMetas, ShowTableParameter, SqlBuilder, TriggerDetail, XlsxEdit,
+    XlsxEditContent, POOL_MAX_CONNECTIONS,
 };
 use crate::helper::create_csv;
-use crate::language_server::LexerCompletionTrait;
+use crate::language_server::{get_update_sql_from_result_set_impl, LexerCompletionTrait};
 use crate::sqlite::{
     encode_bytes, extract_auto_increment_key, extract_trigger_detail_from_sql, gen_show_sql,
     integer_like, numeric_like, real_like, sqlite_encode_xlsx_datetime,
@@ -268,6 +269,7 @@ impl QuerySql for LibSqlDB {
                                     )
                                 })
                                 .collect(),
+                            sql: Some(sql.to_owned()),
                             ..Default::default()
                         }
                         .into(),
@@ -499,9 +501,45 @@ impl ServerMetas for LibSqlDB {
         anyhow::Ok(vec![MetaValue::new("version", version)])
     }
 }
+#[async_trait::async_trait]
+
+impl DBTrait for LibSqlDB {
+    async fn list_schema(&self) -> anyhow::Result<Vec<String>> {
+        anyhow::Ok(vec!["main".to_owned()])
+    }
+    async fn open_schema(&self, name: &str) -> anyhow::Result<Arc<dyn SchemaTrait>> {
+        if name != "main" {
+            anyhow::bail!(format!("libsql should only open main"))
+        }
+
+        anyhow::Ok(Arc::new(Clone::clone(self)))
+    }
+    async fn create_schema(
+        &self,
+        _name: &str,
+        _extra: Option<CreateSchemaExtra>,
+    ) -> anyhow::Result<()> {
+        self.backend_kind()
+            .not_support_feature("can't create schema")
+    }
+    async fn drop_schema(&self, _name: &str) -> anyhow::Result<()> {
+        self.backend_kind().not_support_feature("can't drop schema")
+    }
+    fn as_any(&self) -> &dyn std::any::Any {
+        self
+    }
+}
 
 #[async_trait::async_trait]
 impl SchemaTrait for LibSqlDB {
+    async fn get_update_sql_from_result_set(
+        &self,
+        sql: &str,
+        old_values: &[Option<String>],
+        new_values: &[Option<String>],
+    ) -> anyhow::Result<Vec<String>> {
+        get_update_sql_from_result_set_impl(self, sql, old_values, new_values).await
+    }
     fn list_sql_current_values(&self) -> &'static [&'static str] {
         <Self as SqlBuilder>::get_current_values(self)
     }

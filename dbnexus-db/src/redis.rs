@@ -833,6 +833,15 @@ impl EncodeXlsxDatetime for RedisDB {}
 
 #[async_trait::async_trait]
 impl SchemaTrait for RedisDB {
+    async fn get_update_sql_from_result_set(
+        &self,
+        _sql: &str,
+        _old_values: &[Option<String>],
+        _new_values: &[Option<String>],
+    ) -> anyhow::Result<Vec<String>> {
+        self.backend_kind()
+            .not_support_feature("get update sql from result set")
+    }
     async fn list_data_types(&self) -> anyhow::Result<Vec<String>> {
         anyhow::Ok(vec![])
     }
@@ -2114,8 +2123,7 @@ db1:keys=1,expires=0,avg_ttl=0"#,
         let key_volume = format!("{}/server.key:/etc/redis/ssl/server.key", cert_dir);
 
         // 创建 Redis 配置文件
-        let redis_config_content = format!(
-            r#"
+        let redis_config_content = r#"
 port 0
 tls-port 6379
 tls-cert-file /etc/redis/ssl/server.crt
@@ -2127,7 +2135,7 @@ requirepass testpass
 # 强制使用 TLS
 tls-protocols "TLSv1.2 TLSv1.3"
 "#
-        );
+        .to_string();
 
         let redis_config_path = format!("{}/redis.conf", cert_dir);
         std::fs::write(&redis_config_path, redis_config_content).unwrap();

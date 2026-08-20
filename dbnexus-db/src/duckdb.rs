@@ -12,6 +12,7 @@ use crate::db::{
     XlsxEditContent, POOL_MAX_CONNECTIONS,
 };
 use crate::helper::{create_csv, get_array_tuple_element_type};
+use crate::language_server::get_update_sql_from_result_set_impl;
 use chrono::{NaiveDate, Utc};
 use dashmap::{DashMap, DashSet};
 use duckdb::types::{TimeUnit, Value};
@@ -157,7 +158,7 @@ fn encode_row_as_json<'stmt>(
             }
             Value::Text(x) => serde_json::Value::from(x.clone()),
             Value::Blob(items) => {
-                let value = encode_bytes(&items);
+                let value = encode_bytes(items);
                 serde_json::Value::from(value)
             }
             Value::Date32(days) => {
@@ -356,7 +357,7 @@ impl ExportQueryResult for DuckDB {
                                 .as_ref()
                                 .column_names()
                                 .into_iter()
-                                .map(|x| XlsxEditContent::String(x))
+                                .map(XlsxEditContent::String)
                                 .map(Some)
                                 .collect();
                             export_query_as_xlsx_send_blocking_data(
@@ -561,13 +562,13 @@ impl DuckDB {
 
 fn make_datetime(time_uint: TimeUnit, value: i64) -> Option<chrono::DateTime<Utc>> {
     use chrono::DateTime;
-    let r = match time_uint {
+
+    match time_uint {
         TimeUnit::Second => DateTime::from_timestamp(value, 0),
         TimeUnit::Millisecond => DateTime::from_timestamp_millis(value),
         TimeUnit::Microsecond => DateTime::from_timestamp_micros(value),
         TimeUnit::Nanosecond => Some(DateTime::from_timestamp_nanos(value)),
-    };
-    r
+    }
 }
 
 fn format_timestamp(time_uint: TimeUnit, value: i64, is_time: bool) -> anyhow::Result<String> {
@@ -621,7 +622,7 @@ fn encode_value(value: &Value, nested: bool) -> anyhow::Result<Option<String>> {
             x
         }
         Value::Blob(items) => {
-            let x = encode_bytes(&items);
+            let x = encode_bytes(items);
             Some(if nested { format!("'{}'", x) } else { x })
         }
         Value::Date32(x) => {
@@ -744,12 +745,9 @@ fn encode_row_as_xlsx<'stmt>(
                 let v = make_datetime(*time_unit, *value);
                 v.map(|x| x.into())
             }
-            Value::Text(x) => {
-                let x = Some(x.clone().into());
-                x
-            }
+            Value::Text(x) => Some(x.clone().into()),
             Value::Blob(items) => {
-                let x = encode_bytes(&items);
+                let x = encode_bytes(items);
                 Some(x.into())
             }
             Value::Date32(x) => {
@@ -948,6 +946,14 @@ impl DuckDB {
 
 #[async_trait::async_trait]
 impl SchemaTrait for DuckDB {
+    async fn get_update_sql_from_result_set(
+        &self,
+        sql: &str,
+        old_values: &[Option<String>],
+        new_values: &[Option<String>],
+    ) -> anyhow::Result<Vec<String>> {
+        get_update_sql_from_result_set_impl(self, sql, old_values, new_values).await
+    }
     async fn rename_index(
         &self,
         _table: &str,
@@ -1567,10 +1573,9 @@ impl DuckDB {
 }
 
 fn make_date(days_since_epoch: i32) -> Option<NaiveDate> {
-    let date = NaiveDate::from_ymd_opt(1970, 1, 1)
+    NaiveDate::from_ymd_opt(1970, 1, 1)
         .expect("must ba valid date")
-        .checked_add_days(chrono::Days::new(days_since_epoch as i64 as u64));
-    date
+        .checked_add_days(chrono::Days::new(days_since_epoch as i64 as u64))
 }
 fn format_date(days_since_epoch: i32) -> anyhow::Result<String> {
     let date = make_date(days_since_epoch);
@@ -1640,7 +1645,7 @@ impl ExtractSqlValeFromJsonValue for DuckDB {
         value: &serde_json::Value,
         ty: &str,
     ) -> anyhow::Result<Option<String>> {
-        let ty = crate::language_server::LangServerCommon::parse_type(self, &ty)?;
+        let ty = crate::language_server::LangServerCommon::parse_type(self, ty)?;
         fn encode_value<T: Fn(&str) -> anyhow::Result<DataType>>(
             v: &serde_json::Value,
             ty: &DataType,

@@ -3383,12 +3383,12 @@ impl MuiDataGridData {
         tokio::task::spawn_blocking(move || {
             let mut wb: calamine::Xlsx<std::io::BufReader<std::fs::File>> =
                 calamine::open_workbook(path)?;
-            if wb.sheet_names().len() == 0 {
+            if wb.sheet_names().is_empty() {
                 anyhow::bail!("this excel file don't contains any sheet")
             }
             let sheet_name = &wb.sheet_names()[0];
 
-            let range = wb.worksheet_range(sheet_name).unwrap();
+            let range = wb.worksheet_range(sheet_name)?;
 
             let mut headers = vec![];
             let mut data = vec![];

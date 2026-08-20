@@ -25,7 +25,9 @@ use crate::db::{
 };
 
 use crate::helper::{create_csv, generate_random_string};
-use crate::language_server::{LangServerCommon, LexerCompletionTrait};
+use crate::language_server::{
+    get_update_sql_from_result_set_impl, LangServerCommon, LexerCompletionTrait,
+};
 use crate::pg_format::*;
 
 /// postgres version of pg.
@@ -334,6 +336,14 @@ impl PostGresDB {
 }
 #[async_trait::async_trait]
 impl SchemaTrait for PostGresDB {
+    async fn get_update_sql_from_result_set(
+        &self,
+        sql: &str,
+        old_values: &[Option<String>],
+        new_values: &[Option<String>],
+    ) -> anyhow::Result<Vec<String>> {
+        get_update_sql_from_result_set_impl(self, sql, old_values, new_values).await
+    }
     fn list_sql_current_values(&self) -> &'static [&'static str] {
         <Self as SqlBuilder>::get_current_values(self)
     }
@@ -1722,6 +1732,7 @@ impl QuerySql for PostGresDB {
                         emit.send(
                             QueryResp {
                                 fields: fields.clone(),
+                                sql: Some(sql.to_owned()),
                                 ..Default::default()
                             }
                             .into(),
@@ -3481,11 +3492,11 @@ mod tests {
         let mut file = tempfile::NamedTempFile::with_suffix(".csv").unwrap();
 
         let mut wtr = Writer::from_writer(vec![]);
-        wtr.write_record(&["int_value"]).unwrap();
-        wtr.write_record(&["eeee"]).unwrap();
+        wtr.write_record(["int_value"]).unwrap();
+        wtr.write_record(["eeee"]).unwrap();
 
         file.write_all(&wtr.into_inner().unwrap()).unwrap();
-        let x = std::fs::read_to_string(&file.path()).unwrap();
+        let x = std::fs::read_to_string(file.path()).unwrap();
         println!("csv content:{}", x);
 
         let err = db

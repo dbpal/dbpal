@@ -1,4 +1,6 @@
-use crate::db::SchemaTrait;
+use std::sync::Arc;
+
+use crate::db::{CreateSchemaExtra, DBTrait, GetBackendKind, SchemaTrait};
 use crate::firebird::FireBirdDB;
 use crate::language_server::{
     try_parser_dot_lexer, AstCompletionHelper, CompletionItem, CompletionKind, CompletionList,
@@ -52,6 +54,29 @@ impl LanguageServer for FireBirdDB {
 
     fn is_dangerous_sql(&self, sql: &str) -> anyhow::Result<bool> {
         LangServerCommon::is_dangerous_sql_by_parser(self, sql)
+    }
+}
+#[async_trait::async_trait]
+
+impl DBTrait for FireBirdDB {
+    async fn list_schema(&self) -> anyhow::Result<Vec<String>> {
+        self.backend_kind().not_support_feature("list schema")
+    }
+    async fn open_schema(&self, _name: &str) -> anyhow::Result<Arc<dyn SchemaTrait>> {
+        self.backend_kind().not_support_feature("open schema")
+    }
+    async fn create_schema(
+        &self,
+        _name: &str,
+        _extra: Option<CreateSchemaExtra>,
+    ) -> anyhow::Result<()> {
+        self.backend_kind().not_support_feature("create schema")
+    }
+    async fn drop_schema(&self, _name: &str) -> anyhow::Result<()> {
+        self.backend_kind().not_support_feature("drop  schema")
+    }
+    fn as_any(&self) -> &dyn std::any::Any {
+        self
     }
 }
 

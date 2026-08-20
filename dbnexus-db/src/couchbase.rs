@@ -253,6 +253,15 @@ impl EncodeXlsxDatetime for CouchBaseDB {}
 #[async_trait::async_trait]
 
 impl SchemaTrait for CouchBaseDB {
+    async fn get_update_sql_from_result_set(
+        &self,
+        _sql: &str,
+        _old_values: &[Option<String>],
+        _new_values: &[Option<String>],
+    ) -> anyhow::Result<Vec<String>> {
+        self.backend_kind()
+            .not_support_feature("get update sql form result set")
+    }
     async fn table_import_data_from_file(
         &self,
         table: &str,
@@ -340,7 +349,7 @@ impl SchemaTrait for CouchBaseDB {
             }
             anyhow::Ok(())
         } else {
-            anyhow::bail!(format!("unsupported file type:{}", &para.path))
+            anyhow::bail!(format!("unsupported file type:{}", para.path))
         }
     }
     async fn export_table_or_view(

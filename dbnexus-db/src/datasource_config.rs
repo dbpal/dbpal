@@ -440,7 +440,6 @@ pub struct Neo4JDbConfig {
 }
 
 #[cfg(test)]
-
 impl SSLFiles {
     pub fn test_cert() -> Self {
         Self {

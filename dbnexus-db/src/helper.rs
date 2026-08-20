@@ -112,24 +112,15 @@ pub(crate) fn try_remove_one_at(value: String) -> String {
 
 pub(crate) fn ty_is_datetime(ty: &DataType) -> bool {
     let ty = extract_null_able(ty);
-    match ty {
-        DataType::Datetime(..) | DataType::Datetime64(..) => true,
-        _ => false,
-    }
+    matches!(ty, DataType::Datetime(..) | DataType::Datetime64(..))
 }
 pub(crate) fn ty_is_time(ty: &DataType) -> bool {
     let ty = extract_null_able(ty);
-    match ty {
-        DataType::Time(..) => true,
-        _ => false,
-    }
+    matches!(ty, DataType::Time(..))
 }
 pub(crate) fn ty_is_date(ty: &DataType) -> bool {
     let ty = extract_null_able(ty);
-    match ty {
-        DataType::Date | DataType::Date32 => true,
-        _ => false,
-    }
+    matches!(ty, DataType::Date | DataType::Date32)
 }
 
 // check if ty is plain integer
@@ -550,7 +541,7 @@ pub(crate) fn get_array_tuple_element_type(
             ArrayElemTypeDef::SquareBracket(data_type, _) => data_type.as_ref(),
             ArrayElemTypeDef::Parenthesis(data_type) => data_type.as_ref(),
         },
-        DataType::Tuple(x) => &mut match x.get(index) {
+        DataType::Tuple(x) => match x.get(index) {
             Some(x) => &x.field_type,
             None => anyhow::bail!(format!("not found type on tuple #{}", index)),
         },
@@ -646,7 +637,7 @@ impl BackendKind {
                 return anyhow::Ok(
                     headers
                         .into_iter()
-                        .zip(tys.into_iter())
+                        .zip(tys)
                         .map(|(field, ty)| Field::from_name_type(field, ty))
                         .collect(),
                 );
@@ -705,18 +696,14 @@ impl BackendKind {
             input_content.push('\n');
         }
         let csv_str = convert_csv_delimiter(&input_content, csv_delimiter, Some(','))
-            .map_err(|e| anyhow::Error::msg(e))?;
+            .map_err(anyhow::Error::msg)?;
 
         let df = csv_processor::DataFrame::from_strings(&csv_str)?;
         let mut ret = vec![];
 
         // 直接从 df 获取列信息
         for (index, col) in df.columns().iter().enumerate() {
-            let name = df
-                .headers()
-                .get(index)
-                .map(|x| x.clone())
-                .unwrap_or_default();
+            let name = df.headers().get(index).cloned().unwrap_or_default();
             // 根据列的数据类型映射
             let data_type = self.map_csv_dtype(&col.dtype())?;
 
@@ -801,9 +788,9 @@ impl BackendKind {
                 serde_json::Value::Bool(_) => "TINYINT(1)".to_string(),
                 serde_json::Value::Number(number) => {
                     if number.is_i64() || number.is_u64() {
-                        if let Some(..) = number.as_i64() {
+                        if number.as_i64().is_some() {
                             "BIGINT".to_string()
-                        } else if let Some(..) = number.as_u64() {
+                        } else if number.as_u64().is_some() {
                             "BIGINT UNSIGNED".to_string()
                         } else {
                             "DECIMAL(65,30)".to_string()
@@ -824,9 +811,7 @@ impl BackendKind {
                 serde_json::Value::Bool(_) => "BOOLEAN".to_string(),
                 serde_json::Value::Number(number) => {
                     if number.is_i64() || number.is_u64() {
-                        if let Some(..) = number.as_i64() {
-                            "BIGINT".to_string()
-                        } else if let Some(..) = number.as_u64() {
+                        if number.as_i64().is_some() || number.as_u64().is_some() {
                             "BIGINT".to_string()
                         } else {
                             "NUMERIC".to_string()
@@ -847,13 +832,7 @@ impl BackendKind {
                 serde_json::Value::Bool(_) => "BIT".to_string(),
                 serde_json::Value::Number(number) => {
                     if number.is_i64() || number.is_u64() {
-                        if let Some(..) = number.as_i64() {
-                            "BIGINT".to_string()
-                        } else if let Some(..) = number.as_u64() {
-                            "BIGINT".to_string()
-                        } else {
-                            "DECIMAL(38,10)".to_string()
-                        }
+                        "BIGINT".to_string()
                     } else if number.is_f64() {
                         "FLOAT".to_string()
                     } else {
@@ -871,8 +850,6 @@ impl BackendKind {
                 serde_json::Value::Number(number) => {
                     if number.is_i64() || number.is_u64() {
                         "INTEGER".to_string()
-                    } else if number.is_f64() {
-                        "REAL".to_string()
                     } else {
                         "REAL".to_string()
                     }
@@ -898,24 +875,24 @@ impl BackendKind {
                         }
                         serde_json::Value::String(_) => "text".to_string(),
                         serde_json::Value::Array(x) => {
-                            if let Some(v) = x.get(0) {
-                                return format!("list<{}>", handle_value(v));
+                            if let Some(v) = x.first() {
+                                format!("list<{}>", handle_value(v))
                             } else {
-                                return "list<text>".into();
+                                "list<text>".into()
                             }
                         }
                         serde_json::Value::Object(x) => {
                             if let Some((k, v)) = x.iter().next() {
                                 format!(
                                     "map<{}, {}>",
-                                    if let Ok(..) = k.parse::<u64>() {
+                                    if k.parse::<u64>().is_ok() {
                                         "bigint"
-                                    } else if let Ok(..) = k.parse::<f64>() {
+                                    } else if k.parse::<f64>().is_ok() {
                                         "double"
                                     } else {
                                         "String"
                                     },
-                                    handle_value(&v)
+                                    handle_value(v)
                                 )
                             } else {
                                 "map<text, text>".to_string()
@@ -932,9 +909,9 @@ impl BackendKind {
                         serde_json::Value::Null => "String".to_string(),
                         serde_json::Value::Bool(_) => "UInt8".to_string(),
                         serde_json::Value::Number(number) => {
-                            if let Some(..) = number.as_i64() {
+                            if number.as_i64().is_some() {
                                 "Int64".to_string()
-                            } else if let Some(..) = number.as_u64() {
+                            } else if number.as_u64().is_some() {
                                 "UInt64".to_string()
                             } else {
                                 "Float64".to_string()
@@ -942,21 +919,21 @@ impl BackendKind {
                         }
                         serde_json::Value::String(..) => "String".to_string(),
                         serde_json::Value::Array(x) => {
-                            if let Some(x) = x.get(0) {
+                            if let Some(x) = x.first() {
                                 format!("Array({})", handle_value(x))
                             } else {
-                                return "Array(String)".into();
+                                "Array(String)".into()
                             }
                         }
                         serde_json::Value::Object(x) => {
                             if let Some((k, v)) = x.iter().next() {
                                 format!(
                                     "Map({},{})",
-                                    if let Ok(..) = k.parse::<u64>() {
+                                    if k.parse::<u64>().is_ok() {
                                         "UInt64"
-                                    } else if let Ok(..) = k.parse::<i64>() {
-                                        "UInt64"
-                                    } else if let Ok(..) = k.parse::<f64>() {
+                                    } else if k.parse::<i64>().is_ok() {
+                                        "Int64"
+                                    } else if k.parse::<f64>().is_ok() {
                                         "Float64"
                                     } else {
                                         "String"
@@ -964,7 +941,7 @@ impl BackendKind {
                                     handle_value(v)
                                 )
                             } else {
-                                return "Map(Int32,Int32)".into();
+                                "Map(Int32,Int32)".into()
                             }
                         }
                     }
@@ -978,15 +955,11 @@ impl BackendKind {
                 serde_json::Value::Bool(_) => "SMALLINT".to_string(),
                 serde_json::Value::Number(number) => {
                     if number.is_i64() || number.is_u64() {
-                        if let Some(..) = number.as_i64() {
-                            "BIGINT".to_string()
-                        } else if let Some(..) = number.as_u64() {
+                        if number.as_i64().is_some() || number.as_u64().is_some() {
                             "BIGINT".to_string()
                         } else {
                             "DOUBLE PRECISION".to_string()
                         }
-                    } else if number.is_f64() {
-                        "DOUBLE PRECISION".to_string()
                     } else {
                         "DOUBLE PRECISION".to_string()
                     }
@@ -1008,11 +981,7 @@ impl BackendKind {
                 serde_json::Value::Bool(_) => "NUMBER(1)".to_string(),
                 serde_json::Value::Number(number) => {
                     if number.is_i64() || number.is_u64() {
-                        if let Some(..) = number.as_i64() {
-                            "NUMBER".to_string()
-                        } else {
-                            "NUMBER".to_string()
-                        }
+                        "NUMBER".to_string()
                     } else if number.is_f64() {
                         "FLOAT".to_string()
                     } else {
@@ -1030,8 +999,6 @@ impl BackendKind {
                 serde_json::Value::Number(number) => {
                     if number.is_i64() || number.is_u64() {
                         "BIGINT".to_string()
-                    } else if number.is_f64() {
-                        "DOUBLE".to_string()
                     } else {
                         "DOUBLE".to_string()
                     }
@@ -1078,15 +1045,7 @@ impl BackendKind {
             BackendKind::CouchBase => match value {
                 serde_json::Value::Null => "null".to_string(),
                 serde_json::Value::Bool(_) => "boolean".to_string(),
-                serde_json::Value::Number(number) => {
-                    if number.is_i64() || number.is_u64() {
-                        "number".to_string()
-                    } else if number.is_f64() {
-                        "number".to_string()
-                    } else {
-                        "number".to_string()
-                    }
-                }
+                serde_json::Value::Number(..) => "number".to_string(),
                 serde_json::Value::String(_) => "string".to_string(),
                 serde_json::Value::Array(_) => "array".to_string(),
                 serde_json::Value::Object(_) => "object".to_string(),
@@ -1262,7 +1221,6 @@ pub(crate) fn cert_files_dir() -> String {
 
 /// 启动一个现有的、处于停止状态的 Docker 容器
 #[cfg(test)]
-
 pub(crate) fn start_docker_container(id: &str) -> anyhow::Result<()> {
     // 执行 docker start <id> 命令
     let output = Command::new("docker").args(["start", id]).output()?;
@@ -1381,7 +1339,7 @@ mod tests {
             println!("第 {} 行: {:?}", row_idx, row_data);
 
             // 或者按列索引获取具体值
-            if let Some(name) = row.get(0) {
+            if let Some(name) = row.first() {
                 println!("姓名: {}", name);
             }
             if let Some(age) = row.get(1) {

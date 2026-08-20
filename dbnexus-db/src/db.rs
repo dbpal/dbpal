@@ -6,7 +6,7 @@ use core::str;
 use std::any::Any;
 use std::collections::HashMap;
 use std::fmt::{self, Debug};
-use std::io::{BufRead, Write};
+use std::io::BufRead;
 use std::ops::Deref;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex};
@@ -32,6 +32,76 @@ pub enum BackendKind {
     Db2,
     CouchBase,
 }
+
+impl BackendKind {
+    pub(crate) fn case_rule(self) -> sql_insight::CaseRule {
+        match self {
+            BackendKind::Mysql(_) => {
+                // MySQL: 在Unix上区分大小写，在Windows上不区分
+                // 使用 Sensitive 以保留精确匹配，避免数据正确性问题
+                sql_insight::CaseRule::Sensitive
+            }
+            BackendKind::LibSql => {
+                // LibSQL: 继承SQLite行为，不区分大小写
+                sql_insight::CaseRule::Insensitive
+            }
+            BackendKind::PostGres(_) => {
+                // PostgreSQL: 未加引号转为小写，加引号保留
+                sql_insight::CaseRule::Lower
+            }
+            BackendKind::SqlServer => {
+                // SQL Server: 默认不区分大小写（取决于collation）
+                // 使用 Insensitive 作为默认行为
+                sql_insight::CaseRule::Insensitive
+            }
+            BackendKind::Mongo => {
+                // MongoDB: 集合名区分大小写
+                sql_insight::CaseRule::Sensitive
+            }
+            BackendKind::Redis => {
+                // Redis: key区分大小写
+                sql_insight::CaseRule::Sensitive
+            }
+            BackendKind::Sqlite => {
+                // SQLite: 默认不区分大小写（取决于collation）
+                sql_insight::CaseRule::Insensitive
+            }
+            BackendKind::Cassandra => {
+                // Cassandra: 引用标识符区分大小写，否则转为小写
+                sql_insight::CaseRule::Lower
+            }
+            BackendKind::ClickHouse => {
+                // ClickHouse: 默认标识符区分大小写
+                sql_insight::CaseRule::Sensitive
+            }
+            BackendKind::Firebird => {
+                // Firebird: 未加引号转为大写
+                sql_insight::CaseRule::Upper
+            }
+            BackendKind::Oracle => {
+                // Oracle: 未加引号转为大写
+                sql_insight::CaseRule::Upper
+            }
+            BackendKind::DuckDB => {
+                // DuckDB: 保留大小写，但不区分比较
+                sql_insight::CaseRule::Insensitive
+            }
+            BackendKind::BigQuery => {
+                // BigQuery: 不区分大小写
+                sql_insight::CaseRule::Insensitive
+            }
+            BackendKind::Db2 => {
+                // DB2: 未加引号转为大写
+                sql_insight::CaseRule::Upper
+            }
+            BackendKind::CouchBase => {
+                // Couchbase: 区分大小写
+                sql_insight::CaseRule::Sensitive
+            }
+        }
+    }
+}
+
 impl fmt::Display for BackendKindMysql {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
@@ -290,6 +360,13 @@ pub trait SchemaTrait:
     + ExtractSqlValeFromJsonValue
     + EncodeXlsxDatetime
 {
+    async fn get_update_sql_from_result_set(
+        &self,
+        sql: &str,
+        old_values: &[Option<String>],
+        new_values: &[Option<String>],
+    ) -> anyhow::Result<Vec<String>>;
+
     async fn create_table(&self, req: &CreateTableReq) -> anyhow::Result<String> {
         let ss = SchemaTrait::create_table_sql(self, req)?;
         let mut sc = SqlCollect::default();
@@ -492,16 +569,13 @@ pub trait SchemaTrait:
                         for (index, h) in headers.iter().enumerate() {
                             values.insert(
                                 h.clone(),
-                                csv_line
-                                    .get(index)
-                                    .map(|x| {
-                                        if x.is_empty() {
-                                            None
-                                        } else {
-                                            Some(x.to_owned())
-                                        }
-                                    })
-                                    .flatten(),
+                                csv_line.get(index).and_then(|x| {
+                                    if x.is_empty() {
+                                        None
+                                    } else {
+                                        Some(x.to_owned())
+                                    }
+                                }),
                             );
                         }
                         sender.blocking_send(values)?;
@@ -533,7 +607,7 @@ pub trait SchemaTrait:
                 _ if crate::helper::is_excel_file(&path_lower) => {
                     let mut wb: calamine::Xlsx<std::io::BufReader<std::fs::File>> =
                         calamine::open_workbook(&para.path)?;
-                    if wb.sheet_names().len() == 0 {
+                    if wb.sheet_names().is_empty() {
                         anyhow::bail!("this contains no sheets")
                     }
                     let range = wb.worksheet_range(&wb.sheet_names()[0])?;
@@ -546,7 +620,7 @@ pub trait SchemaTrait:
                         }
                         let mut values = HashMap::new();
                         for (index, data) in row.iter().enumerate() {
-                            let f = headers.get(index).map(|name| cols_map.get(name)).flatten();
+                            let f = headers.get(index).and_then(|name| cols_map.get(name));
                             if let Some(f) = f {
                                 // trying to format date , datetime
 
@@ -996,8 +1070,10 @@ pub trait SchemaTrait:
             println!("csv2:{}", csv_str2);
         }
     }
-
+    #[cfg(test)]
     async fn test_table_export_and_import_json(&self, table: &str) {
+        use std::io::Write;
+
         let mut file = tempfile::NamedTempFile::with_suffix(".json").unwrap();
         // test json
         let json_str = self
@@ -1030,8 +1106,10 @@ pub trait SchemaTrait:
             println!("json2:{}", json_str2);
         }
     }
-
+    #[cfg(test)]
     async fn test_table_export_and_import_jsonline(&self, table: &str) {
+        use std::io::Write;
+
         let mut file = tempfile::NamedTempFile::with_suffix(".jsonl").unwrap();
         let export_kind = ExportKind::JsonLine;
 
@@ -1727,7 +1805,7 @@ impl From<u64> for XlsxEditContent {
 
 impl From<String> for XlsxEditContent {
     fn from(value: String) -> Self {
-        Self::String(value.into())
+        Self::String(value)
     }
 }
 
@@ -1775,10 +1853,10 @@ impl std::fmt::Display for XlsxEdit {
 impl std::fmt::Display for XlsxEditContent {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            XlsxEditContent::Time(naive_time) => write!(f, "time:{}", naive_time.to_string()),
-            XlsxEditContent::Date(naive_date) => write!(f, "date:{}", naive_date.to_string()),
+            XlsxEditContent::Time(naive_time) => write!(f, "time:{}", naive_time),
+            XlsxEditContent::Date(naive_date) => write!(f, "date:{}", naive_date),
             XlsxEditContent::DateTime(naive_date_time) => {
-                write!(f, "datetime:{}", naive_date_time.to_string())
+                write!(f, "datetime:{}", naive_date_time)
             }
             XlsxEditContent::String(x) => write!(f, "str:{}", x),
             XlsxEditContent::Number(x) => write!(f, "num:{}", x),
@@ -3226,7 +3304,7 @@ pub trait GetTestExportTableKinds: SchemaTrait {
             let str = self
                 .export_table_to_string(table_name, kind.clone())
                 .await
-                .expect(format!("should export failed:{:?}", kind).as_str());
+                .unwrap_or_else(|_| panic!("should export failed:{:?}", kind));
             println!("export:{:?}\n{}", kind, str)
         }
     }

@@ -39,7 +39,7 @@ use crate::db::{
 };
 
 use crate::helper::{create_csv, extract_bytes_from_serde_values};
-use crate::language_server::LexerCompletionTrait;
+use crate::language_server::{get_update_sql_from_result_set_impl, LexerCompletionTrait};
 use dashmap::{DashMap, DashSet};
 use r2d2::{ManageConnection, Pool, PooledConnection};
 use rsfbclient::prelude::{TrDataAccessMode, TransactionConfiguration};
@@ -245,7 +245,7 @@ fn encode_row_as_json(
                 } else {
                     Some(naive_date_time.to_string())
                 };
-                r.map(|x| serde_json::Value::from(x))
+                r.map(serde_json::Value::from)
             }
             SqlType::Binary(items) => {
                 let items = items
@@ -463,6 +463,7 @@ impl QuerySql for FireBirdDB {
                     emit.send(
                         QueryResp {
                             fields: infer_fields(&item),
+                            sql: Some(sql.clone()),
                             ..Default::default()
                         }
                         .into(),
@@ -696,6 +697,14 @@ impl ExtractSqlValeFromJsonValue for FireBirdDB {
 }
 #[async_trait::async_trait]
 impl SchemaTrait for FireBirdDB {
+    async fn get_update_sql_from_result_set(
+        &self,
+        sql: &str,
+        old_values: &[Option<String>],
+        new_values: &[Option<String>],
+    ) -> anyhow::Result<Vec<String>> {
+        get_update_sql_from_result_set_impl(self, sql, old_values, new_values).await
+    }
     async fn list_data_types(&self) -> anyhow::Result<Vec<String>> {
         LexerCompletionTrait::get_types(self).await
     }

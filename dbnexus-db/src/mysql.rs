@@ -11,7 +11,7 @@ use crate::db::{
     TriggerTiming, XlsxEdit, XlsxEditContent, POOL_MAX_CONNECTIONS,
 };
 use crate::helper::{create_csv, extract_bytes_from_serde_values};
-use crate::language_server::LexerCompletionTrait;
+use crate::language_server::{get_update_sql_from_result_set_impl, LexerCompletionTrait};
 use chrono::Utc;
 use dashmap::DashMap;
 use futures_util::StreamExt;
@@ -584,6 +584,14 @@ impl MysqlDB {
 #[async_trait::async_trait]
 
 impl SchemaTrait for MysqlDB {
+    async fn get_update_sql_from_result_set(
+        &self,
+        sql: &str,
+        old_values: &[Option<String>],
+        new_values: &[Option<String>],
+    ) -> anyhow::Result<Vec<String>> {
+        get_update_sql_from_result_set_impl(self, sql, old_values, new_values).await
+    }
     async fn list_sequence(&self) -> anyhow::Result<Vec<SequenceDetail>> {
         match self.kind {
             BackendKindMysql::Mariadb => {
@@ -1291,15 +1299,15 @@ fn encode_row_as_xlsx(
             }
             "TINYINT" => {
                 let value: Option<i8> = r.try_get(c)?;
-                value.map(|x| XlsxEditContent::number(x))
+                value.map(XlsxEditContent::number)
             }
             "SMALLINT" => {
                 let value: Option<i16> = r.try_get(c)?;
-                value.map(|x| XlsxEditContent::number(x))
+                value.map(XlsxEditContent::number)
             }
             "INT" => {
                 let value: Option<i32> = r.try_get(c)?;
-                value.map(|x| XlsxEditContent::number(x))
+                value.map(XlsxEditContent::number)
             }
             "BIGINT" => {
                 let value: Option<i64> = r.try_get(c)?;
@@ -1307,15 +1315,15 @@ fn encode_row_as_xlsx(
             }
             "TINYINT UNSIGNED" => {
                 let value: Option<u8> = r.try_get(c)?;
-                value.map(|x| XlsxEditContent::number(x))
+                value.map(XlsxEditContent::number)
             }
             "SMALLINT UNSIGNED" => {
                 let value: Option<u16> = r.try_get(c)?;
-                value.map(|x| XlsxEditContent::number(x))
+                value.map(XlsxEditContent::number)
             }
             "INT UNSIGNED" => {
                 let value: Option<u32> = r.try_get(c)?;
-                value.map(|x| XlsxEditContent::number(x))
+                value.map(XlsxEditContent::number)
             }
             "BIGINT UNSIGNED" => {
                 let value: Option<u64> = r.try_get(c)?;
@@ -1323,11 +1331,11 @@ fn encode_row_as_xlsx(
             }
             "FLOAT" => {
                 let value: Option<f32> = r.try_get(c)?;
-                value.map(|x| XlsxEditContent::number(x))
+                value.map(XlsxEditContent::number)
             }
             "DOUBLE" => {
                 let value: Option<f64> = r.try_get(c)?;
-                value.map(|x| XlsxEditContent::number(x))
+                value.map(XlsxEditContent::number)
             }
 
             _ if type_is_string(&ty) => {
@@ -1855,6 +1863,7 @@ impl QuerySql for MysqlDB {
                         emit.send(
                             QueryResp {
                                 fields: fields.clone(),
+                                sql: Some(sql.to_owned()),
                                 ..Default::default()
                             }
                             .into(),
@@ -1995,7 +2004,7 @@ impl ExtractSqlValeFromJsonValue for MysqlDB {
             serde_json::Value::Number(number) => number.to_string(),
             serde_json::Value::String(x) => x.clone(),
             serde_json::Value::Array(values) => {
-                encode_bytes(&extract_bytes_from_serde_values(&values)?)
+                encode_bytes(&extract_bytes_from_serde_values(values)?)
             }
             serde_json::Value::Object(x) => serde_json::to_string(x)?,
         };
@@ -2813,6 +2822,7 @@ mod tests {
     use crate::datasource_config::{MysqlDBConfig, SSLFiles, SslFilesWithStrModel};
     use crate::db::{BackendKindMysql, CheckConn};
     use crate::helper::{cert_files_dir, start_docker_container, DockerContainerDropper};
+    use crate::language_server::get_update_sql_from_result_set_impl;
     use crate::mysql::MysqlDB;
     use crate::TEST_HOST;
     use sqlx::Executor;
@@ -2906,6 +2916,29 @@ mod tests {
     async fn test_types1() {
         test_fns::test_types1(make_test_object(make_config()).await).await;
     }
+
+    #[ignore = "run by hand"]
+    #[tokio::test]
+
+    async fn test_get_update_sql() {
+        let db = make_test_object(make_config()).await;
+
+        {
+            let x = get_update_sql_from_result_set_impl(
+                &db,
+                "select id,name from test_index",
+                &[Some(1.to_string()), Some("haha".to_string())],
+                &[Some(1.to_string()), Some("yuyang".to_string())],
+            )
+            .await
+            .unwrap();
+
+            for y in x.iter() {
+                println!("sql:{}", y);
+            }
+        }
+    }
+
     #[tokio::test]
     async fn test_types2() {
         test_fns::test_types2(make_test_object(make_config()).await).await;

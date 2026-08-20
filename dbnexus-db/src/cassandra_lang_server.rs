@@ -258,14 +258,12 @@ impl CassandraDB {
         if let Some(key_space) = key_space {
             return anyhow::Ok(key_space.to_string());
         }
-        match self.query_connection.get(&self.completion_id.get()) {
-            Some(session) => {
-                if let Some(key_space) = session.get_keyspace() {
-                    return anyhow::Ok(key_space.as_str().to_string());
-                }
+        if let Some(session) = self.query_connection.get(&self.completion_id.get()) {
+            if let Some(key_space) = session.get_keyspace() {
+                return anyhow::Ok(key_space.as_str().to_string());
             }
-            _ => {}
         }
+
         match &self.config.db {
             Some(key_space) => anyhow::Ok(key_space.clone()),
             None => Err(anyhow::Error::msg("need provide key space")),

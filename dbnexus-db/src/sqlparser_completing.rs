@@ -628,7 +628,7 @@ impl<'a> CompletionStatement<'a> {
                 }
             }
             ObjectType::Stream => {}
-            ObjectType::Collation => todo!(),
+            ObjectType::Collation => {}
         }
     }
     pub(crate) async fn c_on_sequence(&mut self, name: &ObjectName) {
@@ -753,7 +753,7 @@ impl<'a> CompletionStatement<'a> {
             CommentObject::Collation => {}
             CommentObject::Domain => {}
             CommentObject::Function => {}
-            CommentObject::Index => todo!(),
+            CommentObject::Index => {}
             CommentObject::MaterializedView => {}
             CommentObject::Procedure => {}
             CommentObject::Sequence => {}

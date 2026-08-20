@@ -630,10 +630,10 @@ pub(crate) fn encode_row_as_json(
 }
 
 pub(crate) fn is_text_array_ty(ty: &str) -> bool {
-    match ty {
-        "TEXT[]" | "CHAR[]" | "BPCHAR[]" | "VARCHAR[]" | "NAME[]" => true,
-        _ => false,
-    }
+    matches!(
+        ty,
+        "TEXT[]" | "CHAR[]" | "BPCHAR[]" | "VARCHAR[]" | "NAME[]"
+    )
 }
 
 impl EncodeXlsxDatetime for PostGresDB {
@@ -724,11 +724,11 @@ pub(crate) fn encode_row_as_xlsx(r: &PgRow) -> anyhow::Result<Vec<Option<XlsxEdi
             }
             "INT2" => {
                 let value: Option<i16> = r.try_get(c)?;
-                value.map(|x| XlsxEditContent::number(x))
+                value.map(XlsxEditContent::number)
             }
             "INT4" => {
                 let value: Option<i32> = r.try_get(c)?;
-                value.map(|x| XlsxEditContent::number(x))
+                value.map(XlsxEditContent::number)
             }
             "TEXT" => {
                 let value: Option<String> = r.try_get(c)?;
@@ -741,11 +741,11 @@ pub(crate) fn encode_row_as_xlsx(r: &PgRow) -> anyhow::Result<Vec<Option<XlsxEdi
 
             "FLOAT4" => {
                 let value: Option<f32> = r.try_get(c)?;
-                value.map(|x| XlsxEditContent::number(x))
+                value.map(XlsxEditContent::number)
             }
             "FLOAT8" => {
                 let value: Option<f64> = r.try_get(c)?;
-                value.map(|x| XlsxEditContent::Number(x))
+                value.map(XlsxEditContent::Number)
             }
             "MACADDR8" => {
                 let value: Option<MacAddr8> = r.get_unchecked(c);

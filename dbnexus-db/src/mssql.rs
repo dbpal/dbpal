@@ -12,7 +12,7 @@ use crate::db::{
 };
 use crate::db::{OptionMustBeSomeErr, QueryEventEmitter};
 use crate::helper::{create_csv, extract_bytes_from_serde_values};
-use crate::language_server::LexerCompletionTrait;
+use crate::language_server::{get_update_sql_from_result_set_impl, LexerCompletionTrait};
 use chrono::FixedOffset;
 use dashmap::DashMap;
 use futures_util::StreamExt;
@@ -555,6 +555,14 @@ impl SqlServerDB {
 }
 #[async_trait::async_trait]
 impl SchemaTrait for SqlServerDB {
+    async fn get_update_sql_from_result_set(
+        &self,
+        sql: &str,
+        old_values: &[Option<String>],
+        new_values: &[Option<String>],
+    ) -> anyhow::Result<Vec<String>> {
+        get_update_sql_from_result_set_impl(self, sql, old_values, new_values).await
+    }
     fn list_sql_current_values(&self) -> &'static [&'static str] {
         <Self as SqlBuilder>::get_current_values(self)
     }
@@ -1302,7 +1310,7 @@ impl ExtractSqlValeFromJsonValue for SqlServerDB {
             serde_json::Value::Number(number) => number.to_string(),
             serde_json::Value::String(x) => x.clone(),
             serde_json::Value::Array(values) => {
-                let r = extract_bytes_from_serde_values(&values)?;
+                let r = extract_bytes_from_serde_values(values)?;
                 encode_bytes(&r)
             }
             serde_json::Value::Object(..) => {
@@ -1790,10 +1798,11 @@ impl QuerySql for SqlServerDB {
                     emit.send(encode_row(&row)?.into())?;
                 }
                 tiberius::QueryItem::Metadata(meta) => {
-                    let f = get_fields_from_meta(&meta);
+                    let fs = get_fields_from_meta(&meta);
                     emit.send(
                         QueryResp {
-                            fields: f,
+                            fields: fs,
+                            sql: Some(sql.to_owned()),
                             ..Default::default()
                         }
                         .into(),

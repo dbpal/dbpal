@@ -3,7 +3,6 @@ pub mod app;
 pub mod handlers;
 
 #[cfg(test)]
-
 mod tests {
 
     use dbnexus_db::redis_lang_server::get_commands_from_docs;

@@ -23,7 +23,7 @@ use crate::db::{
 };
 
 use crate::helper::{create_csv, generate_random_string};
-use crate::language_server::LexerCompletionTrait;
+use crate::language_server::{get_update_sql_from_result_set_impl, LexerCompletionTrait};
 
 #[derive(Clone)]
 pub struct OracleDB {
@@ -336,15 +336,14 @@ impl QuerySql for OracleDB {
                             field: x.name().to_string(),
                             data_type: x.oracle_type().to_string(),
                             nullable: x.nullable(),
-                            default_value: None,
-                            is_primary: false,
-                            is_auto_increment: false,
-                            sortable: true,
+
+                            ..Default::default()
                         })
                         .collect();
                     emit.send(
                         QueryResp {
                             fields,
+                            sql: Some(sql.to_owned()),
                             ..Default::default()
                         }
                         .into(),
@@ -431,12 +430,12 @@ fn encode_row_as_xlsx(row: Row) -> anyhow::Result<Vec<Option<XlsxEditContent>>> 
             }
             oracle::sql_type::OracleType::BinaryFloat => {
                 let x: Option<f32> = row.get(c)?;
-                x.map(|x| XlsxEditContent::number(x))
+                x.map(XlsxEditContent::number)
             }
 
             oracle::sql_type::OracleType::BinaryDouble => {
                 let x: Option<f64> = row.get(c)?;
-                x.map(|x| XlsxEditContent::number(x))
+                x.map(XlsxEditContent::number)
             }
             oracle::sql_type::OracleType::Number(..) => {
                 let x: Option<f64> = row.get(c)?;
@@ -444,7 +443,7 @@ fn encode_row_as_xlsx(row: Row) -> anyhow::Result<Vec<Option<XlsxEditContent>>> 
             }
             oracle::sql_type::OracleType::Float(_) => {
                 let x: Option<f64> = row.get(c)?;
-                x.map(|x| XlsxEditContent::number(x))
+                x.map(XlsxEditContent::number)
             }
             oracle::sql_type::OracleType::Date => {
                 let x: Option<chrono::NaiveDate> = row.get(c)?;
@@ -955,6 +954,14 @@ impl OracleDB {
 
 #[async_trait::async_trait]
 impl SchemaTrait for OracleDB {
+    async fn get_update_sql_from_result_set(
+        &self,
+        sql: &str,
+        old_values: &[Option<String>],
+        new_values: &[Option<String>],
+    ) -> anyhow::Result<Vec<String>> {
+        get_update_sql_from_result_set_impl(self, sql, old_values, new_values).await
+    }
     fn list_sql_current_values(&self) -> &'static [&'static str] {
         <Self as SqlBuilder>::get_current_values(self)
     }

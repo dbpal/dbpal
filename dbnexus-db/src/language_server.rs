@@ -462,16 +462,19 @@ impl<'a, T: SchemaTrait> SqlBuilder for MakeUpdateSqlFromResultsetSqlBuilder<'a,
     }
 }
 
-pub(crate) async fn get_update_table_columns_impl<T: SchemaTrait + LangServerCommon + DBTrait>(
+pub(crate) async fn get_update_sql_from_result_set_impl<
+    T: SchemaTrait + LangServerCommon + DBTrait,
+>(
     backend: &T,
     sql: &str,
-    old_values: Vec<Option<String>>,
-    new_values: Vec<Option<String>>,
+    old_values: &[Option<String>],
+    new_values: &[Option<String>],
 ) -> anyhow::Result<Vec<String>> {
     let d = backend.dialect();
     // 首先提取表
     let extract_tables = sql_insight::extractor::extract_table_operations(d.as_ref(), sql)?;
-    let mut cols_map: HashMap<sql_insight::TableReference, Vec<Field>> = HashMap::new();
+    let mut cols_map: Vec<(sql_insight::TableReference, Vec<Field>)> = Default::default();
+
     let mut catalog = sql_insight::catalog::Catalog::new();
     {
         // 这里主要是取到数据库的表结构和
@@ -496,10 +499,10 @@ pub(crate) async fn get_update_table_columns_impl<T: SchemaTrait + LangServerCom
                 } else {
                     backend.show_table_columns(&r.reference.name.value).await?
                 };
-                // check is primary key exists.
-                if !fs.iter().any(|x| x.is_primary) {
-                    anyhow::bail!(format!("table '{:?}' have no primary key", r.reference))
-                }
+                // TODO if need check check is primary key exists.
+                // if !fs.iter().any(|x| x.is_primary) {
+                //     anyhow::bail!(format!("table '{:?}' have no primary key", r.reference))
+                // }
                 // add to catalog
                 catalog = catalog.table({
                     let mut table = if let Some(x) = &r.reference.schema {
@@ -515,10 +518,25 @@ pub(crate) async fn get_update_table_columns_impl<T: SchemaTrait + LangServerCom
                     table = table.columns(fs.iter().map(|x| x.field.clone()));
                     table
                 });
-                cols_map.insert(r.reference.clone(), fs);
+                cols_map.push((r.reference.clone(), fs));
             }
         }
     }
+    let find_fs = |table: &sql_insight::TableReference| -> Option<&Vec<Field>> {
+        cols_map
+            .iter()
+            .find(|x| {
+                x.0.same_table(
+                    table,
+                    &sql_insight::IdentifierCasing {
+                        table: backend.backend_kind().case_rule(),
+                        table_alias: backend.backend_kind().case_rule(),
+                        column: backend.backend_kind().case_rule(),
+                    },
+                )
+            })
+            .map(|x| &x.1)
+    };
 
     let column_reads = {
         let mut op = sql_insight::extractor::ExtractorOptions::new();
@@ -596,7 +614,9 @@ pub(crate) async fn get_update_table_columns_impl<T: SchemaTrait + LangServerCom
     let mut ret = vec![];
     for (table, v) in table_value_changed.iter() {
         // get fs
-        let fs = match cols_map.get(table) {
+
+        println!("xxxxx:{:?}", cols_map);
+        let fs = match find_fs(table) {
             Some(x) => x,
             None => anyhow::bail!("don't find fs for table :{:?}", table),
         };
@@ -614,7 +634,7 @@ pub(crate) async fn get_update_table_columns_impl<T: SchemaTrait + LangServerCom
 
         {
             let old_values = old_table_values.get(table).map(|x| &x[..]).unwrap_or(&[]);
-            if old_values.len() > 0 {
+            if !old_values.is_empty() {
                 for (col_name, value) in old_values.iter() {
                     wheres.insert((*col_name).to_owned(), (*value).clone());
                 }
@@ -622,7 +642,7 @@ pub(crate) async fn get_update_table_columns_impl<T: SchemaTrait + LangServerCom
                 anyhow::bail!("no old values found???")
             }
         }
-        let sql = SqlBuilder::update_sql(&sql_builder, &table.name.value, &fs, &values, &wheres)?;
+        let sql = SqlBuilder::update_sql(&sql_builder, &table.name.value, fs, &values, &wheres)?;
         ret.push(sql);
     }
     anyhow::Ok(ret)

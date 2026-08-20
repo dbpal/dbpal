@@ -40,7 +40,7 @@ use crate::db::{
 };
 
 use crate::helper::{create_csv, generate_random_string};
-use crate::language_server::LexerCompletionTrait;
+use crate::language_server::{get_update_sql_from_result_set_impl, LexerCompletionTrait};
 use chrono::{DateTime, NaiveDate, NaiveTime};
 use cql3_parser::cassandra_ast::CassandraAST;
 use cql3_parser::cassandra_statement::CassandraStatement;
@@ -562,10 +562,7 @@ fn encode_value_as_string(value: CqlValue, is_nested: bool) -> anyhow::Result<St
                 r
             }
         }
-        CqlValue::Timeuuid(cql_timeuuid) => {
-            let r = cql_timeuuid.to_string();
-            r
-        }
+        CqlValue::Timeuuid(cql_timeuuid) => cql_timeuuid.to_string(),
         CqlValue::Tuple(cql_values) => {
             let mut values = vec![];
             for v in cql_values {
@@ -997,7 +994,7 @@ impl ExtractSqlValeFromJsonValue for CassandraDB {
                     Some(format!("[{}]", results.join(",")))
                 }
                 serde_json::Value::Object(map) => {
-                    if let Some(..) = map.get(JSON_TYPE_FIELD) {
+                    if map.get(JSON_TYPE_FIELD).is_some() {
                         match map.get("value") {
                             Some(x) => match x {
                                 serde_json::Value::Null => return anyhow::Ok(None),
@@ -1036,6 +1033,14 @@ pub(crate) fn extract_cql3_parser_ident(x: &cql3_parser::common::Identifier) -> 
 }
 #[async_trait::async_trait]
 impl SchemaTrait for CassandraDB {
+    async fn get_update_sql_from_result_set(
+        &self,
+        sql: &str,
+        old_values: &[Option<String>],
+        new_values: &[Option<String>],
+    ) -> anyhow::Result<Vec<String>> {
+        get_update_sql_from_result_set_impl(self, sql, old_values, new_values).await
+    }
     fn list_sql_current_values(&self) -> &'static [&'static str] {
         <Self as SqlBuilder>::get_current_values(self)
     }
@@ -2579,11 +2584,11 @@ pub(crate) mod test_impls {
         let mut file = tempfile::NamedTempFile::with_suffix(".csv").unwrap();
 
         let mut wtr = Writer::from_writer(vec![]);
-        wtr.write_record(&["int_value"]).unwrap();
-        wtr.write_record(&["eeee"]).unwrap();
+        wtr.write_record(["int_value"]).unwrap();
+        wtr.write_record(["eeee"]).unwrap();
 
         file.write_all(&wtr.into_inner().unwrap()).unwrap();
-        let x = std::fs::read_to_string(&file.path()).unwrap();
+        let x = std::fs::read_to_string(file.path()).unwrap();
         println!("csv content:{}", x);
 
         let err = db

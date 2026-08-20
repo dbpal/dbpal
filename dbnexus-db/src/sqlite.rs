@@ -17,15 +17,15 @@ use crate::datasource_config::SqliteDBConfig;
 use crate::db::{
     create_html_table_data, create_html_table_header, create_markdown_data, create_markdown_header,
     export_query_as_xlsx_send_data, quote_sql_str, AutoCompletionQueryId, BackendKind, CheckConn,
-    ColumnType, CreateIndexReq, CreateTableAndIndexSql, EncodeXlsxDatetime, ExportFrame,
-    ExportKind, ExportQueryResult, ExtractSqlValeFromJsonValue, Field, FirstTrue, GetBackendKind,
-    Index, IndexKind, ListTable, MetaValue, NamedStaff, OptionMustBeSomeErr, QueryEvent,
-    QueryEventEmitter, QueryResp, QuerySql, SchemaTrait, ServerMetas, ShowTableParameter,
-    SqlBuilder, TriggerDetail, TriggerEvent, TriggerTiming, XlsxEdit, XlsxEditContent,
-    POOL_MAX_CONNECTIONS,
+    ColumnType, CreateIndexReq, CreateSchemaExtra, CreateTableAndIndexSql, DBTrait,
+    EncodeXlsxDatetime, ExportFrame, ExportKind, ExportQueryResult, ExtractSqlValeFromJsonValue,
+    Field, FirstTrue, GetBackendKind, Index, IndexKind, ListTable, MetaValue, NamedStaff,
+    OptionMustBeSomeErr, QueryEvent, QueryEventEmitter, QueryResp, QuerySql, SchemaTrait,
+    ServerMetas, ShowTableParameter, SqlBuilder, TriggerDetail, TriggerEvent, TriggerTiming,
+    XlsxEdit, XlsxEditContent, POOL_MAX_CONNECTIONS,
 };
 use crate::helper::{create_csv, extract_bytes_from_serde_values};
-use crate::language_server::LexerCompletionTrait;
+use crate::language_server::{get_update_sql_from_result_set_impl, LexerCompletionTrait};
 
 #[derive(Clone)]
 pub struct SqliteDB {
@@ -307,8 +307,45 @@ impl SqliteDB {
 impl SqliteDB {
     pub(crate) const MAIN_DB: &'static str = "main";
 }
+
+#[async_trait::async_trait]
+
+impl DBTrait for SqliteDB {
+    async fn list_schema(&self) -> anyhow::Result<Vec<String>> {
+        anyhow::Ok(vec!["main".to_owned()])
+    }
+    async fn open_schema(&self, name: &str) -> anyhow::Result<Arc<dyn SchemaTrait>> {
+        if name != "main" {
+            anyhow::bail!(format!("libsql should only open main"))
+        }
+        anyhow::Ok(Arc::new(Clone::clone(self)))
+    }
+    async fn create_schema(
+        &self,
+        _name: &str,
+        _extra: Option<CreateSchemaExtra>,
+    ) -> anyhow::Result<()> {
+        self.backend_kind()
+            .not_support_feature("can't create schema")
+    }
+    async fn drop_schema(&self, _name: &str) -> anyhow::Result<()> {
+        self.backend_kind().not_support_feature("can't drop schema")
+    }
+    fn as_any(&self) -> &dyn std::any::Any {
+        self
+    }
+}
+
 #[async_trait::async_trait]
 impl SchemaTrait for SqliteDB {
+    async fn get_update_sql_from_result_set(
+        &self,
+        sql: &str,
+        old_values: &[Option<String>],
+        new_values: &[Option<String>],
+    ) -> anyhow::Result<Vec<String>> {
+        get_update_sql_from_result_set_impl(self, sql, old_values, new_values).await
+    }
     fn list_sql_current_values(&self) -> &'static [&'static str] {
         <Self as SqlBuilder>::get_current_values(self)
     }
@@ -971,7 +1008,7 @@ fn encode_row_as_xlsx(row: &SqliteRow) -> anyhow::Result<Vec<Option<XlsxEditCont
             }
             "REAL" => {
                 let v: Option<f64> = row.try_get(c)?;
-                v.map(|x| XlsxEditContent::number(x))
+                v.map(XlsxEditContent::number)
             }
             "BLOB" => {
                 let v: Option<Vec<u8>> = row.try_get(c)?;
@@ -985,13 +1022,13 @@ fn encode_row_as_xlsx(row: &SqliteRow) -> anyhow::Result<Vec<Option<XlsxEditCont
                     Err(_) => {
                         // sometimes can save a float in here
                         let v: Option<f64> = row.try_get(c)?;
-                        v.map(|x| XlsxEditContent::number(x))
+                        v.map(XlsxEditContent::number)
                     }
                 }
             }
             _ if numeric_like(ty) => {
                 let v: Option<f64> = row.try_get(c)?;
-                v.map(|x| XlsxEditContent::number(x))
+                v.map(XlsxEditContent::number)
             }
             "BOOLEAN" => {
                 let v: Option<bool> = row.try_get(c)?;
@@ -1434,6 +1471,7 @@ impl QuerySql for SqliteDB {
                         emit.send(
                             QueryResp {
                                 fields: fields.clone(),
+                                sql: Some(sql.to_owned()),
                                 ..Default::default()
                             }
                             .into(),
@@ -1509,7 +1547,7 @@ pub(crate) fn sqlite_extract_sql_value_from_json_value(
         serde_json::Value::Number(number) => number.to_string(),
         serde_json::Value::String(x) => x.clone(),
         serde_json::Value::Array(values) => {
-            let bytes = extract_bytes_from_serde_values(&values)?;
+            let bytes = extract_bytes_from_serde_values(values)?;
             encode_bytes(&bytes)
         }
         serde_json::Value::Object(..) => {
@@ -2143,11 +2181,11 @@ mod tests {
         let mut file = tempfile::NamedTempFile::with_suffix(".csv").unwrap();
 
         let mut wtr = Writer::from_writer(vec![]);
-        wtr.write_record(&["int_value"]).unwrap();
-        wtr.write_record(&["eeee"]).unwrap();
+        wtr.write_record(["int_value"]).unwrap();
+        wtr.write_record(["eeee"]).unwrap();
 
         file.write_all(&wtr.into_inner().unwrap()).unwrap();
-        let x = std::fs::read_to_string(&file.path()).unwrap();
+        let x = std::fs::read_to_string(file.path()).unwrap();
         println!("csv content:{}", x);
 
         let err = db
