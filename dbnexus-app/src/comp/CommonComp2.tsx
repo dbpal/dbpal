@@ -1106,7 +1106,7 @@ function SaveFavoriteSqlView(props: {
   const { favoriteName: oldName, editor } = props;
   const [favoriteName, setFavoriteName] = useState(oldName);
   const { showNotification } = useNotification();
-  const { setUi } = useOneShotDialogUI();
+  const { setOneShotUI } = useOneShotDialogUI();
   const { save } = useFavoriteStore();
   return (
     <>
@@ -1130,7 +1130,7 @@ function SaveFavoriteSqlView(props: {
                   title: "save favorite sql success.",
                 });
               } else {
-                setUi(
+                setOneShotUI(
                   <SaveFavoriteSqlViewOnTheFly
                     dbName={dbName}
                     sql={sql}
@@ -1139,7 +1139,7 @@ function SaveFavoriteSqlView(props: {
                       setFavoriteName(name);
                     }}
                     handleClose={() => {
-                      setUi(null);
+                      setOneShotUI(null);
                     }}
                   />,
                   "set favorite name",

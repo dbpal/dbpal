@@ -15,7 +15,7 @@
     "**/redis-doc": true,
     "**/monaco-themes": true,
   },
-  "rust-analyzer.check.command": "clippy",
+  "rust-analyzer.check.command": "check",
   "prettier.singleQuote": true,
   "cSpell.words": [
     "ABSTTL",

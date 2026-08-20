@@ -145,7 +145,7 @@ function SequenceMenu(props: {
 }) {
   const { dbName, seq, reload, kind } = props;
   const { appendTab } = useTabsManage();
-  const { setUi } = useOneShotDialogUI();
+  const { setOneShotUI } = useOneShotDialogUI();
 
   const handleOpenDetails = () => {
     appendTab(
@@ -178,12 +178,12 @@ function SequenceMenu(props: {
       <MenuItem
         sx={{ color: "error.main" }}
         onClick={() => {
-          setUi(
+          setOneShotUI(
             <DropSeq
               kind={kind}
               seq={seq}
               handleClose={() => {
-                setUi(null);
+                setOneShotUI(null);
               }}
               reload={reload}
               dbName={dbName}

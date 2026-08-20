@@ -1439,7 +1439,7 @@ export function useTabSize() {
 
 interface OneShotUI {
   ui: ReactElement;
-  setUi: (ui: ReactElement, title?: string) => void;
+  setOneShotUI: (ui: ReactElement, title?: string) => void;
   title?: string;
 }
 
@@ -1447,8 +1447,7 @@ interface OneShotUI {
 
 export const useOneShotDialogUI = create<OneShotUI>()((set) => ({
   ui: null,
-  diagProps: null,
-  setUi: (ui, title: string) => set({ ui, title }),
+  setOneShotUI: (ui, title: string) => set({ ui, title }),
   title: "",
 }));
 

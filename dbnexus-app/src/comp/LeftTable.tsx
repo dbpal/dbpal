@@ -561,7 +561,7 @@ function TableMenu(props: {
   const { table, dbName, reload, kind, redisTableType } = props;
   const { showNotification } = useNotification();
   const { appendTab } = useTabsManage();
-  const { setUi } = useOneShotDialogUI();
+  const { setOneShotUI } = useOneShotDialogUI();
 
   const handleTruncateTable = async () => {
     const confirm = await secondConfirm({
@@ -659,12 +659,12 @@ function TableMenu(props: {
 
       <MenuItem
         onClick={() => {
-          setUi(
+          setOneShotUI(
             <DupTable
               table={table}
               dbName={dbName}
               handleClose={() => {
-                setUi(null);
+                setOneShotUI(null);
               }}
               reloadTables={reload}
             />,
@@ -678,7 +678,7 @@ function TableMenu(props: {
       </MenuItem>
       <MenuItem
         onClick={() => {
-          setUi(
+          setOneShotUI(
             <ExportTableOrView dbName={dbName} name={table} kind={kind} isTable />,
             `export table ${table}`,
           );
@@ -690,12 +690,12 @@ function TableMenu(props: {
       </MenuItem>
       <MenuItem
         onClick={() => {
-          setUi(
+          setOneShotUI(
             <RenameTable
               table={table}
               dbName={dbName}
               handleClose={() => {
-                setUi(null);
+                setOneShotUI(null);
               }}
               reloadTables={reload}
             />,
@@ -721,12 +721,12 @@ function TableMenu(props: {
       <MenuItem
         sx={{ color: "error.main" }}
         onClick={() => {
-          setUi(
+          setOneShotUI(
             <DropTable
               table={table}
               dbName={dbName}
               handleClose={() => {
-                setUi(null);
+                setOneShotUI(null);
               }}
               reloadTables={reload}
               kind={kind}

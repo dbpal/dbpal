@@ -282,7 +282,7 @@ function DialogExtraUI() {
         slotProps={{ paper: { style: { width: "fit-content" } } }}
         open={true}
         onClose={() => {
-          diagUi.setUi(null);
+          diagUi.setOneShotUI(null);
         }}>
         {diagUi.title && <DialogTitle>{diagUi.title}</DialogTitle>}
         {diagUi.ui}

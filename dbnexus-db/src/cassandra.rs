@@ -700,6 +700,14 @@ impl ExportQueryResult for CassandraDB {
 
 #[async_trait::async_trait]
 impl QuerySql for CassandraDB {
+    async fn get_update_sql_from_result_set(
+        &self,
+        sql: &str,
+        old_values: &[Option<String>],
+        new_values: &[Option<String>],
+    ) -> anyhow::Result<Vec<String>> {
+        get_update_sql_from_result_set_impl(self, sql, old_values, new_values).await
+    }
     async fn simple_execute_sql(&self, sql: &str) -> anyhow::Result<Option<usize>> {
         self.session
             .query_unpaged(sql, &[])
@@ -1033,14 +1041,6 @@ pub(crate) fn extract_cql3_parser_ident(x: &cql3_parser::common::Identifier) -> 
 }
 #[async_trait::async_trait]
 impl SchemaTrait for CassandraDB {
-    async fn get_update_sql_from_result_set(
-        &self,
-        sql: &str,
-        old_values: &[Option<String>],
-        new_values: &[Option<String>],
-    ) -> anyhow::Result<Vec<String>> {
-        get_update_sql_from_result_set_impl(self, sql, old_values, new_values).await
-    }
     fn list_sql_current_values(&self) -> &'static [&'static str] {
         <Self as SqlBuilder>::get_current_values(self)
     }

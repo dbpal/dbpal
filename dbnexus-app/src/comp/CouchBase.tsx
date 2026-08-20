@@ -577,7 +577,7 @@ function CouchBaseQuery(props: { value?: string }) {
   const setEditorContext = useContext(QueryIDEditorChatCtx);
   const [markdownModel, setMarkdownModel] = useState(false);
   const [hightlightStr, setHighlightStr] = useState("");
-  const { setUi } = useOneShotDialogUI();
+  const { setOneShotUI } = useOneShotDialogUI();
   useEffect(() => {
     setEditorContext.setEditor(editor);
   }, [editor, setEditor, setEditorContext]);
@@ -746,7 +746,7 @@ function CouchBaseQuery(props: { value?: string }) {
                     return;
                   }
 
-                  setUi(
+                  setOneShotUI(
                     <ExportView
                       supportKind={["json", "jsonline"]}
                       exportOP={(kind, file, taskId, sizeEmitter) => {

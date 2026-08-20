@@ -420,7 +420,7 @@ function ViewMenu(props: {
   const { view, reload, viewKind, dbName, kind } = props;
   const { showNotification } = useNotification();
 
-  const { setUi } = useOneShotDialogUI();
+  const { setOneShotUI } = useOneShotDialogUI();
   const handleDrop = async () => {
     const confirm = await secondConfirm({
       title: `Drop view '${view}'`,
@@ -521,7 +521,7 @@ function ViewMenu(props: {
       <Divider />
       <MenuItem
         onClick={() => {
-          setUi(
+          setOneShotUI(
             <ExportTableOrView
               dbName={dbName}
               name={view}

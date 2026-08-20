@@ -307,7 +307,7 @@ function SqlQuery(props: {
   const querySomeShow = useQueryExtraUI((s) => s.extra);
   const { save: saveQueryLog } = useQueryLogStore();
   const [markdownModel, setMarkdownModel] = useState(false);
-  const { setUi: setOneShotUI } = useOneShotDialogUI();
+  const { setOneShotUI: setOneShotUI } = useOneShotDialogUI();
   const { getSwitch } = useBoolSwitch();
   const setEditorContext = useContext(QueryIDEditorChatCtx);
   useEffect(() => {

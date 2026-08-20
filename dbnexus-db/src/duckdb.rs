@@ -419,6 +419,14 @@ impl DuckDB {
 
 #[async_trait::async_trait]
 impl QuerySql for DuckDB {
+    async fn get_update_sql_from_result_set(
+        &self,
+        sql: &str,
+        old_values: &[Option<String>],
+        new_values: &[Option<String>],
+    ) -> anyhow::Result<Vec<String>> {
+        get_update_sql_from_result_set_impl(self, sql, old_values, new_values).await
+    }
     fn support_tx(&self) -> bool {
         true
     }
@@ -946,23 +954,6 @@ impl DuckDB {
 
 #[async_trait::async_trait]
 impl SchemaTrait for DuckDB {
-    async fn get_update_sql_from_result_set(
-        &self,
-        sql: &str,
-        old_values: &[Option<String>],
-        new_values: &[Option<String>],
-    ) -> anyhow::Result<Vec<String>> {
-        get_update_sql_from_result_set_impl(self, sql, old_values, new_values).await
-    }
-    async fn rename_index(
-        &self,
-        _table: &str,
-        _old_name: &str,
-        _new_name: &str,
-    ) -> anyhow::Result<Option<String>> {
-        self.backend_kind().not_support_feature("raname index")
-    }
-
     async fn drop_index(&self, _table_name: &str, index: &str) -> anyhow::Result<Option<String>> {
         let sql = format!(r#"DROP INDEX "{index}";"#);
         self.simple_execute_sql(&sql).await?;

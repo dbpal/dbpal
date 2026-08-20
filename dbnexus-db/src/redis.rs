@@ -833,15 +833,6 @@ impl EncodeXlsxDatetime for RedisDB {}
 
 #[async_trait::async_trait]
 impl SchemaTrait for RedisDB {
-    async fn get_update_sql_from_result_set(
-        &self,
-        _sql: &str,
-        _old_values: &[Option<String>],
-        _new_values: &[Option<String>],
-    ) -> anyhow::Result<Vec<String>> {
-        self.backend_kind()
-            .not_support_feature("get update sql from result set")
-    }
     async fn list_data_types(&self) -> anyhow::Result<Vec<String>> {
         anyhow::Ok(vec![])
     }
@@ -1293,6 +1284,15 @@ impl RedisDB {
 
 #[async_trait::async_trait]
 impl QuerySql for RedisDB {
+    async fn get_update_sql_from_result_set(
+        &self,
+        _sql: &str,
+        _old_values: &[Option<String>],
+        _new_values: &[Option<String>],
+    ) -> anyhow::Result<Vec<String>> {
+        self.backend_kind()
+            .not_support_feature("get update sql from result set")
+    }
     fn support_tx(&self) -> bool {
         false
     }

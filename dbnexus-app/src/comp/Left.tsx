@@ -1083,7 +1083,7 @@ function DatabaseMenu(props: {
 
   const conn_established = is_connected(dbName);
 
-  const { setUi } = useOneShotDialogUI();
+  const { setOneShotUI } = useOneShotDialogUI();
 
   return (
     <MenuList>
@@ -1110,12 +1110,12 @@ function DatabaseMenu(props: {
       {conn_established && kind != DataSourceKind.Oracle && (
         <MenuCreateSchema
           handleCreate={() => {
-            setUi(
+            setOneShotUI(
               <CreateSchema
                 dbName={dbName}
                 handleClose={() => {
                   reload();
-                  setUi(null);
+                  setOneShotUI(null);
                 }}
                 kind={kind}
                 schemas={schemas}
@@ -1176,7 +1176,7 @@ function CatalogMenu(props: { dbName; reload; kind: DataSourceKind }) {
   const { dbName, reload, kind } = props;
   const { is_connected } = useConnected();
   const conn_established = is_connected(dbName);
-  const { setUi } = useOneShotDialogUI();
+  const { setOneShotUI } = useOneShotDialogUI();
   return (
     <div>
       <MenuList>
@@ -1184,12 +1184,12 @@ function CatalogMenu(props: { dbName; reload; kind: DataSourceKind }) {
         {conn_established && kind != DataSourceKind.DuckDB && (
           <MenuCreateDatabase
             handleCreate={() => {
-              setUi(
+              setOneShotUI(
                 <CreateDatabase
                   dbName={dbName}
                   handleClose={() => {
                     reload();
-                    setUi(null);
+                    setOneShotUI(null);
                   }}
                   kind={kind}
                 />,

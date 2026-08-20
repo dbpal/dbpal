@@ -584,14 +584,6 @@ impl MysqlDB {
 #[async_trait::async_trait]
 
 impl SchemaTrait for MysqlDB {
-    async fn get_update_sql_from_result_set(
-        &self,
-        sql: &str,
-        old_values: &[Option<String>],
-        new_values: &[Option<String>],
-    ) -> anyhow::Result<Vec<String>> {
-        get_update_sql_from_result_set_impl(self, sql, old_values, new_values).await
-    }
     async fn list_sequence(&self) -> anyhow::Result<Vec<SequenceDetail>> {
         match self.kind {
             BackendKindMysql::Mariadb => {
@@ -1725,6 +1717,14 @@ impl ExportQueryResult for MysqlDB {
 
 #[async_trait::async_trait]
 impl QuerySql for MysqlDB {
+    async fn get_update_sql_from_result_set(
+        &self,
+        sql: &str,
+        old_values: &[Option<String>],
+        new_values: &[Option<String>],
+    ) -> anyhow::Result<Vec<String>> {
+        get_update_sql_from_result_set_impl(self, sql, old_values, new_values).await
+    }
     fn support_tx(&self) -> bool {
         true
     }

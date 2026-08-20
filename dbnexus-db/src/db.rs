@@ -345,6 +345,25 @@ impl QueryEventEmit for QueryRespMemoryCollector {
     }
 }
 
+struct DropConn {
+    db: Option<Box<dyn QuerySql>>,
+    query_id: String,
+}
+
+impl Drop for DropConn {
+    fn drop(&mut self) {
+        let db = self.db.take();
+        if let Some(db) = db {
+            let query_id = self.query_id.clone();
+            tokio::spawn(async move {
+                if let Err(err) = db.close_connection(&query_id).await {
+                    log::error!("close connection ailed:{}", err);
+                }
+            });
+        }
+    }
+}
+
 /// representation of schema
 #[async_trait::async_trait]
 pub trait SchemaTrait:
@@ -360,13 +379,6 @@ pub trait SchemaTrait:
     + ExtractSqlValeFromJsonValue
     + EncodeXlsxDatetime
 {
-    async fn get_update_sql_from_result_set(
-        &self,
-        sql: &str,
-        old_values: &[Option<String>],
-        new_values: &[Option<String>],
-    ) -> anyhow::Result<Vec<String>>;
-
     async fn create_table(&self, req: &CreateTableReq) -> anyhow::Result<String> {
         let ss = SchemaTrait::create_table_sql(self, req)?;
         let mut sc = SqlCollect::default();
@@ -679,24 +691,6 @@ pub trait SchemaTrait:
         let task_write = tokio::spawn(async move {
             // use tx to commit the data
 
-            struct DropConn {
-                db: Option<Box<dyn SchemaTrait>>,
-                query_id: String,
-            }
-
-            impl Drop for DropConn {
-                fn drop(&mut self) {
-                    let db = self.db.take();
-                    if let Some(db) = db {
-                        let query_id = self.query_id.clone();
-                        tokio::spawn(async move {
-                            if let Err(err) = db.close_connection(&query_id).await {
-                                log::error!("close connection ailed:{}", err);
-                            }
-                        });
-                    }
-                }
-            }
             let query_id = generate_random_string(10);
             this.open_connection(&query_id).await?;
 
@@ -1212,6 +1206,8 @@ pub trait SqlBuilder: GetBackendKind {
         // otherwise should use all value
         // to do operation.
         let contains_pri = fs.iter().any(|x| x.is_primary);
+        // check all primary key have value
+
         let mut sql = String::new();
 
         let first = FirstTrue::default();
@@ -2527,6 +2523,13 @@ pub trait QuerySql: GetBackendKind + Send + Sync + 'static + LanguageServer {
     async fn get_auto_commit(&self, _query_id: &str) -> anyhow::Result<bool> {
         self.backend_kind().not_support_feature("transaction")
     }
+
+    async fn get_update_sql_from_result_set(
+        &self,
+        sql: &str,
+        old_values: &[Option<String>],
+        new_values: &[Option<String>],
+    ) -> anyhow::Result<Vec<String>>;
 
     async fn set_auto_commit(&self, _query_id: &str, _commit: bool) -> anyhow::Result<()> {
         self.backend_kind().not_support_feature("transaction")

@@ -703,7 +703,7 @@ function SqlTableView(props: {
 
   const [page, setPage] = useState(0);
   const { sql: pageSize, setPageSize } = usePageSize();
-  const { setUi } = useOneShotDialogUI();
+  const { setOneShotUI } = useOneShotDialogUI();
   const [resp, setResp] = useState<MuiDataGridData>({
     sql: "",
     fields: [],
@@ -1116,7 +1116,7 @@ function SqlTableView(props: {
             right=<>
               <IconButton
                 onClick={() => {
-                  setUi(
+                  setOneShotUI(
                     <ExportTableOrView
                       dbName={dbName}
                       name={tableName}
@@ -1135,7 +1135,7 @@ function SqlTableView(props: {
       },
       pagination: SqlTablePagination,
     };
-  }, [isTable, kind, makePara, setUi, tableName, dbName]);
+  }, [isTable, kind, makePara, setOneShotUI, tableName, dbName]);
   const sortModel = clientModel ? "client" : "server";
   const { getColumnVisibility, setColumnVisibility } = useTableColumnVisibleStore(
     (s) => s,

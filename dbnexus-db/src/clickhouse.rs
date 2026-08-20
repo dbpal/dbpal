@@ -201,14 +201,6 @@ impl ExtractSqlValeFromJsonValue for ClickHouseDB {
 
 #[async_trait::async_trait]
 impl SchemaTrait for ClickHouseDB {
-    async fn get_update_sql_from_result_set(
-        &self,
-        sql: &str,
-        old_values: &[Option<String>],
-        new_values: &[Option<String>],
-    ) -> anyhow::Result<Vec<String>> {
-        get_update_sql_from_result_set_impl(self, sql, old_values, new_values).await
-    }
     async fn list_data_types(&self) -> anyhow::Result<Vec<String>> {
         LexerCompletionTrait::get_types(self).await
     }
@@ -881,6 +873,14 @@ impl ClickHouseDB {
 
 #[async_trait::async_trait]
 impl QuerySql for ClickHouseDB {
+    async fn get_update_sql_from_result_set(
+        &self,
+        sql: &str,
+        old_values: &[Option<String>],
+        new_values: &[Option<String>],
+    ) -> anyhow::Result<Vec<String>> {
+        get_update_sql_from_result_set_impl(self, sql, old_values, new_values).await
+    }
     fn support_tx(&self) -> bool {
         false
     }

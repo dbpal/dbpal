@@ -2,6 +2,7 @@ import {
   Alert,
   Button,
   Divider,
+  IconButton,
   ListItemIcon,
   ListItemText,
   MenuItem,
@@ -23,28 +24,33 @@ import {
   allGridHeaderTitle,
   gridColumnHeaderSelectClassName,
   DbnameContext,
+  DataSourceKind,
 } from "./helper.ts";
+import EditIcon from "@mui/icons-material/Edit";
 
 import React, { useCallback, useContext, useEffect, useMemo, useState } from "react";
 import { keyNotInTable } from "./Common";
 import ArrowUpwardIcon from "@mui/icons-material/ArrowUpward";
 import ArrowDownwardIcon from "@mui/icons-material/ArrowDownward";
-
+import PlayArrowIcon from "@mui/icons-material/PlayArrow";
 import { AppColumnMenu, ResetColumnWidth, ViewRowInModal } from "./CommonComp.tsx";
 import VisibilityIcon from "@mui/icons-material/Visibility";
 import {
+  AppCode,
   AppDataGridPagination,
   CopyAsXXX,
   ExportQueryResultToFile,
+  SqlTableViewData,
   StackRowCenter,
 } from "./CommonComp2.tsx";
 import {
   useColumnWidthStore,
   useContextMenu,
   useNotification,
+  useOneShotDialogUI,
   usePageSize,
 } from "./store.tsx";
-import { Field, MuiDataGridData } from "./bindings.ts";
+import { commands, Field, MuiDataGridData } from "./bindings.ts";
 import {
   DataGrid,
   GridSlotsComponent,
@@ -54,16 +60,90 @@ import {
 } from "./datagridExport.ts";
 import { CustomToolbar } from "./CustomToolBar.tsx";
 
+function EditResultSetData(props: {
+  dbName: string;
+  sql: string;
+  oldValues: object;
+  fields: Field[];
+}) {
+  const { dbName, sql, oldValues, fields } = props;
+  const { showNotification } = useNotification();
+  const [up, setUp] = useState<string[]>(null);
+  let makeArray = (x: object) => {
+    return fields.map((f) => x[f.field]);
+  };
+  return (
+    <Stack spacing={1}>
+      {up && (
+        <AppCode
+          codeBlock={(function () {
+            return up.join(";\n");
+          })()}
+          extra={() => {
+            return (
+              <IconButton color="primary" onClick={async () => {}}>
+                <PlayArrowIcon />
+              </IconButton>
+            );
+          }}
+          language="sql"
+        />
+      )}
+
+      <SqlTableViewData
+        initValues={oldValues}
+        fields={fields}
+        isAdd={false}
+        buttonName={"modify"}
+        handleData={async (newvalues) => {
+          try {
+            let ret = await commands.getUpdateSqlFromResultSet(
+              dbName,
+              sql,
+              makeArray(oldValues),
+              makeArray(newvalues),
+            );
+            setUp(ret);
+          } catch (e) {
+            showNotification({
+              severity: "error",
+              title: "trying to get update sql failed",
+              message: e,
+            });
+          }
+        }}
+      />
+    </Stack>
+  );
+}
+
 function RespContextMenu(props: {
   content: string;
   field: string;
+  fields: Field[];
   setSort: (model: GridSortModel) => void;
   viewInModal: () => void;
   dbName: string;
+  kind: DataSourceKind;
   fieldType: string;
   getRow: () => object;
+  sql: string;
 }): React.ReactElement {
-  const { content, field, setSort, viewInModal, dbName, getRow, fieldType } = props;
+  const {
+    content,
+    field,
+    setSort,
+    viewInModal,
+    dbName,
+    getRow,
+    fieldType,
+    kind,
+    sql,
+    fields,
+  } = props;
+  const supportModify = ![DataSourceKind.Redis].includes(kind);
+  const { setOneShotUI } = useOneShotDialogUI();
+
   return (
     <MenuList>
       <CopyAsXXX
@@ -98,13 +178,31 @@ function RespContextMenu(props: {
         </ListItemIcon>
         <ListItemText> {field} DESC </ListItemText>
       </MenuItem>
+      {supportModify && (
+        <MenuItem
+          onClick={() => {
+            setOneShotUI(
+              <EditResultSetData
+                fields={fields}
+                sql={sql}
+                dbName={dbName}
+                oldValues={getRow()}
+              />,
+            );
+          }}>
+          <ListItemIcon>
+            <EditIcon />
+          </ListItemIcon>
+          <ListItemText> try edit </ListItemText>
+        </MenuItem>
+      )}
     </MenuList>
   );
 }
 
 function QueryResp(props: { data: MuiDataGridData }): React.ReactElement {
   const { data } = props;
-  const { dbName } = useContext(DbnameContext);
+  const { dbName, kind } = useContext(DbnameContext);
   const { getColumnWidth } = useColumnWidthStore();
   const [selectedColumns, setSelectColumns] = useState<Set<string>>(new Set());
   const apiRef = useGridApiRef();
@@ -164,11 +262,14 @@ function QueryResp(props: { data: MuiDataGridData }): React.ReactElement {
                 getRow={() => {
                   return row;
                 }}
+                fields={data.fields}
                 fieldType={data.fields.find((e) => e.field == field).data_type}
                 dbName={dbName}
+                kind={kind}
                 content={content}
                 field={field}
                 setSort={setSortModel}
+                sql={data.sql}
               />
             ),
             event: e,
@@ -177,7 +278,7 @@ function QueryResp(props: { data: MuiDataGridData }): React.ReactElement {
         style: { cursor: "context-menu" },
       },
     } as GridSlotsComponentsProps;
-  }, [data, setUpMenu, dbName]);
+  }, [data, setUpMenu, dbName, kind]);
 
   const onSortModelChange = useCallback((e) => {
     setSortModel(e);

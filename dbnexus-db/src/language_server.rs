@@ -500,9 +500,10 @@ pub(crate) async fn get_update_sql_from_result_set_impl<
                     backend.show_table_columns(&r.reference.name.value).await?
                 };
                 // TODO if need check check is primary key exists.
-                // if !fs.iter().any(|x| x.is_primary) {
-                //     anyhow::bail!(format!("table '{:?}' have no primary key", r.reference))
-                // }
+                if !fs.iter().any(|x| x.is_primary) {
+                    anyhow::bail!(format!("table '{:?}' have no primary key", r.reference))
+                }
+
                 // add to catalog
                 catalog = catalog.table({
                     let mut table = if let Some(x) = &r.reference.schema {
@@ -640,6 +641,15 @@ pub(crate) async fn get_update_sql_from_result_set_impl<
                 }
             } else {
                 anyhow::bail!("no old values found???")
+            }
+            // check all primay
+            for f in fs.iter() {
+                if !f.is_primary {
+                    continue;
+                }
+                if wheres.get(&f.field).is_none() {
+                    anyhow::bail!(format!("table:{} field:'{}' have one value in this query,and this is primary key,we need this to update the value", table.to_string(), f.field))
+                }
             }
         }
         let sql = SqlBuilder::update_sql(&sql_builder, &table.name.value, fs, &values, &wheres)?;

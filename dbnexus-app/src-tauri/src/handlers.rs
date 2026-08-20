@@ -1118,6 +1118,25 @@ impl QueryEventEmit for QueryEventChannelEmit {
 
 #[specta::specta]
 #[tauri::command]
+pub async fn get_update_sql_from_result_set(
+    db_name: String,
+    app: tauri::State<'_, DBPal>,
+    sql: String,
+    old_values: Vec<Option<String>>,
+    new_values: Vec<Option<String>>,
+) -> Result<Vec<String>, ErrorFrontend> {
+    let db = app
+        .get_backend(db_name.as_str())
+        .await
+        .map_err(ErrorFrontend::from)?;
+    db.as_query_sql()
+        .get_update_sql_from_result_set(&sql, &old_values, &new_values)
+        .await
+        .map_err(|e| ErrorFrontend::from(e))
+}
+
+#[specta::specta]
+#[tauri::command]
 pub async fn query_sql(
     db_name: String,
     query_id: &str,
