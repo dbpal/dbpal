@@ -7,7 +7,8 @@ use sqlparser::keywords::Keyword;
 use sqlparser::tokenizer::{Location, Token, TokenWithSpan};
 
 use crate::db::{
-    CreatedTypeDef, DBTrait, Field, GetBackendKind, SchemaTrait, SequenceDetail, SqlEvent,
+    CreatedTypeDef, DBTrait, Field, GetBackendKind, SchemaTrait, SequenceDetail, SqlBuilder,
+    SqlEvent,
 };
 use crate::helper::try_remove_one_at;
 use crate::sqlparser_completion::{CompletionStatement, Scopes, TempTableColumn};
@@ -430,6 +431,37 @@ pub trait GetKeyWords: GetBackendKind {
     }
 }
 
+pub struct MakeUpdateSqlFromResultsetSqlBuilder<'a, T: SchemaTrait> {
+    schema: Option<String>,
+    backend: &'a T,
+}
+
+impl<'a, T: SchemaTrait> GetBackendKind for MakeUpdateSqlFromResultsetSqlBuilder<'a, T> {
+    fn backend_kind(&self) -> crate::db::BackendKind {
+        self.backend.backend_kind()
+    }
+}
+
+impl<'a, T: SchemaTrait> SqlBuilder for MakeUpdateSqlFromResultsetSqlBuilder<'a, T> {
+    fn gen_show_sql(
+        &self,
+        _table_name: &str,
+        _fields: Option<&[Field]>,
+        _para: Option<&crate::db::ShowTableParameter>,
+    ) -> String {
+        unreachable!("I only use this the build insert sql ")
+    }
+
+    fn get_schema(&self) -> Option<&str> {
+        // this only method I need reimpl is this.
+        self.schema.as_deref()
+    }
+
+    fn put_value_in_sql(&self, typ: &str, value: &str) -> anyhow::Result<String> {
+        SqlBuilder::put_value_in_sql(self.backend, typ, value)
+    }
+}
+
 pub(crate) async fn get_update_table_columns_impl<T: SchemaTrait + LangServerCommon + DBTrait>(
     backend: &T,
     sql: &str,
@@ -437,11 +469,12 @@ pub(crate) async fn get_update_table_columns_impl<T: SchemaTrait + LangServerCom
     new_values: Vec<Option<String>>,
 ) -> anyhow::Result<Vec<String>> {
     let d = backend.dialect();
+    // 首先提取表
     let extract_tables = sql_insight::extractor::extract_table_operations(d.as_ref(), sql)?;
-    let mut cols: HashMap<sql_insight::TableReference, Vec<Field>> = HashMap::new();
-    let catalog = sql_insight::catalog::Catalog::new();
-
+    let mut cols_map: HashMap<sql_insight::TableReference, Vec<Field>> = HashMap::new();
+    let mut catalog = sql_insight::catalog::Catalog::new();
     {
+        // 这里主要是取到数据库的表结构和
         let mut table_entered: HashSet<sql_insight::TableReference> = HashSet::new();
         for e in extract_tables {
             let e = e?;
@@ -449,22 +482,150 @@ pub(crate) async fn get_update_table_columns_impl<T: SchemaTrait + LangServerCom
                 if table_entered.contains(&r.reference) {
                     continue;
                 }
-                table_entered.insert(r.reference.clone());
-                let fs = backend.show_table_columns(&r.reference.name.value).await?;
-                if !fs.iter().any(|x| x.is_primary) {
+                if r.reference.catalog.is_some() {
                     anyhow::bail!(format!(
-                        "table '{}' have no primary key",
-                        r.reference.name.value
-                    ))
+                        "dbpal can't handle catalog is some,this is design choice"
+                    ));
                 }
-                cols.insert(r.reference.clone(), fs);
+                table_entered.insert(r.reference.clone());
+
+                let fs = if let Some(schema) = r.reference.schema.as_ref() {
+                    // open database if need.
+                    let x = backend.open_schema(&schema.value).await?;
+                    x.show_table_columns(&r.reference.name.value).await?
+                } else {
+                    backend.show_table_columns(&r.reference.name.value).await?
+                };
+                // check is primary key exists.
+                if !fs.iter().any(|x| x.is_primary) {
+                    anyhow::bail!(format!("table '{:?}' have no primary key", r.reference))
+                }
+                // add to catalog
+                catalog = catalog.table({
+                    let mut table = if let Some(x) = &r.reference.schema {
+                        sql_insight::catalog::CatalogTable::new(
+                            x.value.clone(),
+                            r.reference.name.value.clone(),
+                        )
+                    } else {
+                        sql_insight::catalog::CatalogTable::unqualified(
+                            r.reference.name.value.clone(),
+                        )
+                    };
+                    table = table.columns(fs.iter().map(|x| x.field.clone()));
+                    table
+                });
+                cols_map.insert(r.reference.clone(), fs);
             }
         }
     }
-    // make ret
-    let op = sql_insight::extractor::ExtractorOptions::new();
 
-    todo!()
+    let column_reads = {
+        let mut op = sql_insight::extractor::ExtractorOptions::new();
+        op = op.with_catalog(&catalog);
+
+        let vec_column_reads =
+            sql_insight::extractor::extract_column_operations_with_options(d.as_ref(), sql, op)?;
+
+        let mut column_reads = vec![];
+        for x in vec_column_reads {
+            let x = x?;
+            for r in x.reads.iter() {
+                column_reads.push(r.clone());
+            }
+        }
+        column_reads
+    };
+
+    // make change to every table
+
+    let mut table_value_changed: HashMap<
+        sql_insight::TableReference,
+        Vec<(&str, &Option<String>)>,
+    > = HashMap::new();
+
+    let mut old_table_values: HashMap<sql_insight::TableReference, Vec<_>> = HashMap::new();
+
+    for (index, (old_value, new_value)) in old_values.iter().zip(new_values.iter()).enumerate() {
+        let column = match column_reads.get(index) {
+            Some(x) => x,
+            None => anyhow::bail!(format!("#{} not found column", index)),
+        };
+
+        /*
+            -- 假设有两个表都有 column 'id'
+            SELECT id FROM users JOIN orders ON users.id = orders.user_id;
+            --      ^^
+            -- 这个 'id' 是 users.id 还是 orders.id？不明确！
+        */
+        let table = match &column.reference.table {
+            Some(x) => x,
+            None => anyhow::bail!(format!(
+                "column '{}' have no table,don't know whick table to update.",
+                column.reference.name.value
+            )),
+        };
+        let col_name = column.reference.name.value.as_str();
+
+        {
+            let v = (col_name, old_value);
+            match old_table_values.get_mut(table) {
+                Some(x) => {
+                    x.push(v);
+                }
+                None => {
+                    old_table_values.insert(table.clone(), vec![v]);
+                }
+            };
+        }
+
+        if old_value != new_value {
+            let v = (col_name, new_value);
+            match table_value_changed.get_mut(table) {
+                Some(x) => {
+                    x.push(v);
+                }
+                None => {
+                    table_value_changed.insert(table.clone(), vec![v]);
+                }
+            }
+        }
+    }
+    // 构造返回值呢
+
+    let mut ret = vec![];
+    for (table, v) in table_value_changed.iter() {
+        // get fs
+        let fs = match cols_map.get(table) {
+            Some(x) => x,
+            None => anyhow::bail!("don't find fs for table :{:?}", table),
+        };
+
+        let sql_builder = MakeUpdateSqlFromResultsetSqlBuilder {
+            backend,
+            schema: table.schema.as_ref().map(|x| x.value.clone()),
+        };
+
+        let mut values = HashMap::new();
+        for (col_name, value) in v.iter() {
+            values.insert((*col_name).to_owned(), (*value).clone());
+        }
+        let mut wheres = HashMap::new();
+
+        {
+            let old_values = old_table_values.get(table).map(|x| &x[..]).unwrap_or(&[]);
+            if old_values.len() > 0 {
+                for (col_name, value) in old_values.iter() {
+                    wheres.insert((*col_name).to_owned(), (*value).clone());
+                }
+            } else {
+                anyhow::bail!("no old values found???")
+            }
+        }
+        let sql = SqlBuilder::update_sql(&sql_builder, &table.name.value, &fs, &values, &wheres)?;
+        ret.push(sql);
+    }
+    anyhow::Ok(ret)
 }
 
 #[async_trait::async_trait]
