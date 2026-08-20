@@ -114,7 +114,7 @@ function EditResultSetData(props: {
         initValues={oldValues}
         fields={fields}
         isAdd={false}
-        buttonName={"modify"}
+        buttonName={"gen modify sql"}
         handleData={async (newvalues) => {
           try {
             let ret = await commands.getUpdateSqlFromResultSet(
@@ -210,8 +210,7 @@ function RespContextMenu(props: {
                   oldValues={getRow()}
                 />
               ),
-              maxWidth: "xl",
-              fullWidth: true,
+              op: { maxWidth: "xl", fullWidth: true },
             });
           }}>
           <ListItemIcon>

@@ -3,7 +3,7 @@ import { create, StateCreator } from "zustand";
 import {
   AlertColor,
   AlertTitle,
-  Breakpoint,
+  DialogProps,
   IconButton,
   Stack,
   Typography,
@@ -1449,22 +1449,23 @@ interface OneShotUI {
   setOneShotUI: (config: {
     ui: ReactElement | null;
     title?: string;
-    maxWidth?: Breakpoint | false | undefined;
-    fullWidth?: boolean | undefined;
+    op?: Omit<DialogProps, "open">;
   }) => void;
   title?: string;
-  maxWidth?: Breakpoint | false | undefined;
-  fullWidth?: boolean | undefined;
+  op: Omit<DialogProps, "open">;
 }
 
 // used in place I don't hard to pass parameter mostly used in menu handle
 
 export const useOneShotDialogUI = create<OneShotUI>()((set) => ({
   ui: null,
-  setOneShotUI: ({ ui, title, maxWidth, fullWidth }) =>
-    set({ ui, title, maxWidth, fullWidth }),
-  title: "",
-  maxWidth: undefined,
+  setOneShotUI: ({ ui, title, op }) => {
+    if (!op) {
+      op = {};
+    }
+    set({ ui, title, op });
+  },
+  op: {},
 }));
 
 interface EditInModalLanguage {

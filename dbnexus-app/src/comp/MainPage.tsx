@@ -271,8 +271,7 @@ function DialogExtraUI() {
     diagUi.ui && (
       <Dialog
         open={true}
-        maxWidth={diagUi.maxWidth}
-        fullWidth={diagUi.fullWidth}
+        {...diagUi.op}
         onClose={() => {
           diagUi.setOneShotUI({ ui: null });
         }}>
