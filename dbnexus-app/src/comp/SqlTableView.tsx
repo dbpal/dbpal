@@ -5,7 +5,6 @@ import {
   useContext,
   useEffect,
   useMemo,
-  useRef,
   useState,
 } from "react";
 import ArrowOutwardIcon from "@mui/icons-material/ArrowOutward";
@@ -27,7 +26,6 @@ import {
   MenuList,
   Modal,
   Stack,
-  TextField,
   Tooltip,
   Typography,
 } from "@mui/material";
@@ -54,7 +52,6 @@ import { FaArrowsAltV } from "react-icons/fa";
 import {
   DataSourceKind,
   handleCopyToClipboard,
-  isTypeLargeText,
   secondConfirm,
   textEllipsisStyle,
   quoteDatabaseIdentifier,
@@ -84,12 +81,11 @@ import {
 } from "./CommonComp";
 
 import { editor } from "monaco-editor";
-import wcmatch from "wildcard-match";
+
 import { MdEditNote } from "react-icons/md";
 import {
   AppDataGridPagination,
   AppDataGridToolBar,
-  ClearableTextField,
   CopyAsXXX,
   CopySql,
   ExportQueryResultToFile,
@@ -100,6 +96,7 @@ import {
   SetFilterSort,
   SimpleFlexEditor,
   SliderSize,
+  SqlTableViewData,
   StackRowCenter,
 } from "./CommonComp2";
 import { showTable } from "./handlers";
@@ -114,7 +111,6 @@ import {
   usePageSize,
   UseSizeConfig,
   useSizeStore,
-  useSqlDataFilter,
   useSqlTableFilterOp,
   useTableColumnVisibleStore,
   useTabsManage,
@@ -1288,147 +1284,6 @@ function SqlTableView(props: {
           </Box>
         </Modal>
       )}
-    </Stack>
-  );
-}
-
-function SqlTableViewData(props: {
-  handleData: (args: any) => Promise<void>;
-  fields: Field[];
-  initValues?: object;
-  buttonName;
-  isAdd: boolean;
-  handleClose?: () => void;
-}) {
-  let { handleData, fields, initValues, buttonName, isAdd, handleClose } = props;
-  if (!initValues) {
-    initValues = {};
-  }
-  fields.forEach((e) => {
-    if (e.is_auto_increment && isAdd) {
-      initValues[e.field] = "";
-    }
-  });
-  const { filter, setFilter } = useSqlDataFilter();
-
-  const filterFn = useMemo(() => {
-    return filter
-      ? wcmatch("*" + filter + "*", { flags: "i" })
-      : () => {
-          return true;
-        };
-  }, [filter]);
-
-  const [loading, setLoading] = useState(false);
-  const [args, setArgs] = useState(initValues);
-  const { showNotification } = useNotification();
-  const inputDoms = useRef({});
-
-  const handleModify = () => {
-    const argsclone = { ...args };
-    for (let i = 0; i < fields.length; i++) {
-      const f = fields[i];
-      if (f.is_auto_increment) {
-        continue;
-      }
-      if (!argsclone[f.field] && !f.nullable && !f.default_value) {
-        inputDoms.current[f.field].focus();
-        showNotification({
-          severity: "error",
-          title: `filed '${f.field}' need be filled`,
-        });
-        return;
-      }
-    }
-    for (const key in argsclone) {
-      if (!argsclone[key]) {
-        // make sure '' convert to null
-        argsclone[key] = null;
-      }
-    }
-    setLoading(true);
-    handleData(argsclone)
-      .then(() => {
-        console.log("handle value success");
-        showNotification({ severity: "success", title: `${buttonName} OK` });
-        if (handleClose) {
-          handleClose();
-        }
-      })
-      .catch((e) => {
-        console.error("handle value failure", e);
-        showNotification({
-          severity: "error",
-          title: `${buttonName} failure`,
-          message: e,
-        });
-      })
-      .finally(() => {
-        setLoading(false);
-      });
-  };
-
-  return (
-    <Stack>
-      {fields
-        .filter(
-          (f) =>
-            filterFn(f.field) || (args[f.field] ? filterFn(args[f.field]) : !filter),
-        )
-        .map((f) => {
-          return (
-            <Stack
-              key={f.field}
-              direction="row"
-              sx={{ alignContent: "center", justifyContent: "center" }}>
-              <TextField
-                inputRef={(x) => {
-                  inputDoms.current[f.field] = x;
-                }}
-                disabled={f.is_auto_increment}
-                value={args[f.field]}
-                helperText={
-                  f.data_type +
-                  " " +
-                  (f.nullable ? "null" : "not null") +
-                  " " +
-                  (f.is_auto_increment ? "auto increment" : "") +
-                  " " +
-                  (f.default_value ? `default ${f.default_value}` : "")
-                }
-                required={!f.nullable}
-                label={f.field}
-                multiline={isTypeLargeText(f.data_type)}
-                rows={4}
-                fullWidth
-                onChange={(e) => {
-                  const value = e.target.value;
-                  const newArgs = { ...args };
-                  newArgs[f.field] = value;
-                  setArgs(newArgs);
-                }}
-              />
-            </Stack>
-          );
-        })}
-      <Divider />
-      <Stack direction="row" style={{ alignItems: "flex-start" }}>
-        <Button loading={loading} onClick={handleModify}>
-          {buttonName}
-        </Button>
-        <ClearableTextField
-          value={filter}
-          onChange={(e) => {
-            setFilter(e.target.value);
-          }}
-          label="filter"
-          fullWidth
-          helperText="can match field name and content"
-          onClear={() => {
-            setFilter("");
-          }}
-        />
-      </Stack>
     </Stack>
   );
 }
