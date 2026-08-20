@@ -88,10 +88,11 @@ function EditResultSetData(props: {
                     color="primary"
                     onClick={async () => {
                       try {
-                        await commands.simpleExecuteSql(dbName, sql);
+                        const row_aff = await commands.simpleExecuteSql(dbName, sql);
                         showNotification({
                           severity: "success",
                           title: "execute sql success",
+                          message: `row affected ${row_aff}`,
                         });
                       } catch (e) {
                         showNotification({
