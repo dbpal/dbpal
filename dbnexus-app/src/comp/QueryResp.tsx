@@ -104,14 +104,16 @@ function EditResultSetData(props: {
 
   return (
     <Stack spacing={1}>
-      {err && <Alert severity="error"> {err} </Alert>}
+      {err && (
+        <Alert severity="error" color="error">
+          {err}
+        </Alert>
+      )}
       {up &&
         up.map((sql, index) => (
           <AppCode
             key={index}
-            codeBlock={(function () {
-              return up.join(";\n");
-            })()}
+            codeBlock={sql}
             extra={() => {
               return (
                 <Tooltip title="try execute the sql,those sql execute not in transaction mode,notice this.">
