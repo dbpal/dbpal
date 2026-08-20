@@ -68,12 +68,43 @@ function EditResultSetData(props: {
 }) {
   const { dbName, sql, oldValues, fields } = props;
   const { showNotification } = useNotification();
+  const [err, setErr] = useState("");
   const [up, setUp] = useState<string[]>(null);
-  let makeArray = (x: object) => {
-    return fields.map((f) => x[f.field]);
-  };
+  let makeArray = useCallback(
+    (x: object) => {
+      return fields.map((f) => x[f.field]);
+    },
+    [fields],
+  );
+
+  useEffect(() => {
+    (async () => {
+      try {
+        let ret = await commands.getUpdateSqlFromResultSet(
+          dbName,
+          sql,
+          makeArray(oldValues),
+          makeArray(oldValues),
+        );
+        setUp(ret);
+      } catch (e) {
+        const msg = `sql:${sql} not be able to modify data from result set.because of `;
+        if (e.reason) {
+          setErr(msg + e.reason);
+        } else {
+          showNotification({
+            severity: "error",
+            title: msg,
+            message: e,
+          });
+        }
+      }
+    })();
+  }, [dbName, makeArray, oldValues, showNotification, sql]);
+
   return (
     <Stack spacing={1}>
+      {err && <Alert severity="error"> {err} </Alert>}
       {up &&
         up.map((sql, index) => (
           <AppCode
