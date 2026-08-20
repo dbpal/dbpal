@@ -74,21 +74,41 @@ function EditResultSetData(props: {
   };
   return (
     <Stack spacing={1}>
-      {up && (
-        <AppCode
-          codeBlock={(function () {
-            return up.join(";\n");
-          })()}
-          extra={() => {
-            return (
-              <IconButton color="primary" onClick={async () => {}}>
-                <PlayArrowIcon />
-              </IconButton>
-            );
-          }}
-          language="sql"
-        />
-      )}
+      {up &&
+        up.map((sql, index) => (
+          <AppCode
+            key={index}
+            codeBlock={(function () {
+              return up.join(";\n");
+            })()}
+            extra={() => {
+              return (
+                <Tooltip title="try execute the sql,those sql execute not in transaction mode,notice this.">
+                  <IconButton
+                    color="primary"
+                    onClick={async () => {
+                      try {
+                        await commands.simpleExecuteSql(dbName, sql);
+                        showNotification({
+                          severity: "success",
+                          title: "execute sql success",
+                        });
+                      } catch (e) {
+                        showNotification({
+                          severity: "error",
+                          message: e,
+                          title: "execute sql failed ",
+                        });
+                      }
+                    }}>
+                    <PlayArrowIcon />
+                  </IconButton>
+                </Tooltip>
+              );
+            }}
+            language="sql"
+          />
+        ))}
 
       <SqlTableViewData
         initValues={oldValues}
@@ -181,14 +201,18 @@ function RespContextMenu(props: {
       {supportModify && (
         <MenuItem
           onClick={() => {
-            setOneShotUI(
-              <EditResultSetData
-                fields={fields}
-                sql={sql}
-                dbName={dbName}
-                oldValues={getRow()}
-              />,
-            );
+            setOneShotUI({
+              ui: (
+                <EditResultSetData
+                  fields={fields}
+                  sql={sql}
+                  dbName={dbName}
+                  oldValues={getRow()}
+                />
+              ),
+              maxWidth: "xl",
+              fullWidth: true,
+            });
           }}>
           <ListItemIcon>
             <EditIcon />

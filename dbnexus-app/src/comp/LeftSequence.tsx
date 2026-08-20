@@ -178,18 +178,20 @@ function SequenceMenu(props: {
       <MenuItem
         sx={{ color: "error.main" }}
         onClick={() => {
-          setOneShotUI(
-            <DropSeq
-              kind={kind}
-              seq={seq}
-              handleClose={() => {
-                setOneShotUI(null);
-              }}
-              reload={reload}
-              dbName={dbName}
-            />,
-            `drop sequence ${seq.name}`,
-          );
+          setOneShotUI({
+            ui: (
+              <DropSeq
+                kind={kind}
+                seq={seq}
+                handleClose={() => {
+                  setOneShotUI({ ui: null });
+                }}
+                reload={reload}
+                dbName={dbName}
+              />
+            ),
+            title: `drop sequence ${seq.name}`,
+          });
         }}>
         <ListItemIcon>
           <DeleteForeverIcon color="error" />

@@ -549,31 +549,33 @@ function SqlQuery(props: {
                       if (!value) {
                         return;
                       }
-                      setOneShotUI(
-                        <ExportView
-                          supportKind={[
-                            "csv",
-                            "json",
-                            "jsonline",
-                            "xlsx",
-                            "html",
-                            "markdown",
-                          ]}
-                          exportOP={async (kind, file, taskId, sizeEmitter) => {
-                            const sql = getEditorText(editor, showNotification, true);
-                            return conn.current.exportQueryResult(
-                              queryId,
-                              sql,
-                              kind,
-                              file,
-                              taskId,
-                              sizeEmitter,
-                            );
-                          }}
-                          name="export_query_result"
-                        />,
-                        `export query result to a file`,
-                      );
+                      setOneShotUI({
+                        ui: (
+                          <ExportView
+                            supportKind={[
+                              "csv",
+                              "json",
+                              "jsonline",
+                              "xlsx",
+                              "html",
+                              "markdown",
+                            ]}
+                            exportOP={async (kind, file, taskId, sizeEmitter) => {
+                              const sql = getEditorText(editor, showNotification, true);
+                              return conn.current.exportQueryResult(
+                                queryId,
+                                sql,
+                                kind,
+                                file,
+                                taskId,
+                                sizeEmitter,
+                              );
+                            }}
+                            name="export_query_result"
+                          />
+                        ),
+                        title: `export query result to a file`,
+                      });
                     }}
                     disabled={markdownModel}
                     color="primary">

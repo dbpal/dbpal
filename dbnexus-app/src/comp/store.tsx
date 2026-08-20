@@ -1,6 +1,13 @@
 import { ReactElement, ReactNode, useCallback, useMemo } from "react";
 import { create, StateCreator } from "zustand";
-import { AlertColor, AlertTitle, IconButton, Stack, Typography } from "@mui/material";
+import {
+  AlertColor,
+  AlertTitle,
+  Breakpoint,
+  IconButton,
+  Stack,
+  Typography,
+} from "@mui/material";
 import React from "react";
 import { persist, PersistStorage, StorageValue } from "zustand/middleware";
 import Dexie, { type Table } from "dexie";
@@ -1438,17 +1445,26 @@ export function useTabSize() {
 }
 
 interface OneShotUI {
-  ui: ReactElement;
-  setOneShotUI: (ui: ReactElement, title?: string) => void;
+  ui: ReactElement | null;
+  setOneShotUI: (config: {
+    ui: ReactElement | null;
+    title?: string;
+    maxWidth?: Breakpoint | false | undefined;
+    fullWidth?: boolean | undefined;
+  }) => void;
   title?: string;
+  maxWidth?: Breakpoint | false | undefined;
+  fullWidth?: boolean | undefined;
 }
 
 // used in place I don't hard to pass parameter mostly used in menu handle
 
 export const useOneShotDialogUI = create<OneShotUI>()((set) => ({
   ui: null,
-  setOneShotUI: (ui, title: string) => set({ ui, title }),
+  setOneShotUI: ({ ui, title, maxWidth, fullWidth }) =>
+    set({ ui, title, maxWidth, fullWidth }),
   title: "",
+  maxWidth: undefined,
 }));
 
 interface EditInModalLanguage {

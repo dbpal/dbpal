@@ -1130,20 +1130,22 @@ function SaveFavoriteSqlView(props: {
                   title: "save favorite sql success.",
                 });
               } else {
-                setOneShotUI(
-                  <SaveFavoriteSqlViewOnTheFly
-                    dbName={dbName}
-                    sql={sql}
-                    kind={kind}
-                    onChangeFavName={(name) => {
-                      setFavoriteName(name);
-                    }}
-                    handleClose={() => {
-                      setOneShotUI(null);
-                    }}
-                  />,
-                  "set favorite name",
-                );
+                setOneShotUI({
+                  ui: (
+                    <SaveFavoriteSqlViewOnTheFly
+                      dbName={dbName}
+                      sql={sql}
+                      kind={kind}
+                      onChangeFavName={(name) => {
+                        setFavoriteName(name);
+                      }}
+                      handleClose={() => {
+                        setOneShotUI({ ui: null });
+                      }}
+                    />
+                  ),
+                  title: "set favorite name",
+                });
               }
             } catch (e) {
               showNotification({

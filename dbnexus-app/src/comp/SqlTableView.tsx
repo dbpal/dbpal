@@ -1116,15 +1116,17 @@ function SqlTableView(props: {
             right=<>
               <IconButton
                 onClick={() => {
-                  setOneShotUI(
-                    <ExportTableOrView
-                      dbName={dbName}
-                      name={tableName}
-                      kind={kind}
-                      isTable={isTable}
-                      para={makePara()}
-                    />,
-                  );
+                  setOneShotUI({
+                    ui: (
+                      <ExportTableOrView
+                        dbName={dbName}
+                        name={tableName}
+                        kind={kind}
+                        isTable={isTable}
+                        para={makePara()}
+                      />
+                    ),
+                  });
                 }}>
                 <ArrowCircleDownIcon />
               </IconButton>

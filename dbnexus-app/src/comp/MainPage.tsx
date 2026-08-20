@@ -223,15 +223,6 @@ function App() {
   return (
     <AppSnackbarProvider>
       <SettingProvider>
-        {/* source map test  */}
-
-        {/* <button
-          onClick={() => {
-            const a = undefined;
-            a.map();
-          }}>
-          panic
-        </button> */}
         <AppMenu />
         <DialogExtraUI />
         <ShowPanic />
@@ -279,10 +270,11 @@ function DialogExtraUI() {
   return (
     diagUi.ui && (
       <Dialog
-        slotProps={{ paper: { style: { width: "fit-content" } } }}
         open={true}
+        maxWidth={diagUi.maxWidth}
+        fullWidth={diagUi.fullWidth}
         onClose={() => {
-          diagUi.setOneShotUI(null);
+          diagUi.setOneShotUI({ ui: null });
         }}>
         {diagUi.title && <DialogTitle>{diagUi.title}</DialogTitle>}
         {diagUi.ui}

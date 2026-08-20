@@ -1110,18 +1110,21 @@ function DatabaseMenu(props: {
       {conn_established && kind != DataSourceKind.Oracle && (
         <MenuCreateSchema
           handleCreate={() => {
-            setOneShotUI(
-              <CreateSchema
-                dbName={dbName}
-                handleClose={() => {
-                  reload();
-                  setOneShotUI(null);
-                }}
-                kind={kind}
-                schemas={schemas}
-                handleReload={reload}
-              />,
-              "create " +
+            setOneShotUI({
+              ui: (
+                <CreateSchema
+                  dbName={dbName}
+                  handleClose={() => {
+                    reload();
+                    setOneShotUI({ ui: null });
+                  }}
+                  kind={kind}
+                  schemas={schemas}
+                  handleReload={reload}
+                />
+              ),
+              title:
+                "create " +
                 (function () {
                   let name = "database";
                   switch (kind) {
@@ -1133,7 +1136,7 @@ function DatabaseMenu(props: {
                   }
                   return `create ${name}`;
                 })(),
-            );
+            });
           }}
           kind={kind}
         />
@@ -1184,16 +1187,18 @@ function CatalogMenu(props: { dbName; reload; kind: DataSourceKind }) {
         {conn_established && kind != DataSourceKind.DuckDB && (
           <MenuCreateDatabase
             handleCreate={() => {
-              setOneShotUI(
-                <CreateDatabase
-                  dbName={dbName}
-                  handleClose={() => {
-                    reload();
-                    setOneShotUI(null);
-                  }}
-                  kind={kind}
-                />,
-                (function () {
+              setOneShotUI({
+                ui: (
+                  <CreateDatabase
+                    dbName={dbName}
+                    handleClose={() => {
+                      reload();
+                      setOneShotUI({ ui: null });
+                    }}
+                    kind={kind}
+                  />
+                ),
+                title: (function () {
                   switch (kind) {
                     case DataSourceKind.CouchBase:
                       return "create bucket";
@@ -1201,7 +1206,7 @@ function CatalogMenu(props: { dbName; reload; kind: DataSourceKind }) {
                       return "create database";
                   }
                 })(),
-              );
+              });
             }}
             kind={kind}
           />

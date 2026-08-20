@@ -521,15 +521,17 @@ function ViewMenu(props: {
       <Divider />
       <MenuItem
         onClick={() => {
-          setOneShotUI(
-            <ExportTableOrView
-              dbName={dbName}
-              name={view}
-              isTable={false}
-              kind={kind}
-            />,
-            `export view ${view}`,
-          );
+          setOneShotUI({
+            ui: (
+              <ExportTableOrView
+                dbName={dbName}
+                name={view}
+                isTable={false}
+                kind={kind}
+              />
+            ),
+            title: `export view ${view}`,
+          });
         }}>
         <ListItemIcon>
           <ArrowCircleDownIcon />

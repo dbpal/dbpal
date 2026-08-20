@@ -659,17 +659,19 @@ function TableMenu(props: {
 
       <MenuItem
         onClick={() => {
-          setOneShotUI(
-            <DupTable
-              table={table}
-              dbName={dbName}
-              handleClose={() => {
-                setOneShotUI(null);
-              }}
-              reloadTables={reload}
-            />,
-            "Duplicate table",
-          );
+          setOneShotUI({
+            ui: (
+              <DupTable
+                table={table}
+                dbName={dbName}
+                handleClose={() => {
+                  setOneShotUI({ ui: null });
+                }}
+                reloadTables={reload}
+              />
+            ),
+            title: "Duplicate table",
+          });
         }}>
         <ListItemIcon>
           <HiOutlineDuplicate style={{ fontSize: "1.7rem" }} />
@@ -678,10 +680,10 @@ function TableMenu(props: {
       </MenuItem>
       <MenuItem
         onClick={() => {
-          setOneShotUI(
-            <ExportTableOrView dbName={dbName} name={table} kind={kind} isTable />,
-            `export table ${table}`,
-          );
+          setOneShotUI({
+            ui: <ExportTableOrView dbName={dbName} name={table} kind={kind} isTable />,
+            title: `export table ${table}`,
+          });
         }}>
         <ListItemIcon>
           <ArrowCircleDownIcon />
@@ -690,17 +692,19 @@ function TableMenu(props: {
       </MenuItem>
       <MenuItem
         onClick={() => {
-          setOneShotUI(
-            <RenameTable
-              table={table}
-              dbName={dbName}
-              handleClose={() => {
-                setOneShotUI(null);
-              }}
-              reloadTables={reload}
-            />,
-            `rename table ${table}`,
-          );
+          setOneShotUI({
+            ui: (
+              <RenameTable
+                table={table}
+                dbName={dbName}
+                handleClose={() => {
+                  setOneShotUI({ ui: null });
+                }}
+                reloadTables={reload}
+              />
+            ),
+            title: `rename table ${table}`,
+          });
         }}>
         <ListItemIcon>
           <EditIcon />
@@ -721,18 +725,20 @@ function TableMenu(props: {
       <MenuItem
         sx={{ color: "error.main" }}
         onClick={() => {
-          setOneShotUI(
-            <DropTable
-              table={table}
-              dbName={dbName}
-              handleClose={() => {
-                setOneShotUI(null);
-              }}
-              reloadTables={reload}
-              kind={kind}
-            />,
-            `drop table ${table}`,
-          );
+          setOneShotUI({
+            ui: (
+              <DropTable
+                table={table}
+                dbName={dbName}
+                handleClose={() => {
+                  setOneShotUI({ ui: null });
+                }}
+                reloadTables={reload}
+                kind={kind}
+              />
+            ),
+            title: `drop table ${table}`,
+          });
         }}>
         <ListItemIcon>
           <DeleteForeverIcon color="error" />

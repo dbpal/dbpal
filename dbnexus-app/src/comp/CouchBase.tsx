@@ -746,26 +746,27 @@ function CouchBaseQuery(props: { value?: string }) {
                     return;
                   }
 
-                  setOneShotUI(
-                    <ExportView
-                      supportKind={["json", "jsonline"]}
-                      exportOP={(kind, file, taskId, sizeEmitter) => {
-                        const sql = getEditorText(editor, showNotification, true);
-                        return commands.exportQueryResultToFile(
-                          dbName,
-                          taskId,
-                          sql,
-                          "",
-                          kind,
-                          file,
-                          sizeEmitter,
-                        );
-                      }}
-                      name="export_query_result"
-                    />,
-
-                    "export query to file",
-                  );
+                  setOneShotUI({
+                    ui: (
+                      <ExportView
+                        supportKind={["json", "jsonline"]}
+                        exportOP={(kind, file, taskId, sizeEmitter) => {
+                          const sql = getEditorText(editor, showNotification, true);
+                          return commands.exportQueryResultToFile(
+                            dbName,
+                            taskId,
+                            sql,
+                            "",
+                            kind,
+                            file,
+                            sizeEmitter,
+                          );
+                        }}
+                        name="export_query_result"
+                      />
+                    ),
+                    title: "export query to file",
+                  });
                 }}
                 color="primary">
                 <ArrowCircleDownRoundedIcon />
