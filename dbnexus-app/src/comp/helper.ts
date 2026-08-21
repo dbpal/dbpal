@@ -642,7 +642,6 @@ function clickDataGridColumn(
 
   if (!isControl) {
     allGridHeaderTitle(api, (dom) => {
-      console.log("xxxx", dom);
       dom.classList.remove(gridColumnHeaderSelectClassName);
     });
   }
