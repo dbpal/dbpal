@@ -2549,7 +2549,7 @@ pub trait QuerySql: GetBackendKind + Send + Sync + 'static + LanguageServer {
 
     fn clone(&self) -> Box<dyn QuerySql>;
 
-    async fn execute_tx_multi_sql(&self, sql: &[&str]) -> anyhow::Result<()> {
+    async fn execute_tx_multi_sql(&self, sql: &[String]) -> anyhow::Result<()> {
         let query_id = uuid_v4_string();
 
         self.open_connection(&query_id).await?;
@@ -2565,7 +2565,9 @@ pub trait QuerySql: GetBackendKind + Send + Sync + 'static + LanguageServer {
         }
 
         for sql in sql.iter() {
-            self.execute_sql(&query_id, *sql).await??;
+            self.execute_sql(&query_id, sql.as_str())
+                .await?
+                .map_err(|e| anyhow::Error::msg(e))?;
         }
         if self.support_tx() {
             self.commit(&query_id).await?;

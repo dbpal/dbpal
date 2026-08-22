@@ -161,6 +161,7 @@ export const commands = {
 	readExcelFilePreview: (path: string, maxRow: number) => __TAURI_INVOKE<MuiDataGridData>("read_excel_file_preview", { path, maxRow }),
 	tableImportDataFromFileInsertSamples: (dbName: string, tableName: string, kind: TableImportPara) => __TAURI_INVOKE<string[]>("table_import_data_from_file_insert_samples", { dbName, tableName, kind }),
 	getUpdateSqlFromResultSet: (dbName: string, sql: string, oldValues: (string | null)[], newValues: (string | null)[]) => __TAURI_INVOKE<string[]>("get_update_sql_from_result_set", { dbName, sql, oldValues, newValues }),
+	executeTxMultiSql: (dbName: string, sql: string[]) => __TAURI_INVOKE<null>("execute_tx_multi_sql", { dbName, sql }),
 };
 
 /* Constants */

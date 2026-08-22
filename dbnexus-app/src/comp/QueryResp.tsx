@@ -119,11 +119,10 @@ function EditResultSetData(props: {
                   color="primary"
                   onClick={async () => {
                     try {
-                      const row_aff = await commands.simpleExecuteSql(dbName, sql);
+                      await commands.executeTxMultiSql(dbName, up);
                       showNotification({
                         severity: "success",
                         title: "execute sql success",
-                        message: `row affected ${row_aff}`,
                       });
                     } catch (e) {
                       showNotification({

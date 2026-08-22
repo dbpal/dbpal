@@ -156,11 +156,19 @@ function LeftTop() {
   useEffect(() => {
     const unlisten = listen("show_setting", () => {
       const index = tabsHasID(tabs, settingId);
+
       if (index != -1) {
         setCurrentTab(index);
       } else {
         appendTab(
-          new TabContent("setting", <ModifySetting />, <IoMdSettings />, settingId),
+          new TabContent(
+            "setting",
+            <ModifySetting />,
+            <IoMdSettings />,
+            null,
+            null,
+            settingId,
+          ),
         );
       }
     });

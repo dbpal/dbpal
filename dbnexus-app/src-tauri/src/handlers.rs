@@ -1150,7 +1150,7 @@ pub async fn execute_tx_multi_sql(
         .map_err(ErrorFrontend::from)?;
 
     db.as_query_sql()
-        .execute_tx_multi_sql(query_id, &sql, sender)
+        .execute_tx_multi_sql(&sql)
         .await
         .map_err(ErrorFrontend::from)
 }
