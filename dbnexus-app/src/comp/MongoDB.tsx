@@ -640,6 +640,7 @@ function MongoTableToolBar(props: {
                 handleFilter(doc);
                 setShowModifyFilter(false);
               }}
+              viewModel={viewModel}
               doc={filter}
               needConfirm={false}
             />
@@ -665,6 +666,7 @@ function MongoTableToolBar(props: {
               title="Modify Sort"
             />
             <MongoValueEditor
+              viewModel={viewModel}
               setOP={async (doc) => {
                 handleSort(doc);
                 setShowModifySort(false);
