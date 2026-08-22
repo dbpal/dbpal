@@ -419,6 +419,9 @@ impl DuckDB {
 
 #[async_trait::async_trait]
 impl QuerySql for DuckDB {
+    fn clone(&self) -> Box<dyn QuerySql> {
+        Box::new(Clone::clone(self))
+    }
     async fn get_update_sql_from_result_set(
         &self,
         sql: &str,

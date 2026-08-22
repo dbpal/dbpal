@@ -1137,6 +1137,26 @@ pub async fn get_update_sql_from_result_set(
 
 #[specta::specta]
 #[tauri::command]
+pub async fn execute_tx_multi_sql(
+    db_name: String,
+    sql: Vec<String>,
+    app: tauri::State<'_, DBPal>,
+) -> Result<(), ErrorFrontend> {
+    random_sleep().await;
+    random_error()?;
+    let db = app
+        .get_backend(db_name.as_str())
+        .await
+        .map_err(ErrorFrontend::from)?;
+
+    db.as_query_sql()
+        .execute_tx_multi_sql(query_id, &sql, sender)
+        .await
+        .map_err(ErrorFrontend::from)
+}
+
+#[specta::specta]
+#[tauri::command]
 pub async fn query_sql(
     db_name: String,
     query_id: &str,

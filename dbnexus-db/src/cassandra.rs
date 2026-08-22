@@ -39,7 +39,7 @@ use crate::db::{
     SchemaTrait, ServerMetas, ShowTableParameter, SqlBuilder, XlsxEdit, XlsxEditContent,
 };
 
-use crate::helper::{create_csv, generate_random_string};
+use crate::helper::{create_csv, uuid_v4_string};
 use crate::language_server::{get_update_sql_from_result_set_impl, LexerCompletionTrait};
 use chrono::{DateTime, NaiveDate, NaiveTime};
 use cql3_parser::cassandra_ast::CassandraAST;
@@ -700,6 +700,9 @@ impl ExportQueryResult for CassandraDB {
 
 #[async_trait::async_trait]
 impl QuerySql for CassandraDB {
+    fn clone(&self) -> Box<dyn QuerySql> {
+        Box::new(Clone::clone(self))
+    }
     async fn get_update_sql_from_result_set(
         &self,
         sql: &str,
@@ -1510,7 +1513,7 @@ impl CassandraDB {
                     MetaValue::new("return_type", return_type),
                     MetaValue::new("language", language),
                 ],
-                rand: generate_random_string(10),
+                rand: uuid_v4_string(),
             });
         }
         anyhow::Ok(ret)
@@ -1576,7 +1579,7 @@ impl CassandraDB {
                     MetaValue::new("initcond", initcond),
                 ],
                 cassandra_parameters: Some(argument_types.unwrap_or_default()),
-                rand: generate_random_string(10),
+                rand: uuid_v4_string(),
             });
         }
 

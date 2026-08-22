@@ -1,4 +1,4 @@
-use crate::helper::{generate_random_string, is_csv_file};
+use crate::helper::{is_csv_file, uuid_v4_string};
 use crate::language_server::LanguageServer;
 use calamine::Reader;
 use chrono::{DateTime, FixedOffset};
@@ -345,19 +345,48 @@ impl QueryEventEmit for QueryRespMemoryCollector {
     }
 }
 
-struct DropConn {
-    db: Option<Box<dyn QuerySql>>,
-    query_id: String,
+pub(crate) struct DropConn {
+    pub(crate) db: Option<Box<dyn QuerySql>>,
+    pub(crate) query_id: String,
+    pub(crate) try_rollback: TryRollBack,
+}
+
+#[derive(Clone, Debug)]
+pub(crate) struct TryRollBack {
+    rollback: Arc<Mutex<bool>>,
+}
+
+impl TryRollBack {
+    pub(crate) fn new() -> Self {
+        Self {
+            rollback: Arc::new(Mutex::new(true)),
+        }
+    }
+    // not rollback when opration success call this function.
+    pub(crate) fn do_not(&self) {
+        *self.rollback.lock().expect("lock failed") = false;
+    }
+    pub(crate) fn get(&self) -> bool {
+        self.rollback.lock().expect("lock failed").clone()
+    }
 }
 
 impl Drop for DropConn {
     fn drop(&mut self) {
         let db = self.db.take();
+
+        let rollback = self.try_rollback.get();
+
         if let Some(db) = db {
             let query_id = self.query_id.clone();
             tokio::spawn(async move {
+                if db.support_tx() && rollback {
+                    if let Err(err) = db.rollback(&query_id).await {
+                        log::error!("rollback failed:{}", err);
+                    }
+                }
                 if let Err(err) = db.close_connection(&query_id).await {
-                    log::error!("close connection ailed:{}", err);
+                    log::error!("close connection failed:{}", err);
                 }
             });
         }
@@ -691,12 +720,14 @@ pub trait SchemaTrait:
         let task_write = tokio::spawn(async move {
             // use tx to commit the data
 
-            let query_id = generate_random_string(10);
+            let query_id = uuid_v4_string();
             this.open_connection(&query_id).await?;
+            let try_rollback = TryRollBack::new();
 
             let _guard = DropConn {
                 db: Some(SchemaTrait::clone(this.as_ref())),
                 query_id: query_id.clone(),
+                try_rollback: try_rollback.clone(),
             };
             if this.support_tx() {
                 this.set_auto_commit(&query_id, false).await?;
@@ -708,24 +739,16 @@ pub trait SchemaTrait:
                 match this.execute_sql(&query_id, &sql).await? {
                     Ok(_) => {}
                     Err(insert_err) => {
-                        if this.support_tx() {
-                            this.rollback(&query_id).await.map_err(|err| {
-                                anyhow::Error::msg(format!(
-                                    "execute sql failed,sql{sql} err:{insert_err} rollback:{err} "
-                                ))
-                            })?;
-                        }
                         return Err(anyhow::Error::msg(format!(
                             "execute sql failed,sql{sql} err:{insert_err},rollback success"
                         )));
                     }
                 }
             }
-            // then commit
-
             if this.support_tx() {
                 this.commit(&query_id).await?;
             }
+            try_rollback.do_not();
             anyhow::Ok(())
         });
         let (res1, res2) = tokio::join!(task_read, task_write);
@@ -1643,7 +1666,7 @@ impl From<String> for NamedStaff {
             metas: vec![],
             parameters: None,
             cassandra_parameters: None,
-            rand: generate_random_string(10),
+            rand: uuid_v4_string(),
         }
     }
 }
@@ -2524,6 +2547,33 @@ pub trait QuerySql: GetBackendKind + Send + Sync + 'static + LanguageServer {
         self.backend_kind().not_support_feature("transaction")
     }
 
+    fn clone(&self) -> Box<dyn QuerySql>;
+
+    async fn execute_tx_multi_sql(&self, sql: &[&str]) -> anyhow::Result<()> {
+        let query_id = uuid_v4_string();
+
+        self.open_connection(&query_id).await?;
+        let try_rollback = TryRollBack::new();
+
+        let _guard = DropConn {
+            query_id: query_id.clone(),
+            db: QuerySql::clone(self).into(),
+            try_rollback: try_rollback.clone(),
+        };
+        if self.support_tx() {
+            self.set_auto_commit(&query_id, false).await?;
+        }
+
+        for sql in sql.iter() {
+            self.execute_sql(&query_id, *sql).await??;
+        }
+        if self.support_tx() {
+            self.commit(&query_id).await?;
+        }
+        try_rollback.do_not();
+        anyhow::Ok(())
+    }
+
     async fn get_update_sql_from_result_set(
         &self,
         sql: &str,
@@ -2575,7 +2625,7 @@ impl From<String> for ListTable {
         Self {
             name: value,
             size: None,
-            rand: generate_random_string(10),
+            rand: uuid_v4_string(),
         }
     }
 }
@@ -2585,7 +2635,7 @@ impl ListTable {
         Self {
             name: name.into(),
             size,
-            rand: generate_random_string(10),
+            rand: uuid_v4_string(),
         }
     }
 }
@@ -2595,7 +2645,7 @@ impl From<&str> for ListTable {
         Self {
             name: value.to_string(),
             size: None,
-            rand: generate_random_string(10),
+            rand: uuid_v4_string(),
         }
     }
 }

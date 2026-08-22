@@ -22,7 +22,7 @@ use crate::db::{
     POOL_MAX_CONNECTIONS,
 };
 
-use crate::helper::{create_csv, generate_random_string};
+use crate::helper::{create_csv, uuid_v4_string};
 use crate::language_server::{get_update_sql_from_result_set_impl, LexerCompletionTrait};
 
 #[derive(Clone)]
@@ -187,6 +187,9 @@ impl ExportQueryResult for OracleDB {
 
 #[async_trait::async_trait]
 impl QuerySql for OracleDB {
+    fn clone(&self) -> Box<dyn QuerySql> {
+        Box::new(Clone::clone(self))
+    }
     async fn get_update_sql_from_result_set(
         &self,
         sql: &str,
@@ -908,7 +911,7 @@ impl OracleDB {
                 .map(|x| ListTable {
                     size: sizes.get(&x).and_then(|x| (*x).map(|x| x as f64)),
                     name: x,
-                    rand: generate_random_string(10),
+                    rand: uuid_v4_string(),
                 })
                 .collect(),
         )
@@ -984,7 +987,7 @@ impl SchemaTrait for OracleDB {
                 .map(|x| ListTable {
                     size: sizes.get(&x).and_then(|x| (*x).map(|x| x as f64)),
                     name: x,
-                    rand: generate_random_string(10),
+                    rand: uuid_v4_string(),
                 })
                 .collect(),
         )
@@ -1553,7 +1556,7 @@ impl OracleDB {
                 metas: vec![],
                 parameters: None,
                 cassandra_parameters: None,
-                rand: generate_random_string(10),
+                rand: uuid_v4_string(),
             });
         }
         anyhow::Ok(ret)

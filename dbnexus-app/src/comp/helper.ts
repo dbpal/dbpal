@@ -902,7 +902,12 @@ function setDifference<T>(a: Set<T>, b: Set<T>): Set<T> {
   return result;
 }
 
+function tabsHasID(tabs: TabContent[], id: string) {
+  return tabs.findIndex((e) => e.id == id);
+}
+
 export {
+  tabsHasID,
   setDifference,
   createMongoModel,
   isCsvFile,

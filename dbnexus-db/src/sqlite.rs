@@ -1328,6 +1328,9 @@ impl SqliteDB {
 
 #[async_trait::async_trait]
 impl QuerySql for SqliteDB {
+    fn clone(&self) -> Box<dyn QuerySql> {
+        Box::new(Clone::clone(self))
+    }
     async fn get_update_sql_from_result_set(
         &self,
         sql: &str,

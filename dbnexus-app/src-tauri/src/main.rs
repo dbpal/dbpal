@@ -16,8 +16,8 @@ use handlers::{
     create_table_req_sql, create_view_sql, drop_created_type, drop_database, drop_event,
     drop_index, drop_materialized_view, drop_procedure, drop_schema, drop_sequence, drop_table,
     drop_table_column, drop_trigger, drop_udf, drop_view, duplicate_table, enable_trigger,
-    establish_conn, execute_sql, export_query_result_to_file, export_table_or_view,
-    extract_table_select_selection, extract_table_select_sort, get_redis_doc,
+    establish_conn, execute_sql, execute_tx_multi_sql, export_query_result_to_file,
+    export_table_or_view, extract_table_select_selection, extract_table_select_sort, get_redis_doc,
     get_update_sql_from_result_set, is_dangerous_sql, list_created_types, list_data_types,
     list_database, list_event, list_materialized_view, list_procedure, list_schema, list_sequence,
     list_sql_current_values, list_table, list_udf, list_view, modify_table_column,
@@ -534,7 +534,8 @@ fn main() {
             sql_infer_fields_from_file,
             read_excel_file_preview,
             table_import_data_from_file_insert_samples,
-            get_update_sql_from_result_set
+            get_update_sql_from_result_set,
+            execute_tx_multi_sql
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

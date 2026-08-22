@@ -48,6 +48,7 @@ import {
   secondConfirm,
   TabContent,
   DbnameContext,
+  tabsHasID,
 } from "./helper";
 import { TbDatabaseSearch } from "react-icons/tb";
 
@@ -126,7 +127,7 @@ function LeftTop() {
   const { showNotification } = useNotification();
   const { getSwitch, setSwitch } = useBoolSwitch();
   const show = getSwitch(showTopShowKey);
-  const { appendTab, tabs } = useTabsManage();
+  const { appendTab, tabs, setCurrentTab } = useTabsManage();
   const [showEditFilter, setShowEditFilter] = useState(false);
   const showAddConnection = useCallback(
     (conn?: DBConnectionConfig) => {
@@ -154,16 +155,21 @@ function LeftTop() {
 
   useEffect(() => {
     const unlisten = listen("show_setting", () => {
-      appendTab(
-        new TabContent("setting", <ModifySetting />, <IoMdSettings />, settingId),
-      );
+      const index = tabsHasID(tabs, settingId);
+      if (index != -1) {
+        setCurrentTab(index);
+      } else {
+        appendTab(
+          new TabContent("setting", <ModifySetting />, <IoMdSettings />, settingId),
+        );
+      }
     });
     return () => {
       unlisten.then((callback) => {
         callback();
       });
     };
-  }, [appendTab, tabs]);
+  }, [appendTab, setCurrentTab, tabs]);
 
   const toggleShow = () => {
     setSwitch(showTopShowKey, !show);

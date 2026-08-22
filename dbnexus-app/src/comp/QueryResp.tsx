@@ -109,40 +109,38 @@ function EditResultSetData(props: {
           {err}
         </Alert>
       )}
-      {up &&
-        up.map((sql, index) => (
-          <AppCode
-            key={index}
-            codeBlock={sql}
-            extra={() => {
-              return (
-                <Tooltip title="try execute the sql,those sql execute not in transaction mode,notice this.">
-                  <IconButton
-                    color="primary"
-                    onClick={async () => {
-                      try {
-                        const row_aff = await commands.simpleExecuteSql(dbName, sql);
-                        showNotification({
-                          severity: "success",
-                          title: "execute sql success",
-                          message: `row affected ${row_aff}`,
-                        });
-                      } catch (e) {
-                        showNotification({
-                          severity: "error",
-                          message: e,
-                          title: "execute sql failed ",
-                        });
-                      }
-                    }}>
-                    <PlayArrowIcon />
-                  </IconButton>
-                </Tooltip>
-              );
-            }}
-            language="sql"
-          />
-        ))}
+      {up && (
+        <AppCode
+          codeBlock={up.join(";\n")}
+          extra={() => {
+            return (
+              <Tooltip title="try execute sql in tx model(if supported).">
+                <IconButton
+                  color="primary"
+                  onClick={async () => {
+                    try {
+                      const row_aff = await commands.simpleExecuteSql(dbName, sql);
+                      showNotification({
+                        severity: "success",
+                        title: "execute sql success",
+                        message: `row affected ${row_aff}`,
+                      });
+                    } catch (e) {
+                      showNotification({
+                        severity: "error",
+                        message: e,
+                        title: "execute sql failed ",
+                      });
+                    }
+                  }}>
+                  <PlayArrowIcon />
+                </IconButton>
+              </Tooltip>
+            );
+          }}
+          language="sql"
+        />
+      )}
 
       <SqlTableViewData
         initValues={oldValues}
