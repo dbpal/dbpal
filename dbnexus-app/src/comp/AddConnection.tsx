@@ -721,17 +721,21 @@ function Sqlite(props: { config?: SqliteDBConfig; context: AddConnectionContext 
   return (
     <Stack>
       <SelectPath path={path} setPath={setPath} required label="sqlite database file" />
-      <Autocomplete
-        options={["normal", "exclusive"]}
-        value={lockingModel}
-        renderInput={(params) => (
-          <TextField {...params} label={`sqlite locking model`} />
-        )}
-        freeSolo
-        onChange={(_, value) => {
-          setLockingModel(value);
-        }}
-      />
+      <Stack direction="row" style={{ alignItems: "center", alignContent: "center" }}>
+        <Autocomplete
+          options={["normal", "exclusive"]}
+          value={lockingModel}
+          renderInput={(params) => (
+            <TextField {...params} label={`sqlite locking model`} />
+          )}
+          style={{ width: "12rem" }}
+          freeSolo={false}
+          onChange={(_, value) => {
+            setLockingModel(value);
+          }}
+        />
+        <UrlDocument url="https://www.sqlite.org/pragma.html#pragma_locking_mode" />
+      </Stack>
     </Stack>
   );
 }
