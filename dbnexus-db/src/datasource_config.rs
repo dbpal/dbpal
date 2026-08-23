@@ -6,7 +6,7 @@ pub struct MongoDBConfig {
     pub port: u16,
     pub username: Option<String>,
     pub password: Option<String>,
-    pub conn_timeout: Option<ConnTimeOut>,
+    pub conn_timeout: Option<SomeTimeOut>,
     pub db: Option<String>,
     pub read_only: bool,
     pub ssl_enable: bool,
@@ -25,21 +25,21 @@ pub struct MysqlDBConfig {
     pub read_only: bool,
     #[serde(flatten)]
     pub ssl: SslFilesWithStrModel,
-    pub conn_timeout: Option<ConnTimeOut>,
+    pub conn_timeout: Option<SomeTimeOut>,
 }
 
 #[derive(Debug, Clone, Copy, serde::Serialize, serde::Deserialize, specta::Type)]
 #[serde(transparent)]
-pub struct ConnTimeOut(pub u32);
+pub struct SomeTimeOut(pub u32);
 
-impl From<i32> for ConnTimeOut {
+impl From<i32> for SomeTimeOut {
     fn from(value: i32) -> Self {
-        ConnTimeOut(value as u32)
+        SomeTimeOut(value as u32)
     }
 }
 
-impl From<ConnTimeOut> for std::time::Duration {
-    fn from(value: ConnTimeOut) -> Self {
+impl From<SomeTimeOut> for std::time::Duration {
+    fn from(value: SomeTimeOut) -> Self {
         std::time::Duration::from_millis(value.0 as u64)
     }
 }
@@ -56,7 +56,7 @@ pub struct LibSqlDBConfig {
     #[serde(flatten)]
     pub source: LibSqlDBConfigSource,
     pub read_only: bool,
-    pub conn_timeout: Option<ConnTimeOut>,
+    pub conn_timeout: Option<SomeTimeOut>,
 }
 #[derive(Clone, serde::Deserialize, serde::Serialize, specta::Type)]
 #[serde(tag = "source", rename_all = "lowercase")]
@@ -92,7 +92,7 @@ pub struct ClickHouseConfig {
     pub db: Option<String>,
     pub read_only: bool,
     pub https: bool,
-    pub conn_timeout: Option<ConnTimeOut>,
+    pub conn_timeout: Option<SomeTimeOut>,
 }
 
 impl ClickHouseConfig {
@@ -105,7 +105,9 @@ impl ClickHouseConfig {
 pub struct SqliteDBConfig {
     pub path: String,
     pub read_only: bool,
-    pub conn_timeout: Option<ConnTimeOut>,
+    pub conn_timeout: Option<SomeTimeOut>,
+    pub locking_model: String,
+    pubbusy_timeout: SomeTimeOut,
 }
 
 #[derive(Debug, Clone, serde::Deserialize, serde::Serialize, specta::Type)]
@@ -114,7 +116,7 @@ pub struct DuckDBConfig {
     pub read_only: bool,
     pub db: Option<String>,
     pub schema: Option<String>,
-    pub conn_timeout: Option<ConnTimeOut>,
+    pub conn_timeout: Option<SomeTimeOut>,
 }
 
 #[derive(Debug, Clone, serde::Deserialize, serde::Serialize, specta::Type)]
@@ -126,7 +128,7 @@ pub struct FireBirdConfig {
 
     pub db: String,
     pub read_only: bool,
-    pub conn_timeout: Option<ConnTimeOut>,
+    pub conn_timeout: Option<SomeTimeOut>,
 }
 
 impl DuckDBConfig {
@@ -151,7 +153,7 @@ pub struct RedisDBConfig {
     pub db: Option<String>,
     pub read_only: bool,
     pub enable_ssl: bool,
-    pub conn_timeout: Option<ConnTimeOut>,
+    pub conn_timeout: Option<SomeTimeOut>,
 }
 
 impl RedisDBConfig {
@@ -262,7 +264,7 @@ pub struct PGDBConfig {
     pub read_only: bool,
     #[serde(flatten)]
     pub ssl: SslFilesWithStrModel,
-    pub conn_timeout: Option<ConnTimeOut>,
+    pub conn_timeout: Option<SomeTimeOut>,
 }
 
 #[derive(Debug, Clone, serde::Deserialize, serde::Serialize, specta::Type)]
@@ -299,7 +301,7 @@ pub struct SqlServerDBConfig {
     pub trust_cert: bool,
     pub schema: Option<String>,
     pub read_only: bool,
-    pub conn_timeout: Option<ConnTimeOut>,
+    pub conn_timeout: Option<SomeTimeOut>,
     pub cert_ca: Option<String>,
 }
 
@@ -322,7 +324,7 @@ pub struct OracleDBConfig {
     pub host: String,
     pub port: u16,
     pub schema: Option<String>,
-    pub conn_timeout: Option<ConnTimeOut>,
+    pub conn_timeout: Option<SomeTimeOut>,
     pub read_only: bool,
     pub db: String,
 }
@@ -337,7 +339,7 @@ pub struct CassandraDBConfig {
     pub read_only: bool,
     pub ssl_enable: bool,
     pub ssl_ca_file: Option<String>,
-    pub conn_timeout: Option<ConnTimeOut>,
+    pub conn_timeout: Option<SomeTimeOut>,
     pub dialect: CassandraDialect,
 }
 
@@ -359,7 +361,7 @@ pub struct BigQueryDbConfig {
     pub dataset_id: Option<String>,
     pub credentials_file: String,
     pub read_only: bool,
-    pub conn_timeout: Option<ConnTimeOut>,
+    pub conn_timeout: Option<SomeTimeOut>,
 }
 
 #[derive(Debug, Clone, serde::Deserialize, serde::Serialize, specta::Type)]
@@ -373,7 +375,7 @@ pub struct Db2Config {
     pub db: String,
 
     pub read_only: bool,
-    pub conn_timeout: Option<ConnTimeOut>,
+    pub conn_timeout: Option<SomeTimeOut>,
     pub schema: Option<String>,
 }
 
@@ -400,7 +402,7 @@ pub struct CouchBaseDBConfig {
     pub read_only: bool,
     pub bucket: Option<String>,
     pub scope: Option<String>,
-    pub conn_timeout: Option<ConnTimeOut>,
+    pub conn_timeout: Option<SomeTimeOut>,
 
     pub ssl_enable: bool,
     pub danger_accept_invalid_hostnames: Option<bool>,
