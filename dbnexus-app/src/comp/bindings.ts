@@ -428,6 +428,8 @@ export type MuiDataGridData = {
 	total: number,
 };
 
+export type MysqlCharset = string;
+
 export type MysqlDBConfig = {
 	host: string,
 	port: number,
@@ -436,6 +438,7 @@ export type MysqlDBConfig = {
 	db: string | null,
 	read_only: boolean,
 	conn_timeout: SomeTimeOut | null,
+	charset: MysqlCharset,
 } & (SslFilesWithStrModel);
 
 // named staff maybe used for view udf etc...

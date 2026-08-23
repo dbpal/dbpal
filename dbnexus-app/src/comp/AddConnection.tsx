@@ -443,6 +443,7 @@ function Mysql(props: {
     ssl_key: config?.ssl_key,
   });
   const [savePassword, setSavePassword] = useState(getSavePassword(config));
+  const [charset, setCharset] = useState("utf8mb4");
 
   function makeConfig(): DBConnectionConfig {
     const x: MysqlDBConfig = {
@@ -452,6 +453,7 @@ function Mysql(props: {
       password: password ? password : null,
       db: database ? database : null,
       read_only: readOnly,
+      charset,
       conn_timeout: connTimeOut,
       ...ssl,
     };
@@ -491,6 +493,14 @@ function Mysql(props: {
         makeConfig={makeConfig}
       />
       <MysqlSSl ssl={ssl} setSsl={setSsl} />
+      <TextField
+        value={charset}
+        onChange={(e) => {
+          setCharset(e.target.value);
+        }}
+        error={!charset}
+        label="charset"
+      />
     </Stack>
   );
 }

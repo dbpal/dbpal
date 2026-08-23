@@ -1512,6 +1512,7 @@ impl MysqlDB {
         if let Some(db) = &config.db {
             opts = opts.database(db);
         }
+        opts = opts.charset(&config.charset.0);
         let mut pool_options = PoolOptions::new();
         if let Some(x) = config.conn_timeout {
             pool_options = pool_options.acquire_timeout(x.into());
@@ -2843,6 +2844,7 @@ mod tests {
             db: Some("test".to_string()),
             read_only: false,
             ssl: SslFilesWithStrModel::mysql_default(),
+            charset: Default::default(),
         }
     }
 
@@ -3047,6 +3049,7 @@ FLUSH PRIVILEGES;
             username: "root".to_string(),
             password: "rootpass".to_string().into(),
             db: None,
+            charset: Default::default(),
             read_only: true,
             ssl: SslFilesWithStrModel {
                 ssl_mode: "disabled".to_string(),

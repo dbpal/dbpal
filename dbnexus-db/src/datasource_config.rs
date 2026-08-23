@@ -20,12 +20,28 @@ pub struct MysqlDBConfig {
     pub port: u16,
     pub username: String,
     pub password: Option<String>,
-
     pub db: Option<String>,
     pub read_only: bool,
     #[serde(flatten)]
     pub ssl: SslFilesWithStrModel,
     pub conn_timeout: Option<SomeTimeOut>,
+    pub charset: MysqlCharset,
+}
+
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize, specta::Type)]
+#[serde(transparent)]
+pub struct MysqlCharset(pub String);
+
+impl From<String> for MysqlCharset {
+    fn from(value: String) -> Self {
+        Self(value)
+    }
+}
+
+impl Default for MysqlCharset {
+    fn default() -> Self {
+        Self("utf8mb4".into())
+    }
 }
 
 #[derive(Debug, Clone, Copy, serde::Serialize, serde::Deserialize, specta::Type)]

@@ -1140,11 +1140,7 @@ impl SqliteDB {
         sqlite_ops = sqlite_ops.locking_mode(FromStr::from_str(&conn.locking_model)?);
 
         let pool = opts.connect_with(sqlite_ops).await?;
-        if conn.read_only {
-            sqlx::raw_sql("PRAGMA query_only = true;")
-                .execute(pool.acquire().await?.deref_mut())
-                .await?;
-        }
+
         anyhow::Ok(Self {
             pool,
             query_connection: Default::default(),

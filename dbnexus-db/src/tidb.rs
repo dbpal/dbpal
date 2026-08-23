@@ -715,6 +715,7 @@ mod tests {
             db: Some("test".to_string()),
             read_only: false,
             ssl: SslFilesWithStrModel::mysql_default(),
+            charset: Default::default(),
         }
     }
 

@@ -344,6 +344,7 @@ pub(crate) fn make_config() -> MysqlDBConfig {
         db: Some("test".to_string()),
         read_only: false,
         ssl: SslFilesWithStrModel::mysql_default(),
+        charset: Default::default(),
     }
 }
 
