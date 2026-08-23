@@ -1355,6 +1355,7 @@ mod tests {
             path: sqlite_test_file_path(),
             read_only: true,
             conn_timeout: None,
+            locking_model: "normal".to_string(),
         })
         .await
         .unwrap();
@@ -1416,6 +1417,7 @@ human: tell me Mike's age from TABLE Persons
             path: sqlite_test_file_path(),
             read_only: true,
             conn_timeout: None,
+            locking_model: "normal".to_string(),
         })
         .await
         .unwrap();

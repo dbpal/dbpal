@@ -1,5 +1,6 @@
 use std::collections::HashMap;
 use std::ops::DerefMut;
+use std::str::FromStr;
 use std::sync::Arc;
 use std::time::Duration;
 
@@ -1135,6 +1136,9 @@ impl SqliteDB {
             format!("sqlite://{}", conn.path).as_str(),
         )?;
         sqlite_ops = sqlite_ops.read_only(conn.read_only);
+
+        sqlite_ops = sqlite_ops.locking_mode(FromStr::from_str(&conn.locking_model)?);
+
         let pool = opts.connect_with(sqlite_ops).await?;
         if conn.read_only {
             sqlx::raw_sql("PRAGMA query_only = true;")
@@ -1524,6 +1528,7 @@ pub(crate) async fn make_test_object() -> SqliteDB {
         path,
         read_only: false,
         conn_timeout: Some(5000.into()),
+        locking_model: "normal".into(),
     })
     .await
     .unwrap();
@@ -1943,6 +1948,7 @@ mod tests {
             path,
             read_only: true,
             conn_timeout: Some(5000.into()),
+            locking_model: "normal".to_string(),
         })
         .await
         .unwrap();

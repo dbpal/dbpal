@@ -107,7 +107,6 @@ pub struct SqliteDBConfig {
     pub read_only: bool,
     pub conn_timeout: Option<SomeTimeOut>,
     pub locking_model: String,
-    pubbusy_timeout: SomeTimeOut,
 }
 
 #[derive(Debug, Clone, serde::Deserialize, serde::Serialize, specta::Type)]

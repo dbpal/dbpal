@@ -704,6 +704,7 @@ function Sqlite(props: { config?: SqliteDBConfig; context: AddConnectionContext 
   const { config, context } = props;
   const [path, setPath] = useState(config?.path || "");
   const { connTimeOut, connectionName, readOnly, makeConfigRef } = context;
+  const [lockingModel, setLockingModel] = useState("normal");
 
   function makeConfig(): DBConnectionConfig {
     return {
@@ -712,6 +713,7 @@ function Sqlite(props: { config?: SqliteDBConfig; context: AddConnectionContext 
       path,
       conn_timeout: connTimeOut,
       read_only: readOnly,
+      locking_model: lockingModel,
     };
   }
   makeConfigRef.current = makeConfig;
@@ -719,6 +721,17 @@ function Sqlite(props: { config?: SqliteDBConfig; context: AddConnectionContext 
   return (
     <Stack>
       <SelectPath path={path} setPath={setPath} required label="sqlite database file" />
+      <Autocomplete
+        options={["normal", "exclusive"]}
+        value={lockingModel}
+        renderInput={(params) => (
+          <TextField {...params} label={`sqlite locking model`} />
+        )}
+        freeSolo
+        onChange={(_, value) => {
+          setLockingModel(value);
+        }}
+      />
     </Stack>
   );
 }

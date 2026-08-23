@@ -185,7 +185,7 @@ export type CassandraDBConfig = {
 	read_only: boolean,
 	ssl_enable: boolean,
 	ssl_ca_file: string | null,
-	conn_timeout: ConnTimeOut | null,
+	conn_timeout: SomeTimeOut | null,
 	dialect: CassandraDialect,
 };
 
@@ -204,7 +204,7 @@ export type ClickHouseConfig = {
 	db: string | null,
 	read_only: boolean,
 	https: boolean,
-	conn_timeout: ConnTimeOut | null,
+	conn_timeout: SomeTimeOut | null,
 };
 
 export type ColumnType = {
@@ -228,8 +228,6 @@ export type CompletionList = {
 	from_dot: boolean,
 };
 
-export type ConnTimeOut = number;
-
 export type CouchBaseBucketType = "couchbase" | "ephemeral";
 
 export type CouchBaseDBConfig = {
@@ -240,7 +238,7 @@ export type CouchBaseDBConfig = {
 	read_only: boolean,
 	bucket: string | null,
 	scope: string | null,
-	conn_timeout: ConnTimeOut | null,
+	conn_timeout: SomeTimeOut | null,
 	ssl_enable: boolean,
 	danger_accept_invalid_hostnames: boolean | null,
 	danger_accept_invalid_certificates: boolean | null,
@@ -301,7 +299,7 @@ export type Db2Config = {
 	password: string,
 	db: string,
 	read_only: boolean,
-	conn_timeout: ConnTimeOut | null,
+	conn_timeout: SomeTimeOut | null,
 	schema: string | null,
 } & (OdbcCommon);
 
@@ -325,7 +323,7 @@ export type DuckDBConfig = {
 	read_only: boolean,
 	db: string | null,
 	schema: string | null,
-	conn_timeout: ConnTimeOut | null,
+	conn_timeout: SomeTimeOut | null,
 };
 
 export type ErrorFrontend = {
@@ -361,7 +359,7 @@ export type FireBirdConfig = {
 	password: string,
 	db: string,
 	read_only: boolean,
-	conn_timeout: ConnTimeOut | null,
+	conn_timeout: SomeTimeOut | null,
 };
 
 export type Index = {
@@ -375,7 +373,7 @@ export type IndexKind = "index" | "unique" | "primary";
 export type LibSqlDBConfig = {
 	replica: boolean,
 	read_only: boolean,
-	conn_timeout: ConnTimeOut | null,
+	conn_timeout: SomeTimeOut | null,
 } & (LibSqlDBConfigSource);
 
 export type LibSqlDBConfigSource = { source: "local"; path: string } | { source: "remote"; url: string; auth_token: string; path: string | null };
@@ -397,7 +395,7 @@ export type MongoDBConfig = {
 	port: number,
 	username: string | null,
 	password: string | null,
-	conn_timeout: ConnTimeOut | null,
+	conn_timeout: SomeTimeOut | null,
 	db: string | null,
 	read_only: boolean,
 	ssl_enable: boolean,
@@ -437,7 +435,7 @@ export type MysqlDBConfig = {
 	password: string | null,
 	db: string | null,
 	read_only: boolean,
-	conn_timeout: ConnTimeOut | null,
+	conn_timeout: SomeTimeOut | null,
 } & (SslFilesWithStrModel);
 
 // named staff maybe used for view udf etc...
@@ -476,7 +474,7 @@ export type OracleDBConfig = {
 	host: string,
 	port: number,
 	schema: string | null,
-	conn_timeout: ConnTimeOut | null,
+	conn_timeout: SomeTimeOut | null,
 	read_only: boolean,
 	db: string,
 };
@@ -489,7 +487,7 @@ export type PGDBConfig = {
 	db: string | null,
 	schema: string | null,
 	read_only: boolean,
-	conn_timeout: ConnTimeOut | null,
+	conn_timeout: SomeTimeOut | null,
 } & (SslFilesWithStrModel);
 
 export type ProcedureDetail = {
@@ -507,7 +505,7 @@ export type RedisDBConfig = {
 	db: string | null,
 	read_only: boolean,
 	enable_ssl: boolean,
-	conn_timeout: ConnTimeOut | null,
+	conn_timeout: SomeTimeOut | null,
 };
 
 export type RedisListTableRet = {
@@ -548,6 +546,8 @@ export type ShowTableParameter = {
 	tab_size?: number,
 };
 
+export type SomeTimeOut = number;
+
 export type SqlEvent = {
 	name: string,
 	sql: string,
@@ -565,14 +565,15 @@ export type SqlServerDBConfig = {
 	trust_cert: boolean,
 	schema: string | null,
 	read_only: boolean,
-	conn_timeout: ConnTimeOut | null,
+	conn_timeout: SomeTimeOut | null,
 	cert_ca: string | null,
 };
 
 export type SqliteDBConfig = {
 	path: string,
 	read_only: boolean,
-	conn_timeout: ConnTimeOut | null,
+	conn_timeout: SomeTimeOut | null,
+	locking_model: string,
 };
 
 export type SslFilesWithStrModel = {
