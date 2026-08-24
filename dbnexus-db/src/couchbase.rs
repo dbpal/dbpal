@@ -114,6 +114,33 @@ impl ServerMetas for CouchBaseDB {
     }
 }
 
+impl CouchBaseDB {
+    pub async fn ai_query_sql(
+        &self,
+        sql: &str,
+        max_row: usize,
+    ) -> anyhow::Result<(Vec<serde_json::Value>, bool)> {
+        let scope = self.get_scope()?;
+        let mut ret = Vec::with_capacity(max_row + 1); // a extra position to check if exceed
+        let mut query_result = scope
+            .query(sql, {
+                let op = QueryOptions::default();
+                let op = op.read_only(self.config.read_only);
+                Some(op)
+            })
+            .await?;
+        let mut stream = query_result.rows::<'_, serde_json::Value>();
+        while let Some(x) = stream.next().await {
+            let x = x?;
+            ret.push(x);
+            if ret.len() >= max_row {
+                return anyhow::Ok((ret, true));
+            }
+        }
+        anyhow::Ok((ret, false))
+    }
+}
+
 #[async_trait::async_trait]
 
 impl QuerySql for CouchBaseDB {
