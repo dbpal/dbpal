@@ -367,7 +367,7 @@ impl TryRollBack {
         *self.rollback.lock().expect("lock failed") = false;
     }
     pub(crate) fn get(&self) -> bool {
-        self.rollback.lock().expect("lock failed").clone()
+        *self.rollback.lock().expect("lock failed")
     }
 }
 
@@ -2567,7 +2567,7 @@ pub trait QuerySql: GetBackendKind + Send + Sync + 'static + LanguageServer {
         for sql in sql.iter() {
             self.execute_sql(&query_id, sql.as_str())
                 .await?
-                .map_err(|e| anyhow::Error::msg(e))?;
+                .map_err(anyhow::Error::msg)?;
         }
         if self.support_tx() {
             self.commit(&query_id).await?;

@@ -44,11 +44,12 @@ impl MongoDB {
         }];
         opts.connect_timeout = config.conn_timeout.map(Duration::from);
         if let Some(user) = &config.username {
-            let b = mongodb::options::Credential::builder();
-            let b = b.username(Some(user.to_owned()));
-            let b = b.password(Some(config.password.as_deref().unwrap_or("").to_owned()));
-            let x = b.build();
-            opts.credential = Some(x);
+            let builder = mongodb::options::Credential::builder();
+            let builder = builder.username(Some(user.to_owned()));
+            let builder =
+                builder.password(Some(config.password.as_deref().unwrap_or("").to_owned()));
+            let credential = builder.build();
+            opts.credential = Some(credential);
         }
         if config.ssl_enable {
             let mut tls_option = TlsOptions::default();

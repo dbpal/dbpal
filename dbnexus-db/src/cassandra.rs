@@ -95,7 +95,7 @@ async fn make_session(config: &CassandraDBConfig) -> anyhow::Result<Session> {
 
     let profile: ExecutionProfile = ExecutionProfile::builder()
         .consistency(config.consistency.try_into()?)
-        .request_timeout(config.conn_timeout.map(|x| Duration::from(x)))
+        .request_timeout(config.conn_timeout.map(Duration::from))
         .build();
 
     let mut builder = SessionBuilder::new()

@@ -196,8 +196,8 @@ fn make_config(c: &SqlServerDBConfig) -> anyhow::Result<tiberius::Config> {
     if c.trust_cert {
         config.trust_cert(); // on production, it is not a good idea to do this
     }
-    if let Some(x) = &c.cert_ca {
-        config.trust_cert_ca(x);
+    if let Some(path) = &c.cert_ca {
+        config.trust_cert_ca(path);
         config.encryption(EncryptionLevel::Required);
     }
     anyhow::Ok(config)

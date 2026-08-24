@@ -503,7 +503,7 @@ pub(crate) async fn get_update_sql_from_result_set_impl<
                 if !fs.iter().any(|x| x.is_primary) {
                     anyhow::bail!(format!(
                         "table {} have no primary key",
-                        r.reference.to_string()
+                        r.reference
                     ))
                 }
 
@@ -521,7 +521,7 @@ pub(crate) async fn get_update_sql_from_result_set_impl<
                     };
                     let cols = fs.iter().map(|x| x.field.clone()).collect::<Vec<_>>();
                     log::trace!("enter table {} {:?}", table, cols);
-                    table = table.columns(cols.into_iter());
+                    table = table.columns(cols);
                     table
                 });
                 cols_map.push((r.reference.clone(), fs));
@@ -656,7 +656,7 @@ pub(crate) async fn get_update_sql_from_result_set_impl<
                     continue;
                 }
                 if wheres.get(&f.field).is_none() {
-                    anyhow::bail!(format!("table:{} field:'{}' have one value in this query,and this is primary key,we need this to update the value", table.to_string(), f.field))
+                    anyhow::bail!(format!("table:{} field:'{}' have one value in this query,and this is primary key,we need this to update the value", table, f.field))
                 }
             }
         }
