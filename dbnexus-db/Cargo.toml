@@ -29,7 +29,7 @@ sqlx = { version = "0.9.0", features = [
 ] }
 sqlx-core = { version = "0.9.0", features = ["any"] }
 
-odbc-api = { version = "28", optional = true, features = [
+odbc-api = { version = "29", optional = true, features = [
     "vendored-unix-odbc",
 ] }
 tokio-native-tls.workspace = true
@@ -49,8 +49,8 @@ ipnetwork = "0.21"
 chrono = "0.4.34"
 uuid.workspace = true
 serde_json.workspace = true
-sqlparser = { version = "0.62", features = ["serde"] }
-sql-insight = "0.5.0"
+sqlparser.workspace = true
+sql-insight.workspace = true
 lazy_static.workspace = true
 log.workspace = true
 duckdb = { version = "=1.4.4", features = [
@@ -88,7 +88,7 @@ libsql = { version = "0.9.7", default-features = false, features = [
     "remote",
     "tls",
 ] }
-rsfbclient = { version = "0.27", default-features = false, features = [
+rsfbclient = { version = "0.28", default-features = false, features = [
     "pure_rust",
 ] }
 csv.workspace = true

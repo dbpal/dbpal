@@ -66,6 +66,9 @@ impl TryFrom<&DuckDBConfig> for DuckdbConnectionManager {
         } else {
             AccessMode::ReadWrite
         })?;
+        if let Some(x) = value.max_memory.as_deref() {
+            config = config.max_memory(x)?;
+        }
         DuckdbConnectionManager::file_with_flags(value.path.clone(), config)
     }
 }
@@ -1592,6 +1595,7 @@ pub(crate) async fn make_test_object(schema: Option<String>) -> DuckDB {
         read_only: false,
         db: Some("test".to_string()),
         schema,
+        max_memory: None,
     })
     .await
     .unwrap()
@@ -1749,6 +1753,7 @@ mod tests {
             read_only: true,
             db: Some("test".to_string()),
             schema: Some("main".into()),
+            max_memory: None,
         })
         .await
         .unwrap();

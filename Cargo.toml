@@ -43,10 +43,12 @@ redis = { version = "1", features = [
     "tokio-native-tls-comp",
 
 ] }
+sqlparser = { version = "0.62", features = ["serde"] }
+sql-insight = "0.5.0"
 specta-typescript = "0.0.11"
 csv_processor = "0.1.10"
 csv = "*"
-rust_xlsxwriter = { version = "0.98", features = ["constant_memory", "chrono"] }
+rust_xlsxwriter = { version = "0.99", features = ["constant_memory", "chrono"] }
 specta = { version = "=2.0.0-rc.24", features = ["derive", "serde_json"] }
 calamine = { version = "*", features = ["chrono"] }
 reqwest = { version = "0.13", features = ["json", "native-tls", "stream"] }

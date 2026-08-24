@@ -324,6 +324,7 @@ export type DuckDBConfig = {
 	db: string | null,
 	schema: string | null,
 	conn_timeout: SomeTimeOut | null,
+	max_memory: string | null,
 };
 
 export type ErrorFrontend = {

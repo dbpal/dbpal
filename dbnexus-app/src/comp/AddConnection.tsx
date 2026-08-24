@@ -1505,7 +1505,7 @@ function DuckDB(props: { config?: DuckDBConfig; context: AddConnectionContext })
   const [db, setDb] = useState(getConfigStr("db"));
   const [schema, setSchema] = useState(getConfigStr("schema"));
   const { connTimeOut, connectionName, readOnly, makeConfigRef } = context;
-
+  const [maxMemory, setMaxMemory] = useState("");
   function makeConfig(): DBConnectionConfig {
     const x: DBConnectionConfig = {
       conn_type: "duckdb",
@@ -1514,6 +1514,7 @@ function DuckDB(props: { config?: DuckDBConfig; context: AddConnectionContext })
       conn_timeout: connTimeOut,
       name: connectionName,
       read_only: readOnly,
+      max_memory: maxMemory ? maxMemory : null,
       schema: schema ? schema : null,
     };
     console.info("makeConfig", x);
@@ -1539,6 +1540,14 @@ function DuckDB(props: { config?: DuckDBConfig; context: AddConnectionContext })
           makeConfig={makeConfig}
         />
       )}
+
+      <TextField
+        label="max memory"
+        value={maxMemory}
+        onChange={(e) => {
+          setMaxMemory(e.target.value);
+        }}
+      />
     </Stack>
   );
 }

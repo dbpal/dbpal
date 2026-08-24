@@ -134,6 +134,7 @@ pub struct DuckDBConfig {
     pub db: Option<String>,
     pub schema: Option<String>,
     pub conn_timeout: Option<SomeTimeOut>,
+    pub max_memory: Option<String>,
 }
 
 #[derive(Debug, Clone, serde::Deserialize, serde::Serialize, specta::Type)]
@@ -142,7 +143,6 @@ pub struct FireBirdConfig {
     pub port: u16,
     pub username: String,
     pub password: String,
-
     pub db: String,
     pub read_only: bool,
     pub conn_timeout: Option<SomeTimeOut>,
