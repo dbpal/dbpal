@@ -1132,7 +1132,7 @@ pub async fn get_update_sql_from_result_set(
     db.as_query_sql()
         .get_update_sql_from_result_set(&sql, &old_values, &new_values)
         .await
-        .map_err(|e| ErrorFrontend::from(e))
+        .map_err(ErrorFrontend::from)
 }
 
 #[specta::specta]
