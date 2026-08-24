@@ -6,7 +6,7 @@ use dbnexus_db::mongo::MongoDB;
 use dbnexus_db::redis::RedisDB;
 use futures_util::StreamExt;
 use mongodb::bson::doc;
-use rig::agent::{Agent, MultiTurnStreamItem, StreamingError, Text, WithBuilderTools};
+use rig::agent::{Agent, MultiTurnStreamItem, StreamingError, Text};
 use rig::loaders::StripXmlProcessor;
 use rig::streaming::{StreamedAssistantContent, StreamedUserContent, StreamingPrompt};
 use rig::AgentBuilder;
@@ -169,7 +169,7 @@ pub struct EmitSomeStatus {
 // impl<M> PromptHook<M> for EmitSomeStatus where M: CompletionModel + 'static {}
 
 impl DBPal {
-    async fn make_tools(
+    async fn insert_tools(
         &self,
         name: &str,
         query_id: impl Into<String>,
@@ -558,12 +558,12 @@ pub async fn openai_stream(
     )?;
 
     agent_builder = dbpal
-        .make_tools(&name, query_id, tool_emitter.clone(), agent_builder)
+        .insert_tools(&name, query_id, tool_emitter.clone(), agent_builder)
         .await
         .map_err(ErrorFrontend::from)?;
     agent_builder = req
         .search_engine
-        .make_tool(tool_emitter.clone(), agent_builder)?;
+        .insert_tool(tool_emitter.clone(), agent_builder)?;
 
     let agent = agent_builder.tool(WebFetchTool::new(tool_emitter.clone())?);
 
@@ -668,7 +668,7 @@ impl From<websearch::SearchError> for ErrorFrontend {
 }
 
 impl AiOnlineSearch {
-    fn make_tool(
+    fn insert_tool(
         &self,
         emit: ToolEmitter,
         agent_build: AgentBuilderWithTool,
@@ -704,8 +704,8 @@ impl AiOnlineSearch {
                     )));
                 }
             };
-            let r = agent_build.tool(WebSearchTool { engine, emit });
-            Ok(r)
+            let builder = agent_build.tool(WebSearchTool { engine, emit });
+            Ok(builder)
         } else {
             Ok(agent_build)
         }
@@ -1586,9 +1586,9 @@ human: tell me Mike's age from TABLE Persons
         // 如果没有设置代理，手动设置（仅用于测试）
         if env::var("https_proxy").is_err() {
             println!("⚠️  No proxy detected, setting default proxy...");
-            env::set_var("http_proxy", "http://127.0.0.1:7897");
-            env::set_var("https_proxy", "http://127.0.0.1:7897");
-            env::set_var("all_proxy", "socks5://127.0.0.1:7897");
+            env::set_var("http_proxy", "http://127.0.0.1:7890");
+            env::set_var("https_proxy", "http://127.0.0.1:7890");
+            env::set_var("all_proxy", "socks5://127.0.0.1:7890");
         }
         let req = &OpenAIReq {
             chat_history: vec![],
@@ -1612,48 +1612,23 @@ human: tell me Mike's age from TABLE Persons
 
         let print_emit = Arc::new(|x: String| println!("{}", x));
 
-        // {
-        //     println!("testing duckduckgo search tool...");
-        //     let agent = make_agent(
-        //         req,
-        //         vec![Box::new(WebSearchTool {
-        //             engine: Box::new(websearch::providers::DuckDuckGoProvider::new()),
-        //             emit: print_emit.clone(),
-        //         })],
-        //         None,
-        //     )
-        //     .unwrap();
+        {
+            println!("testing duckduckgo search tool...");
+            let agent = make_agent_builder(req, None).unwrap();
 
-        //     let msg = Message::user(&req.prompt);
+            let agent = agent
+                .tool(WebSearchTool {
+                    engine: Box::new(websearch::providers::DuckDuckGoProvider::new()),
+                    emit: print_emit.clone(),
+                })
+                .build();
 
-        //     call_openai_stream(agent, print_steam.clone(), |x| x.to_owned(), msg)
-        //         .await
-        //         .unwrap();
-        // }
+            let msg = Message::user(&req.prompt);
 
-        // {
-        //     println!("testing search tool...");
-        //     let agent = make_agent(
-        //         req,
-        //         vec![Box::new(WebSearchTool {
-        //             engine: Box::new(
-        //                 websearch::providers::TavilyProvider::new(
-        //                     "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",
-        //                 )
-        //                 .unwrap(),
-        //             ),
-        //             emit: print_emit.clone(),
-        //         })],
-        //         None,
-        //     )
-        //     .unwrap();
-
-        //     let msg = Message::user(&req.prompt);
-
-        //     call_openai_stream(agent, print_steam.clone(), |x| x.to_owned(), msg)
-        //         .await
-        //         .unwrap();
-        // }
+            call_openai_stream(agent, print_steam.clone(), |x| x.to_owned(), msg)
+                .await
+                .unwrap();
+        }
     }
 
     #[tokio::test]
