@@ -6,6 +6,7 @@ import {
   useMemo,
   useState,
 } from "react";
+import { fetch } from "@tauri-apps/plugin-http";
 import { FaFolderOpen } from "react-icons/fa";
 import { isEqual } from "lodash-es";
 import * as monaco from "monaco-editor";
@@ -515,6 +516,7 @@ function LLMSetting(props: { handleClose?: () => void }) {
       setModdelCan(ms);
       showNotification({ severity: "success", title: "load model candidates ok" });
     } catch (e) {
+      console.error(e);
       showNotification({
         severity: "error",
         title: "load model can failed",
