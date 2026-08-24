@@ -501,10 +501,7 @@ pub(crate) async fn get_update_sql_from_result_set_impl<
                 };
 
                 if !fs.iter().any(|x| x.is_primary) {
-                    anyhow::bail!(format!(
-                        "table {} have no primary key",
-                        r.reference
-                    ))
+                    anyhow::bail!(format!("table {} have no primary key", r.reference))
                 }
 
                 // add to catalog

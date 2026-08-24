@@ -6,13 +6,10 @@ use dbnexus_db::mongo::MongoDB;
 use dbnexus_db::redis::RedisDB;
 use futures_util::StreamExt;
 use mongodb::bson::doc;
-use rig_core::agent::{Agent, MultiTurnStreamItem, StreamingError, Text};
-use rig_core::client::completion::CompletionClient;
-use rig_core::loaders::StripXmlProcessor;
-use rig_core::providers::openai::responses_api::ResponsesCompletionModel;
-use rig_core::streaming::{StreamedAssistantContent, StreamedUserContent, StreamingPrompt};
-use rig_core::tool::ToolDyn;
-use rig_core::EmptyListError;
+use rig::agent::{Agent, MultiTurnStreamItem, StreamingError, Text, WithBuilderTools};
+use rig::loaders::StripXmlProcessor;
+use rig::streaming::{StreamedAssistantContent, StreamedUserContent, StreamingPrompt};
+use rig::AgentBuilder;
 use serde::{Deserialize, Serialize};
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
@@ -21,12 +18,9 @@ use crate::app::{
     self, AISteamResp, AiOnlineSearch, DBPal, DatabaseBackend, ErrorFrontend, OpenAIReq,
     TaskManager,
 };
-use rig_core::completion::{Message, Prompt, PromptError};
-use rig_core::message::{
-    DocumentSourceKind, Image, ReasoningContent, ToolResultContent, UserContent,
-};
-use rig_core::one_or_many::OneOrMany;
-use rig_core::{client::Client, providers::openai};
+use rig::completion::{Message, Prompt, PromptError};
+use rig::message::{DocumentSourceKind, Image, ReasoningContent, ToolResultContent, UserContent};
+use rig::{client::Client, providers::openai};
 use tauri::ipc::Channel;
 
 impl From<PromptError> for ErrorFrontend {
@@ -41,16 +35,15 @@ impl From<PromptError> for ErrorFrontend {
 
 fn make_agent(
     req: &app::OpenAIReq,
-    tools: Vec<Box<dyn ToolDyn>>,
     preamble: Option<&str>,
-) -> anyhow::Result<Agent<ResponsesCompletionModel>> {
+) -> anyhow::Result<AgentBuilder<rig::agent::WithBuilderTools>> {
     #[cfg(debug_assertions)]
     log::info!("open ai req:{:?}", req);
     let builder = openai::Client::builder()
         .api_key(&req.api_key)
         .base_url(&req.url);
     let api: Client<openai::OpenAIResponsesExt> = builder.build()?;
-    let mut agent_builder = api.agent(&req.model);
+    let mut agent_builder = rig::client::AgentClientExt::agent(&api, &req.model);
     if let Some(t) = req.max_tokens {
         agent_builder = agent_builder.max_tokens(t as u64);
     }
@@ -63,13 +56,15 @@ fn make_agent(
     // TODO how to set this???
     agent_builder = agent_builder.default_max_turns(20);
 
-    let agent = agent_builder.tools(tools).build();
-    anyhow::Ok(agent)
+    let agent_builder = agent_builder.dynamic_tools(vec![]);
+    return anyhow::Ok(agent_builder);
 }
+
 #[specta::specta]
 #[tauri::command]
 pub async fn openai_invoke(req: app::OpenAIReq) -> Result<String, ErrorFrontend> {
-    let api = make_agent(&req, vec![], None).map_err(ErrorFrontend::from)?;
+    let api = make_agent(&req, None).map_err(ErrorFrontend::from)?;
+    let api = api.build();
     let r = api.prompt(&req.prompt).await?;
     Ok(r)
 }
@@ -84,18 +79,8 @@ impl From<StreamingError> for ErrorFrontend {
     }
 }
 
-impl From<EmptyListError> for ErrorFrontend {
-    fn from(value: EmptyListError) -> Self {
-        Self {
-            reason: format!("{}", value),
-            detail: format!("{:?}", value),
-            cancelled: false,
-        }
-    }
-}
-
 async fn call_openai_stream(
-    agent: Agent<ResponsesCompletionModel>,
+    agent: Agent,
     emit: Arc<dyn Fn(AISteamResp) + Send + Sync + 'static>,
     comment_fn: impl Fn(&str) -> String + Send + Sync + 'static,
     prompt: Message,
@@ -112,7 +97,7 @@ async fn call_openai_stream(
                     // tool call have notice
                 }
                 StreamedAssistantContent::ToolCallDelta { .. } => {}
-                StreamedAssistantContent::Reasoning(reasoning) => {
+                StreamedAssistantContent::Reasoning { reasoning, .. } => {
                     reasoning.content.iter().for_each(|x| match x {
                         ReasoningContent::Text { text, signature: _ } => {
                             emit(text.clone().into());
@@ -120,9 +105,6 @@ async fn call_openai_stream(
                         ReasoningContent::Encrypted(_) => {}
                         ReasoningContent::Redacted { .. } => {}
                         ReasoningContent::Summary(summary) => emit(summary.clone().into()),
-                        _ => {
-                            log::error!("maybe handle type:{:?}", x);
-                        }
                     })
                 }
                 StreamedAssistantContent::ReasoningDelta { reasoning, .. } => {
@@ -158,6 +140,7 @@ async fn call_openai_stream(
                                     "we should not support generate image???",
                                 ))
                             }
+                            ToolResultContent::Json { .. } => {}
                         }
                     }
                 }
@@ -189,7 +172,8 @@ impl DBPal {
         name: &str,
         query_id: impl Into<String>,
         emit: ToolEmitter,
-    ) -> anyhow::Result<Vec<Box<dyn ToolDyn>>> {
+        agent_builder: AgentBuilder<WithBuilderTools>,
+    ) -> anyhow::Result<AgentBuilder<WithBuilderTools>> {
         let db = self.get_backend(name).await?;
         match db.backend_kind() {
             BackendKind::Redis => {
@@ -198,10 +182,11 @@ impl DBPal {
                     .downcast_ref::<RedisDB>()
                     .expect("must be redis");
                 let client = Clone::clone(x);
-                let r: Vec<Box<dyn ToolDyn>> = vec![Box::new(redis::RedisTool {
+
+                let r = agent_builder.tool(redis::RedisTool {
                     client,
                     query_id: query_id.into(),
-                })];
+                });
                 anyhow::Ok(r)
             }
             BackendKind::Mongo => {
@@ -210,27 +195,22 @@ impl DBPal {
                     .downcast_ref::<MongoDB>()
                     .expect("must be mongodb");
                 let c = Clone::clone(x);
-                let r: Vec<Box<dyn ToolDyn>> = vec![
-                    Box::new(mongo_tool::MongoQueryTool {
-                        client: c,
-                        max_limit: 10_000,
-                    }),
-                    Box::new(mongo_tool::MongoRunCommandTool {
-                        client: Clone::clone(x),
-                    }),
-                ];
-                anyhow::Ok(r)
+
+                let mut builder = agent_builder.tool(mongo_tool::MongoQueryTool {
+                    client: c,
+                    max_limit: 10_000,
+                });
+                builder = builder.tool(mongo_tool::MongoRunCommandTool {
+                    client: Clone::clone(x),
+                });
+                anyhow::Ok(builder)
             }
 
-            _ => {
-                // sql base database
-                let r: Vec<Box<dyn ToolDyn>> = vec![Box::new(SqlQueryTool {
-                    db,
-                    query_id: query_id.into(),
-                    emit: emit.clone(),
-                })];
-                anyhow::Ok(r)
-            }
+            _ => anyhow::Ok(agent_builder.tool(SqlQueryTool {
+                db,
+                query_id: query_id.into(),
+                emit: emit.clone(),
+            })),
         }
     }
 }
@@ -281,7 +261,7 @@ impl From<anyhow::Error> for CallToolErr {
 
 impl std::error::Error for CallToolErr {}
 
-use rig_core::tool::Tool;
+use rig::tool::{Tool, ToolContext};
 
 #[derive(serde::Deserialize, Debug)]
 
@@ -305,7 +285,11 @@ impl Tool for SqlQueryTool {
     type Output = SqlQueryOutput;
     type Error = CallToolErr;
 
-    async fn call(&self, args: Self::Args) -> Result<Self::Output, Self::Error> {
+    async fn call(
+        &self,
+        _context: &mut ToolContext,
+        args: Self::Args,
+    ) -> Result<Self::Output, Self::Error> {
         (self.emit)(format!("\ncall tool sql query {}", args.query));
         let (exceed, ret) = self
             .db
@@ -424,7 +408,11 @@ impl Tool for WebFetchTool {
     type Output = WebFetchOutput;
 
     /// Executes the web fetch operation
-    async fn call(&self, args: Self::Args) -> Result<Self::Output, Self::Error> {
+    async fn call(
+        &self,
+        _context: &mut ToolContext,
+        args: Self::Args,
+    ) -> Result<Self::Output, Self::Error> {
         if !args.url.starts_with("http://") && !args.url.starts_with("https://") {
             return Err(CallToolErr::from(
                 "URL must start with http:// or https://".to_string(),
@@ -561,19 +549,21 @@ pub async fn openai_stream(
             }
         })
     };
-    let mut tools = dbpal
-        .make_tools(&name, query_id, tool_emitter.clone())
-        .await
-        .map_err(ErrorFrontend::from)?;
-    if let Some(x) = req.search_engine.make_tool(tool_emitter.clone())? {
-        tools.push(x);
-    }
-    tools.push(Box::new(WebFetchTool::new(tool_emitter.clone())?));
-    let agent = make_agent(
+
+    let mut agent_builder = make_agent(
         &req,
-        tools,
         Some(format!("U a are {} expert", db.backend_kind()).as_str()),
     )?;
+
+    agent_builder = dbpal
+        .make_tools(&name, query_id, tool_emitter.clone(), agent_builder)
+        .await
+        .map_err(ErrorFrontend::from)?;
+    agent_builder = req
+        .search_engine
+        .make_tool(tool_emitter.clone(), agent_builder)?;
+
+    let agent = agent_builder.tool(WebFetchTool::new(tool_emitter.clone())?);
 
     let documents = req.images.iter().map(|x| {
         UserContent::Image(Image {
@@ -583,6 +573,7 @@ pub async fn openai_stream(
             additional_params: None,
         })
     });
+    let agent = agent.build();
 
     let msg = Message::User {
         content: {
@@ -622,7 +613,7 @@ pub async fn openai_stream(
                     println!("user content:{:?}", c);
                 }
             }
-            OneOrMany::many(content)?
+            content
         },
     };
 
@@ -675,7 +666,11 @@ impl From<websearch::SearchError> for ErrorFrontend {
 }
 
 impl AiOnlineSearch {
-    fn make_tool(&self, emit: ToolEmitter) -> Result<Option<Box<dyn ToolDyn>>, ErrorFrontend> {
+    fn make_tool(
+        &self,
+        emit: ToolEmitter,
+        agent_build: AgentBuilder<WithBuilderTools>,
+    ) -> Result<AgentBuilder<WithBuilderTools>, ErrorFrontend> {
         if self.enable {
             let engine: Box<dyn websearch::SearchProvider> = match self.provider.as_ref() {
                 "duckduckgo" => Box::new(websearch::providers::DuckDuckGoProvider::new()),
@@ -707,22 +702,23 @@ impl AiOnlineSearch {
                     )));
                 }
             };
-            Ok(Some(Box::new(WebSearchTool { engine, emit })))
+            let r = agent_build.tool(WebSearchTool { engine, emit });
+            Ok(r)
         } else {
-            Ok(None)
+            Ok(agent_build)
         }
     }
 }
 
 impl OpenAIReq {
-    async fn read_document(file: &str) -> anyhow::Result<rig_core::message::Document> {
+    async fn read_document(file: &str) -> anyhow::Result<rig::message::Document> {
         let file = file.to_owned();
 
         tokio::task::spawn_blocking(move || {
             let d = match &file {
                 _ if file.to_lowercase().ends_with(".epub") => {
                     let loader =
-                        rig_core::loaders::EpubFileLoader::<_, StripXmlProcessor>::with_glob(&file)
+                        rig::loaders::EpubFileLoader::<_, StripXmlProcessor>::with_glob(&file)
                             .map_err(|err| anyhow::Error::msg(err.to_string()))?;
 
                     // Load epub file contents by chapter, ignoring any errors
@@ -741,14 +737,14 @@ impl OpenAIReq {
                         }
                         doc.push_str(format!("file {:?} ends\n", path).as_str());
                     }
-                    rig_core::message::Document {
+                    rig::message::Document {
                         data: DocumentSourceKind::String(doc),
                         media_type: None,
                         additional_params: None,
                     }
                 }
                 _ if file.to_lowercase().ends_with(".pdf") => {
-                    let loader = rig_core::loaders::PdfFileLoader::with_glob(&file)
+                    let loader = rig::loaders::PdfFileLoader::with_glob(&file)
                         .map_err(|err| anyhow::Error::msg(err.to_string()))?;
                     // Load pdf file contents by page, ignoring any errors
                     let contents = loader
@@ -767,7 +763,7 @@ impl OpenAIReq {
                         doc.push_str(format!("file {:?} ends\n", path).as_str());
                     }
 
-                    rig_core::message::Document {
+                    rig::message::Document {
                         data: DocumentSourceKind::String(doc),
                         media_type: None,
                         additional_params: None,
@@ -775,7 +771,7 @@ impl OpenAIReq {
                 }
                 _ => {
                     let doc = std::fs::read_to_string(&file)?;
-                    rig_core::message::Document {
+                    rig::message::Document {
                         data: DocumentSourceKind::String(doc),
                         media_type: None,
                         additional_params: None,
@@ -786,7 +782,7 @@ impl OpenAIReq {
         })
         .await?
     }
-    async fn read_documents(&self) -> anyhow::Result<Vec<rig_core::message::Document>> {
+    async fn read_documents(&self) -> anyhow::Result<Vec<rig::message::Document>> {
         let mut documents = vec![];
 
         for file in self.documents.iter() {
@@ -832,7 +828,11 @@ impl Tool for WebSearchTool {
 
     type Output = SearchOutput;
 
-    async fn call(&self, args: Self::Args) -> Result<Self::Output, Self::Error> {
+    async fn call(
+        &self,
+        _context: &mut ToolContext,
+        args: Self::Args,
+    ) -> Result<Self::Output, Self::Error> {
         (self.emit)(format!("search internet for answer,query:{}\n", args.query));
 
         let start = std::time::Instant::now();
@@ -913,7 +913,7 @@ mod mongo_tool {
         bson::{doc, Document},
         Cursor,
     };
-    use rig_core::tool::Tool;
+    use rig::tool::{Tool, ToolContext};
     use serde::{Deserialize, Serialize};
 
     use crate::ai::CallToolErr;
@@ -965,7 +965,11 @@ mod mongo_tool {
         type Args = MongoQueryRequest;
         type Output = Vec<Document>;
 
-        async fn call(&self, args: Self::Args) -> Result<Self::Output, CallToolErr> {
+        async fn call(
+            &self,
+            _context: &mut ToolContext,
+            args: Self::Args,
+        ) -> Result<Self::Output, CallToolErr> {
             let db = self.client.get_db().await?;
 
             let MongoQueryRequest {
@@ -1117,7 +1121,11 @@ mod mongo_tool {
         type Output = RunCommandOutput;
         type Error = CallToolErr;
 
-        async fn call(&self, args: Self::Args) -> Result<Self::Output, Self::Error> {
+        async fn call(
+            &self,
+            _context: &mut ToolContext,
+            args: Self::Args,
+        ) -> Result<Self::Output, Self::Error> {
             let result = self
                 .client
                 .get_db()
@@ -1151,7 +1159,7 @@ mod redis {
 
     use dbnexus_db::redis::{command_return_multi_value, RedisDB};
     use futures_util::StreamExt;
-    use rig_core::tool::Tool;
+    use rig::tool::{Tool, ToolContext};
     use serde::{Deserialize, Deserializer, Serialize};
     use serde_json::json;
 
@@ -1208,7 +1216,11 @@ mod redis {
         type Args = RedisCommandArgs;
         type Output = Vec<String>;
 
-        async fn call(&self, args: Self::Args) -> Result<Self::Output, Self::Error> {
+        async fn call(
+            &self,
+            _context: &mut ToolContext,
+            args: Self::Args,
+        ) -> Result<Self::Output, Self::Error> {
             let RedisCommandArgs { command, args } = args;
             let conn = self.client.get_query_conn_by_id(&self.query_id)?;
             let mut conn = conn.lock().await;
@@ -1283,8 +1295,9 @@ mod tests {
         sqlite::{sqlite_test_file_path, SqliteDB},
     };
     use futures_util::StreamExt;
-    use rig_core::{
+    use rig::{
         agent::MultiTurnStreamItem,
+        client::AgentClientExt,
         streaming::{StreamedAssistantContent, StreamedUserContent, StreamingChat},
     };
     use websearch::SearchProvider;
@@ -1311,7 +1324,9 @@ mod tests {
             user_system_prompt: None,
             documents: vec![],
         };
-        let agent = make_agent(req, vec![], None).unwrap();
+        let agent = make_agent(req, None).unwrap();
+        let agent = agent.build();
+
         call_openai_stream(
             agent,
             Arc::new(|x| print!("{}", x)),
@@ -1341,7 +1356,8 @@ mod tests {
             documents: vec![],
             user_system_prompt: None,
         };
-        let agent: Agent<ResponsesCompletionModel> = make_agent(req, vec![], None).unwrap();
+        let agent = make_agent(req, None).unwrap();
+        let agent = agent.build();
         println!("{:?}", now.elapsed());
         let r = agent.prompt("hello").await.unwrap();
         println!("{:?}", now.elapsed());
@@ -1486,7 +1502,7 @@ human: tell me Mike's age from TABLE Persons
                             println!("toolcall:{:?} {}", tool_call, internal_call_id);
                         }
                         StreamedAssistantContent::ToolCallDelta { .. } => {}
-                        StreamedAssistantContent::Reasoning(..) => {}
+                        StreamedAssistantContent::Reasoning { .. } => {}
                         StreamedAssistantContent::ReasoningDelta { .. } => {}
                         StreamedAssistantContent::Final(..) => {}
                         StreamedAssistantContent::Unknown(..) => {}
@@ -1636,54 +1652,6 @@ human: tell me Mike's age from TABLE Persons
         //         .await
         //         .unwrap();
         // }
-
-        {
-            println!("testing tavily serpapi tool...");
-            let agent = make_agent(
-                req,
-                vec![Box::new(WebSearchTool {
-                    engine: Box::new(
-                        websearch::providers::SerpApiProvider::new(
-                            "470cd3e4754aa5b76b04e80ddc85520e1d953cd303d6487ebe7c949e6629fbc4",
-                        )
-                        .unwrap(),
-                    ),
-                    emit: print_emit.clone(),
-                })],
-                None,
-            )
-            .unwrap();
-
-            let msg = Message::user(&req.prompt);
-
-            call_openai_stream(agent, print_steam.clone(), |x| x.to_owned(), msg)
-                .await
-                .unwrap();
-        }
-        {
-            println!("testing google tool...");
-            let agent = make_agent(
-                req,
-                vec![Box::new(WebSearchTool {
-                    engine: Box::new(
-                        websearch::providers::GoogleProvider::new(
-                            "470cd3e4754aa5b76b04e80ddc85520e1d953cd303d6487ebe7c949e6629fbc4",
-                            "rig-agent",
-                        )
-                        .unwrap(),
-                    ),
-                    emit: print_emit.clone(),
-                })],
-                None,
-            )
-            .unwrap();
-
-            let msg = Message::user(&req.prompt);
-
-            call_openai_stream(agent, print_steam.clone(), |x| x.to_owned(), msg)
-                .await
-                .unwrap();
-        }
     }
 
     #[tokio::test]
@@ -1731,22 +1699,19 @@ human: tell me Mike's age from TABLE Persons
 
         {
             //
-            let agent = make_agent(
-                req,
-                vec![
-                    Box::new(mongo_tool::MongoQueryTool {
-                        client: Clone::clone(&db),
-                        max_limit: 10,
-                    }),
-                    Box::new(mongo_tool::MongoRunCommandTool {
-                        client: Clone::clone(&db),
-                    }),
-                ],
-                Some("u are a mongo export"),
-            )
-            .unwrap();
+            let agent = make_agent(req, Some("u are a mongo export")).unwrap();
+
+            let agent = agent.tool(mongo_tool::MongoQueryTool {
+                client: Clone::clone(&db),
+                max_limit: 10,
+            });
+
+            let agent = agent.tool(mongo_tool::MongoRunCommandTool {
+                client: Clone::clone(&db),
+            });
 
             //
+            let agent = agent.build();
 
             println!("=============================== tell me the server version.");
             call_openai_stream(
