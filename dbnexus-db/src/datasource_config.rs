@@ -361,7 +361,12 @@ pub struct CassandraDBConfig {
     pub ssl_ca_file: Option<String>,
     pub conn_timeout: Option<SomeTimeOut>,
     pub dialect: CassandraDialect,
+    pub consistency: CassandraConsistency,
 }
+
+#[derive(Debug, Clone, Copy, serde::Serialize, serde::Deserialize, specta::Type)]
+#[serde(transparent)]
+pub struct CassandraConsistency(pub u16);
 
 #[derive(Debug, Clone, serde::Deserialize, serde::Serialize, specta::Type)]
 pub enum CassandraDialect {

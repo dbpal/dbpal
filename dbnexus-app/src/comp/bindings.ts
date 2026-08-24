@@ -176,6 +176,8 @@ export type AiOnlineSearch = {
 	api_key: string | null,
 };
 
+export type CassandraConsistency = number;
+
 export type CassandraDBConfig = {
 	host: string,
 	port: number,
@@ -187,6 +189,7 @@ export type CassandraDBConfig = {
 	ssl_ca_file: string | null,
 	conn_timeout: SomeTimeOut | null,
 	dialect: CassandraDialect,
+	consistency: CassandraConsistency,
 };
 
 export type CassandraDialect = "Cassandra" | "Scylla";

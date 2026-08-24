@@ -30,6 +30,7 @@ pub(crate) async fn make_test_object(db: Option<String>) -> CassandraDB {
         db,
         conn_timeout: None,
         ssl_ca_file: None,
+        consistency: Default::default(),
         ssl_enable: false,
     })
     .await

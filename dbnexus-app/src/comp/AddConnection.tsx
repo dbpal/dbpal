@@ -25,6 +25,7 @@ import {
   InputAdornment,
   IconButton,
   Autocomplete,
+  Slider,
 } from "@mui/material";
 import CancelIcon from "@mui/icons-material/Cancel";
 import { ClearableTextField, RefreshButton } from "./CommonComp2";
@@ -445,7 +446,7 @@ function Mysql(props: {
     ssl_key: config?.ssl_key,
   });
   const [savePassword, setSavePassword] = useState(getSavePassword(config));
-  const [charset, setCharset] = useState("utf8mb4");
+  const [charset, setCharset] = useState(config?.charset || "utf8mb4");
 
   function makeConfig(): DBConnectionConfig {
     const x: MysqlDBConfig = {
@@ -718,7 +719,18 @@ function PostGres(props: {
   const [schema, setSchema] = useState(getSchema(config));
   const { connTimeOut, connectionName, readOnly, makeConfigRef } = context;
   const [savePassword, setSavePassword] = useState(getSavePassword(config));
-  const [options, setOptions] = useState<PostGresOption[]>([]);
+  const [options, setOptions] = useState<PostGresOption[]>(
+    (function () {
+      if (!config) {
+        return [];
+      }
+      const ret: PostGresOption[] = [];
+      for (const key in config.options) {
+        ret.push({ key, value: config.options[key] });
+      }
+      return ret;
+    })(),
+  );
   function makeConfig(): DBConnectionConfig {
     const x: PGDBConfig = {
       host,
@@ -800,7 +812,7 @@ function Sqlite(props: { config?: SqliteDBConfig; context: AddConnectionContext 
   const { config, context } = props;
   const [path, setPath] = useState(config?.path || "");
   const { connTimeOut, connectionName, readOnly, makeConfigRef } = context;
-  const [lockingModel, setLockingModel] = useState("normal");
+  const [lockingModel, setLockingModel] = useState(config?.locking_model || "normal");
 
   function makeConfig(): DBConnectionConfig {
     return {
@@ -1193,11 +1205,13 @@ function Cassandra(props: {
   const { connTimeOut, connectionName, readOnly, makeConfigRef } = context;
   const [enableSSL, setEnableSSL] = useState(!!config?.ssl_enable);
   const [caFile, setCaFile] = useState("");
+  const [consistency, setConsistency] = useState(config?.consistency || 1);
   function makeConfig(): DBConnectionConfig {
     return {
       conn_type: "cassandra",
       name: connectionName,
       host,
+      consistency,
       username: user ? user : "",
       password: password ? password : null,
       db: database ? database : null,
@@ -1248,6 +1262,24 @@ function Cassandra(props: {
         label="key space"
         makeConfig={makeConfig}
       />
+      <Stack direction="row" style={{ alignItems: "center" }}>
+        <FormControlLabel
+          control={
+            <Slider
+              style={{ width: "9rem" }}
+              step={1}
+              min={0}
+              max={9}
+              value={consistency}
+              onChange={(_, value) => {
+                setConsistency(value);
+              }}
+            />
+          }
+          label="Consistency"
+        />
+        <UrlDocument url="https://docs.rs/scylla/latest/scylla/frame/types/enum.Consistency.html" />
+      </Stack>
     </Stack>
   );
 }

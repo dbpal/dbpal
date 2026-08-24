@@ -26,9 +26,9 @@
 // user_defined_functions_enabled=true to enable"
 //
 
-use crate::datasource_config::CassandraDBConfig;
 #[cfg(test)]
 use crate::datasource_config::CassandraDialect;
+use crate::datasource_config::{CassandraConsistency, CassandraDBConfig};
 use crate::db::{
     create_html_table_data, create_html_table_header, create_markdown_data, create_markdown_header,
     export_query_as_xlsx_send_data, quote_sql_str, AutoCompletionQueryId, BackendKind, CheckConn,
@@ -94,7 +94,8 @@ async fn make_session(config: &CassandraDBConfig) -> anyhow::Result<Session> {
     let fixed_addr: SocketAddr = target_ip.parse()?;
 
     let profile: ExecutionProfile = ExecutionProfile::builder()
-        .consistency(scylla::statement::Consistency::One)
+        .consistency(config.consistency.try_into()?)
+        .request_timeout(config.conn_timeout.map(|x| Duration::from(x)))
         .build();
 
     let mut builder = SessionBuilder::new()
@@ -126,14 +127,7 @@ async fn make_session(config: &CassandraDBConfig) -> anyhow::Result<Session> {
 
 impl CassandraDB {
     pub async fn new(config: CassandraDBConfig) -> anyhow::Result<Self> {
-        let session = tokio::time::timeout(
-            config
-                .conn_timeout
-                .map(|x| x.into())
-                .unwrap_or(Duration::from_secs(15)),
-            async { make_session(&config).await },
-        )
-        .await??;
+        let session = make_session(&config).await?;
         anyhow::Ok(Self {
             session: Arc::new(session),
             config,
@@ -1519,6 +1513,22 @@ impl CassandraDB {
         anyhow::Ok(ret)
     }
 }
+
+impl TryFrom<CassandraConsistency> for scylla::statement::Consistency {
+    type Error = anyhow::Error;
+
+    fn try_from(value: CassandraConsistency) -> Result<Self, Self::Error> {
+        scylla::statement::Consistency::try_from(value.0)
+            .map_err(|e| anyhow::Error::msg(e.to_string()))
+    }
+}
+
+impl Default for CassandraConsistency {
+    fn default() -> Self {
+        Self(scylla::statement::Consistency::One as u16)
+    }
+}
+
 // cqlsh -u cassandra -p  cassandra
 #[cfg(test)]
 pub(crate) async fn make_test_object(db: Option<String>) -> CassandraDB {
@@ -1533,6 +1543,7 @@ pub(crate) async fn make_test_object(db: Option<String>) -> CassandraDB {
         dialect: CassandraDialect::Cassandra,
         conn_timeout: None,
         ssl_ca_file: None,
+        consistency: Default::default(),
         ssl_enable: false,
     })
     .await
