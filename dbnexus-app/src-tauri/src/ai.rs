@@ -33,10 +33,12 @@ impl From<PromptError> for ErrorFrontend {
     }
 }
 
-fn make_agent(
+type AgentBuilderWithTool = AgentBuilder<rig::agent::WithBuilderTools>;
+
+fn make_agent_builder(
     req: &app::OpenAIReq,
     preamble: Option<&str>,
-) -> anyhow::Result<AgentBuilder<rig::agent::WithBuilderTools>> {
+) -> anyhow::Result<AgentBuilderWithTool> {
     #[cfg(debug_assertions)]
     log::info!("open ai req:{:?}", req);
     let builder = openai::Client::builder()
@@ -63,7 +65,7 @@ fn make_agent(
 #[specta::specta]
 #[tauri::command]
 pub async fn openai_invoke(req: app::OpenAIReq) -> Result<String, ErrorFrontend> {
-    let api = make_agent(&req, None).map_err(ErrorFrontend::from)?;
+    let api = make_agent_builder(&req, None).map_err(ErrorFrontend::from)?;
     let api = api.build();
     let r = api.prompt(&req.prompt).await?;
     Ok(r)
@@ -172,8 +174,8 @@ impl DBPal {
         name: &str,
         query_id: impl Into<String>,
         emit: ToolEmitter,
-        agent_builder: AgentBuilder<WithBuilderTools>,
-    ) -> anyhow::Result<AgentBuilder<WithBuilderTools>> {
+        agent_builder: AgentBuilderWithTool,
+    ) -> anyhow::Result<AgentBuilderWithTool> {
         let db = self.get_backend(name).await?;
         match db.backend_kind() {
             BackendKind::Redis => {
@@ -550,7 +552,7 @@ pub async fn openai_stream(
         })
     };
 
-    let mut agent_builder = make_agent(
+    let mut agent_builder = make_agent_builder(
         &req,
         Some(format!("U a are {} expert", db.backend_kind()).as_str()),
     )?;
@@ -669,8 +671,8 @@ impl AiOnlineSearch {
     fn make_tool(
         &self,
         emit: ToolEmitter,
-        agent_build: AgentBuilder<WithBuilderTools>,
-    ) -> Result<AgentBuilder<WithBuilderTools>, ErrorFrontend> {
+        agent_build: AgentBuilderWithTool,
+    ) -> Result<AgentBuilderWithTool, ErrorFrontend> {
         if self.enable {
             let engine: Box<dyn websearch::SearchProvider> = match self.provider.as_ref() {
                 "duckduckgo" => Box::new(websearch::providers::DuckDuckGoProvider::new()),
@@ -1324,7 +1326,7 @@ mod tests {
             user_system_prompt: None,
             documents: vec![],
         };
-        let agent = make_agent(req, None).unwrap();
+        let agent = make_agent_builder(req, None).unwrap();
         let agent = agent.build();
 
         call_openai_stream(
@@ -1356,7 +1358,7 @@ mod tests {
             documents: vec![],
             user_system_prompt: None,
         };
-        let agent = make_agent(req, None).unwrap();
+        let agent = make_agent_builder(req, None).unwrap();
         let agent = agent.build();
         println!("{:?}", now.elapsed());
         let r = agent.prompt("hello").await.unwrap();
@@ -1699,7 +1701,7 @@ human: tell me Mike's age from TABLE Persons
 
         {
             //
-            let agent = make_agent(req, Some("u are a mongo export")).unwrap();
+            let agent = make_agent_builder(req, Some("u are a mongo export")).unwrap();
 
             let agent = agent.tool(mongo_tool::MongoQueryTool {
                 client: Clone::clone(&db),
