@@ -996,9 +996,12 @@ function FireBird(props: { config?: FireBirdConfig; context: AddConnectionContex
   const [savePassword, setSavePassword] = useState(getSavePassword(config));
   const { connTimeOut, connectionName, readOnly, makeConfigRef } = context;
   const [database, setDatabase] = useState(getDB(config));
+  const [dialect, setDialect] = useState("3");
+
   function makeConfig(): DBConnectionConfig {
     return {
       conn_type: "firebird",
+      dialect,
       name: connectionName,
       host,
       port: parseInt(port),
@@ -1028,6 +1031,17 @@ function FireBird(props: { config?: FireBirdConfig; context: AddConnectionContex
         value={database}
         onChange={(e) => {
           setDatabase(e.target.value);
+        }}
+      />
+
+      <Autocomplete
+        options={["1", "2", "3"]}
+        style={{ width: "22rem" }}
+        value={dialect}
+        renderInput={(params) => <TextField {...params} label={`dialect`} />}
+        freeSolo={false}
+        onChange={(_, value) => {
+          setDialect(value);
         }}
       />
     </Stack>

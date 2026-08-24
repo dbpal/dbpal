@@ -48,6 +48,7 @@ use rsfbclient_rust::RustFbClient;
 
 use std::collections::{HashMap, HashSet};
 use std::ops::DerefMut;
+use std::str::FromStr;
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
 use tokio::task::spawn_blocking;
@@ -71,6 +72,7 @@ impl r2d2::ManageConnection for PoolManager {
         let conn = builder_pure_rust()
             .host(&self.config.host)
             .port(self.config.port)
+            .dialect(rsfbclient::Dialect::from_str(&self.config.dialect)?)
             .user(&self.config.username)
             .pass(&self.config.password)
             .db_name(&self.config.db)
@@ -1149,8 +1151,10 @@ pub(crate) async fn make_test_object() -> FireBirdDB {
         port: 3050,
         username: "SYSDBA".to_string(),
         password: "root".to_string(),
+
         db: "/var/lib/firebird/data/test.fdb".to_string(),
         read_only: false,
+        dialect: "3".to_string(),
         conn_timeout: Some(500000.into()),
     })
     .await
@@ -1185,6 +1189,30 @@ mod tests {
         println!("ping time:{:?}", d);
     }
 
+    #[ignore = "run by hand"]
+    #[tokio::test]
+
+    async fn test_get_update_sql() {
+        enable_test_log();
+        let _guard = test_lock().lock().await;
+        let db = make_test_object().await;
+
+        {
+            let x = db
+                .get_update_sql_from_result_set(
+                    "select * from TEST_TABLE",
+                    &[Some(1.to_string()), Some("123".to_string())],
+                    &[Some(1.to_string()), Some("456".to_string())],
+                )
+                .await
+                .unwrap();
+
+            for y in x.iter() {
+                println!("sql:{}", y);
+            }
+        }
+    }
+
     #[tokio::test]
     async fn test_read_only() {
         let _guard = test_lock().lock().await;
@@ -1196,6 +1224,7 @@ mod tests {
             password: "root".to_string(),
             db: "/var/lib/firebird/data/test.fdb".to_string(),
             read_only: true,
+            dialect: "3".to_string(),
             conn_timeout: Some(500000.into()),
         })
         .await

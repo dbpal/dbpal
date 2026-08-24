@@ -499,7 +499,7 @@ pub(crate) async fn get_update_sql_from_result_set_impl<
                 } else {
                     backend.show_table_columns(&r.reference.name.value).await?
                 };
-                // TODO if need check check is primary key exists.
+
                 if !fs.iter().any(|x| x.is_primary) {
                     anyhow::bail!(format!(
                         "table {} have no primary key",
@@ -519,7 +519,9 @@ pub(crate) async fn get_update_sql_from_result_set_impl<
                             r.reference.name.value.clone(),
                         )
                     };
-                    table = table.columns(fs.iter().map(|x| x.field.clone()));
+                    let cols = fs.iter().map(|x| x.field.clone()).collect::<Vec<_>>();
+                    log::trace!("enter table {} {:?}", table, cols);
+                    table = table.columns(cols.into_iter());
                     table
                 });
                 cols_map.push((r.reference.clone(), fs));
@@ -571,7 +573,10 @@ pub(crate) async fn get_update_sql_from_result_set_impl<
     for (index, (old_value, new_value)) in old_values.iter().zip(new_values.iter()).enumerate() {
         let column = match column_reads.get(index) {
             Some(x) => x,
-            None => anyhow::bail!(format!("#{} not found column", index)),
+            None => anyhow::bail!(format!(
+                "#{} not found column,col_reads:{:?}",
+                index, column_reads
+            )),
         };
 
         /*

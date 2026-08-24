@@ -146,6 +146,7 @@ pub struct FireBirdConfig {
     pub db: String,
     pub read_only: bool,
     pub conn_timeout: Option<SomeTimeOut>,
+    pub dialect: String,
 }
 
 impl DuckDBConfig {

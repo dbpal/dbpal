@@ -361,6 +361,7 @@ export type FireBirdConfig = {
 	db: string,
 	read_only: boolean,
 	conn_timeout: SomeTimeOut | null,
+	dialect: string,
 };
 
 export type Index = {

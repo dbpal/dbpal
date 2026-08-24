@@ -88,9 +88,9 @@ function EditResultSetData(props: {
         );
         setUp(ret);
       } catch (e) {
-        const msg = `sql:${sql} not be able to modify data from result set.because of `;
+        const msg = `sql: ${sql} not be able to modify data from result set.because of `;
         if (e.reason) {
-          setErr(msg + e.reason);
+          setErr(e.reason);
         } else {
           showNotification({
             severity: "error",
@@ -106,6 +106,7 @@ function EditResultSetData(props: {
     <Stack spacing={1}>
       {err && (
         <Alert severity="error" color="error">
+          <mark> {sql} </mark>
           {err}
         </Alert>
       )}
