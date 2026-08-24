@@ -122,7 +122,7 @@ function ViewsTree(props: { viewKind: ViewKind }) {
           setUpMenu({
             content: (
               <MenuList>
-                <MenuRefresh reload={handleReload} />
+                <MenuRefresh refresh={handleReload} />
               </MenuList>
             ),
             event: e,

@@ -219,10 +219,10 @@ function SqlServerCert(props: {
 /**
  * SQL Server certificate settings used for encrypted connections.
  */
-interface SqlServerCertData {
+type SqlServerCertData = {
   trust_cert: boolean;
   cert_ca: string | null;
-}
+};
 
 /**
  * Certificate file selectors for SSL/TLS-enabled connections.
@@ -629,10 +629,10 @@ function ClickHouse(props: {
   );
 }
 
-interface PostGresOption {
+type PostGresOption = {
   key: string;
   value: string;
-}
+};
 
 function PostGresOptions(props: {
   options: PostGresOption[];
@@ -674,8 +674,10 @@ function PostGresOptions(props: {
                 }),
               );
             }}
+            label="key"
           />
           <TextField
+            label="value"
             fullWidth
             value={value.value}
             onChange={(event) => {

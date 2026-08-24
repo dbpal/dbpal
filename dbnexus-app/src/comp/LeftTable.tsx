@@ -153,7 +153,7 @@ function TablesTree() {
           setUpMenu({
             content: (
               <MenuList>
-                <MenuRefresh reload={handleReload} />
+                <MenuRefresh refresh={handleReload} />
 
                 {kind != DataSourceKind.Redis && (
                   <>
@@ -888,7 +888,7 @@ function RedisOneTableKind(props: {
           setUpMenu({
             content: (
               <MenuList>
-                <MenuRefresh reload={handleReload} />
+                <MenuRefresh refresh={handleReload} />
               </MenuList>
             ),
             event: e,

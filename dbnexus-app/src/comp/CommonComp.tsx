@@ -188,12 +188,12 @@ function MenuCreateDatabase(props: { handleCreate: () => void; kind: DataSourceK
 /**
  * Menu item for refreshing current data.
  */
-function MenuRefresh(props: { reload: () => void }) {
-  const { reload } = props;
+function MenuRefresh(props: { refresh: () => void }) {
+  const { refresh } = props;
   return (
     <MenuItem
       onClick={() => {
-        reload();
+        refresh();
       }}>
       <ListItemIcon>
         <RefreshIcon />
@@ -607,7 +607,6 @@ function ModalHeader(props: {
       style={{
         justifyContent: "space-between",
         alignItems: "center",
-        // borderBottom: "3px solid",
         marginBottom: "0.4rem",
         position: "sticky",
         top: 0,

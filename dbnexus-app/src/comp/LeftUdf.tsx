@@ -68,7 +68,7 @@ function UdfsTree() {
           setUpMenu({
             content: (
               <MenuList>
-                <MenuRefresh reload={reload} />
+                <MenuRefresh refresh={reload} />
               </MenuList>
             ),
             event: e,
@@ -296,7 +296,7 @@ function CassandraAggregatesTree() {
           setUpMenu({
             content: (
               <MenuList>
-                <MenuRefresh reload={reload} />
+                <MenuRefresh refresh={reload} />
               </MenuList>
             ),
             event: e,
