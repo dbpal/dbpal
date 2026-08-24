@@ -1376,6 +1376,7 @@ impl PostGresDB {
         if let Some(key) = config.ssl.ssl_files.ssl_key.as_ref() {
             opts = opts.ssl_client_key(key);
         }
+        let opts = opts.options(config.options.iter());
         let mut pool_opts = PoolOptions::new();
         if let Some(x) = config.conn_timeout {
             pool_opts = pool_opts.acquire_timeout(x.into());
@@ -1884,6 +1885,7 @@ pub(crate) async fn make_test_object() -> PostGresDB {
             read_only: false,
             ssl: SslFilesWithStrModel::pg_default(),
             conn_timeout: Some(5000.into()),
+            options: Default::default(),
         },
         BackendKindPostGres::PostGres,
     )
@@ -2084,6 +2086,7 @@ mod tests {
                 read_only: true,
                 ssl: SslFilesWithStrModel::pg_default(),
                 conn_timeout: Some(5000.into()),
+                options: Default::default(),
             },
             BackendKindPostGres::PostGres,
         )
@@ -3575,6 +3578,7 @@ mod tests {
         tokio::time::sleep(Duration::from_secs(2)).await;
         //  test ssl
         let config = PGDBConfig {
+            options: Default::default(),
             host: "127.0.0.1".to_string(),
             port,
             username: "testuser".to_string(),

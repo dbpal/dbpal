@@ -491,6 +491,7 @@ export type PGDBConfig = {
 	schema: string | null,
 	read_only: boolean,
 	conn_timeout: SomeTimeOut | null,
+	options: { [key in string]: string },
 } & (SslFilesWithStrModel);
 
 export type ProcedureDetail = {

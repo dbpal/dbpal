@@ -7,6 +7,7 @@ import {
   useRef,
   useState,
 } from "react";
+import AddIcon from "@mui/icons-material/Add";
 import {
   TextField,
   Button,
@@ -25,6 +26,7 @@ import {
   IconButton,
   Autocomplete,
 } from "@mui/material";
+import CancelIcon from "@mui/icons-material/Cancel";
 import { ClearableTextField, RefreshButton } from "./CommonComp2";
 import VisibilityIcon from "@mui/icons-material/Visibility";
 import { message, open } from "@tauri-apps/plugin-dialog";
@@ -626,11 +628,78 @@ function ClickHouse(props: {
   );
 }
 
+interface PostGresOption {
+  key: string;
+  value: string;
+}
+
+function PostGresOptions(props: {
+  options: PostGresOption[];
+  setOptions: Dispatch<SetStateAction<PostGresOption[]>>;
+}) {
+  const { options, setOptions } = props;
+
+  return (
+    <Stack style={{ border: "1px solid grey", borderRadius: "0.4rem", padding: "3px" }}>
+      <Stack direction="row" style={{ alignItems: "center" }}>
+        <IconButton
+          color="primary"
+          onClick={() => {
+            setOptions([...options, { key: "", value: "" }]);
+          }}>
+          <AddIcon />
+        </IconButton>
+        <Typography> extra options </Typography>
+        <UrlDocument url="https://docs.rs/sqlx/latest/sqlx/postgres/struct.PgConnectOptions.html#method.options" />
+      </Stack>
+      {options.map((value, index) => (
+        <Stack key={index} direction="row" style={{ alignItems: "center" }}>
+          <IconButton
+            onClick={() => {
+              setOptions(options.filter((_, idx) => index != idx));
+            }}>
+            <CancelIcon />
+          </IconButton>
+          <TextField
+            fullWidth
+            value={value.key}
+            onChange={(event) => {
+              setOptions(
+                options.map((op, idx) => {
+                  if (index == idx) {
+                    op.key = event.target.value;
+                  }
+                  return op;
+                }),
+              );
+            }}
+          />
+          <TextField
+            fullWidth
+            value={value.value}
+            onChange={(event) => {
+              setOptions(
+                options.map((op, idx) => {
+                  if (index == idx) {
+                    op.value = event.target.value;
+                  }
+                  return op;
+                }),
+              );
+            }}
+          />
+        </Stack>
+      ))}
+    </Stack>
+  );
+}
+
 function PostGres(props: {
   config?: PGDBConfig;
   kind: DataSourceKind;
   context: AddConnectionContext;
 }) {
+  const { showNotification } = useNotification();
   const { config, kind, context } = props;
   const [host, setHost] = useState(getHost(config));
   const [port, setPort] = useState<string>(
@@ -648,9 +717,8 @@ function PostGres(props: {
   });
   const [schema, setSchema] = useState(getSchema(config));
   const { connTimeOut, connectionName, readOnly, makeConfigRef } = context;
-
   const [savePassword, setSavePassword] = useState(getSavePassword(config));
-
+  const [options, setOptions] = useState<PostGresOption[]>([]);
   function makeConfig(): DBConnectionConfig {
     const x: PGDBConfig = {
       host,
@@ -661,6 +729,23 @@ function PostGres(props: {
       read_only: readOnly,
       conn_timeout: connTimeOut,
       schema: schema ? schema : null,
+      options: (function () {
+        const ret = {};
+        for (const op of options) {
+          if (!op.key) {
+            continue;
+          }
+          if (op.key in ret) {
+            showNotification({
+              severity: "error",
+              title: `key '${op.key}' duplicated`,
+            });
+            return;
+          }
+          ret[op.key] = op.value;
+        }
+        return ret;
+      })(),
       ...ssl,
     };
     switch (kind) {
@@ -706,6 +791,7 @@ function PostGres(props: {
         />
       )}
       <PGSSL ssl={ssl} setSsl={setSSl} />
+      <PostGresOptions options={options} setOptions={setOptions} />
     </Stack>
   );
 }
@@ -731,21 +817,30 @@ function Sqlite(props: { config?: SqliteDBConfig; context: AddConnectionContext 
   return (
     <Stack>
       <SelectPath path={path} setPath={setPath} required label="sqlite database file" />
-      <Stack direction="row" style={{ alignItems: "center", alignContent: "center" }}>
-        <Autocomplete
-          options={["normal", "exclusive"]}
-          value={lockingModel}
-          renderInput={(params) => (
-            <TextField {...params} label={`sqlite locking model`} />
-          )}
-          style={{ width: "12rem" }}
-          freeSolo={false}
-          onChange={(_, value) => {
-            setLockingModel(value);
-          }}
-        />
-        <UrlDocument url="https://www.sqlite.org/pragma.html#pragma_locking_mode" />
-      </Stack>
+      <SqliteLockingModel
+        lockingModel={lockingModel}
+        setLockingModel={setLockingModel}
+      />
+    </Stack>
+  );
+}
+
+function SqliteLockingModel({ lockingModel, setLockingModel }) {
+  return (
+    <Stack direction="row" style={{ alignItems: "center", alignContent: "center" }}>
+      <Autocomplete
+        options={["normal", "exclusive"]}
+        value={lockingModel}
+        renderInput={(params) => (
+          <TextField {...params} label={`sqlite locking model`} />
+        )}
+        style={{ width: "12rem" }}
+        freeSolo={false}
+        onChange={(_, value) => {
+          setLockingModel(value);
+        }}
+      />
+      <UrlDocument url="https://www.sqlite.org/pragma.html#pragma_locking_mode" />
     </Stack>
   );
 }

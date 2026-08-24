@@ -17,6 +17,7 @@ pub(crate) async fn make_test_object() -> PostGresDB {
         read_only: false,
         ssl: SslFilesWithStrModel::pg_default(),
         conn_timeout: Some(5000.into()),
+        options: Default::default(),
     };
     let pg = PostGresDB::new(r, BackendKindPostGres::CockRoach)
         .await

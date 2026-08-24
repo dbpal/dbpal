@@ -1,3 +1,5 @@
+use std::collections::HashMap;
+
 use crate::db::OptionMustBeSomeErr;
 
 #[derive(Debug, Clone, serde::Deserialize, serde::Serialize, specta::Type)]
@@ -280,6 +282,8 @@ pub struct PGDBConfig {
     #[serde(flatten)]
     pub ssl: SslFilesWithStrModel,
     pub conn_timeout: Option<SomeTimeOut>,
+    // https://docs.rs/sqlx/latest/sqlx/postgres/struct.PgConnectOptions.html#method.options
+    pub options: HashMap<String, String>,
 }
 
 #[derive(Debug, Clone, serde::Deserialize, serde::Serialize, specta::Type)]
