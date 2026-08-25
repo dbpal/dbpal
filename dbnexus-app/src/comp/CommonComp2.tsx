@@ -267,16 +267,7 @@ function AppCode_(props: {
   );
 }
 
-const AppCode = memo(AppCode_, (prevProps, nextProps) => {
-  // 返回 true 表示不重新渲染，false 表示重新渲染
-  return (
-    prevProps.codeBlock === nextProps.codeBlock &&
-    prevProps.language === nextProps.language &&
-    prevProps.highlightStr === nextProps.highlightStr &&
-    prevProps.extra === nextProps.extra &&
-    prevProps.handleEdit === nextProps.handleEdit
-  );
-});
+const AppCode = memo(AppCode_);
 
 function CreateDatabase(props: {
   dbName: string;
