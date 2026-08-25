@@ -31,6 +31,7 @@ import {
   DialogTitle,
   Divider,
   FormControlLabel,
+  IconButton,
   ListItemIcon,
   ListItemText,
   MenuItem,
@@ -76,7 +77,6 @@ import {
   CopySql,
   ListenElementSize,
   ShowingCount,
-  TableAddButton,
 } from "./CommonComp2";
 import { CouchBaseInsert, CouchBaseTable } from "./CouchBase";
 import {
@@ -153,7 +153,7 @@ function TablesTree() {
           setUpMenu({
             content: (
               <MenuList>
-                <MenuRefresh reload={handleReload} />
+                <MenuRefresh refresh={handleReload} />
 
                 {kind != DataSourceKind.Redis && (
                   <>
@@ -469,7 +469,13 @@ function AddTableModal(props: {
 
   return (
     <>
-      <TableAddButton handleAdd={() => setShowAdd(true)} />
+      <IconButton
+        onClick={() => {
+          setShowAdd(true);
+        }}
+        color="primary">
+        <AddIcon />
+      </IconButton>
 
       <ListenElementSize
         dom={addModalBox}
@@ -888,7 +894,7 @@ function RedisOneTableKind(props: {
           setUpMenu({
             content: (
               <MenuList>
-                <MenuRefresh reload={handleReload} />
+                <MenuRefresh refresh={handleReload} />
               </MenuList>
             ),
             event: e,

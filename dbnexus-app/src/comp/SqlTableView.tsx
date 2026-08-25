@@ -469,8 +469,7 @@ export function SqlTablePagination({
           <Button
             onClick={() => {
               openNewTableStructure(appendTab, dbName, kind, table);
-            }}
-            variant="outlined">
+            }}>
             structure
             <ArrowOutwardIcon />
           </Button>

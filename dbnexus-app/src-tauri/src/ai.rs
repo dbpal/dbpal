@@ -1,5 +1,6 @@
 use base64::Engine;
 
+use dbnexus_db::couchbase::CouchBaseDB;
 use dbnexus_db::db::{BackendKind, ExportFrame, ExportKind, TimeElapsed};
 use dbnexus_db::mongo::MongoDB;
 
@@ -185,12 +186,26 @@ impl DBPal {
                     .expect("must be redis");
                 let client = Clone::clone(x);
 
-                let r = agent_builder.tool(redis::RedisTool {
+                let builder = agent_builder.tool(redis::RedisTool {
                     client,
                     query_id: query_id.into(),
                 });
-                anyhow::Ok(r)
+                anyhow::Ok(builder)
             }
+
+            BackendKind::CouchBase => {
+                let x = db
+                    .as_any()
+                    .downcast_ref::<CouchBaseDB>()
+                    .expect("must be couchbase");
+                let db = Clone::clone(x);
+                let builder = agent_builder.tool(CouchQueryTool {
+                    db,
+                    emit: emit.clone(),
+                });
+                anyhow::Ok(builder)
+            }
+
             BackendKind::Mongo => {
                 let x = db
                     .as_any()
@@ -214,6 +229,57 @@ impl DBPal {
                 emit: emit.clone(),
             })),
         }
+    }
+}
+
+pub struct CouchQueryTool {
+    emit: ToolEmitter,
+    db: CouchBaseDB,
+}
+
+impl Tool for CouchQueryTool {
+    const NAME: &'static str = "couchbase_query";
+
+    type Args = SqlQueryArgs;
+    type Output = SqlQueryOutput;
+    type Error = CallToolErr;
+
+    async fn call(
+        &self,
+        _context: &mut ToolContext,
+        args: Self::Args,
+    ) -> Result<Self::Output, Self::Error> {
+        (self.emit)(format!("\ncall tool sql query {}", args.query));
+        let (ret, exceed) = self
+            .db
+            .ai_query_sql(&args.query, 100)
+            .await
+            .map_err(|e| CallToolErr::from(format!("query failed: {}", e)))?;
+        if exceed {
+            (self.emit)("data exceed 100,some data not feed to LLM".to_string())
+        }
+        Ok(SqlQueryOutput {
+            result: serde_json::json!({"data": ret }),
+            query: args.query,
+        })
+    }
+
+    fn description(&self) -> String {
+        "Executes SQL queries and returns results. Only SELECT read-only queries are supported."
+            .to_string()
+    }
+
+    fn parameters(&self) -> serde_json::Value {
+        serde_json::json!({
+            "type": "object",
+            "properties": {
+                "query": {
+                    "type": "string",
+                    "description": "The SQL SELECT query statement to execute"
+                }
+            },
+            "required": ["query"]
+        })
     }
 }
 
@@ -303,7 +369,7 @@ impl Tool for SqlQueryTool {
                 100,
             )
             .await
-            .map_err(|e| CallToolErr::from(format!("查询失败: {}", e)))?;
+            .map_err(|e| CallToolErr::from(format!("query failed: {}", e)))?;
         if exceed {
             (self.emit)("data exceed 100,some data not feed to LLM".to_string())
         }
@@ -324,7 +390,7 @@ impl Tool for SqlQueryTool {
             "properties": {
                 "query": {
                     "type": "string",
-                    "description": "要执行的 SQL SELECT 查询语句"
+                    "description": "The SQL SELECT query statement to execute"
                 }
             },
             "required": ["query"]

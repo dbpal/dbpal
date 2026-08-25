@@ -1158,7 +1158,7 @@ function DatabaseMenu(props: {
 
       {!conn_established && !database && <MenuOpenConn name={dbName} />}
 
-      {conn_established && <MenuRefresh reload={reload} />}
+      {conn_established && <MenuRefresh refresh={reload} />}
       {conn_established && !database && <MenuConnectionInfo dbName={dbName} />}
 
       {conn_established && !database && <MenuCloseConn name={dbName} />}
@@ -1226,7 +1226,7 @@ function CatalogMenu(props: { dbName; reload; kind: DataSourceKind }) {
           />
         )}
 
-        {conn_established && <MenuRefresh reload={reload} />}
+        {conn_established && <MenuRefresh refresh={reload} />}
         {conn_established && <MenuConnectionInfo dbName={dbName} />}
         {conn_established && <MenuCloseConn name={dbName} />}
         <Divider />

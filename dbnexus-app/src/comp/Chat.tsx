@@ -83,33 +83,17 @@ function AllKindQuery(props: { value?: string; favoriteName?: string }) {
   const { kind } = useContext(DbnameContext);
   let content: ReactNode;
   switch (kind) {
-    case DataSourceKind.SqlServer:
-    case DataSourceKind.Sqlite:
-    case DataSourceKind.Mysql:
-    case DataSourceKind.MariaDB:
-    case DataSourceKind.Postgres:
-    case DataSourceKind.Oracle:
-    case DataSourceKind.TiDB:
-    case DataSourceKind.Cassandra:
-    case DataSourceKind.ClickHouse:
-    case DataSourceKind.LibSql:
-    case DataSourceKind.FireBird:
-    case DataSourceKind.DuckDB:
-    case DataSourceKind.Cockroach:
-    case DataSourceKind.Db2:
-      content = <SqlQuery value={value} favoriteName={favoriteName} />;
-      break;
     case DataSourceKind.Redis:
       content = <RedisQuery value={value} favoriteName={favoriteName} />;
       break;
-
     case DataSourceKind.Mongo:
       content = <MongoQuery value={value} favoriteName={favoriteName} />;
       break;
     case DataSourceKind.CouchBase:
       return <CouchBaseQuery value={value} />;
     default:
-      console.error(`impl this ${kind}`);
+      content = <SqlQuery value={value} favoriteName={favoriteName} />;
+      break;
   }
   return <div style={{ height: "100%" }}> {content}</div>;
 }

@@ -89,7 +89,6 @@ import {
   NameAndQueryId,
   reloadOK,
 } from "./Common";
-import AddIcon from "@mui/icons-material/Add";
 import ChatBubbleIcon from "@mui/icons-material/ChatBubble";
 import {
   MetaValueView,
@@ -1225,18 +1224,6 @@ function SliderSize(props: { config: UseSizeConfig }) {
   );
 }
 
-/**
- * Icon button used to add a new table row or item.
- */
-function TableAddButton(props: { handleAdd: () => void }) {
-  const { handleAdd } = props;
-  return (
-    <IconButton onClick={handleAdd} color="primary">
-      <AddIcon />
-    </IconButton>
-  );
-}
-
 // select column include asc or desc
 // useful for create index
 /**
@@ -1553,10 +1540,10 @@ function QueryStatus(props: { status?: string }) {
   const { status } = props;
   return (
     status && (
-      <Stack direction="row">
+      <StackRowCenter>
         <CircularProgress />
         <Typography> {status} </Typography>
-      </Stack>
+      </StackRowCenter>
     )
   );
 }
@@ -2526,7 +2513,6 @@ export {
   SaveFavoriteSqlView,
   CancelButton,
   SliderSize,
-  TableAddButton,
   SelectColumnAsc,
   CreateIndexView,
   TypeSelect,

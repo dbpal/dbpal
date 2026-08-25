@@ -577,7 +577,7 @@ export class UseSizeConfig {
   key: string;
   min: number;
   max: number;
-  step?: number;
+  step: number;
   default: number;
   name: string;
 
@@ -598,13 +598,14 @@ export class UseSizeConfig {
     min: 1,
     max: 3,
     default: 1,
+    step: 1,
     notice: "grid column count",
     name: "column",
   };
 
   static editorHeight: UseSizeConfig = {
     key: "editor-heigh",
-    min: 300,
+    min: 200,
     max: 1200,
     step: 10,
     default: 300,

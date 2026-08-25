@@ -183,7 +183,7 @@ function CouchBaseTable(props: { table: string }) {
           />
           <Tooltip title="filter something like 'age=18'">
             <Chip
-              label={where}
+              label={where ? where : "..."}
               onClick={() => {
                 setShowSetWhere(true);
               }}
@@ -202,7 +202,7 @@ function CouchBaseTable(props: { table: string }) {
           </Tooltip>
           <Tooltip title="sort something like 'age asc'">
             <Chip
-              label={sort}
+              label={sort ? sort : "..."}
               onClick={() => {
                 setShowSetSort(true);
               }}
