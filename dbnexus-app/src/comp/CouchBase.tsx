@@ -686,19 +686,21 @@ function CouchBaseQuery(props: { value?: string }) {
       });
   };
 
+  const maxRow = 100;
+
   const showResp = useMemo(() => {
     if (viewMode != CBQueryViewMode.Json) {
       return;
     }
 
     const show = resp.filter((e) => (matchStrDelay ? e.includes(matchStrDelay) : true));
-    if (show.length > 100) {
+    if (show.length > maxRow) {
       showNotification({
         severity: "warning",
-        title: `result set too big,show only first 100 json result`,
+        title: `result set too big,show only first ${maxRow} json result`,
       });
     }
-    return show.slice(0, 100);
+    return show.slice(0, maxRow);
   }, [viewMode, resp, matchStrDelay, showNotification]);
 
   return (

@@ -194,8 +194,46 @@ function AppCode_(props: {
   const theme = useTheme();
   const { codeBlock, language, extra, handleEdit, highlightStr } = props;
   const { showNotification } = useNotification();
+  const rootRef = useRef<HTMLDivElement>(null);
+  const [isVisible, setIsVisible] = useState(false);
+  useEffect(() => {
+    // 1. 获取当前的 DOM 元素
+    const element = rootRef.current;
+
+    // 2. 如果没有元素，或者浏览器不支持 IntersectionObserver，直接返回
+    if (!element || !("IntersectionObserver" in window)) {
+      return;
+    }
+
+    // 3. 创建 IntersectionObserver 实例
+    const observer = new IntersectionObserver(
+      (entries) => {
+        // 每次可见性变化时，更新状态
+        entries.forEach((entry) => {
+          setIsVisible(entry.isIntersecting);
+        });
+      },
+      {
+        // 可选配置
+        root: null, // 默认视口
+        rootMargin: "0px",
+        threshold: 0.1, // 当元素 10% 可见时触发
+      },
+    );
+
+    // 4. 开始观察目标元素
+    observer.observe(element);
+
+    // 5. ⚠️ 清理函数：组件卸载或依赖变化时断开观察
+    return () => {
+      observer.disconnect(); // 断开所有观察
+      // 或者单独取消观察：observer.unobserve(element);
+    };
+  }, []); // 空依赖数组表示只在组件挂载和卸载时执行
+
   return (
     <Paper
+      ref={rootRef}
       style={{
         padding: "2px 4px",
         borderRadius: "0.4rem",
@@ -247,17 +285,18 @@ function AppCode_(props: {
                   }}>
                   {i + 1}
                 </span>
-                {line.map((token, key) =>
-                  (function () {
-                    if (
-                      highlightStr &&
-                      token.content.toLowerCase().includes(highlightStr)
-                    ) {
-                      return <mark>{token.content}</mark>;
-                    }
-                    return <span key={key} {...getTokenProps({ token })} />;
-                  })(),
-                )}
+                {isVisible &&
+                  line.map((token, key) =>
+                    (function () {
+                      if (
+                        highlightStr &&
+                        token.content.toLowerCase().includes(highlightStr)
+                      ) {
+                        return <mark>{token.content}</mark>;
+                      }
+                      return <span key={key} {...getTokenProps({ token })} />;
+                    })(),
+                  )}
               </div>
             ))}
           </pre>
