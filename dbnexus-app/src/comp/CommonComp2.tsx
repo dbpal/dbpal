@@ -1,6 +1,7 @@
 import {
   CSSProperties,
   Dispatch,
+  memo,
   ReactNode,
   SetStateAction,
   useCallback,
@@ -183,7 +184,7 @@ export function ClearableTextField({
   );
 }
 
-function AppCode(props: {
+function AppCode_(props: {
   codeBlock: string;
   language: string;
   extra?: AppCodeExtraUI;
@@ -265,6 +266,17 @@ function AppCode(props: {
     </Paper>
   );
 }
+
+const AppCode = memo(AppCode_, (prevProps, nextProps) => {
+  // 返回 true 表示不重新渲染，false 表示重新渲染
+  return (
+    prevProps.codeBlock === nextProps.codeBlock &&
+    prevProps.language === nextProps.language &&
+    prevProps.highlightStr === nextProps.highlightStr &&
+    prevProps.extra === nextProps.extra &&
+    prevProps.handleEdit === nextProps.handleEdit
+  );
+});
 
 function CreateDatabase(props: {
   dbName: string;
