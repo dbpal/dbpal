@@ -736,6 +736,22 @@ function CouchBaseQuery(props: { value?: string }) {
             </ButtonGroup>
           </Stack>
           <Stack direction="row" style={{ alignItems: "center" }}>
+            {viewMode == CBQueryViewMode.Json ? (
+              <ClearableTextField
+                value={hightlightStr}
+                onChange={(e) => {
+                  setHighlightStr(e.target.value);
+                }}
+                onClear={() => {
+                  setHighlightStr("");
+                }}
+                label="hight light string"
+                style={{ width: "13rem" }}
+              />
+            ) : (
+              <span> </span>
+            )}
+
             <Tooltip title="export query result to a file">
               <IconButton
                 loading={loading}
@@ -838,26 +854,6 @@ function CouchBaseQuery(props: { value?: string }) {
         className="resize-handle"
       />
       <Panel collapsible collapsedSize={0} minSize={10} style={{ overflow: "auto" }}>
-        <Stack
-          direction="row"
-          style={{ justifyContent: "space-between", marginTop: "0.6rem" }}>
-          {viewMode == CBQueryViewMode.Json ? (
-            <ClearableTextField
-              value={hightlightStr}
-              onChange={(e) => {
-                setHighlightStr(e.target.value);
-              }}
-              onClear={() => {
-                setHighlightStr("");
-              }}
-              label="hight light string"
-              style={{ width: "13rem" }}
-            />
-          ) : (
-            <span> </span>
-          )}
-        </Stack>
-
         {viewMode == CBQueryViewMode.Json && (
           <div
             style={{
