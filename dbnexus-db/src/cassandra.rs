@@ -752,6 +752,8 @@ impl QuerySql for CassandraDB {
                     .map(|x| Field::from_name_type(x.name(), format!("{:?}", x.typ())))
                     .collect(),
                 sql: Some(sql.to_string()),
+                tables: crate::language_server::LangServerCommon::extract_tables(self, sql)
+                    .unwrap_or_default(),
                 ..Default::default()
             }
             .into(),

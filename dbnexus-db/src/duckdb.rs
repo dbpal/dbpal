@@ -499,6 +499,10 @@ impl QuerySql for DuckDB {
                                 })
                                 .collect(),
                             sql: Some(sql.clone()),
+                            tables: crate::language_server::LangServerCommon::extract_tables(
+                                self, sql,
+                            )
+                            .unwrap_or_default(),
                             ..Default::default()
                         }
                         .into(),

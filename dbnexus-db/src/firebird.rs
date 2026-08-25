@@ -477,6 +477,10 @@ impl QuerySql for FireBirdDB {
                         QueryResp {
                             fields: infer_fields(&item),
                             sql: Some(sql.clone()),
+                            tables: crate::language_server::LangServerCommon::extract_tables(
+                                &this, &sql,
+                            )
+                            .unwrap_or_default(),
                             ..Default::default()
                         }
                         .into(),

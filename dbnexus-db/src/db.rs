@@ -2712,6 +2712,7 @@ impl QueryResp {
             }],
             sql: sql.into(),
             total: 0f64,
+            tables: Default::default(),
         }
     }
 
@@ -2735,6 +2736,8 @@ pub struct QueryResp {
     pub total: f64,
     pub data: Vec<Vec<Option<String>>>,
     pub sql: Option<String>,
+    // tables we are dealing with.can be extract with lib sql_insight
+    pub tables: Vec<String>,
 }
 
 /// we don't want to check `sql` somehow can be different
@@ -2772,6 +2775,7 @@ impl QueryResp {
             total,
             sql,
             data,
+            tables: Default::default(),
         };
         ret.check()?;
         anyhow::Ok(ret)
@@ -2787,6 +2791,7 @@ impl QueryResp {
                 field: "result".to_string(),
                 ..Default::default()
             }],
+            tables: Default::default(),
         }
     }
 }

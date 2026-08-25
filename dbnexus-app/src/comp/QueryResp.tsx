@@ -1,6 +1,5 @@
 import {
   Alert,
-  Button,
   Divider,
   IconButton,
   ListItemIcon,
@@ -13,8 +12,8 @@ import {
   Tooltip,
   Typography,
 } from "@mui/material";
+import DeleteForeverIcon from "@mui/icons-material/DeleteForever";
 import {
-  handleCopyToClipboard,
   extractFieldAndIDFromMouseEvent,
   dataGridStyle,
   QueryRespData,
@@ -27,8 +26,15 @@ import {
   DataSourceKind,
 } from "./helper.ts";
 import EditIcon from "@mui/icons-material/Edit";
-
-import React, { useCallback, useContext, useEffect, useMemo, useState } from "react";
+import React, {
+  Dispatch,
+  SetStateAction,
+  useCallback,
+  useContext,
+  useEffect,
+  useMemo,
+  useState,
+} from "react";
 import { keyNotInTable } from "./Common";
 import ArrowUpwardIcon from "@mui/icons-material/ArrowUpward";
 import ArrowDownwardIcon from "@mui/icons-material/ArrowDownward";
@@ -41,7 +47,6 @@ import {
   CopyAsXXX,
   ExportQueryResultToFile,
   SqlTableViewData,
-  StackRowCenter,
 } from "./CommonComp2.tsx";
 import {
   useColumnWidthStore,
@@ -441,8 +446,11 @@ function getRowId(row: Record<string, any>): string {
   return row[keyNotInTable];
 }
 
-function MultiQueryResp(props: { data: QueryRespData[] }): React.ReactElement {
-  const { data } = props;
+function MultiQueryResp(props: {
+  data: QueryRespData[];
+  setData: Dispatch<SetStateAction<QueryRespData[]>>;
+}): React.ReactElement {
+  const { data, setData } = props;
   const [value, setValue] = React.useState(0);
 
   useEffect(() => {
@@ -451,24 +459,8 @@ function MultiQueryResp(props: { data: QueryRespData[] }): React.ReactElement {
     }
   }, [data]);
 
-  const { showNotification } = useNotification();
   if (data.length == 0) {
     return <></>;
-  }
-  if (data.length == 1) {
-    return data[0].Err ? (
-      <StackRowCenter>
-        <Button
-          onClick={() => {
-            handleCopyToClipboard(data[0].Err, showNotification);
-          }}>
-          copy
-        </Button>
-        <Alert severity="error">{data[0].Err}</Alert>
-      </StackRowCenter>
-    ) : (
-      <QueryResp data={data[0].Ok} />
-    );
   }
   const handleChange = (_event: React.SyntheticEvent, newValue: number): void => {
     setValue(newValue);
@@ -485,15 +477,42 @@ function MultiQueryResp(props: { data: QueryRespData[] }): React.ReactElement {
         onChange={handleChange}
         variant="scrollable"
         scrollButtons="auto">
-        {data.map((_, index) => (
+        {data.map((resp, index) => (
           <Tab
-            label={(function () {
-              return `Result ${index + 1}`;
-            })()}
             key={index}
+            label={(function () {
+              return (
+                <>
+                  <Typography
+                    sx={{
+                      writingMode: "vertical-lr",
+                      color: index == value ? "primary" : undefined,
+                    }}>
+                    {(function () {
+                      if (resp.Ok && resp.Ok.tables.length > 0) {
+                        const x = resp.Ok.tables.join(",");
+                        return x;
+                      }
+                      return `Result ${index + 1}`;
+                    })()}
+                  </Typography>
+                </>
+              );
+            })()}
           />
         ))}
-        st
+
+        <Tab
+          label={
+            <IconButton
+              color="warning"
+              onClick={() => {
+                setData([]);
+              }}>
+              <DeleteForeverIcon />
+            </IconButton>
+          }
+        />
       </Tabs>
 
       <div style={{ height: "100%", width: "100px", flex: 1 }}>

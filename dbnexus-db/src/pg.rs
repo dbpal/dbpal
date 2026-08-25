@@ -1737,6 +1737,10 @@ impl QuerySql for PostGresDB {
                             QueryResp {
                                 fields: fields.clone(),
                                 sql: Some(sql.to_owned()),
+                                tables: crate::language_server::LangServerCommon::extract_tables(
+                                    self, sql,
+                                )
+                                .unwrap_or_default(),
                                 ..Default::default()
                             }
                             .into(),

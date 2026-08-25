@@ -355,6 +355,10 @@ impl QuerySql for OracleDB {
                         QueryResp {
                             fields,
                             sql: Some(sql.to_owned()),
+                            tables: crate::language_server::LangServerCommon::extract_tables(
+                                &this, &sql,
+                            )
+                            .unwrap_or_default(),
                             ..Default::default()
                         }
                         .into(),

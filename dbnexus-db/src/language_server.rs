@@ -672,6 +672,23 @@ pub trait LangServerCommon: GetBackendKind + GetKeyWords + Send + Sync {
         anyhow::Ok(vec![])
     }
 
+    fn extract_tables(&self, sql: &str) -> anyhow::Result<Vec<String>> {
+        let d = self.dialect();
+        let xxx = sql_insight::extractor::extract_table_operations(d.as_ref(), sql)?;
+
+        let mut set = HashSet::new();
+        for x in xxx {
+            let x = x?;
+            for r in x.reads.iter() {
+                set.insert(r.reference.to_string());
+            }
+            for w in x.writes.iter() {
+                set.insert(w.reference.to_string());
+            }
+        }
+        anyhow::Ok(set.into_iter().collect())
+    }
+
     fn parse_type(&self, typ: &str) -> anyhow::Result<DataType> {
         let d = self.dialect();
         let mut p = sqlparser::parser::Parser::new(d.as_ref());

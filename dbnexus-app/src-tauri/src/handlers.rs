@@ -3413,6 +3413,8 @@ pub struct MuiDataGridData {
     data: Vec<HashMap<String, Option<String>>>,
     sql: Option<String>,
     total: f64,
+    #[serde(default)]
+    tables: Vec<String>,
 }
 
 impl MuiDataGridData {
@@ -3456,6 +3458,7 @@ impl MuiDataGridData {
                 data,
                 sql: None,
                 total: 0f64,
+                tables: Default::default(),
             })
         })
         .await?
@@ -3469,6 +3472,7 @@ impl From<QueryResp> for MuiDataGridData {
             data,
             total,
             sql,
+            tables,
         } = value;
         #[derive(Default)]
         struct NameIndex {
@@ -3519,6 +3523,7 @@ impl From<QueryResp> for MuiDataGridData {
             data,
             sql,
             total,
+            tables,
         }
     }
 }

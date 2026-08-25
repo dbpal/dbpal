@@ -431,6 +431,7 @@ export type MuiDataGridData = {
 	data: ({ [key in string]: string | null })[],
 	sql: string | null,
 	total: number,
+	tables?: string[],
 };
 
 export type MysqlCharset = string;
