@@ -577,6 +577,7 @@ function CouchBaseQuery(props: { value?: string }) {
   const setEditorContext = useContext(QueryIDEditorChatCtx);
   const [markdownModel, setMarkdownModel] = useState(false);
   const [matchStr, setMatchStr] = useState("");
+  const [matchStrDelay] = useDebounce(matchStr, 1500);
   const { setOneShotUI } = useOneShotDialogUI();
   useEffect(() => {
     setEditorContext.setEditor(editor);
@@ -689,7 +690,7 @@ function CouchBaseQuery(props: { value?: string }) {
       return;
     }
 
-    const show = resp.filter((e) => (matchStr ? e.includes(matchStr) : true));
+    const show = resp.filter((e) => (matchStrDelay ? e.includes(matchStrDelay) : true));
     if (show.length > 100) {
       showNotification({
         severity: "warning",
@@ -697,7 +698,7 @@ function CouchBaseQuery(props: { value?: string }) {
       });
     }
     return show.slice(0, 100);
-  }, [viewMode, resp, matchStr, showNotification]);
+  }, [viewMode, resp, matchStrDelay, showNotification]);
 
   return (
     <PanelGroup
