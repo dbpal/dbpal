@@ -20,6 +20,7 @@ import {
   QueryStatus,
   RefreshButton,
   SetFilterSort,
+  ShowingCount,
   ShowQueryLog,
   SimpleFlexEditor,
   SliderSize,
@@ -753,7 +754,7 @@ function CouchBaseQuery(props: { value?: string }) {
             </ButtonGroup>
           </Stack>
           <Stack direction="row" style={{ alignItems: "center" }}>
-            {viewMode == CBQueryViewMode.Json ? (
+            {viewMode == CBQueryViewMode.Json && (
               <ClearableTextField
                 value={matchStr}
                 onChange={(e) => {
@@ -765,8 +766,9 @@ function CouchBaseQuery(props: { value?: string }) {
                 label="match string"
                 style={{ width: "13rem" }}
               />
-            ) : (
-              <span> </span>
+            )}
+            {viewMode == CBQueryViewMode.Json && (
+              <SliderSize config={UseSizeConfig.gridCol} />
             )}
 
             <Tooltip title="export query result to a file">
@@ -806,10 +808,6 @@ function CouchBaseQuery(props: { value?: string }) {
               </IconButton>
             </Tooltip>
             <ShowQueryLog />
-
-            {viewMode == CBQueryViewMode.Json && (
-              <SliderSize config={UseSizeConfig.gridCol} />
-            )}
 
             <ToggleChatShow />
             <AiMarkdownModelSwitch
@@ -871,6 +869,9 @@ function CouchBaseQuery(props: { value?: string }) {
         className="resize-handle"
       />
       <Panel collapsible collapsedSize={0} minSize={10} style={{ overflow: "auto" }}>
+        {viewMode == CBQueryViewMode.Json && (
+          <ShowingCount showing={showResp.length} total={resp.length} />
+        )}
         {viewMode == CBQueryViewMode.Json && (
           <div
             style={{
