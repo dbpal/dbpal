@@ -576,7 +576,7 @@ function CouchBaseQuery(props: { value?: string }) {
   const [tableResp, setTableResp] = useState<MuiDataGridData>(null);
   const setEditorContext = useContext(QueryIDEditorChatCtx);
   const [markdownModel, setMarkdownModel] = useState(false);
-  const [hightlightStr, setHighlightStr] = useState("");
+  const [matchStr, setMatchStr] = useState("");
   const { setOneShotUI } = useOneShotDialogUI();
   useEffect(() => {
     setEditorContext.setEditor(editor);
@@ -683,6 +683,22 @@ function CouchBaseQuery(props: { value?: string }) {
         setLoading(false);
       });
   };
+
+  const showResp = useMemo(() => {
+    if (viewMode != CBQueryViewMode.Json) {
+      return;
+    }
+
+    const show = resp.filter((e) => (matchStr ? e.includes(matchStr) : true));
+    if (show.length > 100) {
+      showNotification({
+        severity: "warning",
+        title: `result set too big,show only first 100 json result`,
+      });
+    }
+    return show.slice(0, 100);
+  }, [viewMode, resp, matchStr, showNotification]);
+
   return (
     <PanelGroup
       style={{ height: "100%" }}
@@ -738,14 +754,14 @@ function CouchBaseQuery(props: { value?: string }) {
           <Stack direction="row" style={{ alignItems: "center" }}>
             {viewMode == CBQueryViewMode.Json ? (
               <ClearableTextField
-                value={hightlightStr}
+                value={matchStr}
                 onChange={(e) => {
-                  setHighlightStr(e.target.value);
+                  setMatchStr(e.target.value);
                 }}
                 onClear={() => {
-                  setHighlightStr("");
+                  setMatchStr("");
                 }}
-                label="hight light string"
+                label="match string"
                 style={{ width: "13rem" }}
               />
             ) : (
@@ -862,13 +878,13 @@ function CouchBaseQuery(props: { value?: string }) {
               gridTemplateColumns: `repeat(${getSize(UseSizeConfig.gridCol)}, 1fr)`,
               paddingRight: "1.2rem",
             }}>
-            {resp.map((value, index) => {
+            {showResp.map((value, index) => {
               return (
                 <AppCode
                   key={index}
                   language="json"
                   codeBlock={value}
-                  highlightStr={hightlightStr}
+                  highlightStr={matchStr}
                 />
               );
             })}
