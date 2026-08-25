@@ -249,7 +249,7 @@ impl Tool for CouchQueryTool {
         _context: &mut ToolContext,
         args: Self::Args,
     ) -> Result<Self::Output, Self::Error> {
-        (self.emit)(format!("\ncall tool sql query {}", args.query));
+        (self.emit)(format!("\ncall tool couchbase query {}", args.query));
         let (ret, exceed) = self
             .db
             .ai_query_sql(&args.query, 100)

@@ -249,6 +249,7 @@ function QueryLog(props: {
           rows={logs}
           slots={slots}
           style={dataGridStyle}
+          showToolbar={false}
           pageSizeOptions={pageSizeOptions}
           initialState={{
             sorting: { sortModel: [{ field: "create_at", sort: "desc" }] },
