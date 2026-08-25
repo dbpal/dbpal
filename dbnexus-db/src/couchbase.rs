@@ -133,7 +133,7 @@ impl CouchBaseDB {
         while let Some(x) = stream.next().await {
             let x = x?;
             ret.push(x);
-            if ret.len() >= max_row {
+            if ret.len() > max_row {
                 return anyhow::Ok((ret, true));
             }
         }
