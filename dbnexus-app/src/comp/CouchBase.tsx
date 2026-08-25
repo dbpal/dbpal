@@ -246,7 +246,7 @@ function CouchBaseTable(props: { table: string }) {
         <Typography variant="h5"> {table} </Typography>
         <Stack direction="row">
           <SliderSize config={UseSizeConfig.gridCol} />
-          <SliderSize config={UseSizeConfig.editorHeight} />
+          <SliderSize config={UseSizeConfig.couchbaseQueryLimit} />
         </Stack>
       </Stack>
       <div
@@ -263,7 +263,7 @@ function CouchBaseTable(props: { table: string }) {
         {resp.data.map((item) => (
           <div
             style={{
-              height: getSize(UseSizeConfig.editorHeight) + "px",
+              height: getSize(UseSizeConfig.couchbaseQueryLimit) + "px",
               position: "relative",
             }}
             key={item.id}>
@@ -672,7 +672,7 @@ function CouchBaseQuery(props: { value?: string }) {
     });
 
     commands
-      .querySql(dbName, "", getSize(UseSizeConfig.queryLimit), text, channel)
+      .querySql(dbName, "", getSize(UseSizeConfig.couchbaseQueryLimit), text, channel)
 
       .catch((e) => {
         showNotification({ severity: "error", title: "query failed", message: e });
@@ -742,18 +742,20 @@ function CouchBaseQuery(props: { value?: string }) {
               kind={DataSourceKind.CouchBase}
             />
 
-            <ButtonGroup>
-              {[CBQueryViewMode.Json, CBQueryViewMode.Table].map((e) => (
-                <Button
-                  key={e}
-                  disabled={e == viewMode}
-                  onClick={() => {
-                    setViewMode(e);
-                  }}>
-                  {e}
-                </Button>
-              ))}
-            </ButtonGroup>
+            <Tooltip title="view model">
+              <ButtonGroup>
+                {[CBQueryViewMode.Json, CBQueryViewMode.Table].map((e) => (
+                  <Button
+                    key={e}
+                    disabled={e == viewMode}
+                    onClick={() => {
+                      setViewMode(e);
+                    }}>
+                    {e}
+                  </Button>
+                ))}
+              </ButtonGroup>
+            </Tooltip>
           </Stack>
           <Stack direction="row" style={{ alignItems: "center" }}>
             {viewMode == CBQueryViewMode.Json && (
@@ -818,7 +820,7 @@ function CouchBaseQuery(props: { value?: string }) {
               dbName={dbName}
             />
             <FetchTimeAndLoadingStatus isLoading={loading} />
-            <SliderSize config={UseSizeConfig.queryLimit} />
+            <SliderSize config={UseSizeConfig.couchbaseQueryLimit} />
           </Stack>
         </Stack>
 
@@ -872,7 +874,11 @@ function CouchBaseQuery(props: { value?: string }) {
       />
       <Panel collapsible collapsedSize={0} minSize={10} style={{ overflow: "auto" }}>
         {viewMode == CBQueryViewMode.Json && (
-          <ShowingCount showing={showResp.length} total={resp.length} />
+          <ShowingCount
+            showing={showResp.length}
+            total={resp.length}
+            style={{ position: "sticky", top: 0 }}
+          />
         )}
         {viewMode == CBQueryViewMode.Json && (
           <div

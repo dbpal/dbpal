@@ -69,26 +69,24 @@ function SqlCreateTable(props: {
   const { dbName, kind } = useContext(DbnameContext);
   const { fields: fieldsProvide, tableName: tableNameRef } = props;
   const [cols, setCols] = useState<CreateTableReqColumn[]>(
-    fieldsProvide
-      ? fieldsProvide
-      : [
-          {
-            name: "id",
-            data_type: "",
-            auto_increment: false,
-            primary_key: false,
-            default_value: null,
-            nullable: "unspecified",
-          },
-          {
-            name: "create_at",
-            data_type: "",
-            auto_increment: false,
-            primary_key: false,
-            default_value: null,
-            nullable: "unspecified",
-          },
-        ],
+    fieldsProvide || [
+      {
+        name: "id",
+        data_type: "",
+        auto_increment: false,
+        primary_key: false,
+        default_value: null,
+        nullable: "unspecified",
+      },
+      {
+        name: "create_at",
+        data_type: "",
+        auto_increment: false,
+        primary_key: false,
+        default_value: null,
+        nullable: "unspecified",
+      },
+    ],
   );
 
   useEffect(() => {
@@ -382,7 +380,6 @@ function TableColumn(props: {
 }) {
   const { col, handleCol, handleDelete, kind, index, resetAutoInc } = props;
   const supportAutoInc = supportAutoIncrement(kind);
-
   const supportNull = ![DataSourceKind.Cassandra].includes(kind);
   const supportDefault = ![DataSourceKind.Cassandra].includes(kind);
 
@@ -481,7 +478,7 @@ function SqlTableImportFileNotice() {
       <Typography>1. Select a file to upload.</Typography>
       <Typography>2. Create a table using the left panel(if need).</Typography>
       <Typography>
-        3. Upload your data via the right panel. Note that the table name must match the{" "}
+        3. Upload your data via the right panel. Note that the table name must match the
         <mark>input</mark> value provided in the left panel(if we need create table).
       </Typography>
       <AppCode
@@ -522,7 +519,7 @@ john	123`}
 ...`}
       />
       <Typography> xlsx file must have headers </Typography>
-      <img src={xlsxWithHeaderImg} />{" "}
+      <img src={xlsxWithHeaderImg} />
     </LongNotice>
   );
 }
@@ -941,7 +938,7 @@ function MongoImportFileNotice() {
   return (
     <LongNotice>
       <Typography>
-        all data are treated as{" "}
+        all data are treated as
         <mark
           onClick={() => {
             openUrl(

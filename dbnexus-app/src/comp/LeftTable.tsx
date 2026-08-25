@@ -264,7 +264,7 @@ function TableTree(props: {
           <Stack direction="row" sx={{ alignItems: "center", flex: 1, minWidth: 0 }}>
             <TableViewIcon />
             <span style={textEllipsisStyle}>{table}</span>
-          </Stack>{" "}
+          </Stack>
           {size && (
             <span style={{ ...shrinkAble, minWidth: 0 }}>
               {filesize(size, { round: 0 })}

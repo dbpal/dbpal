@@ -25,7 +25,13 @@ import { CancelButton, StackRowCenter } from "./CommonComp2";
 import { useExportConfigStore, useNotification } from "./store";
 import { commands, ExportKind, ShowTableParameter } from "./bindings";
 import { uuidv4 } from "./Common";
-function IncludeHeader({ includeHeader, setIncludeHeader }) {
+
+type IncludeHeaderProps = {
+  includeHeader: boolean;
+  setIncludeHeader: (value: boolean) => void;
+};
+
+function IncludeHeader({ includeHeader, setIncludeHeader }: IncludeHeaderProps) {
   return (
     <FormControlLabel
       control={
@@ -43,7 +49,7 @@ function IncludeHeader({ includeHeader, setIncludeHeader }) {
   );
 }
 
-function ExportView(props: {
+type ExportViewProps = {
   name: string;
   exportOP: (
     kind: ExportKind,
@@ -52,7 +58,9 @@ function ExportView(props: {
     c: Channel<number>,
   ) => Promise<void>;
   supportKind: string[];
-}) {
+};
+
+function ExportView(props: ExportViewProps) {
   const { exportOP, supportKind, name } = props;
 
   const {
@@ -73,8 +81,8 @@ function ExportView(props: {
   const { showNotification } = useNotification();
   const [loading, setLoading] = useState(false);
   const [file, setFile] = useState<string | null>(null);
-  const taskId = useRef(uuidv4());
-  const exportedSize = useRef(null);
+  const taskId = useRef<string>(uuidv4());
+  const exportedSize = useRef<HTMLElement | null>(null);
   const makeConfig = (): ExportKind | null => {
     switch (exportKind) {
       case "csv":
@@ -127,9 +135,13 @@ function ExportView(props: {
     if (!file) {
       return;
     }
-    exportedSize.current.innerText = "";
+    if (exportedSize.current) {
+      exportedSize.current.innerText = "";
+    }
     const c = new Channel<number>((x) => {
-      exportedSize.current.innerText = `exported ${filesize(x)}`;
+      if (exportedSize.current) {
+        exportedSize.current.innerText = `exported ${filesize(x)}`;
+      }
     });
     try {
       setLoading(true);
@@ -207,7 +219,7 @@ function ExportView(props: {
               });
             }}
             label="time"
-          />{" "}
+          />
           <TextField
             value={xlsxDateTimeFormat.date}
             onChange={(e) => {
@@ -280,7 +292,9 @@ function ExportView(props: {
           <CancelButton
             handleCancel={() => {
               cancelTask(taskId.current);
-              exportedSize.current.innerText = "";
+              if (exportedSize.current) {
+                exportedSize.current.innerText = "";
+              }
             }}
           />
         )}

@@ -1983,13 +1983,18 @@ function EscPressedDo(props: { doingIt: () => boolean; setUndo: () => void }) {
 /**
  * Display count summary when filtered results are less than total.
  */
-function ShowingCount(props: { showing: number; total: number }) {
-  const { showing, total } = props;
+function ShowingCount(props: {
+  showing: number;
+  total: number;
+  style?: CSSProperties;
+}) {
+  const { showing, total, style } = props;
   if (showing == total) {
     return <></>;
   }
+
   return (
-    <Typography color="info" style={textEllipsisStyle}>
+    <Typography color="info" style={{ ...textEllipsisStyle, ...style }}>
       showing {showing} of {total}
     </Typography>
   );

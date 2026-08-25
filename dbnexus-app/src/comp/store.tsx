@@ -613,6 +613,16 @@ export class UseSizeConfig {
     name: "editor height",
   };
 
+  static couchbaseQueryLimit: UseSizeConfig = {
+    key: "couchbase-query-limit",
+    min: 20,
+    max: 10000,
+    step: 10,
+    default: 300,
+    notice: "couchbase query limit",
+    name: "couchbase query limit",
+  };
+
   static queryLimit: UseSizeConfig = {
     key: "query-limit",
     min: 1000,

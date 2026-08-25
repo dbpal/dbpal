@@ -1,6 +1,4 @@
-// https://mui.com/x/react-data-grid/components/toolbar/ copeid here we want to keep build in function.
-// and style={{ border: "none" }} modify this
-
+// 从原来的地方拷贝的
 import { styled } from "@mui/material/styles";
 import {
   Toolbar,
