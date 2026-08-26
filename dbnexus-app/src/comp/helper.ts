@@ -896,8 +896,18 @@ function getViewportSize() {
 
 function useTablePaddingLeft() {
   const { dbName } = useContext(DbnameContext);
-  let d = dbName.split("/").length + 1;
-  return d * 1.6 + "rem";
+  let d = dbName.split("/").length;
+
+  switch (d) {
+    case 1:
+      return "4rem";
+    case 2:
+      return "5rem";
+    case 3:
+      return "6rem";
+    default:
+      return "2rem";
+  }
 }
 
 function calVirtualRollHeight(length: number, fontSize: number) {
