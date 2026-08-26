@@ -804,7 +804,7 @@ function UdfNameAndParameters(props: { udf: NamedStaff; kind: DataSourceKind }) 
 
   return (
     <>
-      <span style={{ ...textEllipsisStyle, flexShrink: 4 }}>{udf.name}</span>
+      <span style={{ ...textEllipsisStyle }}>{udf.name}</span>
       {parameter && (
         <Typography
           color="info"
@@ -812,6 +812,7 @@ function UdfNameAndParameters(props: { udf: NamedStaff; kind: DataSourceKind }) 
             ...textEllipsisStyle,
             fontStyle: "italic",
             fontSize: "0.8rem",
+            flexShrink: 6,
           }}>
           ({parameter})
         </Typography>
