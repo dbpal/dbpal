@@ -1731,9 +1731,7 @@ mod tests {
     use crate::db::{DBTrait, QuerySql, SchemaTrait, ServerMetas, ShowTableParameter};
     use crate::enable_test_log;
     use crate::helper::{cert_files_dir, DockerContainerDropper};
-
     use std::process::Command;
-    use std::time::Duration;
 
     #[test]
     fn test_extract_db_from_info_key_space() {
@@ -1757,7 +1755,14 @@ db1:keys=1,expires=0,avg_ttl=0"#,
     async fn test_list_redis_table() {
         enable_test_log();
         let db = make_test_object().await;
-        tokio::time::sleep(Duration::from_secs(2)).await;
+        let mut conn = db.get_conn().await.unwrap();
+
+        for x in 0..1550 {
+            let _: () = conn
+                .set(format!("key{}", x).as_str(), format!("value{}", x).as_str())
+                .await
+                .unwrap();
+        }
         let redis_tables = db.redis_list_key(None, 100).await.unwrap();
         println!("redis string tables:{:?}", redis_tables.string_tables);
         println!("redis hash tables  :{:?}", redis_tables.hash_tables);
