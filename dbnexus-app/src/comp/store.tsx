@@ -135,9 +135,8 @@ export const useConfirmMsg = create<{
 }));
 
 interface MatcherTreeState {
-  maxTree: number;
   matchPattern: string[];
-  setMaxTree: (val: number) => void;
+
   setMatchPattern: (matchPattern: string[]) => void;
 }
 
@@ -145,9 +144,7 @@ interface MatcherTreeState {
 export const useMatcher = create<MatcherTreeState>()(
   persist(
     (set) => ({
-      maxTree: 120,
       matchPattern: [],
-      setMaxTree: (val) => set({ maxTree: val }),
       setMatchPattern: (xs) => set({ matchPattern: xs }),
     }),
     {

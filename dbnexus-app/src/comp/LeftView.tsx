@@ -40,7 +40,7 @@ import {
   DbnameContext,
   ViewKind,
 } from "./helper";
-import { MenuRefresh } from "./CommonComp";
+import { MenuRefresh, VirtualSubSome } from "./CommonComp";
 import { MongoTable } from "./MongoDB";
 
 import {
@@ -53,7 +53,6 @@ import {
 import { listView } from "./handlers";
 import { filesize } from "filesize";
 import {
-  useMatcher,
   useContextMenu,
   useNotification,
   useTabsManage,
@@ -77,11 +76,10 @@ function ViewsTree(props: { viewKind: ViewKind }) {
   const { showNotification } = useNotification();
   const [loading, setLoading] = useState(false);
 
-  const { maxTree } = useMatcher();
   const matchPattern = useMatcherFn();
   const showItems = useMemo(() => {
-    return views.filter((e) => matchPattern(e.name)).slice(0, maxTree);
-  }, [views, maxTree, matchPattern]);
+    return views.filter((e) => matchPattern(e.name));
+  }, [views, matchPattern]);
 
   const handleReload = useCallback(() => {
     setLoading(true);
@@ -133,17 +131,34 @@ function ViewsTree(props: { viewKind: ViewKind }) {
         <ShowingCount showing={showItems.length} total={views.length} />
         {loading && <CircularProgress />}
       </Stack>>
-      {showItems.map((e) => {
-        return (
-          <ViewTree
-            viewKind={viewKind}
-            key={e.name}
-            view={e.name}
-            reload={handleReload}
-            size={e.size}
-          />
-        );
-      })}
+      <VirtualSubSome
+        data={showItems}
+        makeMenu={(view) => {
+          return (
+            <ViewMenu
+              kind={viewKind}
+              reload={handleReload}
+              view={view.name}
+              dbName={dbName}
+              viewKind={viewKind}
+            />
+          );
+        }}
+        show={(view) => {
+          return (
+            <>
+              <Stack
+                direction="row"
+                style={{ alignItems: "center", flex: 1, minWidth: 0 }}>
+                {icon} <span style={textEllipsisStyle}> {view.name} </span>
+              </Stack>
+              {viewKind == ViewKind.MaterializedView && view.size && (
+                <span> {filesize(view.size, { round: 0 })} </span>
+              )}
+            </>
+          );
+        }}
+      />
     </TreeItem>
   );
 }
@@ -365,49 +380,6 @@ function getIcon(viewKind: ViewKind) {
     default:
       return <VisibilityIcon />;
   }
-}
-function ViewTree(props: {
-  view: string;
-  reload: () => void;
-  viewKind: ViewKind;
-  size?: number;
-}) {
-  const { view, reload, viewKind, size } = props;
-  const { dbName, kind } = useContext(DbnameContext);
-  const setUpMenu = useContextMenu((state) => state.setUpMenu);
-  const icon = getIcon(viewKind);
-
-  return (
-    <TreeItem
-      itemId={dbName + "-view-" + viewKind + "-" + view}
-      label={
-        <Stack
-          direction="row"
-          sx={{ justifyContent: "space-between" }}
-          onContextMenu={(e) => {
-            setUpMenu({
-              content: (
-                <ViewMenu
-                  kind={kind}
-                  reload={reload}
-                  view={view}
-                  dbName={dbName}
-                  viewKind={viewKind}
-                />
-              ),
-              event: e,
-            });
-          }}>
-          <Stack direction="row" style={{ alignItems: "center", flex: 1, minWidth: 0 }}>
-            {icon} <span style={textEllipsisStyle}> {view} </span>
-          </Stack>
-          {viewKind == ViewKind.MaterializedView && size && (
-            <span> {filesize(size, { round: 0 })} </span>
-          )}
-        </Stack>
-      }
-    />
-  );
 }
 
 function ViewMenu(props: {

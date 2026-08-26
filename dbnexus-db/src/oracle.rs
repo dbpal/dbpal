@@ -22,7 +22,7 @@ use crate::db::{
     POOL_MAX_CONNECTIONS,
 };
 
-use crate::helper::{create_csv, uuid_v4_string};
+use crate::helper::create_csv;
 use crate::language_server::{get_update_sql_from_result_set_impl, LexerCompletionTrait};
 
 #[derive(Clone)]
@@ -915,7 +915,6 @@ impl OracleDB {
                 .map(|x| ListTable {
                     size: sizes.get(&x).and_then(|x| (*x).map(|x| x as f64)),
                     name: x,
-                    rand: uuid_v4_string(),
                 })
                 .collect(),
         )
@@ -991,7 +990,6 @@ impl SchemaTrait for OracleDB {
                 .map(|x| ListTable {
                     size: sizes.get(&x).and_then(|x| (*x).map(|x| x as f64)),
                     name: x,
-                    rand: uuid_v4_string(),
                 })
                 .collect(),
         )
@@ -1560,7 +1558,6 @@ impl OracleDB {
                 metas: vec![],
                 parameters: None,
                 cassandra_parameters: None,
-                rand: uuid_v4_string(),
             });
         }
         anyhow::Ok(ret)

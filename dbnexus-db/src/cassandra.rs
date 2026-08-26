@@ -39,7 +39,7 @@ use crate::db::{
     SchemaTrait, ServerMetas, ShowTableParameter, SqlBuilder, XlsxEdit, XlsxEditContent,
 };
 
-use crate::helper::{create_csv, uuid_v4_string};
+use crate::helper::create_csv;
 use crate::language_server::{get_update_sql_from_result_set_impl, LexerCompletionTrait};
 use chrono::{DateTime, NaiveDate, NaiveTime};
 use cql3_parser::cassandra_ast::CassandraAST;
@@ -1509,7 +1509,6 @@ impl CassandraDB {
                     MetaValue::new("return_type", return_type),
                     MetaValue::new("language", language),
                 ],
-                rand: uuid_v4_string(),
             });
         }
         anyhow::Ok(ret)
@@ -1592,7 +1591,6 @@ impl CassandraDB {
                     MetaValue::new("initcond", initcond),
                 ],
                 cassandra_parameters: Some(argument_types.unwrap_or_default()),
-                rand: uuid_v4_string(),
             });
         }
 

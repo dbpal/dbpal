@@ -1656,7 +1656,6 @@ pub struct NamedStaff {
     pub cassandra_parameters: Option<Vec<String>>,
     pub name: String,
     pub metas: Vec<MetaValue>,
-    pub rand: String,
 }
 
 impl From<String> for NamedStaff {
@@ -1666,7 +1665,6 @@ impl From<String> for NamedStaff {
             metas: vec![],
             parameters: None,
             cassandra_parameters: None,
-            rand: uuid_v4_string(),
         }
     }
 }
@@ -2619,7 +2617,6 @@ pub struct ListTable {
     pub name: String,
     pub size: Option<f64>,
     // for frontend tree item id
-    pub rand: String,
 }
 
 impl From<String> for ListTable {
@@ -2627,7 +2624,6 @@ impl From<String> for ListTable {
         Self {
             name: value,
             size: None,
-            rand: uuid_v4_string(),
         }
     }
 }
@@ -2637,7 +2633,6 @@ impl ListTable {
         Self {
             name: name.into(),
             size,
-            rand: uuid_v4_string(),
         }
     }
 }
@@ -2647,7 +2642,6 @@ impl From<&str> for ListTable {
         Self {
             name: value.to_string(),
             size: None,
-            rand: uuid_v4_string(),
         }
     }
 }

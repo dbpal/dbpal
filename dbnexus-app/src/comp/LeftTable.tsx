@@ -67,7 +67,7 @@ import {
   TabContent,
   textEllipsisStyle,
 } from "./helper";
-import { MenuRefresh, ModalHeader } from "./CommonComp";
+import { MenuRefresh, ModalHeader, VirtualSubSome } from "./CommonComp";
 import { TableStructure } from "./TableStructure";
 import { cancelTask } from "./handlers";
 import { filesize } from "filesize";
@@ -80,7 +80,6 @@ import {
 } from "./CommonComp2";
 import { CouchBaseInsert, CouchBaseTable } from "./CouchBase";
 import {
-  useMatcher,
   useContextMenu,
   useNotification,
   useTabsManage,
@@ -101,12 +100,13 @@ function TablesTree() {
   const { showNotification } = useNotification();
   const [loading, setLoading] = useState(false);
   const { appendTab } = useTabsManage();
-  const { maxTree } = useMatcher();
+
   const matchPattern = useMatcherFn();
   const tablesId = useRef(uuidv4());
   const showItems = useMemo(() => {
-    return tables.filter((e) => matchPattern(e.name)).slice(0, maxTree);
-  }, [tables, maxTree, matchPattern]);
+    return tables.filter((e) => matchPattern(e.name));
+  }, [tables, matchPattern]);
+
   const handleReload = useCallback(() => {
     setLoading(true);
     commands
@@ -215,64 +215,37 @@ function TablesTree() {
         <ShowingCount showing={showItems.length} total={tables.length} />
         {loading && <CircularProgress />}
       </Stack>>
-      {showItems.map((e) => {
-        const id = `${dbName}-table-${e.name}-${e.rand}`;
-        return (
-          <TableTree
-            key={e.name}
-            size={e.size}
-            reloadTables={handleReload}
-            table={e.name}
-            id={id}
-          />
-        );
-      })}
+      <VirtualSubSome
+        data={showItems}
+        makeMenu={(t) => {
+          return (
+            <TableMenu
+              kind={kind}
+              reload={handleReload}
+              table={t.name}
+              dbName={dbName}
+            />
+          );
+        }}
+        show={(table) => {
+          return (
+            <>
+              <Stack
+                direction="row"
+                sx={{ alignItems: "center", flex: 1, minWidth: 0 }}>
+                <TableViewIcon />
+                <span style={textEllipsisStyle}>{table.name}</span>
+              </Stack>
+              {table.size && (
+                <span style={{ ...shrinkAble, minWidth: 0 }}>
+                  {filesize(table.size, { round: 0 })}
+                </span>
+              )}
+            </>
+          );
+        }}
+      />
     </TreeItem>
-  );
-}
-
-function TableTree(props: {
-  table: string;
-  reloadTables: () => void;
-  size: number | null;
-  id: string;
-}) {
-  const { table, reloadTables, size, id } = props;
-  const { dbName, kind } = useContext(DbnameContext);
-  const setUpMenu = useContextMenu((state) => state.setUpMenu);
-
-  return (
-    <TreeItem
-      itemId={id}
-      label={
-        <Stack
-          direction="row"
-          sx={{ justifyContent: "space-between" }}
-          onContextMenu={(e) => {
-            setUpMenu({
-              content: (
-                <TableMenu
-                  kind={kind}
-                  reload={reloadTables}
-                  table={table}
-                  dbName={dbName}
-                />
-              ),
-              event: e,
-            });
-          }}>
-          <Stack direction="row" sx={{ alignItems: "center", flex: 1, minWidth: 0 }}>
-            <TableViewIcon />
-            <span style={textEllipsisStyle}>{table}</span>
-          </Stack>
-          {size && (
-            <span style={{ ...shrinkAble, minWidth: 0 }}>
-              {filesize(size, { round: 0 })}
-            </span>
-          )}
-        </Stack>
-      }
-    />
   );
 }
 
@@ -902,57 +875,28 @@ function RedisOneTableKind(props: {
         }}>
         <span>{typ}</span>
       </Stack>>
-      {tables.map((table) => (
-        <TreeItem
-          key={table.name}
-          itemId={dbName + "-key-" + name + "-" + table.name + table.rand}
-          label=<Stack
-            style={{
-              justifyContent: "space-between",
-              alignItems: "center",
-            }}
-            direction="row"
-            onContextMenu={(e) => {
-              setUpMenu({
-                content: (
-                  <TableMenu
-                    kind={kind}
-                    reload={handleReload}
-                    table={table.name}
-                    dbName={dbName}
-                    redisTableType={typ}
-                  />
-                ),
-                event: e,
-              });
-            }}>
-            <Stack style={{ flexShrink: 1 }} direction="row">
-              <span style={textEllipsisStyle}> {table.name} </span>
-              &nbsp;
-            </Stack>
-
-            {table.size && (
-              <Tooltip
-                title={(function () {
-                  switch (typ) {
-                    case RedisTableType.String:
-                      return "";
-                    case RedisTableType.List:
-                      return `a list of ${table.size}`;
-                    case RedisTableType.Set:
-                      return `set with ${table.size} elements`;
-                    case RedisTableType.Zset:
-                      return `zset with ${table.size} elements`;
-                    case RedisTableType.Hash:
-                      return `hash with ${table.size} elements`;
-                  }
-                })()}>
-                <span style={textEllipsisStyle}> {table.size} </span>
-              </Tooltip>
-            )}
-          </Stack>
-        />
-      ))}
+      <VirtualSubSome
+        data={tables}
+        makeMenu={(table) => {
+          return (
+            <TableMenu
+              kind={kind}
+              reload={handleReload}
+              table={table.name}
+              dbName={dbName}
+              redisTableType={typ}
+            />
+          );
+        }}
+        show={(table) => {
+          return (
+            <>
+              <span style={textEllipsisStyle}> {table.name} </span>{" "}
+              <span style={textEllipsisStyle}> {table.size} </span>
+            </>
+          );
+        }}
+      />
     </TreeItem>
   );
 }

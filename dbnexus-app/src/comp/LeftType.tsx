@@ -12,22 +12,15 @@ import {
   textEllipsisStyle,
   DbnameContext,
 } from "./helper";
-import { MenuRefresh } from "./CommonComp";
+import { MenuRefresh, VirtualSubSome } from "./CommonComp";
 import { CopySql, ShowingCount } from "./CommonComp2";
-import {
-  useMatcher,
-  useContextMenu,
-  useNotification,
-  useTabsManage,
-  useMatcherFn,
-} from "./store";
+import { useContextMenu, useNotification, useTabsManage, useMatcherFn } from "./store";
 import { commands, CreatedTypeDef } from "./bindings";
 import { uuidv4 } from "./Common";
 function TypesTree() {
   const { dbName, kind } = useContext(DbnameContext);
   const [types, setTypes] = useState<CreatedTypeDef[]>([]);
   const { showNotification } = useNotification();
-  const { maxTree } = useMatcher();
   const matchPattern = useMatcherFn();
 
   const reload = useCallback(() => {
@@ -42,8 +35,8 @@ function TypesTree() {
   }, [showNotification, dbName]);
 
   const showItems = useMemo(() => {
-    return types.filter((e) => matchPattern(e.name)).slice(0, maxTree);
-  }, [types, maxTree, matchPattern]);
+    return types.filter((e) => matchPattern(e.name));
+  }, [types, matchPattern]);
 
   const setUpMenu = useContextMenu((state) => state.setUpMenu);
   useEffect(() => {
@@ -71,35 +64,22 @@ function TypesTree() {
         <span> types </span>
         <ShowingCount showing={showItems.length} total={types.length} />
       </Stack>>
-      {showItems.map((typ) => {
-        const id = `${dbName}-type-${typ.name}`;
-        return (
-          <TreeItem
-            key={typ.name}
-            itemId={id}
-            style={{ alignItems: "center" }}
-            label=<Stack
-              direction="row"
-              onContextMenu={(e) => {
-                setUpMenu({
-                  content: (
-                    <TypeMenu
-                      reload={reload}
-                      dbName={dbName}
-                      kind={kind}
-                      createdType={typ}
-                    />
-                  ),
-                  event: e,
-                });
-              }}
-              sx={{ alignItems: "center" }}>
+      <VirtualSubSome
+        data={showItems}
+        makeMenu={(typ) => {
+          return (
+            <TypeMenu reload={reload} dbName={dbName} kind={kind} createdType={typ} />
+          );
+        }}
+        show={(typ) => {
+          return (
+            <>
               <PiTreeStructureFill />
               <span style={textEllipsisStyle}> {typ.name} </span>
-            </Stack>
-          />
-        );
-      })}
+            </>
+          );
+        }}
+      />
     </TreeItem>
   );
 }

@@ -24,7 +24,7 @@ use crate::db::{
     TriggerDetail, TriggerEvent, TriggerTiming, XlsxEdit, POOL_MAX_CONNECTIONS,
 };
 
-use crate::helper::{create_csv, uuid_v4_string};
+use crate::helper::create_csv;
 use crate::language_server::{
     get_update_sql_from_result_set_impl, LangServerCommon, LexerCompletionTrait,
 };
@@ -540,7 +540,6 @@ impl SchemaTrait for PostGresDB {
                 parameters: Some(p),
                 metas: vec![],
                 cassandra_parameters: None,
-                rand: uuid_v4_string(),
             });
         }
 
@@ -624,7 +623,6 @@ impl SchemaTrait for PostGresDB {
                 parameters: arguments,
                 metas: vec![MetaValue::new("return_type", return_type)],
                 cassandra_parameters: None,
-                rand: uuid_v4_string(),
             });
         }
         anyhow::Ok(ret)

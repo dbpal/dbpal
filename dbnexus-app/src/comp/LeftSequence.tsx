@@ -21,11 +21,10 @@ import {
   DbnameContext,
 } from "./helper.ts";
 
-import { MenuRefresh } from "./CommonComp.tsx";
+import { MenuRefresh, VirtualSubSome } from "./CommonComp.tsx";
 import { GrSteps } from "react-icons/gr";
 import { CopySql, ShowingCount } from "./CommonComp2.tsx";
 import {
-  useMatcher,
   useContextMenu,
   useNotification,
   useTabsManage,
@@ -38,7 +37,6 @@ function SequenceTree() {
   const { dbName, kind } = useContext(DbnameContext);
   const [seq, setSeq] = useState<SequenceDetail[]>([]);
   const { showNotification } = useNotification();
-  const { maxTree } = useMatcher();
   const matchPattern = useMatcherFn();
   const reload = useCallback(() => {
     commands
@@ -56,8 +54,8 @@ function SequenceTree() {
   }, [showNotification, dbName]);
 
   const showItems = useMemo(() => {
-    return seq.filter((e) => matchPattern(e.name)).slice(0, maxTree);
-  }, [seq, maxTree, matchPattern]);
+    return seq.filter((e) => matchPattern(e.name));
+  }, [seq, matchPattern]);
   const setUpMenu = useContextMenu((state) => state.setUpMenu);
   useEffect(() => {
     reload();
@@ -85,40 +83,20 @@ function SequenceTree() {
           <ShowingCount showing={showItems.length} total={seq.length} />
         </Stack>
       }>
-      {showItems.map((seq, index) => {
-        if (index >= maxTree) {
-          return;
-        }
-        const id = `${dbName}-sequence-${seq.name}`;
-        return (
-          <TreeItem
-            key={seq.name}
-            itemId={id}
-            style={{ alignItems: "center" }}
-            label={
-              <Stack
-                direction="row"
-                onContextMenu={(e) => {
-                  setUpMenu({
-                    content: (
-                      <SequenceMenu
-                        reload={reload}
-                        dbName={dbName}
-                        kind={kind}
-                        seq={seq}
-                      />
-                    ),
-                    event: e,
-                  });
-                }}
-                sx={{ alignItems: "center" }}>
-                <GrSteps />
-                <span style={textEllipsisStyle}>{seq.name}</span>
-              </Stack>
-            }
-          />
-        );
-      })}
+      <VirtualSubSome
+        data={showItems}
+        makeMenu={(seq) => {
+          return <SequenceMenu reload={reload} dbName={dbName} kind={kind} seq={seq} />;
+        }}
+        show={(seq) => {
+          return (
+            <>
+              <GrSteps />
+              <span style={textEllipsisStyle}>{seq.name}</span>
+            </>
+          );
+        }}
+      />
     </TreeItem>
   );
 }

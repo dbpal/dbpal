@@ -10,6 +10,7 @@ import {
   ReactNode,
   RefObject,
   SetStateAction,
+  useContext,
 } from "react";
 import { ask, message } from "@tauri-apps/plugin-dialog";
 import { readText, writeText } from "@tauri-apps/plugin-clipboard-manager";
@@ -886,8 +887,33 @@ function setDifference<T>(a: Set<T>, b: Set<T>): Set<T> {
 function tabsHasID(tabs: TabContent[], id: string) {
   return tabs.findIndex((e) => e.id == id);
 }
+function getViewportSize() {
+  return {
+    width: window.innerWidth,
+    height: window.innerHeight,
+  };
+}
+
+function useTablePaddingLeft() {
+  const { dbName } = useContext(DbnameContext);
+  let d = dbName.split("/").length + 1;
+  return d * 1.6 + "rem";
+}
+
+function calVirtualRollHeight(length: number) {
+  const rowHeight = 25;
+  let ret = length * rowHeight;
+  let max = getViewportSize().height * 0.4;
+  if (ret > max) {
+    ret = max;
+  }
+  return { height: ret, rowHeight };
+}
 
 export {
+  useTablePaddingLeft,
+  calVirtualRollHeight,
+  getViewportSize,
   tabsHasID,
   setDifference,
   createMongoModel,

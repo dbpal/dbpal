@@ -61,6 +61,8 @@ import {
   AppColumnMenuCtx,
   textEllipsisStyle,
   DbnameContext,
+  calVirtualRollHeight,
+  useTablePaddingLeft,
 } from "./helper";
 
 import { TbDatabasePlus } from "react-icons/tb";
@@ -100,6 +102,7 @@ import {
   GridSortModel,
   useGridApiContext,
 } from "./datagridExport";
+import { AutoSizer, List } from "react-virtualized";
 
 /**
  * Logger level selection control.
@@ -1170,7 +1173,59 @@ function LongNotice({ children }) {
   );
 }
 
+function VirtualSubSome<T>(props: {
+  data: T[];
+  makeMenu: (_: T) => ReactNode;
+  show: (_: T) => ReactNode;
+}) {
+  const { data, makeMenu, show } = props;
+
+  const height = calVirtualRollHeight(data.length);
+  const tablePaddingLeft = useTablePaddingLeft();
+  const { setUpMenu } = useContextMenu();
+
+  return (
+    <div
+      style={{
+        overflow: "auto",
+        height: height.height,
+      }}>
+      <AutoSizer>
+        {({ width }) => (
+          <List
+            width={width} // 列表宽度
+            height={height.height} //   列表高度（可视区域）
+            rowCount={data.length} // 总行数
+            rowHeight={height.rowHeight} // 每行高度
+            rowRenderer={({ index, style }) => {
+              const d = data[index];
+              return (
+                <Stack
+                  style={{
+                    paddingLeft: tablePaddingLeft,
+                    ...style,
+                    cursor: "context-menu",
+                  }}
+                  direction="row"
+                  sx={{ alignItems: "center" }}
+                  onContextMenu={(e) => {
+                    setUpMenu({
+                      content: makeMenu(d),
+                      event: e,
+                    });
+                  }}>
+                  {show(d)}
+                </Stack>
+              );
+            }} // 渲染函数
+          />
+        )}
+      </AutoSizer>
+    </div>
+  );
+}
 export {
+  VirtualSubSome,
   LongNotice,
   SelectPath,
   LogLevelSelection,

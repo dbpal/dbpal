@@ -15,23 +15,16 @@ import { DefAndMetasView } from "./DefAndMetaView";
 
 import { SiProcessingfoundation } from "react-icons/si";
 import { DataSourceKind, secondConfirm, TabContent, DbnameContext } from "./helper.ts";
-import { MenuRefresh, UdfNameAndParameters } from "./CommonComp";
+import { MenuRefresh, UdfNameAndParameters, VirtualSubSome } from "./CommonComp";
 
 import { CopySql, ShowingCount } from "./CommonComp2";
-import {
-  useMatcher,
-  useContextMenu,
-  useNotification,
-  useTabsManage,
-  useMatcherFn,
-} from "./store";
+import { useContextMenu, useNotification, useTabsManage, useMatcherFn } from "./store";
 import { commands, NamedStaff } from "./bindings.ts";
 import { uuidv4 } from "./Common.ts";
 function ProceduresTree() {
   const { dbName, kind } = useContext(DbnameContext);
   const [ps, setPs] = useState<NamedStaff[]>([]);
   const { showNotification } = useNotification();
-  const { maxTree } = useMatcher();
   const matchPattern = useMatcherFn();
   const reload = useCallback((): void => {
     commands
@@ -49,8 +42,8 @@ function ProceduresTree() {
   }, [showNotification, dbName]);
 
   const showItems = useMemo(() => {
-    return ps.filter((e) => matchPattern(e.name)).slice(0, maxTree);
-  }, [ps, maxTree, matchPattern]);
+    return ps.filter((e) => matchPattern(e.name));
+  }, [ps, matchPattern]);
 
   const setUpMenu = useContextMenu((state) => state.setUpMenu);
   useEffect(() => {
@@ -78,35 +71,22 @@ function ProceduresTree() {
         <span> procedures </span>
         <ShowingCount showing={showItems.length} total={ps.length} />
       </Stack>>
-      {showItems.map((p) => {
-        const id = `${dbName}-${p.name}-${p.rand}`;
-        return (
-          <TreeItem
-            key={p.name + "-" + p.parameters}
-            itemId={id}
-            style={{ alignItems: "center" }}
-            label=<Stack
-              direction="row"
-              onContextMenu={(e: MouseEvent<HTMLDivElement>) => {
-                setUpMenu({
-                  content: (
-                    <ProcedureMenu
-                      reload={reload}
-                      dbName={dbName}
-                      kind={kind}
-                      procedure={p}
-                    />
-                  ),
-                  event: e,
-                });
-              }}
-              sx={{ alignItems: "center" }}>
+      <VirtualSubSome
+        data={showItems}
+        makeMenu={(p) => {
+          return (
+            <ProcedureMenu reload={reload} dbName={dbName} kind={kind} procedure={p} />
+          );
+        }}
+        show={(p) => {
+          return (
+            <>
               <SiProcessingfoundation />
               <UdfNameAndParameters udf={p} kind={kind} />
-            </Stack>
-          />
-        );
-      })}
+            </>
+          );
+        }}
+      />
     </TreeItem>
   );
 }

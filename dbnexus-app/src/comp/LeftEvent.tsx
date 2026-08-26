@@ -20,22 +20,15 @@ import {
   textEllipsisStyle,
   DbnameContext,
 } from "./helper";
-import { MenuRefresh } from "./CommonComp";
+import { MenuRefresh, VirtualSubSome } from "./CommonComp";
 import { CopySql, ShowingCount } from "./CommonComp2";
-import {
-  useMatcher,
-  useContextMenu,
-  useNotification,
-  useTabsManage,
-  useMatcherFn,
-} from "./store";
+import { useContextMenu, useNotification, useTabsManage, useMatcherFn } from "./store";
 import { commands, SqlEvent } from "./bindings";
 import { uuidv4 } from "./Common";
 function EventsTree() {
   const { dbName, kind } = useContext(DbnameContext);
   const [events, setEvents] = useState<SqlEvent[]>([]);
   const { showNotification } = useNotification();
-  const { maxTree } = useMatcher();
   const matchPattern = useMatcherFn();
   const reload = useCallback(() => {
     commands
@@ -48,8 +41,8 @@ function EventsTree() {
       });
   }, [showNotification, dbName]);
   const showItems = useMemo(() => {
-    return events.filter((e: SqlEvent) => matchPattern(e.name)).slice(0, maxTree);
-  }, [events, matchPattern, maxTree]);
+    return events.filter((e: SqlEvent) => matchPattern(e.name));
+  }, [events, matchPattern]);
 
   const setUpMenu = useContextMenu((state) => state.setUpMenu);
 
@@ -78,35 +71,22 @@ function EventsTree() {
         <span> events </span>
         <ShowingCount showing={showItems.length} total={events.length} />
       </Stack>>
-      {showItems.map((event) => {
-        const id = `${dbName}-event-${event.name}`;
-        return (
-          <TreeItem
-            key={event.name}
-            itemId={id}
-            style={{ alignItems: "center" }}
-            label=<Stack
-              direction="row"
-              onContextMenu={(e: MouseEvent<HTMLDivElement>) => {
-                setUpMenu({
-                  content: (
-                    <EventMenu
-                      reload={reload}
-                      dbName={dbName}
-                      kind={kind}
-                      event={event}
-                    />
-                  ),
-                  event: e,
-                });
-              }}
-              sx={{ alignItems: "center" }}>
+      <VirtualSubSome
+        data={showItems}
+        makeMenu={(event) => {
+          return (
+            <EventMenu reload={reload} dbName={dbName} kind={kind} event={event} />
+          );
+        }}
+        show={(event) => {
+          return (
+            <>
               <MdOutlineEventRepeat />
               <span style={textEllipsisStyle}> {event.name} </span>
-            </Stack>
-          />
-        );
-      })}
+            </>
+          );
+        }}
+      />
     </TreeItem>
   );
 }

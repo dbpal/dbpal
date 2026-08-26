@@ -12,18 +12,11 @@ import DeleteForeverIcon from "@mui/icons-material/DeleteForever";
 import InfoIcon from "@mui/icons-material/Info";
 import { MdFunctions } from "react-icons/md";
 import { DefAndMetasView } from "./DefAndMetaView";
-
 import { TbMathFunction } from "react-icons/tb";
 import { DataSourceKind, secondConfirm, TabContent, DbnameContext } from "./helper.ts";
-import { MenuRefresh, UdfNameAndParameters } from "./CommonComp";
+import { MenuRefresh, UdfNameAndParameters, VirtualSubSome } from "./CommonComp";
 import { CopySql, ShowingCount } from "./CommonComp2";
-import {
-  useMatcher,
-  useContextMenu,
-  useNotification,
-  useTabsManage,
-  useMatcherFn,
-} from "./store";
+import { useContextMenu, useNotification, useTabsManage, useMatcherFn } from "./store";
 import { commands, NamedStaff } from "./bindings.ts";
 import { uuidv4 } from "./Common.ts";
 
@@ -32,11 +25,10 @@ function UdfsTree() {
 
   const [udfs, setUdfs] = useState<NamedStaff[]>([]);
   const { showNotification } = useNotification();
-  const { maxTree } = useMatcher();
   const matchPattern = useMatcherFn();
   const showItems = useMemo(() => {
-    return udfs.filter((e) => matchPattern(e.name)).slice(0, maxTree);
-  }, [udfs, maxTree, matchPattern]);
+    return udfs.filter((e) => matchPattern(e.name));
+  }, [udfs, matchPattern]);
 
   const reload = useCallback(() => {
     commands
@@ -55,7 +47,6 @@ function UdfsTree() {
   useEffect(() => {
     reload();
   }, [reload]);
-
   const setUpMenu = useContextMenu((state) => state.setUpMenu);
   const treeID = useRef(uuidv4());
   return (
@@ -78,29 +69,20 @@ function UdfsTree() {
         <span> udfs </span>
         <ShowingCount showing={showItems.length} total={udfs.length} />
       </Stack>>
-      {showItems.map((udf) => {
-        const id = `${dbName}-udf-${udf.name} -${udf.rand}`;
-        return (
-          <TreeItem
-            key={id}
-            itemId={id}
-            label=<Stack
-              direction="row"
-              sx={{ alignItems: "center" }}
-              onContextMenu={(e) => {
-                setUpMenu({
-                  content: (
-                    <UdfMenu reload={reload} dbName={dbName} kind={kind} udf={udf} />
-                  ),
-                  event: e,
-                });
-              }}>
+      <VirtualSubSome
+        data={showItems}
+        makeMenu={(e) => {
+          return <UdfMenu reload={reload} dbName={dbName} kind={kind} udf={e} />;
+        }}
+        show={(udf) => {
+          return (
+            <>
               <TbMathFunction />
               <UdfNameAndParameters udf={udf} kind={kind} />
-            </Stack>
-          />
-        );
-      })}
+            </>
+          );
+        }}
+      />
     </TreeItem>
   );
 }
@@ -275,17 +257,17 @@ function CassandraAggregatesTree() {
         });
       });
   }, [showNotification, dbName]);
-  const { maxTree } = useMatcher();
   const matchPattern = useMatcherFn();
   const showItems = useMemo(() => {
-    return aggs.filter((e) => matchPattern(e.name)).slice(0, maxTree);
-  }, [aggs, matchPattern, maxTree]);
+    return aggs.filter((e) => matchPattern(e.name));
+  }, [aggs, matchPattern]);
 
   useEffect(() => {
     reload();
   }, [reload]);
   const setUpMenu = useContextMenu((state) => state.setUpMenu);
   const tressId = useRef(uuidv4());
+
   return (
     <TreeItem
       itemId={tressId.current}
@@ -306,38 +288,27 @@ function CassandraAggregatesTree() {
         <span> aggregates </span>
         <ShowingCount showing={showItems.length} total={aggs.length} />
       </Stack>>
-      {showItems.map((agg) => {
-        const id = `${dbName}-agg-${agg.name}-${agg.rand}`;
-        return (
-          <TreeItem
-            key={
-              agg.name +
-              "-" +
-              (agg.cassandra_parameters ? agg.cassandra_parameters.join("-") : "")
-            }
-            itemId={id}
-            label=<Stack
-              direction="row"
-              sx={{ alignItems: "center" }}
-              onContextMenu={(e) => {
-                setUpMenu({
-                  content: (
-                    <CassandraAggregateMenu
-                      reload={reload}
-                      dbName={dbName}
-                      agg={agg.name}
-                      parameters={agg.cassandra_parameters}
-                    />
-                  ),
-                  event: e,
-                });
-              }}>
+      <VirtualSubSome
+        data={aggs}
+        makeMenu={(agg) => {
+          return (
+            <CassandraAggregateMenu
+              reload={reload}
+              dbName={dbName}
+              agg={agg.name}
+              parameters={agg.cassandra_parameters}
+            />
+          );
+        }}
+        show={(agg) => {
+          return (
+            <>
               <MdFunctions />
               <UdfNameAndParameters udf={agg} kind={DataSourceKind.Cassandra} />
-            </Stack>
-          />
-        );
-      })}
+            </>
+          );
+        }}
+      />
     </TreeItem>
   );
 }

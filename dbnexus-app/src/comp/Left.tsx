@@ -10,7 +10,6 @@ import {
   ListItemText,
   MenuItem,
   MenuList,
-  Slider,
   Stack,
   TextField,
   Tooltip,
@@ -298,7 +297,7 @@ function LeftTop() {
 }
 
 function EditLeftMatchStr({ handleClose }) {
-  const { matchPattern, setMatchPattern, setMaxTree, maxTree } = useMatcher();
+  const { matchPattern, setMatchPattern } = useMatcher();
   const [matchPatterInput, setMatchPatternInput] = useState("");
   const { showNotification } = useNotification();
 
@@ -365,19 +364,6 @@ function EditLeftMatchStr({ handleClose }) {
           apply
         </Button>
       </Stack>
-
-      <span color="info">max tree size({maxTree}):</span>
-      <Slider
-        min={import.meta.env.DEV ? 1 : 100}
-        max={10000}
-        onChange={(_, value) => {
-          setMaxTree(value);
-        }}
-        style={{
-          flex: 1,
-          width: "40%",
-        }}
-      />
     </Stack>
   );
 }

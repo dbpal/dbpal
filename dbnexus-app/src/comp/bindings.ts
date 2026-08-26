@@ -386,7 +386,6 @@ export type LibSqlDBConfigSource = { source: "local"; path: string } | { source:
 export type ListTable = {
 	name: string,
 	size: number | null,
-	rand: string,
 };
 
 // meta value can used in various place.
@@ -453,7 +452,6 @@ export type NamedStaff = {
 	cassandra_parameters: string[] | null,
 	name: string,
 	metas: MetaValue[],
-	rand: string,
 };
 
 export type OdbcCommon = {

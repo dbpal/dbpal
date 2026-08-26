@@ -31,6 +31,7 @@
     "@tauri-apps/plugin-store": "^2.4.3",
     "@tauri-apps/plugin-window-state": "~2.4.1",
     "@types/papaparse": "^5.5.2",
+    "@types/react-virtualized": "^9.22.3",
     "bson": "^7.2.0",
     "dexie": "^4.4.3",
     "esprima": "^4.0.1",
@@ -49,6 +50,7 @@
     "react-markdown": "^10.1.0",
     "react-resizable-panels": "^3.0.6",
     "react-router-dom": "^7.17.0",
+    "react-virtualized": "^9.22.6",
     "remark-gfm": "^4.0.1",
     "sql-formatter": "^15.8.1",
     "styled-components": "^6.4.2",
@@ -82,7 +84,7 @@
     "typescript": "^6.0.3",
     "typescript-eslint": "^8.61.1",
     "vite": "^8.0.16",
-    "vite-plugin-monaco-editor": "^1.1.0",
-    "vite-plugin-ejs": "^1.7.0"
+    "vite-plugin-ejs": "^1.7.0",
+    "vite-plugin-monaco-editor": "^1.1.0"
   }
 }

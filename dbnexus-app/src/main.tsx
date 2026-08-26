@@ -8,6 +8,8 @@ import { secondConfirm } from "./comp/helper.ts";
 import { saveWindowState, StateFlags } from "@tauri-apps/plugin-window-state";
 import { commands } from "./comp/bindings.ts";
 
+import "react-virtualized/styles.css"; // 必须引入样式
+
 saveWindowState(StateFlags.ALL);
 
 const currentWebview = WebviewWindow.getCurrent();
