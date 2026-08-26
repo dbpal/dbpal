@@ -303,92 +303,82 @@ function EditLeftMatchStr({ handleClose }) {
   const { showNotification } = useNotification();
 
   return (
-    <>
-      <Stack
-        style={{
-          borderRadius: "0.5rem",
-          padding: "2px 0.5rem",
-        }}>
-        <Typography color="info">
-          match pattern for database schema,table,view,udf,procedure etc
-        </Typography>
-        <Stack direction="row" style={{ flexWrap: "wrap", alignItems: "center" }}>
-          {matchPattern.length > 1 && (
-            <IconButton
-              onClick={() => {
-                setMatchPattern([]);
-                handleClose();
-              }}>
-              <CloseIcon />
-            </IconButton>
-          )}
-          {matchPattern.map((e, index) => (
-            <Chip
-              key={index}
-              label={e}
-              color="success"
-              onDelete={() => {
-                setMatchPatternInput(matchPattern[index]);
-                setMatchPattern(matchPattern.filter((_, eIndex) => eIndex !== index));
-              }}
-            />
-          ))}
-        </Stack>
-        <Stack direction="row" style={{ alignItems: "flex-end" }} spacing={1}>
-          <ClearableTextField
-            fullWidth
-            value={matchPatterInput}
-            label="match pattern"
-            onChange={(e) => {
-              setMatchPatternInput(e.target.value.trim());
-            }}
-            onClear={() => setMatchPatternInput("")}
-          />
-          <Button
+    <Stack
+      style={{
+        borderRadius: "0.5rem",
+        padding: "2px 0.5rem",
+      }}>
+      <Typography color="info">
+        match pattern for database schema,table,view,udf,procedure etc
+      </Typography>
+      <Stack direction="row" style={{ flexWrap: "wrap", alignItems: "center" }}>
+        {matchPattern.length > 1 && (
+          <IconButton
             onClick={() => {
-              if (matchPattern.find((e) => e == matchPatterInput)) {
-                showNotification({
-                  severity: "warning",
-                  title: "the value already exists",
-                });
-                return;
-              }
-              if (!matchPatterInput) {
-                showNotification({
-                  severity: "warning",
-                  title: "please input match pattern",
-                });
-                return;
-              }
-              setMatchPattern([...matchPattern, matchPatterInput]);
+              setMatchPattern([]);
+              handleClose();
+            }}>
+            <CloseIcon />
+          </IconButton>
+        )}
+        {matchPattern.map((e, index) => (
+          <Chip
+            key={index}
+            label={e}
+            color="success"
+            onDelete={() => {
+              setMatchPatternInput(matchPattern[index]);
+              setMatchPattern(matchPattern.filter((_, eIndex) => eIndex !== index));
             }}
-            variant="outlined">
-            apply
-          </Button>
-        </Stack>
+          />
+        ))}
+      </Stack>
+      <Stack direction="row" style={{ alignItems: "flex-end" }} spacing={1}>
+        <ClearableTextField
+          fullWidth
+          value={matchPatterInput}
+          label="match pattern"
+          onChange={(e) => {
+            setMatchPatternInput(e.target.value.trim());
+          }}
+          onClear={() => setMatchPatternInput("")}
+        />
+        <Button
+          onClick={() => {
+            if (matchPattern.find((e) => e == matchPatterInput)) {
+              showNotification({
+                severity: "warning",
+                title: "the value already exists",
+              });
+              return;
+            }
+            if (!matchPatterInput) {
+              showNotification({
+                severity: "warning",
+                title: "please input match pattern",
+              });
+              return;
+            }
+            setMatchPattern([...matchPattern, matchPatterInput]);
+          }}
+          variant="outlined">
+          apply
+        </Button>
       </Stack>
 
-      <StackRowCenter>
-        <span color="info">max tree size({maxTree}):</span>
-        <Slider
-          min={(function () {
-            if (import.meta.env.DEV) {
-              return 1;
-            } else {
-              return 100;
-            }
-          })()}
-          max={1000}
-          onChange={(_, value) => {
-            setMaxTree(value);
-          }}
-          style={{
-            flex: 1,
-            width: "40%",
-          }}
-        />
-      </StackRowCenter>
-    </>
+      <span color="info">max tree size({maxTree}):</span>
+      <Slider
+        min={import.meta.env.DEV ? 1 : 100}
+        max={10000}
+        onChange={(_, value) => {
+          setMaxTree(value);
+        }}
+        style={{
+          flex: 1,
+          width: "40%",
+        }}
+      />
+    </Stack>
   );
 }
 
