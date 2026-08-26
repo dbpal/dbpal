@@ -202,7 +202,6 @@ function AppCode_(props: {
         padding: "2px 4px",
         borderRadius: "0.4rem",
         margin: 0,
-        maxHeight: "55vh",
         overflow: "auto",
         ...style,
       }}
@@ -1013,6 +1012,7 @@ function AppMarkDown(props: AppMarkDownProps) {
                   language={match[1]}
                   handleEdit={appCodeHandleEdit}
                   codeBlock={String(children).replace(/\n$/, "")}
+                  style={{ maxHeight: "40vh" }}
                 />
               ) : (
                 <code className={className} {...props}>

@@ -53,7 +53,6 @@ import { FaArrowsAltV, FaUpload } from "react-icons/fa";
 import { SelectPageSize } from "./CommonComp.tsx";
 import { Channel } from "@tauri-apps/api/core";
 import { NameAndQueryId, uuidv4 } from "./Common.ts";
-import { editor } from "monaco-editor";
 import { Panel, PanelGroup, PanelResizeHandle } from "react-resizable-panels";
 import { ExportView } from "./Export.tsx";
 import { QueryResp } from "./QueryResp.tsx";
@@ -570,18 +569,15 @@ function CouchBaseQuery(props: { value?: string }) {
   const [resp, setResp] = useState<string[]>([]);
   const [loading, setLoading] = useState(false);
   const { getSize } = useSizeStore();
-  const [editor, setEditor] = useState<editor.IStandaloneCodeEditor>(null);
+
   const [queryStatus, setQueryStatus] = useState("");
   const { showNotification } = useNotification();
   const { viewMode, setViewMode } = useCBQueryViewStore();
   const [tableResp, setTableResp] = useState<MuiDataGridData>(null);
-  const setEditorContext = useContext(QueryIDEditorChatCtx);
+  const { editor, setEditor } = useContext(QueryIDEditorChatCtx);
   const [markdownModel, setMarkdownModel] = useState(false);
   const [matchStr, setMatchStr] = useState("");
   const { setOneShotUI } = useOneShotDialogUI();
-  useEffect(() => {
-    setEditorContext.setEditor(editor);
-  }, [editor, setEditor, setEditorContext]);
 
   const { save: saveQueryLog } = useQueryLogStore();
   useEffect(() => {

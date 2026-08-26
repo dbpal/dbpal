@@ -169,7 +169,6 @@ const ignoreErrKey = "mongo-query-ignore-error";
 function MongoQuery(props: { favoriteName?: string; value?: string }) {
   const { value, favoriteName } = props;
   const { dbName } = useContext(DbnameContext);
-  const [editor, setEditor] = useState<editor.IStandaloneCodeEditor>(null);
   const { showNotification } = useNotification();
   const { getSwitch, setSwitch } = useBoolSwitch();
   const [mongoHandle, setMongoHandle] = useState<{ db; FS; BSON; HTTP }>({
@@ -183,13 +182,7 @@ function MongoQuery(props: { favoriteName?: string; value?: string }) {
 
   const { save: saveQueryLog } = useQueryLogStore();
 
-  const setEditorContext = useContext(QueryIDEditorChatCtx);
-  useEffect(() => {
-    if (!editor) {
-      return;
-    }
-    setEditorContext.setEditor(editor);
-  }, [editor, setEditor, setEditorContext]);
+  const { editor, setEditor } = useContext(QueryIDEditorChatCtx);
 
   const onMount = useCallback(
     (ed: editor.IStandaloneCodeEditor) => {
@@ -205,7 +198,7 @@ const { db, FS, HTTP, BSON } = mongoHandle;
       ); // mongo no need query id
       ed.focus();
     },
-    [dbName],
+    [dbName, setEditor],
   );
 
   useEffect(() => {
