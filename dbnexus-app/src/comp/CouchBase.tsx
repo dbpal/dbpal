@@ -20,7 +20,6 @@ import {
   QueryStatus,
   RefreshButton,
   SetFilterSort,
-  ShowingCount,
   ShowQueryLog,
   SimpleFlexEditor,
   SliderSize,
@@ -75,6 +74,7 @@ import { AddTableModal } from "./LeftTable.tsx";
 import { useDebounce } from "use-debounce";
 import { isEqual } from "lodash-es";
 import { CouchbaseTableImportFile } from "./CreateTable.tsx";
+import { AutoSizer, List } from "react-virtualized";
 
 type Data = {
   data: { data: string; id: string }[];
@@ -578,7 +578,6 @@ function CouchBaseQuery(props: { value?: string }) {
   const setEditorContext = useContext(QueryIDEditorChatCtx);
   const [markdownModel, setMarkdownModel] = useState(false);
   const [matchStr, setMatchStr] = useState("");
-  const [matchStrDelay] = useDebounce(matchStr, 1500);
   const { setOneShotUI } = useOneShotDialogUI();
   useEffect(() => {
     setEditorContext.setEditor(editor);
@@ -685,23 +684,10 @@ function CouchBaseQuery(props: { value?: string }) {
         setLoading(false);
       });
   };
-
-  const maxRow = 100;
-
+  const [matchStrDelay] = useDebounce(matchStr, 1000);
   const showResp = useMemo(() => {
-    if (viewMode != CBQueryViewMode.Json) {
-      return;
-    }
-
-    const show = resp.filter((e) => (matchStrDelay ? e.includes(matchStrDelay) : true));
-    if (show.length > maxRow) {
-      showNotification({
-        severity: "warning",
-        title: `result set too big,show only first ${maxRow} json result`,
-      });
-    }
-    return show.slice(0, maxRow);
-  }, [viewMode, resp, matchStrDelay, showNotification]);
+    return resp.filter((e) => (matchStrDelay ? e.includes(matchStrDelay) : true));
+  }, [matchStrDelay, resp]);
 
   return (
     <PanelGroup
@@ -759,20 +745,20 @@ function CouchBaseQuery(props: { value?: string }) {
           </Stack>
           <Stack direction="row" style={{ alignItems: "center" }}>
             {viewMode == CBQueryViewMode.Json && (
-              <ClearableTextField
-                value={matchStr}
-                onChange={(e) => {
-                  setMatchStr(e.target.value);
-                }}
-                onClear={() => {
-                  setMatchStr("");
-                }}
-                label="match string"
-                style={{ width: "13rem" }}
-              />
-            )}
-            {viewMode == CBQueryViewMode.Json && (
-              <SliderSize config={UseSizeConfig.gridCol} />
+              <>
+                <ClearableTextField
+                  value={matchStr}
+                  onChange={(e) => {
+                    setMatchStr(e.target.value);
+                  }}
+                  onClear={() => {
+                    setMatchStr("");
+                  }}
+                  label="match string"
+                  style={{ width: "13rem" }}
+                />
+                <SliderSize config={UseSizeConfig.couchbaseAppCodeHeight} />
+              </>
             )}
 
             <Tooltip title="export query result to a file">
@@ -872,34 +858,34 @@ function CouchBaseQuery(props: { value?: string }) {
         id="chat-resize-bar"
         className="resize-handle"
       />
+
       <Panel collapsible collapsedSize={0} minSize={10} style={{ overflow: "auto" }}>
         {viewMode == CBQueryViewMode.Json && (
-          <ShowingCount
-            showing={showResp.length}
-            total={resp.length}
-            style={{ position: "sticky", top: 0 }}
-          />
-        )}
-        {viewMode == CBQueryViewMode.Json && (
-          <div
-            style={{
-              overflow: "auto",
-              display: "grid",
-              gridTemplateColumns: `repeat(${getSize(UseSizeConfig.gridCol)}, 1fr)`,
-              paddingRight: "1.2rem",
-            }}>
-            {showResp.map((value, index) => {
-              return (
-                <AppCode
-                  key={index}
-                  language="json"
-                  codeBlock={value}
-                  highlightStr={matchStr}
+          <div style={{ width: "100%", height: "100%" }}>
+            <AutoSizer>
+              {({ width, height }) => (
+                <List
+                  width={width} // 列表宽度
+                  height={height} //   列表高度（可视区域）
+                  rowCount={showResp.length} // 总行数
+                  rowHeight={getSize(UseSizeConfig.couchbaseAppCodeHeight)} // 每行高度
+                  rowRenderer={({ index, style }) => {
+                    const d = showResp[index];
+                    return (
+                      <AppCode
+                        language="json"
+                        codeBlock={d}
+                        style={style}
+                        highlightStr={matchStr}
+                      />
+                    );
+                  }} // 渲染函数
                 />
-              );
-            })}
+              )}
+            </AutoSizer>
           </div>
         )}
+
         {viewMode == CBQueryViewMode.Table && tableResp && (
           <QueryResp data={tableResp} />
         )}

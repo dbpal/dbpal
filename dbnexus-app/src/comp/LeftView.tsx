@@ -386,7 +386,7 @@ function ViewMenu(props: {
   view: string;
   reload: () => void;
   viewKind: ViewKind;
-  dbName;
+  dbName: string;
   kind: DataSourceKind;
 }) {
   const { view, reload, viewKind, dbName, kind } = props;

@@ -86,6 +86,7 @@ import {
   useFavoriteStore,
   useNotification,
   useQueryLogStore,
+  useUserSettings,
   useViewInModalMatchStrStore,
 } from "./store";
 import { commands, Field, MetaValue, NamedStaff } from "./bindings";
@@ -1179,8 +1180,8 @@ function VirtualSubSome<T>(props: {
   show: (_: T) => ReactNode;
 }) {
   const { data, makeMenu, show } = props;
-
-  const height = calVirtualRollHeight(data.length);
+  const { appearance } = useUserSettings();
+  const height = calVirtualRollHeight(data.length, appearance.fontSize);
   const tablePaddingLeft = useTablePaddingLeft();
   const { setUpMenu } = useContextMenu();
 

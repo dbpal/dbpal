@@ -576,7 +576,6 @@ export class UseSizeConfig {
   max: number;
   step: number;
   default: number;
-  name: string;
 
   notice: ReactNode;
 
@@ -587,7 +586,6 @@ export class UseSizeConfig {
     max: 20,
     step: 2,
     notice: "chat memory buffer size",
-    name: "memory size",
   };
 
   static gridCol: UseSizeConfig = {
@@ -597,7 +595,15 @@ export class UseSizeConfig {
     default: 1,
     step: 1,
     notice: "grid column count",
-    name: "column",
+  };
+
+  static couchbaseAppCodeHeight: UseSizeConfig = {
+    key: "couchbase-appcode-height",
+    min: 100,
+    max: 1000,
+    default: 200,
+    step: 10,
+    notice: "couchbase json render height",
   };
 
   static editorHeight: UseSizeConfig = {
@@ -607,7 +613,6 @@ export class UseSizeConfig {
     step: 10,
     default: 300,
     notice: "editor height",
-    name: "editor height",
   };
 
   static couchbaseQueryLimit: UseSizeConfig = {
@@ -617,7 +622,6 @@ export class UseSizeConfig {
     step: 10,
     default: 300,
     notice: "couchbase query limit",
-    name: "couchbase query limit",
   };
 
   static queryLimit: UseSizeConfig = {
@@ -626,7 +630,6 @@ export class UseSizeConfig {
     max: 10_00_00,
     step: 1000,
     default: 10000,
-    name: "query limit",
     notice: (
       <Typography>
         limit max rows can be query.we don&apos;t want OOM!!!😀

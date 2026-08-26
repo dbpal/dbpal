@@ -900,10 +900,10 @@ function useTablePaddingLeft() {
   return d * 1.6 + "rem";
 }
 
-function calVirtualRollHeight(length: number) {
-  const rowHeight = 25;
-  let ret = length * rowHeight;
-  let max = getViewportSize().height * 0.4;
+function calVirtualRollHeight(length: number, fontSize: number) {
+  const rowHeight = Math.ceil(fontSize * 1.7);
+  let ret = Math.ceil(length * rowHeight);
+  let max = Math.ceil(getViewportSize().height * 0.4);
   if (ret > max) {
     ret = max;
   }
