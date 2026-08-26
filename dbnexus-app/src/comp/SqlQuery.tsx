@@ -292,7 +292,7 @@ function SqlQuery(props: {
   const { dbName, kind } = useContext(DbnameContext);
   const { value, favoriteName, extraButtons } = props;
   const [resp, setResp] = useState<QueryRespData[]>([]);
-  const [editor, setEditor] = useState<editor.IStandaloneCodeEditor>(null);
+
   const [loading, setLoading] = useState(false);
   const [makeConnLoading, setMakeConnLoading] = useState(false);
   const { showNotification } = useNotification();
@@ -306,17 +306,14 @@ function SqlQuery(props: {
   const [markdownModel, setMarkdownModel] = useState(false);
   const { setOneShotUI: setOneShotUI } = useOneShotDialogUI();
   const { getSwitch } = useBoolSwitch();
-  const setEditorContext = useContext(QueryIDEditorChatCtx);
-  useEffect(() => {
-    if (!editor) {
-      return;
-    }
-    setEditorContext.setEditor(editor);
-  }, [editor, setEditorContext]);
+  const { setEditor, editor } = useContext(QueryIDEditorChatCtx);
 
-  const handleEditorDidMount = useCallback((ed: editor.IStandaloneCodeEditor) => {
-    setEditor(ed);
-  }, []);
+  const handleEditorDidMount = useCallback(
+    (ed: editor.IStandaloneCodeEditor) => {
+      setEditor(ed);
+    },
+    [setEditor],
+  );
 
   useEffect(() => {
     setMakeConnLoading(true);
