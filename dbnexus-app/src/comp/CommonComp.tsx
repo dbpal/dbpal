@@ -1193,7 +1193,14 @@ function VirtualSubSome<T>(props: {
       <AutoSizer>
         {({ width }) => (
           <List
-            width={width} // 列表宽度
+            width={(function () {
+              let r = width - 13;
+              let min = 10;
+              if (r < min) {
+                r = min;
+              }
+              return r;
+            })()} // 列表宽度
             height={height.height} //   列表高度（可视区域）
             rowCount={data.length} // 总行数
             rowHeight={height.rowHeight} // 每行高度

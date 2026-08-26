@@ -71,7 +71,7 @@ import {
 } from "./datagridExport";
 function ViewsTree(props: { viewKind: ViewKind }) {
   const { viewKind } = props;
-  const { dbName } = useContext(DbnameContext);
+  const { dbName, kind } = useContext(DbnameContext);
   const [views, setViews] = useState<ListTable[]>([]);
   const { showNotification } = useNotification();
   const [loading, setLoading] = useState(false);
@@ -136,7 +136,7 @@ function ViewsTree(props: { viewKind: ViewKind }) {
         makeMenu={(view) => {
           return (
             <ViewMenu
-              kind={viewKind}
+              kind={kind}
               reload={handleReload}
               view={view.name}
               dbName={dbName}
@@ -387,7 +387,7 @@ function ViewMenu(props: {
   reload: () => void;
   viewKind: ViewKind;
   dbName;
-  kind;
+  kind: DataSourceKind;
 }) {
   const { view, reload, viewKind, dbName, kind } = props;
   const { showNotification } = useNotification();
@@ -423,30 +423,12 @@ function ViewMenu(props: {
   const handleViewData = () => {
     let list: ReactNode = null;
     switch (kind) {
-      case DataSourceKind.MariaDB:
-      case DataSourceKind.Mysql:
-      case DataSourceKind.SqlServer:
-      case DataSourceKind.Sqlite:
-      case DataSourceKind.Postgres:
-      case DataSourceKind.Oracle:
-      case DataSourceKind.TiDB:
-      case DataSourceKind.Cassandra:
-      case DataSourceKind.ClickHouse:
-      case DataSourceKind.LibSql:
-      case DataSourceKind.FireBird:
-      case DataSourceKind.DuckDB:
-      case DataSourceKind.Cockroach:
-        list = <SqlTableView isTable={false} tableName={view} />;
-        break;
-
       case DataSourceKind.Mongo:
         list = <MongoTable isTable={false} table={view} />;
         break;
       default:
-        showNotification({
-          severity: "error",
-          title: `data source ${kind} need impl view`,
-        });
+        list = <SqlTableView isTable={false} tableName={view} />;
+        break;
     }
 
     appendTab(new TabContent(view, list, <VisibilityIcon />, dbName, kind));
