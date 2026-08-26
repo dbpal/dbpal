@@ -348,25 +348,6 @@ function getEditorText(
   return text;
 }
 
-class ColorFn {
-  static hexToRgb(hex) {
-    hex = hex.replace("#", "");
-    if (hex.length === 3) hex = [...hex].map((c) => c + c).join("");
-    const num = parseInt(hex, 16);
-    return [(num >> 16) & 255, (num >> 8) & 255, num & 255];
-  }
-  static isLightHex(hex) {
-    const [r, g, b] = ColorFn.hexToRgb(hex);
-    const lum = (0.299 * r + 0.587 * g + 0.114 * b) / 255;
-    return lum > 0.5;
-  }
-  static isColor = (str) => {
-    const o = new Option().style;
-    o.color = str;
-    return o.color !== "";
-  };
-}
-
 function getSupportExportKind(kind: DataSourceKind, isTable: boolean) {
   let r = [];
   switch (kind) {
@@ -516,7 +497,8 @@ async function setUpEditorThemes() {
       themeName = themeName
         .replaceAll(" ", "-")
         .replaceAll("(", "")
-        .replaceAll(")", "");
+        .replaceAll(")", "")
+        .replaceAll("_", "");
 
       // 2. 确保传入的是对象内容，而不是整个 module
       const themeData = (module as any).default;
@@ -526,7 +508,7 @@ async function setUpEditorThemes() {
         // if (import.meta.env.DEV) console.log(`define theme successfully: ${themeName}`);
       } catch (e) {
         if (import.meta.env.DEV) {
-          console.error(`define theme ${themeName} failed:`, e);
+          console.error(`define theme '${themeName}' failed:`, e);
         }
       }
     });
@@ -923,7 +905,6 @@ export {
   saveQueryKey,
   backendCompletionItemToEditor,
   ChatShowContext,
-  ColorFn,
   connTypeToDataSourceKind,
   dataGridheaderFontSize,
   dataGridStyle,

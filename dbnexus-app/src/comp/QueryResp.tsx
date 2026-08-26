@@ -489,7 +489,7 @@ function MultiQueryResp(props: {
                       color: index == value ? "primary" : undefined,
                     }}>
                     {(function () {
-                      if (resp.Ok && resp.Ok.tables.length > 0) {
+                      if (resp.Ok && resp.Ok.tables && resp.Ok.tables.length > 0) {
                         const x = resp.Ok.tables.join(",");
                         return x;
                       }
