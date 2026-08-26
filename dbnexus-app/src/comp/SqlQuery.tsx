@@ -51,7 +51,6 @@ import {
   useConfirmMsg,
   useNotification,
   useOneShotDialogUI,
-  useQueryExtraUI,
   useQueryLogStore,
   UseSizeConfig,
   useSizeStore,
@@ -303,8 +302,6 @@ function SqlQuery(props: {
   const getSize = useSizeStore((s) => s.getSize);
   const [openOk, setOpenOk] = useState(false);
   const [queryStatus, setQueryStatus] = useState("");
-  const tabCtx = useContext(TabContext);
-  const querySomeShow = useQueryExtraUI((s) => s.extra);
   const { save: saveQueryLog } = useQueryLogStore();
   const [markdownModel, setMarkdownModel] = useState(false);
   const { setOneShotUI: setOneShotUI } = useOneShotDialogUI();
@@ -607,7 +604,6 @@ function SqlQuery(props: {
               markdownModel={markdownModel}
               dbName={dbName}
             />
-            {querySomeShow.get(tabCtx.id)}
 
             <FetchTimeAndLoadingStatus isLoading={loading} />
             <SliderSize config={UseSizeConfig.queryLimit} />

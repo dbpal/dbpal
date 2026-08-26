@@ -451,28 +451,6 @@ export const useConnected = create<{
   },
 }));
 
-export const useQueryExtraUI = create<{
-  extra: Map<string, ReactNode>;
-  setExtra: (id: string, extra: ReactNode) => void;
-  removeExtra: (id: string) => void;
-}>((set) => ({
-  extra: new Map(),
-
-  setExtra: (id, extra) =>
-    set((state) => {
-      const nextMap = new Map(state.extra);
-      nextMap.set(id, extra);
-      return { extra: nextMap };
-    }),
-
-  removeExtra: (id) =>
-    set((state) => {
-      const nextMap = new Map(state.extra);
-      nextMap.delete(id);
-      return { extra: nextMap };
-    }),
-}));
-
 export const useConnLoading = create<{
   loading: Set<string>;
   setLoading: (name: string, loading: boolean) => void;
