@@ -677,7 +677,7 @@ function ConnConfigInfo() {
         for (const key in config) {
           configMetas.push({
             name: key,
-            value: config[key],
+            value: JSON.stringify(config[key]),
           });
         }
         setMetas([...configMetas, ...metas]);
