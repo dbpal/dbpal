@@ -597,15 +597,6 @@ export class UseSizeConfig {
     notice: "grid column count",
   };
 
-  static couchbaseAppCodeHeight: UseSizeConfig = {
-    key: "couchbase-appcode-height",
-    min: 100,
-    max: 1000,
-    default: 200,
-    step: 10,
-    notice: "couchbase json render height",
-  };
-
   static editorHeight: UseSizeConfig = {
     key: "editor-heigh",
     min: 200,

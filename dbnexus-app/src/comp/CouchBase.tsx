@@ -74,7 +74,7 @@ import { AddTableModal } from "./LeftTable.tsx";
 import { useDebounce } from "use-debounce";
 import { isEqual } from "lodash-es";
 import { CouchbaseTableImportFile } from "./CreateTable.tsx";
-import { AutoSizer, List } from "react-virtualized";
+import { AutoSizer, List, CellMeasurer, CellMeasurerCache } from "react-virtualized";
 
 type Data = {
   data: { data: string; id: string }[];
@@ -246,7 +246,7 @@ function CouchBaseTable(props: { table: string }) {
         <Typography variant="h5"> {table} </Typography>
         <Stack direction="row">
           <SliderSize config={UseSizeConfig.gridCol} />
-          <SliderSize config={UseSizeConfig.couchbaseQueryLimit} />
+          <SliderSize config={UseSizeConfig.editorHeight} />
         </Stack>
       </Stack>
       <div
@@ -263,7 +263,7 @@ function CouchBaseTable(props: { table: string }) {
         {resp.data.map((item) => (
           <div
             style={{
-              height: getSize(UseSizeConfig.couchbaseQueryLimit) + "px",
+              height: getSize(UseSizeConfig.editorHeight) + "px",
               position: "relative",
             }}
             key={item.id}>
@@ -688,10 +688,15 @@ function CouchBaseQuery(props: { value?: string }) {
   const showResp = useMemo(() => {
     return resp.filter((e) => (matchStrDelay ? e.includes(matchStrDelay) : true));
   }, [matchStrDelay, resp]);
+  // Initialize the cache
+  const cache = new CellMeasurerCache({
+    defaultHeight: 50,
+    fixedWidth: true, // Ensures height is the only variable dimension
+  });
 
   return (
     <PanelGroup
-      style={{ height: "100%" }}
+      style={{ height: "100%", paddingRight: "0.7rem" }}
       direction="vertical"
       autoSaveId="couchbase-query">
       <Panel
@@ -757,7 +762,6 @@ function CouchBaseQuery(props: { value?: string }) {
                   label="match string"
                   style={{ width: "13rem" }}
                 />
-                <SliderSize config={UseSizeConfig.couchbaseAppCodeHeight} />
               </>
             )}
 
@@ -868,16 +872,21 @@ function CouchBaseQuery(props: { value?: string }) {
                   width={width} // 列表宽度
                   height={height} //   列表高度（可视区域）
                   rowCount={showResp.length} // 总行数
-                  rowHeight={getSize(UseSizeConfig.couchbaseAppCodeHeight)} // 每行高度
-                  rowRenderer={({ index, style }) => {
+                  rowHeight={cache.rowHeight} // 每行高度
+                  deferredMeasurementCache={cache} // Connect the cache
+                  rowRenderer={({ index, style, key, parent }) => {
                     const d = showResp[index];
                     return (
-                      <AppCode
-                        language="json"
-                        codeBlock={d}
-                        style={style}
-                        highlightStr={matchStr}
-                      />
+                      <CellMeasurer
+                        cache={cache}
+                        columnIndex={0}
+                        key={key}
+                        parent={parent}
+                        rowIndex={index}>
+                        <div style={style}>
+                          <AppCode codeBlock={d} language="json" />
+                        </div>
+                      </CellMeasurer>
                     );
                   }} // 渲染函数
                 />
