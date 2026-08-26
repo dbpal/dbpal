@@ -884,7 +884,11 @@ function CouchBaseQuery(props: { value?: string }) {
                         parent={parent}
                         rowIndex={index}>
                         <div style={style}>
-                          <AppCode codeBlock={d} language="json" />
+                          <AppCode
+                            codeBlock={d}
+                            language="json"
+                            highlightStr={matchStr}
+                          />
                         </div>
                       </CellMeasurer>
                     );
