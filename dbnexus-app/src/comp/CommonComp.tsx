@@ -502,10 +502,10 @@ function MetaValueView(props: { values: MetaValue[]; showToolbar: boolean }) {
   const { values, showToolbar } = props;
 
   const getColumnWidth = useColumnWidthStore((s) => s.getColumnWidth);
-  const columns: GridColDef[] = [
-    { field: "name", width: getColumnWidth("name"), flex: 1 },
-    { field: "value", width: getColumnWidth("value"), flex: 1 },
-  ];
+  const columns: GridColDef[] = [{ field: "name" }, { field: "value" }];
+  columns.forEach((e) => {
+    e.width = getColumnWidth(e.field);
+  });
 
   const [sortModel, setSortModel] = useState<GridSortModel>([]);
   values.forEach((e, index) => {
@@ -1186,6 +1186,9 @@ function VirtualSubSome<T>(props: {
   const tablePaddingLeft = useTablePaddingLeft();
   const { setUpMenu } = useContextMenu();
 
+  if (data.length == 0) {
+    return;
+  }
   return (
     <div
       style={{

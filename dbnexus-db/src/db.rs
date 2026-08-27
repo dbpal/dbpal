@@ -362,7 +362,7 @@ impl TryRollBack {
             rollback: Arc::new(Mutex::new(true)),
         }
     }
-    // not rollback when opration success call this function.
+    // not rollback when operation success call this function.
     pub(crate) fn do_not(&self) {
         *self.rollback.lock().expect("lock failed") = false;
     }
@@ -408,6 +408,13 @@ pub trait SchemaTrait:
     + ExtractSqlValeFromJsonValue
     + EncodeXlsxDatetime
 {
+    async fn list_foreign_key(&self, _table: &str) -> anyhow::Result<Vec<ForeignKeyDef>> {
+        self.backend_kind().not_support_feature("list foreign key")
+    }
+    async fn drop_foreign_key(&self, _table: &str, _name: &str) -> anyhow::Result<()> {
+        self.backend_kind().not_support_feature("drop foreign key")
+    }
+
     async fn create_table(&self, req: &CreateTableReq) -> anyhow::Result<String> {
         let ss = SchemaTrait::create_table_sql(self, req)?;
         let mut sc = SqlCollect::default();
@@ -1570,8 +1577,11 @@ pub struct ColumnType {
 }
 
 impl BackendKind {
-    pub fn not_support_feature<T>(&self, kind: &str) -> anyhow::Result<T> {
-        anyhow::bail!(format!("'{}' don't support this '{}' feature", self, kind))
+    pub fn not_support_feature<T>(&self, feature: &str) -> anyhow::Result<T> {
+        anyhow::bail!(format!(
+            "'{}' don't support this '{}' feature",
+            self, feature
+        ))
     }
 }
 
@@ -2995,6 +3005,15 @@ pub enum TriggerEvent {
     Update,
     Delete,
     InsteadOf,
+}
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, specta::Type)]
+pub struct ForeignKeyDef {
+    pub name: Option<String>,
+    pub table: String,
+    pub from: String,
+    pub to: String,
+    pub on_update: String,
+    pub on_delete: String,
 }
 
 impl TryFrom<&str> for TriggerEvent {

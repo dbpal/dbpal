@@ -4,11 +4,11 @@ use crate::db::{
     export_query_as_xlsx_send_data, format_data_time_fix_offset, quote_sql_str, BackendKind,
     CatalogTrait, CheckConn, ColumnType, CreateDatabaseExtra, CreateIndexReq, CreateSchemaExtra,
     DBTrait, DefAndMetas, EncodeXlsxDatetime, ExportFrame, ExportKind, ExportQueryResult,
-    ExtractSqlValeFromJsonValue, Field, FirstTrue, GetBackendKind, GetTestExportTableKinds, Index,
-    IndexKind, ListTable, MetaValue, NamedStaff, ProcedureDetail, QueryEvent, QueryResp, QuerySql,
-    ReadOnlyTrait, SchemaTrait, ServerMetas, ShowTableParameter, SqlBuilder, SqlCollect,
-    TriggerDetail, TriggerEnable, TriggerEvent, TriggerTiming, XlsxEdit, XlsxEditContent,
-    POOL_MAX_CONNECTIONS,
+    ExtractSqlValeFromJsonValue, Field, FirstTrue, ForeignKeyDef, GetBackendKind,
+    GetTestExportTableKinds, Index, IndexKind, ListTable, MetaValue, NamedStaff, ProcedureDetail,
+    QueryEvent, QueryResp, QuerySql, ReadOnlyTrait, SchemaTrait, ServerMetas, ShowTableParameter,
+    SqlBuilder, SqlCollect, TriggerDetail, TriggerEnable, TriggerEvent, TriggerTiming, XlsxEdit,
+    XlsxEditContent, POOL_MAX_CONNECTIONS,
 };
 use crate::db::{OptionMustBeSomeErr, QueryEventEmitter};
 use crate::helper::{create_csv, extract_bytes_from_serde_values};
@@ -555,6 +555,86 @@ impl SqlServerDB {
 }
 #[async_trait::async_trait]
 impl SchemaTrait for SqlServerDB {
+    async fn drop_foreign_key(&self, table: &str, name: &str) -> anyhow::Result<()> {
+        // 1. 删除外键约束 (SQL Server 使用 DROP CONSTRAINT，不需要删索引)
+        // 注意：SQL Server 对表名和约束名推荐使用方括号 [] 包裹
+        let sql = format!(r#"ALTER TABLE [{}] DROP CONSTRAINT [{}]"#, table, name);
+        self.simple_execute_sql(&sql).await?;
+
+        anyhow::Ok(())
+    }
+
+    async fn list_foreign_key(&self, table: &str) -> anyhow::Result<Vec<ForeignKeyDef>> {
+        let mut conn = self.get_conn().await?;
+
+        // SQL Server 查询外键：使用 sys.foreign_keys 和 sys.foreign_key_columns
+        // 注意：tiberius 中 SQL 字符串不能直接用 format 拼接表名（防注入），推荐使用 @P1 占位符
+        let sql = r#"
+        SELECT
+            fk.name AS constraint_name,
+            OBJECT_SCHEMA_NAME(fk.referenced_object_id) + '.' + OBJECT_NAME(fk.referenced_object_id) AS referenced_table_name,
+            c.name AS column_name,
+            pc.name AS referenced_column_name,
+            CASE fk.update_referential_action_desc 
+                WHEN 'CASCADE' THEN 'CASCADE' 
+                WHEN 'SET_NULL' THEN 'SET NULL' 
+                WHEN 'SET_DEFAULT' THEN 'SET DEFAULT' 
+                ELSE 'NO ACTION' 
+            END AS update_rule,
+            CASE fk.delete_referential_action_desc 
+                WHEN 'CASCADE' THEN 'CASCADE' 
+                WHEN 'SET_NULL' THEN 'SET NULL' 
+                WHEN 'SET_DEFAULT' THEN 'SET DEFAULT' 
+                ELSE 'NO ACTION' 
+            END AS delete_rule
+        FROM
+            sys.foreign_keys fk
+        JOIN
+            sys.foreign_key_columns fkc ON fk.object_id = fkc.constraint_object_id
+        JOIN
+            sys.columns c ON fkc.parent_object_id = c.object_id AND fkc.parent_column_id = c.column_id
+        JOIN
+            sys.columns pc ON fkc.referenced_object_id = pc.object_id AND fkc.referenced_column_id = pc.column_id
+        WHERE
+            OBJECT_NAME(fk.parent_object_id) = @P1
+    "#;
+
+        log::info!("sql:{}", sql);
+
+        // tiberius 进行查询，需要传入参数（@P1 对应第一个参数）
+        let mut rows = conn.query(sql, &[&table]).await?;
+
+        let mut ret = Vec::new();
+
+        while let Some(row) = rows.next().await {
+            let row = row?;
+            match row {
+                tiberius::QueryItem::Row(row) => {
+                    // 注意：tiberius 的 get 方法和 sqlx 不同，Option 类型需要特殊处理
+                    let constraint_name: Option<&str> = row.get(0);
+                    let referenced_table: &str = row.get(1).unwrap_or_default();
+                    let from: &str = row.get(2).unwrap_or_default();
+                    let to: &str = row.get(3).unwrap_or_default();
+                    let on_update: &str = row.get(4).unwrap_or_default();
+                    let on_delete: &str = row.get(5).unwrap_or_default();
+
+                    ret.push(ForeignKeyDef {
+                        name: constraint_name.map(|x| x.to_owned()),
+                        table: referenced_table.to_string(),
+                        from: from.to_owned(),
+                        to: to.to_owned(),
+                        on_update: on_update.to_owned(),
+                        on_delete: on_delete.to_owned(),
+                    });
+                }
+
+                tiberius::QueryItem::Metadata(..) => {}
+            }
+        }
+
+        anyhow::Ok(ret)
+    }
+
     fn list_sql_current_values(&self) -> &'static [&'static str] {
         <Self as SqlBuilder>::get_current_values(self)
     }
@@ -2289,6 +2369,75 @@ mod tests {
 
     #[allow(unused_imports)]
     use crate::enable_test_log;
+
+    #[tokio::test]
+    async fn test_foreign_key() {
+        let db = make_test_object().await;
+
+        let table_name_posts = "test_posts";
+        let table_name_comments = "test_comments";
+
+        // SQL Server 的外键名需要用户指定（通常自定义或自动生成：表名_列名_FK）
+        let _err = db
+            .drop_foreign_key(table_name_comments, "fk_comments_posts")
+            .await;
+
+        if let Err(_err) = _err {
+            println!("drop foreign key failed, err: {}", _err);
+        }
+
+        let _ = db.drop_table(table_name_comments, false).await;
+        let _ = db.drop_table(table_name_posts, false).await;
+
+        let query_id = "aaaa";
+        db.open_connection(query_id).await.unwrap();
+
+        // 1. 创建父表 test_posts
+        // SQL Server 使用 IDENTITY(1,1) 代替 AUTO_INCREMENT，使用 NVARCHAR 支持中文
+        db.execute_sql(
+            query_id,
+            r#"
+        CREATE TABLE test_posts (
+            id INT IDENTITY(1,1) PRIMARY KEY,
+            title NVARCHAR(255) NOT NULL,
+            content NVARCHAR(MAX)
+        );
+        "#,
+        )
+        .await
+        .unwrap()
+        .unwrap();
+
+        // 2. 创建子表 test_comments
+        // SQL Server 的约束写在表级，语法类似
+        db.execute_sql(
+            query_id,
+            r#"
+        CREATE TABLE test_comments (
+            comment_id INT IDENTITY(1,1) PRIMARY KEY,
+            author_name NVARCHAR(255),
+            post_id INT,
+            CONSTRAINT fk_comments_posts FOREIGN KEY (post_id) 
+            REFERENCES test_posts(id) 
+            ON DELETE CASCADE
+        );
+        "#,
+        )
+        .await
+        .unwrap()
+        .unwrap();
+
+        db.close_connection(query_id).await.unwrap();
+
+        // 3. 列出外键并打印
+        let f = db.list_foreign_key(table_name_comments).await.unwrap();
+
+        assert!(f.len() == 1);
+
+        for f in f.iter() {
+            println!("foreign key: {:?}", f);
+        }
+    }
 
     #[tokio::test]
     async fn test_table_pagination() {

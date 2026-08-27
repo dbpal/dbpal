@@ -60,8 +60,7 @@ import {
   useMatcherFn,
   useOneShotDialogUI,
 } from "./store";
-import { AllKindChat } from "./Chat";
-import { commands, Field, ListTable } from "./bindings";
+import { commands, DefAndMetas, Field, ListTable } from "./bindings";
 import { uuidv4 } from "./Common";
 import {
   DataGrid,
@@ -69,6 +68,7 @@ import {
   GridSlotsComponent,
   GridSlotsComponentsProps,
 } from "./datagridExport";
+import { DefAndMetasView } from "./DefAndMetaView";
 function ViewsTree(props: { viewKind: ViewKind }) {
   const { viewKind } = props;
   const { dbName, kind } = useContext(DbnameContext);
@@ -166,35 +166,17 @@ function ViewsTree(props: { viewKind: ViewKind }) {
 function StatementStructure(props: { view: string; viewKind: ViewKind }) {
   const { dbName } = useContext(DbnameContext);
   const { view, viewKind } = props;
-  const [sql, setSql] = useState("");
-  const [loading, setLoading] = useState(false);
-  const { showNotification } = useNotification();
-  const handleReload = useCallback(() => {
-    setLoading(true);
-    commands
-      .createViewSql(dbName, view, viewKind == ViewKind.MaterializedView)
-      .then((e) => {
-        setSql(e);
-      })
-      .catch((e) => {
-        showNotification({
-          severity: "error",
-          title: "fetch create sql failed",
-          message: e,
-        });
-      })
-      .finally(() => {
-        setLoading(false);
-      });
-  }, [showNotification, dbName, view, viewKind]);
-  useEffect(() => {
-    handleReload();
-  }, [handleReload]);
-
   return (
     <Stack style={{ height: "100%" }}>
-      {loading && <CircularProgress />}
-      {sql && <AllKindChat value={sql} />}
+      <DefAndMetasView
+        reloadOP={() => {
+          return commands
+            .createViewSql(dbName, view, viewKind == ViewKind.MaterializedView)
+            .then((sql): DefAndMetas => {
+              return { def: sql, metas: [] };
+            });
+        }}
+      />
     </Stack>
   );
 }

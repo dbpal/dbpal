@@ -17,8 +17,8 @@ use crate::db::{
     export_query_as_xlsx_send_data, AutoCompletionQueryId, BackendKind, BackendKindPostGres,
     CatalogTrait, CheckConn, ColumnType, CreateDatabaseExtra, CreateIndexReq, CreateSchemaExtra,
     CreateTableAndIndexSql, CreatedTypeDef, DBTrait, DefAndMetas, ExportFrame, ExportKind,
-    ExportQueryResult, ExtractSqlValeFromJsonValue, Field, FirstTrue, GetBackendKind,
-    GetTestExportTableKinds, Index, IndexKind, ListTable, MetaValue, NamedStaff,
+    ExportQueryResult, ExtractSqlValeFromJsonValue, Field, FirstTrue, ForeignKeyDef,
+    GetBackendKind, GetTestExportTableKinds, Index, IndexKind, ListTable, MetaValue, NamedStaff,
     OptionMustBeSomeErr, ProcedureDetail, QueryEvent, QueryEventEmitter, QueryResp, QuerySql,
     SchemaTrait, SequenceDetail, ServerMetas, ShowTableParameter, SqlBuilder, SqlCollect,
     TriggerDetail, TriggerEvent, TriggerTiming, XlsxEdit, POOL_MAX_CONNECTIONS,
@@ -336,6 +336,80 @@ impl PostGresDB {
 }
 #[async_trait::async_trait]
 impl SchemaTrait for PostGresDB {
+    async fn drop_foreign_key(&self, table: &str, name: &str) -> anyhow::Result<()> {
+        // 1. 删除外键约束 (Postgres 使用 DROP CONSTRAINT，且不需要删除索引)
+        let drop_sql = format!(r#"ALTER TABLE "{}" DROP CONSTRAINT "{}""#, table, name);
+        self.simple_execute_sql(&drop_sql).await?;
+        anyhow::Ok(())
+    }
+
+    async fn list_foreign_key(&self, table: &str) -> anyhow::Result<Vec<ForeignKeyDef>> {
+        let mut conn = self.get_conn().await?;
+
+        // PostgreSQL 查询外键：必须使用 pg_catalog 系统表
+        let sql = format!(
+            r#"
+        SELECT
+            con.conname AS constraint_name,
+            -- 获取被引用的父表名 (排除 schema 前缀)
+            rel_ns.nspname || '.' || rel.relname AS referenced_table_name,
+            -- 获取子表上的外键列名
+            a.attname AS column_name,
+            -- 获取父表上被引用的列名
+            af.attname AS referenced_column_name,
+            -- 处理更新和删除规则 (c = CASCADE, n = SET NULL, r = RESTRICT, a = NO ACTION)
+            CASE confupdtype WHEN 'c' THEN 'CASCADE' WHEN 'n' THEN 'SET NULL' WHEN 'r' THEN 'RESTRICT' WHEN 'a' THEN 'NO ACTION' ELSE 'NO ACTION' END AS update_rule,
+            CASE confdeltype WHEN 'c' THEN 'CASCADE' WHEN 'n' THEN 'SET NULL' WHEN 'r' THEN 'RESTRICT' WHEN 'a' THEN 'NO ACTION' ELSE 'NO ACTION' END AS delete_rule
+        FROM
+            pg_constraint con
+        JOIN
+            pg_class rel ON rel.oid = con.confrelid
+        JOIN
+            pg_namespace rel_ns ON rel_ns.oid = rel.relnamespace
+        JOIN
+            pg_attribute a ON a.attrelid = con.conrelid AND a.attnum = ANY(con.conkey)
+        JOIN
+            pg_attribute af ON af.attrelid = con.confrelid AND af.attnum = ANY(con.confkey)
+        WHERE
+            con.contype = 'f'
+            AND con.conrelid = '{}'::regclass
+        "#,
+            table
+        );
+
+        let rows = sqlx::query(AssertSqlSafe(sql.as_str()))
+            .fetch_all(conn.deref_mut())
+            .await?;
+
+        log::info!("sql:{}", sql);
+
+        let mut ret = Vec::with_capacity(rows.len());
+        for r in rows.iter() {
+            // 提取外键的名字 (第0列)
+            let constraint_name: Option<String> = r.try_get(0)?;
+            // 提取引用的目标表 (第1列)
+            let referenced_table: String = r.try_get(1)?;
+            // 提取本地列名 (第2列) -> 对应 SQLite 的 "from"
+            let from: String = r.try_get(2)?;
+            // 提取被引用的列名 (第3列) -> 对应 SQLite 的 "to"
+            let to: String = r.try_get(3)?;
+            // 更新规则 (第4列)
+            let on_update: String = r.try_get(4)?;
+            // 删除规则 (第5列)
+            let on_delete: String = r.try_get(5)?;
+
+            ret.push(ForeignKeyDef {
+                name: constraint_name,
+                table: referenced_table,
+                from,
+                to,
+                on_update,
+                on_delete,
+            });
+        }
+        anyhow::Ok(ret)
+    }
+
     fn list_sql_current_values(&self) -> &'static [&'static str] {
         <Self as SqlBuilder>::get_current_values(self)
     }
@@ -1363,7 +1437,7 @@ impl PostGresDB {
         if let Some(db) = config.db.as_ref() {
             opts = opts.database(db);
         }
-        println!("ssl:{:?}", config.ssl);
+
         opts = opts.ssl_mode(FromStr::from_str(&config.ssl.ssl_mode)?);
         if let Some(ca) = config.ssl.ssl_files.ssl_ca.as_ref() {
             opts = opts.ssl_root_cert(ca);
@@ -3473,6 +3547,79 @@ mod tests {
 
         GetTestExportTableKinds::test_export(&pg, table_name).await;
         pg.test_table_export_and_import(table_name).await;
+    }
+
+    #[tokio::test]
+    async fn test_foreign_key() {
+        let db = make_test_object().await;
+
+        let table_name_posts = "test_posts";
+        let table_name_comments = "test_comments";
+
+        // PG 默认的外键名格式通常是 {table}_{column}_fkey
+        // 但在实际业务中，建议通过系统表查询拿到确切的名字，而不是瞎猜
+        let _err = db
+            .drop_foreign_key(
+                table_name_comments,
+                "fk_comments_posts", // PostgreSQL 默认生成的名字
+            )
+            .await;
+
+        if let Err(_err) = _err {
+            println!("drop foreign key failed, err: {}", _err);
+        }
+
+        let _ = db.drop_table(table_name_comments, false).await;
+        let _ = db.drop_table(table_name_posts, false).await;
+
+        let query_id = "aaaa";
+        db.open_connection(query_id).await.unwrap();
+
+        // 1. 创建父表 test_posts
+        // PG 使用 SERIAL 代替 AUTO_INCREMENT
+        db.execute_sql(
+            query_id,
+            r#"
+        CREATE TABLE IF NOT EXISTS test_posts (
+            id SERIAL PRIMARY KEY,
+            title VARCHAR(255) NOT NULL,
+            content TEXT
+        );
+        "#,
+        )
+        .await
+        .unwrap()
+        .unwrap();
+
+        // 2. 创建子表 test_comments
+        // PG 的外键约束和 MySQL 类似，写在表级
+        db.execute_sql(
+            query_id,
+            r#"
+        CREATE TABLE IF NOT EXISTS test_comments (
+            comment_id SERIAL PRIMARY KEY,
+            author_name VARCHAR(255),
+            post_id INT,
+            CONSTRAINT fk_comments_posts FOREIGN KEY (post_id) 
+            REFERENCES test_posts(id) 
+            ON DELETE CASCADE
+        );
+        "#,
+        )
+        .await
+        .unwrap()
+        .unwrap();
+
+        db.close_connection(query_id).await.unwrap();
+
+        // 3. 列出外键并打印
+        let f = db.list_foreign_key(table_name_comments).await.unwrap();
+
+        assert!(f.len() == 1);
+
+        for f in f.iter() {
+            println!("foreign key: {:?}", f);
+        }
     }
 
     #[tokio::test]

@@ -8,10 +8,10 @@ use dbnexus_db::cassandra::CassandraDB;
 
 use dbnexus_db::db::{
     quote_sql_str, ColumnType, CreateDatabaseExtra, CreateIndexReq, CreateSchemaExtra,
-    CreateTableAndIndexSql, CreateTableReq, CreatedTypeDef, DefAndMetas, ExportKind, Field, Index,
-    JsUint8Array, ListTable, MetaValue, NamedStaff, OptionMustBeSomeErr, ProcedureDetail,
-    QueryEventEmit, QueryResp, SequenceDetail, ShowTableParameter, SqlEvent, TableImportPara,
-    TimeElapsed, TriggerDetail,
+    CreateTableAndIndexSql, CreateTableReq, CreatedTypeDef, DefAndMetas, ExportKind, Field,
+    ForeignKeyDef, Index, JsUint8Array, ListTable, MetaValue, NamedStaff, OptionMustBeSomeErr,
+    ProcedureDetail, QueryEventEmit, QueryResp, SequenceDetail, ShowTableParameter, SqlEvent,
+    TableImportPara, TimeElapsed, TriggerDetail,
 };
 use dbnexus_db::language_server::CompletionList;
 use dbnexus_db::mongo::MongoDB;
@@ -860,6 +860,37 @@ pub async fn drop_table(
     random_error()?;
     let db = app.get_schema(&db_name).await?;
     db.drop_table(&table_name, cascade)
+        .await
+        .map_err(ErrorFrontend::from)
+}
+
+#[specta::specta]
+#[tauri::command]
+pub async fn drop_foreign_key(
+    db_name: String,
+    table_name: String,
+    foreign_key: String,
+    app: tauri::State<'_, DBPal>,
+) -> Result<(), ErrorFrontend> {
+    random_sleep().await;
+    random_error()?;
+    let db = app.get_schema(&db_name).await?;
+    db.drop_foreign_key(&table_name, &foreign_key)
+        .await
+        .map_err(ErrorFrontend::from)
+}
+
+#[specta::specta]
+#[tauri::command]
+pub async fn list_foreign_key(
+    db_name: String,
+    table_name: String,
+    app: tauri::State<'_, DBPal>,
+) -> Result<Vec<ForeignKeyDef>, ErrorFrontend> {
+    random_sleep().await;
+    random_error()?;
+    let db = app.get_schema(&db_name).await?;
+    db.list_foreign_key(&table_name)
         .await
         .map_err(ErrorFrontend::from)
 }

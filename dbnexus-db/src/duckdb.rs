@@ -6,10 +6,10 @@ use crate::db::{
     export_query_as_xlsx_send_blocking_data, quote_sql_str, AutoCompletionQueryId, BackendKind,
     CatalogTrait, CheckConn, ColumnType, CreateDatabaseExtra, CreateIndexReq, CreateSchemaExtra,
     CreateTableAndIndexSql, DBTrait, EncodeXlsxDatetime, ExportFrame, ExportKind,
-    ExportQueryResult, ExtractSqlValeFromJsonValue, Field, FirstTrue, GetBackendKind,
-    GetTestExportTableKinds, Index, IndexKind, ListTable, MetaValue, QueryEventEmitter, QueryResp,
-    QuerySql, SchemaTrait, SequenceDetail, ServerMetas, ShowTableParameter, SqlBuilder, SqlCollect,
-    XlsxEditContent, POOL_MAX_CONNECTIONS,
+    ExportQueryResult, ExtractSqlValeFromJsonValue, Field, FirstTrue, ForeignKeyDef,
+    GetBackendKind, GetTestExportTableKinds, Index, IndexKind, ListTable, MetaValue,
+    QueryEventEmitter, QueryResp, QuerySql, SchemaTrait, SequenceDetail, ServerMetas,
+    ShowTableParameter, SqlBuilder, SqlCollect, XlsxEditContent, POOL_MAX_CONNECTIONS,
 };
 use crate::helper::{create_csv, get_array_tuple_element_type};
 use crate::language_server::get_update_sql_from_result_set_impl;
@@ -964,6 +964,75 @@ impl DuckDB {
 
 #[async_trait::async_trait]
 impl SchemaTrait for DuckDB {
+    async fn drop_foreign_key(&self, table: &str, name: &str) -> anyhow::Result<()> {
+        // DuckDB 不支持 ALTER TABLE DROP FOREIGN KEY 语法
+        // 需要先查询出外键约束名称，然后使用 ALTER TABLE DROP CONSTRAINT
+        // 注意：DuckDB 的外键约束名称可能和 MySQL 不同
+
+        // 1. 删除外键约束
+        let drop_sql = format!(r#"ALTER TABLE "{}" DROP CONSTRAINT "{}""#, table, name);
+        log::info!("sql: {}", drop_sql);
+
+        // DuckDB 执行 SQL
+        self.simple_execute_sql(&drop_sql).await?;
+
+        anyhow::Ok(())
+    }
+
+    async fn list_foreign_key(&self, table: &str) -> anyhow::Result<Vec<ForeignKeyDef>> {
+        let this = Clone::clone(self);
+        let table = table.to_owned();
+
+        spawn_blocking(move || {
+            let conn = this.get_conn()?;
+
+            // DuckDB 使用 INFORMATION_SCHEMA 查询外键信息
+            // DuckDB 的 INFORMATION_SCHEMA 表结构有所不同
+            let sql = format!(
+                r#"
+                SELECT
+                    constraint_name,
+                    constraint_text
+                FROM
+                    duckdb_constraints()
+                WHERE
+                    table_name = '{}'
+                    AND constraint_type = 'FOREIGN KEY'
+                    AND database_name = '{}'
+                    and schema_name = '{}'
+        "#,
+                table,
+                this.config.db_str(),
+                this.config.schema_str(),
+            );
+            log::info!("sql: {}", sql);
+            let mut stmt = conn.prepare(&sql)?;
+
+            let mut rows = stmt.query([])?;
+
+            let mut ret = Vec::new();
+
+            while let Some(r) = rows.next()? {
+                let constraint_name: Option<String> = r.get(0)?;
+                //  FOREIGN KEY (post_id) REFERENCES test_posts(id)
+                let referenced_table: String = r.get(1)?;
+                let (table, from, to) = parse_foreign_key_simple(&referenced_table)?;
+
+                ret.push(ForeignKeyDef {
+                    name: constraint_name,
+                    table: table,
+                    from,
+                    to,
+                    on_update: "".to_string(),
+                    on_delete: "".to_string(),
+                });
+            }
+
+            anyhow::Ok(ret)
+        })
+        .await?
+    }
+
     async fn drop_index(&self, _table_name: &str, index: &str) -> anyhow::Result<Option<String>> {
         let sql = format!(r#"DROP INDEX "{index}";"#);
         self.simple_execute_sql(&sql).await?;
@@ -1736,6 +1805,54 @@ impl ExtractSqlValeFromJsonValue for DuckDB {
         })
     }
 }
+
+/// 简化版本：一次性解析所有信息
+pub fn parse_foreign_key_simple(constraint_text: &str) -> anyhow::Result<(String, String, String)> {
+    let text = constraint_text.trim();
+
+    // 1. 找 REFERENCES 关键字
+    let ref_pos = text
+        .find("REFERENCES")
+        .ok_or_else(|| anyhow::anyhow!("未找到 REFERENCES 关键字"))?;
+
+    // 2. 提取 REFERENCES 后面的部分
+    let after_ref = &text[ref_pos + "REFERENCES".len()..].trim();
+
+    // 3. 从 after_ref 提取表名和 to 列
+    // 找到第一个 '('
+    let start_paren = after_ref
+        .find('(')
+        .ok_or_else(|| anyhow::anyhow!("未找到 '('"))?;
+
+    let table_name = after_ref[..start_paren].trim().to_string();
+
+    let end_paren = after_ref
+        .find(')')
+        .ok_or_else(|| anyhow::anyhow!("未找到 ')'"))?;
+
+    let to_column = after_ref[start_paren + 1..end_paren].trim().to_string();
+
+    // 4. 提取 from 列
+    // 找 FOREIGN KEY 后面的第一个 '('
+    let fk_pos = text
+        .find("FOREIGN KEY")
+        .ok_or_else(|| anyhow::anyhow!("未找到 FOREIGN KEY"))?;
+
+    let after_fk = &text[fk_pos + "FOREIGN KEY".len()..].trim();
+
+    let from_start = after_fk
+        .find('(')
+        .ok_or_else(|| anyhow::anyhow!("未找到 '('"))?;
+
+    let from_end = after_fk
+        .find(')')
+        .ok_or_else(|| anyhow::anyhow!("未找到 ')'"))?;
+
+    let from_column = after_fk[from_start + 1..from_end].trim().to_string();
+
+    Ok((table_name, from_column, to_column))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -1747,6 +1864,99 @@ mod tests {
         enable_test_log,
     };
 
+    #[test]
+    fn test_parse_foreign_key() {
+        let text = "FOREIGN KEY (post_id) REFERENCES test_posts(id)";
+        let (table, from, to) = parse_foreign_key_simple(text).unwrap();
+        assert_eq!(table, "test_posts");
+        assert_eq!(from, "post_id");
+        assert_eq!(to, "id");
+    }
+
+    #[test]
+    fn test_parse_foreign_key_with_spaces() {
+        let text = "FOREIGN KEY ( post_id ) REFERENCES test_posts ( id )";
+        let (table, from, to) = parse_foreign_key_simple(text).unwrap();
+        assert_eq!(table, "test_posts");
+        assert_eq!(from, "post_id");
+        assert_eq!(to, "id");
+    }
+
+    #[test]
+    fn test_parse_foreign_key_with_multiple_columns() {
+        let text = "FOREIGN KEY (user_id, post_id) REFERENCES users_posts(user_id, post_id)";
+        let (table, from, to) = parse_foreign_key_simple(text).unwrap();
+        assert_eq!(table, "users_posts");
+        assert_eq!(from, "user_id, post_id");
+        assert_eq!(to, "user_id, post_id");
+    }
+
+    #[tokio::test]
+    async fn test_foreign_key() {
+        let _guard = test_lock().lock().await;
+        let db = make_test_object(Some("main".to_string())).await;
+        let table_name_posts = "test_posts";
+        let table_name_comments = "test_comments";
+
+        // DuckDB 使用 DROP CONSTRAINT 语法
+        let _err = db
+            .drop_foreign_key(
+                table_name_comments,
+                "test_comments_post_id_id_fkey", // DuckDB 外键约束名需要手动指定或查询
+            )
+            .await;
+        if let Err(_err) = _err {
+            println!("drop foreign key failed, err: {}", _err);
+        }
+
+        let _ = db.drop_table(table_name_comments, false).await;
+        let _ = db.drop_table(table_name_posts, false).await;
+
+        let query_id = "aaaa";
+        db.open_connection(query_id).await.unwrap();
+
+        // 1. 创建父表 test_posts (DuckDB 语法)
+        db.execute_sql(
+            query_id,
+            r#"
+        CREATE TABLE IF NOT EXISTS test_posts (
+            id INTEGER PRIMARY KEY,
+            title VARCHAR NOT NULL,
+            content TEXT
+        );
+        "#,
+        )
+        .await
+        .unwrap()
+        .unwrap();
+
+        // 2. 创建子表 test_comments (DuckDB 语法)
+        db.execute_sql(
+            query_id,
+            r#"
+        CREATE TABLE IF NOT EXISTS test_comments (
+            comment_id INTEGER PRIMARY KEY,
+            author_name VARCHAR,
+            post_id INTEGER,
+            FOREIGN KEY (post_id) REFERENCES test_posts(id) 
+        );
+        "#,
+        )
+        .await
+        .unwrap()
+        .unwrap();
+
+        db.close_connection(query_id).await.unwrap();
+
+        // 3. 列出外键并打印
+        let f = db.list_foreign_key(table_name_comments).await.unwrap();
+
+        assert_eq!(f.len(), 1);
+
+        for f in f.iter() {
+            println!("foreign key: {:?}", f);
+        }
+    }
     #[tokio::test]
     async fn test_read_only() {
         let _gurad = test_lock().lock().await;

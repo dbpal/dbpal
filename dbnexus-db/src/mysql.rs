@@ -4,11 +4,11 @@ use crate::db::{
     export_query_as_xlsx_send_data, quote_sql_str, AutoCompletionQueryId, BackendKind,
     BackendKindMysql, CheckConn, ColumnType, CreateIndexReq, CreateSchemaExtra,
     CreateTableAndIndexSql, DBTrait, DefAndMetas, EncodeXlsxDatetime, ExportFrame, ExportKind,
-    ExportQueryResult, ExtractSqlValeFromJsonValue, Field, FirstTrue, GetBackendKind,
-    GetTestExportTableKinds, Index, IndexKind, ListTable, MetaValue, NamedStaff, ProcedureDetail,
-    QueryEvent, QueryEventEmitter, QueryResp, QuerySql, SchemaTrait, SequenceDetail, ServerMetas,
-    ShowTableParameter, SqlBuilder, SqlCollect, SqlEvent, TriggerDetail, TriggerEvent,
-    TriggerTiming, XlsxEdit, XlsxEditContent, POOL_MAX_CONNECTIONS,
+    ExportQueryResult, ExtractSqlValeFromJsonValue, Field, FirstTrue, ForeignKeyDef,
+    GetBackendKind, GetTestExportTableKinds, Index, IndexKind, ListTable, MetaValue, NamedStaff,
+    ProcedureDetail, QueryEvent, QueryEventEmitter, QueryResp, QuerySql, SchemaTrait,
+    SequenceDetail, ServerMetas, ShowTableParameter, SqlBuilder, SqlCollect, SqlEvent,
+    TriggerDetail, TriggerEvent, TriggerTiming, XlsxEdit, XlsxEditContent, POOL_MAX_CONNECTIONS,
 };
 use crate::helper::{create_csv, extract_bytes_from_serde_values};
 use crate::language_server::{get_update_sql_from_result_set_impl, LexerCompletionTrait};
@@ -584,6 +584,87 @@ impl MysqlDB {
 #[async_trait::async_trait]
 
 impl SchemaTrait for MysqlDB {
+    async fn drop_foreign_key(&self, table: &str, name: &str) -> anyhow::Result<()> {
+        // 1. 删除外键约束
+        let drop_sql = format!(r#"ALTER TABLE `{}` DROP FOREIGN KEY `{}`"#, table, name);
+        log::info!("sql: {}", drop_sql);
+        self.simple_execute_sql(&drop_sql).await?;
+
+        // 2. 顺手删除 MySQL 为外键自动生成的同名的索引（如果存在的话）
+        // 注意：MySQL 创建外键时，会自动在本地列上创建一个同名的索引。
+        // 删除了外键后，这个索引依然存在。如果不删，不仅浪费空间，还会留下冗余索引。
+        let drop_index_sql = format!(r#"ALTER TABLE `{}` DROP INDEX `{}`"#, table, name);
+
+        // 因为如果索引不存在会报错，所以这里我们手动判断或者直接忽略错误。
+        // 使用 execute 并检查结果，如果报错（比如索引不存在），就忽略它。
+        if let Err(e) = self.simple_execute_sql(drop_index_sql.as_str()).await {
+            log::warn!("删除外键索引失败（索引可能已被手动删除）: {:?}", e);
+        }
+
+        anyhow::Ok(())
+    }
+    async fn list_foreign_key(&self, table: &str) -> anyhow::Result<Vec<ForeignKeyDef>> {
+        let mut conn = self.get_conn().await?;
+
+        let sql = format!(
+            r#"
+        SELECT 
+            kcu.CONSTRAINT_NAME AS constraint_name,
+            kcu.REFERENCED_TABLE_NAME AS referenced_table_name,
+            kcu.COLUMN_NAME AS column_name,
+            kcu.REFERENCED_COLUMN_NAME AS referenced_column_name,
+            rc.UPDATE_RULE AS update_rule,
+            rc.DELETE_RULE AS delete_rule
+        FROM 
+            INFORMATION_SCHEMA.KEY_COLUMN_USAGE kcu
+        JOIN 
+            INFORMATION_SCHEMA.REFERENTIAL_CONSTRAINTS rc
+        ON 
+            kcu.CONSTRAINT_NAME = rc.CONSTRAINT_NAME 
+            AND kcu.CONSTRAINT_SCHEMA = rc.CONSTRAINT_SCHEMA
+        WHERE 
+            kcu.TABLE_SCHEMA = '{}'
+            AND kcu.TABLE_NAME = '{table}'
+            AND kcu.REFERENCED_TABLE_NAME IS NOT NULL
+        "#,
+            self.config.schema_str(),
+        );
+
+        let rows = sqlx::query(AssertSqlSafe(sql.as_str()))
+            .fetch_all(conn.deref_mut())
+            .await?;
+
+        log::info!("sql:{}", sql);
+
+        let mut ret = Vec::with_capacity(rows.len());
+        for r in rows.iter() {
+            // 提取外键的名字 (第0列)
+            let constraint_name: Option<String> = r.try_get(0)?;
+            // 提取引用的目标表 (第1列)
+            let referenced_table: String = r.try_get(1)?;
+            // 提取本地列名 (第2列) -> 对应 SQLite 的 "from"
+            let from: String = r.try_get(2)?;
+            // 提取被引用的列名 (第3列) -> 对应 SQLite 的 "to"
+            let to: String = r.try_get(3)?;
+            // 更新规则 (第4列)
+            let on_update: String = r.try_get(4)?;
+            // 删除规则 (第5列)
+            let on_delete: String = r.try_get(5)?;
+
+            ret.push(ForeignKeyDef {
+                // 注意：你的 ForeignKeyDef 结构体里可能还没加 constraint_name 字段，你需要自己加上去，或者在此处打印/丢弃
+                // 假设你需要在结果中保留它，请修改你的结构体定义
+                name: constraint_name, // 假设你往结构体里加了这个字段
+                table: referenced_table,
+                from,
+                to,
+                on_update,
+                on_delete,
+            });
+        }
+        anyhow::Ok(ret)
+    }
+
     async fn list_sequence(&self) -> anyhow::Result<Vec<SequenceDetail>> {
         match self.kind {
             BackendKindMysql::Mariadb => {
@@ -1489,7 +1570,7 @@ impl MysqlDB {
             .host(&config.host)
             .port(config.port)
             .username(&config.username);
-        println!("ssl:{:?}", config.ssl);
+
         let ssl_model: sqlx::mysql::MySqlSslMode = FromStr::from_str(&config.ssl.ssl_mode)?;
         match ssl_model {
             sqlx::mysql::MySqlSslMode::Disabled => {}
@@ -2828,7 +2909,7 @@ pub(crate) mod test_fns {
 mod tests {
     use super::test_fns::{self, make_test_object};
     use crate::datasource_config::{MysqlDBConfig, SSLFiles, SslFilesWithStrModel};
-    use crate::db::{BackendKindMysql, CheckConn};
+    use crate::db::{BackendKindMysql, CheckConn, QuerySql, SchemaTrait};
     use crate::helper::{cert_files_dir, start_docker_container, DockerContainerDropper};
     use crate::language_server::get_update_sql_from_result_set_impl;
     use crate::mysql::MysqlDB;
@@ -3097,6 +3178,73 @@ FLUSH PRIVILEGES;
             let db = MysqlDB::new(config.clone(), kind).await.unwrap();
             db.check_conn().await.unwrap();
             println!("✅ verify_ca SSL连接成功");
+        }
+    }
+
+    #[tokio::test]
+    async fn test_foreign_key() {
+        let db = make_test_object(make_config()).await;
+
+        let table_name_posts = "test_posts";
+        let table_name_comments = "test_comments";
+
+        let _err = db
+            .drop_foreign_key(
+                table_name_comments,
+                "test_comments_ibfk_1", // this name generate every time
+            )
+            .await;
+        if let Err(_err) = _err {
+            println!("drop foreign key failed,err:{}", _err);
+        }
+
+        let _ = db.drop_table(table_name_comments, false).await;
+        let _ = db.drop_table(table_name_posts, false).await;
+
+        let query_id = "aaaa";
+        db.open_connection(query_id).await.unwrap();
+
+        // 1. 创建父表 test_posts
+        db.execute_sql(
+            query_id,
+            r#"
+        CREATE TABLE IF NOT EXISTS test_posts (
+            id INT AUTO_INCREMENT PRIMARY KEY,
+            title VARCHAR(255) NOT NULL,
+            content TEXT
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+        "#,
+        )
+        .await
+        .unwrap()
+        .unwrap();
+
+        // 2. 创建子表 test_comments (修正了原来的拼写错误)
+        db.execute_sql(
+            query_id,
+            r#"
+        CREATE TABLE IF NOT EXISTS test_comments (
+            comment_id INT AUTO_INCREMENT PRIMARY KEY, -- 修正了原代码的拼写
+            author_name VARCHAR(255),
+            post_id INT,
+            FOREIGN KEY (post_id) REFERENCES test_posts(id) 
+            ON DELETE CASCADE 
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+        "#,
+        )
+        .await
+        .unwrap()
+        .unwrap();
+
+        db.close_connection(query_id).await.unwrap();
+
+        // 3. 列出外键并打印
+        let f = db.list_foreign_key(table_name_comments).await.unwrap();
+
+        assert!(f.len() == 1);
+
+        for f in f.iter() {
+            println!("foreign key:{:?}", f);
         }
     }
 }

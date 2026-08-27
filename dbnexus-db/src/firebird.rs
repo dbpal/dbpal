@@ -32,10 +32,10 @@ use crate::db::{
     create_html_table_data, create_html_table_header, create_markdown_data, create_markdown_header,
     export_query_as_xlsx_send_blocking_data, quote_sql_str, BackendKind, CheckConn, ColumnType,
     CreateIndexReq, EncodeXlsxDatetime, ExportFrame, ExportKind, ExportQueryResult,
-    ExtractSqlValeFromJsonValue, Field, FirstTrue, GetBackendKind, GetTestExportTableKinds, Index,
-    IndexKind, ListTable, MetaValue, QueryEvent, QueryEventEmitter, QueryResp, QuerySql,
-    SchemaTrait, ServerMetas, ShowTableParameter, SqlBuilder, XlsxEdit, XlsxEditContent,
-    POOL_MAX_CONNECTIONS,
+    ExtractSqlValeFromJsonValue, Field, FirstTrue, ForeignKeyDef, GetBackendKind,
+    GetTestExportTableKinds, Index, IndexKind, ListTable, MetaValue, QueryEvent, QueryEventEmitter,
+    QueryResp, QuerySql, SchemaTrait, ServerMetas, ShowTableParameter, SqlBuilder, XlsxEdit,
+    XlsxEditContent, POOL_MAX_CONNECTIONS,
 };
 
 use crate::helper::{create_csv, extract_bytes_from_serde_values};
@@ -712,8 +712,99 @@ impl ExtractSqlValeFromJsonValue for FireBirdDB {
         anyhow::Ok(Some(r))
     }
 }
+
+impl FireBirdDB {
+    fn list_foreign_key_impl(&self, table: &str) -> anyhow::Result<Vec<ForeignKeyDef>> {
+        let mut conn = self.get_conn()?;
+        // Firebird 默认表名是大写的，并且不支持参数绑定占位符（如 @P1），所以只能 format 转大写拼接
+        let table_upper = table.to_uppercase();
+        // Firebird 查询外键的标准系统表 SQL：
+        let sql = format!(
+            r#"
+        SELECT
+            FK.RDB$CONSTRAINT_NAME AS constraint_name,
+            -- 获取被引用的父表名 (使用分隔符连接，注意去除前导空格)
+            TRIM(PK.RDB$RELATION_NAME) AS referenced_table_name,
+            -- 获取子表上的外键列名
+            TRIM(ISF.RDB$FIELD_NAME) AS column_name,
+            -- 获取父表上被引用的列名
+            TRIM(ISP.RDB$FIELD_NAME) AS referenced_column_name,
+            -- 处理更新和删除规则 (Firebird 的 RDB$UPDATE_RULE 和 RDB$DELETE_RULE 返回字符串，需去除空格)
+            CASE TRIM(RC.RDB$UPDATE_RULE) 
+                WHEN 'CASCADE' THEN 'CASCADE' 
+                WHEN 'SET NULL' THEN 'SET NULL' 
+                WHEN 'SET DEFAULT' THEN 'SET DEFAULT' 
+                WHEN 'RESTRICT' THEN 'RESTRICT' 
+                ELSE 'NO ACTION' 
+            END AS update_rule,
+            CASE TRIM(RC.RDB$DELETE_RULE) 
+                WHEN 'CASCADE' THEN 'CASCADE' 
+                WHEN 'SET NULL' THEN 'SET NULL' 
+                WHEN 'SET DEFAULT' THEN 'SET DEFAULT' 
+                WHEN 'RESTRICT' THEN 'RESTRICT' 
+                ELSE 'NO ACTION' 
+            END AS delete_rule
+        FROM
+            RDB$RELATION_CONSTRAINTS FK
+        JOIN
+            RDB$REF_CONSTRAINTS RC ON FK.RDB$CONSTRAINT_NAME = RC.RDB$CONSTRAINT_NAME
+        JOIN
+            RDB$RELATION_CONSTRAINTS PK ON RC.RDB$CONST_NAME_UQ = PK.RDB$CONSTRAINT_NAME
+        JOIN
+            RDB$INDEX_SEGMENTS ISF ON ISF.RDB$INDEX_NAME = FK.RDB$INDEX_NAME
+        JOIN
+            RDB$INDEX_SEGMENTS ISP ON ISP.RDB$INDEX_NAME = PK.RDB$INDEX_NAME
+        WHERE
+            FK.RDB$RELATION_NAME = '{}' AND FK.RDB$CONSTRAINT_TYPE = 'FOREIGN KEY'
+        "#,
+            table_upper
+        );
+        log::info!("sql:{}", sql);
+        let stream: Box<dyn Iterator<Item = Result<Row, FbError>>> = conn.query_iter(&sql, ())?;
+
+        let mut ret = Vec::default();
+
+        for row in stream {
+            let row = row?;
+            // rsfbclient 的 Row 使用 .get::<Type>(index) 获取数据。
+            // Firebird 默认返回 CHAR/VARCHAR 时可能带有尾随空格，建议使用 String 获取后用 trim 处理。
+            let constraint_name: Option<String> = row.get(0)?;
+            let referenced_table: String = row.get(1)?;
+            let from: String = row.get(2)?;
+            let to: String = row.get(3)?;
+
+            // Firebird 的 RDB$UPDATE_RULE 和 RDB$DELETE_RULE 可能带有尾随空格
+            // 返回默认值为 NO ACTION
+            let on_update: String = row.get(4).unwrap_or_else(|_| "NO ACTION".to_string());
+            let on_delete: String = row.get(5).unwrap_or_else(|_| "NO ACTION".to_string());
+
+            ret.push(ForeignKeyDef {
+                name: constraint_name.map(|x| x.trim().to_owned()),
+                table: referenced_table.trim().to_string(),
+                from: from.trim().to_owned(),
+                to: to.trim().to_owned(),
+                on_update: on_update.trim().to_owned(),
+                on_delete: on_delete.trim().to_owned(),
+            });
+        }
+        anyhow::Ok(ret)
+    }
+}
+
 #[async_trait::async_trait]
 impl SchemaTrait for FireBirdDB {
+    async fn drop_foreign_key(&self, table: &str, name: &str) -> anyhow::Result<()> {
+        let drop_sql = format!(r#"ALTER TABLE {} DROP CONSTRAINT {}"#, table, name);
+        self.simple_execute_sql(&drop_sql).await?;
+
+        anyhow::Ok(())
+    }
+
+    async fn list_foreign_key(&self, table: &str) -> anyhow::Result<Vec<ForeignKeyDef>> {
+        let this = Clone::clone(self);
+        let table = table.to_string();
+        spawn_blocking(move || this.list_foreign_key_impl(&table)).await?
+    }
     async fn list_data_types(&self) -> anyhow::Result<Vec<String>> {
         LexerCompletionTrait::get_types(self).await
     }
@@ -1191,6 +1282,81 @@ mod tests {
         let db = make_test_object().await;
         let d = crate::db::CheckConn::check_conn(&db).await.unwrap();
         println!("ping time:{:?}", d);
+    }
+
+    #[tokio::test]
+    async fn test_foreign_key() {
+        let db = make_test_object().await;
+
+        // 注意：Firebird 默认将未加引号的表名和字段名转为大写
+        let table_name_posts = "TEST_POSTS";
+        let table_name_comments = "TEST_COMMENTS";
+
+        // Firebird 的外键约束名通常需要显式指定，删除时用原名
+        let _err = db
+            .drop_foreign_key(
+                table_name_comments,
+                "FK_COMMENTS_POSTS", // 需要是你建表时指定的名字
+            )
+            .await;
+        if let Err(_err) = _err {
+            println!("drop foreign key failed, err: {}", _err);
+        }
+
+        // Firebird 支持 DROP TABLE，底层一般会处理不存在的表，或者你可以先捕获异常
+
+        let _ = db.drop_table(table_name_comments, false).await;
+        let _ = db.drop_table(table_name_posts, false).await;
+
+        let query_id = "aaaa";
+        db.open_connection(query_id).await.unwrap();
+
+        // 1. 创建父表 TEST_POSTS
+        // Firebird 3.0+ 使用 GENERATED BY DEFAULT AS IDENTITY
+        db.execute_sql(
+            query_id,
+            r#"
+        CREATE TABLE TEST_POSTS (
+            ID INTEGER GENERATED BY DEFAULT AS IDENTITY PRIMARY KEY,
+            TITLE VARCHAR(255) NOT NULL,
+            CONTENT BLOB SUB_TYPE TEXT
+        )
+        "#,
+        )
+        .await
+        .unwrap()
+        .unwrap();
+
+        // 2. 创建子表 TEST_COMMENTS
+        // 注意：为了后续方便删除，建议显式指定约束名 CONSTRAINT
+        // Firebird 支持 ON DELETE CASCADE
+        db.execute_sql(
+            query_id,
+            r#"
+        CREATE TABLE TEST_COMMENTS (
+            COMMENT_ID INTEGER GENERATED BY DEFAULT AS IDENTITY PRIMARY KEY,
+            AUTHOR_NAME VARCHAR(255),
+            POST_ID INTEGER,
+            CONSTRAINT FK_COMMENTS_POSTS FOREIGN KEY (POST_ID) 
+            REFERENCES TEST_POSTS(ID) 
+            ON DELETE CASCADE
+        )
+        "#,
+        )
+        .await
+        .unwrap()
+        .unwrap();
+
+        db.close_connection(query_id).await.unwrap();
+
+        // 3. 列出外键并打印
+        let f = db.list_foreign_key(table_name_comments).await.unwrap();
+
+        assert!(f.len() == 1);
+
+        for f in f.iter() {
+            println!("foreign key: {:?}", f);
+        }
     }
 
     #[ignore = "run by hand"]

@@ -15,11 +15,11 @@ use crate::db::{
     escape_sql_str, export_query_as_xlsx_send_blocking_data, quote_sql_str, BackendKind, CheckConn,
     ColumnType, CreateIndexReq, CreateSchemaExtra, CreateTableAndIndexSql, DBTrait, DefAndMetas,
     EncodeXlsxDatetime, ExportFrame, ExportKind, ExportQueryResult, ExtractSqlValeFromJsonValue,
-    Field, FirstTrue, GetBackendKind, GetTestExportTableKinds, Index, IndexKind, ListTable,
-    MetaValue, NamedStaff, OptionMustBeSomeErr, ProcedureDetail, QueryEvent, QueryEventEmitter,
-    QueryResp, QuerySql, SchemaTrait, ServerMetas, ShowTableParameter, SqlBuilder, SqlCollect,
-    TriggerDetail, TriggerEnable, TriggerEvent, TriggerTiming, XlsxEdit, XlsxEditContent,
-    POOL_MAX_CONNECTIONS,
+    Field, FirstTrue, ForeignKeyDef, GetBackendKind, GetTestExportTableKinds, Index, IndexKind,
+    ListTable, MetaValue, NamedStaff, OptionMustBeSomeErr, ProcedureDetail, QueryEvent,
+    QueryEventEmitter, QueryResp, QuerySql, SchemaTrait, ServerMetas, ShowTableParameter,
+    SqlBuilder, SqlCollect, TriggerDetail, TriggerEnable, TriggerEvent, TriggerTiming, XlsxEdit,
+    XlsxEditContent, POOL_MAX_CONNECTIONS,
 };
 
 use crate::helper::create_csv;
@@ -968,6 +968,70 @@ impl OracleDB {
 
 #[async_trait::async_trait]
 impl SchemaTrait for OracleDB {
+    async fn drop_foreign_key(&self, table: &str, name: &str) -> anyhow::Result<()> {
+        let drop_sql = format!(r#"ALTER TABLE "{}" DROP CONSTRAINT "{}""#, table, name);
+        self.simple_execute_sql(&drop_sql).await?;
+        anyhow::Ok(())
+    }
+
+    async fn list_foreign_key(&self, table: &str) -> anyhow::Result<Vec<ForeignKeyDef>> {
+        let sql = format!(
+            r#"
+            SELECT
+                c.constraint_name AS constraint_name,
+                r.table_name AS referenced_table_name,
+                cc.column_name AS column_name,
+                rcc.column_name AS referenced_column_name,
+                DECODE(c.delete_rule, 'CASCADE', 'CASCADE', 'SET NULL', 'SET NULL', 'RESTRICT', 'RESTRICT', 'NO ACTION') AS delete_rule,
+                'NO ACTION' AS update_rule
+            FROM
+                all_constraints c
+            JOIN
+                all_constraints r ON c.r_owner = r.owner AND c.r_constraint_name = r.constraint_name
+            JOIN
+                all_cons_columns cc ON c.owner = cc.owner AND c.constraint_name = cc.constraint_name
+            JOIN
+                all_cons_columns rcc ON r.owner = rcc.owner AND r.constraint_name = rcc.constraint_name 
+                    AND cc.position = rcc.position
+            WHERE
+                c.constraint_type = 'R'
+                AND c.table_name = '{}'
+            "#,
+            table
+        );
+
+        log::info!("sql:{}", sql);
+
+        // 使用 oracle crate 的 query 方法遍历
+        let rows = self.query(&sql).await?;
+
+        let mut ret = Vec::new();
+
+        // 遍历结果集，处理为 Vec<ForeignKeyDef>
+        // 注意：如果使用 tokio-oracle，这里可能是 rows.try_fold 或者直接 collect
+        for row in rows {
+            // Oracle 返回的可能是 Option<String>，因为列可能为 NULL
+            let constraint_name: Option<String> = row.get(0)?;
+            let referenced_table: String = row.get(1)?;
+            let from: String = row.get(2)?;
+            let to: String = row.get(3)?;
+
+            // Oracle 的 UPDATE 规则通常是 NO ACTION，DELETE 规则是 CASCADE 等
+            let on_delete: String = row.get(4)?;
+            let on_update: String = row.get(5)?;
+
+            ret.push(ForeignKeyDef {
+                name: constraint_name,
+                table: referenced_table,
+                from,
+                to,
+                on_update,
+                on_delete,
+            });
+        }
+        anyhow::Ok(ret)
+    }
+
     fn list_sql_current_values(&self) -> &'static [&'static str] {
         <Self as SqlBuilder>::get_current_values(self)
     }
@@ -1814,6 +1878,77 @@ mod tests {
     fn test_lock() -> &'static Mutex<()> {
         static MUTEX: Mutex<()> = Mutex::const_new(());
         &MUTEX
+    }
+
+    #[tokio::test]
+    async fn test_foreign_key() {
+        let db = make_test_object(Some("SYSTEM".to_string())).await;
+
+        // 注意：Oracle 默认全部转为大写，所以这里表名和约束名全部用大写
+        let table_name_posts = "TEST_POSTS";
+        let table_name_comments = "TEST_COMMENTS";
+
+        // 1. 尝试删除外键（Oracle 的约束名也是大写，且通常是你自己定义的）
+        let constraint_name = "FK_COMMENTS_POSTS";
+        let _err = db
+            .drop_foreign_key(table_name_comments, constraint_name)
+            .await;
+        if let Err(_err) = _err {
+            println!("drop foreign key failed, err: {}", _err);
+        }
+
+        // 2. 删除表 (Oracle 没有 IF NOT EXISTS，通常由底层封装 DROP TABLE 或通过异常捕获处理)
+        let _ = db.drop_table(table_name_comments, false).await;
+        let _ = db.drop_table(table_name_posts, false).await;
+
+        let query_id = "aaaa";
+        db.open_connection(query_id).await.unwrap();
+
+        // 3. 创建父表 TEST_POSTS
+        // Oracle 12c+ 使用 IDENTITY 代替 AUTO_INCREMENT
+        db.execute_sql(
+            query_id,
+            r#"
+        CREATE TABLE TEST_POSTS (
+            ID NUMBER GENERATED BY DEFAULT AS IDENTITY PRIMARY KEY,
+            TITLE VARCHAR2(255) NOT NULL,
+            CONTENT CLOB
+        )
+        "#,
+        )
+        .await
+        .unwrap()
+        .unwrap();
+
+        // 4. 创建子表 TEST_COMMENTS
+        // Oracle 需要显式声明约束名，否则会自动生成一个乱码名字，不利于后续删除
+        db.execute_sql(
+            query_id,
+            r#"
+        CREATE TABLE TEST_COMMENTS (
+            COMMENT_ID NUMBER GENERATED BY DEFAULT AS IDENTITY PRIMARY KEY,
+            AUTHOR_NAME VARCHAR2(255),
+            POST_ID NUMBER,
+            CONSTRAINT FK_COMMENTS_POSTS FOREIGN KEY (POST_ID) 
+            REFERENCES TEST_POSTS(ID) 
+            ON DELETE CASCADE
+        )
+        "#,
+        )
+        .await
+        .unwrap()
+        .unwrap();
+
+        db.close_connection(query_id).await.unwrap();
+
+        // 5. 列出外键并打印
+        let f = db.list_foreign_key(table_name_comments).await.unwrap();
+
+        assert!(f.len() == 1);
+
+        for f in f.iter() {
+            println!("foreign key: {:?}", f);
+        }
     }
 
     #[tokio::test]

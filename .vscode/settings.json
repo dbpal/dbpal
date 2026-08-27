@@ -6,6 +6,7 @@
   "rust-analyzer.cargo.features": [
     "random-error",
     "random-sleep",
+    "duckdb"
   ],
   "search.exclude": {
     "**/node_modules": true,
