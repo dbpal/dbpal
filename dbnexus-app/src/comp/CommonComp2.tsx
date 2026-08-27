@@ -202,6 +202,7 @@ function AppCode_(props: {
         padding: "2px 4px",
         borderRadius: "0.4rem",
         margin: 0,
+        width: "fit-content",
         overflow: "auto",
         ...style,
       }}
