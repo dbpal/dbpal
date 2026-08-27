@@ -73,6 +73,16 @@ pub struct RedisListTableRet {
     has_more: bool,
 }
 
+impl RedisListTableRet {
+    pub(crate) fn sort(&mut self) {
+        self.string_tables.sort();
+        self.list_tables.sort();
+        self.set_tables.sort();
+        self.hash_tables.sort();
+        self.zset_tables.sort();
+    }
+}
+
 impl RedisDB {
     pub async fn list_lpush(&self, key: &str, value: &[u8]) -> anyhow::Result<()> {
         self.can_write()?;
@@ -1190,6 +1200,8 @@ impl RedisDB {
             }
         }
         ret.has_more = has_more;
+        ret.sort();
+
         anyhow::Ok(ret)
     }
 }

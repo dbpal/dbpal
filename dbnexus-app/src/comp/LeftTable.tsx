@@ -907,7 +907,7 @@ function RedisTables() {
   const [tables, setTables] = useState<RedisListTableRet>();
   const [loading, setLoading] = useState(false);
   const { showNotification } = useNotification();
-  const max = 5000;
+  const max = 50000;
 
   const [showEditFiler, setShowEditFiler] = useState(false);
 

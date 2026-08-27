@@ -1526,6 +1526,13 @@ function ForeignKeyStructure(props: { table: string }) {
 
   const handleDrop = useCallback(
     (name) => {
+      if (!name) {
+        showNotification({
+          severity: "warning",
+          title: "no name found.don't know how to drop this foreign key",
+        });
+        return;
+      }
       commands
         .dropForeignKey(dbName, table, name)
         .then(() => {
@@ -1552,9 +1559,6 @@ function ForeignKeyStructure(props: { table: string }) {
             return;
           }
           const row = fs.find((e) => e["id"] == id);
-          if (!row.name) {
-            return;
-          }
           setUpMenu({
             content: (
               <MenuItem

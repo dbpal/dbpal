@@ -2629,6 +2629,26 @@ pub struct ListTable {
     // for frontend tree item id
 }
 
+impl PartialOrd for ListTable {
+    fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
+        self.name.partial_cmp(&other.name)
+    }
+}
+
+impl PartialEq for ListTable {
+    fn eq(&self, other: &Self) -> bool {
+        self.name == other.name
+    }
+}
+
+impl Eq for ListTable {}
+
+impl Ord for ListTable {
+    fn cmp(&self, other: &Self) -> std::cmp::Ordering {
+        self.name.cmp(&other.name)
+    }
+}
+
 impl From<String> for ListTable {
     fn from(value: String) -> Self {
         Self {
