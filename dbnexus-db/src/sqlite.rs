@@ -2202,13 +2202,14 @@ mod tests {
         db.execute_sql(
             query_id,
             r#"
-        CREATE TABLE test_comments (
-            comment_id INTEGER PRIMA
-            author_name TEXT,
-            post_id INTEGER,
-            FOREIGN KEY (post_id) REFERENCES test_posts(id) 
-            ON DELETE CASCADE 
-        );"#,
+    CREATE TABLE test_comments (
+        comment_id INTEGER PRIMARY KEY,
+        author_name TEXT,
+        post_id INTEGER,
+        FOREIGN KEY (post_id) REFERENCES test_posts(id) 
+        ON DELETE CASCADE 
+    );
+    "#,
         )
         .await
         .unwrap()

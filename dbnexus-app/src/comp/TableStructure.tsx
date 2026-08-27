@@ -64,6 +64,7 @@ import {
   commands,
   CreateIndexReq,
   Field,
+  ForeignKeyDef,
   Index,
   SqlNullAble,
   TriggerDetail,
@@ -1430,6 +1431,24 @@ function TableStructure(props: { table: string }) {
     structures.push("trigger");
   }
 
+  const supportForeignKey = [
+    DataSourceKind.MariaDB,
+    DataSourceKind.Mysql,
+    DataSourceKind.TiDB,
+    DataSourceKind.Sqlite,
+    DataSourceKind.LibSql,
+    DataSourceKind.Postgres,
+    DataSourceKind.Cockroach,
+    DataSourceKind.Oracle,
+    DataSourceKind.FireBird,
+    DataSourceKind.DuckDB,
+    DataSourceKind.SqlServer,
+  ].includes(kind);
+
+  if (supportForeignKey) {
+    structures.push("foreign_key");
+  }
+
   return (
     <Stack style={{ height: "100%" }}>
       <Stack direction="row" sx={{ justifyContent: "center" }}>
@@ -1448,11 +1467,140 @@ function TableStructure(props: { table: string }) {
           })}
         </ButtonGroup>
       </Stack>
-
       {structure == "column" && <ColumnsStructure table={table} />}
       {structure == "index" && <IndexesStructure table={table} />}
       {structure == "trigger" && <TriggersStructure table={table} />}
-      {structure == "statement" && <StatementStructure table={table} />}
+      {structure == "statement" && <StatementStructure table={table} />}{" "}
+      {structure == "foreign_key" && <ForeignKeyStructure table={table} />}
+    </Stack>
+  );
+}
+
+function ForeignKeyStructure(props: { table: string }) {
+  const { table } = props;
+  const { dbName } = useContext(DbnameContext);
+  const [loading, setLoading] = useState(false);
+  const [fs, setFs] = useState<ForeignKeyDef[]>([]);
+  const { showNotification } = useNotification();
+  const { setUpMenu } = useContextMenu();
+
+  const { getColumnWidth } = useColumnWidthStore();
+  const handleReload = useCallback(() => {
+    setLoading(false);
+    commands
+      .listForeignKey(dbName, table)
+      .then((fs) => {
+        fs.forEach((e, index) => {
+          e["id"] = index;
+        });
+        setFs(fs);
+      })
+      .catch((e) => {
+        showNotification({
+          severity: "error",
+          title: "list foreign key failed",
+          message: e,
+        });
+      })
+      .finally(() => {
+        setLoading(false);
+      });
+  }, [dbName, showNotification, table]);
+
+  useEffect(() => {
+    handleReload();
+  }, [handleReload]);
+
+  const columns: GridColDef[] = [
+    { field: "name" },
+    { field: "table" },
+    { field: "from" },
+    { field: "to" },
+    { field: "on_update" },
+    { field: "on_delete" },
+  ];
+
+  columns.forEach((e) => {
+    e.width = getColumnWidth(e.field);
+  });
+
+  const handleDrop = useCallback(
+    (name) => {
+      commands
+        .dropForeignKey(dbName, table, name)
+        .then(() => {
+          showNotification({ severity: "success", title: "drop foreign key success" });
+          handleReload();
+        })
+        .catch((e) => {
+          showNotification({
+            severity: "error",
+            message: e,
+            title: "drop foreign key failed",
+          });
+        });
+    },
+    [dbName, handleReload, showNotification, table],
+  );
+
+  const slotProps = useMemo((): GridSlotsComponentsProps => {
+    return {
+      row: {
+        onContextMenu: (e) => {
+          const { id, field } = extractFieldAndIDFromMouseEvent(e);
+          if (!field) {
+            return;
+          }
+          const row = fs.find((e) => e["id"] == id);
+          if (!row.name) {
+            return;
+          }
+          setUpMenu({
+            content: (
+              <MenuItem
+                sx={{ color: "error.main" }}
+                onClick={() => {
+                  handleDrop(row.name);
+                }}>
+                <ListItemIcon>
+                  <DeleteForeverIcon color="error" />
+                </ListItemIcon>
+                <ListItemText> Drop</ListItemText>
+              </MenuItem>
+            ),
+            event: e,
+          });
+        },
+        style: { cursor: "context-menu" },
+      },
+    };
+  }, [fs, handleDrop, setUpMenu]);
+
+  const slots = useMemo((): Partial<GridSlotsComponent> => {
+    return {
+      toolbar: () => {
+        return (
+          <AppDataGridToolBar
+            titleName={table}
+            left=<StackRowCenter>
+              <RefreshButton loading={loading} onClick={handleReload} />
+            </StackRowCenter>
+          />
+        );
+      },
+      pagination: AppDataGridPagination,
+    };
+  }, [handleReload, loading, table]);
+
+  return (
+    <Stack style={{ height: "100%" }}>
+      <DataGrid
+        style={dataGridStyle}
+        columns={columns}
+        slots={slots}
+        slotProps={slotProps}
+        rows={fs}
+      />
     </Stack>
   );
 }

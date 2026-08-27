@@ -2903,13 +2903,77 @@ pub(crate) mod test_fns {
             println!("event:{:?}", d);
         }
     }
+
+    pub(crate) async fn test_foreign_key(db: MysqlDB) {
+        let table_name_posts = "test_posts";
+        let table_name_comments = "test_comments";
+
+        let _err = db
+            .drop_foreign_key(
+                table_name_comments,
+                "test_comments_ibfk_1", // this name generate every time
+            )
+            .await;
+        if let Err(_err) = _err {
+            println!("drop foreign key failed,err:{}", _err);
+        }
+
+        let _ = db.drop_table(table_name_comments, false).await;
+        let _ = db.drop_table(table_name_posts, false).await;
+
+        let query_id = "aaaa";
+        db.open_connection(query_id).await.unwrap();
+
+        // 1. 创建父表 test_posts
+        db.execute_sql(
+            query_id,
+            r#"
+        CREATE TABLE IF NOT EXISTS test_posts (
+            id INT AUTO_INCREMENT PRIMARY KEY,
+            title VARCHAR(255) NOT NULL,
+            content TEXT
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+        "#,
+        )
+        .await
+        .unwrap()
+        .unwrap();
+
+        // 2. 创建子表 test_comments (修正了原来的拼写错误)
+        db.execute_sql(
+            query_id,
+            r#"
+        CREATE TABLE IF NOT EXISTS test_comments (
+            comment_id INT AUTO_INCREMENT PRIMARY KEY, -- 修正了原代码的拼写
+            author_name VARCHAR(255),
+            post_id INT,
+            FOREIGN KEY (post_id) REFERENCES test_posts(id) 
+            ON DELETE CASCADE 
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+        "#,
+        )
+        .await
+        .unwrap()
+        .unwrap();
+
+        db.close_connection(query_id).await.unwrap();
+
+        // 3. 列出外键并打印
+        let f = db.list_foreign_key(table_name_comments).await.unwrap();
+
+        assert!(f.len() == 1);
+
+        for f in f.iter() {
+            println!("foreign key:{:?}", f);
+        }
+    }
 }
 
 #[cfg(test)]
 mod tests {
     use super::test_fns::{self, make_test_object};
     use crate::datasource_config::{MysqlDBConfig, SSLFiles, SslFilesWithStrModel};
-    use crate::db::{BackendKindMysql, CheckConn, QuerySql, SchemaTrait};
+    use crate::db::{BackendKindMysql, CheckConn};
     use crate::helper::{cert_files_dir, start_docker_container, DockerContainerDropper};
     use crate::language_server::get_update_sql_from_result_set_impl;
     use crate::mysql::MysqlDB;
@@ -3065,6 +3129,13 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn test_foreign_key() {
+        let db = make_test_object(make_config()).await;
+
+        test_fns::test_foreign_key(db).await;
+    }
+
+    #[tokio::test]
     async fn test_ssl_mysql() {
         let port = portpicker::pick_unused_port().unwrap();
         println!("test port:{}", port);
@@ -3178,73 +3249,6 @@ FLUSH PRIVILEGES;
             let db = MysqlDB::new(config.clone(), kind).await.unwrap();
             db.check_conn().await.unwrap();
             println!("✅ verify_ca SSL连接成功");
-        }
-    }
-
-    #[tokio::test]
-    async fn test_foreign_key() {
-        let db = make_test_object(make_config()).await;
-
-        let table_name_posts = "test_posts";
-        let table_name_comments = "test_comments";
-
-        let _err = db
-            .drop_foreign_key(
-                table_name_comments,
-                "test_comments_ibfk_1", // this name generate every time
-            )
-            .await;
-        if let Err(_err) = _err {
-            println!("drop foreign key failed,err:{}", _err);
-        }
-
-        let _ = db.drop_table(table_name_comments, false).await;
-        let _ = db.drop_table(table_name_posts, false).await;
-
-        let query_id = "aaaa";
-        db.open_connection(query_id).await.unwrap();
-
-        // 1. 创建父表 test_posts
-        db.execute_sql(
-            query_id,
-            r#"
-        CREATE TABLE IF NOT EXISTS test_posts (
-            id INT AUTO_INCREMENT PRIMARY KEY,
-            title VARCHAR(255) NOT NULL,
-            content TEXT
-        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
-        "#,
-        )
-        .await
-        .unwrap()
-        .unwrap();
-
-        // 2. 创建子表 test_comments (修正了原来的拼写错误)
-        db.execute_sql(
-            query_id,
-            r#"
-        CREATE TABLE IF NOT EXISTS test_comments (
-            comment_id INT AUTO_INCREMENT PRIMARY KEY, -- 修正了原代码的拼写
-            author_name VARCHAR(255),
-            post_id INT,
-            FOREIGN KEY (post_id) REFERENCES test_posts(id) 
-            ON DELETE CASCADE 
-        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
-        "#,
-        )
-        .await
-        .unwrap()
-        .unwrap();
-
-        db.close_connection(query_id).await.unwrap();
-
-        // 3. 列出外键并打印
-        let f = db.list_foreign_key(table_name_comments).await.unwrap();
-
-        assert!(f.len() == 1);
-
-        for f in f.iter() {
-            println!("foreign key:{:?}", f);
         }
     }
 }

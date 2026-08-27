@@ -162,6 +162,8 @@ export const commands = {
 	tableImportDataFromFileInsertSamples: (dbName: string, tableName: string, kind: TableImportPara) => __TAURI_INVOKE<string[]>("table_import_data_from_file_insert_samples", { dbName, tableName, kind }),
 	getUpdateSqlFromResultSet: (dbName: string, sql: string, oldValues: (string | null)[], newValues: (string | null)[]) => __TAURI_INVOKE<string[]>("get_update_sql_from_result_set", { dbName, sql, oldValues, newValues }),
 	executeTxMultiSql: (dbName: string, sql: string[]) => __TAURI_INVOKE<null>("execute_tx_multi_sql", { dbName, sql }),
+	dropForeignKey: (dbName: string, tableName: string, foreignKey: string) => __TAURI_INVOKE<null>("drop_foreign_key", { dbName, tableName, foreignKey }),
+	listForeignKey: (dbName: string, tableName: string) => __TAURI_INVOKE<ForeignKeyDef[]>("list_foreign_key", { dbName, tableName }),
 };
 
 /* Constants */
@@ -365,6 +367,15 @@ export type FireBirdConfig = {
 	read_only: boolean,
 	conn_timeout: SomeTimeOut | null,
 	dialect: string,
+};
+
+export type ForeignKeyDef = {
+	name: string | null,
+	table: string,
+	from: string,
+	to: string,
+	on_update: string,
+	on_delete: string,
 };
 
 export type Index = {
