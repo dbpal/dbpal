@@ -273,10 +273,6 @@ const TabItem = React.memo(
       </TabActiveContext.Provider>
     );
   },
-  (prevProps, nextProps) => {
-    // 只有 isActive 变化时才重新渲染
-    return prevProps.isActive === nextProps.isActive;
-  },
 );
 
 export { TabsWithContent };

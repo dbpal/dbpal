@@ -148,6 +148,8 @@ const confirmAboutPrimary = async (fields: Field[]): Promise<boolean> => {
 
 const getRowId = (e) => e[keyNotInTable];
 
+const editoInModalLangs = ["text", "html", "json", "xml"];
+
 function EditInModal(props: {
   content: string;
   handleModify: (_: string) => void;
@@ -155,18 +157,15 @@ function EditInModal(props: {
 }) {
   const { content, handleModify, handleClose } = props;
 
-  const langs = useMemo(() => {
-    return ["text", "html", "json", "xml"];
-  }, []);
   const { editingRowLanguage, setEditingRowLanguage } = useEditInModalLanguageStore();
   const [editor, setEditor] = useState<editor.IStandaloneCodeEditor>(null);
   const [editInModalBox, setEditInModalBox] = useState(null);
 
   useEffect(() => {
     if (!editingRowLanguage) {
-      setEditingRowLanguage(langs[0]);
+      setEditingRowLanguage(editoInModalLangs[0]);
     }
-  }, [editingRowLanguage, langs, setEditingRowLanguage]);
+  }, [editingRowLanguage, setEditingRowLanguage]);
 
   return (
     <Modal
@@ -187,7 +186,7 @@ function EditInModal(props: {
         <ListenElementSize dom={editInModalBox} set="both" name="table-edit-in-modal" />
         <Stack style={{ flex: 1 }}>
           <Stack direction="row">
-            {langs.map((lang) => (
+            {editoInModalLangs.map((lang) => (
               <Chip
                 key={lang}
                 label={lang}
@@ -258,7 +257,6 @@ function SqlTableCustomToolBarLeft({
   kind,
   allowFiltering,
   setAllowFiltering,
-
   tableName,
 }: SqlTableCustomToolBarLeftProps) {
   // 获取 DataGrid 内部的 api 实例
@@ -425,25 +423,22 @@ function ImportDataFromFile(props: {
 }) {
   const { appendTab } = useTabsManage();
   const { dbname, table, kind } = props;
-
   return (
-    <Tooltip title="insert data from a file,current support csv,json,jsonline">
-      <IconButton
-        color="success"
-        onClick={async () => {
-          appendTab(
-            new TabContent(
-              table,
-              <SqlCreateTableImportFile hasTableName={table} />,
-              <UploadIcon />,
-              dbname,
-              kind,
-            ),
-          );
-        }}>
-        <UploadIcon />
-      </IconButton>
-    </Tooltip>
+    <IconButton
+      color="success"
+      onClick={async () => {
+        appendTab(
+          new TabContent(
+            table,
+            <SqlCreateTableImportFile hasTableName={table} />,
+            <UploadIcon />,
+            dbname,
+            kind,
+          ),
+        );
+      }}>
+      <UploadIcon />
+    </IconButton>
   );
 }
 
