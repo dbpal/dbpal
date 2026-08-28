@@ -57,6 +57,9 @@ function getKeyShorts(): { name: string; shorts: string }[] {
   if (!isMac) {
     baseShorts.push({ name: "full screen", shorts: "F11" });
   }
+  baseShorts.forEach((e, index) => {
+    e["id"] = index;
+  });
 
   return baseShorts;
 }
