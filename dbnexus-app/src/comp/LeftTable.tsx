@@ -891,7 +891,7 @@ function RedisOneTableKind(props: {
         show={(table) => {
           return (
             <>
-              <span style={textEllipsisStyle}> {table.name} </span>{" "}
+              <span style={textEllipsisStyle}> {table.name} </span>
               <span style={textEllipsisStyle}> {table.size} </span>
             </>
           );
