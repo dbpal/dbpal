@@ -20,7 +20,7 @@ import { platform } from "@tauri-apps/plugin-os";
 import prettyMilliseconds from "pretty-ms";
 import { CompletionItem, CompletionKind, Field, MuiDataGridData } from "./bindings";
 import { NotificationParams } from "./store";
-import { extractBaseName, uuidv4 } from "./Common";
+import { extractBaseName, keyNotInTable, uuidv4 } from "./Common";
 import { GridApi } from "@mui/x-data-grid";
 
 const pageSizeOptions = [10, 20, 50, 100];
@@ -919,8 +919,10 @@ function calVirtualRollHeight(length: number, fontSize: number) {
   }
   return { height: ret, rowHeight };
 }
+const getRowIdOnKeyNotInTable = (e) => e[keyNotInTable];
 
 export {
+  getRowIdOnKeyNotInTable,
   useTablePaddingLeft,
   calVirtualRollHeight,
   getViewportSize,

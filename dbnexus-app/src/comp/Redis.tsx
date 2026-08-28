@@ -961,6 +961,30 @@ function RedisSetTable(props: { setKey: string }) {
   const { getColumnVisibility, setColumnVisibility } = useTableColumnVisibleStore(
     (s) => s,
   );
+  const columnVisibilityModel = useMemo(
+    () => getColumnVisibility(dbName, setKey),
+    [getColumnVisibility, dbName, setKey],
+  );
+  const handleColumnVisibilityModelChange = useCallback(
+    (model) => {
+      setColumnVisibility(dbName, setKey, model);
+    },
+    [setColumnVisibility, dbName, setKey],
+  );
+  const getCellClassName = useCallback(
+    ({ field }) => {
+      if (selectedColumns.has(field)) {
+        return gridColumnHeaderSelectClassName;
+      }
+    },
+    [selectedColumns],
+  );
+  const handleCellClick = useCallback(() => {
+    setSelectColumns(new Set());
+    allGridHeaderTitle(apiRef, (x) => {
+      x.classList.remove(gridColumnHeaderSelectClassName);
+    });
+  }, [apiRef]);
   return (
     <Stack style={{ height: "100%" }}>
       <QueryStatus status={queryStatus} />
@@ -975,21 +999,10 @@ function RedisSetTable(props: { setKey: string }) {
             })(),
           }}>
           <DataGrid
-            columnVisibilityModel={getColumnVisibility(dbName, setKey)}
-            onColumnVisibilityModelChange={(e) => {
-              setColumnVisibility(dbName, setKey, e);
-            }}
-            getCellClassName={({ field }) => {
-              if (selectedColumns.has(field)) {
-                return gridColumnHeaderSelectClassName;
-              }
-            }}
-            onCellClick={() => {
-              setSelectColumns(new Set());
-              allGridHeaderTitle(apiRef, (x) => {
-                x.classList.remove(gridColumnHeaderSelectClassName);
-              });
-            }}
+            columnVisibilityModel={columnVisibilityModel}
+            onColumnVisibilityModelChange={handleColumnVisibilityModelChange}
+            getCellClassName={getCellClassName}
+            onCellClick={handleCellClick}
             apiRef={apiRef}
             slots={slots}
             slotProps={slotProps}
@@ -1343,30 +1356,47 @@ function RedisListTable(props: { listKey: string }) {
   const { getColumnVisibility, setColumnVisibility } = useTableColumnVisibleStore(
     (s) => s,
   );
+  const columnVisibilityModel = useMemo(
+    () => getColumnVisibility(dbName, listKey),
+    [getColumnVisibility, dbName, listKey],
+  );
+  const handleColumnVisibilityModelChange = useCallback(
+    (model) => {
+      setColumnVisibility(dbName, listKey, model);
+    },
+    [setColumnVisibility, dbName, listKey],
+  );
+  const getCellClassName = useCallback(
+    ({ field }) => {
+      if (selectedColumns.has(field)) {
+        return gridColumnHeaderSelectClassName;
+      }
+    },
+    [selectedColumns],
+  );
+  const handleCellClick = useCallback(() => {
+    setSelectColumns(new Set());
+    allGridHeaderTitle(apiRef, (x) => {
+      x.classList.remove(gridColumnHeaderSelectClassName);
+    });
+  }, [apiRef]);
+  const columnMenuValue = useMemo(
+    () => ({
+      selectColumns: resp.fields
+        .filter((f) => selectedColumns.has(f.field))
+        .map((f) => f.field),
+    }),
+    [resp, selectedColumns],
+  );
+
   return (
     <Stack style={{ height: "100%" }}>
       <QueryStatus status={queryStatus} />
       {resp && (
-        <AppColumnMenuCtx
-          value={{
-            selectColumns: (function () {
-              return resp.fields
-                .filter((f) => selectedColumns.has(f.field))
-                .map((f) => f.field);
-            })(),
-          }}>
+        <AppColumnMenuCtx value={columnMenuValue}>
           <DataGrid
-            getCellClassName={({ field }) => {
-              if (selectedColumns.has(field)) {
-                return gridColumnHeaderSelectClassName;
-              }
-            }}
-            onCellClick={() => {
-              setSelectColumns(new Set());
-              allGridHeaderTitle(apiRef, (x) => {
-                x.classList.remove(gridColumnHeaderSelectClassName);
-              });
-            }}
+            getCellClassName={getCellClassName}
+            onCellClick={handleCellClick}
             apiRef={apiRef}
             slots={slots}
             loading={loading}
@@ -1383,10 +1413,8 @@ function RedisListTable(props: { listKey: string }) {
             sortingMode="server"
             paginationMode="client"
             style={dataGridStyle}
-            columnVisibilityModel={getColumnVisibility(dbName, listKey)}
-            onColumnVisibilityModelChange={(e) => {
-              setColumnVisibility(dbName, listKey, e);
-            }}
+            columnVisibilityModel={columnVisibilityModel}
+            onColumnVisibilityModelChange={handleColumnVisibilityModelChange}
             onSortModelChange={onSortModelChange}
           />
         </AppColumnMenuCtx>
@@ -1762,6 +1790,40 @@ function RedisZsetTable(props: { zsetKey: string }) {
   const { getColumnVisibility, setColumnVisibility } = useTableColumnVisibleStore(
     (s) => s,
   );
+  const columnVisibilityModel = useMemo(
+    () => getColumnVisibility(dbName, zsetKey),
+    [getColumnVisibility, dbName, zsetKey],
+  );
+  const handleColumnVisibilityModelChange = useCallback(
+    (model) => {
+      setColumnVisibility(dbName, zsetKey, model);
+    },
+    [setColumnVisibility, dbName, zsetKey],
+  );
+  const getCellClassName = useCallback(
+    ({ field }) => {
+      if (selectedColumns.has(field)) {
+        return gridColumnHeaderSelectClassName;
+      }
+    },
+    [selectedColumns],
+  );
+  const handleCellClick = useCallback(() => {
+    setSelectColumns(new Set());
+    allGridHeaderTitle(apiRef, (x) => {
+      x.classList.remove(gridColumnHeaderSelectClassName);
+    });
+  }, [apiRef]);
+  const columnMenuValue = useMemo(
+    () => ({
+      selectColumns: resp.fields
+        .filter((f) => selectedColumns.has(f.field))
+        .map((f) => f.field),
+    }),
+    [resp, selectedColumns],
+  );
+  const gridRows = useMemo(() => resp.data, [resp]);
+  const gridColumns = useMemo(() => resp.fields, [resp]);
   return (
     <Stack style={{ height: "100%" }}>
       <QueryStatus status={queryStatus} />
@@ -1769,39 +1831,21 @@ function RedisZsetTable(props: { zsetKey: string }) {
       <ListenElementSize dom={modifyModalBox} name="redis-modify-zset" set="both" />
 
       {resp && (
-        <AppColumnMenuCtx
-          value={{
-            selectColumns: (function () {
-              return resp.fields
-                .filter((f) => selectedColumns.has(f.field))
-                .map((f) => f.field);
-            })(),
-          }}>
+        <AppColumnMenuCtx value={columnMenuValue}>
           <DataGrid
-            columnVisibilityModel={getColumnVisibility(dbName, zsetKey)}
-            onColumnVisibilityModelChange={(e) => {
-              setColumnVisibility(dbName, zsetKey, e);
-            }}
-            getCellClassName={({ field }) => {
-              if (selectedColumns.has(field)) {
-                return gridColumnHeaderSelectClassName;
-              }
-            }}
-            onCellClick={() => {
-              setSelectColumns(new Set());
-              allGridHeaderTitle(apiRef, (x) => {
-                x.classList.remove(gridColumnHeaderSelectClassName);
-              });
-            }}
+            columnVisibilityModel={columnVisibilityModel}
+            onColumnVisibilityModelChange={handleColumnVisibilityModelChange}
+            getCellClassName={getCellClassName}
+            onCellClick={handleCellClick}
             apiRef={apiRef}
             slots={slots}
             loading={loading}
             slotProps={slotProps}
-            rows={resp.data}
+            rows={gridRows}
             checkboxSelection={false}
             editMode="row"
             onRowDoubleClick={onRowDoubleClick}
-            columns={resp.fields}
+            columns={gridColumns}
             disableColumnFilter
             style={dataGridStyle}
             paginationMode="client"
@@ -2106,36 +2150,50 @@ function RedisHashTable(props: { hashKey: string }) {
       pagination: RedisPagination,
     } as Partial<GridSlotsComponent>;
   }, []);
+  const columnVisibilityModel = useMemo(
+    () => getColumnVisibility(dbName, hashKey),
+    [getColumnVisibility, dbName, hashKey],
+  );
+  const handleColumnVisibilityModelChange = useCallback(
+    (model) => {
+      setColumnVisibility(dbName, hashKey, model);
+    },
+    [setColumnVisibility, dbName, hashKey],
+  );
+  const getCellClassName = useCallback(
+    ({ field }) => {
+      if (selectedColumns.has(field)) {
+        return gridColumnHeaderSelectClassName;
+      }
+    },
+    [selectedColumns],
+  );
+  const handleCellClick = useCallback(() => {
+    setSelectColumns(new Set());
+    allGridHeaderTitle(apiRef, (x) => {
+      x.classList.remove(gridColumnHeaderSelectClassName);
+    });
+  }, [apiRef]);
+  const columnMenuValue = useMemo(
+    () => ({
+      selectColumns: resp.fields
+        .filter((f) => selectedColumns.has(f.field))
+        .map((f) => f.field),
+    }),
+    [resp, selectedColumns],
+  );
 
   return (
     <Stack style={{ height: "100%" }}>
       <QueryStatus status={queryStatus} />
       <ListenElementSize dom={modifyModalBox} name="redis-modify-hash" set="both" />
       {resp && (
-        <AppColumnMenuCtx
-          value={{
-            selectColumns: (function () {
-              return resp.fields
-                .filter((f) => selectedColumns.has(f.field))
-                .map((f) => f.field);
-            })(),
-          }}>
+        <AppColumnMenuCtx value={columnMenuValue}>
           <DataGrid
-            columnVisibilityModel={getColumnVisibility(dbName, hashKey)}
-            onColumnVisibilityModelChange={(e) => {
-              setColumnVisibility(dbName, hashKey, e);
-            }}
-            getCellClassName={({ field }) => {
-              if (selectedColumns.has(field)) {
-                return gridColumnHeaderSelectClassName;
-              }
-            }}
-            onCellClick={() => {
-              setSelectColumns(new Set());
-              allGridHeaderTitle(apiRef, (x) => {
-                x.classList.remove(gridColumnHeaderSelectClassName);
-              });
-            }}
+            columnVisibilityModel={columnVisibilityModel}
+            onColumnVisibilityModelChange={handleColumnVisibilityModelChange}
+            getCellClassName={getCellClassName}
+            onCellClick={handleCellClick}
             apiRef={apiRef}
             slots={slots}
             loading={loading}

@@ -370,6 +370,37 @@ function QueryResp_(props: { data: MuiDataGridData }): React.ReactElement {
     } as Partial<GridSlotsComponent>;
   }, [data.data.length]);
 
+  const getCellClassName = useCallback(
+    ({ field }) => {
+      if (selectedColumns.has(field)) {
+        return gridColumnHeaderSelectClassName;
+      }
+    },
+    [selectedColumns],
+  );
+
+  const onCellClick = useCallback(() => {
+    setSelectColumns(new Set());
+    allGridHeaderTitle(apiRef, (x) => {
+      x.classList.remove(gridColumnHeaderSelectClassName);
+    });
+  }, [apiRef]);
+  const onPaginationModelChange = useCallback(
+    (e) => {
+      setPage(e.page);
+      setPageSize("sql", e.pageSize);
+    },
+    [setPageSize],
+  );
+  const columnMenuValue = useMemo(
+    () => ({
+      selectColumns: data.fields
+        .filter((f) => selectedColumns.has(f.field))
+        .map((f) => f.field),
+    }),
+    [data.fields, selectedColumns],
+  );
+  const paginationModel = useMemo(() => ({ page, pageSize }), [page, pageSize]);
   return (
     <div
       style={{
@@ -390,26 +421,10 @@ function QueryResp_(props: { data: MuiDataGridData }): React.ReactElement {
               sql: {data.sql}
             </Typography>
           )}
-          <AppColumnMenuCtx
-            value={{
-              selectColumns: (function () {
-                return data.fields
-                  .filter((f) => selectedColumns.has(f.field))
-                  .map((f) => f.field);
-              })(),
-            }}>
+          <AppColumnMenuCtx value={columnMenuValue}>
             <DataGrid
-              getCellClassName={({ field }) => {
-                if (selectedColumns.has(field)) {
-                  return gridColumnHeaderSelectClassName;
-                }
-              }}
-              onCellClick={() => {
-                setSelectColumns(new Set());
-                allGridHeaderTitle(apiRef, (x) => {
-                  x.classList.remove(gridColumnHeaderSelectClassName);
-                });
-              }}
+              getCellClassName={getCellClassName}
+              onCellClick={onCellClick}
               apiRef={apiRef}
               getRowId={getRowId}
               slots={slots}
@@ -421,11 +436,8 @@ function QueryResp_(props: { data: MuiDataGridData }): React.ReactElement {
               rows={data.data}
               showToolbar={false}
               filterMode="client" // 使用客户端过滤
-              paginationModel={{ page, pageSize }}
-              onPaginationModelChange={(e) => {
-                setPage(e.page);
-                setPageSize("sql", e.pageSize);
-              }}
+              paginationModel={paginationModel}
+              onPaginationModelChange={onPaginationModelChange}
             />
           </AppColumnMenuCtx>
         </Stack>

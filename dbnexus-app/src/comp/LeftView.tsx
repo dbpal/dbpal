@@ -265,6 +265,9 @@ function ColumnsContent(props: { view: string }) {
     commands
       .showViewColumns(dbName, view)
       .then((fs) => {
+        fs.forEach((e, index) => {
+          e["id"] = index;
+        });
         setFields(fs);
       })
       .catch((e) => {
@@ -324,9 +327,6 @@ function ColumnsContent(props: { view: string }) {
     };
   }, [setUpMenu]);
 
-  const getRowId = useCallback((e) => {
-    return e["field"];
-  }, []);
   const slots = useMemo((): Partial<GridSlotsComponent> => {
     return {
       toolbar: () => {
@@ -344,7 +344,6 @@ function ColumnsContent(props: { view: string }) {
     <Stack style={{ height: "100%" }}>
       <DataGrid
         slots={slots}
-        getRowId={getRowId}
         slotProps={slotProps}
         columns={cols}
         rows={fields}

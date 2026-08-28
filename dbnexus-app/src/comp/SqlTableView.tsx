@@ -71,6 +71,7 @@ import {
   SqlOpContext,
   DbnameContext,
   TabContent,
+  getRowIdOnKeyNotInTable,
 } from "./helper";
 import FileCopyIcon from "@mui/icons-material/FileCopy";
 import {
@@ -145,8 +146,6 @@ const confirmAboutPrimary = async (fields: Field[]): Promise<boolean> => {
     kind: "warning",
   });
 };
-
-const getRowId = (e) => e[keyNotInTable];
 
 const editoInModalLangs = ["text", "html", "json", "xml"];
 
@@ -1194,7 +1193,7 @@ function SqlTableView_(props: {
             onColumnVisibilityModelChange={onColumnVisibilityModelChange}
             slotProps={slotProps}
             style={dataGridStyle}
-            getRowId={getRowId}
+            getRowId={getRowIdOnKeyNotInTable}
             paginationModel={clientModel ? undefined : paginationModel}
             pageSizeOptions={pageSizeOptions}
             paginationMode={sortModel}

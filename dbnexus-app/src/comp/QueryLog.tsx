@@ -11,6 +11,7 @@ import {
 import {
   Dispatch,
   SetStateAction,
+  useCallback,
   useContext,
   useEffect,
   useMemo,
@@ -70,39 +71,41 @@ function QueryLog(props: {
       break;
   }
   const { showNotification } = useNotification();
-  const columns: GridColDef[] = [
-    {
-      field: "create_at",
-      width: getColumnWidth("create_at"),
-      renderHeader: () => {
-        return "time";
+  const columns = useMemo((): GridColDef[] => {
+    return [
+      {
+        field: "create_at",
+        width: getColumnWidth("create_at"),
+        renderHeader: () => {
+          return "time";
+        },
+        renderCell: (params) => {
+          // 加z是utc时间
+          return <div>{new Date(params.value).toLocaleString()}</div>;
+        },
       },
-      renderCell: (params) => {
-        // 加z是utc时间
-        return <div>{new Date(params.value).toLocaleString()}</div>;
+      {
+        width: getColumnWidth("success"),
+        field: "success",
+        renderCell: (p) => {
+          const success = p.row.success;
+          if (success) {
+            return <DoneIcon color="success" />;
+          } else {
+            return <CloseIcon color="error" />;
+          }
+        },
+        filterable: false,
       },
-    },
-    {
-      width: getColumnWidth("success"),
-      field: "success",
-      renderCell: (p) => {
-        const success = p.row.success;
-        if (success) {
-          return <DoneIcon color="success" />;
-        } else {
-          return <CloseIcon color="error" />;
-        }
+      {
+        field: "sql",
+        flex: 1,
+        renderHeader: () => {
+          return sqlDesc;
+        },
       },
-      filterable: false,
-    },
-    {
-      field: "sql",
-      flex: 1,
-      renderHeader: () => {
-        return sqlDesc;
-      },
-    },
-  ];
+    ];
+  }, [getColumnWidth, sqlDesc]);
 
   useEffect(() => {
     const handleReload = async () => {
@@ -149,6 +152,10 @@ function QueryLog(props: {
         );
       },
     } as Partial<GridSlotsComponent>;
+  }, []);
+
+  const onRowDoubleClick = useCallback((e) => {
+    setSelectSql(e.row.sql);
   }, []);
 
   return (
@@ -242,9 +249,7 @@ function QueryLog(props: {
       </Stack>
       {showQueryLog && logs.length > 0 && (
         <DataGrid
-          onRowDoubleClick={(e) => {
-            setSelectSql(e.row.sql);
-          }}
+          onRowDoubleClick={onRowDoubleClick}
           columns={columns}
           rows={logs}
           slots={slots}

@@ -18,6 +18,8 @@ import {
   resizeHandlerSize,
   DbnameContext,
   setDifference,
+  dataGridStyle,
+  getRowIdOnKeyNotInTable,
 } from "./helper";
 import {
   CSSProperties,
@@ -770,10 +772,10 @@ function SqlCreateTableImportFile(props: { hasTableName?: string }) {
               </Typography>
 
               <DataGrid
-                style={{ flex: 1, height: "100px" }}
+                style={dataGridStyle}
                 columns={hasTableResp.fields}
                 rows={hasTableResp.data}
-                getRowId={(e) => e[keyNotInTable]}
+                getRowId={getRowIdOnKeyNotInTable}
               />
             </Stack>
           )}
@@ -903,12 +905,10 @@ function SqlCreateTableImportFile(props: { hasTableName?: string }) {
               </>
             )}
             <DataGrid
-              style={{ flex: 1, height: "100px" }}
+              style={dataGridStyle}
               columns={previewFields}
               rows={previewData}
-              getRowId={(e) => {
-                return e[keyNotInTable];
-              }}
+              getRowId={getRowIdOnKeyNotInTable}
             />
 
             {insertSqlSamples && (

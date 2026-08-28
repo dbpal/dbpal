@@ -502,10 +502,13 @@ function MetaValueView(props: { values: MetaValue[]; showToolbar: boolean }) {
   const { values, showToolbar } = props;
 
   const getColumnWidth = useColumnWidthStore((s) => s.getColumnWidth);
-  const columns: GridColDef[] = [{ field: "name" }, { field: "value" }];
-  columns.forEach((e) => {
-    e.width = getColumnWidth(e.field);
-  });
+  const columns = useMemo(() => {
+    const columns: GridColDef[] = [{ field: "name" }, { field: "value" }];
+    columns.forEach((e) => {
+      e.width = getColumnWidth(e.field);
+    });
+    return columns;
+  }, [getColumnWidth]);
 
   const [sortModel, setSortModel] = useState<GridSortModel>([]);
   values.forEach((e, index) => {

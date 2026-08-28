@@ -1285,37 +1285,49 @@ function MongoTableList(props: {
   }, [tableName]);
 
   const [modalBox, setModalBox] = useState(null);
-  const { getColumnVisibility, setColumnVisibility } = useTableColumnVisibleStore(
-    (s) => s,
+  const { getColumnVisibility, setColumnVisibility } = useTableColumnVisibleStore();
+  const onColumnVisibilityModelChange = useCallback(
+    (e) => {
+      setColumnVisibility(dbName, tableName, e);
+    },
+    [dbName, setColumnVisibility, tableName],
+  );
+  const getCellClassName = useCallback(
+    ({ field }) => {
+      if (selectedColumns.has(field)) {
+        return gridColumnHeaderSelectClassName;
+      }
+    },
+    [selectedColumns],
+  );
+  const onCellClick = useCallback(() => {
+    setSelectColumns(new Set());
+    allGridHeaderTitle(apiRef, (x) => {
+      x.classList.remove(gridColumnHeaderSelectClassName);
+    });
+  }, [apiRef]);
+  const columnVisibilityModel = useMemo(
+    () => getColumnVisibility(dbName, tableName),
+    [dbName, getColumnVisibility, tableName],
+  );
+  const columnMenuValue = useMemo(
+    () => ({
+      selectColumns: resp.fields
+        .filter((f) => selectedColumns.has(f.field))
+        .map((f) => f.field),
+    }),
+    [resp, selectedColumns],
   );
 
   return (
     <Stack style={{ height: "100%" }}>
       {resp && (
-        <AppColumnMenuCtx
-          value={{
-            selectColumns: (function () {
-              return resp.fields
-                .filter((f) => selectedColumns.has(f.field))
-                .map((f) => f.field);
-            })(),
-          }}>
+        <AppColumnMenuCtx value={columnMenuValue}>
           <DataGrid
-            columnVisibilityModel={getColumnVisibility(dbName, tableName)}
-            onColumnVisibilityModelChange={(e) => {
-              setColumnVisibility(dbName, tableName, e);
-            }}
-            getCellClassName={({ field }) => {
-              if (selectedColumns.has(field)) {
-                return gridColumnHeaderSelectClassName;
-              }
-            }}
-            onCellClick={() => {
-              setSelectColumns(new Set());
-              allGridHeaderTitle(apiRef, (x) => {
-                x.classList.remove(gridColumnHeaderSelectClassName);
-              });
-            }}
+            columnVisibilityModel={columnVisibilityModel}
+            onColumnVisibilityModelChange={onColumnVisibilityModelChange}
+            getCellClassName={getCellClassName}
+            onCellClick={onCellClick}
             apiRef={apiRef}
             loading={loading}
             slots={slots}

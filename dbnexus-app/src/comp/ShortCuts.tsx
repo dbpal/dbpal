@@ -1,4 +1,5 @@
 import { Stack } from "@mui/material";
+import { useMemo } from "react";
 import { isMacOs } from "./helper";
 import { useColumnWidthStore } from "./store";
 import { DataGrid, GridColDef } from "./datagridExport";
@@ -7,28 +8,23 @@ import { AppDataGridPagination } from "./CommonComp2";
 const shortCuts = getKeyShorts();
 
 function ShowCuts() {
-  const shortCutsColumns: GridColDef[] = [{ field: "name" }, { field: "shorts" }];
   const { getColumnWidth } = useColumnWidthStore();
-
-  shortCutsColumns.forEach((col) => {
-    let width = getColumnWidth(col.field);
-
-    if (!width) {
-      width = 300;
-    }
-    col.width = width;
-  });
+  const shortCutsColumns = useMemo((): GridColDef[] => {
+    return ["name", "shorts"].map((field) => ({
+      field,
+      width: getColumnWidth(field) || 300,
+    }));
+  }, [getColumnWidth]);
+  const slots = useMemo(() => ({ pagination: AppDataGridPagination }), []);
+  const style = useMemo(() => ({ height: "100%" }), []);
 
   return (
     <Stack style={{ height: "100%" }}>
       <DataGrid
         columns={shortCutsColumns}
         rows={shortCuts}
-        getRowId={(e) => {
-          return e.name;
-        }}
-        slots={{ pagination: AppDataGridPagination }}
-        style={{ height: "100%" }}
+        slots={slots}
+        style={style}
       />
     </Stack>
   );

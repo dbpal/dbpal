@@ -18,6 +18,7 @@ import {
   gridPaginationModelSelector,
   gridPageCountSelector,
   GridColumnVisibilityModel,
+  GridEventListener,
 } from "@mui/x-data-grid";
 import { GridApiCommunity } from "@mui/x-data-grid/internals";
 
@@ -45,4 +46,5 @@ export type {
   GridColumnMenuItemProps,
   GridColumnVisibilityModel,
   GridApiCommunity as GridApi,
+  GridEventListener,
 };
