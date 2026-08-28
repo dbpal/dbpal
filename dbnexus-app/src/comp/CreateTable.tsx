@@ -58,11 +58,11 @@ import {
 import { Panel, PanelGroup, PanelResizeHandle } from "react-resizable-panels";
 import { LongNotice, SelectPath } from "./CommonComp";
 import Papa from "papaparse";
-import { DataGrid } from "@mui/x-data-grid";
 import { readTextFile, readTextFileLines } from "@tauri-apps/plugin-fs";
 import { BSON, EJSON } from "bson";
 import { openUrl } from "@tauri-apps/plugin-opener";
 import { showTable } from "./handlers";
+import { DataGrid } from "./datagridExport";
 
 function SqlCreateTable(props: {
   fields?: CreateTableReqColumn[];

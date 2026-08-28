@@ -1343,15 +1343,18 @@ function SettingProvider({ children }) {
   }, [appearance, updateAppearance]);
   const datagridHeightXXX = useDatagridHeight();
 
+  const theme = useMemo(() => {
+    return makeTheme(
+      appearance,
+      isDark(appearance, osTheme),
+      datagridHeightXXX,
+      setColumnWidth,
+    );
+  }, [appearance, datagridHeightXXX, osTheme, setColumnWidth]);
+
   return (
     appearance && (
-      <ThemeProvider
-        theme={makeTheme(
-          appearance,
-          isDark(appearance, osTheme),
-          datagridHeightXXX,
-          setColumnWidth,
-        )}>
+      <ThemeProvider theme={theme}>
         <CssBaseline />
         {children}
       </ThemeProvider>
