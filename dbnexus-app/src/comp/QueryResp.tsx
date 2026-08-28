@@ -260,7 +260,7 @@ function RespContextMenu(props: {
   );
 }
 
-function QueryResp(props: { data: MuiDataGridData }): React.ReactElement {
+function QueryResp_(props: { data: MuiDataGridData }): React.ReactElement {
   const { data } = props;
   const { dbName, kind } = useContext(DbnameContext);
   const { getColumnWidth } = useColumnWidthStore();
@@ -442,6 +442,8 @@ function QueryResp(props: { data: MuiDataGridData }): React.ReactElement {
   );
 }
 
+const QueryResp = React.memo(QueryResp_);
+
 function getRowId(row: Record<string, any>): string {
   return row[keyNotInTable];
 }
@@ -502,17 +504,13 @@ function MultiQueryResp(props: {
           />
         ))}
 
-        <Tab
-          label={
-            <IconButton
-              color="warning"
-              onClick={() => {
-                setData([]);
-              }}>
-              <DeleteForeverIcon />
-            </IconButton>
-          }
-        />
+        <IconButton
+          color="warning"
+          onClick={() => {
+            setData([]);
+          }}>
+          <DeleteForeverIcon />
+        </IconButton>
       </Tabs>
 
       <div style={{ height: "100%", width: "100px", flex: 1 }}>

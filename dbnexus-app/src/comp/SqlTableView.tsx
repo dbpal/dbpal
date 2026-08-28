@@ -1,4 +1,4 @@
-import {
+import React, {
   Dispatch,
   SetStateAction,
   useCallback,
@@ -658,7 +658,7 @@ function CustomCell(props: GridRenderCellParams) {
   }
   return <Typography {...dataField}>{row[field]}</Typography>;
 }
-function SqlTableView(props: {
+function SqlTableView_(props: {
   tableName: string;
 
   isTable: boolean;
@@ -1137,6 +1137,33 @@ function SqlTableView(props: {
     (s) => s,
   );
 
+  const getCellClassName = useCallback(
+    ({ field }) => {
+      if (selectedColumns.has(field)) {
+        return gridColumnHeaderSelectClassName;
+      }
+    },
+    [selectedColumns],
+  );
+
+  const onCellClick = useCallback(() => {
+    setSelectColumns(new Set());
+    allGridHeaderTitle(apiRef, (x) => {
+      x.classList.remove(gridColumnHeaderSelectClassName);
+    });
+  }, [apiRef]);
+
+  const columnVisibilityModel = useMemo(() => {
+    return getColumnVisibility(dbName, tableName);
+  }, [dbName, getColumnVisibility, tableName]);
+
+  const onColumnVisibilityModelChange = useCallback(
+    (e) => {
+      setColumnVisibility(dbName, tableName, e);
+    },
+    [dbName, setColumnVisibility, tableName],
+  );
+
   return (
     <Stack style={{ height: "100%" }}>
       <QueryStatus status={queryStatus} />
@@ -1159,23 +1186,12 @@ function SqlTableView(props: {
             })(),
           }}>
           <DataGrid
-            getCellClassName={({ field }) => {
-              if (selectedColumns.has(field)) {
-                return gridColumnHeaderSelectClassName;
-              }
-            }}
-            onCellClick={() => {
-              setSelectColumns(new Set());
-              allGridHeaderTitle(apiRef, (x) => {
-                x.classList.remove(gridColumnHeaderSelectClassName);
-              });
-            }}
+            getCellClassName={getCellClassName}
+            onCellClick={onCellClick}
             slots={slots}
             apiRef={apiRef}
-            columnVisibilityModel={getColumnVisibility(dbName, tableName)}
-            onColumnVisibilityModelChange={(e) => {
-              setColumnVisibility(dbName, tableName, e);
-            }}
+            columnVisibilityModel={columnVisibilityModel}
+            onColumnVisibilityModelChange={onColumnVisibilityModelChange}
             slotProps={slotProps}
             style={dataGridStyle}
             getRowId={getRowId}
@@ -1283,6 +1299,8 @@ function SqlTableView(props: {
     </Stack>
   );
 }
+
+const SqlTableView = React.memo(SqlTableView_);
 
 function CellMenu(props: {
   dbName: string;

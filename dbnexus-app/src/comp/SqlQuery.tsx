@@ -3,7 +3,14 @@ import { Chip, Divider, IconButton, Stack, Tooltip } from "@mui/material";
 import { Panel, PanelGroup, PanelResizeHandle } from "react-resizable-panels";
 import PlayArrowIcon from "@mui/icons-material/PlayArrow";
 import { FaExclamation } from "react-icons/fa";
-import { ReactNode, useCallback, useContext, useEffect, useRef, useState } from "react";
+import React, {
+  ReactNode,
+  useCallback,
+  useContext,
+  useEffect,
+  useRef,
+  useState,
+} from "react";
 import FastForwardIcon from "@mui/icons-material/FastForward";
 import { editor } from "monaco-editor";
 import { isRedisCode, isSQLCode, NameAndQueryId, QueryConn } from "./Common.ts";
@@ -284,7 +291,7 @@ function QueryButtons(props: {
   );
 }
 
-function SqlQuery(props: {
+function SqlQuery_(props: {
   value?: string;
   favoriteName?: string;
   extraButtons?: ReactNode;
@@ -673,6 +680,8 @@ function SqlQuery(props: {
     </div>
   );
 }
+
+const SqlQuery = React.memo(SqlQuery_);
 
 function appendQueryResult(
   data: QueryRespData[],

@@ -25,7 +25,7 @@ import {
   SliderSize,
   ToggleChatShow,
 } from "./CommonComp2.tsx";
-import {
+import React, {
   ReactNode,
   useCallback,
   useContext,
@@ -84,7 +84,7 @@ function newDataDefault(): Data {
   return { count: 0, data: [] };
 }
 
-function CouchBaseTable(props: { table: string }) {
+function CouchBaseTable_(props: { table: string }) {
   const { dbName } = useContext(DbnameContext);
   const { table } = props;
   const [page, setPage] = useState(1);
@@ -368,6 +368,8 @@ function CouchBaseTable(props: { table: string }) {
   );
 }
 
+const CouchBaseTable = React.memo(CouchBaseTable_);
+
 function CouchBaseEditor(props: {
   value: string;
   handleValue: (v: string) => Promise<void>;
@@ -563,7 +565,7 @@ export function ExecuteButton(props: ExecuteButtonProps) {
   );
 }
 
-function CouchBaseQuery(props: { value?: string }) {
+function CouchBaseQuery_(props: { value?: string }) {
   const { value } = props;
   const { dbName } = useContext(DbnameContext);
   const [resp, setResp] = useState<string[]>([]);
@@ -902,5 +904,7 @@ function CouchBaseQuery(props: { value?: string }) {
     </PanelGroup>
   );
 }
+
+const CouchBaseQuery = React.memo(CouchBaseQuery_);
 
 export { CouchBaseTable, CouchBaseQuery, CouchBaseInsert };
