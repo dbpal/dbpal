@@ -12,7 +12,7 @@ import {
   textEllipsisStyle,
   DbnameContext,
 } from "./helper";
-import { MenuRefresh, VirtualSubSome } from "./CommonComp";
+import { MenuRefresh, VirtualListLeft } from "./CommonComp";
 import { CopySql, ShowingCount } from "./CommonComp2";
 import { useContextMenu, useNotification, useTabsManage, useMatcherFn } from "./store";
 import { commands, CreatedTypeDef } from "./bindings";
@@ -64,7 +64,7 @@ function TypesTree() {
         <span> types </span>
         <ShowingCount showing={showItems.length} total={types.length} />
       </Stack>>
-      <VirtualSubSome
+      <VirtualListLeft
         data={showItems}
         makeMenu={(typ) => {
           return (

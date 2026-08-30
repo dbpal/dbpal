@@ -40,7 +40,7 @@ import {
   DbnameContext,
   ViewKind,
 } from "./helper";
-import { MenuRefresh, VirtualSubSome } from "./CommonComp";
+import { MenuRefresh, VirtualListLeft } from "./CommonComp";
 import { MongoTable } from "./MongoDB";
 
 import {
@@ -131,7 +131,7 @@ function ViewsTree(props: { viewKind: ViewKind }) {
         <ShowingCount showing={showItems.length} total={views.length} />
         {loading && <CircularProgress />}
       </Stack>>
-      <VirtualSubSome
+      <VirtualListLeft
         data={showItems}
         makeMenu={(view) => {
           return (

@@ -15,7 +15,7 @@ import { DefAndMetasView } from "./DefAndMetaView";
 
 import { SiProcessingfoundation } from "react-icons/si";
 import { DataSourceKind, secondConfirm, TabContent, DbnameContext } from "./helper.ts";
-import { MenuRefresh, UdfNameAndParameters, VirtualSubSome } from "./CommonComp";
+import { MenuRefresh, UdfNameAndParameters, VirtualListLeft } from "./CommonComp";
 
 import { CopySql, ShowingCount } from "./CommonComp2";
 import { useContextMenu, useNotification, useTabsManage, useMatcherFn } from "./store";
@@ -71,7 +71,7 @@ function ProceduresTree() {
         <span> procedures </span>
         <ShowingCount showing={showItems.length} total={ps.length} />
       </Stack>>
-      <VirtualSubSome
+      <VirtualListLeft
         data={showItems}
         makeMenu={(p) => {
           return (

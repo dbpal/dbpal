@@ -1769,7 +1769,7 @@ db1:keys=1,expires=0,avg_ttl=0"#,
         let db = make_test_object().await;
         let mut conn = db.get_conn().await.unwrap();
 
-        for x in 0..1550 {
+        for x in 0..31550 {
             let _: () = conn
                 .set(format!("key{}", x).as_str(), format!("value{}", x).as_str())
                 .await

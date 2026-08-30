@@ -21,7 +21,7 @@ import {
   DbnameContext,
 } from "./helper.ts";
 
-import { MenuRefresh, VirtualSubSome } from "./CommonComp.tsx";
+import { MenuRefresh, VirtualListLeft } from "./CommonComp.tsx";
 import { GrSteps } from "react-icons/gr";
 import { CopySql, ShowingCount } from "./CommonComp2.tsx";
 import {
@@ -83,7 +83,7 @@ function SequenceTree() {
           <ShowingCount showing={showItems.length} total={seq.length} />
         </Stack>
       }>
-      <VirtualSubSome
+      <VirtualListLeft
         data={showItems}
         makeMenu={(seq) => {
           return <SequenceMenu reload={reload} dbName={dbName} kind={kind} seq={seq} />;

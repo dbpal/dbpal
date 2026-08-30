@@ -39,6 +39,7 @@ import {
   Stack,
   TextField,
   Tooltip,
+  Typography,
 } from "@mui/material";
 
 import { SqlTableView, SqlTableViewData } from "./SqlTableView";
@@ -67,7 +68,7 @@ import {
   TabContent,
   textEllipsisStyle,
 } from "./helper";
-import { MenuRefresh, ModalHeader, VirtualSubSome } from "./CommonComp";
+import { MenuRefresh, ModalHeader, VirtualListLeft } from "./CommonComp";
 import { TableStructure } from "./TableStructure";
 import { cancelTask } from "./handlers";
 import { filesize } from "filesize";
@@ -93,6 +94,7 @@ import {
   SqlCreateTable,
   SqlCreateTableImportFile,
 } from "./CreateTable.tsx";
+import { useDebounce } from "use-debounce";
 
 function TablesTree() {
   const { dbName, kind } = useContext(DbnameContext);
@@ -215,7 +217,7 @@ function TablesTree() {
         <ShowingCount showing={showItems.length} total={tables.length} />
         {loading && <CircularProgress />}
       </Stack>>
-      <VirtualSubSome
+      <VirtualListLeft
         data={showItems}
         makeMenu={(t) => {
           return (
@@ -875,7 +877,7 @@ function RedisOneTableKind(props: {
         }}>
         <span>{typ}</span>
       </Stack>>
-      <VirtualSubSome
+      <VirtualListLeft
         data={tables}
         makeMenu={(table) => {
           return (
@@ -908,13 +910,15 @@ function RedisTables() {
   const [loading, setLoading] = useState(false);
   const { showNotification } = useNotification();
   const max = 50000;
-
+  const { setUpMenu } = useContextMenu();
   const [showEditFiler, setShowEditFiler] = useState(false);
+
+  const [filterDelay] = useDebounce(filter, 1000);
 
   const handleReload = useCallback(() => {
     setLoading(true);
     commands
-      .redisListKey(dbName, filter ? filter : null, max)
+      .redisListKey(dbName, filterDelay ? filterDelay : null, max)
       .then((e) => {
         setTables(e);
       })
@@ -928,26 +932,49 @@ function RedisTables() {
       .finally(() => {
         setLoading(false);
       });
-  }, [filter, showNotification, dbName]);
+  }, [dbName, filterDelay, showNotification]);
+
   useEffect(() => {
     handleReload();
   }, [handleReload]);
-  useEffect(() => {
-    handleReload();
-  }, [filter, handleReload]);
 
+  useEffect(() => {
+    return () => {
+      console.log("destroy this.");
+    };
+  }, []);
   const filterTreeID = useRef(uuidv4());
   return (
-    <>
-      <TreeItem
-        itemId={filterTreeID.current}
-        label=<Stack
+    <TreeItem
+      itemId={filterTreeID.current}
+      label={
+        <Stack
           direction="row"
-          style={{ cursor: "pointer" }}
-          onClick={() => {
-            setShowEditFiler(true);
-          }}>
-          {tables && tables.has_more ? (
+          onContextMenu={(e) => {
+            setUpMenu({
+              content: (
+                <MenuList>
+                  <MenuRefresh refresh={handleReload} />
+                  <MenuItem
+                    onClick={() => {
+                      setShowEditFiler(true);
+                    }}>
+                    <ListItemIcon>{/* <RefreshIcon /> */}</ListItemIcon>
+                    <ListItemText> edit key filter </ListItemText>
+                  </MenuItem>
+                </MenuList>
+              ),
+              event: e,
+            });
+          }}
+          style={{ cursor: "context-menu", alignItems: "center" }}>
+          <Typography>keys</Typography>
+          {filter && (
+            <Typography>
+              filter on <mark>{filter}</mark>
+            </Typography>
+          )}
+          {tables && tables.has_more && (
             <Tooltip title={`result exceed ${max},some result are omitted`}>
               <Chip
                 color="error"
@@ -956,13 +983,10 @@ function RedisTables() {
                 variant="outlined"
               />
             </Tooltip>
-          ) : (
-            <Chip icon={<FilterAltIcon />} label={`${filter}`} />
           )}
           {loading && <CircularProgress />}
         </Stack>
-      />
-
+      }>
       {showEditFiler && (
         <Dialog
           open={true}
@@ -978,11 +1002,13 @@ function RedisTables() {
             style={{ width: "17rem" }}
             onClear={() => {
               setFilter("");
+              setShowEditFiler(false);
             }}
             label="filter"
           />
         </Dialog>
       )}
+
       {tables && (
         <>
           <RedisOneTableKind
@@ -1022,7 +1048,7 @@ function RedisTables() {
           />
         </>
       )}
-    </>
+    </TreeItem>
   );
 }
 

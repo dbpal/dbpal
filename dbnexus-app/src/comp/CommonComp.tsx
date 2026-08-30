@@ -1178,7 +1178,7 @@ function LongNotice({ children }) {
   );
 }
 
-function VirtualSubSome<T>(props: {
+function VirtualListLeft<T>(props: {
   data: T[];
   makeMenu: (_: T) => ReactNode;
   show: (_: T) => ReactNode;
@@ -1216,6 +1216,7 @@ function VirtualSubSome<T>(props: {
               const d = data[index];
               return (
                 <Stack
+                  key={index}
                   style={{
                     paddingLeft: tablePaddingLeft,
                     ...style,
@@ -1240,7 +1241,7 @@ function VirtualSubSome<T>(props: {
   );
 }
 export {
-  VirtualSubSome,
+  VirtualListLeft,
   LongNotice,
   SelectPath,
   LogLevelSelection,

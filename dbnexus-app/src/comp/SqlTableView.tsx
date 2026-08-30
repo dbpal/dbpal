@@ -441,7 +441,7 @@ function ImportDataFromFile(props: {
   );
 }
 
-export function SqlTablePagination({
+function SqlTablePagination_({
   dbpal: { resp, clientModel, kind, table, isTable },
 }: {
   dbpal: CustomPaginationProps;
@@ -500,6 +500,8 @@ export function SqlTablePagination({
     </Stack>
   );
 }
+
+export const SqlTablePagination = React.memo(SqlTablePagination_);
 
 function EditRowInModal(props: {
   handleClose: () => void;

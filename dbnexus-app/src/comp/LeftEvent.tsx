@@ -20,7 +20,7 @@ import {
   textEllipsisStyle,
   DbnameContext,
 } from "./helper";
-import { MenuRefresh, VirtualSubSome } from "./CommonComp";
+import { MenuRefresh, VirtualListLeft } from "./CommonComp";
 import { CopySql, ShowingCount } from "./CommonComp2";
 import { useContextMenu, useNotification, useTabsManage, useMatcherFn } from "./store";
 import { commands, SqlEvent } from "./bindings";
@@ -71,7 +71,7 @@ function EventsTree() {
         <span> events </span>
         <ShowingCount showing={showItems.length} total={events.length} />
       </Stack>>
-      <VirtualSubSome
+      <VirtualListLeft
         data={showItems}
         makeMenu={(event) => {
           return (

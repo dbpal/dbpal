@@ -14,7 +14,7 @@ import { MdFunctions } from "react-icons/md";
 import { DefAndMetasView } from "./DefAndMetaView";
 import { TbMathFunction } from "react-icons/tb";
 import { DataSourceKind, secondConfirm, TabContent, DbnameContext } from "./helper.ts";
-import { MenuRefresh, UdfNameAndParameters, VirtualSubSome } from "./CommonComp";
+import { MenuRefresh, UdfNameAndParameters, VirtualListLeft } from "./CommonComp";
 import { CopySql, ShowingCount } from "./CommonComp2";
 import { useContextMenu, useNotification, useTabsManage, useMatcherFn } from "./store";
 import { commands, NamedStaff } from "./bindings.ts";
@@ -69,7 +69,7 @@ function UdfsTree() {
         <span> udfs </span>
         <ShowingCount showing={showItems.length} total={udfs.length} />
       </Stack>>
-      <VirtualSubSome
+      <VirtualListLeft
         data={showItems}
         makeMenu={(e) => {
           return <UdfMenu reload={reload} dbName={dbName} kind={kind} udf={e} />;
@@ -288,7 +288,7 @@ function CassandraAggregatesTree() {
         <span> aggregates </span>
         <ShowingCount showing={showItems.length} total={aggs.length} />
       </Stack>>
-      <VirtualSubSome
+      <VirtualListLeft
         data={aggs}
         makeMenu={(agg) => {
           return (
