@@ -203,6 +203,8 @@ function AppCode_(props: {
         borderRadius: "0.4rem",
         margin: 0,
         overflow: "auto",
+        minWidth: "100%",
+        width: "fit-content",
         ...style,
       }}
       elevation={10}>
