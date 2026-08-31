@@ -1252,7 +1252,7 @@ function MyTreeItem(props: {
   const { label, children, makeMenu, conn_established } = props;
   const { setUpMenu } = useContextMenu();
   const fontSize = useFontSize();
-  let identNes = ident + Math.ceil(fontSize * 0.5);
+  let identNes = ident + Math.ceil(fontSize * 0.6);
   return (
     <Stack style={{ paddingLeft: ident + "px" }}>
       <Stack
@@ -1262,7 +1262,6 @@ function MyTreeItem(props: {
           }
           setCollasped(!collasped);
         }}
-        spacing={0.1}
         style={{ alignItems: "center", cursor: makeMenu ? "context-menu" : undefined }}
         direction="row"
         onContextMenu={
