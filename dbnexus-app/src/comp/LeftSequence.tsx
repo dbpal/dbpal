@@ -8,8 +8,7 @@ import {
   MenuList,
   Stack,
 } from "@mui/material";
-import { TreeItem } from "@mui/x-tree-view/TreeItem";
-import { useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useContext, useEffect, useMemo, useState } from "react";
 import DeleteForeverIcon from "@mui/icons-material/DeleteForever";
 import InfoIcon from "@mui/icons-material/Info";
 import { DefAndMetasView } from "./DefAndMetaView.tsx";
@@ -21,18 +20,16 @@ import {
   DbnameContext,
 } from "./helper.ts";
 
-import { MenuRefresh, VirtualListLeft } from "./CommonComp.tsx";
+import { MenuRefresh, MyTreeItem, VirtualListLeft } from "./CommonComp.tsx";
 import { GrSteps } from "react-icons/gr";
 import { CopySql, ShowingCount } from "./CommonComp2.tsx";
 import {
-  useContextMenu,
   useNotification,
   useTabsManage,
   useMatcherFn,
   useOneShotDialogUI,
 } from "./store.tsx";
 import { commands, DefAndMetas, SequenceDetail } from "./bindings.ts";
-import { uuidv4 } from "./Common.ts";
 function SequenceTree() {
   const { dbName, kind } = useContext(DbnameContext);
   const [seq, setSeq] = useState<SequenceDetail[]>([]);
@@ -56,32 +53,25 @@ function SequenceTree() {
   const showItems = useMemo(() => {
     return seq.filter((e) => matchPattern(e.name));
   }, [seq, matchPattern]);
-  const setUpMenu = useContextMenu((state) => state.setUpMenu);
   useEffect(() => {
     reload();
   }, [reload]);
-  const idForTree = useRef(uuidv4());
   return (
-    <TreeItem
-      itemId={idForTree.current}
+    <MyTreeItem
+      conn_established={true}
+      makeMenu={() => {
+        return (
+          <MenuList>
+            <MenuRefresh refresh={reload} />
+          </MenuList>
+        );
+      }}
       label={
-        <Stack
-          direction="row"
-          sx={{ alignItems: "center" }}
-          onContextMenu={(e) => {
-            setUpMenu({
-              content: (
-                <MenuList>
-                  <MenuRefresh refresh={reload} />
-                </MenuList>
-              ),
-              event: e,
-            });
-          }}>
+        <>
           <GrSteps />
           <span> sequences </span>
           <ShowingCount showing={showItems.length} total={seq.length} />
-        </Stack>
+        </>
       }>
       <VirtualListLeft
         data={showItems}
@@ -97,7 +87,7 @@ function SequenceTree() {
           );
         }}
       />
-    </TreeItem>
+    </MyTreeItem>
   );
 }
 

@@ -1,24 +1,20 @@
-import {
-  Divider,
-  ListItemIcon,
-  ListItemText,
-  MenuItem,
-  MenuList,
-  Stack,
-} from "@mui/material";
-import { TreeItem } from "@mui/x-tree-view/TreeItem";
-import { useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
+import { Divider, ListItemIcon, ListItemText, MenuItem, MenuList } from "@mui/material";
+import { useCallback, useContext, useEffect, useMemo, useState } from "react";
 import DeleteForeverIcon from "@mui/icons-material/DeleteForever";
 import InfoIcon from "@mui/icons-material/Info";
 import { MdFunctions } from "react-icons/md";
 import { DefAndMetasView } from "./DefAndMetaView";
 import { TbMathFunction } from "react-icons/tb";
 import { DataSourceKind, secondConfirm, TabContent, DbnameContext } from "./helper.ts";
-import { MenuRefresh, UdfNameAndParameters, VirtualListLeft } from "./CommonComp";
+import {
+  MenuRefresh,
+  MyTreeItem,
+  UdfNameAndParameters,
+  VirtualListLeft,
+} from "./CommonComp";
 import { CopySql, ShowingCount } from "./CommonComp2";
-import { useContextMenu, useNotification, useTabsManage, useMatcherFn } from "./store";
+import { useNotification, useTabsManage, useMatcherFn } from "./store";
 import { commands, NamedStaff } from "./bindings.ts";
-import { uuidv4 } from "./Common.ts";
 
 function UdfsTree() {
   const { dbName, kind } = useContext(DbnameContext);
@@ -47,28 +43,21 @@ function UdfsTree() {
   useEffect(() => {
     reload();
   }, [reload]);
-  const setUpMenu = useContextMenu((state) => state.setUpMenu);
-  const treeID = useRef(uuidv4());
   return (
-    <TreeItem
-      itemId={treeID.current}
-      label=<Stack
-        direction="row"
-        sx={{ alignItems: "center" }}
-        onContextMenu={(e) => {
-          setUpMenu({
-            content: (
-              <MenuList>
-                <MenuRefresh refresh={reload} />
-              </MenuList>
-            ),
-            event: e,
-          });
-        }}>
+    <MyTreeItem
+      conn_established={true}
+      makeMenu={() => {
+        return (
+          <MenuList>
+            <MenuRefresh refresh={reload} />
+          </MenuList>
+        );
+      }}
+      label=<>
         <TbMathFunction />
         <span> udfs </span>
         <ShowingCount showing={showItems.length} total={udfs.length} />
-      </Stack>>
+      </>>
       <VirtualListLeft
         data={showItems}
         makeMenu={(e) => {
@@ -83,7 +72,7 @@ function UdfsTree() {
           );
         }}
       />
-    </TreeItem>
+    </MyTreeItem>
   );
 }
 
@@ -265,29 +254,22 @@ function CassandraAggregatesTree() {
   useEffect(() => {
     reload();
   }, [reload]);
-  const setUpMenu = useContextMenu((state) => state.setUpMenu);
-  const tressId = useRef(uuidv4());
 
   return (
-    <TreeItem
-      itemId={tressId.current}
-      label=<Stack
-        direction="row"
-        sx={{ alignItems: "center" }}
-        onContextMenu={(e) => {
-          setUpMenu({
-            content: (
-              <MenuList>
-                <MenuRefresh refresh={reload} />
-              </MenuList>
-            ),
-            event: e,
-          });
-        }}>
+    <MyTreeItem
+      conn_established={true}
+      makeMenu={() => {
+        return (
+          <MenuList>
+            <MenuRefresh refresh={reload} />
+          </MenuList>
+        );
+      }}
+      label=<>
         <MdFunctions />
         <span> aggregates </span>
         <ShowingCount showing={showItems.length} total={aggs.length} />
-      </Stack>>
+      </>>
       <VirtualListLeft
         data={aggs}
         makeMenu={(agg) => {
@@ -309,7 +291,7 @@ function CassandraAggregatesTree() {
           );
         }}
       />
-    </TreeItem>
+    </MyTreeItem>
   );
 }
 

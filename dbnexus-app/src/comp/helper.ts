@@ -10,7 +10,6 @@ import {
   ReactNode,
   RefObject,
   SetStateAction,
-  useContext,
 } from "react";
 import { ask, message } from "@tauri-apps/plugin-dialog";
 import { readText, writeText } from "@tauri-apps/plugin-clipboard-manager";
@@ -894,22 +893,6 @@ function getViewportSize() {
   };
 }
 
-function useTablePaddingLeft() {
-  const { dbName } = useContext(DbnameContext);
-  let d = dbName.split("/").length;
-
-  switch (d) {
-    case 1:
-      return "4rem";
-    case 2:
-      return "5rem";
-    case 3:
-      return "6rem";
-    default:
-      return "2rem";
-  }
-}
-
 function calVirtualRollHeight(length: number, fontSize: number) {
   const rowHeight = Math.ceil(fontSize * 1.7);
   let ret = Math.ceil(length * rowHeight);
@@ -921,9 +904,11 @@ function calVirtualRollHeight(length: number, fontSize: number) {
 }
 const getRowIdOnKeyNotInTable = (e) => e[keyNotInTable];
 
+const TreeIdent = createContext(0);
+
 export {
+  TreeIdent,
   getRowIdOnKeyNotInTable,
-  useTablePaddingLeft,
   calVirtualRollHeight,
   getViewportSize,
   tabsHasID,

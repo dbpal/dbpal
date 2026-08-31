@@ -35,7 +35,6 @@ import {
 } from "react";
 import ClearIcon from "@mui/icons-material/Clear";
 import DeleteForeverIcon from "@mui/icons-material/DeleteForever";
-
 import { FaFolderOpen } from "react-icons/fa";
 import CheckIcon from "@mui/icons-material/Check";
 import CloseIcon from "@mui/icons-material/Close";
@@ -45,6 +44,8 @@ import LinkOffIcon from "@mui/icons-material/LinkOff";
 import ContentCopyIcon from "@mui/icons-material/ContentCopy";
 import ArrowUpwardIcon from "@mui/icons-material/ArrowUpward";
 import ArrowDownwardIcon from "@mui/icons-material/ArrowDownward";
+import KeyboardArrowDownIcon from "@mui/icons-material/KeyboardArrowDown";
+import KeyboardArrowRightIcon from "@mui/icons-material/KeyboardArrowRight";
 import {
   arrayToMarkdownTable,
   dataGridStyle,
@@ -62,7 +63,7 @@ import {
   textEllipsisStyle,
   DbnameContext,
   calVirtualRollHeight,
-  useTablePaddingLeft,
+  TreeIdent,
 } from "./helper";
 
 import { TbDatabasePlus } from "react-icons/tb";
@@ -84,6 +85,7 @@ import {
   useContextMenu,
   useElementSizeStore,
   useFavoriteStore,
+  useFontSize,
   useNotification,
   useQueryLogStore,
   useUserSettings,
@@ -1186,9 +1188,7 @@ function VirtualListLeft<T>(props: {
   const { data, makeMenu, show } = props;
   const { appearance } = useUserSettings();
   const height = calVirtualRollHeight(data.length, appearance.fontSize);
-  const tablePaddingLeft = useTablePaddingLeft();
   const { setUpMenu } = useContextMenu();
-
   if (data.length == 0) {
     return;
   }
@@ -1208,7 +1208,7 @@ function VirtualListLeft<T>(props: {
                 r = min;
               }
               return r;
-            })()} // 列表宽度
+            })()}
             height={height.height} //   列表高度（可视区域）
             rowCount={data.length} // 总行数
             rowHeight={height.rowHeight} // 每行高度
@@ -1218,7 +1218,6 @@ function VirtualListLeft<T>(props: {
                 <Stack
                   key={index}
                   style={{
-                    paddingLeft: tablePaddingLeft,
                     ...style,
                     cursor: "context-menu",
                   }}
@@ -1240,7 +1239,60 @@ function VirtualListLeft<T>(props: {
     </div>
   );
 }
+
+function MyTreeItem(props: {
+  label: ReactNode;
+  children: ReactNode;
+  makeMenu?: () => ReactNode;
+  conn_established: boolean;
+}) {
+  const ident = useContext(TreeIdent);
+  const [collasped, setCollasped] = useState(true);
+  const { label, children, makeMenu, conn_established } = props;
+  const { setUpMenu } = useContextMenu();
+  const fontSize = useFontSize();
+  let identNes = ident + Math.ceil(fontSize * 0.5);
+  return (
+    <Stack style={{ paddingLeft: ident + "px" }}>
+      <Stack
+        onClick={() => {
+          if (!conn_established) {
+            return;
+          }
+          setCollasped(!collasped);
+        }}
+        style={{ alignItems: "center", cursor: makeMenu ? "context-menu" : undefined }}
+        direction="row"
+        onContextMenu={
+          makeMenu
+            ? (e) => {
+                e.preventDefault();
+                setUpMenu({ content: makeMenu(), event: e });
+              }
+            : undefined
+        }>
+        <IconButton disabled={!conn_established}>
+          {collasped ? <KeyboardArrowRightIcon /> : <KeyboardArrowDownIcon />}
+        </IconButton>
+
+        {label}
+      </Stack>
+      <TreeIdent value={identNes}>
+        <div
+          style={{
+            display: collasped ? "none" : "block",
+            opacity: conn_established ? undefined : "0.7",
+            paddingLeft: identNes + "px",
+          }}>
+          {children}
+        </div>
+      </TreeIdent>
+    </Stack>
+  );
+}
+
 export {
+  MyTreeItem,
   VirtualListLeft,
   LongNotice,
   SelectPath,

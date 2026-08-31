@@ -16,7 +16,7 @@ import {
   Typography,
 } from "@mui/material";
 import { IoMdSettings } from "react-icons/io";
-import { useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useContext, useEffect, useMemo, useState } from "react";
 import ContentCopyIcon from "@mui/icons-material/ContentCopy";
 import { GrConnect } from "react-icons/gr";
 import {
@@ -31,8 +31,6 @@ import {
 import { LuDatabase } from "react-icons/lu";
 import { FaDatabase } from "react-icons/fa";
 import { FaCopy } from "react-icons/fa";
-import { SimpleTreeView } from "@mui/x-tree-view/SimpleTreeView";
-import { TreeItem } from "@mui/x-tree-view/TreeItem";
 import DeleteForeverIcon from "@mui/icons-material/DeleteForever";
 import CloseIcon from "@mui/icons-material/Close";
 import logoImg from "../../icon.png";
@@ -63,6 +61,7 @@ import {
   MenuRefresh,
   ModalHeader,
   CheckedView,
+  MyTreeItem,
 } from "./CommonComp.tsx";
 import KeyboardArrowDownIcon from "@mui/icons-material/KeyboardArrowDown";
 import KeyboardArrowRightIcon from "@mui/icons-material/KeyboardArrowRight";
@@ -895,7 +894,7 @@ function ConnectionView(props: { config: DBConnectionConfig }) {
         console.error("impl database kind:", config);
     }
   };
-  return <SimpleTreeView disableSelection>{makeTree()}</SimpleTreeView>;
+  return makeTree();
 }
 
 function SchemaTree(props: { schema?: string; reloadSchemas? }) {
@@ -938,35 +937,25 @@ function SchemaTree(props: { schema?: string; reloadSchemas? }) {
     DataSourceKind.Cassandra,
   ].includes(kind);
   const supportEvent = [DataSourceKind.Mysql, DataSourceKind.MariaDB].includes(kind);
-  const setUpMenu = useContextMenu((state) => state.setUpMenu);
-  const idForTree = useRef(uuidv4());
   return (
-    <TreeItem
-      itemId={idForTree.current}
-      label=<Stack
-        direction="row"
-        onContextMenu={(e) => {
-          setUpMenu({
-            content: (
-              <SchemaMenu
-                schema={schema}
-                dbName={dbName}
-                reloadSchemas={reloadSchemas}
-                kind={kind}
-              />
-            ),
-
-            event: e,
-          });
-        }}
-        sx={{
-          alignItems: "center",
-        }}>
+    <MyTreeItem
+      conn_established={conn_established}
+      makeMenu={() => {
+        return (
+          <SchemaMenu
+            schema={schema}
+            dbName={dbName}
+            reloadSchemas={reloadSchemas}
+            kind={kind}
+          />
+        );
+      }}
+      label=<>
         {schema && <LuDatabase />}
         <span> {schema ? schema : dbName}</span>
         {!schema && conn_established && <ConnPingTime dbName={dbName} />}
         {loadingConn.isLoading(dbName) && <CircularProgress />}
-      </Stack>>
+      </>>
       {conn_established && kind == DataSourceKind.Sqlite && (
         <>
           <TablesTree />
@@ -1066,7 +1055,7 @@ function SchemaTree(props: { schema?: string; reloadSchemas? }) {
       {conn_established && kind == DataSourceKind.Redis && <RedisTables />}
       {conn_established && supportType && <TypesTree />}
       {conn_established && supportEvent && <EventsTree />}
-    </TreeItem>
+    </MyTreeItem>
   );
 }
 
@@ -1349,24 +1338,19 @@ function CatalogTree() {
   useEffect(() => {
     handleReload();
   }, [handleReload]);
-  const setUpMenu = useContextMenu((state) => state.setUpMenu);
 
   return (
-    <TreeItem
-      itemId={name}
-      label=<Stack
-        direction="row"
-        onContextMenu={(e) => {
-          setUpMenu({
-            content: <CatalogMenu dbName={name} reload={handleReload} kind={kind} />,
-            event: e,
-          });
-        }}>
+    <MyTreeItem
+      conn_established={conn_established}
+      makeMenu={() => {
+        return <CatalogMenu dbName={name} reload={handleReload} kind={kind} />;
+      }}
+      label=<>
         <span>{name} </span>
         {isLoading(name) && <CircularProgress />}
         {conn_established && <ConnPingTime dbName={name} />}
         <ShowingCount total={databases.length} showing={showingDatabases.length} />
-      </Stack>
+      </>
       key={name}>
       {showingDatabases.map((db) => {
         return (
@@ -1375,7 +1359,7 @@ function CatalogTree() {
           </DbnameContext.Provider>
         );
       })}
-    </TreeItem>
+    </MyTreeItem>
   );
 }
 
@@ -1419,35 +1403,28 @@ function DatabaseTree(props: { database?: string; reloadDatabase?: () => void })
   useEffect(() => {
     handleReload();
   }, [handleReload]);
-  const setUpMenu = useContextMenu((state) => state.setUpMenu);
-
   return (
-    <TreeItem
-      itemId={name}
-      label=<Stack
-        direction="row"
-        sx={{ alignContent: "baseline", alignItems: "center" }}
-        onContextMenu={(e) => {
-          setUpMenu({
-            content: (
-              <DatabaseMenu
-                database={database}
-                dbName={name}
-                reload={handleReload}
-                reloadDatabase={reloadDatabase}
-                kind={kind}
-                schemas={schemas}
-              />
-            ),
-            event: e,
-          });
-        }}>
+    <MyTreeItem
+      conn_established={conn_established}
+      makeMenu={() => {
+        return (
+          <DatabaseMenu
+            database={database}
+            dbName={name}
+            reload={handleReload}
+            reloadDatabase={reloadDatabase}
+            kind={kind}
+            schemas={schemas}
+          />
+        );
+      }}
+      label=<>
         {database && <FaDatabase />}
         <span>{database ? database : name}</span>
         {isLoading(name) && <CircularProgress />}
         {!database && is_connected(name) && <ConnPingTime dbName={name} />}
         <ShowingCount total={schemas.length} showing={showingSchemas.length} />
-      </Stack>
+      </>
       key={name + database}>
       {showingSchemas.map((schema) => {
         return (
@@ -1458,7 +1435,7 @@ function DatabaseTree(props: { database?: string; reloadDatabase?: () => void })
           </DbnameContext.Provider>
         );
       })}
-    </TreeItem>
+    </MyTreeItem>
   );
 }
 

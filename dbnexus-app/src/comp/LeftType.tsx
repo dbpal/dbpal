@@ -1,6 +1,5 @@
-import { ListItemIcon, ListItemText, MenuItem, MenuList, Stack } from "@mui/material";
-import { TreeItem } from "@mui/x-tree-view/TreeItem";
-import { useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
+import { ListItemIcon, ListItemText, MenuItem, MenuList } from "@mui/material";
+import { useCallback, useContext, useEffect, useMemo, useState } from "react";
 import DeleteForeverIcon from "@mui/icons-material/DeleteForever";
 import InfoIcon from "@mui/icons-material/Info";
 import { DefAndMetasView } from "./DefAndMetaView";
@@ -12,11 +11,10 @@ import {
   textEllipsisStyle,
   DbnameContext,
 } from "./helper";
-import { MenuRefresh, VirtualListLeft } from "./CommonComp";
+import { MenuRefresh, MyTreeItem, VirtualListLeft } from "./CommonComp";
 import { CopySql, ShowingCount } from "./CommonComp2";
-import { useContextMenu, useNotification, useTabsManage, useMatcherFn } from "./store";
+import { useNotification, useTabsManage, useMatcherFn } from "./store";
 import { commands, CreatedTypeDef } from "./bindings";
-import { uuidv4 } from "./Common";
 function TypesTree() {
   const { dbName, kind } = useContext(DbnameContext);
   const [types, setTypes] = useState<CreatedTypeDef[]>([]);
@@ -38,32 +36,25 @@ function TypesTree() {
     return types.filter((e) => matchPattern(e.name));
   }, [types, matchPattern]);
 
-  const setUpMenu = useContextMenu((state) => state.setUpMenu);
   useEffect(() => {
     reload();
   }, [reload]);
 
-  const idForTrees = useRef(uuidv4());
   return (
-    <TreeItem
-      itemId={idForTrees.current}
-      label=<Stack
-        direction="row"
-        sx={{ alignItems: "center" }}
-        onContextMenu={(e) => {
-          setUpMenu({
-            content: (
-              <MenuList>
-                <MenuRefresh refresh={reload} />
-              </MenuList>
-            ),
-            event: e,
-          });
-        }}>
+    <MyTreeItem
+      conn_established={true}
+      makeMenu={() => {
+        return (
+          <MenuList>
+            <MenuRefresh refresh={reload} />
+          </MenuList>
+        );
+      }}
+      label=<>
         <PiTreeStructureFill />
         <span> types </span>
         <ShowingCount showing={showItems.length} total={types.length} />
-      </Stack>>
+      </>>
       <VirtualListLeft
         data={showItems}
         makeMenu={(typ) => {
@@ -80,7 +71,7 @@ function TypesTree() {
           );
         }}
       />
-    </TreeItem>
+    </MyTreeItem>
   );
 }
 

@@ -870,6 +870,10 @@ export const useUserSettings = create<UserSettingsState>()(
   ),
 );
 
+export const useFontSize = () => {
+  return useUserSettings((s) => s.appearance.fontSize);
+};
+
 export const useDatagridHeight = () => {
   return useUserSettings((state) =>
     Math.ceil(state.appearance.fontSize * state.appearance.datagridRowHeightFactor),

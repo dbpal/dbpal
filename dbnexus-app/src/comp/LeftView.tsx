@@ -4,7 +4,6 @@ import {
   useContext,
   useEffect,
   useMemo,
-  useRef,
   useState,
 } from "react";
 import ContentCopyIcon from "@mui/icons-material/ContentCopy";
@@ -25,7 +24,6 @@ import ArrowCircleDownIcon from "@mui/icons-material/ArrowCircleDown";
 import DeleteForeverIcon from "@mui/icons-material/DeleteForever";
 import VisibilityIcon from "@mui/icons-material/Visibility";
 import ViewComfyAltIcon from "@mui/icons-material/ViewComfyAlt";
-import { TreeItem } from "@mui/x-tree-view/TreeItem";
 import ListIcon from "@mui/icons-material/List";
 import { SqlTableView } from "./SqlTableView";
 import { ExportTableOrView } from "./Export";
@@ -40,7 +38,7 @@ import {
   DbnameContext,
   ViewKind,
 } from "./helper";
-import { MenuRefresh, VirtualListLeft } from "./CommonComp";
+import { MenuRefresh, MyTreeItem, VirtualListLeft } from "./CommonComp";
 import { MongoTable } from "./MongoDB";
 
 import {
@@ -61,7 +59,6 @@ import {
   useOneShotDialogUI,
 } from "./store";
 import { commands, DefAndMetas, Field, ListTable } from "./bindings";
-import { uuidv4 } from "./Common";
 import {
   DataGrid,
   GridColDef,
@@ -98,8 +95,6 @@ function ViewsTree(props: { viewKind: ViewKind }) {
     handleReload();
   }, [handleReload]);
 
-  const setUpMenu = useContextMenu((state) => state.setUpMenu);
-
   let name = "";
   const icon = getIcon(viewKind);
   switch (viewKind) {
@@ -110,27 +105,22 @@ function ViewsTree(props: { viewKind: ViewKind }) {
       name = "materialized views";
       break;
   }
-  const tressId = useRef(uuidv4());
   return (
-    <TreeItem
-      itemId={tressId.current}
-      label=<Stack
-        direction="row"
-        onContextMenu={(e) => {
-          setUpMenu({
-            content: (
-              <MenuList>
-                <MenuRefresh refresh={handleReload} />
-              </MenuList>
-            ),
-            event: e,
-          });
-        }}>
+    <MyTreeItem
+      conn_established={true}
+      makeMenu={() => {
+        return (
+          <MenuList>
+            <MenuRefresh refresh={handleReload} />
+          </MenuList>
+        );
+      }}
+      label=<>
         {icon}
         <span> {name} </span>
         <ShowingCount showing={showItems.length} total={views.length} />
         {loading && <CircularProgress />}
-      </Stack>>
+      </>>
       <VirtualListLeft
         data={showItems}
         makeMenu={(view) => {
@@ -159,7 +149,7 @@ function ViewsTree(props: { viewKind: ViewKind }) {
           );
         }}
       />
-    </TreeItem>
+    </MyTreeItem>
   );
 }
 

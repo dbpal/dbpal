@@ -48,7 +48,6 @@ function ShowPanic() {
       return join(e, "dbpal.panic");
     });
   };
-
   useEffect(() => {
     setTimeout(() => {
       (async () => {

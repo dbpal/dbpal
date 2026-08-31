@@ -1,26 +1,21 @@
-import { ListItemIcon, ListItemText, MenuItem, MenuList, Stack } from "@mui/material";
-import { TreeItem } from "@mui/x-tree-view/TreeItem";
-import {
-  MouseEvent,
-  useCallback,
-  useContext,
-  useEffect,
-  useMemo,
-  useRef,
-  useState,
-} from "react";
+import { ListItemIcon, ListItemText, MenuItem, MenuList } from "@mui/material";
+import { useCallback, useContext, useMemo, useState } from "react";
 import DeleteForeverIcon from "@mui/icons-material/DeleteForever";
 import InfoIcon from "@mui/icons-material/Info";
 import { DefAndMetasView } from "./DefAndMetaView";
 
 import { SiProcessingfoundation } from "react-icons/si";
 import { DataSourceKind, secondConfirm, TabContent, DbnameContext } from "./helper.ts";
-import { MenuRefresh, UdfNameAndParameters, VirtualListLeft } from "./CommonComp";
+import {
+  MenuRefresh,
+  MyTreeItem,
+  UdfNameAndParameters,
+  VirtualListLeft,
+} from "./CommonComp";
 
 import { CopySql, ShowingCount } from "./CommonComp2";
-import { useContextMenu, useNotification, useTabsManage, useMatcherFn } from "./store";
+import { useNotification, useTabsManage, useMatcherFn } from "./store";
 import { commands, NamedStaff } from "./bindings.ts";
-import { uuidv4 } from "./Common.ts";
 function ProceduresTree() {
   const { dbName, kind } = useContext(DbnameContext);
   const [ps, setPs] = useState<NamedStaff[]>([]);
@@ -45,32 +40,21 @@ function ProceduresTree() {
     return ps.filter((e) => matchPattern(e.name));
   }, [ps, matchPattern]);
 
-  const setUpMenu = useContextMenu((state) => state.setUpMenu);
-  useEffect(() => {
-    reload();
-  }, [reload]);
-
-  const idForTrees = useRef(uuidv4());
   return (
-    <TreeItem
-      itemId={idForTrees.current}
-      label=<Stack
-        direction="row"
-        sx={{ alignItems: "center" }}
-        onContextMenu={(e: MouseEvent<HTMLDivElement>) => {
-          setUpMenu({
-            content: (
-              <MenuList>
-                <MenuRefresh refresh={reload} />
-              </MenuList>
-            ),
-            event: e,
-          });
-        }}>
+    <MyTreeItem
+      conn_established={true}
+      makeMenu={() => {
+        return (
+          <MenuList>
+            <MenuRefresh refresh={reload} />
+          </MenuList>
+        );
+      }}
+      label=<>
         <SiProcessingfoundation />
         <span> procedures </span>
         <ShowingCount showing={showItems.length} total={ps.length} />
-      </Stack>>
+      </>>
       <VirtualListLeft
         data={showItems}
         makeMenu={(p) => {
@@ -87,7 +71,7 @@ function ProceduresTree() {
           );
         }}
       />
-    </TreeItem>
+    </MyTreeItem>
   );
 }
 

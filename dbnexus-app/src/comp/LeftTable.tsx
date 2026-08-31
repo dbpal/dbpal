@@ -8,7 +8,6 @@ import {
   useState,
 } from "react";
 import { modalStyle, EscDownEvent, modalHandleClose, uuidv4 } from "./Common.ts";
-import { TreeItem } from "@mui/x-tree-view/TreeItem";
 import ListIcon from "@mui/icons-material/List";
 import EditIcon from "@mui/icons-material/Edit";
 import DeleteForeverIcon from "@mui/icons-material/DeleteForever";
@@ -18,17 +17,14 @@ import TableViewIcon from "@mui/icons-material/TableView";
 import ArrowCircleDownIcon from "@mui/icons-material/ArrowCircleDown";
 import { IoConstructOutline } from "react-icons/io5";
 import { HiOutlineDuplicate } from "react-icons/hi";
-import FilterAltIcon from "@mui/icons-material/FilterAlt";
 import UploadIcon from "@mui/icons-material/Upload";
 import CreateIcon from "@mui/icons-material/Create";
 import {
   Box,
   Button,
   Checkbox,
-  Chip,
   CircularProgress,
   Dialog,
-  DialogTitle,
   Divider,
   FormControlLabel,
   IconButton,
@@ -38,8 +34,6 @@ import {
   MenuList,
   Stack,
   TextField,
-  Tooltip,
-  Typography,
 } from "@mui/material";
 
 import { SqlTableView, SqlTableViewData } from "./SqlTableView";
@@ -68,7 +62,7 @@ import {
   TabContent,
   textEllipsisStyle,
 } from "./helper";
-import { MenuRefresh, ModalHeader, VirtualListLeft } from "./CommonComp";
+import { MenuRefresh, ModalHeader, MyTreeItem, VirtualListLeft } from "./CommonComp";
 import { TableStructure } from "./TableStructure";
 import { cancelTask } from "./handlers";
 import { filesize } from "filesize";
@@ -81,7 +75,6 @@ import {
 } from "./CommonComp2";
 import { CouchBaseInsert, CouchBaseTable } from "./CouchBase";
 import {
-  useContextMenu,
   useNotification,
   useTabsManage,
   useMatcherFn,
@@ -104,7 +97,6 @@ function TablesTree() {
   const { appendTab } = useTabsManage();
 
   const matchPattern = useMatcherFn();
-  const tablesId = useRef(uuidv4());
   const showItems = useMemo(() => {
     return tables.filter((e) => matchPattern(e.name));
   }, [tables, matchPattern]);
@@ -131,8 +123,6 @@ function TablesTree() {
     handleReload();
   }, [handleReload]);
 
-  const setUpMenu = useContextMenu((state) => state.setUpMenu);
-
   let tablesText: string;
 
   switch (kind) {
@@ -146,77 +136,70 @@ function TablesTree() {
   }
 
   return (
-    <TreeItem
-      itemId={tablesId.current}
-      label=<Stack
-        direction="row"
-        sx={{ alignItems: "center" }}
-        onContextMenu={(e) => {
-          setUpMenu({
-            content: (
-              <MenuList>
-                <MenuRefresh refresh={handleReload} />
-
-                {kind != DataSourceKind.Redis && (
-                  <>
-                    {kind != DataSourceKind.Mongo &&
-                      kind != DataSourceKind.CouchBase && (
-                        <MenuItem
-                          onClick={() => {
-                            const content = <SqlCreateTable />;
-                            appendTab(
-                              new TabContent(
-                                `create table`,
-                                content,
-                                <CreateIcon />,
-                                dbName,
-                                kind,
-                              ),
-                            );
-                          }}>
-                          <ListItemIcon>
-                            <CreateIcon />
-                          </ListItemIcon>
-                          <ListItemText>create table </ListItemText>
-                        </MenuItem>
-                      )}
-
-                    <MenuItem
-                      onClick={() => {
-                        let content = <SqlCreateTableImportFile />;
-                        if (kind == DataSourceKind.Mongo) {
-                          content = <MongoTableImportFile />;
-                        }
-                        if (kind == DataSourceKind.CouchBase) {
-                          content = <CouchbaseTableImportFile />;
-                        }
-                        appendTab(
-                          new TabContent(
-                            `create table`,
-                            content,
-                            <UploadIcon />,
-                            dbName,
-                            kind,
-                          ),
-                        );
-                      }}>
-                      <ListItemIcon>
-                        <UploadIcon />
-                      </ListItemIcon>
-                      <ListItemText>create table import file</ListItemText>
-                    </MenuItem>
-                  </>
+    <MyTreeItem
+      conn_established={true}
+      makeMenu={() => {
+        return (
+          <MenuList>
+            <MenuRefresh refresh={handleReload} />
+            {kind != DataSourceKind.Redis && (
+              <>
+                {kind != DataSourceKind.Mongo && kind != DataSourceKind.CouchBase && (
+                  <MenuItem
+                    onClick={() => {
+                      const content = <SqlCreateTable />;
+                      appendTab(
+                        new TabContent(
+                          `create table`,
+                          content,
+                          <CreateIcon />,
+                          dbName,
+                          kind,
+                        ),
+                      );
+                    }}>
+                    <ListItemIcon>
+                      <CreateIcon />
+                    </ListItemIcon>
+                    <ListItemText>create table </ListItemText>
+                  </MenuItem>
                 )}
-              </MenuList>
-            ),
-            event: e,
-          });
-        }}>
+
+                <MenuItem
+                  onClick={() => {
+                    let content = <SqlCreateTableImportFile />;
+                    if (kind == DataSourceKind.Mongo) {
+                      content = <MongoTableImportFile />;
+                    }
+                    if (kind == DataSourceKind.CouchBase) {
+                      content = <CouchbaseTableImportFile />;
+                    }
+                    appendTab(
+                      new TabContent(
+                        `create table`,
+                        content,
+                        <UploadIcon />,
+                        dbName,
+                        kind,
+                      ),
+                    );
+                  }}>
+                  <ListItemIcon>
+                    <UploadIcon />
+                  </ListItemIcon>
+                  <ListItemText>create table import file</ListItemText>
+                </MenuItem>
+              </>
+            )}
+          </MenuList>
+        );
+      }}
+      label=<>
         <TableViewIcon />
         <span> {tablesText} </span>
         <ShowingCount showing={showItems.length} total={tables.length} />
         {loading && <CircularProgress />}
-      </Stack>>
+      </>>
       <VirtualListLeft
         data={showItems}
         makeMenu={(t) => {
@@ -247,7 +230,7 @@ function TablesTree() {
           );
         }}
       />
-    </TreeItem>
+    </MyTreeItem>
   );
 }
 
@@ -857,26 +840,19 @@ function RedisOneTableKind(props: {
   dbName;
 }) {
   const { tables, typ, kind, handleReload, dbName } = props;
-  const tablesID = useRef(uuidv4());
-  const setUpMenu = useContextMenu((state) => state.setUpMenu);
   return (
-    <TreeItem
-      itemId={tablesID.current}
-      label=<Stack
-        direction="row"
-        sx={{ alignItems: "center" }}
-        onContextMenu={(e) => {
-          setUpMenu({
-            content: (
-              <MenuList>
-                <MenuRefresh refresh={handleReload} />
-              </MenuList>
-            ),
-            event: e,
-          });
-        }}>
+    <MyTreeItem
+      conn_established={true}
+      makeMenu={() => {
+        return (
+          <MenuList>
+            <MenuRefresh refresh={handleReload} />
+          </MenuList>
+        );
+      }}
+      label=<>
         <span>{typ}</span>
-      </Stack>>
+      </>>
       <VirtualListLeft
         data={tables}
         makeMenu={(table) => {
@@ -899,7 +875,7 @@ function RedisOneTableKind(props: {
           );
         }}
       />
-    </TreeItem>
+    </MyTreeItem>
   );
 }
 
@@ -910,11 +886,7 @@ function RedisTables() {
   const [loading, setLoading] = useState(false);
   const { showNotification } = useNotification();
   const max = 50000;
-  const { setUpMenu } = useContextMenu();
-  const [showEditFiler, setShowEditFiler] = useState(false);
-
   const [filterDelay] = useDebounce(filter, 1000);
-
   const handleReload = useCallback(() => {
     setLoading(true);
     commands
@@ -943,72 +915,20 @@ function RedisTables() {
       console.log("destroy this.");
     };
   }, []);
-  const filterTreeID = useRef(uuidv4());
   return (
-    <TreeItem
-      itemId={filterTreeID.current}
-      label={
-        <Stack
-          direction="row"
-          onContextMenu={(e) => {
-            setUpMenu({
-              content: (
-                <MenuList>
-                  <MenuRefresh refresh={handleReload} />
-                  <MenuItem
-                    onClick={() => {
-                      setShowEditFiler(true);
-                    }}>
-                    <ListItemIcon>{/* <RefreshIcon /> */}</ListItemIcon>
-                    <ListItemText> edit key filter </ListItemText>
-                  </MenuItem>
-                </MenuList>
-              ),
-              event: e,
-            });
-          }}
-          style={{ cursor: "context-menu", alignItems: "center" }}>
-          <Typography>keys</Typography>
-          {filter && (
-            <Typography>
-              filter on <mark>{filter}</mark>
-            </Typography>
-          )}
-          {tables && tables.has_more && (
-            <Tooltip title={`result exceed ${max},some result are omitted`}>
-              <Chip
-                color="error"
-                icon={<FilterAltIcon />}
-                label={`${filter}`}
-                variant="outlined"
-              />
-            </Tooltip>
-          )}
-          {loading && <CircularProgress />}
-        </Stack>
-      }>
-      {showEditFiler && (
-        <Dialog
-          open={true}
-          onClose={() => {
-            setShowEditFiler(false);
-          }}>
-          <DialogTitle>edit key filter</DialogTitle>
-          <ClearableTextField
-            value={filter}
-            onChange={(e) => {
-              setFilter(e.target.value);
-            }}
-            style={{ width: "17rem" }}
-            onClear={() => {
-              setFilter("");
-              setShowEditFiler(false);
-            }}
-            label="filter"
-          />
-        </Dialog>
-      )}
-
+    <>
+      {loading && <CircularProgress />}
+      <ClearableTextField
+        value={filter}
+        onChange={(e) => {
+          setFilter(e.target.value);
+        }}
+        onClear={() => {
+          setFilter("");
+        }}
+        fullWidth
+        label="key filter"
+      />
       {tables && (
         <>
           <RedisOneTableKind
@@ -1048,7 +968,7 @@ function RedisTables() {
           />
         </>
       )}
-    </TreeItem>
+    </>
   );
 }
 
