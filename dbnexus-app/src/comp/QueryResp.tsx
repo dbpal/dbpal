@@ -88,7 +88,6 @@ function EditResultSetData(props: {
           makeArray(oldValues),
           makeArray(oldValues),
         );
-        setUp(ret);
       } catch (e) {
         const msg = `sql: ${sql} not be able to modify data from result set.because of `;
         if (e.reason) {
