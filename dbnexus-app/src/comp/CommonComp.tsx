@@ -1262,6 +1262,7 @@ function MyTreeItem(props: {
           }
           setCollasped(!collasped);
         }}
+        spacing={0.1}
         style={{ alignItems: "center", cursor: makeMenu ? "context-menu" : undefined }}
         direction="row"
         onContextMenu={

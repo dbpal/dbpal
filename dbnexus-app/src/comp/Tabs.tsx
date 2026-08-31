@@ -17,12 +17,20 @@ import {
   TabActiveContext,
   DbnameContext,
   TabContent,
+  extractConfigNameFromUuid,
 } from "./helper";
 
-import { useBoolSwitch, useConfirmMsg, useContextMenu, useTabsManage } from "./store";
+import {
+  useBoolSwitch,
+  useConfirmMsg,
+  useConnected,
+  useContextMenu,
+  useTabsManage,
+} from "./store";
 import { IconModifed } from "./CommonComp2";
 import React from "react";
 
+import { AiOutlineDisconnect } from "react-icons/ai";
 const tabsWrapKey = "tabs-wrap-key";
 function TabsMenu(props: { index: number }) {
   const { index } = props;
@@ -103,6 +111,7 @@ function TabsWithContent() {
 
   const tabConfirmMsg = useConfirmMsg((state) => state.confirmMsgs);
 
+  const { connected } = useConnected();
   useEffect(() => {
     if (tabs.length == 0) {
       return;
@@ -121,7 +130,18 @@ function TabsWithContent() {
   const { switches } = useBoolSwitch();
   const wrap = switches[tabsWrapKey];
   const theme = useTheme();
-
+  const getIcon = (tab: TabContent) => {
+    if (tab.dbName) {
+      const name = extractConfigNameFromUuid(tab.dbName);
+      if (connected.has(name)) {
+        return tab.icon;
+      } else {
+        return <AiOutlineDisconnect style={{ fontSize: "1.2rem" }} color="#7ef301" />;
+      }
+    } else {
+      return tab.icon;
+    }
+  };
   return (
     <Stack style={{ width: "100%", height: "100%" }} ref={rootStack}>
       {!wrap && (
@@ -147,8 +167,8 @@ function TabsWithContent() {
                 key={tab.id}
                 label=<Tooltip title={tab.header}>
                   <Chip
-                    color={currentTab == index ? "success" : "default"}
-                    icon={max < 100 ? undefined : tab.icon}
+                    color={currentTab == index ? "primary" : "default"}
+                    icon={max < 100 ? undefined : getIcon(tab)}
                     style={{
                       textTransform: "none",
                       alignItems: "center",
@@ -201,7 +221,7 @@ function TabsWithContent() {
                     : undefined,
               }}>
               <Chip
-                color={currentTab == index ? "success" : "default"}
+                color={currentTab == index ? "primary" : "default"}
                 size="largeSmall"
                 deleteIcon={
                   tabConfirmMsg.get(tab.id) ? (
@@ -216,7 +236,7 @@ function TabsWithContent() {
                     />
                   )
                 }
-                icon={tab.icon}
+                icon={getIcon(tab)}
                 sx={{
                   marginLeft: "4px",
                   marginTop: "2px",
