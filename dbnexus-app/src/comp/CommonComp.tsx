@@ -1309,10 +1309,10 @@ function MyTreeItem(props: {
   const [expanded, setExpaned] = useState(false);
 
   useEffect(() => {
-    if (!collasped) {
+    if (!collasped && !expanded) {
       setExpaned(true);
     }
-  }, [collasped]);
+  }, [collasped, expanded]);
   return (
     <Stack style={{ paddingLeft: paddingLeft(ident) }}>
       <Stack
