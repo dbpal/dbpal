@@ -7,10 +7,9 @@ import {
   MenuItem,
   MenuList,
   Stack,
-  Tab,
-  Tabs,
   Tooltip,
   Typography,
+  useTheme,
 } from "@mui/material";
 import DeleteForeverIcon from "@mui/icons-material/DeleteForever";
 import {
@@ -64,7 +63,6 @@ import {
   useGridApiRef,
 } from "./datagridExport.ts";
 import { CustomToolbar } from "./CustomToolBar.tsx";
-
 function EditResultSetData(props: {
   dbName: string;
   sql: string;
@@ -476,46 +474,29 @@ function MultiQueryResp(props: {
   if (data.length == 0) {
     return <></>;
   }
-  const handleChange = (_event: React.SyntheticEvent, newValue: number): void => {
-    setValue(newValue);
-  };
+
   return (
     <Stack
       style={{
         height: "100%",
       }}
       direction="row">
-      <Tabs
-        orientation="vertical"
-        value={value}
-        onChange={handleChange}
-        variant="scrollable"
-        scrollButtons="auto">
-        {data.map((resp, index) => (
-          <Tab
+      <Stack style={{}} divider=<Divider />>
+        {data.map((x, index) => (
+          <TableNames
             key={index}
-            label={(function () {
-              return (
-                <>
-                  <Typography
-                    sx={{
-                      writingMode: "vertical-lr",
-                      color: index == value ? "primary" : undefined,
-                    }}>
-                    {(function () {
-                      if (resp.Ok && resp.Ok.tables && resp.Ok.tables.length > 0) {
-                        const x = resp.Ok.tables.join(",");
-                        return x;
-                      }
-                      return `Result ${index + 1}`;
-                    })()}
-                  </Typography>
-                </>
-              );
+            name={(function () {
+              if (x.Ok && x.Ok.tables.length > 0) {
+                return x.Ok.tables;
+              }
+              return [`Result${index + 1}`];
             })()}
+            selected={index == value}
+            onClick={() => {
+              setValue(index);
+            }}
           />
         ))}
-
         <IconButton
           color="warning"
           onClick={() => {
@@ -523,8 +504,7 @@ function MultiQueryResp(props: {
           }}>
           <DeleteForeverIcon />
         </IconButton>
-      </Tabs>
-
+      </Stack>
       <div style={{ height: "100%", width: "100px", flex: 1 }}>
         {data.map((e, index) => {
           return (
@@ -538,6 +518,26 @@ function MultiQueryResp(props: {
           );
         })}
       </div>
+    </Stack>
+  );
+}
+
+function TableNames(props: { name: string[]; selected: boolean; onClick: () => void }) {
+  const { name, selected, onClick } = props;
+  const theme = useTheme();
+  return (
+    <Stack
+      onClick={onClick}
+      style={{
+        flexWrap: "wrap",
+        borderRight: selected ? "2px solid " + theme.palette.primary.main : undefined,
+        color: selected ? theme.palette.primary.main : undefined,
+        cursor: "pointer",
+      }}
+      spacing={0}>
+      {name.map((e, index) => (
+        <Typography key={index}> {e} </Typography>
+      ))}
     </Stack>
   );
 }
