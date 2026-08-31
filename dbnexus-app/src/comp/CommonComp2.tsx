@@ -2422,7 +2422,6 @@ function SqlTableViewData(props: {
     setLoading(true);
     handleData(argsclone)
       .then(() => {
-        console.log("handle value success");
         showNotification({ severity: "success", title: `${buttonName} OK` });
         if (handleClose) {
           handleClose();

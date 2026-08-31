@@ -82,7 +82,7 @@ function EditResultSetData(props: {
   useEffect(() => {
     (async () => {
       try {
-        let ret = await commands.getUpdateSqlFromResultSet(
+        await commands.getUpdateSqlFromResultSet(
           dbName,
           sql,
           makeArray(oldValues),
@@ -149,21 +149,28 @@ function EditResultSetData(props: {
         isAdd={false}
         buttonName={"gen modify sql"}
         handleData={async (newvalues) => {
-          try {
-            let ret = await commands.getUpdateSqlFromResultSet(
-              dbName,
-              sql,
-              makeArray(oldValues),
-              makeArray(newvalues),
-            );
-            setUp(ret);
-          } catch (e) {
-            showNotification({
-              severity: "error",
-              title: "trying to get update sql failed",
-              message: e,
-            });
+          let isEqual = true;
+          const old_Values = makeArray(oldValues);
+          const new_Values = makeArray(newvalues);
+          for (let index = 0; index < old_Values.length; index++) {
+            if (!oldValues[index] && !new_Values[index]) {
+              continue;
+            }
+            if (old_Values[index] != new_Values[index]) {
+              isEqual = false;
+              break;
+            }
           }
+          if (isEqual) {
+            throw new Error("nothing changed.");
+          }
+          let ret = await commands.getUpdateSqlFromResultSet(
+            dbName,
+            sql,
+            old_Values,
+            new_Values,
+          );
+          setUp(ret);
         }}
       />
     </Stack>
