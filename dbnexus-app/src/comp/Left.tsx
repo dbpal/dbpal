@@ -845,56 +845,54 @@ function FavoriteSqlList() {
 
 function ConnectionView(props: { config: DBConnectionConfig }) {
   const { config } = props;
-  const makeTree = () => {
-    switch (config.conn_type) {
-      case DataSourceKind.Postgres:
-      case DataSourceKind.Cockroach:
-        if (!config.db) {
-          return <CatalogTree />;
-        }
-        return config.schema ? <SchemaTree /> : <DatabaseTree />;
-      case DataSourceKind.MariaDB:
-      case DataSourceKind.Mysql:
-      case DataSourceKind.TiDB:
-        return config.db ? <SchemaTree /> : <DatabaseTree />;
-      case DataSourceKind.Sqlite:
-      case DataSourceKind.LibSql:
-        return <SchemaTree />;
-      case DataSourceKind.Redis:
-        return config.db ? <SchemaTree /> : <DatabaseTree />;
-      case DataSourceKind.Mongo:
-        return config.db ? <SchemaTree /> : <DatabaseTree />;
-      case DataSourceKind.SqlServer:
-        if (!config.db) {
-          return <CatalogTree />;
-        }
-        return config.schema ? <SchemaTree /> : <DatabaseTree />;
-      case DataSourceKind.Oracle:
-        return config.schema ? <SchemaTree /> : <DatabaseTree />;
-      case DataSourceKind.Cassandra:
-        return config.db ? <SchemaTree /> : <DatabaseTree />;
-      case DataSourceKind.ClickHouse:
-        return config.db ? <SchemaTree /> : <DatabaseTree />;
-      case DataSourceKind.FireBird:
-        return <SchemaTree />;
-      case DataSourceKind.DuckDB:
-        if (!config.db) {
-          return <CatalogTree />;
-        }
-        return config.schema ? <SchemaTree /> : <DatabaseTree />;
-      case DataSourceKind.Db2:
-        return config.schema ? <SchemaTree /> : <DatabaseTree />;
-      case DataSourceKind.CouchBase:
-        if (!config.bucket) {
-          return <CatalogTree />;
-        }
-        return config.scope ? <SchemaTree /> : <DatabaseTree />;
 
-      default:
-        console.error("impl database kind:", config);
-    }
-  };
-  return makeTree();
+  switch (config.conn_type) {
+    case DataSourceKind.Postgres:
+    case DataSourceKind.Cockroach:
+      if (!config.db) {
+        return <CatalogTree />;
+      }
+      return config.schema ? <SchemaTree /> : <DatabaseTree />;
+    case DataSourceKind.MariaDB:
+    case DataSourceKind.Mysql:
+    case DataSourceKind.TiDB:
+      return config.db ? <SchemaTree /> : <DatabaseTree />;
+    case DataSourceKind.Sqlite:
+    case DataSourceKind.LibSql:
+      return <SchemaTree />;
+    case DataSourceKind.Redis:
+      return config.db ? <SchemaTree /> : <DatabaseTree />;
+    case DataSourceKind.Mongo:
+      return config.db ? <SchemaTree /> : <DatabaseTree />;
+    case DataSourceKind.SqlServer:
+      if (!config.db) {
+        return <CatalogTree />;
+      }
+      return config.schema ? <SchemaTree /> : <DatabaseTree />;
+    case DataSourceKind.Oracle:
+      return config.schema ? <SchemaTree /> : <DatabaseTree />;
+    case DataSourceKind.Cassandra:
+      return config.db ? <SchemaTree /> : <DatabaseTree />;
+    case DataSourceKind.ClickHouse:
+      return config.db ? <SchemaTree /> : <DatabaseTree />;
+    case DataSourceKind.FireBird:
+      return <SchemaTree />;
+    case DataSourceKind.DuckDB:
+      if (!config.db) {
+        return <CatalogTree />;
+      }
+      return config.schema ? <SchemaTree /> : <DatabaseTree />;
+    case DataSourceKind.Db2:
+      return config.schema ? <SchemaTree /> : <DatabaseTree />;
+    case DataSourceKind.CouchBase:
+      if (!config.bucket) {
+        return <CatalogTree />;
+      }
+      return config.scope ? <SchemaTree /> : <DatabaseTree />;
+
+    default:
+      console.error("impl database kind:", config);
+  }
 }
 
 function SchemaTree(props: { schema?: string; reloadSchemas? }) {
