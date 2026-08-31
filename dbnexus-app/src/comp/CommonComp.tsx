@@ -1306,6 +1306,13 @@ function MyTreeItem(props: {
   const paddingLeft = (ident: number) => {
     return ident * 0.5 * fontSize + "px";
   };
+  const [expanded, setExpaned] = useState(false);
+
+  useEffect(() => {
+    if (!collasped) {
+      setExpaned(true);
+    }
+  }, [collasped]);
   return (
     <Stack style={{ paddingLeft: paddingLeft(ident) }}>
       <Stack
@@ -1338,7 +1345,7 @@ function MyTreeItem(props: {
               opacity: conn_established ? undefined : "0.7",
               paddingLeft: paddingLeft(identNes),
             }}>
-            {children}
+            {expanded && children}
           </div>
         </Collapse>
       </TreeIdent>
