@@ -81,7 +81,6 @@ function SequenceTree() {
         show={(seq) => {
           return (
             <>
-              <GrSteps />
               <span style={textEllipsisStyle}>{seq.name}</span>
             </>
           );

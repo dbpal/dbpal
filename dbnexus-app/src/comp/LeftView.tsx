@@ -137,11 +137,7 @@ function ViewsTree(props: { viewKind: ViewKind }) {
         show={(view) => {
           return (
             <>
-              <Stack
-                direction="row"
-                style={{ alignItems: "center", flex: 1, minWidth: 0 }}>
-                {icon} <span style={textEllipsisStyle}> {view.name} </span>
-              </Stack>
+              <Typography style={{ ...textEllipsisStyle }}> {view.name} </Typography>
               {viewKind == ViewKind.MaterializedView && view.size && (
                 <span> {filesize(view.size, { round: 0 })} </span>
               )}

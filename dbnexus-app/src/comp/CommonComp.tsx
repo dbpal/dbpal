@@ -1221,9 +1221,10 @@ function VirtualListLeft<T>(props: {
                   style={{
                     ...style,
                     cursor: "context-menu",
+                    overflow: "hidden",
                   }}
                   direction="row"
-                  sx={{ alignItems: "center" }}
+                  sx={{ alignItems: "center", justifyContent: "space-between" }}
                   onContextMenu={(e) => {
                     setUpMenu({
                       content: makeMenu(d),

@@ -66,7 +66,6 @@ function UdfsTree() {
         show={(udf) => {
           return (
             <>
-              <TbMathFunction />
               <UdfNameAndParameters udf={udf} kind={kind} />
             </>
           );
@@ -285,7 +284,6 @@ function CassandraAggregatesTree() {
         show={(agg) => {
           return (
             <>
-              <MdFunctions />
               <UdfNameAndParameters udf={agg} kind={DataSourceKind.Cassandra} />
             </>
           );

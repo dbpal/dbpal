@@ -65,7 +65,6 @@ function TypesTree() {
         show={(typ) => {
           return (
             <>
-              <PiTreeStructureFill />
               <span style={textEllipsisStyle}> {typ.name} </span>
             </>
           );

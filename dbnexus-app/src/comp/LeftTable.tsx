@@ -215,12 +215,7 @@ function TablesTree() {
         show={(table) => {
           return (
             <>
-              <Stack
-                direction="row"
-                sx={{ alignItems: "center", flex: 1, minWidth: 0 }}>
-                <TableViewIcon />
-                <span style={textEllipsisStyle}>{table.name}</span>
-              </Stack>
+              <span style={textEllipsisStyle}>{table.name}</span>
               {table.size && (
                 <span style={{ ...shrinkAble, minWidth: 0 }}>
                   {filesize(table.size, { round: 0 })}

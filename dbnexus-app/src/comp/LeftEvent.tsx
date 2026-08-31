@@ -62,7 +62,6 @@ function EventsTree() {
         show={(event) => {
           return (
             <>
-              <MdOutlineEventRepeat />
               <span style={textEllipsisStyle}> {event.name} </span>
             </>
           );
