@@ -1108,7 +1108,7 @@ function makeComponents(
       },
     },
     MuiStack: {
-      defaultProps: { spacing: 0.7 },
+      defaultProps: { spacing: 0.3 },
     },
     MuiPagination: {
       defaultProps: {
