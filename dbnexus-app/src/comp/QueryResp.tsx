@@ -529,9 +529,9 @@ function TableNames(props: { name: string[]; selected: boolean; onClick: () => v
     <Stack
       onClick={onClick}
       style={{
-        flexWrap: "wrap",
         borderRight: selected ? "2px solid " + theme.palette.primary.main : undefined,
-        color: selected ? theme.palette.primary.main : undefined,
+        backgroundColor: selected ? "#0864b4" : undefined,
+        color: selected ? "black" : undefined,
         cursor: "pointer",
       }}
       spacing={0}>
