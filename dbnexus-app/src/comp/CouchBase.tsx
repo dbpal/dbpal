@@ -31,6 +31,7 @@ import React, {
   useContext,
   useEffect,
   useMemo,
+  useRef,
   useState,
 } from "react";
 import {
@@ -687,10 +688,12 @@ function CouchBaseQuery_(props: { value?: string }) {
     return resp.filter((e) => (matchStrDelay ? e.includes(matchStrDelay) : true));
   }, [matchStrDelay, resp]);
   // Initialize the cache
-  const cache = new CellMeasurerCache({
-    defaultHeight: 50,
-    fixedWidth: true, // Ensures height is the only variable dimension
-  });
+  const cache = useRef(
+    new CellMeasurerCache({
+      defaultHeight: 50,
+      fixedWidth: true, // Ensures height is the only variable dimension
+    }),
+  );
 
   return (
     <PanelGroup
@@ -870,13 +873,13 @@ function CouchBaseQuery_(props: { value?: string }) {
                   width={width} // 列表宽度
                   height={height} //   列表高度（可视区域）
                   rowCount={showResp.length} // 总行数
-                  rowHeight={cache.rowHeight} // 每行高度
-                  deferredMeasurementCache={cache} // Connect the cache
+                  rowHeight={cache.current.rowHeight} // 每行高度
+                  deferredMeasurementCache={cache.current} // Connect the cache
                   rowRenderer={({ index, style, key, parent }) => {
                     const d = showResp[index];
                     return (
                       <CellMeasurer
-                        cache={cache}
+                        cache={cache.current}
                         columnIndex={0}
                         key={key}
                         parent={parent}

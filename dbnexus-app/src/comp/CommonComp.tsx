@@ -1241,6 +1241,54 @@ function VirtualListLeft<T>(props: {
   );
 }
 
+// function VirtualVarListLeft<T>(props: { data: T[]; show: (_: T) => ReactNode }) {
+//   const { data, show } = props;
+//   const cache = new CellMeasurerCache({
+//     defaultHeight: 50,
+//     fixedWidth: true, // Ensures height is the only variable dimension
+//   });
+//   const fontSize = useFontSize();
+//   let height = calVirtualRollHeight(data.length, fontSize);
+//   return (
+//     <div
+//       style={{
+//         overflow: "auto",
+//         height: height.height + "px",
+//       }}>
+//       <AutoSizer>
+//         {({ width, height }) => (
+//           <List
+//             width={(function () {
+//               let r = width - 13;
+//               let min = 10;
+//               if (r < min) {
+//                 r = min;
+//               }
+//               return r;
+//             })()}
+//             height={height} //   列表高度（可视区域）
+//             rowCount={data.length} // 总行数
+//             rowHeight={cache.rowHeight} // 每行高度
+//             rowRenderer={({ index, style, parent, key }) => {
+//               const d = data[index];
+//               return (
+//                 <CellMeasurer
+//                   cache={cache}
+//                   columnIndex={0}
+//                   key={key}
+//                   parent={parent}
+//                   rowIndex={index}>
+//                   <div style={style}> {show(d)} </div>
+//                 </CellMeasurer>
+//               );
+//             }} // 渲染函数
+//           />
+//         )}
+//       </AutoSizer>
+//     </div>
+//   );
+// }
+
 function MyTreeItem(props: {
   label: ReactNode;
   children: ReactNode;
