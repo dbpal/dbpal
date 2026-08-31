@@ -18,6 +18,7 @@ import {
   Modal,
   Box,
   InputAdornment,
+  Collapse,
 } from "@mui/material";
 import InfoIcon from "@mui/icons-material/Info";
 import AttachFileIcon from "@mui/icons-material/AttachFile";
@@ -1274,18 +1275,19 @@ function MyTreeItem(props: {
         <IconButton disabled={!conn_established}>
           {collasped ? <KeyboardArrowRightIcon /> : <KeyboardArrowDownIcon />}
         </IconButton>
-
         {label}
       </Stack>
       <TreeIdent value={identNes}>
-        <div
-          style={{
-            display: collasped ? "none" : "block",
-            opacity: conn_established ? undefined : "0.7",
-            paddingLeft: identNes + "px",
-          }}>
-          {children}
-        </div>
+        <Collapse in={!collasped}>
+          <div
+            style={{
+              display: collasped ? "none" : "block",
+              opacity: conn_established ? undefined : "0.7",
+              paddingLeft: identNes + "px",
+            }}>
+            {children}
+          </div>
+        </Collapse>
       </TreeIdent>
     </Stack>
   );
