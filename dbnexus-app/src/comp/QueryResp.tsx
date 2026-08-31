@@ -9,7 +9,6 @@ import {
   Stack,
   Tooltip,
   Typography,
-  useTheme,
 } from "@mui/material";
 import DeleteForeverIcon from "@mui/icons-material/DeleteForever";
 import {
@@ -524,14 +523,13 @@ function MultiQueryResp(props: {
 
 function TableNames(props: { name: string[]; selected: boolean; onClick: () => void }) {
   const { name, selected, onClick } = props;
-  const theme = useTheme();
+
   return (
     <Stack
       onClick={onClick}
       style={{
-        borderRight: selected ? "2px solid " + theme.palette.primary.main : undefined,
         backgroundColor: selected ? "#0864b4" : undefined,
-        color: selected ? "black" : undefined,
+        color: selected ? "white" : undefined,
         cursor: "pointer",
       }}
       spacing={0}>
