@@ -1196,7 +1196,6 @@ function VirtualListLeft<T>(props: {
   return (
     <div
       style={{
-        overflow: "auto",
         height: height.height,
       }}>
       <AutoSizer>
@@ -1216,15 +1215,17 @@ function VirtualListLeft<T>(props: {
             rowRenderer={({ index, style }) => {
               const d = data[index];
               return (
-                <Stack
+                <div
                   key={index}
                   style={{
                     ...style,
                     cursor: "context-menu",
                     overflow: "hidden",
+                    display: "flex",
+                    flexDirection: "row",
+                    alignItems: "center",
+                    justifyContent: "space-between",
                   }}
-                  direction="row"
-                  sx={{ alignItems: "center", justifyContent: "space-between" }}
                   onContextMenu={(e) => {
                     setUpMenu({
                       content: makeMenu(d),
@@ -1232,7 +1233,7 @@ function VirtualListLeft<T>(props: {
                     });
                   }}>
                   {show(d)}
-                </Stack>
+                </div>
               );
             }} // 渲染函数
           />
