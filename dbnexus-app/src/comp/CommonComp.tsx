@@ -1300,9 +1300,12 @@ function MyTreeItem(props: {
   const { label, children, makeMenu, conn_established } = props;
   const { setUpMenu } = useContextMenu();
   const fontSize = useFontSize();
-  let identNes = ident + Math.ceil(fontSize * 0.6);
+  let identNes = ident + 1;
+  const paddingLeft = (ident: number) => {
+    return ident * 0.5 * fontSize + "px";
+  };
   return (
-    <Stack style={{ paddingLeft: ident + "px" }}>
+    <Stack style={{ paddingLeft: paddingLeft(ident) }}>
       <Stack
         onClick={() => {
           if (!conn_established) {
@@ -1331,7 +1334,7 @@ function MyTreeItem(props: {
             style={{
               display: collasped ? "none" : "block",
               opacity: conn_established ? undefined : "0.7",
-              paddingLeft: identNes + "px",
+              paddingLeft: paddingLeft(identNes),
             }}>
             {children}
           </div>
