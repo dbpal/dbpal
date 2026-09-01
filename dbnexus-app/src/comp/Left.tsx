@@ -1134,7 +1134,7 @@ function DatabaseMenu(props: {
       {!conn_established && !database && <MenuOpenConn name={dbName} />}
 
       {conn_established && <MenuRefresh refresh={reload} />}
-      {conn_established && !database && <MenuConnectionInfo dbName={dbName} />}
+      {!database && <MenuConnectionInfo dbName={dbName} />}
 
       {conn_established && !database && <MenuCloseConn name={dbName} />}
       {database && kind != DataSourceKind.DuckDB && (
@@ -1202,7 +1202,7 @@ function CatalogMenu(props: { dbName; reload; kind: DataSourceKind }) {
         )}
 
         {conn_established && <MenuRefresh refresh={reload} />}
-        {conn_established && <MenuConnectionInfo dbName={dbName} />}
+        {<MenuConnectionInfo dbName={dbName} />}
         {conn_established && <MenuCloseConn name={dbName} />}
         <Divider />
         <MenuDeleteConfig name={dbName} />
@@ -1269,7 +1269,7 @@ function SchemaMenu(props: {
         />
       )}
 
-      {conn_established && !schema && <MenuConnectionInfo dbName={dbName} />}
+      {!schema && <MenuConnectionInfo dbName={dbName} />}
 
       {!schema && conn_established && <MenuCloseConn name={dbName} />}
       {schema && kind != DataSourceKind.Oracle && (

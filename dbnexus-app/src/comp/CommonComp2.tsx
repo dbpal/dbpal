@@ -668,10 +668,12 @@ function ConnConfigInfo() {
   const handleInfo = useCallback(
     async (showOK: boolean) => {
       try {
-        let metas: MetaValue[] = await commands.serverMetas(dbName);
         const config = await getConnection(dbName);
         let configMetas = [];
-
+        let metas: MetaValue[] = await commands.serverMetas(dbName).catch((e) => {
+          console.error("call server metas failed", e);
+          return [];
+        });
         if (passwordKey in config) {
           delete config[passwordKey];
         }
@@ -688,7 +690,7 @@ function ConnConfigInfo() {
       } catch (e) {
         showNotification({
           severity: "error",
-          title: "call server metas failed",
+          title: "get config info failed",
           message: e,
         });
       }
