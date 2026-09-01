@@ -20,6 +20,7 @@ import {
   InputAdornment,
   Collapse,
 } from "@mui/material";
+import KeyIcon from "@mui/icons-material/Key";
 import InfoIcon from "@mui/icons-material/Info";
 import AttachFileIcon from "@mui/icons-material/AttachFile";
 import RefreshIcon from "@mui/icons-material/Refresh";
@@ -94,7 +95,7 @@ import {
   useQueryLogStore,
   useViewInModalMatchStrStore,
 } from "./store";
-import { commands, Field, MetaValue, NamedStaff } from "./bindings";
+import { commands, Field, ListTable, MetaValue, NamedStaff } from "./bindings";
 
 import { open } from "@tauri-apps/plugin-dialog";
 import {
@@ -109,6 +110,7 @@ import {
   useGridApiContext,
 } from "./datagridExport";
 import { AutoSizer, CellMeasurer, CellMeasurerCache, List } from "react-virtualized";
+import { filesize } from "filesize";
 
 /**
  * Logger level selection control.
@@ -1261,67 +1263,59 @@ function VirtualListLeft<T>(props: {
   );
 }
 
-// // 这里没有搞定 滚动不顺滑
-// function TableShow(props: {
-//   table: ListTable;
-//   handleReload: () => void;
-//   measure: () => void;
-// }) {
-//   const { table, handleReload, measure } = props;
-//   let { dbName, kind } = useContext(DbnameContext);
-//   const [fs, setFs] = useState<Field[]>(null);
-//   const { showNotification } = useNotification();
-//   useEffect(() => {
-//     if (!fs) {
-//       commands
-//         .showTableColumns(dbName, table.name)
-//         .then((fs) => {
-//           setFs(fs);
-//         })
-//         .catch((e) => {
-//           showNotification({
-//             severity: "error",
-//             title: "list table columns failed",
-//             message: e,
-//           });
-//         });
-//     }
-//   }, [dbName, fs, showNotification, table.name]);
+function LeftTableNameAndColumns(props: {
+  table: ListTable;
+  makeMenu: () => ReactNode;
+  listCols: (
+    t: ListTable, // this parameter make me easy to cache the function
+  ) => Promise<Field[]>;
+}) {
+  const { table, makeMenu, listCols } = props;
+  let { dbName } = useContext(DbnameContext);
+  const [fs, setFs] = useState<Field[]>(null);
+  const { showNotification } = useNotification();
+  useEffect(() => {
+    if (!fs) {
+      listCols(table)
+        .then((fs) => {
+          setFs(fs);
+        })
+        .catch((e) => {
+          showNotification({
+            severity: "error",
+            title: "list table columns failed",
+            message: e,
+          });
+        });
+    }
+  }, [dbName, fs, listCols, showNotification, table]);
 
-//   return (
-//     fs && (
-//       <MyTreeItem
-//         makeMenu={() => {
-//           return (
-//             <TableMenu
-//               kind={kind}
-//               reload={handleReload}
-//               table={table.name}
-//               dbName={dbName}
-//             />
-//           );
-//         }}
-//         handleCollased={() => {
-//           measure();
-//         }}
-//         enable={true}
-//         label=<>
-//           <span style={textEllipsisStyle}>{table.name}</span>
-//           {table.size && (
-//             <span style={{ ...shrinkAble, minWidth: 0 }}>
-//               {filesize(table.size, { round: 0 })}
-//             </span>
-//           )}
-//         </>>
-//         {fs.map((e) => (
-//           <Stack direction="row" key={e.field}>
-//             {e.field}
-//           </Stack>
-//         ))}
-//       </MyTreeItem>
-//     )
-//   );
-// }
+  return (
+    fs && (
+      <MyTreeItem
+        makeMenu={makeMenu}
+        enable={true}
+        label=<>
+          <span style={textEllipsisStyle}>{table.name}</span>
+          {table.size && (
+            <span style={{ ...textEllipsisStyle }}>
+              {filesize(table.size, { round: 0 })}
+            </span>
+          )}
+        </>>
+        {fs.map((e) => (
+          <Stack direction="row" key={e.field} spacing={1}>
+            <Typography style={textEllipsisStyle}> {e.field} </Typography>
+            <Typography style={textEllipsisStyle} color="info">
+              {e.data_type}
+            </Typography>
+            {e.is_primary && <KeyIcon />}
+          </Stack>
+        ))}
+      </MyTreeItem>
+    )
+  );
+}
 
 function VirtualVarListLeft<T>(props: {
   data: T[];
@@ -1390,9 +1384,8 @@ function MyTreeItem(props: {
   children: ReactNode;
   makeMenu?: () => ReactNode;
   enable: boolean;
-  handleCollased?: (_: boolean) => void;
 }) {
-  const { label, children, makeMenu, enable, handleCollased } = props;
+  const { label, children, makeMenu, enable } = props;
   const ident = useContext(TreeIdent);
   const [collasped, setCollasped] = useState(true);
   const { setUpMenu } = useContextMenu();
@@ -1402,13 +1395,6 @@ function MyTreeItem(props: {
     return ident * 0.5 * fontSize + "px";
   };
   const [expanded, setExpanded] = useState(false);
-
-  useEffect(() => {
-    if (handleCollased) {
-      handleCollased(collasped);
-    }
-  }, [collasped, handleCollased]);
-
   useEffect(() => {
     if (!collasped && !expanded) {
       setExpanded(true);
@@ -1482,4 +1468,5 @@ export {
   ResizeParentHeight,
   HighlightText,
   VirtualVarListLeft,
+  LeftTableNameAndColumns,
 };

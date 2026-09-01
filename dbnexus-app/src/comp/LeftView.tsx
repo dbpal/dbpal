@@ -34,11 +34,10 @@ import {
   handleCopyToClipboard,
   secondConfirm,
   TabContent,
-  textEllipsisStyle,
   DbnameContext,
   ViewKind,
 } from "./helper";
-import { MenuRefresh, MyTreeItem, VirtualListLeft } from "./CommonComp";
+import { MenuRefresh, MyTreeItem, LeftTableNameAndColumns } from "./CommonComp";
 import { MongoTable } from "./MongoDB";
 
 import {
@@ -49,7 +48,6 @@ import {
   ShowingCount,
 } from "./CommonComp2";
 import { listView } from "./handlers";
-import { filesize } from "filesize";
 import {
   useContextMenu,
   useNotification,
@@ -105,6 +103,13 @@ function ViewsTree(props: { viewKind: ViewKind }) {
       name = "materialized views";
       break;
   }
+
+  const listViewCols = useCallback(
+    (name: ListTable) => {
+      return commands.showViewColumns(dbName, name.name);
+    },
+    [dbName],
+  );
   return (
     <MyTreeItem
       enable={true}
@@ -121,30 +126,24 @@ function ViewsTree(props: { viewKind: ViewKind }) {
         <ShowingCount showing={showItems.length} total={views.length} />
         {loading && <CircularProgress />}
       </>>
-      <VirtualListLeft
-        data={showItems}
-        makeMenu={(view) => {
-          return (
-            <ViewMenu
-              kind={kind}
-              reload={handleReload}
-              view={view.name}
-              dbName={dbName}
-              viewKind={viewKind}
-            />
-          );
-        }}
-        show={(view) => {
-          return (
-            <>
-              <Typography style={{ ...textEllipsisStyle }}> {view.name} </Typography>
-              {viewKind == ViewKind.MaterializedView && view.size && (
-                <span> {filesize(view.size, { round: 0 })} </span>
-              )}
-            </>
-          );
-        }}
-      />
+      {views.map((view) => (
+        <LeftTableNameAndColumns
+          key={view.name}
+          makeMenu={() => {
+            return (
+              <ViewMenu
+                kind={kind}
+                reload={handleReload}
+                view={view.name}
+                dbName={dbName}
+                viewKind={viewKind}
+              />
+            );
+          }}
+          table={view}
+          listCols={listViewCols}
+        />
+      ))}
     </MyTreeItem>
   );
 }

@@ -61,10 +61,15 @@ import {
   TabContent,
   textEllipsisStyle,
 } from "./helper";
-import { MenuRefresh, ModalHeader, MyTreeItem, VirtualListLeft } from "./CommonComp";
+import {
+  MenuRefresh,
+  ModalHeader,
+  MyTreeItem,
+  LeftTableNameAndColumns,
+  VirtualListLeft,
+} from "./CommonComp";
 import { TableStructure } from "./TableStructure";
 import { cancelTask } from "./handlers";
-import { filesize } from "filesize";
 import {
   CancelButton,
   ClearableTextField,
@@ -133,7 +138,12 @@ function TablesTree() {
       tablesText = "tables";
     }
   }
-
+  const listTableCols = useCallback(
+    (name: ListTable) => {
+      return commands.showTableColumns(dbName, name.name);
+    },
+    [dbName],
+  );
   return (
     <MyTreeItem
       enable={true}
@@ -199,31 +209,23 @@ function TablesTree() {
         <ShowingCount showing={showItems.length} total={tables.length} />
         {loading && <CircularProgress />}
       </>>
-      <VirtualListLeft
-        data={showItems}
-        makeMenu={(t) => {
-          return (
-            <TableMenu
-              kind={kind}
-              reload={handleReload}
-              table={t.name}
-              dbName={dbName}
-            />
-          );
-        }}
-        show={(table) => {
-          return (
-            <>
-              <span style={textEllipsisStyle}>{table.name}</span>
-              {table.size && (
-                <span style={{ ...textEllipsisStyle, minWidth: 0 }}>
-                  {filesize(table.size, { round: 0 })}
-                </span>
-              )}
-            </>
-          );
-        }}
-      />
+      {tables.map((table) => (
+        <LeftTableNameAndColumns
+          key={table.name}
+          makeMenu={() => {
+            return (
+              <TableMenu
+                kind={kind}
+                reload={handleReload}
+                table={table.name}
+                dbName={dbName}
+              />
+            );
+          }}
+          table={table}
+          listCols={listTableCols}
+        />
+      ))}
     </MyTreeItem>
   );
 }
