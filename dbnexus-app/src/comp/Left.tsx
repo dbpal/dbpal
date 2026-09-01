@@ -937,7 +937,7 @@ function SchemaTree(props: { schema?: string; reloadSchemas? }) {
   const supportEvent = [DataSourceKind.Mysql, DataSourceKind.MariaDB].includes(kind);
   return (
     <MyTreeItem
-      conn_established={conn_established}
+      enable={conn_established}
       makeMenu={() => {
         return (
           <SchemaMenu
@@ -1339,7 +1339,7 @@ function CatalogTree() {
 
   return (
     <MyTreeItem
-      conn_established={conn_established}
+      enable={conn_established}
       makeMenu={() => {
         return <CatalogMenu dbName={name} reload={handleReload} kind={kind} />;
       }}
@@ -1403,7 +1403,7 @@ function DatabaseTree(props: { database?: string; reloadDatabase?: () => void })
   }, [handleReload]);
   return (
     <MyTreeItem
-      conn_established={conn_established}
+      enable={conn_established}
       makeMenu={() => {
         return (
           <DatabaseMenu

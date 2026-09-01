@@ -36,3 +36,26 @@ if (import.meta.env.DEV) {
 }
 
 ReactDOM.createRoot(document.getElementById("root") as HTMLElement).render(<App />);
+
+// function Haha({ value, m }) {
+//   const [height, setHeight] = useState(100);
+//   return (
+//     <div style={{ backgroundColor: value % 2 == 0 ? "red" : "blue", height: height }}>
+//       {height}
+//       <button
+//         onClick={() => {
+//           setHeight(height + 10);
+//           m();
+//         }}>
+//         +
+//       </button>
+//       <button
+//         onClick={() => {
+//           setHeight(height - 10);
+//           m();
+//         }}>
+//         -
+//       </button>
+//     </div>
+//   );
+// }

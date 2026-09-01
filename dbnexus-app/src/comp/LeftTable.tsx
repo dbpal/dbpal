@@ -137,7 +137,7 @@ function TablesTree() {
 
   return (
     <MyTreeItem
-      conn_established={true}
+      enable={true}
       makeMenu={() => {
         return (
           <MenuList>
@@ -837,7 +837,7 @@ function RedisOneTableKind(props: {
   const { tables, typ, kind, handleReload, dbName } = props;
   return (
     <MyTreeItem
-      conn_established={true}
+      enable={true}
       makeMenu={() => {
         return (
           <MenuList>

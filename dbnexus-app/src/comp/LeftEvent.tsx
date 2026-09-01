@@ -39,7 +39,7 @@ function EventsTree() {
   }, [reload]);
   return (
     <MyTreeItem
-      conn_established={true}
+      enable={true}
       makeMenu={() => {
         return (
           <MenuList>

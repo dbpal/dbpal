@@ -32,6 +32,7 @@ import {
   useContext,
   useEffect,
   useMemo,
+  useRef,
   useState,
 } from "react";
 import ClearIcon from "@mui/icons-material/Clear";
@@ -89,7 +90,6 @@ import {
   useFontSize,
   useNotification,
   useQueryLogStore,
-  useUserSettings,
   useViewInModalMatchStrStore,
 } from "./store";
 import { commands, Field, MetaValue, NamedStaff } from "./bindings";
@@ -106,7 +106,7 @@ import {
   GridSortModel,
   useGridApiContext,
 } from "./datagridExport";
-import { AutoSizer, List } from "react-virtualized";
+import { AutoSizer, CellMeasurer, CellMeasurerCache, List } from "react-virtualized";
 
 /**
  * Logger level selection control.
@@ -1187,8 +1187,8 @@ function VirtualListLeft<T>(props: {
   show: (_: T) => ReactNode;
 }) {
   const { data, makeMenu, show } = props;
-  const { appearance } = useUserSettings();
-  const height = calVirtualRollHeight(data.length, appearance.fontSize);
+  const fontSize = useFontSize();
+  const height = calVirtualRollHeight(data.length, fontSize);
   const { setUpMenu } = useContextMenu();
   if (data.length == 0) {
     return;
@@ -1243,81 +1243,164 @@ function VirtualListLeft<T>(props: {
   );
 }
 
-// function VirtualVarListLeft<T>(props: { data: T[]; show: (_: T) => ReactNode }) {
-//   const { data, show } = props;
-//   const cache = new CellMeasurerCache({
-//     defaultHeight: 50,
-//     fixedWidth: true, // Ensures height is the only variable dimension
-//   });
-//   const fontSize = useFontSize();
-//   let height = calVirtualRollHeight(data.length, fontSize);
+// // 这里没有搞定 滚动不顺滑
+// function TableShow(props: {
+//   table: ListTable;
+//   handleReload: () => void;
+//   measure: () => void;
+// }) {
+//   const { table, handleReload, measure } = props;
+//   let { dbName, kind } = useContext(DbnameContext);
+//   const [fs, setFs] = useState<Field[]>(null);
+//   const { showNotification } = useNotification();
+//   useEffect(() => {
+//     if (!fs) {
+//       commands
+//         .showTableColumns(dbName, table.name)
+//         .then((fs) => {
+//           setFs(fs);
+//         })
+//         .catch((e) => {
+//           showNotification({
+//             severity: "error",
+//             title: "list table columns failed",
+//             message: e,
+//           });
+//         });
+//     }
+//   }, [dbName, fs, showNotification, table.name]);
+
 //   return (
-//     <div
-//       style={{
-//         overflow: "auto",
-//         height: height.height + "px",
-//       }}>
-//       <AutoSizer>
-//         {({ width, height }) => (
-//           <List
-//             width={(function () {
-//               let r = width - 13;
-//               let min = 10;
-//               if (r < min) {
-//                 r = min;
-//               }
-//               return r;
-//             })()}
-//             height={height} //   列表高度（可视区域）
-//             rowCount={data.length} // 总行数
-//             rowHeight={cache.rowHeight} // 每行高度
-//             rowRenderer={({ index, style, parent, key }) => {
-//               const d = data[index];
-//               return (
-//                 <CellMeasurer
-//                   cache={cache}
-//                   columnIndex={0}
-//                   key={key}
-//                   parent={parent}
-//                   rowIndex={index}>
-//                   <div style={style}> {show(d)} </div>
-//                 </CellMeasurer>
-//               );
-//             }} // 渲染函数
-//           />
-//         )}
-//       </AutoSizer>
-//     </div>
+//     fs && (
+//       <MyTreeItem
+//         makeMenu={() => {
+//           return (
+//             <TableMenu
+//               kind={kind}
+//               reload={handleReload}
+//               table={table.name}
+//               dbName={dbName}
+//             />
+//           );
+//         }}
+//         handleCollased={() => {
+//           measure();
+//         }}
+//         enable={true}
+//         label=<>
+//           <span style={textEllipsisStyle}>{table.name}</span>
+//           {table.size && (
+//             <span style={{ ...shrinkAble, minWidth: 0 }}>
+//               {filesize(table.size, { round: 0 })}
+//             </span>
+//           )}
+//         </>>
+//         {fs.map((e) => (
+//           <Stack direction="row" key={e.field}>
+//             {e.field}
+//           </Stack>
+//         ))}
+//       </MyTreeItem>
+//     )
 //   );
 // }
+
+function VirtualVarListLeft<T>(props: {
+  data: T[];
+  show: (_: T, _index: number, measure: () => void) => ReactNode;
+  height: number | string;
+}) {
+  const { data, show, height } = props;
+  const cache = useRef(
+    new CellMeasurerCache({
+      defaultHeight: 50,
+      fixedWidth: true, // Ensures height is the only variable dimension
+    }),
+  );
+  const listRef = useRef<List>(null);
+  return (
+    <div
+      style={{
+        overflow: "auto",
+        height,
+        maxHeight: "30vh",
+      }}>
+      <AutoSizer>
+        {({ width, height }) => (
+          <List
+            ref={listRef}
+            width={(function () {
+              let r = width - 13;
+              let min = 10;
+              if (r < min) {
+                r = min;
+              }
+              return r;
+            })()}
+            height={height} //   列表高度（可视区域）
+            rowCount={data.length} // 总行数
+            rowHeight={cache.current.rowHeight} // 每行高度
+            rowRenderer={({ index, style, parent, key }) => {
+              const d = data[index];
+              return (
+                <CellMeasurer
+                  cache={cache.current}
+                  columnIndex={0}
+                  key={key}
+                  parent={parent}
+                  rowIndex={index}>
+                  <div style={style}>
+                    {show(d, index, () => {
+                      setTimeout(() => {
+                        cache.current.clear(index, 0);
+                        listRef.current?.recomputeRowHeights(index);
+                      }, 100);
+                    })}
+                  </div>
+                </CellMeasurer>
+              );
+            }} // 渲染函数
+          />
+        )}
+      </AutoSizer>
+    </div>
+  );
+}
 
 function MyTreeItem(props: {
   label: ReactNode;
   children: ReactNode;
   makeMenu?: () => ReactNode;
-  conn_established: boolean;
+  enable: boolean;
+  handleCollased?: (_: boolean) => void;
 }) {
+  const { label, children, makeMenu, enable, handleCollased } = props;
   const ident = useContext(TreeIdent);
   const [collasped, setCollasped] = useState(true);
-  const { label, children, makeMenu, conn_established } = props;
   const { setUpMenu } = useContextMenu();
   const fontSize = useFontSize();
   let identNes = ident + 1;
   const paddingLeft = (ident: number) => {
     return ident * 0.5 * fontSize + "px";
   };
-  const [expanded, setExpaned] = useState(false);
+  const [expanded, setExpanded] = useState(false);
+
+  useEffect(() => {
+    if (handleCollased) {
+      handleCollased(collasped);
+    }
+  }, [collasped, handleCollased]);
 
   useEffect(() => {
     if (!collasped && !expanded) {
-      setExpaned(true);
+      setExpanded(true);
     }
   }, [collasped, expanded]);
   return (
     <Stack style={{ paddingLeft: paddingLeft(ident) }}>
       <Stack
         onClick={() => {
-          if (!conn_established) {
+          if (!enable) {
             return;
           }
           setCollasped(!collasped);
@@ -1332,7 +1415,7 @@ function MyTreeItem(props: {
               }
             : undefined
         }>
-        <IconButton disabled={!conn_established}>
+        <IconButton disabled={!enable}>
           {collasped ? <KeyboardArrowRightIcon /> : <KeyboardArrowDownIcon />}
         </IconButton>
         {label}
@@ -1342,7 +1425,7 @@ function MyTreeItem(props: {
           <div
             style={{
               display: collasped ? "none" : "block",
-              opacity: conn_established ? undefined : "0.7",
+              opacity: enable ? undefined : "0.7",
               paddingLeft: paddingLeft(identNes),
             }}>
             {expanded && children}
@@ -1380,4 +1463,5 @@ export {
   OpenFileWithDefaultApp,
   ResizeParentHeight,
   HighlightText,
+  VirtualVarListLeft,
 };

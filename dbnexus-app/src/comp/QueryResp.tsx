@@ -537,6 +537,7 @@ function TableNames(props: { name: string[]; selected: boolean; onClick: () => v
         backgroundColor: selected ? "#0864b4" : undefined,
         color: selected ? "white" : undefined,
         cursor: "pointer",
+        padding: "2px",
       }}
       spacing={0}>
       {name.map((e, index) => (

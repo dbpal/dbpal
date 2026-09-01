@@ -45,7 +45,7 @@ function UdfsTree() {
   }, [reload]);
   return (
     <MyTreeItem
-      conn_established={true}
+      enable={true}
       makeMenu={() => {
         return (
           <MenuList>
@@ -256,7 +256,7 @@ function CassandraAggregatesTree() {
 
   return (
     <MyTreeItem
-      conn_established={true}
+      enable={true}
       makeMenu={() => {
         return (
           <MenuList>
