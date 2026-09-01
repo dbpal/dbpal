@@ -1323,7 +1323,7 @@ function LeftTableNameAndColumns(props: {
 
 function VirtualVarListLeft<T>(props: {
   data: T[];
-  show: (_: T, _index: number, measure: () => void) => ReactNode;
+  show: (_: T) => ReactNode;
   height: number | string;
 }) {
   const { data, show, height } = props;
@@ -1339,7 +1339,6 @@ function VirtualVarListLeft<T>(props: {
       style={{
         overflow: "auto",
         height,
-        maxHeight: "30vh",
       }}>
       <AutoSizer>
         {({ width, height }) => (
@@ -1365,14 +1364,7 @@ function VirtualVarListLeft<T>(props: {
                   key={key}
                   parent={parent}
                   rowIndex={index}>
-                  <div style={style}>
-                    {show(d, index, () => {
-                      setTimeout(() => {
-                        cache.current.clear(index, 0);
-                        listRef.current?.recomputeRowHeights(index);
-                      }, 100);
-                    })}
-                  </div>
+                  <div style={style}>{show(d)}</div>
                 </CellMeasurer>
               );
             }} // 渲染函数

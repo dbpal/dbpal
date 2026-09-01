@@ -31,7 +31,6 @@ import React, {
   useContext,
   useEffect,
   useMemo,
-  useRef,
   useState,
 } from "react";
 import {
@@ -51,7 +50,7 @@ import DeleteForeverIcon from "@mui/icons-material/DeleteForever";
 import PlayArrowIcon from "@mui/icons-material/PlayArrow";
 import FilterAltIcon from "@mui/icons-material/FilterAlt";
 import { FaArrowsAltV, FaUpload } from "react-icons/fa";
-import { SelectPageSize } from "./CommonComp.tsx";
+import { SelectPageSize, VirtualVarListLeft } from "./CommonComp.tsx";
 import { Channel } from "@tauri-apps/api/core";
 import { NameAndQueryId, uuidv4 } from "./Common.ts";
 import { Panel, PanelGroup, PanelResizeHandle } from "react-resizable-panels";
@@ -74,7 +73,6 @@ import { AddTableModal } from "./LeftTable.tsx";
 import { useDebounce } from "use-debounce";
 import { isEqual } from "lodash-es";
 import { CouchbaseTableImportFile } from "./CreateTable.tsx";
-import { AutoSizer, List, CellMeasurer, CellMeasurerCache } from "react-virtualized";
 
 type Data = {
   data: { data: string; id: string }[];
@@ -687,13 +685,6 @@ function CouchBaseQuery_(props: { value?: string }) {
   const showResp = useMemo(() => {
     return resp.filter((e) => (matchStrDelay ? e.includes(matchStrDelay) : true));
   }, [matchStrDelay, resp]);
-  // Initialize the cache
-  const cache = useRef(
-    new CellMeasurerCache({
-      defaultHeight: 50,
-      fixedWidth: true, // Ensures height is the only variable dimension
-    }),
-  );
 
   return (
     <PanelGroup
@@ -863,41 +854,15 @@ function CouchBaseQuery_(props: { value?: string }) {
         id="chat-resize-bar"
         className="resize-handle"
       />
-
       <Panel collapsible collapsedSize={0} minSize={10} style={{ overflow: "auto" }}>
         {viewMode == CBQueryViewMode.Json && (
-          <div style={{ width: "100%", height: "100%" }}>
-            <AutoSizer>
-              {({ width, height }) => (
-                <List
-                  width={width} // 列表宽度
-                  height={height} //   列表高度（可视区域）
-                  rowCount={showResp.length} // 总行数
-                  rowHeight={cache.current.rowHeight} // 每行高度
-                  deferredMeasurementCache={cache.current} // Connect the cache
-                  rowRenderer={({ index, style, key, parent }) => {
-                    const d = showResp[index];
-                    return (
-                      <CellMeasurer
-                        cache={cache.current}
-                        columnIndex={0}
-                        key={key}
-                        parent={parent}
-                        rowIndex={index}>
-                        <div style={style}>
-                          <AppCode
-                            codeBlock={d}
-                            language="json"
-                            highlightStr={matchStr}
-                          />
-                        </div>
-                      </CellMeasurer>
-                    );
-                  }} // 渲染函数
-                />
-              )}
-            </AutoSizer>
-          </div>
+          <VirtualVarListLeft
+            data={showResp}
+            show={(d) => {
+              return <AppCode codeBlock={d} language="json" highlightStr={matchStr} />;
+            }}
+            height="100%"
+          />
         )}
 
         {viewMode == CBQueryViewMode.Table && tableResp && (
