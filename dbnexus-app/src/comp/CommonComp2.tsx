@@ -703,7 +703,12 @@ function ConnConfigInfo() {
 
   return (
     <Stack style={{ height: "100%" }}>
-      <MetaValueView values={metas} showToolbar />
+      <MetaValueView
+        values={metas}
+        reload={() => {
+          handleInfo(true);
+        }}
+      />
     </Stack>
   );
 }

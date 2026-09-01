@@ -74,8 +74,10 @@ import { EscDownEvent, modalHandleClose, modalStyle, PassWordManager } from "./C
 import { openPath } from "@tauri-apps/plugin-opener";
 import {
   AppDataGridPagination,
+  AppDataGridToolBar,
   ClearableTextField,
   ListenElementSize,
+  RefreshButton,
 } from "./CommonComp2";
 import {
   passwordKey,
@@ -501,8 +503,8 @@ function MetaValueViewMenu(props: {
 /**
  * Table view for metadata values.
  */
-function MetaValueView(props: { values: MetaValue[]; showToolbar: boolean }) {
-  const { values, showToolbar } = props;
+function MetaValueView(props: { values: MetaValue[]; reload?: () => void }) {
+  const { values, reload } = props;
 
   const getColumnWidth = useColumnWidthStore((s) => s.getColumnWidth);
   const columns = useMemo(() => {
@@ -552,12 +554,28 @@ function MetaValueView(props: { values: MetaValue[]; showToolbar: boolean }) {
 
   const slots = useMemo((): Partial<GridSlotsComponent> => {
     return {
+      toolbar: () => {
+        return (
+          <AppDataGridToolBar
+            titleName="meta values"
+            left={
+              reload ? (
+                <RefreshButton
+                  onClick={() => {
+                    reload();
+                  }}
+                />
+              ) : undefined
+            }
+          />
+        );
+      },
       pagination: AppDataGridPagination,
     };
-  }, []);
+  }, [reload]);
+
   return (
     <DataGrid
-      showToolbar={showToolbar}
       slots={slots}
       style={dataGridStyle}
       sortModel={sortModel}
