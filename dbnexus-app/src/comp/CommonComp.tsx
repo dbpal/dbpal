@@ -20,7 +20,6 @@ import {
   InputAdornment,
   Collapse,
 } from "@mui/material";
-import KeyIcon from "@mui/icons-material/Key";
 import InfoIcon from "@mui/icons-material/Info";
 import AttachFileIcon from "@mui/icons-material/AttachFile";
 import RefreshIcon from "@mui/icons-material/Refresh";
@@ -1203,7 +1202,7 @@ function LongNotice({ children }) {
 
 function VirtualListLeft<T>(props: {
   data: T[];
-  makeMenu: (_: T) => ReactNode;
+  makeMenu?: (_: T) => ReactNode;
   show: (_: T) => ReactNode;
 }) {
   const { data, makeMenu, show } = props;
@@ -1217,6 +1216,7 @@ function VirtualListLeft<T>(props: {
     <div
       style={{
         height: height.height,
+        width: "100%",
       }}>
       <AutoSizer>
         {({ width }) => (
@@ -1246,12 +1246,16 @@ function VirtualListLeft<T>(props: {
                     alignItems: "center",
                     justifyContent: "space-between",
                   }}
-                  onContextMenu={(e) => {
-                    setUpMenu({
-                      content: makeMenu(d),
-                      event: e,
-                    });
-                  }}>
+                  onContextMenu={
+                    makeMenu
+                      ? (e) => {
+                          setUpMenu({
+                            content: makeMenu(d),
+                            event: e,
+                          });
+                        }
+                      : undefined
+                  }>
                   {show(d)}
                 </div>
               );
@@ -1272,48 +1276,48 @@ function LeftTableNameAndColumns(props: {
 }) {
   const { table, makeMenu, listCols } = props;
   let { dbName } = useContext(DbnameContext);
-  const [fs, setFs] = useState<Field[]>(null);
+  const [fs, setFs] = useState<Field[]>([]);
   const { showNotification } = useNotification();
   useEffect(() => {
-    if (!fs) {
-      listCols(table)
-        .then((fs) => {
-          setFs(fs);
-        })
-        .catch((e) => {
-          showNotification({
-            severity: "error",
-            title: "list table columns failed",
-            message: e,
-          });
+    listCols(table)
+      .then((fs) => {
+        setFs(fs);
+      })
+      .catch((e) => {
+        showNotification({
+          severity: "error",
+          title: "list table columns failed",
+          message: e,
         });
-    }
-  }, [dbName, fs, listCols, showNotification, table]);
+      });
+  }, [dbName, listCols, showNotification, table]);
 
   return (
-    fs && (
-      <MyTreeItem
-        makeMenu={makeMenu}
-        enable={true}
-        label=<>
-          <span style={textEllipsisStyle}>{table.name}</span>
-          {table.size && (
-            <span style={{ ...textEllipsisStyle }}>
-              {filesize(table.size, { round: 0 })}
-            </span>
-          )}
-        </>>
-        {fs.map((e) => (
-          <Stack direction="row" key={e.field} spacing={1}>
-            <Typography style={textEllipsisStyle}> {e.field} </Typography>
-            <Typography style={textEllipsisStyle} color="info">
-              {e.data_type}
-            </Typography>
-            {e.is_primary && <KeyIcon />}
-          </Stack>
-        ))}
-      </MyTreeItem>
-    )
+    <MyTreeItem
+      makeMenu={makeMenu}
+      enable={true}
+      label=<>
+        <span style={textEllipsisStyle}>{table.name}</span>
+        {table.size && (
+          <span style={{ ...textEllipsisStyle }}>
+            {filesize(table.size, { round: 0 })}
+          </span>
+        )}
+      </>>
+      <VirtualListLeft
+        data={fs}
+        show={(f) => {
+          return (
+            <>
+              <Typography style={textEllipsisStyle}> {f.field} </Typography>
+              <Typography style={textEllipsisStyle} color="info">
+                {f.data_type}
+              </Typography>
+            </>
+          );
+        }}
+      />
+    </MyTreeItem>
   );
 }
 
