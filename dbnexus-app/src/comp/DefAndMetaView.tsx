@@ -48,7 +48,7 @@ function DefAndMetasView(props: { reloadOP: () => Promise<DefAndMetas> }) {
         {loading && <CircularProgress />}
         <AppCode codeBlock={detail.def} language="sql" />
         {detail.metas && detail.metas.length > 0 && (
-          <MetaValueView values={detail.metas} showToolbar />
+          <MetaValueView values={detail.metas} />
         )}
       </Stack>
     </>
