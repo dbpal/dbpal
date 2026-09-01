@@ -1339,6 +1339,7 @@ function VirtualVarListLeft<T>(props: {
       style={{
         overflow: "auto",
         height,
+        width: "100%",
       }}>
       <AutoSizer>
         {({ width, height }) => (
