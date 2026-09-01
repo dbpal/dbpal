@@ -28,7 +28,7 @@ pub(crate) async fn make_test_object(db: Option<String>) -> CassandraDB {
         read_only: false,
         dialect: CassandraDialect::Scylla,
         db,
-        conn_timeout: None,
+        conn_timeout: Some(5000.into()),
         ssl_ca_file: None,
         consistency: Default::default(),
         ssl_enable: false,
@@ -40,7 +40,7 @@ pub(crate) async fn make_test_object(db: Option<String>) -> CassandraDB {
 
 #[cfg(test)]
 mod tests {
-    use std::sync::Arc;
+    use std::{sync::Arc, time::Duration};
 
     use super::*;
     use crate::{
@@ -50,8 +50,10 @@ mod tests {
 
     #[tokio::test]
     async fn test_list_schema() {
+        let _guard = test_lock().lock().await;
         let db = make_test_object(None).await;
         test_impls::test_list_schema_inner(db).await;
+        tokio::time::sleep(Duration::from_secs(3)).await;
     }
 
     #[tokio::test]
@@ -133,103 +135,135 @@ mod tests {
             .unwrap();
 
         println!("details:{:?}", details);
+        tokio::time::sleep(Duration::from_secs(3)).await;
     }
 
     #[tokio::test]
     async fn test_check_conn() {
+        let _guard = test_lock().lock().await;
         let db = make_test_object(None).await;
         test_impls::test_check_conn_inner(db).await;
+        tokio::time::sleep(Duration::from_secs(3)).await;
     }
 
     #[ignore]
     #[tokio::test]
     async fn test_a_lot_data() {
+        let _guard = test_lock().lock().await;
         let db = make_test_object(Some("test".to_string())).await;
         test_impls::test_a_lot_data_inner(db).await;
+        tokio::time::sleep(Duration::from_secs(3)).await;
     }
 
     #[tokio::test]
     async fn test_sort() {
+        let _guard = test_lock().lock().await;
         let db = make_test_object(Some("test".to_string())).await;
         test_impls::test_sort_inner(db).await;
+        tokio::time::sleep(Duration::from_secs(3)).await;
     }
 
     #[tokio::test]
     async fn test_show_table_column() {
+        let _guard = test_lock().lock().await;
         let db = make_test_object(Some("test".to_string())).await;
         test_impls::test_show_table_column_inner(db).await;
+        tokio::time::sleep(Duration::from_secs(3)).await;
     }
 
     #[tokio::test]
     async fn test_duplicate() {
+        let _guard = test_lock().lock().await;
         let db = make_test_object(Some("test".to_string())).await;
         test_impls::test_duplicate_inner(db).await;
+        tokio::time::sleep(Duration::from_secs(3)).await;
     }
 
     #[tokio::test]
     async fn test_list_created_types() {
+        let _guard = test_lock().lock().await;
         let db = make_test_object(Some("test".to_string())).await;
         test_impls::test_list_created_types_inner(db).await;
+        tokio::time::sleep(Duration::from_secs(3)).await;
     }
 
     #[tokio::test]
     async fn test_types1() {
+        let _guard = test_lock().lock().await;
         let db = make_test_object(Some("test".to_string())).await;
         test_impls::test_types1_inner(db).await;
+        tokio::time::sleep(Duration::from_secs(3)).await;
     }
 
     #[tokio::test]
     async fn test_types1_list() {
+        let _guard = test_lock().lock().await;
         let db = make_test_object(Some("test".to_string())).await;
         test_impls::test_types1_list_inner(db).await;
+        tokio::time::sleep(Duration::from_secs(3)).await;
     }
 
     #[tokio::test]
     async fn test_types2() {
+        let _guard = test_lock().lock().await;
         let db = make_test_object(Some("test".to_string())).await;
         test_impls::test_types2_inner(db).await;
+        tokio::time::sleep(Duration::from_secs(3)).await;
     }
 
     #[tokio::test]
     async fn test_types2_list() {
+        let _guard = test_lock().lock().await;
         let db = make_test_object(Some("test".to_string())).await;
         test_impls::test_types2_list_inner(db).await;
+        tokio::time::sleep(Duration::from_secs(3)).await;
     }
 
     #[tokio::test]
     async fn test_types3() {
+        let _guard = test_lock().lock().await;
         let db = make_test_object(Some("test".to_string())).await;
         test_impls::test_types3_inner(db).await;
+        tokio::time::sleep(Duration::from_secs(3)).await;
     }
 
     #[tokio::test]
     async fn test_types_list3() {
+        let _guard = test_lock().lock().await;
         let db = make_test_object(Some("test".to_string())).await;
         test_impls::test_types_list3_inner(db).await;
+        tokio::time::sleep(Duration::from_secs(3)).await;
     }
 
     #[tokio::test]
     async fn test_types4() {
+        let _guard = test_lock().lock().await;
         let db = make_test_object(Some("test".to_string())).await;
         test_impls::test_types4_inner(db).await;
+        tokio::time::sleep(Duration::from_secs(3)).await;
     }
 
     #[tokio::test]
     async fn test_table_column() {
+        let _guard = test_lock().lock().await;
         let db = make_test_object(Some("test".to_string())).await;
         test_impls::test_table_column_inner(db).await;
+        tokio::time::sleep(Duration::from_secs(3)).await;
     }
 
     #[tokio::test]
     async fn test_counter() {
+        let _guard = test_lock().lock().await;
         let db = make_test_object(Some("test".to_string())).await;
         test_impls::test_counter_inner(db).await;
+        tokio::time::sleep(Duration::from_secs(3)).await;
     }
 
     #[tokio::test]
     pub async fn test_udf() {
-        let db = make_test_object(Some("test".to_string())).await;
         let _guard = test_lock().lock().await;
+        let db = make_test_object(Some("test".to_string())).await;
+
         let name = "test_udf";
         {
             let err = db
@@ -270,35 +304,45 @@ mod tests {
             .await
             .unwrap();
         println!("detail:{:?}", detail);
+        tokio::time::sleep(Duration::from_secs(3)).await;
     }
 
     #[tokio::test]
     async fn test_create_type() {
+        let _guard = test_lock().lock().await;
         let db = make_test_object(Some("test".to_string())).await;
         test_impls::test_create_type_inner(db).await;
+        tokio::time::sleep(Duration::from_secs(3)).await;
     }
 
     #[tokio::test]
     async fn test_rename() {
+        let _guard = test_lock().lock().await;
         let db = make_test_object(Some("test".to_string())).await;
         test_impls::test_rename_inner(db).await;
+        tokio::time::sleep(Duration::from_secs(3)).await;
     }
 
     #[tokio::test]
     async fn test_index() {
+        let _guard = test_lock().lock().await;
         let db = make_test_object(Some("test".to_string())).await;
         test_impls::test_index_inner(db).await;
+        tokio::time::sleep(Duration::from_secs(3)).await;
     }
 
     #[tokio::test]
     async fn test_view() {
+        let _guard = test_lock().lock().await;
         let db = make_test_object(Some("test".to_string())).await;
         test_impls::test_view_inner(db).await;
+        tokio::time::sleep(Duration::from_secs(3)).await;
     }
 
     #[tokio::test]
 
     async fn test_show_index_info() {
+        let _guard = test_lock().lock().await;
         let db = make_test_object(Some("system".to_string())).await;
         db.show_table(
             "IndexInfo",
@@ -317,5 +361,6 @@ mod tests {
         )
         .await
         .unwrap();
+        tokio::time::sleep(Duration::from_secs(3)).await;
     }
 }

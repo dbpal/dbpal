@@ -743,14 +743,9 @@ pub trait SchemaTrait:
                 // build the sql
                 let sql = SqlBuilder::insert_sql(this.as_ref(), &table, &cols, &record)?;
                 log::info!("insert sql:{}", sql);
-                match this.execute_sql(&query_id, &sql).await? {
-                    Ok(_) => {}
-                    Err(insert_err) => {
-                        return Err(anyhow::Error::msg(format!(
-                            "execute sql failed,sql{sql} err:{insert_err},rollback success"
-                        )));
-                    }
-                }
+                this.execute_sql(&query_id, &sql)
+                    .await?
+                    .map_err(|e| anyhow::Error::msg(e))?;
             }
             if this.support_tx() {
                 this.commit(&query_id).await?;

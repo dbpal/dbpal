@@ -58,7 +58,6 @@ import {
   DbnameContext,
   handleCopyToClipboard,
   RedisTableType,
-  shrinkAble,
   TabContent,
   textEllipsisStyle,
 } from "./helper";
@@ -217,7 +216,7 @@ function TablesTree() {
             <>
               <span style={textEllipsisStyle}>{table.name}</span>
               {table.size && (
-                <span style={{ ...shrinkAble, minWidth: 0 }}>
+                <span style={{ ...textEllipsisStyle, minWidth: 0 }}>
                   {filesize(table.size, { round: 0 })}
                 </span>
               )}

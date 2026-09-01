@@ -261,7 +261,7 @@ fn encode_row_as_json(cols: &[String], rows: Row) -> anyhow::Result<serde_json::
             }
             CqlValue::SmallInt(x) => serde_json::Value::from(x),
             CqlValue::TinyInt(x) => serde_json::Value::from(x),
-            CqlValue::Time(cql_time) => serde_json::Value::from(cql_time.0),
+            CqlValue::Time(cql_time) => format_time(cql_time.0).into(),
             CqlValue::Timeuuid(cql_timeuuid) => {
                 let mut map = serde_json::Map::new();
                 map.insert(JSON_TYPE_FIELD.to_string(), "timeuuid".into());
@@ -443,7 +443,7 @@ fn encode_row(row: Row) -> anyhow::Result<Vec<Option<String>>> {
 }
 
 fn format_time(x: i64) -> String {
-    let time = NaiveTime::default() + std::time::Duration::from_micros(x as u64);
+    let time = NaiveTime::default() + std::time::Duration::from_nanos(x as u64);
     time.to_string()
 }
 
@@ -1672,7 +1672,6 @@ pub(crate) mod test_impls {
     }
 
     pub async fn test_list_schema_inner(db: CassandraDB) {
-        let _guard = test_lock().lock().await;
         let _ = db
             .create_schema(
                 "test",
@@ -1688,7 +1687,6 @@ pub(crate) mod test_impls {
     }
 
     pub async fn test_aggregate_inner(db: CassandraDB) {
-        let _guard = test_lock().lock().await;
         {
             let _ = db
                 .drop_aggregate("test_aggregate", vec!["int".to_string()])
@@ -1768,13 +1766,12 @@ pub(crate) mod test_impls {
 
     pub async fn test_check_conn_inner(db: CassandraDB) {
         enable_test_log();
-        let _guard = test_lock().lock().await;
+
         let d = crate::db::CheckConn::check_conn(&db).await.unwrap();
         println!("d:{:?}", d);
     }
 
     pub async fn test_a_lot_data_inner(db: CassandraDB) {
-        let _guard = test_lock().lock().await;
         let table_name = "test_a_lot_data";
         let _ = db.drop_table(table_name, false).await;
         let query_id = "aaaa";
@@ -1807,7 +1804,6 @@ pub(crate) mod test_impls {
     }
 
     pub async fn test_sort_inner(db: CassandraDB) {
-        let _guard = test_lock().lock().await;
         let table_name = "test_sort";
         let _ = db.drop_table(table_name, false).await;
         let query_id = "aaaa";
@@ -1846,7 +1842,6 @@ pub(crate) mod test_impls {
     }
 
     pub async fn test_show_table_column_inner(db: CassandraDB) {
-        let _guard = test_lock().lock().await;
         let fields = db.show_table_columns("example_table").await.unwrap();
         for field in fields {
             println!("field:{:?}", field);
@@ -1854,7 +1849,6 @@ pub(crate) mod test_impls {
     }
 
     pub async fn test_duplicate_inner(db: CassandraDB) {
-        let _guard = test_lock().lock().await;
         let table_name = "test_duplicate_table";
         let table_dup = "test_duplicate";
         let _ = db.drop_table(table_name, false).await;
@@ -1894,7 +1888,6 @@ pub(crate) mod test_impls {
     }
 
     pub async fn test_list_created_types_inner(db: CassandraDB) {
-        let _guard = test_lock().lock().await;
         let _ = db.drop_created_type("test_type").await;
 
         let query_id = "aaaa";
@@ -1921,7 +1914,7 @@ pub(crate) mod test_impls {
 
     pub async fn test_types1_inner(db: CassandraDB) {
         let now = std::time::Instant::now();
-        let _guard = test_lock().lock().await;
+
         let table_name = "test_types1";
         let _ = db.drop_table(table_name, false).await;
 
@@ -1974,7 +1967,6 @@ pub(crate) mod test_impls {
     }
 
     pub async fn test_types1_list_inner(db: CassandraDB) {
-        let _guard = test_lock().lock().await;
         let table_name = "test_types_list1";
         let _ = db.drop_table(table_name, false).await;
         let query_id = "aaaa";
@@ -2028,7 +2020,6 @@ pub(crate) mod test_impls {
     }
 
     pub async fn test_types2_inner(db: CassandraDB) {
-        let _guard = test_lock().lock().await;
         let table_name = "test_types2";
         let _ = db.drop_table(table_name, false).await;
         let query_id = "aaaa";
@@ -2077,7 +2068,6 @@ pub(crate) mod test_impls {
     }
 
     pub async fn test_types2_list_inner(db: CassandraDB) {
-        let _guard = test_lock().lock().await;
         let table_name = "test_types_list2";
         let _ = db.drop_table(table_name, false).await;
         let query_id = "aaaa";
@@ -2129,7 +2119,6 @@ pub(crate) mod test_impls {
     }
 
     pub async fn test_types3_inner(db: CassandraDB) {
-        let _guard = test_lock().lock().await;
         let table_name = "test_types3";
         let _ = db.drop_table(table_name, false).await;
         let query_id = "aaaa";
@@ -2174,7 +2163,6 @@ pub(crate) mod test_impls {
     }
 
     pub async fn test_types_list3_inner(db: CassandraDB) {
-        let _guard = test_lock().lock().await;
         let table_name = "test_types_list3";
         let _ = db.drop_table(table_name, false).await;
         let query_id = "aaaa";
@@ -2222,7 +2210,6 @@ pub(crate) mod test_impls {
     }
 
     pub async fn test_types4_inner(db: CassandraDB) {
-        let _guard = test_lock().lock().await;
         let table_name = "test_types4";
         let _ = db.drop_table(table_name, false).await;
         let query_id = "aaaa";
@@ -2264,7 +2251,6 @@ pub(crate) mod test_impls {
     }
 
     pub async fn test_table_column_inner(db: CassandraDB) {
-        let _guard = test_lock().lock().await;
         let table_name = "test_column";
         let _ = db.drop_table(table_name, false).await;
         let query_id = "aaaa";
@@ -2321,7 +2307,6 @@ pub(crate) mod test_impls {
     }
 
     pub async fn test_counter_inner(db: CassandraDB) {
-        let _guard = test_lock().lock().await;
         let table_name = "test_counter";
         let _ = db.drop_table(table_name, false).await;
         let query_id = "aaaa";
@@ -2353,7 +2338,6 @@ pub(crate) mod test_impls {
     }
 
     pub async fn test_udf_inner(db: CassandraDB) {
-        let _guard = test_lock().lock().await;
         let name = "test_udf";
         {
             let err = db
@@ -2420,7 +2404,6 @@ pub(crate) mod test_impls {
     }
 
     pub async fn test_create_type_inner(db: CassandraDB) {
-        let _guard = test_lock().lock().await;
         db.session
             .query_unpaged(
                 r#"
@@ -2438,7 +2421,6 @@ pub(crate) mod test_impls {
     }
 
     pub async fn test_rename_inner(db: CassandraDB) {
-        let _guard = test_lock().lock().await;
         let table_name = "test_rename";
         let table_name2 = format!("{}2", table_name);
         let _ = db.drop_table(table_name, false).await;
@@ -2463,7 +2445,6 @@ pub(crate) mod test_impls {
     }
 
     pub async fn test_index_inner(db: CassandraDB) {
-        let _guard = test_lock().lock().await;
         let table_name = "test_index";
         let _ = db.drop_index(table_name, "test_index_email_index").await;
         let _ = db.drop_table(table_name, false).await;
@@ -2518,7 +2499,6 @@ pub(crate) mod test_impls {
     }
 
     pub async fn test_view_inner(db: CassandraDB) {
-        let _guard = test_lock().lock().await;
         let table_name = "test_view_table";
         let view_name = "test_view";
         let _ = db.drop_materialized_view(view_name).await;
@@ -2635,18 +2615,21 @@ mod tests {
 
     #[tokio::test]
     async fn test_list_schema() {
+        let _guard = test_lock().lock().await;
         let db = make_test_object(None).await;
         test_impls::test_list_schema_inner(db).await;
     }
 
     #[tokio::test]
     async fn test_aggregate() {
+        let _guard = test_lock().lock().await;
         let db = make_test_object(Some("test".to_string())).await;
         test_impls::test_aggregate_inner(db).await;
     }
 
     #[tokio::test]
     async fn test_check_conn() {
+        let _guard = test_lock().lock().await;
         let db = make_test_object(None).await;
         test_impls::test_check_conn_inner(db).await;
     }
@@ -2654,119 +2637,139 @@ mod tests {
     #[ignore]
     #[tokio::test]
     async fn test_a_lot_data() {
+        let _guard = test_lock().lock().await;
         let db = make_test_object(Some("test".to_string())).await;
         test_impls::test_a_lot_data_inner(db).await;
     }
 
     #[tokio::test]
     async fn test_sort() {
+        let _guard = test_lock().lock().await;
         let db = make_test_object(Some("test".to_string())).await;
         test_impls::test_sort_inner(db).await;
     }
 
     #[tokio::test]
     async fn test_show_table_column() {
+        let _guard = test_lock().lock().await;
         let db = make_test_object(Some("test".to_string())).await;
         test_impls::test_show_table_column_inner(db).await;
     }
 
     #[tokio::test]
     async fn test_duplicate() {
+        let _guard = test_lock().lock().await;
         let db = make_test_object(Some("test".to_string())).await;
         test_impls::test_duplicate_inner(db).await;
     }
 
     #[tokio::test]
     async fn test_list_created_types() {
+        let _guard = test_lock().lock().await;
         let db = make_test_object(Some("test".to_string())).await;
         test_impls::test_list_created_types_inner(db).await;
     }
 
     #[tokio::test]
     async fn test_types1() {
+        let _guard = test_lock().lock().await;
         let db = make_test_object(Some("test".to_string())).await;
         test_impls::test_types1_inner(db).await;
     }
 
     #[tokio::test]
     async fn test_types1_list() {
+        let _guard = test_lock().lock().await;
         let db = make_test_object(Some("test".to_string())).await;
         test_impls::test_types1_list_inner(db).await;
     }
 
     #[tokio::test]
     async fn test_types2() {
+        let _guard = test_lock().lock().await;
         let db = make_test_object(Some("test".to_string())).await;
         test_impls::test_types2_inner(db).await;
     }
 
     #[tokio::test]
     async fn test_types2_list() {
+        let _guard = test_lock().lock().await;
         let db = make_test_object(Some("test".to_string())).await;
         test_impls::test_types2_list_inner(db).await;
     }
 
     #[tokio::test]
     async fn test_types3() {
+        let _guard = test_lock().lock().await;
         let db = make_test_object(Some("test".to_string())).await;
         test_impls::test_types3_inner(db).await;
     }
 
     #[tokio::test]
     async fn test_types_list3() {
+        let _guard = test_lock().lock().await;
         let db = make_test_object(Some("test".to_string())).await;
         test_impls::test_types_list3_inner(db).await;
     }
 
     #[tokio::test]
     async fn test_types4() {
+        let _guard = test_lock().lock().await;
         let db = make_test_object(Some("test".to_string())).await;
         test_impls::test_types4_inner(db).await;
     }
 
     #[tokio::test]
     async fn test_table_column() {
+        let _guard = test_lock().lock().await;
         let db = make_test_object(Some("test".to_string())).await;
         test_impls::test_table_column_inner(db).await;
     }
 
     #[tokio::test]
     async fn test_counter() {
+        let _guard = test_lock().lock().await;
         let db = make_test_object(Some("test".to_string())).await;
         test_impls::test_counter_inner(db).await;
     }
 
     #[tokio::test]
     async fn test_udf() {
+        let _guard = test_lock().lock().await;
         let db = make_test_object(Some("test".to_string())).await;
         test_impls::test_udf_inner(db).await;
     }
 
     #[tokio::test]
     async fn test_create_type() {
+        let _guard = test_lock().lock().await;
         let db = make_test_object(Some("test".to_string())).await;
         test_impls::test_create_type_inner(db).await;
     }
 
     #[tokio::test]
     async fn test_rename() {
+        let _guard = test_lock().lock().await;
         let db = make_test_object(Some("test".to_string())).await;
         test_impls::test_rename_inner(db).await;
     }
 
     #[tokio::test]
     async fn test_index() {
+        let _guard = test_lock().lock().await;
         let db = make_test_object(Some("test".to_string())).await;
         test_impls::test_index_inner(db).await;
     }
 
     #[tokio::test]
     async fn test_view() {
+        let _guard = test_lock().lock().await;
         let db = make_test_object(Some("test".to_string())).await;
         test_impls::test_view_inner(db).await;
     }
     #[tokio::test]
     async fn test_import_failed() {
+        let _guard = test_lock().lock().await;
         let db = make_test_object(Some("test".to_string())).await;
         test_impls::test_import_failed(db).await;
     }

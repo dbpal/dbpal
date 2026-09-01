@@ -494,6 +494,7 @@ function SqlTablePagination_({
             result {resp.data.length} of {resp.total}
           </Typography>
         )}
+        {clientModel && <Typography>Rows:{resp.data.length}</Typography>}
 
         <AppDataGridPagination showPageSelect />
       </Stack>
