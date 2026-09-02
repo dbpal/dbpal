@@ -1,9 +1,8 @@
 import { ListItemIcon, ListItemText, MenuItem, MenuList } from "@mui/material";
 import { useCallback, useContext, useEffect, useMemo, useState } from "react";
-import DeleteForeverIcon from "@mui/icons-material/DeleteForever";
-import InfoIcon from "@mui/icons-material/Info";
+import { DeleteForeverIcon, InfoIcon } from "./icons";
 import { DefAndMetasView } from "./DefAndMetaView";
-import { PiTreeStructureFill } from "react-icons/pi";
+import { PiTreeStructureFill } from "./icons";
 import {
   DataSourceKind,
   secondConfirm,

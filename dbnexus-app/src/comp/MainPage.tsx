@@ -31,7 +31,7 @@ import { EscDownEvent, modalHandleClose } from "./Common.ts";
 import { appLogDir, join } from "@tauri-apps/api/path";
 import { readTextFile, remove } from "@tauri-apps/plugin-fs";
 import { openUrl } from "@tauri-apps/plugin-opener";
-import DeleteForeverIcon from "@mui/icons-material/DeleteForever";
+import { DeleteForeverIcon } from "./icons";
 import { listen } from "@tauri-apps/api/event";
 import { ShowCuts } from "./ShortCuts.tsx";
 import {

@@ -18,8 +18,7 @@ import {
   useState,
 } from "react";
 import { EscDownEvent, modalHandleClose, NameAndQueryId } from "./Common";
-import DoneIcon from "@mui/icons-material/Done";
-import CloseIcon from "@mui/icons-material/Close";
+import { DoneIcon, CloseIcon } from "./icons";
 import {
   createMongoModel,
   dataGridStyle,
@@ -30,9 +29,7 @@ import {
   secondConfirm,
   DbnameContext,
 } from "./helper.ts";
-import DeleteForeverIcon from "@mui/icons-material/DeleteForever";
-import { ResizeParentHeight } from "./CommonComp.tsx";
-import { BsFillLightbulbFill } from "react-icons/bs";
+import { DeleteForeverIcon, BsFillLightbulbFill } from "./icons";
 import {
   AppDataGridPagination,
   EscPressedDo,
@@ -47,6 +44,7 @@ import {
 } from "./store.tsx";
 import { CustomToolbar } from "./CustomToolBar.tsx";
 import { DataGrid, GridColDef, GridSlotsComponent } from "./datagridExport.ts";
+import { ResizeParentHeight } from "./CommonComp.tsx";
 
 function QueryLog(props: {
   showQueryLog: boolean;

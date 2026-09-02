@@ -8,17 +8,7 @@ import {
   useState,
 } from "react";
 import { modalStyle, EscDownEvent, modalHandleClose, uuidv4 } from "./Common.ts";
-import ListIcon from "@mui/icons-material/List";
-import EditIcon from "@mui/icons-material/Edit";
-import DeleteForeverIcon from "@mui/icons-material/DeleteForever";
-import ContentCopyIcon from "@mui/icons-material/ContentCopy";
-import PlaylistRemoveIcon from "@mui/icons-material/PlaylistRemove";
-import TableViewIcon from "@mui/icons-material/TableView";
-import ArrowCircleDownIcon from "@mui/icons-material/ArrowCircleDown";
-import { IoConstructOutline } from "react-icons/io5";
-import { HiOutlineDuplicate } from "react-icons/hi";
-import UploadIcon from "@mui/icons-material/Upload";
-import CreateIcon from "@mui/icons-material/Create";
+
 import {
   Box,
   Button,
@@ -92,6 +82,19 @@ import {
   SqlCreateTableImportFile,
 } from "./CreateTable.tsx";
 import { useDebounce } from "use-debounce";
+import {
+  ArrowCircleDownIcon,
+  ContentCopyIcon,
+  CreateIcon,
+  DeleteForeverIcon,
+  EditIcon,
+  HiOutlineDuplicate,
+  IoConstructOutline,
+  ListIcon,
+  PlaylistRemoveIcon,
+  TableViewIcon,
+  UploadIcon,
+} from "./icons.tsx";
 
 function TablesTree() {
   const { dbName, kind } = useContext(DbnameContext);

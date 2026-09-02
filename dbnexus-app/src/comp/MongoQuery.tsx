@@ -7,7 +7,7 @@ import {
   Checkbox,
 } from "@mui/material";
 
-import PlayArrowIcon from "@mui/icons-material/PlayArrow";
+import { PlayArrowIcon } from "./icons";
 import { editor } from "monaco-editor";
 import { useCallback, useContext, useEffect, useState } from "react";
 import { MongoDBQuery } from "./MongoQueryBackend";

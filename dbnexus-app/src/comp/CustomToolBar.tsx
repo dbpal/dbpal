@@ -12,13 +12,11 @@ import {
 } from "@mui/x-data-grid";
 import Tooltip from "@mui/material/Tooltip";
 import Badge from "@mui/material/Badge";
-import ViewColumnIcon from "@mui/icons-material/ViewColumn";
-import FilterListIcon from "@mui/icons-material/FilterList";
+import { ViewColumnIcon, FilterListIcon } from "./icons";
 import Divider from "@mui/material/Divider";
 import TextField from "@mui/material/TextField";
 import InputAdornment from "@mui/material/InputAdornment";
-import CancelIcon from "@mui/icons-material/Cancel";
-import SearchIcon from "@mui/icons-material/Search";
+import { CancelIcon, SearchIcon } from "./icons";
 
 type OwnerState = {
   expanded: boolean;

@@ -20,10 +20,7 @@ import {
   InputAdornment,
   Collapse,
 } from "@mui/material";
-import { AiOutlineDisconnect } from "react-icons/ai";
-import InfoIcon from "@mui/icons-material/Info";
-import AttachFileIcon from "@mui/icons-material/AttachFile";
-import RefreshIcon from "@mui/icons-material/Refresh";
+import { AiOutlineDisconnect, InfoIcon, AttachFileIcon, RefreshIcon } from "./icons";
 import {
   CSSProperties,
   Dispatch,
@@ -36,19 +33,21 @@ import {
   useRef,
   useState,
 } from "react";
-import ClearIcon from "@mui/icons-material/Clear";
-import DeleteForeverIcon from "@mui/icons-material/DeleteForever";
-import { FaFolderOpen } from "react-icons/fa";
-import CheckIcon from "@mui/icons-material/Check";
-import CloseIcon from "@mui/icons-material/Close";
-import AddIcon from "@mui/icons-material/Add";
-import { BsDatabaseAdd } from "react-icons/bs";
-import LinkOffIcon from "@mui/icons-material/LinkOff";
-import ContentCopyIcon from "@mui/icons-material/ContentCopy";
-import ArrowUpwardIcon from "@mui/icons-material/ArrowUpward";
-import ArrowDownwardIcon from "@mui/icons-material/ArrowDownward";
-import KeyboardArrowDownIcon from "@mui/icons-material/KeyboardArrowDown";
-import KeyboardArrowRightIcon from "@mui/icons-material/KeyboardArrowRight";
+import {
+  ClearIcon,
+  DeleteForeverIcon,
+  FaFolderOpen,
+  CheckIcon,
+  CloseIcon,
+  AddIcon,
+  BsDatabaseAdd,
+  LinkOffIcon,
+  ContentCopyIcon,
+  ArrowUpwardIcon,
+  ArrowDownwardIcon,
+  KeyboardArrowDownIcon,
+  KeyboardArrowRightIcon,
+} from "./icons";
 import {
   arrayToMarkdownTable,
   dataGridStyle,
@@ -69,8 +68,7 @@ import {
   TreeIdent,
 } from "./helper";
 
-import { TbDatabasePlus } from "react-icons/tb";
-import LinkIcon from "@mui/icons-material/Link";
+import { TbDatabasePlus, LinkIcon } from "./icons";
 import { EscDownEvent, modalHandleClose, modalStyle, PassWordManager } from "./Common";
 import { openPath } from "@tauri-apps/plugin-opener";
 import {

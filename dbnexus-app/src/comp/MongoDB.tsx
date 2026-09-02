@@ -18,12 +18,9 @@ import {
   Typography,
 } from "@mui/material";
 import * as monaco from "monaco-editor";
-import UploadIcon from "@mui/icons-material/Upload";
-import ListIcon from "@mui/icons-material/List";
+import { UploadIcon, ListIcon } from "./icons";
 import { editor, languages, MarkerSeverity } from "monaco-editor";
-import DeleteForeverIcon from "@mui/icons-material/DeleteForever";
-import FilterAltIcon from "@mui/icons-material/FilterAlt";
-import { FaArrowsAltV, FaUpload } from "react-icons/fa";
+import { DeleteForeverIcon, FilterAltIcon, FaArrowsAltV, FaUpload } from "./icons";
 import {
   bsonValue2MongoBson,
   formatMongoBsonStr,
@@ -46,7 +43,7 @@ import {
 
 import { BSON, EJSON } from "bson";
 
-import ContentCopyIcon from "@mui/icons-material/ContentCopy";
+import { ContentCopyIcon } from "./icons";
 import {
   modalStyle,
   reloadOK,
@@ -55,10 +52,12 @@ import {
   modalHandleClose,
   FieldAndGridField,
 } from "./Common";
-import ArrowUpwardIcon from "@mui/icons-material/ArrowUpward";
-import ArrowDownwardIcon from "@mui/icons-material/ArrowDownward";
-import { BsFillLightbulbFill } from "react-icons/bs";
-import DataObjectIcon from "@mui/icons-material/DataObject";
+import {
+  ArrowUpwardIcon,
+  ArrowDownwardIcon,
+  BsFillLightbulbFill,
+  DataObjectIcon,
+} from "./icons";
 import {
   AppColumnMenu,
   ModalHeader,

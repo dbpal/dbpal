@@ -10,7 +10,7 @@ import {
   Tooltip,
   Typography,
 } from "@mui/material";
-import ClearIcon from "@mui/icons-material/Clear";
+import { ClearIcon } from "./icons";
 import {
   DataSourceKind,
   isCsvFile,
@@ -31,7 +31,7 @@ import {
   useRef,
   useState,
 } from "react";
-import AddIcon from "@mui/icons-material/Add";
+import { AddIcon } from "./icons";
 import xlsxWithHeaderImg from "../../public/xlsx_with_header.png";
 import {
   AppCode,
@@ -42,8 +42,7 @@ import {
   StackRowCenter,
   TypeSelect,
 } from "./CommonComp2";
-import UploadIcon from "@mui/icons-material/Upload";
-import CloseIcon from "@mui/icons-material/Close";
+import { UploadIcon, CloseIcon } from "./icons";
 import { AllKindChat } from "./Chat";
 import { formatSqlFn, keyNotInTable } from "./Common";
 import { useNotification, useTabSize } from "./store";

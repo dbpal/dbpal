@@ -7,7 +7,7 @@ import {
   useRef,
   useState,
 } from "react";
-import AddIcon from "@mui/icons-material/Add";
+import { AddIcon } from "./icons";
 import {
   TextField,
   Button,
@@ -27,9 +27,9 @@ import {
   Autocomplete,
   Slider,
 } from "@mui/material";
-import CancelIcon from "@mui/icons-material/Cancel";
+import { CancelIcon } from "./icons";
 import { ClearableTextField, RefreshButton } from "./CommonComp2";
-import VisibilityIcon from "@mui/icons-material/Visibility";
+import { VisibilityIcon } from "./icons";
 import { message, open } from "@tauri-apps/plugin-dialog";
 import { extractBaseName } from "./Common.ts";
 import { DataSourceKind } from "./helper.ts";

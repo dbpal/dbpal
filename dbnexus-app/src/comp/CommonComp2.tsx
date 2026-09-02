@@ -12,21 +12,29 @@ import {
   useState,
 } from "react";
 import wcmatch from "wildcard-match";
-import ClearIcon from "@mui/icons-material/Clear";
+import {
+  ClearIcon,
+  InfoIcon,
+  CloseIcon,
+  SaveIcon,
+  CancelIcon,
+  ChatBubbleOutlineOutlinedIcon,
+  ContentCopyIcon,
+  CircleIcon,
+  DeleteForeverIcon,
+  EventNoteIcon,
+  DownloadIcon,
+  AttachFileIcon,
+  ChatBubbleIcon,
+  EditIcon,
+  FaBookmark,
+  FaCopy,
+  IoMdInformationCircleOutline,
+  LuRefreshCcw,
+  IoTimerOutline,
+  MdTimer,
+} from "./icons";
 import Stack from "@mui/material/Stack";
-import InfoIcon from "@mui/icons-material/Info";
-import CloseIcon from "@mui/icons-material/Close";
-import SaveIcon from "@mui/icons-material/Save";
-import { FaBookmark, FaCopy } from "react-icons/fa";
-import { IoMdInformationCircleOutline } from "react-icons/io";
-import CancelIcon from "@mui/icons-material/Cancel";
-import ChatBubbleOutlineOutlinedIcon from "@mui/icons-material/ChatBubbleOutlineOutlined";
-import ContentCopyIcon from "@mui/icons-material/ContentCopy";
-import CircleIcon from "@mui/icons-material/Circle";
-import DeleteForeverIcon from "@mui/icons-material/DeleteForever";
-import EventNoteIcon from "@mui/icons-material/EventNote";
-import { LuRefreshCcw } from "react-icons/lu";
-import DownloadIcon from "@mui/icons-material/Download";
 import {
   Autocomplete,
   Box,
@@ -57,7 +65,7 @@ import {
   Tooltip,
   Typography,
 } from "@mui/material";
-import AttachFileIcon from "@mui/icons-material/AttachFile";
+
 import {
   AppCodeExtraUI,
   AppCodeHanleEdit,
@@ -90,7 +98,7 @@ import {
   NameAndQueryId,
   reloadOK,
 } from "./Common";
-import ChatBubbleIcon from "@mui/icons-material/ChatBubble";
+
 import {
   MetaValueView,
   ModalHeader,
@@ -127,7 +135,7 @@ import {
   useTabsManage,
 } from "./store";
 import { MonacoEditor } from "./Editor";
-import EditIcon from "@mui/icons-material/Edit";
+
 import { Highlight, themes } from "prism-react-renderer";
 import { visit, SKIP } from "unist-util-visit";
 import {
@@ -142,8 +150,6 @@ import {
   SqlNullAble,
   XlsxCellData,
 } from "./bindings";
-import { IoTimerOutline } from "react-icons/io5";
-import { MdTimer } from "react-icons/md";
 import {
   gridPageCountSelector,
   gridPaginationModelSelector,

@@ -9,8 +9,7 @@ import {
   Stack,
 } from "@mui/material";
 import { useCallback, useContext, useEffect, useMemo, useState } from "react";
-import DeleteForeverIcon from "@mui/icons-material/DeleteForever";
-import InfoIcon from "@mui/icons-material/Info";
+import { DeleteForeverIcon, InfoIcon } from "./icons";
 import { DefAndMetasView } from "./DefAndMetaView.tsx";
 import {
   DataSourceKind,
@@ -21,7 +20,7 @@ import {
 } from "./helper.ts";
 
 import { MenuRefresh, MyTreeItem, VirtualListLeft } from "./CommonComp.tsx";
-import { GrSteps } from "react-icons/gr";
+import { GrSteps } from "./icons";
 import { CopySql, ShowingCount } from "./CommonComp2.tsx";
 import {
   useNotification,

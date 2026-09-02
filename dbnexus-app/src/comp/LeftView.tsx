@@ -6,8 +6,7 @@ import {
   useMemo,
   useState,
 } from "react";
-import ContentCopyIcon from "@mui/icons-material/ContentCopy";
-import { IoConstructOutline } from "react-icons/io5";
+import { IoConstructOutline } from "./icons";
 import {
   Button,
   ButtonGroup,
@@ -20,11 +19,14 @@ import {
   Stack,
   Typography,
 } from "@mui/material";
-import ArrowCircleDownIcon from "@mui/icons-material/ArrowCircleDown";
-import DeleteForeverIcon from "@mui/icons-material/DeleteForever";
-import VisibilityIcon from "@mui/icons-material/Visibility";
-import ViewComfyAltIcon from "@mui/icons-material/ViewComfyAlt";
-import ListIcon from "@mui/icons-material/List";
+import {
+  ContentCopyIcon,
+  ArrowCircleDownIcon,
+  DeleteForeverIcon,
+  VisibilityIcon,
+  ViewComfyAltIcon,
+  ListIcon,
+} from "./icons";
 import { SqlTableView } from "./SqlTableView";
 import { ExportTableOrView } from "./Export";
 import {

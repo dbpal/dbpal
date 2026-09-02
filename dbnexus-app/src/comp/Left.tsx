@@ -15,10 +15,8 @@ import {
   Tooltip,
   Typography,
 } from "@mui/material";
-import { IoMdSettings } from "react-icons/io";
+import { IoMdSettings } from "./icons";
 import { useCallback, useContext, useEffect, useMemo, useState } from "react";
-import ContentCopyIcon from "@mui/icons-material/ContentCopy";
-import { GrConnect } from "react-icons/gr";
 import {
   dropDatabase,
   dropSchema,
@@ -28,11 +26,15 @@ import {
   QueryConn,
   uuidv4,
 } from "./Common";
-import { LuDatabase } from "react-icons/lu";
-import { FaDatabase } from "react-icons/fa";
-import { FaCopy } from "react-icons/fa";
-import DeleteForeverIcon from "@mui/icons-material/DeleteForever";
-import CloseIcon from "@mui/icons-material/Close";
+import {
+  ContentCopyIcon,
+  GrConnect,
+  LuDatabase,
+  FaDatabase,
+  FaCopy,
+  DeleteForeverIcon,
+  CloseIcon,
+} from "./icons";
 import logoImg from "../../icon.png";
 
 import {
@@ -47,7 +49,7 @@ import {
   DbnameContext,
   tabsHasID,
 } from "./helper";
-import { TbDatabaseSearch } from "react-icons/tb";
+import { TbDatabaseSearch } from "./icons";
 
 import {
   ConnPingTime,
@@ -63,15 +65,14 @@ import {
   CheckedView,
   MyTreeItem,
 } from "./CommonComp.tsx";
-import KeyboardArrowDownIcon from "@mui/icons-material/KeyboardArrowDown";
-import KeyboardArrowRightIcon from "@mui/icons-material/KeyboardArrowRight";
+import { KeyboardArrowDownIcon, KeyboardArrowRightIcon } from "./icons";
 import { RedisTables, TablesTree } from "./LeftTable.tsx";
 import { ViewKind, ViewsTree } from "./LeftView.tsx";
 import { CassandraAggregatesTree, UdfsTree } from "./LeftUdf.tsx";
 import { ProceduresTree } from "./LeftProcedure.tsx";
 
 import { listen } from "@tauri-apps/api/event";
-import { FaBookmark } from "react-icons/fa";
+import { FaBookmark } from "./icons";
 import { SequenceTree } from "./LeftSequence.tsx";
 import { openUrl } from "@tauri-apps/plugin-opener";
 import { TypesTree } from "./LeftType.tsx";
@@ -90,8 +91,7 @@ import { EventsTree } from "./LeftEvent.tsx";
 import { AllKindChat } from "./Chat.tsx";
 import { AddConnection } from "./AddConnection.tsx";
 import { ModifySetting } from "./Settings.tsx";
-import FilterAltIcon from "@mui/icons-material/FilterAlt";
-import FilterAltOutlinedIcon from "@mui/icons-material/FilterAltOutlined";
+import { FilterAltIcon, FilterAltOutlinedIcon } from "./icons";
 import {
   useMatcher,
   useConnLoading,

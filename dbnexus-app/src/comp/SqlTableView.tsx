@@ -7,9 +7,7 @@ import React, {
   useMemo,
   useState,
 } from "react";
-import ArrowOutwardIcon from "@mui/icons-material/ArrowOutward";
-import { FaUpload } from "react-icons/fa";
-import CancelIcon from "@mui/icons-material/Cancel";
+import { ArrowOutwardIcon, CancelIcon, FaUpload, MdOutlineReply } from "./icons";
 import {
   Box,
   Button,
@@ -30,10 +28,7 @@ import {
   Typography,
 } from "@mui/material";
 
-import { MdOutlineReply } from "react-icons/md";
-import VisibilityIcon from "@mui/icons-material/Visibility";
-import EditIcon from "@mui/icons-material/Edit";
-import ArrowCircleDownIcon from "@mui/icons-material/ArrowCircleDown";
+import { VisibilityIcon, EditIcon, ArrowCircleDownIcon } from "./icons";
 
 import {
   EscDownEvent,
@@ -43,12 +38,14 @@ import {
   modalStyle,
   reloadOK,
 } from "./Common";
-import DeleteForeverIcon from "@mui/icons-material/DeleteForever";
-import KeyIcon from "@mui/icons-material/Key";
-import ArrowUpwardIcon from "@mui/icons-material/ArrowUpward";
-import ArrowDownwardIcon from "@mui/icons-material/ArrowDownward";
-import FilterAltIcon from "@mui/icons-material/FilterAlt";
-import { FaArrowsAltV } from "react-icons/fa";
+import {
+  DeleteForeverIcon,
+  KeyIcon,
+  ArrowUpwardIcon,
+  ArrowDownwardIcon,
+  FilterAltIcon,
+  FaArrowsAltV,
+} from "./icons";
 import {
   DataSourceKind,
   handleCopyToClipboard,
@@ -73,7 +70,7 @@ import {
   TabContent,
   getRowIdOnKeyNotInTable,
 } from "./helper";
-import FileCopyIcon from "@mui/icons-material/FileCopy";
+import { FileCopyIcon, MdEditNote } from "./icons";
 import {
   AppColumnMenu,
   ModalHeader,
@@ -83,7 +80,6 @@ import {
 
 import { editor } from "monaco-editor";
 
-import { MdEditNote } from "react-icons/md";
 import {
   AppDataGridPagination,
   AppDataGridToolBar,
@@ -118,7 +114,7 @@ import {
 } from "./store";
 import { commands, Field, MuiDataGridData } from "./bindings";
 import { ExportTableOrView } from "./Export";
-import UploadIcon from "@mui/icons-material/Upload";
+import { UploadIcon } from "./icons";
 import {
   DataGrid,
   GridCallbackDetails,

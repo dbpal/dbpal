@@ -10,7 +10,7 @@ import {
   useTheme,
   Divider,
 } from "@mui/material";
-import CloseIcon from "@mui/icons-material/Close";
+import { CloseIcon } from "./icons";
 import {
   secondConfirm,
   TabContext,
@@ -30,7 +30,7 @@ import {
 import { IconModifed } from "./CommonComp2";
 import React from "react";
 
-import { AiOutlineDisconnect } from "react-icons/ai";
+import { AiOutlineDisconnect } from "./icons";
 const tabsWrapKey = "tabs-wrap-key";
 function TabsMenu(props: { index: number }) {
   const { index } = props;

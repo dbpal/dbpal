@@ -1,10 +1,9 @@
 import { Divider, ListItemIcon, ListItemText, MenuItem, MenuList } from "@mui/material";
 import { useCallback, useContext, useEffect, useMemo, useState } from "react";
-import DeleteForeverIcon from "@mui/icons-material/DeleteForever";
-import InfoIcon from "@mui/icons-material/Info";
-import { MdFunctions } from "react-icons/md";
+import { DeleteForeverIcon, InfoIcon } from "./icons";
+import { MdFunctions } from "./icons";
 import { DefAndMetasView } from "./DefAndMetaView";
-import { TbMathFunction } from "react-icons/tb";
+import { TbMathFunction } from "./icons";
 import { DataSourceKind, secondConfirm, TabContent, DbnameContext } from "./helper.ts";
 import {
   MenuRefresh,

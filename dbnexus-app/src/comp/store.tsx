@@ -17,7 +17,7 @@ import { useSnackbar } from "notistack";
 import { PassWordManager, uuidv4 } from "./Common";
 import { Channel } from "@tauri-apps/api/core";
 import { cancelTask } from "./handlers";
-import CloseIcon from "@mui/icons-material/Close";
+import { CloseIcon } from "./icons";
 import {
   AiOnlineSearch,
   AISteamResp,

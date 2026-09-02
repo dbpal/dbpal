@@ -11,7 +11,7 @@ import {
 import { filesize } from "filesize";
 import { useEffect, useRef, useState } from "react";
 import { save } from "@tauri-apps/plugin-dialog";
-import ArrowCircleDownIcon from "@mui/icons-material/ArrowCircleDown";
+import { ArrowCircleDownIcon } from "./icons";
 import { Channel } from "@tauri-apps/api/core";
 import { OpenFileWithDefaultApp } from "./CommonComp";
 import {

@@ -27,8 +27,7 @@ import {
   Divider,
 } from "@mui/material";
 
-import ContentCopyIcon from "@mui/icons-material/ContentCopy";
-import DeleteForeverIcon from "@mui/icons-material/DeleteForever";
+import { ContentCopyIcon, DeleteForeverIcon } from "./icons";
 import { modalStyle, reloadOK, EscDownEvent, modalHandleClose } from "./Common";
 import { openUrl } from "@tauri-apps/plugin-opener";
 import {

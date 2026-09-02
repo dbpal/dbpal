@@ -6,8 +6,7 @@ import {
   Separator,
   useDefaultLayout,
 } from "react-resizable-panels";
-import PlayArrowIcon from "@mui/icons-material/PlayArrow";
-import { FaExclamation } from "react-icons/fa";
+import { PlayArrowIcon, FaExclamation } from "./icons";
 import React, {
   ReactNode,
   useCallback,
@@ -16,13 +15,10 @@ import React, {
   useRef,
   useState,
 } from "react";
-import FastForwardIcon from "@mui/icons-material/FastForward";
+import { FastForwardIcon } from "./icons";
 import { editor } from "monaco-editor";
 import { isRedisCode, isSQLCode, NameAndQueryId, QueryConn } from "./Common.ts";
-import { BsFillLightbulbFill } from "react-icons/bs";
-import { FaUpload } from "react-icons/fa";
-import { MdOutlineReply } from "react-icons/md";
-import RefreshIcon from "@mui/icons-material/Refresh";
+import { BsFillLightbulbFill, FaUpload, MdOutlineReply, RefreshIcon } from "./icons";
 import {
   DataSourceKind,
   getEditorText,
@@ -39,7 +35,7 @@ import {
   DbnameContext,
   resizeHandlerSize,
 } from "./helper.ts";
-import ArrowCircleDownRoundedIcon from "@mui/icons-material/ArrowCircleDownRounded";
+import { ArrowCircleDownRoundedIcon } from "./icons";
 import { ExportView } from "./Export.tsx";
 import {
   AiMarkdownModel,

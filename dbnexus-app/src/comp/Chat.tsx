@@ -6,10 +6,8 @@ import {
   secondConfirm,
   DbnameContext,
 } from "./helper.ts";
-import CloseIcon from "@mui/icons-material/Close";
-import SaveIcon from "@mui/icons-material/Save";
-import { TbPrompt } from "react-icons/tb";
-import UploadFileIcon from "@mui/icons-material/UploadFile";
+import { CloseIcon, SaveIcon } from "./icons";
+import { TbPrompt, UploadFileIcon } from "./icons";
 import {
   Chip,
   CircularProgress,
@@ -41,8 +39,7 @@ import {
   ClearableTextField,
   AppMarkDown,
 } from "./CommonComp2.tsx";
-import ArrowCircleUpIcon from "@mui/icons-material/ArrowCircleUp";
-import EventNoteIcon from "@mui/icons-material/EventNote";
+import { ArrowCircleUpIcon, EventNoteIcon } from "./icons";
 import {
   convertPathToDataUrl,
   editorAppendContent,
@@ -53,9 +50,7 @@ import {
   uuidv4,
 } from "./Common.ts";
 import { ModalHeader } from "./CommonComp.tsx";
-import DeleteForeverIcon from "@mui/icons-material/DeleteForever";
-import NavigateNextIcon from "@mui/icons-material/NavigateNext";
-import NavigateBeforeIcon from "@mui/icons-material/NavigateBefore";
+import { DeleteForeverIcon, NavigateNextIcon, NavigateBeforeIcon } from "./icons";
 
 import {
   useBoolSwitch,
@@ -67,7 +62,7 @@ import {
   useSizeStore,
 } from "./store.tsx";
 
-import AddPhotoAlternateIcon from "@mui/icons-material/AddPhotoAlternate";
+import { AddPhotoAlternateIcon } from "./icons";
 import { open } from "@tauri-apps/plugin-dialog";
 
 import { useDebounce } from "use-debounce";
@@ -75,7 +70,7 @@ import { SqlQuery } from "./SqlQuery.tsx";
 import { RedisQuery } from "./RedisQuery.tsx";
 import { MongoQuery } from "./MongoQuery.tsx";
 import { CouchBaseQuery } from "./CouchBase.tsx";
-import { MdCleaningServices } from "react-icons/md";
+import { MdCleaningServices } from "./icons";
 import { openPath } from "@tauri-apps/plugin-opener";
 
 function AllKindQuery(props: { value?: string; favoriteName?: string }) {

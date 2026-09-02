@@ -17,8 +17,7 @@ import {
   DbnameContext,
 } from "./helper";
 import { AppDataGridToolBar, ClearableTextField, RefreshButton } from "./CommonComp2";
-import CancelIcon from "@mui/icons-material/Cancel";
-import CheckCircleIcon from "@mui/icons-material/CheckCircle";
+import { CancelIcon, CheckCircleIcon } from "./icons";
 import {
   Autocomplete,
   Button,
@@ -40,10 +39,7 @@ import {
   Tooltip,
   Typography,
 } from "@mui/material";
-import ContentCopyIcon from "@mui/icons-material/ContentCopy";
-import EditIcon from "@mui/icons-material/Edit";
-import DeleteForeverIcon from "@mui/icons-material/DeleteForever";
-import AddIcon from "@mui/icons-material/Add";
+import { ContentCopyIcon, EditIcon, DeleteForeverIcon, AddIcon } from "./icons";
 import { BSON } from "bson";
 import { MongoValueEditor } from "./MongoDB";
 import { ModalHeader, CheckedView } from "./CommonComp";

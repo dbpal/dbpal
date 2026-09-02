@@ -1,10 +1,9 @@
 import { ListItemIcon, ListItemText, MenuItem, MenuList } from "@mui/material";
 import { useCallback, useContext, useMemo, useState } from "react";
-import DeleteForeverIcon from "@mui/icons-material/DeleteForever";
-import InfoIcon from "@mui/icons-material/Info";
+import { DeleteForeverIcon, InfoIcon } from "./icons";
 import { DefAndMetasView } from "./DefAndMetaView";
 
-import { SiProcessingfoundation } from "react-icons/si";
+import { SiProcessingfoundation } from "./icons";
 import { DataSourceKind, secondConfirm, TabContent, DbnameContext } from "./helper.ts";
 import {
   MenuRefresh,

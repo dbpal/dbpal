@@ -10,7 +10,7 @@ import {
   Tooltip,
   Typography,
 } from "@mui/material";
-import DeleteForeverIcon from "@mui/icons-material/DeleteForever";
+import { DeleteForeverIcon } from "./icons";
 import {
   extractFieldAndIDFromMouseEvent,
   dataGridStyle,
@@ -23,7 +23,7 @@ import {
   DbnameContext,
   DataSourceKind,
 } from "./helper.ts";
-import EditIcon from "@mui/icons-material/Edit";
+import { EditIcon } from "./icons";
 import React, {
   Dispatch,
   SetStateAction,
@@ -34,11 +34,9 @@ import React, {
   useState,
 } from "react";
 import { keyNotInTable } from "./Common";
-import ArrowUpwardIcon from "@mui/icons-material/ArrowUpward";
-import ArrowDownwardIcon from "@mui/icons-material/ArrowDownward";
-import PlayArrowIcon from "@mui/icons-material/PlayArrow";
+import { ArrowUpwardIcon, ArrowDownwardIcon, PlayArrowIcon } from "./icons";
 import { AppColumnMenu, ResetColumnWidth, ViewRowInModal } from "./CommonComp.tsx";
-import VisibilityIcon from "@mui/icons-material/Visibility";
+import { VisibilityIcon } from "./icons";
 import {
   AppCode,
   AppDataGridPagination,

@@ -7,7 +7,7 @@ import {
   useState,
 } from "react";
 import { fetch } from "@tauri-apps/plugin-http";
-import { FaFolderOpen } from "react-icons/fa";
+import { FaFolderOpen } from "./icons";
 import { isEqual } from "lodash-es";
 import * as monaco from "monaco-editor";
 import type {} from "@mui/x-data-grid/themeAugmentation";
@@ -39,7 +39,7 @@ import { HexColorPicker } from "react-colorful";
 import { openPath, openUrl } from "@tauri-apps/plugin-opener";
 import { registeredThemes, shrinkAble, prettyMs, MonacoEditor } from "./helper";
 
-import EditIcon from "@mui/icons-material/Edit";
+import { EditIcon } from "./icons";
 import {
   AppDataGridToolBar,
   IconModifed,

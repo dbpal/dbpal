@@ -8,8 +8,7 @@ import {
   Tooltip,
   Typography,
 } from "@mui/material";
-import UploadIcon from "@mui/icons-material/Upload";
-import ArrowCircleDownRoundedIcon from "@mui/icons-material/ArrowCircleDownRounded";
+import { UploadIcon, ArrowCircleDownRoundedIcon } from "./icons";
 import {
   AiMarkdownModel,
   AiMarkdownModelSwitch,
@@ -46,10 +45,13 @@ import {
   resizeHandlerSize,
 } from "./helper.ts";
 
-import DeleteForeverIcon from "@mui/icons-material/DeleteForever";
-import PlayArrowIcon from "@mui/icons-material/PlayArrow";
-import FilterAltIcon from "@mui/icons-material/FilterAlt";
-import { FaArrowsAltV, FaUpload } from "react-icons/fa";
+import {
+  DeleteForeverIcon,
+  PlayArrowIcon,
+  FilterAltIcon,
+  FaArrowsAltV,
+  FaUpload,
+} from "./icons";
 import { SelectPageSize, VirtualVarListLeft } from "./CommonComp.tsx";
 import { Channel } from "@tauri-apps/api/core";
 import { NameAndQueryId, uuidv4 } from "./Common.ts";
