@@ -20,6 +20,7 @@ import {
   InputAdornment,
   Collapse,
 } from "@mui/material";
+import { AiOutlineDisconnect } from "react-icons/ai";
 import InfoIcon from "@mui/icons-material/Info";
 import AttachFileIcon from "@mui/icons-material/AttachFile";
 import RefreshIcon from "@mui/icons-material/Refresh";
@@ -1425,9 +1426,13 @@ function MyTreeItem(props: {
               }
             : undefined
         }>
-        <IconButton disabled={!enable}>
-          {collasped ? <KeyboardArrowRightIcon /> : <KeyboardArrowDownIcon />}
-        </IconButton>
+        {!enable && <AiOutlineDisconnect />}
+        {enable && (
+          <IconButton disabled={!enable}>
+            {collasped ? <KeyboardArrowRightIcon /> : <KeyboardArrowDownIcon />}
+          </IconButton>
+        )}
+
         {label}
       </Stack>
       <TreeIdent value={identNes}>
