@@ -3205,8 +3205,8 @@ END;
                     bit_column bit,
                     nvarchar_column nvarchar(50),
                     varchar_column varchar(50),
-                    nchar_column nchar(50),
-                    char_column char(50),
+                    nchar_column nchar(3),
+                    char_column char(3),
                     ntext_column ntext,
                     text_column text
                 );
@@ -3222,8 +3222,8 @@ END;
         values.insert("nvarchar_column".to_string(), Some("b".to_string()));
         values.insert("varchar_column".to_string(), Some("c".to_string()));
 
-        values.insert("nchar_column".to_string(), Some("d".to_string()));
-        values.insert("char_column".to_string(), Some("e".to_string()));
+        values.insert("nchar_column".to_string(), Some("d  ".to_string()));
+        values.insert("char_column".to_string(), Some("e  ".to_string()));
         values.insert("ntext_column".to_string(), Some("f".to_string()));
         values.insert("text_column".to_string(), Some("g".to_string()));
 
@@ -3238,16 +3238,7 @@ END;
         println!("ret:{:?}", list);
         GetTestExportTableKinds::test_export(&db, table_name).await;
         db.test_table_export_and_import(table_name).await;
-        db.test_table_equal(
-            table_name,
-            &values,
-            &[
-                "id",
-                "nchar_column", // have extra space
-                "char_column",
-            ],
-        )
-        .await;
+        db.test_table_equal(table_name, &values, &["id"]).await;
     }
 
     #[tokio::test]
