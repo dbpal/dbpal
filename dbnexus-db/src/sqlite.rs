@@ -1652,7 +1652,7 @@ mod tests {
             let mut values = HashMap::new();
             values.insert("id".to_owned(), Some((i + 1).to_string()));
             values.insert("name".to_owned(), Some(format!("name{}", i + 1)));
-            db.table_insert(table_name, values).await.unwrap();
+            db.table_insert(table_name, &values).await.unwrap();
         }
     }
 
@@ -2330,7 +2330,7 @@ mod tests {
         .unwrap();
 
         let mut values: HashMap<String, Option<String>> = HashMap::new();
-        values.insert("text_col".to_string(), Some("Some text".to_string()));
+        values.insert("text_col".to_string(), Some("Some text'`\t".to_string()));
         values.insert("id".to_string(), Some("1".to_string()));
         values.insert("real_col".to_string(), Some("3.14".to_string()));
         values.insert(
@@ -2346,14 +2346,11 @@ mod tests {
         values.insert("time_col".to_string(), Some("12:00:00".to_string()));
         values.insert("date_col".to_string(), Some("2024-01-01".to_string()));
 
-        db.table_insert(table_name, values.clone()).await.unwrap();
+        db.table_insert(table_name, &values).await.unwrap();
         let mut wheres = HashMap::new();
         wheres.insert("id".to_string(), Some(1.to_string()));
 
-        let r = db
-            .table_update(table_name, values.clone(), wheres)
-            .await
-            .unwrap();
+        let r = db.table_update(table_name, &values, &wheres).await.unwrap();
         println!("{:?}", r);
 
         let cols = db
@@ -2399,5 +2396,7 @@ mod tests {
 
         db.test_table_export_and_import(table_name).await;
         println!("view value:{:?}", list);
+
+        db.test_table_equal(table_name, &values, &["id"]).await;
     }
 }

@@ -1796,7 +1796,7 @@ pub(crate) mod test_impls {
                 "ascii_column".to_string(),
                 Some(format!("example_ascii {}", k)),
             );
-            db.table_insert(table_name, values).await.unwrap();
+            db.table_insert(table_name, &values).await.unwrap();
             if k % 500 == 0 {
                 println!("insert {}", k);
             }
@@ -1954,7 +1954,7 @@ pub(crate) mod test_impls {
         values.insert("boolean_column".to_string(), Some("true".to_string()));
         values.insert("decimal_column".to_string(), Some("123.45".to_string()));
         values.insert("double_column".to_string(), Some("3.14159".to_string()));
-        db.table_insert(table_name, values).await.unwrap();
+        db.table_insert(table_name, &values).await.unwrap();
 
         {
             let resp = db
@@ -2007,7 +2007,7 @@ pub(crate) mod test_impls {
         values.insert("decimal_column".to_string(), Some("[123.45]".to_string()));
         values.insert("double_column".to_string(), Some("[3.14159]".to_string()));
 
-        db.table_insert(table_name, values).await.unwrap();
+        db.table_insert(table_name, &values).await.unwrap();
 
         {
             let resp = db
@@ -2055,7 +2055,7 @@ pub(crate) mod test_impls {
             Some("123456789012345678901234567890".to_string()),
         );
 
-        db.table_insert(table_name, values).await.unwrap();
+        db.table_insert(table_name, &values).await.unwrap();
 
         {
             let resp = db
@@ -2106,7 +2106,7 @@ pub(crate) mod test_impls {
             Some("[123456789012345678901234567890]".to_string()),
         );
 
-        db.table_insert(table_name, values).await.unwrap();
+        db.table_insert(table_name, &values).await.unwrap();
 
         {
             let resp = db
@@ -2150,7 +2150,7 @@ pub(crate) mod test_impls {
         values.insert("smallint_value".to_string(), Some("123".to_string()));
         values.insert("tinyint_value".to_string(), Some("5".to_string()));
 
-        db.table_insert(table_name, values).await.unwrap();
+        db.table_insert(table_name, &values).await.unwrap();
 
         {
             let resp = db
@@ -2197,7 +2197,7 @@ pub(crate) mod test_impls {
         values.insert("smallint_value".to_string(), Some("[123]".to_string()));
         values.insert("tinyint_value".to_string(), Some("[5]".to_string()));
 
-        db.table_insert(table_name, values).await.unwrap();
+        db.table_insert(table_name, &values).await.unwrap();
 
         {
             let resp = db
@@ -2239,7 +2239,7 @@ pub(crate) mod test_impls {
             Some("{first_name : 'yu' ,last_name : 'yang' , email : 'xxx',age : 100}".to_string()),
         );
         values.insert("tuple_field".to_string(), Some("(1,100)".to_string()));
-        db.table_insert(table_name, values).await.unwrap();
+        db.table_insert(table_name, &values).await.unwrap();
 
         {
             let resp = db
@@ -2328,7 +2328,7 @@ pub(crate) mod test_impls {
         let mut wheres = HashMap::new();
         values.insert("view_count".to_string(), Some("view_count + 1".to_string()));
         wheres.insert("page_id".to_string(), Some("uuid()".to_string()));
-        db.table_update(table_name, values, wheres).await.unwrap();
+        db.table_update(table_name, &values, &wheres).await.unwrap();
 
         let resp = db
             .show_table_collect(table_name, new_test_show_parameter())

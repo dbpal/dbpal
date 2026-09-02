@@ -596,7 +596,7 @@ mod tests {
         values.insert("int2_column".to_string(), Some("2".to_string()));
         values.insert("int4_column".to_string(), Some("100".to_string()));
         values.insert("rowid".to_string(), Some("unique_rowid()".to_string()));
-        db.table_insert(table_name, values.clone()).await.unwrap();
+        db.table_insert(table_name, &values).await.unwrap();
         let mut wheres = values.clone();
         wheres.insert("id".to_string(), Some("1".to_string()));
         let json = db

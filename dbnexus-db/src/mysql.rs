@@ -1241,7 +1241,7 @@ impl SchemaTrait for MysqlDB {
     async fn table_insert_sql(
         &self,
         table_name: &str,
-        values: HashMap<String, Option<String>>,
+        values: &HashMap<String, Option<String>>,
     ) -> anyhow::Result<String> {
         let fs = self.show_table_columns(table_name).await?;
         let sql = SqlBuilder::insert_sql(self, table_name, &fs, &values)?;
@@ -1251,7 +1251,7 @@ impl SchemaTrait for MysqlDB {
     async fn table_insert(
         &self,
         table_name: &str,
-        values: HashMap<String, Option<String>>,
+        values: &HashMap<String, Option<String>>,
     ) -> anyhow::Result<Option<usize>> {
         let sql = self.table_insert_sql(table_name, values).await?;
         let r = self.simple_execute_sql(&sql).await?;
@@ -1261,8 +1261,8 @@ impl SchemaTrait for MysqlDB {
     async fn table_update_sql(
         &self,
         table_name: &str,
-        values: HashMap<String, Option<String>>,
-        wheres: HashMap<String, Option<String>>,
+        values: &HashMap<String, Option<String>>,
+        wheres: &HashMap<String, Option<String>>,
     ) -> anyhow::Result<String> {
         let fs = self.show_table_columns(table_name).await?;
         let sql = SqlBuilder::update_sql(self, table_name, &fs, &values, &wheres)?;
@@ -1272,8 +1272,8 @@ impl SchemaTrait for MysqlDB {
     async fn table_update(
         &self,
         table_name: &str,
-        values: HashMap<String, Option<String>>,
-        wheres: HashMap<String, Option<String>>,
+        values: &HashMap<String, Option<String>>,
+        wheres: &HashMap<String, Option<String>>,
     ) -> anyhow::Result<Option<usize>> {
         let sql = self.table_update_sql(table_name, values, wheres).await?;
         self.simple_execute_sql(&sql).await
@@ -1282,7 +1282,7 @@ impl SchemaTrait for MysqlDB {
     async fn table_delete_sql(
         &self,
         table_name: &str,
-        wheres: HashMap<String, Option<String>>,
+        wheres: &HashMap<String, Option<String>>,
     ) -> anyhow::Result<String> {
         let fs = self.show_table_columns(table_name).await?;
         SqlBuilder::delete_sql(self, table_name, &fs, &wheres)
@@ -1291,7 +1291,7 @@ impl SchemaTrait for MysqlDB {
     async fn table_delete(
         &self,
         table_name: &str,
-        wheres: HashMap<String, Option<String>>,
+        wheres: &HashMap<String, Option<String>>,
     ) -> anyhow::Result<Option<usize>> {
         let fs = self.show_table_columns(table_name).await?;
         let sql = SqlBuilder::delete_sql(self, table_name, &fs, &wheres)?;
@@ -2155,7 +2155,7 @@ pub(crate) mod test_fns {
             let mut values = HashMap::new();
             values.insert("id".to_owned(), Some((i + 1).to_string()));
             values.insert("name".to_owned(), Some(format!("name{}", i + 1)));
-            db.table_insert(table_name, values).await.unwrap();
+            db.table_insert(table_name, &values).await.unwrap();
         }
     }
 
@@ -2638,7 +2638,7 @@ pub(crate) mod test_fns {
         values.insert("int_col".to_string(), Some("4".to_string()));
         values.insert("bigint_col".to_string(), Some("5".to_string()));
 
-        db.table_insert(table_name, values).await.unwrap();
+        db.table_insert(table_name, &values).await.unwrap();
 
         let cols = db
             .show_table_collect(
@@ -2652,6 +2652,8 @@ pub(crate) mod test_fns {
         GetTestExportTableKinds::test_export(&db, table_name).await;
 
         db.test_table_export_and_import(table_name).await;
+        db.test_table_equal(table_name, &values, &["tinyint_col"]) // 1 and true is confusing, so we ignore tinyint_col in equal test
+            .await;
     }
 
     pub(crate) async fn test_types2(db: MysqlDB) {
@@ -2688,7 +2690,7 @@ pub(crate) mod test_fns {
         values.insert("f32_col".to_string(), Some("4".to_string()));
         values.insert("f64_col".to_string(), Some("5".to_string()));
 
-        db.table_insert(table_name, values).await.unwrap();
+        db.table_insert(table_name, &values).await.unwrap();
 
         let cols = db
             .show_table_collect(
@@ -2701,6 +2703,7 @@ pub(crate) mod test_fns {
 
         GetTestExportTableKinds::test_export(&db, table_name).await;
         db.test_table_export_and_import(table_name).await;
+        db.test_table_equal(table_name, &values, &[]).await;
     }
 
     pub(crate) async fn test_types3(db: MysqlDB) {
@@ -2738,7 +2741,7 @@ pub(crate) mod test_fns {
         values.insert("binary_col".to_string(), Some("0x0102030405".to_string()));
         values.insert("blob_col".to_string(), Some("0x01020304".to_string()));
 
-        db.table_insert(table_name, values).await.unwrap();
+        db.table_insert(table_name, &values).await.unwrap();
 
         let cols = db
             .show_table_collect(
@@ -2792,10 +2795,10 @@ pub(crate) mod test_fns {
         values.insert("decimal_column".to_string(), Some("123.45".to_string()));
         values.insert(
             "json_column".to_string(),
-            Some(r#"{"key": "value"}"#.to_string()),
+            Some(r#"{"key":"value"}"#.to_string()),
         );
 
-        db.table_insert(table_name, values).await.unwrap();
+        db.table_insert(table_name, &values).await.unwrap();
 
         let cols = db
             .show_table_collect(
@@ -2807,6 +2810,7 @@ pub(crate) mod test_fns {
         println!("{:?}", cols);
         GetTestExportTableKinds::test_export(&db, table_name).await;
         db.test_table_export_and_import(table_name).await;
+        db.test_table_equal(table_name, &values, &[]).await;
     }
 
     pub(crate) async fn test_list_database(db: MysqlDB) {
@@ -3066,11 +3070,6 @@ mod tests {
         test_fns::test_udf(make_test_object(make_config()).await).await;
     }
 
-    #[tokio::test]
-    async fn test_types1() {
-        test_fns::test_types1(make_test_object(make_config()).await).await;
-    }
-
     #[ignore = "run by hand"]
     #[tokio::test]
 
@@ -3091,6 +3090,11 @@ mod tests {
                 println!("sql:{}", y);
             }
         }
+    }
+
+    #[tokio::test]
+    async fn test_types1() {
+        test_fns::test_types1(make_test_object(make_config()).await).await;
     }
 
     #[tokio::test]

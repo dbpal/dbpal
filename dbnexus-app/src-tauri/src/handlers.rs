@@ -565,7 +565,7 @@ pub async fn table_insert(
     random_error()?;
     let db = app.get_schema(&db_name).await?;
     let r = db
-        .table_insert(&table_name, values)
+        .table_insert(&table_name, &values)
         .await
         .map_err(ErrorFrontend::from)?;
     Ok(r.map(|x| x as f64))
@@ -582,7 +582,7 @@ pub async fn table_insert_sql(
     random_sleep().await;
     random_error()?;
     let db = app.get_schema(&db_name).await?;
-    db.table_insert_sql(&table_name, values)
+    db.table_insert_sql(&table_name, &values)
         .await
         .map_err(ErrorFrontend::from)
 }
@@ -599,7 +599,7 @@ pub async fn table_update(
     random_error()?;
     let db = app.get_schema(&db_name).await?;
     let r = db
-        .table_update(&table_name, values, wheres)
+        .table_update(&table_name, &values, &wheres)
         .await
         .map_err(ErrorFrontend::from)?;
 
@@ -618,7 +618,7 @@ pub async fn table_update_sql(
     random_sleep().await;
     random_error()?;
     let db = app.get_schema(&db_name).await?;
-    db.table_update_sql(&table_name, values, wheres)
+    db.table_update_sql(&table_name, &values, &wheres)
         .await
         .map_err(ErrorFrontend::from)
 }
@@ -746,7 +746,7 @@ pub async fn table_delete_sql(
     random_sleep().await;
     random_error()?;
     let db = app.get_schema(&db_name).await?;
-    db.table_delete_sql(&table_name, wheres)
+    db.table_delete_sql(&table_name, &wheres)
         .await
         .map_err(ErrorFrontend::from)
 }
@@ -763,7 +763,7 @@ pub async fn table_delete(
     random_error()?;
     let db = app.get_schema(&db_name).await?;
     let r = db
-        .table_delete(&table_name, wheres)
+        .table_delete(&table_name, &wheres)
         .await
         .map_err(ErrorFrontend::from)?;
     Ok(r.map(|x| x as f64))

@@ -469,7 +469,7 @@ mod tests {
         values.insert("ipv6_col".to_string(), Some(ip6.to_string()));
 
         // 3. 执行插入
-        db.table_insert(table_name, values).await.unwrap();
+        db.table_insert(table_name, &values).await.unwrap();
 
         // 4. 查询并打印结果（MariaDB 会自动将内部的二进制转换回标准字符串返回给客户端）
         let cols = db

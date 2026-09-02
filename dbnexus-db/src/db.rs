@@ -5,6 +5,8 @@ use chrono::{DateTime, FixedOffset};
 use core::str;
 use std::any::Any;
 use std::collections::HashMap;
+#[cfg(test)]
+use std::collections::HashSet;
 use std::fmt::{self, Debug};
 use std::io::BufRead;
 use std::ops::Deref;
@@ -480,7 +482,7 @@ pub trait SchemaTrait:
     async fn table_insert_sql(
         &self,
         table_name: &str,
-        values: HashMap<String, Option<String>>,
+        values: &HashMap<String, Option<String>>,
     ) -> anyhow::Result<String> {
         let fs = self.show_table_columns(table_name).await?;
         let sql = SqlBuilder::insert_sql(self, table_name, &fs, &values)?;
@@ -490,7 +492,7 @@ pub trait SchemaTrait:
     async fn table_insert(
         &self,
         table_name: &str,
-        values: HashMap<String, Option<String>>,
+        values: &HashMap<String, Option<String>>,
     ) -> anyhow::Result<Option<usize>> {
         let sql = self.table_insert_sql(table_name, values).await?;
         let r = self.simple_execute_sql(&sql).await?;
@@ -500,8 +502,8 @@ pub trait SchemaTrait:
     async fn table_update_sql(
         &self,
         table_name: &str,
-        values: HashMap<String, Option<String>>,
-        wheres: HashMap<String, Option<String>>,
+        values: &HashMap<String, Option<String>>,
+        wheres: &HashMap<String, Option<String>>,
     ) -> anyhow::Result<String> {
         let fs = self.show_table_columns(table_name).await?;
         let sql = SqlBuilder::update_sql(self, table_name, &fs, &values, &wheres)?;
@@ -511,10 +513,10 @@ pub trait SchemaTrait:
     async fn table_update(
         &self,
         table_name: &str,
-        values: HashMap<String, Option<String>>,
-        wheres: HashMap<String, Option<String>>,
+        values: &HashMap<String, Option<String>>,
+        wheres: &HashMap<String, Option<String>>,
     ) -> anyhow::Result<Option<usize>> {
-        let sql = self.table_update_sql(table_name, values, wheres).await?;
+        let sql = self.table_update_sql(table_name, &values, &wheres).await?;
         self.simple_execute_sql(&sql).await
     }
 
@@ -523,7 +525,7 @@ pub trait SchemaTrait:
     async fn table_delete_sql(
         &self,
         table_name: &str,
-        wheres: HashMap<String, Option<String>>,
+        wheres: &HashMap<String, Option<String>>,
     ) -> anyhow::Result<String> {
         let fs = self.show_table_columns(table_name).await?;
         SqlBuilder::delete_sql(self, table_name, &fs, &wheres)
@@ -532,7 +534,7 @@ pub trait SchemaTrait:
     async fn table_delete(
         &self,
         table_name: &str,
-        wheres: HashMap<String, Option<String>>,
+        wheres: &HashMap<String, Option<String>>,
     ) -> anyhow::Result<Option<usize>> {
         let fs = self.show_table_columns(table_name).await?;
         let sql = SqlBuilder::delete_sql(self, table_name, &fs, &wheres)?;
@@ -1034,7 +1036,7 @@ pub trait SchemaTrait:
             .await
             .unwrap();
 
-        log::info!("test csv file path:{}", file);
+        println!("exported excel file:{}", file);
 
         self.truncate_table(table).await.unwrap();
         self.table_import_data_from_file(
@@ -1176,6 +1178,59 @@ pub trait SchemaTrait:
         let x = self.show_table_collect(table, para.clone()).await.unwrap();
         log::info!("after excel import:{:?}", x.data);
         log::info!("test export and import OK.")
+    }
+
+    #[cfg(test)]
+
+    async fn test_table_equal(
+        &self,
+        table: &str,
+        expected: &HashMap<String, Option<String>>,
+        skip_fields: &[&'static str],
+    ) {
+        let skip_fields: HashSet<&'static str> = skip_fields.iter().map(|x| *x).collect();
+
+        let expected = {
+            let values: HashMap<_, _> = expected
+                .iter()
+                .filter(|(k, _)| !skip_fields.contains(&k.as_str()))
+                .collect();
+            values
+        };
+        let r = self
+            .show_table_collect(
+                table,
+                ShowTableParameter {
+                    page_size: 1,
+                    ..Default::default()
+                },
+            )
+            .await
+            .unwrap();
+        println!("resp:{:?}", r);
+        let values = r
+            .fields
+            .iter()
+            .zip(r.data.get(0).unwrap())
+            .map(|(f, v)| (f.field.clone(), v.clone()))
+            .filter(|(k, _)| !skip_fields.contains(k.as_str()))
+            .collect::<HashMap<_, _>>();
+
+        println!("values:{:?}", values);
+
+        for (k, v) in expected.iter() {
+            let v_e = v.as_ref().map(|s| s.as_str()).unwrap();
+            let v_a = values
+                .get(*k)
+                .unwrap()
+                .as_ref()
+                .map(|s| s.as_str())
+                .expect(format!("field:{} not found in actual result", *k).as_str());
+
+            if v_e != v_a {
+                panic!("field:{} expect:{} actual:{}", *k, v_e, v_a);
+            }
+        }
     }
 }
 
@@ -1371,6 +1426,7 @@ pub trait SqlBuilder: GetBackendKind {
         fs: &[Field],
         values: &HashMap<String, Option<String>>,
     ) -> anyhow::Result<String> {
+        println!("insert_sql values:{:?}", values);
         let schema = self.get_schema();
         #[allow(clippy::format_in_format_args)]
         let mut sql = format!(
@@ -1427,7 +1483,10 @@ pub trait SqlBuilder: GetBackendKind {
                     Some(value) => {
                         sql.push_str(self.put_value_in_sql(&f.data_type, value)?.as_str())
                     }
-                    None => sql.push_str("NULL"),
+                    None => {
+                        log::info!("field '{}' is null", f.field);
+                        sql.push_str("NULL")
+                    }
                 };
             }
             sql.push(')');

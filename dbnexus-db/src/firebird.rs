@@ -1458,7 +1458,7 @@ mod tests {
             let mut values = HashMap::new();
             values.insert("ID".to_owned(), Some((i + 1).to_string()));
             values.insert("NAME".to_owned(), Some(format!("name{}", i + 1)));
-            db.table_insert(table_name, values).await.unwrap();
+            db.table_insert(table_name, &values).await.unwrap();
             if (i + 1) % 10 == 0 {
                 println!("insert 10 records");
             }
@@ -1849,7 +1849,7 @@ mod tests {
 
         values.insert("COL_DECIMAL".to_string(), Some("123.45".to_string()));
         values.insert("COL_NUMERIC".to_string(), Some("678.90".to_string()));
-        db.table_insert(table_name, values).await.unwrap();
+        db.table_insert(table_name, &values).await.unwrap();
 
         {
             let resp = db
@@ -1922,7 +1922,7 @@ mod tests {
             Some("2025-03-17 14:30:00".to_string()),
         );
         values.insert("COL_BOOLEAN".to_string(), Some("TRUE".to_string()));
-        db.table_insert(table_name, values).await.unwrap();
+        db.table_insert(table_name, &values).await.unwrap();
 
         {
             let resp = db

@@ -1296,14 +1296,16 @@ function LeftTableNameAndColumns(props: {
     <MyTreeItem
       makeMenu={makeMenu}
       enable={true}
-      label=<>
+      label=<Stack
+        direction="row"
+        style={{ justifyContent: "space-between", width: "100%" }}>
         <span style={textEllipsisStyle}>{table.name}</span>
         {table.size && (
           <span style={{ ...textEllipsisStyle }}>
             {filesize(table.size, { round: 0 })}
           </span>
         )}
-      </>>
+      </Stack>>
       <VirtualListLeft
         data={fs}
         show={(f) => {

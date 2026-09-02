@@ -188,18 +188,8 @@ pub(crate) fn encode_row_as_json(
             }
             "BYTEA[]" => {
                 let value: Option<Vec<Vec<u8>>> = r.try_get(c)?;
-                let value = value.map(|x| {
-                    x.into_iter()
-                        .map(|x| output_bytes(x.as_slice()))
-                        .collect::<Vec<_>>()
-                });
-                value
-                    .map(|x| {
-                        x.into_iter()
-                            .map(serde_json::Value::from)
-                            .collect::<Vec<_>>()
-                    })
-                    .map(serde_json::Value::Array)
+                let value = value.map(|data| output_bytes_array(&data));
+                value.map(serde_json::Value::from)
             }
             "INT2[]" => {
                 let value: Option<Vec<i16>> = r.try_get(c)?;
@@ -492,7 +482,7 @@ pub(crate) fn encode_row_as_json(
 
             "JSON" => {
                 let value: Option<serde_json::Value> = r.try_get(c)?;
-                value.map(|x| x.to_string()).map(serde_json::Value::from)
+                value
             }
             "JSONB" => {
                 let value: Option<serde_json::Value> = r.try_get(c)?;
@@ -528,7 +518,9 @@ pub(crate) fn encode_row_as_json(
             }
             "TSRANGE" => {
                 let value: Option<PgRange<chrono::NaiveDateTime>> = r.try_get(c)?;
-                value.map(|x| output_range(&x)).map(serde_json::Value::from)
+                value
+                    .map(|x| output_tsrange(&x))
+                    .map(serde_json::Value::from)
             }
             "TSRANGE[]" => {
                 let value: Option<Vec<PgRange<chrono::NaiveDateTime>>> = r.try_get(c)?;
@@ -549,14 +541,7 @@ pub(crate) fn encode_row_as_json(
                     .map(serde_json::Value::from)
             }
             "TSTZRANGE[]" => {
-                let value: Option<Vec<PgRange<chrono::DateTime<FixedOffset>>>> = r.try_get(c)?;
-                let value = value.map(|x| {
-                    x.into_iter()
-                        .map(|x| output_range_data_time_fixoffset(&x))
-                        .map(serde_json::Value::from)
-                        .collect::<Vec<_>>()
-                });
-                value.map(serde_json::value::Value::Array)
+                anyhow::bail!("TSTZRANGE[] not support");
             }
 
             "DATERANGE" => {
@@ -944,7 +929,7 @@ pub(crate) fn encode_row_as_xlsx(r: &PgRow) -> anyhow::Result<Vec<Option<XlsxEdi
             }
             "TSRANGE" => {
                 let value: Option<PgRange<chrono::NaiveDateTime>> = r.try_get(c)?;
-                value.map(|x| output_range(&x).into())
+                value.map(|x| output_tsrange(&x).into())
             }
             "TSRANGE[]" => {
                 let value: Option<Vec<PgRange<chrono::NaiveDateTime>>> = r.try_get(c)?;
@@ -956,8 +941,7 @@ pub(crate) fn encode_row_as_xlsx(r: &PgRow) -> anyhow::Result<Vec<Option<XlsxEdi
                 value.map(|x| output_range_data_time_fixoffset(&x).into())
             }
             "TSTZRANGE[]" => {
-                let value: Option<Vec<PgRange<chrono::DateTime<FixedOffset>>>> = r.try_get(c)?;
-                value.map(|x| output_range_data_time_fix_offset_array(&x).into())
+                anyhow::bail!("TSTZRANGE[] not support");
             }
             "DATERANGE" => {
                 let value: Option<PgRange<chrono::NaiveDate>> = r.try_get(c)?;
@@ -1279,7 +1263,7 @@ pub(crate) fn encode_row(r: &PgRow) -> anyhow::Result<Vec<Option<String>>> {
             }
             "TSRANGE" => {
                 let value: Option<PgRange<chrono::NaiveDateTime>> = r.try_get(c)?;
-                value.map(|x| output_range(&x))
+                value.map(|x| output_tsrange(&x))
             }
             "TSRANGE[]" => {
                 let value: Option<Vec<PgRange<chrono::NaiveDateTime>>> = r.try_get(c)?;
@@ -1291,8 +1275,7 @@ pub(crate) fn encode_row(r: &PgRow) -> anyhow::Result<Vec<Option<String>>> {
                 value.map(|x| output_range_data_time_fixoffset(&x))
             }
             "TSTZRANGE[]" => {
-                let value: Option<Vec<PgRange<chrono::DateTime<FixedOffset>>>> = r.try_get(c)?;
-                value.map(|x| output_range_data_time_fix_offset_array(&x))
+                anyhow::bail!("TSTZRANGE[] not support");
             }
             "DATERANGE" => {
                 let value: Option<PgRange<chrono::NaiveDate>> = r.try_get(c)?;
@@ -1348,7 +1331,7 @@ pub(crate) fn put_value_in_sql(typ: &str, value: &str) -> anyhow::Result<String>
 
     let encode = match typ.as_str() {
         "BOOL" => default_str,
-        "BYTEA" => single_quote_str,
+        "BYTEA" => format!("{}::bytea", single_quote_str),
 
         "NAME" => single_quote_str,
         "\"CHAR\"" => single_quote_str,
@@ -1381,7 +1364,7 @@ pub(crate) fn put_value_in_sql(typ: &str, value: &str) -> anyhow::Result<String>
         "MACADDR" => single_quote_str,
         "INET" => single_quote_str,
         "BOOL[]" => single_quote_str,
-        "BYTEA[]" => single_quote_str,
+        "BYTEA[]" => format!("{}::bytea[]", single_quote_str),
 
         "NAME[]" => single_quote_str,
         "INT2[]" => single_quote_str,
@@ -1434,7 +1417,7 @@ pub(crate) fn put_value_in_sql(typ: &str, value: &str) -> anyhow::Result<String>
         "TSRANGE" => single_quote_str,
         "TSRANGE[]" => single_quote_str,
         "TSTZRANGE" => single_quote_str,
-        "TSTZRANGE[]" => single_quote_str,
+        "TSTZRANGE[]" => return err,
         "DATERANGE" => single_quote_str,
         "DATERANGE[]" => single_quote_str,
         "INT8RANGE" => single_quote_str,
@@ -1498,6 +1481,22 @@ pub(crate) fn output_range<T: std::fmt::Display>(r: &PgRange<T>) -> String {
     ret
 }
 
+pub(crate) fn output_tsrange(r: &PgRange<chrono::NaiveDateTime>) -> String {
+    use std::ops::Bound::*;
+    let mut ret = "".to_string();
+    match &r.start {
+        Included(x) => ret.push_str(format!("[\"{}\",", x).as_str()),
+        Excluded(x) => ret.push_str(format!("(\"{}\",", x).as_str()),
+        Unbounded => ret.push_str("(,"),
+    };
+    match &r.end {
+        Included(x) => ret.push_str(format!("\"{}\"]", x).as_str()),
+        Excluded(x) => ret.push_str(format!("\"{}\")", x).as_str()),
+        Unbounded => ret.push(')'),
+    }
+    ret
+}
+
 pub(crate) fn output_range_data_time_fixoffset(
     r: &PgRange<chrono::DateTime<FixedOffset>>,
 ) -> String {
@@ -1505,8 +1504,8 @@ pub(crate) fn output_range_data_time_fixoffset(
     let mut ret = "".to_string();
     match &r.start {
         // 去掉了时间前后的双引号
-        Included(x) => ret.push_str(format!("[{},", format_data_time_fix_offset(x)).as_str()),
-        Excluded(x) => ret.push_str(format!("({},", format_data_time_fix_offset(x)).as_str()),
+        Included(x) => ret.push_str(format!("[\"{}\",", format_data_time_fix_offset(x)).as_str()),
+        Excluded(x) => ret.push_str(format!("(\"{}\",", format_data_time_fix_offset(x)).as_str()),
         Unbounded => ret.push_str("(,"),
     };
     match &r.end {
@@ -1515,30 +1514,6 @@ pub(crate) fn output_range_data_time_fixoffset(
         Excluded(x) => ret.push_str(format!("{})", format_data_time_fix_offset(x)).as_str()),
         Unbounded => ret.push(')'),
     }
-    ret
-}
-
-pub(crate) fn output_range_data_time_fix_offset_array(
-    array: &[PgRange<chrono::DateTime<FixedOffset>>],
-) -> String {
-    if array.is_empty() {
-        return "{}".to_string();
-    }
-    let last = array.len() - 1;
-    let mut ret = "{".to_string();
-    for (index, v) in array.iter().enumerate() {
-        ret.push_str(
-            format!(
-                "\"{}\"",
-                output_range_data_time_fixoffset(v).replace("\"", "\\\"")
-            )
-            .as_str(),
-        );
-        if index != last {
-            ret.push(',')
-        }
-    }
-    ret.push('}');
     ret
 }
 
@@ -1781,10 +1756,14 @@ pub(crate) fn output_bytes_array(array: &[Vec<u8>]) -> String {
     if array.is_empty() {
         return "{}".to_string();
     }
+
+    pub(crate) fn output_bytes(bs: &[u8]) -> String {
+        format!(r#"\\x{}"#, hex::encode_upper(bs))
+    }
     let last = array.len() - 1;
     let mut ret = "{".to_string();
     for (index, v) in array.iter().enumerate() {
-        ret.push_str(format!("\"\\{}\"", output_bytes(v)).as_str());
+        ret.push_str(format!(r#""{}""#, output_bytes(v)).as_str());
         if index != last {
             ret.push(',')
         }
@@ -1794,7 +1773,7 @@ pub(crate) fn output_bytes_array(array: &[Vec<u8>]) -> String {
 }
 
 pub(crate) fn output_bytes(bs: &[u8]) -> String {
-    format!("\\x{}", hex::encode_upper(bs))
+    format!(r#"\x{}"#, hex::encode_upper(bs))
 }
 
 pub(crate) fn output_macaddr8_array(array: &[MacAddr8]) -> String {

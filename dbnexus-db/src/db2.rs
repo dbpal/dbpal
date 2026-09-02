@@ -578,7 +578,7 @@ impl SchemaTrait for Db2Db {
     async fn table_insert(
         &self,
         table_name: &str,
-        values: HashMap<String, Option<String>>,
+        values: &HashMap<String, Option<String>>,
     ) -> anyhow::Result<SqlExecuteRet> {
         let fs = self.show_table_columns(table_name).await?;
         let sql = self.insert_sql(self.config.schema.as_deref(), table_name, &fs, &values)?;
@@ -589,7 +589,7 @@ impl SchemaTrait for Db2Db {
     async fn table_update(
         &self,
         table_name: &str,
-        values: HashMap<String, Option<String>>,
+        values: &HashMap<String, Option<String>>,
         wheres: HashMap<String, Option<String>>,
     ) -> anyhow::Result<SqlExecuteRet> {
         let fs = self.show_table_columns(table_name).await?;

@@ -1503,7 +1503,7 @@ mod tests {
             let mut values = HashMap::new();
             values.insert("id".to_owned(), Some((i + 1).to_string()));
             values.insert("name".to_owned(), Some(format!("name{}", i + 1)));
-            db.table_insert(table_name, values).await.unwrap();
+            db.table_insert(table_name, &values).await.unwrap();
         }
     }
     #[tokio::test]
@@ -1926,7 +1926,7 @@ mod tests {
             values.insert("value_uint32".to_string(), Some(3.to_string()));
             values.insert("value_uint64".to_string(), Some(4.to_string()));
             values.insert("value_uint128".to_string(), Some(5.to_string()));
-            db.table_insert(table_name, values).await.unwrap();
+            db.table_insert(table_name, &values).await.unwrap();
         }
         {
             let resp = db
@@ -1979,7 +1979,7 @@ mod tests {
                 Some("9007199254740993".to_string()),
             );
             values.insert("value_int128".to_string(), Some(5.to_string()));
-            db.table_insert(table_name, values).await.unwrap();
+            db.table_insert(table_name, &values).await.unwrap();
         }
         {
             let resp = db
@@ -2035,7 +2035,7 @@ mod tests {
                 Some("1234567890123456.789".to_string()),
             );
             values.insert("boolean_field".to_string(), Some(true.to_string()));
-            db.table_insert(table_name, values).await.unwrap();
+            db.table_insert(table_name, &values).await.unwrap();
         }
         {
             let resp = db
@@ -2098,7 +2098,7 @@ mod tests {
             );
             values.insert("ipv4_field".to_string(), Some("192.168.1.1".to_string()));
             values.insert("date_field".to_string(), Some("2025-03-06".to_string()));
-            db.table_insert(table_name, values).await.unwrap();
+            db.table_insert(table_name, &values).await.unwrap();
         }
         {
             let resp = db
@@ -2169,7 +2169,7 @@ mod tests {
                 "map_field".to_string(),
                 Some("map('key1', 10, 'key2', 20)".to_string()),
             );
-            db.table_insert(table_name, values).await.unwrap();
+            db.table_insert(table_name, &values).await.unwrap();
         }
         {
             let resp = db
@@ -2235,7 +2235,7 @@ mod tests {
             );
             println!("values:{:?}", values);
 
-            db.table_insert(table_name, values).await.unwrap();
+            db.table_insert(table_name, &values).await.unwrap();
         }
         {
             let resp = db
@@ -2290,7 +2290,7 @@ mod tests {
                 Some("hello world".to_string()),
             );
 
-            db.table_insert(table_name, values).await.unwrap();
+            db.table_insert(table_name, &values).await.unwrap();
         }
         {
             let resp = db

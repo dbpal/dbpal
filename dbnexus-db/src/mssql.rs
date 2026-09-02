@@ -248,10 +248,14 @@ impl<'a> tiberius::FromSql<'a> for ConvertColumnDataToString {
                 .flatten()
                 .map(|x| x.to_string()),
 
-            tiberius::ColumnData::Date(_) => chrono::NaiveTime::from_sql(value)
-                .ok()
-                .flatten()
-                .map(|x| x.to_string()),
+            tiberius::ColumnData::Date(_x) => {
+                let x = chrono::NaiveDate::from_sql(value)
+                    .ok()
+                    .flatten()
+                    .map(|x| x.to_string());
+
+                x
+            }
 
             tiberius::ColumnData::Time(_x) => chrono::NaiveTime::from_sql(value)
                 .ok()
@@ -281,7 +285,7 @@ impl<'a> tiberius::FromSql<'a> for ConvertColumnDataToXlsxContent {
             tiberius::ColumnData::I64(x) => x.as_ref().map(|x| (*x).into()),
             tiberius::ColumnData::F32(x) => x.as_ref().map(|x| XlsxEditContent::number(*x)),
             tiberius::ColumnData::F64(x) => x.as_ref().map(|x| XlsxEditContent::Number(*x)),
-            tiberius::ColumnData::Bit(x) => x.as_ref().map(|x| (*x).into()),
+            tiberius::ColumnData::Bit(x) => x.as_ref().map(|x| XlsxEditContent::number(*x as u8)),
             tiberius::ColumnData::String(x) => x.as_ref().map(|x| x.to_string().into()),
             tiberius::ColumnData::Guid(x) => x.as_ref().map(|x| x.to_string().into()),
             tiberius::ColumnData::Binary(x) => x.as_ref().map(|x| encode_bytes(x).into()),
@@ -295,7 +299,7 @@ impl<'a> tiberius::FromSql<'a> for ConvertColumnDataToXlsxContent {
                 .flatten()
                 .map(|x| x.into()),
 
-            tiberius::ColumnData::Date(_) => chrono::NaiveTime::from_sql(value)
+            tiberius::ColumnData::Date(_) => chrono::NaiveDate::from_sql(value)
                 .ok()
                 .flatten()
                 .map(|x| x.into()),
@@ -326,13 +330,13 @@ fn encode_row(row: &tiberius::Row) -> anyhow::Result<Vec<Option<String>>> {
 
 impl EncodeXlsxDatetime for SqlServerDB {
     /*
-         all date time types
-          DateTimeData DATETIME,
-               DateTime2Data DATETIME2,
-               SmallDateTimeData SMALLDATETIME,
-               DateData DATE,
-               TimeData TIME,
-               DateTimeOffsetData DATETIMEOFFSET
+            all date time types
+            DateTimeData DATETIME,
+            DateTime2Data DATETIME2,
+            SmallDateTimeData SMALLDATETIME,
+            DateData1 DATE,
+            TimeData TIME,
+            DateTimeOffsetData DATETIMEOFFSET
     */
     fn is_datatime(&self, ty: &str) -> anyhow::Result<bool> {
         anyhow::Ok(
@@ -1529,7 +1533,7 @@ impl<'a> FromSql<'a> for ExtractValueAsJson {
                 .map(|x| x.to_string())
                 .map(serde_json::Value::from),
 
-            tiberius::ColumnData::Date(_) => chrono::NaiveTime::from_sql(value)
+            tiberius::ColumnData::Date(_) => chrono::NaiveDate::from_sql(value)
                 .ok()
                 .flatten()
                 .map(|x| x.to_string())
@@ -1706,8 +1710,8 @@ impl ExportQueryResult for SqlServerDB {
                                         .into(),
                                     )
                                     .await?;
-                                row_num += 1;
                             }
+                            row_num += 1;
                         }
                     }
                     ExportKind::Html { include_header } => {
@@ -2475,7 +2479,7 @@ mod tests {
             let mut values = HashMap::new();
             values.insert("id".to_owned(), Some((i + 1).to_string()));
             values.insert("name".to_owned(), Some(format!("name{}", i + 1)));
-            db.table_insert(table_name, values).await.unwrap();
+            db.table_insert(table_name, &values).await.unwrap();
         }
     }
     #[tokio::test]
@@ -3132,6 +3136,8 @@ END;
 
     #[tokio::test]
     async fn test_type1() {
+        enable_test_log();
+
         let _guard = test_lock().lock().await;
         let db = make_test_object().await;
         let mut conn = db.get_conn().await.unwrap();
@@ -3165,14 +3171,11 @@ END;
         values.insert("col_bigint".to_string(), Some("10000".to_string()));
         values.insert("col_float".to_string(), Some("3.14".to_string()));
         values.insert("col_double".to_string(), Some("3.14159".to_string()));
-        db.table_insert(table_name, values.clone()).await.unwrap();
-        db.table_update(table_name, values, {
-            let mut wheres = HashMap::new();
-            wheres.insert("id".to_string(), Some("1".to_string()));
-            wheres
-        })
-        .await
-        .unwrap();
+        db.table_insert(table_name, &values).await.unwrap();
+        let mut wheres = HashMap::new();
+        wheres.insert("id".to_string(), Some("1".to_string()));
+
+        db.table_update(table_name, &values, &wheres).await.unwrap();
         let list = db
             .show_table_collect(table_name, ShowTableParameter::new_stupid_test("id asc"))
             .await
@@ -3181,6 +3184,7 @@ END;
 
         GetTestExportTableKinds::test_export(&db, table_name).await;
         db.test_table_export_and_import(table_name).await;
+        db.test_table_equal(table_name, &values, &["id"]).await;
     }
 
     #[tokio::test]
@@ -3223,14 +3227,10 @@ END;
         values.insert("ntext_column".to_string(), Some("f".to_string()));
         values.insert("text_column".to_string(), Some("g".to_string()));
 
-        db.table_insert(table_name, values.clone()).await.unwrap();
-        db.table_update(table_name, values, {
-            let mut wheres = HashMap::new();
-            wheres.insert("id".to_string(), Some("1".to_string()));
-            wheres
-        })
-        .await
-        .unwrap();
+        db.table_insert(table_name, &values).await.unwrap();
+        let mut wheres = HashMap::new();
+        wheres.insert("id".to_string(), Some("1".to_string()));
+        db.table_update(table_name, &values, &wheres).await.unwrap();
         let list = db
             .show_table_collect(table_name, ShowTableParameter::new_stupid_test("id asc"))
             .await
@@ -3238,6 +3238,16 @@ END;
         println!("ret:{:?}", list);
         GetTestExportTableKinds::test_export(&db, table_name).await;
         db.test_table_export_and_import(table_name).await;
+        db.test_table_equal(
+            table_name,
+            &values,
+            &[
+                "id",
+                "nchar_column", // have extra space
+                "char_column",
+            ],
+        )
+        .await;
     }
 
     #[tokio::test]
@@ -3269,11 +3279,14 @@ END;
         .unwrap();
 
         let mut values = HashMap::new();
-        values.insert("BinaryColumn".to_string(), Some("0x0123456789".to_string()));
-        values.insert("VarBinaryColumn".to_string(), Some("0xABCDEF".to_string()));
+        values.insert(
+            "BinaryColumn".to_string(),
+            Some("0X01234567890000000000".to_string()),
+        );
+        values.insert("VarBinaryColumn".to_string(), Some("0XABCDEF".to_string()));
         values.insert(
             "ImageColumn".to_string(),
-            Some("0x0123456789ABCDEF".to_string()),
+            Some("0X0123456789ABCDEF".to_string()),
         );
 
         values.insert(
@@ -3282,14 +3295,10 @@ END;
         );
         values.insert("NumericColumn".to_string(), Some("123.45".to_string()));
         values.insert("DecimalColumn".to_string(), Some("12.3456".to_string()));
-        db.table_insert(table_name, values.clone()).await.unwrap();
-        db.table_update(table_name, values, {
-            let mut wheres = HashMap::new();
-            wheres.insert("id".to_string(), Some("1".to_string()));
-            wheres
-        })
-        .await
-        .unwrap();
+        db.table_insert(table_name, &values).await.unwrap();
+        let mut wheres = HashMap::new();
+        wheres.insert("id".to_string(), Some("1".to_string()));
+        db.table_update(table_name, &values, &wheres).await.unwrap();
         let list = db
             .show_table_collect(table_name, ShowTableParameter::new_stupid_test("id asc"))
             .await
@@ -3297,10 +3306,12 @@ END;
         println!("ret:{:?}", list);
         GetTestExportTableKinds::test_export(&db, table_name).await;
         db.test_table_export_and_import(table_name).await;
+        db.test_table_equal(table_name, &values, &["id"]).await;
     }
 
     #[tokio::test]
     async fn test_type4() {
+        // enable_test_log();
         let _guard = test_lock().lock().await;
         let db = make_test_object().await;
         let mut conn = db.get_conn().await.unwrap();
@@ -3318,7 +3329,7 @@ END;
                     DateTimeData DATETIME,
                     DateTime2Data DATETIME2,
                     SmallDateTimeData SMALLDATETIME,
-                    DateData DATE,
+                    DateData1 DATE,
                     TimeData TIME,
                     DateTimeOffsetData DATETIMEOFFSET
                 );
@@ -3340,27 +3351,24 @@ END;
         );
         values.insert(
             "DateTime2Data".to_string(),
-            Some("2022-01-01 12:34:56.1234567".to_string()),
+            Some("2022-01-01 12:34:56.123".to_string()),
         );
         values.insert(
             "SmallDateTimeData".to_string(),
             Some("2022-01-01 12:34:00".to_string()),
         );
 
-        values.insert("DateData".to_string(), Some("2022-01-01".to_string()));
+        values.insert("DateData1".to_string(), Some("2022-01-01".to_string()));
         values.insert("TimeData".to_string(), Some("12:34:56".to_string()));
         values.insert(
             "DateTimeOffsetData".to_string(),
             Some("2022-01-01 12:34:56.1234567 +01:00".to_string()),
         );
-        db.table_insert(table_name, values.clone()).await.unwrap();
-        db.table_update(table_name, values, {
-            let mut wheres = HashMap::new();
-            wheres.insert("id".to_string(), Some("1".to_string()));
-            wheres
-        })
-        .await
-        .unwrap();
+
+        println!("values:{:?}", values);
+
+        db.table_insert(table_name, &values).await.unwrap();
+
         let list = db
             .show_table_collect(table_name, ShowTableParameter::new_stupid_test("id asc"))
             .await
@@ -3368,6 +3376,22 @@ END;
         println!("ret:{:?}", list);
         GetTestExportTableKinds::test_export(&db, table_name).await;
         db.test_table_export_and_import(table_name).await;
+        db.test_table_equal(
+            table_name,
+            &values,
+            &[
+                "id",
+                /*
+
+                expect: 2022-01-01 12:34:56.1234567 +01:00
+                这个时间是在 UTC+1 时区（如巴黎、柏林标准时间）下看到的 12:34:56。
+
+                actual: 2022-01-01 11:34:56.123 +00:00
+                 这个时间是在 UTC+0（即协调世界时）下看到的 11:34:56 */
+                "DateTimeOffsetData",
+            ],
+        )
+        .await;
     }
 
     // but macos not passed `A host name mismatch has occurred.`

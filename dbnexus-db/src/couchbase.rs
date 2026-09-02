@@ -413,7 +413,7 @@ impl SchemaTrait for CouchBaseDB {
     async fn table_insert(
         &self,
         table_name: &str,
-        values: HashMap<String, Option<String>>,
+        values: &HashMap<String, Option<String>>,
     ) -> anyhow::Result<Option<usize>> {
         self.can_write()?;
 
@@ -426,8 +426,8 @@ impl SchemaTrait for CouchBaseDB {
     async fn table_update(
         &self,
         table_name: &str,
-        values: HashMap<String, Option<String>>,
-        _wheres: HashMap<String, Option<String>>,
+        values: &HashMap<String, Option<String>>,
+        _wheres: &HashMap<String, Option<String>>,
     ) -> anyhow::Result<Option<usize>> {
         self.can_write()?;
         let (id, value) = extract_id_and_value(&values)?;
@@ -479,10 +479,15 @@ impl SchemaTrait for CouchBaseDB {
     async fn table_delete(
         &self,
         table_name: &str,
-        mut wheres: HashMap<String, Option<String>>,
+        wheres: &HashMap<String, Option<String>>,
     ) -> anyhow::Result<Option<usize>> {
         self.can_write()?;
-        let id = wheres.remove("id").unwrap_or_default().unwrap_or_default();
+        let id = wheres
+            .clone()
+            .remove("id")
+            .expect("must have id filed")
+            .clone()
+            .expect("must have id");
         let scope = self.get_scope()?;
         scope.collection(table_name).remove(id, None).await?;
         anyhow::Ok(None)
@@ -861,18 +866,15 @@ mod tests {
             let _ = db.truncate_table(table_name_dup).await;
         }
         let id = "aaaa";
-        db.table_insert(table_name, {
-            let mut values = HashMap::new();
-            values.insert("id".to_string(), Some(id.to_owned()));
-            values.insert("value".to_owned(), {
-                let mut m = serde_json::Map::new();
-                m.insert("data".to_string(), serde_json::Value::from("hello world."));
-                Some(serde_json::to_string(&m).unwrap())
-            });
-            values
-        })
-        .await
-        .unwrap();
+
+        let mut values = HashMap::new();
+        values.insert("id".to_string(), Some(id.to_owned()));
+        values.insert("value".to_owned(), {
+            let mut m = serde_json::Map::new();
+            m.insert("data".to_string(), serde_json::Value::from("hello world."));
+            Some(serde_json::to_string(&m).unwrap())
+        });
+        db.table_insert(table_name, &values).await.unwrap();
 
         db.duplicate_table(table_name, table_name_dup)
             .await
@@ -926,23 +928,18 @@ mod tests {
         }
 
         for i in 0..155 {
-            db.table_insert(table_name, {
-                let mut values = HashMap::new();
-                values.insert("id".to_string(), Some(format!("id_{}", i)));
+            let mut values = HashMap::new();
+            values.insert("id".to_string(), Some(format!("id_{}", i)));
 
-                values.insert("value".to_owned(), {
-                    let mut m = serde_json::Map::new();
-                    m.insert(
-                        "data".to_string(),
-                        serde_json::Value::from(format!("hello world.{}", i)),
-                    );
-                    Some(serde_json::to_string(&m).unwrap())
-                });
-
-                values
-            })
-            .await
-            .unwrap();
+            values.insert("value".to_owned(), {
+                let mut m = serde_json::Map::new();
+                m.insert(
+                    "data".to_string(),
+                    serde_json::Value::from(format!("hello world.{}", i)),
+                );
+                Some(serde_json::to_string(&m).unwrap())
+            });
+            db.table_insert(table_name, &values).await.unwrap();
         }
     }
 
@@ -958,19 +955,15 @@ mod tests {
             .await;
         db.truncate_table(table_name).await.unwrap();
         let id = "aaaa";
-        db.table_insert(table_name, {
-            let mut values = HashMap::new();
-            values.insert("id".to_string(), Some(id.to_owned()));
-            values.insert("value".to_owned(), {
-                let mut m = serde_json::Map::new();
-                m.insert("data".to_string(), serde_json::Value::from("hello world."));
-                m.insert("id".into(), "abc".into());
-                Some(serde_json::to_string(&m).unwrap())
-            });
-            values
-        })
-        .await
-        .unwrap();
+        let mut values = HashMap::new();
+        values.insert("id".to_string(), Some(id.to_owned()));
+        values.insert("value".to_owned(), {
+            let mut m = serde_json::Map::new();
+            m.insert("data".to_string(), serde_json::Value::from("hello world."));
+            m.insert("id".into(), "abc".into());
+            Some(serde_json::to_string(&m).unwrap())
+        });
+        db.table_insert(table_name, &values).await.unwrap();
         let resp = db
             .show_table_collect(table_name, ShowTableParameter::new_stupid_test("id asc"))
             .await

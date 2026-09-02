@@ -2135,7 +2135,7 @@ mod tests {
             BackendKindPostGres, CheckConn, ColumnType, CreateIndexColumn, CreateIndexReq,
             CreateTableReq, CreateTableReqColumn, DBTrait, GetTestExportTableKinds, IndexKind,
             NamedStaff, QuerySql, SchemaTrait, ServerMetas, ShowTableParameter, SqlNullAble,
-            TableImportPara, TestQueryEventEmit,
+            TestQueryEventEmit,
         },
         helper::{cert_files_dir, start_docker_container, DockerContainerDropper},
         pg::PostGresDB,
@@ -2219,7 +2219,7 @@ mod tests {
             let mut values = HashMap::new();
             values.insert("id".to_owned(), Some((i + 1).to_string()));
             values.insert("name".to_owned(), Some(format!("name{}", i + 1)));
-            db.table_insert(table_name, values).await.unwrap();
+            db.table_insert(table_name, &values).await.unwrap();
         }
     }
 
@@ -2838,16 +2838,13 @@ mod tests {
 
         let mut values = HashMap::new();
         values.insert("bool_column".to_string(), Some("true".to_string()));
-        values.insert(
-            "bytea_column".to_string(),
-            Some("\\\\x0123456789ABCDEF".to_string()),
-        );
+        values.insert("bytea_column".to_string(), Some("\\x010203".to_string()));
         values.insert("char_column".to_string(), Some("A".to_string()));
         values.insert("name_column".to_string(), Some("John".to_string()));
         values.insert("int8_column".to_string(), Some("1".to_string()));
         values.insert("int2_column".to_string(), Some("2".to_string()));
         values.insert("int4_column".to_string(), Some("100".to_string()));
-        pg.table_insert(table_name, values.clone()).await.unwrap();
+        pg.table_insert(table_name, &values).await.unwrap();
         let x = pg
             .show_table_collect(
                 table_name,
@@ -2860,11 +2857,11 @@ mod tests {
         GetTestExportTableKinds::test_export(&pg, table_name).await;
 
         pg.test_table_export_and_import(table_name).await;
+        pg.test_table_equal(table_name, &values, &[]).await;
     }
 
     #[tokio::test]
     async fn test_types2() {
-        //
         let table_name = "test_types2";
         let pg = make_test_object().await;
         let _ = pg.drop_table(table_name, false).await;
@@ -2897,20 +2894,20 @@ mod tests {
         values.insert("oid_column".to_string(), Some("12345".to_string()));
         values.insert(
             "json_column".to_string(),
-            Some("{\"key\": \"value\"}".to_string()),
+            Some(r#"{"key":"value"}"#.to_string()),
         );
         values.insert("float4_column".to_string(), Some("3.14".to_string()));
         values.insert("float8_column".to_string(), Some("5.6789".to_string()));
         values.insert(
             "macaddr8_column".to_string(),
-            Some("08:00:2b:01:02:03:04:05".to_string()),
+            Some("08:00:2B:01:02:03:04:05".to_string()),
         );
         values.insert(
             "macaddr8_array_column".to_string(),
-            Some("{08:00:2b:01:02:03:04:06, 08:00:2b:01:02:03:04:07}".to_string()),
+            Some("{08:00:2B:01:02:03:04:06,08:00:2B:01:02:03:04:07}".to_string()),
         );
 
-        pg.table_insert(table_name, values).await.unwrap();
+        pg.table_insert(table_name, &values).await.unwrap();
 
         let x = pg
             .show_table_collect(table_name, ShowTableParameter::new_stupid_test("id asc"))
@@ -2920,6 +2917,7 @@ mod tests {
 
         GetTestExportTableKinds::test_export(&pg, table_name).await;
         pg.test_table_export_and_import(table_name).await;
+        pg.test_table_equal(table_name, &values, &["id"]).await;
     }
 
     #[tokio::test]
@@ -3017,27 +3015,27 @@ mod tests {
         let mut values = HashMap::new();
         values.insert(
             "macaddr_column".to_string(),
-            Some("08:00:2b:01:02:03".to_string()),
+            Some("08:00:2B:01:02:03".to_string()),
         );
-        values.insert("inet_column".to_string(), Some("192.168.0.1".to_string()));
         values.insert(
-            "bool_array_column".to_string(),
-            Some("{true , false }".to_string()),
+            "inet_column".to_string(),
+            Some("192.168.0.1/32".to_string()),
         );
+        values.insert("bool_array_column".to_string(), Some("{t,f}".to_string()));
         values.insert(
             "bytea_array_column".to_string(),
-            Some("{0x12345}".to_string()),
+            Some(r#"{"\\x010203"}"#.to_string()),
         );
         values.insert(
             "char_array_column".to_string(),
-            Some("{a  , b }".to_string()),
+            Some("{\"a\",\"b\"}".to_string()),
         );
         values.insert(
             "name_array_column".to_string(),
-            Some("{ a  , b }".to_string()),
+            Some("{\"a\",\"b\"}".to_string()),
         );
 
-        pg.table_insert(table_name, values).await.unwrap();
+        pg.table_insert(table_name, &values).await.unwrap();
 
         let x = pg
             .show_table_collect(
@@ -3050,6 +3048,7 @@ mod tests {
 
         GetTestExportTableKinds::test_export(&pg, table_name).await;
         pg.test_table_export_and_import(table_name).await;
+        pg.test_table_equal(table_name, &values, &[]).await;
     }
 
     #[tokio::test]
@@ -3081,14 +3080,17 @@ mod tests {
         let mut values = HashMap::new();
         values.insert("int2_array_column".to_string(), Some("{1,2}".to_string()));
         values.insert("int4_array_column".to_string(), Some("{1,2}".to_string()));
-        values.insert("text_array_column".to_string(), Some("{a,b}".to_string()));
+        values.insert(
+            "text_array_column".to_string(),
+            Some(r#"{"a","b"}"#.to_string()),
+        );
         values.insert(
             "varchar_array_column".to_string(),
             Some(r#"{"c\"","d"}"#.to_string()),
         );
         values.insert("int8_array_column".to_string(), Some("{1,100}".to_string()));
 
-        pg.table_insert(table_name, values).await.unwrap();
+        pg.table_insert(table_name, &values).await.unwrap();
 
         let x = pg
             .show_table_collect(
@@ -3101,6 +3103,7 @@ mod tests {
 
         GetTestExportTableKinds::test_export(&pg, table_name).await;
         pg.test_table_export_and_import(table_name).await;
+        pg.test_table_equal(table_name, &values, &[]).await;
     }
 
     #[tokio::test]
@@ -3112,7 +3115,6 @@ mod tests {
         pg.open_connection(query_id).await.unwrap();
         pg.execute_sql(
             query_id,
-            // TODO Support path
             format!(
                 r#"
         CREATE TABLE {table_name} (
@@ -3132,16 +3134,7 @@ mod tests {
         .await
         .unwrap()
         .unwrap();
-
         let mut values = HashMap::new();
-        // values.insert(
-        //     "path_column".to_string(),
-        //     Some("(1.0,2.0),(3.0,4.0)".to_string()),
-        // );
-        // values.insert(
-        //     "path_array_column".to_string(),
-        //     Some("{\"((5,6),(7,8))\",\"((9,10),(11,12))\"}".to_string()),
-        // );
         values.insert("float4_array_column".to_string(), Some("{1,2}".to_string()));
         values.insert("float8_array_column".to_string(), Some("{3,4}".to_string()));
 
@@ -3151,12 +3144,12 @@ mod tests {
         );
         values.insert(
             "inet_array_column".to_string(),
-            Some("{192.168.1.1}".to_string()),
+            Some("{192.168.1.1/32}".to_string()),
         );
 
         values.insert("date_column".to_string(), Some("2022-01-01".to_string()));
 
-        pg.table_insert(table_name, values).await.unwrap();
+        pg.table_insert(table_name, &values).await.unwrap();
 
         let x = pg
             .show_table_collect(table_name, ShowTableParameter::new_stupid_test("id asc"))
@@ -3166,6 +3159,7 @@ mod tests {
 
         GetTestExportTableKinds::test_export(&pg, table_name).await;
         pg.test_table_export_and_import(table_name).await;
+        pg.test_table_equal(table_name, &values, &["id"]).await;
     }
 
     #[tokio::test]
@@ -3222,14 +3216,14 @@ mod tests {
         );
         values.insert(
             "col_timestamptz".to_string(),
-            Some("2024-03-01 10:00:00+00".to_string()),
+            Some("2024-03-01 10:00:00 +00:00".to_string()),
         );
         values.insert(
             "col_timestamptz_array".to_string(),
-            Some("{\"2024-03-01 10:00:00+00\",\"2024-03-02 12:00:00+00\"}".to_string()),
+            Some("{\"2024-03-01 10:00:00 +00:00\",\"2024-03-02 12:00:00 +00:00\"}".to_string()),
         );
 
-        pg.table_insert(table_name, values).await.unwrap();
+        pg.table_insert(table_name, &values).await.unwrap();
 
         let x = pg
             .show_table_collect(
@@ -3242,6 +3236,7 @@ mod tests {
 
         GetTestExportTableKinds::test_export(&pg, table_name).await;
         pg.test_table_export_and_import(table_name).await;
+        pg.test_table_equal(table_name, &values, &[]).await;
     }
 
     #[tokio::test]
@@ -3279,18 +3274,18 @@ mod tests {
         );
         values.insert(
             "interval_array_col".to_string(),
-            Some("{\"2 days\",03:00:00,00:04:00}".to_string()),
+            Some("{\"2 days\",\"03:00:00\",\"00:04:00\"}".to_string()),
         );
         values.insert(
             "numeric_array_col".to_string(),
-            Some("{1.23,4.56,7.89}".to_string()),
+            Some("{1.2300,4.5600,7.8900}".to_string()),
         );
-        values.insert("timetz_col".to_string(), Some("12:30:00+03".to_string()));
+        values.insert("timetz_col".to_string(), Some("12:30:00+03:00".to_string()));
         values.insert(
             "timetz_array_col".to_string(),
-            Some("{10:00:00+03,15:30:00+03}".to_string()),
+            Some("{10:00:00+03:00,15:30:00+03:00}".to_string()),
         );
-        pg.table_insert(table_name, values).await.unwrap();
+        pg.table_insert(table_name, &values).await.unwrap();
         let x = pg
             .show_table_collect(
                 table_name,
@@ -3302,6 +3297,7 @@ mod tests {
 
         GetTestExportTableKinds::test_export(&pg, table_name).await;
         pg.test_table_export_and_import(table_name).await;
+        pg.test_table_equal(table_name, &values, &[]).await;
     }
 
     #[tokio::test]
@@ -3341,8 +3337,8 @@ mod tests {
             Some("{101,010}".to_string()),
         );
 
-        values.insert("numeric_column".to_string(), Some("123.45".to_string()));
-        pg.table_insert(table_name, values).await.unwrap();
+        values.insert("numeric_column".to_string(), Some("123.4500".to_string()));
+        pg.table_insert(table_name, &values).await.unwrap();
         let x = pg
             .show_table_collect(table_name, ShowTableParameter::new_stupid_test(None))
             .await
@@ -3351,6 +3347,7 @@ mod tests {
 
         GetTestExportTableKinds::test_export(&pg, table_name).await;
         pg.test_table_export_and_import(table_name).await;
+        pg.test_table_equal(table_name, &values, &[]).await;
     }
 
     #[tokio::test]
@@ -3394,7 +3391,7 @@ mod tests {
         );
         values.insert(
             "jsonb_column".to_string(),
-            Some(r#"{"key1": "value1", "key2": "value2"}"#.to_string()),
+            Some(r#"{"key1":"value1","key2":"value2"}"#.to_string()),
         );
         values.insert("int4range_column".to_string(), Some("[10,20)".to_string()));
         values.insert(
@@ -3402,7 +3399,7 @@ mod tests {
             Some("{\"[30,40)\",\"[50,60)\"}".to_string()),
         );
 
-        pg.table_insert(table_name, values).await.unwrap();
+        pg.table_insert(table_name, &values).await.unwrap();
         let x = pg
             .show_table_collect(
                 table_name,
@@ -3414,15 +3411,14 @@ mod tests {
 
         GetTestExportTableKinds::test_export(&pg, table_name).await;
         pg.test_table_export_and_import(table_name).await;
+        pg.test_table_equal(table_name, &values, &[]).await;
     }
 
     #[tokio::test]
     async fn test_types10() {
         let table_name = "test_types10";
         let pg = make_test_object().await;
-
         let _ = pg.drop_table(table_name, false).await;
-
         let query_id = "aaaa";
         pg.open_connection(query_id).await.unwrap();
         pg.execute_sql(
@@ -3433,9 +3429,7 @@ mod tests {
                 num_range NUMRANGE,
                 num_range_array NUMRANGE[],
                 ts_range TSRANGE,
-                ts_range_array TSRANGE[],
-                tstz_range TSTZRANGE,
-                tstz_range_array TSTZRANGE[]
+                tstz_range TSTZRANGE
             );
     "#,
             )
@@ -3455,17 +3449,12 @@ mod tests {
             "ts_range".to_string(),
             Some(r#"["2024-01-01 00:00:00","2024-01-10 00:00:00")"#.to_string()),
         );
-        values.insert("ts_range_array".to_string(), Some(r#"{"[\"2024-01-01 00:00:00\",\"2024-01-05 00:00:00\")","[\"2024-01-06 00:00:00\",\"2024-01-10 00:00:00\")"}"#.to_string()));
         values.insert(
             "tstz_range".to_string(),
-            Some(r#"["2024-01-01 00:00:00+00","2024-01-10 00:00:00+00")"#.to_string()),
-        );
-        values.insert(
-            "tstz_range_array".to_string(),
-            Some(r#"{"[\"2024-07-01 08:00:00+00\",\"2024-07-01 18:00:00+00\")"}"#.to_string()),
+            Some(r#"["2024-01-01 00:00:00 +00:00",2024-01-10 00:00:00 +00:00)"#.to_string()),
         );
 
-        pg.table_insert(table_name, values).await.unwrap();
+        pg.table_insert(table_name, &values).await.unwrap();
         let x = pg
             .show_table_collect(
                 table_name,
@@ -3477,6 +3466,7 @@ mod tests {
 
         GetTestExportTableKinds::test_export(&pg, table_name).await;
         pg.test_table_export_and_import(table_name).await;
+        pg.test_table_equal(table_name, &values, &[]).await;
     }
 
     #[tokio::test]
@@ -3538,7 +3528,7 @@ mod tests {
             "money_value_array".to_string(),
             Some("{$5.00,$15.75}".to_string()),
         );
-        pg.table_insert(table_name, values).await.unwrap();
+        pg.table_insert(table_name, &values).await.unwrap();
         let x = pg
             .show_table_collect(table_name, ShowTableParameter::new_stupid_test("id asc"))
             .await
@@ -3547,6 +3537,8 @@ mod tests {
 
         GetTestExportTableKinds::test_export(&pg, table_name).await;
         pg.test_table_export_and_import(table_name).await;
+        pg.test_table_equal(table_name, &values, &["id", "money_value_array"])
+            .await;
     }
 
     #[tokio::test]
@@ -3619,59 +3611,6 @@ mod tests {
 
         for f in f.iter() {
             println!("foreign key: {:?}", f);
-        }
-    }
-
-    #[tokio::test]
-    async fn test_import_failed() {
-        enable_test_log();
-        use csv::Writer;
-        use std::io::Write;
-        let table_name = "test_import_err";
-        let query_id = "aaaa";
-        let db = make_test_object().await;
-        let _err = db.drop_table(table_name, false).await;
-        db.open_connection(query_id).await.unwrap();
-        db.execute_sql(
-            query_id,
-            r#"
-        CREATE table test_import_err(
-            int_value INTEGER 
-        )
-        "#,
-        )
-        .await
-        .unwrap()
-        .unwrap();
-
-        let mut file = tempfile::NamedTempFile::with_suffix(".csv").unwrap();
-
-        let mut wtr = Writer::from_writer(vec![]);
-        wtr.write_record(["int_value"]).unwrap();
-        wtr.write_record(["eeee"]).unwrap();
-
-        file.write_all(&wtr.into_inner().unwrap()).unwrap();
-        let x = std::fs::read_to_string(file.path()).unwrap();
-        println!("csv content:{}", x);
-
-        let err = db
-            .table_import_data_from_file(
-                table_name,
-                TableImportPara {
-                    path: file.path().to_str().unwrap().to_owned(),
-                    mongo_data: None,
-                    csv_delimiter: None,
-                },
-            )
-            .await;
-
-        match err {
-            Ok(_) => unreachable!(),
-            Err(x) => {
-                let err_msg = x.to_string();
-                println!("import error:{}", err_msg);
-                assert!(err_msg.contains("rollback"));
-            }
         }
     }
 

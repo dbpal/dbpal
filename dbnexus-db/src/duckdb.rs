@@ -2030,7 +2030,7 @@ mod tests {
             let mut values = HashMap::new();
             values.insert("id".to_owned(), Some((i + 1).to_string()));
             values.insert("name".to_owned(), Some(format!("name{}", i + 1)));
-            db.table_insert(table_name, values).await.unwrap();
+            db.table_insert(table_name, &values).await.unwrap();
         }
     }
 
@@ -2437,7 +2437,7 @@ mod tests {
         values.insert("boolean_column".to_string(), Some("TRUE".to_string()));
         values.insert("date_column".to_string(), Some("2025-03-25".to_string()));
         values.insert("decimal_column".to_string(), Some("12345.67".to_string()));
-        db.table_insert(table_name, values).await.unwrap();
+        db.table_insert(table_name, &values).await.unwrap();
         let resp = db
             .show_table_collect(
                 table_name,
@@ -2496,7 +2496,7 @@ mod tests {
             "decimal_column".to_string(),
             Some("[123.45, 678.90]".to_string()),
         );
-        db.table_insert(table_name, values).await.unwrap();
+        db.table_insert(table_name, &values).await.unwrap();
         let resp = db
             .show_table_collect(
                 table_name,
@@ -2553,7 +2553,7 @@ mod tests {
                 "col_json".to_string(),
                 Some(r#"{"key1": "value1", "key2": 123, "key3": [1, 2, 3]}"#.to_string()),
             );
-            db.table_insert(table_name, values).await.unwrap();
+            db.table_insert(table_name, &values).await.unwrap();
         }
 
         let resp = db
@@ -2612,7 +2612,7 @@ mod tests {
             Some(r#"['{"key1": "value1", "key2": 123, "key3": [1, 2, 3]}']"#.to_string()),
         );
 
-        db.table_insert(table_name, values).await.unwrap();
+        db.table_insert(table_name, &values).await.unwrap();
         let resp = db
             .show_table_collect(table_name, ShowTableParameter::new_stupid_test(None))
             .await
@@ -2665,7 +2665,7 @@ mod tests {
             "col_ubigint".to_string(),
             Some("1844674407370955161".to_string()),
         );
-        db.table_insert(table_name, values).await.unwrap();
+        db.table_insert(table_name, &values).await.unwrap();
         let resp = db
             .show_table_collect(
                 table_name,
@@ -2721,7 +2721,7 @@ mod tests {
             "col_ubigint".to_string(),
             Some("[18446744073709551615]".to_string()),
         );
-        db.table_insert(table_name, values).await.unwrap();
+        db.table_insert(table_name, &values).await.unwrap();
         let resp = db
             .show_table_collect(table_name, ShowTableParameter::new_stupid_test(None))
             .await
@@ -2766,7 +2766,7 @@ mod tests {
         values.insert("my_usmallint".to_string(), Some("65000".to_string()));
         values.insert("my_utinyint".to_string(), Some("123".to_string()));
         values.insert("my_varchar".to_string(), Some("Example1".to_string()));
-        db.table_insert(table_name, values).await.unwrap();
+        db.table_insert(table_name, &values).await.unwrap();
         let resp = db
             .show_table_collect(
                 table_name,
@@ -2819,7 +2819,7 @@ mod tests {
             Some("{'name' : 'xxx' , 'age' : 100}".to_string()),
         );
         // values.insert("my_union".to_string(), Some("'hello'".to_string()));
-        db.table_insert(table_name, values).await.unwrap();
+        db.table_insert(table_name, &values).await.unwrap();
         let resp = db
             .show_table_collect(table_name, ShowTableParameter::new_stupid_test(None))
             .await

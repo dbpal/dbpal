@@ -2023,7 +2023,7 @@ mod tests {
             let mut values = HashMap::new();
             values.insert("ID".to_owned(), Some((i + 1).to_string()));
             values.insert("NAME".to_owned(), Some(format!("name{}", i + 1)));
-            db.table_insert(table_name, values).await.unwrap();
+            db.table_insert(table_name, &values).await.unwrap();
 
             if (i + 1) % 10 == 0 {
                 println!("insert {}", i);
@@ -2590,7 +2590,7 @@ TEST_MATERIALIZED_VIEW_TABLE (product_name, category, price) VALUES ('Samsung Ga
         values.insert("NCHAR_COL".to_string(), Some("测试nchar".to_string()));
         values.insert("RAW_COL".to_string(), Some("0A0B0C0D0E0F".to_string()));
 
-        db.table_insert(table_name, values).await.unwrap();
+        db.table_insert(table_name, &values).await.unwrap();
 
         let resp = db
             .show_table_collect(
@@ -2643,7 +2643,7 @@ TEST_MATERIALIZED_VIEW_TABLE (product_name, category, price) VALUES ('Samsung Ga
         values.insert("NUM".to_string(), Some("100".to_string()));
         values.insert("FLOAT_COL".to_string(), Some("2.71".to_string()));
 
-        db.table_insert(table_name, values).await.unwrap();
+        db.table_insert(table_name, &values).await.unwrap();
 
         let resp = db
             .show_table_collect(table_name, ShowTableParameter::new_stupid_test("NUM asc"))
@@ -2691,7 +2691,7 @@ TEST_MATERIALIZED_VIEW_TABLE (product_name, category, price) VALUES ('Samsung Ga
         );
         values.insert("BLOB_COL".to_string(), Some("010203".to_string()));
 
-        db.table_insert(table_name, values).await.unwrap();
+        db.table_insert(table_name, &values).await.unwrap();
 
         let resp = db
             .show_table_collect(table_name, ShowTableParameter::new_stupid_test(None))
@@ -2735,7 +2735,7 @@ TEST_MATERIALIZED_VIEW_TABLE (product_name, category, price) VALUES ('Samsung Ga
         values.insert("COL2".to_string(), Some("123".to_string()));
         values.insert("COL3".to_string(), Some("456".to_string()));
 
-        db.table_insert(table_name, values).await.unwrap();
+        db.table_insert(table_name, &values).await.unwrap();
 
         let resp = db
             .show_table_collect(table_name, ShowTableParameter::new_stupid_test(None))
