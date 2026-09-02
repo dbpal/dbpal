@@ -15,11 +15,11 @@ import {
   DataSourceKind,
   isCsvFile,
   isExcelFile,
-  resizeHandlerSize,
   DbnameContext,
   setDifference,
   dataGridStyle,
   getRowIdOnKeyNotInTable,
+  resizeHandlerSize,
 } from "./helper";
 import {
   CSSProperties,
@@ -55,7 +55,7 @@ import {
   Field,
   MuiDataGridData,
 } from "./bindings";
-import { Panel, PanelGroup, PanelResizeHandle } from "react-resizable-panels";
+import { Panel, Group as PanelGroup, Separator } from "react-resizable-panels";
 import { LongNotice, SelectPath } from "./CommonComp";
 import Papa from "papaparse";
 import { readTextFile, readTextFileLines } from "@tauri-apps/plugin-fs";
@@ -725,13 +725,16 @@ function SqlCreateTableImportFile(props: { hasTableName?: string }) {
 
   return (
     <PanelGroup
-      direction="horizontal"
+      orientation="horizontal"
       style={{
         height: "100%",
         width: "100%",
-      }}
-      autoSaveId="sql-crete-table-import-from-file">
-      <Panel minSize={10} collapsible collapsedSize={0} style={{ padding: "2px" }}>
+      }}>
+      <Panel
+        minSize={"10%"}
+        collapsible
+        collapsedSize={"0%"}
+        style={{ padding: "2px" }}>
         <Stack style={{ height: "100%", overflow: "auto" }}>
           <Stack direction="row" style={{ alignItems: "center" }}>
             <SqlTableImportFileNotice />
@@ -781,13 +784,12 @@ function SqlCreateTableImportFile(props: { hasTableName?: string }) {
           )}
         </Stack>
       </Panel>
-      <PanelResizeHandle
-        style={{ width: resizeHandlerSize }}
-        className="resize-handle"
-      />
+
+      <Separator style={{ width: resizeHandlerSize }} className="resize-handle" />
+
       {file && (
         <Panel
-          minSize={10}
+          minSize={"10%"}
           style={{
             overflow: "auto",
             height: "100%",

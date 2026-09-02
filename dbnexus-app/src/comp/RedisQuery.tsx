@@ -1,5 +1,10 @@
 import { useState, useEffect, useContext, useRef } from "react";
-import { Panel, PanelGroup, PanelResizeHandle } from "react-resizable-panels";
+import {
+  Panel,
+  Group as PanelGroup,
+  Separator,
+  useDefaultLayout,
+} from "react-resizable-panels";
 
 import { SqlQuery } from "./SqlQuery.tsx";
 import { QueryIDEditorChatCtx, resizeHandlerSize, shrinkAble } from "./helper.ts";
@@ -54,15 +59,20 @@ function RedisQuery(props: { favoriteName?: string; value?: string }) {
       clearInterval(int);
     };
   }, [showDoc, editor]);
+  const { defaultLayout, onLayoutChanged } = useDefaultLayout({
+    id: "redis-query",
+    panelIds: ["query-panel", "doc-panel"],
+  });
 
   return (
     <PanelGroup
-      direction="horizontal"
-      autoSaveId="redis-query"
+      orientation="horizontal"
       style={{
         height: "100%",
-      }}>
-      <Panel defaultSize={40} minSize={4}>
+      }}
+      defaultLayout={defaultLayout}
+      onLayoutChanged={onLayoutChanged}>
+      <Panel defaultSize={"40%"} minSize="4%" id="query-panel">
         <SqlQuery
           favoriteName={favoriteName}
           value={value}
@@ -84,16 +94,15 @@ function RedisQuery(props: { favoriteName?: string; value?: string }) {
       </Panel>
 
       {showDoc && (
-        <PanelResizeHandle
-          style={{ width: resizeHandlerSize }}
-          className="resize-handle"
-        />
+        <Separator style={{ width: resizeHandlerSize }} className="resize-handle" />
       )}
+
       {showDoc && (
         <Panel
+          id="doc-panel"
           collapsible
-          collapsedSize={0}
-          minSize={15}
+          collapsedSize={"0%"}
+          minSize={"15%"}
           style={{
             display: "flex",
             flexDirection: "column",

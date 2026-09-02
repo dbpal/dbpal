@@ -39,11 +39,11 @@ import {
   handleCopyToClipboard,
   jumpToEditorText,
   QueryIDEditorChatCtx,
-  resizeHandlerSize,
   secondConfirm,
   shrinkAble,
   TabContent,
   DbnameContext,
+  resizeHandlerSize,
 } from "./helper.ts";
 
 import DeleteForeverIcon from "@mui/icons-material/DeleteForever";
@@ -53,7 +53,12 @@ import { FaArrowsAltV, FaUpload } from "react-icons/fa";
 import { SelectPageSize, VirtualVarListLeft } from "./CommonComp.tsx";
 import { Channel } from "@tauri-apps/api/core";
 import { NameAndQueryId, uuidv4 } from "./Common.ts";
-import { Panel, PanelGroup, PanelResizeHandle } from "react-resizable-panels";
+import {
+  Panel,
+  Group as PanelGroup,
+  Separator,
+  useDefaultLayout,
+} from "react-resizable-panels";
 import { ExportView } from "./Export.tsx";
 import { QueryResp } from "./QueryResp.tsx";
 import {
@@ -685,17 +690,22 @@ function CouchBaseQuery_(props: { value?: string }) {
   const showResp = useMemo(() => {
     return resp.filter((e) => (matchStrDelay ? e.includes(matchStrDelay) : true));
   }, [matchStrDelay, resp]);
-
+  const { defaultLayout, onLayoutChanged } = useDefaultLayout({
+    id: "couchbase-query-panel-group",
+    panelIds: ["query-panel", "resp-panel"],
+  });
   return (
     <PanelGroup
       style={{ height: "100%", paddingRight: "0.7rem" }}
-      direction="vertical"
-      autoSaveId="couchbase-query">
+      orientation="vertical"
+      defaultLayout={defaultLayout}
+      onLayoutChanged={onLayoutChanged}>
       <Panel
+        id="query-panel"
         collapsible
-        collapsedSize={0}
-        minSize={10}
-        defaultSize={35}
+        collapsedSize={"0%"}
+        minSize={"10%"}
+        defaultSize={"35%"}
         style={{ display: "flex", flexDirection: "column" }}>
         <QueryStatus status={queryStatus} />
         <Stack
@@ -847,14 +857,21 @@ function CouchBaseQuery_(props: { value?: string }) {
           />
         </div>
       </Panel>
-      <PanelResizeHandle
+
+      <Separator
         style={{
           height: resizeHandlerSize,
         }}
         id="chat-resize-bar"
         className="resize-handle"
       />
-      <Panel collapsible collapsedSize={0} minSize={10} style={{ overflow: "auto" }}>
+
+      <Panel
+        collapsible
+        collapsedSize={"0%"}
+        minSize={"10%"}
+        id="resp-panel"
+        style={{ overflow: "auto" }}>
         {viewMode == CBQueryViewMode.Json && (
           <VirtualVarListLeft
             data={showResp}

@@ -1,5 +1,10 @@
 // import { Notifications } from "./Notification";
-import { Panel, PanelGroup, PanelResizeHandle } from "react-resizable-panels";
+import {
+  Panel,
+  Group as PanelGroup,
+  Separator,
+  useDefaultLayout,
+} from "react-resizable-panels";
 import { useCallback, useEffect, useState } from "react";
 import { TabsWithContent } from "./Tabs";
 import { Left } from "./Left";
@@ -48,6 +53,7 @@ function ShowPanic() {
       return join(e, "dbpal.panic");
     });
   };
+
   useEffect(() => {
     setTimeout(() => {
       (async () => {
@@ -218,6 +224,9 @@ function App() {
       setCurrentTab(currentTab - 1);
     }
   }, [currentTab, setCurrentTab, tabs]);
+  const { defaultLayout, onLayoutChanged } = useDefaultLayout({
+    id: "main-panel-group",
+  });
 
   return (
     <AppSnackbarProvider>
@@ -227,29 +236,27 @@ function App() {
         <ShowPanic />
         <ShowShortCut />
         <PanelGroup
-          direction="horizontal"
+          orientation="horizontal"
           style={{
             height: "100vh",
             width: "100vw",
             padding: "4px",
           }}
-          autoSaveId="main">
+          defaultLayout={defaultLayout}
+          onLayoutChanged={onLayoutChanged}>
           <Panel
             style={{
               overflow: "auto",
               height: "100%",
               padding: "4px",
             }}
-            minSize={10}
-            maxSize={85}
+            minSize={"10%"}
+            maxSize={"85%"}
             collapsible
-            collapsedSize={0}>
+            collapsedSize={"0%"}>
             <Left />
           </Panel>
-          <PanelResizeHandle
-            style={{ width: resizeHandlerSize }}
-            className="resize-handle"
-          />
+          <Separator style={{ width: resizeHandlerSize }} className="resize-handle" />
           <Panel
             style={{
               overflow: "auto",

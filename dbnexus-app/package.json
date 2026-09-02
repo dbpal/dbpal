@@ -48,7 +48,7 @@
     "react-dom": "^19.2.7",
     "react-icons": "^5.6.0",
     "react-markdown": "^10.1.0",
-    "react-resizable-panels": "^3.0.6",
+    "react-resizable-panels": "^4",
     "react-router-dom": "^7.17.0",
     "react-virtualized": "^9.22.6",
     "remark-gfm": "^4.0.1",

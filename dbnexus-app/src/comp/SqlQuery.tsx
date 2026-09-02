@@ -1,6 +1,11 @@
 import { MultiQueryResp } from "./QueryResp";
 import { Chip, Divider, IconButton, Stack, Tooltip } from "@mui/material";
-import { Panel, PanelGroup, PanelResizeHandle } from "react-resizable-panels";
+import {
+  Panel,
+  Group as PanelGroup,
+  Separator,
+  useDefaultLayout,
+} from "react-resizable-panels";
 import PlayArrowIcon from "@mui/icons-material/PlayArrow";
 import { FaExclamation } from "react-icons/fa";
 import React, {
@@ -21,7 +26,6 @@ import RefreshIcon from "@mui/icons-material/Refresh";
 import {
   DataSourceKind,
   getEditorText,
-  resizeHandlerSize,
   rustResultOk,
   secondConfirm,
   TabContext,
@@ -33,6 +37,7 @@ import {
   jumpToEditorText,
   QueryRespData,
   DbnameContext,
+  resizeHandlerSize,
 } from "./helper.ts";
 import ArrowCircleDownRoundedIcon from "@mui/icons-material/ArrowCircleDownRounded";
 import { ExportView } from "./Export.tsx";
@@ -475,6 +480,10 @@ function SqlQuery_(props: {
     DataSourceKind.FireBird,
     DataSourceKind.DuckDB,
   ].includes(kind);
+  const { defaultLayout, onLayoutChanged } = useDefaultLayout({
+    id: "sql-query-layout",
+    panelIds: ["query-panel", "resp-panel"],
+  });
 
   return (
     <div
@@ -491,17 +500,22 @@ function SqlQuery_(props: {
           cancelTask(queryId);
         }}
       />
-      <PanelGroup direction="vertical" style={{ flex: 1 }} autoSaveId="sql-query">
+      <PanelGroup
+        orientation="vertical"
+        style={{ flex: 1 }}
+        defaultLayout={defaultLayout}
+        onLayoutChanged={onLayoutChanged}>
         <Panel
-          minSize={10}
-          maxSize={100}
-          defaultSize={40}
+          minSize={"10%"}
+          maxSize={"100%"}
+          defaultSize={"40%"}
           style={{
             display: "flex",
             flexDirection: "column",
           }}
+          id="query-panel"
           collapsible
-          collapsedSize={0}>
+          collapsedSize={"0%"}>
           <QueryStatus status={queryStatus} />
           <Stack
             direction="row"
@@ -660,16 +674,17 @@ function SqlQuery_(props: {
 
         {resp.length > 0 && (
           <>
-            <PanelResizeHandle
+            <Separator
               style={{ height: resizeHandlerSize }}
               className="resize-handle"
             />
             <Panel
+              id="resp-panel"
               style={{ overflow: "auto" }}
               collapsible
-              collapsedSize={0}
-              maxSize={100}
-              minSize={10}>
+              collapsedSize={"0%"}
+              maxSize={"100%"}
+              minSize={"10%"}>
               <div style={{ height: "100%" }}>
                 <MultiQueryResp data={resp} setData={setResp} />
               </div>
