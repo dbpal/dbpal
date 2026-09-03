@@ -647,13 +647,13 @@ function ChatHistory(props: {
               label="search in history"
               style={{ width: "13rem" }}
             />
-            {history && history.length ? (
+            {history && history.length > 0 && (
               <Typography>
                 {!matchStr
                   ? `${history.length} history`
                   : `showing ${length} of ${history.length}`}
               </Typography>
-            ) : undefined}
+            )}
           </>
         }
         handleClose={handleClose}

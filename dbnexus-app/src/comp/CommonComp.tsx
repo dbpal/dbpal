@@ -559,13 +559,13 @@ function MetaValueView(props: { values: MetaValue[]; reload?: () => void }) {
           <AppDataGridToolBar
             titleName="meta values"
             left={
-              reload ? (
+              reload && (
                 <RefreshButton
                   onClick={() => {
                     reload();
                   }}
                 />
-              ) : undefined
+              )
             }
           />
         );
@@ -1424,7 +1424,7 @@ function MyTreeItem(props: {
               }
             : undefined
         }>
-        {!enable && <AiOutlineDisconnect />}
+        {!enable && <AiOutlineDisconnect fontSize="1.2rem" />}
         {enable && (
           <IconButton disabled={!enable}>
             {collasped ? <KeyboardArrowRightIcon /> : <KeyboardArrowDownIcon />}
