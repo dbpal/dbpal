@@ -756,9 +756,9 @@ pub trait SchemaTrait:
             anyhow::Ok(())
         });
         let (res1, res2) = tokio::join!(task_read, task_write);
-        res1?;
 
-        res2?
+        res2??;
+        res1
     }
 
     async fn table_import_data_from_file_insert_samples(
@@ -1207,7 +1207,7 @@ pub trait SchemaTrait:
             )
             .await
             .unwrap();
-        println!("resp:{:?}", r);
+
         let values = r
             .fields
             .iter()
@@ -1216,8 +1216,6 @@ pub trait SchemaTrait:
             .filter(|(k, _)| !skip_fields.contains(k.as_str()))
             .collect::<HashMap<_, _>>();
 
-        println!("values:{:?}", values);
-
         for (k, v) in expected.iter() {
             let v_e = v.as_ref().map(|s| s.as_str()).unwrap();
             let v_a = values
@@ -1225,10 +1223,12 @@ pub trait SchemaTrait:
                 .unwrap()
                 .as_ref()
                 .map(|s| s.as_str())
-                .expect(format!("field:{} not found in actual result", *k).as_str());
+                .expect(format!("field: {} not found in actual result", *k).as_str());
 
             if v_e != v_a {
-                panic!("field:{} expect:{} actual:{}", *k, v_e, v_a);
+                println!("expect:{:?}", v_e.as_bytes());
+                println!("actual:{:?}", v_a.as_bytes());
+                panic!("field: {} expect: |{}| actual: |{}|", *k, v_e, v_a);
             }
         }
     }

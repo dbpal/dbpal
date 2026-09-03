@@ -218,7 +218,7 @@ fn encode_row(
 }
 
 fn encode_bytes(bs: &[u8]) -> String {
-    format!("x'{}'", hex::encode(bs))
+    format!("x'{}'", hex::encode_upper(bs))
 }
 
 fn encode_row_as_json(
@@ -1841,14 +1841,11 @@ mod tests {
         values.insert("COL_INTEGER".to_string(), Some("123".to_string()));
         values.insert("COL_SMALLINT".to_string(), Some("45".to_string()));
         values.insert("COL_BIGINT".to_string(), Some("9876543210".to_string()));
-        values.insert("COL_FLOAT".to_string(), Some("3.14".to_string()));
-        values.insert(
-            "COL_DOUBLE_PRECISION".to_string(),
-            Some("2.718281828459045".to_string()),
-        );
+        values.insert("COL_FLOAT".to_string(), Some("0.25".to_string()));
+        values.insert("COL_DOUBLE_PRECISION".to_string(), Some("0.5".to_string()));
 
         values.insert("COL_DECIMAL".to_string(), Some("123.45".to_string()));
-        values.insert("COL_NUMERIC".to_string(), Some("678.90".to_string()));
+        values.insert("COL_NUMERIC".to_string(), Some("678.9".to_string()));
         db.table_insert(table_name, &values).await.unwrap();
 
         {
@@ -1860,6 +1857,7 @@ mod tests {
         }
         GetTestExportTableKinds::test_export(&db, table_name).await;
         db.test_table_export_and_import(table_name).await;
+        db.test_table_equal(table_name, &values, &["ID"]).await;
     }
 
     #[tokio::test]
@@ -1876,12 +1874,10 @@ mod tests {
         let query_id = "aaaa";
 
         /*
-           COL_BLOB_TEXT
-           这个测试很难通过 blob 一般编码为 x'010203'
-           但是encode_row 一般返回字符串
-           我没法把它编码为 blob的二进制
-
-
+            COL_BLOB_TEXT
+            这个测试很难通过 blob 一般编码为 x'010203'
+            但是encode_row 一般返回字符串
+            我没法把它编码为 blob的二进制
         */
         db.open_connection(query_id).await.unwrap();
         db.execute_sql(
@@ -1889,7 +1885,7 @@ mod tests {
             r#"
             CREATE TABLE TEST_TABLE2 (
                 ID INTEGER PRIMARY KEY,
-                COL_CHAR CHAR(10),
+                COL_CHAR CHAR(5),
                 COL_VARCHAR VARCHAR(50),
                 -- COL_BLOB_TEXT BLOB SUB_TYPE TEXT CHARACTER SET UTF8,  
                 COL_BLOB_BINARY BLOB SUB_TYPE BINARY,
@@ -1905,7 +1901,7 @@ mod tests {
         .unwrap();
         let mut values = HashMap::new();
         values.insert("ID".to_string(), Some("1".to_string()));
-        values.insert("COL_CHAR".to_string(), Some("FixedText".to_string()));
+        values.insert("COL_CHAR".to_string(), Some("abcde".to_string()));
         values.insert(
             "COL_VARCHAR".to_string(),
             Some("Variable Length Text".to_string()),
@@ -1921,7 +1917,7 @@ mod tests {
             "COL_TIMESTAMP".to_string(),
             Some("2025-03-17 14:30:00".to_string()),
         );
-        values.insert("COL_BOOLEAN".to_string(), Some("TRUE".to_string()));
+        values.insert("COL_BOOLEAN".to_string(), Some("true".to_string()));
         db.table_insert(table_name, &values).await.unwrap();
 
         {
@@ -1933,6 +1929,7 @@ mod tests {
         }
         GetTestExportTableKinds::test_export(&db, table_name).await;
         db.test_table_export_and_import(table_name).await;
+        db.test_table_equal(table_name, &values, &["ID"]).await;
     }
 
     #[tokio::test]

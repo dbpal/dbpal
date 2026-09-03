@@ -1,5 +1,6 @@
 import {
   Alert,
+  Button,
   Divider,
   IconButton,
   ListItemIcon,
@@ -22,6 +23,7 @@ import {
   gridColumnHeaderSelectClassName,
   DbnameContext,
   DataSourceKind,
+  handleCopyToClipboard,
 } from "./helper.ts";
 import { EditIcon } from "./icons";
 import React, {
@@ -467,7 +469,7 @@ function MultiQueryResp(props: {
 }): React.ReactElement {
   const { data, setData } = props;
   const [value, setValue] = React.useState(0);
-
+  const { showNotification } = useNotification();
   useEffect(() => {
     if (data.length > 0) {
       setValue(data.length - 1);
@@ -513,7 +515,15 @@ function MultiQueryResp(props: {
           return (
             <div hidden={value != index} key={index} style={{ height: "100%" }}>
               {e.Err ? (
-                <Alert severity="error">{e.Err}</Alert>
+                <Stack direction="row" style={{ alignItems: "center" }}>
+                  <Button
+                    onClick={() => {
+                      handleCopyToClipboard(e.Err, showNotification);
+                    }}>
+                    copy
+                  </Button>
+                  <Alert severity="error">{e.Err}</Alert>
+                </Stack>
               ) : (
                 <QueryResp data={e.Ok} />
               )}

@@ -1791,6 +1791,7 @@ mod tests {
 
         println!("\n after here are view test.\n");
         db.test_table_export_and_import(table_name).await;
+        db.test_table_equal(table_name, &values, &["id"]).await;
 
         let views = db.list_view().await.unwrap();
         for v in views.iter() {

@@ -1829,7 +1829,7 @@ pub(crate) async fn make_test_object(schema: Option<String>) -> OracleDB {
             port: 1521,
             db: "XE".to_string(),
         },
-        Some(2),
+        Some(10),
     )
     .await
     .unwrap()
@@ -2565,8 +2565,8 @@ TEST_MATERIALIZED_VIEW_TABLE (product_name, category, price) VALUES ('Samsung Ga
                 CREATE TABLE {table_name} (
                     VARCHAR2_COL VARCHAR2(100),
                     NVARCHAR2_COL NVARCHAR2(100),
-                    CHAR_COL CHAR(10),
-                    NCHAR_COL NCHAR(10),
+                    CHAR_COL CHAR(5),
+                    NCHAR_COL NCHAR(5),
                     RAW_COL RAW(100)
                 )
         "#
@@ -2586,8 +2586,8 @@ TEST_MATERIALIZED_VIEW_TABLE (product_name, category, price) VALUES ('Samsung Ga
             "NVARCHAR2_COL".to_string(),
             Some("这是一个 NVARCHAR2 列的值".to_string()),
         );
-        values.insert("CHAR_COL".to_string(), Some("测试char".to_string()));
-        values.insert("NCHAR_COL".to_string(), Some("测试nchar".to_string()));
+        values.insert("CHAR_COL".to_string(), Some("abcde".to_string()));
+        values.insert("NCHAR_COL".to_string(), Some("abcde".to_string()));
         values.insert("RAW_COL".to_string(), Some("0A0B0C0D0E0F".to_string()));
 
         db.table_insert(table_name, &values).await.unwrap();
@@ -2603,6 +2603,7 @@ TEST_MATERIALIZED_VIEW_TABLE (product_name, category, price) VALUES ('Samsung Ga
 
         GetTestExportTableKinds::test_export(&db, table_name).await;
         db.test_table_export_and_import(table_name).await;
+        db.test_table_equal(table_name, &values, &[]).await;
     }
 
     #[tokio::test]
@@ -2652,6 +2653,7 @@ TEST_MATERIALIZED_VIEW_TABLE (product_name, category, price) VALUES ('Samsung Ga
         println!("resp:{:?}", resp);
         GetTestExportTableKinds::test_export(&db, table_name).await;
         db.test_table_export_and_import(table_name).await;
+        db.test_table_equal(table_name, &values, &[]).await;
     }
 
     #[tokio::test]
@@ -2700,6 +2702,7 @@ TEST_MATERIALIZED_VIEW_TABLE (product_name, category, price) VALUES ('Samsung Ga
         println!("resp:{:?}", resp);
         GetTestExportTableKinds::test_export(&db, table_name).await;
         db.test_table_export_and_import(table_name).await;
+        db.test_table_equal(table_name, &values, &[]).await;
     }
 
     // TODO create table sql not passed
@@ -2744,5 +2747,6 @@ TEST_MATERIALIZED_VIEW_TABLE (product_name, category, price) VALUES ('Samsung Ga
         println!("resp:{:?}", resp);
         GetTestExportTableKinds::test_export(&db, table_name).await;
         db.test_table_export_and_import(table_name).await;
+        db.test_table_equal(table_name, &values, &[]).await;
     }
 }

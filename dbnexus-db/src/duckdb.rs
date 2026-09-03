@@ -704,11 +704,7 @@ fn encode_value(value: &Value, nested: bool) -> anyhow::Result<Option<String>> {
                 .into_iter()
                 .map(|x| x.unwrap_or("null".to_string()))
                 .collect::<Vec<_>>();
-            Some(format!(
-                "map([{}] , [{}])",
-                keys.join(","),
-                values.join(",")
-            ))
+            Some(format!("map([{}],[{}])", keys.join(","), values.join(",")))
         }
         Value::Union(value) => encode_value(value, true)?,
     };
@@ -2433,8 +2429,11 @@ mod tests {
             .unwrap();
         let mut values = HashMap::new();
         values.insert("bigint_column".to_string(), Some("123".to_string()));
-        values.insert("blob_column".to_string(), Some("\x01\x02\x03".to_string()));
-        values.insert("boolean_column".to_string(), Some("TRUE".to_string()));
+        values.insert(
+            "blob_column".to_string(),
+            Some(r#"\x01\x02\x03"#.to_string()),
+        );
+        values.insert("boolean_column".to_string(), Some("true".to_string()));
         values.insert("date_column".to_string(), Some("2025-03-25".to_string()));
         values.insert("decimal_column".to_string(), Some("12345.67".to_string()));
         db.table_insert(table_name, &values).await.unwrap();
@@ -2449,6 +2448,7 @@ mod tests {
 
         GetTestExportTableKinds::test_export(&db, table_name).await;
         db.test_table_export_and_import(table_name).await;
+        db.test_table_equal(table_name, &values, &[]).await;
     }
 
     #[tokio::test]
@@ -2478,23 +2478,23 @@ mod tests {
         let mut values = HashMap::new();
         values.insert(
             "bigint_column".to_string(),
-            Some("[1234567890, 9876543210]".to_string()),
+            Some("[1234567890,9876543210]".to_string()),
         );
         values.insert(
             "blob_column".to_string(),
-            Some("['\x01\x02\x03']".to_string()),
+            Some(r#"['\x01\x02\x03']"#.to_string()),
         );
         values.insert(
             "boolean_column".to_string(),
-            Some("[TRUE, FALSE]".to_string()),
+            Some("[true,false]".to_string()),
         );
         values.insert(
             "date_column".to_string(),
-            Some("['2025-03-25', '2025-03-26']".to_string()),
+            Some("['2025-03-25','2025-03-26']".to_string()),
         );
         values.insert(
             "decimal_column".to_string(),
-            Some("[123.45, 678.90]".to_string()),
+            Some("[123.45,678.90]".to_string()),
         );
         db.table_insert(table_name, &values).await.unwrap();
         let resp = db
@@ -2508,6 +2508,7 @@ mod tests {
 
         GetTestExportTableKinds::test_export(&db, table_name).await;
         db.test_table_export_and_import(table_name).await;
+        db.test_table_equal(table_name, &values, &[]).await;
     }
 
     #[tokio::test]
@@ -2536,25 +2537,24 @@ mod tests {
             )
             .await
             .unwrap();
-        {
-            let mut values = HashMap::new();
-            values.insert("col_double".to_string(), Some("123.456".to_string()));
-            values.insert("col_float".to_string(), Some("78.9".to_string()));
-            values.insert(
-                "col_hugeint".to_string(),
-                Some("1234567890123456789".to_string()),
-            );
-            values.insert("col_integer".to_string(), Some("42".to_string()));
-            values.insert(
-                "col_interval".to_string(),
-                Some("INTERVAL '1 year 2 months 3 days 4 hours 5 minutes 6 seconds'".to_string()),
-            );
-            values.insert(
-                "col_json".to_string(),
-                Some(r#"{"key1": "value1", "key2": 123, "key3": [1, 2, 3]}"#.to_string()),
-            );
-            db.table_insert(table_name, &values).await.unwrap();
-        }
+
+        let mut values = HashMap::new();
+        values.insert("col_double".to_string(), Some("123.456".to_string()));
+        values.insert("col_float".to_string(), Some("78.9".to_string()));
+        values.insert(
+            "col_hugeint".to_string(),
+            Some("1234567890123456789".to_string()),
+        );
+        values.insert("col_integer".to_string(), Some("42".to_string()));
+        values.insert(
+            "col_interval".to_string(),
+            Some("INTERVAL '14 months 3 days 14706 seconds'".to_string()),
+        );
+        values.insert(
+            "col_json".to_string(),
+            Some(r#"{"key1": "value1", "key2": 123, "key3": [1, 2, 3]}"#.to_string()),
+        );
+        db.table_insert(table_name, &values).await.unwrap();
 
         let resp = db
             .show_table_collect(
@@ -2566,6 +2566,7 @@ mod tests {
         println!("resp:{:?}", resp);
         GetTestExportTableKinds::test_export(&db, table_name).await;
         db.test_table_export_and_import(table_name).await;
+        db.test_table_equal(table_name, &values, &[]).await;
     }
 
     #[tokio::test]
@@ -2605,7 +2606,7 @@ mod tests {
         values.insert("col_integer".to_string(), Some("[42]".to_string()));
         values.insert(
             "col_interval".to_string(),
-            Some("[INTERVAL '1 year 2 months 3 days 4 hours 5 minutes 6 seconds']".to_string()),
+            Some("[INTERVAL '14 months 3 days 14706 seconds']".to_string()),
         );
         values.insert(
             "col_json".to_string(),
@@ -2621,6 +2622,7 @@ mod tests {
 
         GetTestExportTableKinds::test_export(&db, table_name).await;
         db.test_table_export_and_import(table_name).await;
+        db.test_table_equal(table_name, &values, &[]).await;
     }
 
     #[tokio::test]
@@ -2654,17 +2656,14 @@ mod tests {
         values.insert("col_time".to_string(), Some("14:30:45".to_string()));
         values.insert(
             "col_timestamptz".to_string(),
-            Some("2025-03-25 14:30:45+08".to_string()),
+            Some("2025-03-25 14:30:45".to_string()),
         );
         values.insert(
             "col_timestamp".to_string(),
             Some("2025-03-25 14:30:45".to_string()),
         );
         values.insert("col_tinyint".to_string(), Some("127".to_string()));
-        values.insert(
-            "col_ubigint".to_string(),
-            Some("1844674407370955161".to_string()),
-        );
+        values.insert("col_ubigint".to_string(), Some("184467440761".to_string()));
         db.table_insert(table_name, &values).await.unwrap();
         let resp = db
             .show_table_collect(
@@ -2677,6 +2676,7 @@ mod tests {
 
         GetTestExportTableKinds::test_export(&db, table_name).await;
         db.test_table_export_and_import(table_name).await;
+        db.test_table_equal(table_name, &values, &[]).await;
     }
 
     #[tokio::test]
@@ -2710,7 +2710,7 @@ mod tests {
         values.insert("col_time".to_string(), Some("['14:30:45']".to_string()));
         values.insert(
             "col_timestamptz".to_string(),
-            Some("['2025-03-25 14:30:45+08']".to_string()),
+            Some("['2025-03-25 14:30:45']".to_string()),
         );
         values.insert(
             "col_timestamp".to_string(),
@@ -2730,6 +2730,7 @@ mod tests {
 
         GetTestExportTableKinds::test_export(&db, table_name).await;
         db.test_table_export_and_import(table_name).await;
+        db.test_table_equal(table_name, &values, &[]).await;
     }
 
     #[tokio::test]
@@ -2778,6 +2779,7 @@ mod tests {
 
         GetTestExportTableKinds::test_export(&db, table_name).await;
         db.test_table_export_and_import(table_name).await;
+        db.test_table_equal(table_name, &values, &[]).await;
     }
 
     #[tokio::test]
@@ -2805,18 +2807,18 @@ mod tests {
             .await
             .unwrap();
         let mut values = HashMap::new();
-        values.insert("my_array".to_string(), Some("[1, 2, 3]".to_string()));
+        values.insert("my_array".to_string(), Some("[1,2,3]".to_string()));
         values.insert(
             "my_list".to_string(),
-            Some("['apple', 'banana', 'cherry']".to_string()),
+            Some("['apple','banana','cherry']".to_string()),
         );
         values.insert(
             "my_map".to_string(),
-            Some("map(['key1', 'key2'] , [1,2])".to_string()),
+            Some("map(['key1','key2'],[1,2])".to_string()),
         );
         values.insert(
             "my_struct".to_string(),
-            Some("{'name' : 'xxx' , 'age' : 100}".to_string()),
+            Some("{name:'xxx',age:100}".to_string()),
         );
         // values.insert("my_union".to_string(), Some("'hello'".to_string()));
         db.table_insert(table_name, &values).await.unwrap();
@@ -2829,6 +2831,7 @@ mod tests {
         GetTestExportTableKinds::test_export(&db, table_name).await;
 
         db.test_table_export_and_import(table_name).await;
+        db.test_table_equal(table_name, &values, &[]).await;
     }
 
     #[tokio::test]

@@ -1919,15 +1919,15 @@ mod tests {
             .unwrap();
 
         assert!(_resp.is_ok(), "{:?}", _resp);
-        {
-            let mut values = HashMap::new();
-            values.insert("value_uint8".to_string(), Some(1.to_string()));
-            values.insert("value_uint16".to_string(), Some(2.to_string()));
-            values.insert("value_uint32".to_string(), Some(3.to_string()));
-            values.insert("value_uint64".to_string(), Some(4.to_string()));
-            values.insert("value_uint128".to_string(), Some(5.to_string()));
-            db.table_insert(table_name, &values).await.unwrap();
-        }
+
+        let mut values = HashMap::new();
+        values.insert("value_uint8".to_string(), Some(1.to_string()));
+        values.insert("value_uint16".to_string(), Some(2.to_string()));
+        values.insert("value_uint32".to_string(), Some(3.to_string()));
+        values.insert("value_uint64".to_string(), Some(4.to_string()));
+        values.insert("value_uint128".to_string(), Some(5.to_string()));
+        db.table_insert(table_name, &values).await.unwrap();
+
         {
             let resp = db
                 .show_table_collect(table_name, ShowTableParameter::new_stupid_test("id asc"))
@@ -1940,6 +1940,7 @@ mod tests {
         GetTestExportTableKinds::test_export(&db, table_name).await;
 
         db.test_table_export_and_import(table_name).await;
+        db.test_table_equal(table_name, &values, &["id"]).await;
     }
 
     #[tokio::test]
@@ -1969,18 +1970,17 @@ mod tests {
         .unwrap()
         .unwrap();
 
-        {
-            let mut values = HashMap::new();
-            values.insert("value_int8".to_string(), Some(1.to_string()));
-            values.insert("value_int16".to_string(), Some(2.to_string()));
-            values.insert("value_int32".to_string(), Some(3.to_string()));
-            values.insert(
-                "value_int64".to_string(),
-                Some("9007199254740993".to_string()),
-            );
-            values.insert("value_int128".to_string(), Some(5.to_string()));
-            db.table_insert(table_name, &values).await.unwrap();
-        }
+        let mut values = HashMap::new();
+        values.insert("value_int8".to_string(), Some(1.to_string()));
+        values.insert("value_int16".to_string(), Some(2.to_string()));
+        values.insert("value_int32".to_string(), Some(3.to_string()));
+        values.insert(
+            "value_int64".to_string(),
+            Some("9007199254740993".to_string()),
+        );
+        values.insert("value_int128".to_string(), Some(5.to_string()));
+        db.table_insert(table_name, &values).await.unwrap();
+
         {
             let resp = db
                 .show_table_collect(table_name, ShowTableParameter::new_stupid_test("id asc"))
@@ -1991,6 +1991,7 @@ mod tests {
         }
         GetTestExportTableKinds::test_export(&db, table_name).await;
         db.test_table_export_and_import(table_name).await;
+        db.test_table_equal(table_name, &values, &["id"]).await;
     }
 
     #[tokio::test]
@@ -2023,20 +2024,19 @@ mod tests {
             .await
             .unwrap() .unwrap() ;
 
-        {
-            let mut values = HashMap::new();
-            values.insert("id".to_string(), Some(100.to_string()));
-            values.insert("float32_field".to_string(), Some(1.to_string()));
-            values.insert("float64_field".to_string(), Some(2.to_string()));
-            values.insert("decimal32_field".to_string(), Some(3.to_string()));
-            values.insert("decimal64_field".to_string(), Some(4.to_string()));
-            values.insert(
-                "decimal128_field".to_string(),
-                Some("1234567890123456.789".to_string()),
-            );
-            values.insert("boolean_field".to_string(), Some(true.to_string()));
-            db.table_insert(table_name, &values).await.unwrap();
-        }
+        let mut values = HashMap::new();
+        values.insert("id".to_string(), Some(100.to_string()));
+        values.insert("float32_field".to_string(), Some(1.to_string()));
+        values.insert("float64_field".to_string(), Some(2.to_string()));
+        values.insert("decimal32_field".to_string(), Some(3.to_string()));
+        values.insert("decimal64_field".to_string(), Some(4.to_string()));
+        values.insert(
+            "decimal128_field".to_string(),
+            Some("1234567890123456.8".to_string()),
+        );
+        values.insert("boolean_field".to_string(), Some(1.to_string()));
+        db.table_insert(table_name, &values).await.unwrap();
+
         {
             let resp = db
                 .show_table_collect(table_name, ShowTableParameter::new_stupid_test("id asc"))
@@ -2047,6 +2047,7 @@ mod tests {
         }
         GetTestExportTableKinds::test_export(&db, table_name).await;
         db.test_table_export_and_import(table_name).await;
+        db.test_table_equal(table_name, &values, &["id"]).await;
     }
 
     #[tokio::test]
@@ -2063,7 +2064,7 @@ mod tests {
             CREATE TABLE test_types4
             (
                 string_field String,            -- 动态长度的字符串
-                fixed_string_field FixedString(16), -- 固定长度的字符串，这里长度为 16 字节
+                fixed_string_field FixedString(5), -- 固定长度的字符串，这里长度为 5 字节
                 uuid_field UUID,                -- UUID 类型
                 ipv6_field IPv6,                -- IPv6 地址
                 ipv4_field IPv4,                -- IPv4 地址
@@ -2077,29 +2078,25 @@ mod tests {
         .unwrap()
         .unwrap();
 
-        {
-            let mut values = HashMap::new();
+        let mut values = HashMap::new();
 
-            values.insert(
-                "string_field".to_string(),
-                Some("Hello, ClickHouse!".to_string()),
-            );
-            values.insert(
-                "fixed_string_field".to_string(),
-                Some("FixedString".to_string()),
-            );
-            values.insert(
-                "uuid_field".to_string(),
-                Some("6f9619ff-8b86-d011-b42d-00c04fc964ff".to_string()),
-            );
-            values.insert(
-                "ipv6_field".to_string(),
-                Some("2001:0db8:85a3:0000:0000:8a2e:0370:7334".to_string()),
-            );
-            values.insert("ipv4_field".to_string(), Some("192.168.1.1".to_string()));
-            values.insert("date_field".to_string(), Some("2025-03-06".to_string()));
-            db.table_insert(table_name, &values).await.unwrap();
-        }
+        values.insert(
+            "string_field".to_string(),
+            Some("Hello, ClickHouse!".to_string()),
+        );
+        values.insert("fixed_string_field".to_string(), Some("abcde".to_string()));
+        values.insert(
+            "uuid_field".to_string(),
+            Some("6f9619ff-8b86-d011-b42d-00c04fc964ff".to_string()),
+        );
+        values.insert(
+            "ipv6_field".to_string(),
+            Some("2001:db8:85a3::8a2e:370:7334".to_string()),
+        );
+        values.insert("ipv4_field".to_string(), Some("192.168.1.1".to_string()));
+        values.insert("date_field".to_string(), Some("2025-03-06".to_string()));
+        db.table_insert(table_name, &values).await.unwrap();
+
         {
             let resp = db
                 .show_table_collect(
@@ -2113,6 +2110,7 @@ mod tests {
         }
         GetTestExportTableKinds::test_export(&db, table_name).await;
         db.test_table_export_and_import(table_name).await;
+        db.test_table_equal(table_name, &values, &["id"]).await;
     }
 
     #[tokio::test]
@@ -2145,32 +2143,31 @@ mod tests {
             .await
             .unwrap() .unwrap() ;
 
-        {
-            let mut values = HashMap::new();
+        let mut values = HashMap::new();
 
-            values.insert("date32_field".to_string(), Some("2025-03-06".to_string()));
-            values.insert(
-                "datetime_field".to_string(),
-                Some("2025-03-06 12:34:56".to_string()),
-            );
-            values.insert(
-                "datetime64_field".to_string(),
-                Some("2025-03-06 12:34:56.789".to_string()),
-            );
-            values.insert(
-                "tuple_field".to_string(),
-                Some("(123, 'example', 456.789)".to_string()),
-            );
-            values.insert(
-                "array_field".to_string(),
-                Some("['item1', 'item2', 'item3']".to_string()),
-            );
-            values.insert(
-                "map_field".to_string(),
-                Some("map('key1', 10, 'key2', 20)".to_string()),
-            );
-            db.table_insert(table_name, &values).await.unwrap();
-        }
+        values.insert("date32_field".to_string(), Some("2025-03-06".to_string()));
+        values.insert(
+            "datetime_field".to_string(),
+            Some("2025-03-06 12:34:56".to_string()),
+        );
+        values.insert(
+            "datetime64_field".to_string(),
+            Some("2025-03-06 12:34:56.789".to_string()),
+        );
+        values.insert(
+            "tuple_field".to_string(),
+            Some("(123,'example',456.789)".to_string()),
+        );
+        values.insert(
+            "array_field".to_string(),
+            Some("['item1','item2','item3']".to_string()),
+        );
+        values.insert(
+            "map_field".to_string(),
+            Some("{'key1':10,'key2':20}".to_string()),
+        );
+        db.table_insert(table_name, &values).await.unwrap();
+
         {
             let resp = db
                 .show_table_collect(
@@ -2189,6 +2186,7 @@ mod tests {
          */
         db.test_table_export_and_import_json(table_name).await;
         db.test_table_export_and_import_jsonline(table_name).await;
+        db.test_table_equal(table_name, &values, &["id"]).await;
     }
 
     #[tokio::test]

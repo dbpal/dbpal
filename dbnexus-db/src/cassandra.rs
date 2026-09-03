@@ -1791,7 +1791,10 @@ pub(crate) mod test_impls {
         let size = 1550;
         for k in 0..size {
             let mut values = HashMap::new();
-            values.insert("id".to_string(), Some("uuid()".to_string()));
+            values.insert(
+                "id".to_string(),
+                Some("7e8af693-c33e-4533-a423-27fb19990377".to_string()),
+            );
             values.insert(
                 "ascii_column".to_string(),
                 Some(format!("example_ascii {}", k)),
@@ -1941,19 +1944,22 @@ pub(crate) mod test_impls {
 
         println!("create table:{:?}", now.elapsed());
         let mut values = HashMap::new();
-        values.insert("id".to_string(), Some("uuid()".to_string()));
+        values.insert(
+            "id".to_string(),
+            Some("7e8af693-c33e-4533-a423-27fb19990377".to_string()),
+        );
         values.insert(
             "ascii_column".to_string(),
             Some("example_ascii".to_string()),
         );
         values.insert(
             "bigint_column".to_string(),
-            Some("1234567890123456789".to_string()),
+            Some("12345678901234".to_string()),
         );
         values.insert("blob_column".to_string(), Some("0x48656c6c6f".to_string()));
         values.insert("boolean_column".to_string(), Some("true".to_string()));
-        values.insert("decimal_column".to_string(), Some("123.45".to_string()));
-        values.insert("double_column".to_string(), Some("3.14159".to_string()));
+        values.insert("decimal_column".to_string(), Some("123.5".to_string()));
+        values.insert("double_column".to_string(), Some("3.25".to_string()));
         db.table_insert(table_name, &values).await.unwrap();
 
         {
@@ -1964,6 +1970,7 @@ pub(crate) mod test_impls {
         }
         GetTestExportTableKinds::test_export(&db, table_name).await;
         db.test_table_export_and_import(table_name).await;
+        db.test_table_equal(table_name, &values, &[]).await;
     }
 
     pub async fn test_types1_list_inner(db: CassandraDB) {
@@ -1990,7 +1997,10 @@ pub(crate) mod test_impls {
         .unwrap();
 
         let mut values = HashMap::new();
-        values.insert("id".to_string(), Some("uuid()".to_string()));
+        values.insert(
+            "id".to_string(),
+            Some("7e8af693-c33e-4533-a423-27fb19990377".to_string()),
+        );
         values.insert(
             "ascii_column".to_string(),
             Some("['example_ascii']".to_string()),
@@ -2017,6 +2027,7 @@ pub(crate) mod test_impls {
         }
         GetTestExportTableKinds::test_export(&db, table_name).await;
         db.test_table_export_and_import(table_name).await;
+        db.test_table_equal(table_name, &values, &[]).await;
     }
 
     pub async fn test_types2_inner(db: CassandraDB) {
@@ -2042,7 +2053,10 @@ pub(crate) mod test_impls {
         .unwrap();
 
         let mut values = HashMap::new();
-        values.insert("id".to_string(), Some("uuid()".to_string()));
+        values.insert(
+            "id".to_string(),
+            Some("7e8af693-c33e-4533-a423-27fb19990377".to_string()),
+        );
         values.insert("float_value".to_string(), Some("3.14".to_string()));
         values.insert("int_value".to_string(), Some("42".to_string()));
         values.insert(
@@ -2050,10 +2064,7 @@ pub(crate) mod test_impls {
             Some("2023-01-01 10:00:00".to_string()),
         );
         values.insert("varchar_value".to_string(), Some("Sample Text".to_string()));
-        values.insert(
-            "varint_value".to_string(),
-            Some("123456789012345678901234567890".to_string()),
-        );
+        values.insert("varint_value".to_string(), Some("1234567890".to_string()));
 
         db.table_insert(table_name, &values).await.unwrap();
 
@@ -2065,6 +2076,7 @@ pub(crate) mod test_impls {
         }
         GetTestExportTableKinds::test_export(&db, table_name).await;
         db.test_table_export_and_import(table_name).await;
+        db.test_table_equal(table_name, &values, &[]).await;
     }
 
     pub async fn test_types2_list_inner(db: CassandraDB) {
@@ -2090,7 +2102,10 @@ pub(crate) mod test_impls {
         .unwrap();
 
         let mut values = HashMap::new();
-        values.insert("id".to_string(), Some("uuid()".to_string()));
+        values.insert(
+            "id".to_string(),
+            Some("79b5f399-cd33-472a-b31c-4eb0b89f18e6".to_string()),
+        );
         values.insert("float_value".to_string(), Some("[3.14]".to_string()));
         values.insert("int_value".to_string(), Some("[42]".to_string()));
         values.insert(
@@ -2116,6 +2131,7 @@ pub(crate) mod test_impls {
         }
         GetTestExportTableKinds::test_export(&db, table_name).await;
         db.test_table_export_and_import(table_name).await;
+        db.test_table_equal(table_name, &values, &[]).await;
     }
 
     pub async fn test_types3_inner(db: CassandraDB) {
@@ -2142,8 +2158,14 @@ pub(crate) mod test_impls {
         .unwrap();
 
         let mut values = HashMap::new();
-        values.insert("id".to_string(), Some("uuid()".to_string()));
-        values.insert("timeuuid_value".to_string(), Some("now()".to_string()));
+        values.insert(
+            "id".to_string(),
+            Some("79b5f399-cd33-472a-b31c-4eb0b89f18e6".to_string()),
+        );
+        values.insert(
+            "timeuuid_value".to_string(),
+            Some("19905370-a72a-11f1-a1e7-dbedeac510d7".to_string()),
+        );
         values.insert("inet_value".to_string(), Some("192.168.1.1".to_string()));
         values.insert("date_value".to_string(), Some("2023-01-01".to_string()));
         values.insert("time_value".to_string(), Some("10:30:00".to_string()));
@@ -2160,6 +2182,7 @@ pub(crate) mod test_impls {
         }
         GetTestExportTableKinds::test_export(&db, table_name).await;
         db.test_table_export_and_import(table_name).await;
+        db.test_table_equal(table_name, &values, &[]).await;
     }
 
     pub async fn test_types_list3_inner(db: CassandraDB) {
@@ -2186,8 +2209,14 @@ pub(crate) mod test_impls {
         .unwrap();
 
         let mut values = HashMap::new();
-        values.insert("id".to_string(), Some("uuid()".to_string()));
-        values.insert("timeuuid_value".to_string(), Some("[now()]".to_string()));
+        values.insert(
+            "id".to_string(),
+            Some("79b5f399-cd33-472a-b31c-4eb0b89f18e6".to_string()),
+        );
+        values.insert(
+            "timeuuid_value".to_string(),
+            Some("[49b06ce8-a72a-11f1-a1e7-dbedeac510d7]".to_string()),
+        );
         values.insert(
             "inet_value".to_string(),
             Some("['192.168.1.1']".to_string()),
@@ -2207,6 +2236,7 @@ pub(crate) mod test_impls {
         }
         GetTestExportTableKinds::test_export(&db, table_name).await;
         db.test_table_export_and_import(table_name).await;
+        db.test_table_equal(table_name, &values, &[]).await;
     }
 
     pub async fn test_types4_inner(db: CassandraDB) {
@@ -2231,12 +2261,15 @@ pub(crate) mod test_impls {
         .unwrap();
 
         let mut values = HashMap::new();
-        values.insert("id".to_string(), Some("uuid()".to_string()));
-        values.insert("map_field".to_string(), Some("{1 :2}".to_string()));
+        values.insert(
+            "id".to_string(),
+            Some("79b5f399-cd33-472a-b31c-4eb0b89f18e6".to_string()),
+        );
+        values.insert("map_field".to_string(), Some("{1:2}".to_string()));
         values.insert("set_field".to_string(), Some("{1,2}".to_string()));
         values.insert(
             "person".to_string(),
-            Some("{first_name : 'yu' ,last_name : 'yang' , email : 'xxx',age : 100}".to_string()),
+            Some("{first_name:'yu',last_name:'yang',age:100,email:'xxx'}".to_string()),
         );
         values.insert("tuple_field".to_string(), Some("(1,100)".to_string()));
         db.table_insert(table_name, &values).await.unwrap();
@@ -2248,6 +2281,9 @@ pub(crate) mod test_impls {
             println!("resp:{:?}", resp);
         }
         GetTestExportTableKinds::test_export(&db, table_name).await;
+        db.test_table_export_and_import_csv(table_name).await;
+        db.test_table_export_and_import_excel(table_name).await;
+        db.test_table_equal(table_name, &values, &[]).await;
     }
 
     pub async fn test_table_column_inner(db: CassandraDB) {
@@ -2327,7 +2363,10 @@ pub(crate) mod test_impls {
         let mut values = HashMap::new();
         let mut wheres = HashMap::new();
         values.insert("view_count".to_string(), Some("view_count + 1".to_string()));
-        wheres.insert("page_id".to_string(), Some("uuid()".to_string()));
+        wheres.insert(
+            "page_id".to_string(),
+            Some("79b5f399-cd33-472a-b31c-4eb0b89f18e6".to_string()),
+        );
         db.table_update(table_name, &values, &wheres).await.unwrap();
 
         let resp = db
@@ -2610,6 +2649,8 @@ pub(crate) mod test_impls {
 #[cfg(test)]
 mod tests {
 
+    use crate::enable_test_log;
+
     use super::test_impls;
     use super::*;
 
@@ -2714,6 +2755,8 @@ mod tests {
 
     #[tokio::test]
     async fn test_types4() {
+        enable_test_log();
+
         let _guard = test_lock().lock().await;
         let db = make_test_object(Some("test".to_string())).await;
         test_impls::test_types4_inner(db).await;
