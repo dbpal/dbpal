@@ -1,1 +1,1 @@
-pnpm tauri build --features duckdb
+pnpm tauri build
