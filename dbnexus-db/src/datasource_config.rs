@@ -128,16 +128,6 @@ pub struct SqliteDBConfig {
 }
 
 #[derive(Debug, Clone, serde::Deserialize, serde::Serialize, specta::Type)]
-pub struct DuckDBConfig {
-    pub path: String,
-    pub read_only: bool,
-    pub db: Option<String>,
-    pub schema: Option<String>,
-    pub conn_timeout: Option<SomeTimeOut>,
-    pub max_memory: Option<String>,
-}
-
-#[derive(Debug, Clone, serde::Deserialize, serde::Serialize, specta::Type)]
 pub struct FireBirdConfig {
     pub host: String,
     pub port: u16,
@@ -147,18 +137,6 @@ pub struct FireBirdConfig {
     pub read_only: bool,
     pub conn_timeout: Option<SomeTimeOut>,
     pub dialect: String,
-}
-
-impl DuckDBConfig {
-    #[allow(unused)]
-    pub(crate) fn schema_str(&self) -> &str {
-        self.schema.as_ref().expect("must be some")
-    }
-
-    #[allow(unused)]
-    pub(crate) fn db_str(&self) -> &str {
-        self.db.as_ref().expect("must be some")
-    }
 }
 
 #[derive(Debug, Clone, serde::Deserialize, serde::Serialize, specta::Type)]

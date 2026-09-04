@@ -3423,7 +3423,6 @@ dependencies = [
  "csv",
  "csv_processor",
  "dashmap",
- "duckdb",
  "futures-core",
  "futures-util",
  "gcp-bigquery-client",
@@ -3472,6 +3471,26 @@ dependencies = [
 ]
 
 [[package]]
+name = "dbnexus-db2"
+version = "0.0.0"
+dependencies = [
+ "anyhow",
+ "async-trait",
+ "chrono",
+ "dashmap",
+ "dbnexus-db",
+ "duckdb",
+ "hex",
+ "log",
+ "r2d2",
+ "serde",
+ "serde_json",
+ "specta",
+ "sqlparser 0.62.0",
+ "tokio",
+]
+
+[[package]]
 name = "dbpal"
 version = "0.0.0"
 dependencies = [
@@ -3482,6 +3501,7 @@ dependencies = [
  "chrono",
  "dashmap",
  "dbnexus-db",
+ "dbnexus-db2",
  "font-kit",
  "futures-core",
  "futures-util",

@@ -5,7 +5,6 @@ use chrono::{DateTime, FixedOffset};
 use core::str;
 use std::any::Any;
 use std::collections::HashMap;
-#[cfg(test)]
 use std::collections::HashSet;
 use std::fmt::{self, Debug};
 use std::io::BufRead;
@@ -181,18 +180,18 @@ impl BackendKind {
     }
 
     // 支持这样的语法 @@或者@访问一些全局或者局部的变量
-    pub(crate) fn support_at(self) -> bool {
+    pub fn support_at(self) -> bool {
         self.mysql_like() || self == Self::SqlServer
     }
-    pub(crate) fn postgres_like(self) -> bool {
+    pub fn postgres_like(self) -> bool {
         matches!(self, Self::PostGres(..))
     }
 
-    pub(crate) fn sqlite_like(&self) -> bool {
+    pub fn sqlite_like(&self) -> bool {
         matches!(self, Self::Sqlite | Self::LibSql)
     }
 
-    pub(crate) fn quote_style(self) -> &'static str {
+    pub fn quote_style(self) -> &'static str {
         if self.mysql_like() || self == Self::ClickHouse {
             "`"
         } else {
@@ -282,13 +281,12 @@ pub struct TableImportPara {
 }
 
 impl ShowTableParameter {
-    pub(crate) fn offset(&self) -> u32 {
+    pub fn offset(&self) -> u32 {
         (self.page - 1) * self.page_size
     }
 }
 
 impl ShowTableParameter {
-    #[cfg(test)]
     pub fn new_stupid_test<'a>(order: impl Into<Option<&'a str>>) -> Self {
         let order = order.into();
         Self {
@@ -307,7 +305,6 @@ struct QueryRespMemoryCollector {
 }
 
 impl QueryRespMemoryCollector {
-    #[cfg(test)]
     fn result(&self) -> QueryResp {
         self.ret
             .lock()
@@ -453,7 +450,6 @@ pub trait SchemaTrait:
         _: QueryEventEmitter,
     ) -> anyhow::Result<()>;
 
-    #[cfg(test)]
     async fn show_table_collect(
         &self,
         table_name: &str,
@@ -466,7 +462,6 @@ pub trait SchemaTrait:
         anyhow::Ok(result.result())
     }
 
-    #[cfg(test)]
     async fn show_view_collect(
         &self,
         table_name: &str,
@@ -1021,7 +1016,8 @@ pub trait SchemaTrait:
         self.backend_kind().not_support_feature("drop event")
     }
 
-    #[cfg(test)]
+    #[allow(clippy::unwrap_used)]
+
     async fn test_table_export_and_import_excel(&self, table: &str) {
         let file = tempfile::NamedTempFile::with_suffix(".xlsx").unwrap();
         let file = file.path().to_str().unwrap();
@@ -1051,7 +1047,7 @@ pub trait SchemaTrait:
         .unwrap();
     }
 
-    #[cfg(test)]
+    #[allow(clippy::unwrap_used)]
     async fn test_table_export_and_import_csv(&self, table: &str) {
         use std::io::Write;
 
@@ -1091,7 +1087,7 @@ pub trait SchemaTrait:
             println!("csv2:{}", csv_str2);
         }
     }
-    #[cfg(test)]
+    #[allow(clippy::unwrap_used)]
     async fn test_table_export_and_import_json(&self, table: &str) {
         use std::io::Write;
 
@@ -1127,7 +1123,8 @@ pub trait SchemaTrait:
             println!("json2:{}", json_str2);
         }
     }
-    #[cfg(test)]
+    #[allow(clippy::unwrap_used)]
+
     async fn test_table_export_and_import_jsonline(&self, table: &str) {
         use std::io::Write;
 
@@ -1160,7 +1157,7 @@ pub trait SchemaTrait:
             println!("jsonline2:{}", jsonline_str2);
         }
     }
-    #[cfg(test)]
+    #[allow(clippy::unwrap_used)]
     async fn test_table_export_and_import(&self, table: &str) {
         self.test_table_export_and_import_csv(table).await;
         let para = ShowTableParameter::default();
@@ -1179,9 +1176,7 @@ pub trait SchemaTrait:
         log::info!("after excel import:{:?}", x.data);
         log::info!("test export and import OK.")
     }
-
-    #[cfg(test)]
-
+    #[allow(clippy::unwrap_used)]
     async fn test_table_equal(
         &self,
         table: &str,
@@ -1623,11 +1618,11 @@ impl std::fmt::Display for CreatedTypeDef {
 #[derive(Clone, Debug, serde::Serialize, serde::Deserialize, specta::Type)]
 pub struct ColumnType {
     // type string like `varchar`
-    pub(crate) typ: String,
-    pub(crate) nullable: Option<SqlNullAble>,
+    pub typ: String,
+    pub nullable: Option<SqlNullAble>,
     // mysql add column can have this field
-    pub(crate) after: Option<String>,
-    pub(crate) default_value: Option<String>,
+    pub after: Option<String>,
+    pub default_value: Option<String>,
 }
 
 impl BackendKind {
@@ -1646,7 +1641,7 @@ pub struct ProcedureDetail {
     pub metas: Vec<MetaValue>,
 }
 impl ProcedureDetail {
-    pub(crate) fn new(def: String, metas: Vec<MetaValue>) -> Self {
+    pub fn new(def: String, metas: Vec<MetaValue>) -> Self {
         Self { metas, def }
     }
 }
@@ -1914,7 +1909,7 @@ impl From<chrono::NaiveDateTime> for XlsxEditContent {
 }
 
 impl XlsxEditContent {
-    pub(crate) fn number<T: Into<f64>>(value: T) -> Self {
+    pub fn number<T: Into<f64>>(value: T) -> Self {
         Self::Number(value.into())
     }
 }
@@ -1969,7 +1964,7 @@ pub(crate) async fn export_query_as_xlsx_send_data(
     anyhow::Ok(())
 }
 
-pub(crate) fn export_query_as_xlsx_send_blocking_data(
+pub fn export_query_as_xlsx_send_blocking_data(
     row_num: &mut u32,
     data: Vec<Option<XlsxEditContent>>,
     sender: tokio::sync::mpsc::Sender<ExportFrame>,
@@ -2170,7 +2165,7 @@ impl CreateIndexReq {
             .join(",")
     }
 
-    pub(crate) fn common_sql(
+    pub fn common_sql(
         &self,
         table: &str,
         can_have_order: bool,
@@ -3123,7 +3118,7 @@ pub struct MetaValue {
 }
 
 impl MetaValue {
-    pub(crate) fn new(name: impl Into<String>, value: impl Into<Option<String>>) -> Self {
+    pub fn new(name: impl Into<String>, value: impl Into<Option<String>>) -> Self {
         Self {
             name: name.into(),
             value: value.into(),
@@ -3152,7 +3147,7 @@ pub struct AutoCompletionQueryId {
 }
 
 impl AutoCompletionQueryId {
-    pub(crate) fn get(&self) -> String {
+    pub fn get(&self) -> String {
         self.query_id.lock().expect("should lock ok").clone()
     }
 
@@ -3196,7 +3191,7 @@ impl TimeElapsed {
     }
 }
 
-pub(crate) fn create_html_table_header(x: &[String]) -> String {
+pub fn create_html_table_header(x: &[String]) -> String {
     format!(
         r#"
         <tr>
@@ -3223,7 +3218,7 @@ impl<T> OptionMustBeSomeErr<T> for Option<T> {
     }
 }
 
-pub(crate) fn create_html_table_data(data: &[Vec<Option<String>>]) -> String {
+pub fn create_html_table_data(data: &[Vec<Option<String>>]) -> String {
     let mut ret = "".to_owned();
     for d in data.iter() {
         let x = &format!(
@@ -3265,7 +3260,7 @@ fn escape_markdown(text: &str) -> String {
     escaped
 }
 
-pub(crate) fn create_markdown_header(header: &[String]) -> String {
+pub fn create_markdown_header(header: &[String]) -> String {
     let header: Vec<_> = header.iter().map(|x| escape_markdown(x)).collect();
 
     let mut ret = format!("|{}|\n", header.join("|"));
@@ -3282,7 +3277,7 @@ pub(crate) fn create_markdown_header(header: &[String]) -> String {
     ret
 }
 
-pub(crate) fn create_markdown_data(header: &[Option<String>]) -> String {
+pub fn create_markdown_data(header: &[Option<String>]) -> String {
     let ret = format!(
         "|{}|\n",
         header
@@ -3398,7 +3393,7 @@ impl From<SqlCollect> for String {
     }
 }
 
-pub(crate) const POOL_MAX_CONNECTIONS: u32 = 200;
+pub const POOL_MAX_CONNECTIONS: u32 = 200;
 
 #[async_trait::async_trait]
 

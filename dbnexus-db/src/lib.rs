@@ -20,10 +20,6 @@ pub mod hive;
 
 pub mod datasource_config;
 pub mod db;
-#[cfg(feature = "duckdb")]
-pub mod duckdb;
-#[cfg(feature = "duckdb")]
-pub mod duckdb_lang_server;
 pub mod firebird;
 pub mod firebird_lang_server;
 pub mod helper;

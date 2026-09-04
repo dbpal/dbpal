@@ -9,13 +9,14 @@ repository = "https://github.com/dbnexus/dbnexus"
 license = "Unlicense"
 
 [workspace]
-members = ["dbnexus-db", "dbnexus-app/src-tauri"]
+members = ["dbnexus-db", "dbnexus-app/src-tauri", "dbnexus-db2"]
 resolver = "2"
 
 [workspace.dependencies]
 # workspace dependencies
 dbnexus-core = { path = "dbnexus-core" }
 dbnexus-db = { path = "dbnexus-db" }
+dbnexus-db2 = { path = "dbnexus-db2" }
 
 # crates.io dependencies
 serde_json = "1.0"
@@ -54,3 +55,4 @@ calamine = { version = "*", features = ["chrono"] }
 reqwest = { version = "0.13", features = ["json", "native-tls", "stream"] }
 tempfile = "3.27.0"
 tokio-native-tls = { version = "0.3.1", features = ["vendored"] }
+r2d2 = "*"

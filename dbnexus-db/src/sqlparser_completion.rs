@@ -122,8 +122,8 @@ impl Scopes {
 
 #[derive(Clone, Debug, specta::Type, serde::Serialize, serde::Deserialize)]
 pub struct TempTableColumn {
-    pub(crate) name: String,
-    pub(crate) data_type: Option<String>,
+    pub name: String,
+    pub data_type: Option<String>,
 }
 impl std::hash::Hash for TempTableColumn {
     fn hash<H: std::hash::Hasher>(&self, state: &mut H) {

@@ -462,9 +462,7 @@ impl<'a, T: SchemaTrait> SqlBuilder for MakeUpdateSqlFromResultsetSqlBuilder<'a,
     }
 }
 
-pub(crate) async fn get_update_sql_from_result_set_impl<
-    T: SchemaTrait + LangServerCommon + DBTrait,
->(
+pub async fn get_update_sql_from_result_set_impl<T: SchemaTrait + LangServerCommon + DBTrait>(
     backend: &T,
     sql: &str,
     old_values: &[Option<String>],
@@ -1416,7 +1414,7 @@ pub trait AstCompletionHelper: Send + Sync + 'static + GetBackendKind + LangServ
 /// first try parser first
 /// then a syntax like schema... table...
 /// then lexer   
-pub(crate) async fn try_parser_dot_lexer<T: LexerCompletionTrait + AstCompletionHelper>(
+pub async fn try_parser_dot_lexer<T: LexerCompletionTrait + AstCompletionHelper>(
     backend: &T,
     sql: &str,
     line: u32,
@@ -1510,8 +1508,7 @@ pub(crate) async fn try_parser_completion(
     anyhow::bail!("can't find completion.")
 }
 
-#[cfg(test)]
-pub(crate) mod completion_test {
+pub mod completion_test {
 
     use std::ops::Deref;
 
@@ -1622,7 +1619,7 @@ select xxxx
         );
     }
 
-    pub(crate) async fn test_file_auto_completion(
+    pub async fn test_file_auto_completion(
         content: &str,
         db: &dyn LanguageServer,
         query_id: Option<&str>,

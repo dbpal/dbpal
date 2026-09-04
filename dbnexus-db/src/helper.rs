@@ -10,7 +10,7 @@ use std::process::Command;
 
 /// create csv file list of string
 /// each line of line separator
-pub(crate) fn create_csv(
+pub fn create_csv(
     ds: &[Option<String>],
     delimiter: char,
 ) -> anyhow::Result<tokio_util::bytes::Bytes> {
@@ -40,13 +40,13 @@ pub fn current_timestamp() -> u64 {
 }
 
 pub struct OffsetLimitIter<Index = usize> {
-    pub(crate) total: Index,
-    pub(crate) offset: Index,
-    pub(crate) size: Index,
+    pub total: Index,
+    pub offset: Index,
+    pub size: Index,
 }
 
 impl<T: Default> OffsetLimitIter<T> {
-    pub(crate) fn new(total: T, size: T) -> Self {
+    pub fn new(total: T, size: T) -> Self {
         Self {
             offset: Default::default(),
             total,
@@ -97,12 +97,12 @@ impl TimeSome {
 }
 
 #[inline]
-pub(crate) fn remove_first_char_string(s: String) -> String {
+pub fn remove_first_char_string(s: String) -> String {
     s.chars().skip(1).collect()
 }
 
 // try remove a @ used for mysql etc database
-pub(crate) fn try_remove_one_at(value: String) -> String {
+pub fn try_remove_one_at(value: String) -> String {
     if value.starts_with('@') && !value.starts_with("@@") {
         remove_first_char_string(value)
     } else {
@@ -110,21 +110,21 @@ pub(crate) fn try_remove_one_at(value: String) -> String {
     }
 }
 
-pub(crate) fn ty_is_datetime(ty: &DataType) -> bool {
+pub fn ty_is_datetime(ty: &DataType) -> bool {
     let ty = extract_null_able(ty);
     matches!(ty, DataType::Datetime(..) | DataType::Datetime64(..))
 }
-pub(crate) fn ty_is_time(ty: &DataType) -> bool {
+pub fn ty_is_time(ty: &DataType) -> bool {
     let ty = extract_null_able(ty);
     matches!(ty, DataType::Time(..))
 }
-pub(crate) fn ty_is_date(ty: &DataType) -> bool {
+pub fn ty_is_date(ty: &DataType) -> bool {
     let ty = extract_null_able(ty);
     matches!(ty, DataType::Date | DataType::Date32)
 }
 
 // check if ty is plain integer
-pub(crate) fn ty_is_int(ty: &DataType) -> bool {
+pub fn ty_is_int(ty: &DataType) -> bool {
     match ty {
         DataType::Table(_) => false,
         DataType::NamedTable { .. } => false,
@@ -245,7 +245,7 @@ pub(crate) fn ty_is_int(ty: &DataType) -> bool {
     }
 }
 
-pub(crate) fn ty_is_float(ty: &DataType) -> bool {
+pub fn ty_is_float(ty: &DataType) -> bool {
     match ty {
         DataType::Table(_) => false,
         DataType::NamedTable { .. } => false,
@@ -366,7 +366,7 @@ pub(crate) fn ty_is_float(ty: &DataType) -> bool {
     }
 }
 
-pub(crate) fn ty_is_decimal(ty: &DataType) -> bool {
+pub fn ty_is_decimal(ty: &DataType) -> bool {
     match ty {
         // Decimal-like types return true
         DataType::Numeric(_)
@@ -494,9 +494,7 @@ pub fn uuid_v4_string() -> String {
     uuid::Uuid::new_v4().to_string()
 }
 
-pub(crate) fn extract_bytes_from_serde_values(
-    values: &[serde_json::Value],
-) -> anyhow::Result<Vec<u8>> {
+pub fn extract_bytes_from_serde_values(values: &[serde_json::Value]) -> anyhow::Result<Vec<u8>> {
     let mut bytes = Vec::with_capacity(values.len());
     for v in values.iter() {
         match v {
@@ -514,10 +512,7 @@ pub(crate) fn extract_bytes_from_serde_values(
     anyhow::Ok(bytes)
 }
 
-pub(crate) fn get_array_tuple_element_type(
-    ty: &DataType,
-    index: usize,
-) -> anyhow::Result<&DataType> {
+pub fn get_array_tuple_element_type(ty: &DataType, index: usize) -> anyhow::Result<&DataType> {
     let r = match extract_null_able(ty) {
         DataType::Array(x) => match x {
             ArrayElemTypeDef::None => {
@@ -538,14 +533,14 @@ pub(crate) fn get_array_tuple_element_type(
     anyhow::Ok(r)
 }
 
-pub(crate) fn extract_null_able(x: &DataType) -> &DataType {
+pub fn extract_null_able(x: &DataType) -> &DataType {
     match x {
         DataType::Nullable(x) => x.as_ref(),
         _ => x,
     }
 }
 
-pub(crate) fn convert_csv_delimiter(
+pub fn convert_csv_delimiter(
     input_content: &str,
     old_delimiter: Option<char>,
     new_delimiter: Option<char>, // 1. Added the new delimiter parameter
@@ -1048,7 +1043,7 @@ impl BackendKind {
 
 /// 判断文件后缀名是否为 Excel 文件
 /// 支持: .xlsx, .xls, .xlsb, .xlsm, .ods
-pub(crate) fn is_excel_file(filename: &str) -> bool {
+pub fn is_excel_file(filename: &str) -> bool {
     let excel_extensions = ["xlsx", "xls", "xlsb", "xlsm", "ods"];
 
     filename
@@ -1165,7 +1160,7 @@ impl BackendKind {
 }
 
 pub struct DockerContainerDropper {
-    pub(crate) id: String,
+    pub id: String,
 }
 
 impl Drop for DockerContainerDropper {
@@ -1196,7 +1191,7 @@ impl<T: Into<String>> From<T> for DockerContainerDropper {
 }
 
 #[cfg(test)]
-pub(crate) fn cert_files_dir() -> String {
+pub fn cert_files_dir() -> String {
     let mut cert_dir = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR"));
 
     cert_dir.push("test");
@@ -1207,7 +1202,7 @@ pub(crate) fn cert_files_dir() -> String {
 
 /// 启动一个现有的、处于停止状态的 Docker 容器
 #[cfg(test)]
-pub(crate) fn start_docker_container(id: &str) -> anyhow::Result<()> {
+pub fn start_docker_container(id: &str) -> anyhow::Result<()> {
     // 执行 docker start <id> 命令
     let output = Command::new("docker").args(["start", id]).output()?;
 

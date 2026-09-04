@@ -1,9 +1,9 @@
 use core::str;
 use dashmap::DashMap;
 use dbnexus_db::datasource_config::{
-    CassandraDBConfig, ClickHouseConfig, CouchBaseDBConfig, Db2Config, DuckDBConfig,
-    FireBirdConfig, LibSqlDBConfig, MongoDBConfig, MysqlDBConfig, OracleDBConfig, PGDBConfig,
-    RedisDBConfig, SqlServerDBConfig, SqliteDBConfig,
+    CassandraDBConfig, ClickHouseConfig, CouchBaseDBConfig, Db2Config, FireBirdConfig,
+    LibSqlDBConfig, MongoDBConfig, MysqlDBConfig, OracleDBConfig, PGDBConfig, RedisDBConfig,
+    SqlServerDBConfig, SqliteDBConfig,
 };
 use dbnexus_db::db::{
     BackendKind, BackendKindMysql, BackendKindPostGres, CatalogTrait, CheckConn, DBTrait,
@@ -13,6 +13,8 @@ use dbnexus_db::language_server::LanguageServer;
 use dbnexus_db::mongo::MongoDB;
 use dbnexus_db::mysql::MysqlDB;
 use dbnexus_db::pg::PostGresDB;
+use dbnexus_db2::duckdb::DuckDB;
+use dbnexus_db2::DuckDBConfig;
 use font_kit::error::SelectionError;
 use std::any::Any;
 
@@ -351,25 +353,18 @@ impl DBConnectionConfig {
                 anyhow::Ok(db)
             }
             DBConnectionConfig::DuckDB { conn: _conn, .. } => {
-                #[cfg(feature = "duckdb")]
-                {
-                    let db = dbnexus_db::duckdb::DuckDB::new(_conn.clone()).await?;
-                    match &_conn.db {
-                        Some(_) => match &_conn.schema {
-                            Some(_) => anyhow::Ok(DatabaseBackend::from(
-                                Arc::new(db) as Arc<dyn SchemaTrait>
-                            )),
-                            None => {
-                                anyhow::Ok(DatabaseBackend::from(Arc::new(db) as Arc<dyn DBTrait>))
-                            }
-                        },
-                        None => {
-                            anyhow::Ok(DatabaseBackend::from(Arc::new(db) as Arc<dyn CatalogTrait>))
+                let db = DuckDB::new(_conn.clone()).await?;
+                match &_conn.db {
+                    Some(_) => match &_conn.schema {
+                        Some(_) => {
+                            anyhow::Ok(DatabaseBackend::from(Arc::new(db) as Arc<dyn SchemaTrait>))
                         }
+                        None => anyhow::Ok(DatabaseBackend::from(Arc::new(db) as Arc<dyn DBTrait>)),
+                    },
+                    None => {
+                        anyhow::Ok(DatabaseBackend::from(Arc::new(db) as Arc<dyn CatalogTrait>))
                     }
                 }
-                #[cfg(not(feature = "duckdb"))]
-                anyhow::bail!("duckdb feature not enabled")
             }
             DBConnectionConfig::ClickHouse { conn, .. } => {
                 let db = dbnexus_db::clickhouse::ClickHouseDB::new(conn.clone())?;

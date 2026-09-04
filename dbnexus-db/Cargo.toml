@@ -53,11 +53,6 @@ sqlparser.workspace = true
 sql-insight.workspace = true
 lazy_static.workspace = true
 log.workspace = true
-duckdb = { version = "=1.4.4", features = [
-    "bundled",
-    "r2d2",
-    "extensions-full",
-], optional = true }
 cql3-parser = { git = "https://github.com/shotover/rust-cql3-parser", branch = "main" }
 futures-util.workspace = true
 futures-core.workspace = true
@@ -79,8 +74,8 @@ oracle = { version = "0.6.3", features = ["chrono"] }
 pg_interval = "*"
 memory-stats = "1.2.0"
 rand.workspace = true
+r2d2.workspace = true
 num-bigint = "=0.4.8" # I am trying to match the version from sqlx
-r2d2 = "*"
 base64 = "*"
 reqwest.workspace = true
 clickhouse = { version = "0.15", features = ["native-tls", "time", "uuid"] }
@@ -102,7 +97,6 @@ calamine.workspace = true
 portpicker = "0.1.1"
 
 [features]
-duckdb = ["dep:duckdb"]
 paid = []
 odbc = ["dep:odbc-api"]
 bigquery = ["dep:gcp-bigquery-client"]

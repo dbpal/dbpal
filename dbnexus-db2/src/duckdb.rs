@@ -1,20 +1,20 @@
 // /home/yuyang/projects/dbpal/target/debug/build/libduckdb-sys-c1b3e1ba55c29beb/out/duckdb/src/storage/single_file_block_manager.cpp:806
 
-use crate::datasource_config::DuckDBConfig;
-use crate::db::{
+use chrono::{NaiveDate, Utc};
+use dashmap::{DashMap, DashSet};
+use dbnexus_db::db::{
     create_html_table_data, create_html_table_header, create_markdown_data, create_markdown_header,
     export_query_as_xlsx_send_blocking_data, quote_sql_str, AutoCompletionQueryId, BackendKind,
     CatalogTrait, CheckConn, ColumnType, CreateDatabaseExtra, CreateIndexReq, CreateSchemaExtra,
     CreateTableAndIndexSql, DBTrait, EncodeXlsxDatetime, ExportFrame, ExportKind,
     ExportQueryResult, ExtractSqlValeFromJsonValue, Field, FirstTrue, ForeignKeyDef,
-    GetBackendKind, GetTestExportTableKinds, Index, IndexKind, ListTable, MetaValue,
-    QueryEventEmitter, QueryResp, QuerySql, SchemaTrait, SequenceDetail, ServerMetas,
-    ShowTableParameter, SqlBuilder, SqlCollect, XlsxEditContent, POOL_MAX_CONNECTIONS,
+    GetTestExportTableKinds, Index, IndexKind, ListTable, MetaValue, QueryEventEmitter, QueryResp,
+    QuerySql, SchemaTrait, SequenceDetail, ServerMetas, ShowTableParameter, SqlBuilder, SqlCollect,
+    XlsxEditContent, POOL_MAX_CONNECTIONS,
 };
-use crate::helper::{create_csv, get_array_tuple_element_type};
-use crate::language_server::get_update_sql_from_result_set_impl;
-use chrono::{NaiveDate, Utc};
-use dashmap::{DashMap, DashSet};
+use dbnexus_db::db::{GetBackendKind, SqlNullAble};
+use dbnexus_db::helper::{create_csv, get_array_tuple_element_type};
+use dbnexus_db::language_server::get_update_sql_from_result_set_impl;
 use duckdb::types::{TimeUnit, Value};
 use duckdb::{AccessMode, Connection, DuckdbConnectionManager};
 use r2d2::{Pool, PooledConnection};
@@ -23,6 +23,8 @@ use std::collections::{HashMap, HashSet};
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
 use tokio::task::spawn_blocking;
+
+use crate::DuckDBConfig;
 
 impl DuckDB {
     pub(crate) fn use_database(&self, conn: &Connection) -> anyhow::Result<()> {
@@ -468,7 +470,7 @@ impl QuerySql for DuckDB {
         sql: &str,
         emit: QueryEventEmitter,
     ) -> anyhow::Result<()> {
-        crate::language_server::LangServerCommon::contains_tx_operation_error(self, sql)?;
+        dbnexus_db::language_server::LangServerCommon::contains_tx_operation_error(self, sql)?;
         let this = Clone::clone(self);
         let query_id = query_id.to_string();
         let sql = sql.to_string();
@@ -499,7 +501,7 @@ impl QuerySql for DuckDB {
                                 })
                                 .collect(),
                             sql: Some(sql.clone()),
-                            tables: crate::language_server::LangServerCommon::extract_tables(
+                            tables: dbnexus_db::language_server::LangServerCommon::extract_tables(
                                 &this, &sql,
                             )
                             .unwrap_or_default(),
@@ -521,7 +523,7 @@ impl QuerySql for DuckDB {
         query_id: &str,
         sql: &str,
     ) -> anyhow::Result<Result<QueryResp, String>> {
-        crate::language_server::LangServerCommon::contains_tx_operation_error(self, sql)?;
+        dbnexus_db::language_server::LangServerCommon::contains_tx_operation_error(self, sql)?;
         let r = match self.execute_on_query_id(query_id, sql).await {
             Ok(_) => Ok(QueryResp::execute_ok(sql.to_string())),
             Err(err) => Err(err.to_string()),
@@ -1111,15 +1113,15 @@ impl SchemaTrait for DuckDB {
             sc.collect(sql);
             if let Some(null) = typ.nullable.as_ref() {
                 match null {
-                    crate::db::SqlNullAble::Unspecified => {}
-                    crate::db::SqlNullAble::Null => {
+                    SqlNullAble::Unspecified => {}
+                    SqlNullAble::Null => {
                         let sql =
                             format!(r#"ALTER TABLE {table} ALTER COLUMN {new_name} DROP NOT NULL"#);
                         log::info!("sql:{}", sql);
                         self.simple_execute_sql(&sql).await?;
                         sc.collect(sql);
                     }
-                    crate::db::SqlNullAble::NotNull => {
+                    SqlNullAble::NotNull => {
                         let sql =
                             format!(r#"ALTER TABLE {table}  ALTER COLUMN {new_name} SET NOT NULL"#);
                         log::info!("sql:{}", sql);
@@ -1467,7 +1469,7 @@ impl SchemaTrait for DuckDB {
     }
 
     async fn list_data_types(&self) -> anyhow::Result<Vec<String>> {
-        crate::language_server::LexerCompletionTrait::get_types(self).await
+        dbnexus_db::language_server::LexerCompletionTrait::get_types(self).await
     }
 
     async fn list_sequence(&self) -> anyhow::Result<Vec<SequenceDetail>> {
@@ -1712,7 +1714,7 @@ impl ExtractSqlValeFromJsonValue for DuckDB {
         value: &serde_json::Value,
         ty: &str,
     ) -> anyhow::Result<Option<String>> {
-        let ty = crate::language_server::LangServerCommon::parse_type(self, ty)?;
+        let ty = dbnexus_db::language_server::LangServerCommon::parse_type(self, ty)?;
         fn encode_value<T: Fn(&str) -> anyhow::Result<DataType>>(
             v: &serde_json::Value,
             ty: &DataType,
@@ -1797,7 +1799,7 @@ impl ExtractSqlValeFromJsonValue for DuckDB {
             anyhow::Ok(r)
         }
         encode_value(value, &ty, false, &|x| {
-            crate::language_server::LangServerCommon::parse_type(self, x)
+            dbnexus_db::language_server::LangServerCommon::parse_type(self, x)
         })
     }
 }
@@ -1852,7 +1854,7 @@ pub fn parse_foreign_key_simple(constraint_text: &str) -> anyhow::Result<(String
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{
+    use dbnexus_db::{
         db::{
             CreateIndexColumn, CreateTableReq, CreateTableReqColumn, ShowTableParameter,
             SqlNullAble, TestQueryEventEmit,
@@ -2261,7 +2263,7 @@ mod tests {
     async fn test_check_conn() {
         let _gurad = test_lock().lock().await;
         let db = make_test_object(None).await;
-        let d = crate::db::CheckConn::check_conn(&db).await.unwrap();
+        let d = dbnexus_db::db::CheckConn::check_conn(&db).await.unwrap();
         println!("ping time is:{:?}", d);
     }
 
