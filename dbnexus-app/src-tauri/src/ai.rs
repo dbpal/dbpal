@@ -224,17 +224,17 @@ impl DBPal {
             }
 
             _ => {
-                let mut builder = agent_builder.tool(SqlQueryTool {
+                let builder = agent_builder.tool(SqlQueryTool {
                     db: Clone::clone(&db),
                     query_id: query_id.clone(),
                     emit: emit.clone(),
                 });
 
-                builder = builder.tool(SqlExecuteTool {
-                    db,
-                    query_id: query_id.clone(),
-                    emit: emit.clone(),
-                });
+                // builder = builder.tool(SqlExecuteTool {
+                //     db,
+                //     query_id: query_id.clone(),
+                //     emit: emit.clone(),
+                // });
                 anyhow::Ok(builder)
             }
         }
@@ -407,6 +407,7 @@ impl Tool for SqlQueryTool {
     }
 }
 
+#[allow(unused)]
 pub struct SqlExecuteTool {
     db: DatabaseBackend,
     query_id: String,
