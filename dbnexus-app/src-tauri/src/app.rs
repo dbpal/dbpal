@@ -9,6 +9,7 @@ use dbnexus_db::db::{
     BackendKind, BackendKindMysql, BackendKindPostGres, CatalogTrait, CheckConn, DBTrait,
     ExportQueryResult, JsUint8Array, QuerySql, SchemaTrait, ServerMetas,
 };
+use dbnexus_db::helper::ResultExtraContext;
 use dbnexus_db::language_server::LanguageServer;
 use dbnexus_db::mongo::MongoDB;
 use dbnexus_db::mysql::MysqlDB;
@@ -670,6 +671,12 @@ pub struct ErrorFrontend {
     // long message about why and backtrace
     pub detail: String,
     pub cancelled: bool,
+}
+
+impl std::fmt::Display for ErrorFrontend {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", self.reason)
+    }
 }
 
 impl From<calamine::Error> for ErrorFrontend {

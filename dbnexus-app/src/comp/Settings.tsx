@@ -555,7 +555,7 @@ function LLMSetting(props: { handleClose?: () => void }) {
       <Stack direction="row" sx={{ alignItems: "center" }}>
         <Typography sx={{ ...settingTextStyle }}>model </Typography>
         <Button variant="outlined" onClick={loadModelCan}>
-          load candidates
+          load models
         </Button>
         <Autocomplete
           style={{ flex: 1, maxWidth: "32rem" }}

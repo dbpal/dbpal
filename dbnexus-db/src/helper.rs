@@ -1,4 +1,5 @@
 use std::{
+    fmt::Display,
     io::{BufRead, BufReader},
     vec,
 };
@@ -26,6 +27,19 @@ pub fn create_csv(
     let r = writer.into_inner()?;
     let r = tokio_util::bytes::Bytes::from(r);
     anyhow::Ok(r)
+}
+
+pub trait ResultExtraContext<T, E> {
+    fn context_msg(self, _: &str) -> anyhow::Result<T>;
+}
+
+impl<T, E: Display> ResultExtraContext<T, E> for Result<T, E> {
+    fn context_msg(self, m: &str) -> anyhow::Result<T> {
+        match self {
+            Ok(x) => anyhow::Ok(x),
+            Err(err) => Err(anyhow::Error::msg(format!("{} err:{}", m, err))),
+        }
+    }
 }
 
 /// get current timestamp
