@@ -37,7 +37,7 @@ impl<T, E: Display> ResultExtraContext<T, E> for Result<T, E> {
     fn context_msg(self, m: &str) -> anyhow::Result<T> {
         match self {
             Ok(x) => anyhow::Ok(x),
-            Err(err) => Err(anyhow::Error::msg(format!("{} err:{}", m, err))),
+            Err(err) => Err(anyhow::Error::msg(format!("{}: err:{}", m, err))),
         }
     }
 }

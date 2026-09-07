@@ -9,7 +9,6 @@ use dbnexus_db::db::{
     BackendKind, BackendKindMysql, BackendKindPostGres, CatalogTrait, CheckConn, DBTrait,
     ExportQueryResult, JsUint8Array, QuerySql, SchemaTrait, ServerMetas,
 };
-use dbnexus_db::helper::ResultExtraContext;
 use dbnexus_db::language_server::LanguageServer;
 use dbnexus_db::mongo::MongoDB;
 use dbnexus_db::mysql::MysqlDB;
