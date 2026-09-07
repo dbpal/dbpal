@@ -1126,9 +1126,9 @@ impl SchemaTrait for PostGresDB {
     }
 
     async fn show_table_columns(&self, table_name: &str) -> anyhow::Result<Vec<Field>> {
-        let s = format!(
+        let sql = format!(
             r#"
-            SELECT  column_name , data_type,is_nullable,column_default,udt_name
+            SELECT  column_name,is_nullable,column_default
             FROM information_schema.columns where table_catalog='{}' and table_schema='{}' and table_name = '{}' ORDER BY ordinal_position
         "#,
             self.config.db_str(),
@@ -1137,7 +1137,7 @@ impl SchemaTrait for PostGresDB {
         );
 
         let mut conn = self.get_conn().await?;
-        let rows = sqlx::raw_sql(AssertSqlSafe(s.as_str()))
+        let rows = sqlx::raw_sql(AssertSqlSafe(sql.as_str()))
             .fetch_all(conn.deref_mut())
             .await?;
         let mut ret = Vec::with_capacity(rows.len());
@@ -1166,15 +1166,23 @@ impl SchemaTrait for PostGresDB {
             }
             keys
         };
+        let types = self
+            .infer_fields_by_sql(&SqlBuilder::gen_show_sql(self, table_name, None, None))
+            .await?;
+        let mut types_map = HashMap::new();
+        for t in types.iter() {
+            types_map.insert(t.field.clone(), t);
+        }
 
         for r in rows.iter() {
-            let name: String = r.get(0_usize);
-            let data_type: String = r.get(1);
-            let data_type = data_type.to_uppercase();
-            let nullable: String = r.get(2);
-            let default_value: Option<String> = r.get(3);
-            let udt_name: Option<String> = r.get(4);
+            let name: String = r.get(0);
+            let nullable: String = r.get(1);
+            let default_value: Option<String> = r.get(2);
             let is_primary = primary_keys.contains(&name);
+            let data_type = match types_map.get(&name) {
+                Some(x) => x.data_type.clone(),
+                None => anyhow::bail!(format!("filed '{}' should have type", name)),
+            };
             let is_auto_increment = data_type.to_lowercase().contains("int")
                 && default_value
                     .as_ref()
@@ -1183,12 +1191,7 @@ impl SchemaTrait for PostGresDB {
 
             ret.push(Field::new(
                 name,
-                match udt_name {
-                    Some(udt_name) => {
-                        get_pg_type_base_on_data_type_and_udtname(&data_type, &udt_name)?
-                    }
-                    None => data_type,
-                },
+                data_type,
                 nullable.to_lowercase() != "no",
                 default_value,
                 is_primary,
@@ -1488,58 +1491,6 @@ fn get_row_fields(row: &PgRow) -> Vec<Field> {
         });
     }
     ret
-}
-
-fn get_pg_type_base_on_data_type_and_udtname(
-    data_type: &str,
-    udt_name: &str,
-) -> anyhow::Result<String> {
-    if data_type.to_uppercase() == "ARRAY" {
-        let x = match udt_name {
-            "_macaddr8" => "MACADDR8[]".to_string(),
-            "_bytea" => "BYTEA[]".to_string(),
-            "_bool" => "BOOL[]".to_string(),
-            "_name" => "NAME[]".to_string(),
-            "_bpchar" => "BPCHAR[]".to_string(),
-            "_int2" => "INT2[]".to_string(),
-            "_int4" => "INT4[]".to_string(),
-            "_text" => "TEXT[]".to_string(),
-            "_varchar" => "VARCHAR[]".to_string(),
-            "_int8" => "INT8[]".to_string(),
-            "_path" => "PATH[]".to_string(),
-            "_float4" => "FLOAT4[]".to_string(),
-            "_float8" => "FLOAT8[]".to_string(),
-            "_macaddr" => "MACADDR[]".to_string(),
-            "_inet" => "INET[]".to_string(),
-            "_timestamp" => "TIMESTAMP[]".to_string(),
-            "_date" => "DATE[]".to_string(),
-            "_time" => "TIME[]".to_string(),
-            "_timestamptz" => "TIMESTAMPTZ[]".to_string(),
-            "_interval" => "INTERVAL[]".to_string(),
-            "_numeric" => "NUMERIC[]".to_string(),
-            "_timetz" => "TIMETZ[]".to_string(),
-            "_bit" => "BIT[]".to_string(),
-            "_varbit" => "VARBIT[]".to_string(),
-            "_uuid" => "UUID[]".to_string(),
-            "_jsonb" => "JSONB[]".to_string(),
-            "_int4range" => "INT4RANGE[]".to_string(),
-            "_numrange" => "NUMRANGE[]".to_string(),
-            "_tsrange" => "TSRANGE[]".to_string(),
-            "_tstzrange" => "TSTZRANGE[]".to_string(),
-            "_daterange" => "DATERANGE[]".to_string(),
-            "_int8range" => "INT8RANGE[]".to_string(),
-            "_jsonpath" => "JSONPATH[]".to_string(),
-            "_money" => "MONEY[]".to_string(),
-            "_oid" => "OID[]".to_string(),
-            _ => {
-                log::error!("udtname '{}' not handled", udt_name);
-                anyhow::bail!(format!("udtname '{}' not handled", udt_name));
-            }
-        };
-        return Ok(x);
-    }
-
-    Ok(data_type.to_string())
 }
 
 async fn set_current_schema(conn: &mut PgConnection, schema: &str) -> anyhow::Result<()> {
