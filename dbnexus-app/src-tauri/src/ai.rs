@@ -177,6 +177,8 @@ impl DBPal {
         emit: ToolEmitter,
         agent_builder: AgentBuilderWithTool,
     ) -> anyhow::Result<AgentBuilderWithTool> {
+        let query_id = query_id.into();
+
         let db = self.get_backend(name).await?;
         match db.backend_kind() {
             BackendKind::Redis => {
@@ -188,7 +190,7 @@ impl DBPal {
 
                 let builder = agent_builder.tool(redis::RedisTool {
                     client,
-                    query_id: query_id.into(),
+                    query_id: query_id,
                 });
                 anyhow::Ok(builder)
             }
@@ -207,27 +209,34 @@ impl DBPal {
             }
 
             BackendKind::Mongo => {
-                let x = db
+                let db = db
                     .as_any()
                     .downcast_ref::<MongoDB>()
                     .expect("must be mongodb");
-                let c = Clone::clone(x);
-
                 let mut builder = agent_builder.tool(mongo_tool::MongoQueryTool {
-                    client: c,
+                    client: Clone::clone(db),
                     max_limit: 10_000,
                 });
                 builder = builder.tool(mongo_tool::MongoRunCommandTool {
-                    client: Clone::clone(x),
+                    client: Clone::clone(db),
                 });
                 anyhow::Ok(builder)
             }
 
-            _ => anyhow::Ok(agent_builder.tool(SqlQueryTool {
-                db,
-                query_id: query_id.into(),
-                emit: emit.clone(),
-            })),
+            _ => {
+                let mut builder = agent_builder.tool(SqlQueryTool {
+                    db: Clone::clone(&db),
+                    query_id: query_id.clone(),
+                    emit: emit.clone(),
+                });
+
+                builder = builder.tool(SqlExecuteTool {
+                    db,
+                    query_id: query_id.clone(),
+                    emit: emit.clone(),
+                });
+                anyhow::Ok(builder)
+            }
         }
     }
 }
@@ -391,6 +400,57 @@ impl Tool for SqlQueryTool {
                 "query": {
                     "type": "string",
                     "description": "The SQL SELECT query statement to execute"
+                }
+            },
+            "required": ["query"]
+        })
+    }
+}
+
+pub struct SqlExecuteTool {
+    db: DatabaseBackend,
+    query_id: String,
+    emit: ToolEmitter,
+}
+
+impl Tool for SqlExecuteTool {
+    const NAME: &'static str = "sql_execute";
+
+    type Args = SqlQueryArgs;
+    type Output = SqlQueryOutput;
+    type Error = CallToolErr;
+
+    async fn call(
+        &self,
+        _context: &mut ToolContext,
+        args: Self::Args,
+    ) -> Result<Self::Output, Self::Error> {
+        (self.emit)(format!("\ncall tool sql execute {}", args.query));
+        let _ret = self
+            .db
+            .as_query_sql()
+            .execute_sql(&self.query_id, &args.query)
+            .await
+            .map_err(|e| CallToolErr::from(format!("query failed: {}", e)))?
+            .map_err(|e| CallToolErr::from(e))?;
+
+        Ok(SqlQueryOutput {
+            result: serde_json::json!({"data": "execute successfully" }),
+            query: args.query,
+        })
+    }
+
+    fn description(&self) -> String {
+        "execute a sql on the database".to_string()
+    }
+
+    fn parameters(&self) -> serde_json::Value {
+        serde_json::json!({
+            "type": "object",
+            "properties": {
+                "query": {
+                    "type": "string",
+                    "description": "The SQL statement to execute"
                 }
             },
             "required": ["query"]
