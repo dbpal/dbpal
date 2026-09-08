@@ -1265,7 +1265,7 @@ function VirtualListLeft<T>(props: {
     </div>
   );
 }
-
+// seperate this can load on need
 function LeftTableNameAndColumns(props: {
   table: ListTable;
   makeMenu: () => ReactNode;
@@ -1274,9 +1274,37 @@ function LeftTableNameAndColumns(props: {
   ) => Promise<Field[]>;
 }) {
   const { table, makeMenu, listCols } = props;
+  return (
+    <MyTreeItem
+      makeMenu={makeMenu}
+      enable={true}
+      label=<Stack
+        direction="row"
+        style={{ justifyContent: "space-between", width: "100%" }}>
+        <span style={textEllipsisStyle}>{table.name}</span>
+        {table.size && (
+          <span style={{ ...textEllipsisStyle }}>
+            {filesize(table.size, { round: 0 })}
+          </span>
+        )}
+      </Stack>>
+      <LeftTableColumns listCols={listCols} table={table} />
+    </MyTreeItem>
+  );
+}
+
+function LeftTableColumns(props: {
+  table: ListTable;
+  listCols: (
+    t: ListTable, // this parameter make me easy to cache the function
+  ) => Promise<Field[]>;
+}) {
+  const { listCols, table } = props;
+
   let { dbName } = useContext(DbnameContext);
   const [fs, setFs] = useState<Field[]>([]);
   const { showNotification } = useNotification();
+
   useEffect(() => {
     listCols(table)
       .then((fs) => {
@@ -1292,33 +1320,19 @@ function LeftTableNameAndColumns(props: {
   }, [dbName, listCols, showNotification, table]);
 
   return (
-    <MyTreeItem
-      makeMenu={makeMenu}
-      enable={true}
-      label=<Stack
-        direction="row"
-        style={{ justifyContent: "space-between", width: "100%" }}>
-        <span style={textEllipsisStyle}>{table.name}</span>
-        {table.size && (
-          <span style={{ ...textEllipsisStyle }}>
-            {filesize(table.size, { round: 0 })}
-          </span>
-        )}
-      </Stack>>
-      <VirtualListLeft
-        data={fs}
-        show={(f) => {
-          return (
-            <>
-              <Typography style={textEllipsisStyle}> {f.field} </Typography>
-              <Typography style={textEllipsisStyle} color="info">
-                {f.data_type}
-              </Typography>
-            </>
-          );
-        }}
-      />
-    </MyTreeItem>
+    <VirtualListLeft
+      data={fs}
+      show={(f) => {
+        return (
+          <>
+            <Typography style={textEllipsisStyle}> {f.field} </Typography>
+            <Typography style={textEllipsisStyle} color="info">
+              {f.data_type}
+            </Typography>
+          </>
+        );
+      }}
+    />
   );
 }
 
