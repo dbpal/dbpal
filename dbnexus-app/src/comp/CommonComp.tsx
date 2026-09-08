@@ -1301,11 +1301,10 @@ function LeftTableColumns(props: {
 }) {
   const { listCols, table } = props;
 
-  let { dbName } = useContext(DbnameContext);
   const [fs, setFs] = useState<Field[]>([]);
   const { showNotification } = useNotification();
 
-  useEffect(() => {
+  const handleReload = useCallback(() => {
     listCols(table)
       .then((fs) => {
         setFs(fs);
@@ -1317,11 +1316,22 @@ function LeftTableColumns(props: {
           message: e,
         });
       });
-  }, [dbName, listCols, showNotification, table]);
+  }, [listCols, showNotification, table]);
+
+  useEffect(() => {
+    handleReload();
+  }, [handleReload]);
 
   return (
     <VirtualListLeft
       data={fs}
+      makeMenu={() => {
+        return (
+          <MenuList>
+            <MenuRefresh refresh={handleReload} />
+          </MenuList>
+        );
+      }}
       show={(f) => {
         return (
           <>
