@@ -1220,14 +1220,7 @@ function VirtualListLeft<T>(props: {
       <AutoSizer>
         {({ width }) => (
           <List
-            width={(function () {
-              let r = width - 13;
-              let min = 10;
-              if (r < min) {
-                r = min;
-              }
-              return r;
-            })()}
+            width={width}
             height={height.height} //   列表高度（可视区域）
             rowCount={data.length} // 总行数
             rowHeight={height.rowHeight} // 每行高度
@@ -1370,14 +1363,7 @@ function VirtualVarListLeft<T>(props: {
         {({ width, height }) => (
           <List
             ref={listRef}
-            width={(function () {
-              let r = width - 13;
-              let min = 10;
-              if (r < min) {
-                r = min;
-              }
-              return r;
-            })()}
+            width={width}
             height={height} //   列表高度（可视区域）
             rowCount={data.length} // 总行数
             rowHeight={cache.current.rowHeight} // 每行高度
