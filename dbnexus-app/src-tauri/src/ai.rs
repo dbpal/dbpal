@@ -34,12 +34,12 @@ impl From<PromptError> for ErrorFrontend {
     }
 }
 
-type AgentBuilderWithTool = AgentBuilder<rig::agent::WithBuilderTools>;
+type AgentBuilderWithTools = AgentBuilder<rig::agent::WithBuilderTools>;
 
 fn make_agent_builder(
     req: &app::OpenAIReq,
     preamble: Option<&str>,
-) -> anyhow::Result<AgentBuilderWithTool> {
+) -> anyhow::Result<AgentBuilderWithTools> {
     #[cfg(debug_assertions)]
     log::info!("open ai req:{:?}", req);
     let builder = openai::Client::builder()
@@ -175,8 +175,8 @@ impl DBPal {
         name: &str,
         query_id: impl Into<String>,
         emit: ToolEmitter,
-        agent_builder: AgentBuilderWithTool,
-    ) -> anyhow::Result<AgentBuilderWithTool> {
+        agent_builder: AgentBuilderWithTools,
+    ) -> anyhow::Result<AgentBuilderWithTools> {
         let query_id = query_id.into();
 
         let db = self.get_backend(name).await?;
@@ -798,8 +798,8 @@ impl AiOnlineSearch {
     fn insert_tool(
         &self,
         emit: ToolEmitter,
-        agent_build: AgentBuilderWithTool,
-    ) -> Result<AgentBuilderWithTool, ErrorFrontend> {
+        agent_build: AgentBuilderWithTools,
+    ) -> Result<AgentBuilderWithTools, ErrorFrontend> {
         if self.enable {
             let engine: Box<dyn websearch::SearchProvider> = match self.provider.as_ref() {
                 "duckduckgo" => Box::new(websearch::providers::DuckDuckGoProvider::new()),
