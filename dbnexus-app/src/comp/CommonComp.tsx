@@ -20,7 +20,13 @@ import {
   InputAdornment,
   Collapse,
 } from "@mui/material";
-import { AiOutlineDisconnect, InfoIcon, AttachFileIcon, RefreshIcon } from "./icons";
+import {
+  AiOutlineDisconnect,
+  InfoIcon,
+  AttachFileIcon,
+  RefreshIcon,
+  FaCopy,
+} from "./icons";
 import {
   CSSProperties,
   Dispatch,
@@ -1318,9 +1324,18 @@ function LeftTableColumns(props: {
   return (
     <VirtualListLeft
       data={fs}
-      makeMenu={() => {
+      makeMenu={(field) => {
         return (
           <MenuList>
+            <MenuItem
+              onClick={() => {
+                handleCopyToClipboard(field.field, showNotification);
+              }}>
+              <ListItemIcon>
+                <FaCopy />
+              </ListItemIcon>
+              <ListItemText> copy </ListItemText>
+            </MenuItem>
             <MenuRefresh refresh={handleReload} />
           </MenuList>
         );
