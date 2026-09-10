@@ -1244,7 +1244,7 @@ impl SchemaTrait for MysqlDB {
         values: &HashMap<String, Option<String>>,
     ) -> anyhow::Result<String> {
         let fs = self.show_table_columns(table_name).await?;
-        let sql = SqlBuilder::insert_sql(self, table_name, &fs, &values)?;
+        let sql = SqlBuilder::insert_sql(self, table_name, &fs, values)?;
         anyhow::Ok(sql)
     }
 
@@ -1265,7 +1265,7 @@ impl SchemaTrait for MysqlDB {
         wheres: &HashMap<String, Option<String>>,
     ) -> anyhow::Result<String> {
         let fs = self.show_table_columns(table_name).await?;
-        let sql = SqlBuilder::update_sql(self, table_name, &fs, &values, &wheres)?;
+        let sql = SqlBuilder::update_sql(self, table_name, &fs, values, wheres)?;
         anyhow::Ok(sql)
     }
 
@@ -1285,7 +1285,7 @@ impl SchemaTrait for MysqlDB {
         wheres: &HashMap<String, Option<String>>,
     ) -> anyhow::Result<String> {
         let fs = self.show_table_columns(table_name).await?;
-        SqlBuilder::delete_sql(self, table_name, &fs, &wheres)
+        SqlBuilder::delete_sql(self, table_name, &fs, wheres)
     }
 
     async fn table_delete(
@@ -1294,7 +1294,7 @@ impl SchemaTrait for MysqlDB {
         wheres: &HashMap<String, Option<String>>,
     ) -> anyhow::Result<Option<usize>> {
         let fs = self.show_table_columns(table_name).await?;
-        let sql = SqlBuilder::delete_sql(self, table_name, &fs, &wheres)?;
+        let sql = SqlBuilder::delete_sql(self, table_name, &fs, wheres)?;
         let ret = self.simple_execute_sql(&sql).await?;
         anyhow::Ok(ret)
     }

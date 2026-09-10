@@ -650,7 +650,7 @@ pub async fn get_update_sql_from_result_set_impl<T: SchemaTrait + LangServerComm
                 if !f.is_primary {
                     continue;
                 }
-                if wheres.get(&f.field).is_none() {
+                if !wheres.contains_key(&f.field) {
                     anyhow::bail!(format!("table:{} field:'{}' have one value in this query,and this is primary key,we need this to update the value", table, f.field))
                 }
             }
@@ -1559,6 +1559,7 @@ pub mod completion_test {
         pub(crate) line: usize,
     }
 
+    #[allow(clippy::unwrap_used)]
     pub(crate) fn parse_auto_completion_test_file(s: &str) -> Vec<CompletionOneTest> {
         let x: Vec<_> = s.lines().collect();
         x.chunks(2)
@@ -1619,6 +1620,7 @@ select xxxx
         );
     }
 
+    #[allow(clippy::unwrap_used)]
     pub async fn test_file_auto_completion(
         content: &str,
         db: &dyn LanguageServer,

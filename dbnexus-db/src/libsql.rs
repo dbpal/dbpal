@@ -573,8 +573,8 @@ impl SchemaTrait for LibSqlDB {
                 table,
                 from,
                 to,
-                on_update: on_update,
-                on_delete: on_delete,
+                on_update,
+                on_delete,
             })
         }
 

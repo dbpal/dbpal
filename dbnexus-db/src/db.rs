@@ -480,7 +480,7 @@ pub trait SchemaTrait:
         values: &HashMap<String, Option<String>>,
     ) -> anyhow::Result<String> {
         let fs = self.show_table_columns(table_name).await?;
-        let sql = SqlBuilder::insert_sql(self, table_name, &fs, &values)?;
+        let sql = SqlBuilder::insert_sql(self, table_name, &fs, values)?;
         anyhow::Ok(sql)
     }
 
@@ -501,7 +501,7 @@ pub trait SchemaTrait:
         wheres: &HashMap<String, Option<String>>,
     ) -> anyhow::Result<String> {
         let fs = self.show_table_columns(table_name).await?;
-        let sql = SqlBuilder::update_sql(self, table_name, &fs, &values, &wheres)?;
+        let sql = SqlBuilder::update_sql(self, table_name, &fs, values, wheres)?;
         anyhow::Ok(sql)
     }
 
@@ -511,7 +511,7 @@ pub trait SchemaTrait:
         values: &HashMap<String, Option<String>>,
         wheres: &HashMap<String, Option<String>>,
     ) -> anyhow::Result<Option<usize>> {
-        let sql = self.table_update_sql(table_name, &values, &wheres).await?;
+        let sql = self.table_update_sql(table_name, values, wheres).await?;
         self.simple_execute_sql(&sql).await
     }
 
@@ -523,7 +523,7 @@ pub trait SchemaTrait:
         wheres: &HashMap<String, Option<String>>,
     ) -> anyhow::Result<String> {
         let fs = self.show_table_columns(table_name).await?;
-        SqlBuilder::delete_sql(self, table_name, &fs, &wheres)
+        SqlBuilder::delete_sql(self, table_name, &fs, wheres)
     }
 
     async fn table_delete(
@@ -532,7 +532,7 @@ pub trait SchemaTrait:
         wheres: &HashMap<String, Option<String>>,
     ) -> anyhow::Result<Option<usize>> {
         let fs = self.show_table_columns(table_name).await?;
-        let sql = SqlBuilder::delete_sql(self, table_name, &fs, &wheres)?;
+        let sql = SqlBuilder::delete_sql(self, table_name, &fs, wheres)?;
         let ret = self.simple_execute_sql(&sql).await?;
         anyhow::Ok(ret)
     }
@@ -742,7 +742,7 @@ pub trait SchemaTrait:
                 log::info!("insert sql:{}", sql);
                 this.execute_sql(&query_id, &sql)
                     .await?
-                    .map_err(|e| anyhow::Error::msg(e))?;
+                    .map_err(anyhow::Error::msg)?;
             }
             if this.support_tx() {
                 this.commit(&query_id).await?;
@@ -1017,7 +1017,6 @@ pub trait SchemaTrait:
     }
 
     #[allow(clippy::unwrap_used)]
-
     async fn test_table_export_and_import_excel(&self, table: &str) {
         let file = tempfile::NamedTempFile::with_suffix(".xlsx").unwrap();
         let file = file.path().to_str().unwrap();
@@ -1124,7 +1123,6 @@ pub trait SchemaTrait:
         }
     }
     #[allow(clippy::unwrap_used)]
-
     async fn test_table_export_and_import_jsonline(&self, table: &str) {
         use std::io::Write;
 
@@ -1183,7 +1181,7 @@ pub trait SchemaTrait:
         expected: &HashMap<String, Option<String>>,
         skip_fields: &[&'static str],
     ) {
-        let skip_fields: HashSet<&'static str> = skip_fields.iter().map(|x| *x).collect();
+        let skip_fields: HashSet<&'static str> = skip_fields.iter().copied().collect();
 
         let expected = {
             let values: HashMap<_, _> = expected
@@ -1206,7 +1204,7 @@ pub trait SchemaTrait:
         let values = r
             .fields
             .iter()
-            .zip(r.data.get(0).unwrap())
+            .zip(r.data.first().unwrap())
             .map(|(f, v)| (f.field.clone(), v.clone()))
             .filter(|(k, _)| !skip_fields.contains(k.as_str()))
             .collect::<HashMap<_, _>>();
@@ -1218,7 +1216,7 @@ pub trait SchemaTrait:
                 .unwrap()
                 .as_ref()
                 .map(|s| s.as_str())
-                .expect(format!("field: {} not found in actual result", *k).as_str());
+                .unwrap_or_else(|| panic!("field: {} not found in actual result", *k));
 
             if v_e != v_a {
                 println!("expect:{:?}", v_e.as_bytes());
@@ -2680,7 +2678,7 @@ pub struct ListTable {
 
 impl PartialOrd for ListTable {
     fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
-        self.name.partial_cmp(&other.name)
+        Some(self.cmp(other))
     }
 }
 

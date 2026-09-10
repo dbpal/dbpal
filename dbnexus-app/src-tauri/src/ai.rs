@@ -60,7 +60,7 @@ fn make_agent_builder(
     agent_builder = agent_builder.default_max_turns(20);
 
     let agent_builder = agent_builder.dynamic_tools(vec![]);
-    return anyhow::Ok(agent_builder);
+    anyhow::Ok(agent_builder)
 }
 
 #[specta::specta]
@@ -190,7 +190,7 @@ impl DBPal {
 
                 let builder = agent_builder.tool(redis::RedisTool {
                     client,
-                    query_id: query_id,
+                    query_id,
                 });
                 anyhow::Ok(builder)
             }
@@ -433,7 +433,7 @@ impl Tool for SqlExecuteTool {
             .execute_sql(&self.query_id, &args.query)
             .await
             .map_err(|e| CallToolErr::from(format!("query failed: {}", e)))?
-            .map_err(|e| CallToolErr::from(e))?;
+            .map_err(CallToolErr::from)?;
 
         Ok(SqlQueryOutput {
             result: serde_json::json!({"data": "execute successfully" }),

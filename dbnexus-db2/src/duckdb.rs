@@ -1018,7 +1018,7 @@ impl SchemaTrait for DuckDB {
 
                 ret.push(ForeignKeyDef {
                     name: constraint_name,
-                    table: table,
+                    table,
                     from,
                     to,
                     on_update: "".to_string(),

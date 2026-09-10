@@ -249,12 +249,12 @@ impl<'a> tiberius::FromSql<'a> for ConvertColumnDataToString {
                 .map(|x| x.to_string()),
 
             tiberius::ColumnData::Date(_x) => {
-                let x = chrono::NaiveDate::from_sql(value)
+                
+
+                chrono::NaiveDate::from_sql(value)
                     .ok()
                     .flatten()
-                    .map(|x| x.to_string());
-
-                x
+                    .map(|x| x.to_string())
             }
 
             tiberius::ColumnData::Time(_x) => chrono::NaiveTime::from_sql(value)

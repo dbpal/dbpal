@@ -418,7 +418,7 @@ impl SchemaTrait for CouchBaseDB {
         self.can_write()?;
 
         let scope = self.get_scope()?;
-        let (id, value) = extract_id_and_value(&values)?;
+        let (id, value) = extract_id_and_value(values)?;
         scope.collection(table_name).insert(id, value, None).await?;
         anyhow::Ok(None)
     }
@@ -430,7 +430,7 @@ impl SchemaTrait for CouchBaseDB {
         _wheres: &HashMap<String, Option<String>>,
     ) -> anyhow::Result<Option<usize>> {
         self.can_write()?;
-        let (id, value) = extract_id_and_value(&values)?;
+        let (id, value) = extract_id_and_value(values)?;
         let scope = self.get_scope()?;
         let col = scope.collection(table_name);
         col.replace(id, value, None).await?;
