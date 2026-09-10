@@ -1327,6 +1327,7 @@ function LeftTableColumns(props: {
       makeMenu={(field) => {
         return (
           <MenuList>
+            <MenuRefresh refresh={handleReload} />
             <MenuItem
               onClick={() => {
                 handleCopyToClipboard(field.field, showNotification);
@@ -1336,7 +1337,13 @@ function LeftTableColumns(props: {
               </ListItemIcon>
               <ListItemText> copy </ListItemText>
             </MenuItem>
-            <MenuRefresh refresh={handleReload} />
+            <MenuItem
+              onClick={() => {
+                handleCopyToClipboard(field.data_type, showNotification);
+              }}>
+              <ListItemIcon>{/* <FaCopy /> */}</ListItemIcon>
+              <ListItemText> copy data type</ListItemText>
+            </MenuItem>
           </MenuList>
         );
       }}
