@@ -1348,7 +1348,7 @@ pub trait SqlBuilder: GetBackendKind {
             } else {
                 "".to_string()
             },
-            format!("{}", self.quote(table_name))
+            self.quote(table_name)
         );
         sql.push_str(self.make_where(fs, wheres, &field_by_name)?.as_str());
         log::info!("delete sql:{}", sql);
@@ -1376,7 +1376,7 @@ pub trait SqlBuilder: GetBackendKind {
             } else {
                 "".to_string()
             },
-            format!("{}", self.quote(table_name))
+            self.quote(table_name)
         );
         {
             let last = values.len() - 1;
@@ -1429,7 +1429,7 @@ pub trait SqlBuilder: GetBackendKind {
             } else {
                 "".to_string()
             },
-            format!("{}", self.quote(table_name))
+            self.quote(table_name)
         );
         let skip_null_default_value = |f: &Field| {
             values.get(&f.field).map(|x| x.is_none()).unwrap_or(true) && f.default_value.is_some()

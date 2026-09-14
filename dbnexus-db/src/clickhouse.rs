@@ -1314,7 +1314,7 @@ impl SqlBuilder for ClickHouseDB {
             } else {
                 "".to_string()
             },
-            format!("{}", self.quote(table_name))
+            self.quote(table_name)
         );
         {
             let last = values.len() - 1;

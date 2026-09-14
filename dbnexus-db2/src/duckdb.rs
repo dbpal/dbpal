@@ -1776,7 +1776,7 @@ impl ExtractSqlValeFromJsonValue for DuckDB {
 
                         let vty = match kvtypes.get(1) {
                             None => {
-                                anyhow::bail!(format!("map type should be #1 extra types"))
+                                anyhow::bail!("map type should be #1 extra types".to_string())
                             }
                             Some(x) => parse_type(x)?,
                         };

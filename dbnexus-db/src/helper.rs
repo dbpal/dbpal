@@ -517,9 +517,7 @@ pub fn extract_bytes_from_serde_values(values: &[serde_json::Value]) -> anyhow::
                 None => anyhow::bail!(""),
             },
             _ => {
-                anyhow::bail!(format!(
-                    "inside a array,not a number,can't convert this array to bytes"
-                ))
+                anyhow::bail!("inside a array,not a number,can't convert this array to bytes")
             }
         }
     }

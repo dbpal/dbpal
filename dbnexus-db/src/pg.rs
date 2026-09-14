@@ -1828,7 +1828,7 @@ impl PostGresDB {
             }
 
             _ => {
-                anyhow::bail!(format!("the sql is not a create index"))
+                anyhow::bail!("the sql is not a create index".to_string())
             }
         }
     }

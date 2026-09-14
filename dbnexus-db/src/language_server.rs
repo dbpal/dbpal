@@ -484,9 +484,7 @@ pub async fn get_update_sql_from_result_set_impl<T: SchemaTrait + LangServerComm
                     continue;
                 }
                 if r.reference.catalog.is_some() {
-                    anyhow::bail!(format!(
-                        "dbpal can't handle catalog is some,this is design choice"
-                    ));
+                    anyhow::bail!("dbpal can't handle catalog is some,this is design choice");
                 }
                 table_entered.insert(r.reference.clone());
 

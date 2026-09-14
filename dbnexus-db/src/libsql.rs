@@ -524,7 +524,7 @@ impl DBTrait for LibSqlDB {
     }
     async fn open_schema(&self, name: &str) -> anyhow::Result<Arc<dyn SchemaTrait>> {
         if name != "main" {
-            anyhow::bail!(format!("libsql should only open main"))
+            anyhow::bail!("libsql should only open main".to_string())
         }
 
         anyhow::Ok(Arc::new(Clone::clone(self)))

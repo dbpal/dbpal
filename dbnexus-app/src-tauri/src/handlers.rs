@@ -174,7 +174,7 @@ pub async fn all_font_family() -> Result<Vec<String>, ErrorFrontend> {
 
 #[specta::specta]
 #[tauri::command]
-pub async fn page_init_callback(app: tauri::State<'_, DBPal>) -> Result<(), ()> {
+pub async fn page_init_callback(app: tauri::State<'_, DBPal>) -> Result<(), ErrorFrontend> {
     log::info!("page init call clear all open connection.");
     app.backend.lock().await.clear();
     Ok(())
@@ -356,7 +356,10 @@ pub async fn establish_conn(
 
 #[specta::specta]
 #[tauri::command]
-pub async fn close_conn(db_name: String, app: tauri::State<'_, DBPal>) -> Result<(), ()> {
+pub async fn close_conn(
+    db_name: String,
+    app: tauri::State<'_, DBPal>,
+) -> Result<(), ErrorFrontend> {
     random_sleep().await;
     app.close_conn_has_prefix(db_name.as_str()).await;
     Ok(())
