@@ -678,10 +678,10 @@ pub trait LangServerCommon: GetBackendKind + GetKeyWords + Send + Sync {
         for x in xxx {
             let x = x?;
             for r in x.reads.iter() {
-                set.insert(r.reference.to_string());
+                set.insert(r.reference.name.to_string());
             }
             for w in x.writes.iter() {
-                set.insert(w.reference.to_string());
+                set.insert(w.reference.name.to_string());
             }
         }
         anyhow::Ok(set.into_iter().collect())
