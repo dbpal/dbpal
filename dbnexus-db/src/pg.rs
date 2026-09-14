@@ -483,11 +483,7 @@ impl SchemaTrait for PostGresDB {
             if let Some(dv) = col.default_value.as_ref() {
                 format!(
                     "DEFAULT {}",
-                    if self.hit_current_value(dv) {
-                        dv.clone()
-                    } else {
-                        self.put_value_in_sql(&col.typ, dv.as_str())?
-                    }
+                    self.put_value_in_sql_hit_predefine(&col.typ, dv.as_str())?
                 )
             } else {
                 "".to_owned()
@@ -550,11 +546,7 @@ impl SchemaTrait for PostGresDB {
             if let Some(dv) = typ.default_value.as_ref() {
                 let sql = format!(
                     r#"ALTER TABLE "{table}" ALTER COLUMN "{new_name}" SET DEFAULT {}"#,
-                    if self.hit_current_value(dv) {
-                        dv.clone()
-                    } else {
-                        self.put_value_in_sql(&typ.typ, dv.as_str())?
-                    }
+                    self.put_value_in_sql_hit_predefine(&typ.typ, dv.as_str())?
                 );
                 self.simple_execute_sql(&sql).await?;
                 sc.collect(sql);

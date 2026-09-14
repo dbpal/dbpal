@@ -734,11 +734,7 @@ impl SchemaTrait for MysqlDB {
             if let Some(dv) = col.default_value.as_ref() {
                 format!(
                     "DEFAULT {}",
-                    if self.hit_current_value(dv) {
-                        dv.clone()
-                    } else {
-                        self.put_value_in_sql(&col.typ, dv.as_str())?
-                    }
+                    self.put_value_in_sql_hit_predefine(&col.typ, dv.as_str())?
                 )
             } else {
                 "".to_owned()
@@ -779,11 +775,7 @@ impl SchemaTrait for MysqlDB {
                 if let Some(dv) = typ.default_value.as_ref() {
                     format!(
                         "DEFAULT {}",
-                        if self.hit_current_value(dv) {
-                            dv.clone()
-                        } else {
-                            self.put_value_in_sql(&typ.typ, dv.as_str())?
-                        }
+                        self.put_value_in_sql_hit_predefine(&typ.typ, dv.as_str())?
                     )
                 } else {
                     "".to_string()

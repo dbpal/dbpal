@@ -518,11 +518,7 @@ impl SchemaTrait for ClickHouseDB {
             if let Some(dv) = typ.default_value.as_ref() {
                 let sql = format!(
                     r#"ALTER TABLE {table} MODIFY COLUMN {new_name} DEFAULT {}"#,
-                    if self.hit_current_value(dv) {
-                        dv.clone()
-                    } else {
-                        self.put_value_in_sql(&typ.typ, dv.as_str())?
-                    }
+                    self.put_value_in_sql_hit_predefine(&typ.typ, dv.as_str())?
                 );
                 log::info!("sql:{}", sql);
                 self.simple_execute_sql(&sql).await?;
@@ -543,11 +539,7 @@ impl SchemaTrait for ClickHouseDB {
             sql.push_str(
                 format!(
                     "DEFAULT {} ",
-                    if self.hit_current_value(dv) {
-                        dv.clone()
-                    } else {
-                        self.put_value_in_sql(&col.typ, dv.as_str())?
-                    }
+                    self.put_value_in_sql_hit_predefine(&col.typ, dv.as_str())?
                 )
                 .as_str(),
             );

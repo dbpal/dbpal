@@ -1278,11 +1278,7 @@ impl SchemaTrait for OracleDB {
             if let Some(dv) = typ.default_value.as_ref() {
                 let sql = format!(
                     r#"ALTER TABLE "{table}" MODIFY "{new_name}" DEFAULT {}"#,
-                    if self.hit_current_value(dv) {
-                        dv.clone()
-                    } else {
-                        self.put_value_in_sql(&typ.typ, dv.as_str())?
-                    }
+                    self.put_value_in_sql_hit_predefine(&typ.typ, dv.as_str())?
                 );
                 log::info!("sql:{}", sql);
                 self.simple_execute_sql(&sql).await?;
@@ -1305,11 +1301,7 @@ impl SchemaTrait for OracleDB {
             if let Some(dv) = typ.default_value.as_ref() {
                 format!(
                     "DEFAULT {}",
-                    if self.hit_current_value(dv) {
-                        dv.clone()
-                    } else {
-                        self.put_value_in_sql(&typ.typ, dv.as_str())?
-                    }
+                    self.put_value_in_sql_hit_predefine(&typ.typ, dv.as_str())?
                 )
             } else {
                 "".to_owned()
