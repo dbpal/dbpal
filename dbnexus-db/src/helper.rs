@@ -6,7 +6,7 @@ use std::{
 
 use crate::db::{BackendKind, Field};
 use calamine::Reader;
-use sqlparser::ast::{ArrayElemTypeDef, DataType};
+use sqlparser::ast::{ArrayElemTypeDef, ColumnDef, DataType, StructField};
 use std::process::Command;
 
 /// create csv file list of string
@@ -125,15 +125,12 @@ pub fn try_remove_one_at(value: String) -> String {
 }
 
 pub fn ty_is_datetime(ty: &DataType) -> bool {
-    let ty = extract_null_able(ty);
     matches!(ty, DataType::Datetime(..) | DataType::Datetime64(..))
 }
 pub fn ty_is_time(ty: &DataType) -> bool {
-    let ty = extract_null_able(ty);
     matches!(ty, DataType::Time(..))
 }
 pub fn ty_is_date(ty: &DataType) -> bool {
-    let ty = extract_null_able(ty);
     matches!(ty, DataType::Date | DataType::Date32)
 }
 
@@ -525,7 +522,7 @@ pub fn extract_bytes_from_serde_values(values: &[serde_json::Value]) -> anyhow::
 }
 
 pub fn get_array_tuple_element_type(ty: &DataType, index: usize) -> anyhow::Result<&DataType> {
-    let r = match extract_null_able(ty) {
+    let r = match ty {
         DataType::Array(x) => match x {
             ArrayElemTypeDef::None => {
                 anyhow::bail!("ArrayElemTypeDef::None can't retrive a valid type")
@@ -545,124 +542,194 @@ pub fn get_array_tuple_element_type(ty: &DataType, index: usize) -> anyhow::Resu
     anyhow::Ok(r)
 }
 
-pub fn extract_null_able(x: &DataType) -> DataType {
+pub fn ty_remove_nullable(x: &DataType) -> DataType {
     match x {
-        DataType::Nullable(x) => extract_null_able(x.as_ref()),
-        DataType::Table(column_defs) => todo!(),
-        DataType::NamedTable { name, columns } => todo!(),
-        DataType::Character(character_length) => todo!(),
-        DataType::Char(character_length) => todo!(),
-        DataType::CharacterVarying(character_length) => todo!(),
-        DataType::CharVarying(character_length) => todo!(),
-        DataType::Varchar(character_length) => todo!(),
-        DataType::Nvarchar(character_length) => todo!(),
-        DataType::Uuid => todo!(),
-        DataType::CharacterLargeObject(_) => todo!(),
-        DataType::CharLargeObject(_) => todo!(),
-        DataType::Clob(_) => todo!(),
-        DataType::Binary(_) => todo!(),
-        DataType::Varbinary(binary_length) => todo!(),
-        DataType::Blob(_) => todo!(),
-        DataType::TinyBlob => todo!(),
-        DataType::MediumBlob => todo!(),
-        DataType::LongBlob => todo!(),
-        DataType::Bytes(_) => todo!(),
-        DataType::Numeric(exact_number_info) => todo!(),
-        DataType::Decimal(exact_number_info) => todo!(),
-        DataType::DecimalUnsigned(exact_number_info) => todo!(),
-        DataType::BigNumeric(exact_number_info) => todo!(),
-        DataType::BigDecimal(exact_number_info) => todo!(),
-        DataType::Dec(exact_number_info) => todo!(),
-        DataType::DecUnsigned(exact_number_info) => todo!(),
-        DataType::Float(exact_number_info) => todo!(),
-        DataType::FloatUnsigned(exact_number_info) => todo!(),
-        DataType::TinyInt(_) => todo!(),
-        DataType::TinyIntUnsigned(_) => todo!(),
-        DataType::UTinyInt => todo!(),
-        DataType::Int2(_) => todo!(),
-        DataType::Int2Unsigned(_) => todo!(),
-        DataType::SmallInt(_) => todo!(),
-        DataType::SmallIntUnsigned(_) => todo!(),
-        DataType::USmallInt => todo!(),
-        DataType::MediumInt(_) => todo!(),
-        DataType::MediumIntUnsigned(_) => todo!(),
-        DataType::Int(_) => todo!(),
-        DataType::Int4(_) => todo!(),
-        DataType::Int8(_) => todo!(),
-        DataType::Int16 => todo!(),
-        DataType::Int32 => todo!(),
-        DataType::Int64 => todo!(),
-        DataType::Int128 => todo!(),
-        DataType::Int256 => todo!(),
-        DataType::Integer(_) => todo!(),
-        DataType::IntUnsigned(_) => todo!(),
-        DataType::Int4Unsigned(_) => todo!(),
-        DataType::IntegerUnsigned(_) => todo!(),
-        DataType::HugeInt => todo!(),
-        DataType::UHugeInt => todo!(),
-        DataType::UInt8 => todo!(),
-        DataType::UInt16 => todo!(),
-        DataType::UInt32 => todo!(),
-        DataType::UInt64 => todo!(),
-        DataType::UInt128 => todo!(),
-        DataType::UInt256 => todo!(),
-        DataType::BigInt(_) => todo!(),
-        DataType::BigIntUnsigned(_) => todo!(),
-        DataType::UBigInt => todo!(),
-        DataType::Int8Unsigned(_) => todo!(),
-        DataType::Signed => todo!(),
-        DataType::SignedInteger => todo!(),
-        DataType::Unsigned => todo!(),
-        DataType::UnsignedInteger => todo!(),
-        DataType::Float4 => todo!(),
-        DataType::Float32 => todo!(),
-        DataType::Float64 => todo!(),
-        DataType::Real => todo!(),
-        DataType::RealUnsigned => todo!(),
-        DataType::Float8 => todo!(),
-        DataType::Double(exact_number_info) => todo!(),
-        DataType::DoubleUnsigned(exact_number_info) => todo!(),
-        DataType::DoublePrecision => todo!(),
-        DataType::DoublePrecisionUnsigned => todo!(),
-        DataType::Bool => todo!(),
-        DataType::Boolean => todo!(),
-        DataType::Date => todo!(),
-        DataType::Date32 => todo!(),
-        DataType::Time(_, timezone_info) => todo!(),
-        DataType::Datetime(_) => todo!(),
-        DataType::Datetime64(_, _) => todo!(),
-        DataType::Timestamp(_, timezone_info) => todo!(),
-        DataType::TimestampNtz(_) => todo!(),
-        DataType::Interval { fields, precision } => todo!(),
-        DataType::JSON => todo!(),
-        DataType::JSONB => todo!(),
-        DataType::Regclass => todo!(),
-        DataType::Text => todo!(),
-        DataType::TinyText => todo!(),
-        DataType::MediumText => todo!(),
-        DataType::LongText => todo!(),
-        DataType::String(_) => todo!(),
-        DataType::FixedString(_) => todo!(),
-        DataType::Bytea => todo!(),
-        DataType::Bit(_) => todo!(),
-        DataType::BitVarying(_) => todo!(),
-        DataType::VarBit(_) => todo!(),
-        DataType::Custom(object_name, items) => todo!(),
-        DataType::Array(array_elem_type_def) => todo!(),
-        DataType::Map(data_type, data_type1) => todo!(),
-        DataType::Tuple(struct_fields) => todo!(),
-        DataType::Nested(column_defs) => todo!(),
-        DataType::Enum(enum_members, _) => todo!(),
-        DataType::Set(items) => todo!(),
-        DataType::Struct(struct_fields, struct_bracket_kind) => todo!(),
-        DataType::Union(union_fields) => todo!(),
-        DataType::LowCardinality(data_type) => todo!(),
-        DataType::Unspecified => todo!(),
-        DataType::Trigger => todo!(),
-        DataType::AnyType => todo!(),
-        DataType::GeometricType(geometric_type_kind) => todo!(),
-        DataType::TsVector => todo!(),
-        DataType::TsQuery => todo!(),
+        DataType::Nullable(x) => ty_remove_nullable(x.as_ref()),
+        DataType::Table(column_defs) => DataType::Table(column_defs.as_ref().map(|columns| {
+            columns
+                .iter()
+                .map(|x| ColumnDef {
+                    data_type: ty_remove_nullable(&x.data_type),
+                    ..Clone::clone(x)
+                })
+                .collect()
+        })),
+
+        DataType::NamedTable { name, columns } => DataType::NamedTable {
+            name: name.clone(),
+            columns: columns
+                .iter()
+                .map(|x| ColumnDef {
+                    data_type: ty_remove_nullable(&x.data_type),
+                    ..Clone::clone(x)
+                })
+                .collect(),
+        },
+        DataType::Character(..) => x.clone(),
+        DataType::Char(..) => x.clone(),
+        DataType::CharacterVarying(..) => x.clone(),
+        DataType::CharVarying(..) => x.clone(),
+        DataType::Varchar(..) => x.clone(),
+        DataType::Nvarchar(..) => x.clone(),
+        DataType::Uuid => x.clone(),
+        DataType::CharacterLargeObject(_) => x.clone(),
+        DataType::CharLargeObject(_) => x.clone(),
+        DataType::Clob(_) => x.clone(),
+        DataType::Binary(_) => x.clone(),
+        DataType::Varbinary(..) => x.clone(),
+        DataType::Blob(_) => x.clone(),
+        DataType::TinyBlob => x.clone(),
+        DataType::MediumBlob => x.clone(),
+        DataType::LongBlob => x.clone(),
+        DataType::Bytes(_) => x.clone(),
+        DataType::Numeric(..) => x.clone(),
+        DataType::Decimal(..) => x.clone(),
+        DataType::DecimalUnsigned(..) => x.clone(),
+        DataType::BigNumeric(..) => x.clone(),
+        DataType::BigDecimal(..) => x.clone(),
+        DataType::Dec(..) => x.clone(),
+        DataType::DecUnsigned(..) => x.clone(),
+        DataType::Float(..) => x.clone(),
+        DataType::FloatUnsigned(..) => x.clone(),
+        DataType::TinyInt(_) => x.clone(),
+        DataType::TinyIntUnsigned(_) => x.clone(),
+        DataType::UTinyInt => x.clone(),
+        DataType::Int2(_) => x.clone(),
+        DataType::Int2Unsigned(_) => x.clone(),
+        DataType::SmallInt(_) => x.clone(),
+        DataType::SmallIntUnsigned(_) => x.clone(),
+        DataType::USmallInt => x.clone(),
+        DataType::MediumInt(_) => x.clone(),
+        DataType::MediumIntUnsigned(_) => x.clone(),
+        DataType::Int(_) => x.clone(),
+        DataType::Int4(_) => x.clone(),
+        DataType::Int8(_) => x.clone(),
+        DataType::Int16 => x.clone(),
+        DataType::Int32 => x.clone(),
+        DataType::Int64 => x.clone(),
+        DataType::Int128 => x.clone(),
+        DataType::Int256 => x.clone(),
+        DataType::Integer(_) => x.clone(),
+        DataType::IntUnsigned(_) => x.clone(),
+        DataType::Int4Unsigned(_) => x.clone(),
+        DataType::IntegerUnsigned(_) => x.clone(),
+        DataType::HugeInt => x.clone(),
+        DataType::UHugeInt => x.clone(),
+        DataType::UInt8 => x.clone(),
+        DataType::UInt16 => x.clone(),
+        DataType::UInt32 => x.clone(),
+        DataType::UInt64 => x.clone(),
+        DataType::UInt128 => x.clone(),
+        DataType::UInt256 => x.clone(),
+        DataType::BigInt(_) => x.clone(),
+        DataType::BigIntUnsigned(_) => x.clone(),
+        DataType::UBigInt => x.clone(),
+        DataType::Int8Unsigned(_) => x.clone(),
+        DataType::Signed => x.clone(),
+        DataType::SignedInteger => x.clone(),
+        DataType::Unsigned => x.clone(),
+        DataType::UnsignedInteger => x.clone(),
+        DataType::Float4 => x.clone(),
+        DataType::Float32 => x.clone(),
+        DataType::Float64 => x.clone(),
+        DataType::Real => x.clone(),
+        DataType::RealUnsigned => x.clone(),
+        DataType::Float8 => x.clone(),
+        DataType::Double(..) => x.clone(),
+        DataType::DoubleUnsigned(..) => x.clone(),
+        DataType::DoublePrecision => x.clone(),
+        DataType::DoublePrecisionUnsigned => x.clone(),
+        DataType::Bool => x.clone(),
+        DataType::Boolean => x.clone(),
+        DataType::Date => x.clone(),
+        DataType::Date32 => x.clone(),
+        DataType::Time(..) => x.clone(),
+        DataType::Datetime(_) => x.clone(),
+        DataType::Datetime64(_, _) => x.clone(),
+        DataType::Timestamp(..) => x.clone(),
+        DataType::TimestampNtz(_) => x.clone(),
+        DataType::Interval { .. } => x.clone(),
+        DataType::JSON => x.clone(),
+        DataType::JSONB => x.clone(),
+        DataType::Regclass => x.clone(),
+        DataType::Text => x.clone(),
+        DataType::TinyText => x.clone(),
+        DataType::MediumText => x.clone(),
+        DataType::LongText => x.clone(),
+        DataType::String(_) => x.clone(),
+        DataType::FixedString(_) => x.clone(),
+        DataType::Bytea => x.clone(),
+        DataType::Bit(_) => x.clone(),
+        DataType::BitVarying(_) => x.clone(),
+        DataType::VarBit(_) => x.clone(),
+        DataType::Custom(..) => x.clone(),
+        DataType::Array(array_elem_type_def) => match array_elem_type_def {
+            ArrayElemTypeDef::None => x.clone(),
+            ArrayElemTypeDef::AngleBracket(data_type) => DataType::Array(
+                ArrayElemTypeDef::AngleBracket(Box::new(ty_remove_nullable(data_type.as_ref()))),
+            ),
+            ArrayElemTypeDef::SquareBracket(data_type, x) => {
+                DataType::Array(ArrayElemTypeDef::SquareBracket(
+                    Box::new(ty_remove_nullable(data_type.as_ref())),
+                    *x,
+                ))
+            }
+            ArrayElemTypeDef::Parenthesis(data_type) => DataType::Array(
+                ArrayElemTypeDef::Parenthesis(Box::new(ty_remove_nullable(data_type.as_ref()))),
+            ),
+        },
+        DataType::Map(data_type, data_type1) => DataType::Map(
+            Box::new(ty_remove_nullable(data_type.as_ref())),
+            Box::new(ty_remove_nullable(data_type1.as_ref())),
+        ),
+        DataType::Tuple(struct_fields) => DataType::Tuple(
+            struct_fields
+                .iter()
+                .map(|x| StructField {
+                    field_type: ty_remove_nullable(&x.field_type),
+                    ..Clone::clone(x)
+                })
+                .collect(),
+        ),
+        DataType::Nested(column_defs) => DataType::Nested(
+            column_defs
+                .iter()
+                .map(|x| ColumnDef {
+                    data_type: ty_remove_nullable(&x.data_type),
+                    ..Clone::clone(x)
+                })
+                .collect(),
+        ),
+        DataType::Enum(..) => x.clone(),
+        DataType::Set(..) => x.clone(),
+        DataType::Struct(struct_fields, struct_bracket_kind) => DataType::Struct(
+            struct_fields
+                .iter()
+                .map(|x| StructField {
+                    field_type: ty_remove_nullable(&x.field_type),
+                    ..Clone::clone(x)
+                })
+                .collect(),
+            *struct_bracket_kind,
+        ),
+        DataType::Union(union_fields) => DataType::Union(
+            union_fields
+                .iter()
+                .map(|x| sqlparser::ast::UnionField {
+                    field_name: x.field_name.clone(),
+                    field_type: ty_remove_nullable(&x.field_type),
+                })
+                .collect(),
+        ),
+        DataType::LowCardinality(data_type) => {
+            DataType::LowCardinality(Box::new(ty_remove_nullable(data_type.as_ref())))
+        }
+        DataType::Unspecified => x.clone(),
+        DataType::Trigger => x.clone(),
+        DataType::AnyType => x.clone(),
+        DataType::GeometricType(..) => x.clone(),
+        DataType::TsVector => x.clone(),
+        DataType::TsQuery => x.clone(),
     }
 }
 

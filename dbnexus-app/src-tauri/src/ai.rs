@@ -188,10 +188,7 @@ impl DBPal {
                     .expect("must be redis");
                 let client = Clone::clone(x);
 
-                let builder = agent_builder.tool(redis::RedisTool {
-                    client,
-                    query_id,
-                });
+                let builder = agent_builder.tool(redis::RedisTool { client, query_id });
                 anyhow::Ok(builder)
             }
 

@@ -10,8 +10,8 @@ use crate::db::{
 };
 
 use crate::helper::{
-    extract_null_able, get_array_tuple_element_type, ty_is_date, ty_is_datetime, ty_is_decimal,
-    ty_is_float, ty_is_int, ty_is_time,
+    get_array_tuple_element_type, ty_is_date, ty_is_datetime, ty_is_decimal, ty_is_float,
+    ty_is_int, ty_is_time, ty_remove_nullable,
 };
 use crate::language_server::{get_update_sql_from_result_set_impl, LexerCompletionTrait};
 use futures_core::stream::BoxStream;
@@ -135,7 +135,7 @@ impl ExtractSqlValeFromJsonValue for ClickHouseDB {
         ty: &str,
     ) -> anyhow::Result<Option<String>> {
         let ty = crate::language_server::LangServerCommon::parse_type(self, ty)?;
-
+        let ty = ty_remove_nullable(&ty);
         fn encode_nested(
             value: &serde_json::Value,
             ty: &DataType,
@@ -167,17 +167,14 @@ impl ExtractSqlValeFromJsonValue for ClickHouseDB {
                     })
                 }
                 serde_json::Value::Object(values) => {
-                    let (kty, vty) = match extract_null_able(ty) {
+                    let (kty, vty) = match ty {
                         DataType::Map(kty, vty) => (kty.as_ref(), vty.as_ref()),
                         _ => {
                             anyhow::bail!("should be map type but:{:?}", ty);
                         }
                     };
                     let mut results = Vec::with_capacity(values.len());
-                    let is_int_etc = {
-                        let ty = extract_null_able(kty);
-                        ty_is_decimal(ty) || ty_is_int(ty) || ty_is_float(ty)
-                    };
+                    let is_int_etc = { ty_is_decimal(kty) || ty_is_int(kty) || ty_is_float(kty) };
                     for (k, v) in values.iter() {
                         results.push(format!(
                             "{}:{}",
@@ -1194,7 +1191,7 @@ impl ClickHouseDB {
             .await?;
         let mut count = 0;
         let mut cols: Vec<String> = vec![];
-        let mut ts: Vec<_> = vec![];
+        let mut tys: Vec<_> = vec![];
         let r = stream.map(move |x| match x {
             Err(err) => Err(anyhow::Error::from(err)),
             Ok(line) => {
@@ -1207,8 +1204,9 @@ impl ClickHouseDB {
                     count += 1;
                     let ts_str: Vec<String> = serde_json::from_str(&line)?;
                     for x in ts_str.iter() {
-                        let t = crate::language_server::LangServerCommon::parse_type(self, x)?;
-                        ts.push(t);
+                        let ty = crate::language_server::LangServerCommon::parse_type(self, x)?;
+                        let ty = ty_remove_nullable(&ty);
+                        tys.push(ty);
                     }
                     return anyhow::Ok(FieldsOrData::Fields(
                         ts_str
@@ -1219,7 +1217,7 @@ impl ClickHouseDB {
                     ));
                 }
                 // now we have data
-                let r = encode_json_result(&ts, &line)?;
+                let r = encode_json_result(&tys, &line)?;
                 anyhow::Ok(FieldsOrData::Data(r))
             }
         });
