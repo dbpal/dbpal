@@ -26,6 +26,7 @@ import {
   IconButton,
   Autocomplete,
   Slider,
+  Alert,
 } from "@mui/material";
 import { CancelIcon } from "./icons";
 import { ClearableTextField, RefreshButton } from "./CommonComp2";
@@ -300,24 +301,27 @@ function PGSSL(props: {
   ];
 
   return (
-    <Stack direction="row" style={{ alignItems: "center", flexWrap: "wrap" }}>
-      <FormControl style={{ width: "12rem" }}>
-        <InputLabel> ssl mode </InputLabel>
-        <Select
-          value={ssl.ssl_mode}
-          label="ssl mode"
-          onChange={(e) => setSsl({ ...ssl, ssl_mode: e.target.value })}>
-          {modes.map((mode) => (
-            <MenuItem value={mode} key={mode}>
-              {mode}
-            </MenuItem>
-          ))}
-        </Select>
-      </FormControl>
-      <UrlDocument url="https://docs.rs/sqlx/latest/sqlx/postgres/enum.PgSslMode.html" />
+    <>
+      <OpenSSLNotice />
+      <Stack direction="row" style={{ alignItems: "center", flexWrap: "wrap" }}>
+        <FormControl style={{ width: "12rem" }}>
+          <InputLabel> ssl mode </InputLabel>
+          <Select
+            value={ssl.ssl_mode}
+            label="ssl mode"
+            onChange={(e) => setSsl({ ...ssl, ssl_mode: e.target.value })}>
+            {modes.map((mode) => (
+              <MenuItem value={mode} key={mode}>
+                {mode}
+              </MenuItem>
+            ))}
+          </Select>
+        </FormControl>
+        <UrlDocument url="https://docs.rs/sqlx/latest/sqlx/postgres/enum.PgSslMode.html" />
 
-      <SslFiles enabled={ssl.ssl_mode != "disable"} files={ssl} setFiles={setSsl} />
-    </Stack>
+        <SslFiles enabled={ssl.ssl_mode != "disable"} files={ssl} setFiles={setSsl} />
+      </Stack>
+    </>
   );
 }
 function MysqlSSl(props: {
@@ -333,24 +337,27 @@ function MysqlSSl(props: {
     "verify_identity",
   ];
   return (
-    <Stack direction="row" style={{ alignItems: "center", flexWrap: "wrap" }}>
-      <FormControl style={{ width: "12rem" }}>
-        <InputLabel> ssl mode </InputLabel>
-        <Select
-          value={ssl.ssl_mode}
-          label="ssl mode"
-          onChange={(e) => setSsl({ ...ssl, ssl_mode: e.target.value })}>
-          {models.map((e) => (
-            <MenuItem value={e} key={e}>
-              {e}
-            </MenuItem>
-          ))}
-        </Select>
-      </FormControl>
-      <UrlDocument url="https://docs.rs/sqlx/latest/sqlx/mysql/enum.MySqlSslMode.html" />
+    <>
+      <OpenSSLNotice />
+      <Stack direction="row" style={{ alignItems: "center", flexWrap: "wrap" }}>
+        <FormControl style={{ width: "12rem" }}>
+          <InputLabel> ssl mode </InputLabel>
+          <Select
+            value={ssl.ssl_mode}
+            label="ssl mode"
+            onChange={(e) => setSsl({ ...ssl, ssl_mode: e.target.value })}>
+            {models.map((e) => (
+              <MenuItem value={e} key={e}>
+                {e}
+              </MenuItem>
+            ))}
+          </Select>
+        </FormControl>
 
-      <SslFiles enabled={ssl.ssl_mode != "disabled"} files={ssl} setFiles={setSsl} />
-    </Stack>
+        <UrlDocument url="https://docs.rs/sqlx/latest/sqlx/mysql/enum.MySqlSslMode.html" />
+        <SslFiles enabled={ssl.ssl_mode != "disabled"} files={ssl} setFiles={setSsl} />
+      </Stack>
+    </>
   );
 }
 
@@ -1107,6 +1114,7 @@ function Redis(props: { config?: RedisDBConfig; context: AddConnectionContext })
         label="database"
         makeConfig={makeConfig}
       />
+      <OpenSSLNotice />
       <FormControlLabel
         control={
           <Checkbox
@@ -1168,6 +1176,7 @@ function MongoDb(props: { config?: MongoDBConfig; context: AddConnectionContext 
         label="database"
         makeConfig={makeConfig}
       />
+
       <Stack direction="row" style={{ alignItems: "center" }}>
         <FormControlLabel
           style={{ width: "180px" }}
@@ -1188,6 +1197,7 @@ function MongoDb(props: { config?: MongoDBConfig; context: AddConnectionContext 
           />
         )}
       </Stack>
+      {enableSSL && <OpenSSLNotice />}
     </Stack>
   );
 }
@@ -1238,6 +1248,7 @@ function Cassandra(props: {
         savePassword={savePassword}
         setSavePassword={setSavePassword}
       />
+      <OpenSSLNotice />
       <Stack direction="row" style={{ alignItems: "center" }}>
         <FormControlLabel
           style={{ width: "180px" }}
@@ -1953,6 +1964,14 @@ function CouchBase(props: {
         />
       )}
     </Stack>
+  );
+}
+
+function OpenSSLNotice() {
+  return (
+    <Alert severity="info">
+      SSL connections are implemented using OpenSSL as the backend
+    </Alert>
   );
 }
 

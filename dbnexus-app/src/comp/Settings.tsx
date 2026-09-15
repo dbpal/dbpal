@@ -12,6 +12,7 @@ import { isEqual } from "lodash-es";
 import * as monaco from "monaco-editor";
 import type {} from "@mui/x-data-grid/themeAugmentation";
 import {
+  Alert,
   Autocomplete,
   Button,
   Checkbox,
@@ -527,6 +528,9 @@ function LLMSetting(props: { handleClose?: () => void }) {
 
   return (
     <Stack>
+      <Alert severity="info">
+        # OpenAI-compatible endpoint with tool call (function calling) support.
+      </Alert>
       <Stack direction="row" sx={{ alignItems: "center" }}>
         <Typography sx={{ ...settingTextStyle }}>base url</Typography>
         <ClearableTextField
