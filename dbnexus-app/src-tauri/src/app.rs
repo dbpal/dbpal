@@ -13,7 +13,9 @@ use dbnexus_db::language_server::LanguageServer;
 use dbnexus_db::mongo::MongoDB;
 use dbnexus_db::mysql::MysqlDB;
 use dbnexus_db::pg::PostGresDB;
+#[cfg(feature = "duckdb")]
 use dbnexus_db2::duckdb::DuckDB;
+#[cfg(feature = "duckdb")]
 use dbnexus_db2::DuckDBConfig;
 use font_kit::error::SelectionError;
 use std::any::Any;
@@ -114,10 +116,11 @@ impl DBConnectionConfig {
             | DBConnectionConfig::ClickHouse { name, .. }
             | DBConnectionConfig::LibSql { name, .. }
             | DBConnectionConfig::FireBird { name, .. }
-            | DBConnectionConfig::DuckDB { name, .. }
             | DBConnectionConfig::CockRoach { name, .. }
             | DBConnectionConfig::Db2 { name, .. }
             | DBConnectionConfig::CouchBase { name, .. } => name.as_str(),
+            #[cfg(feature = "duckdb")]
+            DBConnectionConfig::DuckDB { name, .. } => name.as_str(),
         }
     }
 }
@@ -207,6 +210,7 @@ pub enum DBConnectionConfig {
         name: String,
         save_password: bool,
     },
+    #[cfg(feature = "duckdb")]
     DuckDB {
         #[serde(flatten)]
         conn: DuckDBConfig,
@@ -352,6 +356,7 @@ impl DBConnectionConfig {
                 };
                 anyhow::Ok(db)
             }
+            #[cfg(feature = "duckdb")]
             DBConnectionConfig::DuckDB { conn: _conn, .. } => {
                 let db = DuckDB::new(_conn.clone()).await?;
                 match &_conn.db {

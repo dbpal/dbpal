@@ -24,7 +24,7 @@ websearch = "*"
 tauri-specta = { version = "2.0.0-rc.24", features = ["typescript", "derive"] }
 specta.workspace = true
 dbnexus-db.workspace = true
-dbnexus-db2.workspace = true
+dbnexus-db2 = { workspace = true, optional = true }
 tokio.workspace = true
 anyhow.workspace = true
 async-trait.workspace = true
@@ -70,6 +70,7 @@ custom-protocol = ["tauri/custom-protocol"]
 random-sleep = []
 random-error = []
 paid = ["dbnexus-db/paid"]
+duckdb = ["dep:dbnexus-db2"]
 hive = ["dbnexus-db/hive"]
 devtools = []
 

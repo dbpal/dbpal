@@ -1265,7 +1265,7 @@ function VirtualListLeft<T>(props: {
     </div>
   );
 }
-// seperate this can load on need
+// separate this can load on need
 function LeftTableNameAndColumns(props: {
   table: ListTable;
   makeMenu: () => ReactNode;
