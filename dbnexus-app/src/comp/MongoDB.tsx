@@ -556,13 +556,7 @@ function MongoTableToolBar(props: {
           />
         </Tooltip>
 
-        {isTable && (
-          <AddTableModal
-            dbName={dbName}
-            kind={DataSourceKind.Mongo}
-            tableName={table}
-          />
-        )}
+        {isTable && <AddTableModal kind={DataSourceKind.Mongo} tableName={table} />}
         {isTable && (
           <IconButton
             color="success"

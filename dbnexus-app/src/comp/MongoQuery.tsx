@@ -284,7 +284,6 @@ const { db, FS, HTTP, BSON } = mongoHandle;
           <AiMarkdownModelSwitch
             setMarkdownModel={setMarkdownModel}
             markdownModel={markdownModel}
-            dbName={dbName}
           />
           <ShowQueryLog />
           <Tooltip

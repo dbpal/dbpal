@@ -783,8 +783,6 @@ type SetToolBarParameterProps = GridSlotProps["toolbar"] & {
 function SetToolBar({
   dbpal: { keyMatch, setKey, handleReload, loading, setKeyMatch },
 }: SetToolBarParameterProps) {
-  const { dbName } = useContext(DbnameContext);
-
   return (
     <AppDataGridToolBar
       left=<>
@@ -808,7 +806,6 @@ function SetToolBar({
         </Tooltip>
         <AddTableModal
           kind={DataSourceKind.Redis}
-          dbName={dbName}
           tableName={setKey}
           redisType={RedisTableType.Set}
         />
@@ -1152,7 +1149,6 @@ type ListToolBarProps = {
 } & GridSlotProps["toolbar"];
 
 function ListToolBar({ dbpal: { handleReload, listKey, loading } }: ListToolBarProps) {
-  const { dbName } = useContext(DbnameContext);
   return (
     <AppDataGridToolBar
       left=<>
@@ -1165,7 +1161,6 @@ function ListToolBar({ dbpal: { handleReload, listKey, loading } }: ListToolBarP
         />
         <AddTableModal
           kind={DataSourceKind.Redis}
-          dbName={dbName}
           tableName={listKey}
           redisType={RedisTableType.List}
         />
@@ -1517,7 +1512,6 @@ function ZSetToolBar({
     zsetKey,
   },
 }: ZSetToolBarProps) {
-  const { dbName } = useContext(DbnameContext);
   return (
     <AppDataGridToolBar
       left=<>
@@ -1573,7 +1567,6 @@ function ZSetToolBar({
         />
         <AddTableModal
           kind={DataSourceKind.Redis}
-          dbName={dbName}
           tableName={zsetKey}
           redisType={RedisTableType.Zset}
         />
@@ -1961,7 +1954,6 @@ type HashToolBarProps = {
 function HashToolBar({
   dbpal: { keyMatch, setKeyMatch, hashKey, loading, handleReload },
 }: HashToolBarProps) {
-  const { dbName } = useContext(DbnameContext);
   return (
     <AppDataGridToolBar
       left=<>
@@ -1986,7 +1978,6 @@ function HashToolBar({
         </Tooltip>
         <AddTableModal
           kind={DataSourceKind.Redis}
-          dbName={dbName}
           tableName={hashKey}
           redisType={RedisTableType.Hash}
         />

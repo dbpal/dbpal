@@ -616,7 +616,6 @@ function SqlQuery_(props: {
             <AiMarkdownModelSwitch
               setMarkdownModel={setMarkdownModel}
               markdownModel={markdownModel}
-              dbName={dbName}
             />
 
             <FetchTimeAndLoadingStatus isLoading={loading} />

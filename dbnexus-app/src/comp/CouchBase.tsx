@@ -805,7 +805,6 @@ function CouchBaseQuery_(props: { value?: string }) {
             <AiMarkdownModelSwitch
               setMarkdownModel={setMarkdownModel}
               markdownModel={markdownModel}
-              dbName={dbName}
             />
             <FetchTimeAndLoadingStatus isLoading={loading} />
             <SliderSize config={UseSizeConfig.couchbaseQueryLimit} />

@@ -1883,9 +1883,9 @@ function AiMarkdownModel(props: {
 function AiMarkdownModelSwitch(props: {
   setMarkdownModel: Dispatch<SetStateAction<boolean>>;
   markdownModel: boolean;
-  dbName: string;
 }) {
-  const { setMarkdownModel, markdownModel, dbName } = props;
+  const { dbName } = useContext(DbnameContext);
+  const { setMarkdownModel, markdownModel } = props;
   const { getSwitch, setSwitch } = useBoolSwitch();
   const switchKey = "ai-markdown-model" + "-" + dbName;
   const llm = useLLM();
