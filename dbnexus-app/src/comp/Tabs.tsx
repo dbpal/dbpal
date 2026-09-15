@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useRef } from "react";
 import {
   Stack,
   MenuItem,
@@ -107,26 +107,8 @@ function TabsWithContent() {
   const { tabs, setCurrentTab, currentTab, closeTab } = useTabsManage();
   const setUpMenu = useContextMenu((state) => state.setUpMenu);
   const rootStack = useRef<HTMLDivElement>(null);
-  const [tabWidth, setTabWidth] = useState(100);
-
   const tabConfirmMsg = useConfirmMsg((state) => state.confirmMsgs);
-
   const { connected } = useConnected();
-  useEffect(() => {
-    if (tabs.length == 0) {
-      return;
-    }
-    const e = new ResizeObserver((en) => {
-      const width = en[0].target.clientWidth;
-      if (width) {
-        setTabWidth(width);
-      }
-    });
-    e.observe(rootStack.current);
-    return () => {
-      e.disconnect();
-    };
-  }, [tabs]);
   const { switches } = useBoolSwitch();
   const wrap = switches[tabsWrapKey];
   const theme = useTheme();
@@ -160,15 +142,20 @@ function TabsWithContent() {
             "& .MuiTab-root": { minHeight: 36, px: 0.4 }, // 高度36px，左右12px
           }}>
           {tabs.map((tab, index) => {
-            const max = (tabWidth * 2.2) / tabs.length;
             return (
               <Tab
-                style={{ maxWidth: max + "px" }}
+                style={{
+                  maxWidth:
+                    (function () {
+                      const max = (100 * 2) / tabs.length;
+                      return max;
+                    })() + "%",
+                }}
                 key={tab.id}
                 label=<Tooltip title={tab.header}>
                   <Chip
                     color={currentTab == index ? "primary" : "default"}
-                    icon={max < 100 ? undefined : getIcon(tab)}
+                    icon={getIcon(tab)}
                     style={{
                       textTransform: "none",
                       alignItems: "center",
