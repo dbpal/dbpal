@@ -26,6 +26,7 @@ import {
   AttachFileIcon,
   RefreshIcon,
   FaCopy,
+  KeyIcon,
 } from "./icons";
 import {
   CSSProperties,
@@ -83,6 +84,7 @@ import {
   ClearableTextField,
   ListenElementSize,
   RefreshButton,
+  StackRowCenter,
 } from "./CommonComp2";
 import {
   passwordKey,
@@ -1350,10 +1352,22 @@ function LeftTableColumns(props: {
       show={(f) => {
         return (
           <>
-            <Typography style={textEllipsisStyle}> {f.field} </Typography>
-            <Typography style={textEllipsisStyle} color="info">
-              {f.data_type}
-            </Typography>
+            <StackRowCenter>
+              <Typography style={textEllipsisStyle}> {f.field} </Typography>
+              {f.is_primary && <KeyIcon />}
+            </StackRowCenter>
+            <StackRowCenter>
+              <Typography style={textEllipsisStyle} color="info">
+                {f.data_type}
+              </Typography>
+              {/* {f.nullable && (
+                <Typography
+                  style={{ ...textEllipsisStyle, flexShrink: 4 }}
+                  color="info">
+                  nullable
+                </Typography>
+              )} */}
+            </StackRowCenter>
           </>
         );
       }}
