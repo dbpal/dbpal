@@ -1426,10 +1426,9 @@ function MyTreeItem(props: {
   const ident = useContext(TreeIdent);
   const [collasped, setCollasped] = useState(true);
   const { setUpMenu } = useContextMenu();
-  const fontSize = useFontSize();
   let identNes = ident + 1;
   const paddingLeft = (ident: number) => {
-    return ident * 0.5 * fontSize + "px";
+    return ident * 0.5 * 5 + "px";
   };
   const [expanded, setExpanded] = useState(false);
   useEffect(() => {
