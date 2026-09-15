@@ -377,12 +377,12 @@ function makeViewTable(
 }
 
 function AddTableView(props: {
-  dbName: string;
   table: string;
   kind: DataSourceKind;
   redisTableType?: RedisTableType;
 }) {
-  const { dbName, table, kind, redisTableType } = props;
+  const { dbName } = useContext(DbnameContext);
+  const { table, kind, redisTableType } = props;
 
   switch (kind) {
     case DataSourceKind.Redis:
@@ -416,12 +416,11 @@ function AddTableView(props: {
 }
 
 function AddTableModal(props: {
-  dbName: string;
   tableName: string;
   kind: DataSourceKind;
   redisType?: RedisTableType;
 }) {
-  const { tableName, redisType, dbName, kind } = props;
+  const { tableName, redisType, kind } = props;
   const [showAdd, setShowAdd] = useState(false);
   const [addModalBox, setAddModalBox] = useState<HTMLDivElement | null>(null);
 
@@ -460,12 +459,7 @@ function AddTableModal(props: {
                 setShowAdd(false);
               }}
             />
-            <AddTableView
-              dbName={dbName}
-              table={tableName}
-              redisTableType={redisType}
-              kind={kind}
-            />
+            <AddTableView table={tableName} redisTableType={redisType} kind={kind} />
           </Box>
         </Dialog>
       )}
@@ -591,12 +585,7 @@ function TableMenu(props: {
     appendTab(
       new TabContent(
         `${table}*`,
-        <AddTableView
-          dbName={dbName}
-          kind={kind}
-          table={table}
-          redisTableType={redisTableType}
-        />,
+        <AddTableView kind={kind} table={table} redisTableType={redisTableType} />,
         <TableViewIcon />,
         dbName,
         kind,

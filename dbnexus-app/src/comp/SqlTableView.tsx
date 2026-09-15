@@ -381,7 +381,6 @@ function SqlTableCustomToolBarLeft({
           }}
           label="filter"
           kind={kind}
-          dbName={dbName}
         />
       )}
 
@@ -398,7 +397,6 @@ function SqlTableCustomToolBarLeft({
             setShowSetSort(false);
           }}
           label="sort"
-          dbName={dbName}
         />
       )}
     </Stack>
@@ -473,7 +471,7 @@ function SqlTablePagination_({
 
         <ExportQueryResultToFile />
 
-        {isTable && <AddTableModal kind={kind} tableName={table} dbName={dbName} />}
+        {isTable && <AddTableModal kind={kind} tableName={table} />}
         {resp.sql && (
           <Tooltip title={resp.sql}>
             <Typography

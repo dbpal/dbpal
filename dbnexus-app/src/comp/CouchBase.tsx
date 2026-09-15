@@ -227,11 +227,7 @@ function CouchBaseTable_(props: { table: string }) {
             />
           </Tooltip>
 
-          <AddTableModal
-            dbName={dbName}
-            kind={DataSourceKind.CouchBase}
-            tableName={table}
-          />
+          <AddTableModal kind={DataSourceKind.CouchBase} tableName={table} />
           <IconButton
             color="success"
             onClick={() => {
@@ -351,7 +347,6 @@ function CouchBaseTable_(props: { table: string }) {
           }}
           label="filter"
           kind={kind}
-          dbName={dbName}
         />
       )}
       {showSetSort && (
@@ -367,7 +362,6 @@ function CouchBaseTable_(props: { table: string }) {
             setShowSetSort(false);
           }}
           label="sort"
-          dbName={dbName}
         />
       )}
     </Stack>

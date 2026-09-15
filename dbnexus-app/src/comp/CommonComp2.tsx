@@ -1589,9 +1589,9 @@ function SetFilterSort(props: {
   label: "filter" | "sort";
   tableName: string;
   kind: DataSourceKind;
-  dbName: string;
 }) {
-  let { open, handleClose, value, setValue, label, tableName, kind, dbName } = props;
+  const { dbName } = useContext(DbnameContext);
+  let { open, handleClose, value, setValue, label, tableName, kind } = props;
   const isFilter = label == "filter";
   const extractFn = isFilter
     ? function (sql: string) {
