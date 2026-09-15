@@ -351,7 +351,6 @@ function ColumnsStructure(props: { table: string }) {
           <DialogTitle> add table column </DialogTitle>
           <TableAddColumn
             table={table}
-            dbName={dbName}
             handleClose={() => {
               setShowAdd(false);
             }}
@@ -375,7 +374,6 @@ function ColumnsStructure(props: { table: string }) {
             <DialogTitle> modify table column </DialogTitle>
             <ModifyTableColumn
               table={table}
-              dbName={dbName}
               handleClose={() => {
                 setRow(null);
               }}
@@ -392,13 +390,13 @@ function ColumnsStructure(props: { table: string }) {
 }
 
 function RenameIndex(props: {
-  dbName: string;
   table: string;
   reload: () => void;
   handleClose: () => void;
   indexName: string;
 }) {
-  const { dbName, table, reload, handleClose, indexName } = props;
+  const { dbName } = useContext(DbnameContext);
+  const { table, reload, handleClose, indexName } = props;
   const [loading, setLoading] = useState(false);
   const [newName, setNewname] = useState(indexName);
   const { showNotification } = useNotification();
@@ -640,7 +638,6 @@ function IndexesStructure(props: { table: string }) {
           <DialogTitle> mongo create index </DialogTitle>
           <div style={{ height: "40vh" }}>
             <MongoAddIndex
-              dbName={dbName}
               table={table}
               handleClose={() => {
                 setShowAdd(false);
@@ -661,7 +658,6 @@ function IndexesStructure(props: { table: string }) {
           maxWidth="md">
           <DialogTitle> create index </DialogTitle>
           <AddIndex
-            dbName={dbName}
             table={table}
             handleClose={() => {
               setShowAdd(false);
@@ -681,7 +677,6 @@ function IndexesStructure(props: { table: string }) {
           }}>
           <DialogTitle> rename index </DialogTitle>
           <RenameIndex
-            dbName={dbName}
             table={table}
             indexName={renameIndexName}
             handleClose={() => {
@@ -696,12 +691,12 @@ function IndexesStructure(props: { table: string }) {
 }
 
 function MongoAddIndex(props: {
-  dbName: string;
   table: string;
   handleClose: () => void;
   reload: () => void;
 }) {
-  const { dbName, table, handleClose, reload } = props;
+  const { dbName } = useContext(DbnameContext);
+  const { table, handleClose, reload } = props;
 
   const indexTypes = ["normal", "unique"];
   const [indexType, setIndexType] = useState(indexTypes[0]);
@@ -765,13 +760,13 @@ function MongoAddIndex(props: {
 }
 
 function AddIndex(props: {
-  dbName: string;
   table: string;
   handleClose: () => void;
   reload: () => void;
   kind: DataSourceKind;
 }) {
-  const { dbName, table, handleClose, reload, kind } = props;
+  const { dbName } = useContext(DbnameContext);
+  const { table, handleClose, reload, kind } = props;
   const [fields, setFields] = useState<Field[]>([]);
   const { showNotification } = useNotification();
   const [req, setReq] = useState<CreateIndexReq>(null);
@@ -833,13 +828,13 @@ function AddIndex(props: {
 
 function TableAddColumn(props: {
   table: string;
-  dbName: string;
   handleClose: () => void;
   reload: () => void;
   kind: DataSourceKind;
   fields: Field[];
 }) {
-  const { table, dbName, handleClose, reload, kind, fields } = props;
+  const { dbName } = useContext(DbnameContext);
+  const { table, handleClose, reload, kind, fields } = props;
   const [name, setName] = useState("");
   const [nullable, setNullness] = useState<SqlNullAble>("unspecified");
   const [typ, setTyp] = useState("");
@@ -956,7 +951,6 @@ function TableAddColumn(props: {
 }
 
 function ModifyTableColumn(props: {
-  dbName: string;
   table: string;
   col: string;
   handleClose: () => void;
@@ -965,7 +959,8 @@ function ModifyTableColumn(props: {
   kind: DataSourceKind;
   defaultValue: string;
 }) {
-  const { dbName, table, col, handleClose, reload, typ, kind, defaultValue } = props;
+  const { dbName } = useContext(DbnameContext);
+  const { table, col, handleClose, reload, typ, kind, defaultValue } = props;
   const [loading, setLoading] = useState(false);
   const [newName, setNewName] = useState(col);
   const [newTyp, setNewTyp] = useState(typ);
