@@ -71,6 +71,27 @@ impl PostGresDB {
     }
 }
 
+impl PostGresDB {
+    pub(crate) async fn query_row(&self, sql: impl AsRef<str>) -> anyhow::Result<PgRow> {
+        let sql = sql.as_ref();
+        let mut conn = self.get_conn().await?;
+
+        let row = sqlx::raw_sql(AssertSqlSafe(sql))
+            .fetch_one(conn.deref_mut())
+            .await?;
+        anyhow::Ok(row)
+    }
+    pub(crate) async fn query_rows(&self, sql: impl AsRef<str>) -> anyhow::Result<Vec<PgRow>> {
+        let sql = sql.as_ref();
+        let mut conn = self.get_conn().await?;
+
+        let rows = sqlx::raw_sql(AssertSqlSafe(sql))
+            .fetch_all(conn.deref_mut())
+            .await?;
+        anyhow::Ok(rows)
+    }
+}
+
 #[async_trait::async_trait]
 impl DBTrait for PostGresDB {
     fn as_any(&self) -> &dyn std::any::Any {
@@ -78,7 +99,6 @@ impl DBTrait for PostGresDB {
     }
 
     async fn list_schema(&self) -> anyhow::Result<Vec<String>> {
-        let mut conn = self.get_conn().await?;
         let sql = format!(
             r#"
         SELECT schema_name 
@@ -88,9 +108,7 @@ impl DBTrait for PostGresDB {
             self.config.db_str()
         );
         log::info!("sql:{}", sql);
-        let rows = sqlx::raw_sql(AssertSqlSafe(sql.as_str()))
-            .fetch_all(conn.deref_mut())
-            .await?;
+        let rows = self.query_rows(&sql).await?;
         let mut ret = Vec::with_capacity(rows.len());
         for r in rows.iter() {
             let name: String = r.try_get(0)?;
@@ -258,10 +276,8 @@ impl PostGresDB {
             self.config.db_str(),
             schema
         );
-        let mut conn = self.get_conn().await?;
-        let rows = sqlx::raw_sql(AssertSqlSafe(sql.as_str()))
-            .fetch_all(conn.deref_mut())
-            .await?;
+        let rows = self.query_rows(&sql).await?;
+
         let mut ret = Vec::with_capacity(rows.len());
         for row in rows.iter() {
             let name: String = row.try_get(0)?;
@@ -293,9 +309,7 @@ impl PostGresDB {
                     schema, name
                 );
 
-                let row = sqlx::raw_sql(AssertSqlSafe(sql.as_str()))
-                    .fetch_one(conn.deref_mut())
-                    .await?;
+                let row = self.query_row(&sql).await?;
 
                 let create_sql: String = row.try_get(0)?;
                 create_sql
@@ -309,9 +323,7 @@ impl PostGresDB {
                 "#,
                     schema
                 );
-                let row = sqlx::raw_sql(AssertSqlSafe(sql.as_str()))
-                    .fetch_one(conn.deref_mut())
-                    .await?;
+                let row = self.query_row(&sql).await?;
                 let start_value: i64 = row.try_get(0)?;
                 let min_value: i64 = row.try_get(1)?;
                 let max_value: i64 = row.try_get(2)?;
@@ -344,8 +356,6 @@ impl SchemaTrait for PostGresDB {
     }
 
     async fn list_foreign_key(&self, table: &str) -> anyhow::Result<Vec<ForeignKeyDef>> {
-        let mut conn = self.get_conn().await?;
-
         // PostgreSQL 查询外键：必须使用 pg_catalog 系统表
         let sql = format!(
             r#"
@@ -377,9 +387,7 @@ impl SchemaTrait for PostGresDB {
             table
         );
 
-        let rows = sqlx::query(AssertSqlSafe(sql.as_str()))
-            .fetch_all(conn.deref_mut())
-            .await?;
+        let rows = self.query_rows(&sql).await?;
 
         log::info!("sql:{}", sql);
 
@@ -593,10 +601,7 @@ impl SchemaTrait for PostGresDB {
             self.config.schema_str()
         );
         log::info!("sql:{}", sql);
-        let mut conn = self.get_conn().await?;
-        let rows = sqlx::raw_sql(AssertSqlSafe(sql.as_str()))
-            .fetch_all(conn.deref_mut())
-            .await?;
+        let rows = self.query_rows(&sql).await?;
         let mut ret = Vec::with_capacity(rows.len());
         for r in rows.iter() {
             let name: String = r.try_get(0)?;
@@ -630,10 +635,7 @@ impl SchemaTrait for PostGresDB {
             name.parameters.as_deref().unwrap_or_default(),
         );
         log::info!("sql:{}", sql);
-        let mut conn = self.get_conn().await?;
-        let row = sqlx::raw_sql(AssertSqlSafe(sql.as_str()))
-            .fetch_one(conn.deref_mut())
-            .await?;
+        let row = self.query_row(&sql).await?;
         let return_type: Option<String> = row.try_get(0)?;
         let parameters: String = row.try_get(1)?;
         let code: String = row.try_get(2)?;
@@ -675,10 +677,8 @@ impl SchemaTrait for PostGresDB {
         );
         log::info!("sql:{}", sql);
         log::info!("sql:{}", sql);
-        let mut conn = self.get_conn().await?;
-        let rows = sqlx::raw_sql(AssertSqlSafe(sql.as_str()))
-            .fetch_all(conn.deref_mut())
-            .await?;
+        let rows = self.query_rows(&sql).await?;
+
         let mut ret = Vec::with_capacity(rows.len());
         for r in rows.iter() {
             let name: String = r.get(0);
@@ -711,10 +711,7 @@ impl SchemaTrait for PostGresDB {
             name.parameters.clone().unwrap_or_default()
         );
         log::info!("sql:{}", sql);
-        let mut conn = self.get_conn().await?;
-        let row = sqlx::raw_sql(AssertSqlSafe(sql.as_str()))
-            .fetch_one(conn.deref_mut())
-            .await?;
+        let row = self.query_row(sql).await?;
         let result_type: Option<String> = row.try_get(0)?;
         let arguments: Option<String> = row.try_get(1)?;
         let function_definition: String = row.try_get(2)?;
@@ -783,10 +780,7 @@ impl SchemaTrait for PostGresDB {
         "#
         );
         log::info!("sql:{}", sql);
-        let mut conn = self.get_conn().await?;
-        let rows = sqlx::raw_sql(AssertSqlSafe(sql.as_str()))
-            .fetch_all(conn.deref_mut())
-            .await?;
+        let rows = self.query_rows(sql).await?;
         let mut ret = Vec::with_capacity(rows.len());
         for r in rows.iter() {
             let name: String = r.get(0);
@@ -809,10 +803,8 @@ impl SchemaTrait for PostGresDB {
         "#
         );
         log::info!("sql:{}", sql);
-        let mut conn = self.get_conn().await?;
-        let row = sqlx::raw_sql(AssertSqlSafe(sql.as_str()))
-            .fetch_one(conn.deref_mut())
-            .await?;
+        let row = self.query_row(sql).await?;
+
         let definition: String = row.get(0);
         let tgtype: i16 = row.get(1);
         let enable: Option<i8> = row.get(2);
@@ -903,21 +895,16 @@ impl SchemaTrait for PostGresDB {
         "#
         );
         log::info!("sql:{}", sql);
-        let mut conn = self.get_conn().await?;
-        let row = sqlx::raw_sql(AssertSqlSafe(sql.as_str()))
-            .fetch_one(conn.deref_mut())
-            .await?;
+        let row = self.query_row(sql).await?;
+
         let create_sql: String = row.try_get(0)?;
         let indexes = self.show_indexes(table_name).await?;
 
         let mut sqls = Vec::with_capacity(indexes.len());
         for index in indexes.iter() {
-            let index_sql = get_index_def(
-                &mut conn,
-                table_name,
-                index.name.as_ref().option_must_be_some()?,
-            )
-            .await?;
+            let index_sql = self
+                .get_index_def(table_name, index.name.as_ref().option_must_be_some()?)
+                .await?;
             sqls.push(index_sql);
         }
         anyhow::Ok(CreateTableAndIndexSql {
@@ -1031,10 +1018,7 @@ impl SchemaTrait for PostGresDB {
                 sql
             }
         };
-        let mut conn = self.get_conn().await?;
-        let rows = sqlx::raw_sql(AssertSqlSafe(sql))
-            .fetch_all(conn.deref_mut())
-            .await?;
+        let rows = self.query_rows(sql).await?;
 
         let mut ret = Vec::with_capacity(rows.len());
         for r in rows.iter() {
@@ -1065,10 +1049,7 @@ impl SchemaTrait for PostGresDB {
             self.config.db_str()
         );
         log::info!("sql:{}", sql);
-        let mut conn = self.get_conn().await?;
-        let rows = sqlx::raw_sql(AssertSqlSafe(sql.as_str()))
-            .fetch_all(conn.deref_mut())
-            .await?;
+        let rows = self.query_rows(sql).await?;
 
         let mut ret = Vec::with_capacity(rows.len());
         for r in rows.iter() {
@@ -1078,9 +1059,7 @@ impl SchemaTrait for PostGresDB {
                 table.as_str()
             );
             log::info!("sql:{}", sql);
-            let row = sqlx::raw_sql(AssertSqlSafe(sql.as_str()))
-                .fetch_one(conn.deref_mut())
-                .await;
+            let row = self.query_row(sql).await;
             let size: Option<i64> = match row {
                 Ok(row) => row.get(0),
                 Err(_) => None,
@@ -1105,10 +1084,8 @@ impl SchemaTrait for PostGresDB {
             schema,
         );
         log::info!("sql:{}", sql);
-        let mut conn = self.get_conn().await?;
-        let rows = sqlx::raw_sql(AssertSqlSafe(sql.as_str()))
-            .fetch_all(conn.deref_mut())
-            .await?;
+        let rows = self.query_rows(sql).await?;
+
         let mut ret = Vec::with_capacity(rows.len());
         for r in rows.iter() {
             let name: String = r.get(0);
@@ -1128,10 +1105,8 @@ impl SchemaTrait for PostGresDB {
             table_name
         );
 
-        let mut conn = self.get_conn().await?;
-        let rows = sqlx::raw_sql(AssertSqlSafe(sql.as_str()))
-            .fetch_all(conn.deref_mut())
-            .await?;
+        let rows = self.query_rows(sql).await?;
+
         let mut ret = Vec::with_capacity(rows.len());
         let primary_keys = {
             let sql: String = format!(
@@ -1147,9 +1122,7 @@ impl SchemaTrait for PostGresDB {
             );
             log::info!("sql:{}", sql);
 
-            let rows = sqlx::raw_sql(AssertSqlSafe(sql.as_str()))
-                .fetch_all(conn.deref_mut())
-                .await?;
+            let rows = self.query_rows(sql).await?;
 
             let mut keys = HashSet::new();
             for r in rows.iter() {
@@ -1240,12 +1213,8 @@ impl SchemaTrait for PostGresDB {
     }
 
     async fn show_indexes(&self, table_name: &str) -> anyhow::Result<Vec<Index>> {
-        let mut conn = self.get_conn().await?;
-
-        // this sql copied from https://stackoverflow.com/questions/2204058/list-columns-with-indexes-in-postgresql
-        let rows = sqlx::raw_sql(AssertSqlSafe(
-            format!(
-                r#"
+        let sql = format!(
+            r#"
             SELECT
                 t.relname as table_name,
                 i.relname as index_name,
@@ -1269,18 +1238,16 @@ impl SchemaTrait for PostGresDB {
                 t.relname,
                 i.relname;
         "#
-            )
-            .as_str(),
-        ))
-        .fetch_all(conn.deref_mut())
-        .await?;
+        );
+
+        // this sql copied from https://stackoverflow.com/questions/2204058/list-columns-with-indexes-in-postgresql
+        let rows = self.query_rows(sql).await?;
+
         let mut ret = Vec::with_capacity(rows.len());
         for r in rows.iter() {
             let index_name: String = r.get(1);
             let column_names: Option<Vec<String>> = r.get(2);
-            let index_kind = self
-                .get_index_kind(&mut conn, table_name, &index_name)
-                .await?;
+            let index_kind = self.get_index_kind(table_name, &index_name).await?;
             ret.push(Index::new(
                 index_name,
                 index_kind,
@@ -1372,12 +1339,7 @@ impl PostGresDB {
         "#,
             schema
         );
-
-        let mut conn = self.get_conn().await?;
-        let rows = sqlx::raw_sql(AssertSqlSafe(sql.as_str()))
-            .fetch_all(conn.deref_mut())
-            .await?;
-
+        let rows = self.query_rows(sql).await?;
         let mut ret = Vec::with_capacity(rows.len());
         for row in rows.iter() {
             let name: String = row.try_get(0)?;
@@ -1398,16 +1360,12 @@ impl PostGresDB {
         name: &str,
         where_str: Option<&str>,
     ) -> anyhow::Result<usize> {
-        let mut conn = self.get_conn().await?;
         let schema = self.config.schema_str();
         let mut sql = format!(r#"SELECT count(1) from "{schema}"."{name}" "#);
         if let Some(where_str) = where_str {
             sql.push_str(format!(" where {where_str}").as_str());
         }
-        let row = sqlx::raw_sql(AssertSqlSafe(sql.as_str()))
-            .fetch_one(conn.deref_mut())
-            .await
-            .map_err(|e| anyhow::Error::msg(format!("err:'{}' sql:'{}'", e, sql)))?;
+        let row = self.query_row(sql).await?;
         let count: i64 = row.get(0);
         anyhow::Ok(count as usize)
     }
@@ -1777,32 +1735,26 @@ impl QuerySql for PostGresDB {
     }
 }
 
-async fn get_index_def(
-    conn: &mut PoolConnection<Postgres>,
-    table_name: &str,
-    index_name: &str,
-) -> anyhow::Result<String> {
-    let sql = format!(
+impl PostGresDB {
+    async fn get_index_def(&self, table_name: &str, index_name: &str) -> anyhow::Result<String> {
+        let sql = format!(
         "SELECT indexdef from pg_indexes where tablename='{table_name}' and indexname='{index_name}'"
     );
-    log::info!("sql:{}", sql);
-    let row = sqlx::raw_sql(AssertSqlSafe(sql.as_str()))
-        .fetch_one(conn.deref_mut())
-        .await?;
-
-    let sql: String = row.get(0);
-
-    anyhow::Ok(sql)
+        log::info!("sql:{}", sql);
+        let row = self.query_row(sql).await?;
+        let sql: String = row.get(0);
+        anyhow::Ok(sql)
+    }
 }
 
 impl PostGresDB {
     async fn get_index_kind(
         &self,
-        conn: &mut PoolConnection<Postgres>,
+
         table_name: &str,
         index_name: &str,
     ) -> anyhow::Result<IndexKind> {
-        let sql: String = get_index_def(conn, table_name, index_name).await?;
+        let sql: String = self.get_index_def(table_name, index_name).await?;
         let statements = self.parse_statements(&sql)?;
         if statements.len() != 1 {
             anyhow::bail!("parse create index should contains one statement");

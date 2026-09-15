@@ -34,10 +34,9 @@ impl LangServerCommon for SqliteDB {
             return anyhow::Ok(lock.clone());
         }
         let sql = "SELECT name  FROM pragma_module_list";
-        let mut conn = self.get_conn().await?;
-        let rows = sqlx::raw_sql(AssertSqlSafe(sql))
-            .fetch_all(conn.deref_mut())
-            .await?;
+
+        let rows = self.query_rows(sql).await?;
+
         let mut ret = vec![];
         for row in rows.iter() {
             let name: String = row.try_get(0)?;

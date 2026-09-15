@@ -162,10 +162,7 @@ impl LangServerCommon for MysqlDB {
             schema
         );
         log::info!("sql:{}", sql);
-        let mut conn = self.get_conn().await?;
-        let rows = sqlx::raw_sql(AssertSqlSafe(sql.as_str()))
-            .fetch_all(conn.deref_mut())
-            .await?;
+        let rows = self.query_rows(sql.as_str()).await?;
         let mut ret = Vec::with_capacity(rows.len());
         for r in rows.iter() {
             let name: String = r.try_get(0)?;
@@ -173,6 +170,7 @@ impl LangServerCommon for MysqlDB {
         }
         anyhow::Ok(ret)
     }
+
     async fn list_variable(&self) -> anyhow::Result<Vec<String>> {
         let conn = match self.query_connection.get(&self.completion_id.get()) {
             Some(x) => x.clone(),
@@ -349,10 +347,7 @@ impl LangServerCommon for MysqlDB {
         if self.kind == BackendKindMysql::Mariadb {
             let sql = format!(
         "select SEQUENCE_NAME  from information_schema.SEQUENCES where SEQUENCE_SCHEMA = '{}'",schema );
-            let mut conn = self.get_conn().await?;
-            let rows = sqlx::raw_sql(AssertSqlSafe(sql.as_str()))
-                .fetch_all(conn.deref_mut())
-                .await?;
+            let rows = self.query_rows(&sql).await?;
             for row in rows.iter() {
                 let name: String = row.try_get(0)?;
                 ret.push(name);
@@ -374,6 +369,7 @@ impl LangServerCommon for MysqlDB {
     async fn list_schema(&self) -> anyhow::Result<Vec<String>> {
         MysqlDB::list_schema_impl(self).await
     }
+
     async fn list_execute(&self, _: Option<&str>) -> anyhow::Result<Vec<DBExecutable>> {
         /*
             TODO should execute this sql but somehow owner_thread_id = connection_id()  match not working
@@ -393,9 +389,10 @@ impl LangServerCommon for MysqlDB {
                 FROM performance_schema.prepared_statements_instances WHERE 
                 statement_name is not null;
         "#;
-        let rows = sqlx::raw_sql(AssertSqlSafe(sql))
+        let rows = sqlx::raw_sql(AssertSqlSafe(sql).into_sql_str())
             .fetch_all(conn.deref_mut())
             .await?;
+
         let mut ret = Vec::with_capacity(rows.len());
         for row in rows.iter() {
             let text: String = row.try_get(0)?;
@@ -424,10 +421,7 @@ impl AstCompletionHelper for MysqlDB {
             "#,
             schema
         );
-        let mut conn = self.get_conn().await?;
-        let rows = sqlx::raw_sql(AssertSqlSafe(sql.as_str()))
-            .fetch_all(conn.deref_mut())
-            .await?;
+        let rows = self.query_rows(&sql).await?;
         let mut ret = Vec::with_capacity(rows.len());
 
         for row in rows.iter() {
@@ -473,10 +467,8 @@ impl AstCompletionHelper for MysqlDB {
             schema, table
         );
         log::info!("sql:{}", sql);
-        let mut conn = self.get_conn().await?;
-        let rows = sqlx::raw_sql(AssertSqlSafe(sql.as_str()))
-            .fetch_all(conn.deref_mut())
-            .await?;
+        let rows = self.query_rows(&sql).await?;
+
         let mut ret = Vec::with_capacity(rows.len());
         for r in rows.iter() {
             let name: String = r.try_get(0)?;
@@ -499,10 +491,8 @@ impl AstCompletionHelper for MysqlDB {
         );
         log::info!("sql:{}", sql);
 
-        let mut conn = self.get_conn().await?;
-        let rows = sqlx::raw_sql(AssertSqlSafe(sql.as_str()))
-            .fetch_all(conn.deref_mut())
-            .await?;
+        let rows = self.query_rows(&sql).await?;
+
         let mut ret = Vec::with_capacity(rows.len());
         for r in rows.iter() {
             let name: String = r.try_get(0)?;
@@ -524,10 +514,7 @@ impl AstCompletionHelper for MysqlDB {
             table, schema
         );
         log::info!("sql:{}", sql);
-        let mut conn = self.get_conn().await?;
-        let rows = sqlx::raw_sql(AssertSqlSafe(sql.as_str()))
-            .fetch_all(conn.deref_mut())
-            .await?;
+        let rows = self.query_rows(&sql).await?;
         let mut ret = Vec::with_capacity(rows.len());
         for r in rows.iter() {
             let name: String = r.try_get(0)?;

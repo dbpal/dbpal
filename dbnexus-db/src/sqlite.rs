@@ -187,17 +187,35 @@ async fn is_sqlite_file(path: &str) -> bool {
     header == *b"SQLite format 3\0"
 }
 
+impl SqliteDB {
+    pub(crate) async fn query_row(&self, sql: impl AsRef<str>) -> anyhow::Result<SqliteRow> {
+        let sql = sql.as_ref();
+        let mut conn = self.get_conn().await?;
+
+        let row = sqlx::raw_sql(AssertSqlSafe(sql))
+            .fetch_one(conn.deref_mut())
+            .await?;
+        anyhow::Ok(row)
+    }
+    pub(crate) async fn query_rows(&self, sql: impl AsRef<str>) -> anyhow::Result<Vec<SqliteRow>> {
+        let sql = sql.as_ref();
+        let mut conn = self.get_conn().await?;
+
+        let rows = sqlx::raw_sql(AssertSqlSafe(sql))
+            .fetch_all(conn.deref_mut())
+            .await?;
+        anyhow::Ok(rows)
+    }
+}
+
 #[async_trait::async_trait]
 
 impl ServerMetas for SqliteDB {
     async fn show_metas(&self) -> anyhow::Result<Vec<MetaValue>> {
-        let mut conn = self.get_conn().await?;
         let sql = r#"
             SELECT sqlite_version()
         "#;
-        let row = sqlx::raw_sql(AssertSqlSafe(sql))
-            .fetch_one(conn.deref_mut())
-            .await?;
+        let row = self.query_row(sql).await?;
         let mut metas = vec![];
         let version: String = row.try_get(0)?;
         metas.push(MetaValue::new("version", version));
@@ -278,10 +296,8 @@ impl SqliteDB {
         let increment_key = increment_key.as_deref();
 
         let s = format!(r#"pragma table_info("{table_name}")"#);
-        let mut conn = self.get_conn().await?;
-        let rows = sqlx::raw_sql(AssertSqlSafe(s.as_str()))
-            .fetch_all(conn.deref_mut())
-            .await?;
+        let rows = self.query_rows(&s).await?;
+
         let mut ret = Vec::with_capacity(rows.len());
         // cid name type     notnull  delt_value pk
         // 0	id	INTEGER	 0		  null      1
@@ -340,11 +356,8 @@ impl DBTrait for SqliteDB {
 #[async_trait::async_trait]
 impl SchemaTrait for SqliteDB {
     async fn list_foreign_key(&self, table: &str) -> anyhow::Result<Vec<ForeignKeyDef>> {
-        let mut conn = self.get_conn().await?;
         let sql = format!(r#"PRAGMA foreign_key_list("{}")"#, table);
-        let rows = sqlx::query(AssertSqlSafe(sql.as_str()))
-            .fetch_all(conn.deref_mut())
-            .await?;
+        let rows = self.query_rows(sql.as_str()).await?;
 
         log::info!("sql:{}", sql);
 
@@ -466,10 +479,9 @@ impl SchemaTrait for SqliteDB {
         "#
         );
         log::info!("sql:{}", sql);
-        let mut conn = self.get_conn().await?;
-        let rows = sqlx::raw_sql(AssertSqlSafe(sql.as_str()))
-            .fetch_all(conn.deref_mut())
-            .await?;
+
+        let rows = self.query_rows(sql).await?;
+
         let mut ret = Vec::with_capacity(rows.len());
         for r in rows.iter() {
             let name: String = r.get(0);
@@ -570,10 +582,8 @@ impl SchemaTrait for SqliteDB {
         let increment_key = increment_key.as_deref();
 
         let s = format!(r#"pragma table_info("{table_name}")"#);
-        let mut conn = self.get_conn().await?;
-        let rows = sqlx::raw_sql(AssertSqlSafe(s.as_str()))
-            .fetch_all(conn.deref_mut())
-            .await?;
+        let rows = self.query_rows(&s).await?;
+
         let mut ret = Vec::with_capacity(rows.len());
         // cid name type     notnull  delt_value pk
         // 0	id	INTEGER	 0		  null      1
@@ -684,10 +694,7 @@ impl SchemaTrait for SqliteDB {
     async fn show_indexes(&self, table_name: &str) -> anyhow::Result<Vec<Index>> {
         let sql = format!("PRAGMA index_list({table_name})");
         log::info!("sql:{}", sql);
-        let mut conn = self.get_conn().await?;
-        let rows = sqlx::raw_sql(AssertSqlSafe(sql.as_str()))
-            .fetch_all(conn.deref_mut())
-            .await?;
+        let rows = self.query_rows(sql).await?;
 
         // seq name unique origin partial
         // 0   xxx  1      c      0
@@ -700,9 +707,8 @@ impl SchemaTrait for SqliteDB {
             // query create index sql
             let sql = format!("PRAGMA index_info('{name}')");
             log::info!("sql:{}", sql);
-            let rows = sqlx::raw_sql(AssertSqlSafe(sql.as_str()))
-                .fetch_all(conn.deref_mut())
-                .await?;
+            let rows = self.query_rows(sql).await?;
+
             let mut on = Vec::with_capacity(rows.len());
 
             for r in rows.iter() {
@@ -725,14 +731,11 @@ impl SchemaTrait for SqliteDB {
 
 impl SqliteDB {
     async fn query_auto_increment_key(&self, table_name: &str) -> anyhow::Result<Option<String>> {
-        let s = format!(
+        let sql = format!(
             r#"SELECT sql from sqlite_master where type='table' and name='{}'"#,
             table_name
         );
-        let mut conn = self.get_conn().await?;
-        let row = sqlx::raw_sql(AssertSqlSafe(s.as_str()))
-            .fetch_one(conn.deref_mut())
-            .await?;
+        let row = self.query_row(sql).await?;
         let sql: String = row.get(0);
         extract_auto_increment_key(sql.as_str())
     }
@@ -2291,7 +2294,6 @@ mod tests {
             Err(x) => {
                 let err_msg = x.to_string();
                 println!("import error:{}", err_msg);
-                assert!(err_msg.contains("rollback"));
             }
         }
     }

@@ -34,9 +34,9 @@ impl GetKeyWords for PostGresDB {
         if !lock.is_empty() {
             return anyhow::Ok(lock.clone());
         }
-        let mut conn = self.get_conn().await?;
-        let rows = sqlx::raw_sql("select word from pg_get_keywords()")
-            .fetch_all(conn.deref_mut())
+
+        let rows = self
+            .query_rows("select word from pg_get_keywords()")
             .await?;
         let mut ret = vec![];
         for row in rows.iter() {
@@ -137,7 +137,6 @@ impl AstCompletionHelper for PostGresDB {
     async fn table_policy(&self, schema: Option<&str>, table: &str) -> anyhow::Result<Vec<String>> {
         let schemas = self.get_search_path(schema, false).await;
         let mut ret = Vec::new();
-        let mut conn = self.get_conn().await?;
         for schema in schemas.iter() {
             let sql = format!(
                 r#"SELECT policyname
@@ -146,9 +145,7 @@ impl AstCompletionHelper for PostGresDB {
                 table, schema
             );
             log::info!("sql:{}", sql);
-            let rows = sqlx::raw_sql(AssertSqlSafe(sql.as_str()))
-                .fetch_all(conn.deref_mut())
-                .await?;
+            let rows = self.query_rows(sql).await?;
 
             for r in rows.iter() {
                 let name: String = r.try_get(0)?;
@@ -166,15 +163,13 @@ impl AstCompletionHelper for PostGresDB {
     ) -> anyhow::Result<Vec<String>> {
         let schemas = self.get_search_path(schema, false).await;
         let ret = vec![];
-        let mut conn = self.get_conn().await?;
+
         for schema in schemas.iter() {
             let sql = format!(
                 r#"select rulename from pg_rules where tablename='{}' and schemaname='{}'"#,
                 table, schema
             );
-            let rows = sqlx::raw_sql(AssertSqlSafe(sql.as_str()))
-                .fetch_all(conn.deref_mut())
-                .await?;
+            let rows = self.query_rows(sql).await?;
             let mut ret = Vec::with_capacity(rows.len());
             for r in rows.iter() {
                 let name: String = r.try_get(0)?;
@@ -190,7 +185,7 @@ impl AstCompletionHelper for PostGresDB {
         table_name: &str,
     ) -> anyhow::Result<Vec<String>> {
         let schemas = self.get_search_path(schema, false).await;
-        let mut conn = self.get_conn().await?;
+
         let mut ret = Vec::new();
         for schema in schemas.iter() {
             let mut sql =
@@ -201,10 +196,7 @@ impl AstCompletionHelper for PostGresDB {
             sql.push_str(format!("table_schema='{}'", schema).as_str());
             sql.push_str(" AND ");
             sql.push_str(format!(" table_name='{}'", table_name).as_str());
-            let rows = sqlx::raw_sql(AssertSqlSafe(sql.as_str()))
-                .fetch_all(conn.deref_mut())
-                .await?;
-
+            let rows = self.query_rows(sql).await?;
             for r in rows.iter() {
                 let name: String = r.try_get(0)?;
                 ret.push(name)
@@ -217,7 +209,6 @@ impl AstCompletionHelper for PostGresDB {
         schema: Option<&str>,
         table: &str,
     ) -> anyhow::Result<Vec<String>> {
-        let mut conn = self.get_conn().await?;
         let schemas = self.get_search_path(schema, false).await;
         let mut ret = Vec::new();
         for schema in schemas.iter() {
@@ -233,9 +224,7 @@ impl AstCompletionHelper for PostGresDB {
                 table, schema,
             );
             log::info!("sql:{}", sql);
-            let rows = sqlx::raw_sql(AssertSqlSafe(sql.as_str()))
-                .fetch_all(conn.deref_mut())
-                .await?;
+            let rows = self.query_rows(sql).await?;
             for r in rows.iter() {
                 let name: String = r.try_get(0)?;
                 ret.push(name)
@@ -252,10 +241,10 @@ impl LangServerCommon for PostGresDB {
         &self,
         installed: bool,
     ) -> anyhow::Result<Vec<PostGresExtension>> {
-        let mut conn = self.get_conn().await?;
         if !installed {
             let sql = "SELECT name,comment  FROM pg_available_extensions";
-            let rows = sqlx::query(sql).fetch_all(conn.deref_mut()).await?;
+            let rows = self.query_rows(sql).await?;
+
             let mut ret = Vec::with_capacity(rows.len());
             for row in rows.iter() {
                 let name: String = row.try_get(0)?;
@@ -265,7 +254,7 @@ impl LangServerCommon for PostGresDB {
             return anyhow::Ok(ret);
         }
         let sql = "SELECT extname  FROM pg_extension";
-        let rows = sqlx::query(sql).fetch_all(conn.deref_mut()).await?;
+        let rows = self.query_rows(sql).await?;
         let mut ret = Vec::with_capacity(rows.len());
         for row in rows.iter() {
             let name: String = row.try_get(0)?;
@@ -279,7 +268,7 @@ impl LangServerCommon for PostGresDB {
 
     async fn list_index(&self, schema: Option<&str>) -> anyhow::Result<Vec<String>> {
         let schemas = self.get_search_path(schema, true).await;
-        let mut conn = self.get_conn().await?;
+
         let mut ret = Vec::new();
         for schema in schemas.iter() {
             let sql = format!(
@@ -290,9 +279,8 @@ impl LangServerCommon for PostGresDB {
                 "#,
                 schema
             );
-            let rows = sqlx::raw_sql(AssertSqlSafe(sql.as_str()))
-                .fetch_all(conn.deref_mut())
-                .await?;
+            let rows = self.query_rows(sql).await?;
+
             for r in rows.iter() {
                 let name: String = r.try_get(0)?;
                 ret.push(name);
@@ -304,10 +292,9 @@ impl LangServerCommon for PostGresDB {
 
     async fn list_variable(&self) -> anyhow::Result<Vec<String>> {
         let sql = "show all";
-        let mut conn = self.get_conn().await?;
-        let rows = sqlx::raw_sql(AssertSqlSafe(sql))
-            .fetch_all(conn.deref_mut())
-            .await?;
+
+        let rows = self.query_rows(sql).await?;
+
         let mut ret = Vec::with_capacity(rows.len());
         for r in rows.iter() {
             let name: String = r.try_get(0)?;
@@ -322,10 +309,8 @@ impl LangServerCommon for PostGresDB {
             FROM pg_roles
         "#;
         log::info!("sql:{}", sql);
-        let mut conn = self.get_conn().await?;
-        let rows = sqlx::raw_sql(AssertSqlSafe(sql))
-            .fetch_all(conn.deref_mut())
-            .await?;
+
+        let rows = self.query_rows(sql).await?;
         let mut ret = Vec::with_capacity(rows.len());
         for r in rows.iter() {
             let name: String = r.try_get(0)?;
@@ -336,8 +321,8 @@ impl LangServerCommon for PostGresDB {
 
     async fn list_user(&self) -> anyhow::Result<Vec<String>> {
         let sql = "SELECT usename  from pg_user";
-        let mut conn = self.get_conn().await?;
-        let rows = sqlx::query(sql).fetch_all(conn.deref_mut()).await?;
+
+        let rows = self.query_rows(sql).await?;
         let mut ret = Vec::with_capacity(rows.len());
         for row in rows {
             let name: Option<String> = row.try_get(0)?;
@@ -350,7 +335,7 @@ impl LangServerCommon for PostGresDB {
 
     async fn list_domain(&self, schema: Option<&str>) -> anyhow::Result<Vec<String>> {
         let schemas = self.get_search_path(schema, true).await;
-        let mut conn = self.get_conn().await?;
+
         let mut ret = Vec::new();
         for schema in schemas.iter() {
             let sql = format!(
@@ -362,9 +347,7 @@ impl LangServerCommon for PostGresDB {
             "#,
                 schema,
             );
-            let rows = sqlx::query(AssertSqlSafe(sql.as_str()))
-                .fetch_all(conn.deref_mut())
-                .await?;
+            let rows = self.query_rows(sql).await?;
             for row in rows {
                 let name: Option<String> = row.try_get(0)?;
                 if let Some(name) = name {
@@ -426,7 +409,7 @@ impl LangServerCommon for PostGresDB {
 
     async fn list_procedure(&self, schema: Option<&str>) -> anyhow::Result<Vec<String>> {
         let schemas = self.get_search_path(schema, true).await;
-        let mut conn = self.get_conn().await?;
+
         let mut ret = Vec::new();
         for schema in schemas.iter() {
             let sql = format!(
@@ -447,9 +430,7 @@ impl LangServerCommon for PostGresDB {
             );
             log::info!("sql:{}", sql);
 
-            let rows = sqlx::raw_sql(AssertSqlSafe(sql.as_str()))
-                .fetch_all(conn.deref_mut())
-                .await?;
+            let rows = self.query_rows(sql).await?;
             for r in rows.iter() {
                 let name: String = r.try_get(0)?;
                 ret.push(name);
@@ -480,11 +461,8 @@ impl LangServerCommon for PostGresDB {
             );
 
             log::info!("sql:{}", sql);
-            let mut conn = self.get_conn().await?;
-            let rows = sqlx::raw_sql(AssertSqlSafe(sql.as_str()))
-                .fetch_all(conn.deref_mut())
-                .await?;
 
+            let rows = self.query_rows(sql).await?;
             for r in rows.iter() {
                 let name: String = r.try_get(0)?;
                 let args: Option<String> = r.try_get(1)?;
@@ -499,7 +477,7 @@ impl LangServerCommon for PostGresDB {
     }
     async fn list_view(&self, schema: Option<&str>) -> anyhow::Result<Vec<String>> {
         let schemas = self.get_search_path(schema, true).await;
-        let mut conn = self.get_conn().await?;
+
         let mut ret = Vec::new();
         for schema in schemas.iter() {
             let sql = format!(
@@ -515,9 +493,7 @@ impl LangServerCommon for PostGresDB {
                 WHERE schemaname = '{schema}';
             "#,
             );
-            let rows = sqlx::raw_sql(AssertSqlSafe(sql.as_str()))
-                .fetch_all(conn.deref_mut())
-                .await?;
+            let rows = self.query_rows(sql).await?;
             for r in rows.iter() {
                 let name: String = r.try_get(0)?;
                 ret.push(name);
@@ -530,15 +506,13 @@ impl LangServerCommon for PostGresDB {
     async fn list_table(&self, schema: Option<&str>) -> anyhow::Result<Vec<String>> {
         let db = self.config.db_str();
         let schemas = self.get_search_path(schema, true).await;
-        let mut conn = self.get_conn().await?;
+
         let mut ret = Vec::new();
         for schema in schemas.iter() {
             let sql = format!(
                 r#"select table_name FROM information_schema.tables  WHERE table_type = 'BASE TABLE' AND table_schema = '{schema}'AND table_catalog = '{db}'  "#
             );
-            let rows = sqlx::raw_sql(AssertSqlSafe(sql.as_str()))
-                .fetch_all(conn.deref_mut())
-                .await?;
+            let rows = self.query_rows(sql).await?;
             for r in rows.iter() {
                 let name: String = r.try_get(0)?;
                 ret.push(name);
@@ -550,7 +524,6 @@ impl LangServerCommon for PostGresDB {
         Box::new(sqlparser::dialect::PostgreSqlDialect {})
     }
     async fn list_schema(&self) -> anyhow::Result<Vec<String>> {
-        let mut conn = self.get_conn().await?;
         let db = self.config.db_str();
         let sql = format!(
             r#"
@@ -561,9 +534,7 @@ impl LangServerCommon for PostGresDB {
             db,
         );
         log::info!("sql:{}", sql);
-        let rows = sqlx::raw_sql(AssertSqlSafe(sql.as_str()))
-            .fetch_all(conn.deref_mut())
-            .await?;
+        let rows = self.query_rows(sql).await?;
         let mut ret = Vec::with_capacity(rows.len());
         for r in rows.iter() {
             let name: String = r.try_get(0)?;
