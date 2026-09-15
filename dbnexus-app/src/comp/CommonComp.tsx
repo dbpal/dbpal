@@ -1434,7 +1434,7 @@ function MyTreeItem(props: {
   const { setUpMenu } = useContextMenu();
   let identNes = ident + 1;
   const paddingLeft = (ident: number) => {
-    return ident * 3 + "px";
+    return ident * 4.5 + "px";
   };
   const [expanded, setExpanded] = useState(false);
   useEffect(() => {
