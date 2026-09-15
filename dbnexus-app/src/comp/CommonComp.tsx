@@ -1446,7 +1446,6 @@ function MyTreeItem(props: {
     <Stack
       style={{
         paddingLeft: paddingLeft(ident),
-        borderLeft: collasped ? undefined : "1px dashed gray",
       }}>
       <Stack
         onClick={() => {
@@ -1481,6 +1480,7 @@ function MyTreeItem(props: {
               display: collasped ? "none" : "block",
               opacity: enable ? undefined : "0.7",
               paddingLeft: paddingLeft(identNes),
+              borderLeft: collasped ? undefined : "1px dashed gray",
             }}>
             {expanded && children}
           </div>
