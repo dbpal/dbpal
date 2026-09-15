@@ -81,6 +81,7 @@ import {
 import { editor } from "monaco-editor";
 
 import {
+  AppCode,
   AppDataGridPagination,
   AppDataGridToolBar,
   CopyAsXXX,
@@ -1284,17 +1285,67 @@ function SqlTableView_(props: {
                 setShowClone(null);
               }}
             />
-            <SqlTableViewData
-              buttonName="add"
-              handleData={addOP}
-              fields={resp.fields}
-              handleClose={() => setShowClone(null)}
+            <CloneRow
               initValues={showClone}
-              isAdd
+              handleClose={() => {
+                setShowClone(null);
+              }}
+              fields={resp.fields}
+              addOP={addOP}
+              dbName={dbName}
+              table={tableName}
             />
           </Box>
         </Modal>
       )}
+    </Stack>
+  );
+}
+
+function CloneRow(props: {
+  addOP;
+  fields: Field[];
+  handleClose: () => void;
+  initValues;
+  dbName: string;
+  table: string;
+}) {
+  const { addOP, fields, handleClose, initValues, dbName, table } = props;
+  const [sql, setSql] = useState("");
+  const { showNotification } = useNotification();
+  const handleGenSql = (values) => {
+    commands
+      .tableInsertSql(dbName, table, values)
+      .then((sql) => {
+        setSql(sql);
+      })
+      .catch((e) => {
+        showNotification({
+          severity: "error",
+          title: "generate sql failed",
+          message: e,
+        });
+      });
+  };
+  return (
+    <Stack>
+      {sql && <AppCode codeBlock={sql} language="sql" />}
+      <SqlTableViewData
+        buttonName="add"
+        handleData={addOP}
+        fields={fields}
+        handleClose={handleClose}
+        initValues={initValues}
+        isAdd
+        extraButtons={[
+          {
+            name: "gen sql",
+            handleValue: (x) => {
+              handleGenSql(x);
+            },
+          },
+        ]}
+      />
     </Stack>
   );
 }
@@ -1437,9 +1488,11 @@ function CellMenu(props: {
       {isTable && (
         <MenuItem onClick={handleDelete}>
           <ListItemIcon>
-            <DeleteForeverIcon />
+            <DeleteForeverIcon color="warning" />
           </ListItemIcon>
-          <ListItemText> Delete Row</ListItemText>
+          <ListItemText>
+            <Typography color="warning"> Delete Row </Typography>
+          </ListItemText>
         </MenuItem>
       )}
     </MenuList>

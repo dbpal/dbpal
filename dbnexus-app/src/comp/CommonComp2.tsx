@@ -2384,11 +2384,13 @@ function SqlTableViewData(props: {
   handleData: (args: any) => Promise<void>;
   fields: Field[];
   initValues?: object;
-  buttonName;
+  buttonName: string;
   isAdd: boolean;
   handleClose?: () => void;
+  extraButtons?: [{ name: string; handleValue: (value: object) => void }];
 }) {
-  let { handleData, fields, initValues, buttonName, isAdd, handleClose } = props;
+  let { handleData, fields, initValues, buttonName, isAdd, handleClose, extraButtons } =
+    props;
   if (!initValues) {
     initValues = {};
   }
@@ -2503,13 +2505,29 @@ function SqlTableViewData(props: {
         <Button loading={loading} onClick={handleModify}>
           {buttonName}
         </Button>
+        {extraButtons &&
+          extraButtons.map((callback) => (
+            <Button
+              key={callback.name}
+              onClick={() => {
+                const argsClone = { ...args };
+                for (const key in argsClone) {
+                  if (!argsClone[key]) {
+                    argsClone[key] = null;
+                  }
+                }
+                callback.handleValue(argsClone);
+              }}>
+              {callback.name}
+            </Button>
+          ))}
         <ClearableTextField
           value={filter}
           onChange={(e) => {
             setFilter(e.target.value);
           }}
           label="filter"
-          fullWidth
+          style={{ flex: 1 }}
           helperText="can match field name and content"
           onClear={() => {
             setFilter("");

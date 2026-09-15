@@ -61,6 +61,7 @@ import {
 import { TableStructure } from "./TableStructure";
 import { cancelTask } from "./handlers";
 import {
+  AppCode,
   CancelButton,
   ClearableTextField,
   CopySql,
@@ -475,6 +476,7 @@ function AddTableModal(props: {
 function SqlAddTableView(props: { dbName: string; table: string }) {
   const { dbName, table } = props;
   const [fields, setFields] = useState<Field[]>([]);
+  const [sql, setSql] = useState("");
   const { showNotification } = useNotification();
   useEffect(() => {
     commands
@@ -490,15 +492,42 @@ function SqlAddTableView(props: { dbName: string; table: string }) {
         });
       });
   }, [showNotification, table, dbName]);
+
+  const handleGenSql = (values) => {
+    commands
+      .tableInsertSql(dbName, table, values)
+      .then((sql) => {
+        setSql(sql);
+      })
+      .catch((e) => {
+        showNotification({
+          severity: "error",
+          title: "generate sql failed",
+          message: e,
+        });
+      });
+  };
+
   return (
-    <SqlTableViewData
-      isAdd
-      buttonName="add"
-      handleData={async (values) => {
-        await commands.tableInsert(dbName, table, values);
-      }}
-      fields={fields}
-    />
+    <Stack>
+      {sql && <AppCode codeBlock={sql} language="sql" />}
+      <SqlTableViewData
+        isAdd
+        buttonName="add"
+        handleData={async (values) => {
+          await commands.tableInsert(dbName, table, values);
+        }}
+        fields={fields}
+        extraButtons={[
+          {
+            name: "gen sql",
+            handleValue: (x) => {
+              handleGenSql(x);
+            },
+          },
+        ]}
+      />
+    </Stack>
   );
 }
 
