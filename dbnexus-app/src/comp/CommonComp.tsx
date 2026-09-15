@@ -1444,6 +1444,9 @@ function MyTreeItem(props: {
   }, [collasped, expanded]);
 
   const fontSize = useFontSize();
+  const iconSize = fontSize * 1.4;
+
+  let iconStyle: CSSProperties = { fontSize: iconSize };
 
   return (
     <Stack
@@ -1470,10 +1473,14 @@ function MyTreeItem(props: {
               }
             : undefined
         }>
-        {!enable && <AiOutlineDisconnect fontSize="1.2rem" />}
+        {!enable && <AiOutlineDisconnect style={iconStyle} />}
         {enable && (
           <IconButton disabled={!enable}>
-            {collasped ? <KeyboardArrowRightIcon /> : <KeyboardArrowDownIcon />}
+            {collasped ? (
+              <KeyboardArrowRightIcon style={iconStyle} />
+            ) : (
+              <KeyboardArrowDownIcon style={iconStyle} />
+            )}
           </IconButton>
         )}
         {label}
@@ -1484,10 +1491,22 @@ function MyTreeItem(props: {
             style={{
               display: collasped ? "none" : "block",
               opacity: enable ? undefined : "0.7",
-
+              position: "relative",
               paddingLeft: paddingLeft(identNes),
             }}>
             {expanded && children}
+            {!collasped && (
+              <div
+                style={{
+                  position: "absolute",
+                  left: iconSize / 2 + 1 + "px", // 或箭头中心位置
+                  top: 0,
+                  bottom: 0,
+                  borderLeft: "1px dashed gray",
+                  pointerEvents: "none",
+                }}
+              />
+            )}
           </div>
         </Collapse>
       </TreeIdent>
