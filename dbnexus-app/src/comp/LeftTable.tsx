@@ -315,7 +315,6 @@ function DropTable(props: {
   );
 }
 interface RedisViewTableProps {
-  dbName: string;
   table: string;
   redisType: RedisTableType;
 }
@@ -340,7 +339,6 @@ function RedisViewTable({ table, redisType }: RedisViewTableProps) {
 }
 
 function makeViewTable(
-  dbName,
   table: string,
   kind: DataSourceKind,
   redisTableType: RedisTableType,
@@ -363,9 +361,7 @@ function makeViewTable(
       tableList = <SqlTableView isTable tableName={table} />;
       break;
     case DataSourceKind.Redis:
-      tableList = (
-        <RedisViewTable dbName={dbName} table={table} redisType={redisTableType} />
-      );
+      tableList = <RedisViewTable table={table} redisType={redisTableType} />;
       break;
     case DataSourceKind.Mongo:
       tableList = <MongoTable table={table} isTable />;
@@ -578,7 +574,7 @@ function TableMenu(props: {
   };
 
   const handleViewData = () => {
-    const tableList: ReactNode = makeViewTable(dbName, table, kind, redisTableType);
+    const tableList: ReactNode = makeViewTable(table, kind, redisTableType);
     appendTab(new TabContent(table, tableList, <TableViewIcon />, dbName, kind));
   };
   const handleAddData = async () => {

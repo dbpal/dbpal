@@ -1290,7 +1290,6 @@ function SqlTableView_(props: {
               }}
               fields={resp.fields}
               addOP={addOP}
-              dbName={dbName}
               table={tableName}
             />
           </Box>
@@ -1305,10 +1304,11 @@ function CloneRow(props: {
   fields: Field[];
   handleClose: () => void;
   initValues;
-  dbName: string;
+
   table: string;
 }) {
-  const { addOP, fields, handleClose, initValues, dbName, table } = props;
+  const { dbName } = useContext(DbnameContext);
+  const { addOP, fields, handleClose, initValues, table } = props;
   const [sql, setSql] = useState("");
   const { showNotification } = useNotification();
   const handleGenSql = (values) => {

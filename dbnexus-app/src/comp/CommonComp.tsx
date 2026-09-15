@@ -1223,7 +1223,6 @@ function VirtualListLeft<T>(props: {
     <div
       style={{
         height: height.height,
-        width: "100%",
       }}>
       <AutoSizer>
         {({ width }) => (
@@ -1239,7 +1238,7 @@ function VirtualListLeft<T>(props: {
                   key={index}
                   style={{
                     ...style,
-                    cursor: "context-menu",
+                    cursor: makeMenu ? "context-menu" : undefined,
                     overflow: "hidden",
                     display: "flex",
                     flexDirection: "row",
@@ -1360,13 +1359,6 @@ function LeftTableColumns(props: {
               <Typography style={textEllipsisStyle} color="info">
                 {f.data_type}
               </Typography>
-              {/* {f.nullable && (
-                <Typography
-                  style={{ ...textEllipsisStyle, flexShrink: 4 }}
-                  color="info">
-                  nullable
-                </Typography>
-              )} */}
             </StackRowCenter>
           </>
         );
