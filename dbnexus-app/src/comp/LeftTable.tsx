@@ -212,7 +212,7 @@ function TablesTree() {
         <ShowingCount showing={showItems.length} total={tables.length} />
         {loading && <CircularProgress />}
       </>>
-      {tables.map((table) => (
+      {showItems.map((table) => (
         <LeftTableNameAndColumns
           key={table.name}
           makeMenu={() => {

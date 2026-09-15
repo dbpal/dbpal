@@ -128,7 +128,7 @@ function ViewsTree(props: { viewKind: ViewKind }) {
         <ShowingCount showing={showItems.length} total={views.length} />
         {loading && <CircularProgress />}
       </>>
-      {views.map((view) => (
+      {showItems.map((view) => (
         <LeftTableNameAndColumns
           key={view.name}
           makeMenu={() => {

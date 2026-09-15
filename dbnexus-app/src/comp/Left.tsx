@@ -84,7 +84,6 @@ import {
   CreateSchema,
   MenuConnectionInfo,
   RefreshButton,
-  ShowingCount,
   StackRowCenter,
 } from "./CommonComp2.tsx";
 import { EventsTree } from "./LeftEvent.tsx";
@@ -101,7 +100,6 @@ import {
   useTabsManage,
   useBoolSwitch,
   useColumnWidthStore,
-  useMatcherFn,
   useConnectionStore,
   useFavoriteStore,
   FavoriteSql,
@@ -307,7 +305,7 @@ function EditLeftMatchStr({ handleClose }) {
         padding: "2px 0.5rem",
       }}>
       <Typography color="info">
-        match pattern for database schema,table,view,udf,procedure etc
+        match pattern table,view,udf,procedure etc...
       </Typography>
       <Stack direction="row" style={{ flexWrap: "wrap", alignItems: "center" }}>
         {matchPattern.length > 1 && (
@@ -1305,11 +1303,6 @@ function CatalogTree() {
   const { isLoading, setLoading } = useConnLoading();
   const { is_connected } = useConnected();
   const conn_established = is_connected(name);
-  const [showingDatabases, setShowingDatabases] = useState<string[]>([]);
-  const matchPattern = useMatcherFn();
-  useEffect(() => {
-    setShowingDatabases(databases.filter(matchPattern));
-  }, [databases, matchPattern]);
   const handleReload = useCallback(() => {
     if (!conn_established) {
       setDatabases([]);
@@ -1347,10 +1340,9 @@ function CatalogTree() {
         <span>{name} </span>
         {isLoading(name) && <CircularProgress />}
         {conn_established && <ConnPingTime dbName={name} />}
-        <ShowingCount total={databases.length} showing={showingDatabases.length} />
       </>
       key={name}>
-      {showingDatabases.map((db) => {
+      {databases.map((db) => {
         return (
           <DbnameContext.Provider key={db} value={{ dbName: name + "/" + db, kind }}>
             <DatabaseTree key={db} database={db} reloadDatabase={handleReload} />
@@ -1368,11 +1360,6 @@ function DatabaseTree(props: { database?: string; reloadDatabase?: () => void })
   const { database, reloadDatabase } = props;
   const { isLoading, setLoading } = useConnLoading();
   const { is_connected } = useConnected();
-  const matchPattern = useMatcherFn();
-  const [showingSchemas, setShowingSchemas] = useState<string[]>([]);
-  useEffect(() => {
-    setShowingSchemas(schemas.filter((schema) => matchPattern(schema)));
-  }, [schemas, matchPattern]);
 
   const conn_established = is_connected(name);
   const handleReload = useCallback(() => {
@@ -1421,10 +1408,9 @@ function DatabaseTree(props: { database?: string; reloadDatabase?: () => void })
         <span>{database ? database : name}</span>
         {isLoading(name) && <CircularProgress />}
         {!database && is_connected(name) && <ConnPingTime dbName={name} />}
-        <ShowingCount total={schemas.length} showing={showingSchemas.length} />
       </>
       key={name + database}>
-      {showingSchemas.map((schema) => {
+      {schemas.map((schema) => {
         return (
           <DbnameContext.Provider
             key={schema}
