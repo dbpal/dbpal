@@ -1442,6 +1442,9 @@ function MyTreeItem(props: {
       setExpanded(true);
     }
   }, [collasped, expanded]);
+
+  const fontSize = useFontSize();
+
   return (
     <Stack
       style={{
@@ -1454,7 +1457,10 @@ function MyTreeItem(props: {
           }
           setCollasped(!collasped);
         }}
-        style={{ alignItems: "center", cursor: makeMenu ? "context-menu" : undefined }}
+        style={{
+          alignItems: "center",
+          cursor: makeMenu ? "context-menu" : undefined,
+        }}
         direction="row"
         onContextMenu={
           makeMenu
@@ -1470,7 +1476,6 @@ function MyTreeItem(props: {
             {collasped ? <KeyboardArrowRightIcon /> : <KeyboardArrowDownIcon />}
           </IconButton>
         )}
-
         {label}
       </Stack>
       <TreeIdent value={identNes}>
@@ -1479,8 +1484,8 @@ function MyTreeItem(props: {
             style={{
               display: collasped ? "none" : "block",
               opacity: enable ? undefined : "0.7",
+
               paddingLeft: paddingLeft(identNes),
-              borderLeft: collasped ? undefined : "1px dashed gray",
             }}>
             {expanded && children}
           </div>
