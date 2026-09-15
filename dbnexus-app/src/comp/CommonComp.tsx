@@ -1433,8 +1433,9 @@ function MyTreeItem(props: {
   const [collasped, setCollasped] = useState(true);
   const { setUpMenu } = useContextMenu();
   let identNes = ident + 1;
+  const fontSize = useFontSize();
   const paddingLeft = (ident: number) => {
-    return ident * 4.5 + "px";
+    return ident * fontSize * 0.4 + "px";
   };
   const [expanded, setExpanded] = useState(false);
   useEffect(() => {
@@ -1442,10 +1443,7 @@ function MyTreeItem(props: {
       setExpanded(true);
     }
   }, [collasped, expanded]);
-
-  const fontSize = useFontSize();
   const iconSize = fontSize * 1.4;
-
   let iconStyle: CSSProperties = { fontSize: iconSize };
 
   return (
@@ -1490,7 +1488,6 @@ function MyTreeItem(props: {
           <div
             style={{
               display: collasped ? "none" : "block",
-              opacity: enable ? undefined : "0.7",
               position: "relative",
               paddingLeft: paddingLeft(identNes),
             }}>
