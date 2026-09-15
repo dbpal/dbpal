@@ -1443,7 +1443,11 @@ function MyTreeItem(props: {
     }
   }, [collasped, expanded]);
   return (
-    <Stack style={{ paddingLeft: paddingLeft(ident) }}>
+    <Stack
+      style={{
+        paddingLeft: paddingLeft(ident),
+        borderLeft: collasped ? undefined : "1px dashed gray",
+      }}>
       <Stack
         onClick={() => {
           if (!enable) {
