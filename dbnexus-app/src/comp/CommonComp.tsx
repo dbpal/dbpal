@@ -1496,7 +1496,7 @@ function MyTreeItem(props: {
               <div
                 style={{
                   position: "absolute",
-                  left: iconSize / 2 + 2.5 + "px", // 或箭头中心位置
+                  left: iconSize / 2 + 3 + "px", // 或箭头中心位置
                   top: 0,
                   bottom: 0,
                   borderLeft: "1px dashed gray",
