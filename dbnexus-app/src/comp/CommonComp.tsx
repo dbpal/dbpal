@@ -516,10 +516,10 @@ function MetaValueView(props: { values: MetaValue[]; reload?: () => void }) {
 
   const getColumnWidth = useColumnWidthStore((s) => s.getColumnWidth);
   const columns = useMemo(() => {
-    const columns: GridColDef[] = [{ field: "name" }, { field: "value" }];
-    columns.forEach((e) => {
-      e.width = getColumnWidth(e.field);
-    });
+    const columns: GridColDef[] = [
+      { field: "name", width: getColumnWidth("name") },
+      { field: "value", flex: 1 },
+    ];
     return columns;
   }, [getColumnWidth]);
 
