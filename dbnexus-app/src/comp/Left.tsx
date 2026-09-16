@@ -948,7 +948,7 @@ function SchemaTree(props: { schema?: string; reloadSchemas? }) {
       label=<>
         {schema && <LuDatabase />}
         <span> {schema ? schema : dbName}</span>
-        {!schema && conn_established && <ConnPingTime dbName={dbName} />}
+        {!schema && conn_established && <ConnPingTime />}
         {loadingConn.isLoading(dbName) && <CircularProgress />}
       </>>
       {conn_established && kind == DataSourceKind.Sqlite && (
@@ -1305,7 +1305,7 @@ function CatalogTree() {
       label=<>
         <span>{name} </span>
         {isLoading(name) && <CircularProgress />}
-        {conn_established && <ConnPingTime dbName={name} />}
+        {conn_established && <ConnPingTime />}
       </>
       key={name}>
       {databases.map((db) => {
@@ -1393,7 +1393,7 @@ function DatabaseTree(props: { database?: string; reloadDatabase?: () => void })
         {database && <FaDatabase />}
         <span>{database ? database : name}</span>
         {isLoading(name) && <CircularProgress />}
-        {!database && is_connected(name) && <ConnPingTime dbName={name} />}
+        {!database && is_connected(name) && <ConnPingTime />}
       </>
       key={name + database}>
       {schemas.map((schema) => {

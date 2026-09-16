@@ -1,4 +1,4 @@
-import { useRef } from "react";
+import { cloneElement, useRef } from "react";
 import {
   Stack,
   MenuItem,
@@ -116,9 +116,15 @@ function TabsWithContent() {
     if (tab.dbName) {
       const name = extractConfigNameFromUuid(tab.dbName);
       if (connected.has(name)) {
-        return tab.icon;
+        const icon = tab.icon as React.ReactElement<{ style?: React.CSSProperties }>;
+        return cloneElement(icon, { style: { ...icon.props.style, flexShrink: 4 } });
       } else {
-        return <AiOutlineDisconnect style={{ fontSize: "1.2rem" }} color="#7ef301" />;
+        return (
+          <AiOutlineDisconnect
+            style={{ fontSize: "1.2rem", flexShrink: 4 }}
+            color="#7ef301"
+          />
+        );
       }
     } else {
       return tab.icon;

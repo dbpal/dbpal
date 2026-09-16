@@ -254,8 +254,8 @@ function MenuCloseConn(props: { name: string }) {
 /**
  * Displays ping statistics for a connection UUID.
  */
-function ConnPingTime(props: { dbName: string }) {
-  const { dbName } = props;
+function ConnPingTime() {
+  const { dbName } = useContext(DbnameContext);
   const [pingTime, setStatus] = useState<number | null>(null);
   const [err, setErr] = useState("");
 
