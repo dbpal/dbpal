@@ -10,7 +10,7 @@ import {
   Typography,
 } from "@mui/material";
 import { filesize } from "filesize";
-import { useContext, useEffect, useRef, useState } from "react";
+import { ReactNode, useContext, useEffect, useRef, useState } from "react";
 import { save } from "@tauri-apps/plugin-dialog";
 import { ArrowCircleDownIcon } from "./icons";
 import { Channel } from "@tauri-apps/api/core";
@@ -307,14 +307,16 @@ function ExportTableOrView(props: {
   isTable: boolean;
   para?: ShowTableParameter;
   handleClose: () => void;
+  extraUI?: ReactNode;
 }) {
   const { dbName, kind } = useContext(DbnameContext);
-  const { tableName, isTable, para, handleClose } = props;
+  const { tableName, isTable, para, handleClose, extraUI } = props;
   if (!tableName) {
     return;
   }
   return (
     <Dialog open onClose={handleClose}>
+      {extraUI}
       <ExportView
         exportOP={async (kind, filepath, taskId, sizeEmitter) => {
           return await commands.exportTableOrView(

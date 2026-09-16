@@ -806,7 +806,6 @@ impl SqlBuilder for SqliteDB {
             let ShowTableParameter {
                 where_str,
                 order_by,
-                page_size,
                 ..
             } = &para;
             if let Some(where_str) = where_str {
@@ -816,7 +815,11 @@ impl SqlBuilder for SqliteDB {
                 sql.push_str(format!(" ORDER BY {order_by} ").as_str());
             }
             let offset = para.offset();
-            sql.push_str(format!(" LIMIT {} OFFSET {} ", page_size, offset).as_str());
+            if let Some(offset) = offset {
+                sql.push_str(
+                    format!(" LIMIT {} OFFSET {} ", offset.page_size, offset.offset).as_str(),
+                );
+            }
         }
 
         sql
@@ -840,7 +843,6 @@ pub(crate) fn gen_show_sql(
         let ShowTableParameter {
             where_str,
             order_by,
-            page_size,
             ..
         } = para;
         if let Some(where_str) = where_str {
@@ -850,7 +852,9 @@ pub(crate) fn gen_show_sql(
             sql.push_str(format!(" ORDER BY {order_by} ").as_str());
         }
         let offset = para.offset();
-        sql.push_str(format!(" LIMIT {} OFFSET {} ", page_size, offset).as_str());
+        if let Some(offset) = offset {
+            sql.push_str(format!(" LIMIT {} OFFSET {} ", offset.page_size, offset.offset).as_str());
+        }
     }
     sql
 }
@@ -2301,7 +2305,6 @@ mod tests {
     #[tokio::test]
     async fn test_all_types() {
         enable_test_log();
-
         let db = make_test_object().await;
         let table_name = "test_table";
         let _ = db.drop_table(table_name, false).await;

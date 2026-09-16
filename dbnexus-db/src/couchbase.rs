@@ -613,7 +613,6 @@ impl SqlBuilder for CouchBaseDB {
             let ShowTableParameter {
                 where_str,
                 order_by,
-                page_size,
                 ..
             } = &para;
             if let Some(w) = where_str {
@@ -622,7 +621,11 @@ impl SqlBuilder for CouchBaseDB {
             if let Some(o) = order_by {
                 sql.push_str(format!(" ORDER BY {}", o).as_str());
             }
-            sql.push_str(format!(" LIMIT {} OFFSET {}", page_size, para.offset()).as_str());
+            if let Some(offset) = para.offset() {
+                sql.push_str(
+                    format!(" LIMIT {} OFFSET {}", offset.offset, offset.page_size).as_str(),
+                );
+            }
         }
         sql
     }

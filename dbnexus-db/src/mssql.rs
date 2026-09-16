@@ -1344,7 +1344,6 @@ impl SqlBuilder for SqlServerDB {
             let ShowTableParameter {
                 where_str,
                 order_by,
-                page_size,
                 ..
             } = &para;
             if let Some(where_str) = where_str {
@@ -1357,9 +1356,15 @@ impl SqlBuilder for SqlServerDB {
                 sql.push_str(" ORDER  BY (SELECT NULL) ")
             }
             let offset = para.offset();
-            sql.push_str(
-                format!(" OFFSET {} ROWS FETCH NEXT {} ROWS ONLY", offset, page_size).as_str(),
-            );
+            if let Some(offset) = offset {
+                sql.push_str(
+                    format!(
+                        " OFFSET {} ROWS FETCH NEXT {} ROWS ONLY",
+                        offset.offset, offset.page_size
+                    )
+                    .as_str(),
+                );
+            }
         }
 
         sql

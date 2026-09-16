@@ -1159,7 +1159,6 @@ impl SqlBuilder for FireBirdDB {
             let ShowTableParameter {
                 where_str,
                 order_by,
-                page_size,
                 ..
             } = &para;
             if let Some(where_str) = where_str {
@@ -1169,7 +1168,16 @@ impl SqlBuilder for FireBirdDB {
                 sql.push_str(format!(" ORDER BY {order_by} ").as_str());
             }
             let offset = para.offset();
-            sql.push_str(format!(" ROWS {} TO {} ", offset + 1, offset + page_size).as_str());
+            if let Some(offset) = offset {
+                sql.push_str(
+                    format!(
+                        " ROWS {} TO {} ",
+                        offset.offset + 1,
+                        offset.offset + offset.page_size
+                    )
+                    .as_str(),
+                );
+            }
         }
         sql
     }

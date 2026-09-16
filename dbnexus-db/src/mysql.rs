@@ -2030,7 +2030,6 @@ impl SqlBuilder for MysqlDB {
             let ShowTableParameter {
                 where_str,
                 order_by,
-                page_size,
                 ..
             } = &para;
 
@@ -2041,7 +2040,11 @@ impl SqlBuilder for MysqlDB {
                 sql.push_str(format!(" ORDER BY {order_by} ").as_str());
             }
             let offset = para.offset();
-            sql.push_str(format!(" LIMIT {} OFFSET {} ", page_size, offset).as_str());
+            if let Some(offset) = offset {
+                sql.push_str(
+                    format!(" LIMIT {} OFFSET {} ", offset.page_size, offset.offset).as_str(),
+                );
+            }
         }
 
         sql

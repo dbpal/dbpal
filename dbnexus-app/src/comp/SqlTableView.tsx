@@ -15,6 +15,7 @@ import {
   MdOutlineReply,
 } from "./icons";
 import {
+  Alert,
   Box,
   Button,
   Checkbox,
@@ -464,8 +465,14 @@ function ExportTableOnTheFilterAndSort(props: {
           handleClose={() => {
             setShowExport(false);
           }}
+          extraUI=<>
+            <Typography>
+              export table to file base on current setting,filter and sort
+            </Typography>
+            <Alert severity="info"> page and page_size will not be ignored </Alert>
+          </>
           isTable={isTable}
-          para={para}
+          para={{ ...para, page: null, page_size: null }}
         />
       )}
     </>

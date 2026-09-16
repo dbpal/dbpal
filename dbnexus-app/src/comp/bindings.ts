@@ -28,8 +28,8 @@ export const commands = {
 	exportTableOrView: (dbName: string, taskId: string, sizeEmitter: Channel<number>, tableOrView: string, para: {
 	where_str?: string | null,
 	order_by?: string | null,
-	page?: number,
-	page_size?: number,
+	page?: number | null,
+	page_size?: number | null,
 	limit?: number | null,
 	min?: number | null,
 	max?: number | null,
@@ -556,8 +556,8 @@ export type SequenceDetail = {
 export type ShowTableParameter = {
 	where_str?: string | null,
 	order_by?: string | null,
-	page?: number,
-	page_size?: number,
+	page?: number | null,
+	page_size?: number | null,
 	limit?: number | null,
 	min?: number | null,
 	max?: number | null,

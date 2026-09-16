@@ -236,9 +236,9 @@ pub struct ShowTableParameter {
     #[serde(default)]
     pub order_by: Option<String>,
     #[serde(default)]
-    pub page: u32,
+    pub page: Option<u32>,
     #[serde(default)]
-    pub page_size: u32,
+    pub page_size: Option<u32>,
     // for backend don't support page like cassandra
     #[serde(default)]
     pub limit: Option<u32>,
@@ -255,13 +255,22 @@ pub struct ShowTableParameter {
     pub tab_size: u32,
 }
 
+impl ShowTableParameter {
+    pub fn has_page(&self) -> Option<(u32, u32)> {
+        match (self.page, self.page_size) {
+            (Some(x), Some(y)) => Some((x, y)),
+            _ => None,
+        }
+    }
+}
+
 impl Default for ShowTableParameter {
     fn default() -> Self {
         Self {
             where_str: None,
             order_by: None,
-            page: 1,
-            page_size: 100,
+            page: Some(1),
+            page_size: Some(100),
             limit: None,
             min: None,
             max: None,
@@ -279,10 +288,24 @@ pub struct TableImportPara {
     #[serde(default)]
     pub csv_delimiter: Option<char>,
 }
-
+#[derive(serde::Deserialize, Clone, Debug)]
+pub struct ShowTableParameterOffsetAndSize {
+    pub offset: u32,
+    pub page_size: u32,
+}
 impl ShowTableParameter {
-    pub fn offset(&self) -> u32 {
-        (self.page - 1) * self.page_size
+    pub fn offset(&self) -> Option<ShowTableParameterOffsetAndSize> {
+        let x = self.has_page();
+        if let Some((page, page_size)) = x {
+            debug_assert!(dbg!(page) != 0);
+            debug_assert!(dbg!(page_size) != 0);
+            Some(ShowTableParameterOffsetAndSize {
+                offset: (page - 1) * page_size,
+                page_size,
+            })
+        } else {
+            None
+        }
     }
 }
 
@@ -292,8 +315,8 @@ impl ShowTableParameter {
         Self {
             where_str: Some("1 = 1".to_owned()),
             order_by: order.map(|x| x.to_string()),
-            page: 1,
-            page_size: 100,
+            page: Some(1),
+            page_size: Some(100),
             ..Default::default()
         }
     }
@@ -864,8 +887,8 @@ pub trait SchemaTrait:
         self.show_view(
             view_name,
             ShowTableParameter {
-                page: 1,
-                page_size: 1,
+                page: Some(1),
+                page_size: Some(1),
                 ..Default::default()
             },
             Arc::new(result_clone),
@@ -1194,7 +1217,8 @@ pub trait SchemaTrait:
             .show_table_collect(
                 table,
                 ShowTableParameter {
-                    page_size: 1,
+                    page: Some(1),
+                    page_size: Some(1),
                     ..Default::default()
                 },
             )

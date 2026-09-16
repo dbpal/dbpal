@@ -1365,7 +1365,6 @@ impl SqlBuilder for ClickHouseDB {
             let ShowTableParameter {
                 where_str,
                 order_by,
-                page_size,
                 ..
             } = para;
             if let Some(where_str) = where_str {
@@ -1374,8 +1373,9 @@ impl SqlBuilder for ClickHouseDB {
             if let Some(order_by) = order_by {
                 sql.push_str(format!(" ORDER BY {order_by} ").as_str());
             }
-
-            sql.push_str(format!(" LIMIT {} , {}", offset, page_size).as_str());
+            if let Some(offset) = offset {
+                sql.push_str(format!(" LIMIT {} , {}", offset.offset, offset.page_size).as_str());
+            }
         }
         sql
     }

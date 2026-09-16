@@ -349,8 +349,8 @@ mod tests {
             ShowTableParameter {
                 where_str: None,
                 order_by: None,
-                page: 1,
-                page_size: 100,
+                page: Some(1),
+                page_size: Some(100),
                 limit: None,
                 min: None,
                 max: None,

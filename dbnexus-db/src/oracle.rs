@@ -1696,7 +1696,6 @@ impl SqlBuilder for OracleDB {
             let ShowTableParameter {
                 where_str,
                 order_by,
-                page_size,
                 ..
             } = &para;
             if let Some(where_str) = where_str {
@@ -1705,12 +1704,16 @@ impl SqlBuilder for OracleDB {
             if let Some(order_by) = order_by {
                 sql.push_str(format!(" ORDER BY {}", order_by).as_str());
             }
-            format!(
-                "{} OFFSET {} ROWS FETCH NEXT {} ROWS ONLY",
-                sql,
-                para.offset(),
-                page_size
-            )
+            if let Some(offset) = para.offset() {
+                sql.push_str(
+                    format!(
+                        " OFFSET {} ROWS FETCH NEXT {} ROWS ONLY",
+                        offset.offset, offset.page_size
+                    )
+                    .as_str(),
+                );
+            }
+            sql
         } else {
             sql
         }
