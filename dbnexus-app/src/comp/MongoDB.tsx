@@ -82,6 +82,7 @@ import {
   clickDataGridColumn,
   TabContent,
   DbnameContext,
+  newEmptyResp,
 } from "./helper";
 import {
   AppDataGridPagination,
@@ -1069,7 +1070,7 @@ function MongoTableList(props: {
   const [page, setPage] = useState(0);
   const { mongo: pageSize, setPageSize } = usePageSize();
   const { showNotification } = useNotification();
-  const [resp, setResp] = useState<MuiDataGridData | null>(null);
+  const [resp, setResp] = useState<MuiDataGridData>(newEmptyResp());
   const [selectModifyDoc, setSelectModifyDoc] = useState<BSON.Document | null>(null);
   const { getColumnWidth } = useColumnWidthStore();
   const [showFilter, setShowFilter] = useState<{ field: string; id: any }>(null);
@@ -1191,9 +1192,6 @@ function MongoTableList(props: {
   );
 
   const handleDel = useMemo(() => {
-    if (!resp) {
-      return undefined;
-    }
     return deleteOP
       ? async (id: string) => {
           if (!(await secondConfirm({ title: "sure to delete?" }))) {
@@ -1314,32 +1312,31 @@ function MongoTableList(props: {
 
   return (
     <Stack style={{ height: "100%" }}>
-      {resp && (
-        <AppColumnMenuCtx value={columnMenuValue}>
-          <DataGrid
-            columnVisibilityModel={columnVisibilityModel}
-            onColumnVisibilityModelChange={onColumnVisibilityModelChange}
-            getCellClassName={getCellClassName}
-            onCellClick={onCellClick}
-            apiRef={apiRef}
-            loading={loading}
-            slots={slots}
-            style={dataGridStyle}
-            slotProps={slotProps}
-            getRowId={getRowId}
-            rowCount={resp.total}
-            columns={resp.fields}
-            rows={resp.data}
-            pageSizeOptions={pageSizeOptions}
-            paginationMode="server"
-            paginationModel={paginationModel}
-            onPaginationModelChange={onPaginationModelChange}
-            onRowDoubleClick={onRowDoubleClick}
-            sortingMode="server"
-            onSortModelChange={onSortModelChange}
-          />
-        </AppColumnMenuCtx>
-      )}
+      <AppColumnMenuCtx value={columnMenuValue}>
+        <DataGrid
+          columnVisibilityModel={columnVisibilityModel}
+          onColumnVisibilityModelChange={onColumnVisibilityModelChange}
+          getCellClassName={getCellClassName}
+          onCellClick={onCellClick}
+          apiRef={apiRef}
+          loading={loading}
+          slots={slots}
+          style={dataGridStyle}
+          slotProps={slotProps}
+          getRowId={getRowId}
+          rowCount={resp.total}
+          columns={resp.fields}
+          rows={resp.data}
+          pageSizeOptions={pageSizeOptions}
+          paginationMode="server"
+          paginationModel={paginationModel}
+          onPaginationModelChange={onPaginationModelChange}
+          onRowDoubleClick={onRowDoubleClick}
+          sortingMode="server"
+          onSortModelChange={onSortModelChange}
+        />
+      </AppColumnMenuCtx>
+
       <ListenElementSize dom={modalBox} set="both" name="mongo-table-modify-doc" />
       {selectModifyDoc && (
         <Modal
