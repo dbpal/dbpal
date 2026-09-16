@@ -2126,7 +2126,7 @@ function ExportQueryResultToFile() {
 
   return (
     <>
-      <Tooltip title="download this result to a file">
+      <Tooltip title="download this result to a file,notice that we are export this query result,type may lost because of implementaition">
         <IconButton
           onClick={(event) => {
             setAnchorEl(event.currentTarget);

@@ -7,7 +7,13 @@ import React, {
   useMemo,
   useState,
 } from "react";
-import { ArrowOutwardIcon, CancelIcon, FaUpload, MdOutlineReply } from "./icons";
+import {
+  ArrowCircleDownRoundedIcon,
+  ArrowOutwardIcon,
+  CancelIcon,
+  FaUpload,
+  MdOutlineReply,
+} from "./icons";
 import {
   Box,
   Button,
@@ -112,7 +118,7 @@ import {
   useTableColumnVisibleStore,
   useTabsManage,
 } from "./store";
-import { commands, Field, MuiDataGridData } from "./bindings";
+import { commands, Field, MuiDataGridData, ShowTableParameter } from "./bindings";
 import { UploadIcon } from "./icons";
 import {
   DataGrid,
@@ -129,6 +135,7 @@ import {
   useGridSelector,
 } from "./datagridExport";
 import { SqlCreateTableImportFile } from "./CreateTable";
+import { ExportTableOrView } from "./Export";
 
 const confirmAboutPrimary = async (fields: Field[]): Promise<boolean> => {
   const hasPri = !!fields.find((x) => x.is_primary);
@@ -407,6 +414,7 @@ type CustomPaginationProps = {
   kind: DataSourceKind;
   table: string;
   isTable: boolean;
+  para: ShowTableParameter;
 };
 function ImportDataFromFile(props: {
   table: string;
@@ -434,8 +442,38 @@ function ImportDataFromFile(props: {
   );
 }
 
+function ExportTableOnTheFilterAndSort(props: {
+  tableName: string;
+  para: ShowTableParameter;
+  isTable: boolean;
+}) {
+  const { tableName, isTable, para } = props;
+  const [showExport, setShowExport] = useState(false);
+  return (
+    <>
+      <IconButton
+        color="info"
+        onClick={() => {
+          setShowExport(true);
+        }}>
+        <ArrowCircleDownRoundedIcon />
+      </IconButton>
+      {showExport && (
+        <ExportTableOrView
+          tableName={tableName}
+          handleClose={() => {
+            setShowExport(false);
+          }}
+          isTable={isTable}
+          para={para}
+        />
+      )}
+    </>
+  );
+}
+
 function SqlTablePagination_({
-  dbpal: { resp, clientModel, kind, table, isTable },
+  dbpal: { resp, clientModel, kind, table, isTable, para },
 }: {
   dbpal: CustomPaginationProps;
 }) {
@@ -468,6 +506,12 @@ function SqlTablePagination_({
         {isTable && <ImportDataFromFile table={table} dbname={dbName} kind={kind} />}
 
         <ExportQueryResultToFile />
+
+        <ExportTableOnTheFilterAndSort
+          tableName={table}
+          isTable={isTable}
+          para={para}
+        />
 
         {isTable && <AddTableModal kind={kind} tableName={table} />}
         {resp.sql && (
@@ -1057,6 +1101,7 @@ function SqlTableView_(props: {
             kind,
             table: tableName,
             isTable,
+            para: makePara(),
           };
         })(),
       },
@@ -1087,6 +1132,7 @@ function SqlTableView_(props: {
     handleProcessRowUpdate,
     clientModel,
     tableName,
+    makePara,
     handleReload,
     where,
     sort,

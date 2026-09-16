@@ -306,7 +306,6 @@ function ExportTableOrView(props: {
   tableName: string;
   isTable: boolean;
   para?: ShowTableParameter;
-
   handleClose: () => void;
 }) {
   const { dbName, kind } = useContext(DbnameContext);
