@@ -1223,6 +1223,8 @@ function VirtualListLeft<T>(props: {
     <div
       style={{
         height: height.height,
+        maxWidth: "100%",
+        paddingRight: "1.2rem",
       }}>
       <AutoSizer>
         {({ width }) => (
@@ -1385,7 +1387,8 @@ function VirtualVarListLeft<T>(props: {
       style={{
         overflow: "auto",
         height,
-        width: "100%",
+        maxWidth: "100%",
+        paddingRight: "1.2rem",
       }}>
       <AutoSizer>
         {({ width, height }) => (
