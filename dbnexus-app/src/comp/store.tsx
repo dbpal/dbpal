@@ -1,13 +1,6 @@
-import { ReactElement, ReactNode, useCallback, useMemo } from "react";
+import { ReactNode, useCallback, useMemo } from "react";
 import { create, StateCreator } from "zustand";
-import {
-  AlertColor,
-  AlertTitle,
-  DialogProps,
-  IconButton,
-  Stack,
-  Typography,
-} from "@mui/material";
+import { AlertColor, AlertTitle, IconButton, Stack, Typography } from "@mui/material";
 import React from "react";
 import { persist, PersistStorage, StorageValue } from "zustand/middleware";
 import Dexie, { type Table } from "dexie";
@@ -1427,30 +1420,6 @@ export function useTabSize() {
     return 4;
   }, [editor]);
 }
-
-interface OneShotUI {
-  ui: ReactElement | null;
-  setOneShotUI: (config: {
-    ui: ReactElement | null;
-    title?: string;
-    op?: Omit<DialogProps, "open">;
-  }) => void;
-  title?: string;
-  op: Omit<DialogProps, "open">;
-}
-
-// used in place I don't hard to pass parameter mostly used in menu handle
-
-export const useOneShotDialogUI = create<OneShotUI>()((set) => ({
-  ui: null,
-  setOneShotUI: ({ ui, title, op }) => {
-    if (!op) {
-      op = {};
-    }
-    set({ ui, title, op });
-  },
-  op: {},
-}));
 
 interface EditInModalLanguage {
   editingRowLanguage: string | null;

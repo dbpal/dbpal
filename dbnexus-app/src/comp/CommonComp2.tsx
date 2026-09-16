@@ -42,6 +42,7 @@ import {
   Checkbox,
   Chip,
   CircularProgress,
+  Dialog,
   Divider,
   FormControlLabel,
   FormLabel,
@@ -126,7 +127,6 @@ import {
   useFavoriteStore,
   useLLM,
   useNotification,
-  useOneShotDialogUI,
   UseSizeConfig,
   useSizeStore,
   useSqlDataFilter,
@@ -279,12 +279,9 @@ function AppCode_(props: {
 
 const AppCode = memo(AppCode_);
 
-function CreateDatabase(props: {
-  dbName: string;
-  handleClose: () => void;
-  kind: DataSourceKind;
-}) {
-  const { dbName, handleClose, kind } = props;
+function CreateDatabase(props: { handleClose: () => void }) {
+  const { dbName, kind } = useContext(DbnameContext);
+  const { handleClose } = props;
   const { showNotification } = useNotification();
   const [database, setDatabase] = useState("");
   const databaseDom = useRef(null);
@@ -428,13 +425,13 @@ function CreateDatabase(props: {
  * Modal used to create a new schema / keyspace / database object.
  */
 function CreateSchema(props: {
-  dbName: string;
   handleClose: () => void;
   handleReload: () => void;
-  kind: DataSourceKind;
+
   schemas: string[];
 }) {
-  const { dbName, handleClose, kind, schemas, handleReload } = props;
+  const { dbName, kind } = useContext(DbnameContext);
+  const { handleClose, schemas, handleReload } = props;
   const schemaSet = new Set(schemas);
   const { showNotification } = useNotification();
   const [schema, setSchema] = useState("");
@@ -1061,13 +1058,12 @@ function UrlDocument(props: { url: string }) {
 }
 
 function SaveFavoriteSqlViewOnTheFly(props: {
-  dbName: string;
-  kind: DataSourceKind;
   sql: string;
   onChangeFavName: (name: string) => void;
   handleClose: () => void;
 }) {
-  const { kind, sql, onChangeFavName, dbName, handleClose } = props;
+  const { sql, onChangeFavName, handleClose } = props;
+  const { dbName, kind } = useContext(DbnameContext);
   const [favoriteName, setFavoriteName] = useState("");
   const { showNotification } = useNotification();
   const { save } = useFavoriteStore();
@@ -1126,8 +1122,9 @@ function SaveFavoriteSqlView(props: {
   const { favoriteName: oldName, editor } = props;
   const [favoriteName, setFavoriteName] = useState(oldName);
   const { showNotification } = useNotification();
-  const { setOneShotUI } = useOneShotDialogUI();
   const { save } = useFavoriteStore();
+  const [showDia, setShowDia] = useState(false);
+
   return (
     <>
       <Tooltip
@@ -1150,22 +1147,7 @@ function SaveFavoriteSqlView(props: {
                   title: "save favorite sql success.",
                 });
               } else {
-                setOneShotUI({
-                  ui: (
-                    <SaveFavoriteSqlViewOnTheFly
-                      dbName={dbName}
-                      sql={sql}
-                      kind={kind}
-                      onChangeFavName={(name) => {
-                        setFavoriteName(name);
-                      }}
-                      handleClose={() => {
-                        setOneShotUI({ ui: null });
-                      }}
-                    />
-                  ),
-                  title: "set favorite name",
-                });
+                setShowDia(true);
               }
             } catch (e) {
               showNotification({
@@ -1179,6 +1161,19 @@ function SaveFavoriteSqlView(props: {
           <FaBookmark style={{ fontSize: "1.2rem" }} />
         </IconButton>
       </Tooltip>
+      {showDia && (
+        <Dialog open={showDia}>
+          <SaveFavoriteSqlViewOnTheFly
+            sql={editor.getValue()}
+            onChangeFavName={(name) => {
+              setFavoriteName(name);
+            }}
+            handleClose={() => {
+              setShowDia(false);
+            }}
+          />
+        </Dialog>
+      )}
     </>
   );
 }

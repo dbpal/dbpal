@@ -1,6 +1,7 @@
 import {
   Alert,
   Button,
+  Dialog,
   Divider,
   IconButton,
   ListItemIcon,
@@ -50,7 +51,6 @@ import {
   useColumnWidthStore,
   useContextMenu,
   useNotification,
-  useOneShotDialogUI,
   usePageSize,
 } from "./store.tsx";
 import { commands, Field, MuiDataGridData } from "./bindings.ts";
@@ -186,8 +186,8 @@ function RespContextMenu(props: {
   dbName: string;
   kind: DataSourceKind;
   fieldType: string;
+  editRowData: () => void;
   getRow: () => object;
-  sql: string;
 }): React.ReactElement {
   const {
     content,
@@ -195,14 +195,12 @@ function RespContextMenu(props: {
     setSort,
     viewInModal,
     dbName,
-    getRow,
     fieldType,
     kind,
-    sql,
-    fields,
+    editRowData,
+    getRow,
   } = props;
   const supportModify = ![DataSourceKind.Redis].includes(kind);
-  const { setOneShotUI } = useOneShotDialogUI();
 
   return (
     <MenuList>
@@ -241,17 +239,7 @@ function RespContextMenu(props: {
       {supportModify && (
         <MenuItem
           onClick={() => {
-            setOneShotUI({
-              ui: (
-                <EditResultSetData
-                  fields={fields}
-                  sql={sql}
-                  dbName={dbName}
-                  oldValues={getRow()}
-                />
-              ),
-              op: { maxWidth: "xl", fullWidth: true },
-            });
+            editRowData();
           }}>
           <ListItemIcon>
             <EditIcon />
@@ -297,6 +285,7 @@ function QueryResp_(props: { data: MuiDataGridData }): React.ReactElement {
       );
     };
   });
+  const [editorRow, setEditorRow] = useState<object>();
 
   const [sortModel, setSortModel] = useState<GridSortModel>([]);
   const setUpMenu = useContextMenu((state) => state.setUpMenu);
@@ -332,7 +321,9 @@ function QueryResp_(props: { data: MuiDataGridData }): React.ReactElement {
                 content={content}
                 field={field}
                 setSort={setSortModel}
-                sql={data.sql}
+                editRowData={() => {
+                  setEditorRow(row);
+                }}
               />
             ),
             event: e,
@@ -453,6 +444,20 @@ function QueryResp_(props: { data: MuiDataGridData }): React.ReactElement {
           setViewInModal(null);
         }}
       />
+      {editorRow && (
+        <Dialog
+          open={!!editorRow}
+          onClose={() => {
+            setEditorRow(null);
+          }}>
+          <EditResultSetData
+            fields={data.fields}
+            sql={data.sql}
+            dbName={dbName}
+            oldValues={editorRow}
+          />
+        </Dialog>
+      )}
     </div>
   );
 }

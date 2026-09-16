@@ -1461,7 +1461,7 @@ function TableStructure(props: { table: string }) {
       {structure == "column" && <ColumnsStructure table={table} />}
       {structure == "index" && <IndexesStructure table={table} />}
       {structure == "trigger" && <TriggersStructure table={table} />}
-      {structure == "statement" && <StatementStructure table={table} />}{" "}
+      {structure == "statement" && <StatementStructure table={table} />}
       {structure == "foreign_key" && <ForeignKeyStructure table={table} />}
     </Stack>
   );

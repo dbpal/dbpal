@@ -38,7 +38,6 @@ import {
   useConfirmMsg,
   useContextMenu,
   useNotification,
-  useOneShotDialogUI,
   useTabsManage,
 } from "./store.tsx";
 import { SnackbarProvider } from "notistack";
@@ -232,7 +231,6 @@ function App() {
     <AppSnackbarProvider>
       <SettingProvider>
         <AppMenu />
-        <DialogExtraUI />
         <ShowPanic />
         <ShowShortCut />
         <PanelGroup
@@ -268,23 +266,6 @@ function App() {
         </PanelGroup>
       </SettingProvider>
     </AppSnackbarProvider>
-  );
-}
-
-function DialogExtraUI() {
-  const diagUi = useOneShotDialogUI();
-  return (
-    diagUi.ui && (
-      <Dialog
-        open={true}
-        {...diagUi.op}
-        onClose={() => {
-          diagUi.setOneShotUI({ ui: null });
-        }}>
-        {diagUi.title && <DialogTitle>{diagUi.title}</DialogTitle>}
-        {diagUi.ui}
-      </Dialog>
-    )
   );
 }
 
@@ -331,7 +312,6 @@ function SeprateWindow({ children }) {
         <SettingProvider>
           <ShowShortCut />
           <AppMenu />
-          <DialogExtraUI />
           <div style={{ width: "100vw", height: "100vh", padding: "4px" }}>
             {children}
           </div>

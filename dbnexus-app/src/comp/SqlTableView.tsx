@@ -28,7 +28,7 @@ import {
   Typography,
 } from "@mui/material";
 
-import { VisibilityIcon, EditIcon, ArrowCircleDownIcon } from "./icons";
+import { VisibilityIcon, EditIcon } from "./icons";
 
 import {
   EscDownEvent,
@@ -105,7 +105,6 @@ import {
   useContextMenu,
   useEditInModalLanguageStore,
   useNotification,
-  useOneShotDialogUI,
   usePageSize,
   UseSizeConfig,
   useSizeStore,
@@ -114,7 +113,6 @@ import {
   useTabsManage,
 } from "./store";
 import { commands, Field, MuiDataGridData } from "./bindings";
-import { ExportTableOrView } from "./Export";
 import { UploadIcon } from "./icons";
 import {
   DataGrid,
@@ -695,7 +693,6 @@ function SqlTableView_(props: {
 
   const [page, setPage] = useState(0);
   const { sql: pageSize, setPageSize } = usePageSize();
-  const { setOneShotUI } = useOneShotDialogUI();
   const [resp, setResp] = useState<MuiDataGridData>({
     sql: "",
     fields: [],
@@ -1105,31 +1102,14 @@ function SqlTableView_(props: {
         return (
           <AppDataGridToolBar
             titleName={tableName}
-            right=<>
-              <IconButton
-                onClick={() => {
-                  setOneShotUI({
-                    ui: (
-                      <ExportTableOrView
-                        dbName={dbName}
-                        name={tableName}
-                        kind={kind}
-                        isTable={isTable}
-                        para={makePara()}
-                      />
-                    ),
-                  });
-                }}>
-                <ArrowCircleDownIcon />
-              </IconButton>
-            </>
             left=<SqlTableCustomToolBarLeft {...dbpal} />
           />
         );
       },
       pagination: SqlTablePagination,
     };
-  }, [isTable, kind, makePara, setOneShotUI, tableName, dbName]);
+  }, [tableName]);
+
   const sortModel = clientModel ? "client" : "server";
   const { getColumnVisibility, setColumnVisibility } = useTableColumnVisibleStore(
     (s) => s,

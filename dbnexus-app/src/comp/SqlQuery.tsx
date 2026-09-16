@@ -1,5 +1,5 @@
 import { MultiQueryResp } from "./QueryResp";
-import { Chip, Divider, IconButton, Stack, Tooltip } from "@mui/material";
+import { Chip, Dialog, Divider, IconButton, Stack, Tooltip } from "@mui/material";
 import {
   Panel,
   Group as PanelGroup,
@@ -58,7 +58,6 @@ import {
   useBoolSwitch,
   useConfirmMsg,
   useNotification,
-  useOneShotDialogUI,
   useQueryLogStore,
   UseSizeConfig,
   useSizeStore,
@@ -312,9 +311,9 @@ function SqlQuery_(props: {
   const [queryStatus, setQueryStatus] = useState("");
   const { save: saveQueryLog } = useQueryLogStore();
   const [markdownModel, setMarkdownModel] = useState(false);
-  const { setOneShotUI: setOneShotUI } = useOneShotDialogUI();
   const { getSwitch } = useBoolSwitch();
   const { setEditor, editor } = useContext(QueryIDEditorChatCtx);
+  const [showExport, setShowExport] = useState(false);
 
   const handleEditorDidMount = useCallback(
     (ed: editor.IStandaloneCodeEditor) => {
@@ -550,6 +549,31 @@ function SqlQuery_(props: {
                 </IconButton>
               </span>
             </Tooltip>
+
+            {showExport && (
+              <Dialog
+                open={showExport}
+                onClose={() => {
+                  setShowExport(false);
+                }}>
+                <ExportView
+                  supportKind={["csv", "json", "jsonline", "xlsx", "html", "markdown"]}
+                  exportOP={async (kind, file, taskId, sizeEmitter) => {
+                    const sql = getEditorText(editor, showNotification, true);
+                    return conn.current.exportQueryResult(
+                      queryId,
+                      sql,
+                      kind,
+                      file,
+                      taskId,
+                      sizeEmitter,
+                    );
+                  }}
+                  name="export_query_result"
+                />
+              </Dialog>
+            )}
+
             {openOk && (
               <Tooltip title="export query result to a file">
                 <span>
@@ -560,33 +584,7 @@ function SqlQuery_(props: {
                       if (!value) {
                         return;
                       }
-                      setOneShotUI({
-                        ui: (
-                          <ExportView
-                            supportKind={[
-                              "csv",
-                              "json",
-                              "jsonline",
-                              "xlsx",
-                              "html",
-                              "markdown",
-                            ]}
-                            exportOP={async (kind, file, taskId, sizeEmitter) => {
-                              const sql = getEditorText(editor, showNotification, true);
-                              return conn.current.exportQueryResult(
-                                queryId,
-                                sql,
-                                kind,
-                                file,
-                                taskId,
-                                sizeEmitter,
-                              );
-                            }}
-                            name="export_query_result"
-                          />
-                        ),
-                        title: `export query result to a file`,
-                      });
+                      setShowExport(true);
                     }}
                     disabled={markdownModel}
                     color="primary">

@@ -1,6 +1,7 @@
 import {
   Checkbox,
   Chip,
+  Dialog,
   Divider,
   FormControlLabel,
   IconButton,
@@ -9,16 +10,12 @@ import {
   Typography,
 } from "@mui/material";
 import { filesize } from "filesize";
-import { useEffect, useRef, useState } from "react";
+import { useContext, useEffect, useRef, useState } from "react";
 import { save } from "@tauri-apps/plugin-dialog";
 import { ArrowCircleDownIcon } from "./icons";
 import { Channel } from "@tauri-apps/api/core";
 import { OpenFileWithDefaultApp } from "./CommonComp";
-import {
-  DataSourceKind,
-  generateDefaultFilename,
-  getSupportExportKind,
-} from "./helper";
+import { DbnameContext, generateDefaultFilename, getSupportExportKind } from "./helper";
 
 import { cancelTask } from "./handlers";
 import { CancelButton, StackRowCenter } from "./CommonComp2";
@@ -306,30 +303,35 @@ function ExportView(props: ExportViewProps) {
 }
 
 function ExportTableOrView(props: {
-  dbName: string;
-  name: string;
+  tableName: string;
   isTable: boolean;
   para?: ShowTableParameter;
-  kind: DataSourceKind;
-}) {
-  const { dbName, name, kind, isTable, para } = props;
 
+  handleClose: () => void;
+}) {
+  const { dbName, kind } = useContext(DbnameContext);
+  const { tableName, isTable, para, handleClose } = props;
+  if (!tableName) {
+    return;
+  }
   return (
-    <ExportView
-      exportOP={async (kind, filepath, taskId, sizeEmitter) => {
-        return await commands.exportTableOrView(
-          dbName,
-          taskId,
-          sizeEmitter,
-          name,
-          para,
-          filepath,
-          kind,
-        );
-      }}
-      supportKind={getSupportExportKind(kind, isTable)}
-      name={name}
-    />
+    <Dialog open onClose={handleClose}>
+      <ExportView
+        exportOP={async (kind, filepath, taskId, sizeEmitter) => {
+          return await commands.exportTableOrView(
+            dbName,
+            taskId,
+            sizeEmitter,
+            tableName,
+            para,
+            filepath,
+            kind,
+          );
+        }}
+        supportKind={getSupportExportKind(kind, isTable)}
+        name={tableName}
+      />
+    </Dialog>
   );
 }
 

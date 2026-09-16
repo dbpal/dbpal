@@ -11,6 +11,7 @@ import {
   Button,
   ButtonGroup,
   CircularProgress,
+  Dialog,
   Divider,
   ListItemIcon,
   ListItemText,
@@ -56,7 +57,6 @@ import {
   useTabsManage,
   useColumnWidthStore,
   useMatcherFn,
-  useOneShotDialogUI,
 } from "./store";
 import { commands, DefAndMetas, Field, ListTable } from "./bindings";
 import {
@@ -72,7 +72,7 @@ function ViewsTree(props: { viewKind: ViewKind }) {
   const [views, setViews] = useState<ListTable[]>([]);
   const { showNotification } = useNotification();
   const [loading, setLoading] = useState(false);
-
+  const [showExport, setShowExport] = useState("");
   const matchPattern = useMatcherFn();
   const showItems = useMemo(() => {
     return views.filter((e) => matchPattern(e.name));
@@ -139,6 +139,9 @@ function ViewsTree(props: { viewKind: ViewKind }) {
                 view={view.name}
                 dbName={dbName}
                 viewKind={viewKind}
+                showExport={() => {
+                  setShowExport(view.name);
+                }}
               />
             );
           }}
@@ -146,6 +149,21 @@ function ViewsTree(props: { viewKind: ViewKind }) {
           listCols={listViewCols}
         />
       ))}
+      {showExport && (
+        <Dialog
+          open={!!showExport}
+          onClose={() => {
+            setShowExport("");
+          }}>
+          <ExportTableOrView
+            tableName={showExport}
+            isTable={false}
+            handleClose={() => {
+              setShowExport("");
+            }}
+          />
+        </Dialog>
+      )}
     </MyTreeItem>
   );
 }
@@ -356,11 +374,10 @@ function ViewMenu(props: {
   viewKind: ViewKind;
   dbName: string;
   kind: DataSourceKind;
+  showExport: () => void;
 }) {
-  const { view, reload, viewKind, dbName, kind } = props;
+  const { view, reload, viewKind, dbName, kind, showExport } = props;
   const { showNotification } = useNotification();
-
-  const { setOneShotUI } = useOneShotDialogUI();
   const handleDrop = async () => {
     const confirm = await secondConfirm({
       title: `Drop view '${view}'`,
@@ -443,17 +460,7 @@ function ViewMenu(props: {
       <Divider />
       <MenuItem
         onClick={() => {
-          setOneShotUI({
-            ui: (
-              <ExportTableOrView
-                dbName={dbName}
-                name={view}
-                isTable={false}
-                kind={kind}
-              />
-            ),
-            title: `export view ${view}`,
-          });
+          showExport();
         }}>
         <ListItemIcon>
           <ArrowCircleDownIcon />

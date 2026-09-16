@@ -2,6 +2,7 @@ import {
   Button,
   ButtonGroup,
   Chip,
+  Dialog,
   IconButton,
   Pagination,
   Stack,
@@ -67,7 +68,6 @@ import {
   CBQueryViewMode,
   useCBQueryViewStore,
   useNotification,
-  useOneShotDialogUI,
   usePageSize,
   useQueryLogStore,
   UseSizeConfig,
@@ -580,8 +580,7 @@ function CouchBaseQuery_(props: { value?: string }) {
   const { editor, setEditor } = useContext(QueryIDEditorChatCtx);
   const [markdownModel, setMarkdownModel] = useState(false);
   const [matchStr, setMatchStr] = useState("");
-  const { setOneShotUI } = useOneShotDialogUI();
-
+  const [showExport, setShowExport] = useState(false);
   const { save: saveQueryLog } = useQueryLogStore();
   useEffect(() => {
     if (viewMode != CBQueryViewMode.Table) {
@@ -773,28 +772,7 @@ function CouchBaseQuery_(props: { value?: string }) {
                   if (!value) {
                     return;
                   }
-
-                  setOneShotUI({
-                    ui: (
-                      <ExportView
-                        supportKind={["json", "jsonline"]}
-                        exportOP={(kind, file, taskId, sizeEmitter) => {
-                          const sql = getEditorText(editor, showNotification, true);
-                          return commands.exportQueryResultToFile(
-                            dbName,
-                            taskId,
-                            sql,
-                            "",
-                            kind,
-                            file,
-                            sizeEmitter,
-                          );
-                        }}
-                        name="export_query_result"
-                      />
-                    ),
-                    title: "export query to file",
-                  });
+                  setShowExport(true);
                 }}
                 color="primary">
                 <ArrowCircleDownRoundedIcon />
@@ -811,6 +789,31 @@ function CouchBaseQuery_(props: { value?: string }) {
             <SliderSize config={UseSizeConfig.couchbaseQueryLimit} />
           </Stack>
         </Stack>
+
+        {showExport && (
+          <Dialog
+            open={showExport}
+            onClose={() => {
+              setShowExport(false);
+            }}>
+            <ExportView
+              supportKind={["json", "jsonline"]}
+              exportOP={(kind, file, taskId, sizeEmitter) => {
+                const sql = getEditorText(editor, showNotification, true);
+                return commands.exportQueryResultToFile(
+                  dbName,
+                  taskId,
+                  sql,
+                  "",
+                  kind,
+                  file,
+                  sizeEmitter,
+                );
+              }}
+              name="export_query_result"
+            />
+          </Dialog>
+        )}
 
         <AiMarkdownModel
           markdownModel={markdownModel}

@@ -10,6 +10,7 @@ import {
 import { modalStyle, EscDownEvent, modalHandleClose, uuidv4 } from "./Common.ts";
 
 import {
+  AlertTitle,
   Box,
   Button,
   Checkbox,
@@ -69,12 +70,7 @@ import {
   ShowingCount,
 } from "./CommonComp2";
 import { CouchBaseInsert, CouchBaseTable } from "./CouchBase";
-import {
-  useNotification,
-  useTabsManage,
-  useMatcherFn,
-  useOneShotDialogUI,
-} from "./store.tsx";
+import { useNotification, useTabsManage, useMatcherFn } from "./store.tsx";
 import { commands, Field, ListTable, RedisListTableRet } from "./bindings.ts";
 import {
   CouchbaseTableImportFile,
@@ -103,7 +99,10 @@ function TablesTree() {
   const { showNotification } = useNotification();
   const [loading, setLoading] = useState(false);
   const { appendTab } = useTabsManage();
-
+  const [showDup, setShowDup] = useState("");
+  const [showExport, setShowExport] = useState("");
+  const [renameTable, setRenameTable] = useState("");
+  const [dropTable, setDropTable] = useState("");
   const matchPattern = useMatcherFn();
   const showItems = useMemo(() => {
     return tables.filter((e) => matchPattern(e.name));
@@ -220,9 +219,20 @@ function TablesTree() {
             return (
               <TableMenu
                 kind={kind}
-                reload={handleReload}
                 table={table.name}
                 dbName={dbName}
+                dupTable={() => {
+                  setShowDup(table.name);
+                }}
+                exportTable={() => {
+                  setShowExport(table.name);
+                }}
+                dropTable={() => {
+                  setDropTable(table.name);
+                }}
+                renameTable={() => {
+                  setRenameTable(table.name);
+                }}
               />
             );
           }}
@@ -230,6 +240,43 @@ function TablesTree() {
           listCols={listTableCols}
         />
       ))}
+      {showDup && (
+        <DupTable
+          table={showDup}
+          handleClose={() => {
+            setShowDup("");
+          }}
+          reloadTables={handleReload}
+        />
+      )}
+
+      {showExport && (
+        <ExportTableOrView
+          isTable
+          tableName={showExport}
+          handleClose={() => {
+            setShowExport("");
+          }}
+        />
+      )}
+      {renameTable && (
+        <RenameTable
+          table={renameTable}
+          handleClose={() => {
+            setRenameTable("");
+          }}
+          reloadTables={handleReload}
+        />
+      )}
+      {dropTable && (
+        <DropTable
+          table={dropTable}
+          handleClose={() => {
+            setDropTable("");
+          }}
+          reloadTables={handleReload}
+        />
+      )}
     </MyTreeItem>
   );
 }
@@ -237,11 +284,10 @@ function TablesTree() {
 function DropTable(props: {
   table: string;
   reloadTables: () => void;
-  dbName: string;
   handleClose: () => void;
-  kind: DataSourceKind;
 }) {
-  const { table, reloadTables, dbName, handleClose, kind } = props;
+  const { dbName, kind } = useContext(DbnameContext);
+  const { table, reloadTables, handleClose } = props;
   const [loading, setLoading] = useState(false);
   const { showNotification } = useNotification();
   const [cascade, setCascade] = useState(false);
@@ -293,8 +339,12 @@ function DropTable(props: {
     }
   };
 
+  if (!table) {
+    return;
+  }
   return (
-    <Stack>
+    <Dialog open onClose={handleClose}>
+      <AlertTitle> drop table </AlertTitle>
       {supportCascade() && (
         <FormControlLabel
           control={
@@ -311,7 +361,7 @@ function DropTable(props: {
           drop
         </Button>
       </Stack>
-    </Stack>
+    </Dialog>
   );
 }
 interface RedisViewTableProps {
@@ -537,14 +587,25 @@ export const openNewTableStructure = (appendTab, dbName, kind, table) => {
 function TableMenu(props: {
   table: string;
   dbName: string;
-  reload;
   kind: DataSourceKind;
   redisTableType?: RedisTableType;
+  dupTable: () => void;
+  exportTable: () => void;
+  dropTable: () => void;
+  renameTable: () => void;
 }) {
-  const { table, dbName, reload, kind, redisTableType } = props;
+  const {
+    table,
+    dbName,
+    kind,
+    redisTableType,
+    dupTable,
+    exportTable,
+    dropTable,
+    renameTable,
+  } = props;
   const { showNotification } = useNotification();
   const { appendTab } = useTabsManage();
-  const { setOneShotUI } = useOneShotDialogUI();
 
   const handleTruncateTable = async () => {
     const confirm = await secondConfirm({
@@ -637,19 +698,7 @@ function TableMenu(props: {
 
       <MenuItem
         onClick={() => {
-          setOneShotUI({
-            ui: (
-              <DupTable
-                table={table}
-                dbName={dbName}
-                handleClose={() => {
-                  setOneShotUI({ ui: null });
-                }}
-                reloadTables={reload}
-              />
-            ),
-            title: "Duplicate table",
-          });
+          dupTable();
         }}>
         <ListItemIcon>
           <HiOutlineDuplicate style={{ fontSize: "1.7rem" }} />
@@ -658,10 +707,7 @@ function TableMenu(props: {
       </MenuItem>
       <MenuItem
         onClick={() => {
-          setOneShotUI({
-            ui: <ExportTableOrView dbName={dbName} name={table} kind={kind} isTable />,
-            title: `export table ${table}`,
-          });
+          exportTable();
         }}>
         <ListItemIcon>
           <ArrowCircleDownIcon />
@@ -670,19 +716,7 @@ function TableMenu(props: {
       </MenuItem>
       <MenuItem
         onClick={() => {
-          setOneShotUI({
-            ui: (
-              <RenameTable
-                table={table}
-                dbName={dbName}
-                handleClose={() => {
-                  setOneShotUI({ ui: null });
-                }}
-                reloadTables={reload}
-              />
-            ),
-            title: `rename table ${table}`,
-          });
+          renameTable();
         }}>
         <ListItemIcon>
           <EditIcon />
@@ -703,20 +737,7 @@ function TableMenu(props: {
       <MenuItem
         sx={{ color: "error.main" }}
         onClick={() => {
-          setOneShotUI({
-            ui: (
-              <DropTable
-                table={table}
-                dbName={dbName}
-                handleClose={() => {
-                  setOneShotUI({ ui: null });
-                }}
-                reloadTables={reload}
-                kind={kind}
-              />
-            ),
-            title: `drop table ${table}`,
-          });
+          dropTable();
         }}>
         <ListItemIcon>
           <DeleteForeverIcon color="error" />
@@ -727,13 +748,9 @@ function TableMenu(props: {
   );
 }
 
-function DupTable(props: {
-  table: string;
-  handleClose;
-  dbName: string;
-  reloadTables: () => void;
-}) {
-  const { table, handleClose, dbName, reloadTables } = props;
+function DupTable(props: { table?: string; handleClose; reloadTables: () => void }) {
+  const { dbName } = useContext(DbnameContext);
+  const { table, handleClose, reloadTables } = props;
   const [loading, setLoading] = useState(false);
   const [name, setName] = useState(table);
   const { showNotification } = useNotification();
@@ -758,9 +775,12 @@ function DupTable(props: {
         setLoading(false);
       });
   };
-
+  if (!table) {
+    return;
+  }
   return (
-    <Stack>
+    <Dialog open onClose={handleClose}>
+      <AlertTitle>duplicate table </AlertTitle>
       <TextField
         value={name}
         label="duplicate name"
@@ -781,17 +801,13 @@ function DupTable(props: {
           />
         )}
       </Stack>
-    </Stack>
+    </Dialog>
   );
 }
 
-function RenameTable(props: {
-  table: string;
-  handleClose;
-  dbName: string;
-  reloadTables: () => void;
-}) {
-  const { table, handleClose, dbName, reloadTables } = props;
+function RenameTable(props: { table: string; handleClose; reloadTables: () => void }) {
+  const { dbName } = useContext(DbnameContext);
+  const { table, handleClose, reloadTables } = props;
   const [loading, setLoading] = useState(false);
   const [newName, setNewName] = useState(table);
   const { showNotification } = useNotification();
@@ -829,7 +845,8 @@ function RenameTable(props: {
   };
 
   return (
-    <Stack>
+    <Dialog open onClose={handleClose}>
+      <AlertTitle>rename table </AlertTitle>
       <TextField
         value={newName}
         label="New Name"
@@ -842,7 +859,7 @@ function RenameTable(props: {
           rename
         </Button>
       </Stack>
-    </Stack>
+    </Dialog>
   );
 }
 
@@ -854,6 +871,10 @@ function RedisOneTableKind(props: {
   dbName;
 }) {
   const { tables, typ, kind, handleReload, dbName } = props;
+  const [showDup, setShowDup] = useState("");
+  const [showExport, setShowExport] = useState("");
+  const [renameTable, setRenameTable] = useState("");
+  const [dropTable, setDropTable] = useState("");
   return (
     <MyTreeItem
       enable={true}
@@ -873,10 +894,21 @@ function RedisOneTableKind(props: {
           return (
             <TableMenu
               kind={kind}
-              reload={handleReload}
               table={table.name}
               dbName={dbName}
               redisTableType={typ}
+              dupTable={() => {
+                setShowDup(table.name);
+              }}
+              exportTable={() => {
+                setShowExport(table.name);
+              }}
+              dropTable={() => {
+                setDropTable(table.name);
+              }}
+              renameTable={() => {
+                setRenameTable(table.name);
+              }}
             />
           );
         }}
@@ -889,6 +921,44 @@ function RedisOneTableKind(props: {
           );
         }}
       />
+
+      {showDup && (
+        <DupTable
+          table={showDup}
+          handleClose={() => {
+            setShowDup("");
+          }}
+          reloadTables={handleReload}
+        />
+      )}
+      {showExport && (
+        <ExportTableOrView
+          isTable
+          tableName={showExport}
+          handleClose={() => {
+            setShowExport("");
+          }}
+        />
+      )}
+
+      {renameTable && (
+        <RenameTable
+          table={renameTable}
+          handleClose={() => {
+            setRenameTable("");
+          }}
+          reloadTables={handleReload}
+        />
+      )}
+      {dropTable && (
+        <DropTable
+          table={dropTable}
+          handleClose={() => {
+            setDropTable("");
+          }}
+          reloadTables={handleReload}
+        />
+      )}
     </MyTreeItem>
   );
 }

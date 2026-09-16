@@ -103,7 +103,6 @@ import {
   useConnectionStore,
   useFavoriteStore,
   FavoriteSql,
-  useOneShotDialogUI,
 } from "./store.tsx";
 import { commands, DBConnectionConfig } from "./bindings.ts";
 import { WebviewWindow } from "@tauri-apps/api/webviewWindow";
@@ -1062,15 +1061,14 @@ function DatabaseMenu(props: {
   reloadDatabase;
   kind: DataSourceKind;
   schemas: string[];
+  handleCreateSchema: () => void;
 }) {
-  const { database, dbName, reload, reloadDatabase, kind, schemas } = props;
+  const { database, dbName, reload, reloadDatabase, kind, handleCreateSchema } = props;
   const { showNotification } = useNotification();
   const { appendTab } = useTabsManage();
   const { is_connected } = useConnected();
 
   const conn_established = is_connected(dbName);
-
-  const { setOneShotUI } = useOneShotDialogUI();
 
   return (
     <MenuList>
@@ -1097,33 +1095,7 @@ function DatabaseMenu(props: {
       {conn_established && kind != DataSourceKind.Oracle && (
         <MenuCreateSchema
           handleCreate={() => {
-            setOneShotUI({
-              ui: (
-                <CreateSchema
-                  dbName={dbName}
-                  handleClose={() => {
-                    reload();
-                    setOneShotUI({ ui: null });
-                  }}
-                  kind={kind}
-                  schemas={schemas}
-                  handleReload={reload}
-                />
-              ),
-              title:
-                "create " +
-                (function () {
-                  let name = "database";
-                  switch (kind) {
-                    case DataSourceKind.Postgres:
-                    case DataSourceKind.Cockroach:
-                    case DataSourceKind.SqlServer:
-                      name = "schema";
-                      break;
-                  }
-                  return `create ${name}`;
-                })(),
-            });
+            handleCreateSchema();
           }}
           kind={kind}
         />
@@ -1162,11 +1134,15 @@ function DatabaseMenu(props: {
   );
 }
 
-function CatalogMenu(props: { dbName; reload; kind: DataSourceKind }) {
-  const { dbName, reload, kind } = props;
+function CatalogMenu(props: {
+  reload: () => void;
+  handleCreateDatabase: () => void;
+  dbName;
+  kind: DataSourceKind;
+}) {
+  const { dbName, reload, kind, handleCreateDatabase } = props;
   const { is_connected } = useConnected();
   const conn_established = is_connected(dbName);
-  const { setOneShotUI } = useOneShotDialogUI();
   return (
     <div>
       <MenuList>
@@ -1174,31 +1150,11 @@ function CatalogMenu(props: { dbName; reload; kind: DataSourceKind }) {
         {conn_established && kind != DataSourceKind.DuckDB && (
           <MenuCreateDatabase
             handleCreate={() => {
-              setOneShotUI({
-                ui: (
-                  <CreateDatabase
-                    dbName={dbName}
-                    handleClose={() => {
-                      reload();
-                      setOneShotUI({ ui: null });
-                    }}
-                    kind={kind}
-                  />
-                ),
-                title: (function () {
-                  switch (kind) {
-                    case DataSourceKind.CouchBase:
-                      return "create bucket";
-                    default:
-                      return "create database";
-                  }
-                })(),
-              });
+              handleCreateDatabase();
             }}
             kind={kind}
           />
         )}
-
         {conn_established && <MenuRefresh refresh={reload} />}
         {<MenuConnectionInfo dbName={dbName} />}
         {conn_established && <MenuCloseConn name={dbName} />}
@@ -1303,6 +1259,7 @@ function CatalogTree() {
   const { isLoading, setLoading } = useConnLoading();
   const { is_connected } = useConnected();
   const conn_established = is_connected(name);
+  const [showCreateDatabase, setShowCreateDatabase] = useState(false);
   const handleReload = useCallback(() => {
     if (!conn_established) {
       setDatabases([]);
@@ -1334,7 +1291,16 @@ function CatalogTree() {
     <MyTreeItem
       enable={conn_established}
       makeMenu={() => {
-        return <CatalogMenu dbName={name} reload={handleReload} kind={kind} />;
+        return (
+          <CatalogMenu
+            reload={handleReload}
+            handleCreateDatabase={() => {
+              setShowCreateDatabase(true);
+            }}
+            dbName={name}
+            kind={kind}
+          />
+        );
       }}
       label=<>
         <span>{name} </span>
@@ -1349,6 +1315,21 @@ function CatalogTree() {
           </DbnameContext.Provider>
         );
       })}
+
+      {showCreateDatabase && (
+        <Dialog
+          open={showCreateDatabase}
+          onClose={() => {
+            setShowCreateDatabase(false);
+          }}>
+          <CreateDatabase
+            handleClose={() => {
+              handleReload();
+              setShowCreateDatabase(false);
+            }}
+          />
+        </Dialog>
+      )}
     </MyTreeItem>
   );
 }
@@ -1360,6 +1341,8 @@ function DatabaseTree(props: { database?: string; reloadDatabase?: () => void })
   const { database, reloadDatabase } = props;
   const { isLoading, setLoading } = useConnLoading();
   const { is_connected } = useConnected();
+
+  const [showCreateSchama, setShowCreateSchema] = useState(false);
 
   const conn_established = is_connected(name);
   const handleReload = useCallback(() => {
@@ -1399,6 +1382,9 @@ function DatabaseTree(props: { database?: string; reloadDatabase?: () => void })
             reload={handleReload}
             reloadDatabase={reloadDatabase}
             kind={kind}
+            handleCreateSchema={() => {
+              setShowCreateSchema(true);
+            }}
             schemas={schemas}
           />
         );
@@ -1419,6 +1405,23 @@ function DatabaseTree(props: { database?: string; reloadDatabase?: () => void })
           </DbnameContext.Provider>
         );
       })}
+
+      {showCreateSchama && (
+        <Dialog
+          open={showCreateSchama}
+          onClose={() => {
+            setShowCreateSchema(false);
+          }}>
+          <CreateSchema
+            handleClose={() => {
+              handleReload();
+              setShowCreateSchema(false);
+            }}
+            schemas={schemas}
+            handleReload={handleReload}
+          />
+        </Dialog>
+      )}
     </MyTreeItem>
   );
 }

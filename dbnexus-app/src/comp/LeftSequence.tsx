@@ -1,6 +1,7 @@
 import {
   Button,
   Checkbox,
+  Dialog,
   FormControlLabel,
   ListItemIcon,
   ListItemText,
@@ -22,18 +23,14 @@ import {
 import { MenuRefresh, MyTreeItem, VirtualListLeft } from "./CommonComp.tsx";
 import { GrSteps } from "./icons";
 import { CopySql, ShowingCount } from "./CommonComp2.tsx";
-import {
-  useNotification,
-  useTabsManage,
-  useMatcherFn,
-  useOneShotDialogUI,
-} from "./store.tsx";
+import { useNotification, useTabsManage, useMatcherFn } from "./store.tsx";
 import { commands, DefAndMetas, SequenceDetail } from "./bindings.ts";
 function SequenceTree() {
   const { dbName, kind } = useContext(DbnameContext);
   const [seq, setSeq] = useState<SequenceDetail[]>([]);
   const { showNotification } = useNotification();
   const matchPattern = useMatcherFn();
+  const [showDropSeq, setShowDropSeq] = useState<SequenceDetail | null>(null);
   const reload = useCallback(() => {
     commands
       .listSequence(dbName)
@@ -75,7 +72,17 @@ function SequenceTree() {
       <VirtualListLeft
         data={showItems}
         makeMenu={(seq) => {
-          return <SequenceMenu reload={reload} dbName={dbName} kind={kind} seq={seq} />;
+          return (
+            <SequenceMenu
+              reload={reload}
+              dbName={dbName}
+              kind={kind}
+              seq={seq}
+              dropSeq={() => {
+                setShowDropSeq(seq);
+              }}
+            />
+          );
         }}
         show={(seq) => {
           return (
@@ -85,6 +92,18 @@ function SequenceTree() {
           );
         }}
       />
+
+      {showDropSeq && (
+        <Dialog open={!!showDropSeq}>
+          <DropSeq
+            seq={showDropSeq}
+            handleClose={() => {
+              setShowDropSeq(null);
+            }}
+            reload={reload}
+          />
+        </Dialog>
+      )}
     </MyTreeItem>
   );
 }
@@ -108,10 +127,10 @@ function SequenceMenu(props: {
   seq: SequenceDetail;
   reload: () => void;
   kind: DataSourceKind;
+  dropSeq: () => void;
 }) {
-  const { dbName, seq, reload, kind } = props;
+  const { dbName, seq, kind, dropSeq } = props;
   const { appendTab } = useTabsManage();
-  const { setOneShotUI } = useOneShotDialogUI();
 
   const handleOpenDetails = () => {
     appendTab(
@@ -144,20 +163,7 @@ function SequenceMenu(props: {
       <MenuItem
         sx={{ color: "error.main" }}
         onClick={() => {
-          setOneShotUI({
-            ui: (
-              <DropSeq
-                kind={kind}
-                seq={seq}
-                handleClose={() => {
-                  setOneShotUI({ ui: null });
-                }}
-                reload={reload}
-                dbName={dbName}
-              />
-            ),
-            title: `drop sequence ${seq.name}`,
-          });
+          dropSeq();
         }}>
         <ListItemIcon>
           <DeleteForeverIcon color="error" />
@@ -169,14 +175,12 @@ function SequenceMenu(props: {
 }
 
 function DropSeq(props: {
-  kind: DataSourceKind;
   seq: SequenceDetail;
   reload: () => void;
   handleClose: () => void;
-  dbName;
 }) {
-  const { kind, seq, reload, handleClose, dbName } = props;
-
+  const { seq, reload, handleClose } = props;
+  const { dbName, kind } = useContext(DbnameContext);
   const [cascade, setCascade] = useState(false);
   const supportCascade = [DataSourceKind.Postgres, DataSourceKind.Cockroach].includes(
     kind,
