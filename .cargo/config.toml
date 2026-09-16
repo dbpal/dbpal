@@ -25,6 +25,8 @@ debug = 1
 [profile.release.package.dbnexus_db]
 debug = 1
 
+[profile.release.package.dbnexus_db2]
+debug = 1
 
 [target.x86_64-pc-windows-msvc]
 rustflags = ["-C", "link-arg=/STACK:8000000"]

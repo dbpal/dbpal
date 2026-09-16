@@ -61,8 +61,8 @@ impl ClickHouseDB {
                         });
                         m
                     };
-                    let sql = self.insert_sql(table_name, &fs, &values)?;
-                    let sql = format!("{};\n", sql);
+                    let mut sql = self.insert_sql(table_name, &fs, &values)?;
+                    sql.push_str(";\n");
                     sender.send(sql.into()).await?;
                 }
                 FieldsOrData::ReadingColumns => {}

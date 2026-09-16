@@ -493,8 +493,9 @@ function CouchBaseEditor(props: {
   );
 }
 
-function CouchBaseInsert({ dbName, table }) {
+function CouchBaseInsert({ table }) {
   const [id, setId] = useState("");
+  const { dbName } = useContext(DbnameContext);
   return (
     <CouchBaseEditor
       warnModify={false}

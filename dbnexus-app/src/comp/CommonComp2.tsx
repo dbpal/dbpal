@@ -1747,23 +1747,12 @@ function ToggleChatShow() {
 /**
  * Copy SQL button with inline SQL preview.
  */
-function CopySql(props: { sql: string; style?: CSSProperties }) {
-  let { sql, style } = props;
-  const { showNotification } = useNotification();
+function CopySql(props: { sql: string }) {
+  let { sql } = props;
   if (!sql) {
     return <> </>;
   }
-  return (
-    <Stack style={{ ...style, alignItems: "center" }} direction="row">
-      <IconButton
-        onClick={() => {
-          handleCopyToClipboard(sql, showNotification);
-        }}>
-        <ContentCopyIcon />
-      </IconButton>
-      <code> {sql} </code>
-    </Stack>
-  );
+  return <AppCode codeBlock={sql} language="sql" />;
 }
 
 function IconModifed() {

@@ -405,10 +405,10 @@ function AddTableView(props: {
         />
       );
     case DataSourceKind.CouchBase:
-      return <CouchBaseInsert dbName={dbName} table={table} />;
+      return <CouchBaseInsert table={table} />;
   }
 
-  return <SqlAddTableView dbName={dbName} table={table} />;
+  return <SqlAddTableView table={table} />;
 }
 
 function AddTableModal(props: {
@@ -463,8 +463,9 @@ function AddTableModal(props: {
   );
 }
 
-function SqlAddTableView(props: { dbName: string; table: string }) {
-  const { dbName, table } = props;
+function SqlAddTableView(props: { table: string }) {
+  const { table } = props;
+  const { dbName } = useContext(DbnameContext);
   const [fields, setFields] = useState<Field[]>([]);
   const [sql, setSql] = useState("");
   const { showNotification } = useNotification();
