@@ -868,9 +868,9 @@ function RedisOneTableKind(props: {
   typ: RedisTableType;
   kind: DataSourceKind;
   handleReload;
-  dbName;
 }) {
-  const { tables, typ, kind, handleReload, dbName } = props;
+  const { dbName } = useContext(DbnameContext);
+  const { tables, typ, kind, handleReload } = props;
   const [showDup, setShowDup] = useState("");
   const [showExport, setShowExport] = useState("");
   const [renameTable, setRenameTable] = useState("");
@@ -1020,35 +1020,30 @@ function RedisTables() {
             typ={RedisTableType.String}
             tables={tables.string_tables}
             handleReload={handleReload}
-            dbName={dbName}
           />
           <RedisOneTableKind
             kind={kind}
             typ={RedisTableType.List}
             tables={tables.list_tables}
             handleReload={handleReload}
-            dbName={dbName}
           />
           <RedisOneTableKind
             kind={kind}
             typ={RedisTableType.Set}
             tables={tables.set_tables}
             handleReload={handleReload}
-            dbName={dbName}
           />
           <RedisOneTableKind
             kind={kind}
             typ={RedisTableType.Zset}
             tables={tables.zset_tables}
             handleReload={handleReload}
-            dbName={dbName}
           />
           <RedisOneTableKind
             kind={kind}
             typ={RedisTableType.Hash}
             tables={tables.hash_tables}
             handleReload={handleReload}
-            dbName={dbName}
           />
         </>
       )}
