@@ -972,6 +972,12 @@ export {
   arrayToHex,
 };
 
+declare module "@mui/x-data-grid" {
+  interface ToolbarPropsOverrides {
+    dbpal: any; // 或者你期望的具体类型，比如 string、boolean 或某个函数签名
+  }
+}
+
 async function webviewWIndowInit() {
   const currentWebview = WebviewWindow.getCurrent();
   if (["windows", "linux"].includes(platform())) {

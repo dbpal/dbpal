@@ -41,12 +41,7 @@ import { openPath, openUrl } from "@tauri-apps/plugin-opener";
 import { registeredThemes, shrinkAble, prettyMs, MonacoEditor } from "./helper";
 
 import { EditIcon } from "./icons";
-import {
-  AppDataGridToolBar,
-  IconModifed,
-  SimpleFlexEditor,
-  StackRowCenter,
-} from "./CommonComp2";
+import { IconModifed, SimpleFlexEditor, StackRowCenter } from "./CommonComp2";
 import { ClearableTextField } from "./CommonComp2";
 import {
   enable as enableApp,
@@ -72,6 +67,7 @@ import { listen } from "@tauri-apps/api/event";
 import "@mui/material/Chip";
 import { AiOnlineSearch, commands } from "./bindings";
 import { isNumber } from "@mui/x-data-grid/internals";
+import { CustomToolbar } from "./CustomToolBar";
 
 declare module "@mui/material/Chip" {
   interface ChipPropsSizeOverrides {
@@ -1098,7 +1094,7 @@ function makeComponents(
         columnHeaderHeight: dataGridRowHeight * 1.5,
         showToolbar: true,
         slotProps: {},
-        slots: { toolbar: AppDataGridToolBar },
+        slots: { toolbar: CustomToolbar },
         getRowClassName: ({ id }) => {
           const x = typeof id == "number" ? id : parseInt(id);
           if (isNumber(x) && x % 2 == 1) {

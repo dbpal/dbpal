@@ -912,7 +912,7 @@ function RedisSetTable(props: { setKey: string }) {
   }, []);
 
   const setUpMenu = useContextMenu((state) => state.setUpMenu);
-  const slotProps = useMemo(() => {
+  const slotProps = useMemo((): GridSlotsComponentsProps => {
     return {
       row: {
         onContextMenu: (e) => {
@@ -942,7 +942,7 @@ function RedisSetTable(props: { setKey: string }) {
           return { keyMatch, handleReload, setKey, loading, setKeyMatch };
         })(),
       },
-    } as GridSlotsComponentsProps;
+    };
   }, [setUpMenu, handleDel, keyMatch, handleReload, setKey, loading]);
 
   const [modifyModalBox, setModifyModalBox] = useState<HTMLDivElement | null>(null);
@@ -1306,7 +1306,7 @@ function RedisListTable(props: { listKey: string }) {
   );
 
   const setUpMenu = useContextMenu((state) => state.setUpMenu);
-  const slotProps = useMemo(() => {
+  const slotProps = useMemo((): GridSlotsComponentsProps => {
     return {
       row: {
         onContextMenu: (e) => {
@@ -1335,7 +1335,7 @@ function RedisListTable(props: { listKey: string }) {
           return { handleReload, listKey, loading };
         })(),
       },
-    } as GridSlotsComponentsProps;
+    };
   }, [handleDel, handleReload, listKey, loading, setUpMenu]);
 
   const [modifyModalBox, setModifyModalBox] = useState<HTMLDivElement | null>(null);
@@ -1711,7 +1711,7 @@ function RedisZsetTable(props: { zsetKey: string }) {
   }, []);
 
   const setUpMenu = useContextMenu((state) => state.setUpMenu);
-  const slotProps = useMemo(() => {
+  const slotProps = useMemo((): GridSlotsComponentsProps => {
     return {
       row: {
         onContextMenu: (e) => {
@@ -1755,7 +1755,7 @@ function RedisZsetTable(props: { zsetKey: string }) {
           };
         })(),
       },
-    } as GridSlotsComponentsProps;
+    };
   }, [
     handleDel,
     handleReload,
@@ -2095,7 +2095,7 @@ function RedisHashTable(props: { hashKey: string }) {
   }, []);
 
   const setUpMenu = useContextMenu((state) => state.setUpMenu);
-  const slotProps = useMemo(() => {
+  const slotProps = useMemo((): GridSlotsComponentsProps => {
     return {
       row: {
         onContextMenu: (e) => {
@@ -2125,7 +2125,7 @@ function RedisHashTable(props: { hashKey: string }) {
           return { keyMatch, setKeyMatch, loading, handleReload, hashKey };
         })(),
       },
-    } as GridSlotsComponentsProps;
+    };
   }, [handleDel, handleReload, hashKey, keyMatch, loading, setUpMenu]);
 
   const [modifyModalBox, setModifyModalBox] = useState<HTMLDivElement | null>(null);
@@ -2251,6 +2251,7 @@ export {
   RedisHashTable,
   RedisZsetTable,
   RedisSetTable,
+  // value editor
   RedisValueEditor,
   // add
   RedisAddSet,

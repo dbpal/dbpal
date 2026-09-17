@@ -1522,7 +1522,7 @@ function MyTreeItem(props: {
     </Stack>
   );
 }
-function ExportTableOnTheFilterAndSort(props: {
+function ExportTableOnTheFilterSort(props: {
   tableName: string;
   para: ShowTableParameter;
   isTable: boolean;
@@ -1554,7 +1554,7 @@ function ExportTableOnTheFilterAndSort(props: {
   );
 }
 export {
-  ExportTableOnTheFilterAndSort,
+  ExportTableOnTheFilterSort,
   MyTreeItem,
   VirtualListLeft,
   LongNotice,

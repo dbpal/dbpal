@@ -19,6 +19,7 @@ import {
   gridPageCountSelector,
   GridColumnVisibilityModel,
   GridEventListener,
+  ToolbarPropsOverrides,
 } from "@mui/x-data-grid";
 import { GridApiCommunity } from "@mui/x-data-grid/internals";
 
@@ -47,4 +48,5 @@ export type {
   GridColumnVisibilityModel,
   GridApiCommunity as GridApi,
   GridEventListener,
+  ToolbarPropsOverrides,
 };

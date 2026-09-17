@@ -61,7 +61,7 @@ import {
 } from "./icons";
 import {
   AppColumnMenu,
-  ExportTableOnTheFilterAndSort,
+  ExportTableOnTheFilterSort,
   ModalHeader,
   ResetColumnWidth,
   SelectPageSize,
@@ -578,7 +578,7 @@ function MongoTableToolBar(props: {
             <UploadIcon />
           </IconButton>
         )}
-        <ExportTableOnTheFilterAndSort
+        <ExportTableOnTheFilterSort
           isTable={isTable}
           para={(function () {
             const whereStr = arrayToHex(BSON.serialize(filter));
@@ -1228,7 +1228,7 @@ function MongoTableList(props: {
   }, [deleteOP, handleReload, resp, showNotification]);
 
   const setUpMenu = useContextMenu((state) => state.setUpMenu);
-  const slotProps = useMemo(() => {
+  const slotProps = useMemo((): GridSlotsComponentsProps => {
     if (!resp) {
       return undefined;
     }
@@ -1263,7 +1263,7 @@ function MongoTableList(props: {
         },
         style: { cursor: "context-menu" },
       },
-    } as GridSlotsComponentsProps;
+    };
   }, [handleDel, resp, setSort, setUpMenu]);
   const slots = useMemo(() => {
     return {

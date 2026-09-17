@@ -1007,6 +1007,7 @@ function RedisTables() {
         onChange={(e) => {
           setFilter(e.target.value);
         }}
+        style={{ paddingLeft: "0.5rem" }}
         onClear={() => {
           setFilter("");
         }}

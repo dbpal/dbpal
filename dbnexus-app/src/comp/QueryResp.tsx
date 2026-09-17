@@ -289,7 +289,7 @@ function QueryResp_(props: { data: MuiDataGridData }): React.ReactElement {
 
   const [sortModel, setSortModel] = useState<GridSortModel>([]);
   const setUpMenu = useContextMenu((state) => state.setUpMenu);
-  const slotProps = useMemo(() => {
+  const slotProps = useMemo((): GridSlotsComponentsProps => {
     if (!data) {
       return undefined;
     }
@@ -331,7 +331,7 @@ function QueryResp_(props: { data: MuiDataGridData }): React.ReactElement {
         },
         style: { cursor: "context-menu" },
       },
-    } as GridSlotsComponentsProps;
+    };
   }, [data, setUpMenu, dbName, kind]);
 
   const onSortModelChange = useCallback((e) => {

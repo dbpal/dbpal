@@ -74,7 +74,7 @@ import {
 import { FileCopyIcon, MdEditNote } from "./icons";
 import {
   AppColumnMenu,
-  ExportTableOnTheFilterAndSort,
+  ExportTableOnTheFilterSort,
   ModalHeader,
   ResetColumnWidth,
   ViewRowInModal,
@@ -472,7 +472,7 @@ function SqlTablePagination_({
 
         <ExportQueryResultToFile />
 
-        <ExportTableOnTheFilterAndSort
+        <ExportTableOnTheFilterSort
           tableName={table}
           isTable={isTable}
           para={para}
@@ -987,7 +987,7 @@ function SqlTableView_(props: {
     [showNotification],
   );
 
-  const slotProps = useMemo(() => {
+  const slotProps = useMemo((): GridSlotsComponentsProps => {
     return {
       row: {
         onContextMenu: (e) => {
@@ -1091,7 +1091,7 @@ function SqlTableView_(props: {
           };
         })(),
       },
-    } as GridSlotsComponentsProps;
+    };
   }, [
     resp,
     setUpMenu,
