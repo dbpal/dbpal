@@ -19,6 +19,7 @@ import {
   Box,
   InputAdornment,
   Collapse,
+  Alert,
 } from "@mui/material";
 import {
   AiOutlineDisconnect,
@@ -1554,7 +1555,19 @@ function ExportTableOnTheFilterSort(props: {
     </>
   );
 }
+
+function SqlExportTableOnFilterSortNotice() {
+  return (
+    <>
+      <Typography>
+        export table to file base on current setting,filter and sort
+      </Typography>
+      <Alert severity="info"> page and page_size will be ignored </Alert>
+    </>
+  );
+}
 export {
+  SqlExportTableOnFilterSortNotice,
   ExportTableOnTheFilterSort,
   MyTreeItem,
   VirtualListLeft,

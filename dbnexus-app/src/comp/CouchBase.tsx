@@ -1,5 +1,4 @@
 import {
-  Alert,
   Button,
   ButtonGroup,
   Chip,
@@ -57,6 +56,7 @@ import {
 import {
   ExportTableOnTheFilterSort,
   SelectPageSize,
+  SqlExportTableOnFilterSortNotice,
   VirtualVarListLeft,
 } from "./CommonComp.tsx";
 import { Channel } from "@tauri-apps/api/core";
@@ -252,10 +252,7 @@ function CouchBaseTable_(props: { table: string }) {
             tableName={table}
             para={{ filter: filter ? filter : null, sort: sort ? sort : null }}
             extraUI=<>
-              <Typography>
-                export table to file base on current setting,filter and sort
-              </Typography>
-              <Alert severity="info"> page and page_size will not be ignored </Alert>
+              <SqlExportTableOnFilterSortNotice />
             </>
           />
         </Stack>

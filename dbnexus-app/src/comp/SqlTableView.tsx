@@ -9,7 +9,6 @@ import React, {
 } from "react";
 import { ArrowOutwardIcon, CancelIcon, FaUpload, MdOutlineReply } from "./icons";
 import {
-  Alert,
   Box,
   Button,
   Checkbox,
@@ -77,6 +76,7 @@ import {
   ExportTableOnTheFilterSort,
   ModalHeader,
   ResetColumnWidth,
+  SqlExportTableOnFilterSortNotice,
   ViewRowInModal,
 } from "./CommonComp";
 
@@ -477,10 +477,7 @@ function SqlTablePagination_({
           isTable={isTable}
           para={para}
           extraUI=<>
-            <Typography>
-              export table to file base on current setting,filter and sort
-            </Typography>
-            <Alert severity="info"> page and page_size will not be ignored </Alert>
+            <SqlExportTableOnFilterSortNotice />
           </>
         />
 

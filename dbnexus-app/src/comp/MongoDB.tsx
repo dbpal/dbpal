@@ -1,5 +1,4 @@
 import {
-  Alert,
   Box,
   Button,
   ButtonGroup,
@@ -65,6 +64,7 @@ import {
   ModalHeader,
   ResetColumnWidth,
   SelectPageSize,
+  SqlExportTableOnFilterSortNotice,
 } from "./CommonComp";
 import {
   DocsAndCount,
@@ -587,10 +587,7 @@ function MongoTableToolBar(props: {
           })()}
           tableName={table}
           extraUI=<>
-            <Typography>
-              export table to file base on current setting,filter and sort
-            </Typography>
-            <Alert severity="info"> page and page_size will not be ignored </Alert>
+            <SqlExportTableOnFilterSortNotice />
           </>
         />
 
