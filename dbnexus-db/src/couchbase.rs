@@ -621,7 +621,7 @@ impl SqlBuilder for CouchBaseDB {
             }
             if let Some(offset) = para.offset() {
                 sql.push_str(
-                    format!(" LIMIT {} OFFSET {}", offset.offset, offset.page_size).as_str(),
+                    format!(" LIMIT {} OFFSET {}", offset.page_size, offset.offset).as_str(),
                 );
             }
         }
@@ -960,8 +960,8 @@ mod tests {
         values.insert("id".to_string(), Some(id.to_owned()));
         values.insert("value".to_owned(), {
             let mut m = serde_json::Map::new();
-            m.insert("data".to_string(), serde_json::Value::from("hello world."));
-            m.insert("id".into(), "abc".into());
+            m.insert("name".to_string(), serde_json::Value::from("john"));
+            m.insert("age".into(), 18.into());
             Some(serde_json::to_string(&m).unwrap())
         });
         db.table_insert(table_name, &values).await.unwrap();
@@ -971,8 +971,12 @@ mod tests {
             .unwrap();
         println!("resp:{:?}", resp);
 
-        db.test_table_export_and_import_json(table_name).await;
+        let cols = db.show_table_columns(table_name).await.unwrap();
+        for col in cols.iter() {
+            println!("column:{:?}", col);
+        }
 
+        db.test_table_export_and_import_json(table_name).await;
         db.test_table_export_and_import_jsonline(table_name).await;
 
         let resp = db

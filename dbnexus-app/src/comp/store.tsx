@@ -1583,3 +1583,48 @@ export const useCBQueryViewStore = create<CBQueryViewState>()(
     },
   ),
 );
+
+// 状态类型
+interface RedisKeyFilter {
+  filters: Record<string, string>;
+  // 常用操作
+  setFilter: (key: string, value: string) => void;
+  removeFilter: (key: string) => void;
+}
+
+export const useRedisKeyFilter = create<RedisKeyFilter>()(
+  persist(
+    (set, get) => ({
+      filters: {},
+      removeFilter: (key) => {
+        const next = { ...get().filters };
+        delete next[key];
+        return { data: next };
+        set(next);
+      },
+      setFilter: (key, value) =>
+        set((state) => ({
+          filters: { ...state.filters, [key]: value },
+        })),
+    }),
+    {
+      name: "redis-key-filter",
+    },
+  ),
+);
+
+interface RedisMaxKeyReturns {
+  maxRow: number;
+  setMaxRow: (x: number) => void;
+}
+export const useRedisMaxKeyStore = create<RedisMaxKeyReturns>()(
+  persist(
+    (set) => ({
+      maxRow: 50000, // 默认值，可自己改
+      setMaxRow: (x) => set({ maxRow: x }),
+    }),
+    {
+      name: "redis-max-key", // localStorage 的 key
+    },
+  ),
+);

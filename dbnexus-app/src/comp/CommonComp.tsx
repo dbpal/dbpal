@@ -1462,6 +1462,7 @@ function MyTreeItem(props: {
     <Stack
       style={{
         paddingLeft: paddingLeft(ident),
+        maxWidth: "100%",
       }}>
       <Stack
         onClick={() => {

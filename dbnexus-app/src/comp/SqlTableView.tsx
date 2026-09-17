@@ -702,7 +702,7 @@ function SqlTableView_(props: {
   );
 
   const [loading, setLoading] = useState(false);
-  const [where, setWhere] = useState("");
+  const [filter, setFilter] = useState("");
 
   const [sort, setSort] = useState("");
 
@@ -811,17 +811,17 @@ function SqlTableView_(props: {
   );
 
   const makePara = useCallback(() => {
-    const where_str = where.trim();
-    let order_by = sort.trim();
+    const filterStr = filter.trim();
+    let sortStr = sort.trim();
     return {
-      where_str: where_str ? where_str : null,
-      order_by: order_by ? order_by : null,
+      where_str: filterStr ? filterStr : null,
+      order_by: sortStr ? sortStr : null,
       page: page + 1,
       page_size: pageSize,
       allow_filtering: allowFiltering,
       limit: getSize(UseSizeConfig.queryLimit),
     };
-  }, [allowFiltering, getSize, page, pageSize, sort, where]);
+  }, [allowFiltering, getSize, page, pageSize, sort, filter]);
   const handleReload = useCallback(
     (showOK: boolean) => {
       switch (kind) {
@@ -944,7 +944,7 @@ function SqlTableView_(props: {
   );
   useEffect(() => {
     handleReload(false);
-  }, [page, pageSize, where, sort, allowFiltering, handleReload]);
+  }, [page, pageSize, filter, sort, allowFiltering, handleReload]);
 
   const paginationModel = useMemo(() => {
     return { page, pageSize };
@@ -1080,8 +1080,8 @@ function SqlTableView_(props: {
         dbpal: (function (): SqlTableCustomToolBarLeftProps {
           return {
             handleReload,
-            where,
-            setWhere,
+            where: filter,
+            setWhere: setFilter,
             sort,
             setSort,
             kind,
@@ -1105,7 +1105,7 @@ function SqlTableView_(props: {
     tableName,
     makePara,
     handleReload,
-    where,
+    filter,
     sort,
     allowFiltering,
   ]);
@@ -1242,7 +1242,7 @@ function SqlTableView_(props: {
           <DialogTitle> Quick filter </DialogTitle>
           <FilterOnValue
             content={showFilter.content}
-            setWhere={setWhere}
+            setWhere={setFilter}
             field={showFilter.field}
             kind={kind}
             handleClose={() => {

@@ -23,8 +23,10 @@ import {
   ListItemText,
   MenuItem,
   MenuList,
+  Slider,
   Stack,
   TextField,
+  Tooltip,
 } from "@mui/material";
 
 import { SqlTableView, SqlTableViewData } from "./SqlTableView";
@@ -70,7 +72,13 @@ import {
   ShowingCount,
 } from "./CommonComp2";
 import { CouchBaseInsert, CouchBaseTable } from "./CouchBase";
-import { useNotification, useTabsManage, useMatcherFn } from "./store.tsx";
+import {
+  useNotification,
+  useTabsManage,
+  useMatcherFn,
+  useRedisKeyFilter,
+  useRedisMaxKeyStore,
+} from "./store.tsx";
 import { commands, Field, ListTable, RedisListTableRet } from "./bindings.ts";
 import {
   CouchbaseTableImportFile,
@@ -965,16 +973,18 @@ function RedisOneTableKind(props: {
 
 function RedisTables() {
   const { dbName, kind } = useContext(DbnameContext);
-  const [filter, setFilter] = useState("");
+  const { filters, setFilter, removeFilter } = useRedisKeyFilter();
+  const filter = filters[dbName] || "";
   const [tables, setTables] = useState<RedisListTableRet>();
   const [loading, setLoading] = useState(false);
   const { showNotification } = useNotification();
-  const max = 50000;
+  const { maxRow, setMaxRow } = useRedisMaxKeyStore();
   const [filterDelay] = useDebounce(filter, 1000);
+  const [maxRowDelay] = useDebounce(maxRow, 1000);
   const handleReload = useCallback(() => {
     setLoading(true);
     commands
-      .redisListKey(dbName, filterDelay ? filterDelay : null, max)
+      .redisListKey(dbName, filterDelay ? filterDelay : null, maxRowDelay)
       .then((e) => {
         setTables(e);
       })
@@ -988,7 +998,7 @@ function RedisTables() {
       .finally(() => {
         setLoading(false);
       });
-  }, [dbName, filterDelay, showNotification]);
+  }, [dbName, filterDelay, maxRowDelay, showNotification]);
 
   useEffect(() => {
     handleReload();
@@ -1002,18 +1012,45 @@ function RedisTables() {
   return (
     <>
       {loading && <CircularProgress />}
-      <ClearableTextField
-        value={filter}
-        onChange={(e) => {
-          setFilter(e.target.value);
-        }}
-        style={{ paddingLeft: "0.5rem" }}
-        onClear={() => {
-          setFilter("");
-        }}
-        fullWidth
-        label="key filter"
-      />
+      <Stack
+        style={{
+          paddingLeft: "0.5rem",
+        }}>
+        <ClearableTextField
+          value={filter}
+          onChange={(e) => {
+            setFilter(dbName, e.target.value);
+          }}
+          onClear={() => {
+            removeFilter(dbName);
+          }}
+          fullWidth
+          label="key filter"
+        />
+        <Stack direction="row" style={{ alignItems: "center" }}>
+          <Tooltip
+            title={(function () {
+              const d = "limit the max key can return.";
+              if (!tables) {
+                return d;
+              }
+              return tables.has_more ? "some key not return because of this limit" : d;
+            })()}>
+            <Slider
+              value={maxRow}
+              onChange={(_, value) => {
+                setMaxRow(value);
+              }}
+              style={{ flex: 1 }}
+              step={1000}
+              min={10000}
+              max={100_0000}
+              color={tables && tables.has_more ? "warning" : "success"}
+            />
+          </Tooltip>
+        </Stack>
+      </Stack>
+
       {tables && (
         <>
           <RedisOneTableKind

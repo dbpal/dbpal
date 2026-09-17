@@ -1,4 +1,5 @@
 import {
+  Alert,
   Button,
   ButtonGroup,
   Chip,
@@ -53,7 +54,11 @@ import {
   FaArrowsAltV,
   FaUpload,
 } from "./icons";
-import { SelectPageSize, VirtualVarListLeft } from "./CommonComp.tsx";
+import {
+  ExportTableOnTheFilterSort,
+  SelectPageSize,
+  VirtualVarListLeft,
+} from "./CommonComp.tsx";
 import { Channel } from "@tauri-apps/api/core";
 import { NameAndQueryId, uuidv4 } from "./Common.ts";
 import {
@@ -95,8 +100,7 @@ function CouchBaseTable_(props: { table: string }) {
   const { table } = props;
   const [page, setPage] = useState(1);
   const { couchbase: pageSize, setPageSize } = usePageSize();
-
-  const [where, setWhere] = useState("");
+  const [filter, setFilter] = useState("");
   const [sort, setSort] = useState("");
   const [showSetSort, setShowSetSort] = useState(false);
   const [showSetWhere, setShowSetWhere] = useState(false);
@@ -155,7 +159,7 @@ function CouchBaseTable_(props: { table: string }) {
         false,
         table,
         {
-          filter: where ? where : undefined,
+          filter: filter ? filter : undefined,
           sort: sort ? sort : undefined,
           page_size: pageSize,
           page: page,
@@ -170,7 +174,7 @@ function CouchBaseTable_(props: { table: string }) {
       .finally(() => {
         setLoading(false);
       });
-  }, [page, pageSize, showNotification, sort, tabSize, table, dbName, where]);
+  }, [page, pageSize, showNotification, sort, tabSize, table, dbName, filter]);
   useEffect(() => {
     handleReload();
   }, [handleReload]);
@@ -189,7 +193,7 @@ function CouchBaseTable_(props: { table: string }) {
           />
           <Tooltip title="filter something like 'age=18'">
             <Chip
-              label={where ? where : "..."}
+              label={filter ? filter : "..."}
               onClick={() => {
                 setShowSetWhere(true);
               }}
@@ -198,9 +202,9 @@ function CouchBaseTable_(props: { table: string }) {
               color="primary"
               icon={<FilterAltIcon />}
               onDelete={
-                where
+                filter
                   ? () => {
-                      setWhere("");
+                      setFilter("");
                     }
                   : undefined
               }
@@ -243,6 +247,17 @@ function CouchBaseTable_(props: { table: string }) {
             }}>
             <UploadIcon />
           </IconButton>
+          <ExportTableOnTheFilterSort
+            isTable
+            tableName={table}
+            para={{ filter: filter ? filter : null, sort: sort ? sort : null }}
+            extraUI=<>
+              <Typography>
+                export table to file base on current setting,filter and sort
+              </Typography>
+              <Alert severity="info"> page and page_size will not be ignored </Alert>
+            </>
+          />
         </Stack>
         <Typography variant="h5"> {table} </Typography>
         <Stack direction="row">
@@ -338,9 +353,9 @@ function CouchBaseTable_(props: { table: string }) {
         <SetFilterSort
           tableName={table}
           open={showSetWhere}
-          value={where}
+          value={filter}
           setValue={(v) => {
-            setWhere(v);
+            setFilter(v);
           }}
           handleClose={() => {
             setShowSetWhere(false);

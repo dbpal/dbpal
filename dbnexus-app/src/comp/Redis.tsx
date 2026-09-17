@@ -55,7 +55,12 @@ import {
   gridColumnHeaderSelectClassName,
   DbnameContext,
 } from "./helper.ts";
-import { AppColumnMenu, ModalHeader, ResetColumnWidth } from "./CommonComp.tsx";
+import {
+  AppColumnMenu,
+  ExportTableOnTheFilterSort,
+  ModalHeader,
+  ResetColumnWidth,
+} from "./CommonComp.tsx";
 import { editor } from "monaco-editor";
 import {
   SliderSize,
@@ -936,7 +941,11 @@ function RedisSetTable(props: { setKey: string }) {
         },
         style: { cursor: "context-menu" },
       },
-      pagination: { dbpal: { showLimit: true } },
+      pagination: {
+        dbpal: (function (): RedisPaginationDbPal {
+          return { showLimit: true, tableName: setKey, keyMatch: keyMatch };
+        })(),
+      },
       toolbar: {
         dbpal: (function (): SetToolBarParameterProps["dbpal"] {
           return { keyMatch, handleReload, setKey, loading, setKeyMatch };
@@ -1329,6 +1338,11 @@ function RedisListTable(props: { listKey: string }) {
           });
         },
         style: { cursor: "context-menu" },
+      },
+      pagination: {
+        dbpal: (function (): RedisPaginationDbPal {
+          return { showLimit: false, tableName: listKey, keyMatch: "" };
+        })(),
       },
       toolbar: {
         dbpal: (function (): ListToolBarProps["dbpal"] {
@@ -1735,7 +1749,11 @@ function RedisZsetTable(props: { zsetKey: string }) {
         },
         style: { cursor: "context-menu" },
       },
-      pagination: { dbpal: { showLimit: true } },
+      pagination: {
+        dbpal: (function (): RedisPaginationDbPal {
+          return { showLimit: true, tableName: zsetKey, keyMatch };
+        })(),
+      },
       toolbar: {
         dbpal: (function (): ZSetToolBarProps["dbpal"] {
           return {
@@ -1880,8 +1898,13 @@ function RedisZsetTable(props: { zsetKey: string }) {
   );
 }
 
-function RedisPagination(props: { dbpal?: { showLimit: boolean } }) {
-  const showLimit = props.dbpal?.showLimit ?? false;
+type RedisPaginationDbPal = {
+  showLimit: boolean;
+  tableName: string;
+  keyMatch: string | null;
+};
+function RedisPagination(props: { dbpal: RedisPaginationDbPal }) {
+  const { showLimit, tableName, keyMatch } = props.dbpal;
 
   return (
     <Stack
@@ -1898,6 +1921,16 @@ function RedisPagination(props: { dbpal?: { showLimit: boolean } }) {
         <ResetColumnWidth />
         <ExportQueryResultToFile />
         <DoubleClickToModify />
+        <ExportTableOnTheFilterSort
+          isTable
+          tableName={tableName}
+          para={{ filter: keyMatch ? keyMatch : null }}
+          extraUI=<>
+            {keyMatch && (
+              <Typography> export key to reuslt file base on the key match </Typography>
+            )}
+          </>
+        />
       </StackRowCenter>
 
       <Stack direction="row" sx={{ alignItems: "center" }}>
@@ -2119,7 +2152,11 @@ function RedisHashTable(props: { hashKey: string }) {
         },
         style: { cursor: "context-menu" },
       },
-      pagination: { dbpal: { showLimit: true } },
+      pagination: {
+        dbpal: (function (): RedisPaginationDbPal {
+          return { showLimit: true, tableName: hashKey, keyMatch };
+        })(),
+      },
       toolbar: {
         dbpal: (function (): HashToolBarProps["dbpal"] {
           return { keyMatch, setKeyMatch, loading, handleReload, hashKey };
