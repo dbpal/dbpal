@@ -587,8 +587,8 @@ function SqlCreateTableImportFile(props: { hasTableName?: string }) {
     showTable({
       dbName,
       para: {
-        where_str: null,
-        order_by: null,
+        filter: null,
+        sort: null,
         page: 1,
         page_size: 100,
       },

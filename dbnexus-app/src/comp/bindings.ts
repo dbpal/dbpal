@@ -26,8 +26,8 @@ export const commands = {
 	querySqlCloseConnection: (dbName: string, queryId: string) => __TAURI_INVOKE<null>("query_sql_close_connection", { dbName, queryId }),
 	querySqlOpenConnection: (dbName: string, id: string) => __TAURI_INVOKE<null>("query_sql_open_connection", { dbName, id }),
 	exportTableOrView: (dbName: string, taskId: string, sizeEmitter: Channel<number>, tableOrView: string, para: {
-	where_str?: string | null,
-	order_by?: string | null,
+	filter?: string | null,
+	sort?: string | null,
 	page?: number | null,
 	page_size?: number | null,
 	limit?: number | null,
@@ -554,8 +554,8 @@ export type SequenceDetail = {
 };
 
 export type ShowTableParameter = {
-	where_str?: string | null,
-	order_by?: string | null,
+	filter?: string | null,
+	sort?: string | null,
 	page?: number | null,
 	page_size?: number | null,
 	limit?: number | null,

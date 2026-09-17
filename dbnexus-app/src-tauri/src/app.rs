@@ -6,8 +6,8 @@ use dbnexus_db::datasource_config::{
     SqlServerDBConfig, SqliteDBConfig,
 };
 use dbnexus_db::db::{
-    BackendKind, BackendKindMysql, BackendKindPostGres, CatalogTrait, CheckConn, DBTrait,
-    ExportQueryResult, JsUint8Array, QuerySql, SchemaTrait, ServerMetas,
+    parse_bson_doc, BackendKind, BackendKindMysql, BackendKindPostGres, CatalogTrait, CheckConn,
+    DBTrait, ExportQueryResult, JsUint8Array, QuerySql, SchemaTrait, ServerMetas,
 };
 use dbnexus_db::language_server::LanguageServer;
 use dbnexus_db::mongo::MongoDB;
@@ -20,7 +20,7 @@ use dbnexus_db2::DuckDBConfig;
 use font_kit::error::SelectionError;
 use std::any::Any;
 
-use mongodb::bson::{self, Document};
+use mongodb::bson::{self};
 use std::collections::HashMap;
 use std::sync::Arc;
 use std::time::Duration;
@@ -862,10 +862,6 @@ pub struct MongoFindParameter {
     pub(crate) max: Option<JsUint8Array>,
     pub(crate) limit: Option<f64>,
     pub(crate) skip: Option<f64>,
-}
-
-pub fn parse_bson_doc(bs: &[u8]) -> Result<Document, ErrorFrontend> {
-    bson::Document::from_reader(std::io::Cursor::new(bs)).map_err(ErrorFrontend::from)
 }
 
 impl From<mongodb::bson::de::Error> for ErrorFrontend {

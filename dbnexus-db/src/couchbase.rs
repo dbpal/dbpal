@@ -391,7 +391,7 @@ impl SchemaTrait for CouchBaseDB {
     ) -> anyhow::Result<()> {
         let sql = self.gen_show_sql(name, None, para.as_ref());
         let mut resp = self.get_scope()?.query(sql, None).await?;
-        let mut rows = resp.rows::<'_, serde_json::Value>();
+        let mut rows = resp.rows::<'_, serde_json::Map<String, serde_json::Value>>();
 
         while let Some(row) = rows.next().await {
             let row = row?;
@@ -521,9 +521,7 @@ impl SchemaTrait for CouchBaseDB {
         emit: QueryEventEmitter,
     ) -> anyhow::Result<()> {
         let sql = self.gen_show_sql(table_name, None, Some(&para));
-        let total = self
-            .query_count(table_name, para.where_str.as_deref())
-            .await?;
+        let total = self.query_count(table_name, para.filter.as_deref()).await?;
         emit.send(
             QueryResp {
                 sql: Some(sql.clone()),
@@ -611,8 +609,8 @@ impl SqlBuilder for CouchBaseDB {
 
         if let Some(para) = para {
             let ShowTableParameter {
-                where_str,
-                order_by,
+                filter: where_str,
+                sort: order_by,
                 ..
             } = &para;
             if let Some(w) = where_str {

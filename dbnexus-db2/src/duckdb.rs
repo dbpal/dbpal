@@ -281,8 +281,8 @@ impl SqlBuilder for DuckDB {
         );
         if let Some(para) = para {
             let ShowTableParameter {
-                where_str,
-                order_by,
+                filter: where_str,
+                sort: order_by,
                 ..
             } = &para;
             if let Some(where_str) = where_str {
@@ -1256,7 +1256,7 @@ impl SchemaTrait for DuckDB {
         let cols = self.show_view_columns(view_name).await?;
         let view_name = view_name.to_owned();
         spawn_blocking(move || {
-            let total = this.query_count(&view_name, para.where_str.as_deref())?;
+            let total = this.query_count(&view_name, para.filter.as_deref())?;
             let sql = this.gen_show_sql(&view_name, None, Some(&para));
             log::info!("sql:{}", sql);
             emit.send(
@@ -1423,7 +1423,7 @@ impl SchemaTrait for DuckDB {
         let this = Clone::clone(self);
         let table_name = table_name.to_string();
         spawn_blocking(move || {
-            let total = this.query_count(&table_name, para.where_str.as_deref())?;
+            let total = this.query_count(&table_name, para.filter.as_deref())?;
             let sql = this.gen_show_sql(&table_name, Some(&cols), Some(&para));
             log::info!("sql:{}", sql);
             emit.send(

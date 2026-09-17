@@ -1001,9 +1001,7 @@ impl SchemaTrait for MysqlDB {
         emit.send("trying to get connection...".into())?;
         let mut conn = self.get_conn().await?;
         emit.send("trying to query total amount.".into())?;
-        let total = self
-            .query_count(view_name, para.where_str.as_deref())
-            .await?;
+        let total = self.query_count(view_name, para.filter.as_deref()).await?;
         emit.send("trying to query data.".into())?;
         let mut stream = sqlx::raw_sql(AssertSqlSafe(sql.as_str())).fetch(conn.deref_mut());
         let first = FirstTrue::default();
@@ -1134,9 +1132,7 @@ impl SchemaTrait for MysqlDB {
         emit.send("trying to query table columns.".into())?;
         let fields = self.show_table_columns(table_name).await?;
         emit.send("trying to query total amount".into())?;
-        let total = self
-            .query_count(table_name, para.where_str.as_deref())
-            .await?;
+        let total = self.query_count(table_name, para.filter.as_deref()).await?;
         let sql = self.gen_show_sql(table_name, Some(&fields), Some(&para));
         log::info!("sql:{}", sql);
         emit.send(
@@ -2028,8 +2024,8 @@ impl SqlBuilder for MysqlDB {
         );
         if let Some(para) = para {
             let ShowTableParameter {
-                where_str,
-                order_by,
+                filter: where_str,
+                sort: order_by,
                 ..
             } = &para;
 

@@ -77,11 +77,11 @@ async function showTable(
   try {
     if (setLoading) setLoading(true);
     let resp: MuiDataGridData = null;
-    if (!para.where_str) {
-      para.where_str = null;
+    if (!para.filter) {
+      para.filter = null;
     }
-    if (!para.order_by) {
-      para.order_by = null;
+    if (!para.sort) {
+      para.sort = null;
     }
     const emit = new Channel<QueryEvent>((event) => {
       if (import.meta.env.DEV) {

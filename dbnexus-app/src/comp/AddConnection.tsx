@@ -302,7 +302,7 @@ function PGSSL(props: {
 
   return (
     <>
-      <OpenSSLNotice />
+      <SSLNotice backend="native-tls" />
       <Stack direction="row" style={{ alignItems: "center", flexWrap: "wrap" }}>
         <FormControl style={{ width: "12rem" }}>
           <InputLabel> ssl mode </InputLabel>
@@ -338,7 +338,7 @@ function MysqlSSl(props: {
   ];
   return (
     <>
-      <OpenSSLNotice />
+      <SSLNotice backend="native-tls" />
       <Stack direction="row" style={{ alignItems: "center", flexWrap: "wrap" }}>
         <FormControl style={{ width: "12rem" }}>
           <InputLabel> ssl mode </InputLabel>
@@ -1114,7 +1114,7 @@ function Redis(props: { config?: RedisDBConfig; context: AddConnectionContext })
         label="database"
         makeConfig={makeConfig}
       />
-      <OpenSSLNotice />
+      <SSLNotice backend="native-tls" />
       <FormControlLabel
         control={
           <Checkbox
@@ -1197,7 +1197,7 @@ function MongoDb(props: { config?: MongoDBConfig; context: AddConnectionContext 
           />
         )}
       </Stack>
-      {enableSSL && <OpenSSLNotice />}
+      {enableSSL && <SSLNotice backend="native-tls" />}
     </Stack>
   );
 }
@@ -1248,7 +1248,7 @@ function Cassandra(props: {
         savePassword={savePassword}
         setSavePassword={setSavePassword}
       />
-      <OpenSSLNotice />
+      <SSLNotice backend="openssl" />
       <Stack direction="row" style={{ alignItems: "center" }}>
         <FormControlLabel
           style={{ width: "180px" }}
@@ -1967,10 +1967,10 @@ function CouchBase(props: {
   );
 }
 
-function OpenSSLNotice() {
+function SSLNotice(props: { backend: "native-tls" | "openssl" }) {
   return (
     <Alert severity="info">
-      SSL connections are implemented using OpenSSL as the backend
+      SSL connections are implemented using {props.backend} as the backend
     </Alert>
   );
 }

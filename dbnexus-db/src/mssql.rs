@@ -912,7 +912,7 @@ impl SchemaTrait for SqlServerDB {
             conn,
             self.config.schema_str()?,
             view_name,
-            para.where_str.as_deref(),
+            para.filter.as_deref(),
         )
         .await?;
         let sql = self.gen_show_sql(view_name, None, Some(&para));
@@ -1039,7 +1039,7 @@ impl SchemaTrait for SqlServerDB {
             conn,
             self.config.schema_str()?,
             table_name,
-            para.where_str.as_deref(),
+            para.filter.as_deref(),
         )
         .await?;
         let fields = self.show_table_columns(table_name).await?;
@@ -1342,8 +1342,8 @@ impl SqlBuilder for SqlServerDB {
         );
         if let Some(para) = para {
             let ShowTableParameter {
-                where_str,
-                order_by,
+                filter: where_str,
+                sort: order_by,
                 ..
             } = &para;
             if let Some(where_str) = where_str {
@@ -1351,12 +1351,18 @@ impl SqlBuilder for SqlServerDB {
             }
             if let Some(order_by) = order_by {
                 sql.push_str(format!(" ORDER BY {order_by} ").as_str());
-            } else {
+                if let Some(offset) = para.offset() {
+                    sql.push_str(
+                        format!(
+                            " OFFSET {} ROWS FETCH NEXT {} ROWS ONLY",
+                            offset.offset, offset.page_size
+                        )
+                        .as_str(),
+                    );
+                }
+            } else if let Some(offset) = para.offset() {
                 // sql server 的offset子句只能和order by一起使用
-                sql.push_str(" ORDER  BY (SELECT NULL) ")
-            }
-            let offset = para.offset();
-            if let Some(offset) = offset {
+                sql.push_str(" ORDER  BY (SELECT NULL) ");
                 sql.push_str(
                     format!(
                         " OFFSET {} ROWS FETCH NEXT {} ROWS ONLY",
@@ -3129,6 +3135,35 @@ END;
         let sql = db.drop_table_column(table_name, "name2").await.unwrap();
 
         println!("drop table column sql:{}", sql);
+    }
+
+    #[ignore = "run by hand"]
+    #[tokio::test]
+    async fn test_offset() {
+        enable_test_log();
+
+        let para = ShowTableParameter::new_stupid_test("id asc");
+        let table_name = "test_type1";
+
+        let _guard = test_lock().lock().await;
+        let db = make_test_object().await;
+        {
+            let para = para.clone();
+            db.show_table_collect(table_name, para).await.unwrap();
+        }
+        {
+            let mut para = para.clone();
+            para.page = None;
+            para.page_size = None;
+            db.show_table_collect(table_name, para).await.unwrap();
+        }
+        {
+            let mut para = para.clone();
+            para.page = None;
+            para.sort = None;
+            para.page_size = None;
+            db.show_table_collect(table_name, para).await.unwrap();
+        }
     }
 
     #[tokio::test]

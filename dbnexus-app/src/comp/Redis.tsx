@@ -849,7 +849,7 @@ function RedisSetTable(props: { setKey: string }) {
         setLoading,
         para: {
           limit: getSize(UseSizeConfig.queryLimit),
-          where_str: keyMatchDelay ? keyMatchDelay : null,
+          filter: keyMatchDelay ? keyMatchDelay : null,
         },
         showNotification,
         okCallBack: () => {
@@ -1631,7 +1631,7 @@ function RedisZsetTable(props: { zsetKey: string }) {
         para: {
           min: minValue,
           max: maxValue,
-          where_str: keyMatchDelay ? keyMatchDelay : null,
+          filter: keyMatchDelay ? keyMatchDelay : null,
           limit: getSize(UseSizeConfig.queryLimit),
         },
 
@@ -2034,7 +2034,7 @@ function RedisHashTable(props: { hashKey: string }) {
         setStatus: setQueryStatus,
         para: {
           limit: getSize(UseSizeConfig.queryLimit),
-          where_str: keyMatchDelay ? keyMatchDelay : null,
+          filter: keyMatchDelay ? keyMatchDelay : null,
         },
         setLoading,
         showNotification,

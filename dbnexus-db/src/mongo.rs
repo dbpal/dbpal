@@ -14,10 +14,10 @@ use mongodb::{bson, Cursor, IndexModel};
 
 use crate::datasource_config::MongoDBConfig;
 use crate::db::{
-    BackendKind, CheckConn, CreateSchemaExtra, DBTrait, ExportFrame, ExportKind, ExportQueryResult,
-    ExtractSqlValeFromJsonValue, Field, GetBackendKind, Index, IndexKind, ListTable, MetaValue,
-    OptionMustBeSomeErr, QueryEventEmitter, QueryResp, QuerySql, ReadOnlyTrait, SchemaTrait,
-    ServerMetas, ShowTableParameter,
+    parse_bson_doc, BackendKind, CheckConn, CreateSchemaExtra, DBTrait, ExportFrame, ExportKind,
+    ExportQueryResult, ExtractSqlValeFromJsonValue, Field, GetBackendKind, Index, IndexKind,
+    ListTable, MetaValue, OptionMustBeSomeErr, QueryEventEmitter, QueryResp, QuerySql,
+    ReadOnlyTrait, SchemaTrait, ServerMetas, ShowTableParameter,
 };
 
 #[derive(Clone)]
@@ -597,16 +597,31 @@ impl SchemaTrait for MongoDB {
     async fn export_table_or_view(
         &self,
         name: &str,
-        _para: Option<ShowTableParameter>,
+        para: Option<ShowTableParameter>,
         kind: ExportKind,
         sender: tokio::sync::mpsc::Sender<ExportFrame>,
     ) -> anyhow::Result<()> {
+        let mut filter = None;
+        let mut sort = None;
+
+        if let Some(para) = para {
+            if let Some(x) = &para.filter {
+                let x = hex::decode(x)?;
+                filter = Some(parse_bson_doc(&x)?);
+            }
+            if let Some(x) = &para.sort {
+                let x = hex::decode(x)?;
+                sort = Some(parse_bson_doc(&x)?);
+            }
+        }
+
         match kind {
             ExportKind::Json { .. } | ExportKind::JsonLine => {
                 let db = self.get_db().await?;
                 let mut stream = db
                     .collection::<serde_json::Value>(name)
-                    .find(doc! {})
+                    .find(filter.unwrap_or(doc! {}))
+                    .sort(sort.unwrap_or(doc! {}))
                     .await?;
                 while let Some(x) = stream.next().await {
                     let x = x?;

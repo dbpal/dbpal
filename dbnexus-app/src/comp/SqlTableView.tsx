@@ -7,13 +7,7 @@ import React, {
   useMemo,
   useState,
 } from "react";
-import {
-  ArrowCircleDownRoundedIcon,
-  ArrowOutwardIcon,
-  CancelIcon,
-  FaUpload,
-  MdOutlineReply,
-} from "./icons";
+import { ArrowOutwardIcon, CancelIcon, FaUpload, MdOutlineReply } from "./icons";
 import {
   Alert,
   Box,
@@ -80,6 +74,7 @@ import {
 import { FileCopyIcon, MdEditNote } from "./icons";
 import {
   AppColumnMenu,
+  ExportTableOnTheFilterAndSort,
   ModalHeader,
   ResetColumnWidth,
   ViewRowInModal,
@@ -136,7 +131,6 @@ import {
   useGridSelector,
 } from "./datagridExport";
 import { SqlCreateTableImportFile } from "./CreateTable";
-import { ExportTableOrView } from "./Export";
 
 const confirmAboutPrimary = async (fields: Field[]): Promise<boolean> => {
   const hasPri = !!fields.find((x) => x.is_primary);
@@ -150,7 +144,7 @@ const confirmAboutPrimary = async (fields: Field[]): Promise<boolean> => {
   });
 };
 
-const editoInModalLangs = ["text", "html", "json", "xml"];
+const editorInModalLangs = ["text", "html", "json", "xml"];
 
 function EditInModal(props: {
   content: string;
@@ -165,7 +159,7 @@ function EditInModal(props: {
 
   useEffect(() => {
     if (!editingRowLanguage) {
-      setEditingRowLanguage(editoInModalLangs[0]);
+      setEditingRowLanguage(editorInModalLangs[0]);
     }
   }, [editingRowLanguage, setEditingRowLanguage]);
 
@@ -188,7 +182,7 @@ function EditInModal(props: {
         <ListenElementSize dom={editInModalBox} set="both" name="table-edit-in-modal" />
         <Stack style={{ flex: 1 }}>
           <Stack direction="row">
-            {editoInModalLangs.map((lang) => (
+            {editorInModalLangs.map((lang) => (
               <Chip
                 key={lang}
                 label={lang}
@@ -443,42 +437,6 @@ function ImportDataFromFile(props: {
   );
 }
 
-function ExportTableOnTheFilterAndSort(props: {
-  tableName: string;
-  para: ShowTableParameter;
-  isTable: boolean;
-}) {
-  const { tableName, isTable, para } = props;
-  const [showExport, setShowExport] = useState(false);
-  return (
-    <>
-      <IconButton
-        color="info"
-        onClick={() => {
-          setShowExport(true);
-        }}>
-        <ArrowCircleDownRoundedIcon />
-      </IconButton>
-      {showExport && (
-        <ExportTableOrView
-          tableName={tableName}
-          handleClose={() => {
-            setShowExport(false);
-          }}
-          extraUI=<>
-            <Typography>
-              export table to file base on current setting,filter and sort
-            </Typography>
-            <Alert severity="info"> page and page_size will not be ignored </Alert>
-          </>
-          isTable={isTable}
-          para={{ ...para, page: null, page_size: null }}
-        />
-      )}
-    </>
-  );
-}
-
 function SqlTablePagination_({
   dbpal: { resp, clientModel, kind, table, isTable, para },
 }: {
@@ -518,6 +476,12 @@ function SqlTablePagination_({
           tableName={table}
           isTable={isTable}
           para={para}
+          extraUI=<>
+            <Typography>
+              export table to file base on current setting,filter and sort
+            </Typography>
+            <Alert severity="info"> page and page_size will not be ignored </Alert>
+          </>
         />
 
         {isTable && <AddTableModal kind={kind} tableName={table} />}

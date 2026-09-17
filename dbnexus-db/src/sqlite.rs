@@ -617,9 +617,7 @@ impl SchemaTrait for SqliteDB {
         emit.send("trying to query table columns.".into())?;
         let fields = self.show_table_columns(table_name).await?;
         emit.send("trying to get total amount.".into())?;
-        let total = self
-            .query_count(table_name, para.where_str.as_deref())
-            .await?;
+        let total = self.query_count(table_name, para.filter.as_deref()).await?;
         log::trace!("query count ok");
         let sql = self.gen_show_sql(table_name, Some(&fields), Some(&para));
         emit.send(
@@ -652,9 +650,7 @@ impl SchemaTrait for SqliteDB {
         emit.send("trying to get connection.".into())?;
         let mut conn = self.get_conn().await?;
         emit.send("trying to query total amount.".into())?;
-        let total = self
-            .query_count(view_name, para.where_str.as_deref())
-            .await?;
+        let total = self.query_count(view_name, para.filter.as_deref()).await?;
         let sql = self.gen_show_sql(view_name, None, Some(&para));
         log::info!("show table sql:{}", sql);
         emit.send("trying to query data.".into())?;
@@ -804,8 +800,8 @@ impl SqlBuilder for SqliteDB {
         );
         if let Some(para) = para {
             let ShowTableParameter {
-                where_str,
-                order_by,
+                filter: where_str,
+                sort: order_by,
                 ..
             } = &para;
             if let Some(where_str) = where_str {
@@ -841,8 +837,8 @@ pub(crate) fn gen_show_sql(
     );
     if let Some(para) = para {
         let ShowTableParameter {
-            where_str,
-            order_by,
+            filter: where_str,
+            sort: order_by,
             ..
         } = para;
         if let Some(where_str) = where_str {

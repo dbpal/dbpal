@@ -1,4 +1,5 @@
 import {
+  Alert,
   Box,
   Button,
   ButtonGroup,
@@ -60,6 +61,7 @@ import {
 } from "./icons";
 import {
   AppColumnMenu,
+  ExportTableOnTheFilterAndSort,
   ModalHeader,
   ResetColumnWidth,
   SelectPageSize,
@@ -83,6 +85,7 @@ import {
   TabContent,
   DbnameContext,
   newEmptyResp,
+  arrayToHex,
 } from "./helper";
 import {
   AppDataGridPagination,
@@ -575,6 +578,21 @@ function MongoTableToolBar(props: {
             <UploadIcon />
           </IconButton>
         )}
+        <ExportTableOnTheFilterAndSort
+          isTable={isTable}
+          para={(function () {
+            const whereStr = arrayToHex(BSON.serialize(filter));
+            const sortStr = arrayToHex(BSON.serialize(sort));
+            return { filter: whereStr, sort: sortStr };
+          })()}
+          tableName={table}
+          extraUI=<>
+            <Typography>
+              export table to file base on current setting,filter and sort
+            </Typography>
+            <Alert severity="info"> page and page_size will not be ignored </Alert>
+          </>
+        />
 
         {someNotice}
       </Stack>

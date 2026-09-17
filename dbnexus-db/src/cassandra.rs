@@ -897,8 +897,8 @@ impl SqlBuilder for CassandraDB {
         );
         if let Some(para) = para {
             let ShowTableParameter {
-                where_str,
-                order_by,
+                filter: where_str,
+                sort: order_by,
                 allow_filtering,
                 ..
             } = para;

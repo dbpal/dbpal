@@ -232,9 +232,9 @@ pub type ExportedSizeEmitter = Arc<dyn Fn(usize) + Send + Sync>;
 #[derive(serde::Deserialize, Clone, Debug, specta::Type)]
 pub struct ShowTableParameter {
     #[serde(default)]
-    pub where_str: Option<String>,
+    pub filter: Option<String>,
     #[serde(default)]
-    pub order_by: Option<String>,
+    pub sort: Option<String>,
     #[serde(default)]
     pub page: Option<u32>,
     #[serde(default)]
@@ -267,8 +267,8 @@ impl ShowTableParameter {
 impl Default for ShowTableParameter {
     fn default() -> Self {
         Self {
-            where_str: None,
-            order_by: None,
+            filter: None,
+            sort: None,
             page: Some(1),
             page_size: Some(100),
             limit: None,
@@ -313,8 +313,8 @@ impl ShowTableParameter {
     pub fn new_stupid_test<'a>(order: impl Into<Option<&'a str>>) -> Self {
         let order = order.into();
         Self {
-            where_str: Some("1 = 1".to_owned()),
-            order_by: order.map(|x| x.to_string()),
+            filter: Some("1 = 1".to_owned()),
+            sort: order.map(|x| x.to_string()),
             page: Some(1),
             page_size: Some(100),
             ..Default::default()
@@ -3129,6 +3129,11 @@ pub enum TriggerTiming {
     After,
     InsteadOf,
     String(String),
+}
+
+pub fn parse_bson_doc(bs: &[u8]) -> anyhow::Result<mongodb::bson::Document> {
+    let r = mongodb::bson::Document::from_reader(std::io::Cursor::new(bs))?;
+    anyhow::Ok(r)
 }
 
 /// meta value can used in various place.

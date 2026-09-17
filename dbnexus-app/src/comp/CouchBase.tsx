@@ -155,8 +155,8 @@ function CouchBaseTable_(props: { table: string }) {
         false,
         table,
         {
-          where_str: where ? where : undefined,
-          order_by: sort ? sort : undefined,
+          filter: where ? where : undefined,
+          sort: sort ? sort : undefined,
           page_size: pageSize,
           page: page,
           tab_size: tabSize,

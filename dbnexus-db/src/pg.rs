@@ -928,9 +928,7 @@ impl SchemaTrait for PostGresDB {
         emit: QueryEventEmitter,
     ) -> anyhow::Result<()> {
         emit.send("trying to query total amount.".into())?;
-        let total = self
-            .query_count(view_name, para.where_str.as_deref())
-            .await?;
+        let total = self.query_count(view_name, para.filter.as_deref()).await?;
         let sql = self.gen_show_sql(view_name, None, Some(&para));
         log::info!("sql:{}", sql);
         emit.send("trying to get connection.".into())?;
@@ -1174,9 +1172,7 @@ impl SchemaTrait for PostGresDB {
         emit: QueryEventEmitter,
     ) -> anyhow::Result<()> {
         emit.send("trying to query total amount.".into())?;
-        let total = self
-            .query_count(table_name, para.where_str.as_deref())
-            .await?;
+        let total = self.query_count(table_name, para.filter.as_deref()).await?;
         let fields = self.show_table_columns(table_name).await?;
         let sql = self.gen_show_sql(table_name, Some(&fields), Some(&para));
         log::info!("sql:{}", sql);
@@ -1996,8 +1992,8 @@ impl SqlBuilder for PostGresDB {
         );
         if let Some(para) = para {
             let ShowTableParameter {
-                where_str,
-                order_by,
+                filter: where_str,
+                sort: order_by,
                 ..
             } = &para;
             if let Some(where_str) = where_str {

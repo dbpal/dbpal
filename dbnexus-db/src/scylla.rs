@@ -347,8 +347,8 @@ mod tests {
         db.show_table(
             "IndexInfo",
             ShowTableParameter {
-                where_str: None,
-                order_by: None,
+                filter: None,
+                sort: None,
                 page: Some(1),
                 page_size: Some(100),
                 limit: None,

@@ -406,7 +406,7 @@ impl SchemaTrait for ClickHouseDB {
     ) -> anyhow::Result<()> {
         emit.send("trying to query total count.".into())?;
         let total = self
-            .query_count(self.config.db_str(), table_name, para.where_str.as_deref())
+            .query_count(self.config.db_str(), table_name, para.filter.as_deref())
             .await?;
         emit.send("trying to query columns.".into())?;
         let fs = self.show_table_columns(table_name).await?;
@@ -443,7 +443,7 @@ impl SchemaTrait for ClickHouseDB {
     ) -> anyhow::Result<()> {
         emit.send("trying to query total count.".into())?;
         let total = self
-            .query_count(self.config.db_str(), view_name, para.where_str.as_deref())
+            .query_count(self.config.db_str(), view_name, para.filter.as_deref())
             .await?;
         let sql = self.gen_show_sql(view_name, None, Some(&para));
         log::info!("sql:{}", sql);
@@ -1361,10 +1361,9 @@ impl SqlBuilder for ClickHouseDB {
         );
 
         if let Some(para) = para {
-            let offset = para.offset();
             let ShowTableParameter {
-                where_str,
-                order_by,
+                filter: where_str,
+                sort: order_by,
                 ..
             } = para;
             if let Some(where_str) = where_str {
@@ -1373,6 +1372,7 @@ impl SqlBuilder for ClickHouseDB {
             if let Some(order_by) = order_by {
                 sql.push_str(format!(" ORDER BY {order_by} ").as_str());
             }
+            let offset = para.offset();
             if let Some(offset) = offset {
                 sql.push_str(format!(" LIMIT {} , {}", offset.offset, offset.page_size).as_str());
             }

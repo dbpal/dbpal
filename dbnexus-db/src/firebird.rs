@@ -892,7 +892,7 @@ impl SchemaTrait for FireBirdDB {
         spawn_blocking(move || {
             emit.send("trying to get connection".into())?;
             let mut conn = this.get_conn()?;
-            let total = Self::query_count(&mut conn, &table_name, para.where_str.as_deref())?;
+            let total = Self::query_count(&mut conn, &table_name, para.filter.as_deref())?;
             emit.send(
                 QueryResp {
                     fields: fs.clone(),
@@ -1094,7 +1094,7 @@ impl SchemaTrait for FireBirdDB {
             let mut conn = this.get_conn()?;
             log::info!("sql:{}", sql);
             emit.send("trying to query total count.".into())?;
-            let total = Self::query_count(&mut conn, &view_name, para.where_str.as_deref())?;
+            let total = Self::query_count(&mut conn, &view_name, para.filter.as_deref())?;
             emit.send(
                 QueryResp {
                     fields,
@@ -1157,8 +1157,8 @@ impl SqlBuilder for FireBirdDB {
         );
         if let Some(para) = para {
             let ShowTableParameter {
-                where_str,
-                order_by,
+                filter: where_str,
+                sort: order_by,
                 ..
             } = &para;
             if let Some(where_str) = where_str {

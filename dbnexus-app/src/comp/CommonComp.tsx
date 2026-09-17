@@ -27,6 +27,7 @@ import {
   RefreshIcon,
   FaCopy,
   KeyIcon,
+  ArrowCircleDownRoundedIcon,
 } from "./icons";
 import {
   CSSProperties,
@@ -101,7 +102,14 @@ import {
   useQueryLogStore,
   useViewInModalMatchStrStore,
 } from "./store";
-import { commands, Field, ListTable, MetaValue, NamedStaff } from "./bindings";
+import {
+  commands,
+  Field,
+  ListTable,
+  MetaValue,
+  NamedStaff,
+  ShowTableParameter,
+} from "./bindings";
 
 import { open } from "@tauri-apps/plugin-dialog";
 import {
@@ -117,6 +125,7 @@ import {
 } from "./datagridExport";
 import { AutoSizer, CellMeasurer, CellMeasurerCache, List } from "react-virtualized";
 import { filesize } from "filesize";
+import { ExportTableOrView } from "./Export";
 
 /**
  * Logger level selection control.
@@ -1513,8 +1522,39 @@ function MyTreeItem(props: {
     </Stack>
   );
 }
-
+function ExportTableOnTheFilterAndSort(props: {
+  tableName: string;
+  para: ShowTableParameter;
+  isTable: boolean;
+  extraUI: ReactNode;
+}) {
+  const { tableName, isTable, para, extraUI } = props;
+  const [showExport, setShowExport] = useState(false);
+  return (
+    <>
+      <IconButton
+        color="info"
+        onClick={() => {
+          setShowExport(true);
+        }}>
+        <ArrowCircleDownRoundedIcon />
+      </IconButton>
+      {showExport && (
+        <ExportTableOrView
+          tableName={tableName}
+          handleClose={() => {
+            setShowExport(false);
+          }}
+          extraUI={extraUI}
+          isTable={isTable}
+          para={{ ...para, page: null, page_size: null }}
+        />
+      )}
+    </>
+  );
+}
 export {
+  ExportTableOnTheFilterAndSort,
   MyTreeItem,
   VirtualListLeft,
   LongNotice,

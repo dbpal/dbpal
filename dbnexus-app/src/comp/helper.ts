@@ -969,6 +969,7 @@ export {
   QueryIDEditorChatCtx,
   AppColumnMenuCtx,
   DatabaseOperation,
+  arrayToHex,
 };
 
 async function webviewWIndowInit() {

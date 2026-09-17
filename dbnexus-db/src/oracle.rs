@@ -1322,9 +1322,7 @@ impl SchemaTrait for OracleDB {
         let sql = self.gen_show_sql(table_name, Some(&cols), Some(&para));
         log::info!("query sql:{}", sql);
         emit.send("trying to query total amount.".into())?;
-        let total = self
-            .query_count(table_name, para.where_str.as_deref())
-            .await?;
+        let total = self.query_count(table_name, para.filter.as_deref()).await?;
         emit.send(
             QueryResp {
                 total: total as f64,
@@ -1432,9 +1430,7 @@ impl SchemaTrait for OracleDB {
         let sql = self.gen_show_sql(view_name, None, Some(&para));
         log::info!("sql:{}", sql);
         emit.send("trying to query total amount.".into())?;
-        let total = self
-            .query_count(view_name, para.where_str.as_deref())
-            .await?;
+        let total = self.query_count(view_name, para.filter.as_deref()).await?;
         log::info!("query sql:{}", sql);
         emit.send("trying to query data.".into())?;
         let this = Clone::clone(self);
@@ -1694,8 +1690,8 @@ impl SqlBuilder for OracleDB {
         );
         if let Some(para) = para {
             let ShowTableParameter {
-                where_str,
-                order_by,
+                filter: where_str,
+                sort: order_by,
                 ..
             } = &para;
             if let Some(where_str) = where_str {
