@@ -1011,7 +1011,6 @@ function RedisTables() {
   }, []);
   return (
     <>
-      {loading && <CircularProgress />}
       <Stack
         style={{
           paddingLeft: "0.5rem",
@@ -1049,6 +1048,7 @@ function RedisTables() {
             />
           </Tooltip>
         </Stack>
+        {loading && <CircularProgress />}
       </Stack>
 
       {tables && (

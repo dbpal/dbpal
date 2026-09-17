@@ -1599,8 +1599,7 @@ export const useRedisKeyFilter = create<RedisKeyFilter>()(
       removeFilter: (key) => {
         const next = { ...get().filters };
         delete next[key];
-        return { data: next };
-        set(next);
+        set({ filters: next });
       },
       setFilter: (key, value) =>
         set((state) => ({
