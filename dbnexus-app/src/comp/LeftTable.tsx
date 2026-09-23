@@ -149,12 +149,6 @@ function TablesTree() {
       tablesText = "tables";
     }
   }
-  const listTableCols = useCallback(
-    (name: ListTable) => {
-      return commands.showTableColumns(dbName, name.name);
-    },
-    [dbName],
-  );
   return (
     <MyTreeItem
       enable={true}
@@ -245,7 +239,7 @@ function TablesTree() {
             );
           }}
           table={table}
-          listCols={listTableCols}
+          isTable
         />
       ))}
       {showDup && (

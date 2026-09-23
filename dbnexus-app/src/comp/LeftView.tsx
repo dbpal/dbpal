@@ -106,12 +106,6 @@ function ViewsTree(props: { viewKind: ViewKind }) {
       break;
   }
 
-  const listViewCols = useCallback(
-    (name: ListTable) => {
-      return commands.showViewColumns(dbName, name.name);
-    },
-    [dbName],
-  );
   return (
     <MyTreeItem
       enable={true}
@@ -146,7 +140,7 @@ function ViewsTree(props: { viewKind: ViewKind }) {
             );
           }}
           table={view}
-          listCols={listViewCols}
+          isTable={false}
         />
       ))}
       {showExport && (

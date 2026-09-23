@@ -1281,11 +1281,9 @@ function VirtualListLeft<T>(props: {
 function LeftTableNameAndColumns(props: {
   table: ListTable;
   makeMenu: () => ReactNode;
-  listCols: (
-    t: ListTable, // this parameter make me easy to cache the function
-  ) => Promise<Field[]>;
+  isTable: boolean;
 }) {
-  const { table, makeMenu, listCols } = props;
+  const { table, makeMenu, isTable } = props;
   return (
     <MyTreeItem
       makeMenu={makeMenu}
@@ -1300,24 +1298,22 @@ function LeftTableNameAndColumns(props: {
           </span>
         )}
       </Stack>>
-      <LeftTableColumns listCols={listCols} table={table} />
+      <LeftTableColumn isTable={isTable} table={table} />
     </MyTreeItem>
   );
 }
 
-function LeftTableColumns(props: {
-  table: ListTable;
-  listCols: (
-    t: ListTable, // this parameter make me easy to cache the function
-  ) => Promise<Field[]>;
-}) {
-  const { listCols, table } = props;
-
+function LeftTableColumn(props: { table: ListTable; isTable: boolean }) {
+  const { table, isTable } = props;
+  const { dbName } = useContext(DbnameContext);
   const [fs, setFs] = useState<Field[]>([]);
   const { showNotification } = useNotification();
 
   const handleReload = useCallback(() => {
-    listCols(table)
+    (isTable
+      ? commands.showTableColumns(dbName, table.name)
+      : commands.showViewColumns(dbName, table.name)
+    )
       .then((fs) => {
         setFs(fs);
       })
@@ -1328,7 +1324,7 @@ function LeftTableColumns(props: {
           message: e,
         });
       });
-  }, [listCols, showNotification, table]);
+  }, [dbName, isTable, showNotification, table.name]);
 
   useEffect(() => {
     handleReload();
