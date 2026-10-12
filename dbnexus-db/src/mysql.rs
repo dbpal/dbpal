@@ -740,7 +740,7 @@ impl SchemaTrait for MysqlDB {
             if let Some(dv) = col.default_value.as_ref() {
                 format!(
                     "DEFAULT {}",
-                    self.put_value_in_sql_hit_predefine(&col.typ, dv.as_str())?
+                    self.encode_value_hit_predefine(&col.typ, dv.as_str())?
                 )
             } else {
                 "".to_owned()
@@ -781,7 +781,7 @@ impl SchemaTrait for MysqlDB {
                 if let Some(dv) = typ.default_value.as_ref() {
                     format!(
                         "DEFAULT {}",
-                        self.put_value_in_sql_hit_predefine(&typ.typ, dv.as_str())?
+                        self.encode_value_hit_predefine(&typ.typ, dv.as_str())?
                     )
                 } else {
                     "".to_string()
@@ -1971,7 +1971,7 @@ impl SqlBuilder for MysqlDB {
     fn get_current_values(&self) -> &'static [&'static str] {
         MYSQL_CURRENT_LITERALS
     }
-    fn put_value_in_sql(&self, f: &str, value: &str) -> anyhow::Result<String> {
+    fn encode_value(&self, f: &str, value: &str) -> anyhow::Result<String> {
         let default_str = value.to_string();
         let single_quote_str = quote_sql_str(value);
         let ty = f.to_uppercase();

@@ -119,7 +119,6 @@ export const commands = {
 	mongoQueryCollectionUpdateOne: (dbName: string, col: string, query: Uint8Array, replacement: Uint8Array) => __TAURI_INVOKE<string>("mongo_query_collection_update_one", { dbName, col, query, replacement }),
 	mongoCreateIndex: (dbName: string, tableName: string, indexName: string | null, keys: Uint8Array, unique: boolean) => __TAURI_INVOKE<null>("mongo_create_index", { dbName, tableName, indexName, keys, unique }),
 	createIndex: (dbName: string, tableName: string, req: CreateIndexReq) => __TAURI_INVOKE<string>("create_index", { dbName, tableName, req }),
-	putValueInSql: (dbName: string, typ: string, value: string | null) => __TAURI_INVOKE<string>("put_value_in_sql", { dbName, typ, value }),
 	cassandraDropAggregate: (dbName: string, aggName: string, parameters: string[]) => __TAURI_INVOKE<string>("cassandra_drop_aggregate", { dbName, aggName, parameters }),
 	cassandraListAggregate: (dbName: string) => __TAURI_INVOKE<NamedStaff[]>("cassandra_list_aggregate", { dbName }),
 	cassandraShowAggregate: (dbName: string, aggName: string, parameters: string[]) => __TAURI_INVOKE<DefAndMetas>("cassandra_show_aggregate", { dbName, aggName, parameters }),
@@ -154,7 +153,7 @@ export const commands = {
 	openaiInvoke: (req: OpenAIReq) => __TAURI_INVOKE<string>("openai_invoke", { req }),
 	setEnv: (env: { [key in string]: string }) => __TAURI_INVOKE<void>("set_env", { env }),
 	tableInsertSql: (dbName: string, tableName: string, values: { [key in string]: string | null }) => __TAURI_INVOKE<string>("table_insert_sql", { dbName, tableName, values }),
-	putValuesInSql: (dbName: string, typ: string, values: (string | null)[]) => __TAURI_INVOKE<string[]>("put_values_in_sql", { dbName, typ, values }),
+	sqlEncodeValues: (dbName: string, typ: string, values: (string | null)[]) => __TAURI_INVOKE<string[]>("sql_encode_values", { dbName, typ, values }),
 	writeXlsx: (path: string, data: XlsxCellData[]) => __TAURI_INVOKE<null>("write_xlsx", { path, data }),
 	tableImportFromFile: (dbName: string, tableName: string, kind: TableImportPara) => __TAURI_INVOKE<null>("table_import_from_file", { dbName, tableName, kind }),
 	sqlInferFieldsFromFile: (dbName: string, path: string, csvDelimiter: string | null) => __TAURI_INVOKE<Field[]>("sql_infer_fields_from_file", { dbName, path, csvDelimiter }),
@@ -164,6 +163,7 @@ export const commands = {
 	executeTxMultiSql: (dbName: string, sql: string[]) => __TAURI_INVOKE<null>("execute_tx_multi_sql", { dbName, sql }),
 	dropForeignKey: (dbName: string, tableName: string, foreignKey: string) => __TAURI_INVOKE<null>("drop_foreign_key", { dbName, tableName, foreignKey }),
 	listForeignKey: (dbName: string, tableName: string) => __TAURI_INVOKE<ForeignKeyDef[]>("list_foreign_key", { dbName, tableName }),
+	sqlEncodeValue: (dbName: string, typ: string, value: string | null) => __TAURI_INVOKE<string>("sql_encode_value", { dbName, typ, value }),
 };
 
 /* Constants */

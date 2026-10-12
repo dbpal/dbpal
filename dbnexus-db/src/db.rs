@@ -1275,11 +1275,11 @@ pub trait SqlBuilder: GetBackendKind {
             .any(|cur| cur.eq_ignore_ascii_case(value))
     }
 
-    fn put_value_in_sql_hit_predefine(&self, typ: &str, value: &str) -> anyhow::Result<String> {
+    fn encode_value_hit_predefine(&self, typ: &str, value: &str) -> anyhow::Result<String> {
         if self.hit_current_value(value) {
             return anyhow::Ok(value.to_string());
         }
-        self.put_value_in_sql(typ, value)
+        self.encode_value(typ, value)
     }
 
     fn type_support_compare(&self, _typ: &str) -> bool {
@@ -1298,7 +1298,7 @@ pub trait SqlBuilder: GetBackendKind {
 
     /// format a value make it suitable for insert into sql.
     /// this method current use in `insert_sql` etc.
-    fn put_value_in_sql(&self, _typ: &str, _value: &str) -> anyhow::Result<String>;
+    fn encode_value(&self, _typ: &str, _value: &str) -> anyhow::Result<String>;
 
     fn make_where(
         &self,
@@ -1340,7 +1340,7 @@ pub trait SqlBuilder: GetBackendKind {
                             "{} {} = {}",
                             if !first.get() { " AND " } else { "" },
                             self.quote(k),
-                            self.put_value_in_sql(&f.data_type, value)?
+                            self.encode_value(&f.data_type, value)?
                         )
                         .as_str(),
                     );
@@ -1423,7 +1423,7 @@ pub trait SqlBuilder: GetBackendKind {
                             format!(
                                 "{} = {}",
                                 self.quote(k),
-                                self.put_value_in_sql(&f.data_type, value)?
+                                self.encode_value(&f.data_type, value)?
                             )
                             .as_str(),
                         );
@@ -1504,9 +1504,7 @@ pub trait SqlBuilder: GetBackendKind {
                 let value = values.get(&f.field).cloned().flatten();
 
                 match &value {
-                    Some(value) => {
-                        sql.push_str(self.put_value_in_sql(&f.data_type, value)?.as_str())
-                    }
+                    Some(value) => sql.push_str(self.encode_value(&f.data_type, value)?.as_str()),
                     None => {
                         log::info!("field '{}' is null", f.field);
                         sql.push_str("NULL")
@@ -1576,12 +1574,12 @@ pub trait SqlBuilder: GetBackendKind {
                         // silently differrent from other database
                         format!(
                             "DEFAULT {}",
-                            self.put_value_in_sql_hit_predefine(&col.data_type, value.as_str())?
+                            self.encode_value_hit_predefine(&col.data_type, value.as_str())?
                         )
                     }
                     _ => format!(
                         "DEFAULT({})",
-                        self.put_value_in_sql_hit_predefine(&col.data_type, value.as_str())?
+                        self.encode_value_hit_predefine(&col.data_type, value.as_str())?
                     ),
                 },
                 None => "".to_owned(),

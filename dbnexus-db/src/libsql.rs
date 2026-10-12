@@ -619,7 +619,7 @@ impl SchemaTrait for LibSqlDB {
             col.typ,
             col.nullable.unwrap_or_default(),
             if let Some(d) = col.default_value.as_ref() {
-                format!("DEFAULT {}", self.put_value_in_sql(&col.typ, d.as_str())?)
+                format!("DEFAULT {}", self.encode_value(&col.typ, d.as_str())?)
             } else {
                 "".to_owned()
             }
@@ -932,7 +932,7 @@ impl SqlBuilder for LibSqlDB {
     fn get_current_values(&self) -> &'static [&'static str] {
         crate::sqlite::SQLITE_CURRENT_LITERALS
     }
-    fn put_value_in_sql(&self, typ: &str, value: &str) -> anyhow::Result<String> {
+    fn encode_value(&self, typ: &str, value: &str) -> anyhow::Result<String> {
         let typ = typ.to_uppercase();
 
         let v = match typ.as_str() {

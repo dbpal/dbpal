@@ -457,8 +457,8 @@ impl<'a, T: SchemaTrait> SqlBuilder for MakeUpdateSqlFromResultsetSqlBuilder<'a,
         self.schema.as_deref()
     }
 
-    fn put_value_in_sql(&self, typ: &str, value: &str) -> anyhow::Result<String> {
-        SqlBuilder::put_value_in_sql(self.backend, typ, value)
+    fn encode_value(&self, typ: &str, value: &str) -> anyhow::Result<String> {
+        SqlBuilder::encode_value(self.backend, typ, value)
     }
 }
 

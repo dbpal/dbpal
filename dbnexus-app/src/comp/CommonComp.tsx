@@ -953,7 +953,7 @@ function DataGridExtraMenuList(props: GridColumnMenuItemProps) {
                 let values = api.current
                   .getSortedRowIds()
                   .map((id) => api.current.getCellValue(id, colDef.field));
-                values = await commands.putValuesInSql(
+                values = await commands.sqlEncodeValues(
                   dbName,
                   colDef["data_type"],
                   values,

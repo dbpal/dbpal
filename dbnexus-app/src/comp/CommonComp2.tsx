@@ -2346,7 +2346,7 @@ function CopyAsXXX(props: {
         <MenuItem
           onClick={async () => {
             try {
-              const value = await commands.putValueInSql(dbName, fieldType, content);
+              const value = await commands.sqlEncodeValue(dbName, fieldType, content);
               handleCopyToClipboard(`(${value})`, showNotification);
             } catch (e) {
               showNotification({

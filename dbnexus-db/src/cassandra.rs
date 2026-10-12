@@ -862,7 +862,7 @@ pub const CQL_CURRENT_LITERALS: &[&str] = &[
 ];
 
 impl SqlBuilder for CassandraDB {
-    fn put_value_in_sql(&self, typ: &str, value: &str) -> anyhow::Result<String> {
+    fn encode_value(&self, typ: &str, value: &str) -> anyhow::Result<String> {
         let typ = typ.to_lowercase();
         log::trace!("encode value '{:?}' on type '{}'", value, typ);
         match typ.as_str() {

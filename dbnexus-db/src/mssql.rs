@@ -681,7 +681,7 @@ impl SchemaTrait for SqlServerDB {
             if let Some(dv) = col.default_value.as_ref() {
                 format!(
                     "DEFAULT {}",
-                    self.put_value_in_sql_hit_predefine(&col.typ, dv.as_str())?
+                    self.encode_value_hit_predefine(&col.typ, dv.as_str())?
                 )
             } else {
                 "".to_owned()
@@ -1305,7 +1305,7 @@ impl SqlBuilder for SqlServerDB {
     }
     /// format a value make it suitable for insert into sql.
     /// this method current use in `insert_sql` etc.
-    fn put_value_in_sql(&self, typ: &str, value: &str) -> anyhow::Result<String> {
+    fn encode_value(&self, typ: &str, value: &str) -> anyhow::Result<String> {
         let default_value = value.to_string();
         let single_quote = quote_sql_str(value);
 

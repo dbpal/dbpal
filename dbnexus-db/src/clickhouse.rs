@@ -515,7 +515,7 @@ impl SchemaTrait for ClickHouseDB {
             if let Some(dv) = typ.default_value.as_ref() {
                 let sql = format!(
                     r#"ALTER TABLE {table} MODIFY COLUMN {new_name} DEFAULT {}"#,
-                    self.put_value_in_sql_hit_predefine(&typ.typ, dv.as_str())?
+                    self.encode_value_hit_predefine(&typ.typ, dv.as_str())?
                 );
                 log::info!("sql:{}", sql);
                 self.simple_execute_sql(&sql).await?;
@@ -536,7 +536,7 @@ impl SchemaTrait for ClickHouseDB {
             sql.push_str(
                 format!(
                     "DEFAULT {} ",
-                    self.put_value_in_sql_hit_predefine(&col.typ, dv.as_str())?
+                    self.encode_value_hit_predefine(&col.typ, dv.as_str())?
                 )
                 .as_str(),
             );
@@ -1319,7 +1319,7 @@ impl SqlBuilder for ClickHouseDB {
                         format!(
                             "{} = {}",
                             self.quote(k),
-                            self.put_value_in_sql(&f.data_type, value)?
+                            self.encode_value(&f.data_type, value)?
                         )
                         .as_str(),
                     ),
@@ -1337,7 +1337,7 @@ impl SqlBuilder for ClickHouseDB {
         anyhow::Ok(sql)
     }
 
-    fn put_value_in_sql(&self, typ: &str, value: &str) -> anyhow::Result<String> {
+    fn encode_value(&self, typ: &str, value: &str) -> anyhow::Result<String> {
         anyhow::Ok(put_value_in_sql(
             &crate::language_server::LangServerCommon::parse_type(self, typ)?,
             value,

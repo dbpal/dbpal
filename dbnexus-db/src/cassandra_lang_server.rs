@@ -516,7 +516,7 @@ mod tests {
 
     #[ignore = "run manually"]
     #[tokio::test]
-    async fn xxx() {
+    async fn test_something() {
         enable_test_log();
         let db = make_test_object(Some("system".to_string())).await;
         db.completion_id.set("".to_string());

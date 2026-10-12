@@ -951,7 +951,7 @@ impl SchemaTrait for FireBirdDB {
             if let Some(dv) = col.default_value.as_ref() {
                 format!(
                     " DEFAULT {}",
-                    self.put_value_in_sql_hit_predefine(&col.typ, dv.as_str())?
+                    self.encode_value_hit_predefine(&col.typ, dv.as_str())?
                 )
             } else {
                 "".to_string()
@@ -1130,7 +1130,7 @@ impl SqlBuilder for FireBirdDB {
         FB_CURRENT_LITERALS
     }
 
-    fn put_value_in_sql(&self, typ: &str, value: &str) -> anyhow::Result<String> {
+    fn encode_value(&self, typ: &str, value: &str) -> anyhow::Result<String> {
         let typ = typ.to_lowercase();
         log::trace!("encode value '{:?}' on type '{}'", value, typ);
         let r = match typ.as_str() {

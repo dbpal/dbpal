@@ -415,7 +415,7 @@ impl SchemaTrait for SqliteDB {
             if let Some(dv) = col.default_value.as_ref() {
                 format!(
                     "DEFAULT {}",
-                    self.put_value_in_sql_hit_predefine(&col.typ, dv.as_str())?
+                    self.encode_value_hit_predefine(&col.typ, dv.as_str())?
                 )
             } else {
                 "".to_owned()
@@ -764,7 +764,7 @@ impl SqlBuilder for SqliteDB {
     fn get_current_values(&self) -> &'static [&'static str] {
         SQLITE_CURRENT_LITERALS
     }
-    fn put_value_in_sql(&self, typ: &str, value: &str) -> anyhow::Result<String> {
+    fn encode_value(&self, typ: &str, value: &str) -> anyhow::Result<String> {
         let typ = typ.to_uppercase();
         let v = match typ.as_str() {
             "" | "NULL" => {

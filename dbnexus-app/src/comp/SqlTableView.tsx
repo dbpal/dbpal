@@ -685,9 +685,9 @@ function SqlTableView_(props: {
     },
     [tableName, dbName],
   );
-  const putValueInSql = useCallback(
+  const sqlEncodeValue = useCallback(
     (typ, x) => {
-      return commands.putValueInSql(dbName, typ, x);
+      return commands.sqlEncodeValue(dbName, typ, x);
     },
     [dbName],
   );
@@ -1246,7 +1246,7 @@ function SqlTableView_(props: {
               setShowFilter(null);
             }}
             putValueInSql={(value) => {
-              return putValueInSql(showFilter.typ, value);
+              return sqlEncodeValue(showFilter.typ, value);
             }}
           />
         </Dialog>

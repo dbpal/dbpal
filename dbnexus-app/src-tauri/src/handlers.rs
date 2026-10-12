@@ -3176,7 +3176,7 @@ pub async fn write_xlsx(path: String, data: Vec<XlsxCellData>) -> Result<(), Err
 
 #[specta::specta]
 #[tauri::command]
-pub async fn put_value_in_sql(
+pub async fn sql_encode_value(
     db_name: String,
     typ: String,
     value: Option<String>,
@@ -3205,13 +3205,13 @@ pub async fn put_value_in_sql(
         }
     }
     schema
-        .put_value_in_sql(&typ, &value)
+        .encode_value(&typ, &value)
         .map_err(ErrorFrontend::from)
 }
 
 #[specta::specta]
 #[tauri::command]
-pub async fn put_values_in_sql(
+pub async fn sql_encode_values(
     db_name: String,
     typ: String,
     values: Vec<Option<String>>,
@@ -3227,7 +3227,7 @@ pub async fn put_values_in_sql(
     for value in values {
         let r = match value {
             Some(value) => schema
-                .put_value_in_sql(&typ, &value)
+                .encode_value(&typ, &value)
                 .map_err(ErrorFrontend::from)?,
             None => "null".to_string(),
         };

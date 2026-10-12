@@ -1278,7 +1278,7 @@ impl SchemaTrait for OracleDB {
             if let Some(dv) = typ.default_value.as_ref() {
                 let sql = format!(
                     r#"ALTER TABLE "{table}" MODIFY "{new_name}" DEFAULT {}"#,
-                    self.put_value_in_sql_hit_predefine(&typ.typ, dv.as_str())?
+                    self.encode_value_hit_predefine(&typ.typ, dv.as_str())?
                 );
                 log::info!("sql:{}", sql);
                 self.simple_execute_sql(&sql).await?;
@@ -1301,7 +1301,7 @@ impl SchemaTrait for OracleDB {
             if let Some(dv) = typ.default_value.as_ref() {
                 format!(
                     "DEFAULT {}",
-                    self.put_value_in_sql_hit_predefine(&typ.typ, dv.as_str())?
+                    self.encode_value_hit_predefine(&typ.typ, dv.as_str())?
                 )
             } else {
                 "".to_owned()
@@ -1634,7 +1634,7 @@ impl SqlBuilder for OracleDB {
 
     /// format a value make it suitable for insert into sql.
     /// this method current use in `insert_sql` etc.
-    fn put_value_in_sql(&self, typ: &str, value: &str) -> anyhow::Result<String> {
+    fn encode_value(&self, typ: &str, value: &str) -> anyhow::Result<String> {
         let typ = typ.to_string().to_uppercase();
 
         match typ.as_str() {
