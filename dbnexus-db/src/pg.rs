@@ -1966,7 +1966,7 @@ impl SqlBuilder for PostGresDB {
     }
 
     fn encode_value(&self, typ: &str, value: &str) -> anyhow::Result<String> {
-        put_value_in_sql(typ, value)
+        sql_encode_value(typ, value)
     }
 
     fn type_support_compare(&self, typ: &str) -> bool {

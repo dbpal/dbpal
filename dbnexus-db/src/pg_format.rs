@@ -1320,7 +1320,7 @@ pub(crate) fn encode_row(r: &PgRow) -> anyhow::Result<Vec<Option<String>>> {
     anyhow::Ok(values)
 }
 
-pub(crate) fn put_value_in_sql(typ: &str, value: &str) -> anyhow::Result<String> {
+pub(crate) fn sql_encode_value(typ: &str, value: &str) -> anyhow::Result<String> {
     let default_str = value.to_string();
 
     let single_quote_str = quote_sql_str(value);

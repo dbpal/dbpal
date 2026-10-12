@@ -1907,7 +1907,8 @@ mod tests {
                 COL_DATE DATE,
                 COL_TIME TIME,
                 COL_TIMESTAMP TIMESTAMP,
-                COL_BOOLEAN BOOLEAN
+                COL_BOOLEAN BOOLEAN,
+                COL_INT128 int128
             );
         "#,
         )
@@ -1933,6 +1934,7 @@ mod tests {
             Some("2025-03-17 14:30:00".to_string()),
         );
         values.insert("COL_BOOLEAN".to_string(), Some("true".to_string()));
+        values.insert("COL_INT128".to_string(), Some("1234".to_string()));
         db.table_insert(table_name, &values).await.unwrap();
 
         {

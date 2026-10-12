@@ -90,7 +90,7 @@ async fn call_openai_stream(
 ) -> Result<(), ErrorFrontend> {
     let mut prompt = agent.stream_prompt(prompt).await;
     while let Some(chunk) = prompt.next().await {
-        let chunk = chunk?;
+        let chunk = chunk.unwrap();
         match chunk {
             MultiTurnStreamItem::StreamAssistantItem(item) => match item {
                 StreamedAssistantContent::Text(text) => {
@@ -1414,18 +1414,16 @@ fn make_mongo_prompt() -> String {
 
 #[cfg(test)]
 mod tests {
+    use std::env;
+
     use super::*;
     use dbnexus_db::{
         datasource_config::SqliteDBConfig,
         db::{QuerySql, SchemaTrait},
         sqlite::{sqlite_test_file_path, SqliteDB},
     };
-    use futures_util::StreamExt;
-    use rig::{
-        agent::MultiTurnStreamItem,
-        client::AgentClientExt,
-        streaming::{StreamedAssistantContent, StreamedUserContent, StreamingChat},
-    };
+
+    use rig::client::AgentClientExt;
     use websearch::SearchProvider;
 
     #[test]
@@ -1433,13 +1431,42 @@ mod tests {
     fn test_mongo_prompt() {
         println!("{}", make_mongo_prompt());
     }
+
+    #[derive(Clone, Debug)]
+
+    pub struct AITestUrlModel {
+        url: String,
+        key: String,
+        model: String,
+    }
+
+    impl AITestUrlModel {
+        fn load_from_dotenv() -> Self {
+            dotenvy::dotenv().unwrap();
+            Self {
+                url: std::env::var("OPEN_AI_URL").unwrap(),
+                key: std::env::var("OPEN_AI_KEY").unwrap(),
+                model: std::env::var("OPEN_AI_MODEL").unwrap(),
+            }
+        }
+    }
+
+    #[ignore = "reason"]
+    #[test]
+    fn load_open_ui_url() {
+        let x = AITestUrlModel::load_from_dotenv();
+        println!("!!:{:?}", x);
+    }
+
     #[tokio::test]
 
     async fn test_xxx() {
+        let config = AITestUrlModel::load_from_dotenv();
+
         let req = &OpenAIReq {
-            url: "https://dashscope.aliyuncs.com/compatible-mode/v1".into(),
-            api_key: "sk-6c19c965d3234c8fae49c19e4f0301f0".into(),
-            model: "qwen3.5-plus".into(),
+            url: config.url.clone(),
+            api_key: config.key.clone(),
+            model: config.model.clone(),
             prompt: "hello can u help me".into(),
             temperature: None,
             max_tokens: None,
@@ -1465,33 +1492,6 @@ mod tests {
 
     #[tokio::test]
 
-    async fn test_openai_prompt() {
-        let now = std::time::Instant::now();
-
-        let req = &OpenAIReq {
-            url: "https://api.openai-proxy.org/v1".into(),
-            api_key: "sk-egR0EUYn0EzVybl7D9JkUFx2ksnD62sZPQ8d0J0yJgPEiAWt".into(),
-            model: "gpt-5".into(),
-            prompt: "hello can u help me".into(),
-            temperature: None,
-            max_tokens: None,
-            top_p: None,
-            images: vec![],
-            search_engine: Default::default(),
-            chat_history: vec![],
-            documents: vec![],
-            user_system_prompt: None,
-        };
-        let agent = make_agent_builder(req, None).unwrap();
-        let agent = agent.build();
-        println!("{:?}", now.elapsed());
-        let r = agent.prompt("hello").await.unwrap();
-        println!("{:?}", now.elapsed());
-        dbg!(r);
-    }
-
-    #[tokio::test]
-
     async fn test_fine_with_tool() {
         let db = SqliteDB::new(SqliteDBConfig {
             path: sqlite_test_file_path(),
@@ -1501,11 +1501,12 @@ mod tests {
         })
         .await
         .unwrap();
+        let config = AITestUrlModel::load_from_dotenv();
         let req = &OpenAIReq {
             user_system_prompt: None,
-            url: "https://dashscope.aliyuncs.com/compatible-mode/v1".into(),
-            api_key: "sk-6c19c965d3234c8fae49c19e4f0301f0".into(),
-            model: "qwen3.5-plus".into(),
+            url: config.url.clone(),
+            api_key: config.key.clone(),
+            model: config.model.clone(),
             chat_history: vec![],
             prompt: r#"
 human: tell me Mike's age from TABLE Persons 
@@ -1551,105 +1552,6 @@ human: tell me Mike's age from TABLE Persons
 
         println!("{}", r);
     }
-
-    #[tokio::test]
-
-    async fn test_steam_not_ok() {
-        let db = SqliteDB::new(SqliteDBConfig {
-            path: sqlite_test_file_path(),
-            read_only: true,
-            conn_timeout: None,
-            locking_model: "normal".to_string(),
-        })
-        .await
-        .unwrap();
-
-        let req = &OpenAIReq {
-            chat_history: vec![],
-            url: "https://api.openai-proxy.org/v1".into(),
-            api_key: "sk-egR0EUYn0EzVybl7D9JkUFx2ksnD62sZPQ8d0J0yJgPEiAWt".into(),
-            model: "gpt-4.1-mini".into(),
-            prompt: r#"
-human: tell me Mike's age from TABLE Persons 
-                "#
-            .into(),
-            temperature: None,
-            max_tokens: None,
-            top_p: None,
-            images: vec![],
-            search_engine: Default::default(),
-            user_system_prompt: None,
-            documents: vec![],
-        };
-        let query_id = "aaaa";
-
-        db.open_connection(query_id).await.unwrap();
-
-        #[cfg(debug_assertions)]
-        log::info!("open ai req:{:?}", req);
-
-        let builder = openai::Client::builder()
-            .api_key(&req.api_key)
-            .base_url(&req.url);
-        let api: Client<openai::OpenAIResponsesExt> = builder.build().unwrap();
-
-        let mut agent_builder = api.agent(&req.model).preamble("U are helpful assistant.");
-
-        if let Some(t) = req.max_tokens {
-            agent_builder = agent_builder.max_tokens(t.into());
-        }
-
-        if let Some(t) = req.temperature {
-            agent_builder = agent_builder.temperature(t);
-        }
-
-        let agent = agent_builder
-            .tool(SqlQueryTool {
-                db: DatabaseBackend::Schema(Arc::new(db)),
-                query_id: query_id.to_owned(),
-                emit: Arc::new(|_| {}),
-            })
-            .build();
-        let mut stream = agent
-            .stream_chat(req.prompt.clone(), vec![] as Vec<String>)
-            .await;
-
-        while let Some(chunk) = stream.next().await {
-            let chunk = chunk.map_err(ErrorFrontend::from).unwrap();
-
-            match chunk {
-                MultiTurnStreamItem::StreamAssistantItem(streamed_assistant_content) => {
-                    match streamed_assistant_content {
-                        StreamedAssistantContent::Text(text) => print!("{}", text.text),
-                        StreamedAssistantContent::ToolCall {
-                            tool_call,
-                            internal_call_id,
-                        } => {
-                            println!("toolcall:{:?} {}", tool_call, internal_call_id);
-                        }
-                        StreamedAssistantContent::ToolCallDelta { .. } => {}
-                        StreamedAssistantContent::Reasoning { .. } => {}
-                        StreamedAssistantContent::ReasoningDelta { .. } => {}
-                        StreamedAssistantContent::Final(..) => {}
-                        StreamedAssistantContent::Unknown(..) => {}
-                    }
-                }
-                MultiTurnStreamItem::StreamUserItem(streamed_user_content) => {
-                    match streamed_user_content {
-                        StreamedUserContent::ToolResult { .. } => {}
-                    }
-                }
-                MultiTurnStreamItem::FinalResponse(final_response) => {
-                    println!("{:?}", final_response)
-                }
-                _ => unreachable!(),
-            }
-        }
-
-        println!("done");
-    }
-
-    use std::env;
 
     #[tokio::test]
     async fn test_search_with_proxy() {
@@ -1714,11 +1616,13 @@ human: tell me Mike's age from TABLE Persons
             env::set_var("https_proxy", "http://127.0.0.1:7890");
             env::set_var("all_proxy", "socks5://127.0.0.1:7890");
         }
+        let config = AITestUrlModel::load_from_dotenv();
+
         let req = &OpenAIReq {
             chat_history: vec![],
-            url: "https://dashscope.aliyuncs.com/compatible-mode/v1".into(),
-            api_key: "sk-6c19c965d3234c8fae49c19e4f0301f0".into(),
-            model: "qwen3.6-plus".into(),
+            url: config.url.clone(),
+            api_key: config.key.clone(),
+            model: config.model.clone(),
             prompt: r#"
                 who is 周星驰
                 "#
@@ -1780,12 +1684,13 @@ human: tell me Mike's age from TABLE Persons
         )
         .await
         .unwrap();
+        let config = AITestUrlModel::load_from_dotenv();
 
         let req = &OpenAIReq {
             user_system_prompt: None,
-            url: "https://dashscope.aliyuncs.com/compatible-mode/v1".into(),
-            api_key: "sk-6c19c965d3234c8fae49c19e4f0301f0".into(),
-            model: "qwen3.5-plus".into(),
+            url: config.url.clone(),
+            api_key: config.key.clone(),
+            model: config.model.clone(),
             chat_history: vec![],
             prompt: r#""#.into(),
             temperature: None,

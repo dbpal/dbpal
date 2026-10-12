@@ -60,7 +60,7 @@ tauri-plugin-http = "2"
 calamine.workspace = true
 
 [dev-dependencies]
-
+dotenvy = { version = "*" }
 
 [features]
 # This feature is used for production builds or when a dev server is not specified, DO NOT REMOVE!!

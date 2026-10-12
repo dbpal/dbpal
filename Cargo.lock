@@ -3510,6 +3510,7 @@ dependencies = [
  "dashmap",
  "dbnexus-db",
  "dbnexus-db2",
+ "dotenvy",
  "font-kit",
  "futures-core",
  "futures-util",
