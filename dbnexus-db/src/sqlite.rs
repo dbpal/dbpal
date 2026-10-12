@@ -183,7 +183,7 @@ async fn is_sqlite_file(path: &str) -> bool {
     {
         return false;
     }
-    // SQLite 标准头部：'SQLite format 3\0'
+    // Standard SQLite header: 'SQLite format 3\0'
     header == *b"SQLite format 3\0"
 }
 
@@ -389,7 +389,7 @@ impl SchemaTrait for SqliteDB {
     }
 
     /*
-        在 SQLite 中，直接修改列类型（ALTER COLUMN TYPE）是不支持的。SQLite 的 ALTER TABLE 语句功能有限，它只允许：
+        SQLite does not support directly modifying a column type (ALTER COLUMN TYPE). The SQLite ALTER TABLE statement has limited functionality and only allows:
     */
     async fn modify_table_column(
         &self,
@@ -748,8 +748,8 @@ fn get_row_type(row: &SqliteRow) -> Vec<Field> {
     ret
 }
 
-/// sqlite有哪些值可以直接放在sql语句里面的想current timestamp给我完成的rust列表
-/// SQLite 里可以直接写在 SQL 语句中的时间字面量
+/// Provide a complete Rust list of SQLite values that can be written directly in SQL statements, such as CURRENT_TIMESTAMP.
+/// Time literals that can be written directly in SQLite SQL statements.
 pub const SQLITE_CURRENT_LITERALS: &[&str] = &[
     "CURRENT_TIME",      // 15:23:56
     "CURRENT_DATE",      // 2025-08-25
@@ -910,7 +910,7 @@ fn encode_row_as_json(r: &SqliteRow) -> anyhow::Result<serde_json::Value> {
                 let v: Option<f64> = r.try_get(c)?;
                 v.map(serde_json::Value::from).unwrap_or(null_value.clone())
             }
-            // non-standard extensions 这些实际上不存在？
+            // Do these non-standard extensions actually exist?
             "BOOLEAN" => {
                 let v: Option<bool> = r.try_get(c)?;
                 v.map(serde_json::Value::from).unwrap_or(null_value.clone())
@@ -2226,14 +2226,14 @@ mod tests {
         db.execute_sql(
             query_id,
             r#"
-            -- 创建表
+            -- Create the table.
             CREATE TABLE Persons (
                 ID INTEGER PRIMARY KEY,
                 Name TEXT,
                 Age INTEGER
             );
             CREATE INDEX persons_idx_age ON Persons (Age);
-            -- 插入测试数据
+            -- Insert test data.
             INSERT INTO Persons (Name, Age) VALUES ('John', 25);
             INSERT INTO Persons (Name, Age) VALUES ('Jane', 30);
             INSERT INTO Persons (Name, Age) VALUES ('Mike', 35);

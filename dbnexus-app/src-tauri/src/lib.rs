@@ -59,7 +59,7 @@ mod tests {
         use ai::openai_invoke;
         use ai::openai_stream;
         tauri_specta::Builder::<tauri::Wry>::new()
-            // 注册所有带有 #[specta::specta] 标记的命令
+            // Register all commands annotated with #[specta::specta].
             .commands(tauri_specta::collect_commands![
                 create_view_sql,
                 create_database,
@@ -209,7 +209,7 @@ mod tests {
             ])
             .error_handling(ErrorHandlingMode::Throw)
             .constant("redisCommands", get_commands_from_docs())
-            // 导出到前端目录
+            // Export to the frontend directory.
             .export(specta_typescript::Typescript::default(), {
                 let dir = env!("CARGO_MANIFEST_DIR");
                 let filepath = std::path::Path::new(&dir)

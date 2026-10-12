@@ -94,7 +94,7 @@ impl LangServerCommon for ClickHouseDB {
         CLICKHOUSE_FORMATS.iter().map(|x| x.to_string()).collect()
     }
     async fn list_index(&self, _schema: Option<&str>) -> anyhow::Result<Vec<String>> {
-        // clickhouse 不支持索引
+        // ClickHouse does not support indexes.
         anyhow::Ok(vec![])
     }
     async fn list_column(
@@ -122,8 +122,8 @@ impl LangServerCommon for ClickHouseDB {
         _schema: Option<&str>,
         _include_build_in: bool,
     ) -> anyhow::Result<Vec<CompletionItem>> {
-        // 在 ClickHouse 中，使用以下查询可以查看所有函数，包括表函数（table functions）：
-        // 看起来clickhouse 都有全局的作用域
+        // In ClickHouse, use the following query to view all functions, including table functions:
+        // It appears that ClickHouse functions all have global scope.
         let sql = "select name , description from system.functions";
 
         let result: Vec<(String, String)> = self.client.query(sql).fetch_all().await?;

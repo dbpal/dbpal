@@ -178,10 +178,10 @@ impl PostGresDB {
 }
 
 /// AI help me impl this.
-// 当然可以,下面是一个 Rust 函数,用于解析 PostgreSQL 触发器的 tgtype 值:
+// Certainly. Here is a Rust function for parsing the PostgreSQL trigger tgtype value:
 //
-// rust
-// 复制
+// Rust
+// Copy
 // fn parse_trigger_type(tgtype: i32) -> String {
 // let mut result = String::new();
 //
@@ -209,14 +209,13 @@ impl PostGresDB {
 // result.trim_end_matches(", ").to_string()
 // }
 // }
-// 这个函数接受一个 i32 类型的 tgtype
-// 值,并返回一个描述触发器类型的字符串。它检查 tgtype 的每个位,并根据触发器的
-// timing 和 event 类型构建结果字符串。
+// This function accepts an i32 tgtype value and returns a string describing the trigger type.
+// It checks each bit in tgtype and builds the result based on the trigger's timing and event type.
 //
-// 如果没有找到任何匹配的位模式,它将返回 "UNKNOWN"
-// 字符串。否则,它将返回一个以逗号和空格分隔的触发器类型列表。
+// If no bit patterns match, it returns the string "UNKNOWN".
+// Otherwise, it returns a comma-and-space-separated list of trigger types.
 //
-// 您可以像这样使用这个函数:
+// You can use the function like this:
 fn parse_trigger_type(tgtype: i16) -> anyhow::Result<(TriggerEvent, TriggerTiming)> {
     if (tgtype & 0b1) == 0b1 {
         return anyhow::Ok((TriggerEvent::Insert, TriggerTiming::After));
@@ -349,25 +348,25 @@ impl PostGresDB {
 #[async_trait::async_trait]
 impl SchemaTrait for PostGresDB {
     async fn drop_foreign_key(&self, table: &str, name: &str) -> anyhow::Result<()> {
-        // 1. 删除外键约束 (Postgres 使用 DROP CONSTRAINT，且不需要删除索引)
+        // 1. Drop the foreign key constraint (Postgres uses DROP CONSTRAINT and does not require dropping the index).
         let drop_sql = format!(r#"ALTER TABLE "{}" DROP CONSTRAINT "{}""#, table, name);
         self.simple_execute_sql(&drop_sql).await?;
         anyhow::Ok(())
     }
 
     async fn list_foreign_key(&self, table: &str) -> anyhow::Result<Vec<ForeignKeyDef>> {
-        // PostgreSQL 查询外键：必须使用 pg_catalog 系统表
+        // Query PostgreSQL foreign keys using the pg_catalog system tables.
         let sql = format!(
             r#"
         SELECT
             con.conname AS constraint_name,
-            -- 获取被引用的父表名 (排除 schema 前缀)
+            -- Get the referenced parent table name (excluding the schema prefix).
             rel_ns.nspname || '.' || rel.relname AS referenced_table_name,
-            -- 获取子表上的外键列名
+            -- Get the foreign key column name on the child table.
             a.attname AS column_name,
-            -- 获取父表上被引用的列名
+            -- Get the referenced column name on the parent table.
             af.attname AS referenced_column_name,
-            -- 处理更新和删除规则 (c = CASCADE, n = SET NULL, r = RESTRICT, a = NO ACTION)
+            -- Handle update and delete rules (c = CASCADE, n = SET NULL, r = RESTRICT, a = NO ACTION).
             CASE confupdtype WHEN 'c' THEN 'CASCADE' WHEN 'n' THEN 'SET NULL' WHEN 'r' THEN 'RESTRICT' WHEN 'a' THEN 'NO ACTION' ELSE 'NO ACTION' END AS update_rule,
             CASE confdeltype WHEN 'c' THEN 'CASCADE' WHEN 'n' THEN 'SET NULL' WHEN 'r' THEN 'RESTRICT' WHEN 'a' THEN 'NO ACTION' ELSE 'NO ACTION' END AS delete_rule
         FROM
@@ -393,17 +392,17 @@ impl SchemaTrait for PostGresDB {
 
         let mut ret = Vec::with_capacity(rows.len());
         for r in rows.iter() {
-            // 提取外键的名字 (第0列)
+            // Extract the foreign key name (column 0).
             let constraint_name: Option<String> = r.try_get(0)?;
-            // 提取引用的目标表 (第1列)
+            // Extract the referenced table (column 1).
             let referenced_table: String = r.try_get(1)?;
-            // 提取本地列名 (第2列) -> 对应 SQLite 的 "from"
+            // Extract the local column name (column 2), corresponding to SQLite's "from".
             let from: String = r.try_get(2)?;
-            // 提取被引用的列名 (第3列) -> 对应 SQLite 的 "to"
+            // Extract the referenced column name (column 3), corresponding to SQLite's "to".
             let to: String = r.try_get(3)?;
-            // 更新规则 (第4列)
+            // Update rule (column 4).
             let on_update: String = r.try_get(4)?;
-            // 删除规则 (第5列)
+            // Delete rule (column 5).
             let on_delete: String = r.try_get(5)?;
 
             ret.push(ForeignKeyDef {
@@ -854,7 +853,7 @@ impl SchemaTrait for PostGresDB {
         }
     }
 
-    /// FIXME 如果一个主键是自增的只能得到类型
+    /// FIXME: If a primary key is auto-incrementing, only its type can be retrieved.
     async fn show_create_table_sql(
         &self,
         table_name: &str,
@@ -1109,7 +1108,7 @@ impl SchemaTrait for PostGresDB {
         let primary_keys = {
             let sql: String = format!(
                 r#"
-                -- 查表的主键详情
+                -- Get the table's primary key details.
                 SELECT  kcu.column_name
                     FROM information_schema.table_constraints AS tc
                     JOIN information_schema.key_column_usage  AS kcu
@@ -1260,12 +1259,11 @@ impl PostGresDB {
         schema: &str,
         skip_null_create_sql: bool,
     ) -> anyhow::Result<Vec<CreatedTypeDef>> {
-        /*在
-        pg_type.typtype  里：
-        c = composite（复合类型 / 行类型）
-        d = domain（域类型，基于已有类型的约束包装）
-        e = enum（枚举类型）
-        r = range（范围类型，如 int4range、daterange）
+        /* In pg_type.typtype:
+                c = composite (composite/row type)
+                d = domain (a constraint wrapper around an existing type)
+                e = enum (enumerated type)
+                r = range (range type, such as int4range or daterange)
 
         */
         let sql = format!(
@@ -1861,14 +1859,14 @@ pub(crate) async fn make_test_object() -> PostGresDB {
     pg
 }
 
-/// postgres有哪些值可以直接放在sql语句里面的想current timestamp给我完成的rust列表
-/// PostgreSQL 里可以直接写在 SQL 语句中的 CURRENT_* 字面量
+/// Provide a complete Rust list of PostgreSQL values that can be written directly in SQL statements, such as CURRENT_TIMESTAMP.
+/// CURRENT_* literals that can be written directly in PostgreSQL SQL statements.
 pub const PG_CURRENT_LITERALS: &[&str] = &[
     "CURRENT_DATE",      //  2025-08-25
     "CURRENT_TIME",      //  14:36:07.123+02
     "CURRENT_TIMESTAMP", //  2025-08-25 14:36:07.123+02
     "CURRENT_USER",      //  alice
-    "CURRENT_ROLE",      //  alice（或 SET ROLE 后的角色）
+    "CURRENT_ROLE",      //  alice (or the role set by SET ROLE).
 ];
 
 impl ExtractSqlValeFromJsonValue for PostGresDB {
@@ -3442,12 +3440,12 @@ mod tests {
         let table_name_posts = "test_posts";
         let table_name_comments = "test_comments";
 
-        // PG 默认的外键名格式通常是 {table}_{column}_fkey
-        // 但在实际业务中，建议通过系统表查询拿到确切的名字，而不是瞎猜
+        // PG foreign key names usually follow the format {table}_{column}_fkey.
+        // In practice, query the system tables for the exact name rather than guessing.
         let _err = db
             .drop_foreign_key(
                 table_name_comments,
-                "fk_comments_posts", // PostgreSQL 默认生成的名字
+                "fk_comments_posts", // Name generated by default in PostgreSQL.
             )
             .await;
 
@@ -3461,8 +3459,8 @@ mod tests {
         let query_id = "aaaa";
         db.open_connection(query_id).await.unwrap();
 
-        // 1. 创建父表 test_posts
-        // PG 使用 SERIAL 代替 AUTO_INCREMENT
+        // 1. Create the parent table test_posts.
+        // PG uses SERIAL instead of AUTO_INCREMENT.
         db.execute_sql(
             query_id,
             r#"
@@ -3477,8 +3475,8 @@ mod tests {
         .unwrap()
         .unwrap();
 
-        // 2. 创建子表 test_comments
-        // PG 的外键约束和 MySQL 类似，写在表级
+        // 2. Create the child table test_comments.
+        // As in MySQL, PG foreign key constraints are defined at the table level.
         db.execute_sql(
             query_id,
             r#"
@@ -3498,7 +3496,7 @@ mod tests {
 
         db.close_connection(query_id).await.unwrap();
 
-        // 3. 列出外键并打印
+        // 3. List and print the foreign keys.
         let f = db.list_foreign_key(table_name_comments).await.unwrap();
 
         assert!(f.len() == 1);
@@ -3515,12 +3513,12 @@ mod tests {
         let port = portpicker::pick_unused_port().unwrap();
         println!("test port:{}", port);
         let cert_dir = cert_files_dir();
-        // 2. 动态拼接数据卷挂载参数路径
+        // 2. Dynamically build the data volume mount argument path.
         let ca_volume = format!("{}/ca.crt:/etc/postgresql/ca.crt", cert_dir);
         let cert_volume = format!("{}/server.crt:/etc/postgresql/server.crt", cert_dir);
         let key_volume = format!("{}/server.key:/etc/postgresql/server.key", cert_dir);
 
-        // 3. 使用 std::process::Command 按顺序构建并执行命令
+        // 3. Build and execute the command in sequence using std::process::Command.
         let output = Command::new("docker")
             .arg("run")
             .arg("-d")
@@ -3539,9 +3537,9 @@ mod tests {
             .args(["-c", "ssl_ca_file=/etc/postgresql/ca.crt"])
             .args(["-c", "log_connections=on"])
             .output()
-            .unwrap(); // 捕获标准输出和错误输出
+            .unwrap(); // Capture standard output and standard error.
 
-        // 4. 检查命令执行结果
+        // 4. Check the command result.
         let container_id = if output.status.success() {
             let container_id = String::from_utf8_lossy(&output.stdout).trim().to_string();
             println!("PostgreSQL 容器启动成功，ID 为: {}", container_id);

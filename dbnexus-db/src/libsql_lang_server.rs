@@ -300,8 +300,8 @@ mod tests {
         db.execute_sql(
             query_id,
             r#"
-            -- 测试用到的表格 和建表语句
-            -- 创建 departments 表
+            -- Tables and table creation statements used in the test.
+            -- Create the departments table.
             CREATE TABLE departments (
                 id INTEGER PRIMARY KEY,
                 name TEXT NOT NULL
@@ -315,7 +315,7 @@ mod tests {
         db.execute_sql(
             query_id,
             r#"
-            -- 创建 employees 表
+            -- Create the employees table.
             CREATE TABLE employees (
                 id INTEGER PRIMARY KEY,
                 name TEXT NOT NULL,

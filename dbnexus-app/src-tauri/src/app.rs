@@ -706,7 +706,7 @@ pub fn append_handle_name(name: &str, name2: &str) -> String {
     format!("{}/{}", name, name2)
 }
 
-// 管理所有任务的取消令牌
+// Manage cancellation tokens for all tasks.
 
 #[derive(Clone, Default)]
 pub struct TaskManager {

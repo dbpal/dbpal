@@ -225,7 +225,7 @@ impl SqlBuilder for DuckDB {
         let typ = typ.to_lowercase();
         log::trace!("encode type:{} value:{:?}", typ, value);
         match typ.as_str() {
-            // 1. 精确匹配：需要加单引号并转义的文本、日期、时间、JSON、UUID 等类型
+            // 1. Exact match: text, date, time, JSON, UUID, and other types that need single quotes and escaping.
             "date"
             | "time"
             | "time with time zone"
@@ -239,14 +239,14 @@ impl SqlBuilder for DuckDB {
             | "uuid"
             | "blob" => anyhow::Ok(quote_sql_str(value)),
 
-            // 3. 嵌套/复杂类型：DuckDB 的 LIST (如 int[]), ARRAY, STRUCT, MAP
-            // 它们的字面量（如 [1, 2, 3] 或 {'a': 1}）直接作为表达式插入，不需要在外层加单引号
+            // 3. Nested/complex types: DuckDB LIST (such as int[]), ARRAY, STRUCT, and MAP.
+            // Their literals (such as [1, 2, 3] or {'a': 1}) are inserted directly as expressions and do not need outer single quotes.
             _ if typ.ends_with("]") || typ.starts_with("struct") || typ.starts_with("map") => {
                 anyhow::Ok(value.to_string())
             }
             _ if typ.starts_with("union") => anyhow::Ok(value.to_string()),
 
-            // 2. 前缀匹配：处理带参数或变体的类型 (例如 varchar(255), timestamp_ms, utf8, largeutf8 等)
+            // 2. Prefix match: handle types with parameters or variants (such as varchar(255), timestamp_ms, utf8, and largeutf8).
             _ if typ.starts_with("varchar")
                 || typ.starts_with("text")
                 || typ.starts_with("time")
@@ -258,8 +258,8 @@ impl SqlBuilder for DuckDB {
                 anyhow::Ok(quote_sql_str(value))
             }
 
-            // 4. 兜底分支：数字类型 (int, bigint, float, decimal)、布尔值 (boolean) 等
-            // 直接返回其原始字符串字面量（例如 42, 3.14, true）
+            // 4. Fallback branch: numeric types (int, bigint, float, decimal), boolean values, and others.
+            // Return their original string literals directly (for example, 42, 3.14, true).
             _ => anyhow::Ok(value.to_string()),
         }
     }
@@ -966,15 +966,14 @@ impl DuckDB {
 #[async_trait::async_trait]
 impl SchemaTrait for DuckDB {
     async fn drop_foreign_key(&self, table: &str, name: &str) -> anyhow::Result<()> {
-        // DuckDB 不支持 ALTER TABLE DROP FOREIGN KEY 语法
-        // 需要先查询出外键约束名称，然后使用 ALTER TABLE DROP CONSTRAINT
-        // 注意：DuckDB 的外键约束名称可能和 MySQL 不同
-
-        // 1. 删除外键约束
+        // DuckDB does not support ALTER TABLE DROP FOREIGN KEY.
+        // First retrieve the foreign key constraint name, then use ALTER TABLE DROP CONSTRAINT.
+        // Note: DuckDB foreign key constraint names may differ from MySQL's.
+        // 1. Drop the foreign key constraint.
         let drop_sql = format!(r#"ALTER TABLE "{}" DROP CONSTRAINT "{}""#, table, name);
         log::info!("sql: {}", drop_sql);
 
-        // DuckDB 执行 SQL
+        // Execute the SQL in DuckDB.
         self.simple_execute_sql(&drop_sql).await?;
 
         anyhow::Ok(())
@@ -987,8 +986,8 @@ impl SchemaTrait for DuckDB {
         spawn_blocking(move || {
             let conn = this.get_conn()?;
 
-            // DuckDB 使用 INFORMATION_SCHEMA 查询外键信息
-            // DuckDB 的 INFORMATION_SCHEMA 表结构有所不同
+            // DuckDB uses INFORMATION_SCHEMA to query foreign key information.
+            // The DuckDB INFORMATION_SCHEMA tables have a different structure.
             let sql = format!(
                 r#"
                 SELECT
@@ -1799,20 +1798,20 @@ impl ExtractSqlValeFromJsonValue for DuckDB {
     }
 }
 
-/// 简化版本：一次性解析所有信息
+/// Simplified version: parse all information at once.
 pub fn parse_foreign_key_simple(constraint_text: &str) -> anyhow::Result<(String, String, String)> {
     let text = constraint_text.trim();
 
-    // 1. 找 REFERENCES 关键字
+    // 1. Find the REFERENCES keyword.
     let ref_pos = text
         .find("REFERENCES")
         .ok_or_else(|| anyhow::anyhow!("未找到 REFERENCES 关键字"))?;
 
-    // 2. 提取 REFERENCES 后面的部分
+    // 2. Extract the portion following REFERENCES.
     let after_ref = &text[ref_pos + "REFERENCES".len()..].trim();
 
-    // 3. 从 after_ref 提取表名和 to 列
-    // 找到第一个 '('
+    // 3. Extract the table name and to column from after_ref.
+    // Find the first '('.
     let start_paren = after_ref
         .find('(')
         .ok_or_else(|| anyhow::anyhow!("未找到 '('"))?;
@@ -1825,8 +1824,8 @@ pub fn parse_foreign_key_simple(constraint_text: &str) -> anyhow::Result<(String
 
     let to_column = after_ref[start_paren + 1..end_paren].trim().to_string();
 
-    // 4. 提取 from 列
-    // 找 FOREIGN KEY 后面的第一个 '('
+    // 4. Extract the from column.
+    // Find the first '(' after FOREIGN KEY.
     let fk_pos = text
         .find("FOREIGN KEY")
         .ok_or_else(|| anyhow::anyhow!("未找到 FOREIGN KEY"))?;
@@ -1891,11 +1890,11 @@ mod tests {
         let table_name_posts = "test_posts";
         let table_name_comments = "test_comments";
 
-        // DuckDB 使用 DROP CONSTRAINT 语法
+        // DuckDB uses the DROP CONSTRAINT syntax.
         let _err = db
             .drop_foreign_key(
                 table_name_comments,
-                "test_comments_post_id_id_fkey", // DuckDB 外键约束名需要手动指定或查询
+                "test_comments_post_id_id_fkey", // DuckDB foreign key constraint names must be specified manually or queried.
             )
             .await;
         if let Err(_err) = _err {
@@ -1908,7 +1907,7 @@ mod tests {
         let query_id = "aaaa";
         db.open_connection(query_id).await.unwrap();
 
-        // 1. 创建父表 test_posts (DuckDB 语法)
+        // 1. Create the parent table test_posts (DuckDB syntax).
         db.execute_sql(
             query_id,
             r#"
@@ -1923,7 +1922,7 @@ mod tests {
         .unwrap()
         .unwrap();
 
-        // 2. 创建子表 test_comments (DuckDB 语法)
+        // 2. Create the child table test_comments (DuckDB syntax).
         db.execute_sql(
             query_id,
             r#"
@@ -1941,7 +1940,7 @@ mod tests {
 
         db.close_connection(query_id).await.unwrap();
 
-        // 3. 列出外键并打印
+        // 3. List and print the foreign keys.
         let f = db.list_foreign_key(table_name_comments).await.unwrap();
 
         assert_eq!(f.len(), 1);

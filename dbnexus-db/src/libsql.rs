@@ -550,17 +550,17 @@ impl SchemaTrait for LibSqlDB {
     async fn list_foreign_key(&self, table: &str) -> anyhow::Result<Vec<ForeignKeyDef>> {
         let conn = self.get_conn().await?;
 
-        // PRAGMA 语句在 libsql/SQLite 中不能使用参数绑定，所以直接格式化
+        // PRAGMA statements in libsql/SQLite do not support parameter binding, so format the values directly.
         let sql = format!(r#"PRAGMA foreign_key_list("{}")"#, table);
         log::info!("sql:{}", sql);
 
-        // 1. 准备语句
+        // 1. Prepare the statement.
         let mut rows = conn.query(&sql, params!()).await?;
         let mut ret = vec![];
 
         while let Some(row) = rows.next().await? {
-            // 注意：libsql/rusqlite 的 row.get 是从 0 开始的索引
-            // PRAGMA foreign_key_list 返回的列顺序是：
+            // Note: row.get in libsql/rusqlite uses zero-based indexing.
+            // PRAGMA foreign_key_list returns columns in this order:
             // id(0), seq(1), table(2), from(3), to(4), on_update(5), on_delete(6), match(7)
             let table: String = row.get(2)?;
             let from: String = row.get(3)?;
@@ -569,7 +569,7 @@ impl SchemaTrait for LibSqlDB {
             let on_delete: String = row.get(6)?;
 
             ret.push(ForeignKeyDef {
-                name: None, // SQLite/libsql 不提供约束名称，所以这里显式设为 None
+                name: None, // SQLite/libsql does not provide constraint names, so explicitly set this to None.
                 table,
                 from,
                 to,
@@ -1287,7 +1287,7 @@ mod tests {
         .unwrap()
         .unwrap();
 
-        // 注意：不要在这里 close_connection，否则后面 test_foreign_key_get 里拿不到连接
+        // Note: Do not call close_connection here, or test_foreign_key_get will not be able to access the connection.
         // db.close_connection(query_id).await.unwrap();
     }
 
@@ -1659,14 +1659,14 @@ mod tests {
         db.execute_sql(
             query_id,
             r#"
-            -- 创建表
+            -- Create the table.
             CREATE TABLE Persons (
                 ID INTEGER PRIMARY KEY,
                 Name TEXT,
                 Age INTEGER
             );
             CREATE INDEX persons_idx_age ON Persons (Age);
-            -- 插入测试数据
+            -- Insert test data.
             INSERT INTO Persons (Name, Age) VALUES ('John', 25);
             INSERT INTO Persons (Name, Age) VALUES ('Jane', 30);
             INSERT INTO Persons (Name, Age) VALUES ('Mike', 35);

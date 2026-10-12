@@ -429,7 +429,7 @@ function QueryResp_(props: { data: MuiDataGridData }): React.ReactElement {
               columns={data.fields}
               rows={data.data}
               showToolbar={false}
-              filterMode="client" // 使用客户端过滤
+              filterMode="client" // Use client-side filtering.
               paginationModel={paginationModel}
               onPaginationModelChange={onPaginationModelChange}
             />

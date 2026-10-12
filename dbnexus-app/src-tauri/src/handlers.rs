@@ -53,10 +53,10 @@ pub fn set_log_level(level: String) {
 pub fn set_env(env: HashMap<String, String>) {
     for (key, value) in env {
         if value.is_empty() {
-            // 如果值为空，则从当前进程中移除该环境变量
+            // If the value is empty, remove the environment variable from the current process.
             env::remove_var(&key);
         } else {
-            // 否则正常设置
+            // Otherwise, set it normally.
             env::set_var(&key, &value);
         }
     }
@@ -68,9 +68,9 @@ pub async fn cancel_task(
     task_id: String,
     state: State<'_, TaskManager>,
 ) -> Result<(), ErrorFrontend> {
-    // 通知取消
+    // Signal cancellation.
     if let Some(token) = state.tokens.get(&task_id) {
-        token.cancel(); // 触发取消
+        token.cancel(); // Trigger cancellation.
     } else {
         return Err(ErrorFrontend::from(format!(
             "task id not found '{}'",
@@ -1572,8 +1572,8 @@ pub async fn auto_completion(
     app: tauri::State<'_, DBPal>,
 ) -> Result<CompletionList, ErrorFrontend> {
     let use_lexer = true;
-    // 避免多个线程同时访问
-    // 主要是后端实现更简单了比如可以把 completion——id缓存起来
+    // Prevent multiple threads from accessing this simultaneously.
+    // This mainly simplifies the backend implementation; for example, the completion ID can be cached.
     let lock = auto_completion_mutex(name_to_parts(&db_name)[0]);
     let _guard = lock.lock().await;
 

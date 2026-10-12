@@ -762,7 +762,7 @@ pub async fn openai_stream(
     }
 }
 
-// 假设 path 是用户上传图片的本地路径
+// Assume path is the local path of an image uploaded by the user.
 
 #[allow(unused)]
 async fn image_to_base64(path: &str) -> anyhow::Result<String> {
@@ -774,9 +774,9 @@ async fn image_to_base64(path: &str) -> anyhow::Result<String> {
     } else if path.ends_with(".jpg") || path.ends_with(".jpeg") {
         "image/jpeg"
     } else {
-        "image/png" // 默认
+        "image/png" // Default
     };
-    // 必须加上前缀，告知模型图片类型（如 image/jpeg, image/png）
+    // The prefix is required to tell the model the image type (for example, image/jpeg or image/png).
     let r = format!("data:{};base64,{}", mime, base64_str);
     anyhow::Ok(r)
 }
@@ -921,22 +921,22 @@ impl OpenAIReq {
     }
 }
 
-/// 单个搜索结果
+/// A single search result.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SearchInput {
-    /// 搜索查询字符串
+    /// Search query string.
     pub query: String,
     pub max_results: Option<u32>,
 }
 
-/// 搜索工具的输出结果
+/// Search tool output.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SearchOutput {
-    /// 搜索查询
+    /// Search query.
     pub query: String,
-    /// 搜索结果列表
+    /// List of search results.
     pub results: Vec<websearch::SearchResult>,
-    /// 搜索耗时 (毫秒)
+    /// Search duration (milliseconds).
     pub search_time_ms: u64,
 }
 
@@ -1171,7 +1171,7 @@ mod mongo_tool {
                         .await
                         .map_err(|e| CallToolErr::from(e.to_string()))?;
 
-                    vec![result] // 包装成数组保持返回类型一致
+                    vec![result] // Wrap in an array to keep the return type consistent.
                 }
 
                 _ => return Err(format!("Unsupported operation: {}", operation).into()),
@@ -1297,7 +1297,7 @@ mod redis {
         #[serde(deserialize_with = "deserialize_maybe_string_array")]
         pub args: Option<Vec<String>>,
     }
-    /// 自定义反序列化：兼容 ["a"] 和 "[\"a\"]"
+    /// Custom deserialization: supports both ["a"] and "[\"a\"]".
     fn deserialize_maybe_string_array<'de, D>(
         deserializer: D,
     ) -> Result<Option<Vec<String>>, D::Error>
@@ -1306,11 +1306,11 @@ mod redis {
     {
         use serde_json::Value;
 
-        // 先解析为通用的 JSON Value
+        // First, parse it as a generic JSON Value.
         let v: Value = Deserialize::deserialize(deserializer)?;
 
         match v {
-            // 情况 1: 已经是标准的数组 [ "arg1" ]
+            // Case 1: This is already a standard array, [ "arg1" ].
             Value::Array(arr) => {
                 let res = arr
                     .into_iter()
@@ -1318,23 +1318,23 @@ mod redis {
                     .collect();
                 Ok(Some(res))
             }
-            // 情况 2: 模型传了一个字符串 "[\"arg1\"]"
+            // Case 2: The model passed a string, "[\"arg1\"]".
             Value::String(s) => {
                 let parsed: Vec<String> =
                     serde_json::from_str(&s).map_err(serde::de::Error::custom)?;
                 Ok(Some(parsed))
             }
-            // 其他情况（如 Null）返回 None
+            // Return None for other cases (such as Null).
             _ => Ok(None),
         }
     }
-    // 2. 定义你的 Tool 结构体
+    // 2. Define the Tool struct.
     pub struct RedisTool {
         pub(crate) query_id: String,
         pub(crate) client: RedisDB,
     }
 
-    // 3. 实现 Tool Trait
+    // 3. Implement the Tool trait.
     impl Tool for RedisTool {
         const NAME: &'static str = "redis_executor";
 
@@ -1385,7 +1385,7 @@ mod redis {
                                             "
                     }
                 },
-                // 关键改动：这里只保留 command 为必填
+                // Key change: only command remains required here.
                 "required": ["command"]
             })
         }
@@ -1655,13 +1655,13 @@ human: tell me Mike's age from TABLE Persons
     async fn test_search_with_proxy() {
         // enable_test_log();
 
-        // 打印当前代理设置
+        // Print the current proxy settings.
         println!("Current proxy settings:");
         println!("  http_proxy:  {:?}", env::var("http_proxy").ok());
         println!("  https_proxy: {:?}", env::var("https_proxy").ok());
         println!("  all_proxy:   {:?}", env::var("all_proxy").ok());
 
-        // 如果没有设置代理，手动设置（仅用于测试）
+        // If no proxy is configured, set one manually (for testing only).
         if env::var("https_proxy").is_err() {
             println!("⚠️  No proxy detected, setting default proxy...");
             env::set_var("http_proxy", "http://127.0.0.1:7897");
@@ -1701,13 +1701,13 @@ human: tell me Mike's age from TABLE Persons
 
     #[tokio::test]
     async fn test_search_search_tool() {
-        // 打印当前代理设置
+        // Print the current proxy settings.
         println!("Current proxy settings:");
         println!("  http_proxy:  {:?}", env::var("http_proxy").ok());
         println!("  https_proxy: {:?}", env::var("https_proxy").ok());
         println!("  all_proxy:   {:?}", env::var("all_proxy").ok());
 
-        // 如果没有设置代理，手动设置（仅用于测试）
+        // If no proxy is configured, set one manually (for testing only).
         if env::var("https_proxy").is_err() {
             println!("⚠️  No proxy detected, setting default proxy...");
             env::set_var("http_proxy", "http://127.0.0.1:7890");
@@ -1838,7 +1838,7 @@ human: tell me Mike's age from TABLE Persons
 
     #[tokio::test]
     async fn test_read_documents() {
-        // 1. 修正路径拼接：使用 PathBuf 更稳健，去掉多余引号
+        // 1. Fix path construction: PathBuf is more robust and removes extra quotes.
         let mut path = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR"));
         path.push("..");
         path.push("tests");

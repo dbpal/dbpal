@@ -213,7 +213,7 @@ impl SchemaTrait for ClickHouseDB {
     }
 
     async fn drop_materialized_view(&self, name: &str) -> anyhow::Result<Option<String>> {
-        // 在 ClickHouse 中，DROP MATERIALIZED VIEW 在底层实现上本质就是调用了 DROP TABLE 的核心逻辑函数
+        // In ClickHouse, DROP MATERIALIZED VIEW essentially calls the core DROP TABLE logic internally.
         self.drop_table(name, false).await
     }
 
@@ -365,8 +365,8 @@ impl SchemaTrait for ClickHouseDB {
             default_value: String,
             #[allow(unused)]
             is_partition_key: bool,
-            // “不是排序键” ≠ 不能排序，只是会走额外排序算子，更慢、更耗资源；
-            // 把最常用的排序/过滤列放进排序键，就是为了省掉这一步。
+            // "Not a sort key" does not mean it cannot be sorted; it means an extra, slower, more resource-intensive sorting operator is used.
+            // Put the most frequently used sort/filter columns in the sort key to avoid this step.
             #[allow(unused)]
             is_sorting_key: u8,
         }
@@ -1273,7 +1273,7 @@ impl ClickHouseDB {
     }
 }
 
-/// ClickHouse 里可直接写在 SQL 语句中的零参常量字面量
+/// Zero-argument constant literals that can be written directly in ClickHouse SQL statements.
 pub const CH_CURRENT_LITERALS: &[&str] = &[
     "CURRENT_TIMESTAMP", //  2025-08-25 14:36:07
     "CURRENT_DATE",      //  2025-08-25
@@ -2172,7 +2172,7 @@ mod tests {
         GetTestExportTableKinds::test_export(&db, table_name).await;
 
         /*
-        这是 ClickHouse CSV / CSVWithNames 格式的默认原生特性。在 ClickHouse 的 官方 CSV 格式规范 中明确规定：元组（Tuples）在 CSV 格式下会被序列化为独立的列，即它的嵌套结构会丢失（Tuples in CSV format are serialized as separate columns）。例如，一个名为 user 且包含 (id, name) 的 Tuple 列，在 CSVWithNames 的表头中会被直接展开成 "user.id","user.name" 两列。
+                This is the default behavior of the ClickHouse CSV / CSVWithNames format. The official ClickHouse CSV format specification states that tuples in CSV format are serialized as separate columns, so their nested structure is lost (Tuples in CSV format are serialized as separate columns). For example, a Tuple column named user containing (id, name) is expanded directly into two columns, "user.id" and "user.name", in a CSVWithNames header.
          */
         db.test_table_export_and_import_json(table_name).await;
         db.test_table_export_and_import_jsonline(table_name).await;
@@ -2255,9 +2255,9 @@ mod tests {
                 r#"
             CREATE TABLE test_types6
             (
-                low_cardinality_field LowCardinality(String),  -- 使用 LowCardinality 优化存储和查询性能[^4^]
-                nullable_field Nullable(String),               -- 可以存储 NULL 值的字段[^2^]
-                -- json_field JSON                                -- JSON 类型字段，用于存储 JSON 数据[^3^]
+                low_cardinality_field LowCardinality(String),  -- Use LowCardinality to optimize storage and query performance[^4^]
+                nullable_field Nullable(String),               -- Field that can store NULL values[^2^]
+                -- json_field JSON                                -- JSON field for storing JSON data[^3^]
             )
             ENGINE = MergeTree()
             ORDER BY low_cardinality_field;

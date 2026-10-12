@@ -110,12 +110,12 @@ impl LangServerCommon for OracleDB {
         anyhow::Ok(ret)
     }
     /*
-    -- 最简单的调用
+    -- The simplest call
     SELECT scott.函数名(参数) AS 别名 FROM dual;
 
-    -- 例子
+    -- Example
     SELECT scott.f_get_emp_name(7839) AS ename FROM dual;
-    调用函数的例子和调用一个表一样 所以is_call不需要单独处理
+    Calling a function is handled like querying a table, so is_call does not need separate handling.
     */
     async fn list_column(
         &self,

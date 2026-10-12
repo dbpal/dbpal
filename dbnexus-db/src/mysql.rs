@@ -595,18 +595,18 @@ impl MysqlDB {
 
 impl SchemaTrait for MysqlDB {
     async fn drop_foreign_key(&self, table: &str, name: &str) -> anyhow::Result<()> {
-        // 1. 删除外键约束
+        // 1. Drop the foreign key constraint.
         let drop_sql = format!(r#"ALTER TABLE `{}` DROP FOREIGN KEY `{}`"#, table, name);
         log::info!("sql: {}", drop_sql);
         self.simple_execute_sql(&drop_sql).await?;
 
-        // 2. 顺手删除 MySQL 为外键自动生成的同名的索引（如果存在的话）
-        // 注意：MySQL 创建外键时，会自动在本地列上创建一个同名的索引。
-        // 删除了外键后，这个索引依然存在。如果不删，不仅浪费空间，还会留下冗余索引。
+        // 2. Also drop the index with the same name that MySQL automatically created for the foreign key, if it exists.
+        // When MySQL creates a foreign key, it automatically creates an index with the same name on the local column.
+        // This index remains after the foreign key is dropped; removing it avoids wasting space and leaving a redundant index.
         let drop_index_sql = format!(r#"ALTER TABLE `{}` DROP INDEX `{}`"#, table, name);
 
-        // 因为如果索引不存在会报错，所以这里我们手动判断或者直接忽略错误。
-        // 使用 execute 并检查结果，如果报错（比如索引不存在），就忽略它。
+        // Since dropping a missing index causes an error, check for it manually or ignore the error.
+        // Execute the statement and ignore errors such as "index does not exist."
         if let Err(e) = self.simple_execute_sql(drop_index_sql.as_str()).await {
             log::warn!("删除外键索引失败（索引可能已被手动删除）: {:?}", e);
         }
@@ -644,23 +644,23 @@ impl SchemaTrait for MysqlDB {
 
         let mut ret = Vec::with_capacity(rows.len());
         for r in rows.iter() {
-            // 提取外键的名字 (第0列)
+            // Extract the foreign key name (column 0).
             let constraint_name: Option<String> = r.try_get(0)?;
-            // 提取引用的目标表 (第1列)
+            // Extract the referenced table (column 1).
             let referenced_table: String = r.try_get(1)?;
-            // 提取本地列名 (第2列) -> 对应 SQLite 的 "from"
+            // Extract the local column name (column 2), corresponding to SQLite's "from".
             let from: String = r.try_get(2)?;
-            // 提取被引用的列名 (第3列) -> 对应 SQLite 的 "to"
+            // Extract the referenced column name (column 3), corresponding to SQLite's "to".
             let to: String = r.try_get(3)?;
-            // 更新规则 (第4列)
+            // Update rule (column 4).
             let on_update: String = r.try_get(4)?;
-            // 删除规则 (第5列)
+            // Delete rule (column 5).
             let on_delete: String = r.try_get(5)?;
 
             ret.push(ForeignKeyDef {
-                // 注意：你的 ForeignKeyDef 结构体里可能还没加 constraint_name 字段，你需要自己加上去，或者在此处打印/丢弃
-                // 假设你需要在结果中保留它，请修改你的结构体定义
-                name: constraint_name, // 假设你往结构体里加了这个字段
+                // Note: Your ForeignKeyDef struct may not yet have a constraint_name field; add it, or print/discard the value here.
+                // To keep it in the result, update the struct definition.
+                name: constraint_name, // Assumes you added this field to the struct.
                 table: referenced_table,
                 from,
                 to,
@@ -1071,15 +1071,15 @@ impl SchemaTrait for MysqlDB {
     }
 
     async fn show_table_columns(&self, table_name: &str) -> anyhow::Result<Vec<Field>> {
-        // 执行 DESCRIBE users; 或 DESC users;
-        // 命令将返回描述表结构的结果集。结果集包含以下列信息：
+        // Run DESCRIBE users; or DESC users;.
+        // The command returns a result set describing the table structure, with the following columns:
         //
-        // Field：列的名称。
-        // Type：列的数据类型。
-        // Null：指示列是否允许为空值（YES 或 NO）。
-        // Key：指示列是否是索引列，以及索引的类型。
-        // Default：列的默认值。
-        // Extra：显示附加信息，如是否自增、是否使用了自定义规则等。
+        // Field: The column name.
+        // Type: The column data type.
+        // Null: Indicates whether the column allows NULL values (YES or NO).
+        // Key: Indicates whether the column is indexed and, if so, the index type.
+        // Default: The column's default value.
+        // Extra: Shows additional information, such as whether the column is auto-incrementing or uses a custom rule.
 
         // +----------+--------------+------+-----+-------------------+-----------------------------+
         // | Field    | Type         | Null | Key | Default           | Extra                       |
@@ -1954,8 +1954,8 @@ impl QuerySql for MysqlDB {
     }
 }
 
-/// mysql有哪些值可以直接放在sql语句里面的想current timestamp给我完成的rust列表
-/// MySQL 里可以直接写在 SQL 语句中的 CURRENT_* 字面量
+/// Provide a complete Rust list of MySQL values that can be written directly in SQL statements, such as CURRENT_TIMESTAMP.
+/// CURRENT_* literals that can be written directly in MySQL SQL statements.
 pub const MYSQL_CURRENT_LITERALS: &[&str] = &[
     "CURRENT_DATE",      //  2025-08-25
     "CURRENT_TIME",      //  14:36:07
@@ -2202,7 +2202,7 @@ pub(crate) mod test_fns {
             r#" 
             CREATE PROCEDURE test_procedure()
             BEGIN
-                -- 这个存储过程什么都不做
+                -- This stored procedure does nothing.
             END;
         "#,
         )
@@ -2862,7 +2862,7 @@ pub(crate) mod test_fns {
             STARTS CURRENT_TIMESTAMP
             DO
             BEGIN
-                /* 空语句块，可永久存在 */
+                /* Empty statement block; may exist indefinitely. */
             END;
         "#,
         )
@@ -2895,7 +2895,7 @@ pub(crate) mod test_fns {
         let query_id = "aaaa";
         db.open_connection(query_id).await.unwrap();
 
-        // 1. 创建父表 test_posts
+        // 1. Create the parent table test_posts.
         db.execute_sql(
             query_id,
             r#"
@@ -2910,7 +2910,7 @@ pub(crate) mod test_fns {
         .unwrap()
         .unwrap();
 
-        // 2. 创建子表 test_comments (修正了原来的拼写错误)
+        // 2. Create the child table test_comments (correcting the original spelling error).
         db.execute_sql(
             query_id,
             r#"
@@ -2929,7 +2929,7 @@ pub(crate) mod test_fns {
 
         db.close_connection(query_id).await.unwrap();
 
-        // 3. 列出外键并打印
+        // 3. List and print the foreign keys.
         let f = db.list_foreign_key(table_name_comments).await.unwrap();
 
         assert!(f.len() == 1);
@@ -3112,7 +3112,7 @@ mod tests {
         println!("test port:{}", port);
         let cert_dir = cert_files_dir();
 
-        // 创建初始化脚本，用于创建SSL用户
+        // Create an initialization script to create an SSL user.
         let init_script_content = r#"
 CREATE USER IF NOT EXISTS 'testuser'@'%' IDENTIFIED BY 'testpass';
 GRANT ALL PRIVILEGES ON *.* TO 'testuser'@'%' WITH GRANT OPTION;
@@ -3120,7 +3120,7 @@ ALTER USER 'testuser'@'%' REQUIRE SSL;
 FLUSH PRIVILEGES;
 "#;
 
-        // 创建临时初始化脚本文件
+        // Create a temporary initialization script file.
         let init_script_path = format!("{}/init-mysql.sql", cert_dir);
         std::fs::write(&init_script_path, init_script_content).unwrap();
 
@@ -3129,7 +3129,7 @@ FLUSH PRIVILEGES;
         let key_volume = format!("{}/server.key:/etc/mysql/ssl/server.key", cert_dir);
         let init_volume = format!("{}:/docker-entrypoint-initdb.d/init.sql", init_script_path);
 
-        // 启动MySQL容器，开启SSL并强制要求SSL
+        // Start the MySQL container with SSL enabled and required.
         let output = Command::new("docker")
             .arg("run")
             .arg("-d")
@@ -3141,13 +3141,13 @@ FLUSH PRIVILEGES;
             .args(["-v", &key_volume])
             .args(["-v", &init_volume])
             .arg("mysql")
-            // MySQL SSL 配置参数
+            // MySQL SSL configuration options.
             .args(["--ssl-ca=/etc/mysql/ssl/ca.crt"])
             .args(["--ssl-cert=/etc/mysql/ssl/server.crt"])
             .args(["--ssl-key=/etc/mysql/ssl/server.key"])
-            .args(["--require_secure_transport=ON"]) // 强制SSL
+            .args(["--require_secure_transport=ON"]) // Require SSL.
             .args(["--log-error-verbosity=3"])
-            .args(["--performance-schema=OFF"]) // 减少启动时间
+            .args(["--performance-schema=OFF"]) // Reduce startup time.
             .output()
             .unwrap();
 
@@ -3162,14 +3162,14 @@ FLUSH PRIVILEGES;
         };
         let _guard = DockerContainerDropper::from(&container_id);
 
-        // MySQL启动需要更长时间等待初始化完成
+        // MySQL takes longer to start; wait for initialization to complete.
         tokio::time::sleep(Duration::from_secs(10)).await;
 
         start_docker_container(&container_id).unwrap();
 
         tokio::time::sleep(Duration::from_secs(3)).await;
 
-        // 测试1: 不使用SSL连接
+        // Test 1: Connect without SSL.
         let config = MysqlDBConfig {
             host: "127.0.0.1".to_string(),
             port,
@@ -3190,14 +3190,14 @@ FLUSH PRIVILEGES;
         };
         let kind = BackendKindMysql::Mysql;
 
-        // 不使用SSL应该能连接
+        // The connection should succeed without SSL.
         {
             let db = MysqlDB::new(config.clone(), kind).await.unwrap();
             db.check_conn().await.unwrap();
             println!("✅ 非SSL连接成功");
         }
 
-        // 测试2: 使用SSL但mode为required
+        // Test 2: Use SSL with mode set to required.
         {
             let mut config = config.clone();
             config.ssl.ssl_mode = "required".to_string();
@@ -3206,7 +3206,7 @@ FLUSH PRIVILEGES;
             println!("✅ required SSL连接成功");
         }
 
-        // 测试3: 使用SSL verify_ca
+        // Test 3: Use SSL with verify_ca.
         {
             let mut config = config.clone();
             config.ssl.ssl_mode = "verify_ca".to_string();

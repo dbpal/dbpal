@@ -32,7 +32,7 @@ function ShowCuts() {
 
 function getKeyShorts(): { name: string; shorts: string }[] {
   const isMac = isMacOs();
-  // 定义修饰键符号
+  // Define modifier key symbols.
   const CMD = isMac ? "⌘" : "Ctrl";
 
   // const _ALT = isMac ? "⌥" : "Alt";
@@ -46,14 +46,14 @@ function getKeyShorts(): { name: string; shorts: string }[] {
     { name: "close tab", shorts: `${CMD}+W` },
     { name: "setting", shorts: `${CMD}+,` },
     { name: "add connection", shorts: `${CMD}+N` },
-    { name: "zoom in", shorts: `${CMD}++` }, // 使用 ++ 表示加号键
+    { name: "zoom in", shorts: `${CMD}++` }, // Use ++ to represent the plus key.
     { name: "zoom out", shorts: `${CMD}+-` },
     { name: "editor markdown", shorts: `${CMD}+B` },
     { name: "prev page", shorts: `${CMD}+ArrowUp` },
     { name: "next page", shorts: `${CMD}+ArrowDown` },
   ];
 
-  // 针对非 Mac 平台的特殊补充
+  // Special additions for non-Mac platforms.
   if (!isMac) {
     baseShorts.push({ name: "full screen", shorts: "F11" });
   }

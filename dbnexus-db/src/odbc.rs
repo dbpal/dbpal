@@ -79,9 +79,9 @@ impl OdbcDbQuery {
 pub struct OdbcDbQuery {
     conn: Arc<Mutex<Connection<'static>>>,
 
-    // 也就是说 不管是commit还是rollback  不会影响提交模式对吧
-    // 对，完全正确。
-    // SQLEndTran(SQL_COMMIT) 或 SQLRollback() 只负责“把当前事务收尾”，绝不碰 SQL_ATTR_AUTOCOMMIT 这个开关。
+    // So, neither commit nor rollback changes the autocommit mode, right?
+    // Correct.
+    // SQLEndTran(SQL_COMMIT) or SQLRollback() only ends the current transaction; neither changes the SQL_ATTR_AUTOCOMMIT setting.
     // so we save this to memory
     commit_mode: Arc<AtomicBool>,
     pub helper: Arc<dyn OdbcHelper>,

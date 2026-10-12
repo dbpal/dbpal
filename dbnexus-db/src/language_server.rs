@@ -169,12 +169,12 @@ pub trait LexerCompletionTrait: LangServerCommon {
             .tokenize_with_location()
             .unwrap_or_default();
         if self.backend_kind().support_at() {
-            // 试图去匹配 @@
+            // Try to match @@.
             for t in tokens.iter() {
                 if let Token::Word(x) = &t.token {
                     if x.value.starts_with("@@") && in_pos(pos, t.span.start, x.value.len() as u64)
                     {
-                        // 词法匹配到了@@
+                        // The lexer matched @@.
                         return anyhow::Ok(self.list_variable_completion().await.into());
                     }
                 }
@@ -187,14 +187,14 @@ pub trait LexerCompletionTrait: LangServerCommon {
             all_item.extend(self.list_variable_completion().await);
         }
 
-        // 推送词法部分
+        // Push the lexical segment.
         for t in tokens.iter() {
             if let Token::Word(x) = &t.token {
                 if x.keyword == sqlparser::keywords::Keyword::NoKeyword
                     && !in_pos(pos, t.span.start, x.value.len() as u64)
                 {
                     let mut value = x.value.clone();
-                    //@my_var 会被sqlparser解析成一个标识符
+                    //@my_var is parsed by sqlparser as an identifier.
                     if self.backend_kind().support_at() {
                         value = try_remove_one_at(value);
                     }
@@ -469,13 +469,13 @@ pub async fn get_update_sql_from_result_set_impl<T: SchemaTrait + LangServerComm
     new_values: &[Option<String>],
 ) -> anyhow::Result<Vec<String>> {
     let d = backend.dialect();
-    // 首先提取表
+    // First, extract the tables.
     let extract_tables = sql_insight::extractor::extract_table_operations(d.as_ref(), sql)?;
     let mut cols_map: Vec<(sql_insight::TableReference, Vec<Field>)> = Default::default();
 
     let mut catalog = sql_insight::catalog::Catalog::new();
     {
-        // 这里主要是取到数据库的表结构和
+        // This mainly retrieves the database table structure and
         let mut table_entered: HashSet<sql_insight::TableReference> = HashSet::new();
         for e in extract_tables {
             let e = e?;
@@ -573,10 +573,10 @@ pub async fn get_update_sql_from_result_set_impl<T: SchemaTrait + LangServerComm
         };
 
         /*
-            -- 假设有两个表都有 column 'id'
+            -- Assume both tables have a column named 'id'.
             SELECT id FROM users JOIN orders ON users.id = orders.user_id;
             --      ^^
-            -- 这个 'id' 是 users.id 还是 orders.id？不明确！
+            -- Is this 'id' users.id or orders.id? It is ambiguous!
         */
         let table = match &column.reference.table {
             Some(x) => x,
@@ -611,7 +611,7 @@ pub async fn get_update_sql_from_result_set_impl<T: SchemaTrait + LangServerComm
             }
         }
     }
-    // 构造返回值呢
+    // Construct the return value.
 
     let mut ret = vec![];
     for (table, v) in table_value_changed.iter() {
@@ -765,15 +765,15 @@ pub trait LangServerCommon: GetBackendKind + GetKeyWords + Send + Sync {
     async fn list_user(&self) -> anyhow::Result<Vec<String>> {
         self.backend_kind().not_support_feature("list user")
     }
-    // -- 标准 SQL（PostgreSQL、Oracle、DB2 支持；MySQL 没有）
+    // -- Standard SQL (supported by PostgreSQL, Oracle, and DB2; not available in MySQL)
     // CREATE DOMAIN us_postal_code AS CHAR(5)
     // CHECK (
-    // VALUE ~ '^[0-9]{5}$'          -- 必须是 5 位数字
+    // VALUE ~ '^[0-9]{5}$'          -- Must be 5 digits.
     // );
     //
-    // -- 以后任何表都能直接用
+    // -- Any table can use this directly afterward.
     // CREATE TABLE addr (
-    // zip us_postal_code              -- 复用约束
+    // zip us_postal_code              -- Reuse the constraint.
     // );
     async fn list_domain(&self, _schema: Option<&str>) -> anyhow::Result<Vec<String>> {
         anyhow::Ok(vec![])
@@ -1430,9 +1430,9 @@ pub async fn try_parser_dot_lexer<T: LexerCompletionTrait + AstCompletionHelper>
     })?;
     match r {
         Ok(mut xs) => {
-            // xxx. 有可能和后面的元素结合产生不同寻常的结果
-            // 有时候是关键字也会结合 这点一般的解析程序不太一样呢
-            // 自动完成更多的给出可能性 但是有可能是错误的 问题不大
+            // xxx. may combine with the following element to produce an unusual result.
+            // Sometimes keywords are combined too, unlike in typical parsers.
+            // Autocomplete offers more possibilities, some of which may be incorrect; this is acceptable.
             xs.extend(dot.unwrap_or_default().items.clone());
             return Ok(remove_duplicate(xs).into());
         }

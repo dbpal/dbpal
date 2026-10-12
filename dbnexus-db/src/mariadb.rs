@@ -10,9 +10,9 @@ use sqlx::{AssertSqlSafe, Row};
 use std::ops::DerefMut;
 
 // AI generate this cool.
-/// MariaDB 11.x 全部内置函数名称
+/// All MariaDB 11.x built-in function names.
 pub const MARIADB_FUNCTIONS: &[&str] = &[
-    // 数值
+    // Numeric
     "ABS",
     "ACOS",
     "ADDDATE",
@@ -73,7 +73,7 @@ pub const MARIADB_FUNCTIONS: &[&str] = &[
     "VAR_POP",
     "VAR_SAMP",
     "VARIANCE",
-    // 字符串
+    // String
     "ASCII",
     "CHAR",
     "CHARACTER_LENGTH",
@@ -121,7 +121,7 @@ pub const MARIADB_FUNCTIONS: &[&str] = &[
     "UNHEX",
     "UPPER",
     "UUID_SHORT",
-    // 日期时间
+    // Date/time
     "ADDDATE",
     "ADDTIME",
     "CONVERT_TZ",
@@ -215,7 +215,7 @@ pub const MARIADB_FUNCTIONS: &[&str] = &[
     "JSON_UNQUOTE",
     "JSON_VALID",
     "JSON_VALUE",
-    // 聚合/窗口
+    // Aggregate/window
     "ANY_VALUE",
     "AVG",
     "BIT_AND",
@@ -245,7 +245,7 @@ pub const MARIADB_FUNCTIONS: &[&str] = &[
     "VAR_POP",
     "VAR_SAMP",
     "VARIANCE",
-    // 加密/哈希
+    // Encryption/hash
     "AES_DECRYPT",
     "AES_ENCRYPT",
     "COMPRESS",
@@ -258,13 +258,13 @@ pub const MARIADB_FUNCTIONS: &[&str] = &[
     "SHA2",
     "UNCOMPRESS",
     "VALIDATE_PASSWORD_STRENGTH",
-    // 锁
+    // Lock
     "GET_LOCK",
     "IS_FREE_LOCK",
     "IS_USED_LOCK",
     "RELEASE_ALL_LOCKS",
     "RELEASE_LOCK",
-    // 系统信息
+    // System information
     "BENCHMARK",
     "BINLOG_GTID_POS",
     "COERCIBILITY",
@@ -439,7 +439,7 @@ mod tests {
         let query_id = "aaaa";
         db.open_connection(query_id).await.unwrap();
 
-        // 1. 使用 MariaDB 原生的 INET4 和 INET6 类型
+        // 1. Use MariaDB's native INET4 and INET6 types.
         db.execute_sql(
             query_id,
             format!(
@@ -457,21 +457,21 @@ mod tests {
         .unwrap()
         .unwrap();
 
-        // 2. 准备 Rust 标准库的 Ipv4Addr 和 Ipv6Addr 测试数据
+        // 2. Prepare test data using the Rust standard library's Ipv4Addr and Ipv6Addr.
         use std::net::{Ipv4Addr, Ipv6Addr};
 
         let ip4: Ipv4Addr = "192.168.1.1".parse().unwrap();
         let ip6: Ipv6Addr = "2001:db8::1".parse().unwrap();
 
-        // MariaDB 在接收 INET 字段时支持直接传入文本表示
+        // MariaDB accepts text representations directly for INET fields.
         let mut values: HashMap<String, Option<String>> = HashMap::new();
         values.insert("ipv4_col".to_string(), Some(ip4.to_string()));
         values.insert("ipv6_col".to_string(), Some(ip6.to_string()));
 
-        // 3. 执行插入
+        // 3. Perform the insert.
         db.table_insert(table_name, &values).await.unwrap();
 
-        // 4. 查询并打印结果（MariaDB 会自动将内部的二进制转换回标准字符串返回给客户端）
+        // 4. Query and print the results (MariaDB converts the internal binary representation back to a standard string for the client).
         let cols = db
             .show_table_collect(table_name, ShowTableParameter::new_stupid_test("id asc"))
             .await

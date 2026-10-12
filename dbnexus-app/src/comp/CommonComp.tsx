@@ -688,7 +688,7 @@ function HighlightText({
 
   if (!matchStr || !text) return normal(text);
 
-  // 使用正则拆分字符串，'ig' 表示忽略大小写且全局匹配
+  // Split the string with a regex; 'ig' means case-insensitive and global matching.
   const parts = text.split(new RegExp(`(${matchStr})`, "gi"));
 
   return (
@@ -1240,9 +1240,9 @@ function VirtualListLeft<T>(props: {
         {({ width }) => (
           <List
             width={width}
-            height={height.height} //   列表高度（可视区域）
-            rowCount={data.length} // 总行数
-            rowHeight={height.rowHeight} // 每行高度
+            height={height.height} // List height (visible area).
+            rowCount={data.length} // Total number of rows.
+            rowHeight={height.rowHeight} // Height of each row.
             rowRenderer={({ index, style }) => {
               const d = data[index];
               return (
@@ -1270,7 +1270,7 @@ function VirtualListLeft<T>(props: {
                   {show(d)}
                 </div>
               );
-            }} // 渲染函数
+            }} // Render function.
           />
         )}
       </AutoSizer>
@@ -1401,9 +1401,9 @@ function VirtualVarListLeft<T>(props: {
           <List
             ref={listRef}
             width={width}
-            height={height} //   列表高度（可视区域）
-            rowCount={data.length} // 总行数
-            rowHeight={cache.current.rowHeight} // 每行高度
+            height={height} // List height (visible area).
+            rowCount={data.length} // Total number of rows.
+            rowHeight={cache.current.rowHeight} // Height of each row.
             rowRenderer={({ index, style, parent, key }) => {
               const d = data[index];
               return (
@@ -1423,7 +1423,7 @@ function VirtualVarListLeft<T>(props: {
                   </div>
                 </CellMeasurer>
               );
-            }} // 渲染函数
+            }} // Render function.
           />
         )}
       </AutoSizer>
@@ -1506,7 +1506,7 @@ function MyTreeItem(props: {
               <div
                 style={{
                   position: "absolute",
-                  left: iconSize / 2 + 3 + "px", // 或箭头中心位置
+                  left: iconSize / 2 + 3 + "px", // Center position of the arrow.
                   top: 0,
                   bottom: 0,
                   borderLeft: "1px dashed gray",

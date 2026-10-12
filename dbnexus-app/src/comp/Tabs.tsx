@@ -142,10 +142,10 @@ function TabsWithContent() {
             setCurrentTab(newValue);
           }}
           sx={{
-            // 1. Tab 之间缝隙
+            // 1. Spacing between tabs.
             "& .MuiTabs-flexContainer": { columnGap: 0 }, // 4px
-            // 2. Tab 内边距
-            "& .MuiTab-root": { minHeight: 36, px: 0.4 }, // 高度36px，左右12px
+            // 2. Tab padding.
+            "& .MuiTab-root": { minHeight: 36, px: 0.4 }, // Height 36px, 12px horizontal padding.
           }}>
           {tabs.map((tab, index) => {
             return (
@@ -265,7 +265,7 @@ function TabsWithContent() {
   );
 }
 
-// 提取为独立组件
+// Extracted as a standalone component.
 // eslint-disable-next-line react/display-name
 const TabItem = React.memo(
   ({ tab, isActive }: { tab: TabContent; isActive: boolean }) => {
@@ -277,7 +277,7 @@ const TabItem = React.memo(
               style={{
                 height: "100%",
                 position: "relative",
-                display: isActive ? "block" : "none", // 用 display 替代 hidden
+                display: isActive ? "block" : "none", // Use display instead of hidden.
               }}>
               {tab.content}
             </div>

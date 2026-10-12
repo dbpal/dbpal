@@ -542,7 +542,7 @@ impl SchemaTrait for CouchBaseDB {
                 )),
             };
 
-            let indent = " ".repeat(para.tab_size as usize); // 这里可以是 b"\t" 或任意字节序列
+            let indent = " ".repeat(para.tab_size as usize); // This could be b"\t" or any byte sequence.
             let formatter = PrettyFormatter::with_indent(indent.as_bytes());
 
             let mut buf = Vec::new();
@@ -787,7 +787,7 @@ impl CatalogTrait for CouchBaseDB {
     }
 }
 
-// http://localhost:8091/ui/index.html 通过这个初始化
+// Initialize it through http://localhost:8091/ui/index.html.
 #[cfg(test)]
 async fn make_test_object() -> CouchBaseDB {
     CouchBaseDB::new(CouchBaseDBConfig {
@@ -904,7 +904,7 @@ mod tests {
         )
         .await
         .unwrap();
-        // 不能执行多条语句呢
+        // Multiple statements cannot be executed.
         let mut resp = c.query("select 1", None).await.unwrap();
         let mut stream = resp.rows::<'_, serde_json::Value>();
         while let Some(row) = stream.next().await {
@@ -1007,7 +1007,7 @@ mod tests {
             cert_dir
         );
 
-        // 启动容器（不设置环境变量）
+        // Start the container (without setting environment variables).
         let output = Command::new("docker")
             .arg("run")
             .arg("-d")
@@ -1032,11 +1032,11 @@ mod tests {
         };
         let _guard = DockerContainerDropper::from(&container_id);
 
-        // ===== 等待 Couchbase 启动 =====
+        // ===== Wait for Couchbase to start =====
         println!("等待 Couchbase 启动...");
         tokio::time::sleep(std::time::Duration::from_secs(20)).await;
 
-        // ===== 手动初始化集群（设置密码） =====
+        // ===== Manually initialize the cluster (set the password) =====
         let init_output = Command::new("docker")
             .arg("exec")
             .arg(&container_id)
@@ -1045,7 +1045,7 @@ mod tests {
             .arg("-c")
             .arg("localhost:8091")
             .arg("--cluster-username=Administrator")
-            .arg("--cluster-password=test1234") // ← 设置密码
+            .arg("--cluster-password=test1234") // ← Set the password.
             .arg("--cluster-port=8091")
             .arg("--services=data,index,query,fts")
             .output()
@@ -1060,7 +1060,7 @@ mod tests {
         }
         println!("✅ 集群初始化成功，密码已设置为: test1234");
 
-        // ===== 创建 bucket =====
+        // ===== Create a bucket =====
         let bucket_output = Command::new("docker")
             .arg("exec")
             .arg(&container_id)
@@ -1095,7 +1095,7 @@ mod tests {
             host: "127.0.0.1".into(),
             port: port2,
             username: "Administrator".to_string(),
-            password: "test1234".to_string(), // ← 使用设置好的密码
+            password: "test1234".to_string(), // ← Use the configured password.
             read_only: false,
             bucket: "test".to_string().into(),
             scope: None,

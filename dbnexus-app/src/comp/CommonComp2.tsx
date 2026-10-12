@@ -873,7 +873,7 @@ function LoadStoreFile(props: {
 }
 
 const MarkdownBody = styled("div")(({ theme }) => ({
-  // ---- 裸标签 reset + 留一点空隙 ----
+  // ---- Reset bare tags and leave a little spacing ----
   "& p": { margin: "0 0 0.5em 0", lineHeight: 1.45 },
   "& h1,& h2,& h3,& h4,& h5,& h6": { margin: "0 0 0.35em 0" },
   "& ul,& ol": { margin: "0 0 0.5em 0", paddingLeft: theme.spacing(2) },
@@ -883,14 +883,14 @@ const MarkdownBody = styled("div")(({ theme }) => ({
     borderLeft: `4px solid ${theme.palette.divider}`,
   },
 
-  // ---- 新增：表格样式 (Table) ----
+  // ---- Added: table styles ----
   "& table": {
     width: "100%",
     borderCollapse: "collapse",
     marginBottom: "1em",
     overflow: "hidden",
-    display: "block", // 允许横向滚动
-    overflowX: "auto", // 适配小屏幕
+    display: "block", // Allow horizontal scrolling.
+    overflowX: "auto", // Adapt to small screens.
   },
   "& th, & td": {
     border: `1px solid ${theme.palette.divider}`,
@@ -902,10 +902,10 @@ const MarkdownBody = styled("div")(({ theme }) => ({
     fontWeight: theme.typography.fontWeightBold,
   },
   "& tr:nth-of-type(even)": {
-    backgroundColor: theme.palette.action.hover, // 隔行变色
+    backgroundColor: theme.palette.action.hover, // Alternate row colors.
   },
 
-  // ---- 其余保持原样 ----
+  // ---- Leave the rest unchanged ----
   "& code": {
     ...theme.typography.body2,
     backgroundColor: theme.palette.action.selected,
@@ -974,7 +974,7 @@ function AppMarkDown(props: AppMarkDownProps) {
     const { showNotification } = useNotification();
     const handleClick = (event) => {
       event.preventDefault();
-      // 在这里处理链接点击，比如使用 Tauri API 打开链接
+      // Handle link clicks here, for example, by opening links with the Tauri API.
       console.info(`Link clicked: ${href}`);
       if (href.startsWith("http")) {
         openUrl(href)
@@ -1825,12 +1825,12 @@ function AiMarkdownModel(props: {
     setMarkdownModelValue(editor.getValue());
     let d1 = editor.onDidChangeModelContent(() => {
       setMarkdownModelValue(editor.getValue());
-      // 1. 计算距离底部的剩余距离
-      // scrollHeight (内容总高) - scrollTop (已滚距离) - clientHeight (可视区高度)
+      // 1. Calculate the remaining distance to the bottom.
+      // scrollHeight (total content height) - scrollTop (scrolled distance) - clientHeight (visible area height)
       let dom = markdownDivDom.current;
       const distanceFromBottom = dom.scrollHeight - dom.scrollTop - dom.clientHeight;
-      // 2. 设置一个缓冲区阈值（如 100 像素）
-      // 如果距离底部小于 100px，说明用户还在底部附近，允许自动滚动
+      // 2. Set a buffer threshold (for example, 100 pixels).
+      // If the distance to the bottom is less than 100px, the user is still near the bottom, so allow automatic scrolling.
       if (distanceFromBottom < 220) {
         dom.scrollTop = dom.scrollHeight;
       }
@@ -2017,7 +2017,7 @@ function FetchTimeAndLoadingStatus(props: { isLoading: boolean }) {
 function FetchTimeDataGrid() {
   const apiRef = useGridApiContext();
 
-  // 使用选择器获取当前的 loading 状态
+  // Use the selector to get the current loading state.
   const isLoading: boolean = useGridSelector(apiRef, gridRowsLoadingSelector);
 
   return <FetchTimeAndLoadingStatus isLoading={isLoading} />;

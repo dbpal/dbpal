@@ -1994,7 +1994,7 @@ function HashToolBar({
           color="primary"
           onClick={() => {
             handleReload(true);
-          }} // 点击事件处理
+          }} // Click event handler.
           loading={loading}
         />
 

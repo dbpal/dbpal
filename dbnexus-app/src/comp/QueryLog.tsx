@@ -78,7 +78,7 @@ function QueryLog(props: {
           return "time";
         },
         renderCell: (params) => {
-          // 加z是utc时间
+          // The trailing Z indicates UTC.
           return <div>{new Date(params.value).toLocaleString()}</div>;
         },
       },

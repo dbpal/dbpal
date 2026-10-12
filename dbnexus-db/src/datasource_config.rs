@@ -415,14 +415,14 @@ pub struct CouchBaseDBConfig {
 
 impl CouchBaseDBConfig {
     pub(crate) fn conn_str(&self) -> String {
-        // 根据是否启用 SSL 选择协议前缀
+        // Choose the protocol prefix based on whether SSL is enabled.
         let protocol = if self.ssl_enable {
             "couchbases://"
         } else {
             "couchbase://"
         };
 
-        // 构建连接地址: host:port
+        // Build the connection address: host:port.
         format!("{}{}:{}", protocol, self.host, self.port)
     }
 }

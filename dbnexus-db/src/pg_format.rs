@@ -7,28 +7,28 @@ use sqlx::{Column, Decode, Postgres, Row, Type, ValueRef};
 use crate::db::{format_data_time_fix_offset, quote_sql_str, EncodeXlsxDatetime, XlsxEditContent};
 use crate::pg::PostGresDB;
 
-// 1. 创建一个全新的包装类型
+// 1. Create a new wrapper type.
 #[derive(Debug, Clone)]
 pub struct RegProcString(pub String);
 
-// 2. 告诉 sqlx 这个类型对应 Postgres 的 regproc
+// 2. Tell sqlx that this type corresponds to Postgres regproc.
 impl Type<Postgres> for RegProcString {
     fn type_info() -> PgTypeInfo {
-        // 核心：绑定 Postgres 的 regproc 类型
+        // Key: bind the Postgres regproc type.
         PgTypeInfo::with_name("regproc")
     }
 }
 
-// 3. 实现解码逻辑：当从数据库读取数据时，将 OID 的数字标识符自动转换为函数名字符串
+// 3. Implement decoding: when reading from the database, automatically convert the OID numeric identifier to a function-name string.
 impl<'r> Decode<'r, Postgres> for RegProcString {
     fn decode(value: PgValueRef<'r>) -> Result<Self, sqlx::error::BoxDynError> {
-        // 尝试将其作为文本提取（Postgres 驱动会自动转换）
+        // Try to extract it as text (the Postgres driver converts it automatically).
         let s = <String as Decode<Postgres>>::decode(value)?;
         Ok(RegProcString(s))
     }
 }
 
-// 如果你后面需要支持这个类型的数组（比如 regproc[]），可以顺便加上这行：
+// If you later need to support arrays of this type (such as regproc[]), you can also add this line:
 impl PgHasArrayType for RegProcString {
     fn array_type_info() -> PgTypeInfo {
         PgTypeInfo::with_name("_regproc")
@@ -1503,13 +1503,13 @@ pub(crate) fn output_range_data_time_fixoffset(
     use std::ops::Bound::*;
     let mut ret = "".to_string();
     match &r.start {
-        // 去掉了时间前后的双引号
+        // Removed the double quotes around the time value.
         Included(x) => ret.push_str(format!("[\"{}\",", format_data_time_fix_offset(x)).as_str()),
         Excluded(x) => ret.push_str(format!("(\"{}\",", format_data_time_fix_offset(x)).as_str()),
         Unbounded => ret.push_str("(,"),
     };
     match &r.end {
-        // 去掉了时间前后的双引号
+        // Removed the double quotes around the time value.
         Included(x) => ret.push_str(format!("{}]", format_data_time_fix_offset(x)).as_str()),
         Excluded(x) => ret.push_str(format!("{})", format_data_time_fix_offset(x)).as_str()),
         Unbounded => ret.push(')'),

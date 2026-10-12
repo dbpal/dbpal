@@ -547,10 +547,10 @@ function CouchBaseInsert({ table }) {
 }
 
 interface ExecuteButtonProps {
-  handleExecute: (text: string) => void; // 修正了拼写
+  handleExecute: (text: string) => void; // Corrected the spelling.
   getText: () => string;
   disabled: boolean;
-  loading?: boolean; // 保留原有的 loading 属性支持
+  loading?: boolean; // Retain support for the existing loading property.
 }
 
 export function ExecuteButton(props: ExecuteButtonProps) {
@@ -559,7 +559,7 @@ export function ExecuteButton(props: ExecuteButtonProps) {
   return (
     <Tooltip title="execute">
       <span>
-        {/* 当 IconButton 禁用时，Tooltip 需要一个 span 包裹才能正常触发 */}
+        {/* When IconButton is disabled, Tooltip needs a span wrapper to trigger correctly. */}
         <IconButton
           loading={loading}
           onClick={() => {

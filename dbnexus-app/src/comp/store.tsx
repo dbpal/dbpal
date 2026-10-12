@@ -102,16 +102,16 @@ export const useTableColumnVisibleStore = create<TableColumnVisible>()(
 );
 
 export const useConfirmMsg = create<{
-  confirmMsgs: Map<string, string>; // 明确 Map 的键值类型
+  confirmMsgs: Map<string, string>; // Specify the Map key and value types.
   addConfirmMsg: (id: string, msg: string) => void;
   removeConfirmMsg: (id: string) => void;
   getConfirmMsg: (id: string) => string | undefined;
 }>((set, get) => ({
-  // 状态：你可以直接用 Map，Zustand 没那么多限制
+  // State: You can use Map directly; Zustand is not very restrictive.
   confirmMsgs: new Map(),
 
   getConfirmMsg: (id) => get().confirmMsgs.get(id),
-  // 方法：直接修改逻辑
+  // Methods: update the values directly.
   addConfirmMsg: (id, msg) =>
     set((state) => {
       const newMap = new Map(state.confirmMsgs);
@@ -147,7 +147,7 @@ export const useMatcher = create<MatcherTreeState>()(
 );
 
 interface BoolSwitchState {
-  // 使用 Record 代替 Map
+  // Use Record instead of Map.
   switches: Record<string, boolean>;
   setSwitch: (key: string, value: boolean) => void;
   getSwitch: (key: string) => boolean;
@@ -157,7 +157,7 @@ export const useBoolSwitch = create<BoolSwitchState>()(
   persist(
     (set, get) => ({
       getSwitch: (key) => get().switches[key] || false,
-      switches: {}, // 初始值是空物件
+      switches: {}, // The initial value is an empty object.
       setSwitch: (key, value: boolean) =>
         set((state) => ({
           switches: {
@@ -213,7 +213,7 @@ export const useTabsManage = create<{
     set({ tabs });
   },
   appendTab: (tab: TabContent) => {
-    // state 就是当前时刻的最新的状态
+    // state is the latest state at the current moment.
     set((state) => {
       setTimeout(() => {
         state.setCurrentTab(state.tabs.length);
@@ -497,23 +497,23 @@ export const usePageSize = create<PageSizeState>()(
         })),
     }),
     {
-      name: "page-size-storage", // 存储在 localStorage 中的 key 名称
-      // storage: createJSONStorage(() => localStorage), // 默认就是 localStorage，可省略
+      name: "page-size-storage", // Key name used to store the value in localStorage.
+      // storage: createJSONStorage(() => localStorage), // localStorage is the default and can be omitted.
     },
   ),
 );
 
 interface SizeState {
-  // 核心數據：例如 { "sidebar": 300, "editor": 500 }
+  // Core data, for example: { "sidebar": 300, "editor": 500 }.
   sizes: Record<string, number>;
 
-  // 設定特定 Key 的數值
+  // Set the value for a specific key.
   setSize: (key: string, value: number) => void;
 
-  // 獲取數值（支援傳入預設值，防止 undefined）
+  // Get a value (supports a default to prevent undefined).
   getSize: (x: UseSizeConfig) => number;
 
-  // 批量更新或重置
+  // Update multiple values or reset them.
   resetSizes: (newSizes: Record<string, number>) => void;
 }
 
@@ -529,7 +529,7 @@ export const useSizeStore = create<SizeState>()(
           },
         })),
 
-      // 注意：Zustand 的 state 雖然是響應式的，但 getSize 是一個 Helper 函數
+      // Note: Zustand state is reactive, but getSize is a helper function.
       getSize: (x: UseSizeConfig) => {
         return get().sizes[x.key] ?? x.default;
       },
@@ -698,28 +698,28 @@ export const useTableFilter = create<TableFilterState>()(
   }),
 );
 
-// 1. 定义数据项接口 (对应 SQL 表列)
+// 1. Define the data item interface (corresponding to SQL table columns).
 interface ElementSize {
   width: number | null;
   height: number | null;
 }
 
-// 2. 定义 Store 的状态与操作接口
+// 2. Define the Store state and action interfaces.
 interface ElementSizeState {
-  // 使用对象存储，Key 为 name，Value 为数据项，模拟主键索引
+  // Store values in an object, using name as the key and the data item as the value to simulate a primary-key index.
   elements: Record<string, ElementSize>;
 
-  // 操作方法：增删改
+  // Operations: create, delete, and update.
   setElement: (name, element: ElementSize) => void;
 }
 
-// 3. 创建支持持久化的 Store
+// 3. Create a Store with persistence.
 export const useElementSizeStore = create<ElementSizeState>()(
   persist(
     (set) => ({
-      elements: {}, // 初始状态
+      elements: {}, // Initial state.
 
-      // 实现设置/更新逻辑 (模拟 INSERT OR REPLACE)
+      // Implement set/update logic (simulating INSERT OR REPLACE).
       setElement: (name, element) =>
         set((state) => ({
           elements: {
@@ -728,7 +728,7 @@ export const useElementSizeStore = create<ElementSizeState>()(
           },
         })),
 
-      // 实现删除逻辑 (模拟 DELETE)
+      // Implement delete logic (simulating DELETE).
     }),
     {
       name: "element-size-storage",
@@ -763,7 +763,7 @@ export interface UserSettings {
   };
 }
 
-// 定义 Store 的状态和方法
+// Define the Store state and methods.
 interface UserSettingsState extends UserSettings {
   // Actions
   updateAppearance: (data: Partial<UserSettings["appearance"]>) => void;
@@ -773,7 +773,7 @@ interface UserSettingsState extends UserSettings {
 
   updateProxy: (data: Partial<UserSettings["proxy"]>) => void;
 
-  // 计算属性 (由 Selector 处理，或在此定义辅助函数)
+  // Computed properties (handled by a selector or defined here as helper functions).
   getDatagridRowHeight: () => number;
 }
 
@@ -841,7 +841,7 @@ export const useUserSettings = create<UserSettingsState>()(
 
       updateProxy: (data) => set((state) => ({ proxy: { ...state.proxy, ...data } })),
 
-      // 更新逻辑
+      // Update logic.
       updateAppearance: (data) =>
         set((state) => ({ appearance: { ...state.appearance, ...data } })),
 
@@ -850,14 +850,14 @@ export const useUserSettings = create<UserSettingsState>()(
 
       updateMisc: (data) => set((state) => ({ misc: { ...state.misc, ...data } })),
 
-      // 替代原有的 datagridRowHeight() 方法
+      // Replaces the original datagridRowHeight() method.
       getDatagridRowHeight: () => {
         const { fontSize, datagridRowHeightFactor } = get().appearance;
         return Math.ceil(fontSize * datagridRowHeightFactor);
       },
     }),
     {
-      name: userSettingKey, // 建议合并成一个 key，方便管理
+      name: userSettingKey, // Consider combining these into one key for easier management.
       version: 1,
     },
   ),
@@ -874,17 +874,17 @@ export const useDatagridHeight = () => {
 };
 
 export const useMatcherFn = () => {
-  // 1. 只获取数据（只有当数据变了，这里才会重绘）
+  // 1. Fetch only the data (this re-renders only when the data changes).
   const matchPattern = useMatcher((s) => s.matchPattern);
 
-  // 2. 在外部定义逻辑函数
+  // 2. Define the logic function externally.
   const matcher = useCallback(
     (name: string) => {
       if (matchPattern.length === 0) {
         return true;
       }
       for (const n of matchPattern) {
-        // 优化：wcmatch 可以在循环外或者通过 memo 优化，这里为了逻辑一致保持原样
+        // Optimization: wcmatch can be moved outside the loop or memoized; keep it as-is here for consistency.
         const matchFn = wcmatch("*" + n + "*", { flags: "i" });
         if (matchFn(name)) {
           return true;
@@ -893,7 +893,7 @@ export const useMatcherFn = () => {
       return false;
     },
     [matchPattern],
-  ); // 只有 pattern 变了，matcher 函数地址才会变
+  ); // The matcher function reference changes only when the pattern changes.
 
   return matcher;
 };
@@ -1005,12 +1005,12 @@ export interface QueryLog {
   dbName: string;
   name: string; // connection name
   sql: string;
-  create_at: number; // 存储时间戳
-  success: number; // 1 或 0
+  create_at: number; // Store the timestamp.
+  success: number; // 1 or 0.
 }
 
 interface QueryLogState {
-  // 核心操作方法
+  // Core operation methods.
   save: (dbName: string, sql: string, success: boolean) => Promise<void>;
   query: (dbName: string) => Promise<QueryLog[]>;
   deleteByUuid: (dbName: string) => Promise<number>;
@@ -1020,7 +1020,7 @@ interface QueryLogState {
 const maxQueryLogCount = 10000;
 
 export const useQueryLogStore = create<QueryLogState>(() => ({
-  // 保存日志
+  // Save the log.
   save: async (dbName, sql, success) => {
     try {
       // 1. Save the new log
@@ -1064,7 +1064,7 @@ export const useQueryLogStore = create<QueryLogState>(() => ({
     return collection;
   },
 
-  // 删除
+  // Delete.
   deleteByUuid: async (dbName) => {
     return await db.query_log.where("dbName").equals(dbName).delete();
   },
@@ -1087,15 +1087,15 @@ export interface FavoriteSql {
 export class MyDatabase extends Dexie {
   query_log!: Table<QueryLog>;
   favorite_sql!: Table<FavoriteSql>;
-  chat_history!: Table<ChatMessage>; // 新增聊天表
+  chat_history!: Table<ChatMessage>; // Add the chat table.
 
   constructor() {
     super("AppDatabase");
     this.version(2).stores({
-      // 版本号记得加 1
+      // Remember to increment the version number.
       query_log: "++id,id,dbName,name,[dbName+create_at]",
       favorite_sql: "++id, dbName, name, connection_name, &[dbName+name]",
-      // 新增：给 name 和 timestamp 加索引，方便排序和清理
+      // Added: Index name and timestamp for easier sorting and cleanup.
       chat_history: "++id, name, timestamp",
     });
   }
@@ -1175,11 +1175,11 @@ export const useFavoriteStore = create<FavoriteStore>(() => ({
     return await db.favorite_sql.where("dbName").equals(dbName).toArray();
   },
   getDistinctUuids: async () => {
-    // 先检查总数
+    // Check the total count first.
     const count = await db.favorite_sql.count();
     if (count === 0) return [];
 
-    // 只有有数据时才执行索引排序
+    // Sort by the index only when there is data.
     const uuids = await db.favorite_sql.orderBy("dbName").uniqueKeys();
     return uuids as string[];
   },
@@ -1200,7 +1200,7 @@ export const useFavoriteStore = create<FavoriteStore>(() => ({
 export interface ChatMessage {
   id?: number;
   name: string;
-  role: "user" | "assistant" | "system"; // 新增：定义角色类型
+  role: "user" | "assistant" | "system"; // Added: Define the role type.
   content: string;
   timestamp: number;
 }
@@ -1211,7 +1211,7 @@ interface ChatState {
   isLoading: boolean;
 
   fetchHistory: (name: string) => Promise<ChatMessage[]>;
-  // 修改：增加 role 参数
+  // Updated: Add the role parameter.
   saveMessage: (name: string, role: ChatMessage["role"], text: string) => Promise<void>;
   clearHistory: (name: string) => Promise<void>;
 }
@@ -1252,7 +1252,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
       await db.transaction("rw", db.chat_history, async () => {
         await db.chat_history.add({
           name,
-          role, // 保存角色信息
+          role, // Save the role information.
           content: text,
           timestamp: Date.now(),
         });
@@ -1335,13 +1335,13 @@ export const useViewInModalMatchStrStore = create<ViewInModalState>()(
       setMatchStr: (matchStr) => set({ matchStr }),
     }),
     {
-      name: "view-in-modal-storage-match-str", // 存储在 localStorage 中的唯一 Key
+      name: "view-in-modal-storage-match-str", // Unique key used to store the value in localStorage.
     },
   ),
 );
 
 interface ExportConfigState {
-  delimiter: string; // 注意：沿用你定义的拼写 "delimiter"
+  delimiter: string; // Note: Keep the spelling "delimiter" as defined.
   includeHeader: boolean;
 
   setDelimiter: (delimiter: string) => void;
@@ -1365,7 +1365,7 @@ interface ExportConfigState {
 export const useExportConfigStore = create<ExportConfigState>()(
   persist(
     (set) => ({
-      // 默认初始状态
+      // Default initial state.
       delimiter: ",",
       includeHeader: true,
       jsonPretty: true,
@@ -1392,14 +1392,14 @@ export const useExportConfigStore = create<ExportConfigState>()(
         set({ jsonPretty });
       },
 
-      // 实现 Actions
+      // Implement the actions.
       setDelimiter: (delimiter) => set({ delimiter }),
       setIncludeHeader: (includeHeader) => set({ includeHeader }),
     }),
     {
-      // 存储在 localStorage 中的 key
+      // Key used to store the value in localStorage.
       name: "export-config-storage",
-      // 默认即为 localStorage，createJSONStorage 确保数据以 JSON 格式正确存取
+      // localStorage is the default; createJSONStorage ensures data is read and written as JSON.
     },
   ),
 );
@@ -1424,10 +1424,10 @@ export function useTabSize() {
 interface EditInModalLanguage {
   editingRowLanguage: string | null;
   setEditingRowLanguage: (lang: string | null) => void;
-  clearEditingRowLanguage: () => void; // 记得在 interface 里加上这个方法
+  clearEditingRowLanguage: () => void; // Remember to add this method to the interface.
 }
 
-// 重点：不要在 create 后面加 <EditInModalLanguage>
+// Important: Do not add <EditInModalLanguage> after create.
 export const useEditInModalLanguageStore = create<EditInModalLanguage>()(
   persist(
     (set) => ({
@@ -1455,17 +1455,17 @@ interface MongoViewModelState {
 export const useMongoViewModelStore = create<MongoViewModelState>()(
   persist(
     (set) => ({
-      // 初始状态，例如默认为 TableList
+      // Initial state, for example, TableList by default.
       viewModel: MongoDataViewModel.TableList,
 
-      // 支持直接传值或函数式更新
+      // Supports a direct value or a functional update.
       setViewModel: (input) =>
         set((state) => ({
           viewModel: typeof input === "function" ? input(state.viewModel) : input,
         })),
     }),
     {
-      name: "mongo-view-model", // 存储在 localStorage 的 key
+      name: "mongo-view-model", // Key used to store the value in localStorage.
     },
   ),
 );
@@ -1473,17 +1473,17 @@ export const useMongoViewModelStore = create<MongoViewModelState>()(
 export const useMongoEditorViewModelStore = create<MongoViewModelState>()(
   persist(
     (set) => ({
-      // 初始状态，例如默认为 TableList
+      // Initial state, for example, TableList by default.
       viewModel: MongoDataViewModel.Object,
 
-      // 支持直接传值或函数式更新
+      // Supports a direct value or a functional update.
       setViewModel: (input) =>
         set((state) => ({
           viewModel: typeof input === "function" ? input(state.viewModel) : input,
         })),
     }),
     {
-      name: "mongo-editor-model", // 存储在 localStorage 的 key
+      name: "mongo-editor-model", // Key used to store the value in localStorage.
     },
   ),
 );
@@ -1496,42 +1496,42 @@ interface SqlTableDataFilterState {
 export const useSqlTableFilterOp = create<SqlTableDataFilterState>()(
   persist(
     (set) => ({
-      // 初始值设为 "="
+      // Set the initial value to "=".
       filter: "=",
 
-      // 更新 filter 的方法
+      // Method for updating the filter.
       setFilter: (filter: string) => {
         set({ filter });
       },
     }),
     {
-      // 存储在 localStorage 中的 key 名称
+      // Key name used to store the value in localStorage.
       name: "sql-table-filter-op",
-      // (可选) 默认就是 localStorage，也可以指定为 sessionStorage
+      // (Optional) Defaults to localStorage; sessionStorage can also be specified.
       // getStorage: () => localStorage,
     },
   ),
 );
 
-// 定义 MongoDB 表格过滤器的状态接口
+// Define the state interface for the MongoDB table filter.
 interface MongoTableFilterState {
-  filter: string; // 存储如 "$eq", "$ne", "$regex", "$gt" 等操作符
+  filter: string; // Store operators such as "$eq", "$ne", "$regex", and "$gt".
   setFilter: (filter: string) => void;
 }
 
 export const useMongoTableFilterOp = create<MongoTableFilterState>()(
   persist(
     (set) => ({
-      // 默认操作符设为 "$eq" (等于)，这是 MongoDB 的标准等值查询
+      // Set the default operator to "$eq" (equal), MongoDB's standard equality query.
       filter: "$eq",
 
-      // 更新操作符
+      // Update the operator.
       setFilter: (filter: string) => {
         set({ filter });
       },
     }),
     {
-      // 存储在 localStorage 中的唯一标识符
+      // Unique identifier used to store the value in localStorage.
       name: "mongo-table-filter-op",
     },
   ),
@@ -1545,18 +1545,18 @@ interface SqlTableDataFilterState {
 export const useSqlDataFilter = create<SqlTableDataFilterState>()(
   persist(
     (set) => ({
-      // 初始值设为 "="
+      // Set the initial value to "=".
       filter: "=",
 
-      // 更新 filter 的方法
+      // Method for updating the filter.
       setFilter: (filter: string) => {
         set({ filter });
       },
     }),
     {
-      // 存储在 localStorage 中的 key 名称
+      // Key name used to store the value in localStorage.
       name: "sql-data-filter-str",
-      // (可选) 默认就是 localStorage，也可以指定为 sessionStorage
+      // (Optional) Defaults to localStorage; sessionStorage can also be specified.
       // getStorage: () => localStorage,
     },
   ),
@@ -1574,7 +1574,7 @@ interface CBQueryViewState {
 export const useCBQueryViewStore = create<CBQueryViewState>()(
   persist(
     (set) => ({
-      // 預設值為 Json (對應你 load 裡面的邏輯)
+      // Default to Json (matching the logic in load).
       viewMode: CBQueryViewMode.Json,
       setViewMode: (viewMode) => set({ viewMode }),
     }),
@@ -1584,10 +1584,10 @@ export const useCBQueryViewStore = create<CBQueryViewState>()(
   ),
 );
 
-// 状态类型
+// State type.
 interface RedisKeyFilter {
   filters: Record<string, string>;
-  // 常用操作
+  // Common operations.
   setFilter: (key: string, value: string) => void;
   removeFilter: (key: string) => void;
 }
@@ -1619,11 +1619,11 @@ interface RedisMaxKeyReturns {
 export const useRedisMaxKeyStore = create<RedisMaxKeyReturns>()(
   persist(
     (set) => ({
-      maxRow: 50000, // 默认值，可自己改
+      maxRow: 50000, // Default value; change as needed.
       setMaxRow: (x) => set({ maxRow: x }),
     }),
     {
-      name: "redis-max-key", // localStorage 的 key
+      name: "redis-max-key", // localStorage key.
     },
   ),
 );

@@ -1,25 +1,25 @@
-// 出现错误 InvalidRequest: Error from server: code=2200 [Invalid query]
+// The error InvalidRequest: Error from server: code=2200 [Invalid query]
 // message="org.apache.cassandra.auth.CassandraRoleManager doesn't support
-// PASSWORD" 的原因是 Cassandra 的身份验证机制未启用，或者配置不支持密码身份验证
-// 。
-// 要解决这个问题，请按照以下步骤操作：
-// 1. 修改 cassandra.yaml 配置文件
-// 默认情况下，Cassandra 使用
-// AllowAllAuthenticator，这表示禁用了身份验证。你需要将其改为
-// PasswordAuthenticator，以启用基于密码的身份验证 。
+// PASSWORD" occurs because Cassandra authentication is disabled or the configuration does not support password authentication.
 //
-// 打开 cassandra.yaml 文件（通常位于 /etc/cassandra/conf/cassandra.yaml 或
-// Cassandra 安装目录的 conf 文件夹中）。 找到以下行：
-// yaml复制
+// To resolve this issue, follow these steps:
+// 1. Edit the cassandra.yaml configuration file.
+// By default, Cassandra uses
+// AllowAllAuthenticator, which disables authentication. Change it to
+// PasswordAuthenticator to enable password-based authentication.
+//
+// Open cassandra.yaml (usually located at /etc/cassandra/conf/cassandra.yaml or
+// in the conf directory of your Cassandra installation). Find the following line:
+// YAML (copy)
 //
 // authenticator: AllowAllAuthenticator
 //
-// 将其更改为：
-// yaml复制
+// Change it to:
+// YAML (copy)
 //
 // authenticator: PasswordAuthenticator
 //
-// 保存文件并重启 Cassandra 服务
+// Save the file and restart the Cassandra service.
 //
 // InvalidRequest: Error from server: code=2200 [Invalid query]
 // message="User-defined functions are disabled in cassandra.yaml - set
@@ -73,7 +73,7 @@ pub struct CassandraDB {
     pub(crate) completion_id: AutoCompletionQueryId,
 }
 
-// 定义一个简单的转换器，把所有地址都转换成你手动指定的 IP
+// Define a simple resolver that maps every address to an IP you specify manually.
 #[derive(Debug)]
 struct LocalhostTranslator {
     fixed_addr: SocketAddr,
@@ -457,7 +457,7 @@ fn cql_decimal_to_bigdecimal(cql_decimal: &CqlDecimal) -> BigDecimal {
         return BigDecimal::new(BigInt::from(0), scale as i64);
     }
     let big_int = BigInt::from_signed_bytes_be(bytes);
-    // 注意：BigDecimal::new 的第二个参数是负数
+    // Note: The second argument to BigDecimal::new is negative.
     BigDecimal::new(big_int, scale as i64)
 }
 
@@ -854,11 +854,11 @@ impl CassandraDB {
     }
 }
 
-/// Cassandra / CQL 里可直接写在语句中的 CURRENT_* 字面量
+/// CURRENT_* literals that can be used directly in Cassandra/CQL statements.
 pub const CQL_CURRENT_LITERALS: &[&str] = &[
-    "CURRENT_TIMESTAMP", // 微秒时间戳，如 1692962187000000
-    "CURRENT_TIME",      // 当前 64-bit 时间值（time）
-    "CURRENT_DATE",      // 当前日期（date）
+    "CURRENT_TIMESTAMP", // Microsecond timestamp, such as 1692962187000000.
+    "CURRENT_TIME",      // Current 64-bit time value (time).
+    "CURRENT_DATE",      // Current date (date).
 ];
 
 impl SqlBuilder for CassandraDB {

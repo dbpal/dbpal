@@ -401,7 +401,7 @@ impl SqlServerDB {
         schema: &str,
     ) -> anyhow::Result<Vec<ListTable>> {
         if schema.eq_ignore_ascii_case(Self::SYS_SCHEMA) {
-            //  这里没有找到可以查询的语句 所以让AI帮我做成一个列表
+            // No query was found here, so have AI generate a list.
             return anyhow::Ok(
                 SYS_OBJECTS
                     .iter()
@@ -556,8 +556,8 @@ impl SqlServerDB {
 #[async_trait::async_trait]
 impl SchemaTrait for SqlServerDB {
     async fn drop_foreign_key(&self, table: &str, name: &str) -> anyhow::Result<()> {
-        // 1. 删除外键约束 (SQL Server 使用 DROP CONSTRAINT，不需要删索引)
-        // 注意：SQL Server 对表名和约束名推荐使用方括号 [] 包裹
+        // 1. Drop the foreign key constraint (SQL Server uses DROP CONSTRAINT; the index does not need to be dropped).
+        // Note: SQL Server recommends enclosing table and constraint names in square brackets [].
         let sql = format!(r#"ALTER TABLE [{}] DROP CONSTRAINT [{}]"#, table, name);
         self.simple_execute_sql(&sql).await?;
 
@@ -567,8 +567,8 @@ impl SchemaTrait for SqlServerDB {
     async fn list_foreign_key(&self, table: &str) -> anyhow::Result<Vec<ForeignKeyDef>> {
         let mut conn = self.get_conn().await?;
 
-        // SQL Server 查询外键：使用 sys.foreign_keys 和 sys.foreign_key_columns
-        // 注意：tiberius 中 SQL 字符串不能直接用 format 拼接表名（防注入），推荐使用 @P1 占位符
+        // Query SQL Server foreign keys using sys.foreign_keys and sys.foreign_key_columns.
+        // Note: Do not use format to interpolate table names into SQL strings with tiberius (to prevent injection); use the @P1 placeholder.
         let sql = r#"
         SELECT
             fk.name AS constraint_name,
@@ -601,7 +601,7 @@ impl SchemaTrait for SqlServerDB {
 
         log::info!("sql:{}", sql);
 
-        // tiberius 进行查询，需要传入参数（@P1 对应第一个参数）
+        // tiberius queries require parameters (@P1 corresponds to the first parameter).
         let mut rows = conn.query(sql, &[&table]).await?;
 
         let mut ret = Vec::new();
@@ -610,7 +610,7 @@ impl SchemaTrait for SqlServerDB {
             let row = row?;
             match row {
                 tiberius::QueryItem::Row(row) => {
-                    // 注意：tiberius 的 get 方法和 sqlx 不同，Option 类型需要特殊处理
+                    // Note: tiberius's get method differs from sqlx; Option types require special handling.
                     let constraint_name: Option<&str> = row.get(0);
                     let referenced_table: &str = row.get(1).unwrap_or_default();
                     let from: &str = row.get(2).unwrap_or_default();
@@ -1288,11 +1288,11 @@ impl SchemaTrait for SqlServerDB {
         anyhow::Ok(sql)
     }
 }
-/// SQL Server 里可直接写在 SQL 语句中的 CURRENT_* / 无括号字面量
+/// CURRENT_* / no-parentheses literals that can be written directly in SQL Server statements.
 pub const SQLSERVER_CURRENT_LITERALS: &[&str] = &[
     "CURRENT_TIMESTAMP", //  2025-08-25 14:36:07.123
-    "CURRENT_DATE",      //  2025-08-25   （SQL Server 2022+ 支持）
-    "CURRENT_TIME",      //  14:36:07.123 （SQL Server 2022+ 支持）
+    "CURRENT_DATE",      //  2025-08-25 (supported in SQL Server 2022+).
+    "CURRENT_TIME",      //  14:36:07.123 (supported in SQL Server 2022+).
     "CURRENT_USER",      //  dbo
 ];
 impl SqlBuilder for SqlServerDB {
@@ -1361,7 +1361,7 @@ impl SqlBuilder for SqlServerDB {
                     );
                 }
             } else if let Some(offset) = para.offset() {
-                // sql server 的offset子句只能和order by一起使用
+                // SQL Server's OFFSET clause can only be used with ORDER BY.
                 sql.push_str(" ORDER  BY (SELECT NULL) ");
                 sql.push_str(
                     format!(
@@ -2058,7 +2058,7 @@ impl ReadOnlyTrait for SqlServerDB {
     }
 }
 
-/// SQL Server `sys` 架构下所有目录视图 / 表的固定名称（完整列表）
+/// Complete list of fixed catalog view/table names in the SQL Server `sys` schema.
 pub const SYS_OBJECTS: &[&str] = &[
     "all_columns",
     "all_objects",
@@ -2331,7 +2331,7 @@ pub const SYS_OBJECTS: &[&str] = &[
     "xml_schema_wildcards",
     "xml_schema_wildcard_namespaces",
 ];
-/// SQL Server INFORMATION_SCHEMA 全部系统视图
+/// All SQL Server INFORMATION_SCHEMA system views.
 pub const INFORMATION_SCHEMA_VIEWS: &[&str] = &[
     "CHECK_CONSTRAINTS",
     "COLUMN_DOMAIN_USAGE",
@@ -2384,7 +2384,7 @@ mod tests {
         let table_name_posts = "test_posts";
         let table_name_comments = "test_comments";
 
-        // SQL Server 的外键名需要用户指定（通常自定义或自动生成：表名_列名_FK）
+        // SQL Server foreign key names must be specified by the user (usually custom or generated as table_name_column_name_FK).
         let _err = db
             .drop_foreign_key(table_name_comments, "fk_comments_posts")
             .await;
@@ -2399,8 +2399,8 @@ mod tests {
         let query_id = "aaaa";
         db.open_connection(query_id).await.unwrap();
 
-        // 1. 创建父表 test_posts
-        // SQL Server 使用 IDENTITY(1,1) 代替 AUTO_INCREMENT，使用 NVARCHAR 支持中文
+        // 1. Create the parent table test_posts.
+        // SQL Server uses IDENTITY(1,1) instead of AUTO_INCREMENT and NVARCHAR to support Unicode text.
         db.execute_sql(
             query_id,
             r#"
@@ -2415,8 +2415,8 @@ mod tests {
         .unwrap()
         .unwrap();
 
-        // 2. 创建子表 test_comments
-        // SQL Server 的约束写在表级，语法类似
+        // 2. Create the child table test_comments.
+        // SQL Server constraints are defined at the table level, with syntax similar to:
         db.execute_sql(
             query_id,
             r#"
@@ -2436,7 +2436,7 @@ mod tests {
 
         db.close_connection(query_id).await.unwrap();
 
-        // 3. 列出外键并打印
+        // 3. List and print the foreign keys.
         let f = db.list_foreign_key(table_name_comments).await.unwrap();
 
         assert!(f.len() == 1);
@@ -3407,10 +3407,10 @@ END;
                 /*
 
                 expect: 2022-01-01 12:34:56.1234567 +01:00
-                这个时间是在 UTC+1 时区（如巴黎、柏林标准时间）下看到的 12:34:56。
+                This is 12:34:56 as seen in the UTC+1 time zone (such as standard time in Paris or Berlin).
 
                 actual: 2022-01-01 11:34:56.123 +00:00
-                 这个时间是在 UTC+0（即协调世界时）下看到的 11:34:56 */
+                 This is 11:34:56 as seen in UTC+0 (Coordinated Universal Time). */
                 "DateTimeOffsetData",
             ],
         )
@@ -3418,21 +3418,21 @@ END;
     }
 
     // but macos not passed `A host name mismatch has occurred.`
-    // linux可以通过 可能是macos校验 更加严格
+    // This may pass on Linux; validation may be stricter on macOS.
     #[tokio::test]
     async fn test_ssl_sqlserver() {
         let port = portpicker::pick_unused_port().unwrap();
         println!("test port:{}", port);
         let cert_dir = cert_files_dir();
 
-        // 1. 准备 SQL Server 需要的证书和配置
-        // SQL Server 要求证书和私钥在同一个 .pem 文件中，或者分别指定
-        // 这里我们假设使用 server.crt 和 server.key，并通过 mssql.conf 配置
+        // 1. Prepare the certificates and configuration required by SQL Server.
+        // SQL Server requires the certificate and private key to be in the same .pem file or specified separately.
+        // Here, assume server.crt and server.key are used and configured through mssql.conf.
         let ca_volume = format!("{}/ca.crt:/etc/ssl/certs/ca.crt", cert_dir);
         let cert_volume = format!("{}/server.crt:/etc/ssl/certs/server.crt", cert_dir);
         let key_volume = format!("{}/server.key:/etc/ssl/certs/server.key", cert_dir);
 
-        // 2. 创建 SQL Server 配置文件 mssql.conf 来启用 SSL
+        // 2. Create the SQL Server configuration file mssql.conf to enable SSL.
         let mssql_conf_content = r#"
 [network]
 tlscert = /etc/ssl/certs/server.crt
@@ -3443,7 +3443,7 @@ forceencryption = 1
         let conf_path = format!("{}/mssql.conf", cert_dir);
         std::fs::write(&conf_path, mssql_conf_content).unwrap();
 
-        // 3. 创建初始化脚本 (创建测试数据库和用户)
+        // 3. Create the initialization script (create a test database and user).
         let init_script_content = r#"
 CREATE DATABASE testdb;
 GO
@@ -3459,7 +3459,7 @@ GO
         let init_script_path = format!("{}/init-sqlserver.sql", cert_dir);
         std::fs::write(&init_script_path, init_script_content).unwrap();
 
-        // 4. 启动 SQL Server 容器，正确配置 SSL
+        // 4. Start the SQL Server container with SSL configured correctly.
         let output = Command::new("docker")
             .arg("run")
             .arg("-d")
@@ -3469,7 +3469,7 @@ GO
             .args(["-e", "MSSQL_PID=Express"])
             .args(["-e", "SA_PASSWORD=YourStrong!Password"])
             .args(["-e", "MSSQL_AGENT_ENABLED=true"])
-            // 挂载证书和配置文件
+            // Mount the certificates and configuration file.
             .args(["-v", &ca_volume])
             .args(["-v", &cert_volume])
             .args(["-v", &key_volume])
@@ -3496,10 +3496,10 @@ GO
         };
         let _guard = DockerContainerDropper::from(&container_id);
 
-        // SQL Server 启动较慢，等待更长时间
+        // SQL Server starts slowly, so wait longer.
         tokio::time::sleep(Duration::from_secs(10)).await;
 
-        // 检查容器日志，确认 SSL 配置
+        // Check the container logs to confirm the SSL configuration.
         let check_output = Command::new("docker")
             .args(["logs", &container_id, "--tail", "30"])
             .output()

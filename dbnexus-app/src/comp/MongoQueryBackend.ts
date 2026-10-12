@@ -9,7 +9,7 @@ import {
 } from "./MongoInterface";
 import interfaceRawText from "./MongoInterface.ts?raw";
 import prettier from "prettier/standalone";
-// 必须引入这两个插件文件
+// These two plugin files must be imported.
 import parserTypeScript from "prettier/plugins/typescript";
 import parserEstree from "prettier/plugins/estree";
 
@@ -310,9 +310,9 @@ class MongoDBQueryCollection implements IMongoCollection {
 }
 
 function trimInterfaceText(text: string) {
-  const lines = text.split("\n"); // 按换行分割
-  if (lines.length <= 2) return ""; // 如果只有一两行，返回空
-  return lines.slice(1, -2).join("\n"); // 去掉首尾行
+  const lines = text.split("\n"); // Split on newlines.
+  if (lines.length <= 2) return ""; // Return an empty string if there are only one or two lines.
+  return lines.slice(1, -2).join("\n"); // Remove the first and last lines.
 }
 
 const interfaceText = trimInterfaceText(interfaceRawText) + globalVar;
@@ -349,10 +349,10 @@ monaco.languages.registerDocumentFormattingEditProvider("typescript", {
     try {
       const formatted = await prettier.format(text, {
         parser: "typescript",
-        // 关键：必须在这里显式传入插件数组
+        // Important: the plugin array must be passed explicitly here.
         plugins: [parserTypeScript, parserEstree],
 
-        // 你的格式化配置
+        // Your formatting configuration.
         singleQuote: true,
         tabWidth: 4,
         printWidth: 80,
@@ -368,7 +368,7 @@ monaco.languages.registerDocumentFormattingEditProvider("typescript", {
       ];
     } catch (error) {
       console.error("Prettier 格式化失败:", error);
-      return []; // 如果出错，返回空数组表示不进行任何更改
+      return []; // On error, return an empty array to indicate that no changes should be made.
     }
   },
 });

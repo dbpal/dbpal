@@ -774,7 +774,7 @@ mod tests {
                 LANGUAGE plpgsql
                 AS $$
                 BEGIN
-                    -- 这里什么都不做
+                    -- Do nothing here.
                     RETURN;
                 END;
                 $$;

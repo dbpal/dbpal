@@ -323,7 +323,7 @@ class MongoBsonBinaryAllSubType {
 function parseRegExp(str) {
   const m = str.match(/^\/(.*)\/([gimsuvy]*)$/);
   if (!m) throw new Error("Invalid regexp string");
-  return new RegExp(m[1], m[2]); // m[1] 模式, m[2] 标志
+  return new RegExp(m[1], m[2]); // m[1] is the pattern; m[2] is the flags.
 }
 
 class MongoBsonValue {
@@ -876,7 +876,7 @@ function toMongoBson(a: any): MongoBsonValue {
           value: a.toString(),
         });
       }
-      // Timestamp 必须在Long前面 可能timestamp继承到Long
+      // Timestamp must come before Long because timestamp may inherit from Long.
       if (a instanceof Timestamp) {
         return new MongoBsonValue(MongoBsonValueKind.Timestamp, a);
       }

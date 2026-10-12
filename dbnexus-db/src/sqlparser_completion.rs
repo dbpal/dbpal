@@ -418,9 +418,9 @@ impl<'a> CompletionStatement<'a> {
                     }
                 }
                 if let Some(returning) = &insert.returning {
-                    // 在 SQL 中，特别是在 PostgreSQL 中，RETURNING 关键字用于在 INSERT、UPDATE
-                    // 或 DELETE 语句后返回被操作的行的特定列。
-                    // 这使得你可以在执行数据修改后立即获取相关信息，例如新插入的记录的 ID。
+                    // In SQL, especially PostgreSQL, the RETURNING keyword returns specified columns from rows affected by an INSERT, UPDATE,
+                    // or DELETE statement.
+                    // This lets you retrieve information, such as the ID of a newly inserted record, immediately after modifying data.
                     self.c_on_select_items(&returning[..]).await;
                     if self.finished() {
                         return;
@@ -674,8 +674,8 @@ impl<'a> CompletionStatement<'a> {
                 self.scopes
                     .current_scope(|s| s.enter_table(None, create_index.table_name.clone()));
 
-                // using 在 PostgreSQL 中，USING 关键字用于指定索引的类型，例如
-                // B-tree、HASH、GIN 等。示例如下： using 用lexer的自动完成即可
+                // In PostgreSQL, the USING keyword specifies the index type, such as
+                // B-tree, HASH, or GIN. Example: using can be completed by the lexer.
 
                 for c in create_index.columns.iter() {
                     self.c_on_order_by_expr(&c.column).await;
@@ -683,10 +683,10 @@ impl<'a> CompletionStatement<'a> {
                         return;
                     }
                 }
-                // 在 PostgreSQL 中，CREATE INDEX 语句的 INCLUDE
-                // 关键字用于在创建索引时指定额外的列，这些列不会用于索引的排序或查找，
-                // 但会被包含在索引的叶节点中。这种功能主要用于提高查询性能，
-                // 特别是在需要返回额外列的场景中。
+                // In PostgreSQL, the INCLUDE keyword in CREATE INDEX
+                // specifies additional columns when creating an index. These columns are not used for sorting or lookup,
+                // but are included in the index's leaf nodes. This feature primarily improves query performance,
+                // especially when additional columns need to be returned.
                 for i in create_index.include.iter() {
                     self.c_on_column(&create_index.table_name, i, false).await;
                     if self.finished() {
@@ -763,8 +763,8 @@ impl<'a> CompletionStatement<'a> {
                     self.set_on_def();
                     return;
                 }
-                // CREATE POLICY 是 PostgreSQL 中用于定义行级安全策略的命令，
-                // 主要适用于表（tables）和视图（views）。通过行级安全，您可以控制用户在表或视图中可访问的行。
+                // CREATE POLICY defines row-level security policies in PostgreSQL,
+                // primarily for tables and views. Row-level security lets you control which rows users can access.
                 self.c_on_table_or_view(table_name).await;
                 if self.finished() {
                     return;
@@ -776,7 +776,7 @@ impl<'a> CompletionStatement<'a> {
                     }) {
                         // this postgres specific statement
                         // hit the position
-                        // 是的，CREATE POLICY 语句中的 TO 子句用于指定角色（role）。这允许您定义特定角色对表或视图的访问权限。
+                        // Yes, the TO clause in CREATE POLICY specifies a role, allowing you to define that role's access to a table or view.
                         let mut results: Vec<_> = self.helper.list_role_completion().await;
                         // https://www.postgresql.org/docs/current/sql-createpolicy.html
                         results.extend(
@@ -954,8 +954,8 @@ impl<'a> CompletionStatement<'a> {
                 }
             }
             Statement::DropSecret { .. } => {
-                // DROP SECRET 并不是 SQL 标准语句，而是部分现代数据库为管理“外部访问密钥”引入的扩展命令，
-                // 用于删除事先通过 CREATE SECRET 注册的凭证对象。目前可见于以下系统
+                // DROP SECRET is not part of the SQL standard. It is an extension command in some modern databases for managing external access credentials,
+                // and removes a credential object previously registered with CREATE SECRET. It is currently available in the following systems.
             }
             Statement::DropPolicy(DropPolicy {
                 table_name, name, ..
@@ -1038,7 +1038,7 @@ impl<'a> CompletionStatement<'a> {
                 }
             }
             Statement::ShowVariables { filter, .. } => {
-                // 给我的语法结构不好做自动完成
+                // This syntax structure is difficult to autocomplete.
                 // SHOW VARIABLES LIKE 'version';
                 // fallback to lexer
                 if let Some(filter) = filter {
@@ -1081,7 +1081,7 @@ impl<'a> CompletionStatement<'a> {
                     Use::Warehouse(..) => {}
                     Use::Role(object_name) => self.c_on_role_objectname(object_name).await,
                     Use::SecondaryRoles(..) => {
-                        // USE SECONDARY ROLES ALL 是 Snowflake 数据库的 SQL 语句
+                        // USE SECONDARY ROLES ALL is a Snowflake SQL statement.
                     }
                     Use::Object(..) => {
                         // TODO use a table???
@@ -1297,10 +1297,10 @@ impl<'a> CompletionStatement<'a> {
                 }
                 let mut scope = Scope::default();
                 /*
-                    AI提示词 没有 NEW/OLD，而是使用 inserted.col 和 deleted.col 两张“伪表”
+                    AI prompt: There are no NEW/OLD references; instead, use the inserted.col and deleted.col pseudo-tables.
                 */
                 if self.helper.backend_kind() == BackendKind::SqlServer {
-                    // 	没有 NEW/OLD，而是使用 inserted.col 和 deleted.col 两张“伪表”
+                    // There are no NEW/OLD references; instead, the inserted and deleted pseudo-tables use inserted.col and deleted.col.
                     scope.enter_table(
                         Some(Ident::new("inserted")),
                         create_trigger.table_name.clone(),
@@ -1558,8 +1558,8 @@ impl<'a> CompletionStatement<'a> {
                 }
             }
             Statement::ReleaseSavepoint { .. } => {
-                // 我在postgres和mysql都没找到可以查询savepoint的语句
-                // 所以这里不能做
+                // I could not find a statement for querying savepoints in PostgreSQL or MySQL,
+                // so this cannot be implemented here.
             }
             Statement::Merge(Merge {
                 table,
@@ -1702,7 +1702,7 @@ impl<'a> CompletionStatement<'a> {
                 }
             }
             Statement::LISTEN { .. } => {
-                // 非常奇怪的命令像是 消息中间件
+                // An unusual command, like one from a message broker.
             }
             Statement::UNLISTEN { .. } => {}
             Statement::NOTIFY { .. } => {}
@@ -2070,7 +2070,7 @@ impl<'a> CompletionStatement<'a> {
             if self.finished() {}
         }
 
-        // 其他都可以fallback 到lexer的实现
+        // Fall back to the lexer implementation for everything else.
     }
 
     pub(crate) async fn c_on_create_table_like_kind(&mut self, ast: &CreateTableLikeKind) {
@@ -2373,12 +2373,12 @@ impl<'a> CompletionStatement<'a> {
         }
     }
     /*
-    example:
+    Example:
 
     CREATE DOMAIN phone_cn AS text
     CHECK (
-        VALUE ~ '^1[0-9]{10}$'   -- 11 位，1 开头
-        AND VALUE IS NOT NULL        -- 显式拒绝 NULL
+        VALUE ~ '^1[0-9]{10}$'   -- 11 digits, starting with 1
+        AND VALUE IS NOT NULL        -- Explicitly reject NULL
     );*/
     async fn c_on_create_domain(&mut self, ast: &CreateDomain) {
         self.c_on_schema(&ast.name).await;

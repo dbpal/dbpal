@@ -1,4 +1,4 @@
-// 从原来的地方拷贝的
+// Copied from the original location.
 import { styled } from "@mui/material/styles";
 import {
   Toolbar,

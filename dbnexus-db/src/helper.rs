@@ -878,10 +878,10 @@ impl BackendKind {
         let df = csv_processor::DataFrame::from_strings(&csv_str)?;
         let mut ret = vec![];
 
-        // 直接从 df 获取列信息
+        // Get column information directly from df.
         for (index, col) in df.columns().iter().enumerate() {
             let name = df.headers().get(index).cloned().unwrap_or_default();
-            // 根据列的数据类型映射
+            // Map based on the column data type.
             let data_type = self.map_csv_dtype(&col.dtype())?;
 
             ret.push(Field {
@@ -979,7 +979,7 @@ impl BackendKind {
                     }
                 }
                 serde_json::Value::String(..) => "TEXT".to_string(),
-                serde_json::Value::Array(_) => "JSON".to_string(), // MySQL 5.7+ 支持 JSON
+                serde_json::Value::Array(_) => "JSON".to_string(), // JSON is supported in MySQL 5.7+.
                 serde_json::Value::Object(_) => "JSON".to_string(),
             },
 
@@ -1237,8 +1237,8 @@ impl BackendKind {
     }
 }
 
-/// 判断文件后缀名是否为 Excel 文件
-/// 支持: .xlsx, .xls, .xlsb, .xlsm, .ods
+/// Check whether the file extension indicates an Excel file.
+/// Supported: .xlsx, .xls, .xlsb, .xlsm, .ods
 pub fn is_excel_file(filename: &str) -> bool {
     let excel_extensions = ["xlsx", "xls", "xlsb", "xlsm", "ods"];
 
@@ -1250,7 +1250,7 @@ pub fn is_excel_file(filename: &str) -> bool {
 }
 
 impl BackendKind {
-    /// 核心職責分離：根據當前資料庫與 CSV 推導出的型態，返回該資料庫最適合的欄位型態名稱
+    /// Core responsibility separation: return the most suitable column type name for the current database, based on the type inferred from the CSV.
     pub fn map_csv_dtype(&self, csv_dtype: &csv_processor::Dtype) -> anyhow::Result<String> {
         use csv_processor::Dtype;
         let err = anyhow::Error::msg(format!("'{} not support infer type from csv", self));
@@ -1263,7 +1263,7 @@ impl BackendKind {
                 Dtype::Date => "DATE".to_string(),
                 Dtype::DateTime => "DATETIME".to_string(),
                 Dtype::Str => "VARCHAR(255)".to_string(),
-                Dtype::Null => "VARCHAR(255)".to_string(), // 預設降級為文字
+                Dtype::Null => "VARCHAR(255)".to_string(), // Fall back to text by default.
             },
             BackendKind::PostGres(_) => match csv_dtype {
                 Dtype::Integer => "BIGINT".to_string(),
@@ -1277,9 +1277,9 @@ impl BackendKind {
             BackendKind::Sqlite | BackendKind::LibSql => match csv_dtype {
                 Dtype::Integer => "INTEGER".to_string(),
                 Dtype::Float => "REAL".to_string(),
-                Dtype::Boolean => "INTEGER".to_string(), // SQLite 底層無布林，習慣宣告為 INTEGER (存 0 或 1)
-                Dtype::Date => "DATE".to_string(), // 修正：直接使用 DATE 宣告，方便 ORM/驅動對齊型態
-                Dtype::DateTime => "DATETIME".to_string(), // 修正：直接使用 DATETIME 宣告
+                Dtype::Boolean => "INTEGER".to_string(), // SQLite has no native boolean type; INTEGER is commonly used (storing 0 or 1).
+                Dtype::Date => "DATE".to_string(), // Fix: use DATE directly to align types across ORMs and drivers.
+                Dtype::DateTime => "DATETIME".to_string(), // Fix: use DATETIME directly.
                 Dtype::Str | Dtype::Null => "TEXT".to_string(),
             },
             BackendKind::ClickHouse => match csv_dtype {
@@ -1309,7 +1309,7 @@ impl BackendKind {
             BackendKind::SqlServer => match csv_dtype {
                 Dtype::Integer => "INT".to_string(),
                 Dtype::Float => "FLOAT".to_string(),
-                Dtype::Boolean => "BIT".to_string(), // SQL Server 的布林是 BIT
+                Dtype::Boolean => "BIT".to_string(), // SQL Server uses BIT for booleans.
                 Dtype::Date => "DATE".to_string(),
                 Dtype::DateTime => "DATETIME2".to_string(),
                 Dtype::Str | Dtype::Null => "NVARCHAR(MAX)".to_string(),
@@ -1317,7 +1317,7 @@ impl BackendKind {
             BackendKind::Oracle => match csv_dtype {
                 Dtype::Integer => "NUMBER(19)".to_string(),
                 Dtype::Float => "NUMBER".to_string(),
-                Dtype::Boolean => "NUMBER(1)".to_string(), // Oracle 傳統上沒有專門的布林型態
+                Dtype::Boolean => "NUMBER(1)".to_string(), // Oracle traditionally has no dedicated boolean type.
                 Dtype::Date => "DATE".to_string(),
                 Dtype::DateTime => "TIMESTAMP".to_string(),
                 Dtype::Str | Dtype::Null => "VARCHAR2(4000)".to_string(),
@@ -1346,7 +1346,7 @@ impl BackendKind {
                 Dtype::DateTime => "timestamp".to_string(),
                 Dtype::Str | Dtype::Null => "text".to_string(),
             },
-            // NoSQL 或 鍵值資料庫 通常全部對齊到基礎文字或其特定 BSON 型態
+            // NoSQL or key-value databases usually map everything to basic text or a specific BSON type.
             BackendKind::Mongo => return Err(err),
             BackendKind::CouchBase => return Err(err),
             BackendKind::Redis => return Err(err),
@@ -1396,18 +1396,18 @@ pub fn cert_files_dir() -> String {
     cert_dir.to_str().unwrap().to_owned()
 }
 
-/// 启动一个现有的、处于停止状态的 Docker 容器
+/// Start an existing Docker container that is stopped.
 #[cfg(test)]
 pub fn start_docker_container(id: &str) -> anyhow::Result<()> {
-    // 执行 docker start <id> 命令
+    // Run the docker start <id> command.
     let output = Command::new("docker").args(["start", id]).output()?;
 
-    // 检查命令是否执行成功
+    // Check whether the command succeeded.
     if output.status.success() {
         println!("Successfully started Docker container: {}", id);
         Ok(())
     } else {
-        // 如果失败，捕获 stderr 错误信息并将其封装为 anyhow 错误返回
+        // If it fails, capture stderr and return it wrapped as an anyhow error.
         let stderr = String::from_utf8(output.stderr.clone())?;
         Err(anyhow::Error::msg(stderr))
     }
@@ -1503,19 +1503,19 @@ mod tests {
         let range = wb.worksheet_range(sheet_name).unwrap();
 
         for (row_idx, row) in range.rows().enumerate() {
-            // 跳过表头（假设第一行是表头）
+            // Skip the header (assuming the first row is the header).
             if row_idx == 0 {
-                // 打印表头
+                // Print the header.
                 let headers: Vec<String> = row.iter().map(|cell| cell.to_string()).collect();
                 println!("表头: {:?}", headers);
                 continue;
             }
 
-            // 处理数据行
+            // Process the data row.
             let row_data: Vec<String> = row.iter().map(|cell| cell.to_string()).collect();
             println!("第 {} 行: {:?}", row_idx, row_data);
 
-            // 或者按列索引获取具体值
+            // Or get a specific value by column index.
             if let Some(name) = row.first() {
                 println!("姓名: {}", name);
             }

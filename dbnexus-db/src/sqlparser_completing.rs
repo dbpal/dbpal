@@ -469,15 +469,15 @@ impl<'a> CompletionStatement<'a> {
         if !self.last_name_in_pos(object_name) {
             return;
         }
-        // 在 MySQL 中，SHOW CREATE TRIGGER 语句用于显示创建指定触发器的 CREATE TRIGGER
-        // 语句 。其基本语法为：
-        // sql复制
+        // In MySQL, SHOW CREATE TRIGGER displays the CREATE TRIGGER statement used to create the specified trigger.
+        // Its basic syntax is:
+        // SQL (copy)
         // SHOW CREATE TRIGGER trigger_name;
-        // 其中，trigger_name 是触发器的名称。需要注意的是，SHOW CREATE TRIGGER
-        // 语句不支持直接指定数据库名称。如果要查看特定数据库中的触发器定义，
-        // 需要先切换到该数据库，或者在触发器名称中明确指定数据库名称 。
-        // 例如，如果要查看数据库 mydb 中名为 my_trigger
-        // 的触发器定义，可以先切换到该数据库：
+        // Here, trigger_name is the name of the trigger. Note that SHOW CREATE TRIGGER
+        // does not support specifying a database name directly. To view a trigger definition in a particular database,
+        // first switch to that database or explicitly qualify the trigger name with the database name.
+        // For example, to view the definition of a trigger named my_trigger in the mydb database,
+        // first switch to that database:
         let (schema, _) = self.extract_schema_and_item(object_name);
         self.result = Some(
             self.helper
@@ -539,7 +539,7 @@ impl<'a> CompletionStatement<'a> {
         let mut results: Vec<CompletionItem> =
             self.helper.list_execute_completion(schema.as_deref()).await;
         if name.0.len() == 1 {
-            // 也许在完成schema 如果要执行一个 sys.xxx
+            // Perhaps complete the schema when accessing a sys.xxx object.
             results.extend(self.helper.list_schema_completion().await);
         }
         self.result = Some(results);
@@ -599,7 +599,7 @@ impl<'a> CompletionStatement<'a> {
             ObjectType::View | ObjectType::MaterializedView => self.c_on_view(name).await,
             ObjectType::Index => self.c_on_index(name).await,
             ObjectType::Schema | ObjectType::Database => {
-                //  我不知道这里指的是schema还是database所以返回全部的结果
+                // It is unclear whether this refers to a schema or a database, so return all results.
                 let results = self.helper.list_database_schema_completion().await;
                 self.result = Some(results);
             }
@@ -732,7 +732,7 @@ impl<'a> CompletionStatement<'a> {
                 }
             },
             CommentObject::User => match name.0.len() {
-                // 在 PostgreSQL 里，“用户”本身就是 可登录的 role，所以给 user 加注释仍然用：
+                // In PostgreSQL, a "user" is itself a login-capable role, so use this to add a comment to a user:
                 // TODO
                 1 => match name.0.last().expect("we have checked the length") {
                     ObjectNamePart::Identifier(ident) => {
@@ -793,10 +793,10 @@ impl<'a> CompletionStatement<'a> {
             }
             _ => {
                 /*
-                在大多数主流数据库管理系统中，
-                ANALYZE 命令的 PARTITION 子句通常不支持使用表达式，
-                要求明确指定分区名称。然而，
-                某些数据库系统可能允许在不同上下文中使用表达式来选择分区。以下是一些示例：*/
+                In most major database management systems, the PARTITION clause of the ANALYZE command generally does not support expressions
+                and requires explicit partition names. However,
+                some database systems may allow expressions to select partitions in certain contexts. Examples follow:
+                */
                 log::error!("unhandled partition type:{:?}", p);
             }
         }
@@ -1271,7 +1271,7 @@ impl<'a> CompletionStatement<'a> {
             AlterTableOperation::AutoIncrement { .. } => {}
             AlterTableOperation::DropForeignKey { .. } => {}
             AlterTableOperation::DropIndex { name } => {
-                // 这里没有限定表 不过列出一个数据库下所有的index应该也是没有问题的
+                // No table is specified here, but listing all indexes in a database should be fine.
                 self.c_on_index(&ObjectName(vec![ObjectNamePart::Identifier(name.clone())]))
                     .await;
             }
@@ -1517,36 +1517,37 @@ impl<'a> CompletionStatement<'a> {
         }
         log::info!("hit identifier:{:?}", ident);
         if ident.value.starts_with("@@") && self.helper.backend_kind().support_at()
-        // sql server的情况和mysql差不多
+        // SQL Server is similar to MySQL here.
         {
             /*
-            在 MySQL 中，@@ 是用于访问系统变量的语法。系统变量存储了数据库服务器的各种配置信息和状态。以下是一些关键点：
-            访问系统变量：
-            使用 @@ 前缀可以访问全局或会话级别的系统变量。
-            例如，SELECT @@version; 查询当前 MySQL 服务器的版本。
+            In MySQL, @@ is the syntax for accessing system variables, which store various database server settings and status information. Key points:
+            Accessing system variables:
+            The @@ prefix accesses global or session-level system variables.
+            For example, SELECT @@version; retrieves the version of the current MySQL server.
             */
             self.result = Some(self.helper.list_variable_completion().await);
             return;
         }
         if ident.value.starts_with("@") && self.helper.backend_kind().support_at()
-        // sql server的情况和mysql差不多
+        // SQL Server is similar to MySQL here.
         {
             /*
-            在 MySQL 中，用户自定义变量（以 @ 开头的变量）不会在任何系统视图或命令输出中列出，因此无法直接列出所有用户定义的变量。用户变量的作用域仅限于当前会话，并且它们不会被系统视图记录。
+            In MySQL, user-defined variables (those prefixed with @) are not listed in system views or command output, so they cannot be listed directly.
+            User variables are scoped to the current session and are not recorded in system views.
 
-            查看用户自定义变量的方法
-            虽然没有直接的方法列出所有用户自定义变量，但你可以通过以下方式管理和查看它们：
+            Ways to inspect user-defined variables:
+            Although there is no direct way to list all user-defined variables, you can manage and inspect them as follows:
 
-            手动记录：p
+            Manual tracking: p
 
-            在使用用户变量时，最好手动记录它们的名称和用途，以便在需要时查找。
-            查询特定变量：
+            When using user variables, it is best to record their names and purposes so they can be found when needed.
+            Querying a specific variable:
 
-            如果你知道某个用户变量的名称，可以直接查询其值：
+            If you know the name of a user variable, you can query its value directly:
             */
 
-            // 最好什么都不做 也不表示我处理到了这个语法结果让词法分析来做完成
-            // 我也不能通过数据操作查询到
+            // It is best to do nothing; handling this syntax would prevent the lexer from completing it.
+            // It also cannot be queried through data operations.
             return;
         }
 
@@ -1589,7 +1590,7 @@ impl<'a> CompletionStatement<'a> {
         results.extend(self.result.take().unwrap_or_default());
 
         if ident.quote_style.is_none() {
-            // 我们也要函数
+            // We also need functions.
             let fs = self
                 .helper
                 .list_function(None, true)
@@ -1597,11 +1598,11 @@ impl<'a> CompletionStatement<'a> {
                 .unwrap_or_default();
             results.extend(fs);
         }
-        //也要schema
+        // We also need schemas.
         let schemas = self.helper.list_database_completion().await;
         results.extend(schemas);
         /*
-            ai提示词 sql查询里面 有哪些关键字 可以放在select的列的前面 给我完成的列表
+            AI prompt: List the keywords that can appear before the selected columns in a SQL query.
         */
         results.extend(
             ["ALL", "DISTINCT", "CASE", "WHEN", "THEN", "ELSE"]
@@ -1716,7 +1717,7 @@ impl<'a> CompletionStatement<'a> {
                 //fallback to lexer
             }
             ColumnOption::Collation(..) => {
-                // 这里是字符集设置吗
+                // Is this a character set setting?
             }
             ColumnOption::Srid(expr) => {
                 self.c_on_expr(expr).await;
@@ -2332,7 +2333,7 @@ impl<'a> CompletionStatement<'a> {
         );
     }
 
-    // completion 假设  schema.table
+    // Completion assumes schema.table.
     pub(crate) async fn c_on_schema(&mut self, name: &ObjectName) {
         match name.0.len() {
             2 => {
@@ -2519,18 +2520,18 @@ impl<'a> CompletionStatement<'a> {
             }
             JoinConstraint::Using(vec) => {
                 /*
-                mysql数据库里面的join using是怎么用的呢
-                编辑
-                复制
-                JOIN … USING (col) 是 ANSI-SQL 的一种简写形式，MySQL 完全支持。
-                它做的事可以用 ON 写出来，只是更短、不会重复输出关联列。
-                一、语法模板
-                sql
-                复制
+                How does JOIN USING work in MySQL?
+                Edit
+                Copy
+                JOIN … USING (col) is an ANSI SQL shorthand that MySQL fully supports.
+                It can be written with ON; USING is shorter and does not repeat the joined column in the output.
+                1. Syntax template
+                SQL
+                Copy
                 SELECT …
                 FROM 表1
                 [INNER | LEFT | RIGHT] JOIN 表2
-                USING (关联列名);   -- 多列就逗号分隔：USING (id, name)
+                USING (关联列名);   -- For multiple columns, separate them with commas: USING (id, name)
                 */
                 for v in vec.iter() {
                     let idents = self.object_name_to_idents(v).await;
@@ -2690,10 +2691,10 @@ impl<'a> CompletionStatement<'a> {
     }
     pub(crate) async fn c_on_input_format_clause(&mut self, ast: &InputFormatClause) {
         /*
-        在 ClickHouse 里，FORMAT 并不是 SQL 标准里的 “FORMAT 子句”（像 TO_CHAR(dt,'YYYY-MM-DD') 那种），而是放在整条语句 最后 的一个 结果输出格式指示器。
-        语法只有一句话：
-        sql
-        复制
+        In ClickHouse, FORMAT is not the SQL-standard "FORMAT clause" (such as TO_CHAR(dt,'YYYY-MM-DD')); it is an output-format indicator placed at the very end of the statement.
+        The syntax is simply:
+        SQL
+        Copy
         SELECT …
         [FROM …]
         [WHERE …]
@@ -3197,8 +3198,8 @@ impl<'a> CompletionStatement<'a> {
                     }
                 }
                 /*
-                PostgreSQL：明确支持VALUES作为表达式表，例如VALUES (1, 2), (3, 4)可独立使用，等效于SELECT * FROM (VALUES (1, 2), (3, 4)) AS t(c1, c2)。
-                貌似只有postgres支持这种语法
+                PostgreSQL explicitly supports VALUES as a table expression. For example, VALUES (1, 2), (3, 4) can be used on its own and is equivalent to SELECT * FROM (VALUES (1, 2), (3, 4)) AS t(c1, c2).
+                PostgreSQL appears to be the only database that supports this syntax.
                 */
                 self.helper
                     .get_query_columns(&format!("select * from ({})", values))
@@ -3274,11 +3275,11 @@ impl<'a> CompletionStatement<'a> {
     ) -> Option<Vec<TempTableColumn>> {
         match t {
             // function_call [WITH ORDINALITY] [[AS] table_alias [(column_alias [, ... ])]]
-            // ROWS FROM( function_call [, ... ] ) [WITH ORDINALITY] [[AS] table_alias [(column_alias [, ... ])]]这里面的column_alias是列的定义吗
-            // 编辑
-            // 复制
-            // 是的，column_alias 就是给 列起的别名，也就是 列的定义。
-            // 你在问题中提到的这段语法：
+            // ROWS FROM( function_call [, ... ] ) [WITH ORDINALITY] [[AS] table_alias [(column_alias [, ... ])]]: Is column_alias here a column definition?
+            // Edit
+            // Copy
+            // Yes, column_alias is an alias for a column, that is, a column definition.
+            // The syntax you asked about is:
             Some(alias) if !alias.columns.is_empty() => Some(
                 alias
                     .columns
@@ -3919,8 +3920,8 @@ impl<'a> CompletionStatement<'a> {
         }
     }
     pub(crate) async fn c_on_window_spec(&mut self, ast: &WindowSpec) {
-        // window_name  是 PostgreSQL 在  WINDOW  子句里给窗口定义起的“名字”。
-        // 作用：当一条查询里多个窗口函数都要用 同一套分区、排序、范围 时，先给这段窗口定义一个名字，后面所有  OVER  子句直接引用这个名字即可，避免重复书写，也更容易维护。
+        // window_name is the name PostgreSQL assigns to a window definition in the WINDOW clause.
+        // When multiple window functions in a query use the same partitioning, ordering, and frame, name the definition once and reference it from each OVER clause to avoid repetition and simplify maintenance.
         if let Some(window_name) = ast.window_name.as_ref() {
             if self.in_pos(&window_name.span) {
                 self.set_on_def();

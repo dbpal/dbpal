@@ -62,16 +62,16 @@ async function secondConfirm({
   });
 }
 
-// redis的数据存储的时候都是二进制 有时候包含的是有效的
-// utf8字符前台的处理的最好当成utf8来处理
-// 不然当成二进制数据来处理呢
-// 后台放回数据的时候都是 hex string模式
+// Redis stores data as binary, which sometimes contains valid UTF-8 characters.
+// It is best to handle these as UTF-8 on the frontend,
+// rather than treating them as binary data.
+// The backend returns data as a hex string.
 
 function hexTryToString(hex: string): string | null {
   if (!hex) {
     return "";
   }
-  // 将十六进制字符串转换为字节数组
+  // Convert a hexadecimal string to a byte array.
   const bytes = [];
   for (let i = 0; i < hex.length; i += 2) {
     bytes.push(parseInt(hex.substr(i, 2), 16));
@@ -87,7 +87,7 @@ function hexToString(hex: string): string {
   if (!hex) {
     return "";
   }
-  // 将十六进制字符串转换为字节数组
+  // Convert a hexadecimal string to a byte array.
   const bytes = [];
   for (let i = 0; i < hex.length; i += 2) {
     bytes.push(parseInt(hex.substr(i, 2), 16));
@@ -96,15 +96,15 @@ function hexToString(hex: string): string {
 }
 
 function stringToHexArray(str: string): Uint8Array {
-  // 创建一个 Uint8Array 来存储字节
+  // Create a Uint8Array to store the bytes.
   const bytes = new TextEncoder().encode(str);
   return bytes;
 }
 
 function arrayToHex(uint8Array: Uint8Array | number[]) {
-  return Array.from(uint8Array) // 将 Uint8Array 转换为普通数组
-    .map((byte) => byte.toString(16).padStart(2, "0")) // 转换每个字节为十六进制并补齐
-    .join(""); // 连接为一个字符串
+  return Array.from(uint8Array) // Convert the Uint8Array to a regular array.
+    .map((byte) => byte.toString(16).padStart(2, "0")) // Convert each byte to hexadecimal and pad it.
+    .join(""); // Join the values into a string.
 }
 
 function stringToHex(str: string): string {
@@ -370,19 +370,19 @@ function getSupportExportKind(kind: DataSourceKind, isTable: boolean) {
 function generateDefaultFilename(name: string, extension: string) {
   if (extension == "jsonline") {
     /*
-      统一用 .jsonl（全小写，无空格）最好。
-      这是社区事实标准：GitHub、Git LFS、Apache Spark、BigQuery、Hugging Face 等生态都按 .jsonl 识别，工具链（grep、jq、ripgrep、VS Code 插件）也都默认支持。
+      Prefer using .jsonl consistently (lowercase, with no spaces).
+      It is a de facto community standard: ecosystems such as GitHub, Git LFS, Apache Spark, BigQuery, and Hugging Face recognize .jsonl, and tools such as grep, jq, ripgrep, and VS Code extensions support it by default.
     */
     extension = "jsonl";
   }
   if (extension == "markdown") {
     extension = "md";
   }
-  // 获取当前时间
+  // Get the current time.
   const now = new Date();
-  // 格式化时间为字符串
+  // Format the time as a string.
   const timestamp = now.toISOString().replace(/[:.-]/g, "").slice(0, 15);
-  // 生成文件名
+  // Generate the file name.
   const filename = `${name}_${timestamp}.${extension}`;
   return filename;
 }
@@ -413,7 +413,7 @@ function editorPositionToEnd(editor: editor.IStandaloneCodeEditor) {
   const model = editor.getModel();
   const lastLine = model.getLineCount();
   const lastColumn = model.getLineMaxColumn(lastLine);
-  // 设置光标位置到最后一行最后一列
+  // Set the cursor position to the last column of the last line.
   editor.setPosition({ lineNumber: lastLine, column: lastColumn });
 }
 
@@ -470,7 +470,8 @@ const dataGridStyle: CSSProperties = {
   flexGrow: 1,
   height: "100px",
   flexShrink: 1,
-  // 这个值用 0% 在windows也有问题好像会把datagrid变得很高 用0 都可以 用0% 都不可以 然而flex为1 设置的值是0% 可能是兼容性的问题
+  // Using 0% for this value also seems problematic on Windows and can make the DataGrid very tall.
+  // 0 works, but 0% does not. However, flex: 1 sets the value to 0%, which may be a compatibility issue.
   flexBasis: "0",
 };
 
@@ -488,7 +489,7 @@ async function setUpEditorThemes() {
     });
 
     Object.entries(modules).forEach(([path, module]) => {
-      // 1. 提取文件名并清理非法字符（去掉空格）
+      // 1. Extract the file name and remove invalid characters (including spaces).
       let themeName = extractBaseName(path).slice(0, -5);
 
       if (themeName == "themelist") {
@@ -500,7 +501,7 @@ async function setUpEditorThemes() {
         .replaceAll(")", "")
         .replaceAll("_", "");
 
-      // 2. 确保传入的是对象内容，而不是整个 module
+      // 2. Ensure the contents of the object are passed in, rather than the entire module.
       const themeData = (module as any).default;
       try {
         monaco.editor.defineTheme(themeName, themeData);
@@ -670,9 +671,9 @@ const AppColumnMenuCtx = createContext<{
 
 export const gridColumnHeaderSelectClassName = "grid-cell-select-highlight";
 
-// 有些地方不好用状态变量来做
-// 这里的是命令式的写法 目前就是
-// 用来管理一些css呢
+// State variables are not suitable for some use cases.
+// This imperative approach is currently
+// used to manage some CSS.
 function allGridHeaderTitle(
   api: RefObject<GridApi>,
   callback: (_: HTMLDivElement) => void,
@@ -703,63 +704,63 @@ function parseCellType(cell: string): string | number | null {
   if (!cell) {
     return null;
   }
-  // 1. 去除首尾空格
+  // 1. Remove leading and trailing whitespace.
   let value = cell.trim();
 
-  // 2. 如果是空字段，直接转为 null
+  // 2. Convert an empty field directly to null.
   if (value === "") {
     return null;
   }
 
-  // 3. 处理 TSV 的双引号包裹和内部双引号转义
-  // 例如: "Jane""" -> Jane"  /  "35" -> 35
+  // 3. Handle TSV double-quote wrapping and escaped double quotes.
+  // For example: "Jane""" -> Jane" / "35" -> 35
   if (value.startsWith('"') && value.endsWith('"')) {
-    // 移除最外层的双引号，并将内部的 "" 还原为 "
+    // Remove the outermost double quotes and restore internal "" to ".
     value = value.slice(1, -1).replaceAll('""', '"');
 
-    // 如果剥离外层引号后变为空，说明原本就是个空值
+    // If the value is empty after removing the outer quotes, it was originally empty.
     if (value === "") return null;
   }
 
-  // 4. 尝试转换为数字 (Int / Float)
-  // 排除掉不合法的数字格式（如空字符、多余的符号等）
+  // 4. Try to convert to a number (Int / Float).
+  // Exclude invalid number formats (such as empty strings or extra symbols).
   const num = Number(value);
   if (!isNaN(num) && value !== "") {
     return num;
   }
 
-  // 5. 其余情况一律作为原始字符串返回（包括 "true", "false", "00123" 等）
-  // 注意：如果你不想让类似 "00123" 这种带前导零的工号/编码变成数字，
-  // 可以加上判断：if (!isNaN(num) && !value.startsWith('0')) { return num; }
+  // 5. Return all other cases as-is as strings (including "true", "false", and "00123").
+  // To prevent values such as "00123" (an ID or code with leading zeros) from becoming numbers,
+  // add a check such as: if (!isNaN(num) && !value.startsWith('0')) { return num; }
   return value;
 }
 
 function arrayToMarkdownTable(data: string[][]): string {
   if (!data || data.length === 0) return "";
 
-  // 1. 数据清洗辅助函数：处理 TSV 外层引号、转义引号，并安全处理换行符
+  // 1. Data-cleaning helper: handle TSV outer quotes and escaped quotes, and safely handle newlines.
   const cleanCell = (cell: string): string => {
     let val = (cell || "").trim();
 
-    // 脱掉 TSV 的外层双引号，还原内部的 "" 为 "
+    // Remove the outer TSV double quotes and restore internal "" to ".
     if (val.startsWith('"') && val.endsWith('"')) {
       val = val.slice(1, -1).replaceAll('""', '"');
     }
 
-    // Markdown 表格单行内不能有换行符，否则会错位。将换行转为 HTML 换行
+    // Markdown table rows cannot contain newlines without becoming misaligned; convert them to HTML line breaks.
     return val.replace(/\r?\n/g, "<br>");
   };
 
-  // 2. 提取并处理第一行作为表头 (Title)
+  // 2. Extract and process the first line as the header (Title).
   const headers = data[0].map(cleanCell);
 
-  // 3. 生成 Markdown 的对齐分隔线 (---|---|---)
+  // 3. Generate the Markdown alignment separator (---|---|---).
   const separator = headers.map(() => "---");
 
-  // 4. 处理剩余的数据行
+  // 4. Process the remaining data rows.
   const rows = data.slice(1).map((row) => row.map(cleanCell));
 
-  // 5. 组装成标准的 Markdown 格式
+  // 5. Assemble the standard Markdown format.
   const markdownLines = [
     `| ${headers.join(" | ")} |`,
     `| ${separator.join(" | ")} |`,
@@ -787,7 +788,7 @@ function escapeMarkdown(text: string, options: EscapeOptions = {}): string {
   // eslint-disable-next-line no-useless-escape
   let pattern = /([\\*_`\[\](){}#\+\-\.!\|>])/g;
 
-  // Strict mode: includes extra characters like symbols, equals, and tilde (~=+=^|等)
+  // Strict mode: includes extra characters like symbols, equals signs, and tildes (~=+=^|, etc.).
   if (options.strict) {
     // eslint-disable-next-line no-useless-escape
     pattern = /([\\*_`\[\](){}#\+\-\.!\|>#=~^])/g;
@@ -837,26 +838,26 @@ function createCSV(data: string[]): string {
 }
 
 /**
- * 判断文件后缀名是否为Excel格式
- * @param fileName - 文件名或文件路径
- * @returns 是否为Excel文件
+ * Check whether the file extension indicates an Excel format.
+ * @param fileName - File name or file path.
+ * @returns Whether the file is an Excel file.
  */
 function isExcelFile(fileName: string): boolean {
-  // 定义所有Excel支持的后缀名
+  // Define all supported Excel extensions.
   const excelExtensions = [
     ".xls", // Excel 97-2003
     ".xlsx", // Excel 2007+
-    ".xlsm", // Excel 启用宏的工作簿
-    ".xlsb", // Excel 二进制工作簿
-    ".xlam", // Excel 加载项
-    ".xltx", // Excel 模板
-    ".xltm", // Excel 启用宏的模板
+    ".xlsm", // Excel macro-enabled workbook.
+    ".xlsb", // Excel binary workbook.
+    ".xlam", // Excel add-in.
+    ".xltx", // Excel template.
+    ".xltm", // Excel macro-enabled template.
   ];
 
-  // 获取文件后缀名（转为小写以支持大小写不敏感）
+  // Get the file extension (convert to lowercase for case-insensitive matching).
   const extension = fileName.substring(fileName.lastIndexOf(".")).toLowerCase();
 
-  // 判断后缀名是否在列表中
+  // Check whether the extension is in the list.
   return excelExtensions.includes(extension);
 }
 
@@ -974,7 +975,7 @@ export {
 
 declare module "@mui/x-data-grid" {
   interface ToolbarPropsOverrides {
-    dbpal: any; // 或者你期望的具体类型，比如 string、boolean 或某个函数签名
+    dbpal: any; // Or use the specific type you expect, such as string, boolean, or a function signature.
   }
 }
 

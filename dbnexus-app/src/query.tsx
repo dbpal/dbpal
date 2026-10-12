@@ -9,7 +9,7 @@ import { DataSourceKind, DbnameContext } from "./comp/helper.ts";
 
 const queryString = window.location.search;
 
-// 2. 实例化 URLSearchParams
+// 2. Instantiate URLSearchParams.
 const urlParams = new URLSearchParams(queryString);
 const dbName = urlParams.get("dbName");
 const kind = urlParams.get("kind");

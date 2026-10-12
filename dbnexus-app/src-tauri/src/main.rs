@@ -76,7 +76,7 @@ fn setup_panic_hook(dir: PathBuf) {
         panic::set_hook(Box::new(move |panic_info| {
             eprintln!("{}", panic_info);
             eprintln!("{}", std::backtrace::Backtrace::capture());
-            // 1. 提取信息（防御式，每一步都可能失败）
+            // 1. Extract the information defensively; any step may fail.
             let payload = panic_info
                 .payload()
                 .downcast_ref::<String>()
@@ -103,7 +103,7 @@ fn setup_panic_hook(dir: PathBuf) {
                 .open(&filepath)
             {
                 Ok(mut file) => {
-                    //   忽略所有错误，避免二次 panic
+                    //   Ignore all errors to avoid a second panic.
                     let err = writeln!(
                         file,
                         "[{}] Thread '{}' panicked at '{}': {}",
@@ -124,8 +124,8 @@ fn setup_panic_hook(dir: PathBuf) {
                     eprintln!("create file failed,err:{:?}", err);
                 }
             }
-            // 4. 立即退出（不尝试任何 UI 操作）
-            std::process::exit(101); // 101 是 panic 退出码惯例
+            // 4. Exit immediately without attempting any UI operations.
+            std::process::exit(101); // 101 is the conventional panic exit code.
         }));
     });
 }

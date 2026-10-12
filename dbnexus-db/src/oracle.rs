@@ -1,7 +1,7 @@
 use dashmap::DashMap;
 use oracle::pool::Pool;
 use oracle::{Connection, Row};
-/// notice oracle sql 不能带有分号
+/// Note: Oracle SQL must not include a semicolon.
 use std::collections::{HashMap, HashSet};
 use std::ops::DerefMut;
 use std::sync::{Arc, Mutex};
@@ -1002,21 +1002,21 @@ impl SchemaTrait for OracleDB {
 
         log::info!("sql:{}", sql);
 
-        // 使用 oracle crate 的 query 方法遍历
+        // Iterate using the oracle crate's query method.
         let rows = self.query(&sql).await?;
 
         let mut ret = Vec::new();
 
-        // 遍历结果集，处理为 Vec<ForeignKeyDef>
-        // 注意：如果使用 tokio-oracle，这里可能是 rows.try_fold 或者直接 collect
+        // Iterate over the result set and convert it to Vec<ForeignKeyDef>.
+        // Note: With tokio-oracle, this may use rows.try_fold or collect directly.
         for row in rows {
-            // Oracle 返回的可能是 Option<String>，因为列可能为 NULL
+            // Oracle may return Option<String> because the column can be NULL.
             let constraint_name: Option<String> = row.get(0)?;
             let referenced_table: String = row.get(1)?;
             let from: String = row.get(2)?;
             let to: String = row.get(3)?;
 
-            // Oracle 的 UPDATE 规则通常是 NO ACTION，DELETE 规则是 CASCADE 等
+            // Oracle's UPDATE rule is usually NO ACTION; its DELETE rule may be CASCADE, etc.
             let on_delete: String = row.get(4)?;
             let on_update: String = row.get(5)?;
 
@@ -1615,12 +1615,12 @@ impl OracleDB {
         anyhow::Ok(ret)
     }
 }
-/// Oracle 里可直接写在 SQL 语句中的 CURRENT_* 无括号字面量
+/// CURRENT_* no-parentheses literals that can be written directly in Oracle SQL statements.
 pub const ORACLE_CURRENT_LITERALS: &[&str] = &[
-    "CURRENT_DATE", // 2025-08-25 14:36:07   （会话时区）
-    "CURRENT_TIMESTAMP", /*  2025-08-25 14:36:07.123456   （会话时区，带微秒）
-                     *   "CURRENT_TIMESTAMP(n)", //  同上，精度可调；裸写 CURRENT_TIMESTAMP
-                     * 默认为 6 */
+    "CURRENT_DATE", // 2025-08-25 14:36:07 (session time zone).
+    "CURRENT_TIMESTAMP", /*  2025-08-25 14:36:07.123456 (session time zone, with microseconds)
+                     *   "CURRENT_TIMESTAMP(n)", //  Same, with configurable precision; bare CURRENT_TIMESTAMP
+                     * defaults to 6 */
 ];
 
 impl SqlBuilder for OracleDB {
@@ -1875,11 +1875,11 @@ mod tests {
     async fn test_foreign_key() {
         let db = make_test_object(Some("SYSTEM".to_string())).await;
 
-        // 注意：Oracle 默认全部转为大写，所以这里表名和约束名全部用大写
+        // Note: Oracle converts names to uppercase by default, so use uppercase table and constraint names here.
         let table_name_posts = "TEST_POSTS";
         let table_name_comments = "TEST_COMMENTS";
 
-        // 1. 尝试删除外键（Oracle 的约束名也是大写，且通常是你自己定义的）
+        // 1. Try to drop the foreign key (Oracle constraint names are also uppercase and are usually user-defined).
         let constraint_name = "FK_COMMENTS_POSTS";
         let _err = db
             .drop_foreign_key(table_name_comments, constraint_name)
@@ -1888,15 +1888,15 @@ mod tests {
             println!("drop foreign key failed, err: {}", _err);
         }
 
-        // 2. 删除表 (Oracle 没有 IF NOT EXISTS，通常由底层封装 DROP TABLE 或通过异常捕获处理)
+        // 2. Drop the table (Oracle has no IF NOT EXISTS; this is usually handled by the underlying DROP TABLE wrapper or by catching the exception).
         let _ = db.drop_table(table_name_comments, false).await;
         let _ = db.drop_table(table_name_posts, false).await;
 
         let query_id = "aaaa";
         db.open_connection(query_id).await.unwrap();
 
-        // 3. 创建父表 TEST_POSTS
-        // Oracle 12c+ 使用 IDENTITY 代替 AUTO_INCREMENT
+        // 3. Create the parent table TEST_POSTS.
+        // Oracle 12c+ uses IDENTITY instead of AUTO_INCREMENT.
         db.execute_sql(
             query_id,
             r#"
@@ -1911,8 +1911,8 @@ mod tests {
         .unwrap()
         .unwrap();
 
-        // 4. 创建子表 TEST_COMMENTS
-        // Oracle 需要显式声明约束名，否则会自动生成一个乱码名字，不利于后续删除
+        // 4. Create the child table TEST_COMMENTS.
+        // Oracle requires explicitly named constraints; otherwise, it generates an unreadable name that is difficult to use when dropping the constraint later.
         db.execute_sql(
             query_id,
             r#"
@@ -1932,7 +1932,7 @@ mod tests {
 
         db.close_connection(query_id).await.unwrap();
 
-        // 5. 列出外键并打印
+        // 5. List and print the foreign keys.
         let f = db.list_foreign_key(table_name_comments).await.unwrap();
 
         assert!(f.len() == 1);
@@ -2045,8 +2045,8 @@ mod tests {
             r#"
             CREATE OR REPLACE PROCEDURE DO_NOTHING_P AS
             BEGIN
-                -- 这里什么也不做
-                NULL; -- NULL 是一个空操作，表示不做任何事情
+                -- Do nothing here.
+                NULL; -- NULL is a no-op, indicating that nothing is done.
             END;
         "#,
         )

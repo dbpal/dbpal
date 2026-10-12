@@ -1,31 +1,31 @@
 /*
-你这个类比非常精准，确实说到了点子上！Firebird 和 SQLite 在“数据库即文件”这个核心理念上，确实很像。
+Your analogy is very precise and gets to the heart of the matter! Firebird and SQLite are indeed similar in the core concept of "database as a file."
 
-不过，虽然它俩都用一个文件来存数据，但在实际的架构和使用方式上，还是有本质区别的。用一个比喻来说就是：
+However, although both use a single file to store data, their actual architectures and usage differ fundamentally. By way of analogy:
 
-SQLite 像一个 “嵌入式”的笔记本，应用自己直接读写这个文件，轻量便携，但只能一个人用。
+SQLite is like an "embedded" notebook: the application reads and writes the file directly. It is lightweight and portable, but only one person can use it.
 
-Firebird 更像一个 “有前台”的图书馆，虽然馆藏（数据）也在一本本书（文件）里，但所有借阅都必须通过前台管理员（服务器进程）来统一处理
+Firebird is more like a library with a front desk. Although its collection (data) is stored in books (files), all borrowing must be handled centrally by the front-desk administrator (the server process).
 */
 
 // docker run -d   --name some-firebird  -e FIREBIRD_DATABASE=test.fdb   -e
 // FIREBIRD_ROOT_PASSWORD=root  -e FIREBIRD_USER=alice -e
 // FIREBIRD_PASSWORD=root  -e   -e   -p 3050:3050    firebirdsql/firebird
 /*
-    firebird 为啥 SELECT
+    Why does this Firebird SELECT
                 RDB$RELATION_NAME AS TABLE_NAME
             FROM
                 RDB$RELATIONS
             WHERE
-                RDB$VIEW_BLR IS NULL  -- 排除视图
-                AND RDB$SYSTEM_FLAG = 0  -- 排除系统表
+                RDB$VIEW_BLR IS NULL  -- Exclude views.
+                AND RDB$SYSTEM_FLAG = 0  -- Exclude system tables.
             ORDER BY
-                RDB$RELATION_NAME 这个语句查出来的名字有空格
-复制
-原因一句话
-RDB$RELATION_NAME 的数据类型是 CHAR(31)，定长字符，不足 31 字节时 Firebird 自动用 空格（0x20） 补齐，所以 TRIM 一下即可。
+                RDB$RELATION_NAME (why does this query return names with spaces?)
+Copy
+The reason is simple:
+RDB$RELATION_NAME has the fixed-length CHAR(31) data type. When the value is shorter than 31 bytes, Firebird pads it with spaces (0x20), so simply apply TRIM.
 
-所以代码里面有很多的trim
+That is why the code uses TRIM in many places.
 */
 use crate::datasource_config::FireBirdConfig;
 use crate::db::{
@@ -727,20 +727,20 @@ impl ExtractSqlValeFromJsonValue for FireBirdDB {
 impl FireBirdDB {
     fn list_foreign_key_impl(&self, table: &str) -> anyhow::Result<Vec<ForeignKeyDef>> {
         let mut conn = self.get_conn()?;
-        // Firebird 默认表名是大写的，并且不支持参数绑定占位符（如 @P1），所以只能 format 转大写拼接
+        // Firebird table names are uppercase by default, and it does not support parameter placeholders (such as @P1), so names must be uppercased and interpolated with format.
         let table_upper = table.to_uppercase();
-        // Firebird 查询外键的标准系统表 SQL：
+        // Standard system-table SQL for querying Firebird foreign keys:
         let sql = format!(
             r#"
         SELECT
             FK.RDB$CONSTRAINT_NAME AS constraint_name,
-            -- 获取被引用的父表名 (使用分隔符连接，注意去除前导空格)
+            -- Get the referenced parent table name (concatenate with a separator and trim leading spaces).
             TRIM(PK.RDB$RELATION_NAME) AS referenced_table_name,
-            -- 获取子表上的外键列名
+            -- Get the foreign key column name on the child table.
             TRIM(ISF.RDB$FIELD_NAME) AS column_name,
-            -- 获取父表上被引用的列名
+            -- Get the referenced column name on the parent table.
             TRIM(ISP.RDB$FIELD_NAME) AS referenced_column_name,
-            -- 处理更新和删除规则 (Firebird 的 RDB$UPDATE_RULE 和 RDB$DELETE_RULE 返回字符串，需去除空格)
+            -- Handle update and delete rules (Firebird's RDB$UPDATE_RULE and RDB$DELETE_RULE return strings that must be trimmed).
             CASE TRIM(RC.RDB$UPDATE_RULE) 
                 WHEN 'CASCADE' THEN 'CASCADE' 
                 WHEN 'SET NULL' THEN 'SET NULL' 
@@ -777,15 +777,15 @@ impl FireBirdDB {
 
         for row in stream {
             let row = row?;
-            // rsfbclient 的 Row 使用 .get::<Type>(index) 获取数据。
-            // Firebird 默认返回 CHAR/VARCHAR 时可能带有尾随空格，建议使用 String 获取后用 trim 处理。
+            // Use .get::<Type>(index) to retrieve values from an rsfbclient Row.
+            // Firebird may return trailing spaces in CHAR/VARCHAR values; retrieve them as String and trim them.
             let constraint_name: Option<String> = row.get(0)?;
             let referenced_table: String = row.get(1)?;
             let from: String = row.get(2)?;
             let to: String = row.get(3)?;
 
-            // Firebird 的 RDB$UPDATE_RULE 和 RDB$DELETE_RULE 可能带有尾随空格
-            // 返回默认值为 NO ACTION
+            // Firebird's RDB$UPDATE_RULE and RDB$DELETE_RULE may contain trailing spaces.
+            // The default returned value is NO ACTION.
             let on_update: String = row.get(4).unwrap_or_else(|_| "NO ACTION".to_string());
             let on_delete: String = row.get(5).unwrap_or_else(|_| "NO ACTION".to_string());
 
@@ -1129,7 +1129,7 @@ impl SchemaTrait for FireBirdDB {
     }
 }
 
-/// Firebird 里可直接写在 SQL 语句中的 CURRENT_* 字面量
+/// CURRENT_* literals that can be written directly in Firebird SQL statements.
 pub const FB_CURRENT_LITERALS: &[&str] = &[
     "CURRENT_DATE",      //  2025-08-25
     "CURRENT_TIME",      //  14:36:07.1230
@@ -1303,22 +1303,22 @@ mod tests {
     async fn test_foreign_key() {
         let db = make_test_object().await;
 
-        // 注意：Firebird 默认将未加引号的表名和字段名转为大写
+        // Note: Firebird converts unquoted table and column names to uppercase by default.
         let table_name_posts = "TEST_POSTS";
         let table_name_comments = "TEST_COMMENTS";
 
-        // Firebird 的外键约束名通常需要显式指定，删除时用原名
+        // Firebird foreign key constraint names usually need to be specified explicitly; use the original name when dropping them.
         let _err = db
             .drop_foreign_key(
                 table_name_comments,
-                "FK_COMMENTS_POSTS", // 需要是你建表时指定的名字
+                "FK_COMMENTS_POSTS", // This must be the name specified when creating the table.
             )
             .await;
         if let Err(_err) = _err {
             println!("drop foreign key failed, err: {}", _err);
         }
 
-        // Firebird 支持 DROP TABLE，底层一般会处理不存在的表，或者你可以先捕获异常
+        // Firebird supports DROP TABLE; the underlying implementation usually handles a missing table, or you can catch the exception first.
 
         let _ = db.drop_table(table_name_comments, false).await;
         let _ = db.drop_table(table_name_posts, false).await;
@@ -1326,8 +1326,8 @@ mod tests {
         let query_id = "aaaa";
         db.open_connection(query_id).await.unwrap();
 
-        // 1. 创建父表 TEST_POSTS
-        // Firebird 3.0+ 使用 GENERATED BY DEFAULT AS IDENTITY
+        // 1. Create the parent table TEST_POSTS.
+        // Firebird 3.0+ uses GENERATED BY DEFAULT AS IDENTITY.
         db.execute_sql(
             query_id,
             r#"
@@ -1342,9 +1342,9 @@ mod tests {
         .unwrap()
         .unwrap();
 
-        // 2. 创建子表 TEST_COMMENTS
-        // 注意：为了后续方便删除，建议显式指定约束名 CONSTRAINT
-        // Firebird 支持 ON DELETE CASCADE
+        // 2. Create the child table TEST_COMMENTS.
+        // Note: Specify the constraint name explicitly to make it easier to drop later.
+        // Firebird supports ON DELETE CASCADE.
         db.execute_sql(
             query_id,
             r#"
@@ -1364,7 +1364,7 @@ mod tests {
 
         db.close_connection(query_id).await.unwrap();
 
-        // 3. 列出外键并打印
+        // 3. List and print the foreign keys.
         let f = db.list_foreign_key(table_name_comments).await.unwrap();
 
         assert!(f.len() == 1);

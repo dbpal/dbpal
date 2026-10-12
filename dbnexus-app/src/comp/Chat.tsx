@@ -159,11 +159,11 @@ function SqlChatTextInput() {
 
   const handleChat = async () => {
     try {
-      // 清空内容，同时保留在 Undo 栈里
+      // Clear the content while keeping it in the Undo stack.
       if (cleanEditor) {
         editor.executeEdits("my-source", [
           {
-            range: editor.getModel().getFullModelRange(), // 全选
+            range: editor.getModel().getFullModelRange(), // Select all.
             text: "",
           },
         ]);
@@ -219,7 +219,7 @@ function SqlChatTextInput() {
         },
         (f) => {
           setCancelFN(() => {
-            // 这里必须写一个callback不然会被直接执行
+            // This must be written as a callback; otherwise, it will execute immediately.
             return f;
           });
         },

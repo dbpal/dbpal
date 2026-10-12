@@ -1,5 +1,5 @@
 /*
-    在 SQL Server 里，只有 dbo 这个默认 schema 下的对象可以“省略 schema 前缀”直接访问；其余自定义 schema 都必须显式写  schema.object 。
+    In SQL Server, only objects in the default dbo schema can be accessed directly without a schema prefix; all other custom schemas must be explicitly qualified as schema.object.
 */
 
 use crate::db::{CatalogTrait, CreatedTypeDef};
@@ -379,9 +379,9 @@ impl AstCompletionHelper for SqlServerDB {
     }
 }
 
-/// SQL Server 2022 全部内置函数名称
+/// All SQL Server 2022 built-in function names.
 pub const SQLSERVER_FUNCTIONS: &[&str] = &[
-    // 数学
+    // Math
     "ABS",
     "ACOS",
     "ASIN",
@@ -405,7 +405,7 @@ pub const SQLSERVER_FUNCTIONS: &[&str] = &[
     "SQRT",
     "SQUARE",
     "TAN",
-    // 字符串
+    // String
     "ASCII",
     "CHAR",
     "CHARINDEX",
@@ -435,7 +435,7 @@ pub const SQLSERVER_FUNCTIONS: &[&str] = &[
     "TRIM",
     "UNICODE",
     "UPPER",
-    // 日期时间
+    // Date/time
     "CURRENT_TIMESTAMP",
     "CURRENT_TIMEZONE",
     "CURRENT_TIMEZONE_ID",
@@ -462,7 +462,7 @@ pub const SQLSERVER_FUNCTIONS: &[&str] = &[
     "JSON_MODIFY",
     "JSON_QUERY",
     "JSON_VALUE",
-    // 聚合/分析
+    // Aggregate/analytic
     "AVG",
     "CHECKSUM_AGG",
     "COUNT",
@@ -486,7 +486,7 @@ pub const SQLSERVER_FUNCTIONS: &[&str] = &[
     "SUM",
     "VAR",
     "VARP",
-    // 加密/哈希
+    // Encryption/hash
     "CERTENCODED",
     "CERTPRIVATEKEY",
     "DECRYPTBYASYMKEY",
@@ -507,13 +507,13 @@ pub const SQLSERVER_FUNCTIONS: &[&str] = &[
     "SIGNBYCERT",
     "VERIFYSIGNEDBYCERT",
     "VERIFYSIGNEDBYASYMKEY",
-    // 转换
+    // Conversion
     "CAST",
     "CONVERT",
     "COALESCE",
     "ISNULL",
     "NULLIF",
-    // 系统信息
+    // System information
     "APP_NAME",
     "CURRENT_USER",
     "DATABASEPROPERTYEX",
@@ -530,7 +530,7 @@ pub const SQLSERVER_FUNCTIONS: &[&str] = &[
     "SYSTEM_USER",
     "USER_ID",
     "USER_NAME",
-    // 其他常用
+    // Other common functions
     "BINARY_CHECKSUM",
     "CHECKSUM",
     "ERROR_LINE",
@@ -555,12 +555,12 @@ pub const SQLSERVER_FUNCTIONS: &[&str] = &[
     "SERVERPROPERTY",
     "SESSIONPROPERTY",
     "STATS_DATE",
-    "XACT_STATE", // 如需继续扩展，可执行：
+    "XACT_STATE", // To extend this list, run:
                   // SELECT name FROM master.sys.all_objects
                   // WHERE type IN ('FN','IF','TF','FS','FT','AF') AND is_ms_shipped = 1 ORDER BY name;
 ];
 
-/// SQL Server 2022 保留关键字（官方版）
+/// SQL Server 2022 reserved keywords (official list).
 pub const SQLSERVER_KEYWORDS: &[&str] = &[
     "ADD",
     "ALL",
@@ -747,9 +747,9 @@ pub const SQLSERVER_KEYWORDS: &[&str] = &[
     "WRITETEXT",
 ];
 
-/// SQL Server 2022 全部系统数据类型
+/// All SQL Server 2022 system data types.
 pub const SQLSERVER_TYPES: &[&str] = &[
-    // 精确数值
+    // Exact numeric
     "BIGINT",
     "INT",
     "SMALLINT",
@@ -759,28 +759,28 @@ pub const SQLSERVER_TYPES: &[&str] = &[
     "NUMERIC",
     "MONEY",
     "SMALLMONEY",
-    // 近似数值
+    // Approximate numeric
     "FLOAT",
     "REAL",
-    // 日期/时间
+    // Date/time
     "DATE",
     "TIME",
     "DATETIME",
     "DATETIME2",
     "DATETIMEOFFSET",
     "SMALLDATETIME",
-    // 字符
+    // Character
     "CHAR",
     "VARCHAR",
     "TEXT",
     "NCHAR",
     "NVARCHAR",
     "NTEXT",
-    // 二进制
+    // Binary
     "BINARY",
     "VARBINARY",
     "IMAGE",
-    // 其他
+    // Other
     "CURSOR",
     "SQL_VARIANT",
     "TABLE",
@@ -790,14 +790,14 @@ pub const SQLSERVER_TYPES: &[&str] = &[
     "GEOMETRY",
     "GEOGRAPHY",
     "HIERARCHYID",
-    // 变长 MAX
+    // Variable-length MAX
     "VARCHAR(MAX)",
     "NVARCHAR(MAX)",
     "VARBINARY(MAX)",
 ];
 
-/// SQL Server 所有 @@ 全局变量名（系统函数）
-/// 用法：format!("@@{}", VAR[i])
+/// All SQL Server @@ global variable names (system functions).
+/// Usage: format!("@@{}", VAR[i])
 pub const SQL_SERVER_GLOBAL_VARS: &[&str] = &[
     "DATEFIRST",
     "DBTS",

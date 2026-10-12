@@ -406,7 +406,7 @@ async function listLLMModels(baseURl: string, apiKey: string): Promise<ModelDef[
     headers: { Authorization: `Bearer ${apiKey}` },
   });
   if (!res.ok) {
-    // 404、401 等会进这里
+    // Status codes such as 404 and 401 are handled here.
     throw new Error(`HTTP ${res.status}`);
   }
   const resp = await res.json();
@@ -414,7 +414,7 @@ async function listLLMModels(baseURl: string, apiKey: string): Promise<ModelDef[
     console.log("models response:", resp);
   }
   // data.object === "list"
-  // data.data 是一个数组，每个元素有 id, object, owned_by, context_length 等字段
+  // data.data is an array; each element has fields such as id, object, owned_by, and context_length.
   return resp.data as ModelDef[];
 }
 
@@ -1021,24 +1021,24 @@ function makeComponents(
     MuiDivider: {
       styleOverrides: {
         root: {
-          borderBottomWidth: "3px", // 横向
+          borderBottomWidth: "3px", // Horizontal.
         },
         vertical: {
-          borderRightWidth: "3px", // 竖向
+          borderRightWidth: "3px", // Vertical.
         },
       },
     },
     MuiDialog: {
       styleOverrides: {
         paper: {
-          padding: "6px", // 增加内边距
+          padding: "6px", // Increase the inner padding.
           margin: 0,
         },
       },
     },
     MuiModal: {
       defaultProps: {
-        // 让 Modal 里的 Backdrop 默认就有动画时长
+        // Give the Modal backdrop a default animation duration.
         slotProps: {
           backdrop: {
             timeout: 500,
@@ -1123,7 +1123,7 @@ function makeComponents(
           padding: 0,
         },
         list: {
-          paddingTop: "2px", // 原生默认通常是 8px
+          paddingTop: "2px", // The native default is usually 8px.
           paddingBottom: "2px",
         },
       },
@@ -1178,7 +1178,7 @@ function makeComponents(
           style: {
             height: "1.75rem",
             fontSize: "1rem",
-            // 可以根据需要调整圆角或边距
+            // Adjust the corner radius or margins as needed.
           },
         },
       ],

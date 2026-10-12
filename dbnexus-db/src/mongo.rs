@@ -1223,7 +1223,7 @@ mod tests {
         let _ = db.drop_view(view_name).await;
 
         let collection_name = "test_mongo";
-        // 定义聚合管道
+        // Define the aggregation pipeline.
         let pipeline: Vec<Document> = vec![];
         let _ = db
             .get_db()
@@ -1322,9 +1322,9 @@ mod tests {
         println!("test port:{}", port);
         let cert_dir = cert_files_dir();
 
-        // 1. 创建 MongoDB 初始化脚本（创建用户和数据库）
+        // 1. Create the MongoDB initialization script (create users and databases).
         let init_script_content = r#"
-// 切换到 admin 数据库并创建管理员用户
+// Switch to the admin database and create an administrator user.
 db = db.getSiblingDB('admin');
 db.createUser({
     user: "testuser",
@@ -1334,7 +1334,7 @@ db.createUser({
     ]
 });
 
-// 切换到 testdb 数据库并创建用户
+// Switch to the testdb database and create a user.
 db = db.getSiblingDB('testdb');
 db.createUser({
     user: "testuser",
@@ -1349,7 +1349,7 @@ db.createUser({
         std::fs::write(&init_script_path, init_script_content).unwrap();
         let init_volume = format!("{}:/docker-entrypoint-initdb.d/init.js", init_script_path);
 
-        // 2. 启动 MongoDB 容器（不启用 SSL/TLS）
+        // 2. Start the MongoDB container (without enabling SSL/TLS).
         let output = Command::new("docker")
             .arg("run")
             .arg("-d")
@@ -1357,9 +1357,9 @@ db.createUser({
             .args(["-p", format!("{}:27017", port).as_str()])
             .args(["-v", &init_volume])
             .arg("mongo")
-            // 启用认证，但不启用 TLS
+            // Enable authentication but not TLS.
             .args(["--auth"])
-            // 绑定到所有接口
+            // Bind to all interfaces.
             .args(["--bind_ip_all"])
             .output()
             .unwrap();
@@ -1375,7 +1375,7 @@ db.createUser({
         };
         let _guard = DockerContainerDropper::from(&container_id);
 
-        // MongoDB 启动需要时间等待初始化完成
+        // MongoDB needs time to start and finish initializing.
         tokio::time::sleep(Duration::from_secs(10)).await;
 
         {
@@ -1405,9 +1405,9 @@ db.createUser({
         println!("test port:{}", port);
         let cert_dir = cert_files_dir();
 
-        // 1. 创建 MongoDB 初始化脚本（创建用户和数据库）
+        // 1. Create the MongoDB initialization script (create users and databases).
         let init_script_content = r#"
-// 切换到 admin 数据库并创建管理员用户
+// Switch to the admin database and create an administrator user.
 db = db.getSiblingDB('admin');
 db.createUser({
     user: "testuser",
@@ -1417,7 +1417,7 @@ db.createUser({
     ]
 });
 
-// 切换到 testdb 数据库并创建用户
+// Switch to the testdb database and create a user.
 db = db.getSiblingDB('testdb');
 db.createUser({
     user: "testuser",
@@ -1432,12 +1432,12 @@ db.createUser({
         std::fs::write(&init_script_path, init_script_content).unwrap();
         let init_volume = format!("{}:/docker-entrypoint-initdb.d/init.js", init_script_path);
 
-        // 2. 证书文件路径（假设证书已经在 cert_dir 中）
+        // 2. Certificate file paths (assuming the certificates are already in cert_dir).
         let ca_cert_path = format!("{}/ca.crt", cert_dir);
         let server_cert_path = format!("{}/server.crt", cert_dir);
         let server_key_path = format!("{}/server.key", cert_dir);
 
-        // 检查证书文件是否存在
+        // Check whether the certificate files exist.
         if !std::path::Path::new(&ca_cert_path).exists() {
             eprintln!("错误: CA 证书文件不存在: {}", ca_cert_path);
             return;
@@ -1451,10 +1451,10 @@ db.createUser({
             return;
         }
 
-        // 3. 合并证书和私钥为 PEM 格式（MongoDB 需要）
+        // 3. Combine the certificate and private key into PEM format (required by MongoDB).
         let mongodb_pem_path = format!("{}/mongodb.pem", cert_dir);
 
-        // 如果 mongodb.pem 已经存在，可以选择跳过生成或覆盖
+        // If mongodb.pem already exists, choose whether to skip generation or overwrite it.
         if !std::path::Path::new(&mongodb_pem_path).exists() {
             /*
             MongoDB 要求合并文件是因为 MongoDB 的 TLS/SSL 配置只接受单个 PEM 文件，而不是分开的证书和私钥文件。
@@ -1474,8 +1474,8 @@ db.createUser({
             println!("mongodb.pem 已存在，使用现有文件");
         }
 
-        // 4. 启动 MongoDB 容器（启用 TLS）
-        // 使用卷挂载证书文件
+        // 4. Start the MongoDB container (with TLS enabled).
+        // Mount the certificate files as volumes.
         let cert_volume = format!("{}:/etc/ssl/mongodb.pem", mongodb_pem_path);
         let ca_volume = format!("{}:/etc/ssl/ca.crt", ca_cert_path);
 
@@ -1488,15 +1488,15 @@ db.createUser({
             .args(["-v", &cert_volume])
             .args(["-v", &ca_volume])
             .arg("mongo")
-            // 启用认证
+            // Enable authentication.
             .args(["--auth"])
-            // 绑定到所有接口
+            // Bind to all interfaces.
             .args(["--bind_ip_all"])
-            // 启用 TLS 相关配置
+            // Enable TLS-related settings.
             .args(["--tlsMode", "requireTLS"])
             .args(["--tlsCertificateKeyFile", "/etc/ssl/mongodb.pem"])
             .args(["--tlsCAFile", "/etc/ssl/ca.crt"])
-            .args(["--tlsAllowConnectionsWithoutCertificates"]) // 允许客户端不提供证书（仅服务器认证）
+            .args(["--tlsAllowConnectionsWithoutCertificates"]) // Allow clients to connect without certificates (server authentication only).
             .output()
             .unwrap();
 
@@ -1510,7 +1510,7 @@ db.createUser({
             return;
         };
         let _gurad = DockerContainerDropper::from(&container_id);
-        // 5. 等待 MongoDB 完全启动
+        // 5. Wait for MongoDB to finish starting.
         std::thread::sleep(std::time::Duration::from_secs(5));
 
         let config = MongoDBConfig {

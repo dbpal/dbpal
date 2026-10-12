@@ -1313,7 +1313,7 @@ pub fn command_return_multi_value(s: &str) -> bool {
     ALL.contains(&s.to_uppercase())
 }
 
-/// 完整的返回 Array/Multi-bulk 的 Redis 命令 (兼容 Redis 7.2)
+/// Complete list of Redis commands that return Array/Multi-bulk values (compatible with Redis 7.2).
 const REDIS_MULTI_VAL_CMDS: &[&str] = &[
     // --- String ---
     "MGET",
@@ -1363,7 +1363,7 @@ const REDIS_MULTI_VAL_CMDS: &[&str] = &[
     "XCLAIM",
     "XAUTOCLAIM",
     "XINFO",
-    // --- Geo (地理位置，容易遗漏) ---
+    // --- Geo (easy to overlook) ---
     "GEOPOS",
     "GEORADIUS",
     "GEORADIUSBYMEMBER",
@@ -1390,7 +1390,7 @@ const REDIS_MULTI_VAL_CMDS: &[&str] = &[
     "PUBSUB",
     "ACL",
     "LATENCY",
-    // --- JSON (如果你安装了 RedisJSON 模块) ---
+    // --- JSON (if the RedisJSON module is installed) ---
     "JSON.MGET",
     "JSON.OBJKEYS",
 ];
@@ -1457,12 +1457,12 @@ pub struct RedisTokenXXX {
 }
 
 pub fn redis_tokenize(command: &str) -> anyhow::Result<Vec<RedisTokenXXX>> {
-    // 使用 shlex 分词
+    // Tokenize with shlex.
     if let Some(tokens) = shlex::split(command) {
         let mut position = 0;
         let mut tokens_with_positions = Vec::new();
         for token in tokens {
-            // 找到 token 在原始字符串中的位置
+            // Find the token's position in the original string.
             if let Some(start) = command[position..].find(&token) {
                 let start = position + start;
                 let end = start + token.len();
@@ -2023,12 +2023,12 @@ db1:keys=1,expires=0,avg_ttl=0"#,
         println!("test port:{}", port);
         let cert_dir = cert_files_dir();
 
-        // Redis SSL/TLS 配置
+        // Redis SSL/TLS configuration.
         let ca_volume = format!("{}/ca.crt:/etc/redis/ssl/ca.crt", cert_dir);
         let cert_volume = format!("{}/server.crt:/etc/redis/ssl/server.crt", cert_dir);
         let key_volume = format!("{}/server.key:/etc/redis/ssl/server.key", cert_dir);
 
-        // 创建 Redis 配置文件
+        // Create the Redis configuration file.
         let redis_config_content = r#"
 port 0
 tls-port 6379
@@ -2038,7 +2038,7 @@ tls-ca-cert-file /etc/redis/ssl/ca.crt
 tls-auth-clients yes
 tls-replication yes
 requirepass testpass
-# 强制使用 TLS
+# Force TLS
 tls-protocols "TLSv1.2 TLSv1.3"
 "#
         .to_string();
@@ -2047,7 +2047,7 @@ tls-protocols "TLSv1.2 TLSv1.3"
         std::fs::write(&redis_config_path, redis_config_content).unwrap();
         let config_volume = format!("{}:/usr/local/etc/redis/redis.conf", redis_config_path);
 
-        // 启动 Redis 容器，开启 SSL/TLS
+        // Start the Redis container with SSL/TLS enabled.
         let output = Command::new("docker")
             .arg("run")
             .arg("-d")
@@ -2074,7 +2074,7 @@ tls-protocols "TLSv1.2 TLSv1.3"
 
         let _guard = DockerContainerDropper::from(&container_id);
         // no test here I don't want to work with rustls
-        // rustls 的兼容性不如native-tls
+        // rustls is less compatible than native-tls.
         // https://docs.rs/redis/1.5.0/redis/struct.Client.html#method.build_with_tls
     }
 }

@@ -651,8 +651,8 @@ pub struct Db2OdbcHelper {
     config: Db2Config,
 }
 
-// 是的，这个理解完全正确——无法通过标准 SQL 语句列出 DB2 实例下的所有数据库，必须使用命令行工具或实例级 API。
-// 所以db2不实现catalogtrait
+// Yes, this understanding is correct: standard SQL cannot list all databases in a DB2 instance; a command-line tool or instance-level API is required.
+// Therefore, DB2 does not implement the catalog trait.
 
 #[cfg(test)]
 mod tests {

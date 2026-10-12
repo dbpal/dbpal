@@ -8,11 +8,11 @@ use crate::{
 
 /*
 Datacenter datacenter1 doesn't have enough token-owning nodes for replication_factor=3
-测试节点  replication_factor=1 这样设置呢
+Would setting replication_factor=1 work for a test node?
 
 
 drop udf error:Sql:DROP FUNCTION "test_udf"(list<int>)  Err:Database returned an error: The query is syntactically correct but invalid, Error message: User defined functions are disabled. Set enable_user_defined_functions and experimental_features:udf to enable them
-需要enable这个设置这个呢
+Does this setting need to be enabled?
 
 
 */

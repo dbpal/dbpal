@@ -102,7 +102,7 @@ function SqlTransaction(props: { conn: QueryConn; executeTimes: number }) {
   }, [commit, tabCtx.id, removeConfirmMsg, addConfirmMsg]);
 
   useEffect(() => {
-    //这里的顺序很重要
+    // The order here is important.
     setTxCount((e) => e + 1);
     queryCommit();
   }, [executeTimes, queryCommit]);

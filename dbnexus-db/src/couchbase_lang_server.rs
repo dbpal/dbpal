@@ -150,7 +150,7 @@ impl CouchBaseDB {
     }
 }
 
-/// Couchbase SQL++ (N1QL) 保留关键字列表
+/// Couchbase SQL++ (N1QL) reserved keywords.
 pub const COUCHBASE_KEYWORDS: &[&str] = &[
     "_INDEX_CONDITION",
     "_INDEX_KEY",
@@ -384,10 +384,10 @@ pub const COUCHBASE_KEYWORDS: &[&str] = &[
     "XOR",
 ];
 
-// 帮我把这里面所有的内置函数整理成rust数组https://docs.couchbase.com/server/current/analytics/8_builtin.html
-/// Couchbase Analytics (SQL++) 内置函数列表
+// Organize all built-in functions from this page into a Rust array: https://docs.couchbase.com/server/current/analytics/8_builtin.html
+/// Couchbase Analytics (SQL++) built-in functions.
 pub const COUCHBASE_ANALYTICS_FUNCTIONS: &[&str] = &[
-    // --- 数值函数 (Numeric Functions) ---
+    // --- Numeric functions ---
     "ABS",
     "ACOS",
     "ASIN",
@@ -412,7 +412,7 @@ pub const COUCHBASE_ANALYTICS_FUNCTIONS: &[&str] = &[
     "SQRT",
     "TAN",
     "TRUNC",
-    // --- 字符串函数 (String Functions) ---
+    // --- String functions ---
     "CONCAT",
     "CONTAINS",
     "DECODE_JSON",
@@ -437,7 +437,7 @@ pub const COUCHBASE_ANALYTICS_FUNCTIONS: &[&str] = &[
     "TITLE",
     "TRIM",
     "UPPER",
-    // --- 日期/时间函数 (Date/Time Functions) ---
+    // --- Date/time functions ---
     "CURRENT_DATE",
     "CURRENT_DATETIME",
     "CURRENT_TIME",
@@ -455,7 +455,7 @@ pub const COUCHBASE_ANALYTICS_FUNCTIONS: &[&str] = &[
     "MILLIS_TO_STR",
     "MILLIS_TO_UTC",
     "MILLIS_TO_TZ",
-    // --- 聚合函数 (Aggregate Functions) ---
+    // --- Aggregate functions ---
     "AVG",
     "COUNT",
     "MAX",
@@ -468,7 +468,7 @@ pub const COUCHBASE_ANALYTICS_FUNCTIONS: &[&str] = &[
     "VAR_SAMP",
     "VARIANCE",
     "ARRAY_AGG",
-    // --- 数组/对象函数 (Array & Object Functions) ---
+    // --- Array and object functions ---
     "ARRAY_APPEND",
     "ARRAY_CONCAT",
     "ARRAY_CONTAINS",
@@ -498,7 +498,7 @@ pub const COUCHBASE_ANALYTICS_FUNCTIONS: &[&str] = &[
     "OBJECT_REPLACE",
     "OBJECT_VALUES",
     "OBJECT_INNER_VALUES",
-    // --- 类型转换/检查函数 (Type Functions) ---
+    // --- Type conversion/check functions ---
     "TO_ARRAY",
     "TO_ATOMIC",
     "TO_BOOLEAN",
@@ -517,7 +517,7 @@ pub const COUCHBASE_ANALYTICS_FUNCTIONS: &[&str] = &[
     "IS_OBJECT",
     "IS_STRING",
     "TYPE",
-    // --- 条件/比较函数 (Comparison & Conditional) ---
+    // --- Comparison and conditional functions ---
     "GREATEST",
     "LEAST",
     "IFNULL",
@@ -525,7 +525,7 @@ pub const COUCHBASE_ANALYTICS_FUNCTIONS: &[&str] = &[
     "IFMISSINGORNULL",
     "MISSINGIF",
     "NULLIF",
-    // --- 空间函数 (Spatial Functions) ---
+    // --- Spatial functions ---
     "ST_AREA",
     "ST_DISTANCE",
     "ST_LENGTH",
@@ -537,7 +537,7 @@ pub const COUCHBASE_ANALYTICS_FUNCTIONS: &[&str] = &[
     "ST_Z",
     "ST_MAKE_POINT",
     "ST_GEOM_FROM_TEXT",
-    // --- 系统/元数据函数 (System Functions) ---
+    // --- System/metadata functions ---
     "META",
     "UUID",
     "VERSION",

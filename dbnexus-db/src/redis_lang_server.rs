@@ -597,19 +597,19 @@ impl RedisDB {
             "LINDEX" | "LINSERT" | "LLEN" | "LPOP" | "LPUSH" | "LPUSHX" | "LRANGE" | "LREM"
             | "LSET" | "LTRIM" => {
                 /*
-                命令	作用	示例
-                LPUSH	从 左端（头）插入一个或多个元素	`LPUSH q 1 2 3` → `[3,2,1]`
-                LPUSHX	仅当 key 存在且是列表时才 左端插入	`LPUSHX q 4`
-                RPUSH	从 右端（尾）插入（你没有列出，但对称）	`RPUSH q 4 5` → `[3,2,1,4,5]`
-                LPOP	从 左端弹出一个元素	`LPOP q` → `3`，剩余 `[2,1,4,5]`
-                RPOP	从 右端弹出（对称）	`RPOP q` → `5`
-                LLEN	返回列表长度	`LLEN q` → `4`
-                LRANGE	按索引区间 读取元素	`LRANGE q 0 -1` → 全部
-                LINDEX	按索引 获取单个元素	`LINDEX q 2` → `1`
-                LSET	按索引 修改单个元素	`LSET q 1 99`
-                LINSERT	在 指定值前/后插入元素	`LINSERT q BEFORE 99 88`
-                LREM	删除 指定值的 N 个元素	`LREM q 2 88` → 删 2 个 88
-                LTRIM	只保留索引区间的元素，其余截断	`LTRIM q 0 2`
+                Command	Action	Example
+                LPUSH	Insert one or more elements at the left (head)	`LPUSH q 1 2 3` → `[3,2,1]`
+                LPUSHX	Insert at the left only if the key exists and is a list	`LPUSHX q 4`
+                RPUSH	Insert at the right (tail); not listed above, but symmetric	`RPUSH q 4 5` → `[3,2,1,4,5]`
+                LPOP	Pop an element from the left	`LPOP q` → `3`; remaining: `[2,1,4,5]`
+                RPOP	Pop an element from the right (symmetric)	`RPOP q` → `5`
+                LLEN	Return the list length	`LLEN q` → `4`
+                LRANGE	Read elements in an index range	`LRANGE q 0 -1` → all
+                LINDEX	Get one element by index	`LINDEX q 2` → `1`
+                LSET	Update one element by index	`LSET q 1 99`
+                LINSERT	Insert an element before/after a specified value	`LINSERT q BEFORE 99 88`
+                LREM	Remove N elements with a specified value	`LREM q 2 88` → remove two 88s
+                LTRIM	Keep only elements in the index range and discard the rest	`LTRIM q 0 2`
                 */
                 let mut ret = Vec::new();
                 if !patterns.is_empty() {
@@ -643,8 +643,8 @@ impl RedisDB {
                 })
                 .collect(),
             "MSETNX" => {
-                // 但它的特点是在所有指定的键都不存在的情况下，才会执行设置操作。
-                // 所以不需要提醒数据库的key
+                // However, it performs the set operation only when all specified keys do not exist.
+                // Therefore, there is no need to notify the database about the keys.
                 vec![]
             }
             "OBJECT" => {
@@ -653,8 +653,8 @@ impl RedisDB {
                 if !patterns.is_empty() {
                     ret.push(
                         async move {
-                            // redis给我所有OBJECT 的子命令rust数组
-                            /// Redis 7.x OBJECT 命令所有子命令
+                            // Provide all Redis OBJECT subcommands in a Rust array.
+                            /// All Redis 7.x OBJECT subcommands.
                             pub const OBJECT_SUBCOMMANDS: &[&str] =
                                 &["ENCODING", "FREQ", "IDLETIME", "REFCOUNT", "HELP"];
                             anyhow::Ok(
@@ -963,20 +963,20 @@ impl RedisDB {
             | "ZREMRANGEBYRANK" | "ZREMRANGEBYSCORE" | "ZREVRANGE" | "ZREVRANGEBYLEX"
             | "ZREVRANGEBYSCORE" | "ZREVRANK" | "ZSCAN" | "ZSCORE" => {
                 /*
-                命令	作用	一句话记忆
-                `ZRANGE`	按 分数从小到大 取一段排行	正序排行榜
-                `ZREVRANGE`	按 分数从大到小 取一段排行	倒序排行榜
-                `ZRANK`	查某 member 正序排行（0 开始）	我第几名？
-                `ZREVRANK`	查某 member 倒序排行	倒数第几名？
-                `ZSCORE`	取某 member 的 分数	多少分？
-                `ZRANGEBYSCORE`	按 分数区间 取成员（正序）	90100 分的有谁？
-                `ZREVRANGEBYSCORE`	按 分数区间 取成员（倒序）	从高到低 10090 分
-                `ZRANGEBYLEX`	按 字典序区间 取成员（分数必须相同）	名字 AC 都有谁？
-                `ZREVRANGEBYLEX`	同上，但 倒序字典序	名字 ZX
-                `ZREMRANGEBYRANK`	删除 排行区间 内成员	删掉倒数 100 名
-                `ZREMRANGEBYSCORE`	删除 分数区间 内成员	清理 060 分的
-                `ZREMRANGEBYLEX`	删除 字典序区间 内成员（分数相同）	删掉 name AC
-                `ZSCAN`	游标分批遍历 ZSET	大数据下不阻塞
+                Command	Action	Quick reminder
+                `ZRANGE`	Get a rank range in ascending score order	Ascending leaderboard
+                `ZREVRANGE`	Get a rank range in descending score order	Descending leaderboard
+                `ZRANK`	Get a member's ascending rank (starting at 0)	What is my rank?
+                `ZREVRANK`	Get a member's descending rank	What is my rank from the bottom?
+                `ZSCORE`	Get a member's score	What is the score?
+                `ZRANGEBYSCORE`	Get members in a score range (ascending)	Who scored 90100?
+                `ZREVRANGEBYSCORE`	Get members in a score range (descending)	From 100 down to 90
+                `ZRANGEBYLEX`	Get members in a lexicographic range (scores must match)	Which names fall between A and C?
+                `ZREVRANGEBYLEX`	Same as above, but in reverse lexicographic order	Names from Z to X
+                `ZREMRANGEBYRANK`	Remove members in a rank range	Remove the bottom 100
+                `ZREMRANGEBYSCORE`	Remove members in a score range	Clean up scores from 0 to 60
+                `ZREMRANGEBYLEX`	Remove members in a lexicographic range (scores must match)	Remove names from A to C
+                `ZSCAN`	Iterate over a ZSET in cursor-based batches	Does not block on large datasets
                 */
                 let mut ret = Vec::with_capacity(1);
                 if !patterns.is_empty() {

@@ -299,7 +299,7 @@ const CASSANDRA_TYPES: &[&str] = &[
     "UDT",
     "TUPLE",
 ];
-/// Apache Cassandra 官方 CQL 关键字（CQL 3.4）
+/// Official Apache Cassandra CQL keywords (CQL 3.4).
 pub const CASSANDRA_KEYWORDS: &[&str] = &[
     "ADD",
     "AGGREGATE",
@@ -413,9 +413,9 @@ pub const CASSANDRA_KEYWORDS: &[&str] = &[
     "WITH",
     "WRITETIME",
 ];
-/// Apache Cassandra 官方内置函数清单（CQL 3.4+）
+/// Official Apache Cassandra built-in functions (CQL 3.4+).
 pub const CASSANDRA_FUNCTIONS: &[&str] = &[
-    // 日期/时间
+    // Date/time
     "current_timestamp",
     "current_date",
     "current_time",
@@ -425,7 +425,7 @@ pub const CASSANDRA_FUNCTIONS: &[&str] = &[
     "to_unix_timestamp",
     "dateof",
     "unix_timestamp_of",
-    // 转换
+    // Conversion
     "cast",
     "type_as_blob",
     "blob_as_bigint",
@@ -441,7 +441,7 @@ pub const CASSANDRA_FUNCTIONS: &[&str] = &[
     "blob_as_tinyint",
     "blob_as_uuid",
     "blob_as_varint",
-    // 数学
+    // Math
     "abs",
     "acos",
     "asin",
@@ -458,13 +458,13 @@ pub const CASSANDRA_FUNCTIONS: &[&str] = &[
     "sin",
     "sqrt",
     "tan",
-    // 聚合
+    // Aggregate
     "avg",
     "count",
     "min",
     "max",
     "sum",
-    // 字符串
+    // String
     "length",
     "char_length",
     "character_length",
@@ -477,20 +477,20 @@ pub const CASSANDRA_FUNCTIONS: &[&str] = &[
     "reverse",
     "substr",
     "substring",
-    // 集合
+    // Collection
     "collection_count",
     "collection_size",
-    // 标识
+    // Identifier
     "uuid",
     "now",
-    // token 计算
+    // Token calculation
     "token",
-    // 类型检查
+    // Type checking
     "typeof",
-    // 其他辅助
+    // Other helpers
     "ttl",
     "writetime",
-    // 二进制
+    // Binary
     "bigint_as_blob",
     "boolean_as_blob",
     "date_as_blob",

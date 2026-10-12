@@ -157,8 +157,8 @@ impl LangServerCommon for FireBirdDB {
         is_call: Option<Vec<String>>,
     ) -> anyhow::Result<Vec<TempTableColumn>> {
         /*
-                    -- 直接写
-        SELECT ABS(-1)  FROM RDB$DATABASE;   -- 返回 1
+                    -- Write it directly.
+        SELECT ABS(-1)  FROM RDB$DATABASE;   -- Returns 1.
         SELECT SUBSTRING('abc' FROM 2 FOR 2) FROM RDB$DATABASE;
         */
         if let Some(is_call) = is_call {
@@ -245,8 +245,8 @@ impl LangServerCommon for FireBirdDB {
     }
 }
 
-/// 给我firebird的完整的关键字列表rust数组 并且去掉了内置函数
-/// Firebird 4.0 **保留关键字**（不含内置函数）
+/// Provide the complete Firebird keyword list as a Rust array, excluding built-in functions.
+/// Firebird 4.0 **reserved keywords** (excluding built-in functions).
 pub const FIREBIRD_KEYWORDS: &[&str] = &[
     "ACTIVE",
     "ADD",
@@ -545,9 +545,9 @@ pub const FIREBIRD_KEYWORDS: &[&str] = &[
 ];
 
 /*
-    firebird所有的内置函数 ABS 之类的给我一个rust数组 我直接处理
+    Provide all Firebird built-in functions, such as ABS, in a Rust array for direct processing.
 */
-/// Firebird 内置函数（标量）名称表，按字母序
+/// Firebird scalar built-in function names, in alphabetical order.
 pub const FB_BUILTIN_FUNCTIONS: &[&str] = &[
     "ABS",
     "ACOS",

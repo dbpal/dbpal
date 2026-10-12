@@ -558,10 +558,10 @@ export function generateRandomId(length = 8) {
   const letters = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ";
   const allChars = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
 
-  // 1. 确保首位是字母
+  // 1. Ensure the first character is a letter.
   let result = letters.charAt(Math.floor(Math.random() * letters.length));
 
-  // 2. 生成剩余部分
+  // 2. Generate the remaining characters.
   for (let i = 1; i < length; i++) {
     result += allChars.charAt(Math.floor(Math.random() * allChars.length));
   }

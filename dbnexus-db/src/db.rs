@@ -38,65 +38,65 @@ impl BackendKind {
     pub(crate) fn case_rule(self) -> sql_insight::CaseRule {
         match self {
             BackendKind::Mysql(_) => {
-                // MySQL: 在Unix上区分大小写，在Windows上不区分
-                // 使用 Sensitive 以保留精确匹配，避免数据正确性问题
+                // MySQL: case-sensitive on Unix and case-insensitive on Windows.
+                // Use Sensitive to preserve exact matching and avoid data correctness issues.
                 sql_insight::CaseRule::Sensitive
             }
             BackendKind::LibSql => {
-                // LibSQL: 继承SQLite行为，不区分大小写
+                // LibSQL: inherits SQLite behavior and is case-insensitive.
                 sql_insight::CaseRule::Insensitive
             }
             BackendKind::PostGres(_) => {
-                // PostgreSQL: 未加引号转为小写，加引号保留
+                // PostgreSQL: unquoted identifiers are converted to lowercase; quoted ones retain their case.
                 sql_insight::CaseRule::Lower
             }
             BackendKind::SqlServer => {
-                // SQL Server: 默认不区分大小写（取决于collation）
-                // 使用 Insensitive 作为默认行为
+                // SQL Server: case-insensitive by default (depending on collation).
+                // Use Insensitive as the default behavior.
                 sql_insight::CaseRule::Insensitive
             }
             BackendKind::Mongo => {
-                // MongoDB: 集合名区分大小写
+                // MongoDB: collection names are case-sensitive.
                 sql_insight::CaseRule::Sensitive
             }
             BackendKind::Redis => {
-                // Redis: key区分大小写
+                // Redis: keys are case-sensitive.
                 sql_insight::CaseRule::Sensitive
             }
             BackendKind::Sqlite => {
-                // SQLite: 默认不区分大小写（取决于collation）
+                // SQLite: case-insensitive by default (depending on collation).
                 sql_insight::CaseRule::Insensitive
             }
             BackendKind::Cassandra => {
-                // Cassandra: 引用标识符区分大小写，否则转为小写
+                // Cassandra: quoted identifiers are case-sensitive; otherwise, they are converted to lowercase.
                 sql_insight::CaseRule::Lower
             }
             BackendKind::ClickHouse => {
-                // ClickHouse: 默认标识符区分大小写
+                // ClickHouse: identifiers are case-sensitive by default.
                 sql_insight::CaseRule::Sensitive
             }
             BackendKind::Firebird => {
-                // Firebird: 未加引号转为大写
+                // Firebird: unquoted identifiers are converted to uppercase.
                 sql_insight::CaseRule::Upper
             }
             BackendKind::Oracle => {
-                // Oracle: 未加引号转为大写
+                // Oracle: unquoted identifiers are converted to uppercase.
                 sql_insight::CaseRule::Upper
             }
             BackendKind::DuckDB => {
-                // DuckDB: 保留大小写，但不区分比较
+                // DuckDB: preserves case but compares identifiers case-insensitively.
                 sql_insight::CaseRule::Insensitive
             }
             BackendKind::BigQuery => {
-                // BigQuery: 不区分大小写
+                // BigQuery: case-insensitive.
                 sql_insight::CaseRule::Insensitive
             }
             BackendKind::Db2 => {
-                // DB2: 未加引号转为大写
+                // DB2: unquoted identifiers are converted to uppercase.
                 sql_insight::CaseRule::Upper
             }
             BackendKind::CouchBase => {
-                // Couchbase: 区分大小写
+                // Couchbase: case-sensitive.
                 sql_insight::CaseRule::Sensitive
             }
         }
@@ -179,7 +179,7 @@ impl BackendKind {
         matches!(self, Self::Mysql(..))
     }
 
-    // 支持这样的语法 @@或者@访问一些全局或者局部的变量
+    // Support syntax such as @@ or @ to access global or local variables.
     pub fn support_at(self) -> bool {
         self.mysql_like() || self == Self::SqlServer
     }
@@ -216,7 +216,7 @@ pub trait GetBackendKind {
     fn backend_kind(&self) -> BackendKind;
 }
 
-// those backend 不支持连接支持设置用这个trait辅助实现呢
+// For backends that do not support connection options, use this trait to provide a helper implementation.
 pub trait ReadOnlyTrait {
     fn read_only(&self) -> bool;
     fn can_write(&self) -> anyhow::Result<()> {
@@ -879,8 +879,8 @@ pub trait SchemaTrait:
     }
 
     async fn show_view_columns(&self, view_name: &str) -> anyhow::Result<Vec<Field>> {
-        // 有些后端没有数据 也能得到完整的结果所以提供一个默认实现
-        // 后端基于sqlx的需要使用prepare_with这种特殊的接口
+        // Some backends can return a complete result even when there is no data, so provide a default implementation.
+        // Backends based on sqlx need to use the special prepare_with interface.
         let result = QueryRespMemoryCollector::default();
         let result_clone = result.clone();
 
@@ -1707,11 +1707,11 @@ pub trait CatalogTrait:
 #[serde(tag = "extra", rename_all = "lowercase")]
 pub enum CreateDatabaseExtra {
     Couchbase {
-        // 在 Couchbase 中，ram_quota_mb 是一个重要的配置参数，用于指定一个桶（bucket）分配的内存大小。这个参数的单位是兆字节（MB），它决定了该桶可以使用的内存量。
+        // In Couchbase, ram_quota_mb specifies the amount of memory allocated to a bucket, in megabytes (MB).
         ram_quota_mb: u32,
-        // 是否启用 flush 操作。启用 flush 操作可以清空桶中的所有数据。
+        // Whether to enable the flush operation, which clears all data in the bucket.
         flush_enabled: bool,
-        // 副本数量，即每个文档的副本数。副本数量必须小于或等于集群中的节点数。
+        // Number of replicas for each document. This must be less than or equal to the number of nodes in the cluster.
         num_replicas: u32,
         // in seconds
         max_expiry: Option<u32>,
@@ -2913,7 +2913,7 @@ pub struct Field {
 
 impl fmt::Display for Field {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        // 基础列定义: field_name data_type [NOT NULL] [DEFAULT xxx] [PRIMARY KEY] [AUTO_INCREMENT]
+        // Basic column definition: field_name data_type [NOT NULL] [DEFAULT xxx] [PRIMARY KEY] [AUTO_INCREMENT]
         write!(f, "{} {}", self.field, self.data_type)?;
 
         if !self.nullable {

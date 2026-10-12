@@ -11,7 +11,7 @@ interface MonacoEditorProps {
   barLeft?: ReactNode;
 }
 
-// 不能随便设置textalign 这个是继承属性 会影响monaco editor的显示呢
+// Do not set textAlign arbitrarily; it is an inherited property and affects how the Monaco editor is displayed.
 
 function MonacoEditor({
   value,
@@ -48,12 +48,12 @@ function MonacoEditor({
 
   useEffect(() => {
     if (!editorIns) {
-      // 1. 初始化编辑器
+      // 1. Initialize the editor.
       const ed = editor.create(editorRef.current, { automaticLayout: true });
       setIns(ed);
       ed.focus();
     }
-    // 3. 组件卸载时销毁实例，防止内存泄漏
+    // 3. Destroy the instance when the component unmounts to prevent memory leaks.
     return () => {
       editorIns?.dispose();
     };
@@ -109,7 +109,7 @@ function MonacoEditor({
   useEffect(() => {
     if (!editorIns) return;
 
-    // 监听装饰器（波浪线等）的变化，这通常意味着校验完成了
+    // Listen for changes to decorations (such as squiggles), which usually means validation has completed.
     const d = editorIns.onDidChangeModelDecorations(() => {
       const model = editorIns.getModel();
       if (!model) return;

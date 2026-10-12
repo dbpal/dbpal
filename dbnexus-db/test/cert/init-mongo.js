@@ -1,5 +1,5 @@
 
-// 切换到 admin 数据库并创建管理员用户
+// Switch to the admin database and create an administrator user.
 db = db.getSiblingDB('admin');
 db.createUser({
     user: "testuser",
@@ -9,7 +9,7 @@ db.createUser({
     ]
 });
 
-// 切换到 testdb 数据库并创建用户
+// Switch to the testdb database and create a user.
 db = db.getSiblingDB('testdb');
 db.createUser({
     user: "testuser",

@@ -129,7 +129,7 @@ function UserAndPassword(props: {
           input: {
             endAdornment: !passwordVisible &&
               password != "" &&
-              platform() != "windows" && ( // window 已经有了这个功能了
+              platform() != "windows" && ( // Windows already has this feature.
                 <InputAdornment position="end">
                   <IconButton
                     onClick={() => {

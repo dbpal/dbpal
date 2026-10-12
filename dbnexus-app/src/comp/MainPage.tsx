@@ -322,23 +322,23 @@ function SeprateWindow({ children }) {
 }
 
 function AppMenu() {
-  // 假设你的 store 返回的对象里包含 event 和 content
+  // Assume the object returned by your store contains event and content.
   const data = useContextMenu((state) => state.state);
-  const setUpMenu = useContextMenu((state) => state.setUpMenu); // 假设你有关闭方法
+  const setUpMenu = useContextMenu((state) => state.setUpMenu); // Assume you have a close method.
 
   const closeMenu = useCallback(() => {
     setUpMenu(null);
   }, [setUpMenu]);
-  // 如果没有菜单数据，直接不渲染
+  // Do not render anything if there is no menu data.
   if (!data || !data.event) return null;
   data.event.preventDefault();
 
   return (
     <Menu
-      // 1. 基础开关逻辑
+      // 1. Basic open/close logic.
       open={Boolean(data)}
-      onClose={closeMenu} // 点击外部或按 Esc 会自动触发
-      // 2. 核心定位配置：让 MUI 接管原本 calMenuStyle 的工作
+      onClose={closeMenu} // Automatically triggered by clicking outside or pressing Esc.
+      // 2. Core positioning configuration: let MUI handle what calMenuStyle did before.
       anchorReference="anchorPosition"
       anchorPosition={{
         top: data.event.clientY,
@@ -347,14 +347,14 @@ function AppMenu() {
       onClick={() => {
         closeMenu();
       }}
-      // 4. 优化体验
+      // 4. Improve the user experience.
       slotProps={{
         backdrop: {
-          // 如果你不想要背景遮罩感，可以把背景设为透明
+          // Set the background to transparent if you do not want the backdrop effect.
           style: { backgroundColor: "transparent" },
         },
       }}>
-      {/* menu.content 里面应该是具体的 <MenuItem> 组件 */}
+      {/* menu.content should contain the actual <MenuItem> components. */}
       {data.content}
     </Menu>
   );

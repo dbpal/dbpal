@@ -238,12 +238,12 @@ interface SqlTableCustomToolBarLeftProps {
   setWhere: (val: string) => void;
   sort: string;
   setSort: (val: string) => void;
-  kind: DataSourceKind; // 假设你已经定义了这个 Enum 或 Type
+  kind: DataSourceKind; // Assumes you have already defined this enum or type.
   allowFiltering: boolean;
   setAllowFiltering: Dispatch<SetStateAction<boolean>>;
   tableName: string;
 }
-// 建议放在文件顶部，或者单独的文件中
+// Consider placing this at the top of the file or in a separate file.
 function SqlTableCustomToolBarLeft({
   handleReload,
   where,
@@ -255,7 +255,7 @@ function SqlTableCustomToolBarLeft({
   setAllowFiltering,
   tableName,
 }: SqlTableCustomToolBarLeftProps) {
-  // 获取 DataGrid 内部的 api 实例
+  // Get the DataGrid's internal API instance.
   const { dbName } = useContext(DbnameContext);
   const { ops, setOps } = useContext(SqlOpContext);
   const apiRef = useGridApiContext();
@@ -264,7 +264,7 @@ function SqlTableCustomToolBarLeft({
 
   const { showNotification } = useNotification();
 
-  // 使用选择器获取当前的 loading 状态
+  // Use the selector to get the current loading state.
   const isLoading: boolean = useGridSelector(apiRef, gridRowsLoadingSelector);
 
   return (
@@ -870,7 +870,7 @@ function SqlTableView_(props: {
       const findDiff = (): Map<string, string | null> => {
         const m = new Map();
         for (const key in newRow) {
-          // check if they are both null 防御性这个地方是
+          // Check whether both are null; this is a defensive check.
           if (!newRow[key] && !oldRow[key]) {
             continue;
           }
