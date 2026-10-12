@@ -65,11 +65,9 @@ calamine.workspace = true
 [features]
 # This feature is used for production builds or when a dev server is not specified, DO NOT REMOVE!!
 custom-protocol = ["tauri/custom-protocol"]
-# 用来给前端来测试loading 按钮
-# 打开口所有的接口都会卡一会
+# for testing
 random-sleep = []
 random-error = []
-paid = ["dbnexus-db/paid"]
 duckdb = ["dep:dbnexus-db2"]
 hive = ["dbnexus-db/hive"]
 devtools = []

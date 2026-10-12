@@ -1868,7 +1868,11 @@ impl<'a> CompletionStatement<'a> {
             }
             Statement::WaitFor(wait_for_statement) => {
                 self.c_on_expr(&wait_for_statement.expr).await;
-            }
+            } // Statement::CreateTextSearch(..) => {}
+              // Statement::AlterTextSearch(..) => {}
+              // Statement::CreateFileFormat { .. } => {}
+              // Statement::CreateWarehouse(..) => {}
+              // Statement::Put { .. } => {}
         }
     }
 

@@ -93,7 +93,7 @@ impl AstCompletionHelper for FireBirdDB {
                     .cols
                     .iter()
                     .map(|x| TempTableColumn {
-                        name: x.name.clone(),
+                        name: x.name.clone().to_string(),
                         data_type: None,
                     })
                     .collect();

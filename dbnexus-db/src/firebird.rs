@@ -102,7 +102,7 @@ fn infer_fields(row: &Row) -> Vec<Field> {
         .iter()
         .map(|x| {
             Field::from_name_type(
-                x.name.as_str(),
+                x.name.to_string(),
                 match &x.value {
                     SqlType::Text(_) => "TEXT",
                     SqlType::Integer(_) => "INTEGER",
@@ -111,6 +111,7 @@ fn infer_fields(row: &Row) -> Vec<Field> {
                     SqlType::Binary(_) => "BLOB",
                     SqlType::Boolean(_) => "BOOLEAN",
                     SqlType::Null => "NULL",
+                    SqlType::Int128(..) => "INT128",
                 },
             )
         })
@@ -149,10 +150,10 @@ fn encode_row_as_xlsx(
     row: &Row,
     types: Option<&HashMap<&String, &Field>>,
 ) -> anyhow::Result<Vec<Option<XlsxEditContent>>> {
-    let get_type = |name: &String| {
+    let get_type = |name: &str| {
         types
             .as_ref()
-            .and_then(|x| x.get(name).map(|x| &x.data_type))
+            .and_then(|x| x.get(&name.to_string()).map(|x| &x.data_type))
             .map(|x| x.to_uppercase())
     };
     let mut data = Vec::with_capacity(row.cols.len());
@@ -175,6 +176,7 @@ fn encode_row_as_xlsx(
             SqlType::Binary(items) => Some(encode_bytes(items).into()),
             SqlType::Boolean(x) => Some((*x).into()),
             SqlType::Null => None,
+            SqlType::Int128(x) => Some(x.to_string().into()),
         };
         data.push(value);
     }
@@ -185,10 +187,10 @@ fn encode_row(
     row: &Row,
     types: Option<&HashMap<&String, &Field>>,
 ) -> anyhow::Result<Vec<Option<String>>> {
-    let get_type = |name: &String| {
+    let get_type = |name: &str| {
         types
             .as_ref()
-            .and_then(|x| x.get(name).map(|x| &x.data_type))
+            .and_then(|x| x.get(&name.to_string()).map(|x| &x.data_type))
             .map(|x| x.to_uppercase())
     };
     let mut data = Vec::with_capacity(row.cols.len());
@@ -211,6 +213,7 @@ fn encode_row(
             SqlType::Binary(items) => Some(encode_bytes(items)),
             SqlType::Boolean(x) => Some(x.to_string()),
             SqlType::Null => None,
+            SqlType::Int128(x) => Some(x.to_string()),
         };
         data.push(value);
     }
@@ -225,10 +228,10 @@ fn encode_row_as_json(
     row: &Row,
     types: Option<&HashMap<&String, &Field>>,
 ) -> anyhow::Result<serde_json::Value> {
-    let get_type = |name: &String| {
+    let get_type = |name: &str| {
         types
             .as_ref()
-            .and_then(|x| x.get(name).map(|x| &x.data_type))
+            .and_then(|x| x.get(&name.to_string()).map(|x| &x.data_type))
             .map(|x| x.to_uppercase())
     };
     let mut m = serde_json::Map::new();
@@ -258,8 +261,12 @@ fn encode_row_as_json(
             }
             SqlType::Boolean(x) => Some(serde_json::Value::from(*x)),
             SqlType::Null => None,
+            SqlType::Int128(x) => Some(serde_json::Value::from(*x)),
         };
-        m.insert(col.name.clone(), value.unwrap_or(serde_json::Value::Null));
+        m.insert(
+            col.name.to_string(),
+            value.unwrap_or(serde_json::Value::Null),
+        );
     }
     anyhow::Ok(serde_json::Value::Object(m))
 }
@@ -299,8 +306,12 @@ impl FireBirdDB {
                         delimiter,
                     } => {
                         if first.get() && include_header {
-                            let fs: Vec<_> =
-                                row.cols.iter().map(|x| x.name.clone()).map(Some).collect();
+                            let fs: Vec<_> = row
+                                .cols
+                                .iter()
+                                .map(|x| x.name.clone())
+                                .map(|x| Some(x.to_string()))
+                                .collect();
                             sender.blocking_send(create_csv(&fs, delimiter)?.into())?;
                         }
                         let data = encode_row(&row, Some(&types))?;
@@ -334,7 +345,7 @@ impl FireBirdDB {
                     }
                     ExportKind::Html { include_header } => {
                         if first.get() && include_header {
-                            let fs: Vec<_> = row.cols.iter().map(|x| x.name.clone()).collect();
+                            let fs: Vec<_> = row.cols.iter().map(|x| x.name.to_string()).collect();
                             sender.blocking_send(create_html_table_header(&fs).into())?;
                         }
                         let data = encode_row(&row, Some(&types))?;
@@ -342,7 +353,7 @@ impl FireBirdDB {
                     }
                     ExportKind::MarkDown => {
                         if first.get() {
-                            let fs: Vec<_> = row.cols.iter().map(|x| x.name.clone()).collect();
+                            let fs: Vec<_> = row.cols.iter().map(|x| x.name.to_string()).collect();
                             sender.blocking_send(create_markdown_header(&fs).into())?;
                         }
                         let data = encode_row(&row, Some(&types))?;
@@ -810,7 +821,7 @@ impl SchemaTrait for FireBirdDB {
     }
 
     fn list_sql_current_values(&self) -> &'static [&'static str] {
-        <Self as SqlBuilder>::get_current_values(self)
+        <Self as SqlBuilder>::get_predefine_names(self)
     }
 
     async fn export_table_or_view(
@@ -1126,7 +1137,7 @@ pub const FB_CURRENT_LITERALS: &[&str] = &[
 ];
 
 impl SqlBuilder for FireBirdDB {
-    fn get_current_values(&self) -> &'static [&'static str] {
+    fn get_predefine_names(&self) -> &'static [&'static str] {
         FB_CURRENT_LITERALS
     }
 

@@ -1258,7 +1258,8 @@ pub struct SqlEvent {
     pub metas: Vec<MetaValue>,
 }
 pub trait SqlBuilder: GetBackendKind {
-    fn get_current_values(&self) -> &'static [&'static str] {
+    // get predefine name like current_time etc ...
+    fn get_predefine_names(&self) -> &'static [&'static str] {
         &[]
     }
 
@@ -1270,7 +1271,7 @@ pub trait SqlBuilder: GetBackendKind {
     ) -> String;
 
     fn hit_current_value(&self, value: &str) -> bool {
-        self.get_current_values()
+        self.get_predefine_names()
             .iter()
             .any(|cur| cur.eq_ignore_ascii_case(value))
     }
@@ -1887,6 +1888,11 @@ pub enum XlsxEditContent {
     Bool(bool),
 }
 
+impl From<Arc<str>> for XlsxEditContent {
+    fn from(value: Arc<str>) -> Self {
+        Self::String(value.to_string())
+    }
+}
 impl From<i64> for XlsxEditContent {
     fn from(value: i64) -> Self {
         Self::number(value as f64)
@@ -3388,14 +3394,6 @@ impl From<QueryResp> for QueryEvent {
 impl From<Vec<Vec<Option<String>>>> for QueryEvent {
     fn from(value: Vec<Vec<Option<String>>>) -> Self {
         Self::Data(value)
-    }
-}
-
-pub fn need_paid() -> anyhow::Result<()> {
-    if cfg!(feature = "paid") {
-        anyhow::Ok(())
-    } else {
-        anyhow::bail!("this feature is paid")
     }
 }
 

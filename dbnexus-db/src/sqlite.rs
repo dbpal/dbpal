@@ -381,7 +381,7 @@ impl SchemaTrait for SqliteDB {
     }
 
     fn list_sql_current_values(&self) -> &'static [&'static str] {
-        <Self as SqlBuilder>::get_current_values(self)
+        <Self as SqlBuilder>::get_predefine_names(self)
     }
 
     async fn list_data_types(&self) -> anyhow::Result<Vec<String>> {
@@ -761,7 +761,7 @@ impl SqlBuilder for SqliteDB {
         None
     }
 
-    fn get_current_values(&self) -> &'static [&'static str] {
+    fn get_predefine_names(&self) -> &'static [&'static str] {
         SQLITE_CURRENT_LITERALS
     }
     fn encode_value(&self, typ: &str, value: &str) -> anyhow::Result<String> {

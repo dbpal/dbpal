@@ -419,7 +419,7 @@ impl SchemaTrait for PostGresDB {
     }
 
     fn list_sql_current_values(&self) -> &'static [&'static str] {
-        <Self as SqlBuilder>::get_current_values(self)
+        <Self as SqlBuilder>::get_predefine_names(self)
     }
     async fn list_sequence(&self) -> anyhow::Result<Vec<SequenceDetail>> {
         self.list_sequences_impl(self.config.schema_str()).await
@@ -1963,7 +1963,7 @@ impl SqlBuilder for PostGresDB {
         self.config.schema.as_deref()
     }
 
-    fn get_current_values(&self) -> &'static [&'static str] {
+    fn get_predefine_names(&self) -> &'static [&'static str] {
         PG_CURRENT_LITERALS
     }
 

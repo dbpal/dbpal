@@ -1033,7 +1033,7 @@ impl SchemaTrait for OracleDB {
     }
 
     fn list_sql_current_values(&self) -> &'static [&'static str] {
-        <Self as SqlBuilder>::get_current_values(self)
+        <Self as SqlBuilder>::get_predefine_names(self)
     }
 
     async fn list_materialized_view(&self) -> anyhow::Result<Vec<ListTable>> {
@@ -1628,7 +1628,7 @@ impl SqlBuilder for OracleDB {
         self.config.schema.as_deref()
     }
 
-    fn get_current_values(&self) -> &'static [&'static str] {
+    fn get_predefine_names(&self) -> &'static [&'static str] {
         ORACLE_CURRENT_LITERALS
     }
 

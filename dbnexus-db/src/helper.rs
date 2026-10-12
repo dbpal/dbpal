@@ -523,13 +523,13 @@ pub fn extract_bytes_from_serde_values(values: &[serde_json::Value]) -> anyhow::
 
 pub fn get_array_tuple_element_type(ty: &DataType, index: usize) -> anyhow::Result<&DataType> {
     let r = match ty {
-        DataType::Array(x) => match x {
+        DataType::Array(ast) => match ast {
             ArrayElemTypeDef::None => {
                 anyhow::bail!("ArrayElemTypeDef::None can't retrive a valid type")
             }
-            ArrayElemTypeDef::AngleBracket(data_type) => data_type.as_ref(),
-            ArrayElemTypeDef::SquareBracket(data_type, _) => data_type.as_ref(),
-            ArrayElemTypeDef::Parenthesis(data_type) => data_type.as_ref(),
+            ArrayElemTypeDef::AngleBracket(data_type)
+            | ArrayElemTypeDef::SquareBracket(data_type, _)
+            | ArrayElemTypeDef::Parenthesis(data_type) => data_type.as_ref(), //  ArrayElemTypeDef::Qualified(data_type, _) => data_type.as_ref(),
         },
         DataType::Tuple(x) => match x.get(index) {
             Some(x) => &x.field_type,
@@ -677,6 +677,9 @@ pub fn ty_remove_nullable(x: &DataType) -> DataType {
             ArrayElemTypeDef::Parenthesis(data_type) => DataType::Array(
                 ArrayElemTypeDef::Parenthesis(Box::new(ty_remove_nullable(data_type.as_ref()))),
             ),
+            // ArrayElemTypeDef::Qualified(data_type, b) => {
+            //     ArrayElemTypeDef::Qualified(Box::new(ty_remove_nullable(data_type.as_ref())), *b)
+            // }
         },
         DataType::Map(data_type, data_type1) => DataType::Map(
             Box::new(ty_remove_nullable(data_type.as_ref())),

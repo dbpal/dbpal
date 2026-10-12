@@ -872,7 +872,7 @@ impl SqlBuilder for CassandraDB {
         }
     }
 
-    fn get_current_values(&self) -> &'static [&'static str] {
+    fn get_predefine_names(&self) -> &'static [&'static str] {
         CQL_CURRENT_LITERALS
     }
 
@@ -1041,7 +1041,7 @@ pub(crate) fn extract_cql3_parser_ident(x: &cql3_parser::common::Identifier) -> 
 #[async_trait::async_trait]
 impl SchemaTrait for CassandraDB {
     fn list_sql_current_values(&self) -> &'static [&'static str] {
-        <Self as SqlBuilder>::get_current_values(self)
+        <Self as SqlBuilder>::get_predefine_names(self)
     }
 
     async fn drop_created_type(&self, name: &str) -> anyhow::Result<String> {

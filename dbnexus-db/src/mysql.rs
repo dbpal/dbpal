@@ -711,7 +711,7 @@ impl SchemaTrait for MysqlDB {
     }
 
     fn list_sql_current_values(&self) -> &'static [&'static str] {
-        <Self as SqlBuilder>::get_current_values(self)
+        <Self as SqlBuilder>::get_predefine_names(self)
     }
     async fn create_index(&self, table: &str, req: &CreateIndexReq) -> anyhow::Result<String> {
         let sql = req.common_sql(table, true, self.backend_kind().quote_style())?;
@@ -1968,7 +1968,7 @@ impl SqlBuilder for MysqlDB {
         self.config.db.as_deref()
     }
 
-    fn get_current_values(&self) -> &'static [&'static str] {
+    fn get_predefine_names(&self) -> &'static [&'static str] {
         MYSQL_CURRENT_LITERALS
     }
     fn encode_value(&self, f: &str, value: &str) -> anyhow::Result<String> {

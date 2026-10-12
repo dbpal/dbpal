@@ -868,7 +868,7 @@ pub trait LangServerCommon: GetBackendKind + GetKeyWords + Send + Sync {
             .collect()
     }
 
-    fn dialect(&self) -> Box<dyn sqlparser::dialect::Dialect + Send + Sync>;
+    fn dialect(&self) -> Box<dyn sqlparser::dialect::Dialect + Send + Sync + 'static>;
     async fn list_table(&self, schema: Option<&str>) -> anyhow::Result<Vec<String>>;
     // list view or materialized view
     async fn list_view(&self, schema: Option<&str>) -> anyhow::Result<Vec<String>>;

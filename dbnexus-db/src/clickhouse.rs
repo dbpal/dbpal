@@ -168,7 +168,7 @@ impl ExtractSqlValeFromJsonValue for ClickHouseDB {
                 }
                 serde_json::Value::Object(values) => {
                     let (kty, vty) = match ty {
-                        DataType::Map(kty, vty) => (kty.as_ref(), vty.as_ref()),
+                        DataType::Map(kty, vty, ..) => (kty.as_ref(), vty.as_ref()),
                         _ => {
                             anyhow::bail!("should be map type but:{:?}", ty);
                         }
@@ -202,7 +202,7 @@ impl SchemaTrait for ClickHouseDB {
         LexerCompletionTrait::get_types(self).await
     }
     fn list_sql_current_values(&self) -> &'static [&'static str] {
-        <Self as SqlBuilder>::get_current_values(self)
+        <Self as SqlBuilder>::get_predefine_names(self)
     }
     async fn list_view(&self) -> anyhow::Result<Vec<ListTable>> {
         self.list_view_impl(self.config.db_str()).await
@@ -1280,7 +1280,7 @@ pub const CH_CURRENT_LITERALS: &[&str] = &[
 ];
 
 impl SqlBuilder for ClickHouseDB {
-    fn get_current_values(&self) -> &'static [&'static str] {
+    fn get_predefine_names(&self) -> &'static [&'static str] {
         CH_CURRENT_LITERALS
     }
     fn update_sql(

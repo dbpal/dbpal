@@ -636,7 +636,7 @@ impl SchemaTrait for SqlServerDB {
     }
 
     fn list_sql_current_values(&self) -> &'static [&'static str] {
-        <Self as SqlBuilder>::get_current_values(self)
+        <Self as SqlBuilder>::get_predefine_names(self)
     }
     async fn create_index(&self, table: &str, req: &CreateIndexReq) -> anyhow::Result<String> {
         self.can_write()?;
@@ -1300,7 +1300,7 @@ impl SqlBuilder for SqlServerDB {
         self.config.schema.as_deref()
     }
 
-    fn get_current_values(&self) -> &'static [&'static str] {
+    fn get_predefine_names(&self) -> &'static [&'static str] {
         SQLSERVER_CURRENT_LITERALS
     }
     /// format a value make it suitable for insert into sql.

@@ -20,6 +20,7 @@ impl From<ObjectType> for CompletionKind {
             ObjectType::User => CompletionKind::Role,
             ObjectType::Stream => CompletionKind::Stream,
             ObjectType::Collation => CompletionKind::Text,
+            // ObjectType::Warehouse => CompletionKind::Text,
         }
     }
 }
@@ -96,24 +97,15 @@ impl<'a> CompletionStatement<'a> {
     }
     pub(crate) async fn c_on_output_clause(&mut self, output: &OutputClause) {
         match output {
-            OutputClause::Output {
-                select_items,
-                into_table,
-                ..
-            } => {
+            OutputClause::Output { select_items, .. } => {
                 self.c_on_select_items(&select_items[..]).await;
-                if let Some(into_table) = into_table {
-                    self.c_on_select_into(into_table).await;
-                }
             }
             OutputClause::Returning { select_items, .. } => {
                 self.c_on_select_items(&select_items[..]).await;
             }
         }
     }
-    pub(crate) async fn c_on_select_into(&mut self, select_into: &SelectInto) {
-        self.c_on_table(&select_into.name).await;
-    }
+
     pub(crate) async fn c_on_show_statement_filter(&mut self, filter: &ShowStatementFilter) {
         match filter {
             ShowStatementFilter::Like(..) => {}
@@ -243,7 +235,9 @@ impl<'a> CompletionStatement<'a> {
                 | ArrayElemTypeDef::SquareBracket(data_type, _)
                 | ArrayElemTypeDef::Parenthesis(data_type) => {
                     Box::pin(self.c_on_data_type(data_type.as_ref())).await
-                }
+                } // ArrayElemTypeDef::Qualified(data_type, _) => {
+                  //     Box::pin(self.c_on_data_type(data_type.as_ref())).await
+                  // }
             },
             DataType::Map(data_type, data_type1) => {
                 Box::pin(self.c_on_data_type(data_type.as_ref())).await;
@@ -2202,7 +2196,9 @@ impl<'a> CompletionStatement<'a> {
             Expr::MemberOf(member_of) => {
                 Box::pin(self.c_on_expr(&member_of.array)).await;
                 Box::pin(self.c_on_expr(&member_of.value)).await;
-            }
+            } // Expr::IsJson { expr, .. } => {
+              //     Box::pin(self.c_on_expr(expr.as_ref())).await;
+              // }
         }
     }
     pub(crate) async fn c_on_access_expr(&mut self, acc: &AccessExpr) {
@@ -2637,9 +2633,6 @@ impl<'a> CompletionStatement<'a> {
         }
         if let Some(t) = &select.top {
             self.c_on_top(t).await
-        }
-        if let Some(into) = &select.into {
-            self.c_on_table(&into.name).await;
         }
         if let Some(p) = &select.prewhere {
             self.c_on_expr(p).await;
@@ -3846,6 +3839,7 @@ impl<'a> CompletionStatement<'a> {
                     }
                     MergeInsertKind::Row => {}
                 }
+
                 // nothing to do here we can fallback to the lexer
                 // for col in merge_insert_expr.columns.iter() {
                 //
