@@ -19,7 +19,8 @@ import {
   Box,
   InputAdornment,
   Collapse,
-  Alert,
+  Checkbox,
+  FormControlLabel,
 } from "@mui/material";
 import {
   AiOutlineDisconnect,
@@ -1528,6 +1529,7 @@ function ExportTableOnTheFilterSort(props: {
 }) {
   const { tableName, isTable, para, extraUI } = props;
   const [showExport, setShowExport] = useState(false);
+  const [onlyCurrentPage, setOnlyCurrentPage] = useState(false);
   return (
     <>
       <IconButton
@@ -1543,9 +1545,22 @@ function ExportTableOnTheFilterSort(props: {
           handleClose={() => {
             setShowExport(false);
           }}
-          extraUI={extraUI}
+          extraUI=<Stack>
+            {para.page != 0 && para.page_size != 0 && (
+              <FormControlLabel
+                control={
+                  <Checkbox
+                    checked={onlyCurrentPage}
+                    onChange={(event) => setOnlyCurrentPage(event.target.checked)}
+                  />
+                }
+                label="only export current page."
+              />
+            )}
+            {extraUI}
+          </Stack>
           isTable={isTable}
-          para={{ ...para, page: null, page_size: null }}
+          para={onlyCurrentPage ? para : { ...para, page: null, page_size: null }}
         />
       )}
     </>
@@ -1558,10 +1573,10 @@ function SqlExportTableOnFilterSortNotice() {
       <Typography>
         export table to file base on current setting,filter and sort
       </Typography>
-      <Alert severity="info"> page and page_size will be ignored </Alert>
     </>
   );
 }
+
 export {
   SqlExportTableOnFilterSortNotice,
   ExportTableOnTheFilterSort,

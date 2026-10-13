@@ -250,10 +250,13 @@ function CouchBaseTable_(props: { table: string }) {
           <ExportTableOnTheFilterSort
             isTable
             tableName={table}
-            para={{ filter: filter ? filter : null, sort: sort ? sort : null }}
-            extraUI=<>
-              <SqlExportTableOnFilterSortNotice />
-            </>
+            para={{
+              filter: filter ? filter : null,
+              sort: sort ? sort : null,
+              page,
+              page_size: pageSize,
+            }}
+            extraUI=<SqlExportTableOnFilterSortNotice />
           />
         </Stack>
         <Typography variant="h5"> {table} </Typography>

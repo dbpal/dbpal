@@ -1927,7 +1927,7 @@ function RedisPagination(props: { dbpal: RedisPaginationDbPal }) {
           para={{ filter: keyMatch ? keyMatch : null }}
           extraUI=<>
             {keyMatch && (
-              <Typography> export key to reuslt file base on the key match </Typography>
+              <Typography> export key to result file base on the key match </Typography>
             )}
           </>
         />

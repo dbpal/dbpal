@@ -585,10 +585,8 @@ function MongoTableToolBar(props: {
             const sortStr = arrayToHex(BSON.serialize(sort));
             return { filter: whereStr, sort: sortStr };
           })()}
+          extraUI=<SqlExportTableOnFilterSortNotice />
           tableName={table}
-          extraUI=<>
-            <SqlExportTableOnFilterSortNotice />
-          </>
         />
 
         {someNotice}

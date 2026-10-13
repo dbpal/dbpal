@@ -3477,9 +3477,10 @@ impl Default for FirstTrue {
 
 impl FirstTrue {
     pub fn get(&self) -> bool {
-        let value = self.value.load(Ordering::SeqCst);
+        // this struct will used on single thread
+        let value = self.value.load(Ordering::Relaxed);
         if value {
-            self.value.store(false, Ordering::SeqCst);
+            self.value.store(false, Ordering::Relaxed);
         }
         value
     }

@@ -476,9 +476,7 @@ function SqlTablePagination_({
           tableName={table}
           isTable={isTable}
           para={para}
-          extraUI=<>
-            <SqlExportTableOnFilterSortNotice />
-          </>
+          extraUI=<SqlExportTableOnFilterSortNotice />
         />
 
         {isTable && <AddTableModal kind={kind} tableName={table} />}
