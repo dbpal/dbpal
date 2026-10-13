@@ -63,7 +63,7 @@ tiberius = { version = "0.12.3", default-features = false, features = [
     "tds73",
     "native-tls",
 ] }
-html-escape = "0.2.13"
+html-escape = "0.3"
 scylla = { version = "1.7", features = ["openssl-010"] }
 scylla-openssl = { package = "openssl", version = "0.10" }
 bb8-tiberius = "0.16"
