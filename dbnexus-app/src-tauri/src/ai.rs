@@ -1,15 +1,12 @@
 use base64::Engine;
-
 use dbnexus_db::couchbase::CouchBaseDB;
 use dbnexus_db::db::{BackendKind, ExportFrame, ExportKind, TimeElapsed};
 use dbnexus_db::mongo::MongoDB;
-
 use dbnexus_db::redis::RedisDB;
 use futures_util::StreamExt;
 use mongodb::bson::doc;
-use rig::agent::{Agent, MultiTurnStreamItem, StreamingError, Text};
+use rig::agent::{Agent, MultiTurnStreamItem, Text};
 use rig::loaders::StripXmlProcessor;
-use rig::streaming::{StreamedAssistantContent, StreamedUserContent, StreamingPrompt};
 use rig::AgentBuilder;
 use serde::{Deserialize, Serialize};
 use std::sync::{Arc, Mutex};
@@ -19,9 +16,9 @@ use crate::app::{
     self, AISteamResp, AiOnlineSearch, DBPal, DatabaseBackend, ErrorFrontend, OpenAIReq,
     TaskManager,
 };
-use rig::completion::{Message, Prompt, PromptError};
-use rig::message::{DocumentSourceKind, Image, ReasoningContent, ToolResultContent, UserContent};
-use rig::{client::Client, providers::openai};
+use rig::completion::{Message, PromptError};
+use rig::message::{DocumentSourceKind, Image, UserContent};
+use rig::providers::openai;
 use tauri::ipc::Channel;
 
 impl From<PromptError> for ErrorFrontend {
@@ -42,11 +39,12 @@ fn make_agent_builder(
 ) -> anyhow::Result<AgentBuilderWithTools> {
     #[cfg(debug_assertions)]
     log::info!("open ai req:{:?}", req);
-    let builder = openai::Client::builder()
-        .api_key(&req.api_key)
-        .base_url(&req.url);
-    let api: Client<openai::OpenAIResponsesExt> = builder.build()?;
-    let mut agent_builder = rig::client::AgentClientExt::agent(&api, &req.model);
+    let openai_client = openai::OpenAIConfig::new(req.api_key.clone())
+        .with_base_url(&req.url)
+        .client();
+
+    let mut agent_builder = AgentBuilder::new(openai_client.completion(&req.model));
+
     if let Some(t) = req.max_tokens {
         agent_builder = agent_builder.max_tokens(t as u64);
     }
@@ -56,7 +54,7 @@ fn make_agent_builder(
     if let Some(t) = req.temperature {
         agent_builder = agent_builder.temperature(t);
     }
-    // TODO how to set this???
+    // TODO how to set this paramater???
     agent_builder = agent_builder.default_max_turns(20);
 
     let agent_builder = agent_builder.dynamic_tools(vec![]);
@@ -69,87 +67,43 @@ pub async fn openai_invoke(req: app::OpenAIReq) -> Result<String, ErrorFrontend>
     let api = make_agent_builder(&req, None).map_err(ErrorFrontend::from)?;
     let api = api.build();
     let r = api.prompt(&req.prompt).await?;
-    Ok(r)
+    Ok(r.to_string())
 }
 
-impl From<StreamingError> for ErrorFrontend {
-    fn from(value: StreamingError) -> Self {
-        Self {
-            reason: format!("{}", value),
-            detail: format!("{:?}", value),
-            cancelled: false,
-        }
-    }
-}
-
-async fn call_openai_stream(
-    agent: Agent,
+async fn call_agent_stream(
+    agent: &Agent,
     emit: Arc<dyn Fn(AISteamResp) + Send + Sync + 'static>,
-    comment_fn: impl Fn(&str) -> String + Send + Sync + 'static,
     prompt: Message,
 ) -> Result<(), ErrorFrontend> {
-    let mut prompt = agent.stream_prompt(prompt).await;
-    while let Some(chunk) = prompt.next().await {
+    let mut stream = agent.prompt(prompt).stream();
+    while let Some(chunk) = stream.next().await {
         let chunk = chunk.unwrap();
         match chunk {
             MultiTurnStreamItem::StreamAssistantItem(item) => match item {
-                StreamedAssistantContent::Text(text) => {
-                    emit(text.text().to_owned().into());
-                }
-                StreamedAssistantContent::ToolCall { .. } => {
-                    // tool call have notice
-                }
-                StreamedAssistantContent::ToolCallDelta { .. } => {}
-                StreamedAssistantContent::Reasoning { reasoning, .. } => {
-                    reasoning.content.iter().for_each(|x| match x {
-                        ReasoningContent::Text { text, signature: _ } => {
-                            emit(text.clone().into());
-                        }
-                        ReasoningContent::Encrypted(_) => {}
-                        ReasoningContent::Redacted { .. } => {}
-                        ReasoningContent::Summary(summary) => emit(summary.clone().into()),
-                    })
-                }
-                StreamedAssistantContent::ReasoningDelta { reasoning, .. } => {
-                    emit(reasoning.into())
-                }
-                StreamedAssistantContent::Final(x) => {
-                    emit(AISteamResp::TokenUsage {
-                        input_token: x.usage.input_tokens as u32,
-                        output_token: x.usage.output_tokens as u32,
-                        total_token: x.usage.total_tokens as u32,
-                    });
-                }
-                StreamedAssistantContent::Unknown(..) => {}
-            },
-            MultiTurnStreamItem::StreamUserItem(x) => match x {
-                StreamedUserContent::ToolResult {
-                    tool_result,
-                    internal_call_id: _,
-                } => {
-                    // those text in
-                    for x in tool_result.content.iter() {
-                        match x {
-                            ToolResultContent::Text(text) => emit(
-                                comment_fn(if let Some(x) = text.text().get(0..20) {
-                                    x
-                                } else {
-                                    text.text()
-                                })
-                                .into(),
-                            ),
-                            ToolResultContent::Image(..) => {
-                                return Err(ErrorFrontend::from(
-                                    "we should not support generate image???",
-                                ))
-                            }
-                            ToolResultContent::Json { .. } => {}
-                        }
+                rig::streaming::Item::Event(e) => match &e {
+                    rig::streaming::StreamEvent::Start { .. } => {}
+                    rig::streaming::StreamEvent::Text { text, .. } => {
+                        emit(text.clone().into());
                     }
+                    rig::streaming::StreamEvent::Reasoning { text, .. } => {
+                        emit(text.clone().into());
+                    }
+
+                    rig::streaming::StreamEvent::Arguments { .. } => {}
+                    rig::streaming::StreamEvent::End { .. } => {}
+                },
+                rig::streaming::Item::Unknown(unknown_payload) => {
+                    log::error!("rig returns me unknown payload :{:?}", unknown_payload)
                 }
             },
-            MultiTurnStreamItem::FinalResponse(..) => {
-                // emit(final_response.response().to_owned())
+            MultiTurnStreamItem::ToolCall { .. } => {}
+            MultiTurnStreamItem::FinalResponse(resp) => {
+                let usage = resp.usage();
+                emit(AISteamResp::TokenUsage {
+                    input_token: usage.input_tokens.map(|x| x as u32),
+                    output_token: usage.output_tokens.map(|x| x as u32),
+                    total_token: usage.total_tokens.map(|x| x as u32),
+                });
             }
             MultiTurnStreamItem::CompletionCall(..) => {}
             _ => {
@@ -157,7 +111,6 @@ async fn call_openai_stream(
             }
         }
     }
-
     Ok(())
 }
 
@@ -696,7 +649,7 @@ pub async fn openai_stream(
             data: DocumentSourceKind::Url(x.clone()),
             media_type: None,
             detail: None,
-            additional_params: None,
+            native: None,
         })
     });
     let agent = agent.build();
@@ -722,10 +675,7 @@ pub async fn openai_stream(
                 "system local is :{}",
                 sys_locale::get_locale().unwrap_or("en-us".to_string())
             )));
-            content.push(UserContent::Text(Text {
-                text: req.prompt.clone(),
-                additional_params: None,
-            }));
+            content.push(UserContent::Text(Text::new(req.prompt.clone())));
             content.extend(
                 req.read_documents()
                     .await?
@@ -743,15 +693,14 @@ pub async fn openai_stream(
         },
     };
 
-    let fur = call_openai_stream(
-        agent,
+    let fur = call_agent_stream(
+        &agent,
         {
             let cache = Mutex::new(SteamCache::new(emit));
             Arc::new(move |s| {
                 cache.lock().expect("lock failed").send(s);
             })
         },
-        move |x| db_kind.comment(x),
         msg,
     );
     tokio::select! {
@@ -1417,13 +1366,8 @@ mod tests {
     use std::env;
 
     use super::*;
-    use dbnexus_db::{
-        datasource_config::SqliteDBConfig,
-        db::{QuerySql, SchemaTrait},
-        sqlite::{sqlite_test_file_path, SqliteDB},
-    };
+    use dbnexus_db::db::SchemaTrait;
 
-    use rig::client::AgentClientExt;
     use websearch::SearchProvider;
 
     #[test]
@@ -1444,9 +1388,9 @@ mod tests {
         fn load_from_dotenv() -> Self {
             dotenvy::dotenv().unwrap();
             Self {
-                url: std::env::var("OPEN_AI_URL").unwrap(),
-                key: std::env::var("OPEN_AI_KEY").unwrap(),
-                model: std::env::var("OPEN_AI_MODEL").unwrap(),
+                url: std::env::var("OPENAI_URL").unwrap(),
+                key: std::env::var("OPENAI_KEY").unwrap(),
+                model: std::env::var("OPENAI_MODEL").unwrap(),
             }
         }
     }
@@ -1462,7 +1406,6 @@ mod tests {
 
     async fn test_xxx() {
         let config = AITestUrlModel::load_from_dotenv();
-
         let req = &OpenAIReq {
             url: config.url.clone(),
             api_key: config.key.clone(),
@@ -1480,77 +1423,13 @@ mod tests {
         let agent = make_agent_builder(req, None).unwrap();
         let agent = agent.build();
 
-        call_openai_stream(
-            agent,
-            Arc::new(|x| print!("{}", x)),
-            |x| x.to_owned(),
+        call_agent_stream(
+            &agent,
+            Arc::new(|x| println!("{:?}", x)),
             Message::user("can u help me."),
         )
         .await
         .unwrap();
-    }
-
-    #[tokio::test]
-
-    async fn test_fine_with_tool() {
-        let db = SqliteDB::new(SqliteDBConfig {
-            path: sqlite_test_file_path(),
-            read_only: true,
-            conn_timeout: None,
-            locking_model: "normal".to_string(),
-        })
-        .await
-        .unwrap();
-        let config = AITestUrlModel::load_from_dotenv();
-        let req = &OpenAIReq {
-            user_system_prompt: None,
-            url: config.url.clone(),
-            api_key: config.key.clone(),
-            model: config.model.clone(),
-            chat_history: vec![],
-            prompt: r#"
-human: tell me Mike's age from TABLE Persons 
-                "#
-            .into(),
-            temperature: None,
-            max_tokens: None,
-            top_p: None,
-            images: vec![],
-            search_engine: Default::default(),
-            documents: vec![],
-        };
-        let query_id = "aaaa";
-
-        db.open_connection(query_id).await.unwrap();
-
-        log::info!("open ai req:{:?}", req);
-
-        let builder = openai::Client::builder()
-            .api_key(&req.api_key)
-            .base_url(&req.url);
-        let api: Client<openai::OpenAIResponsesExt> = builder.build().unwrap();
-
-        let mut agent_builder = api.agent(&req.model).preamble("U are helpful assistant.");
-
-        if let Some(t) = req.max_tokens {
-            agent_builder = agent_builder.max_tokens(t.into());
-        }
-
-        if let Some(t) = req.temperature {
-            agent_builder = agent_builder.temperature(t);
-        }
-
-        let agent_builder = agent_builder.tool(SqlQueryTool {
-            db: DatabaseBackend::Schema(Arc::new(db)),
-            query_id: query_id.to_owned(),
-            emit: Arc::new(|_| {}),
-        });
-
-        let agent = agent_builder.build();
-
-        let r = agent.prompt(&req.prompt).await.unwrap();
-
-        println!("{}", r);
     }
 
     #[tokio::test]
@@ -1636,7 +1515,7 @@ human: tell me Mike's age from TABLE Persons
             documents: vec![],
         };
 
-        let print_steam = Arc::new(|x: AISteamResp| print!("{}", x));
+        let print_steam = Arc::new(|x: AISteamResp| print!("{:?}", x));
 
         let print_emit = Arc::new(|x: String| println!("{}", x));
 
@@ -1653,7 +1532,7 @@ human: tell me Mike's age from TABLE Persons
 
             let msg = Message::user(&req.prompt);
 
-            call_openai_stream(agent, print_steam.clone(), |x| x.to_owned(), msg)
+            call_agent_stream(&agent, print_steam.clone(), msg)
                 .await
                 .unwrap();
         }
@@ -1700,8 +1579,7 @@ human: tell me Mike's age from TABLE Persons
             search_engine: Default::default(),
             documents: vec![],
         };
-
-        let emit = Arc::new(|x| print!("{}", x));
+        let emit = Arc::new(|x| print!("{:?}", x));
 
         {
             //
@@ -1720,20 +1598,18 @@ human: tell me Mike's age from TABLE Persons
             let agent = agent.build();
 
             println!("=============================== tell me the server version.");
-            call_openai_stream(
-                agent.clone(),
+            call_agent_stream(
+                &agent,
                 emit.clone(),
-                |x| x.to_string(),
                 Message::user("tell me the server version."),
             )
             .await
             .unwrap();
 
             println!("=========================================================== ");
-            call_openai_stream(
-                agent.clone(),
+            call_agent_stream(
+                &agent,
                 emit.clone(),
-                |x| x.to_string(),
                 Message::user("tell me who is the oldest in table Person"),
             )
             .await

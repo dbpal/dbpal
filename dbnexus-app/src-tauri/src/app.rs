@@ -61,9 +61,9 @@ pub enum AISteamResp {
         msg: String,
     },
     TokenUsage {
-        input_token: u32,
-        output_token: u32,
-        total_token: u32,
+        input_token: Option<u32>,
+        output_token: Option<u32>,
+        total_token: Option<u32>,
     },
 }
 
@@ -85,7 +85,7 @@ impl std::fmt::Display for AISteamResp {
                     output_token,
                     total_token,
                 } => format!(
-                    "input_token: {}, output_token: {}, total_token: {}",
+                    "input_token: {:?}, output_token: {:?}, total_token: {:?}",
                     input_token, output_token, total_token
                 ),
             }
