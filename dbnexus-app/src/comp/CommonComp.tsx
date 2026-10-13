@@ -1546,7 +1546,7 @@ function ExportTableOnTheFilterSort(props: {
             setShowExport(false);
           }}
           extraUI=<Stack>
-            {para.page != 0 && para.page_size != 0 && (
+            {para.page && para.page_size && (
               <FormControlLabel
                 control={
                   <Checkbox
