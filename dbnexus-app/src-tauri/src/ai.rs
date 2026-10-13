@@ -1315,7 +1315,7 @@ mod redis {
         }
 
         fn description(&self) -> String {
-            "执行 Redis 命令。例如: command='GET', args=['key']".to_string()
+            "Execute Redis commands. Example: command='GET', args=['key']".to_string()
         }
 
         fn parameters(&self) -> serde_json::Value {
@@ -1324,14 +1324,12 @@ mod redis {
                 "properties": {
                     "command": {
                         "type": "string",
-                        "description": "Redis 命令名称 (如: GET, SET, INFO, FLUSHDB)"
+                        "description": "Redis command name (e.g., GET, SET, INFO, FLUSHDB)"
                     },
                     "args": {
                         "type": "array",
                         "items": { "type": "string" },
-                        "description": "命令参数列表。注意：必须是真实的 JSON 数组格式，例如 [\"key1\", \"value1\"]，不要传字符串形式的数组 ,如果参数
-                                            是int或者float请转化成string
-                                            "
+                        "description": "Command argument list. Note: it must be a real JSON array format, for example [\"key1\", \"value1\"], not a stringified array. If a parameter is an int or float, convert it to a string."
                     }
                 },
                 // Key change: only command remains required here.
