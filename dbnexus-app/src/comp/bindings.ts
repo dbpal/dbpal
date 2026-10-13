@@ -74,7 +74,7 @@ export const commands = {
 	dropTrigger: (dbName: string, tableName: string, trigger: string) => __TAURI_INVOKE<string>("drop_trigger", { dbName, tableName, trigger }),
 	enableTrigger: (dbName: string, tableName: string, trigger: string, enable: boolean) => __TAURI_INVOKE<string>("enable_trigger", { dbName, tableName, trigger, enable }),
 	listProcedure: (dbName: string) => __TAURI_INVOKE<NamedStaff[]>("list_procedure", { dbName }),
-	showProcedure: (dbName: string, procedure: NamedStaff) => __TAURI_INVOKE<ProcedureDetail>("show_procedure", { dbName, procedure }),
+	showProcedure: (dbName: string, procedure: NamedStaff) => __TAURI_INVOKE<DefAndMetas>("show_procedure", { dbName, procedure }),
 	dropProcedure: (dbName: string, procedure: NamedStaff) => __TAURI_INVOKE<string>("drop_procedure", { dbName, procedure }),
 	listUdf: (dbName: string) => __TAURI_INVOKE<NamedStaff[]>("list_udf", { dbName }),
 	showUdf: (dbName: string, udf: NamedStaff) => __TAURI_INVOKE<DefAndMetas>("show_udf", { dbName, udf }),
@@ -508,11 +508,6 @@ export type PGDBConfig = {
 	conn_timeout: SomeTimeOut | null,
 	options: { [key in string]: string },
 } & (SslFilesWithStrModel);
-
-export type ProcedureDetail = {
-	def: string,
-	metas: MetaValue[],
-};
 
 export type QueryEvent = { kind: "err"; err: string } | { kind: "status"; status: string } | { kind: "data"; data: ((string | null)[])[] } | { kind: "structure"; resp: MuiDataGridData } | { kind: "end" };
 

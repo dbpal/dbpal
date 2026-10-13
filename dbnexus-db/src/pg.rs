@@ -19,9 +19,9 @@ use crate::db::{
     CreateTableAndIndexSql, CreatedTypeDef, DBTrait, DefAndMetas, ExportFrame, ExportKind,
     ExportQueryResult, ExtractSqlValeFromJsonValue, Field, FirstTrue, ForeignKeyDef,
     GetBackendKind, GetTestExportTableKinds, Index, IndexKind, ListTable, MetaValue, NamedStaff,
-    OptionMustBeSomeErr, ProcedureDetail, QueryEvent, QueryEventEmitter, QueryResp, QuerySql,
-    SchemaTrait, SequenceDetail, ServerMetas, ShowTableParameter, SqlBuilder, SqlCollect,
-    TriggerDetail, TriggerEvent, TriggerTiming, XlsxEdit, POOL_MAX_CONNECTIONS,
+    OptionMustBeSomeErr, QueryEvent, QueryEventEmitter, QueryResp, QuerySql, SchemaTrait,
+    SequenceDetail, ServerMetas, ShowTableParameter, SqlBuilder, SqlCollect, TriggerDetail,
+    TriggerEvent, TriggerTiming, XlsxEdit, POOL_MAX_CONNECTIONS,
 };
 
 use crate::helper::create_csv;
@@ -616,7 +616,7 @@ impl SchemaTrait for PostGresDB {
         anyhow::Ok(ret)
     }
 
-    async fn show_procedure(&self, name: &NamedStaff) -> anyhow::Result<ProcedureDetail> {
+    async fn show_procedure(&self, name: &NamedStaff) -> anyhow::Result<DefAndMetas> {
         let sql = format!(
             r#"
                 SELECT 
@@ -639,7 +639,7 @@ impl SchemaTrait for PostGresDB {
         let parameters: String = row.try_get(1)?;
         let code: String = row.try_get(2)?;
 
-        anyhow::Ok(ProcedureDetail {
+        anyhow::Ok(DefAndMetas {
             def: code,
             metas: vec![
                 MetaValue::new("return_type", return_type),

@@ -16,10 +16,10 @@ use crate::db::{
     ColumnType, CreateIndexReq, CreateSchemaExtra, CreateTableAndIndexSql, DBTrait, DefAndMetas,
     EncodeXlsxDatetime, ExportFrame, ExportKind, ExportQueryResult, ExtractSqlValeFromJsonValue,
     Field, FirstTrue, ForeignKeyDef, GetBackendKind, GetTestExportTableKinds, Index, IndexKind,
-    ListTable, MetaValue, NamedStaff, OptionMustBeSomeErr, ProcedureDetail, QueryEvent,
-    QueryEventEmitter, QueryResp, QuerySql, SchemaTrait, ServerMetas, ShowTableParameter,
-    SqlBuilder, SqlCollect, TriggerDetail, TriggerEnable, TriggerEvent, TriggerTiming, XlsxEdit,
-    XlsxEditContent, POOL_MAX_CONNECTIONS,
+    ListTable, MetaValue, NamedStaff, OptionMustBeSomeErr, QueryEvent, QueryEventEmitter,
+    QueryResp, QuerySql, SchemaTrait, ServerMetas, ShowTableParameter, SqlBuilder, SqlCollect,
+    TriggerDetail, TriggerEnable, TriggerEvent, TriggerTiming, XlsxEdit, XlsxEditContent,
+    POOL_MAX_CONNECTIONS,
 };
 
 use crate::helper::create_csv;
@@ -1569,10 +1569,10 @@ impl SchemaTrait for OracleDB {
         self.list_procedure_impl(self.schema_str()).await
     }
 
-    async fn show_procedure(&self, name: &NamedStaff) -> anyhow::Result<ProcedureDetail> {
+    async fn show_procedure(&self, name: &NamedStaff) -> anyhow::Result<DefAndMetas> {
         let sql = self.get_user_source(name).await?;
         log::info!("sql:{}", sql);
-        anyhow::Ok(ProcedureDetail {
+        anyhow::Ok(DefAndMetas {
             def: sql,
             metas: vec![],
         })

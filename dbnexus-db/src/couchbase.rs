@@ -204,10 +204,6 @@ impl QuerySql for CouchBaseDB {
     }
 }
 
-pub trait CouchBaseDBQueryEmit {
-    fn emit(&self, _: serde_json::Value) -> anyhow::Result<()>;
-}
-
 impl CouchBaseDB {
     pub(crate) async fn query_count(
         &self,

@@ -5,9 +5,9 @@ use crate::db::{
     CatalogTrait, CheckConn, ColumnType, CreateDatabaseExtra, CreateIndexReq, CreateSchemaExtra,
     DBTrait, DefAndMetas, EncodeXlsxDatetime, ExportFrame, ExportKind, ExportQueryResult,
     ExtractSqlValeFromJsonValue, Field, FirstTrue, ForeignKeyDef, GetBackendKind,
-    GetTestExportTableKinds, Index, IndexKind, ListTable, MetaValue, NamedStaff, ProcedureDetail,
-    QueryEvent, QueryResp, QuerySql, ReadOnlyTrait, SchemaTrait, ServerMetas, ShowTableParameter,
-    SqlBuilder, SqlCollect, TriggerDetail, TriggerEnable, TriggerEvent, TriggerTiming, XlsxEdit,
+    GetTestExportTableKinds, Index, IndexKind, ListTable, MetaValue, NamedStaff, QueryEvent,
+    QueryResp, QuerySql, ReadOnlyTrait, SchemaTrait, ServerMetas, ShowTableParameter, SqlBuilder,
+    SqlCollect, TriggerDetail, TriggerEnable, TriggerEvent, TriggerTiming, XlsxEdit,
     XlsxEditContent, POOL_MAX_CONNECTIONS,
 };
 use crate::db::{OptionMustBeSomeErr, QueryEventEmitter};
@@ -1238,7 +1238,7 @@ impl SchemaTrait for SqlServerDB {
             .await
     }
 
-    async fn show_procedure(&self, name: &NamedStaff) -> anyhow::Result<ProcedureDetail> {
+    async fn show_procedure(&self, name: &NamedStaff) -> anyhow::Result<DefAndMetas> {
         let sql = format!(
             r#"
             SELECT 
@@ -1266,13 +1266,13 @@ impl SchemaTrait for SqlServerDB {
                     let create_date: Option<chrono::NaiveDateTime> = row.try_get(0)?;
                     let modify_date: Option<chrono::NaiveDateTime> = row.try_get(1)?;
                     let def: Option<&str> = row.try_get(2)?;
-                    return anyhow::Ok(ProcedureDetail::new(
-                        def.unwrap_or_default().to_string(),
-                        vec![
+                    return anyhow::Ok(DefAndMetas {
+                        def: def.unwrap_or_default().to_string(),
+                        metas: vec![
                             MetaValue::new("create_date", create_date.map(|x| x.to_string())),
                             MetaValue::new("modify_date", modify_date.map(|x| x.to_string())),
                         ],
-                    ));
+                    });
                 }
                 tiberius::QueryItem::Metadata(_) => {}
             }

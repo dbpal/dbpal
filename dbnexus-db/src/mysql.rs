@@ -6,9 +6,9 @@ use crate::db::{
     CreateTableAndIndexSql, DBTrait, DefAndMetas, EncodeXlsxDatetime, ExportFrame, ExportKind,
     ExportQueryResult, ExtractSqlValeFromJsonValue, Field, FirstTrue, ForeignKeyDef,
     GetBackendKind, GetTestExportTableKinds, Index, IndexKind, ListTable, MetaValue, NamedStaff,
-    ProcedureDetail, QueryEvent, QueryEventEmitter, QueryResp, QuerySql, SchemaTrait,
-    SequenceDetail, ServerMetas, ShowTableParameter, SqlBuilder, SqlCollect, SqlEvent,
-    TriggerDetail, TriggerEvent, TriggerTiming, XlsxEdit, XlsxEditContent, POOL_MAX_CONNECTIONS,
+    QueryEvent, QueryEventEmitter, QueryResp, QuerySql, SchemaTrait, SequenceDetail, ServerMetas,
+    ShowTableParameter, SqlBuilder, SqlCollect, SqlEvent, TriggerDetail, TriggerEvent,
+    TriggerTiming, XlsxEdit, XlsxEditContent, POOL_MAX_CONNECTIONS,
 };
 use crate::helper::{create_csv, extract_bytes_from_serde_values};
 use crate::language_server::{get_update_sql_from_result_set_impl, LexerCompletionTrait};
@@ -815,14 +815,14 @@ impl SchemaTrait for MysqlDB {
         anyhow::Ok(ret.into_iter().map(NamedStaff::from).collect())
     }
 
-    async fn show_procedure(&self, name: &NamedStaff) -> anyhow::Result<ProcedureDetail> {
+    async fn show_procedure(&self, name: &NamedStaff) -> anyhow::Result<DefAndMetas> {
         let sql = format!("SHOW CREATE PROCEDURE {};", name.name);
 
         let row = self.query_row(sql).await?;
 
         let sql_mode: Option<String> = row.try_get(1)?;
         let sql: String = row.try_get(2)?;
-        anyhow::Ok(ProcedureDetail::new(
+        anyhow::Ok(DefAndMetas::new(
             sql,
             vec![MetaValue::new("sql_mode", sql_mode)],
         ))

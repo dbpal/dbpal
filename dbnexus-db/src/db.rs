@@ -975,7 +975,7 @@ pub trait SchemaTrait:
     async fn list_procedure(&self) -> anyhow::Result<Vec<NamedStaff>> {
         self.backend_kind().not_support_feature("list procedure")
     }
-    async fn show_procedure(&self, _name: &NamedStaff) -> anyhow::Result<ProcedureDetail> {
+    async fn show_procedure(&self, _name: &NamedStaff) -> anyhow::Result<DefAndMetas> {
         self.backend_kind().not_support_feature("show procedure")
     }
     async fn drop_procedure(&self, _name: &NamedStaff) -> anyhow::Result<String> {
@@ -1651,18 +1651,6 @@ impl BackendKind {
             "'{}' don't support this '{}' feature",
             self, feature
         ))
-    }
-}
-
-#[derive(Debug, serde::Serialize, specta::Type)]
-pub struct ProcedureDetail {
-    // definition of the sql.
-    pub def: String,
-    pub metas: Vec<MetaValue>,
-}
-impl ProcedureDetail {
-    pub fn new(def: String, metas: Vec<MetaValue>) -> Self {
-        Self { metas, def }
     }
 }
 
@@ -3489,9 +3477,9 @@ impl Default for FirstTrue {
 
 impl FirstTrue {
     pub fn get(&self) -> bool {
-        let value = self.value.load(Ordering::Relaxed);
+        let value = self.value.load(Ordering::SeqCst);
         if value {
-            self.value.store(false, Ordering::Relaxed);
+            self.value.store(false, Ordering::SeqCst);
         }
         value
     }

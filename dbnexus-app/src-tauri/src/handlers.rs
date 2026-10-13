@@ -10,8 +10,8 @@ use dbnexus_db::db::{
     parse_bson_doc, quote_sql_str, ColumnType, CreateDatabaseExtra, CreateIndexReq,
     CreateSchemaExtra, CreateTableAndIndexSql, CreateTableReq, CreatedTypeDef, DefAndMetas,
     ExportKind, Field, ForeignKeyDef, Index, JsUint8Array, ListTable, MetaValue, NamedStaff,
-    OptionMustBeSomeErr, ProcedureDetail, QueryEventEmit, QueryResp, SequenceDetail,
-    ShowTableParameter, SqlEvent, TableImportPara, TimeElapsed, TriggerDetail,
+    OptionMustBeSomeErr, QueryEventEmit, QueryResp, SequenceDetail, ShowTableParameter, SqlEvent,
+    TableImportPara, TimeElapsed, TriggerDetail,
 };
 use dbnexus_db::language_server::CompletionList;
 use dbnexus_db::mongo::MongoDB;
@@ -3010,7 +3010,7 @@ pub async fn show_procedure(
     procedure: NamedStaff,
 
     app: tauri::State<'_, DBPal>,
-) -> Result<ProcedureDetail, ErrorFrontend> {
+) -> Result<DefAndMetas, ErrorFrontend> {
     let schema = app
         .get_schema(db_name.as_str())
         .await
