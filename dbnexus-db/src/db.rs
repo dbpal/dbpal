@@ -1816,8 +1816,8 @@ pub struct SequenceDetail {
 
 #[derive(Clone, Debug)]
 pub struct XlsxEdit {
-    pub row: rust_xlsxwriter::RowNum,
-    pub column: rust_xlsxwriter::ColNum,
+    pub row: u32,
+    pub column: u16,
     pub content: XlsxEditContent,
 }
 pub trait EncodeXlsxDatetime: GetBackendKind {
@@ -1977,7 +1977,7 @@ pub(crate) async fn export_query_as_xlsx_send_data(
                 .send(
                     XlsxEdit {
                         row: *row_num,
-                        column: col as rust_xlsxwriter::ColNum,
+                        column: col as u16,
                         content: d,
                     }
                     .into(),
@@ -1999,7 +1999,7 @@ pub fn export_query_as_xlsx_send_blocking_data(
             sender.blocking_send(
                 XlsxEdit {
                     row: *row_num,
-                    column: col as rust_xlsxwriter::ColNum,
+                    column: col as u16,
                     content: d,
                 }
                 .into(),

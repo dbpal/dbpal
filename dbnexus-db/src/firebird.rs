@@ -328,7 +328,7 @@ impl FireBirdDB {
                                 sender.blocking_send(
                                     XlsxEdit {
                                         row: row_num,
-                                        column: index as rust_xlsxwriter::ColNum,
+                                        column: index as u16,
                                         content: col.name.clone().into(),
                                     }
                                     .into(),

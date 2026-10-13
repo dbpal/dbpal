@@ -114,7 +114,7 @@ impl ExportQueryResult for LibSqlDB {
                                 .send(
                                     XlsxEdit {
                                         row: row_num,
-                                        column: index as rust_xlsxwriter::ColNum,
+                                        column: index as u16,
                                         content: row
                                             .column_name(index)
                                             .unwrap_or_default()

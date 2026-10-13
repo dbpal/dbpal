@@ -149,7 +149,7 @@ fn encode_row_as_json<'stmt>(
             Value::SmallInt(x) => serde_json::Value::from(*x),
             Value::Int(x) => serde_json::Value::from(*x),
             Value::BigInt(x) => serde_json::Value::from(*x),
-            Value::HugeInt(x) => serde_json::Value::from(x.to_string()),
+            Value::HugeInt(x) => serde_json::Value::from(*x),
             Value::UTinyInt(x) => serde_json::Value::from(*x),
             Value::USmallInt(x) => serde_json::Value::from(*x),
             Value::UInt(x) => serde_json::Value::from(*x),

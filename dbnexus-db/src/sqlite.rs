@@ -1295,7 +1295,7 @@ impl ExportQueryResult for SqliteDB {
                                 .send(
                                     XlsxEdit {
                                         row: row_num,
-                                        column: index as rust_xlsxwriter::ColNum,
+                                        column: index as u16,
                                         content: col.name().to_string().into(),
                                     }
                                     .into(),

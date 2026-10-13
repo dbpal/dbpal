@@ -640,7 +640,7 @@ impl OdbcDbQuery {
                                 sender.blocking_send(
                                     XlsxEdit {
                                         row: num_row,
-                                        column: index as rust_xlsxwriter::ColNum,
+                                        column: index ,
                                         content: name.clone(),
                                     }
                                     .into(),
@@ -655,7 +655,7 @@ impl OdbcDbQuery {
                                     sender.blocking_send(
                                         XlsxEdit {
                                             row: num_row,
-                                            column: index as rust_xlsxwriter::ColNum,
+                                            column: index ,
                                             content: col,
                                         }
                                         .into(),

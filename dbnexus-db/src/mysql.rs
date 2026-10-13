@@ -1718,7 +1718,7 @@ impl ExportQueryResult for MysqlDB {
                                 .send(
                                     XlsxEdit {
                                         row: row_num,
-                                        column: index as rust_xlsxwriter::ColNum,
+                                        column: index as u16,
                                         content: col.to_owned().into(),
                                     }
                                     .into(),

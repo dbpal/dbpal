@@ -776,7 +776,7 @@ impl ClickHouseDB {
                     .send(
                         XlsxEdit {
                             row: row_num,
-                            column: index as rust_xlsxwriter::ColNum,
+                            column: index as u16,
                             content: f.field.clone().into(),
                         }
                         .into(),
@@ -2172,8 +2172,8 @@ mod tests {
         GetTestExportTableKinds::test_export(&db, table_name).await;
 
         /*
-                This is the default behavior of the ClickHouse CSV / CSVWithNames format. The official ClickHouse CSV format specification states that tuples in CSV format are serialized as separate columns, so their nested structure is lost (Tuples in CSV format are serialized as separate columns). For example, a Tuple column named user containing (id, name) is expanded directly into two columns, "user.id" and "user.name", in a CSVWithNames header.
-         */
+               This is the default behavior of the ClickHouse CSV / CSVWithNames format. The official ClickHouse CSV format specification states that tuples in CSV format are serialized as separate columns, so their nested structure is lost (Tuples in CSV format are serialized as separate columns). For example, a Tuple column named user containing (id, name) is expanded directly into two columns, "user.id" and "user.name", in a CSVWithNames header.
+        */
         db.test_table_export_and_import_json(table_name).await;
         db.test_table_export_and_import_jsonline(table_name).await;
         db.test_table_equal(table_name, &values, &["id"]).await;
