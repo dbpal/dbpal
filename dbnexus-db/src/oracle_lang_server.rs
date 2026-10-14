@@ -2,8 +2,8 @@ use tokio::sync::Mutex;
 
 use crate::db::{name_start_ascii_alphabetic, DBTrait};
 use crate::language_server::{
-    try_parser_dot_lexer, AstCompletionHelper, CompletionItem, CompletionKind, CompletionList,
-    GetKeyWords, LangServerCommon, LanguageServer, LexerCompletionTrait,
+    parser_dot_lexer_completion, AstCompletionHelper, CompletionItem, CompletionKind,
+    CompletionList, GetKeyWords, LangServerCommon, LanguageServer, LexerCompletionTrait,
 };
 use crate::oracle::OracleDB;
 use crate::sqlparser_completion::TempTableColumn;
@@ -30,7 +30,6 @@ impl GetKeyWords for OracleDB {
                 FROM V$RESERVED_WORDS
         "#;
         let result = self.query(sql).await?;
-        let mut ret = Vec::new();
         for r in result {
             let name: Option<String> = r.get(0)?;
             if let Some(name) = name {
@@ -41,10 +40,9 @@ impl GetKeyWords for OracleDB {
                 if !name_start_ascii_alphabetic(&name) {
                     continue;
                 }
-                ret.push(name);
+                lock.push(name);
             }
         }
-        *lock = ret;
         return anyhow::Ok(lock.clone());
     }
 }
@@ -244,7 +242,7 @@ impl LanguageServer for OracleDB {
         col: u32,
         use_lexer: bool,
     ) -> anyhow::Result<CompletionList> {
-        try_parser_dot_lexer(self, sql, line, col, use_lexer).await
+        parser_dot_lexer_completion(self, sql, line, col, use_lexer).await
     }
     fn is_dangerous_sql(&self, sql: &str) -> anyhow::Result<bool> {
         LangServerCommon::is_dangerous_sql_by_parser(self, sql)

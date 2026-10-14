@@ -4,7 +4,7 @@
 
 use crate::db::{CatalogTrait, CreatedTypeDef};
 use crate::language_server::{
-    try_parser_dot_lexer, AstCompletionHelper, CompletionItem, CompletionKind, CompletionList,
+    parser_dot_lexer_completion, AstCompletionHelper, CompletionItem, CompletionKind, CompletionList,
     DBExecutable, GetKeyWords, LangServerCommon, LanguageServer, LexerCompletionTrait,
 };
 use crate::mssql::SqlServerDB;
@@ -52,7 +52,7 @@ impl LanguageServer for SqlServerDB {
         col: u32,
         use_lexer: bool,
     ) -> anyhow::Result<CompletionList> {
-        try_parser_dot_lexer(self, sql, line, col, use_lexer).await
+        parser_dot_lexer_completion(self, sql, line, col, use_lexer).await
     }
 
     fn is_dangerous_sql(&self, sql: &str) -> anyhow::Result<bool> {

@@ -6,8 +6,8 @@ use tokio::sync::Mutex;
 use crate::clickhouse::{ClickHouseDB, FieldsOrData};
 use crate::db::DBTrait;
 use crate::language_server::{
-    try_parser_dot_lexer, AstCompletionHelper, CompletionItem, CompletionKind, CompletionList,
-    GetKeyWords, LangServerCommon, LanguageServer, LexerCompletionTrait,
+    parser_dot_lexer_completion, AstCompletionHelper, CompletionItem, CompletionKind,
+    CompletionList, GetKeyWords, LangServerCommon, LanguageServer, LexerCompletionTrait,
 };
 use crate::sqlparser_completion::TempTableColumn;
 
@@ -20,8 +20,8 @@ impl GetKeyWords for ClickHouseDB {
             return anyhow::Ok(lock.clone());
         }
         let sql = "select * from system.keywords";
-        let ret: Vec<String> = self.client.query(sql).fetch_all().await?;
-        *lock = ret;
+        *lock = self.client.query(sql).fetch_all().await?;
+
         return anyhow::Ok(lock.clone());
     }
 }
@@ -53,7 +53,7 @@ impl LanguageServer for ClickHouseDB {
         use_lexer: bool,
     ) -> anyhow::Result<CompletionList> {
         // self.completion_id.set_optional(query_id);
-        try_parser_dot_lexer(self, sql, line, col, use_lexer).await
+        parser_dot_lexer_completion(self, sql, line, col, use_lexer).await
     }
 
     fn is_dangerous_sql(&self, sql: &str) -> anyhow::Result<bool> {

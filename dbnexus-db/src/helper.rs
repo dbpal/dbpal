@@ -42,17 +42,6 @@ impl<T, E: Display> ResultExtraContext<T, E> for Result<T, E> {
     }
 }
 
-/// get current timestamp
-pub fn current_timestamp() -> u64 {
-    use std::time::{SystemTime, UNIX_EPOCH};
-    let now = SystemTime::now();
-    let timestamp: u64 = now
-        .duration_since(UNIX_EPOCH)
-        .expect("Time went backwards")
-        .as_secs();
-    timestamp
-}
-
 pub struct OffsetLimitIter<Index = usize> {
     pub total: Index,
     pub offset: Index,
@@ -103,8 +92,9 @@ impl Drop for TimeSome {
 }
 
 impl TimeSome {
-    pub fn new(some: String) -> Self {
+    pub fn new(some: impl Into<String>) -> Self {
         let start = std::time::Instant::now();
+        let some = some.into();
         println!("start:{} time:{:?}", some, start);
         Self { some, start }
     }
@@ -1483,12 +1473,6 @@ mod tests {
                 println!("kind:{} value:{} ty:{}", kind, value, ty);
             }
         }
-    }
-
-    #[test]
-    fn test_current_timestamp() {
-        let x = current_timestamp();
-        println!("{}", x);
     }
 
     #[ignore = "this file may not exist"]

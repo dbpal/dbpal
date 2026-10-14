@@ -3,9 +3,9 @@ use crate::db::{
     BackendKindPostGres, CatalogTrait, CreatedTypeDef, OptionMustBeSomeErr, SequenceDetail,
 };
 use crate::language_server::{
-    try_parser_dot_lexer, AstCompletionHelper, CompletionItem, CompletionKind, CompletionList,
-    DBExecutable, GetKeyWords, LangServerCommon, LanguageServer, LexerCompletionTrait,
-    PostGresExtension,
+    parser_dot_lexer_completion, AstCompletionHelper, CompletionItem, CompletionKind,
+    CompletionList, DBExecutable, GetKeyWords, LangServerCommon, LanguageServer,
+    LexerCompletionTrait, PostGresExtension,
 };
 use crate::pg::PostGresDB;
 use crate::sqlparser_completion::TempTableColumn;
@@ -38,12 +38,10 @@ impl GetKeyWords for PostGresDB {
         let rows = self
             .query_rows("select word from pg_get_keywords()")
             .await?;
-        let mut ret = vec![];
         for row in rows.iter() {
             let c: String = row.try_get(0)?;
-            ret.push(c);
+            lock.push(c);
         }
-        *lock = ret;
         return anyhow::Ok(lock.clone());
     }
 }
@@ -596,7 +594,7 @@ impl LanguageServer for PostGresDB {
         use_lexer: bool,
     ) -> anyhow::Result<CompletionList> {
         self.completion_id.set_optional(query_id);
-        try_parser_dot_lexer(self, sql, line, col, use_lexer).await
+        parser_dot_lexer_completion(self, sql, line, col, use_lexer).await
     }
 
     fn is_dangerous_sql(&self, sql: &str) -> anyhow::Result<bool> {

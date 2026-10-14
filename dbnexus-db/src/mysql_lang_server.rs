@@ -11,8 +11,9 @@ Procedures, tables, and views: none have this privilege; to access them across d
 
 use crate::db::{name_start_ascii_alphabetic, BackendKindMysql, SqlEvent};
 use crate::language_server::{
-    try_parser_dot_lexer, AstCompletionHelper, CompletionItem, CompletionKind, CompletionList,
-    DBExecutable, GetKeyWords, LangServerCommon, LanguageServer, LexerCompletionTrait,
+    parser_dot_lexer_completion, AstCompletionHelper, CompletionItem, CompletionKind,
+    CompletionList, DBExecutable, GetKeyWords, LangServerCommon, LanguageServer,
+    LexerCompletionTrait,
 };
 use crate::mariadb::MARIADB_FUNCTIONS;
 use crate::mysql::MysqlDB;
@@ -52,17 +53,15 @@ impl GetKeyWords for MysqlDB {
                 let rows = sqlx::raw_sql("SELECT  * from information_schema.KEYWORDS")
                     .fetch_all(conn.deref_mut())
                     .await?;
-                let mut ret = vec![];
                 for row in rows.iter() {
                     let name: Option<String> = row.try_get(0)?;
                     if let Some(name) = name {
                         if !name_start_ascii_alphabetic(&name) {
                             continue;
                         }
-                        ret.push(name);
+                        lock.push(name);
                     }
                 }
-                *lock = ret;
                 return anyhow::Ok(lock.clone());
             }
         }
@@ -95,7 +94,7 @@ impl LanguageServer for MysqlDB {
         use_lexer: bool,
     ) -> anyhow::Result<CompletionList> {
         self.completion_id.set_optional(query_id);
-        try_parser_dot_lexer(self, sql, line, col, use_lexer).await
+        parser_dot_lexer_completion(self, sql, line, col, use_lexer).await
     }
 
     fn is_dangerous_sql(&self, sql: &str) -> anyhow::Result<bool> {

@@ -2,7 +2,7 @@ use crate::duckdb::{DuckDB, DuckDbConn};
 use dbnexus_db::{
     db::{CatalogTrait, SequenceDetail},
     language_server::{
-        try_parser_dot_lexer, AstCompletionHelper, CompletionItem, CompletionKind, CompletionList,
+        parser_dot_lexer_completion, AstCompletionHelper, CompletionItem, CompletionKind, CompletionList,
         GetKeyWords, LangServerCommon, LanguageServer, LexerCompletionTrait,
     },
     sqlparser_completion::TempTableColumn,
@@ -22,7 +22,7 @@ impl LanguageServer for DuckDB {
         use_lexer: bool,
     ) -> anyhow::Result<CompletionList> {
         self.completion_id.set_optional(query_id);
-        try_parser_dot_lexer(self, sql, line, col, use_lexer).await
+        parser_dot_lexer_completion(self, sql, line, col, use_lexer).await
     }
 
     async fn ai_text_completion(

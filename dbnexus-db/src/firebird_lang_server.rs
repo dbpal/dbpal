@@ -3,8 +3,8 @@ use std::sync::Arc;
 use crate::db::{CreateSchemaArg, DBTrait, GetBackendKind, SchemaTrait};
 use crate::firebird::FireBirdDB;
 use crate::language_server::{
-    try_parser_dot_lexer, AstCompletionHelper, CompletionItem, CompletionKind, CompletionList,
-    GetKeyWords, LangServerCommon, LanguageServer, LexerCompletionTrait,
+    parser_dot_lexer_completion, AstCompletionHelper, CompletionItem, CompletionKind,
+    CompletionList, GetKeyWords, LangServerCommon, LanguageServer, LexerCompletionTrait,
 };
 use crate::sqlparser_completion::TempTableColumn;
 use rsfbclient::{Queryable, Row};
@@ -49,7 +49,7 @@ impl LanguageServer for FireBirdDB {
         col: u32,
         use_lexer: bool,
     ) -> anyhow::Result<CompletionList> {
-        try_parser_dot_lexer(self, sql, line, col, use_lexer).await
+        parser_dot_lexer_completion(self, sql, line, col, use_lexer).await
     }
 
     fn is_dangerous_sql(&self, sql: &str) -> anyhow::Result<bool> {

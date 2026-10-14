@@ -79,7 +79,7 @@ num-bigint = "=0.4.8" # I am trying to match the version from sqlx
 base64 = "*"
 reqwest.workspace = true
 clickhouse = { version = "0.15", features = ["native-tls", "time", "uuid"] }
-libsql = { version = "0.9.7", default-features = false, features = [
+libsql = { version = "0.10", default-features = false, features = [
     "remote",
     "tls",
 ] }

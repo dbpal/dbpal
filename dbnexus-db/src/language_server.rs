@@ -1412,7 +1412,7 @@ pub trait AstCompletionHelper: Send + Sync + 'static + GetBackendKind + LangServ
 /// first try parser first
 /// then a syntax like schema... table...
 /// then lexer   
-pub async fn try_parser_dot_lexer<T: LexerCompletionTrait + AstCompletionHelper>(
+pub async fn parser_dot_lexer_completion<T: LexerCompletionTrait + AstCompletionHelper>(
     backend: &T,
     sql: &str,
     line: u32,

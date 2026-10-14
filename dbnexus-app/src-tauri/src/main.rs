@@ -548,10 +548,9 @@ fn main() {
         .expect("error while running tauri application");
 }
 
-use dbnexus_db::redis_lang_server::get_commands_from_docs;
-use tauri_specta::ErrorHandlingMode;
-
+#[cfg(debug_assertions)]
 fn gen_bindings() {
+    use dbnexus_db::redis_lang_server::get_commands_from_docs;
     use handlers::{
         add_table_column, ai_text_completion, all_font_family, auto_completion, cancel_task,
         cassandra_drop_aggregate, cassandra_list_aggregate, cassandra_show_aggregate, check_conn,
@@ -592,6 +591,7 @@ fn gen_bindings() {
         table_insert_sql, table_update, table_update_sql, test_connection, truncate_table,
         try_list_database_schema_candidates, write_xlsx,
     };
+    use tauri_specta::ErrorHandlingMode;
 
     use ai::openai_invoke;
     use ai::openai_stream;

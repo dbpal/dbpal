@@ -219,7 +219,7 @@ impl QuerySql for LibSqlDB {
         let conn = self.get_conn().await?;
         conn.execute_batch(sql)
             .await
-            .map_err(|err| anyhow::Error::msg(format!("Sql:{} Err:{}", sql, err)))?;
+            .map_err(|err| anyhow::Error::msg(format!("sql:{} err:{}", sql, err)))?;
         anyhow::Ok(None)
     }
     async fn execute_sql(
@@ -237,6 +237,9 @@ impl QuerySql for LibSqlDB {
                 None => anyhow::bail!("collection closed????"),
             },
         };
+
+        println!("!!!!!!!!!!!!!!:{:?}", r);
+
         let ret: Result<QueryResp, String> = match r {
             Ok(..) => Ok(QueryResp::execute_ok(sql.to_owned())),
             Err(err) => Err(err.to_string()),
