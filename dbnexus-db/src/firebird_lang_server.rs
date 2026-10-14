@@ -1,6 +1,6 @@
 use std::sync::Arc;
 
-use crate::db::{CreateSchemaExtra, DBTrait, GetBackendKind, SchemaTrait};
+use crate::db::{CreateSchemaArg, DBTrait, GetBackendKind, SchemaTrait};
 use crate::firebird::FireBirdDB;
 use crate::language_server::{
     try_parser_dot_lexer, AstCompletionHelper, CompletionItem, CompletionKind, CompletionList,
@@ -68,7 +68,7 @@ impl DBTrait for FireBirdDB {
     async fn create_schema(
         &self,
         _name: &str,
-        _extra: Option<CreateSchemaExtra>,
+        _extra: Option<CreateSchemaArg>,
     ) -> anyhow::Result<()> {
         self.backend_kind().not_support_feature("create schema")
     }

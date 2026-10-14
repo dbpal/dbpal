@@ -12,7 +12,7 @@ use crate::datasource_config::{LibSqlDBConfig, LibSqlDBConfigSource};
 use crate::db::{
     create_html_table_data, create_html_table_header, create_markdown_data, create_markdown_header,
     export_query_as_xlsx_send_data, quote_sql_str, AutoCompletionQueryId, BackendKind, CheckConn,
-    ColumnType, CreateIndexReq, CreateSchemaExtra, CreateTableAndIndexSql, DBTrait,
+    ColumnType, CreateIndexReq, CreateSchemaArg, CreateTableAndIndexSql, DBTrait,
     EncodeXlsxDatetime, ExportFrame, ExportKind, ExportQueryResult, ExtractSqlValeFromJsonValue,
     Field, FirstTrue, ForeignKeyDef, GetBackendKind, GetTestExportTableKinds, Index, IndexKind,
     ListTable, MetaValue, NamedStaff, QueryEvent, QueryEventEmitter, QueryResp, QuerySql,
@@ -81,7 +81,7 @@ impl ExportQueryResult for LibSqlDB {
             }
         };
         let mut stream = conn.query(sql, params!()).await?;
-        let first = FirstTrue::default();
+        let mut first = FirstTrue::default();
 
         let mut row_num = 0;
         while let Some(row) = stream.next().await? {
@@ -263,7 +263,7 @@ impl QuerySql for LibSqlDB {
         let mut batch_rows = conn.execute_batch(sql).await?;
         while let Some(mut rows) = batch_rows.next_stmt_row().flatten() {
             emit.send(QueryEvent::new_status("getting next result set"))?;
-            let first = FirstTrue::default();
+            let mut first = FirstTrue::default();
 
             while let Some(row) = rows.next().await? {
                 if first.get() {
@@ -532,7 +532,7 @@ impl DBTrait for LibSqlDB {
     async fn create_schema(
         &self,
         _name: &str,
-        _extra: Option<CreateSchemaExtra>,
+        _extra: Option<CreateSchemaArg>,
     ) -> anyhow::Result<()> {
         self.backend_kind()
             .not_support_feature("can't create schema")
@@ -581,8 +581,8 @@ impl SchemaTrait for LibSqlDB {
         anyhow::Ok(ret)
     }
 
-    fn list_sql_current_values(&self) -> &'static [&'static str] {
-        <Self as SqlBuilder>::get_predefine_names(self)
+    fn list_sql_predefine_values(&self) -> &'static [&'static str] {
+        <Self as SqlBuilder>::get_predefine_values(self)
     }
 
     async fn list_data_types(&self) -> anyhow::Result<Vec<String>> {
@@ -872,7 +872,7 @@ impl SchemaTrait for LibSqlDB {
 
         emit.send("trying to query data".into())?;
         let mut stream = conn.query(&sql, params!()).await?;
-        let first = FirstTrue::default();
+        let mut first = FirstTrue::default();
 
         while let Some(row) = stream.next().await? {
             if first.get() {
@@ -929,7 +929,7 @@ impl SchemaTrait for LibSqlDB {
 }
 
 impl SqlBuilder for LibSqlDB {
-    fn get_predefine_names(&self) -> &'static [&'static str] {
+    fn get_predefine_values(&self) -> &'static [&'static str] {
         crate::sqlite::SQLITE_CURRENT_LITERALS
     }
     fn encode_value(&self, typ: &str, value: &str) -> anyhow::Result<String> {

@@ -5,7 +5,7 @@ use dashmap::{DashMap, DashSet};
 use dbnexus_db::db::{
     create_html_table_data, create_html_table_header, create_markdown_data, create_markdown_header,
     export_query_as_xlsx_send_blocking_data, quote_sql_str, AutoCompletionQueryId, BackendKind,
-    CatalogTrait, CheckConn, ColumnType, CreateDatabaseExtra, CreateIndexReq, CreateSchemaExtra,
+    CatalogTrait, CheckConn, ColumnType, CreateDatabaseArg, CreateIndexReq, CreateSchemaArg,
     CreateTableAndIndexSql, DBTrait, EncodeXlsxDatetime, ExportFrame, ExportKind,
     ExportQueryResult, ExtractSqlValeFromJsonValue, Field, FirstTrue, ForeignKeyDef,
     GetTestExportTableKinds, Index, IndexKind, ListTable, MetaValue, QueryEventEmitter, QueryResp,
@@ -334,7 +334,7 @@ impl ExportQueryResult for DuckDB {
             let conn = conn.lock().expect("lock failed");
             let mut stmt = conn.prepare(&sql)?;
             let mut stream = stmt.query([])?;
-            let first = FirstTrue::default();
+            let mut first = FirstTrue::default();
 
             let mut row_num = 0;
             while let Some(row) = stream.next()? {
@@ -486,7 +486,7 @@ impl QuerySql for DuckDB {
             let conn = conn.lock().expect("lock failed");
             let mut stmt = conn.prepare(&sql)?;
             let mut stream = stmt.query([])?;
-            let first = FirstTrue::default();
+            let mut first = FirstTrue::default();
 
             while let Some(row) = stream.next()? {
                 if first.get() {
@@ -1135,7 +1135,7 @@ impl SchemaTrait for DuckDB {
             if let Some(value) = typ.default_value.as_ref() {
                 let sql = format!(
                     r#"ALTER TABLE "{table}" ALTER COLUMN "{new_name}" SET DEFAULT {}"#,
-                    self.encode_value_hit_predefine(&typ.typ, value.as_str())?
+                    self.encode_value_try_predefine(&typ.typ, value.as_str())?
                 );
                 self.simple_execute_sql(&sql).await?;
                 sc.collect(sql);
@@ -1157,7 +1157,7 @@ impl SchemaTrait for DuckDB {
             if let Some(dv) = col.default_value.as_ref() {
                 format!(
                     "DEFAULT {}",
-                    self.encode_value_hit_predefine(&col.typ, dv.as_str())?
+                    self.encode_value_try_predefine(&col.typ, dv.as_str())?
                 )
             } else {
                 "".to_owned()
@@ -1525,7 +1525,7 @@ impl DBTrait for DuckDB {
     async fn create_schema(
         &self,
         name: &str,
-        _extra: Option<CreateSchemaExtra>,
+        _extra: Option<CreateSchemaArg>,
     ) -> anyhow::Result<()> {
         let sql = format!("CREATE SCHEMA {};", name);
         log::info!("sql:{}", sql);
@@ -1573,7 +1573,7 @@ impl CatalogTrait for DuckDB {
     async fn create_database(
         &self,
         _name: &str,
-        _extra: Option<CreateDatabaseExtra>,
+        _extra: Option<CreateDatabaseArg>,
     ) -> anyhow::Result<()> {
         anyhow::bail!("duckdb can't create database")
     }

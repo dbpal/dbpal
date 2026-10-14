@@ -25,7 +25,7 @@ use tokio::io::AsyncBufReadExt;
 use crate::{
     datasource_config::CouchBaseDBConfig,
     db::{
-        BackendKind, CatalogTrait, CheckConn, CouchBaseBucketType, CreateDatabaseExtra, DBTrait,
+        BackendKind, CatalogTrait, CheckConn, CouchBaseBucketType, CreateDatabaseArg, DBTrait,
         EncodeXlsxDatetime, ExportKind, ExportQueryResult, ExtractSqlValeFromJsonValue, Field,
         GetBackendKind, ListTable, MetaValue, QueryEventEmitter, QueryResp, QuerySql,
         ReadOnlyTrait, SchemaTrait, ServerMetas, ShowTableParameter, SqlBuilder, TableImportPara,
@@ -695,7 +695,7 @@ impl DBTrait for CouchBaseDB {
     async fn create_schema(
         &self,
         name: &str,
-        _extra: Option<crate::db::CreateSchemaExtra>,
+        _extra: Option<crate::db::CreateSchemaArg>,
     ) -> anyhow::Result<()> {
         self.can_write()?;
         self.get_bucket()?
@@ -736,11 +736,11 @@ impl CatalogTrait for CouchBaseDB {
     async fn create_database(
         &self,
         name: &str,
-        extra: Option<CreateDatabaseExtra>,
+        extra: Option<CreateDatabaseArg>,
     ) -> anyhow::Result<()> {
         self.can_write()?;
         let setting = match extra {
-            Some(CreateDatabaseExtra::Couchbase {
+            Some(CreateDatabaseArg::Couchbase {
                 ram_quota_mb,
                 flush_enabled,
                 num_replicas,

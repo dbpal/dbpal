@@ -2,7 +2,7 @@ use crate::datasource_config::SqlServerDBConfig;
 use crate::db::{
     create_html_table_data, create_html_table_header, create_markdown_data, create_markdown_header,
     export_query_as_xlsx_send_data, format_data_time_fix_offset, quote_sql_str, BackendKind,
-    CatalogTrait, CheckConn, ColumnType, CreateDatabaseExtra, CreateIndexReq, CreateSchemaExtra,
+    CatalogTrait, CheckConn, ColumnType, CreateDatabaseArg, CreateIndexReq, CreateSchemaArg,
     DBTrait, DefAndMetas, EncodeXlsxDatetime, ExportFrame, ExportKind, ExportQueryResult,
     ExtractSqlValeFromJsonValue, Field, FirstTrue, ForeignKeyDef, GetBackendKind,
     GetTestExportTableKinds, Index, IndexKind, ListTable, MetaValue, NamedStaff, QueryEvent,
@@ -635,8 +635,8 @@ impl SchemaTrait for SqlServerDB {
         anyhow::Ok(ret)
     }
 
-    fn list_sql_current_values(&self) -> &'static [&'static str] {
-        <Self as SqlBuilder>::get_predefine_names(self)
+    fn list_sql_predefine_values(&self) -> &'static [&'static str] {
+        <Self as SqlBuilder>::get_predefine_values(self)
     }
     async fn create_index(&self, table: &str, req: &CreateIndexReq) -> anyhow::Result<String> {
         self.can_write()?;
@@ -681,7 +681,7 @@ impl SchemaTrait for SqlServerDB {
             if let Some(dv) = col.default_value.as_ref() {
                 format!(
                     "DEFAULT {}",
-                    self.encode_value_hit_predefine(&col.typ, dv.as_str())?
+                    self.encode_value_try_predefine(&col.typ, dv.as_str())?
                 )
             } else {
                 "".to_owned()
@@ -1300,7 +1300,7 @@ impl SqlBuilder for SqlServerDB {
         self.config.schema.as_deref()
     }
 
-    fn get_predefine_names(&self) -> &'static [&'static str] {
+    fn get_predefine_values(&self) -> &'static [&'static str] {
         SQLSERVER_CURRENT_LITERALS
     }
     /// format a value make it suitable for insert into sql.
@@ -1651,7 +1651,7 @@ impl ExportQueryResult for SqlServerDB {
         };
         let mut conn = conn.lock().await;
         let conn = conn.deref_mut();
-        let first = FirstTrue::default();
+        let mut first = FirstTrue::default();
 
         let mut stream = conn.query(sql, &[]).await?;
         let mut row_num = 0;
@@ -1955,7 +1955,7 @@ impl crate::db::DBTrait for SqlServerDB {
         Ok(Arc::new(x))
     }
 
-    async fn create_schema(&self, _name: &str, _: Option<CreateSchemaExtra>) -> anyhow::Result<()> {
+    async fn create_schema(&self, _name: &str, _: Option<CreateSchemaArg>) -> anyhow::Result<()> {
         self.can_write()?;
         self.backend_kind().not_support_feature("create schema")
     }
@@ -2004,7 +2004,7 @@ impl CatalogTrait for SqlServerDB {
     async fn create_database(
         &self,
         name: &str,
-        _extra: Option<CreateDatabaseExtra>,
+        _extra: Option<CreateDatabaseArg>,
     ) -> anyhow::Result<()> {
         self.can_write()?;
         let sql = format!("CREATE DATABASE {name}");

@@ -983,6 +983,7 @@ impl From<rust_xlsxwriter::XlsxError> for ErrorFrontend {
         }
     }
 }
+
 #[cfg(test)]
 mod tests {
     use super::*;

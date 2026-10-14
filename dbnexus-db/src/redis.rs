@@ -14,10 +14,10 @@ use tokio::sync::Mutex;
 use crate::datasource_config::RedisDBConfig;
 use crate::db::{
     create_html_table_data, create_markdown_data, create_markdown_header, AutoCompletionQueryId,
-    BackendKind, CheckConn, CreateSchemaExtra, DBTrait, EncodeXlsxDatetime, ExportFrame,
-    ExportKind, ExportQueryResult, ExtractSqlValeFromJsonValue, Field, GetBackendKind,
-    GetTestExportTableKinds, ListTable, MetaValue, QueryEvent, QueryEventEmitter, QueryResp,
-    QuerySql, ReadOnlyTrait, SchemaTrait, ServerMetas, ShowTableParameter, SqlBuilder, XlsxEdit,
+    BackendKind, CheckConn, CreateSchemaArg, DBTrait, EncodeXlsxDatetime, ExportFrame, ExportKind,
+    ExportQueryResult, ExtractSqlValeFromJsonValue, Field, GetBackendKind, GetTestExportTableKinds,
+    ListTable, MetaValue, QueryEvent, QueryEventEmitter, QueryResp, QuerySql, ReadOnlyTrait,
+    SchemaTrait, ServerMetas, ShowTableParameter, SqlBuilder, XlsxEdit,
 };
 use crate::helper::{create_csv, OffsetLimitIter};
 
@@ -1144,7 +1144,7 @@ impl DBTrait for RedisDB {
     async fn create_schema(
         &self,
         name: &str,
-        _extra: Option<CreateSchemaExtra>,
+        _extra: Option<CreateSchemaArg>,
     ) -> anyhow::Result<()> {
         // In Redis, the concept of a "database" is somewhat different from traditional
         // relational databases. Redis uses a single instance with multiple logical

@@ -610,7 +610,7 @@ impl OdbcDbQuery {
             } = this.helper.collect_meta(&mut cursor)?;
             let mut buffers = ColumnarAnyBuffer::from_descs(100, buffer_desc);
             let mut row_set_cursor = cursor.bind_buffer(&mut buffers)?;
-            let first = FirstTrue::default();
+            let mut first = FirstTrue::default();
 
             while let Some(batch) = row_set_cursor.fetch()? {
                 match kind {
@@ -640,7 +640,7 @@ impl OdbcDbQuery {
                                 sender.blocking_send(
                                     XlsxEdit {
                                         row: num_row,
-                                        column: index ,
+                                        column: index,
                                         content: name.clone(),
                                     }
                                     .into(),
@@ -655,7 +655,7 @@ impl OdbcDbQuery {
                                     sender.blocking_send(
                                         XlsxEdit {
                                             row: num_row,
-                                            column: index ,
+                                            column: index,
                                             content: col,
                                         }
                                         .into(),

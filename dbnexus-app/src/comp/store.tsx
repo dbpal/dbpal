@@ -987,12 +987,12 @@ export const useConnectionStore = create<ConnectionState>()(
       storage: new TauriStoreManger<ConnectionState>(),
       version: 1,
       onRehydrateStorage: () => {
-        console.log("开始同步数据...");
+        console.log("Start syncing data...");
         return (state, error) => {
           if (error) {
-            console.error("同步失败:", error);
+            console.error("Sync failed:", error);
           } else {
-            console.log("同步成功，数据量:", state?.connections?.length);
+            console.log("Sync successful, data count:", state?.connections?.length);
           }
         };
       },

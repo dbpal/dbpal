@@ -2,7 +2,7 @@ use crate::datasource_config::ClickHouseConfig;
 use crate::db::{
     create_html_table_data, create_html_table_header, create_markdown_data, create_markdown_header,
     export_query_as_xlsx_send_data, quote_sql_str, BackendKind, CheckConn, ColumnType,
-    CreateSchemaExtra, CreateTableAndIndexSql, DBTrait, DefAndMetas, EncodeXlsxDatetime,
+    CreateSchemaArg, CreateTableAndIndexSql, DBTrait, DefAndMetas, EncodeXlsxDatetime,
     ExportFrame, ExportKind, ExportQueryResult, ExtractSqlValeFromJsonValue, Field, GetBackendKind,
     GetTestExportTableKinds, ListTable, MetaValue, NamedStaff, QueryEvent, QueryEventEmitter,
     QueryResp, QuerySql, SchemaTrait, ServerMetas, ShowTableParameter, SqlBuilder, SqlCollect,
@@ -201,8 +201,8 @@ impl SchemaTrait for ClickHouseDB {
     async fn list_data_types(&self) -> anyhow::Result<Vec<String>> {
         LexerCompletionTrait::get_types(self).await
     }
-    fn list_sql_current_values(&self) -> &'static [&'static str] {
-        <Self as SqlBuilder>::get_predefine_names(self)
+    fn list_sql_predefine_values(&self) -> &'static [&'static str] {
+        <Self as SqlBuilder>::get_predefine_values(self)
     }
     async fn list_view(&self) -> anyhow::Result<Vec<ListTable>> {
         self.list_view_impl(self.config.db_str()).await
@@ -515,7 +515,7 @@ impl SchemaTrait for ClickHouseDB {
             if let Some(dv) = typ.default_value.as_ref() {
                 let sql = format!(
                     r#"ALTER TABLE {table} MODIFY COLUMN {new_name} DEFAULT {}"#,
-                    self.encode_value_hit_predefine(&typ.typ, dv.as_str())?
+                    self.encode_value_try_predefine(&typ.typ, dv.as_str())?
                 );
                 log::info!("sql:{}", sql);
                 self.simple_execute_sql(&sql).await?;
@@ -536,7 +536,7 @@ impl SchemaTrait for ClickHouseDB {
             sql.push_str(
                 format!(
                     "DEFAULT {} ",
-                    self.encode_value_hit_predefine(&col.typ, dv.as_str())?
+                    self.encode_value_try_predefine(&col.typ, dv.as_str())?
                 )
                 .as_str(),
             );
@@ -1028,7 +1028,7 @@ impl DBTrait for ClickHouseDB {
     async fn create_schema(
         &self,
         name: &str,
-        _extra: Option<CreateSchemaExtra>,
+        _extra: Option<CreateSchemaArg>,
     ) -> anyhow::Result<()> {
         let sql = format!("CREATE DATABASE IF NOT EXISTS `{name}`;");
         log::info!("sql:{}", sql);
@@ -1280,7 +1280,7 @@ pub const CH_CURRENT_LITERALS: &[&str] = &[
 ];
 
 impl SqlBuilder for ClickHouseDB {
-    fn get_predefine_names(&self) -> &'static [&'static str] {
+    fn get_predefine_values(&self) -> &'static [&'static str] {
         CH_CURRENT_LITERALS
     }
     fn update_sql(

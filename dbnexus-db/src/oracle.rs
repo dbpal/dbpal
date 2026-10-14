@@ -13,7 +13,7 @@ use crate::datasource_config::OracleDBConfig;
 use crate::db::{
     create_html_table_data, create_html_table_header, create_markdown_data, create_markdown_header,
     escape_sql_str, export_query_as_xlsx_send_blocking_data, quote_sql_str, BackendKind, CheckConn,
-    ColumnType, CreateIndexReq, CreateSchemaExtra, CreateTableAndIndexSql, DBTrait, DefAndMetas,
+    ColumnType, CreateIndexReq, CreateSchemaArg, CreateTableAndIndexSql, DBTrait, DefAndMetas,
     EncodeXlsxDatetime, ExportFrame, ExportKind, ExportQueryResult, ExtractSqlValeFromJsonValue,
     Field, FirstTrue, ForeignKeyDef, GetBackendKind, GetTestExportTableKinds, Index, IndexKind,
     ListTable, MetaValue, NamedStaff, OptionMustBeSomeErr, QueryEvent, QueryEventEmitter,
@@ -102,7 +102,7 @@ impl ExportQueryResult for OracleDB {
                 None => Arc::new(Mutex::new(this.get_conn()?)),
             };
             let conn = conn.lock().expect("lock failed");
-            let first = FirstTrue::default();
+            let mut first = FirstTrue::default();
 
             let rows = conn.query(&sql, &[])?;
             let mut row_num = 0;
@@ -1032,8 +1032,8 @@ impl SchemaTrait for OracleDB {
         anyhow::Ok(ret)
     }
 
-    fn list_sql_current_values(&self) -> &'static [&'static str] {
-        <Self as SqlBuilder>::get_predefine_names(self)
+    fn list_sql_predefine_values(&self) -> &'static [&'static str] {
+        <Self as SqlBuilder>::get_predefine_values(self)
     }
 
     async fn list_materialized_view(&self) -> anyhow::Result<Vec<ListTable>> {
@@ -1278,7 +1278,7 @@ impl SchemaTrait for OracleDB {
             if let Some(dv) = typ.default_value.as_ref() {
                 let sql = format!(
                     r#"ALTER TABLE "{table}" MODIFY "{new_name}" DEFAULT {}"#,
-                    self.encode_value_hit_predefine(&typ.typ, dv.as_str())?
+                    self.encode_value_try_predefine(&typ.typ, dv.as_str())?
                 );
                 log::info!("sql:{}", sql);
                 self.simple_execute_sql(&sql).await?;
@@ -1301,7 +1301,7 @@ impl SchemaTrait for OracleDB {
             if let Some(dv) = typ.default_value.as_ref() {
                 format!(
                     "DEFAULT {}",
-                    self.encode_value_hit_predefine(&typ.typ, dv.as_str())?
+                    self.encode_value_try_predefine(&typ.typ, dv.as_str())?
                 )
             } else {
                 "".to_owned()
@@ -1628,7 +1628,7 @@ impl SqlBuilder for OracleDB {
         self.config.schema.as_deref()
     }
 
-    fn get_predefine_names(&self) -> &'static [&'static str] {
+    fn get_predefine_values(&self) -> &'static [&'static str] {
         ORACLE_CURRENT_LITERALS
     }
 
@@ -1777,7 +1777,7 @@ impl DBTrait for OracleDB {
     async fn create_schema(
         &self,
         _name: &str,
-        _extra: Option<CreateSchemaExtra>,
+        _extra: Option<CreateSchemaArg>,
     ) -> anyhow::Result<()> {
         self.backend_kind().not_support_feature("create schema")
     }

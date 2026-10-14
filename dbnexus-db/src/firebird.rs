@@ -287,7 +287,7 @@ impl FireBirdDB {
             let mut conn = this.get_conn()?;
             let stream: Box<dyn Iterator<Item = Result<Row, FbError>>> =
                 conn.query_iter(&sql, ())?;
-            let first = FirstTrue::default();
+            let mut first = FirstTrue::default();
 
             let mut types = HashMap::new();
 
@@ -479,7 +479,7 @@ impl QuerySql for FireBirdDB {
             emit.send(QueryEvent::new_status("lock connection ok."))?;
             let stream: Box<dyn Iterator<Item = Result<Row, FbError>>> =
                 conn.query_iter(&sql, ())?;
-            let first = FirstTrue::default();
+            let mut first = FirstTrue::default();
 
             for row in stream {
                 let item = row?;
@@ -820,8 +820,8 @@ impl SchemaTrait for FireBirdDB {
         LexerCompletionTrait::get_types(self).await
     }
 
-    fn list_sql_current_values(&self) -> &'static [&'static str] {
-        <Self as SqlBuilder>::get_predefine_names(self)
+    fn list_sql_predefine_values(&self) -> &'static [&'static str] {
+        <Self as SqlBuilder>::get_predefine_values(self)
     }
 
     async fn export_table_or_view(
@@ -962,7 +962,7 @@ impl SchemaTrait for FireBirdDB {
             if let Some(dv) = col.default_value.as_ref() {
                 format!(
                     " DEFAULT {}",
-                    self.encode_value_hit_predefine(&col.typ, dv.as_str())?
+                    self.encode_value_try_predefine(&col.typ, dv.as_str())?
                 )
             } else {
                 "".to_string()
@@ -1137,7 +1137,7 @@ pub const FB_CURRENT_LITERALS: &[&str] = &[
 ];
 
 impl SqlBuilder for FireBirdDB {
-    fn get_predefine_names(&self) -> &'static [&'static str] {
+    fn get_predefine_values(&self) -> &'static [&'static str] {
         FB_CURRENT_LITERALS
     }
 

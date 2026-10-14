@@ -32,7 +32,7 @@ use crate::datasource_config::{CassandraConsistency, CassandraDBConfig};
 use crate::db::{
     create_html_table_data, create_html_table_header, create_markdown_data, create_markdown_header,
     export_query_as_xlsx_send_data, quote_sql_str, AutoCompletionQueryId, BackendKind, CheckConn,
-    ColumnType, CreateIndexReq, CreateSchemaExtra, CreateTableAndIndexSql, CreatedTypeDef, DBTrait,
+    ColumnType, CreateIndexReq, CreateSchemaArg, CreateTableAndIndexSql, CreatedTypeDef, DBTrait,
     DefAndMetas, EncodeXlsxDatetime, ExportFrame, ExportKind, ExportQueryResult,
     ExtractSqlValeFromJsonValue, Field, GetBackendKind, GetTestExportTableKinds, Index, IndexKind,
     ListTable, MetaValue, NamedStaff, QueryEventEmitter, QueryResp, QuerySql, ReadOnlyTrait,
@@ -872,7 +872,7 @@ impl SqlBuilder for CassandraDB {
         }
     }
 
-    fn get_predefine_names(&self) -> &'static [&'static str] {
+    fn get_predefine_values(&self) -> &'static [&'static str] {
         CQL_CURRENT_LITERALS
     }
 
@@ -1040,8 +1040,8 @@ pub(crate) fn extract_cql3_parser_ident(x: &cql3_parser::common::Identifier) -> 
 }
 #[async_trait::async_trait]
 impl SchemaTrait for CassandraDB {
-    fn list_sql_current_values(&self) -> &'static [&'static str] {
-        <Self as SqlBuilder>::get_predefine_names(self)
+    fn list_sql_predefine_values(&self) -> &'static [&'static str] {
+        <Self as SqlBuilder>::get_predefine_values(self)
     }
 
     async fn drop_created_type(&self, name: &str) -> anyhow::Result<String> {
@@ -1449,7 +1449,7 @@ impl DBTrait for CassandraDB {
     async fn create_schema(
         &self,
         name: &str,
-        extra: Option<CreateSchemaExtra>,
+        extra: Option<CreateSchemaArg>,
     ) -> anyhow::Result<()> {
         self.can_write()?;
         let extra = match &extra {
@@ -1457,7 +1457,7 @@ impl DBTrait for CassandraDB {
             None => anyhow::bail!("cassandra need extra parameter."),
         };
         let (replication_strategy, replication_factor) = match extra {
-            CreateSchemaExtra::Cassandra {
+            CreateSchemaArg::Cassandra {
                 replication_strategy,
                 replication_factor,
             } => (replication_strategy, replication_factor),
@@ -1675,7 +1675,7 @@ pub(crate) mod test_impls {
         let _ = db
             .create_schema(
                 "test",
-                Some(CreateSchemaExtra::Cassandra {
+                Some(CreateSchemaArg::Cassandra {
                     replication_strategy: "SimpleStrategy".to_string(),
                     replication_factor: 1,
                 }),

@@ -7,11 +7,11 @@ use dashmap::DashMap;
 use dbnexus_db::cassandra::CassandraDB;
 
 use dbnexus_db::db::{
-    parse_bson_doc, quote_sql_str, ColumnType, CreateDatabaseExtra, CreateIndexReq,
-    CreateSchemaExtra, CreateTableAndIndexSql, CreateTableReq, CreatedTypeDef, DefAndMetas,
-    ExportKind, Field, ForeignKeyDef, Index, JsUint8Array, ListTable, MetaValue, NamedStaff,
-    OptionMustBeSomeErr, QueryEventEmit, QueryResp, SequenceDetail, ShowTableParameter, SqlEvent,
-    TableImportPara, TimeElapsed, TriggerDetail,
+    parse_bson_doc, quote_sql_str, ColumnType, CreateDatabaseArg, CreateIndexReq, CreateSchemaArg,
+    CreateTableAndIndexSql, CreateTableReq, CreatedTypeDef, DefAndMetas, ExportKind, Field,
+    ForeignKeyDef, Index, JsUint8Array, ListTable, MetaValue, NamedStaff, OptionMustBeSomeErr,
+    QueryEventEmit, QueryResp, SequenceDetail, ShowTableParameter, SqlEvent, TableImportPara,
+    TimeElapsed, TriggerDetail,
 };
 use dbnexus_db::language_server::CompletionList;
 use dbnexus_db::mongo::MongoDB;
@@ -276,7 +276,7 @@ pub async fn drop_schema(
 pub async fn create_database(
     db_name: String,
     database: String,
-    extra: Option<CreateDatabaseExtra>,
+    extra: Option<CreateDatabaseArg>,
     app: tauri::State<'_, DBPal>,
 ) -> Result<(), ErrorFrontend> {
     random_sleep().await;
@@ -304,7 +304,7 @@ pub async fn create_database(
 pub async fn create_schema(
     db_name: String,
     schema: String,
-    extra: Option<CreateSchemaExtra>,
+    extra: Option<CreateSchemaArg>,
     app: tauri::State<'_, DBPal>,
 ) -> Result<(), ErrorFrontend> {
     random_sleep().await;
@@ -724,7 +724,7 @@ pub async fn list_data_types(
 
 #[specta::specta]
 #[tauri::command]
-pub async fn list_sql_current_values(
+pub async fn list_sql_predefine_values(
     db_name: String,
     app: tauri::State<'_, DBPal>,
 ) -> Result<&'static [&'static str], ErrorFrontend> {
@@ -734,7 +734,7 @@ pub async fn list_sql_current_values(
         .get_schema(db_name.as_str())
         .await
         .map_err(ErrorFrontend::from)?;
-    let ret = schema.list_sql_current_values();
+    let ret = schema.list_sql_predefine_values();
     Ok(ret)
 }
 

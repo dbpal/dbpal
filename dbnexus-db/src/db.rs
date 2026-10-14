@@ -289,17 +289,17 @@ pub struct TableImportPara {
     pub csv_delimiter: Option<char>,
 }
 #[derive(serde::Deserialize, Clone, Debug)]
-pub struct ShowTableParameterOffsetAndSize {
+pub struct ShowTableParameterOffset {
     pub offset: u32,
     pub page_size: u32,
 }
 impl ShowTableParameter {
-    pub fn offset(&self) -> Option<ShowTableParameterOffsetAndSize> {
+    pub fn offset(&self) -> Option<ShowTableParameterOffset> {
         let x = self.has_page();
         if let Some((page, page_size)) = x {
             debug_assert!(dbg!(page) != 0);
             debug_assert!(dbg!(page_size) != 0);
-            Some(ShowTableParameterOffsetAndSize {
+            Some(ShowTableParameterOffset {
                 offset: (page - 1) * page_size,
                 page_size,
             })
@@ -375,21 +375,21 @@ pub(crate) struct DropConn {
 
 #[derive(Clone, Debug)]
 pub(crate) struct TryRollBack {
-    rollback: Arc<Mutex<bool>>,
+    rollback: Arc<AtomicBool>,
 }
 
 impl TryRollBack {
     pub(crate) fn new() -> Self {
         Self {
-            rollback: Arc::new(Mutex::new(true)),
+            rollback: Arc::new(AtomicBool::new(true)),
         }
     }
     // not rollback when operation success call this function.
     pub(crate) fn do_not(&self) {
-        *self.rollback.lock().expect("lock failed") = false;
+        self.rollback.store(false, Ordering::Relaxed);
     }
     pub(crate) fn get(&self) -> bool {
-        *self.rollback.lock().expect("lock failed")
+        self.rollback.load(Ordering::Relaxed)
     }
 }
 
@@ -478,11 +478,11 @@ pub trait SchemaTrait:
         table_name: &str,
         para: ShowTableParameter,
     ) -> anyhow::Result<QueryResp> {
-        let result = QueryRespMemoryCollector::default();
-        let result_clone = result.clone();
-        self.show_table(table_name, para, Arc::new(result_clone))
+        let collector = QueryRespMemoryCollector::default();
+        let collection_clone = collector.clone();
+        self.show_table(table_name, para, Arc::new(collection_clone))
             .await?;
-        anyhow::Ok(result.result())
+        anyhow::Ok(collector.result())
     }
 
     async fn show_view_collect(
@@ -793,7 +793,7 @@ pub trait SchemaTrait:
 
         let cols = self.show_table_columns(table).await?;
         let this_make = SchemaTrait::clone(self);
-        // read data from the file
+
         let task_read = this_make.table_import_data_from_file_make_data(table, para, sender);
         let this = SchemaTrait::clone(self);
         let table = table.to_owned();
@@ -908,7 +908,7 @@ pub trait SchemaTrait:
         emit: ExportedSizeEmitter,
     ) -> anyhow::Result<()> {
         let (sender, receiver) = tokio::sync::mpsc::channel(10);
-        let h1 = {
+        let t1 = {
             let x = SchemaTrait::clone(self);
             let kind = kind.clone();
             let table_name = table_name.to_string();
@@ -918,15 +918,15 @@ pub trait SchemaTrait:
             });
             h1
         };
-        let h2 = {
+        let t2 = {
             let filepath = filepath.to_string();
             let table_name = table_name.to_string();
             tokio::spawn(async move {
                 write_export_file(kind, &filepath, receiver, &table_name, emit).await
             })
         };
-        h1.await??;
-        h2.await??;
+        t1.await??;
+        t2.await??;
         anyhow::Ok(())
     }
 
@@ -983,11 +983,9 @@ pub trait SchemaTrait:
     }
 
     async fn table_exists(&self, table: &str) -> anyhow::Result<bool> {
-        let e = self
-            .list_table()
-            .await?
-            .iter()
-            .any(|x| x.name.eq_ignore_ascii_case(table));
+        // I don't think case sensitivity needs to be checked here because users don't need to type
+        // the table name; the name comes from the database backend.
+        let e = self.list_table().await?.iter().any(|x| x.name == table);
         anyhow::Ok(e)
     }
     async fn list_created_types(&self) -> anyhow::Result<Vec<CreatedTypeDef>> {
@@ -1029,7 +1027,7 @@ pub trait SchemaTrait:
     async fn drop_sequence(&self, _name: &str, _cascade: bool) -> anyhow::Result<String> {
         self.backend_kind().not_support_feature("drop sequence")
     }
-    fn list_sql_current_values(&self) -> &'static [&'static str] {
+    fn list_sql_predefine_values(&self) -> &'static [&'static str] {
         &[]
     }
     async fn list_event(&self) -> anyhow::Result<Vec<SqlEvent>> {
@@ -1245,7 +1243,7 @@ pub trait SchemaTrait:
             if v_e != v_a {
                 println!("expect:{:?}", v_e.as_bytes());
                 println!("actual:{:?}", v_a.as_bytes());
-                panic!("field: {} expect: |{}| actual: |{}|", *k, v_e, v_a);
+                panic!("field: {} expect: {:?} actual: {:?}", *k, v_e, v_a);
             }
         }
     }
@@ -1259,7 +1257,7 @@ pub struct SqlEvent {
 }
 pub trait SqlBuilder: GetBackendKind {
     // get predefine name like current_time etc ...
-    fn get_predefine_names(&self) -> &'static [&'static str] {
+    fn get_predefine_values(&self) -> &'static [&'static str] {
         &[]
     }
 
@@ -1270,14 +1268,14 @@ pub trait SqlBuilder: GetBackendKind {
         para: Option<&ShowTableParameter>,
     ) -> String;
 
-    fn hit_current_value(&self, value: &str) -> bool {
-        self.get_predefine_names()
+    fn hit_predefine_value(&self, value: &str) -> bool {
+        self.get_predefine_values()
             .iter()
             .any(|cur| cur.eq_ignore_ascii_case(value))
     }
 
-    fn encode_value_hit_predefine(&self, typ: &str, value: &str) -> anyhow::Result<String> {
-        if self.hit_current_value(value) {
+    fn encode_value_try_predefine(&self, typ: &str, value: &str) -> anyhow::Result<String> {
+        if self.hit_predefine_value(value) {
             return anyhow::Ok(value.to_string());
         }
         self.encode_value(typ, value)
@@ -1315,7 +1313,7 @@ pub trait SqlBuilder: GetBackendKind {
 
         let mut sql = String::new();
 
-        let first = FirstTrue::default();
+        let mut first = FirstTrue::default();
 
         for (k, v) in wheres.iter() {
             let f = field_by_name.get(k);
@@ -1469,7 +1467,7 @@ pub trait SqlBuilder: GetBackendKind {
         //
 
         {
-            let first = FirstTrue::default();
+            let mut first = FirstTrue::default();
 
             for f in fs.iter() {
                 if f.is_auto_increment {
@@ -1489,7 +1487,7 @@ pub trait SqlBuilder: GetBackendKind {
         // values
         sql.push_str(" VALUES (");
         {
-            let first = FirstTrue::default();
+            let mut first = FirstTrue::default();
 
             for f in fs.iter() {
                 if f.is_auto_increment {
@@ -1575,12 +1573,12 @@ pub trait SqlBuilder: GetBackendKind {
                         // silently differrent from other database
                         format!(
                             "DEFAULT {}",
-                            self.encode_value_hit_predefine(&col.data_type, value.as_str())?
+                            self.encode_value_try_predefine(&col.data_type, value.as_str())?
                         )
                     }
                     _ => format!(
                         "DEFAULT({})",
-                        self.encode_value_hit_predefine(&col.data_type, value.as_str())?
+                        self.encode_value_try_predefine(&col.data_type, value.as_str())?
                     ),
                 },
                 None => "".to_owned(),
@@ -1684,7 +1682,7 @@ pub trait CatalogTrait:
     async fn create_database(
         &self,
         name: &str,
-        extra: Option<CreateDatabaseExtra>,
+        extra: Option<CreateDatabaseArg>,
     ) -> anyhow::Result<()>;
     async fn drop_database(&self, name: &str) -> anyhow::Result<()>;
 
@@ -1693,7 +1691,7 @@ pub trait CatalogTrait:
 
 #[derive(Debug, serde::Serialize, serde::Deserialize, Clone, specta::Type)]
 #[serde(tag = "extra", rename_all = "lowercase")]
-pub enum CreateDatabaseExtra {
+pub enum CreateDatabaseArg {
     Couchbase {
         // In Couchbase, ram_quota_mb specifies the amount of memory allocated to a bucket, in megabytes (MB).
         ram_quota_mb: u32,
@@ -1769,7 +1767,7 @@ pub trait DBTrait:
     async fn create_schema(
         &self,
         name: &str,
-        extra: Option<CreateSchemaExtra>,
+        extra: Option<CreateSchemaArg>,
     ) -> anyhow::Result<()>;
     async fn drop_schema(&self, name: &str) -> anyhow::Result<()>;
     fn as_any(&self) -> &dyn std::any::Any;
@@ -1777,7 +1775,7 @@ pub trait DBTrait:
 
 #[derive(Clone, Debug, serde::Serialize, serde::Deserialize, specta::Type)]
 #[serde(tag = "extra", rename_all = "lowercase")]
-pub enum CreateSchemaExtra {
+pub enum CreateSchemaArg {
     Cassandra {
         // CREATE KEYSPACE my_keyspace
         // WITH REPLICATION = {
@@ -2212,7 +2210,7 @@ async fn collect_export_str(
     match kind {
         ExportKind::Json { pretty } => {
             let mut ret = "[".to_string();
-            let first = FirstTrue::default();
+            let mut first = FirstTrue::default();
 
             while let Some(r) = receiver.recv().await {
                 let value = match r {
@@ -2422,7 +2420,7 @@ pub(crate) async fn write_export_file(
         ExportKind::Json { pretty } => {
             let mut file = tokio::fs::File::create(&filepath).await?;
             file.write_all("[".as_bytes()).await?;
-            let first = FirstTrue::default();
+            let mut first = FirstTrue::default();
 
             while let Some(e) = receiver.recv().await {
                 let value = match e {
@@ -3464,24 +3462,22 @@ pub trait GetTestExportTableKinds: SchemaTrait {
 
 #[derive()]
 pub struct FirstTrue {
-    value: AtomicBool,
+    value: bool,
 }
 
 impl Default for FirstTrue {
     fn default() -> Self {
-        Self {
-            value: AtomicBool::new(true),
-        }
+        Self { value: true }
     }
 }
 
 impl FirstTrue {
-    pub fn get(&self) -> bool {
-        // this struct will used on single thread
-        let value = self.value.load(Ordering::Relaxed);
+    pub fn get(&mut self) -> bool {
+        let value = self.value;
         if value {
-            self.value.store(false, Ordering::Relaxed);
+            self.value = false;
         }
+
         value
     }
 }

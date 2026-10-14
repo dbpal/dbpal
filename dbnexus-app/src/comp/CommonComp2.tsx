@@ -1463,7 +1463,7 @@ function SqlDefaultValue(props: {
   const { showNotification } = useNotification();
   useEffect(() => {
     commands
-      .listSqlCurrentValues(dbName)
+      .listSqlPredefineValues(dbName)
       .then((data) => {
         setCurrentValue(data);
       })

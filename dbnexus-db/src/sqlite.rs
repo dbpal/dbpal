@@ -18,7 +18,7 @@ use crate::datasource_config::SqliteDBConfig;
 use crate::db::{
     create_html_table_data, create_html_table_header, create_markdown_data, create_markdown_header,
     export_query_as_xlsx_send_data, quote_sql_str, AutoCompletionQueryId, BackendKind, CheckConn,
-    ColumnType, CreateIndexReq, CreateSchemaExtra, CreateTableAndIndexSql, DBTrait,
+    ColumnType, CreateIndexReq, CreateSchemaArg, CreateTableAndIndexSql, DBTrait,
     EncodeXlsxDatetime, ExportFrame, ExportKind, ExportQueryResult, ExtractSqlValeFromJsonValue,
     Field, FirstTrue, ForeignKeyDef, GetBackendKind, Index, IndexKind, ListTable, MetaValue,
     NamedStaff, OptionMustBeSomeErr, QueryEvent, QueryEventEmitter, QueryResp, QuerySql,
@@ -340,7 +340,7 @@ impl DBTrait for SqliteDB {
     async fn create_schema(
         &self,
         _name: &str,
-        _extra: Option<CreateSchemaExtra>,
+        _extra: Option<CreateSchemaArg>,
     ) -> anyhow::Result<()> {
         self.backend_kind()
             .not_support_feature("can't create schema")
@@ -380,8 +380,8 @@ impl SchemaTrait for SqliteDB {
         anyhow::Ok(ret)
     }
 
-    fn list_sql_current_values(&self) -> &'static [&'static str] {
-        <Self as SqlBuilder>::get_predefine_names(self)
+    fn list_sql_predefine_values(&self) -> &'static [&'static str] {
+        <Self as SqlBuilder>::get_predefine_values(self)
     }
 
     async fn list_data_types(&self) -> anyhow::Result<Vec<String>> {
@@ -415,7 +415,7 @@ impl SchemaTrait for SqliteDB {
             if let Some(dv) = col.default_value.as_ref() {
                 format!(
                     "DEFAULT {}",
-                    self.encode_value_hit_predefine(&col.typ, dv.as_str())?
+                    self.encode_value_try_predefine(&col.typ, dv.as_str())?
                 )
             } else {
                 "".to_owned()
@@ -655,7 +655,7 @@ impl SchemaTrait for SqliteDB {
         log::info!("show table sql:{}", sql);
         emit.send("trying to query data.".into())?;
         let mut stream = sqlx::raw_sql(AssertSqlSafe(sql.as_str())).fetch(conn.deref_mut());
-        let first = FirstTrue::default();
+        let mut first = FirstTrue::default();
 
         while let Some(row) = stream.next().await {
             let row = row?;
@@ -761,7 +761,7 @@ impl SqlBuilder for SqliteDB {
         None
     }
 
-    fn get_predefine_names(&self) -> &'static [&'static str] {
+    fn get_predefine_values(&self) -> &'static [&'static str] {
         SQLITE_CURRENT_LITERALS
     }
     fn encode_value(&self, typ: &str, value: &str) -> anyhow::Result<String> {
@@ -1259,7 +1259,7 @@ impl ExportQueryResult for SqliteDB {
         };
         let mut conn = conn.lock().await;
         let mut stream = sqlx::raw_sql(AssertSqlSafe(sql)).fetch(conn.deref_mut());
-        let first = FirstTrue::default();
+        let mut first = FirstTrue::default();
 
         let mut row_num = 0;
         while let Some(row) = stream.next().await {

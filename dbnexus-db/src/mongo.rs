@@ -14,7 +14,7 @@ use mongodb::{bson, Cursor, IndexModel};
 
 use crate::datasource_config::MongoDBConfig;
 use crate::db::{
-    parse_bson_doc, BackendKind, CheckConn, CreateSchemaExtra, DBTrait, ExportFrame, ExportKind,
+    parse_bson_doc, BackendKind, CheckConn, CreateSchemaArg, DBTrait, ExportFrame, ExportKind,
     ExportQueryResult, ExtractSqlValeFromJsonValue, Field, GetBackendKind, Index, IndexKind,
     ListTable, MetaValue, OptionMustBeSomeErr, QueryEventEmitter, QueryResp, QuerySql,
     ReadOnlyTrait, SchemaTrait, ServerMetas, ShowTableParameter,
@@ -126,7 +126,7 @@ impl DBTrait for MongoDB {
     async fn create_schema(
         &self,
         name: &str,
-        _extra: Option<CreateSchemaExtra>,
+        _extra: Option<CreateSchemaArg>,
     ) -> anyhow::Result<()> {
         self.can_write()?;
         self.created_databases.insert(name.to_owned());

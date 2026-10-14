@@ -134,7 +134,7 @@ export const commands = {
 	renameSequence: (dbName: string, old: string, newName: string) => __TAURI_INVOKE<string>("rename_sequence", { dbName, old, newName }),
 	commandPanic: () => __TAURI_INVOKE<null>("command_panic"),
 	allFontFamily: () => __TAURI_INVOKE<string[]>("all_font_family"),
-	listSqlCurrentValues: (dbName: string) => __TAURI_INVOKE<string[]>("list_sql_current_values", { dbName }),
+	listSqlPredefineValues: (dbName: string) => __TAURI_INVOKE<string[]>("list_sql_predefine_values", { dbName }),
 	simpleExecuteSql: (dbName: string, sql: string) => __TAURI_INVOKE<number | null>("simple_execute_sql", { dbName, sql }),
 	dropCreatedType: (dbName: string, typeName: string) => __TAURI_INVOKE<string>("drop_created_type", { dbName, typeName }),
 	listEvent: (dbName: string) => __TAURI_INVOKE<SqlEvent[]>("list_event", { dbName }),
@@ -250,7 +250,7 @@ export type CouchBaseDBConfig = {
 	ca_certificates: string[],
 };
 
-export type CreateDatabaseExtra = { extra: "couchbase"; ram_quota_mb: number; flush_enabled: boolean; num_replicas: number; max_expiry: number | null; bucket_type: CouchBaseBucketType };
+export type CreateDatabaseArg = { extra: "couchbase"; ram_quota_mb: number; flush_enabled: boolean; num_replicas: number; max_expiry: number | null; bucket_type: CouchBaseBucketType };
 
 export type CreateIndexColumn = {
 	col: string,
@@ -263,7 +263,7 @@ export type CreateIndexReq = {
 	kind: IndexKind,
 };
 
-export type CreateSchemaExtra = { extra: "cassandra"; replication_strategy: string; replication_factor: number };
+export type CreateSchemaArg = { extra: "cassandra"; replication_strategy: string; replication_factor: number };
 
 // create table and all index sql.
 export type CreateTableAndIndexSql = {
@@ -295,7 +295,7 @@ export type CreatedTypeDef = {
 	sql: string | null,
 };
 
-export type DBConnectionConfig = { conn_type: "sqlite"; name: string } & (SqliteDBConfig) | { conn_type: "mysql"; name: string; save_password: boolean } & (MysqlDBConfig) | { conn_type: "mariadb"; name: string; save_password: boolean } & (MysqlDBConfig) | { conn_type: "tidb"; name: string; save_password: boolean } & (MysqlDBConfig) | { conn_type: "postgres"; name: string; save_password: boolean } & (PGDBConfig) | { conn_type: "cockroach"; name: string; save_password: boolean } & (PGDBConfig) | { conn_type: "sqlserver"; name: string; save_password: boolean } & (SqlServerDBConfig) | { conn_type: "mongo"; name: string; save_password: boolean } & (MongoDBConfig) | { conn_type: "redis"; name: string; save_password: boolean } & (RedisDBConfig) | { conn_type: "oracle"; name: string; save_password: boolean } & (OracleDBConfig) | { conn_type: "cassandra"; name: string; save_password: boolean } & (CassandraDBConfig) | { conn_type: "clickhouse"; name: string; save_password: boolean } & (ClickHouseConfig) | { conn_type: "libsql"; name: string } & (LibSqlDBConfig) | { conn_type: "firebird"; name: string; save_password: boolean } & (FireBirdConfig) | { conn_type: "duckdb"; name: string } & (DuckDBConfig) | { conn_type: "db2"; name: string; save_password: boolean } & (Db2Config) | { conn_type: "couchbase"; name: string; save_password: boolean } & (CouchBaseDBConfig);
+export type DBConnectionConfig = { conn_type: "sqlite"; name: string } & (SqliteDBConfig) | { conn_type: "mysql"; name: string; save_password: boolean } & (MysqlDBConfig) | { conn_type: "mariadb"; name: string; save_password: boolean } & (MysqlDBConfig) | { conn_type: "tidb"; name: string; save_password: boolean } & (MysqlDBConfig) | { conn_type: "postgres"; name: string; save_password: boolean } & (PGDBConfig) | { conn_type: "cockroach"; name: string; save_password: boolean } & (PGDBConfig) | { conn_type: "sqlserver"; name: string; save_password: boolean } & (SqlServerDBConfig) | { conn_type: "mongo"; name: string; save_password: boolean } & (MongoDBConfig) | { conn_type: "redis"; name: string; save_password: boolean } & (RedisDBConfig) | { conn_type: "oracle"; name: string; save_password: boolean } & (OracleDBConfig) | { conn_type: "cassandra"; name: string; save_password: boolean } & (CassandraDBConfig) | { conn_type: "clickhouse"; name: string; save_password: boolean } & (ClickHouseConfig) | { conn_type: "libsql"; name: string } & (LibSqlDBConfig) | { conn_type: "firebird"; name: string; save_password: boolean } & (FireBirdConfig) | { conn_type: "db2"; name: string; save_password: boolean } & (Db2Config) | { conn_type: "couchbase"; name: string; save_password: boolean } & (CouchBaseDBConfig);
 
 export type Db2Config = {
 	host: string,
@@ -321,15 +321,6 @@ export type DocsAndCount = {
 	 *  https://github.com/mongodb/js-bson
 	 */
 	docs: number[][],
-};
-
-export type DuckDBConfig = {
-	path: string,
-	read_only: boolean,
-	db: string | null,
-	schema: string | null,
-	conn_timeout: SomeTimeOut | null,
-	max_memory: string | null,
 };
 
 export type ErrorFrontend = {
