@@ -7,7 +7,7 @@ mod app;
 mod handlers;
 
 use app::DBPal;
-use dbpal::app::SetZoom;
+use app::SetZoom;
 
 use handlers::{
     add_table_column, ai_text_completion, all_font_family, auto_completion, cancel_task,
