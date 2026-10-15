@@ -1073,7 +1073,6 @@ function makeComponents(
               gap: "2px",
             },
             "& .MuiMenuItem-root": {
-              minHeight: "32px",
               padding: "4px 12px",
               fontSize: "0.875rem",
             },
@@ -1120,7 +1119,7 @@ function makeComponents(
     MuiMenu: {
       styleOverrides: {
         paper: {
-          padding: 0,
+          padding: "0px",
         },
         list: {
           paddingTop: "2px", // The native default is usually 8px.
@@ -1141,8 +1140,9 @@ function makeComponents(
     MuiMenuItem: {
       styleOverrides: {
         root: {
-          height: "1.6rem",
           fontSize: "1rem",
+          padding: "2px",
+          minHeight: "1rem",
         },
       },
     },
@@ -1201,7 +1201,7 @@ const makeTheme = (
   appearance: Partial<UserSettings["appearance"]>,
   isDarkTheme: boolean,
   datagridRowHeightXXX: number,
-  setColumnWidth: (string, number) => void,
+  setColumnWidth: (_: string, _x: number) => void,
 ) => {
   let color: string;
   if (isDarkTheme) {
@@ -1209,7 +1209,15 @@ const makeTheme = (
   } else {
     color = appearance.lightBgColor ? appearance.lightBgColor : "#fff";
   }
+
   const { fontWeight, fontFamily } = appearance;
+  const components = makeComponents(
+    isDarkTheme,
+    fontWeight,
+    datagridRowHeightXXX,
+    setColumnWidth,
+  );
+
   return createTheme({
     typography: {
       allVariants: {
@@ -1224,12 +1232,7 @@ const makeTheme = (
         paper: color,
       },
     },
-    components: makeComponents(
-      isDarkTheme,
-      fontWeight,
-      datagridRowHeightXXX,
-      setColumnWidth,
-    ),
+    components,
   });
 };
 
