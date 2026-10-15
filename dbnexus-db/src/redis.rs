@@ -17,7 +17,7 @@ use crate::db::{
     BackendKind, CheckConn, CreateSchemaArg, DBTrait, EncodeXlsxDatetime, ExportFrame, ExportKind,
     ExportQueryResult, ExtractSqlValeFromJsonValue, Field, GetBackendKind, GetTestExportTableKinds,
     ListTable, MetaValue, QueryEvent, QueryEventEmitter, QueryResp, QuerySql, ReadOnlyTrait,
-    SchemaTrait, ServerMetas, ShowTableParameter, SqlBuilder, XlsxEdit,
+    SchemaTrait, ServerMetas, ShowTableParameter, SqlBuilder, XlsxEdit, XlsxEditContent,
 };
 use crate::helper::{create_csv, OffsetLimitIter};
 
@@ -815,7 +815,10 @@ impl SchemaTrait for RedisDB {
                                     XlsxEdit {
                                         row: row_num,
                                         column: 1,
-                                        content: kv[1].clone().into(),
+                                        content: match kv[1].parse::<f64>() {
+                                            Ok(f) => XlsxEditContent::number(f),
+                                            Err(_) => kv[1].clone().into(),
+                                        },
                                     }
                                     .into(),
                                 )
