@@ -4,7 +4,7 @@ use crate::db::{
     export_query_as_xlsx_send_data, quote_sql_str, BackendKind, CheckConn, ColumnType,
     CreateSchemaArg, CreateTableAndIndexSql, DBTrait, DefAndMetas, EncodeXlsxDatetime,
     ExportFrame, ExportKind, ExportQueryResult, ExtractSqlValeFromJsonValue, Field, GetBackendKind,
-    GetTestExportTableKinds, ListTable, MetaValue, NamedStaff, QueryEvent, QueryEventEmitter,
+    GetTestExportTableKinds, ListTable, MetaValue, NameWithParameter, QueryEvent, QueryEventEmitter,
     QueryResp, QuerySql, SchemaTrait, ServerMetas, ShowTableParameter, SqlBuilder, SqlCollect,
     XlsxEdit, XlsxEditContent,
 };
@@ -545,14 +545,14 @@ impl SchemaTrait for ClickHouseDB {
         anyhow::Ok(sql)
     }
 
-    async fn list_udf(&self) -> anyhow::Result<Vec<NamedStaff>> {
+    async fn list_udf(&self) -> anyhow::Result<Vec<NameWithParameter>> {
         let sql = "SELECT name  from system.functions where origin = 'SQLUserDefined'";
 
         let rows: Vec<String> = self.client.query(sql).fetch_all().await?;
-        anyhow::Ok(rows.into_iter().map(NamedStaff::from).collect())
+        anyhow::Ok(rows.into_iter().map(NameWithParameter::from).collect())
     }
 
-    async fn show_udf(&self, name: &NamedStaff) -> anyhow::Result<DefAndMetas> {
+    async fn show_udf(&self, name: &NameWithParameter) -> anyhow::Result<DefAndMetas> {
         let sql = format!(
             r#"SELECT create_query from system.functions where origin = 'SQLUserDefined' and  name='{}'"#,
             name.name,
@@ -565,7 +565,7 @@ impl SchemaTrait for ClickHouseDB {
         })
     }
 
-    async fn drop_udf(&self, name: &NamedStaff) -> anyhow::Result<String> {
+    async fn drop_udf(&self, name: &NameWithParameter) -> anyhow::Result<String> {
         let sql = format!("DROP FUNCTION `{}`", name.name);
         self.simple_execute_sql(&sql).await?;
         anyhow::Ok(sql)
@@ -1504,7 +1504,7 @@ mod tests {
         db.open_connection(query_id).await.unwrap();
         let name = "test_udf_add";
 
-        let _ = db.drop_udf(&NamedStaff::from(name.to_string())).await;
+        let _ = db.drop_udf(&NameWithParameter::from(name.to_string())).await;
 
         db.execute_sql(
             query_id,

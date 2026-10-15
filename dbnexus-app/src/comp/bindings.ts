@@ -73,12 +73,12 @@ export const commands = {
 } | null) => __TAURI_INVOKE<string>("modify_table_column", { dbName, tableName, oldName, newName, typ }),
 	dropTrigger: (dbName: string, tableName: string, trigger: string) => __TAURI_INVOKE<string>("drop_trigger", { dbName, tableName, trigger }),
 	enableTrigger: (dbName: string, tableName: string, trigger: string, enable: boolean) => __TAURI_INVOKE<string>("enable_trigger", { dbName, tableName, trigger, enable }),
-	listProcedure: (dbName: string) => __TAURI_INVOKE<NamedStaff[]>("list_procedure", { dbName }),
-	showProcedure: (dbName: string, procedure: NamedStaff) => __TAURI_INVOKE<DefAndMetas>("show_procedure", { dbName, procedure }),
-	dropProcedure: (dbName: string, procedure: NamedStaff) => __TAURI_INVOKE<string>("drop_procedure", { dbName, procedure }),
-	listUdf: (dbName: string) => __TAURI_INVOKE<NamedStaff[]>("list_udf", { dbName }),
-	showUdf: (dbName: string, udf: NamedStaff) => __TAURI_INVOKE<DefAndMetas>("show_udf", { dbName, udf }),
-	dropUdf: (dbName: string, udf: NamedStaff) => __TAURI_INVOKE<string>("drop_udf", { dbName, udf }),
+	listProcedure: (dbName: string) => __TAURI_INVOKE<NameWithParameter[]>("list_procedure", { dbName }),
+	showProcedure: (dbName: string, procedure: NameWithParameter) => __TAURI_INVOKE<DefAndMetas>("show_procedure", { dbName, procedure }),
+	dropProcedure: (dbName: string, procedure: NameWithParameter) => __TAURI_INVOKE<string>("drop_procedure", { dbName, procedure }),
+	listUdf: (dbName: string) => __TAURI_INVOKE<NameWithParameter[]>("list_udf", { dbName }),
+	showUdf: (dbName: string, udf: NameWithParameter) => __TAURI_INVOKE<DefAndMetas>("show_udf", { dbName, udf }),
+	dropUdf: (dbName: string, udf: NameWithParameter) => __TAURI_INVOKE<string>("drop_udf", { dbName, udf }),
 	addTableColumn: (dbName: string, tableName: string, colName: string, typ: ColumnType) => __TAURI_INVOKE<string>("add_table_column", { dbName, tableName, colName, typ }),
 	checkConn: (dbName: string) => __TAURI_INVOKE<number>("check_conn", { dbName }),
 	closeConn: (dbName: string) => __TAURI_INVOKE<null>("close_conn", { dbName }),
@@ -120,7 +120,7 @@ export const commands = {
 	mongoCreateIndex: (dbName: string, tableName: string, indexName: string | null, keys: Uint8Array, unique: boolean) => __TAURI_INVOKE<null>("mongo_create_index", { dbName, tableName, indexName, keys, unique }),
 	createIndex: (dbName: string, tableName: string, req: CreateIndexReq) => __TAURI_INVOKE<string>("create_index", { dbName, tableName, req }),
 	cassandraDropAggregate: (dbName: string, aggName: string, parameters: string[]) => __TAURI_INVOKE<string>("cassandra_drop_aggregate", { dbName, aggName, parameters }),
-	cassandraListAggregate: (dbName: string) => __TAURI_INVOKE<NamedStaff[]>("cassandra_list_aggregate", { dbName }),
+	cassandraListAggregate: (dbName: string) => __TAURI_INVOKE<NameWithParameter[]>("cassandra_list_aggregate", { dbName }),
 	cassandraShowAggregate: (dbName: string, aggName: string, parameters: string[]) => __TAURI_INVOKE<DefAndMetas>("cassandra_show_aggregate", { dbName, aggName, parameters }),
 	listCreatedTypes: (dbName: string) => __TAURI_INVOKE<CreatedTypeDef[]>("list_created_types", { dbName }),
 	showCreateTableSql: (dbName: string, tableName: string) => __TAURI_INVOKE<CreateTableAndIndexSql>("show_create_table_sql", { dbName, tableName }),
@@ -295,7 +295,7 @@ export type CreatedTypeDef = {
 	sql: string | null,
 };
 
-export type DBConnectionConfig = { conn_type: "sqlite"; name: string } & (SqliteDBConfig) | { conn_type: "mysql"; name: string; save_password: boolean } & (MysqlDBConfig) | { conn_type: "mariadb"; name: string; save_password: boolean } & (MysqlDBConfig) | { conn_type: "tidb"; name: string; save_password: boolean } & (MysqlDBConfig) | { conn_type: "postgres"; name: string; save_password: boolean } & (PGDBConfig) | { conn_type: "cockroach"; name: string; save_password: boolean } & (PGDBConfig) | { conn_type: "sqlserver"; name: string; save_password: boolean } & (SqlServerDBConfig) | { conn_type: "mongo"; name: string; save_password: boolean } & (MongoDBConfig) | { conn_type: "redis"; name: string; save_password: boolean } & (RedisDBConfig) | { conn_type: "oracle"; name: string; save_password: boolean } & (OracleDBConfig) | { conn_type: "cassandra"; name: string; save_password: boolean } & (CassandraDBConfig) | { conn_type: "clickhouse"; name: string; save_password: boolean } & (ClickHouseConfig) | { conn_type: "libsql"; name: string } & (LibSqlDBConfig) | { conn_type: "firebird"; name: string; save_password: boolean } & (FireBirdConfig) | { conn_type: "db2"; name: string; save_password: boolean } & (Db2Config) | { conn_type: "couchbase"; name: string; save_password: boolean } & (CouchBaseDBConfig);
+export type DBConnectionConfig = { conn_type: "sqlite"; name: string } & (SqliteDBConfig) | { conn_type: "mysql"; name: string; save_password: boolean } & (MysqlDBConfig) | { conn_type: "mariadb"; name: string; save_password: boolean } & (MysqlDBConfig) | { conn_type: "tidb"; name: string; save_password: boolean } & (MysqlDBConfig) | { conn_type: "postgres"; name: string; save_password: boolean } & (PGDBConfig) | { conn_type: "cockroach"; name: string; save_password: boolean } & (PGDBConfig) | { conn_type: "sqlserver"; name: string; save_password: boolean } & (SqlServerDBConfig) | { conn_type: "mongo"; name: string; save_password: boolean } & (MongoDBConfig) | { conn_type: "redis"; name: string; save_password: boolean } & (RedisDBConfig) | { conn_type: "oracle"; name: string; save_password: boolean } & (OracleDBConfig) | { conn_type: "cassandra"; name: string; save_password: boolean } & (CassandraDBConfig) | { conn_type: "clickhouse"; name: string; save_password: boolean } & (ClickHouseConfig) | { conn_type: "libsql"; name: string } & (LibSqlDBConfig) | { conn_type: "firebird"; name: string; save_password: boolean } & (FireBirdConfig) | { conn_type: "duckdb"; name: string } & (DuckDBConfig) | { conn_type: "db2"; name: string; save_password: boolean } & (Db2Config) | { conn_type: "couchbase"; name: string; save_password: boolean } & (CouchBaseDBConfig);
 
 export type Db2Config = {
 	host: string,
@@ -321,6 +321,15 @@ export type DocsAndCount = {
 	 *  https://github.com/mongodb/js-bson
 	 */
 	docs: number[][],
+};
+
+export type DuckDBConfig = {
+	path: string,
+	read_only: boolean,
+	db: string | null,
+	schema: string | null,
+	conn_timeout: SomeTimeOut | null,
+	max_memory: string | null,
 };
 
 export type ErrorFrontend = {
@@ -448,8 +457,7 @@ export type MysqlDBConfig = {
 	charset: MysqlCharset,
 } & (SslFilesWithStrModel);
 
-// named staff maybe used for view udf etc...
-export type NamedStaff = {
+export type NameWithParameter = {
 	parameters: string | null,
 	cassandra_parameters: string[] | null,
 	name: string,

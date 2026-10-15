@@ -2,6 +2,7 @@
 
 use chrono::{NaiveDate, Utc};
 use dashmap::{DashMap, DashSet};
+use dbnexus_db::datasource_config::DuckDBConfig;
 use dbnexus_db::db::{
     create_html_table_data, create_html_table_header, create_markdown_data, create_markdown_header,
     export_query_as_xlsx_send_blocking_data, quote_sql_str, AutoCompletionQueryId, BackendKind,
@@ -23,8 +24,6 @@ use std::collections::{HashMap, HashSet};
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
 use tokio::task::spawn_blocking;
-
-use crate::DuckDBConfig;
 
 impl DuckDB {
     pub(crate) fn use_database(&self, conn: &Connection) -> anyhow::Result<()> {
@@ -59,20 +58,17 @@ impl ServerMetas for DuckDB {
     }
 }
 
-impl TryFrom<&DuckDBConfig> for DuckdbConnectionManager {
-    type Error = duckdb::Error;
-    fn try_from(value: &DuckDBConfig) -> Result<Self, duckdb::Error> {
-        let mut config = duckdb::Config::default();
-        config = config.access_mode(if value.read_only {
-            AccessMode::ReadOnly
-        } else {
-            AccessMode::ReadWrite
-        })?;
-        if let Some(x) = value.max_memory.as_deref() {
-            config = config.max_memory(x)?;
-        }
-        DuckdbConnectionManager::file_with_flags(value.path.clone(), config)
+fn duck_config_to_manager(value: &DuckDBConfig) -> Result<DuckdbConnectionManager, duckdb::Error> {
+    let mut config = duckdb::Config::default();
+    config = config.access_mode(if value.read_only {
+        AccessMode::ReadOnly
+    } else {
+        AccessMode::ReadWrite
+    })?;
+    if let Some(x) = value.max_memory.as_deref() {
+        config = config.max_memory(x)?;
     }
+    DuckdbConnectionManager::file_with_flags(value.path.clone(), config)
 }
 
 impl DuckDB {
@@ -85,7 +81,7 @@ impl DuckDB {
             if let Some(timeout) = config.conn_timeout {
                 builder = builder.connection_timeout(timeout.into());
             }
-            let pool = builder.build(DuckdbConnectionManager::try_from(&config)?)?;
+            let pool = builder.build(duck_config_to_manager(&config)?)?;
             anyhow::Ok(Self {
                 config,
                 pool,

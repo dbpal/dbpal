@@ -141,7 +141,7 @@ import { visit, SKIP } from "unist-util-visit";
 import {
   commands,
   CouchBaseBucketType,
-  CreateDatabaseExtra,
+  CreateDatabaseArg,
   CreateIndexColumn,
   CreateIndexReq,
   Field,
@@ -305,7 +305,7 @@ function CreateDatabase(props: { handleClose: () => void }) {
       showNotification({ severity: "warning", title: "database name is empty" });
       return;
     }
-    let extra: CreateDatabaseExtra = null;
+    let extra: CreateDatabaseArg = null;
     switch (kind) {
       case DataSourceKind.CouchBase:
         extra = {

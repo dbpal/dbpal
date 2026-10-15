@@ -18,7 +18,7 @@ use crate::db::{
     CatalogTrait, CheckConn, ColumnType, CreateDatabaseArg, CreateIndexReq, CreateSchemaArg,
     CreateTableAndIndexSql, CreatedTypeDef, DBTrait, DefAndMetas, ExportFrame, ExportKind,
     ExportQueryResult, ExtractSqlValeFromJsonValue, Field, FirstTrue, ForeignKeyDef,
-    GetBackendKind, GetTestExportTableKinds, Index, IndexKind, ListTable, MetaValue, NamedStaff,
+    GetBackendKind, GetTestExportTableKinds, Index, IndexKind, ListTable, MetaValue, NameWithParameter,
     OptionMustBeSomeErr, QueryEvent, QueryEventEmitter, QueryResp, QuerySql, SchemaTrait,
     SequenceDetail, ServerMetas, ShowTableParameter, SqlBuilder, SqlCollect, TriggerDetail,
     TriggerEvent, TriggerTiming, XlsxEdit, POOL_MAX_CONNECTIONS,
@@ -586,7 +586,7 @@ impl SchemaTrait for PostGresDB {
         anyhow::Ok(ret)
     }
 
-    async fn list_procedure(&self) -> anyhow::Result<Vec<NamedStaff>> {
+    async fn list_procedure(&self) -> anyhow::Result<Vec<NameWithParameter>> {
         let sql = format!(
             r#"
         SELECT  
@@ -605,7 +605,7 @@ impl SchemaTrait for PostGresDB {
         for r in rows.iter() {
             let name: String = r.try_get(0)?;
             let p: String = r.try_get(1)?;
-            ret.push(NamedStaff {
+            ret.push(NameWithParameter {
                 name,
                 parameters: Some(p),
                 metas: vec![],
@@ -616,7 +616,7 @@ impl SchemaTrait for PostGresDB {
         anyhow::Ok(ret)
     }
 
-    async fn show_procedure(&self, name: &NamedStaff) -> anyhow::Result<DefAndMetas> {
+    async fn show_procedure(&self, name: &NameWithParameter) -> anyhow::Result<DefAndMetas> {
         let sql = format!(
             r#"
                 SELECT 
@@ -648,7 +648,7 @@ impl SchemaTrait for PostGresDB {
         })
     }
 
-    async fn drop_procedure(&self, name: &NamedStaff) -> anyhow::Result<String> {
+    async fn drop_procedure(&self, name: &NameWithParameter) -> anyhow::Result<String> {
         let sql = format!(
             "DROP PROCEDURE {}({})",
             name.name,
@@ -659,7 +659,7 @@ impl SchemaTrait for PostGresDB {
         anyhow::Ok(sql)
     }
 
-    async fn list_udf(&self) -> anyhow::Result<Vec<NamedStaff>> {
+    async fn list_udf(&self) -> anyhow::Result<Vec<NameWithParameter>> {
         let sql = format!(
             r#"
             SELECT  
@@ -683,7 +683,7 @@ impl SchemaTrait for PostGresDB {
             let name: String = r.get(0);
             let return_type: Option<String> = r.get(1);
             let arguments: Option<String> = r.get(2);
-            ret.push(NamedStaff {
+            ret.push(NameWithParameter {
                 name,
                 parameters: arguments,
                 metas: vec![MetaValue::new("return_type", return_type)],
@@ -693,7 +693,7 @@ impl SchemaTrait for PostGresDB {
         anyhow::Ok(ret)
     }
 
-    async fn show_udf(&self, name: &NamedStaff) -> anyhow::Result<DefAndMetas> {
+    async fn show_udf(&self, name: &NameWithParameter) -> anyhow::Result<DefAndMetas> {
         let sql = format!(
             r#"
             SELECT  
@@ -723,7 +723,7 @@ impl SchemaTrait for PostGresDB {
         ))
     }
 
-    async fn drop_udf(&self, name: &NamedStaff) -> anyhow::Result<String> {
+    async fn drop_udf(&self, name: &NameWithParameter) -> anyhow::Result<String> {
         let sql = format!(
             "DROP FUNCTION IF EXISTS {}.{}({})",
             self.config.schema_str(),
@@ -770,7 +770,7 @@ impl SchemaTrait for PostGresDB {
         anyhow::Ok(sql.into())
     }
 
-    async fn list_trigger(&self, table_name: &str) -> anyhow::Result<Vec<NamedStaff>> {
+    async fn list_trigger(&self, table_name: &str) -> anyhow::Result<Vec<NameWithParameter>> {
         let sql = format!(
             r#"
                 SELECT tgname 
@@ -785,7 +785,7 @@ impl SchemaTrait for PostGresDB {
             let name: String = r.get(0);
             ret.push(name);
         }
-        anyhow::Ok(ret.into_iter().map(NamedStaff::from).collect())
+        anyhow::Ok(ret.into_iter().map(NameWithParameter::from).collect())
     }
 
     async fn show_trigger(&self, table: &str, name: &str) -> anyhow::Result<TriggerDetail> {
@@ -2026,7 +2026,7 @@ mod tests {
         db::{
             BackendKindPostGres, CheckConn, ColumnType, CreateIndexColumn, CreateIndexReq,
             CreateTableReq, CreateTableReqColumn, DBTrait, GetTestExportTableKinds, IndexKind,
-            NamedStaff, QuerySql, SchemaTrait, ServerMetas, ShowTableParameter, SqlNullAble,
+            NameWithParameter, QuerySql, SchemaTrait, ServerMetas, ShowTableParameter, SqlNullAble,
             TestQueryEventEmit,
         },
         helper::{cert_files_dir, start_docker_container, DockerContainerDropper},
@@ -2144,7 +2144,7 @@ mod tests {
         let parameter = "a integer".to_string();
         let name = "test_procedure";
         let err = db
-            .drop_procedure(&NamedStaff {
+            .drop_procedure(&NameWithParameter {
                 name: name.to_string(),
                 parameters: Some(parameter.clone()),
                 ..Default::default()
@@ -2449,7 +2449,7 @@ mod tests {
         let name = "test_udf";
 
         let _ = pg
-            .drop_udf(&NamedStaff {
+            .drop_udf(&NameWithParameter {
                 name: name.to_string(),
                 parameters: Some("a integer, b integer".to_string()),
                 ..Default::default()
@@ -2521,7 +2521,7 @@ mod tests {
         .unwrap()
         .unwrap();
         let _ = db
-            .drop_udf(&NamedStaff {
+            .drop_udf(&NameWithParameter {
                 name: "trigger_insert_test_create_trigger".to_string(),
                 parameters: Some("".into()),
                 ..Default::default()

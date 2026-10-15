@@ -941,7 +941,7 @@ pub trait SchemaTrait:
         self.backend_kind().not_support_feature("show view sql")
     }
 
-    async fn list_trigger(&self, _table_name: &str) -> anyhow::Result<Vec<NamedStaff>> {
+    async fn list_trigger(&self, _table_name: &str) -> anyhow::Result<Vec<NameWithParameter>> {
         self.backend_kind().not_support_feature("list trigger")
     }
     async fn show_trigger(&self, _table: &str, _name: &str) -> anyhow::Result<TriggerDetail> {
@@ -960,25 +960,25 @@ pub trait SchemaTrait:
         self.backend_kind().not_support_feature("enable trigger")
     }
 
-    async fn list_udf(&self) -> anyhow::Result<Vec<NamedStaff>> {
+    async fn list_udf(&self) -> anyhow::Result<Vec<NameWithParameter>> {
         self.backend_kind().not_support_feature("list udf")
     }
 
-    async fn show_udf(&self, _name: &NamedStaff) -> anyhow::Result<DefAndMetas> {
+    async fn show_udf(&self, _name: &NameWithParameter) -> anyhow::Result<DefAndMetas> {
         self.backend_kind().not_support_feature("show udf")
     }
 
-    async fn drop_udf(&self, _name: &NamedStaff) -> anyhow::Result<String> {
+    async fn drop_udf(&self, _name: &NameWithParameter) -> anyhow::Result<String> {
         self.backend_kind().not_support_feature("drop udf")
     }
 
-    async fn list_procedure(&self) -> anyhow::Result<Vec<NamedStaff>> {
+    async fn list_procedure(&self) -> anyhow::Result<Vec<NameWithParameter>> {
         self.backend_kind().not_support_feature("list procedure")
     }
-    async fn show_procedure(&self, _name: &NamedStaff) -> anyhow::Result<DefAndMetas> {
+    async fn show_procedure(&self, _name: &NameWithParameter) -> anyhow::Result<DefAndMetas> {
         self.backend_kind().not_support_feature("show procedure")
     }
-    async fn drop_procedure(&self, _name: &NamedStaff) -> anyhow::Result<String> {
+    async fn drop_procedure(&self, _name: &NameWithParameter) -> anyhow::Result<String> {
         self.backend_kind().not_support_feature("drop procedure")
     }
 
@@ -1712,9 +1712,9 @@ pub enum CouchBaseBucketType {
     Ephemeral,
 }
 
-/// named staff maybe used for view udf etc...
+// maybe used for udf etc...
 #[derive(Debug, serde::Serialize, specta::Type, serde::Deserialize, Default)]
-pub struct NamedStaff {
+pub struct NameWithParameter {
     // some backend support reload function like postgres
     pub parameters: Option<String>,
     // cassandra support reload and parameter is a `Vec`
@@ -1723,9 +1723,9 @@ pub struct NamedStaff {
     pub metas: Vec<MetaValue>,
 }
 
-impl From<String> for NamedStaff {
+impl From<String> for NameWithParameter {
     fn from(value: String) -> Self {
-        NamedStaff {
+        NameWithParameter {
             name: value,
             metas: vec![],
             parameters: None,
@@ -1764,11 +1764,8 @@ pub trait DBTrait:
 {
     async fn list_schema(&self) -> anyhow::Result<Vec<String>>;
     async fn open_schema(&self, name: &str) -> anyhow::Result<Arc<dyn SchemaTrait>>;
-    async fn create_schema(
-        &self,
-        name: &str,
-        extra: Option<CreateSchemaArg>,
-    ) -> anyhow::Result<()>;
+    async fn create_schema(&self, name: &str, extra: Option<CreateSchemaArg>)
+        -> anyhow::Result<()>;
     async fn drop_schema(&self, name: &str) -> anyhow::Result<()>;
     fn as_any(&self) -> &dyn std::any::Any;
 }

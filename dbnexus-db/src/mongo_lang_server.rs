@@ -17,7 +17,7 @@ impl SqlBuilder for MongoDB {
     }
 
     fn encode_value(&self, _typ: &str, _value: &str) -> anyhow::Result<String> {
-        self.backend_kind().not_support_feature("put value in sql")
+        self.backend_kind().not_support_feature("encode value")
     }
 
     fn gen_show_sql(

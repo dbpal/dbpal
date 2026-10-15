@@ -1,9 +1,9 @@
 use core::str;
 use dashmap::DashMap;
 use dbnexus_db::datasource_config::{
-    CassandraDBConfig, ClickHouseConfig, CouchBaseDBConfig, Db2Config, FireBirdConfig,
-    LibSqlDBConfig, MongoDBConfig, MysqlDBConfig, OracleDBConfig, PGDBConfig, RedisDBConfig,
-    SqlServerDBConfig, SqliteDBConfig,
+    CassandraDBConfig, ClickHouseConfig, CouchBaseDBConfig, Db2Config, DuckDBConfig,
+    FireBirdConfig, LibSqlDBConfig, MongoDBConfig, MysqlDBConfig, OracleDBConfig, PGDBConfig,
+    RedisDBConfig, SqlServerDBConfig, SqliteDBConfig,
 };
 use dbnexus_db::db::{
     parse_bson_doc, BackendKind, BackendKindMysql, BackendKindPostGres, CatalogTrait, CheckConn,
@@ -15,8 +15,6 @@ use dbnexus_db::mysql::MysqlDB;
 use dbnexus_db::pg::PostGresDB;
 #[cfg(feature = "duckdb")]
 use dbnexus_db2::duckdb::DuckDB;
-#[cfg(feature = "duckdb")]
-use dbnexus_db2::DuckDBConfig;
 use font_kit::error::SelectionError;
 use std::any::Any;
 
@@ -118,9 +116,8 @@ impl DBConnectionConfig {
             | DBConnectionConfig::FireBird { name, .. }
             | DBConnectionConfig::CockRoach { name, .. }
             | DBConnectionConfig::Db2 { name, .. }
-            | DBConnectionConfig::CouchBase { name, .. } => name.as_str(),
-            #[cfg(feature = "duckdb")]
-            DBConnectionConfig::DuckDB { name, .. } => name.as_str(),
+            | DBConnectionConfig::CouchBase { name, .. }
+            | DBConnectionConfig::DuckDB { name, .. } => name.as_str(),
         }
     }
 }
@@ -210,7 +207,6 @@ pub enum DBConnectionConfig {
         name: String,
         save_password: bool,
     },
-    #[cfg(feature = "duckdb")]
     DuckDB {
         #[serde(flatten)]
         conn: DuckDBConfig,
@@ -356,18 +352,27 @@ impl DBConnectionConfig {
                 };
                 anyhow::Ok(db)
             }
-            #[cfg(feature = "duckdb")]
+
             DBConnectionConfig::DuckDB { conn: _conn, .. } => {
-                let db = DuckDB::new(_conn.clone()).await?;
-                match &_conn.db {
-                    Some(_) => match &_conn.schema {
-                        Some(_) => {
-                            anyhow::Ok(DatabaseBackend::from(Arc::new(db) as Arc<dyn SchemaTrait>))
+                #[cfg(not(feature = "duckdb"))]
+                {
+                    anyhow::bail!("need enable duckdb feature")
+                }
+                #[cfg(feature = "duckdb")]
+                {
+                    let db = DuckDB::new(_conn.clone()).await?;
+                    match &_conn.db {
+                        Some(_) => match &_conn.schema {
+                            Some(_) => anyhow::Ok(DatabaseBackend::from(
+                                Arc::new(db) as Arc<dyn SchemaTrait>
+                            )),
+                            None => {
+                                anyhow::Ok(DatabaseBackend::from(Arc::new(db) as Arc<dyn DBTrait>))
+                            }
+                        },
+                        None => {
+                            anyhow::Ok(DatabaseBackend::from(Arc::new(db) as Arc<dyn CatalogTrait>))
                         }
-                        None => anyhow::Ok(DatabaseBackend::from(Arc::new(db) as Arc<dyn DBTrait>)),
-                    },
-                    None => {
-                        anyhow::Ok(DatabaseBackend::from(Arc::new(db) as Arc<dyn CatalogTrait>))
                     }
                 }
             }

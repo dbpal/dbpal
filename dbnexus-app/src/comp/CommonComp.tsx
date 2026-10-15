@@ -109,7 +109,7 @@ import {
   Field,
   ListTable,
   MetaValue,
-  NamedStaff,
+  NameWithParameter,
   ShowTableParameter,
 } from "./bindings";
 
@@ -832,7 +832,7 @@ function ViewRowInModal(props: {
 /**
  * Display UDF name and parameters in metadata lists.
  */
-function UdfNameAndParameters(props: { udf: NamedStaff; kind: DataSourceKind }) {
+function UdfNameAndParameters(props: { udf: NameWithParameter; kind: DataSourceKind }) {
   const { udf, kind } = props;
   let parameter = "";
   switch (kind) {

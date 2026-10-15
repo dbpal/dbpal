@@ -15,7 +15,7 @@ use crate::db::{
     ColumnType, CreateIndexReq, CreateSchemaArg, CreateTableAndIndexSql, DBTrait,
     EncodeXlsxDatetime, ExportFrame, ExportKind, ExportQueryResult, ExtractSqlValeFromJsonValue,
     Field, FirstTrue, ForeignKeyDef, GetBackendKind, GetTestExportTableKinds, Index, IndexKind,
-    ListTable, MetaValue, NamedStaff, QueryEvent, QueryEventEmitter, QueryResp, QuerySql,
+    ListTable, MetaValue, NameWithParameter, QueryEvent, QueryEventEmitter, QueryResp, QuerySql,
     ReadOnlyTrait, SchemaTrait, ServerMetas, ShowTableParameter, SqlBuilder, TriggerDetail,
     XlsxEdit, XlsxEditContent, POOL_MAX_CONNECTIONS,
 };
@@ -662,7 +662,7 @@ impl SchemaTrait for LibSqlDB {
         anyhow::Ok(sql.into())
     }
 
-    async fn list_trigger(&self, table_name: &str) -> anyhow::Result<Vec<NamedStaff>> {
+    async fn list_trigger(&self, table_name: &str) -> anyhow::Result<Vec<NameWithParameter>> {
         let sql = format!(
             r#"
             SELECT name 
@@ -678,7 +678,7 @@ impl SchemaTrait for LibSqlDB {
             let name: String = row.get(0)?;
             ret.push(name);
         }
-        anyhow::Ok(ret.into_iter().map(NamedStaff::from).collect())
+        anyhow::Ok(ret.into_iter().map(NameWithParameter::from).collect())
     }
 
     async fn show_trigger(&self, _table: &str, name: &str) -> anyhow::Result<TriggerDetail> {

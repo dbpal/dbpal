@@ -45,7 +45,7 @@ mod tests {
     use super::*;
     use crate::{
         cassandra::{test_impls, test_lock},
-        db::{NamedStaff, QuerySql, SchemaTrait, ShowTableParameter, TestQueryEventEmit},
+        db::{NameWithParameter, QuerySql, SchemaTrait, ShowTableParameter, TestQueryEventEmit},
     };
 
     #[tokio::test]
@@ -65,11 +65,11 @@ mod tests {
                 .drop_aggregate("test_aggregate", vec!["int".to_string()])
                 .await;
             let _ = db
-                .drop_udf(&NamedStaff::from("sum_state_function".to_string()))
+                .drop_udf(&NameWithParameter::from("sum_state_function".to_string()))
                 .await;
 
             let _ = db
-                .drop_udf(&NamedStaff {
+                .drop_udf(&NameWithParameter {
                     name: "sum_final_function".to_string(),
                     cassandra_parameters: Some(vec!["int".to_string()]),
                     ..Default::default()
@@ -267,7 +267,7 @@ mod tests {
         let name = "test_udf";
         {
             let err = db
-                .drop_udf(&NamedStaff {
+                .drop_udf(&NameWithParameter {
                     name: name.to_string(),
                     cassandra_parameters: Some(vec!["text".to_string()]),
                     ..Default::default()
@@ -296,7 +296,7 @@ mod tests {
         list.iter().for_each(|x| println!("udf:{:?}", x));
 
         let detail = db
-            .show_udf(&NamedStaff {
+            .show_udf(&NameWithParameter {
                 name: "test_udf".to_string(),
                 cassandra_parameters: Some(vec!["text".to_string()]),
                 ..Default::default()

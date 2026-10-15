@@ -204,8 +204,8 @@ impl LangServerCommon for MysqlDB {
 
     async fn list_user(&self) -> anyhow::Result<Vec<String>> {
         let sql = "SELECT  DISTINCT  user FROM mysql.user";
-        let mut conn = self.get_conn().await?;
-        let rows = sqlx::query(sql).fetch_all(conn.deref_mut()).await?;
+
+        let rows = self.query_rows(sql).await?;
         let mut ret = Vec::with_capacity(rows.len());
 
         for r in rows {

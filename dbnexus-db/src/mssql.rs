@@ -5,7 +5,7 @@ use crate::db::{
     CatalogTrait, CheckConn, ColumnType, CreateDatabaseArg, CreateIndexReq, CreateSchemaArg,
     DBTrait, DefAndMetas, EncodeXlsxDatetime, ExportFrame, ExportKind, ExportQueryResult,
     ExtractSqlValeFromJsonValue, Field, FirstTrue, ForeignKeyDef, GetBackendKind,
-    GetTestExportTableKinds, Index, IndexKind, ListTable, MetaValue, NamedStaff, QueryEvent,
+    GetTestExportTableKinds, Index, IndexKind, ListTable, MetaValue, NameWithParameter, QueryEvent,
     QueryResp, QuerySql, ReadOnlyTrait, SchemaTrait, ServerMetas, ShowTableParameter, SqlBuilder,
     SqlCollect, TriggerDetail, TriggerEnable, TriggerEvent, TriggerTiming, XlsxEdit,
     XlsxEditContent, POOL_MAX_CONNECTIONS,
@@ -454,7 +454,7 @@ impl SqlServerDB {
     pub(crate) async fn list_procedure_impl(
         &self,
         schema: &str,
-    ) -> anyhow::Result<Vec<NamedStaff>> {
+    ) -> anyhow::Result<Vec<NameWithParameter>> {
         let sql = format!(
             r#"
                 SELECT  name
@@ -474,7 +474,9 @@ impl SqlServerDB {
             match item {
                 tiberius::QueryItem::Row(row) => {
                     let name: Option<&str> = row.try_get(0)?;
-                    ret.push(NamedStaff::from(name.unwrap_or_default().to_string()));
+                    ret.push(NameWithParameter::from(
+                        name.unwrap_or_default().to_string(),
+                    ));
                 }
                 tiberius::QueryItem::Metadata(_) => {}
             }
@@ -490,7 +492,10 @@ impl GetBackendKind for SqlServerDB {
 }
 
 impl SqlServerDB {
-    pub(crate) async fn list_udf_impl(&self, schema: &str) -> anyhow::Result<Vec<NamedStaff>> {
+    pub(crate) async fn list_udf_impl(
+        &self,
+        schema: &str,
+    ) -> anyhow::Result<Vec<NameWithParameter>> {
         let sql = format!(
             r#"
             SELECT 
@@ -514,7 +519,7 @@ impl SqlServerDB {
                 tiberius::QueryItem::Row(row) => {
                     let name: Option<&str> = row.try_get(0)?;
                     if let Some(name) = name {
-                        ret.push(NamedStaff::from(name.to_owned()));
+                        ret.push(NameWithParameter::from(name.to_owned()));
                     }
                 }
                 tiberius::QueryItem::Metadata(..) => {}
@@ -773,7 +778,7 @@ impl SchemaTrait for SqlServerDB {
         anyhow::Ok(sql.into())
     }
 
-    async fn list_trigger(&self, table_name: &str) -> anyhow::Result<Vec<NamedStaff>> {
+    async fn list_trigger(&self, table_name: &str) -> anyhow::Result<Vec<NameWithParameter>> {
         let sql = format!(
             r#"
             SELECT 
@@ -800,7 +805,7 @@ impl SchemaTrait for SqlServerDB {
                 tiberius::QueryItem::Metadata(_) => {}
             }
         }
-        anyhow::Ok(ret.into_iter().map(NamedStaff::from).collect())
+        anyhow::Ok(ret.into_iter().map(NameWithParameter::from).collect())
     }
 
     async fn show_trigger(&self, table: &str, name: &str) -> anyhow::Result<TriggerDetail> {
@@ -1152,11 +1157,11 @@ impl SchemaTrait for SqlServerDB {
         anyhow::Ok(sql)
     }
 
-    async fn list_udf(&self) -> anyhow::Result<Vec<NamedStaff>> {
+    async fn list_udf(&self) -> anyhow::Result<Vec<NameWithParameter>> {
         self.list_udf_impl(self.config.schema_str()?).await
     }
 
-    async fn show_udf(&self, name: &NamedStaff) -> anyhow::Result<DefAndMetas> {
+    async fn show_udf(&self, name: &NameWithParameter) -> anyhow::Result<DefAndMetas> {
         let sql = format!(
             r#"
         SELECT 
@@ -1225,7 +1230,7 @@ impl SchemaTrait for SqlServerDB {
         anyhow::bail!("query udf definition failed, no result.")
     }
 
-    async fn drop_udf(&self, name: &NamedStaff) -> anyhow::Result<String> {
+    async fn drop_udf(&self, name: &NameWithParameter) -> anyhow::Result<String> {
         self.can_write()?;
         let sql = format!(r#"DROP FUNCTION "{}"."{1}""#, Self::DBO_SCHEMA, name.name);
         log::info!("sql:{}", sql);
@@ -1233,12 +1238,12 @@ impl SchemaTrait for SqlServerDB {
         anyhow::Ok(sql)
     }
 
-    async fn list_procedure(&self) -> anyhow::Result<Vec<NamedStaff>> {
+    async fn list_procedure(&self) -> anyhow::Result<Vec<NameWithParameter>> {
         self.list_procedure_impl(self.config.schema_str()?.as_str())
             .await
     }
 
-    async fn show_procedure(&self, name: &NamedStaff) -> anyhow::Result<DefAndMetas> {
+    async fn show_procedure(&self, name: &NameWithParameter) -> anyhow::Result<DefAndMetas> {
         let sql = format!(
             r#"
             SELECT 
@@ -1280,7 +1285,7 @@ impl SchemaTrait for SqlServerDB {
         anyhow::bail!("query procedure failed, no result.")
     }
 
-    async fn drop_procedure(&self, name: &NamedStaff) -> anyhow::Result<String> {
+    async fn drop_procedure(&self, name: &NameWithParameter) -> anyhow::Result<String> {
         self.can_write()?;
         let sql = format!(r#"DROP PROCEDURE dbo."{}""#, name.name);
         log::info!("sql:{}", sql);
@@ -2028,7 +2033,10 @@ impl CatalogTrait for SqlServerDB {
     }
 }
 
+// docker run --name some-sqlserver -e "ACCEPT_EULA=Y" -e "MSSQL_SA_PASSWORD=sfdewRE123" -p 1433:1433 -d mcr.microsoft.com/mssql/server:latest
+
 #[cfg(test)]
+#[allow(unused)]
 pub(crate) async fn make_test_object() -> SqlServerDB {
     SqlServerDB::new(SqlServerDBConfig {
         host: crate::TEST_HOST.to_string(),
@@ -2047,6 +2055,7 @@ pub(crate) async fn make_test_object() -> SqlServerDB {
     .unwrap()
 }
 #[cfg(test)]
+#[allow(unused)]
 pub(crate) fn test_lock() -> &'static Mutex<()> {
     static LOCK: Mutex<()> = Mutex::const_new(());
 
@@ -2360,7 +2369,9 @@ impl GetTestExportTableKinds for SqlServerDB {
         false
     }
 }
+
 #[cfg(test)]
+#[cfg(any(target_os = "linux", target_os = "windows"))]
 mod tests {
     use std::process::Command;
 
@@ -2492,7 +2503,7 @@ mod tests {
         let query_id = "aaaa";
         db.open_connection(query_id).await.unwrap();
         let _ = db
-            .drop_procedure(&NamedStaff::from("test_procedure".to_string()))
+            .drop_procedure(&NameWithParameter::from("test_procedure".to_string()))
             .await;
         db.execute_sql(
             query_id,
@@ -2520,7 +2531,9 @@ END;
         let db = make_test_object().await;
         let query_id = "aaaa";
         db.open_connection(query_id).await.unwrap();
-        let _ = db.drop_udf(&NamedStaff::from("test_udf".to_string())).await;
+        let _ = db
+            .drop_udf(&NameWithParameter::from("test_udf".to_string()))
+            .await;
         db.execute_sql(
             query_id,
             r#"

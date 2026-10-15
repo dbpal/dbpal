@@ -35,7 +35,7 @@ use crate::db::{
     ColumnType, CreateIndexReq, CreateSchemaArg, CreateTableAndIndexSql, CreatedTypeDef, DBTrait,
     DefAndMetas, EncodeXlsxDatetime, ExportFrame, ExportKind, ExportQueryResult,
     ExtractSqlValeFromJsonValue, Field, GetBackendKind, GetTestExportTableKinds, Index, IndexKind,
-    ListTable, MetaValue, NamedStaff, QueryEventEmitter, QueryResp, QuerySql, ReadOnlyTrait,
+    ListTable, MetaValue, NameWithParameter, QueryEventEmitter, QueryResp, QuerySql, ReadOnlyTrait,
     SchemaTrait, ServerMetas, ShowTableParameter, SqlBuilder, XlsxEdit, XlsxEditContent,
 };
 
@@ -1325,11 +1325,11 @@ impl SchemaTrait for CassandraDB {
         self.show_table_columns(view_name).await
     }
 
-    async fn list_udf(&self) -> anyhow::Result<Vec<NamedStaff>> {
+    async fn list_udf(&self) -> anyhow::Result<Vec<NameWithParameter>> {
         self.list_udf_impl(self.config.key_space_str()?).await
     }
 
-    async fn show_udf(&self, name: &NamedStaff) -> anyhow::Result<DefAndMetas> {
+    async fn show_udf(&self, name: &NameWithParameter) -> anyhow::Result<DefAndMetas> {
         // add parameter to udf have this error
         // cassandra@cqlsh:test> DESCRIBE FUNCTION  test.test_udf(int);
         // Improper DESCRIBE command.
@@ -1368,7 +1368,7 @@ impl SchemaTrait for CassandraDB {
         ));
     }
 
-    async fn drop_udf(&self, name: &NamedStaff) -> anyhow::Result<String> {
+    async fn drop_udf(&self, name: &NameWithParameter) -> anyhow::Result<String> {
         self.can_write()?;
 
         let p = format!(
@@ -1488,7 +1488,7 @@ impl DBTrait for CassandraDB {
 }
 
 impl CassandraDB {
-    pub(crate) async fn list_udf_impl(&self, key_space: &str) -> anyhow::Result<Vec<NamedStaff>> {
+    pub(crate) async fn list_udf_impl(&self, key_space: &str) -> anyhow::Result<Vec<NameWithParameter>> {
         let sql = format!(
             r#"SELECT function_name, argument_types, return_type, language 
                 FROM system_schema.functions 
@@ -1501,7 +1501,7 @@ impl CassandraDB {
         let mut ret = Vec::new();
         while let Some(row) = stream.next().await {
             let (name, argument_types, return_type, language) = row?;
-            ret.push(NamedStaff {
+            ret.push(NameWithParameter {
                 name,
                 parameters: None,
                 cassandra_parameters: Some(argument_types),
@@ -1559,7 +1559,7 @@ pub(crate) fn test_lock() -> &'static Mutex<()> {
 }
 
 impl CassandraDB {
-    pub async fn list_aggregate_impl(&self, key_space: &str) -> anyhow::Result<Vec<NamedStaff>> {
+    pub async fn list_aggregate_impl(&self, key_space: &str) -> anyhow::Result<Vec<NameWithParameter>> {
         let sql = format!(
             r#"
         SELECT aggregate_name, argument_types, return_type, state_func, final_func, initcond
@@ -1581,7 +1581,7 @@ impl CassandraDB {
         while let Some(row) = stream.next().await {
             let (name, argument_types, return_type, state_func, final_func, initcond) = row?;
 
-            ret.push(NamedStaff {
+            ret.push(NameWithParameter {
                 parameters: None,
                 name,
                 metas: vec![
@@ -1597,7 +1597,7 @@ impl CassandraDB {
         anyhow::Ok(ret)
     }
 
-    pub async fn list_aggregate(&self) -> anyhow::Result<Vec<NamedStaff>> {
+    pub async fn list_aggregate(&self) -> anyhow::Result<Vec<NameWithParameter>> {
         self.list_aggregate_impl(self.config.key_space_str()?).await
     }
 
@@ -1692,11 +1692,11 @@ pub(crate) mod test_impls {
                 .drop_aggregate("test_aggregate", vec!["int".to_string()])
                 .await;
             let _ = db
-                .drop_udf(&NamedStaff::from("sum_state_function".to_string()))
+                .drop_udf(&NameWithParameter::from("sum_state_function".to_string()))
                 .await;
 
             let _ = db
-                .drop_udf(&NamedStaff {
+                .drop_udf(&NameWithParameter {
                     name: "sum_final_function".to_string(),
                     cassandra_parameters: Some(vec!["int".to_string()]),
                     ..Default::default()
@@ -2380,7 +2380,7 @@ pub(crate) mod test_impls {
         let name = "test_udf";
         {
             let err = db
-                .drop_udf(&NamedStaff {
+                .drop_udf(&NameWithParameter {
                     name: name.to_string(),
                     cassandra_parameters: Some(vec!["text".to_string()]),
                     ..Default::default()
@@ -2390,7 +2390,7 @@ pub(crate) mod test_impls {
                 println!("drop udf error:{}", err);
             }
             let err = db
-                .drop_udf(&NamedStaff {
+                .drop_udf(&NameWithParameter {
                     name: name.to_string(),
                     cassandra_parameters: Some(vec!["list<int>".to_string()]),
                     ..Default::default()
@@ -2432,7 +2432,7 @@ pub(crate) mod test_impls {
         list.iter().for_each(|x| println!("udf:{:?}", x));
 
         let detail = db
-            .show_udf(&NamedStaff {
+            .show_udf(&NameWithParameter {
                 name: "test_udf".to_string(),
                 cassandra_parameters: Some(vec!["text".to_string()]),
                 ..Default::default()

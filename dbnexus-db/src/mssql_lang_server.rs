@@ -4,8 +4,9 @@
 
 use crate::db::{CatalogTrait, CreatedTypeDef};
 use crate::language_server::{
-    parser_dot_lexer_completion, AstCompletionHelper, CompletionItem, CompletionKind, CompletionList,
-    DBExecutable, GetKeyWords, LangServerCommon, LanguageServer, LexerCompletionTrait,
+    parser_dot_lexer_completion, AstCompletionHelper, CompletionItem, CompletionKind,
+    CompletionList, DBExecutable, GetKeyWords, LangServerCommon, LanguageServer,
+    LexerCompletionTrait,
 };
 use crate::mssql::SqlServerDB;
 use crate::sqlparser_completion::TempTableColumn;
@@ -303,7 +304,7 @@ impl LangServerCommon for SqlServerDB {
     async fn list_execute(&self, schema: Option<&str>) -> anyhow::Result<Vec<DBExecutable>> {
         let call_schema = schema;
         let schema = self.not_allow_empty_schema(schema)?;
-        let mut ret: Vec<crate::db::NamedStaff> = self.list_procedure_impl(&schema).await?;
+        let mut ret: Vec<crate::db::NameWithParameter> = self.list_procedure_impl(&schema).await?;
         if call_schema.is_none() && schema != Self::SYS_SCHEMA {
             ret.extend(self.list_procedure_impl(Self::SYS_SCHEMA).await?);
         }
@@ -849,6 +850,7 @@ pub const SQL_SERVER_GLOBAL_VARS: &[&str] = &[
 ];
 
 #[cfg(test)]
+#[cfg(any(target_os = "linux", target_os = "windows"))]
 mod tests {
     use std::path::Path;
 

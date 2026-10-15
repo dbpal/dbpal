@@ -9,7 +9,7 @@ use dbnexus_db::cassandra::CassandraDB;
 use dbnexus_db::db::{
     parse_bson_doc, quote_sql_str, ColumnType, CreateDatabaseArg, CreateIndexReq, CreateSchemaArg,
     CreateTableAndIndexSql, CreateTableReq, CreatedTypeDef, DefAndMetas, ExportKind, Field,
-    ForeignKeyDef, Index, JsUint8Array, ListTable, MetaValue, NamedStaff, OptionMustBeSomeErr,
+    ForeignKeyDef, Index, JsUint8Array, ListTable, MetaValue, NameWithParameter, OptionMustBeSomeErr,
     QueryEventEmit, QueryResp, SequenceDetail, ShowTableParameter, SqlEvent, TableImportPara,
     TimeElapsed, TriggerDetail,
 };
@@ -2994,7 +2994,7 @@ pub async fn redis_zset_add(
 pub async fn list_procedure(
     db_name: String,
     app: tauri::State<'_, DBPal>,
-) -> Result<Vec<NamedStaff>, ErrorFrontend> {
+) -> Result<Vec<NameWithParameter>, ErrorFrontend> {
     let schema = app
         .get_schema(db_name.as_str())
         .await
@@ -3007,7 +3007,7 @@ pub async fn list_procedure(
 #[tauri::command]
 pub async fn show_procedure(
     db_name: String,
-    procedure: NamedStaff,
+    procedure: NameWithParameter,
 
     app: tauri::State<'_, DBPal>,
 ) -> Result<DefAndMetas, ErrorFrontend> {
@@ -3025,7 +3025,7 @@ pub async fn show_procedure(
 #[tauri::command]
 pub async fn drop_procedure(
     db_name: String,
-    procedure: NamedStaff,
+    procedure: NameWithParameter,
     app: tauri::State<'_, DBPal>,
 ) -> Result<String, ErrorFrontend> {
     let schema = app
@@ -3043,7 +3043,7 @@ pub async fn drop_procedure(
 pub async fn list_udf(
     db_name: String,
     app: tauri::State<'_, DBPal>,
-) -> Result<Vec<NamedStaff>, ErrorFrontend> {
+) -> Result<Vec<NameWithParameter>, ErrorFrontend> {
     let schema = app
         .get_schema(db_name.as_str())
         .await
@@ -3106,7 +3106,7 @@ pub async fn rename_sequence(
 #[tauri::command]
 pub async fn show_udf(
     db_name: String,
-    udf: NamedStaff,
+    udf: NameWithParameter,
     app: tauri::State<'_, DBPal>,
 ) -> Result<DefAndMetas, ErrorFrontend> {
     let schema = app
@@ -3120,7 +3120,7 @@ pub async fn show_udf(
 #[tauri::command]
 pub async fn drop_udf(
     db_name: String,
-    udf: NamedStaff,
+    udf: NameWithParameter,
 
     app: tauri::State<'_, DBPal>,
 ) -> Result<String, ErrorFrontend> {
@@ -3241,7 +3241,7 @@ pub async fn sql_encode_values(
 pub async fn cassandra_list_aggregate(
     db_name: String,
     app: tauri::State<'_, DBPal>,
-) -> Result<Vec<NamedStaff>, ErrorFrontend> {
+) -> Result<Vec<NameWithParameter>, ErrorFrontend> {
     let schema = app
         .get_schema(db_name.as_str())
         .await

@@ -128,7 +128,6 @@ impl DBTrait for MongoDB {
         name: &str,
         _extra: Option<CreateSchemaArg>,
     ) -> anyhow::Result<()> {
-        self.can_write()?;
         self.created_databases.insert(name.to_owned());
         anyhow::Ok(())
     }

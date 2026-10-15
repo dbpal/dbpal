@@ -16,7 +16,7 @@ use crate::db::{
     ColumnType, CreateIndexReq, CreateSchemaArg, CreateTableAndIndexSql, DBTrait, DefAndMetas,
     EncodeXlsxDatetime, ExportFrame, ExportKind, ExportQueryResult, ExtractSqlValeFromJsonValue,
     Field, FirstTrue, ForeignKeyDef, GetBackendKind, GetTestExportTableKinds, Index, IndexKind,
-    ListTable, MetaValue, NamedStaff, OptionMustBeSomeErr, QueryEvent, QueryEventEmitter,
+    ListTable, MetaValue, NameWithParameter, OptionMustBeSomeErr, QueryEvent, QueryEventEmitter,
     QueryResp, QuerySql, SchemaTrait, ServerMetas, ShowTableParameter, SqlBuilder, SqlCollect,
     TriggerDetail, TriggerEnable, TriggerEvent, TriggerTiming, XlsxEdit, XlsxEditContent,
     POOL_MAX_CONNECTIONS,
@@ -1461,7 +1461,7 @@ impl SchemaTrait for OracleDB {
         .await?
     }
 
-    async fn list_trigger(&self, table_name: &str) -> anyhow::Result<Vec<NamedStaff>> {
+    async fn list_trigger(&self, table_name: &str) -> anyhow::Result<Vec<NameWithParameter>> {
         let sql = format!(
             r#"
             SELECT trigger_name
@@ -1474,7 +1474,7 @@ impl SchemaTrait for OracleDB {
         let rows = self.query(sql).await?;
         for row in rows {
             let x: String = row.get(0)?;
-            ret.push(NamedStaff::from(x));
+            ret.push(NameWithParameter::from(x));
         }
         anyhow::Ok(ret)
     }
@@ -1530,7 +1530,7 @@ impl SchemaTrait for OracleDB {
         anyhow::Ok(sql)
     }
 
-    async fn list_udf(&self) -> anyhow::Result<Vec<NamedStaff>> {
+    async fn list_udf(&self) -> anyhow::Result<Vec<NameWithParameter>> {
         let sql = format!(
             r#"
             SELECT object_name 
@@ -1544,12 +1544,12 @@ impl SchemaTrait for OracleDB {
         let mut ret = Vec::new();
         for row in self.query(sql).await? {
             let name: String = row.get(0)?;
-            ret.push(NamedStaff::from(name));
+            ret.push(NameWithParameter::from(name));
         }
         anyhow::Ok(ret)
     }
 
-    async fn show_udf(&self, name: &NamedStaff) -> anyhow::Result<DefAndMetas> {
+    async fn show_udf(&self, name: &NameWithParameter) -> anyhow::Result<DefAndMetas> {
         let sql = self.get_user_source(name).await?;
         log::info!("sql:{}", sql);
         anyhow::Ok(DefAndMetas {
@@ -1558,18 +1558,18 @@ impl SchemaTrait for OracleDB {
         })
     }
 
-    async fn drop_udf(&self, name: &NamedStaff) -> anyhow::Result<String> {
+    async fn drop_udf(&self, name: &NameWithParameter) -> anyhow::Result<String> {
         let sql = format!(r#"DROP FUNCTION "{   }""#, name.name);
         log::info!("sql:{}", sql);
         self.simple_execute_sql(&sql).await?;
         anyhow::Ok(sql)
     }
 
-    async fn list_procedure(&self) -> anyhow::Result<Vec<NamedStaff>> {
+    async fn list_procedure(&self) -> anyhow::Result<Vec<NameWithParameter>> {
         self.list_procedure_impl(self.schema_str()).await
     }
 
-    async fn show_procedure(&self, name: &NamedStaff) -> anyhow::Result<DefAndMetas> {
+    async fn show_procedure(&self, name: &NameWithParameter) -> anyhow::Result<DefAndMetas> {
         let sql = self.get_user_source(name).await?;
         log::info!("sql:{}", sql);
         anyhow::Ok(DefAndMetas {
@@ -1578,7 +1578,7 @@ impl SchemaTrait for OracleDB {
         })
     }
 
-    async fn drop_procedure(&self, name: &NamedStaff) -> anyhow::Result<String> {
+    async fn drop_procedure(&self, name: &NameWithParameter) -> anyhow::Result<String> {
         let sql = format!(r#"DROP PROCEDURE "{}""#, name.name);
         log::info!("sql:{}", sql);
         self.simple_execute_sql(&sql).await?;
@@ -1590,7 +1590,7 @@ impl OracleDB {
     pub(crate) async fn list_procedure_impl(
         &self,
         schema: &str,
-    ) -> anyhow::Result<Vec<NamedStaff>> {
+    ) -> anyhow::Result<Vec<NameWithParameter>> {
         let sql = format!(
             r#"
                 SELECT object_name 
@@ -1605,7 +1605,7 @@ impl OracleDB {
         let mut ret = Vec::new();
         for row in rows {
             let name: String = row.get(0)?;
-            ret.push(NamedStaff {
+            ret.push(NameWithParameter {
                 name,
                 metas: vec![],
                 parameters: None,
@@ -1716,7 +1716,7 @@ impl SqlBuilder for OracleDB {
     }
 }
 impl OracleDB {
-    async fn get_user_source(&self, name: &NamedStaff) -> anyhow::Result<String> {
+    async fn get_user_source(&self, name: &NameWithParameter) -> anyhow::Result<String> {
         let sql = format!(
             r#"
             SELECT text
@@ -2037,7 +2037,7 @@ mod tests {
         db.open_connection(query_id).await.unwrap();
         let udf_name = "DO_NOTHING_P";
         let _ = db
-            .drop_procedure(&NamedStaff::from(udf_name.to_string()))
+            .drop_procedure(&NameWithParameter::from(udf_name.to_string()))
             .await;
 
         db.execute_sql(
@@ -2071,7 +2071,7 @@ mod tests {
         let query_id = "aaaa";
         db.open_connection(query_id).await.unwrap();
         let udf_name = "DO_NOTHING";
-        let _ = db.drop_udf(&NamedStaff::from(udf_name.to_string())).await;
+        let _ = db.drop_udf(&NameWithParameter::from(udf_name.to_string())).await;
         db.execute_sql(
             query_id,
             r#"

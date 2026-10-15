@@ -14,10 +14,10 @@ import {
 
 import { CopySql, ShowingCount } from "./CommonComp2";
 import { useNotification, useTabsManage, useMatcherFn } from "./store";
-import { commands, NamedStaff } from "./bindings.ts";
+import { commands, NameWithParameter } from "./bindings.ts";
 function ProceduresTree() {
   const { dbName, kind } = useContext(DbnameContext);
-  const [ps, setPs] = useState<NamedStaff[]>([]);
+  const [ps, setPs] = useState<NameWithParameter[]>([]);
   const { showNotification } = useNotification();
   const matchPattern = useMatcherFn();
   const reload = useCallback((): void => {
@@ -76,7 +76,7 @@ function ProceduresTree() {
 
 function ProcedureMenu(props: {
   dbName: string;
-  procedure: NamedStaff;
+  procedure: NameWithParameter;
   reload: () => void;
   kind: DataSourceKind;
 }) {

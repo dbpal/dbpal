@@ -5,10 +5,10 @@ use crate::db::{
     BackendKindMysql, CheckConn, ColumnType, CreateIndexReq, CreateSchemaArg,
     CreateTableAndIndexSql, DBTrait, DefAndMetas, EncodeXlsxDatetime, ExportFrame, ExportKind,
     ExportQueryResult, ExtractSqlValeFromJsonValue, Field, FirstTrue, ForeignKeyDef,
-    GetBackendKind, GetTestExportTableKinds, Index, IndexKind, ListTable, MetaValue, NamedStaff,
-    QueryEvent, QueryEventEmitter, QueryResp, QuerySql, SchemaTrait, SequenceDetail, ServerMetas,
-    ShowTableParameter, SqlBuilder, SqlCollect, SqlEvent, TriggerDetail, TriggerEvent,
-    TriggerTiming, XlsxEdit, XlsxEditContent, POOL_MAX_CONNECTIONS,
+    GetBackendKind, GetTestExportTableKinds, Index, IndexKind, ListTable, MetaValue,
+    NameWithParameter, QueryEvent, QueryEventEmitter, QueryResp, QuerySql, SchemaTrait,
+    SequenceDetail, ServerMetas, ShowTableParameter, SqlBuilder, SqlCollect, SqlEvent,
+    TriggerDetail, TriggerEvent, TriggerTiming, XlsxEdit, XlsxEditContent, POOL_MAX_CONNECTIONS,
 };
 use crate::helper::{create_csv, extract_bytes_from_serde_values};
 use crate::language_server::{get_update_sql_from_result_set_impl, LexerCompletionTrait};
@@ -807,15 +807,15 @@ impl SchemaTrait for MysqlDB {
         anyhow::Ok(ret)
     }
 
-    async fn list_procedure(&self) -> anyhow::Result<Vec<NamedStaff>> {
+    async fn list_procedure(&self) -> anyhow::Result<Vec<NameWithParameter>> {
         let mut conn = self.get_conn().await?;
         let ret = FunctionOrProcedure::Procedure
             .query_list(conn.deref_mut(), self.config.schema_str())
             .await?;
-        anyhow::Ok(ret.into_iter().map(NamedStaff::from).collect())
+        anyhow::Ok(ret.into_iter().map(NameWithParameter::from).collect())
     }
 
-    async fn show_procedure(&self, name: &NamedStaff) -> anyhow::Result<DefAndMetas> {
+    async fn show_procedure(&self, name: &NameWithParameter) -> anyhow::Result<DefAndMetas> {
         let sql = format!("SHOW CREATE PROCEDURE {};", name.name);
 
         let row = self.query_row(sql).await?;
@@ -828,14 +828,14 @@ impl SchemaTrait for MysqlDB {
         ))
     }
 
-    async fn drop_procedure(&self, name: &NamedStaff) -> anyhow::Result<String> {
+    async fn drop_procedure(&self, name: &NameWithParameter) -> anyhow::Result<String> {
         let sql = format!("DROP PROCEDURE `{}`", name.name);
         log::info!("sql:{}", sql);
         self.simple_execute_sql(&sql).await?;
         anyhow::Ok(sql)
     }
 
-    async fn show_udf(&self, name: &NamedStaff) -> anyhow::Result<DefAndMetas> {
+    async fn show_udf(&self, name: &NameWithParameter) -> anyhow::Result<DefAndMetas> {
         let sql = format!("SHOW CREATE FUNCTION {};", name.name);
         let row = self.query_row(&sql).await?;
 
@@ -847,21 +847,21 @@ impl SchemaTrait for MysqlDB {
         ))
     }
 
-    async fn drop_udf(&self, name: &NamedStaff) -> anyhow::Result<String> {
+    async fn drop_udf(&self, name: &NameWithParameter) -> anyhow::Result<String> {
         let sql = format!("DROP FUNCTION `{}`", name.name);
         log::info!("sql:{}", sql);
         self.simple_execute_sql(&sql).await?;
         anyhow::Ok(sql)
     }
 
-    async fn list_udf(&self) -> anyhow::Result<Vec<NamedStaff>> {
+    async fn list_udf(&self) -> anyhow::Result<Vec<NameWithParameter>> {
         let mut conn = self.get_conn().await?;
 
         let ret = FunctionOrProcedure::Function
             .query_list(conn.deref_mut(), self.config.schema_str())
             .await?;
 
-        anyhow::Ok(ret.into_iter().map(NamedStaff::from).collect())
+        anyhow::Ok(ret.into_iter().map(NameWithParameter::from).collect())
     }
 
     async fn duplicate_table(&self, table: &str, dup: &str) -> anyhow::Result<()> {
@@ -920,7 +920,7 @@ impl SchemaTrait for MysqlDB {
         anyhow::Ok(sql)
     }
 
-    async fn list_trigger(&self, table_name: &str) -> anyhow::Result<Vec<NamedStaff>> {
+    async fn list_trigger(&self, table_name: &str) -> anyhow::Result<Vec<NameWithParameter>> {
         let sql = format!(
             r#"
             SELECT TRIGGER_NAME
@@ -937,7 +937,7 @@ impl SchemaTrait for MysqlDB {
             let name: String = r.get(0);
             ret.push(name);
         }
-        anyhow::Ok(ret.into_iter().map(NamedStaff::from).collect())
+        anyhow::Ok(ret.into_iter().map(NameWithParameter::from).collect())
     }
 
     async fn export_table_or_view(
@@ -2191,7 +2191,7 @@ pub(crate) mod test_fns {
         let f = "test_procedure";
 
         let _ = db
-            .drop_procedure(&NamedStaff {
+            .drop_procedure(&NameWithParameter {
                 name: f.to_string(),
                 ..Default::default()
             })
@@ -2223,7 +2223,7 @@ pub(crate) mod test_fns {
         let f = "test_function";
 
         let _ = db
-            .drop_udf(&NamedStaff {
+            .drop_udf(&NameWithParameter {
                 name: f.to_string(),
                 ..Default::default()
             })

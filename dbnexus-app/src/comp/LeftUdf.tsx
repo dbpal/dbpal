@@ -13,12 +13,12 @@ import {
 } from "./CommonComp";
 import { CopySql, ShowingCount } from "./CommonComp2";
 import { useNotification, useTabsManage, useMatcherFn } from "./store";
-import { commands, NamedStaff } from "./bindings.ts";
+import { commands, NameWithParameter } from "./bindings.ts";
 
 function UdfsTree() {
   const { dbName, kind } = useContext(DbnameContext);
 
-  const [udfs, setUdfs] = useState<NamedStaff[]>([]);
+  const [udfs, setUdfs] = useState<NameWithParameter[]>([]);
   const { showNotification } = useNotification();
   const matchPattern = useMatcherFn();
   const showItems = useMemo(() => {
@@ -74,7 +74,12 @@ function UdfsTree() {
   );
 }
 
-function UdfMenu(props: { dbName; udf: NamedStaff; reload; kind: DataSourceKind }) {
+function UdfMenu(props: {
+  dbName;
+  udf: NameWithParameter;
+  reload;
+  kind: DataSourceKind;
+}) {
   const { dbName, udf, reload, kind } = props;
   const { appendTab } = useTabsManage();
   const { showNotification } = useNotification();
@@ -228,7 +233,7 @@ function CassandraAggregateMenu(props: {
 
 function CassandraAggregatesTree() {
   const { dbName } = useContext(DbnameContext);
-  const [aggs, setAggs] = useState<NamedStaff[]>([]);
+  const [aggs, setAggs] = useState<NameWithParameter[]>([]);
   const { showNotification } = useNotification();
   const reload = useCallback(() => {
     commands

@@ -74,7 +74,7 @@ mod tests {
     use super::*;
     use crate::db::{
         CatalogTrait, CheckConn, ColumnType, CreateIndexColumn, CreateIndexReq, IndexKind,
-        NamedStaff, QuerySql, SchemaTrait, ServerMetas, SqlNullAble,
+        NameWithParameter, QuerySql, SchemaTrait, ServerMetas, SqlNullAble,
     };
     use crate::db::{ExportKind, ShowTableParameter};
     use crate::enable_test_log;
@@ -395,7 +395,7 @@ mod tests {
         let query_id = "aaaa";
         db.open_connection(query_id).await.unwrap();
         let _ = db
-            .drop_procedure(&NamedStaff {
+            .drop_procedure(&NameWithParameter {
                 name: "test_procedure".to_string(),
                 parameters: Some("".to_string()),
                 ..Default::default()
@@ -523,7 +523,7 @@ mod tests {
         pg.open_connection(query_id).await.unwrap();
         let udf_name = "test_udf";
         let _ = pg
-            .drop_udf(&NamedStaff {
+            .drop_udf(&NameWithParameter {
                 name: udf_name.to_string(),
                 parameters: Some("a integer, b integer".to_string()),
                 ..Default::default()
