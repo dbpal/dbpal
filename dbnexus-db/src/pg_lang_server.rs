@@ -16,13 +16,17 @@ use tokio::sync::Mutex;
 #[async_trait::async_trait]
 impl LexerCompletionTrait for PostGresDB {
     async fn get_types(&self) -> anyhow::Result<Vec<String>> {
+        static TYPES_CACHE: Mutex<Vec<String>> = Mutex::const_new(Vec::new());
+        let mut lock = TYPES_CACHE.lock().await;
+        if !lock.is_empty() {
+            return anyhow::Ok(lock.clone());
+        }
         let ts = match self.kind {
             BackendKindPostGres::CockRoach => COCKROACH_TYPES,
             _ => POSTGRES_TYPES,
         };
-
-        let r = ts.iter().map(|x| x.to_string()).collect::<Vec<_>>();
-        return anyhow::Ok(r);
+        *lock = ts.iter().map(|x| x.to_string()).collect::<Vec<_>>();
+        return anyhow::Ok(lock.clone());
     }
 }
 
