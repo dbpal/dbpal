@@ -42,7 +42,7 @@ rand.workspace = true
 redis.workspace = true
 chrono.workspace = true
 tauri-plugin-store = { version = "2.4.1" }
-tauri-plugin-clipboard-manager = "2.3"
+tauri-plugin-clipboard-manager = "2.5"
 tauri-plugin-keyring = "0.1.0"
 tauri-plugin-opener = "2.5"
 tauri-plugin-os = "2.3"
