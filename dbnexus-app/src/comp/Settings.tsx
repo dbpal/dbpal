@@ -1140,9 +1140,8 @@ function makeComponents(
     MuiMenuItem: {
       styleOverrides: {
         root: {
-          fontSize: "1rem",
-          padding: "2px",
-          minHeight: "1rem",
+          padding: "2px 6px",
+          minHeight: "1.2rem",
         },
       },
     },
