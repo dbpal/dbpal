@@ -1,6 +1,6 @@
 [submodule "dbnexus-app/redis-doc"]
-    path = dbnexus-app/redis-doc
-    url = https://github.com/redis/redis-doc
+	path = redis-doc
+	url = https://github.com/redis/redis-doc
 [submodule "dbnexus-app/monaco-themes"]
 	path = dbnexus-app/monaco-themes
 	url = https://github.com/brijeshb42/monaco-themes
